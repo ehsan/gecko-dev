@@ -70,17 +70,20 @@ TestMultiMgrsRightChild::RecvPTestMultiMgrsBottomConstructor(
 bool
 TestMultiMgrsChild::RecvCheck()
 {
-    if (1 != ManagedPTestMultiMgrsLeftChild().Length())
+    nsTArray<PTestMultiMgrsLeftChild*> la;
+    ManagedPTestMultiMgrsLeftChild(la);
+    nsTArray<PTestMultiMgrsRightChild*> lr;
+    ManagedPTestMultiMgrsRightChild(lr);
+
+    if (1 != la.Length())
         fail("where's leftie?");
-    if (1 != ManagedPTestMultiMgrsRightChild().Length())
+    if (1 != lr.Length())
         fail("where's rightie?");
 
     TestMultiMgrsLeftChild* leftie =
-        static_cast<TestMultiMgrsLeftChild*>(
-            ManagedPTestMultiMgrsLeftChild()[0]);
+        static_cast<TestMultiMgrsLeftChild*>(la[0]);
     TestMultiMgrsRightChild* rightie =
-        static_cast<TestMultiMgrsRightChild*>(
-            ManagedPTestMultiMgrsRightChild()[0]);
+        static_cast<TestMultiMgrsRightChild*>(lr[0]);
 
     if (!leftie->HasChild(mBottomL))
         fail("leftie didn't have a child it was supposed to!");

@@ -44,9 +44,6 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -75,16 +72,16 @@ nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
   if (mPresContext && (presShell = mPresContext->GetPresShell())) {
     nsIDocument *doc = presShell->GetDocument();
     if (doc) {
-      Element *rootElement = doc->GetRootElement();
-      if (rootElement) {
+      nsIContent *rootContent = doc->GetRootContent();
+      if (rootContent) {
         // If the root element isn't an SVG 'svg' element this QI will fail
         // (e.g. if this event was created by calling createEvent on a
         // non-SVGDocument). In these circumstances the "New" and "Previous"
         // properties will be left null which is probably what we want.
-        nsCOMPtr<nsIDOMSVGSVGElement> svgElement = do_QueryInterface(rootElement);
+        nsCOMPtr<nsIDOMSVGSVGElement> svgElement = do_QueryInterface(rootContent);
         if (svgElement) {
           nsSVGSVGElement *SVGSVGElement =
-            static_cast<nsSVGSVGElement*>(rootElement);
+            static_cast<nsSVGSVGElement*>(rootContent);
   
           mNewScale = SVGSVGElement->GetCurrentScale();
           mPreviousScale = SVGSVGElement->GetPreviousScale();
@@ -111,11 +108,9 @@ nsDOMSVGZoomEvent::nsDOMSVGZoomEvent(nsPresContext* aPresContext,
 NS_IMPL_ADDREF_INHERITED(nsDOMSVGZoomEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMSVGZoomEvent, nsDOMUIEvent)
 
-DOMCI_DATA(SVGZoomEvent, nsDOMSVGZoomEvent)
-
 NS_INTERFACE_MAP_BEGIN(nsDOMSVGZoomEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGZoomEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGZoomEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGZoomEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 

@@ -37,11 +37,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PPluginModule;
-include protocol PPluginScriptableObject;
-include protocol PBrowserStream;
-include protocol PPluginStream;
-include protocol PStreamNotify;
+include protocol "PPluginModule.ipdl";
+include protocol "PPluginScriptableObject.ipdl";
+include protocol "PBrowserStream.ipdl";
+include protocol "PPluginStream.ipdl";
+include protocol "PStreamNotify.ipdl";
 
 include "mozilla/plugins/PluginMessageUtils.h";
 
@@ -50,39 +50,10 @@ using NPRemoteWindow;
 using NPRemoteEvent;
 using NPRect;
 using NPNURLVariable;
-using NPCoordinateSpace;
 using mozilla::plugins::NativeWindowHandle;
-using mozilla::gfxSurfaceType;
-using gfxIntSize;
-using mozilla::null_t;
-using mozilla::plugins::WindowsSharedMemoryHandle;
 
 namespace mozilla {
 namespace plugins {
-
-struct SurfaceDescriptorX11 {
-  int XID;
-  int xrenderPictID;
-  gfxIntSize size;
-};
-
-struct SurfaceDescriptorWin {
-  WindowsSharedMemoryHandle handle;
-  gfxIntSize size;
-  bool transparent;
-};
-
-union SurfaceDescriptor {
-  Shmem;
-  SurfaceDescriptorX11;
-  SurfaceDescriptorWin;
-  // Descriptor can be null here in case
-  // 1) of first Show call (prevSurface is null)
-  // 2) when child is going to destroy
-  //    and it just want to grab prevSurface
-  //     back without giving new surface
-  null_t;
-};
 
 rpc protocol PPluginInstance
 {
@@ -96,7 +67,8 @@ rpc protocol PPluginInstance
 child:
   rpc __delete__();
 
-  rpc NPP_SetWindow(NPRemoteWindow window);
+  rpc NPP_SetWindow(NPRemoteWindow window)
+    returns (NPError rv);
 
   // this message is not used on non-X platforms
   rpc NPP_GetValue_NPPVpluginNeedsXEmbed()
@@ -108,27 +80,6 @@ child:
 
   rpc NPP_HandleEvent(NPRemoteEvent event)
     returns (int16_t handled);
-  // special cases where we need to a shared memory buffer
-  rpc NPP_HandleEvent_Shmem(NPRemoteEvent event, Shmem buffer)
-    returns (int16_t handled, Shmem rtnbuffer);
-  // special cases where we need an iosurface
-  rpc NPP_HandleEvent_IOSurface(NPRemoteEvent event, uint32_t surfaceid)
-    returns (int16_t handled);
-  // special cases of HandleEvent to make mediating races simpler
-  rpc Paint(NPRemoteEvent event)
-    returns (int16_t handled);
-  // this is only used on windows to forward WM_WINDOWPOSCHANGE
-  async WindowPosChanged(NPRemoteEvent event);
-
-  // ********************** Async plugins rendering
-  // see https://wiki.mozilla.org/Gecko:AsyncPluginPainting
-  // **********************
-
-  // Async version of SetWindow call
-  // @param surfaceType - gfxASurface::gfxSurfaceType
-  //        plugin child must create offscreen buffer
-  //        with type equals to surfaceType
-  async AsyncSetWindow(gfxSurfaceType surfaceType, NPRemoteWindow window);
 
   rpc NPP_Destroy()
     returns (NPError rv);
@@ -151,10 +102,6 @@ parent:
     returns (NPError result);
   rpc NPN_SetValue_NPPVpluginTransparent(bool transparent)
     returns (NPError result);
-  rpc NPN_SetValue_NPPVpluginDrawingModel(int drawingModel)
-    returns (NPError result);
-  rpc NPN_SetValue_NPPVpluginEventModel(int eventModel)
-    returns (NPError result);
 
   rpc NPN_GetURL(nsCString url, nsCString target)
     returns (NPError result);
@@ -164,7 +111,7 @@ parent:
   /**
    * Covers both NPN_GetURLNotify and NPN_PostURLNotify.
    * @TODO This would be more readable as an overloaded method,
-   *       but IPDL doesn't allow that for constructors.
+   *       but IPDL doesn't allow that for constructors (or any method?).
    */
   rpc PStreamNotify(nsCString url, nsCString target, bool post,
                     nsCString buffer, bool file)
@@ -172,21 +119,11 @@ parent:
 
   async NPN_InvalidateRect(NPRect rect);
 
-  // Give |newSurface|, containing this instance's updated pixels, to
-  // the browser for compositing.  When this method returns, any surface 
-  // previously passed to Show may be destroyed.
-  //
-  // @param rect - actually updated rectangle, comparing to prevSurface content
-  //               could be used for partial render of layer to topLevel context
-  // @param newSurface - remotable surface
-  // @param prevSurface - if the previous surface was shared-memory, returns
-  //                      the shmem for reuse
-  sync Show(NPRect updatedRect, SurfaceDescriptor newSurface)
-    returns (SurfaceDescriptor prevSurface);
+  rpc NPN_PushPopupsEnabledState(bool aState)
+    returns (bool aSuccess);
 
-  rpc NPN_PushPopupsEnabledState(bool aState);
-
-  rpc NPN_PopPopupsEnabledState();
+  rpc NPN_PopPopupsEnabledState()
+    returns (bool aSuccess);
 
   rpc NPN_GetValueForURL(NPNURLVariable variable, nsCString url)
     returns (nsCString value, NPError result);
@@ -200,12 +137,8 @@ parent:
                                 nsCString realm)
     returns (nsCString username, nsCString password, NPError result);
 
-  rpc NPN_ConvertPoint(double sourceX, bool ignoreDestX, double sourceY, bool ignoreDestY, NPCoordinateSpace sourceSpace,
-                       NPCoordinateSpace destSpace)
-    returns (double destX, double destY, bool result);
-
 both:
-  async PPluginScriptableObject();
+  rpc PPluginScriptableObject();
 
 child:
   /* NPP_NewStream */
@@ -226,8 +159,8 @@ parent:
     returns (NPError result);
 
 parent:
-  rpc PluginFocusChange(bool gotFocus);
-
+  rpc PluginGotFocus();
+  sync SetNestedEventState(bool aState);
 child:
   rpc SetPluginFocus();
   rpc UpdateWindow();

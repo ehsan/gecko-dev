@@ -45,10 +45,11 @@
 #include "nsContentUtils.h"
 #include "plstr.h"
 #include "nsXULPrototypeDocument.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
+#include "nsIXBLDocumentInfo.h"
 
 #include "nsIChromeRegistry.h"
 #include "nsIFastLoadService.h"
@@ -111,7 +112,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsXULPrototypeCache,
                               nsIObserver)
 
 
-nsresult
+NS_IMETHODIMP
 NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     NS_PRECONDITION(! aOuter, "no aggregation");
@@ -139,13 +140,11 @@ NS_NewXULPrototypeCache(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 
     nsresult rv = result->QueryInterface(aIID, aResult);
 
-    nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obsSvc(do_GetService("@mozilla.org/observer-service;1"));
     if (obsSvc && NS_SUCCEEDED(rv)) {
         nsXULPrototypeCache *p = result;
         obsSvc->AddObserver(p, "chrome-flush-skin-caches", PR_FALSE);
         obsSvc->AddObserver(p, "chrome-flush-caches", PR_FALSE);
-        obsSvc->AddObserver(p, "startupcache-invalidate", PR_FALSE);
     }
 
     return rv;
@@ -183,9 +182,6 @@ nsXULPrototypeCache::Observe(nsISupports* aSubject,
     }
     else if (!strcmp(aTopic, "chrome-flush-caches")) {
         Flush();
-    }
-    else if (!strcmp(aTopic, "startupcache-invalidate")) {
-        AbortFastLoads();
     }
     else {
         NS_WARNING("Unexpected observer topic.");
@@ -246,12 +242,15 @@ nsXULPrototypeCache::PutPrototype(nsXULPrototypeDocument* aDocument)
 }
 
 nsresult
-nsXULPrototypeCache::PutStyleSheet(nsCSSStyleSheet* aStyleSheet)
+nsXULPrototypeCache::PutStyleSheet(nsICSSStyleSheet* aStyleSheet)
 {
-    nsIURI* uri = aStyleSheet->GetSheetURI();
+    nsCOMPtr<nsIURI> uri;
+    nsresult rv = aStyleSheet->GetSheetURI(getter_AddRefs(uri));
+    if (NS_FAILED(rv))
+        return rv;
 
-    NS_ENSURE_TRUE(mStyleSheetTable.Put(uri, aStyleSheet),
-                   NS_ERROR_OUT_OF_MEMORY);
+   NS_ENSURE_TRUE(mStyleSheetTable.Put(uri, aStyleSheet),
+                  NS_ERROR_OUT_OF_MEMORY);
 
     return NS_OK;
 }
@@ -316,11 +315,11 @@ nsXULPrototypeCache::FlushScripts()
 
 
 nsresult
-nsXULPrototypeCache::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
+nsXULPrototypeCache::PutXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo)
 {
     nsIURI* uri = aDocumentInfo->DocumentURI();
 
-    nsRefPtr<nsXBLDocumentInfo> info;
+    nsCOMPtr<nsIXBLDocumentInfo> info;
     mXBLDocTable.Get(uri, getter_AddRefs(info));
     if (!info) {
         NS_ENSURE_TRUE(mXBLDocTable.Put(uri, aDocumentInfo),
@@ -330,7 +329,7 @@ nsXULPrototypeCache::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
 }
 
 static PLDHashOperator
-FlushSkinXBL(nsIURI* aKey, nsRefPtr<nsXBLDocumentInfo>& aDocInfo, void* aClosure)
+FlushSkinXBL(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo>& aDocInfo, void* aClosure)
 {
   nsCAutoString str;
   aKey->GetPath(str);
@@ -345,10 +344,12 @@ FlushSkinXBL(nsIURI* aKey, nsRefPtr<nsXBLDocumentInfo>& aDocInfo, void* aClosure
 }
 
 static PLDHashOperator
-FlushSkinSheets(nsIURI* aKey, nsRefPtr<nsCSSStyleSheet>& aSheet, void* aClosure)
+FlushSkinSheets(nsIURI* aKey, nsCOMPtr<nsICSSStyleSheet>& aSheet, void* aClosure)
 {
+  nsCOMPtr<nsIURI> uri;
+  aSheet->GetSheetURI(getter_AddRefs(uri));
   nsCAutoString str;
-  aSheet->GetSheetURI()->GetPath(str);
+  uri->GetPath(str);
 
   PLDHashOperator ret = PL_DHASH_NEXT;
 
@@ -360,7 +361,7 @@ FlushSkinSheets(nsIURI* aKey, nsRefPtr<nsCSSStyleSheet>& aSheet, void* aClosure)
 }
 
 static PLDHashOperator
-FlushScopedSkinStylesheets(nsIURI* aKey, nsRefPtr<nsXBLDocumentInfo> &aDocInfo, void* aClosure)
+FlushScopedSkinStylesheets(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo> &aDocInfo, void* aClosure)
 {
   aDocInfo->FlushSkinStylesheets();
   return PL_DHASH_NEXT;
@@ -411,6 +412,10 @@ nsXULPrototypeCache::AbortFastLoads()
     NS_BREAK();
 #endif
 
+    // Save a strong ref to the FastLoad file, so we can remove it after we
+    // close open streams to it.
+    nsCOMPtr<nsIFile> file = gFastLoadFile;
+
     // Flush the XUL cache for good measure, in case we cached a bogus/downrev
     // script, somehow.
     Flush();
@@ -418,42 +423,29 @@ nsXULPrototypeCache::AbortFastLoads()
     // Clear the FastLoad set
     mFastLoadURITable.Clear();
 
-    nsCOMPtr<nsIFastLoadService> fastLoadService = gFastLoadService;
-    nsCOMPtr<nsIFile> file = gFastLoadFile;
-
-    nsresult rv;
-
-    if (! fastLoadService) {
-        fastLoadService = do_GetFastLoadService();
-        if (! fastLoadService)
-            return;
-
-        rv = fastLoadService->NewFastLoadFile(XUL_FASTLOAD_FILE_BASENAME,
-                                              getter_AddRefs(file));
-        if (NS_FAILED(rv))
-            return;
-    }
+    if (! gFastLoadService)
+        return;
 
     // Fetch the current input (if FastLoad file existed) or output (if we're
     // creating the FastLoad file during this app startup) stream.
     nsCOMPtr<nsIObjectInputStream> objectInput;
     nsCOMPtr<nsIObjectOutputStream> objectOutput;
-    fastLoadService->GetInputStream(getter_AddRefs(objectInput));
-    fastLoadService->GetOutputStream(getter_AddRefs(objectOutput));
+    gFastLoadService->GetInputStream(getter_AddRefs(objectInput));
+    gFastLoadService->GetOutputStream(getter_AddRefs(objectOutput));
 
     if (objectOutput) {
-        fastLoadService->SetOutputStream(nsnull);
+        gFastLoadService->SetOutputStream(nsnull);
 
         if (NS_SUCCEEDED(objectOutput->Close()) && gChecksumXULFastLoadFile)
-            fastLoadService->CacheChecksum(file,
-                                           objectOutput);
+            gFastLoadService->CacheChecksum(gFastLoadFile,
+                                            objectOutput);
     }
 
     if (objectInput) {
         // If this is the last of one or more XUL master documents loaded
         // together at app startup, close the FastLoad service's singleton
         // input stream now.
-        fastLoadService->SetInputStream(nsnull);
+        gFastLoadService->SetInputStream(nsnull);
         objectInput->Close();
     }
 
@@ -472,15 +464,13 @@ nsXULPrototypeCache::AbortFastLoads()
         }
         file->MoveToNative(nsnull, NS_LITERAL_CSTRING("Aborted.mfasl"));
 #else
-        rv = file->Remove(PR_FALSE);
-        if (NS_FAILED(rv))
-            NS_WARNING("Failed to remove fastload file, fastload data may be outdated");
+        file->Remove(PR_FALSE);
 #endif
     }
 
     // If the list is empty now, the FastLoad process is done.
-    NS_IF_RELEASE(gFastLoadService);
-    NS_IF_RELEASE(gFastLoadFile);
+    NS_RELEASE(gFastLoadService);
+    NS_RELEASE(gFastLoadFile);
 }
 
 
@@ -765,10 +755,9 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
         return NS_ERROR_OUT_OF_MEMORY;
     fastLoadService->SetFileIO(io);
 
-    nsCOMPtr<nsIXULChromeRegistry> chromeReg =
-        mozilla::services::GetXULChromeRegistryService();
-    if (!chromeReg)
-        return NS_ERROR_FAILURE;
+    nsCOMPtr<nsIXULChromeRegistry> chromeReg(do_GetService(NS_CHROMEREGISTRY_CONTRACTID, &rv));
+    if (NS_FAILED(rv))
+        return rv;
 
     // XXXbe we assume the first package's locale is the same as the locale of
     // all subsequent packages of FastLoaded chrome URIs....

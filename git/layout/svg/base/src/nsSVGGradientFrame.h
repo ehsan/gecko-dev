@@ -61,10 +61,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsSVGPaintServerFrame methods:
-  virtual already_AddRefed<gfxPattern>
-    GetPaintServerPattern(nsIFrame *aSource,
-                          float aGraphicOpacity,
-                          const gfxRect *aOverrideBounds);
+  virtual PRBool SetupPaintServer(gfxContext *aContext,
+                                  nsSVGGeometryFrame *aSource,
+                                  float aGraphicOpacity);
 
   // nsIFrame interface:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
@@ -107,7 +106,7 @@ private:
                           float *aOffset, nscolor *aColor, float *aStopOpacity);
 
   // Will be singular for gradientUnits="objectBoundingBox" with an empty bbox.
-  gfxMatrix GetGradientTransform(nsIFrame *aSource, const gfxRect *aOverrideBounds);
+  gfxMatrix GetGradientTransform(nsSVGGeometryFrame *aSource);
 
 protected:
   virtual already_AddRefed<gfxPattern> CreateGradient() = 0;
@@ -127,8 +126,8 @@ protected:
   // Get the value of our gradientUnits attribute
   PRUint16 GetGradientUnits();
 
-  // The frame our gradient is (currently) being applied to
-  nsIFrame*                              mSource;
+  // The graphic element our gradient is (currently) being applied to
+  nsRefPtr<nsSVGElement>                 mSourceContent;
 
 private:
   // Flag to mark this frame as "in use" during recursive calls along our

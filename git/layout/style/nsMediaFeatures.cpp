@@ -46,7 +46,6 @@
 #include "nsCSSValue.h"
 #include "nsIDocShell.h"
 #include "nsLayoutUtils.h"
-#include "nsILookAndFeel.h"
 #include "nsCSSRuleProcessor.h"
 
 static const PRInt32 kOrientationKeywords[] = {
@@ -60,24 +59,6 @@ static const PRInt32 kScanKeywords[] = {
   eCSSKeyword_interlace,                NS_STYLE_SCAN_INTERLACE,
   eCSSKeyword_UNKNOWN,                  -1
 };
-
-#ifdef XP_WIN
-struct WindowsThemeName {
-    nsILookAndFeel::WindowsThemeIdentifier id;
-    const wchar_t* name;
-};
-
-// Windows theme identities used in the -moz-windows-theme media query.
-const WindowsThemeName themeStrings[] = {
-    { nsILookAndFeel::eWindowsTheme_Aero,       L"aero" },
-    { nsILookAndFeel::eWindowsTheme_LunaBlue,   L"luna-blue" },
-    { nsILookAndFeel::eWindowsTheme_LunaOlive,  L"luna-olive" },
-    { nsILookAndFeel::eWindowsTheme_LunaSilver, L"luna-silver" },
-    { nsILookAndFeel::eWindowsTheme_Royale,     L"royale" },
-    { nsILookAndFeel::eWindowsTheme_Zune,       L"zune" },
-    { nsILookAndFeel::eWindowsTheme_Generic,    L"generic" }
-};
-#endif
 
 // A helper for four features below
 static nsSize
@@ -181,6 +162,7 @@ static nsresult
 MakeArray(const nsSize& aSize, nsCSSValue& aResult)
 {
     nsRefPtr<nsCSSValue::Array> a = nsCSSValue::Array::Create(2);
+    NS_ENSURE_TRUE(a, NS_ERROR_OUT_OF_MEMORY);
 
     a->Item(0).SetIntValue(aSize.width, eCSSUnit_Integer);
     a->Item(1).SetIntValue(aSize.height, eCSSUnit_Integer);
@@ -202,6 +184,7 @@ GetDeviceAspectRatio(nsPresContext* aPresContext, const nsMediaFeature*,
 {
     return MakeArray(GetDeviceSize(aPresContext), aResult);
 }
+
 
 static nsresult
 GetColor(nsPresContext* aPresContext, const nsMediaFeature*,
@@ -253,7 +236,7 @@ GetResolution(nsPresContext* aPresContext, const nsMediaFeature*,
 {
     // Resolution values are in device pixels, not CSS pixels.
     nsIDeviceContext *dx = GetDeviceContextFor(aPresContext);
-    float dpi = float(dx->AppUnitsPerPhysicalInch()) / float(dx->AppUnitsPerDevPixel());
+    float dpi = float(dx->AppUnitsPerInch()) / float(dx->AppUnitsPerDevPixel());
     aResult.SetFloatValue(dpi, eCSSUnit_Inch);
     return NS_OK;
 }
@@ -279,15 +262,6 @@ GetGrid(nsPresContext* aPresContext, const nsMediaFeature*,
 }
 
 static nsresult
-GetDevicePixelRatio(nsPresContext* aPresContext, const nsMediaFeature*,
-                    nsCSSValue& aResult)
-{
-  float ratio = aPresContext->CSSPixelsToDevPixels(1.0f);
-  aResult.SetFloatValue(ratio, eCSSUnit_Number);
-  return NS_OK;
-}
-
-static nsresult
 GetSystemMetric(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
                 nsCSSValue& aResult)
 {
@@ -296,31 +270,6 @@ GetSystemMetric(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
     nsIAtom *metricAtom = *aFeature->mData.mMetric;
     PRBool hasMetric = nsCSSRuleProcessor::HasSystemMetric(metricAtom);
     aResult.SetIntValue(hasMetric ? 1 : 0, eCSSUnit_Integer);
-    return NS_OK;
-}
-
-static nsresult
-GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
-                nsCSSValue& aResult)
-{
-    aResult.Reset();
-#ifdef XP_WIN
-    PRUint8 windowsThemeId =
-        nsCSSRuleProcessor::GetWindowsThemeIdentifier();
-
-    // Classic mode should fail to match.
-    if (windowsThemeId == nsILookAndFeel::eWindowsTheme_Classic)
-        return NS_OK;
-
-    // Look up the appropriate theme string
-    for (size_t i = 0; i < NS_ARRAY_LENGTH(themeStrings); ++i) {
-        if (windowsThemeId == themeStrings[i].id) {
-            aResult.SetStringValue(nsDependentString(themeStrings[i].name),
-                                   eCSSUnit_Ident);
-            break;
-        }
-    }
-#endif
     return NS_OK;
 }
 
@@ -429,13 +378,6 @@ nsMediaFeatures::features[] = {
 
     // Mozilla extensions
     {
-        &nsGkAtoms::_moz_device_pixel_ratio,
-        nsMediaFeature::eMinMaxAllowed,
-        nsMediaFeature::eFloat,
-        { nsnull },
-        GetDevicePixelRatio
-    },
-    {
         &nsGkAtoms::_moz_scrollbar_start_backward,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -526,20 +468,7 @@ nsMediaFeatures::features[] = {
         { &nsGkAtoms::maemo_classic },
         GetSystemMetric
     },
-    {
-        &nsGkAtoms::_moz_menubar_drag,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::menubar_drag },
-        GetSystemMetric
-    },
-    {
-        &nsGkAtoms::_moz_windows_theme,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eIdent,
-        { nsnull },
-        GetWindowsTheme
-    },
+
     // Null-mName terminator:
     {
         nsnull,

@@ -63,12 +63,20 @@
 #include "morkUniqRowCursor.h"
 #endif
 
+#ifndef _ORKINTABLEROWCURSOR_
+#include "orkinTableRowCursor.h"
+#endif
+
 #ifndef _MORKSTORE_
 #include "morkStore.h"
 #endif
 
 #ifndef _MORKTABLE_
 #include "morkTable.h"
+#endif
+
+#ifndef _MORKSORTING_
+#include "morkSorting.h"
 #endif
 
 #ifndef _MORKROW_

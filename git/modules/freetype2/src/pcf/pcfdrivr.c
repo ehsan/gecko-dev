@@ -2,7 +2,7 @@
 
     FreeType font driver for pcf files
 
-    Copyright (C) 2000, 2001, 2002, 2003, 2004, 2006, 2007, 2008, 2009 by
+    Copyright (C) 2000, 2001, 2002, 2003, 2004, 2006, 2007, 2008 by
     Francesco Zappa Nardelli
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -34,7 +34,6 @@ THE SOFTWARE.
 #include FT_LZW_H
 #include FT_ERRORS_H
 #include FT_BDF_H
-#include FT_TRUETYPE_IDS_H 
 
 #include "pcf.h"
 #include "pcfdrivr.h"
@@ -112,7 +111,7 @@ THE SOFTWARE.
 
     while ( min < max )
     {
-      FT_ULong  code;
+      FT_UInt32  code;
 
 
       mid  = ( min + max ) >> 1;
@@ -141,7 +140,7 @@ THE SOFTWARE.
     PCF_CMap      cmap      = (PCF_CMap)pcfcmap;
     PCF_Encoding  encodings = cmap->encodings;
     FT_UInt       min, max, mid;
-    FT_ULong      charcode  = *acharcode + 1;
+    FT_UInt32     charcode  = *acharcode + 1;
     FT_UInt       result    = 0;
 
 
@@ -150,7 +149,7 @@ THE SOFTWARE.
 
     while ( min < max )
     {
-      FT_ULong  code;
+      FT_UInt32  code;
 
 
       mid  = ( min + max ) >> 1;
@@ -176,14 +175,7 @@ THE SOFTWARE.
     }
 
   Exit:
-    if ( charcode > 0xFFFFFFFFUL )
-    {
-      FT_TRACE1(( "pcf_cmap_char_next: charcode 0x%x > 32bit API" ));
-      *acharcode = 0;
-      /* XXX: result should be changed to indicate an overflow error */
-    }
-    else
-      *acharcode = (FT_UInt32)charcode;
+    *acharcode = charcode;
     return result;
   }
 
@@ -204,14 +196,9 @@ THE SOFTWARE.
   FT_CALLBACK_DEF( void )
   PCF_Face_Done( FT_Face  pcfface )         /* PCF_Face */
   {
-    PCF_Face   face = (PCF_Face)pcfface;
-    FT_Memory  memory;
+    PCF_Face   face   = (PCF_Face)pcfface;
+    FT_Memory  memory = FT_FACE_MEMORY( face );
 
-
-    if ( !face )
-      return;
-
-    memory = FT_FACE_MEMORY( face );
 
     FT_FREE( face->encodings );
     FT_FREE( face->metrics );
@@ -228,8 +215,7 @@ THE SOFTWARE.
         {
           prop = &face->properties[i];
 
-          if ( prop )
-          {
+          if ( prop ) {
             FT_FREE( prop->name );
             if ( prop->isString )
               FT_FREE( prop->value.atom );
@@ -275,27 +261,19 @@ THE SOFTWARE.
     error = pcf_load_font( stream, face );
     if ( error )
     {
+      FT_Error  error2;
+
+
       PCF_Face_Done( pcfface );
 
-#if defined( FT_CONFIG_OPTION_USE_ZLIB ) || \
-    defined( FT_CONFIG_OPTION_USE_LZW )
+      /* this didn't work, try gzip support! */
+      error2 = FT_Stream_OpenGzip( &face->gzip_stream, stream );
+      if ( FT_ERROR_BASE( error2 ) == FT_Err_Unimplemented_Feature )
+        goto Fail;
 
-#ifdef FT_CONFIG_OPTION_USE_ZLIB
-      {
-        FT_Error  error2;
-
-
-        /* this didn't work, try gzip support! */
-        error2 = FT_Stream_OpenGzip( &face->gzip_stream, stream );
-        if ( FT_ERROR_BASE( error2 ) == FT_Err_Unimplemented_Feature )
-          goto Fail;
-
-        error = error2;
-      }
-#endif /* FT_CONFIG_OPTION_USE_ZLIB */
-
-#ifdef FT_CONFIG_OPTION_USE_LZW
+      error = error2;
       if ( error )
+#ifdef FT_CONFIG_OPTION_USE_LZW
       {
         FT_Error  error3;
 
@@ -306,26 +284,32 @@ THE SOFTWARE.
           goto Fail;
 
         error = error3;
+        if ( error )
+          goto Fail;
+
+        face->gzip_source = stream;
+        pcfface->stream   = &face->gzip_stream;
+
+        stream = pcfface->stream;
+
+        error = pcf_load_font( stream, face );
+        if ( error )
+          goto Fail;
       }
-#endif /* FT_CONFIG_OPTION_USE_LZW */
-
-      if ( error )
+#else
         goto Fail;
-
-      face->gzip_source = stream;
-      pcfface->stream   = &face->gzip_stream;
-
-      stream = pcfface->stream;
-
-      error = pcf_load_font( stream, face );
-      if ( error )
-        goto Fail;
-
-#else /* !(FT_CONFIG_OPTION_USE_ZLIB || FT_CONFIG_OPTION_USE_LZW) */
-
-      goto Fail;
-
 #endif
+      else
+      {
+        face->gzip_source = stream;
+        pcfface->stream   = &face->gzip_stream;
+
+        stream = pcfface->stream;
+
+        error = pcf_load_font( stream, face );
+        if ( error )
+          goto Fail;
+      }
     }
 
     /* set up charmap */
@@ -360,15 +344,14 @@ THE SOFTWARE.
 
         charmap.face        = FT_FACE( face );
         charmap.encoding    = FT_ENCODING_NONE;
-        /* initial platform/encoding should indicate unset status? */
-        charmap.platform_id = TT_PLATFORM_APPLE_UNICODE;
-        charmap.encoding_id = TT_APPLE_ID_DEFAULT;
+        charmap.platform_id = 0;
+        charmap.encoding_id = 0;
 
         if ( unicode_charmap )
         {
           charmap.encoding    = FT_ENCODING_UNICODE;
-          charmap.platform_id = TT_PLATFORM_MICROSOFT;
-          charmap.encoding_id = TT_MS_ID_UNICODE_CS;
+          charmap.platform_id = 3;
+          charmap.encoding_id = 1;
         }
 
         error = FT_CMap_New( &pcf_cmap_class, NULL, &charmap, NULL );
@@ -425,7 +408,7 @@ THE SOFTWARE.
     switch ( req->type )
     {
     case FT_SIZE_REQUEST_TYPE_NOMINAL:
-      if ( height == ( ( bsize->y_ppem + 32 ) >> 6 ) )
+      if ( height == ( bsize->y_ppem + 32 ) >> 6 )
         error = PCF_Err_Ok;
       break;
 
@@ -454,11 +437,11 @@ THE SOFTWARE.
                   FT_Int32      load_flags )
   {
     PCF_Face    face   = (PCF_Face)FT_SIZE_FACE( size );
-    FT_Stream   stream;
+    FT_Stream   stream = face->root.stream;
     FT_Error    error  = PCF_Err_Ok;
     FT_Bitmap*  bitmap = &slot->bitmap;
     PCF_Metric  metric;
-    FT_Offset   bytes;
+    int         bytes;
 
     FT_UNUSED( load_flags );
 
@@ -470,8 +453,6 @@ THE SOFTWARE.
       error = PCF_Err_Invalid_Argument;
       goto Exit;
     }
-
-    stream = face->root.stream;
 
     if ( glyph_index > 0 )
       glyph_index--;
@@ -588,17 +569,12 @@ THE SOFTWARE.
       }
       else
       {
-        if ( prop->value.l > 0x7FFFFFFFL || prop->value.l < ( -1 - 0x7FFFFFFFL ) )
-        {
-          FT_TRACE1(( "pcf_get_bdf_property: " ));
-          FT_TRACE1(( "too large integer 0x%x is truncated\n" ));
-        }
         /* Apparently, the PCF driver loads all properties as signed integers!
          * This really doesn't seem to be a problem, because this is
          * sufficient for any meaningful values.
          */
         aproperty->type      = BDF_PROPERTY_TYPE_INTEGER;
-        aproperty->u.integer = (FT_Int32)prop->value.l;
+        aproperty->u.integer = prop->value.integer;
       }
       return 0;
     }

@@ -37,16 +37,19 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLWin32ObjectAccessible.h"
+#include "nsAccessibleWrap.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLWin32ObjectOwnerAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLWin32ObjectOwnerAccessible::
-  nsHTMLWin32ObjectOwnerAccessible(nsIContent *aContent,
-                                   nsIWeakReference *aShell, void *aHwnd) :
-  nsAccessibleWrap(aContent, aShell), mHwnd(aHwnd)
+  nsHTMLWin32ObjectOwnerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell,
+                                   void* aHwnd) :
+  nsAccessibleWrap(aNode, aShell)
 {
+  mHwnd = aHwnd;
+
   // Our only child is a nsHTMLWin32ObjectAccessible object.
   mNativeAccessible = new nsHTMLWin32ObjectAccessible(mHwnd);
 }
@@ -54,20 +57,24 @@ nsHTMLWin32ObjectOwnerAccessible::
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLWin32ObjectOwnerAccessible: nsAccessNode implementation
 
-void
+nsresult
 nsHTMLWin32ObjectOwnerAccessible::Shutdown()
 {
   nsAccessibleWrap::Shutdown();
   mNativeAccessible = nsnull;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLWin32ObjectOwnerAccessible: nsAccessible implementation
 
-PRUint32
-nsHTMLWin32ObjectOwnerAccessible::NativeRole()
+nsresult
+nsHTMLWin32ObjectOwnerAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_EMBEDDED_OBJECT;
+  NS_ENSURE_ARG_POINTER(aRole);
+
+  *aRole = nsIAccessibleRole::ROLE_EMBEDDED_OBJECT;
+  return NS_OK;
 }
 
 nsresult
@@ -92,8 +99,10 @@ nsHTMLWin32ObjectOwnerAccessible::GetStateInternal(PRUint32 *aState,
 void
 nsHTMLWin32ObjectOwnerAccessible::CacheChildren()
 {
-  if (mNativeAccessible)
-    AppendChild(mNativeAccessible);
+  if (mNativeAccessible) {
+    mChildren.AppendElement(mNativeAccessible);
+    mNativeAccessible->SetParent(this);
+  }
 }
 
 

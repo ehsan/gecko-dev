@@ -45,7 +45,9 @@
 
 #include "nsCRT.h"
 #include "nsIAtom.h"
+#include "nsIServiceManager.h"
 #include "nsCSSRuleProcessor.h"
+#include "nsICSSStyleRule.h"
 #include "nsICSSNameSpaceRule.h"
 #include "nsICSSGroupRule.h"
 #include "nsICSSImportRule.h"
@@ -55,26 +57,26 @@
 #include "nsGkAtoms.h"
 #include "nsString.h"
 #include "nsTArray.h"
+#include "nsIDOMStyleSheetList.h"
 #include "nsIDOMCSSStyleSheet.h"
+#include "nsIDOMCSSRule.h"
 #include "nsIDOMCSSImportRule.h"
 #include "nsICSSRuleList.h"
 #include "nsIDOMMediaList.h"
 #include "nsIDOMNode.h"
 #include "nsDOMError.h"
-#include "nsCSSParser.h"
-#include "mozilla/css/Loader.h"
+#include "nsICSSParser.h"
+#include "nsICSSLoader.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsINameSpaceManager.h"
 #include "nsXMLNameSpaceMap.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
+#include "nsIJSContextStack.h"
 #include "nsIScriptSecurityManager.h"
 #include "mozAutoDocUpdate.h"
-#include "mozilla/css/Declaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsRuleNode.h"
-#include "nsMediaFeatures.h"
-
-namespace css = mozilla::css;
 
 // -------------------------------
 // Style Rule List for the DOM
@@ -114,14 +116,12 @@ CSSRuleListImpl::~CSSRuleListImpl()
 {
 }
 
-DOMCI_DATA(CSSRuleList, CSSRuleListImpl)
-
 // QueryInterface implementation for CSSRuleList
 NS_INTERFACE_MAP_BEGIN(CSSRuleListImpl)
   NS_INTERFACE_MAP_ENTRY(nsICSSRuleList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSRuleList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSRuleList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSRuleList)
 NS_INTERFACE_MAP_END
 
 
@@ -133,7 +133,8 @@ NS_IMETHODIMP
 CSSRuleListImpl::GetLength(PRUint32* aLength)
 {
   if (nsnull != mStyleSheet) {
-    PRInt32 count = mStyleSheet->StyleRuleCount();
+    PRInt32 count;
+    mStyleSheet->StyleRuleCount(count);
     *aLength = (PRUint32)count;
   }
   else {
@@ -180,8 +181,7 @@ CSSRuleListImpl::Item(PRUint32 aIndex, nsIDOMCSSRule** aReturn)
     return rv;
   }
 
-  NS_ADDREF(*aReturn = rule);
-  return NS_OK;
+  return CallQueryInterface(rule, aReturn);
 }
 
 template <class Numeric>
@@ -249,15 +249,6 @@ nsMediaExpression::Matches(nsPresContext *aPresContext,
         cmp = DoCompare(actual.GetIntValue(), required.GetIntValue());
       }
       break;
-    case nsMediaFeature::eFloat:
-      {
-        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Number,
-                     "bad actual value");
-        NS_ASSERTION(required.GetUnit() == eCSSUnit_Number,
-                     "bad required value");
-        cmp = DoCompare(actual.GetFloatValue(), required.GetFloatValue());
-      }
-      break;
     case nsMediaFeature::eIntRatio:
       {
         NS_ASSERTION(actual.GetUnit() == eCSSUnit_Array &&
@@ -314,17 +305,6 @@ nsMediaExpression::Matches(nsPresContext *aPresContext,
         // We don't really need DoCompare, but it doesn't hurt (and
         // maybe the compiler will condense this case with eInteger).
         cmp = DoCompare(actual.GetIntValue(), required.GetIntValue());
-      }
-      break;
-    case nsMediaFeature::eIdent:
-      {
-        NS_ASSERTION(actual.GetUnit() == eCSSUnit_Ident,
-                     "bad actual value");
-        NS_ASSERTION(required.GetUnit() == eCSSUnit_Ident,
-                     "bad required value");
-        NS_ASSERTION(mFeature->mRangeType == nsMediaFeature::eMinMaxNotAllowed,
-                     "bad range"); 
-        cmp = !(actual == required); // string comparison
       }
       break;
   }
@@ -393,6 +373,8 @@ nsMediaQueryResultCacheKey::Matches(nsPresContext* aPresContext) const
 void
 nsMediaQuery::AppendToString(nsAString& aString) const
 {
+  nsAutoString buffer;
+
   if (mHadUnknownExpression) {
     aString.AppendLiteral("not all");
     return;
@@ -407,7 +389,9 @@ nsMediaQuery::AppendToString(nsAString& aString) const
     } else if (mHasOnly) {
       aString.AppendLiteral("only ");
     }
-    aString.Append(nsDependentAtomString(mMediaType));
+    mMediaType->ToString(buffer);
+    aString.Append(buffer);
+    buffer.Truncate();
   }
 
   for (PRUint32 i = 0, i_end = mExpressions.Length(); i < i_end; ++i) {
@@ -423,7 +407,9 @@ nsMediaQuery::AppendToString(nsAString& aString) const
     }
 
     const nsMediaFeature *feature = expr.mFeature;
-    aString.Append(nsDependentAtomString(*feature->mName));
+    (*feature->mName)->ToString(buffer);
+    aString.Append(buffer);
+    buffer.Truncate();
 
     if (expr.mValue.GetUnit() != eCSSUnit_Null) {
       aString.AppendLiteral(": ");
@@ -432,7 +418,8 @@ nsMediaQuery::AppendToString(nsAString& aString) const
           NS_ASSERTION(expr.mValue.IsLengthUnit(), "bad unit");
           // Use 'width' as a property that takes length values
           // written in the normal way.
-          expr.mValue.AppendToString(eCSSProperty_width, aString);
+          nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_width,
+                                                   expr.mValue, aString);
           break;
         case nsMediaFeature::eInteger:
         case nsMediaFeature::eBoolInteger:
@@ -440,16 +427,8 @@ nsMediaQuery::AppendToString(nsAString& aString) const
                        "bad unit");
           // Use 'z-index' as a property that takes integer values
           // written without anything extra.
-          expr.mValue.AppendToString(eCSSProperty_z_index, aString);
-          break;
-        case nsMediaFeature::eFloat:
-          {
-            NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Number,
-                         "bad unit");
-            // Use 'line-height' as a property that takes float values
-            // written in the normal way.
-            expr.mValue.AppendToString(eCSSProperty_line_height, aString);
-          }
+          nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
+                                                   expr.mValue, aString);
           break;
         case nsMediaFeature::eIntRatio:
           {
@@ -461,24 +440,23 @@ nsMediaQuery::AppendToString(nsAString& aString) const
                          "bad unit");
             NS_ASSERTION(array->Item(1).GetUnit() == eCSSUnit_Integer,
                          "bad unit");
-            array->Item(0).AppendToString(eCSSProperty_z_index, aString);
+            nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
+                                                     array->Item(0), aString);
             aString.AppendLiteral("/");
-            array->Item(1).AppendToString(eCSSProperty_z_index, aString);
+            nsCSSDeclaration::AppendCSSValueToString(eCSSProperty_z_index,
+                                                     array->Item(1), aString);
           }
           break;
         case nsMediaFeature::eResolution:
-          {
-            nsAutoString buffer;
-            buffer.AppendFloat(expr.mValue.GetFloatValue());
-            aString.Append(buffer);
-            buffer.Truncate();
-            if (expr.mValue.GetUnit() == eCSSUnit_Inch) {
-              aString.AppendLiteral("dpi");
-            } else {
-              NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Centimeter,
-                           "bad unit");
-              aString.AppendLiteral("dpcm");
-            }
+          buffer.AppendFloat(expr.mValue.GetFloatValue());
+          aString.Append(buffer);
+          buffer.Truncate();
+          if (expr.mValue.GetUnit() == eCSSUnit_Inch) {
+            aString.AppendLiteral("dpi");
+          } else {
+            NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Centimeter,
+                         "bad unit");
+            aString.AppendLiteral("dpcm");
           }
           break;
         case nsMediaFeature::eEnumerated:
@@ -488,11 +466,6 @@ nsMediaQuery::AppendToString(nsAString& aString) const
               nsCSSProps::ValueToKeyword(expr.mValue.GetIntValue(),
                                          feature->mData.mKeywordTable),
               aString);
-          break;
-        case nsMediaFeature::eIdent:
-          NS_ASSERTION(expr.mValue.GetUnit() == eCSSUnit_Ident,
-                       "bad unit");
-          aString.Append(expr.mValue.GetStringBufferValue());
           break;
       }
     }
@@ -534,12 +507,10 @@ nsMediaQuery::Matches(nsPresContext* aPresContext,
   return match == !mNegated;
 }
 
-DOMCI_DATA(MediaList, nsMediaList)
-
 NS_INTERFACE_MAP_BEGIN(nsMediaList)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMediaList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MediaList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(MediaList)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsMediaList)
@@ -584,18 +555,21 @@ nsMediaList::GetText(nsAString& aMediaText)
 nsresult
 nsMediaList::SetText(const nsAString& aMediaText)
 {
-  nsCSSParser parser;
-  NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
+  nsCOMPtr<nsICSSParser> parser;
+  nsresult rv = NS_NewCSSParser(getter_AddRefs(parser));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool htmlMode = PR_FALSE;
-  if (mStyleSheet) {
+  nsCOMPtr<nsIDOMStyleSheet> domSheet =
+    do_QueryInterface(static_cast<nsICSSStyleSheet*>(mStyleSheet));
+  if (domSheet) {
     nsCOMPtr<nsIDOMNode> node;
-    mStyleSheet->GetOwnerNode(getter_AddRefs(node));
+    domSheet->GetOwnerNode(getter_AddRefs(node));
     htmlMode = !!node;
   }
 
-  return parser.ParseMediaList(nsString(aMediaText), nsnull, 0,
-                               this, htmlMode);
+  return parser->ParseMediaList(nsString(aMediaText), nsnull, 0,
+                                this, htmlMode);
 }
 
 PRBool
@@ -611,11 +585,11 @@ nsMediaList::Matches(nsPresContext* aPresContext,
 }
 
 nsresult
-nsMediaList::SetStyleSheet(nsCSSStyleSheet *aSheet)
+nsMediaList::SetStyleSheet(nsICSSStyleSheet *aSheet)
 {
   NS_ASSERTION(aSheet == mStyleSheet || !aSheet || !mStyleSheet,
                "multiple style sheets competing for one media list");
-  mStyleSheet = aSheet;
+  mStyleSheet = static_cast<nsCSSStyleSheet*>(aSheet);
   return NS_OK;
 }
 
@@ -645,7 +619,8 @@ nsMediaList::GetMediaText(nsAString& aMediaText)
 // nsCOMPtr<nsIDocument>
 #define BEGIN_MEDIA_CHANGE(sheet, doc)                         \
   if (sheet) {                                                 \
-    doc = sheet->GetOwningDocument();                          \
+    rv = sheet->GetOwningDocument(*getter_AddRefs(doc));       \
+    NS_ENSURE_SUCCESS(rv, rv);                                 \
   }                                                            \
   mozAutoDocUpdate updateBatch(doc, UPDATE_STYLE, PR_TRUE);    \
   if (sheet) {                                                 \
@@ -799,7 +774,7 @@ nsMediaList::Append(const nsAString& aNewMedium)
 //
 
 
-nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsCSSStyleSheet* aPrimarySheet)
+nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsICSSStyleSheet* aPrimarySheet)
   : mSheets(),
     mComplete(PR_FALSE)
 #ifdef DEBUG
@@ -815,7 +790,7 @@ nsCSSStyleSheetInner::nsCSSStyleSheetInner(nsCSSStyleSheet* aPrimarySheet)
 static PRBool SetStyleSheetReference(nsICSSRule* aRule, void* aSheet)
 {
   if (aRule) {
-    aRule->SetStyleSheet(static_cast<nsCSSStyleSheet*>(aSheet));
+    aRule->SetStyleSheet((nsICSSStyleSheet*)aSheet);
   }
   return PR_TRUE;
 }
@@ -823,8 +798,12 @@ static PRBool SetStyleSheetReference(nsICSSRule* aRule, void* aSheet)
 static PRBool
 CloneRuleInto(nsICSSRule* aRule, void* aArray)
 {
-  nsCOMPtr<nsICSSRule> clone = aRule->Clone();
-  static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(clone);
+  nsICSSRule* clone = nsnull;
+  aRule->Clone(clone);
+  if (clone) {
+    static_cast<nsCOMArray<nsICSSRule>*>(aArray)->AppendObject(clone);
+    NS_RELEASE(clone);
+  }
   return PR_TRUE;
 }
 
@@ -841,7 +820,8 @@ struct ChildSheetListBuilder {
 PRBool
 nsCSSStyleSheet::RebuildChildList(nsICSSRule* aRule, void* aBuilder)
 {
-  PRInt32 type = aRule->GetType();
+  PRInt32 type;
+  aRule->GetType(type);
   if (type < nsICSSRule::IMPORT_RULE) {
     // Keep going till we get to the import rules.
     return PR_TRUE;
@@ -866,12 +846,12 @@ nsCSSStyleSheet::RebuildChildList(nsICSSRule* aRule, void* aBuilder)
 
   // Have to do this QI to be safe, since XPConnect can fake
   // nsIDOMCSSStyleSheets
-  nsRefPtr<nsCSSStyleSheet> cssSheet = do_QueryObject(childSheet);
+  nsCOMPtr<nsICSSStyleSheet> cssSheet = do_QueryInterface(childSheet);
   if (!cssSheet) {
     return PR_TRUE;
   }
 
-  (*builder->sheetSlot) = cssSheet;
+  (*builder->sheetSlot) = static_cast<nsCSSStyleSheet*>(cssSheet.get());
   builder->SetParentLinks(*builder->sheetSlot);
   builder->sheetSlot = &(*builder->sheetSlot)->mNext;
   return PR_TRUE;
@@ -913,13 +893,13 @@ nsCSSStyleSheetInner::CloneFor(nsCSSStyleSheet* aPrimarySheet)
 }
 
 void
-nsCSSStyleSheetInner::AddSheet(nsCSSStyleSheet* aSheet)
+nsCSSStyleSheetInner::AddSheet(nsICSSStyleSheet* aSheet)
 {
   mSheets.AppendElement(aSheet);
 }
 
 void
-nsCSSStyleSheetInner::RemoveSheet(nsCSSStyleSheet* aSheet)
+nsCSSStyleSheetInner::RemoveSheet(nsICSSStyleSheet* aSheet)
 {
   if (1 == mSheets.Length()) {
     NS_ASSERTION(aSheet == mSheets.ElementAt(0), "bad parent");
@@ -940,7 +920,11 @@ nsCSSStyleSheetInner::RemoveSheet(nsCSSStyleSheet* aSheet)
 static void
 AddNamespaceRuleToMap(nsICSSRule* aRule, nsXMLNameSpaceMap* aMap)
 {
-  NS_ASSERTION(aRule->GetType() == nsICSSRule::NAMESPACE_RULE, "Bogus rule type");
+#ifdef DEBUG
+  PRInt32 type;
+  aRule->GetType(type);
+  NS_ASSERTION(type == nsICSSRule::NAMESPACE_RULE, "Bogus rule type");
+#endif
 
   nsCOMPtr<nsICSSNameSpaceRule> nameSpaceRule = do_QueryInterface(aRule);
   
@@ -955,7 +939,8 @@ AddNamespaceRuleToMap(nsICSSRule* aRule, nsXMLNameSpaceMap* aMap)
 static PRBool
 CreateNameSpace(nsICSSRule* aRule, void* aNameSpacePtr)
 {
-  PRInt32 type = aRule->GetType();
+  PRInt32 type = nsICSSRule::UNKNOWN_RULE;
+  aRule->GetType(type);
   if (nsICSSRule::NAMESPACE_RULE == type) {
     AddNamespaceRuleToMap(aRule,
                           static_cast<nsXMLNameSpaceMap*>(aNameSpacePtr));
@@ -991,7 +976,10 @@ nsCSSStyleSheetInner::CreateNamespaceMap()
 //
 
 nsCSSStyleSheet::nsCSSStyleSheet()
-  : mTitle(), 
+  : nsICSSStyleSheet(),
+    mRefCnt(0),
+    mTitle(), 
+    mMedia(nsnull),
     mParent(nsnull),
     mOwnerRule(nsnull),
     mRuleCollection(nsnull),
@@ -1006,11 +994,14 @@ nsCSSStyleSheet::nsCSSStyleSheet()
 }
 
 nsCSSStyleSheet::nsCSSStyleSheet(const nsCSSStyleSheet& aCopy,
-                                 nsCSSStyleSheet* aParentToUse,
+                                 nsICSSStyleSheet* aParentToUse,
                                  nsICSSImportRule* aOwnerRuleToUse,
                                  nsIDocument* aDocumentToUse,
                                  nsIDOMNode* aOwningNodeToUse)
-  : mTitle(aCopy.mTitle),
+  : nsICSSStyleSheet(),
+    mRefCnt(0),
+    mTitle(aCopy.mTitle), 
+    mMedia(nsnull),
     mParent(aParentToUse),
     mOwnerRule(aOwnerRuleToUse),
     mRuleCollection(nsnull), // re-created lazily
@@ -1069,19 +1060,15 @@ nsCSSStyleSheet::~nsCSSStyleSheet()
 }
 
 
-DOMCI_DATA(CSSStyleSheet, nsCSSStyleSheet)
-
 // QueryInterface implementation for nsCSSStyleSheet
 NS_INTERFACE_MAP_BEGIN(nsCSSStyleSheet)
+  NS_INTERFACE_MAP_ENTRY(nsICSSStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsIStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsIDOMStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleSheet)
   NS_INTERFACE_MAP_ENTRY(nsICSSLoaderObserver)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIStyleSheet)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSStyleSheet)
-  if (aIID.Equals(NS_GET_IID(nsCSSStyleSheet)))
-    foundInterface = reinterpret_cast<nsISupports*>(this);
-  else
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsICSSStyleSheet)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(CSSStyleSheet)
 NS_INTERFACE_MAP_END
 
 
@@ -1089,7 +1076,7 @@ NS_IMPL_ADDREF(nsCSSStyleSheet)
 NS_IMPL_RELEASE(nsCSSStyleSheet)
 
 
-nsresult
+NS_IMETHODIMP
 nsCSSStyleSheet::AddRuleProcessor(nsCSSRuleProcessor* aProcessor)
 {
   if (! mRuleProcessors) {
@@ -1103,7 +1090,7 @@ nsCSSStyleSheet::AddRuleProcessor(nsCSSRuleProcessor* aProcessor)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCSSStyleSheet::DropRuleProcessor(nsCSSRuleProcessor* aProcessor)
 {
   if (!mRuleProcessors)
@@ -1114,7 +1101,7 @@ nsCSSStyleSheet::DropRuleProcessor(nsCSSRuleProcessor* aProcessor)
 }
 
 
-void
+NS_IMETHODIMP
 nsCSSStyleSheet::SetURIs(nsIURI* aSheetURI, nsIURI* aOriginalSheetURI,
                          nsIURI* aBaseURI)
 {
@@ -1126,6 +1113,7 @@ nsCSSStyleSheet::SetURIs(nsIURI* aSheetURI, nsIURI* aOriginalSheetURI,
   mInner->mSheetURI = aSheetURI;
   mInner->mOriginalSheetURI = aOriginalSheetURI;
   mInner->mBaseURI = aBaseURI;
+  return NS_OK;
 }
 
 void
@@ -1141,22 +1129,38 @@ nsCSSStyleSheet::SetPrincipal(nsIPrincipal* aPrincipal)
   }
 }
 
-/* virtual */ nsIURI*
-nsCSSStyleSheet::GetSheetURI() const
+nsIPrincipal*
+nsCSSStyleSheet::Principal() const
 {
-  return mInner->mSheetURI;
+  return mInner->mPrincipal;
 }
 
-/* virtual */ nsIURI*
-nsCSSStyleSheet::GetBaseURI() const
+NS_IMETHODIMP
+nsCSSStyleSheet::GetSheetURI(nsIURI** aSheetURI) const
 {
-  return mInner->mBaseURI;
+  NS_IF_ADDREF(*aSheetURI = mInner->mSheetURI.get());
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
+nsCSSStyleSheet::GetBaseURI(nsIURI** aBaseURI) const
+{
+  NS_IF_ADDREF(*aBaseURI = mInner->mBaseURI.get());
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCSSStyleSheet::SetTitle(const nsAString& aTitle)
+{
+  mTitle = aTitle;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsCSSStyleSheet::GetType(nsString& aType) const
 {
   aType.AssignLiteral("text/css");
+  return NS_OK;
 }
 
 PRBool
@@ -1170,25 +1174,29 @@ nsCSSStyleSheet::UseForPresentation(nsPresContext* aPresContext,
 }
 
 
-void
+NS_IMETHODIMP
 nsCSSStyleSheet::SetMedia(nsMediaList* aMedia)
 {
   mMedia = aMedia;
+  return NS_OK;
 }
 
-/* virtual */ PRBool
+NS_IMETHODIMP_(PRBool)
 nsCSSStyleSheet::HasRules() const
 {
-  return StyleRuleCount() != 0;
+  PRInt32 count;
+  StyleRuleCount(count);
+  return count != 0;
 }
 
-/* virtual */ PRBool
-nsCSSStyleSheet::IsApplicable() const
+NS_IMETHODIMP
+nsCSSStyleSheet::GetApplicable(PRBool& aApplicable) const
 {
-  return !mDisabled && mInner->mComplete;
+  aApplicable = !mDisabled && mInner->mComplete;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSStyleSheet::SetEnabled(PRBool aEnabled)
 {
   // Internal method, so callers must handle BeginUpdate/EndUpdate
@@ -1202,15 +1210,18 @@ nsCSSStyleSheet::SetEnabled(PRBool aEnabled)
       mDocument->SetStyleSheetApplicableState(this, !mDisabled);
     }
   }
+
+  return NS_OK;
 }
 
-/* virtual */ PRBool
-nsCSSStyleSheet::IsComplete() const
+NS_IMETHODIMP
+nsCSSStyleSheet::GetComplete(PRBool& aComplete) const
 {
-  return mInner->mComplete;
+  aComplete = mInner->mComplete;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSStyleSheet::SetComplete()
 {
   NS_ASSERTION(!mDirty, "Can't set a dirty sheet complete!");
@@ -1221,21 +1232,26 @@ nsCSSStyleSheet::SetComplete()
     mDocument->SetStyleSheetApplicableState(this, PR_TRUE);
     mDocument->EndUpdate(UPDATE_STYLE);
   }
+  return NS_OK;
 }
 
-/* virtual */ nsIStyleSheet*
-nsCSSStyleSheet::GetParentSheet() const
+NS_IMETHODIMP
+nsCSSStyleSheet::GetParentSheet(nsIStyleSheet*& aParent) const
 {
-  return mParent;
+  aParent = mParent;
+  NS_IF_ADDREF(aParent);
+  return NS_OK;
 }
 
-/* virtual */ nsIDocument*
-nsCSSStyleSheet::GetOwningDocument() const
+NS_IMETHODIMP
+nsCSSStyleSheet::GetOwningDocument(nsIDocument*& aDocument) const
 {
-  return mDocument;
+  aDocument = mDocument;
+  NS_IF_ADDREF(aDocument);
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSStyleSheet::SetOwningDocument(nsIDocument* aDocument)
 { // not ref counted
   mDocument = aDocument;
@@ -1248,51 +1264,82 @@ nsCSSStyleSheet::SetOwningDocument(nsIDocument* aDocument)
       child->SetOwningDocument(aDocument);
     }
   }
+  return NS_OK;
 }
 
-void
-nsCSSStyleSheet::AppendStyleSheet(nsCSSStyleSheet* aSheet)
+NS_IMETHODIMP
+nsCSSStyleSheet::SetOwningNode(nsIDOMNode* aOwningNode)
+{ // not ref counted
+  mOwningNode = aOwningNode;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCSSStyleSheet::SetOwnerRule(nsICSSImportRule* aOwnerRule)
+{ // not ref counted
+  mOwnerRule = aOwnerRule;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCSSStyleSheet::GetOwnerRule(nsICSSImportRule** aOwnerRule)
+{
+  *aOwnerRule = mOwnerRule;
+  NS_IF_ADDREF(*aOwnerRule);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCSSStyleSheet::AppendStyleSheet(nsICSSStyleSheet* aSheet)
 {
   NS_PRECONDITION(nsnull != aSheet, "null arg");
 
   if (NS_SUCCEEDED(WillDirty())) {
+    nsCSSStyleSheet* sheet = (nsCSSStyleSheet*)aSheet;
+
     nsRefPtr<nsCSSStyleSheet>* tail = &mInner->mFirstChild;
     while (*tail) {
       tail = &(*tail)->mNext;
     }
-    *tail = aSheet;
+    *tail = sheet;
   
     // This is not reference counted. Our parent tells us when
     // it's going away.
-    aSheet->mParent = this;
-    aSheet->mDocument = mDocument;
+    sheet->mParent = this;
+    sheet->mDocument = mDocument;
     DidDirty();
   }
+  return NS_OK;
 }
 
-void
-nsCSSStyleSheet::InsertStyleSheetAt(nsCSSStyleSheet* aSheet, PRInt32 aIndex)
+NS_IMETHODIMP
+nsCSSStyleSheet::InsertStyleSheetAt(nsICSSStyleSheet* aSheet, PRInt32 aIndex)
 {
   NS_PRECONDITION(nsnull != aSheet, "null arg");
 
-  if (NS_SUCCEEDED(WillDirty())) {
+  nsresult result = WillDirty();
+
+  if (NS_SUCCEEDED(result)) {
+    nsCSSStyleSheet* sheet = (nsCSSStyleSheet*)aSheet;
+
     nsRefPtr<nsCSSStyleSheet>* tail = &mInner->mFirstChild;
     while (*tail && aIndex) {
       --aIndex;
       tail = &(*tail)->mNext;
     }
-    aSheet->mNext = *tail;
-    *tail = aSheet;
+    sheet->mNext = *tail;
+    *tail = sheet;
 
     // This is not reference counted. Our parent tells us when
     // it's going away.
-    aSheet->mParent = this;
-    aSheet->mDocument = mDocument;
+    sheet->mParent = this;
+    sheet->mDocument = mDocument;
     DidDirty();
   }
+  return result;
 }
 
-void
+NS_IMETHODIMP
 nsCSSStyleSheet::PrependStyleRule(nsICSSRule* aRule)
 {
   NS_PRECONDITION(nsnull != aRule, "null arg");
@@ -1302,14 +1349,17 @@ nsCSSStyleSheet::PrependStyleRule(nsICSSRule* aRule)
     aRule->SetStyleSheet(this);
     DidDirty();
 
-    if (nsICSSRule::NAMESPACE_RULE == aRule->GetType()) {
+    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
+    aRule->GetType(type);
+    if (nsICSSRule::NAMESPACE_RULE == type) {
       // no api to prepend a namespace (ugh), release old ones and re-create them all
       mInner->RebuildNameSpaces();
     }
   }
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsCSSStyleSheet::AppendStyleRule(nsICSSRule* aRule)
 {
   NS_PRECONDITION(nsnull != aRule, "null arg");
@@ -1319,15 +1369,17 @@ nsCSSStyleSheet::AppendStyleRule(nsICSSRule* aRule)
     aRule->SetStyleSheet(this);
     DidDirty();
 
-    if (nsICSSRule::NAMESPACE_RULE == aRule->GetType()) {
+    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
+    aRule->GetType(type);
+    if (nsICSSRule::NAMESPACE_RULE == type) {
       nsresult rv = RegisterNamespaceRule(aRule);
-      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
-                       "RegisterNamespaceRule returned error");
+      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsCSSStyleSheet::ReplaceStyleRule(nsICSSRule* aOld, nsICSSRule* aNew)
 {
   NS_PRECONDITION(mInner->mOrderedRules.Count() != 0, "can't have old rule");
@@ -1335,27 +1387,31 @@ nsCSSStyleSheet::ReplaceStyleRule(nsICSSRule* aOld, nsICSSRule* aNew)
 
   if (NS_SUCCEEDED(WillDirty())) {
     PRInt32 index = mInner->mOrderedRules.IndexOf(aOld);
-    if (NS_UNLIKELY(index == -1)) {
-      NS_NOTREACHED("Couldn't find old rule");
-      return;
-    }
+    NS_ENSURE_TRUE(index != -1, NS_ERROR_UNEXPECTED);
     mInner->mOrderedRules.ReplaceObjectAt(aNew, index);
 
     aNew->SetStyleSheet(this);
     aOld->SetStyleSheet(nsnull);
     DidDirty();
-    NS_ASSERTION(nsICSSRule::NAMESPACE_RULE != aNew->GetType(), "not yet implemented");
-    NS_ASSERTION(nsICSSRule::NAMESPACE_RULE != aOld->GetType(), "not yet implemented");
+#ifdef DEBUG
+    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
+    aNew->GetType(type);
+    NS_ASSERTION(nsICSSRule::NAMESPACE_RULE != type, "not yet implemented");
+    aOld->GetType(type);
+    NS_ASSERTION(nsICSSRule::NAMESPACE_RULE != type, "not yet implemented");
+#endif
   }
+  return NS_OK;
 }
 
-PRInt32
-nsCSSStyleSheet::StyleRuleCount() const
+NS_IMETHODIMP
+nsCSSStyleSheet::StyleRuleCount(PRInt32& aCount) const
 {
-  return mInner->mOrderedRules.Count();
+  aCount = mInner->mOrderedRules.Count();
+  return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCSSStyleSheet::GetStyleRuleAt(PRInt32 aIndex, nsICSSRule*& aRule) const
 {
   // Important: If this function is ever made scriptable, we must add
@@ -1369,21 +1425,46 @@ nsCSSStyleSheet::GetStyleRuleAt(PRInt32 aIndex, nsICSSRule*& aRule) const
   return NS_ERROR_ILLEGAL_VALUE;
 }
 
-PRInt32
-nsCSSStyleSheet::StyleSheetCount() const
+nsXMLNameSpaceMap*
+nsCSSStyleSheet::GetNameSpaceMap() const
+{
+  return mInner->mNameSpaceMap;
+}
+
+NS_IMETHODIMP
+nsCSSStyleSheet::StyleSheetCount(PRInt32& aCount) const
 {
   // XXX Far from an ideal way to do this, but the hope is that
   // it won't be done too often. If it is, we might want to 
   // consider storing the children in an array.
-  PRInt32 count = 0;
+  aCount = 0;
 
   const nsCSSStyleSheet* child = mInner->mFirstChild;
   while (child) {
-    count++;
+    aCount++;
     child = child->mNext;
   }
 
-  return count;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCSSStyleSheet::GetStyleSheetAt(PRInt32 aIndex, nsICSSStyleSheet*& aSheet) const
+{
+  // XXX Ughh...an O(n^2) method for doing iteration. Again, we hope
+  // that this isn't done too often. If it is, we need to change the
+  // underlying storage mechanism
+  aSheet = nsnull;
+
+  nsCSSStyleSheet* child = mInner->mFirstChild;
+  while (child && (0 != aIndex)) {
+    --aIndex;
+    child = child->mNext;
+  }
+    
+  NS_IF_ADDREF(aSheet = child);
+
+  return NS_OK;
 }
 
 nsCSSStyleSheet::EnsureUniqueInnerResult
@@ -1419,19 +1500,24 @@ nsCSSStyleSheet::AppendAllChildSheets(nsTArray<nsCSSStyleSheet*>& aArray)
   return PR_TRUE;
 }
 
-already_AddRefed<nsCSSStyleSheet>
-nsCSSStyleSheet::Clone(nsCSSStyleSheet* aCloneParent,
+NS_IMETHODIMP
+nsCSSStyleSheet::Clone(nsICSSStyleSheet* aCloneParent,
                        nsICSSImportRule* aCloneOwnerRule,
                        nsIDocument* aCloneDocument,
-                       nsIDOMNode* aCloneOwningNode) const
+                       nsIDOMNode* aCloneOwningNode,
+                       nsICSSStyleSheet** aClone) const
 {
+  NS_PRECONDITION(aClone, "Null out param!");
   nsCSSStyleSheet* clone = new nsCSSStyleSheet(*this,
                                                aCloneParent,
                                                aCloneOwnerRule,
                                                aCloneDocument,
                                                aCloneOwningNode);
-  NS_IF_ADDREF(clone);
-  return clone;
+  if (clone) {
+    *aClone = static_cast<nsICSSStyleSheet*>(clone);
+    NS_ADDREF(*aClone);
+  }
+  return NS_OK;
 }
 
 #ifdef DEBUG
@@ -1453,8 +1539,7 @@ struct ListEnumData {
   PRInt32 mIndent;
 };
 
-/* virtual */ void
-nsCSSStyleSheet::List(FILE* out, PRInt32 aIndent) const
+void nsCSSStyleSheet::List(FILE* out, PRInt32 aIndent) const
 {
 
   PRInt32 index;
@@ -1566,6 +1651,20 @@ nsCSSStyleSheet::RegisterNamespaceRule(nsICSSRule* aRule)
   return NS_OK;
 }
 
+NS_IMETHODIMP 
+nsCSSStyleSheet::IsModified(PRBool* aSheetModified) const
+{
+  *aSheetModified = mDirty;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCSSStyleSheet::SetModified(PRBool aModified)
+{
+  mDirty = aModified;
+  return NS_OK;
+}
+
   // nsIDOMStyleSheet interface
 NS_IMETHODIMP    
 nsCSSStyleSheet::GetType(nsAString& aType)
@@ -1586,8 +1685,8 @@ nsCSSStyleSheet::SetDisabled(PRBool aDisabled)
 {
   // DOM method, so handle BeginUpdate/EndUpdate
   MOZ_AUTO_DOC_UPDATE(mDocument, UPDATE_STYLE, PR_TRUE);
-  nsCSSStyleSheet::SetEnabled(!aDisabled);
-  return NS_OK;
+  nsresult rv = nsCSSStyleSheet::SetEnabled(!aDisabled);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1603,9 +1702,16 @@ nsCSSStyleSheet::GetParentStyleSheet(nsIDOMStyleSheet** aParentStyleSheet)
 {
   NS_ENSURE_ARG_POINTER(aParentStyleSheet);
 
-  NS_IF_ADDREF(*aParentStyleSheet = mParent);
+  nsresult rv = NS_OK;
 
-  return NS_OK;
+  if (mParent) {
+    rv =  mParent->QueryInterface(NS_GET_IID(nsIDOMStyleSheet),
+                                  (void **)aParentStyleSheet);
+  } else {
+    *aParentStyleSheet = nsnull;
+  }
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1622,10 +1728,11 @@ nsCSSStyleSheet::GetHref(nsAString& aHref)
   return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsCSSStyleSheet::GetTitle(nsString& aTitle) const
 {
   aTitle = mTitle;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1668,7 +1775,9 @@ NS_IMETHODIMP
 nsCSSStyleSheet::GetCssRules(nsIDOMCSSRuleList** aCssRules)
 {
   // No doing this on incomplete sheets!
-  if (!mInner->mComplete) {
+  PRBool complete;
+  GetComplete(complete);
+  if (!complete) {
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
   
@@ -1705,13 +1814,15 @@ nsCSSStyleSheet::InsertRule(const nsAString& aRule,
   return InsertRuleInternal(aRule, aIndex, aReturn);
 }
 
-nsresult
+NS_IMETHODIMP
 nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule, 
                                     PRUint32 aIndex, 
                                     PRUint32* aReturn)
 {
   // No doing this if the sheet is not complete!
-  if (!mInner->mComplete) {
+  PRBool complete;
+  GetComplete(complete);
+  if (!complete) {
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
 
@@ -1733,24 +1844,33 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
 
   // Hold strong ref to the CSSLoader in case the document update
   // kills the document
-  nsRefPtr<css::Loader> loader;
+  nsCOMPtr<nsICSSLoader> loader;
   if (mDocument) {
     loader = mDocument->CSSLoader();
     NS_ASSERTION(loader, "Document with no CSS loader!");
   }
-
-  nsCSSParser css(loader, this);
-  if (!css)
-    return NS_ERROR_OUT_OF_MEMORY;
+  
+  nsCOMPtr<nsICSSParser> css;
+  if (loader) {
+    result = loader->GetParserFor(this, getter_AddRefs(css));
+  }
+  else {
+    result = NS_NewCSSParser(getter_AddRefs(css));
+    if (css) {
+      css->SetStyleSheet(this);
+    }
+  }
+  if (NS_FAILED(result))
+    return result;
 
   mozAutoDocUpdate updateBatch(mDocument, UPDATE_STYLE, PR_TRUE);
 
   nsCOMArray<nsICSSRule> rules;
-  result = css.ParseRule(aRule, mInner->mSheetURI, mInner->mBaseURI,
-                         mInner->mPrincipal, rules);
+  result = css->ParseRule(aRule, mInner->mSheetURI, mInner->mBaseURI,
+                          mInner->mPrincipal, rules);
   if (NS_FAILED(result))
     return result;
-
+  
   PRInt32 rulecount = rules.Count();
   if (rulecount == 0) {
     // Since we know aRule was not an empty string, just throw
@@ -1760,17 +1880,19 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
   // Hierarchy checking.  Just check the first and last rule in the list.
   
   // check that we're not inserting before a charset rule
+  PRInt32 nextType = nsICSSRule::UNKNOWN_RULE;
   nsICSSRule* nextRule = mInner->mOrderedRules.SafeObjectAt(aIndex);
   if (nextRule) {
-    PRInt32 nextType = nextRule->GetType();
+    nextRule->GetType(nextType);
     if (nextType == nsICSSRule::CHARSET_RULE) {
       return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
     }
 
     // check last rule in list
     nsICSSRule* lastRule = rules.ObjectAt(rulecount - 1);
-    PRInt32 lastType = lastRule->GetType();
-
+    PRInt32 lastType = nsICSSRule::UNKNOWN_RULE;
+    lastRule->GetType(lastType);
+    
     if (nextType == nsICSSRule::IMPORT_RULE &&
         lastType != nsICSSRule::CHARSET_RULE &&
         lastType != nsICSSRule::IMPORT_RULE) {
@@ -1787,14 +1909,16 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
   
   // check first rule in list
   nsICSSRule* firstRule = rules.ObjectAt(0);
-  PRInt32 firstType = firstRule->GetType();
+  PRInt32 firstType = nsICSSRule::UNKNOWN_RULE;
+  firstRule->GetType(firstType);
   if (aIndex != 0) {
     if (firstType == nsICSSRule::CHARSET_RULE) { // no inserting charset at nonzero position
       return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
     }
   
     nsICSSRule* prevRule = mInner->mOrderedRules.SafeObjectAt(aIndex - 1);
-    PRInt32 prevType = prevRule->GetType();
+    PRInt32 prevType = nsICSSRule::UNKNOWN_RULE;
+    prevRule->GetType(prevType);
 
     if (firstType == nsICSSRule::IMPORT_RULE &&
         prevType != nsICSSRule::CHARSET_RULE &&
@@ -1817,8 +1941,9 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
   for (PRInt32 counter = 0; counter < rulecount; counter++) {
     nsICSSRule* cssRule = rules.ObjectAt(counter);
     cssRule->SetStyleSheet(this);
-
-    PRInt32 type = cssRule->GetType();
+    
+    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
+    cssRule->GetType(type);
     if (type == nsICSSRule::NAMESPACE_RULE) {
       // XXXbz does this screw up when inserting a namespace rule before
       // another namespace rule that binds the same prefix to a different
@@ -1844,6 +1969,10 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
     }
   }
   
+  if (loader) {
+    loader->RecycleParser(css);
+  }
+  
   *aReturn = aIndex;
   return NS_OK;
 }
@@ -1853,7 +1982,9 @@ nsCSSStyleSheet::DeleteRule(PRUint32 aIndex)
 {
   nsresult result = NS_ERROR_DOM_INDEX_SIZE_ERR;
   // No doing this if the sheet is not complete!
-  if (!mInner->mComplete) {
+  PRBool complete;
+  GetComplete(complete);
+  if (!complete) {
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
 
@@ -1890,7 +2021,7 @@ nsCSSStyleSheet::DeleteRule(PRUint32 aIndex)
   return result;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCSSStyleSheet::DeleteRuleFromGroup(nsICSSGroupRule* aGroup, PRUint32 aIndex)
 {
   NS_ENSURE_ARG_POINTER(aGroup);
@@ -1901,7 +2032,8 @@ nsCSSStyleSheet::DeleteRuleFromGroup(nsICSSGroupRule* aGroup, PRUint32 aIndex)
   NS_ENSURE_SUCCESS(result, result);
   
   // check that the rule actually belongs to this sheet!
-  nsCOMPtr<nsIStyleSheet> ruleSheet = rule->GetStyleSheet();
+  nsCOMPtr<nsIStyleSheet> ruleSheet;
+  rule->GetStyleSheet(*getter_AddRefs(ruleSheet));
   if (this != ruleSheet) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -1925,7 +2057,7 @@ nsCSSStyleSheet::DeleteRuleFromGroup(nsICSSGroupRule* aGroup, PRUint32 aIndex)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
                                      nsICSSGroupRule* aGroup,
                                      PRUint32 aIndex,
@@ -1934,7 +2066,8 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
   nsresult result;
   NS_ASSERTION(mInner->mComplete, "No inserting into an incomplete sheet!");
   // check that the group actually belongs to this sheet!
-  nsCOMPtr<nsIStyleSheet> groupSheet = aGroup->GetStyleSheet();
+  nsCOMPtr<nsIStyleSheet> groupSheet;
+  aGroup->GetStyleSheet(*getter_AddRefs(groupSheet));
   if (this != groupSheet) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -1943,19 +2076,26 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
     // Nothing to do here
     return NS_OK;
   }
-
+  
   // Hold strong ref to the CSSLoader in case the document update
   // kills the document
-  nsRefPtr<css::Loader> loader;
+  nsCOMPtr<nsICSSLoader> loader;
   if (mDocument) {
     loader = mDocument->CSSLoader();
     NS_ASSERTION(loader, "Document with no CSS loader!");
   }
 
-  nsCSSParser css(loader, this);
-  if (!css) {
-    return NS_ERROR_OUT_OF_MEMORY;
+  nsCOMPtr<nsICSSParser> css;
+  if (loader) {
+    result = loader->GetParserFor(this, getter_AddRefs(css));
   }
+  else {
+    result = NS_NewCSSParser(getter_AddRefs(css));
+    if (css) {
+      css->SetStyleSheet(this);
+    }
+  }
+  NS_ENSURE_SUCCESS(result, result);
 
   // parse and grab the rule
   mozAutoDocUpdate updateBatch(mDocument, UPDATE_STYLE, PR_TRUE);
@@ -1964,8 +2104,8 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
   NS_ENSURE_SUCCESS(result, result);
 
   nsCOMArray<nsICSSRule> rules;
-  result = css.ParseRule(aRule, mInner->mSheetURI, mInner->mBaseURI,
-                         mInner->mPrincipal, rules);
+  result = css->ParseRule(aRule, mInner->mSheetURI, mInner->mBaseURI,
+                          mInner->mPrincipal, rules);
   NS_ENSURE_SUCCESS(result, result);
 
   PRInt32 rulecount = rules.Count();
@@ -1978,8 +2118,10 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
   nsICSSRule* rule;
   for (counter = 0; counter < rulecount; counter++) {
     // Only rulesets are allowed in a group as of CSS2
+    PRInt32 type = nsICSSRule::UNKNOWN_RULE;
     rule = rules.ObjectAt(counter);
-    if (rule->GetType() != nsICSSRule::STYLE_RULE) {
+    rule->GetType(type);
+    if (type != nsICSSRule::STYLE_RULE) {
       return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
     }
   }
@@ -1995,19 +2137,24 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
     }
   }
 
+  if (loader) {
+    loader->RecycleParser(css);
+  }
+
   *_retval = aIndex;
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCSSStyleSheet::ReplaceRuleInGroup(nsICSSGroupRule* aGroup,
-                                    nsICSSRule* aOld, nsICSSRule* aNew)
+                                      nsICSSRule* aOld, nsICSSRule* aNew)
 {
   nsresult result;
   NS_PRECONDITION(mInner->mComplete, "No replacing in an incomplete sheet!");
 #ifdef DEBUG
   {
-    nsCOMPtr<nsIStyleSheet> groupSheet = aGroup->GetStyleSheet();
+    nsCOMPtr<nsIStyleSheet> groupSheet;
+    aGroup->GetStyleSheet(*getter_AddRefs(groupSheet));
     NS_ASSERTION(this == groupSheet, "group doesn't belong to this sheet");
   }
 #endif
@@ -2021,15 +2168,23 @@ nsCSSStyleSheet::ReplaceRuleInGroup(nsICSSGroupRule* aGroup,
 
 // nsICSSLoaderObserver implementation
 NS_IMETHODIMP
-nsCSSStyleSheet::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+nsCSSStyleSheet::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                   PRBool aWasAlternate,
                                   nsresult aStatus)
 {
-  NS_ASSERTION(this == aSheet->GetParentSheet(),
-               "We are being notified of a sheet load for a sheet that is not our child!");
-
+#ifdef DEBUG
+  nsCOMPtr<nsIStyleSheet> styleSheet(do_QueryInterface(aSheet));
+  NS_ASSERTION(styleSheet, "Sheet not implementing nsIStyleSheet!\n");
+  nsCOMPtr<nsIStyleSheet> parentSheet;
+  aSheet->GetParentSheet(*getter_AddRefs(parentSheet));
+  nsCOMPtr<nsIStyleSheet> thisSheet;
+  QueryInterface(NS_GET_IID(nsIStyleSheet), getter_AddRefs(thisSheet));
+  NS_ASSERTION(thisSheet == parentSheet, "We are being notified of a sheet load for a sheet that is not our child!\n");
+#endif
+  
   if (mDocument && NS_SUCCEEDED(aStatus)) {
-    nsCOMPtr<nsICSSImportRule> ownerRule = aSheet->GetOwnerRule();
+    nsCOMPtr<nsICSSImportRule> ownerRule;
+    aSheet->GetOwnerRule(getter_AddRefs(ownerRule));
     
     mozAutoDocUpdate updateBatch(mDocument, UPDATE_STYLE, PR_TRUE);
 
@@ -2043,14 +2198,14 @@ nsCSSStyleSheet::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
   return NS_OK;
 }
 
-/* virtual */ nsIURI*
+NS_IMETHODIMP_(nsIURI*)
 nsCSSStyleSheet::GetOriginalURI() const
 {
   return mInner->mOriginalSheetURI;
 }
 
 nsresult
-NS_NewCSSStyleSheet(nsCSSStyleSheet** aInstancePtrResult)
+NS_NewCSSStyleSheet(nsICSSStyleSheet** aInstancePtrResult)
 {
   *aInstancePtrResult = nsnull;
   nsCSSStyleSheet  *it = new nsCSSStyleSheet();

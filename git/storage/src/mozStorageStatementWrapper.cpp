@@ -203,9 +203,7 @@ StatementWrapper::Call(nsIXPConnectWrappedNative *aWrapper,
 
   // bind parameters
   for (int i = 0; i < (int)aArgc; i++) {
-    nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, aArgv[i]));
-    if (!variant ||
-        NS_FAILED(mStatement->BindByIndex(i, variant))) {
+    if (!bindJSValue(aCtx, mStatement, i, aArgv[i])) {
       *_retval = PR_FALSE;
       return NS_ERROR_INVALID_ARG;
     }

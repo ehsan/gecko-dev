@@ -44,7 +44,6 @@ include $(DEPTH)/config/autoconf.mk
 MODULE = loginmgr
 
 EXTRA_COMPONENTS = \
-			passwordmgr.manifest \
 			nsLoginManager.js \
 			nsLoginManagerPrompter.js \
 			nsLoginInfo.js \
@@ -52,5 +51,6 @@ EXTRA_COMPONENTS = \
 			storage-mozStorage.js \
 			crypto-SDR.js \
 			$(NULL)
+
 
 include $(topsrcdir)/config/rules.mk

@@ -49,7 +49,6 @@
 #
         .align  2
         .globl  __PR_DarwinPPC_AtomicIncrement
-        .private_extern __PR_DarwinPPC_AtomicIncrement
 __PR_DarwinPPC_AtomicIncrement:
         lwarx   r4,0,r3
         addi    r0,r4,1
@@ -63,7 +62,6 @@ __PR_DarwinPPC_AtomicIncrement:
 #
         .align  2
         .globl  __PR_DarwinPPC_AtomicDecrement
-        .private_extern __PR_DarwinPPC_AtomicDecrement
 __PR_DarwinPPC_AtomicDecrement:
         lwarx   r4,0,r3
         addi    r0,r4,-1
@@ -77,7 +75,6 @@ __PR_DarwinPPC_AtomicDecrement:
 #
         .align  2
         .globl  __PR_DarwinPPC_AtomicSet
-        .private_extern __PR_DarwinPPC_AtomicSet
 __PR_DarwinPPC_AtomicSet:
         lwarx   r5,0,r3
         stwcx.  r4,0,r3
@@ -90,7 +87,6 @@ __PR_DarwinPPC_AtomicSet:
 #
         .align  2
         .globl  __PR_DarwinPPC_AtomicAdd
-        .private_extern __PR_DarwinPPC_AtomicAdd
 __PR_DarwinPPC_AtomicAdd:
         lwarx   r5,0,r3
         add     r0,r4,r5

@@ -1,11 +1,11 @@
-var expected = ["TabOpen", "onStateChange", "onLocationChange", "onLinkIconAvailable"];
+var expected = ["TabOpen", "onLocationChange", "onStateChange", "onLinkIconAvailable"];
 var actual = [];
 var tabIndex = -1;
-__defineGetter__("tab", function () gBrowser.tabs[tabIndex]);
+__defineGetter__("tab", function () gBrowser.tabContainer.childNodes[tabIndex]);
 
 function test() {
   waitForExplicitFinish();
-  tabIndex = gBrowser.tabs.length;
+  tabIndex = gBrowser.tabContainer.childElementCount;
   gBrowser.addTabsProgressListener(progressListener);
   gBrowser.tabContainer.addEventListener("TabOpen", TabOpen, false);
   gBrowser.addTab("data:text/html,<html><head><link href='about:logo' rel='shortcut icon'>");
@@ -35,13 +35,15 @@ var progressListener = {
     if (aBrowser == tab.linkedBrowser)
       record(arguments.callee.name);
   },
+  onProgressChange: function () {},
+  onSecurityChange: function () {},
   onStateChange: function onStateChange(aBrowser) {
     if (aBrowser == tab.linkedBrowser)
       record(arguments.callee.name);
   },
-  onLinkIconAvailable: function onLinkIconAvailable(aBrowser, aIconURL) {
-    if (aBrowser == tab.linkedBrowser &&
-        aIconURL == "about:logo")
+  onStatusChange: function () {},
+  onLinkIconAvailable: function onLinkIconAvailable(aBrowser) {
+    if (aBrowser == tab.linkedBrowser)
       record(arguments.callee.name);
   }
 };

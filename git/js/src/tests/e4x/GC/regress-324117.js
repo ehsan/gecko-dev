@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-324117.js';
 
 var summary = "GC hazard during namespace scanning";
 var BUGNUMBER = 324117;

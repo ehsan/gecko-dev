@@ -827,49 +827,51 @@ sdb_GetAttributeValueNoLock(SDB *sdb, CK_OBJECT_HANDLE object_id,
 	goto loser;
     }
 
-    for (i=0; i < count; i++) {
-	getStr = sqlite3_mprintf("a%x", template[i].type);
-
-	if (getStr == NULL) {
-	    error = CKR_HOST_MEMORY;
-	    goto loser;
+    getStr = sqlite3_mprintf("");
+    for (i=0; getStr && i < count; i++) {
+	if (i==0) {
+	    newStr = sqlite3_mprintf("a%x", template[i].type);
+	} else {
+	    newStr = sqlite3_mprintf("%s, a%x", getStr, template[i].type);
 	}
-
-	newStr = sqlite3_mprintf(GET_ATTRIBUTE_CMD, getStr, table);
 	sqlite3_free(getStr);
-	getStr = NULL;
-	if (newStr == NULL) {
-	    error = CKR_HOST_MEMORY;
-	    goto loser;
+	getStr = newStr;
+    }
+
+    if (getStr == NULL) {
+	error = CKR_HOST_MEMORY;
+	goto loser;
+    }
+
+    newStr = sqlite3_mprintf(GET_ATTRIBUTE_CMD, getStr, table);
+    sqlite3_free(getStr);
+    getStr = NULL;
+    if (newStr == NULL) {
+	error = CKR_HOST_MEMORY;
+	goto loser;
+    }
+
+    sqlerr = sqlite3_prepare_v2(sqlDB, newStr, -1, &stmt, NULL);
+    if (sqlerr != SQLITE_OK) { goto loser; }
+    sqlerr = sqlite3_bind_int(stmt, 1, object_id);
+    if (sqlerr != SQLITE_OK) { goto loser; }
+    do {
+	sqlerr = sqlite3_step(stmt);
+	if (sqlerr == SQLITE_BUSY) {
+	    PR_Sleep(SDB_BUSY_RETRY_TIME);
 	}
-
-	sqlerr = sqlite3_prepare_v2(sqlDB, newStr, -1, &stmt, NULL);
-	sqlite3_free(newStr);
-	newStr = NULL;
-	if (sqlerr == SQLITE_ERROR) {
-	    template[i].ulValueLen = -1;
-	    error = CKR_ATTRIBUTE_TYPE_INVALID;
-	    continue;
-	} else if (sqlerr != SQLITE_OK) { goto loser; }
-
-	sqlerr = sqlite3_bind_int(stmt, 1, object_id);
-	if (sqlerr != SQLITE_OK) { goto loser; }
-
-	do {
-	    sqlerr = sqlite3_step(stmt);
-	    if (sqlerr == SQLITE_BUSY) {
-		PR_Sleep(SDB_BUSY_RETRY_TIME);
-	    }
-	    if (sqlerr == SQLITE_ROW) {
+	if (sqlerr == SQLITE_ROW) {
+	    for (i=0; i < count; i++) {
+		int column = i;
 	    	int blobSize;
 	    	const char *blobData;
 
-	    	blobSize = sqlite3_column_bytes(stmt, 0);
-		blobData = sqlite3_column_blob(stmt, 0);
+	    	blobSize = sqlite3_column_bytes(stmt, column);
+		blobData = sqlite3_column_blob(stmt, column);
 		if (blobData == NULL) {
 		    template[i].ulValueLen = -1;
 		    error = CKR_ATTRIBUTE_TYPE_INVALID; 
-		    break;
+		    continue;
 		}
 		/* If the blob equals our explicit NULL value, then the 
 		 * attribute is a NULL. */
@@ -882,18 +884,15 @@ sdb_GetAttributeValueNoLock(SDB *sdb, CK_OBJECT_HANDLE object_id,
 		    if (template[i].ulValueLen < blobSize) {
 			template[i].ulValueLen = -1;
 		    	error = CKR_BUFFER_TOO_SMALL;
-			break;
+			continue;
 		    }
 	    	    PORT_Memcpy(template[i].pValue, blobData, blobSize);
 		}
 		template[i].ulValueLen = blobSize;
-		found = 1;
 	    }
-	} while (!sdb_done(sqlerr,&retry));
-	sqlite3_reset(stmt);
-	sqlite3_finalize(stmt);
-	stmt = NULL;
-    }
+	    found = 1;
+	}
+    } while (!sdb_done(sqlerr,&retry));
 
 loser:
     /* fix up the error if necessary */
@@ -902,6 +901,9 @@ loser:
 	if (!found && error == CKR_OK) {
 	    error = CKR_OBJECT_HANDLE_INVALID;
 	}
+    }
+    if (newStr) {
+	sqlite3_free(newStr);
     }
 
     if (stmt) {

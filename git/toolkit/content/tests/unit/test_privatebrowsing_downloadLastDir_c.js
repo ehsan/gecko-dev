@@ -69,7 +69,7 @@ if (!profileDir) {
       throw Cr.NS_ERROR_FAILURE;
     },
     QueryInterface: function(iid) {
-      if (iid.equals(Ci.nsIDirectoryServiceProvider) ||
+      if (iid.equals(Ci.nsIDirectoryProvider) ||
           iid.equals(Ci.nsISupports)) {
         return this;
       }
@@ -129,11 +129,12 @@ function run_test()
   };
   makeFilePicker = function() fp;
 
-  // Overwrite stringBundle to return an object masquerading as a string bundle
-  delete ContentAreaUtils.stringBundle;
-  ContentAreaUtils.stringBundle = {
-    GetStringFromName: function() ""
-  };
+  // Overwrite getStringBundle to return an object masquerading as an string bungle
+  getStringBundle = function() {
+    return {
+      GetStringFromName: function() ""
+    };
+  }
 
   // Overwrite validateFileName to validate everything
   validateFileName = function(foo) foo;

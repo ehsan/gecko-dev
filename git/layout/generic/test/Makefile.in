@@ -58,10 +58,8 @@ _TEST_FILES = \
 		plugin_clipping_lib.js \
 		plugin_focus_helper.html \
 		test_backspace_delete.xul \
-		test_bug240933.html \
 		test_bug263683.html \
 		test_bug288789.html \
-		test_bug290397.html \
 		test_bug323656.html \
 		test_bug344830.html \
 		test_bug348681.html \
@@ -82,7 +80,6 @@ _TEST_FILES = \
 		$(warning test_bug421839-1.html disabled because it calls finish twice which can cause timeouts) \
 		test_bug421839-2.html \
 		bug421839-2-page.html \
-		test_bug424627.html \
 		test_bug438840.html \
 		test_bug448860.html \
 		test_bug460532.html \
@@ -90,16 +87,11 @@ _TEST_FILES = \
 		test_bug469613.xul \
 		test_bug469774.xul \
 		test_bug470212.html \
-		$(warning test_bug488417.html temporarily disabled - see bug 489560) \
-		test_bug496275.html \
 		test_bug503813.html \
 		test_bug508115.xul \
 		$(warning test_bug507902.html temporarily disabled - see bug 510001) \
 		test_bug514732.html \
 		test_bug527306.html \
-		test_bug597333.html \
-		test_image_selection.html \
-		test_invalidate_during_plugin_paint.html \
 		test_movement_by_characters.html \
 		test_movement_by_words.html \
 		test_plugin_clipping.xhtml \
@@ -118,12 +110,9 @@ _TEST_FILES = \
 		file_LoadingImageReference.png \
 		file_bug514732_1.html \
 		file_bug514732_helper.html \
-		test_bug522632.html \
-		test_bug589621.html \
-		test_bug589623.html \
-		$(srcdir)/../../reftests/backgrounds/blue-32x32.png \
-		$(srcdir)/../../reftests/backgrounds/fuchsia-32x32.png \
 		$(NULL)
+# disabled temporarily
+#		test_bug488417.html \
 
 _CHROME_FILES = \
 		test_bug514732-2.xul \

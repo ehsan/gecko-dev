@@ -82,6 +82,7 @@ DEFINES += \
   -D_CRT_RAND_S \
   -DCERT_CHAIN_PARA_HAS_EXTRA_FIELDS \
   -D_SECURE_ATL \
+  -D_HAS_TR1=0 \
   -DCHROMIUM_BUILD \
   -DU_STATIC_IMPLEMENTATION \
   -DCOMPILER_MSVC \
@@ -104,6 +105,9 @@ DEFINES += \
 
 # NB: to stop gcc warnings about exporting template instantiation
 OS_CXXFLAGS := $(filter-out -pedantic,$(OS_CXXFLAGS))
+
+OS_CXXFLAGS += $(TK_CFLAGS)
+OS_CFLAGS += $(TK_CFLAGS)
 
 endif # }
 endif # }

@@ -38,7 +38,6 @@
 
 #include "nsSMILValue.h"
 #include "nsDebug.h"
-#include <string.h>
 
 //----------------------------------------------------------------------
 // Public methods
@@ -57,7 +56,10 @@ nsSMILValue::nsSMILValue(const nsISMILType* aType)
 nsSMILValue::nsSMILValue(const nsSMILValue& aVal)
   : mType(&nsSMILNullType::sSingleton)
 {
-  InitAndCheckPostcondition(aVal.mType);
+  nsresult rv = InitAndCheckPostcondition(aVal.mType);
+  if (NS_FAILED(rv))
+    return;
+
   mType->Assign(*this, aVal);
 }
 
@@ -68,7 +70,9 @@ nsSMILValue::operator=(const nsSMILValue& aVal)
     return *this;
 
   if (mType != aVal.mType) {
-    DestroyAndReinit(aVal.mType);
+    nsresult rv = DestroyAndReinit(aVal.mType);
+    if (NS_FAILED(rv))
+      return *this; // Initialization failed; return early
   }
 
   mType->Assign(*this, aVal);
@@ -83,19 +87,6 @@ nsSMILValue::operator==(const nsSMILValue& aVal) const
     return PR_TRUE;
 
   return mType == aVal.mType && mType->IsEqual(*this, aVal);
-}
-
-void
-nsSMILValue::Swap(nsSMILValue& aOther)
-{
-  nsSMILValue tmp;
-  memcpy(&tmp,    &aOther, sizeof(nsSMILValue));  // tmp    = aOther
-  memcpy(&aOther, this,    sizeof(nsSMILValue));  // aOther = this
-  memcpy(this,    &tmp,    sizeof(nsSMILValue));  // this   = tmp
-
-  // |tmp| is about to die -- we need to clear its mType, so that its
-  // destructor doesn't muck with the data we just transferred out of it.
-  tmp.mType = &nsSMILNullType::sSingleton;
 }
 
 nsresult
@@ -143,7 +134,9 @@ nsSMILValue::Interpolate(const nsSMILValue& aEndVal,
 
   if (aResult.mType != mType) {
     // Outparam has wrong type
-    aResult.DestroyAndReinit(mType);
+    nsresult rv = aResult.DestroyAndReinit(mType);
+    if (NS_FAILED(rv))
+      return rv;
   }
 
   return mType->Interpolate(*this, aEndVal, aUnitDistance, aResult);
@@ -153,12 +146,13 @@ nsSMILValue::Interpolate(const nsSMILValue& aEndVal,
 // Helper methods
 
 // Wrappers for nsISMILType::Init & ::Destroy that verify their postconditions
-void
+nsresult
 nsSMILValue::InitAndCheckPostcondition(const nsISMILType* aNewType)
 {
-  aNewType->Init(*this);
-  NS_ABORT_IF_FALSE(mType == aNewType,
+  nsresult rv = aNewType->Init(*this);
+  NS_ABORT_IF_FALSE(mType == aNewType || (NS_FAILED(rv) && IsNull()),
                     "Post-condition of Init failed. nsSMILValue is invalid");
+  return rv;
 }
                 
 void
@@ -169,9 +163,9 @@ nsSMILValue::DestroyAndCheckPostcondition()
                     "nsSMILValue not null after destroying");
 }
 
-void
+nsresult
 nsSMILValue::DestroyAndReinit(const nsISMILType* aNewType)
 {
   DestroyAndCheckPostcondition();
-  InitAndCheckPostcondition(aNewType);
+  return InitAndCheckPostcondition(aNewType);
 }

@@ -47,9 +47,9 @@
  *  0 - invalid
  *  4 - EMBED
  *  7 - DOWNLOAD
- *  7 - FRAMED_LINK
  **/
-#define EXCLUDED_VISIT_TYPES "0, 4, 7, 8"
+#define EXCLUDED_VISIT_TYPES "0, 4, 7"
+
 /**
  * Trigger checks to ensure that at least one bookmark is still using a keyword
  * when any bookmark is deleted.  If there are no more bookmarks using it, the
@@ -76,17 +76,13 @@
  * This trigger allows for an insertion into moz_places_view.  It enters the new
  * data into the temporary table, ensuring that the new id is one greater than
  * the largest id value found.
- * We have both sync and async users for this trigger, so it could happen that
- * an async statement tries to insert a page when a sync statement just added
- * it.  We should ignore the insertion in such a case, the async implementer
- * will fetch the id of the existing entry.
  */
 #define CREATE_PLACES_VIEW_INSERT_TRIGGER NS_LITERAL_CSTRING( \
   "CREATE TEMPORARY TRIGGER moz_places_view_insert_trigger " \
   "INSTEAD OF INSERT " \
   "ON moz_places_view " \
   "BEGIN " \
-    "INSERT OR IGNORE INTO moz_places_temp (" MOZ_PLACES_COLUMNS ") " \
+    "INSERT INTO moz_places_temp (" MOZ_PLACES_COLUMNS ") " \
     "VALUES (MAX(IFNULL((SELECT MAX(id) FROM moz_places_temp), 0), " \
                 "IFNULL((SELECT MAX(id) FROM moz_places), 0)) + 1," \
             "NEW.url, NEW.title, NEW.rev_host, " \
@@ -98,8 +94,8 @@
 
 /**
  * This trigger allows for the deletion of a record in moz_places_view.  It
- * removes any entry in the temporary table, the permanent table, and any
- * associated entry in moz_openpages_temp.
+ * removes any entry in the temporary table, and any entry in the permanent
+ * table as well.
  */
 #define CREATE_PLACES_VIEW_DELETE_TRIGGER NS_LITERAL_CSTRING( \
   "CREATE TEMPORARY TRIGGER moz_places_view_delete_trigger " \
@@ -110,8 +106,6 @@
     "WHERE id = OLD.id; " \
     "DELETE FROM moz_places " \
     "WHERE id = OLD.id; " \
-    "DELETE FROM moz_openpages_temp " \
-    "WHERE url = OLD.url; " \
   "END" \
 )
 
@@ -263,19 +257,5 @@
   CREATE_TEMP_SYNC_TRIGGER_BASE("moz_places", MOZ_PLACES_COLUMNS)
 #define CREATE_MOZ_HISTORYVISITS_SYNC_TRIGGER \
   CREATE_TEMP_SYNC_TRIGGER_BASE("moz_historyvisits", MOZ_HISTORYVISITS_COLUMNS)
-
-
-/**
- * This trigger removes a row from moz_openpages_temp when open_count reaches 0.
- */
-#define CREATE_REMOVEOPENPAGE_CLEANUP_TRIGGER NS_LITERAL_CSTRING( \
-  "CREATE TEMPORARY TRIGGER moz_openpages_temp_afterupdate_trigger " \
-  "AFTER UPDATE OF open_count ON moz_openpages_temp FOR EACH ROW " \
-  "WHEN NEW.open_count = 0 " \
-  "BEGIN " \
-    "DELETE FROM moz_openpages_temp " \
-    "WHERE url = NEW.url;" \
-  "END" \
-)
 
 #endif // __nsPlacesTriggers_h__

@@ -245,8 +245,11 @@ nsColumnSetFrame::PaintColumnRule(nsIRenderingContext* aCtx,
   if (!ruleWidth)
     return;
 
-  nscolor ruleColor =
-    GetVisitedDependentColor(eCSSProperty__moz_column_rule_color);
+  nscolor ruleColor;
+  if (colStyle->mColumnRuleColorIsForeground)
+    ruleColor = GetStyleColor()->mColor;
+  else
+    ruleColor = colStyle->mColumnRuleColor;
 
   // In order to re-use a large amount of code, we treat the column rule as a border.
   // We create a new border style object and fill in all the details of the column rule as
@@ -276,10 +279,10 @@ nsColumnSetFrame::PaintColumnRule(nsIRenderingContext* aCtx,
                    contentRect.y);
 
     nsRect lineRect(linePt, ruleSize);
-    nsCSSRendering::PaintBorderWithStyleBorder(presContext, *aCtx, this,
-        aDirtyRect, lineRect, border, GetStyleContext(),
-        // Remember, we only have the "left" "border". Skip everything else
-        (1 << NS_SIDE_TOP | 1 << NS_SIDE_RIGHT | 1 << NS_SIDE_BOTTOM));
+    nsCSSRendering::PaintBorder(presContext, *aCtx, this, aDirtyRect,
+                                lineRect, border, GetStyleContext(),
+                                // Remember, we only have the "left" "border". Skip everything else
+                                (1 << NS_SIDE_TOP | 1 << NS_SIDE_RIGHT | 1 << NS_SIDE_BOTTOM));
 
     child = nextSibling;
     nextSibling = nextSibling->GetNextSibling();
@@ -443,7 +446,7 @@ static void MoveChildTo(nsIFrame* aParent, nsIFrame* aChild, nsPoint aOrigin) {
     return;
   }
   
-  nsRect r = aChild->GetVisualOverflowRect();
+  nsRect r = aChild->GetOverflowRect();
   r += aChild->GetPosition();
   aParent->Invalidate(r);
   r -= aChild->GetPosition();
@@ -555,8 +558,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
   const nsMargin &borderPadding = aReflowState.mComputedBorderPadding;
   
   nsRect contentRect(0, 0, 0, 0);
-  nsOverflowAreas overflowRects;
-
+  nsRect overflowRect(0, 0, 0, 0);
+  
   nsIFrame* child = mFrames.FirstChild();
   nsPoint childOrigin = nsPoint(borderPadding.left, borderPadding.top);
   // For RTL, figure out where the last column's left edge should be. Since the
@@ -603,10 +606,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
     // may have overflowing content that cares about the available height boundary.
     // (It may also have overflowing content that doesn't care about the available height
     // boundary, but if so, too bad, this optimization is defeated.)
-    // We want scrollable overflow here since this is a calculation that
-    // affects layout.
     PRBool skipResizeHeightShrink = shrinkingHeightOnly
-      && child->GetScrollableOverflowRect().YMost() <= aConfig.mColMaxHeight;
+      && child->GetOverflowRect().YMost() <= aConfig.mColMaxHeight;
 
     nscoord childContentBottom = 0;
     if (!reflowNext && (skipIncremental || skipResizeHeightShrink)) {
@@ -697,7 +698,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 
     contentRect.UnionRect(contentRect, child->GetRect());
 
-    ConsiderChildOverflow(overflowRects, child);
+    ConsiderChildOverflow(overflowRect, child);
     contentBottom = NS_MAX(contentBottom, childContentBottom);
     aColData.mLastHeight = childContentBottom;
     aColData.mSumHeight += childContentBottom;
@@ -803,7 +804,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
   
   // If we're doing RTL, we need to make sure our last column is at the left-hand side of the frame.
   if (RTL && childOrigin.x != targetX) {
-    overflowRects.Clear();
+    overflowRect = nsRect(0, 0, 0, 0);
     contentRect = nsRect(0, 0, 0, 0);
     PRInt32 deltaX = targetX - childOrigin.x;
 #ifdef DEBUG_roc
@@ -811,7 +812,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
 #endif
     for (child = mFrames.FirstChild(); child; child = child->GetNextSibling()) {
       MoveChildTo(this, child, child->GetPosition() + nsPoint(deltaX, 0));
-      ConsiderChildOverflow(overflowRects, child);
+      ConsiderChildOverflow(overflowRect, child);
       contentRect.UnionRect(contentRect, child->GetRect());
     }
   }
@@ -849,9 +850,9 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
   aDesiredSize.height = borderPadding.top + contentSize.height +
     borderPadding.bottom;
   aDesiredSize.width = contentSize.width + borderPadding.left + borderPadding.right;
-  aDesiredSize.mOverflowAreas = overflowRects;
-  aDesiredSize.UnionOverflowAreasWithDesiredBounds();
-
+  overflowRect.UnionRect(overflowRect, nsRect(0, 0, aDesiredSize.width, aDesiredSize.height));
+  aDesiredSize.mOverflowArea = overflowRect;
+  
 #ifdef DEBUG_roc
   printf("*** DONE PASS feasible=%d\n", allFit && NS_FRAME_IS_FULLY_COMPLETE(aStatus)
          && !NS_FRAME_IS_TRUNCATED(aStatus));
@@ -1073,7 +1074,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
 
-  NS_ASSERTION(NS_FRAME_IS_FULLY_COMPLETE(aStatus) ||
+  NS_ASSERTION(NS_FRAME_IS_COMPLETE(aStatus) ||
                aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE,
                "Column set should be complete if the available height is unconstrained");
 
@@ -1088,8 +1089,7 @@ nsColumnSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   NS_ENSURE_SUCCESS(rv, rv);
 
   aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-      nsDisplayGeneric(aBuilder, this, ::PaintColumnRule, "ColumnRule",
-                       nsDisplayItem::TYPE_COLUMN_RULE));
+      nsDisplayGeneric(this, ::PaintColumnRule, "ColumnRule"));
   
   nsIFrame* kid = mFrames.FirstChild();
   // Our children won't have backgrounds so it doesn't matter where we put them.

@@ -87,7 +87,7 @@ public:
   PRUint16 GetReflowDepth() { return mReflowDepth; }
   
 private:
-  nsRefPtr<nsPresContext> mPresContext;
+  nsCOMPtr<nsPresContext> mPresContext;
   nsIRenderingContext *mRenderingContext;
   PRUint32 mLayoutFlags;
   PRUint16 mReflowDepth; 

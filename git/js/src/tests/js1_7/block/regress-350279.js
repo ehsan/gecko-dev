@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350279.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350279;
 var summary = 'Do not assert: left->pn_type == TOK_RC';

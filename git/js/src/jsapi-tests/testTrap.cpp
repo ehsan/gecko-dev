@@ -1,7 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sw=4 et tw=99:
- */
-
 #include "tests.h"
 #include "jsdbgapi.h"
 
@@ -9,11 +5,10 @@ static int emptyTrapCallCount = 0;
 
 static JSTrapStatus
 EmptyTrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                 jsval closure)
+                 void *closure)
 {
     JS_GC(cx);
-    if (JSVAL_IS_STRING(closure))
-        ++emptyTrapCallCount;
+    ++emptyTrapCallCount;
     return JSTRAP_CONTINUE;
 }
 
@@ -45,9 +40,6 @@ BEGIN_TEST(testTrap_gc)
     // Disable JIT for debugging
     JS_SetOptions(cx, JS_GetOptions(cx) & ~JSOPTION_JIT);
 
-    // Enable debug mode
-    CHECK(JS_SetDebugMode(cx, JS_TRUE));
-
     jsbytecode *line2 = JS_LineNumberToPC(cx, script, 1);
     CHECK(line2);
 
@@ -57,12 +49,12 @@ BEGIN_TEST(testTrap_gc)
     static const char trapClosureText[] = "some trap closure";
     JSString *trapClosure = JS_NewStringCopyZ(cx, trapClosureText);
     CHECK(trapClosure);
-    JS_SetTrap(cx, script, line2, EmptyTrapHandler, STRING_TO_JSVAL(trapClosure));
-    JS_SetTrap(cx, script, line6, EmptyTrapHandler, STRING_TO_JSVAL(trapClosure));
+    JS_SetTrap(cx, script, line2, EmptyTrapHandler, trapClosure);
+    JS_SetTrap(cx, script, line6, EmptyTrapHandler, trapClosure);
 
     JS_GC(cx);
 
-    CHECK(JS_MatchStringAndAscii(trapClosure, trapClosureText));
+    CHECK(0 == strcmp(trapClosureText, JS_GetStringBytes(trapClosure)));
 
     // execute
     CHECK(JS_ExecuteScript(cx, global, script, v2.addr()));
@@ -70,7 +62,7 @@ BEGIN_TEST(testTrap_gc)
 
     JS_GC(cx);
 
-    CHECK(JS_MatchStringAndAscii(trapClosure, trapClosureText));
+    CHECK(0 == strcmp(trapClosureText, JS_GetStringBytes(trapClosure)));
 
     return true;
 }

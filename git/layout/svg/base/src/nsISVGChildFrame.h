@@ -47,6 +47,7 @@
 #include "gfxMatrix.h"
 
 class gfxContext;
+class nsPresContext;
 class nsSVGRenderState;
 
 class nsISVGChildFrame : public nsQueryFrame
@@ -98,7 +99,7 @@ public:
 
   /**
    * Get this frame's contribution to the rect returned by a GetBBox() call
-   * that occurred either on this element, or on one of its ancestors.
+   * that occured either on this element, or on one of its ancestors.
    *
    * SVG defines an element's bbox to be the element's fill bounds in the
    * userspace established by that element. By allowing callers to pass in the

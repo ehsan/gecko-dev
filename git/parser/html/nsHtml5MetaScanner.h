@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2007 Henri Sivonen
- * Copyright (c) 2008-2010 Mozilla Foundation
+ * Copyright (c) 2008-2009 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -41,14 +41,13 @@
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
 #include "nsHtml5NamedCharacters.h"
-#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsAHtml5TreeBuilderState.h"
-#include "nsHtml5Macros.h"
 
 class nsHtml5StreamParser;
+class nsHtml5SpeculativeLoader;
 
 class nsHtml5Tokenizer;
 class nsHtml5TreeBuilder;
@@ -75,7 +74,7 @@ class nsHtml5MetaScanner
     PRInt32 stateSave;
   private:
     PRInt32 strBufLen;
-    autoJArray<PRUnichar,PRInt32> strBuf;
+    jArray<PRUnichar,PRInt32> strBuf;
   protected:
     void stateLoop(PRInt32 state);
   private:
@@ -89,6 +88,11 @@ class nsHtml5MetaScanner
 
 #include "nsHtml5MetaScannerHSupplement.h"
 };
+
+#ifdef nsHtml5MetaScanner_cpp__
+PRUnichar nsHtml5MetaScanner::CHARSET[] = { 'c', 'h', 'a', 'r', 's', 'e', 't' };
+PRUnichar nsHtml5MetaScanner::CONTENT[] = { 'c', 'o', 'n', 't', 'e', 'n', 't' };
+#endif
 
 #define NS_HTML5META_SCANNER_NO 0
 #define NS_HTML5META_SCANNER_M 1

@@ -51,7 +51,7 @@
 var observer = {
   onBeginUpdateBatch: function() {},
   onEndUpdateBatch: function() {},
-  onItemAdded: function(id, folder, index, itemType, uri) {
+  onItemAdded: function(id, folder, index, itemType) {
     do_check_true(id > 0);
   },
   onBeforeItemRemoved: function() {},
@@ -72,7 +72,7 @@ bms.addObserver(observer, false);
 // main
 function run_test() {
   // load our dynamic-container sample service
-  do_load_manifest("nsDynamicContainerServiceSample.manifest");
+  do_load_module("nsDynamicContainerServiceSample.js");
   var testRoot = bms.createFolder(bms.placesRoot, "test root", bms.DEFAULT_INDEX);
 
   var options = hs.getNewQueryOptions();

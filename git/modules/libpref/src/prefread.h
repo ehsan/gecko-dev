@@ -40,7 +40,7 @@
 #include "prtypes.h"
 #include "prefapi.h"
 
-PR_BEGIN_EXTERN_C
+NSPR_BEGIN_EXTERN_C
 
 /**
  * Callback function used to notify consumer of preference name value pairs.
@@ -129,5 +129,5 @@ void PREF_FinalizeParseState(PrefParseState *ps);
  */
 PRBool PREF_ParseBuf(PrefParseState *ps, const char *buf, int bufLen);
 
-PR_END_EXTERN_C
+NSPR_END_EXTERN_C
 #endif /* prefread_h__ */

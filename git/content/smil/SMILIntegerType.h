@@ -44,7 +44,7 @@ namespace mozilla {
 class SMILIntegerType : public nsISMILType
 {
 public:
-  virtual void     Init(nsSMILValue& aValue) const;
+  virtual nsresult Init(nsSMILValue& aValue) const;
   virtual void     Destroy(nsSMILValue&) const;
   virtual nsresult Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const;
   virtual PRBool   IsEqual(const nsSMILValue& aLeft,

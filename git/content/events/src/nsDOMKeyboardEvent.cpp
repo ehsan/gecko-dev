@@ -67,11 +67,9 @@ nsDOMKeyboardEvent::~nsDOMKeyboardEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMKeyboardEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMKeyboardEvent, nsDOMUIEvent)
 
-DOMCI_DATA(KeyboardEvent, nsDOMKeyboardEvent)
-
 NS_INTERFACE_MAP_BEGIN(nsDOMKeyboardEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMKeyEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(KeyboardEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(KeyboardEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP
@@ -114,12 +112,14 @@ nsDOMKeyboardEvent::GetCharCode(PRUint32* aCharCode)
   switch (mEvent->message) {
   case NS_KEY_UP:
   case NS_KEY_DOWN:
+    ReportWrongPropertyAccessWarning("charCode");
     *aCharCode = 0;
     break;
   case NS_KEY_PRESS:
     *aCharCode = ((nsKeyEvent*)mEvent)->charCode;
     break;
   default:
+    ReportWrongPropertyAccessWarning("charCode");
     break;
   }
   return NS_OK;
@@ -137,6 +137,7 @@ nsDOMKeyboardEvent::GetKeyCode(PRUint32* aKeyCode)
     *aKeyCode = ((nsKeyEvent*)mEvent)->keyCode;
     break;
   default:
+    ReportWrongPropertyAccessWarning("keyCode");
     *aKeyCode = 0;
     break;
   }
@@ -166,6 +167,7 @@ nsDOMKeyboardEvent::GetWhich(PRUint32* aWhich)
       }
       break;
     default:
+      ReportWrongPropertyAccessWarning("which");
       *aWhich = 0;
       break;
   }

@@ -45,6 +45,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-203402.js';
 var UBound = 0;
 var BUGNUMBER = 203402;
 var summary = 'Testing the ternary query operator';

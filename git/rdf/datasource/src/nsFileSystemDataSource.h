@@ -59,8 +59,8 @@ public:
     NS_DECL_CYCLE_COLLECTION_CLASS(FileSystemDataSource)
     NS_DECL_NSIRDFDATASOURCE
 
-    static nsresult Create(nsISupports* aOuter,
-                           const nsIID& aIID, void **aResult);
+    static NS_METHOD Create(nsISupports* aOuter,
+                            const nsIID& aIID, void **aResult);
 
     ~FileSystemDataSource() { }
     nsresult Init();

@@ -42,8 +42,6 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cr = Components.results;
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
 const PERMS_FILE      = 0644;
 const PERMS_DIRECTORY = 0755;
 
@@ -375,10 +373,9 @@ loadListener.prototype = {
   },
 
   // nsIChannelEventSink
-  asyncOnChannelRedirect: function SRCH_loadCRedirect(aOldChannel, aNewChannel,
-                                                      aFlags, callback) {
+  onChannelRedirect: function SRCH_loadCRedirect(aOldChannel, aNewChannel,
+                                                 aFlags) {
     this._channel = aNewChannel;
-    callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 
   // nsIInterfaceRequestor
@@ -671,23 +668,33 @@ function getSanitizedFile(aName) {
 }
 
 /**
- * @return a sanitized name to be used as a filename, or a random name
- *         if a sanitized name cannot be obtained (if aName contains
- *         no valid characters).
+ * Removes all characters not in the "chars" string from aName.
+ *
+ * @returns a sanitized name to be used as a filename, or a random name
+ *          if a sanitized name cannot be obtained (if aName contains
+ *          no valid characters).
  */
 function sanitizeName(aName) {
+  const chars = "-abcdefghijklmnopqrstuvwxyz0123456789";
   const maxLength = 60;
-  const minLength = 1;
+
   var name = aName.toLowerCase();
-  name = name.replace(/\s+/g, "-");
-  name = name.replace(/[^-a-z0-9]/g, "");
+  name = name.replace(/ /g, "-");
+  name = name.split("").filter(function (el) {
+                                 return chars.indexOf(el) != -1;
+                               }).join("");
 
-  // Use a random name if our input had no valid characters.
-  if (name.length < minLength)
-    name = Math.random().toString(36).replace(/^.*\./, '');
+  if (!name) {
+    // Our input had no valid characters - use a random name
+    var cl = chars.length - 1;
+    for (var i = 0; i < 8; ++i)
+      name += chars.charAt(Math.round(Math.random() * cl));
+  }
 
-  // Force max length.
-  return name.substring(0, maxLength);
+  if (name.length > maxLength)
+    name = name.substring(0, maxLength);
+
+  return name;
 }
 
 /**
@@ -710,12 +717,9 @@ function getMozParamPref(prefName)
  *
  * @see nsIBrowserSearchService.idl
  */
-let gEnginesLoaded = false;
 function notifyAction(aEngine, aVerb) {
-  if (gEnginesLoaded) {
-    LOG("NOTIFY: Engine: \"" + aEngine.name + "\"; Verb: \"" + aVerb + "\"");
-    gObsSvc.notifyObservers(aEngine, SEARCH_ENGINE_TOPIC, aVerb);
-  }
+  LOG("NOTIFY: Engine: \"" + aEngine.name + "\"; Verb: \"" + aVerb + "\"");
+  gObsSvc.notifyObservers(aEngine, SEARCH_ENGINE_TOPIC, aVerb);
 }
 
 /**
@@ -1434,8 +1438,7 @@ Engine.prototype = {
       case "https":
       case "ftp":
         // No use downloading the icon if the engine file is read-only
-        if (!this._readOnly ||
-            getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true)) {
+        if (!this._readOnly) {
           LOG("_setIcon: Downloading icon: \"" + uri.spec +
               "\" for engine: \"" + this.name + "\"");
           var chan = NetUtil.ioService.newChannelFromURI(uri);
@@ -1867,7 +1870,7 @@ Engine.prototype = {
           // Adjust the start index to account for the opening quote
           valueStart = quoteStart + "\"".length;
           // Find the closing quote
-          var valueEnd = lLine.indexOf("\"", valueStart);
+          valueEnd = lLine.indexOf("\"", valueStart);
           // If there is no closing quote, just go to the end of the line
           if (valueEnd == -1)
             valueEnd = aLine.length;
@@ -1879,7 +1882,7 @@ Engine.prototype = {
 
       LOG("_parseAsSherlock::getInputs: Lines:\n" + aLines);
       // Filter out everything but non-inputs
-      let lines = aLines.filter(function (line) {
+      lines = aLines.filter(function (line) {
         return /^\s*<input/i.test(line);
       });
       LOG("_parseAsSherlock::getInputs: Filtered lines:\n" + lines);
@@ -2468,12 +2471,9 @@ function SearchService() {
   } catch (ex) {
     LOG("_init: failure loading engines: " + ex);
   }
-  gEnginesLoaded = true;
   this._addObservers();
 }
 SearchService.prototype = {
-  classID: Components.ID("{7319788a-fe93-4db3-9f39-818cf08f4256}"),
-
   _engines: { },
   __sortedEngines: null,
   get _sortedEngines() {
@@ -2867,9 +2867,8 @@ SearchService.prototype = {
       let chromeFile;
       try {
         let chromeURI = gChromeReg.convertChromeURL(makeURI(root));
-        let fileURI = chromeURI; // flat packaging
-        if (fileURI instanceof Ci.nsIJARURI)
-          fileURI = fileURI.JARFile; // JAR packaging
+        chromeURI.QueryInterface(Ci.nsIJARURI);
+        let fileURI = chromeURI.JARFile;
         fileURI.QueryInterface(Ci.nsIFileURL);
         chromeFile = fileURI.file;
       } catch (ex) {
@@ -3357,16 +3356,14 @@ SearchService.prototype = {
     }
   },
 
-  get originalDefaultEngine() {
-    const defPref = BROWSER_SEARCH_PREF + "defaultenginename";
-    return this.getEngineByName(getLocalizedPref(defPref, ""));
-  },
-
   get defaultEngine() {
-    let defaultEngine = this.originalDefaultEngine;
-    if (!defaultEngine || defaultEngine.hidden)
-      defaultEngine = this._getSortedEngines(false)[0] || null;
-    return defaultEngine;
+    const defPref = BROWSER_SEARCH_PREF + "defaultenginename";
+    // Get the default engine - this pref should always exist, but the engine
+    // might be hidden
+    this._defaultEngine = this.getEngineByName(getLocalizedPref(defPref, ""));
+    if (!this._defaultEngine || this._defaultEngine.hidden)
+      this._defaultEngine = this._getSortedEngines(false)[0] || null;
+    return this._defaultEngine;
   },
 
   get currentEngine() {
@@ -3686,6 +3683,62 @@ var engineUpdateService = {
   }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([SearchService]);
+const kClassID    = Components.ID("{7319788a-fe93-4db3-9f39-818cf08f4256}");
+const kClassName  = "Browser Search Service";
+const kContractID = "@mozilla.org/browser/search-service;1";
+
+// nsIFactory
+const kFactory = {
+  createInstance: function (outer, iid) {
+    if (outer != null)
+      throw Cr.NS_ERROR_NO_AGGREGATION;
+    return (new SearchService()).QueryInterface(iid);
+  }
+};
+
+// nsIModule
+const gModule = {
+  get _catMan() {
+    return Cc["@mozilla.org/categorymanager;1"].
+           getService(Ci.nsICategoryManager);
+  },
+
+  registerSelf: function (componentManager, fileSpec, location, type) {
+    componentManager.QueryInterface(Ci.nsIComponentRegistrar);
+    componentManager.registerFactoryLocation(kClassID,
+                                             kClassName,
+                                             kContractID,
+                                             fileSpec, location, type);
+    this._catMan.addCategoryEntry("update-timer", kClassName,
+                                  kContractID + 
+                                  ",getService," +
+                                  "search-engine-update-timer," +
+                                  BROWSER_SEARCH_PREF + "update.interval," +
+                                  "21600", /* 6 hours */
+                                  true, true);
+  },
+
+  unregisterSelf: function(componentManager, fileSpec, location) {
+    componentManager.QueryInterface(Ci.nsIComponentRegistrar);
+    componentManager.unregisterFactoryLocation(kClassID, fileSpec);
+    this._catMan.deleteCategoryEntry("update-timer", kClassName, true);
+  },
+
+  getClassObject: function (componentManager, cid, iid) {
+    if (!cid.equals(kClassID))
+      throw Cr.NS_ERROR_NO_INTERFACE;
+    if (!iid.equals(Ci.nsIFactory))
+      throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+    return kFactory;
+  },
+
+  canUnload: function (componentManager) {
+    return true;
+  }
+};
+
+function NSGetModule(componentManager, fileSpec) {
+  return gModule;
+}
 
 #include ../../../toolkit/content/debug.js

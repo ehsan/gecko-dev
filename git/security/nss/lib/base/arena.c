@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: arena.c,v $ $Revision: 1.13 $ $Date: 2010/03/15 08:29:31 $";
+static const char CVS_ID[] = "@(#) $RCSfile: arena.c,v $ $Revision: 1.12 $ $Date: 2008/05/13 01:22:35 $";
 #endif /* DEBUG */
 
 /*
@@ -1026,7 +1026,6 @@ nss_ZRealloc
   PRUint32 newSize
 )
 {
-  NSSArena *arena;
   struct pointer_header *h, *new_h;
   PRUint32 my_newSize = newSize + sizeof(struct pointer_header);
   void *rv;
@@ -1052,8 +1051,7 @@ nss_ZRealloc
     return pointer;
   }
 
-  arena = h->arena;
-  if (!arena) {
+  if( (NSSArena *)NULL == h->arena ) {
     /* Heap */
     new_h = (struct pointer_header *)PR_Calloc(1, my_newSize);
     if( (struct pointer_header *)NULL == new_h ) {
@@ -1082,22 +1080,22 @@ nss_ZRealloc
     void *p;
     /* Arena */
 #ifdef NSSDEBUG
-    if (PR_SUCCESS != nssArena_verifyPointer(arena)) {
+    if( PR_SUCCESS != nssArena_verifyPointer(h->arena) ) {
       return (void *)NULL;
     }
 #endif /* NSSDEBUG */
 
-    if (!arena->lock) {
+    if( (PRLock *)NULL == h->arena->lock ) {
       /* Just got destroyed.. so this pointer is invalid */
       nss_SetError(NSS_ERROR_INVALID_POINTER);
       return (void *)NULL;
     }
-    PR_Lock(arena->lock);
+    PR_Lock(h->arena->lock);
 
 #ifdef ARENA_THREADMARK
-    if (arena->marking_thread) {
-      if (PR_GetCurrentThread() != arena->marking_thread) {
-        PR_Unlock(arena->lock);
+    if( (PRThread *)NULL != h->arena->marking_thread ) {
+      if( PR_GetCurrentThread() != h->arena->marking_thread ) {
+        PR_Unlock(h->arena->lock);
         nss_SetError(NSS_ERROR_ARENA_MARKED_BY_ANOTHER_THREAD);
         return (void *)NULL;
       }
@@ -1119,19 +1117,19 @@ nss_ZRealloc
        */
       char *extra = &((char *)pointer)[ newSize ];
       (void)nsslibc_memset(extra, 0, (h->size - newSize));
-      PR_Unlock(arena->lock);
+      PR_Unlock(h->arena->lock);
       return pointer;
     }
 
-    PR_ARENA_ALLOCATE(p, &arena->pool, my_newSize);
+    PR_ARENA_ALLOCATE(p, &h->arena->pool, my_newSize);
     if( (void *)NULL == p ) {
-      PR_Unlock(arena->lock);
+      PR_Unlock(h->arena->lock);
       nss_SetError(NSS_ERROR_NO_MEMORY);
       return (void *)NULL;
     }
 
     new_h = (struct pointer_header *)p;
-    new_h->arena = arena;
+    new_h->arena = h->arena;
     new_h->size = newSize;
     rv = (void *)((char *)new_h + sizeof(struct pointer_header));
     if (rv != pointer) {
@@ -1141,7 +1139,7 @@ nss_ZRealloc
     (void)nsslibc_memset(&((char *)rv)[ h->size ], 0, (newSize - h->size));
     h->arena = (NSSArena *)NULL;
     h->size = 0;
-    PR_Unlock(arena->lock);
+    PR_Unlock(new_h->arena->lock);
     return rv;
   }
   /*NOTREACHED*/

@@ -104,7 +104,6 @@ interface nsIDOMEventGroup;
 interface nsIDOMHTMLElement;
 interface nsIDOMHTMLFormElement;
 interface nsIDOMHTMLCollection;
-interface nsIDOMHTMLHeadElement;
 
 // CSS
 interface nsIDOMCSSValue;

@@ -59,7 +59,7 @@
 /**
  * A character set converter from CP862 to Unicode.
  */
-nsresult
+NS_METHOD
 nsCP862ToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

@@ -155,25 +155,22 @@ inFlasher::DrawElementOutline(nsIDOMElement* aElement)
   PRBool isFirstFrame = PR_TRUE;
 
   while (frame) {
-    nsPoint offset;
-    nsIWidget* widget = frame->GetNearestWidget(offset);
-    if (widget) {
-      nsCOMPtr<nsIRenderingContext> rcontext;
-      frame->PresContext()->DeviceContext()->
-        CreateRenderingContext(widget, *getter_AddRefs(rcontext));
-      if (rcontext) {
-        nsRect rect(offset, frame->GetSize());
-        if (mInvert) {
-          rcontext->InvertRect(rect);
-        }
+    nsCOMPtr<nsIRenderingContext> rcontext;
+    nsresult rv =
+      presShell->CreateRenderingContext(frame, getter_AddRefs(rcontext));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-        PRBool isLastFrame = frame->GetNextContinuation() == nsnull;
-        DrawOutline(rect.x, rect.y, rect.width, rect.height, rcontext,
-                    isFirstFrame, isLastFrame);
-        isFirstFrame = PR_FALSE;
-      }
+    nsRect rect(nsPoint(0,0), frame->GetSize());
+    if (mInvert) {
+      rcontext->InvertRect(rect);
     }
+
     frame = frame->GetNextContinuation();
+
+    PRBool isLastFrame = (frame == nsnull);
+    DrawOutline(rect.x, rect.y, rect.width, rect.height, rcontext,
+                isFirstFrame, isLastFrame);
+    isFirstFrame = PR_FALSE;
   }
 
   return NS_OK;
@@ -196,8 +193,7 @@ inFlasher::ScrollElementIntoView(nsIDOMElement *aElement)
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
   presShell->ScrollContentIntoView(content,
                                    NS_PRESSHELL_SCROLL_ANYWHERE /* VPercent */,
-                                   NS_PRESSHELL_SCROLL_ANYWHERE /* HPercent */,
-                                   nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
+                                   NS_PRESSHELL_SCROLL_ANYWHERE /* HPercent */);
 
   return NS_OK;
 }

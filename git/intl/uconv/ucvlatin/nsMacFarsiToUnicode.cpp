@@ -45,7 +45,7 @@ static const PRUint16 g_utMappingTable[] = {
 #include "macfarsi.ut"
 };
 
-nsresult
+NS_METHOD
 nsMacFarsiToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                void **aResult) 
 {

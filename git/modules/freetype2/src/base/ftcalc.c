@@ -38,9 +38,6 @@
 #include FT_INTERNAL_DEBUG_H
 #include FT_INTERNAL_OBJECTS_H
 
-#ifdef FT_MULFIX_INLINED
-#undef FT_MulFix
-#endif
 
 /* we need to define a 64-bits data type here */
 
@@ -110,12 +107,12 @@
   FT_EXPORT_DEF( FT_Int32 )
   FT_Sqrt32( FT_Int32  x )
   {
-    FT_UInt32  val, root, newroot, mask;
+    FT_ULong  val, root, newroot, mask;
 
 
     root = 0;
-    mask = (FT_UInt32)0x40000000UL;
-    val  = (FT_UInt32)x;
+    mask = 0x40000000L;
+    val  = (FT_ULong)x;
 
     do
     {
@@ -196,33 +193,15 @@
   FT_MulFix( FT_Long  a,
              FT_Long  b )
   {
-#ifdef FT_MULFIX_ASSEMBLER
-
-    return FT_MULFIX_ASSEMBLER( a, b );
-
-#else
-
     FT_Int   s = 1;
     FT_Long  c;
 
 
-    if ( a < 0 )
-    {
-      a = -a;
-      s = -1;
-    }
-
-    if ( b < 0 )
-    {
-      b = -b;
-      s = -s;
-    }
+    if ( a < 0 ) { a = -a; s = -1; }
+    if ( b < 0 ) { b = -b; s = -s; }
 
     c = (FT_Long)( ( (FT_Int64)a * b + 0x8000L ) >> 16 );
-
-    return ( s > 0 ) ? c : -c;
-
-#endif /* FT_MULFIX_ASSEMBLER */
+    return ( s > 0 ) ? c : -c ;
   }
 
 
@@ -362,7 +341,6 @@
     long  s;
 
 
-    /* XXX: this function does not allow 64-bit arguments */
     if ( a == 0 || b == c )
       return a;
 
@@ -378,12 +356,12 @@
       FT_Int64  temp, temp2;
 
 
-      ft_multo64( (FT_Int32)a, (FT_Int32)b, &temp );
+      ft_multo64( a, b, &temp );
 
       temp2.hi = 0;
       temp2.lo = (FT_UInt32)(c >> 1);
       FT_Add64( &temp, &temp2, &temp );
-      a = ft_div64by32( temp.hi, temp.lo, (FT_Int32)c );
+      a = ft_div64by32( temp.hi, temp.lo, c );
     }
     else
       a = 0x7FFFFFFFL;
@@ -417,8 +395,8 @@
       FT_Int64  temp;
 
 
-      ft_multo64( (FT_Int32)a, (FT_Int32)b, &temp );
-      a = ft_div64by32( temp.hi, temp.lo, (FT_Int32)c );
+      ft_multo64( a, b, &temp );
+      a = ft_div64by32( temp.hi, temp.lo, c );
     }
     else
       a = 0x7FFFFFFFL;
@@ -435,18 +413,31 @@
   FT_MulFix( FT_Long  a,
              FT_Long  b )
   {
-#ifdef FT_MULFIX_ASSEMBLER
+    /* use inline assembly to speed up things a bit */
 
-    return FT_MULFIX_ASSEMBLER( a, b );
+#if defined( __GNUC__ ) && defined( i386 )
 
-#elif 0
+    FT_Long  result;
 
-    /*
-     *  This code is nonportable.  See comment below.
-     *
-     *  However, on a platform where right-shift of a signed quantity fills
-     *  the leftmost bits by copying the sign bit, it might be faster.
-     */
+
+    __asm__ __volatile__ (
+      "imul  %%edx\n"
+      "movl  %%edx, %%ecx\n"
+      "sarl  $31, %%ecx\n"
+      "addl  $0x8000, %%ecx\n"
+      "addl  %%ecx, %%eax\n"
+      "adcl  $0, %%edx\n"
+      "shrl  $16, %%eax\n"
+      "shll  $16, %%edx\n"
+      "addl  %%edx, %%eax\n"
+      "mov   %%eax, %0\n"
+      : "=a"(result), "+d"(b)
+      : "a"(a)
+      : "%ecx"
+    );
+    return result;
+
+#elif 1
 
     FT_Long   sa, sb;
     FT_ULong  ua, ub;
@@ -455,24 +446,6 @@
     if ( a == 0 || b == 0x10000L )
       return a;
 
-    /*
-     *  This is a clever way of converting a signed number `a' into its
-     *  absolute value (stored back into `a') and its sign.  The sign is
-     *  stored in `sa'; 0 means `a' was positive or zero, and -1 means `a'
-     *  was negative.  (Similarly for `b' and `sb').
-     *
-     *  Unfortunately, it doesn't work (at least not portably).
-     *
-     *  It makes the assumption that right-shift on a negative signed value
-     *  fills the leftmost bits by copying the sign bit.  This is wrong. 
-     *  According to K&R 2nd ed, section `A7.8 Shift Operators' on page 206,
-     *  the result of right-shift of a negative signed value is
-     *  implementation-defined.  At least one implementation fills the
-     *  leftmost bits with 0s (i.e., it is exactly the same as an unsigned
-     *  right shift).  This means that when `a' is negative, `sa' ends up
-     *  with the value 1 rather than -1.  After that, everything else goes
-     *  wrong.
-     */
     sa = ( a >> ( sizeof ( a ) * 8 - 1 ) );
     a  = ( a ^ sa ) - sa;
     sb = ( b >> ( sizeof ( b ) * 8 - 1 ) );
@@ -540,14 +513,13 @@
     FT_UInt32  q;
 
 
-    /* XXX: this function does not allow 64-bit arguments */
-    s  = (FT_Int32)a; a = FT_ABS( a );
-    s ^= (FT_Int32)b; b = FT_ABS( b );
+    s  = a; a = FT_ABS( a );
+    s ^= b; b = FT_ABS( b );
 
     if ( b == 0 )
     {
       /* check for division by 0 */
-      q = (FT_UInt32)0x7FFFFFFFL;
+      q = 0x7FFFFFFFL;
     }
     else if ( ( a >> 16 ) == 0 )
     {
@@ -564,7 +536,7 @@
       temp2.hi = 0;
       temp2.lo = (FT_UInt32)( b >> 1 );
       FT_Add64( &temp, &temp2, &temp );
-      q = ft_div64by32( temp.hi, temp.lo, (FT_Int32)b );
+      q = ft_div64by32( temp.hi, temp.lo, b );
     }
 
     return ( s < 0 ? -(FT_Int32)q : (FT_Int32)q );
@@ -842,7 +814,7 @@
                          FT_Pos  out_x,
                          FT_Pos  out_y )
   {
-    FT_Long  result; /* avoid overflow on 16-bit system */
+    FT_Int  result;
 
 
     /* deal with the trivial cases quickly */
@@ -891,9 +863,8 @@
       FT_Int64  z1, z2;
 
 
-      /* XXX: this function does not allow 64-bit arguments */
-      ft_multo64( (FT_Int32)in_x, (FT_Int32)out_y, &z1 );
-      ft_multo64( (FT_Int32)in_y, (FT_Int32)out_x, &z2 );
+      ft_multo64( in_x, out_y, &z1 );
+      ft_multo64( in_y, out_x, &z2 );
 
       if ( z1.hi > z2.hi )
         result = +1;
@@ -909,8 +880,7 @@
 #endif
     }
 
-    /* XXX: only the sign of return value, +1/0/-1 must be used */
-    return (FT_Int)result;
+    return result;
   }
 
 

@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 #include "mozAutoDocUpdate.h"
@@ -47,7 +48,7 @@ class nsHTMLHeadingElement : public nsGenericHTMLElement,
                              public nsIDOMHTMLHeadingElement
 {
 public:
-  nsHTMLHeadingElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLHeadingElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLHeadingElement();
 
   // nsISupports
@@ -72,14 +73,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Heading)
 
 
-nsHTMLHeadingElement::nsHTMLHeadingElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLHeadingElement::nsHTMLHeadingElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -92,8 +92,6 @@ nsHTMLHeadingElement::~nsHTMLHeadingElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLHeadingElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLHeadingElement, nsGenericElement) 
 
-
-DOMCI_NODE_DATA(HTMLHeadingElement, nsHTMLHeadingElement)
 
 // QueryInterface implementation for nsHTMLHeadingElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLHeadingElement)

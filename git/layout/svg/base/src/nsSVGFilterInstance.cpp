@@ -40,7 +40,6 @@
 #include "gfxPlatform.h"
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGFilterElement.h"
-#include "nsLayoutUtils.h"
 
 static double Square(double aX)
 {
@@ -165,7 +164,7 @@ nsSVGFilterInstance::BuildSources()
   gfxRect sourceBounds = UserSpaceToFilterSpace(mTargetBBox);
   sourceBounds.RoundOut();
   // Detect possible float->int overflow
-  if (NS_FAILED(nsLayoutUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
+  if (NS_FAILED(nsSVGUtils::GfxRectToIntRect(sourceBounds, &sourceBoundsInt)))
     return NS_ERROR_FAILURE;
 
   mSourceColorAlpha.mResultBoundingBox = sourceBoundsInt;
@@ -342,7 +341,7 @@ nsSVGFilterInstance::BuildSourceImages()
     nsRefPtr<gfxASurface> offscreen =
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(
               gfxIntSize(mSurfaceRect.width, mSurfaceRect.height),
-              gfxASurface::CONTENT_COLOR_ALPHA);
+              gfxASurface::ImageFormatARGB32);
     if (!offscreen || offscreen->CairoStatus())
       return NS_ERROR_OUT_OF_MEMORY;
     offscreen->SetDeviceOffset(gfxPoint(-mSurfaceRect.x, -mSurfaceRect.y));
@@ -356,7 +355,7 @@ nsSVGFilterInstance::BuildSourceImages()
     r = m.TransformBounds(r);
     r.RoundOut();
     nsIntRect dirty;
-    nsresult rv = nsLayoutUtils::GfxRectToIntRect(r, &dirty);
+    nsresult rv = nsSVGUtils::GfxRectToIntRect(r, &dirty);
     if (NS_FAILED(rv))
       return rv;
 
@@ -494,19 +493,13 @@ nsSVGFilterInstance::Render(gfxASurface** aOutput)
       
       ColorModel desiredColorModel =
         primitive->mFE->GetInputColorModel(this, j, &input->mImage);
-      if (j == 0) {
-        // the output colour model is whatever in1 is if there is an in1
-        primitive->mImage.mColorModel = desiredColorModel;
-      }
       EnsureColorModel(input, desiredColorModel);
       NS_ASSERTION(input->mImage.mImage->Stride() == primitive->mImage.mImage->Stride(),
                    "stride mismatch");
       inputs.AppendElement(&input->mImage);
     }
 
-    if (primitive->mInputs.Length() == 0) {
-      primitive->mImage.mColorModel = primitive->mFE->GetOutputColorModel(this);
-    }
+    primitive->mImage.mColorModel = primitive->mFE->GetOutputColorModel(this);
 
     rv = primitive->mFE->Filter(this, inputs, &primitive->mImage, dataRect);
     if (NS_FAILED(rv))

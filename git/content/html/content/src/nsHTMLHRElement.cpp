@@ -49,7 +49,7 @@ class nsHTMLHRElement : public nsGenericHTMLElement,
                         public nsIDOMNSHTMLHRElement
 {
 public:
-  nsHTMLHRElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLHRElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLHRElement();
 
   // nsISupports
@@ -77,14 +77,13 @@ public:
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(HR)
 
 
-nsHTMLHRElement::nsHTMLHRElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLHRElement::nsHTMLHRElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -97,8 +96,6 @@ nsHTMLHRElement::~nsHTMLHRElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLHRElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLHRElement, nsGenericElement) 
 
-
-DOMCI_NODE_DATA(HTMLHRElement, nsHTMLHRElement)
 
 // QueryInterface implementation for nsHTMLHRElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLHRElement)
@@ -140,10 +137,10 @@ nsHTMLHRElement::ParseAttribute(PRInt32 aNamespaceID,
       return aResult.ParseIntWithBounds(aValue, 1, 1000);
     }
     if (aAttribute == nsGkAtoms::align) {
-      return aResult.ParseEnumValue(aValue, kAlignTable, PR_FALSE);
+      return aResult.ParseEnumValue(aValue, kAlignTable);
     }
     if (aAttribute == nsGkAtoms::color) {
-      return aResult.ParseColor(aValue);
+      return aResult.ParseColor(aValue, GetOwnerDoc());
     }
   }
 
@@ -280,15 +277,13 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
 
       // If it would be noticeable, set the border radius to
-      // 10000px on all corners; this triggers the clamping to make
-      // circular ends.  This assumes the <hr> isn't larger than
-      // that in *both* dimensions.
+      // 100% on all corners
       nsCSSCornerSizes& corners = aData->mMarginData->mBorderRadius;
 
-      NS_FOR_CSS_FULL_CORNERS(c) {
-        nsCSSValue& dimen = corners.GetCorner(c);
+      NS_FOR_CSS_HALF_CORNERS(hc) {
+        nsCSSValue& dimen = corners.GetHalfCorner(hc);
         if (dimen.GetUnit() == eCSSUnit_Null) {
-          dimen.SetFloatValue(10000.0f, eCSSUnit_Pixel);
+          dimen.SetPercentValue(1.0f);
         }
       }
     }

@@ -80,8 +80,7 @@ nsDOMWorkerTimeout::FunctionCallback::FunctionCallback(PRUint32 aArgc,
 
   JSRuntime* rt;
   *aRv = nsDOMThreadService::JSRuntimeService()->GetRuntime(&rt);
-  if (NS_FAILED(*aRv))
-    return;
+  NS_ENSURE_SUCCESS(*aRv,);
 
   JSBool ok = mCallback.Hold(rt);
   CONSTRUCTOR_ENSURE_TRUE(ok, *aRv);
@@ -154,13 +153,11 @@ nsDOMWorkerTimeout::ExpressionCallback::ExpressionCallback(PRUint32 aArgc,
 
   JSString* expr = JS_ValueToString(aCx, aArgv[0]);
   *aRv = expr ? NS_OK : NS_ERROR_FAILURE;
-  if (NS_FAILED(*aRv))
-    return;
+  NS_ENSURE_SUCCESS(*aRv,);
 
   JSRuntime* rt;
   *aRv = nsDOMThreadService::JSRuntimeService()->GetRuntime(&rt);
-  if (NS_FAILED(*aRv))
-    return;
+  NS_ENSURE_SUCCESS(*aRv,);
 
   JSBool ok = mExpression.Hold(rt);
   CONSTRUCTOR_ENSURE_TRUE(ok, *aRv);
@@ -256,7 +253,6 @@ nsDOMWorkerTimeout::Init(JSContext* aCx, PRUint32 aArgc, jsval* aArgv,
   else {
     // If no interval was specified, treat this like a timeout, to avoid
     // setting an interval of 0 milliseconds.
-    interval = 0;
     aIsInterval = PR_FALSE;
   }
 

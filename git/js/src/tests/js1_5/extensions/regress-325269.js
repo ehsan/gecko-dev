@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-325269.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 325269;
 var summary = 'GC hazard in js_ConstructObject';

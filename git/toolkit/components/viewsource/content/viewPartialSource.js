@@ -81,11 +81,6 @@ function onLoadViewPartialSource()
   else
     viewPartialSourceForFragment(window.arguments[2], window.arguments[3]);
 
-  gBrowser.droppedLinkHandler = function (event, url, name) {
-    viewSource(url)
-    event.preventDefault();
-  }
-
   window.content.focus();
 }
 
@@ -277,9 +272,6 @@ function drawSelection()
   findInst.findNext();
 
   var selection = content.getSelection();
-  if (!selection.rangeCount)
-    return;
-
   var range = selection.getRangeAt(0);
 
   var startContainer = range.startContainer;

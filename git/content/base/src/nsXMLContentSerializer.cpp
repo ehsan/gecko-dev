@@ -65,8 +65,6 @@
 #include "nsAttrName.h"
 #include "nsILineBreaker.h"
 
-static const char kMozStr[] = "moz";
-
 #define kXMLNS "xmlns"
 
 // to be readable, we assume that an indented line contains
@@ -96,9 +94,7 @@ nsXMLContentSerializer::nsXMLContentSerializer()
     mInAttribute(PR_FALSE),
     mAddNewlineForRootNode(PR_FALSE),
     mAddSpace(PR_FALSE),
-    mMayIgnoreLineBreakSequence(PR_FALSE),
-    mBodyOnly(PR_FALSE),
-    mInBody(0)
+    mMayIgnoreLineBreakSequence(PR_FALSE)
 {
 }
 
@@ -113,17 +109,6 @@ nsXMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
                              const char* aCharSet, PRBool aIsCopying,
                              PRBool aRewriteEncodingDeclaration)
 {
-  mPrefixIndex = 0;
-  mColPos = 0;
-  mIndentOverflow = 0;
-  mIsIndentationAddedOnCurrentLine = PR_FALSE;
-  mInAttribute = PR_FALSE;
-  mAddNewlineForRootNode = PR_FALSE;
-  mAddSpace = PR_FALSE;
-  mMayIgnoreLineBreakSequence = PR_FALSE;
-  mBodyOnly = PR_FALSE;
-  mInBody = 0;
-
   mCharset = aCharSet;
   mFlags = aFlags;
 
@@ -161,13 +146,13 @@ nsXMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
 }
 
 nsresult
-nsXMLContentSerializer::AppendTextData(nsIContent* aNode,
+nsXMLContentSerializer::AppendTextData(nsIDOMNode* aNode,
                                        PRInt32 aStartOffset,
                                        PRInt32 aEndOffset,
                                        nsAString& aStr,
                                        PRBool aTranslateEntities)
 {
-  nsIContent* content = aNode;
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
   const nsTextFragment* frag;
   if (!content || !(frag = content->GetText())) {
     return NS_ERROR_FAILURE;
@@ -207,7 +192,7 @@ nsXMLContentSerializer::AppendTextData(nsIContent* aNode,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendText(nsIContent* aText,
+nsXMLContentSerializer::AppendText(nsIDOMText* aText,
                                    PRInt32 aStartOffset,
                                    PRInt32 aEndOffset,
                                    nsAString& aStr)
@@ -238,7 +223,7 @@ nsXMLContentSerializer::AppendText(nsIContent* aText,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendCDATASection(nsIContent* aCDATASection,
+nsXMLContentSerializer::AppendCDATASection(nsIDOMCDATASection* aCDATASection,
                                            PRInt32 aStartOffset,
                                            PRInt32 aEndOffset,
                                            nsAString& aStr)
@@ -273,22 +258,21 @@ nsXMLContentSerializer::AppendCDATASection(nsIContent* aCDATASection,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendProcessingInstruction(nsIContent* aPI,
+nsXMLContentSerializer::AppendProcessingInstruction(nsIDOMProcessingInstruction* aPI,
                                                     PRInt32 aStartOffset,
                                                     PRInt32 aEndOffset,
                                                     nsAString& aStr)
 {
-  nsCOMPtr<nsIDOMProcessingInstruction> pi = do_QueryInterface(aPI);
-  NS_ENSURE_ARG(pi);
+  NS_ENSURE_ARG(aPI);
   nsresult rv;
   nsAutoString target, data, start;
 
   MaybeAddNewlineForRootNode(aStr);
 
-  rv = pi->GetTarget(target);
+  rv = aPI->GetTarget(target);
   if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
-  rv = pi->GetData(data);
+  rv = aPI->GetData(data);
   if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
   start.AppendLiteral("<?");
@@ -322,17 +306,16 @@ nsXMLContentSerializer::AppendProcessingInstruction(nsIContent* aPI,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendComment(nsIContent* aComment,
+nsXMLContentSerializer::AppendComment(nsIDOMComment* aComment,
                                       PRInt32 aStartOffset,
                                       PRInt32 aEndOffset,
                                       nsAString& aStr)
 {
-  nsCOMPtr<nsIDOMComment> comment = do_QueryInterface(aComment);
-  NS_ENSURE_ARG(comment);
+  NS_ENSURE_ARG(aComment);
   nsresult rv;
   nsAutoString data;
 
-  rv = comment->GetData(data);
+  rv = aComment->GetData(data);
   if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
   if (aStartOffset || (aEndOffset != -1)) {
@@ -375,21 +358,20 @@ nsXMLContentSerializer::AppendComment(nsIContent* aComment,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendDoctype(nsIContent* aDocType,
+nsXMLContentSerializer::AppendDoctype(nsIDOMDocumentType *aDoctype,
                                       nsAString& aStr)
 {
-  nsCOMPtr<nsIDOMDocumentType> docType = do_QueryInterface(aDocType);
-  NS_ENSURE_ARG(docType);
+  NS_ENSURE_ARG(aDoctype);
   nsresult rv;
   nsAutoString name, publicId, systemId, internalSubset;
 
-  rv = docType->GetName(name);
+  rv = aDoctype->GetName(name);
   if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
-  rv = docType->GetPublicId(publicId);
+  rv = aDoctype->GetPublicId(publicId);
   if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
-  rv = docType->GetSystemId(systemId);
+  rv = aDoctype->GetSystemId(systemId);
   if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
-  rv = docType->GetInternalSubset(internalSubset);
+  rv = aDoctype->GetInternalSubset(internalSubset);
   if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
   MaybeAddNewlineForRootNode(aStr);
@@ -443,7 +425,7 @@ nsXMLContentSerializer::AppendDoctype(nsIContent* aDocType,
   }
     
   AppendToString(kGreaterThan, aStr);
-  MaybeFlagNewlineForRootNode(aDocType);
+  MaybeFlagNewlineForRootNode(aDoctype);
 
   return NS_OK;
 }
@@ -451,7 +433,7 @@ nsXMLContentSerializer::AppendDoctype(nsIContent* aDocType,
 nsresult
 nsXMLContentSerializer::PushNameSpaceDecl(const nsAString& aPrefix,
                                           const nsAString& aURI,
-                                          nsIContent* aOwner)
+                                          nsIDOMElement* aOwner)
 {
   NameSpaceDecl* decl = mNameSpaceStack.AppendElement();
   if (!decl) return NS_ERROR_OUT_OF_MEMORY;
@@ -465,7 +447,7 @@ nsXMLContentSerializer::PushNameSpaceDecl(const nsAString& aPrefix,
 }
 
 void
-nsXMLContentSerializer::PopNameSpaceDeclsFor(nsIContent* aOwner)
+nsXMLContentSerializer::PopNameSpaceDeclsFor(nsIDOMElement* aOwner)
 {
   PRInt32 index, count;
 
@@ -481,7 +463,7 @@ nsXMLContentSerializer::PopNameSpaceDeclsFor(nsIContent* aOwner)
 PRBool
 nsXMLContentSerializer::ConfirmPrefix(nsAString& aPrefix,
                                       const nsAString& aURI,
-                                      nsIContent* aElement,
+                                      nsIDOMElement* aElement,
                                       PRBool aIsAttribute)
 {
   if (aPrefix.EqualsLiteral(kXMLNS)) {
@@ -643,11 +625,7 @@ nsXMLContentSerializer::SerializeAttr(const nsAString& aPrefix,
                                       nsAString& aStr,
                                       PRBool aDoEscapeEntities)
 {
-  nsAutoString attrString_;
-  // For innerHTML we can do faster appending without
-  // temporary strings.
-  PRBool rawAppend = mDoRaw && aDoEscapeEntities;
-  nsAString& attrString = (rawAppend) ? aStr : attrString_;
+  nsAutoString attrString;
 
   attrString.Append(PRUnichar(' '));
   if (!aPrefix.IsEmpty()) {
@@ -666,9 +644,6 @@ nsXMLContentSerializer::SerializeAttr(const nsAString& aPrefix,
     mInAttribute = PR_FALSE;
 
     attrString.Append(PRUnichar('"'));
-    if (rawAppend) {
-      return;
-    }
   }
   else {
     // Depending on whether the attribute value contains quotes or apostrophes we
@@ -739,11 +714,11 @@ nsXMLContentSerializer::SerializeAttr(const nsAString& aPrefix,
 
 PRUint32 
 nsXMLContentSerializer::ScanNamespaceDeclarations(nsIContent* aContent,
-                                                  nsIContent *aOriginalElement,
+                                                  nsIDOMElement *aOriginalElement,
                                                   const nsAString& aTagNamespaceURI)
 {
   PRUint32 index, count;
-  nsAutoString uriStr, valueStr;
+  nsAutoString nameStr, prefixStr, uriStr, valueStr;
 
   count = aContent->GetAttrCount();
 
@@ -783,8 +758,8 @@ nsXMLContentSerializer::ScanNamespaceDeclarations(nsIContent* aContent,
         }
       }
       else {
-        PushNameSpaceDecl(nsDependentAtomString(attrName), uriStr,
-                          aOriginalElement);
+        attrName->ToString(nameStr);
+        PushNameSpaceDecl(nameStr, uriStr, aOriginalElement);
       }
     }
   }
@@ -835,7 +810,7 @@ nsXMLContentSerializer::IsJavaScript(nsIContent * aContent, nsIAtom* aAttrNameAt
 
 void 
 nsXMLContentSerializer::SerializeAttributes(nsIContent* aContent,
-                                            nsIContent *aOriginalElement,
+                                            nsIDOMElement *aOriginalElement,
                                             nsAString& aTagPrefix,
                                             const nsAString& aTagNamespaceURI,
                                             nsIAtom* aTagName,
@@ -844,7 +819,7 @@ nsXMLContentSerializer::SerializeAttributes(nsIContent* aContent,
                                             PRBool aAddNSAttr)
 {
 
-  nsAutoString prefixStr, uriStr, valueStr;
+  nsAutoString nameStr, prefixStr, uriStr, valueStr;
   nsAutoString xmlnsStr;
   xmlnsStr.AssignLiteral(kXMLNS);
   PRUint32 index, count;
@@ -878,13 +853,6 @@ nsXMLContentSerializer::SerializeAttributes(nsIContent* aContent,
     nsIAtom* attrName = name->LocalName();
     nsIAtom* attrPrefix = name->GetPrefix();
 
-    // Filter out any attribute starting with [-|_]moz
-    nsDependentAtomString attrNameStr(attrName);
-    if (StringBeginsWith(attrNameStr, NS_LITERAL_STRING("_moz")) ||
-        StringBeginsWith(attrNameStr, NS_LITERAL_STRING("-moz"))) {
-      continue;
-    }
-
     if (attrPrefix) {
       attrPrefix->ToString(prefixStr);
     }
@@ -899,8 +867,14 @@ nsXMLContentSerializer::SerializeAttributes(nsIContent* aContent,
     }
     
     aContent->GetAttr(namespaceID, attrName, valueStr);
+    attrName->ToString(nameStr);
 
-    nsDependentAtomString nameStr(attrName);
+    // XXX Hack to get around the fact that MathML can add
+    //     attributes starting with '-', which makes them
+    //     invalid XML. see Bug 475518
+    if (!nameStr.IsEmpty() && nameStr.First() == '-')
+      continue;
+
     PRBool isJS = IsJavaScript(aContent, attrName, namespaceID, valueStr);
 
     SerializeAttr(prefixStr, nameStr, valueStr, aStr, !isJS);
@@ -915,13 +889,14 @@ nsXMLContentSerializer::SerializeAttributes(nsIContent* aContent,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendElementStart(nsIContent *aElement,
-                                           nsIContent *aOriginalElement,
+nsXMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
+                                           nsIDOMElement *aOriginalElement,
                                            nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
 
-  nsIContent* content = aElement;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(aElement));
+  if (!content) return NS_ERROR_FAILURE;
 
   PRBool forceFormat = PR_FALSE;
   if (!CheckElementStart(content, forceFormat, aStr)) {
@@ -929,9 +904,9 @@ nsXMLContentSerializer::AppendElementStart(nsIContent *aElement,
   }
 
   nsAutoString tagPrefix, tagLocalName, tagNamespaceURI;
-  aElement->NodeInfo()->GetPrefix(tagPrefix);
-  aElement->NodeInfo()->GetLocalName(tagLocalName);
-  aElement->NodeInfo()->GetNamespaceURI(tagNamespaceURI);
+  aElement->GetPrefix(tagPrefix);
+  aElement->GetLocalName(tagLocalName);
+  aElement->GetNamespaceURI(tagNamespaceURI);
 
   PRUint32 skipAttr = ScanNamespaceDeclarations(content,
                           aOriginalElement, tagNamespaceURI);
@@ -1001,13 +976,15 @@ nsXMLContentSerializer::AppendElementStart(nsIContent *aElement,
 }
 
 void 
-nsXMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
+nsXMLContentSerializer::AppendEndOfElementStart(nsIDOMElement *aOriginalElement,
                                                 nsIAtom * aName,
                                                 PRInt32 aNamespaceID,
                                                 nsAString& aStr)
 {
   // We don't output a separate end tag for empty elements
-  if (!aOriginalElement->GetChildCount()) {
+  PRBool hasChildren = PR_FALSE;
+  if (NS_FAILED(aOriginalElement->HasChildNodes(&hasChildren)) ||
+      !hasChildren) {
     AppendToString(NS_LITERAL_STRING("/>"), aStr);
   }
   else {
@@ -1016,12 +993,13 @@ nsXMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
 }
 
 NS_IMETHODIMP 
-nsXMLContentSerializer::AppendElementEnd(nsIContent *aElement,
+nsXMLContentSerializer::AppendElementEnd(nsIDOMElement *aElement,
                                          nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
 
-  nsIContent* content = aElement;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(aElement));
+  if (!content) return NS_ERROR_FAILURE;
 
   PRBool forceFormat = PR_FALSE, outputElementEnd;
   outputElementEnd = CheckElementEnd(content, forceFormat, aStr);
@@ -1040,9 +1018,9 @@ nsXMLContentSerializer::AppendElementEnd(nsIContent *aElement,
 
   nsAutoString tagPrefix, tagLocalName, tagNamespaceURI;
   
-  aElement->NodeInfo()->GetPrefix(tagPrefix);
-  aElement->NodeInfo()->GetLocalName(tagLocalName);
-  aElement->NodeInfo()->GetNamespaceURI(tagNamespaceURI);
+  aElement->GetPrefix(tagPrefix);
+  aElement->GetLocalName(tagLocalName);
+  aElement->GetNamespaceURI(tagNamespaceURI);
 
 #ifdef DEBUG
   PRBool debugNeedToPushNamespace =
@@ -1096,13 +1074,18 @@ nsXMLContentSerializer::AppendElementEnd(nsIContent *aElement,
 }
 
 NS_IMETHODIMP
-nsXMLContentSerializer::AppendDocumentStart(nsIDocument *aDocument,
+nsXMLContentSerializer::AppendDocumentStart(nsIDOMDocument *aDocument,
                                             nsAString& aStr)
 {
   NS_ENSURE_ARG_POINTER(aDocument);
 
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(aDocument));
+  if (!doc) {
+    return NS_OK;
+  }
+
   nsAutoString version, encoding, standalone;
-  aDocument->GetXMLDeclaration(version, encoding, standalone);
+  doc->GetXMLDeclaration(version, encoding, standalone);
 
   if (version.IsEmpty())
     return NS_OK; // A declaration must have version, or there is no decl
@@ -1148,18 +1131,22 @@ nsXMLContentSerializer::CheckElementEnd(nsIContent * aContent,
                                         nsAString& aStr)
 {
   // We don't output a separate end tag for empty element
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(aContent));
+  PRBool hasChildren;
   aForceFormat = PR_FALSE;
-  return aContent->GetChildCount() > 0;
+
+  if (NS_SUCCEEDED(node->HasChildNodes(&hasChildren)) && !hasChildren) {
+    return PR_FALSE;
+  }
+  return PR_TRUE;
 }
+
 
 void
 nsXMLContentSerializer::AppendToString(const PRUnichar* aStr,
                                        PRInt32 aLength,
                                        nsAString& aOutputStr)
 {
-  if (mBodyOnly && !mInBody) {
-    return;
-  }
   PRInt32 length = (aLength == -1) ? nsCRT::strlen(aStr) : aLength;
 
   mColPos += length;
@@ -1171,9 +1158,6 @@ void
 nsXMLContentSerializer::AppendToString(const PRUnichar aChar,
                                        nsAString& aOutputStr)
 {
-  if (mBodyOnly && !mInBody) {
-    return;
-  }
   mColPos += 1;
   aOutputStr.Append(aChar);
 }
@@ -1182,9 +1166,6 @@ void
 nsXMLContentSerializer::AppendToString(const nsAString& aStr,
                                        nsAString& aOutputStr)
 {
-  if (mBodyOnly && !mInBody) {
-    return;
-  }
   mColPos += aStr.Length();
   aOutputStr.Append(aStr);
 }
@@ -1261,11 +1242,14 @@ nsXMLContentSerializer::MaybeAddNewlineForRootNode(nsAString& aStr)
 }
 
 void
-nsXMLContentSerializer::MaybeFlagNewlineForRootNode(nsINode* aNode)
+nsXMLContentSerializer::MaybeFlagNewlineForRootNode(nsIDOMNode* aNode)
 {
-  nsINode* parent = aNode->GetNodeParent();
+  nsCOMPtr<nsIDOMNode> parent;
+  aNode->GetParentNode(getter_AddRefs(parent));
   if (parent) {
-    mAddNewlineForRootNode = parent->IsNodeOfType(nsINode::eDOCUMENT);
+    PRUint16 type;
+    parent->GetNodeType(&type);
+    mAddNewlineForRootNode = type == nsIDOMNode::DOCUMENT_NODE;
   }
 }
 
@@ -1361,12 +1345,20 @@ void
 nsXMLContentSerializer::AppendToStringConvertLF(const nsAString& aStr,
                                                 nsAString& aOutputStr)
 {
-  if (mBodyOnly && !mInBody) {
-    return;
-  }
-
   if (mDoRaw) {
+    nsAutoString str (aStr);
+    PRInt32 lastNewlineOffset = str.RFindChar('\n');
     AppendToString(aStr, aOutputStr);
+
+    if (lastNewlineOffset != kNotFound) {
+      // the string contains at least a line break,
+      // so we should update the mColPos property with
+      // the number of characters between the last line
+      // break and the end of the string
+      mColPos = aStr.Length() - lastNewlineOffset;
+    }
+
+    mIsIndentationAddedOnCurrentLine = (mColPos != 0);
   }
   else {
     // Convert line-endings to mLineBreak
@@ -1489,7 +1481,7 @@ nsXMLContentSerializer::AppendWrapped_NonWhitespaceSequence(
   PRBool thisSequenceStartsAtBeginningOfLine = !mColPos;
   PRBool onceAgainBecauseWeAddedBreakInFront = PR_FALSE;
   PRBool foundWhitespaceInLoop;
-  PRUint32 length, colPos;
+  PRInt32 length, colPos;
 
   do {
 
@@ -1629,12 +1621,8 @@ nsXMLContentSerializer::AppendWrapped_NonWhitespaceSequence(
 
 void 
 nsXMLContentSerializer::AppendToStringFormatedWrapped(const nsASingleFragmentString& aStr,
-                                                      nsAString& aOutputStr)
+                                               nsAString& aOutputStr)
 {
-  if (mBodyOnly && !mInBody) {
-    return;
-  }
-
   nsASingleFragmentString::const_char_iterator pos, end, sequenceStart;
 
   aStr.BeginReading(pos);
@@ -1727,12 +1715,8 @@ nsXMLContentSerializer::AppendWrapped_WhitespaceSequence(
 
 void 
 nsXMLContentSerializer::AppendToStringWrapped(const nsASingleFragmentString& aStr,
-                                              nsAString& aOutputStr)
+                                               nsAString& aOutputStr)
 {
-  if (mBodyOnly && !mInBody) {
-    return;
-  }
-
   nsASingleFragmentString::const_char_iterator pos, end, sequenceStart;
 
   aStr.BeginReading(pos);

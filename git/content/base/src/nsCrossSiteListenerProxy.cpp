@@ -52,10 +52,8 @@
 #include "nsGkAtoms.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsIChannelEventSink.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsCharSeparatedTokenizer.h"
+#include "nsCommaSeparatedTokenizer.h"
 #include "nsXMLHttpRequest.h"
-#include "nsAsyncRedirectVerifyHelper.h"
 
 static PRBool gDisableCORS = PR_FALSE;
 static PRBool gDisableCORSPrivateData = PR_FALSE;
@@ -83,9 +81,9 @@ private:
   nsIChannel* mChannel;
 };
 
-NS_IMPL_ISUPPORTS5(nsCrossSiteListenerProxy, nsIStreamListener,
+NS_IMPL_ISUPPORTS4(nsCrossSiteListenerProxy, nsIStreamListener,
                    nsIRequestObserver, nsIChannelEventSink,
-                   nsIInterfaceRequestor, nsIAsyncVerifyRedirectCallback)
+                   nsIInterfaceRequestor)
 
 /* static */
 void
@@ -155,13 +153,13 @@ NS_IMETHODIMP
 nsCrossSiteListenerProxy::OnStartRequest(nsIRequest* aRequest,
                                          nsISupports* aContext)
 {
-  mRequestApproved = NS_SUCCEEDED(CheckRequestApproved(aRequest));
+  mRequestApproved = NS_SUCCEEDED(CheckRequestApproved(aRequest, PR_FALSE));
   if (!mRequestApproved) {
     if (nsXMLHttpRequest::sAccessControlCache) {
       nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
       if (channel) {
       nsCOMPtr<nsIURI> uri;
-        NS_GetFinalChannelURI(channel, getter_AddRefs(uri));
+        channel->GetURI(getter_AddRefs(uri));
         if (uri) {
           nsXMLHttpRequest::sAccessControlCache->
             RemoveEntries(uri, mRequestingPrincipal);
@@ -219,7 +217,8 @@ IsValidHTTPToken(const nsCSubstring& aToken)
 }
 
 nsresult
-nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
+nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
+                                               PRBool aIsRedirect)
 {
   // Check if this was actually a cross domain request
   if (!mHasBeenCrossSite) {
@@ -239,6 +238,21 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
   // Test that things worked on a HTTP level
   nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(aRequest);
   NS_ENSURE_TRUE(http, NS_ERROR_DOM_BAD_URI);
+
+  // Redirects aren't success-codes. But necko already checked that it was a
+  // valid redirect.
+  if (!aIsRedirect) {
+    PRBool succeeded;
+    rv = http->GetRequestSucceeded(&succeeded);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (!succeeded) {
+      PRUint32 responseStatus;
+      rv = http->GetResponseStatus(&responseStatus);
+      NS_ENSURE_SUCCESS(rv, rv);
+      NS_ENSURE_TRUE(mAllowedHTTPErrors.Contains(responseStatus),
+                     NS_ERROR_DOM_BAD_URI);
+    }
+  }
 
   // Check the Access-Control-Allow-Origin header
   nsCAutoString allowedOriginHeader;
@@ -270,22 +284,14 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
   }
 
   if (mIsPreflight) {
-    PRBool succeeded;
-    rv = http->GetRequestSucceeded(&succeeded);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!succeeded) {
-      return NS_ERROR_DOM_BAD_URI;
-    }
-
     nsCAutoString headerVal;
     // The "Access-Control-Allow-Methods" header contains a comma separated
     // list of method names.
     http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Methods"),
                             headerVal);
     PRBool foundMethod = mPreflightMethod.EqualsLiteral("GET") ||
-                         mPreflightMethod.EqualsLiteral("HEAD") ||
-                         mPreflightMethod.EqualsLiteral("POST");
-    nsCCharSeparatedTokenizer methodTokens(headerVal, ',');
+      mPreflightMethod.EqualsLiteral("POST");
+    nsCCommaSeparatedTokenizer methodTokens(headerVal);
     while(methodTokens.hasMoreTokens()) {
       const nsDependentCSubstring& method = methodTokens.nextToken();
       if (method.IsEmpty()) {
@@ -304,7 +310,7 @@ nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
     http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Headers"),
                             headerVal);
     nsTArray<nsCString> headers;
-    nsCCharSeparatedTokenizer headerTokens(headerVal, ',');
+    nsCCommaSeparatedTokenizer headerTokens(headerVal);
     while(headerTokens.hasMoreTokens()) {
       const nsDependentCSubstring& header = headerTokens.nextToken();
       if (header.IsEmpty()) {
@@ -364,74 +370,39 @@ nsCrossSiteListenerProxy::GetInterface(const nsIID & aIID, void **aResult)
 }
 
 NS_IMETHODIMP
-nsCrossSiteListenerProxy::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                                 nsIChannel *aNewChannel,
-                                                 PRUint32 aFlags,
-                                                 nsIAsyncVerifyRedirectCallback *cb)
+nsCrossSiteListenerProxy::OnChannelRedirect(nsIChannel *aOldChannel,
+                                            nsIChannel *aNewChannel,
+                                            PRUint32    aFlags)
 {
+  nsChannelCanceller canceller(aOldChannel);
   nsresult rv;
   if (!NS_IsInternalSameURIRedirect(aOldChannel, aNewChannel, aFlags)) {
-    rv = CheckRequestApproved(aOldChannel);
+    rv = CheckRequestApproved(aOldChannel, PR_TRUE);
     if (NS_FAILED(rv)) {
       if (nsXMLHttpRequest::sAccessControlCache) {
         nsCOMPtr<nsIURI> oldURI;
-        NS_GetFinalChannelURI(aOldChannel, getter_AddRefs(oldURI));
+        aOldChannel->GetURI(getter_AddRefs(oldURI));
         if (oldURI) {
           nsXMLHttpRequest::sAccessControlCache->
             RemoveEntries(oldURI, mRequestingPrincipal);
         }
       }
-      aOldChannel->Cancel(NS_ERROR_DOM_BAD_URI);
       return NS_ERROR_DOM_BAD_URI;
     }
   }
 
-  // Prepare to receive callback
-  mRedirectCallback = cb;
-  mOldRedirectChannel = aOldChannel;
-  mNewRedirectChannel = aNewChannel;
-
   nsCOMPtr<nsIChannelEventSink> outer =
     do_GetInterface(mOuterNotificationCallbacks);
   if (outer) {
-    rv = outer->AsyncOnChannelRedirect(aOldChannel, aNewChannel, aFlags, this);
-    if (NS_FAILED(rv)) {
-        aOldChannel->Cancel(rv); // is this necessary...?
-        mRedirectCallback = nsnull;
-        mOldRedirectChannel = nsnull;
-        mNewRedirectChannel = nsnull;
-    }
-    return rv;  
+    rv = outer->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  (void) OnRedirectVerifyCallback(NS_OK);
-  return NS_OK;
-}
+  rv = UpdateChannel(aNewChannel);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-NS_IMETHODIMP
-nsCrossSiteListenerProxy::OnRedirectVerifyCallback(nsresult result)
-{
-  NS_ASSERTION(mRedirectCallback, "mRedirectCallback not set in callback");
-  NS_ASSERTION(mOldRedirectChannel, "mOldRedirectChannel not set in callback");
-  NS_ASSERTION(mNewRedirectChannel, "mNewRedirectChannel not set in callback");
-
-  if (NS_SUCCEEDED(result)) {
-      nsresult rv = UpdateChannel(mNewRedirectChannel);
-      if (NS_FAILED(rv)) {
-          NS_WARNING("nsCrossSiteListenerProxy::OnRedirectVerifyCallback: "
-                     "UpdateChannel() returned failure");
-      }
-      result = rv;
-  }
-
-  if (NS_FAILED(result)) {
-    mOldRedirectChannel->Cancel(result);
-  }
-
-  mOldRedirectChannel = nsnull;
-  mNewRedirectChannel = nsnull;
-  mRedirectCallback->OnRedirectVerifyCallback(result);
-  mRedirectCallback   = nsnull;
+  canceller.DontCancel();
+  
   return NS_OK;
 }
 
@@ -439,7 +410,7 @@ nsresult
 nsCrossSiteListenerProxy::UpdateChannel(nsIChannel* aChannel)
 {
   nsCOMPtr<nsIURI> uri, originalURI;
-  nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(uri));
+  nsresult rv = aChannel->GetURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
   rv = aChannel->GetOriginalURI(getter_AddRefs(originalURI));
   NS_ENSURE_SUCCESS(rv, rv);  

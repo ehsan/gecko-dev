@@ -71,7 +71,6 @@
 #include "nsDisplayList.h"
 #include "nsCSSRendering.h"
 #include "nsIReflowCallback.h"
-#include "nsBoxFrame.h"
 
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
@@ -84,9 +83,7 @@
 #define CROP_START  "start"
 #define CROP_END    "end"
 
-// It's not clear to me whether nsLeafBoxFrame also uses some of the
-// nsBoxFrame bits, so use NS_STATE_BOX_CHILD_RESERVED to be safe.
-#define NS_STATE_NEED_LAYOUT NS_STATE_BOX_CHILD_RESERVED
+#define NS_STATE_NEED_LAYOUT 0x01000000
 
 class nsAccessKeyInfo
 {
@@ -331,23 +328,19 @@ nsTextBoxFrame::UpdateAttributes(nsIAtom*         aAttribute,
 
 class nsDisplayXULTextBox : public nsDisplayItem {
 public:
-  nsDisplayXULTextBox(nsDisplayListBuilder* aBuilder,
-                      nsTextBoxFrame* aFrame) :
-    nsDisplayItem(aBuilder, aFrame) {
-    MOZ_COUNT_CTOR(nsDisplayXULTextBox);
+  nsDisplayXULTextBox(nsTextBoxFrame* aFrame) : nsDisplayItem(aFrame) {
+      MOZ_COUNT_CTOR(nsDisplayXULTextBox);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayXULTextBox() {
-    MOZ_COUNT_DTOR(nsDisplayXULTextBox);
+      MOZ_COUNT_DTOR(nsDisplayXULTextBox);
   }
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  NS_DISPLAY_DECL_NAME("XULTextBox", TYPE_XUL_TEXT_BOX)
-
-  virtual PRBool HasText() { return PR_TRUE; }
+  NS_DISPLAY_DECL_NAME("XULTextBox")
 };
 
 void
@@ -355,12 +348,12 @@ nsDisplayXULTextBox::Paint(nsDisplayListBuilder* aBuilder,
                            nsIRenderingContext* aCtx)
 {
   static_cast<nsTextBoxFrame*>(mFrame)->
-    PaintTitle(*aCtx, mVisibleRect, ToReferenceFrame());
+    PaintTitle(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 nsRect
 nsDisplayXULTextBox::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
+  return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
 }
 
 NS_IMETHODIMP
@@ -375,7 +368,7 @@ nsTextBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     NS_ENSURE_SUCCESS(rv, rv);
     
     return aLists.Content()->AppendNewToTop(new (aBuilder)
-        nsDisplayXULTextBox(aBuilder, this));
+        nsDisplayXULTextBox(this));
 }
 
 void
@@ -584,9 +577,9 @@ void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
   shadowRect.MoveBy(shadowOffset);
 
   nsContextBoxBlur contextBoxBlur;
-  gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, 0, blurRadius,
+  gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, aDirtyRect, nsnull);
+                                                  aCtx, aDirtyRect);
 
   if (!shadowContext)
     return;
@@ -883,7 +876,7 @@ nsTextBoxFrame::UpdateAccessTitle()
     }
 
     if (InsertSeparatorBeforeAccessKey() &&
-        offset > 0 && !NS_IS_SPACE(mTitle[offset - 1])) {
+        !NS_IS_SPACE(mTitle[offset - 1])) {
         mTitle.Insert(' ', offset);
         offset++;
     }
@@ -958,15 +951,11 @@ nsTextBoxFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
 
     const nsStyleText* textStyle = GetStyleText();
     if (textStyle->mTextShadow) {
-      nsRect bounds(nsPoint(0, 0), GetSize());
-      nsOverflowAreas overflow(bounds, bounds);
-      // Our scrollable overflow is our bounds; our visual overflow may
-      // extend beyond that.
       nsPoint origin(0,0);
       nsRect textRect = CalcTextRect(*aBoxLayoutState.GetRenderingContext(), origin);
-      nsRect &vis = overflow.VisualOverflow();
-      vis.UnionRect(vis, nsLayoutUtils::GetTextShadowRectsUnion(textRect, this));
-      FinishAndStoreOverflow(overflow, GetSize());
+      nsRect overflowRect(nsLayoutUtils::GetTextShadowRectsUnion(textRect, this));
+      overflowRect.UnionRect(overflowRect, nsRect(nsPoint(0, 0), GetSize()));
+      FinishAndStoreOverflow(&overflowRect, GetSize());
     }
     return rv;
 }
@@ -1057,8 +1046,7 @@ nsTextBoxFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
     DISPLAY_PREF_SIZE(this, size);
 
     AddBorderAndPadding(size);
-    PRBool widthSet, heightSet;
-    nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
+    nsIBox::AddCSSPrefSize(aBoxLayoutState, this, size);
 
     return size;
 }
@@ -1079,8 +1067,7 @@ nsTextBoxFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
         size.width = 0;
 
     AddBorderAndPadding(size);
-    PRBool widthSet, heightSet;
-    nsIBox::AddCSSMinSize(aBoxLayoutState, this, size, widthSet, heightSet);
+    nsIBox::AddCSSMinSize(aBoxLayoutState, this, size);
 
     return size;
 }

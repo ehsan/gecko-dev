@@ -61,7 +61,6 @@ XPIDLSRCS =					\
 	nsIDOMXULLabeledControlEl.idl          \
 	nsIDOMXULMenuListElement.idl     \
 	nsIDOMXULPopupElement.idl          \
-	nsIDOMXULRelatedElement.idl \
 	nsIDOMXULSelectCntrlEl.idl       \
 	nsIDOMXULSelectCntrlItemEl.idl   \
 	nsIDOMXULMultSelectCntrlEl.idl \

@@ -40,9 +40,10 @@
 
 function test() {
   // initialization
-  gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
   waitForExplicitFinish();
 
   function openLocation(url, autofilled, callback) {
@@ -62,24 +63,24 @@ function test() {
               executeSoon(callback);
             }, true);
 
-            SimpleTest.waitForFocus(function() {
+            executeSoon(function() {
               let input = dialog.document.getElementById("dialog.input");
               is(input.value, autofilled, "The input field should be correctly auto-filled");
               input.focus();
               for (let i = 0; i < url.length; ++i)
                 EventUtils.synthesizeKey(url[i], {}, dialog);
               EventUtils.synthesizeKey("VK_RETURN", {}, dialog);
-            }, dialog);
+            });
           }, false);
           break;
 
         case "domwindowclosed":
-          Services.ww.unregisterNotification(arguments.callee);
+          ww.unregisterNotification(arguments.callee);
           break;
       }
     }
 
-    Services.ww.registerNotification(observer);
+    ww.registerNotification(observer);
     gPrefService.setIntPref("general.open_location.last_window_choice", 0);
     openDialog("chrome://browser/content/openLocation.xul", "_blank",
                "chrome,titlebar", window);
@@ -101,7 +102,6 @@ function test() {
             gPrefService.clearUserPref("general.open_location.last_url");
             if (gPrefService.prefHasUserValue("general.open_location.last_window_choice"))
               gPrefService.clearUserPref("general.open_location.last_window_choice");
-            gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
             finish();
           });
         });

@@ -172,11 +172,11 @@ function test() {
 
         is(shortcutNode.itemId, shortcutId, "shortcut id and shortcut node item id match");
 
-        dump("can move shortcut id?\n");
+        LOG("can move shortcut id?");
         is(PlacesControllerDragHelper.canMoveContainer(shortcutId),
            true, "should be able to move special folder shortcut id");
 
-        dump("can move shortcut node?\n");
+        LOG("can move shortcut node?");
         is(PlacesControllerDragHelper.canMoveNode(shortcutNode),
            true, "should be able to move special folder shortcut node");
       }

@@ -41,7 +41,7 @@ void  nsEUCTWProber::Reset(void)
 {
   mCodingSM->Reset(); 
   mState = eDetecting;
-  mDistributionAnalyser.Reset(mIsPreferredLanguage);
+  mDistributionAnalyser.Reset();
   //mContextAnalyser.Reset();
 }
 
@@ -84,7 +84,7 @@ nsProbingState nsEUCTWProber::HandleData(const char* aBuf, PRUint32 aLen)
 
 float nsEUCTWProber::GetConfidence(void)
 {
-  float distribCf = mDistributionAnalyser.GetConfidence();
+  float distribCf = mDistributionAnalyser.GetConfidence(mIsPreferredLanguage);
 
   return (float)distribCf;
 }

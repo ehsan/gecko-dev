@@ -59,7 +59,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "864i.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToCP864iConstructor(nsISupports *aOuter, REFNSIID aIID,
                              void **aResult) 
 {

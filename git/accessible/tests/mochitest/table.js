@@ -224,7 +224,7 @@ function testTableIndexes(aIdentifier, aIdxes)
 
       if (idx != - 1) {
 
-        // getRowIndexAt
+        // getRowAtIndex
         var origRowIdx = rowIdx;
         while (origRowIdx > 0 &&
                aIdxes[rowIdx][colIdx] == aIdxes[origRowIdx - 1][colIdx])
@@ -237,9 +237,9 @@ function testTableIndexes(aIdentifier, aIdxes)
         }
 
         is(obtainedRowIdx, origRowIdx,
-           id + ": row for index " + idx + " is not correct (getRowIndexAt)");
+           id + ": row for index " + idx +" is not correct");
 
-        // getColumnIndexAt
+        // getColumnAtIndex
         var origColIdx = colIdx;
         while (origColIdx > 0 &&
                aIdxes[rowIdx][colIdx] == aIdxes[rowIdx][origColIdx - 1])
@@ -252,21 +252,7 @@ function testTableIndexes(aIdentifier, aIdxes)
         }
 
         is(obtainedColIdx, origColIdx,
-           id + ": column  for index " + idx + " is not correct (getColumnIndexAt)");
-
-        // getRowAndColumnIndicesAt
-        var obtainedRowIdxObj = { }, obtainedColIdxObj = { };
-        try {
-          tableAcc.getRowAndColumnIndicesAt(idx, obtainedRowIdxObj,
-                                            obtainedColIdxObj);
-        } catch (e) {
-          ok(false, id + ": can't get row and column indices for cell index " + idx + "," + e);
-        }
-
-        is(obtainedRowIdxObj.value, origRowIdx,
-           id + ": row for index " + idx + " is not correct (getRowAndColumnIndicesAt)");
-        is(obtainedColIdxObj.value, origColIdx,
-           id + ": column  for index " + idx + " is not correct (getRowAndColumnIndicesAt)");
+           id + ": column  for index " + idx +" is not correct");
 
         if (cellAcc) {
 

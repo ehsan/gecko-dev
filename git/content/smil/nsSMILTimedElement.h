@@ -63,9 +63,6 @@ class nsSMILTimedElement
 {
 public:
   nsSMILTimedElement();
-  ~nsSMILTimedElement();
-
-  typedef mozilla::dom::Element Element;
 
   /*
    * Sets the owning animation element which this class uses to convert between
@@ -78,17 +75,6 @@ public:
    * nsnull if it is not associated with a time container.
    */
   nsSMILTimeContainer* GetTimeContainer();
-
-  /*
-   * Returns the element targeted by the animation element. Needed for
-   * registering event listeners against the appropriate element.
-   */
-  mozilla::dom::Element* GetTargetElement()
-  {
-    return mAnimationElement ?
-        mAnimationElement->GetTargetElementContent() :
-        nsnull;
-  }
 
   /**
    * Methods for supporting the nsIDOMElementTimeControl interface.
@@ -170,10 +156,11 @@ public:
    */
   void UpdateInstanceTime(nsSMILInstanceTime* aInstanceTime,
                           nsSMILTimeValue& aUpdatedTime,
+                          const nsSMILInstanceTime* aDependentTime,
                           PRBool aIsBegin);
 
   /**
-   * Removes an instance time object from this element's list of instance times.
+   * Removes an instance time object this element's list of instance times.
    *
    * This method is typically called by a child nsSMILTimeValueSpec.
    *
@@ -182,19 +169,6 @@ public:
    *                        time or PR_FALSE if it represents an end time.
    */
   void RemoveInstanceTime(nsSMILInstanceTime* aInstanceTime, PRBool aIsBegin);
-
-  /**
-   * Removes all the instance times associated with the given
-   * nsSMILTimeValueSpec object. Used when an ID assignment changes and hence
-   * all the previously associated instance times become invalid.
-   *
-   * @param aSpec    The nsSMILTimeValueSpec object whose created
-   *                 nsSMILInstanceTime's should be removed.
-   * @param aIsBegin PR_TRUE if the times to be removed represent begin
-   *                 times or PR_FALSE if they are end times.
-   */
-  void RemoveInstanceTimesForCreator(const nsSMILTimeValueSpec* aSpec,
-                                     PRBool aIsBegin);
 
   /**
    * Sets the object that will be called by this timed element each time it is
@@ -242,14 +216,10 @@ public:
   void HandleContainerTimeChange();
 
   /**
-   * Resets this timed element's accumulated times and intervals back to start
-   * up state.
-   *
-   * This is used for backwards seeking where rather than accumulating
-   * historical timing state and winding it back, we reset the element and seek
-   * forwards.
+   * Reset the element's internal state. As described in SMILANIM 3.3.7, all
+   * instance times associated with DOM calls, events, etc. are cleared.
    */
-  void Rewind();
+  void Reset();
 
   /**
    * Attempts to set an attribute on this timed element.
@@ -262,8 +232,8 @@ public:
    * @param aValue      The attribute value.
    * @param aResult     The nsAttrValue object that may be used for storing the
    *                    parsed result.
-   * @param aContextNode The element to use for context when resolving
-   *                     references to other elements.
+   * @param aContextNode The node to use for context when resolving references
+   *                     to other elements.
    * @param[out] aParseResult The result of parsing the attribute. Will be set
    *                          to NS_OK if parsing is successful.
    *
@@ -271,7 +241,7 @@ public:
    * otherwise.
    */
   PRBool SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
-                 nsAttrValue& aResult, Element* aContextNode,
+                 nsAttrValue& aResult, nsIContent* aContextNode,
                  nsresult* aParseResult = nsnull);
 
   /**
@@ -331,12 +301,6 @@ public:
   void BindToTree(nsIContent* aContextNode);
 
   /**
-   * Called when the target of the animation has changed so that event
-   * registrations can be updated.
-   */
-  void HandleTargetElementChange(mozilla::dom::Element* aNewTarget);
-
-  /**
    * Called when the timed element has been removed from a document so that
    * references to other elements can be broken.
    */
@@ -346,13 +310,10 @@ public:
   void Traverse(nsCycleCollectionTraversalCallback* aCallback);
   void Unlink();
 
-  typedef PRBool (*RemovalTestFunction)(nsSMILInstanceTime* aInstance);
-
 protected:
   // Typedefs
   typedef nsTArray<nsAutoPtr<nsSMILTimeValueSpec> > TimeValueSpecList;
   typedef nsTArray<nsRefPtr<nsSMILInstanceTime> >   InstanceTimeList;
-  typedef nsTArray<nsAutoPtr<nsSMILInterval> >      IntervalList;
   typedef nsPtrHashKey<nsSMILTimeValueSpec> TimeValueSpecPtrKey;
   typedef nsTHashtable<TimeValueSpecPtrKey> TimeValueSpecHashSet;
 
@@ -370,20 +331,14 @@ protected:
     nsSMILTimeContainer* mTimeContainer;
   };
 
-  // Templated helper functions
-  template <class TestFunctor>
-  void RemoveInstanceTimes(InstanceTimeList& aArray, TestFunctor& aTest);
-
   //
   // Implementation helpers
   //
 
   nsresult          SetBeginSpec(const nsAString& aBeginSpec,
-                                 Element* aContextNode,
-                                 RemovalTestFunction aRemove);
+                                 nsIContent* aContextNode);
   nsresult          SetEndSpec(const nsAString& aEndSpec,
-                               Element* aContextNode,
-                               RemovalTestFunction aRemove);
+                               nsIContent* aContextNode);
   nsresult          SetSimpleDuration(const nsAString& aDurSpec);
   nsresult          SetMin(const nsAString& aMinSpec);
   nsresult          SetMax(const nsAString& aMaxSpec);
@@ -392,8 +347,8 @@ protected:
   nsresult          SetRepeatDur(const nsAString& aRepeatDurSpec);
   nsresult          SetFillMode(const nsAString& aFillModeSpec);
 
-  void              UnsetBeginSpec(RemovalTestFunction aRemove);
-  void              UnsetEndSpec(RemovalTestFunction aRemove);
+  void              UnsetBeginSpec();
+  void              UnsetEndSpec();
   void              UnsetSimpleDuration();
   void              UnsetMin();
   void              UnsetMax();
@@ -403,62 +358,10 @@ protected:
   void              UnsetFillMode();
 
   nsresult          SetBeginOrEndSpec(const nsAString& aSpec,
-                                      Element* aContextNode,
-                                      PRBool aIsBegin,
-                                      RemovalTestFunction aRemove);
-  void              ClearSpecs(TimeValueSpecList& aSpecs,
-                               InstanceTimeList& aInstances,
-                               RemovalTestFunction aRemove);
-  void              ClearIntervalProgress();
+                                      nsIContent* aContextNode,
+                                      PRBool aIsBegin);
+  void              ClearBeginOrEndSpecs(PRBool aIsBegin);
   void              DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly);
-
-  /**
-   * Helper function to check for an early end and, if necessary, update the
-   * current interval accordingly.
-   *
-   * See SMIL 3.0, section 5.4.5, Element life cycle, "Active Time - Playing an
-   * interval" for a description of ending early.
-   *
-   * @param aSampleTime The current sample time. Early ends should only be
-   *                    applied at the last possible moment (i.e. if they are at
-   *                    or before the current sample time) and only if the
-   *                    current interval is not already ending.
-   */
-  void ApplyEarlyEnd(const nsSMILTimeValue& aSampleTime);
-
-  /**
-   * Clears certain state in response to the element restarting.
-   *
-   * This state is described in SMIL 3.0, section 5.4.3, Resetting element state
-   */
-  void Reset();
-
-  /**
-   * Completes a seek operation by sending appropriate events and, in the case
-   * of a backwards seek, updating the state of timing information that was
-   * previously considered historical.
-   */
-  void DoPostSeek();
-
-  /**
-   * Unmarks instance times that were previously preserved because they were
-   * considered important historical milestones but are no longer such because
-   * a backwards seek has been performed.
-   */
-  void UnpreserveInstanceTimes(InstanceTimeList& aList);
-
-  /**
-   * Helper function to iterate through this element's accumulated timing
-   * information (specifically old nsSMILIntervals and nsSMILTimeInstanceTimes)
-   * and discard items that are no longer needed or exceed some threshold of
-   * accumulated state.
-   */
-  void FilterHistory();
-
-  // Helper functions for FilterHistory to clear old nsSMILIntervals and
-  // nsSMILInstanceTimes respectively.
-  void FilterIntervals();
-  void FilterInstanceTimes(InstanceTimeList& aList);
 
   /**
    * Calculates the next acceptable interval for this element after the
@@ -482,7 +385,7 @@ protected:
    */
   nsresult          GetNextInterval(const nsSMILInterval* aPrevInterval,
                                     const nsSMILInstanceTime* aFixedBeginTime,
-                                    nsSMILInterval& aResult) const;
+                                    nsSMILInterval& aResult);
   nsSMILInstanceTime* GetNextGreater(const InstanceTimeList& aList,
                                      const nsSMILTimeValue& aBase,
                                      PRInt32& aPosition) const;
@@ -507,27 +410,19 @@ protected:
 
   void              NotifyNewInterval();
   void              NotifyChangedInterval();
-  void              FireTimeEventAsync(PRUint32 aMsg, PRInt32 aDetail);
+  void              NotifyDeletedInterval();
   const nsSMILInstanceTime* GetEffectiveBeginInstance() const;
-  const nsSMILInterval* GetPreviousInterval() const;
-  PRBool            HasPlayed() const { return !mOldIntervals.IsEmpty(); }
-  PRBool            EndHasEventConditions() const;
-
-  // Reset the current interval by first passing ownership to a temporary
-  // variable so that if Unlink() results in us receiving a callback,
-  // mCurrentInterval will be nsnull and we will be in a consistent state.
-  void ResetCurrentInterval()
-  {
-    if (mCurrentInterval) {
-      // Transfer ownership to temp var. (This sets mCurrentInterval to null.)
-      nsAutoPtr<nsSMILInterval> interval(mCurrentInterval);
-      interval->Unlink();
-    }
-  }
 
   // Hashtable callback methods
   PR_STATIC_CALLBACK(PLDHashOperator) NotifyNewIntervalCallback(
       TimeValueSpecPtrKey* aKey, void* aData);
+  PR_STATIC_CALLBACK(PLDHashOperator) NotifyChangedIntervalCallback(
+      TimeValueSpecPtrKey* aKey, void* aData);
+  PR_STATIC_CALLBACK(PLDHashOperator) NotifyDeletedIntervalCallback(
+      TimeValueSpecPtrKey* aKey, void* /* unused */);
+  static inline void SanityCheckTimeDependentCallbackArgs(
+      TimeValueSpecPtrKey* aKey, NotifyTimeDependentsParams* aParams,
+      PRBool aExpectingParams);
 
   //
   // Members
@@ -562,22 +457,27 @@ protected:
   nsSMILRestartMode               mRestartMode;
   static nsAttrValue::EnumTable   sRestartModeTable[];
 
+  //
+  // We need to distinguish between attempting to set the begin spec and failing
+  // (in which case the mBeginSpecs array will be empty) and not attempting to
+  // set the begin spec at all. In the first case, we should act as if the begin
+  // was indefinite, and in the second, we should act as if begin was 0s.
+  //
+  PRPackedBool                    mBeginSpecSet;
+  PRPackedBool                    mEndHasEventConditions;
+
   InstanceTimeList                mBeginInstances;
   InstanceTimeList                mEndInstances;
   PRUint32                        mInstanceSerialIndex;
 
   nsSMILAnimationFunction*        mClient;
-  nsAutoPtr<nsSMILInterval>       mCurrentInterval;
-  IntervalList                    mOldIntervals;
-  PRUint32                        mCurrentRepeatIteration;
+  nsSMILInterval                  mCurrentInterval;
+  nsSMILInterval                  mPrevInterval;
   nsSMILMilestone                 mPrevRegisteredMilestone;
   static const nsSMILMilestone    sMaxMilestone;
-  static const PRUint8            sMaxNumIntervals;
-  static const PRUint8            sMaxNumInstanceTimes;
 
-  // Set of dependent time value specs to be notified when establishing a new
-  // current interval. Change notifications and delete notifications are handled
-  // by the interval.
+  // Set of dependent time value specs to be notified when creating, updating,
+  // or deleting the current interval.
   //
   // [weak] The nsSMILTimeValueSpec objects register themselves and unregister
   // on destruction. Likewise, we notify them when we are destroyed.
@@ -595,16 +495,6 @@ protected:
     STATE_POSTACTIVE
   };
   nsSMILElementState              mElementState;
-
-  enum nsSMILSeekState
-  {
-    SEEK_NOT_SEEKING,
-    SEEK_FORWARD_FROM_ACTIVE,
-    SEEK_FORWARD_FROM_INACTIVE,
-    SEEK_BACKWARD_FROM_ACTIVE,
-    SEEK_BACKWARD_FROM_INACTIVE
-  };
-  nsSMILSeekState                 mSeekState;
 };
 
 #endif // NS_SMILTIMEDELEMENT_H_

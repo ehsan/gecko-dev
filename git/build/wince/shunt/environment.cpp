@@ -159,8 +159,8 @@ getenv(const char* name)
 }
 
 char
-GetEnvironmentVariableW(const WCHAR* lpName,
-                        WCHAR* lpBuffer,
+GetEnvironmentVariableW(const unsigned short* lpName,
+                        unsigned short* lpBuffer,
                         unsigned long nSize)
 {
   char key[256];
@@ -180,8 +180,8 @@ GetEnvironmentVariableW(const WCHAR* lpName,
 }
 
 char
-SetEnvironmentVariableW(const WCHAR* name,
-                        const WCHAR* value)
+SetEnvironmentVariableW(const unsigned short* name,
+                        const unsigned short* value)
 {
   char key[256];
   char val[256];
@@ -204,8 +204,8 @@ SetEnvironmentVariableW(const WCHAR* name,
 }
 
 
-unsigned int ExpandEnvironmentStringsW(const WCHAR* lpSrc,
-                                       WCHAR* lpDst,
+unsigned int ExpandEnvironmentStringsW(const unsigned short* lpSrc,
+                                       unsigned short* lpDst,
                                        unsigned int nSize)
 {
   if ( NULL == lpDst )
@@ -215,8 +215,8 @@ unsigned int ExpandEnvironmentStringsW(const WCHAR* lpSrc,
   unsigned int index = 0;
   unsigned int origLen = wcslen(lpSrc);
 
-  const WCHAR *pIn = lpSrc;
-  WCHAR *pOut = lpDst;
+  const unsigned short *pIn = lpSrc;
+  unsigned short *pOut = lpDst;
 
   while ( index < origLen ) {
 
@@ -228,7 +228,7 @@ unsigned int ExpandEnvironmentStringsW(const WCHAR* lpSrc,
 
     // Have a starting '%' - look for matching '%'
     int envlen = 0;
-    const WCHAR *pTmp = pIn + 1;
+    const unsigned short *pTmp = pIn + 1;
     while ( *pTmp != L'%' && *pTmp != L' ' ) {
       envlen++, pTmp++;
       if ( origLen < index + envlen ) {    // Ran past end of original
@@ -274,7 +274,7 @@ unsigned int ExpandEnvironmentStringsW(const WCHAR* lpSrc,
   return size;
 }
 
-WCHAR *
+unsigned short *
 mozce_GetEnvironmentCL()
 {
   env_entry *entry = env_head;

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-361964.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 361964;
 var summary = 'Crash [@ MarkGCThingChildren] involving watch and setter';
@@ -52,14 +53,9 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
 
-  var doc;
   if (typeof document == 'undefined')
   {
-    doc = {};
-  }
-  else
-  {
-    doc = document;
+    document = {};
   }
 
   if (typeof alert == 'undefined')
@@ -68,16 +64,16 @@ function test()
   }
 
 // Crash:
-  doc.watch("title", function(a,b,c,d) {
+  document.watch("title", function(a,b,c,d) {
 		   return { toString : function() { alert(1); } };
 		 });
-  doc.title = "xxx";
+  document.title = "xxx";
 
 // No crash:
-  doc.watch("title", function() {
+  document.watch("title", function() {
 		   return { toString : function() { alert(1); } };
 		 });
-  doc.title = "xxx";
+  document.title = "xxx";
 
   reportCompare(expect, actual, summary);
 

@@ -55,10 +55,6 @@ EXPORTS         = \
                 nsCTooltipTextProvider.h \
                 $(NULL)
 
-LOCAL_INCLUDES	= \
-		-I$(srcdir)/../../../content/base/src \
-		$(NULL)
-		
 SDK_XPIDLSRCS   = \
 		nsIContextMenuListener.idl  \
 		nsIEmbeddingSiteWindow.idl  \
@@ -78,7 +74,6 @@ XPIDLSRCS	= \
 		nsIEmbeddingSiteWindow2.idl \
 		nsIContextMenuListener2.idl \
 		nsIWebBrowserChrome2.idl	    \
-		nsIWebBrowserChrome3.idl	    \
 		$(NULL)
 
 CPPSRCS		= \

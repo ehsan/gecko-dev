@@ -38,6 +38,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsIInputStream.h"
 #include "nsINameSpaceManager.h"
 #include "nsIURI.h"
@@ -64,6 +65,7 @@
 #include "nsFixedSizeAllocator.h"
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
+#include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
 #include "nsGkAtoms.h"
 #include "nsXBLProtoImpl.h"
@@ -72,6 +74,7 @@
 
 #include "nsIScriptContext.h"
 
+#include "nsICSSLoader.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsXBLResourceLoader.h"
 
@@ -205,12 +208,27 @@ public:
     nsXBLInsertionPointEntry::ReleasePool();
   }
 
-  NS_INLINE_DECL_REFCOUNTING(nsXBLInsertionPointEntry)
+  nsrefcnt AddRef() {
+    ++mRefCnt;
+    NS_LOG_ADDREF(this, mRefCnt, "nsXBLInsertionPointEntry", sizeof(nsXBLInsertionPointEntry));
+    return mRefCnt;
+  }
+
+  nsrefcnt Release() {
+    --mRefCnt;
+    NS_LOG_RELEASE(this, mRefCnt, "nsXBLInsertionPointEntry");
+    if (mRefCnt == 0) {
+      Destroy(this);
+      return 0;
+    }
+    return mRefCnt;
+  }
 
 protected:
   nsCOMPtr<nsIContent> mInsertionParent;
   nsCOMPtr<nsIContent> mDefaultContent;
   PRUint32 mInsertionIndex;
+  nsAutoRefCnt mRefCnt;
 
   nsXBLInsertionPointEntry(nsIContent* aParent)
     : mInsertionParent(aParent),
@@ -294,7 +312,7 @@ nsXBLPrototypeBinding::nsXBLPrototypeBinding()
 
 nsresult
 nsXBLPrototypeBinding::Init(const nsACString& aID,
-                            nsXBLDocumentInfo* aInfo,
+                            nsIXBLDocumentInfo* aInfo,
                             nsIContent* aElement,
                             PRBool aFirstBinding)
 {
@@ -439,10 +457,10 @@ nsXBLPrototypeBinding::SetBindingElement(nsIContent* aElement)
     mInheritStyle = PR_FALSE;
 }
 
-PRBool
-nsXBLPrototypeBinding::GetAllowScripts()
+nsresult
+nsXBLPrototypeBinding::GetAllowScripts(PRBool* aResult)
 {
-  return mXBLDocInfoWeak->GetScriptAccess();
+  return mXBLDocInfoWeak->GetScriptAccess(aResult);
 }
 
 PRBool
@@ -710,7 +728,7 @@ nsXBLPrototypeBinding::InstantiateInsertionPoints(nsXBLBinding* aBinding)
 nsIContent*
 nsXBLPrototypeBinding::GetInsertionPoint(nsIContent* aBoundElement,
                                          nsIContent* aCopyRoot,
-                                         const nsIContent* aChild,
+                                         nsIContent* aChild,
                                          PRUint32* aIndex)
 {
   if (!mInsertionPointTable)
@@ -1045,7 +1063,7 @@ nsXBLPrototypeBinding::GetRuleProcessor()
   return nsnull;
 }
 
-nsXBLPrototypeResources::sheet_array_type*
+nsCOMArray<nsICSSStyleSheet>*
 nsXBLPrototypeBinding::GetStyleSheets()
 {
   if (mResources) {

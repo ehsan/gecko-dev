@@ -40,14 +40,13 @@
 // Interfaces
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
+#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsStyleSet.h"
 #include "nsIViewManager.h"
 #include "nsIDocShell.h"
 #include "nsIDocument.h"
-#include "nsIDocShellTreeOwner.h"
-
-class nsPresContext;
+#include "nsIWidget.h"
 
 // nsPrintObject Document Type
 enum PrintObjectType  {eDoc = 0, eFrame = 1, eIFrame = 2, eFrameSet = 3};
@@ -71,12 +70,12 @@ public:
 
   // Data Members
   nsCOMPtr<nsIDocShell>    mDocShell;
-  nsCOMPtr<nsIDocShellTreeOwner> mTreeOwner;
   nsCOMPtr<nsIDocument>    mDocument;
 
-  nsRefPtr<nsPresContext>  mPresContext;
+  nsCOMPtr<nsPresContext>  mPresContext;
   nsCOMPtr<nsIPresShell>   mPresShell;
   nsCOMPtr<nsIViewManager> mViewManager;
+  nsCOMPtr<nsIWidget>      mWindow;
 
   nsCOMPtr<nsIContent>     mContent;
   PrintObjectType  mFrameType;

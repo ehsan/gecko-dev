@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-344804.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 344804;
 var summary = 'Do not crash iterating over window.Packages';

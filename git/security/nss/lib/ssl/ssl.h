@@ -36,7 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: ssl.h,v 1.38.2.1 2010/07/31 04:33:52 wtc%google.com Exp $ */
+/* $Id: ssl.h,v 1.36 2010/02/10 18:07:21 wtc%google.com Exp $ */
 
 #ifndef __ssl_h_
 #define __ssl_h_
@@ -123,22 +123,11 @@ SSL_IMPORT PRFileDesc *SSL_ImportFD(PRFileDesc *model, PRFileDesc *fd);
 #define SSL_ENABLE_DEFLATE             19 /* Enable TLS compression with    */
                                           /* DEFLATE (off by default)       */
 #define SSL_ENABLE_RENEGOTIATION       20 /* Values below (default: never)  */
-#define SSL_REQUIRE_SAFE_NEGOTIATION   21 /* Peer must send Signaling       */
+#define SSL_REQUIRE_SAFE_NEGOTIATION   21 /* Peer must send Signalling      */
 					  /* Cipher Suite Value (SCSV) or   */
                                           /* Renegotiation  Info (RI)       */
 					  /* extension in ALL handshakes.   */
                                           /* default: off                   */
-#define SSL_ENABLE_FALSE_START         22 /* Enable SSL false start (off by */
-                                          /* default, applies only to       */
-                                          /* clients). False start is a     */
-/* mode where an SSL client will start sending application data before      */
-/* verifying the server's Finished message. This means that we could end up */
-/* sending data to an imposter. However, the data will be encrypted and     */
-/* only the true server can derive the session key. Thus, so long as the    */
-/* cipher isn't broken this is safe. Because of this, False Start will only */
-/* occur on RSA or DH ciphersuites where the cipher's key length is >= 80   */
-/* bits. The advantage of False Start is that it saves a round trip for     */
-/* client-speaks-first protocols when performing a full handshake.          */
 
 #ifdef SSL_DEPRECATED_FUNCTION 
 /* Old deprecated function names */
@@ -195,11 +184,9 @@ SSL_IMPORT SECStatus SSL_CipherPolicyGet(PRInt32 cipher, PRInt32 *policy);
 /* Only renegotiate if the peer's hello bears the TLS renegotiation_info   */
 /* extension. This is safe renegotiation.                                  */
 #define SSL_RENEGOTIATE_REQUIRES_XTN ((PRBool)2) 
-/* Disallow unsafe renegotiation in server sockets only, but allow clients */
+/* Disallow all renegotiation in server sockets only, but allow clients    */
 /* to continue to renegotiate with vulnerable servers.                     */
-/* This value should only be used during the transition period when few    */
-/* servers have been upgraded.                                             */
-#define SSL_RENEGOTIATE_TRANSITIONAL ((PRBool)3)
+#define SSL_RENEGOTIATE_CLIENT_ONLY  ((PRBool)3)
 
 /*
 ** Reset the handshake state for fd. This will make the complete SSL

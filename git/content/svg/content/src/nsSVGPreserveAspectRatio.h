@@ -109,8 +109,13 @@ public:
 
   const PreserveAspectRatio &GetBaseValue() const
     { return mBaseVal; }
-  const PreserveAspectRatio &GetAnimValue() const
-    { return mAnimVal; }
+  const PreserveAspectRatio &GetAnimValue(nsSVGElement *aSVGElement) const
+  {
+#ifdef MOZ_SMIL
+    aSVGElement->FlushAnimations();
+#endif
+    return mAnimVal;
+  }
 
   nsresult ToDOMAnimatedPreserveAspectRatio(
     nsIDOMSVGAnimatedPreserveAspectRatio **aResult,
@@ -131,7 +136,6 @@ private:
   nsresult ToDOMAnimVal(nsIDOMSVGPreserveAspectRatio **aResult,
                         nsSVGElement* aSVGElement);
 
-public:
   struct DOMBaseVal : public nsIDOMSVGPreserveAspectRatio
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -165,27 +169,13 @@ public:
     nsSVGPreserveAspectRatio* mVal; // kept alive because it belongs to mSVGElement
     nsRefPtr<nsSVGElement> mSVGElement;
     
-    // Script may have modified animation parameters or timeline -- DOM getters
-    // need to flush any resample requests to reflect these modifications.
     NS_IMETHOD GetAlign(PRUint16* aAlign)
-    {
-#ifdef MOZ_SMIL
-      mSVGElement->FlushAnimations();
-#endif
-      *aAlign = mVal->GetAnimValue().GetAlign();
-      return NS_OK;
-    }
+      { *aAlign = mVal->GetAnimValue(mSVGElement).GetAlign(); return NS_OK; }
     NS_IMETHOD SetAlign(PRUint16 aAlign)
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
 
     NS_IMETHOD GetMeetOrSlice(PRUint16* aMeetOrSlice)
-    {
-#ifdef MOZ_SMIL
-      mSVGElement->FlushAnimations();
-#endif
-      *aMeetOrSlice = mVal->GetAnimValue().GetMeetOrSlice();
-      return NS_OK;
-    }
+      { *aMeetOrSlice = mVal->GetAnimValue(mSVGElement).GetMeetOrSlice(); return NS_OK; }
     NS_IMETHOD SetMeetOrSlice(PRUint16 aValue)
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
   };
@@ -225,7 +215,7 @@ public:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     PRBool& aPreventCachingOfSandwich) const;
+                                     PRBool& aCanCache) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);

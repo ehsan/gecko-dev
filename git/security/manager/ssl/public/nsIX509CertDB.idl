@@ -51,6 +51,8 @@ interface nsIInterfaceRequestor;
 /**
  * This represents a service to access and manipulate 
  * X.509 certificates stored in a database.
+ *
+ * @status FROZEN
  */
 [scriptable, uuid(da48b3c0-1284-11d5-ac67-000064657374)]
 interface nsIX509CertDB : nsISupports {
@@ -112,7 +114,7 @@ interface nsIX509CertDB : nsISupports {
                          [array, size_is(count)] out wstring certNameList);
 
   /**
-   *  Find user's own email encryption certificate by nickname.
+   *  Find the email encryption certificate by nickname.
    *
    *  @param aNickname The nickname to be used as the key
    *                   to find the certificate.
@@ -122,7 +124,7 @@ interface nsIX509CertDB : nsISupports {
   nsIX509Cert findEmailEncryptionCert(in AString aNickname);
 
   /**
-   *  Find user's own email signing certificate by nickname.
+   *  Find the email signing certificate by nickname.
    *
    *  @param aNickname The nickname to be used as the key
    *                   to find the certificate.

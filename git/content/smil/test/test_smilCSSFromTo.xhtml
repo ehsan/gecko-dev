@@ -12,8 +12,7 @@
 <p id="display"></p>
 <div id="content">
 <svg xmlns="http://www.w3.org/2000/svg"
-     width="200px" height="200px" font-size="50px" style="color: rgb(50,50,50)"
-     onload="this.pauseAnimations()">
+     width="200px" height="200px" font-size="50px" style="color: rgb(50,50,50)">
   <rect x="20" y="20" width="200" height="200"/>
   <!-- NOTE: hard-wiring 'line-height' so that computed value of 'font' is
        more predictable. (otherwise, line-height varies depending on platform)
@@ -63,8 +62,8 @@ function main()
 
   // Start out with document paused
   var svg = SMILUtil.getSVGRoot();
-  ok(svg.animationsPaused(), "should be paused by <svg> load handler");
-  is(svg.getCurrentTime(), 0, "should be paused at 0 in <svg> load handler");
+  svg.pauseAnimations();
+  svg.setCurrentTime(0);
 
   // FIRST: Warn about any properties that are missing tests
   checkForUntestedProperties(gFromToBundles);
@@ -73,7 +72,7 @@ function main()
   testBundleList(gFromToBundles, new SMILTimingData(1.0, 1.0));
 
   // Set "display:none" on everything and run the tests again
-  SMILUtil.hideSubtree(SMILUtil.getSVGRoot(), false, false);
+  SMILUtil.hideSubtree(SMILUtil.getSVGRoot(), false);
   testBundleList(gFromToBundles, new SMILTimingData(1.0, 1.0));
 
   SimpleTest.finish();

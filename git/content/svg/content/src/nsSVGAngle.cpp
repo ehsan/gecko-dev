@@ -119,31 +119,28 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGAngle::DOMAnimatedAngle)
 NS_IMPL_ADDREF(DOMSVGAngle)
 NS_IMPL_RELEASE(DOMSVGAngle)
 
-DOMCI_DATA(SVGAngle, nsSVGAngle::DOMBaseVal)
-DOMCI_DATA(SVGAnimatedAngle, nsSVGAngle::DOMAnimatedAngle)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGAngle::DOMBaseVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAngle)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAngle)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAngle)
 NS_INTERFACE_MAP_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGAngle::DOMAnimVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAngle)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAngle)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAngle)
 NS_INTERFACE_MAP_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGAngle::DOMAnimatedAngle)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedAngle)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedAngle)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedAngle)
 NS_INTERFACE_MAP_END
 
 NS_INTERFACE_MAP_BEGIN(DOMSVGAngle)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAngle)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAngle)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAngle)
 NS_INTERFACE_MAP_END
 
 static nsIAtom** const unitMap[] =
@@ -302,9 +299,7 @@ nsSVGAngle::NewValueSpecifiedUnits(PRUint16 unitType,
     aSVGElement->AnimationNeedsResample();
   }
 #endif
-  if (aSVGElement) {
-    aSVGElement->DidChangeAngle(mAttrEnum, PR_TRUE);
-  }
+  aSVGElement->DidChangeAngle(mAttrEnum, PR_TRUE);
   return NS_OK;
 }
 
@@ -383,7 +378,7 @@ nsSVGAngle::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
     mAnimVal = mBaseVal;
   }
 #ifdef MOZ_SMIL
-  else {
+  else if (aSVGElement) {
     aSVGElement->AnimationNeedsResample();
   }
 #endif
@@ -442,7 +437,7 @@ nsresult
 nsSVGAngle::SMILOrient::ValueFromString(const nsAString& aStr,
                                         const nsISMILAnimationElement* /*aSrcElement*/,
                                         nsSMILValue& aValue,
-                                        PRBool& aPreventCachingOfSandwich) const
+                                        PRBool& aCanCache) const
 {
   nsSMILValue val(&SVGOrientSMILType::sSingleton);
   if (aStr.EqualsLiteral("auto")) {
@@ -458,8 +453,8 @@ nsSVGAngle::SMILOrient::ValueFromString(const nsAString& aStr,
     val.mU.mOrient.mUnit = unitType;
     val.mU.mOrient.mOrientType = nsIDOMSVGMarkerElement::SVG_MARKER_ORIENT_ANGLE;
   }
-  aValue.Swap(val);
-  aPreventCachingOfSandwich = PR_FALSE;
+  aValue = val;
+  aCanCache = PR_TRUE;
 
   return NS_OK;
 }

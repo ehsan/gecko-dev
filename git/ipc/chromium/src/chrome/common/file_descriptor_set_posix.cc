@@ -7,8 +7,6 @@
 #include "base/eintr_wrapper.h"
 #include "base/logging.h"
 
-#include <unistd.h>
-
 FileDescriptorSet::FileDescriptorSet()
     : consumed_descriptor_highwater_(0) {
 }

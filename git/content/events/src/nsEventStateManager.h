@@ -54,8 +54,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIScrollableFrame.h"
-#include "nsFocusManager.h"
-#include "nsIDocument.h"
 
 class nsIPresShell;
 class nsIDocShell;
@@ -64,11 +62,13 @@ class nsIDocShellTreeItem;
 class imgIContainer;
 class nsDOMDataTransfer;
 
-namespace mozilla {
-namespace dom {
-class TabParent;
-}
-}
+// mac uses click-hold context menus, a holdover from 4.x
+// touch screens (like maemo) could use this also, 
+// perhaps we should move to NS_TOUCHSCREEN
+#if defined(XP_MACOSX) || defined(MOZ_PLATFORM_MAEMO)
+#define CLICK_HOLD_CONTEXT_MENUS 1
+#endif
+
 
 /*
  * Event listener manager
@@ -120,9 +120,8 @@ public:
   NS_IMETHOD GetEventTarget(nsIFrame **aFrame);
   NS_IMETHOD GetEventTargetContent(nsEvent* aEvent, nsIContent** aContent);
 
-  virtual nsEventStates GetContentState(nsIContent *aContent,
-                                        PRBool aFollowLabels = PR_FALSE);
-  virtual PRBool SetContentState(nsIContent *aContent, nsEventStates aState);
+  NS_IMETHOD GetContentState(nsIContent *aContent, PRInt32& aState);
+  virtual PRBool SetContentState(nsIContent *aContent, PRInt32 aState);
   NS_IMETHOD ContentRemoved(nsIDocument* aDocument, nsIContent* aContent);
   NS_IMETHOD EventStatusOK(nsGUIEvent* aEvent, PRBool *aOK);
 
@@ -152,19 +151,9 @@ public:
 
   NS_IMETHOD_(PRBool) IsHandlingUserInputExternal() { return IsHandlingUserInput(); }
   
-  nsPresContext* GetPresContext() { return mPresContext; }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEventStateManager,
                                            nsIEventStateManager)
 
-  static nsIDocument* sMouseOverDocument;
-
-  static nsIEventStateManager* GetActiveEventStateManager() { return sActiveESM; }
-
-  // Sets aNewESM to be the active event state manager, and
-  // if aContent is non-null, marks the object as active.
-  static void SetActiveManager(nsEventStateManager* aNewESM,
-                               nsIContent* aContent);
 protected:
   void UpdateCursor(nsPresContext* aPresContext, nsEvent* aEvent, nsIFrame* aTargetFrame, nsEventStatus* aStatus);
   /**
@@ -342,18 +331,11 @@ protected:
    * Set the fields of aEvent to reflect the mouse position and modifier keys
    * that were set when the user first pressed the mouse button (stored by
    * BeginTrackingDragGesture). aEvent->widget must be
-   * mCurrentTarget->GetNearestWidget().
+   * mCurrentTarget->GetWindow().
    */
   void FillInEventFromGestureDown(nsMouseEvent* aEvent);
 
   nsresult DoContentCommandEvent(nsContentCommandEvent* aEvent);
-  nsresult DoContentCommandScrollEvent(nsContentCommandEvent* aEvent);
-
-#ifdef MOZ_IPC
-  PRBool RemoteQueryContentEvent(nsEvent *aEvent);
-  mozilla::dom::TabParent *GetCrossProcessTarget();
-  PRBool IsTargetCrossProcess(nsGUIEvent *aEvent);
-#endif
 
   PRInt32     mLockCursor;
 
@@ -404,11 +386,10 @@ protected:
   PRUint32 mMClickCount;
   PRUint32 mRClickCount;
 
+  PRPackedBool mNormalLMouseEventInProcess;
+
   PRPackedBool m_haveShutdown;
 
-
-public:
-  static nsresult UpdateUserActivityTimer(void);
   // Array for accesskey support
   nsCOMArray<nsIContent> mAccessKeys;
 
@@ -416,22 +397,19 @@ public:
   PRPackedBool mLastLineScrollConsumedX;
   PRPackedBool mLastLineScrollConsumedY;
 
-  static PRInt32 sUserInputEventDepth;
-  
-  static PRBool sNormalLMouseEventInProcess;
+#ifdef CLICK_HOLD_CONTEXT_MENUS
+  enum { kClickHoldDelay = 500 } ;        // 500ms == 1/2 second
 
-  static nsEventStateManager* sActiveESM;
-  
-  static void ClearGlobalActiveContent(nsEventStateManager* aClearer);
-
-  // Functions used for click hold context menus
-  PRBool mClickHoldContextMenu;
-  nsCOMPtr<nsITimer> mClickHoldTimer;
   void CreateClickHoldTimer ( nsPresContext* aPresContext, nsIFrame* inDownFrame,
                               nsGUIEvent* inMouseDownEvent ) ;
   void KillClickHoldTimer ( ) ;
   void FireContextClick ( ) ;
   static void sClickHoldCallback ( nsITimer* aTimer, void* aESM ) ;
+  
+  nsCOMPtr<nsITimer> mClickHoldTimer;
+#endif
+
+  static PRInt32 sUserInputEventDepth;
 };
 
 /**
@@ -441,25 +419,14 @@ public:
 class nsAutoHandlingUserInputStatePusher
 {
 public:
-  nsAutoHandlingUserInputStatePusher(PRBool aIsHandlingUserInput,
-                                     nsEvent* aEvent,
-                                     nsIDocument* aDocument)
-    : mIsHandlingUserInput(aIsHandlingUserInput),
-      mIsMouseDown(aEvent && aEvent->message == NS_MOUSE_BUTTON_DOWN),
-      mResetFMMouseDownState(PR_FALSE)
+  nsAutoHandlingUserInputStatePusher(PRBool aIsHandlingUserInput, PRBool aIsMouseDown)
+    : mIsHandlingUserInput(aIsHandlingUserInput), mIsMouseDown(aIsMouseDown)
   {
     if (aIsHandlingUserInput) {
       nsEventStateManager::StartHandlingUserInput();
-      if (mIsMouseDown) {
+      if (aIsMouseDown) {
         nsIPresShell::SetCapturingContent(nsnull, 0);
         nsIPresShell::AllowMouseCapture(PR_TRUE);
-        if (aDocument && NS_IS_TRUSTED_EVENT(aEvent)) {
-          nsFocusManager* fm = nsFocusManager::GetFocusManager();
-          if (fm) {
-            fm->SetMouseButtonDownHandlingDocument(aDocument);
-            mResetFMMouseDownState = PR_TRUE;
-          }
-        }
       }
     }
   }
@@ -470,12 +437,6 @@ public:
       nsEventStateManager::StopHandlingUserInput();
       if (mIsMouseDown) {
         nsIPresShell::AllowMouseCapture(PR_FALSE);
-        if (mResetFMMouseDownState) {
-          nsFocusManager* fm = nsFocusManager::GetFocusManager();
-          if (fm) {
-            fm->SetMouseButtonDownHandlingDocument(nsnull);
-          }
-        }
       }
     }
   }
@@ -483,7 +444,6 @@ public:
 protected:
   PRBool mIsHandlingUserInput;
   PRBool mIsMouseDown;
-  PRBool mResetFMMouseDownState;
 
 private:
   // Hide so that this class can only be stack-allocated

@@ -127,22 +127,9 @@ _newJSDScript(JSDContext*  jsdc,
         jsdscript->url = jsdlw_BuildAppRelativeFilename(jsdscript->app, raw_filename);
         if( function )
         {
-            JSString* funid = JS_GetFunctionId(function);
-            char* funbytes;
-            const char* funnanme;
-            if( fuinid )
-            {
-                funbytes = JS_EncodeString(cx, funid);
-                funname = funbytes ? funbytes : "";
-            }
-            else
-            {
-                funbytes = NULL;
-                funname = "anonymous";
-            }
             jsdscript->lwscript = 
-                LWDBG_GetScriptOfFunction(jsdscript->app,funname);
-            JS_Free(cx, funbytes);
+                LWDBG_GetScriptOfFunction(jsdscript->app,
+                                          JS_GetFunctionName(function));
     
             /* also, make sure this file is added to filelist if is .js file */
             if( HasFileExtention(raw_filename,"js") || 
@@ -598,6 +585,11 @@ jsd_NewScriptHookProc(
     if( JSD_IS_DANGEROUS_THREAD(jsdc) )
         return;
     
+#ifdef LIVEWIRE
+    if( 1 == lineno )
+        jsdlw_PreLoadSource(jsdc, LWDBG_GetCurrentApp(), filename, JS_TRUE );
+#endif
+    
     JSD_LOCK_SCRIPTS(jsdc);
     jsdscript = _newJSDScript(jsdc, cx, script, fun);
     JSD_UNLOCK_SCRIPTS(jsdc);
@@ -619,7 +611,7 @@ jsd_NewScriptHookProc(
 
     if( hook )
         hook(jsdc, jsdscript, JS_TRUE, hookData);
-}
+}                
 
 void
 jsd_DestroyScriptHookProc( 
@@ -723,9 +715,9 @@ _isActiveHook(JSDContext* jsdc, JSScript *script, JSDExecHook* jsdhook)
 
 JSTrapStatus
 jsd_TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                jsval closure)
+                void *closure)
 {
-    JSDExecHook* jsdhook = (JSDExecHook*) JSVAL_TO_PRIVATE(closure);
+    JSDExecHook* jsdhook = (JSDExecHook*) JSVAL_TO_PRIVATE(((jsval)closure));
     JSD_ExecutionHookProc hook;
     void* hookData;
     JSDContext*  jsdc;
@@ -807,8 +799,8 @@ jsd_SetExecutionHook(JSDContext*           jsdc,
     jsdhook->callerdata = callerdata;
 
     if( ! JS_SetTrap(jsdc->dumbContext, jsdscript->script, 
-                     (jsbytecode*)pc, jsd_TrapHandler,
-                     PRIVATE_TO_JSVAL(jsdhook)) )
+                     (jsbytecode*)pc, jsd_TrapHandler, 
+                     (void*) PRIVATE_TO_JSVAL(jsdhook)) )
     {
         free(jsdhook);
         JSD_UNLOCK();

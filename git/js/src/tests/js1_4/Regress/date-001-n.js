@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'date-001-n.js';
 
 /**
  *  File Name:          date-001-n.js

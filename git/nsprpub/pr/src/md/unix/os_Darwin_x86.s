@@ -49,7 +49,6 @@
 #
     .text
     .globl __PR_Darwin_x86_AtomicIncrement
-    .private_extern __PR_Darwin_x86_AtomicIncrement
     .align 4
 __PR_Darwin_x86_AtomicIncrement:
     movl 4(%esp), %ecx
@@ -67,7 +66,6 @@ __PR_Darwin_x86_AtomicIncrement:
 #
     .text
     .globl __PR_Darwin_x86_AtomicDecrement
-    .private_extern __PR_Darwin_x86_AtomicDecrement
     .align 4
 __PR_Darwin_x86_AtomicDecrement:
     movl 4(%esp), %ecx
@@ -85,7 +83,6 @@ __PR_Darwin_x86_AtomicDecrement:
 #
     .text
     .globl __PR_Darwin_x86_AtomicSet
-    .private_extern __PR_Darwin_x86_AtomicSet
     .align 4
 __PR_Darwin_x86_AtomicSet:
     movl 4(%esp), %ecx
@@ -101,7 +98,6 @@ __PR_Darwin_x86_AtomicSet:
 #
     .text
     .globl __PR_Darwin_x86_AtomicAdd
-    .private_extern __PR_Darwin_x86_AtomicAdd
     .align 4
 __PR_Darwin_x86_AtomicAdd:
     movl 4(%esp), %ecx

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-301738-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 301738;
 var summary = 'Date parse compatibilty with MSIE';

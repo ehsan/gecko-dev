@@ -76,7 +76,6 @@ CPPSRCS		= \
 		nsAttrAndChildArray.cpp \
 		nsAttrValue.cpp \
 		nsCCUncollectableMarker.cpp \
-		nsChannelPolicy.cpp \
 		nsCommentNode.cpp \
 		nsContentAreaDragDrop.cpp \
 		nsContentIterator.cpp \
@@ -91,19 +90,16 @@ CPPSRCS		= \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
 		nsDOMDocumentType.cpp \
-		nsDOMEventTargetWrapperCache.cpp \
 		nsDOMFile.cpp \
 		nsDOMFileReader.cpp \
 		nsDOMLists.cpp \
 		nsDOMParser.cpp \
 		nsDOMSerializer.cpp \
 		nsDOMTokenList.cpp \
-		nsDOMSettableTokenList.cpp \
 		nsDocument.cpp \
 		nsDocumentEncoder.cpp \
 		nsDocumentFragment.cpp \
 		nsFrameLoader.cpp \
-		nsFormData.cpp \
 		nsGenConImageContent.cpp \
 		nsGenericDOMDataNode.cpp \
 		nsGenericElement.cpp \
@@ -139,16 +135,11 @@ CPPSRCS		= \
 		nsTextNode.cpp \
 		nsTraversal.cpp \
 		nsTreeWalker.cpp \
-		nsWebSocket.cpp \
 		nsXHTMLContentSerializer.cpp \
 		nsXMLContentSerializer.cpp \
 		nsXMLHttpRequest.cpp \
 		nsXMLNameSpaceMap.cpp \
 		Link.cpp \
-		nsFileDataProtocolHandler.cpp \
-		nsFrameMessageManager.cpp \
-		nsInProcessTabChildGlobal.cpp \
-		ThirdPartyUtil.cpp \
 		$(NULL)
 
 GQI_SRCS = contentbase.gqi
@@ -159,26 +150,13 @@ FORCE_STATIC_LIB = 1
 
 EXTRA_COMPONENTS = \
 		$(srcdir)/nsBadCertHandler.js \
-		nsBadCertHandler.manifest \
 		contentSecurityPolicy.js \
-		contentSecurityPolicy.manifest \
-		contentAreaDropListener.js \
-		contentAreaDropListener.manifest \
 		$(NULL)
-
-ifdef MOZ_IPC
-EXTRA_COMPONENTS += \
-		messageWakeupService.js \
-		messageWakeupService.manifest \
-		$(NULL)
-endif
 
 EXTRA_JS_MODULES = \
 		CSPUtils.jsm \
 		$(NULL)
 
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 INCLUDES	+= \
@@ -194,9 +172,6 @@ INCLUDES	+= \
 		-I$(srcdir)/../../../dom/base \
 		-I$(srcdir)/../../xml/document/src \
 		-I$(topsrcdir)/xpcom/io \
-		-I$(topsrcdir)/dom/ipc \
-		-I$(topsrcdir)/js/src/xpconnect/src \
-		-I$(topsrcdir)/caps/include \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

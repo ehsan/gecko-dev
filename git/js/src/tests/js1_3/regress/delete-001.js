@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'delete-001.js';
 
 /**
    File Name:     delete-001.js

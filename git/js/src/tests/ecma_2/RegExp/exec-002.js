@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'exec-002.js';
 
 /**
  *  File Name:          RegExp/exec-002.js

@@ -52,7 +52,7 @@
 #include "nsComponentManagerUtils.h"
 #include "nsCOMArray.h"
 #include "nsDirectoryServiceUtils.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsServiceManagerUtils.h"
 #include "nsStringAPI.h"
 #include "nsXULAppAPI.h"
@@ -96,6 +96,15 @@ DirectoryProvider::GetFile(const char *aKey, PRBool *aPersist, nsIFile* *aResult
     NS_ENSURE_SUCCESS(rv, rv);
 
     file->AppendNative(NS_LITERAL_CSTRING("existing-profile-defaults.js"));
+    file.swap(*aResult);
+    return NS_OK;
+  }
+  else if (!strcmp(aKey, NS_APP_USER_MICROSUMMARY_DIR)) {
+    rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
+                                getter_AddRefs(file));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    file->AppendNative(NS_LITERAL_CSTRING("microsummary-generators"));
     file.swap(*aResult);
     return NS_OK;
   }
@@ -274,6 +283,43 @@ DirectoryProvider::GetFiles(const char *aKey, nsISimpleEnumerator* *aResult)
   }
 
   return NS_ERROR_FAILURE;
+}
+
+NS_METHOD
+DirectoryProvider::Register(nsIComponentManager* aCompMgr, nsIFile* aPath,
+                            const char *aLoaderStr, const char *aType,
+                            const nsModuleComponentInfo *aInfo)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsICategoryManager> catMan
+    (do_GetService(NS_CATEGORYMANAGER_CONTRACTID));
+  if (!catMan)
+    return NS_ERROR_FAILURE;
+
+  rv = catMan->AddCategoryEntry(XPCOM_DIRECTORY_PROVIDER_CATEGORY,
+                                "browser-directory-provider",
+                                NS_BROWSERDIRECTORYPROVIDER_CONTRACTID,
+                                PR_TRUE, PR_TRUE, nsnull);
+  return rv;
+}
+
+
+NS_METHOD
+DirectoryProvider::Unregister(nsIComponentManager* aCompMgr, 
+                              nsIFile* aPath, const char *aLoaderStr,
+                              const nsModuleComponentInfo *aInfo)
+{
+  nsresult rv;
+
+  nsCOMPtr<nsICategoryManager> catMan
+    (do_GetService(NS_CATEGORYMANAGER_CONTRACTID));
+  if (!catMan)
+    return NS_ERROR_FAILURE;
+
+  rv = catMan->DeleteCategoryEntry(XPCOM_DIRECTORY_PROVIDER_CATEGORY,
+                                   "browser-directory-provider", PR_TRUE);
+  return rv;
 }
 
 NS_IMPL_ISUPPORTS1(DirectoryProvider::AppendingEnumerator, nsISimpleEnumerator)

@@ -87,6 +87,10 @@ struct nsFramesetDrag {
   PRPackedBool         mActive;
 
   nsFramesetDrag();
+  nsFramesetDrag(PRBool               aVertical, 
+                 PRInt32              aIndex, 
+                 PRInt32              aChange, 
+                 nsHTMLFramesetFrame* aSource); 
   void Reset(PRBool               aVertical, 
              PRInt32              aIndex, 
              PRInt32              aChange, 

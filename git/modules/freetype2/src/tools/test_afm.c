@@ -63,7 +63,7 @@
 
   int
   dummy_get_index( const char*  name,
-                   FT_Offset    len,
+                   FT_UInt      len,
                    void*        user_data )
   {
     if ( len )

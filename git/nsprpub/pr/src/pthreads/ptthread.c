@@ -102,6 +102,42 @@ static PRIntn pt_PriorityMap(PRThreadPriority pri)
 }
 #endif
 
+#if defined(GC_LEAK_DETECTOR) && (__GLIBC__ >= 2) && defined(__i386__) 
+
+#include <setjmp.h>
+
+typedef struct stack_frame stack_frame;
+
+struct stack_frame {
+    stack_frame* next;
+    void* pc;
+};
+
+static stack_frame* GetStackFrame()
+{
+    jmp_buf jb;
+    stack_frame* currentFrame;
+    setjmp(jb);
+    currentFrame = (stack_frame*)(jb[0].__jmpbuf[JB_BP]);
+    currentFrame = currentFrame->next;
+    return currentFrame;
+}
+
+static void* GetStackTop()
+{
+    stack_frame* frame;
+    frame = GetStackFrame();
+    while (frame != NULL)
+    {
+        ptrdiff_t pc = (ptrdiff_t)frame->pc;
+        if ((pc < 0x08000000) || (pc > 0x7fffffff) || (frame->next < frame))
+            return frame;
+        frame = frame->next;
+    }
+    return NULL;
+}
+#endif /* GC_LEAK_DETECTOR && (__GLIBC__ >= 2) && __i386__ */
+
 /*
 ** Initialize a stack for a native pthread thread
 */
@@ -118,8 +154,13 @@ static void _PR_InitializeStack(PRThreadStack *ts)
         ts->stackBottom = ts->allocBase + ts->stackSize;
         ts->stackTop = ts->allocBase;
 #else
+#ifdef GC_LEAK_DETECTOR
+        ts->stackTop    = GetStackTop();
+        ts->stackBottom = ts->stackTop - ts->stackSize;
+#else
         ts->stackTop    = ts->allocBase;
         ts->stackBottom = ts->allocBase - ts->stackSize;
+#endif
 #endif
     }
 }
@@ -711,10 +752,10 @@ PR_IMPLEMENT(PRStatus) PR_Interrupt(PRThread *thred)
     if ((NULL != cv) && !thred->interrupt_blocked)
     {
         PRIntn rv;
-        (void)PR_ATOMIC_INCREMENT(&cv->notify_pending);
+        (void)PR_AtomicIncrement(&cv->notify_pending);
         rv = pthread_cond_broadcast(&cv->cv);
         PR_ASSERT(0 == rv);
-        if (0 > PR_ATOMIC_DECREMENT(&cv->notify_pending))
+        if (0 > PR_AtomicDecrement(&cv->notify_pending))
             PR_DestroyCondVar(cv);
     }
     return PR_SUCCESS;

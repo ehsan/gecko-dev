@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'number-002.js';
 
 /**
    File Name:          number-002.js

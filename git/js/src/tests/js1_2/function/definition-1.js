@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'definition-1.js';
 
 /**
    File Name:          definition-1.js

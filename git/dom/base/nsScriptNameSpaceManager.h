@@ -57,10 +57,8 @@
 #include "nsString.h"
 #include "nsID.h"
 #include "pldhash.h"
-#include "nsDOMClassInfo.h"
-#include "nsIObserver.h"
-#include "nsWeakReference.h"
 
+#include "nsDOMClassInfo.h"
 
 struct nsGlobalNameStruct
 {
@@ -85,7 +83,7 @@ struct nsGlobalNameStruct
     eTypeExternalConstructorAlias
   } mType;
 
-  PRBool mChromeOnly;
+  PRBool mPrivilegedOnly;
 
   union {
     PRInt32 mDOMClassInfoID; // eTypeClassConstructor
@@ -106,13 +104,9 @@ class nsICategoryManager;
 class GlobalNameMapEntry;
 
 
-class nsScriptNameSpaceManager : public nsIObserver,
-                                 public nsSupportsWeakReference
+class nsScriptNameSpaceManager
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
   nsScriptNameSpaceManager();
   virtual ~nsScriptNameSpaceManager();
 
@@ -130,7 +124,6 @@ public:
 
   nsresult RegisterClassName(const char *aClassName,
                              PRInt32 aDOMClassInfoID,
-                             PRBool aPrivileged,
                              const PRUnichar **aResult);
 
   nsresult RegisterClassProto(const char *aClassName,
@@ -163,22 +156,13 @@ protected:
                                 const PRUnichar **aClassName = nsnull);
 
   nsresult FillHash(nsICategoryManager *aCategoryManager,
-                    const char *aCategory);
+                    const char *aCategory,
+                    nsGlobalNameStruct::nametype aType,
+                    PRBool aPrivilegedOnly);
   nsresult FillHashWithDOMInterfaces();
   nsresult RegisterInterface(const char* aIfName,
                              const nsIID *aIfIID,
                              PRBool* aFoundOld);
-
-  /**
-   * Add a new category entry into the hash table.
-   *
-   * @aCategoryManager Instance of the category manager service.
-   * @aCategory        Category where the entry comes from.
-   * @aEntry           The entry that should be added.
-   */
-  nsresult AddCategoryEntryToHash(nsICategoryManager* aCategoryManager,
-                                  const char* aCategory,
-                                  nsISupports* aEntry);
 
   // Inline PLDHashTable, init with PL_DHashTableInit() and delete
   // with PL_DHashTableFinish().

@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.5.4.11.js';
 
 START("13.5.4.11 - XMLList hasOwnProperty()");
 

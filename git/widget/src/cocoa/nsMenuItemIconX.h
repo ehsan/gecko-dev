@@ -51,6 +51,7 @@ class nsIContent;
 class imgIRequest;
 class nsMenuObjectX;
 
+#import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 
 class nsMenuItemIconX : public imgIDecoderObserver

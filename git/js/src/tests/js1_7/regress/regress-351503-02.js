@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-351503-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 351503;
 var summary = 'decompilation of TypeError messages';

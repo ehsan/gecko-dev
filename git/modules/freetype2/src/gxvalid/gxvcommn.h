@@ -79,8 +79,6 @@ FT_BEGIN_HEADER
 
   } GXV_LookupValueDesc;
 
-  typedef const GXV_LookupValueDesc* GXV_LookupValueCPtr;
-
   typedef enum  GXV_LookupValue_SignSpec_
   {
     GXV_LOOKUPVALUE_UNSIGNED = 0,
@@ -91,12 +89,12 @@ FT_BEGIN_HEADER
 
   typedef void
   (*GXV_Lookup_Value_Validate_Func)( FT_UShort            glyph,
-                                     GXV_LookupValueCPtr  value_p,
+                                     GXV_LookupValueDesc  value,
                                      GXV_Validator        valid );
 
   typedef GXV_LookupValueDesc
   (*GXV_Lookup_Fmt4_Transit_Func)( FT_UShort            relative_gindex,
-                                   GXV_LookupValueCPtr  base_value_p,
+                                   GXV_LookupValueDesc  base_value,
                                    FT_Bytes             lookuptbl_limit,
                                    GXV_Validator        valid );
 
@@ -136,7 +134,6 @@ FT_BEGIN_HEADER
 
   } GXV_StateTable_GlyphOffsetDesc;
 
-  typedef const GXV_StateTable_GlyphOffsetDesc* GXV_StateTable_GlyphOffsetCPtr;
 
   typedef void
   (*GXV_StateTable_Subtable_Setup_Func)( FT_UShort      table_size,
@@ -152,7 +149,7 @@ FT_BEGIN_HEADER
   (*GXV_StateTable_Entry_Validate_Func)(
      FT_Byte                         state,
      FT_UShort                       flags,
-     GXV_StateTable_GlyphOffsetCPtr  glyphOffset_p,
+     GXV_StateTable_GlyphOffsetDesc  glyphOffset,
      FT_Bytes                        statetable_table,
      FT_Bytes                        statetable_limit,
      GXV_Validator                   valid );
@@ -178,8 +175,6 @@ FT_BEGIN_HEADER
 
   typedef GXV_StateTable_GlyphOffsetDesc  GXV_XStateTable_GlyphOffsetDesc;
 
-  typedef const GXV_XStateTable_GlyphOffsetDesc* GXV_XStateTable_GlyphOffsetCPtr;
-
   typedef void
   (*GXV_XStateTable_Subtable_Setup_Func)( FT_ULong       table_size,
                                           FT_ULong       classTable,
@@ -194,7 +189,7 @@ FT_BEGIN_HEADER
   (*GXV_XStateTable_Entry_Validate_Func)(
      FT_UShort                       state,
      FT_UShort                       flags,
-     GXV_StateTable_GlyphOffsetCPtr  glyphOffset_p,
+     GXV_StateTable_GlyphOffsetDesc  glyphOffset,
      FT_Bytes                        xstatetable_table,
      FT_Bytes                        xstatetable_limit,
      GXV_Validator                   valid );
@@ -280,11 +275,11 @@ FT_BEGIN_HEADER
 
 #else /* !FT_DEBUG_LEVEL_TRACE */
 
-#define GXV_INIT                do { } while ( 0 )
-#define GXV_NAME_ENTER( name )  do { } while ( 0 )
-#define GXV_EXIT                do { } while ( 0 )
+#define GXV_INIT                do ; while ( 0 )
+#define GXV_NAME_ENTER( name )  do ; while ( 0 )
+#define GXV_EXIT                do ; while ( 0 )
 
-#define GXV_TRACE( s )          do { } while ( 0 )
+#define GXV_TRACE( s )          do ; while ( 0 )
 
 #endif  /* !FT_DEBUG_LEVEL_TRACE */
 

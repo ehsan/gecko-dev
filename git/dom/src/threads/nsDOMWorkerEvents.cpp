@@ -41,13 +41,11 @@
 #include "nsIXMLHttpRequest.h"
 #include "nsIXPConnect.h"
 
-#include "jsapi.h"
 #include "nsAXPCNativeCallContext.h"
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 
 #include "nsDOMWorkerMessageHandler.h"
-#include "nsDOMThreadService.h"
 #include "nsDOMWorkerXHR.h"
 #include "nsDOMWorkerXHRProxy.h"
 
@@ -257,19 +255,6 @@ nsDOMWorkerEvent::InitEvent(const nsAString& aEventTypeArg,
   return NS_OK;
 }
 
-nsDOMWorkerMessageEvent::~nsDOMWorkerMessageEvent()
-{
-  if (mData) {
-    JSContext* cx = nsDOMThreadService::GetCurrentContext();
-    if (cx) {
-      JS_free(cx, mData);
-    }
-    else {
-      NS_WARNING("Failed to get safe JSContext, leaking event data!");
-    }
-  }
-}
-
 NS_IMPL_ISUPPORTS_INHERITED1(nsDOMWorkerMessageEvent, nsDOMWorkerEvent,
                                                       nsIWorkerMessageEvent)
 
@@ -279,17 +264,22 @@ NS_IMPL_CI_INTERFACE_GETTER2(nsDOMWorkerMessageEvent, nsIDOMEvent,
 NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(nsDOMWorkerMessageEvent)
 
 nsresult
-nsDOMWorkerMessageEvent::SetJSData(JSContext* aCx,
-                                   JSAutoStructuredCloneBuffer& aBuffer)
+nsDOMWorkerMessageEvent::SetJSONData(JSContext* aCx,
+                                     jsval aData,
+                                     PRBool aIsJSON,
+                                     PRBool aIsPrimitive)
 {
-  NS_ASSERTION(aCx, "Null context!");
+  NS_ASSERTION(JSVAL_IS_STRING(aData), "Bad jsval!");
+
+  mIsJSON = aIsJSON ? PR_TRUE : PR_FALSE;
+  mIsPrimitive = aIsPrimitive ? PR_TRUE : PR_FALSE;
 
   if (!mDataVal.Hold(aCx)) {
     NS_WARNING("Failed to hold jsval!");
     return NS_ERROR_FAILURE;
   }
 
-  aBuffer.steal(&mData, &mDataLen);
+  mDataVal = aData;
   return NS_OK;
 }
 
@@ -304,29 +294,80 @@ nsDOMWorkerMessageEvent::GetData(nsAString& aData)
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(cc, NS_ERROR_UNEXPECTED);
 
-  if (mData) {
-    JSContext* cx;
-    rv = cc->GetJSContext(&cx);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    JSAutoRequest ar(cx);
-    JSAutoStructuredCloneBuffer buffer(cx);
-    buffer.adopt(mData, mDataLen);
-    mData = nsnull;
-    mDataLen = 0;
-
-    if (!buffer.read(mDataVal.ToJSValPtr())) {
-      NS_WARNING("Failed to deserialize!");
-      return NS_ERROR_FAILURE;
-    }
-  }
-
   jsval* retval;
   rv = cc->GetRetValPtr(&retval);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (!mIsJSON) {
+    cc->SetReturnValueWasSet(PR_TRUE);
+    *retval = mDataVal;
+    return NS_OK;
+  }
+
+  if (mHaveCachedJSVal) {
+    cc->SetReturnValueWasSet(PR_TRUE);
+    *retval = mCachedJSVal;
+    return NS_OK;
+  }
+
+  if (mHaveAttemptedConversion) {
+    // Don't try to convert again if the first time around we saw an error.
+    return NS_ERROR_FAILURE;
+  }
+  mHaveAttemptedConversion = PR_TRUE;
+
+  JSContext* cx;
+  rv = cc->GetJSContext(&cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSAutoRequest ar(cx);
+
+  JSBool ok = mCachedJSVal.Hold(cx);
+  NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
+
+  NS_ASSERTION(JSVAL_IS_STRING(mDataVal), "Bad jsval!");
+  JSString* str = JSVAL_TO_STRING(mDataVal);
+
+  JSONParser* parser = JS_BeginJSONParse(cx, mCachedJSVal.ToJSValPtr());
+  NS_ENSURE_TRUE(parser, NS_ERROR_UNEXPECTED);
+
+  // This is slightly sneaky, but now that JS_BeginJSONParse succeeded we always
+  // need call JS_FinishJSONParse even if JS_ConsumeJSONText fails. We'll report
+  // an error if either failed, though.
+  ok = JS_ConsumeJSONText(cx, parser, JS_GetStringChars(str),
+                          JS_GetStringLength(str));
+
+  // Note the '&& ok' after the call here!
+  ok = JS_FinishJSONParse(cx, parser, JSVAL_NULL) && ok;
+  if (!ok) {
+    mCachedJSVal = JSVAL_NULL;
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  NS_ASSERTION(mCachedJSVal.ToJSObject(), "Bad JSON result!");
+
+  if (mIsPrimitive) {
+    jsval primitive;
+
+    ok = JS_GetProperty(cx, mCachedJSVal.ToJSObject(), JSON_PRIMITIVE_PROPNAME,
+                        &primitive);
+    if (!ok) {
+      mCachedJSVal = JSVAL_NULL;
+      return NS_ERROR_UNEXPECTED;
+    }
+
+    mCachedJSVal = primitive;
+  }
+
+  // We no longer need to hold this copy of the data around.
+  mDataVal.Release();
+
+  // Now that everything has succeeded we'll set this flag so that we return the
+  // cached jsval in the future.
+  mHaveCachedJSVal = PR_TRUE;
+
+  *retval = mCachedJSVal;
   cc->SetReturnValueWasSet(PR_TRUE);
-  *retval = mDataVal;
   return NS_OK;
 }
 

@@ -53,11 +53,11 @@
 /**
  * Class used to implement DOM text nodes
  */
-class nsTextNode : public nsGenericTextNode,
+class nsTextNode : public nsGenericDOMDataNode,
                    public nsIDOMText
 {
 public:
-  nsTextNode(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsTextNode(nsINodeInfo *aNodeInfo);
   virtual ~nsTextNode();
 
   // nsISupports
@@ -77,8 +77,6 @@ public:
 
   nsresult BindToAttribute(nsIAttribute* aAttr);
   nsresult UnbindFromAttribute();
-
-  virtual nsXPCClassInfo* GetClassInfo();
 
 #ifdef DEBUG
   virtual void List(FILE* out, PRInt32 aIndent) const;

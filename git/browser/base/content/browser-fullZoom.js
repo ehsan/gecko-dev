@@ -48,18 +48,39 @@ const MOUSE_SCROLL_ZOOM = 3;
  * Controls the "full zoom" setting and its site-specific preferences.
  */
 var FullZoom = {
-  // Identifies the setting in the content prefs database.
+
+  //**************************************************************************//
+  // Name & Values
+
+  // The name of the setting.  Identifies the setting in the prefs database.
   name: "browser.content.full-zoom",
 
   // The global value (if any) for the setting.  Lazily loaded from the service
   // when first requested, then updated by the pref change listener as it changes.
   // If there is no global value, then this should be undefined.
-  get globalValue() {
-    var globalValue = Services.contentPrefs.getPref(null, this.name);
+  get globalValue FullZoom_get_globalValue() {
+    var globalValue = this._cps.getPref(null, this.name);
     if (typeof globalValue != "undefined")
       globalValue = this._ensureValid(globalValue);
     delete this.globalValue;
     return this.globalValue = globalValue;
+  },
+
+
+  //**************************************************************************//
+  // Convenience Getters
+
+  // Content Pref Service
+  get _cps FullZoom_get__cps() {
+    delete this._cps;
+    return this._cps = Cc["@mozilla.org/content-pref/service;1"].
+                       getService(Ci.nsIContentPrefService);
+  },
+
+  get _prefBranch FullZoom_get__prefBranch() {
+    delete this._prefBranch;
+    return this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                              getService(Ci.nsIPrefBranch2);
   },
 
   // browser.zoom.siteSpecific preference cache
@@ -71,18 +92,26 @@ var FullZoom = {
   // whether we are in private browsing mode
   _inPrivateBrowsing: false,
 
-  get siteSpecific() {
+  get siteSpecific FullZoom_get_siteSpecific() {
     return !this._inPrivateBrowsing && this._siteSpecificPref;
   },
 
   //**************************************************************************//
   // nsISupports
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMEventListener,
-                                         Ci.nsIObserver,
-                                         Ci.nsIContentPrefObserver,
-                                         Ci.nsISupportsWeakReference,
-                                         Ci.nsISupports]),
+  // We can't use the Ci shortcut here because it isn't defined yet.
+  interfaces: [Components.interfaces.nsIDOMEventListener,
+               Components.interfaces.nsIObserver,
+               Components.interfaces.nsIContentPrefObserver,
+               Components.interfaces.nsISupportsWeakReference,
+               Components.interfaces.nsISupports],
+
+  QueryInterface: function FullZoom_QueryInterface(aIID) {
+    if (!this.interfaces.some(function (v) aIID.equals(v)))
+      throw Cr.NS_ERROR_NO_INTERFACE;
+    return this;
+  },
+
 
   //**************************************************************************//
   // Initialization & Destruction
@@ -92,11 +121,13 @@ var FullZoom = {
     window.addEventListener("DOMMouseScroll", this, false);
 
     // Register ourselves with the service so we know when our pref changes.
-    Services.contentPrefs.addObserver(this.name, this);
+    this._cps.addObserver(this.name, this);
 
     // We disable site-specific preferences in Private Browsing mode, because the
     // content preferences module is disabled
-    Services.obs.addObserver(this, "private-browsing", true);
+    let os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    os.addObserver(this, "private-browsing", true);
 
     // Retrieve the initial status of the Private Browsing mode.
     this._inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
@@ -104,19 +135,22 @@ var FullZoom = {
                               privateBrowsingEnabled;
 
     this._siteSpecificPref =
-      gPrefService.getBoolPref("browser.zoom.siteSpecific");
-    this.updateBackgroundTabs =
-      gPrefService.getBoolPref("browser.zoom.updateBackgroundTabs");
+      this._prefBranch.getBoolPref("browser.zoom.siteSpecific");
+    this.updateBackgroundTabs = 
+      this._prefBranch.getBoolPref("browser.zoom.updateBackgroundTabs");
     // Listen for changes to the browser.zoom branch so we can enable/disable
     // updating background tabs and per-site saving and restoring of zoom levels.
-    gPrefService.addObserver("browser.zoom.", this, true);
+    this._prefBranch.addObserver("browser.zoom.", this, true);
   },
 
   destroy: function FullZoom_destroy() {
-    Services.obs.removeObserver(this, "private-browsing");
-    gPrefService.removeObserver("browser.zoom.", this);
-    Services.contentPrefs.removeObserver(this.name, this);
+    let os = Cc["@mozilla.org/observer-service;1"].
+             getService(Ci.nsIObserverService);
+    os.removeObserver(this, "private-browsing");
+    this._prefBranch.removeObserver("browser.zoom.", this);
+    this._cps.removeObserver(this.name, this);
     window.removeEventListener("DOMMouseScroll", this, false);
+    delete this._cps;
   },
 
 
@@ -179,11 +213,11 @@ var FullZoom = {
         switch (aData) {
           case "browser.zoom.siteSpecific":
             this._siteSpecificPref =
-              gPrefService.getBoolPref("browser.zoom.siteSpecific");
+              this._prefBranch.getBoolPref("browser.zoom.siteSpecific");
             break;
           case "browser.zoom.updateBackgroundTabs":
             this.updateBackgroundTabs =
-              gPrefService.getBoolPref("browser.zoom.updateBackgroundTabs");
+              this._prefBranch.getBoolPref("browser.zoom.updateBackgroundTabs");
             break;
         }
         break;
@@ -203,7 +237,7 @@ var FullZoom = {
   // nsIContentPrefObserver
 
   onContentPrefSet: function FullZoom_onContentPrefSet(aGroup, aName, aValue) {
-    if (aGroup == Services.contentPrefs.grouper.group(gBrowser.currentURI))
+    if (aGroup == this._cps.grouper.group(gBrowser.currentURI))
       this._applyPrefToSetting(aValue);
     else if (aGroup == null) {
       this.globalValue = this._ensureValid(aValue);
@@ -211,13 +245,13 @@ var FullZoom = {
       // If the current page doesn't have a site-specific preference,
       // then its zoom should be set to the new global preference now that
       // the global preference has changed.
-      if (!Services.contentPrefs.hasPref(gBrowser.currentURI, this.name))
+      if (!this._cps.hasPref(gBrowser.currentURI, this.name))
         this._applyPrefToSetting();
     }
   },
 
   onContentPrefRemoved: function FullZoom_onContentPrefRemoved(aGroup, aName) {
-    if (aGroup == Services.contentPrefs.grouper.group(gBrowser.currentURI))
+    if (aGroup == this._cps.grouper.group(gBrowser.currentURI))
       this._applyPrefToSetting();
     else if (aGroup == null) {
       this.globalValue = undefined;
@@ -225,7 +259,7 @@ var FullZoom = {
       // If the current page doesn't have a site-specific preference,
       // then its zoom should be set to the default preference now that
       // the global preference has changed.
-      if (!Services.contentPrefs.hasPref(gBrowser.currentURI, this.name))
+      if (!this._cps.hasPref(gBrowser.currentURI, this.name))
         this._applyPrefToSetting();
     }
   },
@@ -246,21 +280,7 @@ var FullZoom = {
   onLocationChange: function FullZoom_onLocationChange(aURI, aIsTabSwitch, aBrowser) {
     if (!aURI || (aIsTabSwitch && !this.siteSpecific))
       return;
-
-    // Avoid the cps roundtrip and apply the default/global pref.
-    if (aURI.spec == "about:blank") {
-      this._applyPrefToSetting(undefined, aBrowser);
-      return;
-    }
-
-    var self = this;
-    Services.contentPrefs.getPref(aURI, this.name, function (aResult) {
-      // Check that we're still where we expect to be in case this took a while.
-      let browser = aBrowser || gBrowser.selectedBrowser;
-      if (aURI.equals(browser.currentURI)) {
-        self._applyPrefToSetting(aResult, browser);
-      }
-    });
+    this._applyPrefToSetting(this._cps.getPref(aURI, this.name), aBrowser);
   },
 
   // update state of zoom type menu item
@@ -317,7 +337,7 @@ var FullZoom = {
         gInPrintPreviewMode)
       return;
 
-    var browser = aBrowser || (gBrowser && gBrowser.selectedBrowser);
+    var browser = aBrowser || gBrowser.selectedBrowser;
     try {
       if (browser.contentDocument instanceof Ci.nsIImageDocument ||
           this._inPrivateBrowsing)
@@ -338,12 +358,12 @@ var FullZoom = {
       return;
 
     var zoomLevel = ZoomManager.zoom;
-    Services.contentPrefs.setPref(gBrowser.currentURI, this.name, zoomLevel);
+    this._cps.setPref(gBrowser.currentURI, this.name, zoomLevel);
   },
 
   _removePref: function FullZoom__removePref() {
     if (!(content.document instanceof Ci.nsIImageDocument))
-      Services.contentPrefs.removePref(gBrowser.currentURI, this.name);
+      this._cps.removePref(gBrowser.currentURI, this.name);
   },
 
 

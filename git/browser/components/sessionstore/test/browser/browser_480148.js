@@ -36,7 +36,9 @@
 
 function browserWindowsCount() {
   let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -46,23 +48,16 @@ function browserWindowsCount() {
 
 function test() {
   /** Test for Bug 484108 **/
-  requestLongerTimeout(2);
   is(browserWindowsCount(), 1, "Only one browser window should be open initially");
 
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
   waitForExplicitFinish();
 
   // builds the tests state based on a few parameters
-  function buildTestState(num, selected, hidden) {
+  function buildTestState(num, selected) {
     let state = { windows: [ { "tabs": [], "selected": selected } ] };
-    while (num--) {
+    while (num--)
       state.windows[0].tabs.push({entries: [{url: "http://example.com/"}]});
-      let i = state.windows[0].tabs.length - 1;
-      if (hidden.length > 0 && i == hidden[0]) {
-        state.windows[0].tabs[i].hidden = true;
-        hidden.splice(0, 1);
-      }
-    }
     return state;
   }
 
@@ -87,14 +82,18 @@ function test() {
   }
 
   // the number of tests we're running
-  let numTests = 6;
+  let numTests = 4;
   let completedTests = 0;
 
-  let tabMinWidth = parseInt(getComputedStyle(gBrowser.selectedTab, null).minWidth);
+  // access the pref service just once
+  let tabMinWidth = gPrefService.getIntPref("browser.tabs.tabMinWidth");
 
-  function runTest(testNum, totalTabs, selectedTab, shownTabs, hiddenTabs, order) {
+  function runTest(testNum, totalTabs, selectedTab, shownTabs, order) {
     let test = {
-      state: buildTestState(totalTabs, selectedTab, hiddenTabs),
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMEventListener,
+                                             Ci.nsISupportsWeakReference]),
+
+      state: buildTestState(totalTabs, selectedTab),
       numTabsToShow: shownTabs,
       expectedOrder: order,
       actualOrder: [],
@@ -105,7 +104,7 @@ function test() {
       handleSSTabRestoring: function (aEvent) {
         let tab = aEvent.originalTarget;
         let tabbrowser = this.window.gBrowser;
-        let currentIndex = Array.indexOf(tabbrowser.tabs, tab);
+        let currentIndex = Array.indexOf(tabbrowser.mTabs, tab);
         this.actualOrder.push(currentIndex);
 
         if (this.actualOrder.length < this.state.windows[0].tabs.length)
@@ -132,9 +131,7 @@ function test() {
       handleLoad: function (aEvent) {
         let _this = this;
         executeSoon(function () {
-          let extent = _this.window.outerWidth - _this.window.gBrowser.tabContainer.mTabstrip.scrollClientSize;
-          let windowWidth = _this.tabbarWidth + extent;
-          _this.window.resizeTo(windowWidth, _this.window.outerHeight);
+          _this.window.resizeTo(_this.windowWidth, _this.window.outerHeight);
           ss.setWindowState(_this.window, JSON.stringify(_this.state), true);
         });
       },
@@ -153,7 +150,7 @@ function test() {
 
       // setup and actually run the test
       run: function () {
-        this.tabbarWidth = Math.floor((this.numTabsToShow - 0.5) * tabMinWidth);
+        this.windowWidth = Math.floor((this.numTabsToShow - 0.5) * tabMinWidth);
         this.window = openDialog(location, "_blank", "chrome,all,dialog=no");
         this.window.addEventListener("SSTabRestoring", this, false);
         this.window.addEventListener("load", this, false);
@@ -163,12 +160,10 @@ function test() {
   }
 
   // actually create & run the tests
-  runTest(1, 13, 1,  6, [],         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-  runTest(2, 13, 13, 6, [],         [12, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6]);
-  runTest(3, 13, 4,  6, [],         [3, 4, 5, 6, 7, 8, 0, 1, 2, 9, 10, 11, 12]);
-  runTest(4, 13, 11, 6, [],         [10, 7, 8, 9, 11, 12, 0, 1, 2, 3, 4, 5, 6]);
-  runTest(5, 13, 13, 6, [0, 4, 9],  [12, 6, 7, 8, 10, 11, 1, 2, 3, 5, 0, 4, 9]);
-  runTest(6, 13, 4,  6, [1, 7, 12], [3, 4, 5, 6, 8, 9, 0, 2, 10, 11, 1, 7, 12]);
+  runTest(1, 13, 1, 6,  [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  runTest(2, 13, 13, 6, [12, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5, 6]);
+  runTest(3, 13, 4, 6,  [3, 4, 5, 6, 7, 8, 0, 1, 2, 9, 10, 11, 12]);
+  runTest(4, 13, 11, 6, [10, 7, 8, 9, 11, 12, 0, 1, 2, 3, 4, 5, 6]);
 
   // finish() is run by the last test to finish, so no cleanup down here
 }

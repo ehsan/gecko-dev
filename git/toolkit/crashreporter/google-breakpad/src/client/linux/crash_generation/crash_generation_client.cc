@@ -1,4 +1,4 @@
-// Copyright (c) 2010 Google Inc.
+// Copyright (c) 2009, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,7 +27,6 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <stdio.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -45,6 +44,7 @@ CrashGenerationClient::RequestDump(const void* blob, size_t blob_size)
 {
   int fds[2];
   sys_socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
+
   static const unsigned kControlMsgSize = CMSG_SPACE(sizeof(int));
 
   struct kernel_msghdr msg;
@@ -64,8 +64,7 @@ CrashGenerationClient::RequestDump(const void* blob, size_t blob_size)
   hdr->cmsg_level = SOL_SOCKET;
   hdr->cmsg_type = SCM_RIGHTS;
   hdr->cmsg_len = CMSG_LEN(sizeof(int));
-  int* p = reinterpret_cast<int*>(CMSG_DATA(hdr));
-  *p = fds[1];
+  *((int*) CMSG_DATA(hdr)) = fds[1];
 
   HANDLE_EINTR(sys_sendmsg(server_fd_, &msg, 0));
   sys_close(fds[1]);

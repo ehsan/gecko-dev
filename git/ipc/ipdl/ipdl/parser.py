@@ -141,10 +141,8 @@ def locFromTok(p, num):
 
 reserved = set((
         'answer',
-        'as',
         'async',
         'both',
-        'bridges',
         'call',
         'child',
         '__delete__',
@@ -162,10 +160,8 @@ reserved = set((
         'returns',
         'rpc',
         'send',
-        'spawns',
         'start',
         'state',
-        'struct',
         'sync',
         'union',
         'using'))
@@ -220,9 +216,7 @@ def p_TranslationUnit(p):
             assert 0
 
     for thing in p[2]:
-        if isinstance(thing, StructDecl):
-            tu.addStructDecl(thing)
-        elif isinstance(thing, UnionDecl):
+        if isinstance(thing, UnionDecl):
             tu.addUnionDecl(thing)
         elif isinstance(thing, Protocol):
             if tu.protocol is not None:
@@ -255,13 +249,8 @@ def p_CxxIncludeStmt(p):
     p[0] = CxxInclude(locFromTok(p, 1), p[2])
 
 def p_ProtocolIncludeStmt(p):
-    """ProtocolIncludeStmt : INCLUDE PROTOCOL ID
-                           | INCLUDE PROTOCOL STRING"""
+    """ProtocolIncludeStmt : INCLUDE PROTOCOL STRING"""
     loc = locFromTok(p, 1)
-    
-    if 0 <= p[3].rfind('.ipdl'):
-        _error(loc, "`include protocol \"P.ipdl\"' syntax is obsolete.  Use `include protocol P' instead.")
-    
     Parser.current.loc = loc
     inc = ProtocolInclude(loc, p[3])
 
@@ -290,7 +279,6 @@ def p_NamespacedStuff(p):
 
 def p_NamespaceThing(p):
     """NamespaceThing : NAMESPACE ID '{' NamespacedStuff '}'
-                      | StructDecl
                       | UnionDecl
                       | ProtocolDefn"""
     if 2 == len(p):
@@ -299,24 +287,7 @@ def p_NamespaceThing(p):
         for thing in p[4]:
             thing.addOuterNamespace(Namespace(locFromTok(p, 1), p[2]))
         p[0] = p[4]
-
-def p_StructDecl(p):
-    """StructDecl : STRUCT ID '{' StructFields  '}' ';'"""
-    p[0] = StructDecl(locFromTok(p, 1), p[2], p[4])
-
-def p_StructFields(p):
-    """StructFields : StructFields StructField ';'
-                    | StructField ';'"""
-    if 3 == len(p):
-        p[0] = [ p[1] ]
-    else:
-        p[1].append(p[2])
-        p[0] = p[1]
-
-def p_StructField(p):
-    """StructField : Type ID"""
-    p[0] = StructField(locFromTok(p, 1), p[1], p[2])
-
+    
 def p_UnionDecl(p):
     """UnionDecl : UNION ID '{' ComponentTypes  '}' ';'"""
     p[0] = UnionDecl(locFromTok(p, 1), p[2], p[4])
@@ -331,70 +302,28 @@ def p_ComponentTypes(p):
         p[0] = p[1]
 
 def p_ProtocolDefn(p):
-    """ProtocolDefn : OptionalSendSemanticsQual PROTOCOL ID '{' ProtocolBody '}' ';'"""
-    protocol = p[5]
-    protocol.loc = locFromTok(p, 2)
+    """ProtocolDefn : OptionalSendSemanticsQual PROTOCOL ID '{' ManagersStmtOpt ManagesStmts OptionalMessageDecls TransitionStmts '}' ';'"""
+    protocol = Protocol(locFromTok(p, 2))
     protocol.name = p[3]
     protocol.sendSemantics = p[1]
+    protocol.managers = p[5]   
+    protocol.addManagesStmts(p[6])
+    protocol.addMessageDecls(p[7])
+    protocol.addTransitionStmts(p[8])
     p[0] = protocol
 
-def p_ProtocolBody(p):
-    """ProtocolBody : SpawnsStmtsOpt"""
-    p[0] = p[1]
-
-##--------------------
-## spawns/bridges stmts
-
-def p_SpawnsStmtsOpt(p):
-    """SpawnsStmtsOpt : SpawnsStmt SpawnsStmtsOpt
-                      | BridgesStmtsOpt"""
-    if 2 == len(p):
+def p_ManagesStmts(p):
+    """ManagesStmts : ManagesStmts ManagesStmt
+                    | """
+    if 1 == len(p):
+        p[0] = [ ]
+    else:
+        p[1].append(p[2])
         p[0] = p[1]
-    else:
-        p[2].spawnsStmts.insert(0, p[1])
-        p[0] = p[2]
-
-def p_SpawnsStmt(p):
-    """SpawnsStmt : PARENT SPAWNS ID AsOpt ';'
-                  | CHILD SPAWNS ID AsOpt ';'"""
-    p[0] = SpawnsStmt(locFromTok(p, 1), p[1], p[3], p[4])
-
-def p_AsOpt(p):
-    """AsOpt : AS PARENT
-             | AS CHILD
-             | """
-    if 3 == len(p):
-        p[0] = p[2]
-    else:
-        p[0] = 'child'
-
-def p_BridgesStmtsOpt(p):
-    """BridgesStmtsOpt : BridgesStmt BridgesStmtsOpt
-                       | ManagersStmtOpt"""
-    if 2 == len(p):
-        p[0] = p[1]
-    else:
-        p[2].bridgesStmts.insert(0, p[1])
-        p[0] = p[2]
-
-def p_BridgesStmt(p):
-    """BridgesStmt : BRIDGES ID ',' ID ';'"""
-    p[0] = BridgesStmt(locFromTok(p, 1), p[2], p[4])
-
-##--------------------
-## manager/manages stmts
 
 def p_ManagersStmtOpt(p):
-    """ManagersStmtOpt : ManagersStmt ManagesStmtsOpt
-                       | ManagesStmtsOpt"""
-    if 2 == len(p):
-        p[0] = p[1]
-    else:
-        p[2].managers = p[1]
-        p[0] = p[2]
-
-def p_ManagersStmt(p):
-    """ManagersStmt : MANAGER ManagerList ';'"""
+    """ManagersStmtOpt : MANAGER ManagerList ';'
+                       | """
     if 1 == len(p):
         p[0] = [ ]
     else:
@@ -409,31 +338,26 @@ def p_ManagerList(p):
         p[1].append(Manager(locFromTok(p, 3), p[3]))
         p[0] = p[1]
 
-def p_ManagesStmtsOpt(p):
-    """ManagesStmtsOpt : ManagesStmt ManagesStmtsOpt
-                       | MessageDeclsOpt"""
-    if 2 == len(p):
-        p[0] = p[1]
-    else:
-        p[2].managesStmts.insert(0, p[1])
-        p[0] = p[2]
-
 def p_ManagesStmt(p):
     """ManagesStmt : MANAGES ID ';'"""
     p[0] = ManagesStmt(locFromTok(p, 1), p[2])
 
-
-##--------------------
-## Message decls
-
-def p_MessageDeclsOpt(p):
-    """MessageDeclsOpt : MessageDeclThing MessageDeclsOpt
-                       | TransitionStmtsOpt"""
+def p_OptionalMessageDecls(p):
+    """OptionalMessageDecls : MessageDecls
+                            | """
     if 2 == len(p):
         p[0] = p[1]
     else:
-        p[2].messageDecls.insert(0, p[1])
-        p[0] = p[2]
+        p[0] = [ ]
+
+def p_MessageDecls(p):
+    """MessageDecls : MessageDecls MessageDeclThing
+                    | MessageDeclThing"""
+    if 2 == len(p):
+        p[0] = [ p[1] ]
+    else:
+        p[1].append(p[2])
+        p[0] = p[1]
 
 def p_MessageDeclThing(p):
     """MessageDeclThing : MessageDirectionLabel ':' MessageDecl ';'
@@ -458,21 +382,24 @@ def p_MessageDirectionLabel(p):
 
 def p_MessageDecl(p):
     """MessageDecl : OptionalSendSemanticsQual MessageBody"""
-    msg = p[2]
-    msg.sendSemantics = p[1]
-
     if Parser.current.direction is None:
-        _error(msg.loc, 'missing message direction')
-    msg.direction = Parser.current.direction
+        _error(locFromTok(p, 1), 'missing message direction')
 
+    if 2 == len(p):
+        msg = p[1]
+        msg.sendSemantics = ASYNC
+    else:
+        msg = p[2]
+        msg.sendSemantics = p[1]
+
+    msg.direction = Parser.current.direction
     p[0] = msg
 
 def p_MessageBody(p):
     """MessageBody : MessageId MessageInParams MessageOutParams"""
     # FIXME/cjones: need better loc info: use one of the quals
-    loc, name = p[1]
-    msg = MessageDecl(loc)
-    msg.name = name
+    msg = MessageDecl(locFromTok(p, 1))
+    msg.name = p[1]
     msg.addInParams(p[2])
     msg.addOutParams(p[3])
     p[0] = msg
@@ -482,12 +409,11 @@ def p_MessageId(p):
                  | __DELETE__
                  | DELETE
                  | '~' ID"""
-    loc = locFromTok(p, 1)
     if 3 == len(p):
-        _error(loc, "sorry, `%s()' destructor syntax is a relic from a bygone era.  Declare `__delete__()' in the `%s' protocol instead", p[1]+p[2], p[2])
+        _error(locFromTok(p, 1), "sorry, `%s()' destructor syntax is a relic from a bygone era.  Declare `__delete__()' in the `%s' protocol instead", p[1]+p[2], p[2])
     elif 'delete' == p[1]:
-        _error(loc, "`delete' is a reserved identifier")
-    p[0] = [ loc, p[1] ]
+        _error(locFromTok(p, 1), "`delete' is a reserved identifier")
+    p[0] = p[1]
 
 def p_MessageInParams(p):
     """MessageInParams : '(' ParamList ')'"""
@@ -504,15 +430,22 @@ def p_MessageOutParams(p):
 ##--------------------
 ## State machine
 
-def p_TransitionStmtsOpt(p):
-    """TransitionStmtsOpt : TransitionStmt TransitionStmtsOpt
-                          |"""
-    if 1 == len(p):
-        # we fill in |loc| in the Protocol rule
-        p[0] = Protocol(None)
+def p_TransitionStmts(p):
+    """TransitionStmts : TransitionStmtsNonEmpty
+                       | """
+    if 2 == len(p):
+        p[0] = p[1]
     else:
-        p[2].transitionStmts.insert(0, p[1])
-        p[0] = p[2]
+        p[0] = [ ]
+
+def p_TransitionStmtsNonEmpty(p):
+    """TransitionStmtsNonEmpty : TransitionStmtsNonEmpty TransitionStmt
+                               | TransitionStmt"""
+    if 3 == len(p):
+        p[1].append(p[2])
+        p[0] = p[1]
+    elif 2 == len(p):
+        p[0] = [ p[1] ]
 
 def p_TransitionStmt(p):
     """TransitionStmt : OptionalStart STATE State ':' Transitions"""

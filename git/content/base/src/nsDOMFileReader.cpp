@@ -15,7 +15,7 @@
  * The Original Code is mozila.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation
+ * Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -71,13 +71,13 @@
 #include "nsJSEnvironment.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMClassInfo.h"
+#include "nsIDOMFileInternal.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIStreamConverterService.h"
 #include "nsEventDispatcher.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsLayoutStatics.h"
 #include "nsIScriptObjectPrincipal.h"
-#include "nsFileDataProtocolHandler.h"
 
 #define LOAD_STR "load"
 #define ERROR_STR "error"
@@ -109,8 +109,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMFileReader,
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChannel)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-DOMCI_DATA(FileReader, nsDOMFileReader)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMFileReader)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFileReader)
   NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
@@ -119,7 +117,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMFileReader)
   NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
   NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
   NS_INTERFACE_MAP_ENTRY(nsICharsetDetectionObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(FileReader)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(FileReader)
 NS_INTERFACE_MAP_END_INHERITING(nsXHREventTarget)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMFileReader, nsXHREventTarget)
@@ -143,7 +141,7 @@ nsDOMFileReader::SetOnloadend(nsIDOMEventListener* aOnloadend)
 NS_IMETHODIMP
 nsDOMFileReader::Notify(const char *aCharset, nsDetectionConfident aConf)
 {
-  mCharset = aCharset;
+  CopyASCIItoUTF16(aCharset, mCharset);
   return NS_OK;
 }
 
@@ -264,20 +262,20 @@ nsDOMFileReader::GetError(nsIDOMFileError** aError)
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsBinaryString(nsIDOMBlob* aFile)
+nsDOMFileReader::ReadAsBinaryString(nsIDOMFile* aFile)
 {
   return ReadFileContent(aFile, EmptyString(), FILE_AS_BINARY);
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsText(nsIDOMBlob* aFile,
+nsDOMFileReader::ReadAsText(nsIDOMFile* aFile,
                             const nsAString &aCharset)
 {
   return ReadFileContent(aFile, aCharset, FILE_AS_TEXT);
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::ReadAsDataURL(nsIDOMBlob* aFile)
+nsDOMFileReader::ReadAsDataURL(nsIDOMFile* aFile)
 {
   return ReadFileContent(aFile, EmptyString(), FILE_AS_DATAURL);
 }
@@ -463,8 +461,6 @@ nsDOMFileReader::OnStopRequest(nsIRequest *aRequest,
       rv = GetAsDataURL(mFile, mFileData, mDataLen, mResult);
       break;
   }
-  
-  mResult.SetIsVoid(PR_FALSE);
 
   FreeFileData();
 
@@ -483,11 +479,10 @@ nsDOMFileReader::OnStopRequest(nsIRequest *aRequest,
 // Helper methods
 
 nsresult
-nsDOMFileReader::ReadFileContent(nsIDOMBlob* aFile,
+nsDOMFileReader::ReadFileContent(nsIDOMFile* aFile,
                                  const nsAString &aCharset,
                                  eDataFormat aDataFormat)
 {
-  nsresult rv;
   NS_ENSURE_TRUE(aFile, NS_ERROR_NULL_POINTER);
 
   //Implicit abort to clear any other activity going on
@@ -499,28 +494,26 @@ nsDOMFileReader::ReadFileContent(nsIDOMBlob* aFile,
   mReadyState = nsIDOMFileReader::EMPTY;
   FreeFileData();
 
-  mFile = aFile;
   mDataFormat = aDataFormat;
-  CopyUTF16toUTF8(aCharset, mCharset);
+  mCharset = aCharset;
+
+  //Obtain the nsDOMFile's underlying nsIFile
+  nsresult rv;
+  nsCOMPtr<nsIDOMFileInternal> domFile(do_QueryInterface(aFile));
+  rv = domFile->GetInternalFile(getter_AddRefs(mFile));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   //Establish a channel with our file
-  {
-    // Hold the internal URL alive only as long as necessary
-    // After the channel is created it will own whatever is backing
-    // the DOMFile.
-    nsDOMFileInternalUrlHolder urlHolder(mFile, mPrincipal);
+  nsCOMPtr<nsIURI> uri;
+  rv = NS_NewFileURI(getter_AddRefs(uri), mFile);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIURI> uri;
-    rv = NS_NewURI(getter_AddRefs(uri), urlHolder.mUrl);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = NS_NewChannel(getter_AddRefs(mChannel), uri);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = NS_NewChannel(getter_AddRefs(mChannel), uri);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   //Obtain the total size of the file before reading
   mReadTotal = -1;
-  mFile->GetSize(&mReadTotal);
+  mFile->GetFileSize(&mReadTotal);
 
   rv = mChannel->AsyncOpen(this, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -582,7 +575,7 @@ nsDOMFileReader::DispatchProgressEvent(const nsAString& aType)
 }
 
 nsresult
-nsDOMFileReader::GetAsText(const nsACString &aCharset,
+nsDOMFileReader::GetAsText(const nsAString &aCharset,
                            const char *aFileData,
                            PRUint32 aDataLen,
                            nsAString& aResult)
@@ -590,7 +583,7 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
   nsresult rv;
   nsCAutoString charsetGuess;
   if (!aCharset.IsEmpty()) {
-    charsetGuess = aCharset;
+    CopyUTF16toUTF8(aCharset, charsetGuess);
   } else {
     rv = GuessCharset(aFileData, aDataLen, charsetGuess);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -609,7 +602,7 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
 }
 
 nsresult
-nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
+nsDOMFileReader::GetAsDataURL(nsIFile *aFile,
                               const char *aFileData,
                               PRUint32 aDataLen,
                               nsAString& aResult)
@@ -617,17 +610,21 @@ nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
   aResult.AssignLiteral("data:");
 
   nsresult rv;
-  nsString contentType;
-  rv = aFile->GetType(contentType);
-  if (NS_SUCCEEDED(rv) && !contentType.IsEmpty()) {
-    aResult.Append(contentType);
+  nsCOMPtr<nsIMIMEService> mimeService =
+    do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString contentType;
+  rv = mimeService->GetTypeFromFile(aFile, contentType);
+  if (NS_SUCCEEDED(rv)) {
+    AppendUTF8toUTF16(contentType, aResult);
   } else {
     aResult.AppendLiteral("application/octet-stream");
   }
   aResult.AppendLiteral(";base64,");
 
   PRUint32 totalRead = 0;
-  while (aDataLen > totalRead) {
+  do {
     PRUint32 numEncode = 4096;
     PRUint32 amtRemaining = aDataLen - totalRead;
     if (numEncode > amtRemaining)
@@ -645,7 +642,8 @@ nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
     PR_Free(base64);
 
     totalRead += numEncode;
-  }
+
+  } while (aDataLen > totalRead);
 
   return NS_OK;
 }
@@ -701,9 +699,7 @@ nsDOMFileReader::GuessCharset(const char *aFileData,
   }
 
   nsresult rv;
-  // The charset detector doesn't work for empty (null) aFileData. Testing
-  // aDataLen instead of aFileData so that we catch potential errors.
-  if (detector && aDataLen != 0) {
+  if (detector) {
     mCharset.Truncate();
     detector->Init(this);
 
@@ -715,7 +711,7 @@ nsDOMFileReader::GuessCharset(const char *aFileData,
     rv = detector->Done();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    aCharset = mCharset;
+    CopyUTF16toUTF8(mCharset, aCharset);
   } else {
     // no charset detector available, check the BOM
     unsigned char sniffBuf[4];

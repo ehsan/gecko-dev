@@ -122,12 +122,11 @@ nsSVGTransformListParser::GetTransformToken(nsIAtom** aKeyAtom,
     char holdingChar = *delimiterStart;
     *delimiterStart = '\0';
 
-    PRUint32 len;
-    if (mTokenPos != 0 && (len = nsCRT::strlen(mTokenPos)) > 0) {
-      *aKeyAtom = NS_NewAtom(Substring(mTokenPos, mTokenPos + len));
+    if (mTokenPos != 0 && nsCRT::strlen(mTokenPos) > 0) {
+      *aKeyAtom = NS_NewAtom(mTokenPos);
 
       if (aAdvancePos) {
-         mInputPos = mTokenPos + len;
+         mInputPos = mTokenPos + nsCRT::strlen(mTokenPos);
          mTokenPos = mInputPos;
       }
     } else {

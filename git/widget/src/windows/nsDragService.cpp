@@ -303,17 +303,33 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   // Start dragging
   StartDragSession();
 
-  nsRefPtr<IAsyncOperation> pAsyncOp;
-  // Offer to do an async drag
-  if (SUCCEEDED(aDataObj->QueryInterface(IID_IAsyncOperation,
-                                         getter_AddRefs(pAsyncOp)))) {
-    pAsyncOp->SetAsyncMode(VARIANT_TRUE);
-  } else {
-    NS_NOTREACHED("When did our data object stop being async");
+  // check shell32.dll version and do async drag if it is >= 5.0
+  PRUint64 lShellVersion = GetShellVersion();
+  IAsyncOperation *pAsyncOp = NULL;
+  PRBool isAsyncAvailable = LL_UCMP(lShellVersion, >=, LL_INIT(5, 0));
+  if (isAsyncAvailable)
+  {
+    // do async drag
+    if (SUCCEEDED(aDataObj->QueryInterface(IID_IAsyncOperation,
+                                          (void**)&pAsyncOp)))
+      pAsyncOp->SetAsyncMode(VARIANT_TRUE);
   }
 
   // Call the native D&D method
   HRESULT res = ::DoDragDrop(aDataObj, mNativeDragSrc, effects, &winDropRes);
+
+  if (isAsyncAvailable)
+  {
+    // if dragging async
+    // check for async operation
+    BOOL isAsync = FALSE;
+    if (pAsyncOp)
+    {
+      pAsyncOp->InOperation(&isAsync);
+      if (!isAsync)
+        aDataObj->Release();
+    }
+  }
 
   // In  cases where the drop operation completed outside the application, update
   // the source node's nsIDOMNSDataTransfer dropEffect value so it is up to date.  
@@ -474,7 +490,7 @@ void
 nsDragService::SetDroppedLocal()
 {
   // Sent from the native drag handler, letting us know
-  // a drop occurred within the application vs. outside of it.
+  // a drop occured within the application vs. outside of it.
   mSentLocalDropEvent = PR_TRUE;
   return;
 }

@@ -155,7 +155,6 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIContentViewerContainer.h"
 #include "nsIContentViewer.h"
-#include "nsIDocumentViewer.h"
 #include "nsIDocumentViewerPrint.h"
 
 #include "nsPIDOMWindow.h"
@@ -163,9 +162,6 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsRange.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIURIFixup.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 //-----------------------------------------------------
 // PR LOGGING
@@ -250,6 +246,7 @@ protected:
 
 // Class IDs
 static NS_DEFINE_CID(kViewManagerCID,       NS_VIEW_MANAGER_CID);
+static NS_DEFINE_CID(kWidgetCID,            NS_CHILD_CID);
 
 NS_IMPL_ISUPPORTS1(nsPrintEngine, nsIObserver)
 
@@ -266,6 +263,7 @@ nsPrintEngine::nsPrintEngine() :
   mPrt(nsnull),
   mPagePrintTimer(nsnull),
   mPageSeqFrame(nsnull),
+  mParentWidget(nsnull),
   mPrtPreview(nsnull),
   mOldPrtPreview(nsnull),
   mDebugFile(nsnull)
@@ -320,6 +318,7 @@ nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint,
                                    nsISupports*            aContainer,
                                    nsIDocument*            aDocument,
                                    float                   aScreenDPI,
+                                   nsIWidget*              aParentWidget,
                                    FILE*                   aDebugFile)
 {
   NS_ENSURE_ARG_POINTER(aDocViewerPrint);
@@ -330,6 +329,7 @@ nsresult nsPrintEngine::Initialize(nsIDocumentViewerPrint* aDocViewerPrint,
   mContainer      = aContainer;      // weak reference
   mDocument       = aDocument;
   mScreenDPI      = aScreenDPI;
+  mParentWidget   = aParentWidget;    
 
   mDebugFile      = aDebugFile;      // ok to be NULL
 
@@ -385,7 +385,8 @@ nsPrintEngine::GetSeqFrameAndCountPagesInternal(nsPrintObject*  aPO,
   NS_ENSURE_ARG_POINTER(aPO);
 
   // Finds the SimplePageSequencer frame
-  nsIPageSequenceFrame* seqFrame = aPO->mPresShell->GetPageSequenceFrame();
+  nsIPageSequenceFrame* seqFrame = nsnull;
+  aPO->mPresShell->GetPageSequenceFrame(&seqFrame);
   if (seqFrame) {
     aSeqFrame = do_QueryFrame(seqFrame);
   } else {
@@ -558,7 +559,7 @@ nsPrintEngine::DoCommonPrint(PRBool                  aIsPrintPreview,
 
   // XXX This isn't really correct...
   if (!mPrt->mPrintObject->mDocument ||
-      !mPrt->mPrintObject->mDocument->GetRootElement())
+      !mPrt->mPrintObject->mDocument->GetRootContent())
     return NS_ERROR_GFX_PRINTER_STARTDOC;
 
   // Create the linkage from the sub-docs back to the content element
@@ -974,7 +975,7 @@ nsPrintEngine::GetCurrentPrintSettings(nsIPrintSettings * *aCurrentPrintSettings
 nsresult
 nsPrintEngine::CheckForPrinters(nsIPrintSettings* aPrintSettings)
 {
-#if defined(XP_MACOSX) || defined(ANDROID)
+#ifdef XP_MACOSX
   // Mac doesn't support retrieving a printer list.
   return NS_OK;
 #else
@@ -1127,9 +1128,9 @@ nsPrintEngine::IsParentAFrameSet(nsIDocShell * aParent)
   nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(aParent);
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   if (doc) {
-    nsIContent *rootElement = doc->GetRootElement();
-    if (rootElement) {
-      isFrameSet = HasFramesetChild(rootElement);
+    nsIContent *rootContent = doc->GetRootContent();
+    if (rootContent) {
+      isFrameSet = HasFramesetChild(rootContent);
     }
   }
   return isFrameSet;
@@ -1250,9 +1251,9 @@ nsPrintEngine::MapContentToWebShells(nsPrintObject* aRootPO,
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   if (!doc) return;
 
-  Element* rootElement = doc->GetRootElement();
-  if (rootElement) {
-    MapContentForPO(aPO, rootElement);
+  nsIContent* rootContent = doc->GetRootContent();
+  if (rootContent) {
+    MapContentForPO(aPO, rootContent);
   } else {
     NS_WARNING("Null root content on (sub)document.");
   }
@@ -1797,16 +1798,16 @@ nsPrintEngine::SetupToPrintContent()
   if (mIsCreatingPrintPreview) {
     // Print Preview -- Pass ownership of docTitleStr and docURLStr
     // to the pageSequenceFrame, to be displayed in the header
-    nsIPageSequenceFrame *seqFrame = mPrt->mPrintObject->mPresShell->GetPageSequenceFrame();
+    nsIPageSequenceFrame *seqFrame = nsnull;
+    mPrt->mPrintObject->mPresShell->GetPageSequenceFrame(&seqFrame);
     if (seqFrame) {
       seqFrame->StartPrint(mPrt->mPrintObject->mPresContext, 
                            mPrt->mPrintSettings, docTitleStr, docURLStr);
-      docTitleStr = nsnull;
-      docURLStr = nsnull;
     }
+  } else {
+    if (docTitleStr) nsMemory::Free(docTitleStr);
+    if (docURLStr) nsMemory::Free(docURLStr);
   }
-  if (docTitleStr) nsMemory::Free(docTitleStr);
-  if (docURLStr) nsMemory::Free(docURLStr);
 
   PR_PL(("****************** Begin Document ************************\n"));
 
@@ -1883,14 +1884,12 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
 
   nsSize adjSize;
   PRBool documentIsTopLevel;
+  nsIFrame* frame = nsnull;
   if (!aPO->IsPrintable())
     return NS_OK;
 
-  PRBool canCreateScrollbars = PR_TRUE;
-  nsIView* parentView = nsnull;
-
   if (aPO->mParent && aPO->mParent->IsPrintable()) {
-    nsIFrame* frame = aPO->mContent->GetPrimaryFrame();
+    frame = aPO->mContent->GetPrimaryFrame();
     // Without a frame, this document can't be displayed; therefore, there is no
     // point to reflowing it
     if (!frame) {
@@ -1898,22 +1897,9 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
       return NS_OK;
     }
 
-    //XXX If printing supported printing document hierarchies with non-constant
-    // zoom this would be wrong as we use the same mPrt->mPrintDC for all
-    // subdocuments.
     adjSize = frame->GetContentRect().Size();
     documentIsTopLevel = PR_FALSE;
     // presshell exists because parent is printable
-
-    // the top nsPrintObject's widget will always have scrollbars
-    if (frame && frame->GetType() == nsGkAtoms::subDocumentFrame) {
-      nsIView* view = frame->GetView();
-      NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
-      view = view->GetFirstChild();
-      NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
-      parentView = view;
-      canCreateScrollbars = PR_FALSE;
-    }
   } else {
     nscoord pageWidth, pageHeight;
     mPrt->mPrintDC->GetDeviceSurfaceDimensions(pageWidth, pageHeight);
@@ -1932,19 +1918,31 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
     adjSize = nsSize(pageWidth, pageHeight);
 #endif // XP_UNIX && !XP_MACOSX
     documentIsTopLevel = PR_TRUE;
+  }
 
-    if (mIsCreatingPrintPreview) {
-      nsCOMPtr<nsIDocumentViewer> dv = do_QueryInterface(mDocViewerPrint);
-      if (dv) {
-        parentView = dv->FindContainerView();
-      }
-    }
+  // Here we decide whether we need scrollbars and
+  // what the parent will be of the widget
+  // How this logic presently works: Print Preview is always as-is (as far
+  // as I can tell; not sure how it would work in other cases); only the root 
+  // is not eIFrame or eFrame.  The child documents get a parent widget from
+  // logic in nsFrameFrame.  In any case, a child widget is created for the root
+  // view of the document.
+  PRBool canCreateScrollbars = PR_TRUE;
+  nsIView* parentView = nsnull;
+  // the top nsPrintObject's widget will always have scrollbars
+  if (frame && frame->GetType() == nsGkAtoms::subDocumentFrame) {
+    nsIView* view = frame->GetView();
+    NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
+    view = view->GetFirstChild();
+    NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
+    parentView = view;
+    canCreateScrollbars = PR_FALSE;
   }
 
   NS_ASSERTION(!aPO->mPresContext, "Recreating prescontext");
 
   // create the PresContext
-  aPO->mPresContext = new nsPresContext(aPO->mDocument,
+  aPO->mPresContext = new nsRootPresContext(aPO->mDocument,
     mIsCreatingPrintPreview ? nsPresContext::eContext_PrintPreview:
                               nsPresContext::eContext_Print);
   NS_ENSURE_TRUE(aPO->mPresContext, NS_ERROR_OUT_OF_MEMORY);
@@ -1990,7 +1988,18 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   nsIView* rootView = aPO->mViewManager->CreateView(tbounds, parentView);
   NS_ENSURE_TRUE(rootView, NS_ERROR_OUT_OF_MEMORY);
 
+  // Only create a widget for print preview; when printing, a widget is
+  // unnecessary and unexpected
+  // Also, no widget should be needed except for the top-level document
   if (mIsCreatingPrintPreview && documentIsTopLevel) {
+    nsNativeWidget widget = nsnull;
+    if (!frame)
+      widget = mParentWidget->GetNativeData(NS_NATIVE_WIDGET);
+    rv = rootView->CreateWidget(kWidgetCID, nsnull,
+                                widget, PR_TRUE, PR_TRUE,
+                                eContentTypeContent);
+    NS_ENSURE_SUCCESS(rv, rv);
+    aPO->mWindow = rootView->GetWidget();
     aPO->mPresContext->SetPaginatedScrolling(canCreateScrollbars);
   }
 
@@ -2008,12 +2017,13 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   aPO->mPresContext->SetIsRootPaginatedDocument(documentIsTopLevel);
   aPO->mPresContext->SetPageScale(aPO->mZoomRatio);
   // Calculate scale factor from printer to screen
-  float printDPI = float(mPrt->mPrintDC->AppUnitsPerCSSInch()) /
+  float printDPI = float(mPrt->mPrintDC->AppUnitsPerInch()) /
                    float(mPrt->mPrintDC->AppUnitsPerDevPixel());
   aPO->mPresContext->SetPrintPreviewScale(mScreenDPI / printDPI);
 
   if (mIsCreatingPrintPreview && documentIsTopLevel) {
-    mDocViewerPrint->SetPrintPreviewPresentation(aPO->mViewManager,
+    mDocViewerPrint->SetPrintPreviewPresentation(aPO->mWindow,
+                                                 aPO->mViewManager,
                                                  aPO->mPresContext,
                                                  aPO->mPresShell);
   }
@@ -2052,8 +2062,8 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
   // this is the frame where the right-hand side of the frame extends
   // the furthest
   if (mPrt->mShrinkToFit && documentIsTopLevel) {
-    nsIPageSequenceFrame* pageSequence = aPO->mPresShell->GetPageSequenceFrame();
-    NS_ENSURE_STATE(pageSequence);
+    nsIPageSequenceFrame* pageSequence;
+    aPO->mPresShell->GetPageSequenceFrame(&pageSequence);
     pageSequence->GetSTFPercent(aPO->mShrinkRatio);
   }
 
@@ -2111,7 +2121,8 @@ nsPrintEngine::CalcNumPrintablePages(PRInt32& aNumPages)
     nsPrintObject* po = mPrt->mPrintDocList.ElementAt(i);
     NS_ASSERTION(po, "nsPrintObject can't be null!");
     if (po->mPresContext && po->mPresContext->IsRootPaginatedDocument()) {
-      nsIPageSequenceFrame* pageSequence = po->mPresShell->GetPageSequenceFrame();
+      nsIPageSequenceFrame* pageSequence;
+      po->mPresShell->GetPageSequenceFrame(&pageSequence);
       nsIFrame * seqFrame = do_QueryFrame(pageSequence);
       if (seqFrame) {
         nsIFrame* frame = seqFrame->GetFirstChild(nsnull);
@@ -2230,8 +2241,8 @@ static nsresult CloneRangeToSelection(nsIDOMRange* aRange,
 
 static nsresult CloneSelection(nsIDocument* aOrigDoc, nsIDocument* aDoc)
 {
-  nsIPresShell* origShell = aOrigDoc->GetShell();
-  nsIPresShell* shell = aDoc->GetShell();
+  nsIPresShell* origShell = aOrigDoc->GetPrimaryShell();
+  nsIPresShell* shell = aDoc->GetPrimaryShell();
   NS_ENSURE_STATE(origShell && shell);
 
   nsCOMPtr<nsISelection> origSelection =
@@ -2279,7 +2290,8 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
     }
 
     // Ask the page sequence frame to print all the pages
-    nsIPageSequenceFrame* pageSequence = poPresShell->GetPageSequenceFrame();
+    nsIPageSequenceFrame* pageSequence;
+    poPresShell->GetPageSequenceFrame(&pageSequence);
     NS_ASSERTION(nsnull != pageSequence, "no page sequence frame");
 
     // We are done preparing for printing, so we can turn this off
@@ -2344,8 +2356,8 @@ nsPrintEngine::DoPrint(nsPrintObject * aPO)
             nsIntMargin unwrtMarginTwips(0,0,0,0);
             mPrt->mPrintSettings->GetMarginInTwips(marginTwips);
             mPrt->mPrintSettings->GetUnwriteableMarginInTwips(unwrtMarginTwips);
-            nsMargin totalMargin = poPresContext->CSSTwipsToAppUnits(marginTwips + 
-                                                                     unwrtMarginTwips);
+            nsMargin totalMargin = poPresContext->TwipsToAppUnits(marginTwips + 
+                                                              unwrtMarginTwips);
             if (startPageNum == endPageNum) {
               {
                 startRect.y -= totalMargin.top;
@@ -2813,33 +2825,24 @@ already_AddRefed<nsIDOMWindow>
 nsPrintEngine::FindFocusedDOMWindow()
 {
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, nsnull);
-
-  nsCOMPtr<nsPIDOMWindow> window(mDocument->GetWindow());
-  NS_ENSURE_TRUE(window, nsnull);
-
-  nsCOMPtr<nsPIDOMWindow> rootWindow = window->GetPrivateRoot();
-  NS_ENSURE_TRUE(rootWindow, nsnull);
-
-  nsPIDOMWindow* focusedWindow;
-  nsFocusManager::GetFocusedDescendant(rootWindow, PR_TRUE, &focusedWindow);
-  NS_ENSURE_TRUE(focusedWindow, nsnull);
-
-  if (IsWindowsInOurSubTree(focusedWindow)) {
-    return focusedWindow;
+  if (fm) {
+    nsCOMPtr<nsIDOMWindow> domWin;
+    fm->GetFocusedWindow(getter_AddRefs(domWin));
+    if (domWin && IsWindowsInOurSubTree(domWin))
+      return domWin.forget();
   }
 
-  NS_IF_RELEASE(focusedWindow);
   return nsnull;
 }
 
 //---------------------------------------------------------------------
 PRBool
-nsPrintEngine::IsWindowsInOurSubTree(nsPIDOMWindow * window)
+nsPrintEngine::IsWindowsInOurSubTree(nsIDOMWindow * aDOMWindow)
 {
   PRBool found = PR_FALSE;
 
   // now check to make sure it is in "our" tree of docshells
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aDOMWindow));
   if (window) {
     nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
       do_QueryInterface(window->GetDocShell());

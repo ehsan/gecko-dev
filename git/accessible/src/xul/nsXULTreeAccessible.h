@@ -61,14 +61,10 @@ const PRUint32 kDefaultTreeCacheSize = 256;
   { 0xb8, 0xe1, 0x2c, 0x44, 0xb0, 0x41, 0x85, 0xe3 }    \
 }
 
-class nsXULTreeAccessible : public nsAccessibleWrap
+class nsXULTreeAccessible : public nsXULSelectableAccessible
 {
 public:
-  using nsAccessible::GetChildCount;
-  using nsAccessible::GetChildAt;
-  using nsAccessible::GetChildAtPoint;
-
-  nsXULTreeAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULTreeAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
   // nsISupports and cycle collection
   NS_DECL_ISUPPORTS_INHERITED
@@ -79,12 +75,15 @@ public:
   NS_IMETHOD GetValue(nsAString& aValue);
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
 
+  // nsIAccessibleSelectable
+  NS_DECL_NSIACCESSIBLESELECTABLE
+
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                                    PRBool aDeepestChild,
@@ -92,17 +91,7 @@ public:
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
-
-  // SelectAccessible
-  virtual bool IsSelect();
-  virtual already_AddRefed<nsIArray> SelectedItems();
-  virtual PRUint32 SelectedItemCount();
-  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
-  virtual bool IsItemSelected(PRUint32 aIndex);
-  virtual bool AddItemToSelection(PRUint32 aIndex);
-  virtual bool RemoveItemFromSelection(PRUint32 aIndex);
-  virtual bool SelectAll();
-  virtual bool UnselectAll();
+  virtual PRInt32 GetIndexOf(nsIAccessible *aChild);
 
   // nsXULTreeAccessible
 
@@ -113,8 +102,9 @@ public:
    * in the cache then create and cache it.
    *
    * @param aRow         [in] the given row index
+   * @param aAccessible  [out] tree item accessible
    */
-  nsAccessible* GetTreeItemAccessible(PRInt32 aRow);
+  void GetTreeItemAccessible(PRInt32 aRow, nsIAccessible **aAccessible);
 
   /**
    * Invalidates the number of cached treeitem accessibles.
@@ -147,11 +137,14 @@ protected:
   /**
    * Creates tree item accessible for the given row index.
    */
-  virtual already_AddRefed<nsAccessible> CreateTreeItemAccessible(PRInt32 aRow);
+  virtual void CreateTreeItemAccessible(PRInt32 aRowIndex,
+                                        nsAccessNode** aAccessNode);
 
   nsCOMPtr<nsITreeBoxObject> mTree;
   nsCOMPtr<nsITreeView> mTreeView;
-  nsAccessibleHashtable mAccessibleCache;
+  nsAccessNodeHashtable mAccessNodeCache;
+
+  NS_IMETHOD ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState);
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeAccessible,
@@ -172,14 +165,15 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeAccessible,
 class nsXULTreeItemAccessibleBase : public nsAccessibleWrap
 {
 public:
-  using nsAccessible::GetParent;
-
-  nsXULTreeItemAccessibleBase(nsIContent *aContent, nsIWeakReference *aShell,
+  nsXULTreeItemAccessibleBase(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
                               nsAccessible *aParent, nsITreeBoxObject *aTree,
                               nsITreeView *aTreeView, PRInt32 aRow);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIAccessNode
+  NS_IMETHOD GetUniqueID(void **aUniqueID);
 
   // nsIAccessible
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
@@ -203,13 +197,11 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual void Shutdown();
-  virtual bool IsPrimaryForNode() const;
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual PRInt32 GetIndexInParent()
-    { return mParent ? mParent->GetCachedChildCount() + mRow : -1; }
+  virtual nsAccessible* GetParent();
 
   // nsXULTreeItemAccessibleBase
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEITEMBASEACCESSIBLE_IMPL_CID)
@@ -223,8 +215,9 @@ public:
    * Return cell accessible for the given column. If XUL tree accessible is not
    * accessible table then return null.
    */
-  virtual nsAccessible* GetCellAccessible(nsITreeColumn *aColumn)
-    { return nsnull; }
+  virtual void GetCellAccessible(nsITreeColumn *aColumn,
+                                 nsIAccessible **aCellAcc)
+    { *aCellAcc = nsnull; }
 
   /**
    * Proccess row invalidation. Used to fires name change events.
@@ -236,8 +229,8 @@ protected:
 
   // nsAccessible
   virtual void DispatchClickEvent(nsIContent *aContent, PRUint32 aActionIndex);
-  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull);
+  virtual nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset,
+                                            nsresult* aError = nsnull);
 
   // nsXULTreeItemAccessibleBase
 
@@ -261,7 +254,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsXULTreeItemAccessibleBase,
 class nsXULTreeItemAccessible : public nsXULTreeItemAccessibleBase
 {
 public:
-  nsXULTreeItemAccessible(nsIContent *aContent, nsIWeakReference *aShell,
+  nsXULTreeItemAccessible(nsIDOMNode *aDOMNode, nsIWeakReference *aShell,
                           nsAccessible *aParent, nsITreeBoxObject *aTree,
                           nsITreeView *aTreeView, PRInt32 aRow);
 
@@ -269,11 +262,11 @@ public:
 
   // nsAccessNode
   virtual PRBool IsDefunct();
-  virtual PRBool Init();
-  virtual void Shutdown();
+  virtual nsresult Init();
+  virtual nsresult Shutdown();
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 
   // nsXULTreeItemAccessibleBase
   virtual void RowInvalidated(PRInt32 aStartColIdx, PRInt32 aEndColIdx);
@@ -295,13 +288,12 @@ protected:
 class nsXULTreeColumnsAccessible : public nsXULColumnsAccessible
 {
 public:
-  nsXULTreeColumnsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULTreeColumnsAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
 protected:
 
   // nsAccessible
-  virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
-                                           nsresult *aError = nsnull);
+  nsIAccessible* GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError = nsnull);
 };
 
 #endif

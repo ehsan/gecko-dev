@@ -50,7 +50,6 @@
 #include "nsISHEntry.h"
 #include "nsISHContainer.h"
 #include "nsIWindowWatcher.h"
-#include "mozilla/Services.h"
 
 static PRBool sInited = 0;
 PRUint32 nsCCUncollectableMarker::sGeneration = 0;
@@ -68,12 +67,10 @@ nsCCUncollectableMarker::Init()
   nsCOMPtr<nsIObserver> marker = new nsCCUncollectableMarker;
   NS_ENSURE_TRUE(marker, NS_ERROR_OUT_OF_MEMORY);
 
-  nsCOMPtr<nsIObserverService> obs =
-    mozilla::services::GetObserverService();
-  if (!obs)
-    return NS_ERROR_FAILURE;
-
   nsresult rv;
+  nsCOMPtr<nsIObserverService> obs =
+    do_GetService("@mozilla.org/observer-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // This makes the observer service hold an owning reference to the marker
   rv = obs->AddObserver(marker, "xpcom-shutdown", PR_FALSE);
@@ -189,11 +186,12 @@ nsresult
 nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
                                  const PRUnichar* aData)
 {
+  nsresult rv;
+
   if (!strcmp(aTopic, "xpcom-shutdown")) {
     nsCOMPtr<nsIObserverService> obs =
-      mozilla::services::GetObserverService();
-    if (!obs)
-      return NS_ERROR_FAILURE;
+      do_GetService("@mozilla.org/observer-service;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // No need for kungFuDeathGrip here, yay observerservice!
     obs->RemoveObserver(this, "xpcom-shutdown");
@@ -210,8 +208,6 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
   if (!++sGeneration) {
     ++sGeneration;
   }
-
-  nsresult rv;
 
   // Iterate all toplevel windows
   nsCOMPtr<nsISimpleEnumerator> windowList;

@@ -108,6 +108,9 @@ public:
   static nsIThreadJSContextStack* ThreadJSContextStack();
   static nsIXPCSecurityManager* WorkerSecurityManager();
 
+  static jsval ShareStringAsJSVal(JSContext* aCx,
+                                  const nsAString& aString);
+
   void CancelWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject);
   void SuspendWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject);
   void ResumeWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject);
@@ -168,7 +171,7 @@ private:
   nsCOMPtr<nsIThreadPool> mThreadPool;
 
   // Maps nsIScriptGlobalObject* to nsDOMWorkerPool.
-  nsRefPtrHashtable<nsVoidPtrHashKey, nsDOMWorkerPool> mPools;
+  nsRefPtrHashtable<nsISupportsHashKey, nsDOMWorkerPool> mPools;
 
   // mMonitor protects all access to mWorkersInProgress and
   // mCreationsInProgress.

@@ -83,7 +83,7 @@ public:
     //   socketRef - socket identifier
     //   fd        - socket file descriptor
     //   outFlags  - value of PR_PollDesc::out_flags after PR_Poll returns
-    //               or -1 if a timeout occurred
+    //               or -1 if a timeout occured
     //
     virtual void OnSocketReady(PRFileDesc *fd, PRInt16 outFlags) = 0;
 

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-352846-01.js';
 
 var BUGNUMBER = 352846;
 var summary = 'Passing unrooted value to OBJ_DEFAULT_VALUE is GC hazard';
@@ -48,9 +49,7 @@ START(summary);
 function prepare_xml()
 {
   delete XML.prototype.function::toString;
-  Object.defineProperty(Object.prototype, "toString",
-                        { get: toSource_getter, enumerable: true,
-                          configurable: true });
+  Object.prototype.toString getter = toSource_getter;
   return new XML("<a>xml_text</a>");
 }
 

@@ -64,7 +64,6 @@ static const char* GetLinebreakString(nsLinebreakConverter::ELinebreakType aBrea
     CRSTR,          // Mac
     LFSTR,          // Unix
     CRLF,           // Windows
-    " ",            // space
     nsnull  
   };
   
@@ -339,8 +338,7 @@ static T* ConvertUnknownBreaks(const T* inSrc, PRInt32& ioLen, const char* destB
 char* nsLinebreakConverter::ConvertLineBreaks(const char* aSrc,
             ELinebreakType aSrcBreaks, ELinebreakType aDestBreaks, PRInt32 aSrcLen, PRInt32* outLen)
 {
-  NS_ASSERTION(aDestBreaks != eLinebreakAny &&
-               aSrcBreaks != eLinebreakSpace, "Invalid parameter");
+  NS_ASSERTION(aDestBreaks != eLinebreakAny, "Invalid parameter");
   if (!aSrc) return nsnull;
   
   PRInt32 sourceLen = (aSrcLen == kIgnoreLen) ? strlen(aSrc) + 1 : aSrcLen;
@@ -367,8 +365,7 @@ nsresult nsLinebreakConverter::ConvertLineBreaksInSitu(char **ioBuffer, ELinebre
   NS_ASSERTION(ioBuffer && *ioBuffer, "Null pointer passed");
   if (!ioBuffer || !*ioBuffer) return NS_ERROR_NULL_POINTER;
   
-  NS_ASSERTION(aDestBreaks != eLinebreakAny &&
-               aSrcBreaks != eLinebreakSpace, "Invalid parameter");
+  NS_ASSERTION(aDestBreaks != eLinebreakAny, "Invalid parameter");
 
   PRInt32 sourceLen = (aSrcLen == kIgnoreLen) ? strlen(*ioBuffer) + 1 : aSrcLen;
   
@@ -410,8 +407,7 @@ nsresult nsLinebreakConverter::ConvertLineBreaksInSitu(char **ioBuffer, ELinebre
 PRUnichar* nsLinebreakConverter::ConvertUnicharLineBreaks(const PRUnichar* aSrc,
             ELinebreakType aSrcBreaks, ELinebreakType aDestBreaks, PRInt32 aSrcLen, PRInt32* outLen)
 {
-  NS_ASSERTION(aDestBreaks != eLinebreakAny &&
-               aSrcBreaks != eLinebreakSpace, "Invalid parameter");
+  NS_ASSERTION(aDestBreaks != eLinebreakAny, "Invalid parameter");
   if (!aSrc) return nsnull;
   
   PRInt32 bufLen = (aSrcLen == kIgnoreLen) ? nsCRT::strlen(aSrc) + 1 : aSrcLen;
@@ -437,8 +433,7 @@ nsresult nsLinebreakConverter::ConvertUnicharLineBreaksInSitu(PRUnichar **ioBuff
 {
   NS_ASSERTION(ioBuffer && *ioBuffer, "Null pointer passed");
   if (!ioBuffer || !*ioBuffer) return NS_ERROR_NULL_POINTER;
-  NS_ASSERTION(aDestBreaks != eLinebreakAny &&
-               aSrcBreaks != eLinebreakSpace, "Invalid parameter");
+  NS_ASSERTION(aDestBreaks != eLinebreakAny, "Invalid parameter");
 
   PRInt32 sourceLen = (aSrcLen == kIgnoreLen) ? nsCRT::strlen(*ioBuffer) + 1 : aSrcLen;
 
@@ -480,8 +475,7 @@ nsresult nsLinebreakConverter::ConvertStringLineBreaks(nsString& ioString,
           ELinebreakType aSrcBreaks, ELinebreakType aDestBreaks)
 {
 
-  NS_ASSERTION(aDestBreaks != eLinebreakAny &&
-               aSrcBreaks != eLinebreakSpace, "Invalid parameter");
+  NS_ASSERTION(aDestBreaks != eLinebreakAny, "Invalid parameter");
 
   // nothing to do
   if (ioString.IsEmpty()) return NS_OK;

@@ -55,7 +55,7 @@ static const uScanClassID g_EUCKRScanCellIDTable[3] =  {
   uDecomposedHangulCharset
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToEUCKRConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult)
 {

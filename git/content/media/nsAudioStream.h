@@ -39,13 +39,14 @@
 #define nsAudioStream_h_
 
 #include "nscore.h"
-#include "nsISupportsImpl.h"
-#include "nsIThread.h"
+#include "prlog.h"
+#include "nsTArray.h"
 
-class nsAudioStream : public nsISupports
+extern PRLogModuleInfo* gAudioStreamLog;
+
+class nsAudioStream 
 {
-public:
-
+ public:
   enum SampleFormat
   {
     FORMAT_U8,
@@ -61,59 +62,55 @@ public:
   // library after using it.
   static void ShutdownLibrary();
 
-  // Thread, usually for MOZ_IPC handling, that is shared between audio streams.
-  // This may return null in the child process
-  static nsIThread *GetGlobalThread();
-
-  // AllocateStream will return either a local stream or a remoted stream
-  // depending on where you call it from.  If MOZ_IPC is enabled, and you
-  // call this from a child process, you may recieve an implementation which
-  // forwards to a compositing process.
-  static nsAudioStream* AllocateStream();
+  nsAudioStream();
+  ~nsAudioStream();
 
   // Initialize the audio stream. aNumChannels is the number of audio channels 
   // (1 for mono, 2 for stereo, etc) and aRate is the frequency of the sound 
   // samples (22050, 44100, etc).
-  virtual nsresult Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat) = 0;
+  void Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat);
 
   // Closes the stream. All future use of the stream is an error.
-  virtual void Shutdown() = 0;
+  void Shutdown();
 
   // Write sound data to the audio hardware.  aBuf is an array of samples in
   // the format specified by mFormat of length aCount.  aCount should be
   // evenly divisible by the number of channels in this audio stream.
-  // When aBlocking is PR_TRUE, we'll block until the write has completed,
-  // otherwise we'll buffer any data we can't write immediately, and write
-  // it in a later call.
-  virtual nsresult Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking) = 0;
+  void Write(const void* aBuf, PRUint32 aCount);
 
   // Return the number of sound samples that can be written to the audio device
   // without blocking.
-  virtual PRUint32 Available() = 0;
+  PRInt32 Available();
 
   // Set the current volume of the audio playback. This is a value from
   // 0 (meaning muted) to 1 (meaning full volume).
-  virtual void SetVolume(float aVolume) = 0;
+  void SetVolume(float aVolume);
 
   // Block until buffered audio data has been consumed.
-  virtual void Drain() = 0;
+  void Drain();
 
   // Pause audio playback
-  virtual void Pause() = 0;
+  void Pause();
 
   // Resume audio playback
-  virtual void Resume() = 0;
+  void Resume();
 
-  // Return the position in milliseconds of the sample being played by the
+  // Return the position in seconds of the sample being played by the
   // audio hardware.
-  virtual PRInt64 GetPosition() = 0;
+  float GetPosition();
 
-  // Return the position, measured in samples played since the start, by
-  // the audio hardware.
-  virtual PRInt64 GetSampleOffset() = 0;
+ private:
+  double mVolume;
+  void* mAudioHandle;
+  int mRate;
+  int mChannels;
 
-  // Returns PR_TRUE when the audio stream is paused.
-  virtual PRBool IsPaused() = 0;
+  SampleFormat mFormat;
+
+  // When a Write() request is made, and the number of samples
+  // requested to be written exceeds the buffer size of the audio
+  // backend, the remaining samples are stored in this variable. They
+  // will be written on the next Write() request.
+  nsTArray<short> mBufferOverflow;
 };
-
 #endif

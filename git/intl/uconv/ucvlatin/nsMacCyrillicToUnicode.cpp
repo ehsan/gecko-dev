@@ -45,7 +45,7 @@ static const PRUint16 g_utMappingTable[] = {
 #include "maccyril.ut"
 };
 
-nsresult
+NS_METHOD
 nsMacCyrillicToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                   void **aResult) 
 {

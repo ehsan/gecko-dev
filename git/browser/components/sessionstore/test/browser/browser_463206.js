@@ -39,7 +39,7 @@ function test() {
   
   waitForExplicitFinish();
   
-  let testURL = "http://mochi.test:8888/browser/" +
+  let testURL = "http://localhost:8888/browser/" +
     "browser/components/sessionstore/test/browser/browser_463206_sample.html";
   
   var frameCount = 0;
@@ -80,9 +80,8 @@ function test() {
             "text containing | and # is correctly restored");
       is(win.frames[1].document.getElementById("out2").value, "",
             "id prefixes can't be faked");
-      // Disabled for now, Bug 588077
-      // isnot(win.frames[0].frames[1].document.getElementById("in1").value, "",
-      //       "id prefixes aren't mixed up");
+      isnot(win.frames[0].frames[1].document.getElementById("in1").value, "",
+            "id prefixes aren't mixed up");
       is(win.frames[1].frames[0].document.getElementById("in1").value, "",
             "id prefixes aren't mixed up");
       

@@ -673,20 +673,20 @@ static void FlipSlashes(char *cp, size_t len)
 **
 */
 
-PRInt32
+PRStatus
 _PR_MD_CLOSE_DIR(_MDDir *d)
 {
     if ( d ) {
         if (FindClose(d->d_hdl)) {
         d->magic = (PRUint32)-1;
-        return 0;
+        return PR_SUCCESS;
 		} else {
 			_PR_MD_MAP_CLOSEDIR_ERROR(GetLastError());
-        	return -1;
+        	return PR_FAILURE;
 		}
     }
     PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-    return -1;
+    return PR_FAILURE;
 }
 
 
@@ -1578,20 +1578,20 @@ _PR_MD_READ_DIR_UTF16(_MDDirUTF16 *d, PRIntn flags)
     return NULL;
 }
  
-PRInt32
+PRStatus
 _PR_MD_CLOSE_DIR_UTF16(_MDDirUTF16 *d)
 {
     if ( d ) {
         if (FindClose(d->d_hdl)) {
             d->magic = (PRUint32)-1;
-            return 0;
+            return PR_SUCCESS;
         } else {
             _PR_MD_MAP_CLOSEDIR_ERROR(GetLastError());
-            return -1;
+            return PR_FAILURE;
         }
     }
     PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
-    return -1;
+    return PR_FAILURE;
 }
 
 #define _PR_IS_W_SLASH(ch) ((ch) == L'/' || (ch) == L'\\')

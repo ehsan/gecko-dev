@@ -51,6 +51,8 @@
 
 #include "nsBoxFrame.h"
 
+class nsPresContext;
+
 class nsProgressMeterFrame : public nsBoxFrame
 {
 public:

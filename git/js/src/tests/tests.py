@@ -12,26 +12,9 @@ def do_run_cmd(cmd):
     th_run_cmd(cmd, l)
     return l[1]
 
-def set_limits():
-    # resource module not supported on all platforms
-    try:
-        import resource
-        GB = 2**30
-        resource.setrlimit(resource.RLIMIT_AS, (1*GB, 1*GB))
-    except:
-        return
-
 def th_run_cmd(cmd, l):
     t0 = datetime.datetime.now()
-
-    # close_fds and preexec_fn are not supported on Windows and will
-    # cause a ValueError.
-    options = {}
-    if sys.platform != 'win32':
-        options["close_fds"] = True
-        options["preexec_fn"] = set_limits
-    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, **options)
-
+    p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, close_fds=True)
     l[0] = p
     out, err = p.communicate()
     t1 = datetime.datetime.now()
@@ -87,12 +70,11 @@ class Test(object):
 class TestCase(Test):
     """A test case consisting of a test and an expected result."""
 
-    def __init__(self, path, enable, expect, random, slow):
+    def __init__(self, path, enable, expect, random):
         Test.__init__(self, path)
         self.enable = enable     # bool: True => run test, False => don't run
         self.expect = expect     # bool: expected result, True => pass
         self.random = random     # bool: True => ignore output as 'random'
-        self.slow = slow         # bool: True => test may run slowly
 
     def __str__(self):
         ans = self.path
@@ -102,8 +84,6 @@ class TestCase(Test):
             ans += ', fails'
         if self.random:
             ans += ', random'
-        if self.slow:
-            ans += ', slow'
         return ans
 
 class TestOutput:
@@ -149,8 +129,6 @@ class TestResult:
         passes = 0
 
         expected_rcs = []
-        if test.path.endswith('-n.js'):
-            expected_rcs.append(3)
 
         for line in out.split('\n'):
             if line.startswith(' FAILED!'):
@@ -166,13 +144,13 @@ class TestResult:
                 if m:
                     expected_rcs.append(int(m.group(1)))
 
-        if rc and not rc in expected_rcs:
-            if rc == 3:
-                result = cls.FAIL
+        if rc:
+            if (test.path.endswith('-n.js') and rc == 3) or rc in expected_rcs:
+                result = cls.PASS
             else:
                 result = cls.CRASH
         else:
-            if (rc or passes > 0) and failures == 0:
+            if passes > 0 and failures == 0:
                 result = cls.PASS
             else:
                 result = cls.FAIL

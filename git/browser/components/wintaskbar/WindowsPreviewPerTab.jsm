@@ -132,19 +132,6 @@ function getFaviconAsImage(iconurl, callback) {
     _imageFromURI(faviconSvc.defaultFavicon, callback);
 }
 
-// Snaps the given rectangle to be pixel-aligned at the given scale
-function snapRectAtScale(r, scale) {
-  let x = Math.floor(r.x * scale);
-  let y = Math.floor(r.y * scale);
-  let width = Math.ceil((r.x + r.width) * scale) - x;
-  let height = Math.ceil((r.y + r.height) * scale) - y;
-
-  r.x = x / scale;
-  r.y = y / scale;
-  r.width = width / scale;
-  r.height = height / scale;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// PreviewController
 
@@ -167,16 +154,15 @@ function PreviewController(win, tab) {
   this.linkedBrowser = tab.linkedBrowser;
 
   this.linkedBrowser.addEventListener("MozAfterPaint", this, false);
-  this.tab.addEventListener("TabAttrModified", this, false);
+  this.linkedBrowser.addEventListener("DOMTitleChanged", this, false);
+  // pageshow is needed for when a tab is dragged across windows.
+  this.linkedBrowser.addEventListener("pageshow", this, false);
 
   // Cannot perform the lookup during construction. See TabWindow.newTab 
   XPCOMUtils.defineLazyGetter(this, "preview", function () this.win.previewFromTab(this.tab));
 
-  XPCOMUtils.defineLazyGetter(this, "canvasPreview", function () {
-    let canvas = this.win.win.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-    canvas.mozOpaque = true;
-    return canvas;
-  });
+  XPCOMUtils.defineLazyGetter(this, "canvasPreview", function ()
+    this.win.win.document.createElementNS("http://www.w3.org/1999/xhtml", "canvas"));
 
   XPCOMUtils.defineLazyGetter(this, "dirtyRegion",
     function () {
@@ -185,27 +171,15 @@ function PreviewController(win, tab) {
       dirtyRegion.init();
       return dirtyRegion;
     });
-
-  XPCOMUtils.defineLazyGetter(this, "winutils",
-    function () {
-      let win = tab.linkedBrowser.contentWindow;
-      return win.QueryInterface(Ci.nsIInterfaceRequestor)
-                .getInterface(Ci.nsIDOMWindowUtils);
-  });
 }
 
 PreviewController.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsITaskbarPreviewController,
                                          Ci.nsIDOMEventListener]),
   destroy: function () {
-    this.tab.removeEventListener("TabAttrModified", this, false);
+    this.linkedBrowser.removeEventListener("pageshow", this, false);
+    this.linkedBrowser.removeEventListener("DOMTitleChanged", this, false);
     this.linkedBrowser.removeEventListener("MozAfterPaint", this, false);
-
-    // Break cycles, otherwise we end up leaking the window with everything
-    // attached to it.
-    delete this.win;
-    delete this.preview;
-    delete this.dirtyRegion;
   },
   get wrappedJSObject() {
     return this;
@@ -234,12 +208,6 @@ PreviewController.prototype = {
     this.canvasPreview.height = 0;
   },
 
-  get zoom() {
-    // We use this property instead of the fullZoom property because this
-    // accurately reflects the actual zoom factor used when drawing.
-    return this.winutils.screenPixelsPerCSSPixel;
-  },
-
   // Updates the controller's canvas with the parts of the <browser> that need
   // to be redrawn.
   updateCanvasPreview: function () {
@@ -249,30 +217,23 @@ PreviewController.prototype = {
     if (bx.width != this.canvasPreview.width ||
         bx.height != this.canvasPreview.height) {
       // Invalidate the entire area and repaint
-      this.onTabPaint({left:0, top:0, right:win.innerWidth, bottom:win.innerHeight});
+      this.onTabPaint({left:0, top:0, width:bx.width, height:bx.height});
       this.canvasPreview.width = bx.width;
       this.canvasPreview.height = bx.height;
     }
 
     // Draw dirty regions
     let ctx = this.canvasPreview.getContext("2d");
-    let scale = this.zoom;
-
     let flags = this.canvasPreviewFlags;
-    // The dirty region may include parts that are offscreen so we clip to the
-    // canvas area.
-    this.dirtyRegion.intersectRect(0, 0, win.innerWidth, win.innerHeight);
+    // width/height are occasionally bogus and too large for drawWindow
+    // so we clip to the canvas region
+    this.dirtyRegion.intersectRect(0, 0, bx.width, bx.height);
     this.dirtyRects.forEach(function (r) {
-      // We need to snap the rectangle to be pixel aligned in the destination
-      // coordinate space. Otherwise natively themed widgets might not draw.
-      snapRectAtScale(r, scale);
       let x = r.x;
       let y = r.y;
       let width = r.width;
       let height = r.height;
-
       ctx.save();
-      ctx.scale(scale, scale);
       ctx.translate(x, y);
       ctx.drawWindow(win, x, y, width, height, "white", flags);
       ctx.restore();
@@ -285,17 +246,16 @@ PreviewController.prototype = {
   },
 
   onTabPaint: function (rect) {
-    let x = Math.floor(rect.left),
-        y = Math.floor(rect.top),
-        width = Math.ceil(rect.right) - x,
-        height = Math.ceil(rect.bottom) - y;
-    this.dirtyRegion.unionRect(x, y, width, height);
-  },
+    // Ignore spurious dirty rects
+    if (!rect.width || !rect.height)
+      return;
 
-  updateTitleAndTooltip: function () {
-    let title = this.win.tabbrowser.getWindowTitleForBrowser(this.linkedBrowser);
-    this.preview.title = title;
-    this.preview.tooltip = title;
+    let r = { x: Math.floor(rect.left),
+              y: Math.floor(rect.top),
+              width: Math.ceil(rect.width),
+              height: Math.ceil(rect.height)
+            };
+    this.dirtyRegion.unionRect(r.x, r.y, r.width, r.height);
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -322,8 +282,8 @@ PreviewController.prototype = {
     let self = this;
     this.win.tabbrowser.previewTab(this.tab, function () self.previewTabCallback(ctx));
 
-    // We must avoid having the frame drawn around the window. See bug 520807
-    return false;
+    // We want a frame drawn around the preview
+    return true;
   },
 
   previewTabCallback: function (ctx) {
@@ -380,8 +340,14 @@ PreviewController.prototype = {
         if (preview.visible)
           preview.invalidate();
         break;
-      case "TabAttrModified":
-        this.updateTitleAndTooltip();
+      case "pageshow":
+      case "DOMTitleChanged":
+        // The tab's label is sometimes empty when dragging tabs between windows
+        // so we force the tab title to be updated (see bug 520579)
+        this.win.tabbrowser.setTabTitle(this.tab);
+        let title = this.tab.label;
+        this.preview.title = title;
+        this.preview.tooltip = title;
         break;
     }
   }
@@ -391,7 +357,6 @@ XPCOMUtils.defineLazyGetter(PreviewController.prototype, "canvasPreviewFlags",
   function () { let canvasInterface = Ci.nsIDOMCanvasRenderingContext2D;
                 return canvasInterface.DRAWWINDOW_DRAW_VIEW
                      | canvasInterface.DRAWWINDOW_DRAW_CARET
-                     | canvasInterface.DRAWWINDOW_ASYNC_DECODE_IMAGES
                      | canvasInterface.DRAWWINDOW_DO_NOT_FLUSH;
 });
 
@@ -414,8 +379,9 @@ function TabWindow(win) {
     this.tabbrowser.tabContainer.addEventListener(this.events[i], this, false);
   this.tabbrowser.addTabsProgressListener(this);
 
+
   AeroPeek.windows.push(this);
-  let tabs = this.tabbrowser.tabs;
+  let tabs = this.tabbrowser.mTabs;
   for (let i = 0; i < tabs.length; i++)
     this.newTab(tabs[i]);
 
@@ -430,9 +396,7 @@ TabWindow.prototype = {
   destroy: function () {
     this._destroying = true;
 
-    let tabs = this.tabbrowser.tabs;
-
-    this.tabbrowser.removeTabsProgressListener(this);
+    let tabs = this.tabbrowser.mTabs;
 
     for (let i = 0; i < this.events.length; i++)
       this.tabbrowser.tabContainer.removeEventListener(this.events[i], this, false);
@@ -455,11 +419,9 @@ TabWindow.prototype = {
   // Invoked when the given tab is added to this window
   newTab: function (tab) {
     let controller = new PreviewController(this, tab);
-    let docShell = this.win
-                  .QueryInterface(Ci.nsIInterfaceRequestor)
-                  .getInterface(Ci.nsIWebNavigation)
-                  .QueryInterface(Ci.nsIDocShell);
-    let preview = AeroPeek.taskbar.createTaskbarTabPreview(docShell, controller);
+    let preview = AeroPeek.taskbar.createTaskbarTabPreview(tab.linkedBrowser.docShell, controller);
+    preview.title = tab.label;
+    preview.tooltip = tab.label;
     preview.visible = AeroPeek.enabled;
     preview.active = this.tabbrowser.selectedTab == tab;
     // Grab the default favicon
@@ -473,9 +435,6 @@ TabWindow.prototype = {
     // It's OK to add the preview now while the favicon still loads.
     this.previews.splice(tab._tPos, 0, preview);
     AeroPeek.addPreview(preview);
-    // updateTitleAndTooltip relies on having controller.preview which is lazily resolved.
-    // Now that we've updated this.previews, it will resolve successfully.
-    controller.updateTitleAndTooltip();
   },
 
   // Invoked when the given tab is closed
@@ -552,6 +511,16 @@ TabWindow.prototype = {
   },
 
   //// Browser progress listener
+  onLocationChange: function () {
+  },
+  onProgressChange: function () {
+  },
+  onSecurityChange: function () {
+  },
+  onStateChange: function () {
+  },
+  onStatusChange: function () {
+  },
   onLinkIconAvailable: function (aBrowser, aIconURL) {
     let self = this;
     getFaviconAsImage(aIconURL, function (img) {
@@ -611,17 +580,6 @@ var AeroPeek = {
     this.enabled = this._prefenabled = this.prefs.getBoolPref(TOGGLE_PREF_NAME);
   },
 
-  destroy: function destroy() {
-    this._enabled = false;
-
-    this.prefs.removeObserver(TOGGLE_PREF_NAME, this);
-    this.prefs.removeObserver(DISABLE_THRESHOLD_PREF_NAME, this);
-    this.prefs.removeObserver(CACHE_EXPIRATION_TIME_PREF_NAME, this);
-
-    if (this.cacheTimer)
-      this.cacheTimer.cancel();
-  },
-
   get enabled() {
     return this._enabled;
   },
@@ -669,10 +627,7 @@ var AeroPeek = {
       return;
 
     win.gTaskbarTabGroup.destroy();
-    delete win.gTaskbarTabGroup;
-
-    if (this.windows.length == 0)
-      this.destroy();
+    win.gTaskbarTabGroup = null;
   },
 
   resetCacheTimer: function () {

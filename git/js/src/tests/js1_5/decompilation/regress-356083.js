@@ -35,9 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-356083.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 356083;
-var summary = 'decompilation for (function () {return {set this(v) {}};}) ';
+var summary = 'decompilation for ({this setter: function () { } }) ';
 var actual = '';
 var expect = '';
 
@@ -52,14 +53,14 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  var f = function() { return { set this(v) { } }; } ;
-  expect = 'function() { return { set this(v) { } }; }';
+  var f = function() { return {this setter: function () { } }; } ;
+  expect = 'function() { return {this setter: function () { } }; }';
   actual = f + '';
 
   compareSource(expect, actual, summary);
 
-  expect = "({ set ''(v) {} })";
-  actual = uneval({ set ''(v) {} });
-  compareSource(expect, actual, expect);
+  expect = "({'' setter:(function () {})})";
+  actual = uneval({'' setter: function(){}});
+  reportCompare(expect, actual, expect);
   exitFunc ('test');
 }

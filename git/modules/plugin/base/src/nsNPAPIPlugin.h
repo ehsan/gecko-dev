@@ -43,8 +43,6 @@
 #include "npfunctions.h"
 #include "nsPluginHost.h"
 
-#include "jsapi.h"
-
 #include "mozilla/PluginLibrary.h"
 
 /*
@@ -78,7 +76,8 @@ private:
   typedef mozilla::PluginLibrary PluginLibrary;
 
 public:
-  nsNPAPIPlugin();
+  nsNPAPIPlugin(NPPluginFuncs* callbacks,
+                PluginLibrary* aLibrary /*assume ownership*/);
   virtual ~nsNPAPIPlugin();
 
   NS_DECL_ISUPPORTS
@@ -86,33 +85,29 @@ public:
 
   // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
   // will prevent this from calling NP_Initialize.
-  static nsresult CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult);
-
-  PluginLibrary* GetLibrary();
-  // PluginFuncs() can't fail but results are only valid if GetLibrary() succeeds
-  NPPluginFuncs* PluginFuncs();
-
-#if defined(XP_MACOSX) && !defined(__LP64__)
+  static nsresult CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
+                               nsIPlugin** aResult);
+#ifdef XP_MACOSX
   void SetPluginRefNum(short aRefNum);
 #endif
 
 #ifdef MOZ_IPC
-  // The IPC mechanism notifies the nsNPAPIPlugin if the plugin
-  // crashes and is no longer usable. pluginDumpID/browserDumpID are
-  // the IDs of respective minidumps that were written, or empty if no
-  // minidump was written.
-  void PluginCrashed(const nsAString& pluginDumpID,
-                     const nsAString& browserDumpID);
-  
-  static PRBool RunPluginOOP(const nsPluginTag *aPluginTag);
+  // The IPC mechanism notifies the nsNPAPIPlugin if the plugin crashes and is
+  // no longer usable. dumpID is the ID of a minidump that was written,
+  // or empty if no minidump was written.
+  void PluginCrashed(const nsAString& dumpID);
 #endif
 
 protected:
+  // Ensures that the static browser functions are properly initialized
+  static void CheckClassInitialized();
 
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#ifdef XP_MACOSX
   short mPluginRefNum;
 #endif
 
+  // The plugin-side callbacks that the browser calls. One set of
+  // plugin callbacks for each plugin.
   NPPluginFuncs mPluginFuncs;
   PluginLibrary* mLibrary;
 };
@@ -120,66 +115,6 @@ protected:
 namespace mozilla {
 namespace plugins {
 namespace parent {
-
-JS_STATIC_ASSERT(sizeof(NPIdentifier) == sizeof(jsid));
-
-static inline jsid
-NPIdentifierToJSId(NPIdentifier id)
-{
-    jsid tmp;
-    JSID_BITS(tmp) = (size_t)id;
-    return tmp;
-}
-
-static inline NPIdentifier
-JSIdToNPIdentifier(jsid id)
-{
-    return (NPIdentifier)JSID_BITS(id);
-}
-
-static inline bool
-NPIdentifierIsString(NPIdentifier id)
-{
-    return JSID_IS_STRING(NPIdentifierToJSId(id));
-}
-
-static inline JSString *
-NPIdentifierToString(NPIdentifier id)
-{
-    return JSID_TO_STRING(NPIdentifierToJSId(id));
-}
-
-static inline NPIdentifier
-StringToNPIdentifier(JSString *str)
-{
-    return JSIdToNPIdentifier(INTERNED_STRING_TO_JSID(str));
-}
-
-static inline bool
-NPIdentifierIsInt(NPIdentifier id)
-{
-    return JSID_IS_INT(NPIdentifierToJSId(id));
-}
-
-static inline jsint
-NPIdentifierToInt(NPIdentifier id)
-{
-    return JSID_TO_INT(NPIdentifierToJSId(id));
-}
-
-static inline NPIdentifier
-IntToNPIdentifier(jsint i)
-{
-    return JSIdToNPIdentifier(INT_TO_JSID(i));
-}
-
-static inline bool
-NPIdentifierIsVoid(NPIdentifier id)
-{
-    return JSID_IS_VOID(NPIdentifierToJSId(id));
-}
-
-#define NPIdentifier_VOID (JSIdToNPIdentifier(JSID_VOID))
 
 NPObject* NP_CALLBACK
 _getwindowobject(NPP npp);

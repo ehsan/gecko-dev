@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-453955.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 453955;
 var summary = 'Do not assert: sprop->setter != js_watch_set || pobj != obj';

@@ -3,7 +3,8 @@ function test() {
 
   var newTab;
   var newBrowser;
-  const secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+  const secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
+                   getService(Components.interfaces.nsIScriptSecurityManager);
   var iteration = 1;
   const uris = [undefined, "about:blank"];
   var uri;

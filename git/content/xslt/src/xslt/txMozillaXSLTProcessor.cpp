@@ -40,7 +40,7 @@
 #include "nsContentCID.h"
 #include "nsDOMError.h"
 #include "nsIChannel.h"
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
@@ -67,8 +67,6 @@
 #include "txExprParser.h"
 #include "nsIErrorService.h"
 #include "nsIScriptSecurityManager.h"
-
-using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kXMLDocumentCID, NS_XMLDOCUMENT_CID);
 
@@ -313,9 +311,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(txMozillaXSLTProcessor)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(txMozillaXSLTProcessor)
-
-DOMCI_DATA(XSLTProcessor, txMozillaXSLTProcessor)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(txMozillaXSLTProcessor)
     NS_INTERFACE_MAP_ENTRY(nsIXSLTProcessor)
     NS_INTERFACE_MAP_ENTRY(nsIXSLTProcessorObsolete)
@@ -324,7 +319,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(txMozillaXSLTProcessor)
     NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
     NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXSLTProcessor)
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XSLTProcessor)
+    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XSLTProcessor)
 NS_INTERFACE_MAP_END
 
 txMozillaXSLTProcessor::txMozillaXSLTProcessor() : mStylesheetDocument(nsnull),
@@ -615,7 +610,7 @@ txMozillaXSLTProcessor::ImportStylesheet(nsIDOMNode *aStyle)
     
     nsCOMPtr<nsINode> styleNode = do_QueryInterface(aStyle);
     NS_ENSURE_TRUE(styleNode &&
-                   (styleNode->IsElement() ||
+                   (styleNode->IsNodeOfType(nsINode::eELEMENT) ||
                     styleNode->IsNodeOfType(nsINode::eDOCUMENT)),
                    NS_ERROR_INVALID_ARG);
 
@@ -624,7 +619,7 @@ txMozillaXSLTProcessor::ImportStylesheet(nsIDOMNode *aStyle)
     // XXX set up exception context, bug 204658
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (styleNode->IsElement()) {
+    if (styleNode->IsNodeOfType(nsINode::eELEMENT)) {
         mStylesheetDocument = styleNode->GetOwnerDoc();
         NS_ENSURE_TRUE(mStylesheetDocument, NS_ERROR_UNEXPECTED);
 
@@ -919,7 +914,7 @@ txMozillaXSLTProcessor::SetParameter(const nsAString & aNamespaceURI,
 
                 if (NS_FAILED(rv)) {
                     while (i < count) {
-                        NS_IF_RELEASE(values[i]);
+                        NS_RELEASE(values[i]);
                         ++i;
                     }
                     nsMemory::Free(array);
@@ -1082,7 +1077,7 @@ txMozillaXSLTProcessor::reportError(nsresult aResult,
     }
     else {
         nsCOMPtr<nsIStringBundleService> sbs =
-            mozilla::services::GetStringBundleService();
+            do_GetService(NS_STRINGBUNDLE_CONTRACTID);
         if (sbs) {
             nsXPIDLString errorText;
             sbs->FormatStatusMessage(aResult, EmptyString().get(),
@@ -1210,7 +1205,6 @@ txMozillaXSLTProcessor::ensureStylesheet()
 void
 txMozillaXSLTProcessor::NodeWillBeDestroyed(const nsINode* aNode)
 {
-    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     if (NS_FAILED(mCompileResult)) {
         return;
     }
@@ -1230,7 +1224,7 @@ txMozillaXSLTProcessor::CharacterDataChanged(nsIDocument* aDocument,
 
 void
 txMozillaXSLTProcessor::AttributeChanged(nsIDocument* aDocument,
-                                         Element* aElement,
+                                         nsIContent* aContent,
                                          PRInt32 aNameSpaceID,
                                          nsIAtom* aAttribute,
                                          PRInt32 aModType)
@@ -1241,8 +1235,7 @@ txMozillaXSLTProcessor::AttributeChanged(nsIDocument* aDocument,
 void
 txMozillaXSLTProcessor::ContentAppended(nsIDocument* aDocument,
                                         nsIContent* aContainer,
-                                        nsIContent* aFirstNewContent,
-                                        PRInt32 /* unused */)
+                                        PRInt32 aNewIndexInContainer)
 {
     mStylesheet = nsnull;
 }
@@ -1251,7 +1244,7 @@ void
 txMozillaXSLTProcessor::ContentInserted(nsIDocument* aDocument,
                                         nsIContent* aContainer,
                                         nsIContent* aChild,
-                                        PRInt32 /* unused */)
+                                        PRInt32 aIndexInContainer)
 {
     mStylesheet = nsnull;
 }
@@ -1260,8 +1253,7 @@ void
 txMozillaXSLTProcessor::ContentRemoved(nsIDocument* aDocument,
                                        nsIContent* aContainer,
                                        nsIContent* aChild,
-                                       PRInt32 aIndexInContainer,
-                                       nsIContent* aPreviousSibling)
+                                       PRInt32 aIndexInContainer)
 {
     mStylesheet = nsnull;
 }

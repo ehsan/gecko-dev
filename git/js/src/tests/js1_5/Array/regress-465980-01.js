@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-465980-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 465980;
 var summary = 'Do not crash @ InitArrayElements';

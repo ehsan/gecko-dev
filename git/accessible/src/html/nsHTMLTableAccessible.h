@@ -52,7 +52,7 @@ class nsHTMLTableCellAccessible : public nsHyperTextAccessibleWrap,
                                   public nsIAccessibleTableCell
 {
 public:
-  nsHTMLTableCellAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsHTMLTableCellAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -61,7 +61,7 @@ public:
   NS_DECL_NSIACCESSIBLETABLECELL
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
@@ -95,11 +95,11 @@ protected:
 class nsHTMLTableHeaderCellAccessible : public nsHTMLTableCellAccessible
 {
 public:
-  nsHTMLTableHeaderCellAccessible(nsIContent *aContent,
-                                  nsIWeakReference *aShell);
+  nsHTMLTableHeaderCellAccessible(nsIDOMNode* aDomNode,
+                                  nsIWeakReference* aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 
@@ -124,7 +124,7 @@ class nsHTMLTableAccessible : public nsAccessibleWrap,
                               public nsIAccessibleTable
 {
 public:
-  nsHTMLTableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsHTMLTableAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLETABLE
@@ -137,7 +137,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
@@ -207,15 +207,15 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsHTMLTableAccessible,
 class nsHTMLCaptionAccessible : public nsHyperTextAccessibleWrap
 {
 public:
-  nsHTMLCaptionAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-    nsHyperTextAccessibleWrap(aContent, aShell) { }
+  nsHTMLCaptionAccessible(nsIDOMNode *aDomNode, nsIWeakReference *aShell) :
+    nsHyperTextAccessibleWrap(aDomNode, aShell) { }
 
   // nsIAccessible
   NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
                                nsIAccessibleRelation **aRelation);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 #endif  

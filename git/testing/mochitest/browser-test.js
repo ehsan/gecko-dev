@@ -23,9 +23,8 @@ function testOnLoad() {
   var sstring = Cc["@mozilla.org/supports-string;1"].
                 createInstance(Ci.nsISupportsString);
   sstring.data = location.search;
-
   ww.openWindow(window, "chrome://mochikit/content/browser-harness.xul", "browserTest",
-                "chrome,centerscreen,dialog=no,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
+                "chrome,centerscreen,dialog,resizable,titlebar,toolbar=no,width=800,height=600", sstring);
 }
 
 function Tester(aTests, aDumper, aCallback) {
@@ -46,7 +45,6 @@ function Tester(aTests, aDumper, aCallback) {
   var simpleTestScope = {};
   this._scriptLoader.loadSubScript("chrome://mochikit/content/MochiKit/packed.js", simpleTestScope);
   this._scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/SimpleTest.js", simpleTestScope);
-  this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", simpleTestScope);
   this.SimpleTest = simpleTestScope.SimpleTest;
 }
 Tester.prototype = {
@@ -55,7 +53,6 @@ Tester.prototype = {
 
   checker: null,
   currentTestIndex: -1,
-  lastStartTime: null,
   get currentTest() {
     return this.tests[this.currentTestIndex];
   },
@@ -74,29 +71,16 @@ Tester.prototype = {
   },
 
   waitForWindowsState: function Tester_waitForWindowsState(aCallback) {
-    let timedOut = this.currentTest && this.currentTest.timedOut;
-    let baseMsg = timedOut ? "Found a {elt} after previous test timed out"
-                           : this.currentTest ? "Found an unexpected {elt} at the end of test run"
-                                              : "Found an unexpected {elt}";
-
-    if (this.currentTest && window.gBrowser && gBrowser.tabs.length > 1) {
-      while (gBrowser.tabs.length > 1) {
-        let lastTab = gBrowser.tabContainer.lastChild;
-        let msg = baseMsg.replace("{elt}", "tab") +
-                  ": " + lastTab.linkedBrowser.currentURI.spec;
-        this.currentTest.addResult(new testResult(false, msg, "", false));
-        gBrowser.removeTab(lastTab);
-      }
-    }
-
     this.dumper.dump("TEST-INFO | checking window state\n");
     let windowsEnum = this._wm.getEnumerator("navigator:browser");
     while (windowsEnum.hasMoreElements()) {
       let win = windowsEnum.getNext();
       if (win != window && !win.closed) {
-        let msg = baseMsg.replace("{elt}", "browser window");
-        if (this.currentTest)
+        let msg = "Found an unexpected browser window";
+        if (this.currentTest) {
+          msg += " at the end of test run";
           this.currentTest.addResult(new testResult(false, msg, "", false));
+        }
         else
           this.dumper.dump("TEST-UNEXPECTED-FAIL | (browser-test.js) | " + msg + "\n");
 
@@ -105,18 +89,27 @@ Tester.prototype = {
     }
 
     // Make sure the window is raised before each test.
-    let self = this;
-    this.SimpleTest.waitForFocus(function() {
-      aCallback.apply(self);
-    });
+    if (this._fm.activeWindow != window) {
+      this.dumper.dump("TEST-INFO | (browser-test.js) | Waiting for window activation...\n");
+      let self = this;
+      window.addEventListener("activate", function () {
+        window.removeEventListener("activate", arguments.callee, false);
+        setTimeout(function () {
+          aCallback.apply(self);
+        }, 0);
+      }, false);
+      window.focus();
+      return;
+    }
+
+    aCallback.apply(this);
   },
 
   finish: function Tester_finish(aSkipSummary) {
     this._cs.unregisterListener(this);
 
-    this.dumper.dump("\nINFO TEST-START | Shutdown\n");
     if (this.tests.length) {
-      this.dumper.dump("Browser Chrome Test Summary\n");
+      this.dumper.dump("\nBrowser Chrome Test Summary\n");
 
       function sum(a,b) a+b;
       var passCount = this.tests.map(function (f) f.passCount).reduce(sum);
@@ -142,16 +135,11 @@ Tester.prototype = {
   },
 
   observe: function Tester_observe(aConsoleMessage) {
-    try {
-      var msg = "Console message: " + aConsoleMessage.message;
-      if (this.currentTest)
-        this.currentTest.addResult(new testMessage(msg));
-      else
-        this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
-    } catch (ex) {
-      // Swallow exception so we don't lead to another error being reported,
-      // throwing us into an infinite loop
-    }
+    var msg = "Console message: " + aConsoleMessage.message;
+    if (this.currentTest)
+      this.currentTest.addResult(new testMessage(msg));
+    else
+      this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
   },
 
   nextTest: function Tester_nextTest() {
@@ -161,18 +149,8 @@ Tester.prototype = {
       let testScope = this.currentTest.scope;
       while (testScope.__cleanupFunctions.length > 0) {
         let func = testScope.__cleanupFunctions.shift();
-        try {
-          func.apply(testScope);
-        }
-        catch (ex) {
-          this.currentTest.addResult(new testResult(false, "Cleanup function threw an exception", ex, false));
-        }
+        func.apply(testScope);
       };
-
-      // Note the test run time
-      let time = Date.now() - this.lastStartTime;
-      this.dumper.dump("INFO TEST-END | " + this.currentTest.path + " | finished in " + time + "ms\n");
-      this.currentTest.setDuration(time);
     }
 
     // Check the window state for the current test before moving to the next one.
@@ -192,7 +170,7 @@ Tester.prototype = {
   },
 
   execTest: function Tester_execTest() {
-    this.dumper.dump("TEST-START | " + this.currentTest.path + "\n");
+    this.dumper.dump("Running " + this.currentTest.path + "...\n");
 
     // Load the tests into a testscope
     this.currentTest.scope = new testScope(this, this.currentTest);
@@ -200,17 +178,6 @@ Tester.prototype = {
     // Import utils in the test scope.
     this.currentTest.scope.EventUtils = this.EventUtils;
     this.currentTest.scope.SimpleTest = this.SimpleTest;
-    this.currentTest.scope.gTestPath = this.currentTest.path;
-
-    // Override SimpleTest methods with ours.
-    ["ok", "is", "isnot", "todo", "todo_is", "todo_isnot"].forEach(function(m) {
-      this.SimpleTest[m] = this[m];
-    }, this.currentTest.scope);
-
-    //load the tools to work with chrome .jar and remote
-    try {
-      this._scriptLoader.loadSubScript("chrome://mochikit/content/chrome-harness.js", this.currentTest.scope);
-    } catch (ex) { /* no chrome-harness tools */ }
 
     // Import head.js script if it exists.
     var currentTestDirPath =
@@ -226,7 +193,6 @@ Tester.prototype = {
                                        this.currentTest.scope);
 
       // Run the test
-      this.lastStartTime = Date.now();
       this.currentTest.scope.test();
     } catch (ex) {
       this.currentTest.addResult(new testResult(false, "Exception thrown", ex, false));
@@ -250,8 +216,7 @@ Tester.prototype = {
             setTimeout(arguments.callee, TIMEOUT_SECONDS * 1000);
           return;
         }
-        self.currentTest.addResult(new testResult(false, "Test timed out", "", false));
-        self.currentTest.timedOut = true;
+        self.currentTest.addResult(new testResult(false, "Timed out", "", false));
         self.currentTest.scope.__waitTimer = null;
         self.nextTest();
       }, TIMEOUT_SECONDS * 1000);
@@ -343,12 +308,8 @@ function testScope(aTester, aTest) {
     self.__done = false;
   };
 
-  this.waitForFocus = function test_waitForFocus(callback, targetWindow, expectBlankPage) {
-    self.SimpleTest.waitForFocus(callback, targetWindow, expectBlankPage);
-  };
-
-  this.waitForClipboard = function test_waitForClipboard(expected, setup, success, failure) {
-    self.SimpleTest.waitForClipboard(expected, setup, success, failure);
+  this.waitForFocus = function test_waitForFocus(callback, targetWindow) {
+    self.SimpleTest.waitForFocus(callback, targetWindow);
   };
 
   this.registerCleanupFunction = function test_registerCleanupFunction(aFunction) {
@@ -357,10 +318,6 @@ function testScope(aTester, aTest) {
 
   this.requestLongerTimeout = function test_requestLongerTimeout(aFactor) {
     self.__timeoutFactor = aFactor;
-  };
-
-  this.copyToProfile = function test_copyToProfile(filename) {
-    self.SimpleTest.copyToProfile(filename);
   };
 
   this.finish = function test_finish() {

@@ -9,7 +9,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 using base::Time;
-using namespace nspr;
 
 namespace {
 

@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ * Version: ML 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -39,6 +39,8 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLVideoElement.h"
 #include "nsGenericHTMLElement.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsIFrame.h"
@@ -64,16 +66,12 @@
 #include "nsEventDispatcher.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsIDOMProgressEvent.h"
-#include "nsMediaError.h"
-
-using namespace mozilla::dom;
+#include "nsHTMLMediaError.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Video)
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
-
-DOMCI_NODE_DATA(HTMLVideoElement, nsHTMLVideoElement)
 
 NS_INTERFACE_TABLE_HEAD(nsHTMLVideoElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLVideoElement, nsIDOMHTMLMediaElement, nsIDOMHTMLVideoElement)
@@ -102,8 +100,7 @@ NS_IMETHODIMP nsHTMLVideoElement::GetVideoHeight(PRUint32 *aVideoHeight)
   return NS_OK;
 }
 
-nsHTMLVideoElement::nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+nsHTMLVideoElement::nsHTMLVideoElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }
@@ -160,26 +157,6 @@ nsMapRuleToAttributesFunc
 nsHTMLVideoElement::GetAttributeMappingFunction() const
 {
   return &MapAttributesIntoRule;
-}
-
-nsresult nsHTMLVideoElement::SetAcceptHeader(nsIHttpChannel* aChannel)
-{
-    nsCAutoString value(
-#ifdef MOZ_WEBM
-        "video/webm,"
-#endif
-#ifdef MOZ_OGG
-        "video/ogg,"
-#endif
-        "video/*;q=0.9,"
-#ifdef MOZ_OGG
-        "application/ogg;q=0.7,"
-#endif
-        "audio/*;q=0.6,*/*;q=0.5");
-
-    return aChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
-                                      value,
-                                      PR_FALSE);
 }
 
 NS_IMPL_URI_ATTR(nsHTMLVideoElement, Poster, poster)

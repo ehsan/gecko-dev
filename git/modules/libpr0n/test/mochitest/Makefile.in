@@ -45,7 +45,6 @@ include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES =   imgutils.js \
-                lime100x100.svg \
                 test_bug399925.html \
                 bug399925.gif \
                 schrep.png \
@@ -55,7 +54,6 @@ _TEST_FILES =   imgutils.js \
                 test_bug466586.html \
                 big.png \
                 blue.png \
-                bug478398_ONLY.png \
                 test_bug490949.html \
                 bug490949-iframe.html \
                 bug490949.sjs \
@@ -71,13 +69,9 @@ _TEST_FILES =   imgutils.js \
                 test_bug497665.html \
                 bug497665-iframe.html \
                 bug497665.sjs \
-                test_bug553982.html \
-                test_bug601470.html \
 		$(NULL)
 
-# Tests disabled due to intermittent orange
-# test_bug435296.html disabled - See bug 578591
-# test_bug478398.html disabled - See bug 579139
+#test_bug435296.html disabled until we re-enable decode-on-draw
 
 libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

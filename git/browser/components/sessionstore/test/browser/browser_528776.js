@@ -1,8 +1,9 @@
 var ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+var wm = Cc["@mozilla.org/appshell/window-mediator;1"].getService(Ci.nsIWindowMediator);
 
 function browserWindowsCount(expected) {
   var count = 0;
-  var e = Services.wm.getEnumerator("navigator:browser");
+  var e = wm.getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;

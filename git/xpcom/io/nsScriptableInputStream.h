@@ -59,7 +59,7 @@ public:
     // nsScriptableInputStream methods
     nsScriptableInputStream() {}
 
-    static nsresult
+    static NS_METHOD
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 private:

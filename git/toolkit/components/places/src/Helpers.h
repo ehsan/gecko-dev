@@ -43,8 +43,7 @@
  * This file contains helper classes used by various bits of Places code.
  */
 
-#include "mozilla/storage.h"
-#include "nsIURI.h"
+#include "mozIStorageStatementCallback.h"
 
 namespace mozilla {
 namespace places {
@@ -92,88 +91,6 @@ public:
 #define DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(_localStmt, _globalStmt)           \
   DECLARE_AND_ASSIGN_LAZY_STMT(_localStmt, _globalStmt);                       \
   mozStorageStatementScoper scoper(_localStmt)
-
-
-/**
- * Utils to bind a specified URI (or URL) to a statement or binding params, at
- * the specified index or name.
- * @note URIs are always bound as UTF8.
- */
-class URIBinder // static
-{
-public:
-  // Bind URI to statement by index.
-  static nsresult Bind(mozIStorageStatement* statement,
-                       PRInt32 index,
-                       nsIURI* aURI);
-  // Statement URLCString to statement by index.
-  static nsresult Bind(mozIStorageStatement* statement,
-                       PRInt32 index,
-                       const nsACString& aURLString);
-  // Bind URI to statement by name.
-  static nsresult Bind(mozIStorageStatement* statement,
-                       const nsACString& aName,
-                       nsIURI* aURI);
-  // Bind URLCString to statement by name.
-  static nsresult Bind(mozIStorageStatement* statement,
-                       const nsACString& aName,
-                       const nsACString& aURLString);
-  // Bind URI to params by index.
-  static nsresult Bind(mozIStorageBindingParams* aParams,
-                       PRInt32 index,
-                       nsIURI* aURI);
-  // Bind URLCString to params by index.
-  static nsresult Bind(mozIStorageBindingParams* aParams,
-                       PRInt32 index,
-                       const nsACString& aURLString);
-  // Bind URI to params by name.
-  static nsresult Bind(mozIStorageBindingParams* aParams,
-                       const nsACString& aName,
-                       nsIURI* aURI);
-  // Bind URLCString to params by name.
-  static nsresult Bind(mozIStorageBindingParams* aParams,
-                       const nsACString& aName,
-                       const nsACString& aURLString);
-};
-
-/**
- * This extracts the hostname from the URI and reverses it in the
- * form that we use (always ending with a "."). So
- * "http://microsoft.com/" becomes "moc.tfosorcim."
- * 
- * The idea behind this is that we can create an index over the items in
- * the reversed host name column, and then query for as much or as little
- * of the host name as we feel like.
- * 
- * For example, the query "host >= 'gro.allizom.' AND host < 'gro.allizom/'
- * Matches all host names ending in '.mozilla.org', including
- * 'developer.mozilla.org' and just 'mozilla.org' (since we define all
- * reversed host names to end in a period, even 'mozilla.org' matches).
- * The important thing is that this operation uses the index. Any substring
- * calls in a select statement (even if it's for the beginning of a string)
- * will bypass any indices and will be slow).
- *
- * @param aURI
- *        URI that contains spec to reverse
- * @param aRevHost
- *        Out parameter
- */
-nsresult GetReversedHostname(nsIURI* aURI, nsString& aRevHost);
-
-/**
- * Similar method to GetReversedHostName but for strings
- */
-void GetReversedHostname(const nsString& aForward, nsString& aRevHost);
-
-/**
- * Reverses a string.
- *
- * @param aInput
- *        The string to be reversed
- * @param aReversed
- *        Ouput parameter will contain the reversed string
- */
-void ReverseString(const nsString& aInput, nsString& aReversed);
 
 } // namespace places
 } // namespace mozilla

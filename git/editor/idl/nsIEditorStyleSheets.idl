@@ -39,10 +39,10 @@
 #include "nsISupports.idl"
 
 %{C++
-class nsCSSStyleSheet;
+class nsICSSStyleSheet;
 %}
 
-[ptr] native nsCSSStyleSheet(nsCSSStyleSheet);
+[ptr] native nsICSSStyleSheet(nsICSSStyleSheet);
 
 [scriptable, uuid(4805e682-49b9-11d3-9ce4-ed60bd6cb5bc)]
 
@@ -108,17 +108,17 @@ interface nsIEditorStyleSheets : nsISupports
     */
   void enableStyleSheet(in AString aURL, in PRBool aEnable);
 
-  /** Get the nsCSSStyleSheet associated with the given URL.
+  /** Get the nsICSSStyleSheet associated with the given URL.
     *
     * @param aURL         The style sheet's URL
     * @return             the style sheet
     */
-  [noscript] nsCSSStyleSheet getStyleSheetForURL(in AString aURL);
+  [noscript] nsICSSStyleSheet getStyleSheetForURL(in AString aURL);
 
-  /** Get the URL associated with the given nsCSSStyleSheet.
+  /** Get the URL associated with the given nsICSSStyleSheet.
     *
     * @param aStyleSheet  The style sheet
     * @return             the style sheet's URL
     */
-  [noscript] AString getURLForStyleSheet(in nsCSSStyleSheet aStyleSheet);
+  [noscript] AString getURLForStyleSheet(in nsICSSStyleSheet aStyleSheet);
 };

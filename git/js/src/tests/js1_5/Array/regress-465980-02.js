@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-465980-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 465980;
 var summary = 'Do not crash @ InitArrayElements';
@@ -162,7 +163,7 @@ function test()
     {
       if (a[i] !== unshiftArgs[i])
       {
-        throw "unexpected value at index " + i + " during " +
+        throw "unexpected value at index " + index + " during " +
           describe("testArrayUnshift", startLength, unshiftArgs, expectThrow,
                    expectLength);
       }

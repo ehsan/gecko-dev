@@ -53,7 +53,6 @@
 #include "nsIURI.h"
 #include "nsICryptoHash.h"
 #include "nsString.h"
-#include "nsCycleCollectionParticipant.h"
 
 namespace mozilla {
 namespace widget {
@@ -126,8 +125,7 @@ public:
    JumpListItem(nsIJumpListItem::JUMPLIST_ITEM_SHORTCUT)
   {}
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(JumpListShortcut, JumpListItem);
+  NS_DECL_ISUPPORTS_INHERITED
   NS_IMETHOD GetType(PRInt16 *aType) { return JumpListItem::GetType(aType); }
   NS_IMETHOD Equals(nsIJumpListItem *item, PRBool *_retval);
   NS_DECL_NSIJUMPLISTSHORTCUT

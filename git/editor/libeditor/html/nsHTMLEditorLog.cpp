@@ -671,7 +671,8 @@ nsHTMLEditorLog:: NormalizeTable(nsIDOMElement *aTable)
   if (!mLocked && mFileStream)
   {
     nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aTable);
-    NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+    if (!node)
+      return NS_ERROR_NULL_POINTER;
 
     PrintNode(node, 0);
     Write("GetCurrentEditor().normalizeTable(n0);\n");
@@ -689,7 +690,8 @@ nsHTMLEditorLog::SwitchTableCellHeaderType(nsIDOMElement *aSourceCell, nsIDOMEle
   if (!mLocked && mFileStream)
   {
     nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aSourceCell);
-    NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+    if (!node)
+      return NS_ERROR_NULL_POINTER;
 
     PrintNode(node, 0);
     Write("GetCurrentEditor().switchTableCellHeaderType(n0);\n");
@@ -764,11 +766,13 @@ nsHTMLEditorLog::InsertElementAtSelection(nsIDOMElement* aElement, PRBool aDelet
 
   if (!mLocked && mFileStream)
   {
-    NS_ENSURE_TRUE(aElement, NS_ERROR_NULL_POINTER);
+    if (!aElement)
+      return NS_ERROR_NULL_POINTER;
 
     nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aElement);
 
-    NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+    if (!node)
+      return NS_ERROR_NULL_POINTER;
 
     PrintSelection();
     PrintNode(node, 0);
@@ -788,11 +792,13 @@ nsHTMLEditorLog::InsertLinkAroundSelection(nsIDOMElement* aAnchorElement)
 
   if (!mLocked && mFileStream)
   {
-    NS_ENSURE_TRUE(aAnchorElement, NS_ERROR_NULL_POINTER);
+    if (!aAnchorElement)
+      return NS_ERROR_NULL_POINTER;
 
     nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aAnchorElement);
 
-    NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+    if (!node)
+      return NS_ERROR_NULL_POINTER;
 
     PrintSelection();
     PrintNode(node, 0);
@@ -827,17 +833,19 @@ nsHTMLEditorLog::StartLogging(nsIFile *aLogFile)
 {
   nsresult result = NS_ERROR_FAILURE;
 
-  NS_ENSURE_TRUE(aLogFile, NS_ERROR_NULL_POINTER);
+  if (!aLogFile)
+    return NS_ERROR_NULL_POINTER;
 
   if (mFileStream)
   {
     result = StopLogging();
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
   }
 
   result = NS_NewLocalFileOutputStream(getter_AddRefs(mFileStream), aLogFile);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   if (mTxnMgr)
   {
@@ -882,7 +890,8 @@ nsHTMLEditorLog::Write(const char *aBuffer)
 {
   nsresult result;
 
-  NS_ENSURE_TRUE(aBuffer, NS_ERROR_NULL_POINTER);
+  if (!aBuffer)
+    return NS_ERROR_NULL_POINTER;
 
   PRInt32 len = strlen(aBuffer);
 
@@ -892,13 +901,15 @@ nsHTMLEditorLog::Write(const char *aBuffer)
 
     result = mFileStream->Write(aBuffer, len, &retval);
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
 #ifdef VERY_SLOW
 
     result = mFileStream->Flush();
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
 #endif // VERY_SLOW
   }
@@ -948,7 +959,8 @@ nsHTMLEditorLog::PrintUnicode(const nsAString &aString)
 
     nsresult result = Write(buf);
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
     ++beginIter;
   }
 
@@ -964,11 +976,13 @@ nsHTMLEditorLog::PrintSelection()
 
   result = GetSelection(getter_AddRefs(selection));
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   result = selection->GetRangeCount(&rangeCount);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   Write("selRanges = [ ");
 
@@ -982,34 +996,42 @@ nsHTMLEditorLog::PrintSelection()
   {
     result = selection->GetRangeAt(i, getter_AddRefs(range));
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
     
     result = range->GetStartContainer(getter_AddRefs(startNode));
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
-    NS_ENSURE_TRUE(startNode, NS_ERROR_NULL_POINTER);
+    if (!startNode)
+      return NS_ERROR_NULL_POINTER;
 
     result = range->GetStartOffset(&startOffset);
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
     result = range->GetEndContainer(getter_AddRefs(endNode));
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
-    NS_ENSURE_TRUE(endNode, NS_ERROR_NULL_POINTER);
+    if (!endNode)
+      return NS_ERROR_NULL_POINTER;
 
     result = range->GetEndOffset(&endOffset);
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
     PRInt32 *offsetArray = 0;
     PRInt32 arrayLength = 0;
 
     result = GetNodeTreeOffsets(startNode, &offsetArray, &arrayLength);
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
     if (i != 0)
       Write(",\n              ");
@@ -1035,7 +1057,8 @@ nsHTMLEditorLog::PrintSelection()
 
       result = GetNodeTreeOffsets(endNode, &offsetArray, &arrayLength);
 
-      NS_ENSURE_SUCCESS(result, result);
+      if (NS_FAILED(result))
+        return result;
     }
 
     Write("[[");
@@ -1069,11 +1092,13 @@ nsHTMLEditorLog::PrintElementNode(nsIDOMNode *aNode, PRInt32 aDepth)
   nsCOMPtr<nsIDOMElement> ele = do_QueryInterface(aNode);
   nsCOMPtr<nsIDOMNamedNodeMap> map;
 
-  NS_ENSURE_TRUE(ele, NS_ERROR_NULL_POINTER);
+  if (!ele)
+    return NS_ERROR_NULL_POINTER;
 
   result = ele->GetTagName(tag);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   Write("n");
   WriteInt(aDepth);
@@ -1083,28 +1108,34 @@ nsHTMLEditorLog::PrintElementNode(nsIDOMNode *aNode, PRInt32 aDepth)
 
   result = aNode->GetAttributes(getter_AddRefs(map));
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
-  NS_ENSURE_TRUE(map, NS_ERROR_NULL_POINTER);
+  if (!map)
+    return NS_ERROR_NULL_POINTER;
 
   PRUint32 i, len;
   nsCOMPtr<nsIDOMNode> attr;
 
   result = map->GetLength(&len);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   for (i = 0; i < len; i++)
   {
     result = map->Item(i, getter_AddRefs(attr));
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
-    NS_ENSURE_TRUE(attr, NS_ERROR_NULL_POINTER);
+    if (!attr)
+      return NS_ERROR_NULL_POINTER;
 
     result = PrintAttributeNode(attr, aDepth);
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
   }
 
   result = PrintNodeChildren(aNode, aDepth);
@@ -1118,13 +1149,15 @@ nsHTMLEditorLog::PrintAttributeNode(nsIDOMNode *aNode, PRInt32 aDepth)
   nsresult result;
   nsCOMPtr<nsIDOMAttr> attr = do_QueryInterface(aNode);
 
-  NS_ENSURE_TRUE(attr, NS_ERROR_NULL_POINTER);
+  if (!attr)
+    return NS_ERROR_NULL_POINTER;
 
   nsAutoString str;
 
   result = attr->GetName(str);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   Write("a");
   WriteInt(aDepth);
@@ -1134,7 +1167,8 @@ nsHTMLEditorLog::PrintAttributeNode(nsIDOMNode *aNode, PRInt32 aDepth)
 
   result = attr->GetValue(str);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   Write("a");
   WriteInt(aDepth);
@@ -1156,13 +1190,15 @@ nsHTMLEditorLog::PrintNodeChildren(nsIDOMNode *aNode, PRInt32 aDepth)
 {
   nsresult result;
 
-  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  if (!aNode)
+    return NS_ERROR_NULL_POINTER;
 
   nsCOMPtr<nsIDOMNodeList> list;
 
   result = aNode->GetChildNodes(getter_AddRefs(list));
   
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   if (!list)
   {
@@ -1175,17 +1211,20 @@ nsHTMLEditorLog::PrintNodeChildren(nsIDOMNode *aNode, PRInt32 aDepth)
 
   result = list->GetLength(&len);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   for (i = 0; i < len; i++)
   {
     result = list->Item(i, getter_AddRefs(node));
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
     result = PrintNode(node, aDepth + 1);
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
     Write("n");
     WriteInt(aDepth);
@@ -1204,13 +1243,15 @@ nsHTMLEditorLog::PrintTextNode(nsIDOMNode *aNode, PRInt32 aDepth)
 
   nsCOMPtr<nsIDOMCharacterData> cd = do_QueryInterface(aNode);
 
-  NS_ENSURE_TRUE(cd, NS_ERROR_NULL_POINTER);
+  if (!cd)
+    return NS_ERROR_NULL_POINTER;
 
   nsAutoString str;
 
   result = cd->GetData(str);
 
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result))
+    return result;
 
   Write("n");
   WriteInt(aDepth);
@@ -1226,7 +1267,8 @@ nsHTMLEditorLog::PrintNode(nsIDOMNode *aNode, PRInt32 aDepth)
 {
   nsresult result = NS_OK;
 
-  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  if (!aNode)
+    return NS_ERROR_NULL_POINTER;
 
   PRUint16 nodeType;
   
@@ -1266,7 +1308,8 @@ nsHTMLEditorLog::GetNodeTreeOffsets(nsIDOMNode *aNode, PRInt32 **aResult, PRInt3
 {
   nsresult result;
 
-  NS_ENSURE_TRUE(aNode && aResult && aLength, NS_ERROR_NULL_POINTER);
+  if (!aNode || !aResult || !aLength)
+    return NS_ERROR_NULL_POINTER;
 
   *aResult = 0;
   *aLength = 0;
@@ -1280,7 +1323,8 @@ nsHTMLEditorLog::GetNodeTreeOffsets(nsIDOMNode *aNode, PRInt32 **aResult, PRInt3
   {
     result = parent->GetParentNode(&parent);
 
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result))
+      return result;
 
     if (parent)
       ++i;
@@ -1290,7 +1334,8 @@ nsHTMLEditorLog::GetNodeTreeOffsets(nsIDOMNode *aNode, PRInt32 **aResult, PRInt3
 
   *aResult = new PRInt32[i];
 
-  NS_ENSURE_TRUE(aResult, NS_ERROR_OUT_OF_MEMORY);
+  if (!aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   *aLength = i;
 

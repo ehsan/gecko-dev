@@ -218,7 +218,6 @@ public:
             NS_ASSERTION(0 <= rv, PR_ErrorToName(PR_GetError()));
 
             if (0 == rv) {      // timeout
-                fputs("(timed out!)\n", stderr);
                 Finish(PR_FALSE); // abnormal
                 return;
             }
@@ -247,23 +246,20 @@ public:
                     else
                         mStderr += buf;
                 }
-                else if (isStdout) {
-                    stdoutOpen = PR_FALSE;
-                }
                 else {
-                    stderrOpen = PR_FALSE;
+                    if (isStdout) {
+                        stdoutOpen = PR_FALSE;
+                        PR_Close(mStdoutfd);
+                    }
+                    else {
+                        stderrOpen = PR_FALSE;
+                        PR_Close(mStderrfd);
+                    }
                 }
             }
 
             now = PR_IntervalNow();
         }
-
-        if (stdoutOpen)
-            fputs("(stdout still open!)\n", stderr);
-        if (stderrOpen)
-            fputs("(stderr still open!)\n", stderr);
-        if (now > deadline)
-            fputs("(timed out!)\n", stderr);
 
         Finish(!stdoutOpen && !stderrOpen && now <= deadline);
     }
@@ -272,6 +268,8 @@ private:
     void Finish(PRBool normalExit) {
         if (!normalExit) {
             PR_KillProcess(mProc);
+            PR_Close(mStdoutfd);
+            PR_Close(mStderrfd);
             mExitCode = -1;
             PRInt32 dummy;
             PR_WaitProcess(mProc, &dummy);
@@ -279,9 +277,6 @@ private:
         else {
             PR_WaitProcess(mProc, &mExitCode); // this had better not block ...
         }
-
-        PR_Close(mStdoutfd);
-        PR_Close(mStderrfd);
     }
 
     PRProcess* mProc;
@@ -564,7 +559,7 @@ ContentionNoDeadlock()
 {
     const char * func = __func__;
     Subprocess proc(func);
-    proc.RunToCompletion(60000);
+    proc.RunToCompletion(10000);
     if (0 != proc.mExitCode) {
         printf("(expected 0 == return code, got %d)\n", proc.mExitCode);
         puts("(output)\n----------------------------------\n");

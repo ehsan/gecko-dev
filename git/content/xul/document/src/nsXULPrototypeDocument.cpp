@@ -58,14 +58,12 @@
 #include "nsString.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsDOMCID.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentUtils.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
-#include "xpcpublic.h"
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -133,7 +131,7 @@ nsXULPDGlobalObject_finalize(JSContext *cx, JSObject *obj)
 
 
 JSBool
-nsXULPDGlobalObject_resolve(JSContext *cx, JSObject *obj, jsid id)
+nsXULPDGlobalObject_resolve(JSContext *cx, JSObject *obj, jsval id)
 {
     JSBool did_resolve = JS_FALSE;
 
@@ -267,7 +265,6 @@ nsXULPrototypeDocument::NewXULPDGlobalObject()
 NS_IMETHODIMP
 nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
 {
-    NS_TIME_FUNCTION;
     nsresult rv;
 
     rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(mURI));
@@ -685,7 +682,7 @@ nsXULPDGlobalObject::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScrip
     aScriptContext->WillInitializeContext();
     // NOTE: We init this context with a NULL global - this is subtly
     // different than nsGlobalWindow which passes 'this'
-    rv = aScriptContext->InitContext();
+    rv = aScriptContext->InitContext(nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -730,14 +727,9 @@ nsXULPDGlobalObject::EnsureScriptEnvironment(PRUint32 lang_id)
       // some special JS specific code we should abstract
       JSContext *cx = (JSContext *)ctxNew->GetNativeContext();
       JSAutoRequest ar(cx);
-
-      nsIPrincipal *principal = GetPrincipal();
-      JSObject *newGlob;
-      JSCompartment *compartment;
-
-      rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nsnull,
-                                  false, &newGlob, &compartment);
-      NS_ENSURE_SUCCESS(rv, nsnull);
+      JSObject *newGlob = ::JS_NewObject(cx, &gSharedGlobalClass, nsnull, nsnull);
+      if (!newGlob)
+        return nsnull;
 
       ::JS_SetGlobalObject(cx, newGlob);
 

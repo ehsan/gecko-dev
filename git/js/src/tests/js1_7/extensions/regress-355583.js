@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-355583.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 355583;
 var summary = 'block object access to arbitrary stack slots';
@@ -57,7 +58,7 @@ function test()
   try
   {
     (function() {
-      let b = parent(function(){});
+      let b = function(){}.__parent__;
       print(b[1] = throwError);
     })();
   }

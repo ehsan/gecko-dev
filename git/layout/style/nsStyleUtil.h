@@ -38,13 +38,11 @@
 #define nsStyleUtil_h___
 
 #include "nsCoord.h"
+#include "nsPresContext.h"
+#include "nsILinkHandler.h" // for nsLinkState
 #include "nsCSSProperty.h"
 
-class nsPresContext;
 struct nsStyleBackground;
-class nsString;
-class nsStringComparator;
-class nsIContent;
 
 enum nsFontSizeType {
   eFontSize_HTML = 1,
@@ -71,6 +69,11 @@ public:
                                         nsFontSizeType aFontSizeType = eFontSize_HTML);
 
   static PRInt32 ConstrainFontWeight(PRInt32 aWeight);
+
+  static PRBool IsHTMLLink(nsIContent *aContent, nsILinkHandler *aLinkHandler,
+                           nsLinkState *aState);
+  static PRBool IsLink(nsIContent *aContent, nsILinkHandler *aLinkHandler,
+                       nsLinkState *aState);
 
  static PRBool DashMatchCompare(const nsAString& aAttributeValue,
                                 const nsAString& aSelectorValue,

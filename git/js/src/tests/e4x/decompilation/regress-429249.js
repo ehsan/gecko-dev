@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-429249.js';
 
 var summary = 'trap should not change decompilation <x/>';
 var BUGNUMBER = 429249
@@ -53,9 +54,8 @@ expect = 'function g() { return <x/>; }';
 actual = g + '';
 compareSource(expect, actual, summary + ' : before trap');
 
-if (typeof trap == 'function' && typeof setDebug == 'function')
+if (typeof trap == 'function')
 {
-    setDebug(true);
     trap(g, 0, "");
     actual = g + '';
     compareSource(expect, actual, summary + ' : after trap');

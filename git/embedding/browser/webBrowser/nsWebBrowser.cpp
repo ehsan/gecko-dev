@@ -74,8 +74,6 @@
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
 #include "nsFocusManager.h"
-#include "Layers.h"
-#include "gfxContext.h"
 
 // for painting the background window
 #include "nsIRenderingContext.h"
@@ -91,9 +89,6 @@
 
 // PSM2 includes
 #include "nsISecureBrowserUI.h"
-#include "nsXULAppAPI.h"
-
-using namespace mozilla::layers;
 
 static NS_DEFINE_IID(kWindowCID, NS_WINDOW_CID);
 static NS_DEFINE_CID(kChildCID, NS_CHILD_CID);
@@ -109,7 +104,6 @@ nsWebBrowser::nsWebBrowser() : mDocShellTreeOwner(nsnull),
    mContentType(typeContentWrapper),
    mActivating(PR_FALSE),
    mShouldEnableHistory(PR_TRUE),
-   mIsActive(PR_TRUE),
    mParentNativeWindow(nsnull),
    mProgressListener(nsnull),
    mBackgroundColor(0),
@@ -155,7 +149,7 @@ NS_IMETHODIMP nsWebBrowser::InternalDestroy()
    if (mListenerArray) {
       for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
          nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-         delete state;
+         NS_DELETEXPCOM(state);
       }
       delete mListenerArray;
       mListenerArray = nsnull;
@@ -239,14 +233,14 @@ NS_IMETHODIMP nsWebBrowser::AddWebBrowserListener(nsIWeakReference *aListener, c
         // The window hasn't been created yet, so queue up the listener. They'll be
         // registered when the window gets created.
         nsAutoPtr<nsWebBrowserListenerState> state;
-        state = new nsWebBrowserListenerState();
+        NS_NEWXPCOM(state, nsWebBrowserListenerState);
         if (!state) return NS_ERROR_OUT_OF_MEMORY;
 
         state->mWeakPtr = aListener;
         state->mID = aIID;
 
         if (!mListenerArray) {
-            mListenerArray = new nsTArray<nsWebBrowserListenerState*>();
+            NS_NEWXPCOM(mListenerArray, nsTArray<nsWebBrowserListenerState*>);
             if (!mListenerArray) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
@@ -317,9 +311,9 @@ NS_IMETHODIMP nsWebBrowser::RemoveWebBrowserListener(nsIWeakReference *aListener
         if (0 >= mListenerArray->Length()) {
             for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
                nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-               delete state;
+               NS_DELETEXPCOM(state);
             }
-            delete mListenerArray;
+            NS_DELETEXPCOM(mListenerArray);
             mListenerArray = nsnull;
         }
 
@@ -419,23 +413,6 @@ NS_IMETHODIMP nsWebBrowser::GetContentDOMWindow(nsIDOMWindow **_retval)
     *_retval = retval;
     NS_ADDREF(*_retval);
     return rv;
-}
-
-NS_IMETHODIMP nsWebBrowser::GetIsActive(PRBool *rv)
-{
-  *rv = mIsActive;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsWebBrowser::SetIsActive(PRBool aIsActive)
-{
-  // Set our copy of the value
-  mIsActive = aIsActive;
-
-  // If we have a docshell, pass on the request
-  if (mDocShell)
-    return mDocShell->SetIsActive(aIsActive);
-  return NS_OK;
 }
 
 //*****************************************************************************
@@ -791,7 +768,6 @@ NS_IMETHODIMP nsWebBrowser::SetProperty(PRUint32 aId, PRUint32 aValue)
             NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
             mDocShell->SetAllowDNSPrefetch(!!aValue);
         }
-        break;
     case nsIWebBrowserSetup::SETUP_USE_GLOBAL_HISTORY:
         {
            NS_ENSURE_STATE(mDocShell);
@@ -1153,6 +1129,8 @@ NS_IMETHODIMP nsWebBrowser::Create()
       nsWidgetInitData  widgetInit;
 
       widgetInit.clipChildren = PR_TRUE;
+      widgetInit.mContentType = (mContentType == typeChrome || 
+        mContentType == typeChromeWrapper)? eContentTypeUI: eContentTypeContent;
 
       widgetInit.mWindowType = eWindowType_child;
       nsIntRect bounds(mInitInfo->x, mInitInfo->y, mInitInfo->cx, mInitInfo->cy);
@@ -1190,9 +1168,9 @@ NS_IMETHODIMP nsWebBrowser::Create()
       }
       for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
          nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
-         delete state;
+         NS_DELETEXPCOM(state);
       }
-      delete mListenerArray;
+      NS_DELETEXPCOM(mListenerArray);
       mListenerArray = nsnull;
    }
 
@@ -1230,15 +1208,10 @@ NS_IMETHODIMP nsWebBrowser::Create()
         NS_ENSURE_SUCCESS(rv, rv);
     }
    mDocShellAsNav->SetSessionHistory(mInitInfo->sessionHistory);
-
-#ifdef MOZ_IPC
-   if (XRE_GetProcessType() == GeckoProcessType_Default)
-#endif
-   {
-       // Hook up global history. Do not fail if we can't - just warn.
-       rv = EnableGlobalHistory(mShouldEnableHistory);
-       NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EnableGlobalHistory() failed");
-   }
+   
+   // Hook up global history. Do not fail if we can't - just warn.
+    rv = EnableGlobalHistory(mShouldEnableHistory);
+   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EnableGlobalHistory() failed");
 
    NS_ENSURE_SUCCESS(mDocShellAsWin->Create(), NS_ERROR_FAILURE);
 
@@ -1654,12 +1627,6 @@ NS_IMETHODIMP nsWebBrowser::SetDocShell(nsIDocShell* aDocShell)
          // By default, do not allow DNS prefetch, so we don't break our frozen
          // API.  Embeddors who decide to enable it should do so manually.
          mDocShell->SetAllowDNSPrefetch(PR_FALSE);
-
-         // It's possible to call setIsActive() on us before we have a docshell.
-         // If we're getting a docshell now, pass along our desired value. The
-         // default here (true) matches the default of the docshell, so this is
-         // a no-op unless setIsActive(false) has been called on us.
-         mDocShell->SetIsActive(mIsActive);
      }
      else
      {
@@ -1695,31 +1662,16 @@ NS_IMETHODIMP nsWebBrowser::EnsureDocShellTreeOwner()
    return NS_OK;
 }
 
-static void DrawThebesLayer(ThebesLayer* aLayer,
-                            gfxContext* aContext,
-                            const nsIntRegion& aRegionToDraw,
-                            const nsIntRegion& aRegionToInvalidate,
-                            void* aCallbackData)
-{
-  nscolor* color = static_cast<nscolor*>(aCallbackData);
-  aContext->NewPath();
-  aContext->SetColor(gfxRGBA(*color));
-  nsIntRect dirtyRect = aRegionToDraw.GetBounds();
-  aContext->Rectangle(gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
-  aContext->Fill();  
-}
-
 /* static */
 nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 {
   nsWebBrowser  *browser = nsnull;
   void          *data = nsnull;
-  nsIWidget     *widget = aEvent->widget;
 
-  if (!widget)
+  if (!aEvent->widget)
     return nsEventStatus_eIgnore;
 
-  widget->GetClientData(data);
+  aEvent->widget->GetClientData(data);
   if (!data)
     return nsEventStatus_eIgnore;
 
@@ -1728,18 +1680,39 @@ nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
   switch(aEvent->message) {
 
   case NS_PAINT: {
-      LayerManager* layerManager = widget->GetLayerManager();
-      NS_ASSERTION(layerManager, "Must be in paint event");
+      nsPaintEvent *paintEvent = static_cast<nsPaintEvent *>(aEvent);
+      nsIRenderingContext *rc = paintEvent->renderingContext;
+      nscolor oldColor;
+      rc->GetColor(oldColor);
+      rc->SetColor(browser->mBackgroundColor);
+      
+      nsCOMPtr<nsIDeviceContext> dx;
+      rc->GetDeviceContext(*getter_AddRefs(dx));
+      PRInt32 appUnitsPerDevPixel = dx->AppUnitsPerDevPixel();
 
-      layerManager->BeginTransaction();
-      nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
-      nsPaintEvent* paintEvent = static_cast<nsPaintEvent*>(aEvent);
-      nsIntRect dirtyRect = paintEvent->region.GetBounds();
-      if (root) {
-          root->SetVisibleRegion(dirtyRect);
-          layerManager->SetRoot(root);
+      nsIRegion *region = paintEvent->region;
+      if (region) {
+          nsRegionRectSet *rects = nsnull;
+          region->GetRects(&rects);
+          if (rects) {
+              for (PRUint32 i = 0; i < rects->mNumRects; ++i) {
+                  nsRect r(rects->mRects[i].x*appUnitsPerDevPixel,
+                           rects->mRects[i].y*appUnitsPerDevPixel,
+                           rects->mRects[i].width*appUnitsPerDevPixel,
+                           rects->mRects[i].height*appUnitsPerDevPixel);
+                  rc->FillRect(r);
+              }
+
+              region->FreeRects(rects);
+          }
+      } else if (paintEvent->rect) {
+          nsRect r(paintEvent->rect->x*appUnitsPerDevPixel,
+                   paintEvent->rect->y*appUnitsPerDevPixel,
+                   paintEvent->rect->width*appUnitsPerDevPixel,
+                   paintEvent->rect->height*appUnitsPerDevPixel);
+          rc->FillRect(r);
       }
-      layerManager->EndTransaction(DrawThebesLayer, &browser->mBackgroundColor);
+      rc->SetColor(oldColor);
       return nsEventStatus_eConsumeDoDefault;
     }
 

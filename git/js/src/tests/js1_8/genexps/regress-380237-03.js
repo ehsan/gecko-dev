@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-380237-03.js';
 
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 380237;
@@ -182,6 +183,11 @@ function test()
 
   f = function() { ((a, b) for (x in [])) };
   expect = 'function() { ((a, b) for (x in [])); }';
+  actual = f + '';
+  compareSource(expect, actual, summary);
+
+  f = (function() { ({x setter: (function () {}).x }) });
+  expect = 'function() { ({x setter: function () {}.x }); }';
   actual = f + '';
   compareSource(expect, actual, summary);
 

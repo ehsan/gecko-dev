@@ -50,7 +50,7 @@
 // main
 function run_test() {
   // load our dynamic-container sample service
-  do_load_manifest("nsDynamicContainerServiceSample.manifest");
+  do_load_module("nsDynamicContainerServiceSample.js");
   var testRoot = bmsvc.createFolder(bmsvc.placesRoot, "test root", bmsvc.DEFAULT_INDEX);
   var exposedFolder = bmsvc.createFolder(testRoot, "exposed folder", bmsvc.DEFAULT_INDEX);
   var efId1 = bmsvc.insertBookmark(exposedFolder, uri("http://uri1.tld"), bmsvc.DEFAULT_INDEX, "");

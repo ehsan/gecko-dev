@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Components.utils.import("resource://gre/modules/Services.jsm");
-
 let EXPORTED_SYMBOLS = [
   "CrashSubmit"
 ];
@@ -45,10 +43,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const STATE_START = Ci.nsIWebProgressListener.STATE_START;
 const STATE_STOP = Ci.nsIWebProgressListener.STATE_STOP;
-
-const SUCCESS = "success";
-const FAILED  = "failed";
-const SUBMITTING = "submitting";
 
 let reportURL = null;
 let strings = null;
@@ -166,8 +160,6 @@ function writeSubmittedReport(crashID, viewURL) {
   let reportFile = directoryService.get("UAppData", Ci.nsIFile);
   reportFile.append("Crash Reports");
   reportFile.append("submitted");
-  if (!reportFile.exists())
-    reportFile.create(Ci.nsIFile.DIRECTORY_TYPE, 0700);
   reportFile.append(crashID + ".txt");
   var fstream = Cc["@mozilla.org/network/file-output-stream;1"].
                 createInstance(Ci.nsIFileOutputStream);
@@ -187,20 +179,18 @@ function writeSubmittedReport(crashID, viewURL) {
 }
 
 // the Submitter class represents an individual submission.
-function Submitter(id, element, submitSuccess, submitError, noThrottle) {
+function Submitter(id, element, submitSuccess, submitError) {
   this.id = id;
   this.element = element;
   this.document = element.ownerDocument;
   this.successCallback = submitSuccess;
   this.errorCallback = submitError;
-  this.noThrottle = noThrottle;
 }
 
 Submitter.prototype = {
   submitSuccess: function Submitter_submitSuccess(ret)
   {
     if (!ret.CrashID) {
-      this.notifyStatus(FAILED);
       this.cleanup();
       return;
     }
@@ -217,7 +207,8 @@ Submitter.prototype = {
       // report an error? not much the user can do here.
     }
 
-    this.notifyStatus(SUCCESS, ret);
+    if (this.successCallback)
+      this.successCallback(this.id, ret);
     this.cleanup();
   },
 
@@ -251,10 +242,8 @@ Submitter.prototype = {
     for (let [name, value] in Iterator(reportData)) {
       addFormEntry(this.iframe.contentDocument, form, name, value);
     }
-    if (this.noThrottle) {
-      // tell the server not to throttle this, since it was manually submitted
-      addFormEntry(this.iframe.contentDocument, form, "Throttleable", "0");
-    }
+    // tell the server not to throttle this, since it was manually submitted
+    addFormEntry(this.iframe.contentDocument, form, "Throttleable", "0");
     // add the minidump
     this.iframe.contentDocument.getElementById('minidump').value
       = this.dump.path;
@@ -277,13 +266,14 @@ Submitter.prototype = {
   onStateChange: function(aWebProgress, aRequest, aFlag, aStatus)
   {
     if(aFlag & STATE_STOP) {
-      this.iframe.docShell.QueryInterface(Ci.nsIWebProgress);
       this.iframe.docShell.removeProgressListener(this);
 
       // check general request status first
       if (!Components.isSuccessCode(aStatus)) {
         this.element.removeChild(this.iframe);
-        this.notifyStatus(FAILED);
+        if (this.errorCallback) {
+          this.errorCallback(this.id);
+        }
         this.cleanup();
         return 0;
       }
@@ -291,7 +281,9 @@ Submitter.prototype = {
       if (aRequest instanceof Ci.nsIHttpChannel &&
           aRequest.responseStatus != 200) {
         this.element.removeChild(this.iframe);
-        this.notifyStatus(FAILED);
+        if (this.errorCallback) {
+          this.errorCallback(this.id);
+        }
         this.cleanup();
         return 0;
       }
@@ -308,58 +300,25 @@ Submitter.prototype = {
   onStatusChange: function() {return 0;},
   onSecurityChange: function() {return 0;},
 
-  notifyStatus: function Submitter_notify(status, ret)
-  {
-    let propBag = Cc["@mozilla.org/hash-property-bag;1"].
-                  createInstance(Ci.nsIWritablePropertyBag2);
-    propBag.setPropertyAsAString("minidumpID", this.id);
-    if (status == SUCCESS) {
-      propBag.setPropertyAsAString("serverCrashID", ret.CrashID);
-    }
-
-    Services.obs.notifyObservers(propBag, "crash-report-status", status);
-
-    switch (status) {
-      case SUCCESS:
-        if (this.successCallback)
-          this.successCallback(this.id, ret);
-        break;
-      case FAILED:
-        if (this.errorCallback)
-          this.errorCallback(this.id);
-        break;
-      default:
-        // no callbacks invoked.
-    }
-  },
-
   submit: function Submitter_submit()
   {
     let [dump, extra] = getPendingMinidump(this.id);
     if (!dump.exists() || !extra.exists()) {
-      this.notifyStatus(FAILED);
       this.cleanup();
       return false;
     }
-
-    this.notifyStatus(SUBMITTING);
-
     this.dump = dump;
     this.extra = extra;
     let iframe = this.document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "iframe");
     iframe.setAttribute("type", "content");
-    iframe.style.width = 0;
-    iframe.style.minWidth = 0;
 
     let self = this;
     function loadHandler() {
       if (iframe.contentWindow.location == "about:blank")
         return;
       iframe.removeEventListener("load", loadHandler, true);
-      if (!self.submitForm()) {
-        this.notifyStatus(FAILED);
+      if (!self.submitForm())
         self.cleanup();
-      }
     }
 
     iframe.addEventListener("load", loadHandler, true);
@@ -390,25 +349,14 @@ let CrashSubmit = {
    *        A function that will be called with one parameter if the
    *        report fails to submit: the id that was passed to this
    *        function.
-   * @param noThrottle
-   *        If true, this crash report should be submitted with
-   *        an extra parameter of "Throttleable=0" indicating that
-   *        it should be processed right away. This should be set
-   *        when the report is being submitted and the user expects
-   *        to see the results immediately.
    *
    * @return true if the submission began successfully, or false if
    *         it failed for some reason. (If the dump file does not
    *         exist, for example.)
    */
-  submit: function CrashSubmit_submit(id, element, submitSuccess, submitError,
-                                      noThrottle)
+  submit: function CrashSubmit_submit(id, element, submitSuccess, submitError)
   {
-    let submitter = new Submitter(id,
-                                  element,
-                                  submitSuccess,
-                                  submitError,
-                                  noThrottle);
+    let submitter = new Submitter(id, element, submitSuccess, submitError);
     CrashSubmit._activeSubmissions.push(submitter);
     return submitter.submit();
   },

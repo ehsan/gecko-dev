@@ -39,7 +39,7 @@
 #include "nsUCvKODll.h"
 #include "nsUCConstructors.h"
 
-nsresult
+NS_METHOD
 nsEUCKRToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult)
 {

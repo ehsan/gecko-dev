@@ -55,6 +55,8 @@
 
 #include "nsIDOMWindow.h"
 
+#include "nsIPresShell.h"
+#include "nsPresContext.h"
 #include "nsIStringBundle.h"
 #include "nsIScriptSecurityManager.h"
 
@@ -63,8 +65,6 @@
 
 #include "nsIDOMDocument.h"
 #include "nsIDocument.h"
-#include "nsPresContext.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 static NS_DEFINE_CID(kThisImplCID, NS_THIS_DOCLOADER_IMPL_CID);
 
@@ -153,7 +153,6 @@ nsDocLoader::nsDocLoader()
     mListenerInfoList(8),
     mIsLoadingDocument(PR_FALSE),
     mIsRestoringDocument(PR_FALSE),
-    mDontFlushLayout(PR_FALSE),
     mIsFlushingLayout(PR_FALSE)
 {
 #if defined(PR_LOGGING)
@@ -327,10 +326,6 @@ nsDocLoader::Stop(void)
 
   if (mLoadGroup)
     rv = mLoadGroup->Cancel(NS_BINDING_ABORTED);
-
-  // Don't report that we're flushing layout so IsBusy returns false after a
-  // Stop call.
-  mIsFlushingLayout = PR_FALSE;
 
   // Clear out mChildrenInOnload.  We want to make sure to fire our
   // onload at this point, and there's no issue with mChildrenInOnload
@@ -751,26 +746,15 @@ void nsDocLoader::DocLoaderIsEmpty(PRBool aFlushLayout)
 
     NS_ASSERTION(!mIsFlushingLayout, "Someone screwed up");
 
-    // The load group for this DocumentLoader is idle.  Flush if we need to.
-    if (aFlushLayout && !mDontFlushLayout) {
+    // The load group for this DocumentLoader is idle.  Flush layout if we need
+    // to.
+    if (aFlushLayout) {
       nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(GetAsSupports(this));
       nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
       if (doc) {
-        // We start loads from style resolution, so we need to flush out style
-        // no matter what.  If we have user fonts, we also need to flush layout,
-        // since the reflow is what starts font loads.
-        mozFlushType flushType = Flush_Style;
-        nsIPresShell* shell = doc->GetShell();
-        if (shell) {
-          // Be safe in case this presshell is in teardown now
-          nsPresContext* presContext = shell->GetPresContext();
-          if (presContext && presContext->GetUserFontSet()) {
-            flushType = Flush_Layout;
-          }
-        }
-        mDontFlushLayout = mIsFlushingLayout = PR_TRUE;
-        doc->FlushPendingNotifications(flushType);
-        mDontFlushLayout = mIsFlushingLayout = PR_FALSE;
+        mIsFlushingLayout = PR_TRUE;
+        doc->FlushPendingNotifications(Flush_Layout);
+        mIsFlushingLayout = PR_FALSE;
       }
     }
 
@@ -1168,16 +1152,13 @@ NS_IMETHODIMP nsDocLoader::OnStatus(nsIRequest* aRequest, nsISupports* ctxt,
         info->mMaxProgress = LL_ZERO;
       }
     }
-
-    nsCOMPtr<nsIStringBundleService> sbs =
-      mozilla::services::GetStringBundleService();
-    if (!sbs)
-      return NS_ERROR_FAILURE;
+    
+    nsresult rv;
+    nsCOMPtr<nsIStringBundleService> sbs = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) return rv;
     nsXPIDLString msg;
-    nsresult rv = sbs->FormatStatusMessage(aStatus, aStatusArg,
-                                           getter_Copies(msg));
-    if (NS_FAILED(rv))
-      return rv;
+    rv = sbs->FormatStatusMessage(aStatus, aStatusArg, getter_Copies(msg));
+    if (NS_FAILED(rv)) return rv;
 
     // Keep around the message. In case a request finishes, we need to make sure
     // to send the status message of another request to our user to that we
@@ -1313,13 +1294,12 @@ void nsDocLoader::FireOnStateChange(nsIWebProgress *aProgress,
    */
   nsCOMPtr<nsIWebProgressListener> listener;
   PRInt32 count = mListenerInfoList.Count();
-  PRInt32 notifyMask = (aStateFlags >> 16) & nsIWebProgress::NOTIFY_STATE_ALL;
 
   while (--count >= 0) {
     nsListenerInfo *info;
 
     info = static_cast<nsListenerInfo*>(mListenerInfoList.SafeElementAt(count));
-    if (!info || !(info->mNotifyMask & notifyMask)) {
+    if (!info || !(info->mNotifyMask & (aStateFlags >>16))) {
       continue;
     }
 
@@ -1585,10 +1565,9 @@ PRInt64 nsDocLoader::CalculateMaxProgress()
   return max;
 }
 
-NS_IMETHODIMP nsDocLoader::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                                  nsIChannel *aNewChannel,
-                                                  PRUint32 aFlags,
-                                                  nsIAsyncVerifyRedirectCallback *cb)
+NS_IMETHODIMP nsDocLoader::OnChannelRedirect(nsIChannel *aOldChannel,
+                                             nsIChannel *aNewChannel,
+                                             PRUint32    aFlags)
 {
   if (aOldChannel)
   {
@@ -1613,7 +1592,6 @@ NS_IMETHODIMP nsDocLoader::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
     FireOnStateChange(this, aOldChannel, stateFlags, NS_OK);
   }
 
-  cb->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }
 

@@ -84,14 +84,14 @@ NS_IMETHODIMP SetDocTitleTxn::RedoTransaction(void)
 nsresult SetDocTitleTxn::SetDomTitle(const nsAString& aTitle)
 {
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(mEditor);
-  NS_ENSURE_TRUE(editor, NS_ERROR_FAILURE);
+  if (!editor) return NS_ERROR_FAILURE;
   nsCOMPtr<nsIDOMDocument> domDoc;
   nsresult res = editor->GetDocument(getter_AddRefs(domDoc));
-  NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
+  if (!domDoc) return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMNodeList> titleList;
   res = domDoc->GetElementsByTagName(NS_LITERAL_STRING("title"), getter_AddRefs(titleList));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   // First assume we will NOT really do anything
   // (transaction will not be pushed on stack)
@@ -101,7 +101,7 @@ nsresult SetDocTitleTxn::SetDomTitle(const nsAString& aTitle)
   if(titleList)
   {
     res = titleList->Item(0, getter_AddRefs(titleNode));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     if (titleNode)
     {
       // Delete existing child textnode of title node
@@ -134,12 +134,12 @@ nsresult SetDocTitleTxn::SetDomTitle(const nsAString& aTitle)
   // Get the <HEAD> node, create a <TITLE> and insert it under the HEAD
   nsCOMPtr<nsIDOMNodeList> headList;
   res = domDoc->GetElementsByTagName(NS_LITERAL_STRING("head"),getter_AddRefs(headList));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(headList, NS_ERROR_FAILURE);
+  if (NS_FAILED(res)) return res;
+  if (!headList) return NS_ERROR_FAILURE;
   
   nsCOMPtr<nsIDOMNode>headNode;
   headList->Item(0, getter_AddRefs(headNode));
-  NS_ENSURE_TRUE(headNode, NS_ERROR_FAILURE);
+  if (!headNode) return NS_ERROR_FAILURE;
 
   PRBool   newTitleNode = PR_FALSE;
   PRUint32 newTitleIndex = 0;
@@ -149,8 +149,8 @@ nsresult SetDocTitleTxn::SetDomTitle(const nsAString& aTitle)
     // Didn't find one above: Create a new one
     nsCOMPtr<nsIDOMElement>titleElement;
     res = domDoc->CreateElement(NS_LITERAL_STRING("title"), getter_AddRefs(titleElement));
-    NS_ENSURE_SUCCESS(res, res);
-    NS_ENSURE_TRUE(titleElement, NS_ERROR_FAILURE);
+    if (NS_FAILED(res)) return res;
+    if (!titleElement) return NS_ERROR_FAILURE;
 
     titleNode = do_QueryInterface(titleElement);
     newTitleNode = PR_TRUE;
@@ -159,7 +159,7 @@ nsresult SetDocTitleTxn::SetDomTitle(const nsAString& aTitle)
     // after all existing HEAD children
     nsCOMPtr<nsIDOMNodeList> children;
     res = headNode->GetChildNodes(getter_AddRefs(children));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     if (children)
       children->GetLength(&newTitleIndex);
   }
@@ -170,9 +170,9 @@ nsresult SetDocTitleTxn::SetDomTitle(const nsAString& aTitle)
   {
     nsCOMPtr<nsIDOMText> textNode;
     res = domDoc->CreateTextNode(aTitle, getter_AddRefs(textNode));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     nsCOMPtr<nsIDOMNode> newNode = do_QueryInterface(textNode);
-    NS_ENSURE_TRUE(newNode, NS_ERROR_FAILURE);
+    if (!newNode) return NS_ERROR_FAILURE;
 
     if (newTitleNode)
     {
@@ -185,7 +185,7 @@ nsresult SetDocTitleTxn::SetDomTitle(const nsAString& aTitle)
       // This is an undoable transaction
       res = editor->InsertNode(newNode, titleNode, 0);
     }
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
 
   if (newTitleNode)
@@ -205,7 +205,7 @@ NS_IMETHODIMP SetDocTitleTxn::GetTxnDescription(nsAString& aString)
 
 NS_IMETHODIMP SetDocTitleTxn::GetIsTransient(PRBool *aIsTransient)
 {
-  NS_ENSURE_TRUE(aIsTransient, NS_ERROR_NULL_POINTER);  
+  if (!aIsTransient) return NS_ERROR_NULL_POINTER;  
   *aIsTransient = mIsTransient;
   return NS_OK;
 }

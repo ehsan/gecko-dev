@@ -121,36 +121,6 @@ FinalizeInstallTriggerGlobal(JSContext *cx, JSObject *obj)
   }
 }
 
-static JSBool CreateNativeObject(JSContext *cx, JSObject *obj, nsIDOMInstallTriggerGlobal **aResult)
-{
-    nsresult result;
-    nsIScriptObjectOwner *owner = nsnull;
-    nsIDOMInstallTriggerGlobal *nativeThis;
-
-    static NS_DEFINE_CID(kInstallTrigger_CID,
-                         NS_SoftwareUpdateInstallTrigger_CID);
-
-    result = CallCreateInstance(kInstallTrigger_CID, &nativeThis);
-    if (NS_FAILED(result)) return JS_FALSE;
-
-    result = nativeThis->QueryInterface(NS_GET_IID(nsIScriptObjectOwner),
-                                        (void **)&owner);
-
-    if (NS_OK != result)
-    {
-        NS_RELEASE(nativeThis);
-        return JS_FALSE;
-    }
-
-    owner->SetScriptObject((void *)obj);
-    JS_SetPrivate(cx, obj, nativeThis);
-
-    *aResult = nativeThis;
-
-    NS_RELEASE(nativeThis);  // we only want one refcnt. JSUtils cleans us up.
-    return JS_TRUE;
-}
-
 //
 // Helper function for URI verification
 //
@@ -193,12 +163,7 @@ static nsIDOMInstallTriggerGlobal* getTriggerNative(JSContext *cx, JSObject *obj
   if (!JS_InstanceOf(cx, obj, &InstallTriggerGlobalClass, nsnull))
     return nsnull;
 
-  nsIDOMInstallTriggerGlobal *native = (nsIDOMInstallTriggerGlobal*)JS_GetPrivate(cx, obj);
-  if (!native) {
-    // xpinstall script contexts delay creation of the native.
-    CreateNativeObject(cx, obj, &native);
-  }
-  return native;
+  return (nsIDOMInstallTriggerGlobal*)JS_GetPrivate(cx, obj);
 }
 
 //
@@ -294,6 +259,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
       jsval v;
       const PRUnichar *name, *URL;
       const PRUnichar *iconURL = nsnull;
+      const char *hash;
 
       for (int i = 0; i < ida->length && !abortLoad; i++ )
       {
@@ -308,45 +274,23 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
         name = reinterpret_cast<const PRUnichar*>(JS_GetStringChars( str ));
 
         URL = iconURL = nsnull;
-        JSAutoByteString hash;
+        hash = nsnull;
         JS_GetUCProperty( cx, JSVAL_TO_OBJECT(argv[0]), reinterpret_cast<const jschar*>(name), nsCRT::strlen(name), &v );
         if ( JSVAL_IS_OBJECT(v) && JSVAL_TO_OBJECT(v) )
         {
           jsval v2;
-          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "URL", &v2 ) && !JSVAL_IS_VOID(v2)) {
-            JSString *str = JS_ValueToString(cx, v2);
-            if (!str) {
-              abortLoad = PR_TRUE;
-              break;
-            }
-            URL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars(str));
-          }
+          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "URL", &v2 ) && !JSVAL_IS_VOID(v2))
+            URL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars( JS_ValueToString( cx, v2 ) ));
 
-          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "IconURL", &v2 ) && !JSVAL_IS_VOID(v2)) {
-            JSString *str = JS_ValueToString(cx, v2);
-            if (!str) {
-              abortLoad = PR_TRUE;
-              break;
-            }
-            iconURL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars(str));
-          }
+          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "IconURL", &v2 ) && !JSVAL_IS_VOID(v2))
+            iconURL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars( JS_ValueToString( cx, v2 ) ));
 
-          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "Hash", &v2) && !JSVAL_IS_VOID(v2)) {
-            JSString *str = JS_ValueToString(cx, v2);
-            if (!str || !hash.encode(cx, str)) {
-              abortLoad = PR_TRUE;
-              break;
-            }
-          }
+          if (JS_GetProperty( cx, JSVAL_TO_OBJECT(v), "Hash", &v2) && !JSVAL_IS_VOID(v2))
+            hash = reinterpret_cast<const char*>(JS_GetStringBytes( JS_ValueToString( cx, v2 ) ));
         }
         else
         {
-          JSString *str = JS_ValueToString(cx, v);
-          if (!str) {
-            abortLoad = PR_TRUE;
-            break;
-          }
-          URL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars(str));
+          URL = reinterpret_cast<const PRUnichar*>(JS_GetStringChars( JS_ValueToString( cx, v ) ));
         }
 
         if ( URL )
@@ -418,8 +362,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
                 nativeThis->UpdateEnabled(checkuri, XPI_WHITELIST, &enabled);
                 if (!enabled)
                 {
-                    nsCOMPtr<nsIObserverService> os =
-                      mozilla::services::GetObserverService();
+                    nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                     if (os)
                         os->NotifyObservers(installInfo,
                                             "xpinstall-install-blocked",
@@ -542,8 +485,7 @@ InstallTriggerGlobalInstallChrome(JSContext *cx, JSObject *obj, uintN argc, jsva
                                               &enabled);
                     if (!enabled)
                     {
-                        nsCOMPtr<nsIObserverService> os =
-                          mozilla::services::GetObserverService();
+                        nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                         if (os)
                             os->NotifyObservers(installInfo,
                                                 "xpinstall-install-blocked",
@@ -647,8 +589,7 @@ InstallTriggerGlobalStartSoftwareUpdate(JSContext *cx, JSObject *obj, uintN argc
                 nativeThis->UpdateEnabled(checkuri, XPI_WHITELIST, &enabled);
                 if (!enabled)
                 {
-                    nsCOMPtr<nsIObserverService> os =
-                      mozilla::services::GetObserverService();
+                    nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
                     if (os)
                         os->NotifyObservers(installInfo,
                                             "xpinstall-install-blocked",

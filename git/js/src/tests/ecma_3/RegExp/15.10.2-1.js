@@ -41,11 +41,12 @@
  * Date:    09 July 2002
  * SUMMARY: RegExp conformance test
  *
- *   These testcases are derived from the examples in the ECMA-262 Ed.3 spec
+ *   These gTestcases are derived from the examples in the ECMA-262 Ed.3 spec
  *   scattered through section 15.10.2.
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = '15.10.2-1.js';
 var i = 0;
 var BUGNUMBER = '(none)';
 var summary = 'RegExp conformance test';

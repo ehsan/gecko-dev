@@ -49,7 +49,6 @@
 #include "nsIDocument.h"
 #include "nsThreadUtils.h"
 
-using namespace mozilla::dom;
 
 /**
  * class used to implement attr() generated content
@@ -60,7 +59,7 @@ class nsAttributeTextNode : public nsTextNode,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   
-  nsAttributeTextNode(already_AddRefed<nsINodeInfo> aNodeInfo,
+  nsAttributeTextNode(nsINodeInfo *aNodeInfo,
                       PRInt32 aNameSpaceID,
                       nsIAtom* aAttrName) :
     nsTextNode(aNodeInfo),
@@ -88,8 +87,7 @@ public:
   virtual nsGenericDOMDataNode *CloneDataNode(nsINodeInfo *aNodeInfo,
                                               PRBool aCloneText) const
   {
-    nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-    nsAttributeTextNode *it = new nsAttributeTextNode(ni.forget(),
+    nsAttributeTextNode *it = new nsAttributeTextNode(aNodeInfo,
                                                       mNameSpaceID,
                                                       mAttrName);
     if (it && aCloneText) {
@@ -131,7 +129,7 @@ NS_NewTextNode(nsIContent** aInstancePtrResult,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  nsTextNode *instance = new nsTextNode(ni.forget());
+  nsIContent *instance = new nsTextNode(ni);
   if (!instance) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -141,8 +139,8 @@ NS_NewTextNode(nsIContent** aInstancePtrResult,
   return NS_OK;
 }
 
-nsTextNode::nsTextNode(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : nsGenericTextNode(aNodeInfo)
+nsTextNode::nsTextNode(nsINodeInfo *aNodeInfo)
+  : nsGenericDOMDataNode(aNodeInfo)
 {
 }
 
@@ -153,7 +151,6 @@ nsTextNode::~nsTextNode()
 NS_IMPL_ADDREF_INHERITED(nsTextNode, nsGenericDOMDataNode)
 NS_IMPL_RELEASE_INHERITED(nsTextNode, nsGenericDOMDataNode)
 
-DOMCI_NODE_DATA(Text, nsTextNode)
 
 // QueryInterface implementation for nsTextNode
 NS_INTERFACE_TABLE_HEAD(nsTextNode)
@@ -161,7 +158,7 @@ NS_INTERFACE_TABLE_HEAD(nsTextNode)
                            nsIDOMCharacterData)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Text, new nsText3Tearoff(this))
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsTextNode)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Text)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(Text)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
 NS_IMETHODIMP
@@ -199,8 +196,7 @@ nsTextNode::IsNodeOfType(PRUint32 aFlags) const
 nsGenericDOMDataNode*
 nsTextNode::CloneDataNode(nsINodeInfo *aNodeInfo, PRBool aCloneText) const
 {
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsTextNode *it = new nsTextNode(ni.forget());
+  nsTextNode *it = new nsTextNode(aNodeInfo);
   if (it && aCloneText) {
     it->mText = mText;
   }
@@ -222,7 +218,7 @@ nsTextNode::BindToAttribute(nsIAttribute* aAttr)
 nsresult
 nsTextNode::UnbindFromAttribute()
 {
-  NS_ASSERTION(GetNodeParent(), "Bind before unbinding!");
+  NS_ASSERTION(GetNodeParent(), "Bind before unbinging!");
   NS_ASSERTION(GetNodeParent() &&
                GetNodeParent()->IsNodeOfType(nsINode::eATTRIBUTE),
                "Use this method only to unbind from an attribute!");
@@ -238,9 +234,7 @@ nsTextNode::List(FILE* out, PRInt32 aIndent) const
   for (index = aIndent; --index >= 0; ) fputs("  ", out);
 
   fprintf(out, "Text@%p", static_cast<const void*>(this));
-  fprintf(out, " intrinsicstate=[%11x]", IntrinsicState().GetInternalValue());
-  fprintf(out, " flags=[%08x]", static_cast<unsigned int>(GetFlags()));
-  fprintf(out, " primaryframe=%p", static_cast<void*>(GetPrimaryFrame()));
+  fprintf(out, " intrinsicstate=[%08x]", IntrinsicState());
   fprintf(out, " refcount=%d<", mRefCnt.get());
 
   nsAutoString tmp;
@@ -284,8 +278,7 @@ NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  nsAttributeTextNode* textNode = new nsAttributeTextNode(ni.forget(),
-                                                          aNameSpaceID,
+  nsAttributeTextNode* textNode = new nsAttributeTextNode(ni, aNameSpaceID,
                                                           aAttrName);
   if (!textNode) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -338,19 +331,22 @@ nsAttributeTextNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 
 void
 nsAttributeTextNode::AttributeChanged(nsIDocument* aDocument,
-                                      Element* aElement,
+                                      nsIContent* aContent,
                                       PRInt32 aNameSpaceID,
                                       nsIAtom* aAttribute,
                                       PRInt32 aModType)
 {
   if (aNameSpaceID == mNameSpaceID && aAttribute == mAttrName &&
-      aElement == mGrandparent) {
-    // Since UpdateText notifies, do it when it's safe to run script.  Note
-    // that if we get unbound while the event is up that's ok -- we'll just
-    // have no grandparent when it fires, and will do nothing.
-    void (nsAttributeTextNode::*update)() = &nsAttributeTextNode::UpdateText;
-    nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(this, update);
-    nsContentUtils::AddScriptRunner(ev);
+      aContent == mGrandparent) {
+    // Since UpdateText notifies, do it asynchronously.  Note that if we get
+    // unbound while the event is up that's ok -- we'll just have no
+    // grandparent when it fires, and will do nothing.    
+    // XXXbz ideally we'd either process this on layout flushes or do it right
+    // after nsIMutationObserver notifications are over or something, instead
+    // of doing it fully async.
+    nsCOMPtr<nsIRunnable> ev = new nsRunnableMethod<nsAttributeTextNode>(
+            this, &nsAttributeTextNode::UpdateText);
+    NS_DispatchToCurrentThread(ev);
   }
 }
 

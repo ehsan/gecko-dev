@@ -38,10 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsToolkit.h"
-
 #include "nscore.h"  // needed for 'nsnull'
-
+#include "nsToolkit.h"
 #include "nsGUIEvent.h"
 #include "nsWidgetAtoms.h"
 //#include "plevent.h"

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-324278.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 324278;
 var summary = 'GC without recursion';

@@ -69,7 +69,6 @@
 #include "nsAppRunner.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
-#include "nsNativeCharsetUtils.h"
 
 
 class nsToolkitProfile : public nsIToolkitProfile
@@ -657,11 +656,7 @@ nsToolkitProfileService::CreateProfile(nsILocalFile* aRootDir,
         dirName = aName;
         SaltProfileName(dirName);
 
-        if (NS_IsNativeUTF8()) {
-            rootDir->AppendNative(dirName);
-        } else {
-            rootDir->Append(NS_ConvertUTF8toUTF16(dirName));
-        }
+        rootDir->AppendNative(dirName);
     }
 
     nsCOMPtr<nsILocalFile> localDir (aLocalDir);
@@ -681,11 +676,7 @@ nsToolkitProfileService::CreateProfile(nsILocalFile* aRootDir,
             NS_ENSURE_TRUE(localDir, NS_ERROR_UNEXPECTED);
 
             // use same salting
-            if (NS_IsNativeUTF8()) {
-                localDir->AppendNative(dirName);
-            } else {
-                localDir->Append(NS_ConvertUTF8toUTF16(dirName));
-            }
+            localDir->AppendNative(dirName);
         }
     }
 
@@ -703,12 +694,12 @@ nsToolkitProfileService::CreateProfile(nsILocalFile* aRootDir,
     else {
         nsCOMPtr<nsIFile> profileDefaultsDir;
         nsCOMPtr<nsIFile> profileDirParent;
-        nsAutoString profileDirName;
+        nsCAutoString profileDirName;
 
         rv = rootDir->GetParent(getter_AddRefs(profileDirParent));
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = rootDir->GetLeafName(profileDirName);
+        rv = rootDir->GetNativeLeafName(profileDirName);
         NS_ENSURE_SUCCESS(rv, rv);
 
         PRBool dummy;
@@ -716,8 +707,8 @@ nsToolkitProfileService::CreateProfile(nsILocalFile* aRootDir,
                                           getter_AddRefs(profileDefaultsDir));
 
         if (NS_SUCCEEDED(rv))
-            rv = profileDefaultsDir->CopyTo(profileDirParent,
-                                            profileDirName);
+            rv = profileDefaultsDir->CopyToNative(profileDirParent,
+                                                  profileDirName);
         if (NS_FAILED(rv)) {
             // if copying failed, lets just ensure that the profile directory exists.
             rv = rootDir->Create(nsIFile::DIRECTORY_TYPE, 0700);

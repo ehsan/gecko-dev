@@ -53,15 +53,13 @@
 #include "nsHashtable.h"
 #include "nsThreadUtils.h"
 
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIWidget.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 
 #include "nsINode.h"
-
-namespace dom = mozilla::dom;
 
 NS_IMPL_ISUPPORTS1(nsMenuGroupOwnerX, nsIMutationObserver)
 
@@ -121,11 +119,12 @@ void nsMenuGroupOwnerX::CharacterDataChanged(nsIDocument* aDocument,
 
 void nsMenuGroupOwnerX::ContentAppended(nsIDocument* aDocument,
                                         nsIContent* aContainer,
-                                        nsIContent* aFirstNewContent,
                                         PRInt32 aNewIndexInContainer)
 {
-  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
-    ContentInserted(aDocument, aContainer, cur, aNewIndexInContainer);
+  PRUint32 childCount = aContainer->GetChildCount();
+  while ((PRUint32)aNewIndexInContainer < childCount) {
+    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
+    ContentInserted(aDocument, aContainer, child, aNewIndexInContainer);
     aNewIndexInContainer++;
   }
 }
@@ -139,7 +138,7 @@ void nsMenuGroupOwnerX::NodeWillBeDestroyed(const nsINode * aNode)
 
 
 void nsMenuGroupOwnerX::AttributeWillChange(nsIDocument* aDocument,
-                                            dom::Element* aContent,
+                                            nsIContent* aContent,
                                             PRInt32 aNameSpaceID,
                                             nsIAtom* aAttribute,
                                             PRInt32 aModType)
@@ -147,30 +146,23 @@ void nsMenuGroupOwnerX::AttributeWillChange(nsIDocument* aDocument,
 }
 
 
-void nsMenuGroupOwnerX::AttributeChanged(nsIDocument* aDocument,
-                                         dom::Element* aElement,
+void nsMenuGroupOwnerX::AttributeChanged(nsIDocument * aDocument,
+                                         nsIContent * aContent,
                                          PRInt32 aNameSpaceID,
-                                         nsIAtom* aAttribute,
+                                         nsIAtom * aAttribute,
                                          PRInt32 aModType)
 {
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-  nsChangeObserver* obs = LookupContentChangeObserver(aElement);
+  nsChangeObserver* obs = LookupContentChangeObserver(aContent);
   if (obs)
-    obs->ObserveAttributeChanged(aDocument, aElement, aAttribute);
+    obs->ObserveAttributeChanged(aDocument, aContent, aAttribute);
 }
 
 
 void nsMenuGroupOwnerX::ContentRemoved(nsIDocument * aDocument,
                                        nsIContent * aContainer,
                                        nsIContent * aChild,
-                                       PRInt32 aIndexInContainer,
-                                       nsIContent * aPreviousSibling)
+                                       PRInt32 aIndexInContainer)
 {
-  if (!aContainer) {
-    return;
-  }
-
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
   nsChangeObserver* obs = LookupContentChangeObserver(aContainer);
   if (obs)
     obs->ObserveContentRemoved(aDocument, aChild, aIndexInContainer);
@@ -193,11 +185,6 @@ void nsMenuGroupOwnerX::ContentInserted(nsIDocument * aDocument,
                                         nsIContent * aChild,
                                         PRInt32 aIndexInContainer)
 {
-  if (!aContainer) {
-    return;
-  }
-
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
   nsChangeObserver* obs = LookupContentChangeObserver(aContainer);
   if (obs)
     obs->ObserveContentInserted(aDocument, aChild, aIndexInContainer);

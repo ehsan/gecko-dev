@@ -59,6 +59,8 @@ DEFINES += -DAB_CD=$(AB_CD)
 
 APP_VERSION = $(shell cat $(srcdir)/../config/version.txt)
 DEFINES += -DAPP_VERSION="$(APP_VERSION)"
+APP_UA_NAME = $(shell echo $(MOZ_APP_DISPLAYNAME) | sed -e's/[^A-Za-z]//g')
+DEFINES += -DAPP_UA_NAME="$(APP_UA_NAME)"
 
 DIST_FILES = application.ini
 
@@ -93,7 +95,6 @@ endif
 CPPSRCS = nsBrowserApp.cpp
 
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 
 ifdef BUILD_STATIC_LIBS
 ifdef _MSC_VER
@@ -243,10 +244,6 @@ ifeq ($(OS_ARCH),WINNT)
 #
 ifndef GNU_CC
 LDFLAGS += /HEAP:0x40000
-ifeq ($(OS_TEST),x86_64)
-# set stack to 2MB on x64 build.  See bug 582910
-LDFLAGS += -STACK:2097152
-endif
 endif
 endif
 
@@ -315,8 +312,6 @@ ifdef MOZ_DEBUG
 APP_NAME := $(APP_NAME)Debug
 endif
 
-LOWER_APP_NAME = $(shell echo $(APP_NAME) | tr '[A-Z]' '[a-z]')
-
 AB_CD = $(MOZ_UI_LOCALE)
 
 AB := $(firstword $(subst -, ,$(AB_CD)))
@@ -335,8 +330,8 @@ libs repackage:: $(PROGRAM) application.ini
 	rsync -a --exclude CVS --exclude "*.in" $(srcdir)/macbuild/Contents $(DIST)/$(APP_NAME).app --exclude English.lproj
 	mkdir -p $(DIST)/$(APP_NAME).app/Contents/Resources/$(AB).lproj
 	rsync -a --exclude CVS --exclude "*.in" $(srcdir)/macbuild/Contents/Resources/English.lproj/ $(DIST)/$(APP_NAME).app/Contents/Resources/$(AB).lproj
-	sed -e "s/%APP_VERSION%/$(APP_VERSION)/" -e "s/%APP_NAME%/$(APP_NAME)/" -e "s/%LOWER_APP_NAME%/$(LOWER_APP_NAME)/" $(srcdir)/macbuild/Contents/Info.plist.in > $(DIST)/$(APP_NAME).app/Contents/Info.plist
-	sed -e "s/%APP_NAME%/$(APP_NAME)/" $(srcdir)/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in | iconv -f UTF-8 -t UTF-16 > $(DIST)/$(APP_NAME).app/Contents/Resources/$(AB).lproj/InfoPlist.strings
+	sed -e "s/%APP_VERSION%/$(APP_VERSION)/" -e "s/%APP_NAME%/$(APP_NAME)/" $(srcdir)/macbuild/Contents/Info.plist.in > $(DIST)/$(APP_NAME).app/Contents/Info.plist
+	sed -e "s/%APP_VERSION%/$(APP_VERSION)/" -e "s/%APP_NAME%/$(APP_NAME)/" $(srcdir)/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in | iconv -f UTF-8 -t UTF-16 > $(DIST)/$(APP_NAME).app/Contents/Resources/$(AB).lproj/InfoPlist.strings
 	rsync -a $(DIST)/bin/ $(DIST)/$(APP_NAME).app/Contents/$(APPFILES)
 	$(RM) $(DIST)/$(APP_NAME).app/Contents/$(APPFILES)/mangle $(DIST)/$(APP_NAME).app/Contents/$(APPFILES)/shlibsign
 ifdef LIBXUL_SDK
@@ -357,6 +352,13 @@ ifdef LIBXUL_SDK
 libs::
 	cp $(LIBXUL_DIST)/bin/$(XULRUNNER_STUB_NAME)$(BIN_SUFFIX) $(DIST)/bin/firefox$(BIN_SUFFIX)
 endif
+endif
+
+libs::
+ifeq ($(OS_ARCH),WINNT)
+	$(PERL) -pe 's/(?<!\r)\n/\r\n/g;' < $(topsrcdir)/LICENSE > $(DIST)/bin/LICENSE
+else
+	$(INSTALL) $(IFLAGS1) $(topsrcdir)/LICENSE $(DIST)/bin
 endif
 
 ifdef LIBXUL_SDK

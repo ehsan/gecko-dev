@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.6.1.js';
 
 START("11.6.1 - XML Assignment");
 

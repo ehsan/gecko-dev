@@ -53,7 +53,6 @@
 #include "nsISHistoryListener.h"
 #include "nsIHistoryEntry.h"
 #include "nsIObserver.h"
-#include "nsIPrefBranch2.h"
 
 // Needed to maintain global list of all SHistory objects
 #include "prclist.h"
@@ -76,7 +75,6 @@ public:
 
   // One time initialization method called upon docshell module construction
   static nsresult Startup();
-  static void UpdatePrefs(nsIPrefBranch *aPrefBranch);
 
   // Max number of total cached content viewers.  If the pref
   // browser.sessionhistory.max_total_viewers is negative, then
@@ -112,15 +110,7 @@ protected:
   // content viewers to cache, based on amount of total memory
   static PRUint32 CalcMaxTotalViewers();
 
-  void RemoveDynEntries(PRInt32 aOldIndex, PRInt32 aNewIndex);
-
-  nsresult LoadNextPossibleEntry(PRInt32 aNewIndex, long aLoadType, PRUint32 aHistCmd);
 protected:
-  // aIndex is the index of the transaction which may be removed.
-  // If aKeepNext is PR_TRUE, aIndex is compared to aIndex + 1,
-  // otherwise comparison is done to aIndex - 1.
-  PRBool RemoveDuplicate(PRInt32 aIndex, PRBool aKeepNext);
-
   nsCOMPtr<nsISHTransaction> mListRoot;
   PRInt32 mIndex;
   PRInt32 mLength;

@@ -46,7 +46,6 @@
 #include "nsScriptableUConv.h"
 #include "nsIStringStream.h"
 #include "nsCRT.h"
-#include "nsComponentManagerUtils.h"
 
 #include "nsIPlatformCharset.h"
 
@@ -56,7 +55,6 @@ static PRInt32          gInstanceCount = 0;
 NS_IMPL_ISUPPORTS1(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
 
 nsScriptableUnicodeConverter::nsScriptableUnicodeConverter()
-: mIsInternal(PR_FALSE)
 {
   PR_AtomicIncrement(&gInstanceCount);
 }
@@ -272,20 +270,6 @@ nsScriptableUnicodeConverter::SetCharset(const char * aCharset)
   return InitConverter();
 }
 
-NS_IMETHODIMP
-nsScriptableUnicodeConverter::GetIsInternal(PRBool *aIsInternal)
-{
-  *aIsInternal = mIsInternal;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsScriptableUnicodeConverter::SetIsInternal(const PRBool aIsInternal)
-{
-  mIsInternal = aIsInternal;
-  return NS_OK;
-}
-
 nsresult
 nsScriptableUnicodeConverter::InitConverter()
 {
@@ -302,11 +286,7 @@ nsScriptableUnicodeConverter::InitConverter()
     if(NS_SUCCEEDED(rv)) {
       rv = mEncoder->SetOutputErrorBehavior(nsIUnicodeEncoder::kOnError_Replace, nsnull, (PRUnichar)'?');
       if(NS_SUCCEEDED(rv)) {
-        rv = mIsInternal ?
-          ccm->GetUnicodeDecoderInternal(mCharset.get(),
-                                         getter_AddRefs(mDecoder)) :
-          ccm->GetUnicodeDecoder(mCharset.get(),
-                                 getter_AddRefs(mDecoder));
+        rv = ccm->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mDecoder));
       }
     }
   }

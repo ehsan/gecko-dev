@@ -45,7 +45,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "macarabic.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToMacArabicConstructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult) 
 {

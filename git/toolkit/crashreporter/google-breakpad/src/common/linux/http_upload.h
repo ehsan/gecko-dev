@@ -61,7 +61,6 @@ class HTTPUpload {
                           const string &file_part_name,
                           const string &proxy,
                           const string &proxy_user_pwd,
-                          const string &ca_certificate_file,
                           string *response_body,
                           string *error_description);
 

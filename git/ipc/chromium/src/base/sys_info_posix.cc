@@ -7,9 +7,7 @@
 
 #include <errno.h>
 #include <string.h>
-#ifndef ANDROID
 #include <sys/statvfs.h>
-#endif
 #include <sys/utsname.h>
 #include <unistd.h>
 
@@ -66,15 +64,11 @@ int64 SysInfo::AmountOfPhysicalMemory() {
 
 // static
 int64 SysInfo::AmountOfFreeDiskSpace(const std::wstring& path) {
-#ifndef ANDROID
   struct statvfs stats;
   if (statvfs(WideToUTF8(path).c_str(), &stats) != 0) {
     return -1;
   }
   return static_cast<int64>(stats.f_bavail) * stats.f_frsize;
-#else
-  return -1;
-#endif
 }
 
 // static

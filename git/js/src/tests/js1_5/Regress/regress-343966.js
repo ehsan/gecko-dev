@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-343966.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 343966;
 var summary = 'ClearScope foo regressed due to bug 343417';

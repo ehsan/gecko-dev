@@ -110,6 +110,7 @@ protected:
   static void ProcessGeckoEvents(void* aInfo);
 
 protected:
+  NSAutoreleasePool* mMainPool;
   CFMutableArrayRef  mAutoreleasePools;
 
   AppShellDelegate*  mDelegate;
@@ -119,6 +120,7 @@ protected:
   PRPackedBool       mRunningEventLoop;
   PRPackedBool       mStarted;
   PRPackedBool       mTerminated;
+  PRPackedBool       mNotifiedWillTerminate;
   PRPackedBool       mSkippedNativeCallback;
   PRPackedBool       mRunningCocoaEmbedded;
 

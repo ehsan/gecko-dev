@@ -39,7 +39,7 @@
 #include "nsIDOMSVGTextElement.h"
 #include "nsSVGTextFrame.h"
 #include "nsWeakReference.h"
-#include "SVGLengthList.h"
+#include "nsIDOMSVGLengthList.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsISVGGlyphFragmentNode.h"
@@ -53,8 +53,6 @@
 #include "nsSVGPathElement.h"
 #include "nsSVGUtils.h"
 #include "nsSVGGraphicElement.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -101,8 +99,7 @@ nsSVGTextFrame::AttributeChanged(PRInt32         aNameSpaceID,
   } else if (aAttribute == nsGkAtoms::x ||
              aAttribute == nsGkAtoms::y ||
              aAttribute == nsGkAtoms::dx ||
-             aAttribute == nsGkAtoms::dy ||
-             aAttribute == nsGkAtoms::rotate) {
+             aAttribute == nsGkAtoms::dy) {
     NotifyGlyphMetricsChange();
   }
 
@@ -294,6 +291,25 @@ nsSVGTextFrame::NotifyGlyphMetricsChange()
   UpdateGlyphPositioning(PR_FALSE);
 }
 
+static void
+GetSingleValue(nsIDOMSVGLengthList *list, float *val)
+{
+  if (!list)
+    return;
+
+  PRUint32 count = 0;
+  list->GetNumberOfItems(&count);
+#ifdef DEBUG
+  if (count > 1)
+    NS_WARNING("multiple lengths for x/y attributes on <text> elements not implemented yet!");
+#endif
+  if (count) {
+    nsCOMPtr<nsIDOMSVGLength> length;
+    list->GetItem(0, getter_AddRefs(length));
+    length->GetValue(val);
+  }
+}
+
 void
 nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 {
@@ -314,27 +330,36 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     return;
   }
 
-  BuildPositionList(0, 0);
+  float x = 0, y = 0;
 
-  gfxPoint ctp(0.0, 0.0);
+  {
+    nsCOMPtr<nsIDOMSVGLengthList> list = GetX();
+    GetSingleValue(list, &x);
+  }
+  {
+    nsCOMPtr<nsIDOMSVGLengthList> list = GetY();
+    GetSingleValue(list, &y);
+  }
 
   // loop over chunks
   while (firstFragment) {
-    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
-
-    nsTArray<float> effectiveXList, effectiveYList;
-    firstFragment->GetEffectiveXY(firstFragment->GetNumberOfChars(),
-                                  effectiveXList, effectiveYList);
-    if (!effectiveXList.IsEmpty()) ctp.x = effectiveXList[0];
-    if (!textPath && !effectiveYList.IsEmpty()) ctp.y = effectiveYList[0];
+    {
+      nsCOMPtr<nsIDOMSVGLengthList> list = firstFragment->GetX();
+      GetSingleValue(list, &x);
+    }
+    {
+      nsCOMPtr<nsIDOMSVGLengthList> list = firstFragment->GetY();
+      GetSingleValue(list, &y);
+    }
 
     // check for startOffset on textPath
+    nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
     if (textPath) {
       if (!textPath->GetPathFrame()) {
         // invalid text path, give up
         return;
       }
-      ctp.x = textPath->GetStartOffset();
+      x = textPath->GetStartOffset();
     }
 
     // determine x offset based on text_anchor:
@@ -347,7 +372,10 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     
       fragment = firstFragment;
       while (fragment) {
-        chunkLength += fragment->GetAdvance(aForceGlobalTransform);
+        float dx = 0.0f;
+        nsCOMPtr<nsIDOMSVGLengthList> list = fragment->GetDx();
+        GetSingleValue(list, &dx);
+        chunkLength += dx + fragment->GetAdvance(aForceGlobalTransform);
         fragment = fragment->GetNextGlyphFragment();
         if (fragment && fragment->IsAbsolutelyPositioned())
           break;
@@ -355,21 +383,33 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     }
 
     if (anchor == NS_STYLE_TEXT_ANCHOR_MIDDLE)
-      ctp.x -= chunkLength/2.0f;
+      x -= chunkLength/2.0f;
     else if (anchor == NS_STYLE_TEXT_ANCHOR_END)
-      ctp.x -= chunkLength;
+      x -= chunkLength;
   
     // set position of each fragment in this chunk:
   
     fragment = firstFragment;
     while (fragment) {
 
-      fragment->SetGlyphPosition(&ctp, aForceGlobalTransform);
+      float dx = 0.0f, dy = 0.0f;
+      {
+        nsCOMPtr<nsIDOMSVGLengthList> list = fragment->GetDx();
+        GetSingleValue(list, &dx);
+      }
+      {
+        nsCOMPtr<nsIDOMSVGLengthList> list = fragment->GetDy();
+        GetSingleValue(list, &dy);
+      }
+
+      fragment->SetGlyphPosition(x + dx, y + dy, aForceGlobalTransform);
+
+      x += dx + fragment->GetAdvance(aForceGlobalTransform);
+      y += dy;
       fragment = fragment->GetNextGlyphFragment();
       if (fragment && fragment->IsAbsolutelyPositioned())
         break;
     }
     firstFragment = fragment;
   }
-  nsSVGUtils::UpdateGraphic(this);
 }

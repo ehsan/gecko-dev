@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-385133-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 385133;
 var summary = 'Do not crash due to recursion with watch, setter, delete, generator';
@@ -54,7 +55,7 @@ function test()
 
   try
   { 
-    Object.defineProperty(this, "x", { set: {}.watch, enumerable: true, configurable: true });
+    this.x setter = ({}.watch);
     function g() { x = 1; yield; }
     g().next();
   }

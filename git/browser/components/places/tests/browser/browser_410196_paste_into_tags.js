@@ -143,9 +143,7 @@ function test() {
             var xferable = Cc["@mozilla.org/widget/transferable;1"].
                            createInstance(Ci.nsITransferable);
             xferable.addDataFlavor(PU.TYPE_X_MOZ_PLACE);
-            var clipboard = Cc["@mozilla.org/widget/clipboard;1"].
-                            getService(Ci.nsIClipboard);
-            clipboard.getData(xferable, Ci.nsIClipboard.kGlobalClipboard);
+            PUIU.clipboard.getData(xferable, Ci.nsIClipboard.kGlobalClipboard);
             var data = { }, type = { };
             xferable.getAnyTransferData(type, data, { });
             // Data is in the clipboard

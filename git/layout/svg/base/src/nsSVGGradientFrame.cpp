@@ -84,7 +84,7 @@ nsSVGGradientFrame::AttributeChanged(PRInt32         aNameSpaceID,
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
     // Blow away our reference, if any
-    Properties().Delete(nsSVGEffects::HrefProperty());
+    DeleteProperty(nsGkAtoms::href);
     mNoHRefURI = PR_FALSE;
     // And update whoever references us
     nsSVGEffects::InvalidateRenderingObservers(this);
@@ -145,34 +145,36 @@ nsSVGGradientFrame::GetStopInformation(PRInt32 aIndex,
 }
 
 gfxMatrix
-nsSVGGradientFrame::GetGradientTransform(nsIFrame *aSource,
-                                         const gfxRect *aOverrideBounds)
+nsSVGGradientFrame::GetGradientTransform(nsSVGGeometryFrame *aSource)
 {
   gfxMatrix bboxMatrix;
 
   PRUint16 gradientUnits = GetGradientUnits();
+  nsIAtom *callerType = aSource->GetType();
   if (gradientUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE) {
     // If this gradient is applied to text, our caller
     // will be the glyph, which is not a container, so we
     // need to get the parent
-    if (aSource->GetContent()->IsNodeOfType(nsINode::eTEXT))
-      mSource = aSource->GetParent();
+    if (callerType ==  nsGkAtoms::svgGlyphFrame)
+      mSourceContent = static_cast<nsSVGElement*>
+                                  (aSource->GetContent()->GetParent());
     else
-      mSource = aSource;
-  } else {
+      mSourceContent = static_cast<nsSVGElement*>(aSource->GetContent());
+    NS_ASSERTION(mSourceContent, "Can't get content for gradient");
+  }
+  else {
     NS_ASSERTION(gradientUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX,
                  "Unknown gradientUnits type");
     // objectBoundingBox is the default anyway
 
-    gfxRect bbox = aOverrideBounds ? *aOverrideBounds : nsSVGUtils::GetBBox(aSource);
+    nsIFrame *frame = (callerType == nsGkAtoms::svgGlyphFrame) ?
+                        aSource->GetParent() : aSource;
+    gfxRect bbox = nsSVGUtils::GetBBox(frame);
     bboxMatrix = gfxMatrix(bbox.Width(), 0, 0, bbox.Height(), bbox.X(), bbox.Y());
   }
 
   nsSVGGradientElement *element =
     GetGradientWithAttr(nsGkAtoms::gradientTransform, mContent);
-
-  if (!element->mGradientTransform)
-    return bboxMatrix;
 
   nsCOMPtr<nsIDOMSVGTransformList> trans;
   element->mGradientTransform->GetAnimVal(getter_AddRefs(trans));
@@ -191,37 +193,37 @@ nsSVGGradientFrame::GetSpreadMethod()
   nsSVGGradientElement *element =
     GetGradientWithAttr(nsGkAtoms::spreadMethod, mContent);
 
-  return element->mEnumAttributes[nsSVGGradientElement::SPREADMETHOD].GetAnimValue();
+  return element->mEnumAttributes[nsSVGGradientElement::SPREADMETHOD].GetAnimValue(element);
 }
 
 //----------------------------------------------------------------------
 // nsSVGPaintServerFrame methods:
 
-already_AddRefed<gfxPattern>
-nsSVGGradientFrame::GetPaintServerPattern(nsIFrame *aSource,
-                                           float aGraphicOpacity,
-                                           const gfxRect *aOverrideBounds)
+PRBool
+nsSVGGradientFrame::SetupPaintServer(gfxContext *aContext,
+                                     nsSVGGeometryFrame *aSource,
+                                     float aGraphicOpacity)
 {
   // Get the transform list (if there is one)
-  gfxMatrix patternMatrix = GetGradientTransform(aSource, aOverrideBounds);
+  gfxMatrix patternMatrix = GetGradientTransform(aSource);
 
   if (patternMatrix.IsSingular())
-    return nsnull;
+    return PR_FALSE;
 
   PRUint32 nStops = GetStopCount();
 
   // SVG specification says that no stops should be treated like
   // the corresponding fill or stroke had "none" specified.
   if (nStops == 0) {
-    nsRefPtr<gfxPattern> pattern = new gfxPattern(gfxRGBA(0, 0, 0, 0));
-    return pattern.forget();
+    aContext->SetColor(gfxRGBA(0, 0, 0, 0));
+    return PR_TRUE;
   }
 
   patternMatrix.Invert();
 
   nsRefPtr<gfxPattern> gradient = CreateGradient();
   if (!gradient || gradient->CairoStatus())
-    return nsnull;
+    return PR_FALSE;
 
   PRUint16 aSpread = GetSpreadMethod();
   if (aSpread == nsIDOMSVGGradientElement::SVG_SPREADMETHOD_PAD)
@@ -255,7 +257,9 @@ nsSVGGradientFrame::GetPaintServerPattern(nsIFrame *aSource,
                                      stopOpacity * aGraphicOpacity));
   }
 
-  return gradient.forget();
+  aContext->SetPattern(gradient);
+
+  return PR_TRUE;
 }
 
 // Private (helper) methods
@@ -266,8 +270,8 @@ nsSVGGradientFrame::GetReferencedGradient()
   if (mNoHRefURI)
     return nsnull;
 
-  nsSVGPaintingProperty *property = static_cast<nsSVGPaintingProperty*>
-    (Properties().Get(nsSVGEffects::HrefProperty()));
+  nsSVGPaintingProperty *property =
+    static_cast<nsSVGPaintingProperty*>(GetProperty(nsGkAtoms::href));
 
   if (!property) {
     // Fetch our gradient element's xlink:href attribute
@@ -285,8 +289,7 @@ nsSVGGradientFrame::GetReferencedGradient()
     nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI), href,
                                               mContent->GetCurrentDoc(), base);
 
-    property =
-      nsSVGEffects::GetPaintingProperty(targetURI, this, nsSVGEffects::HrefProperty());
+    property = nsSVGEffects::GetPaintingProperty(targetURI, this, nsGkAtoms::href);
     if (!property)
       return nsnull;
   }
@@ -399,7 +402,7 @@ nsSVGGradientFrame::GetGradientUnits()
 
   nsSVGGradientElement *element =
     GetGradientWithAttr(nsGkAtoms::gradientUnits, mContent);
-  return element->mEnumAttributes[nsSVGGradientElement::GRADIENTUNITS].GetAnimValue();
+  return element->mEnumAttributes[nsSVGGradientElement::GRADIENTUNITS].GetAnimValue(element);
 }
 
 // -------------------------------------------------------------------------
@@ -457,7 +460,7 @@ nsSVGLinearGradientFrame::GradientLookupAttribute(nsIAtom *aAtomName,
 
   PRUint16 gradientUnits = GetGradientUnits();
   if (gradientUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE) {
-    return nsSVGUtils::UserSpace(mSource,
+    return nsSVGUtils::UserSpace(mSourceContent,
                                  &element->mLengthAttributes[aEnumName]);
   }
 
@@ -545,7 +548,7 @@ nsSVGRadialGradientFrame::GradientLookupAttribute(nsIAtom *aAtomName,
 
   PRUint16 gradientUnits = GetGradientUnits();
   if (gradientUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE) {
-    return nsSVGUtils::UserSpace(mSource,
+    return nsSVGUtils::UserSpace(mSourceContent,
                                  &element->mLengthAttributes[aEnumName]);
   }
 
@@ -581,11 +584,14 @@ nsSVGRadialGradientFrame::CreateGradient()
     // The focal point (fFx and fFy) must be clamped to be *inside* - not on -
     // the circumference of the gradient or we'll get rendering anomalies. We
     // calculate the distance from the focal point to the gradient center and
-    // make sure it is *less* than the gradient radius.
-    // 1/128 is the limit of the fractional part of cairo's 24.8 fixed point
-    // representation divided by 2 to ensure that we get different cairo
-    // fractions
-    double dMax = NS_MAX(0.0, r - 1.0/128);
+    // make sure it is *less* than the gradient radius. 0.99 is used as the
+    // factor of the radius because it's close enough to 1 that we won't get a
+    // fringe at the edge of the gradient if we clamp, but not so close to 1
+    // that rounding error will give us the same results as using fR itself.
+    // Also note that .99 < 255/256/2 which is the limit of the fractional part
+    // of cairo's 24.8 fixed point representation divided by 2 to ensure that
+    // we get different cairo fractions
+    double dMax = 0.99 * r;
     float dx = fx - cx;
     float dy = fy - cy;
     double d = sqrt((dx * dx) + (dy * dy));

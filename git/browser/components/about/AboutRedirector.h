@@ -54,7 +54,7 @@ public:
   AboutRedirector() {}
   virtual ~AboutRedirector() {}
 
-  static nsresult
+  static NS_METHOD
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 protected:

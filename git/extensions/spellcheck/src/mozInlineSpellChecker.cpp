@@ -522,18 +522,10 @@ NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
 NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMKeyListener)
 NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
 NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMKeyListener)
-NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(mozInlineSpellChecker)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(mozInlineSpellChecker)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(mozInlineSpellChecker)
-
-NS_IMPL_CYCLE_COLLECTION_5(mozInlineSpellChecker,
-                           mSpellCheck,
-                           mTextServicesDocument,
-                           mTreeWalker,
-                           mConverter,
-                           mCurrentSelectionAnchorNode)
+NS_IMPL_ADDREF(mozInlineSpellChecker)
+NS_IMPL_RELEASE(mozInlineSpellChecker)
 
 mozInlineSpellChecker::SpellCheckingState
   mozInlineSpellChecker::gCanEnableSpellChecking =
@@ -1160,7 +1152,7 @@ mozInlineSpellChecker::SkipSpellCheckForNode(nsIEditor* aEditor,
   else {
     // XXX Do we really want this for all read-write content?
     nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-    *checkSpelling = content->IntrinsicState().HasState(NS_EVENT_STATE_MOZ_READWRITE);
+    *checkSpelling = !!(content->IntrinsicState() & NS_EVENT_STATE_MOZ_READWRITE);
   }
 
   return NS_OK;

@@ -98,14 +98,14 @@ public:
   // Remove the attr at position aPos.  The value of the attr is placed in
   // aValue; any value that was already in aValue is destroyed.
   void RemoveAttrAt(PRUint32 aPos, nsAttrValue& aValue);
-  const nsAttrName* GetExistingAttrNameFromQName(const nsAString& aName) const;
+  const nsAttrName* GetExistingAttrNameFromQName(const nsACString& aName) const;
   PRInt32 IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) const;
   
 
   // nsIStyleRule 
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_METHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
 private:

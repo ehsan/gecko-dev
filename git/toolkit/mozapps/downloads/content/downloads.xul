@@ -191,7 +191,7 @@
     <spacer flex="1"/>
     <textbox type="search" id="searchbox" class="compact"
              aria-controls="downloadView"
-             oncommand="buildDownloadList();" placeholder="&searchBox.label;"/>
+             oncommand="buildDownloadList();" emptytext="&searchBox.label;"/>
   </windowdragbox>
 
 </window>

@@ -72,7 +72,6 @@ struct sa_stream {
   bool              playing;
   int64_t           bytes_played;
   int64_t           total_bytes_played;
-  int64_t           bytes_underrun_inserted;
 
   /* audio format info */
   unsigned int      rate;
@@ -157,7 +156,6 @@ sa_stream_create_pcm(
   s->playing      = FALSE;
   s->bytes_played = 0;
   s->total_bytes_played = 0;
-  s->bytes_underrun_inserted = 0;
   s->rate         = rate;
   s->n_channels   = n_channels;
   s->bytes_per_ch = 2;
@@ -403,10 +401,10 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
    * better not to be inside the lock when we enable the audio callback.
    */
   if (!s->playing) {
-    if (AudioOutputUnitStart(s->output_unit) != 0) {
-      return SA_ERROR_SYSTEM;
-    }
     s->playing = TRUE;
+    if (AudioOutputUnitStart(s->output_unit) != 0) {
+      result = SA_ERROR_SYSTEM;
+    }
   }
 
   return result;
@@ -486,7 +484,6 @@ audio_callback(
         printf("!");  /* not enough audio data */
 #endif
         memset(dst, 0, bytes_to_copy);
-        s->bytes_underrun_inserted += bytes_to_copy;
         break;
       }
       free(s->bl_head);
@@ -542,13 +539,7 @@ sa_stream_get_position(sa_stream_t *s, sa_position_t position, int64_t *pos) {
   }
 
   pthread_mutex_lock(&s->mutex);
-
-  int64_t bytes_played_wo_underrun = s->bytes_played - s->bytes_underrun_inserted;
-  *pos = s->total_bytes_played;
-  if (bytes_played_wo_underrun > 0) {
-    *pos += bytes_played_wo_underrun;
-  }
-
+  *pos = s->total_bytes_played + s->bytes_played;
   pthread_mutex_unlock(&s->mutex);
   return SA_SUCCESS;
 }
@@ -567,10 +558,7 @@ sa_stream_pause(sa_stream_t *s) {
    * internal Core Audio lock, and with the callback thread holding the Core
    * Audio lock and waiting on the mutex.
   */
-  if (AudioOutputUnitStop(s->output_unit) != 0) {
-    return SA_ERROR_SYSTEM;
-  }
-  s->playing = FALSE;
+  AudioOutputUnitStop(s->output_unit);
 
   return SA_SUCCESS;
 }
@@ -588,13 +576,8 @@ sa_stream_resume(sa_stream_t *s) {
    * The audio device resets its mSampleTime counter after pausing,
    * so we need to clear our tracking value to keep that in sync.
    */
-  int64_t bytes_played_wo_underrun = s->bytes_played - s->bytes_underrun_inserted;
-  if (bytes_played_wo_underrun > 0) {
-    s->total_bytes_played += bytes_played_wo_underrun;
-  }
+  s->total_bytes_played += s->bytes_played;
   s->bytes_played = 0;
-  s->bytes_underrun_inserted = 0;
-
   pthread_mutex_unlock(&s->mutex);
 
   /*
@@ -603,10 +586,7 @@ sa_stream_resume(sa_stream_t *s) {
    * internal Core Audio lock, and with the callback thread holding the Core
    * Audio lock and waiting on the mutex.
   */
-  if (AudioOutputUnitStart(s->output_unit) != 0) {
-    return SA_ERROR_SYSTEM;
-  }
-  s->playing = TRUE;
+  AudioOutputUnitStart(s->output_unit);
 
   return SA_SUCCESS;
 }
@@ -630,10 +610,6 @@ sa_stream_drain(sa_stream_t *s)
 {
   if (s == NULL || s->output_unit == NULL) {
     return SA_ERROR_NO_INIT;
-  }
-
-  if (!s->playing) {
-    return SA_ERROR_INVALID;
   }
 
   while (1) {

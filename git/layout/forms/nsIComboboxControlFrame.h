@@ -41,6 +41,7 @@
 #include "nsQueryFrame.h"
 #include "nsFont.h"
 
+class nsPresContext;
 class nsString;
 class nsIContent;
 class nsCSSFrameConstructor;

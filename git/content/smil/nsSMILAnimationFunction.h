@@ -201,7 +201,7 @@ public:
    * @return  True if the animation will replace, false if it will add or
    *          otherwise build on the passed in value.
    */
-  virtual PRBool WillReplace() const;
+  PRBool WillReplace() const;
 
   /**
    * Indicates if the parameters for this animation have changed since the last
@@ -309,16 +309,9 @@ protected:
                                 const nsSMILValue*& aTo);
   double   ComputePacedTotalDistance(const nsSMILValueArray& aValues) const;
 
-  /**
-   * Adjust the simple progress, that is, the point within the simple duration,
-   * by applying any keyTimes.
-   */
-  double   ScaleSimpleProgress(double aProgress, nsSMILCalcMode aCalcMode);
-  /**
-   * Adjust the progress within an interval, that is, between two animation
-   * values, by applying any keySplines.
-   */
-  double   ScaleIntervalProgress(double aProgress, PRUint32 aIntervalIndex);
+  void     ScaleSimpleProgress(double& aProgress);
+  void     ScaleIntervalProgress(double& aProgress, PRUint32 aIntervalIndex,
+                                 PRUint32 aNumIntervals);
 
   // Convenience attribute getters -- use these instead of querying
   // mAnimationElement as these may need to be overridden by subclasses
@@ -328,22 +321,12 @@ protected:
                                      nsAString& aResult) const;
 
   PRBool   ParseAttr(nsIAtom* aAttName, const nsISMILAttr& aSMILAttr,
-                     nsSMILValue& aResult,
-                     PRBool& aPreventCachingOfSandwich) const;
-
-  virtual nsresult GetValues(const nsISMILAttr& aSMILAttr,
-                             nsSMILValueArray& aResult);
-
-  virtual void CheckValueListDependentAttrs(PRUint32 aNumValues);
-  void         CheckKeyTimes(PRUint32 aNumValues);
-  void         CheckKeySplines(PRUint32 aNumValues);
-
-  // When GetValues() returns a single-value array, this method indicates
-  // whether that single value can be understood to be a static value, to be
-  // set for the full animation duration.
-  virtual PRBool TreatSingleValueAsStatic() const {
-    return HasAttr(nsGkAtoms::values);
-  }
+                     nsSMILValue& aResult, PRBool& aCanCacheSoFar) const;
+  nsresult GetValues(const nsISMILAttr& aSMILAttr,
+                     nsSMILValueArray& aResult);
+  void     UpdateValuesArray();
+  void     CheckKeyTimes(PRUint32 aNumValues);
+  void     CheckKeySplines(PRUint32 aNumValues);
 
   inline PRBool IsToAnimation() const {
     return !HasAttr(nsGkAtoms::values) &&
@@ -364,46 +347,6 @@ protected:
                              HasAttr(nsGkAtoms::by) &&
                             !HasAttr(nsGkAtoms::from));
     return !IsToAnimation() && (GetAdditive() || isByAnimation);
-  }
-
-  // Setters for error flags
-  // These correspond to bit-indices in mErrorFlags, for tracking parse errors
-  // in these attributes, when those parse errors should block us from doing
-  // animation.
-  enum AnimationAttributeIdx {
-    BF_ACCUMULATE  = 0,
-    BF_ADDITIVE    = 1,
-    BF_CALC_MODE   = 2,
-    BF_KEY_TIMES   = 3,
-    BF_KEY_SPLINES = 4,
-    BF_KEY_POINTS  = 5 // <animateMotion> only
-  };
-
-  inline void SetAccumulateErrorFlag(PRBool aNewValue) {
-    SetErrorFlag(BF_ACCUMULATE, aNewValue);
-  }
-  inline void SetAdditiveErrorFlag(PRBool aNewValue) {
-    SetErrorFlag(BF_ADDITIVE, aNewValue);
-  }
-  inline void SetCalcModeErrorFlag(PRBool aNewValue) {
-    SetErrorFlag(BF_CALC_MODE, aNewValue);
-  }
-  inline void SetKeyTimesErrorFlag(PRBool aNewValue) {
-    SetErrorFlag(BF_KEY_TIMES, aNewValue);
-  }
-  inline void SetKeySplinesErrorFlag(PRBool aNewValue) {
-    SetErrorFlag(BF_KEY_SPLINES, aNewValue);
-  }
-  inline void SetKeyPointsErrorFlag(PRBool aNewValue) {
-    SetErrorFlag(BF_KEY_POINTS, aNewValue);
-  }
-  // Helper method -- based on SET_BOOLBIT in nsHTMLInputElement.cpp
-  inline void SetErrorFlag(AnimationAttributeIdx aField, PRBool aValue) {
-    if (aValue) {
-      mErrorFlags |=  (0x01 << aField);
-    } else {
-      mErrorFlags &= ~(0x01 << aField);
-    }
   }
 
   // Members

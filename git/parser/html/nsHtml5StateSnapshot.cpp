@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009-2010 Mozilla Foundation
+ * Copyright (c) 2009 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -39,12 +39,10 @@
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
 #include "nsHtml5NamedCharacters.h"
-#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsAHtml5TreeBuilderState.h"
-#include "nsHtml5Macros.h"
 
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
@@ -59,16 +57,15 @@
 #include "nsHtml5StateSnapshot.h"
 
 
-nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> stack, jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, PRInt32 mode, PRInt32 originalMode, PRBool framesetOk, PRBool inForeign, PRBool needToDropLF, PRBool quirks)
+nsHtml5StateSnapshot::nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> stack, jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, PRInt32 mode, PRInt32 originalMode, PRBool framesetOk, PRInt32 foreignFlag, PRBool needToDropLF, PRBool quirks)
   : stack(stack),
     listOfActiveFormattingElements(listOfActiveFormattingElements),
     formPointer(formPointer),
     headPointer(headPointer),
-    deepTreeSurrogateParent(deepTreeSurrogateParent),
     mode(mode),
     originalMode(originalMode),
     framesetOk(framesetOk),
-    inForeign(inForeign),
+    foreignFlag(foreignFlag),
     needToDropLF(needToDropLF),
     quirks(quirks)
 {
@@ -99,12 +96,6 @@ nsHtml5StateSnapshot::getHeadPointer()
   return headPointer;
 }
 
-nsIContent** 
-nsHtml5StateSnapshot::getDeepTreeSurrogateParent()
-{
-  return deepTreeSurrogateParent;
-}
-
 PRInt32 
 nsHtml5StateSnapshot::getMode()
 {
@@ -123,10 +114,10 @@ nsHtml5StateSnapshot::isFramesetOk()
   return framesetOk;
 }
 
-PRBool 
-nsHtml5StateSnapshot::isInForeign()
+PRInt32 
+nsHtml5StateSnapshot::getForeignFlag()
 {
-  return inForeign;
+  return foreignFlag;
 }
 
 PRBool 
@@ -142,7 +133,7 @@ nsHtml5StateSnapshot::isQuirks()
 }
 
 PRInt32 
-nsHtml5StateSnapshot::getListOfActiveFormattingElementsLength()
+nsHtml5StateSnapshot::getListLength()
 {
   return listOfActiveFormattingElements.length;
 }
@@ -160,11 +151,13 @@ nsHtml5StateSnapshot::~nsHtml5StateSnapshot()
   for (PRInt32 i = 0; i < stack.length; i++) {
     stack[i]->release();
   }
+  stack.release();
   for (PRInt32 i = 0; i < listOfActiveFormattingElements.length; i++) {
-    if (listOfActiveFormattingElements[i]) {
+    if (!!listOfActiveFormattingElements[i]) {
       listOfActiveFormattingElements[i]->release();
     }
   }
+  listOfActiveFormattingElements.release();
   ;
 }
 

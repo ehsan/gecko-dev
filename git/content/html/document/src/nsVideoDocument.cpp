@@ -41,9 +41,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsHTMLMediaElement.h"
 #include "nsIDocShellTreeItem.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 class nsVideoDocument : public nsMediaDocument
 {
@@ -103,7 +100,7 @@ nsVideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
   nsresult rv = nsMediaDocument::CreateSyntheticDocument();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  Element* body = GetBodyElement();
+  nsIContent* body = GetBodyContent();
   if (!body) {
     NS_WARNING("no body on video document!");
     return NS_ERROR_FAILURE;
@@ -116,8 +113,7 @@ nsVideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
 
   nsRefPtr<nsHTMLMediaElement> element =
-    static_cast<nsHTMLMediaElement*>(NS_NewHTMLVideoElement(nodeInfo.forget(),
-                                                            NOT_FROM_PARSER));
+    static_cast<nsHTMLMediaElement*>(NS_NewHTMLVideoElement(nodeInfo, PR_FALSE));
   if (!element)
     return NS_ERROR_OUT_OF_MEMORY;
   element->SetAutoplay(PR_TRUE);

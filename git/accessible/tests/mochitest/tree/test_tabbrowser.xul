@@ -1,14 +1,8 @@
 <?xml version="1.0"?>
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
-
-<!-- Firefox tabbrowser -->
-<?xml-stylesheet href="chrome://browser/content/browser.css"
-                 type="text/css"?>
-<!-- SeaMonkey tabbrowser -->
-<?xml-stylesheet href="chrome://navigator/content/navigator.css"
-                 type="text/css"?>
-
 <?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css"
+                 type="text/css"?>
+<?xml-stylesheet href="chrome://browser/content/browser.css"
                  type="text/css"?>
 
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
@@ -20,9 +14,9 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
-          src="../common.js" />
+          src="chrome://mochikit/content/a11y/accessible/common.js" />
   <script type="application/javascript"
-          src="../role.js" />
+          src="chrome://mochikit/content/a11y/accessible/role.js" />
 
   <script type="application/javascript">
   <![CDATA[
@@ -32,8 +26,6 @@
     const Ci = Components.interfaces;
 
     // Hack to make xul:tabbrowser work.
-    Components.utils.import("resource://gre/modules/Services.jsm");
-    var handleDroppedLink = null;
     var XULBrowserWindow = {
       isBusy: false,
       setOverLink: function (link, b) {
@@ -45,6 +37,14 @@
 
     function doTest()
     {
+      if (LINUX) {
+        // XXX: bug 540529
+
+        todo(false, "Failure on Linux.");
+        SimpleTest.finish();
+        return;
+      }
+
       var tabBrowser = document.getElementById("tabbrowser");
 
       var progressListener =
@@ -67,36 +67,43 @@
 
     function testAccTree()
     {
-      var tabsAccTree = {
-        role: ROLE_PAGETABLIST,
-        children: [
-          {
-            role: ROLE_PAGETAB,
-            children: [
-              {
-                role: ROLE_PUSHBUTTON
-              }
-            ]
-          },
-          {
-            role: ROLE_PAGETAB,
-            children: [
-              {
-                role: ROLE_PUSHBUTTON
-              }
-            ]
-          },
-          {
-            role: ROLE_PUSHBUTTON
-          }
-        ]
-      };
-      testAccessibleTree(getNode("tabbrowser").tabContainer, tabsAccTree);
-
-      var tabboxAccTree = {
+      var accTree = {
         role: ROLE_PANE,
         children: [
           {
+            role: ROLE_TOOLTIP
+          },
+          {
+            role: ROLE_MENUPOPUP
+          },
+          {
+            role: ROLE_PAGETABLIST,
+            children: [
+              {
+                role: ROLE_PAGETAB,
+                children: [
+                  {
+                    role: ROLE_PUSHBUTTON
+                  }
+                ]
+              },
+              {
+                role: ROLE_PAGETAB,
+                children: [
+                  {
+                    role: ROLE_PUSHBUTTON
+                  }
+                ]
+              },
+              {
+                role: ROLE_PUSHBUTTON
+              },
+              {
+                role: ROLE_PUSHBUTTON
+              }
+            ]
+          },
+          {
             role: ROLE_PROPERTYPAGE
           },
           {
@@ -104,9 +111,7 @@
           }
         ]
       };
-
-      testAccessibleTree(getNode("tabbrowser").mTabBox.tabpanels,
-                         tabboxAccTree);
+      testAccessibleTree(getNode("tabbrowser").mTabBox, accTree);
 
       SimpleTest.finish()
     }
@@ -116,17 +121,12 @@
   ]]>
   </script>
 
-  <vbox flex="1" style="overflow: auto;">
+  <hbox flex="1" style="overflow: auto;">
     <body xmlns="http://www.w3.org/1999/xhtml">
       <a target="_blank"
          href="https://bugzilla.mozilla.org/show_bug.cgi?id=540389"
          title=" WARNING: Bad accessible tree!: [tabbrowser tab] ">
         Mozilla Bug 540389
-      </a><br/>
-      <a target="_blank"
-         href="https://bugzilla.mozilla.org/show_bug.cgi?id=552944"
-         title="No relationship between tabs and associated property page in new tabbrowser construct">
-        Mozilla Bug 552944
       </a><br/>
       <p id="display"></p>
       <div id="content" style="display: none">
@@ -145,16 +145,8 @@
       </menu>
     </menubar>
 
-    <tabs id="tabbrowser-tabs" class="tabbrowser-tabs"
-          tabbrowser="tabbrowser"
-          setfocus="false">
-      <tab class="tabbrowser-tab" selected="true" fadein="true"/>
-    </tabs>
-    <tabbrowser id="tabbrowser"
-                type="content-primary"
-                tabcontainer="tabbrowser-tabs"
-                flex="1"/>
-  </vbox>
+    <tabbrowser type="content-primary" flex="1" id="tabbrowser"/>
+  </hbox>
 
 </window>
 

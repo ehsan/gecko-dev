@@ -36,7 +36,9 @@
 
 function browserWindowsCount() {
   let count = 0;
-  let e = Services.wm.getEnumerator("navigator:browser");
+  let e = Cc["@mozilla.org/appshell/window-mediator;1"]
+            .getService(Ci.nsIWindowMediator)
+            .getEnumerator("navigator:browser");
   while (e.hasMoreElements()) {
     if (!e.getNext().closed)
       ++count;
@@ -90,7 +92,7 @@ function test() {
                             test_state.windows[0]._closedTabs.length);
     ss.setWindowState(newWin, JSON.stringify(test_state), true);
     
-    let closedTabs = JSON.parse(ss.getClosedTabData(newWin));
+    let closedTabs = eval("(" + ss.getClosedTabData(newWin) + ")");
     is(closedTabs.length, test_state.windows[0]._closedTabs.length,
        "Closed tab list has the expected length");
     is(countByTitle(closedTabs, FORGET),
@@ -103,7 +105,7 @@ function test() {
              getService(Ci.nsIPrivateBrowsingService);
     pb.removeDataFromDomain("example.net");
     
-    closedTabs = JSON.parse(ss.getClosedTabData(newWin));
+    closedTabs = eval("(" + ss.getClosedTabData(newWin) + ")");
     is(closedTabs.length, remember_count,
        "The correct amout of tabs was removed");
     is(countByTitle(closedTabs, FORGET), 0,

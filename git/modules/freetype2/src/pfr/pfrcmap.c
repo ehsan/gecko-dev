@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    FreeType PFR cmap handling (body).                                   */
 /*                                                                         */
-/*  Copyright 2002, 2007, 2009 by                                          */
+/*  Copyright 2002, 2007 by                                                */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -18,6 +18,7 @@
 
 #include "pfrcmap.h"
 #include "pfrobjs.h"
+#include FT_INTERNAL_DEBUG_H
 
 #include "pfrerror.h"
 
@@ -88,7 +89,7 @@
   }
 
 
-  FT_CALLBACK_DEF( FT_UInt32 )
+  FT_CALLBACK_DEF( FT_UInt )
   pfr_cmap_char_next( PFR_CMap    cmap,
                       FT_UInt32  *pchar_code )
   {

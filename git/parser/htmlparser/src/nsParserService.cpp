@@ -65,7 +65,10 @@ NS_IMPL_ISUPPORTS1(nsParserService, nsIParserService)
 PRInt32
 nsParserService::HTMLAtomTagToId(nsIAtom* aAtom) const
 {
-  return nsHTMLTags::LookupTag(nsDependentAtomString(aAtom));
+  nsAutoString tagName;
+  aAtom->ToString(tagName);
+
+  return nsHTMLTags::LookupTag(tagName);
 }
 
 PRInt32

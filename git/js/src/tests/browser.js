@@ -126,7 +126,7 @@ window.onerror = function (msg, page, line)
     EXPECTED = 'Unknown';
   }
 
-  var testcase = new TestCase("unknown-test-name", DESCRIPTION, EXPECTED, "error");
+  var testcase = new TestCase(gTestfile, DESCRIPTION, EXPECTED, "error");
 
   if (document.location.href.indexOf('-n.js') != -1)
   {
@@ -765,17 +765,6 @@ function outputscripttag(src, properties, e4x)
 
   document.write(s);
 }
-
-var JSTest = {
-  waitForExplicitFinish: function () {
-    gDelayTestDriverEnd = true;
-  },
-
-  testFinished: function () {
-    gDelayTestDriverEnd = false;
-    jsTestDriverEnd();
-  }
-};
 
 function jsTestDriverEnd()
 {

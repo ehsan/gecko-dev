@@ -78,6 +78,8 @@ protected:
     return NS_OK;
   }  // just make it not abstract;
 
+  NS_IMETHOD FillInfo(PRUint32 *aInfo);
+
   virtual void CreateExtensionEncoder();
   virtual void Create4BytesEncoder();
 

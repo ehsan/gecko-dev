@@ -42,7 +42,7 @@
 #define __MAI_HYPERLINK_H__
 
 #include "nsMai.h"
-#include "nsAccessible.h"
+#include "nsIAccessibleHyperLink.h"
 
 struct _AtkHyperlink;
 typedef struct _AtkHyperlink                      AtkHyperlink;
@@ -54,17 +54,17 @@ typedef struct _AtkHyperlink                      AtkHyperlink;
 class MaiHyperlink
 {
 public:
-    MaiHyperlink(nsAccessible* aHyperLink);
+    MaiHyperlink(nsIAccessibleHyperLink *aAcc);
     ~MaiHyperlink();
 
 public:
     AtkHyperlink *GetAtkHyperlink(void);
-    nsAccessible* GetAccHyperlink(void) {
-        return mHyperlink && mHyperlink->IsHyperLink() ? mHyperlink : nsnull;
+    nsIAccessibleHyperLink *GetAccHyperlink(void) {
+        return mHyperlink;
     }
 
 protected:
-    nsAccessible* mHyperlink;
+    nsIAccessibleHyperLink *mHyperlink;
     AtkHyperlink *mMaiAtkHyperlink;
 public:
     static nsresult Initialize(AtkHyperlink *aObj, MaiHyperlink *aClass);

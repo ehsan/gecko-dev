@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'ignoreCase.js';
 
 /**
    Filename:     ignoreCase.js

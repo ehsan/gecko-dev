@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-312385-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 312385;
 var summary = 'Generic methods with null or undefined |this|';

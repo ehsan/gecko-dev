@@ -46,7 +46,6 @@ const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
 const TOOLKIT_ID                      = "toolkit@mozilla.org"
 const KEY_PROFILEDIR                  = "ProfD";
@@ -56,7 +55,6 @@ const PREF_BLOCKLIST_URL              = "extensions.blocklist.url";
 const PREF_BLOCKLIST_ENABLED          = "extensions.blocklist.enabled";
 const PREF_BLOCKLIST_INTERVAL         = "extensions.blocklist.interval";
 const PREF_BLOCKLIST_LEVEL            = "extensions.blocklist.level";
-const PREF_BLOCKLIST_PINGCOUNT        = "extensions.blocklist.pingCount";
 const PREF_PLUGINS_NOTIFYUSER         = "plugins.update.notifyUser";
 const PREF_GENERAL_USERAGENT_LOCALE   = "general.useragent.locale";
 const PREF_PARTNER_BRANCH             = "app.partner.";
@@ -110,7 +108,7 @@ XPCOMUtils.defineLazyGetter(this, "gABI", function bls_gABI() {
                  getService(Ci.nsIMacUtils);
 
   if (macutils.isUniversalBinary)
-    abi += "-u-" + macutils.architecturesInBinary;
+    abi = "Universal-gcc3";
 #endif
   return abi;
 });
@@ -426,15 +424,6 @@ Blocklist.prototype = {
       return;
     }
 
-    var pingCount = 0;
-    try {
-      pingCount = gPref.getIntPref(PREF_BLOCKLIST_PINGCOUNT);
-    }
-    catch (e) {
-    }
-    if (pingCount < 0)
-      pingCount = 1;
-
     dsURI = dsURI.replace(/%APP_ID%/g, gApp.ID);
     dsURI = dsURI.replace(/%APP_VERSION%/g, gApp.version);
     dsURI = dsURI.replace(/%PRODUCT%/g, gApp.name);
@@ -449,16 +438,7 @@ Blocklist.prototype = {
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION));
     dsURI = dsURI.replace(/%DISTRIBUTION_VERSION%/g,
                       getDistributionPrefValue(PREF_APP_DISTRIBUTION_VERSION));
-    dsURI = dsURI.replace(/%PING_COUNT%/g, pingCount);
     dsURI = dsURI.replace(/\+/g, "%2B");
-
-    pingCount++;
-    if (pingCount > 2147483647) {
-      // Rollover to 1 if the value is greater than what is support by an
-      // integer preference. The 1 indicates that this is an existing profile.
-      pingCount = 1;
-    }
-    gPref.setIntPref(PREF_BLOCKLIST_PINGCOUNT, pingCount);
 
     // Verify that the URI is valid
     try {
@@ -799,134 +779,107 @@ Blocklist.prototype = {
   _blocklistUpdated: function(oldAddonEntries, oldPluginEntries) {
     var addonList = [];
 
-    var self = this;
-    AddonManager.getAddonsByTypes(["extension", "theme", "locale"], function(addons) {
+    var em = Cc["@mozilla.org/extensions/manager;1"].
+             getService(Ci.nsIExtensionManager);
+    var addons = em.updateAndGetNewBlocklistedItems();
 
-      for (let i = 0; i < addons.length; i++) {
-        let oldState = Ci.nsIBlocklistService.STATE_NOTBLOCKED;
-        if (oldAddonEntries)
-          oldState = self._getAddonBlocklistState(addons[i].id, addons[i].version,
-                                                  oldAddonEntries);
-        let state = self.getAddonBlocklistState(addons[i].id, addons[i].version);
+    for (let i = 0; i < addons.length; i++) {
+      let oldState = -1;
+      if (oldAddonEntries)
+        oldState = this._getAddonBlocklistState(addons[i].id, addons[i].version,
+                                                oldAddonEntries);
+      let state = this.getAddonBlocklistState(addons[i].id, addons[i].version);
+      // We don't want to re-warn about items
+      if (state == oldState)
+        continue;
 
-        LOG("Blocklist state for " + addons[i].id + " changed from " +
-            oldState + " to " + state);
+      addonList.push({
+        name: addons[i].name,
+        version: addons[i].version,
+        icon: addons[i].iconURL,
+        disable: false,
+        blocked: state == Ci.nsIBlocklistService.STATE_BLOCKED,
+        item: addons[i]
+      });
+    }
 
-        // Don't warn about add-ons becoming unblocked.
-        if (state == 0)
-          continue;
+    var phs = Cc["@mozilla.org/plugin/host;1"].
+              getService(Ci.nsIPluginHost);
+    var plugins = phs.getPluginTags();
 
-        // We don't want to re-warn about add-ons
-        if (state == oldState)
-          continue;
+    for (let i = 0; i < plugins.length; i++) {
+      let oldState = -1;
+      if (oldPluginEntries)
+        oldState = this._getPluginBlocklistState(plugins[i], oldPluginEntries);
+      let state = this.getPluginBlocklistState(plugins[i]);
+      // We don't want to re-warn about items
+      if (state == oldState)
+        continue;
 
-        // If an add-on has dropped from hard to soft blocked just mark it as
-        // user disabled and don't warn about it.
-        if (state == Ci.nsIBlocklistService.STATE_SOFTBLOCKED &&
-            oldState == Ci.nsIBlocklistService.STATE_BLOCKED) {
-          addons[i].userDisabled = true;
-          continue;
-        }
-
-        // If the add-on is already disabled for some reason then don't warn
-        // about it
-        if (!addons[i].isActive)
-          continue;
-
-        addonList.push({
-          name: addons[i].name,
-          version: addons[i].version,
-          icon: addons[i].iconURL,
-          disable: false,
-          blocked: state == Ci.nsIBlocklistService.STATE_BLOCKED,
-          item: addons[i]
-        });
+      if (plugins[i].blocklisted) {
+        if (state == Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
+          plugins[i].disabled = true;
       }
-
-      AddonManagerPrivate.updateAddonAppDisabledStates();
-
-      var phs = Cc["@mozilla.org/plugin/host;1"].
-                getService(Ci.nsIPluginHost);
-      var plugins = phs.getPluginTags();
-
-      for (let i = 0; i < plugins.length; i++) {
-        let oldState = -1;
-        if (oldPluginEntries)
-          oldState = self._getPluginBlocklistState(plugins[i], oldPluginEntries);
-        let state = self.getPluginBlocklistState(plugins[i]);
-        LOG("Blocklist state for " + plugins[i].name + " changed from " +
-            oldState + " to " + state);
-        // We don't want to re-warn about items
-        if (state == oldState)
-          continue;
-
-        if (plugins[i].blocklisted) {
-          if (state == Ci.nsIBlocklistService.STATE_SOFTBLOCKED)
-            plugins[i].disabled = true;
+      else if (!plugins[i].disabled && state != Ci.nsIBlocklistService.STATE_NOT_BLOCKED) {
+        if (state == Ci.nsIBlocklistService.STATE_OUTDATED) {
+          gPref.setBoolPref(PREF_PLUGINS_NOTIFYUSER, true);
         }
-        else if (!plugins[i].disabled && state != Ci.nsIBlocklistService.STATE_NOT_BLOCKED) {
-          if (state == Ci.nsIBlocklistService.STATE_OUTDATED) {
-            gPref.setBoolPref(PREF_PLUGINS_NOTIFYUSER, true);
-          }
-          else {
-            addonList.push({
-              name: plugins[i].name,
-              version: plugins[i].version,
-              icon: "chrome://mozapps/skin/plugins/pluginGeneric.png",
-              disable: false,
-              blocked: state == Ci.nsIBlocklistService.STATE_BLOCKED,
-              item: plugins[i]
-            });
-          }
+        else {
+          addonList.push({
+            name: plugins[i].name,
+            version: plugins[i].version,
+            icon: "chrome://mozapps/skin/plugins/pluginGeneric.png",
+            disable: false,
+            blocked: state == Ci.nsIBlocklistService.STATE_BLOCKED,
+            item: plugins[i]
+          });
         }
-        plugins[i].blocklisted = state == Ci.nsIBlocklistService.STATE_BLOCKED;
       }
+      plugins[i].blocklisted = state == Ci.nsIBlocklistService.STATE_BLOCKED;
+    }
 
-      if (addonList.length == 0)
-        return;
+    if (addonList.length == 0)
+      return;
 
-      if ("@mozilla.org/addons/blocklist-prompt;1" in Cc) {
-        try {
-          let blockedPrompter = Cc["@mozilla.org/addons/blocklist-prompt;1"]
-                                 .getService(Ci.nsIBlocklistPrompt);
-          blockedPrompter.prompt(addonList);
-        } catch (e) {
-          LOG(e);
-        }
-        return;
-      }
+    var args = {
+      restart: false,
+      list: addonList
+    };
+    // This lets the dialog get the raw js object
+    args.wrappedJSObject = args;
 
-      var args = {
-        restart: false,
-        list: addonList
-      };
-      // This lets the dialog get the raw js object
-      args.wrappedJSObject = args;
+    var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+             getService(Ci.nsIWindowWatcher);
+    ww.openWindow(null, URI_BLOCKLIST_DIALOG, "",
+                  "chrome,centerscreen,dialog,modal,titlebar", args);
 
-      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-               getService(Ci.nsIWindowWatcher);
-      ww.openWindow(null, URI_BLOCKLIST_DIALOG, "",
-                    "chrome,centerscreen,dialog,modal,titlebar", args);
+    for (let i = 0; i < addonList.length; i++) {
+      if (!addonList[i].disable)
+        continue;
 
-      for (let i = 0; i < addonList.length; i++) {
-        if (!addonList[i].disable)
-          continue;
+      if (addonList[i].item instanceof Ci.nsIUpdateItem)
+        em.disableItem(addonList[i].item.id);
+      else if (addonList[i].item instanceof Ci.nsIPluginTag)
+        addonList[i].item.disabled = true;
+      else
+        LOG("Blocklist::_blocklistUpdated: Unknown add-on type: " +
+            addonList[i].item);
+    }
 
-        if (addonList[i].item instanceof Ci.nsIPluginTag)
-          addonList[i].item.disabled = true;
-        else
-          addonList[i].item.userDisabled = true;
-      }
-
-      if (args.restart)
-        restartApp();
-    });
+    if (args.restart)
+      restartApp();
   },
 
+  classDescription: "Blocklist Service",
+  contractID: "@mozilla.org/extensions/blocklist;1",
   classID: Components.ID("{66354bc9-7ed1-4692-ae1d-8da97d6b205e}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsIBlocklistService,
                                          Ci.nsITimerCallback]),
+  _xpcom_categories: [{ category: "update-timer",
+                        value: "@mozilla.org/extensions/blocklist;1," +
+                               "getService,blocklist-background-update-timer," +
+                               PREF_BLOCKLIST_INTERVAL + ",86400" }]
 };
 
 /**
@@ -1087,4 +1040,6 @@ BlocklistItemData.prototype = {
   }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([Blocklist]);
+function NSGetModule(aCompMgr, aFileSpec) {
+  return XPCOMUtils.generateModule([Blocklist]);
+}

@@ -42,6 +42,8 @@
 
 #include "nsCocoaUtils.h"
 
+#ifdef NS_LEOPARD_AND_LATER
+
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
 #include "mozView.h"
@@ -259,10 +261,6 @@ public:
   static CFArrayRef CreateAllIMEModeList();
   static void DebugPrintAllIMEModes(PRLogModuleInfo* aLogModuleInfo);
 
-  // Don't use ::TSMGetActiveDocument() API directly, the document may not
-  // be what you want.
-  static TSMDocumentID GetCurrentTSMDocumentID();
-
 protected:
   // The owner of this instance.  The result of mOwnerWidget->TextInputHandler
   // returns this instance.  This must not be null after initialized.
@@ -342,5 +340,7 @@ public:
   nsCocoaTextInputHandler();
   virtual ~nsCocoaTextInputHandler();
 };
+
+#endif // NS_LEOPARD_AND_LATER
 
 #endif // nsCocoaTextInputHandler_h_

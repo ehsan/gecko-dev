@@ -40,6 +40,7 @@
 #define _nsOuterDocAccessible_H_
 
 #include "nsAccessibleWrap.h"
+#include "nsIAccessible.h"
 
 /**
  * Used for <browser>, <frame>, <iframe>, <page> or editor> elements.
@@ -49,13 +50,15 @@
  * a something like tags listed above, whereas the inner node corresponds to
  * the inner document root.
  */
-
 class nsOuterDocAccessible : public nsAccessibleWrap
 {
-public:
-  nsOuterDocAccessible(nsIContent *aContent, nsIWeakReference *aShell);
-
+  // XXX: why is it private?
+  // CVS comment: <aaronl@netscape.com> 2003-04-01 14:15 Fixing bustage
   NS_DECL_ISUPPORTS_INHERITED
+
+public:
+  nsOuterDocAccessible(nsIDOMNode* aNode, 
+                       nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
@@ -63,20 +66,13 @@ public:
   NS_IMETHOD GetActionDescription(PRUint8 aIndex, nsAString& aDescription);
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
-  // nsAccessNode
-  virtual void Shutdown();
-
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                                    PRBool aDeepestChild,
                                    nsIAccessible **aChild);
-
-  virtual void InvalidateChildren();
-  virtual PRBool AppendChild(nsAccessible *aAccessible);
-  virtual PRBool RemoveChild(nsAccessible *aAccessible);
 
 protected:
   // nsAccessible

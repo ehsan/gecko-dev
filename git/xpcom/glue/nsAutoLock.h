@@ -109,14 +109,13 @@
 #include "nscore.h"
 #include "prlock.h"
 #include "prlog.h"
-#include "mozilla/AutoRestore.h"
 
 /**
  * nsAutoLockBase
  * This is the base class for the stack-based locking objects.
  * Clients of derived classes need not play with this superclass.
  **/
-class NS_COM_GLUE NS_STACK_CLASS nsAutoLockBase {
+class NS_COM_GLUE nsAutoLockBase {
     friend class nsAutoUnlockBase;
 
 protected:
@@ -147,7 +146,7 @@ protected:
  * This is the base class for stack-based unlocking objects.
  * It unlocks locking objects based on nsAutoLockBase.
  **/
-class NS_COM_GLUE NS_STACK_CLASS nsAutoUnlockBase {
+class NS_COM_GLUE nsAutoUnlockBase {
 protected:
     nsAutoUnlockBase() {}
 
@@ -166,11 +165,10 @@ protected:
  * nsAutoLock
  * Stack-based locking object for PRLock.
  **/
-class NS_COM_GLUE NS_STACK_CLASS nsAutoLock : public nsAutoLockBase {
+class NS_COM_GLUE nsAutoLock : public nsAutoLockBase {
 private:
     PRLock* mLock;
     PRBool mLocked;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an nsAutoLock object incorrectly.
@@ -210,11 +208,10 @@ public:
      * @param aLock A valid PRLock* returned from the NSPR's 
      * PR_NewLock() function.
      **/
-    nsAutoLock(PRLock* aLock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+    nsAutoLock(PRLock* aLock)
         : nsAutoLockBase(aLock, eAutoLock),
           mLock(aLock),
           mLocked(PR_TRUE) {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         PR_ASSERT(mLock);
 
         // This will assert deep in the bowels of NSPR if you attempt
@@ -253,18 +250,16 @@ public:
     }
 };
 
-class NS_STACK_CLASS nsAutoUnlock : private nsAutoUnlockBase
+class nsAutoUnlock : private nsAutoUnlockBase
 {
 private:
     PRLock *mLock;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
      
 public:
-    nsAutoUnlock(PRLock *lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) : 
+    nsAutoUnlock(PRLock *lock) : 
         nsAutoUnlockBase(lock),
         mLock(lock)
     {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         PR_Unlock(mLock);
     }
 
@@ -277,7 +272,7 @@ public:
 #include "nsError.h"
 #include "nsDebug.h"
 
-class NS_COM_GLUE NS_STACK_CLASS nsAutoMonitor : public nsAutoLockBase {
+class NS_COM_GLUE nsAutoMonitor : public nsAutoLockBase {
 public:
 
     /**
@@ -300,11 +295,10 @@ public:
      * @param mon A valid PRMonitor* returned from 
      *        nsAutoMonitor::NewMonitor().
      **/
-    nsAutoMonitor(PRMonitor* mon MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+    nsAutoMonitor(PRMonitor* mon)
         : nsAutoLockBase((void*)mon, eAutoMonitor),
           mMonitor(mon), mLockCount(0)
     {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         NS_ASSERTION(mMonitor, "null monitor");
         if (mMonitor) {
             PR_EnterMonitor(mMonitor);
@@ -367,7 +361,6 @@ public:
 private:
     PRMonitor*  mMonitor;
     PRInt32     mLockCount;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an nsAutoLock object incorrectly.
@@ -393,13 +386,12 @@ private:
 #include "prcmon.h"
 #include "nsError.h"
 
-class NS_COM_GLUE NS_STACK_CLASS nsAutoCMonitor : public nsAutoLockBase {
+class NS_COM_GLUE nsAutoCMonitor : public nsAutoLockBase {
 public:
-    nsAutoCMonitor(void* lockObject MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
+    nsAutoCMonitor(void* lockObject)
         : nsAutoLockBase(lockObject, eAutoCMonitor),
           mLockObject(lockObject), mLockCount(0)
     {
-        MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         NS_ASSERTION(lockObject, "null lock object");
         PR_CEnterMonitor(mLockObject);
         mLockCount = 1;
@@ -436,7 +428,6 @@ public:
 private:
     void*   mLockObject;
     PRInt32 mLockCount;
-    MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     // Not meant to be implemented. This makes it a compiler error to
     // construct or assign an nsAutoLock object incorrectly.

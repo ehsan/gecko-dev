@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-131510-001.js';
 var BUGNUMBER = 131510;
 var summary = "Shouldn't crash if define |var arguments| inside a function";
 printBugNumber(BUGNUMBER);

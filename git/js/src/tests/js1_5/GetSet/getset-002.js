@@ -38,11 +38,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'getset-002.js';
 
 var t = {   
   _y: "<initial y>",
 
-  get y()
+  y getter: function get_y ()
   {
     var rv;
     if (typeof this._y == "string")
@@ -53,7 +54,7 @@ var t = {
     return rv;
   },
 
-  set y(newVal)
+  y setter: function set_y (newVal)
   {
     this._y = newVal;
   }

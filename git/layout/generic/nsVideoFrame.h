@@ -44,24 +44,17 @@
 #include "nsContainerFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIIOService.h"
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "nsIAnonymousContentCreator.h"
-#include "Layers.h"
-#include "ImageLayers.h"
-
-class nsPresContext;
-class nsDisplayItem;
 
 nsIFrame* NS_NewVideoFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 class nsVideoFrame : public nsContainerFrame, public nsIAnonymousContentCreator
 {
 public:
-  typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layers::LayerManager LayerManager;
-
   nsVideoFrame(nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
@@ -75,6 +68,9 @@ public:
                               nsIAtom* aAttribute,
                               PRInt32 aModType);
 
+  void PaintVideo(nsIRenderingContext& aRenderingContext,
+                   const nsRect& aDirtyRect, nsPoint aPt);
+                              
   /* get the size of the video's display */
   nsSize GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext);
   virtual nsSize GetIntrinsicRatio();
@@ -93,7 +89,7 @@ public:
                     nsReflowStatus&          aStatus);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;
@@ -104,8 +100,7 @@ public:
   }
   
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilters);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
 
   nsIContent* GetPosterImage() { return mPosterImage; }
 
@@ -116,10 +111,6 @@ public:
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-
-  already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                     LayerManager* aManager,
-                                     nsDisplayItem* aItem);
 
 protected:
 

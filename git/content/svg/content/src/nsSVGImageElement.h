@@ -58,8 +58,8 @@ class nsSVGImageElement : public nsSVGImageElementBase,
 
 protected:
   friend nsresult NS_NewSVGImageElement(nsIContent **aResult,
-                                        already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGImageElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGImageElement(nsINodeInfo *aNodeInfo);
   virtual ~nsSVGImageElement();
 
 public:
@@ -81,7 +81,7 @@ public:
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
 
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
@@ -93,15 +93,12 @@ public:
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   void MaybeLoadSVGImage();
-
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsresult LoadSVGImage(PRBool aForce, PRBool aNotify);
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
-  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];

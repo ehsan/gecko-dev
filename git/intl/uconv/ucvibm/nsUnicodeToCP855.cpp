@@ -60,7 +60,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "cp855.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToCP855Constructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult) 
 {

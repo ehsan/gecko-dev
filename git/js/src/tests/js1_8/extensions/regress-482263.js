@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-482263.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 482263;
 var summary = 'TM: Do not assert: x->oprnd2() == lirbuf->sp || x->oprnd2() == gp_ins';
@@ -46,11 +47,7 @@ printStatus (summary);
 
 jit(true);
 
-Object.defineProperty(__proto__, "x",
-{
-  enumerable: true, configurable: true,
-  get: function () { return <y/>.([]) }
-});
+__proto__.x getter= function () { return <y/>.([]) };
 for each (let x in []) { for each (let x in ['', '']) { } }
 
 jit(true);

@@ -34,21 +34,20 @@ var gTestStepIndex = 0;
 var gTestEventIndex = 0;
 var gAutoHide = false;
 var gExpectedEventDetails = null;
-var gExpectedTriggerNode = null;
 var gWindowUtils;
 
 function startPopupTests(tests)
 {
-  document.addEventListener("popupshowing", eventOccurred, false);
-  document.addEventListener("popupshown", eventOccurred, false);
-  document.addEventListener("popuphiding", eventOccurred, false);
-  document.addEventListener("popuphidden", eventOccurred, false);
-  document.addEventListener("command", eventOccurred, false);
-  document.addEventListener("DOMMenuItemActive", eventOccurred, false);
-  document.addEventListener("DOMMenuItemInactive", eventOccurred, false);
-  document.addEventListener("DOMMenuInactive", eventOccurred, false);
-  document.addEventListener("DOMMenuBarActive", eventOccurred, false);
-  document.addEventListener("DOMMenuBarInactive", eventOccurred, false);
+  document.addEventListener("popupshowing", eventOccured, false);
+  document.addEventListener("popupshown", eventOccured, false);
+  document.addEventListener("popuphiding", eventOccured, false);
+  document.addEventListener("popuphidden", eventOccured, false);
+  document.addEventListener("command", eventOccured, false);
+  document.addEventListener("DOMMenuItemActive", eventOccured, false);
+  document.addEventListener("DOMMenuItemInactive", eventOccured, false);
+  document.addEventListener("DOMMenuInactive", eventOccured, false);
+  document.addEventListener("DOMMenuBarActive", eventOccured, false);
+  document.addEventListener("DOMMenuBarInactive", eventOccured, false);
 
   gPopupTests = tests;
   gWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
@@ -88,7 +87,7 @@ function disableNonTestMouse(aDisable) {
   gWindowUtils.disableNonTestMouseEvents(aDisable);
 }
 
-function eventOccurred(event)
+function eventOccured(event)
 {
    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
@@ -138,18 +137,6 @@ function eventOccurred(event)
       case "popupshown": expectedState = "open"; break;
       case "popuphiding": expectedState = "hiding"; break;
       case "popuphidden": expectedState = "closed"; break;
-    }
-
-    if (gExpectedTriggerNode && event.type == "popupshowing") {
-      if (gExpectedTriggerNode == "notset") // check against null instead
-        gExpectedTriggerNode = null;
-
-      is(event.originalTarget.triggerNode, gExpectedTriggerNode, test.testname + " popupshowing triggerNode");
-      var isTooltip = (event.target.localName == "tooltip");
-      is(document.popupNode, isTooltip ? null : gExpectedTriggerNode,
-         test.testname + " popupshowing document.popupNode");
-      is(document.tooltipNode, isTooltip ? gExpectedTriggerNode : null,
-         test.testname + " popupshowing document.tooltipNode");
     }
 
     if (expectedState)

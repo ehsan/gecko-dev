@@ -123,6 +123,8 @@ public:
   NS_IMETHOD SetDebug(nsBoxLayoutState& aState, PRBool aDebug);
 #endif
 
+  NS_IMETHOD IsActive(PRBool& aResult) { aResult = PR_TRUE; return NS_OK; }
+
   // The following methods are all overridden so that the menupopup
   // can be stored in a separate list, so that it doesn't impact reflow of the
   // actual menu item at all.
@@ -176,7 +178,7 @@ public:
   // otherwise null will be returned.
   nsMenuFrame* Enter();
 
-  virtual void SetParent(nsIFrame* aParent);
+  NS_IMETHOD SetParent(const nsIFrame* aParent);
 
   virtual nsMenuParent *GetMenuParent() { return mMenuParent; }
   const nsAString& GetRadioGroupName() { return mGroupName; }
@@ -185,11 +187,14 @@ public:
 
   // nsMenuFrame methods 
 
+  nsresult DestroyPopupFrames(nsPresContext* aPresContext);
+
   virtual PRBool IsOnMenuBar() { return mMenuParent && mMenuParent->IsMenuBar(); }
   virtual PRBool IsOnActiveMenuBar() { return IsOnMenuBar() && mMenuParent->IsActive(); }
   virtual PRBool IsOpen();
   virtual PRBool IsMenu();
   PRBool IsDisabled();
+  PRBool IsGenerated();
   void ToggleMenuState();
 
   // indiciate that the menu's popup has just been opened, so that the menu
@@ -219,7 +224,6 @@ public:
 protected:
   friend class nsMenuTimerMediator;
   friend class nsASyncMenuInitialization;
-  friend class nsMenuAttributeChangedEvent;
 
   // initialize mPopupFrame to the first popup frame within
   // aChildList. Removes the popup, if any, from aChildList.
@@ -251,12 +255,6 @@ protected:
 
   PRBool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
 
-  PRBool ShouldBlink();
-  void StartBlinking(nsGUIEvent *aEvent, PRBool aFlipChecked);
-  void StopBlinking();
-  void CreateMenuCommandEvent(nsGUIEvent *aEvent, PRBool aFlipChecked);
-  void PassMenuCommandEventToPopupManager();
-
 protected:
 #ifdef DEBUG_LAYOUT
   nsresult SetDebug(nsBoxLayoutState& aState, nsIFrame* aList, PRBool aDebug);
@@ -276,10 +274,6 @@ protected:
   nsRefPtr<nsMenuTimerMediator> mTimerMediator;
 
   nsCOMPtr<nsITimer> mOpenTimer;
-  nsCOMPtr<nsITimer> mBlinkTimer;
-
-  PRUint8 mBlinkState; // 0: not blinking, 1: off, 2: on
-  nsRefPtr<nsXULMenuCommandEvent> mDelayedMenuCommandEvent;
 
   nsString mGroupName;
   

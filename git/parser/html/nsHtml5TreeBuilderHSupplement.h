@@ -40,13 +40,11 @@
   private:
 
     nsTArray<nsHtml5TreeOperation>         mOpQueue;
-    nsTArray<nsHtml5SpeculativeLoad>       mSpeculativeLoadQueue;
     nsAHtml5TreeOpSink*                    mOpSink;
     nsAutoArrayPtr<nsIContent*>            mHandles;
     PRInt32                                mHandlesUsed;
     nsTArray<nsAutoArrayPtr<nsIContent*> > mOldHandles;
-    nsHtml5TreeOpStage*                    mSpeculativeLoadStage;
-    nsIContent**                           mDeepTreeSurrogateParent;
+    nsRefPtr<nsHtml5SpeculativeLoader>     mSpeculativeLoader;
     PRBool                                 mCurrentHtmlScriptIsAsyncOrDefer;
 #ifdef DEBUG
     PRBool                                 mActive;
@@ -60,15 +58,10 @@
 
     nsIContent** AllocateContentHandle();
     
-    void accumulateCharactersForced(const PRUnichar* aBuf, PRInt32 aStart, PRInt32 aLength)
-    {
-      accumulateCharacters(aBuf, aStart, aLength);
-    }
-
   public:
 
-    nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink,
-                       nsHtml5TreeOpStage* aStage);
+    nsHtml5TreeBuilder(nsAHtml5TreeOpSink* aOpSink, 
+                       nsHtml5SpeculativeLoader* aSpeculativeLoader);
 
     ~nsHtml5TreeBuilder();
     
@@ -84,11 +77,15 @@
       mOpQueue.Clear();
     }
     
+    PRBool HasSpeculativeLoader() {
+      return !!mSpeculativeLoader;
+    }
+    
+    void DropSpeculativeLoader();
+
     PRBool Flush();
     
-    void FlushLoads();
-
-    void SetDocumentCharset(nsACString& aCharset, PRInt32 aCharsetSource);
+    void SetDocumentCharset(nsACString& aCharset);
 
     void StreamEnded();
 
@@ -96,4 +93,8 @@
 
     void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
 
-    void DropHandles();
+    inline void Dispatch(nsIRunnable* aEvent) {
+      if (NS_FAILED(NS_DispatchToMainThread(aEvent))) {
+        NS_WARNING("Failed to dispatch speculative load runnable.");
+      }
+    }

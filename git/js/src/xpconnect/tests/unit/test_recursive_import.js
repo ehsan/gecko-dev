@@ -38,6 +38,16 @@
  * ***** END LICENSE BLOCK ***** */
  
 function run_test() {
+  const Ci = Components.interfaces; 
+  const ioService = Components.classes["@mozilla.org/network/io-service;1"]
+                              .getService(Ci.nsIIOService);
+  const resProt = ioService.getProtocolHandler("resource")
+                           .QueryInterface(Ci.nsIResProtocolHandler);
+
+  var curdir = do_get_cwd();
+  var curURI = ioService.newFileURI(curdir);
+  resProt.setSubstitution("test", curURI);
+
   var scope = {};
   Components.utils.import("resource://test/recursive_importA.jsm", scope);
 

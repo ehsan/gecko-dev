@@ -63,7 +63,7 @@ public:
                                         nsIFrame**      aProviderFrame,
                                         PRBool*         aIsChild);
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
 #ifdef NS_DEBUG
@@ -126,7 +126,7 @@ public:
   }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -219,6 +219,12 @@ protected:
                       const nsMargin& aCaptionMargin,
                       nscoord&        aWidth,
                       nscoord&        aHeight);
+
+  void BalanceLeftRightCaption(PRUint8         aCaptionSide,
+                               const nsMargin& aInnerMargin, 
+                               const nsMargin& aCaptionMargin,
+                               nscoord&        aInnerWidth,
+                               nscoord&        aCaptionWidth);
 
   nsresult   GetCaptionOrigin(PRUint32         aCaptionSide,
                               const nsSize&    aContainBlockSize,

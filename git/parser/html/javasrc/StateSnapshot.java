@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009-2010 Mozilla Foundation
+ * Copyright (c) 2009 Mozilla Foundation
  *
  * Permission is hereby granted, free of charge, to any person obtaining a 
  * copy of this software and associated documentation files (the "Software"), 
@@ -22,174 +22,38 @@
 
 package nu.validator.htmlparser.impl;
 
-import nu.validator.htmlparser.annotation.Auto;
 
-
-public class StateSnapshot<T> implements TreeBuilderState<T> {
-
-    private final @Auto StackNode<T>[] stack;
-
-    private final @Auto StackNode<T>[] listOfActiveFormattingElements;
-
-    private final T formPointer;
-
-    private final T headPointer;
-
-    private final T deepTreeSurrogateParent;
-
-    private final int mode;
-
-    private final int originalMode;
-    
-    private final boolean framesetOk;
-
-    private final boolean inForeign;
-
-    private final boolean needToDropLF;
-
-    private final boolean quirks;
+public class StateSnapshot<T> {
 
     /**
      * @param stack
      * @param listOfActiveFormattingElements
      * @param formPointer
-     * @param quirks 
-     * @param needToDropLF 
-     * @param foreignFlag 
-     * @param originalMode 
-     * @param mode 
      */
     StateSnapshot(StackNode<T>[] stack,
-            StackNode<T>[] listOfActiveFormattingElements, T formPointer, T headPointer, T deepTreeSurrogateParent, int mode, int originalMode, boolean framesetOk, boolean inForeign, boolean needToDropLF, boolean quirks) {
+            StackNode<T>[] listOfActiveFormattingElements, T formPointer) {
         this.stack = stack;
         this.listOfActiveFormattingElements = listOfActiveFormattingElements;
         this.formPointer = formPointer;
-        this.headPointer = headPointer;
-        this.deepTreeSurrogateParent = deepTreeSurrogateParent;
-        this.mode = mode;
-        this.originalMode = originalMode;
-        this.framesetOk = framesetOk;
-        this.inForeign = inForeign;
-        this.needToDropLF = needToDropLF;
-        this.quirks = quirks;
     }
+
+    final StackNode<T>[] stack;
+
+    final StackNode<T>[] listOfActiveFormattingElements;
+
+    final T formPointer;
     
-    /**
-     * @see nu.validator.htmlparser.impl.TreeBuilderState#getStack()
-     */
-    public StackNode<T>[] getStack() {
-        return stack;
-    }
-
-    /**
-     * @see nu.validator.htmlparser.impl.TreeBuilderState#getListOfActiveFormattingElements()
-     */
-    public StackNode<T>[] getListOfActiveFormattingElements() {
-        return listOfActiveFormattingElements;
-    }
-
-    /**
-     * @see nu.validator.htmlparser.impl.TreeBuilderState#getFormPointer()
-     */
-    public T getFormPointer() {
-        return formPointer;
-    }
-
-    /**
-     * Returns the headPointer.
-     * 
-     * @return the headPointer
-     */
-    public T getHeadPointer() {
-        return headPointer;
-    }
-
-    /**
-     * Returns the deepTreeSurrogateParent.
-     * 
-     * @return the deepTreeSurrogateParent
-     */
-    public T getDeepTreeSurrogateParent() {
-        return deepTreeSurrogateParent;
-    }
-    
-    /**
-     * Returns the mode.
-     * 
-     * @return the mode
-     */
-    public int getMode() {
-        return mode;
-    }
-
-    /**
-     * Returns the originalMode.
-     * 
-     * @return the originalMode
-     */
-    public int getOriginalMode() {
-        return originalMode;
-    }
-
-    /**
-     * Returns the framesetOk.
-     * 
-     * @return the framesetOk
-     */
-    public boolean isFramesetOk() {
-        return framesetOk;
-    }
-
-    /**
-     * Returns the inForeign.
-     * 
-     * @return the inForeign
-     */
-    public boolean isInForeign() {
-        return inForeign;
-    }
-
-    /**
-     * Returns the needToDropLF.
-     * 
-     * @return the needToDropLF
-     */
-    public boolean isNeedToDropLF() {
-        return needToDropLF;
-    }
-
-    /**
-     * Returns the quirks.
-     * 
-     * @return the quirks
-     */
-    public boolean isQuirks() {
-        return quirks;
-    }
-    
-    /**
-     * @see nu.validator.htmlparser.impl.TreeBuilderState#getListOfActiveFormattingElementsLength()
-     */
-    public int getListOfActiveFormattingElementsLength() {
-        return listOfActiveFormattingElements.length;
-    }
-
-    /**
-     * @see nu.validator.htmlparser.impl.TreeBuilderState#getStackLength()
-     */
-    public int getStackLength() {
-        return stack.length;
-    }
-
     @SuppressWarnings("unused") private void destructor() {
         for (int i = 0; i < stack.length; i++) {
             stack[i].release();
         }
+        Portability.releaseArray(stack);
         for (int i = 0; i < listOfActiveFormattingElements.length; i++) {
             if (listOfActiveFormattingElements[i] != null) {
                 listOfActiveFormattingElements[i].release();                
             }
         }
+        Portability.releaseArray(listOfActiveFormattingElements);
         Portability.retainElement(formPointer);
     }
 }

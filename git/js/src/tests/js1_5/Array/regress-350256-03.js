@@ -35,15 +35,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350256-03.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350256;
-var summary = 'Array.apply maximum arguments: 2^19-1024';
+var summary = 'Array.apply maximum arguments: 2^24-1';
 var actual = '';
 var expect = '';
 
 
 //-----------------------------------------------------------------------------
-test(Math.pow(2, 19)-1024);
+test(Math.pow(2, 24)-1);
 //-----------------------------------------------------------------------------
 
 function test(length)

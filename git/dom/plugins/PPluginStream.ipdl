@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PPluginInstance;
+include protocol "PPluginInstance.ipdl";
 
 include "mozilla/plugins/PluginMessageUtils.h";
 

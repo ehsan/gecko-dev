@@ -120,13 +120,13 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsCertOverrideService,
 
 nsCertOverrideService::nsCertOverrideService()
 {
-  monitor = nsAutoMonitor::NewMonitor("security.certOverrideServiceMonitor");
+  monitor = PR_NewMonitor();
 }
 
 nsCertOverrideService::~nsCertOverrideService()
 {
   if (monitor)
-    nsAutoMonitor::DestroyMonitor(monitor);
+    PR_DestroyMonitor(monitor);
 }
 
 nsresult
@@ -696,11 +696,6 @@ nsCertOverrideService::AddEntryToList(const nsACString &aHostName, PRInt32 aPort
 NS_IMETHODIMP
 nsCertOverrideService::ClearValidityOverride(const nsACString & aHostName, PRInt32 aPort)
 {
-  if (aPort == 0 &&
-      aHostName.EqualsLiteral("all:temporary-certificates")) {
-    RemoveAllTemporaryOverrides();
-    return NS_OK;
-  }
   nsCAutoString hostPort;
   GetHostWithPort(aHostName, aPort, hostPort);
   {
@@ -919,4 +914,3 @@ nsCertOverrideService::GetHostWithPort(const nsACString & aHostName, PRInt32 aPo
   }
   _retval.Assign(hostPort);
 }
-

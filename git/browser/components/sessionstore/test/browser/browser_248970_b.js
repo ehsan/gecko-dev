@@ -45,11 +45,6 @@ function test() {
     return false;
   }
 
-  var file = Components.classes["@mozilla.org/file/directory_service;1"]
-             .getService(Components.interfaces.nsIProperties)
-             .get("TmpD", Components.interfaces.nsIFile);
-  filePath = file.path;
-
   let fieldList = {
     "//input[@name='input']":     Date.now().toString(),
     "//input[@name='spaced 1']":  Math.random().toString(),
@@ -64,7 +59,7 @@ function test() {
     "//textarea[1]":              "",
     "//textarea[2]":              "Some text... " + Math.random(),
     "//textarea[3]":              "Some more text\n" + new Date(),
-    "//input[@type='file']":      filePath
+    "//input[@type='file']":      "/dev/null"
   };
 
   function getElementByXPath(aTab, aQuery) {
@@ -117,9 +112,9 @@ function test() {
   // Test (B) : Session data restoration between modes            //
   //////////////////////////////////////////////////////////////////
 
-  let rootDir = getRootDirectory(gTestPath);
-  const testURL = rootDir + "browser_248970_b_sample.html";
-  const testURL2 = "http://mochi.test:8888/browser/" +
+  const testURL = "chrome://mochikit/content/browser/" +
+  "browser/components/sessionstore/test/browser/browser_248970_b_sample.html";
+  const testURL2 = "http://localhost:8888/browser/" +
   "browser/components/sessionstore/test/browser/browser_248970_b_sample.html";
 
   // get closed tab count
@@ -135,7 +130,7 @@ function test() {
 
   // public session, add new tab: (A)
   let tab_A = gBrowser.addTab(testURL);
-  ss.setTabState(tab_A, JSON.stringify(state));
+  ss.setTabState(tab_A, state.toSource());
   tab_A.linkedBrowser.addEventListener("load", function(aEvent) {
     this.removeEventListener("load", arguments.callee, true);
 
@@ -172,7 +167,7 @@ function test() {
 
       // private browsing session, new tab: (B)
       let tab_B = gBrowser.addTab(testURL2);
-      ss.setTabState(tab_B, JSON.stringify(state1));
+      ss.setTabState(tab_B, state1.toSource());
       tab_B.linkedBrowser.addEventListener("load", function(aEvent) {
         this.removeEventListener("load", arguments.callee, true);
 

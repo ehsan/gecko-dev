@@ -45,11 +45,6 @@
   %globalDTD;
   <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
   %browserDTD;
-#ifdef XP_MACOSX
-  <!ENTITY basePBMenu.label   "&toolsMenu.label;">
-#else
-  <!ENTITY basePBMenu.label   "<span class='appMenuButton'>&brandShortName;</span><span class='toolsMenu'>&toolsMenu.label;</span>">
-#endif
   <!ENTITY % privatebrowsingpageDTD SYSTEM "chrome://browser/locale/aboutPrivateBrowsing.dtd">
   %privatebrowsingpageDTD;
 ]>
@@ -58,18 +53,6 @@
   <head>
     <link rel="stylesheet" href="chrome://global/skin/netError.css" type="text/css" media="all"/>
     <link rel="stylesheet" href="chrome://browser/skin/aboutPrivateBrowsing.css" type="text/css" media="all"/>
-    <style type="text/css"><![CDATA[
-      body.normal .showPrivate,
-      body.private .showNormal {
-        display: none;
-      }
-      body.appMenuButtonVisible .toolsMenu {
-        display: none;
-      }
-      body.appMenuButtonInvisible .appMenuButton {
-        display: none;
-      }
-    ]]></style>
     <script type="application/javascript;version=1.7"><![CDATA[
       const Cc = Components.classes;
       const Ci = Components.interfaces;
@@ -113,9 +96,19 @@
       }
 
       document.addEventListener("DOMContentLoaded", function () {
+        let selector;
         if (!pb.privateBrowsingEnabled) {
           document.body.setAttribute("class", "normal");
+          selector = ".showPrivate";
         }
+        else {
+          selector = ".showNormal";
+        }
+
+        // Remove hidden elements to avoid bug 39098
+        let elements = document.body.querySelectorAll(selector);
+        for (let i = 0; i < elements.length; ++ i)
+          elements[i].parentNode.removeChild(elements[i]);
 
         // Set up the help link
         let moreInfoURL = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
@@ -124,18 +117,7 @@
         let moreInfoLink = document.getElementById("moreInfoLink");
         if (moreInfoLink)
           moreInfoLink.setAttribute("href", moreInfoURL + "private-browsing");
-
-        // Show the correct menu structure based on whether the App Menu button is
-        // shown or not.
-        var menuBar = mainWindow.document.getElementById("toolbar-menubar");
-        var appMenuButtonIsVisible = menuBar.getAttribute("autohide") == "true";
-        document.body.classList.add(appMenuButtonIsVisible ? "appMenuButtonVisible" :
-                                                             "appMenuButtonInvisible");
       }, false);
-      
-      function togglePrivateBrowsing() {
-        mainWindow.gPrivateBrowsingUI.toggleMode();
-      }
     ]]></script>
   </head>
 
@@ -169,14 +151,13 @@
         <div id="startPrivateBrowsingDesc" class="showNormal">
           <button xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
                   id="startPrivateBrowsing" label="&privatebrowsingpage.startPrivateBrowsing.label;"
-                  accesskey="&privatebrowsingpage.startPrivateBrowsing.accesskey;"
-                  oncommand="togglePrivateBrowsing();"/>
+                  accesskey="&privatebrowsingpage.startPrivateBrowsing.accesskey;"/>
         </div>
 
         <!-- Footer -->
         <div id="footerDesc">
-          <p id="footerText" class="showPrivate">&privatebrowsingpage.howToStop2;</p>
-          <p id="footerTextNormal" class="showNormal">&privatebrowsingpage.howToStart2;</p>
+          <p id="footerText" class="showPrivate">&privatebrowsingpage.howToStop;</p>
+          <p id="footerTextNormal" class="showNormal">&privatebrowsingpage.howToStart;</p>
         </div>
 
         <!-- More Info -->

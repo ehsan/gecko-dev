@@ -44,7 +44,7 @@
  * A character set converter from Unicode to HKSCS.
  *
  */
-nsresult
+NS_METHOD
 nsUnicodeToHKSCSConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

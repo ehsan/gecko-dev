@@ -65,7 +65,6 @@ protected:
   nsSVGGlyphFrame(nsStyleContext* aContext)
     : nsSVGGlyphFrameBase(aContext),
       mTextRun(nsnull),
-      mStartIndex(0),
       mWhitespaceHandling(COMPRESS_WHITESPACE)
       {}
   ~nsSVGGlyphFrame()
@@ -146,19 +145,15 @@ public:
    */
   NS_IMETHOD_(float) GetAdvance(PRBool aForceGlobalTransform);
 
-  NS_IMETHOD_(void) SetGlyphPosition(gfxPoint *aPosition, PRBool aForceGlobalTransform);
+  NS_IMETHOD_(void) SetGlyphPosition(float x, float y, PRBool aForceGlobalTransform);
   NS_IMETHOD_(nsSVGTextPathFrame*) FindTextPathParent();
   NS_IMETHOD_(PRBool) IsStartOfChunk(); // == is new absolutely positioned chunk.
+  NS_IMETHOD_(void) GetAdjustedPosition(/* inout */ float &x, /* inout */ float &y);
 
-  NS_IMETHOD_(void) GetXY(mozilla::SVGUserUnitList *aX, mozilla::SVGUserUnitList *aY);
-  NS_IMETHOD_(void) SetStartIndex(PRUint32 aStartIndex);
-  NS_IMETHOD_(void) GetEffectiveXY(PRInt32 strLength,
-                                   nsTArray<float> &aX, nsTArray<float> &aY);
-  NS_IMETHOD_(void) GetEffectiveDxDy(PRInt32 strLength, 
-                                     nsTArray<float> &aDx,
-                                     nsTArray<float> &aDy);
-  NS_IMETHOD_(void) GetEffectiveRotate(PRInt32 strLength,
-                                       nsTArray<float> &aRotate);
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetX();
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetY();
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDx();
+  NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDy();
   NS_IMETHOD_(PRUint16) GetTextAnchor();
   NS_IMETHOD_(PRBool) IsAbsolutelyPositioned();
 
@@ -197,7 +192,6 @@ protected:
   PRBool GetCharacterData(nsAString & aCharacterData);
   PRBool GetCharacterPositions(nsTArray<CharacterPosition>* aCharacterPositions,
                                float aMetricsScale);
-  PRUint32 GetTextRunFlags(PRUint32 strLength);
 
   void AddCharactersToPath(CharacterIterator *aIter,
                            gfxContext *aContext);
@@ -212,12 +206,8 @@ protected:
   void SetupGlobalTransform(gfxContext *aContext);
   nsresult GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
                         nscolor *foreground, nscolor *background);
-  float GetSubStringAdvance(PRUint32 charnum, PRUint32 fragmentChars,
-                            float aMetricsScale);
-  gfxFloat GetBaselineOffset(float aMetricsScale);
-
-  virtual void GetDxDy(mozilla::SVGUserUnitList *aDx, mozilla::SVGUserUnitList *aDy);
-  already_AddRefed<nsIDOMSVGNumberList> GetRotate();
+  float GetSubStringAdvance(PRUint32 charnum, PRUint32 fragmentChars);
+  gfxFloat GetBaselineOffset(PRBool aForceGlobalTransform);
 
   // Used to support GetBBoxContribution by making GetConvasTM use this as the
   // parent transform instead of the real CanvasTM.
@@ -226,8 +216,6 @@ protected:
   // Owning pointer, must call gfxTextRunWordCache::RemoveTextRun before deleting
   gfxTextRun *mTextRun;
   gfxPoint mPosition;
-  // The start index into the position and rotation data
-  PRUint32 mStartIndex;
   PRUint8 mWhitespaceHandling;
 };
 

@@ -91,9 +91,6 @@ public:
 
   virtual nsIAtom* GetType() const { return nsGkAtoms::menuBarFrame; }
 
-  virtual void LockMenuUntilClosed(PRBool aLock) {}
-  virtual PRBool IsMenuLocked() { return PR_FALSE; }
-
 // Non-interface helpers
 
   void

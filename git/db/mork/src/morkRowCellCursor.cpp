@@ -59,6 +59,10 @@
 #include "morkRowCellCursor.h"
 #endif
 
+#ifndef _ORKINROWCELLCURSOR_
+#include "orkinRowCellCursor.h"
+#endif
+
 #ifndef _MORKSTORE_
 #include "morkStore.h"
 #endif

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-456826.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 456826;
 var summary = 'Do not assert with JIT during OOM';
@@ -57,7 +58,6 @@ function test()
   if (typeof gcparam != 'undefined')
   {
     gcparam("maxBytes", 22000);
-    expectExitCode(5);
   }
 
   const numRows = 600;

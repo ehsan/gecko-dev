@@ -57,15 +57,8 @@ typedef enum {
   FUNCTION_NPP_NEWSTREAM,
   FUNCTION_NPP_WRITEREADY,
   FUNCTION_NPP_WRITE,
-  FUNCTION_NPP_DESTROYSTREAM,
-  FUNCTION_NPP_WRITE_RPC
+  FUNCTION_NPP_DESTROYSTREAM
 } TestFunction;
-
-typedef enum {
-  ACTIVATION_STATE_UNKNOWN,
-  ACTIVATION_STATE_ACTIVATED,
-  ACTIVATION_STATE_DEACTIVATED
-} ActivationState;
 
 typedef struct FunctionTable {
   TestFunction funcId;
@@ -99,11 +92,9 @@ typedef struct InstanceData {
   bool hasWidget;
   bool npnNewStream;
   bool throwOnNextInvoke;
-  bool runScriptOnPaint;
   uint32_t timerID[2];
   bool timerTestResult;
   bool asyncCallbackResult;
-  bool invalidateDuringPaint;
   int32_t winX;
   int32_t winY;
   int32_t lastMouseX;
@@ -116,7 +107,6 @@ typedef struct InstanceData {
   TestFunction testFunction;
   TestFunction functionToFail;
   NPError failureCode;
-  NPObject* callOnDestroy;
   PostMode postMode;
   std::string testUrl;
   std::string frame;
@@ -131,12 +121,6 @@ typedef struct InstanceData {
   void* streamBuf;
   void* fileBuf;
   bool crashOnDestroy;
-  bool cleanupWidget;
-  ActivationState topLevelWindowActivationState;
-  int32_t topLevelWindowActivationEventCount;
-  ActivationState focusState;
-  int32_t focusEventCount;
-  int32_t eventModel;
 } InstanceData;
 
 void notifyDidPaint(InstanceData* instanceData);

@@ -76,12 +76,10 @@ static inline PRBool IS_TABLE_CELL(nsIAtom* frameType) {
 class nsDisplayTableItem : public nsDisplayItem
 {
 public:
-  nsDisplayTableItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame) : 
-      nsDisplayItem(aBuilder, aFrame),
+  nsDisplayTableItem(nsIFrame* aFrame) : nsDisplayItem(aFrame),
       mPartHasFixedBackground(PR_FALSE) {}
 
-  virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder,
-                                                nsIFrame* aFrame);
+  virtual PRBool IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuilder);
   // With collapsed borders, parts of the collapsed border can extend outside
   // the table part frames, so allow this display element to blow out to our
   // overflow rect. This is also useful for row frames that have spanning
@@ -161,6 +159,11 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
+
+  static void* GetProperty(nsIFrame*            aFrame,
+                           nsIAtom*             aPropertyName,
+                           PRBool               aCreateIfNecessary = PR_FALSE);
+
   static float GetTwipsToPixels(nsPresContext* aPresContext);
 
   // Return true if aParentReflowState.frame or any of its ancestors within
@@ -179,7 +182,7 @@ public:
 
   static void RePositionViews(nsIFrame* aFrame);
 
-  static PRBool PageBreakAfter(nsIFrame* aSourceFrame,
+  static PRBool PageBreakAfter(nsIFrame& aSourceFrame,
                                nsIFrame* aNextFrame);
 
   nsPoint GetFirstSectionOrigin(const nsHTMLReflowState& aReflowState) const;
@@ -242,7 +245,9 @@ public:
   static nsIFrame* GetFrameAtOrBefore(nsIFrame*       aParentFrame,
                                       nsIFrame*       aPriorChildFrame,
                                       nsIAtom*        aChildType);
+  PRBool IsAutoWidth(PRBool* aIsPctWidth = nsnull);
   PRBool IsAutoHeight();
+  static PRBool IsPctHeight(nsStyleContext* aStyleContext);
   
   /** @return PR_TRUE if aDisplayType represents a rowgroup of any sort
     * (header, footer, or body)
@@ -381,6 +386,9 @@ public:
   /** return the width of the column at aColIndex    */
   virtual PRInt32 GetColumnWidth(PRInt32 aColIndex);
 
+  /** set the width of the column at aColIndex to aWidth    */
+  virtual void SetColumnWidth(PRInt32 aColIndex, nscoord aWidth);
+
   /** helper to get the cell spacing X style value */
   virtual nscoord GetCellSpacingX();
 
@@ -419,6 +427,11 @@ public:
     * or is spanned from the rows above
     */
   PRBool HasMoreThanOneCell(PRInt32 aRowIndex) const;
+
+  /** return the value of the COLS attribute, adjusted for the 
+    * actual number of columns in the table
+    */
+  PRInt32 GetEffectiveCOLSAttribute();
 
   /** return the column frame associated with aColIndex
     * returns nsnull if the col frame has not yet been allocated, or if
@@ -512,13 +525,13 @@ public:
    *
    * @param aFrame The frame to invalidate
    * @param aOrigRect The original rect of aFrame (before the change).
-   * @param aOrigVisualOverflow The original overflow rect of aFrame.
+   * @param aOrigOverflowRect The original overflow rect of aFrame.
    * @param aIsFirstReflow True if the size/position change is due to the
    *                       first reflow of aFrame.
    */
   static void InvalidateFrame(nsIFrame* aFrame,
                               const nsRect& aOrigRect,
-                              const nsRect& aOrigVisualOverflow,
+                              const nsRect& aOrigOverflowRect,
                               PRBool aIsFirstReflow);
 
 protected:
@@ -549,10 +562,10 @@ protected:
                                   nsTableRowGroupFrame* aFrame,
                                   nscoord* aDesiredHeight);
 
-  nsresult ReflowChildren(nsTableReflowState&  aReflowState,
-                          nsReflowStatus&      aStatus,
-                          nsIFrame*&           aLastChildReflowed,
-                          nsOverflowAreas&     aOverflowAreas);
+  NS_METHOD ReflowChildren(nsTableReflowState&  aReflowState,
+                           nsReflowStatus&      aStatus,
+                           nsIFrame*&           aLastChildReflowed,
+                           nsRect&              aOverflowArea);
 
   // This calls the col group and column reflow methods, which do two things:
   //  (1) set all the dimensions to 0
@@ -608,10 +621,7 @@ protected:
                   nsIFrame*            aKidFrame,
                   nsHTMLReflowMetrics& aKidDesiredSize,
                   const nsRect&        aOriginalKidRect,
-                  const nsRect&        aOriginalKidVisualOverflow);
-   void PlaceRepeatedFooter(nsTableReflowState& aReflowState,
-                            nsTableRowGroupFrame *aTfoot,
-                            nscoord aFooterHeight);
+                  const nsRect&        aOriginalKidOverflowRect);
 
   nsIFrame* GetFirstBodyRowGroupFrame();
 public:
@@ -650,6 +660,14 @@ public:
   // which spans into the next row,  the number of effective
   // columns limits the search up to that column
   PRBool RowHasSpanningCells(PRInt32 aRowIndex, PRInt32 aNumEffCols);
+
+  // Returns PR_TRUE if there are any cells to the left of the column at
+  // aColIndex and spanning into the column at aColIndex     
+  PRBool ColIsSpannedInto(PRInt32 aColIndex);
+
+  // Returns PR_TRUE if there is a cell originating in aColIndex
+  // which spans into the next col
+  PRBool ColHasSpanningCells(PRInt32 aColIndex);
 
 protected:
 

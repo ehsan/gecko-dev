@@ -146,18 +146,17 @@ nsTableCaptionFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsTableCaptionFrame::CreateAccessible()
+NS_IMETHODIMP nsTableCaptionFrame::GetAccessible(nsIAccessible** aAccessible)
 {
+  *aAccessible = nsnull;
   if (!GetRect().IsEmpty()) {
     nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
-      return accService->CreateHTMLCaptionAccessible(mContent,
-                                                     PresContext()->PresShell());
+      return accService->CreateHTMLCaptionAccessible(static_cast<nsIFrame*>(this), aAccessible);
     }
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -193,17 +192,15 @@ NS_QUERYFRAME_HEAD(nsTableOuterFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsTableOuterFrame::CreateAccessible()
+NS_IMETHODIMP nsTableOuterFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTableAccessible(mContent,
-                                                 PresContext()->PresShell());
+    return accService->CreateHTMLTableAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -704,6 +701,71 @@ nsTableOuterFrame::SetDesiredSize(PRUint8         aCaptionSide,
 
 }
 
+// XXX This is now unused, but it probably should be used!
+void
+nsTableOuterFrame::BalanceLeftRightCaption(PRUint8         aCaptionSide,
+                                           const nsMargin& aInnerMargin,
+                                           const nsMargin& aCaptionMargin,
+                                           nscoord&        aInnerWidth, 
+                                           nscoord&        aCaptionWidth)
+{
+  
+  /* balance the caption and inner table widths to ensure space for percent widths
+  *  Percent widths for captions or the inner table frame can determine how much of the
+  *  available width is used and how the available width is distributed between those frames
+  *  The inner table frame has already a quite sophisticated treatment of percentage widths 
+  *  (see BasicTableLayoutStrategy.cpp). So it acts as master in the below computations.
+  *  There are four possible scenarios 
+  *  a) None of the frames have a percentage width - then the aInnerWidth and aCaptionwidth will not change
+  *  b) Only the inner frame has a percentage width - this is handled in BasicTableLayoutStrategy.cpp, 
+  *     both widths will not change
+  *  c) Only the caption has a percentage width - then the overall width (ow) will be different depending on
+  *     the caption side. For the left side
+  *     ow = aCaptionMargin.left + aCaptionWidth + aCaptionMargin.right + aInnerwidth + aInnerMargin.right
+  *     aCaptionWidth = capPercent * ow
+  *     solving this equation for aCaptionWidth gives:
+  *     aCaptionWidth = capPercent/(1-capPercent) * 
+  *                      (aCaptionMargin.left + aCaptionMargin.right + aInnerwidth + aInnerMargin.right)
+  *     this result will cause problems for capPercent >= 1, in these cases the algorithm will now bail out
+  *     a similar expression can be found for the right case
+  *  d) both frames have percent widths in this case the caption width will be the inner width multiplied 
+  *     by the weight capPercent/innerPercent
+  */
+    
+
+  float capPercent   = -1.0;
+  float innerPercent = -1.0;
+  const nsStylePosition* position = mCaptionFrame->GetStylePosition();
+  if (eStyleUnit_Percent == position->mWidth.GetUnit()) {
+    capPercent = position->mWidth.GetPercentValue();
+    if (capPercent >= 1.0)
+      return;
+  }
+
+  position = mInnerTableFrame->GetStylePosition();
+  if (eStyleUnit_Percent == position->mWidth.GetUnit()) {
+    innerPercent = position->mWidth.GetPercentValue();
+    if (innerPercent >= 1.0)
+      return;
+  }
+
+  if ((capPercent <= 0.0) && (innerPercent <= 0.0))
+    return;
+
+  
+  if (innerPercent <= 0.0) {
+    if (NS_STYLE_CAPTION_SIDE_LEFT == aCaptionSide) 
+      aCaptionWidth= (nscoord) ((capPercent / (1.0 - capPercent)) * (aCaptionMargin.left + aCaptionMargin.right + 
+                                                          aInnerWidth + aInnerMargin.right));
+    else
+      aCaptionWidth= (nscoord) ((capPercent / (1.0 - capPercent)) * (aCaptionMargin.left + aCaptionMargin.right + 
+                                                          aInnerWidth + aInnerMargin.left)); 
+  } 
+  else {
+    aCaptionWidth = (nscoord) ((capPercent / innerPercent) * aInnerWidth);
+  }
+}
+
 nsresult 
 nsTableOuterFrame::GetCaptionOrigin(PRUint32         aCaptionSide,
                                     const nsSize&    aContainBlockSize,
@@ -957,10 +1019,10 @@ nsTableOuterFrame::UpdateReflowMetrics(PRUint8              aCaptionSide,
   SetDesiredSize(aCaptionSide, aInnerMargin, aCaptionMargin,
                  aMet.width, aMet.height);
 
-  aMet.SetOverflowAreasToDesiredBounds();
-  ConsiderChildOverflow(aMet.mOverflowAreas, mInnerTableFrame);
+  aMet.mOverflowArea = nsRect(0, 0, aMet.width, aMet.height);
+  ConsiderChildOverflow(aMet.mOverflowArea, mInnerTableFrame);
   if (mCaptionFrame) {
-    ConsiderChildOverflow(aMet.mOverflowAreas, mCaptionFrame);
+    ConsiderChildOverflow(aMet.mOverflowArea, mCaptionFrame);
   }
   FinishAndStoreOverflow(&aMet);
 }
@@ -1003,15 +1065,15 @@ NS_METHOD nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
     static_cast<nsHTMLReflowState*>((void*) innerRSSpace);
 
   nsRect origInnerRect = mInnerTableFrame->GetRect();
-  nsRect origInnerVisualOverflow = mInnerTableFrame->GetVisualOverflowRect();
+  nsRect origInnerOverflowRect = mInnerTableFrame->GetOverflowRect();
   PRBool innerFirstReflow =
     (mInnerTableFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
   nsRect origCaptionRect;
-  nsRect origCaptionVisualOverflow;
+  nsRect origCaptionOverflowRect;
   PRBool captionFirstReflow;
   if (mCaptionFrame) {
     origCaptionRect = mCaptionFrame->GetRect();
-    origCaptionVisualOverflow = mCaptionFrame->GetVisualOverflowRect();
+    origCaptionOverflowRect = mCaptionFrame->GetOverflowRect();
     captionFirstReflow =
       (mCaptionFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
   }
@@ -1121,11 +1183,10 @@ NS_METHOD nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
   innerRS->~nsHTMLReflowState();
 
   nsTableFrame::InvalidateFrame(mInnerTableFrame, origInnerRect,
-                                origInnerVisualOverflow, innerFirstReflow);
+                                origInnerOverflowRect, innerFirstReflow);
   if (mCaptionFrame) {
     nsTableFrame::InvalidateFrame(mCaptionFrame, origCaptionRect,
-                                  origCaptionVisualOverflow,
-                                  captionFirstReflow);
+                                  origCaptionOverflowRect, captionFirstReflow);
   }
 
   UpdateReflowMetrics(captionSide, aDesiredSize, innerMargin, captionMargin);

@@ -117,7 +117,7 @@ _PR_DestroyZones(void)
 
 #ifdef HAVE_DLL
 
-#if defined(USE_DLFCN) && !defined(NO_DLOPEN_NULL)
+#ifdef USE_DLFCN
 
 #include <dlfcn.h>
 
@@ -150,7 +150,7 @@ pr_FindSymbolInProg(const char *name)
     return sym;
 }
 
-#elif defined(USE_MACH_DYLD) || defined(NO_DLOPEN_NULL)
+#elif defined(USE_MACH_DYLD)
 
 static void *
 pr_FindSymbolInProg(const char *name)

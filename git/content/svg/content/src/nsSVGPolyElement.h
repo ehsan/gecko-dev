@@ -34,9 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef NS_SVGPOLYELEMENT_H_
-#define NS_SVGPOLYELEMENT_H_
-
 #include "nsSVGPathGeometryElement.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMSVGPoint.h"
@@ -52,7 +49,7 @@ class nsSVGPolyElement : public nsSVGPolyElementBase,
                          public nsIDOMSVGAnimatedPoints
 {
 protected:
-  nsSVGPolyElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsSVGPolyElement(nsINodeInfo* aNodeInfo);
   nsresult Init();
 
 public:
@@ -75,4 +72,3 @@ protected:
 
 };
 
-#endif //NS_SVGPOLYELEMENT_H_

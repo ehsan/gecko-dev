@@ -7,17 +7,17 @@ var menu;
 
 function test() {
   waitForExplicitFinish();
-
+  
   gBrowser.selectedTab = gBrowser.addTab();
 
   // Navigate to a normal site
-  gBrowser.addEventListener("DOMContentLoaded", testNormal, false);
+  gBrowser.addEventListener("load", testNormal, false);
   content.location = "http://example.com/";
 }
 
 function testNormal() {
-  gBrowser.removeEventListener("DOMContentLoaded", testNormal, false);
-
+  gBrowser.removeEventListener("load", testNormal, false);
+  
   // open the menu, to force it to update
   menu = document.getElementById("menu_HelpPopup");
   ok(menu, "Help menu should exist!");
@@ -38,7 +38,7 @@ function testNormal_PopupListener() {
   // Now launch the phishing test.  Can't use onload here because error pages don't
   // fire normal load events.
   content.location = "http://www.mozilla.com/firefox/its-a-trap.html";
-  setTimeout(testPhishing, 2000);
+  window.setTimeout(testPhishing, 2000);
 }
 
 function testPhishing() {

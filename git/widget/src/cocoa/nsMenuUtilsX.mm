@@ -53,8 +53,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMAbstractView.h"
 
-#include <Carbon/Carbon.h>
-
 void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
 {
   NS_PRECONDITION(aTargetContent, "null ptr");

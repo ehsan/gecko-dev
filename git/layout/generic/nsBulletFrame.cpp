@@ -62,8 +62,6 @@
 #include "nsIComponentManager.h"
 #include "nsContentUtils.h"
 
-#define BULLET_FRAME_IMAGE_LOADING NS_FRAME_STATE_BIT(63)
-
 class nsBulletListener : public nsStubImageDecoderObserver
 {
 public:
@@ -78,8 +76,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect *dirtyRect);
 
   void SetFrame(nsBulletFrame *frame) { mFrame = frame; }
 
@@ -145,7 +142,8 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   if (newRequest) {
 
     if (!mListener) {
-      nsBulletListener *listener = new nsBulletListener();
+      nsBulletListener *listener;
+      NS_NEWXPCOM(listener, nsBulletListener);
       NS_ADDREF(listener);
       listener->SetFrame(this);
       listener->QueryInterface(NS_GET_IID(imgIDecoderObserver), getter_AddRefs(mListener));
@@ -187,8 +185,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
 class nsDisplayBullet : public nsDisplayItem {
 public:
-  nsDisplayBullet(nsDisplayListBuilder* aBuilder, nsBulletFrame* aFrame) :
-    nsDisplayItem(aBuilder, aFrame) {
+  nsDisplayBullet(nsBulletFrame* aFrame) : nsDisplayItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplayBullet);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -197,22 +194,18 @@ public:
   }
 #endif
 
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
-    aOutFrames->AppendElement(mFrame);
-  }
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState) { return mFrame; }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("Bullet", TYPE_BULLET)
-
-  virtual PRBool HasText() { return PR_TRUE; }
+  NS_DISPLAY_DECL_NAME("Bullet")
 };
 
 void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
                             nsIRenderingContext* aCtx)
 {
   static_cast<nsBulletFrame*>(mFrame)->
-    PaintBullet(*aCtx, ToReferenceFrame(), mVisibleRect);
+    PaintBullet(*aCtx, aBuilder->ToReferenceFrame(mFrame), mVisibleRect);
 }
 
 NS_IMETHODIMP
@@ -225,8 +218,7 @@ nsBulletFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DO_GLOBAL_REFLOW_COUNT_DSP("nsBulletFrame");
   
-  return aLists.Content()->AppendNewToTop(
-      new (aBuilder) nsDisplayBullet(aBuilder, this));
+  return aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayBullet(this));
 }
 
 void
@@ -255,8 +247,10 @@ nsBulletFrame::PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
     }
   }
 
+  const nsStyleColor* myColor = GetStyleColor();
+
   nsCOMPtr<nsIFontMetrics> fm;
-  aRenderingContext.SetColor(GetVisitedDependentColor(eCSSProperty_color));
+  aRenderingContext.SetColor(myColor->mColor);
 
   mTextIsRTL = PR_FALSE;
 
@@ -1280,8 +1274,6 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   const nsStyleList* myList = GetStyleList();
   nscoord ascent;
 
-  RemoveStateBits(BULLET_FRAME_IMAGE_LOADING);
-
   if (myList->GetListStyleImage() && mImageRequest) {
     PRUint32 status;
     mImageRequest->GetImageStatus(&status);
@@ -1293,8 +1285,6 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
 
       aMetrics.width = mComputedSize.width;
       aMetrics.ascent = aMetrics.height = mComputedSize.height;
-
-      AddStateBits(BULLET_FRAME_IMAGE_LOADING);
 
       return;
     }
@@ -1415,8 +1405,8 @@ nsBulletFrame::Reflow(nsPresContext* aPresContext,
   // overflow their font-boxes. It'll do for now; to fix it for real, we really
   // should rewrite all the text-handling code here to use gfxTextRun (bug
   // 397294).
-  aMetrics.SetOverflowAreasToDesiredBounds();
-
+  aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
+  
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
   return NS_OK;
@@ -1476,10 +1466,9 @@ NS_IMETHODIMP nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
 
   // Handle animations
   aImage->SetAnimationMode(presContext->ImageAnimationMode());
-  // Ensure the animation (if any) is started. Note: There is no
-  // corresponding call to Decrement for this. This Increment will be
-  // 'cleaned up' by the Request when it is destroyed, but only then.
-  aRequest->IncrementAnimationConsumers();
+  // Ensure the animation (if any) is started.
+  aImage->StartAnimation();
+
   
   return NS_OK;
 }
@@ -1516,7 +1505,7 @@ NS_IMETHODIMP nsBulletFrame::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsBulletFrame::FrameChanged(imgIContainer *aContainer,
-                                          const nsIntRect *aDirtyRect)
+                                          nsIntRect *aDirtyRect)
 {
   // Invalidate the entire content area. Maybe it's not optimal but it's simple and
   // always correct.
@@ -1543,38 +1532,6 @@ nsBulletFrame::GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGro
     return;
 
   *aLoadGroup = doc->GetDocumentLoadGroup().get();  // already_AddRefed
-}
-
-nscoord
-nsBulletFrame::GetBaseline() const
-{
-  nscoord ascent = 0, bottomPadding;
-  if (GetStateBits() & BULLET_FRAME_IMAGE_LOADING) {
-    ascent = GetRect().height;
-  } else {
-    nsCOMPtr<nsIFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-    const nsStyleList* myList = GetStyleList();
-    switch (myList->mListStyleType) {
-      case NS_STYLE_LIST_STYLE_NONE:
-        break;
-
-      case NS_STYLE_LIST_STYLE_DISC:
-      case NS_STYLE_LIST_STYLE_CIRCLE:
-      case NS_STYLE_LIST_STYLE_SQUARE:
-        fm->GetMaxAscent(ascent);
-        bottomPadding = NSToCoordRound(float(ascent) / 8.0f);
-        ascent = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
-                        NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
-        ascent += bottomPadding;
-        break;
-
-      default:
-        fm->GetMaxAscent(ascent);
-        break;
-    }
-  }
-  return ascent + GetUsedBorderAndPadding().top;
 }
 
 
@@ -1625,10 +1582,10 @@ NS_IMETHODIMP nsBulletListener::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsBulletListener::FrameChanged(imgIContainer *aContainer,
-                                             const nsIntRect *aDirtyRect)
+                                             nsIntRect *dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(aContainer, aDirtyRect);
+  return mFrame->FrameChanged(aContainer, dirtyRect);
 }

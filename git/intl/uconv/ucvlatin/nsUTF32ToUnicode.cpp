@@ -46,7 +46,7 @@
 //----------------------------------------------------------------------
 // static functions and macro definition common to nsUTF32(BE|LE)ToUnicode
 
-#if defined(IS_BIG_ENDIAN) || defined(__arm__)
+#ifdef IS_BIG_ENDIAN
 #define LE_STRING_TO_UCS4(s)                                       \
         (PRUint8(*(s)) | (PRUint8(*((s) + 1)) << 8) |              \
          (PRUint8(*((s) + 2)) << 16) | (PRUint8(*((s) + 3)) << 24))
@@ -54,7 +54,7 @@
 #define LE_STRING_TO_UCS4(s) (*(PRUint32*) (s))
 #endif
 
-#if defined(IS_BIG_ENDIAN) && !defined(__sparc__)
+#ifdef IS_BIG_ENDIAN
 #define BE_STRING_TO_UCS4(s) (*(PRUint32*) (s))
 #else
 #define BE_STRING_TO_UCS4(s)                                       \

@@ -66,7 +66,7 @@ class nsIParser;
 class nsIURI;
 class nsIMarkupDocumentViewer;
 class nsIDocumentCharsetInfo;
-class nsICachingChannel;
+class nsICacheEntryDescriptor;
 
 class nsHTMLDocument : public nsDocument,
                        public nsIHTMLDocument,
@@ -101,9 +101,11 @@ public:
                                      nsIContentSink* aSink = nsnull);
   virtual void StopDocumentLoad();
 
-  virtual void BeginLoad();
-
   virtual void EndLoad();
+
+  virtual nsresult AddImageMap(nsIDOMHTMLMapElement* aMap);
+
+  virtual void RemoveImageMap(nsIDOMHTMLMapElement* aMap);
 
   virtual nsIDOMHTMLMapElement *GetImageMap(const nsAString& aMapName);
 
@@ -134,6 +136,9 @@ public:
   // nsIDOMNode interface
   NS_FORWARD_NSIDOMNODE(nsDocument::)
 
+  // nsIDOM3Node interface
+  NS_IMETHOD GetBaseURI(nsAString& aBaseURI);
+
   // nsIDOMHTMLDocument interface
   NS_IMETHOD GetTitle(nsAString & aTitle);
   NS_IMETHOD SetTitle(const nsAString & aTitle);
@@ -154,30 +159,15 @@ public:
   NS_IMETHOD Writeln(const nsAString & text);
   NS_IMETHOD GetElementsByName(const nsAString & elementName,
                                nsIDOMNodeList **_retval);
-
-  /**
-   * Returns the result of document.all[aID] which can either be a node
-   * or a nodelist depending on if there are multiple nodes with the same
-   * id.
-   */
-  nsISupports *GetDocumentAllResult(const nsAString& aID,
-                                    nsWrapperCache **aCache,
-                                    nsresult *aResult);
-
-  nsIContent *GetBody(nsresult *aResult);
-  already_AddRefed<nsContentList> GetElementsByName(const nsAString & aName)
-  {
-    return NS_GetFuncStringContentList(this, MatchNameAttribute, nsnull,
-                                       UseExistingNameString, aName);
-  }
+  virtual nsresult GetDocumentAllResult(const nsAString& aID,
+                                        nsISupports** aResult);
 
   // nsIDOMNSHTMLDocument interface
   NS_DECL_NSIDOMNSHTMLDOCUMENT
 
   virtual nsresult ResolveName(const nsAString& aName,
                                nsIDOMHTMLFormElement *aForm,
-                               nsISupports **aResult,
-                               nsWrapperCache **aCache);
+                               nsISupports **aResult);
 
   virtual void ScriptLoading(nsIScriptElement *aScript);
   virtual void ScriptExecuted(nsIScriptElement *aScript);
@@ -193,7 +183,6 @@ public:
   }
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
-  void DeferredContentEditableCountChange(nsIContent *aElement);
 
   virtual EditingState GetEditingState()
   {
@@ -206,7 +195,7 @@ public:
   }
 
   virtual nsIContent* GetBodyContentExternal();
-
+  
   class nsAutoEditingState {
   public:
     nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
@@ -240,12 +229,6 @@ public:
 
   virtual NS_HIDDEN_(void) RemovedFromDocShell();
 
-  virtual mozilla::dom::Element *GetElementById(const nsAString& aElementId)
-  {
-    return nsDocument::GetElementById(aElementId);
-  }
-
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
                        PRInt32* aHeight);
@@ -260,7 +243,6 @@ protected:
                              nsIAtom* aAtom, void* aData);
   static PRBool MatchNameAttribute(nsIContent* aContent, PRInt32 aNamespaceID,
                                    nsIAtom* aAtom, void* aData);
-  static void* UseExistingNameString(nsINode* aRootNode, const nsString* aName);
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
 
@@ -285,6 +267,8 @@ protected:
     return kNameSpaceID_XHTML;
   }
 
+  nsCOMArray<nsIDOMHTMLMapElement> mImageMaps;
+
   nsCOMPtr<nsIDOMHTMLCollection> mImages;
   nsCOMPtr<nsIDOMHTMLCollection> mApplets;
   nsCOMPtr<nsIDOMHTMLCollection> mEmbeds;
@@ -292,7 +276,6 @@ protected:
   nsCOMPtr<nsIDOMHTMLCollection> mAnchors;
   nsRefPtr<nsContentList> mForms;
   nsRefPtr<nsContentList> mFormControls;
-  nsRefPtr<nsContentList> mImageMaps;
 
   /** # of forms in the document, synchronously set */
   PRInt32 mNumForms;
@@ -306,9 +289,13 @@ protected:
                                      nsIDocumentCharsetInfo*  aDocInfo,
                                      PRInt32& aCharsetSource,
                                      nsACString& aCharset);
-  static PRBool TryCacheCharset(nsICachingChannel* aCachingChannel,
+  static PRBool TryCacheCharset(nsICacheEntryDescriptor* aCacheDescriptor,
                                 PRInt32& aCharsetSource,
                                 nsACString& aCharset);
+  static PRBool TryBookmarkCharset(nsIDocShell* aDocShell,
+                                   nsIChannel* aChannel,
+                                   PRInt32& aCharsetSource,
+                                   nsACString& aCharset);
   // aParentDocument could be null.
   PRBool TryParentCharset(nsIDocumentCharsetInfo*  aDocInfo,
                           nsIDocument* aParentDocument,
@@ -357,8 +344,6 @@ protected:
 
   PRPackedBool mDisableDocWrite;
 
-  PRPackedBool mWarnedWidthHeight;
-
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 
   /* Midas implementation */
@@ -374,8 +359,8 @@ protected:
   EditingState mEditingState;
 
   nsresult   DoClipboardSecurityCheck(PRBool aPaste);
-  static jsid        sCutCopyInternal_id;
-  static jsid        sPasteInternal_id;
+  static jsval       sCutCopyInternal_id;
+  static jsval       sPasteInternal_id;
 
   // When false, the .cookies property is completely disabled
   PRBool mDisableCookieAccess;

@@ -45,12 +45,13 @@
 #include "nsIChannel.h"
 #include "nsIDOMLoadListener.h"
 #include "nsIChannelEventSink.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsString.h"
 #include "nsWeakReference.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMDOMImplementation.h"
+#include "nsIPrivateDOMImplementation.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
@@ -265,7 +266,7 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
 
     NS_ENSURE_TRUE(mLoadSuccess, NS_ERROR_FAILURE);
 
-    NS_ENSURE_TRUE(document->GetRootElement(), NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(document->GetRootContent(), NS_ERROR_FAILURE);
 
     return CallQueryInterface(document, aResult);
 }
@@ -361,16 +362,14 @@ nsSyncLoader::Error(nsIDOMEvent* aEvent)
 }
 
 NS_IMETHODIMP
-nsSyncLoader::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                     nsIChannel *aNewChannel,
-                                     PRUint32 aFlags,
-                                     nsIAsyncVerifyRedirectCallback *callback)
+nsSyncLoader::OnChannelRedirect(nsIChannel *aOldChannel,
+                                nsIChannel *aNewChannel,
+                                PRUint32    aFlags)
 {
     NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
 
     mChannel = aNewChannel;
 
-    callback->OnRedirectVerifyCallback(NS_OK);
     return NS_OK;
 }
 
@@ -465,7 +464,7 @@ nsSyncLoadService::PushSyncStreamToListener(nsIInputStream* aIn,
         if (NS_FAILED(rv)) {
             chunkSize = 4096;
         }
-        chunkSize = NS_MIN(PRInt32(PR_UINT16_MAX), chunkSize);
+        chunkSize = PR_MIN(PR_UINT16_MAX, chunkSize);
 
         rv = NS_NewBufferedInputStream(getter_AddRefs(bufferedStream), aIn,
                                        chunkSize);

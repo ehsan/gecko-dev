@@ -94,9 +94,6 @@ function PrivateBrowsingService() {
   this._obs.addObserver(this, "private-browsing", true);
   this._obs.addObserver(this, "command-line-startup", true);
   this._obs.addObserver(this, "sessionstore-browser-state-restored", true);
-
-  // List of nsIXULWindows we are going to be closing during the transition
-  this._windowsToClose = [];
 }
 
 PrivateBrowsingService.prototype = {
@@ -129,11 +126,17 @@ PrivateBrowsingService.prototype = {
   // List of view source window URIs for restoring later
   _viewSrcURLs: [],
 
-  // Whether private browsing has been turned on from the command line
-  _lastChangedByCommandLine: false,
+  // List of nsIXULWindows we are going to be closing during the transition
+  _windowsToClose: [],
 
   // XPCOM registration
+  classDescription: "PrivateBrowsing Service",
+  contractID: "@mozilla.org/privatebrowsing;1",
   classID: Components.ID("{c31f4883-839b-45f6-82ad-a6a9bc5ad599}"),
+  _xpcom_categories: [
+    { category: "command-line-handler", entry: "m-privatebrowsing" },
+    { category: "app-startup", service: true }
+  ],
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIPrivateBrowsingService, 
                                          Ci.nsIObserver,
@@ -234,9 +237,6 @@ PrivateBrowsingService.prototype = {
       // to be restored, do it now
       if (!this._inPrivateBrowsing) {
         this._currentStatus = STATE_WAITING_FOR_RESTORE;
-        if (!this._getBrowserWindow()) {
-          ss.init(null);
-        }
         ss.setBrowserState(this._savedBrowserState);
         this._savedBrowserState = null;
 
@@ -279,9 +279,6 @@ PrivateBrowsingService.prototype = {
         };
         // Transition into private browsing mode
         this._currentStatus = STATE_WAITING_FOR_RESTORE;
-        if (!this._getBrowserWindow()) {
-          ss.init(null);
-        }
         ss.setBrowserState(JSON.stringify(privateBrowsingState));
       }
     }
@@ -448,10 +445,6 @@ PrivateBrowsingService.prototype = {
         if (aSubject.findFlag("private", false) >= 0) {
           this.privateBrowsingEnabled = true;
           this._autoStarted = true;
-          this._lastChangedByCommandLine = true;
-        }
-        else if (aSubject.findFlag("private-toggle", false) >= 0) {
-          this._lastChangedByCommandLine = true;
         }
         break;
       case "sessionstore-browser-state-restored":
@@ -469,17 +462,14 @@ PrivateBrowsingService.prototype = {
     if (aCmdLine.handleFlag("private", false))
       ; // It has already been handled
     else if (aCmdLine.handleFlag("private-toggle", false)) {
-      if (this._autoStarted) {
-        throw Cr.NS_ERROR_ABORT;
-      }
       this.privateBrowsingEnabled = !this.privateBrowsingEnabled;
-      this._lastChangedByCommandLine = true;
+      this._autoStarted = false;
     }
   },
 
-  get helpInfo() {
-    return "  -private           Enable private browsing mode.\n" +
-           "  -private-toggle    Toggle private browsing mode.\n";
+  get helpInfo PBS_get_helpInfo() {
+    return "  -private            Enable private browsing mode.\n" +
+           "  -private-toggle     Toggle private browsing mode.\n";
   },
 
   // nsIPrivateBrowsingService
@@ -487,14 +477,14 @@ PrivateBrowsingService.prototype = {
   /**
    * Return the current status of private browsing.
    */
-  get privateBrowsingEnabled() {
+  get privateBrowsingEnabled PBS_get_privateBrowsingEnabled() {
     return this._inPrivateBrowsing;
   },
 
   /**
    * Enter or leave private browsing mode.
    */
-  set privateBrowsingEnabled(val) {
+  set privateBrowsingEnabled PBS_set_privateBrowsingEnabled(val) {
     // Allowing observers to set the private browsing status from their
     // notification handlers is not desired, because it will change the
     // status of the service while it's in the process of another transition.
@@ -550,22 +540,14 @@ PrivateBrowsingService.prototype = {
     } finally {
       this._windowsToClose = [];
       this._notifyIfTransitionComplete();
-      this._lastChangedByCommandLine = false;
     }
   },
 
   /**
    * Whether private browsing has been started automatically.
    */
-  get autoStarted() {
+  get autoStarted PBS_get_autoStarted() {
     return this._inPrivateBrowsing && this._autoStarted;
-  },
-
-  /**
-   * Whether the latest transition was initiated from the command line.
-   */
-  get lastChangedByCommandLine() {
-    return this._lastChangedByCommandLine;
   },
 
   removeDataFromDomain: function PBS_removeDataFromDomain(aDomain)
@@ -595,24 +577,14 @@ PrivateBrowsingService.prototype = {
       }
     }
 
-    // Image Cache
-    let (imageCache = Cc["@mozilla.org/image/cache;1"].
-                      getService(Ci.imgICache)) {
-      try {
-        imageCache.clearCache(false); // true=chrome, false=content
-      } catch (ex) {
-        Cu.reportError("Exception thrown while clearing the image cache: " +
-          ex.toString());
-      }
-    }
-
     // Cookies
     let (cm = Cc["@mozilla.org/cookiemanager;1"].
-              getService(Ci.nsICookieManager2)) {
-      let enumerator = cm.getCookiesFromHost(aDomain);
+              getService(Ci.nsICookieManager)) {
+      let enumerator = cm.enumerator;
       while (enumerator.hasMoreElements()) {
         let cookie = enumerator.getNext().QueryInterface(Ci.nsICookie);
-        cm.remove(cookie.host, cookie.name, cookie.path, false);
+        if (cookie.host.hasRootDomain(aDomain))
+          cm.remove(cookie.host, cookie.name, cookie.path, false);
       }
     }
 
@@ -729,4 +701,5 @@ PrivateBrowsingService.prototype = {
   }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([PrivateBrowsingService]);
+function NSGetModule(compMgr, fileSpec)
+  XPCOMUtils.generateModule([PrivateBrowsingService]);

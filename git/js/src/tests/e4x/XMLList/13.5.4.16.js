@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '13.5.4.16.js';
 
 START("13.5.4.16 - XMLList parent()");
 

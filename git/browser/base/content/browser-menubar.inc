@@ -21,7 +21,6 @@
 #
 # Contributor(s):
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Rob Campbell <rcampbell@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,16 +41,16 @@
             <menu id="file-menu" label="&fileMenu.label;"
                   accesskey="&fileMenu.accesskey;">
               <menupopup id="menu_FilePopup">
-                <menuitem id="menu_newNavigatorTab"
-                          label="&tabCmd.label;"
-                          command="cmd_newNavigatorTab"
-                          key="key_newNavigatorTab"
-                          accesskey="&tabCmd.accesskey;"/>
                 <menuitem id="menu_newNavigator"
                           label="&newNavigatorCmd.label;"
                           accesskey="&newNavigatorCmd.accesskey;"
                           key="key_newNavigator"
                           command="cmd_newNavigator"/>
+                <menuitem id="menu_newNavigatorTab"
+                          label="&tabCmd.label;"
+                          command="cmd_newNavigatorTab"
+                          key="key_newNavigatorTab"
+                          accesskey="&tabCmd.accesskey;"/>
                 <menuitem id="menu_openLocation"
                           label="&openLocationCmd.label;"
                           command="Browser:OpenLocation"
@@ -62,17 +61,17 @@
                           command="Browser:OpenFile"
                           key="openFileKb"
                           accesskey="&openFileCmd.accesskey;"/>
-                <menuitem id="menu_close"
-                          label="&closeCmd.label;"
-                          key="key_close"
-                          accesskey="&closeCmd.accesskey;"
-                          command="cmd_close"/>
                 <menuitem id="menu_closeWindow"
                           hidden="true"
                           command="cmd_closeWindow"
                           key="key_closeWindow"
                           label="&closeWindow.label;"
                           accesskey="&closeWindow.accesskey;"/>
+                <menuitem id="menu_close"
+                          label="&closeCmd.label;"
+                          key="key_close"
+                          accesskey="&closeCmd.accesskey;"
+                          command="cmd_close"/>
                 <menuseparator/>
                 <menuitem id="menu_savePage"
                           label="&savePageCmd.label;"
@@ -113,7 +112,6 @@
                           label="&goOfflineCmd.label;"
                           accesskey="&goOfflineCmd.accesskey;"
                           type="checkbox"
-                          observes="workOfflineMenuitemState"
                           oncommand="BrowserOffline.toggleOfflineStatus();"/>
                 <menuitem id="menu_FileQuitItem"
 #ifdef XP_WIN
@@ -209,21 +207,11 @@
             <menu id="view-menu" label="&viewMenu.label;"
                   accesskey="&viewMenu.accesskey;">
               <menupopup id="menu_viewPopup">
-                <menuitem id="menu_tabview"
-                          key="key_tabview"
-                          label="&viewTabGroups.label;"
-                          accesskey="&viewTabGroups.accesskey;"
-                          command="Browser:ToggleTabView"/>
                 <menu id="viewToolbarsMenu"
                       label="&viewToolbarsMenu.label;"
-                      accesskey="&viewToolbarsMenu.accesskey;">
-                  <menupopup onpopupshowing="onViewToolbarsPopupShowing(event);">
-                    <menuseparator/>
-                    <menuitem id="menu_tabsOnTop"
-                              command="cmd_ToggleTabsOnTop"
-                              type="checkbox"
-                              label="&viewTabsOnTop.label;"
-                              accesskey="&viewTabsOnTop.accesskey;"/>
+                      accesskey="&viewToolbarsMenu.accesskey;"
+                      onpopupshowing="onViewToolbarsPopupShowing(event);">
+                  <menupopup>
                     <menuseparator/>
                     <menuitem id="menu_customizeToolbars"
                               label="&viewCustomizeToolbar.label;"
@@ -231,6 +219,16 @@
                               command="cmd_CustomizeToolbars"/>
                   </menupopup>
                 </menu>
+                <menuitem id="toggle_taskbar"
+                          label="&taskbarCmd.label;"
+                          accesskey="&taskbarCmd.accesskey;"
+                          type="checkbox"
+                          command="cmd_toggleTaskbar"
+#ifndef WINCE
+                          checked="true" />
+#else
+                          checked="false" />
+#endif
                 <menu id="viewSidebarMenuMenu"
                       label="&viewSidebarMenu.label;"
                       accesskey="&viewSidebarMenu.accesskey;">
@@ -309,7 +307,121 @@
                     <menuseparator/>
                   </menupopup>
                 </menu>
-#include browser-charsetmenu.inc
+                <menu id="charsetMenu"
+                      label="&charsetMenu.label;"
+                      accesskey="&charsetMenu.accesskey;"
+                      datasources="rdf:charset-menu"
+                      ref="NC:BrowserCharsetMenuRoot"
+                      oncommand="MultiplexHandler(event)"
+                      onpopupshowing="CreateMenu('browser');UpdateMenus(event)"
+                      onpopupshown="CreateMenu('more-menu');"
+                      observes="isImage">
+                    <template>
+                        <rule rdf:type="http://home.netscape.com/NC-rdf#BookmarkSeparator">
+                            <menupopup>
+                            <menuseparator uri="..." />
+                            </menupopup>
+                        </rule>
+                        <rule>
+                            <menupopup>
+                            <menuitem type="radio" name="charsetGroup" checked="rdf:http://home.netscape.com/NC-rdf#Checked" uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                            </menupopup>
+                        </rule>
+                    </template>
+
+                    <menupopup>
+                    <menu label="&charsetMenuAutodet.label;" accesskey="&charsetMenuAutodet.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserAutodetMenuRoot">
+                        <template>
+                            <rule rdf:type="http://home.netscape.com/NC-rdf#CharsetDetector">
+                                <menupopup>
+                                <menuitem type="radio" name="detectorGroup" checked="rdf:http://home.netscape.com/NC-rdf#Checked" uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                </menupopup>
+                            </rule>
+                        </template>
+                        <menupopup>
+                        </menupopup>
+                    </menu>
+                    <menu label="&charsetMenuMore.label;" accesskey="&charsetMenuMore.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMoreCharsetMenuRoot">
+                        <template>
+                            <rule>
+                                <menupopup>
+                                <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                </menupopup>
+                            </rule>
+                        </template>
+                        <menupopup>
+                            <menu label="&charsetMenuMore1.label;" accesskey="&charsetMenuMore1.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore1CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuMore2.label;" accesskey="&charsetMenuMore2.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore2CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuMore3.label;" accesskey="&charsetMenuMore3.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore3CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuMore4.label;" accesskey="&charsetMenuMore4.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore4CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuMore5.label;" accesskey="&charsetMenuMore5.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore5CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuUnicode.label;" accesskey="&charsetMenuUnicode.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserUnicodeCharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menuseparator />
+                        </menupopup>
+                    </menu>
+                    <menuitem name="charsetCustomize" accesskey="&charsetCustomize.accesskey;" label="&charsetCustomize.label;" oncommand="window.openDialog('chrome://global/content/customizeCharset.xul','PrefWindow', 'chrome,modal=yes,resizable=yes', 'browser')"/>
+                    </menupopup>
+                </menu>
                 <menuseparator/>
                 <menuitem id="menu_pageSource"
                           accesskey="&pageSourceCmd.accesskey;"
@@ -338,18 +450,16 @@
             </menu>
 
             <menu id="history-menu"
+                  oncommand="var node = event.target.node; if (node) { PlacesUIUtils.markPageAsTyped(node.uri); openUILink(node.uri, event, false, true); }"
+                  onclick="checkForMiddleClick(this, event);"
                   label="&historyMenu.label;"
                   accesskey="&historyMenu.accesskey;">
               <menupopup id="goPopup"
-#ifndef XP_MACOSX
-                         placespopup="true"
-#endif
-                         oncommand="this.parentNode._placesView._onCommand(event);"
-                         onclick="checkForMiddleClick(this, event);"
-                         onpopupshowing="if (!this.parentNode._placesView)
-                                           new HistoryMenu(event);"
-                         tooltip="bhTooltip"
-                         popupsinherittooltip="true">
+                         type="places"
+                         onpopupshowing="HistoryMenu.onPopupShowing(event);"
+                         onpopuphidden="HistoryMenu.onPopupHidden(event);"
+                         place="place:redirectsMode=2&amp;sort=4&amp;maxResults=10"
+                         tooltip="bhTooltip" popupsinherittooltip="true">
                 <menuitem id="historyMenuBack"
                           label="&backCmd.label;"
 #ifdef XP_MACOSX
@@ -380,39 +490,18 @@
 #endif
                           command="Browser:ShowAllHistory"/>
                 <menuseparator id="startHistorySeparator"/>
-                <menuseparator id="endHistorySeparator"
-                               class="hide-if-empty-places-result"
-                               builder="end"/>
-#ifdef MOZ_SERVICES_SYNC
-                <menuitem id="sync-tabs-menuitem"
-                          label="&syncTabsMenu.label;"
-                          oncommand="BrowserOpenSyncTabs();"
-                          disabled="true"/>
-#endif
-                <menuitem id="historyRestoreLastSession"
-                          class="restoreLastSession"
-                          label="&historyRestoreLastSession.label;"
-                          oncommand="restoreLastSession();"
-                          disabled="true"/>
+                <menuseparator id="endHistorySeparator" builder="end"/>
                 <menu id="historyUndoMenu"
-                      class="recentlyClosedTabsMenu"
                       label="&historyUndoMenu.label;"
                       disabled="true">
-                  <menupopup id="historyUndoPopup"
-#ifndef XP_MACOSX
-                             placespopup="true"
-#endif
-                             onpopupshowing="document.getElementById('history-menu')._placesView.populateUndoSubmenu();"/>
+                  <menupopup id="historyUndoPopup" placespopup="true"
+                             onpopupshowing="HistoryMenu.populateUndoSubmenu();"/>
                 </menu>
                 <menu id="historyUndoWindowMenu"
-                      class="recentlyClosedWindowsMenu"
                       label="&historyUndoWindowMenu.label;"
                       disabled="true">
-                  <menupopup id="historyUndoWindowPopup"
-#ifndef XP_MACOSX
-                             placespopup="true"
-#endif
-                             onpopupshowing="document.getElementById('history-menu')._placesView.populateUndoWindowSubmenu();"/>
+                  <menupopup id="historyUndoWindowPopup" placespopup="true"
+                             onpopupshowing="HistoryMenu.populateUndoWindowSubmenu();"/>
                 </menu>
               </menupopup>
             </menu>
@@ -420,38 +509,31 @@
   <menu id="bookmarksMenu"
         label="&bookmarksMenu.label;"
         accesskey="&bookmarksMenu.accesskey;"
-        ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
-        ondragover="PlacesMenuDNDHandler.onDragOver(event);"
-        ondrop="PlacesMenuDNDHandler.onDrop(event);">
+        ondragenter="PlacesMenuDNDController.onBookmarksMenuDragEnter(event);"
+        ondrop="nsDragAndDrop.drop(event, BookmarksMenuDropHandler);"
+        ondragover="nsDragAndDrop.dragOver(event, BookmarksMenuDropHandler);"
+        ondragexit="nsDragAndDrop.dragExit(event, BookmarksMenuDropHandler);">
     <menupopup id="bookmarksMenuPopup"
-#ifndef XP_MACOSX
-               placespopup="true"
-#endif
+               type="places"
+               place="place:folder=BOOKMARKS_MENU"
                context="placesContext"
                openInTabs="children"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onclick="BookmarksEventHandler.onClick(event);"
-               onpopupshowing="if (!this.parentNode._placesView)
-                                 new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
+               onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
                tooltip="bhTooltip" popupsinherittooltip="true">
       <menuitem id="menu_bookmarkThisPage"
                 label="&bookmarkThisPageCmd.label;"
                 command="Browser:AddBookmarkAs"
                 key="addBookmarkAsKb"/>
       <menuitem id="subscribeToPageMenuitem"
-#ifndef XP_MACOSX
-                class="menuitem-iconic"
-#endif
                 label="&subscribeToPageMenuitem.label;"
                 oncommand="return FeedHandler.subscribeToFeed(null, event);"
                 onclick="checkForMiddleClick(this, event);"
-                observes="singleFeedMenuitemState"/>
+                disabled="true"/>
       <menu id="subscribeToPageMenupopup"
-#ifndef XP_MACOSX
-            class="menu-iconic"
-#endif
             label="&subscribeToPageMenupopup.label;"
-            observes="multipleFeedsMenuState">
+            hidden="true">
         <menupopup id="subscribeToPageSubmenuMenupopup"
                    onpopupshowing="return FeedHandler.buildFeedList(event.target);"
                    oncommand="return FeedHandler.subscribeToFeed(null, event);"
@@ -462,7 +544,7 @@
                 command="Browser:BookmarkAllTabs"
                 key="bookmarkAllTabsKb"/>
       <menuitem id="bookmarksShowAll"
-                label="&showAllBookmarks.label;"
+                label="&organizeBookmarks.label;"
                 command="Browser:ShowAllBookmarks"
                 key="manBookmarkKb"/>
       <menuseparator id="organizeBookmarksSeparator"/>
@@ -470,13 +552,11 @@
             class="menu-iconic bookmark-item"
             label="&personalbarCmd.label;"
             container="true">
-        <menupopup id="bookmarksToolbarFolderPopup"  
-#ifndef XP_MACOSX
-                   placespopup="true"
-#endif
+        <menupopup id="bookmarksToolbarFolderPopup"
+                   type="places"
+                   place="place:folder=TOOLBAR"
                    context="placesContext"
-                   onpopupshowing="if (!this.parentNode._placesView)
-                                     new PlacesMenu(event, 'place:folder=TOOLBAR');"/>
+                   onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"/>
       </menu>
       <menuseparator/>
     </menupopup>
@@ -485,11 +565,7 @@
             <menu id="tools-menu"
                   label="&toolsMenu.label;"
                   accesskey="&toolsMenu.accesskey;">
-              <menupopup id="menu_ToolsPopup"
-#ifdef MOZ_SERVICES_SYNC
-                         onpopupshowing="gSyncUI.updateUI();"
-#endif
-                         >
+              <menupopup id="menu_ToolsPopup">
               <menuitem id="menu_search"
                         label="&search.label;"
                         accesskey="&search.accesskey;"
@@ -504,40 +580,13 @@
               <menuitem id="menu_openAddons"
                         label="&addons.label;"
                         accesskey="&addons.accesskey;"
-                        key="key_openAddons"
                         command="Tools:Addons"/>
-#ifdef MOZ_SERVICES_SYNC
-              <!-- only one of sync-setup or sync-menu will be showing at once -->
-              <menuitem id="sync-setup"
-                        label="&syncSetup.label;"
-                        accesskey="&syncSetup.accesskey;"
-                        observes="sync-setup-state"
-                        oncommand="gSyncUI.openSetup()"/>
-              <menuitem id="sync-syncnowitem"
-                        label="&syncSyncNowItem.label;"
-                        accesskey="&syncSyncNowItem.accesskey;"
-                        observes="sync-syncnow-state"
-                        oncommand="gSyncUI.doSync(event);"/>
-#endif
               <menuseparator id="devToolsSeparator"/>
-              <menuitem id="menu_pageinspect"
-                        type="checkbox"
-                        hidden="true"
-                        label="&inspectMenu.label;"
-                        accesskey="&inspectMenu.accesskey;"
-                        key="key_inspect"
-                        command="Tools:Inspect"/>
               <menuitem id="javascriptConsole"
-                        hidden="true"
                         label="&errorConsoleCmd.label;"
                         accesskey="&errorConsoleCmd.accesskey;"
                         key="key_errorConsole"
                         oncommand="toJavaScriptConsole();"/>
-              <menuitem id="webConsole"
-                        label="&webConsoleCmd.label;"
-                        accesskey="&webConsoleCmd.accesskey;"
-                        key="key_webConsole"
-                        oncommand="HUDConsoleUI.toggleHUD();"/>
               <menuitem id="menu_pageInfo"
                         accesskey="&pageInfoCmd.accesskey;"
                         label="&pageInfoCmd.label;"

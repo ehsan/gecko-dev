@@ -49,11 +49,6 @@ GRE_MODULE	= 1
 MOZILLA_INTERNAL_API =1
 LIBXUL_LIBRARY = 1
 
-# TODO: we do this in crashreporter too, should be centralized
-ifeq ($(OS_ARCH),Linux)
-DEFINES += -DXP_LINUX
-endif
-
 CPPSRCS		= \
 		nsVersionComparatorImpl.cpp \
 		nsConsoleMessage.cpp \
@@ -69,7 +64,6 @@ CPPSRCS		= \
 		nsCycleCollector.cpp \
 		nsStackWalk.cpp \
 		nsMemoryReporterManager.cpp \
-		FunctionTimer.cpp \
 		$(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
@@ -89,16 +83,6 @@ EXPORTS		= \
 		nsWeakPtr.h \
 		nsInterfaceRequestorAgg.h \
 		$(NULL)
-
-EXPORTS_NAMESPACES = mozilla
-
-EXPORTS_mozilla = \
-	FunctionTimer.h \
-	$(NULL)
-
-ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-CPPSRCS += nsSetDllDirectory.cpp
-endif
 
 ifeq ($(OS_ARCH),WINNT)
 ifdef MOZ_DEBUG
@@ -122,7 +106,6 @@ SDK_HEADERS     = \
 		nsError.h \
 		nsISupportsBase.h \
 		nscore.h \
-		nsAtomicRefcnt.h \
 		nsCycleCollector.h \
 		nsObjCExceptions.h \
 
@@ -130,7 +113,6 @@ XPIDLSRCS	= \
 		nsIConsoleListener.idl \
 		nsIConsoleMessage.idl \
 		nsIConsoleService.idl \
-		nsICycleCollectorListener.idl \
 		nsIDebug2.idl \
 		nsIErrorService.idl \
 		nsIException.idl \

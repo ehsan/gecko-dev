@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '15.9.4.2.js';
 
 /**
    File Name:          15.9.4.2.js
@@ -62,7 +63,7 @@
    Date.parse(x.toGMTString()) test_togmt()
 
    Date.parse(x.toLocaleString()) is not required to
-   produce the same number value as the preceding three
+   produce the same number value as the preceeding three
    expressions.  in general the value produced by
    Date.parse is implementation dependent when given any
    string value that could not be produced in that

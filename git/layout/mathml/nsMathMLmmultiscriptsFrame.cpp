@@ -161,7 +161,7 @@ nsMathMLmmultiscriptsFrame::Place(nsIRenderingContext& aRenderingContext,
 
   // get x-height (an ex)
   const nsStyleFont* font = GetStyleFont();
-  aRenderingContext.SetFont(font->mFont,
+  aRenderingContext.SetFont(font->mFont, nsnull,
                             PresContext()->GetUserFontSet());
   nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
@@ -175,7 +175,7 @@ nsMathMLmmultiscriptsFrame::Place(nsIRenderingContext& aRenderingContext,
   // scriptspace from TeX for extra spacing after sup/subscript (0.5pt in plain TeX)
   // forced to be at least 1 pixel here
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
-  nscoord scriptSpace = NS_MAX(nsPresContext::CSSPointsToAppUnits(0.5f), onePixel);
+  nscoord scriptSpace = NS_MAX(PresContext()->PointsToAppUnits(0.5f), onePixel);
 
   /////////////////////////////////////
   // first the shift for the subscript

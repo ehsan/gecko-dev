@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsISVGLength.h"
 #include "nsSVGLength2.h"
 #include "prdtoa.h"
 #include "nsTextFormatter.h"
@@ -66,21 +67,19 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGLength2::DOMAnimatedLength)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMBaseVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLength)
 NS_INTERFACE_MAP_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMAnimVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLength)
 NS_INTERFACE_MAP_END
-
-DOMCI_DATA(SVGAnimatedLength, nsSVGLength2::DOMAnimatedLength)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMAnimatedLength)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedLength)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedLength)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedLength)
 NS_INTERFACE_MAP_END
 
 static nsIAtom** const unitMap[] =
@@ -185,6 +184,31 @@ GetValueFromString(const nsAString &aValueAsString,
   return NS_ERROR_DOM_SYNTAX_ERR;
 }
 
+float
+nsSVGLength2::GetMMPerPixel(nsSVGSVGElement *aCtx) const
+{
+  if (!aCtx)
+    return 1;
+
+  float mmPerPx = aCtx->GetMMPerPx(mCtxType);
+
+  if (mmPerPx == 0.0f) {
+    NS_ASSERTION(mmPerPx != 0.0f, "invalid mm/pixels");
+    mmPerPx = 1e-4f; // some small value
+  }
+
+  return mmPerPx;
+}
+
+/*static*/ float
+nsSVGLength2::GetMMPerPixel(nsIFrame *aNonSVGFrame)
+{
+  nsPresContext* presContext = aNonSVGFrame->PresContext();
+  float pixelsPerInch =
+    presContext->AppUnitsToFloatCSSPixels(presContext->AppUnitsPerInch());
+  return 25.4f/pixelsPerInch;
+}
+
 static float
 FixAxisLength(float aLength)
 {
@@ -248,15 +272,15 @@ nsSVGLength2::GetUnitScaleFactor(nsSVGSVGElement *aCtx, PRUint8 aUnitType) const
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PX:
     return 1;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_MM:
-    return GetMMPerPixel();
+    return GetMMPerPixel(aCtx);
   case nsIDOMSVGLength::SVG_LENGTHTYPE_CM:
-    return GetMMPerPixel() / 10.0f;
+    return GetMMPerPixel(aCtx) / 10.0f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_IN:
-    return GetMMPerPixel() / MM_PER_INCH_FLOAT;
+    return GetMMPerPixel(aCtx) / 25.4f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PT:
-    return GetMMPerPixel() * POINTS_PER_INCH_FLOAT / MM_PER_INCH_FLOAT;
+    return GetMMPerPixel(aCtx) * POINTS_PER_INCH_FLOAT / 25.4f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PC:
-    return GetMMPerPixel() * POINTS_PER_INCH_FLOAT / MM_PER_INCH_FLOAT / 12.0f;
+    return GetMMPerPixel(aCtx) * POINTS_PER_INCH_FLOAT / 24.4f / 12.0f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE:
     return 100.0f / GetAxisLength(aCtx);
   case nsIDOMSVGLength::SVG_LENGTHTYPE_EMS:
@@ -281,15 +305,15 @@ nsSVGLength2::GetUnitScaleFactor(nsIFrame *aFrame, PRUint8 aUnitType) const
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PX:
     return 1;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_MM:
-    return GetMMPerPixel();
+    return GetMMPerPixel(aFrame);
   case nsIDOMSVGLength::SVG_LENGTHTYPE_CM:
-    return GetMMPerPixel() / 10.0f;
+    return GetMMPerPixel(aFrame) / 10.0f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_IN:
-    return GetMMPerPixel() / MM_PER_INCH_FLOAT;
+    return GetMMPerPixel(aFrame) / 25.4f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PT:
-    return GetMMPerPixel() * POINTS_PER_INCH_FLOAT / MM_PER_INCH_FLOAT;
+    return GetMMPerPixel(aFrame) * POINTS_PER_INCH_FLOAT / 25.4f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PC:
-    return GetMMPerPixel() * POINTS_PER_INCH_FLOAT / MM_PER_INCH_FLOAT / 12.0f;
+    return GetMMPerPixel(aFrame) * POINTS_PER_INCH_FLOAT / 24.4f / 12.0f;
   case nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE:
     return 100.0f / GetAxisLength(aFrame);
   case nsIDOMSVGLength::SVG_LENGTHTYPE_EMS:
@@ -307,7 +331,6 @@ nsSVGLength2::SetBaseValueInSpecifiedUnits(float aValue,
                                            nsSVGElement *aSVGElement)
 {
   mBaseVal = aValue;
-  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
@@ -345,7 +368,6 @@ nsSVGLength2::NewValueSpecifiedUnits(PRUint16 unitType,
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 
   mBaseVal = valueInSpecifiedUnits;
-  mIsBaseSet = PR_TRUE;
   mSpecifiedUnitType = PRUint8(unitType);
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -415,7 +437,6 @@ nsSVGLength2::SetBaseValueString(const nsAString &aValueAsString,
   }
   
   mBaseVal = value;
-  mIsBaseSet = PR_TRUE;
   mSpecifiedUnitType = PRUint8(unitType);
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -448,7 +469,6 @@ void
 nsSVGLength2::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
 {
   mBaseVal = aValue * GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType);
-  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
@@ -500,7 +520,7 @@ nsresult
 nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
                                  const nsISMILAnimationElement* /*aSrcElement*/,
                                  nsSMILValue& aValue,
-                                 PRBool& aPreventCachingOfSandwich) const
+                                 PRBool& aCanCache) const
 {
   float value;
   PRUint16 unitType;
@@ -513,10 +533,9 @@ nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
   nsSMILValue val(&nsSMILFloatType::sSingleton);
   val.mU.mDouble = value / mVal->GetUnitScaleFactor(mSVGElement, unitType);
   aValue = val;
-  aPreventCachingOfSandwich =
-              (unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE ||
-               unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_EMS ||
-               unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_EXS);
+  aCanCache = (unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE &&
+               unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_EMS &&
+               unitType != nsIDOMSVGLength::SVG_LENGTHTYPE_EXS);
 
   return NS_OK;
 }

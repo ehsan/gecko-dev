@@ -236,12 +236,11 @@ nsresult nsUnicodeDecodeHelper::ConvertByFastTable(
   }
 
   for (; src<srcEnd;) {
-    *dest = aFastTable[*src];
+    *dest = aFastTable[*src++];
     if (*dest == 0xfffd && aErrorSignal) {
       res = NS_ERROR_ILLEGAL_INPUT;
       break;
     }
-    src++;
     dest++;
   }
 

@@ -1,9 +1,7 @@
 // Load in the test harness
 var scriptLoader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"]
                              .getService(Components.interfaces.mozIJSSubScriptLoader);
-
-var rootDir = getRootDirectory(window.location.href);
-scriptLoader.loadSubScript(rootDir + "harness.js", this);
+scriptLoader.loadSubScript("chrome://mochikit/content/browser/xpinstall/tests/harness.js", this);
 
 // ----------------------------------------------------------------------------
 // Tests installing an add-on signed by an untrusted certificate through an
@@ -14,7 +12,8 @@ function test() {
   Harness.installsCompletedCallback = finish_test;
   Harness.setup();
 
-  var pm = Services.perms;
+  var pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                     .getService(Components.interfaces.nsIPermissionManager);
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   var triggers = encodeURIComponent(JSON.stringify({
@@ -39,7 +38,9 @@ function check_xpi_install(addon, status) {
 }
 
 function finish_test() {
-  Services.perms.remove("example.com", "install");
+  var pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                     .getService(Components.interfaces.nsIPermissionManager);
+  pm.remove("example.com", "install");
 
   gBrowser.removeCurrentTab();
   Harness.finish();

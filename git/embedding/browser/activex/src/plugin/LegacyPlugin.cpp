@@ -39,9 +39,6 @@
 
 #include "npapi.h"
 
-#include "jsapi.h"
-#include "jscntxt.h"
-
 #include "nsISupports.h"
 
 #ifdef MOZ_ACTIVEX_PLUGIN_XPCONNECT
@@ -61,6 +58,8 @@
 #include "nsIScriptContext.h"
 #include "nsIURI.h"
 #include "nsIJSContextStack.h"
+#include "jsapi.h"
+#include "jscntxt.h"
 #include "nsIScriptSecurityManager.h"
 #endif
 
@@ -359,7 +358,7 @@ MozAxAutoPushJSContext::MozAxAutoPushJSContext(JSContext *cx,
     // See if there are any scripts on the stack.
     // If not, we need to add a dummy frame with a principal.
     PRBool hasScript = PR_FALSE;
-    JSStackFrame* tempFP = cx->fp();
+    JSStackFrame* tempFP = cx->fp;
     while (tempFP)
     {
         if (tempFP->script)

@@ -47,7 +47,6 @@
 
 #367376
 **/_PR_CreateThread/pthread_create@@GLIBC_2.1/**
-**/_PR_CreateThread/PR_Calloc/**
 
 #367384
 **/PR_LoadLibraryWithFlags/**
@@ -81,7 +80,4 @@ vfychain/main/PL_CreateOptState/**
 
 #486298
 selfserv/main/PORT_Strdup_Util**
-
-#497251
-**/FREEBL_InitStubs/dlopen@@GLIBC_2.1/**
 

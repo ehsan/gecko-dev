@@ -40,7 +40,6 @@
 
 #include "nsHtml5StreamParser.h"
 #include "nsICharsetConverterManager.h"
-#include "nsICharsetAlias.h"
 #include "nsServiceManagerUtils.h"
 #include "nsEncoderDecoderUtils.h"
 #include "nsContentUtils.h"
@@ -51,47 +50,26 @@
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5Module.h"
 #include "nsHtml5RefPtr.h"
-#include "nsIScriptError.h"
+#include "nsHtml5SpeculativeLoader.h"
 
 static NS_DEFINE_CID(kCharsetAliasCID, NS_CHARSETALIAS_CID);
 
-PRInt32 nsHtml5StreamParser::sTimerInitialDelay = 120;
-PRInt32 nsHtml5StreamParser::sTimerSubsequentDelay = 120;
+PRInt32 nsHtml5StreamParser::sTimerStartDelay = 200;
+PRInt32 nsHtml5StreamParser::sTimerContinueDelay = 150;
+PRInt32 nsHtml5StreamParser::sTimerInterval = 100;
 
 // static
 void
 nsHtml5StreamParser::InitializeStatics()
 {
-  nsContentUtils::AddIntPrefVarCache("html5.flushtimer.initialdelay",
-                                     &sTimerInitialDelay);
-  nsContentUtils::AddIntPrefVarCache("html5.flushtimer.subsequentdelay",
-                                     &sTimerSubsequentDelay);
+  nsContentUtils::AddIntPrefVarCache("html5.flushtimer.startdelay", 
+                                     &sTimerStartDelay);
+  nsContentUtils::AddIntPrefVarCache("html5.flushtimer.continuedelay", 
+                                     &sTimerContinueDelay);
+  nsContentUtils::AddIntPrefVarCache("html5.flushtimer.interval",
+                                     &sTimerInterval);
 }
 
-/*
- * Note that nsHtml5StreamParser implements cycle collecting AddRef and
- * Release. Therefore, nsHtml5StreamParser must never be refcounted from
- * the parser thread!
- *
- * To work around this limitation, runnables posted by the main thread to the
- * parser thread hold their reference to the stream parser in an
- * nsHtml5RefPtr. Upon creation, nsHtml5RefPtr addrefs the object it holds
- * just like a regular nsRefPtr. This is OK, since the creation of the
- * runnable and the nsHtml5RefPtr happens on the main thread.
- *
- * When the runnable is done on the parser thread, the destructor of
- * nsHtml5RefPtr runs there. It doesn't call Release on the held object
- * directly. Instead, it posts another runnable back to the main thread where
- * that runnable calls Release on the wrapped object.
- *
- * When posting runnables in the other direction, the runnables have to be
- * created on the main thread when nsHtml5StreamParser is instantiated and
- * held for the lifetime of the nsHtml5StreamParser. This works, because the
- * same runnabled can be dispatched multiple times and currently runnables
- * posted from the parser thread to main thread don't need to wrap any
- * runnable-specific data. (In the other direction, the runnables most notably
- * wrap the byte data of the stream.)
- */
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsHtml5StreamParser)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsHtml5StreamParser)
 
@@ -105,14 +83,17 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHtml5StreamParser)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsHtml5StreamParser)
-  tmp->DropTimer();
+  if (tmp->mFlushTimer) {
+    tmp->mFlushTimer->Cancel();
+    tmp->mFlushTimer = nsnull;
+  }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mObserver)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRequest)
   tmp->mOwner = nsnull;
   tmp->mExecutorFlusher = nsnull;
-  tmp->mLoadFlusher = nsnull;
   tmp->mExecutor = nsnull;
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChardet)
+  tmp->mTreeBuilder->DropSpeculativeLoader();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsHtml5StreamParser)
@@ -127,16 +108,17 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsHtml5StreamParser)
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mExecutorFlusher->mExecutor");
     cb.NoteXPCOMChild(static_cast<nsIContentSink*> (tmp->mExecutor));
   }
-  // hack: count the strongly owned edge wrapped in the runnable
-  if (tmp->mLoadFlusher) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mLoadFlusher->mExecutor");
-    cb.NoteXPCOMChild(static_cast<nsIContentSink*> (tmp->mExecutor));
-  }
   // hack: count self if held by mChardet
   if (tmp->mChardet) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, 
       "mChardet->mObserver");
     cb.NoteXPCOMChild(static_cast<nsIStreamListener*>(tmp));
+  }
+  // hack: count the strongly owned edge wrapped in the speculative loader
+  if (tmp->mTreeBuilder->HasSpeculativeLoader()) {
+    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, 
+      "mTreeBuilder->mSpeculativeLoader->mExecutor");
+    cb.NoteXPCOMChild(static_cast<nsIContentSink*> (tmp->mExecutor));
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -150,22 +132,7 @@ class nsHtml5ExecutorFlusher : public nsRunnable
     {}
     NS_IMETHODIMP Run()
     {
-      mExecutor->RunFlushLoop();
-      return NS_OK;
-    }
-};
-
-class nsHtml5LoadFlusher : public nsRunnable
-{
-  private:
-    nsRefPtr<nsHtml5TreeOpExecutor> mExecutor;
-  public:
-    nsHtml5LoadFlusher(nsHtml5TreeOpExecutor* aExecutor)
-      : mExecutor(aExecutor)
-    {}
-    NS_IMETHODIMP Run()
-    {
-      mExecutor->FlushSpeculativeLoads();
+      mExecutor->Flush(PR_FALSE);
       return NS_OK;
     }
 };
@@ -175,8 +142,8 @@ nsHtml5StreamParser::nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
   : mFirstBuffer(new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE))
   , mLastBuffer(mFirstBuffer)
   , mExecutor(aExecutor)
-  , mTreeBuilder(new nsHtml5TreeBuilder(mExecutor->GetStage(),
-                                        mExecutor->GetStage()))
+  , mTreeBuilder(new nsHtml5TreeBuilder(mExecutor->GetStage(), 
+                                        new nsHtml5SpeculativeLoader(mExecutor)))
   , mTokenizer(new nsHtml5Tokenizer(mTreeBuilder))
   , mTokenizerMutex("nsHtml5StreamParser mTokenizerMutex")
   , mOwner(aOwner)
@@ -184,15 +151,13 @@ nsHtml5StreamParser::nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
   , mTerminatedMutex("nsHtml5StreamParser mTerminatedMutex")
   , mThread(nsHtml5Module::GetStreamParserThread())
   , mExecutorFlusher(new nsHtml5ExecutorFlusher(aExecutor))
-  , mLoadFlusher(new nsHtml5LoadFlusher(aExecutor))
   , mFlushTimer(do_CreateInstance("@mozilla.org/timer;1"))
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  mFlushTimer->SetTarget(mThread);
   mAtomTable.Init(); // we aren't checking for OOM anyway...
-#ifdef DEBUG
-  mAtomTable.SetPermittedLookupThread(mThread);
-#endif
+  #ifdef DEBUG
+    mAtomTable.SetPermittedLookupThread(mThread);
+  #endif
   mTokenizer->setInterner(&mAtomTable);
   mTokenizer->setEncodingDeclarationHandler(this);
 
@@ -218,8 +183,6 @@ nsHtml5StreamParser::~nsHtml5StreamParser()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   mTokenizer->end();
-  NS_ASSERTION(!mFlushTimer, "Flush timer was not dropped before dtor!");
-#ifdef DEBUG
   mRequest = nsnull;
   mObserver = nsnull;
   mUnicodeDecoder = nsnull;
@@ -230,7 +193,10 @@ nsHtml5StreamParser::~nsHtml5StreamParser()
   mTreeBuilder = nsnull;
   mTokenizer = nsnull;
   mOwner = nsnull;
-#endif
+  if (mFlushTimer) {
+    mFlushTimer->Cancel();
+    mFlushTimer = nsnull;
+  }
 }
 
 nsresult
@@ -248,7 +214,7 @@ nsHtml5StreamParser::Notify(const char* aCharset, nsDetectionConfident aConf)
   if (aConf == eBestAnswer || aConf == eSureAnswer) {
     mCharset.Assign(aCharset);
     mCharsetSource = kCharsetFromAutoDetection;
-    mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
+    mTreeBuilder->SetDocumentCharset(mCharset);
   }
   return NS_OK;
 }
@@ -264,10 +230,10 @@ nsHtml5StreamParser::SetupDecodingAndWriteSniffingBufferAndCurrentSegment(const 
   NS_ENSURE_SUCCESS(rv, rv);
   rv = convManager->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
   if (rv == NS_ERROR_UCONV_NOCONV) {
-    mCharset.AssignLiteral("windows-1252"); // lower case is the raw form
+    mCharset.Assign("windows-1252"); // lower case is the raw form
     mCharsetSource = kCharsetFromWeakDocTypeDefault;
     rv = convManager->GetUnicodeDecoderRaw(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
-    mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
+    mTreeBuilder->SetDocumentCharset(mCharset);
   }
   NS_ENSURE_SUCCESS(rv, rv);
   mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
@@ -303,10 +269,9 @@ nsHtml5StreamParser::SetupDecodingFromBom(const char* aCharsetName, const char* 
   NS_ENSURE_SUCCESS(rv, rv);
   rv = convManager->GetUnicodeDecoderRaw(aDecoderCharsetName, getter_AddRefs(mUnicodeDecoder));
   NS_ENSURE_SUCCESS(rv, rv);
-  mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
   mCharset.Assign(aCharsetName);
   mCharsetSource = kCharsetFromByteOrderMark;
-  mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
+  mTreeBuilder->SetDocumentCharset(mCharset);
   mSniffingBuffer = nsnull;
   mMetaScanner = nsnull;
   mBomState = BOM_SNIFFING_OVER;
@@ -342,9 +307,9 @@ nsHtml5StreamParser::FinalizeSniffing(const PRUint8* aFromSegment, // can be nul
   }
   if (mCharsetSource == kCharsetUninitialized) {
     // Hopefully this case is never needed, but dealing with it anyway
-    mCharset.AssignLiteral("windows-1252");
+    mCharset.Assign("windows-1252");
     mCharsetSource = kCharsetFromWeakDocTypeDefault;
-    mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
+    mTreeBuilder->SetDocumentCharset(mCharset);
   }
   return SetupDecodingAndWriteSniffingBufferAndCurrentSegment(aFromSegment, aCount, aWriteCount);
 }
@@ -357,7 +322,7 @@ nsHtml5StreamParser::SniffStreamBytes(const PRUint8* aFromSegment,
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   nsresult rv = NS_OK;
   PRUint32 writeCount;
-  for (PRUint32 i = 0; i < aCount && mBomState != BOM_SNIFFING_OVER; i++) {
+  for (PRUint32 i = 0; i < aCount; i++) {
     switch (mBomState) {
       case BOM_SNIFFING_NOT_STARTED:
         NS_ASSERTION(i == 0, "Bad BOM sniffing state.");
@@ -420,11 +385,11 @@ nsHtml5StreamParser::SniffStreamBytes(const PRUint8* aFromSegment,
         mBomState = BOM_SNIFFING_OVER;
         break;
       default:
-        mBomState = BOM_SNIFFING_OVER;
-        break;
+        goto bom_loop_end;
     }
   }
   // if we get here, there either was no BOM or the BOM sniffing isn't complete yet
+  bom_loop_end:
   
   if (!mMetaScanner) {
     mMetaScanner = new nsHtml5MetaScanner();
@@ -439,7 +404,7 @@ nsHtml5StreamParser::SniffStreamBytes(const PRUint8* aFromSegment,
       mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
       // meta scan successful
       mCharsetSource = kCharsetFromMetaPrescan;
-      mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
+      mTreeBuilder->SetDocumentCharset(mCharset);
       mMetaScanner = nsnull;
       return WriteSniffingBufferAndCurrentSegment(aFromSegment, aCount, aWriteCount);
     }
@@ -451,9 +416,8 @@ nsHtml5StreamParser::SniffStreamBytes(const PRUint8* aFromSegment,
   mMetaScanner->sniff(&readable, getter_AddRefs(mUnicodeDecoder), mCharset);
   if (mUnicodeDecoder) {
     // meta scan successful
-    mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
     mCharsetSource = kCharsetFromMetaPrescan;
-    mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
+    mTreeBuilder->SetDocumentCharset(mCharset);
     mMetaScanner = nsnull;
     return WriteSniffingBufferAndCurrentSegment(aFromSegment, aCount, aWriteCount);
   }
@@ -476,7 +440,7 @@ nsHtml5StreamParser::WriteStreamBytes(const PRUint8* aFromSegment,
   if (mLastBuffer->getEnd() == NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE) {
     mLastBuffer = (mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE));
   }
-  PRInt32 totalByteCount = 0;
+  PRUint32 totalByteCount = 0;
   for (;;) {
     PRInt32 end = mLastBuffer->getEnd();
     PRInt32 byteCount = aCount - totalByteCount;
@@ -491,54 +455,30 @@ nsHtml5StreamParser::WriteStreamBytes(const PRUint8* aFromSegment,
     totalByteCount += byteCount;
     aFromSegment += byteCount;
 
-    NS_ASSERTION(end <= NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE,
-        "The Unicode decoder wrote too much data.");
-    NS_ASSERTION(byteCount >= -1, "The decoder consumed fewer than -1 bytes.");
-    NS_ASSERTION(byteCount > 0 || NS_FAILED(convResult),
-        "The decoder consumed too few bytes but did not signal an error.");
+    NS_ASSERTION(mLastBuffer->getEnd() <= NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE, "The Unicode decoder wrote too much data.");
 
     if (NS_FAILED(convResult)) {
-      // Using the more generic NS_FAILED test above in case there are still
-      // decoders around that don't use NS_ERROR_ILLEGAL_INPUT properly.
-      NS_ASSERTION(convResult == NS_ERROR_ILLEGAL_INPUT,
-          "The decoder signaled an error other than NS_ERROR_ILLEGAL_INPUT.");
-
-      // There's an illegal byte in the input. It's now the responsibility
-      // of this calling code to output a U+FFFD REPLACEMENT CHARACTER and
-      // reset the decoder.
-
-      if (totalByteCount < (PRInt32)aCount) {
-        // advance over the bad byte
+      if (totalByteCount < aCount) { // mimicking nsScanner even though this seems wrong
         ++totalByteCount;
         ++aFromSegment;
-      } else {
-        NS_NOTREACHED("The decoder signaled an error but consumed all input.");
-        // Recovering from this situation in case there are still broken
-        // decoders, since nsScanner had recovery code, too.
-        totalByteCount = (PRInt32)aCount;
       }
-
-      // Emit the REPLACEMENT CHARACTER
       mLastBuffer->getBuffer()[end] = 0xFFFD;
       ++end;
       mLastBuffer->setEnd(end);
       if (end == NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE) {
-          mLastBuffer = mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE);
+          mLastBuffer = (mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE));
       }
-
       mUnicodeDecoder->Reset();
-      if (totalByteCount == (PRInt32)aCount) {
-        *aWriteCount = (PRUint32)totalByteCount;
+      if (totalByteCount == aCount) {
+        *aWriteCount = totalByteCount;
         return NS_OK;
       }
     } else if (convResult == NS_PARTIAL_MORE_OUTPUT) {
-      mLastBuffer = mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE);
-      NS_ASSERTION(totalByteCount < (PRInt32)aCount,
-          "The Unicode decoder consumed too many bytes.");
+      mLastBuffer = (mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE));
+      NS_ASSERTION(totalByteCount < aCount, "The Unicode decoder has consumed too many bytes.");
     } else {
-      NS_ASSERTION(totalByteCount == (PRInt32)aCount,
-          "The Unicode decoder consumed the wrong number of bytes.");
-      *aWriteCount = (PRUint32)totalByteCount;
+      NS_ASSERTION(totalByteCount == aCount, "The Unicode decoder consumed the wrong number of bytes.");
+      *aWriteCount = totalByteCount;
       return NS_OK;
     }
   }
@@ -573,6 +513,11 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
    */
   mExecutor->WillBuildModel(eDTDMode_unknown);
   
+  mFlushTimer->InitWithFuncCallback(nsHtml5StreamParser::TimerCallback, 
+                                    static_cast<void*> (this), 
+                                    sTimerStartDelay, 
+                                    nsITimer::TYPE_ONE_SHOT);
+
   nsresult rv = NS_OK;
 
   mReparseForbidden = PR_FALSE;
@@ -598,13 +543,8 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   nsCOMPtr<nsICharsetConverterManager> convManager = do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = convManager->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
-  // if we failed to get a decoder, there will be fallback, so don't propagate
-  //  the error.
-  if (NS_SUCCEEDED(rv)) {
-    mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
-  } else {
-    mCharsetSource = kCharsetFromWeakDocTypeDefault;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
+  mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
   return NS_OK;
 }
 
@@ -691,18 +631,6 @@ nsHtml5StreamParser::DoDataAvailable(PRUint8* aBuffer, PRUint32 aLength)
   }
 
   ParseAvailableData();
-
-  if (mFlushTimerArmed || mSpeculating) {
-    return;
-  }
-
-  mFlushTimer->InitWithFuncCallback(nsHtml5StreamParser::TimerCallback,
-                                    static_cast<void*> (this),
-                                    mFlushTimerEverFired ?
-                                        sTimerInitialDelay :
-                                        sTimerSubsequentDelay,
-                                    nsITimer::TYPE_ONE_SHOT);
-  mFlushTimerArmed = PR_TRUE;
 }
 
 class nsHtml5DataAvailable : public nsRunnable
@@ -754,25 +682,14 @@ nsHtml5StreamParser::OnDataAvailable(nsIRequest* aRequest,
 void
 nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
 {
-  // This code needs to stay in sync with
-  // nsHtml5MetaScanner::tryCharset. Unfortunately, the
-  // trickery with member fields there leads to some copy-paste reuse. :-(
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   if (mCharsetSource >= kCharsetFromMetaTag) { // this threshold corresponds to "confident" in the HTML5 spec
     return;
   }
 
+  // The encodings are different.
   if (mReparseForbidden) {
     return; // not reparsing even if we wanted to
-  }
-
-  nsCAutoString newEncoding;
-  CopyUTF16toUTF8(*aEncoding, newEncoding);
-  // XXX spec says only UTF-16
-  if (newEncoding.LowerCaseEqualsLiteral("utf-16") ||
-      newEncoding.LowerCaseEqualsLiteral("utf-16be") ||
-      newEncoding.LowerCaseEqualsLiteral("utf-16le")) {
-    newEncoding.Assign("UTF-8");
   }
 
   nsresult rv = NS_OK;
@@ -781,6 +698,8 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
     NS_NOTREACHED("Charset alias service not available.");
     return;
   }
+  nsCAutoString newEncoding;
+  CopyUTF16toUTF8(*aEncoding, newEncoding);
   PRBool eq;
   rv = calias->Equals(newEncoding, mCharset, &eq);
   if (NS_FAILED(rv)) {
@@ -802,43 +721,16 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
     return;
   }
   
-  if (preferred.LowerCaseEqualsLiteral("utf-16") ||
-      preferred.LowerCaseEqualsLiteral("utf-16be") ||
-      preferred.LowerCaseEqualsLiteral("utf-16le") ||
-      preferred.LowerCaseEqualsLiteral("utf-32") ||
-      preferred.LowerCaseEqualsLiteral("utf-32be") ||
-      preferred.LowerCaseEqualsLiteral("utf-32le") ||
-      preferred.LowerCaseEqualsLiteral("utf-7") ||
-      preferred.LowerCaseEqualsLiteral("jis_x0212-1990") ||
-      preferred.LowerCaseEqualsLiteral("x-jis0208") ||
-      preferred.LowerCaseEqualsLiteral("x-imap4-modified-utf7") ||
-      preferred.LowerCaseEqualsLiteral("x-user-defined")) {
-    // Not a rough ASCII superset
-    return;
-  }
-
+  // we still want to reparse
   mTreeBuilder->NeedsCharsetSwitchTo(preferred);
-  FlushTreeOpsAndDisarmTimer();
-  Interrupt();
-  // the tree op executor will cause the stream parser to terminate
-  // if the charset switch request is accepted or it'll uninterrupt 
-  // if the request failed.
-}
-
-void
-nsHtml5StreamParser::FlushTreeOpsAndDisarmTimer()
-{
-  NS_ASSERTION(IsParserThread(), "Wrong thread!");
-  if (mFlushTimerArmed) {
-    // avoid calling Cancel if the flush timer isn't armed to avoid acquiring
-    // a mutex
-    mFlushTimer->Cancel();
-    mFlushTimerArmed = PR_FALSE;
-  }
   mTreeBuilder->Flush();
+  Interrupt();
   if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
     NS_WARNING("failed to dispatch executor flush event");
   }
+  // the tree op executor will cause the stream parser to terminate
+  // if the charset switch request is accepted or it'll uninterrupt 
+  // if the request failed.
 }
 
 void
@@ -862,30 +754,27 @@ nsHtml5StreamParser::ParseAvailableData()
               mFirstBuffer->setStart(0);
               mFirstBuffer->setEnd(0);
             }
-            mTreeBuilder->FlushLoads();
-            // Dispatch this runnable unconditionally, because the loads
-            // that need flushing may have been flushed earlier even if the
-            // flush right above here did nothing.
-            if (NS_FAILED(NS_DispatchToMainThread(mLoadFlusher))) {
-              NS_WARNING("failed to dispatch load flush event");
-            }
             return; // no more data for now but expecting more
           case STREAM_ENDED:
             if (mAtEOF) {
-              return;
+                return;
             }
             mAtEOF = PR_TRUE;
             mTokenizer->eof();
             mTreeBuilder->StreamEnded();
-            FlushTreeOpsAndDisarmTimer();
+            mTreeBuilder->Flush();
+            if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
+              NS_WARNING("failed to dispatch executor flush event");
+            }
             return; // no more data and not expecting more
           default:
             NS_NOTREACHED("It should be impossible to reach this.");
             return;
         }
+      } else {
+        mFirstBuffer = mFirstBuffer->next;
+        continue;
       }
-      mFirstBuffer = mFirstBuffer->next;
-      continue;
     }
 
     // now we have a non-empty buffer
@@ -906,7 +795,10 @@ nsHtml5StreamParser::ParseAvailableData()
                                  mTreeBuilder->newSnapshot());
         mTreeBuilder->AddSnapshotToScript(speculation->GetSnapshot(), 
                                           speculation->GetStartLineNumber());
-        FlushTreeOpsAndDisarmTimer();
+        mTreeBuilder->Flush();
+        if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
+          NS_WARNING("failed to dispatch executor flush event");
+        }
         mTreeBuilder->SetOpSink(speculation);
         mSpeculations.AppendElement(speculation); // adopts the pointer
         mSpeculating = PR_TRUE;
@@ -930,7 +822,6 @@ public:
   NS_IMETHODIMP Run()
   {
     mozilla::MutexAutoLock autoLock(mStreamParser->mTokenizerMutex);
-    mStreamParser->Uninterrupt();
     mStreamParser->ParseAvailableData();
     return NS_OK;
   }
@@ -949,7 +840,8 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
   {
     mozilla::MutexAutoLock speculationAutoLock(mSpeculationMutex);
     if (mSpeculations.IsEmpty()) {
-      NS_NOTREACHED("ContinueAfterScripts called without speculations.");
+      // Not quite sure how exactly this happens...
+      // Maybe an artifact of defer scripts?
       return;
     }
     nsHtml5Speculation* speculation = mSpeculations.ElementAt(0);
@@ -966,12 +858,9 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
         // the first speculation isn't the current speculation, so there's 
         // no need to bother the parser thread.
         speculation->FlushToSink(mExecutor);
-        NS_ASSERTION(!mExecutor->IsScriptExecuting(),
-          "ParseUntilBlocked() was supposed to ensure we don't come "
-          "here when scripts are executing.");
-        NS_ASSERTION(mExecutor->IsInFlushLoop(), "How are we here if "
-          "RunFlushLoop() didn't call ParseUntilBlocked() which is the "
-          "only caller of this method?");
+        if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
+          NS_WARNING("failed to dispatch executor flush event");
+        }
         mSpeculations.RemoveElementAt(0);
         return;
       }
@@ -987,11 +876,9 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
   {
     mozilla::MutexAutoLock tokenizerAutoLock(mTokenizerMutex);
     #ifdef DEBUG
-    {
       nsCOMPtr<nsIThread> mainThread;
       NS_GetMainThread(getter_AddRefs(mainThread));
       mAtomTable.SetPermittedLookupThread(mainThread);
-    }
     #endif
     // In principle, the speculation mutex should be acquired here,
     // but there's no point, because the parser thread only acquires it
@@ -1004,17 +891,6 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       mFirstBuffer = speculation->GetBuffer();
       mFirstBuffer->setStart(speculation->GetStart());
       mTokenizer->setLineNumber(speculation->GetStartLineNumber());
-
-      nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                      "SpeculationFailed",
-                                      nsnull, 0,
-                                      mExecutor->GetDocument()->GetDocumentURI(),
-                                      EmptyString(),
-                                      speculation->GetStartLineNumber(),
-                                      0,
-                                      nsIScriptError::warningFlag,
-                                      "DOM Events");
-
       nsHtml5UTF16Buffer* buffer = mFirstBuffer->next;
       while (buffer) {
         buffer->setStart(0);
@@ -1030,7 +906,11 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       mTreeBuilder->SetOpSink(mExecutor->GetStage());
       mExecutor->StartReadingFromStage();
       mSpeculating = PR_FALSE;
-
+      mFlushTimer->Cancel(); // just in case
+      mFlushTimer->InitWithFuncCallback(nsHtml5StreamParser::TimerCallback, 
+                                        static_cast<void*> (this), 
+                                        sTimerContinueDelay, 
+                                        nsITimer::TYPE_ONE_SHOT);
       // Copy state over
       mLastWasCR = aLastWasCR;
       mTokenizer->loadState(aTokenizer);
@@ -1039,30 +919,26 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       // We've got a successful speculation and at least a moment ago it was
       // the current speculation
       mSpeculations.ElementAt(0)->FlushToSink(mExecutor);
-      NS_ASSERTION(!mExecutor->IsScriptExecuting(),
-        "ParseUntilBlocked() was supposed to ensure we don't come "
-        "here when scripts are executing.");
-      NS_ASSERTION(mExecutor->IsInFlushLoop(), "How are we here if "
-        "RunFlushLoop() didn't call ParseUntilBlocked() which is the "
-        "only caller of this method?");
+      if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
+        NS_WARNING("failed to dispatch executor flush event");
+      }
       mSpeculations.RemoveElementAt(0);
       if (mSpeculations.IsEmpty()) {
         // yes, it was still the only speculation. Now stop speculating
-        if (mTreeBuilder->IsDiscretionaryFlushSafe()) {
-          // However, before telling the executor to read from stage, flush
-          // any pending ops straight to the executor, because otherwise
-          // they remain unflushed until we get more data from the network.
-          mTreeBuilder->SetOpSink(mExecutor);
-          mTreeBuilder->Flush();
-        }
         mTreeBuilder->SetOpSink(mExecutor->GetStage());
         mExecutor->StartReadingFromStage();
         mSpeculating = PR_FALSE;
+        mFlushTimer->Cancel(); // just in case
+        mFlushTimer->InitWithFuncCallback(nsHtml5StreamParser::TimerCallback, 
+                                          static_cast<void*> (this), 
+                                          sTimerContinueDelay, 
+                                          nsITimer::TYPE_ONE_SHOT);
       }
     }
+    Uninterrupt();
     nsCOMPtr<nsIRunnable> event = new nsHtml5StreamParserContinuation(this);
     if (NS_FAILED(mThread->Dispatch(event, nsIThread::DISPATCH_NORMAL))) {
-      NS_WARNING("Failed to dispatch nsHtml5StreamParserContinuation");
+      NS_WARNING("Failed to dispatch ParseAvailableData event");
     }
     // A stream event might run before this event runs, but that's harmless.
     #ifdef DEBUG
@@ -1075,57 +951,11 @@ void
 nsHtml5StreamParser::ContinueAfterFailedCharsetSwitch()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  mozilla::MutexAutoLock tokenizerAutoLock(mTokenizerMutex);
+  Uninterrupt();
   nsCOMPtr<nsIRunnable> event = new nsHtml5StreamParserContinuation(this);
   if (NS_FAILED(mThread->Dispatch(event, nsIThread::DISPATCH_NORMAL))) {
     NS_WARNING("Failed to dispatch nsHtml5StreamParserContinuation");
-  }
-}
-
-class nsHtml5TimerKungFu : public nsRunnable
-{
-private:
-  nsHtml5RefPtr<nsHtml5StreamParser> mStreamParser;
-public:
-  nsHtml5TimerKungFu(nsHtml5StreamParser* aStreamParser)
-    : mStreamParser(aStreamParser)
-  {}
-  NS_IMETHODIMP Run()
-  {
-    if (mStreamParser->mFlushTimer) {
-      mStreamParser->mFlushTimer->Cancel();
-      mStreamParser->mFlushTimer = nsnull;
-    }
-    return NS_OK;
-  }
-};
-
-void
-nsHtml5StreamParser::DropTimer()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  /*
-   * Simply nulling out the timer wouldn't work, because if the timer is
-   * armed, it needs to be canceled first. Simply canceling it first wouldn't
-   * work, because nsTimerImpl::Cancel is not safe for calling from outside
-   * the thread where nsTimerImpl::Fire would run. It's not safe to
-   * dispatch a runnable to cancel the timer from the destructor of this
-   * class, because the timer has a weak (void*) pointer back to this instance
-   * of the stream parser and having the timer fire before the runnable
-   * cancels it would make the timer access a deleted object.
-   *
-   * This DropTimer method addresses these issues. This method must be called
-   * on the main thread before the destructor of this class is reached.
-   * The nsHtml5TimerKungFu object has an nsHtml5RefPtr that addrefs this
-   * stream parser object to keep it alive until the runnable is done.
-   * The runnable cancels the timer on the parser thread, drops the timer
-   * and lets nsHtml5RefPtr send a runnable back to the main thread to
-   * release the stream parser.
-   */
-  if (mFlushTimer) {
-    nsCOMPtr<nsIRunnable> event = new nsHtml5TimerKungFu(this);
-    if (NS_FAILED(mThread->Dispatch(event, nsIThread::DISPATCH_NORMAL))) {
-      NS_WARNING("Failed to dispatch TimerKungFu event");
-    }
   }
 }
 
@@ -1134,24 +964,16 @@ nsHtml5StreamParser::DropTimer()
 void
 nsHtml5StreamParser::TimerCallback(nsITimer* aTimer, void* aClosure)
 {
-  (static_cast<nsHtml5StreamParser*> (aClosure))->TimerFlush();
+  (static_cast<nsHtml5StreamParser*> (aClosure))->PostTimerFlush();
 }
 
 void
 nsHtml5StreamParser::TimerFlush()
 {
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
-  mozilla::MutexAutoLock autoLock(mTokenizerMutex);
+  mTokenizerMutex.AssertCurrentThreadOwns();
 
-  NS_ASSERTION(!mSpeculating, "Flush timer fired while speculating.");
-
-  // The timer fired if we got here. No need to cancel it. Mark it as
-  // not armed, though.
-  mFlushTimerArmed = PR_FALSE;
-
-  mFlushTimerEverFired = PR_TRUE;
-
-  if (IsTerminatedOrInterrupted()) {
+  if (mSpeculating) {
     return;
   }
 
@@ -1162,6 +984,7 @@ nsHtml5StreamParser::TimerFlush()
   // that case would make the tree shape dependent on where the flush points 
   // fall.
   if (mTreeBuilder->IsDiscretionaryFlushSafe()) {
+    mTreeBuilder->flushCharacters();
     if (mTreeBuilder->Flush()) {
       if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
         NS_WARNING("failed to dispatch executor flush event");
@@ -1169,3 +992,52 @@ nsHtml5StreamParser::TimerFlush()
     }
   }
 }
+
+class nsHtml5StreamParserTimerFlusher : public nsRunnable
+{
+private:
+  nsHtml5RefPtr<nsHtml5StreamParser> mStreamParser;
+public:
+  nsHtml5StreamParserTimerFlusher(nsHtml5StreamParser* aStreamParser)
+    : mStreamParser(aStreamParser)
+  {}
+  NS_IMETHODIMP Run()
+  {
+    mozilla::MutexAutoLock autoLock(mStreamParser->mTokenizerMutex);
+    mStreamParser->TimerFlush();
+    return NS_OK;
+  }
+};
+
+void
+nsHtml5StreamParser::PostTimerFlush()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  mFlushTimer->Cancel(); // just in case
+
+  // The following line reads a mutex-protected variable without acquiring 
+  // the mutex. This is OK, because failure to exit early here is harmless.
+  // The early exit here is merely an optimization. Note that parser thread
+  // may have set mSpeculating to true where it previously was false--not 
+  // the other way round. mSpeculating is set to false only on the main thread.
+  if (mSpeculating) {
+    // No need for timer flushes when speculating
+    return;
+  }
+
+  // Schedule the next timer shot
+  mFlushTimer->InitWithFuncCallback(nsHtml5StreamParser::TimerCallback, 
+                                    static_cast<void*> (this), 
+                                    sTimerInterval, 
+                                    nsITimer::TYPE_ONE_SHOT);
+
+  // TODO: (If the document isn't in the frontmost tab or If the user isn't 
+  // interacting with the browser) and this isn't every nth timer flush, return
+
+  nsCOMPtr<nsIRunnable> event = new nsHtml5StreamParserTimerFlusher(this);
+  if (NS_FAILED(mThread->Dispatch(event, nsIThread::DISPATCH_NORMAL))) {
+    NS_WARNING("Failed to dispatch nsHtml5StreamParserTimerFlusher");
+  }
+}
+

@@ -35,9 +35,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#if !defined(nsHTMLVideoElement_h__)
-#define nsHTMLVideoElement_h__
-
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsHTMLMediaElement.h"
 
@@ -45,8 +42,7 @@ class nsHTMLVideoElement : public nsHTMLMediaElement,
                            public nsIDOMHTMLVideoElement
 {
 public:
-  nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
+  nsHTMLVideoElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLVideoElement();
 
   // nsISupports
@@ -79,10 +75,4 @@ public:
   // Returns the current video frame width and height.
   // If there is no video frame, returns the given default size.
   nsIntSize GetVideoSize(nsIntSize defaultSize);
-
-  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel);
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
-
-#endif

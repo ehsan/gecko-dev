@@ -44,9 +44,6 @@
 #include "mozilla/plugins/StreamNotifyChild.h"
 #if defined(OS_WIN)
 #include "mozilla/gfx/SharedDIBWin.h"
-#elif defined(OS_MACOSX)
-#include "nsCoreAnimationSupport.h"
-#include "base/timer.h"
 #endif
 
 #include "npfunctions.h"
@@ -55,22 +52,17 @@
 #include "ChildAsyncCall.h"
 #include "ChildTimer.h"
 #include "nsRect.h"
-#include "nsTHashtable.h"
-#include "mozilla/PaintTracker.h"
-#include "gfxASurface.h"
 
 namespace mozilla {
 namespace plugins {
 
 class PBrowserStreamChild;
 class BrowserStreamChild;
-class StreamNotifyChild;
 
 class PluginInstanceChild : public PPluginInstanceChild
 {
     friend class BrowserStreamChild;
     friend class PluginStreamChild;
-    friend class StreamNotifyChild; 
 
 #ifdef OS_WIN
     friend LRESULT CALLBACK PluginWindowProc(HWND hWnd,
@@ -80,7 +72,7 @@ class PluginInstanceChild : public PPluginInstanceChild
 #endif
 
 protected:
-    virtual bool AnswerNPP_SetWindow(const NPRemoteWindow& window);
+    virtual bool AnswerNPP_SetWindow(const NPRemoteWindow& window, NPError* rv);
 
     virtual bool
     AnswerNPP_GetValue_NPPVpluginNeedsXEmbed(bool* needs, NPError* rv);
@@ -93,27 +85,6 @@ protected:
 
     virtual bool
     AnswerNPP_HandleEvent(const NPRemoteEvent& event, int16_t* handled);
-    virtual bool
-    AnswerNPP_HandleEvent_Shmem(const NPRemoteEvent& event, Shmem& mem, int16_t* handled, Shmem* rtnmem);
-    virtual bool
-    AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event, const uint32_t& surface, int16_t* handled);
-
-    // Async rendering
-    virtual bool
-    RecvAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
-                       const NPRemoteWindow& aWindow);
-
-    NS_OVERRIDE
-    virtual bool
-    AnswerPaint(const NPRemoteEvent& event, int16_t* handled)
-    {
-        PaintTracker pt;
-        return AnswerNPP_HandleEvent(event, handled);
-    }
-
-    NS_OVERRIDE
-    virtual bool
-    RecvWindowPosChanged(const NPRemoteEvent& event);
 
     virtual bool
     AnswerNPP_Destroy(NPError* result);
@@ -124,8 +95,8 @@ protected:
     virtual bool
     DeallocPPluginScriptableObject(PPluginScriptableObjectChild* aObject);
 
-    NS_OVERRIDE virtual bool
-    RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectChild* aActor);
+    virtual bool
+    AnswerPPluginScriptableObjectConstructor(PPluginScriptableObjectChild* aActor);
 
     virtual PBrowserStreamChild*
     AllocPBrowserStream(const nsCString& url,
@@ -178,7 +149,7 @@ protected:
     AnswerUpdateWindow();
 
 public:
-    PluginInstanceChild(const NPPluginFuncs* aPluginIface, const nsCString& aMimeType);
+    PluginInstanceChild(const NPPluginFuncs* aPluginIface);
 
     virtual ~PluginInstanceChild();
 
@@ -204,34 +175,12 @@ public:
 
     void InvalidateRect(NPRect* aInvalidRect);
 
+    bool NotifyStream(StreamNotifyChild* notifyData, NPReason reason);
+
     uint32_t ScheduleTimer(uint32_t interval, bool repeat, TimerFunc func);
     void UnscheduleTimer(uint32_t id);
 
-    void AsyncCall(PluginThreadCallback aFunc, void* aUserData);
-
-    int GetQuirks() { return mQuirks; }
-
-    // Quirks mode support for various plugin mime types
-    enum PluginQuirks {
-        // Silverlight assumes it is transparent in windowless mode. This quirk
-        // matches the logic in nsNPAPIPluginInstance::SetWindowless.
-        QUIRK_SILVERLIGHT_DEFAULT_TRANSPARENT           = 1 << 0,
-        // Win32: Hook TrackPopupMenu api so that we can swap out parent
-        // hwnds. The api will fail with parents not associated with our
-        // child ui thread. See WinlessHandleEvent for details.
-        QUIRK_WINLESS_TRACKPOPUP_HOOK                   = 1 << 1,
-        // Win32: Throttle flash WM_USER+1 heart beat messages to prevent
-        // flooding chromium's dispatch loop, which can cause ipc traffic
-        // processing lag.
-        QUIRK_FLASH_THROTTLE_WMUSER_EVENTS              = 1 << 2,
-        // Win32: Catch resets on our subclass by hooking SetWindowLong.
-        QUIRK_FLASH_HOOK_SETLONGPTR                     = 1 << 3,
-    };
-
 private:
-    friend class PluginModuleChild;
-
-    void InitQuirksModes(const nsCString& aMimeType);
 
     NPError
     InternalGetNPObjectForValue(NPNVariable aValue,
@@ -244,16 +193,11 @@ private:
     void ReparentPluginWindow(HWND hWndParent);
     void SizePluginWindow(int width, int height);
     int16_t WinlessHandleEvent(NPEvent& event);
-    void CreateWinlessPopupSurrogate();
-    void DestroyWinlessPopupSurrogate();
-    void InitPopupMenuHook();
-    void SetupFlashMsgThrottle();
-    void UnhookWinlessFlashThrottle();
-    void HookSetWindowLongPtr();
-    static inline PRBool SetWindowLongHookCheck(HWND hWnd,
-                                                int nIndex,
-                                                LONG_PTR newLong);
-    void FlashThrottleMessage(HWND, UINT, WPARAM, LPARAM, bool);
+    void SetNestedInputEventHook();
+    void ResetNestedEventHook();
+    void SetNestedInputPumpHook();
+    void ResetPumpHooks();
+    void InternalCallSetNestedEventState(bool aState);
     static LRESULT CALLBACK DummyWindowProc(HWND hWnd,
                                             UINT message,
                                             WPARAM wParam,
@@ -262,74 +206,21 @@ private:
                                              UINT message,
                                              WPARAM wParam,
                                              LPARAM lParam);
-    static BOOL WINAPI TrackPopupHookProc(HMENU hMenu,
-                                          UINT uFlags,
-                                          int x,
-                                          int y,
-                                          int nReserved,
-                                          HWND hWnd,
-                                          CONST RECT *prcRect);
-    static BOOL CALLBACK EnumThreadWindowsCallback(HWND hWnd,
-                                                   LPARAM aParam);
-    static LRESULT CALLBACK WinlessHiddenFlashWndProc(HWND hWnd,
-                                                      UINT message,
-                                                      WPARAM wParam,
-                                                      LPARAM lParam);
-#ifdef _WIN64
-    static LONG_PTR WINAPI SetWindowLongPtrAHook(HWND hWnd,
-                                                 int nIndex,
-                                                 LONG_PTR newLong);
-    static LONG_PTR WINAPI SetWindowLongPtrWHook(HWND hWnd,
-                                                 int nIndex,
-                                                 LONG_PTR newLong);
-                      
-#else
-    static LONG WINAPI SetWindowLongAHook(HWND hWnd,
-                                          int nIndex,
-                                          LONG newLong);
-    static LONG WINAPI SetWindowLongWHook(HWND hWnd,
-                                          int nIndex,
-                                          LONG newLong);
-#endif
-
-    class FlashThrottleAsyncMsg : public ChildAsyncCall
-    {
-      public:
-        FlashThrottleAsyncMsg();
-        FlashThrottleAsyncMsg(PluginInstanceChild* aInst, 
-                              HWND aWnd, UINT aMsg,
-                              WPARAM aWParam, LPARAM aLParam,
-                              bool isWindowed)
-          : ChildAsyncCall(aInst, nsnull, nsnull),
-          mWnd(aWnd),
-          mMsg(aMsg),
-          mWParam(aWParam),
-          mLParam(aLParam),
-          mWindowed(isWindowed)
-        {}
-
-        NS_OVERRIDE void Run();
-
-        WNDPROC GetProc();
-        HWND GetWnd() { return mWnd; }
-        UINT GetMsg() { return mMsg; }
-        WPARAM GetWParam() { return mWParam; }
-        LPARAM GetLParam() { return mLParam; }
-
-      private:
-        HWND                 mWnd;
-        UINT                 mMsg;
-        WPARAM               mWParam;
-        LPARAM               mLParam;
-        bool                 mWindowed;
-    };
-
+    static VOID CALLBACK PumpTimerProc(HWND hwnd,
+                                       UINT uMsg,
+                                       UINT_PTR idEvent,
+                                       DWORD dwTime);
+    static LRESULT CALLBACK NestedInputEventHook(int code,
+                                                 WPARAM wParam,
+                                                 LPARAM lParam);
+    static LRESULT CALLBACK NestedInputPumpHook(int code,
+                                                WPARAM wParam,
+                                                LPARAM lParam);
 #endif
 
     const NPPluginFuncs* mPluginIface;
     NPP_t mData;
     NPWindow mWindow;
-    int mQuirks;
 
     // Cached scriptable actors to avoid IPC churn
     PluginScriptableObjectChild* mCachedWindowActor;
@@ -341,31 +232,23 @@ private:
     HWND mPluginWindowHWND;
     WNDPROC mPluginWndProc;
     HWND mPluginParentHWND;
+    HHOOK mNestedEventHook;
+    HHOOK mNestedPumpHook;
     int mNestedEventLevelDepth;
+    bool mNestedEventState;
     HWND mCachedWinlessPluginHWND;
-    HWND mWinlessPopupSurrogateHWND;
+    UINT_PTR mEventPumpTimer;
     nsIntPoint mPluginSize;
-    WNDPROC mWinlessThrottleOldWndProc;
-    HWND mWinlessHiddenMsgHWND;
 #endif
 
     friend class ChildAsyncCall;
-
-    Mutex mAsyncCallMutex;
     nsTArray<ChildAsyncCall*> mPendingAsyncCalls;
     nsTArray<nsAutoPtr<ChildTimer> > mTimers;
-
-    /**
-     * During destruction we enumerate all remaining scriptable objects and
-     * invalidate/delete them. Enumeration can re-enter, so maintain a
-     * hash separate from PluginModuleChild.mObjectMap.
-     */
-    nsAutoPtr< nsTHashtable<DeletingObjectEntry> > mDeletingHash;
 
 #if defined(OS_WIN)
 private:
     // Shared dib rendering management for windowless plugins.
-    bool SharedSurfaceSetWindow(const NPRemoteWindow& aWindow);
+    bool SharedSurfaceSetWindow(const NPRemoteWindow& aWindow, NPError* rv);
     int16_t SharedSurfacePaint(NPEvent& evcopy);
     void SharedSurfaceRelease();
     bool AlphaExtractCacheSetup();
@@ -380,150 +263,12 @@ private:
     };
     gfx::SharedDIBWin mSharedSurfaceDib;
     struct {
+      PRUint32        doublePassEvent;
       PRUint16        doublePass;
       HDC             hdc;
       HBITMAP         bmp;
     } mAlphaExtract;
 #endif // defined(OS_WIN)
-#if defined(OS_MACOSX)
-private:
-#if defined(__i386__)
-    NPEventModel          mEventModel;
-#endif
-    CGColorSpaceRef       mShColorSpace;
-    CGContextRef          mShContext;
-    int16_t               mDrawingModel;
-    nsCARenderer          mCARenderer;
-
-public:
-    const NPCocoaEvent* getCurrentEvent() {
-        return mCurrentEvent;
-    }
-
-#if defined(__i386__)
-    NPEventModel EventModel() { return mEventModel; }
-#endif
-
-private:
-    const NPCocoaEvent   *mCurrentEvent;
-#endif
-
-    bool IsVisible() {
-        return mWindow.clipRect.top != 0 ||
-            mWindow.clipRect.left != 0 ||
-            mWindow.clipRect.bottom != 0 ||
-            mWindow.clipRect.right != 0;
-    }
-
-    // ShowPluginFrame - in general does four things:
-    // 1) Create mCurrentSurface optimized for rendering to parent process
-    // 2) Updated mCurrentSurface to be a complete copy of mBackSurface
-    // 3) Draw the invalidated plugin area into mCurrentSurface
-    // 4) Send it to parent process.
-    bool ShowPluginFrame(void);
-
-    // If we can read back safely from mBackSurface, copy
-    // mSurfaceDifferenceRect from mBackSurface to mFrontSurface.
-    // @return Whether the back surface could be read.
-    bool ReadbackDifferenceRect(const nsIntRect& rect);
-
-    // Post ShowPluginFrame task
-    void AsyncShowPluginFrame(void);
-
-    // In the PaintRect functions, aSurface is the size of the full plugin
-    // window. Each PaintRect function renders into the subrectangle aRect of
-    // aSurface (possibly more if we're working around a Flash bug).
-
-    // Paint plugin content rectangle to surface with bg color filling
-    void PaintRectToSurface(const nsIntRect& aRect,
-                            gfxASurface* aSurface,
-                            const gfxRGBA& aColor);
-
-    // Render plugin content to surface using
-    // white/black image alpha extraction algorithm
-    void PaintRectWithAlphaExtraction(const nsIntRect& aRect,
-                                      gfxASurface* aSurface);
-
-    // Call plugin NPAPI function to render plugin content to surface
-    // @param - aSurface - should be compatible with current platform plugin rendering
-    // @return - FALSE if plugin not painted to surface
-    void PaintRectToPlatformSurface(const nsIntRect& aRect,
-                                    gfxASurface* aSurface);
-
-    // Update NPWindow platform attributes and call plugin "setwindow"
-    // @param - aForceSetWindow - call setwindow even if platform attributes are the same
-    void UpdateWindowAttributes(bool aForceSetWindow = false);
-
-    // Create optimized mCurrentSurface for parent process rendering
-    // @return FALSE if optimized surface not created
-    bool CreateOptSurface(void);
-
-    // Create mHelperSurface if mCurrentSurface non compatible with plugins
-    // @return TRUE if helper surface created successfully, or not needed
-    bool MaybeCreatePlatformHelperSurface(void);
-
-    // Make sure that we have surface for rendering
-    bool EnsureCurrentBuffer(void);
-
-    // Helper function for delayed InvalidateRect call
-    // non null mCurrentInvalidateTask will call this function
-    void InvalidateRectDelayed(void);
-
-    // Set as true when SetupLayer called
-    // and go with different path in InvalidateRect function
-    bool mLayersRendering;
-
-    // Current surface available for rendering
-    nsRefPtr<gfxASurface> mCurrentSurface;
-
-    // Back surface, just keeping reference to
-    // surface which is on ParentProcess side
-    nsRefPtr<gfxASurface> mBackSurface;
-
-    // Accumulated invalidate rect, while back buffer is not accessible,
-    // in plugin coordinates.
-    nsIntRect mAccumulatedInvalidRect;
-
-    // Plugin only call SetTransparent
-    // and does not remember their transparent state
-    // and p->getvalue return always false
-    bool mIsTransparent;
-
-    // Surface type optimized of parent process
-    gfxSurfaceType mSurfaceType;
-
-    // Keep InvalidateRect task pointer to be able Cancel it on Destroy
-    CancelableTask *mCurrentInvalidateTask;
-
-    // True while plugin-child in plugin call
-    // Use to prevent plugin paint re-enter
-    bool mPendingPluginCall;
-
-    // On some platforms, plugins may not support rendering to a surface with
-    // alpha, or not support rendering to an image surface.
-    // In those cases we need to draw to a temporary platform surface; we cache
-    // that surface here.
-    nsRefPtr<gfxASurface> mHelperSurface;
-
-    // true when plugin does not support painting to ARGB32 surface
-    // this is false for maemo platform, and false if plugin
-    // supports NPPVpluginTransparentAlphaBool (which is not part of NPAPI yet)
-    bool mDoAlphaExtraction;
-
-    // Cached rectangle rendered to previous surface(mBackSurface)
-    // Used for reading back to current surface and syncing data,
-    // in plugin coordinates.
-    nsIntRect mSurfaceDifferenceRect;
-
-#ifdef MOZ_X11
-    // Used with windowless flash plugin only, see bug 574583
-    bool                  mFlash10Quirks;
-#endif
-#if (MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6)
-    // Maemo5 Flash does not remember WindowlessLocal state
-    // we should listen for NPP values negotiation and remember it
-    PRPackedBool          mMaemoImageRendering;
-#endif
 };
 
 } // namespace plugins

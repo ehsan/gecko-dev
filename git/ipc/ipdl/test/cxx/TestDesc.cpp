@@ -10,11 +10,11 @@ namespace _ipdltest {
 void
 TestDescParent::Main()
 {
-    PTestDescSubParent* p = CallPTestDescSubConstructor(0);
+    PTestDescSubParent* p = SendPTestDescSubConstructor();
     if (!p)
         fail("can't allocate Sub");
 
-    PTestDescSubsubParent* pp = p->CallPTestDescSubsubConstructor();
+    PTestDescSubsubParent* pp = p->SendPTestDescSubsubConstructor();
     if (!pp)
         fail("can't allocate Subsub");
 
@@ -28,9 +28,6 @@ TestDescParent::RecvOk(PTestDescSubsubParent* a)
     if (!a)
         fail("didn't receive Subsub");
 
-    if (!PTestDescSubsubParent::Call__delete__(a))
-        fail("deleting Subsub");
-
     Close();
 
     return true;
@@ -38,9 +35,7 @@ TestDescParent::RecvOk(PTestDescSubsubParent* a)
 
 
 PTestDescSubParent*
-TestDescParent::AllocPTestDescSub(PTestDescSubsubParent* dummy) {
-    if (dummy)
-        fail("actor supposed to be null");
+TestDescParent::AllocPTestDescSub() {
     return new TestDescSubParent();
 }
 bool
@@ -77,9 +72,7 @@ TestDescChild::RecvTest(PTestDescSubsubChild* a)
 }
 
 PTestDescSubChild*
-TestDescChild::AllocPTestDescSub(PTestDescSubsubChild* dummy) {
-    if (dummy)
-        fail("actor supposed to be null");
+TestDescChild::AllocPTestDescSub() {
     return new TestDescSubChild();
 }
 bool

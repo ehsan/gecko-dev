@@ -38,22 +38,20 @@
 #include "nsXULAlertAccessible.h"
 
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULAlertAccessible
-////////////////////////////////////////////////////////////////////////////////
-
-nsXULAlertAccessible::
-  nsXULAlertAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
-{
-}
+// ------------------------ Alert  -----------------------------
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsXULAlertAccessible, nsAccessible)
 
-PRUint32
-nsXULAlertAccessible::NativeRole()
+nsXULAlertAccessible::nsXULAlertAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
+  nsAccessibleWrap(aNode, aShell)
 {
-  return nsIAccessibleRole::ROLE_ALERT;
+}
+
+nsresult
+nsXULAlertAccessible::GetRoleInternal(PRUint32 *aRole)
+{
+  *aRole = nsIAccessibleRole::ROLE_ALERT;
+  return NS_OK;
 }
 
 nsresult

@@ -37,9 +37,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
+#include "prtypes.h"
 #include "nsAutoComplete.h"
-#include "nsComponentManagerUtils.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsReadableUtils.h"
+#include "nsIGenericFactory.h"
 
 /******************************************************************************
  * nsAutoCompleteItem
@@ -88,7 +89,7 @@ NS_IMETHODIMP nsAutoCompleteItem::GetClassName(char * *aClassName)
 }
 NS_IMETHODIMP nsAutoCompleteItem::SetClassName(const char * aClassName)
 {
-    mClassName.Assign(aClassName);
+    mClassName.AssignWithConversion(aClassName);
     return NS_OK;
 }
 
@@ -113,9 +114,9 @@ NS_IMETHODIMP nsAutoCompleteItem::SetParam(nsISupports * aParam)
 NS_IMPL_ISUPPORTS1(nsAutoCompleteResults, nsIAutoCompleteResults)
 
 nsAutoCompleteResults::nsAutoCompleteResults() :
-    mItems(do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID)),
     mDefaultItemIndex(0)
 {
+    NS_NewISupportsArray(getter_AddRefs(mItems));
 }
 
 nsAutoCompleteResults::~nsAutoCompleteResults()
@@ -179,25 +180,19 @@ NS_IMETHODIMP nsAutoCompleteResults::SetDefaultItemIndex(PRInt32 aDefaultItemInd
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAutoCompleteItem)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAutoCompleteResults)
 
-NS_DEFINE_NAMED_CID(NS_AUTOCOMPLETERESULTS_CID);
-NS_DEFINE_NAMED_CID(NS_AUTOCOMPLETEITEM_CID);
-
-const mozilla::Module::CIDEntry kAutoCompleteCIDs[] = {
-  { &kNS_AUTOCOMPLETERESULTS_CID, false, NULL, nsAutoCompleteResultsConstructor },
-  { &kNS_AUTOCOMPLETEITEM_CID, false, NULL, nsAutoCompleteItemConstructor },
-  { NULL }
+static const nsModuleComponentInfo components[] = {
+    {
+        "AutoComplete Search Results",
+        NS_AUTOCOMPLETERESULTS_CID,
+        NS_AUTOCOMPLETERESULTS_CONTRACTID,
+        nsAutoCompleteResultsConstructor
+    },
+    {
+        "AutoComplete Search Item",
+        NS_AUTOCOMPLETEITEM_CID,
+        NS_AUTOCOMPLETEITEM_CONTRACTID,
+        nsAutoCompleteItemConstructor
+    }
 };
 
-const mozilla::Module::ContractIDEntry kAutoCompleteContracts[] = {
-  { NS_AUTOCOMPLETERESULTS_CONTRACTID, &kNS_AUTOCOMPLETERESULTS_CID },
-  { NS_AUTOCOMPLETEITEM_CONTRACTID, &kNS_AUTOCOMPLETEITEM_CID },
-  { NULL }
-};
-
-static const mozilla::Module kAutoCompleteModule = {
-  mozilla::Module::kVersion,
-  kAutoCompleteCIDs,
-  kAutoCompleteContracts
-};
-
-NSMODULE_DEFN(xpAutoComplete) = &kAutoCompleteModule;
+NS_IMPL_NSGETMODULE(xpAutoComplete, components)

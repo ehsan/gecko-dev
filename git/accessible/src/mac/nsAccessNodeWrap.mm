@@ -51,9 +51,8 @@
 // construction 
 //-----------------------------------------------------
 
-nsAccessNodeWrap::
-  nsAccessNodeWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessNode(aContent, aShell)
+nsAccessNodeWrap::nsAccessNodeWrap(nsIDOMNode *aNode, nsIWeakReference* aShell): 
+  nsAccessNode(aNode, aShell)
 {
 }
 

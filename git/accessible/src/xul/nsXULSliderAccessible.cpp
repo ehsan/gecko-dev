@@ -38,19 +38,14 @@
 
 #include "nsXULSliderAccessible.h"
 
-#include "nsAccessibilityAtoms.h"
-
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentXBL.h"
-#include "nsIFrame.h"
 
-////////////////////////////////////////////////////////////////////////////////
 // nsXULSliderAccessible
-////////////////////////////////////////////////////////////////////////////////
 
-nsXULSliderAccessible::
-  nsXULSliderAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+nsXULSliderAccessible::nsXULSliderAccessible(nsIDOMNode* aNode,
+                                             nsIWeakReference* aShell) :
+  nsAccessibleWrap(aNode, aShell)
 {
 }
 
@@ -62,10 +57,11 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsXULSliderAccessible,
 
 // nsAccessible
 
-PRUint32
-nsXULSliderAccessible::NativeRole()
+nsresult
+nsXULSliderAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_SLIDER;
+  *aRole = nsIAccessibleRole::ROLE_SLIDER;
+  return NS_OK;
 }
 
 nsresult
@@ -82,7 +78,7 @@ nsXULSliderAccessible::GetStateInternal(PRUint32 *aState,
   if (frame && frame->IsFocusable())
     *aState |= nsIAccessibleStates::STATE_FOCUSABLE;
 
-  if (gLastFocusedNode == mContent)
+  if (gLastFocusedNode == mDOMNode)
     *aState |= nsIAccessibleStates::STATE_FOCUSED;
 
   return NS_OK;
@@ -202,11 +198,12 @@ nsXULSliderAccessible::GetAllowsAnonChildAccessibles()
 already_AddRefed<nsIContent>
 nsXULSliderAccessible::GetSliderNode()
 {
-  if (IsDefunct())
+  if (!mDOMNode)
     return nsnull;
 
   if (!mSliderNode) {
-    nsIDocument* document = mContent->GetOwnerDoc();
+    nsCOMPtr<nsIDOMDocument> document;
+    mDOMNode->GetOwnerDocument(getter_AddRefs(document));
     if (!document)
       return nsnull;
 
@@ -215,7 +212,7 @@ nsXULSliderAccessible::GetSliderNode()
       return nsnull;
 
     // XXX: we depend on anonymous content.
-    nsCOMPtr<nsIDOMElement> domElm(do_QueryInterface(mContent));
+    nsCOMPtr<nsIDOMElement> domElm(do_QueryInterface(mDOMNode));
     if (!domElm)
       return nsnull;
 
@@ -289,22 +286,18 @@ nsXULSliderAccessible::SetSliderAttr(nsIAtom *aName, double aValue)
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
 // nsXULThumbAccessible
-////////////////////////////////////////////////////////////////////////////////
 
-nsXULThumbAccessible::
-  nsXULThumbAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessibleWrap(aContent, aShell)
+nsXULThumbAccessible::nsXULThumbAccessible(nsIDOMNode* aNode,
+                                           nsIWeakReference* aShell) :
+  nsAccessibleWrap(aNode, aShell) {}
+
+// nsIAccessible
+
+nsresult
+nsXULThumbAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULThumbAccessible: nsAccessible
-
-PRUint32
-nsXULThumbAccessible::NativeRole()
-{
-  return nsIAccessibleRole::ROLE_INDICATOR;
+  *aRole = nsIAccessibleRole::ROLE_INDICATOR;
+  return NS_OK;
 }
 

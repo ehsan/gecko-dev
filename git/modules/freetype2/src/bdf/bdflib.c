@@ -1,6 +1,6 @@
 /*
  * Copyright 2000 Computing Research Labs, New Mexico State University
- * Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2009, 2010
+ * Copyright 2001, 2002, 2003, 2004, 2005, 2006, 2007
  *   Francesco Zappa Nardelli
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -281,7 +281,7 @@
 
   static FT_Error
   hash_insert( char*       key,
-               size_t      data,
+               void*       data,
                hashtable*  ht,
                FT_Memory   memory )
   {
@@ -415,18 +415,18 @@
 
 
   static FT_Error
-  _bdf_list_ensure( _bdf_list_t*   list,
-                    unsigned long  num_items ) /* same as _bdf_list_t.used */
+  _bdf_list_ensure( _bdf_list_t*  list,
+                    int           num_items )
   {
     FT_Error  error = BDF_Err_Ok;
 
 
-    if ( num_items > list->size )
+    if ( num_items > (int)list->size )
     {
-      unsigned long  oldsize = list->size; /* same as _bdf_list_t.size */
-      unsigned long  newsize = oldsize + ( oldsize >> 1 ) + 4;
-      unsigned long  bigsize = (unsigned long)( FT_INT_MAX / sizeof ( char* ) );
-      FT_Memory      memory  = list->memory;
+      int        oldsize = list->size;
+      int        newsize = oldsize + ( oldsize >> 1 ) + 4;
+      int        bigsize = FT_INT_MAX / sizeof ( char* );
+      FT_Memory  memory  = list->memory;
 
 
       if ( oldsize == bigsize )
@@ -470,11 +470,6 @@
   }
 
 
-  /* An empty string for empty fields. */
-
-  static const char  empty[1] = { 0 };      /* XXX eliminate this */
-
-
   static char *
   _bdf_list_join( _bdf_list_t*    list,
                   int             c,
@@ -499,12 +494,16 @@
       if ( i + 1 < list->used )
         dp[j++] = (char)c;
     }
-    if ( dp != empty )
-      dp[j] = 0;
+    dp[j] = 0;
 
     *alen = j;
     return dp;
   }
+
+
+  /* An empty string for empty fields. */
+
+  static const char  empty[1] = { 0 };      /* XXX eliminate this */
 
 
   static FT_Error
@@ -615,8 +614,8 @@
   {
     _bdf_line_func_t  cb;
     unsigned long     lineno, buf_size;
-    int               refill, hold, to_skip;
-    ptrdiff_t         bytes, start, end, cursor, avail;
+    int               refill, bytes, hold, to_skip;
+    int               start, end, cursor, avail;
     char*             buf = 0;
     FT_Memory         memory = stream->memory;
     FT_Error          error = BDF_Err_Ok;
@@ -649,9 +648,8 @@
     {
       if ( refill )
       {
-        bytes  = (ptrdiff_t)FT_Stream_TryRead(
-                   stream, (FT_Byte*)buf + cursor,
-                   (FT_ULong)( buf_size - cursor ) );
+        bytes  = (int)FT_Stream_TryRead( stream, (FT_Byte*)buf + cursor,
+                                         (FT_ULong)(buf_size - cursor) );
         avail  = cursor + bytes;
         cursor = 0;
         refill = 0;
@@ -721,10 +719,6 @@
       {
         error = (*cb)( buf + start, end - start, lineno,
                        (void*)&cb, client_data );
-        /* Redo if we have encountered CHARS without properties. */
-        if ( error == -1 )
-          error = (*cb)( buf + start, end - start, lineno,
-                         (void*)&cb, client_data );
         if ( error )
           break;
       }
@@ -977,7 +971,7 @@
                        int          format,
                        bdf_font_t*  font )
   {
-    size_t           n;
+    unsigned long    n;
     bdf_property_t*  p;
     FT_Memory        memory = font->memory;
     FT_Error         error = BDF_Err_Ok;
@@ -997,9 +991,7 @@
     p = font->user_props + font->nuser_props;
     FT_ZERO( p );
 
-    n = ft_strlen( name ) + 1;
-    if ( n > FT_ULONG_MAX )
-      return BDF_Err_Invalid_Argument;
+    n = (unsigned long)( ft_strlen( name ) + 1 );
 
     if ( FT_NEW_ARRAY( p->name, n ) )
       goto Exit;
@@ -1011,7 +1003,7 @@
 
     n = _num_bdf_properties + font->nuser_props;
 
-    error = hash_insert( p->name, n, &(font->proptbl), memory );
+    error = hash_insert( p->name, (void *)n, &(font->proptbl), memory );
     if ( error )
       goto Exit;
 
@@ -1026,8 +1018,8 @@
   bdf_get_property( char*        name,
                     bdf_font_t*  font )
   {
-    hashnode  hn;
-    size_t    propid;
+    hashnode       hn;
+    unsigned long  propid;
 
 
     if ( name == 0 || *name == 0 )
@@ -1036,7 +1028,7 @@
     if ( ( hn = hash_lookup( name, &(font->proptbl) ) ) == 0 )
       return 0;
 
-    propid = hn->data;
+    propid = (unsigned long)hn->data;
     if ( propid >= _num_bdf_properties )
       return font->user_props + ( propid - _num_bdf_properties );
 
@@ -1139,11 +1131,11 @@
   _bdf_set_default_spacing( bdf_font_t*     font,
                             bdf_options_t*  opts )
   {
-    size_t       len;
-    char         name[256];
-    _bdf_list_t  list;
-    FT_Memory    memory;
-    FT_Error     error = BDF_Err_Ok;
+    unsigned long  len;
+    char           name[256];
+    _bdf_list_t    list;
+    FT_Memory      memory;
+    FT_Error       error = BDF_Err_Ok;
 
 
     if ( font == 0 || font->name == 0 || font->name[0] == 0 )
@@ -1158,7 +1150,7 @@
 
     font->spacing = opts->font_spacing;
 
-    len = ft_strlen( font->name ) + 1;
+    len = (unsigned long)( ft_strlen( font->name ) + 1 );
     /* Limit ourselves to 256 characters in the font name. */
     if ( len >= 256 )
     {
@@ -1269,7 +1261,7 @@
                      char*        name,
                      char*        value )
   {
-    size_t          propid;
+    unsigned long   propid;
     hashnode        hn;
     bdf_property_t  *prop, *fp;
     FT_Memory       memory = font->memory;
@@ -1281,7 +1273,7 @@
     {
       /* The property already exists in the font, so simply replace */
       /* the value of the property with the current value.          */
-      fp = font->props + hn->data;
+      fp = font->props + (unsigned long)hn->data;
 
       switch ( fp->format )
       {
@@ -1297,11 +1289,11 @@
         break;
 
       case BDF_INTEGER:
-        fp->value.l = _bdf_atol( value, 0, 10 );
+        fp->value.int32 = _bdf_atol( value, 0, 10 );
         break;
 
       case BDF_CARDINAL:
-        fp->value.ul = _bdf_atoul( value, 0, 10 );
+        fp->value.card32 = _bdf_atoul( value, 0, 10 );
         break;
 
       default:
@@ -1343,7 +1335,7 @@
       font->props_size++;
     }
 
-    propid = hn->data;
+    propid = (unsigned long)hn->data;
     if ( propid >= _num_bdf_properties )
       prop = font->user_props + ( propid - _num_bdf_properties );
     else
@@ -1367,21 +1359,20 @@
       break;
 
     case BDF_INTEGER:
-      fp->value.l = _bdf_atol( value, 0, 10 );
+      fp->value.int32 = _bdf_atol( value, 0, 10 );
       break;
 
     case BDF_CARDINAL:
-      fp->value.ul = _bdf_atoul( value, 0, 10 );
+      fp->value.card32 = _bdf_atoul( value, 0, 10 );
       break;
     }
 
     /* If the property happens to be a comment, then it doesn't need */
     /* to be added to the internal hash table.                       */
-    if ( ft_memcmp( name, "COMMENT", 7 ) != 0 )
-    {
+    if ( ft_memcmp( name, "COMMENT", 7 ) != 0 ) {
       /* Add the property to the font property table. */
       error = hash_insert( fp->name,
-                           font->props_used,
+                           (void *)font->props_used,
                            (hashtable *)font->internal,
                            memory );
       if ( error )
@@ -1396,19 +1387,13 @@
     /* present, and the SPACING property should override the default       */
     /* spacing.                                                            */
     if ( ft_memcmp( name, "DEFAULT_CHAR", 12 ) == 0 )
-      font->default_char = fp->value.l;
+      font->default_char = fp->value.int32;
     else if ( ft_memcmp( name, "FONT_ASCENT", 11 ) == 0 )
-      font->font_ascent = fp->value.l;
+      font->font_ascent = fp->value.int32;
     else if ( ft_memcmp( name, "FONT_DESCENT", 12 ) == 0 )
-      font->font_descent = fp->value.l;
+      font->font_descent = fp->value.int32;
     else if ( ft_memcmp( name, "SPACING", 7 ) == 0 )
     {
-      if ( !fp->value.atom )
-      {
-        error = BDF_Err_Invalid_File_Format;
-        goto Exit;
-      }
-
       if ( fp->value.atom[0] == 'p' || fp->value.atom[0] == 'P' )
         font->spacing = BDF_PROPORTIONAL;
       else if ( fp->value.atom[0] == 'm' || fp->value.atom[0] == 'M' )
@@ -1874,9 +1859,6 @@
     error = BDF_Err_Invalid_File_Format;
 
   Exit:
-    if ( error && ( p->flags & _BDF_GLYPH ) )
-      FT_FREE( p->glyph_name );
-
     return error;
   }
 
@@ -2056,7 +2038,7 @@
       p->memory    = 0;
 
       { /* setup */
-        size_t           i;
+        unsigned long    i;
         bdf_property_t*  prop;
 
 
@@ -2066,7 +2048,7 @@
         for ( i = 0, prop = (bdf_property_t*)_bdf_properties;
               i < _num_bdf_properties; i++, prop++ )
         {
-          error = hash_insert( prop->name, i,
+          error = hash_insert( prop->name, (void *)i,
                                &(font->proptbl), memory );
           if ( error )
             goto Exit;
@@ -2087,18 +2069,9 @@
     /* Check for the start of the properties. */
     if ( ft_memcmp( line, "STARTPROPERTIES", 15 ) == 0 )
     {
-      if ( !( p->flags & _BDF_FONT_BBX ) )
-      {
-        /* Missing the FONTBOUNDINGBOX field. */
-        FT_ERROR(( "_bdf_parse_start: " ERRMSG1, lineno, "FONTBOUNDINGBOX" ));
-        error = BDF_Err_Missing_Fontboundingbox_Field;
-        goto Exit;
-      }
-
       error = _bdf_list_split( &p->list, (char *)" +", line, linelen );
       if ( error )
         goto Exit;
-      /* at this point, `p->font' can't be NULL */
       p->cnt = p->font->props_size = _bdf_atoul( p->list.field[1], 0, 10 );
 
       if ( FT_NEW_ARRAY( p->font->props, p->cnt ) )
@@ -2113,7 +2086,7 @@
     /* Check for the FONTBOUNDINGBOX field. */
     if ( ft_memcmp( line, "FONTBOUNDINGBOX", 15 ) == 0 )
     {
-      if ( !( p->flags & _BDF_SIZE ) )
+      if ( !(p->flags & _BDF_SIZE ) )
       {
         /* Missing the SIZE field. */
         FT_ERROR(( "_bdf_parse_start: " ERRMSG1, lineno, "SIZE" ));
@@ -2156,9 +2129,6 @@
         error = BDF_Err_Invalid_File_Format;
         goto Exit;
       }
-
-      /* Allowing multiple `FONT' lines (which is invalid) doesn't hurt... */
-      FT_FREE( p->font->name );
 
       if ( FT_NEW_ARRAY( p->font->name, slen + 1 ) )
         goto Exit;
@@ -2229,45 +2199,6 @@
       goto Exit;
     }
 
-    /* Check for the CHARS field -- font properties are optional */
-    if ( ft_memcmp( line, "CHARS", 5 ) == 0 )
-    {
-      char  nbuf[128];
-
-
-      if ( !( p->flags & _BDF_FONT_BBX ) )
-      {
-        /* Missing the FONTBOUNDINGBOX field. */
-        FT_ERROR(( "_bdf_parse_start: " ERRMSG1, lineno, "FONTBOUNDINGBOX" ));
-        error = BDF_Err_Missing_Fontboundingbox_Field;
-        goto Exit;
-      }
-
-      /* Add the two standard X11 properties which are required */
-      /* for compiling fonts.                                   */
-      p->font->font_ascent = p->font->bbx.ascent;
-      ft_sprintf( nbuf, "%hd", p->font->bbx.ascent );
-      error = _bdf_add_property( p->font, (char *)"FONT_ASCENT", nbuf );
-      if ( error )
-        goto Exit;
-      FT_TRACE2(( "_bdf_parse_properties: " ACMSG1, p->font->bbx.ascent ));
-
-      p->font->font_descent = p->font->bbx.descent;
-      ft_sprintf( nbuf, "%hd", p->font->bbx.descent );
-      error = _bdf_add_property( p->font, (char *)"FONT_DESCENT", nbuf );
-      if ( error )
-        goto Exit;
-      FT_TRACE2(( "_bdf_parse_properties: " ACMSG2, p->font->bbx.descent ));
-
-      p->font->modified = 1;
-
-      *next = _bdf_parse_glyphs;
-
-      /* A special return value. */
-      error = -1;
-      goto Exit;
-    }
-
     error = BDF_Err_Invalid_File_Format;
 
   Exit:
@@ -2289,7 +2220,7 @@
                  bdf_font_t*    *font )
   {
     unsigned long  lineno = 0; /* make compiler happy */
-    _bdf_parse_t   *p     = NULL;
+    _bdf_parse_t   *p;
 
     FT_Memory      memory = extmemory;
     FT_Error       error  = BDF_Err_Ok;
@@ -2404,8 +2335,7 @@
       /* Make sure the comments are NULL terminated if they exist. */
       memory = p->font->memory;
 
-      if ( p->font->comments_len > 0 )
-      {
+      if ( p->font->comments_len > 0 ) {
         if ( FT_RENEW_ARRAY( p->font->comments,
                              p->font->comments_len,
                              p->font->comments_len + 1 ) )
@@ -2509,8 +2439,8 @@
     hash_free( &(font->proptbl), memory );
 
     /* Free up the user defined properties. */
-    for ( prop = font->user_props, i = 0;
-          i < font->nuser_props; i++, prop++ )
+    for (prop = font->user_props, i = 0;
+         i < font->nuser_props; i++, prop++ )
     {
       FT_FREE( prop->name );
       if ( prop->format == BDF_ATOM )
@@ -2535,7 +2465,7 @@
 
     hn = hash_lookup( name, (hashtable *)font->internal );
 
-    return hn ? ( font->props + hn->data ) : 0;
+    return hn ? ( font->props + (unsigned long)hn->data ) : 0;
   }
 
 

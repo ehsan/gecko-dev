@@ -223,8 +223,9 @@ public:
 
   NS_IMETHODIMP Run()
   {
-    return mListener->ValueChanged(nsDependentAtomString(mWhich),
-                                   mValue, mUserChanged);
+    nsAutoString which;
+    mWhich->ToString(which);
+    return mListener->ValueChanged(which, mValue, mUserChanged);
   }
 
   nsCOMPtr<nsISliderListener> mListener;
@@ -302,8 +303,10 @@ nsSliderFrame::AttributeChanged(PRInt32 aNameSpaceID,
           }
         }
 
+        nsAutoString currentStr;
+        currentStr.AppendInt(current);
         nsContentUtils::AddScriptRunner(
-          new nsSetAttrRunnable(scrollbar, nsGkAtoms::curpos, current));
+          new nsSetAttrRunnable(scrollbar, nsGkAtoms::curpos, currentStr));
       }
   }
 
@@ -328,7 +331,7 @@ nsSliderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     // This is EVIL, we shouldn't be messing with event delivery just to get
     // thumb mouse drag events to arrive at the slider!
     return aLists.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayEventReceiver(aBuilder, this));
+        nsDisplayEventReceiver(this));
   }
   
   return nsBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
@@ -452,11 +455,7 @@ nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
                                       nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
-
-  // If a web page calls event.preventDefault() we still want to
-  // scroll when scroll arrow is clicked. See bug 511075.
-  if (!mContent->IsInNativeAnonymousSubtree() &&
-      nsEventStatus_eConsumeNoDefault == *aEventStatus) {
+  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
     return NS_OK;
   }
 

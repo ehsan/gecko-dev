@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-384412.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 384412;
 var summary = 'Exercise frame handling code';
@@ -209,11 +210,11 @@ function test()
   {
     var v = version(150);
     f = new Function("return version(arguments[0])");
-    revertVersion();
+    version(v);
     expect(150, f());
     expect(150, eval("f()"));
     expect(0, eval("f(0); f()"));
-    revertVersion();
+    version(v);
   }
   print("End of Tests");
 

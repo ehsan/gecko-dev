@@ -37,4 +37,5 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestsuite = 'js1_5';
 

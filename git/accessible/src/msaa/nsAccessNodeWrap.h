@@ -68,12 +68,8 @@
 #include "nsICrashReporter.h"
 #endif
 
-#include "nsRefPtrHashtable.h"
-
 typedef LRESULT (STDAPICALLTYPE *LPFNNOTIFYWINEVENT)(DWORD event,HWND hwnd,LONG idObjectType,LONG idObject);
 typedef LRESULT (STDAPICALLTYPE *LPFNGETGUITHREADINFO)(DWORD idThread, GUITHREADINFO* pgui);
-
-class AccTextChangeEvent;
 
 class nsAccessNodeWrap :  public nsAccessNode,
                           public nsIWinAccessNode,
@@ -87,9 +83,9 @@ class nsAccessNodeWrap :  public nsAccessNode,
   public: // IServiceProvider
     STDMETHODIMP QueryService(REFGUID guidService, REFIID riid, void** ppv);
 
-public: // construction, destruction
-  nsAccessNodeWrap(nsIContent *aContent, nsIWeakReference *aShell);
-  virtual ~nsAccessNodeWrap();
+  public: // construction, destruction
+    nsAccessNodeWrap(nsIDOMNode *, nsIWeakReference* aShell);
+    virtual ~nsAccessNodeWrap();
 
     // IUnknown
     STDMETHODIMP QueryInterface(REFIID, void**);
@@ -156,7 +152,6 @@ public: // construction, destruction
     static HINSTANCE gmAccLib;
     static HINSTANCE gmUserLib;
     static LPFNACCESSIBLEOBJECTFROMWINDOW gmAccessibleObjectFromWindow;
-    static LPFNLRESULTFROMOBJECT gmLresultFromObject;
     static LPFNNOTIFYWINEVENT gmNotifyWinEvent;
     static LPFNGETGUITHREADINFO gmGetGUIThreadInfo;
 
@@ -167,23 +162,9 @@ public: // construction, destruction
     static void TurnOffNewTabSwitchingForJawsAndWE();
 
     static void DoATSpecificProcessing();
-
-  static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
-
-  static LRESULT CALLBACK WindowProc(HWND hWnd, UINT Msg,
-                                     WPARAM WParam, LPARAM lParam);
-
-  static nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible> sHWNDCache;
-
-protected:
-
-  /**
-   * Return ISimpleDOMNode instance for existing accessible object or
-   * creates new nsAccessNode instance if the accessible doesn't exist.
-   *
-   * @note ISimpleDOMNode is returned addrefed
-   */
-  ISimpleDOMNode *MakeAccessNode(nsINode *aNode);
+  protected:
+    void GetAccessibleFor(nsIDOMNode *node, nsIAccessible **newAcc);
+    ISimpleDOMNode* MakeAccessNode(nsIDOMNode *node);
 
     static PRBool gIsEnumVariantSupportDisabled;
 
@@ -197,7 +178,7 @@ protected:
      * It is used in nsHyperTextAccessibleWrap for IA2::newText/oldText
      * implementation.
      */
-    static AccTextChangeEvent* gTextEvent;
+    static nsIAccessibleTextChangeEvent *gTextEvent;
 };
 
 /**

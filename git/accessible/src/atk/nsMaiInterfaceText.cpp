@@ -80,7 +80,9 @@ textInterfaceInitCB(AtkTextIface *aIface)
 void ConvertTexttoAsterisks(nsAccessibleWrap* accWrap, nsAString& aString)
 {
     // convert each char to "*" when it's "password text" 
-    PRUint32 atkRole = atkRoleMap[accWrap->NativeRole()];
+    PRUint32 accRole = 0;
+    accWrap->GetRoleInternal(&accRole);
+    PRUint32 atkRole = atkRoleMap[accRole];
     if (atkRole == ATK_ROLE_PASSWORD_TEXT) {
         for (PRUint32 i = 0; i < aString.Length(); i++)
             aString.Replace(i, 1, NS_LITERAL_STRING("*"));
@@ -187,7 +189,9 @@ getCharacterAtOffsetCB(AtkText *aText, gint aOffset)
         accText->GetCharacterAtOffset(aOffset, &uniChar);
 
     // convert char to "*" when it's "password text" 
-    PRUint32 atkRole = atkRoleMap[accWrap->NativeRole()];
+    PRUint32 accRole;
+    accWrap->GetRoleInternal(&accRole);
+    PRUint32 atkRole = atkRoleMap[accRole];
     if (atkRole == ATK_ROLE_PASSWORD_TEXT)
         uniChar = '*';
 
@@ -315,12 +319,9 @@ getCharacterExtentsCB(AtkText *aText, gint aOffset,
     else
         geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
 
-#ifdef DEBUG
-    nsresult rv =
-#endif
-    accText->GetCharacterExtents(aOffset, &extX, &extY,
-                                 &extWidth, &extHeight,
-                                 geckoCoordType);
+    nsresult rv = accText->GetCharacterExtents(aOffset, &extX, &extY,
+                                               &extWidth, &extHeight,
+                                               geckoCoordType);
     *aX = extX;
     *aY = extY;
     *aWidth = extWidth;
@@ -352,13 +353,10 @@ getRangeExtentsCB(AtkText *aText, gint aStartOffset, gint aEndOffset,
     else
         geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
 
-#ifdef DEBUG
-    nsresult rv =
-#endif
-    accText->GetRangeExtents(aStartOffset, aEndOffset,
-                             &extX, &extY,
-                             &extWidth, &extHeight,
-                             geckoCoordType);
+    nsresult rv = accText->GetRangeExtents(aStartOffset, aEndOffset,
+                                           &extX, &extY,
+                                           &extWidth, &extHeight,
+                                           geckoCoordType);
     aRect->x = extX;
     aRect->y = extY;
     aRect->width = extWidth;

@@ -40,7 +40,9 @@
 #define nsAutoComplete_h___
 
 #include "nsCOMPtr.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
+#include "nsIDOMHTMLInputElement.h"
+#include "nsIAutoCompleteListener.h"
 #include "nsIAutoCompleteResults.h"
 
 
@@ -59,7 +61,7 @@ public:
 private:
     nsString mValue;
     nsString mComment;
-    nsCString mClassName;
+    nsString mClassName;
     
     nsCOMPtr<nsISupports> mParam;
 };

@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageStatementWrapper_h
-#define mozStorageStatementWrapper_h
+#ifndef _mozStorageStatementWrapper_h_
+#define _mozStorageStatementWrapper_h_
 
 #include "nsTArray.h"
 #include "nsIXPCScriptable.h"
@@ -79,4 +79,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStorageStatementWrapper_h
+#endif // _mozStorageStatementWrapper_h_

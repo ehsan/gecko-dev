@@ -205,6 +205,10 @@ static void _PR_InitStuff(void)
     _pr_sleeplock = PR_NewLock();
     PR_ASSERT(NULL != _pr_sleeplock);
 
+#ifdef GC_LEAK_DETECTOR
+    _PR_InitGarbageCollector();
+#endif
+
     _PR_InitThreads(PR_USER_THREAD, PR_PRIORITY_NORMAL, 0);
     
 #ifdef WIN16
@@ -799,7 +803,7 @@ PR_IMPLEMENT(PRStatus) PR_CallOnce(
     if (!_pr_initialized) _PR_ImplicitInitialization();
 
     if (!once->initialized) {
-	if (PR_ATOMIC_SET(&once->inProgress, 1) == 0) {
+	if (PR_AtomicSet(&once->inProgress, 1) == 0) {
 	    once->status = (*func)();
 	    PR_Lock(mod_init.ml);
 	    once->initialized = 1;
@@ -828,7 +832,7 @@ PR_IMPLEMENT(PRStatus) PR_CallOnceWithArg(
     if (!_pr_initialized) _PR_ImplicitInitialization();
 
     if (!once->initialized) {
-	if (PR_ATOMIC_SET(&once->inProgress, 1) == 0) {
+	if (PR_AtomicSet(&once->inProgress, 1) == 0) {
 	    once->status = (*func)(arg);
 	    PR_Lock(mod_init.ml);
 	    once->initialized = 1;

@@ -43,6 +43,8 @@
  * Ensure that History (through category cache) notifies us just once.
  */
 
+const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
+
 let os = Cc["@mozilla.org/observer-service;1"].
          getService(Ci.nsIObserverService);
 let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
@@ -54,7 +56,7 @@ let gObserver = {
     this.notifications++;
   }
 };
-os.addObserver(gObserver, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+os.addObserver(gObserver, TOPIC_EXPIRATION_FINISHED, false);
 
 function run_test() {
   // Set interval to a large value so we don't expire on it.
@@ -67,7 +69,7 @@ function run_test() {
 }
 
 function check_result() {
-  os.removeObserver(gObserver, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+  os.removeObserver(gObserver, TOPIC_EXPIRATION_FINISHED);
   do_check_eq(gObserver.notifications, 1);
   do_test_finished();
 }

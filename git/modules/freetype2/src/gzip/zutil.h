@@ -8,7 +8,7 @@
    subject to change. Applications should only use zlib.h.
  */
 
-/* @(#) $Id$ */
+/* @(#) $Id: zutil.h,v 1.6 2007/06/01 06:56:17 wl Exp $ */
 
 #ifndef _Z_UTIL_H
 #define _Z_UTIL_H
@@ -179,6 +179,11 @@ typedef unsigned long  ulg;
    extern void zmemcpy  OF((Bytef* dest, const Bytef* source, uInt len));
    extern int  zmemcmp  OF((const Bytef* s1, const Bytef* s2, uInt len));
    extern void zmemzero OF((Bytef* dest, uInt len));
+#endif
+
+/* Ignore the Mozilla build env's DEBUG unless ZLIB_DEBUG is also set */
+#ifndef ZLIB_DEBUG
+#undef DEBUG
 #endif
 
 /* Diagnostic functions */

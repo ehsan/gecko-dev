@@ -45,7 +45,7 @@ static const PRUint16 g_utMappingTable[] = {
 #include "viscii.ut"
 };
 
-nsresult
+NS_METHOD
 nsVISCIIToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                              void **aResult) 
 {

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-488995.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 488995;
 var summary = 'Do not crash with watch, __defineSetter__ on svg';

@@ -47,8 +47,7 @@
 #include "nsCSSRendering.h"
 #include "nsIPresShell.h"
 
-#define COL_GROUP_TYPE_BITS          (NS_FRAME_STATE_BIT(30) | \
-                                      NS_FRAME_STATE_BIT(31))
+#define COL_GROUP_TYPE_BITS          0xC0000000 // uses bits 31-32 from mState
 #define COL_GROUP_TYPE_OFFSET        30
 
 nsTableColGroupType 
@@ -325,32 +324,17 @@ nsTableColGroupFrame::RemoveFrame(nsIAtom*        aListName,
   NS_ASSERTION(!aListName, "unexpected child list");
 
   if (!aOldFrame) return NS_OK;
-  PRBool contentRemoval = PR_FALSE;
-  
+
   if (nsGkAtoms::tableColFrame == aOldFrame->GetType()) {
     nsTableColFrame* colFrame = (nsTableColFrame*)aOldFrame;
     if (colFrame->GetColType() == eColContent) {
-      contentRemoval = PR_TRUE;
       // Remove any anonymous column frames this <col> produced via a colspan
       nsTableColFrame* col = colFrame->GetNextCol();
       nsTableColFrame* nextCol;
       while (col && col->GetColType() == eColAnonymousCol) {
-#ifdef DEBUG
-        nsIFrame* providerFrame;
-        PRBool isChild;
-        colFrame->GetParentStyleContextFrame(PresContext(), &providerFrame,
-                                             &isChild);
-        if (colFrame->GetStyleContext()->GetParent() ==
-            providerFrame->GetStyleContext()) {
-          NS_ASSERTION(col->GetStyleContext() == colFrame->GetStyleContext() &&
-                       col->GetContent() == colFrame->GetContent(),
-                       "How did that happen??");
-        }
-        // else colFrame is being removed because of a frame
-        // reconstruct on it, and its style context is still the old
-        // one, so we can't assert anything about how it compares to
-        // col's style context.
-#endif
+        NS_ASSERTION(col->GetStyleContext() == colFrame->GetStyleContext() &&
+                     col->GetContent() == colFrame->GetContent(),
+                     "How did that happen??");
         nextCol = col->GetNextCol();
         RemoveFrame(nsnull, col);
         col = nextCol;
@@ -366,11 +350,6 @@ nsTableColGroupFrame::RemoveFrame(nsIAtom*        aListName,
       return NS_ERROR_NULL_POINTER;
 
     tableFrame->RemoveCol(this, colIndex, PR_TRUE, PR_TRUE);
-    if (mFrames.IsEmpty() && contentRemoval && 
-        GetColType() == eColGroupContent) {
-      tableFrame->AppendAnonymousColFrames(this, GetSpan(),
-                                           eColAnonymousColGroup, PR_TRUE);
-    }
   }
   else {
     mFrames.DestroyFrame(aOldFrame);

@@ -109,19 +109,6 @@ function ensureNumRows(aNumRows)
 }
 
 /**
- * Verifies that the properties exposed by a for-in loop over aObj are
- * enumerable.
- *
- * @param aObj
- *        the object to check
- */
-function checkEnumerableConsistency(aObj)
-{
-  for (var p in aObj)
-    do_check_true(Object.prototype.propertyIsEnumerable.call(aObj, p));
-}
-
-/**
  * Inserts aVal into our test table and checks that insertion was successful by
  * retrieving the newly inserted value from the database and comparing it
  * against aVal.  aVal is bound to a single parameter.
@@ -135,7 +122,6 @@ function insertAndCheckSingleParam(aVal)
 
   var stmt = createStatement("INSERT INTO test (val) VALUES (:val)");
   stmt.params.val = aVal;
-  checkEnumerableConsistency(stmt.params);
   stmt.execute();
   stmt.statement.finalize();
 
@@ -164,7 +150,6 @@ function insertAndCheckMultipleParams(aVal)
   var stmt = createStatement("INSERT INTO test (val, alt_val) " +
                              "VALUES (:val, :val)");
   stmt.params.val = aVal;
-  checkEnumerableConsistency(stmt.params);
   stmt.execute();
   stmt.statement.finalize();
 

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-213482.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 213482;
 var summary = 'Do not crash watching property when watcher sets property';

@@ -41,12 +41,10 @@
 #ifdef XP_WIN
 #include <windows.h>
 #include "nsWindowsRegKey.h"
-#include "nsSetDllDirectory.h"
 #ifdef DEBUG
 #include "pure.h"
 #endif
 #endif
-#include "nsXULAppAPI.h"
 #include "nsXPCOMGlue.h"
 #include "nsVoidArray.h"
 #include "nsTArray.h"
@@ -68,6 +66,7 @@
 #include "xpt_xdr.h"
 #include "xptcall.h"
 #include "nsILocalFile.h"
+#include "nsIGenericFactory.h"
 #include "nsIPipe.h"
 #include "nsStreamUtils.h"
 #include "nsWeakReference.h"
@@ -104,7 +103,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/CondVar.h"
-#include "mozilla/TimeStamp.h"
 
 using namespace mozilla;
 
@@ -179,6 +177,8 @@ void XXXNeverCalled()
     XPT_DoString(nsnull, nsnull, nsnull);
     XPT_DoHeader(nsnull, nsnull, nsnull);
     NS_InvokeByIndex(nsnull, 0, 0, nsnull);
+    NS_NewGenericFactory(nsnull, nsnull);
+    NS_NewGenericModule2(nsnull, nsnull);
     NS_GetWeakReference(nsnull);
     nsCOMPtr<nsISupports> dummyFoo(do_GetInterface(nsnull));
     NS_NewStorageStream(0,0, nsnull);
@@ -227,6 +227,8 @@ void XXXNeverCalled()
       CallCreateInstance("", nsnull, id, nsnull);
       CallGetClassObject(id, id, nsnull);
       CallGetClassObject("", id, nsnull);
+
+      nsServiceManager::GetGlobalServiceManager(nsnull);
     }
     NS_NewInterfaceRequestorAggregation(nsnull, nsnull, nsnull);
     NS_NewHashPropertyBag(nsnull);
@@ -277,12 +279,11 @@ void XXXNeverCalled()
     }
 
     nsXPCOMCycleCollectionParticipant();
-    nsCycleCollector_collect(nsnull);
+    nsCycleCollector_collect();
 #ifdef XP_WIN
     sXPCOMHasLoadedNewDLLs = !sXPCOMHasLoadedNewDLLs;
     NS_SetHasLoadedNewDLLs();
     NS_NewWindowsRegKey(nsnull);
-    NS_SetDllDirectory(nsnull);
 #if defined (DEBUG) && !defined (WINCE)
     PurePrintf(0);
 #endif
@@ -300,13 +301,9 @@ void XXXNeverCalled()
     Mutex theMutex("dummy");
     Monitor theMonitor("dummy2");
     CondVar theCondVar(theMutex, "dummy3");
-    TimeStamp theTimeStamp = TimeStamp::Now();
-    TimeDuration theTimeDuration = TimeDuration::FromMilliseconds(0);
 
     NS_WildCardValid((const char *)nsnull);
     NS_WildCardValid((const PRUnichar *)nsnull);
     NS_WildCardMatch((const char *)nsnull, (const char *)nsnull, PR_FALSE);
     NS_WildCardMatch((const PRUnichar *)nsnull, (const PRUnichar *)nsnull, PR_FALSE);
-    XRE_AddStaticComponent(NULL);
-    XRE_AddManifestLocation(NS_COMPONENT_LOCATION, NULL);
 }

@@ -34,14 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsGeoLocation_h
-#define nsGeoLocation_h
-
-#ifdef MOZ_IPC
-#include "mozilla/dom/PContentPermissionRequestChild.h"
-// Microsoft's API Name hackery sucks
-#undef CreateEvent
-#endif
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
@@ -65,28 +57,18 @@
 #include "nsPIDOMWindow.h"
 
 #include "nsIGeolocationProvider.h"
-#include "nsIContentPermissionPrompt.h"
-
-#ifdef MOZ_IPC
-#include "PCOMContentPermissionRequestChild.h"
-#endif
 
 class nsGeolocationService;
 class nsGeolocation;
 
-class nsGeolocationRequest
- : public nsIContentPermissionRequest
- , public nsITimerCallback
-#ifdef MOZ_IPC
- , public PCOMContentPermissionRequestChild
-#endif
+class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallback
 {
  public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_NSICONTENTPERMISSIONREQUEST
+  NS_DECL_NSIGEOLOCATIONREQUEST
   NS_DECL_NSITIMERCALLBACK
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocationRequest, nsIContentPermissionRequest)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocationRequest, nsIGeolocationRequest)
 
   nsGeolocationRequest(nsGeolocation* locator,
                        nsIDOMGeoPositionCallback* callback,
@@ -97,22 +79,16 @@ class nsGeolocationRequest
 
   void SendLocation(nsIDOMGeoPosition* location);
   void MarkCleared();
-  PRBool IsActive() {return !mCleared;}
   PRBool Allowed() {return mAllowed;}
-  void SetTimeoutTimer();
 
   ~nsGeolocationRequest();
-
-#ifdef MOZ_IPC
-  bool Recv__delete__(const bool& allow);
-  void IPDLRelease() { Release(); }
-#endif
 
  private:
 
   void NotifyError(PRInt16 errorCode);
   PRPackedBool mAllowed;
   PRPackedBool mCleared;
+  PRPackedBool mHasSentData;
 
   nsCOMPtr<nsITimer> mTimeoutTimer;
   nsCOMPtr<nsIDOMGeoPositionCallback> mCallback;
@@ -149,6 +125,9 @@ public:
 
   void SetCachedPosition(nsIDOMGeoPosition* aPosition);
   nsIDOMGeoPosition* GetCachedPosition();
+
+  // Returns true if there is at least one geolocation provider.
+  PRBool   HasGeolocationProvider();
 
   // Find and startup a geolocation device (gps, nmea, etc.)
   nsresult StartDevice();
@@ -225,8 +204,6 @@ private:
 
   ~nsGeolocation();
 
-  void RegisterRequestWithPrompt(nsGeolocationRequest* request);
-
   // Two callback arrays.  The first |mPendingCallbacks| holds objects for only
   // one callback and then they are released/removed from the array.  The second
   // |mWatchingCallbacks| holds objects until the object is explictly removed or
@@ -234,6 +211,8 @@ private:
 
   nsTArray<nsRefPtr<nsGeolocationRequest> > mPendingCallbacks;
   nsTArray<nsRefPtr<nsGeolocationRequest> > mWatchingCallbacks;
+
+  PRBool mUpdateInProgress;
 
   // window that this was created for.  Weak reference.
   nsWeakPtr mOwner;
@@ -244,5 +223,3 @@ private:
   // owning back pointer.
   nsRefPtr<nsGeolocationService> mService;
 };
-
-#endif /* nsGeoLocation_h */

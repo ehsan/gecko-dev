@@ -41,11 +41,9 @@
 
 #include "prlink.h"
 #include "npapi.h"
-#include "npfunctions.h"
 #include "nscore.h"
 
 class nsNPAPIPlugin;
-class gfxASurface;
 
 namespace mozilla {
 
@@ -78,10 +76,6 @@ public:
                            uint16_t mode, int16_t argc, char* argn[],
                            char* argv[], NPSavedData* saved,
                            NPError* error) = 0;
-
-  virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window) = 0;
-  virtual nsresult GetSurface(NPP instance, gfxASurface** aSurface) = 0;
-  virtual bool UseAsyncPainting() = 0;
 };
 
 

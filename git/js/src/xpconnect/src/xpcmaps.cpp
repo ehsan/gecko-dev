@@ -474,9 +474,7 @@ XPCNativeScriptableSharedMap::Entry::Hash(JSDHashTable *table, const void *key)
     XPCNativeScriptableShared* obj =
         (XPCNativeScriptableShared*) key;
 
-    // hash together the flags and the classname string, ignore the interfaces
-    // bitmap since it's very rare that it's different when flags and classname
-    // are the same.
+    // hash together the flags and the classname string
 
     h = (JSDHashNumber) obj->GetFlags();
     for (s = (const unsigned char*) obj->GetJSClass()->name; *s != '\0'; s++)
@@ -495,10 +493,9 @@ XPCNativeScriptableSharedMap::Entry::Match(JSDHashTable *table,
     XPCNativeScriptableShared* obj2 =
         (XPCNativeScriptableShared*) key;
 
-    // match the flags, the classname string and the interfaces bitmap
+    // match the flags and the classname string
 
-    if(obj1->GetFlags() != obj2->GetFlags() ||
-       obj1->GetInterfacesBitmap() != obj2->GetInterfacesBitmap())
+    if(obj1->GetFlags() != obj2->GetFlags())
         return JS_FALSE;
 
     const char* name1 = obj1->GetJSClass()->name;
@@ -548,13 +545,13 @@ JSBool
 XPCNativeScriptableSharedMap::GetNewOrUsed(JSUint32 flags,
                                            char* name,
                                            JSBool isGlobal,
-                                           PRUint32 interfacesBitmap,
                                            XPCNativeScriptableInfo* si)
 {
     NS_PRECONDITION(name,"bad param");
     NS_PRECONDITION(si,"bad param");
 
-    XPCNativeScriptableShared key(flags, name, interfacesBitmap);
+    XPCNativeScriptableShared key(flags, name);
+
     Entry* entry = (Entry*)
         JS_DHashTableOperate(mTable, &key, JS_DHASH_ADD);
     if(!entry)
@@ -565,8 +562,7 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(JSUint32 flags,
     if(!shared)
     {
         entry->key = shared =
-            new XPCNativeScriptableShared(flags, key.TransferNameOwnership(),
-                                          interfacesBitmap);
+            new XPCNativeScriptableShared(flags, key.TransferNameOwnership());
         if(!shared)
             return JS_FALSE;
         shared->PopulateJSClass(isGlobal);

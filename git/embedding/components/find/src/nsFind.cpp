@@ -48,6 +48,7 @@
 #include "nsIDOMDocumentTraversal.h"
 #include "nsISelection.h"
 #include "nsISelectionController.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsITextControlFrame.h"
 #include "nsIFormControl.h"
@@ -73,10 +74,6 @@ static NS_DEFINE_CID(kCPreContentIteratorCID, NS_PRECONTENTITERATOR_CID);
 static NS_DEFINE_IID(kRangeCID, NS_RANGE_CID);
 
 #define CH_SHY ((PRUnichar) 0xAD)
-
-// nsFind::Find casts CH_SHY to char before calling StripChars
-// This works correctly if and only if CH_SHY <= 255
-PR_STATIC_ASSERT(CH_SHY <= 255);
 
 // -----------------------------------------------------------------------
 // nsFindContentIterator is a special iterator that also goes through
@@ -347,9 +344,10 @@ nsFindContentIterator::MaybeSetupInnerIterator()
     return;
 
   nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(content));
-  if (!formControl->IsTextControl(PR_TRUE)) {
+  PRInt32 controlType = formControl->GetType();
+  if (controlType != NS_FORM_TEXTAREA && 
+      controlType != NS_FORM_INPUT_TEXT)
     return;
-  }
 
   SetupInnerIterator(content);
   if (mInnerIterator) {
@@ -947,7 +945,7 @@ nsFind::Find(const PRUnichar *aPatText, nsIDOMRange* aSearchRange,
     ToLowerCase(patAutoStr);
 
   // Ignore soft hyphens in the pattern  
-  static const char kShy[] = { char(CH_SHY), 0 };
+  static const char kShy[] = { CH_SHY, 0 };
   patAutoStr.StripChars(kShy);
 
   const PRUnichar* patStr = patAutoStr.get();

@@ -42,15 +42,6 @@
 #include "nsISMILType.h"
 #include "nsSMILNullType.h"
 
-/**
- * Although objects of this type are generally only created on the stack and
- * only exist during the taking of a new time sample, that's not always the
- * case. The nsSMILValue objects obtained from attributes' base values are
- * cached so that the SMIL engine can make certain optimizations during a
- * sample if the base value has not changed since the last sample (potentially
- * avoiding recomposing). These nsSMILValue objects typically live much longer
- * than a single sample.
- */
 class nsSMILValue
 {
 public:
@@ -77,9 +68,6 @@ public:
     return (mType == &nsSMILNullType::sSingleton);
   }
 
-  // Swaps the member data (mU & mPtr) of |this| with |aOther|
-  void     Swap(nsSMILValue& aOther);
-
   nsresult Add(const nsSMILValue& aValueToAdd, PRUint32 aCount = 1);
   nsresult SandwichAdd(const nsSMILValue& aValueToAdd);
   nsresult ComputeDistance(const nsSMILValue& aTo, double& aDistance) const;
@@ -102,9 +90,9 @@ public:
   const nsISMILType* mType;
 
 protected:
-  void InitAndCheckPostcondition(const nsISMILType* aNewType);
-  void DestroyAndCheckPostcondition();
-  void DestroyAndReinit(const nsISMILType* aNewType);
+  nsresult InitAndCheckPostcondition(const nsISMILType* aNewType);
+  void     DestroyAndCheckPostcondition();
+  nsresult DestroyAndReinit(const nsISMILType* aNewType);
 };
 
 #endif  // NS_SMILVALUE_H_

@@ -41,8 +41,6 @@
 #include "nsSMILTimeValue.h"
 #include "nsAutoPtr.h"
 
-class nsSMILInterval;
-class nsSMILTimeContainer;
 class nsSMILTimeValueSpec;
 
 //----------------------------------------------------------------------
@@ -54,16 +52,18 @@ class nsSMILTimeValueSpec;
 // For an overview of how this class is related to other SMIL time classes see
 // the documentation in nsSMILTimeValue.h
 //
-// These objects are owned by an nsSMILTimedElement but MAY also be referenced
-// by:
+// These objects are owned by an nsSMILTimedElement but may be referred to by
+// nsSMILTimeValueSpec objects owned by the same nsSMILTimedElement.
 //
-// a) nsSMILIntervals that belong to the same nsSMILTimedElement and which refer
-//    to the nsSMILInstanceTimes which form the interval endpoints; and/or
-// b) nsSMILIntervals that belong to other nsSMILTimedElements but which need to
-//    update dependent instance times when they change or are deleted.
-//    E.g. for begin='a.begin', 'a' needs to inform dependent
-//    nsSMILInstanceTimes if its begin time changes. This notification is
-//    performed by the nsSMILInterval.
+// For example, a syncbase nsSMILTimeValueSpec such as 'a.begin' will generate
+// instance times based on when 'a' begins and will give these instance times to
+// the owner nsSMILTimedElement. It will also keep a pointer to the last created
+// instance time so it can tell its owner nsSMILTimedElement to update or
+// delete it.
+//
+// Furthermore, nsSMILInstanceTime objects may refer to other nsSMILInstanceTime
+// objects to represent dependency chains that are used for resolving priorities
+// within the animation sandwich.
 
 class nsSMILInstanceTime
 {
@@ -83,44 +83,36 @@ public:
   };
 
   nsSMILInstanceTime(const nsSMILTimeValue& aTime,
-                     nsSMILInstanceTimeSource aSource = SOURCE_NONE,
-                     nsSMILTimeValueSpec* aCreator = nsnull,
-                     nsSMILInterval* aBaseInterval = nsnull);
-  ~nsSMILInstanceTime();
-  void Unlink();
-  void HandleChangedInterval(const nsSMILTimeContainer* aSrcContainer,
-                             PRBool aBeginObjectChanged,
-                             PRBool aEndObjectChanged);
-  void HandleDeletedInterval();
-  void HandleFilteredInterval();
+                     const nsSMILInstanceTime* aDependentTime,
+                     nsSMILInstanceTimeSource aSource = SOURCE_NONE);
 
   const nsSMILTimeValue& Time() const { return mTime; }
-  const nsSMILTimeValueSpec* GetCreator() const { return mCreator; }
 
-  PRBool IsDynamic() const { return !!(mFlags & kDynamic); }
-  PRBool IsFixedTime() const { return !(mFlags & kMayUpdate); }
+  const nsSMILInstanceTime* GetDependentTime() const { return mDependentTime; }
+  void SetDependentTime(const nsSMILInstanceTime* aDependentTime);
+
+  PRBool ClearOnReset() const { return !!(mFlags & kClearOnReset); }
+  PRBool MayUpdate() const { return !!(mFlags & kMayUpdate); }
   PRBool FromDOM() const { return !!(mFlags & kFromDOM); }
 
-  PRBool ShouldPreserve() const;
-  void   UnmarkShouldPreserve();
-
-  void AddRefFixedEndpoint();
-  void ReleaseFixedEndpoint();
+  void MarkNoLongerUpdating()
+  {
+    mFlags &= ~kMayUpdate;
+  }
 
   void DependentUpdate(const nsSMILTimeValue& aNewTime)
   {
-    NS_ABORT_IF_FALSE(!IsFixedTime(),
+    NS_ABORT_IF_FALSE(MayUpdate(),
         "Updating an instance time that is not expected to be updated");
     mTime = aNewTime;
   }
 
-  PRBool IsDependent() const { return !!mBaseInterval; }
-  PRBool IsDependentOn(const nsSMILInstanceTime& aOther) const;
-  const nsSMILInterval* GetBaseInterval() const { return mBaseInterval; }
+  PRBool IsDependent(const nsSMILInstanceTime& aOther,
+                     PRUint32 aRecursionDepth = 0) const;
 
-  PRBool SameTimeAndBase(const nsSMILInstanceTime& aOther) const
+  PRBool SameTimeAndDependency(const nsSMILInstanceTime& aOther) const
   {
-    return mTime == aOther.mTime && GetBaseTime() == aOther.GetBaseTime();
+    return mTime == aOther.mTime && mDependentTime == aOther.mDependentTime;
   }
 
   // Get and set a serial number which may be used by a containing class to
@@ -128,27 +120,56 @@ public:
   PRUint32 Serial() const { return mSerial; }
   void SetSerial(PRUint32 aIndex) { mSerial = aIndex; }
 
-  NS_INLINE_DECL_REFCOUNTING(nsSMILInstanceTime)
+  nsrefcnt AddRef()
+  {
+    if (mRefCnt == PR_UINT32_MAX) {
+      NS_WARNING("refcount overflow, leaking nsSMILInstanceTime");
+      return mRefCnt;
+    }
+    NS_ASSERT_OWNINGTHREAD(_class);
+    NS_ABORT_IF_FALSE(_mOwningThread.GetThread() == PR_GetCurrentThread(),
+        "nsSMILInstanceTime addref isn't thread-safe!");
+    ++mRefCnt;
+    NS_LOG_ADDREF(this, mRefCnt, "nsSMILInstanceTime", sizeof(*this));
+    return mRefCnt;
+  }
+
+  nsrefcnt Release()
+  {
+    if (mRefCnt == PR_UINT32_MAX) {
+      NS_WARNING("refcount overflow, leaking nsSMILInstanceTime");
+      return mRefCnt;
+    }
+    NS_ABORT_IF_FALSE(_mOwningThread.GetThread() == PR_GetCurrentThread(),
+        "nsSMILInstanceTime release isn't thread-safe!");
+    --mRefCnt;
+    NS_LOG_RELEASE(this, mRefCnt, "nsSMILInstanceTime");
+    if (mRefCnt == 0) {
+      delete this;
+      return 0;
+    }
+    return mRefCnt;
+  }
 
 protected:
-  void SetBaseInterval(nsSMILInterval* aBaseInterval);
-  const nsSMILInstanceTime* GetBaseTime() const;
+  void BreakPotentialCycle(const nsSMILInstanceTime* aNewTail);
 
   nsSMILTimeValue mTime;
 
-  // Internal flags used to represent the behaviour of different instance times
+  nsAutoRefCnt mRefCnt;
+  NS_DECL_OWNINGTHREAD
+
+  // Internal flags used for represent behaviour of different instance times`
   enum {
-    // Indicates that this instance time was generated by an event or a DOM
-    // call. Such instance times require special handling when (i) the owning
-    // element is reset, (ii) when they are to be added as a new end instance
-    // times (as per SMIL's event sensitivity contraints), and (iii) when
-    // a backwards seek is performed and the timing model is reconstructed.
-    kDynamic = 1,
+    // Indicates if this instance time should be removed when the owning timed
+    // element is reset. True for events and DOM calls.
+    kClearOnReset = 1,
 
     // Indicates that this instance time is referred to by an
     // nsSMILTimeValueSpec and as such may be updated. Such instance time should
     // not be filtered out by the nsSMILTimedElement even if they appear to be
-    // in the past as they may be updated to a future time.
+    // in the past as they may be updated to a future time. Initially set for
+    // syncbase-generated times until they are frozen.
     kMayUpdate = 2,
 
     // Indicates that this instance time was generated from the DOM as opposed
@@ -156,40 +177,15 @@ protected:
     // reset we should clear all the instance times that have been generated by
     // that attribute (and hence an nsSMILTimeValueSpec), but not those from the
     // DOM.
-    kFromDOM = 4,
-
-    // Indicates that this instance time was used as the endpoint of an interval
-    // that has been filtered or removed. However, since it is a dynamic time it
-    // should be preserved and not filtered.
-    kWasDynamicEndpoint = 8
+    kFromDOM = 4
   };
-  PRUint8       mFlags;   // Combination of kDynamic, kMayUpdate, etc.
-  PRPackedBool  mVisited; // (mutable) Cycle tracking
+  PRUint8  mFlags; // Combination of kClearOnReset, kMayUpdate, etc.
+  PRUint32 mSerial; // A serial number used by the containing class to specify
+                    // the sort order for instance times with the same mTime.
 
-  // Additional reference count to determine if this instance time is currently
-  // used as a fixed endpoint in any intervals. Instance times that are used in
-  // this way should not be removed when the owning nsSMILTimedElement removes
-  // instance times in response to a restart or in an attempt to free up memory
-  // by filtering out old instance times.
-  //
-  // Instance times are only shared in a few cases, namely:
-  // a) early ends,
-  // b) zero-duration intervals,
-  // c) momentarily whilst establishing new intervals and updating the current
-  //    interval, and
-  // d) trimmed intervals
-  // Hence the limited range of a PRUint16 should be more than adequate.
-  PRUint16      mFixedEndpointRefCnt;
-
-  PRUint32      mSerial; // A serial number used by the containing class to
-                         // specify the sort order for instance times with the
-                         // same mTime.
-
-  nsSMILTimeValueSpec* mCreator; // The nsSMILTimeValueSpec object that created
-                                 // us. (currently only needed for syncbase
-                                 // instance times.)
-  nsSMILInterval* mBaseInterval; // Interval from which this time is derived
-                                 // (only used for syncbase instance times)
+  // The instance time upon which this instance time is based (if any). This is
+  // ONLY used for determining the compositing order of animations.
+  nsRefPtr<nsSMILInstanceTime> mDependentTime;
 };
 
 #endif // NS_SMILINSTANCETIME_H_

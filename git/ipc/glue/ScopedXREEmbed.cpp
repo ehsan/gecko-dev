@@ -75,43 +75,17 @@ ScopedXREEmbed::Start()
 
   nsCOMPtr<nsILocalFile> localFile;
   nsresult rv = XRE_GetBinaryPath(path.c_str(), getter_AddRefs(localFile));
-  if (NS_FAILED(rv))
-    return;
+  NS_ENSURE_SUCCESS(rv,);
 
   nsCOMPtr<nsIFile> parent;
   rv = localFile->GetParent(getter_AddRefs(parent));
-  if (NS_FAILED(rv))
-    return;
+  NS_ENSURE_SUCCESS(rv,);
 
   localFile = do_QueryInterface(parent);
   NS_ENSURE_TRUE(localFile,);
 
-#ifdef OS_MACOSX
-  rv = localFile->GetParent(getter_AddRefs(parent));
-  if (NS_FAILED(rv))
-    return;
-
-  localFile = do_QueryInterface(parent);
-  NS_ENSURE_TRUE(localFile,);
-
-  rv = localFile->GetParent(getter_AddRefs(parent));
-  if (NS_FAILED(rv))
-    return;
-
-  localFile = do_QueryInterface(parent);
-  NS_ENSURE_TRUE(localFile,);
-
-  rv = localFile->GetParent(getter_AddRefs(parent));
-  if (NS_FAILED(rv))
-    return;
-
-  localFile = do_QueryInterface(parent);
-  NS_ENSURE_TRUE(localFile,);
-#endif
-
-  rv = XRE_InitEmbedding2(localFile, localFile, nsnull);
-  if (NS_FAILED(rv))
-    return;
+  rv = XRE_InitEmbedding(localFile, localFile, nsnull, nsnull, 0);
+  NS_ENSURE_SUCCESS(rv,);
 
   mShouldKillEmbedding = true;
 }

@@ -64,8 +64,6 @@ struct RedirEntry {
   URI.  Perhaps we should separate the two concepts out...
  */
 static RedirEntry kRedirMap[] = {
-    { "", "chrome://global/content/about.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT },
     { "about", "chrome://global/content/aboutAbout.xhtml", 0 },
     { "credits", "http://www.mozilla.org/credits/",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
@@ -89,10 +87,6 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::ALLOW_SCRIPT |
       nsIAboutModule::HIDE_FROM_ABOUTABOUT },
     { "memory", "chrome://global/content/aboutMemory.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT },
-    { "addons", "chrome://mozapps/content/extensions/extensions.xul",
-      nsIAboutModule::ALLOW_SCRIPT },
-    { "support", "chrome://global/content/aboutSupport.xhtml",
       nsIAboutModule::ALLOW_SCRIPT }
 };
 static const int kRedirTotal = NS_ARRAY_LENGTH(kRedirMap);
@@ -176,7 +170,7 @@ nsAboutRedirector::GetURIFlags(nsIURI *aURI, PRUint32 *result)
     return NS_ERROR_ILLEGAL_VALUE;
 }
 
-nsresult
+NS_METHOD
 nsAboutRedirector::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsAboutRedirector* about = new nsAboutRedirector();

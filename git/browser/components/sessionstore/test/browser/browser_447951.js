@@ -40,7 +40,7 @@ function test() {
   // test setup
   let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
   waitForExplicitFinish();
-  const baseURL = "http://mochi.test:8888/browser/" +
+  const baseURL = "http://localhost:8888/browser/" +
     "browser/components/sessionstore/test/browser/browser_447951_sample.html#";
     
   let tab = gBrowser.addTab();
@@ -55,7 +55,7 @@ function test() {
     ss.setTabState(tab, JSON.stringify(tabState));
     tab.addEventListener("SSTabRestored", function(aEvent) {
       tab.removeEventListener("SSTabRestored", arguments.callee, false);
-      tabState = JSON.parse(ss.getTabState(tab));
+      tabState = eval("(" + ss.getTabState(tab) + ")");
       is(tabState.entries.length, max_entries, "session history filled to the limit");
       is(tabState.entries[0].url, baseURL + 0, "... but not more");
       
@@ -67,7 +67,7 @@ function test() {
       doc.querySelector("a").dispatchEvent(event);
       
       executeSoon(function() {
-        tabState = JSON.parse(ss.getTabState(tab));
+        tabState = eval("(" + ss.getTabState(tab) + ")");
         is(tab.linkedBrowser.currentURI.spec, baseURL + "end",
            "the new anchor was loaded");
         is(tabState.entries[tabState.entries.length - 1].url, baseURL + "end",

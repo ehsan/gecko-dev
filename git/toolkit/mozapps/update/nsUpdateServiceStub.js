@@ -45,17 +45,10 @@ const DIR_UPDATES         = "updates";
 const FILE_UPDATE_STATUS  = "update.status";
 
 const KEY_APPDIR          = "XCurProcD";
-
 #ifdef XP_WIN
 #ifndef WINCE
-#define USE_UPDROOT
-#endif
-#elifdef ANDROID
-#define USE_UPDROOT
-#endif
-
-#ifdef USE_UPDROOT
 const KEY_UPDROOT         = "UpdRootD";
+#endif
 #endif
 
 /**
@@ -67,12 +60,14 @@ const KEY_UPDROOT         = "UpdRootD";
 #  @return  nsIFile object for the location specified.
  */
 function getUpdateDirNoCreate(pathArray) {
-#ifdef USE_UPDROOT
+#ifdef XP_WIN
+#ifndef WINCE
   try {
     let dir = FileUtils.getDir(KEY_UPDROOT, pathArray, false);
     return dir;
   } catch (e) {
   }
+#endif
 #endif
   return FileUtils.getDir(KEY_APPDIR, pathArray, false);
 }
@@ -89,9 +84,12 @@ function UpdateServiceStub() {
   }
 }
 UpdateServiceStub.prototype = {
-  observe: function(){},
+  classDescription: "Update Service Stub",
+  contractID: "@mozilla.org/updates/update-service-stub;1",
   classID: Components.ID("{e43b0010-04ba-4da6-b523-1f92580bc150}"),
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver])
+  _xpcom_categories: [{ category: "profile-after-change" }],
+  QueryInterface: XPCOMUtils.generateQI([])
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([UpdateServiceStub]);
+function NSGetModule(compMgr, fileSpec)
+  XPCOMUtils.generateModule([UpdateServiceStub]);

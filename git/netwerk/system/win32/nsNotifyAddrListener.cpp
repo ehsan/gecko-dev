@@ -53,7 +53,6 @@
 #include "nsNotifyAddrListener.h"
 #include "nsString.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Services.h"
 
 #include <iptypes.h>
 #include <iphlpapi.h>
@@ -230,13 +229,13 @@ nsNotifyAddrListener::Init(void)
         mOSVerInfo.dwMajorVersion < 5)
         return NS_OK;
 
+    nsresult rv;
     nsCOMPtr<nsIObserverService> observerService =
-        mozilla::services::GetObserverService();
-    if (!observerService)
-        return NS_ERROR_FAILURE;
+        do_GetService("@mozilla.org/observer-service;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    nsresult rv = observerService->AddObserver(this, "xpcom-shutdown-threads",
-                                               PR_FALSE);
+    rv = observerService->AddObserver(this, "xpcom-shutdown-threads",
+                                      PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mShutdownEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -253,7 +252,7 @@ nsNotifyAddrListener::Shutdown(void)
 {
     // remove xpcom shutdown observer
     nsCOMPtr<nsIObserverService> observerService =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     if (observerService)
         observerService->RemoveObserver(this, "xpcom-shutdown-threads");
 
@@ -295,7 +294,7 @@ NS_IMETHODIMP
 nsNotifyAddrListener::ChangeEvent::Run()
 {
     nsCOMPtr<nsIObserverService> observerService =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     if (observerService)
         observerService->NotifyObservers(
                 mService, NS_NETWORK_LINK_TOPIC,

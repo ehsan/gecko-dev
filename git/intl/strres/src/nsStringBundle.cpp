@@ -54,10 +54,12 @@
 #include "nsNetUtil.h"
 #include "nsIURL.h"
 #include "nsIComponentManager.h"
+#include "nsIGenericFactory.h"
 #include "nsIMemory.h"
 #include "nsIObserverService.h"
 #include "pratom.h"
 #include "prmem.h"
+#include "nsIModule.h"
 #include "nsCOMArray.h"
 #include "nsAutoLock.h"
 #include "nsTextFormatter.h"
@@ -580,7 +582,7 @@ nsStringBundleService::~nsStringBundleService()
 nsresult
 nsStringBundleService::Init()
 {
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
   if (os) {
     os->AddObserver(this, "memory-pressure", PR_TRUE);
     os->AddObserver(this, "profile-do-change", PR_TRUE);

@@ -57,7 +57,6 @@ CPPSRCS		    = lirasm.cpp \
 		RegAlloc.cpp   \
 		avmplus.cpp    \
 		Native$(NANOJIT_ARCH).cpp \
-		njconfig.cpp   \
 		VMPI.cpp       \
 		$(NULL)
 

@@ -41,24 +41,22 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS		= xbl-marquee
+DIRS = xbl-marquee
 
 ifdef ENABLE_TESTS
-TOOL_DIRS	= test
+DIRS		+= test
 endif
 
 MODULE		= layout
 LIBRARY_NAME	= gkstyle_s
 LIBXUL_LIBRARY	= 1
 
-EXPORTS_NAMESPACES = mozilla/css
 
 EXPORTS		= \
 		nsCSSAnonBoxList.h \
 		nsCSSAnonBoxes.h \
 		nsCSSKeywordList.h \
 		nsCSSKeywords.h \
-		nsCSSParser.h \
 		nsCSSPropList.h \
 		nsCSSProperty.h \
 		nsCSSProps.h \
@@ -75,13 +73,16 @@ EXPORTS		= \
 		nsICSSDeclaration.h \
 		nsICSSGroupRule.h \
 		nsICSSImportRule.h \
+		nsICSSLoader.h \
 		nsICSSLoaderObserver.h \
 		nsICSSNameSpaceRule.h \
+		nsICSSParser.h \
 		nsICSSPseudoComparator.h \
 		nsICSSRule.h \
 		nsICSSRuleList.h \
 		nsICSSStyleRule.h \
 		nsICSSStyleRuleDOMWrapper.h \
+		nsICSSStyleSheet.h \
 		nsIStyleRule.h \
 		nsIStyleRuleProcessor.h \
 		nsIStyleSheet.h \
@@ -101,21 +102,17 @@ EXPORTS		= \
 		nsStyleUtil.h \
 		$(NULL)
 
-EXPORTS_mozilla/css = \
-		Declaration.h \
-		Loader.h \
-		$(NULL)
-
 CPPSRCS		= \
 		nsCSSAnonBoxes.cpp \
 		nsCSSDataBlock.cpp \
-		Declaration.cpp \
+		nsCSSDeclaration.cpp \
 		nsCSSKeywords.cpp \
-		Loader.cpp \
+		nsCSSLoader.cpp \
 		nsCSSParser.cpp \
 		nsCSSProps.cpp \
 		nsCSSPseudoClasses.cpp \
 		nsCSSPseudoElements.cpp \
+		nsCSSRule.cpp \
 		nsCSSRuleProcessor.cpp \
 		nsCSSRules.cpp \
 		nsCSSScanner.cpp \
@@ -135,7 +132,6 @@ CPPSRCS		= \
 		nsLayoutStylesheetCache.cpp \
 		nsMediaFeatures.cpp \
 		nsROCSSPrimitiveValue.cpp \
-		nsRuleData.cpp \
 		nsRuleNode.cpp \
 		nsStyleAnimation.cpp \
 		nsStyleContext.cpp \
@@ -152,9 +148,6 @@ FORCE_STATIC_LIB = 1
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES	= \
-		-I$(srcdir)/../base \
-		-I$(srcdir)/../generic \
-		-I$(srcdir)/../xul/base/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/html/content/src \
 		-I$(srcdir)/../../content/xbl/src \

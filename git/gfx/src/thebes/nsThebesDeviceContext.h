@@ -88,7 +88,7 @@ public:
     NS_IMETHOD CreateRenderingContext(nsIRenderingContext *&aContext);
     NS_IMETHOD CreateRenderingContextInstance(nsIRenderingContext *&aContext);
 
-    NS_IMETHOD GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
+    NS_IMETHOD GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
                              gfxUserFontSet* aUserFontSet,
                              nsIFontMetrics*& aMetrics);
     NS_IMETHOD GetMetricsFor(const nsFont& aFont,
@@ -104,6 +104,7 @@ public:
     NS_IMETHOD FontMetricsDeleted(const nsIFontMetrics* aFontMetrics);
     NS_IMETHOD FlushFontCache(void);
 
+    NS_IMETHOD SupportsNativeWidgets(PRBool& aSupportsWidgets);
     NS_IMETHOD PrepareNativeWidget(nsIWidget *aWidget, void **aOut);
 
     NS_IMETHOD GetSystemFont(nsSystemFontID aID, nsFont *aFont) const;
@@ -147,7 +148,7 @@ protected:
     nsresult AliasFont(const nsString& aFont, 
                        const nsString& aAlias, const nsString& aAltAlias,
                        PRBool aForceAlias);
-    void GetLocaleLanguage(void);
+    void GetLocaleLangGroup(void);
     nsresult SetDPI();
     void ComputeClientRectUsingScreen(nsRect *outRect);
     void ComputeFullAreaUsingScreen(nsRect *outRect);
@@ -157,9 +158,12 @@ protected:
 
     PRUint32          mDepth;
     nsFontCache*      mFontCache;
-    nsCOMPtr<nsIAtom> mLocaleLanguage; // XXX temp fix for performance bug
+    nsCOMPtr<nsIAtom> mLocaleLangGroup; // XXX temp fix for performance bug - erik
     nsHashtable*      mFontAliasTable;
     nsIWidget*        mWidget;
+#ifdef NS_DEBUG
+    PRBool            mInitialized;
+#endif
 
 private:
     nsCOMPtr<nsIScreenManager> mScreenManager;

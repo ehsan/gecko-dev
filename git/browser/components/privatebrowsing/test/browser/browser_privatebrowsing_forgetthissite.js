@@ -38,28 +38,12 @@
 // This test makes sure that the Forget This Site command is hidden in private
 // browsing mode.
 
-/**
- * Clears history invoking callback when done.
- */
-function waitForClearHistory(aCallback) {
-  const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
-  let observer = {
-    observe: function(aSubject, aTopic, aData) {
-      Services.obs.removeObserver(this, TOPIC_EXPIRATION_FINISHED);
-      aCallback();
-    }
-  };
-  Services.obs.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
-
-  let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
-           getService(Ci.nsINavHistoryService);
-  hs.QueryInterface(Ci.nsIBrowserHistory).removeAllPages();
-}
-
 function test() {
   // initialization
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
   waitForExplicitFinish();
 
   // Add a history entry.
@@ -75,10 +59,11 @@ function test() {
       if (aTopic != "domwindowopened")
         return;
 
-      Services.ww.unregisterNotification(observer);
+      ww.unregisterNotification(observer);
       let organizer = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      SimpleTest.waitForFocus(function() {
-        executeSoon(function() {
+      organizer.addEventListener("load", function onLoad(event) {
+        organizer.removeEventListener("load", onLoad, false);
+        executeSoon(function () {
           // Select History in the left pane.
           let PO = organizer.PlacesOrganizer;
           PO.selectLeftPaneQuery('History');
@@ -95,7 +80,7 @@ function test() {
           // Open the context menu
           let contextmenu = doc.getElementById("placesContext");
           contextmenu.addEventListener("popupshown", function() {
-            contextmenu.removeEventListener("popupshown", arguments.callee, true);
+            contextmenu.removeEventListener("popupshown", arguments.callee, false);
             let forgetThisSite = doc.getElementById("placesContext_deleteHost");
             is(forgetThisSite.hidden, !expected,
               "The Forget This Site menu item should " + (expected ? "not " : "") + "be hidden");
@@ -104,36 +89,26 @@ function test() {
               "The Forget This Site command should " + (expected ? "not " : "") + "be disabled");
             // Close the context menu
             contextmenu.hidePopup();
-            // Wait for the Organizer window to actually be closed
-            function closeObserver(aSubject, aTopic, aData) {
-              if (aTopic != "domwindowclosed")
-                return;
-              Services.ww.unregisterNotification(closeObserver);
-              SimpleTest.waitForFocus(function() {
-                // Proceed
-                funcNext();
-              });
-            }
-            Services.ww.registerNotification(closeObserver);
             // Close Library window.
             organizer.close();
-          }, true);
-          // Get cell coordinates
-          var x = {}, y = {}, width = {}, height = {};
-          tree.treeBoxObject.getCoordsForCellItem(0, tree.columns[0], "text",
-                                                  x, y, width, height);
-          // Initiate a context menu for the selected cell
-          EventUtils.synthesizeMouse(tree.body, x.value + width.value / 2, y.value + height.value / 2, {type: "contextmenu"}, organizer);
+            // Proceed
+            funcNext();
+          }, false);
+          let event = document.createEvent("MouseEvents");
+          event.initMouseEvent("contextmenu", true, true, organizer, 0,
+                               0, 0, 0, 0, false, false, false, false,
+                               0, null);
+          tree.dispatchEvent(event);
         });
-      }, organizer);
+      }, false);
     }
 
-    Services.ww.registerNotification(observer);
-    Services.ww.openWindow(null,
-                           "chrome://browser/content/places/places.xul",
-                           "",
-                           "chrome,toolbar=yes,dialog=no,resizable",
-                           null);
+    ww.registerNotification(observer);
+    ww.openWindow(null,
+                  "chrome://browser/content/places/places.xul",
+                  "",
+                  "chrome,toolbar=yes,dialog=no,resizable",
+                  null);
   }
 
   testForgetThisSiteVisibility(true, function() {
@@ -144,7 +119,9 @@ function test() {
       pb.privateBrowsingEnabled = false;
       testForgetThisSiteVisibility(true, function() {
         // Cleanup
-        waitForClearHistory(finish);
+        history.QueryInterface(Ci.nsIBrowserHistory)
+               .removeAllPages();
+        finish();
       });
     });
   });

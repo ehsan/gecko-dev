@@ -60,7 +60,6 @@ class nsScriptLoadRequest;
 
 class nsScriptLoader : public nsIStreamLoaderObserver
 {
-  friend class nsScriptRequestProcessor;
 public:
   nsScriptLoader(nsIDocument* aDocument);
   virtual ~nsScriptLoader();
@@ -124,11 +123,6 @@ public:
   nsIScriptElement* GetCurrentScript()
   {
     return mCurrentScript;
-  }
-
-  nsIScriptElement* GetCurrentParserInsertedScript()
-  {
-    return mCurrentParserInsertedScript;
   }
 
   /**
@@ -230,7 +224,7 @@ public:
    */
   PRUint32 HasPendingOrCurrentScripts()
   {
-    return mCurrentScript || mParserBlockingRequest;
+    return mCurrentScript || GetFirstPendingRequest();
   }
 
   /**
@@ -243,7 +237,7 @@ public:
   virtual void PreloadURI(nsIURI *aURI, const nsAString &aCharset,
                           const nsAString &aType);
 
-private:
+protected:
   /**
    * Helper function to check the content policy for a given request.
    */
@@ -300,13 +294,13 @@ private:
                                 PRUint32 aStringLen,
                                 const PRUint8* aString);
 
+  // Returns the first pending (non deferred) request
+  nsScriptLoadRequest* GetFirstPendingRequest();
+
   nsIDocument* mDocument;                   // [WEAK]
   nsCOMArray<nsIScriptLoaderObserver> mObservers;
-  nsTArray<nsRefPtr<nsScriptLoadRequest> > mNonAsyncExternalScriptInsertedRequests;
-  nsTArray<nsRefPtr<nsScriptLoadRequest> > mAsyncRequests;
-  nsTArray<nsRefPtr<nsScriptLoadRequest> > mDeferRequests;
-  nsTArray<nsRefPtr<nsScriptLoadRequest> > mXSLTRequests;
-  nsRefPtr<nsScriptLoadRequest> mParserBlockingRequest;
+  nsCOMArray<nsScriptLoadRequest> mRequests;
+  nsCOMArray<nsScriptLoadRequest> mAsyncRequests;
 
   // In mRequests, the additional information here is stored by the element.
   struct PreloadInfo {
@@ -327,13 +321,12 @@ private:
   nsTArray<PreloadInfo> mPreloads;
 
   nsCOMPtr<nsIScriptElement> mCurrentScript;
-  nsCOMPtr<nsIScriptElement> mCurrentParserInsertedScript;
   // XXXbz do we want to cycle-collect these or something?  Not sure.
   nsTArray< nsRefPtr<nsScriptLoader> > mPendingChildLoaders;
   PRUint32 mBlockerCount;
   PRPackedBool mEnabled;
   PRPackedBool mDeferEnabled;
-  PRPackedBool mDocumentParsingDone;
+  PRPackedBool mUnblockOnloadWhenDoneProcessing;
 };
 
 #endif //__nsScriptLoader_h__

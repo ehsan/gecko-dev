@@ -57,7 +57,10 @@ EXPORTS		= \
 		nsICharsetDetectionAdaptor.h \
 		nsICharsetDetectionObserver.h \
 		nsICharsetDetector.h \
+		nsIMetaCharsetService.h \
 		nsIStringCharsetDetector.h \
+		nsIXMLEncodingService.h \
+		nsMetaCharsetCID.h \
 		nsXMLEncodingCID.h \
 		$(NULL)
 

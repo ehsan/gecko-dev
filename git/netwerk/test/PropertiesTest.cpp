@@ -69,6 +69,9 @@ main(int argc, char* argv[])
 
   nsCOMPtr<nsIServiceManager> servMan;
   NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
+  nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
+  NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
+  registrar->AutoRegister(nsnull);
 
   nsIInputStream* in = nsnull;
 

@@ -35,12 +35,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLImageElement.h"
+#include "nsIDOMNSHTMLImageElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsImageLoadingContent.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsMappedAttributes.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsSize.h"
@@ -58,7 +60,6 @@
 #include "nsGUIEvent.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIDOMWindow.h"
-#include "nsFocusManager.h"
 
 #include "imgIContainer.h"
 #include "imgILoader.h"
@@ -76,17 +77,16 @@
 
 #include "nsLayoutUtils.h"
 
-using namespace mozilla::dom;
-
 // XXX nav attrs: suppress
 
 class nsHTMLImageElement : public nsGenericHTMLElement,
                            public nsImageLoadingContent,
                            public nsIDOMHTMLImageElement,
+                           public nsIDOMNSHTMLImageElement,
                            public nsIJSNativeInitializer
 {
 public:
-  nsHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLImageElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLImageElement();
 
   // nsISupports
@@ -103,6 +103,9 @@ public:
 
   // nsIDOMHTMLImageElement
   NS_DECL_NSIDOMHTMLIMAGEELEMENT
+
+  // nsIDOMNSHTMLImageElement
+  NS_DECL_NSIDOMNSHTMLIMAGEELEMENT
 
   // override from nsGenericHTMLElement
   NS_IMETHOD GetDraggable(PRBool* aDraggable);
@@ -123,7 +126,7 @@ public:
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
   // SetAttr override.  C++ is stupid, so have to override both
   // overloaded methods.
@@ -142,21 +145,19 @@ public:
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
 
-  virtual nsEventStates IntrinsicState() const;
+  virtual PRInt32 IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   void MaybeLoadImage();
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsPoint GetXY();
   nsSize GetWidthHeight();
 };
 
 nsGenericHTMLElement*
-NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                       FromParser aFromParser)
+NS_NewHTMLImageElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
 {
   /*
    * nsHTMLImageElement's will be created without a nsINodeInfo passed in
@@ -174,10 +175,10 @@ NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
-  return new nsHTMLImageElement(nodeInfo.forget());
+  return new nsHTMLImageElement(nodeInfo);
 }
 
-nsHTMLImageElement::nsHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLImageElement::nsHTMLImageElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -192,12 +193,11 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLImageElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLImageElement, nsGenericElement)
 
 
-DOMCI_NODE_DATA(HTMLImageElement, nsHTMLImageElement)
-
 // QueryInterface implementation for nsHTMLImageElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLImageElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLImageElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE6(nsHTMLImageElement,
                                    nsIDOMHTMLImageElement,
+                                   nsIDOMNSHTMLImageElement,
                                    nsIJSNativeInitializer,
                                    imgIDecoderObserver,
                                    nsIImageLoadingContent,
@@ -449,8 +449,7 @@ nsHTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 }
 
 PRBool
-nsHTMLImageElement::IsHTMLFocusable(PRBool aWithMouse,
-                                    PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLImageElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
   PRInt32 tabIndex;
   GetTabIndex(&tabIndex);
@@ -481,11 +480,8 @@ nsHTMLImageElement::IsHTMLFocusable(PRBool aWithMouse,
     *aTabIndex = (sTabFocusModel & eTabFocus_formElementsMask)? tabIndex : -1;
   }
 
-  *aIsFocusable = 
-#ifdef XP_MACOSX
-    (!aWithMouse || nsFocusManager::sMouseFocusesFormControl) &&
-#endif
-    (tabIndex >= 0 || HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
+  *aIsFocusable = tabIndex >= 0 ||
+                  HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex);
 
   return PR_FALSE;
 }
@@ -564,7 +560,8 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // loading.
     if (LoadingEnabled()) {
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsHTMLImageElement::MaybeLoadImage));
+        new nsRunnableMethod<nsHTMLImageElement>(this,
+                                                 &nsHTMLImageElement::MaybeLoadImage));
     }
   }
 
@@ -585,7 +582,7 @@ nsHTMLImageElement::MaybeLoadImage()
   }
 }
 
-nsEventStates
+PRInt32
 nsHTMLImageElement::IntrinsicState() const
 {
   return nsGenericHTMLElement::IntrinsicState() |
@@ -603,16 +600,16 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   }
 
   // The first (optional) argument is the width of the image
-  uint32 width;
-  JSBool ret = JS_ValueToECMAUint32(aContext, argv[0], &width);
+  int32 width;
+  JSBool ret = JS_ValueToInt32(aContext, argv[0], &width);
   NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
   nsresult rv = SetIntAttr(nsGkAtoms::width, static_cast<PRInt32>(width));
 
   if (NS_SUCCEEDED(rv) && (argc > 1)) {
     // The second (optional) argument is the height of the image
-    uint32 height;
-    ret = JS_ValueToECMAUint32(aContext, argv[1], &height);
+    int32 height;
+    ret = JS_ValueToInt32(aContext, argv[1], &height);
     NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
     rv = SetIntAttr(nsGkAtoms::height, static_cast<PRInt32>(height));

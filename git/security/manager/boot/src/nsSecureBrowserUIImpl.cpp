@@ -138,7 +138,6 @@ static PLDHashTableOps gMapOps = {
   RequestMapInitEntry
 };
 
-#ifdef DEBUG
 class nsAutoAtomic {
   public:
     nsAutoAtomic(PRInt32 &i)
@@ -156,26 +155,24 @@ class nsAutoAtomic {
   private:
     nsAutoAtomic(); // not accessible
 };
-#endif
+
 
 nsSecureBrowserUIImpl::nsSecureBrowserUIImpl()
-  : mNotifiedSecurityState(lis_no_security)
-  , mNotifiedToplevelIsEV(PR_FALSE)
-  , mNewToplevelSecurityState(STATE_IS_INSECURE)
-  , mNewToplevelIsEV(PR_FALSE)
-  , mNewToplevelSecurityStateKnown(PR_TRUE)
-  , mIsViewSource(PR_FALSE)
-  , mSubRequestsHighSecurity(0)
-  , mSubRequestsLowSecurity(0)
-  , mSubRequestsBrokenSecurity(0)
-  , mSubRequestsNoSecurity(0)
-#ifdef DEBUG
-  , mOnStateLocationChangeReentranceDetection(0)
-#endif
+  : mNotifiedSecurityState(lis_no_security),
+    mNotifiedToplevelIsEV(PR_FALSE),
+    mIsViewSource(PR_FALSE)
 {
-  mMonitor = nsAutoMonitor::NewMonitor("security.secureBrowserUIImplMonitor");
+  mMonitor = PR_NewMonitor();
+  mOnStateLocationChangeReentranceDetection = 0;
   mTransferringRequests.ops = nsnull;
+  mNewToplevelSecurityState = STATE_IS_INSECURE;
+  mNewToplevelIsEV = PR_FALSE;
+  mNewToplevelSecurityStateKnown = PR_TRUE;
   ResetStateTracking();
+  mSubRequestsHighSecurity = 0;
+  mSubRequestsLowSecurity = 0;
+  mSubRequestsBrokenSecurity = 0;
+  mSubRequestsNoSecurity = 0;
   
 #if defined(PR_LOGGING)
   if (!gSecureDocLog)
@@ -190,7 +187,7 @@ nsSecureBrowserUIImpl::~nsSecureBrowserUIImpl()
     mTransferringRequests.ops = nsnull;
   }
   if (mMonitor)
-    nsAutoMonitor::DestroyMonitor(mMonitor);
+    PR_DestroyMonitor(mMonitor);
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS6(nsSecureBrowserUIImpl,
@@ -223,13 +220,8 @@ nsSecureBrowserUIImpl::Init(nsIDOMWindow *aWindow)
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
-  nsCOMPtr<nsPIDOMWindow> pwin(do_QueryInterface(aWindow));
-  if (pwin->IsInnerWindow()) {
-    pwin = pwin->GetOuterWindow();
-  }
-
   nsresult rv;
-  mWindow = do_GetWeakReference(pwin, &rv);
+  mWindow = do_GetWeakReference(aWindow, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIStringBundleService> service(do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv));
@@ -572,12 +564,7 @@ nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsIS
     PR_LOG(gSecureDocLog, PR_LOG_DEBUG,
            ("SecureUI:%p: remember securityInfo %p\n", this,
             info));
-    nsCOMPtr<nsIAssociatedContentSecurity> associatedContentSecurityFromRequest =
-        do_QueryInterface(aRequest);
-    if (associatedContentSecurityFromRequest)
-        mCurrentToplevelSecurityInfo = aRequest;
-    else
-        mCurrentToplevelSecurityInfo = info;
+    mCurrentToplevelSecurityInfo = info;
   }
 
   return UpdateSecurityState(aRequest, withNewLocation, 
@@ -621,11 +608,10 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
                                      PRUint32 aProgressStateFlags,
                                      nsresult aStatus)
 {
-#ifdef DEBUG
   nsAutoAtomic atomic(mOnStateLocationChangeReentranceDetection);
   NS_ASSERTION(mOnStateLocationChangeReentranceDetection == 1,
                "unexpected parallel nsIWebProgress OnStateChange and/or OnLocationChange notification");
-#endif
+
   /*
     All discussion, unless otherwise mentioned, only refers to
     http, https, file or wyciwig requests.
@@ -1116,7 +1102,6 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
         prevContentSecurity->SetCountSubRequestsLowSecurity(saveSubLow);
         prevContentSecurity->SetCountSubRequestsBrokenSecurity(saveSubBroken);
         prevContentSecurity->SetCountSubRequestsNoSecurity(saveSubNo);
-        prevContentSecurity->Flush();
       }
 
       PRBool retrieveAssociatedState = PR_FALSE;
@@ -1518,11 +1503,10 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
                                         nsIRequest* aRequest,
                                         nsIURI* aLocation)
 {
-#ifdef DEBUG
   nsAutoAtomic atomic(mOnStateLocationChangeReentranceDetection);
   NS_ASSERTION(mOnStateLocationChangeReentranceDetection == 1,
                "unexpected parallel nsIWebProgress OnStateChange and/or OnLocationChange notification");
-#endif
+
   PR_LOG(gSecureDocLog, PR_LOG_DEBUG,
          ("SecureUI:%p: OnLocationChange\n", this));
 

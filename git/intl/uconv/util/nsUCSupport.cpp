@@ -38,6 +38,7 @@
 
 #include "pratom.h"
 #include "nsIComponentManager.h"
+#include "nsICharRepresentable.h"
 #include "nsUCSupport.h"
 #include "nsUnicodeDecodeHelper.h"
 #include "nsUnicodeEncodeHelper.h"
@@ -110,6 +111,15 @@ void nsBufferDecoderSupport::FillBuffer(const char ** aSrc, PRInt32 aSrcLength)
   memcpy(mBuffer + mBufferLength, *aSrc, bcr);
   mBufferLength += bcr;
   (*aSrc) += bcr;
+}
+
+void nsBufferDecoderSupport::DoubleBuffer()
+{
+  mBufferCapacity *= 2;
+  char * newBuffer = new char [mBufferCapacity];
+  if (mBufferLength > 0) memcpy(newBuffer, mBuffer, mBufferLength);
+  delete [] mBuffer;
+  mBuffer = newBuffer;
 }
 
 //----------------------------------------------------------------------
@@ -366,12 +376,13 @@ nsBasicEncoder::~nsBasicEncoder()
 NS_IMPL_ADDREF(nsBasicEncoder)
 NS_IMPL_RELEASE(nsBasicEncoder)
 #ifdef NS_DEBUG
+NS_IMPL_QUERY_INTERFACE3(nsBasicEncoder,
+                         nsIUnicodeEncoder,
+                         nsICharRepresentable, nsIBasicEncoder)
+#else
 NS_IMPL_QUERY_INTERFACE2(nsBasicEncoder,
                          nsIUnicodeEncoder,
-                         nsIBasicEncoder)
-#else
-NS_IMPL_QUERY_INTERFACE1(nsBasicEncoder,
-                         nsIUnicodeEncoder)
+                         nsICharRepresentable)
 #endif
 //----------------------------------------------------------------------
 // Class nsEncoderSupport [implementation]
@@ -618,6 +629,10 @@ nsTableEncoderSupport::~nsTableEncoderSupport()
 {
 }
 
+NS_IMETHODIMP nsTableEncoderSupport::FillInfo(PRUint32 *aInfo)
+{
+  return nsUnicodeEncodeHelper::FillInfo(aInfo, mMappingTable);
+}
 //----------------------------------------------------------------------
 // Subclassing of nsEncoderSupport class [implementation]
 
@@ -654,6 +669,10 @@ nsMultiTableEncoderSupport::~nsMultiTableEncoderSupport()
 {
 }
 
+NS_IMETHODIMP nsMultiTableEncoderSupport::FillInfo(PRUint32 *aInfo)
+{
+  return nsUnicodeEncodeHelper::FillInfo(aInfo,mTableCount, mMappingTable);
+}
 //----------------------------------------------------------------------
 // Subclassing of nsEncoderSupport class [implementation]
 

@@ -18,7 +18,6 @@
  * Contributor(s): Kevin Hendricks (kevin.hendricks@sympatico.ca)
  *                 David Einstein (deinst@world.std.com)
  *                 László Németh (nemethl@gyorsposta.hu)
- *                 Caolan McNamara (caolanm@redhat.com)
  *                 Davide Prina
  *                 Giuseppe Modugno
  *                 Gianluca Turconi
@@ -58,16 +57,18 @@
 #ifndef _HASHMGR_HXX_
 #define _HASHMGR_HXX_
 
-#include "hunvisapi.h"
-
+#ifndef MOZILLA_CLIENT
+#include <cstdio>
+#else
 #include <stdio.h>
+#endif
 
-#include "htypes.hxx"
 #include "filemgr.hxx"
+#include "htypes.hxx"
 
 enum flag { FLAG_CHAR, FLAG_LONG, FLAG_NUM, FLAG_UNI };
 
-class LIBHUNSPELL_DLL_EXPORTED HashMgr
+class HashMgr
 {
   int               tablesize;
   struct hentry **  tableptr;

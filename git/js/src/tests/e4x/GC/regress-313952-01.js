@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-313952-01.js';
 
 var summary = "13.3.5.2 - root QName.uri";
 var BUGNUMBER = 313952;

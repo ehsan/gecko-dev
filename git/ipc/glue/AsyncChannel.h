@@ -57,11 +57,9 @@ struct HasResultCodes
 {
     enum Result {
         MsgProcessed,
-        MsgDropped,
         MsgNotKnown,
         MsgNotAllowed,
         MsgPayloadError,
-        MsgProcessingError,
         MsgRouteError,
         MsgValueError,
     };
@@ -94,8 +92,6 @@ public:
         virtual void OnChannelClose() = 0;
         virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
-        virtual void OnProcessingError(Result aError) = 0;
-        virtual void OnChannelConnected(int32 peer_pid) {};
     };
 
 public:
@@ -116,10 +112,7 @@ public:
     void Close();
 
     // Asynchronously send a message to the other side of the channel
-    virtual bool Send(Message* msg);
-
-    // Send OnChannelConnected notification to listeners.
-    void DispatchOnChannelConnected(int32 peer_pid);
+    bool Send(Message* msg);
 
     //
     // These methods are called on the "IO" thread
@@ -132,19 +125,19 @@ public:
 
 protected:
     // Can be run on either thread
-    void AssertWorkerThread() const
+    void AssertWorkerThread()
     {
         NS_ABORT_IF_FALSE(mWorkerLoop == MessageLoop::current(),
                           "not on worker thread!");
     }
 
-    void AssertIOThread() const
+    void AssertIOThread()
     {
         NS_ABORT_IF_FALSE(mIOLoop == MessageLoop::current(),
                           "not on IO thread!");
     }
 
-    bool Connected() const {
+    bool Connected() {
         mMutex.AssertCurrentThreadOwns();
         return ChannelConnected == mChannelState;
     }
@@ -152,15 +145,15 @@ protected:
     // Run on the worker thread
     void OnDispatchMessage(const Message& aMsg);
     virtual bool OnSpecialMessage(uint16 id, const Message& msg);
-    void SendSpecialMessage(Message* msg) const;
+    void SendSpecialMessage(Message* msg);
 
     // Tell the IO thread to close the channel and wait for it to ACK.
     void SynchronouslyClose();
 
     bool MaybeHandleError(Result code, const char* channelName);
-    void ReportConnectionError(const char* channelName) const;
+    void ReportConnectionError(const char* channelName);
 
-    void PrintErrorMessage(const char* channelName, const char* msg) const
+    void PrintErrorMessage(const char* channelName, const char* msg)
     {
         fprintf(stderr, "\n###!!! [%s][%s] Error: %s\n\n",
                 mChild ? "Child" : "Parent", channelName, msg);
@@ -168,27 +161,18 @@ protected:
 
     // Run on the worker thread
 
-    void SendThroughTransport(Message* msg) const;
+    bool ProcessGoodbyeMessage();
 
-    void OnNotifyMaybeChannelError();
-    virtual bool ShouldDeferNotifyMaybeError() const {
-        return false;
-    }
     void NotifyChannelClosed();
     void NotifyMaybeChannelError();
 
-    virtual void Clear();
+    void Clear();
 
     // Run on the IO thread
 
     void OnChannelOpened();
+    void OnSend(Message* aMsg);
     void OnCloseChannel();
-    void PostErrorNotifyTask();
-
-    // Return true if |msg| is a special message targeted at the IO
-    // thread, in which case it shouldn't be delivered to the worker.
-    bool MaybeInterceptSpecialIOMessage(const Message& msg);
-    void ProcessGoodbyeMessage();
 
     Transport* mTransport;
     AsyncListener* mListener;
@@ -199,7 +183,6 @@ protected:
     MessageLoop* mWorkerLoop;   // thread where work is done
     bool mChild;                // am I the child or parent?
     CancelableTask* mChannelErrorTask; // NotifyMaybeChannelError runnable
-    IPC::Channel::Listener* mExistingListener; // channel's previous listener
 };
 
 

@@ -53,29 +53,13 @@ class nsIVariant;
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
 class nsScriptObjectHolder;
-class nsIScriptObjectPrincipal;
 
 typedef void (*nsScriptTerminationFunc)(nsISupports* aRef);
 
-#define NS_ISCRIPTCONTEXTPRINCIPAL_IID \
-  { 0xd012cdb3, 0x8f1e, 0x4440, \
-    { 0x8c, 0xbd, 0x32, 0x7f, 0x98, 0x1d, 0x37, 0xb4 } }
-
-class nsIScriptContextPrincipal : public nsISupports
-{
-public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTCONTEXTPRINCIPAL_IID)
-
-  virtual nsIScriptObjectPrincipal* GetObjectPrincipal() = 0;
-};
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContextPrincipal,
-                              NS_ISCRIPTCONTEXTPRINCIPAL_IID)
-
-// a7139c0e-962c-44b6-bec3-e4166bfe84eb
+// A4FE2B52-62B5-40C3-BF9C-5E0A27B10F90
 #define NS_ISCRIPTCONTEXT_IID \
-{ 0xa7139c0e, 0x962c, 0x44b6, \
-  { 0xbe, 0xc3, 0xe4, 0x16, 0x6b, 0xfe, 0x84, 0xeb } }
+{ 0xA4FE2B52, 0x62B5, 0x40C3, \
+  { 0xBF, 0x9C, 0x5E, 0x0A, 0x27, 0xB1, 0x0F, 0x90 } }
 
 /* This MUST match JSVERSION_DEFAULT.  This version stuff if we don't
    know what language we have is a little silly... */
@@ -88,7 +72,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptContextPrincipal,
  * should be removed in a short time. Ideally this interface will be
  * language neutral</I>
  */
-class nsIScriptContext : public nsIScriptContextPrincipal
+class nsIScriptContext : public nsISupports
 {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISCRIPTCONTEXT_IID)
@@ -320,7 +304,6 @@ public:
   virtual nsresult CreateNativeGlobalForInner(
                                       nsIScriptGlobalObject *aNewInner,
                                       PRBool aIsChrome,
-                                      nsIPrincipal *aPrincipal,
                                       void **aNativeGlobal,
                                       nsISupports **aHolder) = 0;
 
@@ -334,28 +317,17 @@ public:
 
 
   /**
-   * Initialize the context generally. Does not create a global object.
-   **/
-  virtual nsresult InitContext() = 0;
-
-  /**
-   * Creates the outer window for this context.
+   * Init this context ready for use.  If aGlobalObject is not NULL, this
+   * function may initialize based on this global (for example, using the
+   * global to locate a chrome window, create a new 'scope' for this
+   * global, etc)
    *
-   * @param aGlobalObject The script global object to use as our global.
-   */
-  virtual nsresult CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
-                                     nsIScriptGlobalObject *aCurrentInner) = 0;
-
-  /**
-   * Given an outer object, updates this context with that outer object.
-   */
-  virtual nsresult SetOuterObject(void *aOuterObject) = 0;
-
-  /**
-   * Prepares this context for use with the current inner window for the
-   * context's global object. This must be called after CreateOuterObject.
-   */
-  virtual nsresult InitOuterWindow() = 0;
+   * @param aGlobalObject the gobal object, which may be nsnull.
+   *
+   * @return NS_OK if context initialization was successful
+   *
+   **/
+  virtual nsresult InitContext(nsIScriptGlobalObject *aGlobalObject) = 0;
 
   /**
    * Check to see if context is as yet intialized. Used to prevent

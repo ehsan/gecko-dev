@@ -183,11 +183,11 @@ class TableBackgroundPainter
       nsIFrame*                 mFrame;
       /** mRect is the rect of mFrame in the current coordinate system */
       nsRect                    mRect;
-      PRBool                    mVisible;
+      const nsStyleBackground*  mBackground;
       const nsStyleBorder*      mBorder;
 
       /** Data is valid & frame is visible */
-      PRBool IsVisible() const { return mVisible; }
+      PRBool IsVisible() const { return mBackground != nsnull; }
 
       /** Constructor */
       TableBackgroundData();

@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageResultSet_h
-#define mozStorageResultSet_h
+#ifndef __mozStorageResultSet_h__
+#define __mozStorageResultSet_h__
 
 #include "mozIStorageResultSet.h"
 #include "nsCOMArray.h"
@@ -81,4 +81,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStorageResultSet_h
+#endif // __mozStorageResultSet_h__

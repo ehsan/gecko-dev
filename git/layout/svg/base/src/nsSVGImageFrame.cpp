@@ -45,7 +45,6 @@
 #include "gfxContext.h"
 #include "gfxMatrix.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "gfxPlatform.h"
 
 class nsSVGImageFrame;
 
@@ -59,8 +58,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *aDirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect * dirtyRect);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest,
                               imgIContainer *aContainer);
@@ -115,7 +113,7 @@ public:
 #endif
 
 private:
-  gfxMatrix GetImageTransform(PRInt32 aNativeWidth, PRInt32 aNativeHeight);
+  gfxMatrix GetImageTransform();
 
   nsCOMPtr<imgIDecoderObserver> mListener;
 
@@ -193,16 +191,20 @@ nsSVGImageFrame::AttributeChanged(PRInt32         aNameSpaceID,
 }
 
 gfxMatrix
-nsSVGImageFrame::GetImageTransform(PRInt32 aNativeWidth, PRInt32 aNativeHeight)
+nsSVGImageFrame::GetImageTransform()
 {
   float x, y, width, height;
   nsSVGImageElement *element = static_cast<nsSVGImageElement*>(mContent);
   element->GetAnimatedLengthValues(&x, &y, &width, &height, nsnull);
 
+  PRInt32 nativeWidth, nativeHeight;
+  mImageContainer->GetWidth(&nativeWidth);
+  mImageContainer->GetHeight(&nativeHeight);
+
   gfxMatrix viewBoxTM =
     nsSVGUtils::GetViewBoxTransform(element,
                                     width, height,
-                                    0, 0, aNativeWidth, aNativeHeight,
+                                    0, 0, nativeWidth, nativeHeight,
                                     element->mPreserveAspectRatio);
 
   return viewBoxTM * gfxMatrix().Translate(gfxPoint(x, y)) * GetCanvasTM();
@@ -236,37 +238,35 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
       currentRequest->GetImage(getter_AddRefs(mImageContainer));
   }
 
-  if (mImageContainer) {
-    PRInt32 nativeWidth, nativeHeight;
-    mImageContainer->GetWidth(&nativeWidth);
-    mImageContainer->GetHeight(&nativeHeight);
+  // XXXbholley - I don't think huge images in SVGs are common enough to
+  // warrant worrying about the responsiveness impact of doing synchronous
+  // decodes. The extra code complexity of determinining when we want to
+  // force sync probably just isn't worth it, so always pass FLAG_SYNC_DECODE
+  nsRefPtr<gfxASurface> currentFrame;
+  if (mImageContainer)
+    mImageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
+                              imgIContainer::FLAG_SYNC_DECODE,
+                              getter_AddRefs(currentFrame));
 
-    if (nativeWidth == 0 || nativeHeight == 0) {
-      return NS_ERROR_FAILURE;
-    }
+  // We need to wrap the surface in a pattern to have somewhere to set the
+  // graphics filter.
+  nsRefPtr<gfxPattern> thebesPattern;
+  if (currentFrame)
+    thebesPattern = new gfxPattern(currentFrame);
 
-    if (mImageContainer->GetType() == imgIContainer::TYPE_VECTOR) {
-      // <svg:image> not supported for SVG images yet.
-      return NS_ERROR_FAILURE;
-    }
+  if (thebesPattern) {
 
-    gfxContext* ctx = aContext->GetGfxContext();
-    gfxContextAutoSaveRestore autoRestorer(ctx);
+    thebesPattern->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
+
+    gfxContext *gfx = aContext->GetGfxContext();
 
     if (GetStyleDisplay()->IsScrollableOverflow()) {
-      gfxRect clipRect = nsSVGUtils::GetClipRectForFrame(this, x, y,
-                                                         width, height);
-      nsSVGUtils::SetClipRect(ctx, GetCanvasTM(), clipRect);
+      gfx->Save();
+
+      gfxRect clipRect =
+        nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
+      nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
     }
-
-    nscoord appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-    gfxFloat pageZoomFactor =
-      nsPresContext::AppUnitsToFloatCSSPixels(appUnitsPerDevPx);
-
-    // NOTE: We need to cancel out the effects of Full-Page-Zoom, or else
-    // it'll get applied an extra time by DrawSingleUnscaledImage.
-    ctx->Multiply(GetImageTransform(nativeWidth, nativeHeight).
-      Scale(pageZoomFactor, pageZoomFactor));
 
     // fill-opacity doesn't affect <image>, so if we're allowed to
     // optimize group opacity, the opacity used for compositing the
@@ -276,35 +276,15 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
       opacity = GetStyleDisplay()->mOpacity;
     }
 
-    if (opacity != 1.0f) {
-      ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-    }
+    PRInt32 nativeWidth, nativeHeight;
+    mImageContainer->GetWidth(&nativeWidth);
+    mImageContainer->GetHeight(&nativeHeight);
 
-    nsRect dirtyRect; // only used if aDirtyRect is non-null
-    if (aDirtyRect) {
-      dirtyRect = aDirtyRect->ToAppUnits(appUnitsPerDevPx);
-      // Adjust dirtyRect to match our local coordinate system.
-      dirtyRect.MoveBy(-mRect.TopLeft());
-    }
+    nsSVGUtils::CompositePatternMatrix(gfx, thebesPattern, GetImageTransform(),
+                                       nativeWidth, nativeHeight, opacity);
 
-    // XXXbholley - I don't think huge images in SVGs are common enough to
-    // warrant worrying about the responsiveness impact of doing synchronous
-    // decodes. The extra code complexity of determinining when we want to
-    // force sync probably just isn't worth it, so always pass FLAG_SYNC_DECODE
-    nsLayoutUtils::DrawSingleUnscaledImage(
-      aContext->GetRenderingContext(this),
-      mImageContainer,
-      nsLayoutUtils::GetGraphicsFilterForFrame(this),
-      nsPoint(0, 0),
-      aDirtyRect ? &dirtyRect : nsnull,
-      imgIContainer::FLAG_SYNC_DECODE);
-
-    if (opacity != 1.0f) {
-      ctx->PopGroupToSource();
-      ctx->SetOperator(gfxContext::OPERATOR_OVER);
-      ctx->Paint(opacity);
-    }
-    // gfxContextAutoSaveRestore goes out of scope & cleans up our gfxContext
+    if (GetStyleDisplay()->IsScrollableOverflow())
+      gfx->Restore();
   }
 
   return rv;
@@ -318,11 +298,7 @@ nsSVGImageFrame::GetFrameForPoint(const nsPoint &aPoint)
     mImageContainer->GetWidth(&nativeWidth);
     mImageContainer->GetHeight(&nativeHeight);
 
-    if (nativeWidth == 0 || nativeHeight == 0) {
-      return nsnull;
-    }
-
-    if (!nsSVGUtils::HitTestRect(GetImageTransform(nativeWidth, nativeHeight),
+    if (!nsSVGUtils::HitTestRect(GetImageTransform(),
                                  0, 0, nativeWidth, nativeHeight,
                                  PresContext()->AppUnitsToDevPixels(aPoint.x),
                                  PresContext()->AppUnitsToDevPixels(aPoint.y))) {
@@ -349,7 +325,7 @@ nsSVGImageFrame::UpdateCoveredRegion()
 {
   mRect.Empty();
 
-  gfxContext context(gfxPlatform::GetPlatform()->ScreenReferenceSurface());
+  gfxContext context(nsSVGUtils::GetThebesComputationalSurface());
 
   GeneratePath(&context);
   context.IdentityMatrix();
@@ -425,7 +401,7 @@ NS_IMETHODIMP nsSVGImageListener::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsSVGImageListener::FrameChanged(imgIContainer *aContainer,
-                                               const nsIntRect *aDirtyRect)
+                                               nsIntRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;

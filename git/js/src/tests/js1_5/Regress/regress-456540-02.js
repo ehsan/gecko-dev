@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-456540-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 456540;
 var summary = 'Do not assert with JIT: (m != JSVAL_INT) || isInt32(*vp)" with ((-1) % ""';

@@ -40,12 +40,11 @@
 #include "nsSMILCSSProperty.h"
 #include "nsSMILCSSValueType.h"
 #include "nsSMILValue.h"
+#include "nsCSSDeclaration.h"
 #include "nsComputedDOMStyle.h"
 #include "nsStyleAnimation.h"
 #include "nsIContent.h"
 #include "nsIDOMElement.h"
-
-using namespace mozilla::dom;
 
 // Helper function
 static PRBool
@@ -66,7 +65,7 @@ GetCSSComputedValue(nsIContent* aElem,
     return PR_FALSE;
   }
 
-  nsIPresShell* shell = doc->GetShell();
+  nsIPresShell* shell = doc->GetPrimaryShell();
   if (!shell) {
     NS_WARNING("Unable to look up computed style -- no pres shell");
     return PR_FALSE;
@@ -86,7 +85,7 @@ GetCSSComputedValue(nsIContent* aElem,
 
 // Class Methods
 nsSMILCSSProperty::nsSMILCSSProperty(nsCSSProperty aPropID,
-                                     Element* aElement)
+                                     nsIContent* aElement)
   : mPropID(aPropID), mElement(aElement)
 {
   NS_ABORT_IF_FALSE(IsPropertyAnimatable(mPropID),
@@ -97,30 +96,20 @@ nsSMILCSSProperty::nsSMILCSSProperty(nsCSSProperty aPropID,
 nsSMILValue
 nsSMILCSSProperty::GetBaseValue() const
 {
-  // To benefit from Return Value Optimization and avoid copy constructor calls
-  // due to our use of return-by-value, we must return the exact same object
-  // from ALL return points. This function must only return THIS variable:
-  nsSMILValue baseValue;
-
-  // SPECIAL CASE: (a) Shorthands
-  //               (b) 'display'
-  if (nsCSSProps::IsShorthand(mPropID) || mPropID == eCSSProperty_display) {
+  // SPECIAL CASE: Shorthands
+  if (nsCSSProps::IsShorthand(mPropID)) {
     // We can't look up the base (computed-style) value of shorthand
-    // properties because they aren't guaranteed to have a consistent computed
-    // value.
-    //
-    // Also, although we can look up the base value of the display property,
-    // doing so involves clearing and resetting the property which can cause
-    // frames to be recreated which we'd like to avoid.
-    //
-    // In either case, simply returning a null-typed nsSMILValue to indicate
-    // failure is acceptable because the caller only uses base values when
-    // there's interpolation or addition, and for both the shorthand properties
-    // we know about and the display property those operations aren't supported.
-    return baseValue;
+    // properties, because they aren't guaranteed to have a consistent computed
+    // value.  However, that's not a problem, because it turns out the caller
+    // isn't going to end up using the value we return anyway. Base values only
+    // get used when there's interpolation or addition, and the shorthand
+    // properties we know about don't support those operations. So, we can just
+    // return a dummy value (initialized with the right type, so as not to
+    // indicate failure).
+    return nsSMILValue(&nsSMILCSSValueType::sSingleton);
   }
 
-  // GENERAL CASE: Non-Shorthands
+  // GENERAL CASE: Non-Shorthands  
   // (1) Put empty string in override style for property mPropID
   // (saving old override style value, so we can set it again when we're done)
   nsCOMPtr<nsIDOMCSSStyleDeclaration> overrideStyle;
@@ -145,7 +134,8 @@ nsSMILCSSProperty::GetBaseValue() const
     overrideDecl->SetPropertyValue(mPropID, cachedOverrideStyleVal);
   }
 
-  // (4) Populate our nsSMILValue from the computed style
+  // (4) Create a nsSMILValue from the computed style
+  nsSMILValue baseValue;
   if (didGetComputedVal) {
     nsSMILCSSValueType::ValueFromString(mPropID, mElement,
                                         computedStyleVal, baseValue);
@@ -157,7 +147,7 @@ nsresult
 nsSMILCSSProperty::ValueFromString(const nsAString& aStr,
                                    const nsISMILAnimationElement* aSrcElement,
                                    nsSMILValue& aValue,
-                                   PRBool& aPreventCachingOfSandwich) const
+                                   PRBool& aCanCache) const
 {
   NS_ENSURE_TRUE(IsPropertyAnimatable(mPropID), NS_ERROR_FAILURE);
 
@@ -170,12 +160,11 @@ nsSMILCSSProperty::ValueFromString(const nsAString& aStr,
   // reparsed every sample. This prevents us from doing the "nothing's changed
   // so don't recompose" optimization (bug 533291) for CSS properties & mapped
   // attributes.  If it ends up being expensive to always recompose those, we
-  // can be a little smarter here.  We really only need to set
-  // aPreventCachingOfSandwich to true for "inherit" & "currentColor" (whose
-  // values could change at any time), for length-valued types (particularly
-  // those with em/ex/percent units, since their conversion ratios can change
-  // at any time), and for any value for 'font-family'.
-  aPreventCachingOfSandwich = PR_TRUE;
+  // can be a little smarter here.  We really only need to disable aCanCache
+  // for "inherit" & "currentColor" (whose values could change at any time), as
+  // well as for length-valued types (particularly those with em/ex/percent
+  // units, since their conversion ratios can change at any time).
+  aCanCache = PR_FALSE;
   return NS_OK;
 }
 

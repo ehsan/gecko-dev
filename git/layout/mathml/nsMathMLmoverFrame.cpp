@@ -257,7 +257,7 @@ nsMathMLmoverFrame::Place(nsIRenderingContext& aRenderingContext,
                                                aRenderingContext,
                                                aPlaceOrigin,
                                                aDesiredSize,
-                                               this, 0, nsPresContext::CSSPointsToAppUnits(0.5f));
+                                               this, 0, PresContext()->PointsToAppUnits(0.5f));
   }
 
   ////////////////////////////////////
@@ -282,7 +282,7 @@ nsMathMLmoverFrame::Place(nsIRenderingContext& aRenderingContext,
   ////////////////////
   // Place Children
 
-  aRenderingContext.SetFont(GetStyleFont()->mFont,
+  aRenderingContext.SetFont(GetStyleFont()->mFont, nsnull,
                             PresContext()->GetUserFontSet());
   nsCOMPtr<nsIFontMetrics> fm;
   aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));

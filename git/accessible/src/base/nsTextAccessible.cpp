@@ -45,22 +45,23 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 nsTextAccessible::
-  nsTextAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsLinkableAccessible(aContent, aShell)
+  nsTextAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell) :
+  nsLinkableAccessible(aDOMNode, aShell)
 {
 }
 
-PRUint32
-nsTextAccessible::NativeRole()
+nsresult
+nsTextAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_TEXT_LEAF;
+  *aRole = nsIAccessibleRole::ROLE_TEXT_LEAF;
+  return NS_OK;
 }
 
 nsresult
 nsTextAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLength)
 {
   nsIFrame *frame = GetFrame();
-  if (!frame) return NS_ERROR_FAILURE;//NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   return frame->GetRenderedText(&aText, nsnull, nsnull, aStartOffset, aLength);
 }

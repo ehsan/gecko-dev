@@ -53,8 +53,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsSVGMatrix.h"
 
-namespace dom = mozilla::dom;
-
 class nsSVGMutationObserver : public nsStubMutationObserver
 {
 public:
@@ -83,17 +81,17 @@ static nsSVGMutationObserver sSVGMutationObserver;
 // nsIMutationObserver methods
 
 void
-nsSVGMutationObserver::AttributeChanged(nsIDocument* aDocument,
-                                        dom::Element* aElement,
+nsSVGMutationObserver::AttributeChanged(nsIDocument *aDocument,
+                                        nsIContent *aContent,
                                         PRInt32 aNameSpaceID,
-                                        nsIAtom* aAttribute,
+                                        nsIAtom *aAttribute,
                                         PRInt32 aModType)
 {
   if (aNameSpaceID != kNameSpaceID_XML || aAttribute != nsGkAtoms::space) {
     return;
   }
 
-  nsIFrame* frame = aElement->GetPrimaryFrame();
+  nsIFrame* frame = aContent->GetPrimaryFrame();
   if (!frame) {
     return;
   }
@@ -166,12 +164,13 @@ nsSVGOuterSVGFrame::Init(nsIContent* aContent,
   nsIDocument* doc = mContent->GetCurrentDoc();
   if (doc) {
     // we only care about our content's zoom and pan values if it's the root element
-    if (doc->GetRootElement() == mContent) {
+    if (doc->GetRootContent() == mContent) {
       mIsRootContent = PR_TRUE;
     }
+    // AddMutationObserver checks that the observer is not already added.
     // sSVGMutationObserver has the same lifetime as the document so does
     // not need to be removed
-    doc->AddMutationObserverUnlessExists(&sSVGMutationObserver);
+    doc->AddMutationObserver(&sSVGMutationObserver);
   }
 
   SuspendRedraw();  // UnsuspendRedraw is in DidReflow
@@ -285,7 +284,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
   }
 
   if (content->mViewBox.IsValid()) {
-    const nsSVGViewBoxRect viewbox = content->mViewBox.GetAnimValue();
+    const nsSVGViewBoxRect viewbox = content->mViewBox.GetAnimValue(content);
     float viewBoxWidth = viewbox.width;
     float viewBoxHeight = viewbox.height;
 
@@ -308,7 +307,7 @@ nsSVGOuterSVGFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 PRBool aShrinkWrap)
 {
   if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox) &&
-      (EmbeddedByReference() || IsRootOfImage())) {
+      EmbeddedByReference()) {
     // The embedding element has done the replaced element sizing, using our
     // intrinsic dimensions as necessary. We just need to fill the viewport.
     return aCBSize;
@@ -345,7 +344,7 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
 
   // Make sure we scroll if we're too big:
   // XXX Use the bounding box of our descendants? (See bug 353460 comment 14.)
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  aDesiredSize.mOverflowArea.SetRect(0, 0, aDesiredSize.width, aDesiredSize.height);
   FinishAndStoreOverflow(&aDesiredSize);
 
   // If our SVG viewport has changed, update our content and notify.
@@ -422,9 +421,7 @@ nsSVGOuterSVGFrame::DidReflow(nsPresContext*   aPresContext,
 
 class nsDisplaySVG : public nsDisplayItem {
 public:
-  nsDisplaySVG(nsDisplayListBuilder* aBuilder,
-               nsSVGOuterSVGFrame* aFrame) :
-    nsDisplayItem(aBuilder, aFrame) {
+  nsDisplaySVG(nsSVGOuterSVGFrame* aFrame) : nsDisplayItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplaySVG);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -433,32 +430,19 @@ public:
   }
 #endif
 
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("SVGEventReceiver", TYPE_SVG_EVENT_RECEIVER)
+  NS_DISPLAY_DECL_NAME("SVGEventReceiver")
 };
 
-void
-nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                      HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+nsIFrame*
+nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                      HitTestState* aState)
 {
-  nsSVGOuterSVGFrame *outerSVGFrame = static_cast<nsSVGOuterSVGFrame*>(mFrame);
-  nsRect rectAtOrigin = aRect - ToReferenceFrame();
-  nsRect thisRect(nsPoint(0,0), outerSVGFrame->GetSize());
-  if (!thisRect.Intersects(rectAtOrigin))
-    return;
-
-  nsPoint rectCenter(rectAtOrigin.x + rectAtOrigin.width / 2,
-                     rectAtOrigin.y + rectAtOrigin.height / 2);
-
-  nsIFrame* frame = nsSVGUtils::HitTestChildren(
-    outerSVGFrame, rectCenter + outerSVGFrame->GetPosition() -
-                   outerSVGFrame->GetContentRect().TopLeft());
-  if (frame) {
-    aOutFrames->AppendElement(frame);
-  }
+  return static_cast<nsSVGOuterSVGFrame*>(mFrame)->
+    GetFrameForPoint(aPt - aBuilder->ToReferenceFrame(mFrame));
 }
 
 void
@@ -466,7 +450,7 @@ nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
                     nsIRenderingContext* aCtx)
 {
   static_cast<nsSVGOuterSVGFrame*>(mFrame)->
-    Paint(aBuilder, *aCtx, mVisibleRect, ToReferenceFrame());
+    Paint(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 // helper
@@ -474,14 +458,13 @@ static inline PRBool
 DependsOnIntrinsicSize(const nsIFrame* aEmbeddingFrame)
 {
   const nsStylePosition *pos = aEmbeddingFrame->GetStylePosition();
-  const nsStyleCoord &width = pos->mWidth;
-  const nsStyleCoord &height = pos->mHeight;
+  nsStyleUnit widthUnit  = pos->mWidth.GetUnit();
+  nsStyleUnit heightUnit = pos->mHeight.GetUnit();
 
   // XXX it would be nice to know if the size of aEmbeddingFrame's containing
   // block depends on aEmbeddingFrame, then we'd know if we can return false
   // for eStyleUnit_Percent too.
-  return !width.ConvertsToLength() ||
-         !height.ConvertsToLength();
+  return (widthUnit != eStyleUnit_Coord) || (heightUnit != eStyleUnit_Coord);
 }
 
 NS_IMETHODIMP
@@ -521,8 +504,7 @@ nsSVGOuterSVGFrame::GetFrameForPoint(const nsPoint& aPoint)
     return nsnull;
   }
 
-  return nsSVGUtils::HitTestChildren(
-    this, aPoint + GetPosition() - GetContentRect().TopLeft());
+  return nsSVGUtils::HitTestChildren(this, aPoint);
 }
 
 //----------------------------------------------------------------------
@@ -536,20 +518,21 @@ nsSVGOuterSVGFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return aLists.Content()->AppendNewToTop(
-      new (aBuilder) nsDisplaySVG(aBuilder, this));
+  return aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplaySVG(this));
 }
 
 void
-nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
-                          nsIRenderingContext& aRenderingContext,
+nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
                           const nsRect& aDirtyRect, nsPoint aPt)
 {
   // initialize Mozilla rendering context
   aRenderingContext.PushState();
 
+  nsMargin bp = GetUsedBorderAndPadding();
+  ApplySkipSides(bp);
+
   nsRect viewportRect = GetContentRect();
-  nsPoint viewportOffset = aPt + viewportRect.TopLeft() - GetPosition();
+  nsPoint viewportOffset = aPt + nsPoint(bp.left, bp.top);
   viewportRect.MoveTo(viewportOffset);
 
   nsRect clipRect;
@@ -565,10 +548,6 @@ nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
   nsIntRect dirtyPxRect = dirtyRect.ToOutsidePixels(PresContext()->AppUnitsPerDevPixel());
 
   nsSVGRenderState ctx(&aRenderingContext);
-
-  if (aBuilder->IsPaintingToWindow()) {
-    ctx.SetPaintingToWindow(PR_TRUE);
-  }
 
 #ifdef XP_MACOSX
   if (mEnableBitmapFallback) {
@@ -813,7 +792,7 @@ nsSVGOuterSVGFrame::UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame)
 PRBool
 nsSVGOuterSVGFrame::EmbeddedByReference(nsIFrame **aEmbeddingFrame)
 {
-  if (!mContent->GetParent()) {
+  if (mContent->GetParent() == nsnull) {
     // Our content is the document element
     nsCOMPtr<nsISupports> container = PresContext()->GetContainer();
     nsCOMPtr<nsIDOMWindowInternal> window = do_GetInterface(container);
@@ -836,20 +815,5 @@ nsSVGOuterSVGFrame::EmbeddedByReference(nsIFrame **aEmbeddingFrame)
   if (aEmbeddingFrame) {
     *aEmbeddingFrame = nsnull;
   }
-  return PR_FALSE;
-}
-
-PRBool
-nsSVGOuterSVGFrame::IsRootOfImage()
-{
-  if (!mContent->GetParent()) {
-    // Our content is the document element
-    nsIDocument* doc = mContent->GetCurrentDoc();
-    if (doc && doc->IsBeingUsedAsImage()) {
-      // Our document is being used as an image
-      return PR_TRUE;
-    }
-  }
-
   return PR_FALSE;
 }

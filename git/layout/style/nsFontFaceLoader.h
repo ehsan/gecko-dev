@@ -43,6 +43,7 @@
 #define nsFontFaceLoader_h_
 
 #include "nsCOMPtr.h"
+#include "nsIPresShell.h"
 #include "nsIStreamLoader.h"
 #include "nsIURI.h"
 #include "nsIChannel.h"
@@ -52,6 +53,7 @@
 
 class nsIRequest;
 class nsISupports;
+class nsIPresShell;
 class nsPresContext;
 class nsIPrincipal;
 

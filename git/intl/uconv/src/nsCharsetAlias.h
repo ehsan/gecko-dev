@@ -38,6 +38,8 @@
 #define nsCharsetAlias_h__
 
 #include "nsICharsetAlias.h"
+#include "nsGREResProperties.h"
+#include "mozilla/Mutex.h"
 
 //==============================================================
 class nsCharsetAlias2 : public nsICharsetAlias
@@ -53,6 +55,9 @@ public:
 
   NS_IMETHOD Equals(const nsACString& aCharset1, const nsACString& aCharset2, PRBool* oResult) ;
   
+private:
+  nsGREResProperties* mDelegate;
+  mozilla::Mutex      mDelegateMutex;
 };
 
 #endif // nsCharsetAlias_h__

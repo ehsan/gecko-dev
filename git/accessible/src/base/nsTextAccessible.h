@@ -47,10 +47,10 @@
 class nsTextAccessible : public nsLinkableAccessible
 {
 public:
-  nsTextAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
                                 PRUint32 aLength);
 

@@ -595,9 +595,8 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
     struct iovec iov = {const_cast<char*>(out_bytes), amt_to_write};
     msgh.msg_iov = &iov;
     msgh.msg_iovlen = 1;
-    static const int tmp = CMSG_SPACE(sizeof(
-        int[FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE]));
-    char buf[tmp];
+    char buf[CMSG_SPACE(
+        sizeof(int[FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE]))];
 
     if (message_send_bytes_written_ == 0 &&
         !msg->file_descriptor_set()->empty()) {
@@ -808,15 +807,9 @@ void Channel::Close() {
   channel_impl_->Close();
 }
 
-#ifdef CHROMIUM_MOZILLA_BUILD
-Channel::Listener* Channel::set_listener(Listener* listener) {
-  return channel_impl_->set_listener(listener);
-}
-#else
 void Channel::set_listener(Listener* listener) {
   channel_impl_->set_listener(listener);
 }
-#endif
 
 bool Channel::Send(Message* message) {
   return channel_impl_->Send(message);

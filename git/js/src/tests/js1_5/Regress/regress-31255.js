@@ -50,6 +50,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-31255.js';
 var UBound = 0;
 var BUGNUMBER = 31255;
 var summary = 'JS should treat --> as a single-line comment indicator';

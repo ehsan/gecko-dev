@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-352876.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 352876;
 var summary = 'Do not assert with nested finally return|yield';

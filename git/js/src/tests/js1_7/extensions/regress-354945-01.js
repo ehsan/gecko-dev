@@ -35,11 +35,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-354945-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 354945;
 var summary = 'Do not crash with new Iterator';
-var expect = 'TypeError: trap __iterator__ for obj returned a primitive value';
-var actual;
+var actual = 'No Crash';
+var expect = 'No Crash';
 
 
 //-----------------------------------------------------------------------------
@@ -51,14 +52,10 @@ function test()
   enterFunc ('test');
   printBugNumber(BUGNUMBER);
   printStatus (summary);
-
-  try {
-    var obj = {};
-    obj.__iterator__ = function(){ };
-    for(t in (new Iterator(obj))) { }
-  } catch (ex) {
-    actual = ex.toString();
-  }
+ 
+  var obj = {};
+  obj.__iterator__ = function(){ };
+  for(t in (new Iterator(obj))) { }
 
   reportCompare(expect, actual, summary);
 

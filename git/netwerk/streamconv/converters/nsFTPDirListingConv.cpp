@@ -41,6 +41,7 @@
 #include "plstr.h"
 #include "prlog.h"
 #include "nsIServiceManager.h"
+#include "nsIGenericFactory.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsCOMPtr.h"

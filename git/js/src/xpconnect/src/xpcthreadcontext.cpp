@@ -45,7 +45,6 @@
 #include "XPCWrapper.h"
 #include "nsDOMJSUtils.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsNullPrincipal.h"
 
 /***************************************************************************/
 
@@ -104,22 +103,17 @@ XPCJSContextStack::Pop(JSContext * *_retval)
 
         XPCJSContextInfo & e = mStack[idx];
         NS_ASSERTION(!e.frame || e.cx, "Shouldn't have frame without a cx!");
-        NS_ASSERTION(!e.suspendDepth || e.cx, "Shouldn't have suspendDepth without a cx!");
-        if(e.cx)
-        {
-            if(e.suspendDepth)
-            {
-                JS_ResumeRequest(e.cx, e.suspendDepth);
-                e.suspendDepth = 0;
-            }
+        if(e.requestDepth)
+            JS_ResumeRequest(e.cx, e.requestDepth);
 
-            if(e.frame)
-            {
-                // Pop() can be called outside any request for e.cx.
-                JSAutoRequest ar(e.cx);
-                JS_RestoreFrameChain(e.cx, e.frame);
-                e.frame = nsnull;
-            }
+        e.requestDepth = 0;
+
+        if(e.cx && e.frame)
+        {
+            // Pop() can be called outside any request for e.cx.
+            JSAutoRequest ar(e.cx);
+            JS_RestoreFrameChain(e.cx, e.frame);
+            e.frame = nsnull;
         }
     }
     return NS_OK;
@@ -128,10 +122,11 @@ XPCJSContextStack::Pop(JSContext * *_retval)
 static nsIPrincipal*
 GetPrincipalFromCx(JSContext *cx)
 {
-    nsIScriptContextPrincipal* scp = GetScriptContextPrincipalFromJSContext(cx);
-    if(scp)
+    nsIScriptContext* scriptContext = GetScriptContextFromJSContext(cx);
+    if(scriptContext)
     {
-        nsIScriptObjectPrincipal* globalData = scp->GetObjectPrincipal();
+        nsCOMPtr<nsIScriptObjectPrincipal> globalData =
+            do_QueryInterface(scriptContext->GetGlobalObject());
         if(globalData)
             return globalData->GetPrincipal();
     }
@@ -142,7 +137,6 @@ GetPrincipalFromCx(JSContext *cx)
 NS_IMETHODIMP
 XPCJSContextStack::Push(JSContext * cx)
 {
-    JS_ASSERT_IF(cx, JS_GetContextThread(cx));
     if(!mStack.AppendElement(cx))
         return NS_ERROR_OUT_OF_MEMORY;
     if(mStack.Length() > 1)
@@ -176,8 +170,8 @@ XPCJSContextStack::Push(JSContext * cx)
                 e.frame = JS_SaveFrameChain(e.cx);
             }
 
-            if(!cx)
-                e.suspendDepth = JS_SuspendRequest(e.cx);
+            if(e.cx != cx && JS_GetContextThread(e.cx))
+                e.requestDepth = JS_SuspendRequest(e.cx);
         }
     }
     return NS_OK;
@@ -195,7 +189,7 @@ XPCJSContextStack::DEBUG_StackHasJSContext(JSContext*  aJSContext)
 #endif
 
 static JSBool
-SafeGlobalResolve(JSContext *cx, JSObject *obj, jsid id)
+SafeGlobalResolve(JSContext *cx, JSObject *obj, jsval id)
 {
     JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);
@@ -232,13 +226,12 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
 #ifndef XPCONNECT_STANDALONE
         // Start by getting the principal holder and principal for this
         // context.  If we can't manage that, don't bother with the rest.
-        nsRefPtr<nsNullPrincipal> principal = new nsNullPrincipal();
+        nsCOMPtr<nsIPrincipal> principal =
+            do_CreateInstance("@mozilla.org/nullprincipal;1");
         nsCOMPtr<nsIScriptObjectPrincipal> sop;
         if(principal)
         {
-            nsresult rv = principal->Init();
-            if(NS_SUCCEEDED(rv))
-              sop = new PrincipalHolder(principal);
+            sop = new PrincipalHolder(principal);
         }
         if(!sop)
         {
@@ -255,30 +248,17 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
 
         if(xpc && (xpcrt = xpc->GetRuntime()) && (rt = xpcrt->GetJSRuntime()))
         {
-            JSObject *glob;
             mSafeJSContext = JS_NewContext(rt, 8192);
             if(mSafeJSContext)
             {
                 // scoped JS Request
-                JSAutoRequest req(mSafeJSContext);
-
-                // Because we can run off the main thread, we create an MT
-                // global object. Our principal is the unique key.
-                JSCompartment *compartment;
-                nsresult rv = xpc_CreateMTGlobalObject(mSafeJSContext,
-                                                       &global_class,
-                                                       principal, &glob,
-                                                       &compartment);
-                if(NS_FAILED(rv))
-                    glob = nsnull;
+                AutoJSRequestWithNoCallContext req(mSafeJSContext);
+                JSObject *glob;
+                glob = JS_NewObject(mSafeJSContext, &global_class, NULL, NULL);
 
 #ifndef XPCONNECT_STANDALONE
                 if(glob)
                 {
-                    // Make sure the context is associated with a proper compartment
-                    // and not the default compartment.
-                    JS_SetGlobalObject(mSafeJSContext, glob);
-
                     // Note: make sure to set the private before calling
                     // InitClasses
                     nsIScriptObjectPrincipal* priv = nsnull;
@@ -296,26 +276,23 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
                 // nsCOMPtr or dealt with, or we'll release in the finalize
                 // hook.
 #endif
-                if(glob && NS_FAILED(xpc->InitClasses(mSafeJSContext, glob)))
+                if(!glob || NS_FAILED(xpc->InitClasses(mSafeJSContext, glob)))
                 {
-                    glob = nsnull;
+                    // Explicitly end the request since we are about to kill
+                    // the JSContext that 'req' will try to use when it
+                    // goes out of scope.
+                    req.EndRequest();
+                    JS_DestroyContext(mSafeJSContext);
+                    mSafeJSContext = nsnull;
                 }
-
+                // Save it off so we can destroy it later, even if
+                // mSafeJSContext has been set to another context
+                // via SetSafeJSContext.  If we don't get here,
+                // then mSafeJSContext must have been set via
+                // SetSafeJSContext, and we're not responsible for
+                // destroying the passed-in context.
+                mOwnSafeJSContext = mSafeJSContext;
             }
-            if(mSafeJSContext && !glob)
-            {
-                // Destroy the context outside the scope of JSAutoRequest that
-                // uses the context in its destructor.
-                JS_DestroyContext(mSafeJSContext);
-                mSafeJSContext = nsnull;
-            }
-            // Save it off so we can destroy it later, even if
-            // mSafeJSContext has been set to another context
-            // via SetSafeJSContext.  If we don't get here,
-            // then mSafeJSContext must have been set via
-            // SetSafeJSContext, and we're not responsible for
-            // destroying the passed-in context.
-            mOwnSafeJSContext = mSafeJSContext;
         }
     }
 
@@ -346,16 +323,38 @@ XPCPerThreadData* XPCPerThreadData::gThreads        = nsnull;
 XPCPerThreadData *XPCPerThreadData::sMainThreadData = nsnull;
 void *            XPCPerThreadData::sMainJSThread   = nsnull;
 
+static jsuword
+GetThreadStackLimit()
+{
+    int stackDummy;
+    jsuword stackLimit, currentStackAddr = (jsuword)&stackDummy;
+
+    const jsuword kStackSize = 0x80000;   // 512k
+
+#if JS_STACK_GROWTH_DIRECTION < 0
+    stackLimit = (currentStackAddr > kStackSize)
+                 ? currentStackAddr - kStackSize
+                 : 0;
+#else
+    stackLimit = (currentStackAddr + kStackSize > currentStackAddr)
+                 ? currentStackAddr + kStackSize
+                 : (jsuword) -1;
+#endif
+
+  return stackLimit;
+}
+
 XPCPerThreadData::XPCPerThreadData()
     :   mJSContextStack(new XPCJSContextStack()),
         mNextThread(nsnull),
         mCallContext(nsnull),
-        mResolveName(JSID_VOID),
+        mResolveName(0),
         mResolvingWrapper(nsnull),
         mExceptionManager(nsnull),
         mException(nsnull),
         mExceptionManagerNotAvailable(JS_FALSE),
-        mAutoRoots(nsnull)
+        mAutoRoots(nsnull),
+        mStackLimit(GetThreadStackLimit())
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
       , mWrappedNativeThreadsafetyReportDepth(0)
 #endif
@@ -385,11 +384,6 @@ XPCPerThreadData::Cleanup()
 
 XPCPerThreadData::~XPCPerThreadData()
 {
-    /* Be careful to ensure that both any update to |gThreads| and the
-       decision about whether or not to destroy the lock, are done
-       atomically.  See bug 557586. */
-    PRBool doDestroyLock = PR_FALSE;
-
     MOZ_COUNT_DTOR(xpcPerThreadData);
 
     Cleanup();
@@ -413,11 +407,9 @@ XPCPerThreadData::~XPCPerThreadData()
                 cur = cur->mNextThread;
             }
         }
-        if (!gThreads)
-            doDestroyLock = PR_TRUE;
     }
 
-    if(gLock && doDestroyLock)
+    if(gLock && !gThreads)
     {
         PR_DestroyLock(gLock);
         gLock = nsnull;

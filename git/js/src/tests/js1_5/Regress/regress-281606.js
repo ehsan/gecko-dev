@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-281606.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 281606;
 var summary = 'l instanceof r throws TypeError if r does not support [[HasInstance]]';

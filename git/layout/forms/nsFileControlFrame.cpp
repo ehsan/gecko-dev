@@ -56,6 +56,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIPresShell.h"
+#include "nsIDOMHTMLInputElement.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIComponentManager.h"
@@ -65,7 +66,7 @@
 #include "nsINodeInfo.h"
 #include "nsIDOMEventTarget.h"
 #include "nsILocalFile.h"
-#include "nsHTMLInputElement.h"
+#include "nsIFileControlElement.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
@@ -73,7 +74,7 @@
 #include "nsIDOMNSUIEvent.h"
 #include "nsIDOMEventGroup.h"
 #include "nsIDOM3EventTarget.h"
-#include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
 #endif
@@ -81,23 +82,53 @@
 #include "nsInterfaceHashtable.h"
 #include "nsURIHashKey.h"
 #include "nsILocalFile.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
+#include "nsIObserver.h"
+#include "nsIObserverService.h"
 #include "nsWeakReference.h"
 #include "nsIVariant.h"
-#include "mozilla/Services.h"
-#include "nsDirectoryServiceDefs.h"
-#include "nsCharSeparatedTokenizer.h"
-#include "nsHTMLInputElement.h"
-#include "nsICapturePicker.h"
-#include "nsIFileURL.h"
-#include "nsDOMFile.h"
-#include "nsIEventStateManager.h"
-
-namespace dom = mozilla::dom;
+#include "nsIContentPrefService.h"
+#include "nsIContentURIGrouper.h"
 
 #define SYNC_TEXT 0x1
 #define SYNC_BUTTON 0x2
 #define SYNC_BOTH 0x3
+
+#define CPS_PREF_NAME NS_LITERAL_STRING("browser.upload.lastDir")
+
+class UploadLastDir : public nsIObserver, public nsSupportsWeakReference {
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
+
+  UploadLastDir();
+
+  /**
+   * Fetch the last used directory for this location from the content
+   * pref service, if it is available.
+   *
+   * @param aURI URI of the current page
+   * @param aFile path to the last used directory
+   */
+  nsresult FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile** aFile);
+
+  /**
+   * Store the last used directory for this location using the
+   * content pref service, if it is available
+   * @param aURI URI of the current page
+   * @param aFile file chosen by the user - the path to the parent of this
+   *        file will be stored
+   */
+  nsresult StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile);
+private:
+  // Directories are stored here during private browsing mode
+  nsInterfaceHashtable<nsStringHashKey, nsILocalFile> mUploadLastDirStore;
+  PRBool mInPrivateBrowsing;
+};
+
+NS_IMPL_ISUPPORTS2(UploadLastDir, nsIObserver, nsISupportsWeakReference)
+UploadLastDir* gUploadLastDir = nsnull;
 
 nsIFrame*
 NS_NewFileControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -109,11 +140,19 @@ NS_IMPL_FRAMEARENA_HELPERS(nsFileControlFrame)
 
 nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext):
   nsBlockFrame(aContext),
-  mTextFrame(nsnull)
+  mTextFrame(nsnull), 
+  mCachedState(nsnull)
 {
   AddStateBits(NS_BLOCK_FLOAT_MGR);
 }
 
+nsFileControlFrame::~nsFileControlFrame()
+{
+  if (mCachedState) {
+    delete mCachedState;
+    mCachedState = nsnull;
+  }
+}
 
 NS_IMETHODIMP
 nsFileControlFrame::Init(nsIContent* aContent,
@@ -123,10 +162,11 @@ nsFileControlFrame::Init(nsIContent* aContent,
   nsresult rv = nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mMouseListener = new BrowseMouseListener(this);
+  mMouseListener = new MouseListener(this);
   NS_ENSURE_TRUE(mMouseListener, NS_ERROR_OUT_OF_MEMORY);
-  mCaptureMouseListener = new CaptureMouseListener(this);
-  NS_ENSURE_TRUE(mCaptureMouseListener, NS_ERROR_OUT_OF_MEMORY);
+
+  if (!gUploadLastDir)
+    nsFileControlFrame::InitUploadLastDir();
 
   return rv;
 }
@@ -143,11 +183,6 @@ nsFileControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsCOMPtr<nsIDOMEventGroup> systemGroup;
   mContent->GetSystemEventGroup(getter_AddRefs(systemGroup));
 
-  nsCOMPtr<nsIDOM3EventTarget> dom3Capture = do_QueryInterface(mCapture);
-  if (dom3Capture) {
-    nsContentUtils::DestroyAnonymousContent(&mCapture);
-  }
-
   nsCOMPtr<nsIDOM3EventTarget> dom3Browse = do_QueryInterface(mBrowse);
   if (dom3Browse) {
     dom3Browse->RemoveGroupedEventListener(click, mMouseListener, PR_FALSE,
@@ -162,60 +197,8 @@ nsFileControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
     nsContentUtils::DestroyAnonymousContent(&mTextContent);
   }
 
-  mCaptureMouseListener->ForgetFrame();
   mMouseListener->ForgetFrame();
   nsBlockFrame::DestroyFrom(aDestructRoot);
-}
-
-struct CaptureCallbackData {
-  nsICapturePicker* picker;
-  PRUint32* mode;
-};
-
-typedef struct CaptureCallbackData CaptureCallbackData;
-
-PRBool CapturePickerAcceptCallback(const nsAString& aAccept, void* aClosure)
-{
-  nsresult rv;
-  PRBool captureEnabled;
-  CaptureCallbackData* closure = (CaptureCallbackData*)aClosure;
-
-  if (StringBeginsWith(aAccept,
-                       NS_LITERAL_STRING("image/"))) {
-    rv = closure->picker->ModeMayBeAvailable(nsICapturePicker::MODE_STILL,
-                                             &captureEnabled);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (captureEnabled) {
-      *closure->mode = nsICapturePicker::MODE_STILL;
-      return PR_FALSE;
-    }
-  } else if (StringBeginsWith(aAccept,
-                              NS_LITERAL_STRING("audio/"))) {
-    rv = closure->picker->ModeMayBeAvailable(nsICapturePicker::MODE_AUDIO_CLIP,
-                                             &captureEnabled);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (captureEnabled) {
-      *closure->mode = nsICapturePicker::MODE_AUDIO_CLIP;
-      return PR_FALSE;
-    }
-  } else if (StringBeginsWith(aAccept,
-                              NS_LITERAL_STRING("video/"))) {
-    rv = closure->picker->ModeMayBeAvailable(nsICapturePicker::MODE_VIDEO_CLIP,
-                                             &captureEnabled);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (captureEnabled) {
-      *closure->mode = nsICapturePicker::MODE_VIDEO_CLIP;
-      return PR_FALSE;
-    }
-    rv = closure->picker->ModeMayBeAvailable(nsICapturePicker::MODE_VIDEO_NO_SOUND_CLIP,
-                                             &captureEnabled);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (captureEnabled) {
-      *closure->mode = nsICapturePicker::MODE_VIDEO_NO_SOUND_CLIP;
-      return PR_FALSE;;
-    }
-  }
-  return PR_TRUE;
 }
 
 nsresult
@@ -229,8 +212,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                                  kNameSpaceID_XHTML);
 
   // Create the text content
-  NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  NS_NewHTMLElement(getter_AddRefs(mTextContent), nodeInfo, PR_FALSE);
   if (!mTextContent)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -240,21 +222,20 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   mTextContent->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                         NS_LITERAL_STRING("text"), PR_FALSE);
 
-  nsHTMLInputElement* inputElement =
-    nsHTMLInputElement::FromContent(mContent);
-  NS_ASSERTION(inputElement, "Why is our content not a <input>?");
-
-  // Initialize value when we create the content in case the value was set
-  // before we got here
-  nsAutoString value;
-  inputElement->GetDisplayFileName(value);
-
   nsCOMPtr<nsIDOMHTMLInputElement> textControl = do_QueryInterface(mTextContent);
-  NS_ASSERTION(textControl, "Why is the <input> we created not a <input>?");
-  textControl->SetValue(value);
+  if (textControl) {
+    nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(mContent);
+    if (fileControl) {
+      // Initialize value when we create the content in case the value was set
+      // before we got here
+      nsAutoString value;
+      fileControl->GetDisplayFileName(value);
+      textControl->SetValue(value);
+    }
 
-  textControl->SetTabIndex(-1);
-  textControl->SetReadOnly(PR_TRUE);
+    textControl->SetTabIndex(-1);
+    textControl->SetReadOnly(PR_TRUE);
+  }
 
   if (!aElements.AppendElement(mTextContent))
     return NS_ERROR_OUT_OF_MEMORY;
@@ -271,10 +252,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                            systemGroup);
 
   // Create the browse button
-  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
-                                                 kNameSpaceID_XHTML);
-  NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo.forget(),
-                    dom::NOT_FROM_PARSER);
+  NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo, PR_FALSE);
   if (!mBrowse)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -283,41 +261,6 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                    NS_LITERAL_STRING("button"), PR_FALSE);
-
-  // Create the capture button
-  nsCOMPtr<nsICapturePicker> capturePicker;
-  capturePicker = do_GetService("@mozilla.org/capturepicker;1");
-  if (capturePicker) {
-    PRUint32 mode = 0;
-
-    CaptureCallbackData data;
-    data.picker = capturePicker;
-    data.mode = &mode;
-    ParseAcceptAttribute(&CapturePickerAcceptCallback, (void*)&data);
-
-    if (mode != 0) {
-      mCaptureMouseListener->mMode = mode;
-      nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
-                                                     kNameSpaceID_XHTML);
-      NS_NewHTMLElement(getter_AddRefs(mCapture), nodeInfo.forget(),
-                        dom::NOT_FROM_PARSER);
-      if (!mCapture)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-      // Mark the element to be native anonymous before setting any attributes.
-      mCapture->SetNativeAnonymous();
-
-      mCapture->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
-                        NS_LITERAL_STRING("button"), PR_FALSE);
-
-      mCapture->SetAttr(kNameSpaceID_None, nsGkAtoms::value,
-                        NS_LITERAL_STRING("capture"), PR_FALSE);
-
-      nsCOMPtr<nsIDOMEventTarget> captureEventTarget =
-        do_QueryInterface(mCapture);
-      captureEventTarget->AddEventListener(click, mCaptureMouseListener, PR_FALSE);
-    }
-  }
   nsCOMPtr<nsIDOMHTMLInputElement> fileContent = do_QueryInterface(mContent);
   nsCOMPtr<nsIDOMHTMLInputElement> browseControl = do_QueryInterface(mBrowse);
   if (fileContent && browseControl) {
@@ -331,9 +274,6 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   }
 
   if (!aElements.AppendElement(mBrowse))
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  if (mCapture && !aElements.AppendElement(mCapture))
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsCOMPtr<nsIDOM3EventTarget> dom3Browse = do_QueryInterface(mBrowse);
@@ -350,12 +290,10 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsFileControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                             PRUint32 aFilter)
+nsFileControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mTextContent);
   aElements.MaybeAppendElement(mBrowse);
-  aElements.MaybeAppendElement(mCapture);
 }
 
 NS_QUERYFRAME_HEAD(nsFileControlFrame)
@@ -368,8 +306,14 @@ nsFileControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 {
 }
 
-PRBool ShouldProcessMouseClick(nsIDOMEvent* aMouseEvent)
+/**
+ * This is called when our browse button is clicked
+ */
+NS_IMETHODIMP
+nsFileControlFrame::MouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
 {
+  NS_ASSERTION(mFrame, "We should have been unregistered");
+
   // only allow the left button
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
   nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
@@ -377,41 +321,26 @@ PRBool ShouldProcessMouseClick(nsIDOMEvent* aMouseEvent)
   PRBool defaultPrevented = PR_FALSE;
   uiEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented) {
-    return PR_FALSE;
+    return NS_OK;
   }
 
   PRUint16 whichButton;
   if (NS_FAILED(mouseEvent->GetButton(&whichButton)) || whichButton != 0) {
-    return PR_FALSE;
+    return NS_OK;
   }
 
   PRInt32 clickCount;
   if (NS_FAILED(mouseEvent->GetDetail(&clickCount)) || clickCount > 1) {
-    return PR_FALSE;
+    return NS_OK;
   }
 
-  return PR_TRUE;
-}
-
-/**
- * This is called when our capture button is clicked
- */
-NS_IMETHODIMP
-nsFileControlFrame::CaptureMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
-{
-  nsresult rv;
-
-  NS_ASSERTION(mFrame, "We should have been unregistered");
-  if (!ShouldProcessMouseClick(aMouseEvent))
-    return NS_OK;
+  nsresult result;
 
   // Get parent nsIDOMWindowInternal object.
   nsIContent* content = mFrame->GetContent();
-  if (!content)
-    return NS_ERROR_FAILURE;
-
-  nsHTMLInputElement* inputElement = nsHTMLInputElement::FromContent(content);
-  if (!inputElement)
+  nsCOMPtr<nsIDOMNSHTMLInputElement> inputElem = do_QueryInterface(content);
+  nsCOMPtr<nsIFileControlElement> fileControl = do_QueryInterface(content);
+  if (!content || !inputElem || !fileControl)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDocument> doc = content->GetDocument();
@@ -423,27 +352,72 @@ nsFileControlFrame::CaptureMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
                                      "FileUpload", title);
 
+  nsCOMPtr<nsIFilePicker> filePicker = do_CreateInstance("@mozilla.org/filepicker;1");
+  if (!filePicker)
+    return NS_ERROR_FAILURE;
+
   nsPIDOMWindow* win = doc->GetWindow();
   if (!win) {
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsICapturePicker> capturePicker;
-  capturePicker = do_CreateInstance("@mozilla.org/capturepicker;1");
-  if (!capturePicker)
-    return NS_ERROR_FAILURE;
+  PRBool multi;
+  result = inputElem->GetMultiple(&multi);
+  NS_ENSURE_SUCCESS(result, result);
 
-  rv = capturePicker->Init(win, title, mMode);
-  NS_ENSURE_SUCCESS(rv, rv);
+  result = filePicker->Init(win, title, multi ?
+                            (PRInt16)nsIFilePicker::modeOpenMultiple :
+                            (PRInt16)nsIFilePicker::modeOpen);
+  if (NS_FAILED(result))
+    return result;
+
+  // Set filter "All Files"
+  filePicker->AppendFilters(nsIFilePicker::filterAll);
+
+  // Set default directry and filename
+  nsAutoString defaultName;
+
+  nsCOMArray<nsIFile> oldFiles;
+  fileControl->GetFileArray(oldFiles);
+
+  if (oldFiles.Count()) {
+    // set directory
+    nsCOMPtr<nsIFile> parentFile;
+    oldFiles[0]->GetParent(getter_AddRefs(parentFile));
+    if (parentFile) {
+      nsCOMPtr<nsILocalFile> parentLocalFile = do_QueryInterface(parentFile, &result);
+      if (parentLocalFile) {
+        filePicker->SetDisplayDirectory(parentLocalFile);
+      }
+    }
+
+    // Unfortunately nsIFilePicker doesn't allow multiple files to be
+    // default-selected, so only select something by default if exactly
+    // one file was selected before.
+    if (oldFiles.Count() == 1) {
+      nsAutoString leafName;
+      oldFiles[0]->GetLeafName(leafName);
+      if (!leafName.IsEmpty()) {
+        filePicker->SetDefaultString(leafName);
+      }
+    }
+  } else {
+    // Attempt to retrieve the last used directory from the content pref service
+    nsCOMPtr<nsILocalFile> localFile;
+    if (NS_SUCCEEDED(gUploadLastDir->FetchLastUsedDirectory(
+                     doc->GetDocumentURI(), getter_AddRefs(localFile))))
+      filePicker->SetDisplayDirectory(localFile);
+  }
 
   // Tell our textframe to remember the currently focused value
   mFrame->mTextFrame->InitFocusedValue();
 
-  // Show dialog
-  PRUint32 result;
-  rv = capturePicker->Show(&result);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (result == nsICapturePicker::RETURN_CANCEL)
+  // Open dialog
+  PRInt16 mode;
+  result = filePicker->Show(&mode);
+  if (NS_FAILED(result))
+    return result;
+  if (mode == nsIFilePicker::returnCancel)
     return NS_OK;
 
   if (!mFrame) {
@@ -453,28 +427,58 @@ nsFileControlFrame::CaptureMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
     // manager holds a strong reference to us while it fires the event.)
     return NS_OK;
   }
+  
+  // Collect new selected filenames
+  nsTArray<nsString> newFileNames;
+  if (multi) {
+    nsCOMPtr<nsISimpleEnumerator> iter;
+    result = filePicker->GetFiles(getter_AddRefs(iter));
+    NS_ENSURE_SUCCESS(result, result);
 
-  nsCOMPtr<nsIDOMFile> domFile;
-  rv = capturePicker->GetFile(getter_AddRefs(domFile));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMArray<nsIDOMFile> newFiles;
-  if (domFile) {
-    newFiles.AppendObject(domFile);
-  } else {
-    return NS_ERROR_FAILURE;
+    nsCOMPtr<nsISupports> tmp;
+    PRBool prefSaved = PR_FALSE;
+    while (NS_SUCCEEDED(iter->GetNext(getter_AddRefs(tmp)))) {
+      nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(tmp);
+      if (localFile) {
+        nsString unicodePath;
+        result = localFile->GetPath(unicodePath);
+        if (!unicodePath.IsEmpty()) {
+          newFileNames.AppendElement(unicodePath);
+        }
+        if (!prefSaved) {
+          // Store the last used directory using the content pref service
+          result = gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(), 
+                                                          localFile);
+          NS_ENSURE_SUCCESS(result, result);
+          prefSaved = PR_TRUE;
+        }
+      }
+    }
+  }
+  else {
+    nsCOMPtr<nsILocalFile> localFile;
+    result = filePicker->GetFile(getter_AddRefs(localFile));
+    if (localFile) {
+      nsString unicodePath;
+      result = localFile->GetPath(unicodePath);
+      if (!unicodePath.IsEmpty()) {
+        newFileNames.AppendElement(unicodePath);
+      }
+      // Store the last used directory using the content pref service
+      result = gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(),
+                                                      localFile);
+      NS_ENSURE_SUCCESS(result, result);
+    }
   }
 
-  // XXXkhuey we really should have a better UI story than the tired old
-  // uneditable text box with the file name inside.
   // Set new selected files
-  if (newFiles.Count()) {
+  if (!newFileNames.IsEmpty()) {
     // Tell mTextFrame that this update of the value is a user initiated
     // change. Otherwise it'll think that the value is being set by a script
     // and not fire onchange when it should.
     PRBool oldState = mFrame->mTextFrame->GetFireChangeEventState();
     mFrame->mTextFrame->SetFireChangeEventState(PR_TRUE);
-    inputElement->SetFiles(newFiles, true);
+    fileControl->SetFileNames(newFileNames);
 
     mFrame->mTextFrame->SetFireChangeEventState(oldState);
     // May need to fire an onchange here
@@ -484,19 +488,149 @@ nsFileControlFrame::CaptureMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
   return NS_OK;
 }
 
-/**
- * This is called when our browse button is clicked
- */
-NS_IMETHODIMP
-nsFileControlFrame::BrowseMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
+void nsFileControlFrame::InitUploadLastDir() {
+  gUploadLastDir = new UploadLastDir();
+  NS_IF_ADDREF(gUploadLastDir);
+
+  nsCOMPtr<nsIObserverService> observerService =
+    do_GetService("@mozilla.org/observer-service;1");
+  if (observerService && gUploadLastDir) {
+    observerService->AddObserver(gUploadLastDir, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_TRUE);
+    observerService->AddObserver(gUploadLastDir, "browser:purge-session-history", PR_TRUE);
+  }
+}
+
+void nsFileControlFrame::DestroyUploadLastDir() {
+  if (gUploadLastDir)
+    NS_RELEASE(gUploadLastDir);
+}
+
+UploadLastDir::UploadLastDir():
+  mInPrivateBrowsing(PR_FALSE)
 {
-  NS_ASSERTION(mFrame, "We should have been unregistered");
-  if (!ShouldProcessMouseClick(aMouseEvent))
+  nsCOMPtr<nsIPrivateBrowsingService> pbService =
+    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+  if (pbService) {
+    pbService->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
+  }
+
+  mUploadLastDirStore.Init();
+}
+
+nsresult
+UploadLastDir::FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile** aFile)
+{
+  NS_PRECONDITION(aURI, "aURI is null");
+  NS_PRECONDITION(aFile, "aFile is null");
+  // Retrieve the data from memory if it's present during private browsing mode,
+  // otherwise fall through to check the CPS
+  if (mInPrivateBrowsing) {
+    nsCOMPtr<nsIContentURIGrouper> hostnameGrouperService =
+      do_GetService(NS_HOSTNAME_GROUPER_SERVICE_CONTRACTID);
+    if (!hostnameGrouperService)
+      return NS_ERROR_NOT_AVAILABLE;
+    nsString group;
+    hostnameGrouperService->Group(aURI, group);
+
+    if (mUploadLastDirStore.Get(group, aFile)) {
+      return NS_OK;
+    }
+  }
+
+  // Attempt to get the CPS, if it's not present we'll just return
+  nsCOMPtr<nsIContentPrefService> contentPrefService =
+    do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
+  if (!contentPrefService)
+    return NS_ERROR_NOT_AVAILABLE;
+  nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
+  if (!uri)
+    return NS_ERROR_OUT_OF_MEMORY;
+  uri->SetAsISupports(aURI);
+
+  // Get the last used directory, if it is stored
+  PRBool hasPref;
+  if (NS_SUCCEEDED(contentPrefService->HasPref(uri, CPS_PREF_NAME, &hasPref)) && hasPref) {
+    nsCOMPtr<nsIVariant> pref;
+    contentPrefService->GetPref(uri, CPS_PREF_NAME, nsnull, getter_AddRefs(pref));
+    nsString prefStr;
+    pref->GetAsAString(prefStr);
+
+    nsCOMPtr<nsILocalFile> localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
+    if (!localFile)
+      return NS_ERROR_OUT_OF_MEMORY;
+    localFile->InitWithPath(prefStr);
+
+    *aFile = localFile;
+    NS_ADDREF(*aFile);
+  }
+  return NS_OK;
+}
+
+nsresult
+UploadLastDir::StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile)
+{
+  NS_PRECONDITION(aURI, "aURI is null");
+  NS_PRECONDITION(aFile, "aFile is null");
+  nsCOMPtr<nsIFile> parentFile;
+  aFile->GetParent(getter_AddRefs(parentFile));
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(parentFile);
+
+  // Store the data in memory instead of the CPS during private browsing mode
+  if (mInPrivateBrowsing) {
+    nsCOMPtr<nsIContentURIGrouper> hostnameGrouperService =
+      do_GetService(NS_HOSTNAME_GROUPER_SERVICE_CONTRACTID);
+    if (!hostnameGrouperService)
+      return NS_ERROR_NOT_AVAILABLE;
+    nsString group;
+    hostnameGrouperService->Group(aURI, group);
+
+    return mUploadLastDirStore.Put(group, localFile);
+  }
+
+  // Attempt to get the CPS, if it's not present we'll just return
+  nsCOMPtr<nsIContentPrefService> contentPrefService =
+    do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
+  if (!contentPrefService)
+    return NS_ERROR_NOT_AVAILABLE;
+  nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
+  if (!uri)
+    return NS_ERROR_OUT_OF_MEMORY;
+  uri->SetAsISupports(aURI);
+ 
+  // Find the parent of aFile, and store it
+  nsString unicodePath;
+  parentFile->GetPath(unicodePath);
+  if (unicodePath.IsEmpty()) // nothing to do
     return NS_OK;
-  
-  nsHTMLInputElement* input =
-    nsHTMLInputElement::FromContent(mFrame->GetContent());
-  return input ? input->FireAsyncClickHandler() : NS_OK;
+  nsCOMPtr<nsIWritableVariant> prefValue = do_CreateInstance(NS_VARIANT_CONTRACTID);
+  if (!prefValue)
+    return NS_ERROR_OUT_OF_MEMORY;
+  prefValue->SetAsAString(unicodePath);
+  return contentPrefService->SetPref(uri, CPS_PREF_NAME, prefValue);
+}
+
+NS_IMETHODIMP
+UploadLastDir::Observe(nsISupports *aSubject, char const *aTopic, PRUnichar const *aData)
+{
+  if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0) {
+    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData)) {
+      mInPrivateBrowsing = PR_TRUE;
+    } else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
+      mInPrivateBrowsing = PR_FALSE;
+      if (mUploadLastDirStore.IsInitialized()) {
+        mUploadLastDirStore.Clear();
+      }
+    }
+  } else if (strcmp(aTopic, "browser:purge-session-history") == 0) {
+    if (mUploadLastDirStore.IsInitialized()) {
+      mUploadLastDirStore.Clear();
+    }
+    nsCOMPtr<nsIContentPrefService> contentPrefService =
+      do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
+    if (contentPrefService)
+      contentPrefService->RemovePrefsByName(CPS_PREF_NAME);
+  }
+  return NS_OK;
 }
 
 nscoord
@@ -523,6 +657,11 @@ NS_IMETHODIMP nsFileControlFrame::Reflow(nsPresContext*          aPresContext,
   if (mState & NS_FRAME_FIRST_REFLOW) {
     mTextFrame = GetTextControlFrame(aPresContext, this);
     NS_ENSURE_TRUE(mTextFrame, NS_ERROR_UNEXPECTED);
+    if (mCachedState) {
+      mTextFrame->SetFormProperty(nsGkAtoms::value, *mCachedState);
+      delete mCachedState;
+      mCachedState = nsnull;
+    }
   }
 
   // nsBlockFrame takes care of all our reflow
@@ -628,11 +767,13 @@ nsFileControlFrame::SetFormProperty(nsIAtom* aName,
                                     const nsAString& aValue)
 {
   if (nsGkAtoms::value == aName) {
-    nsCOMPtr<nsIDOMHTMLInputElement> textControl =
-      do_QueryInterface(mTextContent);
-    NS_ASSERTION(textControl,
-                 "The text control should exist and be an input element");
-    textControl->SetValue(aValue);
+    if (mTextFrame) {
+      mTextFrame->SetValue(aValue);
+    } else {
+      if (mCachedState) delete mCachedState;
+      mCachedState = new nsString(aValue);
+      NS_ENSURE_TRUE(mCachedState, NS_ERROR_OUT_OF_MEMORY);
+    }
   }
   return NS_OK;
 }      
@@ -643,11 +784,10 @@ nsFileControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
   aValue.Truncate();  // initialize out param
 
   if (nsGkAtoms::value == aName) {
-    nsHTMLInputElement* inputElement =
-      nsHTMLInputElement::FromContent(mContent);
-
-    if (inputElement) {
-      inputElement->GetDisplayFileName(aValue);
+    nsCOMPtr<nsIFileControlElement> fileControl =
+      do_QueryInterface(mContent);
+    if (fileControl) {
+      fileControl->GetDisplayFileName(aValue);
     }
   }
   return NS_OK;
@@ -661,7 +801,7 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // box-shadow
   if (GetStyleBorder()->mBoxShadow) {
     nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayBoxShadowOuter(aBuilder, this));
+        nsDisplayBoxShadowOuter(this));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -678,52 +818,39 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   // Clip height only
   nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
-  clipRect.width = GetVisualOverflowRect().XMost();
-  nscoord radii[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  rv = OverflowClip(aBuilder, tempList, aLists, clipRect, radii);
+  clipRect.width = GetOverflowRect().XMost();
+  rv = OverflowClip(aBuilder, tempList, aLists, clipRect);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Disabled file controls don't pass mouse events to their children, so we
   // put an invisible item in the display list above the children
   // just to catch events
-  nsEventStates eventStates = mContent->IntrinsicState();
-  if (eventStates.HasState(NS_EVENT_STATE_DISABLED) && IsVisibleForPainting(aBuilder)) {
-    rv = aLists.Content()->AppendNewToTop(
-        new (aBuilder) nsDisplayEventReceiver(aBuilder, this));
-    if (NS_FAILED(rv))
-      return rv;
+  // REVIEW: I'm not sure why we do this, but that's what nsFileControlFrame::
+  // GetFrameForPoint was doing
+  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled) && 
+      IsVisibleForPainting(aBuilder)) {
+    nsDisplayItem* item = new (aBuilder) nsDisplayEventReceiver(this);
+    if (!item)
+      return NS_ERROR_OUT_OF_MEMORY;
+    aLists.Content()->AppendToTop(item);
   }
 
-  return DisplaySelectionOverlay(aBuilder, aLists.Content());
+  return DisplaySelectionOverlay(aBuilder, aLists);
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsFileControlFrame::CreateAccessible()
+NS_IMETHODIMP nsFileControlFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   // Accessible object exists just to hold onto its children, for later shutdown
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
-  if (!accService)
-    return nsnull;
 
-  return accService->CreateHyperTextAccessible(mContent,
-                                               PresContext()->PresShell());
+  if (accService) {
+    return accService->CreateHTMLGenericAccessible(static_cast<nsIFrame*>(this), aAccessible);
+  }
+
+  return NS_ERROR_FAILURE;
 }
 #endif
-
-void 
-nsFileControlFrame::ParseAcceptAttribute(AcceptAttrCallback aCallback,
-                                         void* aClosure) const
-{
-  nsAutoString accept;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accept, accept);
-
-  nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
-    tokenizer(accept, ',');
-  // Empty loop body because aCallback is doing the work
-  while (tokenizer.hasMoreTokens() &&
-         (*aCallback)(tokenizer.nextToken(), aClosure));
-}
 
 ////////////////////////////////////////////////////////////
 // Mouse listener implementation

@@ -63,7 +63,7 @@ NS_NewXMLProcessingInstruction(nsIContent** aInstancePtrResult,
   NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
   nsXMLProcessingInstruction *instance =
-    new nsXMLProcessingInstruction(ni.forget(), aTarget, aData);
+    new nsXMLProcessingInstruction(ni, aTarget, aData);
   if (!instance) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -73,7 +73,7 @@ NS_NewXMLProcessingInstruction(nsIContent** aInstancePtrResult,
   return NS_OK;
 }
 
-nsXMLProcessingInstruction::nsXMLProcessingInstruction(already_AddRefed<nsINodeInfo> aNodeInfo,
+nsXMLProcessingInstruction::nsXMLProcessingInstruction(nsINodeInfo *aNodeInfo,
                                                        const nsAString& aTarget,
                                                        const nsAString& aData)
   : nsGenericDOMDataNode(aNodeInfo),
@@ -89,8 +89,6 @@ nsXMLProcessingInstruction::~nsXMLProcessingInstruction()
 }
 
 
-DOMCI_NODE_DATA(ProcessingInstruction, nsXMLProcessingInstruction)
-
 // QueryInterface implementation for nsXMLProcessingInstruction
 NS_INTERFACE_TABLE_HEAD(nsXMLProcessingInstruction)
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXMLProcessingInstruction)
@@ -99,7 +97,7 @@ NS_INTERFACE_TABLE_HEAD(nsXMLProcessingInstruction)
                              nsIDOMProcessingInstruction)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ProcessingInstruction)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ProcessingInstruction)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
 
@@ -174,8 +172,8 @@ nsXMLProcessingInstruction::CloneDataNode(nsINodeInfo *aNodeInfo,
 {
   nsAutoString data;
   nsGenericDOMDataNode::GetData(data);
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  return new nsXMLProcessingInstruction(ni.forget(), mTarget, data);
+
+  return new nsXMLProcessingInstruction(aNodeInfo, mTarget, data);
 }
 
 #ifdef DEBUG

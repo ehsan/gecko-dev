@@ -39,6 +39,8 @@
 #ifndef _NSDATAOBJCOLLECTION_H_
 #define _NSDATAOBJCOLLECTION_H_
 
+#include <initguid.h>
+
 #ifdef __MINGW32__
 #include <unknwn.h>
 #include <basetyps.h>
@@ -55,7 +57,9 @@ class CEnumFormatEtc;
 
 #define MULTI_MIME "Mozilla/IDataObjectCollectionFormat"
 
-EXTERN_C const IID IID_IDataObjCollection;
+// {25589C3E-1FAC-47b9-BF43-CAEA89B79533}
+DEFINE_GUID(IID_IDataObjCollection, 
+0x25589c3e, 0x1fac, 0x47b9, 0xbf, 0x43, 0xca, 0xea, 0x89, 0xb7, 0x95, 0x33);
 
 // An interface to make sure we have the right kind of object for D&D
 // this way we can filter out collection objects that aren't ours
@@ -154,6 +158,14 @@ class nsDataObjCollection : public nsIDataObjCollection, public nsDataObj
 
     // Return the adapter
     //CfDragDrop& GetDragDrop() const;
+        
+    // IAsyncOperation methods
+    STDMETHOD(EndOperation)(HRESULT hResult, IBindCtx *pbcReserved,
+                            DWORD dwEffects);
+    STDMETHOD(GetAsyncMode)(BOOL *pfIsOpAsync);
+    STDMETHOD(InOperation)(BOOL *pfInAsyncOp);
+    STDMETHOD(SetAsyncMode)(BOOL fDoOpAsync);
+    STDMETHOD(StartOperation)(IBindCtx *pbcReserved);
 
   protected:
     BOOL FormatsMatch(const FORMATETC& source, const FORMATETC& target) const;

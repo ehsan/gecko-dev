@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=79: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -53,7 +52,6 @@
 #include "nsIContent.h"
 #include "nsIDOMElement.h"
 #include "nsIDocument.h"
-#include "mozilla/FunctionTimer.h"
 #include "nsContentUtils.h"
 #include "nsIPresShell.h"
 #include "nsIXMLContentSink.h"
@@ -63,7 +61,7 @@
 
 #include "nsXBLBinding.h"
 #include "nsXBLPrototypeBinding.h"
-#include "nsXBLDocumentInfo.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsXBLInsertionPoint.h"
 
 #include "nsIStyleRuleProcessor.h"
@@ -144,14 +142,11 @@ NS_INTERFACE_TABLE_HEAD(nsAnonymousContentList)
     NS_INTERFACE_TABLE_ENTRY(nsAnonymousContentList, nsAnonymousContentList)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NodeList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsAnonymousContentList)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsAnonymousContentList)
-  tmp->mElements->Clear();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsAnonymousContentList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsAnonymousContentList)
   {
     PRInt32 i, count = tmp->mElements->Length();
@@ -398,13 +393,13 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 static PLDHashOperator
 DocumentInfoHashtableTraverser(nsIURI* key,
-                               nsXBLDocumentInfo* di,
+                               nsIXBLDocumentInfo* di,
                                void* userArg)
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mDocumentTable value");
-  cb->NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(di));
+  cb->NoteXPCOMChild(di);
   return PL_DHASH_NEXT;
 }
 
@@ -504,9 +499,13 @@ RemoveInsertionParentForNodeList(nsIDOMNodeList* aList, nsIContent* aParent)
 void
 nsBindingManager::RemoveInsertionParent(nsIContent* aParent)
 {
-  RemoveInsertionParentForNodeList(GetContentListFor(aParent), aParent);
+  nsCOMPtr<nsIDOMNodeList> contentlist;
+  GetContentListFor(aParent, getter_AddRefs(contentlist));
+  RemoveInsertionParentForNodeList(contentlist, aParent);
 
-  RemoveInsertionParentForNodeList(GetAnonymousNodesFor(aParent), aParent);
+  nsCOMPtr<nsIDOMNodeList> anonnodes;
+  GetAnonymousNodesFor(aParent, getter_AddRefs(anonnodes));
+  RemoveInsertionParentForNodeList(anonnodes, aParent);
 
   if (mInsertionParentTable.ops) {
     PL_DHashTableEnumerate(&mInsertionParentTable, RemoveInsertionParentCB,
@@ -622,14 +621,17 @@ nsBindingManager::SetWrappedJS(nsIContent* aContent, nsIXPConnectWrappedJS* aWra
   return SetOrRemoveObject(mWrapperTable, aContent, aWrappedJS);
 }
 
-void
-nsBindingManager::RemovedFromDocumentInternal(nsIContent* aContent,
-                                              nsIDocument* aOldDocument)
+nsresult
+nsBindingManager::ChangeDocumentFor(nsIContent* aContent, nsIDocument* aOldDocument,
+                                    nsIDocument* aNewDocument)
 {
+  // XXXbz this code is pretty broken, since moving from one document
+  // to another always passes through a null document!
   NS_PRECONDITION(aOldDocument != nsnull, "no old document");
-
-  if (mDestroyed)
-    return;
+  NS_PRECONDITION(!aNewDocument,
+                  "Changing to a non-null new document not supported yet");
+  if (! aOldDocument)
+    return NS_ERROR_NULL_POINTER;
 
   // Hold a ref to the binding so it won't die when we remove it from our
   // table.
@@ -648,15 +650,18 @@ nsBindingManager::RemovedFromDocumentInternal(nsIContent* aContent,
   }
 
   if (binding) {
-    binding->PrototypeBinding()->BindingDetached(binding->GetBoundElement());
-    binding->ChangeDocument(aOldDocument, nsnull);
+    binding->ChangeDocument(aOldDocument, aNewDocument);
     SetBinding(aContent, nsnull);
+    if (aNewDocument)
+      aNewDocument->BindingManager()->SetBinding(aContent, binding);
   }
 
   // Clear out insertion parents and content lists.
   SetInsertionParent(aContent, nsnull);
   SetContentListFor(aContent, nsnull);
   SetAnonymousNodesFor(aContent, nsnull);
+
+  return NS_OK;
 }
 
 nsIAtom*
@@ -757,13 +762,6 @@ nsBindingManager::GetAnonymousNodesFor(nsIContent* aContent,
   return NS_OK;
 }
 
-nsINodeList*
-nsBindingManager::GetAnonymousNodesFor(nsIContent* aContent)
-{
-  PRBool dummy;
-  return GetAnonymousNodesInternal(aContent, &dummy);
-}
-
 nsresult
 nsBindingManager::SetAnonymousNodesFor(nsIContent* aContent,
                                        nsInsertionPointList* aList)
@@ -828,8 +826,7 @@ nsBindingManager::GetXBLChildNodesFor(nsIContent* aContent)
 }
 
 nsIContent*
-nsBindingManager::GetInsertionPoint(nsIContent* aParent,
-                                    const nsIContent* aChild,
+nsBindingManager::GetInsertionPoint(nsIContent* aParent, nsIContent* aChild,
                                     PRUint32* aIndex)
 {
   nsXBLBinding *binding = GetBinding(aParent);
@@ -916,7 +913,7 @@ nsBindingManager::RemoveLayeredBinding(nsIContent* aContent, nsIURI* aURL)
   // been removed and style may have changed due to the removal of the
   // anonymous children.
   // XXXbz this should be using the current doc (if any), not the owner doc.
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
   return presShell->RecreateFramesFor(aContent);;
@@ -937,7 +934,7 @@ nsBindingManager::LoadBindingDocument(nsIDocument* aBoundDoc,
     return rv;
 
   // Load the binding doc.
-  nsRefPtr<nsXBLDocumentInfo> info;
+  nsCOMPtr<nsIXBLDocumentInfo> info;
   xblService->LoadBindingDocumentInfo(nsnull, aBoundDoc, aURL,
                                       aOriginPrincipal, PR_TRUE,
                                       getter_AddRefs(info));
@@ -967,7 +964,7 @@ void
 nsBindingManager::PostProcessAttachedQueueEvent()
 {
   mProcessAttachedQueueEvent =
-    NS_NewRunnableMethod(this, &nsBindingManager::DoProcessAttachedQueue);
+    NS_NEW_RUNNABLE_METHOD(nsBindingManager, this, DoProcessAttachedQueue);
   nsresult rv = NS_DispatchToCurrentThread(mProcessAttachedQueueEvent);
   if (NS_SUCCEEDED(rv) && mDocument) {
     mDocument->BlockOnload();
@@ -1005,8 +1002,6 @@ nsBindingManager::ProcessAttachedQueue(PRUint32 aSkipSize)
 {
   if (mProcessingAttachedStack || mAttachedStack.Length() <= aSkipSize)
     return;
-
-  NS_TIME_FUNCTION;
 
   mProcessingAttachedStack = PR_TRUE;
 
@@ -1067,7 +1062,7 @@ nsBindingManager::ExecuteDetachedHandlers()
 }
 
 nsresult
-nsBindingManager::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
+nsBindingManager::PutXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo)
 {
   NS_PRECONDITION(aDocumentInfo, "Must have a non-null documentinfo!");
   
@@ -1082,14 +1077,14 @@ nsBindingManager::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
 }
 
 void
-nsBindingManager::RemoveXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
+nsBindingManager::RemoveXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo)
 {
   if (mDocumentTable.IsInitialized()) {
     mDocumentTable.Remove(aDocumentInfo->DocumentURI());
   }
 }
 
-nsXBLDocumentInfo*
+nsIXBLDocumentInfo*
 nsBindingManager::GetXBLDocumentInfo(nsIURI* aURL)
 {
   if (!mDocumentTable.IsInitialized())
@@ -1278,11 +1273,11 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
 {
   *aCutOffInheritance = PR_FALSE;
   
-  NS_ASSERTION(aData->mElement, "How did that happen?");
+  NS_ASSERTION(aData->mContent, "How did that happen?");
 
   // Walk the binding scope chain, starting with the binding attached to our
   // content, up till we run out of scopes or we get cut off.
-  nsIContent *content = aData->mElement;
+  nsIContent *content = aData->mContent;
   
   do {
     nsXBLBinding *binding = GetBinding(content);
@@ -1291,7 +1286,7 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
       binding->WalkRules(aFunc, aData);
       // If we're not looking at our original content, allow the binding to cut
       // off style inheritance
-      if (content != aData->mElement) {
+      if (content != aData->mContent) {
         if (!binding->InheritsStyle()) {
           // Go no further; we're not inheriting style from anything above here
           break;
@@ -1335,39 +1330,6 @@ EnumRuleProcessors(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
   return PL_DHASH_NEXT;
 }
 
-struct WalkAllRulesData {
-  nsIStyleRuleProcessor::EnumFunc mFunc;
-  RuleProcessorData* mData;
-};
-
-static PLDHashOperator
-EnumWalkAllRules(nsVoidPtrHashKey *aKey, void* aClosure)
-{
-  nsIStyleRuleProcessor *ruleProcessor =
-    static_cast<nsIStyleRuleProcessor*>(const_cast<void*>(aKey->GetKey()));
-  WalkAllRulesData *data = static_cast<WalkAllRulesData*>(aClosure);
-
-  (*(data->mFunc))(ruleProcessor, data->mData);
-
-  return PL_DHASH_NEXT;
-}
-
-void
-nsBindingManager::WalkAllRules(nsIStyleRuleProcessor::EnumFunc aFunc,
-                               RuleProcessorData* aData)
-{
-  if (!mBindingTable.IsInitialized())
-    return;
-
-  RuleProcessorSet set;
-  mBindingTable.EnumerateRead(EnumRuleProcessors, &set);
-  if (!set.IsInitialized())
-    return;
-
-  WalkAllRulesData data = { aFunc, aData };
-  set.EnumerateEntries(EnumWalkAllRules, &data);
-}
-
 struct MediumFeaturesChangedData {
   nsPresContext *mPresContext;
   PRBool *mRulesChanged;
@@ -1381,7 +1343,8 @@ EnumMediumFeaturesChanged(nsVoidPtrHashKey *aKey, void* aClosure)
   MediumFeaturesChangedData *data =
     static_cast<MediumFeaturesChangedData*>(aClosure);
 
-  PRBool thisChanged = ruleProcessor->MediumFeaturesChanged(data->mPresContext);
+  PRBool thisChanged = PR_FALSE;
+  ruleProcessor->MediumFeaturesChanged(data->mPresContext, &thisChanged);
   *data->mRulesChanged = *data->mRulesChanged || thisChanged;
 
   return PL_DHASH_NEXT;
@@ -1405,36 +1368,8 @@ nsBindingManager::MediumFeaturesChanged(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-static PLDHashOperator
-EnumAppendAllSheets(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
-{
-  nsTArray<nsCSSStyleSheet*>* array =
-    static_cast<nsTArray<nsCSSStyleSheet*>*>(aClosure);
-  for (nsXBLBinding *binding = aBinding; binding;
-       binding = binding->GetBaseBinding()) {
-    nsXBLPrototypeResources::sheet_array_type* sheets =
-      binding->PrototypeBinding()->GetStyleSheets();
-    if (sheets) {
-      // Copy from nsTArray<nsRefPtr<nsCSSStyleSheet> > to
-      // nsTArray<nsCSSStyleSheet*>.
-      array->AppendElements(*sheets);
-    }
-  }
-  return PL_DHASH_NEXT;
-}
-
-void
-nsBindingManager::AppendAllSheets(nsTArray<nsCSSStyleSheet*>& aArray)
-{
-  if (!mBindingTable.IsInitialized())
-    return;
-
-  mBindingTable.EnumerateRead(EnumAppendAllSheets, &aArray);
-}
-
 nsIContent*
-nsBindingManager::GetNestedInsertionPoint(nsIContent* aParent,
-                                          const nsIContent* aChild)
+nsBindingManager::GetNestedInsertionPoint(nsIContent* aParent, nsIContent* aChild)
 {
   // Check to see if the content is anonymous.
   if (aChild->GetBindingParent() == aParent)
@@ -1546,7 +1481,6 @@ nsBindingManager::FindInsertionPointAndIndex(nsIContent* aContainer,
 void
 nsBindingManager::ContentAppended(nsIDocument* aDocument,
                                   nsIContent* aContainer,
-                                  nsIContent* aFirstNewContent,
                                   PRInt32     aNewIndexInContainer)
 {
   if (aNewIndexInContainer != -1 &&
@@ -1626,8 +1560,7 @@ void
 nsBindingManager::ContentRemoved(nsIDocument* aDocument,
                                  nsIContent* aContainer,
                                  nsIContent* aChild,
-                                 PRInt32 aIndexInContainer,
-                                 nsIContent* aPreviousSibling)
+                                 PRInt32 aIndexInContainer)
 {
   if (aContainer && aIndexInContainer != -1 &&
       (mContentListTable.ops || mAnonymousNodesTable.ops)) {
@@ -1682,8 +1615,6 @@ nsBindingManager::ContentRemoved(nsIDocument* aDocument,
 void
 nsBindingManager::DropDocumentReference()
 {
-  mDestroyed = PR_TRUE;
-
   // Make sure to not run any more XBL constructors
   mProcessingAttachedStack = PR_TRUE;
   if (mProcessAttachedQueueEvent) {
@@ -1701,9 +1632,6 @@ nsBindingManager::DropDocumentReference()
   if (mInsertionParentTable.ops)
     PL_DHashTableFinish(&(mInsertionParentTable));
   mInsertionParentTable.ops = nsnull;
-
-  if (mBindingTable.IsInitialized())
-    mBindingTable.Clear();
 
   mDocument = nsnull;
 }
@@ -1725,8 +1653,7 @@ nsBindingManager::Traverse(nsIContent *aContent,
     cb.NoteXPCOMChild(value);
   }
 
-  // XXXbz how exactly would NODE_MAY_BE_IN_BINDING_MNGR end up on non-elements?
-  if (!aContent->IsElement()) {
+  if (!aContent->IsNodeOfType(nsINode::eELEMENT)) {
     return;
   }
 

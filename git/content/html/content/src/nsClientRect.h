@@ -45,6 +45,8 @@
 #include "nsRect.h"
 #include "nsCOMPtr.h"
 
+class nsPresContext;
+
 class nsClientRect : public nsIDOMClientRect
 {
 public:

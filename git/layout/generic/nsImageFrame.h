@@ -44,10 +44,12 @@
 #include "nsSplittableFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "nsPresContext.h"
 #include "nsIImageFrame.h"
 #include "nsIIOService.h"
 #include "nsIObserver.h"
 
+#include "nsTransform2D.h"
 #include "imgIRequest.h"
 #include "nsStubImageDecoderObserver.h"
 #include "imgIDecoderObserver.h"
@@ -60,9 +62,8 @@ struct nsHTMLReflowState;
 struct nsHTMLReflowMetrics;
 struct nsSize;
 class nsDisplayImage;
-class nsPresContext;
+
 class nsImageFrame;
-class nsTransform2D;
 
 class nsImageListener : public nsStubImageDecoderObserver
 {
@@ -78,8 +79,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
-                          const nsIntRect *dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect * dirtyRect);
 
   void SetFrame(nsImageFrame *frame) { mFrame = frame; }
 
@@ -87,8 +87,8 @@ private:
   nsImageFrame *mFrame;
 };
 
-#define IMAGE_SIZECONSTRAINED       NS_FRAME_STATE_BIT(20)
-#define IMAGE_GOTINITIALREFLOW      NS_FRAME_STATE_BIT(21)
+#define IMAGE_SIZECONSTRAINED       0x00100000
+#define IMAGE_GOTINITIALREFLOW      0x00200000
 
 #define ImageFrameSuper nsSplittableFrame
 
@@ -109,7 +109,6 @@ public:
                               const nsDisplayListSet& aLists);
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
-  virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -129,7 +128,7 @@ public:
                               PRInt32 aModType);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nsIAtom* GetType() const;
@@ -181,7 +180,7 @@ public:
 protected:
   virtual ~nsImageFrame();
 
-  void EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext);
+  void EnsureIntrinsicSize(nsPresContext* aPresContext);
 
   virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
@@ -227,8 +226,7 @@ protected:
   nsresult OnStopDecode(imgIRequest *aRequest,
                         nsresult aStatus,
                         const PRUnichar *aStatusArg);
-  nsresult FrameChanged(imgIContainer *aContainer,
-                        const nsIntRect *aDirtyRect);
+  nsresult FrameChanged(imgIContainer *aContainer, nsIntRect *aDirtyRect);
 
 private:
   // random helpers
@@ -239,34 +237,19 @@ private:
                            nsILoadGroup **aLoadGroup);
   nscoord GetContinuationOffset() const;
   void GetDocumentCharacterSet(nsACString& aCharset) const;
-  bool ShouldDisplaySelection();
 
   /**
    * Recalculate mIntrinsicSize from the image.
    *
    * @return whether aImage's size did _not_
-   *         match our previous intrinsic size.
+   *         match our previous intrinsic size
    */
   PRBool UpdateIntrinsicSize(imgIContainer* aImage);
 
   /**
-   * Recalculate mIntrinsicRatio from the image.
-   *
-   * @return whether aImage's ratio did _not_
-   *         match our previous intrinsic ratio.
+   * This function will recalculate mTransform.
    */
-  PRBool UpdateIntrinsicRatio(imgIContainer* aImage);
-
-  /**
-   * This function calculates the transform for converting between
-   * source space & destination space. May fail if our image has a
-   * percent-valued or zero-valued height or width.
-   *
-   * @param aTransform The transform object to populate.
-   *
-   * @return whether we succeeded in creating the transform.
-   */
-  PRBool GetSourceToDestTransform(nsTransform2D& aTransform);
+  void RecalculateTransform(PRBool aInnerAreaChanged);
 
   /**
    * Helper functions to check whether the request or image container
@@ -287,9 +270,8 @@ private:
   nsCOMPtr<imgIDecoderObserver> mListener;
 
   nsSize mComputedSize;
-  nsIFrame::IntrinsicSize mIntrinsicSize;
-  nsSize mIntrinsicRatio;
-
+  nsSize mIntrinsicSize;
+  nsTransform2D mTransform;
   PRBool mDisplayingIcon;
 
   static nsIIOService* sIOService;

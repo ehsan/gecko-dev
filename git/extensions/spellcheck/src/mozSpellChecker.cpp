@@ -45,19 +45,7 @@
 
 #define DEFAULT_SPELL_CHECKER "@mozilla.org/spellchecker/engine;1"
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(mozSpellChecker)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(mozSpellChecker)
-
-NS_INTERFACE_MAP_BEGIN(mozSpellChecker)
-  NS_INTERFACE_MAP_ENTRY(nsISpellChecker)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISpellChecker)
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(mozSpellChecker)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTION_3(mozSpellChecker,
-                           mConverter,
-                           mTsDoc,
-                           mPersonalDictionary)
+NS_IMPL_ISUPPORTS1(mozSpellChecker, nsISpellChecker)
 
 mozSpellChecker::mozSpellChecker()
 {
@@ -485,6 +473,7 @@ mozSpellChecker::InitSpellCheckDictionaryMap()
 {
   nsresult rv;
   PRBool hasMoreEngines;
+  PRInt32 i;
   nsTArray<nsCString> contractIds;
 
   nsCOMPtr<nsICategoryManager> catMgr = do_GetService(NS_CATEGORYMANAGER_CONTRACTID);
@@ -520,7 +509,7 @@ mozSpellChecker::InitSpellCheckDictionaryMap()
   // Retrieve dictionaries from all available spellcheckers and
   // fill mDictionariesMap hash (only the first dictionary with the
   // each name is used).
-  for (PRUint32 i=0;i < contractIds.Length();i++){
+  for (i=0;i < PRInt32(contractIds.Length());i++){
     PRUint32 count,k;
     PRUnichar **words;
 

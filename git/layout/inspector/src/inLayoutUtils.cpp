@@ -104,7 +104,7 @@ inLayoutUtils::GetEventStateManagerFor(nsIDOMElement *aElement)
     return nsnull;
   }
 
-  nsIPresShell *shell = doc->GetShell();
+  nsIPresShell *shell = doc->GetPrimaryShell();
   if (!shell)
     return nsnull;
 

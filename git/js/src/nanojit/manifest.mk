@@ -61,14 +61,6 @@ ifeq (sparc,$(TARGET_CPU))
 nanojit_cpu_cxxsrc := NativeSparc.cpp
 endif
 
-ifeq (sh4,$(TARGET_CPU))
-nanojit_cpu_cxxsrc := NativeSH4.cpp
-endif
-
-ifeq (mips,$(TARGET_CPU))
-nanojit_cpu_cxxsrc := NativeMIPS.cpp
-endif
-
 avmplus_CXXSRCS := $(avmplus_CXXSRCS) \
   $(curdir)/Allocator.cpp \
   $(curdir)/Assembler.cpp \
@@ -76,7 +68,6 @@ avmplus_CXXSRCS := $(avmplus_CXXSRCS) \
   $(curdir)/Containers.cpp \
   $(curdir)/Fragmento.cpp \
   $(curdir)/LIR.cpp \
-  $(curdir)/njconfig.cpp \
   $(curdir)/RegAlloc.cpp \
   $(curdir)/$(nanojit_cpu_cxxsrc) \
   $(NULL)

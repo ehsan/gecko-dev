@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-469937.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 469937;
 var summary = 'Properties without DontEnum are sometimes not enumerated';

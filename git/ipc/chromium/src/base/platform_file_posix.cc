@@ -6,9 +6,6 @@
 
 #include <fcntl.h>
 #include <errno.h>
-#ifdef ANDROID
-#include <linux/stat.h>
-#endif
 
 #include "base/logging.h"
 #include "base/string_util.h"

@@ -71,13 +71,6 @@
 #include "gfxPlatform.h"
 #include "qcms.h"
 
-namespace mozilla {
-namespace layers {
-class LayerManager;
-}
-}
-using namespace mozilla::layers;
-
 // defined in nsAppShell.mm
 extern nsCocoaAppModalWindowList *gCocoaAppModalWindowList;
 
@@ -206,26 +199,25 @@ nsCocoaWindow::~nsCocoaWindow()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-static void FitRectToVisibleAreaForScreen(nsIntRect &aRect, NSScreen *screen)
+// Very large windows work in Cocoa, but can take a long time to
+// process (multiple minutes), during which time the system is
+// unresponsive and seems hung. Although it's likely that windows
+// much larger than screen size are bugs, be conservative and only
+// intervene if the values are so large as to hog the cpu.
+#define SIZE_LIMIT 100000
+static bool WindowSizeAllowed(PRInt32 aWidth, PRInt32 aHeight)
 {
-  if (!screen)
-    return;
-  
-  nsIntRect screenBounds(nsCocoaUtils::CocoaRectToGeckoRect([screen visibleFrame]));
-  
-  if (aRect.width > screenBounds.width) {
-    aRect.width = screenBounds.width;
+  if (aWidth > SIZE_LIMIT) {
+    NS_ERROR(nsPrintfCString(256, "Requested Cocoa window width of %d is too much, max allowed is %d\n",
+                             aWidth, SIZE_LIMIT).get());
+    return false;
   }
-  if (aRect.height > screenBounds.height) {
-    aRect.height = screenBounds.height;
+  if (aHeight > SIZE_LIMIT) {
+    NS_ERROR(nsPrintfCString(256, "Requested Cocoa window height of %d is too much, max allowed is %d\n",
+                             aHeight, SIZE_LIMIT).get());
+    return false;
   }
-  
-  if (aRect.x - screenBounds.x + aRect.width > screenBounds.width) {
-    aRect.x += screenBounds.width - (aRect.x - screenBounds.x + aRect.width);
-  }
-  if (aRect.y - screenBounds.y + aRect.height > screenBounds.height) {
-    aRect.y += screenBounds.height - (aRect.y - screenBounds.y + aRect.height);
-  }
+  return true;
 }
 
 // Some applications like Camino use native popup windows
@@ -252,18 +244,14 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  // Because the hidden window is created outside of an event loop,
-  // we have to provide an autorelease pool (see bug 559075).
-  nsAutoreleasePool localPool;
-
-  nsIntRect newBounds = aRect;
-  FitRectToVisibleAreaForScreen(newBounds, [NSScreen mainScreen]);
+  if (!WindowSizeAllowed(aRect.width, aRect.height))
+    return NS_ERROR_FAILURE;
 
   // Set defaults which can be overriden from aInitData in BaseCreate
   mWindowType = eWindowType_toplevel;
   mBorderStyle = eBorderStyle_default;
 
-  Inherited::BaseCreate(aParent, newBounds, aHandleEventFunction, aContext, aAppShell,
+  Inherited::BaseCreate(aParent, aRect, aHandleEventFunction, aContext, aAppShell,
                         aToolkit, aInitData);
 
   mParent = aParent;
@@ -272,12 +260,12 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
   if ((mWindowType == eWindowType_popup) && UseNativePopupWindows())
     return NS_OK;
 
-  nsresult rv = CreateNativeWindow(nsCocoaUtils::GeckoRectToCocoaRect(newBounds),
+  nsresult rv = CreateNativeWindow(nsCocoaUtils::GeckoRectToCocoaRect(aRect),
                                    mBorderStyle, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mWindowType == eWindowType_popup)
-    return CreatePopupContentView(newBounds, aHandleEventFunction, aContext, aAppShell, aToolkit);
+    return CreatePopupContentView(aRect, aHandleEventFunction, aContext, aAppShell, aToolkit);
 
   return NS_OK;
 
@@ -308,11 +296,6 @@ static unsigned int WindowMaskForBorderStyle(nsBorderStyle aBorderStyle)
   return mask;
 }
 
-NS_IMETHODIMP nsCocoaWindow::ReparentNativeWidget(nsIWidget* aNewParent)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 // If aRectIsFrameRect, aRect specifies the frame rect of the new window.
 // Otherwise, aRect.x/y specify the position of the window's frame relative to
 // the bottom of the menubar and aRect.width/height specify the size of the
@@ -332,14 +315,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
     case eWindowType_invisible:
     case eWindowType_child:
     case eWindowType_plugin:
-      break;
     case eWindowType_popup:
-      if (aBorderStyle != eBorderStyle_default && mBorderStyle & eBorderStyle_title) {
-        features |= NSTitledWindowMask;
-        if (aBorderStyle & eBorderStyle_close) {
-          features |= NSClosableWindowMask;
-        }
-      }
       break;
     case eWindowType_toplevel:
     case eWindowType_dialog:
@@ -429,7 +405,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
   if (mWindowType == eWindowType_invisible) {
     [mWindow setLevel:kCGDesktopWindowLevelKey];
   } else if (mWindowType == eWindowType_popup) {
-    SetPopupWindowLevel();
+    [mWindow setLevel:NSPopUpMenuWindowLevel];
     [mWindow setHasShadow:YES];
   }
 
@@ -539,12 +515,6 @@ NS_IMETHODIMP nsCocoaWindow::IsVisible(PRBool & aState)
 
 NS_IMETHODIMP nsCocoaWindow::SetModal(PRBool aState)
 {
-  // This is used during startup (outside the event loop) when creating
-  // the add-ons compatibility checking dialog and the profile manager UI;
-  // therefore, it needs to provide an autorelease pool to avoid cocoa
-  // objects leaking.
-  nsAutoreleasePool localPool;
-
   mModal = aState;
   nsCocoaWindow *aParent = static_cast<nsCocoaWindow*>(mParent);
   if (aState) {
@@ -604,7 +574,7 @@ NS_IMETHODIMP nsCocoaWindow::SetModal(PRBool aState)
         delete saved; // "window" not ADDREFed
       }
       if (mWindowType == eWindowType_popup)
-        SetPopupWindowLevel();
+        [mWindow setLevel:NSPopUpMenuWindowLevel];
       else
         [mWindow setLevel:NSNormalWindowLevel];
     }
@@ -708,12 +678,11 @@ NS_IMETHODIMP nsCocoaWindow::Show(PRBool bState)
                         object:@"org.mozilla.gecko.PopupWindow"];
       }
 
-      // If a parent window was supplied and this is a popup at the parent
-      // level, set its child window. This will cause the child window to
-      // appear above the parent and move when the parent does. Setting this
-      // needs to happen after the _setWindowNumber calls above, otherwise the
-      // window doesn't focus properly.
-      if (nativeParentWindow && mPopupLevel == ePopupLevelParent)
+      // if a parent was supplied, set its child window. This will cause the
+      // child window to appear above the parent and move when the parent
+      // does. Setting this needs to happen after the _setWindowNumber calls
+      // above, otherwise the window doesn't focus properly.
+      if (nativeParentWindow)
         [nativeParentWindow addChildWindow:mWindow
                             ordered:NSWindowAbove];
     }
@@ -890,12 +859,9 @@ nsCocoaWindow::SetUpWindowFilter()
 
   CleanUpWindowFilter();
 
-  // Only blur the background of menus and fake sheets, but not on PPC
-  // because it results in blank windows (bug 547723).
-#ifndef __ppc__
+  // Only blur the background of menus and fake sheets.
   if (mShadowStyle != NS_STYLE_WINDOW_SHADOW_MENU &&
       mShadowStyle != NS_STYLE_WINDOW_SHADOW_SHEET)
-#endif
     return;
 
   // Create a CoreImage filter and set it up
@@ -932,13 +898,14 @@ nsCocoaWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
   return NS_OK;
 }
 
-LayerManager*
-nsCocoaWindow::GetLayerManager(bool* aAllowRetaining)
+void
+nsCocoaWindow::Scroll(const nsIntPoint& aDelta,
+                      const nsTArray<nsIntRect>& aDestRects,
+                      const nsTArray<Configuration>& aConfigurations)
 {
   if (mPopupContentView) {
-    return mPopupContentView->GetLayerManager(aAllowRetaining);
+    mPopupContentView->Scroll(aDelta, aDestRects, aConfigurations);
   }
-  return nsnull;
 }
 
 nsTransparencyMode nsCocoaWindow::GetTransparencyMode()
@@ -988,8 +955,6 @@ NS_IMETHODIMP nsCocoaWindow::Move(PRInt32 aX, PRInt32 aY)
 {
   if (!mWindow || (mBounds.x == aX && mBounds.y == aY))
     return NS_OK;
-
-  mBounds.MoveTo(aX, aY);
 
   // The point we have is in Gecko coordinates (origin top-left). Convert
   // it to Cocoa ones (origin bottom-left).
@@ -1127,18 +1092,18 @@ NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRIn
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  nsIntRect newBounds = nsIntRect(aX, aY, aWidth, aHeight);
-  FitRectToVisibleAreaForScreen(newBounds, [mWindow screen]);
+  if (!WindowSizeAllowed(aWidth, aHeight))
+    return NS_ERROR_FAILURE;
 
   nsIntRect windowBounds(nsCocoaUtils::CocoaRectToGeckoRect([mWindow frame]));
-  BOOL isMoving = (windowBounds.x != newBounds.x || windowBounds.y != newBounds.y);
-  BOOL isResizing = (windowBounds.width != newBounds.width || windowBounds.height != newBounds.height);
+  BOOL isMoving = (windowBounds.x != aX || windowBounds.y != aY);
+  BOOL isResizing = (windowBounds.width != aWidth || windowBounds.height != aHeight);
 
   if (IsResizing() || !mWindow || (!isMoving && !isResizing))
     return NS_OK;
-  
-  mBounds = newBounds;
-  NSRect newFrame = nsCocoaUtils::GeckoRectToCocoaRect(mBounds);
+
+  nsIntRect geckoRect(aX, aY, aWidth, aHeight);
+  NSRect newFrame = nsCocoaUtils::GeckoRectToCocoaRect(geckoRect);
 
   // We have to report the size event -first-, to make sure that content
   // repositions itself.  Cocoa views are anchored at the bottom left,
@@ -1172,7 +1137,10 @@ NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRIn
 NS_IMETHODIMP nsCocoaWindow::Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-  
+
+  if (!WindowSizeAllowed(aWidth, aHeight))
+    return NS_ERROR_FAILURE;
+
   nsIntRect windowBounds(nsCocoaUtils::CocoaRectToGeckoRect([mWindow frame]));
   return Resize(windowBounds.x, windowBounds.y, aWidth, aHeight, aRepaint);
 
@@ -1337,21 +1305,6 @@ GetWindowSizeMode(NSWindow* aWindow) {
 }
 
 void
-nsCocoaWindow::ReportMoveEvent()
-{
-  // Dispatch the move event to Gecko
-  nsGUIEvent guiEvent(PR_TRUE, NS_MOVE, this);
-  nsIntRect rect;
-  GetScreenBounds(rect);
-  mBounds.MoveTo(rect.TopLeft());
-  guiEvent.refPoint.x = rect.x;
-  guiEvent.refPoint.y = rect.y;
-  guiEvent.time = PR_IntervalNow();
-  nsEventStatus status = nsEventStatus_eIgnore;
-  DispatchEvent(&guiEvent, status);
-}
-
-void
 nsCocoaWindow::DispatchSizeModeEvent()
 {
   nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
@@ -1371,9 +1324,6 @@ nsCocoaWindow::ReportSizeEvent(NSRect *r)
   if (!r)
     r = &windowFrame;
 
-  mBounds.width  = nscoord(r->size.width);
-  mBounds.height = nscoord(r->size.height);
-
   if ([mWindow isKindOfClass:[ToolbarWindow class]] &&
       [(ToolbarWindow*)mWindow drawsContentsIntoWindowFrame]) {
     // Report the frame rect instead of the content rect. This will make our
@@ -1384,11 +1334,13 @@ nsCocoaWindow::ReportSizeEvent(NSRect *r)
     windowFrame = [mWindow contentRectForFrameRect:(*r)];
   }
 
+  mBounds.width  = nscoord(windowFrame.size.width);
+  mBounds.height = nscoord(windowFrame.size.height);
+
   nsSizeEvent sizeEvent(PR_TRUE, NS_SIZE, this);
   sizeEvent.time = PR_IntervalNow();
 
-  nsIntRect rect = nsCocoaUtils::CocoaRectToGeckoRect(windowFrame);
-  sizeEvent.windowSize = &rect;
+  sizeEvent.windowSize = &mBounds;
   sizeEvent.mWinWidth  = mBounds.width;
   sizeEvent.mWinHeight = mBounds.height;
 
@@ -1439,36 +1391,6 @@ nsIntPoint nsCocoaWindow::WidgetToScreenOffset()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
 }
 
-nsIntPoint nsCocoaWindow::GetClientOffset()
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  NSSize windowSize = [mWindow frame].size;
-  NSRect contentRect = [mWindow contentRectForFrameRect:[mWindow frame]];
-
-  return nsIntPoint(NSToIntRound(windowSize.width - contentRect.size.width),
-                    NSToIntRound(windowSize.height - contentRect.size.height));
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0, 0));
-}
-
-nsIntSize nsCocoaWindow::ClientToWindowSize(const nsIntSize& aClientSize)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  // this is only called for popups currently. If needed, expand this to support
-  // other types of windows
-  if (!IsPopupWithTitleBar())
-    return aClientSize;
-
-  NSRect rect(NSMakeRect(0.0, 0.0, aClientSize.width, aClientSize.height));
-
-  NSRect inflatedRect = [mWindow frameRectForContentRect:rect];
-  return nsCocoaUtils::CocoaRectToGeckoRect(inflatedRect).Size();
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntSize(0,0));
-}
-
 nsMenuBarX* nsCocoaWindow::GetMenuBar()
 {
   return mMenuBar;
@@ -1509,10 +1431,8 @@ NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener,
     // "active" one is always above any other non-native popup windows that
     // may be visible.
     if (mWindow && (mWindowType == eWindowType_popup))
-      SetPopupWindowLevel();
+      [mWindow setLevel:NSPopUpMenuWindowLevel];
   } else {
-    // XXXndeakin this doesn't make sense.
-    // Why is the new window assumed to be a modal panel?
     if (mWindow && (mWindowType == eWindowType_popup))
       [mWindow setLevel:NSModalPanelWindowLevel];
   }
@@ -1671,52 +1591,6 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut)
   aOut[3] = 1.0f;
 }
 
-void nsCocoaWindow::SetPopupWindowLevel()
-{
-  // Floating popups are at the floating level and hide when the window is
-  // deactivated.
-  if (mPopupLevel == ePopupLevelFloating) {
-    [mWindow setLevel:NSFloatingWindowLevel];
-    [mWindow setHidesOnDeactivate:YES];
-  }
-  else {
-    // Otherwise, this is a top-level or parent popup. Parent popups always
-    // appear just above their parent and essentially ignore the level.
-    [mWindow setLevel:NSPopUpMenuWindowLevel];
-    [mWindow setHidesOnDeactivate:NO];
-  }
-}
-
-PRBool nsCocoaWindow::IsChildInFailingLeftClickThrough(NSView *aChild)
-{
-  if ([aChild isKindOfClass:[ChildView class]]) {
-    ChildView* childView = (ChildView*) aChild;
-    if ([childView isInFailingLeftClickThrough])
-      return PR_TRUE;
-  }
-  NSArray* subviews = [aChild subviews];
-  if (subviews) {
-    NSUInteger count = [subviews count];
-    for (NSUInteger i = 0; i < count; ++i) {
-      NSView* aView = (NSView*) [subviews objectAtIndex:i];
-      if (IsChildInFailingLeftClickThrough(aView))
-        return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
-}
-
-// Don't focus a plugin if we're in a left click-through that will
-// fail (see [ChildView isInFailingLeftClickThrough]).  Called from
-// [ChildView shouldFocusPlugin].
-PRBool nsCocoaWindow::ShouldFocusPlugin()
-{
-  if (IsChildInFailingLeftClickThrough([mWindow contentView]))
-    return PR_FALSE;
-
-  return PR_TRUE;
-}
-
 @implementation WindowDelegate
 
 // We try to find a gecko menu bar to paint. If one does not exist, just paint
@@ -1867,8 +1741,15 @@ PRBool nsCocoaWindow::ShouldFocusPlugin()
 
 - (void)windowDidMove:(NSNotification *)aNotification
 {
-  if (mGeckoWindow)
-    mGeckoWindow->ReportMoveEvent();
+  // Dispatch the move event to Gecko
+  nsGUIEvent guiEvent(PR_TRUE, NS_MOVE, mGeckoWindow);
+  nsIntRect rect;
+  mGeckoWindow->GetScreenBounds(rect);
+  guiEvent.refPoint.x = rect.x;
+  guiEvent.refPoint.y = rect.y;
+  guiEvent.time = PR_IntervalNow();
+  nsEventStatus status = nsEventStatus_eIgnore;
+  mGeckoWindow->DispatchEvent(&guiEvent, status);
 }
 
 - (BOOL)windowShouldClose:(id)sender
@@ -1970,31 +1851,6 @@ PRBool nsCocoaWindow::ShouldFocusPlugin()
 
 @end
 
-static float
-GetDPI(NSWindow* aWindow)
-{
-  NSScreen* screen = [aWindow screen];
-  if (!screen)
-    return 96.0f;
-
-  CGDirectDisplayID displayID =
-    [[[screen deviceDescription] objectForKey:@"NSScreenNumber"] intValue];
-  CGFloat heightMM = ::CGDisplayScreenSize(displayID).height;
-  size_t heightPx = ::CGDisplayPixelsHigh(displayID);
-  CGFloat scaleFactor = [aWindow userSpaceScaleFactor];
-  if (scaleFactor < 0.01 || heightMM < 1 || heightPx < 1) {
-    // Something extremely bogus is going on
-    return 96.0f;
-  }
-
-  // Currently we don't do our own scaling to take account
-  // of userSpaceScaleFactor, so every "pixel" we draw is actually
-  // userSpaceScaleFactor screen pixels. So divide the screen height
-  // by userSpaceScaleFactor to get the number of "device pixels"
-  // available.
-  return (heightPx / scaleFactor) / (heightMM / MM_PER_INCH_FLOAT);
-}
-
 @implementation BaseWindow
 
 - (id)initWithContentRect:(NSRect)aContentRect styleMask:(NSUInteger)aStyle backing:(NSBackingStoreType)aBufferingType defer:(BOOL)aFlag
@@ -2005,8 +1861,6 @@ GetDPI(NSWindow* aWindow)
   mActiveTitlebarColor = nil;
   mInactiveTitlebarColor = nil;
   mScheduledShadowInvalidation = NO;
-  mDPI = GetDPI(self);
-
   return self;
 }
 
@@ -2094,19 +1948,6 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   mScheduledShadowInvalidation = NO;
 }
 
-- (float)getDPI
-{
-  return mDPI;
-}
-
-- (void) doCommandBySelector:(SEL)aSelector
-{
-  // We override this so that it won't beep if it can't act.
-  // We want to control the beeping for missing or disabled
-  // commands ourselves.
-  [self tryToPerform:aSelector with:nil];
-}
-
 @end
 
 // This class allows us to have a "unified toolbar" style window. It works like this:
@@ -2125,12 +1966,10 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 //
 // Drawing the unified gradient in the titlebar and the toolbar works like this:
 // 1) In the style sheet we set the toolbar's -moz-appearance to -moz-mac-unified-toolbar.
-// 2) When the toolbar is visible and we paint the application chrome
-//    window in nsChildView::drawRect, Gecko calls
-//    nsNativeThemeCocoa::RegisterWidgetGeometry for the widget type
-//    NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR.
-// 3) This finds the toolbar frame's ToolbarWindow and passes the toolbar
-//    frame's height to setUnifiedToolbarHeight.
+// 2) When the toolbar is drawn, Gecko calls nsNativeThemeCocoa::DrawWidgetBackground
+//    for the widget type NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR.
+// 3) This calls DrawUnifiedToolbar which finds the toolbar frame's ToolbarWindow
+//    and passes the toolbar frame's height to setUnifiedToolbarHeight.
 // 4) If the toolbar height has changed, a titlebar redraw is triggered by
 //    [self display] and the upper part of the unified gradient is drawn in the
 //    titlebar.
@@ -2157,15 +1996,17 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
     mBackgroundColor = [NSColor whiteColor];
 
     mUnifiedToolbarHeight = 0.0f;
-    mInUnifiedToolbarReset = NO;
+    mWaitingForUnifiedToolbarHeight = NO;
 
     // setBottomCornerRounded: is a private API call, so we check to make sure
     // we respond to it just in case.
     if ([self respondsToSelector:@selector(setBottomCornerRounded:)])
       [self setBottomCornerRounded:NO];
 
+#ifdef NS_LEOPARD_AND_LATER
     [self setAutorecalculatesContentBorderThickness:NO forEdge:NSMaxYEdge];
     [self setContentBorderThickness:0.0f forEdge:NSMaxYEdge];
+#endif
   }
   return self;
 
@@ -2201,18 +2042,23 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   return mBackgroundColor;
 }
 
-// This is called by nsNativeThemeCocoa.mm's RegisterWidgetGeometry.
+// This is called by nsNativeThemeCocoa.mm's DrawUnifiedToolbar.
 // We need to know the toolbar's height in order to draw the correct
 // unified gradient in the titlebar.
-- (void)notifyToolbarAt:(float)aY height:(float)aHeight
+- (void)setUnifiedToolbarHeight:(float)aToolbarHeight
 {
-  // Ignore unexpected notifications about the toolbar height
-  if (!mInUnifiedToolbarReset)
+  mWaitingForUnifiedToolbarHeight = NO;
+  if (mUnifiedToolbarHeight == aToolbarHeight)
     return;
+  mUnifiedToolbarHeight = aToolbarHeight;
 
-  if (aY <= 0.0 && aY + aHeight > mUnifiedToolbarHeight) {
-    mUnifiedToolbarHeight = aY + aHeight;
-  }
+#ifdef NS_LEOPARD_AND_LATER
+  [self setContentBorderThickness:aToolbarHeight forEdge:NSMaxYEdge];
+#endif
+
+  // Since this function is only called inside painting, the repaint needs to
+  // be synchronous.
+  [self setTitlebarNeedsDisplayInRect:[self titlebarRect] sync:YES];
 }
 
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect
@@ -2255,26 +2101,16 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   return frameRect.size.height - [self contentRectForFrameRect:frameRect].size.height;
 }
 
-- (float)beginMaybeResetUnifiedToolbar
+- (void)beginMaybeResetUnifiedToolbar
 {
-  mInUnifiedToolbarReset = YES;
-  float old = mUnifiedToolbarHeight;
-  mUnifiedToolbarHeight = 0.0;
-  return old;
+  mWaitingForUnifiedToolbarHeight = YES;
 }
 
-- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight
+- (void)endMaybeResetUnifiedToolbar
 {
-  if (mInUnifiedToolbarReset) {
-    mInUnifiedToolbarReset = NO;
-    if (mUnifiedToolbarHeight == aOldHeight)
-      return;
-
-    [self setContentBorderThickness:mUnifiedToolbarHeight forEdge:NSMaxYEdge];
-
-    // Since this function is only called inside painting, the repaint needs to
-    // be synchronous.
-    [self setTitlebarNeedsDisplayInRect:[self titlebarRect] sync:YES];
+  if (mWaitingForUnifiedToolbarHeight) {
+    // No toolbar was drawn, so set the height to zero.
+    [self setUnifiedToolbarHeight:0.0f];
   }
 }
 
@@ -2282,9 +2118,8 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 {
   BOOL stateChanged = ([self drawsContentsIntoWindowFrame] != aState);
   [super setDrawsContentsIntoWindowFrame:aState];
-  if (stateChanged && [[self delegate] isKindOfClass:[WindowDelegate class]]) {
-    WindowDelegate *windowDelegate = (WindowDelegate *)[self delegate];
-    nsCocoaWindow *geckoWindow = [windowDelegate geckoWidget];
+  if (stateChanged) {
+    nsCocoaWindow *geckoWindow = [[self delegate] geckoWidget];
     if (geckoWindow) {
       // Re-layout our contents.
       geckoWindow->ReportSizeEvent();
@@ -2305,18 +2140,13 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  RollUpPopups();
-
-  if ([[self delegate] isKindOfClass:[WindowDelegate class]]) {
-    WindowDelegate *windowDelegate = (WindowDelegate *)[self delegate];
-    nsCocoaWindow *geckoWindow = [windowDelegate geckoWidget];
-    if (!geckoWindow)
-      return;
-    nsEventStatus status = nsEventStatus_eIgnore;
-    nsGUIEvent guiEvent(PR_TRUE, NS_OS_TOOLBAR, geckoWindow);
-    guiEvent.time = PR_IntervalNow();
-    geckoWindow->DispatchEvent(&guiEvent, status);
-  }
+  nsCocoaWindow *geckoWindow = [[self delegate] geckoWidget];
+  if (!geckoWindow)
+    return;
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsGUIEvent guiEvent(PR_TRUE, NS_OS_TOOLBAR, geckoWindow);
+  guiEvent.time = PR_IntervalNow();
+  geckoWindow->DispatchEvent(&guiEvent, status);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2467,16 +2297,16 @@ ContentPatternDrawCallback(void* aInfo, CGContextRef aContext)
   CGContextTranslateCTM(aContext, 0.0f, -[window frame].size.height);
 
   NSRect titlebarRect = NSMakeRect(0, 0, [window frame].size.width, [window titlebarHeight]);
-  [(ChildView*)view drawRect:titlebarRect inTitlebarContext:aContext];
+  [(ChildView*)view drawRect:titlebarRect inContext:aContext];
 }
 
 - (void)setFill
 {
+  CGContextRef context = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
   CGPatternDrawPatternCallback cb = [mWindow drawsContentsIntoWindowFrame] ?
                                       &ContentPatternDrawCallback : &RepeatedPatternDrawCallback;
-  float patternWidth = [mWindow drawsContentsIntoWindowFrame] ? [mWindow frame].size.width : sPatternWidth;
-
   CGPatternCallbacks callbacks = {0, cb, NULL};
+  float patternWidth = [mWindow drawsContentsIntoWindowFrame] ? [mWindow frame].size.width : sPatternWidth;
   CGPatternRef pattern = CGPatternCreate(mWindow, CGRectMake(0.0f, 0.0f, patternWidth, [mWindow frame].size.height), 
                                          CGAffineTransformIdentity, patternWidth, [mWindow frame].size.height,
                                          kCGPatternTilingConstantSpacing, true, &callbacks);
@@ -2484,7 +2314,6 @@ ContentPatternDrawCallback(void* aInfo, CGContextRef aContext)
   // Set the pattern as the fill, which is what we were asked to do. All our
   // drawing will take place in the patternDraw callback.
   CGColorSpaceRef patternSpace = CGColorSpaceCreatePattern(NULL);
-  CGContextRef context = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
   CGContextSetFillColorSpace(context, patternSpace);
   CGColorSpaceRelease(patternSpace);
   CGFloat component = 1.0f;
@@ -2536,9 +2365,9 @@ ContentPatternDrawCallback(void* aInfo, CGContextRef aContext)
         windowLocation = nsCocoaUtils::EventLocationForWindow(anEvent, self);
         target = [contentView hitTest:[contentView convertPoint:windowLocation fromView:nil]];
         // If the hit test failed, the event is targeted here but is not over the window.
-        // Send it to our content view.
+        // Target it at the first responder.
         if (!target)
-          target = contentView;
+          target = (NSView*)[self firstResponder];
       }
       break;
     default:
@@ -2607,12 +2436,6 @@ ContentPatternDrawCallback(void* aInfo, CGContextRef aContext)
 - (void)setIsContextMenu:(BOOL)flag
 {
   mIsContextMenu = flag;
-}
-
-- (BOOL)canBecomeMainWindow
-{
-  // This is overriden because the default is 'yes' when a titlebar is present.
-  return NO;
 }
 
 @end

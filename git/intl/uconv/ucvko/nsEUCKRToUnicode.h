@@ -47,7 +47,7 @@
  * @author  Catalin Rotaru [CATA]
  */
 // Just make it an alias to CP949 decoder. bug 131388
-nsresult
+NS_METHOD
 nsEUCKRToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

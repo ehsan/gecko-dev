@@ -42,9 +42,7 @@
 
 nsFont::nsFont(const char* aName, PRUint8 aStyle, PRUint8 aVariant,
                PRUint16 aWeight, PRInt16 aStretch, PRUint8 aDecoration,
-               nscoord aSize, float aSizeAdjust,
-               const nsString* aFeatureSettings,
-               const nsString* aLanguageOverride)
+               nscoord aSize, float aSizeAdjust)
 {
   NS_ASSERTION(aName && IsASCII(nsDependentCString(aName)),
                "Must only pass ASCII names here");
@@ -58,19 +56,11 @@ nsFont::nsFont(const char* aName, PRUint8 aStyle, PRUint8 aVariant,
   decorations = aDecoration;
   size = aSize;
   sizeAdjust = aSizeAdjust;
-  if (aFeatureSettings) {
-    featureSettings = *aFeatureSettings;
-  }
-  if (aLanguageOverride) {
-    languageOverride = *aLanguageOverride;
-  }
 }
 
 nsFont::nsFont(const nsString& aName, PRUint8 aStyle, PRUint8 aVariant,
                PRUint16 aWeight, PRInt16 aStretch, PRUint8 aDecoration,
-               nscoord aSize, float aSizeAdjust,
-               const nsString* aFeatureSettings,
-               const nsString* aLanguageOverride)
+               nscoord aSize, float aSizeAdjust)
   : name(aName)
 {
   style = aStyle;
@@ -82,12 +72,6 @@ nsFont::nsFont(const nsString& aName, PRUint8 aStyle, PRUint8 aVariant,
   decorations = aDecoration;
   size = aSize;
   sizeAdjust = aSizeAdjust;
-  if (aFeatureSettings) {
-    featureSettings = *aFeatureSettings;
-  }
-  if (aLanguageOverride) {
-    languageOverride = *aLanguageOverride;
-  }
 }
 
 nsFont::nsFont(const nsFont& aOther)
@@ -102,8 +86,6 @@ nsFont::nsFont(const nsFont& aOther)
   decorations = aOther.decorations;
   size = aOther.size;
   sizeAdjust = aOther.sizeAdjust;
-  featureSettings = aOther.featureSettings;
-  languageOverride = aOther.languageOverride;
 }
 
 nsFont::nsFont()
@@ -123,9 +105,7 @@ PRBool nsFont::BaseEquals(const nsFont& aOther) const
       (stretch == aOther.stretch) &&
       (size == aOther.size) &&
       (sizeAdjust == aOther.sizeAdjust) &&
-      name.Equals(aOther.name, nsCaseInsensitiveStringComparator()) &&
-      (featureSettings == aOther.featureSettings) &&
-      (languageOverride == aOther.languageOverride)) {
+      name.Equals(aOther.name, nsCaseInsensitiveStringComparator())) {
     return PR_TRUE;
   }
   return PR_FALSE;
@@ -153,8 +133,6 @@ nsFont& nsFont::operator=(const nsFont& aOther)
   decorations = aOther.decorations;
   size = aOther.size;
   sizeAdjust = aOther.sizeAdjust;
-  featureSettings = aOther.featureSettings;
-  languageOverride = aOther.languageOverride;
   return *this;
 }
 

@@ -49,11 +49,10 @@ DIRS		+= test
 endif
 
 MODULE		= layout
-XPIDL_MODULE	= layout_forms
 LIBRARY_NAME	= gkforms_s
 LIBXUL_LIBRARY	= 1
 
-XPIDLSRCS       = nsICapturePicker.idl
+
 
 EXPORTS		= \
 		nsIListControlFrame.h \
@@ -92,8 +91,6 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../xul/base/src \
 		-I$(srcdir)/../../content/base/src \
 		-I$(srcdir)/../../content/html/content/src \
-		-I$(srcdir)/../../editor/libeditor/base \
-		-I$(srcdir)/../../editor/libeditor/text \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

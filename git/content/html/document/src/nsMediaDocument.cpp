@@ -141,8 +141,8 @@ nsMediaDocument::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Create a bundle for the localization
-  nsCOMPtr<nsIStringBundleService> stringService =
-    mozilla::services::GetStringBundleService();
+  nsCOMPtr<nsIStringBundleService> stringService(
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID));
   if (stringService) {
     stringService->CreateBundle(NSMEDIADOCUMENT_PROPERTIES_URI,
                                 getter_AddRefs(mStringBundle));
@@ -237,7 +237,7 @@ nsMediaDocument::CreateSyntheticDocument()
                                            kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<nsGenericHTMLElement> root = NS_NewHTMLHtmlElement(nodeInfo.forget());
+  nsRefPtr<nsGenericHTMLElement> root = NS_NewHTMLHtmlElement(nodeInfo);
   if (!root) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -251,7 +251,7 @@ nsMediaDocument::CreateSyntheticDocument()
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Create a <head> so our title has somewhere to live
-  nsRefPtr<nsGenericHTMLElement> head = NS_NewHTMLHeadElement(nodeInfo.forget());
+  nsRefPtr<nsGenericHTMLElement> head = NS_NewHTMLHeadElement(nodeInfo);
   if (!head) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -262,7 +262,7 @@ nsMediaDocument::CreateSyntheticDocument()
                                            kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<nsGenericHTMLElement> body = NS_NewHTMLBodyElement(nodeInfo.forget());
+  nsRefPtr<nsGenericHTMLElement> body = NS_NewHTMLBodyElement(nodeInfo);
   if (!body) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -276,7 +276,7 @@ nsresult
 nsMediaDocument::StartLayout()
 {
   mMayStartLayout = PR_TRUE;
-  nsCOMPtr<nsIPresShell> shell = GetShell();
+  nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
   // Don't mess with the presshell if someone has already handled
   // its initial reflow.
   if (shell && !shell->DidInitialReflow()) {

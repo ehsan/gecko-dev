@@ -44,6 +44,8 @@ function nsLoginInfo() {}
 
 nsLoginInfo.prototype = {
 
+    classDescription  : "LoginInfo",
+    contractID : "@mozilla.org/login-manager/loginInfo;1",
     classID : Components.ID("{0f2f347c-1e4f-40cc-8efd-792dea70a85e}"),
     QueryInterface: XPCOMUtils.generateQI([Ci.nsILoginInfo, Ci.nsILoginMetaInfo]), 
 
@@ -119,10 +121,6 @@ nsLoginInfo.prototype = {
         // Copy nsILoginMetaInfo props
         clone.QueryInterface(Ci.nsILoginMetaInfo);
         clone.guid = this.guid;
-        clone.timeCreated = this.timeCreated;
-        clone.timeLastUsed = this.timeLastUsed;
-        clone.timePasswordChanged = this.timePasswordChanged;
-        clone.timesUsed = this.timesUsed;
 
         return clone;
     },
@@ -131,12 +129,11 @@ nsLoginInfo.prototype = {
     // nsILoginMetaInfo interfaces...
     //
 
-    guid : null,
-    timeCreated : null,
-    timeLastUsed : null,
-    timePasswordChanged : null,
-    timesUsed : null
+    guid : null
 
 }; // end of nsLoginInfo implementation
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsLoginInfo]);
+var component = [nsLoginInfo];
+function NSGetModule(compMgr, fileSpec) {
+    return XPCOMUtils.generateModule(component);
+}

@@ -3,23 +3,18 @@ const BinaryInputStream = CC("@mozilla.org/binaryinputstream;1",
                              "nsIBinaryInputStream",
                              "setInputStream");
 
-function utf8decode(s) {
-  return decodeURIComponent(escape(s));
-}
-
-function utf8encode(s) {
-  return unescape(encodeURIComponent(s));
-}
-
 function handleRequest(request, response)
 {
   var bodyStream = new BinaryInputStream(request.bodyInputStream);
+  var bodyBytes = [];
   var result = [];
-  var requestBody = "";
   while ((bodyAvail = bodyStream.available()) > 0)
-    requestBody += bodyStream.readBytes(bodyAvail);
+    Array.prototype.push.apply(bodyBytes, bodyStream.readByteArray(bodyAvail));
 
   if (request.method == "POST") {
+    // assume UTF8 for now
+    var requestBody = decodeURIComponent(
+      escape(String.fromCharCode.apply(null, bodyBytes)));
 
     var contentTypeParams = {};
     request.getHeader("Content-Type").split(/\s*\;\s*/).forEach(function(s) {
@@ -32,39 +27,21 @@ function handleRequest(request, response)
       }
     });
 
-    if (contentTypeParams[''] == "multipart/form-data" &&
-        request.queryString == "") {
+    if (contentTypeParams[''] == "multipart/form-data") {
       requestBody.split("--" + contentTypeParams.boundary).slice(1, -1).forEach(function (s) {
 
         let headers = {};
-        let headerEnd = s.indexOf("\r\n\r\n");
+        headerEnd = s.indexOf("\r\n\r\n");
         s.substr(2, headerEnd-2).split("\r\n").forEach(function(s) {
-          // We're assuming UTF8 for now
           let [name, value] = s.split(': ');
-          headers[name] = utf8decode(value);
+          headers[name] = value;
         });
-	let body = s.substring(headerEnd + 4, s.length - 2);
-	if (!headers["Content-Type"] || headers["Content-Type"] == "text/plain") {
-          // We're assuming UTF8 for now
-	  body = utf8decode(body);
-	}
-	result.push({ headers: headers, body: body});
+	result.push({ headers: headers, body: s.substring(headerEnd + 4, s.length - 2)});
       });
     }
-    if (contentTypeParams[''] == "text/plain" &&
-        request.queryString == "plain") {
-      result = requestBody;
-    }
-    if (contentTypeParams[''] == "application/x-www-form-urlencoded" &&
-        request.queryString == "url") {
-      result = requestBody;
-    }
-  }
-  else if (request.method == "GET") {
-    result = request.queryString;
   }
 
   // Send response body
-  response.setHeader("Content-Type", "text/plain; charset=utf-8", false);
-  response.write(utf8encode(JSON.stringify(result)));
+  response.setHeader("Content-Type", "text/plain", false);
+  response.write(JSON.stringify(result));
 }

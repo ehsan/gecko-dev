@@ -72,7 +72,7 @@ currImageElem.src = new_image_url();
 p.style.MozBorderImage = "url( " + currImageElem.src + ") 2 2 2 2 / 7px 2px";
 is(divcs.width, "11px", "border image not loaded yet");
 is(divcs.height, "11px", "border image not loaded yet");
-currImageElem.onload = function() { setTimeout(step2, 0); }
+currImageElem.onload = step2;
 
 function step2() {
   // We got here through onload
@@ -85,7 +85,7 @@ function step2() {
   is(divcs.width, "9px", "border image loading caused reflow");
   is(divcs.height, "19px", "border image loading caused reflow");
 
-  p.style.borderStyle = "none";
+  p.style.border = "";
   is(divcs.width, "9px", "border image still shows with border-style:none");
   is(divcs.height, "19px", "border image still shows with border-style:none");
 
@@ -97,7 +97,7 @@ function step2() {
   p.style.MozBorderImage = "url( " + currImageElem.src + ") 2 2 2 2 / 7px 2px";
   is(divcs.width, "5px", "border image not loaded yet");
   is(divcs.height, "5px", "border image not loaded yet");
-  currImageElem.onload = function() { setTimeout(step3, 0); }
+  currImageElem.onload = step3;
 }
 
 function step3() {
@@ -113,9 +113,10 @@ function step3() {
 
   currImageElem.src = new_image_url();
   p.style.MozBorderImage = "url( " + currImageElem.src + ") 2 2 2 2";
+  p.style.border = "3px none";
   is(divcs.width, "5px", "border image not loaded yet");
   is(divcs.height, "5px", "border image not loaded yet");
-  currImageElem.onload = function() { setTimeout(step4, 0); }
+  currImageElem.onload = step4;
 }
 
 function step4() {

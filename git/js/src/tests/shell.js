@@ -52,6 +52,16 @@ var SECT_PREFIX = 'Section ';
 var SECT_SUFFIX = ' of test - ';
 var callStack = new Array();
 
+// hack to output test path at beginning of the test
+if (typeof __defineGetter__ == 'function' && typeof __defineSetter__ == 'function')
+{
+  __defineGetter__('gTestfile', (function () { return this._gTestfile; }));
+  __defineSetter__('gTestfile', (function (v) { print('begin test: ' + gTestsuite + '/' + gTestsubsuite + '/' + v); this._gTestfile = v; }));
+}
+
+var gTestPath;
+var gTestsuite;
+var gTestsubsuite;
 var gDelayTestDriverEnd = false;
 
 var gTestcases = new Array();
@@ -102,6 +112,10 @@ function startTest() {
 
 function TestCase(n, d, e, a)
 {
+  this.path = (typeof gTestPath == 'undefined') ?
+    (gTestsuite + '/' + gTestsubsuite + '/' + gTestfile) :
+    gTestPath;
+  this.file = gTestfile;
   this.name = n;
   this.description = d;
   this.expect = e;
@@ -320,21 +334,18 @@ function reportCompare (expected, actual, description) {
                  "' matched actual value '" + toPrinted(actual) + "'");
   }
 
-  var testcase = new TestCase("unknown-test-name", description, expected, actual);
+  var testcase = new TestCase(gTestfile, description, expected, actual);
   testcase.reason = output;
 
-  // if running under reftest, let it handle result reporting.
-  if (typeof document != "object" ||
-      !document.location.href.match(/jsreftest.html/)) {
-    if (testcase.passed)
-    {
-      print(PASSED + description);
-    }
-    else
-    {
-      reportFailure (description + " : " + output);
-    }
+  if (testcase.passed)
+  {
+    print(PASSED + description);
   }
+  else
+  {
+    reportFailure (description + " : " + output);
+  }
+
   return testcase.passed;
 }
 
@@ -381,21 +392,18 @@ function reportMatch (expectedRegExp, actual, description) {
                  "' matched actual value '" + toPrinted(actual) + "'");
   }
 
-  var testcase = new TestCase("unknown-test-name", description, true, matches);
+  var testcase = new TestCase(gTestfile, description, true, matches);
   testcase.reason = output;
 
-  // if running under reftest, let it handle result reporting.
-  if (typeof document != "object" ||
-      !document.location.href.match(/jsreftest.html/)) {
-    if (testcase.passed)
-    {
-      print(PASSED + description);
-    }
-    else
-    {
-      reportFailure (description + " : " + output);
-    }
+  if (testcase.passed)
+  {
+    print(PASSED + description);
   }
+  else
+  {
+    reportFailure (description + " : " + output);
+  }
+
   return testcase.passed;
 }
 
@@ -642,12 +650,11 @@ function optionsInit() {
 function optionsClear() {
        
   // turn off current settings
-  // except jit.
   var optionNames = options().split(',');
   for (var i = 0; i < optionNames.length; i++)
   {
     var optionName = optionNames[i];
-    if (optionName && optionName != "methodjit" && optionName != "tracejit" && optionName != "jitprofiling")
+    if (optionName)
     {
       options(optionName);
     }
@@ -782,11 +789,7 @@ function test() {
 
 function writeTestCaseResult( expect, actual, string ) {
   var passed = getTestCaseResult( expect, actual );
-  // if running under reftest, let it handle result reporting.
-  if (typeof document != "object" ||
-      !document.location.href.match(/jsreftest.html/)) {
-    writeFormattedResult( expect, actual, string, passed );
-  }
+  writeFormattedResult( expect, actual, string, passed );
   return passed;
 }
 function writeFormattedResult( expect, actual, string, passed ) {
@@ -827,18 +830,6 @@ function getFailedCases() {
   }
 }
 
-var JSTest = {
-  waitForExplicitFinish: function () {
-    gDelayTestDriverEnd = true;
-  },
-
-  testFinished: function () {
-    gDelayTestDriverEnd = false;
-    jsTestDriverEnd();
-    quit();
-  }
-};
-
 function jsTestDriverEnd()
 {
   // gDelayTestDriverEnd is used to
@@ -872,13 +863,13 @@ function jsTestDriverEnd()
 
 function jit(on)
 {
-  if (on && !options().match(/tracejit/))
+  if (on && !options().match(/jit/))
   {
-    options('tracejit');
+    options('jit');
   }
-  else if (!on && options().match(/tracejit/))
+  else if (!on && options().match(/jit/))
   {
-    options('tracejit');
+    options('jit');
   }
 }
 

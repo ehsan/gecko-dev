@@ -92,6 +92,8 @@ public:
   nsMargin GetButtonBorderAndPadding();
   nsMargin GetButtonInnerFocusMargin();
   nsMargin GetButtonInnerFocusBorderAndPadding();
+  nsMargin GetButtonOutlineBorderAndPadding();
+  nsMargin GetFullButtonBorderAndPadding();
   nsMargin GetAddedButtonBorderAndPadding();
 
   nsStyleContext* GetStyleContext(PRInt32 aIndex) const;

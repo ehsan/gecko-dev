@@ -39,7 +39,7 @@
 #include "nsUCVJADll.h"
 #include "nsUCConstructors.h"
 
-nsresult
+NS_METHOD
 nsUnicodeToJISx0201Constructor(nsISupports *aOuter, REFNSIID aIID,
                                void **aResult)
 {

@@ -147,6 +147,8 @@ NS_IMETHODIMP nsImageLoader::OnStartContainer(imgIRequest *aRequest,
    *   one loop = 2
    */
   aImage->SetAnimationMode(mFrame->PresContext()->ImageAnimationMode());
+  // Ensure the animation (if any) is started.
+  aImage->StartAnimation();
 
   return NS_OK;
 }
@@ -194,7 +196,7 @@ NS_IMETHODIMP nsImageLoader::OnStopRequest(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
-                                          const nsIntRect *aDirtyRect)
+                                          nsIntRect *dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
@@ -203,10 +205,8 @@ NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
     // We're in the middle of a paint anyway
     return NS_OK;
   }
-
-  nsRect r = (*aDirtyRect == nsIntRect::GetMaxSizedIntRect()) ?
-    nsRect(nsPoint(0, 0), mFrame->GetSize()) :
-    aDirtyRect->ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
+  
+  nsRect r = dirtyRect->ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
 
   DoRedraw(&r);
 
@@ -217,7 +217,11 @@ void
 nsImageLoader::DoReflow()
 {
   nsIPresShell *shell = mFrame->PresContext()->GetPresShell();
-  shell->FrameNeedsReflow(mFrame, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
+#ifdef DEBUG
+  nsresult rv =
+#endif
+    shell->FrameNeedsReflow(mFrame, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
+  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Could not reflow after loading border-image");
 }
 
 void
@@ -237,7 +241,7 @@ nsImageLoader::DoRedraw(const nsRect* aDamageRect)
 
   if (mFrame->GetType() == nsGkAtoms::canvasFrame) {
     // The canvas's background covers the whole viewport.
-    bounds = mFrame->GetVisualOverflowRect();
+    bounds = mFrame->GetOverflowRect();
   }
 
   // XXX this should be ok, but there is some crappy ass bug causing it not to work

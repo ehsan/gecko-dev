@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Load the metrics tables common to TTF and OTF fonts (body).          */
 /*                                                                         */
-/*  Copyright 2006, 2007, 2008, 2009 by                                    */
+/*  Copyright 2006, 2007 by                                                */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -60,7 +60,7 @@
   /* <Return>                                                              */
   /*    FreeType error code.  0 means success.                             */
   /*                                                                       */
-#ifndef FT_CONFIG_OPTION_OLD_INTERNALS
+#if !defined FT_CONFIG_OPTION_OLD_INTERNALS
 
   FT_LOCAL_DEF( FT_Error )
   tt_face_load_hmtx( TT_Face    face,
@@ -97,7 +97,7 @@
     return error;
   }
 
-#else /* !FT_CONFIG_OPTION_OLD_INTERNALS */
+#else /* !OPTIMIZE_MEMORY || OLD_INTERNALS */
 
   FT_LOCAL_DEF( FT_Error )
   tt_face_load_hmtx( TT_Face    face,
@@ -161,9 +161,7 @@
 
     if ( num_shorts < 0 )
     {
-      FT_TRACE0(( "tt_face_load_hmtx:"
-                  " %cmtx has more metrics than glyphs.\n",
-                  vertical ? "v" : "h" ));
+      FT_ERROR(( "%cmtx has more metrics than glyphs.\n" ));
 
       /* Adobe simply ignores this problem.  So we shall do the same. */
 #if 0
@@ -231,7 +229,7 @@
     return error;
   }
 
-#endif /* !FT_CONFIG_OPTION_OLD_INTERNALS */
+#endif /* !OPTIMIZE_MEMORY || OLD_INTERNALS */
 
 
   /*************************************************************************/
@@ -343,7 +341,7 @@
   /*                                                                       */
   /*    advance :: The advance width resp. advance height.                 */
   /*                                                                       */
-#ifndef FT_CONFIG_OPTION_OLD_INTERNALS
+#if !defined FT_CONFIG_OPTION_OLD_INTERNALS
 
   FT_LOCAL_DEF( FT_Error )
   tt_face_get_metrics( TT_Face     face,
@@ -422,7 +420,7 @@
     return SFNT_Err_Ok;
   }
 
-#else /* !FT_CONFIG_OPTION_OLD_INTERNALS */
+#else /* OLD_INTERNALS */
 
   FT_LOCAL_DEF( FT_Error )
   tt_face_get_metrics( TT_Face     face,
@@ -462,7 +460,7 @@
     return SFNT_Err_Ok;
   }
 
-#endif /* !FT_CONFIG_OPTION_OLD_INTERNALS */
+#endif /* !OPTIMIZE_MEMORY || OLD_INTERNALS */
 
 
 /* END */

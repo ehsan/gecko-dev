@@ -75,7 +75,7 @@ private:
   virtual nsresult UpdateTaskbarProperties();
   virtual nsresult Enable();
   virtual nsresult Disable();
-  virtual void DetachFromNSWindow();
+  virtual void DetachFromNSWindow(PRBool windowIsAlive);
   nsresult UpdateButton(PRUint32 index);
   nsresult UpdateButtons();
 

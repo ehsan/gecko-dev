@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-472508.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 472508;
 var summary = 'TM: Do not crash @ TraceRecorder::emitTreeCall';

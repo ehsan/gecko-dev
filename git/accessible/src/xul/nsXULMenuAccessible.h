@@ -40,46 +40,41 @@
 #define _nsXULMenuAccessible_H_
 
 #include "nsAccessibleWrap.h"
+#include "nsIAccessibleSelectable.h"
 #include "nsIDOMXULSelectCntrlEl.h"
 
-/**
- * The basic implementation of SelectAccessible for XUL select controls.
+/*
+ * The basic implementation of nsIAccessibleSelectable.
  */
 class nsXULSelectableAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIACCESSIBLESELECTABLE
+
+  nsXULSelectableAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsXULSelectableAccessible() {}
 
   // nsAccessNode
-  virtual void Shutdown();
-
-  // SelectAccessible
-  virtual bool IsSelect();
-  virtual already_AddRefed<nsIArray> SelectedItems();
-  virtual PRUint32 SelectedItemCount();
-  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
-  virtual bool IsItemSelected(PRUint32 aIndex);
-  virtual bool AddItemToSelection(PRUint32 aIndex);
-  virtual bool RemoveItemFromSelection(PRUint32 aIndex);
-  virtual bool SelectAll();
-  virtual bool UnselectAll();
+  virtual nsresult Shutdown();
 
 protected:
+  nsresult ChangeSelection(PRInt32 aIndex, PRUint8 aMethod, PRBool *aSelState);
+
   // nsIDOMXULMultiSelectControlElement inherits from this, so we'll always have
   // one of these if the widget is valid and not defunct
   nsCOMPtr<nsIDOMXULSelectControlElement> mSelectControl;
 };
 
-/**
- * Used for XUL menu, menuitem elements.
+/* Accessible for supporting XUL menus
  */
+
 class nsXULMenuitemAccessible : public nsAccessibleWrap
 {
 public:
   enum { eAction_Click = 0 };
 
-  nsXULMenuitemAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULMenuitemAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetDescription(nsAString& aDescription);
@@ -90,11 +85,11 @@ public:
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
 
   // nsAccessNode
-  virtual PRBool Init();
+  virtual nsresult Init();
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual PRInt32 GetLevelInternal();
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
@@ -103,13 +98,10 @@ public:
   virtual PRBool GetAllowsAnonChildAccessibles();
 };
 
-/**
- * Used for XUL menuseparator element.
- */
 class nsXULMenuSeparatorAccessible : public nsXULMenuitemAccessible
 {
 public:
-  nsXULMenuSeparatorAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULMenuSeparatorAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD DoAction(PRUint8 index);
@@ -118,7 +110,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -129,25 +121,22 @@ public:
 class nsXULMenupopupAccessible : public nsXULSelectableAccessible
 {
 public:
-  nsXULMenupopupAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULMenupopupAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-/**
- * Used for XUL menubar element.
- */
 class nsXULMenubarAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULMenubarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULMenubarAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 

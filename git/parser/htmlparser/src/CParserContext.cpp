@@ -43,7 +43,6 @@
 #include "prenv.h"  
 #include "nsIHTMLContentSink.h"
 #include "nsHTMLTokenizer.h"
-#include "nsMimeTypes.h"
 
 CParserContext::CParserContext(CParserContext* aPrevContext,
                                nsScanner* aScanner, 
@@ -81,20 +80,17 @@ CParserContext::SetMimeType(const nsACString& aMimeType)
 
   mDocType = ePlainText;
 
-  if (mMimeType.EqualsLiteral(TEXT_HTML))
+  if (mMimeType.EqualsLiteral(kHTMLTextContentType))
     mDocType = eHTML_Strict;
-  else if (mMimeType.EqualsLiteral(TEXT_XML)              ||
-           mMimeType.EqualsLiteral(APPLICATION_XML)       ||
-           mMimeType.EqualsLiteral(APPLICATION_XHTML_XML) ||
-           mMimeType.EqualsLiteral(TEXT_XUL)              ||
+  else if (mMimeType.EqualsLiteral(kXMLTextContentType)          ||
+           mMimeType.EqualsLiteral(kXMLApplicationContentType)   ||
+           mMimeType.EqualsLiteral(kXHTMLApplicationContentType) ||
+           mMimeType.EqualsLiteral(kXULTextContentType)          ||
 #ifdef MOZ_SVG
-           mMimeType.EqualsLiteral(IMAGE_SVG_XML)         ||
+           mMimeType.EqualsLiteral(kSVGTextContentType)          ||
 #endif
-#ifdef MOZ_MATHML
-           mMimeType.EqualsLiteral(APPLICATION_MATHML_XML) ||
-#endif
-           mMimeType.EqualsLiteral(APPLICATION_RDF_XML)   ||
-           mMimeType.EqualsLiteral(TEXT_RDF))
+           mMimeType.EqualsLiteral(kRDFApplicationContentType)   ||
+           mMimeType.EqualsLiteral(kRDFTextContentType))
     mDocType = eXML;
 }
 

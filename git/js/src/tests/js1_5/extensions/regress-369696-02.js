@@ -35,8 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-369696-02.js';
 //-----------------------------------------------------------------------------
-var BUGNUMBER = 369696;
+var BUGNUMBER = 396696;
 var summary = 'Do not assert: map->depth > 0" in js_LeaveSharpObject';
 var actual = '';
 var expect = '';
@@ -52,8 +53,8 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
 
-  function fun() {}
-  n = fun.prototype;
+  native = encodeURIComponent;
+  n = native.prototype;
   n.__defineGetter__("prototype", n.toSource);
   p = n.__lookupGetter__("prototype");
   n = p;

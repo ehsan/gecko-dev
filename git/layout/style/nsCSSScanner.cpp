@@ -57,7 +57,6 @@
 #include "nsIScriptError.h"
 #include "nsIStringBundle.h"
 #include "nsContentUtils.h"
-#include "mozilla/Services.h"
 
 #ifdef CSS_REPORT_PARSE_ERRORS
 static PRBool gReportErrors = PR_TRUE;
@@ -105,8 +104,8 @@ static const PRUint8 gLexTable[256] = {
    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 //
    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
-// NBSP¡   ¢   £   ¤   ¥   ¦   §   ¨   ©   ª   «   ¬   ­   ®   ¯
-   SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI,
+//     ¡   ¢   £   ¤   ¥   ¦   §   ¨   ©   ª   «   ¬   ­   ®   ¯
+   0,  SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI,
 // °   ±   ²   ³   ´   µ   ¶   ·   ¸   ¹   º   »   ¼   ½   ¾   ¿
    SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI, SI,
 // À   Á   Â   Ã   Ä   Å   Æ   Ç   È   É   Ê   Ë   Ì   Í   Î   Ï
@@ -448,7 +447,7 @@ InitStringBundle()
     return PR_TRUE;
 
   nsCOMPtr<nsIStringBundleService> sbs =
-    mozilla::services::GetStringBundleService();
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID);
   if (!sbs)
     return PR_FALSE;
 
@@ -1206,12 +1205,11 @@ nsCSSScanner::ParseNumber(PRInt32 c, nsCSSToken& aToken)
     // overloaded pow() on Windows.
     value *= pow(10.0, double(expSign * exponent));
   } else if (!gotDot) {
-    // Clamp values outside of integer range.
-    if (sign > 0) {
-      aToken.mInteger = PRInt32(NS_MIN(intPart, double(PR_INT32_MAX)));
-    } else {
-      aToken.mInteger = PRInt32(NS_MAX(-intPart, double(PR_INT32_MIN)));
+    if (intPart > PR_INT32_MAX) {
+      // Just clamp it.
+      intPart = PR_INT32_MAX;
     }
+    aToken.mInteger = PRInt32(sign * intPart);
     aToken.mIntegerValid = PR_TRUE;
   }
 

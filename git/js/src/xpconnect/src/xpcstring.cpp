@@ -77,18 +77,17 @@ XPCStringConvert::ShutdownDOMStringFinalizer()
 // static
 jsval
 XPCStringConvert::ReadableToJSVal(JSContext *cx,
-                                  const nsAString &readable,
-                                  nsStringBuffer** sharedBuffer)
+                                  const nsAString &readable)
 {
     JSString *str;
-    *sharedBuffer = nsnull;
 
     PRUint32 length = readable.Length();
 
     JSAtom *atom;
     if (length == 0 && (atom = cx->runtime->atomState.emptyAtom))
     {
-        return ATOM_TO_JSVAL(atom);
+        NS_ASSERTION(ATOM_IS_STRING(atom), "What kind of atom is this?");
+        return ATOM_KEY(atom);
     }
 
     nsStringBuffer *buf = nsStringBuffer::FromString(readable);
@@ -109,9 +108,7 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
                                    length, sDOMStringFinalizerIndex);
 
         if (str)
-        {
-            *sharedBuffer = buf;
-        }
+            buf->AddRef();
     }
     else
     {

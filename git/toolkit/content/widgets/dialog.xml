@@ -270,7 +270,7 @@
                   case "cancel":
                     button.setAttribute("icon","cancel");
                     break;
-                  case "disclosure":
+                  case "disclosue":
                     button.setAttribute("icon","properties");
                     break;
                   case "help":

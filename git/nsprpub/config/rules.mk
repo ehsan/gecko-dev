@@ -141,7 +141,7 @@ endif
 ifndef TARGETS
 ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
 TARGETS		= $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY)
-ifdef MOZ_DEBUG_SYMBOLS
+ifndef BUILD_OPT
 ifdef MSC_VER
 ifneq (,$(filter-out 1100 1200,$(MSC_VER)))
 TARGETS		+= $(SHARED_LIB_PDB)
@@ -306,10 +306,7 @@ $(IMPORT_LIBRARY): $(MAPFILE)
 	$(IMPLIB) $@ $(MAPFILE)
 else
 ifeq (,$(filter-out WIN95 WINCE WINMO,$(OS_TARGET)))
-# PDBs and import libraries need to depend on the shared library to
-# order dependencies properly.
 $(IMPORT_LIBRARY): $(SHARED_LIBRARY)
-$(SHARED_LIB_PDB): $(SHARED_LIBRARY)
 endif
 endif
 

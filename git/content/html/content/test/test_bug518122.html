@@ -62,15 +62,15 @@ var simple_tests_for_input = [ ["foo", "foo"],
                                [undefined , "undefined"],
                                ["\n", ""],
                                ["\r", ""],
-                               ["\rfoo", "foo"],
+                               ["\rfoo", " foo"],
                                ["foo\r", "foo"],
-                               ["foo\rbar", "foobar"],
-                               ["foo\rbar\r", "foobar"],
+                               ["foo\rbar", "foo bar"],
+                               ["foo\rbar\r", "foo bar"],
                                ["\r\n", ""],
-                               ["\r\nfoo", "foo"],
+                               ["\r\nfoo", " foo"],
                                ["foo\r\n", "foo"],
-                               ["foo\r\nbar", "foobar"],
-                               ["foo\r\nbar\r\n", "foobar"] ];
+                               ["foo\r\nbar", "foo bar"],
+                               ["foo\r\nbar\r\n", "foo bar"] ];
 
 var value_append_tests_for_input = [ ["foo", "bar", "foobar"],
                                      ["foo", "foo", "foofoo"],
@@ -105,12 +105,8 @@ function runTests() {
   for (var i = 0; i < textareas.length; ++i) {
     runTestsFor(textareas[i], simple_tests, value_append_tests);
   }
-  var input = document.getElementsByTagName("input")[0];
-  runTestsFor(input, simple_tests_for_input, value_append_tests_for_input);
-  // initialize the editor
-  input.focus();
-  input.blur();
-  runTestsFor(input, simple_tests_for_input, value_append_tests_for_input);
+  runTestsFor(document.getElementsByTagName("input")[0],
+              simple_tests_for_input, value_append_tests_for_input);
   SimpleTest.finish();
 }
 

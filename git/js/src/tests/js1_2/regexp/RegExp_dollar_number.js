@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'RegExp_dollar_number.js';
 
 /**
    Filename:     RegExp_dollar_number.js

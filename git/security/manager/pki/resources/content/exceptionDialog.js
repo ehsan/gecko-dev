@@ -95,14 +95,18 @@ function initExceptionDialog() {
       // until the fetch is completed, which could be multiple seconds.
       // Instead, let's use a timer to spawn the actual fetch, but update
       // the dialog to "checking..." state right away, so that the UI
-      // is appropriately responsive.  Bug 453855
+      // is appropriately responsive.  We could include a very short lag
+      // and there would still be time for the window to draw, but bringing
+      // it up to a couple seconds still feels responsive, while also giving
+      // users who are unfamiliar with the dialog a chance to read the preamble
+      // before the dialog fills up with details about the certificate
+      // problems.  Bug 453855
       if (args[0].prefetchCert) {
-
-        document.getElementById("checkCertButton").disabled = true;
+        
         gChecking = true;
         updateCertStatus();
         
-        window.setTimeout(checkCert, 0);
+        window.setTimeout(checkCert, 2000);
       }
     }
     
@@ -300,9 +304,7 @@ function updateCertStatus() {
       gDialog.getButton("extra1").disabled = true;
       document.getElementById("permanent").disabled = true;
     }
-
-    // We're done checking the certificate, so allow the user to check it again.
-    document.getElementById("checkCertButton").disabled = false;
+    
     document.getElementById("viewCertButton").disabled = false;
 
     // Notify observers about the availability of the certificate
@@ -313,10 +315,6 @@ function updateCertStatus() {
   else if (gChecking) {
     shortDesc = "addExceptionCheckingShort";
     longDesc  = "addExceptionCheckingLong";
-    // We're checking the certificate, so we disable the Get Certificate
-    // button to make sure that the user can't interrupt the process and
-    // trigger another certificate fetch.
-    document.getElementById("checkCertButton").disabled = true;
     document.getElementById("viewCertButton").disabled = true;
     gDialog.getButton("extra1").disabled = true;
     document.getElementById("permanent").disabled = true;
@@ -324,8 +322,6 @@ function updateCertStatus() {
   else {
     shortDesc = "addExceptionNoCertShort";
     longDesc  = "addExceptionNoCertLong";
-    // We're done checking the certificate, so allow the user to check it again.
-    document.getElementById("checkCertButton").disabled = false;
     document.getElementById("viewCertButton").disabled = true;
     gDialog.getButton("extra1").disabled = true;
     document.getElementById("permanent").disabled = true;

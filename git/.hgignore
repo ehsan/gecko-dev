@@ -3,13 +3,13 @@
 # Filenames that should be ignored wherever they appear
 ~$
 \.py(c|o)$
-(?i)(^|/)TAGS$
+(^|/)TAGS$
 (^|/)ID$
 (^|/)\.DS_Store$
 
 # User files that may appear at the root
 ^\.mozconfig
-^mozconfig$
+^mozconfig
 ^configure$
 ^config\.cache$
 ^config\.log$

@@ -58,6 +58,7 @@
 /**
  * nsIProfile
  * 
+ * @status FROZEN
  * @version 1.0
  */
 

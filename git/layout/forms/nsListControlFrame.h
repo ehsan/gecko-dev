@@ -144,7 +144,7 @@ public:
 
     // for accessibility purposes
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
     // nsHTMLContainerFrame
@@ -188,6 +188,7 @@ public:
   // nsISelectControlFrame
   NS_IMETHOD AddOption(PRInt32 index);
   NS_IMETHOD RemoveOption(PRInt32 index);
+  NS_IMETHOD GetOptionSelected(PRInt32 aIndex, PRBool* aValue);
   NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
 
   /**
@@ -297,12 +298,10 @@ protected:
   PRBool     UpdateSelection();
 
   /**
-   * Returns whether mContent supports multiple selection.
+   * Returns whether the nsIDOMHTMLSelectElement supports 
+   * multiple selection.
    */
-  PRBool     GetMultiple() const {
-    return mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::multiple);
-  }
-
+  PRBool     GetMultiple(nsIDOMHTMLSelectElement* aSelect = nsnull) const;
 
   /**
    * Toggles (show/hide) the combobox dropdown menu.

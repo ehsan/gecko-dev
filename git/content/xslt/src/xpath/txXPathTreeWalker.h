@@ -291,7 +291,7 @@ txXPathNodeUtils::localNameEquals(const txXPathNode& aNode,
     return localName == aLocalName;
 #else
     if (aNode.isContent() &&
-        aNode.Content()->IsElement()) {
+        aNode.Content()->IsNodeOfType(nsINode::eELEMENT)) {
         return aNode.Content()->NodeInfo()->Equals(aLocalName);
     }
 
@@ -320,7 +320,7 @@ txXPathNodeUtils::isElement(const txXPathNode& aNode)
     return aNode.mInner->getNodeType() == Node::ELEMENT_NODE;
 #else
     return aNode.isContent() &&
-           aNode.Content()->IsElement();
+           aNode.Content()->IsNodeOfType(nsINode::eELEMENT);
 #endif
 }
 

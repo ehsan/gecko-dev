@@ -67,9 +67,14 @@ TryToClose.prototype = {
     }
   },
 
+  classDescription: "tryToClose Service",
+  contractID: "@mozilla.org/appshell/trytoclose;1",
   classID: Components.ID("{b69155f4-a8bf-453d-8653-91d1456e1d3d}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference]),
+  _xpcom_categories: [{ category: "app-startup", service: true }]
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([TryToClose]);
+function NSGetModule(aCompMgr, aFileSpec) {
+  return XPCOMUtils.generateModule([TryToClose]);
+}

@@ -42,6 +42,7 @@
 
 
 #include "nsHTMLContainerFrame.h"
+#include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsIRenderingContext.h"
 #include "nsGUIEvent.h"
@@ -49,8 +50,6 @@
 #include "nsIScrollPositionListener.h"
 #include "nsDisplayList.h"
 #include "nsAbsoluteContainingBlock.h"
-
-class nsPresContext;
 
 /**
  * Root frame class.
@@ -64,9 +63,7 @@ class nsCanvasFrame : public nsHTMLContainerFrame,
 {
 public:
   nsCanvasFrame(nsStyleContext* aContext)
-  : nsHTMLContainerFrame(aContext),
-    mDoPaintFocus(PR_FALSE),
-    mAddedScrollPositionListener(PR_FALSE),
+  : nsHTMLContainerFrame(aContext), mDoPaintFocus(PR_FALSE),
     mAbsoluteContainer(nsGkAtoms::absoluteList) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsCanvasFrame)
@@ -74,6 +71,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
@@ -153,75 +153,7 @@ protected:
 
   // Data members
   PRPackedBool              mDoPaintFocus;
-  PRPackedBool              mAddedScrollPositionListener;
   nsAbsoluteContainingBlock mAbsoluteContainer;
 };
-
-/**
- * Override nsDisplayBackground methods so that we pass aBGClipRect to
- * PaintBackground, covering the whole overflow area.
- * We can also paint an "extra background color" behind the normal
- * background.
- */
-class nsDisplayCanvasBackground : public nsDisplayBackground {
-public:
-  nsDisplayCanvasBackground(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame)
-    : nsDisplayBackground(aBuilder, aFrame)
-  {
-    mExtraBackgroundColor = NS_RGBA(0,0,0,0);
-  }
-
-  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion)
-  {
-    return NS_GET_A(mExtraBackgroundColor) > 0 ||
-           nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion);
-  }
-  virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder,
-                          PRBool* aForceTransparentSurface = nsnull)
-  {
-    if (aForceTransparentSurface) {
-      *aForceTransparentSurface = PR_FALSE;
-    }
-    return NS_GET_A(mExtraBackgroundColor) == 255 ||
-           nsDisplayBackground::IsOpaque(aBuilder);
-  }
-  virtual PRBool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor)
-  {
-    nscolor background;
-    if (!nsDisplayBackground::IsUniform(aBuilder, &background))
-      return PR_FALSE;
-    NS_ASSERTION(background == NS_RGBA(0,0,0,0),
-                 "The nsDisplayBackground for a canvas frame doesn't paint "
-                 "its background color normally");
-    *aColor = mExtraBackgroundColor;
-    return PR_TRUE;
-  }
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
-  {
-    nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    return frame->CanvasArea() + ToReferenceFrame();
-  }
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
-  {
-    // We need to override so we don't consider border-radius.
-    aOutFrames->AppendElement(mFrame);
-  }
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
-
-  void SetExtraBackgroundColor(nscolor aColor)
-  {
-    mExtraBackgroundColor = aColor;
-  }
-
-  NS_DISPLAY_DECL_NAME("CanvasBackground", TYPE_CANVAS_BACKGROUND)
-
-private:
-  nscolor mExtraBackgroundColor;
-};
-
 
 #endif /* nsCanvasFrame_h___ */

@@ -41,9 +41,8 @@
 //-----------------------------------------------------
 // construction 
 //-----------------------------------------------------
-nsAccessibleWrap::
-  nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessible(aContent, aShell)
+nsAccessibleWrap::nsAccessibleWrap(nsIDOMNode* aNode, nsIWeakReference *aShell): 
+  nsAccessible(aNode, aShell)
 {
 }
 

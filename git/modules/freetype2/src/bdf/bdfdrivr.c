@@ -2,7 +2,7 @@
 
     FreeType font driver for bdf files
 
-    Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008 by
+    Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007 by
     Francesco Zappa Nardelli
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,7 +30,6 @@ THE SOFTWARE.
 #include FT_INTERNAL_STREAM_H
 #include FT_INTERNAL_OBJECTS_H
 #include FT_BDF_H
-#include FT_TRUETYPE_IDS_H 
 
 #include FT_SERVICE_BDF_H
 #include FT_SERVICE_XFREE86_NAME_H
@@ -54,7 +53,7 @@ THE SOFTWARE.
   typedef struct  BDF_CMapRec_
   {
     FT_CMapRec        cmap;
-    FT_ULong          num_encodings; /* ftobjs.h: FT_CMap->clazz->size */
+    FT_UInt           num_encodings;
     BDF_encoding_el*  encodings;
 
   } BDF_CMapRec, *BDF_CMap;
@@ -93,8 +92,8 @@ THE SOFTWARE.
   {
     BDF_CMap          cmap      = (BDF_CMap)bdfcmap;
     BDF_encoding_el*  encodings = cmap->encodings;
-    FT_ULong          min, max, mid; /* num_encodings */
-    FT_UShort         result    = 0; /* encodings->glyph */
+    FT_UInt           min, max, mid;
+    FT_UInt           result    = 0;
 
 
     min = 0;
@@ -102,7 +101,7 @@ THE SOFTWARE.
 
     while ( min < max )
     {
-      FT_ULong  code;
+      FT_UInt32  code;
 
 
       mid  = ( min + max ) >> 1;
@@ -132,9 +131,9 @@ THE SOFTWARE.
   {
     BDF_CMap          cmap      = (BDF_CMap)bdfcmap;
     BDF_encoding_el*  encodings = cmap->encodings;
-    FT_ULong          min, max, mid; /* num_encodings */
-    FT_UShort         result   = 0;  /* encodings->glyph */
-    FT_ULong          charcode = *acharcode + 1;
+    FT_UInt           min, max, mid;
+    FT_UInt32         charcode = *acharcode + 1;
+    FT_UInt           result   = 0;
 
 
     min = 0;
@@ -142,7 +141,7 @@ THE SOFTWARE.
 
     while ( min < max )
     {
-      FT_ULong  code; /* same as BDF_encoding_el.enc */
+      FT_UInt32  code;
 
 
       mid  = ( min + max ) >> 1;
@@ -170,14 +169,7 @@ THE SOFTWARE.
     }
 
   Exit:
-    if ( charcode > 0xFFFFFFFFUL )
-    {
-      FT_TRACE1(( "bdf_cmap_char_next: charcode 0x%x > 32bit API" ));
-      *acharcode = 0;
-      /* XXX: result should be changed to indicate an overflow error */
-    }
-    else
-      *acharcode = (FT_UInt32)charcode;
+    *acharcode = charcode;
     return result;
   }
 
@@ -204,8 +196,9 @@ THE SOFTWARE.
     bdf_font_t*      font   = bdf->bdffont;
     bdf_property_t*  prop;
 
-    char*   strings[4] = { NULL, NULL, NULL, NULL };
-    size_t  nn, len, lengths[4];
+    int    nn, len;
+    char*  strings[4] = { NULL, NULL, NULL, NULL };
+    int    lengths[4];
 
 
     face->style_flags = 0;
@@ -291,7 +284,7 @@ THE SOFTWARE.
         /* add_style_name and setwidth_name     */
         if ( nn == 0 || nn == 3 )
         {
-          size_t  mm;
+          int  mm;
 
 
           for ( mm = 0; mm < len; mm++ )
@@ -311,14 +304,9 @@ THE SOFTWARE.
   FT_CALLBACK_DEF( void )
   BDF_Face_Done( FT_Face  bdfface )         /* BDF_Face */
   {
-    BDF_Face   face = (BDF_Face)bdfface;
-    FT_Memory  memory;
+    BDF_Face   face   = (BDF_Face)bdfface;
+    FT_Memory  memory = FT_FACE_MEMORY( face );
 
-
-    if ( !face )
-      return;
-
-    memory = FT_FACE_MEMORY( face );
 
     bdf_free_font( face->bdffont );
 
@@ -433,7 +421,7 @@ THE SOFTWARE.
 
         prop = bdf_get_font_property( font, "AVERAGE_WIDTH" );
         if ( prop )
-          bsize->width = (FT_Short)( ( prop->value.l + 5 ) / 10 );
+          bsize->width = (FT_Short)( ( prop->value.int32 + 5 ) / 10 );
         else
           bsize->width = (FT_Short)( bsize->height * 2/3 );
 
@@ -441,21 +429,21 @@ THE SOFTWARE.
         if ( prop )
           /* convert from 722.7 decipoints to 72 points per inch */
           bsize->size =
-            (FT_Pos)( ( prop->value.l * 64 * 7200 + 36135L ) / 72270L );
+            (FT_Pos)( ( prop->value.int32 * 64 * 7200 + 36135L ) / 72270L );
         else
           bsize->size = bsize->width << 6;
 
         prop = bdf_get_font_property( font, "PIXEL_SIZE" );
         if ( prop )
-          bsize->y_ppem = (FT_Short)prop->value.l << 6;
+          bsize->y_ppem = (FT_Short)prop->value.int32 << 6;
 
         prop = bdf_get_font_property( font, "RESOLUTION_X" );
         if ( prop )
-          resolution_x = (FT_Short)prop->value.l;
+          resolution_x = (FT_Short)prop->value.int32;
 
         prop = bdf_get_font_property( font, "RESOLUTION_Y" );
         if ( prop )
-          resolution_y = (FT_Short)prop->value.l;
+          resolution_y = (FT_Short)prop->value.int32;
 
         if ( bsize->y_ppem == 0 )
         {
@@ -486,12 +474,7 @@ THE SOFTWARE.
           (face->en_table[n]).glyph = (FT_Short)n;
 
           if ( cur[n].encoding == font->default_char )
-          {
-            if ( n < FT_UINT_MAX )
-              face->default_glyph = (FT_UInt)n;
-            else
-              FT_TRACE1(( "idx %d is too large for this system\n", n ));
-          }
+            face->default_glyph = n;
         }
       }
 
@@ -541,15 +524,14 @@ THE SOFTWARE.
 
               charmap.face        = FT_FACE( face );
               charmap.encoding    = FT_ENCODING_NONE;
-              /* initial platform/encoding should indicate unset status? */
-              charmap.platform_id = TT_PLATFORM_APPLE_UNICODE;
-              charmap.encoding_id = TT_APPLE_ID_DEFAULT;
+              charmap.platform_id = 0;
+              charmap.encoding_id = 0;
 
               if ( unicode_charmap )
               {
                 charmap.encoding    = FT_ENCODING_UNICODE;
-                charmap.platform_id = TT_PLATFORM_MICROSOFT;
-                charmap.encoding_id = TT_MS_ID_UNICODE_CS;
+                charmap.platform_id = 3;
+                charmap.encoding_id = 1;
               }
 
               error = FT_CMap_New( &bdf_cmap_class, NULL, &charmap, NULL );
@@ -573,8 +555,8 @@ THE SOFTWARE.
 
           charmap.face        = FT_FACE( face );
           charmap.encoding    = FT_ENCODING_ADOBE_STANDARD;
-          charmap.platform_id = TT_PLATFORM_ADOBE;
-          charmap.encoding_id = TT_ADOBE_ID_STANDARD;
+          charmap.platform_id = 7;
+          charmap.encoding_id = 0;
 
           error = FT_CMap_New( &bdf_cmap_class, NULL, &charmap, NULL );
 
@@ -628,7 +610,7 @@ THE SOFTWARE.
     switch ( req->type )
     {
     case FT_SIZE_REQUEST_TYPE_NOMINAL:
-      if ( height == ( ( bsize->y_ppem + 32 ) >> 6 ) )
+      if ( height == ( bsize->y_ppem + 32 ) >> 6 )
         error = BDF_Err_Ok;
       break;
 
@@ -684,10 +666,7 @@ THE SOFTWARE.
 
     bitmap->rows  = glyph.bbx.height;
     bitmap->width = glyph.bbx.width;
-    if ( glyph.bpr > INT_MAX )
-      FT_TRACE1(( "BDF_Glyph_Load: too large pitch %d is truncated\n",
-                   glyph.bpr ));
-    bitmap->pitch = (int)glyph.bpr; /* same as FT_Bitmap.pitch */
+    bitmap->pitch = glyph.bpr;
 
     /* note: we don't allocate a new array to hold the bitmap; */
     /*       we can simply point to it                         */
@@ -759,23 +738,13 @@ THE SOFTWARE.
         break;
 
       case BDF_INTEGER:
-        if ( prop->value.l > 0x7FFFFFFFL || prop->value.l < ( -1 - 0x7FFFFFFFL ) )
-        {
-          FT_TRACE1(( "bdf_get_bdf_property: " ));
-          FT_TRACE1(( "too large integer 0x%x is truncated\n" ));
-        }
         aproperty->type      = BDF_PROPERTY_TYPE_INTEGER;
-        aproperty->u.integer = (FT_Int32)prop->value.l;
+        aproperty->u.integer = prop->value.int32;
         break;
 
       case BDF_CARDINAL:
-        if ( prop->value.ul > 0xFFFFFFFFUL )
-        {
-          FT_TRACE1(( "bdf_get_bdf_property: " ));
-          FT_TRACE1(( "too large cardinal 0x%x is truncated\n" ));
-        }
         aproperty->type       = BDF_PROPERTY_TYPE_CARDINAL;
-        aproperty->u.cardinal = (FT_UInt32)prop->value.ul;
+        aproperty->u.cardinal = prop->value.card32;
         break;
 
       default:

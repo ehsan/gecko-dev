@@ -44,26 +44,18 @@
 var tabPreviews = {
   aspectRatio: 0.5625, // 16:9
   init: function tabPreviews_init() {
-    if (this._selectedTab)
-      return;
-    this._selectedTab = gBrowser.selectedTab;
-
     this.width = Math.ceil(screen.availWidth / 5.75);
     this.height = Math.round(this.width * this.aspectRatio);
 
-    window.addEventListener("unload", this, false);
     gBrowser.tabContainer.addEventListener("TabSelect", this, false);
     gBrowser.tabContainer.addEventListener("SSTabRestored", this, false);
   },
   uninit: function tabPreviews_uninit() {
-    window.removeEventListener("unload", this, false);
     gBrowser.tabContainer.removeEventListener("TabSelect", this, false);
     gBrowser.tabContainer.removeEventListener("SSTabRestored", this, false);
     this._selectedTab = null;
   },
   get: function tabPreviews_get(aTab) {
-    this.init();
-
     if (aTab.__thumbnail_lastURI &&
         aTab.__thumbnail_lastURI != aTab.linkedBrowser.currentURI.spec) {
       aTab.__thumbnail = null;
@@ -72,8 +64,6 @@ var tabPreviews = {
     return aTab.__thumbnail || this.capture(aTab, !aTab.hasAttribute("busy"));
   },
   capture: function tabPreviews_capture(aTab, aStore) {
-    this.init();
-
     var thumbnail = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
     thumbnail.mozOpaque = true;
     thumbnail.height = this.height;
@@ -114,9 +104,6 @@ var tabPreviews = {
         break;
       case "SSTabRestored":
         this.capture(event.target, true);
-        break;
-      case "unload":
-        this.uninit();
         break;
     }
   }
@@ -215,13 +202,12 @@ var ctrlTab = {
     if (this._tabList)
       return this._tabList;
 
-    let list = gBrowser.visibleTabs;
+    var list = Array.slice(gBrowser.mTabs);
 
     if (this._closing)
       this.detachTab(this._closing, list);
 
-    // Rotate the list until the selected tab is first
-    while (!list[0].selected)
+    for (let i = 0; i < gBrowser.tabContainer.selectedIndex; i++)
       list.push(list.shift());
 
     if (this.recentlyUsedLimit != 0) {
@@ -239,8 +225,6 @@ var ctrlTab = {
 
   init: function ctrlTab_init() {
     if (!this._recentlyUsedTabs) {
-      tabPreviews.init();
-
       this._recentlyUsedTabs = [gBrowser.selectedTab];
       this._init(true);
     }
@@ -311,14 +295,12 @@ var ctrlTab = {
   },
 
   advanceFocus: function ctrlTab_advanceFocus(aForward) {
-    if (this._selectedIndex == -1) {
-      // No virtual selectedIndex, focus must be in the panel already.
+    if (this.panel.state == "open") {
       if (aForward)
         document.commandDispatcher.advanceFocus();
       else
         document.commandDispatcher.rewindFocus();
     } else {
-      // Focus isn't in the panel yet, so we maintain a virtual selectedIndex.
       do {
         this._selectedIndex += aForward ? 1 : -1;
         if (this._selectedIndex < 0)
@@ -463,12 +445,11 @@ var ctrlTab = {
           } else if (!event.shiftKey) {
             event.preventDefault();
             event.stopPropagation();
-            let tabs = gBrowser.visibleTabs;
-            if (tabs.length > 2) {
+            if (gBrowser.mTabs.length > 2) {
               this.open();
-            } else if (tabs.length == 2) {
-              let index = gBrowser.selectedTab == tabs[0] ? 1 : 0;
-              gBrowser.selectedTab = tabs[index];
+            } else if (gBrowser.mTabs.length == 2) {
+              gBrowser.selectedTab = gBrowser.selectedTab.nextSibling ||
+                                     gBrowser.selectedTab.previousSibling;
             }
           }
         }
@@ -596,9 +577,7 @@ var allTabs = {
       return;
     this._initiated = true;
 
-    tabPreviews.init();
-
-    Array.forEach(gBrowser.tabs, function (tab) {
+    Array.forEach(gBrowser.mTabs, function (tab) {
       this._addPreview(tab);
     }, this);
 
@@ -625,9 +604,8 @@ var allTabs = {
 
   prefName: "browser.allTabs.previews",
   readPref: function allTabs_readPref() {
-    var allTabsButton = document.getElementById("alltabs-button");
-    if (!allTabsButton)
-      return;
+    var allTabsButton = document.getAnonymousElementByAttribute(
+                          gBrowser.tabContainer, "anonid", "alltabs-button");
     if (gPrefService.getBoolPref(this.prefName)) {
       allTabsButton.removeAttribute("type");
       allTabsButton.setAttribute("command", "Browser:ShowAllTabs");
@@ -666,7 +644,7 @@ var allTabs = {
     Array.forEach(this.previews, function (preview) {
       var tab = preview._tab;
       var matches = 0;
-      if (filter.length && !tab.hidden) {
+      if (filter.length) {
         let tabstring = tab.linkedBrowser.currentURI.spec;
         try {
           tabstring = decodeURI(tabstring);
@@ -675,7 +653,7 @@ var allTabs = {
         for (let i = 0; i < filter.length; i++)
           matches += tabstring.indexOf(filter[i]) > -1;
       }
-      if (matches < filter.length || tab.hidden) {
+      if (matches < filter.length) {
         preview.hidden = true;
       }
       else {
@@ -694,15 +672,15 @@ var allTabs = {
     if (this.isOpen)
       return;
 
-    this._maxPanelHeight = Math.max(gBrowser.clientHeight, screen.availHeight / 2);
-    this._maxPanelWidth = Math.max(gBrowser.clientWidth, screen.availWidth / 2);
-
     this.filter();
 
     tabPreviewPanelHelper.opening(this);
 
-    this.panel.popupBoxObject.setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_NO_CONSUME);
-    this.panel.openPopup(gBrowser, "overlap", 0, 0, false, true);
+    this.panel.popupBoxObject.setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
+    var estimateHeight = (this._maxHeight + parseInt(this.container.maxHeight) + 50) / 2;
+    this.panel.openPopupAtScreen(screen.availLeft + (screen.availWidth - this._maxWidth) / 2,
+                                 screen.availTop + (screen.availHeight - estimateHeight) / 2,
+                                 false);
   },
 
   close: function allTabs_close() {
@@ -711,19 +689,15 @@ var allTabs = {
 
   setupGUI: function allTabs_setupGUI() {
     this.filterField.focus();
-    this.filterField.placeholder = this.filterField.tooltipText;
+    this.filterField.setAttribute("emptytext", this.filterField.tooltipText);
 
     this.panel.addEventListener("keypress", this, false);
     this.panel.addEventListener("keypress", this, true);
     this._browserCommandSet.addEventListener("command", this, false);
-
-    // When the panel is open, a second click on the all tabs button should
-    // close the panel but not re-open it.
-    document.getElementById("Browser:ShowAllTabs").setAttribute("disabled", "true");
   },
 
   suspendGUI: function allTabs_suspendGUI() {
-    this.filterField.placeholder = "";
+    this.filterField.removeAttribute("emptytext");
     this.filterField.value = "";
     this._currentFilter = null;
 
@@ -732,10 +706,6 @@ var allTabs = {
     this.panel.removeEventListener("keypress", this, false);
     this.panel.removeEventListener("keypress", this, true);
     this._browserCommandSet.removeEventListener("command", this, false);
-
-    setTimeout(function () {
-      document.getElementById("Browser:ShowAllTabs").removeAttribute("disabled");
-    }, 300);
   },
 
   handleEvent: function allTabs_handleEvent(event) {
@@ -784,6 +754,8 @@ var allTabs = {
 
   _visible: 0,
   _currentFilter: null,
+  get _maxWidth () screen.availWidth * .9,
+  get _maxHeight () screen.availHeight * .75,
   get _stack () {
     delete this._stack;
     return this._stack = document.getElementById("allTabs-stack");
@@ -814,22 +786,21 @@ var allTabs = {
   _reflow: function allTabs_reflow() {
     this._updateTabCloseButton();
 
-    const CONTAINER_MAX_WIDTH = this._maxPanelWidth * .95;
-    const CONTAINER_MAX_HEIGHT = this._maxPanelHeight - 35;
     // the size of the whole preview relative to the thumbnail
     const REL_PREVIEW_THUMBNAIL = 1.2;
-    const REL_PREVIEW_HEIGHT_WIDTH = tabPreviews.height / tabPreviews.width;
-    const PREVIEW_MAX_WIDTH = tabPreviews.width * REL_PREVIEW_THUMBNAIL;
 
+    var maxHeight = this._maxHeight;
+    var maxWidth = this._maxWidth;
+    var rel = tabPreviews.height / tabPreviews.width;
     var rows, previewHeight, previewWidth, outerHeight;
-    this._columns = Math.floor(CONTAINER_MAX_WIDTH / PREVIEW_MAX_WIDTH);
+    var previewMaxWidth = tabPreviews.width * REL_PREVIEW_THUMBNAIL;
+    this._columns = Math.floor(maxWidth / previewMaxWidth);
     do {
       rows = Math.ceil(this._visible / this._columns);
-      previewWidth = Math.min(PREVIEW_MAX_WIDTH,
-                              Math.round(CONTAINER_MAX_WIDTH / this._columns));
-      previewHeight = Math.round(previewWidth * REL_PREVIEW_HEIGHT_WIDTH);
+      previewWidth = Math.min(previewMaxWidth, Math.round(maxWidth / this._columns));
+      previewHeight = Math.round(previewWidth * rel);
       outerHeight = previewHeight + this._previewLabelHeight;
-    } while (rows * outerHeight > CONTAINER_MAX_HEIGHT && ++this._columns);
+    } while (rows * outerHeight > maxHeight && ++this._columns);
 
     var outerWidth = previewWidth;
     {
@@ -849,24 +820,21 @@ var allTabs = {
       this.container.appendChild(document.createElement("hbox"));
 
     var row = this.container.firstChild;
-    var colCount = 0;
+    var i = 0;
     previews.forEach(function (preview) {
-      if (!preview.hidden &&
-          ++colCount > this._columns) {
-        row = row.nextSibling;
-        colCount = 1;
-      }
       preview.setAttribute("minwidth", outerWidth);
       preview.setAttribute("height", outerHeight);
       preview.setAttribute("canvasstyle", canvasStyle);
       preview.removeAttribute("closebuttonhover");
       row.appendChild(preview);
+      if (!preview.hidden)
+        row = this.container.childNodes[Math.floor(++i / this._columns)];
     }, this);
 
-    this._stack.width = this._maxPanelWidth;
+    this._stack.width = maxWidth;
     this.container.width = Math.ceil(outerWidth * Math.min(this._columns, this._visible));
-    this.container.left = Math.round((this._maxPanelWidth - this.container.width) / 2);
-    this.container.maxWidth = this._maxPanelWidth - this.container.left;
+    this.container.left = Math.round((maxWidth - this.container.width) / 2);
+    this.container.maxWidth = maxWidth - this.container.left;
     this.container.maxHeight = rows * outerHeight;
   },
 
@@ -910,19 +878,19 @@ var allTabs = {
     if (event &&
         event.target.parentNode.parentNode == this.container &&
         (event.target._tab.previousSibling || event.target._tab.nextSibling)) {
-      let canvas = event.target.firstChild.getBoundingClientRect();
+      let preview = event.target.getBoundingClientRect();
       let container = this.container.getBoundingClientRect();
       let tabCloseButton = this.tabCloseButton.getBoundingClientRect();
       let alignLeft = getComputedStyle(this.panel, "").direction == "rtl";
 #ifdef XP_MACOSX
       alignLeft = !alignLeft;
 #endif
-      this.tabCloseButton.left = canvas.left -
+      this.tabCloseButton.left = preview.left -
                                  container.left +
                                  parseInt(this.container.left) +
                                  (alignLeft ? 0 :
-                                  canvas.width - tabCloseButton.width);
-      this.tabCloseButton.top = canvas.top - container.top;
+                                  preview.width - tabCloseButton.width);
+      this.tabCloseButton.top = preview.top - container.top;
       this.tabCloseButton._targetPreview = event.target;
       this.tabCloseButton.style.visibility = "visible";
       event.target.setAttribute("closebuttonhover", "true");

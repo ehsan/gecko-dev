@@ -46,7 +46,7 @@
  * @created         06/Apr/1999
  * @author  Catalin Rotaru [CATA]
  */
-nsresult
+NS_METHOD
 nsUnicodeToEUCKRConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult);
 

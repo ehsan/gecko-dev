@@ -38,15 +38,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef MOZSTORAGECONNECTION_H
-#define MOZSTORAGECONNECTION_H
+#ifndef _MOZSTORAGECONNECTION_H_
+#define _MOZSTORAGECONNECTION_H_
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Mutex.h"
 
 #include "nsString.h"
-#include "nsDataHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "mozIStorageProgressHandler.h"
 #include "SQLiteMutex.h"
 #include "mozIStorageConnection.h"
@@ -70,28 +70,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECONNECTION
 
-  /**
-   * Structure used to describe user functions on the database connection.
-   */
-  struct FunctionInfo {
-    enum FunctionType {
-      SIMPLE,
-      AGGREGATE
-    };
-
-    nsCOMPtr<nsISupports> function;
-    FunctionType type;
-    PRInt32 numArgs;
-  };
-
-  /**
-   * @param aService
-   *        Pointer to the storage service.  Held onto for the lifetime of the
-   *        connection.
-   * @param aFlags
-   *        The flags to pass to sqlite3_open_v2.
-   */
-  Connection(Service *aService, int aFlags);
+  Connection(Service *aService);
 
   /**
    * Creates the connection to the database.
@@ -100,12 +79,8 @@ public:
    *        The nsIFile of the location of the database to open, or create if it
    *        does not exist.  Passing in nsnull here creates an in-memory
    *        database.
-   * @param aVFSName
-   *        The VFS that SQLite will use when opening this database. NULL means
-   *        "default".
    */
-  nsresult initialize(nsIFile *aDatabaseFile,
-                      const char* aVFSName = NULL);
+  nsresult initialize(nsIFile *aDatabaseFile);
 
   // fetch the native handle
   sqlite3 *GetNativeConnection() { return mDBConn; }
@@ -117,50 +92,22 @@ public:
    *
    * @returns an event target suitable for asynchronous statement execution.
    */
-  nsIEventTarget *getAsyncExecutionTarget();
+  already_AddRefed<nsIEventTarget> getAsyncExecutionTarget();
 
   /**
    * Mutex used by asynchronous statements to protect state.  The mutex is
    * declared on the connection object because there is no contention between
-   * asynchronous statements (they are serialized on mAsyncExecutionThread).  It
-   * also protects mPendingStatements.
+   * asynchronous statements (they are serialized on mAsyncExecutionThread).
    */
   Mutex sharedAsyncExecutionMutex;
 
   /**
-   * Wraps the mutex that SQLite gives us from sqlite3_db_mutex.  This is public
-   * because we already expose the sqlite3* native connection and proper
-   * operation of the deadlock detector requires everyone to use the same single
-   * SQLiteMutex instance for correctness.
-   */
-  SQLiteMutex sharedDBMutex;
-
-  /**
-   * References the thread this database was opened on.  This MUST be thread it is
-   * closed on.
+   * References the thread this database was opened on.
    */
   const nsCOMPtr<nsIThread> threadOpenedOn;
 
-  /**
-   * Closes the SQLite database, and warns about any non-finalized statements.
-   */
-  nsresult internalClose();
-
-  /**
-   * Obtains the filename of the connection.  Useful for logging.
-   */
-  nsCString getFilename();
-
 private:
   ~Connection();
-
-  /**
-   * Sets the database into a closed state so no further actions can be
-   * performed.
-   *
-   * @note mDBConn is set to NULL in this method.
-   */
-  nsresult setClosedState();
 
   /**
    * Describes a certain primitive type in the database.
@@ -199,6 +146,11 @@ private:
   nsCOMPtr<nsIFile> mDatabaseFile;
 
   /**
+   * Protects access to mAsyncExecutionThread.
+   */
+  PRLock *mAsyncExecutionMutex;
+
+  /**
    * Lazily created thread for asynchronous statement execution.  Consumers
    * should use getAsyncExecutionTarget rather than directly accessing this
    * field.
@@ -210,7 +162,12 @@ private:
    * references (or to create the thread in the first place).  This variable
    * should be accessed while holding the mAsyncExecutionMutex.
    */
-  bool mAsyncExecutionThreadShuttingDown;
+  PRBool mAsyncExecutionThreadShuttingDown;
+
+  /**
+   * Wraps the mutex that SQLite gives us from sqlite3_db_mutex.
+   */
+  SQLiteMutex mDBMutex;
 
   /**
    * Tracks if we have a transaction in progress or not.  Access protected by
@@ -222,18 +179,13 @@ private:
    * Stores the mapping of a given function by name to its instance.  Access is
    * protected by mDBMutex.
    */
-  nsDataHashtable<nsCStringHashKey, FunctionInfo> mFunctions;
+  nsInterfaceHashtable<nsCStringHashKey, nsISupports> mFunctions;
 
   /**
    * Stores the registered progress handler for the database connection.  Access
    * is protected by mDBMutex.
    */
   nsCOMPtr<mozIStorageProgressHandler> mProgressHandler;
-
-  /**
-   * Stores the flags we passed to sqlite3_open_v2.
-   */
-  const int mFlags;
 
   // This is here for two reasons: 1) It's used to make sure that the
   // connections do not outlive the service.  2) Our custom collating functions
@@ -244,4 +196,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif /* MOZSTORAGECONNECTION_H */
+#endif /* _MOZSTORAGECONNECTION_H_ */

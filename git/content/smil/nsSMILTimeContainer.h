@@ -62,15 +62,14 @@ public:
    * Pause request types.
    */
   enum {
-    PAUSE_BEGIN    =  1, // Paused because timeline has yet to begin.
-    PAUSE_SCRIPT   =  2, // Paused by script.
-    PAUSE_PAGEHIDE =  4, // Paused because our doc is hidden.
-    PAUSE_USERPREF =  8, // Paused because animations are disabled in prefs.
-    PAUSE_IMAGE    = 16  // Paused becuase we're in an image that's suspended.
+    PAUSE_BEGIN    = 1,
+    PAUSE_SCRIPT   = 2,
+    PAUSE_PAGEHIDE = 4,
+    PAUSE_USERPREF = 8
   };
 
   /*
-   * Cause the time container to record its begin time.
+   * Cause the time container to records its begin time.
    */
   void Begin();
 
@@ -170,21 +169,6 @@ public:
    * don't require a sample.
    */
   PRBool NeedsSample() const { return !mPauseState || mNeedsPauseSample; }
-
-  /*
-   * Indicates if the elements of this time container need to be rewound.
-   * This occurs during a backwards seek.
-   */
-  PRBool NeedsRewind() const { return mNeedsRewind; }
-  void ClearNeedsRewind() { mNeedsRewind = PR_FALSE; }
-
-  /*
-   * Indicates the time container is currently processing a SetCurrentTime
-   * request and appropriate seek behaviour should be applied by child elements
-   * (e.g. not firing time events).
-   */
-  PRBool IsSeeking() const { return mIsSeeking; }
-  void MarkSeekFinished() { mIsSeeking = PR_FALSE; }
 
   /*
    * Sets the parent time container.
@@ -294,9 +278,6 @@ protected:
 
   // Whether or not a pause sample is required
   PRPackedBool mNeedsPauseSample;
-
-  PRPackedBool mNeedsRewind; // Backwards seek performed
-  PRPackedBool mIsSeeking; // Currently in the middle of a seek operation
 
   // A bitfield of the pause state for all pause requests
   PRUint32 mPauseState;

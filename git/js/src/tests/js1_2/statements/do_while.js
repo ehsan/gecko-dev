@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'do_while.js';
 
 /**
    Filename:     do_while.js

@@ -123,11 +123,7 @@ public:
    * If the read value does not belong to this character set, one should 
    * replace it with the Unicode special 0xFFFD. When an actual input error is 
    * encountered, like a format error, the converter stop and return error.
-   * However, we should keep in mind that we need to be lax in decoding. When
-   * a decoding error is returned to the caller, it is the caller's
-   * responsibility to advance over the bad byte (unless aSrcLength is -1 in
-   * which case the caller should call the decoder with 0 offset again) and
-   * reset the decoder before trying to call the decoder again.
+   * Hoever, we should keep in mind that we need to be lax in decoding.
    *
    * Converter required behavior:
    * In this order: when output space is full - return right away. When input
@@ -138,9 +134,7 @@ public:
    *
    * @param aSrc        [IN] the source data buffer
    * @param aSrcLength  [IN/OUT] the length of source data buffer; after
-   *                    conversion will contain the number of bytes read or
-   *                    -1 on error to indicate that the caller should re-push
-   *                    the same buffer after resetting the decoder
+   *                    conversion will contain the number of bytes read
    * @param aDest       [OUT] the destination data buffer
    * @param aDestLength [IN/OUT] the length of the destination data buffer;
    *                    after conversion will contain the number of Unicode
@@ -150,9 +144,7 @@ public:
    *                    NS_PARTIAL_MORE_OUTPUT if only  a partial conversion
    *                    was done; more output space is needed to continue
    *                    NS_ERROR_ILLEGAL_INPUT if an illegal input sequence
-   *                    was encountered and the behavior was set to "signal";
-   *                    the caller must skip over one byte, reset the decoder
-   *                    and retry.
+   *                    was encountered and the behavior was set to "signal"
    */
   NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength, 
       PRUnichar * aDest, PRInt32 * aDestLength) = 0;

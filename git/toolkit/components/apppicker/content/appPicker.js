@@ -148,18 +148,22 @@ AppPicker.prototype =
     */ 
     getFileDisplayName: function getFileDisplayName(file) {
 #ifdef XP_WIN
-      if (file instanceof Components.interfaces.nsILocalFileWin) {
+      const nsILocalFileWin = Components.interfaces.nsILocalFileWin;
+      if (file instanceof nsILocalFileWin) {
         try {
           return file.getVersionInfoField("FileDescription");
-        } catch (e) {}
+        } catch (e) {
+        }
       }
 #endif
 #ifdef XP_MACOSX
-      if (file instanceof Components.interfaces.nsILocalFileMac) {
-        try {
-          return file.bundleDisplayName;
-        } catch (e) {}
+    const nsILocalFileMac = Components.interfaces.nsILocalFileMac;
+    if (file instanceof nsILocalFileMac) {
+      try {
+        return lfm.bundleDisplayName;
+      } catch (e) {
       }
+    }
 #endif
       return file.leafName;
     },

@@ -39,7 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsGkAtoms.h"
-#include "DOMSVGLength.h"
+#include "nsSVGLength.h"
 #include "nsSVGAngle.h"
 #include "nsCOMPtr.h"
 #include "nsIPresShell.h"
@@ -60,7 +60,6 @@
 #include "nsGUIEvent.h"
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
-#include "nsSVGEffects.h" // For nsSVGEffects::RemoveAllRenderingObservers
 
 #ifdef MOZ_SMIL
 #include "nsEventDispatcher.h"
@@ -72,9 +71,6 @@
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 #endif // MOZ_SMIL
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal, mElement)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGTranslatePoint::DOMVal)
@@ -83,7 +79,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGTranslatePoint::DOMVal)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPoint)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPoint)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPoint)
 NS_INTERFACE_MAP_END
 
 nsresult
@@ -180,8 +176,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 
-DOMCI_NODE_DATA(SVGSVGElement, nsSVGSVGElement)
-
 #ifdef MOZ_SMIL
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGSVGElement)
 #else
@@ -191,25 +185,25 @@ NS_INTERFACE_TABLE_HEAD(nsSVGSVGElement)
                            nsIDOMSVGElement, nsIDOMSVGSVGElement,
                            nsIDOMSVGFitToViewBox, nsIDOMSVGLocatable,
                            nsIDOMSVGZoomAndPan)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGSVGElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGSVGElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                 FromParser aFromParser)
+nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRBool aFromParser)
   : nsSVGSVGElementBase(aNodeInfo),
     mCoordCtx(nsnull),
     mViewportWidth(0),
     mViewportHeight(0),
+    mCoordCtxMmPerPx(0),
     mCurrentTranslate(0.0f, 0.0f),
     mCurrentScale(1.0f),
     mPreviousTranslate(0.0f, 0.0f),
     mPreviousScale(1.0f),
     mRedrawSuspendCount(0)
 #ifdef MOZ_SMIL
-  , mStartAnimationOnBindToTree(!aFromParser)
+    ,mStartAnimationOnBindToTree(!aFromParser)
 #endif // MOZ_SMIL
 {
 }
@@ -222,8 +216,11 @@ nsresult
 nsSVGSVGElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nsnull;
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsSVGSVGElement *it = new nsSVGSVGElement(ni.forget(), NOT_FROM_PARSER);
+
+  nsSVGSVGElement *it = new nsSVGSVGElement(aNodeInfo, PR_FALSE);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = it->Init();
@@ -307,7 +304,15 @@ nsSVGSVGElement::GetViewport(nsIDOMSVGRect * *aViewport)
 NS_IMETHODIMP
 nsSVGSVGElement::GetPixelUnitToMillimeterX(float *aPixelUnitToMillimeterX)
 {
-  *aPixelUnitToMillimeterX = MM_PER_INCH_FLOAT / 96;
+  // to correctly determine this, the caller would need to pass in the
+  // right PresContext...
+  nsPresContext *context = nsContentUtils::GetContextForContent(this);
+  if (!context) {
+    *aPixelUnitToMillimeterX = 0.28f; // 90dpi
+    return NS_OK;
+  }
+
+  *aPixelUnitToMillimeterX = 25.4f / nsPresContext::AppUnitsToIntCSSPixels(context->AppUnitsPerInch());
   return NS_OK;
 }
 
@@ -322,7 +327,16 @@ nsSVGSVGElement::GetPixelUnitToMillimeterY(float *aPixelUnitToMillimeterY)
 NS_IMETHODIMP
 nsSVGSVGElement::GetScreenPixelToMillimeterX(float *aScreenPixelToMillimeterX)
 {
-  *aScreenPixelToMillimeterX = MM_PER_INCH_FLOAT / 96;
+  // to correctly determine this, the caller would need to pass in the
+  // right PresContext...
+  nsPresContext *context = nsContentUtils::GetContextForContent(this);
+  if (!context) {
+    *aScreenPixelToMillimeterX = 0.28f; // 90dpi
+    return NS_OK;
+  }
+
+  *aScreenPixelToMillimeterX = 25.4f /
+      nsPresContext::AppUnitsToIntCSSPixels(context->AppUnitsPerInch());
   return NS_OK;
 }
 
@@ -639,8 +653,7 @@ nsSVGSVGElement::CreateSVGNumber(nsIDOMSVGNumber **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGLength(nsIDOMSVGLength **_retval)
 {
-  NS_IF_ADDREF(*_retval = new DOMSVGLength());
-  return NS_OK;
+  return NS_NewSVGLength(reinterpret_cast<nsISVGLength**>(_retval));
 }
 
 /* nsIDOMSVGAngle createSVGAngle (); */
@@ -806,7 +819,7 @@ nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
 NS_IMETHODIMP
 nsSVGSVGElement::GetZoomAndPan(PRUint16 *aZoomAndPan)
 {
-  *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue();
+  *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue(this);
   return NS_OK;
 }
 
@@ -858,9 +871,9 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
   // now dispatch the appropriate event if we are the root element
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
-    nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
+    nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
     if (presShell && IsRoot()) {
-      PRBool scaling = (mPreviousScale != mCurrentScale);
+      PRBool scaling = (s != mCurrentScale);
       nsEventStatus status = nsEventStatus_eIgnore;
       nsGUIEvent event(PR_TRUE, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
       event.eventStructType = scaling ? NS_SVGZOOM_EVENT : NS_SVG_EVENT;
@@ -936,10 +949,6 @@ nsSVGSVGElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   if (aVisitor.mEvent->message == NS_SVG_LOAD) {
     if (mTimedDocumentRoot) {
       mTimedDocumentRoot->Begin();
-      // Set 'resample needed' flag, so that if any script calls a DOM method
-      // that requires up-to-date animations before our first sample callback,
-      // we'll force a synchronous sample.
-      AnimationNeedsResample();
     }
   }
   return nsSVGSVGElementBase::PreHandleEvent(aVisitor);
@@ -980,7 +989,7 @@ nsSVGSVGElement::GetViewBoxTransform()
 
   nsSVGViewBoxRect viewBox;
   if (mViewBox.IsValid()) {
-    viewBox = mViewBox.GetAnimValue();
+    viewBox = mViewBox.GetAnimValue(this);
   } else {
     viewBox.x = viewBox.y = 0.0f;
     viewBox.width  = viewportWidth;
@@ -1036,7 +1045,6 @@ nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
     rv = mTimedDocumentRoot->SetParent(smilController);
     if (mStartAnimationOnBindToTree) {
       mTimedDocumentRoot->Begin();
-      mStartAnimationOnBindToTree = PR_FALSE;
     }
   }
 
@@ -1083,15 +1091,15 @@ nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
 void
 nsSVGSVGElement::InvalidateTransformNotifyFrame()
 {
-  nsIFrame* frame = GetPrimaryFrame();
-  nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
+  nsISVGSVGFrame* svgframe = do_QueryFrame(GetPrimaryFrame());
   if (svgframe) {
     svgframe->NotifyViewportChange();
   }
 #ifdef DEBUG
-  else if (frame) {
-    // Uh oh -- we have a primary frame, but it failed the do_QueryFrame to the
-    // expected type!
+  else {
+    // XXX we get here during nsSVGOuterSVGFrame::Init() since that
+    // function is called before the presshell association between us
+    // and our frame is established.
     NS_WARNING("wrong frame type");
   }
 #endif
@@ -1106,7 +1114,7 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
   float h, w;
 
   if (mViewBox.IsValid()) {
-    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue();
+    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue(this);
     w = viewbox.width;
     h = viewbox.height;
   } else {
@@ -1132,6 +1140,15 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     return float(nsSVGUtils::ComputeNormalizedHypotenuse(w, h));
   }
   return 0;
+}
+
+float
+nsSVGSVGElement::GetMMPerPx(PRUint8 aCtxType)
+{
+  if (mCoordCtxMmPerPx == 0.0f) {
+    GetScreenPixelToMillimeterX(&mCoordCtxMmPerPx);
+  }
+  return mCoordCtxMmPerPx;
 }
 
 //----------------------------------------------------------------------
@@ -1230,12 +1247,3 @@ nsSVGSVGElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;
 }
-
-#ifndef MOZ_ENABLE_LIBXUL
-// XXXdholbert HACK -- see comment w/ this method's declaration in header file.
-void
-nsSVGSVGElement::RemoveAllRenderingObservers()
-{
-  nsSVGEffects::RemoveAllRenderingObservers(this);
-}
-#endif // !MOZ_LIBXUL

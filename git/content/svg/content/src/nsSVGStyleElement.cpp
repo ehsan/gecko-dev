@@ -52,8 +52,8 @@ class nsSVGStyleElement : public nsSVGStyleElementBase,
 {
 protected:
   friend nsresult NS_NewSVGStyleElement(nsIContent **aResult,
-                                        already_AddRefed<nsINodeInfo> aNodeInfo);
-  nsSVGStyleElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+                                        nsINodeInfo *aNodeInfo);
+  nsSVGStyleElement(nsINodeInfo *aNodeInfo);
   
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -89,7 +89,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   // Dummy init method to make the NS_IMPL_NS_NEW_SVG_ELEMENT and
   // NS_IMPL_ELEMENT_CLONE_WITH_INIT usable with this class. This should be
@@ -124,20 +123,18 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Style)
 NS_IMPL_ADDREF_INHERITED(nsSVGStyleElement,nsSVGStyleElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGStyleElement,nsSVGStyleElementBase)
 
-DOMCI_NODE_DATA(SVGStyleElement, nsSVGStyleElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGStyleElement)
   NS_NODE_INTERFACE_TABLE7(nsSVGStyleElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGStyleElement,
                            nsIDOMLinkStyle, nsIStyleSheetLinkingElement,
                            nsIMutationObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGStyleElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGStyleElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGStyleElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGStyleElement::nsSVGStyleElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsSVGStyleElement::nsSVGStyleElement(nsINodeInfo *aNodeInfo)
   : nsSVGStyleElementBase(aNodeInfo)
 {
   AddMutationObserver(this);
@@ -164,8 +161,9 @@ nsSVGStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                   aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  void (nsSVGStyleElement::*update)() = &nsSVGStyleElement::UpdateStyleSheetInternal;
-  nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, update));
+  nsContentUtils::AddScriptRunner(
+    new nsRunnableMethod<nsSVGStyleElement>(this,
+                                            &nsSVGStyleElement::UpdateStyleSheetInternal));
 
   return rv;  
 }
@@ -228,7 +226,6 @@ nsSVGStyleElement::CharacterDataChanged(nsIDocument* aDocument,
 void
 nsSVGStyleElement::ContentAppended(nsIDocument* aDocument,
                                    nsIContent* aContainer,
-                                   nsIContent* aFirstNewContent,
                                    PRInt32 aNewIndexInContainer)
 {
   ContentChanged(aContainer);
@@ -247,8 +244,7 @@ void
 nsSVGStyleElement::ContentRemoved(nsIDocument* aDocument,
                                   nsIContent* aContainer,
                                   nsIContent* aChild,
-                                  PRInt32 aIndexInContainer,
-                                  nsIContent* aPreviousSibling)
+                                  PRInt32 aIndexInContainer)
 {
   ContentChanged(aChild);
 }
@@ -297,7 +293,7 @@ NS_IMETHODIMP nsSVGStyleElement::GetMedia(nsAString & aMedia)
 }
 NS_IMETHODIMP nsSVGStyleElement::SetMedia(const nsAString & aMedia)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::media, aMedia, PR_TRUE);
+  return SetAttr(kNameSpaceID_XML, nsGkAtoms::media, aMedia, PR_TRUE);
 }
 
 /* attribute DOMString title; */
@@ -309,7 +305,7 @@ NS_IMETHODIMP nsSVGStyleElement::GetTitle(nsAString & aTitle)
 }
 NS_IMETHODIMP nsSVGStyleElement::SetTitle(const nsAString & aTitle)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::title, aTitle, PR_TRUE);
+  return SetAttr(kNameSpaceID_XML, nsGkAtoms::title, aTitle, PR_TRUE);
 }
 
 //----------------------------------------------------------------------

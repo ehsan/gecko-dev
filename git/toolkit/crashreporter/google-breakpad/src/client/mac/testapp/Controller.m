@@ -31,7 +31,6 @@
 
 #import "Controller.h"
 #import "TestClass.h"
-#import "GTMDefines.h"
 #include <unistd.h>
 #include <mach/mach.h>
 
@@ -52,7 +51,7 @@
 }
 
 - (IBAction)forkTestOptions:(id)sender {
-  NSInteger tag = [[sender selectedCell] tag];
+  int tag = [[sender selectedCell] tag];
   NSLog(@"sender tag: %d", tag);
   if (tag <= 2) {
     bpForkOption = tag;
@@ -76,7 +75,7 @@
 
   NSString *resourcePath = [[NSBundle bundleForClass:
                                         [self class]] resourcePath];
-  NSString *execProgname = nil;
+  NSString *execProgname;
   if (progCrashPoint == DURINGLAUNCH) {
     execProgname = [resourcePath stringByAppendingString:@"/crashduringload"];
   } else if (progCrashPoint == AFTERLAUNCH) {
@@ -130,11 +129,11 @@
 }
 
 - (IBAction)crash:(id)sender {
-  NSInteger tag = [sender tag];
+  int tag = [sender tag];
 
   if (tag == 1) {
     [NSObject cancelPreviousPerformRequestsWithTarget:self];
-    [self performSelector:@selector(causeCrash) withObject:nil afterDelay:10.0];
+    [self performSelector:@selector(causeCrash) withObject:nil afterDelay:10];
     [sender setState:NSOnState];
     return;
   }

@@ -53,7 +53,7 @@ static const PRInt16 g_SJISShiftOutTable[] =  {
   ShiftOutCell(u2BytesChar,  2, 0xE0, 0x40, 0xFC, 0xFC)
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToSJISConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult)
 {

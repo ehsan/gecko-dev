@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-373072.js';
 
 var BUGNUMBER = 373072;
 var summary = 'XML.prototype.namespace() does not check for xml list';
@@ -47,7 +48,8 @@ START(summary);
 
 try
 {
-    expect = "TypeError: can't call namespace method on an XML list with 0 elements";
+    expect = 'TypeError: cannot call namespace method on an XML list with ' +
+        '0 elements';
     XML.prototype.function::namespace.call(new XMLList());
 }
 catch(ex)

@@ -60,7 +60,7 @@ function do_get_profile_startup() {
       throw Components.results.NS_ERROR_FAILURE;
     },
     QueryInterface: function(iid) {
-      if (iid.equals(Components.interfaces.nsIDirectoryServiceProvider) ||
+      if (iid.equals(Components.interfaces.nsIDirectoryProvider) ||
           iid.equals(Components.interfaces.nsISupports)) {
         return this;
       }

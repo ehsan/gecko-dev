@@ -155,10 +155,16 @@ nsProgressMeterFrame::AttributeChanged(PRInt32 aNameSpaceID,
       flex = maxFlex;
     }
 
+    PRInt32 remainder = maxFlex - flex;
+
+    nsAutoString leftFlex, rightFlex;
+    leftFlex.AppendInt(flex);
+    rightFlex.AppendInt(remainder);
+
     nsContentUtils::AddScriptRunner(new nsSetAttrRunnable(
-      barChild->GetContent(), nsGkAtoms::flex, flex));
+      barChild->GetContent(), nsGkAtoms::flex, leftFlex));
     nsContentUtils::AddScriptRunner(new nsSetAttrRunnable(
-      remainderContent, nsGkAtoms::flex, maxFlex - flex));
+      remainderContent, nsGkAtoms::flex, rightFlex));
     nsContentUtils::AddScriptRunner(new nsReflowFrameRunnable(
       this, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY));
   }

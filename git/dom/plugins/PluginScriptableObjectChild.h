@@ -48,7 +48,6 @@ namespace plugins {
 
 class PluginInstanceChild;
 class PluginScriptableObjectChild;
-class PPluginIdentifierChild;
 
 struct ChildNPObject : NPObject
 {
@@ -88,54 +87,52 @@ public:
   AnswerInvalidate();
 
   virtual bool
-  AnswerHasMethod(PPluginIdentifierChild* aId,
+  AnswerHasMethod(const NPRemoteIdentifier& aId,
                   bool* aHasMethod);
 
   virtual bool
-  AnswerInvoke(PPluginIdentifierChild* aId,
-               const InfallibleTArray<Variant>& aArgs,
+  AnswerInvoke(const NPRemoteIdentifier& aId,
+               const nsTArray<Variant>& aArgs,
                Variant* aResult,
                bool* aSuccess);
 
   virtual bool
-  AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
+  AnswerInvokeDefault(const nsTArray<Variant>& aArgs,
                       Variant* aResult,
                       bool* aSuccess);
 
   virtual bool
-  AnswerHasProperty(PPluginIdentifierChild* aId,
+  AnswerHasProperty(const NPRemoteIdentifier& aId,
                     bool* aHasProperty);
 
   virtual bool
-  AnswerGetChildProperty(PPluginIdentifierChild* aId,
-                         bool* aHasProperty,
-                         bool* aHasMethod,
-                         Variant* aResult,
-                         bool* aSuccess);
+  AnswerGetProperty(const NPRemoteIdentifier& aId,
+                    Variant* aResult,
+                    bool* aSuccess);
 
   virtual bool
-  AnswerSetProperty(PPluginIdentifierChild* aId,
+  AnswerSetProperty(const NPRemoteIdentifier& aId,
                     const Variant& aValue,
                     bool* aSuccess);
 
   virtual bool
-  AnswerRemoveProperty(PPluginIdentifierChild* aId,
+  AnswerRemoveProperty(const NPRemoteIdentifier& aId,
                        bool* aSuccess);
 
   virtual bool
-  AnswerEnumerate(InfallibleTArray<PPluginIdentifierChild*>* aProperties,
+  AnswerEnumerate(nsTArray<NPRemoteIdentifier>* aProperties,
                   bool* aSuccess);
 
   virtual bool
-  AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
+  AnswerConstruct(const nsTArray<Variant>& aArgs,
                   Variant* aResult,
                   bool* aSuccess);
 
   virtual bool
-  RecvProtect();
+  AnswerProtect();
 
   virtual bool
-  RecvUnprotect();
+  AnswerUnprotect();
 
   NPObject*
   GetObject(bool aCanResurrect);

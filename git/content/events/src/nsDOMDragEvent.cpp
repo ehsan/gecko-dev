@@ -55,7 +55,6 @@ nsDOMDragEvent::nsDOMDragEvent(nsPresContext* aPresContext,
     mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
-    static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
 }
 
@@ -71,11 +70,9 @@ nsDOMDragEvent::~nsDOMDragEvent()
 NS_IMPL_ADDREF_INHERITED(nsDOMDragEvent, nsDOMMouseEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMDragEvent, nsDOMMouseEvent)
 
-DOMCI_DATA(DragEvent, nsDOMDragEvent)
-
 NS_INTERFACE_MAP_BEGIN(nsDOMDragEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDragEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DragEvent)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DragEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMMouseEvent)
 
 NS_IMETHODIMP

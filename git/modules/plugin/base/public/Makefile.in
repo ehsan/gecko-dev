@@ -48,6 +48,7 @@ GRE_MODULE	= 1
 EXPORTS		= \
 		nsPluginLogging.h \
 		nsPluginError.h \
+		nsDefaultPlugin.h \
 		nsPluginNativeWindow.h \
 		nsPluginsCID.h \
 		$(NULL)

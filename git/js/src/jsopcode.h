@@ -47,10 +47,6 @@
 #include "jspubtd.h"
 #include "jsutil.h"
 
-#ifdef __cplusplus
-# include "jsvalue.h"
-#endif
-
 JS_BEGIN_EXTERN_C
 
 /*
@@ -61,16 +57,7 @@ typedef enum JSOp {
     op = val,
 #include "jsopcode.tbl"
 #undef OPDEF
-    JSOP_LIMIT,
-
-    /*
-     * These pseudo-ops help js_DecompileValueGenerator decompile JSOP_SETNAME,
-     * JSOP_SETPROP, and JSOP_SETELEM, respectively.  They are never stored in
-     * bytecode, so they don't preempt valid opcodes.
-     */
-    JSOP_GETPROP2 = JSOP_LIMIT,
-    JSOP_GETELEM2 = JSOP_LIMIT + 1,
-    JSOP_FAKE_LIMIT = JSOP_GETELEM2
+    JSOP_LIMIT
 } JSOp;
 
 /*
@@ -98,7 +85,6 @@ typedef enum JSOp {
 #define JOF_INT8          18      /* int8 immediate operand */
 #define JOF_ATOMOBJECT    19      /* uint16 constant index + object index */
 #define JOF_UINT16PAIR    20      /* pair of uint16 immediates */
-#define JOF_GLOBAL        21      /* uint16 global array index */
 #define JOF_TYPEMASK      0x001f  /* mask for above immediate types */
 
 #define JOF_NAME          (1U<<5) /* name operation */
@@ -114,7 +100,7 @@ typedef enum JSOp {
 #define JOF_INCDEC       (3U<<10) /* increment or decrement opcode */
 #define JOF_POST         (1U<<12) /* postorder increment or decrement */
 #define JOF_FOR          (1U<<13) /* for-in property op (akin to JOF_SET) */
-#define JOF_ASSIGNING     JOF_SET /* hint for Class.resolve, used for ops
+#define JOF_ASSIGNING     JOF_SET /* hint for JSClass.resolve, used for ops
                                      that do simplex assignment */
 #define JOF_DETECTING    (1U<<14) /* object detection for JSNewResolveOp */
 #define JOF_BACKPATCH    (1U<<15) /* backpatch placeholder during codegen */
@@ -131,15 +117,12 @@ typedef enum JSOp {
                                      the slots opcode uses */
 #define JOF_TMPSLOT2     (2U<<22) /* interpreter uses extra 2 temporary slot
                                      besides the slots opcode uses */
-#define JOF_TMPSLOT3     (3U<<22) /* interpreter uses extra 3 temporary slot
-                                     besides the slots opcode uses */
 #define JOF_TMPSLOT_SHIFT 22
 #define JOF_TMPSLOT_MASK  (JS_BITMASK(2) << JOF_TMPSLOT_SHIFT)
 
 #define JOF_SHARPSLOT    (1U<<24) /* first immediate is uint16 stack slot no.
                                      that needs fixup when in global code (see
-                                     Compiler::compileScript) */
-#define JOF_GNAME        (1U<<25) /* predicted global name */
+                                     JSCompiler::compileScript) */
 
 /* Shorthands for type from format and type from opcode. */
 #define JOF_TYPE(fmt)   ((fmt) & JOF_TYPEMASK)
@@ -271,22 +254,12 @@ struct JSCodeSpec {
     int8                ndefs;          /* number of stack results */
     uint8               prec;           /* operator precedence */
     uint32              format;         /* immediate operand format */
-
-#ifdef __cplusplus
-    uint32 type() const { return JOF_TYPE(format); }
-#endif
 };
 
 extern const JSCodeSpec js_CodeSpec[];
 extern uintN            js_NumCodeSpecs;
 extern const char       *js_CodeName[];
 extern const char       js_EscapeMap[];
-
-/* Silence unreferenced formal parameter warnings */
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4100)
-#endif
 
 /*
  * Return a GC'ed string containing the chars in str, with any non-printing
@@ -353,13 +326,14 @@ js_GetIndexFromBytecode(JSContext *cx, JSScript *script, jsbytecode *pc,
  * Unfortunately some bytecodes such as JSOP_LOOKUPSWITCH have immediates that
  * might be string or double atoms. Those opcodes cannot be used from imacros.
  * See the assertions in the JSOP_DOUBLE and JSOP_LOOKUPSWTICH* opcode cases in
- * jsinterp.cpp.
+ * jsops.cpp.
  */
-#define GET_DOUBLE_FROM_BYTECODE(script, pc, pcoff, dbl)                      \
+#define GET_DOUBLE_FROM_BYTECODE(script, pc, pcoff, atom)                     \
     JS_BEGIN_MACRO                                                            \
         uintN index_ = js_GetIndexFromBytecode(cx, (script), (pc), (pcoff));  \
-        JS_ASSERT(index_ < (script)->consts()->length);                       \
-        (dbl) = (script)->getConst(index_).toDouble();                        \
+        JS_ASSERT(index_ < (script)->atomMap.length);                         \
+        (atom) = (script)->atomMap.vector[index_];                            \
+        JS_ASSERT(ATOM_IS_DOUBLE(atom));                                      \
     JS_END_MACRO
 
 #define GET_OBJECT_FROM_BYTECODE(script, pc, pcoff, obj)                      \
@@ -388,7 +362,7 @@ js_GetVariableBytecodeLength(jsbytecode *pc);
 
 /*
  * Find the number of stack slots used by a variadic opcode such as JSOP_CALL
- * (for such ops, JSCodeSpec.nuses is -1).
+ * or JSOP_NEWARRAY (for such ops, JSCodeSpec.nuses is -1).
  */
 extern uintN
 js_GetVariableStackUses(JSOp op, jsbytecode *pc);
@@ -483,29 +457,12 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v,
 #define JSDVG_IGNORE_STACK      0
 #define JSDVG_SEARCH_STACK      1
 
-#ifdef __cplusplus
-namespace js {
-
-static inline char *
-DecompileValueGenerator(JSContext *cx, intN spindex, const Value &v,
-                        JSString *fallback)
-{
-    return js_DecompileValueGenerator(cx, spindex, Jsvalify(v), fallback);
-}
-
-}
-#endif
-
 /*
  * Given bytecode address pc in script's main program code, return the operand
  * stack depth just before (JSOp) *pc executes.
  */
 extern uintN
 js_ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc);
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 JS_END_EXTERN_C
 

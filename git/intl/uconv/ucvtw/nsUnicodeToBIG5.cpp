@@ -56,7 +56,7 @@ static const uScanClassID g_Big5ScanClassIDs[2] =  {
 //----------------------------------------------------------------------
 // Class nsUnicodeToBIG5 [implementation]
 
-nsresult
+NS_METHOD
 nsUnicodeToBIG5Constructor(nsISupports *aOuter, REFNSIID aIID,
                                 void **aResult)
 {

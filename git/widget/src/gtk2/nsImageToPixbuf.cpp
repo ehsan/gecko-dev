@@ -69,21 +69,9 @@ GdkPixbuf*
 nsImageToPixbuf::ImageToPixbuf(imgIContainer* aImage)
 {
     nsRefPtr<gfxImageSurface> frame;
-    nsresult rv = aImage->CopyFrame(imgIContainer::FRAME_CURRENT,
-                                    imgIContainer::FLAG_SYNC_DECODE,
-                                    getter_AddRefs(frame));
-
-    // If the last call failed, it was probably because our call stack originates
-    // in an imgIDecoderObserver event, meaning that we're not allowed request
-    // a sync decode. Presumably the originating event is something sensible like
-    // OnStopFrame(), so we can just retry the call without a sync decode.
-    if (NS_FAILED(rv))
-        aImage->CopyFrame(imgIContainer::FRAME_CURRENT,
-                          imgIContainer::FLAG_NONE,
-                          getter_AddRefs(frame));
-
-    if (!frame)
-      return nsnull;
+    aImage->CopyFrame(imgIContainer::FRAME_CURRENT,
+                      imgIContainer::FLAG_SYNC_DECODE,
+                      getter_AddRefs(frame));
 
     return ImgSurfaceToPixbuf(frame, frame->Width(), frame->Height());
 }

@@ -66,6 +66,11 @@ public:
                          nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus);
 
+ 
+#ifdef ACCESSIBILITY
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
+#endif
+
   virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
@@ -76,8 +81,7 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        PRUint32 aFilter);
+  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements);
   virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
 
   // nsIFormControlFrame

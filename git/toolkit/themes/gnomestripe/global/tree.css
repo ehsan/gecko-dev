@@ -75,15 +75,11 @@ treechildren::-moz-tree-row {
   height: 1.3em;
 }
 
-treechildren:not(.autocomplete-treebody)::-moz-tree-row(multicol, odd) {
-  background-color: -moz-oddtreerow;
-}
-
-treechildren:not(.autocomplete-treebody)::-moz-tree-row(selected) {
+treechildren::-moz-tree-row(selected) {
   background-color: -moz-cellhighlight;
 }
 
-treechildren:not(.autocomplete-treebody)::-moz-tree-row(selected, focus) {
+treechildren::-moz-tree-row(selected, focus) {
   background-color: Highlight;
 }
 
@@ -217,12 +213,11 @@ treechildren::-moz-tree-drop-feedback {
 
 treechildren::-moz-tree-progressmeter {
   margin: 2px 4px;
-  padding: 1px;
-  border: 1px solid;
-  border-top-color: ThreeDShadow;
-  border-right-color: ThreeDHighlight;
-  border-bottom-color: ThreeDHighlight;
-  border-left-color: ThreeDShadow;
+  border: 2px solid;
+  -moz-border-top-colors: ThreeDShadow -moz-Dialog;
+  -moz-border-right-colors: ThreeDHighlight -moz-Dialog;
+  -moz-border-bottom-colors: ThreeDHighlight -moz-Dialog;
+  -moz-border-left-colors: ThreeDShadow -moz-Dialog;
   background-color: -moz-Dialog;
   color: ThreeDShadow;
 }

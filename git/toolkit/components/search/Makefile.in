@@ -43,7 +43,11 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-EXTRA_COMPONENTS = toolkitsearch.manifest
+MODULE = toolkitsearch
+XPIDL_MODULE = toolkitsearch
+
+XPIDLSRCS = nsIBrowserSearchService.idl
+
 EXTRA_PP_COMPONENTS = nsSearchService.js \
 	nsSearchSuggestions.js
 

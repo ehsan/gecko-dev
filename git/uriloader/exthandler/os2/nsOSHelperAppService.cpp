@@ -62,7 +62,6 @@
 #include "nsIRwsService.h"
 #include "nsIStringBundle.h"
 #include "nsLocalHandlerApp.h"
-#include "mozilla/Services.h"
 #include <stdlib.h>     // for system()
 
 //------------------------------------------------------------------------
@@ -1364,13 +1363,14 @@ nsOSHelperAppService::GetFromType(const nsCString& aMIMEType) {
 static nsresult
 GetNLSString(const PRUnichar *aKey, nsAString& result)
 {
+  nsresult rv;
+
   nsCOMPtr<nsIStringBundleService> bundleSvc =
-    mozilla::services::GetStringBundleService();
-  if (!bundleSvc)
-    return NS_ERROR_FAILURE;
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIStringBundle> bundle;
-  nsresult rv = bundleSvc->CreateBundle(
+  rv = bundleSvc->CreateBundle(
     "chrome://mozapps/locale/downloads/unknownContentType.properties",
     getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);

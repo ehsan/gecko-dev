@@ -54,73 +54,49 @@
 class NS_STACK_CLASS ChildIterator
 {
 protected:
+  // We could just use a mNodes for the case when we're not dealing with XBL
+  // anon content too, but in practice that would basically replace our current
+  // branch on mNodes with an extra virtual function call in the common case.
+
   nsIContent* mContent;
-  // If mNodes is non-null (so XBLInvolved() is true), mIndex is the
-  // index into mNodes for our current position.  Otherwise, mChild is
-  // our current child (which might be null if we're done iterating).
-  union {
-    PRUint32 mIndex;
-    nsIContent* mChild;
-  };
+  PRUint32 mIndex;
   nsINodeList* mNodes;
 
 public:
   ChildIterator()
-    : mContent(nsnull), mChild(0), mNodes(nsnull) {}
+    : mContent(nsnull), mIndex(0), mNodes(nsnull) {}
 
   ChildIterator(const ChildIterator& aOther)
     : mContent(aOther.mContent),
-      mNodes(aOther.mNodes) {
-    if (XBLInvolved()) {
-      mIndex = aOther.mIndex;
-    } else {
-      mChild = aOther.mChild;
-    }
-  }
+      mIndex(aOther.mIndex),
+      mNodes(aOther.mNodes) {}
 
   ChildIterator& operator=(const ChildIterator& aOther) {
     mContent = aOther.mContent;
+    mIndex = aOther.mIndex;
     mNodes = aOther.mNodes;
-    if (XBLInvolved()) {
-      mIndex = aOther.mIndex;
-    } else {
-      mChild = aOther.mChild;
-    }
     return *this;
   }
 
   ChildIterator& operator++() {
-    if (XBLInvolved()) {
-      ++mIndex;
-    } else {
-      NS_ASSERTION(mChild, "Walking off end of list?");
-      mChild = mChild->GetNextSibling();
-    }
-
+    ++mIndex;
     return *this;
   }
 
   ChildIterator operator++(int) {
     ChildIterator result(*this);
-    ++(*this);
+    ++mIndex;
     return result;
   }
 
   ChildIterator& operator--() {
-    if (XBLInvolved()) {
-      --mIndex;
-    } else if (mChild) {
-      mChild = mChild->GetPreviousSibling();
-      NS_ASSERTION(mChild, "Walking off beginning of list");
-    } else {
-      mChild = mContent->GetLastChild();
-    }
+    --mIndex;
     return *this;
   }
 
   ChildIterator operator--(int) {
     ChildIterator result(*this);
-    --(*this);
+    --mIndex;
     return result;
   }
 
@@ -129,46 +105,59 @@ public:
       return mNodes->GetNodeAt(mIndex);
     }
 
-    return mChild;
+    return mContent->GetChildAt(mIndex);
   }
 
   nsIContent* operator*() const { return get(); }
 
   PRBool operator==(const ChildIterator& aOther) const {
-    if (XBLInvolved()) {
-      return mContent == aOther.mContent && mIndex == aOther.mIndex;
-    }
-
-    return mContent == aOther.mContent && mChild == aOther.mChild;
+    return mContent == aOther.mContent && mIndex == aOther.mIndex;
   }
 
   PRBool operator!=(const ChildIterator& aOther) const {
     return !aOther.operator==(*this);
   }
 
+  PRUint32 position() {
+    return mIndex;
+  }
+
+  void seek(PRUint32 aIndex) {
+    // Make sure that aIndex is reasonable.  This should be |#ifdef
+    // DEBUG|, but we need these numbers for the temporary workaround
+    // for bug 133219.
+    PRUint32 l = length();
+
+    NS_ASSERTION(PRInt32(aIndex) >= 0 && aIndex <= l, "out of bounds");
+
+    // Temporary workaround for bug 133219.
+    if (aIndex > l)
+      aIndex = l;
+
+    mIndex = aIndex;
+  }
+
   void seek(nsIContent* aContent) {
+    PRInt32 index;
     if (XBLInvolved()) {
-      PRInt32 index = mNodes->IndexOf(aContent);
-      // XXXbz I wish we could assert that index != -1, but it seems to not be
-      // the case in some XBL cases with filtered insertion points and no
-      // default insertion point.  I will now claim that XBL's management of
-      // its insertion points is broken in those cases, since it's returning an
-      // insertion parent for a node that doesn't actually have the node in its
-      // child list according to ChildIterator.  See bug 474324.
-      if (index != -1) {
-        mIndex = index;
-      } else {
-        // If aContent isn't going to get hit by this iterator, just seek to the
-        // end of the list for lack of anything better to do.
-        mIndex = length();
-      }
-    } else if (aContent->GetParent() == mContent) {
-      mChild = aContent;
+      index = mNodes->IndexOf(aContent);
     } else {
-      // XXXbz I wish we could assert this doesn't happen, but I think that's
-      // not necessarily the case when called from ContentInserted if
-      // first-letter frames are about.
-      mChild = nsnull;
+      index = mContent->IndexOf(aContent);
+    }
+    // XXXbz I wish we could assert that index != -1, but I think that's not
+    // necessarily the case when called from ContentInserted if first-letter
+    // frames are about.  It also seems to not be the case in some XBL cases
+    // with filtered insertion points and no default insertion point.  I will
+    // now claim that XBL's management of its insertion points is broken in
+    // those cases, since it's returning an insertion parent for a node that
+    // doesn't actually have the node in its child list according to
+    // ChildIterator.  See bug 474324.
+    if (index != -1) {
+      mIndex = index;
+    } else {
+      // If aContent isn't going to get hit by this iterator, just seek to the
+      // end of the list for lack of anything better to do.
+      mIndex = length();
     }
   }
 
@@ -185,9 +174,12 @@ public:
 
 private:
   PRUint32 length() {
-    NS_PRECONDITION(XBLInvolved(), "Don't call me");
     PRUint32 l;
-    mNodes->GetLength(&l);
+    if (XBLInvolved()) {
+      mNodes->GetLength(&l);
+    } else {
+      l = mContent->GetChildCount();
+    }
     return l;
   }
 };

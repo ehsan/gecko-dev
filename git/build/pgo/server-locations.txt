@@ -75,16 +75,12 @@
 #
 # This is the primary location from which tests run.
 #
-http://mochi.test:8888   primary,privileged
+http://localhost:8888   primary,privileged
 
 #
 # These are a common set of prefixes scattered across one TLD with two ports and
 # another TLD on a single port.
 #
-http://127.0.0.1:80               privileged
-http://127.0.0.1:8888             privileged
-http://test:80                    privileged
-http://mochi.test:8888            privileged
 http://example.org:80                privileged
 http://test1.example.org:80          privileged
 http://test2.example.org:80          privileged
@@ -100,14 +96,12 @@ http://sub1.test2.example.org:8000   privileged
 http://sub2.test1.example.org:8000   privileged
 http://sub2.test2.example.org:8000   privileged
 http://example.com:80                privileged
-http://www.example.com:80            privileged
 http://test1.example.com:80          privileged
 http://test2.example.com:80          privileged
 http://sub1.test1.example.com:80     privileged
 http://sub1.test2.example.com:80     privileged
 http://sub2.test1.example.com:80     privileged
 http://sub2.test2.example.com:80     privileged
-http://noxul.example.com:80          privileged,noxul
 
 https://example.com:443                privileged
 https://test1.example.com:443          privileged

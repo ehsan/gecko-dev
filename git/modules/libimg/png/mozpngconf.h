@@ -38,15 +38,11 @@
 #ifndef MOZPNGCONF_H
 #define MOZPNGCONF_H
 
-#define PNG_USER_CHUNK_MALLOC_MAX 4000000L
-
 #define PNG_NO_GLOBAL_ARRAYS
 
 #ifndef MOZ_PNG_READ
 #define PNG_NO_READ_SUPPORTED
 #endif
-#define PNG_NO_SET_USER_LIMITS
-#define PNG_NO_USER_LIMITS
 #define PNG_NO_ASSEMBLER_CODE
 #define PNG_NO_WARN_UNINITIALIZED_ROW
 #define PNG_NO_READ_BACKGROUND
@@ -116,7 +112,6 @@
 #define PNG_NO_WRITE_INTERLACING_SUPPORTED  /* effective libpng-1.3.0 */
 #endif
 
-#define PNG_NO_HANDLE_AS_UNKNOWN
 #define PNG_NO_INFO_IMAGE
 #define PNG_NO_USER_MEM
 #define PNG_NO_FIXED_POINT_SUPPORTED
@@ -164,6 +159,7 @@
 #define png_build_grayscale_palette     MOZ_PNG_build_g_p
 #define png_calculate_crc               MOZ_PNG_calc_crc
 #define png_check_chunk_name            MOZ_PNG_ck_chunk_name
+#define png_check_sig                   MOZ_PNG_ck_sig
 #define png_chunk_error                 MOZ_PNG_chunk_err
 #define png_chunk_warning               MOZ_PNG_chunk_warn
 #define png_combine_row                 MOZ_PNG_combine_row
@@ -360,7 +356,7 @@
 #define png_set_compression_strategy    MOZ_PNG_set_comp_strategy
 #define png_set_compression_window_bits MOZ_PNG_set_comp_win_bits
 #define png_set_crc_action              MOZ_PNG_set_crc_action
-#define png_set_quantize                MOZ_PNG_set_quantize
+#define png_set_dither                  MOZ_PNG_set_dither
 #define png_set_error_fn                MOZ_PNG_set_error_fn
 #define png_set_expand                  MOZ_PNG_set_expand
 #define png_set_filler                  MOZ_PNG_set_filler

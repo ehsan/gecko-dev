@@ -1,4 +1,4 @@
-include protocol managerProtocol;
+include protocol "managerProtocol.ipdl";
 
 protocol managedProtocol {
     manager managerProtocol;

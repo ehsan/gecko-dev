@@ -61,7 +61,7 @@ CPPSRCS		= \
 		nsBidiKeyboard.cpp \
 		nsClipboard.cpp \
 		nsFilePicker.cpp \
-		os2FrameWindow.cpp \
+		nsFrameWindow.cpp \
 		nsLookAndFeel.cpp \
 		nsOS2Uni.cpp \
 		nsPrintOS2.cpp \
@@ -91,6 +91,10 @@ EXTRA_DSO_LDOPTS = \
 		-lthebes \
 		$(QCMS_LIBS) \
 		$(NULL)
+
+ifdef ENABLE_TESTS
+HAS_EXTRAEXPORTS = 1
+endif
 
 include $(topsrcdir)/config/rules.mk
 

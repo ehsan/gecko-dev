@@ -23,7 +23,7 @@ SimpleTest.waitForExplicitFinish();
 var scrolling;
 var scrolling_plugins = [];
 var paint_waiter;
-var last_paint_counts;
+var last_paint_count;
 
 function initialize() {
   scrolling = document.getElementById("i").contentWindow;
@@ -43,12 +43,12 @@ function scrollAround() {
     isnot(paints[i], 0, "embed " + scrolling_plugins[i].id + " is painted"); 
   }
 
-  last_paint_counts = paints;
+  last_paint_count = sum(paints);
 
   scrolling.scrollBy(-5, 5);
   scrolling.scrollBy(5, 5);
   scrolling.scrollBy(5, -5);
-  scrolling.scrollBy(-5, -5);
+  scrolling.scrollBy(-5, 5);
 
   scrolling.scrollTo(45, 45);
   scrolling.scrollBy(10, 0);
@@ -60,10 +60,7 @@ function scrollAround() {
 }
 
 function done() {
-  var paints = getPaintCounts();
-  for (var i = 0; i < paints.length; ++i) {
-    is(paints[i], last_paint_counts[i], "embed " + scrolling_plugins[i].id + " is not painted on scroll");
-  }
+  is(sum(getPaintCounts()), last_paint_count, "no paint on scroll");
   SimpleTest.finish();  
 }
 
@@ -91,6 +88,14 @@ function getPaintCounts() {
   var result = [];
   for (var i = 0; i < scrolling_plugins.length; ++i) {
     result[i] = scrolling_plugins[i].getPaintCount();
+  }
+  return result;
+}
+
+function sum(array) {
+  var result = 0;
+  for (var i = 0; i < array.length; ++i) {
+    result += array[i];
   }
   return result;
 }

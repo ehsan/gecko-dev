@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '11.2.3.js';
 
 START("11.2.3 - XML Descendant Accessor");
 

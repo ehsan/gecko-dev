@@ -36,11 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG
-#endif
-#include "prlog.h"
-
 #include "nsCOMPtr.h"
 #include "nsClipboard.h"
 #include "nsString.h"
@@ -55,10 +50,14 @@
 #include "nsPrintfCString.h"
 #include "nsObjCExceptions.h"
 #include "imgIContainer.h"
-#include "nsCocoaUtils.h"
 
 // Screenshots use the (undocumented) png pasteboard type.
 #define IMAGE_PASTEBOARD_TYPES NSTIFFPboardType, @"Apple PNG pasteboard type", nil
+
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
+#include "prlog.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* sCocoaLog;
@@ -159,7 +158,7 @@ nsClipboard::TransferableFromPasteboard(nsITransferable *aTransferable, NSPasteb
 
     // printf("looking for clipboard data of type %s\n", flavorStr.get());
 
-    NSString *pboardType = nil;
+    const NSString *pboardType;
     if (nsClipboard::IsStringType(flavorStr, &pboardType)) {
       NSString* pString = [cocoaPasteboard stringForType:pboardType];
       if (!pString)
@@ -359,7 +358,7 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
 
   for (PRUint32 i = 0; i < aLength; i++) {
     nsDependentCString mimeType(aFlavorList[i]);
-    NSString *pboardType = nil;
+    const NSString *pboardType;
 
     if (nsClipboard::IsStringType(mimeType, &pboardType)) {
       NSString* availableType = [generalPBoard availableTypeFromArray:[NSArray arrayWithObject:pboardType]];
@@ -416,7 +415,7 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
 
     PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("writing out clipboard data of type %s (%d)\n", flavorStr.get(), i));
 
-    NSString *pboardType = nil;
+    const NSString *pboardType;
 
     if (nsClipboard::IsStringType(flavorStr, &pboardType)) {
       void* data = nsnull;
@@ -451,19 +450,40 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
         continue;
       }
 
-      nsRefPtr<gfxImageSurface> frame;
-      rv = image->CopyFrame(  imgIContainer::FRAME_CURRENT,
-                              imgIContainer::FLAG_SYNC_DECODE,
-                              getter_AddRefs(frame));
-      if (NS_FAILED(rv) || !frame) {
+      nsRefPtr<gfxImageSurface> currentFrame;
+      if (NS_FAILED(image->CopyFrame(imgIContainer::FRAME_CURRENT,
+                                     imgIContainer::FLAG_SYNC_DECODE,
+                                     getter_AddRefs(currentFrame))))
         continue;
-      }      
-      CGImageRef imageRef = NULL;
-      nsresult rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &imageRef);
-      if (NS_FAILED(rv) || !imageRef) {
+
+      PRInt32 height = currentFrame->Height();
+      PRInt32 stride = currentFrame->Stride();
+      PRInt32 width = currentFrame->Width();
+      if ((stride % 4 != 0) || (height < 1) || (width < 1))
         continue;
-      }
-      
+
+      // Create a CGImageRef with the bits from the image, taking into account
+      // the alpha ordering and endianness of the machine so we don't have to
+      // touch the bits ourselves.
+      CGDataProviderRef dataProvider = CGDataProviderCreateWithData(NULL,
+                                                                    currentFrame->Data(),
+                                                                    stride * height,
+                                                                    NULL);
+      CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB);
+      CGImageRef imageRef = CGImageCreate(width,
+                                          height,
+                                          8,
+                                          32,
+                                          stride,
+                                          colorSpace,
+                                          kCGBitmapByteOrder32Host | kCGImageAlphaFirst,
+                                          dataProvider,
+                                          NULL,
+                                          0,
+                                          kCGRenderingIntentDefault);
+      CGColorSpaceRelease(colorSpace);
+      CGDataProviderRelease(dataProvider);
+
       // Convert the CGImageRef to TIFF data.
       CFMutableDataRef tiffData = CFDataCreateMutable(kCFAllocatorDefault, 0);
       CGImageDestinationRef destRef = CGImageDestinationCreateWithData(tiffData,
@@ -537,7 +557,7 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-PRBool nsClipboard::IsStringType(const nsCString& aMIMEType, NSString** aPasteboardType)
+PRBool nsClipboard::IsStringType(const nsCString& aMIMEType, const NSString** aPasteboardType)
 {
   if (aMIMEType.EqualsLiteral(kUnicodeMime) ||
       aMIMEType.EqualsLiteral(kHTMLMime)) {

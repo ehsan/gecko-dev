@@ -93,10 +93,7 @@ XPCWrappedNativeProto::Init(
                 JSBool isGlobal,
                 const XPCNativeScriptableCreateInfo* scriptableCreateInfo)
 {
-    nsIXPCScriptable *callback = scriptableCreateInfo ?
-                                 scriptableCreateInfo->GetCallback() :
-                                 nsnull;
-    if(callback)
+    if(scriptableCreateInfo && scriptableCreateInfo->GetCallback())
     {
         mScriptableInfo =
             XPCNativeScriptableInfo::Construct(ccx, isGlobal, scriptableCreateInfo);
@@ -104,7 +101,7 @@ XPCWrappedNativeProto::Init(
             return JS_FALSE;
     }
 
-    js::Class* jsclazz;
+    JSClass* jsclazz;
 
 
     if(mScriptableInfo)
@@ -132,21 +129,25 @@ XPCWrappedNativeProto::Init(
     JSObject *parent = mScope->GetGlobalJSObject();
 
     mJSProtoObject =
-        xpc_NewSystemInheritingJSObject(ccx, js::Jsvalify(jsclazz),
+        xpc_NewSystemInheritingJSObject(ccx, jsclazz,
                                         mScope->GetPrototypeJSObject(),
                                         parent);
 
     JSBool ok = mJSProtoObject && JS_SetPrivate(ccx, mJSProtoObject, this);
 
-    if(ok && callback)
+    if(ok && scriptableCreateInfo)
     {
-        nsresult rv = callback->PostCreatePrototype(ccx, mJSProtoObject);
-        if(NS_FAILED(rv))
+        nsIXPCScriptable *callback = scriptableCreateInfo->GetCallback();
+        if(callback)
         {
-            JS_SetPrivate(ccx, mJSProtoObject, nsnull);
-            mJSProtoObject = nsnull;
-            XPCThrower::Throw(rv, ccx);
-            return JS_FALSE;
+            nsresult rv = callback->PostCreatePrototype(ccx, mJSProtoObject);
+            if(NS_FAILED(rv))
+            {
+                JS_SetPrivate(ccx, mJSProtoObject, nsnull);
+                mJSProtoObject = nsnull;
+                XPCThrower::Throw(rv, ccx);
+                return JS_FALSE;
+            }
         }
     }
 
