@@ -947,11 +947,8 @@ class FrameState
     void clearTemporaries();
     inline FrameEntry *getTemporary(uint32 which);
 
-    /*
-     * Return NULL or a new vector with all current copies of temporaries,
-     * excluding those about to be popped per 'uses'.
-     */
-    Vector<TemporaryCopy> *getTemporaryCopies(Uses uses);
+    /* Return NULL or a new vector with all current copies of temporaries. */
+    Vector<TemporaryCopy> *getTemporaryCopies();
 
     inline void syncAndForgetFe(FrameEntry *fe, bool markSynced = false);
     inline void forgetLoopReg(FrameEntry *fe);
