@@ -50,7 +50,12 @@ function loadTests()
   gTestList = eval(srvScope.jsonArrayOfTestFiles(links));
   populate();
 
-  hookup();
+  if (singleTestPath) {
+    TestRunner.loopTest(singleTestPath);
+  } else {
+    hookup();
+  }
+
 }
 
     window.addEventListener("load", loadTests, false);

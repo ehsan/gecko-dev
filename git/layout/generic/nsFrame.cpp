@@ -2186,8 +2186,6 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
                      nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
-  NS_ASSERTION(aPresContext == PresContext(),
-               "HandlePress called with different presContext");
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
     return NS_OK;
   }
@@ -2565,9 +2563,6 @@ nsFrame::HandleDrag(nsPresContext* aPresContext,
     return NS_OK; // not selecting now
   }
 
-  NS_ASSERTION(target->PresContext()->PresShell() == fs->GetShell(),
-               "A different presShell received mouse move event during drag");
-
   // Stop auto scrolling, first.
   fs->StopAutoScrollTimer();
 
@@ -2590,11 +2585,8 @@ nsFrame::ExpandSelectionByMouseMove(nsFrameSelection* aFrameSelection,
 #ifdef DEBUG
   nsFrameSelection* draggingFrameSelection =
     nsFrameSelection::GetMouseDownFrameSelection();
-  nsFrameSelection* selectionFrameForSelectingByMouse =
-    GetFrameSelectionForSelectingByMouse();
-  NS_ASSERTION(draggingFrameSelection,
-               "dragging FrameSelection must not be NULL");
-  NS_ASSERTION(draggingFrameSelection == selectionFrameForSelectingByMouse,
+  NS_ASSERTION(draggingFrameSelection &&
+               draggingFrameSelection == GetConstFrameSelection(),
                "aFrameSelection must be handling current drag for selection");
 #endif
 

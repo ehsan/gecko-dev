@@ -91,6 +91,7 @@
 #include "nsIURIFixup.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIChromeRegistry.h"
+#include "nsPrintfCString.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"

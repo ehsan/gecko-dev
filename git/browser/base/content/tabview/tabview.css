@@ -144,6 +144,11 @@ body {
 /* Other
 ----------------------------------*/
 
+.newTabButton {
+  position: absolute !important;
+  z-index: 99999;
+}
+
 .titlebar {
   position: absolute;
 }
