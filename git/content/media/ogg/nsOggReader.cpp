@@ -261,13 +261,13 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
     mInfo.mHasVideo = PR_TRUE;
     mInfo.mPixelAspectRatio = mTheoraState->mPixelAspectRatio;
     mInfo.mPicture = nsIntRect(mTheoraState->mInfo.pic_x,
-                               mTheoraState->mInfo.pic_y,
-                               mTheoraState->mInfo.pic_width,
-                               mTheoraState->mInfo.pic_height);
+                                mTheoraState->mInfo.pic_y,
+                                mTheoraState->mInfo.pic_width,
+                                mTheoraState->mInfo.pic_height);
     mInfo.mFrame = nsIntSize(mTheoraState->mInfo.frame_width,
                               mTheoraState->mInfo.frame_height);
     mInfo.mDisplay = nsIntSize(mInfo.mPicture.width,
-                               mInfo.mPicture.height);
+                                mInfo.mPicture.height);
     gfxIntSize sz(mTheoraState->mInfo.pic_width,
                   mTheoraState->mInfo.pic_height);
     mDecoder->SetVideoData(sz,
@@ -318,32 +318,6 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
     }
   }
 
-  {
-    ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
-    ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
-
-    nsMediaStream* stream = mDecoder->GetCurrentStream();
-    if (mDecoder->GetStateMachine()->GetDuration() == -1 &&
-        mDecoder->GetStateMachine()->GetState() != nsDecoderStateMachine::DECODER_STATE_SHUTDOWN &&
-        stream->GetLength() >= 0 &&
-        mDecoder->GetStateMachine()->GetSeekable())
-    {
-      // We didn't get a duration from the index or a Content-Duration header.
-      // Seek to the end of file to find the end time.
-      PRInt64 length = stream->GetLength();
-      NS_ASSERTION(length > 0, "Must have a content length to get end time");
-
-      PRInt64 endTime = 0;
-      {
-        ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
-        endTime = RangeEndTime(length);
-      }
-      if (endTime != -1) {
-        mDecoder->GetStateMachine()->SetEndTime(endTime);
-        LOG(PR_LOG_DEBUG, ("Got Ogg duration from seeking to end %lld", endTime));
-      }
-    }
-  }
   *aInfo = mInfo;
 
   return NS_OK;
@@ -426,6 +400,27 @@ PRBool nsOggReader::DecodeAudioData()
 
   return PR_TRUE;
 }
+
+#ifdef DEBUG
+// Ensures that all the VideoData in aFrames array are stored in increasing
+// order by timestamp. Used in assertions in debug builds.
+static PRBool
+AllFrameTimesIncrease(nsTArray<nsAutoPtr<VideoData> >& aFrames)
+{
+  PRInt64 prevTime = -1;
+  PRInt64 prevGranulepos = -1;
+  for (PRUint32 i = 0; i < aFrames.Length(); i++) {
+    VideoData* f = aFrames[i];
+    if (f->mTime < prevTime) {
+      return PR_FALSE;
+    }
+    prevTime = f->mTime;
+    prevGranulepos = f->mTimecode;
+  }
+
+  return PR_TRUE;
+}
+#endif
 
 nsresult nsOggReader::DecodeTheora(ogg_packet* aPacket)
 {
@@ -625,7 +620,8 @@ GetChecksum(ogg_page* page)
   return c;
 }
 
-PRInt64 nsOggReader::RangeStartTime(PRInt64 aOffset)
+VideoData* nsOggReader::FindStartTime(PRInt64 aOffset,
+                                      PRInt64& aOutStartTime)
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread(),
                "Should be on state machine thread.");
@@ -633,42 +629,30 @@ PRInt64 nsOggReader::RangeStartTime(PRInt64 aOffset)
   NS_ENSURE_TRUE(stream != nsnull, nsnull);
   nsresult res = stream->Seek(nsISeekableStream::NS_SEEK_SET, aOffset);
   NS_ENSURE_SUCCESS(res, nsnull);
-  PRInt64 startTime = 0;
-  nsBuiltinDecoderReader::FindStartTime(startTime);
-  return startTime;
+  return nsBuiltinDecoderReader::FindStartTime(aOffset, aOutStartTime);
 }
 
-struct nsAutoOggSyncState {
-  nsAutoOggSyncState() {
-    ogg_sync_init(&mState);
-  }
-  ~nsAutoOggSyncState() {
-    ogg_sync_clear(&mState);
-  }
-  ogg_sync_state mState;
-};
-
-PRInt64 nsOggReader::RangeEndTime(PRInt64 aEndOffset)
+PRInt64 nsOggReader::FindEndTime(PRInt64 aEndOffset)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread(),
                "Should be on state machine thread.");
-
+  PRInt64 endTime = FindEndTime(0, aEndOffset, PR_FALSE, &mOggState);
+  // Reset read head to start of media data.
   nsMediaStream* stream = mDecoder->GetCurrentStream();
   NS_ENSURE_TRUE(stream != nsnull, -1);
-  PRInt64 position = stream->Tell();
-  PRInt64 endTime = RangeEndTime(0, aEndOffset, PR_FALSE);
-  nsresult res = stream->Seek(nsISeekableStream::NS_SEEK_SET, position);
+  nsresult res = stream->Seek(nsISeekableStream::NS_SEEK_SET, 0);
   NS_ENSURE_SUCCESS(res, -1);
   return endTime;
 }
 
-PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
-                                  PRInt64 aEndOffset,
-                                  PRBool aCachedDataOnly)
+PRInt64 nsOggReader::FindEndTime(PRInt64 aStartOffset,
+                                 PRInt64 aEndOffset,
+                                 PRBool aCachedDataOnly,
+                                 ogg_sync_state* aState)
 {
   nsMediaStream* stream = mDecoder->GetCurrentStream();
-  nsAutoOggSyncState sync;
+  ogg_sync_reset(aState);
 
   // We need to find the last page which ends before aEndOffset that
   // has a granulepos that we can convert to a timestamp. We do this by
@@ -685,7 +669,7 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
   PRBool mustBackOff = PR_FALSE;
   while (PR_TRUE) {
     ogg_page page;    
-    int ret = ogg_sync_pageseek(&sync.mState, &page);
+    int ret = ogg_sync_pageseek(aState, &page);
     if (ret == 0) {
       // We need more data if we've not encountered a page we've seen before,
       // or we've read to the end of file.
@@ -697,7 +681,7 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
         mustBackOff = PR_FALSE;
         prevChecksumAfterSeek = checksumAfterSeek;
         checksumAfterSeek = 0;
-        ogg_sync_reset(&sync.mState);
+        ogg_sync_reset(aState);
         readStartOffset = NS_MAX(static_cast<PRInt64>(0), readStartOffset - step);
         readHead = NS_MAX(aStartOffset, readStartOffset);
       }
@@ -708,7 +692,7 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
       limit = NS_MIN(limit, static_cast<PRInt64>(step));
       PRUint32 bytesToRead = static_cast<PRUint32>(limit);
       PRUint32 bytesRead = 0;
-      char* buffer = ogg_sync_buffer(&sync.mState, bytesToRead);
+      char* buffer = ogg_sync_buffer(aState, bytesToRead);
       NS_ASSERTION(buffer, "Must have buffer");
       nsresult res;
       if (aCachedDataOnly) {
@@ -727,7 +711,7 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
 
       // Update the synchronisation layer with the number
       // of bytes written to the buffer
-      ret = ogg_sync_wrote(&sync.mState, bytesRead);
+      ret = ogg_sync_wrote(aState, bytesRead);
       if (ret != 0) {
         endTime = -1;
         break;
@@ -777,6 +761,8 @@ PRInt64 nsOggReader::RangeEndTime(PRInt64 aStartOffset,
     }
   }
 
+  ogg_sync_reset(aState);
+
   return endTime;
 }
 
@@ -798,9 +784,9 @@ nsresult nsOggReader::GetSeekRanges(nsTArray<SeekRange>& aRanges)
     }
     PRInt64 startOffset = range.mStart;
     PRInt64 endOffset = range.mEnd;
-    startTime = RangeStartTime(startOffset);
+    FindStartTime(startOffset, startTime);
     if (startTime != -1 &&
-        ((endTime = RangeEndTime(endOffset)) != -1))
+        ((endTime = FindEndTime(endOffset)) != -1))
     {
       NS_ASSERTION(startTime < endTime,
                    "Start time must be before end time");
@@ -1437,7 +1423,8 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
   // offset is after the end of the media stream, or there's no more cached
   // data after the offset. This loop will run until we've checked every
   // buffered range in the media, in increasing order of offset.
-  nsAutoOggSyncState sync;
+  ogg_sync_state state;
+  ogg_sync_init(&state);
   for (PRUint32 index = 0; index < ranges.Length(); index++) {
     // Ensure the offsets are after the header pages.
     PRInt64 startOffset = ranges[index].mStart;
@@ -1452,18 +1439,20 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
     // Find the start time of the range. Read pages until we find one with a
     // granulepos which we can convert into a timestamp to use as the time of
     // the start of the buffered range.
-    ogg_sync_reset(&sync.mState);
+    ogg_sync_reset(&state);
     while (startTime == -1) {
       ogg_page page;
       PRInt32 discard;
       PageSyncResult res = PageSync(stream,
-                                    &sync.mState,
+                                    &state,
                                     PR_TRUE,
                                     startOffset,
                                     endOffset,
                                     &page,
                                     discard);
       if (res == PAGE_SYNC_ERROR) {
+        // If we don't clear the sync state before exit we'll leak.
+        ogg_sync_clear(&state);
         return NS_ERROR_FAILURE;
       } else if (res == PAGE_SYNC_END_OF_RANGE) {
         // Hit the end of range without reading a page, give up trying to
@@ -1497,6 +1486,7 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
       else {
         // Page is for a stream we don't know about (possibly a chained
         // ogg), return an error.
+        ogg_sync_clear(&state);
         return PAGE_SYNC_ERROR;
       }
     }
@@ -1504,13 +1494,16 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
     if (startTime != -1) {
       // We were able to find a start time for that range, see if we can
       // find an end time.
-      PRInt64 endTime = RangeEndTime(startOffset, endOffset, PR_TRUE);
+      PRInt64 endTime = FindEndTime(startOffset, endOffset, PR_TRUE, &state);
       if (endTime != -1) {
         aBuffered->Add(startTime / static_cast<double>(USECS_PER_S),
                        (endTime - aStartTime) / static_cast<double>(USECS_PER_S));
       }
     }
   }
+
+  // If we don't clear the sync state before exit we'll leak.
+  ogg_sync_clear(&state);
 
   return NS_OK;
 }

@@ -1120,8 +1120,9 @@ ic::SplatApplyArgs(VMFrame &f)
                 if (!js_GetLengthProperty(cx, aobj, &length))
                     THROWV(false);
 
-                /* Step 6. */
-                n = Min(length, JS_ARGS_LENGTH_MAX);
+                /* Step 6 */
+                JS_ASSERT(length <= JS_ARGS_LENGTH_MAX);
+                n = length;
 
                 if (!BumpStack(f, n))
                     THROWV(false);

@@ -1684,7 +1684,7 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
     ::ShowWindow(mWnd, mode);
     // we dispatch an activate event here to ensure that the right child window
     // is focused
-    if (mode == SW_RESTORE || mode == SW_MAXIMIZE || mode == SW_SHOW)
+    if (mode == SW_RESTORE || mode == SW_MAXIMIZE)
       DispatchFocusToTopLevelWindow(NS_ACTIVATE);
   }
   return rv;
@@ -3777,7 +3777,7 @@ PRBool nsWindow::DispatchPluginEvent(const MSG &aMsg)
   if (!PluginHasFocus())
     return PR_FALSE;
 
-  nsPluginEvent event(PR_TRUE, NS_PLUGIN_INPUT_EVENT, this);
+  nsGUIEvent event(PR_TRUE, NS_PLUGIN_EVENT, this);
   nsIntPoint point(0, 0);
   InitEvent(event, &point);
   NPEvent pluginEvent;
@@ -3785,7 +3785,6 @@ PRBool nsWindow::DispatchPluginEvent(const MSG &aMsg)
   pluginEvent.wParam = aMsg.wParam;
   pluginEvent.lParam = aMsg.lParam;
   event.pluginEvent = (void *)&pluginEvent;
-  event.retargetToFocusedDocument = PR_TRUE;
   return DispatchWindowEvent(&event);
 }
 
@@ -4342,34 +4341,26 @@ DisplaySystemMenu(HWND hWnd, nsSizeMode sizeMode, PRBool isRtl, PRInt32 x, PRInt
 {
   HMENU hMenu = GetSystemMenu(hWnd, FALSE);
   if (hMenu) {
-    MENUITEMINFO mii;
-    mii.cbSize = sizeof(MENUITEMINFO);
-    mii.fMask = MIIM_STATE;
-    mii.fType = 0;
-
     // update the options
-    mii.fState = MF_ENABLED;
-    SetMenuItemInfo(hMenu, SC_RESTORE, FALSE, &mii);
-    SetMenuItemInfo(hMenu, SC_SIZE, FALSE, &mii);
-    SetMenuItemInfo(hMenu, SC_MOVE, FALSE, &mii);
-    SetMenuItemInfo(hMenu, SC_MAXIMIZE, FALSE, &mii);
-    SetMenuItemInfo(hMenu, SC_MINIMIZE, FALSE, &mii);
-
-    mii.fState = MF_GRAYED;
+    EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_ENABLED);
+    EnableMenuItem(hMenu, SC_SIZE, MF_BYCOMMAND | MF_ENABLED);
+    EnableMenuItem(hMenu, SC_MOVE, MF_BYCOMMAND | MF_ENABLED);
+    EnableMenuItem(hMenu, SC_MAXIMIZE, MF_BYCOMMAND | MF_ENABLED);
+    EnableMenuItem(hMenu, SC_MINIMIZE, MF_BYCOMMAND | MF_ENABLED);
     switch(sizeMode) {
       case nsSizeMode_Fullscreen:
-        SetMenuItemInfo(hMenu, SC_RESTORE, FALSE, &mii);
+        EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_GRAYED);
         // intentional fall through
       case nsSizeMode_Maximized:
-        SetMenuItemInfo(hMenu, SC_SIZE, FALSE, &mii);
-        SetMenuItemInfo(hMenu, SC_MOVE, FALSE, &mii);
-        SetMenuItemInfo(hMenu, SC_MAXIMIZE, FALSE, &mii);
+        EnableMenuItem(hMenu, SC_SIZE, MF_BYCOMMAND | MF_GRAYED);
+        EnableMenuItem(hMenu, SC_MOVE, MF_BYCOMMAND | MF_GRAYED);
+        EnableMenuItem(hMenu, SC_MAXIMIZE, MF_BYCOMMAND | MF_GRAYED);
         break;
       case nsSizeMode_Minimized:
-        SetMenuItemInfo(hMenu, SC_MINIMIZE, FALSE, &mii);
+        EnableMenuItem(hMenu, SC_MINIMIZE, MF_BYCOMMAND | MF_GRAYED);
         break;
       case nsSizeMode_Normal:
-        SetMenuItemInfo(hMenu, SC_RESTORE, FALSE, &mii);
+        EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_GRAYED);
         break;
     }
     LPARAM cmd =

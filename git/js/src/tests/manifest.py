@@ -10,11 +10,9 @@ from tests import TestCase
 
 def split_path_into_dirs(path):
     dirs = [path]
-   
-    while True:
-        path, tail = os.path.split(path)
-        if not tail:
-            break
+    while path != "/":
+        path = os.path.dirname(path)
+        dirs.append(path)
     return dirs
 
 class XULInfo:

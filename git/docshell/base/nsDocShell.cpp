@@ -160,8 +160,6 @@
 #include "nsIWebBrowserChrome3.h"
 #include "nsITabChild.h"
 #include "nsIStrictTransportSecurityService.h"
-#include "nsStructuredCloneContainer.h"
-#include "nsIStructuredCloneContainer.h"
 
 // Editor-related
 #include "nsIEditingSession.h"
@@ -7743,17 +7741,21 @@ nsDocShell::SetupNewViewer(nsIContentViewer * aNewViewer)
 nsresult
 nsDocShell::SetDocCurrentStateObj(nsISHEntry *shEntry)
 {
+    nsresult rv;
+
     nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
     NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
-    nsCOMPtr<nsIStructuredCloneContainer> scContainer;
-    nsresult rv = shEntry->GetStateData(getter_AddRefs(scContainer));
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsAutoString stateData;
+    if (shEntry) {
+        rv = shEntry->GetStateData(stateData);
+        NS_ENSURE_SUCCESS(rv, rv);
 
-    // It's OK for scContainer too be null here; that just means there's no
-    // state data associated with this history entry.
-    document->SetStateObject(scContainer);
+        // if shEntry is null, we just set the pending state object to the
+        // empty string.
+    }
 
+    document->SetCurrentStateObject(stateData);
     return NS_OK;
 }
 
@@ -9411,6 +9413,66 @@ nsDocShell::SetReferrerURI(nsIURI * aURI)
 // nsDocShell: Session History
 //*****************************************************************************
 
+nsresult
+nsDocShell::StringifyJSValVariant(JSContext *aCx, nsIVariant *aData,
+                                  nsAString &aResult)
+{
+    nsresult rv;
+    aResult.Truncate();
+
+    // First, try to extract a jsval from the variant |aData|.  This works only
+    // if the variant implements GetAsJSVal.
+    jsval jsData;
+    rv = aData->GetAsJSVal(&jsData);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
+
+    nsCOMPtr<nsIJSContextStack> contextStack;
+    JSContext *cx = aCx;
+    if (!cx) {
+        // Now get the JSContext associated with the current document.
+        // First get the current document.
+        nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
+        NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
+
+        // Get the JSContext from the document, like we do in
+        // nsContentUtils::GetContextFromDocument().
+        nsIScriptGlobalObject *sgo = document->GetScopeObject();
+        NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
+
+        nsIScriptContext *scx = sgo->GetContext();
+        NS_ENSURE_TRUE(scx, NS_ERROR_FAILURE);
+
+        cx = (JSContext *)scx->GetNativeContext();
+
+        // If our json call triggers a JS-to-C++ call, we want that call to use
+        // aCx as the context.  So we push aCx onto the context stack.
+        contextStack =
+            do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        contextStack->Push(cx);
+    }
+
+    nsCOMPtr<nsIJSON> json = do_GetService("@mozilla.org/dom/json;1");
+    if(json) {
+        // Do the encoding
+        rv = json->EncodeFromJSVal(&jsData, cx, aResult);
+    }
+    else {
+        rv = NS_ERROR_FAILURE;
+    }
+
+    if (contextStack) {
+        if (NS_FAILED(rv)) {
+            JS_ClearPendingException(cx);
+        }
+
+        contextStack->Pop(&cx);
+    }
+
+    return rv;
+}
+
 NS_IMETHODIMP
 nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
                      const nsAString& aURL, PRBool aReplace, JSContext* aCx)
@@ -9418,7 +9480,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     // Implements History.pushState and History.replaceState
 
     // Here's what we do, roughly in the order specified by HTML5:
-    // 1. Serialize aData using structured clone.
+    // 1. Serialize aData to JSON.
     // 2. If the third argument is present,
     //     a. Resolve the url, relative to the first script's base URL
     //     b. If (a) fails, raise a SECURITY_ERR
@@ -9452,16 +9514,13 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
     nsresult rv;
 
-    nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
-    NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
-
-    // Step 1: Serialize aData using structured clone.
-    nsCOMPtr<nsIStructuredCloneContainer> scContainer;
-
-    // scContainer->Init might cause arbitrary JS to run, and this code might
-    // navigate the page we're on, potentially to a different origin! (bug
+    // Step 1: Clone aData by getting its JSON representation.
+    //
+    // StringifyJSValVariant might cause arbitrary JS to run, and this code
+    // might navigate the page we're on, potentially to a different origin! (bug
     // 634834)  To protect against this, we abort if our principal changes due
-    // to the InitFromVariant() call.
+    // to the stringify call.
+    nsString dataStr;
     {
         nsCOMPtr<nsIDocument> origDocument =
             do_GetInterface(GetAsSupports(this));
@@ -9469,18 +9528,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
             return NS_ERROR_DOM_SECURITY_ERR;
         nsCOMPtr<nsIPrincipal> origPrincipal = origDocument->NodePrincipal();
 
-        scContainer = new nsStructuredCloneContainer();
-        JSContext *cx = aCx;
-        if (!cx) {
-            cx = nsContentUtils::GetContextFromDocument(document);
-        }
-        rv = scContainer->InitFromVariant(aData, cx);
-
-        // If we're running in the document's context and the structured clone
-        // failed, clear the context's pending exception.  See bug 637116.
-        if (NS_FAILED(rv) && !aCx) {
-            JS_ClearPendingException(aCx);
-        }
+        rv = StringifyJSValVariant(aCx, aData, dataStr);
         NS_ENSURE_SUCCESS(rv, rv);
 
         nsCOMPtr<nsIDocument> newDocument =
@@ -9495,7 +9543,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     }
 
     // Check that the state object isn't too long.
-    // Default max length: 640k bytes.
+    // Default max length: 640k chars.
     PRInt32 maxStateObjSize = 0xA0000;
     if (mPrefs) {
         mPrefs->GetIntPref("browser.history.maxStateObjectSize",
@@ -9504,13 +9552,11 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     if (maxStateObjSize < 0) {
         maxStateObjSize = 0;
     }
-
-    PRUint64 scSize;
-    rv = scContainer->GetSerializedNBytes(&scSize);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    NS_ENSURE_TRUE(scSize <= (PRUint32)maxStateObjSize,
+    NS_ENSURE_TRUE(dataStr.Length() <= (PRUint32)maxStateObjSize,
                    NS_ERROR_ILLEGAL_VALUE);
+
+    nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
+    NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
     // Step 2: Resolve aURL
     PRBool equalURIs = PR_TRUE;
@@ -9647,7 +9693,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
     // Step 4: Modify new/original session history entry and clear its POST
     // data, if there is any.
-    newSHEntry->SetStateData(scContainer);
+    newSHEntry->SetStateData(dataStr);
     newSHEntry->SetPostData(nsnull);
 
     // Step 5: If aReplace is false, indicating that we're doing a pushState
@@ -9685,7 +9731,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     else {
         FireDummyOnLocationChange();
     }
-    document->SetStateObject(scContainer);
+    document->SetCurrentStateObject(dataStr);
 
     return NS_OK;
 }

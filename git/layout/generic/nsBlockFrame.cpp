@@ -3446,6 +3446,9 @@ nsBlockFrame::ReflowInlineFrames(nsBlockReflowState& aState,
   }
   nsFlowAreaRect floatAvailableSpace = aState.GetFloatAvailableSpace();
 
+#ifdef DEBUG
+  PRInt32 spins = 0;
+#endif
   LineReflowStatus lineReflowStatus;
   do {
     nscoord availableSpaceHeight = 0;
@@ -3500,6 +3503,15 @@ nsBlockFrame::ReflowInlineFrames(nsBlockReflowState& aState,
           aState.mCurrentLineFloats.DeleteAll();
           aState.mBelowCurrentLineFloats.DeleteAll();
         }
+        
+  #ifdef DEBUG
+        spins++;
+        if (1000 == spins) {
+          ListTag(stdout);
+          printf(": yikes! spinning on a line over 1000 times!\n");
+          NS_ABORT();
+        }
+  #endif
 
         // Don't allow pullup on a subsequent LINE_REFLOW_REDO_NO_PULL pass
         allowPullUp = PR_FALSE;

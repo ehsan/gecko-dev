@@ -182,7 +182,7 @@ NewFinalizableGCThing(JSContext *cx, unsigned thingKind)
                  (thingKind == js::gc::FINALIZE_SHORT_STRING));
 #endif
 
-    METER(cx->compartment->arenas[thingKind].stats.alloc++);
+    METER(cx->compartment->compartmentStats[thingKind].alloc++);
     do {
         js::gc::FreeCell *cell = cx->compartment->freeLists.getNext(thingKind);
         if (cell) {

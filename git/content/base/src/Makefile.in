@@ -70,8 +70,6 @@ EXPORTS_mozilla/dom = \
   Link.h \
   $(NULL)
 
-LOCAL_INCLUDES = -I$(srcdir)/js/src/xpconnect/src
-
 CPPSRCS		= \
 		mozSanitizingSerializer.cpp \
 		nsAtomListUtils.cpp \
