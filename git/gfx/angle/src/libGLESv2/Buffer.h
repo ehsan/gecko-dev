@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -11,63 +11,47 @@
 #ifndef LIBGLESV2_BUFFER_H_
 #define LIBGLESV2_BUFFER_H_
 
-#include "libGLESv2/Error.h"
+#include <cstddef>
+#include <vector>
+
+#define GL_APICALL
+#include <GLES2/gl2.h>
 
 #include "common/angleutils.h"
-#include "common/RefCountObject.h"
-#include "libGLESv2/renderer/IndexRangeCache.h"
-
-namespace rx
-{
-class Renderer;
-class BufferImpl;
-};
+#include "libGLESv2/RefCountObject.h"
 
 namespace gl
 {
+class StaticVertexBuffer;
+class StaticIndexBuffer;
 
 class Buffer : public RefCountObject
 {
   public:
-    Buffer(rx::BufferImpl *impl, GLuint id);
+    explicit Buffer(GLuint id);
 
     virtual ~Buffer();
 
-    Error bufferData(const void *data, GLsizeiptr size, GLenum usage);
-    Error bufferSubData(const void *data, GLsizeiptr size, GLintptr offset);
-    Error copyBufferSubData(Buffer* source, GLintptr sourceOffset, GLintptr destOffset, GLsizeiptr size);
-    Error mapRange(GLintptr offset, GLsizeiptr length, GLbitfield access);
-    Error unmap();
+    void bufferData(const void *data, GLsizeiptr size, GLenum usage);
+    void bufferSubData(const void *data, GLsizeiptr size, GLintptr offset);
 
-    GLenum getUsage() const { return mUsage; }
-    GLint getAccessFlags() const {  return mAccessFlags; }
-    GLboolean isMapped() const { return mMapped; }
-    GLvoid *getMapPointer() const { return mMapPointer; }
-    GLint64 getMapOffset() const { return mMapOffset; }
-    GLint64 getMapLength() const { return mMapLength; }
-    GLint64 getSize() const { return mSize; }
+    void *data() { return mContents; }
+    size_t size() const { return mSize; }
+    GLenum usage() const { return mUsage; }
 
-    rx::BufferImpl *getImplementation() const { return mBuffer; }
-
-    void markTransformFeedbackUsage();
-
-    rx::IndexRangeCache *getIndexRangeCache() { return &mIndexRangeCache; }
-    const rx::IndexRangeCache *getIndexRangeCache() const { return &mIndexRangeCache; }
+    StaticVertexBuffer *getVertexBuffer();
+    StaticIndexBuffer *getIndexBuffer();
+    void invalidateStaticData();
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Buffer);
 
-    rx::BufferImpl *mBuffer;
-
+    GLubyte *mContents;
+    size_t mSize;
     GLenum mUsage;
-    GLint64 mSize;
-    GLint mAccessFlags;
-    GLboolean mMapped;
-    GLvoid *mMapPointer;
-    GLint64 mMapOffset;
-    GLint64 mMapLength;
 
-    rx::IndexRangeCache mIndexRangeCache;
+    StaticVertexBuffer *mVertexBuffer;
+    StaticIndexBuffer *mIndexBuffer;
 };
 
 }

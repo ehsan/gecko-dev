@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <!DOCTYPE bindings [
 <!ENTITY % treeDTD SYSTEM "chrome://global/locale/tree.dtd">
@@ -33,7 +29,7 @@
     </implementation>
   </binding>
 
-  <binding id="tree" extends="chrome://global/content/bindings/tree.xml#tree-base" role="xul:tree">
+  <binding id="tree" extends="chrome://global/content/bindings/tree.xml#tree-base">
     <content hidevscroll="true" hidehscroll="true" clickthrough="never">
       <children includes="treecols"/>
       <xul:stack class="tree-stack" flex="1">
@@ -43,12 +39,12 @@
         <xul:textbox anonid="input" class="tree-input" left="0" top="0" hidden="true"/>
       </xul:stack>
       <xul:hbox xbl:inherits="collapsed=hidehscroll">
-        <xul:scrollbar orient="horizontal" flex="1" increment="16" style="position:relative; z-index:2147483647;"/>
+        <xul:scrollbar orient="horizontal" flex="1" increment="16"/>
         <xul:scrollcorner xbl:inherits="collapsed=hidevscroll"/>
       </xul:hbox>
     </content>
     
-    <implementation implements="nsIDOMXULTreeElement, nsIDOMXULMultiSelectControlElement">
+    <implementation implements="nsIDOMXULTreeElement, nsIDOMXULMultiSelectControlElement, nsIAccessibleProvider">
 
       <!-- ///////////////// nsIDOMXULTreeElement ///////////////// -->
 
@@ -56,9 +52,7 @@
                 onget="return this.treeBoxObject.columns;"/>
 
       <property name="view"
-                onget="return this.treeBoxObject.view ?
-                       this.treeBoxObject.view.QueryInterface(Components.interfaces.nsITreeView) :
-                       null;"
+                onget="return this.treeBoxObject.view;"
                 onset="return this.treeBoxObject.view = val;"/>
 
       <property name="body"
@@ -81,8 +75,18 @@
                 onget="return this.view ? this.view.selection.currentIndex: - 1;"
                 onset="if (this.view) return this.view.selection.currentIndex = val; return val;"/>
 
+      <!-- ///////////////// nsIAccessibleProvider ///////////////// -->
+
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULTree;
+          ]]>
+        </getter>
+      </property>
+
       <property name="treeBoxObject"
-                onget="return this.boxObject;"
+                onget="return this.boxObject.QueryInterface(Components.interfaces.nsITreeBoxObject);"
                 readonly="true"/>
 # contentView is obsolete (see bug 202391)
       <property name="contentView"
@@ -244,7 +248,6 @@
           if (row < 0 || !this.view.isContainer(row)) {
             return false;
           }
-
           if (this.view.isContainerOpen(row) != openState) {
             this.view.toggleOpenState(row);
             if (row == this.currentIndex) {
@@ -355,32 +358,36 @@
             box.ensureCellIsVisible(row, column);
 
             // Get the coordinates of the text inside the cell.
-            var textRect = box.getCoordsForCellItem(row, column, "text");
+            var textx = {}, texty = {}, textwidth = {}, textheight = {};
+            var coords = box.getCoordsForCellItem(row, column, "text",
+                                                  textx, texty, textwidth, textheight);
 
             // Get the coordinates of the cell itself.
-            var cellRect = box.getCoordsForCellItem(row, column, "cell");
+            var cellx = {}, cellwidth = {};
+            coords = box.getCoordsForCellItem(row, column, "cell",
+                                              cellx, {}, cellwidth, {});
 
             // Calculate the top offset of the textbox.
             var style = window.getComputedStyle(input, "");
             var topadj = parseInt(style.borderTopWidth) + parseInt(style.paddingTop);
-            input.top = textRect.y - topadj;
+            input.top = texty.value - topadj;
 
             // The leftside of the textbox is aligned to the left side of the text
             // in LTR mode, and left side of the cell in RTL mode.
             var left, widthdiff;
             if (style.direction == "rtl") {
-              left = cellRect.x;
-              widthdiff = cellRect.x + cellRect.width - textRect.x - textRect.width;
+              left = cellx.value;
+              widthdiff = cellx.value + cellwidth.value - textx.value - textwidth.value;
             } else {
-              left = textRect.x;
-              widthdiff = textRect.x - cellRect.x;
+              left = textx.value;
+              widthdiff = textx.value - cellx.value;
             }
 
             input.left = left;
-            input.height = textRect.height + topadj +
+            input.height = textheight.value + topadj +
                            parseInt(style.borderBottomWidth) +
                            parseInt(style.paddingBottom);
-            input.width = cellRect.width - widthdiff;
+            input.width = cellwidth.value - widthdiff;
             input.hidden = false;
 
             input.value = this.view.getCellText(row, column);
@@ -429,9 +436,7 @@
         <parameter name="event"/>
         <body>
           <![CDATA[
-            event.preventDefault();
-
-            if (this.view.rowCount == 0)
+            if (this._editingColumn || this.view.rowCount == 0)
               return;
 
             if (this._isAccelPressed(event) && this.view.selection.single) {
@@ -473,9 +478,7 @@
         <parameter name="event"/>
         <body>
           <![CDATA[
-            event.preventDefault();
-
-            if (this.view.rowCount == 0)
+            if (this._editingColumn || this.view.rowCount == 0)
               return;
 
             if (this.view.selection.single) {
@@ -512,9 +515,7 @@
         <parameter name="event"/>
         <body>
           <![CDATA[
-            event.preventDefault();
-
-            if (this.view.rowCount == 0)
+            if (this._editingColumn || this.view.rowCount == 0)
               return;
 
             if (this.pageUpOrDownMovesSelection == this._isAccelPressed(event)) {
@@ -563,9 +564,7 @@
         <parameter name="event"/>
         <body>
           <![CDATA[
-            event.preventDefault();
-
-            if (this.view.rowCount == 0)
+            if (this._editingColumn || this.view.rowCount == 0)
               return;
 
             if (this.view.rowCount == 1 && !this.view.selection.isSelected(0) &&
@@ -615,9 +614,7 @@
         <parameter name="event"/>
         <body>
           <![CDATA[
-            event.preventDefault();
-
-            if (this.view.rowCount == 0)
+            if (this._editingColumn || this.view.rowCount == 0)
               return;
 
             if (this.view.selection.isSelected(edge) && this.view.selection.count == 1) {
@@ -643,9 +640,7 @@
         <parameter name="event"/>
         <body>
           <![CDATA[
-            event.preventDefault();
-
-            if (this.view.rowCount == 0)
+            if (this._editingColumn || this.view.rowCount == 0)
               return;
 
             if (this.view.rowCount == 1 && !this.view.selection.isSelected(0)) {
@@ -690,8 +685,7 @@
     </implementation>
     
     <handlers>
-      <handler event="MozMousePixelScroll" preventdefault="true"/>
-      <handler event="DOMMouseScroll" preventdefault="true">
+      <handler event="DOMMouseScroll">
         <![CDATA[
           if (this._editingColumn)
             return;
@@ -699,15 +693,15 @@
             return;
 
           var rows = event.detail;
-          if (rows == UIEvent.SCROLL_PAGE_UP)
+          if (rows == NSUIEvent.SCROLL_PAGE_UP)
             this.treeBoxObject.scrollByPages(-1);
-          else if (rows == UIEvent.SCROLL_PAGE_DOWN)
+          else if (rows == NSUIEvent.SCROLL_PAGE_DOWN)
             this.treeBoxObject.scrollByPages(1);
           else
             this.treeBoxObject.scrollByLines(rows);
         ]]>
       </handler>
-      <handler event="MozSwipeGesture" preventdefault="true">
+      <handler event="MozSwipeGesture">
         <![CDATA[
           // Figure out which row to show
           let targetRow = 0;
@@ -740,7 +734,13 @@
       <handler event="blur" action="this.treeBoxObject.focused = false;"/>
       <handler event="blur" phase="capturing"
                action="if (event.originalTarget == this.inputField.inputField) this.stopEditing(true);"/>
-      <handler event="keydown" keycode="VK_RETURN">
+      <handler event="keypress" keycode="VK_ENTER">
+        if (this._handleEnter(event)) {
+          event.stopPropagation();
+          event.preventDefault();
+        }
+      </handler>
+      <handler event="keypress" keycode="VK_RETURN">
         if (this._handleEnter(event)) {
           event.stopPropagation();
           event.preventDefault();
@@ -748,19 +748,18 @@
       </handler>
 #ifndef XP_MACOSX
       <!-- Use F2 key to enter text editing. -->
-      <handler event="keydown" keycode="VK_F2">
+      <handler event="keypress" keycode="VK_F2">
         <![CDATA[
           if (!this._cellSelType)
             return;
           var row = this.currentIndex;
           var column = this.view.selection.currentColumn;
-          if (this.startEditing(row, column))
-            event.preventDefault();
+          this.startEditing(row, column);
         ]]>
       </handler>
 #endif // XP_MACOSX
 
-      <handler event="keydown" keycode="VK_ESCAPE">
+      <handler event="keypress" keycode="VK_ESCAPE">
         <![CDATA[
           if (this._editingColumn) {
             this.stopEditing(false);
@@ -770,7 +769,7 @@
           }
         ]]>
       </handler>
-      <handler event="keydown" keycode="VK_LEFT">
+      <handler event="keypress" keycode="VK_LEFT">
         <![CDATA[
          if (this._editingColumn)
            return;
@@ -790,10 +789,8 @@
          }
 
          if (checkContainers) {
-           if (this.changeOpenState(this.currentIndex, false)) {
-             event.preventDefault();
+           if (this.changeOpenState(this.currentIndex, false))
              return;
-           }
            else {
              var parentIndex = this.view.getParentIndex(this.currentIndex);
              if (parentIndex >= 0) {
@@ -802,7 +799,6 @@
                }
                this.view.selection.select(parentIndex);
                this.treeBoxObject.ensureRowIsVisible(parentIndex);
-               event.preventDefault();
                return;
              }
            }
@@ -813,12 +809,11 @@
            if (col) {
              this.view.selection.currentColumn = col;
              this.treeBoxObject.ensureCellIsVisible(row, col);
-             event.preventDefault();
            }
          }
         ]]>
       </handler>
-      <handler event="keydown" keycode="VK_RIGHT">
+      <handler event="keypress" keycode="VK_RIGHT">
         <![CDATA[
          if (this._editingColumn)
            return;
@@ -838,10 +833,8 @@
           }
 
           if (checkContainers) {
-            if (this.changeOpenState(row, true)) {
-              event.preventDefault();
+            if (this.changeOpenState(row, true))
               return;
-            }
             else {
               var c = row + 1;
               var view = this.view;
@@ -858,7 +851,6 @@
                 }
                 this.view.selection.timedSelect(c, this._selectDelay);
                 this.treeBoxObject.ensureRowIsVisible(c);
-                event.preventDefault();
                 return;
               }
             }
@@ -869,95 +861,34 @@
             if (col) {
               this.view.selection.currentColumn = col;
               this.treeBoxObject.ensureCellIsVisible(row, col);
-              event.preventDefault();
             }
           }
         ]]>
       </handler>
-      <handler event="keydown" keycode="VK_UP" modifiers="accel any">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveByOffset(-1, 0, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_DOWN" modifiers="accel any">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveByOffset(1, this.view.rowCount - 1, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_UP" modifiers="accel any, shift">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveByOffsetShift(-1, 0, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_DOWN" modifiers="accel any, shift">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveByOffsetShift(1, this.view.rowCount - 1, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_PAGE_UP" modifiers="accel any">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveByPage(-1, 0, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_PAGE_DOWN" modifiers="accel any">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveByPage(1, this.view.rowCount - 1, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_PAGE_UP" modifiers="accel any, shift">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveByPageShift(-1, 0, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_PAGE_DOWN" modifiers="accel any, shift">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveByPageShift(1, this.view.rowCount - 1, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_HOME" modifiers="accel any">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveToEdge(0, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_END" modifiers="accel any">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveToEdge(this.view.rowCount - 1, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_HOME" modifiers="accel any, shift">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveToEdgeShift(0, event);
-        ]]>
-      </handler>
-      <handler event="keydown" keycode="VK_END" modifiers="accel any, shift">
-        <![CDATA[
-          if (this._editingColumn)
-            return;
-          _moveToEdgeShift(this.view.rowCount - 1, event);
-        ]]>
-      </handler>
+      <handler event="keypress" keycode="VK_UP"
+               modifiers="accel any" action="_moveByOffset(-1, 0, event);"/>
+      <handler event="keypress" keycode="VK_DOWN"
+               modifiers="accel any" action="_moveByOffset(1, this.view.rowCount - 1, event);"/>
+      <handler event="keypress" keycode="VK_UP"
+               modifiers="accel any, shift" action="_moveByOffsetShift(-1, 0, event);"/>
+      <handler event="keypress" keycode="VK_DOWN"
+               modifiers="accel any, shift" action="_moveByOffsetShift(1, this.view.rowCount - 1, event);"/>
+      <handler event="keypress" keycode="VK_PAGE_UP"
+               modifiers="accel any" action="_moveByPage(-1, 0, event);"/>
+      <handler event="keypress" keycode="VK_PAGE_DOWN"
+               modifiers="accel any" action="_moveByPage(1, this.view.rowCount - 1, event);"/>
+      <handler event="keypress" keycode="VK_PAGE_UP"
+               modifiers="accel any, shift" action="_moveByPageShift(-1, 0, event);"/>
+      <handler event="keypress" keycode="VK_PAGE_DOWN"
+               modifiers="accel any, shift" action="_moveByPageShift(1, this.view.rowCount - 1, event);"/>
+      <handler event="keypress" keycode="VK_HOME"
+               modifiers="accel any" action="_moveToEdge(0, event);"/>
+      <handler event="keypress" keycode="VK_END"
+               modifiers="accel any" action="_moveToEdge(this.view.rowCount - 1, event);"/>
+      <handler event="keypress" keycode="VK_HOME"
+               modifiers="accel any, shift" action="_moveToEdgeShift(0, event);"/>
+      <handler event="keypress" keycode="VK_END"
+               modifiers="accel any, shift" action="_moveToEdgeShift(this.view.rowCount - 1, event);"/>
       <handler event="keypress">
         <![CDATA[
          if (this._editingColumn)
@@ -968,7 +899,6 @@
            if (!this.view.selection.isSelected(c) ||
                (!this.view.selection.single && this._isAccelPressed(event))) {
              this.view.selection.toggleSelect(c);
-             event.preventDefault();
            }
          }
          else if (!this.disableKeyNavigation && event.charCode > 0 &&
@@ -979,14 +909,13 @@
              this.view.selection.timedSelect(l, this._selectDelay);
              this.treeBoxObject.ensureRowIsVisible(l);
            }
-           event.preventDefault();
-         }
+          }
          ]]>
       </handler>
     </handlers>    
   </binding>
 
-  <binding id="treecols" role="xul:treecolumns">
+  <binding id="treecols">
     <resources>
       <stylesheet src="chrome://global/skin/tree.css"/>
     </resources>
@@ -996,7 +925,14 @@
       </xul:hbox>
       <xul:treecolpicker class="treecol-image" fixed="true" xbl:inherits="tooltiptext=pickertooltiptext"/>
     </content>
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULTreeColumns;
+          ]]>
+        </getter>
+      </property>
       <constructor><![CDATA[
         // Set resizeafter="farthest" on the splitters if nothing else has been
         // specified.
@@ -1013,7 +949,7 @@
       <xul:hbox flex="1" class="tree-bodybox">
         <children/>
       </xul:hbox>
-      <xul:scrollbar height="0" minwidth="0" minheight="0" orient="vertical" xbl:inherits="collapsed=hidevscroll" style="position:relative; z-index:2147483647;"/>
+      <xul:scrollbar height="0" minwidth="0" minheight="0" orient="vertical" xbl:inherits="collapsed=hidevscroll"/>
     </content>
     <handlers>
       <handler event="underflow">
@@ -1065,52 +1001,54 @@
              !this.parentNode.pageUpOrDownMovesSelection) &&
              !event.shiftKey && !event.metaKey) ||
              this.parentNode.view.selection.single) {
+           var row = {};
+           var col = {};
+           var obj = {};
            var b = this.parentNode.treeBoxObject;
-           var cell = b.getCellAt(event.clientX, event.clientY);
-           var view = this.parentNode.view;
+           b.getCellAt(event.clientX, event.clientY, row, col, obj);
 
            // save off the last selected row
-           this._lastSelectedRow = cell.row;
+           this._lastSelectedRow = row.value;
 
-           if (cell.row == -1)
+           if (row.value == -1)
              return;
 
-           if (cell.childElt == "twisty")
+           if (obj.value == "twisty")
              return;
 
-           if (cell.col) {
-             if (cell.col.cycler) {
-               view.cycleCell(cell.row, cell.col);
+           if (col.value) {
+             if (col.value.cycler) {
+               b.view.cycleCell(row.value, col.value);
                return;
-             } else if (cell.col.type == Components.interfaces.nsITreeColumn.TYPE_CHECKBOX) {
-               if (this.parentNode.editable && cell.col.editable &&
-                   view.isEditable(cell.row, cell.col)) {
-                 var value = view.getCellValue(cell.row, cell.col);
+             } else if (col.value.type == Components.interfaces.nsITreeColumn.TYPE_CHECKBOX) {
+               if (this.parentNode.editable && col.value.editable &&
+                   b.view.isEditable(row.value, col.value)) {
+                 var value = b.view.getCellValue(row.value, col.value);
                  value = value == "true" ? "false" : "true";
-                 view.setCellValue(cell.row, cell.col, value);
+                 b.view.setCellValue(row.value, col.value, value);
                  return;
                }
              }
            } 
 
            var cellSelType = this.parentNode._cellSelType;
-           if (cellSelType == "text" && cell.childElt != "text" && cell.childElt != "image")
+           if (cellSelType == "text" && obj.value != "text" && obj.value != "image")
              return;
 
            if (cellSelType) {
-             if (!cell.col.selectable ||
-                 !view.isSelectable(cell.row, cell.col)) {
+             if (!col.value.selectable ||
+                 !b.view.isSelectable(row.value, col.value)) {
                return;
              }
            }
 
-           if (!view.selection.isSelected(cell.row)) {
-             view.selection.select(cell.row);
-             b.ensureRowIsVisible(cell.row);
+           if (!b.view.selection.isSelected(row.value)) {
+             b.view.selection.select(row.value);
+             b.ensureRowIsVisible(row.value);
            }
 
            if (cellSelType) {
-             view.selection.currentColumn = cell.col;
+             b.view.selection.currentColumn = col.value;
            }
          }
       ]]>
@@ -1122,45 +1060,47 @@
       <![CDATA[
         if (this.parentNode.disabled)
           return;
+        var row = {};
+        var col = {};
+        var obj = {};
         var b = this.parentNode.treeBoxObject;
-        var cell = b.getCellAt(event.clientX, event.clientY);
-        var view = this.parentNode.view;
+        b.getCellAt(event.clientX, event.clientY, row, col, obj);
 
-        if (cell.row == -1)
+        if (row.value == -1)
           return;
 
-        if (cell.childElt == "twisty") {
-          if (view.selection.currentIndex >= 0 &&
-              view.isContainerOpen(cell.row)) {
-            var parentIndex = view.getParentIndex(view.selection.currentIndex);
-            while (parentIndex >= 0 && parentIndex != cell.row)
-              parentIndex = view.getParentIndex(parentIndex);
-            if (parentIndex == cell.row) {
+        if (obj.value == "twisty") {
+          if (b.view.selection.currentIndex >= 0 &&
+              b.view.isContainerOpen(row.value)) {
+            var parentIndex = b.view.getParentIndex(b.view.selection.currentIndex);
+            while (parentIndex >= 0 && parentIndex != row.value)
+              parentIndex = b.view.getParentIndex(parentIndex);
+            if (parentIndex == row.value) {
               var parentSelectable = true;
               if (this.parentNode._cellSelType) {
-                var currentColumn = view.selection.currentColumn;
-                if (!view.isSelectable(parentIndex, currentColumn))
+                var currentColumn = b.view.selection.currentColumn;
+                if (!b.view.isSelectable(parentIndex, currentColumn))
                   parentSelectable = false;
               }
               if (parentSelectable)
-                view.selection.select(parentIndex);
+                b.view.selection.select(parentIndex);
             }
           }
-          this.parentNode.changeOpenState(cell.row);
+          this.parentNode.changeOpenState(row.value);
           return;
         }
 
-        if (! view.selection.single) {
+        if (! b.view.selection.single) {
           var augment = this._isAccelPressed(event);
           if (event.shiftKey) {
-            view.selection.rangedSelect(-1, cell.row, augment);
-            b.ensureRowIsVisible(cell.row);
+            b.view.selection.rangedSelect(-1, row.value, augment);
+            b.ensureRowIsVisible(row.value);
             return;
           }
           if (augment) {
-            view.selection.toggleSelect(cell.row);
-            b.ensureRowIsVisible(cell.row);
-            view.selection.currentIndex = cell.row;
+            b.view.selection.toggleSelect(row.value);
+            b.ensureRowIsVisible(row.value);
+            b.view.selection.currentIndex = row.value;
             return;
           }
         }
@@ -1170,30 +1110,30 @@
           in click rather than mousedown so that you can drag a
           selected group of items */
 
-        if (!cell.col) return;
+        if (!col.value) return;
 
         // if the last row has changed in between the time we 
         // mousedown and the time we click, don't fire the select handler.
         // see bug #92366
-        if (!cell.col.cycler && this._lastSelectedRow == cell.row &&
-            cell.col.type != Components.interfaces.nsITreeColumn.TYPE_CHECKBOX) {
+        if (!col.value.cycler && this._lastSelectedRow == row.value &&
+            col.value.type != Components.interfaces.nsITreeColumn.TYPE_CHECKBOX) {
 
           var cellSelType = this.parentNode._cellSelType;
-          if (cellSelType == "text" && cell.childElt != "text" && cell.childElt != "image")
+          if (cellSelType == "text" && obj.value != "text" && obj.value != "image")
             return;
 
           if (cellSelType) {
-            if (!cell.col.selectable ||
-                !view.isSelectable(cell.row, cell.col)) {
+            if (!col.value.selectable ||
+                !b.view.isSelectable(row.value, col.value)) {
               return;
             }
           }
 
-          view.selection.select(cell.row);
-          b.ensureRowIsVisible(cell.row);
+          b.view.selection.select(row.value);  
+          b.ensureRowIsVisible(row.value);
 
           if (cellSelType) {
-            view.selection.currentColumn = cell.col;
+            b.view.selection.currentColumn = col.value;
           }
         }
       ]]>
@@ -1205,22 +1145,22 @@
         if (this.parentNode.disabled)
           return;
         var tbo = this.parentNode.treeBoxObject;
-        var view = this.parentNode.view;
-        var row = view.selection.currentIndex;
-
+        var row = tbo.view.selection.currentIndex;
         if (row == -1)
           return;
 
-        var cell = tbo.getCellAt(event.clientX, event.clientY);
+        var col = {};
+        var obj = {};
+        tbo.getCellAt(event.clientX, event.clientY, {}, col, obj);
 
-        if (cell.childElt != "twisty")
-          this.parentNode.startEditing(row, cell.col);
+        if (obj.value != "twisty")
+          this.parentNode.startEditing(row, col.value);
 
-        if (this.parentNode._editingColumn || !view.isContainer(row))
+        if (this.parentNode._editingColumn || !tbo.view.isContainer(row))
           return;
 
         // Cyclers and twisties respond to single clicks, not double clicks
-        if (cell.col && !cell.col.cycler && cell.childElt != "twisty")
+        if (col.value != -1 && !col.value.cycler && obj.value != "twisty")
           this.parentNode.changeOpenState(row);
       ]]>
       </handler>
@@ -1228,12 +1168,19 @@
     </handlers>
   </binding>
 
-  <binding id="treecol-base" role="xul:treecolumnitem"
-           extends="chrome://global/content/bindings/tree.xml#tree-base">
-    <implementation>
+  <binding id="treecol-base" extends="chrome://global/content/bindings/tree.xml#tree-base">
+    <implementation implements="nsIAccessibleProvider">
       <constructor>
         this.parentNode.parentNode._columnsDirty = true;
       </constructor>
+
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULTreeColumnItem;
+          ]]>
+        </getter>
+      </property>
 
       <property name="ordinal">
         <getter><![CDATA[
@@ -1446,7 +1393,7 @@
     </content>
   </binding>
 
-  <binding id="columnpicker" display="xul:button" role="xul:button"
+  <binding id="columnpicker" display="xul:button"
            extends="chrome://global/content/bindings/tree.xml#tree-base">
     <content>
       <xul:image class="tree-columnpicker-icon"/>
@@ -1456,7 +1403,13 @@
       </xul:menupopup>
     </content>
     
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULButton;
+        </getter>
+      </property>
+
       <method name="buildPopup">
         <parameter name="aPopup"/>
         <body>
@@ -1532,3 +1485,4 @@
     </handlers>
   </binding>
 </bindings>
+

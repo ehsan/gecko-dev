@@ -7,6 +7,8 @@
         title="Accessible XUL menulist and textbox @autocomplete hierarchy tests">
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js" />
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
@@ -24,15 +26,6 @@
       //////////////////////////////////////////////////////////////////////////
       // menulist
 
-      var selectedOptionChildren = [];
-      if (MAC) {
-        // checkmark is part of the Mac menu styling
-        selectedOptionChildren = [{
-          role: ROLE_STATICTEXT,
-          children: []
-        }];
-      }
-
       var accTree = {
         role: ROLE_COMBOBOX,
         children: [
@@ -41,7 +34,7 @@
             children: [
               {
                 role: ROLE_COMBOBOX_OPTION,
-                children: selectedOptionChildren
+                children: []
               },
               {
                 role: ROLE_COMBOBOX_OPTION,
@@ -90,10 +83,9 @@
         ]
       };
 
+      // XXX Bug 551957
       if (!MAC) {
         testAccessibleTree("menulist2", accTree);
-      } else {
-        todo(false, "Make this test pass on OSX (bug 551957)");
       }
 
       //////////////////////////////////////////////////////////////////////////

@@ -3,9 +3,7 @@ function test() {
 
   let tab = gBrowser.addTab("http://example.com");
 
-  tab.linkedBrowser.addEventListener("load", function() {
-    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-
+  tab.linkedBrowser.addEventListener('load', function() {
     let numLocationChanges = 0;
 
     let listener = {

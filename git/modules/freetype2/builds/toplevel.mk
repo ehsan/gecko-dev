@@ -3,7 +3,7 @@
 #
 
 
-# Copyright 1996-2001, 2003, 2006, 2008-2010, 2012-2014 by
+# Copyright 1996-2000, 2001, 2003, 2006, 2008, 2009, 2010 by
 # David Turner, Robert Wilhelm, and Werner Lemberg.
 #
 # This file is part of the FreeType project, and may only be used, modified,
@@ -112,17 +112,16 @@ ifdef check_platform
 
   include $(TOP_DIR)/builds/detect.mk
 
-  # This rule makes sense for Unix only to remove files created by a run of
-  # the configure script which hasn't been successful (so that no
+  # This rule makes sense for Unix only to remove files created by a run
+  # of the configure script which hasn't been successful (so that no
   # `config.mk' has been created).  It uses the built-in $(RM) command of
-  # GNU make.  Similarly, `nul' is created if e.g. `make setup windows' has
+  # GNU make.  Similarly, `nul' is created if e.g. `make setup win32' has
   # been erroneously used.
   #
   # Note: This test is duplicated in `builds/unix/detect.mk'.
   #
   is_unix := $(strip $(wildcard /sbin/init) \
                      $(wildcard /usr/sbin/init) \
-                     $(wildcard /dev/null) \
                      $(wildcard /hurd/auth))
   ifneq ($(is_unix),)
 
@@ -176,7 +175,7 @@ include $(TOP_DIR)/builds/modules.mk
 
 # we check for `dist', not `distclean'
 ifneq ($(findstring distx,$(MAKECMDGOALS)x),)
-  FT_H := include/freetype.h
+  FT_H := include/freetype/freetype.h
 
   major := $(shell sed -n 's/.*FREETYPE_MAJOR[^0-9]*\([0-9]\+\)/\1/p' < $(FT_H))
   minor := $(shell sed -n 's/.*FREETYPE_MINOR[^0-9]*\([0-9]\+\)/\1/p' < $(FT_H))
@@ -200,8 +199,7 @@ dist:
 
 	currdir=`pwd` ; \
 	for f in `find . -wholename '*/.git' -prune \
-	                 -o -name .gitignore \
-	                 -o -name .mailmap \
+	                 -o -name .cvsignore \
 	                 -o -type d \
 	                 -o -print` ; do \
 	  ln -s $$currdir/$$f tmp/$$f ; \
@@ -220,9 +218,9 @@ dist:
 
 	mv tmp freetype-$(version)
 
-	tar -H ustar -chf - freetype-$(version) \
+	tar cfh - freetype-$(version) \
 	| gzip -9 -c > freetype-$(version).tar.gz
-	tar -H ustar -chf - freetype-$(version) \
+	tar cfh - freetype-$(version) \
 	| bzip2 -c > freetype-$(version).tar.bz2
 
 	@# Use CR/LF for zip files.

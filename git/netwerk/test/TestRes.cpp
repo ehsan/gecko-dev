@@ -1,10 +1,43 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIResProtocolHandler.h"
 #include "nsIServiceManager.h"
+#include "nsIIOService.h"
 #include "nsIInputStream.h"
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
@@ -13,9 +46,6 @@
 #include "nsIURI.h"
 #include "nsCRT.h"
 #include "nsNetCID.h"
-#include "nsIScriptSecurityManager.h"
-#include "nsILoadInfo.h"
-#include "nsNetUtil.h"
 
 static NS_DEFINE_CID(kIOServiceCID, NS_IOSERVICE_CID);
 static NS_DEFINE_CID(kEventQueueServiceCID, NS_EVENTQUEUESERVICE_CID);
@@ -53,22 +83,13 @@ TestOpenInputStream(const char* url)
 {
     nsresult rv;
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) return rv;
-    nsCOMPtr<nsIPrincipal> systemPrincipal;
-    rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-    if (NS_FAILED(rv)) return rv;
-    nsCOMPtr<nsIURI> uri;
-    rv = NS_NewURI(getter_AddRefs(uri), url);
+    nsCOMPtr<nsIIOService> serv(do_GetService(kIOServiceCID, &rv));
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewChannel(getter_AddRefs(channel),
-                       uri,
-                       systemPrincipal,
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
+    rv = serv->NewChannel(url,
+                          nsnull, // base uri
+                          getter_AddRefs(channel));
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIInputStream> in;
@@ -80,7 +101,7 @@ TestOpenInputStream(const char* url)
 
     char buf[1024];
     while (1) {
-        uint32_t amt;
+        PRUint32 amt;
         rv = in->Read(buf, sizeof(buf), &amt);
         if (NS_FAILED(rv)) return rv;
         if (amt == 0) break;    // eof
@@ -98,22 +119,22 @@ TestOpenInputStream(const char* url)
     rv = uri->GetSpec(&str);
     if (NS_FAILED(rv)) return rv;
     fprintf(stdout, "%s resolved to ", str);
-    free(str);
+    nsCRT::free(str);
 
     rv = channel->GetURI(getter_AddRefs(uri));
     if (NS_FAILED(rv)) return rv;
     rv = uri->GetSpec(&str);
     if (NS_FAILED(rv)) return rv;
     fprintf(stdout, "%s\n", str);
-    free(str);
+    nsCRT::free(str);
 
     return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool gDone = false;
-nsIEventQueue* gEventQ = nullptr;
+PRBool gDone = PR_FALSE;
+nsIEventQueue* gEventQ = nsnull;
 
 class Listener : public nsIStreamListener 
 {
@@ -134,7 +155,7 @@ public:
             rv = uri->GetSpec(&str);
             if (NS_SUCCEEDED(rv)) {
                 fprintf(stdout, "Starting to load %s\n", str);
-                free(str);
+                nsCRT::free(str);
             }
         }
         return NS_OK;
@@ -152,20 +173,20 @@ public:
             rv = uri->GetSpec(&str);
             if (NS_SUCCEEDED(rv)) {
                 fprintf(stdout, "Ending load %s, status=%x\n", str, aStatus);
-                free(str);
+                nsCRT::free(str);
             }
         }
-        gDone = true;
+        gDone = PR_TRUE;
         return NS_OK;
     }
 
     NS_IMETHOD OnDataAvailable(nsIRequest *request, nsISupports *ctxt, 
                                nsIInputStream *inStr,
-                               uint64_t sourceOffset, uint32_t count) {
+                               PRUint32 sourceOffset, PRUint32 count) {
         nsresult rv;
         char buf[1024];
         while (count > 0) {
-            uint32_t amt;
+            PRUint32 amt;
             rv = inStr->Read(buf, sizeof(buf), &amt);
             count -= amt;
             char* c = buf;
@@ -177,7 +198,7 @@ public:
     }
 };
 
-NS_IMPL_ISUPPORTS(Listener, nsIStreamListener, nsIRequestObserver)
+NS_IMPL_ISUPPORTS2(Listener, nsIStreamListener, nsIRequestObserver)
 
 nsresult
 TestAsyncRead(const char* url)
@@ -191,28 +212,19 @@ TestAsyncRead(const char* url)
     rv = eventQService->GetThreadEventQueue(NS_CURRENT_THREAD, &gEventQ);
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIScriptSecurityManager> secman =
-      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) return rv;
-    nsCOMPtr<nsIPrincipal> systemPrincipal;
-    rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-    if (NS_FAILED(rv)) return rv;
-    nsCOMPtr<nsIURI> uri;
-    rv = NS_NewURI(getter_AddRefs(uri), url);
+    nsCOMPtr<nsIIOService> serv(do_GetService(kIOServiceCID, &rv));
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewChannel(getter_AddRefs(channel),
-                       uri,
-                       systemPrincipal,
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
+    rv = serv->NewChannel(url,
+                          nsnull, // base uri
+                          getter_AddRefs(channel));
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIStreamListener> listener = new Listener();
-    if (listener == nullptr)
+    if (listener == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
-    rv = channel->AsyncOpen(nullptr, listener);
+    rv = channel->AsyncOpen(nsnull, listener);
     if (NS_FAILED(rv)) return rv;
 
     while (!gDone) {
@@ -232,11 +244,11 @@ main(int argc, char* argv[])
     nsresult rv;
     {
         nsCOMPtr<nsIServiceManager> servMan;
-        NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+        NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
         nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
         NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
         if (registrar)
-            registrar->AutoRegister(nullptr);
+            registrar->AutoRegister(nsnull);
 
         NS_ASSERTION(NS_SUCCEEDED(rv), "AutoregisterComponents failed");
 
@@ -256,7 +268,7 @@ main(int argc, char* argv[])
         NS_ASSERTION(NS_SUCCEEDED(rv), "TestAsyncRead failed");
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
-    rv = NS_ShutdownXPCOM(nullptr);
+    rv = NS_ShutdownXPCOM(nsnull);
     NS_ASSERTION(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
     return rv;
 }

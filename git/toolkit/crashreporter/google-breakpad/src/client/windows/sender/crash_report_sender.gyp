@@ -34,7 +34,7 @@
   'targets': [
     {
       'target_name': 'crash_report_sender',
-      'type': 'static_library',
+      'type': '<(library)',
       'sources': [
         'crash_report_sender.cc',
         'crash_report_sender.h',

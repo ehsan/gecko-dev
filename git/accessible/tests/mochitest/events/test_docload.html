@@ -7,6 +7,8 @@
         href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
@@ -15,25 +17,6 @@
           src="../role.js"></script>
   <script type="application/javascript"
           src="../states.js"></script>
-
-  <script type="application/javascript">
-    // Front end stuff sometimes likes to stuff things in the hidden window(s)
-    // in which case there's accessibles for that content.
-    Components.utils.import("resource://gre/modules/Services.jsm");
-
-    // Force the creation of an accessible for the hidden window's document.
-    var doc = Services.appShell.hiddenDOMWindow.document;
-    gAccRetrieval.getAccessibleFor(doc);
-
-    // The private hidden window will be lazily created that's why we need to do
-    // it here *before* loading '../events.js' or else we'll have a duplicate
-    // reorder event.
-    var privateDoc = Services.appShell.hiddenPrivateDOMWindow.document;
-
-    // Force the creation of an accessible for the private hidden window's doc.
-    gAccRetrieval.getAccessibleFor(privateDoc);
-  </script>
-
   <script type="application/javascript"
           src="../events.js"></script>
 
@@ -46,8 +29,7 @@
       this.DOMNode = getNode(aIdentifier);
 
       this.eventSeq = [
-        new invokerChecker(EVENT_REORDER, getAccessible(this.DOMNode)),
-        new asyncInvokerChecker(EVENT_DOCUMENT_LOAD_COMPLETE, getIframeDoc)
+        new invokerChecker(EVENT_REORDER, getAccessible(this.DOMNode))
       ];
 
       this.invoke = function changeIframeSrc_invoke()
@@ -73,11 +55,6 @@
       this.getID = function changeIframeSrc_getID()
       {
         return "change iframe src on " + aURL;
-      }
-
-      function getIframeDoc()
-      {
-        return getAccessible(getNode(aIdentifier).contentDocument);
       }
     }
 
@@ -141,25 +118,6 @@
       }
     }
 
-    function makeIFrameVisible(aID)
-    {
-      this.DOMNode = getNode(aID);
-
-      this.eventSeq = [
-        new invokerChecker(EVENT_REORDER, this.DOMNode.parentNode)
-      ];
-
-      this.invoke = function makeIFrameVisible_invoke()
-      {
-        this.DOMNode.style.visibility = "visible";
-      }
-
-      this.getID = function makeIFrameVisible_getID()
-      {
-        return "The accessible for DOM document loaded before it's shown shouldn't have busy state.";
-      }
-    }
-
     function openDialogWnd(aURL)
     {
       // Get application root accessible.
@@ -198,12 +156,6 @@
             },
             {
               role: ROLE_CHROME_WINDOW
-            },
-            {
-              role: ROLE_CHROME_WINDOW
-            },
-            {
-              role: ROLE_CHROME_WINDOW
             }
           ]
         };
@@ -216,11 +168,8 @@
 
         this.mDialog.close();
 
-        // close() is asynchronous.
-        SimpleTest.executeSoon(function() {
-          ok(!isAccessibleInCache(dlgDoc),
-             "The document accessible for '" + aURL + "' is in cache still!");
-        });
+        ok(!isAccessibleInCache(dlgDoc),
+           "The document accessible for '" + aURL + "' is in cache still!");
       }
 
       this.getID = function openDialogWnd_getID()
@@ -275,7 +224,7 @@
 
     // Debug stuff.
     // gA11yEventDumpID = "eventdump";
-    //gA11yEventDumpToConsole = true;
+    // gA11yEventDumpToConsole = true;
 
     function doTests()
     {
@@ -286,28 +235,10 @@
       gQueue.push(new morphIFrame("iframe", kHide));
       gQueue.push(new morphIFrame("iframe", kShow));
       gQueue.push(new morphIFrame("iframe", kRemove));
-      gQueue.push(new makeIFrameVisible("iframe2"));
       gQueue.push(new openDialogWnd("about:"));
       gQueue.push(new openWndShutdownDoc());
 
-      gQueue.onFinish = doLastCallTests;
-
       gQueue.invoke(); // Will call SimpleTest.finish();
-    }
-
-    function doLastCallTests()
-    {
-      //////////////////////////////////////////////////////////////////////////
-      // makeIFrameVisible() test, part2
-
-      // The document shouldn't have busy state (the DOM document was loaded
-      // before its accessible was created). Do this test lately to make sure
-      // the content of document accessible was created initially, prior to this
-      // the document accessible keeps busy state. The initial creation happens
-      // asynchronously after document creation, there are no events we could
-      // use to catch it.
-      var iframeDoc = getAccessible("iframe2").firstChild;
-      testStates(iframeDoc, 0, 0, STATE_BUSY);
     }
 
     SimpleTest.waitForExplicitFinish();
@@ -337,16 +268,6 @@
      title="Shutdown document accessible when presshell goes away">
     Mozilla Bug 571459
   </a>
-  <a target="_blank"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=658185"
-     title="The DOM document loaded before it's shown shouldn't have busy state">
-    Mozilla Bug 658185
-  </a>
-  <a target="_blank"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=754165"
-     title="Fire document load events on iframes too">
-    Mozilla Bug 754165
-  </a>
 
   <p id="display"></p>
   <div id="content" style="display: none"></div>
@@ -354,7 +275,6 @@
   </pre>
 
   <div id="testContainer"><iframe id="iframe"></iframe></div>
-  <div id="testContainer2"><iframe id="iframe2" src="about:" style="visibility: hidden;"></iframe></div>
   <div id="eventdump"></div>
 </body>
 </html>

@@ -1,9 +1,42 @@
 #!/usr/bin/env python
 # xpidl.py - A parser for cross-platform IDL (XPIDL) files.
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+#   Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2008
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Benjamin Smedberg <benjamin@smedbergs.us>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 """A parser for cross-platform IDL (XPIDL) files."""
 
@@ -118,21 +151,21 @@ class Builtin(object):
                             calltype != 'in' and '*' or '')
 
 builtinNames = [
-    Builtin('boolean', 'bool'),
+    Builtin('boolean', 'PRBool'),
     Builtin('void', 'void'),
-    Builtin('octet', 'uint8_t'),
-    Builtin('short', 'int16_t', True, True),
-    Builtin('long', 'int32_t', True, True),
-    Builtin('long long', 'int64_t', True, False),
-    Builtin('unsigned short', 'uint16_t', False, True),
-    Builtin('unsigned long', 'uint32_t', False, True),
-    Builtin('unsigned long long', 'uint64_t', False, False),
+    Builtin('octet', 'PRUint8'),
+    Builtin('short', 'PRInt16', True, True),
+    Builtin('long', 'PRInt32', True, True),
+    Builtin('long long', 'PRInt64', True, False),
+    Builtin('unsigned short', 'PRUint16', False, True),
+    Builtin('unsigned long', 'PRUint32', False, True),
+    Builtin('unsigned long long', 'PRUint64', False, False),
     Builtin('float', 'float', True, False),
     Builtin('double', 'double', True, False),
     Builtin('char', 'char', True, False),
     Builtin('string', 'char *', False, False),
-    Builtin('wchar', 'char16_t', False, False),
-    Builtin('wstring', 'char16_t *', False, False),
+    Builtin('wchar', 'PRUnichar', False, False),
+    Builtin('wstring', 'PRUnichar *', False, False),
 ]
 
 builtinMap = {}
@@ -198,8 +231,6 @@ class NameMap(object):
     def set(self, object):
         if object.name in builtinMap:
             raise IDLError("name '%s' is a builtin and cannot be redeclared" % (object.name), object.location)
-        if object.name.startswith("_"):
-            object.name = object.name[1:]
         if object.name in self._d:
             old = self._d[object.name]
             if old == object: return
@@ -251,7 +282,6 @@ class Include(object):
             self.IDL.resolve(parent.incdirs, parent.parser)
             for type in self.IDL.getNames():
                 parent.setName(type)
-            parent.deps.extend(self.IDL.deps)
             return
 
         raise IDLError("File '%s' not found" % self.filename, self.location)
@@ -259,7 +289,6 @@ class Include(object):
 class IDL(object):
     def __init__(self, productions):
         self.productions = productions
-        self.deps = []
 
     def setName(self, object):
         self.namemap.set(object)
@@ -291,12 +320,6 @@ class IDL(object):
             if p.kind == 'include':
                 yield p
 
-    def needsJSTypes(self):
-        for p in self.productions:
-            if p.kind == 'interface' and p.needsJSTypes():
-                return True
-        return False
-
 class CDATA(object):
     kind = 'cdata'
     _re = re.compile(r'\n+')
@@ -310,9 +333,6 @@ class CDATA(object):
 
     def __str__(self):
         return "cdata: %s\n\t%r\n" % (self.location.get(), self.data)
-
-    def count(self):
-        return 0
 
 class Typedef(object):
     kind = 'typedef'
@@ -386,7 +406,7 @@ class Native(object):
         'utf8string': 'nsACString',
         'cstring': 'nsACString',
         'astring': 'nsAString',
-        'jsval': 'JS::Value'
+        'jsval': 'jsval'
         }
 
     def __init__(self, name, nativename, attlist, location):
@@ -428,12 +448,6 @@ class Native(object):
 
         return self.modifier == 'ref'
 
-    def isPtr(self, calltype):
-        return self.modifier == 'ptr'
-
-    def isRef(self, calltype):
-        return self.modifier == 'ref'
-
     def nativeType(self, calltype, const=False, shared=False):
         if shared:
             if calltype != 'out':
@@ -443,15 +457,10 @@ class Native(object):
         if self.specialtype is not None and calltype == 'in':
             const = True
 
-        if self.specialtype == 'jsval':
-            if calltype == 'out' or calltype == 'inout':
-                return "JS::MutableHandleValue "
-            return "JS::HandleValue "
-
-        if self.isRef(calltype):
+        if self.modifier == 'ptr':
+            m = '*' + (calltype != 'in' and '*' or '')
+        elif self.modifier == 'ref':
             m = '& '
-        elif self.isPtr(calltype):
-            m = '*' + ((self.modifier == 'ptr' and calltype != 'in') and '*' or '')
         else:
             m = calltype != 'in' and '*' or ''
         return "%s%s %s" % (const and 'const ' or '', self.nativename, m)
@@ -491,17 +500,12 @@ class Interface(object):
                     break
             self.doccomments = parent.getName(self.name, None).doccomments
 
-        if self.attributes.function:
-            has_method = False
-            for member in self.members:
-                if member.kind is 'method':
-                    if has_method:
-                        raise IDLError("interface '%s' has multiple methods, but marked 'function'" % self.name, self.location)
-                    else:
-                        has_method = True
-
         parent.setName(self)
-        if self.base is not None:
+        if self.base is None:
+            if self.name != 'nsISupports':
+                print >>sys.stderr, IDLError("interface '%s' not derived from nsISupports",
+                                             self.location, warning=True)
+        else:
             realbase = parent.getName(self.base, self.location)
             if realbase.kind != 'interface':
                 raise IDLError("interface '%s' inherits from non-interface type '%s'" % (self.name, self.base), self.location)
@@ -509,19 +513,8 @@ class Interface(object):
             if self.attributes.scriptable and not realbase.attributes.scriptable:
                 print >>sys.stderr, IDLError("interface '%s' is scriptable but derives from non-scriptable '%s'" % (self.name, self.base), self.location, warning=True)
 
-            if self.attributes.scriptable and realbase.attributes.builtinclass and not self.attributes.builtinclass:
-                raise IDLError("interface '%s' is not builtinclass but derives from builtinclass '%s'" % (self.name, self.base), self.location)
-
         for member in self.members:
             member.resolve(self)
-
-        # The number 250 is NOT arbitrary; this number is the maximum number of
-        # stub entries defined in xpcom/reflect/xptcall/genstubs.pl
-        # Do not increase this value without increasing the number in that
-        # location, or you WILL cause otherwise unknown problems!
-        if self.countEntries() > 250 and not self.attributes.builtinclass:
-            raise IDLError("interface '%s' has too many entries" % self.name,
-                self.location)
 
     def isScriptable(self):
         # NOTE: this is not whether *this* interface is scriptable... it's
@@ -547,38 +540,15 @@ class Interface(object):
         return "".join(l)
 
     def getConst(self, name, location):
-        # The constant may be in a base class
-        iface = self
-        while name not in iface.namemap and iface is not None:
-            iface = self.idl.getName(self.base, self.location)
-        if iface is None:
-            raise IDLError("cannot find symbol '%s'" % name, c.location)
-        c = iface.namemap.get(name, location)
+        c = self.namemap.get(name, location)
         if c.kind != 'const':
             raise IDLError("symbol '%s' is not a constant", c.location)
 
         return c.getValue()
 
-    def needsJSTypes(self):
-        for m in self.members:
-            if m.kind == "attribute" and m.type == "jsval":
-                return True
-            if m.kind == "method" and m.needsJSTypes():
-                return True
-        return False
-
-    def countEntries(self):
-        ''' Returns the number of entries in the vtable for this interface. '''
-        total = sum(member.count() for member in self.members)
-        if self.base is not None:
-            realbase = self.idl.getName(self.base, self.location)
-            total += realbase.countEntries()
-        return total
-
 class InterfaceAttributes(object):
     uuid = None
     scriptable = False
-    builtinclass = False
     function = False
     deprecated = False
     noscript = False
@@ -595,16 +565,12 @@ class InterfaceAttributes(object):
     def setnoscript(self):
         self.noscript = True
 
-    def setbuiltinclass(self):
-        self.builtinclass = True
-
     def setdeprecated(self):
         self.deprecated = True
 
     actions = {
         'uuid':       (True, setuuid),
         'scriptable': (False, setscriptable),
-        'builtinclass': (False, setbuiltinclass),
         'function':   (False, setfunction),
         'noscript':   (False, setnoscript),
         'deprecated': (False, setdeprecated),
@@ -639,8 +605,6 @@ class InterfaceAttributes(object):
             l.append("\tuuid: %s\n" % self.uuid)
         if self.scriptable:
             l.append("\tscriptable\n")
-        if self.builtinclass:
-            l.append("\tbuiltinclass\n")
         if self.function:
             l.append("\tfunction\n")
         return "".join(l)
@@ -671,20 +635,15 @@ class ConstMember(object):
     def __str__(self):
         return "\tconst %s %s = %s\n" % (self.type, self.name, self.getValue())
 
-    def count(self):
-        return 0
-
 class Attribute(object):
     kind = 'attribute'
     noscript = False
+    notxpcom = False
     readonly = False
     implicit_jscontext = False
-    nostdcall = False
     binaryname = None
     null = None
     undefined = None
-    deprecated = False
-    infallible = False
 
     def __init__(self, type, name, attlist, readonly, location, doccomments):
         self.type = type
@@ -729,16 +688,12 @@ class Attribute(object):
 
                 if name == 'noscript':
                     self.noscript = True
+                elif name == 'notxpcom':
+                    self.notxpcom = True
                 elif name == 'implicit_jscontext':
                     self.implicit_jscontext = True
-                elif name == 'deprecated':
-                    self.deprecated = True
-                elif name == 'nostdcall':
-                    self.nostdcall = True
-                elif name == 'infallible':
-                    self.infallible = True
                 else:
-                    raise IDLError("Unexpected attribute '%s'" % name, aloc)
+                    raise IDLError("Unexpected attribute '%s'", aloc)
 
     def resolve(self, iface):
         self.iface = iface
@@ -751,31 +706,19 @@ class Attribute(object):
             getBuiltinOrNativeTypeName(self.realtype) != '[domstring]'):
             raise IDLError("'Undefined' attribute can only be used on DOMString",
                            self.location)
-        if self.infallible and not self.realtype.kind == 'builtin':
-            raise IDLError('[infallible] only works on builtin types '
-                           '(numbers, booleans, and raw char types)',
-                           self.location)
-        if self.infallible and not iface.attributes.builtinclass:
-            raise IDLError('[infallible] attributes are only allowed on '
-                           '[builtinclass] interfaces',
-                           self.location)
-
 
     def toIDL(self):
         attribs = attlistToIDL(self.attlist)
         readonly = self.readonly and 'readonly ' or ''
         return "%s%sattribute %s %s;" % (attribs, readonly, self.type, self.name)
-
+        
     def isScriptable(self):
         if not self.iface.attributes.scriptable: return False
-        return not self.noscript
+        return not (self.noscript or self.notxpcom)
 
     def __str__(self):
         return "\t%sattribute %s %s\n" % (self.readonly and 'readonly ' or '',
                                           self.type, self.name)
-
-    def count(self):
-        return self.readonly and 1 or 2
 
 class Method(object):
     kind = 'method'
@@ -783,9 +726,7 @@ class Method(object):
     notxpcom = False
     binaryname = None
     implicit_jscontext = False
-    nostdcall = False
     optional_argc = False
-    deprecated = False
 
     def __init__(self, type, name, attlist, paramlist, location, doccomments, raises):
         self.type = type
@@ -816,12 +757,8 @@ class Method(object):
                 self.implicit_jscontext = True
             elif name == 'optional_argc':
                 self.optional_argc = True
-            elif name == 'deprecated':
-                self.deprecated = True
-            elif name == 'nostdcall':
-                self.nostdcall = True
             else:
-                raise IDLError("Unexpected attribute '%s'" % name, aloc)
+                raise IDLError("Unexpected attribute '%s'", aloc)
 
         self.namemap = NameMap()
         for p in paramlist:
@@ -832,18 +769,6 @@ class Method(object):
         self.realtype = self.iface.idl.getName(self.type, self.location)
         for p in self.params:
             p.resolve(self)
-        for p in self.params:
-            if p.retval and p != self.params[-1]:
-                raise IDLError("'retval' parameter '%s' is not the last parameter" % p.name, self.location)
-            if p.size_is:
-                found_size_param = False
-                for size_param in self.params:
-                    if p.size_is == size_param.name:
-                        found_size_param = True
-                        if getBuiltinOrNativeTypeName(size_param.realtype) != 'unsigned long':
-                            raise IDLError("is_size parameter must have type 'unsigned long'", self.location)
-                if not found_size_param:
-                    raise IDLError("could not find is_size parameter '%s'" % p.size_is, self.location)
 
     def isScriptable(self):
         if not self.iface.attributes.scriptable: return False
@@ -864,20 +789,6 @@ class Method(object):
                                     ", ".join([p.toIDL()
                                                for p in self.params]),
                                     raises)
-
-    def needsJSTypes(self):
-        if self.implicit_jscontext:
-            return True
-        if self.type == "jsval":
-            return True
-        for p in self.params:
-            t = p.realtype
-            if isinstance(t, Native) and t.specialtype == "jsval":
-                return True
-        return False
-
-    def count(self):
-        return 1
 
 class Param(object):
     size_is = None
@@ -993,8 +904,7 @@ class IDLParser(object):
         'raises': 'RAISES',
         'readonly': 'READONLY',
         'native': 'NATIVE',
-        'typedef': 'TYPEDEF',
-        'Infinity': 'INFINITY'
+        'typedef': 'TYPEDEF'
         }
 
     tokens = [
@@ -1040,7 +950,7 @@ class IDLParser(object):
     t_IID.__doc__ = r'%(c)s{8}-%(c)s{4}-%(c)s{4}-%(c)s{4}-%(c)s{12}' % {'c': hexchar}
 
     def t_IDENTIFIER(self, t):
-        r'(unsigned\ long\ long|unsigned\ short|unsigned\ long|long\ long)(?!_?[A-Za-z][A-Za-z_0-9])|_?[A-Za-z][A-Za-z_0-9]*'
+        r'unsigned\ long\ long|unsigned\ short|unsigned\ long|long\ long|[A-Za-z][A-Za-z_0-9]*'
         t.type = self.keywords.get(t.value, 'IDENTIFIER')
         return t
 
@@ -1059,9 +969,10 @@ class IDLParser(object):
 
     def t_directive(self, t):
         r'\#(?P<directive>[a-zA-Z]+)[^\n]+'
-        raise IDLError("Unrecognized directive %s" % t.lexer.lexmatch.group('directive'),
-                       Location(lexer=self.lexer, lineno=self.lexer.lineno,
-                                lexpos=self.lexer.lexpos))
+        print >>sys.stderr, IDLError("Unrecognized directive %s" % t.lexer.lexmatch.group('directive'),
+                                     Location(lexer=self.lexer,
+                                              lineno=self.lexer.lineno,
+                                              lexpos=self.lexer.lexpos))
 
     def t_newline(self, t):
         r'\n+'
@@ -1373,11 +1284,8 @@ class IDLParser(object):
         p[0].insert(0, p[1])
 
     def p_error(self, t):
-        if not t:
-            raise IDLError("Syntax Error at end of file. Possibly due to missing semicolon(;), braces(}) or both", None)
-        else:
-            location = Location(self.lexer, t.lineno, t.lexpos)
-            raise IDLError("invalid syntax", location)
+        location = Location(self.lexer, t.lineno, t.lexpos)
+        raise IDLError("invalid syntax", location)
 
     def __init__(self, outputdir=''):
         self._doccomments = []
@@ -1387,7 +1295,7 @@ class IDLParser(object):
                              optimize=1)
         self.parser = yacc.yacc(module=self,
                                 outputdir=outputdir,
-                                debug=0,
+                                debugfile='xpidl_debug',
                                 tabmodule='xpidlyacc',
                                 optimize=1)
 
@@ -1406,10 +1314,7 @@ class IDLParser(object):
             self.lexer.filename = filename
         self.lexer.lineno = 1
         self.lexer.input(data)
-        idl = self.parser.parse(lexer=self)
-        if filename is not None:
-            idl.deps.append(filename)
-        return idl
+        return self.parser.parse(lexer=self)
 
     def getLocation(self, p, i):
         return Location(self.lexer, p.lineno(i), p.lexpos(i))

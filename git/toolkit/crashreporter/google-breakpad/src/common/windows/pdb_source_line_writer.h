@@ -35,7 +35,7 @@
 
 #include <atlcomcli.h>
 
-#include <unordered_map>
+#include <hash_map>
 #include <string>
 
 struct IDiaEnumLineNumbers;
@@ -45,7 +45,7 @@ struct IDiaSymbol;
 namespace google_breakpad {
 
 using std::wstring;
-using std::unordered_map;
+using stdext::hash_map;
 
 // A structure that carries information that identifies a pdb file.
 struct PDBModuleInfo {
@@ -65,21 +65,6 @@ struct PDBModuleInfo {
   // A string identifying the cpu that the pdb is associated with.
   // Currently, this may be "x86" or "unknown".
   wstring cpu;
-};
-
-// A structure that carries information that identifies a PE file,
-// either an EXE or a DLL.
-struct PEModuleInfo {
-  // The basename of the PE file.
-  wstring code_file;
-
-  // The PE file's code identifier, which consists of its timestamp
-  // and file size concatenated together into a single hex string.
-  // (The fields IMAGE_OPTIONAL_HEADER::SizeOfImage and
-  // IMAGE_FILE_HEADER::TimeDateStamp, as defined in the ImageHlp
-  // documentation.) This is not well documented, if it's documented
-  // at all, but it's what symstore does and what DbgHelp supports.
-  wstring code_identifier;
 };
 
 class PDBSourceLineWriter {
@@ -114,10 +99,6 @@ class PDBSourceLineWriter {
   // Retrieves information about the module's debugging file.  Returns
   // true on success and false on failure.
   bool GetModuleInfo(PDBModuleInfo *info);
-
-  // Retrieves information about the module's PE file.  Returns
-  // true on success and false on failure.
-  bool GetPEInfo(PEModuleInfo *info);
 
   // Sets uses_guid to true if the opened file uses a new-style CodeView
   // record with a 128-bit GUID, or false if the opened file uses an old-style
@@ -158,11 +139,6 @@ class PDBSourceLineWriter {
   // its uuid and age.
   bool PrintPDBInfo();
 
-  // Outputs a line identifying the PE file corresponding to the PDB
-  // file that is being dumped, along with its code identifier,
-  // which consists of its timestamp and file size.
-  bool PrintPEInfo();
-
   // Returns true if this filename has already been seen,
   // and an ID is stored for it, or false if it has not.
   bool FileIDIsCached(const wstring &file) {
@@ -176,7 +152,7 @@ class PDBSourceLineWriter {
 
   // Store this ID in the cache as a duplicate for this filename.
   void StoreDuplicateFileID(const wstring &file, DWORD id) {
-    unordered_map<wstring, DWORD>::iterator iter = unique_files_.find(file);
+    hash_map<wstring, DWORD>::iterator iter = unique_files_.find(file);
     if (iter != unique_files_.end()) {
       // map this id to the previously seen one
       file_ids_[id] = iter->second;
@@ -188,15 +164,11 @@ class PDBSourceLineWriter {
   // but different unique IDs. The cache attempts to coalesce these into
   // one ID per unique filename.
   DWORD GetRealFileID(DWORD id) {
-    unordered_map<DWORD, DWORD>::iterator iter = file_ids_.find(id);
+    hash_map<DWORD, DWORD>::iterator iter = file_ids_.find(id);
     if (iter == file_ids_.end())
       return id;
     return iter->second;
   };
-
-  // Find the PE file corresponding to the loaded PDB file, and
-  // set the code_file_ member. Returns false on failure.
-  bool FindPEFile();
 
   // Returns the function name for a symbol.  If possible, the name is
   // undecorated.  If the symbol's decorated form indicates the size of
@@ -211,10 +183,6 @@ class PDBSourceLineWriter {
   // a failure, returns 0, which is also a valid number of bytes.
   static int GetFunctionStackParamSize(IDiaSymbol *function);
 
-  // The filename of the PE file corresponding to the currently-open
-  // pdb file.
-  wstring code_file_;
-
   // The session for the currently-open pdb file.
   CComPtr<IDiaSession> session_;
 
@@ -224,9 +192,9 @@ class PDBSourceLineWriter {
   // There may be many duplicate filenames with different IDs.
   // This maps from the DIA "unique ID" to a single ID per unique
   // filename.
-  unordered_map<DWORD, DWORD> file_ids_;
+  hash_map<DWORD, DWORD> file_ids_;
   // This maps unique filenames to file IDs.
-  unordered_map<wstring, DWORD> unique_files_;
+  hash_map<wstring, DWORD> unique_files_;
 
   // Disallow copy ctor and operator=
   PDBSourceLineWriter(const PDBSourceLineWriter&);

@@ -43,11 +43,11 @@
 #ifndef nsIDNKitWrapper_h__
 #define nsIDNKitWrapper_h__
 
-#include <stdint.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+#include "prtypes.h"
 
 /*
  * libidnkit result code.
@@ -99,12 +99,12 @@ typedef struct idn_nameprep *idn_nameprep_t;
 
 /* race.c */
 idn_result_t	race_decode_decompress(const char *from,
-					       uint16_t *buf,
+					       PRUint16 *buf,
 					       size_t buflen);
-idn_result_t	race_compress_encode(const uint16_t *p,
+idn_result_t	race_compress_encode(const PRUint16 *p,
 					     int compress_mode,
 					     char *to, size_t tolen);
-int		get_compress_mode(uint16_t *p);
+int		get_compress_mode(PRUint16 *p);
 
 
 /* nameprep.c */
@@ -114,7 +114,7 @@ int		get_compress_mode(uint16_t *p);
  * The handle is stored in '*handlep', which is used other functions
  * in this module.
  * The version of the NAMEPREP specification can be specified with
- * 'version' parameter.  If 'version' is nullptr, the latest version
+ * 'version' parameter.  If 'version' is NULL, the latest version
  * is used.
  *
  * Returns:
@@ -139,13 +139,13 @@ idn_nameprep_destroy(idn_nameprep_t handle);
  *	idn_buffer_overflow	-- result buffer is too small.
  */
 idn_result_t
-idn_nameprep_map(idn_nameprep_t handle, const uint32_t *from,
-		 uint32_t *to, size_t tolen);
+idn_nameprep_map(idn_nameprep_t handle, const PRUint32 *from,
+		 PRUint32 *to, size_t tolen);
 
 /*
  * Check if an UCS4 string 'str' contains any prohibited characters specified
  * by the draft.  If found, the pointer to the first such character is stored
- * into '*found'.  Otherwise '*found' will be nullptr.
+ * into '*found'.  Otherwise '*found' will be NULL.
  *
  * Returns:
  *	idn_success		-- check has been done properly. (But this
@@ -154,13 +154,13 @@ idn_nameprep_map(idn_nameprep_t handle, const uint32_t *from,
  *				   result.)
  */
 idn_result_t
-idn_nameprep_isprohibited(idn_nameprep_t handle, const uint32_t *str,
-			  const uint32_t **found);
+idn_nameprep_isprohibited(idn_nameprep_t handle, const PRUint32 *str,
+			  const PRUint32 **found);
 
 /*
  * Check if an UCS4 string 'str' contains any unassigned characters specified
  * by the draft.  If found, the pointer to the first such character is stored
- * into '*found'.  Otherwise '*found' will be nullptr.
+ * into '*found'.  Otherwise '*found' will be NULL.
  *
  * Returns:
  *	idn_success		-- check has been done properly. (But this
@@ -169,13 +169,13 @@ idn_nameprep_isprohibited(idn_nameprep_t handle, const uint32_t *str,
  *				   result.)
  */
 idn_result_t
-idn_nameprep_isunassigned(idn_nameprep_t handle, const uint32_t *str,
-			  const uint32_t **found);
+idn_nameprep_isunassigned(idn_nameprep_t handle, const PRUint32 *str,
+			  const PRUint32 **found);
 
 /*
  * Check if an UCS4 string 'str' is valid string specified by ``bidi check''
  * of the draft.  If it is not valid, the pointer to the first invalid
- * character is stored into '*found'.  Otherwise '*found' will be nullptr.
+ * character is stored into '*found'.  Otherwise '*found' will be NULL.
  *
  * Returns:
  *	idn_success		-- check has been done properly. (But this
@@ -183,8 +183,8 @@ idn_nameprep_isunassigned(idn_nameprep_t handle, const uint32_t *str,
  *				   Check '*found' to see the result.)
  */
 idn_result_t
-idn_nameprep_isvalidbidi(idn_nameprep_t handle, const uint32_t *str,
-			 const uint32_t **found);
+idn_nameprep_isvalidbidi(idn_nameprep_t handle, const PRUint32 *str,
+			 const PRUint32 **found);
 
 
 

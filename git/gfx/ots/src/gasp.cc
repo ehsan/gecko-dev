@@ -2,20 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <new>
 #include "gasp.h"
 
 // gasp - Grid-fitting And Scan-conversion Procedure
-// http://www.microsoft.com/typography/otspec/gasp.htm
+// http://www.microsoft.com/opentype/otspec/gasp.htm
 
-#define TABLE_NAME "gasp"
-
-#define DROP_THIS_TABLE(...) \
-  do { \
-    OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__); \
-    OTS_FAILURE_MSG("Table discarded"); \
-    delete file->gasp; \
-    file->gasp = 0; \
-  } while (0)
+#define DROP_THIS_TABLE \
+  do { delete file->gasp; file->gasp = 0; } while (0)
 
 namespace ots {
 
@@ -28,17 +22,19 @@ bool ots_gasp_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   uint16_t num_ranges = 0;
   if (!table.ReadU16(&gasp->version) ||
       !table.ReadU16(&num_ranges)) {
-    return OTS_FAILURE_MSG("Failed to read table header");
+    return OTS_FAILURE();
   }
 
   if (gasp->version > 1) {
     // Lots of Linux fonts have bad version numbers...
-    DROP_THIS_TABLE("bad version: %u", gasp->version);
+    OTS_WARNING("bad version: %u", gasp->version);
+    DROP_THIS_TABLE;
     return true;
   }
 
   if (num_ranges == 0) {
-    DROP_THIS_TABLE("num_ranges is zero");
+    OTS_WARNING("num_ranges is zero");
+    DROP_THIS_TABLE;
     return true;
   }
 
@@ -48,18 +44,20 @@ bool ots_gasp_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
     uint16_t behavior = 0;
     if (!table.ReadU16(&max_ppem) ||
         !table.ReadU16(&behavior)) {
-      return OTS_FAILURE_MSG("Failed to read subrange %d", i);
+      return OTS_FAILURE();
     }
     if ((i > 0) && (gasp->gasp_ranges[i - 1].first >= max_ppem)) {
       // The records in the gaspRange[] array must be sorted in order of
       // increasing rangeMaxPPEM value.
-      DROP_THIS_TABLE("ranges are not sorted");
+      OTS_WARNING("ranges are not sorted");
+      DROP_THIS_TABLE;
       return true;
     }
     if ((i == num_ranges - 1u) &&  // never underflow.
         (max_ppem != 0xffffu)) {
-      DROP_THIS_TABLE("The last record should be 0xFFFF as a sentinel value "
+      OTS_WARNING("The last record should be 0xFFFF as a sentinel value "
                   "for rangeMaxPPEM");
+      DROP_THIS_TABLE;
       return true;
     }
 
@@ -81,23 +79,21 @@ bool ots_gasp_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
 }
 
 bool ots_gasp_should_serialise(OpenTypeFile *file) {
-  return file->gasp != NULL;
+  return file->gasp;
 }
 
 bool ots_gasp_serialise(OTSStream *out, OpenTypeFile *file) {
   const OpenTypeGASP *gasp = file->gasp;
 
-  const uint16_t num_ranges = static_cast<uint16_t>(gasp->gasp_ranges.size());
-  if (num_ranges != gasp->gasp_ranges.size() ||
-      !out->WriteU16(gasp->version) ||
-      !out->WriteU16(num_ranges)) {
-    return OTS_FAILURE_MSG("failed to write gasp header");
+  if (!out->WriteU16(gasp->version) ||
+      !out->WriteU16(gasp->gasp_ranges.size())) {
+    return OTS_FAILURE();
   }
 
-  for (uint16_t i = 0; i < num_ranges; ++i) {
+  for (unsigned i = 0; i < gasp->gasp_ranges.size(); ++i) {
     if (!out->WriteU16(gasp->gasp_ranges[i].first) ||
         !out->WriteU16(gasp->gasp_ranges[i].second)) {
-      return OTS_FAILURE_MSG("Failed to write gasp subtable %d", i);
+      return OTS_FAILURE();
     }
   }
 
@@ -109,6 +105,3 @@ void ots_gasp_free(OpenTypeFile *file) {
 }
 
 }  // namespace ots
-
-#undef TABLE_NAME
-#undef DROP_THIS_TABLE

@@ -1,29 +1,11 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-sync/engines/prefs.js");
-Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/util.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
 
-const PREFS_GUID = CommonUtils.encodeBase64URL(Services.appinfo.ID);
-
-loadAddonTestFunctions();
-startupManager();
-
-function makePersona(id) {
-  return {
-    id: id || Math.random().toString(),
-    name: Math.random().toString(),
-    headerURL: "http://localhost:1234/a"
-  };
-}
+const PREFS_GUID = Utils.encodeBase64url(Svc.AppInfo.ID);
 
 function run_test() {
-  let store = Service.engineManager.get("prefs")._store;
+  let store = new PrefsEngine()._store;
   let prefs = new Preferences();
   try {
 
@@ -44,7 +26,7 @@ function run_test() {
 
     _("The GUID corresponds to XUL App ID.");
     let allIDs = store.getAllIDs();
-    let ids = Object.keys(allIDs);
+    let ids = [id for (id in allIDs)];
     do_check_eq(ids.length, 1);
     do_check_eq(ids[0], PREFS_GUID);
     do_check_true(allIDs[PREFS_GUID], true);
@@ -74,7 +56,7 @@ function run_test() {
     do_check_eq(record.value["services.sync.prefs.sync.testing.nonexistent"], true);
 
     _("Update some prefs, including one that's to be reset/deleted.");
-    Svc.Prefs.set("testing.deleteme", "I'm going to be deleted!");
+    Svc.Prefs.set("testing.deleteme", "I'm going to be deleted!"); 
     record = new PrefRec("prefs", PREFS_GUID);
     record.value = {
       "testing.int": 42,
@@ -90,34 +72,6 @@ function run_test() {
     do_check_eq(prefs.get("testing.deleteme"), undefined);
     do_check_eq(prefs.get("testing.dont.change"), "Please don't change me.");
     do_check_eq(Svc.Prefs.get("prefs.sync.testing.somepref"), true);
-
-    _("Enable persona");
-    // Ensure we don't go to the network to fetch personas and end up leaking
-    // stuff.
-    Services.io.offline = true;
-    do_check_false(!!prefs.get("lightweightThemes.isThemeSelected"));
-    do_check_eq(LightweightThemeManager.currentTheme, null);
-
-    let persona1 = makePersona();
-    let persona2 = makePersona();
-    let usedThemes = JSON.stringify([persona1, persona2]);
-    record.value = {
-      "lightweightThemes.isThemeSelected": true,
-      "lightweightThemes.usedThemes": usedThemes
-    };
-    store.update(record);
-    do_check_true(prefs.get("lightweightThemes.isThemeSelected"));
-    do_check_true(Utils.deepEquals(LightweightThemeManager.currentTheme,
-                  persona1));
-
-    _("Disable persona");
-    record.value = {
-      "lightweightThemes.isThemeSelected": false,
-      "lightweightThemes.usedThemes": usedThemes
-    };
-    store.update(record);
-    do_check_false(prefs.get("lightweightThemes.isThemeSelected"));
-    do_check_eq(LightweightThemeManager.currentTheme, null);
 
     _("Only the current app's preferences are applied.");
     record = new PrefRec("prefs", "some-fake-app");

@@ -4,11 +4,6 @@ $(info MAKEFLAGS = '$(MAKEFLAGS)')
 $(info MAKE = '$(MAKE)')
 $(info value MAKE = "$(value MAKE)")
 
-shellresult := $(shell echo -n $$EVAR)
-ifneq ($(shellresult),eval)
-$(error EVAR should be eval, is instead $(shellresult))
-endif
-
 all:
 	env
 	test "$(MAKELEVEL)" = "1"

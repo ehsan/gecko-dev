@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=474356
 -->
 <head>
   <title>Test for Bug 474356</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
   <style>.zoom-test { visibility: hidden; }</style>
@@ -28,9 +29,18 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=474356
 SimpleTest.waitForExplicitFinish();
 
 function run() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  viewer = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                 .getInterface(Components.interfaces.nsIWebNavigation)
+                 .QueryInterface(Components.interfaces.nsIDocShell)
+                 .contentViewer
+                 .QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);
+
+
   function zoom(factor) {
-    var previous = SpecialPowers.getFullZoom(window);
-    SpecialPowers.setFullZoom(window, factor);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var previous = viewer.fullZoom;
+    viewer.fullZoom = factor;
     return previous;
   }
 
@@ -38,11 +48,14 @@ function run() {
     return window.getComputedStyle(document.getElementById(divName), null).visibility == "visible";
   }
 
-  function getScreenPixelsPerCSSPixel() {
-    return SpecialPowers.DOMWindowUtils.screenPixelsPerCSSPixel;
+  function getZoomRatio() {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                      .getInterface(Components.interfaces.nsIDOMWindowUtils);
+    return utils.screenPixelsPerCSSPixel;
   }
 
-  var screenPixelsPerCSSPixel = getScreenPixelsPerCSSPixel();
+  var screenPixelsPerCSSPixel = getZoomRatio();
   var baseRatio = 1.0 * screenPixelsPerCSSPixel;
   var doubleRatio = 2.0 * screenPixelsPerCSSPixel;
   var halfRatio = 0.5 * screenPixelsPerCSSPixel;
@@ -61,10 +74,10 @@ function run() {
 
   ok(isVisible("zoom1"), "Base ratio rule should apply at base zoom level");
   ok(!isVisible("zoom2") && !isVisible("zoom3"), "no other rules should apply");
-  var origZoom = zoom(2);
+  var origZoom = zoom(2 * screenPixelsPerCSSPixel);
   ok(isVisible("zoom2"), "Double ratio rule should apply at double zoom level");
   ok(!isVisible("zoom1") && !isVisible("zoom3"), "no other rules should apply");
-  zoom(0.5);
+  zoom(0.5 * screenPixelsPerCSSPixel);
   ok(isVisible("zoom3"), "Half ratio rule should apply at half zoom level");
   ok(!isVisible("zoom1") && !isVisible("zoom2"), "no other rules should apply");
   zoom(origZoom);

@@ -1,14 +1,46 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 /*
  * Date functions used by tests in Date suite
  *
  */
-var msPerYear =  31536000000;
 var msPerDay =   86400000;
 var HoursPerDay =  24;
 var MinutesPerHour = 60;
@@ -16,19 +48,11 @@ var SecondsPerMinute = 60;
 var msPerSecond =  1000;
 var msPerMinute =  60000;  // msPerSecond * SecondsPerMinute
 var msPerHour =   3600000; // msPerMinute * MinutesPerHour
-
+var TZ_DIFF = getTimeZoneDiff();  // offset of tester's timezone from UTC
+var TZ_ADJUST  = TZ_DIFF * msPerHour;
 var TZ_PST = -8;  // offset of Pacific Standard Time from UTC
-var TZ_DIFF_RAW = GetRawTimezoneOffset();  // raw offset of tester's timezone from UTC
-var TZ_DIFF = GetTimezoneOffset();  // offset of tester's timezone from UTC
-var PST_DIFF_RAW = TZ_DIFF_RAW - TZ_PST;  // raw offset of tester's timezone from PST
 var PST_DIFF = TZ_DIFF - TZ_PST;  // offset of tester's timezone from PST
-var TZ_ADJUST  = TZ_DIFF_RAW * msPerHour;
 var PST_ADJUST = TZ_PST * msPerHour;
-
-var DST_PERIOD = DaylightSavingPeriod();  // time period when DST is used
-var DST_1970 = DaylightSavingObserved(1970);  // Was DST observed in 1970?
-var DST_1971 = DaylightSavingObserved(1971);  // Was DST observed in 1971?
-
 var TIME_0000  = (function ()
   { // calculate time for year 0
     for ( var time = 0, year = 1969; year >= 0; year-- ) {
@@ -52,71 +76,9 @@ var TIME_NOW = now.valueOf();  //valueOf() is to accurate to the millisecond
  * We calculate the proper number dynamically for any tester. We just
  * have to be careful not to use a date subject to Daylight Savings Time...
  */
-function GetRawTimezoneOffset()
+function getTimeZoneDiff()
 {
-  var t1 = new Date(2000, 1, 1).getTimezoneOffset();
-  var t2 = new Date(2000, 1 + 6, 1).getTimezoneOffset();
-  if ((t1 - t2) >= 0) {
-    // 1) timezone without daylight saving time
-    // 2) northern hemisphere with daylight saving time
-    return -t1 / MinutesPerHour;
-  } else {
-    // 3) southern hemisphere with daylight saving time
-    return -t2 / MinutesPerHour;
-  }
-}
-
-/*
- * Returns the timezone offset, possibly including daylight saving time.
- * (This function is only used to obtain the relative timezone offset to PST,
- * see TZ_DIFF and PST_DIFF in adjustResultArray().)
- */
-function GetTimezoneOffset()
-{
-  return -(new Date(2000, 1, 1).getTimezoneOffset()) / MinutesPerHour;
-}
-
-/*
- * Determine when daylight saving time is used in the current timezone.
- */
-function DaylightSavingPeriod()
-{
-  var t1 = new Date(2000, 1, 1).getTimezoneOffset();
-  var t2 = new Date(2000, 1 + 6, 1).getTimezoneOffset();
-  if (t1 == t2) {
-    // timezone without daylight saving time
-    return 0;
-  } else if ((t1 - t2) > 0) {
-    // northern hemisphere with daylight saving time
-    return 1;
-  } else {
-    // southern hemisphere with daylight saving time
-    return -1;
-  }
-}
-
-/*
- * Test whether daylight time saving was observed in the supplied year
- */
-function DaylightSavingObserved(y)
-{
-  var t1 = new Date(y, 1, 1).getTimezoneOffset();
-  var t2 = new Date(y, 1 + 6, 1).getTimezoneOffset();
-  return (t1 != t2);
-}
-
-/*
- * Don't apply DST near start of epoch unless absolutely necessary
- */
-function IgnoreDaylightSaving(t)
-{
-  if ((0 <= t && t < msPerYear) && !DST_1970) {
-    return true;
-  }
-  if ((msPerYear <= t && t < 2*msPerYear) && !DST_1971) {
-    return true;
-  }
-  return false;
+  return -((new Date(2000, 1, 1)).getTimezoneOffset())/60;
 }
 
 /*
@@ -145,18 +107,14 @@ function adjustResultArray(ResultArray, msMode)
   {
     // The hard-coded UTC milliseconds from Time 0 derives from a UTC date.
     // Shift to the right by the offset between UTC and the tester.
-    if (IgnoreDaylightSaving(ResultArray[TIME])) {
-      var t = ResultArray[TIME]  +  TZ_DIFF_RAW*msPerHour;
-    } else {
-      var t = ResultArray[TIME]  +  TZ_DIFF*msPerHour;
-    }
+    var t = ResultArray[TIME]  +  TZ_DIFF*msPerHour;
 
     // Use our date arithmetic functions to determine the local hour, day, etc.
     ResultArray[HOURS] = HourFromTime(t);
     ResultArray[DAY] = WeekDay(t);
     ResultArray[DATE] = DateFromTime(t);
     ResultArray[MONTH] = MonthFromTime(t);
-    ResultArray[YEAR] = YearFromTime(t);
+    ResultArray[YEAR] = YearFromTime(t); 
   }
   else
   {
@@ -370,7 +328,7 @@ function msFromTime( t ) {
   return ( (ms < 0 ) ? msPerSecond + ms : ms );
 }
 function LocalTZA() {
-  return ( TZ_DIFF_RAW * msPerHour );
+  return ( TZ_DIFF * msPerHour );
 }
 function UTC( t ) {
   return ( t - LocalTZA() - DaylightSavingTA(t - LocalTZA()) );
@@ -379,27 +337,13 @@ function LocalTime( t ) {
   return ( t + LocalTZA() + DaylightSavingTA(t) );
 }
 function DaylightSavingTA( t ) {
-  if (IgnoreDaylightSaving(t)) {
-    return 0;
-  }
+  t = t - LocalTZA();
 
-  if (DST_PERIOD > 0) {
-    // northern hemisphere
-    var dst_start = GetDSTStart(t);
-    var dst_end   = GetDSTEnd(t);
+  var dst_start = GetDSTStart(t);
+  var dst_end   = GetDSTEnd(t);
 
-    if ( t >= dst_start && t < dst_end )
-      return msPerHour;
-  } else if (DST_PERIOD < 0) {
-    // southern hemisphere
-    var dst_start = GetDSTStart_Southern(t);
-    var dst_end   = GetDSTEnd_Southern(t);
-
-    if ( t >= dst_start && t < GetDSTEnd_Southern(t + msPerYear) )
-      return msPerHour;
-    if ( t < dst_end && t >= GetDSTEnd_Southern(t - msPerYear) )
-      return msPerHour;
-  }
+  if ( t >= dst_start && t < dst_end )
+    return msPerHour;
 
   return 0;
 }
@@ -503,21 +447,6 @@ function GetOldDSTStart( t )
 function GetOldDSTEnd( t )
 {
   return (GetLastSundayInMonth(t, 9) + 2*msPerHour - LocalTZA());
-}
-
-/*
- * Daylight saving time start/end date for 'Australia'
- * (arbitrarily chosen as a representative for the southern hemisphere)
- */
-
-function GetDSTStart_Southern( t )
-{
-  return (GetFirstSundayInMonth(t, 9) + 2*msPerHour - LocalTZA());
-}
-
-function GetDSTEnd_Southern( t )
-{
-  return (GetFirstSundayInMonth(t, 3) + 2*msPerHour - LocalTZA());
 }
 
 function MakeTime( hour, min, sec, ms ) {

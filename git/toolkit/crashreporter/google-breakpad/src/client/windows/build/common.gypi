@@ -191,6 +191,10 @@
     # Currently ignored on Windows.
     'coverage%': 0,
 
+    # Overridable specification for potential use of alternative
+    # JavaScript engines.
+    'javascript_engine%': 'v8',
+
     # Although base/allocator lets you select a heap library via an
     # environment variable, the libcmt shim it uses sometimes gets in
     # the way.  To disable it entirely, and switch to normal msvcrt, do e.g.
@@ -198,6 +202,14 @@
     #  'win_release_RuntimeLibrary': 2
     # to ~/.gyp/include.gypi, gclient runhooks --force, and do a release build.
     'win_use_allocator_shim%': 1, # 0 = shim allocator via libcmt; 1 = msvcrt
+
+    # To do a shared build on linux we need to be able to choose between type
+    # static_library and shared_library. We default to doing a static build
+    # but you can override this with "gyp -Dlibrary=shared_library" or you
+    # can add the following line (without the #) to ~/.gyp/include.gypi
+    # {'variables': {'library': 'shared_library'}}
+    # to compile as shared by default
+    'library%': 'static_library',
 
     # Whether usage of OpenMAX is enabled.
     'enable_openmax%': 0,
@@ -260,7 +272,7 @@
 
     # Enable new NPDevice API.
     'enable_new_npdevice_api%': 0,
-
+    
     'conditions': [
       ['OS=="linux" or OS=="freebsd" or OS=="openbsd"', {
         # This will set gcc_version to XY if you are running gcc X.Y.*.
@@ -503,6 +515,7 @@
               '_CRT_SECURE_NO_DEPRECATE',
               '_CRT_NONSTDC_NO_WARNINGS',
               '_CRT_NONSTDC_NO_DEPRECATE',
+              '_SCL_SECURE_NO_DEPRECATE',
             ],
             'msvs_disabled_warnings': [4800],
             'msvs_settings': {
@@ -823,7 +836,7 @@
           'IMPLICIT_COMMAND_DEPENDENCIES': 0,
           # -rpath is only used when building with shared libraries.
           'conditions': [
-            [ 'component=="shared_library"', {
+            [ 'library=="shared_library"', {
               'RPATH': '$LIB_DIR',
             }],
           ],

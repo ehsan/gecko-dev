@@ -1,21 +1,53 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.h"
 #include "nsIComponentManager.h"
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
-#include "nsISimpleEnumerator.h"
+#include "nsIEnumerator.h"
 #include "nsStringGlue.h"
 #include "nsWeakReference.h"
 #include "nsComponentManagerUtils.h"
-#include "mozilla/Attributes.h"
 
 #include <stdio.h>
 
-static nsIObserverService *anObserverService = nullptr;
+static nsIObserverService *anObserverService = NULL;
 
 static void testResult( nsresult rv ) {
     if ( NS_SUCCEEDED( rv ) ) {
@@ -30,11 +62,9 @@ void printString(nsString &str) {
     printf("%s", NS_ConvertUTF16toUTF8(str).get());
 }
 
-class TestObserver MOZ_FINAL : public nsIObserver,
-                               public nsSupportsWeakReference
-{
+class TestObserver : public nsIObserver, public nsSupportsWeakReference {
 public:
-    explicit TestObserver( const nsAString &name )
+    TestObserver( const nsAString &name )
         : mName( name ) {
     }
     NS_DECL_ISUPPORTS
@@ -46,12 +76,12 @@ private:
     ~TestObserver() {}
 };
 
-NS_IMPL_ISUPPORTS( TestObserver, nsIObserver, nsISupportsWeakReference )
+NS_IMPL_ISUPPORTS2( TestObserver, nsIObserver, nsISupportsWeakReference )
 
 NS_IMETHODIMP
 TestObserver::Observe( nsISupports     *aSubject,
                        const char *aTopic,
-                       const char16_t *someData ) {
+                       const PRUnichar *someData ) {
     nsCString topic( aTopic );
     nsString data( someData );
     	/*
@@ -85,27 +115,27 @@ int main(int argc, char *argv[])
         bObserver->AddRef();
             
         printf("Adding Observer-A as observer of topic-A...\n");
-        rv = anObserverService->AddObserver(aObserver, topicA.get(), false);
+        rv = anObserverService->AddObserver(aObserver, topicA.get(), PR_FALSE);
         testResult(rv);
  
         printf("Adding Observer-B as observer of topic-A...\n");
-        rv = anObserverService->AddObserver(bObserver, topicA.get(), false);
+        rv = anObserverService->AddObserver(bObserver, topicA.get(), PR_FALSE);
         testResult(rv);
  
         printf("Adding Observer-B as observer of topic-B...\n");
-        rv = anObserverService->AddObserver(bObserver, topicB.get(), false);
+        rv = anObserverService->AddObserver(bObserver, topicB.get(), PR_FALSE);
         testResult(rv);
 
         printf("Testing Notify(observer-A, topic-A)...\n");
         rv = anObserverService->NotifyObservers( aObserver,
                                    topicA.get(),
-                                   MOZ_UTF16("Testing Notify(observer-A, topic-A)") );
+                                   NS_LITERAL_STRING("Testing Notify(observer-A, topic-A)").get() );
         testResult(rv);
 
         printf("Testing Notify(observer-B, topic-B)...\n");
         rv = anObserverService->NotifyObservers( bObserver,
                                    topicB.get(),
-                                   MOZ_UTF16("Testing Notify(observer-B, topic-B)") );
+                                   NS_LITERAL_STRING("Testing Notify(observer-B, topic-B)").get() );
         testResult(rv);
  
         printf("Testing EnumerateObserverList (for topic-A)...\n");
@@ -117,19 +147,17 @@ int main(int argc, char *argv[])
         printf("Enumerating observers of topic-A...\n");
         if ( e ) {
           nsCOMPtr<nsIObserver> observer;
-          bool loop = true;
+          PRBool loop = PR_TRUE;
           while( NS_SUCCEEDED(e->HasMoreElements(&loop)) && loop) 
           {
-              nsCOMPtr<nsISupports> supports;
-              e->GetNext(getter_AddRefs(supports));
-              observer = do_QueryInterface(supports);
+              e->GetNext(getter_AddRefs(observer));
               printf("Calling observe on enumerated observer ");
               printString(reinterpret_cast<TestObserver*>
                                           (reinterpret_cast<void*>(observer.get()))->mName);
               printf("...\n");
               rv = observer->Observe( observer, 
                                       topicA.get(), 
-                                      MOZ_UTF16("during enumeration") );
+                                      NS_LITERAL_STRING("during enumeration").get() );
               testResult(rv);
           }
         }
@@ -148,5 +176,5 @@ int main(int argc, char *argv[])
         testResult(rv);
        
     }
-    return 0;
+    return NS_OK;
 }

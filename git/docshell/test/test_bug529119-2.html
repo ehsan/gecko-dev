@@ -2,20 +2,19 @@
 <html>
 <head>
 <title>Test bug 529119</title>
+<script type="text/javascript" src="/MochiKit/packed.js"></script>
 <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 
 <script class="testbody" type="text/javascript">
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestFlakyTimeout("untriaged");
 
 var workingURL = "http://mochi.test:8888/tests/docshell/test/bug529119-window.html";
 var faultyURL = "http://some-nonexistent-domain-27489274c892748217cn2384.com/";
 
 var w = null;
 var phase = 0;
-var isWindowLoaded = false;
 
 function pollForPage(expectErrorPage, f, w)
 {
@@ -44,11 +43,7 @@ function pollForPage(expectErrorPage, f, w)
 
 function windowLoaded()
 {
-  // The code under here should only be run once
-  // The test popup window workingURL was already opened
-  if (isWindowLoaded)
-    return;
-  isWindowLoaded = true;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   /* 2. We have successfully loaded a page, now go to a faulty URL */
   // XXX The test fails when we change the location synchronously 
@@ -58,9 +53,11 @@ function windowLoaded()
 
   pollForPage(true, function(succeeded) {
     ok(succeeded, "Waiting for error page succeeded");
+    
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     /* 3. now, while we are on the error page, navigate back */
     try {
-      SpecialPowers.wrap(w).back();
+      w.back();
     }
     catch(ex) {
       ok(false, "w.back() threw " + ex);
@@ -68,9 +65,11 @@ function windowLoaded()
 
     pollForPage(false, function(succeeded) {
       ok(succeeded, "Waiting for original page succeeded");
+      
+      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
       /* 4-finish, check we are back at the original page */
-      isnot(SpecialPowers.wrap(w).location.href, faultyURL, "Is on an error page");
-      is(SpecialPowers.wrap(w).location.href, workingURL, "Is not on the previous page");
+      isnot(w.location.href, faultyURL, "Is on an error page");
+      is(w.location.href, workingURL, "Is not on the previous page");
       w.close();
       SimpleTest.finish();
     }, w);

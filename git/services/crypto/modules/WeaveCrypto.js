@@ -1,8 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Justin Dolske <dolske@mozilla.com> (original author)
+ *  Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-this.EXPORTED_SYMBOLS = ["WeaveCrypto"];
+const EXPORTED_SYMBOLS = ["WeaveCrypto"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -12,25 +45,18 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/ctypes.jsm");
 
-/**
- * Shortcuts for some algorithm SEC OIDs.  Full list available here:
- * http://lxr.mozilla.org/seamonkey/source/security/nss/lib/util/secoidt.h
- */
-const DES_EDE3_CBC = 156;
-const AES_128_CBC  = 184;
-const AES_192_CBC  = 186;
-const AES_256_CBC  = 188;
-
-const ALGORITHM                 = AES_256_CBC;
+const ALGORITHM                 = Ci.IWeaveCrypto.AES_256_CBC;
 const KEYSIZE_AES_256           = 32;
 const KEY_DERIVATION_ITERATIONS = 4096;   // PKCS#5 recommends at least 1000.
 const INITIAL_BUFFER_SIZE       = 1024;
 
-this.WeaveCrypto = function WeaveCrypto() {
+function WeaveCrypto() {
     this.init();
 }
 
 WeaveCrypto.prototype = {
+    QueryInterface: XPCOMUtils.generateQI([Ci.IWeaveCrypto]),
+
     prefBranch : null,
     debug      : true,  // services.sync.log.cryptoDebug
     nss        : null,
@@ -55,13 +81,10 @@ WeaveCrypto.prototype = {
         try {
             // Preferences. Add observer so we get notified of changes.
             this.prefBranch = Services.prefs.getBranch("services.sync.log.");
+            this.prefBranch.QueryInterface(Ci.nsIPrefBranch2);
             this.prefBranch.addObserver("cryptoDebug", this.observer, false);
             this.observer._self = this;
-            try {
-              this.debug = this.prefBranch.getBoolPref("cryptoDebug");
-            } catch (x) {
-              this.debug = false;
-            }
+            this.debug = this.prefBranch.getBoolPref("cryptoDebug");
 
             this.initNSS();
             this.initAlgorithmSettings();   // Depends on NSS.
@@ -132,16 +155,17 @@ WeaveCrypto.prototype = {
 
         // XXX really want to be able to pass specific dlopen flags here.
         var nsslib;
-#ifdef MOZ_NATIVE_NSS
-        // Search platform-dependent library paths for system NSS.
-        this.log("Trying NSS library without path");
-        nsslib = ctypes.open(path);
-#else
-        let file = Services.dirsvc.get("GreBinD", Ci.nsILocalFile);
-        file.append(path);
-        this.log("Trying NSS library with path " + file.path);
-        nsslib = ctypes.open(file.path);
-#endif
+        try {
+            this.log("Trying NSS library without path");
+            nsslib = ctypes.open(path);
+        } catch(e) {
+            // In case opening the library without a full path fails,
+            // try again with a full path.
+            let file = Services.dirsvc.get("GreD", Ci.nsILocalFile);
+            file.append(path);
+            this.log("Trying again with path " + file.path);
+            nsslib = ctypes.open(file.path);
+        }
 
         this.log("Initializing NSS types and function declarations...");
 
@@ -354,6 +378,10 @@ WeaveCrypto.prototype = {
                                                             this.nss_t.SECAlgorithmID.ptr, this.nss_t.PRBool);
     },
 
+
+    //
+    // IWeaveCrypto interfaces
+    //
 
     _sharedInputBuffer:      null,
     _sharedInputBufferInts:  null,
@@ -708,7 +736,7 @@ WeaveCrypto.prototype = {
         // Callee picks if SEC_OID_UNKNOWN, but only SHA1 is supported.
         let prfAlg    = this.nss.SEC_OID_HMAC_SHA1;
 
-        keyLength  = keyLength || 0;    // 0 = Callee will pick.
+        let keyLength  = keyLength || 0;    // 0 = Callee will pick.
         let iterations = KEY_DERIVATION_ITERATIONS;
 
         let algid, slot, symKey, keyData;

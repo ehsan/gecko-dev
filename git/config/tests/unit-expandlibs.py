@@ -1,3 +1,4 @@
+from __future__ import with_statement
 import subprocess
 import unittest
 import sys
@@ -5,12 +6,12 @@ import os
 import imp
 from tempfile import mkdtemp
 from shutil import rmtree
-import mozunit
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from mozunit import MozTestRunner
 
 from UserString import UserString
 # Create a controlled configuration for use by expandlibs
 config_win = {
-    'AR': 'lib',
     'AR_EXTRACT': '',
     'DLL_PREFIX': '',
     'LIB_PREFIX': '',
@@ -22,7 +23,6 @@ config_win = {
     'EXPAND_LIBS_LIST_STYLE': 'list',
 }
 config_unix = {
-    'AR': 'ar',
     'AR_EXTRACT': 'ar -x',
     'DLL_PREFIX': 'lib',
     'LIB_PREFIX': 'lib',
@@ -38,7 +38,7 @@ config = sys.modules['expandlibs_config'] = imp.new_module('expandlibs_config')
 
 from expandlibs import LibDescriptor, ExpandArgs, relativize
 from expandlibs_gen import generate
-from expandlibs_exec import ExpandArgsMore, SectionFinder
+from expandlibs_exec import ExpandArgsMore
 
 def Lib(name):
     return config.LIB_PREFIX + name + config.LIB_SUFFIX
@@ -73,23 +73,21 @@ class TestLibDescriptor(unittest.TestCase):
         '''Test LibDescriptor's serialization'''
         desc = LibDescriptor()
         desc[LibDescriptor.KEYS[0]] = ['a', 'b']
-        self.assertEqual(str(desc), "{0} = a b".format(LibDescriptor.KEYS[0]))
+        self.assertEqual(str(desc), "%s = a b" % LibDescriptor.KEYS[0])
         desc['unsupported-key'] = ['a']
-        self.assertEqual(str(desc), "{0} = a b".format(LibDescriptor.KEYS[0]))
+        self.assertEqual(str(desc), "%s = a b" % LibDescriptor.KEYS[0])
         desc[LibDescriptor.KEYS[1]] = ['c', 'd', 'e']
-        self.assertEqual(str(desc),
-                         "{0} = a b\n{1} = c d e"
-                         .format(LibDescriptor.KEYS[0], LibDescriptor.KEYS[1]))
+        self.assertEqual(str(desc), "%s = a b\n%s = c d e" % (LibDescriptor.KEYS[0], LibDescriptor.KEYS[1]))
         desc[LibDescriptor.KEYS[0]] = []
-        self.assertEqual(str(desc), "{0} = c d e".format(LibDescriptor.KEYS[1]))
+        self.assertEqual(str(desc), "%s = c d e" % (LibDescriptor.KEYS[1]))
 
     def test_read(self):
         '''Test LibDescriptor's initialization'''
         desc_list = ["# Comment",
-                     "{0} = a b".format(LibDescriptor.KEYS[1]),
+                     "%s = a b" % LibDescriptor.KEYS[1],
                      "", # Empty line
                      "foo = bar", # Should be discarded
-                     "{0} = c d e".format(LibDescriptor.KEYS[0])]
+                     "%s = c d e" % LibDescriptor.KEYS[0]]
         desc = LibDescriptor(desc_list)
         self.assertEqual(desc[LibDescriptor.KEYS[1]], ['a', 'b'])
         self.assertEqual(desc[LibDescriptor.KEYS[0]], ['c', 'd', 'e'])
@@ -147,9 +145,6 @@ class TestExpandLibsGen(TestCaseWithTmpDir):
         self.assertEqual(desc['OBJS'], [self.tmpfile(Obj(s)) for s in ['b', 'd', 'e']])
         self.assertEqual(desc['LIBS'], [self.tmpfile(Lib(s)) for s in ['a', 'c', 'f']])
 
-        self.assertRaises(Exception, generate, files + [self.tmpfile(Obj('z'))])
-        self.assertRaises(Exception, generate, files + [self.tmpfile(Lib('y'))])
-
 class TestExpandInit(TestCaseWithTmpDir):
     def init(self):
         ''' Initializes test environment for library expansion tests'''
@@ -186,15 +181,15 @@ class TestExpandArgs(TestExpandInit):
         args = ExpandArgs(['foo', '-bar'] + self.arg_files + [self.tmpfile('liby', Lib('y'))])
         self.assertRelEqual(args, ['foo', '-bar'] + self.files + self.liby_files + self.libx_files) 
 
-        # When a library exists at the same time as a descriptor, we still use
-        # the descriptor.
+        # When a library exists at the same time as a descriptor, we just use
+        # the library
         self.touch([self.tmpfile('libx', Lib('x'))])
         args = ExpandArgs(['foo', '-bar'] + self.arg_files + [self.tmpfile('liby', Lib('y'))])
-        self.assertRelEqual(args, ['foo', '-bar'] + self.files + self.liby_files + self.libx_files)
+        self.assertRelEqual(args, ['foo', '-bar'] + self.files + self.liby_files + [self.tmpfile('libx', Lib('x'))]) 
 
         self.touch([self.tmpfile('liby', Lib('y'))])
         args = ExpandArgs(['foo', '-bar'] + self.arg_files + [self.tmpfile('liby', Lib('y'))])
-        self.assertRelEqual(args, ['foo', '-bar'] + self.files + self.liby_files + self.libx_files)
+        self.assertRelEqual(args, ['foo', '-bar'] + self.files + [self.tmpfile('liby', Lib('y'))])
 
 class TestExpandArgsMore(TestExpandInit):
     def test_makelist(self):
@@ -214,7 +209,7 @@ class TestExpandArgsMore(TestExpandInit):
             if config.EXPAND_LIBS_LIST_STYLE == "linkerscript":
                 self.assertNotEqual(args[3][0], '@')
                 filename = args[3]
-                content = ['INPUT("{0}")'.format(relativize(f)) for f in objs]
+                content = ["INPUT(%s)" % relativize(f) for f in objs]
                 with open(filename, 'r') as f:
                     self.assertEqual([l.strip() for l in f.readlines() if len(l.strip())], content)
             elif config.EXPAND_LIBS_LIST_STYLE == "list":
@@ -232,200 +227,45 @@ class TestExpandArgsMore(TestExpandInit):
         '''Test library extraction'''
         # Divert subprocess.call
         subprocess_call = subprocess.call
-        subprocess_check_output = subprocess.check_output
+        extracted = {}
         def call(args, **kargs):
-            if config.AR == 'lib':
-                self.assertEqual(args[:2], [config.AR, '-NOLOGO'])
-                self.assertTrue(args[2].startswith('-EXTRACT:'))
-                extract = [args[2][len('-EXTRACT:'):]]
-                self.assertTrue(extract)
-                args = args[3:]
-            else:
-                # The command called is always AR_EXTRACT
-                ar_extract = config.AR_EXTRACT.split()
-                self.assertEqual(args[:len(ar_extract)], ar_extract)
-                args = args[len(ar_extract):]
+            # The command called is always AR_EXTRACT
+            ar_extract = config.AR_EXTRACT.split()
+            self.assertRelEqual(args[:len(ar_extract)], ar_extract)
             # Remaining argument is always one library
-            self.assertEqual(len(args), 1)
-            arg = args[0]
-            self.assertEqual(os.path.splitext(arg)[1], config.LIB_SUFFIX)
-            # Simulate file extraction
-            lib = os.path.splitext(os.path.basename(arg))[0]
-            if config.AR != 'lib':
-                extract = [lib, lib + '2']
-            extract = [os.path.join(kargs['cwd'], f) for f in extract]
-            if config.AR != 'lib':
-                extract = [Obj(f) for f in extract]
-            if not lib in extracted:
-                extracted[lib] = []
-            extracted[lib].extend(extract)
-            self.touch(extract)
+            self.assertRelEqual([os.path.splitext(arg)[1] for arg in args[len(ar_extract):]], [config.LIB_SUFFIX])
+            # Simulate AR_EXTRACT extracting one object file for the library
+            lib = os.path.splitext(os.path.basename(args[len(ar_extract)]))[0]
+            extracted[lib] = os.path.join(kargs['cwd'], "%s" % Obj(lib))
+            self.touch([extracted[lib]])
         subprocess.call = call
-
-        def check_output(args, **kargs):
-            # The command called is always AR
-            ar = config.AR
-            self.assertEqual(args[0:3], [ar, '-NOLOGO', '-LIST'])
-            # Remaining argument is always one library
-            self.assertRelEqual([os.path.splitext(arg)[1] for arg in args[3:]],
-[config.LIB_SUFFIX])
-            # Simulate LIB -NOLOGO -LIST
-            lib = os.path.splitext(os.path.basename(args[3]))[0]
-            return '%s\n%s\n' % (Obj(lib), Obj(lib + '2'))
-        subprocess.check_output = check_output
 
         # ExpandArgsMore does the same as ExpandArgs
         self.touch([self.tmpfile('liby', Lib('y'))])
-        for iteration in (1, 2):
-            with ExpandArgsMore(['foo', '-bar'] + self.arg_files + [self.tmpfile('liby', Lib('y'))]) as args:
-                files = self.files + self.liby_files + self.libx_files
+        with ExpandArgsMore(['foo', '-bar'] + self.arg_files + [self.tmpfile('liby', Lib('y'))]) as args:
+            self.assertRelEqual(args, ['foo', '-bar'] + self.files + [self.tmpfile('liby', Lib('y'))])
 
+            # ExpandArgsMore also has an extra method extracting static libraries
+            # when possible
+            args.extract()
+
+            files = self.files + self.liby_files + self.libx_files
+            if not len(config.AR_EXTRACT):
+                # If we don't have an AR_EXTRACT, extract() expands libraries with a
+                # descriptor when the corresponding library exists (which ExpandArgs
+                # alone doesn't)
                 self.assertRelEqual(args, ['foo', '-bar'] + files)
-
-                extracted = {}
-                # ExpandArgsMore also has an extra method extracting static libraries
-                # when possible
-                args.extract()
-
-                # With AR_EXTRACT, it uses the descriptors when there are, and
-                # actually
+            else:
+                # With AR_EXTRACT, it uses the descriptors when there are, and actually
                 # extracts the remaining libraries
-                extracted_args = []
-                for f in files:
-                    if f.endswith(config.LIB_SUFFIX):
-                        base = os.path.splitext(os.path.basename(f))[0]
-                        # On the first iteration, we test the behavior of
-                        # extracting archives that don't have a copy of their
-                        # contents next to them, which is to use the file
-                        # extracted from the archive in a temporary directory.
-                        # On the second iteration, we test extracting archives
-                        # that do have a copy of their contents next to them,
-                        # in which case those contents are used instead of the
-                        # temporarily extracted files.
-                        if iteration == 1:
-                            extracted_args.extend(sorted(extracted[base]))
-                        else:
-                            dirname = os.path.dirname(f[len(self.tmpdir)+1:])
-                            if base.endswith('f'):
-                                dirname = os.path.join(dirname, 'foo', 'bar')
-                            extracted_args.extend([self.tmpfile(dirname, Obj(base)), self.tmpfile(dirname, Obj(base + '2'))])
-                    else:
-                        extracted_args.append(f)
-                self.assertRelEqual(args, ['foo', '-bar'] + extracted_args)
+                self.assertRelEqual(args, ['foo', '-bar'] + [extracted[os.path.splitext(os.path.basename(f))[0]] if f.endswith(config.LIB_SUFFIX) else f for f in files])
 
-                tmp = args.tmp
-            # Check that all temporary files are properly removed
-            self.assertEqual(True, all([not os.path.exists(f) for f in tmp]))
+            tmp = args.tmp
+        # Check that all temporary files are properly removed
+        self.assertEqual(True, all([not os.path.exists(f) for f in tmp]))
 
-            # Create archives contents next to them for the second iteration.
-            base = os.path.splitext(Lib('_'))[0]
-            self.touch(self.tmpfile(Obj(base.replace('_', suffix))) for suffix in ('a', 'a2', 'd', 'd2'))
-            try:
-                os.makedirs(self.tmpfile('foo', 'bar'))
-            except:
-                pass
-            self.touch(self.tmpfile('foo', 'bar', Obj(base.replace('_', suffix))) for suffix in ('f', 'f2'))
-            self.touch(self.tmpfile('liby', Obj(base.replace('_', suffix))) for suffix in ('z', 'z2'))
-
-        # Restore subprocess.call and subprocess.check_output
+        # Restore subprocess.call
         subprocess.call = subprocess_call
-        subprocess.check_output = subprocess_check_output
-
-class FakeProcess(object):
-    def __init__(self, out, err = ''):
-        self.out = out
-        self.err = err
-
-    def communicate(self):
-        return (self.out, self.err)
-
-OBJDUMPS = {
-'foo.o': '''
-00000000 g     F .text\t00000001 foo
-00000000 g     F .text._Z6foobarv\t00000001 _Z6foobarv
-00000000 g     F .text.hello\t00000001 hello
-00000000 g     F .text._ZThn4_6foobarv\t00000001 _ZThn4_6foobarv
-''',
-'bar.o': '''
-00000000 g     F .text.hi\t00000001 hi
-00000000 g     F .text.hot._Z6barbazv\t00000001 .hidden _Z6barbazv
-''',
-}
-
-PRINT_ICF = '''
-ld: ICF folding section '.text.hello' in file 'foo.o'into '.text.hi' in file 'bar.o'
-ld: ICF folding section '.foo' in file 'foo.o'into '.foo' in file 'bar.o'
-'''
-
-class SubprocessPopen(object):
-    def __init__(self, test):
-        self.test = test
-
-    def __call__(self, args, stdout = None, stderr = None):
-        self.test.assertEqual(stdout, subprocess.PIPE)
-        self.test.assertEqual(stderr, subprocess.PIPE)
-        if args[0] == 'objdump':
-            self.test.assertEqual(args[1], '-t')
-            self.test.assertTrue(args[2] in OBJDUMPS)
-            return FakeProcess(OBJDUMPS[args[2]])
-        else:
-            return FakeProcess('', PRINT_ICF)
-
-class TestSectionFinder(unittest.TestCase):
-    def test_getSections(self):
-        '''Test SectionFinder'''
-        # Divert subprocess.Popen
-        subprocess_popen = subprocess.Popen
-        subprocess.Popen = SubprocessPopen(self)
-        config.EXPAND_LIBS_ORDER_STYLE = 'linkerscript'
-        config.OBJ_SUFFIX = '.o'
-        config.LIB_SUFFIX = '.a'
-        finder = SectionFinder(['foo.o', 'bar.o'])
-        self.assertEqual(finder.getSections('foobar'), [])
-        self.assertEqual(finder.getSections('_Z6barbazv'), ['.text.hot._Z6barbazv'])
-        self.assertEqual(finder.getSections('_Z6foobarv'), ['.text._Z6foobarv', '.text._ZThn4_6foobarv'])
-        self.assertEqual(finder.getSections('_ZThn4_6foobarv'), ['.text._Z6foobarv', '.text._ZThn4_6foobarv'])
-        subprocess.Popen = subprocess_popen
-
-class TestSymbolOrder(unittest.TestCase):
-    def test_getOrderedSections(self):
-        '''Test ExpandMoreArgs' _getOrderedSections'''
-        # Divert subprocess.Popen
-        subprocess_popen = subprocess.Popen
-        subprocess.Popen = SubprocessPopen(self)
-        config.EXPAND_LIBS_ORDER_STYLE = 'linkerscript'
-        config.OBJ_SUFFIX = '.o'
-        config.LIB_SUFFIX = '.a'
-        config.LD_PRINT_ICF_SECTIONS = ''
-        args = ExpandArgsMore(['foo', '-bar', 'bar.o', 'foo.o'])
-        self.assertEqual(args._getOrderedSections(['_Z6foobarv', '_Z6barbazv']), ['.text._Z6foobarv', '.text._ZThn4_6foobarv', '.text.hot._Z6barbazv'])
-        self.assertEqual(args._getOrderedSections(['_ZThn4_6foobarv', '_Z6barbazv']), ['.text._Z6foobarv', '.text._ZThn4_6foobarv', '.text.hot._Z6barbazv'])
-        subprocess.Popen = subprocess_popen
-
-    def test_getFoldedSections(self):
-        '''Test ExpandMoreArgs' _getFoldedSections'''
-        # Divert subprocess.Popen
-        subprocess_popen = subprocess.Popen
-        subprocess.Popen = SubprocessPopen(self)
-        config.LD_PRINT_ICF_SECTIONS = '-Wl,--print-icf-sections'
-        args = ExpandArgsMore(['foo', '-bar', 'bar.o', 'foo.o'])
-        self.assertEqual(args._getFoldedSections(), {'.text.hello': ['.text.hi'], '.text.hi': ['.text.hello']})
-        subprocess.Popen = subprocess_popen
-
-    def test_getOrderedSectionsWithICF(self):
-        '''Test ExpandMoreArgs' _getOrderedSections, with ICF'''
-        # Divert subprocess.Popen
-        subprocess_popen = subprocess.Popen
-        subprocess.Popen = SubprocessPopen(self)
-        config.EXPAND_LIBS_ORDER_STYLE = 'linkerscript'
-        config.OBJ_SUFFIX = '.o'
-        config.LIB_SUFFIX = '.a'
-        config.LD_PRINT_ICF_SECTIONS = '-Wl,--print-icf-sections'
-        args = ExpandArgsMore(['foo', '-bar', 'bar.o', 'foo.o'])
-        self.assertEqual(args._getOrderedSections(['hello', '_Z6barbazv']), ['.text.hello', '.text.hi', '.text.hot._Z6barbazv'])
-        self.assertEqual(args._getOrderedSections(['_ZThn4_6foobarv', 'hi', '_Z6barbazv']), ['.text._Z6foobarv', '.text._ZThn4_6foobarv', '.text.hi', '.text.hello', '.text.hot._Z6barbazv'])
-        subprocess.Popen = subprocess_popen
-
 
 if __name__ == '__main__':
-    mozunit.main()
+    unittest.main(testRunner=MozTestRunner())

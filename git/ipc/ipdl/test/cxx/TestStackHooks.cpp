@@ -80,7 +80,7 @@ TestStackHooksChild::RecvStart()
         fail("EnteredCall/ExitedCall malfunction");
 
     // kick off tests from a runnable so that we can start with
-    // MessageChannel code on the C++ stack
+    // RPCChannel code on the C++ stack
     MessageLoop::current()->PostTask(FROM_HERE,
                                      NewRunnableFunction(RunTestsFn));
 

@@ -1,7 +1,42 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Robert Sayre.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Goodger <beng@google.com>
+ *   Myk Melez <myk@mozilla.org>
+ *   Michael Ventnor <m.ventnor@gmail.com>
+ *   Will Guaraldi <will.guaraldi@pculture.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 function LOG(str) {
   dump("*** " + str + "\n");
@@ -11,6 +46,7 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cr = Components.results;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/ISO8601DateUtils.jsm");
 
 const FP_CONTRACTID = "@mozilla.org/feed-processor;1";
 const FP_CLASSID = Components.ID("{26acb1f0-28fc-43bc-867a-a46aabc85dd4}");
@@ -40,13 +76,14 @@ const IO_CONTRACTID = "@mozilla.org/network/io-service;1"
 const BAG_CONTRACTID = "@mozilla.org/hash-property-bag;1"
 const ARRAY_CONTRACTID = "@mozilla.org/array;1";
 const SAX_CONTRACTID = "@mozilla.org/saxparser/xmlreader;1";
-const PARSERUTILS_CONTRACTID = "@mozilla.org/parserutils;1";
+const UNESCAPE_CONTRACTID = "@mozilla.org/feed-unescapehtml;1";
 
 
 var gIoService = null;
 
 const XMLNS = "http://www.w3.org/XML/1998/namespace";
 const RSS090NS = "http://my.netscape.com/rdf/simple/0.9/";
+const WAIROLE_NS = "http://www.w3.org/2005/01/wai-rdf/GUIRoleTaxonomy#";
 
 /***** Some general utils *****/
 function strToURI(link, base) {
@@ -163,6 +200,11 @@ function makePropGetter(key) {
   }
 }
 
+function W3CToIETFDate(dateString) {
+  var date = ISO8601DateUtils.parse(dateString);
+  return date.toUTCString();
+}
+
 const RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 // namespace map
 var gNamespaces = {
@@ -188,6 +230,8 @@ var gNamespaces = {
 // for attributes only
 var gAllowedXHTMLNamespaces = {
   "http://www.w3.org/XML/1998/namespace":"xml",
+  "http://www.w3.org/TR/xhtml2":"xhtml2",
+  "http://www.w3.org/2005/07/aaa":"aaa",
   // if someone ns qualifies XHTML, we have to prefix it to avoid an
   // attribute collision.
   "http://www.w3.org/1999/xhtml":"xhtml"
@@ -463,15 +507,11 @@ Entry.prototype = {
 
     // Add media:content to enclosures
     if (bagHasKey(this.fields, "mediacontent"))
-      this._mediaToEnclosures("mediacontent");
-
-    // Add media:thumbnail to enclosures
-    if (bagHasKey(this.fields, "mediathumbnail"))
-      this._mediaToEnclosures("mediathumbnail");
+      this._mediacontentToEnclosures();
 
     // Add media:content in media:group to enclosures
     if (bagHasKey(this.fields, "mediagroup"))
-      this._mediaToEnclosures("mediagroup", "mediacontent");
+      this._mediagroupToEnclosures();
   },
 
   __enclosure_map: null,
@@ -543,20 +583,11 @@ Entry.prototype = {
     this._addToEnclosures(enc);
   },
 
-  _mediaToEnclosures: function Entry_mediaToEnclosures(mediaType, contentType) {
-    var content;
+  _mediacontentToEnclosures: function Entry_mediacontentToEnclosures() {
+    var mediacontent = this.fields.getPropertyAsInterface("mediacontent", Ci.nsIArray);
 
-    // If a contentType is specified, the mediaType is a simple propertybag,
-    // and the contentType is an array inside it.
-    if (contentType) {
-      var group = this.fields.getPropertyAsInterface(mediaType, Ci.nsIPropertyBag2);
-      content = group.getPropertyAsInterface(contentType, Ci.nsIArray);
-    } else {
-      content = this.fields.getPropertyAsInterface(mediaType, Ci.nsIArray);
-    }
-
-    for (var i = 0; i < content.length; ++i) {
-      var contentElement = content.queryElementAt(i, Ci.nsIWritablePropertyBag2);
+    for (var i = 0; i < mediacontent.length; ++i) {
+      var contentElement = mediacontent.queryElementAt(i, Ci.nsIWritablePropertyBag2);
 
       // media:content don't require url, but if it's not there, we should
       // skip it.
@@ -569,12 +600,33 @@ Entry.prototype = {
       enc.setPropertyAsAString("url", contentElement.getPropertyAsAString("url"));
       if (bagHasKey(contentElement, "type")) {
         enc.setPropertyAsAString("type", contentElement.getPropertyAsAString("type"));
-      } else if (mediaType == "mediathumbnail") {
-        // thumbnails won't have a type, but default to image types
-        enc.setPropertyAsAString("type", "image/*");
-        enc.setPropertyAsBool("thumbnail", true);
+      }
+      if (bagHasKey(contentElement, "fileSize")) {
+        enc.setPropertyAsAString("length", contentElement.getPropertyAsAString("fileSize"));
       }
 
+      this._addToEnclosures(enc);
+    }
+  },
+
+  _mediagroupToEnclosures: function Entry_mediagroupToEnclosures() {
+    var group = this.fields.getPropertyAsInterface("mediagroup", Ci.nsIPropertyBag2);
+
+    var content = group.getPropertyAsInterface("mediacontent", Ci.nsIArray);
+    for (var i = 0; i < content.length; ++i) {
+      var contentElement = content.queryElementAt(i, Ci.nsIWritablePropertyBag2);
+      // media:content don't require url, but if it's not there, we should
+      // skip it.
+      if (!bagHasKey(contentElement, "url"))
+        continue;
+
+      var enc = Cc[BAG_CONTRACTID].createInstance(Ci.nsIWritablePropertyBag2);
+
+      // copy media:content bits over to equivalent enclosure bits
+      enc.setPropertyAsAString("url", contentElement.getPropertyAsAString("url"));
+      if (bagHasKey(contentElement, "type")) {
+        enc.setPropertyAsAString("type", contentElement.getPropertyAsAString("type"));
+      }
       if (bagHasKey(contentElement, "fileSize")) {
         enc.setPropertyAsAString("length", contentElement.getPropertyAsAString("fileSize"));
       }
@@ -601,16 +653,14 @@ function TextConstruct() {
   this.base = null;
   this.type = "text";
   this.text = null;
-  this.parserUtils = Cc[PARSERUTILS_CONTRACTID].getService(Ci.nsIParserUtils);
+  this.unescapeHTML = Cc[UNESCAPE_CONTRACTID].
+                      getService(Ci.nsIScriptableUnescapeHTML);
 }
 
 TextConstruct.prototype = {
   plainText: function TC_plainText() {
     if (this.type != "text") {
-      return this.parserUtils.convertToPlainText(stripTags(this.text),
-        Ci.nsIDocumentEncoder.OutputSelectionOnly |
-        Ci.nsIDocumentEncoder.OutputAbsoluteLinks,
-        0);
+      return this.unescapeHTML.unescape(stripTags(this.text));
     }
     return this.text;
   },
@@ -631,8 +681,8 @@ TextConstruct.prototype = {
     else
       return null;
 
-    return this.parserUtils.parseFragment(this.text, 0, isXML,
-                                          this.base, element);
+    return this.unescapeHTML.parseFragment(this.text, isXML,
+                                           this.base, element);
   },
  
   // XPCOM stuff
@@ -821,34 +871,71 @@ function rssArrayElement(s) {
   return str;
 }
 
+/***** Some feed utils from TBird *****/
+
 /**
- * Tries parsing a string through the JavaScript Date object.
- * @param aDateString
- *        A string that is supposedly an RFC822 or RFC3339 date.
- * @return A Date.toUTCString, or null if the string can't be parsed.
+ * Tests a RFC822 date against a regex.
+ * @param aDateStr A string to test as an RFC822 date.
+ *
+ * @returns A boolean indicating whether the string is a valid RFC822 date.
  */
-function dateParse(aDateString) {
-  let dateString = aDateString.trim();
-  // Without bug 682781 fixed, JS won't parse an RFC822 date with a Z for the
-  // timezone, so convert to -00:00 which works for any date format.
-  dateString = dateString.replace(/z$/i, "-00:00");
-  let date = new Date(dateString);
-  if (!isNaN(date)) {
-    return date.toUTCString();
+function isValidRFC822Date(aDateStr) {
+  var regex = new RegExp(RFC822_RE);
+  return regex.test(aDateStr);
+}
+
+// Regular expression matching RFC822 dates 
+const RFC822_RE = "^((Mon|Tue|Wed|Thu|Fri|Sat|Sun)([a-z]+)?,? *)?\\d\\d?"
++ " +(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)([a-z]+)?"
++ " +\\d\\d(\\d\\d)? +\\d?\\d:\\d\\d(:\\d\\d)?"
++ " +([+-]?\\d\\d\\d\\d|GMT|UT[C]?|(E|C|M|P)(ST|DT)|[A-IK-Z])$";
+
+/**
+ * XXX -- need to decide what this should return. 
+ * XXX -- Is there a Date class usable from C++?
+ *
+ * Tries tries parsing various date formats.
+ * @param dateString
+ *        A string that is supposedly an RFC822 or RFC3339 date.
+ * @returns A Date.toString XXX--fixme
+ */
+function dateParse(dateString) {
+  var date = dateString.trim();
+
+  if (date.search(/^\d\d\d\d/) != -1) //Could be a ISO8601/W3C date
+    return W3CToIETFDate(dateString);
+
+  if (isValidRFC822Date(date))
+    return date; 
+  
+  if (!isNaN(parseInt(date, 10))) { 
+    //It's an integer, so maybe it's a timestamp
+    var d = new Date(parseInt(date, 10) * 1000);
+    var now = new Date();
+    var yeardiff = now.getFullYear() - d.getFullYear();
+    if ((yeardiff >= 0) && (yeardiff < 3)) {
+      // it's quite likely the correct date. 3 years is an arbitrary cutoff,
+      // but this is an invalid date format, and there's no way to verify
+      // its correctness.
+      return d.toString();
+    }
   }
+  // Can't help.
   return null;
 } 
+
 
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
 // The XHTMLHandler handles inline XHTML found in things like atom:summary
-function XHTMLHandler(processor, isAtom) {
+function XHTMLHandler(processor, isAtom, waiPrefixes) {
   this._buf = "";
   this._processor = processor;
   this._depth = 0;
   this._isAtom = isAtom;
   // a stack of lists tracking in-scope namespaces
   this._inScopeNS = [];
+  this._waiPrefixes = waiPrefixes;
 }
 
 // The fidelity can be improved here, to allow handling of stuff like
@@ -898,6 +985,39 @@ XHTMLHandler.prototype = {
             // The attribute value we'll attempt to write
             var attributeValue = xmlEscape(attributes.getValue(i));
 
+            // More QName abuse from W3C
+            var rolePrefix = "";
+            if (attributes.getLocalName(i) == "role") {
+              for (var aPrefix in this._waiPrefixes) {
+                if (attributeValue.indexOf(aPrefix + ":") == 0) {     
+                  // Now, due to the terrible layer mismatch 
+                  // that is QNames in content, we have to see
+                  // if the attribute value clashes with our 
+                  // namespace declarations.
+                  var isCollision = false;
+                  for (var uriKey in gAllowedXHTMLNamespaces) {
+                    if (gAllowedXHTMLNamespaces[uriKey] == aPrefix)
+                      isCollision = true;
+                  }
+                  
+                  if (isCollision) {
+                    rolePrefix = aPrefix + i;
+                    attributeValue = 
+                      rolePrefix + ":" + 
+                      attributeValue.substring(aPrefix.length + 1);
+                  } else {
+                    rolePrefix = aPrefix;
+                  }
+
+                  break;
+                }
+              }
+
+              if (rolePrefix)
+                this._buf += (" xmlns:" + rolePrefix + 
+                              "='" + WAIROLE_NS + "'");
+            }
+
             // it's an allowed attribute NS.            
             // write the attribute
             this._buf += (" " + prefix + ":" + 
@@ -938,8 +1058,12 @@ XHTMLHandler.prototype = {
     this._buf += xmlEscape(data);
   },
   startPrefixMapping: function XH_startPrefixMapping(prefix, uri) {
+    if (prefix && uri == WAIROLE_NS) 
+      this._waiPrefixes[prefix] = WAIROLE_NS;
   },
   endPrefixMapping: function FP_endPrefixMapping(prefix) {
+    if (prefix)
+      delete this._waiPrefixes[prefix];
   },
   processingInstruction: function XH_processingInstruction() {
   }, 
@@ -1053,6 +1177,9 @@ function FeedProcessor() {
   this._xhtmlHandler = null;
   this._haveSentResult = false;
   
+  // http://www.w3.org/WAI/PF/GUI/ uses QNames in content :(
+  this._waiPrefixes = {};
+
   // The nsIFeedResultListener waiting for the parse results
   this.listener = null;
 
@@ -1129,7 +1256,6 @@ function FeedProcessor() {
       "enclosure": new ElementInfo("enclosure", null, null, false),
       "media:content": new ElementInfo("mediacontent", null, null, true),
       "media:group": new ElementInfo("mediagroup", null, null, false),
-      "media:thumbnail": new ElementInfo("mediathumbnail", null, null, true),
       "guid": new ElementInfo("guid", null, rssGuid, false)
     },
 
@@ -1142,8 +1268,7 @@ function FeedProcessor() {
     },
 
     "IN_MEDIAGROUP": {
-      "media:content": new ElementInfo("mediacontent", null, null, true),
-      "media:thumbnail": new ElementInfo("mediathumbnail", null, null, true)
+      "media:content": new ElementInfo("mediacontent", null, null, true)
     },
  
     /********* RSS1 **********/
@@ -1404,7 +1529,8 @@ FeedProcessor.prototype = {
       var type = attributes.getValueFromName("","type");
       if (type != null && type.indexOf("xhtml") >= 0) {
         this._xhtmlHandler = 
-          new XHTMLHandler(this, (this._result.version == "atom"));
+          new XHTMLHandler(this, (this._result.version == "atom"), 
+                           this._waiPrefixes);
         this._reader.contentHandler = this._xhtmlHandler;
         return;
       }
@@ -1480,9 +1606,16 @@ FeedProcessor.prototype = {
   // don't conflict with the ones we've defined, throw them in a 
   // dictionary to check.
   startPrefixMapping: function FP_startPrefixMapping(prefix, uri) {
+    // Thanks for QNames in content, W3C
+    // This will even be a perf hit for every single feed
+    // http://www.w3.org/WAI/PF/GUI/
+    if (prefix && uri == WAIROLE_NS) 
+      this._waiPrefixes[prefix] = WAIROLE_NS;
   },
   
   endPrefixMapping: function FP_endPrefixMapping(prefix) {
+    if (prefix)
+      delete this._waiPrefixes[prefix];
   },
   
   processingInstruction: function FP_processingInstruction(target, data) {
@@ -1788,4 +1921,4 @@ FeedProcessor.prototype = {
 var components = [FeedProcessor, FeedResult, Feed, Entry,
                   TextConstruct, Generator, Person];
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

@@ -1,6 +1,3 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #filter emptyLines
 
 # LOCALIZATION NOTE: The 'en-US' strings in the URLs will be replaced with
@@ -14,6 +11,10 @@
 # title for the folder that will contains the default bookmarks
 #define bookmarks_title Mobile
 
+# LOCALIZATION NOTE (bookmarks_welcome):
+# link title for about:firstrun
+#define bookmarks_welcome Firefox: Welcome
+
 # LOCALIZATION NOTE (bookmarks_aboutBrowser):
 # link title for about:fennec
 #define bookmarks_aboutBrowser Firefox: About your browser
@@ -23,11 +24,11 @@
 #define bookmarks_addons Firefox: Customize with add-ons
 
 # LOCALIZATION NOTE (bookmarks_support):
-# link title for https://support.mozilla.org/
+# link title for https://support.mozilla.com/mobile
 #define bookmarks_support Firefox: Support
 
-# LOCALIZATION NOTE (bookmarks_marketplace):
-# link title for https://marketplace.firefox.com
-#define bookmarks_marketplace Firefox Marketplace
+# LOCALIZATION NOTE (bookmarks_aboutHome):
+# link title for about:home
+#define bookmarks_aboutHome Firefox Start
 
 #unfilter emptyLines

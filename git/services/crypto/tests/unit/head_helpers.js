@@ -55,7 +55,7 @@ function addResourceAlias() {
   Cu.import("resource://gre/modules/Services.jsm");
   const resProt = Services.io.getProtocolHandler("resource")
                           .QueryInterface(Ci.nsIResProtocolHandler);
-  let uri = Services.io.newURI("resource://gre/modules/services-crypto/",
+  let uri = Services.io.newURI("resource:///modules/services-crypto/",
                                null, null);
   resProt.setSubstitution("services-crypto", uri);
 }
@@ -70,6 +70,4 @@ addResourceAlias();
  * @usage _("Hello World") -> prints "Hello World"
  * @usage _(1, 2, 3) -> prints "1 2 3"
  */
-let _ = function(some, debug, text, to) {
-  print(Array.slice(arguments).join(" "));
-};
+let _ = function(some, debug, text, to) print(Array.slice(arguments).join(" "));

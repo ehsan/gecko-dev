@@ -1,15 +1,11 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="progressmeterBindings"
    xmlns="http://www.mozilla.org/xbl"
    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
    xmlns:xbl="http://www.mozilla.org/xbl">
 
-  <binding id="progressmeter" role="xul:progressmeter">
+  <binding id="progressmeter">
     <resources>
       <stylesheet src="chrome://global/skin/progressmeter.css"/>
     </resources>
@@ -19,7 +15,7 @@
       <xul:spacer class="progress-remainder" xbl:inherits="mode"/>
     </content>
     
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
       <property name="mode" onset="if (this.mode != val) this.setAttribute('mode', val); return val;"
                             onget="return this.getAttribute('mode');"/>
 
@@ -53,6 +49,14 @@
                 onset="this.setAttribute('max', isNaN(val) ? 100 : Math.max(val, 1));
                        this.value = this.value;
                        return val;" />
+
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULProgressMeter;
+          ]]>
+        </getter>
+      </property>
     </implementation>
   </binding>
 
@@ -77,17 +81,19 @@
           var startTime = window.mozAnimationStartTime;
           var self = this;
 
-          function nextStep(t) {
+          function nextStep(event) {
             try {
               var width = stack.boxObject.width;
               if (!width) {
                 // Maybe we've been removed from the document.
                 if (self._alive)
-                  mozRequestAnimationFrame(nextStep);
+                  mozRequestAnimationFrame();
+                else
+                  window.removeEventListener("MozBeforePaint", nextStep, false);
                 return;
               }
 
-              var elapsedTime = t - startTime;
+              var elapsedTime = event.timeStamp - startTime;
 
               // Width of chunk is 1/5 (determined by the ratio 2000:400) of the
               // total width of the progress bar. The left edge of the chunk
@@ -101,11 +107,13 @@
               spacer.width = width;
               spacer.left = width * position;
 
-              mozRequestAnimationFrame(nextStep);
+              mozRequestAnimationFrame();
             } catch (e) {
+              window.removeEventListener("MozBeforePaint", nextStep, false);
             }
           }
-          mozRequestAnimationFrame(nextStep);
+          window.addEventListener("MozBeforePaint", nextStep, false);
+          mozRequestAnimationFrame();
         ]]></body>
       </method>
 

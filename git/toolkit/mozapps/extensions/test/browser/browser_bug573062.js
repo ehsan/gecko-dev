@@ -35,7 +35,8 @@ function test() {
   open_manager("addons://list/extension", function(aWindow) {
     let addonList = aWindow.document.getElementById("addon-list");
     let ed_r_Item, un_r_Item, no_r_Item;
-    for (let addonItem of addonList.childNodes) {
+    for (let i = 0; i < addonList.childNodes.length; i++) {
+      let addonItem = addonList.childNodes[i];
       let name = addonItem.getAttribute("name");
       switch (name) {
         case "restart-enable-disable":

@@ -5,9 +5,7 @@
 // Bug 591465 - Context menu of add-ons miss context related state change entries
 
 
-let tempScope = {};
-Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm", tempScope);
-let LightweightThemeManager = tempScope.LightweightThemeManager;
+Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
 
 
 const PREF_GETADDONS_MAXRESULTS = "extensions.getAddons.maxResults";
@@ -24,11 +22,11 @@ var gLWTheme = {
                 name: "Bling",
                 description: "SO MUCH BLING!",
                 author: "Pixel Pusher",
-                homepageURL: "http://mochi.test:8888/data/index.html",
-                headerURL: "http://mochi.test:8888/data/header.png",
-                footerURL: "http://mochi.test:8888/data/footer.png",
-                previewURL: "http://mochi.test:8888/data/preview.png",
-                iconURL: "http://mochi.test:8888/data/icon.png"
+                homepageURL: "http://localhost:4444/data/index.html",
+                headerURL: "http://localhost:4444/data/header.png",
+                footerURL: "http://localhost:4444/data/footer.png",
+                previewURL: "http://localhost:4444/data/preview.png",
+                iconURL: "http://localhost:4444/data/icon.png"
               };
 
 
@@ -75,6 +73,7 @@ function test() {
 
 
 function end_test() {
+  Services.prefs.clearUserPref(PREF_GETADDONS_GETSEARCHRESULTS);
   close_manager(gManagerWindow, finish);
 }
 
@@ -146,7 +145,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on enabled extension item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -166,7 +164,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on newly disabled extension item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -186,7 +183,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on newly enabled extension item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -204,7 +200,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on disabled extension item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -218,14 +213,13 @@ add_test(function() {
     gContextMenu.addEventListener("popupshown", function() {
       gContextMenu.removeEventListener("popupshown", arguments.callee, false);
 
-      check_contextmenu(true, true, false, false, false);
+    check_contextmenu(true, true, false, false, false);
 
       gContextMenu.hidePopup();
       run_next_test();
     }, false);
 
     info("Opening context menu on enabled theme item");
-    el.parentNode.ensureElementIsVisible(el);
     EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
     EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
   });
@@ -245,7 +239,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on disabled theme item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -266,7 +259,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on enabled LW theme item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -287,7 +279,6 @@ add_test(function() {
   }, false);
 
   info("Opening context menu on disabled LW theme item");
-  el.parentNode.ensureElementIsVisible(el);
   EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
   EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 });
@@ -475,7 +466,6 @@ add_test(function() {
       }, false);
 
       info("Opening context menu on remote extension item");
-      el.parentNode.ensureElementIsVisible(el);
       EventUtils.synthesizeMouse(el, 4, 4, { }, gManagerWindow);
       EventUtils.synthesizeMouse(el, 4, 4, { type: "contextmenu", button: 2 }, gManagerWindow);
 

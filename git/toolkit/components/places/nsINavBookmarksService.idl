@@ -1,7 +1,43 @@
 /* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Places.
+ *
+ * The Initial Developer of the Original Code is
+ * Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Brian Ryner <bryner@brianryner.com> (original author)
+ *   Joe Hughes <joe@retrovirus.com>
+ *   Dietrich Ayala <dietrich@mozilla.com>
+ *   Asaf Romano <mano@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
 
@@ -11,68 +47,62 @@ interface nsITransaction;
 interface nsINavHistoryBatchCallback;
 
 /**
- * Observer for bookmarks changes.
+ * Observer for bookmark changes.
  */
-[scriptable, uuid(8ab925f8-af9b-4837-afa0-ffed507212ce)]
+[scriptable, uuid(76f892d9-31ea-4061-b38c-6b40fad57e9d)]
 interface nsINavBookmarkObserver : nsISupports
 {
   /**
-   * Notifies that a batch transaction has started.
-   * Other notifications will be sent during the batch, but the observer is
-   * guaranteed that onEndUpdateBatch() will be called at its completion.
-   * During a batch the observer should do its best to reduce the work done to
-   * handle notifications, since multiple changes are going to happen in a short
-   * timeframe.
+   * Notify this observer that a batch transaction has started.
+   * Other notifications will be sent during the batch change,
+   * but the observer is guaranteed that onEndUpdateBatch() will be called
+   * at the completion of changes.
    */
   void onBeginUpdateBatch();
 
   /**
-   * Notifies that a batch transaction has ended.
+   * Notify this observer that a batch transaction has ended.
    */
   void onEndUpdateBatch();
 
   /**
-   * Notifies that an item (any type) was added.  Called after the actual
-   * addition took place.
-   * When a new item is created, all the items following it in the same folder
-   * will have their index shifted down, but no additional notifications will
-   * be sent.
+   * Notify this observer that an item was added.  Called after the actual
+   * add took place. The items following the index will be shifted down, but
+   * no additional notifications will be sent.
    *
    * @param aItemId
-   *        The id of the item that was added.
+   *        The id of the bookmark that was added.
    * @param aParentId
    *        The id of the folder to which the item was added.
    * @param aIndex
    *        The item's index in the folder.
    * @param aItemType
-   *        The type of the added item (see TYPE_* constants below).
+   *        The type of the item that was added (one of the TYPE_* constants
+   *        defined above).
    * @param aURI
-   *        The URI of the added item if it was TYPE_BOOKMARK, null otherwise.
-   * @param aTitle
-   *        The title of the added item.
-   * @param aDateAdded
-   *        The stored date added value, in microseconds from the epoch.
-   * @param aGuid
-   *        The unique ID associated with the item.
-   * @param aParentGuid
-   *        The unique ID associated with the item's parent.
+   *        The URI of the item that was added when aItemType is TYPE_BOOKMARK,
+   *        null otherwise.
    */
-  void onItemAdded(in long long aItemId,
-                   in long long aParentId,
-                   in long aIndex,
-                   in unsigned short aItemType,
-                   in nsIURI aURI,
-                   in AUTF8String aTitle,
-                   in PRTime aDateAdded,
-                   in ACString aGuid,
-                   in ACString aParentGuid);
+  void onItemAdded(in long long aItemId, in long long aParentId,
+                   in long aIndex, in unsigned short aItemType,
+                   in nsIURI aURI);
 
   /**
-   * Notifies that an item was removed.  Called after the actual remove took
-   * place.
-   * When an item is removed, all the items following it in the same folder
-   * will have their index shifted down, but no additional notifications will
-   * be sent.
+   * Notify this observer that an item is about to be removed.  Called before
+   * the actual removal will take place.
+   *
+   * @param aItemId
+   *        The id of the bookmark to be removed.
+   * @param aItemType
+   *        The type of the item to be removed (one of the TYPE_* constants
+   *        defined above).
+   */
+  void onBeforeItemRemoved(in long long aItemId, in unsigned short aItemType);
+
+  /**
+   * Notify this observer that an item was removed.  Called after the actual
+   * remove took place. The items following the index will be shifted up, but
+   * no additional notifications will be sent.
    *
    * @param aItemId
    *        The id of the item that was removed.
@@ -81,139 +111,84 @@ interface nsINavBookmarkObserver : nsISupports
    * @param aIndex
    *        The bookmark's index in the folder.
    * @param aItemType
-   *        The type of the item to be removed (see TYPE_* constants below).
-   * @param aURI
-   *        The URI of the added item if it was TYPE_BOOKMARK, null otherwise.
-   * @param aGuid
-   *        The unique ID associated with the item.
-   * @param aParentGuid
-   *        The unique ID associated with the item's parent.
+   *        The type of the item that was removed (one of the TYPE_* constants
+   *        defined above).
    */
-  void onItemRemoved(in long long aItemId,
-                     in long long aParentId,
-                     in long aIndex,
-                     in unsigned short aItemType,
-                     in nsIURI aURI,
-                     in ACString aGuid,
-                     in ACString aParentGuid);
+  void onItemRemoved(in long long aItemId, in long long aParentId,
+                     in long aIndex, in unsigned short aItemType);
 
   /**
-   * Notifies that an item's information has changed.  This will be called
-   * whenever any attributes like "title" are changed.
-   *
+   * Notify this observer that an item's information has changed.  This
+   * will be called whenever any attributes like "title" are changed.
+   * 
    * @param aItemId
    *        The id of the item that was changed.
    * @param aProperty
-   *        The property which changed.  Can be null for the removal of all of
-   *        the annotations, in this case aIsAnnotationProperty is true.
+   *        The property which changed.
    * @param aIsAnnotationProperty
-   *        Whether or not aProperty is the name of an annotation.  If true
-   *        aNewValue is always an empty string.
+   *        Whether or not aProperty the name of an item annotation.
+   * @param aProperty
+   *        The property which has been changed (see list below).
    * @param aNewValue
    *        For certain properties, this is set to the new value of the
-   *        property (see the list below).
+   *        property (see list below).
    * @param aLastModified
-   *        The updated last-modified value.
+   *        If the item's lastModified field has changed, this parameter is
+   *        set to the new value, otherwise it's set to 0.
    * @param aItemType
-   *        The type of the item to be removed (see TYPE_* constants below).
-   * @param aParentId
-   *        The id of the folder containing the item.
-   * @param aGuid
-   *        The unique ID associated with the item.
-   * @param aParentGuid
-   *        The unique ID associated with the item's parent.
-   *
-   * @note List of values that may be associated with properties:
-   *       aProperty     | aNewValue
-   *       =====================================================================
-   *       cleartime      | Empty string (all visits to this item were removed).
-   *       title         | The new title.
-   *       favicon       | The "moz-anno" URL of the new favicon.
-   *       uri           | new URL.
-   *       tags          | Empty string (tags for this item changed)
-   *       dateAdded     | PRTime (as string) when the item was first added.
-   *       lastModified  | PRTime (as string) when the item was last modified.
+   *        The type of the item that has been changed(one of the TYPE_* constants
+   *        defined above).
+   *        
+   * property = "cleartime": (history was deleted, there is no last visit date):
+   *                         value = empty string.
+   * property = "title": value = new title.
+   * property = "favicon": value = new "moz-anno" URL of favicon image
+   * property = "uri": value = new uri spec.
+   * property = "tags: (tags set for the bookmarked uri have changed)
+   *             value = empty string.
+   * property = "dateAdded": value = PRTime when the item was first added
+   * property = "lastModified": value = PRTime when the item was last modified
+   * aIsAnnotationProperty = true: value = empty string.
    */
-  void onItemChanged(in long long aItemId,
-                     in ACString aProperty,
+  void onItemChanged(in long long aItemId, in ACString aProperty,
                      in boolean aIsAnnotationProperty,
-                     in AUTF8String aNewValue,
-                     in PRTime aLastModified,
-                     in unsigned short aItemType,
-                     in long long aParentId,
-                     in ACString aGuid,
-                     in ACString aParentGuid);
+                     in AUTF8String aNewValue, in PRTime aLastModified,
+                     in unsigned short aItemType);
 
   /**
-   * Notifies that the item was visited.  Can be invoked only for TYPE_BOOKMARK
-   * items.
+   * Notify that the item was visited. Normally in bookmarks we use the last
+   * visit date, and normally the time will be a new visit that will be more
+   * recent, but this is not guaranteed. You should check to see if it's
+   * actually more recent before using this new time.
    *
-   * @param aItemId
+   * @param aBookmarkId
    *        The id of the bookmark that was visited.
-   * @param aVisitId
-   *        The id of the visit.
-   * @param aTime
-   *        The time of the visit.
-   * @param aTransitionType
-   *        The transition for the visit.  See nsINavHistoryService::TRANSITION_*
-   *        constants for a list of possible values.
-   * @param aURI
-   *        The nsIURI for this bookmark.
-   * @param aParentId
-   *        The id of the folder containing the item.
-   * @param aGuid
-   *        The unique ID associated with the item.
-   * @param aParentGuid
-   *        The unique ID associated with the item's parent.
-   *
-   * @see onItemChanged with property = "cleartime" for when all visits to an
-   *      item are removed.
-   *
-   * @note The reported time is the time of the visit that was added, which may
-   *       be well in the past since the visit time can be specified.  This
-   *       means that the visit the observer is told about may not be the most
-   *       recent visit for that page.
+   * @see onItemChanged property = "cleartime" for when all visit dates are
+   * deleted for the URI.
    */
-  void onItemVisited(in long long aItemId,
-                     in long long aVisitId,
-                     in PRTime aTime,
-                     in unsigned long aTransitionType,
-                     in nsIURI aURI,
-                     in long long aParentId,
-                     in ACString aGuid,
-                     in ACString aParentGuid);
+  void onItemVisited(in long long aBookmarkId, in long long aVisitID,
+                     in PRTime time);
 
   /**
-   * Notifies that an item has been moved.
-   *
-   * @param aItemId
-   *        The id of the item that was moved.
-   * @param aOldParentId
-   *        The id of the old parent.
-   * @param aOldIndex
-   *        The old index inside the old parent.
-   * @param aNewParentId
-   *        The id of the new parent.
-   * @param aNewIndex
-   *        The index inside the new parent.
-   * @param aItemType
-   *        The type of the item to be removed (see TYPE_* constants below).
-   * @param aGuid
-   *        The unique ID associated with the item.
-   * @param aOldParentGuid
-   *        The unique ID associated with the old item's parent.
-   * @param aNewParentGuid
-   *        The unique ID associated with the new item's parent.
+   * Notify this observer that an item has been moved.
+   *  @param aItemId
+   *         The id of the item that was moved.
+   *  @param aOldParentId
+   *         The id of the old parent.
+   *  @param aOldIndex
+   *         The old index inside the old parent.
+   *  @param aNewParentId
+   *         The id of the new parent.
+   *  @param aNewIndex
+   *         The index inside the new parent.
+   * @param  aItemType
+   *         The type of the item that was moved (one of the TYPE_* constants
+   *         defined above).
    */
   void onItemMoved(in long long aItemId,
-                   in long long aOldParentId,
-                   in long aOldIndex,
-                   in long long aNewParentId,
-                   in long aNewIndex,
-                   in unsigned short aItemType,
-                   in ACString aGuid,
-                   in ACString aOldParentGuid,
-                   in ACString aNewParentGuid);
+                   in long long aOldParentId, in long aOldIndex,
+                   in long long aNewParentId, in long aNewIndex,
+                   in unsigned short aItemType);
 };
 
 /**
@@ -222,7 +197,7 @@ interface nsINavBookmarkObserver : nsISupports
  * folders.  A URI in history can be contained in one or more such folders.
  */
 
-[scriptable, uuid(b0f9a80a-d7f0-4421-8513-444125f0d828)]
+[scriptable, uuid(573f99bd-988c-4253-836f-4ce009d33ac6)]
 interface nsINavBookmarksService : nsISupports
 {
   /**
@@ -260,8 +235,6 @@ interface nsINavBookmarksService : nsISupports
   const unsigned short TYPE_BOOKMARK = 1;
   const unsigned short TYPE_FOLDER = 2;
   const unsigned short TYPE_SEPARATOR = 3;
-  // Dynamic containers are deprecated and unsupported.
-  // This const exists just to avoid reusing the value.
   const unsigned short TYPE_DYNAMIC_CONTAINER = 4;
 
   /**
@@ -275,19 +248,10 @@ interface nsINavBookmarksService : nsISupports
    *         The index to insert at, or DEFAULT_INDEX to append
    *  @param aTitle
    *         The title for the new bookmark
-   *  @param [optional] aGuid
-   *         The GUID to be set for the new item.  If not set, a new GUID is
-   *         generated.  Unless you've a very sound reason, such as an undo
-   *         manager implementation, do not pass this argument.
    *  @return The ID of the newly-created bookmark.
-   *
-   *  @note aTitle will be truncated to TITLE_LENGTH_MAX and
-   *        aURI will be truncated to URI_LENGTH_MAX.
-   *  @throws if aGuid is malformed.
    */
   long long insertBookmark(in long long aParentId, in nsIURI aURI,
-                           in long aIndex, in AUTF8String aTitle,
-                           [optional] in ACString aGuid);
+                           in long aIndex, in AUTF8String aTitle);
 
   /**
    * Removes a child item. Used to delete a bookmark or separator.
@@ -304,30 +268,42 @@ interface nsINavBookmarksService : nsISupports
    *         The name of the new folder
    *  @param aIndex
    *         The index to insert at, or DEFAULT_INDEX to append
-   *  @param [optional] aGuid
-   *         The GUID to be set for the new item.  If not set, a new GUID is
-   *         generated.  Unless you've a very sound reason, such as an undo
-   *         manager implementation, do not pass this argument.
    *  @return The ID of the newly-inserted folder.
-   *  @throws if aGuid is malformed.
    */
   long long createFolder(in long long aParentFolder, in AUTF8String name,
-                         in long index,
-                         [optional] in ACString aGuid);
+                         in long index);
+
+  /**
+   * Creates a dynamic container under the given parent folder.
+   *
+   *  @param aParentFolder
+   *         The id of the parent folder
+   *  @param aName
+   *         The name of the new folder
+   *  @param aContractId
+   *         The contract id of the service which is to manipulate this
+   *         container.
+   *  @param aIndex
+   *         The index to insert at, or DEFAULT_INDEX to append
+   *         
+   *  @return The ID of the newly-inserted folder.
+   */
+  long long createDynamicContainer(in long long aParentFolder, in AUTF8String aName,
+                                   in AString aContractId, in long aIndex);
 
   /**
    * Gets an undo-able transaction for removing a folder from the bookmarks
-   * tree.
+   * tree. 
    *  @param aItemId
    *         The id of the folder to remove.
-   *  @return An object implementing nsITransaction that can be used to undo
-   *          or redo the action.
+   *  @return An object implementing nsITransaction that can be used to undo 
+   *          or redo the action. 
    *
-   * This method exists because complex delete->undo operations rely on
-   * recreated folders to have the same ID they had before they were deleted,
-   * so that any other items deleted in different transactions can be
-   * re-inserted correctly. This provides a safe encapsulation of this
-   * functionality without exposing the ability to recreate folders with
+   * This method exists because complex delete->undo operations rely on 
+   * recreated folders to have the same ID they had before they were deleted, 
+   * so that any other items deleted in different transactions can be 
+   * re-inserted correctly. This provides a safe encapsulation of this 
+   * functionality without exposing the ability to recreate folders with 
    * specific IDs (potentially dangerous if abused by other code!) in the
    * public API.
    */
@@ -363,15 +339,9 @@ interface nsINavBookmarksService : nsISupports
    *         The id of the parent folder
    *  @param aIndex
    *         The separator's index under folder, or DEFAULT_INDEX to append
-   *  @param [optional] aGuid
-   *         The GUID to be set for the new item.  If not set, a new GUID is
-   *         generated.  Unless you've a very sound reason, such as an undo
-   *         manager implementation, do not pass this argument.
    *  @return The ID of the new separator.
-   *  @throws if aGuid is malformed.
    */
-  long long insertSeparator(in long long aParentId, in long aIndex,
-                            [optional] in ACString aGuid);
+  long long insertSeparator(in long long aParentId, in long aIndex);
 
   /**
    * Get the itemId given the containing folder and the index.
@@ -385,13 +355,41 @@ interface nsINavBookmarksService : nsISupports
   long long getIdForItemAt(in long long aParentId, in long aIndex);
 
   /**
+   * Get a globally unique identifier for an item, meant to be used in
+   * sync scenarios.  Even if their contents are exactly the same
+   * (including an item in a different profile with the same ItemId),
+   * the GUID would be different.
+   *  @param   aItemId
+   *           The ID of the item to get the GUID for
+   *  @return The GUID string.
+   */
+  [deprecated] AString getItemGUID(in long long aItemId);
+
+  /**
+   * Set a globally unique identifier.  This can be useful when a sync
+   * algorithm deems two independently created items (on different
+   * profiles) to be the same item.
+   *  @param   aItemId
+   *           The id of the item to set the GUID of
+   *  @param   aGUID
+   *           The GUID string
+   */
+  [deprecated] void setItemGUID(in long long aItemId, in AString aGUID);
+
+  /**
+   * Get the ID of the item with the given GUID.
+   * @param   aGUID
+   *          The GUID string of the item to search for
+   * @return The item ID, or -1 if not found.
+   */
+  [deprecated] long long getItemIdForGUID(in AString aGUID);
+
+  /**
    * Set the title for an item.
    *  @param aItemId
-   *         The id of the item whose title should be updated.
+   *         The id of the item whose title should be updated 
    *  @param aTitle
    *         The new title for the bookmark.
-   *
-   *  @note  aTitle will be truncated to TITLE_LENGTH_MAX.
    */
   void setItemTitle(in long long aItemId, in AUTF8String aTitle);
 
@@ -408,51 +406,27 @@ interface nsINavBookmarksService : nsISupports
 
   /**
    * Set the date added time for an item.
-   *
-   * @param aItemId
-   *        the id of the item whose date added time should be updated.
-   * @param aDateAdded
-   *        the new date added value in microseconds.  Note that it is rounded
-   *        down to milliseconds precision.
    */
   void setItemDateAdded(in long long aItemId, in PRTime aDateAdded);
-
   /**
    * Get the date added time for an item.
-   *
-   * @param aItemId
-   *        the id of the item whose date added time should be retrieved.
-   *
-   * @return the date added value in microseconds.
    */
   PRTime getItemDateAdded(in long long aItemId);
 
   /**
    * Set the last modified time for an item.
    *
-   * @param aItemId
-   *        the id of the item whose last modified time should be updated.
-   * @param aLastModified
-   *        the new last modified value in microseconds.  Note that it is
-   *        rounded down to milliseconds precision.
-   *
-   * @note This is the only method that will send an itemChanged notification
-   *       for the property.  lastModified will still be updated in
-   *       any other method that changes an item property, but we will send
-   *       the corresponding itemChanged notification instead.
+   *  @note This is the only method that will send an itemChanged notification
+   *        for the property.  lastModified will still be updated in
+   *        any other method that changes an item property, but we will send
+   *        the corresponding itemChanged notification instead.
    */
   void setItemLastModified(in long long aItemId, in PRTime aLastModified);
-
   /**
    * Get the last modified time for an item.
    *
-   * @param aItemId
-   *        the id of the item whose last modified time should be retrieved.
-   *
-   * @return the date added value in microseconds.
-   *
-   * @note When an item is added lastModified is set to the same value as
-   *       dateAdded.
+   *  @note When an item is added lastModified is set to the same value as
+   *        dateAdded.
    */
   PRTime getItemLastModified(in long long aItemId);
 
@@ -478,7 +452,7 @@ interface nsINavBookmarksService : nsISupports
    *
    *  @param aItemId    The id of the item to modify
    *  @param aNewIndex  The new index
-   *
+   * 
    *  @throws If aNewIndex is out of bounds.
    */
   void setItemIndex(in long long aItemId, in long aNewIndex);
@@ -488,6 +462,30 @@ interface nsINavBookmarksService : nsISupports
    * The type is one of the TYPE_* constants defined above.
    */
   unsigned short getItemType(in long long aItemId);
+
+  /**
+   * Checks whether a folder is marked as read-only.
+   * If this is set to true, UI will not allow the user to add, remove,
+   * or reorder children in this folder. The default for all folders is false.
+   * Note: This does not restrict API calls, only UI actions.
+   *
+   * @param aItemId
+   *        the item-id of the folder.
+   */
+  boolean getFolderReadonly(in long long aItemId);
+
+  /**
+   * Sets or unsets the readonly flag from a folder.
+   * If this is set to true, UI will not allow the user to add, remove,
+   * or reorder children in this folder. The default for all folders is false.
+   * Note: This does not restrict API calls, only UI actions.
+   *
+   * @param aFolder
+   *        the item-id of the folder.
+   * @param aReadOnly
+   *        the read-only state (boolean).
+   */
+  void setFolderReadonly(in long long aFolder, in boolean aReadOnly);
 
   /**
    * Returns true if the given URI is in any bookmark folder. If you want the
@@ -505,8 +503,8 @@ interface nsINavBookmarksService : nsISupports
    *
    * If there is no bookmarked page found, it will return NULL.
    *
-   * @note The function will only return bookmarks in the first 2 levels of
-   *       redirection (1 -> 2 -> aURI).
+   * @note The function will only return bookmarks in the first 3 levels of
+   *       redirection (1 -> 2 -> 3 -> aURI).
    */
   nsIURI getBookmarkedURIFor(in nsIURI aURI);
 
@@ -568,16 +566,10 @@ interface nsINavBookmarksService : nsISupports
   void removeObserver(in nsINavBookmarkObserver observer);
 
   /**
-   * Gets an array of registered nsINavBookmarkObserver objects.
-   */
-  void getObservers([optional] out unsigned long count,
-                    [retval, array, size_is(count)] out nsINavBookmarkObserver observers);
-
-  /**
    * Runs the passed callback inside of a database transaction.
    * Use this when a lot of things are about to change, for example
    * adding or deleting a large number of bookmark items. Calls can
-   * be nested. Observers are notified when batches begin and end, via
+   * be nested. Observers are notified when batches begin and end, via 
    * nsINavBookmarkObserver.onBeginUpdateBatch/onEndUpdateBatch.
    *
    * @param aCallback

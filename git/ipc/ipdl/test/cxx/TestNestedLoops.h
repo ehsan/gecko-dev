@@ -17,17 +17,16 @@ public:
     TestNestedLoopsParent();
     virtual ~TestNestedLoopsParent();
 
-    static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return true; }
-
     void Main();
 
 protected:    
-    virtual bool RecvNonce() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvNonce();
 
     void BreakNestedLoop();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -47,11 +46,14 @@ public:
     virtual ~TestNestedLoopsChild();
 
 protected:
-    virtual bool RecvStart() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStart();
 
-    virtual bool AnswerR() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerR();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

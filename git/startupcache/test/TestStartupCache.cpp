@@ -1,7 +1,40 @@
 /* -*-  Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2; -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Startup Cache.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation <http://www.mozilla.org/>.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Benedict Hsieh <bhsieh@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "TestHarness.h"
 
@@ -18,30 +51,23 @@
 #include "nsIObjectOutputStream.h"
 #include "nsIURI.h"
 #include "nsStringAPI.h"
-#include "nsIPrefBranch.h"
-#include "nsIPrefService.h"
-#include "nsIXPConnect.h"
-#include "prio.h"
-#include "mozilla/Maybe.h"
-
-using namespace JS;
 
 namespace mozilla {
 namespace scache {
 
 NS_IMPORT nsresult
-NewObjectInputStreamFromBuffer(char* buffer, uint32_t len, 
-                               nsIObjectInputStream** stream);
+NS_NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
+                                  nsIObjectInputStream** stream);
 
 // We can't retrieve the wrapped stream from the objectOutputStream later,
 // so we return it here.
 NS_IMPORT nsresult
-NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
-                                    nsIStorageStream** stream);
+NS_NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
+                                       nsIStorageStream** stream);
 
 NS_IMPORT nsresult
-NewBufferFromStorageStream(nsIStorageStream *storageStream, 
-                           char** buffer, uint32_t* len);
+NS_NewBufferFromStorageStream(nsIStorageStream *storageStream, 
+                              char** buffer, PRUint32* len);
 }
 }
 
@@ -59,14 +85,13 @@ PR_END_MACRO
 nsresult
 WaitForStartupTimer() {
   nsresult rv;
-  nsCOMPtr<nsIStartupCache> sc
+  nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1");
   PR_Sleep(10 * PR_TicksPerSecond());
   
-  bool complete;
+  PRBool complete;
   while (true) {
-    
-    NS_ProcessPendingEvents(nullptr);
+    NS_ProcessPendingEvents(nsnull);
     rv = sc->StartupWriteComplete(&complete);
     if (NS_FAILED(rv) || complete)
       break;
@@ -78,7 +103,7 @@ WaitForStartupTimer() {
 nsresult
 TestStartupWriteRead() {
   nsresult rv;
-  nsCOMPtr<nsIStartupCache> sc
+  nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
   if (!sc) {
     fail("didn't get a pointer...");
@@ -88,11 +113,11 @@ TestStartupWriteRead() {
   }
   sc->InvalidateCache();
   
-  const char* buf = "Market opportunities for BeardBook";
-  const char* id = "id";
-  char* outbufPtr = nullptr;
+  char* buf = "Market opportunities for BeardBook";
+  char* id = "id";
+  char* outbufPtr = NULL;
   nsAutoArrayPtr<char> outbuf;  
-  uint32_t len;
+  PRUint32 len;
   
   rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -117,11 +142,11 @@ TestStartupWriteRead() {
 nsresult
 TestWriteInvalidateRead() {
   nsresult rv;
-  const char* buf = "BeardBook competitive analysis";
-  const char* id = "id";
-  char* outbuf = nullptr;
-  uint32_t len;
-  nsCOMPtr<nsIStartupCache> sc
+  char* buf = "BeardBook competitive analysis";
+  char* id = "id";
+  char* outbuf = NULL;
+  PRUint32 len;
+  nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
   sc->InvalidateCache();
 
@@ -163,15 +188,15 @@ TestWriteObject() {
   sc->InvalidateCache();
   
   // Create an object stream. Usually this is done with
-  // NewObjectOutputWrappedStorageStream, but that uses
+  // NS_NewObjectOutputWrappedStorageStream, but that uses
   // StartupCache::GetSingleton in debug builds, and we
   // don't have access to that here. Obviously.
-  const char* id = "id";
+  char* id = "id";
   nsCOMPtr<nsIStorageStream> storageStream
     = do_CreateInstance("@mozilla.org/storagestream;1");
   NS_ENSURE_ARG_POINTER(storageStream);
   
-  rv = storageStream->Init(256, (uint32_t) -1);
+  rv = storageStream->Init(256, (PRUint32) -1, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
   
   nsCOMPtr<nsIObjectOutputStream> objectOutput
@@ -189,16 +214,16 @@ TestWriteObject() {
     return rv;
   }
   nsCOMPtr<nsISupports> objQI(do_QueryInterface(obj));
-  rv = objectOutput->WriteObject(objQI, true);
+  rv = objectOutput->WriteObject(objQI, PR_TRUE);
   if (NS_FAILED(rv)) {
     fail("failed to write object");
     return rv;
   }
 
-  char* bufPtr = nullptr;
+  char* bufPtr = NULL;
   nsAutoArrayPtr<char> buf;
-  uint32_t len;
-  NewBufferFromStorageStream(storageStream, &bufPtr, &len);
+  PRUint32 len;
+  NS_NewBufferFromStorageStream(storageStream, &bufPtr, &len);
   buf = bufPtr;
 
   // Since this is a post-startup write, it should be written and
@@ -209,9 +234,9 @@ TestWriteObject() {
     return rv;
   }
     
-  char* buf2Ptr = nullptr;
+  char* buf2Ptr = NULL;
   nsAutoArrayPtr<char> buf2;
-  uint32_t len2;
+  PRUint32 len2;
   nsCOMPtr<nsIObjectInputStream> objectInput;
   rv = sc->GetBuffer(id, &buf2Ptr, &len2);
   if (NS_FAILED(rv)) {
@@ -220,7 +245,7 @@ TestWriteObject() {
   }
   buf2 = buf2Ptr;
 
-  rv = NewObjectInputStreamFromBuffer(buf2, len2, getter_AddRefs(objectInput));
+  rv = NS_NewObjectInputStreamFromBuffer(buf2, len2, getter_AddRefs(objectInput));
   if (NS_FAILED(rv)) {
     fail("failed to created input stream");
     return rv;
@@ -228,13 +253,13 @@ TestWriteObject() {
   buf2.forget();
 
   nsCOMPtr<nsISupports> deserialized;
-  rv = objectInput->ReadObject(true, getter_AddRefs(deserialized));
+  rv = objectInput->ReadObject(PR_TRUE, getter_AddRefs(deserialized));
   if (NS_FAILED(rv)) {
     fail("failed to read object");
     return rv;
   }
   
-  bool match = false;
+  PRBool match = false;
   nsCOMPtr<nsIURI> uri(do_QueryInterface(deserialized));
   if (uri) {
     nsCString outSpec;
@@ -251,230 +276,58 @@ TestWriteObject() {
 }
 
 nsresult
-LockCacheFile(bool protect, nsIFile* profileDir) {
-  NS_ENSURE_ARG(profileDir);
-
-  nsCOMPtr<nsIFile> startupCache;
-  profileDir->Clone(getter_AddRefs(startupCache));
-  NS_ENSURE_STATE(startupCache);
-  startupCache->AppendNative(NS_LITERAL_CSTRING("startupCache"));
-
-  nsresult rv;
-#ifndef XP_WIN
-  static uint32_t oldPermissions;
-#else
-  static PRFileDesc* fd = nullptr;
-#endif
-
-  // To prevent deletion of the startupcache file, we change the containing
-  // directory's permissions on Linux/Mac, and hold the file open on Windows
-  if (protect) {
-#ifndef XP_WIN
-    rv = startupCache->GetPermissions(&oldPermissions);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = startupCache->SetPermissions(0555);
-    NS_ENSURE_SUCCESS(rv, rv);
-#else
-    // Filename logic from StartupCache.cpp
-    #ifdef IS_BIG_ENDIAN
-    #define SC_ENDIAN "big"
-    #else
-    #define SC_ENDIAN "little"
-    #endif
-
-    #if PR_BYTES_PER_WORD == 4
-    #define SC_WORDSIZE "4"
-    #else
-    #define SC_WORDSIZE "8"
-    #endif
-    char sStartupCacheName[] = "startupCache." SC_WORDSIZE "." SC_ENDIAN;
-    startupCache->AppendNative(NS_LITERAL_CSTRING(sStartupCacheName));
-
-    rv = startupCache->OpenNSPRFileDesc(PR_RDONLY, 0, &fd);
-    NS_ENSURE_SUCCESS(rv, rv);
-#endif
-  } else {
-#ifndef XP_WIN
-    rv = startupCache->SetPermissions(oldPermissions);
-    NS_ENSURE_SUCCESS(rv, rv);
-#else
-   PR_Close(fd);
-#endif
-  }
-
-  return NS_OK;
-}
-
-nsresult
-TestIgnoreDiskCache(nsIFile* profileDir) {
-  nsresult rv;
-  nsCOMPtr<nsIStartupCache> sc
-    = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
-  sc->InvalidateCache();
-  
-  const char* buf = "Get a Beardbook app for your smartphone";
-  const char* id = "id";
-  char* outbuf = nullptr;
-  uint32_t len;
-  
-  rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = sc->ResetStartupWriteTimer();
-  rv = WaitForStartupTimer();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Prevent StartupCache::InvalidateCache from deleting the disk file
-  rv = LockCacheFile(true, profileDir);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  sc->IgnoreDiskCache();
-
-  rv = sc->GetBuffer(id, &outbuf, &len);
-
-  nsresult r = LockCacheFile(false, profileDir);
-  NS_ENSURE_SUCCESS(r, r);
-
-  delete[] outbuf;
-
-  if (rv == NS_ERROR_NOT_AVAILABLE) {
-    passed("buffer not available after ignoring disk cache");
-  } else if (NS_SUCCEEDED(rv)) {
-    fail("GetBuffer succeeded unexpectedly after ignoring disk cache");
-    return NS_ERROR_UNEXPECTED;
-  } else {
-    fail("GetBuffer gave an unexpected failure, expected NOT_AVAILABLE");
-    return rv;
-  }
-
-  sc->InvalidateCache();
-  return NS_OK;
-}
-
-nsresult
 TestEarlyShutdown() {
   nsresult rv;
-  nsCOMPtr<nsIStartupCache> sc
+  nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
   sc->InvalidateCache();
 
-  const char* buf = "Find your soul beardmate on BeardBook";
-  const char* id = "id";
-  uint32_t len;
-  char* outbuf = nullptr;
+  char* buf = "Find your soul beardmate on BeardBook";
+  char* id = "id";
+  PRUint32 len;
+  char* outbuf = NULL;
   
   sc->ResetStartupWriteTimer();
-  rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
+  rv = sc->PutBuffer(buf, id, strlen(buf) + 1);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIObserver> obs;
   sc->GetObserver(getter_AddRefs(obs));
-  obs->Observe(nullptr, "xpcom-shutdown", nullptr);
+  obs->Observe(nsnull, "xpcom-shutdown", nsnull);
   rv = WaitForStartupTimer();
   NS_ENSURE_SUCCESS(rv, rv);
   
   rv = sc->GetBuffer(id, &outbuf, &len);
   delete[] outbuf;
 
-  if (NS_SUCCEEDED(rv)) {
-    passed("GetBuffer succeeded after early shutdown");
-  } else {
-    fail("GetBuffer failed after early shutdown");
-    return rv;
-  }
-
-  const char* other_id = "other_id";
-  rv = sc->PutBuffer(other_id, buf, strlen(buf) + 1);
-
   if (rv == NS_ERROR_NOT_AVAILABLE) {
-    passed("PutBuffer not available after early shutdown");
+    passed("buffer not available after early shutdown");
   } else if (NS_SUCCEEDED(rv)) {
-    fail("PutBuffer succeeded unexpectedly after early shutdown");
+    fail("GetBuffer succeeded unexpectedly after early shutdown");
     return NS_ERROR_UNEXPECTED;
   } else {
-    fail("PutBuffer gave an unexpected failure, expected NOT_AVAILABLE");
+    fail("GetBuffer gave an unexpected failure, expected NOT_AVAILABLE");
     return rv;
   }
  
   return NS_OK;
 }
 
+
 int main(int argc, char** argv)
 {
-  ScopedXPCOM xpcom("Startup Cache");
-  if (xpcom.failed())
-    return 1;
-
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  prefs->SetIntPref("hangmonitor.timeout", 0);
-  
   int rv = 0;
-  nsresult scrv;
-
-  // Register TestStartupCacheTelemetry
-  nsCOMPtr<nsIFile> manifest;
-  scrv = NS_GetSpecialDirectory(NS_GRE_DIR,
-                                getter_AddRefs(manifest));
-  if (NS_FAILED(scrv)) {
-    fail("NS_XPCOM_CURRENT_PROCESS_DIR");
-    return 1;
-  }
-
-#ifdef XP_MACOSX
-  nsCOMPtr<nsIFile> tempManifest;
-  manifest->Clone(getter_AddRefs(tempManifest));
-  manifest->AppendNative(
-    NS_LITERAL_CSTRING("TestStartupCacheTelemetry.manifest"));
-  bool exists;
-  manifest->Exists(&exists);
-  if (!exists) {
-    // Workaround for bug 1080338 in mozharness.
-    manifest = tempManifest.forget();
-    manifest->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
-    manifest->AppendNative(
-      NS_LITERAL_CSTRING("TestStartupCacheTelemetry.manifest"));
-  }
-#else
-  manifest->AppendNative(
-    NS_LITERAL_CSTRING("TestStartupCacheTelemetry.manifest"));
-#endif
-
-  XRE_AddManifestLocation(NS_COMPONENT_LOCATION, manifest);
-
-  nsCOMPtr<nsIObserver> telemetryThing =
-    do_GetService("@mozilla.org/testing/startup-cache-telemetry.js");
-  if (!telemetryThing) {
-    fail("telemetryThing");
-    return 1;
-  }
-  scrv = telemetryThing->Observe(nullptr, "save-initial", nullptr);
-  if (NS_FAILED(scrv)) {
-    fail("save-initial");
-    rv = 1;
-  }
-
-  nsCOMPtr<nsIStartupCache> sc 
-    = do_GetService("@mozilla.org/startupcache/cache;1", &scrv);
-  if (NS_FAILED(scrv))
-    rv = 1;
-  else
-    sc->RecordAgesAlways();
+  nsresult rv2;
+  ScopedXPCOM xpcom("Startup Cache");
+  
   if (NS_FAILED(TestStartupWriteRead()))
     rv = 1;
   if (NS_FAILED(TestWriteInvalidateRead()))
     rv = 1;
   if (NS_FAILED(TestWriteObject()))
     rv = 1;
-  nsCOMPtr<nsIFile> profileDir = xpcom.GetProfileDirectory();
-  if (NS_FAILED(TestIgnoreDiskCache(profileDir)))
-    rv = 1;
   if (NS_FAILED(TestEarlyShutdown()))
     rv = 1;
-
-  scrv = telemetryThing->Observe(nullptr, "save-initial", nullptr);
-  if (NS_FAILED(scrv)) {
-    fail("check-final");
-    rv = 1;
-  }
-
+  
   return rv;
 }

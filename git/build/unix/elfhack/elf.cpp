@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is elfhack.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mike Hommey <mh@glandium.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #undef NDEBUG
 #include <cstring>
@@ -8,7 +41,7 @@
 #include "elfxx.h"
 
 template <class endian, typename R, typename T>
-void Elf_Ehdr_Traits::swap(T &t, R &r)
+inline void Elf_Ehdr_Traits::swap(T &t, R &r)
 {
     memcpy(r.e_ident, t.e_ident, sizeof(r.e_ident));
     r.e_type = endian::swap(t.e_type);
@@ -27,7 +60,7 @@ void Elf_Ehdr_Traits::swap(T &t, R &r)
 }
 
 template <class endian, typename R, typename T>
-void Elf_Phdr_Traits::swap(T &t, R &r)
+inline void Elf_Phdr_Traits::swap(T &t, R &r)
 {
     r.p_type = endian::swap(t.p_type);
     r.p_offset = endian::swap(t.p_offset);
@@ -40,7 +73,7 @@ void Elf_Phdr_Traits::swap(T &t, R &r)
 }
 
 template <class endian, typename R, typename T>
-void Elf_Shdr_Traits::swap(T &t, R &r)
+inline void Elf_Shdr_Traits::swap(T &t, R &r)
 {
     r.sh_name = endian::swap(t.sh_name);
     r.sh_type = endian::swap(t.sh_type);
@@ -55,14 +88,14 @@ void Elf_Shdr_Traits::swap(T &t, R &r)
 }
 
 template <class endian, typename R, typename T>
-void Elf_Dyn_Traits::swap(T &t, R &r)
+inline void Elf_Dyn_Traits::swap(T &t, R &r)
 {
     r.d_tag = endian::swap(t.d_tag);
     r.d_un.d_val = endian::swap(t.d_un.d_val);
 }
 
 template <class endian, typename R, typename T>
-void Elf_Sym_Traits::swap(T &t, R &r)
+inline void Elf_Sym_Traits::swap(T &t, R &r)
 {
     r.st_name = endian::swap(t.st_name);
     r.st_value = endian::swap(t.st_value);
@@ -85,14 +118,14 @@ struct _Rel_info {
 };
 
 template <class endian, typename R, typename T>
-void Elf_Rel_Traits::swap(T &t, R &r)
+inline void Elf_Rel_Traits::swap(T &t, R &r)
 {
     r.r_offset = endian::swap(t.r_offset);
     _Rel_info<endian>::swap(t.r_info, r.r_info);
 }
 
 template <class endian, typename R, typename T>
-void Elf_Rela_Traits::swap(T &t, R &r)
+inline void Elf_Rela_Traits::swap(T &t, R &r)
 {
     r.r_offset = endian::swap(t.r_offset);
     _Rel_info<endian>::swap(t.r_info, r.r_info);
@@ -106,7 +139,7 @@ Elf_Shdr null_section(null32_section);
 
 Elf_Ehdr::Elf_Ehdr(std::ifstream &file, char ei_class, char ei_data)
 : serializable<Elf_Ehdr_Traits>(file, ei_class, ei_data),
-  ElfSection(null_section, nullptr, nullptr)
+  ElfSection(null_section, NULL, NULL)
 {
     shdr.sh_size = Elf_Ehdr::size(ei_class);
 }
@@ -176,9 +209,9 @@ Elf::Elf(std::ifstream &file)
     // Fill sections list
     sections = new ElfSection *[ehdr->e_shnum];
     for (int i = 0; i < ehdr->e_shnum; i++)
-        sections[i] = nullptr;
+        sections[i] = NULL;
     for (int i = 1; i < ehdr->e_shnum; i++) {
-        if (sections[i] != nullptr)
+        if (sections[i] != NULL)
             continue;
         getSection(i);
     }
@@ -193,31 +226,31 @@ Elf::Elf(std::ifstream &file)
     s.sh_link = 0;
     s.sh_info = 0;
     s.sh_addralign = (e_ident[EI_CLASS] == ELFCLASS32) ? 4 : 8;
-    shdr_section = new ElfSection(s, nullptr, nullptr);
+    shdr_section = new ElfSection(s, NULL, NULL);
 
     // Fake section for program headers
     s.sh_offset = ehdr->e_phoff;
     s.sh_addr = ehdr->e_phoff;
     s.sh_entsize = Elf_Phdr::size(e_ident[EI_CLASS]);
     s.sh_size = s.sh_entsize * ehdr->e_phnum;
-    phdr_section = new ElfSection(s, nullptr, nullptr);
+    phdr_section = new ElfSection(s, NULL, NULL);
 
     phdr_section->insertAfter(ehdr, false);
 
     sections[1]->insertAfter(phdr_section, false);
     for (int i = 2; i < ehdr->e_shnum; i++) {
         // TODO: this should be done in a better way
-        if ((shdr_section->getPrevious() == nullptr) && (shdr[i]->sh_offset > ehdr->e_shoff)) {
+        if ((shdr_section->getPrevious() == NULL) && (shdr[i]->sh_offset > ehdr->e_shoff)) {
             shdr_section->insertAfter(sections[i - 1], false);
             sections[i]->insertAfter(shdr_section, false);
         } else
             sections[i]->insertAfter(sections[i - 1], false);
     }
-    if (shdr_section->getPrevious() == nullptr)
+    if (shdr_section->getPrevious() == NULL)
         shdr_section->insertAfter(sections[ehdr->e_shnum - 1], false);
 
-    tmp_file = nullptr;
-    tmp_shdr = nullptr;
+    tmp_file = NULL;
+    tmp_shdr = NULL;
     for (int i = 0; i < ehdr->e_shnum; i++)
         delete shdr[i];
     delete[] shdr;
@@ -232,15 +265,6 @@ Elf::Elf(std::ifstream &file)
     file.seekg(ehdr->e_phoff);
     for (int i = 0; i < ehdr->e_phnum; i++) {
         Elf_Phdr phdr(file, e_ident[EI_CLASS], e_ident[EI_DATA]);
-        if (phdr.p_type == PT_LOAD) {
-            // Default alignment for PT_LOAD on x86-64 prevents elfhack from
-            // doing anything useful. However, the system doesn't actually
-            // require such a big alignment, so in order for elfhack to work
-            // efficiently, reduce alignment when it's originally the default
-            // one.
-            if ((ehdr->e_machine == EM_X86_64) && (phdr.p_align == 0x200000))
-              phdr.p_align = 0x1000;
-        }
         ElfSegment *segment = new ElfSegment(&phdr);
         // Some segments aren't entirely filled (if at all) by sections
         // For those, we use fake sections
@@ -259,15 +283,7 @@ Elf::Elf(std::ifstream &file)
         // Make sure that our view of segments corresponds to the original
         // ELF file.
         assert(segment->getFileSize() == phdr.p_filesz);
-        // gold makes TLS segments end on an aligned virtual address, even
-        // when the underlying section ends before that, while bfd ld
-        // doesn't. It's fine if we don't keep that alignment.
-        unsigned int memsize = segment->getMemSize();
-        if (phdr.p_type == PT_TLS && memsize != phdr.p_memsz) {
-            unsigned int align = segment->getAlign();
-            memsize = (memsize + align - 1) & ~(align - 1);
-        }
-        assert(memsize == phdr.p_memsz);
+        assert(segment->getMemSize() == phdr.p_memsz);
         segments.push_back(segment);
     }
 
@@ -280,7 +296,7 @@ Elf::~Elf()
         delete *seg;
     delete[] sections;
     ElfSection *section = ehdr;
-    while (section != nullptr) {
+    while (section != NULL) {
         ElfSection *next = section->getNext();
         delete section;
         section = next;
@@ -296,11 +312,11 @@ ElfSection *Elf::getSection(int index)
         index = ehdr->e_shstrndx; // TODO: should be fixed to use the actual current number
     // Special case: the section at index 0 is void
     if (index == 0)
-        return nullptr;
+        return NULL;
     // Infinite recursion guard
     if (sections[index] == (ElfSection *)this)
-        return nullptr;
-    if (sections[index] == nullptr) {
+        return NULL;
+    if (sections[index] == NULL) {
         sections[index] = (ElfSection *)this;
         switch (tmp_shdr[index]->sh_type) {
         case SHT_DYNAMIC:
@@ -330,54 +346,36 @@ ElfSection *Elf::getSectionAt(unsigned int offset)
 {
     for (int i = 1; i < ehdr->e_shnum; i++) {
         ElfSection *section = getSection(i);
-        if ((section != nullptr) && (section->getFlags() & SHF_ALLOC) && !(section->getFlags() & SHF_TLS) &&
+        if ((section != NULL) && (section->getFlags() & SHF_ALLOC) && !(section->getFlags() & SHF_TLS) &&
             (offset >= section->getAddr()) && (offset < section->getAddr() + section->getSize()))
             return section;
     }
-    return nullptr;
+    return NULL;
 }
 
-ElfSegment *Elf::getSegmentByType(unsigned int type, ElfSegment *last)
+ElfSegment *Elf::getSegmentByType(unsigned int type)
 {
-    std::vector<ElfSegment *>::iterator seg;
-    if (last) {
-        seg = std::find(segments.begin(), segments.end(), last);
-        ++seg;
-    } else
-        seg = segments.begin();
-    for (; seg != segments.end(); seg++)
+    for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++)
         if ((*seg)->getType() == type)
             return *seg;
-    return nullptr;
-}
-
-void Elf::removeSegment(ElfSegment *segment)
-{
-    if (!segment)
-        return;
-    std::vector<ElfSegment *>::iterator seg;
-    seg = std::find(segments.begin(), segments.end(), segment);
-    if (seg == segments.end())
-        return;
-    segment->clear();
-    segments.erase(seg);
+    return NULL;
 }
 
 ElfDynamic_Section *Elf::getDynSection()
 {
     for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++)
-        if (((*seg)->getType() == PT_DYNAMIC) && ((*seg)->getFirstSection() != nullptr) &&
+        if (((*seg)->getType() == PT_DYNAMIC) && ((*seg)->getFirstSection() != NULL) &&
             (*seg)->getFirstSection()->getType() == SHT_DYNAMIC)
             return (ElfDynamic_Section *)(*seg)->getFirstSection();
 
-    return nullptr;
+    return NULL;
 }
 
-void Elf::normalize()
+void Elf::write(std::ofstream &file)
 {
     // fixup section headers sh_name; TODO: that should be done by sections
     // themselves
-    for (ElfSection *section = ehdr; section != nullptr; section = section->getNext()) {
+    for (ElfSection *section = ehdr; section != NULL; section = section->getNext()) {
         if (section->getIndex() == 0)
             continue;
         else
@@ -385,15 +383,20 @@ void Elf::normalize()
         section->getShdr().sh_name = eh_shstrndx->getStrIndex(section->getName());
     }
     ehdr->markDirty();
-    // Check segments consistency
+    // Adjust PT_LOAD segments
     int i = 0;
     for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++, i++) {
-        std::list<ElfSection *>::iterator it = (*seg)->begin();
-        for (ElfSection *last = *(it++); it != (*seg)->end(); last = *(it++)) {
-            if (((*it)->getType() != SHT_NOBITS) &&
-                ((*it)->getAddr() - last->getAddr()) != ((*it)->getOffset() - last->getOffset())) {
-                    throw std::runtime_error("Segments inconsistency");
-            }
+        if ((*seg)->getType() == PT_LOAD) {
+            std::list<ElfSection *>::iterator it = (*seg)->begin();
+            for (ElfSection *last = *(it++); it != (*seg)->end(); last = *(it++)) {
+               if (((*it)->getType() != SHT_NOBITS) &&
+                   ((*it)->getAddr() - last->getAddr()) != ((*it)->getOffset() - last->getOffset())) {
+                   std::vector<ElfSegment *>::iterator next = seg;
+                   segments.insert(++next, (*seg)->splitBefore(*it));
+                   seg = segments.begin() + i;
+                   break;
+               }
+           }
         }
     }
     // fixup ehdr before writing
@@ -408,13 +411,8 @@ void Elf::normalize()
     ehdr->e_shoff = shdr_section->getOffset();
     ehdr->e_entry = eh_entry.getValue();
     ehdr->e_shstrndx = eh_shstrndx->getIndex();
-}
-
-void Elf::write(std::ofstream &file)
-{
-    normalize();
     for (ElfSection *section = ehdr;
-         section != nullptr; section = section->getNext()) {
+         section != NULL; section = section->getNext()) {
         file.seekp(section->getOffset());
         if (section == phdr_section) {
             for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++) {
@@ -431,7 +429,7 @@ void Elf::write(std::ofstream &file)
             }
         } else if (section == shdr_section) {
             null_section.serialize(file, ehdr->e_ident[EI_CLASS], ehdr->e_ident[EI_DATA]);
-            for (ElfSection *sec = ehdr; sec!= nullptr; sec = sec->getNext()) {
+            for (ElfSection *sec = ehdr; sec!= NULL; sec = sec->getNext()) {
                 if (sec->getType() != SHT_NULL)
                     sec->getShdr().serialize(file, ehdr->e_ident[EI_CLASS], ehdr->e_ident[EI_DATA]);
             }
@@ -442,11 +440,11 @@ void Elf::write(std::ofstream &file)
 
 ElfSection::ElfSection(Elf_Shdr &s, std::ifstream *file, Elf *parent)
 : shdr(s),
-  link(shdr.sh_link == SHN_UNDEF ? nullptr : parent->getSection(shdr.sh_link)),
-  next(nullptr), previous(nullptr), index(-1)
+  link(shdr.sh_link == SHN_UNDEF ? NULL : parent->getSection(shdr.sh_link)),
+  next(NULL), previous(NULL), index(-1)
 {
-    if ((file == nullptr) || (shdr.sh_type == SHT_NULL) || (shdr.sh_type == SHT_NOBITS))
-        data = nullptr;
+    if ((file == NULL) || (shdr.sh_type == SHT_NULL) || (shdr.sh_type == SHT_NOBITS))
+        data = NULL;
     else {
         data = new char[shdr.sh_size];
         int pos = file->tellg();
@@ -455,12 +453,12 @@ ElfSection::ElfSection(Elf_Shdr &s, std::ifstream *file, Elf *parent)
         file->seekg(pos);
     }
     if (shdr.sh_name == 0)
-        name = nullptr;
+        name = NULL;
     else {
         ElfStrtab_Section *strtab = (ElfStrtab_Section *) parent->getSection(-1);
-        // Special case (see elfgeneric.cpp): if strtab is nullptr, the
+        // Special case (see elfgeneric.cpp): if strtab is NULL, the
         // section being created is the strtab.
-        if (strtab == nullptr)
+        if (strtab == NULL)
             name = &data[shdr.sh_name];
         else
             name = strtab->getStr(shdr.sh_name);
@@ -468,7 +466,7 @@ ElfSection::ElfSection(Elf_Shdr &s, std::ifstream *file, Elf *parent)
     // Only SHT_REL/SHT_RELA sections use sh_info to store a section
     // number.
     if ((shdr.sh_type == SHT_REL) || (shdr.sh_type == SHT_RELA))
-        info.section = shdr.sh_info ? parent->getSection(shdr.sh_info) : nullptr;
+        info.section = shdr.sh_info ? parent->getSection(shdr.sh_info) : NULL;
     else
         info.index = shdr.sh_info;
 }
@@ -480,7 +478,7 @@ unsigned int ElfSection::getAddr()
 
     // It should be safe to adjust sh_addr for all allocated sections that
     // are neither SHT_NOBITS nor SHT_PROGBITS
-    if ((previous != nullptr) && isRelocatable()) {
+    if ((previous != NULL) && isRelocatable()) {
         unsigned int addr = previous->getAddr();
         if (previous->getType() != SHT_NOBITS)
             addr += previous->getSize();
@@ -498,33 +496,19 @@ unsigned int ElfSection::getOffset()
     if (shdr.sh_offset != (Elf32_Word)-1)
         return shdr.sh_offset;
 
-    if (previous == nullptr)
+    if (previous == NULL)
         return (shdr.sh_offset = 0);
 
     unsigned int offset = previous->getOffset();
-
-    ElfSegment *ptload = getSegmentByType(PT_LOAD);
-    ElfSegment *prev_ptload = previous->getSegmentByType(PT_LOAD);
-
-    if (ptload && (ptload == prev_ptload)) {
-        offset += getAddr() - previous->getAddr();
-        return (shdr.sh_offset = offset);
-    }
-
     if (previous->getType() != SHT_NOBITS)
         offset += previous->getSize();
 
-    Elf32_Word align = 0x1000;
-    for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++)
-        align = std::max(align, (*seg)->getAlign());
-
-    Elf32_Word mask = align - 1;
     // SHF_TLS is used for .tbss which is some kind of special case.
     if (((getType() != SHT_NOBITS) || (getFlags() & SHF_TLS)) && (getFlags() & SHF_ALLOC)) {
-        if ((getAddr() & mask) < (offset & mask))
-            offset = (offset | mask) + (getAddr() & mask) + 1;
+        if ((getAddr() & 4095) < (offset & 4095))
+            offset = (offset | 4095) + (getAddr() & 4095) + 1;
         else
-            offset = (offset & ~mask) + (getAddr() & mask);
+            offset = (offset & ~4095) + (getAddr() & 4095);
     }
     if ((getType() != SHT_NOBITS) && (offset & (getAddrAlign() - 1)))
         offset = (offset | (getAddrAlign() - 1)) + 1;
@@ -547,8 +531,8 @@ int ElfSection::getIndex()
     if (getType() == SHT_NULL)
         return (index = 0);
     ElfSection *reference;
-    for (reference = previous; (reference != nullptr) && (reference->getType() == SHT_NULL); reference = reference->getPrevious());
-    if (reference == nullptr)
+    for (reference = previous; (reference != NULL) && (reference->getType() == SHT_NULL); reference = reference->getPrevious());
+    if (reference == NULL)
         return (index = 1);
     return (index = reference->getIndex() + 1);
 }
@@ -582,18 +566,11 @@ void ElfSegment::addSection(ElfSection *section)
         if ((*i)->getAddr() > section->getAddr())
             break;
     sections.insert(i, section);
-    section->addToSegment(this);
-}
-
-void ElfSegment::removeSection(ElfSection *section)
-{
-    sections.remove(section);
-    section->removeFromSegment(this);
 }
 
 unsigned int ElfSegment::getFileSize()
 {
-    if (type == PT_GNU_RELRO || isElfHackFillerSegment())
+    if (type == PT_GNU_RELRO)
         return filesz;
 
     if (sections.empty())
@@ -612,7 +589,7 @@ unsigned int ElfSegment::getFileSize()
 
 unsigned int ElfSegment::getMemSize()
 {
-    if (type == PT_GNU_RELRO || isElfHackFillerSegment())
+    if (type == PT_GNU_RELRO)
         return memsz;
 
     if (sections.empty())
@@ -629,10 +606,6 @@ unsigned int ElfSegment::getOffset()
         (sections.front()->getAddr() != vaddr))
         throw std::runtime_error("PT_GNU_RELRO segment doesn't start on a section start");
 
-    // Neither bionic nor glibc linkers seem to like when the offset of that segment is 0
-    if (isElfHackFillerSegment())
-        return vaddr;
-
     return sections.empty() ? 0 : sections.front()->getOffset();
 }
 
@@ -642,17 +615,32 @@ unsigned int ElfSegment::getAddr()
         (sections.front()->getAddr() != vaddr))
         throw std::runtime_error("PT_GNU_RELRO segment doesn't start on a section start");
 
-    if (isElfHackFillerSegment())
-        return vaddr;
-
     return sections.empty() ? 0 : sections.front()->getAddr();
 }
 
-void ElfSegment::clear()
+ElfSegment *ElfSegment::splitBefore(ElfSection *section)
 {
-    for (std::list<ElfSection *>::iterator i = sections.begin(); i != sections.end(); ++i)
-        (*i)->removeFromSegment(this);
-    sections.clear();
+    std::list<ElfSection *>::iterator i, rm;
+    for (i = sections.begin(); (*i != section) && (i != sections.end()); ++i);
+    if (i == sections.end())
+        return NULL;
+
+    // Probably very wrong.
+    Elf_Phdr phdr;
+    phdr.p_type = type;
+    phdr.p_vaddr = 0;
+    phdr.p_paddr = phdr.p_vaddr + v_p_diff;
+    phdr.p_flags = flags;
+    phdr.p_align = 0x1000;
+    phdr.p_filesz = (unsigned int)-1;
+    phdr.p_memsz = (unsigned int)-1;
+    ElfSegment *segment = new ElfSegment(&phdr);
+
+    for (rm = i; i != sections.end(); ++i)
+        segment->addSection(*i);
+    sections.erase(rm, sections.end());
+
+    return segment;
 }
 
 ElfValue *ElfDynamic_Section::getValueForType(unsigned int tag)
@@ -661,34 +649,43 @@ ElfValue *ElfDynamic_Section::getValueForType(unsigned int tag)
         if (dyns[i].tag == tag)
             return dyns[i].value;
 
-    return nullptr;
+    return NULL;
 }
 
 ElfSection *ElfDynamic_Section::getSectionForType(unsigned int tag)
 {
     ElfValue *value = getValueForType(tag);
-    return value ? value->getSection() : nullptr;
+    return value ? value->getSection() : NULL;
 }
 
-bool ElfDynamic_Section::setValueForType(unsigned int tag, ElfValue *val)
+void ElfDynamic_Section::setValueForType(unsigned int tag, ElfValue *val)
 {
     unsigned int i;
-    unsigned int shnum = shdr.sh_size / shdr.sh_entsize;
-    for (i = 0; (i < shnum) && (dyns[i].tag != DT_NULL); i++)
+    for (i = 0; (i < shdr.sh_size / shdr.sh_entsize) && (dyns[i].tag != DT_NULL); i++)
         if (dyns[i].tag == tag) {
             delete dyns[i].value;
             dyns[i].value = val;
-            return true;
+            return;
         }
+    // This should never happen, as the last entry is always tagged DT_NULL
+    assert(i < shdr.sh_size / shdr.sh_entsize);
     // If we get here, this means we didn't match for the given tag
-    // Most of the time, there are a few DT_NULL entries, that we can
-    // use to add our value, but if we are on the last entry, we can't.
-    if (i >= shnum - 1)
-        return false;
-
     dyns[i].tag = tag;
-    dyns[i].value = val;
-    return true;
+    dyns[i++].value = val;
+
+    // If we were on the last entry, we need to grow the section.
+    // Most of the time, though, there are a few DT_NULL entries.
+    if (i < shdr.sh_size / shdr.sh_entsize)
+        return;
+
+    Elf_DynValue value;
+    value.tag = DT_NULL;
+    value.value = NULL;
+    dyns.push_back(value);
+    // Resize the section accordingly
+    shdr.sh_size += shdr.sh_entsize;
+    if (getNext() != NULL)
+        getNext()->markDirty();
 }
 
 ElfDynamic_Section::ElfDynamic_Section(Elf_Shdr &s, std::ifstream *file, Elf *parent)
@@ -739,7 +736,7 @@ ElfDynamic_Section::ElfDynamic_Section(Elf_Shdr &s, std::ifstream *file, Elf *pa
             dyns[i].value = new ElfLocation(dyn.d_un.d_ptr, parent);
             break;
         default:
-            dyns[i].value = nullptr;
+            dyns[i].value = NULL;
         }
     }
     // Another loop to get the section sizes
@@ -788,7 +785,7 @@ void ElfDynamic_Section::serialize(std::ofstream &file, char ei_class, char ei_d
     for (unsigned int i = 0; i < shdr.sh_size / shdr.sh_entsize; i++) {
         Elf_Dyn dyn;
         dyn.d_tag = dyns[i].tag;
-        dyn.d_un.d_val = (dyns[i].value != nullptr) ? dyns[i].value->getValue() : 0;
+        dyn.d_un.d_val = (dyns[i].value != NULL) ? dyns[i].value->getValue() : 0;
         dyn.serialize(file, ei_class, ei_data);
     }
 }
@@ -805,7 +802,7 @@ ElfSymtab_Section::ElfSymtab_Section(Elf_Shdr &s, std::ifstream *file, Elf *pare
         syms[i].name = strtab->getStr(sym.st_name);
         syms[i].info = sym.st_info;
         syms[i].other = sym.st_other;
-        ElfSection *section = (sym.st_shndx == SHN_ABS) ? nullptr : parent->getSection(sym.st_shndx);
+        ElfSection *section = (sym.st_shndx == SHN_ABS) ? NULL : parent->getSection(sym.st_shndx);
         new (&syms[i].value) ElfLocation(section, sym.st_value, ElfLocation::ABSOLUTE);
         syms[i].size = sym.st_size;
         syms[i].defined = (sym.st_shndx != SHN_UNDEF);
@@ -833,19 +830,6 @@ ElfSymtab_Section::serialize(std::ofstream &file, char ei_class, char ei_data)
     }
 }
 
-Elf_SymValue *
-ElfSymtab_Section::lookup(const char *name, unsigned int type_filter)
-{
-    for (std::vector<Elf_SymValue>::iterator sym = syms.begin();
-         sym != syms.end(); sym++) {
-        if ((type_filter & (1 << ELF32_ST_TYPE(sym->info))) &&
-            (strcmp(sym->name, name) == 0)) {
-            return &*sym;
-        }
-    }
-    return nullptr;
-}
-
 const char *
 ElfStrtab_Section::getStr(unsigned int index)
 {
@@ -856,14 +840,14 @@ ElfStrtab_Section::getStr(unsigned int index)
         index -= t->used;
     }
     assert(1 == 0);
-    return nullptr;
+    return NULL;
 }
 
 const char *
 ElfStrtab_Section::getStr(const char *string)
 {
-    if (string == nullptr)
-        return nullptr;
+    if (string == NULL)
+        return NULL;
 
     // If the given string is within the section, return it
     for (std::vector<table_storage>::iterator t = table.begin();
@@ -892,7 +876,7 @@ ElfStrtab_Section::getStr(const char *string)
 unsigned int
 ElfStrtab_Section::getStrIndex(const char *string)
 {
-    if (string == nullptr)
+    if (string == NULL)
         return 0;
 
     unsigned int index = 0;

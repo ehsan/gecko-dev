@@ -1,9 +1,44 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dr Vipul Gupta <vipul.gupta@sun.com>, Sun Microsystems Laboratories
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Certificate handling code
+ *
+ * $Id: lowcert.c,v 1.5 2009/04/12 01:31:45 nelson%bolyard.com Exp $
  */
 
 #include "seccomon.h"
@@ -85,11 +120,6 @@ nsslowcert_dataStart(unsigned char *buf, unsigned int length,
     unsigned char tag;
     unsigned int used_length= 0;
 
-    /* need at least a tag and a 1 byte length */
-    if (length < 2) {
-	return NULL;
-    }
-
     tag = buf[used_length++];
 
     if (rettag) {
@@ -105,10 +135,6 @@ nsslowcert_dataStart(unsigned char *buf, unsigned int length,
 
     if (*data_length&0x80) {
 	int  len_count = *data_length & 0x7f;
-
-	if (len_count+used_length > length) {
-	   return NULL;
-	}
 
 	*data_length = 0;
 
@@ -187,9 +213,6 @@ nsslowcert_GetCertFields(unsigned char *cert,int cert_length,
     /* serial number */
     if (derSN) {
 	derSN->data=nsslowcert_dataStart(buf,buf_length,&derSN->len,PR_TRUE, NULL);
-	/* derSN->data  doesn't need to be checked because if it fails so will
-	 * serial->data below. The only difference between the two calls is
-	 * whether or not the tags are included in the returned buffer */
     }
     serial->data = nsslowcert_dataStart(buf,buf_length,&serial->len,PR_FALSE, NULL);
     if (serial->data == NULL) return SECFailure;
@@ -233,21 +256,7 @@ nsslowcert_GetCertFields(unsigned char *cert,int cert_length,
 	if (buf[0] == 0xa3) {
 	    extensions->data = nsslowcert_dataStart(buf,buf_length, 
 					&extensions->len, PR_FALSE, NULL);
-	    /* if the DER is bad, we should fail. Previously we accepted
-	     * bad DER here and treated the extension as missin */
-	    if (extensions->data == NULL ||
-	       (extensions->data - buf) + extensions->len != buf_length) 
-                return SECFailure;
-            buf = extensions->data;
-            buf_length = extensions->len; 
-            /* now parse the SEQUENCE holding the extensions. */
-            dummy = nsslowcert_dataStart(buf,buf_length,&dummylen,PR_FALSE,NULL);
-            if (dummy == NULL ||
-               (dummy - buf) + dummylen != buf_length)
-                return SECFailure;
-            buf_length -= (dummy - buf);
-            buf = dummy;
-            /* Now parse the extensions inside this sequence */
+	    break;
 	}
 	dummy = nsslowcert_dataStart(buf,buf_length,&dummylen,PR_FALSE,NULL);
 	if (dummy == NULL) return SECFailure;
@@ -345,7 +354,7 @@ nsslowcert_IsNewer(NSSLOWCERTCertificate *certa, NSSLOWCERTCertificate *certb)
 #define SOFT_DEFAULT_CHUNKSIZE 2048
 
 static SECStatus
-nsslowcert_KeyFromIssuerAndSN(PLArenaPool *arena,
+nsslowcert_KeyFromIssuerAndSN(PRArenaPool *arena, 
 			      SECItem *issuer, SECItem *sn, SECItem *key)
 {
     unsigned int len = sn->len + issuer->len;
@@ -447,7 +456,7 @@ nsslowcert_EmailName(SECItem *derDN, char *space, unsigned int len)
 
 	    name=nsslowcert_dataStart(ava, ava_length, &name_length, PR_FALSE, 
 					NULL);
-	    if (name == NULL) { return NULL; }
+	    if (oid == NULL) { return NULL; }
 	    ava_length -= (name-ava)+name_length;
 	    ava = name+name_length;
 
@@ -619,10 +628,6 @@ nsslowcert_DecodeDERCertificate(SECItem *derSignedCert, char *nickname)
 	&cert->derIssuer, &cert->serialNumber, &cert->derSN, &cert->derSubject,
 	&cert->validity, &cert->derSubjKeyInfo, &cert->extensions);
 
-    if (rv != SECSuccess) {
-	goto loser;
-    }
-
     /* cert->subjectKeyID;	 x509v3 subject key identifier */
     cert->subjectKeyID.data = NULL;
     cert->subjectKeyID.len = 0;
@@ -702,7 +707,7 @@ nsslowcert_FixupEmailAddr(char *emailAddr)
  * DER certificate.
  */
 SECStatus
-nsslowcert_KeyFromDERCert(PLArenaPool *arena, SECItem *derCert, SECItem *key)
+nsslowcert_KeyFromDERCert(PRArenaPool *arena, SECItem *derCert, SECItem *key)
 {
     int rv;
     NSSLOWCERTCertKey certkey;
@@ -730,7 +735,7 @@ nsslowcert_ExtractPublicKey(NSSLOWCERTCertificate *cert)
     NSSLOWKEYPublicKey *pubk;
     SECItem os;
     SECStatus rv;
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     SECOidTag tag;
     SECItem newDerSubjKeyInfo;
 
@@ -793,7 +798,7 @@ nsslowcert_ExtractPublicKey(NSSLOWCERTCertificate *cert)
 				 nsslowcert_DHPublicKeyTemplate, &os);
         if (rv == SECSuccess) return pubk;
         break;
-#ifndef NSS_DISABLE_ECC
+#ifdef NSS_ENABLE_ECC
       case SEC_OID_ANSIX962_EC_PUBLIC_KEY:
         pubk->keyType = NSSLOWKEYECKey;
 	/* Since PKCS#11 directly takes the DER encoding of EC params
@@ -814,13 +819,13 @@ nsslowcert_ExtractPublicKey(NSSLOWCERTCertificate *cert)
         rv = SECITEM_CopyItem(arena, &pubk->u.ec.publicValue, &os);
 	if (rv == SECSuccess) return pubk;
         break;
-#endif /* NSS_DISABLE_ECC */
+#endif /* NSS_ENABLE_ECC */
       default:
         rv = SECFailure;
         break;
     }
 
-    lg_nsslowkey_DestroyPublicKey (pubk);
+    nsslowkey_DestroyPublicKey (pubk);
     return NULL;
 }
 

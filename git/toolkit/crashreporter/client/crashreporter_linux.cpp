@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Toolkit Crash Reporter
+ *
+ * The Initial Developer of the Original Code is
+ * Ted Mielczarek <ted.mielczarek@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -30,9 +62,9 @@ static bool gEmailFieldHint = true;
 static bool gCommentFieldHint = true;
 
 // handle from dlopen'ing libgnome
-static void* gnomeLib = nullptr;
+static void* gnomeLib = NULL;
 // handle from dlopen'ing libgnomeui
-static void* gnomeuiLib = nullptr;
+static void* gnomeuiLib = NULL;
 
 static void LoadSettings()
 {
@@ -118,7 +150,7 @@ void SendReport()
 
   // and spawn a thread to do the sending
   GError* err;
-  gSendThreadID = g_thread_create(SendThread, nullptr, TRUE, &err);
+  gSendThreadID = g_thread_create(SendThread, NULL, TRUE, &err);
 }
 
 static void ShowReportInfo(GtkTextView* viewReportTextView)
@@ -178,10 +210,10 @@ static void ViewReportClicked(GtkButton* button,
                                            GTK_DIALOG_MODAL,
                                            GTK_STOCK_OK,
                                            GTK_RESPONSE_OK,
-                                           nullptr));
+                                           NULL));
 
   GtkWidget* scrolled = gtk_scrolled_window_new(0, 0);
-  gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(dialog)), scrolled);
+  gtk_container_add(GTK_CONTAINER(dialog->vbox), scrolled);
   gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
                                  GTK_POLICY_NEVER, GTK_POLICY_ALWAYS);
   gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scrolled),
@@ -235,26 +267,26 @@ static void CommentInsert(GtkTextBuffer* buffer,
 static void UpdateHintText(GtkWidget* widget, gboolean gainedFocus,
                            bool* hintShowing, const char* hintText)
 {
-  GtkTextBuffer* buffer = nullptr;
+  GtkTextBuffer* buffer = NULL;
   if (GTK_IS_TEXT_VIEW(widget))
     buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget));
 
   if (gainedFocus) {
     if (*hintShowing) {
-      if (buffer == nullptr) { // sort of cheating
+      if (buffer == NULL) { // sort of cheating
         gtk_entry_set_text(GTK_ENTRY(widget), "");
       }
       else { // GtkTextView
         gtk_text_buffer_set_text(buffer, "", 0);
       }
-      gtk_widget_modify_text(widget, GTK_STATE_NORMAL, nullptr);
+      gtk_widget_modify_text(widget, GTK_STATE_NORMAL, NULL);
       *hintShowing = false;
     }
   }
   else {
     // lost focus
-    const char* text = nullptr;
-    if (buffer == nullptr) {
+    const char* text = NULL;
+    if (buffer == NULL) {
       text = gtk_entry_get_text(GTK_ENTRY(widget));
     }
     else {
@@ -264,10 +296,10 @@ static void UpdateHintText(GtkWidget* widget, gboolean gainedFocus,
       text = gtk_text_buffer_get_text(buffer, &start, &end, TRUE);
     }
 
-    if (text == nullptr || text[0] == '\0') {
+    if (text == NULL || text[0] == '\0') {
       *hintShowing = true;
 
-      if (buffer == nullptr) {
+      if (buffer == NULL) {
         gtk_entry_set_text(GTK_ENTRY(widget), hintText);
       }
       else {
@@ -347,7 +379,7 @@ void TryInitGnome()
 
   if (gnome_program_init && libgnomeui_module_info_get) {
     gnome_program_init("crashreporter", "1.0", libgnomeui_module_info_get(),
-                       gArgc, gArgv, nullptr);
+                       gArgc, gArgv, NULL);
   }
 
 }
@@ -376,12 +408,12 @@ void UIShutdown()
   // Don't dlclose gnomeLib as libgnomevfs and libORBit-2 use atexit().
 }
 
-bool UIShowCrashUI(const StringTable& files,
+bool UIShowCrashUI(const string& dumpfile,
                    const StringTable& queryParameters,
                    const string& sendURL,
                    const vector<string>& restartArgs)
 {
-  gFiles = files;
+  gDumpFile = dumpfile;
   gQueryParameters = queryParameters;
   gSendURL = sendURL;
   gRestartArgs = restartArgs;
@@ -395,7 +427,6 @@ bool UIShowCrashUI(const StringTable& files,
   gtk_window_set_position(GTK_WINDOW(gWindow), GTK_WIN_POS_CENTER);
   gtk_container_set_border_width(GTK_CONTAINER(gWindow), 12);
   g_signal_connect(gWindow, "delete-event", G_CALLBACK(WindowDeleted), 0);
-  g_signal_connect(gWindow, "key_press_event", G_CALLBACK(check_escape), nullptr);
 
   GtkWidget* vbox = gtk_vbox_new(FALSE, 6);
   gtk_container_add(GTK_CONTAINER(gWindow), vbox);
@@ -505,7 +536,7 @@ bool UIShowCrashUI(const StringTable& files,
 
   // Get the throbber image from alongside the executable
   char* dir = g_path_get_dirname(gArgv[0]);
-  char* path = g_build_filename(dir, "Throbber-small.gif", nullptr);
+  char* path = g_build_filename(dir, "Throbber-small.gif", NULL);
   g_free(dir);
   gThrobber = gtk_image_new_from_file(path);
   gtk_box_pack_start(GTK_BOX(progressBox), gThrobber, FALSE, FALSE, 0);
@@ -525,14 +556,14 @@ bool UIShowCrashUI(const StringTable& files,
   gCloseButton =
     gtk_button_new_with_label(gStrings[ST_QUIT].c_str());
   gtk_box_pack_start(GTK_BOX(buttonBox), gCloseButton, FALSE, FALSE, 0);
-  gtk_widget_set_can_default(gCloseButton, TRUE);
+  GTK_WIDGET_SET_FLAGS(gCloseButton, GTK_CAN_DEFAULT);
   g_signal_connect(gCloseButton, "clicked", G_CALLBACK(CloseClicked), 0);
 
   gRestartButton = 0;
   if (restartArgs.size() > 0) {
     gRestartButton = gtk_button_new_with_label(gStrings[ST_RESTART].c_str());
     gtk_box_pack_start(GTK_BOX(buttonBox), gRestartButton, FALSE, FALSE, 0);
-    gtk_widget_set_can_default(gRestartButton, TRUE);
+    GTK_WIDGET_SET_FLAGS(gRestartButton, GTK_CAN_DEFAULT);
     g_signal_connect(gRestartButton, "clicked", G_CALLBACK(RestartClicked), 0);
   }
 
@@ -552,7 +583,7 @@ bool UIShowCrashUI(const StringTable& files,
 
   gtk_widget_show_all(gWindow);
   // stick this here to avoid the show_all above...
-  gtk_widget_hide(gThrobber);
+  gtk_widget_hide_all(gThrobber);
 
   gtk_main();
 

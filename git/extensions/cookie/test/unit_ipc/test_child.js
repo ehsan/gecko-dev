@@ -10,13 +10,6 @@ function isParentProcess() {
     return (!appInfo || appInfo.getService(Ci.nsIXULRuntime).processType == Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT);
 }
 
-function getPrincipalForURI(aURI) {
-  var uri =  gIoService.newURI(aURI, null, null);
-  return Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                   .getService(Ci.nsIScriptSecurityManager)
-                   .getNoAppCodebasePrincipal(uri);
-}
-
 function run_test() {
   if (!isParentProcess()) {
     const Ci = Components.interfaces;
@@ -30,12 +23,12 @@ function run_test() {
         switch(aMessage.name) {
           case "TESTING:Stage2A":
             // Permissions created after the child is present
-            do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://mozilla.org"), "cookie1"), pm.ALLOW_ACTION);
-            do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://mozilla.com"), "cookie2"), pm.PROMPT_ACTION);
-            do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://mozilla.net"), "cookie3"), pm.ALLOW_ACTION);
-            do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://firefox.org"), "cookie1"), pm.ALLOW_ACTION);
-            do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://firefox.com"), "cookie2"), pm.DENY_ACTION);
-            do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://firefox.net"), "cookie3"), pm.ALLOW_ACTION);
+            do_check_eq(pm.testPermission(gIoService.newURI("http://mozilla.org", null, null), "cookie1"), pm.ALLOW_ACTION);
+            do_check_eq(pm.testPermission(gIoService.newURI("http://mozilla.com", null, null), "cookie2"), pm.DENY_ACTION);
+            do_check_eq(pm.testPermission(gIoService.newURI("http://mozilla.net", null, null), "cookie3"), pm.ALLOW_ACTION);
+            do_check_eq(pm.testPermission(gIoService.newURI("http://firefox.org", null, null), "cookie1"), pm.ALLOW_ACTION);
+            do_check_eq(pm.testPermission(gIoService.newURI("http://firefox.com", null, null), "cookie2"), pm.DENY_ACTION);
+            do_check_eq(pm.testPermission(gIoService.newURI("http://firefox.net", null, null), "cookie3"), pm.ALLOW_ACTION);
 
             mM.sendAsyncMessage("TESTING:Stage3");
             break;
@@ -47,11 +40,10 @@ function run_test() {
 
     mM.addMessageListener("TESTING:Stage2A", messageListener);
 
-    // Permissions created before the child is present
     var pm = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
-    do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://mozilla.org"), "cookie1"), pm.ALLOW_ACTION);
-    do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://mozilla.com"), "cookie2"), pm.PROMPT_ACTION);
-    do_check_eq(pm.testPermissionFromPrincipal(getPrincipalForURI("http://mozilla.net"), "cookie3"), pm.ALLOW_ACTION);
+    do_check_eq(pm.testPermission(gIoService.newURI("http://mozilla.org", null, null), "cookie1"), pm.ALLOW_ACTION);
+    do_check_eq(pm.testPermission(gIoService.newURI("http://mozilla.com", null, null), "cookie2"), pm.DENY_ACTION);
+    do_check_eq(pm.testPermission(gIoService.newURI("http://mozilla.net", null, null), "cookie3"), pm.ALLOW_ACTION);
 
     mM.sendAsyncMessage("TESTING:Stage2");
   }

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* service providing platform-specific native rendering for widgets */
 
@@ -16,26 +48,30 @@
 struct nsRect;
 struct nsIntRect;
 struct nsIntSize;
-class nsIntRegion;
 struct nsFont;
 struct nsIntMargin;
 class nsPresContext;
-class nsRenderingContext;
-class nsDeviceContext;
+class nsIRenderingContext;
+class nsIDeviceContext;
 class nsIFrame;
 class nsIContent;
 class nsIAtom;
 class nsIWidget;
 
 // IID for the nsITheme interface
-// {a21dd936-5960-46da-a724-7c114e421b41}
+// {887e8902-db6b-41b4-8481-a80f49c5a93a}
  #define NS_ITHEME_IID     \
-{ 0xa21dd936, 0x5960, 0x46da, \
-  { 0xa7, 0x24, 0x7c, 0x11, 0x4e, 0x42, 0x1b, 0x41 } }
-// {0ae05515-cf7a-45a8-9e02-6556de7685b1}
+{ 0x23db7c13, 0x873d, 0x4fb5, { 0xaf, 0x29, 0xc1, 0xe9, 0xed, 0x91, 0x23, 0xf9 } }
+// {D930E29B-6909-44e5-AB4B-AF10D6923705}
 #define NS_THEMERENDERER_CID \
-{ 0x0ae05515, 0xcf7a, 0x45a8, \
-  { 0x9e, 0x02, 0x65, 0x56, 0xde, 0x76, 0x85, 0xb1 } }
+{ 0xd930e29b, 0x6909, 0x44e5, { 0xab, 0x4b, 0xaf, 0x10, 0xd6, 0x92, 0x37, 0x5 } }
+
+enum nsTransparencyMode {
+  eTransparencyOpaque = 0,  // Fully opaque
+  eTransparencyTransparent, // Parts of the window may be transparent
+  eTransparencyGlass,       // Transparent parts of the window have Vista AeroGlass effect applied
+  eTransparencyBorderlessGlass // As above, but without a border around the opaque areas when there would otherwise be one with eTransparencyGlass
+};
 
 /**
  * nsITheme is a service that provides platform-specific native
@@ -59,53 +95,54 @@ public:
    * @param aRect the rectangle defining the area occupied by the widget
    * @param aDirtyRect the rectangle that needs to be drawn
    */
-  NS_IMETHOD DrawWidgetBackground(nsRenderingContext* aContext,
+  NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
-                                  uint8_t aWidgetType,
+                                  PRUint8 aWidgetType,
                                   const nsRect& aRect,
                                   const nsRect& aDirtyRect) = 0;
 
   /**
+   * XXX Unused. This is only here because the interface is frozen for 2.0.
+   */
+  virtual void RegisterWidgetGeometry(nsIWidget* aWindow,
+                                      PRUint8 aWidgetType,
+                                      const nsIntRect& aRect) {}
+
+  /**
    * Get the computed CSS border for the widget, in pixels.
    */
-  NS_IMETHOD GetWidgetBorder(nsDeviceContext* aContext, 
+  NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, 
                              nsIFrame* aFrame,
-                             uint8_t aWidgetType,
+                             PRUint8 aWidgetType,
                              nsIntMargin* aResult)=0;
 
   /**
-   * This method can return false to indicate that the CSS padding
+   * This method can return PR_FALSE to indicate that the CSS padding
    * value should be used.  Otherwise, it will fill in aResult with the
-   * computed padding, in pixels, and return true.
+   * computed padding, in pixels, and return PR_TRUE.
    *
    * XXXldb This ought to be required to return true for non-containers
    * so that we don't let specified padding that has no effect change
    * the computed padding and potentially the size.
    */
-  virtual bool GetWidgetPadding(nsDeviceContext* aContext,
+  virtual PRBool GetWidgetPadding(nsIDeviceContext* aContext,
                                   nsIFrame* aFrame,
-                                  uint8_t aWidgetType,
+                                  PRUint8 aWidgetType,
                                   nsIntMargin* aResult) = 0;
 
   /**
    * On entry, *aResult is positioned at 0,0 and sized to the new size
    * of aFrame (aFrame->GetSize() may be stale and should not be used).
-   * This method can return false to indicate that no special
+   * This method can return PR_FALSE to indicate that no special
    * overflow area is required by the native widget. Otherwise it will
    * fill in aResult with the desired overflow area, in appunits, relative
-   * to the frame origin, and return true.
-   *
-   * This overflow area is used to determine what area needs to be
-   * repainted when the widget changes.  However, it does not affect the
-   * widget's size or what area is reachable by scrollbars.  (In other
-   * words, in layout terms, it affects visual overflow but not
-   * scrollable overflow.)
+   * to the frame origin, and return PR_TRUE.
    */
-  virtual bool GetWidgetOverflow(nsDeviceContext* aContext,
+  virtual PRBool GetWidgetOverflow(nsIDeviceContext* aContext,
                                    nsIFrame* aFrame,
-                                   uint8_t aWidgetType,
+                                   PRUint8 aWidgetType,
                                    /*INOUT*/ nsRect* aOverflowRect)
-  { return false; }
+  { return PR_FALSE; }
 
   /**
    * Get the minimum border-box size of a widget, in *pixels* (in
@@ -113,11 +150,11 @@ public:
    * minimum size; if false, this size is the only valid size for the
    * widget.
    */
-  NS_IMETHOD GetMinimumWidgetSize(nsPresContext* aPresContext,
+  NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
-                                  uint8_t aWidgetType,
+                                  PRUint8 aWidgetType,
                                   nsIntSize* aResult,
-                                  bool* aIsOverridable)=0;
+                                  PRBool* aIsOverridable)=0;
 
 
   enum Transparency {
@@ -129,75 +166,34 @@ public:
   /**
    * Returns what we know about the transparency of the widget.
    */
-  virtual Transparency GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType)
+  virtual Transparency GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
   { return eUnknownTransparency; }
 
-  NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType, 
-                                nsIAtom* aAttribute, bool* aShouldRepaint)=0;
+  NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType, 
+                                nsIAtom* aAttribute, PRBool* aShouldRepaint)=0;
 
   NS_IMETHOD ThemeChanged()=0;
-
-  virtual bool WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType)
-  { return false; }
-
-  virtual bool NeedToClearBackgroundBehindWidget(uint8_t aWidgetType)
-  { return false; }
-
-  virtual bool WidgetProvidesFontSmoothingBackgroundColor(nsIFrame* aFrame,
-                                      uint8_t aWidgetType, nscolor* aColor)
-  { return false; }
-
-  /**
-   * ThemeGeometryType values are used for describing themed nsIFrames in
-   * calls to nsIWidget::UpdateThemeGeometries. We don't simply pass the
-   * -moz-appearance value ("widget type") of the frame because the widget may
-   * want to treat different frames with the same -moz-appearance differently
-   * based on other properties of the frame. So we give the theme a first look
-   * at the frame in nsITheme::ThemeGeometryTypeForWidget and pass the
-   * returned ThemeGeometryType along to the widget.
-   * Each theme backend defines the ThemeGeometryType values it needs in its
-   * own nsITheme subclass. eThemeGeometryTypeUnknown is the only value that's
-   * shared between backends.
-   */
-  typedef uint8_t ThemeGeometryType;
-  enum {
-    eThemeGeometryTypeUnknown = 0
-  };
-
-  /**
-   * Returns the theme geometry type that should be used in the ThemeGeometry
-   * array that's passed to the widget using nsIWidget::UpdateThemeGeometries.
-   * A return value of eThemeGeometryTypeUnknown means that this frame will
-   * not be included in the ThemeGeometry array.
-   */
-  virtual ThemeGeometryType ThemeGeometryTypeForWidget(nsIFrame* aFrame,
-                                                       uint8_t aWidgetType)
-  { return eThemeGeometryTypeUnknown; }
 
   /**
    * Can the nsITheme implementation handle this widget?
    */
-  virtual bool ThemeSupportsWidget(nsPresContext* aPresContext,
+  virtual PRBool ThemeSupportsWidget(nsPresContext* aPresContext,
                                      nsIFrame* aFrame,
-                                     uint8_t aWidgetType)=0;
+                                     PRUint8 aWidgetType)=0;
 
-  virtual bool WidgetIsContainer(uint8_t aWidgetType)=0;
+  virtual PRBool WidgetIsContainer(PRUint8 aWidgetType)=0;
 
   /**
    * Does the nsITheme implementation draw its own focus ring for this widget?
    */
-  virtual bool ThemeDrawsFocusForWidget(uint8_t aWidgetType)=0;
+  virtual PRBool ThemeDrawsFocusForWidget(nsPresContext* aPresContext,
+                                          nsIFrame* aFrame,
+                                          PRUint8 aWidgetType)=0;
   
   /**
     * Should we insert a dropmarker inside of combobox button?
    */
-  virtual bool ThemeNeedsComboboxDropmarker()=0;
-
-  /**
-   * Should we hide scrollbars?
-   */
-  virtual bool ShouldHideScrollbars()
-  { return false; }
+  virtual PRBool ThemeNeedsComboboxDropmarker()=0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsITheme, NS_ITHEME_IID)

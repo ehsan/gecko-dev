@@ -1,124 +1,155 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et cindent: */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsThreadUtils_h__
 #define nsThreadUtils_h__
 
 #include "prthread.h"
 #include "prinrval.h"
-#include "MainThreadUtils.h"
 #include "nsIThreadManager.h"
 #include "nsIThread.h"
 #include "nsIRunnable.h"
-#include "nsICancelableRunnable.h"
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Likely.h"
+#include "mozilla/threads/nsThreadIDs.h"
+
+// This is needed on some systems to prevent collisions between the symbols
+// appearing in xpcom_core and xpcomglue.  It may be unnecessary in the future
+// with better toolchain support.
+#ifdef MOZILLA_INTERNAL_API
+# define NS_NewThread NS_NewThread_P
+# define NS_GetCurrentThread NS_GetCurrentThread_P
+# define NS_GetMainThread NS_GetMainThread_P
+# define NS_IsMainThread NS_IsMainThread_P
+# define NS_DispatchToCurrentThread NS_DispatchToCurrentThread_P
+# define NS_DispatchToMainThread NS_DispatchToMainThread_P
+# define NS_ProcessPendingEvents NS_ProcessPendingEvents_P
+# define NS_HasPendingEvents NS_HasPendingEvents_P
+# define NS_ProcessNextEvent NS_ProcessNextEvent_P
+#endif
 
 //-----------------------------------------------------------------------------
 // These methods are alternatives to the methods on nsIThreadManager, provided
 // for convenience.
 
 /**
- * Set name of the target thread.  This operation is asynchronous.
- */
-extern void NS_SetThreadName(nsIThread* aThread, const nsACString& aName);
-
-/**
- * Static length version of the above function checking length of the
- * name at compile time.
- */
-template<size_t LEN>
-inline void
-NS_SetThreadName(nsIThread* aThread, const char (&aName)[LEN])
-{
-  static_assert(LEN <= 16,
-                "Thread name must be no more than 16 characters");
-  NS_SetThreadName(aThread, nsDependentCString(aName));
-}
-
-/**
  * Create a new thread, and optionally provide an initial event for the thread.
  *
- * @param aResult
+ * @param result
  *   The resulting nsIThread object.
- * @param aInitialEvent
+ * @param initialEvent
  *   The initial event to run on this thread.  This parameter may be null.
- * @param aStackSize
- *   The size in bytes to reserve for the thread's stack.
  *
  * @returns NS_ERROR_INVALID_ARG
  *   Indicates that the given name is not unique.
  */
-extern NS_METHOD
-NS_NewThread(nsIThread** aResult,
-             nsIRunnable* aInitialEvent = nullptr,
-             uint32_t aStackSize = nsIThreadManager::DEFAULT_STACK_SIZE);
-
-/**
- * Creates a named thread, otherwise the same as NS_NewThread
- */
-template<size_t LEN>
-inline NS_METHOD
-NS_NewNamedThread(const char (&aName)[LEN],
-                  nsIThread** aResult,
-                  nsIRunnable* aInitialEvent = nullptr,
-                  uint32_t aStackSize = nsIThreadManager::DEFAULT_STACK_SIZE)
-{
-  // Hold a ref while dispatching the initial event to match NS_NewThread()
-  nsCOMPtr<nsIThread> thread;
-  nsresult rv = NS_NewThread(getter_AddRefs(thread), nullptr, aStackSize);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-  NS_SetThreadName<LEN>(thread, aName);
-  if (aInitialEvent) {
-    rv = thread->Dispatch(aInitialEvent, NS_DISPATCH_NORMAL);
-    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Initial event dispatch failed");
-  }
-
-  *aResult = nullptr;
-  thread.swap(*aResult);
-  return rv;
-}
+extern NS_COM_GLUE NS_METHOD
+NS_NewThread(nsIThread **result, nsIRunnable *initialEvent = nsnull);
 
 /**
  * Get a reference to the current thread.
  *
- * @param aResult
+ * @param result
  *   The resulting nsIThread object.
  */
-extern NS_METHOD NS_GetCurrentThread(nsIThread** aResult);
+extern NS_COM_GLUE NS_METHOD
+NS_GetCurrentThread(nsIThread **result);
+
+/**
+ * Get a reference to the main thread.
+ *
+ * @param result
+ *   The resulting nsIThread object.
+ */
+extern NS_COM_GLUE NS_METHOD
+NS_GetMainThread(nsIThread **result);
+
+#if defined(MOZILLA_INTERNAL_API) && defined(XP_WIN)
+NS_COM bool NS_IsMainThread();
+#elif defined(MOZILLA_INTERNAL_API) && defined(NS_TLS)
+// This is defined in nsThreadManager.cpp and initialized to `Main` for the
+// main thread by nsThreadManager::Init.
+extern NS_TLS mozilla::threads::ID gTLSThreadID;
+#ifdef MOZ_ENABLE_LIBXUL
+inline bool NS_IsMainThread()
+{
+  return gTLSThreadID == mozilla::threads::Main;
+}
+#else
+NS_COM bool NS_IsMainThread();
+#endif
+#else
+/**
+ * Test to see if the current thread is the main thread.
+ *
+ * @returns PR_TRUE if the current thread is the main thread, and PR_FALSE
+ * otherwise.
+ */
+extern NS_COM_GLUE bool NS_IsMainThread();
+#endif
 
 /**
  * Dispatch the given event to the current thread.
  *
- * @param aEvent
+ * @param event
  *   The event to dispatch.
  *
  * @returns NS_ERROR_INVALID_ARG
  *   If event is null.
  */
-extern NS_METHOD NS_DispatchToCurrentThread(nsIRunnable* aEvent);
+extern NS_COM_GLUE NS_METHOD
+NS_DispatchToCurrentThread(nsIRunnable *event);
 
 /**
  * Dispatch the given event to the main thread.
  *
- * @param aEvent
+ * @param event
  *   The event to dispatch.
- * @param aDispatchFlags
+ * @param dispatchFlags
  *   The flags to pass to the main thread's dispatch method.
  *
  * @returns NS_ERROR_INVALID_ARG
  *   If event is null.
  */
-extern NS_METHOD
-NS_DispatchToMainThread(nsIRunnable* aEvent,
-                        uint32_t aDispatchFlags = NS_DISPATCH_NORMAL);
+extern NS_COM_GLUE NS_METHOD
+NS_DispatchToMainThread(nsIRunnable *event,
+                        PRUint32 dispatchFlags = NS_DISPATCH_NORMAL);
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
 /**
@@ -127,46 +158,47 @@ NS_DispatchToMainThread(nsIRunnable* aEvent,
  * continues to return true and the time spent in NS_ProcessPendingEvents
  * does not exceed the given timeout value.
  *
- * @param aThread
+ * @param thread
  *   The thread object for which to process pending events.  If null, then
  *   events will be processed for the current thread.
- * @param aTimeout
+ * @param timeout
  *   The maximum number of milliseconds to spend processing pending events.
  *   Events are not pre-empted to honor this timeout.  Rather, the timeout
  *   value is simply used to determine whether or not to process another event.
  *   Pass PR_INTERVAL_NO_TIMEOUT to specify no timeout.
  */
-extern NS_METHOD
-NS_ProcessPendingEvents(nsIThread* aThread,
-                        PRIntervalTime aTimeout = PR_INTERVAL_NO_TIMEOUT);
+extern NS_COM_GLUE NS_METHOD
+NS_ProcessPendingEvents(nsIThread *thread,
+                        PRIntervalTime timeout = PR_INTERVAL_NO_TIMEOUT);
 #endif
 
 /**
  * Shortcut for nsIThread::HasPendingEvents.
  *
  * It is an error to call this function when the given thread is not the
- * current thread.  This function will return false if called from some
+ * current thread.  This function will return PR_FALSE if called from some
  * other thread.
  *
- * @param aThread
+ * @param thread
  *   The current thread or null.
  *
  * @returns
  *   A boolean value that if "true" indicates that there are pending events
  *   in the current thread's event queue.
  */
-extern bool NS_HasPendingEvents(nsIThread* aThread = nullptr);
+extern NS_COM_GLUE PRBool
+NS_HasPendingEvents(nsIThread *thread = nsnull);
 
 /**
  * Shortcut for nsIThread::ProcessNextEvent.
- *
+ *   
  * It is an error to call this function when the given thread is not the
- * current thread.  This function will simply return false if called
+ * current thread.  This function will simply return PR_FALSE if called
  * from some other thread.
  *
- * @param aThread
+ * @param thread
  *   The current thread or null.
- * @param aMayWait
+ * @param mayWait
  *   A boolean parameter that if "true" indicates that the method may block
  *   the calling thread to wait for a pending event.
  *
@@ -174,24 +206,22 @@ extern bool NS_HasPendingEvents(nsIThread* aThread = nullptr);
  *   A boolean value that if "true" indicates that an event from the current
  *   thread's event queue was processed.
  */
-extern bool NS_ProcessNextEvent(nsIThread* aThread = nullptr,
-                                bool aMayWait = true);
+extern NS_COM_GLUE PRBool
+NS_ProcessNextEvent(nsIThread *thread = nsnull, PRBool mayWait = PR_TRUE);
 
 //-----------------------------------------------------------------------------
 // Helpers that work with nsCOMPtr:
 
 inline already_AddRefed<nsIThread>
-do_GetCurrentThread()
-{
-  nsIThread* thread = nullptr;
+do_GetCurrentThread() {
+  nsIThread *thread = nsnull;
   NS_GetCurrentThread(&thread);
   return already_AddRefed<nsIThread>(thread);
 }
 
 inline already_AddRefed<nsIThread>
-do_GetMainThread()
-{
-  nsIThread* thread = nullptr;
+do_GetMainThread() {
+  nsIThread *thread = nsnull;
   NS_GetMainThread(&thread);
   return already_AddRefed<nsIThread>(thread);
 }
@@ -203,46 +233,40 @@ do_GetMainThread()
 // you want to use this pointer from some other thread, then you will need to
 // AddRef it.  Otherwise, you should only consider this pointer valid from code
 // running on the current thread.
-extern nsIThread* NS_GetCurrentThread();
+extern NS_COM_GLUE nsIThread *NS_GetCurrentThread();
 #endif
 
 //-----------------------------------------------------------------------------
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
 
-// This class is designed to be subclassed.
-class nsRunnable : public nsIRunnable
-{
-public:
-  NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIRUNNABLE
-
-  nsRunnable() {}
-
-protected:
-  virtual ~nsRunnable() {}
-};
+#undef  IMETHOD_VISIBILITY
+#define IMETHOD_VISIBILITY NS_COM_GLUE
 
 // This class is designed to be subclassed.
-class nsCancelableRunnable : public nsICancelableRunnable
+class NS_COM_GLUE nsRunnable : public nsIRunnable
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
-  NS_DECL_NSICANCELABLERUNNABLE
 
-  nsCancelableRunnable() {}
+  nsRunnable() {
+  }
 
 protected:
-  virtual ~nsCancelableRunnable() {}
+  virtual ~nsRunnable() {
+  }
 };
+
+#undef  IMETHOD_VISIBILITY
+#define IMETHOD_VISIBILITY NS_VISIBILITY_HIDDEN
 
 // An event that can be used to call a method on a class.  The class type must
 // support reference counting. This event supports Revoke for use
 // with nsRevocableEventPtr.
-template<class ClassType,
-         typename ReturnType = void,
-         bool Owning = true>
+template <class ClassType,
+          typename ReturnType = void,
+          bool Owning = true>
 class nsRunnableMethod : public nsRunnable
 {
 public:
@@ -251,15 +275,15 @@ public:
   // These ReturnTypeEnforcer classes set up a blacklist for return types that
   // we know are not safe. The default ReturnTypeEnforcer compiles just fine but
   // already_AddRefed will not.
-  template<typename OtherReturnType>
+  template <typename OtherReturnType>
   class ReturnTypeEnforcer
   {
   public:
     typedef int ReturnTypeIsSafe;
   };
 
-  template<class T>
-  class ReturnTypeEnforcer<already_AddRefed<T>>
+  template <class T>
+  class ReturnTypeEnforcer<already_AddRefed<T> >
   {
     // No ReturnTypeIsSafe makes this illegal!
   };
@@ -268,405 +292,63 @@ public:
   typedef typename ReturnTypeEnforcer<ReturnType>::ReturnTypeIsSafe check;
 };
 
-template<class ClassType, bool Owning>
-struct nsRunnableMethodReceiver
-{
-  nsRefPtr<ClassType> mObj;
-  explicit nsRunnableMethodReceiver(ClassType* aObj) : mObj(aObj) {}
-  ~nsRunnableMethodReceiver() { Revoke(); }
-  ClassType* Get() const { return mObj.get(); }
-  void Revoke() { mObj = nullptr; }
+template <class ClassType, bool Owning>
+struct nsRunnableMethodReceiver {
+  ClassType *mObj;
+  nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) { NS_IF_ADDREF(mObj); }
+ ~nsRunnableMethodReceiver() { Revoke(); }
+  void Revoke() { NS_IF_RELEASE(mObj); }
 };
 
-template<class ClassType>
-struct nsRunnableMethodReceiver<ClassType, false>
-{
-  ClassType* MOZ_NON_OWNING_REF mObj;
-  explicit nsRunnableMethodReceiver(ClassType* aObj) : mObj(aObj) {}
-  ClassType* Get() const { return mObj; }
-  void Revoke() { mObj = nullptr; }
+template <class ClassType>
+struct nsRunnableMethodReceiver<ClassType, false> {
+  ClassType *mObj;
+  nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) {}
+  void Revoke() { mObj = nsnull; }
 };
 
-template<typename Method, bool Owning> struct nsRunnableMethodTraits;
+template <typename Method, bool Owning> struct nsRunnableMethodTraits;
 
-template<class C, typename R, bool Owning, typename... As>
-struct nsRunnableMethodTraits<R(C::*)(As...), Owning>
-{
+template <class C, typename R, bool Owning>
+struct nsRunnableMethodTraits<R (C::*)(), Owning> {
   typedef C class_type;
   typedef R return_type;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 
-#ifdef NS_HAVE_STDCALL
-template<class C, typename R, bool Owning, typename... As>
-struct nsRunnableMethodTraits<R(__stdcall C::*)(As...), Owning>
-{
-  typedef C class_type;
-  typedef R return_type;
-  typedef nsRunnableMethod<C, R, Owning> base_type;
-};
-
-template<class C, typename R, bool Owning>
-struct nsRunnableMethodTraits<R(NS_STDCALL C::*)(), Owning>
-{
+#ifdef HAVE_STDCALL
+template <class C, typename R, bool Owning>
+struct nsRunnableMethodTraits<R (__stdcall C::*)(), Owning> {
   typedef C class_type;
   typedef R return_type;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 #endif
 
-
-// IsParameterStorageClass<T>::value is true if T is a parameter-storage class
-// that will be recognized by NS_New[NonOwning]RunnableMethodWithArg[s] to
-// force a specific storage&passing strategy (instead of inferring one,
-// see ParameterStorage).
-// When creating a new storage class, add a specialization for it to be
-// recognized.
-template<typename T>
-struct IsParameterStorageClass : public mozilla::FalseType {};
-
-// StoreXPassByY structs used to inform nsRunnableMethodArguments how to
-// store arguments, and how to pass them to the target method.
-
-template<typename T>
-struct StoreCopyPassByValue
-{
-  typedef T stored_type;
-  typedef T passed_type;
-  stored_type m;
-  template <typename A>
-  StoreCopyPassByValue(A&& a) : m(mozilla::Forward<A>(a)) {}
-  passed_type PassAsParameter() { return m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreCopyPassByValue<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StoreCopyPassByConstLRef
-{
-  typedef T stored_type;
-  typedef const T& passed_type;
-  stored_type m;
-  template <typename A>
-  StoreCopyPassByConstLRef(A&& a) : m(mozilla::Forward<A>(a)) {}
-  passed_type PassAsParameter() { return m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreCopyPassByConstLRef<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StoreCopyPassByLRef
-{
-  typedef T stored_type;
-  typedef T& passed_type;
-  stored_type m;
-  template <typename A>
-  StoreCopyPassByLRef(A&& a) : m(mozilla::Forward<A>(a)) {}
-  passed_type PassAsParameter() { return m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreCopyPassByLRef<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StoreCopyPassByRRef
-{
-  typedef T stored_type;
-  typedef T&& passed_type;
-  stored_type m;
-  template <typename A>
-  StoreCopyPassByRRef(A&& a) : m(mozilla::Forward<A>(a)) {}
-  passed_type PassAsParameter() { return mozilla::Move(m); }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreCopyPassByRRef<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StoreRefPassByLRef
-{
-  typedef T& stored_type;
-  typedef T& passed_type;
-  stored_type m;
-  template <typename A>
-  StoreRefPassByLRef(A& a) : m(a) {}
-  passed_type PassAsParameter() { return m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreRefPassByLRef<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StoreConstRefPassByConstLRef
-{
-  typedef const T& stored_type;
-  typedef const T& passed_type;
-  stored_type m;
-  template <typename A>
-  StoreConstRefPassByConstLRef(const A& a) : m(a) {}
-  passed_type PassAsParameter() { return m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreConstRefPassByConstLRef<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StorensRefPtrPassByPtr
-{
-  typedef nsRefPtr<T> stored_type;
-  typedef T* passed_type;
-  stored_type m;
-  template <typename A>
-  StorensRefPtrPassByPtr(A a) : m(a) {}
-  passed_type PassAsParameter() { return m.get(); }
-};
-template<typename S>
-struct IsParameterStorageClass<StorensRefPtrPassByPtr<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StorePtrPassByPtr
-{
-  typedef T* stored_type;
-  typedef T* passed_type;
-  stored_type m;
-  template <typename A>
-  StorePtrPassByPtr(A a) : m(a) {}
-  passed_type PassAsParameter() { return m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StorePtrPassByPtr<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StoreConstPtrPassByConstPtr
-{
-  typedef const T* stored_type;
-  typedef const T* passed_type;
-  stored_type m;
-  template <typename A>
-  StoreConstPtrPassByConstPtr(A a) : m(a) {}
-  passed_type PassAsParameter() { return m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreConstPtrPassByConstPtr<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StoreCopyPassByConstPtr
-{
-  typedef T stored_type;
-  typedef const T* passed_type;
-  stored_type m;
-  template <typename A>
-  StoreCopyPassByConstPtr(A&& a) : m(mozilla::Forward<A>(a)) {}
-  passed_type PassAsParameter() { return &m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreCopyPassByConstPtr<S>>
-  : public mozilla::TrueType {};
-
-template<typename T>
-struct StoreCopyPassByPtr
-{
-  typedef T stored_type;
-  typedef T* passed_type;
-  stored_type m;
-  template <typename A>
-  StoreCopyPassByPtr(A&& a) : m(mozilla::Forward<A>(a)) {}
-  passed_type PassAsParameter() { return &m; }
-};
-template<typename S>
-struct IsParameterStorageClass<StoreCopyPassByPtr<S>>
-  : public mozilla::TrueType {};
-
-namespace detail {
-
-template<typename TWithoutPointer>
-struct NonnsISupportsPointerStorageClass
-  : mozilla::Conditional<mozilla::IsConst<TWithoutPointer>::value,
-                         StoreConstPtrPassByConstPtr<
-                           typename mozilla::RemoveConst<TWithoutPointer>::Type>,
-                         StorePtrPassByPtr<TWithoutPointer>>
-{};
-
-template<typename TWithoutPointer>
-struct PointerStorageClass
-  : mozilla::Conditional<mozilla::IsBaseOf<nsISupports, TWithoutPointer>::value,
-                         StorensRefPtrPassByPtr<TWithoutPointer>,
-                         typename NonnsISupportsPointerStorageClass<
-                           TWithoutPointer
-                         >::Type>
-{};
-
-template<typename TWithoutRef>
-struct LValueReferenceStorageClass
-  : mozilla::Conditional<mozilla::IsConst<TWithoutRef>::value,
-                         StoreConstRefPassByConstLRef<
-                           typename mozilla::RemoveConst<TWithoutRef>::Type>,
-                         StoreRefPassByLRef<TWithoutRef>>
-{};
-
-template<typename T>
-struct NonLValueReferenceStorageClass
-  : mozilla::Conditional<mozilla::IsRvalueReference<T>::value,
-                         StoreCopyPassByRRef<
-                           typename mozilla::RemoveReference<T>::Type>,
-                         StoreCopyPassByValue<T>>
-{};
-
-template<typename T>
-struct NonPointerStorageClass
-  : mozilla::Conditional<mozilla::IsLvalueReference<T>::value,
-                         typename LValueReferenceStorageClass<
-                           typename mozilla::RemoveReference<T>::Type
-                         >::Type,
-                         typename NonLValueReferenceStorageClass<T>::Type>
-{};
-
-template<typename T>
-struct NonParameterStorageClass
-  : mozilla::Conditional<mozilla::IsPointer<T>::value,
-                         typename PointerStorageClass<
-                           typename mozilla::RemovePointer<T>::Type
-                         >::Type,
-                         typename NonPointerStorageClass<T>::Type>
-{};
-
-// Choose storage&passing strategy based on preferred storage type:
-// - If IsParameterStorageClass<T>::value is true, use as-is.
-// - nsISupports* -> StorensRefPtrPassByPtr<T>   : Store nsRefPtr<T>, pass T*
-// - const T*  -> StoreConstPtrPassByConstPtr<T> : Store const T*, pass const T*
-// - T*        -> StorePtrPassByPtr<T>           : Store T*, pass T*.
-// - const T&  -> StoreConstRefPassByConstLRef<T>: Store const T&, pass const T&.
-// - T&        -> StoreRefPassByLRef<T>          : Store T&, pass T&.
-// - T&&       -> StoreCopyPassByRRef<T>         : Store T, pass Move(T).
-// - Other T   -> StoreCopyPassByValue<T>        : Store T, pass T.
-// Other available explicit options:
-// -              StoreCopyPassByConstLRef<T>    : Store T, pass const T&.
-// -              StoreCopyPassByLRef<T>         : Store T, pass T& (of copy!)
-// -              StoreCopyPassByConstPtr<T>     : Store T, pass const T*
-// -              StoreCopyPassByPtr<T>          : Store T, pass T* (of copy!)
-// Or create your own class with PassAsParameter() method, optional
-// clean-up in destructor, and with associated IsParameterStorageClass<>.
-template<typename T>
-struct ParameterStorage
-  : mozilla::Conditional<IsParameterStorageClass<T>::value,
-                         T,
-                         typename NonParameterStorageClass<T>::Type>
-{};
-
-} /* namespace detail */
-
-// struct used to store arguments and later apply them to a method.
-template <typename... Ts> struct nsRunnableMethodArguments;
-
-// Specializations for 0-4 arguments, add more as required.
-// TODO Use tuple instead; And/or use lambdas.
-template <>
-struct nsRunnableMethodArguments<>
-{
-  template<class C, typename M> void apply(C* o, M m)
-  {
-    ((*o).*m)();
-  }
-};
-template <typename T0>
-struct nsRunnableMethodArguments<T0>
-{
-  typename ::detail::ParameterStorage<T0>::Type m0;
-  template<typename A0>
-  nsRunnableMethodArguments(A0&& a0)
-    : m0(mozilla::Forward<A0>(a0))
-  {}
-  template<class C, typename M> void apply(C* o, M m)
-  {
-    ((*o).*m)(m0.PassAsParameter());
-  }
-};
-template <typename T0, typename T1>
-struct nsRunnableMethodArguments<T0, T1>
-{
-  typename ::detail::ParameterStorage<T0>::Type m0;
-  typename ::detail::ParameterStorage<T1>::Type m1;
-  template<typename A0, typename A1>
-  nsRunnableMethodArguments(A0&& a0, A1&& a1)
-    : m0(mozilla::Forward<A0>(a0))
-    , m1(mozilla::Forward<A1>(a1))
-  {}
-  template<class C, typename M> void apply(C* o, M m)
-  {
-    ((*o).*m)(m0.PassAsParameter(), m1.PassAsParameter());
-  }
-};
-template <typename T0, typename T1, typename T2>
-struct nsRunnableMethodArguments<T0, T1, T2>
-{
-  typename ::detail::ParameterStorage<T0>::Type m0;
-  typename ::detail::ParameterStorage<T1>::Type m1;
-  typename ::detail::ParameterStorage<T2>::Type m2;
-  template<typename A0, typename A1, typename A2>
-  nsRunnableMethodArguments(A0&& a0, A1&& a1, A2&& a2)
-    : m0(mozilla::Forward<A0>(a0))
-    , m1(mozilla::Forward<A1>(a1))
-    , m2(mozilla::Forward<A2>(a2))
-  {}
-  template<class C, typename M> void apply(C* o, M m)
-  {
-    ((*o).*m)(m0.PassAsParameter(), m1.PassAsParameter(), m2.PassAsParameter());
-  }
-};
-template <typename T0, typename T1, typename T2, typename T3>
-struct nsRunnableMethodArguments<T0, T1, T2, T3>
-{
-  typename ::detail::ParameterStorage<T0>::Type m0;
-  typename ::detail::ParameterStorage<T1>::Type m1;
-  typename ::detail::ParameterStorage<T2>::Type m2;
-  typename ::detail::ParameterStorage<T3>::Type m3;
-  template<typename A0, typename A1, typename A2, typename A3>
-  nsRunnableMethodArguments(A0&& a0, A1&& a1, A2&& a2, A3&& a3)
-    : m0(mozilla::Forward<A0>(a0))
-    , m1(mozilla::Forward<A1>(a1))
-    , m2(mozilla::Forward<A2>(a2))
-    , m3(mozilla::Forward<A3>(a3))
-  {}
-  template<class C, typename M> void apply(C* o, M m)
-  {
-    ((*o).*m)(m0.PassAsParameter(), m1.PassAsParameter(),
-              m2.PassAsParameter(), m3.PassAsParameter());
-  }
-};
-
-template<typename Method, bool Owning, typename... Storages>
+template <typename Method, bool Owning>
 class nsRunnableMethodImpl
   : public nsRunnableMethodTraits<Method, Owning>::base_type
 {
-  typedef typename nsRunnableMethodTraits<Method, Owning>::class_type
-      ClassType;
+  typedef typename nsRunnableMethodTraits<Method, Owning>::class_type ClassType;
   nsRunnableMethodReceiver<ClassType, Owning> mReceiver;
   Method mMethod;
-  nsRunnableMethodArguments<Storages...> mArgs;
+
 public:
-  virtual ~nsRunnableMethodImpl() { Revoke(); };
-  template<typename... Args>
-  explicit nsRunnableMethodImpl(ClassType* aObj, Method aMethod,
-                                Args&&... aArgs)
-    : mReceiver(aObj)
-    , mMethod(aMethod)
-    , mArgs(mozilla::Forward<Args>(aArgs)...)
-  {
-    static_assert(sizeof...(Storages) == sizeof...(Args), "Storages and Args should have equal sizes");
-  }
-  NS_IMETHOD Run()
-  {
-    if (MOZ_LIKELY(mReceiver.Get())) {
-      mArgs.apply(mReceiver.Get(), mMethod);
-    }
+  nsRunnableMethodImpl(ClassType *obj,
+                       Method method)
+    : mReceiver(obj)
+    , mMethod(method)
+  {}
+
+  NS_IMETHOD Run() {
+    if (NS_LIKELY(mReceiver.mObj))
+      ((*mReceiver.mObj).*mMethod)();
     return NS_OK;
   }
-  void Revoke() { mReceiver.Revoke(); }
+
+  void Revoke() {
+    mReceiver.Revoke();
+  }
 };
 
 // Use this template function like so:
@@ -681,53 +363,16 @@ public:
 //
 template<typename PtrType, typename Method>
 typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewRunnableMethod(PtrType aPtr, Method aMethod)
+NS_NewRunnableMethod(PtrType ptr, Method method)
 {
-  return new nsRunnableMethodImpl<Method, true>(aPtr, aMethod);
+  return new nsRunnableMethodImpl<Method, true>(ptr, method);
 }
 
 template<typename PtrType, typename Method>
 typename nsRunnableMethodTraits<Method, false>::base_type*
-NS_NewNonOwningRunnableMethod(PtrType&& aPtr, Method aMethod)
+NS_NewNonOwningRunnableMethod(PtrType ptr, Method method)
 {
-  return new nsRunnableMethodImpl<Method, false>(aPtr, aMethod);
-}
-
-// Similar to NS_NewRunnableMethod. Call like so:
-// nsCOMPtr<nsIRunnable> event =
-//   NS_NewRunnableMethodWithArg<Type>(myObject, &MyClass::HandleEvent, myArg);
-// 'Type' is the stored type for the argument, see ParameterStorage for details.
-template<typename Storage, typename Method, typename PtrType, typename Arg>
-typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewRunnableMethodWithArg(PtrType&& aPtr, Method aMethod, Arg&& aArg)
-{
-  return new nsRunnableMethodImpl<Method, true, Storage>(
-      aPtr, aMethod, mozilla::Forward<Arg>(aArg));
-}
-
-// Similar to NS_NewRunnableMethod. Call like so:
-// nsCOMPtr<nsIRunnable> event =
-//   NS_NewRunnableMethodWithArg<Types,...>(myObject, &MyClass::HandleEvent, myArg1,...);
-// 'Types' are the stored type for each argument, see ParameterStorage for details.
-template<typename... Storages, typename Method, typename PtrType, typename... Args>
-typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewRunnableMethodWithArgs(PtrType&& aPtr, Method aMethod, Args&&... aArgs)
-{
-  static_assert(sizeof...(Storages) == sizeof...(Args),
-                "<Storages...> size should be equal to number of arguments");
-  return new nsRunnableMethodImpl<Method, true, Storages...>(
-      aPtr, aMethod, mozilla::Forward<Args>(aArgs)...);
-}
-
-template<typename... Storages, typename Method, typename PtrType, typename... Args>
-typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewNonOwningRunnableMethodWithArgs(PtrType&& aPtr, Method aMethod,
-                                      Args&&... aArgs)
-{
-  static_assert(sizeof...(Storages) == sizeof...(Args),
-                "<Storages...> size should be equal to number of arguments");
-  return new nsRunnableMethodImpl<Method, false, Storages...>(
-      aPtr, aMethod, mozilla::Forward<Args>(aArgs)...);
+  return new nsRunnableMethodImpl<Method, false>(ptr, method);
 }
 
 #endif  // XPCOM_GLUE_AVOID_NSPR
@@ -743,7 +388,7 @@ NS_NewNonOwningRunnableMethodWithArgs(PtrType&& aPtr, Method aMethod,
 //   class E : public nsRunnable {
 //   public:
 //     void Revoke() {
-//       mResource = nullptr;
+//       mResource = nsnull;
 //     }
 //   private:
 //     R *mResource;
@@ -777,33 +422,41 @@ NS_NewNonOwningRunnableMethodWithArgs(PtrType&& aPtr, Method aMethod,
 //     return NS_OK;
 //   }
 //
-template<class T>
-class nsRevocableEventPtr
-{
+template <class T>
+class nsRevocableEventPtr {
 public:
-  nsRevocableEventPtr() : mEvent(nullptr) {}
-  ~nsRevocableEventPtr() { Revoke(); }
+  nsRevocableEventPtr()
+    : mEvent(nsnull) {
+  }
 
-  const nsRevocableEventPtr& operator=(T* aEvent)
-  {
-    if (mEvent != aEvent) {
+  ~nsRevocableEventPtr() {
+    Revoke();
+  }
+
+  const nsRevocableEventPtr& operator=(T *event) {
+    if (mEvent != event) {
       Revoke();
-      mEvent = aEvent;
+      mEvent = event;
     }
     return *this;
   }
 
-  void Revoke()
-  {
+  void Revoke() {
     if (mEvent) {
       mEvent->Revoke();
-      mEvent = nullptr;
+      mEvent = nsnull;
     }
   }
 
-  void Forget() { mEvent = nullptr; }
-  bool IsPending() { return mEvent != nullptr; }
-  T* get() { return mEvent; }
+  void Forget() {
+    mEvent = nsnull;
+  }
+
+  PRBool IsPending() {
+    return mEvent != nsnull;
+  }
+  
+  T *get() { return mEvent; }
 
 private:
   // Not implemented
@@ -812,66 +465,5 @@ private:
 
   nsRefPtr<T> mEvent;
 };
-
-/**
- * A simple helper to suffix thread pool name
- * with incremental numbers.
- */
-class nsThreadPoolNaming
-{
-public:
-  nsThreadPoolNaming() : mCounter(0) {}
-
-  /**
-   * Creates and sets next thread name as "<aPoolName> #<n>"
-   * on the specified thread.  If no thread is specified (aThread
-   * is null) then the name is synchronously set on the current thread.
-   */
-  void SetThreadPoolName(const nsACString& aPoolName,
-                         nsIThread* aThread = nullptr);
-
-private:
-  volatile uint32_t mCounter;
-
-  nsThreadPoolNaming(const nsThreadPoolNaming&) = delete;
-  void operator=(const nsThreadPoolNaming&) = delete;
-};
-
-/**
- * Thread priority in most operating systems affect scheduling, not IO.  This
- * helper is used to set the current thread to low IO priority for the lifetime
- * of the created object.  You can only use this low priority IO setting within
- * the context of the current thread.
- */
-class MOZ_STACK_CLASS nsAutoLowPriorityIO
-{
-public:
-  nsAutoLowPriorityIO();
-  ~nsAutoLowPriorityIO();
-
-private:
-  bool lowIOPrioritySet;
-#if defined(XP_MACOSX)
-  int oldPriority;
-#endif
-};
-
-void
-NS_SetMainThread();
-
-/**
- * Helpers for thread to report their status when compiled with Nuwa.
- */
-#ifdef MOZILLA_INTERNAL_API
-#ifdef MOZ_NUWA_PROCESS
-extern void
-NS_SetIgnoreStatusOfCurrentThread();
-#else // MOZ_NUWA_PROCESS
-inline void
-NS_SetIgnoreStatusOfCurrentThread()
-{
-}
-#endif // MOZ_NUWA_PROCESS
-#endif // MOZILLA_INTERNAL_API
 
 #endif  // nsThreadUtils_h__

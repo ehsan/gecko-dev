@@ -21,7 +21,7 @@
     }
 
     function errorHandler(event) {
-      ok(false, "indexedDB error, code " + event.target.error.name);
+      ok(false, "indexedDB error, code " + event.target.errorCode);
       finishTest();
     }
 
@@ -87,23 +87,34 @@
     }
 
     function testSteps() {
-      window.parent.SpecialPowers.addPermission("indexedDB", true, document);
+      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-      let request = indexedDB.open(window.location.pathname, 1);
+      let uri = window.document.documentURIObject;
+      Components.classes["@mozilla.org/permissionmanager;1"]
+                .getService(Components.interfaces.nsIPermissionManager)
+                .add(uri, "indexedDB",
+                     Components.interfaces.nsIPermissionManager.ALLOW_ACTION);
+
+      let request = mozIndexedDB.open(window.location.pathname);
       request.onerror = errorHandler;
-      request.onupgradeneeded = grabEventAndContinueHandler;
-      let event = yield undefined;
+      request.onsuccess = grabEventAndContinueHandler;
+      let event = yield;
 
       let db = event.target.result;
       db.onerror = errorEventCounter;
       db.addEventListener("error", errorEventCounter, true);
 
-      event.target.onsuccess = grabEventAndContinueHandler;
+      request = db.setVersion("1");
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      event.target.transaction.oncomplete = grabEventAndContinueHandler;
 
       db.createObjectStore("foo", { autoIncrement: true });
-      yield undefined;
+      yield;
 
-      let transaction = db.transaction("foo", "readwrite");
+      let transaction = db.transaction("foo", IDBTransaction.READ_WRITE);
       transaction.addEventListener("error", errorEventCounter, false);
       transaction.addEventListener("error", errorEventCounter, true);
 
@@ -112,16 +123,16 @@
       request = objectStore.add({}, 1);
       request.onsuccess = grabEventAndContinueHandler;
       request.onerror = errorHandler;
-      event = yield undefined;
+      event = yield;
 
       request = objectStore.add({}, 1);
       request.onsuccess = function(event) {
         ok(false, "Did not expect second add to succeed.");
       };
       request.onerror = errorEventCounter;
-      yield undefined;
+      yield;
 
-      transaction = db.transaction("foo", "readwrite");
+      transaction = db.transaction("foo", IDBTransaction.READ_WRITE);
       transaction.addEventListener("error", errorEventCounter, false);
       transaction.addEventListener("error", errorEventCounter, true);
 
@@ -130,14 +141,14 @@
       request = objectStore.add({}, 1);
       request.onsuccess = grabEventAndContinueHandler;
       request.onerror = errorHandler;
-      event = yield undefined;
+      event = yield;
 
       request = objectStore.add({}, 1);
       request.onsuccess = function(event) {
         ok(false, "Did not expect second add to succeed.");
       };
       request.onerror = errorEventCounter;
-      yield undefined;
+      yield;
     }
   </script>
 

@@ -6,6 +6,8 @@
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         title="Accessible Table selection tests">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js" />
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
@@ -17,8 +19,6 @@
   <script type="application/javascript"
           src="../events.js" />
   <script type="application/javascript"
-          src="../role.js" />
-  <script type="application/javascript"
           src="../states.js" />
   <script type="application/javascript"
           src="../table.js" />
@@ -28,9 +28,24 @@
     ////////////////////////////////////////////////////////////////////////////
     // Test
 
+    var gTree = null;
+    var gTreeBox = null;
+    var gTreeView = null;
+
     // gA11yEventDumpID = "debug";
 
     function doTest()
+    {
+      // Initialize the tree
+      gTree = document.getElementById("tree");
+      gTreeBox = gTree.treeBoxObject;
+      gView = new nsTableTreeView(3);
+
+      waitForEvent(EVENT_REORDER, gTree, continueTest);
+      gTreeBox.view = gView;
+    }
+
+    function continueTest()
     {
       var cellsArray =
       [
@@ -39,15 +54,15 @@
         [false, false]
       ];
 
-      testTableSelection("tree", cellsArray);
-      testSelectTableRow("tree", 0, cellsArray);
-      testUnselectTableRow("tree", 0, cellsArray);
+      testTableSelection(gTree, cellsArray);
+      testSelectTableRow(gTree, 0, cellsArray);
+      testUnselectTableRow(gTree, 0, cellsArray);
 
       SimpleTest.finish();
     }
 
     SimpleTest.waitForExplicitFinish();
-    addA11yXULTreeLoadEvent(doTest, "tree", new nsTableTreeView(3));
+    addA11yLoadEvent(doTest);
   ]]>
   </script>
 

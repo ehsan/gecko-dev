@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include <stdio.h>
 #include <windows.h>
 
@@ -28,10 +24,10 @@ BOOL WINAPI DllMain(
     // we have to crash on another thread because LoadLibrary() will
     // catch memory access errors and return failure to the calling process
     CreateThread(
-                 nullptr,                // default security attributes
+                 NULL,                   // default security attributes
                  0,                      // use default stack size
-                 CrashingThread,         // thread function name
-                 nullptr,                // argument to thread function
+                 CrashingThread  ,       // thread function name
+                 NULL,                   // argument to thread function
                  0,                      // use default creation flags
                  &tid);                  // returns the thread identifier
   return TRUE;

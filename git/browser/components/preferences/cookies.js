@@ -1,11 +1,43 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+# -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Firefox Preferences System.
+#
+# The Initial Developer of the Original Code is
+# Ben Goodger.
+# Portions created by the Initial Developer are Copyright (C) 2005
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <ben@mozilla.org>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 const nsICookie = Components.interfaces.nsICookie;
-
-Components.utils.import("resource://gre/modules/PluralForm.jsm");
 
 var gCookiesWindow = {
   _cm               : Components.classes["@mozilla.org/cookiemanager;1"]
@@ -40,7 +72,7 @@ var gCookiesWindow = {
 
   _populateList: function (aInitialLoad) {
     this._loadCookies();
-    this._tree.view = this._view;
+    this._tree.treeBoxObject.view = this._view;
     if (aInitialLoad)
       this.sort("rawHost");
     if (this._view.rowCount > 0)
@@ -56,8 +88,6 @@ var gCookiesWindow = {
       if (document.getElementById("filter").value != "")
         this.filter();
     }
-
-    this._updateRemoveAllButton();
 
     this._saveState();
   },
@@ -87,7 +117,6 @@ var gCookiesWindow = {
       this._view._rowCount = 0;
       this._tree.treeBoxObject.rowCountChanged(0, -oldRowCount);
       this._view.selection.clearSelection();
-      this._updateRemoveAllButton();
     }
     else if (aData == "reload") {
       // first, clear any existing entries
@@ -178,7 +207,7 @@ var gCookiesWindow = {
     this._view._rowCount += rowCountImpact;
     this._tree.treeBoxObject.rowCountChanged(oldRowCount - 1, rowCountImpact);
 
-    this._updateRemoveAllButton();
+    document.getElementById("removeAllCookies").disabled = this._view._filtered;
   },
 
   _view: {
@@ -309,9 +338,9 @@ var gCookiesWindow = {
     _selection: null,
     get selection () { return this._selection; },
     set selection (val) { this._selection = val; return val; },
-    getRowProperties: function (aIndex) { return ""; },
-    getCellProperties: function (aIndex, aColumn) { return ""; },
-    getColumnProperties: function (aColumn) { return ""; },
+    getRowProperties: function (aIndex, aProperties) {},
+    getCellProperties: function (aIndex, aColumn, aProperties) {},
+    getColumnProperties: function (aColumn, aProperties) {},
     isContainer: function (aIndex) {
       if (!this._filtered) {
         var item = this._getItemAtIndex(aIndex);
@@ -526,7 +555,7 @@ var gCookiesWindow = {
   },
 
   onCookieSelected: function () {
-    var item;
+    var properties, item;
     var seln = this._tree.view.selection;
     if (!this._view._filtered)
       item = this._view._getItemAtIndex(seln.currentIndex);
@@ -543,82 +572,74 @@ var gCookiesWindow = {
       for (var j = min.value; j <= max.value; ++j) {
         item = this._view._getItemAtIndex(j);
         if (!item) continue;
-        if (item.container)
+        if (item.container && !item.open)
           selectedCookieCount += item.cookies.length;
         else if (!item.container)
           ++selectedCookieCount;
       }
     }
+    var item = this._view._getItemAtIndex(seln.currentIndex);
+    if (item && seln.count == 1 && item.container && item.open)
+      selectedCookieCount += 2;
 
-    let buttonLabel = this._bundle.getString("removeSelectedCookies");
-    let removeSelectedCookies = document.getElementById("removeSelectedCookies");
-    removeSelectedCookies.label = PluralForm.get(selectedCookieCount, buttonLabel)
-                                            .replace("#1", selectedCookieCount);
+    var removeCookie = document.getElementById("removeCookie");
+    var removeCookies = document.getElementById("removeCookies");
+    removeCookie.parentNode.selectedPanel =
+      selectedCookieCount == 1 ? removeCookie : removeCookies;
 
-    removeSelectedCookies.disabled = !(seln.count > 0);
-  },
-
-  performDeletion: function gCookiesWindow_performDeletion(deleteItems) {
-    var psvc = Components.classes["@mozilla.org/preferences-service;1"]
-                         .getService(Components.interfaces.nsIPrefBranch);
-    var blockFutureCookies = false;
-    if (psvc.prefHasUserValue("network.cookie.blockFutureCookies"))
-      blockFutureCookies = psvc.getBoolPref("network.cookie.blockFutureCookies");
-    for (var i = 0; i < deleteItems.length; ++i) {
-      var item = deleteItems[i];
-      this._cm.remove(item.host, item.name, item.path, blockFutureCookies);
-    }
+    document.getElementById("removeAllCookies").disabled = this._view._filtered;
+    removeCookie.disabled = removeCookies.disabled = !(seln.count > 0);
   },
 
   deleteCookie: function () {
-    // Selection Notes
-    // - Selection always moves to *NEXT* adjacent item unless item
-    //   is last child at a given level in which case it moves to *PREVIOUS*
-    //   item
-    //
-    // Selection Cases (Somewhat Complicated)
-    //
-    // 1) Single cookie selected, host has single child
-    //    v cnn.com
-    //    //// cnn.com ///////////// goksdjf@ ////
-    //    > atwola.com
-    //
-    //    Before SelectedIndex: 1   Before RowCount: 3
-    //    After  SelectedIndex: 0   After  RowCount: 1
-    //
-    // 2) Host selected, host open
-    //    v goats.com ////////////////////////////
-    //         goats.com             sldkkfjl
-    //         goat.scom             flksj133
-    //    > atwola.com
-    //
-    //    Before SelectedIndex: 0   Before RowCount: 4
-    //    After  SelectedIndex: 0   After  RowCount: 1
-    //
-    // 3) Host selected, host closed
-    //    > goats.com ////////////////////////////
-    //    > atwola.com
-    //
-    //    Before SelectedIndex: 0   Before RowCount: 2
-    //    After  SelectedIndex: 0   After  RowCount: 1
-    //
-    // 4) Single cookie selected, host has many children
-    //    v goats.com
-    //         goats.com             sldkkfjl
-    //    //// goats.com /////////// flksjl33 ////
-    //    > atwola.com
-    //
-    //    Before SelectedIndex: 2   Before RowCount: 4
-    //    After  SelectedIndex: 1   After  RowCount: 3
-    //
-    // 5) Single cookie selected, host has many children
-    //    v goats.com
-    //    //// goats.com /////////// flksjl33 ////
-    //         goats.com             sldkkfjl
-    //    > atwola.com
-    //
-    //    Before SelectedIndex: 1   Before RowCount: 4
-    //    After  SelectedIndex: 1   After  RowCount: 3
+#   // Selection Notes
+#   // - Selection always moves to *NEXT* adjacent item unless item
+#   //   is last child at a given level in which case it moves to *PREVIOUS*
+#   //   item
+#   //
+#   // Selection Cases (Somewhat Complicated)
+#   //
+#   // 1) Single cookie selected, host has single child
+#   //    v cnn.com
+#   //    //// cnn.com ///////////// goksdjf@ ////
+#   //    > atwola.com
+#   //
+#   //    Before SelectedIndex: 1   Before RowCount: 3
+#   //    After  SelectedIndex: 0   After  RowCount: 1
+#   //
+#   // 2) Host selected, host open
+#   //    v goats.com ////////////////////////////
+#   //         goats.com             sldkkfjl
+#   //         goat.scom             flksj133
+#   //    > atwola.com
+#   //
+#   //    Before SelectedIndex: 0   Before RowCount: 4
+#   //    After  SelectedIndex: 0   After  RowCount: 1
+#   //
+#   // 3) Host selected, host closed
+#   //    > goats.com ////////////////////////////
+#   //    > atwola.com
+#   //
+#   //    Before SelectedIndex: 0   Before RowCount: 2
+#   //    After  SelectedIndex: 0   After  RowCount: 1
+#   //
+#   // 4) Single cookie selected, host has many children
+#   //    v goats.com
+#   //         goats.com             sldkkfjl
+#   //    //// goats.com /////////// flksjl33 ////
+#   //    > atwola.com
+#   //
+#   //    Before SelectedIndex: 2   Before RowCount: 4
+#   //    After  SelectedIndex: 1   After  RowCount: 3
+#   //
+#   // 5) Single cookie selected, host has many children
+#   //    v goats.com
+#   //    //// goats.com /////////// flksjl33 ////
+#   //         goats.com             sldkkfjl
+#   //    > atwola.com
+#   //
+#   //    Before SelectedIndex: 1   Before RowCount: 4
+#   //    After  SelectedIndex: 1   After  RowCount: 3
     var seln = this._view.selection;
     var tbo = this._tree.treeBoxObject;
 
@@ -666,10 +687,7 @@ var gCookiesWindow = {
     }
     else {
       var rangeCount = seln.getRangeCount();
-      // Traverse backwards through selections to avoid messing 
-      // up the indices when they are deleted.
-      // See bug 388079.
-      for (var i = rangeCount - 1; i >= 0; --i) {
+      for (var i = 0; i < rangeCount; ++i) {
         var min = {}; var max = {};
         seln.getRangeAt(i, min, max);
         nextSelected = min.value;
@@ -686,7 +704,15 @@ var gCookiesWindow = {
       }
     }
 
-    this.performDeletion(deleteItems);
+    var psvc = Components.classes["@mozilla.org/preferences-service;1"]
+                         .getService(Components.interfaces.nsIPrefBranch);
+    var blockFutureCookies = false;
+    if (psvc.prefHasUserValue("network.cookie.blockFutureCookies"))
+      blockFutureCookies = psvc.getBoolPref("network.cookie.blockFutureCookies");
+    for (i = 0; i < deleteItems.length; ++i) {
+      var item = deleteItems[i];
+      this._cm.remove(item.host, item.name, item.path, blockFutureCookies);
+    }
 
     if (nextSelected < 0)
       seln.clearSelection();
@@ -697,30 +723,12 @@ var gCookiesWindow = {
   },
 
   deleteAllCookies: function () {
-    if (this._view._filtered) {
-      var rowCount = this._view.rowCount;
-      var deleteItems = [];
-      for (var index = 0; index < rowCount; index++) {
-        deleteItems.push(this._view._getItemAtIndex(index));
-      }
-      this._view._removeItemAtIndex(0, rowCount);
-      this._view._rowCount = 0;
-      this._tree.treeBoxObject.rowCountChanged(0, -rowCount);
-      this.performDeletion(deleteItems);
-    }
-    else {
-      this._cm.removeAll();
-    }
-    this._updateRemoveAllButton();
-    this.focusFilterBox();
+    this._cm.removeAll();
+    this._tree.focus();
   },
 
   onCookieKeyPress: function (aEvent) {
-    if (aEvent.keyCode == KeyEvent.DOM_VK_DELETE
-#ifdef XP_MACOSX
-        || aEvent.keyCode == KeyEvent.DOM_VK_BACK_SPACE
-#endif
-       )
+    if (aEvent.keyCode == 46)
       this.deleteCookie();
   },
 
@@ -789,7 +797,7 @@ var gCookiesWindow = {
 
     // Just reload the list to make sure deletions are respected
     this._loadCookies();
-    this._tree.view = this._view;
+    this._tree.treeBoxObject.view = this._view;
 
     // Restore sort order
     var sortby = this._lastSortProperty;
@@ -816,7 +824,6 @@ var gCookiesWindow = {
     this._lastSelectedRanges = [];
 
     document.getElementById("cookiesIntro").value = this._bundle.getString("cookiesAll");
-    this._updateRemoveAllButton();
   },
 
   _cookieMatchesFilter: function (aCookie) {
@@ -862,10 +869,6 @@ var gCookiesWindow = {
     }
   },
 
-  _updateRemoveAllButton: function gCookiesWindow__updateRemoveAllButton() {
-    document.getElementById("removeAllCookies").disabled = this._view._rowCount == 0;
-  },
-
   filter: function () {
     var filter = document.getElementById("filter").value;
     if (filter == "") {
@@ -896,7 +899,6 @@ var gCookiesWindow = {
       view.selection.select(0);
 
     document.getElementById("cookiesIntro").value = gCookiesWindow._bundle.getString("cookiesFiltered");
-    this._updateRemoveAllButton();
   },
 
   setFilter: function (aFilterString) {
@@ -908,10 +910,5 @@ var gCookiesWindow = {
     var filter = document.getElementById("filter");
     filter.focus();
     filter.select();
-  },
-
-  onWindowKeyPress: function (aEvent) {
-    if (aEvent.keyCode == KeyEvent.DOM_VK_ESCAPE)
-      window.close();
   }
 };

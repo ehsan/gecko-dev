@@ -1,12 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#if defined(MOZ_UPDATER)
-# if !defined(MOZ_WIDGET_ANDROID)
-#  define USE_MOZ_UPDATER
-# endif
-#endif
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Joe Hewitt <hewitt@netscape.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #define NS_ALERTSERVICE_CONTRACTID \
   "@mozilla.org/alerts-service;1"
@@ -21,6 +48,9 @@
 #define NS_AUTOCOMPLETECONTROLLER_CONTRACTID \
   "@mozilla.org/autocomplete/controller;1"
 
+#define NS_AUTOCOMPLETECONTROLLER_CONTRACTID \
+  "@mozilla.org/autocomplete/controller;1"
+
 #define NS_AUTOCOMPLETESIMPLERESULT_CONTRACTID \
   "@mozilla.org/autocomplete/simple-result;1"
 
@@ -29,9 +59,6 @@
 
 #define NS_DOWNLOADMANAGER_CONTRACTID \
   "@mozilla.org/download-manager;1"
-
-#define NS_DOWNLOADPLATFORM_CONTRACTID \
-  "@mozilla.org/toolkit/download-platform;1"
 
 #define NS_FORMHISTORY_CONTRACTID \
   "@mozilla.org/satchel/form-history;1"
@@ -54,9 +81,6 @@
 #define NS_PARENTALCONTROLSSERVICE_CONTRACTID \
     "@mozilla.org/parental-controls-service;1"
 
-#define NS_URLCLASSIFIERPREFIXSET_CONTRACTID \
-  "@mozilla.org/url-classifier/prefixset;1"
-
 #define NS_URLCLASSIFIERDBSERVICE_CONTRACTID \
     "@mozilla.org/url-classifier/dbservice;1"
 
@@ -68,6 +92,8 @@
 
 #define NS_URLCLASSIFIERHASHCOMPLETER_CONTRACTID \
     "@mozilla.org/url-classifier/hashcompleter;1"
+
+#define NS_SCRIPTABLEUNESCAPEHTML_CONTRACTID "@mozilla.org/feed-unescapehtml;1"
 
 #define NS_NAVHISTORYSERVICE_CONTRACTID \
   "@mozilla.org/browser/nav-history-service;1"
@@ -81,22 +107,20 @@
 #define NS_LIVEMARKSERVICE_CONTRACTID \
   "@mozilla.org/browser/livemark-service;2"
 
-#define NS_TAGGINGSERVICE_CONTRACTID \
-"@mozilla.org/browser/tagging-service;1"
+#define NS_MORKHISTORYIMPORTER_CONTRACTID \
+  "@mozilla.org/browser/history-importer;1"
 
 #define NS_FAVICONSERVICE_CONTRACTID \
   "@mozilla.org/browser/favicon-service;1"
 
+#define NS_PLACESIMPORTEXPORTSERVICE_CONTRACTID \
+  "@mozilla.org/browser/places/import-export-service;1"
+
 #define NS_APPSTARTUP_CONTRACTID \
   "@mozilla.org/toolkit/app-startup;1"
 
-#if defined(USE_MOZ_UPDATER)
-#define NS_UPDATEPROCESSOR_CONTRACTID \
-  "@mozilla.org/updates/update-processor;1"
-#endif
-
-#define NS_ADDONPATHSERVICE_CONTRACTID \
-    "@mozilla.org/addon-path-service;1"
+#define NS_WEBAPPSSUPPORT_CONTRACTID \
+  "@mozilla.org/webapps/installer;1"
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -123,9 +147,6 @@
 #define NS_DOWNLOADMANAGER_CID \
     { 0xedb0490e, 0x1dd1, 0x11b2, { 0x83, 0xb8, 0xdb, 0xf8, 0xd8, 0x59, 0x06, 0xa6 } }
 
-#define NS_DOWNLOADPLATFORM_CID \
-    { 0x649a14c9, 0xfe5c, 0x48ec, { 0x9c, 0x85, 0x00, 0xca, 0xd9, 0xcc, 0xf3, 0x2e } }
-
 // {895DB6C7-DBDF-40ea-9F64-B175033243DC}
 #define NS_FORMFILLCONTROLLER_CID \
 { 0x895db6c7, 0xdbdf, 0x40ea, { 0x9f, 0x64, 0xb1, 0x75, 0x3, 0x32, 0x43, 0xdc } }
@@ -141,22 +162,27 @@
 // {e7f70966-9a37-48d7-8aeb-35998f31090e}
 #define NS_TYPEAHEADFIND_CID \
 { 0xe7f70966, 0x9a37, 0x48d7, { 0x8a, 0xeb, 0x35, 0x99, 0x8f, 0x31, 0x09, 0x0e} }
-
-// {3d8579f0-75fa-4e00-ba41-38661d5b5d17}
- #define NS_URLCLASSIFIERPREFIXSET_CID \
-{ 0x3d8579f0, 0x75fa, 0x4e00, { 0xba, 0x41, 0x38, 0x66, 0x1d, 0x5b, 0x5d, 0x17} }
-
-// {8a389f21-f821-4e29-9c6b-3de6f33cd7cf}
+  
+// {5eb7c3c1-ec1f-4007-87cc-eefb37d68ce6}
 #define NS_URLCLASSIFIERDBSERVICE_CID \
-{ 0x8a389f21, 0xf821, 0x4e29, { 0x9c, 0x6b, 0x3d, 0xe6, 0xf3, 0x3c, 0xd7, 0xcf} }
+{ 0x5eb7c3c1, 0xec1f, 0x4007, { 0x87, 0xcc, 0xee, 0xfb, 0x37, 0xd6, 0x8c, 0xe6} }
 
-// e1797597-f4d6-4dd3-a1e1-745ad352cd80
+// {c2be6dc0-ef1e-4abd-86a2-4f864ddc57f6}
 #define NS_URLCLASSIFIERSTREAMUPDATER_CID \
-{ 0xe1797597, 0xf4d6, 0x4dd3, { 0xa1, 0xe1, 0x74, 0x5a, 0xd3, 0x52, 0xcd, 0x80 }}
+{ 0xc2be6dc0, 0xef1e, 0x4abd, { 0x86, 0xa2, 0x4f, 0x86, 0x4d, 0xdc, 0x57, 0xf6} }
 
 // {b7b2ccec-7912-4ea6-a548-b038447004bd}
 #define NS_URLCLASSIFIERUTILS_CID \
 { 0xb7b2ccec, 0x7912, 0x4ea6, { 0xa5, 0x48, 0xb0, 0x38, 0x44, 0x70, 0x04, 0xbd} }
+
+// {786e0a0e-e035-4600-8ee0-365a63a80b80}
+#define NS_URLCLASSIFIERHASHCOMPLETER_CID \
+{ 0x786e0a0e, 0xe035, 0x4600, \
+  { 0x8e, 0xe0, 0x36, 0x5a, 0x63, 0xa8, 0x0b, 0x80 } }
+
+// {10f2f5f0-f103-4901-980f-ba11bd70d60d}
+#define NS_SCRIPTABLEUNESCAPEHTML_CID  \
+{ 0x10f2f5f0, 0xf103, 0x4901, { 0x98, 0x0f, 0xba, 0x11, 0xbd, 0x70, 0xd6, 0x0d} }
 
 #define NS_NAVHISTORYSERVICE_CID \
 { 0x88cecbb7, 0x6c63, 0x4b3b, { 0x8c, 0xd4, 0x84, 0xf3, 0xb8, 0x22, 0x8c, 0x69 } }
@@ -170,19 +196,16 @@
 #define NS_NAVBOOKMARKSSERVICE_CID \
 { 0x9de95a0c, 0x39a4, 0x4d64, {0x9a, 0x53, 0x17, 0x94, 0x0d, 0xd7, 0xca, 0xbb}}
 
+#define NS_MORKHISTORYIMPORTER_CID \
+{ 0x428e6d12, 0x9c6d, 0x436f, {0xb7, 0xa3, 0x6c, 0xa5, 0xf4, 0x80, 0x92, 0x12}}
+
 #define NS_FAVICONSERVICE_CID \
 { 0x984e3259, 0x9266, 0x49cf, { 0xb6, 0x05, 0x60, 0xb0, 0x22, 0xa0, 0x07, 0x56 } }
 
-#if defined(USE_MOZ_UPDATER)
-#define NS_UPDATEPROCESSOR_CID \
-{ 0xf3dcf644, 0x79e8, 0x4f59, { 0xa1, 0xbb, 0x87, 0x84, 0x54, 0x48, 0x8e, 0xf9 } }
-#endif
+// {6fb0c970-e1b1-11db-8314-0800200c9a66}
+#define NS_PLACESIMPORTEXPORTSERVICE_CID \
+{ 0x6fb0c970, 0xe1b1, 0x11db, { 0x83, 0x14, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }
 
-#define NS_APPLICATION_REPUTATION_SERVICE_CONTRACTID \
-  "@mozilla.org/downloads/application-reputation-service;1"
+#define NS_WEBAPPSSUPPORT_CID \
+{ 0xd0b62752, 0x88be, 0x4c88, {0x94, 0xe5, 0xc6, 0x9e, 0x15, 0xa1, 0x0c, 0x4e} }
 
-#define NS_APPLICATION_REPUTATION_SERVICE_CID \
-{ 0x8576c950, 0xf4a2, 0x11e2, { 0xb7, 0x78, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }
-
-#define NS_ADDON_PATH_SERVICE_CID \
-{ 0xa39f39d0, 0xdfb6, 0x11e3, { 0x8b, 0x68, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }

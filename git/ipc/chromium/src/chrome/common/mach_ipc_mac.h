@@ -86,7 +86,7 @@ class MachMsgPortDescriptor : public mach_msg_port_descriptor_t {
   }
 
   // For passing send rights to a port
-  explicit MachMsgPortDescriptor(mach_port_t in_name) {
+  MachMsgPortDescriptor(mach_port_t in_name) {
     name = in_name;
     pad1 = 0;
     pad2 = 0;
@@ -109,6 +109,12 @@ class MachMsgPortDescriptor : public mach_msg_port_descriptor_t {
 
   mach_msg_type_name_t GetDisposition() const {
     return disposition;
+  }
+
+  // We're just a simple wrapper for mach_msg_port_descriptor_t
+  // and have the same memory layout
+  operator mach_msg_port_descriptor_t&() {
+    return *this;
   }
 
   // For convenience
@@ -251,7 +257,7 @@ class MachReceiveMessage : public MachMessage {
 //==============================================================================
 class MachSendMessage : public MachMessage {
  public:
-  explicit MachSendMessage(int32_t message_id);
+  MachSendMessage(int32_t message_id);
   MachSendMessage(void *storage, size_t storage_length, int32_t message_id);
 
  private:
@@ -265,11 +271,11 @@ class MachSendMessage : public MachMessage {
 class ReceivePort {
  public:
   // Creates a new mach port for receiving messages and registers a name for it
-  explicit ReceivePort(const char *receive_port_name);
+  ReceivePort(const char *receive_port_name);
 
   // Given an already existing mach port, use it.  We take ownership of the
   // port and deallocate it in our destructor.
-  explicit ReceivePort(mach_port_t receive_port);
+  ReceivePort(mach_port_t receive_port);
 
   // Create a new mach port for receiving messages
   ReceivePort();
@@ -295,11 +301,11 @@ class ReceivePort {
 class MachPortSender {
  public:
   // get a port with send rights corresponding to a named registered service
-  explicit MachPortSender(const char *receive_port_name);
+  MachPortSender(const char *receive_port_name);
 
 
   // Given an already existing mach port, use it.
-  explicit MachPortSender(mach_port_t send_port);
+  MachPortSender(mach_port_t send_port);
 
   kern_return_t SendMessage(MachSendMessage &message,
                             mach_msg_timeout_t timeout);

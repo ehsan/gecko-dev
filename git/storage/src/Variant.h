@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *   Drew Willcoxon <adw@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_storage_Variant_h__
 #define mozilla_storage_Variant_h__
@@ -17,12 +51,12 @@
  * This class is used by the storage module whenever an nsIVariant needs to be
  * returned.  We provide traits for the basic sqlite types to make use easier.
  * The following types map to the indicated sqlite type:
- * int64_t   -> INTEGER (use IntegerVariant)
+ * PRInt64   -> INTEGER (use IntegerVariant)
  * double    -> FLOAT (use FloatVariant)
  * nsString  -> TEXT (use TextVariant)
  * nsCString -> TEXT (use UTF8TextVariant)
- * uint8_t[] -> BLOB (use BlobVariant)
- * nullptr   -> NULL (use NullVariant)
+ * PRUint8[] -> BLOB (use BlobVariant)
+ * nsnull    -> NULL (use NullVariant)
  */
 
 namespace mozilla {
@@ -34,7 +68,7 @@ namespace storage {
 class Variant_base : public nsIVariant
 {
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIVARIANT
 
 protected:
@@ -51,53 +85,47 @@ protected:
 template <typename DataType>
 struct variant_traits
 {
-  static inline uint16_t type() { return nsIDataType::VTYPE_EMPTY; }
+  static inline PRUint16 type() { return nsIDataType::VTYPE_EMPTY; }
 };
 
-template <typename DataType, bool Adopting=false>
+template <typename DataType>
 struct variant_storage_traits
 {
   typedef DataType ConstructorType;
   typedef DataType StorageType;
-  static inline void storage_conversion(const ConstructorType aData, StorageType* _storage)
-  {
-    *_storage = aData;
-  }
-
-  static inline void destroy(const StorageType& _storage)
-  { }
+  static inline StorageType storage_conversion(ConstructorType aData) { return aData; }
 };
 
 #define NO_CONVERSION return NS_ERROR_CANNOT_CONVERT_DATA;
 
-template <typename DataType, bool Adopting=false>
+template <typename DataType>
 struct variant_integer_traits
 {
-  typedef typename variant_storage_traits<DataType, Adopting>::StorageType StorageType;
-  static inline nsresult asInt32(const StorageType &, int32_t *) { NO_CONVERSION }
-  static inline nsresult asInt64(const StorageType &, int64_t *) { NO_CONVERSION }
+  typedef typename variant_storage_traits<DataType>::StorageType StorageType;
+  static inline nsresult asInt32(StorageType, PRInt32 *) { NO_CONVERSION }
+  static inline nsresult asInt64(StorageType, PRInt64 *) { NO_CONVERSION }
 };
 
-template <typename DataType, bool Adopting=false>
+template <typename DataType>
 struct variant_float_traits
 {
-  typedef typename variant_storage_traits<DataType, Adopting>::StorageType StorageType;
-  static inline nsresult asDouble(const StorageType &, double *) { NO_CONVERSION }
+  typedef typename variant_storage_traits<DataType>::StorageType StorageType;
+  static inline nsresult asDouble(StorageType, double *) { NO_CONVERSION }
 };
 
-template <typename DataType, bool Adopting=false>
+template <typename DataType>
 struct variant_text_traits
 {
-  typedef typename variant_storage_traits<DataType, Adopting>::StorageType StorageType;
-  static inline nsresult asUTF8String(const StorageType &, nsACString &) { NO_CONVERSION }
-  static inline nsresult asString(const StorageType &, nsAString &) { NO_CONVERSION }
+  typedef typename variant_storage_traits<DataType>::StorageType StorageType;
+  static inline nsresult asUTF8String(StorageType, nsACString &) { NO_CONVERSION }
+  static inline nsresult asString(StorageType, nsAString &) { NO_CONVERSION }
 };
 
-template <typename DataType, bool Adopting=false>
+template <typename DataType>
 struct variant_blob_traits
 {
-  typedef typename variant_storage_traits<DataType, Adopting>::StorageType StorageType;
-  static inline nsresult asArray(const StorageType &, uint16_t *, uint32_t *, void **)
+  typedef typename variant_storage_traits<DataType>::StorageType StorageType;
+  static inline nsresult asArray(StorageType, PRUint16 *, PRUint32 *, void **)
   { NO_CONVERSION }
 };
 
@@ -108,24 +136,24 @@ struct variant_blob_traits
  */
 
 template < >
-struct variant_traits<int64_t>
+struct variant_traits<PRInt64>
 {
-  static inline uint16_t type() { return nsIDataType::VTYPE_INT64; }
+  static inline PRUint16 type() { return nsIDataType::VTYPE_INT64; }
 };
 template < >
-struct variant_integer_traits<int64_t>
+struct variant_integer_traits<PRInt64>
 {
-  static inline nsresult asInt32(int64_t aValue,
-                                 int32_t *_result)
+  static inline nsresult asInt32(PRInt64 aValue,
+                                 PRInt32 *_result)
   {
-    if (aValue > INT32_MAX || aValue < INT32_MIN)
+    if (aValue > PR_INT32_MAX || aValue < PR_INT32_MIN)
       return NS_ERROR_CANNOT_CONVERT_DATA;
 
-    *_result = static_cast<int32_t>(aValue);
+    *_result = static_cast<PRInt32>(aValue);
     return NS_OK;
   }
-  static inline nsresult asInt64(int64_t aValue,
-                                 int64_t *_result)
+  static inline nsresult asInt64(PRInt64 aValue,
+                                 PRInt64 *_result)
   {
     *_result = aValue;
     return NS_OK;
@@ -133,9 +161,9 @@ struct variant_integer_traits<int64_t>
 };
 // xpcvariant just calls get double for integers...
 template < >
-struct variant_float_traits<int64_t>
+struct variant_float_traits<PRInt64>
 {
-  static inline nsresult asDouble(int64_t aValue,
+  static inline nsresult asDouble(PRInt64 aValue,
                                   double *_result)
   {
     *_result = double(aValue);
@@ -150,7 +178,7 @@ struct variant_float_traits<int64_t>
 template < >
 struct variant_traits<double>
 {
-  static inline uint16_t type() { return nsIDataType::VTYPE_DOUBLE; }
+  static inline PRUint16 type() { return nsIDataType::VTYPE_DOUBLE; }
 };
 template < >
 struct variant_float_traits<double>
@@ -170,19 +198,17 @@ struct variant_float_traits<double>
 template < >
 struct variant_traits<nsString>
 {
-  static inline uint16_t type() { return nsIDataType::VTYPE_ASTRING; }
+  static inline PRUint16 type() { return nsIDataType::VTYPE_ASTRING; }
 };
 template < >
 struct variant_storage_traits<nsString>
 {
   typedef const nsAString & ConstructorType;
   typedef nsString StorageType;
-  static inline void storage_conversion(ConstructorType aText, StorageType* _outData)
+  static inline StorageType storage_conversion(ConstructorType aText)
   {
-    *_outData = aText;
+    return StorageType(aText);
   }
-  static inline void destroy(const StorageType& _outData)
-  { }
 };
 template < >
 struct variant_text_traits<nsString>
@@ -204,19 +230,17 @@ struct variant_text_traits<nsString>
 template < >
 struct variant_traits<nsCString>
 {
-  static inline uint16_t type() { return nsIDataType::VTYPE_UTF8STRING; }
+  static inline PRUint16 type() { return nsIDataType::VTYPE_UTF8STRING; }
 };
 template < >
 struct variant_storage_traits<nsCString>
 {
   typedef const nsACString & ConstructorType;
   typedef nsCString StorageType;
-  static inline void storage_conversion(ConstructorType aText, StorageType* _outData)
+  static inline StorageType storage_conversion(ConstructorType aText)
   {
-    *_outData = aText;
+    return StorageType(aText);
   }
-  static inline void destroy(const StorageType &aData)
-  { }
 };
 template < >
 struct variant_text_traits<nsCString>
@@ -240,60 +264,41 @@ struct variant_text_traits<nsCString>
  */
 
 template < >
-struct variant_traits<uint8_t[]>
+struct variant_traits<PRUint8[]>
 {
-  static inline uint16_t type() { return nsIDataType::VTYPE_ARRAY; }
+  static inline PRUint16 type() { return nsIDataType::VTYPE_ARRAY; }
 };
 template < >
-struct variant_storage_traits<uint8_t[], false>
+struct variant_storage_traits<PRUint8[]>
 {
   typedef std::pair<const void *, int> ConstructorType;
-  typedef FallibleTArray<uint8_t> StorageType;
-  static inline void storage_conversion(ConstructorType aBlob, StorageType* _outData)
+  typedef FallibleTArray<PRUint8> StorageType;
+  static inline StorageType storage_conversion(ConstructorType aBlob)
   {
-    _outData->Clear();
-    _outData->SetCapacity(aBlob.second);
-    (void)_outData->AppendElements(static_cast<const uint8_t *>(aBlob.first),
-                                   aBlob.second);
-  }
-  static inline void destroy(const StorageType& _outData)
-  { }
-};
-template < >
-struct variant_storage_traits<uint8_t[], true>
-{
-  typedef std::pair<uint8_t *, int> ConstructorType;
-  typedef std::pair<uint8_t *, int> StorageType;
-  static inline void storage_conversion(ConstructorType aBlob, StorageType* _outData)
-  {
-    *_outData = aBlob;
-  }
-  static inline void destroy(StorageType &aData)
-  {
-    if (aData.first) {
-      NS_Free(aData.first);
-      aData.first = nullptr;
-    }
+    StorageType data(aBlob.second);
+    (void)data.AppendElements(static_cast<const PRUint8 *>(aBlob.first),
+                              aBlob.second);
+    return data;
   }
 };
 template < >
-struct variant_blob_traits<uint8_t[], false>
+struct variant_blob_traits<PRUint8[]>
 {
-  static inline nsresult asArray(FallibleTArray<uint8_t> &aData,
-                                 uint16_t *_type,
-                                 uint32_t *_size,
+  static inline nsresult asArray(FallibleTArray<PRUint8> &aData,
+                                 PRUint16 *_type,
+                                 PRUint32 *_size,
                                  void **_result)
   {
-    // For empty blobs, we return nullptr.
+    // For empty blobs, we return nsnull.
     if (aData.Length() == 0) {
-      *_result = nullptr;
+      *_result = nsnull;
       *_type = nsIDataType::VTYPE_UINT8;
       *_size = 0;
       return NS_OK;
     }
 
     // Otherwise, we copy the array.
-    *_result = nsMemory::Clone(aData.Elements(), aData.Length() * sizeof(uint8_t));
+    *_result = nsMemory::Clone(aData.Elements(), aData.Length() * sizeof(PRUint8));
     NS_ENSURE_TRUE(*_result, NS_ERROR_OUT_OF_MEMORY);
 
     // Set type and size
@@ -303,42 +308,14 @@ struct variant_blob_traits<uint8_t[], false>
   }
 };
 
-template < >
-struct variant_blob_traits<uint8_t[], true>
-{
-  static inline nsresult asArray(std::pair<uint8_t *, int> &aData,
-                                 uint16_t *_type,
-                                 uint32_t *_size,
-                                 void **_result)
-  {
-    // For empty blobs, we return nullptr.
-    if (aData.second == 0) {
-      *_result = nullptr;
-      *_type = nsIDataType::VTYPE_UINT8;
-      *_size = 0;
-      return NS_OK;
-    }
-
-    // Otherwise, transfer the data out.
-    *_result = aData.first;
-    aData.first = nullptr;
-    MOZ_ASSERT(*_result); // We asked for it twice, better not use adopting!
-
-    // Set type and size
-    *_type = nsIDataType::VTYPE_UINT8;
-    *_size = aData.second;
-    return NS_OK;
-  }
-};
-
 /**
- * nullptr type
+ * NULL type
  */
 
 class NullVariant : public Variant_base
 {
 public:
-  NS_IMETHOD GetDataType(uint16_t *_type)
+  NS_IMETHOD GetDataType(PRUint16 *_type)
   {
     NS_ENSURE_ARG_POINTER(_type);
     *_type = nsIDataType::VTYPE_EMPTY;
@@ -349,7 +326,7 @@ public:
   {
     // Return a void string.
     _str.Truncate(0);
-    _str.SetIsVoid(true);
+    _str.SetIsVoid(PR_TRUE);
     return NS_OK;
   }
 
@@ -357,7 +334,7 @@ public:
   {
     // Return a void string.
     _str.Truncate(0);
-    _str.SetIsVoid(true);
+    _str.SetIsVoid(PR_TRUE);
     return NS_OK;
   }
 };
@@ -365,71 +342,65 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 //// Template Implementation
 
-template <typename DataType, bool Adopting=false>
+template <typename DataType>
 class Variant : public Variant_base
 {
-  ~Variant()
-  {
-    variant_storage_traits<DataType, Adopting>::destroy(mData);
-  }
-
 public:
-  explicit Variant(const typename variant_storage_traits<DataType, Adopting>::ConstructorType aData)
+  Variant(typename variant_storage_traits<DataType>::ConstructorType aData)
+    : mData(variant_storage_traits<DataType>::storage_conversion(aData))
   {
-    variant_storage_traits<DataType, Adopting>::storage_conversion(aData, &mData);
   }
 
-  NS_IMETHOD GetDataType(uint16_t *_type)
+  NS_IMETHOD GetDataType(PRUint16 *_type)
   {
     *_type = variant_traits<DataType>::type();
     return NS_OK;
   }
-  NS_IMETHOD GetAsInt32(int32_t *_integer)
+  NS_IMETHOD GetAsInt32(PRInt32 *_integer)
   {
-    return variant_integer_traits<DataType, Adopting>::asInt32(mData, _integer);
+    return variant_integer_traits<DataType>::asInt32(mData, _integer);
   }
 
-  NS_IMETHOD GetAsInt64(int64_t *_integer)
+  NS_IMETHOD GetAsInt64(PRInt64 *_integer)
   {
-    return variant_integer_traits<DataType, Adopting>::asInt64(mData, _integer);
+    return variant_integer_traits<DataType>::asInt64(mData, _integer);
   }
 
   NS_IMETHOD GetAsDouble(double *_double)
   {
-    return variant_float_traits<DataType, Adopting>::asDouble(mData, _double);
+    return variant_float_traits<DataType>::asDouble(mData, _double);
   }
 
   NS_IMETHOD GetAsAUTF8String(nsACString &_str)
   {
-    return variant_text_traits<DataType, Adopting>::asUTF8String(mData, _str);
+    return variant_text_traits<DataType>::asUTF8String(mData, _str);
   }
 
   NS_IMETHOD GetAsAString(nsAString &_str)
   {
-    return variant_text_traits<DataType, Adopting>::asString(mData, _str);
+    return variant_text_traits<DataType>::asString(mData, _str);
   }
 
-  NS_IMETHOD GetAsArray(uint16_t *_type,
+  NS_IMETHOD GetAsArray(PRUint16 *_type,
                         nsIID *,
-                        uint32_t *_size,
+                        PRUint32 *_size,
                         void **_data)
   {
-    return variant_blob_traits<DataType, Adopting>::asArray(mData, _type, _size, _data);
+    return variant_blob_traits<DataType>::asArray(mData, _type, _size, _data);
   }
 
 private:
-  typename variant_storage_traits<DataType, Adopting>::StorageType mData;
+  typename variant_storage_traits<DataType>::StorageType mData;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Handy typedefs!  Use these for the right mapping.
 
-typedef Variant<int64_t> IntegerVariant;
+typedef Variant<PRInt64> IntegerVariant;
 typedef Variant<double> FloatVariant;
 typedef Variant<nsString> TextVariant;
 typedef Variant<nsCString> UTF8TextVariant;
-typedef Variant<uint8_t[], false> BlobVariant;
-typedef Variant<uint8_t[], true> AdoptedBlobVariant;
+typedef Variant<PRUint8[]> BlobVariant;
 
 } // namespace storage
 } // namespace mozilla

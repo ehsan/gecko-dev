@@ -33,23 +33,23 @@ var chunk4Urls = [
   "a.com/b",
   "b.com/c",
   ];
-var chunk4 = chunk4Urls.join("\n");
+var chunk4 = chunk3Urls.join("\n");
 
 var chunk5Urls = [
   "d.com/e",
   "f.com/g",
   ];
-var chunk5 = chunk5Urls.join("\n");
+var chunk5 = chunk3Urls.join("\n");
 
 var chunk6Urls = [
   "h.com/i",
   "j.com/k",
   ];
-var chunk6 = chunk6Urls.join("\n");
+var chunk6 = chunk3Urls.join("\n");
 
 // we are going to add chunks 1, 2, 4, 5, and 6 to phish-simple, and
 // chunk 2 to malware-simple.  Then we'll remove the urls in chunk3
-// from phish-simple, then expire chunk 1 and chunks 4-6 from
+// from phish-simple, then expire chunk 1 and chunks 4-5 from
 // phish-simple.
 var phishExpected = {};
 var phishUnexpected = {};
@@ -95,8 +95,7 @@ function checkNoHost()
   // Looking up a no-host uri such as a data: uri should throw an exception.
   var exception;
   try {
-    var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("data:text/html,<b>test</b>", null, null));
-    dbservice.lookup(principal, allTables);
+    dbservice.lookup("data:text/html,<b>test</b>");
 
     exception = false;
   } catch(e) {
@@ -115,7 +114,7 @@ function tablesCallbackWithoutSub(tables)
   // there's a leading \n here because splitting left an empty string
   // after the trailing newline, which will sort first
   do_check_eq(parts.join("\n"),
-              "\ntest-malware-simple;a:1\ntest-phish-simple;a:2");
+              "\ntesting-malware-simple;a:1\ntesting-phish-simple;a:2");
 
   checkNoHost();
 }
@@ -133,12 +132,12 @@ function tablesCallbackWithSub(tables)
   // there's a leading \n here because splitting left an empty string
   // after the trailing newline, which will sort first
   do_check_eq(parts.join("\n"),
-              "\ntest-malware-simple;a:1\ntest-phish-simple;a:2:s:3");
+              "\ntesting-malware-simple;a:1\ntesting-phish-simple;a:2:s:3");
 
   // verify that expiring a sub chunk removes its name from the list
   var data =
     "n:1000\n" +
-    "i:test-phish-simple\n" +
+    "i:testing-phish-simple\n" +
     "sd:3\n";
 
   doSimpleUpdate(data, expireSubSuccess, testFailure);
@@ -157,7 +156,7 @@ function checkDone() {
 function phishExists(result) {
   dumpn("phishExists: " + result);
   try {
-    do_check_true(result.indexOf("test-phish-simple") != -1);
+    do_check_true(result.indexOf("testing-phish-simple") != -1);
   } finally {
     checkDone();
   }
@@ -166,7 +165,7 @@ function phishExists(result) {
 function phishDoesntExist(result) {
   dumpn("phishDoesntExist: " + result);
   try {
-    do_check_true(result.indexOf("test-phish-simple") == -1);
+    do_check_true(result.indexOf("testing-phish-simple") == -1);
   } finally {
     checkDone();
   }
@@ -176,7 +175,7 @@ function malwareExists(result) {
   dumpn("malwareExists: " + result);
 
   try {
-    do_check_true(result.indexOf("test-malware-simple") != -1);
+    do_check_true(result.indexOf("testing-malware-simple") != -1);
   } finally {
     checkDone();
   }
@@ -185,22 +184,18 @@ function malwareExists(result) {
 function checkState()
 {
   numExpecting = 0;
-
   for (var key in phishExpected) {
-    var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("http://" + key, null, null));
-    dbservice.lookup(principal, allTables, phishExists, true);
+    dbservice.lookup("http://" + key, phishExists, true);
     numExpecting++;
   }
 
   for (var key in phishUnexpected) {
-    var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("http://" + key, null, null));
-    dbservice.lookup(principal, allTables, phishDoesntExist, true);
+    dbservice.lookup("http://" + key, phishDoesntExist, true);
     numExpecting++;
   }
 
   for (var key in malwareExpected) {
-    var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("http://" + key, null, null));
-    dbservice.lookup(principal, allTables, malwareExists, true);
+    dbservice.lookup("http://" + key, malwareExists, true);
     numExpecting++;
   }
 }
@@ -214,7 +209,7 @@ function testSubSuccess(result)
 function do_subs() {
   var data =
     "n:1000\n" +
-    "i:test-phish-simple\n" +
+    "i:testing-phish-simple\n" +
     "s:3:32:" + chunk3Sub.length + "\n" +
     chunk3Sub + "\n" +
     "ad:1\n" +
@@ -236,7 +231,7 @@ function do_adds() {
 
   var data =
     "n:1000\n" +
-    "i:test-phish-simple\n" +
+    "i:testing-phish-simple\n" +
     "a:1:32:" + chunk1.length + "\n" +
     chunk1 + "\n" +
     "a:2:32:" + chunk2.length + "\n" +
@@ -247,7 +242,7 @@ function do_adds() {
     chunk5 + "\n" +
     "a:6:32:" + chunk6.length + "\n" +
     chunk6 + "\n" +
-    "i:test-malware-simple\n" +
+    "i:testing-malware-simple\n" +
     "a:1:32:" + chunk2.length + "\n" +
       chunk2 + "\n";
 

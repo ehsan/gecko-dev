@@ -1,32 +1,60 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alon Zakai <azakai@mozilla.com>
+ *   Josh Matthews <josh@joshmatthews.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_net_FTPChannelParent_h
 #define mozilla_net_FTPChannelParent_h
 
-#include "ADivertableParentChannel.h"
 #include "mozilla/net/PFTPChannelParent.h"
-#include "mozilla/net/NeckoParent.h"
+#include "mozilla/net/NeckoCommon.h"
 #include "nsIParentChannel.h"
 #include "nsIInterfaceRequestor.h"
-#include "OfflineObserver.h"
 
 class nsFtpChannel;
-class nsILoadContext;
 
 namespace mozilla {
 namespace net {
 
-class FTPChannelParent MOZ_FINAL : public PFTPChannelParent
-                                 , public nsIParentChannel
-                                 , public nsIInterfaceRequestor
-                                 , public ADivertableParentChannel
-                                 , public nsIChannelEventSink
-                                 , public DisconnectableParent
+class FTPChannelParent : public PFTPChannelParent
+                       , public nsIParentChannel
+                       , public nsIInterfaceRequestor
 {
 public:
   NS_DECL_ISUPPORTS
@@ -34,86 +62,25 @@ public:
   NS_DECL_NSISTREAMLISTENER
   NS_DECL_NSIPARENTCHANNEL
   NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSICHANNELEVENTSINK
 
-  FTPChannelParent(nsILoadContext* aLoadContext, PBOverrideStatus aOverrideStatus);
-
-  bool Init(const FTPChannelCreationArgs& aOpenArgs);
-
-  // ADivertableParentChannel functions.
-  void DivertTo(nsIStreamListener *aListener) MOZ_OVERRIDE;
-  nsresult SuspendForDiversion() MOZ_OVERRIDE;
-
-  // Calls OnStartRequest for "DivertTo" listener, then notifies child channel
-  // that it should divert OnDataAvailable and OnStopRequest calls to this
-  // parent channel.
-  void StartDiversion();
-
-  // Handles calling OnStart/Stop if there are errors during diversion.
-  // Called asynchronously from FailDiversion.
-  void NotifyDiversionFailed(nsresult aErrorCode, bool aSkipResume = true);
-
-protected:
+  FTPChannelParent();
   virtual ~FTPChannelParent();
 
-  // private, supporting function for ADivertableParentChannel.
-  nsresult ResumeForDiversion();
+protected:
+  NS_OVERRIDE virtual bool RecvAsyncOpen(const IPC::URI& uri,
+                                         const PRUint64& startPos,
+                                         const nsCString& entityID,
+                                         const IPC::InputStream& uploadStream);
+  NS_OVERRIDE virtual bool RecvConnectChannel(const PRUint32& channelId);
+  NS_OVERRIDE virtual bool RecvCancel(const nsresult& status);
+  NS_OVERRIDE virtual bool RecvSuspend();
+  NS_OVERRIDE virtual bool RecvResume();
 
-  // Asynchronously calls NotifyDiversionFailed.
-  void FailDiversion(nsresult aErrorCode, bool aSkipResume = true);
+  NS_OVERRIDE virtual void ActorDestroy(ActorDestroyReason why);
 
-  bool DoAsyncOpen(const URIParams& aURI, const uint64_t& aStartPos,
-                   const nsCString& aEntityID,
-                   const OptionalInputStreamParams& aUploadStream,
-                   const ipc::PrincipalInfo& aRequestingPrincipalInfo,
-                   const ipc::PrincipalInfo& aTriggeringPrincipalInfo,
-                   const uint32_t& aSecurityFlags,
-                   const uint32_t& aContentPolicyType,
-                   const uint32_t& aInnerWindowID);
-
-  // used to connect redirected-to channel in parent with just created
-  // ChildChannel.  Used during HTTP->FTP redirects.
-  bool ConnectChannel(const uint32_t& channelId);
-
-  virtual bool RecvCancel(const nsresult& status) MOZ_OVERRIDE;
-  virtual bool RecvSuspend() MOZ_OVERRIDE;
-  virtual bool RecvResume() MOZ_OVERRIDE;
-  virtual bool RecvDivertOnDataAvailable(const nsCString& data,
-                                         const uint64_t& offset,
-                                         const uint32_t& count) MOZ_OVERRIDE;
-  virtual bool RecvDivertOnStopRequest(const nsresult& statusCode) MOZ_OVERRIDE;
-  virtual bool RecvDivertComplete() MOZ_OVERRIDE;
-
-  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
-
-  void OfflineDisconnect() MOZ_OVERRIDE;
-  uint32_t GetAppId() MOZ_OVERRIDE;
-
-  // if configured to use HTTP proxy for FTP, this can an an HTTP channel.
-  nsCOMPtr<nsIChannel> mChannel;
+  nsRefPtr<nsFtpChannel> mChannel;
 
   bool mIPCClosed;
-
-  nsCOMPtr<nsILoadContext> mLoadContext;
-
-  PBOverrideStatus mPBOverride;
-
-  // If OnStart/OnData/OnStop have been diverted from the child, forward them to
-  // this listener.
-  nsCOMPtr<nsIStreamListener> mDivertToListener;
-  // Set to the canceled status value if the main channel was canceled.
-  nsresult mStatus;
-  // Once set, no OnStart/OnData/OnStop calls should be accepted; conversely, it
-  // must be set when RecvDivertOnData/~DivertOnStop/~DivertComplete are
-  // received from the child channel.
-  bool mDivertingFromChild;
-  // Set if OnStart|StopRequest was called during a diversion from the child.
-  bool mDivertedOnStartRequest;
-
-  // Set if we successfully suspended the nsHttpChannel for diversion. Unset
-  // when we call ResumeForDiversion.
-  bool mSuspendedForDiversion;
-  nsRefPtr<OfflineObserver> mObserver;
 };
 
 } // namespace net

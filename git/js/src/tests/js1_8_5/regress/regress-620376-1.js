@@ -1,4 +1,3 @@
-// |reftest| skip-if(Android)
 /*
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/
@@ -10,7 +9,7 @@ function test() {
     if (typeof timeout != "function")
 	return;
 
-    var p = Proxy.create({ keys: function() { return Array(1e9); }});
+    var p = Proxy.create({ enumerate: function() { return Array(1e9); }});
 
     expectExitCode(6);
     timeout(0.001);

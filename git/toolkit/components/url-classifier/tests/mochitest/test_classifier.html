@@ -2,10 +2,11 @@
 <html>
 <head>
   <title>Test the URI Classifier</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
-
+<body onload="doUpdate(testUpdate);">
 <p id="display"></p>
 <div id="content" style="display: none">
 </div>
@@ -13,9 +14,9 @@
 
 <script class="testbody" type="text/javascript">
 
-var Cc = SpecialPowers.Cc;
-var Ci = SpecialPowers.Ci;
-var firstLoad = true;
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var Cc = Components.classes;
+var Ci = Components.interfaces;
 
 // Add some URLs to the malware database.
 var testData = "malware.example.com/";
@@ -27,33 +28,30 @@ var testUpdate =
 var dbService = Cc["@mozilla.org/url-classifier/dbservice;1"]
                 .getService(Ci.nsIUrlClassifierDBService);
 
-function loadTestFrame() {
-  document.getElementById("testFrame").src = "classifierFrame.html";
-}
+var numTries = 10;
 
 function doUpdate(update) {
   var listener = {
-    QueryInterface: SpecialPowers.wrapCallback(function(iid)
+    QueryInterface: function(iid)
     {
       if (iid.equals(Ci.nsISupports) ||
           iid.equals(Ci.nsIUrlClassifierUpdateObserver))
         return this;
-
       throw Cr.NS_ERROR_NO_INTERFACE;
-    }),
+    },
+
     updateUrlRequested: function(url) { },
     streamFinished: function(status) { },
     updateError: function(errorCode) {
       ok(false, "Couldn't update classifier.");
-      // Abort test.
       SimpleTest.finish();
     },
     updateSuccess: function(requestedTimeout) {
-      SpecialPowers.pushPrefEnv(
-        {"set" : [["browser.safebrowsing.malware.enabled", true]]},
-        loadTestFrame);
+      document.getElementById("testFrame").src = "classifierFrame.html";
     }
   };
+
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   dbService.beginUpdate(listener, "test-malware-simple", "");
   dbService.beginStream("", "");
@@ -62,16 +60,9 @@ function doUpdate(update) {
   dbService.finishUpdate();
 }
 
-SpecialPowers.pushPrefEnv(
-  {"set" : [["urlclassifier.malwareTable", "test-malware-simple"],
-            ["urlclassifier.phishTable", "test-phish-simple"]]},
-  function() { doUpdate(testUpdate); });
-
-// Expected finish() call is in "classifierFrame.html".
 SimpleTest.waitForExplicitFinish();
 
 </script>
-
 </pre>
 <iframe id="testFrame" onload=""></iframe>
 </body>

@@ -1,3 +1,5 @@
+// Ported from dom/src/json/test/unit/test_dropping_elements_in_stringify.js
+
 assertEq(JSON.stringify({foo: 123}),
          '{"foo":123}');
 assertEq(JSON.stringify({foo: 123, bar: function () {}}),

@@ -1,13 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Dave Townsend <dtownsend@oxymoronical.com>.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL
+ *
+ * ***** END LICENSE BLOCK *****
  */
 const URI_EXTENSION_BLOCKLIST_DIALOG = "chrome://mozapps/content/extensions/blocklist.xul";
 
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var ADDONS = [{
   id: "test_bug449027_1@tests.mozilla.org",
@@ -186,48 +216,182 @@ var ADDONS = [{
   toolkitBlocks: true
 }];
 
-function MockPluginTag(name, version, start, appBlocks, toolkitBlocks)
-{
-  this.name = name;
-  this.version = version;
-  this.start = start;
-  this.appBlocks = appBlocks;
-  this.toolkitBlocks = toolkitBlocks;
-}
-Object.defineProperty(MockPluginTag.prototype, "blocklisted", {
-  get: function MockPluginTag_getBlocklisted() {
-    let bls = AM_Cc["@mozilla.org/extensions/blocklist;1"].getService(Ci.nsIBlocklistService);
-    return bls.getPluginBlocklistState(this) == bls.STATE_BLOCKED;
-  }
-});
-
-var PLUGINS = [
-  new MockPluginTag("test_bug449027_1", "5", false, false, false),
-  new MockPluginTag("test_bug449027_2", "5", false, true, false),
-  new MockPluginTag("test_bug449027_3", "5", false, true, false),
-  new MockPluginTag("test_bug449027_4", "5", false, false, false),
-  new MockPluginTag("test_bug449027_5", "5", false, false, false),
-  new MockPluginTag("test_bug449027_6", "5", false, true, false),
-  new MockPluginTag("test_bug449027_7", "5", false, true, false),
-  new MockPluginTag("test_bug449027_8", "5", false, true, false),
-  new MockPluginTag("test_bug449027_9", "5", false, true, false),
-  new MockPluginTag("test_bug449027_10", "5", false, true, false),
-  new MockPluginTag("test_bug449027_11", "5", false, true, false),
-  new MockPluginTag("test_bug449027_12", "5", false, true, false),
-  new MockPluginTag("test_bug449027_13", "5", false, true, false),
-  new MockPluginTag("test_bug449027_14", "5", false, false, false),
-  new MockPluginTag("test_bug449027_15", "5", false, true, true),
-  new MockPluginTag("test_bug449027_16", "5", false, true, true),
-  new MockPluginTag("test_bug449027_17", "5", false, false, false),
-  new MockPluginTag("test_bug449027_18", "5", false, false, false),
-  new MockPluginTag("test_bug449027_19", "5", false, true, true),
-  new MockPluginTag("test_bug449027_20", "5", false, true, true),
-  new MockPluginTag("test_bug449027_21", "5", false, true, true),
-  new MockPluginTag("test_bug449027_22", "5", false, true, true),
-  new MockPluginTag("test_bug449027_23", "5", false, true, true),
-  new MockPluginTag("test_bug449027_24", "5", false, true, true),
-  new MockPluginTag("test_bug449027_25", "5", false, true, true)
-];
+var PLUGINS = [{
+  name: "test_bug449027_1",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: false,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_2",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_3",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_4",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: false,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_5",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: false,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_6",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_7",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_8",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_9",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_10",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_11",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_12",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_13",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_14",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: false,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_15",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}, {
+  name: "test_bug449027_16",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}, {
+  name: "test_bug449027_17",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: false,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_18",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: false,
+  toolkitBlocks: false
+}, {
+  name: "test_bug449027_19",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}, {
+  name: "test_bug449027_20",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}, {
+  name: "test_bug449027_21",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}, {
+  name: "test_bug449027_22",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}, {
+  name: "test_bug449027_23",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}, {
+  name: "test_bug449027_24",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}, {
+  name: "test_bug449027_25",
+  version: "5",
+  blocklisted: false,
+  start: false,
+  appBlocks: true,
+  toolkitBlocks: true
+}];
 
 var gCallback = null;
 var gTestserver = null;
@@ -241,10 +405,10 @@ var PluginHost = {
   },
 
   QueryInterface: function(iid) {
-    if (iid.equals(Ci.nsIPluginHost)
-     || iid.equals(Ci.nsISupports))
+    if (iid.equals(Components.interfaces.nsIPluginHost)
+     || iid.equals(Components.interfaces.nsISupports))
       return this;
-
+  
     throw Components.results.NS_ERROR_NO_INTERFACE;
   }
 }
@@ -269,16 +433,16 @@ var WindowWatcher = {
 
     gNewBlocks = [];
     var list = args.list;
-    for (let listItem of list)
-      gNewBlocks.push(listItem.name + " " + listItem.version);
+    for (var i = 0; i < list.length; i++)
+      gNewBlocks.push(list[i].name + " " + list[i].version);
 
     // Call the callback after the blocklist has finished up
     do_timeout(0, gCallback);
   },
 
   QueryInterface: function(iid) {
-    if (iid.equals(Ci.nsIWindowWatcher)
-     || iid.equals(Ci.nsISupports))
+    if (iid.equals(Components.interfaces.nsIWindowWatcher)
+     || iid.equals(Components.interfaces.nsISupports))
       return this;
 
     throw Components.results.NS_ERROR_NO_INTERFACE;
@@ -292,7 +456,7 @@ var WindowWatcherFactory = {
     return WindowWatcher.QueryInterface(iid);
   }
 };
-var registrar = Components.manager.QueryInterface(Ci.nsIComponentRegistrar);
+var registrar = Components.manager.QueryInterface(Components.interfaces.nsIComponentRegistrar);
 registrar.registerFactory(Components.ID("{721c3e73-969e-474b-a6dc-059fd288c428}"),
                           "Fake Plugin Host",
                           "@mozilla.org/plugin/host;1", PluginHostFactory);
@@ -324,7 +488,7 @@ function create_addon(addon) {
   target.append("install.rdf");
   target.create(target.NORMAL_FILE_TYPE, 0644);
   var stream = Components.classes["@mozilla.org/network/file-output-stream;1"]
-                         .createInstance(Ci.nsIFileOutputStream);
+                         .createInstance(Components.interfaces.nsIFileOutputStream);
   stream.init(target, 0x04 | 0x08 | 0x20, 0664, 0); // write, create, truncate
   stream.write(installrdf, installrdf.length);
   stream.close();
@@ -368,14 +532,14 @@ function check_state(test, lastTest, callback) {
 
       do_check_eq(expected, gNewBlocks.length);
     }
-    do_execute_soon(callback);
+    callback();
   });
 }
 
 function load_blocklist(file) {
-  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:" + gPort + "/data/" + file);
+  Services.prefs.setCharPref("extensions.blocklist.url", "http://localhost:4444/data/" + file);
   var blocklist = Components.classes["@mozilla.org/extensions/blocklist;1"]
-                            .getService(Ci.nsITimerCallback);
+                            .getService(Components.interfaces.nsITimerCallback);
   blocklist.notify(null);
 }
 
@@ -384,16 +548,15 @@ function run_test() {
   dump("Setting up tests\n");
   // Rather than keeping lots of identical add-ons in version control, just
   // write them into the profile.
-  for (let addon of ADDONS)
-    create_addon(addon);
+  for (var i = 0; i < ADDONS.length; i++)
+    create_addon(ADDONS[i]);
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
 
-  gTestserver = new HttpServer();
+  gTestserver = new nsHttpServer();
   gTestserver.registerDirectory("/data/", do_get_file("data"));
-  gTestserver.start(-1);
-  gPort = gTestserver.identity.primaryPort;
+  gTestserver.start(4444);
 
   do_test_pending();
   check_test_pt1();
@@ -411,7 +574,7 @@ function check_test_pt1() {
         do_throw("Addon " + (i + 1) + " did not get installed correctly");
     }
 
-    do_execute_soon(function checkstate1() {check_state("start", null, run_test_pt2);});
+    check_state("start", null, run_test_pt2);
   });
 }
 

@@ -4,7 +4,8 @@
 	title=""
 	xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
 	width="800"
-	height="600">
+	height="600"
+	onload="revealTab()">
 
 <tabbox>
 	<tabs>

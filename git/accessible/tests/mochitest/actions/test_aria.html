@@ -7,6 +7,8 @@
         href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
@@ -27,7 +29,7 @@
         },
         {
           ID: "button",
-          actionName: "press",
+          actionName: "click",
           events: CLICK_EVENTS
         },
         {
@@ -83,16 +85,6 @@
         {
           ID: "radio",
           actionName: "select",
-          events: CLICK_EVENTS
-        },
-        {
-          ID: "switch_unchecked",
-          actionName: "check",
-          events: CLICK_EVENTS
-        },
-        {
-          ID: "switch_checked",
-          actionName: "uncheck",
           events: CLICK_EVENTS
         },
         {
@@ -175,10 +167,6 @@
   <div role="radiogroup">
     <div id="radio" role="radio">Radio</div>
   </div>
-
-  <div id="switch_unchecked" role="switch">Switch</div>
-
-  <div id="switch_checked" role="switch" aria-checked="true">Switch</div>
 
   <div role="tablist">
     <div id="tab" role="tab">Tab</div>

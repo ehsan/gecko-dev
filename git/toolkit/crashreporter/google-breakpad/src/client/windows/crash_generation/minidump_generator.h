@@ -32,9 +32,7 @@
 
 #include <windows.h>
 #include <dbghelp.h>
-#include <rpc.h>
 #include <list>
-#include <string>
 #include "google_breakpad/common/minidump_format.h"
 
 namespace google_breakpad {

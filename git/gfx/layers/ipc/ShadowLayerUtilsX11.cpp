@@ -1,54 +1,60 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=8 et :
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at:
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Code.
+ *
+ * The Initial Developer of the Original Code is
+ *   The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Jones <jones.chris.g@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "ShadowLayerUtilsX11.h"
-#include <X11/X.h>                      // for Drawable, XID
-#include <X11/Xlib.h>                   // for Display, Visual, etc
-#include <X11/extensions/Xrender.h>     // for XRenderPictFormat, etc
-#include <X11/extensions/render.h>      // for PictFormat
-#include "cairo-xlib.h"
-#include <stdint.h>                     // for uint32_t
-#include "GLDefs.h"                     // for GLenum
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxXlibSurface.h"             // for gfxXlibSurface
-#include "gfx2DGlue.h"                  // for Moz2D transistion helpers
-#include "mozilla/X11Util.h"            // for DefaultXDisplay, FinishX, etc
-#include "mozilla/gfx/Point.h"          // for IntSize
-#include "mozilla/layers/CompositableForwarder.h"
-#include "mozilla/layers/CompositorTypes.h"  // for OpenMode
-#include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator, etc
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
-#include "mozilla/layers/ShadowLayers.h"  // for ShadowLayerForwarder, etc
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_ERROR
-#include "prenv.h"                      // for PR_GetEnv
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
+ 
+#include "gfxPlatform.h"
 
-using namespace mozilla::gl;
+#include "gfxXlibSurface.h"
+#include "mozilla/X11Util.h"
 
 namespace mozilla {
-namespace gl {
-class GLContext;
-class TextureImage;
-}
-
 namespace layers {
 
 // Return true if we're likely compositing using X and so should use
 // Xlib surfaces in shadow layers.
-static bool
+static PRBool
 UsingXCompositing()
 {
-  if (!PR_GetEnv("MOZ_LAYERS_ENABLE_XLIB_SURFACES")) {
-      return false;
-  }
-  return (gfxSurfaceType::Xlib ==
+  return (gfxASurface::SurfaceTypeXlib ==
           gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType());
 }
 
@@ -62,23 +68,21 @@ GetXRenderPictFormatFromId(Display* aDisplay, PictFormat aFormatId)
   return XRenderFindFormat(aDisplay, PictFormatID, &tmplate, 0);
 }
 
-SurfaceDescriptorX11::SurfaceDescriptorX11(gfxXlibSurface* aSurf)
-  : mId(aSurf->XDrawable())
-  , mSize(aSurf->GetSize().ToIntSize())
+static PRBool
+TakeAndDestroyXlibSurface(SurfaceDescriptor* aSurface)
 {
-  const XRenderPictFormat *pictFormat = aSurf->XRenderFormat();
-  if (pictFormat) {
-    mFormat = pictFormat->id;
-  } else {
-    mFormat = cairo_xlib_surface_get_visual(aSurf->CairoSurface())->visualid;
-  }
+  nsRefPtr<gfxXlibSurface> surf =
+    aSurface->get_SurfaceDescriptorX11().OpenForeign();
+  surf->TakePixmap();
+  *aSurface = SurfaceDescriptor();
+  // the Pixmap is destroyed when |surf| goes out of scope
+  return PR_TRUE;
 }
 
-SurfaceDescriptorX11::SurfaceDescriptorX11(Drawable aDrawable, XID aFormatID,
-                                           const gfx::IntSize& aSize)
-  : mId(aDrawable)
-  , mFormat(aFormatID)
-  , mSize(aSize)
+SurfaceDescriptorX11::SurfaceDescriptorX11(gfxXlibSurface* aSurf)
+  : mId(aSurf->XDrawable())
+  , mSize(aSurf->GetSize())
+  , mFormat(aSurf->XRenderFormat()->id)
 { }
 
 already_AddRefed<gfxXlibSurface>
@@ -87,20 +91,66 @@ SurfaceDescriptorX11::OpenForeign() const
   Display* display = DefaultXDisplay();
   Screen* screen = DefaultScreenOfDisplay(display);
 
-  nsRefPtr<gfxXlibSurface> surf;
-  XRenderPictFormat* pictFormat = GetXRenderPictFormatFromId(display, mFormat);
-  if (pictFormat) {
-    surf = new gfxXlibSurface(screen, mId, pictFormat, gfx::ThebesIntSize(mSize));
-  } else {
-    Visual* visual;
-    int depth;
-    FindVisualAndDepth(display, mFormat, &visual, &depth);
-    if (!visual)
-      return nullptr;
+  XRenderPictFormat* format = GetXRenderPictFormatFromId(display, mFormat);
+  nsRefPtr<gfxXlibSurface> surf =
+    new gfxXlibSurface(screen, mId, format, mSize);
+  return surf->CairoStatus() ? nsnull : surf.forget();
+}
 
-    surf = new gfxXlibSurface(display, mId, visual, gfx::ThebesIntSize(mSize));
+PRBool
+ShadowLayerForwarder::PlatformAllocDoubleBuffer(const gfxIntSize& aSize,
+                                                gfxASurface::gfxContentType aContent,
+                                                SurfaceDescriptor* aFrontBuffer,
+                                                SurfaceDescriptor* aBackBuffer)
+{
+  return (PlatformAllocBuffer(aSize, aContent, aFrontBuffer) &&
+          PlatformAllocBuffer(aSize, aContent, aBackBuffer));
+}
+
+PRBool
+ShadowLayerForwarder::PlatformAllocBuffer(const gfxIntSize& aSize,
+                                          gfxASurface::gfxContentType aContent,
+                                          SurfaceDescriptor* aBuffer)
+{
+  if (!UsingXCompositing()) {
+    // If we're not using X compositing, we're probably compositing on
+    // the client side, in which case X surfaces would just slow
+    // things down.  Use Shmem instead.
+    return PR_FALSE;
   }
-  return surf->CairoStatus() ? nullptr : surf.forget();
+
+  gfxPlatform* platform = gfxPlatform::GetPlatform();
+  nsRefPtr<gfxASurface> buffer = platform->CreateOffscreenSurface(aSize, aContent);
+  if (!buffer ||
+      buffer->GetType() != gfxASurface::SurfaceTypeXlib) {
+    NS_ERROR("creating Xlib front/back surfaces failed!");
+    return PR_FALSE;
+  }
+
+  gfxXlibSurface* bufferX = static_cast<gfxXlibSurface*>(buffer.get());
+  // Release Pixmap ownership to the layers model
+  bufferX->ReleasePixmap();
+
+  *aBuffer = SurfaceDescriptorX11(bufferX);
+  return PR_TRUE;
+}
+
+/*static*/ already_AddRefed<gfxASurface>
+ShadowLayerForwarder::PlatformOpenDescriptor(const SurfaceDescriptor& aSurface)
+{
+  if (SurfaceDescriptor::TSurfaceDescriptorX11 != aSurface.type()) {
+    return nsnull;
+  }
+  return aSurface.get_SurfaceDescriptorX11().OpenForeign();
+}
+
+PRBool
+ShadowLayerForwarder::PlatformDestroySharedSurface(SurfaceDescriptor* aSurface)
+{
+  if (SurfaceDescriptor::TSurfaceDescriptorX11 != aSurface->type()) {
+    return PR_FALSE;
+  }
+  return TakeAndDestroyXlibSurface(aSurface);
 }
 
 /*static*/ void
@@ -111,12 +161,12 @@ ShadowLayerForwarder::PlatformSyncBeforeUpdate()
     // operations on the back buffers before handing them to the
     // parent, otherwise the surface might be used by the parent's
     // Display in between two operations queued by our Display.
-    FinishX(DefaultXDisplay());
+    XSync(DefaultXDisplay(), False);
   }
 }
 
 /*static*/ void
-LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
+ShadowLayerManager::PlatformSyncBeforeReplyUpdate()
 {
   if (UsingXCompositing()) {
     // If we're using X surfaces, we need to finish all pending
@@ -124,14 +174,17 @@ LayerManagerComposite::PlatformSyncBeforeReplyUpdate()
     // the child, even though they will be read operations.
     // Otherwise, the child might start scribbling on new back buffers
     // that are still participating in requests as old front buffers.
-    FinishX(DefaultXDisplay());
+    XSync(DefaultXDisplay(), False);
   }
 }
 
-/*static*/ bool
-LayerManagerComposite::SupportsDirectTexturing()
+PRBool
+ShadowLayerManager::PlatformDestroySharedSurface(SurfaceDescriptor* aSurface)
 {
-  return false;
+  if (SurfaceDescriptor::TSurfaceDescriptorX11 != aSurface->type()) {
+    return PR_FALSE;
+  }
+  return TakeAndDestroyXlibSurface(aSurface);
 }
 
 } // namespace layers

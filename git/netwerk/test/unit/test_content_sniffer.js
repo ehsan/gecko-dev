@@ -1,7 +1,6 @@
 // This file tests nsIContentSniffer, introduced in bug 324985
 
-Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
+do_load_httpd_js();
 
 const unknownType = "application/x-unknown-content-type";
 const sniffedType = "application/x-sniffed";
@@ -73,35 +72,27 @@ var listener = {
 function makeChan(url) {
   var ios = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService);
-  var chan = ios.newChannel2(url,
-                             null,
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER);
+  var chan = ios.newChannel(url, null, null);
   if (sniffing_enabled)
     chan.loadFlags |= Components.interfaces.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS;
 
   return chan;
 }
 
-var httpserv = null;
-var urls = null;
-
-function run_test() {
-  httpserv = new HttpServer();
-  httpserv.start(-1);
-
-  urls = [
+var urls = [
   // NOTE: First URL here runs without our content sniffer
   "data:" + unknownType + ", Some text",
   "data:" + unknownType + ", Text", // Make sure sniffing works even if we
                                     // used the unknown content sniffer too
   "data:text/plain, Some more text",
-    "http://localhost:" + httpserv.identity.primaryPort
+  "http://localhost:4444"
 ];
+
+var httpserv = null;
+
+function run_test() {
+  httpserv = new nsHttpServer();
+  httpserv.start(4444);
 
   Components.manager.nsIComponentRegistrar.registerFactory(snifferCID,
     "Unit test content sniffer", snifferContract, sniffer);

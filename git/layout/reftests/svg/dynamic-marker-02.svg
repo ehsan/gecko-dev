@@ -1,6 +1,6 @@
 <!--
      Any copyright is dedicated to the Public Domain.
-     http://creativecommons.org/publicdomain/zero/1.0/
+     http://creativecommons.org/licenses/publicdomain/
 -->
 <svg xmlns="http://www.w3.org/2000/svg" class="reftest-wait"
   onload="startTest()">
@@ -10,7 +10,8 @@
 
 function startTest() {
   document.addEventListener("MozReftestInvalidate", boom, false);
-  setTimeout(boom, 4000); // fallback for running outside reftest
+  // in case we're not gecko
+  setTimeout(boom, 5000);
 }
 
 function boom() {

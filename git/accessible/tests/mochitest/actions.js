@@ -5,10 +5,9 @@ const MOUSEDOWN_EVENT = 1;
 const MOUSEUP_EVENT = 2;
 const CLICK_EVENT = 4;
 const COMMAND_EVENT = 8;
-const FOCUS_EVENT = 16;
 
 const CLICK_EVENTS = MOUSEDOWN_EVENT | MOUSEUP_EVENT | CLICK_EVENT;
-const XUL_EVENTS = CLICK_EVENTS | COMMAND_EVENT;
+const ALL_EVENTS = CLICK_EVENTS | COMMAND_EVENT;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Public functions
@@ -75,9 +74,6 @@ function testActions(aArray)
 
       if (events & COMMAND_EVENT)
         eventSeq.push(new checkerOfActionInvoker("command", elm));
-
-      if (events & FOCUS_EVENT)
-        eventSeq.push(new focusChecker(elm));
     }
 
     if (actionObj.eventSeq)
@@ -89,23 +85,6 @@ function testActions(aArray)
   }
 
   gActionsQueue.invoke();
-}
-
-/**
- * Test action names and descriptions.
- */
-function testActionNames(aID, aActions)
-{
-  var actions = (typeof aActions == "string") ?
-    [ aActions ] : (aActions || []);
-
-  var acc = getAccessible(aID);
-  is(acc.actionCount, actions.length, "Wong number of actions.");
-  for (var i = 0; i < actions.length; i++ ) {
-    is(acc.getActionName(i), actions[i], "Wrong action name at " + i + " index.");
-    is(acc.getActionDescription(0), gActionDescrMap[actions[i]],
-       "Wrong action description at " + i + "index.");
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,7 +100,7 @@ function actionInvoker(aAccOrElmOrId, aActionIndex, aActionName, aEventSeq)
     if (!acc)
       return INVOKER_ACTION_FAILED;
 
-    var isThereActions = acc.actionCount > 0;
+    var isThereActions = acc.numActions > 0;
     ok(isThereActions,
        "No actions on the accessible for " + prettyName(aAccOrElmOrId));
 
@@ -168,20 +147,3 @@ function checkerOfActionInvoker(aType, aTarget, aActionObj)
       aActionObj.checkOnClickEvent(aEvent);
   }
 }
-
-var gActionDescrMap =
-{
-  jump: "Jump",
-  press: "Press",
-  check: "Check",
-  uncheck: "Uncheck",
-  select: "Select",
-  open: "Open",
-  close: "Close",
-  switch: "Switch",
-  click: "Click",
-  collapse: "Collapse",
-  expand: "Expand",
-  activate: "Activate",
-  cycle: "Cycle"
-};

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Zip Writer Component.
+ *
+ * The Initial Developer of the Original Code is
+ * Dave Townsend <dtownsend@oxymoronical.com>.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
  */
 
 const DATA = "ZIP WRITER TEST DATA";
@@ -10,7 +43,7 @@ var TESTS = [];
 function build_tests() {
   var id = 0;
 
-  // Minimum mode is 0o400
+  // Minimum mode is 0400
   for (let u = 4; u <= 7; u++) {
     for (let g = 0; g <= 7; g++) {
       for (let o = 0; o <= 7; o++) {
@@ -53,28 +86,18 @@ function run_test() {
     }
 
     zipW.addEntryFile(TESTS[i].name, Ci.nsIZipWriter.COMPRESSION_NONE, file, false);
-    do_check_eq(zipW.getEntry(TESTS[i].name).permissions, TESTS[i].permission | 0o400);
-    file.permissions = 0o600;
+    file.permissions = 0600;
     file.remove(true);
-  }
-  zipW.close();
-
-  zipW.open(tmpFile, PR_RDWR);
-  for (let i = 0; i < TESTS.length; i++) {
-    dump("Testing zipwriter file permissions for " + TESTS[i].name + "\n");
-    do_check_eq(zipW.getEntry(TESTS[i].name).permissions, TESTS[i].permission | 0o400);
   }
   zipW.close();
 
   var zipR = new ZipReader(tmpFile);
   for (let i = 0; i < TESTS.length; i++) {
-    dump("Testing zipreader file permissions for " + TESTS[i].name + "\n");
-    do_check_eq(zipR.getEntry(TESTS[i].name).permissions, TESTS[i].permission | 0o400);
-    dump("Testing extracted file permissions for " + TESTS[i].name + "\n");
     zipR.extract(TESTS[i].name, file);
+    dump("Testing file permissions for " + TESTS[i].name + "\n");
     do_check_eq(file.permissions & 0xfff, TESTS[i].permission);
     do_check_false(file.isDirectory());
-    file.permissions = 0o600;
+    file.permissions = 0600;
     file.remove(true);
   }
   zipR.close();

@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>nsIDOMWindowUtils::elementFromPoint test</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css">
   <style>
@@ -24,9 +25,12 @@
     }
 
     function testScrollXY() {
+      // Enable privileges so we can use nsIDOMWindowUtils interface
+      netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
       let iframe = document.getElementById("iframe");
       let cwindow = iframe.contentWindow;
-      let domWindowUtils = SpecialPowers.getDOMWindowUtils(cwindow);
+      let domWindowUtils = cwindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                                  .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
       function checkGetScrollXYState(flush, vals, testName) {
         let scrollX = {}, scrollY = {};
@@ -61,7 +65,8 @@
     function testHiddenIframe() {
       let iframe = document.getElementById("hidden-iframe");
       let cwindow = iframe.contentWindow;
-      let domWindowUtils = SpecialPowers.getDOMWindowUtils(cwindow);
+      let domWindowUtils = cwindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                                  .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
       // make sure getScrollXY doesn't throw
       let scrollX = {}, scrollY = {};

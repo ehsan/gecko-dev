@@ -4,6 +4,7 @@
 <html>
 <head>
   <title>Test for Alerts Service</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script> 
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -18,32 +19,29 @@
 
 <pre id="test">
 <script class="testbody" type="text/javascript">
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
 var observer = {
-  alertShow: false,
   observe: function (aSubject, aTopic, aData) {
-    if (aTopic == "alertclickcallback") { 
+    if (aTopic == "alertclickcallback")
       todo(false, "Did someone click the notification while running mochitests? (Please don't.)");
-    } else if (aTopic == "alertshow") {
-      ok(!this.alertShow, "Alert should not be shown more than once");
-      this.alertShow = true;
-    } else {
+    else
       is(aTopic, "alertfinished", "Checking the topic for a finished notification");
-      SimpleTest.finish();
-    }
     is(aData, "foobarcookie", "Checking whether the alert cookie was passed correctly");
+
+    // finish(), yet let the test actually end first, to be safe.
+    SimpleTest.executeSoon(SimpleTest.finish);
   }
 };
 
-function runTest() {
-  const Cc = SpecialPowers.Cc;
-  const Ci = SpecialPowers.Ci;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
-  if (!("@mozilla.org/alerts-service;1" in Cc)) {
-    todo(false, "Alerts service does not exist in this application");
-    return;
-  }
+var gNotificationIsAvailable;
 
+if (!("@mozilla.org/alerts-service;1" in Cc)) {
+  todo(false, "Alerts service does not exist in this application");
+} else {
   ok(true, "Alerts service exists in this application");
 
   var notifier;
@@ -52,32 +50,28 @@ function runTest() {
                getService(Ci.nsIAlertsService);
     ok(true, "Alerts service is available");
   } catch (ex) {
-    todo(false, 
-         "Alerts service is not available.", ex);
-    return;
+    todo(false, "Alerts service is not available. (Mac OS X without Growl?)", ex);
   }
 
-  try {
-    var alertName = "fiorello";
-    SimpleTest.waitForExplicitFinish();
-    notifier.showAlertNotification(null, "Notification test",
-                                   "Surprise! I'm here to test notifications!",
-                                   false, "foobarcookie", observer, alertname);
-    ok(true, "showAlertNotification() succeeded.  Waiting for notification...");
-    if (MAC) {
-      // Notifications are native on OS X 10.8 and later, and when they are they
-      // persist in the Notification Center. We need to close explicitly to avoid a hang.
-      // This also works for XUL notifications when running this test on OS X < 10.8.
-      notifier.closeAlert(alertName);
+  if (notifier) {
+    try {
+      notifier.showAlertNotification(null, "Notification test",
+                                     "Surprise! I'm here to test notifications!",
+                                     false, "foobarcookie", observer);
+      ok(true, "showAlertNotification() succeeded");
+
+      gNotificationIsAvailable = true;
+    } catch (ex) {
+      todo(false, "showAlertNotification() failed. (Mac OS X without Growl?)", ex);
     }
-  } catch (ex) {
-    todo(false, "showAlertNotification() failed.", ex);
-    SimpleTest.finish();
   }
 }
 
-runTest();
-
+if (gNotificationIsAvailable) {
+  // Wait for the (asynchronous) notification callback.
+  SimpleTest.waitForExplicitFinish();
+  ok(true, "Waiting for notification callback to be triggered...");
+}
 </script>
 </pre>
 </body>

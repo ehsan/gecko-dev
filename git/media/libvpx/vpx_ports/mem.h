@@ -9,9 +9,8 @@
  */
 
 
-#ifndef VPX_PORTS_MEM_H_
-#define VPX_PORTS_MEM_H_
-
+#ifndef VPX_PORTS_MEM_H
+#define VPX_PORTS_MEM_H
 #include "vpx_config.h"
 #include "vpx/vpx_integer.h"
 
@@ -23,6 +22,7 @@
 #warning No alignment directives known for this compiler.
 #define DECLARE_ALIGNED(n,typ,val)  typ val
 #endif
+#endif
 
 
 /* Declare an aligned array on the stack, for situations where the stack
@@ -31,8 +31,8 @@
  * within the array.
  */
 #define DECLARE_ALIGNED_ARRAY(a,typ,val,n)\
-  typ val##_[(n)+(a)/sizeof(typ)+1];\
-  typ *val = (typ*)((((intptr_t)val##_)+(a)-1)&((intptr_t)-(a)))
+typ val##_[(n)+(a)/sizeof(typ)+1];\
+typ *val = (typ*)((((intptr_t)val##_)+(a)-1)&((intptr_t)-(a)))
 
 
 /* Indicates that the usage of the specified variable has been audited to assure
@@ -44,9 +44,3 @@
 #else
 #define UNINITIALIZED_IS_SAFE(x) x
 #endif
-
-#if HAVE_NEON && defined(_MSC_VER)
-#define __builtin_prefetch(x)
-#endif
-
-#endif  // VPX_PORTS_MEM_H_

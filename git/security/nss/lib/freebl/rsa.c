@@ -1,9 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * RSA key generation, public key op, private key op.
+ *
+ * $Id: rsa.c,v 1.39.22.1 2010/11/16 19:06:38 rrelyea%redhat.com Exp $
  */
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -33,22 +67,10 @@
 */
 #define MAX_KEY_GEN_ATTEMPTS 10
 
-/* Blinding Parameters max cache size  */
-#define RSA_BLINDING_PARAMS_MAX_CACHE_SIZE 20
-
 /* exponent should not be greater than modulus */
 #define BAD_RSA_KEY_SIZE(modLen, expLen) \
     ((expLen) > (modLen) || (modLen) > RSA_MAX_MODULUS_BITS/8 || \
     (expLen) > RSA_MAX_EXPONENT_BITS/8)
-
-struct blindingParamsStr;
-typedef struct blindingParamsStr blindingParams;
-
-struct blindingParamsStr {
-    blindingParams *next;
-    mp_int         f, g;             /* blinding parameter                 */
-    int            counter;          /* number of remaining uses of (f, g) */
-};
 
 /*
 ** RSABlindingParamsStr
@@ -63,10 +85,9 @@ struct RSABlindingParamsStr
     /* Blinding-specific parameters */
     PRCList   link;                  /* link to list of structs            */
     SECItem   modulus;               /* list element "key"                 */
-    blindingParams *free, *bp;       /* Blinding parameters queue          */
-    blindingParams array[RSA_BLINDING_PARAMS_MAX_CACHE_SIZE];
+    mp_int    f, g;                  /* Blinding parameters                */
+    int       counter;               /* number of remaining uses of (f, g) */
 };
-typedef struct RSABlindingParamsStr RSABlindingParams;
 
 /*
 ** RSABlindingParamsListStr
@@ -79,8 +100,6 @@ typedef struct RSABlindingParamsStr RSABlindingParams;
 struct RSABlindingParamsListStr
 {
     PZLock  *lock;   /* Lock for the list   */
-    PRCondVar *cVar; /* Condidtion Variable */
-    int  waitCount;  /* Number of threads waiting on cVar */
     PRCList  head;   /* Pointer to the list */
 };
 
@@ -97,8 +116,8 @@ static struct RSABlindingParamsListStr blindingParamsList = { 0 };
 static PRBool nssRSAUseBlinding = PR_TRUE;
 
 static SECStatus
-rsa_build_from_primes(const mp_int *p, const mp_int *q,
-		mp_int *e, PRBool needPublicExponent,
+rsa_build_from_primes(mp_int *p, mp_int *q, 
+		mp_int *e, PRBool needPublicExponent, 
 		mp_int *d, PRBool needPrivateExponent,
 		RSAPrivateKey *key, unsigned int keySizeInBits)
 {
@@ -116,12 +135,6 @@ rsa_build_from_primes(const mp_int *p, const mp_int *q,
     CHECK_MPI_OK( mp_init(&psub1) );
     CHECK_MPI_OK( mp_init(&qsub1) );
     CHECK_MPI_OK( mp_init(&tmp)   );
-    /* p and q must be distinct. */
-    if (mp_cmp(p, q) == 0) {
-	PORT_SetError(SEC_ERROR_NEED_RANDOM);
-	rv = SECFailure;
-	goto cleanup;
-    }
     /* 1.  Compute n = p*q */
     CHECK_MPI_OK( mp_mul(p, q, &n) );
     /*     verify that the modulus has the desired number of bits */
@@ -245,7 +258,7 @@ RSA_NewKey(int keySizeInBits, SECItem *publicExponent)
     SECStatus rv = SECSuccess;
     int prerr = 0;
     RSAPrivateKey *key = NULL;
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     /* Require key size to be a multiple of 16 bits. */
     if (!publicExponent || keySizeInBits % 16 != 0 ||
 	    BAD_RSA_KEY_SIZE(keySizeInBits/8, publicExponent->len)) {
@@ -258,7 +271,7 @@ RSA_NewKey(int keySizeInBits, SECItem *publicExponent)
 	PORT_SetError(SEC_ERROR_NO_MEMORY);
 	return NULL;
     }
-    key = PORT_ArenaZNew(arena, RSAPrivateKey);
+    key = (RSAPrivateKey *)PORT_ArenaZAlloc(arena, sizeof(RSAPrivateKey));
     if (!key) {
 	PORT_SetError(SEC_ERROR_NO_MEMORY);
 	PORT_FreeArena(arena, PR_TRUE);
@@ -266,7 +279,7 @@ RSA_NewKey(int keySizeInBits, SECItem *publicExponent)
     }
     key->arena = arena;
     /* length of primes p and q (in bytes) */
-    primeLen = keySizeInBits / (2 * PR_BITS_PER_BYTE);
+    primeLen = keySizeInBits / (2 * BITS_PER_BYTE);
     MP_DIGITS(&p) = 0;
     MP_DIGITS(&q) = 0;
     MP_DIGITS(&e) = 0;
@@ -286,11 +299,7 @@ RSA_NewKey(int keySizeInBits, SECItem *publicExponent)
 	PORT_SetError(0);
 	CHECK_SEC_OK( generate_prime(&p, primeLen) );
 	CHECK_SEC_OK( generate_prime(&q, primeLen) );
-	/* Assure p > q */
-	/* NOTE: PKCS #1 does not require p > q, and NSS doesn't use any
-	 * implementation optimization that requires p > q. We can remove
-	 * this code in the future.
-	 */
+	/* Assure q < p */
 	if (mp_cmp(&p, &q) < 0)
 	    mp_exch(&p, &q);
 	/* Attempt to use these primes to generate a key */
@@ -663,7 +672,7 @@ cleanup:
 SECStatus
 RSA_PopulatePrivateKey(RSAPrivateKey *key)
 {
-    PLArenaPool *arena = NULL;
+    PRArenaPool *arena = NULL;
     PRBool needPublicExponent = PR_TRUE;
     PRBool needPrivateExponent = PR_TRUE;
     PRBool hasModulus = PR_FALSE;
@@ -722,7 +731,7 @@ RSA_PopulatePrivateKey(RSAPrivateKey *key)
 	if (key->prime1.data[0] == 0) {
 	   primeLen--;
 	}
-	keySizeInBits = primeLen * 2 * PR_BITS_PER_BYTE;
+	keySizeInBits = primeLen * 2 * BITS_PER_BYTE;
         SECITEM_TO_MPINT(key->prime1, &p);
 	prime_count++;
     }
@@ -731,7 +740,7 @@ RSA_PopulatePrivateKey(RSAPrivateKey *key)
 	if (key->prime2.data[0] == 0) {
 	   primeLen--;
 	}
-	keySizeInBits = primeLen * 2 * PR_BITS_PER_BYTE;
+	keySizeInBits = primeLen * 2 * BITS_PER_BYTE;
         SECITEM_TO_MPINT(key->prime2, prime_count ? &q : &p);
 	prime_count++;
     }
@@ -741,7 +750,7 @@ RSA_PopulatePrivateKey(RSAPrivateKey *key)
 	if (key->modulus.data[0] == 0) {
 	   modLen--;
 	}
-	keySizeInBits = modLen * PR_BITS_PER_BYTE;
+	keySizeInBits = modLen * BITS_PER_BYTE;
 	SECITEM_TO_MPINT(key->modulus, &n);
 	hasModulus = PR_TRUE;
     }
@@ -772,11 +781,7 @@ RSA_PopulatePrivateKey(RSAPrivateKey *key)
 	}
      }
 
-     /* Assure p > q */
-     /* NOTE: PKCS #1 does not require p > q, and NSS doesn't use any
-      * implementation optimization that requires p > q. We can remove
-      * this code in the future.
-      */
+     /* force p to the the larger prime */
      if (mp_cmp(&p, &q) < 0)
 	mp_exch(&p, &q);
 
@@ -1021,25 +1026,18 @@ init_blinding_params_list(void)
 	PORT_SetError(SEC_ERROR_NO_MEMORY);
 	return PR_FAILURE;
     }
-    blindingParamsList.cVar = PR_NewCondVar( blindingParamsList.lock );
-    if (!blindingParamsList.cVar) {
-	PORT_SetError(SEC_ERROR_NO_MEMORY);
-	return PR_FAILURE;
-    }
-    blindingParamsList.waitCount = 0;
     PR_INIT_CLIST(&blindingParamsList.head);
     return PR_SUCCESS;
 }
 
 static SECStatus
-generate_blinding_params(RSAPrivateKey *key, mp_int* f, mp_int* g, mp_int *n, 
-                         unsigned int modLen)
+generate_blinding_params(struct RSABlindingParamsStr *rsabp, 
+                         RSAPrivateKey *key, mp_int *n, unsigned int modLen)
 {
     SECStatus rv = SECSuccess;
     mp_int e, k;
     mp_err err = MP_OKAY;
     unsigned char *kb = NULL;
-
     MP_DIGITS(&e) = 0;
     MP_DIGITS(&k) = 0;
     CHECK_MPI_OK( mp_init(&e) );
@@ -1056,9 +1054,11 @@ generate_blinding_params(RSAPrivateKey *key, mp_int* f, mp_int* g, mp_int *n,
     /* k < n */
     CHECK_MPI_OK( mp_mod(&k, n, &k) );
     /* f = k**e mod n */
-    CHECK_MPI_OK( mp_exptmod(&k, &e, n, f) );
+    CHECK_MPI_OK( mp_exptmod(&k, &e, n, &rsabp->f) );
     /* g = k**-1 mod n */
-    CHECK_MPI_OK( mp_invmod(&k, n, g) );
+    CHECK_MPI_OK( mp_invmod(&k, n, &rsabp->g) );
+    /* Initialize the counter for this (f, g) */
+    rsabp->counter = RSA_BLINDING_PARAMS_MAX_REUSE;
 cleanup:
     if (kb)
 	PORT_ZFree(kb, modLen);
@@ -1072,199 +1072,114 @@ cleanup:
 }
 
 static SECStatus
-init_blinding_params(RSABlindingParams *rsabp, RSAPrivateKey *key,
+init_blinding_params(struct RSABlindingParamsStr *rsabp, RSAPrivateKey *key,
                      mp_int *n, unsigned int modLen)
 {
-    blindingParams * bp = rsabp->array;
-    int i = 0;
-
-    /* Initialize the list pointer for the element */
-    PR_INIT_CLIST(&rsabp->link);
-    for (i = 0; i < RSA_BLINDING_PARAMS_MAX_CACHE_SIZE; ++i, ++bp) {
-    	bp->next = bp + 1;
-	MP_DIGITS(&bp->f) = 0;
-	MP_DIGITS(&bp->g) = 0;
-	bp->counter = 0;
-    }
-    /* The last bp->next value was initialized with out
-     * of rsabp->array pointer and must be set to NULL 
-     */ 
-    rsabp->array[RSA_BLINDING_PARAMS_MAX_CACHE_SIZE - 1].next = NULL;
-    
-    bp          = rsabp->array;
-    rsabp->bp   = NULL;
-    rsabp->free = bp;
-
+    SECStatus rv = SECSuccess;
+    mp_err err = MP_OKAY;
+    MP_DIGITS(&rsabp->f) = 0;
+    MP_DIGITS(&rsabp->g) = 0;
+    /* initialize blinding parameters */
+    CHECK_MPI_OK( mp_init(&rsabp->f) );
+    CHECK_MPI_OK( mp_init(&rsabp->g) );
     /* List elements are keyed using the modulus */
     SECITEM_CopyItem(NULL, &rsabp->modulus, &key->modulus);
-
+    CHECK_SEC_OK( generate_blinding_params(rsabp, key, n, modLen) );
     return SECSuccess;
+cleanup:
+    mp_clear(&rsabp->f);
+    mp_clear(&rsabp->g);
+    if (err) {
+	MP_TO_SEC_ERROR(err);
+	rv = SECFailure;
+    }
+    return rv;
 }
 
 static SECStatus
 get_blinding_params(RSAPrivateKey *key, mp_int *n, unsigned int modLen,
                     mp_int *f, mp_int *g)
 {
-    RSABlindingParams *rsabp           = NULL;
-    blindingParams    *bpUnlinked      = NULL;
-    blindingParams    *bp;
-    PRCList           *el;
-    SECStatus          rv              = SECSuccess;
-    mp_err             err             = MP_OKAY;
-    int                cmp             = -1;
-    PRBool             holdingLock     = PR_FALSE;
-
-    do {
-	if (blindingParamsList.lock == NULL) {
-	    PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
-	    return SECFailure;
-	}
-	/* Acquire the list lock */
-	PZ_Lock(blindingParamsList.lock);
-	holdingLock = PR_TRUE;
-
-	/* Walk the list looking for the private key */
-	for (el = PR_NEXT_LINK(&blindingParamsList.head);
-	     el != &blindingParamsList.head;
-	     el = PR_NEXT_LINK(el)) {
-	    rsabp = (RSABlindingParams *)el;
-	    cmp = SECITEM_CompareItem(&rsabp->modulus, &key->modulus);
-	    if (cmp >= 0) {
-		/* The key is found or not in the list. */
-		break;
+    SECStatus rv = SECSuccess;
+    mp_err err = MP_OKAY;
+    int cmp;
+    PRCList *el;
+    struct RSABlindingParamsStr *rsabp = NULL;
+    /* Init the list if neccessary (the init function is only called once!) */
+    if (blindingParamsList.lock == NULL) {
+        PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);
+        return SECFailure;
+    }
+    /* Acquire the list lock */
+    PZ_Lock(blindingParamsList.lock);
+    /* Walk the list looking for the private key */
+    for (el = PR_NEXT_LINK(&blindingParamsList.head);
+         el != &blindingParamsList.head;
+         el = PR_NEXT_LINK(el)) {
+	rsabp = (struct RSABlindingParamsStr *)el;
+	cmp = SECITEM_CompareItem(&rsabp->modulus, &key->modulus);
+	if (cmp == 0) {
+	    /* Check the usage counter for the parameters */
+	    if (--rsabp->counter <= 0) {
+		/* Regenerate the blinding parameters */
+		CHECK_SEC_OK( generate_blinding_params(rsabp, key, n, modLen) );
 	    }
-	}
-
-	if (cmp) {
-	    /* At this point, the key is not in the list.  el should point to 
-	    ** the list element before which this key should be inserted. 
-	    */
-	    rsabp = PORT_ZNew(RSABlindingParams);
-	    if (!rsabp) {
-		PORT_SetError(SEC_ERROR_NO_MEMORY);
-		goto cleanup;
-	    }
-
-	    rv = init_blinding_params(rsabp, key, n, modLen);
-	    if (rv != SECSuccess) {
-		PORT_ZFree(rsabp, sizeof(RSABlindingParams));
-		goto cleanup;
-	    }
-
-	    /* Insert the new element into the list
-	    ** If inserting in the middle of the list, el points to the link
-	    ** to insert before.  Otherwise, the link needs to be appended to
-	    ** the end of the list, which is the same as inserting before the
-	    ** head (since el would have looped back to the head).
-	    */
-	    PR_INSERT_BEFORE(&rsabp->link, el);
-	}
-
-	/* We've found (or created) the RSAblindingParams struct for this key.
-	 * Now, search its list of ready blinding params for a usable one.
-	 */
-	while (0 != (bp = rsabp->bp)) {
-	    if (--(bp->counter) > 0) {
-		/* Found a match and there are still remaining uses left */
-		/* Return the parameters */
-		CHECK_MPI_OK( mp_copy(&bp->f, f) );
-		CHECK_MPI_OK( mp_copy(&bp->g, g) );
-
-		PZ_Unlock(blindingParamsList.lock); 
-		return SECSuccess;
-	    }
-	    /* exhausted this one, give its values to caller, and
-	     * then retire it.
-	     */
-	    mp_exch(&bp->f, f);
-	    mp_exch(&bp->g, g);
-	    mp_clear( &bp->f );
-	    mp_clear( &bp->g );
-	    bp->counter = 0;
-	    /* Move to free list */
-	    rsabp->bp   = bp->next;
-	    bp->next    = rsabp->free;
-	    rsabp->free = bp;
-	    /* In case there're threads waiting for new blinding
-	     * value - notify 1 thread the value is ready
-	     */
-	    if (blindingParamsList.waitCount > 0) {
-		PR_NotifyCondVar( blindingParamsList.cVar );
-		blindingParamsList.waitCount--;
-	    }
-	    PZ_Unlock(blindingParamsList.lock); 
+	    /* Return the parameters */
+	    CHECK_MPI_OK( mp_copy(&rsabp->f, f) );
+	    CHECK_MPI_OK( mp_copy(&rsabp->g, g) );
+	    /* Now that the params are located, release the list lock. */
+	    PZ_Unlock(blindingParamsList.lock); /* XXX when fails? */
 	    return SECSuccess;
+	} else if (cmp > 0) {
+	    /* The key is not in the list.  Break to param creation. */
+	    break;
 	}
-	/* We did not find a usable set of blinding params.  Can we make one? */
-	/* Find a free bp struct. */
-	if ((bp = rsabp->free) != NULL) {
-	    /* unlink this bp */
-	    rsabp->free  = bp->next;
-	    bp->next     = NULL;
-	    bpUnlinked   = bp;  /* In case we fail */
-
-	    PZ_Unlock(blindingParamsList.lock); 
-	    holdingLock = PR_FALSE;
-	    /* generate blinding parameter values for the current thread */
-	    CHECK_SEC_OK( generate_blinding_params(key, f, g, n, modLen ) );
-
-	    /* put the blinding parameter values into cache */
-	    CHECK_MPI_OK( mp_init( &bp->f) );
-	    CHECK_MPI_OK( mp_init( &bp->g) );
-	    CHECK_MPI_OK( mp_copy( f, &bp->f) );
-	    CHECK_MPI_OK( mp_copy( g, &bp->g) );
-
-	    /* Put this at head of queue of usable params. */
-	    PZ_Lock(blindingParamsList.lock);
-	    holdingLock = PR_TRUE;
-	    /* initialize RSABlindingParamsStr */
-	    bp->counter = RSA_BLINDING_PARAMS_MAX_REUSE;
-	    bp->next    = rsabp->bp;
-	    rsabp->bp   = bp;
-	    bpUnlinked  = NULL;
-	    /* In case there're threads waiting for new blinding value
-	     * just notify them the value is ready
-	     */
-	    if (blindingParamsList.waitCount > 0) {
-		PR_NotifyAllCondVar( blindingParamsList.cVar );
-		blindingParamsList.waitCount = 0;
-	    }
-	    PZ_Unlock(blindingParamsList.lock);
-	    return SECSuccess;
-	}
-	/* Here, there are no usable blinding parameters available,
-	 * and no free bp blocks, presumably because they're all 
-	 * actively having parameters generated for them.
-	 * So, we need to wait here and not eat up CPU until some 
-	 * change happens. 
-	 */
-	blindingParamsList.waitCount++;
-	PR_WaitCondVar( blindingParamsList.cVar, PR_INTERVAL_NO_TIMEOUT );
-	PZ_Unlock(blindingParamsList.lock); 
-	holdingLock = PR_FALSE;
-    } while (1);
-
+    }
+    /* At this point, the key is not in the list.  el should point to the
+    ** list element that this key should be inserted before.  NOTE: the list
+    ** lock is still held, so there cannot be a race condition here.
+    */
+    rsabp = (struct RSABlindingParamsStr *)
+              PORT_ZAlloc(sizeof(struct RSABlindingParamsStr));
+    if (!rsabp) {
+	PORT_SetError(SEC_ERROR_NO_MEMORY);
+	goto cleanup;
+    }
+    /* Initialize the list pointer for the element */
+    PR_INIT_CLIST(&rsabp->link);
+    /* Initialize the blinding parameters 
+    ** This ties up the list lock while doing some heavy, element-specific
+    ** operations, but we don't want to insert the element until it is valid,
+    ** which requires computing the blinding params.  If this proves costly,
+    ** it could be done after the list lock is released, and then if it fails
+    ** the lock would have to be reobtained and the invalid element removed.
+    */
+    rv = init_blinding_params(rsabp, key, n, modLen);
+    if (rv != SECSuccess) {
+	PORT_ZFree(rsabp, sizeof(struct RSABlindingParamsStr));
+	goto cleanup;
+    }
+    /* Insert the new element into the list
+    ** If inserting in the middle of the list, el points to the link
+    ** to insert before.  Otherwise, the link needs to be appended to
+    ** the end of the list, which is the same as inserting before the
+    ** head (since el would have looped back to the head).
+    */
+    PR_INSERT_BEFORE(&rsabp->link, el);
+    /* Return the parameters */
+    CHECK_MPI_OK( mp_copy(&rsabp->f, f) );
+    CHECK_MPI_OK( mp_copy(&rsabp->g, g) );
+    /* Release the list lock */
+    PZ_Unlock(blindingParamsList.lock); /* XXX when fails? */
+    return SECSuccess;
 cleanup:
-    /* It is possible to reach this after the lock is already released.  */
-    if (bpUnlinked) {
-	if (!holdingLock) {
-	    PZ_Lock(blindingParamsList.lock);
-	    holdingLock = PR_TRUE;
-	}
-	bp = bpUnlinked;
-	mp_clear( &bp->f );
-	mp_clear( &bp->g );
-	bp->counter = 0;
-    	/* Must put the unlinked bp back on the free list */
-	bp->next    = rsabp->free;
-	rsabp->free = bp;
-    }
-    if (holdingLock) {
-	PZ_Unlock(blindingParamsList.lock);
-	holdingLock = PR_FALSE;
-    }
+    /* It is possible to reach this after the lock is already released.
+    ** Ignore the error in that case.
+    */
+    PZ_Unlock(blindingParamsList.lock);
     if (err) {
 	MP_TO_SEC_ERROR(err);
+	rv = SECFailure;
     }
     return SECFailure;
 }
@@ -1366,14 +1281,37 @@ RSA_PrivateKeyOpDoubleChecked(RSAPrivateKey *key,
     return rsa_PrivateKeyOp(key, output, input, PR_TRUE);
 }
 
+static SECStatus
+swap_in_key_value(PRArenaPool *arena, mp_int *mpval, SECItem *buffer)
+{
+    int len;
+    mp_err err = MP_OKAY;
+    memset(buffer->data, 0, buffer->len);
+    len = mp_unsigned_octet_size(mpval);
+    if (len <= 0) return SECFailure;
+    if ((unsigned int)len <= buffer->len) {
+	/* The new value is no longer than the old buffer, so use it */
+	err = mp_to_unsigned_octets(mpval, buffer->data, len);
+	if (err >= 0) err = MP_OKAY;
+	buffer->len = len;
+    } else if (arena) {
+	/* The new value is longer, but working within an arena */
+	(void)SECITEM_AllocItem(arena, buffer, len);
+	err = mp_to_unsigned_octets(mpval, buffer->data, len);
+	if (err >= 0) err = MP_OKAY;
+    } else {
+	/* The new value is longer, no arena, can't handle this key */
+	return SECFailure;
+    }
+    return (err == MP_OKAY) ? SECSuccess : SECFailure;
+}
+
 SECStatus
-RSA_PrivateKeyCheck(const RSAPrivateKey *key)
+RSA_PrivateKeyCheck(RSAPrivateKey *key)
 {
     mp_int p, q, n, psub1, qsub1, e, d, d_p, d_q, qInv, res;
     mp_err   err = MP_OKAY;
     SECStatus rv = SECSuccess;
-    MP_DIGITS(&p)    = 0;
-    MP_DIGITS(&q)    = 0;
     MP_DIGITS(&n)    = 0;
     MP_DIGITS(&psub1)= 0;
     MP_DIGITS(&qsub1)= 0;
@@ -1383,9 +1321,9 @@ RSA_PrivateKeyCheck(const RSAPrivateKey *key)
     MP_DIGITS(&d_q)  = 0;
     MP_DIGITS(&qInv) = 0;
     MP_DIGITS(&res)  = 0;
+    CHECK_MPI_OK( mp_init(&n)    );
     CHECK_MPI_OK( mp_init(&p)    );
     CHECK_MPI_OK( mp_init(&q)    );
-    CHECK_MPI_OK( mp_init(&n)    );
     CHECK_MPI_OK( mp_init(&psub1));
     CHECK_MPI_OK( mp_init(&qsub1));
     CHECK_MPI_OK( mp_init(&e)    );
@@ -1394,17 +1332,6 @@ RSA_PrivateKeyCheck(const RSAPrivateKey *key)
     CHECK_MPI_OK( mp_init(&d_q)  );
     CHECK_MPI_OK( mp_init(&qInv) );
     CHECK_MPI_OK( mp_init(&res)  );
-
-    if (!key->modulus.data || !key->prime1.data || !key->prime2.data ||
-        !key->publicExponent.data || !key->privateExponent.data ||
-        !key->exponent1.data || !key->exponent2.data ||
-        !key->coefficient.data) {
-        /* call RSA_PopulatePrivateKey first, if the application wishes to
-         * recover these parameters */
-        err = MP_BADARG;
-        goto cleanup;
-    }
-
     SECITEM_TO_MPINT(key->modulus,         &n);
     SECITEM_TO_MPINT(key->prime1,          &p);
     SECITEM_TO_MPINT(key->prime2,          &q);
@@ -1413,10 +1340,18 @@ RSA_PrivateKeyCheck(const RSAPrivateKey *key)
     SECITEM_TO_MPINT(key->exponent1,       &d_p);
     SECITEM_TO_MPINT(key->exponent2,       &d_q);
     SECITEM_TO_MPINT(key->coefficient,     &qInv);
-    /* p and q must be distinct. */
-    if (mp_cmp(&p, &q) == 0) {
-	rv = SECFailure;
-	goto cleanup;
+    /* p > q  */
+    if (mp_cmp(&p, &q) <= 0) {
+	/* mind the p's and q's (and d_p's and d_q's) */
+	SECItem tmp;
+	mp_exch(&p, &q);
+	mp_exch(&d_p,&d_q);
+	tmp = key->prime1;
+	key->prime1 = key->prime2;
+	key->prime2 = tmp;
+	tmp = key->exponent1;
+	key->exponent1 = key->exponent2;
+	key->exponent2 = tmp;
     }
 #define VERIFY_MPI_EQUAL(m1, m2) \
     if (mp_cmp(m1, m2) != 0) {   \
@@ -1428,6 +1363,9 @@ RSA_PrivateKeyCheck(const RSAPrivateKey *key)
 	rv = SECFailure;         \
 	goto cleanup;            \
     }
+    /*
+     * The following errors cannot be recovered from.
+     */
     /* n == p * q */
     CHECK_MPI_OK( mp_mul(&p, &q, &res) );
     VERIFY_MPI_EQUAL(&res, &n);
@@ -1445,16 +1383,28 @@ RSA_PrivateKeyCheck(const RSAPrivateKey *key)
     /* d*e == 1 mod q-1 */
     CHECK_MPI_OK( mp_mulmod(&d, &e, &qsub1, &res) );
     VERIFY_MPI_EQUAL_1(&res);
+    /*
+     * The following errors can be recovered from.
+     */
     /* d_p == d mod p-1 */
     CHECK_MPI_OK( mp_mod(&d, &psub1, &res) );
-    VERIFY_MPI_EQUAL(&res, &d_p);
+    if (mp_cmp(&d_p, &res) != 0) {
+	/* swap in the correct value */
+	CHECK_SEC_OK( swap_in_key_value(key->arena, &res, &key->exponent1) );
+    }
     /* d_q == d mod q-1 */
     CHECK_MPI_OK( mp_mod(&d, &qsub1, &res) );
-    VERIFY_MPI_EQUAL(&res, &d_q);
+    if (mp_cmp(&d_q, &res) != 0) {
+	/* swap in the correct value */
+	CHECK_SEC_OK( swap_in_key_value(key->arena, &res, &key->exponent2) );
+    }
     /* q * q**-1 == 1 mod p */
     CHECK_MPI_OK( mp_mulmod(&q, &qInv, &p, &res) );
-    VERIFY_MPI_EQUAL_1(&res);
-
+    if (mp_cmp_d(&res, 1) != 0) {
+	/* compute the correct value */
+	CHECK_MPI_OK( mp_invmod(&q, &p, &qInv) );
+	CHECK_SEC_OK( swap_in_key_value(key->arena, &qInv, &key->coefficient) );
+    }
 cleanup:
     mp_clear(&n);
     mp_clear(&p);
@@ -1491,31 +1441,22 @@ SECStatus BL_Init(void)
 /* cleanup at shutdown */
 void RSA_Cleanup(void)
 {
-    blindingParams * bp = NULL;
     if (!coBPInit.initialized)
 	return;
 
-    while (!PR_CLIST_IS_EMPTY(&blindingParamsList.head)) {
-	RSABlindingParams *rsabp = 
-	    (RSABlindingParams *)PR_LIST_HEAD(&blindingParamsList.head);
+    while (!PR_CLIST_IS_EMPTY(&blindingParamsList.head))
+    {
+	struct RSABlindingParamsStr * rsabp = (struct RSABlindingParamsStr *)
+	    PR_LIST_HEAD(&blindingParamsList.head);
 	PR_REMOVE_LINK(&rsabp->link);
-	/* clear parameters cache */
-	while (rsabp->bp != NULL) {
-	    bp = rsabp->bp;
-	    rsabp->bp = rsabp->bp->next;
-	    mp_clear( &bp->f );
-	    mp_clear( &bp->g );
-	}
+	mp_clear(&rsabp->f);
+	mp_clear(&rsabp->g);
 	SECITEM_FreeItem(&rsabp->modulus,PR_FALSE);
 	PORT_Free(rsabp);
     }
 
-    if (blindingParamsList.cVar) {
-	PR_DestroyCondVar(blindingParamsList.cVar);
-	blindingParamsList.cVar = NULL;
-    }
-
-    if (blindingParamsList.lock) {
+    if (blindingParamsList.lock)
+    {
 	SKIP_AFTER_FORK(PZ_DestroyLock(blindingParamsList.lock));
 	blindingParamsList.lock = NULL;
     }
@@ -1535,13 +1476,13 @@ void BL_Cleanup(void)
     RSA_Cleanup();
 }
 
-PRBool bl_parentForkedAfterC_Initialize;
+PRBool parentForkedAfterC_Initialize;
 
 /*
  * Set fork flag so it can be tested in SKIP_AFTER_FORK on relevant platforms.
  */
 void BL_SetForkState(PRBool forked)
 {
-    bl_parentForkedAfterC_Initialize = forked;
+    parentForkedAfterC_Initialize = forked;
 }
 

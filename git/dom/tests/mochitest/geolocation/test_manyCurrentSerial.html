@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=482260
 -->
 <head>
   <title>Test for getCurrentPosition </title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="geolocation_common.js"></script>
 
@@ -21,9 +22,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=482260
 
 SimpleTest.waitForExplicitFinish();
 
-resume_geolocationProvider(function() {
-  force_prompt(true, test1);
-});
+resume_geolocationProvider();
+force_prompt(true)
 
 var keepGoing = 10;
 
@@ -34,12 +34,12 @@ function successCallback(position) {
   }
 
   ok(1, "100 successful calls");
+  reset_prompt();
   SimpleTest.finish();
 }
 
-function test1() {
-  navigator.geolocation.getCurrentPosition(successCallback);
-}
+navigator.geolocation.getCurrentPosition(successCallback);
+
 </script>
 </pre>
 </body>

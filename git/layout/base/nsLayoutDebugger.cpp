@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * implementation of interface that allows layout-debug extension access
@@ -12,39 +44,36 @@
 #include "nsFrame.h"
 #include "nsDisplayList.h"
 #include "FrameLayerBuilder.h"
-#include "nsPrintfCString.h"
 
 #include <stdio.h>
 
-using namespace mozilla;
 using namespace mozilla::layers;
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 class nsLayoutDebugger : public nsILayoutDebugger {
 public:
   nsLayoutDebugger();
+  virtual ~nsLayoutDebugger();
 
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD SetShowFrameBorders(bool aEnable) MOZ_OVERRIDE;
+  NS_IMETHOD SetShowFrameBorders(PRBool aEnable);
 
-  NS_IMETHOD GetShowFrameBorders(bool* aResult) MOZ_OVERRIDE;
+  NS_IMETHOD GetShowFrameBorders(PRBool* aResult);
 
-  NS_IMETHOD SetShowEventTargetFrameBorder(bool aEnable) MOZ_OVERRIDE;
+  NS_IMETHOD SetShowEventTargetFrameBorder(PRBool aEnable);
 
-  NS_IMETHOD GetShowEventTargetFrameBorder(bool* aResult) MOZ_OVERRIDE;
+  NS_IMETHOD GetShowEventTargetFrameBorder(PRBool* aResult);
 
   NS_IMETHOD GetContentSize(nsIDocument* aDocument,
-                            int32_t* aSizeInBytesResult) MOZ_OVERRIDE;
+                            PRInt32* aSizeInBytesResult);
 
   NS_IMETHOD GetFrameSize(nsIPresShell* aPresentation,
-                          int32_t* aSizeInBytesResult) MOZ_OVERRIDE;
+                          PRInt32* aSizeInBytesResult);
 
   NS_IMETHOD GetStyleSize(nsIPresShell* aPresentation,
-                          int32_t* aSizeInBytesResult) MOZ_OVERRIDE;
+                          PRInt32* aSizeInBytesResult);
 
-protected:
-  virtual ~nsLayoutDebugger();
 };
 
 nsresult
@@ -55,6 +84,9 @@ NS_NewLayoutDebugger(nsILayoutDebugger** aResult)
     return NS_ERROR_NULL_POINTER;
   }
   nsLayoutDebugger* it = new nsLayoutDebugger();
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   return it->QueryInterface(NS_GET_IID(nsILayoutDebugger), (void**)aResult);
 }
 
@@ -66,31 +98,31 @@ nsLayoutDebugger::~nsLayoutDebugger()
 {
 }
 
-NS_IMPL_ISUPPORTS(nsLayoutDebugger, nsILayoutDebugger)
+NS_IMPL_ISUPPORTS1(nsLayoutDebugger, nsILayoutDebugger)
 
 NS_IMETHODIMP
-nsLayoutDebugger::SetShowFrameBorders(bool aEnable)
+nsLayoutDebugger::SetShowFrameBorders(PRBool aEnable)
 {
   nsFrame::ShowFrameBorders(aEnable);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsLayoutDebugger::GetShowFrameBorders(bool* aResult)
+nsLayoutDebugger::GetShowFrameBorders(PRBool* aResult)
 {
   *aResult = nsFrame::GetShowFrameBorders();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsLayoutDebugger::SetShowEventTargetFrameBorder(bool aEnable)
+nsLayoutDebugger::SetShowEventTargetFrameBorder(PRBool aEnable)
 {
   nsFrame::ShowEventTargetFrameBorder(aEnable);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsLayoutDebugger::GetShowEventTargetFrameBorder(bool* aResult)
+nsLayoutDebugger::GetShowEventTargetFrameBorder(PRBool* aResult)
 {
   *aResult = nsFrame::GetShowEventTargetFrameBorder();
   return NS_OK;
@@ -98,7 +130,7 @@ nsLayoutDebugger::GetShowEventTargetFrameBorder(bool* aResult)
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetContentSize(nsIDocument* aDocument,
-                                 int32_t* aSizeInBytesResult)
+                                 PRInt32* aSizeInBytesResult)
 {
   *aSizeInBytesResult = 0;
   return NS_ERROR_FAILURE;
@@ -106,7 +138,7 @@ nsLayoutDebugger::GetContentSize(nsIDocument* aDocument,
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetFrameSize(nsIPresShell* aPresentation,
-                               int32_t* aSizeInBytesResult)
+                               PRInt32* aSizeInBytesResult)
 {
   *aSizeInBytesResult = 0;
   return NS_ERROR_FAILURE;
@@ -114,196 +146,74 @@ nsLayoutDebugger::GetFrameSize(nsIPresShell* aPresentation,
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetStyleSize(nsIPresShell* aPresentation,
-                               int32_t* aSizeInBytesResult)
+                               PRInt32* aSizeInBytesResult)
 {
   *aSizeInBytesResult = 0;
   return NS_ERROR_FAILURE;
 }
-#endif
-
-std::ostream& operator<<(std::ostream& os, const nsPrintfCString& rhs) {
-  os << rhs.get();
-  return os;
-}
 
 static void
 PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpHtml);
-
-static void
-PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpSublist, bool aDumpHtml)
+                   PRInt32 aIndent, FILE* aOutput)
 {
-  std::stringstream ss;
-
-  if (!aDumpHtml) {
-    for (uint32_t indent = 0; indent < aIndent; indent++) {
-      aStream << "  ";
+  for (nsDisplayItem* i = aList.GetBottom(); i != nsnull; i = i->GetAbove()) {
+    if (aList.DidComputeVisibility() && i->GetVisibleRect().IsEmpty())
+      continue;
+    for (PRInt32 j = 0; j < aIndent; ++j) {
+      fputc(' ', aOutput);
     }
-  }
-  nsIFrame* f = aItem->Frame();
-  nsAutoString fName;
-#ifdef DEBUG_FRAME_DUMP
-  f->GetFrameName(fName);
-#endif
-  bool snap;
-  nsRect rect = aItem->GetBounds(aBuilder, &snap);
-  nsRect layerRect = rect -
-    nsLayoutUtils::GetAnimatedGeometryRootFor(aItem, aBuilder, nullptr)->
-      GetOffsetToCrossDoc(aItem->ReferenceFrame());
-  nscolor color;
-  nsRect vis = aItem->GetVisibleRect();
-  nsRect component = aItem->GetComponentAlphaBounds(aBuilder);
-  nsDisplayList* list = aItem->GetChildren();
-  const DisplayItemClip& clip = aItem->GetClip();
-  nsRegion opaque = aItem->GetOpaqueRegion(aBuilder, &snap);
-#ifdef MOZ_DUMP_PAINTING
-  if (aDumpHtml && aItem->Painted()) {
-    nsCString string(aItem->Name());
-    string.Append('-');
-    string.AppendInt((uint64_t)aItem);
-    aStream << nsPrintfCString("<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
-  }
-#endif
-  aStream << nsPrintfCString("%s p=0x%p f=0x%p(%s) %sbounds(%d,%d,%d,%d) layerBounds(%d,%d,%d,%d) visible(%d,%d,%d,%d) componentAlpha(%d,%d,%d,%d) clip(%s) %s",
-          aItem->Name(), aItem, (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
-          (aItem->ZIndex() ? nsPrintfCString("z=%d ", aItem->ZIndex()).get() : ""),
-          rect.x, rect.y, rect.width, rect.height,
-          layerRect.x, layerRect.y, layerRect.width, layerRect.height,
-          vis.x, vis.y, vis.width, vis.height,
-          component.x, component.y, component.width, component.height,
-          clip.ToString().get(),
-          aItem->IsUniform(aBuilder, &color) ? " uniform" : "");
-
-  nsRegionRectIterator iter(opaque);
-  for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-    aStream << nsPrintfCString(" (opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
-  }
-
-  if (aItem->ShouldFixToViewport(nullptr)) {
-    aStream << " fixed";
-  }
-
-  if (aItem->Frame()->StyleDisplay()->mWillChange.Length() > 0) {
-    aStream << " (will-change=";
-    for (size_t i = 0; i < aItem->Frame()->StyleDisplay()->mWillChange.Length(); i++) {
-      if (i > 0) {
-        aStream << ",";
+    nsIFrame* f = i->GetUnderlyingFrame();
+    nsAutoString fName;
+    if (f) {
+      f->GetFrameName(fName);
+    }
+    nsRect rect = i->GetBounds(aBuilder);
+    switch (i->GetType()) {
+      case nsDisplayItem::TYPE_CLIP:
+      case nsDisplayItem::TYPE_CLIP_ROUNDED_RECT: {
+        nsDisplayClip* c = static_cast<nsDisplayClip*>(i);
+        rect = c->GetClipRect();
+        break;
       }
-      aStream << NS_LossyConvertUTF16toASCII(aItem->Frame()->StyleDisplay()->mWillChange[i]).get();
+      default:
+        break;
     }
-    aStream << ")";
-  }
-
-  // Display item specific debug info
-  aItem->WriteDebugInfo(aStream);
-
-#ifdef MOZ_DUMP_PAINTING
-  if (aDumpHtml && aItem->Painted()) {
-    aStream << "</a>";
-  }
-#endif
-  uint32_t key = aItem->GetPerFrameKey();
-  Layer* layer = mozilla::FrameLayerBuilder::GetDebugOldLayerFor(f, key);
-  if (layer) {
-    if (aDumpHtml) {
-      aStream << nsPrintfCString(" <a href=\"#%p\">layer=%p</a>", layer, layer);
-    } else {
-      aStream << nsPrintfCString(" layer=0x%p", layer);
+    nscolor color;
+    nsRect vis = i->GetVisibleRect();
+    nsDisplayList* list = i->GetList();
+    nsRegion opaque;
+    if (!list || list->DidComputeVisibility()) {
+      opaque = i->GetOpaqueRegion(aBuilder);
     }
-  }
-#ifdef MOZ_DUMP_PAINTING
-  if (aItem->GetType() == nsDisplayItem::TYPE_SVG_EFFECTS) {
-    nsCString str;
-    (static_cast<nsDisplaySVGEffects*>(aItem))->PrintEffects(str);
-    aStream << str.get();
-  }
-#endif
-  aStream << "\n";
-
-  if (aDumpSublist && list) {
-    PrintDisplayListTo(aBuilder, *list, aStream, aIndent+1, aDumpHtml);
-  }
-}
-
-static void
-PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpHtml)
-{
-  if (aDumpHtml) {
-    aStream << "<ul>";
-  }
-
-  for (nsDisplayItem* i = aList.GetBottom(); i != nullptr; i = i->GetAbove()) {
-    if (aDumpHtml) {
-      aStream << "<li>";
+    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
+      nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
+      list = t->GetStoredList()->GetList();
     }
-    PrintDisplayItemTo(aBuilder, i, aStream, aIndent, true, aDumpHtml);
-    if (aDumpHtml) {
-      aStream << "</li>";
+    fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)(%d,%d,%d,%d)%s%s",
+            i->Name(), (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
+            rect.x, rect.y, rect.width, rect.height,
+            vis.x, vis.y, vis.width, vis.height,
+            opaque.IsEmpty() ? "" : " opaque",
+            i->IsUniform(aBuilder, &color) ? " uniform" : "");
+    if (f) {
+      PRUint32 key = i->GetPerFrameKey();
+      Layer* layer = aBuilder->LayerBuilder()->GetOldLayerFor(f, key);
+      if (layer) {
+        fprintf(aOutput, " layer=%p", layer);
+      }
+    }
+    fputc('\n', aOutput);
+    if (list) {
+      PrintDisplayListTo(aBuilder, *list, aIndent + 4, aOutput);
     }
   }
-
-  if (aDumpHtml) {
-    aStream << "</ul>";
-  }
-}
-
-void
-nsFrame::PrintDisplayItem(nsDisplayListBuilder* aBuilder,
-                          nsDisplayItem* aItem,
-                          std::stringstream& aStream,
-                          bool aDumpSublist,
-                          bool aDumpHtml)
-{
-  PrintDisplayItemTo(aBuilder, aItem, aStream, 0, aDumpSublist, aDumpHtml);
 }
 
 void
 nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
-                          const nsDisplayList& aList,
-                          std::stringstream& aStream,
-                          bool aDumpHtml)
+                          const nsDisplayList& aList)
 {
-  PrintDisplayListTo(aBuilder, aList, aStream, 0, aDumpHtml);
-}
-
-#ifdef MOZ_DUMP_PAINTING
-static void
-PrintDisplayListSetItem(nsDisplayListBuilder* aBuilder,
-                        const char* aItemName,
-                        const nsDisplayList& aList,
-                        std::stringstream& aStream,
-                        bool aDumpHtml)
-{
-  if (aDumpHtml) {
-    aStream << "<li>";
-  }
-  aStream << aItemName << "\n";
-  PrintDisplayListTo(aBuilder, aList, aStream, 0, aDumpHtml);
-  if (aDumpHtml) {
-    aStream << "</li>";
-  }
-}
-
-void
-nsFrame::PrintDisplayListSet(nsDisplayListBuilder* aBuilder,
-                             const nsDisplayListSet& aSet,
-                             std::stringstream& aStream,
-                             bool aDumpHtml)
-{
-  if (aDumpHtml) {
-    aStream << "<ul>";
-  }
-  PrintDisplayListSetItem(aBuilder, "[BorderBackground]", *(aSet.BorderBackground()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[BlockBorderBackgrounds]", *(aSet.BlockBorderBackgrounds()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Floats]", *(aSet.Floats()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[PositionedDescendants]", *(aSet.PositionedDescendants()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Outlines]", *(aSet.Outlines()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Content]", *(aSet.Content()), aStream, aDumpHtml);
-  if (aDumpHtml) {
-    aStream << "</ul>";
-  }
+  PrintDisplayListTo(aBuilder, aList, 0, stderr);
 }
 
 #endif

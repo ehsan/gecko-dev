@@ -10,10 +10,6 @@
 <script type="text/javascript">
 function installCallback(url, status) {
   document.location = "#foo";
-
-  dump("Sending InstallComplete\n");
-  var event = new CustomEvent("InstallComplete");
-  window.dispatchEvent(event);
 }
 
 function startInstall() {

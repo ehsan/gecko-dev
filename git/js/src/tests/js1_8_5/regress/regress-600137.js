@@ -1,4 +1,4 @@
-/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /*
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/
@@ -12,7 +12,7 @@ if (typeof evalcx == 'function') {
     '} catch (e) {}\n' +
     'try {\n' +
     '    let(x = Object.freeze(this, /x/))\n' +
-    '    e = {}.toString\n' +
+    '    e = #0= * .toString\n' +
     '    function y() {}\n' +
     '} catch (e) {}';
 

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Url Classifier code
+ *
+ * The Initial Developer of the Original Code is
+ * Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Tony Chang <tony@ponderer.org> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsISupports.idl"
 #include "nsIUrlClassifierDBService.idl"
@@ -11,17 +44,22 @@
  * downloading the whole update and then updating the sqlite database, we
  * update tables as the data is streaming in.
  */
-[scriptable, uuid(e1797597-f4d6-4dd3-a1e1-745ad352cd80)]
+[scriptable, uuid(daf3038a-556c-47d3-a3d2-36caa9a762a0)]
 interface nsIUrlClassifierStreamUpdater : nsISupports
 {
   /**
-   * Try to download updates from updateUrl. If an update is already in
-   * progress, queues the requested update. This is used in nsIUrlListManager
-   * as well as in testing.
+   * The Url to download from.  Should be plain ascii text.
+   */
+  attribute ACString updateUrl;
+
+  /**
+   * Try to download updates from updateUrl.  Only one instance of this
+   * runs at a time, so we return false if another instance is already
+   * running.
    * @param aRequestTables Comma-separated list of tables included in this
    *        update.
    * @param aRequestBody The body for the request.
-   * @param aUpdateUrl The plaintext url from which to request updates.
+   * @param aClientKey The client key for checking the update's MAC.
    * @param aSuccessCallback Called after a successful update.
    * @param aUpdateErrorCallback Called for problems applying the update
    * @param aDownloadErrorCallback Called if we get an http error or a
@@ -29,7 +67,7 @@ interface nsIUrlClassifierStreamUpdater : nsISupports
    */
   boolean downloadUpdates(in ACString aRequestTables,
                           in ACString aRequestBody,
-                          in ACString aUpdateUrl,
+                          in ACString aClientKey,
                           in nsIUrlClassifierCallback aSuccessCallback,
                           in nsIUrlClassifierCallback aUpdateErrorCallback,
                           in nsIUrlClassifierCallback aDownloadErrorCallback);

@@ -1,42 +1,70 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla XPCOM.
+ *
+ * The Initial Developer of the Original Code is
+ * Benjamin Smedberg <benjamin@smedbergs.us>.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsVersionComparator.h"
 
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#if defined(XP_WIN) && !defined(UPDATER_NO_STRING_GLUE_STL)
+#ifdef XP_WIN
 #include <wchar.h>
 #include "nsStringGlue.h"
 #endif
 
-struct VersionPart
-{
-  int32_t     numA;
+struct VersionPart {
+  PRInt32     numA;
 
-  const char* strB;    // NOT null-terminated, can be a null pointer
-  uint32_t    strBlen;
+  const char *strB;    // NOT null-terminated, can be a null pointer
+  PRUint32    strBlen;
 
-  int32_t     numC;
+  PRInt32     numC;
 
-  char*       extraD;  // null-terminated
+  char       *extraD;  // null-terminated
 };
 
 #ifdef XP_WIN
-struct VersionPartW
-{
-  int32_t     numA;
+struct VersionPartW {
+  PRInt32     numA;
 
-  wchar_t*    strB;    // NOT null-terminated, can be a null pointer
-  uint32_t    strBlen;
+  const PRUnichar *strB;    // NOT null-terminated, can be a null pointer
+  PRUint32    strBlen;
 
-  int32_t     numC;
+  PRInt32     numC;
 
-  wchar_t*    extraD;  // null-terminated
+  PRUnichar       *extraD;  // null-terminated
 
 };
 #endif
@@ -47,53 +75,54 @@ struct VersionPartW
  * @returns A pointer to the next versionpart, or null if none.
  */
 static char*
-ParseVP(char* aPart, VersionPart& aResult)
+ParseVP(char *part, VersionPart &result)
 {
-  char* dot;
+  char *dot;
 
-  aResult.numA = 0;
-  aResult.strB = nullptr;
-  aResult.strBlen = 0;
-  aResult.numC = 0;
-  aResult.extraD = nullptr;
+  result.numA = 0;
+  result.strB = nsnull;
+  result.strBlen = 0;
+  result.numC = 0;
+  result.extraD = nsnull;
 
-  if (!aPart) {
-    return aPart;
-  }
+  if (!part)
+    return part;
 
-  dot = strchr(aPart, '.');
-  if (dot) {
+  dot = strchr(part, '.');
+  if (dot)
     *dot = '\0';
+
+  if (part[0] == '*' && part[1] == '\0') {
+    result.numA = PR_INT32_MAX;
+    result.strB = "";
+  }
+  else {
+    result.numA = strtol(part, const_cast<char**>(&result.strB), 10);
   }
 
-  if (aPart[0] == '*' && aPart[1] == '\0') {
-    aResult.numA = INT32_MAX;
-    aResult.strB = "";
-  } else {
-    aResult.numA = strtol(aPart, const_cast<char**>(&aResult.strB), 10);
+  if (!*result.strB) {
+    result.strB = nsnull;
+    result.strBlen = 0;
   }
-
-  if (!*aResult.strB) {
-    aResult.strB = nullptr;
-    aResult.strBlen = 0;
-  } else {
-    if (aResult.strB[0] == '+') {
+  else {
+    if (result.strB[0] == '+') {
       static const char kPre[] = "pre";
 
-      ++aResult.numA;
-      aResult.strB = kPre;
-      aResult.strBlen = sizeof(kPre) - 1;
-    } else {
-      const char* numstart = strpbrk(aResult.strB, "0123456789+-");
+      ++result.numA;
+      result.strB = kPre;
+      result.strBlen = sizeof(kPre) - 1;
+    }
+    else {
+      const char *numstart = strpbrk(result.strB, "0123456789+-");
       if (!numstart) {
-        aResult.strBlen = strlen(aResult.strB);
-      } else {
-        aResult.strBlen = numstart - aResult.strB;
+	result.strBlen = strlen(result.strB);
+      }
+      else {
+	result.strBlen = numstart - result.strB;
 
-        aResult.numC = strtol(numstart, &aResult.extraD, 10);
-        if (!*aResult.extraD) {
-          aResult.extraD = nullptr;
-        }
+	result.numC = strtol(numstart, &result.extraD, 10);
+	if (!*result.extraD)
+	  result.extraD = nsnull;
       }
     }
   }
@@ -101,9 +130,8 @@ ParseVP(char* aPart, VersionPart& aResult)
   if (dot) {
     ++dot;
 
-    if (!*dot) {
-      dot = nullptr;
-    }
+    if (!*dot)
+      dot = nsnull;
   }
 
   return dot;
@@ -116,55 +144,56 @@ ParseVP(char* aPart, VersionPart& aResult)
  * @returns A pointer to the next versionpart, or null if none.
  */
 #ifdef XP_WIN
-static wchar_t*
-ParseVP(wchar_t* aPart, VersionPartW& aResult)
+static PRUnichar*
+ParseVP(PRUnichar *part, VersionPartW &result)
 {
 
-  wchar_t* dot;
+  PRUnichar *dot;
 
-  aResult.numA = 0;
-  aResult.strB = nullptr;
-  aResult.strBlen = 0;
-  aResult.numC = 0;
-  aResult.extraD = nullptr;
+  result.numA = 0;
+  result.strB = nsnull;
+  result.strBlen = 0;
+  result.numC = 0;
+  result.extraD = nsnull;
 
-  if (!aPart) {
-    return aPart;
-  }
+  if (!part)
+    return part;
 
-  dot = wcschr(aPart, '.');
-  if (dot) {
+  dot = wcschr(part, '.');
+  if (dot)
     *dot = '\0';
+
+  if (part[0] == '*' && part[1] == '\0') {
+    result.numA = PR_INT32_MAX;
+    result.strB = L"";
+  }
+  else {
+    result.numA = wcstol(part, const_cast<PRUnichar**>(&result.strB), 10);
   }
 
-  if (aPart[0] == '*' && aPart[1] == '\0') {
-    aResult.numA = INT32_MAX;
-    aResult.strB = L"";
-  } else {
-    aResult.numA = wcstol(aPart, const_cast<wchar_t**>(&aResult.strB), 10);
+  if (!*result.strB) {
+    result.strB = nsnull;
+    result.strBlen = 0;
   }
+  else {
+    if (result.strB[0] == '+') {
+      static const PRUnichar kPre[] = L"pre";
 
-  if (!*aResult.strB) {
-    aResult.strB = nullptr;
-    aResult.strBlen = 0;
-  } else {
-    if (aResult.strB[0] == '+') {
-      static wchar_t kPre[] = L"pre";
-
-      ++aResult.numA;
-      aResult.strB = kPre;
-      aResult.strBlen = sizeof(kPre) - 1;
-    } else {
-      const wchar_t* numstart = wcspbrk(aResult.strB, L"0123456789+-");
+      ++result.numA;
+      result.strB = kPre;
+      result.strBlen = sizeof(kPre) - 1;
+    }
+    else {
+      const PRUnichar *numstart = wcspbrk(result.strB, L"0123456789+-");
       if (!numstart) {
-        aResult.strBlen = wcslen(aResult.strB);
-      } else {
-        aResult.strBlen = numstart - aResult.strB;
+	result.strBlen = wcslen(result.strB);
+      }
+      else {
+	result.strBlen = numstart - result.strB;
 
-        aResult.numC = wcstol(numstart, &aResult.extraD, 10);
-        if (!*aResult.extraD) {
-          aResult.extraD = nullptr;
-        }
+	result.numC = wcstol(numstart, &result.extraD, 10);
+	if (!*result.extraD)
+	  result.extraD = nsnull;
       }
     }
   }
@@ -172,9 +201,8 @@ ParseVP(wchar_t* aPart, VersionPartW& aResult)
   if (dot) {
     ++dot;
 
-    if (!*dot) {
-      dot = nullptr;
-    }
+    if (!*dot)
+      dot = nsnull;
   }
 
   return dot;
@@ -182,141 +210,119 @@ ParseVP(wchar_t* aPart, VersionPartW& aResult)
 #endif
 
 // compare two null-terminated strings, which may be null pointers
-static int32_t
-ns_strcmp(const char* aStr1, const char* aStr2)
+static PRInt32
+ns_strcmp(const char *str1, const char *str2)
 {
   // any string is *before* no string
-  if (!aStr1) {
-    return aStr2 != 0;
-  }
+  if (!str1)
+    return str2 != 0;
 
-  if (!aStr2) {
+  if (!str2)
     return -1;
-  }
 
-  return strcmp(aStr1, aStr2);
+  return strcmp(str1, str2);
 }
 
 // compare two length-specified string, which may be null pointers
-static int32_t
-ns_strnncmp(const char* aStr1, uint32_t aLen1,
-            const char* aStr2, uint32_t aLen2)
+static PRInt32
+ns_strnncmp(const char *str1, PRUint32 len1, const char *str2, PRUint32 len2)
 {
   // any string is *before* no string
-  if (!aStr1) {
-    return aStr2 != 0;
-  }
+  if (!str1)
+    return str2 != 0;
 
-  if (!aStr2) {
+  if (!str2)
     return -1;
-  }
 
-  for (; aLen1 && aLen2; --aLen1, --aLen2, ++aStr1, ++aStr2) {
-    if (*aStr1 < *aStr2) {
+  for (; len1 && len2; --len1, --len2, ++str1, ++str2) {
+    if (*str1 < *str2)
       return -1;
-    }
 
-    if (*aStr1 > *aStr2) {
+    if (*str1 > *str2)
       return 1;
-    }
   }
 
-  if (aLen1 == 0) {
-    return aLen2 == 0 ? 0 : -1;
-  }
+  if (len1 == 0)
+    return len2 == 0 ? 0 : -1;
 
   return 1;
 }
 
-// compare two int32_t
-static int32_t
-ns_cmp(int32_t aNum1, int32_t aNum2)
+// compare two PRInt32
+static PRInt32
+ns_cmp(PRInt32 n1, PRInt32 n2)
 {
-  if (aNum1 < aNum2) {
+  if (n1 < n2)
     return -1;
-  }
 
-  return aNum1 != aNum2;
+  return n1 != n2;
 }
 
 /**
  * Compares two VersionParts
  */
-static int32_t
-CompareVP(VersionPart& aVer1, VersionPart& aVer2)
+static PRInt32
+CompareVP(VersionPart &v1, VersionPart &v2)
 {
-  int32_t r = ns_cmp(aVer1.numA, aVer2.numA);
-  if (r) {
+  PRInt32 r = ns_cmp(v1.numA, v2.numA);
+  if (r)
     return r;
-  }
 
-  r = ns_strnncmp(aVer1.strB, aVer1.strBlen, aVer2.strB, aVer2.strBlen);
-  if (r) {
+  r = ns_strnncmp(v1.strB, v1.strBlen, v2.strB, v2.strBlen);
+  if (r)
     return r;
-  }
 
-  r = ns_cmp(aVer1.numC, aVer2.numC);
-  if (r) {
+  r = ns_cmp(v1.numC, v2.numC);
+  if (r)
     return r;
-  }
 
-  return ns_strcmp(aVer1.extraD, aVer2.extraD);
+  return ns_strcmp(v1.extraD, v2.extraD);
 }
 
 /**
  * Compares two VersionParts
  */
 #ifdef XP_WIN
-static int32_t
-CompareVP(VersionPartW& aVer1, VersionPartW& aVer2)
+static PRInt32
+CompareVP(VersionPartW &v1, VersionPartW &v2)
 {
-  int32_t r = ns_cmp(aVer1.numA, aVer2.numA);
-  if (r) {
+  PRInt32 r = ns_cmp(v1.numA, v2.numA);
+  if (r)
     return r;
-  }
 
-  r = wcsncmp(aVer1.strB, aVer2.strB, XPCOM_MIN(aVer1.strBlen, aVer2.strBlen));
-  if (r) {
+  r = wcsncmp(v1.strB, v2.strB, PR_MIN(v1.strBlen,v2.strBlen));
+  if (r)
     return r;
-  }
 
-  r = ns_cmp(aVer1.numC, aVer2.numC);
-  if (r) {
+  r = ns_cmp(v1.numC, v2.numC);
+  if (r)
     return r;
-  }
 
-  if (!aVer1.extraD) {
-    return aVer2.extraD != 0;
-  }
+  if (!v1.extraD)
+    return v2.extraD != 0;
 
-  if (!aVer2.extraD) {
+  if (!v2.extraD)
     return -1;
-  }
 
-  return wcscmp(aVer1.extraD, aVer2.extraD);
+  return wcscmp(v1.extraD, v2.extraD);
 }
-#endif
 
-namespace mozilla {
 
-#ifdef XP_WIN
-int32_t
-CompareVersions(const char16_t* aStrA, const char16_t* aStrB)
+PRInt32
+NS_CompareVersions(const PRUnichar *A, const PRUnichar *B)
 {
-  wchar_t* A2 = wcsdup(char16ptr_t(aStrA));
-  if (!A2) {
+  PRUnichar *A2 = wcsdup(A);
+  if (!A2)
     return 1;
-  }
 
-  wchar_t* B2 = wcsdup(char16ptr_t(aStrB));
+  PRUnichar *B2 = wcsdup(B);
   if (!B2) {
     free(A2);
     return 1;
   }
 
-  int32_t result;
-  wchar_t* a = A2;
-  wchar_t* b = B2;
+  PRInt32 result;
+  PRUnichar *a = A2, *b = B2;
 
   do {
     VersionPartW va, vb;
@@ -325,9 +331,8 @@ CompareVersions(const char16_t* aStrA, const char16_t* aStrB)
     b = ParseVP(b, vb);
 
     result = CompareVP(va, vb);
-    if (result) {
+    if (result)
       break;
-    }
 
   } while (a || b);
 
@@ -338,23 +343,21 @@ CompareVersions(const char16_t* aStrA, const char16_t* aStrB)
 }
 #endif
 
-int32_t
-CompareVersions(const char* aStrA, const char* aStrB)
+PRInt32
+NS_CompareVersions(const char *A, const char *B)
 {
-  char* A2 = strdup(aStrA);
-  if (!A2) {
+  char *A2 = strdup(A);
+  if (!A2)
     return 1;
-  }
 
-  char* B2 = strdup(aStrB);
+  char *B2 = strdup(B);
   if (!B2) {
     free(A2);
     return 1;
   }
 
-  int32_t result;
-  char* a = A2;
-  char* b = B2;
+  PRInt32 result;
+  char *a = A2, *b = B2;
 
   do {
     VersionPart va, vb;
@@ -363,9 +366,8 @@ CompareVersions(const char* aStrA, const char* aStrB)
     b = ParseVP(b, vb);
 
     result = CompareVP(va, vb);
-    if (result) {
+    if (result)
       break;
-    }
 
   } while (a || b);
 
@@ -374,6 +376,4 @@ CompareVersions(const char* aStrA, const char* aStrB)
 
   return result;
 }
-
-} // namespace mozilla
 

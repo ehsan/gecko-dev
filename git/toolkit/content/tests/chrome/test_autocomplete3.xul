@@ -5,6 +5,8 @@
 <window title="Autocomplete Widget Test 3"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
@@ -44,7 +46,6 @@ nsAutoCompleteSimpleResult.prototype = {
  getCommentAt: function() { return null; },
  getStyleAt: function() { return null; },
  getImageAt: function() { return null; },
- getFinalCompleteValueAt: function() { return this.getValueAt(); },
  getLabelAt: function() { return null; },
  removeValueAt: function() {}
 };
@@ -168,6 +169,7 @@ function checkResult() {
     setTimeout(function() {
       // Unregister the factory so that we don't get in the way of other tests
       componentManager.unregisterFactory(autoCompleteSimpleID, autoCompleteSimple);
+      autocomplete.controller.stopSearch();
       SimpleTest.finish();
     }, 0);
   }

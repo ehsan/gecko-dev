@@ -1,9 +1,43 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Test program for client-side OCSP.
+ *
+ * $Id: ocspclnt.c,v 1.12 2007/12/06 09:41:36 slavomir.katuscak%sun.com Exp $
  */
 
 #include "secutil.h"
@@ -254,7 +288,7 @@ create_request (FILE *out_file, CERTCertDBHandle *handle, CERTCertificate *cert,
     CERTCertList *certs = NULL;
     CERTCertificate *myCert = NULL;
     CERTOCSPRequest *request = NULL;
-    PRTime now = PR_Now();
+    int64 now = PR_Now();
     SECItem *encoding = NULL;
     SECStatus rv = SECFailure;
 
@@ -329,7 +363,7 @@ dump_response (FILE *out_file, CERTCertDBHandle *handle, CERTCertificate *cert,
     CERTCertList *certs = NULL;
     CERTCertificate *myCert = NULL;
     char *loc = NULL;
-    PRTime now = PR_Now();
+    int64 now = PR_Now();
     SECItem *response = NULL;
     SECStatus rv = SECFailure;
     PRBool includeServiceLocator;
@@ -400,7 +434,7 @@ loser:
 static SECStatus
 get_cert_status (FILE *out_file, CERTCertDBHandle *handle,
 		 CERTCertificate *cert, const char *cert_name,
-		 PRTime verify_time)
+                 int64 verify_time)
 {
     SECStatus rv = SECFailure;
 
@@ -436,7 +470,7 @@ loser:
  */
 static SECStatus
 verify_cert (FILE *out_file, CERTCertDBHandle *handle, CERTCertificate *cert,
-	     const char *cert_name, SECCertUsage cert_usage, PRTime verify_time)
+	     const char *cert_name, SECCertUsage cert_usage, int64 verify_time)
 {
     SECStatus rv = SECFailure;
 
@@ -485,7 +519,7 @@ find_certificate(CERTCertDBHandle *handle, const char *name, PRBool ascii)
         return NULL;
     }
 
-    if (SECU_ReadDERFromFile(&der, certFile, ascii, PR_FALSE) == SECSuccess) {
+    if (SECU_ReadDERFromFile(&der, certFile, ascii) == SECSuccess) {
         cert = CERT_DecodeCertFromPackage((char*)der.data, der.len);
         SECITEM_FreeItem(&der, PR_FALSE);
     }
@@ -826,7 +860,8 @@ static char *responseStatusNames[] = {
     "tryLater (Try again later)",
     "unused ((4) is not used)",
     "sigRequired (Must sign the request)",
-    "unauthorized (Request unauthorized)"
+    "unauthorized (Request unauthorized)",
+    "other (Status value out of defined range)"
 };
 
 /*
@@ -850,15 +885,9 @@ print_response (FILE *out_file, SECItem *data, CERTCertDBHandle *handle)
     if (response == NULL)
 	return SECFailure;
 
-    if (response->statusValue >= ocspResponse_min &&
-	response->statusValue <= ocspResponse_max) {
-	fprintf (out_file, "Response Status: %s\n",
-		 responseStatusNames[response->statusValue]);
-    } else {
-	fprintf (out_file,
-		 "Response Status: other (Status value %d out of defined range)\n",
-		 (int)response->statusValue);
-    }
+    PORT_Assert (response->statusValue <= ocspResponse_other);
+    fprintf (out_file, "Response Status: %s\n",
+	     responseStatusNames[response->statusValue]);
 
     if (response->statusValue == ocspResponse_successful) {
 	ocspResponseBytes *responseBytes = response->responseBytes;
@@ -965,7 +994,7 @@ main (int argc, char **argv)
     SECStatus	 rv;
     CERTCertDBHandle *handle = NULL;
     SECCertUsage cert_usage;
-    PRTime	 verify_time;
+    int64	 verify_time;
     CERTCertificate *cert = NULL;
     PRBool ascii = PR_FALSE;
 

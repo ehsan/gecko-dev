@@ -29,28 +29,6 @@
 		<dict>
 			<key>CFBundleTypeExtensions</key>
 			<array>
-				<string>svg</string>
-			</array>
-			<key>CFBundleTypeIconFile</key>
-			<string>document.icns</string>
-			<key>CFBundleTypeMIMETypes</key>
-			<array>
-				<string>image/svg+xml</string>
-			</array>
-			<key>CFBundleTypeName</key>
-			<string>SVG document</string>
-			<key>CFBundleTypeOSTypes</key>
-			<array>
-				<string>TEXT</string>
-			</array>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>NSDocumentClass</key>
-			<string>BrowserDocument</string>
-		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
 			    <string>text</string>
 				<string>txt</string>
 				<string>js</string>
@@ -92,68 +70,19 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>oga</string>
-				<string>ogg</string>
-			</array>
-			<key>CFBundleTypeIconFile</key>
-			<string>document.icns</string>
-			<key>CFBundleTypeMIMETypes</key>
-			<array>
-				<string>audio/ogg</string>
-			</array>
-			<key>CFBundleTypeName</key>
-			<string>HTML5 Audio (Ogg)</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>ogv</string>
-			</array>
-			<key>CFBundleTypeIconFile</key>
-			<string>document.icns</string>
-			<key>CFBundleTypeMIMETypes</key>
-			<array>
-				<string>video/ogg</string>
-			</array>
-			<key>CFBundleTypeName</key>
-			<string>HTML5 Video (Ogg)</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-		</dict>
-		<dict>
-			<key>CFBundleTypeExtensions</key>
-			<array>
-				<string>webm</string>
-			</array>
-			<key>CFBundleTypeIconFile</key>
-			<string>document.icns</string>
-			<key>CFBundleTypeMIMETypes</key>
-			<array>
-				<string>video/webm</string>
-			</array>
-			<key>CFBundleTypeName</key>
-			<string>HTML5 Video (WebM)</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
-	<string>firefox</string>
+	<string>firefox-bin</string>
 	<key>CFBundleGetInfoString</key>
-	<string>%MAC_APP_NAME% %APP_VERSION%</string>
+	<string>%APP_NAME% %APP_VERSION%</string>
 	<key>CFBundleIconFile</key>
-	<string>firefox.icns</string>
+	<string>firefox</string>
 	<key>CFBundleIdentifier</key>
-	<string>%MOZ_MACBUNDLE_ID%</string>
+	<string>org.mozilla.%LOWER_APP_NAME%</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>%MAC_APP_NAME%</string>
+	<string>%APP_NAME%</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -200,25 +129,19 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>%MAC_BUNDLE_VERSION%</string>
+	<string>%APP_VERSION%</string>
 	<key>NSAppleScriptEnabled</key>
 	<true/>
-	<key>LSApplicationCategoryType</key>
-	<string>public.app-category.productivity</string>
+	<key>CGDisableCoalescedUpdates</key>
+	<true/>
 	<key>LSMinimumSystemVersion</key>
-	<string>10.6</string>
+	<string>10.5</string>
 	<key>LSMinimumSystemVersionByArchitecture</key>
 	<dict>
 		<key>i386</key>
-		<string>10.6.0</string>
+		<string>10.5.0</string>
 		<key>x86_64</key>
 		<string>10.6.0</string>
 	</dict>
-  <key>NSSupportsAutomaticGraphicsSwitching</key>
-  <true/>
-  <key>NSPrincipalClass</key>
-  <string>GeckoNSApplication</string>
-  <key>NSDisablePersistence</key>
-  <true/>
 </dict>
 </plist>

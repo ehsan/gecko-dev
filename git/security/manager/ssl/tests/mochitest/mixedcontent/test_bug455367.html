@@ -2,10 +2,7 @@
 <html>
 <head>
   <title>No content image doesn't break security</title>
-  <script type="text/javascript" src="/MochiKit/Base.js"></script>
-  <script type="text/javascript" src="/MochiKit/DOM.js"></script>
-  <script type="text/javascript" src="/MochiKit/Style.js"></script>
-  <script type="text/javascript" src="/MochiKit/Signal.js"></script>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="mixedContentTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -14,13 +11,13 @@
 
   function runTest()
   {
-    isSecurityState("broken", "broken");
+    isSecurityState("secure", "secure");
     finish();
   }
 
   function afterNavigationTest()
   {
-    isSecurityState("broken", "broken after navigation");
+    isSecurityState("secure", "secure after navigation");
     finish();
   }
 
@@ -28,6 +25,6 @@
 </head>
 
 <body>
-  <img src="https://example.com/tests/security/manager/ssl/tests/mochitest/mixedcontent/redirecttoemptyimage.sjs" />
+  <img src="https://example.com/tests/security/ssl/mixedcontent/redirecttoemptyimage.sjs" />
 </body>
 </html>

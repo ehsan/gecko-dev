@@ -1,12 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim:cindent:ts=4:et:sw=4:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "TestHarness.h"
 #include "nsCOMArray.h"
-#include "mozilla/Attributes.h"
 
 // {9e70a320-be02-11d1-8031-006008159b5a}
 #define NS_IFOO_IID \
@@ -18,34 +48,33 @@ public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFOO_IID)
 
-  NS_IMETHOD_(MozExternalRefCountType) RefCnt() = 0;
-  NS_IMETHOD_(int32_t) ID() = 0;
+  NS_IMETHOD_(nsrefcnt) RefCnt() = 0;
+  NS_IMETHOD_(PRInt32) ID() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(IFoo, NS_IFOO_IID)
 
-class Foo MOZ_FINAL : public IFoo {
-  ~Foo();
-
+class Foo : public IFoo {
 public:
 
-  explicit Foo(int32_t aID);
+  Foo(PRInt32 aID);
+  ~Foo();
 
   // nsISupports implementation
   NS_DECL_ISUPPORTS
 
   // IFoo implementation
-  NS_IMETHOD_(MozExternalRefCountType) RefCnt() MOZ_OVERRIDE { return mRefCnt; }
-  NS_IMETHOD_(int32_t) ID() MOZ_OVERRIDE { return mID; }
+  NS_IMETHOD_(nsrefcnt) RefCnt() { return mRefCnt; }
+  NS_IMETHOD_(PRInt32) ID() { return mID; }
 
-  static int32_t gCount;
+  static PRInt32 gCount;
 
-  int32_t mID;
+  PRInt32 mID;
 };
 
-int32_t Foo::gCount = 0;
+PRInt32 Foo::gCount = 0;
 
-Foo::Foo(int32_t aID)
+Foo::Foo(PRInt32 aID)
 {
   mID = aID;
   ++gCount;
@@ -56,7 +85,7 @@ Foo::~Foo()
   --gCount;
 }
 
-NS_IMPL_ISUPPORTS(Foo, IFoo)
+NS_IMPL_ISUPPORTS1(Foo, IFoo)
 
 
 typedef nsCOMArray<IFoo> Array;
@@ -75,46 +104,47 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(IBar, NS_IBAR_IID)
 
-class Bar MOZ_FINAL : public IBar {
+class Bar : public IBar {
 public:
 
-  explicit Bar(nsCOMArray<IBar>& aArray);
+  Bar(nsCOMArray<IBar>& aArray, PRInt32 aIndex);
+  ~Bar();
 
   // nsISupports implementation
   NS_DECL_ISUPPORTS
 
-  static int32_t sReleaseCalled;
+  static PRInt32 sReleaseCalled;
 
 private:
-  ~Bar();
-
   nsCOMArray<IBar>& mArray;
+  PRInt32 mIndex;
 };
 
-int32_t Bar::sReleaseCalled = 0;
+PRInt32 Bar::sReleaseCalled = 0;
 
 typedef nsCOMArray<IBar> Array2;
 
-Bar::Bar(Array2& aArray)
+Bar::Bar(Array2& aArray, PRInt32 aIndex)
   : mArray(aArray)
+  , mIndex(aIndex)
 {
 }
 
 Bar::~Bar()
 {
-  if (mArray.RemoveObject(this)) {
+  if (mArray.RemoveObjectAt(mIndex)) {
     fail("We should never manage to remove the object here");
   }
 }
 
 NS_IMPL_ADDREF(Bar)
-NS_IMPL_QUERY_INTERFACE(Bar, IBar)
+NS_IMPL_QUERY_INTERFACE1(Bar, IBar)
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 Bar::Release(void)
 {
   ++Bar::sReleaseCalled;
-  MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");
+  NS_PRECONDITION(0 != mRefCnt, "dup release");
   NS_ASSERT_OWNINGTHREAD(_class);
   --mRefCnt;
   NS_LOG_RELEASE(this, mRefCnt, "Bar");
@@ -138,7 +168,7 @@ int main(int argc, char **argv)
 
   Array arr;
 
-  for (int32_t i = 0; i < 20; ++i) {
+  for (PRInt32 i = 0; i < 20; ++i) {
     nsCOMPtr<IFoo> foo = new Foo(i);
     arr.AppendObject(foo);
   }
@@ -148,10 +178,10 @@ int main(int argc, char **argv)
     rv = 1;
   }
 
-  arr.TruncateLength(10);
+  arr.SetCount(10);
 
   if (arr.Count() != 10 || Foo::gCount != 10) {
-    fail("nsCOMArray::TruncateLength shortening of array failed");
+    fail("nsCOMArray::SetCount shortening of array failed");
     rv = 1;
   }
 
@@ -162,41 +192,31 @@ int main(int argc, char **argv)
     rv = 1;
   }
 
-  for (int32_t i = 0; i < 10; ++i) {
-	if (arr[i] == nullptr) {
+  for (PRInt32 i = 0; i < 10; ++i) {
+	if (arr[i] == nsnull) {
       fail("nsCOMArray elements should be non-null");
       rv = 1;
 	  break;
     }
   }
 
-  for (int32_t i = 10; i < 30; ++i) {
-	if (arr[i] != nullptr) {
+  for (PRInt32 i = 10; i < 30; ++i) {
+	if (arr[i] != nsnull) {
       fail("nsCOMArray elements should be null");
       rv = 1;
 	  break;
     }
   }
 
-  int32_t base;
+  PRInt32 base;
   {
     Array2 arr2;
 
-    IBar *thirdObject = nullptr,
-         *fourthObject = nullptr,
-         *fifthObject = nullptr,
-         *ninthObject = nullptr;
-    for (int32_t i = 0; i < 20; ++i) {
-      nsCOMPtr<IBar> bar = new Bar(arr2);
-      switch (i) {
-      case 2:
-        thirdObject = bar; break;
-      case 3:
-        fourthObject = bar; break;
-      case 4:
-        fifthObject = bar; break;
-      case 8:
-        ninthObject = bar; break;
+    IBar *ninthObject;
+    for (PRInt32 i = 0; i < 20; ++i) {
+      nsCOMPtr<IBar> bar = new Bar(arr2, i);
+      if (i == 8) {
+        ninthObject = bar;
       }
       arr2.AppendObject(bar);
     }
@@ -207,132 +227,15 @@ int main(int argc, char **argv)
     if (Bar::sReleaseCalled != base + 10) {
       fail("Release called multiple times for SetCount");
     }
-    if (arr2.Count() != 10) {
-      fail("SetCount(10) should remove exactly ten objects");
-    }
 
     arr2.RemoveObjectAt(9);
     if (Bar::sReleaseCalled != base + 11) {
       fail("Release called multiple times for RemoveObjectAt");
     }
-    if (arr2.Count() != 9) {
-      fail("RemoveObjectAt should remove exactly one object");
-    }
 
     arr2.RemoveObject(ninthObject);
     if (Bar::sReleaseCalled != base + 12) {
       fail("Release called multiple times for RemoveObject");
-    }
-    if (arr2.Count() != 8) {
-      fail("RemoveObject should remove exactly one object");
-    }
-
-    arr2.RemoveObjectsAt(2, 3);
-    if (Bar::sReleaseCalled != base + 15) {
-      fail("Release called more or less than three times for RemoveObjectsAt");
-    }
-    if (arr2.Count() != 5) {
-      fail("RemoveObjectsAt should remove exactly three objects");
-    }
-    for (int32_t j = 0; j < arr2.Count(); ++j) {
-      if (arr2.ObjectAt(j) == thirdObject) {
-        fail("RemoveObjectsAt should have removed thirdObject");
-      }
-      if (arr2.ObjectAt(j) == fourthObject) {
-        fail("RemoveObjectsAt should have removed fourthObject");
-      }
-      if (arr2.ObjectAt(j) == fifthObject) {
-        fail("RemoveObjectsAt should have removed fifthObject");
-      }
-    }
-
-    arr2.RemoveObjectsAt(4, 1);
-    if (Bar::sReleaseCalled != base + 16) {
-      fail("Release called more or less than one time for RemoveObjectsAt");
-    }
-    if (arr2.Count() != 4) {
-      fail("RemoveObjectsAt should work for removing the last element");
-    }
-
-    arr2.Clear();
-    if (Bar::sReleaseCalled != base + 20) {
-      fail("Release called multiple times for Clear");
-    }
-  }
-
-  {
-    Array2 arr2;
-
-    IBar *thirdElement = nullptr,
-         *fourthElement = nullptr,
-         *fifthElement = nullptr,
-         *ninthElement = nullptr;
-    for (int32_t i = 0; i < 20; ++i) {
-      nsCOMPtr<IBar> bar = new Bar(arr2);
-      switch (i) {
-      case 2:
-        thirdElement = bar; break;
-      case 3:
-        fourthElement = bar; break;
-      case 4:
-        fifthElement = bar; break;
-      case 8:
-        ninthElement = bar; break;
-      }
-      arr2.AppendElement(bar);
-    }
-
-    base = Bar::sReleaseCalled;
-
-    arr2.TruncateLength(10);
-    if (Bar::sReleaseCalled != base + 10) {
-      fail("Release called multiple times for TruncateLength");
-    }
-    if (arr2.Length() != 10) {
-      fail("TruncateLength(10) should remove exactly ten objects");
-    }
-
-    arr2.RemoveElementAt(9);
-    if (Bar::sReleaseCalled != base + 11) {
-      fail("Release called multiple times for RemoveElementAt");
-    }
-    if (arr2.Length() != 9) {
-      fail("RemoveElementAt should remove exactly one object");
-    }
-
-    arr2.RemoveElement(ninthElement);
-    if (Bar::sReleaseCalled != base + 12) {
-      fail("Release called multiple times for RemoveElement");
-    }
-    if (arr2.Length() != 8) {
-      fail("RemoveElement should remove exactly one object");
-    }
-
-    arr2.RemoveElementsAt(2, 3);
-    if (Bar::sReleaseCalled != base + 15) {
-      fail("Release called more or less than three times for RemoveElementsAt");
-    }
-    if (arr2.Length() != 5) {
-      fail("RemoveElementsAt should remove exactly three objects");
-    }
-    for (uint32_t j = 0; j < arr2.Length(); ++j) {
-      if (arr2.ElementAt(j) == thirdElement) {
-        fail("RemoveElementsAt should have removed thirdElement");
-      }
-      if (arr2.ElementAt(j) == fourthElement) {
-        fail("RemoveElementsAt should have removed fourthElement");
-      }
-      if (arr2.ElementAt(j) == fifthElement) {
-        fail("RemoveElementsAt should have removed fifthElement");
-      }
-    }
-
-    arr2.RemoveElementsAt(4, 1);
-    if (Bar::sReleaseCalled != base + 16) {
-      fail("Release called more or less than one time for RemoveElementsAt");
-    }
-    if (arr2.Length() != 4) {
-      fail("RemoveElementsAt should work for removing the last element");
     }
 
     arr2.Clear();
@@ -346,8 +249,8 @@ int main(int argc, char **argv)
   {
     Array2 arr2;
 
-    for (int32_t i = 0; i < 20; ++i) {
-      nsCOMPtr<IBar> bar  = new Bar(arr2);
+    for (PRInt32 i = 0; i < 20; ++i) {
+      nsCOMPtr<IBar> bar  = new Bar(arr2, i);
       arr2.AppendObject(bar);
     }
 

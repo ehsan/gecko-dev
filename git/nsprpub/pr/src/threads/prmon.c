@@ -1,51 +1,43 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape Portable Runtime (NSPR).
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "primpl.h"
 
 /************************************************************************/
-
-/*
- * Notifies just get posted to the monitor. The actual notification is done
- * when the monitor is fully exited so that MP systems don't contend for a
- * monitor that they can't enter.
- */
-static void _PR_PostNotifyToMonitor(PRMonitor *mon, PRBool broadcast)
-{
-    PR_ASSERT(mon != NULL);
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mon);
-
-    /* mon->notifyTimes is protected by the monitor, so we don't need to
-     * acquire mon->lock.
-     */
-    if (broadcast)
-        mon->notifyTimes = -1;
-    else if (mon->notifyTimes != -1)
-        mon->notifyTimes += 1;
-}
-
-static void _PR_PostNotifiesFromMonitor(PRCondVar *cv, PRIntn times)
-{
-    PRStatus rv;
-
-    /*
-     * Time to actually notify any waits that were affected while the monitor
-     * was entered.
-     */
-    PR_ASSERT(cv != NULL);
-    PR_ASSERT(times != 0);
-    if (times == -1) {
-        rv = PR_NotifyAllCondVar(cv);
-        PR_ASSERT(rv == PR_SUCCESS);
-    } else {
-        while (times-- > 0) {
-            rv = PR_NotifyCondVar(cv);
-            PR_ASSERT(rv == PR_SUCCESS);
-        }
-    }
-}
 
 /*
 ** Create a new monitor.
@@ -53,45 +45,27 @@ static void _PR_PostNotifiesFromMonitor(PRCondVar *cv, PRIntn times)
 PR_IMPLEMENT(PRMonitor*) PR_NewMonitor()
 {
     PRMonitor *mon;
-    PRStatus rv;
-
-    if (!_pr_initialized) _PR_ImplicitInitialization();
+	PRCondVar *cvar;
+	PRLock *lock;
 
     mon = PR_NEWZAP(PRMonitor);
-    if (mon == NULL) {
-        PR_SetError(PR_OUT_OF_MEMORY_ERROR, 0);
-        return NULL;
+    if (mon) {
+		lock = PR_NewLock();
+	    if (!lock) {
+			PR_DELETE(mon);
+			return 0;
+    	}
+
+	    cvar = PR_NewCondVar(lock);
+	    if (!cvar) {
+	    	PR_DestroyLock(lock);
+			PR_DELETE(mon);
+			return 0;
+    	}
+    	mon->cvar = cvar;
+	mon->name = NULL;
     }
-
-    rv = _PR_InitLock(&mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
-    if (rv != PR_SUCCESS)
-        goto error1;
-
-    mon->owner = NULL;
-
-    rv = _PR_InitCondVar(&mon->entryCV, &mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
-    if (rv != PR_SUCCESS)
-        goto error2;
-
-    rv = _PR_InitCondVar(&mon->waitCV, &mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
-    if (rv != PR_SUCCESS)
-        goto error3;
-
-    mon->notifyTimes = 0;
-    mon->entryCount = 0;
-    mon->name = NULL;
     return mon;
-
-error3:
-    _PR_FreeCondVar(&mon->entryCV);
-error2:
-    _PR_FreeLock(&mon->lock);
-error1:
-    PR_Free(mon);
-    return NULL;
 }
 
 PR_IMPLEMENT(PRMonitor*) PR_NewNamedMonitor(const char* name)
@@ -109,14 +83,9 @@ PR_IMPLEMENT(PRMonitor*) PR_NewNamedMonitor(const char* name)
 */
 PR_IMPLEMENT(void) PR_DestroyMonitor(PRMonitor *mon)
 {
-    PR_ASSERT(mon != NULL);
-    _PR_FreeCondVar(&mon->waitCV);
-    _PR_FreeCondVar(&mon->entryCV);
-    _PR_FreeLock(&mon->lock);
-#if defined(DEBUG)
-    memset(mon, 0xaf, sizeof(PRMonitor));
-#endif
-    PR_Free(mon);
+	PR_DestroyLock(mon->cvar->lock);
+    PR_DestroyCondVar(mon->cvar);
+    PR_DELETE(mon);
 }
 
 /*
@@ -124,28 +93,12 @@ PR_IMPLEMENT(void) PR_DestroyMonitor(PRMonitor *mon)
 */
 PR_IMPLEMENT(void) PR_EnterMonitor(PRMonitor *mon)
 {
-    PRThread *me = _PR_MD_CURRENT_THREAD();
-    PRStatus rv;
-
-    PR_ASSERT(mon != NULL);
-    PR_Lock(&mon->lock);
-    if (mon->entryCount != 0) {
-        if (mon->owner == me)
-            goto done;
-        while (mon->entryCount != 0) {
-            rv = PR_WaitCondVar(&mon->entryCV, PR_INTERVAL_NO_TIMEOUT);
-            PR_ASSERT(rv == PR_SUCCESS);
-        }
+    if (mon->cvar->lock->owner == _PR_MD_CURRENT_THREAD()) {
+		mon->entryCount++;
+    } else {
+		PR_Lock(mon->cvar->lock);
+		mon->entryCount = 1;
     }
-    /* and now I have the monitor */
-    PR_ASSERT(mon->notifyTimes == 0);
-    PR_ASSERT(mon->owner == NULL);
-    mon->owner = me;
-
-done:
-    mon->entryCount += 1;
-    rv = PR_Unlock(&mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
 }
 
 /*
@@ -155,28 +108,16 @@ done:
 */
 PR_IMPLEMENT(PRBool) PR_TestAndEnterMonitor(PRMonitor *mon)
 {
-    PRThread *me = _PR_MD_CURRENT_THREAD();
-    PRStatus rv;
-
-    PR_ASSERT(mon != NULL);
-    PR_Lock(&mon->lock);
-    if (mon->entryCount != 0) {
-        if (mon->owner == me)
-            goto done;
-        rv = PR_Unlock(&mon->lock);
-        PR_ASSERT(rv == PR_SUCCESS);
-        return PR_FALSE;
+    if (mon->cvar->lock->owner == _PR_MD_CURRENT_THREAD()) {
+		mon->entryCount++;
+		return PR_TRUE;
+    } else {
+		if (PR_TestAndLock(mon->cvar->lock)) {
+	    	mon->entryCount = 1;
+	   	 	return PR_TRUE;
+		}
     }
-    /* and now I have the monitor */
-    PR_ASSERT(mon->notifyTimes == 0);
-    PR_ASSERT(mon->owner == NULL);
-    mon->owner = me;
-
-done:
-    mon->entryCount += 1;
-    rv = PR_Unlock(&mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
-    return PR_TRUE;
+    return PR_FALSE;
 }
 
 /*
@@ -184,36 +125,12 @@ done:
 */
 PR_IMPLEMENT(PRStatus) PR_ExitMonitor(PRMonitor *mon)
 {
-    PRThread *me = _PR_MD_CURRENT_THREAD();
-    PRStatus rv;
-
-    PR_ASSERT(mon != NULL);
-    PR_Lock(&mon->lock);
-    /* the entries should be > 0 and we'd better be the owner */
-    PR_ASSERT(mon->entryCount > 0);
-    PR_ASSERT(mon->owner == me);
-    if (mon->entryCount == 0 || mon->owner != me)
-    {
-        rv = PR_Unlock(&mon->lock);
-        PR_ASSERT(rv == PR_SUCCESS);
+    if (mon->cvar->lock->owner != _PR_MD_CURRENT_THREAD()) {
         return PR_FAILURE;
     }
-
-    mon->entryCount -= 1;  /* reduce by one */
-    if (mon->entryCount == 0)
-    {
-        /* and if it transitioned to zero - notify an entry waiter */
-        /* make the owner unknown */
-        mon->owner = NULL;
-        if (mon->notifyTimes != 0) {
-            _PR_PostNotifiesFromMonitor(&mon->waitCV, mon->notifyTimes);
-            mon->notifyTimes = 0;
-        }
-        rv = PR_NotifyCondVar(&mon->entryCV);
-        PR_ASSERT(rv == PR_SUCCESS);
+    if (--mon->entryCount == 0) {
+		return PR_Unlock(mon->cvar->lock);
     }
-    rv = PR_Unlock(&mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
     return PR_SUCCESS;
 }
 
@@ -223,29 +140,17 @@ PR_IMPLEMENT(PRStatus) PR_ExitMonitor(PRMonitor *mon)
 */
 PR_IMPLEMENT(PRIntn) PR_GetMonitorEntryCount(PRMonitor *mon)
 {
-    PRThread *me = _PR_MD_CURRENT_THREAD();
-    PRStatus rv;
-    PRIntn count = 0;
-
-    PR_Lock(&mon->lock);
-    if (mon->owner == me)
-        count = mon->entryCount;
-    rv = PR_Unlock(&mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
-    return count;
+    return (mon->cvar->lock->owner == _PR_MD_CURRENT_THREAD()) ?
+        mon->entryCount : 0;
 }
 
+/*
+** If the current thread is in |mon|, this assertion is guaranteed to
+** succeed.  Otherwise, the behavior of this function is undefined.
+*/
 PR_IMPLEMENT(void) PR_AssertCurrentThreadInMonitor(PRMonitor *mon)
 {
-#if defined(DEBUG) || defined(FORCE_PR_ASSERT)
-    PRStatus rv;
-
-    PR_Lock(&mon->lock);
-    PR_ASSERT(mon->entryCount != 0 &&
-              mon->owner == _PR_MD_CURRENT_THREAD());
-    rv = PR_Unlock(&mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
-#endif
+    PR_ASSERT_CURRENT_THREAD_OWNS_LOCK(mon->cvar->lock);
 }
 
 /*
@@ -262,50 +167,25 @@ PR_IMPLEMENT(void) PR_AssertCurrentThreadInMonitor(PRMonitor *mon)
 **
 ** Returns PR_FAILURE if the caller has not locked the lock associated
 ** with the condition variable.
-** This routine can return PR_PENDING_INTERRUPT_ERROR if the waiting thread
+** This routine can return PR_PENDING_INTERRUPT if the waiting thread 
 ** has been interrupted.
 */
 PR_IMPLEMENT(PRStatus) PR_Wait(PRMonitor *mon, PRIntervalTime ticks)
 {
-    PRStatus rv;
-    PRUint32 saved_entries;
-    PRThread *saved_owner;
+    PRUintn entryCount;
+	PRStatus status;
+    PRThread *me = _PR_MD_CURRENT_THREAD();
 
-    PR_ASSERT(mon != NULL);
-    PR_Lock(&mon->lock);
-    /* the entries better be positive */
-    PR_ASSERT(mon->entryCount > 0);
-    /* and it better be owned by us */
-    PR_ASSERT(mon->owner == _PR_MD_CURRENT_THREAD());  /* XXX return failure */
+    if (mon->cvar->lock->owner != me) return PR_FAILURE;
 
-    /* tuck these away 'till later */
-    saved_entries = mon->entryCount;
+    entryCount = mon->entryCount;
     mon->entryCount = 0;
-    saved_owner = mon->owner;
-    mon->owner = NULL;
-    /* If we have pending notifies, post them now. */
-    if (mon->notifyTimes != 0) {
-        _PR_PostNotifiesFromMonitor(&mon->waitCV, mon->notifyTimes);
-        mon->notifyTimes = 0;
-    }
-    rv = PR_NotifyCondVar(&mon->entryCV);
-    PR_ASSERT(rv == PR_SUCCESS);
 
-    rv = PR_WaitCondVar(&mon->waitCV, ticks);
-    PR_ASSERT(rv == PR_SUCCESS);
+	status = _PR_WaitCondVar(me, mon->cvar, mon->cvar->lock, ticks);
 
-    while (mon->entryCount != 0) {
-        rv = PR_WaitCondVar(&mon->entryCV, PR_INTERVAL_NO_TIMEOUT);
-        PR_ASSERT(rv == PR_SUCCESS);
-    }
-    PR_ASSERT(mon->notifyTimes == 0);
-    /* reinstate the interesting information */
-    mon->entryCount = saved_entries;
-    mon->owner = saved_owner;
+    mon->entryCount = entryCount;
 
-    rv = PR_Unlock(&mon->lock);
-    PR_ASSERT(rv == PR_SUCCESS);
-    return rv;
+    return status;
 }
 
 /*
@@ -315,7 +195,9 @@ PR_IMPLEMENT(PRStatus) PR_Wait(PRMonitor *mon, PRIntervalTime ticks)
 */
 PR_IMPLEMENT(PRStatus) PR_Notify(PRMonitor *mon)
 {
-    _PR_PostNotifyToMonitor(mon, PR_FALSE);
+    PRThread *me = _PR_MD_CURRENT_THREAD();
+    if (mon->cvar->lock->owner != me) return PR_FAILURE;
+    PR_NotifyCondVar(mon->cvar);
     return PR_SUCCESS;
 }
 
@@ -326,7 +208,9 @@ PR_IMPLEMENT(PRStatus) PR_Notify(PRMonitor *mon)
 */
 PR_IMPLEMENT(PRStatus) PR_NotifyAll(PRMonitor *mon)
 {
-    _PR_PostNotifyToMonitor(mon, PR_TRUE);
+    PRThread *me = _PR_MD_CURRENT_THREAD();
+    if (mon->cvar->lock->owner != me) return PR_FAILURE;
+    PR_NotifyAllCondVar(mon->cvar);
     return PR_SUCCESS;
 }
 
@@ -336,9 +220,10 @@ PRUint32 _PR_MonitorToString(PRMonitor *mon, char *buf, PRUint32 buflen)
 {
     PRUint32 nb;
 
-    if (mon->owner) {
+    if (mon->cvar->lock->owner) {
 	nb = PR_snprintf(buf, buflen, "[%p] owner=%d[%p] count=%ld",
-			 mon, mon->owner->id, mon->owner, mon->entryCount);
+			 mon, mon->cvar->lock->owner->id,
+			 mon->cvar->lock->owner, mon->entryCount);
     } else {
 	nb = PR_snprintf(buf, buflen, "[%p]", mon);
     }

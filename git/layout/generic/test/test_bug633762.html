@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=633762
 -->
 <head>
   <title>Test for Bug 633762</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -34,9 +35,9 @@ function runTests() {
   // record scrolltop
   scrollTopBefore = doc.body.scrollTop;
   // send up arrow key event
-  sendKey("UP");
-  
-  window.requestAnimationFrame(finish);
+  sendKey("UP", doc.body);
+
+  setTimeout("finish();", 0);
 }
 
 function finish() {
@@ -45,11 +46,8 @@ function finish() {
   SimpleTest.finish();
 }
 
-var smoothScrollPref = "general.smoothScroll";
 SimpleTest.waitForExplicitFinish();
-SimpleTest.waitForFocus(function() {
-  SpecialPowers.pushPrefEnv({"set":[[smoothScrollPref, false]]}, runTests);
-});
+SimpleTest.waitForFocus(runTests);
 </script>
 </pre>
 

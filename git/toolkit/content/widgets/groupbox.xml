@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="groupboxBindings"
    xmlns="http://www.mozilla.org/xbl"
@@ -15,8 +11,7 @@
     </resources>
   </binding>
 
-  <binding id="groupbox" role="xul:groupbox"
-    extends="chrome://global/content/bindings/groupbox.xml#groupbox-base">
+  <binding id="groupbox" extends="chrome://global/content/bindings/groupbox.xml#groupbox-base">
     <content>
       <xul:hbox class="groupbox-title" align="center" pack="start">
         <children includes="caption"/>
@@ -25,6 +20,16 @@
         <children/>
       </xul:box>
     </content>
+
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULGroupbox;
+          ]]>
+        </getter>
+      </property>
+    </implementation>
   </binding>
 
   <binding id="caption" extends="chrome://global/content/bindings/general.xml#basetext">

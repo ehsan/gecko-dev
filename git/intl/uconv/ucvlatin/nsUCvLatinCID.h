@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsUCvLatinCID_h___
 #define nsUCvLatinCID_h___
@@ -169,6 +201,11 @@
 #define NS_MACICELANDICTOUNICODE_CID \
   { 0x6394eeab, 0xfc3d, 0x11d2, {0xb3, 0xb8, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
 
+// Class ID for our GEOSTD8ToUnicode charset converter
+// {6394EEAF-FC3D-11d2-B3B8-00805F8A6670}
+#define NS_GEOSTD8TOUNICODE_CID \
+  { 0x6394eeaf, 0xfc3d, 0x11d2, {0xb3, 0xb8, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
 // Class ID for our ARMSCII8ToUnicode charset converter
 // {6394EEAC-FC3D-11d2-B3B8-00805F8A6670}
 #define NS_ARMSCII8TOUNICODE_CID \
@@ -188,6 +225,16 @@
 // {6394EEB0-FC3D-11d2-B3B8-00805F8A6670}
 #define NS_VPSTOUNICODE_CID \
   { 0x6394eeb0, 0xfc3d, 0x11d2, {0xb3, 0xb8, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
+// Class ID for our UTF7ToUnicode charset converter
+// {77CFAAF1-1CF4-11d3-8AAF-00600811A836}
+#define NS_UTF7TOUNICODE_CID \
+  { 0x77cfaaf1, 0x1cf4, 0x11d3, {0x8a, 0xaf, 0x0, 0x60, 0x8, 0x11, 0xa8, 0x36}}
+
+// Class ID for our MUTF7ToUnicode charset converter
+// {B57F97C1-0D70-11d3-8AAE-00600811A836}
+#define NS_MUTF7TOUNICODE_CID \
+  { 0xb57f97c1, 0xd70, 0x11d3, {0x8a, 0xae, 0x0, 0x60, 0x8, 0x11, 0xa8, 0x36}}
 
 // Class ID for our UnicodeToISO88592 charset converter
 // {7B8556A6-EC79-11d2-8AAC-00600811A836}
@@ -350,6 +397,11 @@
 #define NS_UNICODETOMACICELANDIC_CID \
   { 0x6394eebb, 0xfc3d, 0x11d2, {0xb3, 0xb8, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
 
+// Class ID for our UnicodeToGEOSTD8 charset converter
+// {6394EEBE-FC3D-11d2-B3B8-00805F8A6670}
+#define NS_UNICODETOGEOSTD8_CID \
+  { 0x6394eebe, 0xfc3d, 0x11d2, {0xb3, 0xb8, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
 // Class ID for our UnicodeToARMSCII8 charset converter
 // {6394EEBC-FC3D-11d2-B3B8-00805F8A6670}
 #define NS_UNICODETOARMSCII8_CID \
@@ -369,6 +421,16 @@
 // {6394EEC0-FC3D-11d2-B3B8-00805F8A6670}
 #define NS_UNICODETOVPS_CID \
   { 0x6394eec0, 0xfc3d, 0x11d2, {0xb3, 0xb8, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
+// Class ID for our UnicodeToUTF7 charset converter
+// {77CFAAF2-1CF4-11d3-8AAF-00600811A836}
+#define NS_UNICODETOUTF7_CID \
+  { 0x77cfaaf2, 0x1cf4, 0x11d3, {0x8a, 0xaf, 0x0, 0x60, 0x8, 0x11, 0xa8, 0x36}}
+
+// Class ID for our UnicodeToMUTF7 charset converter
+// {B57F97C2-0D70-11d3-8AAE-00600811A836}
+#define NS_UNICODETOMUTF7_CID \
+  { 0xb57f97c2, 0xd70, 0x11d3, {0x8a, 0xae, 0x0, 0x60, 0x8, 0x11, 0xa8, 0x36}}
 
 // Class ID for our CP1255ToUnicode charset converter
 // {BA6151A1-1DFA-11d3-B3BF-00805F8A6670}
@@ -420,6 +482,11 @@
 #define NS_UNICODETOUTF16BE_CID \
   { 0xba6151ad, 0x1dfa, 0x11d3, {0xb3, 0xbf, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
 
+// Class ID for our UnicodeToT61 charset converter
+// {BA6151AF-1DFA-11d3-B3BF-00805F8A6670}
+#define NS_UNICODETOT61_CID \
+  { 0xba6151af, 0x1dfa, 0x11d3, {0xb3, 0xbf, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
 // Class ID for our ISO885910ToUnicode charset converter
 // {BA6151B0-1DFA-11d3-B3BF-00805F8A6670}
 #define NS_ISO885910TOUNICODE_CID \
@@ -439,6 +506,11 @@
 // {BA6151B2-1DFA-11d3-B3BF-00805F8A6670}
 #define NS_UTF16BETOUNICODE_CID \
   { 0xba6151b2, 0x1dfa, 0x11d3, {0xb3, 0xbf, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
+// Class ID for our T61ToUnicode charset converter
+// {BA6151B4-1DFA-11d3-B3BF-00805F8A6670}
+#define NS_T61TOUNICODE_CID \
+  { 0xba6151b4, 0x1dfa, 0x11d3, {0xb3, 0xbf, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
 
 // Class ID for our UnicodeToUTF16LE charset converter
 // {BA6151B5-1DFA-11d3-B3BF-00805F8A6670}
@@ -478,6 +550,18 @@
 // Class ID for our UnicodeToAscii charset converter
 #define NS_UNICODETOASCII_CID \
   { 0xba6151ba, 0x1dfa, 0x11d3, {0xb3, 0xbf, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
+// Class ID for our UnicodeToAscii charset converter
+#define NS_UNICODETOSYMBOL_CID \
+  { 0x21dd6a02, 0x413c, 0x11d3, {0xb3, 0xc3, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
+// Class ID for our UnicodeToAscii charset converter
+#define NS_UNICODETOZAPFDINGBATS_CID \
+  { 0x21dd6a03, 0x413c, 0x11d3, {0xb3, 0xc3, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
+
+// Class ID for our UnicodeToAscii charset converter
+#define NS_UNICODETOADOBEEURO_CID \
+  { 0x822cb9ae, 0x6421, 0x4484, {0xb3, 0xc3, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70}}
 
 // {49B38F12-6193-11d3-B3C5-00805F8A6670}
 #define NS_UNICODETOUTF16_CID \
@@ -530,5 +614,13 @@
 // {6803CACF-1E3B-11d5-A145-005004832142}
 #define NS_UNICODETOMACGURMUKHI_CID \
   { 0x6803cacf, 0x1e3b, 0x11d5, { 0xa1, 0x45, 0x0, 0x50, 0x4, 0x83, 0x21, 0x42 } }
+
+// {d2800356-c2d7-4e05-a884-79fe566af1cf}
+#define NS_UNICODETOTSCII_CID \
+  { 0xd2800356, 0xc2d7, 0x4e05, { 0xa8, 0x84, 0x79, 0xfe, 0x56, 0x6a, 0xf1, 0xcf} }
+
+// {a431b276-f77d-4b83-9b37-872cf2fbcc2a}
+#define NS_UNICODETOTAMILTTF_CID \
+  { 0xa431b276, 0xf77d, 0x4b83, {0x9b, 0x37, 0x87, 0x2c, 0xf2, 0xfb, 0xcc, 0x2a } }
 
 #endif /* nsUCvLatinCID_h___ */

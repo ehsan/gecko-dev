@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=564115
 -->
 <head>
   <title>Test for Bug 564115</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 
@@ -19,7 +20,7 @@ const TEST_URL = "/tests/layout/forms/test/bug564115_window.html";
 
 addLoadEvent(function() {
   var win = open(TEST_URL, "", "width=600,height=600");
-  SimpleTest.waitForFocus(function() {
+  window.childLoaded = function() {
     var doc = win.document;
     var input = doc.querySelector("input");
 
@@ -44,7 +45,7 @@ addLoadEvent(function() {
         });
       }, 0);
     }, 0);
-  }, win);
+  };
 });
 
 SimpleTest.waitForExplicitFinish();

@@ -1,6 +1,6 @@
 prefix=%prefix%
 sdkdir=%sdkdir%
-includedir=%includedir%/nspr
+includedir=%includedir%
 
 Name: NSPR
 Description: The Netscape Portable Runtime

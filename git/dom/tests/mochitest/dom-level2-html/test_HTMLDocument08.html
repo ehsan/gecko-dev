@@ -5,9 +5,7 @@
 <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
 <title>http://www.w3.org/2001/DOM-Test-Suite/level2/html/HTMLDocument08</title>
 <link type="text/css" rel="stylesheet" href="/tests/SimpleTest/test.css">
-<script src="/tests/SimpleTest/SimpleTest.js" type="text/javascript"></script>
-<script src="DOMTestCase.js" type="text/javascript"></script>
-<script type="text/javascript">
+<script src="/MochiKit/packed.js" type="text/javascript"></script><script src="/tests/SimpleTest/SimpleTest.js" type="text/javascript"></script><script src="DOMTestCase.js" type="text/javascript"></script><script type="text/javascript">
 // expose test function names
 function exposeTestFunctionNames()
 {
@@ -40,7 +38,7 @@ function setUpPage() {
       if (typeof(this.doc) != 'undefined') {
         docRef = this.doc;
       }
-      docsLoaded += preload(docRef, "doc", "document-with-applet");
+      docsLoaded += preload(docRef, "doc", "document");
         
        if (docsLoaded == 1) {
           setUpPage = 'complete';
@@ -93,7 +91,7 @@ function HTMLDocument08() {
       if (typeof(this.doc) != 'undefined') {
         docRef = this.doc;
       }
-      doc = load(docRef, "doc", "document-with-applet");
+      doc = load(docRef, "doc", "document");
       vapplets = doc.applets;
 
       vlength = vapplets.length;
@@ -131,7 +129,7 @@ function HTMLDocument08() {
 			</p>
 <p>See W3C License <a href="http://www.w3.org/Consortium/Legal/">http://www.w3.org/Consortium/Legal/</a> 
  for more details.</p>
-<iframe name="doc" src="files/document-with-applet.html"></iframe>
+<iframe name="doc" src="files/document.html"></iframe>
 <br>
 </body>
 </html>

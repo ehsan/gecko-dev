@@ -1,158 +1,106 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla IPC.
+ *
+ * The Initial Developer of the Original Code is
+ *   Ben Turner <bent.mozilla@gmail.com>.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef __IPC_GLUE_MESSAGEPUMP_H__
 #define __IPC_GLUE_MESSAGEPUMP_H__
 
+#include "base/basictypes.h"
 #include "base/message_pump_default.h"
-#if defined(XP_WIN)
-#include "base/message_pump_win.h"
-#endif
-
 #include "base/time.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Mutex.h"
+
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsIThreadInternal.h"
 
-class nsIThread;
-class nsITimer;
+#include "nsIRunnable.h"
+#include "nsIThread.h"
+#include "nsITimer.h"
 
 namespace mozilla {
 namespace ipc {
 
-class DoWorkRunnable;
+class MessagePump;
+
+class DoWorkRunnable : public nsIRunnable,
+                       public nsITimerCallback
+{
+public:
+  DoWorkRunnable(MessagePump* aPump)
+  : mPump(aPump) { }
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIRUNNABLE
+  NS_DECL_NSITIMERCALLBACK
+
+private:
+  MessagePump* mPump;
+};
 
 class MessagePump : public base::MessagePumpDefault
 {
-  friend class DoWorkRunnable;
 
 public:
   MessagePump();
 
-  // From base::MessagePump.
-  virtual void
-  Run(base::MessagePump::Delegate* aDelegate) MOZ_OVERRIDE;
+  virtual void Run(base::MessagePump::Delegate* aDelegate);
+  virtual void ScheduleWork();
+  virtual void ScheduleWorkForNestedLoop();
+  virtual void ScheduleDelayedWork(const base::Time& delayed_work_time);
 
-  // From base::MessagePump.
-  virtual void
-  ScheduleWork() MOZ_OVERRIDE;
-
-  // From base::MessagePump.
-  virtual void
-  ScheduleWorkForNestedLoop() MOZ_OVERRIDE;
-
-  // From base::MessagePump.
-  virtual void
-  ScheduleDelayedWork(const base::TimeTicks& aDelayedWorkTime) MOZ_OVERRIDE;
-
-protected:
-  virtual ~MessagePump();
-
-private:
-  // Only called by DoWorkRunnable.
   void DoDelayedWork(base::MessagePump::Delegate* aDelegate);
 
-protected:
-  // mDelayedWorkTimer and mThread are set in Run() by this class or its
-  // subclasses.
-  nsCOMPtr<nsITimer> mDelayedWorkTimer;
-  nsIThread* mThread;
-
 private:
-  // Only accessed by this class.
   nsRefPtr<DoWorkRunnable> mDoWorkEvent;
+  nsCOMPtr<nsITimer> mDelayedWorkTimer;
+
+  // Weak!
+  nsIThread* mThread;
 };
 
-class MessagePumpForChildProcess MOZ_FINAL: public MessagePump
+class MessagePumpForChildProcess : public MessagePump
 {
 public:
   MessagePumpForChildProcess()
   : mFirstRun(true)
   { }
 
-  virtual void Run(base::MessagePump::Delegate* aDelegate) MOZ_OVERRIDE;
+  virtual void Run(base::MessagePump::Delegate* aDelegate);
 
 private:
-  ~MessagePumpForChildProcess()
-  { }
-
   bool mFirstRun;
 };
-
-class MessagePumpForNonMainThreads MOZ_FINAL : public MessagePump
-{
-public:
-  MessagePumpForNonMainThreads()
-  { }
-
-  virtual void Run(base::MessagePump::Delegate* aDelegate) MOZ_OVERRIDE;
-
-private:
-  ~MessagePumpForNonMainThreads()
-  { }
-};
-
-#if defined(XP_WIN)
-// Extends the TYPE_UI message pump to process xpcom events. Currently only
-// implemented for Win.
-class MessagePumpForNonMainUIThreads MOZ_FINAL:
-  public base::MessagePumpForUI,
-  public nsIThreadObserver
-{
-public:
-  // We don't want xpcom refing, chromium controls our lifetime via
-  // RefCountedThreadSafe.
-  NS_IMETHOD_(MozExternalRefCountType) AddRef(void) {
-    return 2;
-  }
-  NS_IMETHOD_(MozExternalRefCountType) Release(void) {
-    return 1;
-  }
-  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
-
-  NS_DECL_NSITHREADOBSERVER
-
-public:
-  MessagePumpForNonMainUIThreads() :
-    mThread(nullptr),
-    mInWait(false),
-    mWaitLock("mInWait")
-  {
-  }
-
-  // The main run loop for this thread.
-  virtual void DoRunLoop();
-
-protected:
-  nsIThread* mThread;
-
-  void SetInWait() {
-    MutexAutoLock lock(mWaitLock);
-    mInWait = true;
-  }
-
-  void ClearInWait() {
-    MutexAutoLock lock(mWaitLock);
-    mInWait = false;
-  }
-
-  bool GetInWait() {
-    MutexAutoLock lock(mWaitLock);
-    return mInWait;
-  }
-
-private:
-  ~MessagePumpForNonMainUIThreads()
-  {
-  }
-
-  bool mInWait;
-  mozilla::Mutex mWaitLock;
-};
-#endif // defined(XP_WIN)
 
 } /* namespace ipc */
 } /* namespace mozilla */

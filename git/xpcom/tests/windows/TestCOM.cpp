@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <windows.h>
 #include <unknwn.h>
@@ -30,7 +63,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsITestCom, NS_ITEST_COM_IID)
  * nsTestCom
  */
 
-class nsTestCom MOZ_FINAL : public nsITestCom {
+class nsTestCom: public nsITestCom {
   NS_DECL_ISUPPORTS
 
 public:
@@ -48,9 +81,9 @@ private:
   }
 };
 
-NS_IMPL_QUERY_INTERFACE(nsTestCom, nsITestCom)
+NS_IMPL_QUERY_INTERFACE1(nsTestCom, nsITestCom)
 
-MozExternalRefCountType nsTestCom::AddRef()
+nsrefcnt nsTestCom::AddRef() 
 {
   nsrefcnt res = ++mRefCnt;
   NS_LOG_ADDREF(this, mRefCnt, "nsTestCom", sizeof(*this));
@@ -58,7 +91,7 @@ MozExternalRefCountType nsTestCom::AddRef()
   return res;
 }
 
-MozExternalRefCountType nsTestCom::Release()
+nsrefcnt nsTestCom::Release() 
 {
   nsrefcnt res = --mRefCnt;
   NS_LOG_RELEASE(this, mRefCnt, "nsTestCom");
@@ -69,8 +102,7 @@ MozExternalRefCountType nsTestCom::Release()
   return res;
 }
 
-class nsTestComFactory MOZ_FINAL : public nsIFactory {
-  ~nsTestComFactory() {}
+class nsTestComFactory: public nsIFactory {
   NS_DECL_ISUPPORTS
 public:
   nsTestComFactory() {
@@ -80,27 +112,27 @@ public:
                             const nsIID &aIID,
                             void **aResult);
 
-  NS_IMETHOD LockFactory(bool aLock) {
+  NS_IMETHOD LockFactory(PRBool aLock) {
     printf("nsTestComFactory: ");
     printf("%s", (aLock ? "Locking server" : "Unlocking server"));
     printf("\n");
-    return NS_OK;
+    return S_OK;
   }
 };
 
-NS_IMPL_ISUPPORTS(nsTestComFactory, nsIFactory)
+NS_IMPL_ISUPPORTS1(nsTestComFactory, nsIFactory)
 
 nsresult nsTestComFactory::CreateInstance(nsISupports *aOuter,
 					  const nsIID &aIID,
 					  void **aResult)
 {
-  if (aOuter != nullptr) {
+  if (aOuter != NULL) {
     return NS_ERROR_NO_AGGREGATION;
   }
 
   nsTestCom *t = new nsTestCom();
   
-  if (t == nullptr) {
+  if (t == NULL) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   
@@ -128,8 +160,11 @@ int main(int argc, char *argv[])
   IUnknown *iUnknown;  
   nsITestCom *iTestCom;
 
+  nsresult res;
   iFactory->LockServer(TRUE);
-  iFactory->CreateInstance(nullptr, IID_IUnknown, (void **) &iUnknown);
+  res = iFactory->CreateInstance(NULL,
+				 IID_IUnknown, 
+				 (void **) &iUnknown);
   iFactory->LockServer(FALSE);
 
   GUID testGUID = NS_ITEST_COM_IID;

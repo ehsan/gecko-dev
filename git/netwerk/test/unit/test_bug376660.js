@@ -1,5 +1,3 @@
-Cu.import("resource://gre/modules/Services.jsm");
-
 var Cc = Components.classes;
 var Ci = Components.interfaces;
 
@@ -12,7 +10,8 @@ var listener = {
     }
     throw Components.results.NS_ERROR_NO_INTERFACE;
   },
-  onDetermineCharset : function onDetermineCharset(loader, context, data)
+  onDetermineCharset : function onDetermineCharset(loader, context,
+                                                   data, length)
   {
     return "us-ascii";
   },
@@ -23,7 +22,7 @@ var listener = {
         do_check_false(Components.isSuccessCode(status));
       else
         do_check_eq(status, Components.results.NS_OK);
-      do_check_eq(data, "");
+      do_check_eq(data, null);
       do_check_neq(loader.channel, null);
       tests[current_test++]();
     } finally {
@@ -43,18 +42,11 @@ function test1() {
   var f =
       Cc["@mozilla.org/network/unichar-stream-loader;1"].
       createInstance(Ci.nsIUnicharStreamLoader);
-  f.init(listener);
+  f.init(listener, 4096);
 
   var ios = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService);
-  var chan = ios.newChannel2("data:text/plain,",
-                             null,
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER);
+  var chan = ios.newChannel("data:text/plain,", null, null);
   chan.asyncOpen(f, null);
   do_test_pending();
 }
@@ -63,18 +55,11 @@ function test2() {
   var f =
       Cc["@mozilla.org/network/unichar-stream-loader;1"].
       createInstance(Ci.nsIUnicharStreamLoader);
-  f.init(listener);
+  f.init(listener, 4096);
 
   var ios = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService);
-  var chan = ios.newChannel2("http://localhost:0/",
-                             null,
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER);
+  var chan = ios.newChannel("http://localhost:0/", null, null);
   listener.expect_failure = true;
   chan.asyncOpen(f, null);
   do_test_pending();

@@ -1,6 +1,7 @@
 // test that things that are expected to be in gre-resources are still there
-Cu.import("resource://gre/modules/Services.jsm");
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 var ios = Cc["@mozilla.org/network/io-service;1"]. getService(Ci.nsIIOService);
 
 function wrapInputStream(input)
@@ -13,14 +14,7 @@ function wrapInputStream(input)
 }
 
 function check_file(file) {
-  var channel = ios.newChannel2("resource://gre-resources/"+file,
-                                null,
-                                null,
-                                null,      // aLoadingNode
-                                Services.scriptSecurityManager.getSystemPrincipal(),
-                                null,      // aTriggeringPrincipal
-                                Ci.nsILoadInfo.SEC_NORMAL,
-                                Ci.nsIContentPolicy.TYPE_OTHER);
+  var channel = ios.newChannel("resource://gre-resources/"+file, null, null);
   try {
     let instr = wrapInputStream(channel.open());
     do_check_true(instr.read(1024).length > 0)
@@ -30,6 +24,6 @@ function check_file(file) {
 }
 
 function run_test() {
-  for each(let file in ["ua.css"])
+  for each(let file in ["charsetData.properties"])
     check_file(file)
 }

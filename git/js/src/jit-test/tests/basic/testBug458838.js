@@ -12,3 +12,8 @@ function testBug458838() {
     return g();
 }
 assertEq(testBug458838(), 10);
+checkStats({
+  recorderStarted: 1,
+  recorderAborted: 0,
+  traceCompleted: 1
+});

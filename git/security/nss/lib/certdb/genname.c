@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "plarena.h"
 #include "seccomon.h"
@@ -137,39 +169,6 @@ const SEC_ASN1Template CERT_GeneralNamesTemplate[] = {
 };
 
 
-static struct {
-    CERTGeneralNameType type;
-    char *name;
-} typesArray[] = {
-    { certOtherName, "other" },
-    { certRFC822Name, "email" },
-    { certRFC822Name, "rfc822" },
-    { certDNSName, "dns" },
-    { certX400Address, "x400" },
-    { certX400Address, "x400addr" },
-    { certDirectoryName, "directory" },
-    { certDirectoryName, "dn" },
-    { certEDIPartyName, "edi" },
-    { certEDIPartyName, "ediparty" },
-    { certURI, "uri" },
-    { certIPAddress, "ip" },
-    { certIPAddress, "ipaddr" },
-    { certRegisterID, "registerid" }
-};
-
-CERTGeneralNameType
-CERT_GetGeneralNameTypeFromString(const char *string)
-{
-    int types_count = sizeof(typesArray)/sizeof(typesArray[0]);
-    int i;
-
-    for (i=0; i < types_count; i++) {
-        if (PORT_Strcasecmp(string, typesArray[i].name) == 0) {
-            return typesArray[i].type;
-        }
-    }
-    return 0;
-}
 
 CERTGeneralName *
 CERT_NewGeneralName(PLArenaPool *arena, CERTGeneralNameType type)
@@ -189,7 +188,7 @@ CERT_NewGeneralName(PLArenaPool *arena, CERTGeneralNameType type)
 ** This function does not change the destinate's GeneralName's list linkage.
 */
 SECStatus
-cert_CopyOneGeneralName(PLArenaPool      *arena,
+cert_CopyOneGeneralName(PRArenaPool      *arena, 
 		        CERTGeneralName  *dest, 
 		        CERTGeneralName  *src)
 {
@@ -254,7 +253,7 @@ CERT_DestroyGeneralNameList(CERTGeneralNameList *list)
 
 CERTGeneralNameList *
 CERT_CreateGeneralNameList(CERTGeneralName *name) {
-    PLArenaPool *arena;
+    PRArenaPool *arena;
     CERTGeneralNameList *list = NULL;
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
@@ -321,7 +320,7 @@ CERT_GetPrevNameConstraint(CERTNameConstraint *current)
 }
 
 SECItem *
-CERT_EncodeGeneralName(CERTGeneralName *genName, SECItem *dest, PLArenaPool *arena)
+CERT_EncodeGeneralName(CERTGeneralName *genName, SECItem *dest, PRArenaPool *arena)
 {
 
     const SEC_ASN1Template * template;
@@ -378,7 +377,7 @@ loser:
 }
 
 SECItem **
-cert_EncodeGeneralNames(PLArenaPool *arena, CERTGeneralName *names)
+cert_EncodeGeneralNames(PRArenaPool *arena, CERTGeneralName *names)
 {
     CERTGeneralName  *current_name;
     SECItem          **items = NULL;
@@ -418,7 +417,7 @@ loser:
 }
 
 CERTGeneralName *
-CERT_DecodeGeneralName(PLArenaPool      *reqArena,
+CERT_DecodeGeneralName(PRArenaPool      *reqArena,
 		       SECItem          *encodedName,
 		       CERTGeneralName  *genName)
 {
@@ -480,7 +479,7 @@ loser:
 }
 
 CERTGeneralName *
-cert_DecodeGeneralNames (PLArenaPool  *arena,
+cert_DecodeGeneralNames (PRArenaPool  *arena,
 			 SECItem      **encodedGenName)
 {
     PRCList                           *head = NULL;
@@ -539,7 +538,7 @@ cert_DestroyGeneralNames(CERTGeneralName *name)
 static SECItem *
 cert_EncodeNameConstraint(CERTNameConstraint  *constraint, 
 			 SECItem             *dest,
-			 PLArenaPool         *arena)
+			 PRArenaPool         *arena)
 {
     PORT_Assert(arena);
     if (dest == NULL) {
@@ -557,7 +556,7 @@ cert_EncodeNameConstraint(CERTNameConstraint  *constraint,
 
 SECStatus 
 cert_EncodeNameConstraintSubTree(CERTNameConstraint  *constraints,
-			         PLArenaPool         *arena,
+			         PRArenaPool         *arena,
 				 SECItem             ***dest,
 				 PRBool              permited)
 {
@@ -603,7 +602,7 @@ loser:
 
 SECStatus 
 cert_EncodeNameConstraints(CERTNameConstraints  *constraints,
-			   PLArenaPool          *arena,
+			   PRArenaPool          *arena,
 			   SECItem              *dest)
 {
     SECStatus    rv = SECSuccess;
@@ -640,7 +639,7 @@ loser:
 
 
 CERTNameConstraint *
-cert_DecodeNameConstraint(PLArenaPool       *reqArena,
+cert_DecodeNameConstraint(PRArenaPool       *reqArena,
 			  SECItem           *encodedConstraint)
 {
     CERTNameConstraint     *constraint;
@@ -685,7 +684,7 @@ loser:
 }
 
 CERTNameConstraint *
-cert_DecodeNameConstraintSubTree(PLArenaPool   *arena,
+cert_DecodeNameConstraintSubTree(PRArenaPool   *arena,
 				 SECItem       **subTree,
 				 PRBool        permited)
 {
@@ -718,8 +717,8 @@ loser:
 }
 
 CERTNameConstraints *
-cert_DecodeNameConstraints(PLArenaPool   *reqArena,
-			   const SECItem *encodedConstraints)
+cert_DecodeNameConstraints(PRArenaPool   *reqArena,
+			   SECItem       *encodedConstraints)
 {
     CERTNameConstraints   *constraints;
     SECStatus             rv;
@@ -784,7 +783,7 @@ loser:
 ** structs as the source list or some dest entries will be overwritten.
 */
 SECStatus
-CERT_CopyGeneralName(PLArenaPool      *arena,
+CERT_CopyGeneralName(PRArenaPool      *arena, 
 		     CERTGeneralName  *dest, 
 		     CERTGeneralName  *src)
 {
@@ -841,7 +840,7 @@ CERT_DupGeneralNameList(CERTGeneralNameList *list)
 
 /* Allocate space and copy CERTNameConstraint from src to dest */
 CERTNameConstraint *
-CERT_CopyNameConstraint(PLArenaPool         *arena,
+CERT_CopyNameConstraint(PRArenaPool         *arena, 
 			CERTNameConstraint  *dest, 
 			CERTNameConstraint  *src)
 {
@@ -948,7 +947,7 @@ SECStatus
 CERT_GetNameConstraintByType (CERTNameConstraint *constraints,
 			      CERTGeneralNameType type, 
 			      CERTNameConstraint **returnList,
-			      PLArenaPool *arena)
+			      PRArenaPool *arena)
 {
     CERTNameConstraint *current = NULL;
     void               *mark = NULL;
@@ -1088,7 +1087,7 @@ loser:
 ** in preparation for a name constraints test.
 */
 CERTGeneralName *
-CERT_GetCertificateNames(CERTCertificate *cert, PLArenaPool *arena)
+CERT_GetCertificateNames(CERTCertificate *cert, PRArenaPool *arena)
 {
     return CERT_GetConstrainedCertificateNames(cert, arena, PR_FALSE);
 }
@@ -1097,8 +1096,7 @@ CERT_GetCertificateNames(CERTCertificate *cert, PLArenaPool *arena)
 ** names from a cert in preparation for a name constraints test.
 */
 CERTGeneralName *
-CERT_GetConstrainedCertificateNames(const CERTCertificate *cert,
-                                    PLArenaPool *arena,
+CERT_GetConstrainedCertificateNames(CERTCertificate *cert, PRArenaPool *arena,
                                     PRBool includeSubjectCommonName)
 {
     CERTGeneralName  *DN;
@@ -1374,13 +1372,13 @@ parseUriHostname(SECItem * item)
 ** or if some code fails (e.g. out of memory, or invalid constraint)
 */
 SECStatus
-cert_CompareNameWithConstraints(const CERTGeneralName     *name,
-				const CERTNameConstraint  *constraints,
+cert_CompareNameWithConstraints(CERTGeneralName     *name, 
+				CERTNameConstraint  *constraints,
 				PRBool              excluded)
 {
     SECStatus           rv     = SECSuccess;
     SECStatus           matched = SECFailure;
-    const CERTNameConstraint *current;
+    CERTNameConstraint  *current;
 
     PORT_Assert(constraints);  /* caller should not call with NULL */
     if (!constraints) {
@@ -1498,7 +1496,7 @@ cert_CompareNameWithConstraints(const CERTGeneralName     *name,
 	}
 	if (matched == SECSuccess || rv != SECSuccess)
 	    break;
-	current = CERT_GetNextNameConstraint((CERTNameConstraint*)current);
+	current = CERT_GetNextNameConstraint(current);
     } while (current != constraints);
     if (rv == SECSuccess) {
         if (matched == SECSuccess) 
@@ -1556,78 +1554,9 @@ done:
     return rv;
 }
 
-/* Add name constraints to certain certs that do not include name constraints
- * This is the core of the implementation for bug 952572.
- */
-
-static SECStatus
-getNameExtensionsBuiltIn(CERTCertificate  *cert,
-                         SECItem *extensions)
-{
-  const char constraintFranceGov[] = "\x30\x5D" /* sequence len = 93*/
-                                     "\xA0\x5B" /* element len =91 */
-                                     "\x30\x05" /* sequence len 5 */
-                                     "\x82\x03" /* entry len 3 */
-                                     ".fr"
-                                     "\x30\x05\x82\x03" /* sequence len5, entry len 3 */
-                                     ".gp"
-                                     "\x30\x05\x82\x03"
-                                     ".gf"
-                                     "\x30\x05\x82\x03"
-                                     ".mq"
-                                     "\x30\x05\x82\x03"
-                                     ".re"
-                                     "\x30\x05\x82\x03"
-                                     ".yt"
-                                     "\x30\x05\x82\x03"
-                                     ".pm"
-                                     "\x30\x05\x82\x03"
-                                     ".bl"
-                                     "\x30\x05\x82\x03"
-                                     ".mf"
-                                     "\x30\x05\x82\x03"
-                                     ".wf"
-                                     "\x30\x05\x82\x03"
-                                     ".pf"
-                                     "\x30\x05\x82\x03"
-                                     ".nc"
-                                     "\x30\x05\x82\x03"
-                                     ".tf";
-
-  /* The stringified value for the subject is:
-     E=igca@sgdn.pm.gouv.fr,CN=IGC/A,OU=DCSSI,O=PM/SGDN,L=Paris,ST=France,C=FR
-   */
-  const char rawANSSISubject[] = "\x30\x81\x85\x31\x0B\x30\x09\x06\x03\x55\x04"
-                                 "\x06\x13\x02\x46\x52\x31\x0F\x30\x0D\x06\x03"
-                                 "\x55\x04\x08\x13\x06\x46\x72\x61\x6E\x63\x65"
-                                 "\x31\x0E\x30\x0C\x06\x03\x55\x04\x07\x13\x05"
-                                 "\x50\x61\x72\x69\x73\x31\x10\x30\x0E\x06\x03"
-                                 "\x55\x04\x0A\x13\x07\x50\x4D\x2F\x53\x47\x44"
-                                 "\x4E\x31\x0E\x30\x0C\x06\x03\x55\x04\x0B\x13"
-                                 "\x05\x44\x43\x53\x53\x49\x31\x0E\x30\x0C\x06"
-                                 "\x03\x55\x04\x03\x13\x05\x49\x47\x43\x2F\x41"
-                                 "\x31\x23\x30\x21\x06\x09\x2A\x86\x48\x86\xF7"
-                                 "\x0D\x01\x09\x01\x16\x14\x69\x67\x63\x61\x40"
-                                 "\x73\x67\x64\x6E\x2E\x70\x6D\x2E\x67\x6F\x75"
-                                 "\x76\x2E\x66\x72";
-
-  const SECItem anssi_subject = {0, (unsigned char *) rawANSSISubject,
-                                 sizeof(rawANSSISubject)-1};
-  const SECItem permitFranceGovNC = {0, (unsigned char *) constraintFranceGov,
-                                     sizeof(constraintFranceGov)-1};
-
-  if (SECITEM_ItemsAreEqual(&cert->derSubject, &anssi_subject)) {
-    SECStatus rv;
-    rv = SECITEM_CopyItem(NULL, extensions, &permitFranceGovNC);
-    return rv;
-  }
-  PORT_SetError(SEC_ERROR_EXTENSION_NOT_FOUND);
-  return SECFailure;
-}
-
 /* Extract the name constraints extension from the CA cert. */
 SECStatus
-CERT_FindNameConstraintsExten(PLArenaPool      *arena,
+CERT_FindNameConstraintsExten(PRArenaPool      *arena,
                               CERTCertificate  *cert,
                               CERTNameConstraints **constraints)
 {
@@ -1640,16 +1569,10 @@ CERT_FindNameConstraintsExten(PLArenaPool      *arena,
     rv = CERT_FindCertExtension(cert, SEC_OID_X509_NAME_CONSTRAINTS, 
                                 &constraintsExtension);
     if (rv != SECSuccess) {
-        if (PORT_GetError() != SEC_ERROR_EXTENSION_NOT_FOUND) {
-            return rv;
+        if (PORT_GetError() == SEC_ERROR_EXTENSION_NOT_FOUND) {
+            rv = SECSuccess;
         }
-        rv = getNameExtensionsBuiltIn(cert, &constraintsExtension);
-        if (rv != SECSuccess) {
-          if (PORT_GetError() == SEC_ERROR_EXTENSION_NOT_FOUND) {
-            return SECSuccess;
-          }
-          return rv;
-        }
+        return rv;
     }
 
     mark = PORT_ArenaMark(arena);
@@ -1673,9 +1596,9 @@ CERT_FindNameConstraintsExten(PLArenaPool      *arena,
 ** the name.
 */
 SECStatus
-CERT_CheckNameSpace(PLArenaPool          *arena,
-                    const CERTNameConstraints *constraints,
-                    const CERTGeneralName     *currentName)
+CERT_CheckNameSpace(PRArenaPool          *arena,
+                    CERTNameConstraints  *constraints,
+                    CERTGeneralName      *currentName)
 {
     CERTNameConstraint  *matchingConstraints;
     SECStatus            rv = SECSuccess;
@@ -1722,7 +1645,7 @@ SECStatus
 CERT_CompareNameSpace(CERTCertificate  *cert,
 		      CERTGeneralName  *namesList,
  		      CERTCertificate **certsList,
- 		      PLArenaPool      *reqArena,
+ 		      PRArenaPool      *reqArena,
  		      CERTCertificate **pBadCert)
 {
     SECStatus            rv = SECSuccess;
@@ -1760,6 +1683,111 @@ done:
 	*pBadCert = badCert;
 
     return rv;
+}
+
+/* Search the cert for an X509_SUBJECT_ALT_NAME extension.
+** ASN1 Decode it into a list of alternate names.
+** Search the list of alternate names for one with the NETSCAPE_NICKNAME OID.
+** ASN1 Decode that name.  Turn the result into a zString.  
+** Look for duplicate nickname already in the certdb. 
+** If one is found, create a nickname string that is not a duplicate.
+*/
+char *
+CERT_GetNickName(CERTCertificate   *cert,
+ 		 CERTCertDBHandle  *handle,
+		 PRArenaPool      *nicknameArena)
+{ 
+    CERTGeneralName  *current;
+    CERTGeneralName  *names;
+    char             *nickname   = NULL;
+    char             *returnName = NULL;
+    char             *basename   = NULL;
+    PRArenaPool      *arena      = NULL;
+    CERTCertificate  *tmpcert;
+    SECStatus        rv;
+    int              count;
+    int              found = 0;
+    SECItem          altNameExtension;
+    SECItem          nick;
+
+    if (handle == NULL) {
+	handle = CERT_GetDefaultCertDB();
+    }
+    altNameExtension.data = NULL;
+    rv = CERT_FindCertExtension(cert, SEC_OID_X509_SUBJECT_ALT_NAME, 
+				&altNameExtension);
+    if (rv != SECSuccess) { 
+	goto loser; 
+    }
+    arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    if (arena == NULL) {
+	goto loser;
+    }
+    names = CERT_DecodeAltNameExtension(arena, &altNameExtension);
+    if (names == NULL) {
+	goto loser;
+    } 
+    current = names;
+    do {
+	if (current->type == certOtherName && 
+	    SECOID_FindOIDTag(&current->name.OthName.oid) == 
+	      SEC_OID_NETSCAPE_NICKNAME) {
+	    found = 1;
+	    break;
+	}
+	current = CERT_GetNextGeneralName(current);
+    } while (current != names);
+    if (!found)
+    	goto loser;
+
+    rv = SEC_QuickDERDecodeItem(arena, &nick,
+                            SEC_ASN1_GET(SEC_IA5StringTemplate),
+			    &current->name.OthName.name);
+    if (rv != SECSuccess) {
+	goto loser;
+    }
+
+    /* make a null terminated string out of nick, with room enough at
+    ** the end to add on a number of up to 21 digits in length, (a signed
+    ** 64-bit number in decimal) plus a space and a "#". 
+    */
+    nickname = (char*)PORT_ZAlloc(nick.len + 24);
+    if (!nickname) 
+	goto loser;
+    PORT_Strncpy(nickname, (char *)nick.data, nick.len);
+
+    /* Don't let this cert's nickname duplicate one already in the DB.
+    ** If it does, create a variant of the nickname that doesn't.
+    */
+    count = 0;
+    while ((tmpcert = CERT_FindCertByNickname(handle, nickname)) != NULL) {
+	CERT_DestroyCertificate(tmpcert);
+	if (!basename) {
+	    basename = PORT_Strdup(nickname);
+	    if (!basename)
+		goto loser;
+	}
+	count++;
+	sprintf(nickname, "%s #%d", basename, count);
+    }
+
+    /* success */
+    if (nicknameArena) {
+	returnName =  PORT_ArenaStrdup(nicknameArena, nickname);
+    } else {
+	returnName = nickname;
+	nickname = NULL;
+    }
+loser:
+    if (arena != NULL) 
+	PORT_FreeArena(arena, PR_FALSE);
+    if (nickname)
+	PORT_Free(nickname);
+    if (basename)
+	PORT_Free(basename);
+    if (altNameExtension.data)
+    	PORT_Free(altNameExtension.data);
+    return returnName;
 }
 
 #if 0
@@ -1863,7 +1891,7 @@ CERT_CompareGeneralNameLists(CERTGeneralNameList *a, CERTGeneralNameList *b)
 void *
 CERT_GetGeneralNameFromListByType(CERTGeneralNameList *list,
 				  CERTGeneralNameType type,
-				  PLArenaPool *arena)
+				  PRArenaPool *arena)
 {
     CERTName *name = NULL; 
     SECItem *item = NULL;

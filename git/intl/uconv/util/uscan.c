@@ -1,173 +1,206 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   jeroen.dobbelaere@acunia.com
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "unicpriv.h"
-#define CHK_GR94(b) ( (uint8_t) 0xa0 < (uint8_t) (b) && (uint8_t) (b) < (uint8_t) 0xff )
+#define CHK_GR94(b) ( (PRUint8) 0xa0 < (PRUint8) (b) && (PRUint8) (b) < (PRUint8) 0xff )
 #define CHK_GR94_2Byte(b1,b2) (CHK_GR94(b1) && CHK_GR94(b2))
 /*=================================================================================
 
 =================================================================================*/
-typedef  int (*uSubScannerFunc) (unsigned char* in, uint16_t* out);
+typedef  PRBool (*uSubScannerFunc) (unsigned char* in, PRUint16* out);
 /*=================================================================================
 
 =================================================================================*/
 
-typedef int (*uScannerFunc) (
-                             int32_t*    state,
-                             unsigned char  *in,
-                             uint16_t    *out,
-                             uint32_t     inbuflen,
-                             uint32_t*    inscanlen
-                             );
+typedef PRBool (*uScannerFunc) (
+                                PRInt32*    state,
+                                unsigned char  *in,
+                                PRUint16    *out,
+                                PRUint32     inbuflen,
+                                PRUint32*    inscanlen
+                                );
 
-int uScan(
-          uScanClassID scanClass,
-          int32_t*    state,
-          unsigned char  *in,
-          uint16_t    *out,
-          uint32_t     inbuflen,
-          uint32_t*    inscanlen
-          );
+MODULE_PRIVATE PRBool uScan(  
+                            uScanClassID scanClass,
+                            PRInt32*    state,
+                            unsigned char  *in,
+                            PRUint16    *out,
+                            PRUint32     inbuflen,
+                            PRUint32*    inscanlen
+                            );
 
 #define uSubScanner(sub,in,out) (* m_subscanner[sub])((in),(out))
 
-int uCheckAndScanAlways1Byte(
-                            int32_t*    state,
-                            unsigned char  *in,
-                            uint16_t    *out,
-                            uint32_t     inbuflen,
-                            uint32_t*    inscanlen
-                            );
-int uCheckAndScanAlways2Byte(
-                             int32_t*    state,
-                             unsigned char  *in,
-                             uint16_t    *out,
-                             uint32_t     inbuflen,
-                             uint32_t*    inscanlen
-                             );
-int uCheckAndScanAlways2ByteShiftGR(
-                                    int32_t*    state,
-                                    unsigned char  *in,
-                                    uint16_t    *out,
-                                    uint32_t     inbuflen,
-                                    uint32_t*    inscanlen
-                                    );
-int uCheckAndScanAlways2ByteGR128(
-                                  int32_t*    state,
-                                  unsigned char  *in,
-                                  uint16_t    *out,
-                                  uint32_t     inbuflen,
-                                  uint32_t*    inscanlen
-                                          );
-int uScanShift(
-               uShiftInTable    *shift,
-               int32_t*    state,
-               unsigned char  *in,
-               uint16_t    *out,
-               uint32_t     inbuflen,
-               uint32_t*    inscanlen
-               );
-
-int uCheckAndScan2ByteGRPrefix8F(
-                                 int32_t*    state,
+PRIVATE PRBool uCheckAndScanAlways1Byte(
+                                        PRInt32*    state,
+                                        unsigned char  *in,
+                                        PRUint16    *out,
+                                        PRUint32     inbuflen,
+                                        PRUint32*    inscanlen
+                                        );
+PRIVATE PRBool uCheckAndScanAlways2Byte(
+                                        PRInt32*    state,
+                                        unsigned char  *in,
+                                        PRUint16    *out,
+                                        PRUint32     inbuflen,
+                                        PRUint32*    inscanlen
+                                        );
+PRIVATE PRBool uCheckAndScanAlways2ByteShiftGR(
+                                               PRInt32*    state,
+                                               unsigned char  *in,
+                                               PRUint16    *out,
+                                               PRUint32     inbuflen,
+                                               PRUint32*    inscanlen
+                                               );
+PRIVATE PRBool uCheckAndScanAlways2ByteGR128(
+                                               PRInt32*    state,
+                                               unsigned char  *in,
+                                               PRUint16    *out,
+                                               PRUint32     inbuflen,
+                                               PRUint32*    inscanlen
+                                               );
+MODULE_PRIVATE PRBool uScanShift(  
+                                 uShiftInTable    *shift,
+                                 PRInt32*    state,
                                  unsigned char  *in,
-                                 uint16_t    *out,
-                                 uint32_t     inbuflen,
-                                 uint32_t*    inscanlen
+                                 PRUint16    *out,
+                                 PRUint32     inbuflen,
+                                 PRUint32*    inscanlen
                                  );
-int uCheckAndScan2ByteGRPrefix8EA2(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   );
-int uCheckAndScan2ByteGRPrefix8EA3(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   );
-int uCheckAndScan2ByteGRPrefix8EA4(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   );
-int uCheckAndScan2ByteGRPrefix8EA5(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   );
-int uCheckAndScan2ByteGRPrefix8EA6(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   );
-int uCheckAndScan2ByteGRPrefix8EA7(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   );
-int uCnSAlways8BytesDecomposedHangul(
-                                     int32_t*    state,
-                                     unsigned char  *in,
-                                     uint16_t    *out,
-                                     uint32_t     inbuflen,
-                                     uint32_t*    inscanlen
-                                     );
-int uCheckAndScanJohabHangul(
-                             int32_t*    state,
-                             unsigned char  *in,
-                             uint16_t    *out,
-                             uint32_t     inbuflen,
-                             uint32_t*    inscanlen
-                             );
-int uCheckAndScanJohabSymbol(
-                             int32_t*    state,
-                             unsigned char  *in,
-                             uint16_t    *out,
-                             uint32_t     inbuflen,
-                             uint32_t*    inscanlen
-                             );
 
-int uCheckAndScan4BytesGB18030(
-                               int32_t*    state,
-                               unsigned char  *in,
-                               uint16_t    *out,
-                               uint32_t     inbuflen,
-                               uint32_t*    inscanlen
-                               );
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8F(
+                                            PRInt32*    state,
+                                            unsigned char  *in,
+                                            PRUint16    *out,
+                                            PRUint32     inbuflen,
+                                            PRUint32*    inscanlen
+                                            );
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA2(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              );
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA3(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              );
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA4(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              );
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA5(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              );
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA6(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              );
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA7(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              );
+PRIVATE PRBool uCnSAlways8BytesDecomposedHangul(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              );
+PRIVATE PRBool uCheckAndScanJohabHangul(
+                                        PRInt32*    state,
+                                        unsigned char  *in,
+                                        PRUint16    *out,
+                                        PRUint32     inbuflen,
+                                        PRUint32*    inscanlen
+                                        );
+PRIVATE PRBool uCheckAndScanJohabSymbol(
+                                        PRInt32*    state,
+                                        unsigned char  *in,
+                                        PRUint16    *out,
+                                        PRUint32     inbuflen,
+                                        PRUint32*    inscanlen
+                                        );
 
-int uScanAlways2Byte(
-                     unsigned char*  in,
-                     uint16_t*    out
-                     );
-int uScanAlways2ByteShiftGR(
-                            unsigned char*  in,
-                            uint16_t*    out
-                            );
-int uScanAlways1Byte(
-                     unsigned char*  in,
-                     uint16_t*    out
-                     );
-int uScanAlways1BytePrefix8E(
-                             unsigned char*  in,
-                             uint16_t*    out
-                             );
-/*=================================================================================
+PRIVATE PRBool uCheckAndScan4BytesGB18030(
+                                          PRInt32*    state,
+                                          unsigned char  *in,
+                                          PRUint16    *out,
+                                          PRUint32     inbuflen,
+                                          PRUint32*    inscanlen
+                                          );
 
+PRIVATE PRBool uScanAlways2Byte(
+                                unsigned char*  in,
+                                PRUint16*    out
+                                );
+PRIVATE PRBool uScanAlways2ByteShiftGR(
+                                       unsigned char*  in,
+                                       PRUint16*    out
+                                       );
+PRIVATE PRBool uScanAlways1Byte(
+                                unsigned char*  in,
+                                PRUint16*    out
+                                );
+PRIVATE PRBool uScanAlways1BytePrefix8E(
+                                        unsigned char*  in,
+                                        PRUint16*    out
+                                        );
+                                    /*=================================================================================
+                                    
 =================================================================================*/
-const uScannerFunc m_scanner[uNumOfCharsetType] =
+PRIVATE const uScannerFunc m_scanner[uNumOfCharsetType] =
 {
     uCheckAndScanAlways1Byte,
     uCheckAndScanAlways2Byte,
@@ -190,7 +223,7 @@ const uScannerFunc m_scanner[uNumOfCharsetType] =
 
 =================================================================================*/
 
-const uSubScannerFunc m_subscanner[uNumOfCharType] =
+PRIVATE const uSubScannerFunc m_subscanner[uNumOfCharType] =
 {
     uScanAlways1Byte,
     uScanAlways2Byte,
@@ -200,111 +233,111 @@ const uSubScannerFunc m_subscanner[uNumOfCharType] =
 /*=================================================================================
 
 =================================================================================*/
-int uScan(
-          uScanClassID scanClass,
-          int32_t*    state,
-          unsigned char  *in,
-          uint16_t    *out,
-          uint32_t     inbuflen,
-          uint32_t*    inscanlen
-          )
+MODULE_PRIVATE PRBool uScan(  
+                            uScanClassID scanClass,
+                            PRInt32*    state,
+                            unsigned char  *in,
+                            PRUint16    *out,
+                            PRUint32     inbuflen,
+                            PRUint32*    inscanlen
+                            )
 {
   return (* m_scanner[scanClass]) (state,in,out,inbuflen,inscanlen);
 }
 /*=================================================================================
 
 =================================================================================*/
-int uScanAlways1Byte(
-                     unsigned char*  in,
-                     uint16_t*    out
-                     )
+PRIVATE PRBool uScanAlways1Byte(
+                                unsigned char*  in,
+                                PRUint16*    out
+                                )
 {
-  *out = (uint16_t) in[0];
-  return 1;
+  *out = (PRUint16) in[0];
+  return PR_TRUE;
 }
 
 /*=================================================================================
 
 =================================================================================*/
-int uScanAlways2Byte(
-                     unsigned char*  in,
-                     uint16_t*    out
-                     )
+PRIVATE PRBool uScanAlways2Byte(
+                                unsigned char*  in,
+                                PRUint16*    out
+                                )
 {
-  *out = (uint16_t) (( in[0] << 8) | (in[1]));
-  return 1;
+  *out = (PRUint16) (( in[0] << 8) | (in[1]));
+  return PR_TRUE;
 }
 /*=================================================================================
 
 =================================================================================*/
-int uScanAlways2ByteShiftGR(
-                            unsigned char*  in,
-                            uint16_t*    out
-                            )
+PRIVATE PRBool uScanAlways2ByteShiftGR(
+                                       unsigned char*  in,
+                                       PRUint16*    out
+                                       )
 {
-  *out = (uint16_t) ((( in[0] << 8) | (in[1])) &  0x7F7F);
-  return 1;
+  *out = (PRUint16) ((( in[0] << 8) | (in[1])) &  0x7F7F);
+  return PR_TRUE;
 }
 
 /*=================================================================================
 
 =================================================================================*/
-int uScanAlways1BytePrefix8E(
-                             unsigned char*  in,
-                             uint16_t*    out
-                             )
+PRIVATE PRBool uScanAlways1BytePrefix8E(
+                                        unsigned char*  in,
+                                        PRUint16*    out
+                                        )
 {
-  *out = (uint16_t) in[1];
-  return 1;
+  *out = (PRUint16) in[1];
+  return PR_TRUE;
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScanAlways1Byte(
-                             int32_t*    state,
-                             unsigned char  *in,
-                             uint16_t    *out,
-                             uint32_t     inbuflen,
-                             uint32_t*    inscanlen
-                             )
+PRIVATE PRBool uCheckAndScanAlways1Byte(
+                                        PRInt32*    state,
+                                        unsigned char  *in,
+                                        PRUint16    *out,
+                                        PRUint32     inbuflen,
+                                        PRUint32*    inscanlen
+                                        )
 {
   /* Don't check inlen. The caller should ensure it is larger than 0 */
   *inscanlen = 1;
-  *out = (uint16_t) in[0];
+  *out = (PRUint16) in[0];
   
-  return 1;
+  return PR_TRUE;
 }
 
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScanAlways2Byte(
-                             int32_t*    state,
-                             unsigned char  *in,
-                             uint16_t    *out,
-                             uint32_t     inbuflen,
-                             uint32_t*    inscanlen
-                             )
+PRIVATE PRBool uCheckAndScanAlways2Byte(
+                                        PRInt32*    state,
+                                        unsigned char  *in,
+                                        PRUint16    *out,
+                                        PRUint32     inbuflen,
+                                        PRUint32*    inscanlen
+                                        )
 {
   if(inbuflen < 2)
-    return 0;
+    return PR_FALSE;
   else
   {
     *inscanlen = 2;
     *out = ((in[0] << 8) | ( in[1])) ;
-    return 1;
+    return PR_TRUE;
   }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScanAlways2ByteShiftGR(
-                                    int32_t*    state,
-                                    unsigned char  *in,
-                                    uint16_t    *out,
-                                    uint32_t     inbuflen,
-                                    uint32_t*    inscanlen
-                                    )
+PRIVATE PRBool uCheckAndScanAlways2ByteShiftGR(
+                                               PRInt32*    state,
+                                               unsigned char  *in,
+                                               PRUint16    *out,
+                                               PRUint32     inbuflen,
+                                               PRUint32*    inscanlen
+                                               )
 {
   /*
    * Both bytes should be in the range of [0xa1,0xfe] for 94x94 character sets
@@ -313,75 +346,75 @@ int uCheckAndScanAlways2ByteShiftGR(
    * 1st byte is checked before calling this in nsUnicodeDecoerHelper.cpp 
    */
   if(inbuflen < 2)    /* will lead to NS_OK_UDEC_MOREINPUT */
-    return 0;
+    return PR_FALSE;
   else if (! CHK_GR94(in[1]))  
   {
     *inscanlen = 2; 
     *out = 0xFF;  /* for 2-byte table, uMap() is guaranteed to fail for 0xFF. */
-    return 1;
+    return PR_TRUE;
   }
   else
   {
     *inscanlen = 2;
     *out = (((in[0] << 8) | ( in[1]))  & 0x7F7F);
-    return 1;
+    return PR_TRUE;
   }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScanAlways2ByteGR128(
-                                  int32_t*    state,
-                                  unsigned char  *in,
-                                  uint16_t    *out,
-                                  uint32_t     inbuflen,
-                                  uint32_t*    inscanlen
-                                  )
+PRIVATE PRBool uCheckAndScanAlways2ByteGR128(
+                                               PRInt32*    state,
+                                               unsigned char  *in,
+                                               PRUint16    *out,
+                                               PRUint32     inbuflen,
+                                               PRUint32*    inscanlen
+                                               )
 {
   /*
    * The first byte should be in  [0xa1,0xfe] 
-   * and the second byte in [0x41,0xfe]
+   * and the second byte can take any value with MSB = 1.
    * Used by CP949 -> Unicode converter.
    * Only 2nd byte range needs to be checked because 
-   * 1st byte is checked before calling this in nsUnicodeDecoderHelper.cpp 
+   * 1st byte is checked before calling this in nsUnicodeDecoerHelper.cpp 
    */
   if(inbuflen < 2)    /* will lead to NS_OK_UDEC_MOREINPUT */
-    return 0;
-  else if (in[1] < 0x41)     /* 2nd byte range check */
+    return PR_FALSE;
+  else if (!(in[1] & 0x80))     /* 2nd byte range check */
   {
     *inscanlen = 2; 
     *out = 0xFF;  /* for 2-byte table, uMap() is guaranteed to fail for 0xFF. */
-    return 1;
+    return PR_TRUE;
   }
   else
   {
     *inscanlen = 2;
     *out = (in[0] << 8) |  in[1];
-    return 1;
+    return PR_TRUE;
   }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uScanShift(
-               uShiftInTable    *shift,
-               int32_t*    state,
-               unsigned char  *in,
-               uint16_t    *out,
-               uint32_t     inbuflen,
-               uint32_t*    inscanlen
-               )
+PRIVATE PRBool uScanShift(
+                                    uShiftInTable    *shift,
+                                    PRInt32*    state,
+                                    unsigned char  *in,
+                                    PRUint16    *out,
+                                    PRUint32     inbuflen,
+                                    PRUint32*    inscanlen
+                                    )
 {
-  int16_t i;
+  PRInt16 i;
   const uShiftInCell* cell = &(shift->shiftcell[0]);
-  int16_t itemnum = shift->numOfItem;
+  PRInt16 itemnum = shift->numOfItem;
   for(i=0;i<itemnum;i++)
   {
     if( ( in[0] >=  cell[i].shiftin_Min) &&
       ( in[0] <=  cell[i].shiftin_Max))
     {
       if(inbuflen < cell[i].reserveLen)
-        return 0;
+        return PR_FALSE;
       else
       {
         *inscanlen = cell[i].reserveLen;
@@ -389,38 +422,38 @@ int uScanShift(
       }
     }
   }
-  return 0;
+  return PR_FALSE;
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScan2ByteGRPrefix8F(
-                                 int32_t*    state,
-                                 unsigned char  *in,
-                                 uint16_t    *out,
-                                 uint32_t     inbuflen,
-                                 uint32_t*    inscanlen
-                                 )
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8F(
+                                            PRInt32*    state,
+                                            unsigned char  *in,
+                                            PRUint16    *out,
+                                            PRUint32     inbuflen,
+                                            PRUint32*    inscanlen
+                                            )
 {
   if((inbuflen < 3) ||(in[0] != 0x8F)) 
-    return 0;
+    return PR_FALSE;
   else if (! CHK_GR94(in[1]))  /* 2nd byte range check */
   {
     *inscanlen = 2; 
     *out = 0xFF;  /* for 2-byte table, uMap() is guaranteed to fail for 0xFF. */
-    return 1;
+    return PR_TRUE;
   }
   else if (! CHK_GR94(in[2]))  /* 3rd byte range check */
   {
     *inscanlen = 3; 
     *out = 0xFF;  /* for 2-byte table, uMap() is guaranteed to fail for 0xFF. */
-    return 1;
+    return PR_TRUE;
   }
   else
   {
     *inscanlen = 3;
     *out = (((in[1] << 8) | ( in[2]))  & 0x7F7F);
-    return 1;
+    return PR_TRUE;
   }
 }
 /*=================================================================================
@@ -432,39 +465,39 @@ int uCheckAndScan2ByteGRPrefix8F(
  */
 #define CNS_8EAX_4BYTE(PREFIX)                    \
   if((inbuflen < 4) || (in[0] != 0x8E))           \
-    return 0;                                     \
+    return PR_FALSE;                              \
   else if((in[1] != (PREFIX)))                    \
   {                                               \
     *inscanlen = 2;                               \
     *out = 0xFF;                                  \
-    return 1;                                     \
+    return PR_TRUE;                               \
   }                                               \
   else if(! CHK_GR94(in[2]))                      \
   {                                               \
     *inscanlen = 3;                               \
     *out = 0xFF;                                  \
-    return 1;                                     \
+    return PR_TRUE;                               \
   }                                               \
   else if(! CHK_GR94(in[3]))                      \
   {                                               \
     *inscanlen = 4;                               \
     *out = 0xFF;                                  \
-    return 1;                                     \
+    return PR_TRUE;                               \
   }                                               \
   else                                            \
   {                                               \
     *inscanlen = 4;                               \
     *out = (((in[2] << 8) | ( in[3]))  & 0x7F7F); \
-    return 1;                                     \
+    return PR_TRUE;                               \
   }    
 
-int uCheckAndScan2ByteGRPrefix8EA2(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   )
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA2(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              )
 {
   CNS_8EAX_4BYTE(0xA2)
 }
@@ -472,65 +505,65 @@ int uCheckAndScan2ByteGRPrefix8EA2(
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScan2ByteGRPrefix8EA3(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   )
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA3(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              )
 {
   CNS_8EAX_4BYTE(0xA3)
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScan2ByteGRPrefix8EA4(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   )
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA4(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              )
 {
   CNS_8EAX_4BYTE(0xA4)
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScan2ByteGRPrefix8EA5(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   )
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA5(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              )
 {
   CNS_8EAX_4BYTE(0xA5)
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScan2ByteGRPrefix8EA6(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   )
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA6(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              )
 {
   CNS_8EAX_4BYTE(0xA6)
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndScan2ByteGRPrefix8EA7(
-                                   int32_t*    state,
-                                   unsigned char  *in,
-                                   uint16_t    *out,
-                                   uint32_t     inbuflen,
-                                   uint32_t*    inscanlen
-                                   )
+PRIVATE PRBool uCheckAndScan2ByteGRPrefix8EA7(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              )
 {
   CNS_8EAX_4BYTE(0xA7)
 }
@@ -544,27 +577,27 @@ int uCheckAndScan2ByteGRPrefix8EA7(
 #define TCount 28
 #define NCount (VCount * TCount)
 
-int uCnSAlways8BytesDecomposedHangul(
-                                     int32_t*    state,
-                                     unsigned char  *in,
-                                     uint16_t    *out,
-                                     uint32_t     inbuflen,
-                                     uint32_t*    inscanlen
-                                     )
+PRIVATE PRBool uCnSAlways8BytesDecomposedHangul(
+                                              PRInt32*    state,
+                                              unsigned char  *in,
+                                              PRUint16    *out,
+                                              PRUint32     inbuflen,
+                                              PRUint32*    inscanlen
+                                              )
 {
   
-  uint16_t LIndex, VIndex, TIndex;
+  PRUint16 LIndex, VIndex, TIndex;
   /* no 8 bytes, not in a4 range, or the first 2 byte are not a4d4 */
   if((inbuflen < 8) || (0xa4 != in[0]) || (0xd4 != in[1]) ||
     (0xa4 != in[2] ) || (0xa4 != in[4]) || (0xa4 != in[6]))
-    return 0;
+    return PR_FALSE;
   
   /* Compute LIndex  */
-  if((in[3] < 0xa1) || (in[3] > 0xbe)) { /* illegal leading consonant */
-    return 0;
+  if((in[3] < 0xa1) && (in[3] > 0xbe)) { /* illegal leading consonant */
+    return PR_FALSE;
   } 
   else {
-    static const uint8_t lMap[] = {
+    static const PRUint8 lMap[] = {
       /*        A1   A2   A3   A4   A5   A6   A7  */
       0,   1,0xff,   2,0xff,0xff,   3,
         /*   A8   A9   AA   AB   AC   AD   AE   AF  */
@@ -577,12 +610,12 @@ int uCnSAlways8BytesDecomposedHangul(
     
     LIndex = lMap[in[3] - 0xa1];
     if(0xff == (0xff & LIndex))
-      return 0;
+      return PR_FALSE;
   }
   
   /* Compute VIndex  */
-  if((in[5] < 0xbf) || (in[5] > 0xd3)) { /* illegal medial vowel */
-    return 0;
+  if((in[5] < 0xbf) && (in[5] > 0xd3)) { /* illegal medial vowel */
+    return PR_FALSE;
   } 
   else {
     VIndex = in[5] - 0xbf;
@@ -593,11 +626,11 @@ int uCnSAlways8BytesDecomposedHangul(
   {
     TIndex = 0;
   } 
-  else if((in[7] < 0xa1) || (in[7] > 0xbe)) {/* illegal trailing consonant */
-    return 0;
+  else if((in[7] < 0xa1) && (in[7] > 0xbe)) {/* illegal trailling consonant */
+    return PR_FALSE;
   } 
   else {
-    static const uint8_t tMap[] = {
+    static const PRUint8 tMap[] = {
       /*        A1   A2   A3   A4   A5   A6   A7  */
       1,   2,   3,   4,   5,   6,   7,
         /*   A8   A9   AA   AB   AC   AD   AE   AF  */
@@ -609,81 +642,81 @@ int uCnSAlways8BytesDecomposedHangul(
     };
     TIndex = tMap[in[7] - 0xa1];
     if(0xff == (0xff & TIndex))
-      return 0;
+      return PR_FALSE;
   }
   
   *inscanlen = 8;
   /* the following line is from Unicode 2.0 page 3-13 item 5 */
   *out = ( LIndex * VCount + VIndex) * TCount + TIndex + SBase;
   
-  return 1;
+  return PR_TRUE;
 }
 /*=================================================================================
 
 =================================================================================*/
 
-int uCheckAndScanJohabHangul(
-                             int32_t*    state,
-                             unsigned char  *in,
-                             uint16_t    *out,
-                             uint32_t     inbuflen,
-                             uint32_t*    inscanlen
-                             )
+PRIVATE PRBool uCheckAndScanJohabHangul(
+                                        PRInt32*    state,
+                                        unsigned char  *in,
+                                        PRUint16    *out,
+                                        PRUint32     inbuflen,
+                                        PRUint32*    inscanlen
+                                        )
 {
 /* since we don't have code to convert Johab to Unicode right now     *
   * make this part of code #if 0 to save space until we fully test it */
   if(inbuflen < 2)
-    return 0;
+    return PR_FALSE;
   else {
   /*
   * See Table 4-45 Johab Encoding's Five-Bit Binary Patterns in page 183
   * of "CJKV Information Processing" for details
     */
-    static const uint8_t lMap[32]={ /* totaly 19  */
+    static const PRUint8 lMap[32]={ /* totaly 19  */
       0xff,0xff,0,   1,   2,   3,   4,   5,    /* 0-7    */
         6,   7,   8,   9,   10,  11,  12,  13,   /* 8-15   */
         14,  15,  16,  17,  18,  0xff,0xff,0xff, /* 16-23  */
         0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff  /* 24-31  */
     };
-    static const uint8_t vMap[32]={ /* totaly 21 */
+    static const PRUint8 vMap[32]={ /* totaly 21 */
       0xff,0xff,0xff,0,   1,   2,   3,   4,    /* 0-7   */
         0xff,0xff,5,   6,   7,   8,   9,   10,   /* 8-15  */
         0xff,0xff,11,  12,  13,  14,  15,  16,   /* 16-23 */
         0xff,0xff,17,  18,  19,  20,  0xff,0xff  /* 24-31 */
     };
-    static const uint8_t tMap[32]={ /* totaly 29 */
+    static const PRUint8 tMap[32]={ /* totaly 29 */
       0xff,0,   1,   2,   3,   4,   5,   6,    /* 0-7   */
         7,   8,   9,   10,  11,  12,  13,  14,   /* 8-15  */
         15,  16,  0xff,17,  18,  19,  20,  21,   /* 16-23 */
         22,  23,  24,  25,  26,  27,  0xff,0xff  /* 24-31 */
     };
-    uint16_t ch = (in[0] << 8) | in[1];
-    uint16_t LIndex, VIndex, TIndex;
+    PRUint16 ch = (in[0] << 8) | in[1];
+    PRUint16 LIndex, VIndex, TIndex;
     if(0 == (0x8000 & ch))
-      return 0;
+      return PR_FALSE;
     LIndex=lMap[(ch>>10)& 0x1F];
     VIndex=vMap[(ch>>5) & 0x1F];
     TIndex=tMap[(ch>>0) & 0x1F];
     if((0xff==(LIndex)) || 
       (0xff==(VIndex)) || 
       (0xff==(TIndex)))
-      return 0;
+      return PR_FALSE;
     /* the following line is from Unicode 2.0 page 3-13 item 5 */
     *out = ( LIndex * VCount + VIndex) * TCount + TIndex + SBase;
     *inscanlen = 2;
-    return 1;
+    return PR_TRUE;
   }
 }
-int uCheckAndScanJohabSymbol(
-                             int32_t*    state,
-                             unsigned char  *in,
-                             uint16_t    *out,
-                             uint32_t     inbuflen,
-                             uint32_t*    inscanlen
-                             )
+PRIVATE PRBool uCheckAndScanJohabSymbol(
+                                        PRInt32*    state,
+                                        unsigned char  *in,
+                                        PRUint16    *out,
+                                        PRUint32     inbuflen,
+                                        PRUint32*    inscanlen
+                                        )
 {
   if(inbuflen < 2)
-    return 0;
+    return PR_FALSE;
   else {
   /*
   * The following code are based on the Perl code lised under
@@ -712,8 +745,8 @@ int uCheckAndScanJohabSymbol(
     */ 
     unsigned char hi = in[0];
     unsigned char lo = in[1];
-    uint16_t offset = (( hi > 223 ) && ( hi < 250)) ? 1 : 0;
-    uint16_t d8_off = 0;
+    PRUint16 offset = (( hi > 223 ) && ( hi < 250)) ? 1 : 0;
+    PRUint16 d8_off = 0;
     if(216 == hi) {
       if( lo > 160)
         d8_off = 94;
@@ -726,34 +759,34 @@ int uCheckAndScanJohabSymbol(
       (lo - ((lo < 161) ? ((lo > 126) ? 34 : 16) : 
     128));
     *inscanlen = 2;
-    return 1;
+    return PR_TRUE;
   }
 }
-int uCheckAndScan4BytesGB18030(
-                               int32_t*    state,
-                               unsigned char  *in,
-                               uint16_t    *out,
-                               uint32_t     inbuflen,
-                               uint32_t*    inscanlen
-                               )
+PRIVATE PRBool uCheckAndScan4BytesGB18030(
+                                          PRInt32*    state,
+                                          unsigned char  *in,
+                                          PRUint16    *out,
+                                          PRUint32     inbuflen,
+                                          PRUint32*    inscanlen
+                                          )
 {
-  uint32_t  data;
+  PRUint32  data;
   if(inbuflen < 4) 
-    return 0;
+    return PR_FALSE;
   
   if((in[0] < 0x81 ) || (0xfe < in[0])) 
-    return 0;
+    return PR_FALSE;
   if((in[1] < 0x30 ) || (0x39 < in[1])) 
-    return 0;
+    return PR_FALSE;
   if((in[2] < 0x81 ) || (0xfe < in[2])) 
-    return 0;
+    return PR_FALSE;
   if((in[3] < 0x30 ) || (0x39 < in[3])) 
-    return 0;
+    return PR_FALSE;
   
   data = (((((in[0] - 0x81) * 10 + (in[1] - 0x30)) * 126) + 
     (in[2] - 0x81)) * 10 ) + (in[3] - 0x30);
   
   *inscanlen = 4;
   *out = (data < 0x00010000) ? data : 0xFFFD;
-  return 1;
+  return PR_TRUE;
 }

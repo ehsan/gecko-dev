@@ -6,6 +6,8 @@
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         title="test for nsIAccessibleHyperLink interface on XUL:label elements">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
@@ -45,7 +47,7 @@
       testThis("linkedLabel", linkedLabelAcc, ROLE_LINK, 1,
                "Mozilla Foundation home", "http://www.mozilla.org/", 1, 2,
                true);
-      testStates(linkedLabelAcc, STATE_LINKED, 0);
+      testStates(linkedLabelAcc, STATE_LINKED, EXT_STATE_HORIZONTAL);
 
       var labelWithValueAcc = getAccessible("linkLabelWithValue",
                                             [nsIAccessibleHyperLink]);

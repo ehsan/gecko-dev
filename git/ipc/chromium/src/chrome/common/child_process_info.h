@@ -17,7 +17,7 @@ class ChildProcessInfo {
     RENDER_PROCESS,
     PLUGIN_PROCESS,
     WORKER_PROCESS,
-    UNKNOWN_PROCESS
+    UNKNOWN_PROCESS,
   };
 
   // Returns the type of the process.
@@ -38,6 +38,7 @@ class ChildProcessInfo {
     return pid_;
   }
   void SetProcessBackgrounded() const { process_.SetProcessBackgrounded(true); }
+  void ReduceWorkingSet() const { process_.ReduceWorkingSet(); }
 
   // Returns an English name of the process type, should only be used for non
   // user-visible strings, or debugging pages like about:memory.
@@ -91,7 +92,7 @@ class ChildProcessInfo {
   }
 
   // Derived objects need to use this constructor so we know what type we are.
-  explicit ChildProcessInfo(ProcessType type);
+  ChildProcessInfo(ProcessType type);
 
  private:
   ProcessType type_;

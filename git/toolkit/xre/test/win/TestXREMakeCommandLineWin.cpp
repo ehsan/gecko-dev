@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Robert Strong <robert.bugzilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,15 +74,15 @@
 // CommandLineToArgvW and converting it back to a command line with
 // MakeCommandLine.
 static int
-verifyCmdLineCreation(wchar_t *inCmdLine,
-                      wchar_t *compareCmdLine,
-                      bool passes, int testNum)
+verifyCmdLineCreation(PRUnichar *inCmdLine,
+                      PRUnichar *compareCmdLine,
+                      PRBool passes, int testNum)
 {
   int rv = 0;
   int i;
   int inArgc;
   int outArgc;
-  bool isEqual;
+  PRBool isEqual;
 
   // When debugging with command lines containing Unicode characters greater
   // than 255 you can set the mode for stdout to Unicode so the console will
@@ -64,13 +96,13 @@ verifyCmdLineCreation(wchar_t *inCmdLine,
   // handles argv[0] differently than other arguments since argv[0] is the path
   // to the binary being executed and MakeCommandLine only handles argv[1] and
   // larger.
-  wchar_t *inCmdLineNew = (wchar_t *) malloc((wcslen(DUMMY_ARG1) + wcslen(inCmdLine) + 1) * sizeof(wchar_t));
+  PRUnichar *inCmdLineNew = (PRUnichar *) malloc((wcslen(DUMMY_ARG1) + wcslen(inCmdLine) + 1) * sizeof(PRUnichar));
   wcscpy(inCmdLineNew, DUMMY_ARG1);
   wcscat(inCmdLineNew, inCmdLine);
   LPWSTR *inArgv = CommandLineToArgvW(inCmdLineNew, &inArgc);
 
-  wchar_t *outCmdLine = MakeCommandLine(inArgc - 1, inArgv + 1);
-  wchar_t *outCmdLineNew = (wchar_t *) malloc((wcslen(DUMMY_ARG1) + wcslen(outCmdLine) + 1) * sizeof(wchar_t));
+  PRUnichar *outCmdLine = MakeCommandLine(inArgc - 1, inArgv + 1);
+  PRUnichar *outCmdLineNew = (PRUnichar *) malloc((wcslen(DUMMY_ARG1) + wcslen(outCmdLine) + 1) * sizeof(PRUnichar));
   wcscpy(outCmdLineNew, DUMMY_ARG1);
   wcscat(outCmdLineNew, outCmdLine);
   LPWSTR *outArgv = CommandLineToArgvW(outCmdLineNew, &outArgc);
@@ -160,12 +192,13 @@ verifyCmdLineCreation(wchar_t *inCmdLine,
   return rv;
 }
 
-int wmain(int argc, wchar_t *argv[])
+int wmain(int argc, PRUnichar *argv[])
 {
   int i;
   int rv = 0;
 
-  if (argc > 1 && (_wcsicmp(argv[1], L"-check-one") != 0 || argc != 3)) {
+  if (argc > 1 && (_wcsicmp(argv[1], L"-check-one") != 0 ||
+                   _wcsicmp(argv[1], L"-check-one") == 0 && argc != 3)) {
     fwprintf(stderr, L"Displays and validates output from MakeCommandLine.\n\n");
     fwprintf(stderr, L"Usage: %s -check-one <test number>\n\n", argv[0]);
     fwprintf(stderr, L"  <test number>\tSpecifies the test number to run from the\n");
@@ -173,7 +206,7 @@ int wmain(int argc, wchar_t *argv[])
     return 255;
   }
 
-  wchar_t inifile[MAXPATHLEN];
+  PRUnichar inifile[MAXPATHLEN];
   if (!::GetModuleFileNameW(0, inifile, MAXPATHLEN)) {
     wprintf(L"TEST-UNEXPECTED-FAIL | %s | GetModuleFileNameW\n", TEST_NAME);
     return 2;
@@ -188,12 +221,12 @@ int wmain(int argc, wchar_t *argv[])
   wcscpy(slash + 1, L"TestXREMakeCommandLineWin.ini\0");
 
   for (i = 0; i < MAX_TESTS; ++i) {
-    wchar_t sInputVal[MAXPATHLEN];
-    wchar_t sOutputVal[MAXPATHLEN];
-    wchar_t sPassesVal[MAXPATHLEN];
-    wchar_t sInputKey[MAXPATHLEN];
-    wchar_t sOutputKey[MAXPATHLEN];
-    wchar_t sPassesKey[MAXPATHLEN];
+    PRUnichar sInputVal[MAXPATHLEN];
+    PRUnichar sOutputVal[MAXPATHLEN];
+    PRUnichar sPassesVal[MAXPATHLEN];
+    PRUnichar sInputKey[MAXPATHLEN];
+    PRUnichar sOutputKey[MAXPATHLEN];
+    PRUnichar sPassesKey[MAXPATHLEN];
 
     if (argc > 2 && _wcsicmp(argv[1], L"-check-one") == 0 && argc == 3) {
       i = _wtoi(argv[2]);
@@ -203,9 +236,9 @@ int wmain(int argc, wchar_t *argv[])
     _snwprintf(sOutputKey, MAXPATHLEN, L"output_%d", i);
     _snwprintf(sPassesKey, MAXPATHLEN, L"passes_%d", i);
 
-    if (!GetPrivateProfileStringW(L"MakeCommandLineTests", sInputKey, nullptr,
+    if (!GetPrivateProfileStringW(L"MakeCommandLineTests", sInputKey, nsnull,
                                   sInputVal, MAXPATHLEN, inifile)) {
-      if (i == 0 || (argc > 2 && _wcsicmp(argv[1], L"-check-one") == 0)) {
+      if (i == 0 || argc > 2 && _wcsicmp(argv[1], L"-check-one") == 0) {
         wprintf(L"TEST-UNEXPECTED-FAIL | %s | see following explanation:\n", TEST_NAME);
         wprintf(L"ERROR: Either the TestXREMakeCommandLineWin.ini file doesn't exist\n");
         if (argc > 1 && _wcsicmp(argv[1], L"-check-one") == 0 && argc == 3) {
@@ -219,9 +252,9 @@ int wmain(int argc, wchar_t *argv[])
       break;
     }
 
-    GetPrivateProfileStringW(L"MakeCommandLineTests", sOutputKey, nullptr,
+    GetPrivateProfileStringW(L"MakeCommandLineTests", sOutputKey, nsnull,
                              sOutputVal, MAXPATHLEN, inifile);
-    GetPrivateProfileStringW(L"MakeCommandLineTests", sPassesKey, nullptr,
+    GetPrivateProfileStringW(L"MakeCommandLineTests", sPassesKey, nsnull,
                              sPassesVal, MAXPATHLEN, inifile);
 
     rv |= verifyCmdLineCreation(sInputVal, sOutputVal,

@@ -39,7 +39,7 @@ function grabEventAndContinueHandler(event)
 
 function errorHandler(event)
 {
-  throw new Error("indexedDB error, code " + event.target.error.name);
+  throw new Error("indexedDB error, code " + event.target.errorCode);
 }
 
 function continueToNextStep()

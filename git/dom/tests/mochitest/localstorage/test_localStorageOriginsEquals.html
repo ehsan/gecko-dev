@@ -2,9 +2,10 @@
 <head>
 <title>localStorage equal origins</title>
 
-<script src="/resources/testharness.js"></script>
-<script src="/resources/testharnessreport.js"></script>
-<script src="interOriginTest2.js"></script>
+<script type="text/javascript" src="/MochiKit/packed.js"></script>
+<script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+<script type="text/javascript" src="interOriginTest2.js"></script>
+<link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 
 <!--
   This test loads two frames from equal
@@ -30,6 +31,8 @@ function startTest()
   masterFrame.location = masterFrameOrigin + framePath + "frameMasterEqual.html";
   slaveFrame.location = slaveFrameOrigin + framePath + "frameSlaveEqual.html";
 }
+
+SimpleTest.waitForExplicitFinish();
 
 </script>
 

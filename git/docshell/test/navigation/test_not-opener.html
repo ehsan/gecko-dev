@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <script type="text/javascript" src="/MochiKit/packed.js"></script>
     <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
     <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
     <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -9,10 +10,6 @@
       iframe { width: 90%; height: 50px; }
     </style>
 <script>
-if (!navigator.platform.startsWith("Win")) {
-  SimpleTest.expectAssertions(0, 1);
-}
-
 window.onload = function () {
   //navigateByLocation(window0);  // Don't have a handle to the window.
   navigateByOpen("window1");
@@ -31,7 +28,7 @@ window.onload = function () {
 
     xpcCleanupWindows();
     SimpleTest.finish();
-  }, 6);
+  }, 3);
 }
 
 //opener0 = window.open("http://test1.example.org:80/tests/docshell/test/navigation/open.html#window0", "_blank", "width=10,height=10");

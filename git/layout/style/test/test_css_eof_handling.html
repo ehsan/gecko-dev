@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test for CSS EOF handling</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -85,12 +86,6 @@ const tests = [
       tst: "#t { background-image: url('data:image/png;base64," +
            "iVBORw0KGgoAAAANSUhEUgAAAAQAAAAEAQAAAACBiqPTAAAAEElEQVQI12N4" +
            "wHCBYQNDAQAMuALRrGb97AAAAABJRU5ErkJggg=='",
-      prop: "background-image", pseudo: ""
-  },
-  {
-      name: "url-token 4",	/*Bug 751939*/
-      ref: "#r { background-image: url( )}",
-      tst: "#t { background-image: url(" ,
       prop: "background-image", pseudo: ""
   },
   {

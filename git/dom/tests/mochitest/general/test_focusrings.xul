@@ -4,6 +4,8 @@
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
 <script type="application/javascript"
+        src="/MochiKit/packed.js"></script>
+<script type="application/javascript"
         src="/tests/SimpleTest/SimpleTest.js"></script>
 <script type="application/javascript"
         src="/tests/SimpleTest/EventUtils.js"></script>
@@ -22,9 +24,10 @@
 SimpleTest.waitForExplicitFinish();
 
 function setOrRestoreTabFocus(newValue) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   const prefSvcContractID = "@mozilla.org/preferences-service;1";
-  const prefSvcIID = SpecialPowers.Ci.nsIPrefService;
-  var prefs = SpecialPowers.Cc[prefSvcContractID].getService(prefSvcIID)
+  const prefSvcIID = Components.interfaces.nsIPrefService;
+  var prefs = Components.classes[prefSvcContractID].getService(prefSvcIID)
                                                    .getBranch("accessibility.");
   if (!newValue) {
     if (prefs.prefHasUserValue("tabfocus")) {
@@ -37,9 +40,14 @@ function setOrRestoreTabFocus(newValue) {
 
 function snapShot(element) {
   var rect = element.getBoundingClientRect();
-  adjustedRect = { left: rect.left - 6, top: rect.top - 6,
-                   width: rect.width + 12, height: rect.height + 12 }
-  return SpecialPowers.snapshotRect(window, adjustedRect, "transparent");
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalBrowserRead');
+  var canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+  canvas.setAttribute("width", rect.width + 12);
+  canvas.setAttribute("height", rect.height + 12);
+  var ctx = canvas.getContext("2d");
+  ctx.drawWindow(window, rect.left - 6, rect.top - 6, rect.width + 6, rect.height + 6,
+                 "transparent");
+  return canvas;
 }
 
 function runTest()
@@ -74,8 +82,10 @@ function runTest()
   testHTMLElements(htmlElements, isMac, isWin && !expectedVisible);
 
   if (isMac) {
-    var prefs = SpecialPowers.Cc["@mozilla.org/preferences-service;1"].
-                  getService(SpecialPowers.Ci.nsIPrefBranch);
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
+    var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+                  getService(Components.interfaces.nsIPrefBranch);
     prefs.setBoolPref("accessibility.mouse_focuses_formcontrol", true);
 
     testHTMLElements(htmlElementsMacPrefSet, true, false);
@@ -179,7 +189,7 @@ SimpleTest.waitForFocus(runTest);
 <button id="b2" label="Button"/>
 <button id="b3" label="Button"/>
 
-<iframe id="child" src="data:text/html,&lt;html&gt;&lt;style&gt;* { outline: none; -moz-appearance: none; } %23elem:focus { outline: 2px solid red; } %23elem:-moz-focusring { outline: 1px solid blue; }&lt;/style&gt;&lt;div id='container'&gt;&lt;/html&gt;"/>
+<iframe id="child" src="data:text/html,&lt;html&gt;&lt;style&gt;* { outline: none; -moz-appearance: none; } #elem:focus { outline: 2px solid red; } #elem:-moz-focusring { outline: 1px solid blue; }&lt;/style&gt;&lt;div id='container'&gt;&lt;/html&gt;"/>
 
 <body xmlns="http://www.w3.org/1999/xhtml" style="height: 300px; overflow: auto;"/>
 

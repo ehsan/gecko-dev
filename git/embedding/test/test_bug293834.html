@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=293834
 -->
 <head>
   <title>Test for Bug 293834</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -57,8 +58,9 @@ function checkform(doc) {
         "Modified select selected index not preserved");
 }
 
-const Cc = SpecialPowers.Cc;
-const Ci = SpecialPowers.Ci;
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
 function getTempDir() {
     return Cc["@mozilla.org/file/directory_service;1"]
@@ -86,6 +88,8 @@ function getFileContents(aFile) {
 }
 
 function persistDocument(aDoc) {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
     const nsIWBP = Ci.nsIWebBrowserPersist;
     const persistFlags =
                   nsIWBP.PERSIST_FLAGS_REPLACE_EXISTING_FILES
@@ -94,7 +98,7 @@ function persistDocument(aDoc) {
     const encodingFlags =
                   nsIWBP.ENCODE_FLAGS_ENCODE_BASIC_ENTITIES;
 
-    var ioService = Cc["@mozilla.org/network/io-service;1"]
+    var ioService = Components.classes["@mozilla.org/network/io-service;1"]
                     .getService(Ci.nsIIOService);
 
 
@@ -118,6 +122,7 @@ function persistDocument(aDoc) {
 SimpleTest.waitForExplicitFinish();
 
 addLoadEvent(function() {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     var srcDoc = document.getElementById('source').contentDocument;
     fillform(srcDoc);
     checkform(srcDoc);

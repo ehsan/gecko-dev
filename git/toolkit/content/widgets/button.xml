@@ -1,16 +1,20 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="buttonBindings"
    xmlns="http://www.mozilla.org/xbl"
    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
    xmlns:xbl="http://www.mozilla.org/xbl">
 
-  <binding id="button-base" extends="chrome://global/content/bindings/general.xml#basetext" role="xul:button">
-    <implementation implements="nsIDOMXULButtonElement">
+  <binding id="button-base" extends="chrome://global/content/bindings/general.xml#basetext">
+    <implementation implements="nsIDOMXULButtonElement, nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULButton;
+          ]]>
+        </getter>
+      </property>
+
       <property name="type"
                 onget="return this.getAttribute('type');"
                 onset="this.setAttribute('type', val); return val;"/>
@@ -25,7 +29,8 @@
 
       <property name="open" onget="return this.hasAttribute('open');">
         <setter><![CDATA[
-          if (this.boxObject instanceof MenuBoxObject) {
+          if (this.boxObject instanceof
+              Components.interfaces.nsIMenuBoxObject) {
             this.boxObject.openMenu(val);
           } else {
             // Fall back to just setting the attribute
@@ -80,17 +85,8 @@
         <parameter name="node"/>
         <body>
         <![CDATA[
-          // if the node isn't visible, don't descend into it.
-          var cs = node.ownerDocument.defaultView.getComputedStyle(node, null);
-          if (cs.visibility != "visible" || cs.display == "none") {
-            return NodeFilter.FILTER_REJECT;
-          }
-          // but it may be a popup element, in which case we look at "state"...
-          if (cs.display == "-moz-popup" && node.state != "open") {
-            return NodeFilter.FILTER_REJECT;
-          }
-          // OK - the node seems visible, so it is a candidate.
-          if (node.localName == "button" && node.accessKey && !node.disabled)
+          if (node.localName == "button" && node.accessKey &&
+            !node.disabled && !node.collapsed && !node.hidden)
             return NodeFilter.FILTER_ACCEPT;
           return NodeFilter.FILTER_SKIP;
         ]]>
@@ -104,7 +100,7 @@
         <![CDATA[
           var iterator = aSubtree.ownerDocument.createTreeWalker(aSubtree, 
                                                                  NodeFilter.SHOW_ELEMENT, 
-                                                                 this.filterButtons);
+                                                                 this.filterButtons, false);
           while (iterator.nextNode()) {
             var test = iterator.currentNode;
             if (test.accessKey.toLowerCase() == aAccessKeyLower && 
@@ -146,7 +142,7 @@
 
       <handler event="keypress">
       <![CDATA[
-        if (this.boxObject instanceof MenuBoxObject) {
+        if (this.boxObject instanceof Components.interfaces.nsIMenuBoxObject) {
           if (this.open)
             return;
         } else {
@@ -331,17 +327,6 @@
       </method>
 
     </implementation>
-
-    <handlers>
-      <handler event="keypress" keycode="VK_RETURN">
-        if (event.originalTarget == this)
-          this.open = true;
-      </handler>
-      <handler event="keypress" key=" ">
-        if (event.originalTarget == this)
-          this.open = true;
-      </handler>
-    </handlers>
   </binding>
 
   <binding id="menu-button" display="xul:menu"
@@ -354,7 +339,7 @@
       <children includes="observes|template|menupopup|panel|tooltip"/>
       <xul:button class="box-inherit button-menubutton-button"
                   anonid="button" flex="1" allowevents="true"
-                  xbl:inherits="disabled,crop,image,label,accesskey,command,
+                  xbl:inherits="disabled,crop,image,label,accessKey,command,
                                 buttonover,buttondown,align,dir,pack,orient">
         <children/>
       </xul:button>

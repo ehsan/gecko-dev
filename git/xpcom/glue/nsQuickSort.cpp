@@ -34,10 +34,10 @@
  */
 
 #include <stdlib.h>
-#include "nsAlgorithm.h"
+#include "prtypes.h"
 #include "nsQuickSort.h"
 
-extern "C" {
+PR_BEGIN_EXTERN_C
 
 #if !defined(DEBUG) && (defined(__cplusplus) || defined(__gcc))
 # ifndef INLINE
@@ -56,10 +56,10 @@ static INLINE void	swapfunc(char *, char *, int, int);
  */
 #define swapcode(TYPE, parmi, parmj, n) { 		\
 	long i = (n) / sizeof (TYPE); 			\
-	TYPE *pi = (TYPE *) (parmi); 			\
-	TYPE *pj = (TYPE *) (parmj); 			\
+	register TYPE *pi = (TYPE *) (parmi); 		\
+	register TYPE *pj = (TYPE *) (parmj); 		\
 	do { 						\
-		TYPE	t = *pi;			\
+		register TYPE	t = *pi;		\
 		*pi++ = *pj;				\
 		*pj++ = t;				\
         } while (--i > 0);				\
@@ -104,10 +104,10 @@ void NS_QuickSort (
     )
 {
 	char *pa, *pb, *pc, *pd, *pl, *pm, *pn;
-	int d, r, swaptype;
+	int d, r, swaptype, swap_cnt;
 
 loop:	SWAPINIT(a, es);
-	/* Use insertion sort when input is small */
+	swap_cnt = 0;
 	if (n < 7) {
 		for (pm = (char *)a + es; pm < (char *)a + n * es; pm += es)
 			for (pl = pm; pl > (char *)a && cmp(pl - es, pl, data) > 0;
@@ -115,7 +115,6 @@ loop:	SWAPINIT(a, es);
 				swap(pl, pl - es);
 		return;
 	}
-	/* Choose pivot */
 	pm = (char *)a + (n / 2) * es;
 	if (n > 7) {
 		pl = (char *)a;
@@ -132,16 +131,10 @@ loop:	SWAPINIT(a, es);
 	pa = pb = (char *)a + es;
 
 	pc = pd = (char *)a + (n - 1) * es;
-	/* loop invariants:
-	 * [a, pa) = pivot
-	 * [pa, pb) < pivot
-	 * [pb, pc + es) unprocessed
-	 * [pc + es, pd + es) > pivot
-	 * [pd + es, pn) = pivot
-	 */
 	for (;;) {
 		while (pb <= pc && (r = cmp(pb, a, data)) <= 0) {
 			if (r == 0) {
+				swap_cnt = 1;
 				swap(pa, pb);
 				pa += es;
 			}
@@ -149,6 +142,7 @@ loop:	SWAPINIT(a, es);
 		}
 		while (pb <= pc && (r = cmp(pc, a, data)) >= 0) {
 			if (r == 0) {
+				swap_cnt = 1;
 				swap(pc, pd);
 				pd -= es;
 			}
@@ -157,16 +151,23 @@ loop:	SWAPINIT(a, es);
 		if (pb > pc)
 			break;
 		swap(pb, pc);
+		swap_cnt = 1;
 		pb += es;
 		pc -= es;
 	}
-	/* Move pivot values */
+	if (swap_cnt == 0) {  /* Switch to insertion sort */
+		for (pm = (char *)a + es; pm < (char *)a + n * es; pm += es)
+			for (pl = pm; pl > (char *)a && cmp(pl - es, pl, data) > 0;
+			     pl -= es)
+				swap(pl, pl - es);
+		return;
+	}
+
 	pn = (char *)a + n * es;
-	r = XPCOM_MIN(pa - (char *)a, pb - pa);
+	r = PR_MIN(pa - (char *)a, pb - pa);
 	vecswap(a, pb - r, r);
-	r = XPCOM_MIN<size_t>(pd - pc, pn - pd - es);
+	r = PR_MIN(pd - pc, (int)(pn - pd - es));
 	vecswap(pb, pn - r, r);
-	/* Recursively process partitioned items */
 	if ((r = pb - pa) > (int)es)
         NS_QuickSort(a, r / es, es, cmp, data);
 	if ((r = pd - pc) > (int)es) {
@@ -178,10 +179,4 @@ loop:	SWAPINIT(a, es);
 /*		NS_QuickSort(pn - r, r / es, es, cmp, data);*/
 }
 
-}
-
-#undef INLINE
-#undef swapcode
-#undef SWAPINIT
-#undef swap
-#undef vecswap
+PR_END_EXTERN_C

@@ -1,8 +1,46 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bob Lord <lord@netscape.com>
+ *   Ian McGreer <mcgreer@netscape.com>
+ *   Javier Delgadillo <javi@netscape.com>
+ *   Kai Engert <kengert@redhat.com>
+ *   Kaspar Brand <mozcontrib@velox.ch>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const nsIX509Cert = Components.interfaces.nsIX509Cert;
+const nsIX509Cert3 = Components.interfaces.nsIX509Cert3;
 const nsX509CertDB = "@mozilla.org/security/x509certdb;1";
 const nsIX509CertDB = Components.interfaces.nsIX509CertDB;
 const nsPK11TokenDB = "@mozilla.org/security/pk11tokendb;1";
@@ -62,10 +100,10 @@ function setWindowName()
   //  Get the cert from the cert database
   var certdb = Components.classes[nsX509CertDB].getService(nsIX509CertDB);
   var myName = self.name;
-  bundle = document.getElementById("pippki_bundle");
+  bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var cert;
 
-  var certDetails = bundle.getString('certDetails');
+  var certDetails = bundle.GetStringFromName('certDetails');
   if (myName != "") {
     document.title = certDetails + '"' + myName + '"'; // XXX l10n?
     //  Get the token
@@ -93,9 +131,16 @@ function setWindowName()
   AddCertChain("treesetDump", chain, "dump_");
   DisplayGeneralDataFromCert(cert);
   BuildPrettyPrint(cert);
-  cert.requestUsagesArrayAsync(new listener());
+  
+  if (cert instanceof nsIX509Cert3)
+  {
+    cert.requestUsagesArrayAsync(
+            getProxyOnUIThread(new listener(),
+                               Components.interfaces.nsICertVerificationListener));
+  }
 }
 
+ 
 function addChildrenToTree(parentTree,label,value,addTwistie)
 {
   var treeChild1 = document.createElement("treechildren");
@@ -123,8 +168,8 @@ function addTreeItemToTreeChild(treeChild,label,value,addTwistie)
 }
 
 function displaySelected() {
-  var asn1Tree = document.getElementById('prettyDumpTree')
-          .view.QueryInterface(nsIASN1Tree);
+  var asn1Tree = document.getElementById('prettyDumpTree').
+                     treeBoxObject.view.QueryInterface(nsIASN1Tree);
   var items = asn1Tree.selection;
   var certDumpVal = document.getElementById('certDumpVal');
   if (items.currentIndex != -1) {
@@ -140,16 +185,17 @@ function BuildPrettyPrint(cert)
   var certDumpTree = Components.classes[nsASN1Tree].
                           createInstance(nsIASN1Tree);
   certDumpTree.loadASN1Structure(cert.ASN1Structure);
-  document.getElementById('prettyDumpTree').view = certDumpTree;
+  document.getElementById('prettyDumpTree').
+           treeBoxObject.view =  certDumpTree;
 }
 
 function addAttributeFromCert(nodeName, value)
 {
   var node = document.getElementById(nodeName);
   if (!value) {
-    value = bundle.getString('notPresent');
+    value = bundle.GetStringFromName('notPresent');  
   }
-  node.setAttribute('value', value);
+  node.setAttribute('value',value)
 }
 
 
@@ -196,26 +242,24 @@ function DisplayVerificationData(cert, result)
   var count = o2.value;
   var usageList = o3.value;
   if (verifystate == cert.VERIFIED_OK) {
-    verifystr = bundle.getString('certVerified');
+    verifystr = bundle.GetStringFromName('certVerified');
   } else if (verifystate == cert.CERT_REVOKED) {
-    verifystr = bundle.getString('certNotVerified_CertRevoked');
+    verifystr = bundle.GetStringFromName('certNotVerified_CertRevoked');
   } else if (verifystate == cert.CERT_EXPIRED) {
-    verifystr = bundle.getString('certNotVerified_CertExpired');
+    verifystr = bundle.GetStringFromName('certNotVerified_CertExpired');
   } else if (verifystate == cert.CERT_NOT_TRUSTED) {
-    verifystr = bundle.getString('certNotVerified_CertNotTrusted');
+    verifystr = bundle.GetStringFromName('certNotVerified_CertNotTrusted');
   } else if (verifystate == cert.ISSUER_NOT_TRUSTED) {
-    verifystr = bundle.getString('certNotVerified_IssuerNotTrusted');
+    verifystr = bundle.GetStringFromName('certNotVerified_IssuerNotTrusted');
   } else if (verifystate == cert.ISSUER_UNKNOWN) {
-    verifystr = bundle.getString('certNotVerified_IssuerUnknown');
+    verifystr = bundle.GetStringFromName('certNotVerified_IssuerUnknown');
   } else if (verifystate == cert.INVALID_CA) {
-    verifystr = bundle.getString('certNotVerified_CAInvalid');
-  } else if (verifystate == cert.SIGNATURE_ALGORITHM_DISABLED) {
-    verifystr = bundle.getString('certNotVerified_AlgorithmDisabled');
+    verifystr = bundle.GetStringFromName('certNotVerified_CAInvalid');
   } else { /* if (verifystate == cert.NOT_VERIFIED_UNKNOWN || == USAGE_NOT_ALLOWED) */
-    verifystr = bundle.getString('certNotVerified_Unknown');
+    verifystr = bundle.GetStringFromName('certNotVerified_Unknown');
   }
   var verified=document.getElementById('verified');
-  verified.textContent = verifystr;
+  verified.setAttribute("value", verifystr);
   if (count > 0) {
     var verifyInfoBox = document.getElementById('verify_info_box');
     for (var i=0; i<count; i++) {
@@ -234,15 +278,15 @@ function DisplayGeneralDataFromCert(cert)
   addAttributeFromCert('orgunit', cert.organizationalUnit);
   //  Serial Number
   addAttributeFromCert('serialnumber',cert.serialNumber);
-  // SHA-256 Fingerprint
-  addAttributeFromCert('sha256fingerprint', cert.sha256Fingerprint);
   //  SHA1 Fingerprint
   addAttributeFromCert('sha1fingerprint',cert.sha1Fingerprint);
+  //  MD5 Fingerprint
+  addAttributeFromCert('md5fingerprint',cert.md5Fingerprint);
   // Validity start
   addAttributeFromCert('validitystart', cert.validity.notBeforeLocalDay);
   // Validity end
   addAttributeFromCert('validityend', cert.validity.notAfterLocalDay);
-
+  
   //Now to populate the fields that correspond to the issuer.
   var issuerCommonname, issuerOrg, issuerOrgUnit;
   issuerCommonname = cert.issuerCommonName;
@@ -255,8 +299,8 @@ function DisplayGeneralDataFromCert(cert)
 
 function updateCertDump()
 {
-  var asn1Tree = document.getElementById('prettyDumpTree')
-          .view.QueryInterface(nsIASN1Tree);
+  var asn1Tree = document.getElementById('prettyDumpTree').
+                     treeBoxObject.view.QueryInterface(nsIASN1Tree);
 
   var tree = document.getElementById('treesetDump');
   if (tree.currentIndex < 0) {
@@ -272,6 +316,20 @@ function updateCertDump()
   displaySelected();
 }
 
+function getProxyOnUIThread(aObject, aInterface) {
+    var mainThread = Components.
+            classes["@mozilla.org/thread-manager;1"].
+            getService().mainThread;
+
+    var proxyMgr = Components.
+            classes["@mozilla.org/xpcomproxy;1"].
+            getService(Components.interfaces.nsIProxyObjectManager);
+
+    return proxyMgr.getProxyForObject(mainThread,
+            aInterface, aObject, 5);
+    // 5 == NS_PROXY_ALWAYS | NS_PROXY_SYNC
+}
+
 function getCurrentCert()
 {
   var realIndex;
@@ -280,7 +338,7 @@ function getCurrentCert()
       && document.getElementById('prettyprint_tab').selected) {
     /* if the user manually selected a cert on the Details tab,
        then take that one  */
-    realIndex = tree.currentIndex;
+    realIndex = tree.currentIndex;    
   } else {
     /* otherwise, take the one at the bottom of the chain
        (i.e. the one of the end-entity, unless we're displaying

@@ -1,7 +1,39 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Racing Service Manager Test Code.
+ *
+ * The Initial Developer of the Original Code is
+ *   Ben Turner <bent.mozilla@gmail.com>.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "TestHarness.h"
 
@@ -14,11 +46,9 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
-#include "pratom.h"
 #include "prmon.h"
-#include "mozilla/Attributes.h"
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 using namespace mozilla;
 
 #ifdef DEBUG
@@ -56,96 +86,92 @@ NS_DEFINE_CID(kFactoryCID2, FACTORY_CID2);
 #define FACTORY_CONTRACTID                           \
   "TestRacingThreadManager/factory;1"
 
-int32_t gComponent1Count = 0;
-int32_t gComponent2Count = 0;
+PRInt32 gComponent1Count = 0;
+PRInt32 gComponent2Count = 0;
 
-ReentrantMonitor* gReentrantMonitor = nullptr;
+Monitor* gMonitor = nsnull;
 
-bool gCreateInstanceCalled = false;
-bool gMainThreadWaiting = false;
+PRBool gCreateInstanceCalled = PR_FALSE;
+PRBool gMainThreadWaiting = PR_FALSE;
 
-class AutoCreateAndDestroyReentrantMonitor
+class AutoCreateAndDestroyMonitor
 {
 public:
-  explicit AutoCreateAndDestroyReentrantMonitor(ReentrantMonitor** aReentrantMonitorPtr)
-  : mReentrantMonitorPtr(aReentrantMonitorPtr) {
-    *aReentrantMonitorPtr =
-      new ReentrantMonitor("TestRacingServiceManager::AutoMon");
-    TEST_ASSERTION(*aReentrantMonitorPtr, "Out of memory!");
+  AutoCreateAndDestroyMonitor(Monitor** aMonitorPtr)
+  : mMonitorPtr(aMonitorPtr) {
+    *aMonitorPtr =
+      new Monitor("TestRacingServiceManager::AutoMon");
+    TEST_ASSERTION(*aMonitorPtr, "Out of memory!");
   }
 
-  ~AutoCreateAndDestroyReentrantMonitor() {
-    if (*mReentrantMonitorPtr) {
-      delete *mReentrantMonitorPtr;
-      *mReentrantMonitorPtr = nullptr;
+  ~AutoCreateAndDestroyMonitor() {
+    if (*mMonitorPtr) {
+      delete *mMonitorPtr;
+      *mMonitorPtr = nsnull;
     }
   }
 
 private:
-  ReentrantMonitor** mReentrantMonitorPtr;
+  Monitor** mMonitorPtr;
 };
 
-class Factory MOZ_FINAL : public nsIFactory
+class Factory : public nsIFactory
 {
-  ~Factory() {}
-
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
-  Factory() : mFirstComponentCreated(false) { }
+  Factory() : mFirstComponentCreated(PR_FALSE) { }
 
   NS_IMETHOD CreateInstance(nsISupports* aDelegate,
                             const nsIID& aIID,
-                            void** aResult) MOZ_OVERRIDE;
+                            void** aResult);
 
-  NS_IMETHOD LockFactory(bool aLock) MOZ_OVERRIDE {
+  NS_IMETHOD LockFactory(PRBool aLock) {
     return NS_OK;
   }
 
-  bool mFirstComponentCreated;
+  PRBool mFirstComponentCreated;
 };
 
-NS_IMPL_ISUPPORTS(Factory, nsIFactory)
+NS_IMPL_THREADSAFE_ISUPPORTS1(Factory, nsIFactory)
 
-class Component1 MOZ_FINAL : public nsISupports
+class Component1 : public nsISupports
 {
-  ~Component1() {}
-
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   Component1() {
     // This is the real test - make sure that only one instance is ever created.
-    int32_t count = PR_AtomicIncrement(&gComponent1Count);
+    PRInt32 count = PR_AtomicIncrement(&gComponent1Count);
     TEST_ASSERTION(count == 1, "Too many components created!");
   }
 };
 
-NS_IMPL_ADDREF(Component1)
-NS_IMPL_RELEASE(Component1)
+NS_IMPL_THREADSAFE_ADDREF(Component1)
+NS_IMPL_THREADSAFE_RELEASE(Component1)
 
 NS_INTERFACE_MAP_BEGIN(Component1)
+  NS_INTERFACE_MAP_ENTRY(Component1)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-class Component2 MOZ_FINAL : public nsISupports
+class Component2 : public nsISupports
 {
-  ~Component2() {}
-
 public:
-  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_ISUPPORTS
 
   Component2() {
     // This is the real test - make sure that only one instance is ever created.
-    int32_t count = PR_AtomicIncrement(&gComponent2Count);
+    PRInt32 count = PR_AtomicIncrement(&gComponent2Count);
     TEST_ASSERTION(count == 1, "Too many components created!");
   }
 };
 
-NS_IMPL_ADDREF(Component2)
-NS_IMPL_RELEASE(Component2)
+NS_IMPL_THREADSAFE_ADDREF(Component2)
+NS_IMPL_THREADSAFE_RELEASE(Component2)
 
 NS_INTERFACE_MAP_BEGIN(Component2)
+  NS_INTERFACE_MAP_ENTRY(Component2)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -159,9 +185,9 @@ Factory::CreateInstance(nsISupports* aDelegate,
   TEST_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
-    gCreateInstanceCalled = true;
+    gCreateInstanceCalled = PR_TRUE;
     mon.Notify();
 
     mon.Wait(PR_MillisecondsToInterval(3000));
@@ -191,16 +217,16 @@ class Runnable : public nsRunnable
 public:
   NS_DECL_NSIRUNNABLE
 
-  Runnable() : mFirstRunnableDone(false) { }
+  Runnable() : mFirstRunnableDone(PR_FALSE) { }
 
-  bool mFirstRunnableDone;
+  PRBool mFirstRunnableDone;
 };
 
 NS_IMETHODIMP
 Runnable::Run()
 {
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
     while (!gMainThreadWaiting) {
       mon.Wait();
@@ -230,19 +256,19 @@ CreateFactory(const mozilla::Module& module, const mozilla::Module::CIDEntry& en
         gFactory = new Factory();
         NS_ADDREF(gFactory);
     }
-    nsCOMPtr<nsIFactory> ret = gFactory;
-    return ret.forget();
+    NS_ADDREF(gFactory);
+    return gFactory;
 }
 
 static const mozilla::Module::CIDEntry kLocalCIDs[] = {
-    { &kFactoryCID1, false, CreateFactory, nullptr },
-    { &kFactoryCID2, false, CreateFactory, nullptr },
-    { nullptr }
+    { &kFactoryCID1, false, CreateFactory, NULL },
+    { &kFactoryCID2, false, CreateFactory, NULL },
+    { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kLocalContracts[] = {
     { FACTORY_CONTRACTID, &kFactoryCID2 },
-    { nullptr }
+    { NULL }
 };
 
 static const mozilla::Module kLocalModule = {
@@ -259,7 +285,7 @@ int main(int argc, char** argv)
   ScopedXPCOM xpcom("RacingServiceManager");
   NS_ENSURE_FALSE(xpcom.failed(), 1);
 
-  AutoCreateAndDestroyReentrantMonitor mon(&gReentrantMonitor);
+  AutoCreateAndDestroyMonitor mon(&gMonitor);
 
   nsRefPtr<Runnable> runnable = new Runnable();
   NS_ENSURE_TRUE(runnable, 1);
@@ -270,9 +296,9 @@ int main(int argc, char** argv)
   NS_ENSURE_SUCCESS(rv, 1);
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
-    gMainThreadWaiting = true;
+    gMainThreadWaiting = PR_TRUE;
     mon.Notify();
 
     while (!gCreateInstanceCalled) {
@@ -284,17 +310,17 @@ int main(int argc, char** argv)
   NS_ENSURE_SUCCESS(rv, 1);
 
   // Reset for the contractID test
-  gMainThreadWaiting = gCreateInstanceCalled = false;
-  gFactory->mFirstComponentCreated = runnable->mFirstRunnableDone = true;
-  component = nullptr;
+  gMainThreadWaiting = gCreateInstanceCalled = PR_FALSE;
+  gFactory->mFirstComponentCreated = runnable->mFirstRunnableDone = PR_TRUE;
+  component = nsnull;
 
   rv = newThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
   NS_ENSURE_SUCCESS(rv, 1);
 
   {
-    ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
+    MonitorAutoEnter mon(*gMonitor);
 
-    gMainThreadWaiting = true;
+    gMainThreadWaiting = PR_TRUE;
     mon.Notify();
 
     while (!gCreateInstanceCalled) {

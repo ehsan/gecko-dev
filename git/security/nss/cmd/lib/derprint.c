@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "secutil.h"
 #include "secoid.h"
 
@@ -15,7 +47,7 @@ extern int fflush(FILE *stream);
 static int prettyColumn = 0;
 
 static int
-getInteger256(const unsigned char *data, unsigned int nb)
+getInteger256(unsigned char *data, unsigned int nb)
 {
     int val;
 
@@ -100,7 +132,7 @@ prettyPrintByte(FILE *out, unsigned char item, unsigned int level)
 }
 
 static int
-prettyPrintLeaf(FILE *out, const unsigned char *data,
+prettyPrintLeaf(FILE *out, unsigned char *data,
 		unsigned int len, unsigned int lv)
 {
     unsigned int i;
@@ -115,7 +147,7 @@ prettyPrintLeaf(FILE *out, const unsigned char *data,
 }
 
 static int
-prettyPrintStringStart(FILE *out, const unsigned char *str,
+prettyPrintStringStart(FILE *out, unsigned char *str,
 		       unsigned int len, unsigned int level)
 {
 #define BUF_SIZE 100
@@ -147,7 +179,7 @@ prettyPrintStringStart(FILE *out, const unsigned char *str,
 }
 
 static int
-prettyPrintString(FILE *out, const unsigned char *str,
+prettyPrintString(FILE *out, unsigned char *str,
 		  unsigned int len, unsigned int level, PRBool raw)
 {
     int rv;
@@ -170,7 +202,7 @@ prettyPrintString(FILE *out, const unsigned char *str,
 }
 
 static int
-prettyPrintTime(FILE *out, const unsigned char *str,
+prettyPrintTime(FILE *out, unsigned char *str,
 		unsigned int len, unsigned int level, PRBool raw, PRBool utc)
 {
     SECItem time_item;
@@ -180,7 +212,7 @@ prettyPrintTime(FILE *out, const unsigned char *str,
     if (rv < 0)
 	return rv;
 
-    time_item.data = (unsigned char *)str;
+    time_item.data = str;
     time_item.len = len;
 
     rv = fprintf(out, " (");
@@ -214,7 +246,7 @@ prettyPrintTime(FILE *out, const unsigned char *str,
 }
 
 static int
-prettyPrintObjectID(FILE *out, const unsigned char *data,
+prettyPrintObjectID(FILE *out, unsigned char *data,
 		    unsigned int len, unsigned int level, PRBool raw)
 {
     SECOidData *oiddata;
@@ -260,7 +292,7 @@ prettyPrintObjectID(FILE *out, const unsigned char *data,
     /*
      * Now try to look it up and print a symbolic version.
      */
-    oiditem.data = (unsigned char *)data;
+    oiditem.data = data;
     oiditem.len = len;
     oiddata = SECOID_FindOID(&oiditem);
     if (oiddata != NULL) {
@@ -338,7 +370,7 @@ static char *prettyTagType [32] = {
 };
 
 static int
-prettyPrintTag(FILE *out, const unsigned char *src, const unsigned char *end,
+prettyPrintTag(FILE *out, unsigned char *src, unsigned char *end,
 	       unsigned char *codep, unsigned int level, PRBool raw)
 {
     int rv;
@@ -402,7 +434,7 @@ prettyPrintTag(FILE *out, const unsigned char *src, const unsigned char *end,
 }
 
 static int
-prettyPrintLength(FILE *out, const unsigned char *data, const unsigned char *end,
+prettyPrintLength(FILE *out, unsigned char *data, unsigned char *end,
 		  int *lenp, PRBool *indefinitep, unsigned int lv, PRBool raw)
 {
     unsigned char lbyte;
@@ -480,12 +512,12 @@ prettyPrintLength(FILE *out, const unsigned char *data, const unsigned char *end
 }
 
 static int
-prettyPrintItem(FILE *out, const unsigned char *data, const unsigned char *end,
+prettyPrintItem(FILE *out, unsigned char *data, unsigned char *end,
 		unsigned int lv, PRBool raw)
 {
     int slen;
     int lenLen;
-    const unsigned char *orig = data;
+    unsigned char *orig = data;
     int rv;
 
     while (data < end) {
@@ -577,7 +609,7 @@ prettyPrintItem(FILE *out, const unsigned char *data, const unsigned char *end,
 }
 
 SECStatus
-DER_PrettyPrint(FILE *out, const SECItem *it, PRBool raw)
+DER_PrettyPrint(FILE *out, SECItem *it, PRBool raw)
 {
     int rv;
 

@@ -1,8 +1,9 @@
-load(libdir + "evalInFrame.js");
+// |jit-test| mjitalways;debug
+setDebug(true);
 
 this.__defineGetter__("someProperty", function () { evalInFrame(1, "var x = 'success'"); });
 function caller(obj) {
-  var x = 'ignominy';
+  assertJit();
   obj.someProperty;
   return x;
 }
