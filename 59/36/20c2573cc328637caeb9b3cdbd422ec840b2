@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/label/001-isvalid.html
+copyrev: f709dad987db7d33ebb2c823a56e92e8955c8506
+
+<!doctype html><meta charset=utf-8><title>&lt;label for=a>&lt;input id=a></title><p>There should be no error. <label for=a><input id=a></label>

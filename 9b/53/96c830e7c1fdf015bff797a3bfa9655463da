@@ -1,0 +1,14 @@
+
+copy: content/base/test/file_general_document.html
+copyrev: b46f34cc978eb38d372d69a0038517aeb36e3e0d
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8">
+<title>General document for testing</title>
+</head>
+<body>
+<p>Hello mochitest!</p>
+</body>
+</html>

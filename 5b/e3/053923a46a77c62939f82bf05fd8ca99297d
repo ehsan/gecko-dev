@@ -1,0 +1,13 @@
+
+copyrev: 6ba83ba04adaa0d2f6b16e95498c39712b8de8d9
+copy: modules/plugin/tools/sdk/samples/scriptable/windows/readme.txt
+
+Before building the project the following must be done.
+
+1. ..\..\..\bin\xpidl -m header -I..\..\..\idl nsIScriptablePlugin.idl
+This will generate nsIScriptablePlugin.h which is needed to successfuly
+compile the plugin
+
+2. ..\..\..\bin\xpidl -m typelib -I..\..\..\idl nsIScriptablePlugin.idl
+This will create nsIScriptablePlugin.xpt file which should go to the
+Mozilla Components folder.

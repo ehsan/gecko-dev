@@ -1,0 +1,9 @@
+
+copyrev: bc0300197a93869b4b20088a7816659ada63fceb
+copy: layout/reftests/svg/image/zoom/img-zoomOut-1.html
+
+<html reftest-zoom="0.5">
+<body>
+  <img src="squaredCircle.svg">
+</body>
+</html>

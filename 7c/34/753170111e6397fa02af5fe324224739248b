@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/forbiddenword.good
+copyrev: 3d3b954ec6be28d66c1c1f428c514a8e0b334db7
+
+foo
+bar
+

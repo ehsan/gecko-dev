@@ -1,0 +1,15 @@
+
+copy: testing/mozbase/manifestdestiny/tests/filter-example.ini
+copyrev: 02b94e158e3efed53c24460fcac5291f470a0129
+
+# illustrate test filters based on various categories
+
+[windowstest]
+run-if = os == 'win'
+
+[fleem]
+skip-if = os == 'mac'
+
+[linuxtest]
+skip-if = (os == 'mac') || (os == 'win')
+fail-if = toolkit == 'cocoa'

@@ -1,0 +1,11 @@
+
+copy: js/src/xpconnect/tests/mochitest/bug571849_helper.html
+copyrev: c9164b409e00e2373913ef0ae2cc51ab83258061
+
+<html>
+    <head>
+    </head>
+    <body>
+        TEXT NODE TEXT NODE
+    </body>
+</html>

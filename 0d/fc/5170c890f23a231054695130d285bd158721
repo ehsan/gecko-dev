@@ -1,0 +1,7 @@
+
+copy: browser/components/sessionstore/test/browser/browser_459906_empty.html
+copyrev: f5edbd6f0035464d8c9a2faf0da63e637612464a
+
+<title>Cross Domain File for bug 459906</title>
+
+cheers from localhost

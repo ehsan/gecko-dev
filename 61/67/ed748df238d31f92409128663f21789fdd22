@@ -1,0 +1,12 @@
+
+copy: media/webrtc/trunk/tools/gyp/test/msvs/precompiled/precomp.c
+copyrev: d53c455364f8b34cd63b66b0bcab5bd0b753063a
+
+/* Copyright (c) 2011 Google Inc. All rights reserved.
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file. */
+
+// The precompiled header does not have to be the first one in the file.
+
+#include <windows.h>
+#include <stdio.h>

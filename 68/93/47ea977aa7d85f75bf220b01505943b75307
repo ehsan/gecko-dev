@@ -1,0 +1,28 @@
+
+copy: browser/devtools/styleinspector/test/browser_bug722196_identify_media_queries.html
+copyrev: 976a00228898af00eaa57595f4bed0868e12fb08
+
+<html>
+<head>
+  <title>test</title>
+  <script type="application/javascript;version=1.7">
+
+  </script>
+  <style>
+    div {
+      width: 1000px;
+      height: 100px;
+      background-color: #f00;
+    }
+
+    @media screen and (min-width: 1px) {
+      div {
+        width: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div></div>
+</body>
+</html>

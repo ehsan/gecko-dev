@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps2.good
+copyrev: d028b0fb4e1c589115fbba5c29f83713f7f19ed1
+
+iPod
+IPOD
+ipodos
+IPODOS

@@ -1,0 +1,7 @@
+
+copy: content/media/test/crashtests/1080986.html
+copyrev: 832cc34809b6496c8448b2af4714ff282c3ea5b3
+
+<html>
+<audio autoplay src="1080986.wav"></audio>
+</html>

@@ -1,0 +1,10 @@
+
+copy: modules/libpr0n/test/mochitest/bug468160.sjs
+copyrev: 39626313fe9eb1e75f9759c22de4a02bab5402b8
+
+function handleRequest(request, response)
+{
+  response.setStatusLine("1.1", 302, "Found");
+  response.setHeader("Location", "red.png", false);
+  response.setHeader("Cache-Control", "no-cache", false);
+}

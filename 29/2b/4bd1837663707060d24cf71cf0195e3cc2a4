@@ -1,0 +1,17 @@
+
+copy: toolkit/themes/pinstripe/global/passwordmgr.css
+copyrev: 0014a78cf40c73e69fdd0cbb4920dfaf06905cf6
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+.contentPane {
+  margin: 9px 8px 5px 8px;
+}
+
+.actionButtons {
+  margin: 0px 3px 6px 3px !important;
+}

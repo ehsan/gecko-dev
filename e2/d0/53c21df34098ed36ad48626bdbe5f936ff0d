@@ -1,0 +1,6 @@
+
+copy: gfx/thebes/crashtests/balinese-letter-spacing.html
+copyrev: d16b363898d873654ed3cb83bacff17d992f5d72
+
+<!DOCTYPE html>
+<html><body style="letter-spacing: 300px"><div>&#x6978;</div></body></html>

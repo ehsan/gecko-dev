@@ -1,0 +1,11 @@
+
+copyrev: f4ef60af2aca035244d20c2984f1046f7a031b08
+copy: js/src/trace-test/tests/basic/testElemInc2.js
+
+var obj = {s: ""};
+var name = "s";
+for (var i = 0; i <= RECORDLOOP + 5; i++)
+    if (i > RECORDLOOP)
+        obj[name]++;  // first recording changes obj.s from string to number
+assertEq(obj.s, 5);
+

@@ -1,0 +1,7 @@
+
+copyrev: 27673de271662ef903f0fa936719e02ebcffac85
+copy: browser/locales/en-US/chrome/branding/brand.properties
+
+brandShortName=Minefield
+brandFullName=Minefield
+vendorShortName=Mozilla

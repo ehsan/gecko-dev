@@ -1,0 +1,26 @@
+
+copyrev: d898ac627f44d1c26cee92e9976223173f8b3fa5
+copy: js/tests/importList.html
+
+<html>
+  <head>
+    <script language="JavaScript" src="importList.js"></script>
+  </head>
+
+  <body>
+    
+    <form name="foo">
+      <textarea rows="25" cols="50" name="testList"></textarea><br>
+      <script language="javascript">
+if (include)
+{
+  document.write('<input type="checkbox" name="clear_all" checked>');
+  document.write('&nbsp;Clear all selections before import.<br>');
+}
+      </script>
+      <input type="button" value="Import" onclick="doImport();">
+      <input type="button" value="Cancel" onclick="window.close();">
+    </form>
+
+  </body>
+</html>

@@ -1,0 +1,22 @@
+
+copy: dom/imported-tests/webapps/WebStorage/tests/submissions/Infraware/iframe/session_change_item_iframe.html
+copyrev: 9ace4e08d66a52d312fbb4eaf63e87170267827b
+
+<!DOCTYPE HTML>
+<html>
+ <body>
+	<script>
+		if (('sessionStorage' in window) && window.sessionStorage !== null){
+			try {
+				sessionStorage.setItem("name", "user1");
+				sessionStorage.setItem("name", "user2");
+			} catch (e) {
+				parent.fail("setItem method is failed.");
+			}
+			sessionStorage.clear();
+		} else {
+			parent.fail("sessionStorage is not supported.");
+		}	
+	</script>
+ </body>
+</html>

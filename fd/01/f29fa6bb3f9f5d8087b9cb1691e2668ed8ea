@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-valid/input/input-type-barred.html
+copyrev: bcdb351f65716a95015830f3825d62f8156e1827
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if an input has is candidate for constraint validation then change
+             its type to be barred from constraint validation, it should not be
+             affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('i').type='button'; document.documentElement.className='';">
+    <input class='notvalid' id='i'>
+  </body>
+</html>

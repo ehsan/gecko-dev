@@ -1,0 +1,16 @@
+
+copy: js/src/xpconnect/crashtests/471366-1.html
+copyrev: 3a21485cd2c17e6780a57a212bc033c880bfc187
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+document.getAnonymousNodes({__proto__: XPCNativeWrapper.prototype});
+
+</script>
+</head>
+<body>
+</body>
+</html>

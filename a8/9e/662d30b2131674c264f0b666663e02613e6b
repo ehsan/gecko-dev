@@ -1,0 +1,13 @@
+
+copy: dom/sms/src/ipc/ipdl.mk
+copyrev: d31fe3dfc21afc9c07504fec0fe70cbe83fb1835
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+IPDLSRCS = \
+  SmsTypes.ipdlh \
+  PSms.ipdl \
+  PSmsRequest.ipdl \
+  $(NULL)

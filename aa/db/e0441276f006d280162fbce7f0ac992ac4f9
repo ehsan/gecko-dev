@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/input/search/input-search-ref.html
+copyrev: d3c62f0d60b9667923027b93044319a21f0e3f69
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type="text">
+  </body>
+</html>

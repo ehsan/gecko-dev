@@ -1,0 +1,15 @@
+
+copy: layout/reftests/editor/spellcheck-textarea-property-dynamic-inherit.html
+copyrev: a5d1bbf2a4335da7a5793ada831ebbffa31d7de7
+
+<!DOCTYPE html>
+<html>
+<body onload="init()">
+    <textarea>blahblahblah</textarea>
+    <script>
+      function init() {
+        document.body.spellcheck = false;
+      }
+    </script>
+</body>
+</html>

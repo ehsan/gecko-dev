@@ -1,0 +1,8 @@
+
+copy: gfx/thebes/src/gfxFontTest.cpp
+copyrev: 13b6c24eed247941307b3305cece7a87ef73419d
+
+
+#include "gfxFontTest.h"
+
+gfxFontTestStore* gfxFontTestStore::sCurrentStore = nsnull;

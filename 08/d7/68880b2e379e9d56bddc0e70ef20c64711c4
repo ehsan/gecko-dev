@@ -1,0 +1,4 @@
+
+copy: content/base/test/csp/file_dual_headers_warning.html
+copyrev: b80de5d138758541c5f05265ad144ab9fa86d1db
+

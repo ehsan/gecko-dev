@@ -1,0 +1,5 @@
+
+copy: content/base/test/xcsp/file_CSP_evalscript_no_CSP_at_all.html^headers^
+copyrev: ed241538ff12eb261d90ab24376ef6c381a78085
+
+Cache-Control: no-cache

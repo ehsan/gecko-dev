@@ -1,0 +1,11 @@
+
+copyrev: 2d293acf006e9d40f09e25ea10341a12f3b2915d
+copy: js/src/trace-test/tests/basic/testBranchCse.js
+
+function testBranchCse() {
+    empty = [];
+    out = [];
+    for (var j=0;j<10;++j) { empty[42]; out.push((1 * (1)) | ""); }
+    return out.join(",");
+}
+assertEq(testBranchCse(), "1,1,1,1,1,1,1,1,1,1");

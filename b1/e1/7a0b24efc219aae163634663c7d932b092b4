@@ -1,0 +1,13 @@
+
+copy: testing/mozmill/simplejson-2.1.1/simplejson/tests/test_default.py
+copyrev: 6e209667c74ae737fc516fd451c1bb04b8337a24
+
+from unittest import TestCase
+
+import simplejson as json
+
+class TestDefault(TestCase):
+    def test_default(self):
+        self.assertEquals(
+            json.dumps(type, default=repr),
+            json.dumps(repr(type)))

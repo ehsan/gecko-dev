@@ -1,0 +1,14 @@
+
+copyrev: 79bfa1e24c6706cfdb5e52aa366d44394f00a411
+copy: js/src/trace-test/tests/basic/name-inactive-eval-del.js
+
+function mp(g) {
+  ans = ''
+  for (var i = 0; i < 5; ++i) {
+    ans += g();
+  }
+  return ans;
+}
+
+var f = eval("(function() { var k = 5; function g() { return k; } k = 6; mp(g); delete k; return mp(g); })");
+assertEq(f(), "66666");

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/colons_in_words.aff
+copyrev: 0cce787ec60df985f47617f5f74b42d0021d3ef6
+
+# Colons in Finnish and Swedish words. Problem reported by Lars Aronsson.
+# Parsing test (src/parsers)
+WORDCHARS :

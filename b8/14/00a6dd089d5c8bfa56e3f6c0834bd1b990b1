@@ -1,0 +1,10 @@
+
+copy: testing/mochitest/tests/SpecialPowersLoadChromeScript.js
+copyrev: 0d1845d0fef3604984ae097699dc8dae6beb9508
+
+// Just receive 'foo' message and forward it back
+// as 'bar' message
+addMessageListener("foo", function (message) {
+  sendAsyncMessage("bar", message);
+});
+

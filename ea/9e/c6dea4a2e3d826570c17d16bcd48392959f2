@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_keepcase.wrong
+copyrev: 322b2bb6c7eb7302d2f275c5ecdeb3a7da695670
+
+TV-word
+Tv-word
+word-TV
+word-Tv
+wordword-TV
+TV-word-TV
+Nato-word
+word-nato

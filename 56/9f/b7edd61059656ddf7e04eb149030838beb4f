@@ -1,0 +1,21 @@
+
+copy: js/src/jit-test/tests/parallelarray/bailout-never-executed.js
+copyrev: 0eb10a46c404dfcfcdd3d0b7c69a06fecc837f54
+
+// |jit-test| slow;
+// ^^ This test is slow when --no-ion is used, specifically,
+//    as part of TBPL.
+
+load(libdir + "parallelarray-helpers.js");
+
+function makeObject(e, i, c) {
+  var v = {element: e, index: i, collection: c};
+
+  if (e == 512) // note: never happens
+    delete v.i;
+
+  return v;
+}
+
+if (getBuildConfiguration().parallelJS)
+  assertArraySeqParResultsEq(range(0, 512), "map", makeObject);

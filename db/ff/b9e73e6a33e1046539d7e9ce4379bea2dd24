@@ -1,0 +1,5 @@
+
+copy: mobile/android/sync/README.txt
+copyrev: 311b904116d4efdc65f338a3e9c0596be2fc6541
+
+These files are managed in the android-sync repo. Do not modify directly, or your changes will be lost.

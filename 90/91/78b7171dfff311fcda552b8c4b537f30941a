@@ -1,0 +1,5 @@
+
+copyrev: 05ce5778b2a1c996f2702ff7656c05af1f6f7dbf
+copy: js/src/trace-test/tests/basic/bug587346-regexp-01.js
+
+var re = /(?:){1,60}/

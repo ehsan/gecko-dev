@@ -1,0 +1,10 @@
+
+copyrev: 05e2839e90c3df6c5998f1037dd8567a5244695e
+copy: js/src/trace-test/tests/jaeger/bug565198.js
+
+const X = 12;
+
+eval("switch (X) { case X: print(); }");
+
+/* Don't assert. */
+

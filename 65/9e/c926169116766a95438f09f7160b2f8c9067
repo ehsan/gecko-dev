@@ -1,0 +1,11 @@
+
+copy: mobile/chrome/locale/en-US/searchplugins/list.txt
+copyrev: ef3e719916ebf58d2bed3436f8ce395da12a43ee
+
+amazondotcom
+answers
+creativecommons
+eBay
+google
+wikipedia
+yahoo

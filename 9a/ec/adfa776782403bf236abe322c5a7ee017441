@@ -1,0 +1,10 @@
+
+copyrev: c575b61fa02496dcb92dfb7edf8a19d447a452dd
+copy: js/src/trace-test/tests/jaeger/fused-eq-ifeq.js
+
+function ack(m,n){
+   if (m==0) { return n+1; }
+   if (n==0) { return ack(m-1,1); }
+   return ack(m-1, ack(m,n-1) );
+}
+assertEq(ack(3, 3), 61);

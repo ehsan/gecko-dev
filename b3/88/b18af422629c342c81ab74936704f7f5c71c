@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/table/model-input-child-hidden-novalid.html
+copyrev: e39504a53bc1cf6d7128ac0460779e93e8943eeb
+
+<!doctype html>
+<meta charset=utf-8>
+<title>The "in table" insertion mode - A start tag whose tag name is "input" (type=hidden)</title>
+<table><input type="hidden"></table> <!-- not a streaming violation; doesn't get foster-parented -->

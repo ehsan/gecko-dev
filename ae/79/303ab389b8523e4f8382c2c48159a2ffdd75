@@ -1,0 +1,5 @@
+
+copyrev: 0ffa965efc69a9dad96976b3241bbc9bf05aa074
+copy: dom/src/json/test/fail19.json
+
+{"Missing colon" null}

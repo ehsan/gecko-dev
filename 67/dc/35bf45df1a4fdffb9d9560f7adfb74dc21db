@@ -1,0 +1,8 @@
+[idl-test.html]
+  type: testharness
+  [DelayNode interface: existence and properties of interface object]
+    expected: FAIL
+
+  [DelayNode interface object length]
+    expected: FAIL
+

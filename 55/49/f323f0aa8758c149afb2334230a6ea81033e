@@ -1,0 +1,12 @@
+
+copy: widget/src/cocoa/crashtests/419737-1.html
+copyrev: 52923064b55242f4aa8d1d9609eaf180379142c0
+
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+<div><span style="-moz-appearance: radio; padding: 15000px;"></span></div>
+</body>
+</html>

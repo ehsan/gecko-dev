@@ -1,0 +1,11 @@
+
+copy: content/canvas/test/webgl/conformance/buffers/00_test_list.txt
+copyrev: c2774a622d84f5a03b0a010b33ae30f62233c652
+
+buffer-bind-test.html
+buffer-data-array-buffer.html
+index-validation-copies-indices.html
+index-validation-crash-with-buffer-sub-data.html
+index-validation-verifies-too-many-indices.html
+index-validation-with-resized-buffer.html
+index-validation.html

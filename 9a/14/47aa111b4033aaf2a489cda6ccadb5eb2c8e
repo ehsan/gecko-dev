@@ -1,0 +1,26 @@
+
+copy: content/events/crashtests/682637-1.html
+copyrev: 740210363ace4ec5429304594be1bf9345d1b961
+
+<!DOCTYPE html>
+<html>
+
+<head>
+<script>
+
+function boom()
+{
+  var frame = document.getElementById("f");
+  var frameWin = frame.contentWindow;
+  frame.parentNode.removeChild(frame);
+  frameWin.onmouseover = function(){};
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+<iframe id="f" src="data:text/html,1"></iframe>
+</body>
+
+</html>

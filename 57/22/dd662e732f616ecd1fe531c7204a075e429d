@@ -1,0 +1,20 @@
+
+copy: dom/imported-tests/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-14.htm
+copyrev: 4ecf925b9e8a496486c579092b7220baf727a061
+
+<!-- quirks mode -->
+<html class="a A">
+ <head>
+  <title>document.getElementsByClassName(): case-insensitive (quirks mode)</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body class="a a">
+  <div id="log"></div>
+  <script>test(function() {
+             assert_array_equals(document.getElementsByClassName("A a"), 
+                                 [document.documentElement, document.body]);
+          })
+  </script>
+ </body>
+</html>

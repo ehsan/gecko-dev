@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/opentaal_forbiddenword2.wrong
+copyrev: 1c49b1da5615221f18b8137014426c505855e375
+
+foowordbar
+foowordbars
+foowordba
+foowordbas
+barwodfoo

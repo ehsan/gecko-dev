@@ -1,0 +1,13 @@
+
+copyrev: ea8e7cf96b3fdcd4f8fb42d3a37d59fcd64ba0bd
+copy: js/src/trace-test/tests/basic/testDoubleToStr.js
+
+function testDoubleToStr() {
+    var x = 0.0;
+    var y = 5.5;
+    for (var i = 0; i < 200; i++) {
+       x += parseFloat(y.toString());
+    }
+    return x;
+}
+assertEq(testDoubleToStr(), 5.5*200);

@@ -1,0 +1,14 @@
+
+copy: modules/libpr0n/test/crashtests/681190.html
+copyrev: f12d99b33c87a112b87322f2a33020331d9398e9
+
+<!DOCTYPE html>
+<html>
+<body>
+<canvas id="crashtest" width="50000" height="50000" />
+<script>
+  document.getElementById("crashtest").mozGetAsFile("foo.png", "image/png");
+  document.getElementById("crashtest").mozGetAsFile("foo.jpeg", "image/jpeg");
+</script>
+</body>
+</html>

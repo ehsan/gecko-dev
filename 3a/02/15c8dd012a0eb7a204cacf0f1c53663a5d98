@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps.good
+copyrev: eec7c4125a6b60ae5508619b8bdb00677c51def7
+
+OpenOffice.org
+OPENOFFICE.ORG
+UNICEF's
+UNICEF'S

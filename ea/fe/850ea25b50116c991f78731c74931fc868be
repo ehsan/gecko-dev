@@ -1,0 +1,10 @@
+
+copy: netwerk/test/unit_ipc/disabled_test_bug528292_wrap.js
+copyrev: 729a999500fb18d61e4c4310acb3a63e5bf32a5e
+
+Cu.import("resource://gre/modules/Services.jsm");
+
+function run_test() {
+  Services.prefs.setIntPref("network.cookie.cookieBehavior", 1);
+  run_test_in_child("../unit/test_bug528292.js");
+}

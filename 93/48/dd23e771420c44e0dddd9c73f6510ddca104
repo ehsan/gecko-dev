@@ -1,0 +1,7 @@
+
+copy: content/xslt/crashtests/182460-select.xml
+copyrev: c76ae96abf94a72cb6a297d372b23726368092ef
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<?xml-stylesheet type="text/xsl" href="182460-selects.xsl"?>
+<fud/>

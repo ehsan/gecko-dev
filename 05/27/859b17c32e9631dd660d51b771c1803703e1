@@ -1,0 +1,21 @@
+
+copy: layout/reftests/forms/textarea-setvalue-framereconstruction-ref.html
+copyrev: 71bc17bc7b9d40e511273b616998858dd1b7bdb1
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+</head>
+
+<body>
+
+<div id="div">
+  <textarea rows="3" cols="5" id="textarea">x y</textarea>
+</div>
+
+<select style="-moz-appearance:none">
+  <option id="opt1"></option>
+</select>
+
+</body>
+</html>
+

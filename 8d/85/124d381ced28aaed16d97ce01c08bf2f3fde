@@ -1,0 +1,5 @@
+
+copy: mobile/android/locales/en-US/chrome/preferences.dtd
+copyrev: 46f8b34e8e539560f12d1708f37d43f221aca3a5
+
+<!ENTITY homepage.default                          "&brandShortName; Start">

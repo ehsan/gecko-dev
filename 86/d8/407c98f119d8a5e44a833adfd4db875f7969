@@ -1,0 +1,8 @@
+
+copy: js/src/devtools/automation/nomethodjit
+copyrev: 69bf212a8ce5da857d4d765ac217b51bc601f3bf
+
+--enable-threadsafe
+--enable-optimize
+--enable-debug
+--disable-methodjit

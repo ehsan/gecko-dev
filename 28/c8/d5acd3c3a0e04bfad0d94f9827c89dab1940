@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/meta/websockets/interfaces/WebSocket/events/011.html.ini
+copyrev: 0696284293711ed06b7d1ed2b775652c09867146
+
+[idbindex_openKeyCursor3.htm]
+  type: testharness
+  expected:
+    if debug and (os == "win") and (version == "5.1.2600") and (processor == "x86") and (bits == 32): CRASH
+    if debug and (os == "win") and (version == "6.1.7601") and (processor == "x86") and (bits == 32): CRASH

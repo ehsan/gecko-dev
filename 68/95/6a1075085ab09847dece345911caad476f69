@@ -1,0 +1,8 @@
+
+copy: python/mozbuild/mozbuild/test/frontend/data/test-manifest-install-subdir/moz.build
+copyrev: 2aac104aecd0a07c7f7b020239a6c1a1545ccd08
+
+# Any copyright is dedicated to the Public Domain.
+# http://creativecommons.org/publicdomain/zero/1.0/
+
+MOCHITEST_MANIFESTS += ['empty.ini']

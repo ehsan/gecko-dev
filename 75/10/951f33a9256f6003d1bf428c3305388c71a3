@@ -1,0 +1,10 @@
+
+copyrev: 74abb45e127803f7ee1878b55ffceee0842edea1
+copy: js/src/trace-test/tests/basic/testBug554043.js
+
+(function () {
+    for (var a = 0; a < 5; a++) {
+        print(-false)
+        assertEq(-false, -0.0);
+    }
+})()

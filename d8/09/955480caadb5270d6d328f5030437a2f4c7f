@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-calc/offsets-relative-left-1-ref.html
+copyrev: c4273559b8cbe3e508e7bb02c822ecff14825670
+
+<!DOCTYPE HTML>
+<title>Test for left:calc() on relatively positioned elements</title>
+<style>
+body { margin: 0 100px; width: 100px }
+div[style] { background: blue; position: relative; height: 3px; }
+</style>
+
+<div style="left: 50px"></div>
+<div style="left: -50px"></div>
+<div style="left: 75px"></div>
+<div style="left: -45px"></div>
+<div style="left: 40px"></div>
+<div style="left: -30px"></div>

@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/audio/074-novalid.html
+copyrev: c850c074fe71646c5858e3e01c625a3f043543c7
+
+<!doctype html>
+<meta charset=utf-8>
+<title>audio with flow content and phrasing parent</title>
+<span><audio><p>foo</p></audio></span>

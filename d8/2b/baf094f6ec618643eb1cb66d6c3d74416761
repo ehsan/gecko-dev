@@ -1,0 +1,15 @@
+
+copy: gfx/thebes/crashtests/369947-1.html
+copyrev: db95cea4a194d6d80df0abe83ad7ea25bb36b401
+
+﻿<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+</head>
+
+<body>
+
+<pre>bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar &rho; foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo foo </pre>
+
+</body>
+</html>

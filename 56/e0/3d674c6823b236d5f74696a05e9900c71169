@@ -1,0 +1,17 @@
+
+copyrev: fe06e11465b91c7ab35b41bc46ee9bbc75080eb9
+copy: js/src/trace-test/tests/arguments/nonstrict-assign-parameter-get-element.js
+
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/licenses/publicdomain/
+ */
+
+function assignParameterGetElement(a)
+{
+  a = 17;
+  return arguments[0];
+}
+
+for (var i = 0; i < 5; i++)
+  assertEq(assignParameterGetElement(42), 17);

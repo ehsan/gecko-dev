@@ -1,0 +1,6 @@
+
+copy: mobile/locales/en-US/chrome/checkbox.dtd
+copyrev: 56198ba8f5636fc4043ec6c1aad968a4e431d900
+
+<!ENTITY checkbox.yes.label    "Yes">
+<!ENTITY checkbox.no.label     "No">

@@ -1,0 +1,6 @@
+
+copy: layout/reftests/forms/checkbox-checked.html
+copyrev: dd37b0dbfd0de2ab8c701adaaa99f35ec437f01c
+
+<!doctype html>
+<input type="checkbox" style="-moz-appearance:none" checked>

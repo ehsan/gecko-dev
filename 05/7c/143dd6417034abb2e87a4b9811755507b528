@@ -1,0 +1,14 @@
+
+copy: browser/components/privatebrowsing/test/browser/browser_privatebrowsing_localStorage_page2.html
+copyrev: 4c5a9ecd7f913e9691a469b567b96027e1735b4a
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script type="text/javascript">
+  localStorage.setItem('test2', 'value2');
+  document.title = localStorage.length;
+</script>
+</head>
+<body>
+</body>
+</html>

@@ -1,0 +1,25 @@
+
+copy: layout/reftests/forms/progress/values.html
+copyrev: e62143f9a1d404a6ccc72ad0217a3be7a24bfdfd
+
+<!DOCTYPE html>
+<html>
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <style>
+    progress {
+      -moz-orient: vertical;
+    }
+  </style>
+  <body>
+    <progress value="1.0"></progress>
+    <progress value="0.0"></progress>
+    <progress value="0.1"></progress>
+    <progress value="0.5"></progress>
+    <progress value="-1"></progress>
+    <progress value="42"></progress>
+    <progress value="42" max="100"></progress>
+    <progress value="42" max="1"></progress>
+    <progress value="42" max="-1"></progress>
+    <progress value="0.1" max="-1"></progress>
+  </body>
+</html>

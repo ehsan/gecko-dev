@@ -1,0 +1,10 @@
+
+copy: content/html/document/test/bug499092.html
+copyrev: 4045371e4e3d52c42eab34110957b25426512733
+
+<!DOCTYPE html>
+<script>
+var title = document.createElementNS("http://www.w3.org/1999/xhtml", "aa:title");
+title.textContent = "HTML OK";
+document.documentElement.firstChild.appendChild(title);
+</script>

@@ -1,0 +1,16 @@
+
+copy: layout/reftests/forms/select-multiple.html
+copyrev: c0ddaca124f12a7d96d02375cec513c1059310a7
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <select multiple>
+      <option>Tulip</option>
+      <option>Lily</option>
+      <option>Gagea</option>
+      <option>Snowflake</option>
+      <option>Ismene</option>
+    </select>
+  </body>
+</html>

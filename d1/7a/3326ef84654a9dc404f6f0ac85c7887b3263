@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/i54980.good
+copyrev: 264daacb9afcdbcfb1714e38673e85b1c69506f8
+
+c½ur
+½uvre
+C¼UR
+¼UVRE

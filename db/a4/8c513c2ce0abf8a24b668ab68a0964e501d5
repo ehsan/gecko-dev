@@ -1,0 +1,13 @@
+
+copy: content/base/test/file_bug604660-6.xsl
+copyrev: 8eb188d193b67cac11eb15aaddb53029d99f8088
+
+<?xml version="1.0"?>
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns="http://www.w3.org/1999/xhtml">
+  <xsl:template match="/">
+    <html>
+      <script>xsltProcessorCreatedScriptRan();</script>
+    </html>
+  </xsl:template>
+</xsl:stylesheet>
+

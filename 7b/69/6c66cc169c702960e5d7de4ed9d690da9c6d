@@ -1,0 +1,19 @@
+
+copy: dom/svg/crashtests/880544-4.svg
+copyrev: 7701b1aff2a353a36fd4e1af416411e98da74c02
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <script>//<![CDATA[
+
+function add_watch()
+{
+  document.getElementById("e").pathSegList.watch("0", function(){});
+}
+
+window.addEventListener("load", add_watch, false);
+
+  //]]></script>
+
+  <path id="e" d="M0,0"/>
+
+</svg>

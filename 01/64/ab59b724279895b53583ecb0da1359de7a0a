@@ -1,0 +1,18 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule5.dic
+copyrev: e2f4137bdcb5aacd1ff073706faedec0656e5b50
+
+13
+0/N	po:num
+1/N	po:num
+2/N	po:num
+3/N	po:num
+4/N	po:num
+5/N	po:num
+6/N	po:num
+7/N	po:num
+8/N	po:num
+9/N	po:num
+./.	po:sign_dot
+%/%	po:sign_percent
+‰/%	po:sign_per_mille

@@ -1,0 +1,11 @@
+
+copy: modules/libpr0n/test/reftest/bmp/reftest.list
+copyrev: 96f141e1ee4889bb97201c20e499b51244272390
+
+# BMP tests
+
+include bmp-1bpp/reftest.list
+include bmp-4bpp/reftest.list
+include bmp-8bpp/reftest.list
+include bmp-24bpp/reftest.list
+include bmp-corrupted/reftest.list

@@ -1,0 +1,22 @@
+
+copy: gfx/thebes/crashtests/393749-1.html
+copyrev: 7c53cc9dde037722dbdf5fd278a7bf567400ee6c
+
+<html>
+<head>
+<script>
+function boom()
+{
+  var het = document.createTextNode(String.fromCharCode(0x05D7)); // hebrew letter het
+  document.getElementById("s").appendChild(het);
+}
+</script>
+</head>
+
+<body onload="boom();" dir="rtl">
+
+<div><span id="s">A</span><span>&nbsp;</span>B</div>
+
+</body>
+
+</html>

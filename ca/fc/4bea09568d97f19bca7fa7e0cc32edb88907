@@ -1,0 +1,17 @@
+
+copy: mobile/locales/maemo-locales
+copyrev: b0d89e8e1a6f4a8c15a1f8fddc867a180cc0c654
+
+cs
+da
+de
+es-ES
+fi
+fr
+ja
+it
+nb-NO
+nl
+pl
+pt-PT
+ru

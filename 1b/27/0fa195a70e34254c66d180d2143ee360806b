@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/old-tests/submission/Opera/microdata/test_001.html.json
+copyrev: 2d9978c2213978f7173ec98a4a5989d3d1cca3aa
+
+{
+  "itemValue must reflect the src attribute on track elements": true
+}

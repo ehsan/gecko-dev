@@ -1,0 +1,7 @@
+
+copyrev: 82159cd75bf8f4c066efa15bda773a61a288abc3
+copy: js/tests/runtests2.pl
+
+
+print ("This is no longer the test driver, please use jsDriver.pl instead.");
+

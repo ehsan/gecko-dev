@@ -1,0 +1,5 @@
+
+copyrev: 7ff96f5e7cf38222bcb75b317074abccfa2d6a06
+copy: toolkit/mozapps/extensions/test/unit/addons/test_bug428341_1/README
+
+This is an add-on with no install.rdf that should fail to install.

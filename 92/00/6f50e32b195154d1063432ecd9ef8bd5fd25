@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern.aff
+copyrev: 9ce872e43223eef08e598d7ff0ca2bb84f44a9f1
+
+# forbid compounds with spec. pattern at word bounds
+COMPOUNDFLAG A
+CHECKCOMPOUNDPATTERN 2
+CHECKCOMPOUNDPATTERN nny ny
+CHECKCOMPOUNDPATTERN ssz sz

@@ -1,0 +1,26 @@
+
+copy: layout/reftests/forms/placeholder/placeholder-9.html
+copyrev: 3949efbc9437eda0cb4203683cf8fcba64f7d1a4
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: when focused, value reset shouldn't show placeholder. -->
+  <script type="text/javascript">
+    function focusPlaceholder()
+    {
+      document.getElementById('p1').focus();
+    }
+    function resetValue()
+    {
+      document.getElementById('p1').value = '';
+    }
+    function disableReftestWait()
+    {
+      document.documentElement.className = '';
+    }
+  </script>
+
+  <body onload="focusPlaceholder();">
+    <input type="text" id="p1" value="my value" placeholder="my placeholder" onfocus="resetValue(); disableReftestWait();">
+  </body>
+</html>

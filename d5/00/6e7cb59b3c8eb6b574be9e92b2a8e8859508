@@ -1,0 +1,20 @@
+
+copy: content/media/test/crashtests/buffer-source-ended-1.html
+copyrev: c1054b159a4e0371940526310b2d98d0cdbf811e
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<script>
+var context = new AudioContext();
+
+var source = context.createBufferSource();
+source.buffer = context.createBuffer(1, 2.0 * context.sampleRate, context.sampleRate);
+source.onended = function(e) {
+  document.documentElement.removeAttribute("class");
+}
+source.start(0.0, 1.0);
+setTimeout(
+    function() {
+        source.buffer = context.createBuffer(1, 1, context.sampleRate);
+    }, 0);
+</script>

@@ -1,0 +1,17 @@
+
+copy: layout/reftests/editor/dynamic-overflow-change.html
+copyrev: a947bd782da446bb46599326af46ebcae2b3145e
+
+<!DOCTYPE html>
+<html>
+  <body onload="document.querySelector('textarea').style.overflow='hidden'">
+    <textarea rows="2">
+      this
+      is
+      a
+      textarea
+      with
+      overflow
+    </textarea>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: browser/devtools/debugger/test/blackboxing_two.js
+copyrev: 83c41441a4d40e877861c27dee29788e0c1df6e4
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function two() { three(); }

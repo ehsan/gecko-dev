@@ -1,0 +1,26 @@
+
+copy: layout/reftests/css-valid/output/style.css
+copyrev: bbf68ee074efdbe5d35273b0d483dbed97ab1f60
+
+/* Override default style */
+output {
+  color: black;
+}
+
+output.notvalid {
+  color: green;
+}
+output.notvalid:-moz-ui-valid {
+  color: red;
+}
+
+output.valid {
+  color: red;
+}
+output.valid:-moz-ui-valid {
+  color: green;
+}
+
+output.ref {
+  color: green;
+}

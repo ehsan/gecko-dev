@@ -1,0 +1,12 @@
+
+copy: toolkit/mozapps/extensions/test/browser/addons/browser_inlinesettings1/bootstrap.js
+copyrev: 9d979d6d213b6b61d139fc96a2ed055d739c13bd
+
+function install (params, aReason) {
+}
+function uninstall (params, aReason) {
+}
+function startup (params, aReason) {
+}
+function shutdown (params, aReason) {
+}

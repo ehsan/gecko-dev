@@ -1,0 +1,15 @@
+
+copyrev: 43002851f1795e0a53bc6c0f632220878ca74ee8
+copy: js/src/trace-test/tests/basic/bug539553-3.js
+
+function g(x) {
+    assertEq(arguments.length, 1);
+    assertEq(x.length, 4);
+}
+
+function f() {
+    for (var i = 0; i < 9; i++)
+        g(arguments);
+}
+
+f(1, 2, 3, 4);

@@ -1,0 +1,245 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Mobile Browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mark Finkle <mfinkle@mozilla.com>
+ *   Doug Turner <dougt@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+/* make clicking on links stand out a bit (bug 532206) */
+html *:not(embed):focus, *:focus > font {
+  outline: 2px solid #8db8d8 !important;
+  /*
+    XXX How do I preserve mac focusring without blowing focus color on other platforms?
+    outline-color: -moz-mac-focusring !important;
+  */
+}
+
+html *|*:link:focus, *|*:visited:focus {
+  outline-offset: -2px;
+}
+
+/* Style the scrollbars */
+scrollbar {
+  -moz-appearance: none !important;
+  display: none !important;
+}
+
+scrollbarbutton {
+  -moz-appearance: none !important;
+  display: none !important;
+}
+
+thumb {
+  min-width: 10px !important;
+  -moz-appearance: none !important;
+  background-color: gray !important;
+  border: 1px solid gray !important;
+  -moz-border-radius: 4px !important;
+}
+
+select:not([size]):not([multiple]) > scrollbar,
+select[size="1"] > scrollbar,
+select:not([size]):not([multiple]) scrollbarbutton,
+select[size="1"] scrollbarbutton {
+  display: block !important;
+}
+
+/* Override inverse OS themes */
+html select,
+html button,
+html textarea,
+html input:not([type="image"]) {
+  -moz-border-radius: 0.25em;
+}
+
+html select[size],
+html select[multiple],
+html select[size][multiple],
+html textarea,
+html input:not([type="image"]) {
+  border-style: solid;
+  border-color: #7d7d7d;
+  color: #414141;
+  background: white -moz-linear-gradient(top, rgba(115,115,115,0.5) 0, rgba(215,215,215,0.5) 3px, rgba(255,255,255,0.2) 16px);
+}
+
+html select:not([size]):not([multiple]),
+html select[size="0"],
+html select[size="1"],
+html input[type="button"],
+html input[type="submit"],
+html input[type="reset"],
+html button {
+  border-style: solid;
+  border-color: #7d7d7d;
+  color: #414141;
+  background: white -moz-linear-gradient(top, rgba(255,255,255,0.2) 0, rgba(215,215,215,0.5) 18px, rgba(115,115,115,0.5) 100%);
+}
+
+html input[type="checkbox"] {
+  background: white -moz-linear-gradient(top, rgba(115,115,115,0.5) 0, rgba(215,215,215,0.5) 2px, rgba(255,255,255,0.2) 6px);
+}
+
+html input[type="radio"] {
+  background: -moz-radial-gradient(6px 6px, cover, rgba(255,255,255,0.2) 3px, rgba(195,195,195,0.5) 5px, rgba(115,115,115,0.5) 100%);
+}
+
+html select {
+  border-width: 1px;
+  padding: 1px;
+}
+
+html select:not([size]):not([multiple]),
+html select[size="0"],
+html select[size="1"] {
+  padding: 0 1px 0 1px;
+}
+
+html input:not([type="image"]) {
+  border-width: 1px;
+  padding: 1px;
+}
+
+html textarea {
+  border-width: 1px;
+  padding: 2px 1px 2px 1px;
+}
+
+html input[type="button"],
+html input[type="submit"],
+html input[type="reset"],
+html button {
+  border-width: 1px;
+  padding: 0 7px 0 7px;
+}
+
+html input[type="radio"],
+html input[type="checkbox"] {
+  max-width: 14px;
+  max-height: 14px;
+  border: 1px solid #a7a7a7 !important;
+  padding: 2px 1px 2px 1px;
+}
+
+html select input[type="button"] {
+  border-width: 0px !important;
+  -moz-border-radius: 0;
+  -moz-background-size: 100% 90%;
+  color: #414141;
+
+  background-color: transparent;
+  background-image: -moz-radial-gradient(bottom left, #bbbbbb 40%, #f5f5f5) !important;
+  background-position: -15px center !important;
+  background-repeat: no-repeat !important;
+  -moz-binding: url("chrome://browser/content/bindings.xml#select-button");
+}
+
+html select input[type="button"] > svg {
+  margin-left: -3px;
+  margin-top: 6px;
+}
+
+html select[size]:focus,
+html select[multiple]:focus,
+html select[size][multiple]:focus,
+html input[type="file"]:focus > input[type="text"],
+html textarea:focus,
+html input:not([type="image"]):focus {
+  outline: 0px !important;
+  border-style: solid;
+  border-color: rgb(94,128,153);
+  background: white -moz-linear-gradient(top, rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 3px, rgba(255,255,255,0.2) 16px);
+}
+
+html select:not([size]):not([multiple]):focus,
+html select[size="0"]:focus,
+html select[size="1"]:focus,
+html input[type="button"]:focus,
+html input[type="submit"]:focus,
+html input[type="reset"]:focus,
+html button:focus {
+  outline: 0px !important;
+  border-style: solid;
+  border-color: rgb(94,128,153);
+  background: white -moz-linear-gradient(top, rgba(255,255,255,0.2) 0, rgba(198,225,256,0.2) 18px, rgba(27,113,177,0.5) 100%);
+}
+
+html input[type="checkbox"]:focus,
+html input[type="radio"]:focus {
+  border-color: #99c6e0 !important;
+}
+
+html input[type="checkbox"]:focus {
+  background: white -moz-linear-gradient(top, rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 2px, rgba(255,255,255,0.2) 6px);
+}
+
+html input[type="radio"]:focus {
+  background: -moz-radial-gradient(6px 6px, cover, rgba(255,255,255,0.2) 3px, rgba(198,225,246,0.2) 5px, rgba(27,113,177,0.5) 100%);
+}
+
+/* we need to be specific for selects because the above rules are specific too */
+html textarea[disabled],
+html select[size][disabled],
+html select[multiple][disabled],
+html select[size][multiple][disabled],
+html select:not([size]):not([multiple])[disabled],
+html select[size="0"][disabled],
+html select[size="1"][disabled],
+html button[disabled],
+html input:not([type="image"])[disabled] {
+  color: rgba(0,0,0,0.3);
+  border-color: rgba(125,125,125,0.4);
+  border-style: solid;
+  border-width: 1px;
+  background: transparent -moz-linear-gradient(top, rgba(185,185,185,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(255,255,255,0.4) 100%);
+}
+
+html input[type="button"][disabled],
+html input[type="submit"][disabled],
+html input[type="reset"][disabled],
+html button[disabled="true"] {
+  padding: 0 7px 0 7px;
+  background: transparent -moz-linear-gradient(top, rgba(255,255,255,0.4) 0, rgba(235,235,235,0.4) 3px, rgba(185,185,185,0.4) 100%);
+}
+
+
+html input[type="checkbox"][disabled],
+html input[type="radio"][disabled] {
+  border:1px solid rgba(125,125,125,0.4) !important;
+}
+
+html select[disabled] input[type="button"] {
+  opacity: 0.6;
+  padding: 1px 7px 1px 7px;
+}

@@ -1,0 +1,21 @@
+classes = {
+    'NodeList': 'nsINodeList',
+    'HTMLCollection': 'nsIHTMLCollection',
+    'HTMLOptionsCollection': 'nsHTMLOptionCollection',
+    }
+prefableClasses = {
+    'DOMTokenList': 'nsDOMTokenList',
+    'DOMSettableTokenList': 'nsDOMSettableTokenList',
+    'ClientRectList': 'nsClientRectList',
+    'PaintRequestList': 'nsPaintRequestList',
+    }
+
+irregularFilenames = {
+    'nsHTMLOptionCollection': 'nsHTMLSelectElement',
+    'nsClientRectList': 'nsClientRect',
+    'nsPaintRequestList': 'nsPaintRequest',
+    }
+
+customInheritance = {
+    'nsIDOMHTMLOptionsCollection': 'nsIDOMHTMLCollection',
+    }

@@ -1,0 +1,7 @@
+
+copy: content/canvas/test/webgl-conformance/skipped_tests_android.txt
+copyrev: 5edd99eb6781b5e64c3348e9227f44cdcf5d25d5
+
+conformance/misc/uninitialized-test.html
+conformance/renderbuffers/framebuffer-object-attachment.html
+conformance/textures/texture-size.html

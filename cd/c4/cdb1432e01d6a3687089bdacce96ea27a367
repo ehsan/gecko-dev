@@ -1,0 +1,5 @@
+
+copyrev: d624c6094f60388c93450af6d2d773e6df8f96a0
+copy: js/tests/ecma_2/instanceof/shell.js
+
+gTestsubsuite = 'instanceof';

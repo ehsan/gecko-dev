@@ -1,0 +1,6 @@
+
+copyrev: 70f080f89af06da8b837d5b685216519da8243e3
+copy: js/src/trace-test/tests/basic/bug601402.js
+
+// |jit-test| error: SyntaxError;
+for (let d in [(0)]) let(b = (let(e) {}), d

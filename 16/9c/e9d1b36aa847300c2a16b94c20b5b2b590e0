@@ -1,0 +1,9 @@
+
+copy: content/svg/content/test/scientific-helper.svg
+copyrev: 0c81f78031a6518991c031dc463f18978014ced6
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="750">
+	<rect id="rect" stroke-width="10"/>
+	<text id="text">x</text>
+</svg>

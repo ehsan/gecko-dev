@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/breakdefault.dic
+copyrev: bcefdb9956bd47ab9e772f45bb345daca0f4afab
+
+3
+foo
+bar
+free
+scott
+scot-free

@@ -1,0 +1,9 @@
+
+copy: security/coreconf/IRIX5.2.mk
+copyrev: 580e199acb9cd28087a9d81e4488ef7a7501c42a
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+include $(CORE_DEPTH)/coreconf/IRIX5.mk

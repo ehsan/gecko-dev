@@ -1,0 +1,29 @@
+
+copy: dom/src/offline/crashtests/408431-1.html
+copyrev: 1f5d77c5ee7611caa393fe3b0b2ec612a83e9ec7
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+try {
+  navigator.pendingOfflineLoads[0];
+} catch (e) {
+}
+
+try {
+  navigator.pendingOfflineLoads[1000];
+} catch (e) {
+}
+
+try {
+  navigator.pendingOfflineLoads[-1];
+} catch (e) {
+}
+
+</script>
+</head>
+<body>
+</body>
+</html>

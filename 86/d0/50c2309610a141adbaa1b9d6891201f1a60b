@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/parallelarray/map-2.js
+copyrev: e4308c054a2545216767de86a73cfc3c698a7af1
+
+function testMap() {
+  // Test overflow
+  var p = [1 << 30];
+  var m = p.mapPar(function(x) { return x * 4; });
+  assertEq(m[0], (1 << 30) * 4);
+}
+
+if (getBuildConfiguration().parallelJS)
+  testMap();
+

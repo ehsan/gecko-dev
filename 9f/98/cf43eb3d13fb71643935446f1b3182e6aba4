@@ -1,0 +1,24 @@
+
+copyrev: 14c86febb81aac237a7362e314ed7e86e39f62fd
+copy: layout/reftests/bugs/25888-3l.html
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>Testcase, bug 25888</title>
+<style type="text/css">
+
+body { width: 400px; border: medium solid; }
+span { display: block; overflow: hidden; width: 100px; height: 50px; background: aqua; }
+
+</style>
+</head>
+<body>
+
+<div style="float: left; width: 250px; height: 75px;"></div>
+<div style="float: right; width: 250px; height: 75px;"></div>
+<span></span>
+<span></span>
+
+</body>
+</html>

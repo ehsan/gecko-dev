@@ -1,0 +1,10 @@
+
+copy: mobile/branding/beta/android-resources.mn
+copyrev: 05e41ce2eff3dd0f1deb4a58fd1b43005660efc9
+
+mobile/xul/app/android/drawable/alertaddons.png
+mobile/xul/app/android/drawable/alertdownloads.png
+mobile/xul/branding/beta/content/splash.png
+mobile/xul/branding/beta/content/splash_v9.9.png
+mobile/xul/branding/beta/content/splash_v8.9.png
+mobile/xul/branding/beta/content/favicon32.png

@@ -1,0 +1,14 @@
+
+copy: content/html/content/reftests/toblob-todataurl/toblob-quality-0.html
+copyrev: 00007ffc0d120e66afd25d2911fafd1eae977234
+
+<!doctype html>
+<html class='reftest-wait'>
+  <body>
+    <script>
+      var quality = 0;
+    </script>
+    <script src='sample.js'></script>
+    <script src='blob.js'></script>
+  </body>
+</html>

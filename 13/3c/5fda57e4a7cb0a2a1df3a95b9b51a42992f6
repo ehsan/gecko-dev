@@ -1,0 +1,8 @@
+
+copy: browser/components/sessionstore/test/browser/browser_463205_helper.html
+copyrev: 2fe0fe17266c0fc69e308ebac6cfdf2af4b82a23
+
+<!DOCTYPE html>
+<title>Test for bug 463205 (cross domain)</title>
+
+<input id="original" value="preserve me">

@@ -1,0 +1,11 @@
+
+copy: content/base/test/chrome/blockNoPlugins.xml
+copyrev: 1bb0ed4e5365589e1f2c495b8fe71d46687ca3ce
+
+<?xml version="1.0"?>
+<blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist" lastupdate="1336406310001">
+  <emItems>
+  </emItems>
+  <pluginItems>
+  </pluginItems>
+</blocklist>

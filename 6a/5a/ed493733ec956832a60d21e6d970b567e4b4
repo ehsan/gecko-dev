@@ -1,0 +1,20 @@
+
+copy: layout/reftests/bugs/557087.html
+copyrev: a9f64a99ecd07c669475f492320e9db03c20cbb3
+
+<!DOCTYPE html>
+<html class='reftest-wait'>
+  <body onload="document.getElementsByTagName('fieldset')[0].disabled = true;
+                document.documentElement.className='';">
+    <fieldset>
+      <input type='file'>
+      <input type='checkbox'>
+      <input type='radio'>
+      <input>
+      <button>foo</button>
+      <textarea></textarea>
+      <select><option>foo</option></select>
+      <fieldset></fieldset>
+    </fieldset>
+  </body>
+</html>

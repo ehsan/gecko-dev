@@ -1,0 +1,14 @@
+
+copyrev: 4ee74c143da10374013e25853ef72af47a99c74c
+copy: js/src/trace-test/tests/basic/inner_double_outer_int.js
+
+function inner_double_outer_int() {
+    function f(i) {
+        for (var m = 0; m < 20; ++m)
+            for (var n = 0; n < 100; n += i)
+                ;
+        return n;
+    }
+    return f(.5);
+}
+assertEq(inner_double_outer_int(), 100);

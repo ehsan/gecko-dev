@@ -1,0 +1,16 @@
+
+copy: extensions/spellcheck/hunspell/tests/fogemorpheme.aff
+copyrev: b3eacaa72db0757a9376b2c646e83e481517e6d5
+
+# fogemorphemes: special morphemes in compounds
+#
+# Swedish example:
+# gata + kontoret = gatukontoret
+
+COMPOUNDFLAG X
+COMPOUNDBEGIN Y
+ONLYINCOMPOUND Z
+COMPOUNDPERMITFLAG P
+
+SFX A Y 1
+SFX A a u/YPZ .

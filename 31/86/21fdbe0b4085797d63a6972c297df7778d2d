@@ -1,0 +1,18 @@
+
+copyrev: ba0b0047f017bb5226a331e103d6bb873a29bb17
+copy: js/src/trace-test/tests/basic/testCallProtoMethod.js
+
+function testCallProtoMethod() {
+    function X() { this.x = 1; }
+    X.prototype.getName = function () { return "X"; }
+
+    function Y() { this.x = 2; }
+    Y.prototype.getName = function() "Y";
+
+    var a = [new X, new X, new X, new X, new Y];
+    var s = '';
+    for (var i = 0; i < a.length; i++)
+        s += a[i].getName();
+    return s;
+}
+assertEq(testCallProtoMethod(), 'XXXXY');

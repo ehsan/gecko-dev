@@ -1,0 +1,16 @@
+
+copyrev: ac7b8efb4d4e708f71c159c208e90173e88d6f03
+copy: js/src/trace-test/tests/jaeger/bug555155.js
+
+// |jit-test| error: undefined
+(function() {
+  throw (function f(a, b) {
+    if (a.h == b) {
+      return eval("((function(){return 1})())!=this")
+    }
+    f(b)
+  })([], 0)
+})()
+
+/* Don't assert/crash. */
+

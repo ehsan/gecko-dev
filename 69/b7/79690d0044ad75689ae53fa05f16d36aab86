@@ -1,0 +1,15 @@
+
+copy: testing/mozbase/manifestdestiny/tests/include-example.ini
+copyrev: 683ec8901ab4ed3eaaa5a65831a28f2eb2829229
+
+[DEFAULT]
+foo = bar
+
+[include:include/bar.ini]
+
+[fleem]
+
+[include:include/foo.ini]
+red = roses
+blue = violets
+yellow = daffodils

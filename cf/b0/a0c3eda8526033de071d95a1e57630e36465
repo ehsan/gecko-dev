@@ -1,0 +1,24 @@
+
+copy: content/html/content/test/bug242709_iframe.html
+copyrev: 3f5c1a2d47837051c3d5455135b75a30913c0279
+
+<html>
+<head>
+<title></title>
+<script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>     
+<script type="text/javascript">
+function submitIframeForm () {
+  document.getElementById('b').submit();
+  document.getElementById('thebutton').disabled = true;
+}
+</script>
+
+</head>
+<body onload="sendMouseEvent({type:'click'}, 'thebutton')">
+
+<form method="get" action="bug242709_load.html" id="b">
+<input type="submit" onclick="submitIframeForm()" id="thebutton">
+</form>
+
+</body>
+</html>

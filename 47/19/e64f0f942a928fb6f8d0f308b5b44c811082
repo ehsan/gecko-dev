@@ -1,0 +1,9 @@
+
+copy: browser/devtools/styleinspector/test/browser_bug705707_is_content_stylesheet_script.css
+copyrev: 28fca8c32d2944cc3486a5c239bdbfb18c2b5c53
+
+@import url("./doc_content_stylesheet_imported.css");
+
+table  {
+  opacity: 1;
+}

@@ -1,0 +1,17 @@
+
+copy: browser/locales/en-US/chrome/browser/aboutStartup.dtd
+copyrev: 731e53b73c5db15fa7129cc03c130e55977e0427
+
+<!ENTITY title "&brandShortName; Startup History">
+<!ENTITY timestamp "Timestamp">
+<!ENTITY elapsed "Elapsed Time">
+<!ENTITY applaunched "Application Launched">
+<!ENTITY launchdur "Launch Duration">
+<!ENTITY appstarted "Application Started">
+<!ENTITY startupdur "Startup Duration">
+<!ENTITY sessrestored "Session Restored">
+<!ENTITY version "Version">
+<!ENTITY chart "Table">
+<!ENTITY graph "Graph">
+<!ENTITY eventdesc "Event Description">
+<!ENTITY noevents "No Events Recorded">

@@ -1,0 +1,10 @@
+
+copy: content/html/content/test/file_imports_redirected.html
+copyrev: f1f6e2b54155c21c7c68e09e6a351ffa220abb6e
+
+<!DOCTYPE html>
+<html>
+<body>
+<script> var redirected = true; </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: content/xslt/crashtests/226425.xml
+copyrev: d704b702d1a93aabc949e0f7897f0440d7aa0f27
+
+<?xml version="1.0" encoding="iso-8859-1"?>
+<?xml-stylesheet type="text/xsl" href="226425.xsl" ?>
+
+<text></text>

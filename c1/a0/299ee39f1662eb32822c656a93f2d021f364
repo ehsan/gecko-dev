@@ -1,0 +1,7 @@
+
+copy: content/base/test/forRemoval.resource^headers^
+copyrev: 924b841bad9c3437e4ab15d3403d80c917a1113f
+
+Content-Type: text/event-stream
+Cache-Control: no-cache, must-revalidate
+

@@ -1,0 +1,8 @@
+
+copy: js/src/jit-test/tests/binary-data/fuzz2.js
+copyrev: 870fe6258d02715c2b2cd097497585b74225fc5a
+
+if (!this.hasOwnProperty("Type"))
+  exit(0);
+
+new StructType([])

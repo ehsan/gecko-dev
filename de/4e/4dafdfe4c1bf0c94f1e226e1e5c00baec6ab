@@ -1,0 +1,10 @@
+
+copy: content/html/document/crashtests/468562-2.html
+copyrev: 25bc005cc7814c7ca866820d9498e9929d0f7298
+
+<html>
+<head></head>
+<body>
+<table><script>document.write("Q");</script><link></table>
+</body>
+</html>

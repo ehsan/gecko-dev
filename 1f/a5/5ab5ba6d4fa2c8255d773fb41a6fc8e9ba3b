@@ -1,0 +1,5 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/testscript.js
+copyrev: cd615c3a9553de590d3c7dbe9ba57191d4fca934
+
+console.log("running network console logging tests");

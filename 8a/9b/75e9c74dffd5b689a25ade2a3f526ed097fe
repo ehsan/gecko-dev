@@ -1,0 +1,11 @@
+
+copy: editor/libeditor/tests/chrome.ini
+copyrev: 0fb53768132aea5d343d7c64027bab373a8e95b6
+
+[DEFAULT]
+
+[test_bug46555.html]
+[test_bug599983.xul]
+[test_bug646194.xul]
+[test_dragdrop.html]
+[test_selection_move_commands.xul]

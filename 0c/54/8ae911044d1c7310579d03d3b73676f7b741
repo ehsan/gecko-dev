@@ -1,0 +1,10 @@
+
+copyrev: 62abbb1e0ffa525eaf1882f27aa5dc4693c58037
+copy: js/src/trace-test/tests/basic/testNumberToString.js
+
+function testNumberToString() {
+    var x = new Number(0);
+    for (var i = 0; i < 4; i++)
+        x.toString();
+}
+testNumberToString();

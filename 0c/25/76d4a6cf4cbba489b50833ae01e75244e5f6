@@ -1,0 +1,31 @@
+
+copy: content/xul/content/crashtests/326875-1.xul
+copyrev: dff33b944ae8f48b626747af02c16a1512004a01
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+
+
+<script>
+
+
+function init() { 
+
+  var m = document.getElementById("m"); 
+  m.parentNode.removeChild(m);
+  m.controllers;
+};
+
+
+window.addEventListener("load", init, false);
+
+</script>
+
+
+
+<hbox id="m" />
+    
+</window>

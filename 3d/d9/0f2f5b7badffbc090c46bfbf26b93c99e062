@@ -1,0 +1,7 @@
+
+copy: content/xbl/crashtests/432813-1.xhtml
+copyrev: fba8ce772d7e60dc4ea34bf7a1a7a8f8920dd161
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <box style="-moz-binding:url(432813-1-xbl.xml);"/>
+</window>

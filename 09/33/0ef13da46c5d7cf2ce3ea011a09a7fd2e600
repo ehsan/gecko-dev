@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/slash.good
+copyrev: c0d69506449e6939353c7fca476f1638d36df900
+
+/
+1/2
+http://
+/usr/share/myspell/

@@ -1,0 +1,5 @@
+
+copyrev: 6f477761d4e314102cac8ad98e596385a81e1da1
+copy: toolkit/mozapps/extensions/test/unit/addons/test_bug436207/install.js
+
+// Test add-on that attempts to use install.js to install.

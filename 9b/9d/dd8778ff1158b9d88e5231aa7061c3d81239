@@ -1,0 +1,8 @@
+
+copy: mobile/branding/nightly/locales/en-US/brand.dtd
+copyrev: dae1f9a5df03f509a2f1ffdc7fc54cda95a35dcd
+
+<!ENTITY  brandShortName  "Nightly">
+<!ENTITY  brandFullName   "Mozilla Nightly">
+<!ENTITY  vendorShortName "Mozilla">
+<!ENTITY  logoTrademark   "">

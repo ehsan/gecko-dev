@@ -1,0 +1,13 @@
+
+copyrev: d0727135a75f7ba42ef0ac809db335421e818eaa
+copy: js/src/trace-test/lib/andTestHelper.js
+
+function andTestHelper(a, b, n)
+{
+  var k = 0;
+  for (var i = 0; i < n; i++) {
+    if (a && b)
+      k += i;
+  }
+  return k;
+}

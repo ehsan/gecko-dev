@@ -1,0 +1,18 @@
+
+copyrev: 187454cff91948d30e91cfc5fbcc4b744952bd29
+copy: js/src/trace-test/tests/jaeger/bug550490.js
+
+
+function a() {
+  function f() {}
+  this.d = function() {
+    f
+  }
+} (function() {
+  var a2, x
+  a2 = new a;
+  d = (function(){x * 1})();
+})()
+
+/* Don't assert. */
+

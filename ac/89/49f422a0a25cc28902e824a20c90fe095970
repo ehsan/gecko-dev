@@ -1,0 +1,5 @@
+
+copy: modules/libpr0n/test/reftest/generic/reftest.list
+copyrev: 8c94f6f8727a6e6296271514873333732ecc8bf9
+
+HTTP == accept-image-catchall.html accept-image-catchall-ref.html

@@ -1,0 +1,17 @@
+
+copy: dom/base/test/csp/file_subframe_run_js_if_allowed.html
+copyrev: a1c4633ceadf89cdc2a29430e3300ea57a6abfa1
+
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=702439
+
+This document is a child frame of a CSP document and the
+test verifies that it is permitted to run javascript: URLs
+if the parent has a policy that allows them.
+-->
+<body onload="document.getElementById('a').click()">
+<a id="a" href="javascript:parent.javascript_link_ran = true;
+                parent.checkResult();">click</a>
+</body>
+</html>

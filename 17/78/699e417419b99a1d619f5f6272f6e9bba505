@@ -1,0 +1,10 @@
+
+copy: content/html/content/crashtests/620078-2.html
+copyrev: 9f51ee33cb19171e52b5049bd4c3df3f8d8f06f8
+
+<!DOCTYPE html>
+<html>
+  <body onload='document.cloneNode(1)'>
+    <button autofocus></button>
+  </body>
+</html>

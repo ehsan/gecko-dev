@@ -1,0 +1,7 @@
+
+copy: content/html/content/reftests/485377.html
+copyrev: dd15bd9d7058b547aacafd9ac407cd20abc7b7cc
+
+<!DOCTYPE html>
+<title>The mark element</title>
+<p>Foo <mark>bar</mark> baz.

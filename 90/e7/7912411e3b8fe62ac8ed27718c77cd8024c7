@@ -1,0 +1,26 @@
+
+copy: content/base/crashtests/326646-1.html
+copyrev: 2e0e6fe5bb329af2a41afc7c140a1d92bb419396
+
+<html>
+<head>
+
+<script>
+
+var dt;
+
+function init() { 
+  dt = document.implementation.createDocumentType("rheet", 0, 2);
+  dt.foopy = "quux";
+}
+
+init();
+
+</script>
+
+</head>
+
+<body>
+
+</body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: dom/src/threads/test/threadErrors_worker4.js
+copyrev: 68ce85de95e90579ec1c19124716c139a3195b88
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+// Throwing message listener
+onmessage = function(event) {
+  throw new Error("Bah!");
+};

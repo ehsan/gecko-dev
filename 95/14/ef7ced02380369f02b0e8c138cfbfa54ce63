@@ -1,0 +1,8 @@
+
+copy: dom/svg/test/zoom-helper.svg
+copyrev: 27d32d0349817e42b4f55b7607e73889b4086184
+
+<?xml version="1.0"?>
+<svg id="root" version="1.1" xmlns="http://www.w3.org/2000/svg" onzoom="parent.zoomHandler(evt)">
+  <rect x="10" y="10" width="10" height="10" fill="green" />
+</svg>

@@ -1,0 +1,17 @@
+
+copyrev: a414b3015152c1e2dda174e75f3deb4d0b72ab4d
+copy: js/src/trace-test/tests/basic/bug535760.js
+
+/* vim: set ts=4 sw=4 tw=99 et: */
+function foundit(items, n) {
+    for (var i = 0; i < 10; i++)
+        arguments[2](items, this);
+}
+
+function dostuff() {
+    print(this);
+}
+foundit('crab', 'crab', dostuff);
+
+/* Don't crash or assert */
+

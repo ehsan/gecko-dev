@@ -1,0 +1,10 @@
+
+copyrev: 7d84fe7bfa379487fcc24c313d4dc9b9e63f2208
+copy: js/src/trace-test/tests/jaeger/bug582897.js
+
+let(x) {
+    x + x--
+}
+
+/* Don't assert. */
+

@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-invalid/input/input-pattern-invalid.html
+copyrev: 5929ee412b2d8957ef3e69cb74ee91bc97859c5f
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input isn't valid nor barred from constraint validation,
+             it should be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='invalid' pattern='bar' value='foo'>
+  </body>
+</html>
+

@@ -1,0 +1,6 @@
+
+copy: toolkit/mozapps/update/test/marionette/data/err.cgi
+copyrev: 2ec829dc1d6eb88cce6e9ad8b504947ecab3253e
+
+#!/system/bin/sh
+print "Status: $QUERY_STRING\r\n\r\n"

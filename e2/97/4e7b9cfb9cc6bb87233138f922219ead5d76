@@ -1,0 +1,5 @@
+
+copyrev: 2e0f5c9b575b881e9aa25ff4871fa1d54fb81443
+copy: js/tests/ecma_3/NumberFormatting/shell.js
+
+gTestsubsuite = 'NumberFormatting';

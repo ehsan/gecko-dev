@@ -1,0 +1,9 @@
+[DEFAULT]
+head = head.js
+tail =
+
+[test_load_modules.js]
+[test_metrics_provider.js]
+[test_metrics_collector.js]
+[test_metrics_storage.js]
+skip-if = os == "linux" && debug && bits == 32

@@ -1,0 +1,6 @@
+
+copy: widget/android/bindings/surfacetexture-classes.txt
+copyrev: 23c3b3e0963cca42591f574196d41c206d5c2e3f
+
+android.graphics.SurfaceTexture
+android.view.Surface

@@ -1,0 +1,20 @@
+
+copy: js/src/jit-test/tests/parallelarray/bug787282.js
+copyrev: 22d82131a146d3c3b8496e13d425137b9c1b2dd7
+
+// |jit-test| error: TypeError
+
+var protoArr = Proxy.create({}, null);
+void (Array.prototype.__proto__ = protoArr);
+gczeal(2);
+function testCopyBigArray() {
+  var a = new Array(10000);
+  for (var cnt = 0; cnt < a.length; cnt+=2) {
+    var p = new ParallelArray(a);
+  }
+}
+
+if (getBuildConfiguration().parallelJS)
+  testCopyBigArray();
+else
+  throw new TypeError();

@@ -1,0 +1,15 @@
+
+copy: layout/base/tests/font-inflation/textarea-1.html
+copyrev: 8ffc42509508e58c8969e71e2a526d2f83f896c7
+
+<!DOCTYPE HTML>
+<style>
+div { font-size: 12px; line-height: 1.0; width: 450px }
+textarea { font-size: 12px; width: 200px; height: 50px }
+textarea { line-height: 1.0 }
+</style>
+<!--
+In a 450px container, the minimum font size at 15em per line is 30px.
+This means we map 0px-45px into 30px-45px, so 12px gets mapped to 34px.
+-->
+<div><textarea>Hello world</textarea></div>

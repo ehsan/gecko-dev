@@ -1,0 +1,7 @@
+
+copy: content/canvas/test/webgl/failing_tests_linux_mesa.txt
+copyrev: c6ee35ffb404725d5864aefd08a4b625d6c6281e
+
+conformance/textures/texture-size-cube-maps.html
+conformance/extensions/oes-texture-float.html
+conformance/glsl/functions/glsl-function-sin.html

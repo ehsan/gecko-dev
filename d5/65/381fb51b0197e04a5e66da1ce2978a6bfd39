@@ -1,0 +1,21 @@
+
+copy: dom/imptests/html/html/dom/documents/dta/doc.gEBN/test_doc.gEBN-case.html
+copyrev: f480f6393e556d354d1b574585a70df311c387cd
+
+<!DOCTYPE html>
+<title>getElementsByName and case</title>
+<link rel="author" title="Ms2ger" href="mailto:ms2ger@gmail.com">
+<link rel="help" href="http://www.whatwg.org/html5/#dom-document-getelementsbyname">
+<link rel="stylesheet" href="/resources/testharness.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="log"></div>
+<div id="test">
+<div name="abcd"></div>
+</div>
+<script>
+test(function() {
+  assert_equals(document.getElementsByName("ABCD").length, 0);
+  assert_equals(document.getElementsByName("abcd").length, 1);
+});
+</script>

@@ -1,0 +1,26 @@
+
+copy: js/src/xpconnect/crashtests/601284-1.html
+copyrev: 5f119389d2e90186ad7cf2e5ae786553e68609f1
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var frameRoot = document.getElementById("f").contentDocument.documentElement;
+  var marquee = frameRoot.getElementsByTagName("marquee")[0];
+  marquee.__proto__ = [];
+  frameRoot.appendChild(marquee);
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+
+<iframe id="f" src="data:application/xhtml+xml,<html xmlns='http://www.w3.org/1999/xhtml'><body><marquee></marquee></body></html>"></iframe>
+
+</body>
+</html>

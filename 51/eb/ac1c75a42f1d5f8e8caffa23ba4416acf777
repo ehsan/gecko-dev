@@ -1,0 +1,114 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test returning metadata from media files with mozGetMetadata()</title>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+  <script type="text/javascript" src="manifest.js"></script>
+</head>
+<body>
+<pre id="test">
+<div id="output"></div>
+<script class="testbody" type="text/javascript">
+
+var manager = new MediaTestManager;
+SimpleTest.waitForExplicitFinish();
+SpecialPowers.pushPrefEnv({
+        'set': [
+        ["media.fragmented-mp4.ffmpeg.enabled", true],
+        ["media.fragmented-mp4.exposed", true]
+        ]
+}, beginTest);
+
+function isMP4(value) {
+  return value === "mp4" || value === "x-m4a";
+}
+
+// Returns true if mp4 metadata reporting shall not be tested on the current platform
+function MP4isNotTested() {
+  return !(
+  navigator.userAgent.indexOf("Linux") != -1 || // Linux
+  navigator.userAgent.indexOf("Windows NT 6.1") != -1 || // Windows 7
+  navigator.userAgent.indexOf("Windows NT 6.2") != -1 // Windows 8
+  );
+}
+
+function beginTest() {
+  manager.runTests(gMetadataTests, startTest);
+}
+
+function checkTags(event) {
+    var a = event.target;
+    var test = a.value;
+    // read decoded tags
+    tags = a.mozGetMetadata();
+    ok(tags, "mozGetMetadata() should return a truthy value");
+    // Dump them out.
+    var d = document.getElementById('output');
+    var html = '<table>\n';
+    html += '<caption><p>Called getMozMetadata()'
+    html += ' on '+test.name+'</p></caption>\n';
+    html += '<tr><th>tag</th>';
+    html += '<th>decoded value</th><th>expected value</th></tr>\n';
+    for (tag in tags) {
+      html += '<tr><td>'+tag+'</td>';
+      html += '<td>'+tags[tag]+'</td>';
+      html += '<td>'+test.tags[tag]+'</td>';
+      html += '</tr>\n';
+    }
+    if (!Object.keys(tags).length) {
+      html += '<tr><td colspan=3 align=center><em>no tags</em></td></tr>\n';
+    }
+    html += '</table>\n';
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    d.appendChild(div);
+    // Verify decoded tag values.
+    for (tag in tags) {
+      is(tags[tag], test.tags[tag], "Tag '"+tag+"' should match");
+    }
+    // Verify expected tag values
+    for (tag in test.tags) {
+      is(tags[tag], test.tags[tag], "Tag '"+tag+"' should match");
+    }
+    manager.finished(a.token);
+
+}
+
+function startTest(test, token) {
+
+  // Tests on MP4 are restricted to certain platforms
+  var format = test.type.split('/')[1];
+  if (isMP4(format) && MP4isNotTested()) {
+    return;
+  }
+
+  var a = document.createElement(getMajorMimeType(test.type));
+  a.preload = "auto";
+  a.token = token;
+  manager.started(token);
+  a.src = test.name;
+  a.name = test.name;
+  a.value = test;
+
+  // Tags should not be available immediately.
+  var exception_fired = false;
+  try {
+    var m = a.mozGetMetadata();
+  } catch (e) {
+    is(e.name, 'InvalidStateError',
+       "early mozGetMetadata() should throw InvalidStateError");
+    exception_fired = true;
+  }
+  ok(exception_fired,
+     "mozGetMetadata() should throw an exception before HAVE_METADATA");
+
+  // Wait until metadata has loaded.
+  a.addEventListener('loadedmetadata', checkTags, false);
+}
+
+</script>
+</pre>
+</body>
+</html>

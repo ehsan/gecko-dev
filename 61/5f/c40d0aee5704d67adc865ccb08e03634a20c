@@ -1,0 +1,6 @@
+
+copy: mobile/locales/en-US/chrome/prompt.dtd
+copyrev: b9af7b8f7204ccf0475875a8c94dcf725e8de138
+
+<!ENTITY ok.label      "OK">
+<!ENTITY cancel.label  "Cancel">

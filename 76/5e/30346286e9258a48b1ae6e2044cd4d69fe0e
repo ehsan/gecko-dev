@@ -1,0 +1,7 @@
+
+copy: js/src/devtools/automation/warnaserrdebug
+copyrev: 7ca7389fc7e90e910f07e5fd8cd90d8e598d0f86
+
+--enable-threadsafe
+--enable-debug
+--enable-warnings-as-errors

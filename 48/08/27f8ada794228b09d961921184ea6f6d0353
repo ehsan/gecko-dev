@@ -1,0 +1,10 @@
+
+copyrev: 2f4aeacdb53df92b918ed47c0d49dfb20f01f131
+copy: modules/plugin/tools/sdk/samples/basic/windows/basic.def
+
+LIBRARY   NPBASIC
+
+EXPORTS
+	NP_GetEntryPoints   @1
+	NP_Initialize       @2
+	NP_Shutdown         @3

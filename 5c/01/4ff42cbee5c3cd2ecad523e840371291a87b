@@ -1,0 +1,9 @@
+
+copy: content/base/test/badContentType.eventsource
+copyrev: f235ad22e08658dafbdf32595485dfd9a422c149
+
+retry:500
+event: message
+data: 1
+
+

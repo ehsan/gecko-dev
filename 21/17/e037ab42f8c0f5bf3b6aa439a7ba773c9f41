@@ -1,0 +1,20 @@
+
+copy: js/src/xpconnect/crashtests/467693-1.html
+copyrev: f4d064657167d0146916ac09747899fb27a3867f
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  ({})[document.createElement('unsupported').tagName];
+  uneval(Components.interfaces.nsIWebNavigationInfo);
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

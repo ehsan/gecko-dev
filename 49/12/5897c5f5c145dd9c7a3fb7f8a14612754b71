@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_forbiddenword2.sug
+copyrev: fea70b30008797c45bafe207075cc8c002abfe01
+
+barwordfoo

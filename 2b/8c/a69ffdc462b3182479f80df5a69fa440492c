@@ -1,0 +1,17 @@
+
+copy: content/base/crashtests/416734-1.html
+copyrev: abf6db9f9d3f1b53b8ca77890e11b8a7090632e7
+
+<html>
+<head>
+</head>
+
+<body style="direction: rtl; visibility: collapse; white-space: pre;"><span style="display: -moz-inline-stack;"><span><span style="font-size: 0pt; border: 1px dotted red; white-space: -moz-pre-wrap;">
+
+X X }
+
+
+  </span>
+   </span></span></body>
+
+</html>

@@ -1,0 +1,14 @@
+
+copyrev: 48f43773af1a849ad5009e9dfd8af38fdd5b1073
+copy: js/src/trace-test/tests/jaeger/bug589108.js
+
+try {
+    var x
+    for (x in <x>></x>)
+    gczeal(2)
+    new NaN
+} catch(e) {}
+(function() {
+    for (a in [Boolean(), x.t]) {}
+} (function() {}))
+

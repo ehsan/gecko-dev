@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundtriple.good
+copyrev: 9a061056c1963f660ac53154fa52360591a8ea76
+
+operafoo
+operaeel
+operabare
+eelbare
+eelfoo
+eelopera

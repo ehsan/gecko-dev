@@ -1,0 +1,21 @@
+
+copy: editor/libeditor/html/crashtests/612565-1.html
+copyrev: c1f4695c0b406d915e22ed8fea7e07b4b6241749
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <iframe></iframe>
+  </body>
+  <script>
+    onload = function() {
+      var i = document.querySelector("iframe");
+      var doc = i.contentDocument;
+      doc.body.appendChild(doc.createTextNode("foo"));
+      doc.designMode = "on";
+      while (doc.body.firstChild) {
+        doc.body.removeChild(doc.body.firstChild);
+      }
+    };
+  </script>
+</html>

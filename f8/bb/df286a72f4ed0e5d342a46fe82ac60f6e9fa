@@ -1,0 +1,16 @@
+
+copy: content/base/test/xcsp/file_CSP_evalscript_main_getCRMFRequest.html
+copyrev: c7ad1ad93b0c2f2cc4271286187d70fd371f6990
+
+<html>
+  <head>
+    <title>CSP eval script tests</title>
+    <script type="application/javascript"
+             src="file_CSP_evalscript_main_getCRMFRequest.js"></script>
+  </head>
+  <body>
+
+    Foo.
+
+  </body>
+</html>

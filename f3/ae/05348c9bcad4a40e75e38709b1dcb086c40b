@@ -1,0 +1,15 @@
+
+copy: dom/src/json/test/unit/xpcshell.ini
+copyrev: 8fd86c7ece05fcc6a4de54aa959979abc00e20a9
+
+[DEFAULT]
+head =
+tail =
+support-files =
+  decodeFromStream-01.json
+  decodeFromStream-small.json
+
+[test_decodeFromStream.js]
+[test_decode_long_input.js]
+[test_encode.js]
+

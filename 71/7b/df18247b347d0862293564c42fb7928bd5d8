@@ -1,0 +1,14 @@
+
+copy: toolkit/devtools/debugger/tests/unit/source-map-data/sourcemapped.map
+copyrev: 46ff8a0fe62b0c89efabb395f89cffc2e9b15448
+
+{
+  "version": 3,
+  "file": "sourcemapped.js",
+  "sourceRoot": "",
+  "sources": [
+    "sourcemapped.coffee"
+  ],
+  "names": [],
+  "mappings": ";AAAA;CAAA,KAAA,yBAAA;CAAA;CAAA,CAAA,CAAA,MAAO;CACL,IAAA,GAAA;AAAA,CAAA,EAAA,MAA0B,qDAA1B;CAAA,EAAe,EAAR,QAAA;CAAP,IADI;CAAN,EAAM;;CAAN,CAGA,CAAyB,IAAA;;CAEzB,UALA;CAAA"
+}

@@ -1,0 +1,14 @@
+
+copy: browser/components/privatebrowsing/test/browser/global/browser_privatebrowsing_localStorage_page1.html
+copyrev: 378983a8645446dda6d92908524ca6725b4f5fe8
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script type="text/javascript">
+  localStorage.clear();
+  localStorage.setItem('test1', 'value1');
+</script>
+</head>
+<body>
+</body>
+</html>

@@ -1,0 +1,13 @@
+
+copyrev: 312403f49f05e489caee201ce82b76acbd50004c
+copy: layout/reftests/bugs/425247-1-ref.html
+
+<html><head>
+<title>Bug 425247 – Marquee with uppercase UP or DOWN as direction doesn't work properly</title>
+</head>
+<body>
+<marquee direction="up" bgcolor="magenta" behavior="alternate" scrollamount="0">
+<marquee bgcolor="yellow" behavior="alternate" scrollamount="0">marquee up</marquee>
+</marquee>
+</body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/table/model-input-child-novalid.html
+copyrev: f51b38c9ad4dcf32e6898fce30c18ad84be60bda
+
+<!doctype html>
+<meta charset=utf-8>
+<title>The "in table" insertion mode - A start tag whose tag name is "input"</title>
+<table><input></table>

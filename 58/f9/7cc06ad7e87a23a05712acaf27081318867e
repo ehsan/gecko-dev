@@ -1,0 +1,16 @@
+
+copyrev: 1ccd337a1c5572d9d030f3b55f9139884e1c5989
+copy: js/src/trace-test/tests/basic/testNewArrayCount.js
+
+function testNewArrayCount()
+{
+  function count(a) { var n = 0; for (var p in a) n++; return n; }
+  var a = [];
+  for (var i = 0; i < 5; i++)
+    a = [0];
+  assertEq(count(a), 1);
+  for (var i = 0; i < 5; i++)
+    a = [0, , 2];
+  assertEq(count(a), 2);
+}
+testNewArrayCount();

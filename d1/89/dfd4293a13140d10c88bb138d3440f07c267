@@ -1,0 +1,12 @@
+
+copy: toolkit/mozapps/update/test/marionette/update-tests.ini
+copyrev: 0bb0aa99e3a8a1df7d78a1a4162c776fec32b5a8
+
+[DEFAULT]
+smoketest = false
+
+[update_test_ota_simple.py]
+[update_test_status.py]
+
+; smoketests
+[include:update-smoketests.ini]

@@ -1,0 +1,6 @@
+
+copy: content/base/test/xcsp/file_CSP_inlinestyle_main.html^headers^
+copyrev: a7d50161d6a90c7344a291f2576f5e577abf0dfa
+
+X-Content-Security-Policy: default-src 'self'
+Cache-Control: no-cache

@@ -1,0 +1,8 @@
+
+copy: testing/docker/builder/get_gaia_repo.js
+copyrev: f90e79fb2d8d87a885023751d9d463672e29ddef
+
+#! /usr/bin/env node
+var fs = require('fs');
+var data = fs.readFileSync('/home/worker/mozilla-central/source/b2g/config/gaia.json');
+console.log(JSON.parse(data).repo_path);

@@ -1,0 +1,11 @@
+
+copy: content/base/test/csp/file_CSP_bug802872.sjs
+copyrev: 17ff707b35fd6441ef3a4c2a1a5b62826a202b21
+
+function handleRequest(request, response)
+{
+  response.setHeader("Cache-Control", "no-cache", false);
+  response.setHeader("Content-Type", "text/event-stream", false);
+  response.write("data: eventsource response from server!");
+  response.write("\n\n");
+}

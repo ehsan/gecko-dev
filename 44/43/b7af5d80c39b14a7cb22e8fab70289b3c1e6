@@ -1,0 +1,12 @@
+
+copy: content/html/content/test/imports/file_importD.html
+copyrev: 8c4ca82fbf42b3d43f1b58703c3cba2db53bbfc3
+
+<!DOCTYPE html>
+<html lang="en-US">
+  <body>
+    <script>
+      order.push("D");
+    </script>
+  </body>
+</html>

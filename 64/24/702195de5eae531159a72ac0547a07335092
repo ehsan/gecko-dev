@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_forbiddenword1.aff
+copyrev: f3ab904d9a34382985c79781665fcdcde61960f1
+
+TRY r
+
+FORBIDDENWORD F
+COMPOUNDRULE 2
+COMPOUNDRULE WW
+COMPOUNDRULE WWW
+
+SFX S Y 1
+SFX S 0 s .

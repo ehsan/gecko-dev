@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundcase.dic
+copyrev: a88a7267cd05baa81a96f6cf669b9af8cda69e30
+
+4
+foo/A
+Bar/A
+BAZ/A
+-/A

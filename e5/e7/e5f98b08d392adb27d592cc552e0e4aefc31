@@ -1,0 +1,18 @@
+
+copy: gfx/thebes/crashtests/538065-1.html
+copyrev: 72e0aa34b0ebd287ed4f3fcc43365ca4f158640e
+
+<html>
+<head>
+<title>Testcase for bug 538065</title>
+<style type="text/css">
+span.test { background: #ff0; }
+</style>
+</head>
+<body>
+<p>U+FEFF: <span class="test">&#xfeff;</span></p>
+<p>U+FFF9: <span class="test">&#xfff9;</span></p>
+<p>U+FFFA: <span class="test">&#xfffa;</span></p>
+<p>U+FFFB: <span class="test">&#xfffb;</span></p>
+</body>
+</html>

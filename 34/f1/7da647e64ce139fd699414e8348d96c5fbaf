@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug707142_baseline.json
+copyrev: a5f475fa982c0e7547b531173683bbccb14225df
+
+{"foo": "bar"}

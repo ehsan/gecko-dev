@@ -1,0 +1,18 @@
+
+copyrev: adcc2dd289c84e0153e7b3a0efcc5fb5139cd33a
+copy: js/src/trace-test/tests/jaeger/bug600424.js
+
+// vim: set ts=4 sw=4 tw=99 et:
+function f(a) {
+    var x = {
+        g: function () {
+            return this.a;
+        }
+    };
+    x.g.prototype.a = a;
+    assertEq(x.g.prototype.a, a);
+    return x;
+}
+f(1);
+f(2);
+f(3);

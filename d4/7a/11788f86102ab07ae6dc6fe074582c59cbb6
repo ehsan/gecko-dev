@@ -1,0 +1,37 @@
+
+copy: browser/devtools/markupview/test/browser_inspector_markup_950732.html
+copyrev: 2b35f23a2c66115f99f466ec8d131f969f8fc7b5
+
+<!DOCTYPE html>
+
+<html class="html">
+  <body class="body">
+    <ul>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+        <li>some content</li>
+    </ul>
+  </body>
+</html>

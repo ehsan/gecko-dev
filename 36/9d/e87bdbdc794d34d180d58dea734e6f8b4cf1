@@ -1,0 +1,8 @@
+
+copy: media/webrtc/trunk/third_party/libyuv/AUTHORS
+copyrev: b36f58c10e297704e8ecd16867744d5db310925d
+
+# Names should be added to this file like so:
+# Name or Organization <email address>
+
+Google Inc.

@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/phone.wrong
+copyrev: 898b2158da7e4a35f7562004807411f078a923cc
+
+Brasillian

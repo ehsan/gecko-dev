@@ -1,0 +1,11 @@
+
+copy: content/svg/content/test/selectSubString-helper.svg
+copyrev: 31bf47c1e705b4bfcd8f7fe6165c50786bb1d446
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="750">
+  <style type="text/css">
+.t { font: 20px monospace; }
+  </style>
+  <text id="text" x="5" class="t" y="25">abc</text>
+</svg>

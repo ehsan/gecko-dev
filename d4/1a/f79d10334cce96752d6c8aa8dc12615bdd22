@@ -1,0 +1,11 @@
+
+copy: content/html/content/reftests/toblob-todataurl/todataurl-quality-default.html
+copyrev: 0c04464d967b5aea6c3d306da3597fcdbecd4dc3
+
+<!doctype html>
+<html class='reftest-wait'>
+  <body>
+    <script src='sample.js'></script>
+    <script src='dataurl.js'></script>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+
+copy: modules/libpr0n/test/reftest/gif/webcam-simulacrum.mgif^headers^
+copyrev: ececc852d18b2a00736a6941092eceac468878a5
+
+HTTP 200 OK
+Content-Type: multipart/x-mixed-replace;boundary=BOUNDARYOMG
+Cache-Control: no-cache

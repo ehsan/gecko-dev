@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/ignoreutf.aff
+copyrev: a6c871b37f98144258cfecb78b58efc1e043e27e
+
+# Arabic test for feature ignoring diacritics
+SET UTF-8
+# Arabic diacritics (harakat):
+# sukun, shadda, kasra, damma, fatha, kasratan, dammantan, fathatan (left to right)
+IGNORE ًٌٍَُِّْ
+WORDCHARS ًٌٍَُِّْ

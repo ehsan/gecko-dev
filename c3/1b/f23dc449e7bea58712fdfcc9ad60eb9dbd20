@@ -1,0 +1,6 @@
+
+copyrev: 6c7bbd15dba6669852d80e1702289236b1f860e3
+copy: testing/mozmill/jsbridge-2.4.0/MANIFEST.in
+
+recursive-include jsbridge/extension *
+recursive-include jsbridge/xpi *

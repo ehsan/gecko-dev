@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/forceucase.good
+copyrev: 7c39c55d66b2a73e40e73d38404278edfc930373
+
+foo
+bar
+baz
+foobar
+Foobaz
+foobazbar
+Foobarbaz

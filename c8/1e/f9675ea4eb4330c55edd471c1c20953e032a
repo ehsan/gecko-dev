@@ -1,0 +1,7 @@
+
+copy: content/media/test/crashtests/481136-1.html
+copyrev: acfd763000acbd773ead3087feebc8e9feacd07c
+
+<html>
+<div><object data='sound.ogg'></div>
+</html>

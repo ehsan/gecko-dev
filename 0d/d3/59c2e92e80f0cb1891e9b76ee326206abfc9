@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dta/test_document.title-03.html.json
+copyrev: 12b52077dcb2068bbf723995345abbcd39646139
+
+{
+  " document.title  and space normalization  ": true
+}

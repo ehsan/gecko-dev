@@ -1,0 +1,18 @@
+
+copyrev: e40511e2a2a6e4ad95a2d9906ae520710c49ad41
+copy: js/src/trace-test/tests/closures/name-inactive-missing.js
+
+// |jit-test| error: ReferenceError
+
+function f(k) {
+  function g(j) {
+    return j + q;
+  }
+  return g;
+}
+
+g = f(10);
+var ans = '';
+for (var i = 0; i < 5; ++i) {
+  ans += g(i) + ',';
+}

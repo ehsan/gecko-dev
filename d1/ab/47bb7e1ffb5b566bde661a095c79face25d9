@@ -1,0 +1,26 @@
+
+copyrev: e05ce97b269a98e0f7e2e762fd783a4c147deab8
+copy: js/src/trace-test/tests/closures/t026.js
+
+actual = '';
+expected = '101,nocrash,';
+
+function looper(f) {
+  for (var i = 0; i < 10; ++i) {
+    for (var j = 0; j < 10; ++j) {
+      f();
+    }
+  }
+}
+
+function tester() {
+  var x = 1;
+  looper(function() { ++x; });
+  return x;
+}
+
+appendToActual(tester());
+appendToActual("nocrash");
+
+
+assertEq(actual, expected)

@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/document.getElementsByName/test_document.getElementsByName-newelements.html.json
+copyrev: ec2e8291f1ee7baa29534c541581eb87d8d4b575
+
+{
+  "getElementsByName and newly introduced HTML elements": true
+}

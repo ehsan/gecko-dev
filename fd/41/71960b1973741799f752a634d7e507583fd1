@@ -1,0 +1,14 @@
+
+copy: dom/security/test/csp/file_base-uri.html
+copyrev: a96d17f1676f78da8b1730c90ab79c44f20e5064
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Bug 1045897 - Test CSP base-uri directive</title>
+    <base href="http://mochi.test">
+  </head>
+<body>
+  <!-- just making use of the 'base' tag for this test -->
+</body>
+</html>

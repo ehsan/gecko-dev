@@ -1,0 +1,6 @@
+
+copy: layout/reftests/css-valid/output/reftest.list
+copyrev: 0a039b96a3fdb99ffbfad27144fa64cc08cee3c6
+
+== output-valid.html output-ref.html
+== output-invalid.html output-ref.html

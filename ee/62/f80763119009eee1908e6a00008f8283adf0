@@ -1,0 +1,6 @@
+
+copyrev: 067ee0c5313e3e99ff72a9d6c7aa26d371534bbd
+copy: config/gcc_hidden.h
+
+/* Begin all files as hidden visibility */
+#pragma GCC visibility push(hidden)

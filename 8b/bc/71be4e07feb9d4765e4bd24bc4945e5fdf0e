@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/object/data-type-missing-novalid.html
+copyrev: 6a44f35024945dea33d5e872dcf6953e2903c647
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset=utf-8>
+<title>object element missing data and type attribute</title>
+</head>
+<body>
+<object></object>
+</body>
+</html>

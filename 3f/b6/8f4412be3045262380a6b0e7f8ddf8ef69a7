@@ -1,0 +1,16 @@
+
+copy: layout/reftests/css-invalid/select/select-required-multiple-invalid.html
+copyrev: ba280db62eec6653f0b37554b62f79acb50e4158
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if select is required and has all selected option value set to the
+             string string, :-moz-ui-invalid should apply. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <select class='invalid' required multiple>
+      <option selected></option>
+      <option selected value="">foo</option>
+    </select>
+  </body>
+</html>

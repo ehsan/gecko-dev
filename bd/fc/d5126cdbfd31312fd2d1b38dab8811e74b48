@@ -1,0 +1,10 @@
+[DEFAULT]
+head = head_apps.js
+tail = tail_apps.js
+
+[test_webappsActor.js]
+# Persistent failures.
+skip-if = true
+[test_appInstall.js]
+# Persistent failures.
+skip-if = true

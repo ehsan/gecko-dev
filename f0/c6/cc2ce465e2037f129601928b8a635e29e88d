@@ -1,0 +1,5 @@
+
+copy: content/media/gmp/README.txt
+copyrev: 797a8a4cb54dee15a8ffe5503817b51dd7110c49
+
+This directory contains code supporting Gecko Media Plugins (GMPs). The GMP API is not the same thing as the Media Plugin API (MPAPI).

@@ -1,0 +1,10 @@
+
+copy: js/src/xpconnect/tests/unit/test_localeCompare.js
+copyrev: e6f98fe94226844a39399124f7daad7297a8b859
+
+function run_test() {
+  do_check_true("C".localeCompare("D") < 0);
+  do_check_true("D".localeCompare("C") > 0);
+  do_check_true("\u010C".localeCompare("D") < 0);
+  do_check_true("D".localeCompare("\u010C") > 0);
+}

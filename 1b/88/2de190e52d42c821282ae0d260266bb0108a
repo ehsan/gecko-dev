@@ -1,0 +1,25 @@
+This is the ANGLE project, from http://code.google.com/p/angleproject/.
+
+Current revision: r653
+
+== Applied local patches ==
+
+In this order:
+  angle-nspr-misc.patch - don't bother with ANGLE_OS detection with NSPR
+  angle-renaming.patch - rename debug.h to compilerdebug.h to avoid conflict in our makefiles
+  angle-makefiles.patch - Mozilla Makefiles for ANGLE
+
+== How to update this ANGLE copy ==
+
+1. Unapply patches
+2. Apply diff with new ANGLE version
+3. Reapply patches. Check for newly created/deleted files.
+4. For each file creation/deletetion recorded in step 3, update our makefiles (angle-makefiles.patch) accordingly
+
+== Visual Studio Solution Files ==
+
+Ignore these. We don't use them anymore. We use custom Makefiles (see angle-makefiles.patch)
+
+== Generated parser code==
+
+Don't bother about that anymore. The parser is now generated and included in the ANGLE svn repo.

@@ -1,0 +1,5 @@
+
+copyrev: 5da7ce3297119f88e0d341802295bbf093a7fa53
+copy: js/tests/ecma_3/Function/shell.js
+
+gTestsubsuite = 'Function';

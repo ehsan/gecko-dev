@@ -1,0 +1,22 @@
+
+copy: layout/base/tests/bug602141-3-ref.html
+copyrev: 544c450ed0747329ad295c6ce48f6388aa31b684
+
+<!DOCTYPE HTML><html><head>
+</head>
+<body>
+noteditable<span id="x" contenteditable="true">navigable|unnavigable</span><br />
+<script>
+  // Position the caret after "u"
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  var range = document.createRange();
+  var x = document.getElementById('x');
+  var t = x.firstChild;
+  range.setStart(t, 11);
+  range.setEnd(t, 11);
+  sel.addRange(range);
+  x.focus();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundrep.wrong
+copyrev: 8233e0d26bef34d50e6ba354f3207624805d7a6d
+
+szervíz
+szervízkocsi
+kocsiszervíz

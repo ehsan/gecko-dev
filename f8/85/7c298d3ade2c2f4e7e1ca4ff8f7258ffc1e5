@@ -1,0 +1,5 @@
+
+copy: browser/base/content/test/bug839103.css
+copyrev: 8ac707ea8cd84b5db3aa7fb28c0a2afe983017d2
+
+* {}

@@ -1,0 +1,12 @@
+
+copyrev: ceb3f07a2d7a46a901e9f0d6470e048a3857f2dd
+copy: js/src/trace-test/tests/basic/testTypeofHole.js
+
+function testTypeofHole() {
+  var a = new Array(6);
+  a[5] = 3;
+  for (var i = 0; i < 6; ++i)
+    a[i] = typeof a[i];
+  return a.join(",");
+}
+assertEq(testTypeofHole(), "undefined,undefined,undefined,undefined,undefined,number");

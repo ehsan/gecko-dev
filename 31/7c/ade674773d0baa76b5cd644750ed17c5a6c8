@@ -1,0 +1,12 @@
+
+copy: content/events/test/file_bug679494.html
+copyrev: b52f255a5cb073d1ad61de0a9d776a7ddb195a57
+
+<html>
+<head>
+  <title>Test for Bug 679494</title>
+</head>
+<body>
+  There and back again.
+</body>
+</html>

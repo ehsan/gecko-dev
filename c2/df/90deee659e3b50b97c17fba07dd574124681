@@ -1,0 +1,11 @@
+
+copy: js/src/xpconnect/crashtests/648206-1.html
+copyrev: bfc49fabe693fb78aa32311aa2343dddf1b97eb2
+
+<!DOCTYPE html>
+<script>
+
+InstallTrigger.__proto__ = window.getComputedStyle(document.documentElement);
+InstallTrigger[0] = 0;
+
+</script>

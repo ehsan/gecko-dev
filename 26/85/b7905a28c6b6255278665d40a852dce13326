@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix5.wrong
+copyrev: b62bb7f067d2c5550270c8eb6b4a915f66a25a0f
+
+pseudoprefoo
+foopseudosuf
+pseudoprefoopseudosuf

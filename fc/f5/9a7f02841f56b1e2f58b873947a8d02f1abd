@@ -1,0 +1,8 @@
+[DEFAULT]
+skip-if = e10s
+
+[browser_passwordmgr_fields.js]
+[browser_passwordmgr_observers.js]
+[browser_passwordmgr_sort.js]
+[browser_passwordmgrcopypwd.js]
+[browser_passwordmgrdlg.js]

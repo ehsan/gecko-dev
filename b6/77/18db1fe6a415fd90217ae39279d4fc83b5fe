@@ -1,0 +1,13 @@
+
+copy: content/html/content/crashtests/795221-2.html
+copyrev: fdc87a5d994360f87e1a0344b2b2a9104a0948d5
+
+<!DOCTYPE html>
+<style>
+  @media all {
+    div { }
+  }
+</style>
+<script>
+  document.styleSheets[0].cssRules[0].cssRules[0].style.foo = document;
+</script>

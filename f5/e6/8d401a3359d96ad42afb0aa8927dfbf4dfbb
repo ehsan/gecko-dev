@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/forceucase.dic
+copyrev: 96c52c5050d3ca4009c34e758df0f69c5567c9ea
+
+3
+foo/C
+bar/C
+baz/CA

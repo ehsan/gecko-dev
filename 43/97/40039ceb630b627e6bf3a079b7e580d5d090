@@ -1,0 +1,15 @@
+
+copyrev: b926fc9ed613fcea9e85019eb90d568671de5057
+copy: js/src/trace-test/tests/basic/deep2.js
+
+function deep1(x) {
+    if (x > 90)
+       return 1;
+    return 2;
+}
+function deep2() {
+    for (var i = 0; i < 100; ++i)
+        deep1(i);
+    return "ok";
+}
+assertEq(deep2(), "ok");

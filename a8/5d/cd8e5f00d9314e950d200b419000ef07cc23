@@ -1,0 +1,8 @@
+
+copy: layout/xul/base/src/crashtests/140218-1.xml
+copyrev: 5417be7240881ab5d9dfe98ba0394b462a3d20c2
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+      <treechildren style = " display: block; " />
+</window>

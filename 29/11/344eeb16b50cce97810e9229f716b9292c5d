@@ -1,0 +1,20 @@
+
+copy: content/smil/crashtests/615002-1.svg
+copyrev: 4c9baaeb625427e6d1d9ee755f8a931ac82beb16
+
+<svg xmlns="http://www.w3.org/2000/svg" class="reftest-wait">
+<script>
+function boom()
+{
+  var a = document.getElementById("a");
+  a.removeAttribute('dur');
+  document.documentElement.appendChild(a);
+  // Force a sample
+  document.documentElement.setCurrentTime(0);
+  document.documentElement.removeAttribute("class");
+}
+
+window.addEventListener("load", boom, false);
+</script>
+<animate begin="-2s" dur="2s" id="a"/>
+</svg>

@@ -1,0 +1,28 @@
+
+copyrev: 511a1a84a8751f18ae6754a4a66091a0e5487b4f
+copy: js/src/trace-test/tests/basic/bug583757.js
+
+var arr = [];
+
+function f() {}
+
+function g(n, h) {
+    var a = f;
+    if (n <= 0)
+    return f;
+
+    var t = g(n - 1, h);
+    var r = function(x) {
+    if (x)
+        return a;
+    return a(h(function() { return t(); }));
+    };
+    arr.push(r); 
+    return r;
+}
+
+g(80, f);
+g(80, f);
+g(80, f);
+for (var i = 0; i < arr.length; i++)
+    assertEq(arr[i](1), f);

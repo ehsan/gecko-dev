@@ -1,0 +1,8 @@
+
+copy: media/webrtc/trunk/src/modules/video_capture/OWNERS
+copyrev: 422c7bee56fef431d8b37570bd55e7ea3cb68eb7
+
+mallinath@webrtc.org
+mflodman@webrtc.org
+perkj@webrtc.org
+wu@webrtc.org

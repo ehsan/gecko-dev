@@ -1,0 +1,9 @@
+notification {
+  background: rgb(255, 255, 176);
+  color: black;
+}
+
+notification .messageCloseButton {
+  list-style-image: url("chrome://browser/skin/images/tab-close.png");
+  -moz-image-region: -moz-initial;
+}

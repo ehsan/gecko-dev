@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/oconv.sug
+copyrev: 23feb8e256133c89f7beab8aee44b36eb5db3006
+
+BÉBÉ
+DÁDÁ
+AÁBCDEÉ

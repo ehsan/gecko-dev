@@ -1,0 +1,14 @@
+
+copyrev: 8a8a5832ef562548a6031d6374dec3bc52dfef91
+copy: js/src/trace-test/tests/jaeger/bug581871.js
+
+function test(p) {
+  var alwaysFalse = p && !p;
+  var k = [];
+  var g;
+  if (!alwaysFalse) {
+    k[0] = g = alwaysFalse ? "failure" : "success";
+    return g;
+  }
+}
+assertEq(test("anything"), "success");

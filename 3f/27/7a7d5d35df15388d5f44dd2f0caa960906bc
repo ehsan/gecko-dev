@@ -1,0 +1,13 @@
+
+copyrev: 15e51337a3e88800983061ea0b5c12385a970061
+copy: js/src/trace-test/tests/basic/bug569849.js
+
+function g() {
+    function f(a) {
+        delete a.x;
+    }
+    for each(let w in [Infinity, String()]) {
+        let i = f(w);
+    }
+}
+g();

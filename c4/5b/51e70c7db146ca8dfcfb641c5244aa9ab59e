@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/button/button-button.html
+copyrev: 3dd7944856b9a68688b827b83ad93de7eab45cfc
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if button is of the button type, it is barred from constraint
+             validation and should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('b').setCustomValidity('foo'); document.documentElement.className='';">
+    <button class='notinvalid' id='b' type='button'></button>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+
+copy: gfx/thebes/crashtests/345629-1.html
+copyrev: 2da4b484f5f7408dd9672fcbe42fa70f3cf4a797
+
+<html>
+<head>
+</head>
+<body>
+<font font-weight="467591">x</font>
+</body>
+</html>

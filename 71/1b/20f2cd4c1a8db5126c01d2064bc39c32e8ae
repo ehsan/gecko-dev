@@ -1,0 +1,8 @@
+
+copyrev: 3606a521950c4f42f96167455497a34ef1f481be
+copy: testing/mochitest/tests/browser/browser_scope.js
+
+function test() {
+  ok(!!gBrowser, "gBrowser exists");
+  is(gBrowser, getBrowser(), "both ways of getting tabbrowser work");
+}

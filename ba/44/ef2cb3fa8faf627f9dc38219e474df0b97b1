@@ -1,0 +1,5 @@
+
+copy: tools/update-packaging/test/to-mac/Contents/MacOS/searchplugins/diff/diff-patch-larger-than-file.txt
+copyrev: ed89bff30e41b739806115e2792c5eedc7b02426
+
+to file

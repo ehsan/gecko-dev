@@ -1,0 +1,9 @@
+
+copy: content/xbl/test/file_bug591198_xbl.xml
+copyrev: b356a50de9ef1b9000286f95f012058dd8f597b2
+
+<?xml version="1.0"?>
+<bindings id="xbltestBindings" xmlns="http://www.mozilla.org/xbl"
+          xmlns:html="http://www.w3.org/1999/xhtml">
+  <binding id="xbltest"><content>PASS<html:b style="display:none"><children/></html:b></content></binding>
+</bindings>

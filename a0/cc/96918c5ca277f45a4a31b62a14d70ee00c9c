@@ -1,0 +1,45 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=2 et sw=2 tw=80: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIDOMEventListener;
+interface nsIIDBObjectStore;
+interface nsIIDBRequest;
+interface nsIIDBDatabase;
+interface nsIDOMDOMStringList;
+
+/**
+ * IDBDTransaction interface.  See
+ * http://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#idl-def-IDBTransaction
+ * for more information.
+ */
+[scriptable, builtinclass, uuid(e4927c76-4f1f-4d7d-80ad-8186e1677da6)]
+interface nsIIDBTransaction : nsISupports
+{
+  readonly attribute nsIIDBDatabase db;
+
+  // "readonly", "readwrite" or "versionchange"
+  readonly attribute DOMString mode;
+
+  readonly attribute nsIDOMDOMStringList objectStoreNames;
+
+  nsIIDBObjectStore
+  objectStore([Null(Stringify)] in DOMString name);
+
+  // Don't commit the transaction.
+  void abort();
+
+  attribute nsIDOMEventListener onerror;
+
+  // Event listener that fires when the transaction is completed
+  // successfully. Receives an Event.
+  attribute nsIDOMEventListener oncomplete;
+
+  // Event listener that fires when the transaction is aborted.
+  // Receives an Event.
+  attribute nsIDOMEventListener onabort;
+};

@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug543870_text.txt
+copyrev: 7cd8b45b91f5200d15ceb1931526b5800a7481f1
+
+Yarr, here be plaintext file, ya landlubber

@@ -1,0 +1,18 @@
+
+copy: js/src/jit-test/tests/parallelarray/constructor-3.js
+copyrev: a5e1f151e0e2d9fe5549fda9c0b925aa62a4bc6d
+
+function bracket(s) {
+  return "<" + s + ">";
+}
+
+function buildArrayLike() {
+  // Construct copying from array-like
+  var a = { 0: 1, 1: 2, 2: 3, 3: 4, length: 4 };
+  var p = new ParallelArray(a);
+  var e = Array.prototype.join.call(a, ",");
+  assertEq(p.toString(), e);
+}
+
+if (getBuildConfiguration().parallelJS)
+  buildArrayLike();

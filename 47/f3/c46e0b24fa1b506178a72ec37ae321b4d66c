@@ -1,0 +1,16 @@
+
+copy: layout/reftests/backgrounds/background-referrer-ref.html
+copyrev: 35fc807862aceecd5b1ff3ebe946952237f4db39
+
+<!DOCTYPE html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=398066
+-->
+<html>
+<head>
+  <title>Accept: header should include image/* catchall</title>
+</head>
+<body>
+<img src="green.png">
+</body>
+</html>

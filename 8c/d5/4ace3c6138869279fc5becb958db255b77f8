@@ -1,0 +1,7 @@
+
+copy: testing/mozbase/manifestdestiny/tests/verifyDirectory/verifyDirectory_incomplete.ini
+copyrev: e8a224d8c549a51dc60a26370cc95c64d2244a81
+
+[test_2.js]
+[test_3.js]
+[include:subdir/manifest.ini]

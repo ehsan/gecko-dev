@@ -1,0 +1,5 @@
+
+copy: content/base/test/csp/file_CSP_main.html^headers^
+copyrev: b8f8818ccdd49b848413584ff5e0b67609a30851
+
+X-Content-Security-Policy: default-src 'self'

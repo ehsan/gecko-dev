@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundcase2.dic
+copyrev: 9f349d5010649d3a75ec6b2e9391d29b0f7003ad
+
+2
+áoó/A
+Óoá/A

@@ -1,0 +1,11 @@
+
+copyrev: bb4d9d6cf2b6d6dbf395920fab18dcbe0f46c4de
+copy: js/src/trace-test/tests/basic/testGrowDenseArray.js
+
+function testGrowDenseArray() {
+    var a = new Array();
+    for (var i = 0; i < 10; ++i)
+        a[i] |= 5;
+    return a.join(",");
+}
+assertEq(testGrowDenseArray(), "5,5,5,5,5,5,5,5,5,5");

@@ -1,0 +1,15 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/obsolete/010-novalid.html
+copyrev: 8ba9e895f624fcf43488cd7ee319484ded045c3e
+
+<!DOCTYPE html>
+<html>
+<head profile="http://www.w3.org/2006/03/hcard http://dublincore.org/documents/2008/08/04/dc-html/">
+<title>the profile attribute on the head element is obsolete</title>
+<meta charset=utf-8>
+</head>
+<body>
+<p>This page contains a <code>head</code> element with an obsolete
+<code>profile</code> attribute. It should trigger a validation error.</p>
+</body>
+</html>

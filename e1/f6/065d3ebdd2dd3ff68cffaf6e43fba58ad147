@@ -1,0 +1,25 @@
+
+copy: content/canvas/test/webgl-mochitest/test_webgl2_not_exposed.html
+copyrev: 823a3bfe4886b6daf0972c701df4a26da5102b41
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>WebGL test: WebGL2RenderingContext not exposed</title>
+<script src="/tests/SimpleTest/SimpleTest.js"></script>
+<link rel="stylesheet" href="/tests/SimpleTest/test.css">
+</head>
+<body>
+<script>
+
+var exposed = false;
+try {
+  null instanceof WebGL2RenderingContext;
+  exposed = true;
+} catch (e) {}
+
+ok(!exposed, 'WebGL2RenderingContext should not be exposed.');
+
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: content/canvas/crashtests/780392-1.html
+copyrev: 81b329b6c5c1e23470783d109074a78742c7faa6
+
+<!doctype HTML>
+<html>
+<body>
+<canvas id="c" width="10000" height="10000"></canvas>
+<script>
+var ctx = document.getElementById("c").getContext("2d");
+ctx.fillText("Hello world!", 50, 50);
+</script>
+</body>
+</html>

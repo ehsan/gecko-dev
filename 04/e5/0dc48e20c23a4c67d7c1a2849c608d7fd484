@@ -1,0 +1,9 @@
+
+copy: dom/svg/crashtests/898915-1.svg
+copyrev: bdeab4309f020a33f0e4bff8366a20dbfa743d0f
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <text>
+    <animate attributeName="y" by="" />
+  </text>
+</svg>

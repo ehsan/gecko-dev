@@ -1,0 +1,23 @@
+
+copyrev: 1cefae09e5e33a11590aab106e4cc36995d9025e
+copy: js/src/trace-test/tests/jaeger/bug585310.js
+
+gczeal(2)
+try {
+    (function () {
+        for each(l in [0, 0, 0]) {
+            print(''.replace(function () {}))
+        }
+    })()
+} catch (e) {}
+
+x = gczeal(2)
+try {
+    (function () {
+        for each(d in [x, x, x]) {
+            'a'.replace(/a/, function () {})
+        }
+    })()
+} catch (e) {}
+
+/* Don't assert or segfault. Tests PIC resetting. */

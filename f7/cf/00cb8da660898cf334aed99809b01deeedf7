@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/keygen/054-isvalid.html
+copyrev: 3b2770020fb07b6448bc596558564ea9b498b332
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>keygen with no attributes</title>
+</head>
+<body>
+<keygen>
+</body>
+</html>

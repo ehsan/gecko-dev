@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-invalid/input/input-reset.html
+copyrev: 831d9e4fd45909a54398a6ed7ac2162e18327c87
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input is of reset type, it is barred from constraint validation
+             and should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <!-- Setting value to the empty string let us check against input-button-ref.html -->
+    <input class='notinvalid' type='reset' value=''>
+  </body>
+</html>

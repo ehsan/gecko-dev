@@ -1,0 +1,14 @@
+
+copy: extensions/spellcheck/hunspell/tests/iconv.aff
+copyrev: 286b1f47d89745fa3ac79c28cd4ebf79b6eac111
+
+# input conversion (accept comma acuted letters also with cedilla,
+# as de facto replacement of the Romanian standard)
+SET UTF-8
+
+ICONV 4
+ICONV ş ș
+ICONV ţ ț
+ICONV Ş Ș
+ICONV Ţ Ț
+

@@ -1,0 +1,37 @@
+# vim:set ts=8 sw=8 sts=8 noet:
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+
+MOZILLA_INTERNAL_API = 1
+
+LOCAL_INCLUDES	= \
+		-I$(srcdir) \
+		-I.. \
+		-I$(srcdir)/../glue \
+		-I$(srcdir)/../base \
+		-I$(srcdir)/../ds \
+		-I$(srcdir)/../io \
+		-I$(srcdir)/../components \
+		-I$(srcdir)/../threads \
+		-I$(srcdir)/../reflect/xptinfo/src \
+		-I$(topsrcdir)/chrome/src \
+		-I$(srcdir)/../../docshell/base \
+		$(NULL)
+
+include $(topsrcdir)/config/rules.mk
+
+DEFINES		+= \
+		-D_IMPL_NS_STRINGAPI \
+		-DOMNIJAR_NAME="$(OMNIJAR_NAME)" \
+		$(NULL)
+
+ifdef TARGET_XPCOM_ABI
+DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+CXXFLAGS	+= $(TK_CFLAGS)
+endif

@@ -1,0 +1,65 @@
+
+copy: dom/network/interfaces/nsIDOMTCPServerSocket.idl
+copyrev: 4bc7b256b0feb4ff01b0ddd6cc71a27ea7dd6289
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "domstubs.idl"
+
+interface nsITCPSocketChild;
+
+/**
+ * Internal interfaces for use in cross-process server-socket implementation.
+ * Needed to account for multiple possible types that can be provided to
+ * the socket callbacks as arguments.
+ *
+ * These interfaces are for calling each method from the server socket object
+ * on the parent and child side for an IPC protocol implementation.
+ */
+
+[scriptable, uuid(03520F9E-7989-4604-870A-A67DFFD846DC)]
+interface nsITCPServerSocketInternal : nsISupports
+{
+  /**
+   * Close the server socket.
+   */
+  void close();
+
+  /** 
+   * Listen on a port
+   *
+   * @param localPort 
+   *        The port of the server socket. Pass -1 to indicate no preference,
+   *        and a port will be selected automatically.
+   * @param options 
+   *        An object specifying one or more parameters which
+   *        determine the details of the socket.
+   *
+   *        binaryType: "arraybuffer" to use UInt8 array
+   *        instances in the ondata callback and as the argument
+   *        to send. Defaults to "string", to use JavaScript strings.
+   * @param backlog 
+   *        The maximum length the queue of pending connections may grow to.
+   *        This parameter may be silently limited by the operating system.
+   *        Pass -1 to use the default value.
+   */
+  void listen(in unsigned short localPort, in jsval options, in unsigned short backlog);
+
+  /**
+   * Listener for receiving an accepted socket.
+   */
+  void callListenerAccept(in nsITCPSocketChild socketChild);
+
+  /**
+   * Listener for handling an error caused in chrome process.
+   */
+  void callListenerError(in DOMString message, in DOMString filename,
+                         in uint32_t lineNumber, in uint32_t columnNumber);
+
+  /**
+   * Called by the parent process when there is no DOM window available.
+   */
+  void initWithGlobal(in nsISupports global);
+};

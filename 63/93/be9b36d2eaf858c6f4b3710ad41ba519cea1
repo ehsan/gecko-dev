@@ -1,0 +1,9 @@
+
+copy: mobile/modules/video.jsm
+copyrev: 49765e32e7f014366797337eb76787e0a8a9ec43
+
+var EXPORTED_SYMBOLS = ["Video"];
+
+var Video = {
+  fullScreenSourceElement: null
+};

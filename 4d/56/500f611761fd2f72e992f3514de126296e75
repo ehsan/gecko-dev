@@ -1,0 +1,26 @@
+
+copy: layout/reftests/editor/672709-ref.html
+copyrev: bea47aaa6bb0bbf89a0ee08ca9c4252ad3539396
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <body>
+    <style>
+      :-moz-read-only { color: red; }
+      :-moz-read-write { color: green; }
+    </style>
+    <script>
+      onload = function() {
+        document.designMode = "on";
+        var p = document.createElement("p");
+        p.textContent = "test";
+        document.getElementById("x").appendChild(p);
+        getSelection().removeAllRanges(); // don't need a caret
+        document.documentElement.removeAttribute("class");
+      };
+    </script>
+    <div contenteditable id="x">
+    </div>
+    more test
+  </body>
+</html>

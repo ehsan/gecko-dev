@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/oconv.dic
+copyrev: a4cfc34ecbbd4b8677529d1d92fdb059a85f4f68
+
+3
+bébé
+dádá
+aábcdeé

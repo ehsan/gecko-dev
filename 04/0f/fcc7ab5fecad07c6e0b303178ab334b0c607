@@ -1,0 +1,5 @@
+
+copyrev: 8ef863a83e591fef9c1b532c872e6654ab1a75ea
+copy: js/ctypes/libffi/testsuite/config/default.exp
+
+load_lib "standard.exp"

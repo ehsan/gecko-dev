@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_forbiddenword1.dic
+copyrev: 0c3114a8fcf9d6babab5f3e09497fe3709080bc1
+
+4
+foo/W
+word/W
+bar/WS
+foowordbar/FS

@@ -1,0 +1,22 @@
+
+copyrev: 189ad3eb7afb20fb5bab0ab8bd789547e17ee7cf
+copy: js/src/trace-test/tests/jaeger/bug563000/test-throwhook-1.js
+
+var result1 = "unset";
+var result2 = "failure";
+function main() {
+  result1 = "failure";
+  try {
+    throw "something";
+  } catch(e) {
+    result2 = "success";
+  }
+}
+function nop() { }
+
+setDebug(true);
+setThrowHook("result1 = 'success'; nop()");
+
+main();
+assertEq(result1, "success");
+assertEq(result2, "success");

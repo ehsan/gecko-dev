@@ -1,0 +1,6 @@
+
+copy: testing/mozbase/manifestdestiny/tests/no-tests.ini
+copyrev: e04d21adafeefdb09b083a80e181b80f832f4b08
+
+[DEFAULT]
+foo = bar

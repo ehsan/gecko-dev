@@ -1,0 +1,23 @@
+The source from this directory was copied from the liboggplay svn
+source using the update.sh script. The only changes made were those
+applied by update.sh and the addition/upate of Makefile.in files for
+the Mozilla build system.
+
+git://git.xiph.org/liboggplay.git
+
+The git commit ID used was 8640eb3fddc43ad4a5d2cdbcbc62238204e952aa.
+
+The following local patches have been applied:
+
+endian: pick up NSPR's little/big endian defines in oggplay's config.h.
+
+bug481921: fix a crash in oggplay_callback_info_prepare().
+
+aspect-ratio: Adds oggplay_get_video_aspect_ratio, used for bug 480058.
+
+seek_to_key_frame.patch: Adds oggplay_seek_to_keyframe(), as per bug 463358.
+
+oggplay_os2.patch: Bug 448918 - add OS/2 support (this patch should be
+                   removed when OS/2 support is added upstream)
+
+bug496529.patch: Bug 496529.

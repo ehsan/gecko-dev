@@ -1,0 +1,17 @@
+
+copy: js/src/jit-test/tests/parallelarray/length-2.js
+copyrev: 6e475dc7ea6251821f7e4a4352cd4dedfbcde7ba
+
+function testLength() {
+  // Test higher dimension shape up to 8D
+  var shape = [];
+  for (var i = 0; i < 8; i++) {
+    shape.push(i+1);
+    var p = new ParallelArray(shape, function () { return 0; });
+    // Length should be outermost dimension
+    assertEq(p.length, shape[0]);
+  }
+}
+
+if (getBuildConfiguration().parallelJS)
+  testLength();

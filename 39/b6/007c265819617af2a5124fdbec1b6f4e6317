@@ -1,0 +1,588 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Mobile Browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mark Finkle <mfinkle@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+/* browser area -------------------------------------------------- */
+#browser-container {
+  background-image: url("chrome://browser/content/checkerboard.png");
+}
+
+/* main toolbar (URL bar) -------------------------------------------------- */
+#toolbar-main {
+  -moz-appearance: none;
+  -moz-box-align: center;
+  padding: 0px 10px;
+  border: none;
+}
+
+toolbarbutton {
+  -moz-appearance: none !important;
+  -moz-box-orient: vertical;
+  min-width: 48px;
+  min-height: 48px;
+  /* override default toolbarbutton padding/margin */
+  margin: 0;
+  padding: 5px;
+}
+
+toolbarbutton:not(.show-text) .toolbarbutton-text {
+  display: none !important;
+}
+
+toolbarbutton:not(.show-text) .toolbarbutton-icon {
+  -moz-margin-end: 0px;
+}
+
+toolbarbutton:hover,
+toolbarbutton:hover:active,
+toolbarbutton[open="true"] {
+  border-color: transparent;
+}
+
+/* main toolbar buttons */
+toolbarbutton.urlbar-button {
+  /* space out the buttons a bit horizontally */
+  margin-left: 8px
+}
+
+#tool-bookmarks {
+  list-style-image: url("chrome://browser/skin/images/bookmarks-24.png");
+}
+
+/* URL bar cap buttons */
+toolbarbutton.urlbar-cap-button {
+  margin: 2px;
+  padding: 0px;
+  min-width: 0px;
+  min-height: 0px;
+}
+
+#tool-go {
+  list-style-image: url("chrome://browser/skin/images/go-16.png");
+}
+
+#tool-reload {
+  list-style-image: url("chrome://browser/skin/images/reload-16.png");
+}
+
+#tool-stop {
+  list-style-image: url("chrome://browser/skin/images/stop-16.png");
+}
+
+#urlbar-icons[mode="loading"] > #tool-go,
+#urlbar-icons[mode="loading"] > #tool-reload {
+  visibility: collapse;
+}
+
+#urlbar-icons[mode="view"] > #tool-go,
+#urlbar-icons[mode="view"] > #tool-stop {
+  visibility: collapse;
+}
+
+#urlbar-icons[mode="edit"] > #tool-reload,
+#urlbar-icons[mode="edit"] > #tool-stop {
+  visibility: collapse;
+}
+
+/* URL bar ----------------------------------------------------------------- */
+#urlbar-container {
+  color: #000;
+  -moz-box-align: center;
+  min-height: 60px;
+}
+
+/* creates the left endcap */
+#identity-box {
+  color: #fff;
+  padding: 9px 4px;
+  -moz-border-radius-topleft: 0.5em;
+  -moz-border-radius-bottomleft: 0.5em;
+  border: 1px solid #777;
+  background: #525252;
+}
+
+#identity-box:hover:active {
+  border: 1px solid #202020;
+  background: #303030;
+}
+
+/* add special color and extra width */
+#identity-box[mode="verifiedIdentity"] {
+  min-width: 50px;
+  background-color: #77c494;
+}
+
+/* add special color and extra width */
+#identity-box[mode="verifiedDomain"] {
+  min-width: 50px;
+  background-color: #6ca0c9;
+}
+
+/* favicon images are 16x16 */
+#urlbar-image-box {
+  max-width: 24px;
+  max-height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  margin: 2px;
+}
+
+#urlbar-throbber[loading] {
+  list-style-image: url("chrome://browser/skin/images/throbber.png");
+}
+
+#urlbar-favicon {
+  width: 24px;
+  height: 24px;
+}
+
+#urlbar-editarea {
+  -moz-box-align: center;
+  padding: 7px 4px 8px 4px;
+  border-top: 1px solid #777;
+  border-bottom: 1px solid #777;
+  background: #fff;
+}
+
+#urlbar-edit {
+  -moz-appearance: none !important;
+  padding: 0px !important;
+  border: none !important;
+  background-color: #fff;
+}
+
+/* make sure this endcap matches the other endcap */
+#urlbar-icons {
+  color: #fff;
+  padding: 12px 4px;
+  -moz-border-radius-topright: 0.5em;
+  -moz-border-radius-bottomright: 0.5em;
+  border: 1px solid #777;
+  background: #525252;
+}
+
+#urlbar-icons:hover:active {
+  border: 1px solid #202020;
+  background: #303030;
+}
+
+/* right toolbar (browser controls) ---------------------------------------- */
+#browser-controls {
+  -moz-box-align: end;
+  padding: 0px 10px;
+}
+
+toolbarbutton.browser-control-button,
+toolbarbutton.panel-button,
+toolbarbutton.page-button {
+  /* space out the buttons a bit vertically */
+  margin-bottom: 8px;
+}
+
+#tool-star {
+  list-style-image: url("chrome://browser/skin/images/bookmarkpage-24.png");
+}
+
+#tool-star[starred="true"] {
+  list-style-image: url("chrome://browser/skin/images/bookmarkpage-on-24.png");
+}
+
+#tool-back {
+  list-style-image: url("chrome://browser/skin/images/back-24.png");
+}
+
+#tool-back[disabled="true"] {
+  list-style-image: url("chrome://browser/skin/images/back-disabled-24.png");
+}
+
+#tool-forward {
+  list-style-image: url("chrome://browser/skin/images/forward-24.png");
+}
+
+#tool-forward[disabled="true"] {
+  list-style-image: url("chrome://browser/skin/images/forward-disabled-24.png");
+}
+
+/* button is moved off the right edge */
+#tool-panel-open {
+  list-style-image: url("chrome://browser/skin/images/settings-24.png");
+  margin-right: -14px;
+  /* XXX not sure why we need the padding here, but not in #tool-panel-close */
+  padding-right: 26px;
+}
+
+/* button is moved off the left edge */
+#tool-panel-close {
+  list-style-image: url("chrome://browser/skin/images/back-24.png");
+  margin-left: -14px;
+}
+
+/* "extras" panel UI   ----------------------------------------------------- */
+#panel-controls {
+  /* match #browser-controls end padding */
+  padding: 0px 10px;
+}
+
+.panel-header {
+  padding: 5px;
+}
+
+#tool-addons {
+  list-style-image: url("chrome://browser/skin/images/addons-24.png");
+}
+
+#tool-downloads {
+  list-style-image: url("chrome://browser/skin/images/downloads-24.png");
+}
+
+#tool-preferences {
+  list-style-image: url("chrome://browser/skin/images/preferences-24.png");
+}
+
+#tool-console {
+  list-style-image: url("chrome://browser/skin/images/console-24.png");
+}
+
+/* URL List and autocomplete navigation popup ------------------------------ */
+#tool-bookmarks-close,
+#tool-folders-close {
+  list-style-image: url("chrome://browser/skin/images/bookmarks-24.png");
+}
+
+#bookmarklist-container {
+  padding: 0px;
+}
+
+#bookmarklist-header, #folder-header {
+  color: rgb(255,255,255);
+  -moz-box-align: center;
+  padding: 0px 10px;
+}
+
+#bookmark-items, #folder-items {
+  -moz-appearance: none !important;
+  background-color: rgb(255,255,255);
+  padding: 0px;
+}
+
+.place-list-parents {
+  background-color: rgb(207,207,207);
+  padding: 4px;
+}
+
+.place-list-children {
+  -moz-appearance: none;
+  border: none !important;
+  padding: 0px;
+}
+
+.bookmark-folder, .bookmark-item {
+  padding: 5px 2px;
+  border-bottom: 1px solid rgb(207,207,207);
+}
+
+.bookmark-folder textbox[readonly="true"], .bookmark-item textbox[readonly="true"] {
+  -moz-appearance: none !important;
+  background-color: transparent;
+  border: none !important;
+  -moz-user-select: none !important;
+}
+
+placelabel.bookmark-folder {
+  border-bottom: 1px solid rgb(255,255,255);
+}
+
+.bookmark-item-image, .bookmark-folder-image {
+  width: 24px;
+  height: 24px;
+}
+
+/* hack to align with 1st grid/row */
+.bookmark-item-image {
+  margin-top: 8px;
+}
+
+/* folders have a fixed image */
+.bookmark-folder-image {
+  list-style-image: url("chrome://browser/skin/images/folder.png");
+}
+
+/* control the manage controls */
+.bookmark-manage-controls, .bookmark-folder-new {
+  visibility: collapse;
+}
+
+placelist[ui="manage"] .bookmark-manage-controls,
+placelist[ui="manage"] .bookmark-folder-new,
+placeitem[ui="manage"] .bookmark-manage-controls {
+  visibility: visible;
+}
+
+placeitem[ui="manage"] .bookmark-item-image {
+  visibility: collapse;
+}
+
+/* be consistent with the size of placeitem */
+placelabel {
+  height: 34px;
+}
+
+/* use a smaller font size for the manage buttons */
+placeitem .button-text {
+  font-size: 9pt !important;
+}
+
+.close-button {
+  -moz-appearance: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+  list-style-image: url("chrome://browser/skin/images/folder_close.png");
+}
+
+.tool-search {
+  list-style-image: url("chrome://browser/skin/images/navigation_magnifier.gif");
+}
+
+.searchengine {
+  -moz-box-orient: horizontal;
+}
+
+#autocomplete_navbuttons {
+  margin: 10px;
+  min-height: 50px;
+}
+
+.autocomplete-items {
+  color: black;
+  background-color: white;
+}
+
+.autocomplete-item,
+.autocomplete-item-selected {
+  padding: 5px 2px;
+  border-bottom: 1px solid rgb(207,207,207);
+}
+
+.autocomplete-item-selected {
+  color: white;
+  background-color: grey;
+}
+
+.autocomplete-item.noresults {
+  text-align: center;
+  font-style: italic;
+  color: grey;
+  background-color: white;
+  border-bottom: none;
+}
+
+.ac-result-type-bookmark {
+  list-style-image: url("chrome://browser/skin/images/page-starred.png");
+  width: 16px;
+  height: 16px;
+}
+
+.ac-result-type-tag {
+  list-style-image: url("chrome://browser/skin/images/tag.png");
+  width: 16px;
+  height: 16px;
+}
+
+/* Left sidebar (tabs)  ---------------------------------------------------- */
+#tabs-container {
+  padding-left: 10px;
+  min-width: 132px;
+}
+
+#tabs {
+  -moz-appearance: none;
+  margin: 0;
+  padding: 4px;
+  -moz-padding-end: 12px;
+  background-color: transparent;
+}
+
+richlistitem[type="documenttab"] {
+  -moz-appearance: none;
+  border: 1px solid transparent;
+  -moz-border-radius: 5px;
+  background: none;
+  padding: 4px;
+}
+
+richlistitem[type="documenttab"][selected="true"] {
+  border: 1px solid white !important;
+}
+
+.documenttab-close {
+  width: 24px;
+  height: 24px;
+  list-style-image: url(chrome://browser/skin/images/tab_close.png);
+}
+
+vbox:first-child richlistitem[type="documenttab"]:only-child .documenttab-close {
+  display: none;
+}
+
+#newtab-button {
+  list-style-image: url("images/newtab-24.png");
+}
+
+/* findbar   --------------------------------------------------------------- */
+findbar {
+  background: rgba(128, 128, 128, 0.75);
+}
+
+/* bookmark editor   ------------------------------------------------------- */
+#bookmark-container {
+  padding: 8px;
+}
+
+#bookmark-form {
+  background-color: #fff;
+  padding: 8px;
+}
+
+/* Identity popup   -------------------------------------------------------- */
+#identity-container {
+  padding: 8px;
+}
+
+/* Popup Icons */
+#identity-icon {
+  height: 48px;
+  width: 48px;
+  padding: 0;
+  list-style-image: url("chrome://browser/skin/images/identity.png");
+  -moz-image-region: rect(0px, 64px, 64px, 0px);
+}
+
+#identity-container[mode="verifiedDomain"] > #identity-icon {
+  -moz-image-region: rect(64px, 64px, 128px, 0px);
+}
+
+#identity-container[mode="verifiedIdentity"] > #identity-icon {
+  -moz-image-region: rect(128px, 64px, 192px, 0px);
+}
+
+/* Popup Body Text */
+#identity-content-box {
+  -moz-padding-start: 8px;
+}
+
+#identity-content-box.unknownIdentity > hbox > #identity-connectedToLabel,
+#identity-content-box.unknownIdentity > hbox > #identity-runByLabel,
+#identity-content-box.unknownIdentity > hbox > #identity-content-host,
+#identity-content-box.unknownIdentity > hbox > #identity-content-owner,
+#identity-content-box.verifiedIdentity > hbox > #identity-connectedToLabel2,
+#identity-content-box.verifiedDomain > hbox > #identity-connectedToLabel2 {
+  display: none;
+}
+
+#identity-content-box > hbox > description,
+#identity-content-box > hbox > label {
+  font-size: 11pt !important;
+  white-space: pre-wrap;
+}
+
+#identity-encryption-label,
+#identity-content-verifier {
+  font-size: 8pt !important;
+}
+
+#identity-content-host,
+#identity-content-owner {
+  font-weight: bold;
+}
+
+#identity-encryption-icon {
+  list-style-image: url("chrome://browser/skin/images/downloads-24.png");
+}
+
+#identity-container.verifiedIdentity > vbox > #identity-encryption-icon ,
+#identity-container.verifiedDomain > vbox > #identity-encryption-icon {
+  list-style-image: url("chrome://browser/skin/images/addons-24.png");
+}
+
+/* Preferences window   ---------------------------------------------------- */
+/* XXX should be a richlistitem */
+richpref {
+  background-color: white;
+  color: black;
+}
+
+/* XXX should be a richlistitem.section-header */
+.prefsection {
+  font-weight: bold;
+  color: #000;
+  background-color: lightgray;
+  padding: 5px;
+}
+
+/* XXX should be a richlistitem */
+.prefbox {
+  padding: 5px;
+  border-bottom: 1px solid rgb(207,207,207);
+  -moz-box-align: center;
+}
+
+/* XXX should be a richlistitem description.title */
+.preftitle {
+  font-size: 9pt !important;
+}
+
+/* XXX should be a richlistitem description.normal */
+.prefdesc {
+  font-size: 8pt !important;
+  color: grey;
+  background-color: white;
+}
+
+/* alerts popup ----------------------------------------------------------- */
+#alerts-container {
+  color: #000;
+  background-color: #fff;
+  border: 4px solid gray;
+  -moz-border-radius: 8px;
+  padding: 8px;
+  -moz-box-shadow: black 4px 4px 10px;
+}
+
+#alerts-text {
+  font-size: 85% !important;
+  white-space: pre-wrap;
+}

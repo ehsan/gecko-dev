@@ -1,0 +1,7 @@
+
+copy: layout/xul/crashtests/460900-1.xul
+copyrev: 9000c0214ca603d37a20930d8945134ce87a204e
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="document.getElementById('label').control='c';">
+<label id="label"><hbox><listboxbody><hbox/><tooltip/></listboxbody><autorepeatbutton/></hbox></label>
+</window>

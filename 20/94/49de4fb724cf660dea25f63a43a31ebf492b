@@ -1,0 +1,5 @@
+
+copyrev: 6c3575c5483820627e759abc8ca943e905abffec
+copy: js/tests/js1_5/Error/shell.js
+
+gTestsubsuite = 'Error';

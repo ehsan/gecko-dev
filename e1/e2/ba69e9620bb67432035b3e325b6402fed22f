@@ -1,0 +1,10 @@
+
+copy: mobile/branding/aurora/android-resources.mn
+copyrev: 2fd34e209b8a7905f2338ca034d4920c46150ed0
+
+mobile/xul/app/android/drawable/alertaddons.png
+mobile/xul/app/android/drawable/alertdownloads.png
+mobile/xul/branding/aurora/content/splash.png
+mobile/xul/branding/aurora/content/splash_v9.9.png
+mobile/xul/branding/aurora/content/splash_v8.9.png
+mobile/xul/branding/aurora/content/favicon32.png

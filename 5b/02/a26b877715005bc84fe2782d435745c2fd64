@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/select/select-invalid.html
+copyrev: 5eb26f9dd0212005e465f86e867cb5abcb213c7e
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if select has a custom error, it should be affected by :-moz-ui-invalid
+             pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('s').setCustomValidity('foo'); document.documentElement.className='';">
+    <select class='invalid' id='s'></select>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+
+copy: gfx/thebes/crashtests/248518-1.html
+copyrev: e74ef33c59055073182deb916ee5c87c4a639d20
+
+<html><head>
+	<style type="text/css">
+		<!--
+		body{font: 10pt lucida;}
+		-->
+	</style>
+</head><body>Hello.</body></html>

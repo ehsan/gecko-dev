@@ -1,0 +1,8 @@
+
+copy: gfx/thebes/crashtests/421813-1.html
+copyrev: 36cf883ed402490f81a0235ba483aea601dcbc06
+
+<html>
+<head></head>
+<body onload="document.body.appendChild(document.createTextNode('y'));">x&#x2028;&#x200D;&#x202D;<span>&#x0643;</span></body>
+</html>

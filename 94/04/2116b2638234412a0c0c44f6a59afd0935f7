@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/slash.aff
+copyrev: e793c0c537e336dcf51d87cebe59f1ee57edf612
+
+# slashes in words (\/)
+
+# (only for tokenization)
+WORDCHARS /:

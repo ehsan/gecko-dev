@@ -1,0 +1,16 @@
+
+copyrev: fcbcda0212f288aa25cad1b962c02ffeb64f5250
+copy: js/src/trace-test/tests/basic/testGCWhileRecording.js
+
+function test() {
+    for (let z = 0; z < 4; ++z) {
+      uneval({ x: 9 });
+      gc()
+    }
+    return "pass";
+}
+assertEq(test(), "pass");
+checkStats({
+  recorderStarted: 1,
+  recorderAborted: 0
+});

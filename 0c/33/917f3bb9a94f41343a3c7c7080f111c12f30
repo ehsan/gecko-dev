@@ -1,0 +1,10 @@
+
+copyrev: ab484c8c40593623cc0ea48e49cc135769502461
+copy: modules/plugin/tools/sdk/samples/winless/windows/npwinless.def
+
+LIBRARY   NPWINLESS
+
+EXPORTS
+	NP_GetEntryPoints   @1
+	NP_Initialize       @2
+	NP_Shutdown         @3

@@ -1,0 +1,15 @@
+
+copy: mobile/android/base/tests/testJNI.java
+copyrev: 558fe47a998da00f9c0f9a2fdfbb0be6cb4acf85
+
+#filter substitution
+package @ANDROID_PACKAGE_NAME@.tests;
+
+import @ANDROID_PACKAGE_NAME@.*;
+
+
+public class testJNI extends JavascriptTest {
+    public testJNI() {
+        super("testJNI.js");
+    }
+}

@@ -1,0 +1,7 @@
+
+copy: js/src/xpconnect/crashtests/382133-1.html
+copyrev: 1783edc2f4707720f50f8e11085cea0f67378fba
+
+<script>
+(function(){}).apply.ee = <foo/>;
+</script>

@@ -1,0 +1,4 @@
+input::-moz-placeholder,
+input.ref {
+  color: green;
+}

@@ -1,0 +1,14 @@
+
+copyrev: b1d517c466434be4fa50cf91a795127df412ce12
+copy: js/src/trace-test/tests/basic/bug522136.js
+
+var Q = 0;
+try {
+   (function f(i) { Q = i; if (i == 100000) return; f(i+1); })(1)
+} catch (e) {
+}
+
+// Exact behavior of recursion check depends on which JIT we use.
+var ok = (Q == 3000 || Q == 3001);
+assertEq(ok, true);
+

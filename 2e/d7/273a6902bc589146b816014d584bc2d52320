@@ -1,0 +1,12 @@
+
+copyrev: fdf5213449bc05b95233916b948f34521c73752a
+copy: js/src/trace-test/tests/jaeger/bug580884.js
+
+// |jit-test| error: ReferenceError
+for (let a in [0])
+a = e
+for (let a in [0])
+(function () {
+    a
+})
+

@@ -1,0 +1,11 @@
+
+copy: layout/xul/base/src/grid/crashtests/321073-1.xul
+copyrev: d9e6dcdb399535994781b9892c2b28196a14cdea
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <listcols>
+    <grid/>
+    <listitem/>
+  </listcols>
+</window>

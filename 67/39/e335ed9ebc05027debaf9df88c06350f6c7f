@@ -1,0 +1,9 @@
+
+copyrev: 946985f86c2296c6fea880a28d042b8563a93a0b
+copy: testing/mozmill/mozmill-1.5.0/test/test_python_callbacks_callbacks.py
+
+def nowCallback(obj):
+    assert obj == "test"
+
+def failCallback(obj):
+    assert True is False

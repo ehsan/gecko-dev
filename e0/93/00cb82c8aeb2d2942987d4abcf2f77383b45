@@ -1,0 +1,22 @@
+
+copy: content/html/document/reftests/bug917595-iframe-1.html
+copyrev: 61556387e5fe6bd2d2944b3ded85e978a497bbfb
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<style>
+  iframe {
+    width:  100%;
+    height: 100%;
+    border: 0px;
+  }
+</style>
+<script>
+  document.addEventListener('MozReftestInvalidate',
+                            () => document.documentElement.removeAttribute('class'),
+                            false);
+</script>
+<body>
+  <iframe src="bug917595-exif-rotated.jpg" scrolling="no" marginwidth="0" marginheight="0"></iframe>
+</body>
+</html>

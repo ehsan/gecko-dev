@@ -1,0 +1,20 @@
+
+copy: dom/imported-tests/webapps/WebStorage/tests/submissions/Infraware/iframe/local_security_iframe.html
+copyrev: 72041bb6ddb7785df70725f735915de524b7e314
+
+<!DOCTYPE HTML>
+<html>
+ <body>
+	<script>
+		if (('localStorage' in window) && window.localStorage != null){
+			try {
+				localStorage.setItem("Security", "false");
+				parent.localStorage.clear();
+			} catch (e) {
+				if(e.code == e['SECURITY_ERR'])
+					localStorage.setItem("Security", "true");
+			}
+		}
+	</script>
+ </body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/parallelarray/map-parallel-assign-to-def-prop.js
+copyrev: fea731760ae118df5d8026c64e6697d1d821a3a1
+
+load(libdir + "parallelarray-helpers.js");
+
+function wrapInObject(v) {
+    var obj = {f: 2};
+    obj.f += v;
+    return obj;
+}
+
+if (getBuildConfiguration().parallelJS)
+  assertArraySeqParResultsEq(range(0, 64), "map", wrapInObject);

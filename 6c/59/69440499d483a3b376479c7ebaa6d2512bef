@@ -1,0 +1,5 @@
+
+copyrev: ba7b66acf8ba3e553da2f2d38d86ab23103552ed
+copy: js/tests/js1_8/genexps/shell.js
+
+gTestsubsuite = 'genexps';

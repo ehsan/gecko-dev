@@ -1,0 +1,5 @@
+
+copy: content/html/content/test/bug392567.jar^headers^
+copyrev: 67f5c7365cd03b9215ca9ecad4e23fa18fe35ad0
+
+Content-Type: application/java-archive

@@ -1,0 +1,16 @@
+
+copy: browser/metro/base/tests/browser_onscreen_keyboard.html
+copyrev: d1ba8927d8edf7bb08a578ea28f010505e7c27ea
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>On-Screen Keyboard Test</title>
+    <style>
+      #text { position: absolute; left: 1em; bottom: 1em; }
+    </style>
+  </head>
+  <body>
+    <input id="text">
+  </body>
+</head>

@@ -1,0 +1,11 @@
+
+copy: dom/src/json/test/unit/pass3.json
+copyrev: f9a825700a66d76884d90f5722d9e43ff4bb83d4
+
+{
+    "JSON Test Pattern pass3": {
+        "The outermost value": "must be an object or array.",
+        "In this test": "It is an object."
+    }
+}
+

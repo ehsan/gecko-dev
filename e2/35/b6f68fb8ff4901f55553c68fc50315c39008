@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/button/button-disabled.html
+copyrev: f3ee54e594d47dee212fc4a511a6b2031b13c2d5
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if button is disabled, it is barred from constraint validation
+             and should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <button class='notinvalid' disabled></button>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+
+copy: layout/xul/base/src/crashtests/289410-1.xul
+copyrev: d00ddb446641519e5b690e0da9eaa60c4ec402c2
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window id="crash-window"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <scrollbox>
+    <tree id="crash-tree">
+      <treecols/>
+      <treechildren/>
+    </tree>
+  </scrollbox>
+
+</window>

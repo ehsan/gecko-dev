@@ -1,0 +1,9 @@
+
+copy: content/base/test/accesscontrol.resource^headers^
+copyrev: 7e0a84b1ebd7231ca2eb334b6dcff6bb5f3ea3f8
+
+Access-Control-Allow-Origin: http://mochi.test:8888
+Access-Control-Allow-Credentials: true
+Content-Type: text/event-stream
+Cache-Control: no-cache, must-revalidate
+

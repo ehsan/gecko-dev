@@ -1,0 +1,19 @@
+
+copy: dom/imported-tests/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-07.htm
+copyrev: 11a331453f4b49d18dcf982cd08045c401c38f2f
+
+<!doctype html>
+<html>
+ <head>
+  <title>document.getElementsByClassName(): multiple classes</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body class="a b">
+  <div id="log"></div>
+  <script> test(function() {
+                  assert_array_equals(document.getElementsByClassName("b\t\f\n\na\rb"), [document.body]);
+               })
+  </script>
+ </body>
+</html>

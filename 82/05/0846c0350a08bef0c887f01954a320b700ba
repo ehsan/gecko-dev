@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/circumfix.good
+copyrev: ecf6e939bc77b5a7d8011218ba71835f928902ff
+
+nagy
+nagyobb
+legnagyobb
+legeslegnagyobb

@@ -1,0 +1,5 @@
+
+copyrev: 8cd73bb44fc7d3a7545a9fc6349e660aa854283f
+copy: js/tests/e4x/QName/shell.js
+
+gTestsubsuite = 'QName';

@@ -1,0 +1,10 @@
+
+copyrev: 943ef7bf0d1308b8c97fb19b6e72a00f59838a6c
+copy: js/src/trace-test/tests/basic/testStringToInt32.js
+
+function testStringToInt32() {
+    var s = "";
+    for (let j = 0; j < 5; ++j) s += ("1e+81" ^  3);
+    return s;
+}
+assertEq(testStringToInt32(), "33333");

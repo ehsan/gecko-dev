@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompounddup.aff
+copyrev: 79da46b41e6178d5b433d7842b6141d6197ca8df
+
+# Forbid compound word with triple letters
+CHECKCOMPOUNDDUP
+COMPOUNDFLAG A

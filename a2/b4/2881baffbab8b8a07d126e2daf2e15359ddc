@@ -1,0 +1,15 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/base_utf.sug
+copyrev: e2851e032f730e1240d283d7efa4d9d15be8a7de
+
+looked, look
+text, create
+hello
+said
+rotten day, rotten-day, rotten
+tomorrow, rotten
+seven
+NASA
+horrifying
+speech, Hunspell
+suggest

@@ -1,0 +1,13 @@
+
+copy: layout/xul/crashtests/366112-1.xul
+copyrev: 0d0e917a21f14729fa88202ff8182b1c3a852fd9
+
+<?xml version="1.0"?>
+
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <nativescrollbar />
+
+</window>

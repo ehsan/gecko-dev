@@ -1,0 +1,9 @@
+
+copy: content/base/crashtests/xhr_empty_datauri.html
+copyrev: 4946e7e842730403678450f32949613816e455c2
+
+<!DOCTYPE html>
+<html class="reftest-wait"><meta charset=utf-8>
+<script>
+var xhr=new XMLHttpRequest();xhr.open("GET","data:,");xhr.responseType='blob';xhr.onloadend=function(){document.documentElement.removeAttribute('class');};xhr.send();
+</script>

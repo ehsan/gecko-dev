@@ -1,0 +1,12 @@
+
+copy: editor/libeditor/html/crashtests/456727-2.html
+copyrev: e55ee80e9dfc1187031e0ea6e6813234468e101a
+
+<html>
+<BODY onload="
+document.designMode='on';
+document.removeChild(document.firstChild);
+document.queryCommandState('BackColor');
+">
+</body>
+</html>

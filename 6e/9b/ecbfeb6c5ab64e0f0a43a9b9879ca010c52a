@@ -1,0 +1,8 @@
+
+copy: mobile/android/gradle/omnijar/gradle_AndroidManifest.xml
+copyrev: ae1ebe275bf7f19f65e7a6c1bf851664418fc6be
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.mozilla.gecko.omnijar">
+
+</manifest>

@@ -1,0 +1,9 @@
+
+copy: dom/xul/crashtests/extB1.xul
+copyrev: e26dc1fd84b56fb80ce45b163f0539c2d2c127be
+
+<?xml version="1.0" encoding="UTF-8"?>
+<overlay id="extA2"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <statusbar id="extAbar" removeelement="true" />
+</overlay>

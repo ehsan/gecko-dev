@@ -1,0 +1,21 @@
+
+copy: browser/base/content/test/plugin_add_dynamically.html
+copyrev: 29b03a7d3c9a3e538a5b8b3aaa0cdc56b2387b08
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+<script>
+function addPlugin(type="application/x-test") {
+  var embed = document.createElement("embed");
+  embed.style.width = "200px";
+  embed.style.height = "200px";
+  embed.setAttribute("type", type);
+  return document.body.appendChild(embed);
+}
+</script>
+</body>
+</html>

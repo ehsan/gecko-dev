@@ -1,0 +1,20 @@
+
+copy: gfx/thebes/crashtests/333861-1.html
+copyrev: 41eb5863a41ebbbbcd7213582c2bdcc198a04a86
+
+<html><head>
+<!--
+Copyright Georgi Guninski
+Licence granted to Mozilla Corporation
+-->
+
+		<style> 
+			button 
+			{
+				font-size: 131131px;
+			}
+			</style>
+		</head><body>
+		
+		<button>f00</button>
+</body></html>

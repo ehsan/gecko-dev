@@ -1,0 +1,20 @@
+
+copy: browser/base/content/test/tabview/browser_tabview_bug606657.js
+copyrev: b65a497fefa68b1a13c6b5cac74460a3d6558b9b
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function test() {
+  waitForExplicitFinish();
+
+  showTabView(function () {
+    let [tab] = gBrowser.tabs;
+    let groupId = tab._tabViewTabItem.parent.id;
+
+    TabView.moveTabTo(tab, groupId);
+    is(tab._tabViewTabItem.parent.id, groupId, 'tab did not change its group');
+
+    hideTabView(finish);
+  });
+}

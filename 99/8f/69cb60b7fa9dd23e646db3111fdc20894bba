@@ -1,0 +1,10 @@
+
+copy: layout/reftests/css-invalid/input/input-button-ref.html
+copyrev: 6d1ddbb58f6addd92b1a422f76d1af291473fd4d
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type='button' style="background-color: green;">
+  </body>
+</html>

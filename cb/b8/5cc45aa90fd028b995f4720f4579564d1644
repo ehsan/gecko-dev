@@ -1,0 +1,15 @@
+
+copy: layout/reftests/forms/input-text-bounds-1-ref.html
+copyrev: 56b49011ae5385fc0f5702a30a9a1b87c36c3f1e
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Reference for bug 806583 test</title>
+  <style>
+    body { background: blue }
+  </style>
+</head>
+<body>
+</body>
+</html>

@@ -1,0 +1,11 @@
+
+copyrev: 57c5f2da0ed39220c2db0799a773860915b8f972
+copy: js/src/trace-test/tests/jaeger/bug563000/trap-force-return-2.js
+
+setDebug(true);
+function main() {
+  return 1;
+}
+/* JSOP_RETURN in main. */
+trap(main, 1, "0");
+assertEq(main(), 0);

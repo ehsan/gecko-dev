@@ -1,0 +1,22 @@
+
+copy: dom/apps/tests/test_widget.html
+copyrev: 0ef2d32401da5629feead007bfade41089279b33
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for DataStore - basic operation on a readonly db</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="application/javascript" src="file_test_widget.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<div id="container"></div>
+  <script type="application/javascript;version=1.7">
+  SimpleTest.waitForExplicitFinish();
+  gHasBrowserPermission = true;
+  runTest();
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+
+copy: other-licenses/virtualenv/scripts/virtualenv
+copyrev: 02ff5314b948ef82a2f47d96b6634092d3c41ba2
+
+#!/usr/bin/env python
+import virtualenv
+virtualenv.main()

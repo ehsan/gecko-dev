@@ -1,0 +1,19 @@
+
+copy: content/media/test/crashtests/oscillator-ended-2.html
+copyrev: be574dc2460c7b6cf13ad2d830978ca91294c4ef
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<script>
+function createContext() {
+  var context = new window.AudioContext();
+  var source = context.createOscillator();
+  source.onended = function(e) {
+    document.documentElement.removeAttribute("class");
+  };
+  source.connect(context.destination);
+  source.start(60);
+  source.stop(0.5);
+}
+createContext();
+</script>

@@ -1,0 +1,7 @@
+
+copy: content/base/test/unit_ipc/test_xhr_document_ipc.js
+copyrev: 69465cd2559716b10ff6940598dd3aa494c55998
+
+function run_test() {
+  run_test_in_child("../unit/test_xhr_document.js");
+}

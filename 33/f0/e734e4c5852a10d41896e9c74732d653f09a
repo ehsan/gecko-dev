@@ -1,0 +1,24 @@
+
+copy: layout/xul/base/src/crashtests/583957-1.html
+copyrev: de7d819c2935bd451840072d7ef735ea5e958e23
+
+<html>
+<head>
+<script>
+
+function boom()
+{
+  window.addEventListener("DOMSubtreeModified", function(){}, false);
+
+  var m = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "menuitem");
+  document.body.appendChild(m);
+  m.setAttribute("type", "checkbox");
+  m.setAttribute("checked", "true");
+  m.removeAttribute("type");
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

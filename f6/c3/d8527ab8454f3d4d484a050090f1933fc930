@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern2.good
+copyrev: 6a5099bb25efd73733798d96a1a2fa3e15856fd8
+
+barfoo
+fozar
+fur

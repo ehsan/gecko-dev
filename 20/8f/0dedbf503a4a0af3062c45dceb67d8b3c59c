@@ -1,0 +1,13 @@
+
+copyrev: 969fd25f306a9c73e41bda57f4e9d4ffefe90cef
+copy: js/src/trace-test/tests/basic/name.js
+
+globalName = 907;
+function name()
+{
+  var a = 0;
+  for (var i = 0; i < 100; i++)
+    a = globalName;
+  return a;
+}
+assertEq(name(), 907);

@@ -1,0 +1,15 @@
+
+copy: browser/branding/nightly/content/Makefile.in
+copyrev: edd46ea9d85ac32c03d6ffa7a3a274741219012f
+
+# Branding Makefile
+#  - jars chrome artwork
+
+DEPTH = ../../../..
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+include $(topsrcdir)/config/rules.mk

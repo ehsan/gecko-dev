@@ -1,0 +1,17 @@
+
+copy: dom/base/test/mixedcontentblocker/bug803225_test_mailto.html
+copyrev: bbb1e73b9b7ad337cde9100f0d747d70bd8aa98d
+
+<!DOCTYPE HTML>
+<html>
+<!--
+Tests for Mixed Content Blocker - Mailto Protocol Compose Page
+https://bugzilla.mozilla.org/show_bug.cgi?id=803225
+-->
+<head> <meta charset="utf-8"> 
+</head>
+<body>
+Hello
+<script>window.close();</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+
+copy: browser/devtools/debugger/test/minified.html
+copyrev: 397a04081f2e8cff1addfcf679bc75c3025448e1
+
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Debugger test page</title>
+  </head>
+
+  <body>
+    <script src="code_math.min.js"></script>
+  </body>
+</html>

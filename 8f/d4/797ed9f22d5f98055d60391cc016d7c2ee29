@@ -1,0 +1,12 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/canvas/00_test_list.txt
+copyrev: d0e557c05591b1fd5e7401dce21de20bfda21bb5
+
+buffer-offscreen-test.html
+buffer-preserve-test.html
+canvas-test.html
+canvas-zero-size.html
+drawingbuffer-static-canvas-test.html
+drawingbuffer-test.html
+viewport-unchanged-upon-resize.html
+

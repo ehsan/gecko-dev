@@ -1,0 +1,13 @@
+
+copy: content/svg/content/src/crashtests/751515-1.svg
+copyrev: 037c104ff2fad80c682c326b44c746ddbcecaccf
+
+<?xml version="1.0"?>
+
+<svg xmlns="http://www.w3.org/2000/svg">
+<script>
+
+document.documentElement.createSVGAngle().convertToSpecifiedUnits(2);
+
+</script>
+</svg>

@@ -1,0 +1,17 @@
+
+copy: layout/reftests/editor/xul/plain-ref.xul
+copyrev: c52faa6b57bfba9a34847150d1b710ac8e39e469
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin" type="text/css"?>
+<?xml-stylesheet href="input.css" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Textbox tests">
+
+  <script type="text/javascript" src="platform.js"/>
+
+  <html:div class="plainfield">test</html:div>
+      
+</window>

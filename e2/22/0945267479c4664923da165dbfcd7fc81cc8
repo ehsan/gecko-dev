@@ -1,0 +1,25 @@
+
+copyrev: 0200643e07eec43940d41c643e19359caf86cf2f
+copy: js/src/trace-test/tests/jaeger/testBug550743.js
+
+expected = '';
+
+function g(code) {
+  f = Function(code);
+  gen = f();
+  gen.next();
+  try { gen.next(); } catch (ex) { expected = ex.toString() }
+}
+
+g("\
+  yield this.__defineGetter__('x', function(){ return z }); \
+  let z = new String('hi'); \
+  ");
+
+eval();
+gc();
+
+str = x;
+
+assertEq(expected, "[object StopIteration]");
+assertEq(str.toString(), "hi");

@@ -1,0 +1,6 @@
+
+copy: dom/mathml/crashtests/crashtests.list
+copyrev: 6500185a654a99271e64f3d8b1b38ba7ca62e10d
+
+load 462929-1.html
+load 770710-1.html

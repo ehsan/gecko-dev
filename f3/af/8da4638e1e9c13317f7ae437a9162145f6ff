@@ -1,0 +1,21 @@
+
+copy: content/base/crashtests/558973.html
+copyrev: 7f02262356d0f500b8c608452673b6737841e2e4
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<script type="text/javascript">
+
+var child = document.createTextNode("a");
+
+var attr = document.createAttribute("a");
+try {
+    attr.appendChild(child);
+}
+catch (e) {
+}
+
+</script>
+</head>
+</html>

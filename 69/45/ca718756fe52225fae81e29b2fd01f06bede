@@ -1,0 +1,17 @@
+
+copy: content/xul/templates/src/crashtests/257752-1-recursion.rdf
+copyrev: e0e78a5ea45394aa48a04bf2146b409d89839826
+
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:m="urn:foo#">
+   <rdf:Seq about="urn:x-rec:1">
+     <rdf:li rdf:resource="urn:x-rec:2"/>
+   </rdf:Seq>
+   <rdf:Seq about="urn:x-rec:2">
+     <rdf:li rdf:resource="urn:x-rec:3"/>
+   </rdf:Seq>
+   <rdf:Seq about="urn:x-rec:3">
+     <rdf:li rdf:resource="urn:x-rec:1"/>
+   </rdf:Seq>
+</rdf:RDF>

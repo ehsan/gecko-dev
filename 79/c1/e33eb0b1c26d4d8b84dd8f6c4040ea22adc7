@@ -1,0 +1,10 @@
+
+copy: content/canvas/test/webgl/conformance/attribs/00_test_list.txt
+copyrev: 4bdce6c5be54446445d23bc61242d71a7f908aab
+
+gl-enable-vertex-attrib.html
+gl-vertex-attrib-zero-issues.html
+gl-vertex-attrib.html
+gl-vertexattribpointer-offsets.html
+gl-vertexattribpointer.html
+

@@ -1,0 +1,13 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/accesskey/surrogate-pair-low-novalid.html
+copyrev: 7df90dee2e7608f613b30cd6473243e60be4a7ad
+
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8">
+<title>accesskey attribute</title>
+</head>
+<body>
+<a href="url" accesskey="aí¼¡">this link has an accesskey attribute with an invalid surrogate pair (an 'a' followed by a low surrogate)</a>
+</body>
+</html>

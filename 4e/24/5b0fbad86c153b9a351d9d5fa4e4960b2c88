@@ -1,0 +1,16 @@
+
+copy: layout/reftests/backgrounds/background-referrer.html
+copyrev: b9269d2eaf70a0a5f70b87137bc1bdfb4cfc3481
+
+<!DOCTYPE html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=398066
+-->
+<html>
+<head>
+  <title>Accept: header should include image/* catchall</title>
+</head>
+<body>
+<img src="check-header.sjs">
+</body>
+</html>

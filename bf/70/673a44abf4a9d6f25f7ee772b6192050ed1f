@@ -1,0 +1,37 @@
+
+copy: modules/plugin/test/mochitest/test_npn_asynccall.html
+copyrev: 24d5a2c8c27e0ef696a70da3d9591c4be693c6d8
+
+<html>
+<head>
+  <title>NPN_AsyncCallback Tests</title>
+  <script type="text/javascript" 
+          src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" 
+          src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" 
+        href="/tests/SimpleTest/test.css" />
+</head>
+<body onload="runTests()">
+  <p id="display"></p>
+
+  <embed id="plugin1" type="application/x-test" width="400" height="100">
+  </embed>
+
+  <script class="testbody" type="application/javascript">
+  
+  SimpleTest.waitForExplicitFinish();
+  
+  function asyncTestsComplete(result) {
+    ok(result, "asyncCallback tests completed");
+    SimpleTest.finish();
+  }
+  
+  function runTests() {
+    var plugin = document.getElementById("plugin1");
+    plugin.asyncCallbackTest("asyncTestsComplete");
+  }
+  </script>
+  
+ </body>
+ </html>

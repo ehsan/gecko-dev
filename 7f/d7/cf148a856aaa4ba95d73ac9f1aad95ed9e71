@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/nosuggest.good
+copyrev: de79d74392bf37eb2adb48d9fab8dbbea42fc8d8
+
+foo
+foobar
+barfoo

@@ -1,0 +1,17 @@
+
+copy: extensions/spellcheck/hunspell/tests/1706659.aff
+copyrev: 9b0f629471589fa2001f22fdbfcf40f9f2683f53
+
+# test COMPOUNDRULE bug reported by Björn Jacke
+SET ISO8859-1
+TRY esijanrtolcdugmphbyfvkwqxz
+
+SFX A Y 5
+SFX A 0 e .
+SFX A 0 er .
+SFX A 0 en .
+SFX A 0 em .
+SFX A 0 es .
+
+COMPOUNDRULE 1
+COMPOUNDRULE vw

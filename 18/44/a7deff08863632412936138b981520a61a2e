@@ -1,0 +1,16 @@
+
+copy: modules/libpr0n/test/reftest/generic/accept-image-catchall-ref.html
+copyrev: 32445c768bce66538bb81dc129612ba58bcee37f
+
+<!DOCTYPE html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=398066
+-->
+<html>
+<head>
+  <title>Accept: header should include image/* catchall</title>
+</head>
+<body>
+<img src="green.png">
+</body>
+</html>

@@ -1,0 +1,5 @@
+
+copy: layout/reftests/forms/indeterminate-native-unchecked.html
+copyrev: 5b534a116caf81eea2fa95137055fa03416fb3cb
+
+<input type="checkbox" id="s"><script>document.getElementById("s").indeterminate = true;</script>

@@ -1,0 +1,27 @@
+
+copy: js/src/xpconnect/crashtests/503286-1.html
+copyrev: a018e29f8b69c2cc7217ad713e912f0f8e5a9f8f
+
+<html><head><title>Firefox 3.5 crash</title>
+
+<script language=JavaScript>
+
+function escapeData(data){
+   var escData='';
+   for(var i=0;i<data.length;i++) {
+      var c=data.charAt(i);
+      if( c==' ') c = escape(c);
+      escData+=c;
+    }
+    return escData;
+}
+
+var a = ["a", "a  ", "a", "a "]
+
+var html = "";
+for (i=0;i<a.length;i++){
+    html += escapeData("a")+escapeData(a[i])
+}
+</script>
+</body></html>
+

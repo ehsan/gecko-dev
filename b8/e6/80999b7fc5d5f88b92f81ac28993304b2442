@@ -1,0 +1,29 @@
+
+copy: layout/reftests/editor/388980-1-ref.html
+copyrev: 6817ed6c6cd5bae467c90029627679099e89b65f
+
+<html>
+<head>
+<title>Reftest for bug 388980</title></html>
+<script type="text/javascript">
+
+var text = '<html><head></head><body style="font-size:16px;">'
+	+ '<p><span style="background-color:red;">This paragraph should be red</span></p>'
+	+ '<p><span style="background-color:blue;">This paragraph should be blue</span></p>'
+	+ '<p>This paragraph should not be colored</p>'
+	+ '</body></html>';
+
+function initIFrame() {
+	var doc = document.getElementById('theIFrame').contentDocument;
+	doc.designMode = 'on';
+	doc.open('text/html');
+	doc.write(text);
+	doc.close();
+}
+</script>
+</head>
+<body onload="initIFrame()" >
+<iframe id="theIFrame">
+</iframe>
+</body>
+</html>

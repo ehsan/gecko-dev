@@ -1,0 +1,11 @@
+
+copyrev: cce0b6c085e6989471ba5b1989929a981a0a38f6
+copy: js/src/trace-test/tests/closures/bug543565.js
+
+function C() {
+    var k = 3;
+    this.x = function () { return k; };
+    for (var i = 0; i < 9; i++)
+        ;
+}
+new C;

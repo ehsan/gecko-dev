@@ -1,0 +1,5 @@
+
+copyrev: 16e713baeb52189bae5472b18f1e156805e47f7a
+copy: js/tests/js1_8_1/extensions/shell.js
+
+gTestsubsuite='extensions';

@@ -1,0 +1,54 @@
+DEPTH		= ../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+XPIDL_MODULE   = wifi_geolocation_provider
+
+IS_COMPONENT = 1
+MODULE       = wifi_geolocation_provider
+LIBRARY_NAME = wifi_geolocation_provider
+USE_STATIC_LIBS = 1
+#MOZILLA_INTERNAL_API = 1
+
+REQUIRES = 	xpcom \
+		string \
+		dom \
+		content \
+		necko \
+		js \
+		xpconnect \
+		$(NULL)
+
+CPPSRCS	=	WifiLocationProvider.cpp \
+		WifiScannerPosition.cpp \
+		WifiScannerCommon.cpp \
+		$(NULL)
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+CPPSRCS	+= WifiScannerMac.cpp
+else
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+CPPSRCS	+= WifiScannerWin.cpp
+else
+CPPSRCS	+= WifiScannerUnix.cpp
+EXTRA_DSO_LDOPTS += -liw
+endif # windows
+endif # mac
+
+
+XPIDLSRCS = INetworkLocationHandler.idl
+
+include $(topsrcdir)/config/rules.mk
+
+EXTRA_DSO_LDOPTS += \
+  $(XPCOM_GLUE_LDOPTS) \
+  $(XPCOM_FROZEN_LDOPTS) \
+  $(EXTRA_DSO_LIBS) \
+  $(XPCOM_LIBS) \
+  $(MOZ_JS_LIBS) \
+  $(NSPR_LIBS) \
+  $(NULL)
+

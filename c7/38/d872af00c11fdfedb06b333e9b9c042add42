@@ -1,0 +1,12 @@
+
+copyrev: de40f0cdd363827b145b82c0cdeb4109adf9b46d
+copy: js/src/trace-test/tests/basic/testNEWINIT.js
+
+function testNEWINIT()
+{
+    var a;
+    for (var i = 0; i < 10; ++i)
+        a = [{}];
+    return uneval(a);
+}
+assertEq(testNEWINIT(), "[{}]");

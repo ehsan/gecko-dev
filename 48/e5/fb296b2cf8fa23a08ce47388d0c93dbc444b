@@ -1,0 +1,7 @@
+
+copyrev: 0f01d1fc1945ef70e5137782e318ed1d87e01f49
+copy: browser/locales/en-US/chrome/browser/aboutRights.properties
+
+buttonLabel = Know your rights…
+buttonAccessKey = K
+notifyRightsText = %S is free and open source software from the non-profit Mozilla Foundation.

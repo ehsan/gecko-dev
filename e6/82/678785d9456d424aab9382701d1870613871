@@ -1,0 +1,360 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Mobile Browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mark Finkle <mfinkle@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+/* global skin ------------------------------------------------------------- */
+@import url(chrome://global/skin/);
+
+/* hildon stuff ------------------------------------------------------------ */
+popup,
+panel,
+menupopup {
+  padding: 16px !important;
+}
+
+menu,
+menuitem {
+  padding: 0px !important;
+  margin: 0px !important;
+  font-family: "Nokia Sans", sans-serif !important;
+  font-size: 16.75pt !important;
+}
+
+label,
+description,
+textbox {
+  font-family: "Nokia Sans", sans-serif !important;
+  font-size: 16.75pt !important;
+}
+
+richlistitem {
+  font-family: "Nokia Sans", sans-serif !important;
+  font-size: 16.75pt !important;
+}
+
+
+/* Toolbar  */
+toolbarbutton {
+  -moz-appearance: none !important;
+  -moz-box-orient: vertical;
+  min-width: 0px;
+  padding: 5px !important;
+  margin: 0px !important;
+  -moz-margin-end: 0px;
+}
+
+toolbarbutton .toolbarbutton-text {
+  display: none !important;
+}
+
+toolbarbutton:hover,
+toolbarbutton:hover:active,
+toolbarbutton[open="true"] {
+  border-color: transparent;
+}
+
+#toolbar-main {
+  -moz-box-align: center;
+  background: url("chrome://browser/skin/images/toolbar-background.png") repeat-x top left;
+  padding: 8px;
+}
+
+toolbarbutton.urlbar-icon-button {
+  list-style-image: url("chrome://browser/skin/images/mono-toolbar.png");
+}
+
+#tool-reload {
+  -moz-image-region: rect(0px 108px 36px 72px);
+}
+
+#tool-stop {
+  -moz-image-region: rect(0px 216px 36px 180px);
+}
+
+#tool-go {
+  -moz-image-region: rect(0px 72px 36px 36px);
+}
+
+#browser-controls {
+  background-color: rgb(123,125,123);
+}
+
+toolbarbutton.browser-control-button {
+  list-style-image: url("chrome://browser/skin/images/mono-sidebar.png");
+}
+
+#tool-star {
+  -moz-image-region: rect(180px 59px 239px 0px);
+}
+
+#tool-star[starred="true"] {
+  -moz-image-region: rect(120px 59px 179px 0px);
+}
+
+#tool-back {
+  -moz-image-region: rect(0px 59px 59px 0px);
+  padding-bottom: 0px;
+}
+
+#tool-forward {
+  -moz-image-region: rect(60px 59px 119px 0px);
+  padding-top: 0px;
+}
+
+#tool-bookmarks {
+  -moz-image-region: rect(240px 59px 299px 0px);
+}
+
+#tool-actions {
+  -moz-image-region: rect(300px 59px 359px 0px);
+}
+
+#tool-search {
+  list-style-image: url("chrome://browser/skin/images/mono-toolbar.png");
+  -moz-image-region: rect(0px 36px 36px 0px);
+}
+
+#toolbar-main[mode="loading"] > #urlbar-icons > #tool-go,
+#toolbar-main[mode="loading"] > #urlbar-icons > #tool-reload {
+  visibility: collapse;
+}
+
+#toolbar-main[mode="view"] > #urlbar-icons > #tool-go,
+#toolbar-main[mode="view"] > #urlbar-icons > #tool-stop {
+  visibility: collapse;
+}
+
+#toolbar-main[mode="edit"] > #urlbar-icons > #tool-reload,
+#toolbar-main[mode="edit"] > #urlbar-icons > #tool-stop {
+  visibility: collapse;
+}
+
+#urlbar-container {
+  background-color: rgba(207,207,207,0.9);
+  border: 1px solid rgba(255,255,255,0.9);
+  -moz-border-radius: 10px;
+  color: #000;
+  padding: 2px !important;
+  -moz-box-orient: horizontal;
+  -moz-box-align: center;
+}
+
+#toolbar-main[mode="edit"] > #urlbar-container {
+  background-color: rgba(247,247,247,0.9);
+  border-color: rgba(0,0,0,0.9);
+}
+
+#urlbar-caption {
+  margin: 2px 8px 2px 8px;
+}
+
+#urlbar-edit {
+  -moz-appearance: none !important;
+  padding: 0px !important;
+  border: none !important;
+  background-color: rgba(247,247,247,0.9);
+}
+
+/* favicon images are 16x16 */
+#urlbar-image-stack {
+  width: 36px;
+  height: 36px;
+  margin: 2px 2px 2px 12px;
+}
+
+/* urlbar toolbuttons images are 36x36 */
+#urlbar-icons {
+  height: 36px;
+  -moz-box-align: center;
+}
+
+
+/* URL List */
+#urllist-container {
+  background-color: rgba(123,125,123,0.9);
+  padding: 8px;
+}
+
+#urllist-items {
+  -moz-appearance: none !important;
+  background-color: rgba(207,207,207,0.9);
+  border: 2px solid #fff !important;
+  -moz-border-radius: 10px;
+}
+
+.urllist-item {
+  -moz-appearance: none !important;
+  margin: 8px;
+  color: #000;
+}
+
+.urllist-image {
+  width: 24px;
+  height: 24px;
+}
+
+#urllist-search {
+  background-color: rgba(207,207,207,0.9);
+  border: 2px solid #fff !important;
+  -moz-border-radius: 10px;
+  _moz-box-align: start;
+}
+
+
+/* Bookmark editor */
+#bookmark-container {
+  background-color: rgba(123,125,123,0.9);
+  padding: 8px;
+}
+
+#bookmark-form {
+  background-color: rgba(207,207,207,0.9);
+  border: 2px solid #fff !important;
+  -moz-border-radius: 10px;
+  padding: 8px;
+}
+
+#bookmark-grid row {
+  -moz-box-align: center;
+}
+
+#bookmark-buttons {
+  margin-top: 8px;
+}
+
+/* Popup Icons */
+#identity-popup-icon {
+  height: 64px;
+  width: 64px;
+  padding: 0;
+  list-style-image: url("chrome://browser/skin/images/identity.png");
+  -moz-image-region: rect(0px, 64px, 64px, 0px);
+}
+
+#identity-popup.verifiedDomain > #identity-popup-container > #identity-popup-icon {
+  -moz-image-region: rect(64px, 64px, 128px, 0px);
+}
+
+#identity-popup.verifiedIdentity > #identity-popup-container > #identity-popup-icon {
+  -moz-image-region: rect(128px, 64px, 192px, 0px);
+}
+
+/* Popup Body Text */
+#identity-popup-content-box.unknownIdentity > #identity-popup-connectedToLabel ,
+#identity-popup-content-box.unknownIdentity > #identity-popup-runByLabel ,
+#identity-popup-content-box.unknownIdentity > #identity-popup-content-host ,
+#identity-popup-content-box.unknownIdentity > #identity-popup-content-owner ,
+#identity-popup-content-box.verifiedIdentity > #identity-popup-connectedToLabel2 ,
+#identity-popup-content-box.verifiedDomain > #identity-popup-connectedToLabel2 {
+  display: none;
+}
+
+#identity-popup-content-box > description,
+#identity-popup-encryption-label {
+  white-space: pre-wrap;
+  -moz-padding-start: 15px;
+  margin: 2px 0 4px;
+}
+
+#identity-popup-content-box > label {
+  white-space: pre-wrap;
+  -moz-padding-start: 15px;
+  margin: 0;
+}
+
+#identity-popup-content-host ,
+#identity-popup-content-box.verifiedIdentity > #identity-popup-content-owner {
+  font-size: 1.2em;
+}
+
+#identity-popup-content-host {
+  margin-top: 3px;
+  margin-bottom: 5px;
+  font-weight: bold;
+  max-width: 500px;
+}
+
+#identity-popup-content-owner {
+  margin-top: 4px;
+  margin-bottom: 0 !important;
+  font-weight: bold;
+  max-width: 500px;
+}
+
+.verifiedDomain > #identity-popup-content-owner {
+  font-weight: normal;
+}
+
+#identity-popup-content-verifier {
+  margin: 4px 0 2px;
+}
+
+#identity-popup-content-box.verifiedIdentity > #identity-popup-encryption ,
+#identity-popup-content-box.verifiedDomain > #identity-popup-encryption {
+  margin-top: 10px;
+  margin-left: -24px;
+}
+
+#identity-popup-content-box.verifiedIdentity > #identity-popup-encryption > vbox > #identity-popup-encryption-icon ,
+#identity-popup-content-box.verifiedDomain > #identity-popup-encryption > vbox > #identity-popup-encryption-icon {
+  list-style-image: url("chrome://browser/skin/images/secure24.png");
+}
+
+#identity-popup-more-info-button {
+  margin-top: 6px;
+  -moz-margin-end: 1px;
+}
+
+/* Popup Bounding Box */
+#identity-popup {
+  -moz-appearance: menupopup;
+  color: MenuText;
+}
+
+#identity-popup-container {
+  background-image: none;
+  min-width: 280px;
+  padding: 10px;
+}
+
+#tool-shortcuts {
+  -moz-image-region: rect(300px 59px 359px 0px);
+}
+
+#shortcuts-container {
+  background-color: rgba(123,125,123,0.9);
+  padding: 8px;
+}

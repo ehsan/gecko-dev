@@ -1,0 +1,5 @@
+
+copy: dom/base/test/csp/file_report_uri_missing_in_report_only_header.html^headers^
+copyrev: d44f679615095eea4b4bda2a59755f16eae483db
+
+Content-Security-Policy-Report-Only: default-src 'self';

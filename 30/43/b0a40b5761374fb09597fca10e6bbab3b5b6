@@ -1,0 +1,8 @@
+
+copy: content/base/crashtests/467392.html
+copyrev: 4222aed401867e62c497ebc0f3424563bbb036e2
+
+<script>
+document.write(document.body.innerHTML);
+window.location.reload();
+</script>

@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-valid/select/select-fieldset-legend-ref.html
+copyrev: d7289e7db6b2abd45715cb965c5d837ebb49d0a6
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <fieldset>
+      <legend>
+        <select style="background-color: green;"></select>
+      </legend>
+    </fieldset>
+  </body>
+</html>

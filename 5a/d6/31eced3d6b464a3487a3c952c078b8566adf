@@ -1,0 +1,9 @@
+
+copy: layout/xul/base/src/crashtests/menulist-focused.xhtml
+copyrev: fb05ef12d644676f98e75a50aa2ab553e0a2b73d
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<body>
+<xul:menulist focused="true"/>
+</body>
+</html>

@@ -1,0 +1,12 @@
+
+copy: content/smil/crashtests/691337-1.svg
+copyrev: bec7d84e94f5ad1b8f9cc53af6c0c831c22eac3d
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <rect width="100" height="100" fill="blue">
+    <animate attributeName="fill"
+      begin="999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+      dur="5s" from="blue" to="red" repeatCount="indefinite" additive="sum"/>
+  </rect>
+</svg>

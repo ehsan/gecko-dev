@@ -1,0 +1,14 @@
+
+copy: browser/devtools/styleinspector/test/sourcemaps.scss
+copyrev: bc3ef851d2000b2e516e122f7088c76463b3a33b
+
+
+$paulrougetpink: #f06;
+
+div {
+  color: $paulrougetpink;
+}
+
+span {
+  background-color: #EEE;
+}

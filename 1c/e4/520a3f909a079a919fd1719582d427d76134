@@ -1,0 +1,7 @@
+
+copy: content/events/crashtests/496308-1.html
+copyrev: 30e8e8851d7a3cc6b52e80255a31bcc574b26160
+
+<script>
+  document.createEvent("popupblockedevents").requestingWindow;
+</script>

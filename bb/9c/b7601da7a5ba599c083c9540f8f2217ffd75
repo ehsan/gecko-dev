@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern.test
+copyrev: 824fe10a8d475ef1f5e6b76f3d6d9b5df101e271
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME -i ISO8859-1

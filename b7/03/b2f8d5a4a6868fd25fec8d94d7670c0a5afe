@@ -1,0 +1,5 @@
+
+copy: browser/devtools/commandline/test/resources_jsb_script.js
+copyrev: 6680271d2b51e378131f62f240595589bff0ae90
+
+function somefunc(){for(let n=0;n<500;n++){if(n%2==1){console.log(n);console.log(n+1);}}}

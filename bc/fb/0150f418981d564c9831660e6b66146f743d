@@ -1,0 +1,13 @@
+
+copy: addon-sdk/source/data/test-iframe.html
+copyrev: 3eb6dc6690ed2257bc2b9855dd6a67fdcc10e04d
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
+  <iframe id="inner" src="about:blank"></iframe>
+</body>
+</html>

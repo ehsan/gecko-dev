@@ -1,0 +1,22 @@
+
+copyrev: 0128307c30c22054421551ebbf3c4441670a29ac
+copy: js/src/trace-test/lib/range.js
+
+// Library file for tests to load.
+
+function Range(start, stop) {
+    this.i = start;
+    this.stop = stop;
+}
+Range.prototype = {
+    __iterator__: function() this,
+    next: function() {
+        if (this.i >= this.stop)
+            throw StopIteration;
+        return this.i++;
+    }
+};
+
+function range(start, stop) {
+    return new Range(start, stop);
+}

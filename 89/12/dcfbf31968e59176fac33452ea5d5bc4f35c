@@ -1,0 +1,26 @@
+
+copy: content/events/crashtests/104310-1.html
+copyrev: d691f093dcfc845a61ac839d888100c4fc806a37
+
+<HTML>
+
+<HEAD>
+</HEAD>
+
+<BODY onload=document.input.name.focus()>
+
+
+<form method="post" action="index.cfm" name="input">
+<CENTER><TABLE BORDER=0>
+<TD><INPUT TYPE="text" NAME="name" onClick="this.focus()" onFocus="this.select()" onSelect="this.select()"></TD>
+
+</TABLE></CENTER>
+<HR>
+
+</FORM>
+
+</BODY>
+
+</HTML>
+
+

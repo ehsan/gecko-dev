@@ -1,0 +1,11 @@
+
+copy: layout/reftests/bugs/388367-1.html
+copyrev: a7247b3ab3bf092f6abf56fa7409d0879106eb60
+
+<html>
+<head>
+</head>
+<body>
+<pre style="direction: rtl;">&#12;</pre>
+</body>
+</html>

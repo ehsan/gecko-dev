@@ -1,0 +1,16 @@
+
+copy: js/src/xpconnect/crashtests/582649.html
+copyrev: 848bd41e4ecf6cb5cf09c6623273d88ece47a0c2
+
+<html>
+<head>
+	<title>Testcase for bug 582649</title>
+</head>
+<body>
+<script>
+var foo = [];
+foo[0] = foo;
+document.body.setUserData("foo", foo, null);
+</script>
+</body>
+</html>

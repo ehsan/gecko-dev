@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern2.wrong
+copyrev: 29aca1575cf95b06a5f2da4477160ab632df98f4
+
+foobar

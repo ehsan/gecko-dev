@@ -1,0 +1,8 @@
+[DEFAULT]
+head =
+tail =
+firefox-appdir = metro
+
+[test_util_extend.js]
+[test_util_populateFragmentFromString.js]
+

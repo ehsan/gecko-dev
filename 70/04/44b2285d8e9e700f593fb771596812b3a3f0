@@ -1,0 +1,23 @@
+
+copy: content/base/crashtests/847127.html
+copyrev: e3366726d73889c2d58796d00714380956ba0d52
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var outer = document.createElement("span");
+  outer.dir = "auto";
+  var inner = document.createElement("span");
+  outer.appendChild(inner);
+  inner.appendChild(document.createTextNode("\u202B"));
+  inner.dir = "auto";
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

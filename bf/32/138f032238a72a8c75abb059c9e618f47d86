@@ -1,0 +1,17 @@
+
+copy: js/src/jit-test/tests/binary-data/fuzz11.js
+copyrev: 2c406fe8080d989dc5b80be38e3fc85fbfee8d9c
+
+// |jit-test| error:Error
+
+if (!this.hasOwnProperty("Type"))
+  throw new Error("type too large");
+
+var A = new ArrayType(uint8, (2147483647));
+var S = new StructType({a: A,
+                        b: A,
+                        c: A,
+                        d: A,
+                        e: A});
+var aa = new S();
+var aa0 = aa.a;

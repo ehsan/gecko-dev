@@ -1,0 +1,26 @@
+
+copy: editor/libeditor/html/crashtests/431086-1.xhtml
+copyrev: 06f014f847c3c8d6f9f1492ada67735bcb4b5fb1
+
+<div xmlns="http://www.w3.org/1999/xhtml">
+
+<script type="text/javascript">
+
+function boom()
+{
+  var r = document.documentElement;
+  r.style.position = "absolute";
+  r.contentEditable = "true";
+  r.focus();
+  r.contentEditable = "false";
+  r.focus();
+  r.contentEditable = "true";
+  document.execCommand("subscript", false, null);
+  r.contentEditable = "false";
+}
+
+window.addEventListener("load", boom, false);
+
+</script>
+
+</div>

@@ -1,0 +1,5 @@
+
+copyrev: ff04c0ed7b3fd7cda4ecde407d211f7b1c681d3e
+copy: js/tests/js1_7/expressions/shell.js
+
+gTestsubsuite = 'expressions';

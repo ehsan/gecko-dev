@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/meta/html/browsers/history/the-history-interface/003.html.ini
+copyrev: 59c880197022de1ef45b52b090ffcd4a12c25c07
+
+[the-end.html]
+  type: testharness
+  [DOMContentLoaded]
+    expected: FAIL
+

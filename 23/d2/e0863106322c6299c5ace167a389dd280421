@@ -1,0 +1,22 @@
+
+copy: browser/base/content/test/file_bug822367_4.html
+copyrev: 21885e3eb1dbcb92ea4701a17ece221d94cf8c35
+
+<!DOCTYPE HTML>
+<html>
+<!--
+Test 4 for Mixed Content Blocker User Override - Mixed Script and Display
+https://bugzilla.mozilla.org/show_bug.cgi?id=822367
+-->
+<head>
+  <meta charset="utf-8">
+  <title>Test 4 for Bug 822367</title>
+</head>
+<body>
+  <div id="testContent">
+    <p id="p1"></p>
+  </div>
+  <script src="http://example.com/browser/browser/base/content/test/general/file_bug822367_4.js">
+  </script>
+</body>
+</html>

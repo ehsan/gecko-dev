@@ -1,0 +1,17 @@
+
+copy: content/media/test/crashtests/882549.html
+copyrev: 76fcc72ef906177bc6f04875310a6465ce34c0ea
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <script>
+            var o0 = new VTTCue(0.000, 1.000, 'Bug882549');
+            var o1 = o0.getCueAsHTML();
+        </script>
+    </head>
+    <body>
+    </body>
+</html>
+<script>
+</script>

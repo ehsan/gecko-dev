@@ -1,0 +1,7 @@
+
+copy: layout/reftests/forms/textarea-resize-ref.html
+copyrev: 6bcdbcbca389c5c0560e452d65a395db87138c1b
+
+<html><body>
+<div style="overflow: auto; resize: both; background: white; -moz-appearance: none; border: 0; padding: 0; margin: 0; width: 100px; height: 100px;"></div>
+</body></html>

@@ -1,0 +1,10 @@
+
+copy: layout/xul/crashtests/467481-1.xul
+copyrev: 8d59593dd467d5948f8548992e051e4fe0ac7c17
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="document.getElementById('a').setAttribute('ordinal', 30);">
+  <listbox>
+    <listitem id="a"/>
+    <listitem><iframe/></listitem>
+  </listbox>
+</window>

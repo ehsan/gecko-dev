@@ -1,0 +1,9 @@
+
+copy: browser/components/sessionstore/test/browser_597315_c1.html
+copyrev: 570d9e721841953aa3c9107e5470402581f05e98
+
+<html>
+  <body>
+    I'm C1!
+  </body>
+</html>

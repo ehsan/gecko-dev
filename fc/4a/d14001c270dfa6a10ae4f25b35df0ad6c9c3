@@ -1,0 +1,5 @@
+
+copy: tools/update-packaging/test/from-mac/Contents/MacOS/{foodir/channel-prefs.js
+copyrev: bf0922f0b718cc5e0626258bcc2325b347c4f7bf
+
+add-if-not from complete file

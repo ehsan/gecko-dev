@@ -1,0 +1,21 @@
+
+copy: widget/gtk2/compat/gtk/gtkcolorseldialog.h
+copyrev: c90c5eaf78f7cf68d24b0a38a3938fffbcaba852
+
+#ifndef GTKCOLORSELDIALOG_WRAPPER_H
+#define GTKCOLORSELDIALOG_WRAPPER_H
+
+#include_next <gtk/gtkcolorseldialog.h>
+#include <gtk/gtkversion.h>
+
+#if !GTK_CHECK_VERSION(2, 14, 0)
+static inline GtkWidget*
+gtk_color_selection_dialog_get_color_selection(GtkColorSelectionDialog* colorseldialog)
+{
+  GtkWidget* colorsel;
+  g_object_get(colorseldialog, "color-selection", &colorsel, NULL);
+  return colorsel;
+}
+#endif // GTK_CHECK_VERSION
+
+#endif // GTKCOLORSELDIALOG_WRAPPER_H

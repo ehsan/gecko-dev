@@ -1,0 +1,12 @@
+
+copy: browser/devtools/debugger/test/doc_pretty-print.html
+copyrev: d9db9ad910cc659ab59a8b3a3bddffdbe22b7338
+
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+<!DOCTYPE html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Debugger Pretty Printing Test Page</title>
+</head>
+<script src="code_ugly-8"></script>

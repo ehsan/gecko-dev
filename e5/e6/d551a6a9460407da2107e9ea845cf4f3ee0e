@@ -1,0 +1,5 @@
+
+copyrev: aa007e1d6860cdd4f1686a13f81c2fad14c43aa3
+copy: js/tests/js1_2/operator/shell.js
+
+gTestsubsuite = 'operator';

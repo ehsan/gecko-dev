@@ -1,0 +1,9 @@
+
+copyrev: cf2c3f98143ef76b0cfe84bec6f7dadcb65864f4
+copy: js/src/trace-test/tests/jaeger/bug600419.js
+
+/* Don't assert. */
+(function() {
+    var x;
+    [1].map(function(){}, x << x);
+})()

@@ -1,0 +1,378 @@
+<?xml version="1.0"?>
+<!DOCTYPE bindings PUBLIC "-//MOZILLA//DTD XBL V1.0//EN" "http://www.mozilla.org/xbl">
+
+<bindings
+    xmlns="http://www.mozilla.org/xbl"
+    xmlns:xbl="http://www.mozilla.org/xbl"
+    xmlns:html="http://www.w3.org/1999/xhtml"
+    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <binding id="deckpage">
+    <content>
+      <xul:stack anonid="page" class="deckpage-container" flex="1">
+        <html:canvas anonid="canvas" class="deckpage-canvas"/>
+        <xul:vbox align="start">
+          <xul:image anonid="close" class="deckpage-close"/>
+        </xul:vbox>
+      </xul:stack>
+    </content>
+
+  </binding>
+
+  <binding id="deckbrowser">
+    <content>
+      <xul:stack flex="1">
+        <xul:stack anonid="renderspace" class="deckbrowser-renderspace" style="overflow:hidden;" flex="1">
+          <html:div anonid="canvas-background"/>
+          <html:canvas anonid="canvas" moz-opaque="true"/>
+        </xul:stack>
+        <xul:deck anonid="container" class="deckbrowser-container" flex="1">
+        </xul:deck>
+      </xul:stack>
+      <xul:vbox anonid="tabspace" class="deckbrowser-tabspace" collapsed="true" align="center" flex="1">
+        <xul:description anonid="title" class="deckbrowser-title" crop="end"/>
+        <xul:description anonid="uri" class="deckbrowser-uri" crop="center"/>
+        <xul:hbox anonid="tabs" class="deckbrowser-tabs" flex="1" style="overflow-x: auto">
+        </xul:hbox>
+      </xul:vbox>
+    </content>
+
+    <implementation>
+      <constructor>
+      </constructor>
+
+      <field name="_container" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "container");
+      </field>
+
+      <field name="_tabspace" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "tabspace");
+      </field>
+
+      <field name="_renderspace" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "renderspace");
+      </field>
+
+      <field name="_browsers">
+        null
+      </field>
+
+      <property name="browser" readonly="true">
+        <getter>
+          return this._container.selectedPanel;
+        </getter>
+      </property>
+
+      <property name="browsers" readonly="true">
+        <getter>
+          <![CDATA[
+            if (!this._browsers) {
+              var browsers = [];
+              for (var i = 0; i < this._container.childNodes.length; i++)
+                browsers.push(this._container.childNodes[i]);
+              this._browsers = browsers;
+            }
+            return this._browsers;
+          ]]>
+        </getter>
+      </property>
+
+      <method name="addBrowser">
+        <parameter name="aURI"/>
+        <parameter name="aReferrer"/>
+        <parameter name="aPostData"/>
+        <parameter name="aFixUp"/>
+        <body>
+          <![CDATA[
+            var b = document.createElement("browser");
+            b.setAttribute("class", "deckbrowser-browser");
+            b.setAttribute("flex", "1");
+            b.setAttribute("type", "content-targetable");
+            if (this.hasAttribute("autocompletepopup"))
+              b.setAttribute("autocompletepopup", this.getAttribute("autocompletepopup"));
+            if (this.hasAttribute("contentcontextmenu"))
+              b.setAttribute("contextmenu", this.getAttribute("contentcontextmenu"));
+
+            this._container.appendChild(b);
+            this._container.selectedPanel = b;
+            this._browsers = null;
+
+            if (aURI != "about:blank") {
+              b.stop();
+              b.loadURI(aURI, aReferrer, aPostData, aFixup);
+            }
+
+            // Broadcast creation
+            var event = document.createEvent("Event");
+            event.initEvent("TabOpen", true, false);
+            b.dispatchEvent(event);
+
+            return b;
+          ]]>
+        </body>
+      </method>
+
+      <method name="removeBrowser">
+        <parameter name="aBrowser"/>
+        <body>
+          <![CDATA[
+            this._browsers = null;
+            if (!aBrowser)
+              aBrowser = this.browser;
+
+            var count = this._container.childNodes.length;
+            if (count == 1) {
+                var self = this;
+                setTimeout(function() { self.addBrowser("about:blank"); }, 0);
+            }
+
+            var currentIndex = this._container.selectedIndex;
+            var index = -1;
+            for (var i = 0; i<count; i++) {
+              if (this._container.childNodes[i] == aBrowser)
+                index = i;
+            }
+
+            // Broadcast removal
+            var event = document.createEvent("Event");
+            event.initEvent("TabClose", true, false);
+            aBrowser.dispatchEvent(event);
+
+            this._container.removeChild(aBrowser);
+
+            // Select the new tab
+            var newIndex = -1;
+            if (currentIndex > index)
+              newIndex = currentIndex - 1;
+            else if (currentIndex < index)
+              newIndex = currentIndex;
+            else {
+              newIndex = (index == count - 1) ? index - 1 : index;
+            }
+            this._container.selectedIndex = newIndex;
+          ]]>
+        </body>
+      </method>
+
+      <method name="show">
+        <parameter name="aBrowser"/>
+        <body>
+          <![CDATA[
+            if (aBrowser.constructor.name == "Number")
+              aBrowser = this.browsers[aBrowser];
+            this._container.selectedPanel = aBrowser;
+
+            var event = document.createEvent("Event");
+            event.initEvent("TabSelect", true, false);
+            aBrowser.dispatchEvent(event);
+          ]]>
+        </body>
+      </method>
+
+      <method name="select">
+        <body>
+          <![CDATA[
+            var tabs = document.getAnonymousElementByAttribute(this, "anonid", "tabs");
+            while (tabs.childNodes.length > 0)
+              tabs.removeChild(tabs.childNodes[0]);
+
+            var browsers = this.browsers;
+            for (var i=0; i<browsers.length; i++) {
+              var domWin = browsers[i].contentWindow;
+              var viewW = domWin.innerWidth;
+              var viewH = domWin.innerHeight;
+              var canvasW = this.boxObject.width / 1.5;
+              var canvasH = (viewH / viewW) * canvasW;
+
+              var deckpage = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "deckpage");
+              tabs.appendChild(deckpage);
+
+              var canvas = document.getAnonymousElementByAttribute(deckpage, "anonid", "canvas");
+              canvas.setAttribute("width", canvasW);
+              canvas.setAttribute("height", canvasH);
+              canvas.setAttribute("left", "10");
+              canvas.setAttribute("top", "10");
+
+              let self = this;
+              let target = browsers[i];
+
+              var page = document.getAnonymousElementByAttribute(deckpage, "anonid", "page");
+              function _selectTab(aEvent) {
+                self.show(target);
+                self._tabspace.collapsed = true;
+                self._container.collapsed = false;
+              }
+              page.addEventListener("click", _selectTab, false);
+
+              var close = document.getAnonymousElementByAttribute(deckpage, "anonid", "close");
+              function _closeTab(aEvent) {
+                self.removeBrowser(target);
+                self._tabspace.collapsed = true;
+                self._container.collapsed = false;
+              };
+              close.addEventListener("click", _closeTab, false);
+
+              let title = document.getAnonymousElementByAttribute(this, "anonid", "title");
+              let uri = document.getAnonymousElementByAttribute(this, "anonid", "uri");
+              function _hoverTab(aEvent) {
+                title.value = target.contentDocument.title;
+                uri.value = target.currentURI.spec;
+              };
+              page.addEventListener("mouseover", _hoverTab, false);
+
+              var ctx = canvas.getContext("2d");
+              ctx.clearRect(0, 0, canvasW, canvasH);
+              ctx.save();
+              ctx.scale(canvasW/viewW, canvasH/viewH);
+              ctx.drawWindow(domWin, 0, 0, viewW, viewH, "rgba(0,0,0,0)");
+              ctx.restore();
+            }
+
+            this._container.collapsed = true;
+            this._renderspace.collapse = true;
+            this._tabspace.collapsed = false;
+          ]]>
+        </body>
+      </method>
+
+      <field name="_updateTimer">
+        null
+      </field>
+
+      <field name="_panX">
+        0
+      </field>
+
+      <field name="_panY">
+        0
+      </field>
+
+      <field name="_dragX">
+        0
+      </field>
+
+      <field name="_dragY">
+        0
+      </field>
+
+      <method name="_updateCanvas">
+        <body>
+          <![CDATA[
+            var canvas = document.getAnonymousElementByAttribute(this, "anonid", "canvas");
+            var domWin = this.browser.contentWindow;
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            var stime = Date.now();
+            ctx.drawWindow(domWin, domWin.scrollX - this._panX, domWin.scrollY - this._panY, domWin.innerWidth, domWin.innerHeight, "white");
+            var etime = Date.now();
+            dump("drawWindow: " + (etime - stime) + " ms\n");
+          ]]>
+        </body>
+      </method>
+
+      <method name="startPan">
+        <body>
+          <![CDATA[
+            // Toggle browser visibility so the canvas is visible
+            this._container.style.visibility = "hidden";
+
+            var background = document.getAnonymousElementByAttribute(this, "anonid", "canvas-background");
+            var canvas = document.getAnonymousElementByAttribute(this, "anonid", "canvas");
+            var domWin = this.browser.contentWindow;
+
+            // The 'background' element acts as a 'sizer' in the <stack>
+            background.width = domWin.innerWidth + domWin.scrollMaxX;
+            background.height = domWin.innerHeight + domWin.scrollMaxY;
+
+            // Initialize the canvas size and location
+            canvas.width = domWin.innerWidth;
+            canvas.height = domWin.innerHeight;
+            canvas.style.left = "0px";
+            canvas.style.top = "0px";
+
+            // Initialize the primary panning tracker
+            this._panX = 0;
+            this._panY = 0;
+
+            // Initialize the canvas drag tracker
+            this._dragX = 0;
+            this._dragY = 0;
+
+            // Render the current viewable area into the canvas
+            this._updateCanvas();
+            this._updateTimer = null;
+          ]]>
+        </body>
+      </method>
+
+      <method name="doPan">
+        <parameter name="aDeltaX"/>
+        <parameter name="aDeltaY"/>
+        <body>
+          <![CDATA[
+            // Update the trackers
+            this._panX -= aDeltaX;
+            this._panY -= aDeltaY;
+            this._dragX -= aDeltaX;
+            this._dragY -= aDeltaY;
+
+            //dump("panX: " + this._panX + ", panY: " + this._panY + "\n");
+            //dump("dragX: " + this._dragX + ", dragY: " + this._dragY + "\n");
+
+            // Move the canvas
+            var canvas = document.getAnonymousElementByAttribute(this, "anonid", "canvas");
+            canvas.style.left = this._dragX + "px";
+            canvas.style.top = this._dragY + "px";
+
+            // Cancel the refresh timer
+            if (this._updateTimer) {
+              clearTimeout(this._updateTimer);
+              this._updateTimer = null;
+            }
+
+	    // if the total distance panned is greater than our threshold, force an update.
+	    var updateTimerFrequency = 300;  // 300?  why?  Carry over from mfinkle
+	    var totalDistance = Math.sqrt(Math.pow(this._dragX, 2) + Math.pow(this._dragY, 2));
+	    if (totalDistance > 250)  // Why? Felt right at 10pm.
+		updateTimerFrequency = 0;
+
+            // Initialize the refresh timer
+            var self = this;
+            function _doUpdate() {
+              canvas.style.left = "0px";
+              canvas.style.top = "0px";
+              self._dragX = 0;
+              self._dragY = 0;
+              self._updateCanvas();
+            }
+            this._updateTimer = setTimeout(_doUpdate, updateTimerFrequency);
+          ]]>
+        </body>
+      </method>
+
+      <method name="endPan">
+        <body>
+          <![CDATA[
+            // Cancel the refresh timer
+            if (this._updateTimer) {
+              clearTimeout(this._updateTimer);
+              this._updateTimer = null;
+            }
+
+            // Scroll the browser into the new location
+            var domWin = this.browser.contentWindow;
+            domWin.scrollBy(-this._panX, -this._panY);
+
+            // Toggle browser visibility so the browser is visible
+            this._container.style.visibility = "visible";
+          ]]>
+        </body>
+      </method>
+
+    </implementation>
+
+    <handlers>
+    </handlers>
+  </binding>
+
+</bindings>

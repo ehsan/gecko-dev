@@ -1,0 +1,15 @@
+
+copy: content/smil/crashtests/678938-1.svg
+copyrev: 0342d1eeb9821a928d2af788dd8116a0def1dc17
+
+<svg xmlns="http://www.w3.org/2000/svg" class="reftest-wait">
+<script>
+  window.addEventListener("load", function() {
+    setTimeout(function() {
+      document.documentElement.setCurrentTime(0);
+      document.documentElement.removeAttribute("class");
+    }, 0);
+  }, false);
+</script>
+<set id="c"/><set id="b" begin="c.begin; b.begin"/>
+</svg>

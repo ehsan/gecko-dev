@@ -1,0 +1,27 @@
+
+copyrev: bfd781e5ea9d9b040acd8848d83ab1b7726bed2e
+copy: js/src/trace-test/tests/basic/testProxyDefinePropertyWithMissingSetter.js
+
+// throw, don't crash
+
+var expect = "TypeError: property descriptor's setter field is neither undefined nor a function";
+var actual = "";
+
+try {
+
+(x = Proxy.createFunction((function() {
+  return {
+    defineProperty: function(name, desc) {
+      Object.defineProperty(x, name, desc)
+    },
+  }
+})(), (eval)));
+Object.defineProperty(x, "", ({
+  get: function() {}
+}))
+
+} catch (e) {
+    actual = '' + e;
+}
+
+assertEq(expect, actual);

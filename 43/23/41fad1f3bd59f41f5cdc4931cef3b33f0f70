@@ -1,0 +1,17 @@
+
+copyrev: 552be0e77fd010447ec3ba90a654edf930944a5c
+copy: js/src/trace-test/tests/basic/testAddNull.js
+
+function testAddNull()
+{
+  var rv;
+  for (var x = 0; x < HOTLOOP + 1; ++x)
+    rv = null + [,,];
+  return rv;
+}
+assertEq(testAddNull(), "null,");
+checkStats({
+    recorderStarted: 1,
+    sideExitIntoInterpreter: 1,
+    recorderAborted: 0
+});

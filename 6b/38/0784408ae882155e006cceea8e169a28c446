@@ -1,0 +1,28 @@
+
+copyrev: 8517b1e2d4bc3b00a6552d61d2133e99429e4060
+copy: js/src/trace-test/tests/closures/t022.js
+
+actual = '';
+expected = 'nocrash,';
+
+function jQuery(a, c) {
+}
+jQuery.fn = {};
+(function() {
+    var e =
+["ajaxStart","ajaxStop","ajaxComplete","ajaxError","ajaxSuccess","ajaxSend"];
+    for (var i = 0; i < e.length; i++) {
+        new function() {
+            var o = e[i];
+            jQuery.fn[o] = function(f) {
+                return this.bind(o, f);
+            }
+        };
+    }
+})();
+
+
+appendToActual('nocrash')
+
+
+assertEq(actual, expected)

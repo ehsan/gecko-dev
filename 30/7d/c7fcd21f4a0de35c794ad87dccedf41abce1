@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/ngram_utf_fix.good
+copyrev: 5a93b98cf9674d25e38c48154980492549b43b7a
+
+человек

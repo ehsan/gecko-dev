@@ -1,0 +1,5 @@
+
+copyrev: c22447d164cb2c7b81872f2fe63089786b3f7a9b
+copy: js/tests/ecma_3/LexicalConventions/shell.js
+
+gTestsubsuite = 'LexicalConventions';

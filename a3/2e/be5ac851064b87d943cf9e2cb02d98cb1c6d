@@ -1,0 +1,12 @@
+
+copyrev: ed9a191853fabbfe600b6ea08e6cf56fcdb45c76
+copy: xpfe/components/filepicker/src/filepicker.pkg
+
+[xpfe-browser browser mail]
+#if SHARED_LIBRARY
+dist/bin/components/@SHARED_LIBRARY@
+#else
+!staticcomp @LIBRARY@ @MODULE_NAME@
+#endif
+dist/bin/components/nsFilePicker.js
+!xpt dist/bin/components/filepicker.xpt

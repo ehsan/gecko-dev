@@ -1,0 +1,5 @@
+
+copy: layout/xul/base/src/crashtests/408904-1.xul
+copyrev: 96cba0c77be49f96bb0232688c72ff146a7686ec
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"><grid><rows><label/></rows><columns><column><label/></column></columns></grid></window>

@@ -1,0 +1,40 @@
+
+copy: content/canvas/test/webgl/conformance/glsl/misc/shader-with-version-130.vert.html
+copyrev: e26e4c11e58d88677d5f1afb98c55f6c370b9676
+
+<!--
+Copyright (c) 2011 The Chromium Authors. All rights reserved.
+Use of this source code is governed by a BSD-style license that can be
+found in the LICENSE file.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WebGL GLSL Conformance Tests</title>
+<link rel="stylesheet" href="../../../resources/js-test-style.css"/>
+<link rel="stylesheet" href="../../resources/glsl-feature-tests.css"/>
+<script src="../../../resources/js-test-pre.js"></script>
+<script src="../../resources/webgl-test-utils.js"></script>
+<script src="../../resources/glsl-conformance-test.js"></script>
+</head>
+<body>
+<div id="description"></div>
+<div id="console"></div>
+<script id="vertexShader" type="text/something-not-javascript">
+// vertex shader uses the #version not 100 directive should fail
+#version 130
+attribute vec4 vPosition;
+void main()
+{
+    gl_Position = vPosition;
+}
+</script>
+<script>
+GLSLConformanceTester.runTest();
+successfullyParsed = true;
+</script>
+</body>
+</html>
+
+

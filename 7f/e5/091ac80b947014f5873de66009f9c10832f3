@@ -1,0 +1,7 @@
+
+copy: browser/devtools/styleinspector/test/doc_content_stylesheet_linked.css
+copyrev: 93a94c03607cf260dadb7bd3c9bf0b78807a7c22
+
+table  {
+  border-collapse: collapse;
+}

@@ -1,0 +1,233 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Mobile Browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mark Finkle <mfinkle@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+/* global skin ------------------------------------------------------------- */
+@import url(chrome://global/skin/);
+
+/* panels ------------------------------------------------------------------ */
+.panel-dark {
+  color: white;
+  background-color: #36373b;
+}
+
+/* dialog popups ----------------------------------------------------------- */
+.dialog-dark {
+  color: #fff;
+  background-color: #36373b;
+  -moz-border-radius: 0 0 1.0mm 1.0mm;
+  padding: 8px;
+  -moz-box-shadow: black 0 0.25mm 0.25mm;
+}
+
+/* buttons ----------------------------------------------------------------- */
+.button-text,
+.toolbarbutton-text {
+  font-weight: bold !important;
+  font-size: 9pt !important;
+}
+
+button {
+  min-width: 6.0mm !important; /* button size */
+  min-height: 6.0mm !important; /* button size */
+  color: #36373b;
+  padding: 0.25mm 0.5mm;
+  -moz-border-radius: 1.0mm;
+  -moz-border-top-colors: -moz-initial;
+  -moz-border-right-colors: -moz-initial;
+  -moz-border-left-colors: -moz-initial;
+  -moz-border-bottom-colors: -moz-initial;
+  border: 0.05mm solid #36373b;
+  background: #efefef;
+}
+
+button[disabled="true"] {
+  color: #ccc;
+  -moz-border-top-colors: -moz-initial !important;
+  -moz-border-right-colors: -moz-initial !important;
+  -moz-border-left-colors: -moz-initial !important;
+  -moz-border-bottom-colors: -moz-initial !important;
+  border: 0.05mm solid #ccc;
+  background: #fff;
+}
+
+/* XXX needs to be updated */
+button:active {
+  -moz-border-top-colors: -moz-initial;
+  -moz-border-right-colors: -moz-initial;
+  -moz-border-left-colors: -moz-initial;
+  -moz-border-bottom-colors: -moz-initial;
+  border: 0.05mm solid #aaa;
+  background: #ddd;
+}
+
+toolbarbutton {
+  min-width: 8.5mm !important; /* primary button size */
+  min-height: 8.5mm !important; /* primary button size */
+  -moz-appearance: none !important;
+  margin: 0;
+  padding: 0.25mm;
+}
+
+toolbarbutton:not(.show-text) .toolbarbutton-text {
+  display: none !important;
+}
+
+toolbarbutton:not(.show-text) .toolbarbutton-icon {
+  -moz-margin-end: 0;
+}
+
+toolbarbutton:hover,
+toolbarbutton:hover:active,
+toolbarbutton[open="true"] {
+  border-color: transparent;
+}
+
+/* dark buttons ------------------------------------------------------------ */
+.button-dark {
+  color: #fff;
+  padding: 0.25mm 0.5mm;
+  -moz-border-radius: 1.0mm;
+  border: 1px solid #777 !important;
+  background: #525252;
+}
+
+.button-dark:active {
+  border: 1px solid #202020 !important;
+  background: #303030;
+}
+
+.button-dark[disabled="true"],
+.button-dark[disabled="true"]:active {
+  border: 1px solid #515151;
+  background: #36373b;
+}
+
+.button-dark[checked="true"] {
+  /* checked overrides */
+  border: 0.05mm solid #202020 !important;
+  background: #303030 !important;
+  padding: 0.25mm 0.5mm !important;
+}
+
+/* image buttons ----------------------------------------------------------- */
+.button-image {
+  padding: 0 !important;
+  background: #36373b !important;
+  border: none !important;
+}
+
+/* radio buttons ----------------------------------------------------------- */
+radiogroup {
+  -moz-box-orient: horizontal;
+}
+
+.radio-label {
+  font-weight: bold !important;
+  font-size: 9pt !important;
+}
+
+radio {
+  min-width: 6.0mm !important; /* button size */
+  min-height: 6.0mm !important; /* button size */
+  color: #36373b;
+  padding: 0.0.5mm 1.1mm 0.1mm 0.5mm !important;
+  margin: 0;
+  border: 0.05mm solid #36373b;
+  -moz-box-align: center;
+  -moz-appearance: none;
+  background: #fff;
+}
+
+radio[selected] {
+  color: #fff;
+  border: 0.05mm solid #91875a;
+  background-color: #DDC763;
+}
+
+radio .radio-check-box1, radio .radio-icon, radio .radio-check {
+  display: none;
+}
+
+radio:first-child {
+  -moz-border-radius-topleft: 1.0mm;
+  -moz-border-radius-bottomleft: 1.0mm;
+}
+
+radio:last-child {
+  -moz-border-radius-topright: 1.0mm;
+  -moz-border-radius-bottomright: 1.0mm;
+}
+
+radiogroup[orient=vertical] radio:first-child {
+  -moz-border-radius-topright: 1.0mm;
+  -moz-border-radius-bottomleft: 0;
+}
+
+radiogroup[orient=vertical] radio:last-child {
+  -moz-border-radius-bottomleft: 1.0mm;
+  -moz-border-radius-topright: 0;
+}
+
+/* dark radios ------------------------------------------------------------- */
+.toggle-dark radio {
+  color: #fff;
+  border: 0.05mm solid #777;
+  background-color: #525252;
+}
+
+.toggle-dark radio[selected] {
+  border: 0.05mm solid #202020;
+  background-color: #303030;
+}
+
+/* richlistbox ------------------------------------------------------------- */
+richlistbox {
+  margin: 0;
+}
+
+richlistitem {
+  min-height: 7.2mm; /* row size */
+}
+
+/* colorpicker ------------------------------------------------------------- */
+colorpicker > panel {
+  background-color: #36373b;
+}
+
+colorpicker > vbox {
+  background-color: #36373b;
+}

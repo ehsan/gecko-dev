@@ -1,0 +1,7 @@
+
+copy: dom/mobilemessage/src/gonk/MobileMessageDatabaseService.manifest
+copyrev: 19cb864f42b3cbdf3735790e01015ab4e7bdae5d
+
+component {29785f90-6b5b-11e2-9201-3b280170b2ec} MobileMessageDatabaseService.js
+contract @mozilla.org/mobilemessage/rilmobilemessagedatabaseservice;1 {29785f90-6b5b-11e2-9201-3b280170b2ec}
+category profile-after-change MobileMessageDatabaseService @mozilla.org/mobilemessage/rilmobilemessagedatabaseservice;1

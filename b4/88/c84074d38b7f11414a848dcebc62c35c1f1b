@@ -1,0 +1,8 @@
+
+copy: mobile/xul/locales/en-US/updater/updater.ini
+copyrev: 00dfa2595a2cea7619e176dcb7816a527c49d572
+
+; This file is in the UTF-8 encoding
+[Strings]
+TitleText=%MOZ_APP_DISPLAYNAME% Update
+InfoText=%MOZ_APP_DISPLAYNAME% is installing your updates and will start in a few moments…

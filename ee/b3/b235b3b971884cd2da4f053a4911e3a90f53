@@ -1,0 +1,10 @@
+
+copy: content/html/content/crashtests/828472.html
+copyrev: ce7b5db2bf56341561d95510a27c7fefe0a5b960
+
+<!DOCTYPE html>
+<html>
+<body>
+<input type='date' value='2013-01-01'>
+</body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_cpdpat2.test
+copyrev: d3d9a7519ed69682f012c5f3885bfa69ba273267
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME

@@ -1,0 +1,11 @@
+
+copy: js/src/jit-test/tests/debug/hooks-debuggerHandler-01.js
+copyrev: c568a7832e7834a51653d9c367eb00b3a477cd13
+
+var g = newGlobal('new-compartment');
+g.log = '';
+
+var dbg = Debugger(g);
+dbg.onDebuggerStatement = function (stack) { g.log += '!'; };
+assertEq(g.eval("log += '1'; debugger; log += '2'; 3;"), 3);
+assertEq(g.log, '1!2');

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/nosuggest.wrong
+copyrev: 3f5e77e5b537cfc967891c9177d820a287124151
+
+foox
+foobarx
+barfoox

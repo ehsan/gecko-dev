@@ -1,0 +1,15 @@
+
+copy: js/src/xpconnect/crashtests/193710.html
+copyrev: 9baa3dc286d23a9221b1ecc1d25d8b2f4cbf31af
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <script type="text/javascript">window.onerror=new Function("return True")</script>
+  <script type="text/javascript" src="nonexistent.js"></script>
+</head>
+
+<body></body>
+
+</html>
+

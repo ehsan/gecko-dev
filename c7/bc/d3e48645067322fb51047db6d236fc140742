@@ -1,0 +1,13 @@
+
+copy: media/webrtc/trunk/src/video_engine/test/auto_test/android/.classpath
+copyrev: 8217626d6d4e09c4f343bbcddbea284c5fb87daf
+
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="gen"/>
+	<classpathentry kind="con" path="com.android.ide.eclipse.adt.ANDROID_FRAMEWORK"/>
+	<classpathentry kind="lib" path="libs/VideoEngine_android_java.jar"/>
+	<classpathentry kind="lib" path="libs/VoiceEngine_android_java.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

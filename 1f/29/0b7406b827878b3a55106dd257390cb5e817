@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-textarea-attr-inherit.html
+copyrev: 6922413a57ceff1617d8a1606539d2d27d847ed8
+
+<!DOCTYPE html>
+<html>
+<body>
+    <span spellcheck="false"><textarea>blahblahblah</textarea></span>
+</body>
+</html>

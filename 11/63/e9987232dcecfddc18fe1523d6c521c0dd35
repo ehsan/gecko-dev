@@ -1,0 +1,21 @@
+
+copy: content/base/crashtests/595606-1.html
+copyrev: 9e731c90c536acd1d996f00e50942cd0781acded
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <body onload="
+    document.body.removeChild(document.getElementById('x'));
+    document.documentElement.removeAttribute('class');">
+
+    <div id="x">
+      <div id="a">
+        <form id="a">
+          <select></select>
+        </form>
+      </div>
+    </div>
+
+    <select form="a"></select>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: layout/xul/base/src/crashtests/311457-1.html
+copyrev: b6dfe5a2d63246feda92ef1467c71f669cacc1e6
+
+<html><head>
+
+</head>
+
+<body>
+
+<div style="display: -moz-deck"><div style="display: -moz-popup"></div></div>
+
+<div style="position: relative">Y</div>
+
+</body>
+</html>

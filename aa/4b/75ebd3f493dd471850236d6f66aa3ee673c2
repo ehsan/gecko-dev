@@ -1,0 +1,16 @@
+
+copyrev: 49e4b7ee82a92532c943fdd7e95a38a1b35ca898
+copy: js/src/trace-test/tests/jaeger/bug581936.js
+
+function returnZero() { return 0; } 
+function test() {
+  var a = "a";
+  var b = "b";
+  if (returnZero()) {
+    return a + b;
+  } else {
+    return b + a;
+  }
+}
+assertEq(test(), "ba");
+

@@ -1,0 +1,34 @@
+
+copyrev: 0e5d6d70c9e79ee6c933b7850abad7b0a9a401ef
+copy: js/src/trace-test/tests/jaeger/bug583672.js
+
+(function () {
+    function f()
+    {
+        this.y = w
+        this.y = (void 0)
+        Object
+    }
+    for (a in [0, 0, 0, 0])
+    {
+        new f
+    }
+    let w = {}
+})()
+
+/* Make sure that MICs don't have the same bug. */
+x = Object();
+(function () {
+    function f()
+    {
+        x = w
+        x = (void 0)
+        Object
+    }
+    for (a in [0, 0, 0, 0])
+    {
+        new f
+    }
+    let w = {}
+})()
+/* Don't assert. */

@@ -1,0 +1,5 @@
+
+copyrev: 6b48dd572bfaccd3864b3b3cfc836b245df431cb
+copy: js/tests/js1_5/Object/shell.js
+
+gTestsubsuite = 'Object';

@@ -1,0 +1,22 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/param/046-isvalid.html
+copyrev: 6129a3b503b469ca774fa846235f88f03e933695
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;param&gt;</title>
+</head>
+<body>
+<p>
+  <object data='foo'><param name="foo" value='bar'></object>
+
+  <object data='foo'><param name="foo" value="!@#$%$ ^&amp;)"></object>
+  <object data='foo'><param name="foo" value="!@#$%$ ^&amp;)"></object>
+
+  <object data='foo'><param name="foo" value="uri"></object>
+  <object data='foo'><param name="foo" value="uri"></object>
+</p>
+</body>
+</html>

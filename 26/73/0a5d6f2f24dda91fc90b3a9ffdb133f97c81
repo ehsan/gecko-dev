@@ -1,0 +1,27 @@
+
+copyrev: d6e7c0a53a34b29122cf5d92eba1099e01667f40
+copy: js/src/trace-test/tests/closures/t028.js
+
+actual = '';
+expected = 'undefined,';
+
+function looper(f) {
+  for (var i = 0; i < 10; ++i) {
+    for (var j = 0; j < 10; ++j) {
+      f();
+    }
+  }
+}
+
+function tester() {
+  var x = 1;
+  function f() {
+    return x;
+  }
+  looper(f);
+}
+
+appendToActual(tester());
+
+
+assertEq(actual, expected)

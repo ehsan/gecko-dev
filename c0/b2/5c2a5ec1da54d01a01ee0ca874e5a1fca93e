@@ -1,0 +1,13 @@
+
+copy: memory/volatile/tests/moz.build
+copyrev: 51ed17706a5f7bf8b720662dfcbfb4d2ef9f06c9
+
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+GeckoCppUnitTests([
+    'TestVolatileBuffer',
+])

@@ -1,0 +1,59 @@
+<!doctype html>
+<meta charset=utf-8>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="../testcommon.js"></script>
+<div id="log"></div>
+<style>
+@keyframes anim { }
+</style>
+<script>
+'use strict';
+
+async_test(function(t) {
+  var div = addDiv(t);
+  var cs = window.getComputedStyle(div);
+  div.style.animation = 'anim 1000s';
+
+  var player = div.getAnimationPlayers()[0];
+  assert_equals(player.playState, 'running');
+  // Bug 927349: Check for pending state here
+
+  player.ready.then(t.step_func(function() {
+    assert_equals(player.playState, 'running');
+    t.done();
+  }));
+}, 'Player returns correct playState when running');
+
+test(function(t) {
+  var div = addDiv(t);
+  var cs = window.getComputedStyle(div);
+  div.style.animation = 'anim 1000s paused';
+
+  var player = div.getAnimationPlayers()[0];
+  assert_equals(player.playState, 'paused');
+}, 'Player returns correct playState when paused');
+
+test(function(t) {
+  var div = addDiv(t);
+  var cs = window.getComputedStyle(div);
+  div.style.animation = 'anim 1000s';
+
+  var player = div.getAnimationPlayers()[0];
+  player.pause();
+  assert_equals(player.playState, 'paused');
+}, 'Player.playState updates when paused by script');
+
+test(function(t) {
+  var div = addDiv(t);
+  var cs = window.getComputedStyle(div);
+  div.style.animation = 'anim 1000s paused';
+
+  var player = div.getAnimationPlayers()[0];
+  div.style.animationPlayState = 'running';
+  // This test also checks that calling playState flushes style
+  // Bug 927349: Make this check for 'pending'
+  assert_equals(player.playState, 'running');
+}, 'Player.playState updates when resumed by setting style');
+
+</script>

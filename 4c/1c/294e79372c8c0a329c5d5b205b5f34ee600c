@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-invalid/default-style/select-ref.html
+copyrev: 00d4580d752a0bbd246325f3e4175f9f1e48c484
+
+<!DOCTYPE>
+<html>
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <select class='invalid-ref'></select>
+  </body>
+</html>

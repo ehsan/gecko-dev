@@ -1,0 +1,21 @@
+
+copy: js/src/jit-test/tests/parallelarray/throw-executed.js
+copyrev: fc5e5192e473608a87828b9435088f4178fd9f87
+
+load(libdir + "parallelarray-helpers.js");
+
+function test() {
+  var x = new Error();
+  function inc(n) {
+    if (inParallelSection()) // wait until par execution, then throw
+      throw x;
+    return n + 1;
+  }
+  var x = range(0, 2048);
+
+  assertParallelExecWillBail(
+    m => x.mapPar(inc, m));
+}
+
+if (getBuildConfiguration().parallelJS) test();
+

@@ -1,0 +1,6 @@
+
+copy: content/html/content/reftests/toblob-todataurl/quality-50-ref.html
+copyrev: 68dab6a9b6ce85ef08cbdc27c766ce7cac1704da
+
+<!doctype html>
+<html><body><img src='images/q50.jpg'/></table></body></html>

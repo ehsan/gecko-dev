@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-input-disabled.html
+copyrev: 885490c408db7c27f367b57f8fd0b51e38b3a9da
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="text" value="blahblahblah">
+</body>
+</html>

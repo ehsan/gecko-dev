@@ -1,0 +1,153 @@
+<!DOCTYPE HTML>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=758258
+-->
+<head>
+  <meta charset="utf-8">
+  <title>Test for nsIPrincipal extendedOrigin, appStatus and appId</title>
+  <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css"?>
+</head>
+<body>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=758258">Mozilla Bug 758258</a>
+<p id="display"></p>
+<div id="content">
+  
+</div>
+<pre id="test">
+<script type="application/javascript">
+
+/** Test for Bug 758258 **/
+
+var Ci = Components.interfaces;
+
+SimpleTest.waitForExplicitFinish();
+
+var gData = [
+  {
+    app: "http://example.org/manifest.webapp",
+    src: "http://example.org/",
+  },
+  {
+    app: "https://example.com:443/manifest.webapp",
+    src: "https://example.com/",
+  },
+  {
+    app: "http://test1.example.org/manifest.webapp",
+    src: "http://test1.example.org/",
+  },
+  {
+    app: "http://test1.example.org:8000/manifest.webapp",
+    src: "http://test1.example.org:8000/",
+  },
+  {
+    app: "http://sub1.test1.example.org/manifest.webapp",
+    src: "http://sub1.test1.example.org/",
+  },
+  {
+    app: "http://example.org/foo/manifest.webapp",
+    src: "http://example.org/",
+  },
+  {
+    app: "http://example.org/bar/manifest.webapp",
+    src: "http://example.org/",
+  },
+  {
+    browser: true,
+    src: "http://example.org/",
+  },
+  {
+    src: "http://example.org/",
+  },
+  {
+    app: "http://example.org/wedonthaveanyappinthatdirectory/manifest.webapp",
+    src: "http://example.org/",
+  },
+/*
+  {
+    app: "http://example.org/manifest.webapp",
+    src: "data:text/html,foobar",
+    test: [ "todo-src" ],
+  },
+  {
+    app: "http://example.org/manifest.webapp",
+    src: "data:text/html,foobar2",
+    test: [ "todo-src" ],
+  },
+*/
+  {
+    src: "file:///",
+  },
+  {
+    src: "file:///tmp",
+  },
+  {
+    app: "http://example.org/manifest.webapp",
+    src: "file:///",
+  },
+  {
+    app: "http://example.org/manifest.webapp",
+    src: "file:///tmp",
+  },
+];
+
+var content = document.getElementById('content');
+var checkedCount = 0;
+var checksTodo = gData.length;
+
+function checkPrincipalForIFrame(aFrame, data) {
+  var principal = aFrame.contentDocument.nodePrincipal;
+
+  // TODO: TEMP.
+  if (!data.test) {
+    data.test = [];
+  }
+
+  is(principal.URI.spec, data.src,
+     'the correct URL should have been loaded');
+
+  is(principal.appStatus, Ci.nsIPrincipal.APP_STATUS_NOT_INSTALLED,
+     'principal is not part of an installed app');
+  is(principal.extendedOrigin, principal.origin,
+     "extendedOrigin returns the origin for the moment");
+  is(principal.appId, Ci.nsIScriptSecurityManager.NO_APP_ID,
+     "appId is always NO_APP_ID for the moment");
+
+  checkedCount++;
+  if (checkedCount == checksTodo) {
+    SimpleTest.finish();
+  }
+}
+
+is('appStatus' in document.nodePrincipal, true,
+   'appStatus should be present in nsIPrincipal');
+is('extendedOrigin' in document.nodePrincipal, true,
+   'extendedOrigin should be present in nsIPrincipal');
+is('appId' in document.nodePrincipal, true,
+   'appId should be present in nsIPrincipal');
+
+gData.forEach(function(data) {
+  var iframe = document.createElement('iframe');
+  iframe.checkPrincipal = function() {
+    checkPrincipalForIFrame(this, data);
+  };
+
+  if (data.app) {
+    iframe.setAttribute('mozapp', data.app);
+    iframe.setAttribute('mozbrowser', '');
+  } else if (data.browser) {
+    iframe.setAttribute('mozbrowser', '');
+  }
+
+  iframe.src = data.src;
+
+  iframe.addEventListener('load', iframe.checkPrincipal.bind(iframe));
+
+  content.appendChild(iframe);
+});
+
+</script>
+</pre>
+</body>
+</html>

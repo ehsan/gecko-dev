@@ -1,0 +1,7 @@
+
+copy: content/html/content/test/file_iframe_sandbox_worker.js
+copyrev: 61a981c133edeb67d9453a599b4899d889155c42
+
+self.onmessage = function(event) {
+  self.postMessage('make it so');
+};

@@ -1,0 +1,29 @@
+
+copy: layout/xul/base/src/tree/src/crashtests/409807-1.xul
+copyrev: ad1a19e206abc321f7b83e209cb33461274a051a
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="boom();">
+
+<script type="text/javascript">
+
+function boom()
+{
+  var tree = document.getElementById("tree");
+  var tc = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "treechildren");
+  
+  document.addEventListener("DOMAttrModified", m, false);
+  
+  tree.appendChild(tc);
+  
+  function m()
+  {
+    document.removeEventListener("DOMAttrModified", m, false);
+    tree.removeChild(tc);
+  }
+}
+
+</script>
+
+<tree id="tree" />
+
+</window>

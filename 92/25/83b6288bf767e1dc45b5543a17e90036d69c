@@ -1,0 +1,20 @@
+
+copy: content/base/crashtests/693212.xhtml
+copyrev: 904becb5b03e9a106f3a14eddcb0d7fcf06607de
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script type="text/javascript">
+  function boom() { 
+    select = document.createElementNS("http://www.w3.org/1999/xhtml", "select");
+    text = document.body.childNodes[0];
+    select.setAttribute("onDOMSubtreeModified", "text.parentNode.removeChild(text);");
+    select.appendChild(text);
+  }
+</script>
+</head>
+
+<body onload="boom()">
+
+</body>
+</html>

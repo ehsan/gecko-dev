@@ -1,0 +1,6 @@
+
+copy: content/base/test/xcsp/file_dual_headers_warning.html^headers^
+copyrev: bf5f9fa50513aac8c889ec7470a70ea9397183b9
+
+Content-Security-Policy: default-src 'self' 'unsafe-inline';
+X-Content-Security-Policy: allow 'self' 'inline-script';

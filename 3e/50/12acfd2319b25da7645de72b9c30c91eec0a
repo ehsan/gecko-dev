@@ -1,0 +1,16 @@
+
+copyrev: 157918f3af847f636330028dc7d2d5edf53459b6
+copy: js/src/trace-test/tests/basic/ifInsideLoop.js
+
+function ifInsideLoop()
+{
+  var cond = true, intCond = 5, count = 0;
+  for (var i = 0; i < 100; i++) {
+    if (cond)
+      count++;
+    if (intCond)
+      count++;
+  }
+  return count;
+}
+assertEq(ifInsideLoop(), 200);

@@ -1,0 +1,10 @@
+
+copyrev: 7c48d9119ed610117ebb2989b481253671992569
+copy: js/src/trace-test/tests/jaeger/bug598696.js
+
+function f() {
+  eval();
+  var i = 0;
+  assertEq(++i, 1);
+}
+f();

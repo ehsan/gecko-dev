@@ -1,0 +1,18 @@
+
+copy: layout/base/tests/bug240933-1.html
+copyrev: aaabb41c1beafd33a51039af97fba8ef52d15c3c
+
+<!DOCTYPE HTML><html><head>
+  <script type="text/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
+</head>
+<body>
+<textarea id="t" rows="4"></textarea>
+<script>
+  var area = document.getElementById('t');
+  area.focus();
+
+  sendKey('ENTER', "t"); // press Enter once
+</script>
+</body>
+</html>

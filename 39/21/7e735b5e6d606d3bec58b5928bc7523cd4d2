@@ -1,0 +1,14 @@
+
+copy: content/base/crashtests/564079-1.html
+copyrev: d0051fa721cded5b6bfc10c20cbcb74480ab2a62
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+document.createTextNode("x").lookupPrefix("");
+
+</script>
+</head>
+</html>

@@ -1,0 +1,9 @@
+
+copy: content/base/test/file_bug558431.html
+copyrev: 31ba2031ba32704d441769c4b1129d3125da8742
+
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=558431
+-->
+<iframe id="inner"
+        src="/tests/content/base/test/file_CSP.sjs?content=%3Cdiv%20id%3D%22test%22%3Etest%20558431%3C/div%3E"></iframe>

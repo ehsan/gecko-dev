@@ -1,0 +1,8 @@
+
+copy: testing/mozbase/manifestdestiny/tests/include/bar.ini
+copyrev: 0560da68afedf9955f699e7a54c028ab5b714bfd
+
+[DEFAULT]
+foo = fleem
+
+[crash-handling]

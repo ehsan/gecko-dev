@@ -1,0 +1,14 @@
+
+copy: content/html/content/reftests/toblob-todataurl/todataurl-quality-25.html
+copyrev: a1a9fdbe8f98c43f2a06380efc1882ade963beb6
+
+<!doctype html>
+<html class='reftest-wait'>
+  <body>
+    <script>
+      var quality = 0.25;
+    </script>
+    <script src='sample.js'></script>
+    <script src='dataurl.js'></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+
+copy: mobile/installer/debian/fennec.links.in
+copyrev: 95d35542ee984de9ffa7b332eb85336f9b278419
+
+#filter substitution
+@installdir@/fennec /usr/bin/fennec
+/usr/share/applications/hildon/fennec.desktop etc/others-menu/0112_fennec.desktop
+
+

@@ -1,0 +1,22 @@
+
+copyrev: c68f3799d9b39f04d0f3cfbff468582acd698897
+copy: js/src/trace-test/tests/jaeger/bug554580-4.js
+
+(function() {
+  try {
+    (eval("\
+      function() {\
+        for each(let y in [0]) {\
+          for (var a = 0; a < 9; ++a) {\
+            if (a) {\
+              this.__defineGetter__(\"\",this)\
+            }\
+          }\
+        }\
+      }\
+    "))()
+  } catch(e) {}
+})()
+
+/* Don't assert. */
+

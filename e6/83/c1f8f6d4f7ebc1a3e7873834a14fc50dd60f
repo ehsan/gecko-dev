@@ -1,0 +1,7 @@
+
+copy: mobile/config/mozconfigs/macosx-desktop/l10n-mozconfig
+copyrev: 72ba09b5b6b0705e3c2e7c33819349715fda05bf
+
+ac_add_options --with-l10n-base=../../l10n-central
+ac_add_options --enable-application=mobile/android
+ac_add_options --disable-compile-environment

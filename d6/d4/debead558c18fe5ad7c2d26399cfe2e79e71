@@ -1,0 +1,9 @@
+
+copy: mobile/android/base/resources/drawable/address_bar_bg_shadow.xml
+copyrev: 3303153ff2960d0b0c184045b31744f5fd9a0651
+
+<?xml version="1.0" encoding="utf-8"?>
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+        android:src="@drawable/address_bar_bg_shadow"
+        android:tileMode="repeat"
+        android:dither="false"/>

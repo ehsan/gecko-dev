@@ -1,0 +1,15 @@
+
+copy: testing/mozbase/manifestdestiny/tests/comment-example.ini
+copyrev: 0a5c4ca38232155df2b4f0815e51238f49876007
+
+; See https://bugzilla.mozilla.org/show_bug.cgi?id=813674
+
+[test_0180_fileInUse_xp_win_complete.js]
+[test_0181_fileInUse_xp_win_partial.js]
+[test_0182_rmrfdirFileInUse_xp_win_complete.js]
+[test_0183_rmrfdirFileInUse_xp_win_partial.js]
+[test_0184_fileInUse_xp_win_complete.js]
+[test_0185_fileInUse_xp_win_partial.js]
+[test_0186_rmrfdirFileInUse_xp_win_complete.js]
+[test_0187_rmrfdirFileInUse_xp_win_partial.js]
+; [test_0202_app_launch_apply_update_dirlocked.js] # Test disabled, bug 757632

@@ -1,0 +1,7 @@
+
+copyrev: 43f52665c349729b2524aac2c5c886f81f3629a0
+copy: js/src/trace-test/tests/jaeger/bug582286.js
+
+evalcx("function s(){}",evalcx('lazy'))
+
+

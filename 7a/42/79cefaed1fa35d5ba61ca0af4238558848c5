@@ -1,0 +1,5 @@
+
+copyrev: afbb292b304fea74826aba321a6bf65aa986c4be
+copy: dom/src/json/test/fail26.json
+
+["tab\   character\   in\  string\  "]

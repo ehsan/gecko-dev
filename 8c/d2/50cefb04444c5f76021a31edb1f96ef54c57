@@ -1,0 +1,9 @@
+
+copy: browser/components/sessionstore/test/browser_frame_history_c2.html
+copyrev: de44d1aee9dab1f068147718dc7f6e3a55702293
+
+<html>
+  <body>
+    I'm C2!
+  </body>
+</html>

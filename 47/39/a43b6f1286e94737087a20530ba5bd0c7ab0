@@ -1,0 +1,23 @@
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "domstubs.idl"
+
+[uuid(44ef0b7e-92c0-48a7-a092-5a49f2533792)]
+interface nsIServiceWorkerManager : nsISupports
+{
+  // Returns a Promise
+  nsISupports register(in nsIDOMWindow aWindow, in DOMString aScope, in DOMString aScriptURI);
+
+  // Returns a Promise
+  nsISupports unregister(in nsIDOMWindow aWindow, in DOMString aScope);
+
+  // Testing
+  DOMString getScopeForUrl(in DOMString path);
+};
+
+%{ C++
+#define SERVICEWORKERMANAGER_CONTRACTID "@mozilla.org/serviceworkers/manager;1"
+%}

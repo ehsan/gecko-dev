@@ -1,0 +1,27 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/span/014-isvalid.html
+copyrev: 4dc8ad1c5907746ef662e2a074a562df894967e1
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;span&gt;</title>
+</head>
+<body>
+  <!-- is structured inline -->
+  <p><span class="class" lang="en">text</span></p>
+
+  <!-- is strictly inline -->
+  <p><dfn><span class="class" lang="en">text</span></dfn></p>
+
+  <!-- can be empty -->
+  <p>text <span></span></p>
+  <p>text <dfn><span></span></dfn></p>
+
+  <!-- can contain interactive -->
+  <p><span><a>text</a></span></p>
+  <p><dfn><span><a>text</a></span></dfn></p>
+
+</body>
+</html>

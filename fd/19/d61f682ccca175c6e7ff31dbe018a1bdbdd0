@@ -1,0 +1,20 @@
+
+copyrev: 2e6ea99efe59e2469fb5a79227bc69326de4d26e
+copy: js/src/trace-test/tests/basic/strictParseIntOctal.js
+
+"use strict";
+
+assertEq(parseInt("08"), 0);
+assertEq(parseInt("09"), 0);
+assertEq(parseInt("014"), 12);
+assertEq(parseInt("0xA"), 10);
+assertEq(parseInt("00123"), 83);
+
+for (var i = 0; i < 5; i++)
+{
+  assertEq(parseInt("08"), 0);
+  assertEq(parseInt("09"), 0);
+  assertEq(parseInt("014"), 12);
+  assertEq(parseInt("0xA"), 10);
+  assertEq(parseInt("00123"), 83);
+}

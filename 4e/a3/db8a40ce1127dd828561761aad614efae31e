@@ -1,0 +1,11 @@
+
+copy: media/webrtc/trunk/src/modules/audio_device/main/test/android/audio_device_android_test/.classpath
+copyrev: b5abc240b05876cd112fb3459b4851d04d5b6cd6
+
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="gen"/>
+	<classpathentry kind="con" path="com.android.ide.eclipse.adt.ANDROID_FRAMEWORK"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

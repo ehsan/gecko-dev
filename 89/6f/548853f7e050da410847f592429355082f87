@@ -1,0 +1,13 @@
+
+copy: content/base/crashtests/205225-1.html
+copyrev: 4c62e9aa5f15fdd8ae96e5842c702c163a370410
+
+<html>
+<head>
+<script type="text/javascript">
+document.createTreeWalker(null, NodeFilter.SHOW_ALL, null);
+</script>
+</head>
+<body>
+</body>
+</html>

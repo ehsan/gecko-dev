@@ -1,0 +1,10 @@
+
+copyrev: 1118088fe85e85a8535df367b4f7ce9a4e0f431f
+copy: js/src/trace-test/tests/basic/testContinueWithLabel3.js
+
+// bug 511575 comment 3
+outer:
+for (var j = 0; j < 10; j++)
+    for (var p in {x:1})
+        if (p > "q")
+            continue outer;

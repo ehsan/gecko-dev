@@ -1,0 +1,29 @@
+
+copy: testing/web-platform/tests/workers/interfaces/DedicatedWorkerGlobalScope/postMessage/second-argument-null.html
+copyrev: a22ba48ac5f6d0fdf63e559fb9e294147fc7aaac
+
+<!--
+try {
+  postMessage(1, undefined);
+} catch(e) {
+  postMessage(''+e);
+}
+/*
+-->
+<!doctype html>
+<title>Using undefined in postMessage's second argument</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="log"></div>
+<script>
+(async_test()).step(function() {
+  var worker = new Worker('#');
+  worker.onmessage = this.step_func(function(e) {
+    assert_equals(e.data, 1);
+    this.done();
+  });
+});
+</script>
+<!--
+*/
+//-->

@@ -1,0 +1,9 @@
+
+copyrev: b78176cab8b011fe28856b4c4d1aa3432c99e482
+copy: layout/reftests/bugs/407016-2-ref.html
+
+<html>
+<body>
+<div style="background-color: lime; height: 50px;"></div>
+</body>
+</html>

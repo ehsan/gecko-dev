@@ -1,0 +1,24 @@
+
+copy: gfx/thebes/crashtests/419095-1.html
+copyrev: b9b6b61f3db8d8c38729366ca6ca25ab73d672fc
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  document.body.appendChild(document.createTextNode(String.fromCharCode(0x202E)));
+  document.body.appendChild(document.createTextNode(String.fromCharCode(0x000D)));
+  document.body.appendChild(document.createTextNode(String.fromCharCode(0x200D)));
+  document.body.appendChild(document.createTextNode(String.fromCharCode(0xD75A)));
+  document.body.appendChild(document.createTextNode(String.fromCharCode(0xD63F)));
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+</body>
+</html>

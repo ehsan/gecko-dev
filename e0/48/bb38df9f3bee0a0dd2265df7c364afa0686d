@@ -1,0 +1,6 @@
+
+copy: mobile/branding/nightly/locales/en-US/brand.properties
+copyrev: 03cfe92ebf26de132ce9ecccbb320f79a1a501da
+
+brandShortName=Nightly
+brandFullName=Mozilla Nightly

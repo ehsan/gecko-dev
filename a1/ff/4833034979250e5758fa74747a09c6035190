@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/spellcheck/050-novalid.html
+copyrev: 3dc45ef9a0e5568916d1248a0c4a73f4c4048813
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>spellcheck="badvalue"</title>
+</head>
+<body>
+<p spellcheck="badvalue"></p>
+</body>
+</html>

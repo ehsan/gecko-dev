@@ -1,0 +1,11 @@
+
+copyrev: 5312b1770283311d1c74981de435c42cb7c76c92
+copy: js/src/trace-test/tests/basic/testDefinePropertyAcrossCompartment.js
+
+var a = evalcx('');
+Object.defineProperty(a, "", ({
+    get: function() {},
+}))
+gc()
+
+// don't crash

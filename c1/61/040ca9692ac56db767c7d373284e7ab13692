@@ -1,0 +1,24 @@
+
+copy: layout/xul/base/src/grid/crashtests/400790-1.xul
+copyrev: 0e0cf4a13fe0f2acec5c17b0e9695f5c3b086ef6
+
+<xul xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="boom();">
+
+<script>
+
+function boom()
+{
+  var XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+
+  var newListbox = document.createElementNS(XUL_NS, "listbox");
+  document.getElementById("listbox").appendChild(newListbox);
+
+  var newHbox = document.createElementNS(XUL_NS, "hbox");
+  document.getElementById("listitem").appendChild(newHbox);
+}
+
+</script>
+
+<listbox id="listbox"><listitem id="listitem" /></listbox>
+
+</xul>

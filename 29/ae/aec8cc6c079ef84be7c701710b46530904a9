@@ -1,0 +1,32 @@
+[
+{
+"size": 80729933,
+"digest": "ccd13527c0ba3979f4030eae713e6529e916a701b9b16a371256d92618e914fb0fd2ba70547efca0e93d02010c89eeb7c222d40a9b6f26fab80911386cdfecc7",
+"algorithm": "sha512",
+"filename": "android-ndk.tar.bz2"
+},
+{
+"size": 207966812,
+"digest": "9f6d50e5e67e6a6784dea3b5573178a869b017d2d0c7588af9eb53fdd23c7d1bd6f775f07a9ad1510ba36bf1608d21baa4e26e92afe61e190429870a6371b97d",
+"algorithm": "sha512",
+"filename": "android-sdk.tar.xz"
+},
+{
+"size": 336,
+"digest": "3336af2e7106654be09ae10b19f981162584ede0888abe295c45fe6e10f52d460a0a94b8bef0518f1419fcd82939b723123e122897599edce9cc240757424890",
+"algorithm": "sha512",
+"filename": "setup.sh"
+},
+{
+"size": 166407,
+"digest": "88fcc94f21818621e9e10107db913a3c787c6a68219c1e3e5fb26ebdf0864efdca4f05bd168d4851fee35c6b8d9ca4f9eb3ec229f565b7e6ce55ff6e7e899c24",
+"algorithm": "sha512",
+"filename": "sccache.tar.bz2"
+},
+{
+"size": 7920445,
+"digest": "e28b7a12fbbef02ad742958df8dd356ea2adb8ef79e95cd8eb8dbc953eb4cc11888969dac7d636187fd3ace9c63d9a6bc3d7795021c1d811a843e413fe5e52c9",
+"algorithm": "sha512",
+"filename": "apache-ant-bin.tar.bz2"
+}
+]

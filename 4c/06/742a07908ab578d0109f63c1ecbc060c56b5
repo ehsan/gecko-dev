@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/lang/003-isvalid.html
+copyrev: 7e16dc6783caf42aa7a42d28deb51a609c0fadcc
+
+<!DOCTYPE html>
+<html lang="">
+<head>
+<meta charset=utf-8>
+<title>must be a valid BCP 47 language tag, or the empty string</title>
+</head>
+<body>
+<p></p>
+</body>
+</html>

@@ -1,0 +1,399 @@
+
+copy: mobile/chrome/content/urlbar.xml
+copyrev: 1469fba40f6e1c7a488ec1d8bd4863c8ca051aad
+
+<?xml version="1.0"?>
+
+<!DOCTYPE bindings [
+<!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
+%browserDTD;
+]>
+
+<bindings
+    xmlns="http://www.mozilla.org/xbl"
+    xmlns:xbl="http://www.mozilla.org/xbl"
+    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <binding id="autocomplete-aligned" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete">
+    <implementation>
+      <method name="openPopup">
+        <body><![CDATA[
+          this.popup.openAutocompletePopup(this, document.getElementById("toolbar-main"));
+        ]]></body>
+      </method>
+      <method name="closePopup">
+        <body><![CDATA[
+          // do nothing
+        ]]></body>
+      </method>
+      <method name="reallyClosePopup">
+        <body><![CDATA[
+          this.mConsumeRollupEvent = false;
+          this.popup.closePopup();
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+  
+  <binding id="popup_autocomplete">
+    <content hidden="true">
+      <xul:vbox class="autocomplete-box" flex="1">
+        <xul:vbox class="autocomplete-items" anonid="autocomplete-items" flex="1000">
+          <xul:label/>
+          <xul:label/>
+          <xul:label/>
+          <xul:label/>
+          <xul:label/>
+          <xul:label/>
+          <xul:label/>
+        </xul:vbox>
+        <children/>
+      </xul:vbox>
+    </content>
+
+    <implementation implements="nsIAutoCompletePopup, nsIDOMEventListener">
+      <constructor><![CDATA[
+        window.addEventListener("click", this, true);
+        window.addEventListener("blur", this, true);
+      ]]></constructor>
+
+      <!-- nsIAutocompleteInput -->
+      <property name="overrideValue"
+                readonly="true"
+                onget="return null;"/>
+
+      <field name="_input"/>
+      <property name="input"
+                readonly="true"
+                onget="return this._input;"/>
+
+      <field name="_selectedIndex">-1</field>
+      <field name="_selectedItem"/>
+      <property name="selectedIndex"
+                onget="return this._selectedIndex;">
+        <setter><![CDATA[
+          // Ignore invalid indices
+          if (val < -1 ||
+              val > this._matchCount - 1)
+            return val;
+
+          if (this._selectedItem)
+            this._styleItem(this._selectedItem, false);
+
+          // highlight the selected item
+          let item = this._items.childNodes.item(val);
+          if (item) {
+            this._selectedItem = item;
+            this._styleItem(this._selectedItem, true);
+          }
+          
+          return this._selectedIndex = val;
+        ]]></setter>
+      </property>
+
+      <field name="_popupOpen">false</field>
+      <property name="popupOpen"
+                readonly="true"
+                onget="return this._popupOpen;"/>
+
+      <method name="openAutocompletePopup">
+        <parameter name="aInput"/>
+        <parameter name="aElement"/>
+        <body><![CDATA[
+          if (this._popupOpen)
+            return;
+
+          this._input = aInput;
+
+          this.hidden = false;
+          this._popupOpen = true;
+
+          this.invalidate();
+        ]]></body>
+      </method>
+
+      <method name="closePopup">
+        <body><![CDATA[
+          if (!this._popupOpen)
+            return;
+
+          this.selectedIndex = -1;
+          this.input.controller.stopSearch();
+
+          this.hidden = true;
+          this._popupOpen = false;
+        ]]></body>
+      </method>
+
+      <method name="invalidate">
+        <body><![CDATA[
+          // Don't bother doing work if we're not even open
+          if (!this.popupOpen)
+            return;
+
+          let controller = this.input.controller;
+          let searchString = controller.searchString;
+
+          let matchCount = this._matchCount;
+          let children = this._items.childNodes.length;
+          for (let i = 0; i < children; ++i) {
+            let label = this._items.childNodes[i];
+            label._index = i;
+
+            // Check whether there's an entry to fill
+            if (i > matchCount - 1) {
+              // Just clear out the old item
+              label.setAttribute("class", "");
+              label.setAttribute("value", "");
+
+              continue;
+            }
+
+            let url = controller.getValueAt(i);
+            let title = controller.getCommentAt(i);
+            let type = controller.getStyleAt(i);
+            let image = controller.getImageAt(i);
+
+            let typeClass = "ac-result-type-" + type;
+            label.setAttribute("class", "autocomplete-item " + typeClass);
+            label.setAttribute("value", title || url);
+          }
+        ]]></body>
+      </method>
+
+      <method name="selectBy">
+        <parameter name="aReverse"/>
+        <parameter name="aPage"/>
+        <body><![CDATA[
+          let newIndex;
+          let lastIndex = this._matchCount - 1;
+
+          if (this._selectedIndex == -1)
+            newIndex = aReverse ? lastIndex : 0;
+          else
+            newIndex = this._selectedIndex + (aReverse ? -1 : 1);
+
+          // Deal with rollover
+          if (newIndex > lastIndex)
+            newIndex = 0;
+          else if (newIndex < 0)
+            newIndex = lastIndex;
+
+          this.selectedIndex = newIndex;
+        ]]></body>
+      </method>
+      
+      <!-- Helpers -->
+      <field name="_items">
+        document.getAnonymousElementByAttribute(this,
+                        "anonid", "autocomplete-items");
+      </field>
+
+      <property name="_matchCount"
+                readonly="true">
+        <getter><![CDATA[
+          return Math.min(this.input.controller.matchCount, this._items.childNodes.length);
+        ]]></getter>
+      </property>
+
+      <!-- Handles click/blur events on the window while the popup is open. -->
+      <method name="handleEvent">
+        <parameter name="aEvent"/>
+        <body><![CDATA[
+          this.closePopup();
+        ]]></body>
+      </method>
+      
+      <method name="_styleItem">
+        <parameter name="aItem"/>
+        <parameter name="aAddStyle"/>
+        <body><![CDATA[
+          if (aAddStyle)
+            aItem.className = "autocomplete-item-selected";
+          else
+            aItem.className = "autocomplete-item";
+        ]]></body>
+      </method>
+    </implementation>
+
+    <handlers>
+      <handler event="click">
+        <![CDATA[
+          let originalTarget = event.originalTarget;
+          if (event.button == 0 &&
+              originalTarget.localName == "label") {
+            this._selectedIndex = originalTarget._index;
+            this.input.controller.handleEnter(true);
+          } else
+            this.closePopup();
+        ]]>
+      </handler>
+    </handlers>
+  </binding>
+
+  <binding id="editbookmark">
+    <content flex="1">
+      <grid flex="1"
+            xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+        <columns>
+          <column/>
+          <column flex="1"/>
+          <column/>
+        </columns>
+        <rows>
+          <row align="center">
+            <label value="&editBookmarkName.label;"/>
+            <textbox anonid="name" xbl:inherits="value=name"/>
+            <button label="&editBookmarkDone.label;"
+                    oncommand="document.getBindingParent(this).stopEditing(true)"/>
+          </row>
+          <row align="center">
+            <label value="&editBookmarkURI.label;"/>
+            <textbox anonid="uri" xbl:inherits="value=uri"/>
+            <button class="close-button"
+                    oncommand="document.getBindingParent(this).remove()"/>
+          </row>
+          <row align="center">
+            <label value="&editBookmarkTags.label;"/>
+            <textbox anonid="tags" xbl:inherits="value=tags"/>
+          </row>
+        </rows>
+      </grid>
+    </content>
+    <implementation>
+      <field name="_bookmarkItem"/>
+      <field name="_bookmarkURI"/>
+      <field name="_nameField">
+        document.getAnonymousElementByAttribute(this, "anonid", "name");
+      </field>
+      <field name="_uriField">
+        document.getAnonymousElementByAttribute(this, "anonid", "uri");
+      </field>
+      <field name="_tagsField">
+        document.getAnonymousElementByAttribute(this, "anonid", "tags");
+      </field>
+      <property name="name" onget="return this._nameField.value"
+                            onset="this._nameField.value = val; return val;"/>
+      <property name="uri" onget="return this._uriField.value"
+                               onset="this._uriField.value = val; return val;"/>
+      <property name="tags" onget="return this._tagsField.value"
+                            onset="this._tagsField.value = val; return val;"/>
+      <property name="tagsAsArray" readonly="true">
+        <getter>
+          <![CDATA[
+            // we don't require the leading space (after each comma)
+            var tags = this.tags.split(",");
+            for (var i = 0; i < tags.length; i++) {
+              // remove trailing and leading spaces
+              tags[i] = tags[i].trim();
+
+              // remove empty entries from the array.
+              if (tags[i] == "") {
+                tags.splice(i, 1);
+                i--;
+              }
+            }
+
+            return tags;
+          ]]>
+        </getter>
+      </property>
+      <method name="startEditing">
+        <parameter name="uri"/>
+        <body>
+          <![CDATA[
+            var item = PlacesUtils.getMostRecentBookmarkForURI(uri);
+            if (item == -1)
+              return;
+
+            this._bookmarkItem = item;
+            this._bookmarkURI = uri;
+
+            this.name = PlacesUtils.bookmarks.getItemTitle(item);
+            this.uri = uri.spec;
+            var currentTags = PlacesUtils.tagging.getTagsForURI(uri, {});
+            this.tags = currentTags.join(", ");
+
+            this._nameField.focus();
+          ]]>
+        </body>
+      </method>
+      <method name="stopEditing">
+        <parameter name="shouldSave"/>
+        <body>
+          <![CDATA[
+            if (shouldSave)
+              this.save();
+
+            let event = document.createEvent("Events");
+            event.initEvent("close", true, false);
+            this.dispatchEvent(event);
+          ]]>
+        </body>
+      </method>
+      <method name="save">
+        <body>
+          <![CDATA[
+            var item = this._bookmarkItem;
+            var uri = this._bookmarkURI;
+
+            // Update the name
+            PlacesUtils.bookmarks.setItemTitle(this._bookmarkItem, this.name);
+
+            // Update the tags
+            var currentTags = PlacesUtils.tagging.getTagsForURI(uri, {});
+            var tags = this.tagsAsArray;
+            if (tags.length > 0 || currentTags.length > 0) {
+              var tagsToRemove = [];
+              var tagsToAdd = [];
+              var i;
+              for (i = 0; i < currentTags.length; i++) {
+                if (tags.indexOf(currentTags[i]) == -1)
+                  tagsToRemove.push(currentTags[i]);
+              }
+              for (i = 0; i < tags.length; i++) {
+                if (currentTags.indexOf(tags[i]) == -1)
+                  tagsToAdd.push(tags[i]);
+              }
+
+              if (tagsToAdd.length > 0)
+                PlacesUtils.tagging.tagURI(uri, tagsToAdd);
+              if (tagsToRemove.length > 0)
+                PlacesUtils.tagging.untagURI(uri, tagsToRemove);
+            }
+
+            if (uri.spec != this.uri) {
+              var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+              var newuri = ios.newURI(this.uri, null, null);
+
+              PlacesUtils.bookmarks.changeBookmarkURI(item, newuri);
+            }
+          ]]>
+        </body>
+      </method>
+      <method name="remove">
+        <body>
+          <![CDATA[
+            PlacesUtils.bookmarks.removeItem(this._bookmarkItem);
+
+            // If this was the last bookmark (excluding tag-items and livemark
+            // children, see getMostRecentBookmarkForURI) for the bookmark's url,
+            // remove the url from tag containers as well.
+            var uri = this._bookmarkURI;
+            if (PlacesUtils.getMostRecentBookmarkForURI(uri) == -1) {
+              var tags = PlacesUtils.tagging.getTagsForURI(uri, {});
+              PlacesUtils.tagging.untagURI(uri, tags);
+            }
+
+            let event = document.createEvent("Events");
+            event.initEvent("RemoveBookmark", true, false);
+            this.dispatchEvent(event);
+
+            this.stopEditing(false);
+          ]]>
+        </body>
+      </method>
+    </implementation>
+  </binding>
+  
+</bindings>

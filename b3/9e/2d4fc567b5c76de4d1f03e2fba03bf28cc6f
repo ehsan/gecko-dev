@@ -1,0 +1,8 @@
+
+copy: js/src/devtools/automation/warnaserr
+copyrev: 78887bcb00cc45a1f0a04e584b71a8ee3aeef116
+
+--enable-threadsafe
+--enable-optimize
+--enable-warnings-as-errors
+

@@ -1,0 +1,7 @@
+[DEFAULT]
+support-files =
+  file_bug_779982.html
+  file_bug_779982.js
+
+[test_bug_779982.html]
+skip-if = toolkit == 'android' #Bug 793211

@@ -1,0 +1,5 @@
+
+copyrev: 21e89738c32dc3de29fb9d830abec78c573b870a
+copy: js/src/trace-test/tests/basic/bug519129.js
+
+(function(){eval("for(l in[0,0,0]){}",0)})()

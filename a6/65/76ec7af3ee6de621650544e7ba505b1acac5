@@ -1,0 +1,9 @@
+.sn-button-text {
+  background: transparent !important;
+  color: black !important;
+}
+
+.sn-button-extra-text {
+  color: grey;
+  font-size: 8pt !important;
+}

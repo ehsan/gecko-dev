@@ -1,0 +1,12 @@
+
+copyrev: a64af25cff3ee4694dd7f46bba90039bb40e7d6c
+copy: js/src/trace-test/tests/jaeger/bug582392.js
+
+function cmp(x, y) {
+  if (x < y)
+    return -1;
+  if (x > y)
+    return 1;
+  return 0;
+}
+assertEq(cmp('true', 'false'), 1);

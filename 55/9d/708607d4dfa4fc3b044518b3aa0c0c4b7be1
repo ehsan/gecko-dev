@@ -1,0 +1,5 @@
+
+copy: layout/reftests/view-source/reftests.list
+copyrev: 053ac655b928f35486971a3f6c8ef9b5ec5a24a0
+
+fails == view-source-image.html view-source-image-ref.html # security checks prevent loading view-source:

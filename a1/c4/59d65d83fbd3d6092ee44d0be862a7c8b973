@@ -1,0 +1,10 @@
+
+copyrev: 5bb37eb6d2005c91ddf0d6b63179ee58a66855d7
+copy: modules/plugin/tools/sdk/samples/scriptable/windows/npscriptable.def
+
+LIBRARY   NPSCRIPTABLE
+
+EXPORTS
+	NP_GetEntryPoints   @1
+	NP_Initialize       @2
+	NP_Shutdown         @3

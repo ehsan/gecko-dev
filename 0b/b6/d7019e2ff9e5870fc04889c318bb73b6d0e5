@@ -1,0 +1,35 @@
+
+copy: layout/xul/crashtests/432058-1.xul
+copyrev: f5a86f43f88f60b775b6959e848633c454c2e013
+
+<?xml version="1.0"?>
+
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="boom();">
+
+<script type="text/javascript">
+// <![CDATA[
+
+var XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+
+function boom()
+{
+  var lb = document.getElementById("lb");
+  var firstli = document.getElementById("firstli");
+  lb.appendChild(document.createElementNS(XUL_NS, "hbox"));
+  lb.appendChild(document.createElementNS(XUL_NS, "listitem"));
+  firstli.style.display = "none";
+
+  // Flush layout.
+  document.getBoxObjectFor(document.documentElement).height;
+
+  lb.removeChild(firstli);
+}
+
+// ]]>
+</script>
+
+<listbox id="lb"><listitem id="firstli"/></listbox>
+
+</window>

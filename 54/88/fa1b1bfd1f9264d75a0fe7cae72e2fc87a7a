@@ -1,0 +1,10 @@
+
+copy: browser/devtools/debugger/test/test-script-switching-01.js
+copyrev: 01a030b73468ffb6a9ee682013a542755450d4fc
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function firstCall() {
+  eval("secondCall();");
+}

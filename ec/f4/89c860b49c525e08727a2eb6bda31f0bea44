@@ -1,0 +1,22 @@
+
+copyrev: 34d19a190b01134b72bf6b1d68f314a9a7e7fd29
+copy: js/src/trace-test/tests/closures/lambda-light.js
+
+actual = '';
+expected = '10,';
+
+function f(x) {
+  let (x = 10) {
+    for (var i = 0; i < 5; ++i) {
+      var g = function () {
+	appendToActual(x);
+      };
+    }
+    g();
+  }
+}
+
+f(1);
+
+
+assertEq(actual, expected)

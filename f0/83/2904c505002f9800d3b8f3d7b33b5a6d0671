@@ -1,0 +1,5 @@
+
+copy: modules/plugin/test/mochitest/loremipsum.xtest^headers^
+copyrev: 40e5cea521766ccffa1cd40dafb535f6cf196ad0
+
+Content-Type: application/x-test

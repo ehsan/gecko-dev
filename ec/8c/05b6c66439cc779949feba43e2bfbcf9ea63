@@ -1,0 +1,6 @@
+
+copyrev: c882a9d762f92261e5529188c05f39954818d203
+copy: tools/test-harness/xpcshell-simple/example/location_load.js
+
+// Gets loaded via test_location.js
+do_check_eq(__LOCATION__.leafName, "location_load.js");

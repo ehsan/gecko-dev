@@ -1,0 +1,18 @@
+
+copy: content/svg/content/src/crashtests/385096.html
+copyrev: 0d2652cb5d3ee62fcdbfd734c89ee5fed7113d2d
+
+<html>
+<head>
+<script>
+function boom()
+{
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var feFuncG = document.createElementNS(SVG_NS, "feFuncG");
+  feFuncG.offset.baseVal = 1;
+}
+</script>
+</head>
+<body onload="boom();">
+</body>
+</html>

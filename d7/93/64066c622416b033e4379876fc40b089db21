@@ -1,0 +1,5 @@
+
+copy: widget/gtk2/crashtests/crashtests.list
+copyrev: 8a68e6ff0bb260f13421734cc865340785358a63
+
+load 673390-1.html

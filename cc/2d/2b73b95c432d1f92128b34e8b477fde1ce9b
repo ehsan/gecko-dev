@@ -1,0 +1,14 @@
+
+copy: content/html/content/reftests/toblob-todataurl/toblob-quality-75.html
+copyrev: bb542f7a6b37e825b4798d40cb90a288d18201dc
+
+<!doctype html>
+<html class='reftest-wait'>
+  <body>
+    <script>
+      var quality = 0.75;
+    </script>
+    <script src='sample.js'></script>
+    <script src='blob.js'></script>
+  </body>
+</html>

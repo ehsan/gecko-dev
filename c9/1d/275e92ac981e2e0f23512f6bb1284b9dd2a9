@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/textarea/textarea-disabled.html
+copyrev: 1148f6fe7832d2a4331df1227f92cd1f5049db87
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if textarea is disabled, it is barred from constraint validation
+             and should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <textarea class='notinvalid' disabled></textarea>
+  </body>
+</html>

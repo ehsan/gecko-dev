@@ -1,0 +1,10 @@
+
+copy: js/src/jit-test/tests/collections/Map-size-1.js
+copyrev: 28a5d0459407471a513e418d9963a581a4ab1627
+
+// The Map constructor creates an empty Map by default.
+
+assertEq(Map().size(), 0);
+assertEq((new Map).size(), 0);
+assertEq(Map(undefined).size(), 0);
+assertEq(new Map(undefined).size(), 0);

@@ -1,0 +1,159 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+#Setup the libvpx assembler config.
+AS=$(VPX_AS)
+ASFLAGS=$(VPX_ASFLAGS) -I. -I$(topsrcdir)/media/libvpx/ -I$(topsrcdir)/media/libvpx/vpx_ports/
+AS_DASH_C_FLAG=$(VPX_DASH_C_FLAG)
+ASM_SUFFIX=$(VPX_ASM_SUFFIX)
+
+ifdef VPX_ARM_ASM
+# Building on an ARM platform with a supported assembler, include
+# the optimized assembly in the build.
+
+ifeq ($(OS_TARGET),Android)
+# For cpu-features.h
+LOCAL_INCLUDES += -I$(ANDROID_NDK)/sources/android/cpufeatures
+ifndef MOZ_WEBRTC
+# For cpu-features.c
+VPATH += $(ANDROID_NDK)/sources/android/cpufeatures
+CSRCS += cpu-features.c
+endif
+endif
+
+ASM_OFFSETS = asm_com_offsets.asm
+ifdef MOZ_VP8_ENCODER
+ASM_OFFSETS += asm_enc_offsets.asm
+endif
+
+
+ifdef VPX_AS_CONVERSION
+# The ARM asm is written in ARM RVCT syntax, but we actually build it with
+# gas using GNU syntax. Add some rules to perform the conversion.
+
+GENERATED_DIRS += $(dir $(ASFILES))
+
+%.asm.$(ASM_SUFFIX): %.asm $(ASM_OFFSETS)
+	$(VPX_AS_CONVERSION) < $< > $@
+
+endif
+endif
+
+ifdef VPX_NEED_OBJ_INT_EXTRACT
+
+# We don't have a compiler that supports a compatible inline asm syntax, so we
+# have to resort to extracting asm offsets from a compiled object. This only
+# works if we have the appropriate system headers obj_int_extract needs to
+# parse that format, and so only has limited support for cross-compilation.
+
+ifdef VPX_ARM_ASM
+VPX_OIE_FORMAT := rvds
+else
+VPX_OIE_FORMAT := gas
+endif
+
+GARBAGE += asm_com_offsets.$(OBJ_SUFFIX) asm_com_offsets.asm
+
+ifdef MOZ_VP8_ENCODER
+
+GARBAGE += asm_enc_offsets.$(OBJ_SUFFIX) asm_enc_offsets.asm
+endif
+
+else
+
+# We can extract the asm offsets directly from generated assembly using inline
+# asm. This is the preferred method.
+
+asm_com_offsets.s: CFLAGS += -DINLINE_ASM
+
+OFFSET_PATTERN := '^[a-zA-Z0-9_]* EQU'
+
+# This rule, as well as the rule for asm_enc_offsets.s further below are here
+# because the generic rule in rules.mk was made to not be implicit, and we
+# can't put the C files in CSRCS.
+asm_com_offsets.s: $(srcdir)/vp8/common/asm_com_offsets.c
+	$(REPORT_BUILD)
+	$(CC) -S $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
+
+asm_com_offsets.asm: asm_com_offsets.s
+	grep $(OFFSET_PATTERN) $< | sed -e 's/[$$\#]//g' \
+	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
+
+GARBAGE += asm_com_offsets.s asm_com_offsets.asm
+
+ifdef MOZ_VP8_ENCODER
+
+asm_enc_offsets.s: CFLAGS += -DINLINE_ASM
+
+asm_enc_offsets.s: $(srcdir)/vp8/encoder/asm_enc_offsets.c
+	$(REPORT_BUILD)
+	$(CC) -S $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
+
+asm_enc_offsets.asm: asm_enc_offsets.s
+	grep $(OFFSET_PATTERN) $< | sed -e 's/[$$\#]//g' \
+	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
+
+GARBAGE += asm_enc_offsets.s asm_enc_offsets.asm
+
+
+endif
+
+endif
+
+EXTRA_MDDEPEND_FILES = asm_enc_offsets.s.pp asm_enc_offsets.$(OBJ_SUFFIX).pp asm_com_offsets.s.pp asm_com_offsets.$(OBJ_SUFFIX).pp
+
+include $(topsrcdir)/config/rules.mk
+
+# This must be after rules.mk in order to use $(OBJ_SUFFIX) outside a
+# recursively-expanded variable.
+
+ifndef _MSC_VER
+%_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2
+endif
+
+quantize_sse2.$(OBJ_SUFFIX): asm_enc_offsets.asm
+quantize_sse4.$(OBJ_SUFFIX): asm_enc_offsets.asm
+quantize_ssse3.$(OBJ_SUFFIX): asm_enc_offsets.asm
+
+ifdef VPX_NEED_OBJ_INT_EXTRACT
+
+# only for MSVC
+ifdef _MSC_VER
+NO_PROFILE_GUIDED_OPTIMIZE := asm_com_offsets.c
+endif
+
+asm_com_offsets.asm: asm_com_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
+	./$(HOST_PROGRAM) $(VPX_OIE_FORMAT) $< \
+	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
+
+# Filter out this object, because we don't want to link against it.
+# It was generated solely so it could be parsed by obj_int_extract.
+OBJS := $(filter-out asm_com_offsets.$(OBJ_SUFFIX),$(OBJS))
+
+ifdef MOZ_VP8_ENCODER
+
+ifdef _MSC_VER
+NO_PROFILE_GUIDED_OPTIMIZE += asm_enc_offsets.c
+endif
+
+asm_enc_offsets.asm: asm_enc_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
+	./$(HOST_PROGRAM) $(VPX_OIE_FORMAT) $< \
+	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
+
+# Filter out this object, because we don't want to link against it.
+# It was generated solely so it could be parsed by obj_int_extract.
+OBJS := $(filter-out asm_enc_offsets.$(OBJ_SUFFIX),$(OBJS))
+
+endif
+endif
+
+# Workaround a bug of Sun Studio (CR 6963410)
+ifdef SOLARIS_SUNPRO_CC
+ifeq (86,$(findstring 86,$(OS_TEST)))
+filter.o: filter.c Makefile.in
+	$(REPORT_BUILD)
+	@$(MAKE_DEPS_AUTO_CC)
+	$(CC) -o $@ -c $(patsubst -xO[45],-xO3,$(COMPILE_CFLAGS)) $<
+endif
+endif

@@ -1,0 +1,15 @@
+
+copyrev: dbd186f3e33b9a6472c362308224247c7870044d
+copy: js/src/trace-test/tests/jaeger/bug555922.js
+
+(function() {
+  let(z) {
+    for each(b in [{}]) { ({
+        get __noSuchMethod__() { return Function }
+      }).w()
+    }
+  }
+})()
+
+/* Don't crash/assert. */
+

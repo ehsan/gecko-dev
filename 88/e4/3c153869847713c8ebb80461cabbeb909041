@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/2999225.good
+copyrev: aab811500e021669769f1ed93fd5eadc77b717af
+
+foobar
+foobaz

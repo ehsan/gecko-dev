@@ -1,0 +1,13 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/lang/004-haswarn.html
+copyrev: b75933a7102992d9c9695de536dab6a1c706e33c
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>must be a valid BCP 47 language tag, or the empty string</title>
+<meta charset=utf-8>
+</head>
+<body lang=mo><!-- deprecated subtag -->
+</body>
+</html>

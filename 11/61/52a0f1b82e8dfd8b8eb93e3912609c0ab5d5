@@ -1,0 +1,21 @@
+
+copy: editor/libeditor/html/crashtests/615450-1.html
+copyrev: 6c05c2592d090d8b69aade6cfd5631132cee0890
+
+<!DOCTYPE html>
+<html contenteditable="true">
+<head>
+<script>
+
+function boom()
+{
+  document.documentElement.appendChild(document.body);
+  document.documentElement.contentEditable = "false";
+  try { document.execCommand("outdent", false, null); } catch(e) { }
+  document.body.contentEditable = "true";
+  try { document.execCommand("inserthtml", false, "x"); } catch(e) { }
+}
+
+</script>
+</head>
+<body onload="boom();"><div style="margin-left: 40px;"><span contenteditable="true">p q r s</span> T</div></body></html>

@@ -1,0 +1,31 @@
+
+copy: layout/base/tests/bug106855-2.html
+copyrev: 6d2ae60a16d6293cb1ec180cea4916e8b3317d39
+
+<!DOCTYPE HTML><html><head>
+  <script type="text/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
+</head>
+<body>
+x<br>
+<textarea id="t" rows="4">
+A
+
+
+</textarea><br>
+y
+<script>
+  // Position the caret at the last line
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+
+  var area = document.getElementById('t');
+  area.focus();
+
+  sendKey('DOWN', window);  // now after "A"
+  sendKey('DOWN', window);  // 
+  sendKey('DOWN', window);  // 
+  sendKey('DOWN', window);  // now at the last line
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+
+copy: modules/plugin/test/mochitest/test_pluginstream_geturl.html
+copyrev: 29c85dbc5d7030207732be0da6dab83f64a89b19
+
+<html>
+<head>
+  <title>NPAPI NPN_GetURL NPStream Test</title>
+  <script type="text/javascript" 
+          src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" 
+          src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" 
+          src="pluginstream.js"></script>
+  <link rel="stylesheet" type="text/css" 
+        href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+  <p id="display"></p>
+
+  <iframe id="testframe" name="testframe" onload="frameLoaded()"></iframe>
+
+  <!--
+   - The plugin reports that data can be sent to
+   - it in 1024-byte chunks, and the stream is initiated by a call to 
+   - NPN_GetURL.
+   -->
+  <embed geturl="loremipsum.txt" streammode="normal"
+         streamchunksize="1024" frame="testframe"
+         id="embedtest" style="width: 400px; height: 100px;"
+         type="application/x-test"></embed>
+ </body>
+ </html>
+ 

@@ -1,0 +1,5 @@
+
+copyrev: 6f04b80fbf0e76ef556536f8c9c11e6b70a3bd8a
+copy: js/tests/e4x/XML/shell.js
+
+gTestsubsuite = 'XML';

@@ -1,0 +1,19 @@
+
+copy: content/base/test/file_bug326337_outer.html
+copyrev: 40f7bea86d0a0c8ed0b69f09dd773eedf3fb8de6
+
+<!DOCTYPE html>
+<html>
+<body>
+<iframe id="inner" src="http://test1.example.com/tests/dom/base/test/file_bug326337_inner.html"></iframe>
+<script>
+var t = setInterval(doCheck, 300);
+function doCheck() {
+  if (location.hash) {
+    clearInterval(t);
+    window.opener.finishTest(location.hash);
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: content/html/content/test/bug649134/file_bug649134-1.sjs
+copyrev: 9fe8f8aaec1ae092d39271a3c07722b32192cb7d
+
+function handleRequest(request, response)
+{
+  response.seizePower();
+  var r = 'HTTP/1.1 200 OK\r\n' +
+          'Content-Type: text/html\r\n' +
+          'Link: <		\014>; rel="stylesheet"\r\n' +
+          '\r\n' +
+          '<!-- selector {} body {display:none;} --><body>PASS</body>\r\n';
+  response.bodyOutputStream.write(r, r.length);
+  response.bodyOutputStream.flush();
+  response.finish();
+}

@@ -1,0 +1,16 @@
+
+copy: js/src/jit-test/tests/parallelarray/map-3.js
+copyrev: e2e62c8a766b324cc74b914be27b0f0c1445c08b
+
+load(libdir + "parallelarray-helpers.js");
+
+function testMap() {
+  // Test mapping higher dimensional
+  var p = new ParallelArray([2,2], function (i,j) { return i+j; });
+  var m = p.map(function(x) { return x; });
+  var p2 = new ParallelArray(p.shape[0], function (i) { return p.get(i); });
+  assertEqParallelArray(m, p2);
+}
+
+if (getBuildConfiguration().parallelJS) testMap();
+

@@ -1,0 +1,12 @@
+
+copy: content/canvas/test/webgl/conformance/glsl/reserved/00_test_list.txt
+copyrev: cd2bad686789899dfd58c8e58cbded49f5192bff
+
+_webgl_field.vert.html
+_webgl_function.vert.html
+_webgl_struct.vert.html
+_webgl_variable.vert.html
+webgl_field.vert.html
+webgl_function.vert.html
+webgl_struct.vert.html
+webgl_variable.vert.html

@@ -1,0 +1,7 @@
+
+copy: browser/components/thumbnails/test/background_red.html
+copyrev: a63171647025f68e2ef2729a09882db3123afccb
+
+<html>
+  <body bgcolor=ff0000></body>
+</html>

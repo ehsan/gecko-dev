@@ -1,0 +1,6 @@
+
+copy: content/canvas/test/webgl/crossorigin/image-allow-credentials.png^headers^
+copyrev: 3f6c1915f8848fae45738e5451073204934413d8
+
+Access-Control-Allow-Origin: http://mochi.test:8888
+Access-Control-Allow-Credentials: true

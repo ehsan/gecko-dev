@@ -1,0 +1,24 @@
+
+copy: dom/tests/mochitest/w3c/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-06.htm
+copyrev: 73a6e55f48694e5624d20a42c64baf96715b1b69
+
+<!doctype html>
+<html>
+ <head>
+  <title>document.getElementsByClassName(): adding element with class</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body class="a">
+  <div id="log"></div>
+  <script>
+   test(function() {
+          var collection = document.getElementsByClassName("a");
+          var ele = document.createElement("foo");
+          ele.setAttribute("class", "a");
+          document.body.appendChild(ele);
+          assert_array_equals(collection, [document.body, ele]);
+        })
+  </script>
+ </body>
+</html>

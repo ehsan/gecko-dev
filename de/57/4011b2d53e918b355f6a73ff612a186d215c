@@ -1,0 +1,17 @@
+
+copy: content/base/test/file_XHRDocURI.sjs
+copyrev: 9fc9cc96749f40c82f50e3f9ff273da2c8fe2d53
+
+function handleRequest(aRequest, aResponse)
+{
+  var url = aRequest.queryString.match(/\burl=([^#&]*)/);
+  if (!url) {
+    aResponse.setStatusLine(aRequest.httpVersion, 404, "Not Found");
+    return;
+  }
+
+  url = decodeURIComponent(url[1]);
+  aResponse.setStatusLine(aRequest.httpVersion, 302, "Found");
+  aResponse.setHeader("Cache-Control", "no-cache", false);
+  aResponse.setHeader("Location", url, false);
+}

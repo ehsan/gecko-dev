@@ -1,0 +1,6 @@
+
+copy: browser/base/content/test/offlineChild.cacheManifest
+copyrev: 7479fa081e4f63a2027b125dcdf2f1101eab2abf
+
+CACHE MANIFEST
+offlineChild.html

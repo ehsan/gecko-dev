@@ -1,0 +1,8 @@
+
+copy: mobile/locales/en-US/searchplugins/list.txt
+copyrev: 341ca9f9bfb3eb2a6c3014d4d2eb24498f9047f6
+
+amazondotcom
+google
+twitter
+wikipedia

@@ -1,0 +1,15 @@
+
+copy: layout/reftests/editor/dynamic-type-1.html
+copyrev: a9852e9542b08fbde1ee17bfc0d9cbd0ec657349
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="checkbox">
+    <script>
+      var i = document.getElementsByTagName("input")[0];
+      i.type = "text";
+      i.value = "abcdef";
+    </script>
+</body>
+</html>

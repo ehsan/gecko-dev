@@ -1,0 +1,17 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps3.good
+copyrev: 622e8f6d5832a01cf07c1dee6edf5f8ea8da5fc7
+
+UNESCO
+Unesco
+UNESCO's
+Unesco's
+UNESCO'S
+NASA
+Nasa
+NASA's
+Nasa's
+NASA'S
+ACTS
+acts
+Acts

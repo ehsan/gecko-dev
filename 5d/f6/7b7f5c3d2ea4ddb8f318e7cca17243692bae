@@ -1,0 +1,26 @@
+
+copy: content/xml/tests/xlink/link.css
+copyrev: fc6d9fcf323edb6c7c3f85c9cb2202f40b12da24
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@namespace xlink url(http://www.w3.org/1999/xlink);
+
+root {
+  display: block;
+  padding: +5px;
+}
+
+p {
+  display: block;
+}
+
+mylink {
+  display: block;
+  cursor: pointer;
+  color: blue;
+  text-decoration: underline;
+}
+

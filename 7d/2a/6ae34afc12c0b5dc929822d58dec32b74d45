@@ -1,0 +1,9 @@
+
+copy: layout/reftests/svg/as-image/img-foreignObject-embed-2.html
+copyrev: 5762ef72d880fd9f434303927adb887e7d95cd56
+
+<html>
+<body>
+  <img src="img-foreignObject-embed-1-helper.svg" height="100px" width="100px">
+</body>
+</html>

@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-invalid/default-style/fieldset-ref.html
+copyrev: b13275eb2c7799afd6d9e03375bc4a7f54f3fa0c
+
+<!DOCTYPE>
+<html>
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <fieldset class='barred-ref'></fieldset>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+
+copyrev: e20b0e085087d990ba5fed5de86f19dc07750d46
+copy: toolkit/content/tests/chrome/bug437844.css
+
+/* Imitate RTL UI */
+window { direction: rtl; }

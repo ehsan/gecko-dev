@@ -1,0 +1,15 @@
+
+copy: mobile/android/base/tests/testSharedPreferences.java
+copyrev: a3d8cdd2832e2fe1ad50b86e9607d3e26b8f1880
+
+#filter substitution
+package @ANDROID_PACKAGE_NAME@.tests;
+
+import @ANDROID_PACKAGE_NAME@.*;
+
+
+public class testSharedPreferences extends JavascriptTest {
+    public testSharedPreferences() {
+        super("testSharedPreferences.js");
+    }
+}

@@ -1,0 +1,5 @@
+
+copyrev: 82cbc2e5be11bb0a2682145929287276587e7bed
+copy: js/tests/js1_8_1/trace/shell.js
+
+gTestsubsuite='trace';

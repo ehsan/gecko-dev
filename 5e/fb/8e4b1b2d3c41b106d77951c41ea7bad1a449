@@ -1,0 +1,10 @@
+
+copyrev: 3150a44d4e09fd27e97c2feb77fef4b1ad412cfa
+copy: js/src/trace-test/tests/basic/testBug462407.js
+
+//test no multitrees assert
+function testBug462407() {
+    for each (let i in [0, {}, 0, 1.5, {}, 0, 1.5, 0, 0]) { }
+    return true;
+}
+assertEq(testBug462407(), true);

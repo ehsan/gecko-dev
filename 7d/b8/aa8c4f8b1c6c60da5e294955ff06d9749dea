@@ -1,0 +1,5 @@
+
+copy: js/src/jit-test/tests/basic/bug672153.js
+copyrev: 6c5b0eb7fabb16db6018f1631563e1e7bc11dfbb
+
+uneval(Function("[] = (*::*++);print(x);"));

@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/warn.good
+copyrev: 6134e3f545d573b390f8735e376741fc2af1fc97
+
+foo
+foos

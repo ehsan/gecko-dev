@@ -1,0 +1,8 @@
+
+copy: mobile/branding/beta/locales/en-US/brand.dtd
+copyrev: 7e8a90d6f6c3d7dbd8de440c00ac2e75143ea726
+
+<!ENTITY  brandShortName  "Firefox Beta">
+<!ENTITY  brandFullName   "Mozilla Firefox Beta">
+<!ENTITY  vendorShortName "Mozilla">
+<!ENTITY  logoTrademark   "Firefox and the Firefox logos are trademarks of the Mozilla Foundation.">

@@ -1,0 +1,10 @@
+
+copy: js/src/jit-test/tests/parallelarray/toString-1.js
+copyrev: 9dbabcbc2b997a8693659a6471a806d6ad21127d
+
+function testToString() {
+  var p = new ParallelArray();
+  assertEq(p.toString(), "");
+}
+
+if (getBuildConfiguration().parallelJS) testToString();

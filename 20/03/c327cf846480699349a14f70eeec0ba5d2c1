@@ -1,0 +1,11 @@
+
+copyrev: ed84d5f836171ed5838a7cd0c5d26fdcbf605b31
+copy: js/src/trace-test/tests/basic/testGetThis.js
+
+function testGetThis() {
+    for (var i = 0; i < 3; ++i) {
+        (function() { return this; })();
+    }
+    return "ok";
+}
+assertEq(testGetThis(), "ok");

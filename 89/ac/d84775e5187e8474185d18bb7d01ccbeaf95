@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/audio/074-isvalid.html
+copyrev: d57ad70cdac8a237e8480c1e23e9af8c94a2934d
+
+<!doctype html>
+<meta charset=utf-8>
+<title>audio with flow content and flow parent</title>
+<div><audio><p>foo</p></audio></div>

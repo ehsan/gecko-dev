@@ -1,0 +1,29 @@
+
+copyrev: 39d59e7f03d6fc990d06002abc040dfcf71b9d5a
+copy: content/base/test/test_bug490760.xhtml
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script type="text/javascript">
+<![CDATA[
+
+function boom()
+{
+  var q = document.getElementsByTagName("style")[0];
+  
+  window.addEventListener("DOMNodeRemoved", f, false);
+  q.innerHTML = "<span><\/span>";
+  window.removeEventListener("DOMNodeRemoved", f, false);
+
+  function f()
+  {
+    window.removeEventListener("DOMNodeRemoved", f, false);
+    q.removeChild(q.childNodes[1]);
+  }
+}
+
+]]>
+</script>
+</head>
+<body onload="boom();"><style><span></span><span></span></style></body>
+</html>

@@ -1,0 +1,26 @@
+
+copy: content/xbl/crashtests/368641-1.xhtml
+copyrev: ca03dfd20d1d420831c50b9529911814ac896c1e
+
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<head>
+<script>
+
+function boom()
+{
+  var yaz = document.getElementById("yaz");
+
+  document.body.appendChild(yaz);
+}
+
+</script>
+</head>
+
+<body onload="boom()">
+  
+  <xul:tabs><span id="yaz"><xul:hbox><xul:popup/><xul:template/></xul:hbox></span></xul:tabs>
+</body>
+
+</html>

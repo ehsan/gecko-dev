@@ -1,0 +1,18 @@
+
+copy: browser/metro/base/tests/browser_context_menu_tests_01.html
+copyrev: ca3dee26019d7ff2d511b905e12448112c9ee7b5
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+    </style>
+  </head>
+<body style="padding: 1px; margin: 1px;">
+<div style="margin: 0; padding: 0;">
+  <span>
+    <img id="image01" width="100" height="100" src="./res/image01.png" />
+  </span>
+</div>
+</body>
+</html>

@@ -1,0 +1,17 @@
+
+copy: ipc/ipdl/test/ipdl/ok/rpcProtocol.ipdl
+copyrev: 2bd3f34ba1dd989edd4b59d875886f53532700e6
+
+intr protocol intrProtocol {
+
+    // sanity check of Interrupt protocols
+child:
+    AsyncMsg();
+
+parent:
+    sync SyncMsg(int i) returns (int r);
+
+both:
+    intr InterruptMsg(int x) returns (int y);
+
+};

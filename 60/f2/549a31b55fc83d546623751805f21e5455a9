@@ -1,0 +1,5 @@
+
+copy: content/base/test/csp/file_policyuri_async_fetch.html^headers^
+copyrev: bf7b008e3bea28a967fcc1a8d313734f54ac73ef
+
+X-Content-Security-Policy: invalid-uri

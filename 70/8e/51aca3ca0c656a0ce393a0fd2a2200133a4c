@@ -1,0 +1,10 @@
+
+copy: layout/reftests/css-invalid/input/input-withtext-ref.html
+copyrev: a526d580f40c8a3a0faa7aa790c94dfcd6181f34
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input value='foo' style="background-color: green;">
+  </body>
+</html>

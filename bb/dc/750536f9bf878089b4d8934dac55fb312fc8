@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix4.good
+copyrev: 07138039462928218344101e98e9da7233ce96d9
+
+foo
+bar
+foobar
+barfoo
+

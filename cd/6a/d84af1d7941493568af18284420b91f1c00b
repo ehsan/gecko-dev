@@ -1,0 +1,19 @@
+
+copyrev: 8a5071ab61373e0bd7999d87bf8e21176eae33a0
+copy: build/wince/tools/vs9ppc2003arm/arm-wince-as.c
+
+#include "toolspath.h"
+
+int 
+main(int argc, char **argv)
+{  
+  char* args[1000];
+  int i = 0;
+  
+  args[i++] = ASM_PATH;
+  args[i++] = "-I\"" WCE_INC "\""; 
+
+  i += argpath_conv(&argv[1], &args[i]);
+
+  return run(args);
+}

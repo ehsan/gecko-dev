@@ -1,0 +1,27 @@
+
+copy: layout/reftests/margin-collapsing/block-no-content-1b.html
+copyrev: 89a0ad1e5972cad9ea79df19d9c7feb475204751
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<head>
+<style type="text/css">
+.separator {
+ height: 20px;
+ background-color: green;
+}
+</style>
+<script type="text/javascript">
+function test() {
+ document.getElementById('margin-only').style.margin = '20px 0 10px';
+ document.documentElement.removeAttribute('class');
+}
+document.addEventListener('MozReftestInvalidate', test, false);
+</script>
+</head>
+<body>
+<div class="separator"></div>
+<div id="margin-only"></div>
+<div class="separator"></div>
+</body>
+</html>

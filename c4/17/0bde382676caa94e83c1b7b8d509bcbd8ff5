@@ -1,0 +1,5 @@
+
+copyrev: 72f76a3438d59640b6dd259e9fe2854b410b231f
+copy: toolkit/mozapps/update/src/updater/module.ver
+
+WIN32_MODULE_DESCRIPTION=@MOZ_APP_DISPLAYNAME@ Software Updater

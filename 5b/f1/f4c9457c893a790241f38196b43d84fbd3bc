@@ -1,0 +1,5 @@
+
+copy: config/emptyvars.mk.in
+copyrev: ee4b605fafa76a0165c4d1ed1c6351e770ec29e1
+
+@ALLEMPTYSUBSTS@

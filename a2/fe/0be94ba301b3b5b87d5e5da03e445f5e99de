@@ -1,0 +1,21 @@
+
+copy: content/base/crashtests/424276-1.html
+copyrev: e0d829c3162e7a60d09bb0ba10bdc4b0503d66cb
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  window.getSelection().selectAllChildren(document.createTextNode("\n\n"));
+  window.getSelection().addRange(document.createRange());
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+
+</html>

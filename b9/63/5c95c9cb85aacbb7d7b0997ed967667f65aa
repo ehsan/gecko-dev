@@ -1,0 +1,11 @@
+
+copyrev: 113c42fa4a3084c1564ea2748ab566fa9047447a
+copy: js/src/trace-test/tests/basic/bug539553-2.js
+
+function f() {
+    var x = arguments;
+    arguments.length = {};
+    for (var i = 0; i < 9; i++)
+        x.length.toSource();
+}
+f();

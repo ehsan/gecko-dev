@@ -1,0 +1,27 @@
+
+copy: content/events/crashtests/116206-1.html
+copyrev: 9c0bda5853964b862fc046828b5332646758e676
+
+<html>
+   <head>
+      <script language="JavaScript">
+	 function InitialFocus(){
+	    document.frmSelectUser.radResidence[0].focus();
+	 }
+      </script>
+   </head>
+   <body onfocus="InitialFocus();" >
+      <form name="frmSelectUser">
+	 <table>
+	    <tbody> 
+	       <tr> 
+		  <td><input name="radResidence" type="radio" value="KOR"></td> 
+	       </tr> 
+	       <tr> 
+		  <td><input name="radResidence" type="radio" value="JPN"></td>
+	       </tr> 
+	    </tbody>
+         </table>
+      </form>
+   </body> 
+</html>     

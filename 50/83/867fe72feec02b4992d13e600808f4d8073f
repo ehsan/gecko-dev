@@ -1,0 +1,1377 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadsDataItem",
+                                  "resource:///modules/DownloadsCommon.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
+                                  "resource:///modules/RecentWindow.jsm");
+
+const nsIDM = Ci.nsIDownloadManager;
+
+const DESTINATION_FILE_URI_ANNO  = "downloads/destinationFileURI";
+const DOWNLOAD_META_DATA_ANNO    = "downloads/metaData";
+
+const DOWNLOAD_VIEW_SUPPORTED_COMMANDS =
+ ["cmd_delete", "cmd_copy", "cmd_paste", "cmd_selectAll",
+  "downloadsCmd_pauseResume", "downloadsCmd_cancel",
+  "downloadsCmd_open", "downloadsCmd_show", "downloadsCmd_retry",
+  "downloadsCmd_openReferrer", "downloadsCmd_clearDownloads"];
+
+/**
+ * Represents a download from the browser history. It implements part of the
+ * interface of the Download object.
+ *
+ * @param url
+ *        URI string for the download source.
+ */
+function HistoryDownload(url) {
+  // TODO (bug 829201): history downloads should get the referrer from Places.
+  this.source = { url };
+  this.target = { path: undefined, size: undefined };
+}
+
+HistoryDownload.prototype = {
+  /**
+   * This method mimicks the "start" method of session downloads, and is called
+   * when the user retries a history download.
+   */
+  start() {
+    // In future we may try to download into the same original target uri, when
+    // we have it.  Though that requires verifying the path is still valid and
+    // may surprise the user if he wants to be requested every time.
+    let browserWin = RecentWindow.getMostRecentBrowserWindow();
+    let initiatingDoc = browserWin ? browserWin.document : document;
+
+    // Do not suggest a file name if we don't know the original target.
+    let leafName = this.target.path ? OS.Path.basename(this.target.path) : null;
+    DownloadURL(this.source.url, leafName, initiatingDoc);
+
+    return Promise.resolve();
+  },
+};
+
+/**
+ * Represents a download from the browser history. It uses the same interface as
+ * the DownloadsDataItem object.
+ *
+ * @param aPlacesNode
+ *        The Places node for the history download.
+ */
+function DownloadsHistoryDataItem(aPlacesNode) {
+  this.download = new HistoryDownload(aPlacesNode.uri);
+
+  // In case this download cannot obtain its end time from the Places metadata,
+  // use the time from the Places node, that is the start time of the download.
+  this.endTime = aPlacesNode.time / 1000;
+}
+
+DownloadsHistoryDataItem.prototype = {
+  __proto__: DownloadsDataItem.prototype,
+
+  /**
+   * Pushes information from Places metadata into this object.
+   */
+  updateFromMetaData(aPlacesMetaData) {
+    try {
+      let targetFile = Cc["@mozilla.org/network/protocol;1?name=file"]
+                         .getService(Ci.nsIFileProtocolHandler)
+                         .getFileFromURLSpec(aPlacesMetaData.targetFileURISpec);
+      this.download.target.path = targetFile.path;
+    } catch (ex) {
+      this.download.target.path = undefined;
+    }
+
+    try {
+      let metaData = JSON.parse(aPlacesMetaData.jsonDetails);
+      this.state = metaData.state;
+      this.endTime = metaData.endTime;
+      this.download.target.size = metaData.fileSize;
+    } catch (ex) {
+      // Metadata might be missing from a download that has started but hasn't
+      // stopped already. Normally, this state is overridden with the one from
+      // the corresponding in-progress session download. But if the browser is
+      // terminated abruptly and additionally the file with information about
+      // in-progress downloads is lost, we may end up using this state. We use
+      // the failed state to allow the download to be restarted.
+      //
+      // On the other hand, if the download is missing the target file
+      // annotation as well, it is just a very old one, and we can assume it
+      // succeeded.
+      this.state = this.download.target.path ? nsIDM.DOWNLOAD_FAILED
+                                             : nsIDM.DOWNLOAD_FINISHED;
+      this.download.target.size = undefined;
+    }
+
+    // This property is currently used to get the size of downloads, but will be
+    // replaced by download.target.size when available for session downloads.
+    this.maxBytes = this.download.target.size;
+
+    // This is not displayed for history downloads, that are never in progress.
+    this.percentComplete = 100;
+  },
+};
+
+/**
+ * A download element shell is responsible for handling the commands and the
+ * displayed data for a single download view element.
+ *
+ * The shell may contain a session download, a history download, or both.  When
+ * both a history and a current download are present, the current download gets
+ * priority and its information is displayed.
+ *
+ * On construction, a new richlistitem is created, and can be accessed through
+ * the |element| getter. The shell doesn't insert the item in a richlistbox, the
+ * caller must do it and remove the element when it's no longer needed.
+ *
+ * The caller is also responsible for forwarding status notifications for
+ * session downloads, calling the onStateChanged and onChanged methods.
+ *
+ * @param [optional] aSessionDataItem
+ *        The session download, required if aHistoryDataItem is not set.
+ * @param [optional] aHistoryDataItem
+ *        The history download, required if aSessionDataItem is not set.
+ */
+function HistoryDownloadElementShell(aSessionDataItem, aHistoryDataItem) {
+  this.element = document.createElement("richlistitem");
+  this.element._shell = this;
+
+  this.element.classList.add("download");
+  this.element.classList.add("download-state");
+
+  if (aSessionDataItem) {
+    this.sessionDataItem = aSessionDataItem;
+  }
+  if (aHistoryDataItem) {
+    this.historyDataItem = aHistoryDataItem;
+  }
+}
+
+HistoryDownloadElementShell.prototype = {
+  __proto__: DownloadElementShell.prototype,
+
+  /**
+   * Manages the "active" state of the shell.  By default all the shells without
+   * a session download are inactive, thus their UI is not updated.  They must
+   * be activated when entering the visible area.  Session downloads are always
+   * active.
+   */
+  ensureActive() {
+    if (!this._active) {
+      this._active = true;
+      this.element.setAttribute("active", true);
+      this._updateUI();
+    }
+  },
+  get active() !!this._active,
+
+  /**
+   * DownloadsDataItem or DownloadsHistoryDataItem object to use for displaying
+   * information and for executing commands in the user interface.
+   */
+  get dataItem() this._sessionDataItem || this._historyDataItem,
+
+  _sessionDataItem: null,
+  get sessionDataItem() this._sessionDataItem,
+  set sessionDataItem(aValue) {
+    if (this._sessionDataItem != aValue) {
+      if (!aValue && !this._historyDataItem) {
+        throw new Error("Should always have either a dataItem or a historyDataItem");
+      }
+
+      this._sessionDataItem = aValue;
+
+      this.ensureActive();
+      this._updateUI();
+    }
+    return aValue;
+  },
+
+  _historyDataItem: null,
+  get historyDataItem() this._historyDataItem,
+  set historyDataItem(aValue) {
+    if (this._historyDataItem != aValue) {
+      if (!aValue && !this._sessionDataItem) {
+        throw new Error("Should always have either a dataItem or a historyDataItem");
+      }
+
+      this._historyDataItem = aValue;
+
+      // We don't need to update the UI if we had a session data item, because
+      // the places information isn't used in this case.
+      if (!this._sessionDataItem) {
+        this._updateUI();
+      }
+    }
+    return aValue;
+  },
+
+  _updateUI() {
+    // There is nothing to do if the item has always been invisible.
+    if (!this.active) {
+      return;
+    }
+
+    // Since the state changed, we may need to check the target file again.
+    this._targetFileChecked = false;
+
+    this._updateState();
+  },
+
+  get statusTextAndTip() {
+    let status = this.rawStatusTextAndTip;
+
+    // The base object would show extended progress information in the tooltip,
+    // but we move this to the main view and never display a tooltip.
+    if (this.dataItem.state == nsIDM.DOWNLOAD_DOWNLOADING) {
+      status.text = status.tip;
+    }
+    status.tip = "";
+
+    return status;
+  },
+
+  onStateChanged() {
+    // If a download just finished successfully, it means that the target file
+    // now exists and we can extract its specific icon.  To ensure that the icon
+    // is reloaded, we must change the URI used by the XUL image element, for
+    // example by adding a query parameter.  Since this URI has a "moz-icon"
+    // scheme, this only works if we add one of the parameters explicitly
+    // supported by the nsIMozIconURI interface.
+    if (this.dataItem.state == nsIDM.DOWNLOAD_FINISHED) {
+      this.element.setAttribute("image", this.image + "&state=normal");
+    }
+
+    // Update the user interface after switching states.
+    this.element.setAttribute("state", this.dataItem.state);
+
+    if (this.element.selected) {
+      goUpdateDownloadCommands();
+    } else {
+      goUpdateCommand("downloadsCmd_clearDownloads");
+    }
+  },
+
+  onChanged() {
+    this._updateProgress();
+  },
+
+  /* nsIController */
+  isCommandEnabled(aCommand) {
+    // The only valid command for inactive elements is cmd_delete.
+    if (!this.active && aCommand != "cmd_delete") {
+      return false;
+    }
+    switch (aCommand) {
+      case "downloadsCmd_open":
+        // We cannot open a session download file unless it's succeeded.
+        // If it's succeeded, we need to make sure the file was not removed,
+        // as we do for past downloads.
+        if (this._sessionDataItem && !this.download.succeeded) {
+          return false;
+        }
+
+        if (this._targetFileChecked) {
+          return this._targetFileExists;
+        }
+
+        // If the target file information is not yet fetched,
+        // temporarily assume that the file is in place.
+        return this.dataItem.state == nsIDM.DOWNLOAD_FINISHED;
+      case "downloadsCmd_show":
+        // TODO: Bug 827010 - Handle part-file asynchronously.
+        if (this._sessionDataItem &&
+            this.dataItem.partFile && this.dataItem.partFile.exists()) {
+          return true;
+        }
+
+        if (this._targetFileChecked) {
+          return this._targetFileExists;
+        }
+
+        // If the target file information is not yet fetched,
+        // temporarily assume that the file is in place.
+        return this.dataItem.state == nsIDM.DOWNLOAD_FINISHED;
+      case "downloadsCmd_pauseResume":
+        return this._sessionDataItem && this.dataItem.inProgress &&
+               this.dataItem.download.hasPartialData;
+      case "downloadsCmd_retry":
+        return this.dataItem.canRetry;
+      case "downloadsCmd_openReferrer":
+        return !!this.download.source.referrer;
+      case "cmd_delete":
+        // The behavior in this case is somewhat unexpected, so we disallow that.
+        return !this.dataItem.inProgress;
+      case "downloadsCmd_cancel":
+        return !!this._sessionDataItem;
+    }
+    return false;
+  },
+
+  /* nsIController */
+  doCommand(aCommand) {
+    switch (aCommand) {
+      case "downloadsCmd_open": {
+        let file = new FileUtils.File(this.download.target.path);
+        DownloadsCommon.openDownloadedFile(file, null, window);
+        break;
+      }
+      case "downloadsCmd_show": {
+        let file = new FileUtils.File(this.download.target.path);
+        DownloadsCommon.showDownloadedFile(file);
+        break;
+      }
+      case "downloadsCmd_openReferrer": {
+        openURL(this.download.source.referrer);
+        break;
+      }
+      case "downloadsCmd_cancel": {
+        this.download.cancel().catch(() => {});
+        this.download.removePartialData().catch(Cu.reportError);
+        break;
+      }
+      case "cmd_delete": {
+        if (this._sessionDataItem) {
+          Downloads.getList(Downloads.ALL)
+                   .then(list => list.remove(this.download))
+                   .then(() => this.download.finalize(true))
+                   .catch(Cu.reportError);
+        }
+        if (this._historyDataItem) {
+          let uri = NetUtil.newURI(this.download.source.url);
+          PlacesUtils.bhistory.removePage(uri);
+        }
+        break;
+      }
+      case "downloadsCmd_retry": {
+        // Errors when retrying are already reported as download failures.
+        this.download.start().catch(() => {});
+        break;
+      }
+      case "downloadsCmd_pauseResume": {
+        // This command is only enabled for session downloads.
+        if (this.download.stopped) {
+          this.download.start();
+        } else {
+          this.download.cancel();
+        }
+        break;
+      }
+    }
+  },
+
+  // Returns whether or not the download handled by this shell should
+  // show up in the search results for the given term.  Both the display
+  // name for the download and the url are searched.
+  matchesSearchTerm(aTerm) {
+    if (!aTerm) {
+      return true;
+    }
+    aTerm = aTerm.toLowerCase();
+    return this.displayName.toLowerCase().contains(aTerm) ||
+           this.download.source.url.toLowerCase().contains(aTerm);
+  },
+
+  // Handles return keypress on the element (the keypress listener is
+  // set in the DownloadsPlacesView object).
+  doDefaultCommand() {
+    function getDefaultCommandForState(aState) {
+      switch (aState) {
+        case nsIDM.DOWNLOAD_FINISHED:
+          return "downloadsCmd_open";
+        case nsIDM.DOWNLOAD_PAUSED:
+          return "downloadsCmd_pauseResume";
+        case nsIDM.DOWNLOAD_NOTSTARTED:
+        case nsIDM.DOWNLOAD_QUEUED:
+          return "downloadsCmd_cancel";
+        case nsIDM.DOWNLOAD_FAILED:
+        case nsIDM.DOWNLOAD_CANCELED:
+          return "downloadsCmd_retry";
+        case nsIDM.DOWNLOAD_SCANNING:
+          return "downloadsCmd_show";
+        case nsIDM.DOWNLOAD_BLOCKED_PARENTAL:
+        case nsIDM.DOWNLOAD_DIRTY:
+        case nsIDM.DOWNLOAD_BLOCKED_POLICY:
+          return "downloadsCmd_openReferrer";
+      }
+      return "";
+    }
+    let command = getDefaultCommandForState(this.dataItem.state);
+    if (command && this.isCommandEnabled(command)) {
+      this.doCommand(command);
+    }
+  },
+
+  /**
+   * This method is called by the outer download view, after the controller
+   * commands have already been updated. In case we did not check for the
+   * existence of the target file already, we can do it now and then update
+   * the commands as needed.
+   */
+  onSelect() {
+    if (!this.active) {
+      return;
+    }
+
+    // If this is a history download for which no target file information is
+    // available, we cannot retrieve information about the target file.
+    if (!this.download.target.path) {
+      return;
+    }
+
+    // Start checking for existence.  This may be done twice if onSelect is
+    // called again before the information is collected.
+    if (!this._targetFileChecked) {
+      this._checkTargetFileOnSelect().catch(Cu.reportError);
+    }
+  },
+
+  _checkTargetFileOnSelect: Task.async(function* () {
+    try {
+      this._targetFileExists = yield OS.File.exists(this.download.target.path);
+    } finally {
+      // Do not try to check for existence again if this failed once.
+      this._targetFileChecked = true;
+    }
+
+    // Update the commands only if the element is still selected.
+    if (this.element.selected) {
+      goUpdateDownloadCommands();
+    }
+  }),
+};
+
+/**
+ * A Downloads Places View is a places view designed to show a places query
+ * for history downloads alongside the current "session"-downloads.
+ *
+ * As we don't use the places controller, some methods implemented by other
+ * places views are not implemented by this view.
+ *
+ * A richlistitem in this view can represent either a past download or a session
+ * download, or both. Session downloads are shown first in the view, and as long
+ * as they exist they "collapses" their history "counterpart" (So we don't show two
+ * items for every download).
+ */
+function DownloadsPlacesView(aRichListBox, aActive = true) {
+  this._richlistbox = aRichListBox;
+  this._richlistbox._placesView = this;
+  window.controllers.insertControllerAt(0, this);
+
+  // Map download URLs to download element shells regardless of their type
+  this._downloadElementsShellsForURI = new Map();
+
+  // Map download data items to their element shells.
+  this._viewItemsForDataItems = new WeakMap();
+
+  // Points to the last session download element. We keep track of this
+  // in order to keep all session downloads above past downloads.
+  this._lastSessionDownloadElement = null;
+
+  this._searchTerm = "";
+
+  this._active = aActive;
+
+  // Register as a downloads view. The places data will be initialized by
+  // the places setter.
+  this._initiallySelectedElement = null;
+  this._downloadsData = DownloadsCommon.getData(window.opener || window);
+  this._downloadsData.addView(this);
+
+  // Get the Download button out of the attention state since we're about to
+  // view all downloads.
+  DownloadsCommon.getIndicatorData(window).attention = false;
+
+  // Make sure to unregister the view if the window is closed.
+  window.addEventListener("unload", () => {
+    window.controllers.removeController(this);
+    this._downloadsData.removeView(this);
+    this.result = null;
+  }, true);
+  // Resizing the window may change items visibility.
+  window.addEventListener("resize", () => {
+    this._ensureVisibleElementsAreActive();
+  }, true);
+}
+
+DownloadsPlacesView.prototype = {
+  get associatedElement() this._richlistbox,
+
+  get active() this._active,
+  set active(val) {
+    this._active = val;
+    if (this._active)
+      this._ensureVisibleElementsAreActive();
+    return this._active;
+  },
+
+  /**
+   * Map containing a metadata object for each download source URI found in
+   * Places annotations, or null if this cache must be rebuilt.
+   */
+  _cachedPlacesMetaData: null,
+
+  /**
+   * This method exists in order to optimize the first load of the Downloads
+   * View, when Places annotations for history downloads must be read. In fact,
+   * annotations are stored in a single table, and reading all of them at once
+   * is much more efficient than an individual query.
+   *
+   * When this metod is first called, after the Places result container has been
+   * invalidated, it reads the annotations for all the history downloads.
+   *
+   * At this point, as metadata for the various elements is requested by the
+   * view, it is pulled from the cache and returned as an object.
+   *
+   * This works efficiently because the metadata is requested only for newly
+   * created element shells that contain a history download but don't have a
+   * matching session download, and at most one such element shell is created
+   * for each source URI.
+   *
+   * @param url
+   *        URI string of the Places node for which metadata is requested.
+   *
+   * @return Object of the form { targetFileURISpec, jsonDetails }.
+   *         Any of the properties may be missing from the object.
+   */
+  _getCachedPlacesMetaDataFor(url) {
+    if (!this._cachedPlacesMetaData) {
+      this._cachedPlacesMetaData = new Map();
+
+      // Use the destination file annotation to build the initial Map of items.
+      for (let result of PlacesUtils.annotations.getAnnotationsWithName(
+                                                 DESTINATION_FILE_URI_ANNO)) {
+        this._cachedPlacesMetaData.set(result.uri.spec, {
+          targetFileURISpec: result.annotationValue,
+        });
+      }
+
+      // Add the string with the JSON details from the metadata annotation.
+      for (let result of PlacesUtils.annotations.getAnnotationsWithName(
+                                                 DOWNLOAD_META_DATA_ANNO)) {
+        let metadata = this._cachedPlacesMetaData.get(result.uri.spec);
+
+        // The destination file annotation is expected to be present for all
+        // the downloads with the metadata annotation. If this is not the case,
+        // we simply ignore the item, as if it has no JSON details at all.
+        if (metadata) {
+          metadata.jsonDetails = result.annotationValue;
+        }
+      }
+    }
+
+    let metadata = this._cachedPlacesMetaData.get(url);
+    this._cachedPlacesMetaData.delete(url);
+
+    // In the rare case where a history download is added again, but there is no
+    // corresponding session download, read the metadata from the database. This
+    // could potentially cause an inefficient database access for very old
+    // downloads with no metadata to begin with, but these should have been
+    // already deleted from history on a recent browser profile.
+    return metadata || this._getPlacesMetaDataFor(url);
+  },
+
+  /**
+   * Read the latest version of the Places metadata for the given URI.
+   *
+   * @param url
+   *        URI string of the Places node for which metadata is requested.
+   *
+   * @return Object of the form { targetFileURISpec, jsonDetails }.
+   *         Any of the properties may be missing from the object.
+   */
+  _getPlacesMetaDataFor(url) {
+    let metadata = {};
+
+    try {
+      let uri = NetUtil.newURI(url);
+      metadata = {
+        targetFileURISpec: PlacesUtils.annotations.getPageAnnotation(
+                                       uri, DESTINATION_FILE_URI_ANNO),
+      };
+      metadata.jsonDetails = PlacesUtils.annotations.getPageAnnotation(
+                                         uri, DOWNLOAD_META_DATA_ANNO);
+    } catch (ex) {}
+
+    return metadata;
+  },
+
+  /**
+   * Given a data item for a session download, or a places node for a past
+   * download, updates the view as necessary.
+   *  1. If the given data is a places node, we check whether there are any
+   *     elements for the same download url. If there are, then we just reset
+   *     their places node. Otherwise we add a new download element.
+   *  2. If the given data is a data item, we first check if there's a history
+   *     download in the list that is not associated with a data item. If we
+   *     found one, we use it for the data item as well and reposition it
+   *     alongside the other session downloads. If we don't, then we go ahead
+   *     and create a new element for the download.
+   *
+   * @param aDataItem
+   *        The data item of a session download. Set to null for history
+   *        downloads data.
+   * @param [optional] aPlacesNode
+   *        The places node for a history download. Required if there's no data
+   *        item.
+   * @param [optional] aNewest
+   *        @see onDataItemAdded. Ignored for history downloads.
+   * @param [optional] aDocumentFragment
+   *        To speed up the appending of multiple elements to the end of the
+   *        list which are coming in a single batch (i.e. invalidateContainer),
+   *        a document fragment may be passed to which the new elements would
+   *        be appended. It's the caller's job to ensure the fragment is merged
+   *        to the richlistbox at the end.
+   */
+  _addDownloadData(aDataItem, aPlacesNode, aNewest = false,
+                   aDocumentFragment = null) {
+    let downloadURI = aPlacesNode ? aPlacesNode.uri
+                                  : aDataItem.download.source.url;
+    let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI);
+    if (!shellsForURI) {
+      shellsForURI = new Set();
+      this._downloadElementsShellsForURI.set(downloadURI, shellsForURI);
+    }
+
+    let newOrUpdatedShell = null;
+
+    // Trivial: if there are no shells for this download URI, we always
+    // need to create one.
+    let shouldCreateShell = shellsForURI.size == 0;
+
+    // However, if we do have shells for this download uri, there are
+    // few options:
+    // 1) There's only one shell and it's for a history download (it has
+    //    no data item). In this case, we update this shell and move it
+    //    if necessary
+    // 2) There are multiple shells, indicating multiple downloads for
+    //    the same download uri are running. In this case we create
+    //    another shell for the download (so we have one shell for each data
+    //    item).
+    //
+    // Note: If a cancelled session download is already in the list, and the
+    // download is retired, onDataItemAdded is called again for the same
+    // data item. Thus, we also check that we make sure we don't have a view item
+    // already.
+    if (!shouldCreateShell &&
+        aDataItem && !this._viewItemsForDataItems.has(aDataItem)) {
+      // If there's a past-download-only shell for this download-uri with no
+      // associated data item, use it for the new data item. Otherwise, go ahead
+      // and create another shell.
+      shouldCreateShell = true;
+      for (let shell of shellsForURI) {
+        if (!shell.sessionDataItem) {
+          shouldCreateShell = false;
+          shell.sessionDataItem = aDataItem;
+          newOrUpdatedShell = shell;
+          this._viewItemsForDataItems.set(aDataItem, shell);
+          break;
+        }
+      }
+    }
+
+    if (shouldCreateShell) {
+      // If we are adding a new history download here, it means there is no
+      // associated session download, thus we must read the Places metadata,
+      // because it will not be obscured by the session download.
+      let historyDataItem = null;
+      if (aPlacesNode) {
+        let metaData = this._getCachedPlacesMetaDataFor(aPlacesNode.uri);
+        historyDataItem = new DownloadsHistoryDataItem(aPlacesNode);
+        historyDataItem.updateFromMetaData(metaData);
+      }
+      let shell = new HistoryDownloadElementShell(aDataItem, historyDataItem);
+      shell.element._placesNode = aPlacesNode;
+      newOrUpdatedShell = shell;
+      shellsForURI.add(shell);
+      if (aDataItem) {
+        this._viewItemsForDataItems.set(aDataItem, shell);
+      }
+    } else if (aPlacesNode) {
+      // We are updating information for a history download for which we have
+      // at least one download element shell already. There are two cases:
+      // 1) There are one or more download element shells for this source URI,
+      //    each with an associated session download. We update the Places node
+      //    because we may need it later, but we don't need to read the Places
+      //    metadata until the last session download is removed.
+      // 2) Occasionally, we may receive a duplicate notification for a history
+      //    download with no associated session download. We have exactly one
+      //    download element shell in this case, but the metdata cannot have
+      //    changed, just the reference to the Places node object is different.
+      // So, we update all the node references and keep the metadata intact.
+      for (let shell of shellsForURI) {
+        if (!shell.historyDataItem) {
+          // Create the element to host the metadata when needed.
+          shell.historyDataItem = new DownloadsHistoryDataItem(aPlacesNode);
+        }
+        shell.element._placesNode = aPlacesNode;
+      }
+    }
+
+    if (newOrUpdatedShell) {
+      if (aNewest) {
+        this._richlistbox.insertBefore(newOrUpdatedShell.element,
+                                       this._richlistbox.firstChild);
+        if (!this._lastSessionDownloadElement) {
+          this._lastSessionDownloadElement = newOrUpdatedShell.element;
+        }
+        // Some operations like retrying an history download move an element to
+        // the top of the richlistbox, along with other session downloads.
+        // More generally, if a new download is added, should be made visible.
+        this._richlistbox.ensureElementIsVisible(newOrUpdatedShell.element);
+      } else if (aDataItem) {
+        let before = this._lastSessionDownloadElement ?
+          this._lastSessionDownloadElement.nextSibling : this._richlistbox.firstChild;
+        this._richlistbox.insertBefore(newOrUpdatedShell.element, before);
+        this._lastSessionDownloadElement = newOrUpdatedShell.element;
+      } else {
+        let appendTo = aDocumentFragment || this._richlistbox;
+        appendTo.appendChild(newOrUpdatedShell.element);
+      }
+
+      if (this.searchTerm) {
+        newOrUpdatedShell.element.hidden =
+          !newOrUpdatedShell.element._shell.matchesSearchTerm(this.searchTerm);
+      }
+    }
+
+    // If aDocumentFragment is defined this is a batch change, so it's up to
+    // the caller to append the fragment and activate the visible shells.
+    if (!aDocumentFragment) {
+      this._ensureVisibleElementsAreActive();
+      goUpdateCommand("downloadsCmd_clearDownloads");
+    }
+  },
+
+  _removeElement(aElement) {
+    // If the element was selected exclusively, select its next
+    // sibling first, if not, try for previous sibling, if any.
+    if ((aElement.nextSibling || aElement.previousSibling) &&
+        this._richlistbox.selectedItems &&
+        this._richlistbox.selectedItems.length == 1 &&
+        this._richlistbox.selectedItems[0] == aElement) {
+      this._richlistbox.selectItem(aElement.nextSibling ||
+                                   aElement.previousSibling);
+    }
+
+    if (this._lastSessionDownloadElement == aElement) {
+      this._lastSessionDownloadElement = aElement.previousSibling;
+    }
+
+    this._richlistbox.removeItemFromSelection(aElement);
+    this._richlistbox.removeChild(aElement);
+    this._ensureVisibleElementsAreActive();
+    goUpdateCommand("downloadsCmd_clearDownloads");
+  },
+
+  _removeHistoryDownloadFromView(aPlacesNode) {
+    let downloadURI = aPlacesNode.uri;
+    let shellsForURI = this._downloadElementsShellsForURI.get(downloadURI);
+    if (shellsForURI) {
+      for (let shell of shellsForURI) {
+        if (shell.sessionDataItem) {
+          shell.historyDataItem = null;
+        } else {
+          this._removeElement(shell.element);
+          shellsForURI.delete(shell);
+          if (shellsForURI.size == 0)
+            this._downloadElementsShellsForURI.delete(downloadURI);
+        }
+      }
+    }
+  },
+
+  _removeSessionDownloadFromView(aDataItem) {
+    let shells = this._downloadElementsShellsForURI
+                     .get(aDataItem.download.source.url);
+    if (shells.size == 0) {
+      throw new Error("Should have had at leaat one shell for this uri");
+    }
+
+    let shell = this._viewItemsForDataItems.get(aDataItem);
+    if (!shells.has(shell)) {
+      throw new Error("Missing download element shell in shells list for url");
+    }
+
+    // If there's more than one item for this download uri, we can let the
+    // view item for this this particular data item go away.
+    // If there's only one item for this download uri, we should only
+    // keep it if it is associated with a history download.
+    if (shells.size > 1 || !shell.historyDataItem) {
+      this._removeElement(shell.element);
+      shells.delete(shell);
+      if (shells.size == 0) {
+        this._downloadElementsShellsForURI.delete(aDataItem.download.source.url);
+      }
+    } else {
+      // We have one download element shell containing both a session download
+      // and a history download, and we are now removing the session download.
+      // Previously, we did not use the Places metadata because it was obscured
+      // by the session download. Since this is no longer the case, we have to
+      // read the latest metadata before removing the session download.
+      let url = shell.historyDataItem.download.source.url;
+      let metaData = this._getPlacesMetaDataFor(url);
+      shell.historyDataItem.updateFromMetaData(metaData);
+      shell.sessionDataItem = null;
+      // Move it below the session-download items;
+      if (this._lastSessionDownloadElement == shell.element) {
+        this._lastSessionDownloadElement = shell.element.previousSibling;
+      } else {
+        let before = this._lastSessionDownloadElement ?
+          this._lastSessionDownloadElement.nextSibling : this._richlistbox.firstChild;
+        this._richlistbox.insertBefore(shell.element, before);
+      }
+    }
+  },
+
+  _ensureVisibleElementsAreActive() {
+    if (!this.active || this._ensureVisibleTimer ||
+        !this._richlistbox.firstChild) {
+      return;
+    }
+
+    this._ensureVisibleTimer = setTimeout(() => {
+      delete this._ensureVisibleTimer;
+      if (!this._richlistbox.firstChild) {
+        return;
+      }
+
+      let rlbRect = this._richlistbox.getBoundingClientRect();
+      let winUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                           .getInterface(Ci.nsIDOMWindowUtils);
+      let nodes = winUtils.nodesFromRect(rlbRect.left, rlbRect.top,
+                                         0, rlbRect.width, rlbRect.height, 0,
+                                         true, false);
+      // nodesFromRect returns nodes in z-index order, and for the same z-index
+      // sorts them in inverted DOM order, thus starting from the one that would
+      // be on top.
+      let firstVisibleNode, lastVisibleNode;
+      for (let node of nodes) {
+        if (node.localName === "richlistitem" && node._shell) {
+          node._shell.ensureActive();
+          // The first visible node is the last match.
+          firstVisibleNode = node;
+          // While the last visible node is the first match.
+          if (!lastVisibleNode) {
+            lastVisibleNode = node;
+          }
+        }
+      }
+
+      // Also activate the first invisible nodes in both boundaries (that is,
+      // above and below the visible area) to ensure proper keyboard navigation
+      // in both directions.
+      let nodeBelowVisibleArea = lastVisibleNode && lastVisibleNode.nextSibling;
+      if (nodeBelowVisibleArea && nodeBelowVisibleArea._shell) {
+        nodeBelowVisibleArea._shell.ensureActive();
+      }
+
+      let nodeAboveVisibleArea = firstVisibleNode &&
+                                 firstVisibleNode.previousSibling;
+      if (nodeAboveVisibleArea && nodeAboveVisibleArea._shell) {
+        nodeAboveVisibleArea._shell.ensureActive();
+      }
+    }, 10);
+  },
+
+  _place: "",
+  get place() this._place,
+  set place(val) {
+    // Don't reload everything if we don't have to.
+    if (this._place == val) {
+      // XXXmano: places.js relies on this behavior (see Bug 822203).
+      this.searchTerm = "";
+      return val;
+    }
+
+    this._place = val;
+
+    let history = PlacesUtils.history;
+    let queries = { }, options = { };
+    history.queryStringToQueries(val, queries, { }, options);
+    if (!queries.value.length) {
+      queries.value = [history.getNewQuery()];
+    }
+
+    let result = history.executeQueries(queries.value, queries.value.length,
+                                        options.value);
+    result.addObserver(this, false);
+    return val;
+  },
+
+  _result: null,
+  get result() this._result,
+  set result(val) {
+    if (this._result == val) {
+      return val;
+    }
+
+    if (this._result) {
+      this._result.removeObserver(this);
+      this._resultNode.containerOpen = false;
+    }
+
+    if (val) {
+      this._result = val;
+      this._resultNode = val.root;
+      this._resultNode.containerOpen = true;
+      this._ensureInitialSelection();
+    } else {
+      delete this._resultNode;
+      delete this._result;
+    }
+
+    return val;
+  },
+
+  get selectedNodes() {
+    return [for (element of this._richlistbox.selectedItems)
+            if (element._placesNode)
+            element._placesNode];
+  },
+
+  get selectedNode() {
+    let selectedNodes = this.selectedNodes;
+    return selectedNodes.length == 1 ? selectedNodes[0] : null;
+  },
+
+  get hasSelection() this.selectedNodes.length > 0,
+
+  containerStateChanged(aNode, aOldState, aNewState) {
+    this.invalidateContainer(aNode)
+  },
+
+  invalidateContainer(aContainer) {
+    if (aContainer != this._resultNode) {
+      throw new Error("Unexpected container node");
+    }
+    if (!aContainer.containerOpen) {
+      throw new Error("Root container for the downloads query cannot be closed");
+    }
+
+    // When the container is invalidated, it means we are about to re-read all
+    // the information about history downloads from the database, discarding the
+    // download element shells, thus we fully rebuild the Places annotation
+    // cache with the latest values.
+    this._cachedPlacesMetaData = null;
+
+    let suppressOnSelect = this._richlistbox.suppressOnSelect;
+    this._richlistbox.suppressOnSelect = true;
+    try {
+      // Remove the invalidated history downloads from the list and unset the
+      // places node for data downloads.
+      // Loop backwards since _removeHistoryDownloadFromView may removeChild().
+      for (let i = this._richlistbox.childNodes.length - 1; i >= 0; --i) {
+        let element = this._richlistbox.childNodes[i];
+        if (element._placesNode) {
+          this._removeHistoryDownloadFromView(element._placesNode);
+        }
+      }
+    } finally {
+      this._richlistbox.suppressOnSelect = suppressOnSelect;
+    }
+
+    if (aContainer.childCount > 0) {
+      let elementsToAppendFragment = document.createDocumentFragment();
+      for (let i = 0; i < aContainer.childCount; i++) {
+        try {
+          this._addDownloadData(null, aContainer.getChild(i), false,
+                                elementsToAppendFragment);
+        } catch (ex) {
+          Cu.reportError(ex);
+        }
+      }
+
+      // _addDownloadData may not add new elements if there were already
+      // data items in place.
+      if (elementsToAppendFragment.firstChild) {
+        this._appendDownloadsFragment(elementsToAppendFragment);
+        this._ensureVisibleElementsAreActive();
+      }
+    }
+
+    goUpdateDownloadCommands();
+  },
+
+  _appendDownloadsFragment(aDOMFragment) {
+    // Workaround multiple reflows hang by removing the richlistbox
+    // and adding it back when we're done.
+
+    // Hack for bug 836283: reset xbl fields to their old values after the
+    // binding is reattached to avoid breaking the selection state
+    let xblFields = new Map();
+    for (let [key, value] in Iterator(this._richlistbox)) {
+      xblFields.set(key, value);
+    }
+
+    let parentNode = this._richlistbox.parentNode;
+    let nextSibling = this._richlistbox.nextSibling;
+    parentNode.removeChild(this._richlistbox);
+    this._richlistbox.appendChild(aDOMFragment);
+    parentNode.insertBefore(this._richlistbox, nextSibling);
+
+    for (let [key, value] of xblFields) {
+      this._richlistbox[key] = value;
+    }
+  },
+
+  nodeInserted(aParent, aPlacesNode) {
+    this._addDownloadData(null, aPlacesNode);
+  },
+
+  nodeRemoved(aParent, aPlacesNode, aOldIndex) {
+    this._removeHistoryDownloadFromView(aPlacesNode);
+  },
+
+  nodeAnnotationChanged() {},
+  nodeIconChanged() {},
+  nodeTitleChanged() {},
+  nodeKeywordChanged() {},
+  nodeDateAddedChanged() {},
+  nodeLastModifiedChanged() {},
+  nodeHistoryDetailsChanged() {},
+  nodeTagsChanged() {},
+  sortingChanged() {},
+  nodeMoved() {},
+  nodeURIChanged() {},
+  batching() {},
+
+  get controller() this._richlistbox.controller,
+
+  get searchTerm() this._searchTerm,
+  set searchTerm(aValue) {
+    if (this._searchTerm != aValue) {
+      for (let element of this._richlistbox.childNodes) {
+        element.hidden = !element._shell.matchesSearchTerm(aValue);
+      }
+      this._ensureVisibleElementsAreActive();
+    }
+    return this._searchTerm = aValue;
+  },
+
+  /**
+   * When the view loads, we want to select the first item.
+   * However, because session downloads, for which the data is loaded
+   * asynchronously, always come first in the list, and because the list
+   * may (or may not) already contain history downloads at that point, it
+   * turns out that by the time we can select the first item, the user may
+   * have already started using the view.
+   * To make things even more complicated, in other cases, the places data
+   * may be loaded after the session downloads data.  Thus we cannot rely on
+   * the order in which the data comes in.
+   * We work around this by attempting to select the first element twice,
+   * once after the places data is loaded and once when the session downloads
+   * data is done loading.  However, if the selection has changed in-between,
+   * we assume the user has already started using the view and give up.
+   */
+  _ensureInitialSelection() {
+    // Either they're both null, or the selection has not changed in between.
+    if (this._richlistbox.selectedItem == this._initiallySelectedElement) {
+      let firstDownloadElement = this._richlistbox.firstChild;
+      if (firstDownloadElement != this._initiallySelectedElement) {
+        // We may be called before _ensureVisibleElementsAreActive,
+        // or before the download binding is attached. Therefore, ensure the
+        // first item is activated, and pass the item to the richlistbox
+        // setters only at a point we know for sure the binding is attached.
+        firstDownloadElement._shell.ensureActive();
+        Services.tm.mainThread.dispatch(() => {
+          this._richlistbox.selectedItem = firstDownloadElement;
+          this._richlistbox.currentItem = firstDownloadElement;
+          this._initiallySelectedElement = firstDownloadElement;
+        }, Ci.nsIThread.DISPATCH_NORMAL);
+      }
+    }
+  },
+
+  onDataLoadStarting() {},
+  onDataLoadCompleted() {
+    this._ensureInitialSelection();
+  },
+
+  onDataItemAdded(aDataItem, aNewest) {
+    this._addDownloadData(aDataItem, null, aNewest);
+  },
+
+  onDataItemRemoved(aDataItem) {
+    this._removeSessionDownloadFromView(aDataItem);
+  },
+
+  // DownloadsView
+  onDataItemStateChanged(aDataItem) {
+    this._viewItemsForDataItems.get(aDataItem).onStateChanged();
+  },
+
+  // DownloadsView
+  onDataItemChanged(aDataItem) {
+    this._viewItemsForDataItems.get(aDataItem).onChanged();
+  },
+
+  supportsCommand(aCommand) {
+    if (DOWNLOAD_VIEW_SUPPORTED_COMMANDS.indexOf(aCommand) != -1) {
+      // The clear-downloads command may be performed by the toolbar-button,
+      // which can be focused on OS X.  Thus enable this command even if the
+      // richlistbox is not focused.
+      // For other commands, be prudent and disable them unless the richlistview
+      // is focused. It's important to make the decision here rather than in
+      // isCommandEnabled.  Otherwise our controller may "steal" commands from
+      // other controls in the window (see goUpdateCommand &
+      // getControllerForCommand).
+      if (document.activeElement == this._richlistbox ||
+          aCommand == "downloadsCmd_clearDownloads") {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  isCommandEnabled(aCommand) {
+    switch (aCommand) {
+      case "cmd_copy":
+        return this._richlistbox.selectedItems.length > 0;
+      case "cmd_selectAll":
+        return true;
+      case "cmd_paste":
+        return this._canDownloadClipboardURL();
+      case "downloadsCmd_clearDownloads":
+        return this._canClearDownloads();
+      default:
+        return Array.every(this._richlistbox.selectedItems,
+                           element => element._shell.isCommandEnabled(aCommand));
+    }
+  },
+
+  _canClearDownloads() {
+    // Downloads can be cleared if there's at least one removable download in
+    // the list (either a history download or a completed session download).
+    // Because history downloads are always removable and are listed after the
+    // session downloads, check from bottom to top.
+    for (let elt = this._richlistbox.lastChild; elt; elt = elt.previousSibling) {
+      if (!elt._shell.dataItem.inProgress) {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  _copySelectedDownloadsToClipboard() {
+    let urls = [for (element of this._richlistbox.selectedItems)
+                element._shell.download.source.url];
+
+    Cc["@mozilla.org/widget/clipboardhelper;1"]
+      .getService(Ci.nsIClipboardHelper)
+      .copyString(urls.join("\n"), document);
+  },
+
+  _getURLFromClipboardData() {
+    let trans = Cc["@mozilla.org/widget/transferable;1"].
+                createInstance(Ci.nsITransferable);
+    trans.init(null);
+
+    let flavors = ["text/x-moz-url", "text/unicode"];
+    flavors.forEach(trans.addDataFlavor);
+
+    Services.clipboard.getData(trans, Services.clipboard.kGlobalClipboard);
+
+    // Getting the data or creating the nsIURI might fail.
+    try {
+      let data = {};
+      trans.getAnyTransferData({}, data, {});
+      let [url, name] = data.value.QueryInterface(Ci.nsISupportsString)
+                            .data.split("\n");
+      if (url) {
+        return [NetUtil.newURI(url, null, null).spec, name];
+      }
+    } catch (ex) {}
+
+    return ["", ""];
+  },
+
+  _canDownloadClipboardURL() {
+    let [url, name] = this._getURLFromClipboardData();
+    return url != "";
+  },
+
+  _downloadURLFromClipboard() {
+    let [url, name] = this._getURLFromClipboardData();
+    let browserWin = RecentWindow.getMostRecentBrowserWindow();
+    let initiatingDoc = browserWin ? browserWin.document : document;
+    DownloadURL(url, name, initiatingDoc);
+  },
+
+  doCommand(aCommand) {
+    switch (aCommand) {
+      case "cmd_copy":
+        this._copySelectedDownloadsToClipboard();
+        break;
+      case "cmd_selectAll":
+        this._richlistbox.selectAll();
+        break;
+      case "cmd_paste":
+        this._downloadURLFromClipboard();
+        break;
+      case "downloadsCmd_clearDownloads":
+        this._downloadsData.removeFinished();
+        if (this.result) {
+          Cc["@mozilla.org/browser/download-history;1"]
+            .getService(Ci.nsIDownloadHistory)
+            .removeAllDownloads();
+        }
+        // There may be no selection or focus change as a result
+        // of these change, and we want the command updated immediately.
+        goUpdateCommand("downloadsCmd_clearDownloads");
+        break;
+      default: {
+        // Slicing the array to get a freezed list of selected items. Otherwise,
+        // the selectedItems array is live and doCommand may alter the selection
+        // while we are trying to do one particular action, like removing items
+        // from history.
+        let selectedElements = this._richlistbox.selectedItems.slice();
+        for (let element of selectedElements) {
+          element._shell.doCommand(aCommand);
+        }
+      }
+    }
+  },
+
+  onEvent() {},
+
+  onContextMenu(aEvent) {
+    let element = this._richlistbox.selectedItem;
+    if (!element || !element._shell) {
+      return false;
+    }
+
+    // Set the state attribute so that only the appropriate items are displayed.
+    let contextMenu = document.getElementById("downloadsContextMenu");
+    let state = element._shell.dataItem.state;
+    contextMenu.setAttribute("state", state);
+
+    if (state == nsIDM.DOWNLOAD_DOWNLOADING) {
+      // The resumable property of a download may change at any time, so
+      // ensure we update the related command now.
+      goUpdateCommand("downloadsCmd_pauseResume");
+    }
+    return true;
+  },
+
+  onKeyPress(aEvent) {
+    let selectedElements = this._richlistbox.selectedItems;
+    if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
+      // In the content tree, opening bookmarks by pressing return is only
+      // supported when a single item is selected. To be consistent, do the
+      // same here.
+      if (selectedElements.length == 1) {
+        let element = selectedElements[0];
+        if (element._shell) {
+          element._shell.doDefaultCommand();
+        }
+      }
+    }
+    else if (aEvent.charCode == " ".charCodeAt(0)) {
+      // Pause/Resume every selected download
+      for (let element of selectedElements) {
+        if (element._shell.isCommandEnabled("downloadsCmd_pauseResume")) {
+          element._shell.doCommand("downloadsCmd_pauseResume");
+        }
+      }
+    }
+  },
+
+  onDoubleClick(aEvent) {
+    if (aEvent.button != 0) {
+      return;
+    }
+
+    let selectedElements = this._richlistbox.selectedItems;
+    if (selectedElements.length != 1) {
+      return;
+    }
+
+    let element = selectedElements[0];
+    if (element._shell) {
+      element._shell.doDefaultCommand();
+    }
+  },
+
+  onScroll() {
+    this._ensureVisibleElementsAreActive();
+  },
+
+  onSelect() {
+    goUpdateDownloadCommands();
+
+    let selectedElements = this._richlistbox.selectedItems;
+    for (let elt of selectedElements) {
+      if (elt._shell) {
+        elt._shell.onSelect();
+      }
+    }
+  },
+
+  onDragStart(aEvent) {
+    // TODO Bug 831358: Support d&d for multiple selection.
+    // For now, we just drag the first element.
+    let selectedItem = this._richlistbox.selectedItem;
+    if (!selectedItem) {
+      return;
+    }
+
+    let targetPath = selectedItem._shell.download.target.path;
+    if (!targetPath) {
+      return;
+    }
+
+    // We must check for existence synchronously because this is a DOM event.
+    let file = new FileUtils.File(targetPath);
+    if (!file.exists()) {
+      return;
+    }
+
+    let dt = aEvent.dataTransfer;
+    dt.mozSetDataAt("application/x-moz-file", file, 0);
+    let url = Services.io.newFileURI(file).spec;
+    dt.setData("text/uri-list", url);
+    dt.setData("text/plain", url);
+    dt.effectAllowed = "copyMove";
+    dt.addElement(selectedItem);
+  },
+
+  onDragOver(aEvent) {
+    let types = aEvent.dataTransfer.types;
+    if (types.contains("text/uri-list") ||
+        types.contains("text/x-moz-url") ||
+        types.contains("text/plain")) {
+      aEvent.preventDefault();
+    }
+  },
+
+  onDrop(aEvent) {
+    let dt = aEvent.dataTransfer;
+    // If dragged item is from our source, do not try to
+    // redownload already downloaded file.
+    if (dt.mozGetDataAt("application/x-moz-file", 0)) {
+      return;
+    }
+
+    let name = {};
+    let url = Services.droppedLinkHandler.dropLink(aEvent, name);
+    if (url) {
+      let browserWin = RecentWindow.getMostRecentBrowserWindow();
+      let initiatingDoc = browserWin ? browserWin.document : document;
+      DownloadURL(url, name.value, initiatingDoc);
+    }
+  },
+};
+
+for (let methodName of ["load", "applyFilter", "selectNode", "selectItems"]) {
+  DownloadsPlacesView.prototype[methodName] = function () {
+    throw new Error("|" + methodName +
+                    "| is not implemented by the downloads view.");
+  }
+}
+
+function goUpdateDownloadCommands() {
+  for (let command of DOWNLOAD_VIEW_SUPPORTED_COMMANDS) {
+    goUpdateCommand(command);
+  }
+}

@@ -1,0 +1,43 @@
+
+copy: gfx/thebes/crashtests/441360.html
+copyrev: 07f03116705e324d87ec41d684150c4d49f8d551
+
+<html><head>
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+    <title>Testcase for bug </title>
+    <style type="text/css">
+
+        html,body {
+            color:black; background-color:white; font-size:16px; padding:0; margin:0;
+        }
+	
+
+    </style>
+</head>
+<body>
+
+<div id="Image"></div>
+
+<script>
+var v;
+function insertImage() {
+	var img_node = document.createElement('iframe');
+	img_node.src = "441360_data.gif";
+	var image_div = document.getElementById('Image');
+	image_div.appendChild(img_node);
+}
+
+insertImage();
+v = document.body.offsetHeight;
+insertImage();
+v = document.body.offsetHeight;
+insertImage();
+v = document.body.offsetHeight;
+insertImage();
+v = document.body.offsetHeight;
+
+</script>
+
+
+</body>
+</html>

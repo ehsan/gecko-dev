@@ -1,0 +1,6 @@
+
+copy: content/base/test/file_CSP_inlinescript_main_spec_compliant.html^headers^
+copyrev: 9995338d8558279d1676c5542c954903e9e2299d
+
+Content-Security-Policy: default-src 'self'
+Cache-Control: no-cache

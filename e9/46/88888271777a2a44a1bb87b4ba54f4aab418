@@ -1,0 +1,29 @@
+
+copy: browser/devtools/inspector/test/browser_inspector_cmd_inspect.html
+copyrev: db6c409f6ce1acd884377db8cb2b03d77c149346
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>GCLI inspect command test</title>
+</head>
+<body>
+
+  <!-- This is a list of 0 h1 elements -->
+
+  <!-- This is a list of 1 div elements -->
+  <div>Hello, I'm a div</div>
+
+  <!-- This is a list of 2 span elements -->
+  <span>Hello, I'm a span</span>
+  <span>And me</span>
+
+  <!-- This is a collection of various things that match only once -->
+  <p class="someclass">.someclass</p>
+  <p id="someid">#someid</p>
+  <button disabled>button[disabled]</button>
+  <p><strong>p&gt;strong</strong></p>
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+
+copy: dom/base/test/csp/file_policyuri_regression_from_multipolicy.html^headers^
+copyrev: 53ac0d2aec352b81d7261fde29b5179048a0682c
+
+content-security-policy-report-only: policy-uri /tests/dom/security/test/csp/file_policyuri_regression_from_multipolicy_policy

@@ -1,0 +1,8 @@
+
+copy: content/base/test/test_bug380418.html^headers^
+copyrev: 62d14826b20c4a6a95d0e1f809bd4c6a11102f96
+
+Set-Cookie: test
+Set-Cookie2: test2
+X-Dummy: test
+Cache-Control: max-age=0

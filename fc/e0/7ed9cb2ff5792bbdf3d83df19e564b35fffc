@@ -1,0 +1,16 @@
+
+copy: content/base/crashtests/1024428-1.html
+copyrev: 7e3e783ee89e378f70e0b87449f1f19995c4713b
+
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+<div id="host"></div>
+<script>
+var s = host.createShadowRoot();
+s.innerHTML = '<input type="range" />';
+</script>
+</body>
+</html>

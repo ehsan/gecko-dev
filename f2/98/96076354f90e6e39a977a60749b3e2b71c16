@@ -1,0 +1,18 @@
+
+copy: content/html/content/test/bug100533_load.html
+copyrev: c042a2965a8effa9b526e93e4f32d6e5fd4499c3
+
+<html>
+<head>
+<title></title>
+</head>
+
+
+<body onload="parent.submitted();">
+
+<span id="foo"></span>
+
+
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+
+copy: js/src/jit-test/tests/parallelarray/shape-3.js
+copyrev: 1609b94dcb97e1146a14bc5f3174b2932d5a39d5
+
+load(libdir + "eqArrayHelper.js");
+
+function testInfer() {
+  // Test that shapes are inferred
+  var p0 = new ParallelArray([0,1]);
+  var p1 = new ParallelArray([2,3]);
+  var p = new ParallelArray([p0, p1]);
+  assertEqArray(p.shape, [2,2]);
+  var p0 = new ParallelArray([0,1]);
+  var p1 = new ParallelArray([2]);
+  var p = new ParallelArray([p0, p1]);
+  assertEqArray(p.shape, [2]);
+}
+
+// FIXME(bug 844991) logical shape not implemented
+// if (parallelEnabled) testInfer();

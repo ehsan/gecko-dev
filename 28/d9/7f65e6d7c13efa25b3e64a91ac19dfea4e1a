@@ -1,0 +1,12 @@
+
+copy: content/xul/document/crashtests/495635-1.xul
+copyrev: 2ae6fb0a1e2bd19be6dd710ca0f743cd4b8c9fed
+
+<?xml version="1.0"?>
+<?xul-overlay href="extA1.xul"?>
+<?xul-overlay href="extB1.xul"?>
+<?xul-overlay href="extA2.xul"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<vbox id="browser-bottombox">
+</vbox>
+</window>

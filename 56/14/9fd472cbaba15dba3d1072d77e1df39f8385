@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-11.xml.json
+copyrev: c34205eb7703beeed9757f58acfb099035966309
+
+{
+  "document.getElementsByClassName(): \"tricky\" compound": true
+}

@@ -1,0 +1,18 @@
+
+copy: dom/svg/crashtests/396618-1.html
+copyrev: b718c5cdd2dbe5a40029dc0a1822d2df193e574f
+
+<html>
+<head>
+<script>
+function boom()
+{
+  var svgText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  svgText.setAttribute("dx", "foo");
+  svgText.removeAttribute("dx");
+}
+</script>
+</head>
+<body onload="boom();">
+</body>
+</html>

@@ -1,0 +1,6 @@
+
+copyrev: 893d73388aaf3fdac6be9404b4814cc21e1ac041
+copy: js/src/trace-test/tests/jaeger/negation.js
+
+var n = -2147483648;
+assertEq(-n, 2147483648);

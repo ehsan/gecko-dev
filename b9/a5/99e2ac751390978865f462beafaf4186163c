@@ -1,0 +1,6 @@
+~$
+^nsprpub/
+^dbm/
+^security/nss/
+^security/coreconf/
+^security/dbm/

@@ -1,0 +1,11 @@
+
+copy: js/src/jit-test/tests/parallelarray/filter-non-divisible.js
+copyrev: 41f6dd75511dfffd0ed2c680d235008ee6c2fc6b
+
+load(libdir + "parallelarray-helpers.js");
+
+// since we divide things into chunks of 32, and filter uses some
+// bitsets, test that all that logic works fine if the number of items
+// is not evenly divisible by 32:
+if (getBuildConfiguration().parallelJS)
+  assertArraySeqParResultsEq(range(0, 617), "filter", function(i) { return (i % 2) == 0; });

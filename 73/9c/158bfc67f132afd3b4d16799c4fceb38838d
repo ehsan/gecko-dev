@@ -1,0 +1,11 @@
+
+copyrev: 40c7603c43ce25d4a339ebb5800f4aef1d871a2d
+copy: js/src/trace-test/tests/jaeger/bug577580.js
+
+// |jit-test| error: ReferenceError
+(function() {
+  for (; i;) {
+    eval(/@/, "")
+  }
+})()
+

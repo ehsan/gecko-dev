@@ -1,0 +1,22 @@
+
+copy: layout/reftests/forms/select-boguskids.html
+copyrev: 9667c39b1f73ff6c3d2c2895dc17eca51bb74438
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <select size="10">
+      Shouldn't see me
+      <option>one</option>
+      Or me
+      <option>two</option>
+      <optgroup>
+        I should hide too
+        <option>three</option>
+        And me too
+        <option>four</option>
+      </optgroup>
+      And I
+    </select>
+  </body>
+</html>

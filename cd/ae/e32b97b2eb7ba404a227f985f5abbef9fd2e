@@ -1,0 +1,13 @@
+
+copyrev: 78e293d00b82fb8d1a0b64f0923512a164bece8f
+copy: js/src/trace-test/tests/basic/testStringResolve.js
+
+function testStringResolve() {
+    var x = 0;
+    for each (let d in [new String('q'), new String('q'), new String('q')]) {
+        if (("" + (0 in d)) === "true")
+            x++;
+    }
+    return x;
+}
+assertEq(testStringResolve(), 3);

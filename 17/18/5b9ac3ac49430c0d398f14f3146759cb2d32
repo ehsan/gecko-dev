@@ -1,0 +1,8 @@
+
+copy: content/base/test/file_bug1011748_OK.sjs
+copyrev: c9803b33e58a86fccd41a7a1c9c92a0214076540
+
+// Function to indicate HTTP 200 OK after redirect from file_bug1011748_redirect.sjs
+function handleRequest(request, response) {
+  response.setStatusLine(null, 200, "OK");
+}

@@ -1,0 +1,25 @@
+
+copy: layout/xul/base/src/crashtests/397293.xhtml
+copyrev: 58488c8d30fb38efcbc7ac17a6c8b7a650ee6462
+
+<html xmlns="http://www.w3.org/1999/xhtml"  
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      style="opacity: 0.2;">
+<head>
+<script>
+
+function x()
+{
+  document.documentElement.style.counterReset = "chicken";
+  
+  document.body.offsetHeight;
+}
+
+</script>
+</head>
+
+<body onload="setTimeout(x, 0);">Foo</body>
+
+<xul:listbox/>
+
+</html>

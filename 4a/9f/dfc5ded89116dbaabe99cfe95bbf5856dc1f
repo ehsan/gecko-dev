@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html [
+  <!ENTITY % htmlDTD PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "DTD/xhtml1-strict.dtd">
+  %htmlDTD;
+  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+  %globalDTD;
+  <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
+  %brandDTD;
+  <!ENTITY % aboutStartupDTD SYSTEM "chrome://global/locale/aboutStartup.dtd">
+  %aboutStartupDTD;
+]>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>&about.startup.title;</title>
+    <link rel="stylesheet" href="chrome://global/skin/aboutSupport.css" type="text/css"/>
+    <link rel="stylesheet" href="chrome://global/skin/aboutStartup.css" type="text/css"/>
+    <script type="application/javascript" src="chrome://jquery/content/jquery.js"/>
+    <script type="application/javascript" src="chrome://jquery/content/jquery.flot.js"/>
+    <script type="application/javascript" src="chrome://jquery/content/jquery.flot.selection.js"/>
+  </head>
+
+  <body>
+    <h1>&about.startup.title;</h1>
+    <table>
+      <tr>
+        <th></th>
+        <th>&about.startup.timestamp;</th>
+        <th>&about.startup.elapsed;</th>
+      </tr>
+      <tr>
+        <td>&about.startup.app.launched;</td>
+        <td id="launched">—</td><td>—</td>
+      </tr>
+      <tr>
+        <td>&about.startup.app.started;</td>
+        <td id="started">—</td><td>—</td>
+      </tr>
+      <tr>
+        <td>&about.startup.app.ready;</td>
+        <td id="restored">—</td><td>—</td>
+      </tr>
+    </table>
+
+    <div id="toggle-container">
+      <a class="toggle" id="showtable"
+         href="#" onclick="showTable()">&about.startup.table;</a>
+      <a class="toggle" id="showgraph"
+         href="#" onclick="showGraph()">&about.startup.graph;</a>
+    </div>
+
+    <div id="graphs">
+      <div id="graph"/>
+      <div id="overview"/>
+    </div>
+
+    <div id="tables">
+      <table id="duration-table">
+        <tr>
+          <th>&about.startup.timestamp;</th>
+          <th>&about.startup.duration.launch;</th>
+          <th>&about.startup.duration.startup;</th>
+          <th>&about.startup.duration.ready;</th>
+          <th colspan="2">&about.startup.version;</th>
+        </tr>
+        <tr class="empty">
+          <td colspan="6"><i>&about.startup.noevents;</i></td>
+        </tr>
+      </table>
+      <table id="events-table">
+        <tr>
+          <th>&about.startup.timestamp;</th>
+          <th>&about.startup.action;</th>
+          <th>&about.startup.extension;</th>
+          <th>&about.startup.extensionID;</th>
+          <th>&about.startup.version;</th>
+        </tr>
+        <tr class="empty">
+          <td colspan="5"><i>&about.startup.noevents;</i></td>
+        </tr>
+      </table>
+    </div>
+    <script type="application/javascript;version=1.8"
+            src="chrome://global/content/aboutStartup.js"/>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+
+copy: content/html/content/test/file_fullscreen-multiple-inner.html
+copyrev: d429b5412310ef310a1e89a56e5dc8079a5f8641
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test for Bug 724554</title>
+  <script type="application/javascript" src="file_fullscreen-utils.js"></script>
+</head>
+<body>
+
+<script type="application/javascript">
+
+
+/** Test for Bug 545812 **/
+function begin(id) {
+  addFullscreenErrorContinuation(function() {
+    opener.ok(false, "Fullscreen denied " + id);
+    });
+  addFullscreenChangeContinuation("enter",
+    function() {
+      opener.enteredFullscreen(id);
+    });
+  document.body.mozRequestFullScreen();
+}
+
+
+</script>
+</pre>
+</body>
+</html>

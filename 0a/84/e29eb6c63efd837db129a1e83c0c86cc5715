@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/parallelarray/bug895782.js
+copyrev: f75ea14bf5e2a815ad90daad8cfae6b46e4bcbe9
+
+// Don't crash
+
+Object.defineProperty(this, "y", {
+  get: function() {
+    return Object.create(x)
+  }
+})
+x = ParallelArray([1142], function() {})
+x = x.partition(2)
+y + y

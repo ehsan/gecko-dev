@@ -1,0 +1,14 @@
+
+copy: gfx/thebes/crashtests/402307-1.html
+copyrev: c1d95364a2ae2d41e694c7f9bb806a7a6758a85a
+
+<html>
+<head>
+</head>
+<body style="font-size: 15000px; word-spacing: 10px;">
+
+ABCDE&#xA2C9;
+&zwj;&#x9BB8;&#x9143;
+
+</body>
+</html>

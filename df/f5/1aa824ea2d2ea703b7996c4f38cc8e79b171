@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-1.html
+copyrev: 9b5399c2ba1766940b34c8951c0cab3bc82e76af
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="text" value="blahblahblah" spellcheck="true">
+</body>
+</html>

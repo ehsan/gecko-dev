@@ -1,0 +1,7 @@
+
+copy: browser/branding/nightly/locales/en-US/brand.properties
+copyrev: 824537725854ab61e3131c8dfbe467ee9b86d6cd
+
+brandShortName=Aurora
+brandFullName=Aurora
+vendorShortName=Mozilla

@@ -1,0 +1,17 @@
+
+copy: content/canvas/test/webgl/conformance/misc/00_test_list.txt
+copyrev: d2f9302f0e7867dba3cc2cfa4bfb1b4e83d88266
+
+bad-arguments-test.html
+--min-version 1.0.2 delayed-drawing.html
+error-reporting.html
+instanceof-test.html
+invalid-passed-params.html
+is-object.html
+null-object-behaviour.html
+functions-returning-strings.html
+object-deletion-behaviour.html
+shader-precision-format.html
+type-conversion-test.html
+uninitialized-test.html
+webgl-specific.html

@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/2970242.wrong
+copyrev: 1efb22dcb94634ede9e186a1399cf9243e2ad4fe
+
+foobaz

@@ -1,0 +1,5 @@
+
+copy: js/src/xpconnect/tests/unit/bogus_element_type.jsm
+copyrev: 873b5d130855435921a2fb262762176cc4293deb
+
+var EXPORTED_SYMBOLS = [{}];

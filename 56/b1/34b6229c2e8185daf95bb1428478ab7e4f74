@@ -1,0 +1,5 @@
+
+copyrev: b0181509e9adf54f54b4cf72c22dc63c990f34cb
+copy: js/tests/js1_2/String/shell.js
+
+gTestsubsuite = 'String';

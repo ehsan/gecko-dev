@@ -1,0 +1,21 @@
+
+copyrev: e771c6ce7e15d8fd45d332af57c0f889e6cc3583
+copy: js/src/trace-test/tests/arguments/args-mochi.js
+
+actual = '';
+expected = 'true,';
+
+var isNotEmpty = function (obj) {
+  for (var i = 0; i < arguments.length; i++) {
+    var o = arguments[i];
+    if (!(o && o.length)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+appendToActual(isNotEmpty([1], [1], [1], "asdf", [1]));
+
+
+assertEq(actual, expected)

@@ -1,0 +1,9 @@
+
+copyrev: de5480529cadbb0d171ea97d57c5e91eee3ff65a
+copy: js/src/trace-test/tests/basic/bug582479.js
+
+for (b = 0; b < 2; b++) {
+    / /
+    (function(){})
+}
+

@@ -1,0 +1,21 @@
+
+copy: layout/reftests/css-calc/background-size-1-ref.html
+copyrev: 8814660bc3c0943a9a37fb4edbea32b33a18d042
+
+<!DOCTYPE HTML>
+<title>Test for calc() on background-size</title>
+<style>
+
+p {
+    height: 50px; width: 200px;
+    border: thin solid;
+    background-image: url(../backgrounds/blue-32x32.png);
+    background-repeat: no-repeat;
+}
+
+#one { background-size: 150px 20px; }
+#two { background-image: none }
+
+</style>
+<p id="one"></p>
+<p id="two"></p>

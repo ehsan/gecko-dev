@@ -1,0 +1,16 @@
+
+copy: content/canvas/test/webgl-conformance/resources/js-test-style.css
+copyrev: 357bd456512f13825b232d945d8aa3fe84dd0d2d
+
+.pass {
+    font-weight: bold;
+    color: green;
+}
+.fail {
+    font-weight: bold;
+    color: red;
+}
+#console {
+    white-space: pre-wrap;
+    font-family: monospace;
+}

@@ -1,0 +1,14 @@
+
+copyrev: a3029971f033e5f1084bda84e441553270e8c7ea
+copy: js/src/trace-test/tests/basic/testScriptGetter_JSOP_GETLOCALPROP.js
+
+function test() {
+    var a = {get p() { return 'q'; }};
+    var s = '';
+    for (var i = 0; i < 9; i++)
+	s += a.p;
+    assertEq(s, 'qqqqqqqqq');
+}
+test();
+
+checkStats({recorderStarted: 1, recorderAborted: 0, traceCompleted: 1, traceTriggered: 1});

@@ -1,0 +1,22 @@
+
+copy: layout/reftests/css-valid/input/style.css
+copyrev: 4d6a942dd2d667f32b797a93c670eac8d8a70ce2
+
+/* Override default style */
+input:invalid {
+  box-shadow: none;
+}
+
+input.notvalid {
+  background-color: green;
+}
+input.notvalid:-moz-ui-valid {
+  background-color: red;
+}
+
+input.valid {
+  background-color: red;
+}
+input.valid:-moz-ui-valid {
+  background-color: green;
+}

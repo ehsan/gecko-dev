@@ -1,0 +1,7 @@
+
+copy: js/src/devtools/automation/exactrooting
+copyrev: eb4e4bb078e07fca04bcaab69f257553831e715e
+
+--enable-optimize
+--enable-debug
+--enable-exact-rooting

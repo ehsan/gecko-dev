@@ -1,0 +1,11 @@
+
+copy: testing/web-platform/meta/websockets/interfaces/WebSocket/events/011.html.ini
+copyrev: 1c2126e25d44dedf1a22356900c8f8e4fc8a05a0
+
+[idbfactory_open12.htm]
+  type: testharness
+  expected:
+    if debug and (os == "linux") and (version == "Ubuntu 12.04") and (processor == "x86_64") and (bits == 64): CRASH
+    if debug and (os == "linux") and (version == "Ubuntu 12.04") and (processor == "x86") and (bits == 32): CRASH
+    if debug and (os == "mac") and (version == "OS X 10.8") and (processor == "x86_64") and (bits == 64): CRASH
+    if debug and (os == "mac") and (version == "OS X 10.6.8") and (processor == "x86_64") and (bits == 64): CRASH

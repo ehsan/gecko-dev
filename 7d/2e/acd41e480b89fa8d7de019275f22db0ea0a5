@@ -1,0 +1,12 @@
+
+copyrev: 96dc995d91bff2d21da674607f803e1095de127a
+copy: js/src/trace-test/tests/jaeger/bug551603.js
+
+(function() {
+  ((function f(a) {
+    if (a > 0) {
+      f(a - 1)
+    }
+  })(6))
+})()
+

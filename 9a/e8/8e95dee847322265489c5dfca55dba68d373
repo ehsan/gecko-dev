@@ -1,0 +1,17 @@
+
+copy: dom/imptests/webapps/DOMCore/tests/submissions/Ms2ger/test_Range-detach.html
+copyrev: 9441c2c0717b5218686f7788855c9ec3288af362
+
+<!DOCTYPE html>
+<title>Range.detach</title>
+<link rel="author" title="Ms2ger" href="mailto:ms2ger@gmail.com">
+<script src=/resources/testharness.js></script>
+<script src=/resources/testharnessreport.js></script>
+<div id=log></div>
+<script>
+test(function() {
+  var r = document.createRange();
+  r.detach()
+  r.detach()
+})
+</script>

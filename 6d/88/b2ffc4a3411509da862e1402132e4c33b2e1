@@ -1,0 +1,10 @@
+
+copy: dom/src/notification/test/unit/xpcshell.ini
+copyrev: cf9d7d304b45513936902cee8d9a834e29fc6802
+
+[DEFAULT]
+head = common_test_notificationdb.js
+tail =
+
+[test_notificationdb.js]
+[test_notificationdb_bug1024090.js]

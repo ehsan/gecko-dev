@@ -1,0 +1,17 @@
+
+copy: layout/xul/base/src/grid/reftests/column-sizing-1-ref.xul
+copyrev: c091a832ebbe49668a467d10ae021d6ea58cc864
+
+<?xml version="1.0"?>
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        title="XUL Grid Test">
+  <hbox>
+    <vbox style="background:aqua">
+      <label value="Left" />
+    </vbox>
+    <vbox style="background:yellow">
+      <textbox value="Right" />
+    </vbox>
+  </hbox>
+</window>

@@ -1,0 +1,21 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/pre/027-isvalid.html
+copyrev: b239837ea0dd84776fc1ec37b0948b578e7e3b15
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;pre&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <pre class="class" id="id" lang="en">text</pre>
+
+  <!-- can contain interactive -->
+  <pre><a>text</a></pre>
+
+  <!-- can contain strictly inline -->
+  <pre>text <em>elem</em></pre>
+</body>
+</html>

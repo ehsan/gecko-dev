@@ -1,0 +1,5 @@
+
+copy: content/xul/content/crashtests/451311-1.xul
+copyrev: 9197b0fafe6ac49a762d19913bee86a0656ea182
+
+<overlay xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"><iframe/></overlay>

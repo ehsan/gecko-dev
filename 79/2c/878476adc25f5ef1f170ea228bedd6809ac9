@@ -1,0 +1,15 @@
+
+copy: browser/components/privatebrowsing/test/browser/perwindow/browser_privatebrowsing_cookieacceptdialog.html
+copyrev: 30706716fe61cfc1b66ad039e2d964a1bd35b019
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>browser_privatebrowsing_cookieacceptdialog.html</title>
+  <script type="application/javascript">
+  document.cookie = "foo=bar";
+  </script>
+</head>
+<body>
+</body>
+</html>

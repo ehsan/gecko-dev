@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/output/output-valid.html
+copyrev: dedf0bdeeb2c7181cbb0121f2676cb6197e7defa
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if output has no custom error and is not barred from constraint
+             validation, it should be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <output class='valid'>foo</output>
+  </body>
+</html>

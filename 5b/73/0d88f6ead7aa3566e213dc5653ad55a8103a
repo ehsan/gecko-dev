@@ -1,0 +1,7 @@
+
+copyrev: 18a2d6a8692e990733a6e476709ee0ef39f0c099
+copy: js/src/trace-test/tests/basic/bug576823-regexp.js
+
+// Sticky should work across disjunctions.
+
+assertEq(/A|B/y.exec("CB"), null);

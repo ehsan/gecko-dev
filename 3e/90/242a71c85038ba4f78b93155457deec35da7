@@ -1,0 +1,15 @@
+
+copy: browser/base/content/test/plugin_hidden_to_visible.html
+copyrev: 3ae0d548f83c0548e6008568f9642b7f61df97a1
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+  <div id="container" style="display: none">
+    <object id="plugin" type="application/x-test" style="width: 200px; height: 200px;"></object>
+  </div>
+</body>
+</html>

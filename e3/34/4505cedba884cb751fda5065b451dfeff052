@@ -1,0 +1,38 @@
+
+copy: content/canvas/test/test_bug866575.html
+copyrev: ef20eea5f53535428559d35f60c241f742060375
+
+<!DOCTYPE HTML>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=866575
+-->
+<head>
+  <title>Test for Bug 866575</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=866575">Mozilla Bug 866575</a>
+<p id="display"></p>
+<div id="content" style="display: none">
+
+</div>
+<pre id="test">
+<script>
+/** Test for Bug 866575 **/
+
+var canvas1 = document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+canvas1.width = "306368";
+var canvas2 = document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+try {
+  canvas2.getContext('2d').createPattern(canvas1, 'repeat-x');
+} catch (e) {}
+finally {
+  ok(true, "Didn't crash");
+}
+
+</script>
+</pre>
+</body>
+</html>

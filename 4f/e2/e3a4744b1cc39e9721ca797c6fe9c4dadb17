@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/submissions/Ms2ger/test_Node-isEqualNode.xhtml.json
+copyrev: 9e082a758c71eda3e1bab84c6122f357c996d993
+
+{
+  "isEqualNode should return true when only the internal subsets of DocumentTypes differ.": true
+}

@@ -1,0 +1,8 @@
+
+copyrev: 28003d35c8516af0149b1250be3a3f365e67fa78
+copy: js/src/trace-test/tests/basic/testEvalInFunctionCallee.js
+
+function f(x,y) {
+    eval("assertEq(arguments.callee, f)");
+}
+f(1,2);

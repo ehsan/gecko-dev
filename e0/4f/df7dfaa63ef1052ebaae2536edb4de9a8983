@@ -1,0 +1,16 @@
+
+copyrev: c9fdc97a6e16b9a0b0b7406ed5e6633f41cc3cb3
+copy: js/src/trace-test/tests/basic/testObjectVsPrototype.js
+
+function testObjectVsPrototype() {
+    function D() {}
+    var b = D.prototype = {x: 1};
+    var d = new D;
+    var arr = [b, b, b, d];
+    for (var i = 0; i < 4; i++)
+        arr[i].x = i;
+
+    d.y = 12;
+    assertEq(d.x, 3);
+}
+testObjectVsPrototype();

@@ -1,0 +1,12 @@
+
+copyrev: a58a3671918590df4da1adb71010685309cdcef6
+copy: js/src/trace-test/tests/basic/typeofTest.js
+
+function typeofTest()
+{
+  var values = ["hi", "hi", "hi", null, 5, 5.1, true, undefined, /foo/, typeofTest, [], {}], types = [];
+  for (var i = 0; i < values.length; i++)
+    types[i] = typeof values[i];
+  return types.toString();
+}
+assertEq(typeofTest(), "string,string,string,object,number,number,boolean,undefined,object,function,object,object");

@@ -1,0 +1,13 @@
+
+copy: browser/base/content/test/test_bug787619.html
+copyrev: c2148b86a6bdc007bfad4945e28f5ef07732bae1
+
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body>
+  <a id="wrapper">
+    <embed id="plugin" style="width: 200px; height: 200px" type="application/x-test">
+  </a>
+</body>
+</html>

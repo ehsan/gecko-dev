@@ -1,0 +1,5 @@
+
+copy: addon-sdk/source/data/pagemod-css-include-file.css
+copyrev: d26d464b8ae1085354fdeeadc825bc90d15e6f1e
+
+div { border: 10px solid black; }

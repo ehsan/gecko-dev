@@ -1,0 +1,18 @@
+[DEFAULT]
+run-if = os == "win" # Bug 1040924 - Failure prone on !Windows
+support-files =
+  worker.js
+  worker2.js
+  worker3.js
+  parse_error_worker.js
+  install_event_worker.js
+  simpleregister/index.html
+  controller/index.html
+  unregister/index.html
+
+[test_installation_simple.html]
+[test_install_event.html]
+[test_navigator.html]
+[test_scopes.html]
+[test_controller.html]
+[test_unregister.html]

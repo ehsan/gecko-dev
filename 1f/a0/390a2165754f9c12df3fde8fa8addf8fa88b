@@ -1,0 +1,6 @@
+
+copy: testing/mozbase/manifestdestiny/tests/path-example.ini
+copyrev: a6e7765627e6baee7aa31ab1c3dffca8b613cd1d
+
+[foo]
+path = fleem

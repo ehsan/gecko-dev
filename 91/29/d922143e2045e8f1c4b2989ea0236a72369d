@@ -1,0 +1,24 @@
+
+copy: testing/mochitest/tests/Harness_sanity/test_SimpleTestGetTestFileURL.html
+copyrev: 3b04dfe9c36ef447eb0081331cd4c2d7950d7cc9
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test for SpecialPowers extension</title>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+
+<pre id="test">
+<script class="testbody" type="text/javascript">
+
+var filename = "MyTestDataFile.txt";
+var url = SimpleTest.getTestFileURL(filename);
+is(url, document.location.href.replace(/test_SimpletestGetTestFileURL\.html.*/, filename));
+
+</script>
+</pre>
+</body>
+</html>

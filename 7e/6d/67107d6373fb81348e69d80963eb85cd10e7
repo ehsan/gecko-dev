@@ -1,0 +1,14 @@
+
+copy: browser/base/content/test/test_bug628179.html
+copyrev: 276cdb3498f5f77adbcf1c7fc2a0109a6afa3973
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Test for closing the Find bar in subdocuments</title>
+  </head>
+  <body>
+    <iframe id=iframe src="http://example.com/" width=320 height=240></iframe>
+  </body>
+</html>
+

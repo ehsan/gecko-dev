@@ -1,0 +1,6 @@
+
+copy: content/base/test/eventsource_redirect.resource
+copyrev: 91849ae4c3e1c9b965ff469d91aa46a3ded1afd8
+
+redirected
+

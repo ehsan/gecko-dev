@@ -1,0 +1,5 @@
+
+copyrev: 8ccbb2f8e3027b4b3d88a7d5f3fda3c12f28d295
+copy: dom/src/json/test/fail6.json
+
+[   , "<-- missing value"]

@@ -1,0 +1,13 @@
+
+copy: layout/base/tests/font-inflation/bullet-1-ref.html
+copyrev: 1dab9de9cb56f21a267f25f5ce89b2a0d69631f3
+
+<!DOCTYPE HTML>
+<style>
+ul, li { line-height: 1.0; font-size: 35px; }
+ul { width: 500px; margin: 0; padding: 0 }
+li { margin: 0 0 0 50px; padding: 0 }
+</style>
+<ul>
+  <li>item</li>
+</ul>

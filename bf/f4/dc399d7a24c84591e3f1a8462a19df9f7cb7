@@ -1,0 +1,21 @@
+
+copy: layout/reftests/forms/button/disabled-2b.html
+copyrev: aff4099a2426b499ea9dfcf9748f2358d1f41005
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bug 1007278: test all types of buttons look similar when disabled</title>
+</head>
+<body>
+  <button>Some text</button>
+  <input type="button" value="Some text">
+  <input type="reset">
+  <input type="submit">
+  <br>
+  <button disabled>Some text</button>
+  <input disabled type="button" value="Some text">
+  <input disabled type="reset">
+  <input disabled type="submit">
+</body>
+</html>

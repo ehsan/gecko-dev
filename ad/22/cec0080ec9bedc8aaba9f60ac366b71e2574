@@ -1,0 +1,9 @@
+
+copy: dom/imptests/failures/html/tests/submission/Opera/microdata/test_001.html.json
+copyrev: e5c875551ab0de660fe720de67c9626500451d84
+
+{
+  "itemValue must reflect the src attribute on track elements": true,
+  "itemValue must reflect the dateTime attribute of time elements with no datetime attribute": true,
+  "itemValue must reflect the datetime attribute of time elements with a datetime attribute": true
+}

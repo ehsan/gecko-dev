@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/2970242.aff
+copyrev: 8e96213193ac6207989f9cc3856bb8fe274751ae
+
+CHECKCOMPOUNDPATTERN 1
+CHECKCOMPOUNDPATTERN /a /b
+COMPOUNDFLAG c
+

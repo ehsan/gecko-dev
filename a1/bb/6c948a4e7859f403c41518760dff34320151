@@ -1,0 +1,21 @@
+
+copy: editor/libeditor/html/crashtests/615015-1.html
+copyrev: 3d3b0d600e860eb16cfb363022419c55930a1634
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  document.getElementById("j").focus();
+  try {
+    document.execCommand("insertunorderedlist", false, null);
+  } catch(e) { }
+}
+
+</script>
+</head>
+<body onload="boom();"><span><span contenteditable id="j"></span>T</span></body>
+</html>

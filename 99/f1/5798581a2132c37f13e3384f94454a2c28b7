@@ -1,0 +1,12 @@
+
+copy: content/svg/content/src/crashtests/307322-1.svg
+copyrev: 10d0507e2759a3c6d297d8c89fa7a488a3e22b8b
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+
+  <symbol id="foo">
+    <use xlink:href="#foo"/>
+  </symbol>
+  
+  <use xlink:href="#foo"/>
+</svg>

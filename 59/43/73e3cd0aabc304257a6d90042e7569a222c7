@@ -1,0 +1,15 @@
+
+copy: js/src/jit-test/tests/basic/bug685321.js
+copyrev: 057d1c5251a92c5922c549e990fd6f138cda7d54
+
+function f() {
+    function g() {
+        for (var i = 0; i < 3; i++)
+        x = i;
+    };
+    var [x] = 0;
+    g();
+    assertEq(x, 2);
+    print(x);
+}
+f();

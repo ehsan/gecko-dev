@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/simplifiedtriple.aff
+copyrev: 7f22fcae4e24d54b46a6de1fd8120c11514ac050
+
+# Forbid compound word with triple letters
+CHECKCOMPOUNDTRIPLE
+# Allow simplified forms
+SIMPLIFIEDTRIPLE
+
+COMPOUNDMIN 2
+
+COMPOUNDFLAG A

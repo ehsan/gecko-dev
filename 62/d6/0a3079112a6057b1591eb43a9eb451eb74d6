@@ -1,0 +1,5 @@
+
+copyrev: ebbb096ab430516757e5ebb2080b41f7b01da3d8
+copy: dom/src/json/test/fail13.json
+
+{"Numbers cannot have leading zeroes": 013}

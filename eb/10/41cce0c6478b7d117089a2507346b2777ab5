@@ -1,0 +1,22 @@
+
+copy: layout/reftests/css-invalid/button/button-dyn-disabled.html
+copyrev: 3b64642e5c0b2085a2056d83e6b4ab0746d342ae
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if button is disabled and invalid, it is barred from constraint
+             validation and should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <script>
+    function onLoadHandler()
+    {
+      var e = document.getElementById('b');
+      e.setCustomValidity('foo');
+      e.disabled = 'true';
+      document.documentElement.className='';
+    }
+  </script>
+  <body onload="onLoadHandler();">
+    <button class='notinvalid' id='b'></button>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: content/html/content/test/imports/file_importB2.html
+copyrev: c3c511ded28cd1733967702ea4d14b61de42bb1c
+
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+  </head>
+  <body>
+    <script>
+      order.push("B2");
+    </script>
+  </body>
+</html>

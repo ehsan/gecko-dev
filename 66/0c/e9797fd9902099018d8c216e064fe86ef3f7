@@ -1,0 +1,13 @@
+
+copyrev: ba379b932e4b3785956902126350ba7f922ffbfb
+copy: js/src/trace-test/tests/jaeger/bug555152.js
+
+
+(function() {
+  for each(let x in [new Boolean(), new Boolean(), /x/, /x/]) {
+    while (x % x * /x/) {}
+  }
+})()
+
+/* Don't crash. */
+

@@ -1,0 +1,6 @@
+
+copy: dom/tests/mochitest/w3c/failures.txt
+copyrev: b129df395c9f6a9ffe6895e6e3014c7273bd020a
+
+html
+webapps

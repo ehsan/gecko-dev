@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/fullstrip.test
+copyrev: 586b340457bb9fe5c8ea0dc1ec8c3f00f3f5df33
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME -i UTF-8

@@ -1,0 +1,12 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/glsl/00_test_list.txt
+copyrev: 4a883099c48e51b90bb0ba141633c3f40447a036
+
+functions/00_test_list.txt
+implicit/00_test_list.txt
+--min-version 1.0.2 matrices/00_test_list.txt
+misc/00_test_list.txt
+reserved/00_test_list.txt
+--min-version 1.0.2 samplers/00_test_list.txt
+variables/00_test_list.txt
+

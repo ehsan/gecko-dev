@@ -1,0 +1,8 @@
+
+copy: toolkit/mozapps/xpinstall/content/xpinstallConfirm.css
+copyrev: 26db3850167ce0d8f372106c00b33d150334860d
+
+installitem {
+  -moz-binding: url("chrome://mozapps/content/xpinstall/xpinstallItem.xml#installitem");
+  display: -moz-box;
+}

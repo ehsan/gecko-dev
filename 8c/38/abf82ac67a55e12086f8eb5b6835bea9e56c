@@ -1,0 +1,17 @@
+
+copy: browser/components/sessionstore/test/browser/browser_423132_sample.html
+copyrev: b4a2eacdd7b344df47a100067eb9262ae031d41c
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <script type="text/javascript">
+    // generate an enormous random number...
+    var r = Math.floor(Math.random() * Math.pow(2, 62)).toString();
+
+    // ... and use it to set a randomly named cookie
+    document.cookie = r + "=value; path=/ohai";
+  </script>
+<body>
+</body>
+</html>

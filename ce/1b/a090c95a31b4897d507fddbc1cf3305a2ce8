@@ -1,0 +1,21 @@
+
+copy: layout/xul/base/src/crashtests/398326-1.xhtml
+copyrev: efb7a8fb4efa1286aca697ede57849b94c28b875
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+var XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+
+function boom()
+{
+  var listbox = document.createElementNS(XUL_NS, 'listbox');
+  document.body.appendChild(listbox);
+  var listitem = document.createElementNS(XUL_NS, 'listitem');
+  listbox.appendChild(listitem);
+}
+</script>
+</head>
+<body onload="boom();">
+</body>
+</html>

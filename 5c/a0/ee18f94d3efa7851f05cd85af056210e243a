@@ -1,0 +1,13 @@
+
+copyrev: 82cf7707018b782a998f2c2838f1793567310281
+copy: js/src/trace-test/tests/basic/stringSplitIntoArrayTest.js
+
+function stringSplitIntoArrayTest()
+{
+  var s = "a,b"
+  var a = [];
+  for (var i = 0; i < 10; ++i)
+    a[i] = s.split(",");
+  return a.join();
+}
+assertEq(stringSplitIntoArrayTest(), "a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b");

@@ -1,0 +1,9 @@
+
+copy: mobile/android/base/WebAppsFragment.java.frag
+copyrev: 7397f921151332afa4f1d374989b4e6161bfa508
+
+public static class WebApp@APPNUM@ extends Webapp {
+    @Override
+    protected int getIndex() { return @APPNUM@; }
+}
+

@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule5.wrong
+copyrev: e05120a8b1d62d9f46fb4f6cdf5ab0f6e8a1b298
+
+.25

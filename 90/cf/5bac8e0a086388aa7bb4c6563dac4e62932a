@@ -1,0 +1,22 @@
+
+copy: editor/libeditor/html/crashtests/643786-1.html
+copyrev: 4e76197683d1e314afaf0c8d89d873ada2656b77
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var f = document.getElementById("f");
+  var fw = f.contentWindow;
+  fw.document.designMode = 'on';
+  f.style.content = "'m'";
+  fw.document.removeChild(fw.document.documentElement)
+}
+
+</script>
+</head>
+<body onload="boom();"><iframe id="f" src="data:text/html,"></iframe></body>
+</html>

@@ -1,0 +1,23 @@
+
+copyrev: 56e77510ca1e68272082406046485a74fc011ead
+copy: dom/src/base/crashtests/439206-1.html
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  var s = document.createElement("STYLE");
+  var t = document.createTextNode("\uDB00x"); // a high surrogate followed by 'x'
+  document.documentElement.appendChild(s);
+  s.appendChild(t);
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+</body>
+</html>

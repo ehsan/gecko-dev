@@ -1,0 +1,5 @@
+
+copy: content/html/content/crashtests/877910.html
+copyrev: 4704ef8be78ea92e2ebb995b662f689ae1424aad
+
+<select><option id="foo"><script>document.querySelector("select").namedItem("foo")</script>

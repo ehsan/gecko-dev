@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-invalid/button/button-fieldset-ref.html
+copyrev: 7cb05eb23c74d4e0126a8e03624e45520393010f
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <fieldset>
+      <fieldset>
+        <button style="background-color: green;"></button>
+      </fieldset>
+    </fieldset>
+  </body>
+</html>

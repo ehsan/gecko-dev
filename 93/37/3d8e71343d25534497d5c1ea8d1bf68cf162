@@ -1,0 +1,14 @@
+
+copy: dom/datastore/tests/file_app.template.webapp
+copyrev: ec92f82aa71ec788391d92585e031bf46fd4055e
+
+{
+  "name": "Really Rapid Release (hosted) - app 2",
+  "description": "Updated even faster than <a href='http://mozilla.org'>Firefox</a>, just to annoy slashdotters.",
+  "launch_path": "/tests/dom/datastore/tests/file_readonly.html",
+  "icons": { "128": "default_icon" },
+  "datastores-access" : {
+    "foo" : { "readonly": false, "description" : "This store is called foo" },
+    "bar" : { "readonly": true, "description" : "This store is called bar" }
+  }
+}

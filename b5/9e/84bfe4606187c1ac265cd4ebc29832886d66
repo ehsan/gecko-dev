@@ -1,0 +1,5 @@
+
+copy: gfx/src/thebes/crashtests/423110-1.xhtml
+copyrev: 6741a3761b74a81ef101bd22b25712a07e8230ce
+
+<html xmlns="http://www.w3.org/1999/xhtml" style="min-width: -moz-max-content; float: left;"><head style="padding: 200%; display: -moz-inline-box; float: inherit;"></head></html>

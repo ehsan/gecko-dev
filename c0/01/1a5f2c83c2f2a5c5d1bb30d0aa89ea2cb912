@@ -1,0 +1,20 @@
+
+copy: content/base/crashtests/149320-1.html
+copyrev: 40a9801113dd60803ce09439e9f66cf8551dcf0a
+
+<html>
+<head>
+</head>
+<body>
+<div>Selection is HERE only</div>
+<script type="text/javascript">
+	selectedNode = document.getElementsByTagName("div").item(0);
+	testRange = document.createRange();
+
+	testRange.setStart(selectedNode, 13);
+	testRange.setEnd(selectedNode, 17);
+
+	document.body.appendChild(document.createTextNode("Text of Range: "+testRange));
+</script>
+</body>
+</html>

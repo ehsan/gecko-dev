@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-hyphen-valid-ref.html
+copyrev: 1b645bccacd3c0b4055e34e86add16aead1baf62
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea autofocus spellcheck="false">scot-free</textarea>
+  </body>
+</html>

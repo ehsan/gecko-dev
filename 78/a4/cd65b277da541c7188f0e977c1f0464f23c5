@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/meta/websockets/interfaces/WebSocket/close/006.html.ini
+copyrev: 09ef93e206ea8cb99730d7d5e637bee83ce9f723
+
+[close-connecting.html]
+  type: testharness
+  [WebSockets: close() when connecting]
+    expected: FAIL
+

@@ -1,0 +1,21 @@
+
+copyrev: f3ad6040ee7ccc8b2937ed539cb1ee22ed3df6f1
+copy: js/src/trace-test/tests/closures/bug540242.js
+
+for (j = 0; j < 1; j++) {
+ var f = eval("\
+   (function() {\
+     for (var a = 0; a < 8; ++a) {\
+       if (a % 3 == 2) {\
+         eval(\"\
+           for(b in[0,0,0,0]) {\
+             print()\
+           }\
+         \")\
+       }\
+       gc()\
+     }\
+   })\
+ ");
+ f()
+}

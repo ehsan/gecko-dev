@@ -1,0 +1,127 @@
+
+copyrev: 6cfb4ff5100936be75e6ad86bc1cbb0d276caa40
+copy: accessible/tests/mochitest/events_scroll.html
+
+<html>
+
+<head>
+  <title>nsIAccessible actions testing for anchors</title>
+</head>
+
+<body>
+  <p>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+  </p>
+  <a name="link1">link1</a>
+
+  <p style="color: blue">
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+    text text text text text text text text text text text text text text <br>
+  </p>
+</body>
+<html>

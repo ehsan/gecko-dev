@@ -1,0 +1,9 @@
+
+copy: gfx/thebes/crashtests/463307-1.html
+copyrev: 972b92019240a59299dd65a78f5862dfbd5d5708
+
+<!DOCTYPE html>
+<html style="position: relative; bottom: 4449920388in; margin: 200px;">
+<head></head>
+<body style="background: url(../../../layout/reftests/bugs/repeatable-diagonal-gradient.png);"></body>
+</html>

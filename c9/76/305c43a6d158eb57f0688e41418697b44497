@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dta/doc.gEBN/test_doc.gEBN-newelements.html.json
+copyrev: 7fd9a0de90a5ff71b19d77f5db78251645d63c23
+
+{
+  "getElementsByName and newly introduced HTML elements": true
+}

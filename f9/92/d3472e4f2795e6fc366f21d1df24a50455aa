@@ -1,0 +1,6 @@
+
+copy: dom/apps/src/AppsService.manifest
+copyrev: a7a9f951971af7e6ca3f4ac5e1006c4da0526b00
+
+component {05072afa-92fe-45bf-ae22-39b69c117058} AppsService.js
+contract @mozilla.org/AppsService;1 {05072afa-92fe-45bf-ae22-39b69c117058}

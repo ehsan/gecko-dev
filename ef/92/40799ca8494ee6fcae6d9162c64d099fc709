@@ -1,0 +1,15 @@
+
+copy: modules/plugin/test/reftest/windowless-clipping-1.html
+copyrev: 06b9d81d5fc42be34194b1f5c7ca320b0b68198e
+
+<html>
+<body>
+<div style="width:100px; height:100px; overflow:hidden;">
+  <embed type="application/x-test" style="width:200px;"></embed>
+</div>
+<div style="width:100px; height:100px; overflow:hidden;">
+  <embed type="application/x-test" style="width:200px;"
+         drawmode="solid" color="ff00ff00"></embed>
+</div>
+</body>
+</html>

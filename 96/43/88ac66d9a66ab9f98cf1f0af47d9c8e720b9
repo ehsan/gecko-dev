@@ -1,0 +1,21 @@
+
+copy: layout/reftests/css-calc/width-table-auto-1.html
+copyrev: 4d132cfde67091fe3d63cbf63ab64f219d8fe2ed
+
+<!DOCTYPE HTML>
+<title>width: calc() on table-layout: auto tables</title>
+<table border>
+  <tr>
+    <td style="width: calc(500px)">x</td>
+    <td style="width: 100px">y</td>
+</table>
+<table border>
+  <tr>
+    <td style="width: calc(50%)">x</td>
+    <td style="width: 100px">y</td>
+</table>
+<table border>
+  <tr>
+    <td style="width: calc(2 * 10% + 0.5 * 500px)">x</td>
+    <td style="width: 100px">y</td>
+</table>

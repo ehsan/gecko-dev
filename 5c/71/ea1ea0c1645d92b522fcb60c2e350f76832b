@@ -1,0 +1,18 @@
+
+copy: editor/libeditor/html/crashtests/639736-1.xhtml
+copyrev: 42233fae8463794f8257a6b765e0747b1b35c153
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+
+function boom()
+{
+  try { document.execCommand("removeformat", false, null); } catch(e) { }
+  document.adoptNode(document.documentElement);
+}
+
+</script>
+</head>
+<body onload="boom();"><td contenteditable="true" /></body>
+</html>

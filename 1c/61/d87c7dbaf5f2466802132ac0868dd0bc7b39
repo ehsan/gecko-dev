@@ -1,0 +1,6 @@
+
+copy: tools/update-packaging/test/from-mac/Contents/MacOS/readme.txt
+copyrev: af97330b9a108353106ba00efbdf67a348aca803
+
+This from file should be ignored
+

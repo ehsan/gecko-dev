@@ -1,0 +1,9 @@
+
+copy: content/base/test/csp/file_policyuri_async_fetch.html
+copyrev: 4a1527e12c5f183789e0805839a027798e751bf2
+
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=558431
+-->
+<iframe id="inner"
+        src="/tests/content/base/test/file_CSP.sjs?content=%3Cdiv%20id%3D%22test%22%3Etest%20558431%3C/div%3E"></iframe>

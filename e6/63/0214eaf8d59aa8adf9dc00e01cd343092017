@@ -1,0 +1,22 @@
+
+copy: layout/reftests/editor/338427-3.html
+copyrev: 7b40846612a128506574b2fe3b46a7203e1ebc24
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<script>
+function init() {
+    var editor = document.getElementById('editor');
+    editor.setAttribute('lang', 'testing-XX');
+    editor.addEventListener("focus", function() {
+        window.setTimeout(function() {
+            document.documentElement.className = '';
+        }, 0);
+    }, false);
+    editor.focus();
+}
+</script>
+<body onload="init()">
+    <textarea id="editor" lang="en-US">strangeimpossibleword</textarea>
+</body>
+</html>

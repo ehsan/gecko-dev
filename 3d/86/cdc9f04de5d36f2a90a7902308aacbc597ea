@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/script/001-novalid.html
+copyrev: 7ea612bb5cb119931e177f5bbe65aba91d9f6587
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>the "language" attribute is obsolete</title>
+<meta charset=utf-8>
+</head>
+<body>
+<script language=vbscript src=url></script>
+</body>
+</html>

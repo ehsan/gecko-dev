@@ -1,0 +1,5 @@
+
+copy: content/canvas/test/crossorigin/image-allow-star.png^headers^
+copyrev: ddf61fa37fe92116e54a1269c2c0bf21575d7e63
+
+Access-Control-Allow-Origin: *

@@ -1,0 +1,11 @@
+
+copy: toolkit/themes/winstripe/global/inContentUI-aero.css
+copyrev: 6cd29dfd2f39e0286e0adaae75bb769c5f6e8c1a
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%define WINDOWS_AERO
+%include inContentUI.css
+%undef WINDOWS_AERO

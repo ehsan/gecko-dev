@@ -1,0 +1,13 @@
+
+copy: browser/devtools/styleinspector/test/browser_styleinspector_bug_677930_urls_clickable/browser_styleinspector_bug_677930_urls_clickable.css
+copyrev: 4fad9bb8f5c87f1c1bc873c7c103c19ab1018af5
+
+.relative1 {
+    background-image: url(./doc_test_image.png);
+}
+.absolute {
+    background: url("http://example.com/browser/browser/devtools/styleinspector/test/doc_test_image.png");
+}
+.base64 {
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==');
+}

@@ -1,0 +1,5 @@
+
+copy: browser/base/content/test/bug364677-data.xml^headers^
+copyrev: 87f869dc0a8765e28cf8d9f9311a1d25787200e6
+
+Content-Type: text/xml

@@ -1,0 +1,18 @@
+
+copyrev: 105e03473a368f977066511ad8a1ce498ffd326d
+copy: js/src/trace-test/tests/arguments/args11.js
+
+actual = '';
+expected = 'true,true,true,true,true,';
+
+function h() {
+  var a = arguments;
+  for (var i = 0; i < 5; ++i) {
+    appendToActual(a == arguments);
+  }
+}
+
+h();
+
+
+assertEq(actual, expected)

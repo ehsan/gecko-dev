@@ -1,0 +1,8 @@
+
+copy: media/webrtc/trunk/src/modules/audio_processing/test/android/apmtest/res/values/strings.xml
+copyrev: 4c8532110a5975272b5dcb5f804b0a130aae9fa2
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">apmtest</string>
+</resources>

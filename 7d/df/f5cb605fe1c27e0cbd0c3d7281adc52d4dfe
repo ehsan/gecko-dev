@@ -1,0 +1,27 @@
+
+copy: editor/libeditor/crashtests/402172-1.html
+copyrev: 6a7ae25fec062b21bf3af382d3d9b8e13814d2a9
+
+<html>
+<head>
+<script>
+
+function boom()
+{
+  document.getElementById("div").contentEditable = "true";
+  document.getElementById("div").focus();
+  document.getElementById("div").contentEditable = "false";
+  
+  document.getElementById("table").contentEditable = "true";
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+
+<table id="table"><td></td></table><div id="div"></div>
+
+</body>
+
+</html>

@@ -1,0 +1,8 @@
+
+copy: content/svg/content/src/crashtests/436418-mpathRoot-1.svg
+copyrev: 477cea73486adc25e3b626ad0298f844ec049ac6
+
+<svg:mpath xmlns:svg="http://www.w3.org/2000/svg"
+           xmlns:xlink="http://www.w3.org/1999/xlink"
+           xlink:href="#foo">
+</svg:mpath>

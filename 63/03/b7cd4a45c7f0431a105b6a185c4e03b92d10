@@ -1,0 +1,5 @@
+
+copy: dom/imported-tests/html/tests/submission/Mozilla/nested-document-write-external.js
+copyrev: f487fd3cc9a8791ff08925d7a5e96168a0e41930
+
+document.write("w"); document.write("o");

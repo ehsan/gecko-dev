@@ -1,0 +1,15 @@
+
+copy: layout/reftests/css-valid/select/select-required-invalid.html
+copyrev: c3e9c2cae8968fa5021fbec3dcf7a434e1c4642f
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if select is required and has a select option which has an empty
+             string value, :-moz-ui-valid should not apply. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <select class='notvalid' required>
+      <option selected value="">foo</option>
+    </select>
+  </body>
+</html></html>

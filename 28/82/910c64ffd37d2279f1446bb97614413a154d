@@ -1,0 +1,10 @@
+
+copy: content/html/document/crashtests/407053.html
+copyrev: dc3179c1849e1a33ea4c26fdf2959135d3ad12df
+
+<!DOCTYPE html>
+<html>
+<body onload="document.execCommand('copy', false, '');">
+<div contenteditable="true"></div>
+</body>
+</html>

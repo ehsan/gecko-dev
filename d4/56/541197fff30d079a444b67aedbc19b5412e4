@@ -1,0 +1,13 @@
+
+copy: dom/src/jsurl/test/fail.html
+copyrev: f10618d7fbda312c786565f02ed249fb079e9761
+
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+parent.passJSUrl = false;
+parent.finishTest();
+</script>
+</body>
+</html>

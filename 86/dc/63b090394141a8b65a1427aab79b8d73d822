@@ -1,0 +1,269 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+MODULE = 'thebes'
+
+EXPORTS += [
+    'CopyableCanvasLayer.h',
+    'D3D9SurfaceImage.h',
+    'FrameMetrics.h',
+    'GrallocImages.h',
+    'ImageContainer.h',
+    'ImageLayers.h',
+    'ImageTypes.h',
+    'LayerSorter.h',
+    'LayerTreeInvalidation.h',
+    'Layers.h',
+    'LayersLogging.h',
+    'ReadbackLayer.h',
+    'SharedTextureImage.h',
+    'basic/BasicCanvasLayer.h',
+    'basic/BasicImplData.h',
+    'basic/BasicLayers.h',
+    'basic/BasicLayersImpl.h',
+    'basic/BasicThebesLayer.h',
+    'client/ClientCanvasLayer.h',
+    'client/ClientContainerLayer.h',
+    'client/ClientLayerManager.h',
+    'client/ClientThebesLayer.h',
+    'client/ClientTiledThebesLayer.h',
+    'composite/CompositableHost.h',
+    'composite/ImageHost.h',
+    'ipc/CompositorChild.h',
+    'ipc/CompositorParent.h',
+    'ipc/ShadowLayersManager.h',
+    'opengl/Composer2D.h',
+    'opengl/ImageLayerOGL.h',
+    'opengl/LayerManagerOGL.h',
+    'opengl/LayerManagerOGLProgram.h',
+    'opengl/LayerManagerOGLShaders.h',
+    'opengl/TexturePoolOGL.h',
+]
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
+    CPP_SOURCES += [
+        'D3D9SurfaceImage.cpp',
+    ]
+    if CONFIG['MOZ_ENABLE_D3D9_LAYER']:
+        EXPORTS += [
+            'd3d9/DeviceManagerD3D9.h',
+            'd3d9/LayerManagerD3D9.h',
+        ]
+        EXPORTS.mozilla.layers += [
+            'CompositorD3D9.h',
+            'TextureD3D9.h',
+        ]
+        CPP_SOURCES += [
+            'CompositorD3D9.cpp',
+            'TextureD3D9.cpp',
+            'LayerManagerD3D9.cpp',
+            'ThebesLayerD3D9.cpp',
+            'ContainerLayerD3D9.cpp',
+            'ImageLayerD3D9.cpp',
+            'ColorLayerD3D9.cpp',
+            'CanvasLayerD3D9.cpp',
+            'DeviceManagerD3D9.cpp',
+            'Nv3DVUtils.cpp',
+        ]
+    if CONFIG['MOZ_ENABLE_D3D10_LAYER']:
+        EXPORTS += [
+            'd3d10/LayerManagerD3D10.h',
+            'd3d10/ReadbackManagerD3D10.h',
+        ]
+        EXPORTS.mozilla.layers += [
+            'd3d11/CompositorD3D11.h',
+            'd3d11/TextureD3D11.h',
+            'ipc/ShadowLayerUtilsD3D10.h',
+        ]
+        CPP_SOURCES += [
+            'CanvasLayerD3D10.cpp',
+            'ColorLayerD3D10.cpp',
+            'CompositorD3D11.cpp',
+            'ContainerLayerD3D10.cpp',
+            'ImageLayerD3D10.cpp',
+            'LayerManagerD3D10.cpp',
+            'ReadbackManagerD3D10.cpp',
+            'ShadowLayerUtilsD3D10.cpp',
+            'TextureD3D11.cpp',
+            'ThebesLayerD3D10.cpp',
+        ]
+
+EXPORTS.gfxipc += [
+    'ipc/ShadowLayerUtils.h',
+]
+
+EXPORTS.mozilla.layers += [
+    'Compositor.h',
+    'CompositorTypes.h',
+    'D3D9SurfaceImage.h',
+    'Effects.h',
+    'ImageDataSerializer.h',
+    'LayersTypes.h',
+    'RenderTrace.h',
+    'YCbCrImageDataSerializer.h',
+    'basic/BasicCompositor.h',
+    'client/CanvasClient.h',
+    'client/CompositableClient.h',
+    'client/ContentClient.h',
+    'client/ImageClient.h',
+    'client/TextureClient.h',
+    'client/TiledContentClient.h',
+    'composite/APZCTreeManager.h',
+    'composite/AsyncCompositionManager.h',
+    'composite/CanvasLayerComposite.h',
+    'composite/ColorLayerComposite.h',
+    'composite/ContainerLayerComposite.h',
+    'composite/ContentHost.h',
+    'composite/ImageHost.h',
+    'composite/ImageLayerComposite.h',
+    'composite/LayerManagerComposite.h',
+    'composite/TextureHost.h',
+    'composite/ThebesLayerComposite.h',
+    'ipc/AsyncPanZoomController.h',
+    'ipc/Axis.h',
+    'ipc/CompositableForwarder.h',
+    'ipc/CompositableTransactionParent.h',
+    'ipc/CompositorChild.h',
+    'ipc/CompositorCocoaWidgetHelper.h',
+    'ipc/CompositorParent.h',
+    'ipc/GeckoContentController.h',
+    'ipc/GestureEventListener.h',
+    'ipc/ISurfaceAllocator.h',
+    'ipc/ImageBridgeChild.h',
+    'ipc/ImageBridgeParent.h',
+    'ipc/LayerTransactionChild.h',
+    'ipc/LayerTransactionParent.h',
+    'ipc/ShadowLayers.h',
+    'ipc/ShadowLayersManager.h',
+    'ipc/SharedPlanarYCbCrImage.h',
+    'ipc/SharedRGBImage.h',
+    'ipc/TaskThrottler.h',
+    'opengl/CompositingRenderTargetOGL.h',
+    'opengl/CompositorOGL.h',
+    'opengl/TextureClientOGL.h',
+    'opengl/TextureHostOGL.h',
+]
+
+if CONFIG['MOZ_X11']:
+    EXPORTS.mozilla.layers += [
+        'ipc/ShadowLayerUtilsX11.h',
+    ]
+    CPP_SOURCES += [
+        'ShadowLayerUtilsX11.cpp'
+    ]
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
+    EXPORTS.mozilla.layers += [
+        'opengl/GLManager.h',
+    ]
+    CPP_SOURCES += [
+        'ShadowLayerUtilsMac.cpp',
+        'GLManager.cpp',
+    ]
+
+# NB: Gralloc is available on other platforms that use the android GL
+# libraries, but only Gonk is able to use it reliably because Gecko
+# has full system permissions there.
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
+    EXPORTS.mozilla.layers += [
+        'ipc/ShadowLayerUtilsGralloc.h',
+    ]
+    CPP_SOURCES += [
+        'ShadowLayerUtilsGralloc.cpp',
+        'GrallocImages.cpp',
+    ]
+
+CPP_SOURCES += [
+    'APZCTreeManager.cpp',
+    'AsyncCompositionManager.cpp',
+    'AsyncPanZoomController.cpp',
+    'Axis.cpp',
+    'BasicCanvasLayer.cpp',
+    'BasicColorLayer.cpp',
+    'BasicCompositor.cpp',
+    'BasicContainerLayer.cpp',
+    'BasicImageLayer.cpp',
+    'BasicImages.cpp',
+    'BasicLayerManager.cpp',
+    'BasicLayersImpl.cpp',
+    'BasicThebesLayer.cpp',
+    'CanvasClient.cpp',
+    'CanvasLayerComposite.cpp',
+    'CanvasLayerOGL.cpp',
+    'ClientCanvasLayer.cpp',
+    'ClientColorLayer.cpp',
+    'ClientContainerLayer.cpp',
+    'ClientImageLayer.cpp',
+    'ClientLayerManager.cpp',
+    'ClientThebesLayer.cpp',
+    'ClientTiledThebesLayer.cpp',
+    'ColorLayerComposite.cpp',
+    'ColorLayerOGL.cpp',
+    'CompositableClient.cpp',
+    'CompositableHost.cpp',
+    'CompositableTransactionParent.cpp',
+    'Compositor.cpp',
+    'CompositorChild.cpp',
+    'CompositorCocoaWidgetHelper.cpp',
+    'CompositorOGL.cpp',
+    'CompositorParent.cpp',
+    'ContainerLayerComposite.cpp',
+    'ContainerLayerOGL.cpp',
+    'ContentClient.cpp',
+    'ContentHost.cpp',
+    'CopyableCanvasLayer.cpp',
+    'Effects.cpp',
+    'GestureEventListener.cpp',
+    'ISurfaceAllocator.cpp',
+    'ImageBridgeChild.cpp',
+    'ImageBridgeParent.cpp',
+    'ImageClient.cpp',
+    'ImageContainer.cpp',
+    'ImageDataSerializer.cpp',
+    'ImageHost.cpp',
+    'ImageLayerComposite.cpp',
+    'ImageLayerOGL.cpp',
+    'ImageLayers.cpp',
+    'LayerManagerComposite.cpp',
+    'LayerManagerOGL.cpp',
+    'LayerManagerOGLProgram.cpp',
+    'LayerSorter.cpp',
+    'LayerTransactionChild.cpp',
+    'LayerTransactionParent.cpp',
+    'LayerTreeInvalidation.cpp',
+    'Layers.cpp',
+    'LayersLogging.cpp',
+    'ReadbackProcessor.cpp',
+    'RenderTrace.cpp',
+    'ShadowLayerChild.cpp',
+    'ShadowLayerParent.cpp',
+    'ShadowLayers.cpp',
+    'SharedPlanarYCbCrImage.cpp',
+    'SharedRGBImage.cpp',
+    'TaskThrottler.cpp',
+    'TextureClient.cpp',
+    'TextureClientOGL.cpp',
+    'TextureHost.cpp',
+    'TextureHostOGL.cpp',
+    'TexturePoolOGL.cpp',
+    'ThebesLayerBuffer.cpp',
+    'ThebesLayerComposite.cpp',
+    'ThebesLayerOGL.cpp',
+    'TiledContentClient.cpp',
+    'TiledContentHost.cpp',
+    'YCbCrImageDataSerializer.cpp',
+]
+
+IPDL_SOURCES = [
+    'ipc/LayerTransaction.ipdlh',
+    'ipc/LayersSurfaces.ipdlh',
+    'ipc/PCompositable.ipdl',
+    'ipc/PCompositor.ipdl',
+    'ipc/PGrallocBuffer.ipdl',
+    'ipc/PImageBridge.ipdl',
+    'ipc/PLayer.ipdl',
+    'ipc/PLayerTransaction.ipdl',
+]

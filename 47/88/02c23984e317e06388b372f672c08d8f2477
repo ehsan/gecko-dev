@@ -1,0 +1,14 @@
+
+copyrev: bc60f718408741e2aa73365f49d45973d46053c1
+copy: js/src/trace-test/tests/basic/testAtomize.js
+
+function testAtomize() {
+    x = {};
+    for (var i = 0; i < 65536; ++i)
+	x[String.fromCharCode(i)] = 1;
+    var z = 0;
+    for (var p in x)
+	++z;
+    return z;
+}
+assertEq(testAtomize(), 65536)

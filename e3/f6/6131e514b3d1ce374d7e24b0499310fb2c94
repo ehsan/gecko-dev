@@ -1,0 +1,7 @@
+
+copyrev: 3a8870baefd0f04b1484b0334279d6d162be4f70
+copy: toolkit/mozapps/update/src/updater/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in
+
+/* Localized versions of Info.plist keys */
+
+CFBundleName = "%APP_NAME% Software Update";

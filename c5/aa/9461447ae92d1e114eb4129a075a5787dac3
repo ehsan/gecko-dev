@@ -1,0 +1,17 @@
+
+copy: dom/base/test/csp/file_csp_report.html
+copyrev: 03b67522f2fdd329be75e8827e64a830dbdb951d
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Bug 1033424 - Test csp-report properties </title>
+  </head>
+  <body>
+  <script type="text/javascript">
+    var foo = "propEscFoo";
+    var bar = "propEscBar";
+    // just verifying that we properly escape newlines and quotes
+  </script>
+</body>
+</html>

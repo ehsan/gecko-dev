@@ -1,0 +1,20 @@
+
+copy: testing/mozmill/simplejson-2.1.1/docs/_static/rightsidebar.css
+copyrev: 7b44eb0451945bfa9f87c7bf9c473054bc389f67
+
+/**
+ * Sphinx Doc Design -- Right Side Bar Overrides
+ */
+
+
+div.sphinxsidebar {
+    float: right;
+}
+
+div.bodywrapper {
+    margin: 0 230px 0 0;
+}
+
+div.inlinecomments {
+    right: 250px;
+}

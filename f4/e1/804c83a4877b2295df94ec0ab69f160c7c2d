@@ -1,0 +1,5 @@
+
+copy: js/src/jit-test/tests/bug666448.js
+copyrev: cea2289378ab13c1255d942b31071d1ae65263ee
+
+assertEq(["a"].map(escape)[0], ["a"].map(function(s) {return escape(s);})[0]);

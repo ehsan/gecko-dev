@@ -1,0 +1,7 @@
+
+copy: content/html/content/test/bug649134/index.html
+copyrev: 0f54f340bf0087ebff58bed71e6e4ee43fdaf699
+
+body {
+    display:none;
+}

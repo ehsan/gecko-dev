@@ -1,0 +1,33 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/h6/model-novalid.html
+copyrev: 222eea3ffceb4415c8a3617e329ead8ee49489de
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;h6&gt;</title>
+</head>
+<body>
+  <!-- is not strictly inline -->
+  <p><dfn>text 
+    <h6>more text</h6>
+  </dfn></p>
+
+  <!-- is not structured inline -->
+  <p>text
+    <h6>more text</h6>
+  </p>
+
+  <!-- cannot contain blocks -->
+  <h6>
+    <p>p1</p>
+    <p>p2</p>
+  </h6>
+
+  <!-- cannot contain structured inline -->
+  <h6>text
+    <ul><li>text</li></ul>
+  </h6>
+</body>
+</html>

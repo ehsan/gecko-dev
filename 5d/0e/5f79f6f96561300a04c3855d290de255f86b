@@ -1,0 +1,10 @@
+
+copyrev: 3ded2826a96dc5c3b6c1d5c3f2e360e30374cb75
+copy: js/src/trace-test/tests/basic/testBug465688.js
+
+//test no assert
+function testBug465688() {
+    for each (let d in [-0x80000000, -0x80000000]) - -d;
+    return true;
+}
+assertEq(testBug465688(), true);

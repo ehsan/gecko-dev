@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/1975530.aff
+copyrev: 3fcc2c1589311dfa08fe6db8c8baa9cd48bc9d4d
+
+SET	UTF-8
+IGNORE ٌٍَُِّْـ
+
+PFX x N 1
+PFX x	أ	ت	أ[^ي]
+

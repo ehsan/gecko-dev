@@ -1,0 +1,9 @@
+
+copyrev: d4028d9251342e5768214ba81fb971e1c2b17b1d
+copy: js/src/trace-test/tests/basic/bug566637.js
+
+for (var j = 0; j < 9; j++) {
+    var a = j;
+    var b = this.a;
+}
+assertEq(b, 8);

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundaffix.wrong
+copyrev: 2abdc602ac0622b2961fd55798a7bba20f2521d1
+
+foosufbar
+fooprebarsuf
+prefooprebarsuf

@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/IJ.sug
+copyrev: f144bbf4670c683d1b527ca8fb31e9c274a0eda4
+
+IJs, ijs

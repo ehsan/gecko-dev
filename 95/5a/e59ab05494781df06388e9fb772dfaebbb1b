@@ -1,0 +1,18 @@
+
+copyrev: 2ac3d7cd52bed5feb470c2e9b55c380e634f19d5
+copy: js/src/trace-test/tests/basic/jitstatsArchFlags.js
+
+// Make sure the arch flags are valid on startup, even if nothing has
+// been traced yet. We don't know what arch the user is building on,
+// but presumably we want at least 1 flag to be set on all supported
+// platforms.
+
+if (HAVE_TM) {
+  assertEq(jitstats.archIsIA32 ||
+	   jitstats.archIs64BIT ||
+	   jitstats.archIsARM ||
+	   jitstats.archIsSPARC ||
+	   jitstats.archIsPPC ||
+	   jitstats.archIsAMD64,
+	   1);
+ }

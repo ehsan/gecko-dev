@@ -1,0 +1,8 @@
+
+copy: content/base/test/file_bug428847-1.xhtml
+copyrev: 4344a48b006a4a307dd7b20aea5bec34cbdfa990
+
+<?xml-stylesheet type="text/xsl" href="http://example.com/whatever.xsl"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<body id='body' onload="if (document.getElementById('body')) parent.iframe1Loaded = true;"/>
+</html>

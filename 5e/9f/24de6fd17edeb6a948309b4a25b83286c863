@@ -1,0 +1,6 @@
+
+copy: content/base/test/file_bothCSPheaders.html^headers^
+copyrev: 3c5fda48e92f374e72ad26d823f3ab17c87f559e
+
+X-Content-Security-Policy: default-src 'self' ; img-src 'self' http://example.org
+Content-Security-Policy: default-src 'self'

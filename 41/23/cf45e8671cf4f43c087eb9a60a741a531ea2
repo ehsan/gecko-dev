@@ -1,0 +1,16 @@
+
+copyrev: 3cee5b31868a263dccd40e760932e7159bf368ca
+copy: js/src/trace-test/tests/basic/testObjectConstructorReturningObject.js
+
+for (var i = 0; i < HOTLOOP+4; ++i) {
+    var o;
+
+    o = new Object(Object);
+    assertEq(o, Object);
+
+    (function () {
+        x = constructor
+    })();
+    o = new(x)(x);
+    assertEq(o, Object);
+}

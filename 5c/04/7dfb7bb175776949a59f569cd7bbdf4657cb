@@ -1,0 +1,8 @@
+
+copy: content/base/crashtests/698974-1.html
+copyrev: bb16133a31327f938704d7d0085e864b869e7f15
+
+<!DOCTYPE html>
+<script>
+document.createDocumentFragment().querySelector("div");
+</script>

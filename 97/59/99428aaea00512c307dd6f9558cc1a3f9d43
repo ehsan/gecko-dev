@@ -1,0 +1,12 @@
+
+copy: content/html/content/crashtests/605264.html
+copyrev: e7f30e530e0f5607161600e55a47dabfce250d5c
+
+<!DOCTYPE html>
+<script>
+
+var v = document.createElementNS("http://www.w3.org/1999/xhtml", "video");
+v.QueryInterface(Components.interfaces.nsIObserver);
+v.observe(null, null, null);
+
+</script>

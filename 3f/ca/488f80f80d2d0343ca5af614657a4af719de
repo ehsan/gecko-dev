@@ -1,0 +1,13 @@
+
+copy: embedding/android/resources/values/colors.xml
+copyrev: d85d8ae607610ebf9c374fb433a54c943a9434d6
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="splash_background">#000000</color>
+  <color name="splash_msgfont">#ffffff</color>
+  <color name="splash_urlfont">#000000</color>
+  <color name="splash_content">#ffffff</color>
+  <color name="awesomebar_background">#000000</color>
+</resources>
+

@@ -1,0 +1,15 @@
+
+copyrev: 5323d03c03259d0b612e0fb45cfe54cb43f588d6
+copy: js/src/trace-test/tests/basic/testGlobalMultitrees1.js
+
+//test no multitrees assert
+function testGlobalMultitrees1() {
+    (function() { 
+      for (var j = 0; j < 4; ++j) {
+        for each (e in ['A', 1, 'A']) {
+        }
+      }
+    })();
+    return true;
+}
+assertEq(testGlobalMultitrees1(), true);

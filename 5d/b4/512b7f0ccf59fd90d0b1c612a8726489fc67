@@ -1,0 +1,6 @@
+
+copy: content/html/content/test/file_iframe_sandbox_redirect.html^headers^
+copyrev: 1b607e40e99fe2f6979222b811d2e2c77b5b52be
+
+HTTP 301 Moved Permanently
+Location: file_iframe_sandbox_redirect_target.html

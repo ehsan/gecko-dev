@@ -1,0 +1,6 @@
+
+copy: content/media/test/bug500311.ogv^headers^
+copyrev: d3975943c6fac0956673cad3e6eea18bdb8185dc
+
+X-Content-Duration: 1.96
+Cache-Control: no-store

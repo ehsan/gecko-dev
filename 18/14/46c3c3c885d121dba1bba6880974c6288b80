@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/reputf.aff
+copyrev: 21df509b4a82453781bf12d20d617b980e77e176
+
+# With REP suggestions, we can fix typical language specific misspellings.
+
+SET UTF-8
+
+# switch off ngram suggestion for testing
+MAXNGRAMSUGS 0
+
+REP 1
+REP oo őő

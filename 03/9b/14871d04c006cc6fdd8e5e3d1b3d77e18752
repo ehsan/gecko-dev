@@ -1,0 +1,16 @@
+
+copy: content/svg/content/src/crashtests/601406-1.svg
+copyrev: 1b6550c9249ea5330c492254de7fb773b0dfee00
+
+<svg xmlns="http://www.w3.org/2000/svg">
+<script>
+<![CDATA[
+function boom() { document.getElementById("a").getBBox(); }
+window.addEventListener("load", boom, false);
+]]>
+</script>
+
+<a id="a"/>
+
+</svg>
+

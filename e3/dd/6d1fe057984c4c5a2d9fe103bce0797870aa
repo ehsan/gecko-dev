@@ -1,0 +1,27 @@
+
+copy: editor/libeditor/crashtests/407256-1.html
+copyrev: 681e3ad8f0581de80dc4146602b2e5196c131453
+
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  document.addEventListener("DOMNodeInserted", x, false);
+    
+  function x()
+  {
+    document.removeEventListener("DOMNodeInserted", x, false);
+    document.execCommand("insertParagraph", false, "");
+  }
+
+  document.execCommand("insertorderedlist", false, "");
+}
+
+</script>
+</head>
+
+<body contenteditable="true" onload="boom()"></body>
+
+</html>

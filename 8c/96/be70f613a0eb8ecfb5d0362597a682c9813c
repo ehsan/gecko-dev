@@ -1,0 +1,14 @@
+
+copy: content/smil/crashtests/572938-4.svg
+copyrev: 10609dc52e49c3485228a95e924fa44cf5dc45de
+
+<svg xmlns="http://www.w3.org/2000/svg"
+   xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="a">
+ <path d=""><animate/></path>
+</g>
+<g display="none">
+<use xlink:href="#a" x="80"/>
+<set attributeName="display" to="inline"/>
+</g>
+</svg>

@@ -1,0 +1,19 @@
+
+copyrev: 6cf603bb01c1a82ec0cf89db748e062080e3e7e1
+copy: js/src/trace-test/tests/basic/testSwitchUndefined.js
+
+function testSwitchUndefined()
+{
+  var x = undefined;
+  var y = 0;
+  for (var i = 0; i < 5; i++)
+  {
+    switch (x)
+    {
+      default:
+        y++;
+    }
+  }
+  return y;
+}
+assertEq(testSwitchUndefined(), 5);

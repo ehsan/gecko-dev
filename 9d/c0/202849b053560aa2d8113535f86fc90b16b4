@@ -1,0 +1,8 @@
+
+copyrev: 7ba240fee64f89d7bca698f56cd7b42fb3a67e13
+copy: js/src/trace-test/tests/basic/bug569843.js
+
+x = <x/>;
+for each(l in [0, 0, 0, 0]) {
+    delete x.d;
+}

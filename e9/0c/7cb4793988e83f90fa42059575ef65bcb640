@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/meta/websockets/interfaces/WebSocket/events/002.html.ini
+copyrev: 76ef19316fc8fdbcd2c02096789396939c2fc016
+
+[004.html]
+  type: testharness
+  expected:
+    if debug and (os == "linux") and (version == "Ubuntu 12.04") and (processor == "x86_64") and (bits == 64): CRASH
+    if debug and (os == "linux") and (version == "Ubuntu 12.04") and (processor == "x86") and (bits == 32): CRASH

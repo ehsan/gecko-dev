@@ -1,0 +1,5 @@
+
+copy: layout/reftests/css-gradients/linear-diagonal-3-ref.html
+copyrev: c5c1afdcc7ec162696b1bf1defdd13e6b01bd9f4
+
+<div style="background: -moz-linear-gradient(bottom right, white, black) no-repeat; width: 300px; height: 300px;"></div>

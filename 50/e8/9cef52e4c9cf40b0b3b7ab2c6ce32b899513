@@ -1,0 +1,16 @@
+
+copy: browser/base/content/test/file_bug550565_popup.html
+copyrev: c24be436c217f5a1df976015408950b9db080c91
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test file for bug 550565.</title>
+
+  <!--Set a favicon; that's the whole point of this file.-->
+  <link rel="icon" href="file_bug550565_favicon.ico">
+</head>
+<body>
+  Test file for bug 550565.
+</body>
+</html>

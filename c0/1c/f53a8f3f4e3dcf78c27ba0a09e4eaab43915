@@ -1,0 +1,15 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/noscript/005-isvalid.html
+copyrev: 54aeaf682fa36b9edd7c76abc8b65eee2ca10536
+
+<!DOCTYPE html>
+<html>
+<head>
+  <noscript><style></style></noscript>
+  <meta charset=utf-8>
+  <title>&lt;noscript&gt; in &lt;head&gt;</title>
+</head>
+<body>
+<p>foo</p>
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copyrev: c385c65b55896fd00ce4e2f3023a5caf6fd0fbe5
+copy: content/media/video/test/redirect.sjs
+
+function handleRequest(request, response)
+{
+  response.setStatusLine(request.httpVersion, 301, "Moved Permanently");
+  response.setHeader("Location", request.queryString, false);
+}

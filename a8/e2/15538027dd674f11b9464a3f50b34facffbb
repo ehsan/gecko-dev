@@ -1,0 +1,13 @@
+
+copy: content/html/content/crashtests/680922-1.xul
+copyrev: d806e8b9525feedd1b875cc7342cebea2c3912f1
+
+<?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" xmlns:html="http://www.w3.org/1999/xhtml">
+
+<box id="e">
+<box id="b" name="e" style="-moz-binding:url(680922-binding.xml#xbl);">
+</box>
+</box>
+
+</window>

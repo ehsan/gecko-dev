@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/caret_after_reframe-ref.html
+copyrev: 4ecf1a7a4029f83bb9732ae137e41ca713ff17f9
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input autofocus style="display:block">
+  </body>
+</html>

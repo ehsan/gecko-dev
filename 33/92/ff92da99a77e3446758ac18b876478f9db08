@@ -1,0 +1,12 @@
+
+copyrev: 67ffe81d16ae47ed304d251c01bedb633ca42d87
+copy: js/src/trace-test/tests/jaeger/bug555543.js
+
+(function() {
+  for each(let z in [new String(''), new String('q'), new String('')]) {
+    if (uneval() < z) (function(){})
+  }
+})()
+
+/* Don't assert/crash. */
+

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/onlyincompound.dic
+copyrev: dc88b80e2c2e186d41a574e17231af0cbe60f9f4
+
+2
+foo/A
+pseudo/OAB

@@ -1,0 +1,11 @@
+
+copy: js/src/xpconnect/tests/mochitest/bug92773_helper.html
+copyrev: ff0e6008a0b3a2a009b43f0637d9f5f2faabb015
+
+<html>
+    <head>
+        <script>
+            foo getter = function() { alert("FAIL"); }
+        </script>
+    </head>
+</html>

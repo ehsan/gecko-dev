@@ -1,0 +1,17 @@
+
+copy: mobile/android/base/resources/raw/fake_list_items.json
+copyrev: 9a78079f04e480a5d1fd3b8be65132f7fce62f4a
+
+[{
+    "id": 1,
+    "dataset_id": "fake-dataset",
+    "url": "http://example.com/first",
+    "title": "First Example",
+    "description": "This is an example"
+}, {
+    "id": 2,
+    "dataset_id": "fake-dataset",
+    "url": "http://example.com/second",
+    "title": "Second Example",
+    "description": "This is a second example"
+}]

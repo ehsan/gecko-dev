@@ -1,0 +1,5 @@
+
+copy: modules/plugin/test/mochitest/loremipsum_nocache.txt^headers^
+copyrev: 233577b768bb7082695ff906593ddc1cf2ba9cd4
+
+Cache-Control: no-store

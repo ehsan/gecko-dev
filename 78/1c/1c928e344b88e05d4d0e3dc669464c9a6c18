@@ -1,0 +1,13 @@
+
+copy: content/html/content/crashtests/604807.html
+copyrev: 8170b2350b857491b18cf28bba7d1bba49e54bea
+
+<!DOCTYPE html>
+<script>
+try {
+  var selectElem = document.createElementNS("http://www.w3.org/1999/xhtml", "select");
+  selectElem.QueryInterface(Components.interfaces.nsISelectElement);
+  selectElem.getOptionIndex(null, 0, true);
+} catch (e) {
+}
+</script>

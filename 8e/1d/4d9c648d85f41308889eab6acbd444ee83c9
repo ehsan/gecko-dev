@@ -1,0 +1,14 @@
+
+copy: embedding/android/resources/layout/list_item_header.xml
+copyrev: 806f64a03d462ab91bfadd69019ef86f0ff2a4e4
+
+<?xml version="1.0" encoding="utf-8"?>
+
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"  
+    android:id="@android:id/text1"  
+    android:layout_width="fill_parent"  
+    android:layout_height="wrap_content"  
+    android:paddingTop="2dip"  
+    android:paddingBottom="2dip"  
+    android:paddingLeft="5dip"  
+    style="?android:attr/listSeparatorTextViewStyle" /> 

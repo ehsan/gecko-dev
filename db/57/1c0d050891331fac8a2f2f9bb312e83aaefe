@@ -1,0 +1,10 @@
+
+copy: dom/src/threads/test/importScripts_worker_imported4.js
+copyrev: 72d4552c3b370916ff2de424b48b66d60594b827
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+// Deliberate throw, should generate a worker exception!
+throw new Error("Bah!");

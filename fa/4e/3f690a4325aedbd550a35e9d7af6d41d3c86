@@ -1,0 +1,25 @@
+
+copyrev: 168c1bb42814803097813f4bd91f285421640734
+copy: layout/reftests/svg/image/img-width-slice-2-ref.html
+
+<html class="reftest-wait">
+<head>
+  <link rel="stylesheet" type="text/css" href="svg-image-util.css" />
+  <script src="svg-image-util.js"></script>
+  <script>
+    function main() {
+      var svgParams = {
+        viewBox:  [0, 0, 40, 20],
+        width :   "2em",
+        meetOrSlice: "slice"
+      };
+
+      appendSVGArrayWithParams(svgParams, "embed");
+      document.documentElement.removeAttribute("class");
+    }
+  </script>
+</head>
+<body onload="main()">
+  <!-- Body gets populated by script -->
+</body>
+</html>

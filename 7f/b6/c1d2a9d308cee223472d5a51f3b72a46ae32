@@ -1,0 +1,15 @@
+
+copy: js/src/jit-test/tests/basic/bug557168-1.js
+copyrev: bd8ed7ddf0514af86968d532622e53e8a3970ce9
+
+x = <x/>
+try {
+  Function("\
+    (function f() {\
+      ({x:{b}}=x);\
+      f.apply(null, new Array(100))\
+    })()\
+  ")()
+} catch (e) {
+  assertEq(e.message, "too much recursion");
+}

@@ -1,0 +1,25 @@
+
+copyrev: 284a8d67a426db532b8615c10675b0b3375d2205
+copy: js/src/trace-test/tests/basic/testFunctionIdentityChange.js
+
+function testFunctionIdentityChange()
+{
+  function a() {}
+  function b() {}
+
+  var o = { a: a, b: b };
+
+  for (var prop in o)
+  {
+    for (var i = 0; i < 1000; i++)
+      o[prop]();
+  }
+
+  return true;
+}
+assertEq(testFunctionIdentityChange(), true);
+checkStats({
+  recorderStarted: 2,
+  traceCompleted: 2,
+  sideExitIntoInterpreter: 3
+});

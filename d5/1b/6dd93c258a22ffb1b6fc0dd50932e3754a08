@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+
+<html>
+
+  <head>
+    <meta charset="utf8">
+    <title></title>
+    <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
+    <script type="application/javascript" src="chrome://mochikit/content/chrome-harness.js"></script>
+    <script type="application/javascript;version=1.8" src="head.js"></script>
+    <script type="application/javascript;version=1.8" src="device_front_shared.js"></script>
+    <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css">
+  </head>
+
+  <body>
+
+    <script type="application/javascript;version=1.8">
+      window.onload = function() {
+        SimpleTest.waitForExplicitFinish();
+
+        Task.spawn(function* () {
+          Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
+
+          if (!DebuggerServer.initialized) {
+            DebuggerServer.init();
+            DebuggerServer.addBrowserActors();
+          }
+
+          let win = yield openWebIDE();
+
+          let prefIframe = win.document.querySelector("#deck-panel-devicepreferences");
+
+          yield documentIsLoaded(prefIframe.contentWindow.document);
+
+          win.AppManager.update("runtimelist");
+
+          yield connectToLocalRuntime(win);
+
+          yield nextTick();
+
+          let prefs = win.document.querySelector("#cmd_showDevicePrefs");
+
+          ok(!prefs.hasAttribute("disabled"), "device prefs cmd enabled");
+
+          let deck = win.document.querySelector("#deck");
+
+          win.Cmds.showDevicePrefs();
+          is(deck.selectedPanel, prefIframe, "device preferences iframe selected");
+
+          yield prefIframe.contentWindow.getAllPrefs;
+          yield nextTick();
+
+          setDocument(prefIframe);
+
+          let fields = doc.querySelectorAll(".editable");
+          let preference = "accessibility.blockautorefresh";
+
+          fieldChange(fields, preference);
+
+          addNewField();
+
+          addNewFieldWithEnter();
+
+          editExistingField();
+
+          addNewFieldInteger();
+
+          yield editFieldInteger();
+
+          yield resetExistingField("accessibility.accesskeycausesactivation");
+
+          addNewFieldBoolean();
+
+          searchFields(deck, "debugger");
+
+          DebuggerServer.destroy();
+
+          yield closeWebIDE(win);
+
+          SimpleTest.finish();
+        }).then(null, e => {
+          ok(false, "Exception: " + e);
+          SimpleTest.finish();
+        });
+      }
+    </script>
+  </body>
+</html>

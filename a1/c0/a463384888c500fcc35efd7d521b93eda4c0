@@ -1,0 +1,13 @@
+
+copyrev: a32204fc6695c535340de07527bcbcb90485fee4
+copy: js/src/trace-test/lib/orTestHelper.js
+
+function orTestHelper(a, b, n)
+{
+  var k = 0;
+  for (var i = 0; i < n; i++) {
+    if (a || b)
+      k += i;
+  }
+  return k;
+}

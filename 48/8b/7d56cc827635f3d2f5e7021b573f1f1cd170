@@ -1,0 +1,7 @@
+
+copy: dom/encoding/test/reftest/bug863728-2-ref.html
+copyrev: 644fdeac97a280f8da230e202a969be447e82322
+
+<!DOCTYPE html>
+<meta charset=utf-8>
+<iframe src="data:text/html;charset=utf-8,�<iframe src='data:text/html;charset=utf-8,PASS'></iframe>" width=400 height=200></iframe>

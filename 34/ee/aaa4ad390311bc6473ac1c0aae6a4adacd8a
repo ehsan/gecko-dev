@@ -1,0 +1,15 @@
+
+copy: content/base/crashtests/326778-1.xul
+copyrev: 4333e87dfc6aa3dde6301e61710a70214c52b713
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<script>
+<![CDATA[
+try {
+  document.getBoxObjectFor({});
+} catch(e) { }
+]]>
+</script>
+</window>

@@ -1,0 +1,27 @@
+
+copy: media/webrtc/trunk/src/modules/audio_coding/neteq/test/NETEQTEST_DummyRTPpacket.h
+copyrev: 71e02a3dd0b9128f582801810ec5dfd38b14a7ab
+
+/*
+ *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+#ifndef NETEQTEST_DUMMYRTPPACKET_H
+#define NETEQTEST_DUMMYRTPPACKET_H
+
+#include "NETEQTEST_RTPpacket.h"
+
+class NETEQTEST_DummyRTPpacket : public NETEQTEST_RTPpacket
+{
+public:
+    virtual int readFromFile(FILE *fp);
+    virtual int writeToFile(FILE *fp);
+};
+
+#endif //NETEQTEST_DUMMYRTPPACKET_H

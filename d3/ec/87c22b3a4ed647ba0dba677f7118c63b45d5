@@ -1,0 +1,24 @@
+
+copy: mobile/android/search/res/values-v13/search_styles.xml
+copyrev: 3107c93c9d81fb4f7172c82c7c5a26b7d96a2561
+
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="@android:style/Theme.Holo.Light.NoActionBar">
+        <item name="android:windowBackground">@color/global_background_color</item>
+        <item name="android:colorBackground">@color/global_background_color</item>
+
+        <!--This attribute is required so that we can create a facet button-->
+        <!--pragmatically. The defStyle param used in the View constructor-->
+        <!--must be an attr, see: https://code.google.com/p/android/issues/detail?id=12683-->
+        <item name="facetButtonStyle">@style/FacetButtonStyle</item>
+    </style>
+
+    <style name="SettingsTheme" parent="@android:style/Theme.Holo.Light"/>
+
+</resources>

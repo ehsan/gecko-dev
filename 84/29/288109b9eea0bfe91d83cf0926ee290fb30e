@@ -1,0 +1,16 @@
+
+copy: webapprt/test/chrome/mozpay-failure.html
+copyrev: f51ca1af886eec7ffd082b567b1c4e0e3712c8df
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <script>
+    mozPaymentProvider.paymentSuccess();
+    </script>
+    <p id="msg">Webapp waiting to pay...</p>
+  </body>
+</html>

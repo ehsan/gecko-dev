@@ -1,0 +1,6 @@
+
+copy: dbm/tests/dbmtest.pkg
+copyrev: 2a818507a4824e06a330ab2a2ae3356ef6eb95e7
+
+[gecko-tests]
+dist/bin/lots@BINS@

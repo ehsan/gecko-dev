@@ -1,0 +1,13 @@
+
+copy: js/src/jit-test/tests/parallelarray/spew.js
+copyrev: 5d7b28420ee7b68e48545a89961eeb89e4388c62
+
+load(libdir + "parallelarray-helpers.js");
+
+var spew = getSelfHostedValue("ParallelSpew");
+if (getBuildConfiguration().parallelJS && spew) {
+  assertParallelExecSucceeds(
+    function (m) { Array.buildPar(minItemsTestingThreshold,
+                                  function (i) { spew(i + ""); }); },
+    function (r) { return true; });
+}

@@ -1,0 +1,6 @@
+
+copy: dom/base/test/csp/file_CSP_inlinescript_main_allowed.html^headers^
+copyrev: 9f80f76212be42ea88d97827cd4910b3b08f212f
+
+Content-Security-Policy: default-src 'self' ; script-src 'self' 'unsafe-inline'
+Cache-Control: no-cache

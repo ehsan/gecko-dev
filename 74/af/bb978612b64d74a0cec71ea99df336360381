@@ -1,0 +1,22 @@
+
+copy: layout/xul/base/src/crashtests/376137-1.html
+copyrev: c1be325c508870570f5270c8463b31a04290dffa
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<style>
+span { display:block; outline: 10px solid yellow; }
+</style>
+</head>
+
+<body>
+
+<div>
+  <div style="display: -moz-inline-grid">
+    <span>M</span>
+    <span>N</span>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copy: testing/web-platform/meta/websockets/interfaces/WebSocket/constants/002.html.ini
+copyrev: 31a73fe3d989dc30aab3fd0aa0884f690169c8d7
+
+[idbindex_getKey7.htm]
+  type: testharness
+  expected:
+    if debug and (os == "win") and (version == "6.2.9200") and (processor == "x86") and (bits == 32): CRASH
+    if debug and (os == "win") and (version == "5.1.2600") and (processor == "x86") and (bits == 32): CRASH
+    if debug and (os == "win") and (version == "6.1.7601") and (processor == "x86") and (bits == 32): CRASH

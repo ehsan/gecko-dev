@@ -1,0 +1,8 @@
+
+copy: gfx/thebes/crashtests/420962-1.html
+copyrev: 0a7d0048877555115a281f57972533c59745fe08
+
+<html>
+<head></head>
+<body><div>&#x0301;&#x2029;</div></body>
+</html>

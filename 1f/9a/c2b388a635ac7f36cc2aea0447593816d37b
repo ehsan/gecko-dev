@@ -1,0 +1,14 @@
+
+copyrev: 58bd64dd1e2de8c89f36801d1e740314d83a75f0
+copy: js/src/trace-test/tests/basic/testDecElem1.js
+
+var obj = {p: 100};
+var name = "p";
+var a = [];
+for (var i = 0; i < 10; i++)
+    a[i] = --obj[name];
+assertEq(a.join(','), '99,98,97,96,95,94,93,92,91,90');
+assertEq(obj.p, 90);
+
+checkStats({recorderStarted: 1, recorderAborted: 0, traceCompleted: 1, traceTriggered: 1});
+

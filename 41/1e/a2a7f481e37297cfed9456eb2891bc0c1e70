@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/arabic.aff
+copyrev: 44bd8f1b51f84c54e058003cb3082f751e6ad939
+
+SET UTF-8
+TRY أ
+IGNORE ٌٍَُِّْ
+
+PFX	Aa	Y	1
+PFX	Aa	0	0/X0	أ[^ي]

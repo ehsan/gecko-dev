@@ -1,0 +1,11 @@
+
+copy: content/base/crashtests/700512-worker.js
+copyrev: 939d5c2c745f37800a4494c9487d008b52a46d09
+
+onmessage = function(event) {
+  var blob = event.data;
+
+  blob.slice(1, 5);
+
+  postMessage("done");
+}

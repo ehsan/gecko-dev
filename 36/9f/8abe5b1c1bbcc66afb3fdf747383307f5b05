@@ -1,0 +1,5 @@
+
+copyrev: 23d69d90673f084fe3c044c69bd37e8740171184
+copy: js/tests/js1_7/geniter/shell.js
+
+gTestsubsuite = 'geniter';

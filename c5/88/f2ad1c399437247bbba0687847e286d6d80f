@@ -1,0 +1,10 @@
+
+copy: content/media/test/parser.vtt
+copyrev: 06ab21e6150130f841ef85256dd340610cbc6c3f
+
+WEBVTT
+
+00:00.500 --> 00:00.700
+Test
+00:00.500 --> 00:00.700
+Stuff

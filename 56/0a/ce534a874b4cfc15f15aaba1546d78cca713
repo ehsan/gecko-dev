@@ -1,0 +1,17 @@
+
+copy: browser/devtools/webconsole/test/browser/test-bug-595934-dom-html-external.html
+copyrev: 054f6dfc2e1956a127dd58318682022712b4b656
+
+<html lang="en">
+  <head>
+    <title>Web Console test for bug 595934 - category: DOM:HTML
+      (external script)</title>
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+    <script type="text/javascript" src="test-bug-595934-dom-html-external.js"></script>
+  </head>
+  <body>
+    <p id="foobar">Web Console test for bug 595934 - category "DOM:HTML" 
+    (external script).</p>
+  </body>
+</html>

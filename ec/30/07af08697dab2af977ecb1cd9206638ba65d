@@ -1,0 +1,16 @@
+
+copy: js/src/xpconnect/crashtests/462926.html
+copyrev: 62e8268a0aeb574a1950440178a0fa8cc6997c5c
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+try { document.createTextNode("").getUserData.call(0, 0); } catch(e) { }
+
+</script>
+</head>
+<body>
+</body>
+</html>

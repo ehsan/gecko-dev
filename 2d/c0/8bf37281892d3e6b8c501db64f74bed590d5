@@ -1,0 +1,15 @@
+
+copy: dom/mobilemessage/tests/xpcshell.ini
+copyrev: 5418b947918c6b4d49eb0722874bfc452bc7cc03
+
+[DEFAULT]
+head = header_helpers.js
+tail =
+
+[test_smsservice_createsmsmessage.js]
+[test_wsp_pdu_helper.js]
+run-if = toolkit == "gonk"
+[test_mms_pdu_helper.js]
+run-if = toolkit == "gonk"
+[test_mms_service.js]
+run-if = toolkit == "gonk"

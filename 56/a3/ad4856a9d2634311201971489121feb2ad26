@@ -1,0 +1,16 @@
+
+copy: content/xul/content/crashtests/386947-1.xul
+copyrev: 30efa4f415a731534a4fcab9c60eac87a5c95bdf
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        style="background-color: red" onload="boom();">
+        
+<script><![CDATA[
+        
+function boom() {
+  document.documentElement.style.MozBinding = "url('#t')";
+}
+
+]]></script>
+</window>

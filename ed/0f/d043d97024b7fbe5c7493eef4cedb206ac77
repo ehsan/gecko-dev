@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-invalid/default-style/textarea.html
+copyrev: 06a9562e4e7e2c060ffc611ee152196e7a127730
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <script>
+    function onloadHandler()
+    {
+      document.getElementById('e').setCustomValidity('foo');
+      document.documentElement.className='';
+    }
+  </script>
+  <body onload="onloadHandler();">
+    <textarea id='e'></textarea>
+  </body>
+</html>

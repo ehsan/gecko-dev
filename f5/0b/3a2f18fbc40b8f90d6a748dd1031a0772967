@@ -1,0 +1,16 @@
+
+copy: layout/reftests/css-gradients/repeating-radial-onestopposition-1.html
+copyrev: 3cde4d231bc099c7ffac7fc4916672de5ee14dd0
+
+<!DOCTYPE HTML>
+<title>Test for -moz-repeating-radial-gradient() with all stops at the same position</title>
+<style>
+
+div {
+  width: 200px;
+  height: 200px;
+  background-image: repeating-radial-gradient(closest-side, blue 25%, orange 25%);
+}
+
+</style>
+<div></div>

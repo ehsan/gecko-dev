@@ -1,0 +1,12 @@
+
+copy: browser/base/content/test/dummy_page.html
+copyrev: e650f07684047074252222b997c0b0339e07e21e
+
+<html>
+<head>
+<title>Dummy test page</title>
+</head>
+<body>
+<p>Dummy test page</p>
+</body>
+</html>

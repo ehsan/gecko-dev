@@ -1,0 +1,15 @@
+
+copy: js/src/xpconnect/tests/mochitest/file2_bug629227.html
+copyrev: ea80a67bc961994bd34e6c44506aa8c505a8ea8b
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <script>
+      document.domain = "example.org";
+    </script>
+  </head>
+  <body>
+    <form name="form1" id="test1"></form>
+  </body>
+</html>

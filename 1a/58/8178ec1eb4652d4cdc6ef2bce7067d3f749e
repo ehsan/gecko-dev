@@ -1,0 +1,17 @@
+
+copy: dom/src/threads/test/suspend_worker.js
+copyrev: 540eb5211bf4313632ccb1bc7e8694768cc3166b
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+var counter = 0;
+
+var interval = setInterval(function() {
+  postMessage(++counter);
+}, 100);
+
+onmessage = function(event) {
+  clearInterval(interval);
+}

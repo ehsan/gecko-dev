@@ -1,0 +1,25 @@
+
+copyrev: e93a729fc33f9e950a3e31bd75b1c3a39dfdc841
+copy: js/src/trace-test/tests/basic/testInnerMissingArgs.js
+
+function innerTestInnerMissingArgs(a,b,c,d)
+{
+        if (a) {
+        } else {
+        }
+}
+
+function doTestInnerMissingArgs(k)
+{
+    for (i = 0; i < 10; i++) {
+        innerTestInnerMissingArgs(k);
+    }
+}
+
+function testInnerMissingArgs()
+{
+    doTestInnerMissingArgs(1);
+    doTestInnerMissingArgs(0);
+}
+
+testInnerMissingArgs();

@@ -1,0 +1,9 @@
+
+copyrev: 12f5f5bd02c9f2f44180f48f736317a3218173b2
+copy: layout/reftests/svg/image/img-simple-5.html
+
+<html>
+<body>
+  <img src="lime100x100.svg" width="150px" height="600px">
+</body>
+</html>

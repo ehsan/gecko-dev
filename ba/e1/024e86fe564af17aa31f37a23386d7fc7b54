@@ -1,0 +1,17 @@
+
+copyrev: db6d9df43f98807326f5fe19d4d6e556e4e613f3
+copy: js/src/trace-test/tests/jaeger/instanceOfWithKnownTypes.js
+
+// |jit-test| error: TypeError
+
+// Verify that the compiler doesn't assert.
+
+function f() {
+    var o = {}, p = {};
+    z = o instanceof p;
+    z = 3 instanceof p;
+    z = p instanceof 3;
+    z = 3 instanceof 4;
+}
+
+f();

@@ -1,0 +1,5 @@
+
+copy: content/svg/content/src/crashtests/595608-1.svg
+copyrev: e5eff57a4bb675324cc6e3b9da73030a69792b61
+
+<svg xmlns="http://www.w3.org/2000/svg"><rect><set to="k" type="s" attributeName="transform"/></rect></svg>

@@ -1,0 +1,14 @@
+
+copy: dom/xml/test/old/simple.xml
+copyrev: 69d3fb5339f488b64bc749d2472425b7b5984c42
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="docbook.css" type="text/css"?>
+<!DOCTYPE Book SYSTEM "file:///E|/Program%20Files/SoftQuad/XMetaL/Rules/docbook.dtd">
+<Book xmlns:html="http://www.w3.org/1999/xhtml">
+  <Title>The Book</Title>
+  <Chapter>
+    <Title>Chapter 1.</Title>
+    <Para>Yada yada <html:img src="mzcolor.gif"/> yada.</Para>
+  </Chapter>
+</Book>

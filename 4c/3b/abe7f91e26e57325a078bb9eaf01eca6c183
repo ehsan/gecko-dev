@@ -1,0 +1,19 @@
+
+copy: extensions/cookie/test/frame_clear_browser_data.html
+copyrev: 09e8a38bd9923541e2d808cf0a1bc0b67820f3cd
+
+<!DOCTYPE html>
+<html>
+  <body>
+  </body>
+  <script>
+    addEventListener('message', function(e) {
+      if (e.data == 'clear') {
+        navigator.mozApps.getSelf().onsuccess = function() {
+          this.result.clearBrowserData();
+          document.body.innerHTML = "<done></done>";
+        };
+      }
+    });
+  </script>
+</html>

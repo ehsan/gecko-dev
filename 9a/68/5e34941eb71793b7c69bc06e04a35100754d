@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/embed/002-novalid.html
+copyrev: 5444f6ab1356d4de56eff6b0f3d4e7f731a62f99
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>element embed with bad type value</title>
+</head>
+<body>
+<embed type="foo">
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copyrev: 5e5051d458d2159b6ecf3619ad3e450719daee31
+copy: layout/reftests/svg/image/background-simple-2.html
+
+<html>
+<body>
+  <div style="height: 100px; width: 100px;
+              background-image: url('limeInRed100x100-viewBox.svg')">
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copyrev: 79dc98870c1330fd781a1d09d60b303ca3269ae2
+copy: layout/reftests/svg/image/img-simple-2.html
+
+<html>
+<body>
+  <img src="limeInRed100x100-viewBox.svg">
+</body>
+</html>

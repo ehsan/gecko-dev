@@ -1,0 +1,10 @@
+
+copy: content/base/test/chrome/mochitest.ini
+copyrev: 1a76d9c3a5c344ee211e060051de517e9604a4db
+
+[DEFAULT]
+support-files =
+  bug421622-referer.sjs
+  nochrome_bug765993.html
+  nochrome_bug765993.js
+  nochrome_bug765993.js^headers^

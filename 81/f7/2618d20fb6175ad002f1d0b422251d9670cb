@@ -1,0 +1,23 @@
+
+copy: content/xml/document/test/file_bug293347xslt.xml
+copyrev: 43783f034cf9fd34d478809ee794456ba450c9ad
+
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:template match="/doc">
+    <html>
+      <body>
+        <div></div>
+        <div>
+          <script>
+            didThrow = false;
+            try {
+              document.write("shrimp");
+            } catch (e) {
+              didThrow = true;
+            }
+          </script>
+        </div>
+      </body>
+    </html>
+  </xsl:template>
+</xsl:stylesheet>

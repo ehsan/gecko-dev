@@ -1,0 +1,8 @@
+
+copy: gfx/thebes/crashtests/420945-1.html
+copyrev: 0638fd342b5faf8a8effbe9e7fe92319734e1bcc
+
+<html>
+<head></head>
+<body dir="rtl"><div>&#x200C;&#x2028;</div></body>
+</html>

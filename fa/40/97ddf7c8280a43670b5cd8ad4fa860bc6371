@@ -1,0 +1,14 @@
+
+copy: content/html/content/reftests/toblob-todataurl/todataurl-quality-undefined.html
+copyrev: eab8c9d99754f748d9ec4e928e882f2fd97757ea
+
+<!doctype html>
+<html class='reftest-wait'>
+  <body>
+    <script>
+      var quality = undefined;
+    </script>
+    <script src='sample.js'></script>
+    <script src='dataurl.js'></script>
+  </body>
+</html>

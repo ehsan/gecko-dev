@@ -1,0 +1,6 @@
+
+copy: mobile/branding/official/locales/en-US/brand.properties
+copyrev: 549f644679fa79d0008e11e6a7398a4ef179fee5
+
+brandShortName=Firefox
+brandFullName=Mozilla Firefox

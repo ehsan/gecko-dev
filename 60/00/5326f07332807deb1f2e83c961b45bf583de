@@ -1,0 +1,12 @@
+
+copy: layout/reftests/forms/input/file/input-file-simple.html
+copyrev: fe4fae07afc4ddbaff76c80a3d430edf5aaa6604
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type='file'>
+    <br>
+    <input type='file' multiple>
+  </body>
+</html>

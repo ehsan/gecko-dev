@@ -1,0 +1,14 @@
+
+copyrev: 4fbd5dc69de8cab354cfd3ad6e0067026f6870be
+copy: js/src/trace-test/tests/basic/testBug595916.js
+
+(function () {
+    try {
+        eval("\
+          for each(let d in[0,0,0,0,0,0,0,0]) {\
+            for(let b in[0,0]) {}\
+          }\
+        ")
+    } catch (e) {}
+})()
+

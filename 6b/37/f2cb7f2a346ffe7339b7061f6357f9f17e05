@@ -1,0 +1,10 @@
+[DEFAULT]
+support-files =
+  handlerApp.xhtml
+  handlerApps.js
+  unsafeBidiFileName.sjs
+
+[test_badMimeType.html]
+[test_handlerApps.xhtml]
+skip-if = toolkit == 'android'
+[test_unsafeBidiChars.xhtml]

@@ -1,0 +1,10 @@
+
+copyrev: e1b280e9a96131fd57a3e990404ecc286f7e44bb
+copy: modules/plugin/samples/npruntime/nprt.def
+
+LIBRARY   NPRT
+
+EXPORTS
+	NP_GetEntryPoints   @1
+	NP_Initialize       @2
+	NP_Shutdown         @3

@@ -1,0 +1,15 @@
+
+copy: content/html/content/test/file_iframe_sandbox_f_if2.html
+copyrev: 33a8ea88ebdf02a8feae18f22863bb142b1845bb
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for Bug 341604</title>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+  I am a document that should be handled by a plugin load.
+</body>
+</html>

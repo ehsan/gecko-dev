@@ -1,0 +1,19 @@
+
+copy: layout/base/tests/bug646382-2-ref.html
+copyrev: 48294bbd109c4bcbf56734b3c3f49936ee971908
+
+<html class="reftest-wait">
+  <body onload="start()">
+    <textarea dir="rtl" onfocus="done()">s</textarea>
+    <script>
+      var textarea = document.querySelector("textarea");
+      function start() {
+        textarea.focus();
+      }
+      function done() {
+        textarea.selectionStart = textarea.selectionEnd = 0;
+        document.documentElement.removeAttribute("class");
+      }
+    </script>
+  </body>
+</html>

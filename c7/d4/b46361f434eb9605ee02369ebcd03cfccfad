@@ -1,0 +1,16 @@
+
+copy: content/base/crashtests/493281-2.html
+copyrev: 86da095eba6c5c282e8f4847a5fc96a010bc7340
+
+<html>
+    <body>
+        <div id="foo">
+            <script>
+                function get(x) { return x }
+                obj = {};
+                obj.__proto__ = get(document.all);
+                obj.foo
+            </script>
+        </div>
+    </body>
+</html>

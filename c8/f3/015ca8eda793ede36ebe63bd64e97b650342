@@ -1,0 +1,10 @@
+
+copy: mobile/branding/beta/content/jar.mn
+copyrev: a120744828a644a864b68a770e263ed8a4ef2151
+
+chrome.jar:
+% content branding %content/branding/
+  content/branding/about.png                     (about.png)
+  content/branding/logoWordmark.png              (logoWordmark.png)
+  content/branding/logo.png                      (logo.png)
+  content/branding/favicon32.png                 (favicon32.png)

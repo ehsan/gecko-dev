@@ -1,0 +1,11 @@
+
+copy: editor/libeditor/text/crashtests/403965-1.xhtml
+copyrev: 805f9a40c88110ecbbe747f2771e8f6668404dda
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:html="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<tbody contenteditable="true"/>
+<frameset/>
+<xul:box onbeforecopy="event.explicitOriginalTarget.parentNode.parentNode.removeChild(event.explicitOriginalTarget.parentNode)">
+<xul:box/>
+</xul:box>
+</html>

@@ -1,0 +1,7 @@
+
+copy: layout/xul/base/src/tree/src/crashtests/509602-1.xul
+copyrev: 2f8b6e6ad8b6d735c85f4fa4ecc6c39e3821cb88
+
+<?xul-overlay href="509602-1-overlay.xul"?>
+<?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"/>

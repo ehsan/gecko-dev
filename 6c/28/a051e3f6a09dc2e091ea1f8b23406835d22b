@@ -1,0 +1,10 @@
+
+copy: modules/plugin/test/reftest/plugin-transform-1.html
+copyrev: cb99f48cdae4f5f4a52b172b23f39a2e0da03350
+
+<!DOCTYPE HTML>
+<html>
+<body>
+<embed type="application/x-test" style="-moz-transform:scale(1)"></embed>
+</body>
+</html>

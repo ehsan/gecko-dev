@@ -1,0 +1,18 @@
+
+copy: layout/reftests/css-valid/select/select-fieldset-legend.html
+copyrev: 8a36c5c967b095543835642e0dca4a089b43ee1f
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if select has a disabled fieldset ancestor, but is in the first
+             legend, it is not barred from constraint validation and should be
+             affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <fieldset disabled>
+      <legend>
+        <select class='valid'></select>
+      </legend>
+    </fieldset>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern2.aff
+copyrev: 5d946453800ee838b6081ca2642cac48f0265f77
+
+# forbid compounds with spec. pattern at word bound and allow modificated form
+# (for German and Indian languages)
+COMPOUNDFLAG A
+CHECKCOMPOUNDPATTERN 2
+CHECKCOMPOUNDPATTERN o b z
+CHECKCOMPOUNDPATTERN oo ba u
+COMPOUNDMIN 1

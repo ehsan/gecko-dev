@@ -1,0 +1,25 @@
+
+copy: content/smil/crashtests/551620-1.svg
+copyrev: 7e3594c4356fe5f9248bdcc5b2cb13966217597b
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<animate id="x" begin="y.end"/>
+<animate id="y"/>
+
+<script>
+
+function boom()
+{
+  var x = document.getElementById("x");
+  var y = document.getElementById("y");
+  y.appendChild(x);
+  y.setAttributeNS(null, "dur", "0.5s");
+  y.removeAttributeNS(null, "dur");
+}
+
+window.addEventListener("load", boom, false);
+
+</script>
+
+</svg>

@@ -1,0 +1,22 @@
+
+copyrev: e3a31b57d447070cca54f92d502877db35eb6f4e
+copy: js/src/trace-test/tests/arguments/args-vargc.js
+
+actual = '';
+expected = '1 2,1 2,1 2,1 2,1 2,1 2,1 2,1 2,1 undefined,1 undefined,1 undefined,1 undefined,1 undefined,1 undefined,1 undefined,1 undefined,';
+
+function g(a, b) {
+  appendToActual(a + ' ' + b);
+}
+
+function f() {
+  for (var i = 0; i < 8; ++i) {
+    g.apply(this, arguments);
+  }
+}
+
+f(1, 2);
+f(1);
+
+
+assertEq(actual, expected)

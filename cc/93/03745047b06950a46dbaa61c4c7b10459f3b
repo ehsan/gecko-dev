@@ -1,0 +1,6 @@
+
+copy: mobile/branding/nightly/configure.sh
+copyrev: e65f6ab683d0752a883f4922d3be0c22cb2f19a5
+
+MOZ_APP_DISPLAYNAME=Nightly
+MOZ_UPDATER=1

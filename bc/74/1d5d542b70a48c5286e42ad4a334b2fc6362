@@ -1,0 +1,15 @@
+
+copy: layout/reftests/editor/spellcheck-input-attr-dynamic-inherit.html
+copyrev: 1ac5bd7c1d8463e79afaae00f38f43d5c5e4570f
+
+<!DOCTYPE html>
+<html>
+<body onload="init()">
+    <input type="text" value="blahblahblah">
+    <script>
+      function init() {
+        document.body.setAttribute("spellcheck", "true");
+      }
+    </script>
+</body>
+</html>

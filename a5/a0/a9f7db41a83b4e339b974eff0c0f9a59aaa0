@@ -1,0 +1,18 @@
+
+copy: content/html/document/test/bug445004-inner.html
+copyrev: 4893ae9c335e4914082abe402731c7c4b09d8b44
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <base href="http://test1.example.org/tests/dom/html/test/bug445004-inner.html">
+    <script src="bug445004-inner.js"></script>
+  </head>
+  <body>
+    <iframe name="w" id="w" width="100" height="100"></iframe>
+    <iframe name="x" id="x" width="100" height="100"></iframe>
+    <iframe name="y" id="y" width="100" height="100"></iframe>
+    <iframe name="z" id="z" width="100" height="100"></iframe>
+    <img src="test1.example.org.png">
+  </body>
+</html>

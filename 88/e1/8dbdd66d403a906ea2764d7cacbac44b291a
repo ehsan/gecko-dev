@@ -1,0 +1,26 @@
+
+copy: modules/libpr0n/test/reftest/pngsuite-filtering/reftest.list
+copyrev: 9921d22ba48bf3b15e165e3f505871121d96c5e7
+
+# PngSuite - Image filtering
+
+# f00n0g08 - grayscale, no interlacing, filter-type 0
+== f00n0g08.png f00n0g08.html
+# f00n2c08 - color, no interlacing, filter-type 0
+== f00n2c08.png f00n2c08.html
+# f01n0g08 - grayscale, no interlacing, filter-type 1
+== f01n0g08.png f01n0g08.html
+# f01n2c08 - color, no interlacing, filter-type 1
+== f01n2c08.png f01n2c08.html
+# f02n0g08 - grayscale, no interlacing, filter-type 2
+== f02n0g08.png f02n0g08.html
+# f02n2c08 - color, no interlacing, filter-type 2
+== f02n2c08.png f02n2c08.html
+# f03n0g08 - grayscale, no interlacing, filter-type 3
+== f03n0g08.png f03n0g08.html
+# f03n2c08 - color, no interlacing, filter-type 3
+== f03n2c08.png f03n2c08.html
+# f04n0g08 - grayscale, no interlacing, filter-type 4
+== f04n0g08.png f04n0g08.html
+# f04n2c08 - color, no interlacing, filter-type 4 
+== f04n2c08.png f04n2c08.html

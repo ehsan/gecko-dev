@@ -1,0 +1,7 @@
+
+copy: xpfe/appshell/src/test/chrome.ini
+copyrev: 94dd0385490d64984b7f6eeae58f439bf99c6db9
+
+[DEFAULT]
+
+[test_hiddenPrivateWindow.xul]

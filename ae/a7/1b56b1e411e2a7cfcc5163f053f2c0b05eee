@@ -1,0 +1,17 @@
+
+copy: mobile/xul/chrome/jar.mn
+copyrev: 8b4f95e1c409f9562957bbb82b2bc67c5168e5e3
+
+#filter substitution
+
+chrome.jar:
+% content branding %content/branding/
+% content browser %content/
+
+* content/shell.xul                     (content/shell.xul)
+  content/shell.js                      (content/shell.js)
+  content/touch.js                      (content/touch.js)
+  content/commandUtil.js                (content/commandUtil.js)
+
+% override chrome://global/content/netError.xhtml chrome://browser/content/netError.xhtml
+  content/netError.xhtml                (content/netError.xhtml)

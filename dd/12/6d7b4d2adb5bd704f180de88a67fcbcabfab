@@ -1,0 +1,42 @@
+<html>
+<meta charset="UTF-8">
+<head>
+<style>
+body { line-height: 5em; }
+ruby { display: ruby; }
+rb   { display: ruby-base; white-space: nowrap; }
+rp   { display: none; }
+rt   { display: ruby-text; white-space: nowrap; font-size: 50%; }
+rbc  { display: ruby-base-container; }
+rtc  { display: ruby-text-container; }
+ruby, rb, rt, rbc, rtc { unicode-bidi: isolate; }
+</style>
+</head>
+<body>
+
+<p>
+  <ruby><rbc><rb><span>   </span></rb><rb><span>    </span></rb><rb>Base three</rb></rbc
+    ><rtc><rt><span>   </span></rt><rt><span>   </span></rt><rt>Text three</rt></rtc
+    ><rtc><rt></rt></rtc
+    ><rbc><rb><span>        </span></rb></rbc
+    ><rbc><rb>Segment two</rb></rbc
+    ><rtc><rt></rt></rtc></ruby>
+</p>
+
+<p>
+  <ruby><rbc><rb>Base one</rb><rb><span>  </span></rb><rb>Base three</rb></rbc
+    ><rtc><rt>Text one</rt><rt><span>  </span></rt><rt>Text three</rt></rtc></ruby>
+</p>
+
+<p>
+  <ruby><rbc><rb>Segment one</rb></rbc
+    ><rbc><rb><span>  </span></rb></rbc
+    ><rbc><rb><span>  </span></rb><rb><span>    </span></rb><rb>Base three</rb></rbc
+    ><rtc><rt><span>  </span></rt><rt><span>     </span></rt><rt>Text three</rt></rtc
+    ><rbc><rb><span>  </span></rb></rbc
+    ><rbc><rb>Base one</rb><rb><span>   </span></rb><rb>Base three</rb></rbc
+    ><rtc><rt>Text one</rt><rt>Text two/three</rt></rtc></ruby>
+</p>
+
+</body>
+</html>

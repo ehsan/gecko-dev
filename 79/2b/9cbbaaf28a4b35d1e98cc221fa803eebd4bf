@@ -1,0 +1,7 @@
+
+copy: browser/base/content/test/privateBrowsingMode.js
+copyrev: 66c35cc13c062d499ad2d9a6231fec86d04911fb
+
+// This file is only present in per-window private browsing buikds.
+var perWindowPrivateBrowsing = true;
+

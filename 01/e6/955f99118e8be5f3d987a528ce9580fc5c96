@@ -1,0 +1,6 @@
+
+copy: dom/xml/test/file_bug293347.xml
+copyrev: d546ce3dcf8a1295a50163826f41d2835390ad5d
+
+<?xml-stylesheet type="text/xsl" href="file_bug293347xslt.xml"?>
+<doc/>

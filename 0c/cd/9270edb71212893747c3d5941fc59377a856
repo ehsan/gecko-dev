@@ -1,0 +1,7 @@
+
+copy: js/src/xpconnect/tests/components/native/xpctest.manifest
+copyrev: bb3d36850801d22ae36cc975266bc9fe0581f484
+
+#filter substitution
+binary-component @LIBRARY_FILENAME@
+interfaces xpctest.xpt

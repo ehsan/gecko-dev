@@ -1,0 +1,16 @@
+
+copy: js/src/xpconnect/tests/unit/test_bug677864.js
+copyrev: fa9932b46fdd8be0292a2a185d826aa611b87b45
+
+function check_cl(iface, desc) {
+    do_check_eq(iface.QueryInterface(Components.interfaces.nsIClassInfo).classDescription, desc);
+}
+
+function run_test() {
+    check_cl(Components, 'XPCComponents');
+    check_cl(Components.interfaces, 'XPCComponents_Interfaces');
+    check_cl(Components.interfacesByID, 'XPCComponents_InterfacesByID');
+    check_cl(Components.classes, 'XPCComponents_Classes');
+    check_cl(Components.classesByID, 'XPCComponents_ClassesByID');
+    check_cl(Components.results, 'XPCComponents_Results');
+}

@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/u/001-isvalid.html
+copyrev: 23db545b14a530257fe9f80edd4cf23b988b2fec
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>the "u" element is not obsolete</title>
+<meta charset=utf-8>
+</head>
+<body>
+<u>baz</u>
+</body>
+</html>

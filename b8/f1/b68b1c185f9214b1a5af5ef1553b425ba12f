@@ -1,0 +1,11 @@
+
+copyrev: 83b40a792d790e6b579aec6a4a1d359755b9353d
+copy: js/src/trace-test/tests/basic/testLongNumToString.js
+
+function testLongNumToString() {
+    var s;
+    for (var i = 0; i < 5; i++)
+        s = (0x08000000).toString(2);
+    return s;
+}
+assertEq(testLongNumToString(), '1000000000000000000000000000');

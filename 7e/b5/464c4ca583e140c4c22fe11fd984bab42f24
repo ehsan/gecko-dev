@@ -1,0 +1,6 @@
+
+copy: b2g/config/emulator/releng-emulator.tt
+copyrev: 84995e4543ef7fb40956b75d8ea3145b453e873e
+
+[
+]

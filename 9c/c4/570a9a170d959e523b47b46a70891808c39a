@@ -1,0 +1,5 @@
+
+copyrev: 5db22b0b5186715ca35ab6e16c2a1a308e6783c7
+copy: js/src/trace-test/tests/jaeger/bug549396.js
+
+x = __defineSetter__("x", function(z) function() { z })

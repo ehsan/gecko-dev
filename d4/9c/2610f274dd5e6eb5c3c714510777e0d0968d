@@ -1,0 +1,13 @@
+
+copy: layout/reftests/editor/694880-ref.html
+copyrev: b4aee2a190b759de0eb6ba2deba2ac956a8f4305
+
+<!DOCTYPE html>
+<html>
+  <style>
+    div { color: green; }
+  </style>
+  <body>
+    <div>test</div>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+
+copy: dom/mobilemessage/tests/mochitest.ini
+copyrev: 4e1ac1f7617d64470904db22decb693b57ef5635
+
+[DEFAULT]
+skip-if = e10s
+
+[test_sms_basics.html]
+skip-if = toolkit == 'android' #Bug 909036
+[test_smsfilter.html]

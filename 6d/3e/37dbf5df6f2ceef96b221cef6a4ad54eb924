@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/complexprefixes2.dic
+copyrev: 325c683c306188deb6d227ff7d34a5597f4ae4bf
+
+1
+ouro/BC	[stem_1]
+

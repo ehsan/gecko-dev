@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/button/button-reset.html
+copyrev: 54205770025e1ef5e586c8eae46c2065a8ff3930
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if button is of the reset type, it is barred from constraint
+             validation and should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('b').setCustomValidity('foo'); document.documentElement.className='';">
+    <button class='notinvalid' id='b' type='reset'></button>
+  </body>
+</html>

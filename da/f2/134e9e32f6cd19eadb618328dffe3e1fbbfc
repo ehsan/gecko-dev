@@ -1,0 +1,34 @@
+
+copy: layout/xul/base/src/tree/src/crashtests/601427.html
+copyrev: cd7a0d2c7c9bbe11106292ae2a5146ea8c65840a
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<script>
+
+var onPaintFunctions =
+[
+  function() { document.documentElement.style.MozAppearance = "treeheadersortarrow"; },
+  function() { document.documentElement.style.position = "fixed"; },
+  function() { document.documentElement.removeAttribute("class"); }
+];
+
+var i = 0;
+
+function advance()
+{
+  var f = onPaintFunctions[i++];
+  if (f)
+    f();
+}
+
+function start()
+{
+  window.addEventListener("MozAfterPaint", advance, true);
+  advance();
+}
+
+window.addEventListener("load", start, false);
+
+</script>
+</html>

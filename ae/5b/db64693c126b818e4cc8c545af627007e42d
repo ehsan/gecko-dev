@@ -1,0 +1,5 @@
+
+copyrev: 485f4f3393e364c4122a328f3c2edf1aa3feb35c
+copy: js/tests/js1_3/Script/shell.js
+
+gTestsubsuite = 'Script';

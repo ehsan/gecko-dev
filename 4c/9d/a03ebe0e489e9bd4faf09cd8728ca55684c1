@@ -1,0 +1,7 @@
+
+copy: content/media/webaudio/test/audioBufferSourceNodeNeutered_worker.js
+copyrev: 1ca2af15777c023a8f6e24913a2337d622757c50
+
+onmessage = function (event) {
+  postMessage("Pong");
+};

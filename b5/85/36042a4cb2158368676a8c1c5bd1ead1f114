@@ -1,0 +1,8 @@
+
+copyrev: 7ae15fa4e1a129b290d83e1e2bf657968f7ea88f
+copy: js/src/trace-test/tests/basic/testSetelemWithFloatIndex.js
+
+var x, a = {};
+for (var i = 0; i < 9; i++)
+    x = a[-3.5] = "ok";
+assertEq(x, "ok");

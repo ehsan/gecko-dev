@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/1463589.wrong
+copyrev: 1c3c8d524b11d997f74ec2cda668e8d1de3528df
+
+kuhlschrank
+kuehlschrank
+kühlschrank
+Kuhlschrank
+Kuehlschrank

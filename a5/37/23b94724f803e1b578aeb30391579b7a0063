@@ -1,0 +1,6 @@
+
+copy: dom/network/src/NetworkStatsServiceProxy.manifest
+copyrev: 4aaa81c43a750c2eacb758a7e590bd2e6817f639
+
+component {705c01d6-8574-464c-8ec9-ac1522a45546} NetworkStatsServiceProxy.js
+contract @mozilla.org/networkstatsServiceProxy;1 {705c01d6-8574-464c-8ec9-ac1522a45546}

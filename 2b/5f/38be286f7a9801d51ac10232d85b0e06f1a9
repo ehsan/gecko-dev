@@ -1,0 +1,7 @@
+
+copy: content/html/content/test/347174transformable.xml
+copyrev: 1c7049b78e1ca1fd7cf8e2c757be57f531a6d756
+
+<?xml version='1.0'?>
+<?xml-stylesheet type="text/xsl" href="347174transform.xsl"?>
+<doc>This is a sample document.</doc>

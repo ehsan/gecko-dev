@@ -1,0 +1,40 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+.errors,
+.breakpoints {
+  width: 16px;
+}
+
+.error, .breakpoint, .debugLocation, .breakpoint-debugLocation {
+  display: inline-block;
+  margin-left: 5px;
+  width: 12px;
+  height: 12px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+.error {
+  background-image: url("chrome://browser/skin/devtools/orion-error.png");
+  opacity: 0.75;
+}
+
+.breakpoint {
+  background-image: url("chrome://browser/skin/devtools/orion-breakpoint.png");
+}
+
+.debugLocation {
+  background-image: url("chrome://browser/skin/devtools/orion-debug-location.png");
+}
+
+.breakpoint.debugLocation {
+  background-image: url("chrome://browser/skin/devtools/orion-debug-location.png"),
+    url("chrome://browser/skin/devtools/orion-breakpoint.png");
+}
+
+.error-line {
+  background: rgba(255,0,0,0.2);
+}

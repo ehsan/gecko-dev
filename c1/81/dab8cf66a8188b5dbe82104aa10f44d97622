@@ -1,0 +1,16 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-593003-iframe-wrong-hud-iframe.html
+copyrev: 5f25190fffb39bc8fb54254cc84dd85f6e756932
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>WebConsole test: iframe associated to the wrong HUD</title>
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+   </head>
+   <body>
+     <p>WebConsole test: iframe associated to the wrong HUD.</p>
+     <p>This is the iframe!</p>
+   </body>
+ </html>

@@ -1,0 +1,14 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps3.aff
+copyrev: 5e00b5002c3aa1e4265d5f6e095bf6da27b1c39e
+
+# homonym support
+WORDCHARS '
+
+SFX s N 1
+SFX s 0 s .
+
+SFX S N 1
+SFX S 0 's .
+
+

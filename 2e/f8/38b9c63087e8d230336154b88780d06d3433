@@ -1,0 +1,11 @@
+
+copy: layout/reftests/svg/text/dynamic-non-scaling-stroke-ref.svg
+copyrev: baec5e5c7d75dc616e8c2fbb551876a5f4f6f13f
+
+<!--
+     Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/
+-->
+<svg xmlns="http://www.w3.org/2000/svg">
+  <line x1="100" y1="100" x2="100" y2="200" stroke="blue" stroke-width="10"/>
+</svg>

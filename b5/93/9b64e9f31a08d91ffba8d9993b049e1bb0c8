@@ -1,0 +1,6 @@
+
+copy: other-licenses/branding/firefox/locales/browserconfig.properties
+copyrev: ba842eef6e5b7b2f5d992f720b0528a689fea546
+
+# Do NOT localize or otherwise change these values
+browser.startup.homepage=about:home

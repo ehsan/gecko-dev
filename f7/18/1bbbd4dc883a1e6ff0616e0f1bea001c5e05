@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/breakoff.aff
+copyrev: 9ff0ad226a1c910a45100c53a156d51726d6c658
+
+# switch off default word break at hyphens and n-dashes by BREAK 0
+SET UTF-8
+MAXNGRAMSUGS 0
+WORDCHARS -
+TRY ot
+
+BREAK 0

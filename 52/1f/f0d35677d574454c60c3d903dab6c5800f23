@@ -1,0 +1,10 @@
+
+copyrev: 31c412141b10d627bb4d7e069cc2177c5da7a3e7
+copy: js/src/trace-test/tests/basic/testNEWINIT_DOUBLE.js
+
+function testNEWINIT_DOUBLE()
+{
+    for (var z = 0; z < 2; ++z) { ({ 0.1: null })}
+    return "ok";
+}
+assertEq(testNEWINIT_DOUBLE(), "ok");

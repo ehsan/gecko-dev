@@ -1,0 +1,6 @@
+
+copy: layout/reftests/forms/radio-checked-notref.html
+copyrev: 86b14e2a76493f1b4c9d47d6f189818beafa90a2
+
+<!doctype html>
+<input type="radio" style="-moz-appearance:none">

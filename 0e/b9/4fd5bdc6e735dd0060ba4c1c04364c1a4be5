@@ -1,0 +1,9 @@
+{
+    "git": {
+        "git_revision": "", 
+        "remote": "", 
+        "branch": ""
+    }, 
+    "revision": "68844e5e97fe4f8b0ce6ffe41b4faa840629db15", 
+    "repo_path": "/integration/gaia-central"
+}

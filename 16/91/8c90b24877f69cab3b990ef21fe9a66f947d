@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-ui-invalid/default-style/select-ref.html
+copyrev: 4c1c294e79372c8c0a329c5d5b205b5f34ee600c
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementsByTagName('select')[0].focus();">
+    <select class='invalid-ref' onfocus="document.documentElement.className='';"></select>
+  </body>
+</html>

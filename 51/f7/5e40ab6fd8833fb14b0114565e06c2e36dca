@@ -1,0 +1,12 @@
+
+copy: dom/svg/crashtests/847138-1.svg
+copyrev: 85f0b483fd07188d7faa1efb99071698dffaf94b
+
+<svg xmlns="http://www.w3.org/2000/svg">
+<script>
+
+var globalE = document.createEvent('SVGZoomEvents');
+globalE.previousTranslate.expando = null;
+
+</script>
+</svg>

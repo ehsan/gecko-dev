@@ -1,0 +1,104 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test for WebSMS</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<p id="display"></p>
+<div id="content" style="display: none">
+<iframe></iframe>
+</div>
+<pre id="test">
+<script type="application/javascript">
+
+/** Test for WebSMS **/
+
+function checkSmsDisabled() {
+  ok(!('mozMobileMessage' in frames[0].navigator), "navigator.mozMobileMessage should not exist");
+  ok(frames[0].navigator.mozMobileMessage === undefined,
+     "navigator.mozMobileMessage should return undefined");
+}
+
+function checkSmsEnabled() {
+  // Bug 784617: WebSms is disabled on all platforms except Android for the moment.
+  if (navigator.appVersion.indexOf("Android") == -1) {
+    checkSmsDisabled();
+    return;
+  }
+
+  ok('mozMobileMessage' in frames[0].navigator, "navigator.mozMobileMessage should exist");
+  ok(frames[0].navigator.mozMobileMessage, "navigator.mozMobileMessage returns an object");
+  ok(frames[0].navigator.mozMobileMessage instanceof MozMobileMessageManager,
+     "navigator.mozMobileMessage is an MobileMessageManager object");
+}
+
+function checkInterface(aInterface) {
+  ok(!(aInterface in window), aInterface + " should be prefixed");
+  ok(("Moz" + aInterface) in window, aInterface + " should be prefixed");
+}
+
+function test() {
+  var gSmsEnabled = SpecialPowers.getBoolPref("dom.sms.enabled");
+
+  checkInterface("SmsMessage");
+  checkInterface("SmsEvent");
+  checkInterface("SmsFilter");
+
+  // If sms is disabled and permission is removed, sms is disabled.
+  SpecialPowers.setBoolPref("dom.sms.enabled", false);
+  SpecialPowers.removePermission("sms", document);
+  checkSmsDisabled();
+
+  // If sms is enabled and permission is removed, sms is disabled.
+  SpecialPowers.setBoolPref("dom.sms.enabled", true);
+  SpecialPowers.removePermission("sms", document);
+  checkSmsDisabled();
+
+  // If sms is disabled and permission is granted, sms is disabled.
+  SpecialPowers.setBoolPref("dom.sms.enabled", false);
+  SpecialPowers.addPermission("sms", true, document);
+  checkSmsDisabled();
+
+  // If sms is enabled and permission is granted, sms is enabled.
+  SpecialPowers.setBoolPref("dom.sms.enabled", true);
+  SpecialPowers.addPermission("sms", true, document);
+  checkSmsEnabled();
+
+  // Now, if sms are disabled with the pref, they will still be enabled.
+  // The page has to be reloaded.
+  SpecialPowers.setBoolPref("dom.sms.enabled", false);
+  checkSmsEnabled();
+
+  var iframeElt = document.getElementsByTagName('iframe')[0];
+  iframeElt.addEventListener("load", function() {
+    iframeElt.removeEventListener("load", arguments.callee);
+    checkSmsEnabled();
+
+    // Disabling sms takes effect on reload.
+    SpecialPowers.setBoolPref("dom.sms.enabled", false);
+    iframeElt.addEventListener("load", function() {
+      iframeElt.removeEventListener("load", arguments.callee);
+
+      checkSmsDisabled();
+
+      // Cleanup and quit.
+      SpecialPowers.setBoolPref("dom.sms.enabled", gSmsEnabled);
+      SpecialPowers.removePermission("sms", document);
+      SimpleTest.finish();
+    });
+    frames[0].location.reload();
+  });
+
+  SpecialPowers.setBoolPref("dom.sms.enabled", true);
+  frames[0].location.reload();
+}
+
+SimpleTest.waitForExplicitFinish();
+addLoadEvent(test);
+
+</script>
+</pre>
+</body>
+</html>

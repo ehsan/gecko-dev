@@ -1,0 +1,25 @@
+
+copyrev: 63be9861f0241566a7104aadea3cc047e27b886c
+copy: js/src/trace-test/tests/closures/nameinc.js
+
+actual = '';
+expected = '5,';
+
+function f() {
+  var p = 0;
+
+  function g() {
+    for (var i = 0; i < 5; ++i) {
+      p++;
+    }
+  }
+
+  g();
+
+  appendToActual(p);
+}
+
+f();
+
+
+assertEq(actual, expected)

@@ -1,0 +1,13 @@
+
+copy: content/html/content/crashtests/596785-2.html
+copyrev: cbbe17b1704e6d7fd7741dc95f2a9c5bcebe22db
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <body onload="document.getElementById('i').type = 'text';
+                document.documentElement.className = '';">
+    <form>
+      <input id='i' type='image' required>
+    </form>
+  </body>
+</html>

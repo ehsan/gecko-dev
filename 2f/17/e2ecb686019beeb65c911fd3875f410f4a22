@@ -1,0 +1,6 @@
+
+copy: dom/security/test/csp/file_nonce_source.html^headers^
+copyrev: af430c36b1fb2bb525f90a193e861314b0d8d70a
+
+Content-Security-Policy: script-src 'self' 'nonce-correctscriptnonce' 'nonce-anothercorrectscriptnonce'; style-src 'nonce-correctstylenonce';
+Cache-Control: no-cache

@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/keygen/054-novalid.html
+copyrev: fed2ed71f2f62dd60a88713e98a97d46d5675b03
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>no-void keygen</title>
+</head>
+<body>
+<keygen>foo</keygen>
+</body>
+</html>

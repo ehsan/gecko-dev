@@ -1,0 +1,14 @@
+
+copy: dom/src/threads/test/importScripts_worker_imported2.js
+copyrev: 9d825c640cb04f4af6eb38a96737bc50f225466f
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+// This caused security exceptions in the past, make sure it doesn't!
+var myConstructor2 = {}.constructor;
+
+// Try to call a function defined in the imported script.
+function importedScriptFunction2() {
+}

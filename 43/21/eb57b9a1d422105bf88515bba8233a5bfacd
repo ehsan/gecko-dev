@@ -1,0 +1,7 @@
+
+copyrev: 9f4ba1801a62bb0085392e8cd80c6756dc13175b
+copy: toolkit/content/tests/chrome/bug437844.manifest
+
+# Override intl.css with our own CSS file
+override chrome://global/locale/intl.css chrome://mochikit/content/chrome/toolkit/content/tests/chrome/rtlchrome/rtl.css
+override chrome://global/locale/global.dtd chrome://mochikit/content/chrome/toolkit/content/tests/chrome/rtlchrome/rtl.dtd

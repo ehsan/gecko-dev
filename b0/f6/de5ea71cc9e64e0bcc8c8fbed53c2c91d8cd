@@ -1,0 +1,7 @@
+
+copy: content/base/test/chrome/nochrome_bug765993.html
+copyrev: 76a682bfce08111d4e70c2623c7c223bbe419041
+
+<!DOCTYPE HTML>
+<html>
+</html>

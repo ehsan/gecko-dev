@@ -1,0 +1,13 @@
+
+copyrev: 3576d4aef42eaaf33a61f4983a9329bea7fd6565
+copy: js/ctypes/libffi/include/Makefile.am
+
+## Process this with automake to create Makefile.in
+
+AUTOMAKE_OPTIONS=foreign
+
+DISTCLEANFILES=ffitarget.h
+EXTRA_DIST=ffi.h.in ffi_common.h
+
+includesdir = $(libdir)/@PACKAGE_NAME@-@PACKAGE_VERSION@/include
+nodist_includes_HEADERS = ffi.h ffitarget.h

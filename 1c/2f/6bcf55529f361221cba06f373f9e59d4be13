@@ -1,0 +1,8 @@
+
+copy: testing/mozbase/manifestdestiny/tests/verifyDirectory/verifyDirectory.ini
+copyrev: 0adab6045164a4990ae41e6e4e1d2936d230e9f1
+
+[test_1.js]
+[test_2.js]
+[test_3.js]
+[include:subdir/manifest.ini]

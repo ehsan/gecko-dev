@@ -1,0 +1,26 @@
+
+copyrev: 3c9646f880cd5f83ecac59c93534dabf9f28c1e8
+copy: dom/src/base/crashtests/372554-1.html
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<head>
+<script>
+function boom()
+{
+  if (location.protocol == "file:") {
+    try {
+      location.hostname = 'foo';
+    } catch(e) {
+    }
+  }
+  
+  document.documentElement.removeAttribute("class");
+}
+</script>
+</head>
+<body onload="setTimeout(boom, 30)">
+
+</body>
+
+</html>

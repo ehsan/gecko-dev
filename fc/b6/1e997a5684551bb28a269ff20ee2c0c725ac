@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+android:id/mainLayout"
+              style="@style/Screen">
+
+    <ProgressBar android:id="@+android:id/progressBar"
+                 style="@android:style/Widget.ProgressBar.Horizontal"
+                 android:layout_width="fill_parent"
+                 android:layout_height="10dip"
+                 android:visibility="gone"/>
+
+    <LinearLayout android:id="@+android:id/addressBar"
+                  style="@style/AddressBar">
+
+        <ImageButton android:id="@+android:id/favicon"
+                     style="@style/AddressBar.ImageButton.Left"
+                     android:src="@drawable/favicon"/>
+
+            <Button android:id="@+android:id/awesomeBar"
+                    style="@style/AddressBar.URL"
+                    android:textColor="#666"/>
+
+             <ImageButton android:id="@+android:id/reload"
+                          style="@style/AddressBar.ImageButton.Right"
+                          android:src="@drawable/reload"/>
+
+    </LinearLayout>
+
+    <RelativeLayout android:id="@+android:id/geckoLayout"
+                    android:layout_width="fill_parent"
+                    android:layout_height="fill_parent"
+                    android:layout_weight="1"/>
+
+ </LinearLayout>

@@ -1,0 +1,10 @@
+
+copyrev: 95141a9a4629da46cfb254bcafc3822a977ead7e
+copy: js/src/trace-test/tests/jaeger/bug582898.js
+
+let(x = "") {
+    x++
+    assertEq(x, 1);
+}
+
+/* Test no assert. */

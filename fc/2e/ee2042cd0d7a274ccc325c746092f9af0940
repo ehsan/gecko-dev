@@ -1,0 +1,14 @@
+
+copyrev: 99f309cbb4bfe356aec8dd689595cc92a6a5eade
+copy: js/src/trace-test/tests/basic/testTypeUnstableForIn.js
+
+function testTypeUnstableForIn() {
+    var a = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16];
+    var x = 0;
+    for (var i in a) {
+        i = parseInt(i);
+        x++;
+    }
+    return x;
+}
+assertEq(testTypeUnstableForIn(), 16);

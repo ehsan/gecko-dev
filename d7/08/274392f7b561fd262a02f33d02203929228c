@@ -1,0 +1,11 @@
+
+copy: testing/mozmill/virtualenv/MANIFEST.in
+copyrev: f15870b62bc45e3d3622e444086f0324b39a4727
+
+recursive-include docs *.txt
+recursive-include scripts *
+recursive-include virtualenv_support *.egg *.tar.gz
+recursive-exclude virtualenv_support *.py
+recursive-exclude docs/_templates *.*
+include virtualenv_support/__init__.py
+include *.py

@@ -1,0 +1,10 @@
+
+copy: content/base/test/file_bug543870_doc.html
+copyrev: ec492e2499189a2bc8578f9467692b0acd128cd2
+
+<!doctype html>
+<html>
+<body>
+<p>This here is a document!</p>
+<img id=img src="file_mozfiledataurl_img.jpg">
+</html>

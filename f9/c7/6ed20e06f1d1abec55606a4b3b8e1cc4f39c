@@ -1,0 +1,30 @@
+
+copy: js/src/xpconnect/crashtests/515726-1.html
+copyrev: 1c5dd7149a382bc9ef10db9f8f636da1f63a0a2e
+
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var frame = document.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
+
+  document.documentElement.appendChild(frame);
+  var framedoc = frame.contentDocument;
+  document.documentElement.removeChild(frame);
+
+  framedoc.removeChild(framedoc.documentElement);
+  framedoc.appendChild(frame);
+
+  try { frame.appendChild(undefined); } catch(e) { }
+
+  document.removeChild(document.documentElement);
+  document.appendChild(frame);
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

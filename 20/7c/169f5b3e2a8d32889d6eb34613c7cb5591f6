@@ -1,0 +1,20 @@
+
+copyrev: 4bc1dc1e1045b6be4f4b627583c482b66a5fa66a
+copy: dom/src/base/crashtests/346381-1.html
+
+<html>
+
+<head>
+</head>
+
+<body onload="window.zoop = document.getElementById('paz');">
+
+<p>Loading this page should not make Firefox leak DOMWindows or documents.</p>
+
+<div id="paz">
+<span onmouseover="6"></span>
+</div>
+
+</body>
+
+</html>

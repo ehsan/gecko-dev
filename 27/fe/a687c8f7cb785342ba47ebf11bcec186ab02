@@ -1,0 +1,6 @@
+
+copy: js/src/xpconnect/tests/unit/component-file.manifest
+copyrev: 538dea7a332084cc2d93c61f78b9fb49b4e25940
+
+component {da332370-91d4-464f-a730-018e14769cab} component-file.js
+contract @mozilla.org/tests/component-file;1 {da332370-91d4-464f-a730-018e14769cab}

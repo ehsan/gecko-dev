@@ -1,0 +1,5 @@
+
+copyrev: ad6d44be3b048bd2770f2ef7c75b1f36d1641b4d
+copy: toolkit/mozapps/extensions/test/xpinstall/corrupt.xpi
+
+This is a corrupt zip file

@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/breakdefault.good
+copyrev: 9f84942a0176bd08ef7650042faf35d1821cc579
+
+foo
+bar
+foo-
+-foo
+scot-free
+foo-bar
+foo-bar-foo-bar

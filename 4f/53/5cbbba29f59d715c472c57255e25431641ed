@@ -1,0 +1,17 @@
+[interfaces.html]
+  type: testharness
+  [URL interface: operation domainToASCII(ScalarValueString)]
+    expected: FAIL
+
+  [URL interface: operation domainToUnicode(ScalarValueString)]
+    expected: FAIL
+
+  [URLSearchParams interface: existence and properties of interface object]
+    expected: FAIL
+
+  [URL interface object length]
+    expected: FAIL
+
+  [URLSearchParams interface object length]
+    expected: FAIL
+

@@ -1,0 +1,12 @@
+
+copyrev: 5c5b0f2e96727f5eae40bd983094af114ef58d0d
+copy: layout/reftests/svg/image/background-image-rect-1svg.html
+
+<html>
+<body>
+  <div style="height: 100px; width: 100px;
+              background-image: -moz-image-rect(url('limeInRed100x100.svg'),
+                                                25,75,75,25)">
+  </div>
+</body>
+</html>

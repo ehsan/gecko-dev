@@ -1,0 +1,17 @@
+
+copy: content/xul/templates/src/crashtests/330010-1.rdf
+copyrev: b73f2d297905adb5a3c908b36eb1ad0924f80095
+
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:s="urn:croczilla:xulsvg1:">
+  <rdf:Description about="urn:root">
+    <s:shapes>
+      <rdf:Bag>
+        <rdf:li>
+          <rdf:Description />
+        </rdf:li>
+      </rdf:Bag>
+    </s:shapes>
+ </rdf:Description>
+</rdf:RDF>

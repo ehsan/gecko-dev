@@ -1,0 +1,17 @@
+
+copy: layout/reftests/svg/image/image-preserveAspectRatio-02-ref.svg
+copyrev: 4a4c0b3628d3989f99e985fa37fc8e2ef47e84bd
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink">
+  <script xlink:href="util.js" type="text/javascript"/>
+  <script>
+    // My corresponding testcase uses an image with preserveAspectRatio
+    // set to "none" via SMIL animation.  So the testcase's final bonus
+    // "defer" grid-entry will end up rendering with that "none" value.
+    var grid = generateSymbolGrid("blueRect10x10.svg#root", 40, 20,
+                                  "none");
+    grid.setAttribute("transform", "translate(10, 10)");
+    document.documentElement.appendChild(grid);
+  </script>
+</svg>

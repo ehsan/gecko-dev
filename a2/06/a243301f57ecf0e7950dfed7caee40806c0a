@@ -1,0 +1,7 @@
+
+copyrev: 55aeebaddfa8aa50658cd7fc250e08cb69238616
+copy: js/src/trace-test/tests/closures/bug540348.js
+
+(function() {
+ for (var [e] = 1 in (eval("for (b = 0; b < 6; ++b) gc()"))) {}
+})()

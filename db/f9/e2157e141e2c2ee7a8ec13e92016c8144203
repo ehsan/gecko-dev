@@ -1,0 +1,16 @@
+
+copy: content/base/crashtests/326865-1.html
+copyrev: bb5686996b934d6b9cda33b3bc360d3f3780cd5c
+
+<html>
+<head>
+<script>
+try {
+  window.getComputedStyle(null, null);
+} catch (e) {
+}
+</script>
+</head>
+<body>
+</body>
+</html>

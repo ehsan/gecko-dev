@@ -1,0 +1,5 @@
+
+copy: content/svg/content/src/crashtests/535691-1.svg
+copyrev: 6727ac814e8f5a7d7480b521bdb1497effa83f82
+
+<svg xmlns="http://www.w3.org/2000/svg"><g transform="10 20"><animateTransform attributeName="transform"/></g></svg>

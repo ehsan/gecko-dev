@@ -1,0 +1,16 @@
+
+copy: content/base/test/xcsp/file_CSP_evalscript_no_CSP_at_all.html
+copyrev: 1c0e7753b888780ecd1217f801db9afcdc56207f
+
+<html>
+  <head>
+    <title>CSP eval script tests: no CSP specified</title>
+    <script type="application/javascript"
+             src="file_CSP_evalscript_no_CSP_at_all.js"></script>
+  </head>
+  <body>
+
+    Foo. See bug 824652
+
+  </body>
+</html>

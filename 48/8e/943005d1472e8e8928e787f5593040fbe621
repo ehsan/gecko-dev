@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin" type="text/css"?>
+<!--
+  XUL Widget Test for the titlebar element and window dragging
+  -->
+<window title="Titlebar" width="200" height="200"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <script type="application/javascript"
+          src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
+
+  <titlebar id="titlebar">
+    <label id="label" value="Titlebar"/>
+  </titlebar>
+
+  <panel id="panel" onpopupshown="popupshown()" onpopuphidden="popuphidden()">
+    <titlebar>
+      <label id="panellabel" value="Titlebar"/>
+    </titlebar>
+  </panel>
+
+  <button id="button" label="OK"/>
+  <statusbar id="statusbar">
+    <statusbarpanel>
+      <label id="statuslabel" value="Status"/>
+      <label id="statuslabelnodrag" value="No Drag" onmousedown="event.preventDefault()"/>
+    </statusbarpanel>
+  </statusbar>
+
+<script>
+<![CDATA[
+
+var SimpleTest = window.opener.wrappedJSObject.SimpleTest;
+
+SimpleTest.waitForFocus(test_titlebar, window);
+
+var mouseDownTarget;
+var origoldx, origoldy, oldx, oldy, waitSteps = 0;
+function waitForWindowMove(element, x, y, callback, arg)
+{
+  var isPanel = (element.id == "panellabel");
+  if (!waitSteps) {
+    oldx = isPanel ? document.getElementById("panel").getBoundingClientRect().left : window.screenX;
+    oldy = isPanel ? document.getElementById("panel").getBoundingClientRect().top : window.screenY;
+    synthesizeMouse(element, x, y, { type: "mousemove" });
+  }
+
+  var newx = isPanel ? document.getElementById("panel").getBoundingClientRect().left : window.screenX; 
+  var newy = isPanel ? document.getElementById("panel").getBoundingClientRect().top : window.screenY; 
+  if (newx == oldx && newy == oldy) {
+    if (waitSteps++ > 10) {
+      SimpleTest.is(window.screenX + "," + window.screenY, oldx + "," + oldy + " ",
+                    "Window never moved properly to " + x + "," + y);
+      window.opener.wrappedJSObject.SimpleTest.finish();
+      window.close();
+    }
+
+    setTimeout(waitForWindowMove, 100, element, x, y, callback, arg);
+  }
+  else {
+    waitSteps = 0;
+    callback(arg);
+  }
+}
+
+function test_titlebar()
+{
+  var titlebar = document.getElementById("titlebar");
+  var label = document.getElementById("label");
+
+  // on Mac, the window can also be moved with the statusbar
+  if (navigator.platform.indexOf("Mac") >= 0) {
+    var statuslabel = document.getElementById("statuslabel");
+    var statuslabelnodrag = document.getElementById("statuslabelnodrag");
+
+    origoldx = window.screenX;
+    origoldy = window.screenY;
+
+    synthesizeMouse(statuslabel, 2, 2, { type: "mousedown" });
+    synthesizeMouse(statuslabel, 22, 22, { type: "mousemove" });
+    SimpleTest.is(window.screenX, origoldx + 20, "move window with statusbar horizontal");
+    SimpleTest.is(window.screenY, origoldy + 20, "move window with statusbar vertical");
+    synthesizeMouse(statuslabel, 22, 22, { type: "mouseup" });
+
+    // event was cancelled so the drag should not have occurred
+    synthesizeMouse(statuslabelnodrag, 2, 2, { type: "mousedown" });
+    synthesizeMouse(statuslabelnodrag, 22, 22, { type: "mousemove" });
+    SimpleTest.is(window.screenX, origoldx + 20, "move window with statusbar cancelled mousedown horizontal");
+    SimpleTest.is(window.screenY, origoldy + 20, "move window with statusbar cancelled mousedown vertical");
+    synthesizeMouse(statuslabelnodrag, 22, 22, { type: "mouseup" });
+  }
+
+  origoldx = window.screenX;
+  origoldy = window.screenY;
+
+  var mousedownListener = function (event) mouseDownTarget = event.originalTarget;
+  window.addEventListener("mousedown", mousedownListener, false);
+  synthesizeMouse(label, 2, 2, { type: "mousedown" });
+  SimpleTest.is(mouseDownTarget, titlebar, "movedown on titlebar");
+  waitForWindowMove(label, 22, 22, test_titlebar_step2, mousedownListener);
+}
+
+function test_titlebar_step2(mousedownListener)
+{
+  var titlebar = document.getElementById("titlebar");
+  var label = document.getElementById("label");
+
+  SimpleTest.is(window.screenX, origoldx + 20, "move window horizontal");
+  SimpleTest.is(window.screenY, origoldy + 20, "move window vertical");
+  synthesizeMouse(label, 22, 22, { type: "mouseup" });
+
+  // with allowEvents set to true, the mouse should target the label instead
+  // and not move the window
+  titlebar.allowEvents = true;
+
+  synthesizeMouse(label, 2, 2, { type: "mousedown" });
+  SimpleTest.is(mouseDownTarget, label, "movedown on titlebar with allowevents");
+  synthesizeMouse(label, 22, 22, { type: "mousemove" });
+  SimpleTest.is(window.screenX, origoldx + 20, "mouse on label move window horizontal");
+  SimpleTest.is(window.screenY, origoldy + 20, "mouse on label move window vertical");
+  synthesizeMouse(label, 22, 22, { type: "mouseup" });
+
+  window.removeEventListener("mousedown", mousedownListener, false);
+
+  document.getElementById("panel").openPopupAtScreen(window.screenX + 50, window.screenY + 60, false);
+}
+
+function popupshown()
+{
+  var panellabel = document.getElementById("panellabel");
+  var panel = document.getElementById("panel");
+  var oldrect = panel.getBoundingClientRect();
+
+  synthesizeMouse(panellabel, 2, 2, { type: "mousedown" });
+  waitForWindowMove(panellabel, 22, 22, popupshown_step2, oldrect);
+}
+
+function popupshown_step2(oldrect)
+{
+  var panel = document.getElementById("panel");
+
+  var newrect = panel.getBoundingClientRect();
+  SimpleTest.is(newrect.left, oldrect.left + 20, "move popup horizontal");
+  SimpleTest.is(newrect.top, oldrect.top + 20, "move popup vertical");
+  synthesizeMouse(document.getElementById("panellabel"), 22, 22, { type: "mouseup" });
+
+  synthesizeMouse(document.getElementById("button"), 5, 5, { type: "mousemove" });
+  newrect = panel.getBoundingClientRect();
+  SimpleTest.is(newrect.left, oldrect.left + 20, "popup horizontal after mouse on button");
+  SimpleTest.is(newrect.top, oldrect.top + 20, "popup vertical after mouse on button");
+
+  panel.hidePopup();
+}
+
+function popuphidden()
+{
+  window.opener.wrappedJSObject.done(window);
+}
+
+]]>
+</script>
+
+</window>

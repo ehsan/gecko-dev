@@ -1,0 +1,20 @@
+
+copyrev: b6e067c29fb34f003fe53f71fafa02b734925fa3
+copy: js/src/trace-test/tests/basic/bug528644.js
+
+// Don't crash
+
+function g(foo) {
+  for (a in foo) {
+  }
+}
+
+var makegen = eval("\n\
+  (function(b) {\n\
+      var h = \n\
+        eval(\"new function() { yield print(b) }\" ); \n\
+    return h\n\
+  })\n\
+");
+
+g(makegen());

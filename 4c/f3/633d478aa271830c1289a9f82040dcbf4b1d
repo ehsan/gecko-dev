@@ -1,0 +1,10 @@
+
+copyrev: c7e43c0a407da078aebb5a601b34a15c82e1e8c1
+copy: js/src/trace-test/tests/jaeger/bug580883.js
+
+// |jit-test| error: invalid sharp variable use #1#
+[] = #1#
+with(7) {
+    var c
+}
+

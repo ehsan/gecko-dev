@@ -1,0 +1,7 @@
+
+copy: browser/devtools/debugger/test/code_ugly.js
+copyrev: f5756c61a60cf0c4b2466524897bcf9481a69ef9
+
+function foo() { var a=1; var b=2; bar(a, b); }
+function bar(c, d) { debugger; }
+foo();

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-space-valid.html
+copyrev: 95ca6d63b5bc45e9eddce516b119b8a6a159ea98
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea autofocus>good nice</textarea>
+  </body>
+</html>

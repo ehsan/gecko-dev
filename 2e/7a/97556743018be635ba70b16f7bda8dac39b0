@@ -1,0 +1,24 @@
+
+copy: addon-sdk/source/data/test-iframe-postmessage.html
+copyrev: 0c6677bc6d13a5d0243c18eff20027085f235d60
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <script>
+    window.addEventListener("message", function(msg) {
+      parent.postMessage(msg.data, "*");
+    });
+
+    parent.postMessage({
+      first: "a string",
+      second: ["an", "array"],
+      third: {an: 'object'}
+    }, '*');
+    </script>
+  </head>
+  <body>
+    <h1>Inner iframe</h1>
+  </body>
+</html>

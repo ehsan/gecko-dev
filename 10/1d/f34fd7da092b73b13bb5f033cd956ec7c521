@@ -1,0 +1,26 @@
+
+copyrev: 01509009c42f42a5f6e3ae529220a7f59ddb128b
+copy: js/src/trace-test/tests/closures/t006.js
+
+actual = '';
+expected = '2,';
+
+function k(f_arg) { 
+  (function() {
+    for (var i = 0; i < 10; ++i) {
+      f_arg();
+    }
+  })();
+}
+
+function t() {
+  var x = 1;
+  k(function () { x = 2; });
+  appendToActual(x);
+}
+
+t();
+
+
+
+assertEq(actual, expected)

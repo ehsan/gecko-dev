@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/ignore.good
+copyrev: cf5bd0117bbdbe082a8b3b6ab2a742b9f6b5073b
+
+example
+expression
+xmpl
+xprssn
+reexpression
+rxprssn

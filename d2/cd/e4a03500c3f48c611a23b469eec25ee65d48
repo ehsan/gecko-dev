@@ -1,0 +1,32 @@
+
+copy: content/xbl/crashtests/460665-1.xhtml
+copyrev: e8d7b5875ba55fc9167f1b287876c0a4147fc27f
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+
+<bindings xmlns="http://www.mozilla.org/xbl">
+  <binding id="a">
+    <content></content>
+    <implementation>
+      <field>t</field>
+      <field/>
+      <property/>
+      <property>
+        <getter>x</getter>
+        <setter>y</setter>
+      </property>
+      <method/>
+      <method>
+        <body/>
+      </method>
+      <method>
+        <body>a</body>
+      </method>
+    </implementation>
+  </binding>
+</bindings>
+</head>
+
+<body><span id="s" style="-moz-binding: url('#a');"></span></body>
+</html>

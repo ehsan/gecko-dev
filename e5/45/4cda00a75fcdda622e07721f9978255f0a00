@@ -1,0 +1,6 @@
+
+copyrev: 229bfb412537f47a67bb4e6948a606c5f21b0716
+copy: js/src/trace-test/tests/basic/bug586499-regexp.js
+
+// Don't crash.
+var re = /^(?:\s*.){0,16}/;

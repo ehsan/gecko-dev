@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug687859-inherit.js
+copyrev: 81423daa7dad401d00aa3dffebd0ef4760a2f12b
+
+var stringFromInheritScript = "¡";

@@ -1,0 +1,14 @@
+
+copy: content/base/crashtests/418928-1.html
+copyrev: 5f5e093b3336f8818ec1824044765607d38a7cbd
+
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body onload="document.execCommand('selectAll', false, null);">
+
+<select><option contenteditable="true">A</option></select>
+
+</body>
+</html>

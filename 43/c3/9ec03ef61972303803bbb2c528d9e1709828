@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/obsolete/004-novalid.html
+copyrev: 5ea3715b4e8b11bc80eab234dc0133eed7ea6fb7
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>the "big" element is obsolete</title>
+<meta charset=utf-8>
+</head>
+<body>
+<big>baz</big>
+</body>
+</html>

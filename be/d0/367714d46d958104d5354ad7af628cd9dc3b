@@ -1,0 +1,11 @@
+
+copy: js/src/xpconnect/crashtests/603858-1.html
+copyrev: 9cf4daccabb396386af17b9d923603c3880d6181
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<script>
+setTimeout(XML, 0);
+setTimeout(function(){document.documentElement.removeAttribute("class");}, 0);
+</script>
+</html>

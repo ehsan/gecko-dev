@@ -1,0 +1,11 @@
+
+copy: content/smil/crashtests/529387-1.xhtml
+copyrev: 0742373687ff070b5aabd521f15282fc6b103c48
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <script>
+    var p = new XMLHttpRequest();
+    p.open("GET", "529387-1-helper.svg", false);
+    p.send();
+  </script>
+</html>

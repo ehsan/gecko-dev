@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/ngram_utf_fix.dic
+copyrev: 3e18a335418db1ca98737e0f6212e559b3fbdfc7
+
+1
+человек/2022,2000,101

@@ -1,0 +1,20 @@
+
+copy: browser/devtools/inspector/test/browser_inspector_bug_958456_highlight_comments.html
+copyrev: 8d0aece7881d739a15695dca4fa18e3fb79f676a
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Inspector Highlighter Test</title>
+</head>
+<body>
+  <p></p>
+  <div id="id1">Visible div 1</div>
+  <!-- Invisible comment node -->
+  <div id="id2">Visible div 2</div>
+  <script type="text/javascript">/*Invisible script node*/</script>
+  <div id="id3">Visible div 3</div>
+  <div id="id4" style="display:none;">Invisible div node</div>
+</body>
+</html>

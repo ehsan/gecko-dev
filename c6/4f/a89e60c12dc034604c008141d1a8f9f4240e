@@ -1,0 +1,5 @@
+
+copy: layout/reftests/css-gradients/linear.html
+copyrev: bb74441abf9ffc518cbea6bfcb2db3c6004661c7
+
+<div style="background: -moz-linear-gradient(left, red 0%, #7777FF 50%, rgb(100, 200, 0) 100%) no-repeat; width: 300px; height: 300px;"><br></div>

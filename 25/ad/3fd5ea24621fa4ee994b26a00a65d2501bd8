@@ -1,0 +1,5 @@
+
+copy: dom/encoding/test/reftest/bug863728-1.html
+copyrev: 194a09e5b46739029a729b71fcc3660e9047fb7a
+
+<meta charset=HZ-GB-2312>

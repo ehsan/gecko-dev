@@ -1,0 +1,8 @@
+
+copy: content/html/content/crashtests/837033.html
+copyrev: 7e8d78aed658ed93ff47d14ef956bb1be66ddd43
+
+<!DOCTYPE html>
+<html>
+<body onload="document.createElement('button').validity.x = null;"></body>
+</html>

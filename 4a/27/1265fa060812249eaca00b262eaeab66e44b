@@ -1,0 +1,14 @@
+
+copy: browser/components/sessionstore/test/browser/browser_597315_index.html
+copyrev: 72885195d66f1bcf259421351ef0b9244426b786
+
+<html>
+  <frameset cols="20%,80%">
+    <frameset rows="30%,70%">
+      <frame src="browser_597315_a.html"/>
+      <frame src="browser_597315_b.html"/>
+    </frameset>
+    <frame src="browser_597315_c.html" name="c"/>
+  </frameset>
+</html>
+

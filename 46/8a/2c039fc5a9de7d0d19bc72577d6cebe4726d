@@ -1,0 +1,9 @@
+
+copy: content/html/content/test/imports/file_encoding.html
+copyrev: 5d39b2dd0462f218a8953ac3e2385c5315dd46a6
+
+<!DOCTYPE html>
+<head>
+<meta charset="EUC-KR">
+</head>
+<body>Ignore my encoding</body>

@@ -1,0 +1,14 @@
+
+copy: mobile/android/base/tests/testSharedPreferences.java.in
+copyrev: 04a6a55df1f2b2aa6f6b671fc666e785ccfa367b
+
+package org.mozilla.gecko.tests;
+
+import org.mozilla.gecko.*;
+
+
+public class testSharedPreferences extends JavascriptTest {
+    public testSharedPreferences() {
+        super("testSharedPreferences.js");
+    }
+}

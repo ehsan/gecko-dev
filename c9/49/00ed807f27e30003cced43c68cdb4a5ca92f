@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-hyphen-invalid-ref.html
+copyrev: bf055a020864315439c81f3bcb8d6a3d75b6dcb8
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea autofocus spellcheck="false">dddf-gggy</textarea>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: browser/themes/winstripe/browser/places/places-aero.css
+copyrev: d8a11231fe9680fdba4660630201d7f5b28a9c15
+
+%include places.css
+
+/* Style Places sidebars as Vista media collection */
+#bookmarksPanel:-moz-system-metric(windows-default-theme),
+#history-panel:-moz-system-metric(windows-default-theme) {
+  background-color: #EEF3FA;
+}
+
+.sidebar-placesTree:-moz-system-metric(windows-default-theme) {
+  background-color: transparent;
+  border-top: none;
+}

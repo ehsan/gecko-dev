@@ -1,0 +1,10 @@
+
+copy: content/canvas/test/webgl/test_list.txt
+copyrev: 3aa8b57842043ad156966dba147292ff9068005b
+
+// files that end in .txt list other tests
+// other lines are assumed to be .html files
+
+conformance/00_testFIXME_list.txt
+more/00_testFIXME_list.txt
+

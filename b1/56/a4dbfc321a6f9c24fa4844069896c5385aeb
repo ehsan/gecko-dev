@@ -1,0 +1,20 @@
+
+copy: layout/base/tests/bug240933-2.html
+copyrev: d55ca285359d0d9ef921a0ff9c0cd48960fd6989
+
+<!DOCTYPE HTML><html><head>
+  <script type="text/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
+</head>
+<body>
+<textarea id="t" rows="4"></textarea>
+<script>
+  var area = document.getElementById('t');
+  area.focus();
+
+  sendKey('ENTER', "t"); // press Enter twice
+  sendKey('ENTER', "t");
+  sendKey('BACK_SPACE', "t"); // press Backspace once
+</script>
+</body>
+</html>

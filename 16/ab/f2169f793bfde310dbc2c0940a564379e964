@@ -1,0 +1,17 @@
+
+copy: browser/devtools/webconsole/test/browser/test-bug-595934-css-parser.html
+copyrev: 7ae4b7dbca6aa5f230972010678d2f0f7a79bf8f
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Web Console test for bug 595934 - category: CSS Parser</title>
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+     <link rel="stylesheet" type="text/css"
+     href="test-bug-595934-css-parser.css">
+  </head>
+  <body>
+    <p>Web Console test for bug 595934 - category "CSS Parser".</p>
+  </body>
+</html>

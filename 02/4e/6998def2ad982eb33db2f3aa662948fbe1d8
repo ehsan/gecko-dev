@@ -1,0 +1,9 @@
+
+copy: testing/mozbase/manifestdestiny/tests/include/foo.ini
+copyrev: 6564343a6b66e2dc3a1b40d6e6dc59df11562455
+
+[DEFAULT]
+blue = ocean
+
+[flowers]
+yellow = submarine

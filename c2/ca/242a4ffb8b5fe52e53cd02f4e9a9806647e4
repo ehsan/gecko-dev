@@ -1,0 +1,12 @@
+
+copy: content/xml/content/crashtest/803586.xhtml
+copyrev: 491d1c885c8d1015cc28facf5154b9d386d1e538
+
+<?xml-stylesheet href="foo.css" ?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+document.firstChild.nodeValue = null
+</script>
+</head>
+</html>

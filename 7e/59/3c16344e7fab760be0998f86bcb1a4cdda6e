@@ -1,0 +1,7 @@
+
+copy: dom/svg/test/animated-svg-image-helper.svg
+copyrev: 86a6f429acd2d8d72e05aeac6b3f4e3e1389e504
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <set attributeName="font-size" to="50"/>
+</svg>

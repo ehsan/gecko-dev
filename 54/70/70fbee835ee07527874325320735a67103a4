@@ -1,0 +1,21 @@
+
+copy: layout/xul/base/src/crashtests/336962-1.xul
+copyrev: fc3ca6c4032df8f5f4e602d362e82947d5e7e20f
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<script>
+
+function init() { 
+  document.getElementById("foopy").style.position = "absolute";   
+}
+
+window.addEventListener("load", init, 0);
+
+</script>
+
+
+<box id="foopy" />
+       
+
+</window>

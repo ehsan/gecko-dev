@@ -1,0 +1,6 @@
+
+copyrev: e422971a87954ff4c29fe1c8a44bb0d3de594287
+copy: js/src/trace-test/tests/jaeger/bug584647.js
+
+(function(){for(j=0;j<3;++j)NaN=42})();
+assertEq(NaN != NaN, true);

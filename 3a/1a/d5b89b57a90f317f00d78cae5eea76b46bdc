@@ -1,0 +1,10 @@
+
+copy: layout/xul/base/src/crashtests/322786-1.xul
+copyrev: db83ea8bb9dbf2d9723ef4fb9dfc64a0d47313ca
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <foo style="display: inline;">
+    <scrollbox/>
+  </foo>
+</window>

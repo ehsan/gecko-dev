@@ -1,0 +1,7 @@
+
+copy: content/html/document/crashtests/285166-1.html
+copyrev: 6ed73d99d1e4e1fbc92aefbe54983686173b38e7
+
+<script>
+document.createElement("#text");
+</script>

@@ -1,0 +1,5 @@
+
+copy: content/base/test/csp/file_self_none_as_hostname_confusion.html^headers^
+copyrev: 2a9b8fb6f99341fea8942c197500859149aa638a
+
+Content-Security-Policy: default-src 'self' SELF;

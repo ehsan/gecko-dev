@@ -1,0 +1,25 @@
+
+copy: content/media/webaudio/test/test_bug894150.html
+copyrev: 8533258a49a0d34130d98527bee9358ffa6fc606
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test whether we can create an AudioContext interface</title>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+<script>
+
+var ac = new AudioContext();
+ac.createPanner();
+var listener = ac.listener;
+SpecialPowers.forceGC();
+SpecialPowers.forceCC();
+listener.setOrientation(0, 0, -1, 0, 0, 0);
+
+ok(true, "No crashes should happen!");
+
+</script>
+</body>

@@ -1,0 +1,6 @@
+
+copy: content/html/content/crashtests/570566-1.html
+copyrev: f5be26f06dbc354932eb211a2fa94828a469388b
+
+<body onload="document.getElementById('i').removeAttribute('type')"><input id=i type=image></body>
+

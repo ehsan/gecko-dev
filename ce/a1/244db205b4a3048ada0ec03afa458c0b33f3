@@ -1,0 +1,6 @@
+
+copy: browser/base/content/test/gZipOfflineChild.cacheManifest
+copyrev: 9de530fcc26dd0da0047b65fedd9d58625f98137
+
+CACHE MANIFEST
+gZipOfflineChild.html

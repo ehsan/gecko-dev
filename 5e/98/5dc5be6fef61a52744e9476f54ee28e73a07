@@ -1,0 +1,13 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-workers.js
+copyrev: 2f8fe3271a36402a94f1c019570cf7687a25b485
+
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+onmessage = function() {
+  fooBarWorker();
+}
+

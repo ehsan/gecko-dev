@@ -1,0 +1,24 @@
+
+copy: layout/reftests/backgrounds/continuous-inline-1-ref.html
+copyrev: 0a2245d6bba978adac2f68c011436836af57a0cd
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      span.b { display: inline-block; height: 20px; }
+    </style>
+  </head>
+  <body>
+    <div>
+      <span style="background: url(blue-16x20-green-8x20.png) no-repeat;">
+        <span class="b" style="width: 24px"></span>
+      </span>
+    </div>
+    <div>
+      <span style="background: url(green-8x20.png) no-repeat;">
+        <span class="b" style="width: 8px"></span>
+      </span>
+    </div>
+  </body>
+</html>

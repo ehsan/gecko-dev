@@ -1,0 +1,344 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* General output styles */
+
+a {
+  -moz-user-focus: normal;
+  -moz-user-input: enabled;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+a:focus {
+  outline: 1px dashed gray;
+}
+
+/* Workaround for Bug 575675 - FindChildWithRules aRelevantLinkVisited
+ * assertion when loading HTML page with links in XUL iframe */
+*:visited { }
+
+.webconsole-timestamp {
+  flex: 0 0 auto;
+  color: GrayText;
+  margin: 4px 0;
+  font-size: 0.9em;
+}
+
+.hud-msg-node {
+  display: flex;
+  -moz-margin-start: 6px;
+  -moz-margin-end: 8px;
+  width: calc(100% - 6px - 8px);
+}
+
+.webconsole-msg-icon {
+  background: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 0, 1, 0, 0) no-repeat;
+  background-position: center 0.3em;
+  flex: 0 0 auto;
+  margin: 0 6px;
+  padding: 0 4px;
+  width: 8px;
+}
+
+.hud-clickable {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.webconsole-msg-body {
+  flex: 1 1 100%;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.webconsole-msg-url {
+  flex: 1 1 auto;
+  min-width: 5em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Repeated messages */
+.webconsole-msg-repeat {
+  -moz-user-select: none;
+  flex: 0 0 auto;
+  margin: 2px 6px;
+  padding: 0 6px;
+  height: 1.25em;
+  color: white;
+  background-color: red;
+  border-radius: 40px;
+  font: message-box;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.webconsole-msg-repeat[value="1"] {
+  display: none;
+}
+
+.webconsole-location {
+  -moz-margin-start: 6px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 10em;
+  text-align: end;
+  color: -moz-nativehyperlinktext;
+  text-overflow: ellipsis;
+  text-decoration: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.webconsole-location:hover,
+.webconsole-location:focus {
+  text-decoration: underline;
+}
+
+.webconsole-mixed-content {
+  color: #FF0000;
+}
+
+.webconsole-mixed-content-link,
+.webconsole-learn-more-link {
+  color: #0000EE;
+  margin: 0 6px;
+}
+
+.jsterm-input-container {
+  background: white;
+}
+
+#output-wrapper {
+  background: #fff;
+  color: #000;
+  direction: ltr;
+  border-bottom: 1px solid ThreeDShadow;
+}
+
+#output-wrapper2 {
+  -moz-user-select: text;
+  -moz-box-flex: 1;
+  overflow: auto;
+  /* Set dimensions to show scroll bars when needed. Actual size is changed by
+   * the flexbox. */
+  width: 1px;
+  height: 1px;
+}
+
+.hud-output-node {
+  display: table;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.hud-filtered-by-type,
+.hud-filtered-by-string {
+  display: none;
+}
+
+.hidden-message {
+  display: block;
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+}
+
+/* WebConsole colored drops */
+
+.webconsole-filter-button {
+  -moz-user-focus: normal;
+}
+
+.webconsole-filter-button[checked] {
+  color: white !important;
+}
+
+.webconsole-filter-button > .toolbarbutton-menubutton-button:before {
+  content: "";
+  display: inline-block;
+  height: 8px;
+  width: 8px;
+  border-radius: 50%;
+  margin-left: 5px;
+  border-width: 1px;
+  border-style: solid;
+}
+
+/* Network styles */
+.webconsole-filter-button[category="net"] > .toolbarbutton-menubutton-button:before {
+  background-image: linear-gradient(#444444, #000000);
+  border-color: #777;
+}
+
+.webconsole-msg-network > .webconsole-msg-icon {
+  -moz-border-start: solid #000 6px;
+}
+
+.webconsole-msg-network.webconsole-msg-error > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 0, 16, 8, 8);
+}
+
+.webconsole-msg-network > .webconsole-msg-body {
+  display: flex;
+}
+
+.webconsole-msg-method {
+  flex: 0 0 auto;
+}
+
+.webconsole-msg-status {
+  flex: 0 0 auto;
+  -moz-margin-start: 6px;
+}
+
+/* CSS styles */
+.webconsole-filter-button[category="css"] > .toolbarbutton-menubutton-button:before {
+  background-image: linear-gradient(#2DC3F3, #00B6F0);
+  border-color: #1BA2CC;
+}
+
+.webconsole-msg-cssparser > .webconsole-msg-icon {
+  -moz-border-start: solid #00b6f0 6px;
+}
+
+.webconsole-msg-cssparser.webconsole-msg-error > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 8, 16, 16, 8);
+}
+
+.webconsole-msg-cssparser.webconsole-msg-warn > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 8, 24, 16, 16);
+}
+
+/* JS styles */
+.webconsole-filter-button[category="js"] > .toolbarbutton-menubutton-button:before {
+  background-image: linear-gradient(#FCB142, #FB9500);
+  border-color: #E98A00;
+}
+
+.webconsole-msg-exception > .webconsole-msg-icon {
+  -moz-border-start: solid #fb9500 6px;
+}
+
+.webconsole-msg-exception.webconsole-msg-error > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 16, 16, 24, 8);
+}
+
+.webconsole-msg-exception.webconsole-msg-warn > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 16, 24, 24, 16);
+}
+
+/* Web Developer styles */
+.webconsole-filter-button[category="logging"] > .toolbarbutton-menubutton-button:before {
+  background-image: linear-gradient(#B9B9B9, #AAAAAA);
+  border-color: #929292;
+}
+
+.webconsole-msg-console > .webconsole-msg-icon {
+  -moz-border-start: solid #cbcbcb 6px;
+}
+
+.webconsole-msg-console.webconsole-msg-error > .webconsole-msg-icon,
+.webconsole-msg-output.webconsole-msg-error > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 24, 16, 32, 8);
+}
+
+.webconsole-msg-console.webconsole-msg-warn > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 24, 24, 32, 16);
+}
+
+.webconsole-msg-console.webconsole-msg-info > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 24, 32, 32, 24);
+}
+
+/* Input and output styles */
+.webconsole-msg-input > .webconsole-msg-icon,
+.webconsole-msg-output > .webconsole-msg-icon {
+  -moz-border-start: solid #808080 6px;
+}
+
+.webconsole-msg-input > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 24, 40, 32, 32);
+}
+
+.webconsole-msg-output > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 24, 48, 32, 40);
+}
+
+/* JSTerm Styles */
+.jsterm-input-node,
+.jsterm-complete-node {
+  border: none;
+  padding: 0 0 0 16px;
+  -moz-appearance: none;
+}
+
+.jsterm-input-node {
+  background: -moz-image-rect(url("chrome://browser/skin/devtools/commandline-icon.png"), 0, 32, 16, 16) no-repeat;
+  background-position: 0%;
+}
+
+:-moz-any(.jsterm-input-node,
+          .jsterm-complete-node) > .textbox-input-box > .textbox-textarea {
+  overflow-x: hidden;
+}
+
+.jsterm-complete-node > .textbox-input-box > .textbox-textarea {
+  color: GrayText;
+}
+
+.webconsole-msg-inspector .webconsole-msg-body {
+  display: flex;
+  flex-direction: column;
+}
+.webconsole-msg-inspector iframe {
+  display: block;
+  flex: 1;
+  margin-bottom: 15px;
+  -moz-margin-end: 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 0 12px #dfdfdf;
+}
+
+#webconsole-sidebar > tabs {
+  height: 0;
+  border: none;
+}
+
+/* Security styles */
+
+.webconsole-msg-security > .webconsole-msg-icon {
+  -moz-border-start: solid red 6px;
+}
+
+.webconsole-filter-button[category="security"] > .toolbarbutton-menubutton-button:before {
+  background-image: linear-gradient(#FF3030, #FF7D7D);
+  border-color: #D12C2C;
+}
+
+.webconsole-msg-security.webconsole-msg-error > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 32, 16, 40, 8);
+}
+
+.webconsole-msg-security.webconsole-msg-warn > .webconsole-msg-icon {
+  background-image: -moz-image-rect(url(chrome://browser/skin/devtools/webconsole.png), 32, 24, 40, 16);
+}
+
+.navigation-marker {
+  color: #aaa;
+  background: linear-gradient(#fff, #bbb, #fff) no-repeat left 50%;
+  background-size: 100% 2px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  font-size: 0.9em;
+}
+
+.navigation-marker .url {
+  background: #fff;
+  -moz-padding-end: 9px;
+  text-decoration: none;
+}

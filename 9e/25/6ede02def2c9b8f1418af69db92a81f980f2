@@ -1,0 +1,11 @@
+
+copyrev: acefddd7b1322ff26f488c491e11f63f0e4a7e96
+copy: layout/reftests/svg/image/border-image-simple-1.html
+
+<html>
+<body>
+  <div style="margin-left: -3px; margin-top: -3px;
+              height: 100px; width: 100px;
+              -moz-border-image: url('lime100x100.svg') 0;"/>
+</body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: content/html/content/reftests/468263-2-ref.html
+copyrev: 97f6b91465e00b5d9c83627d838b09d11fe0acfd
+
+<!DOCTYPE HTML>
+<html>
+<body>
+    <img id="image1" src="">
+    <img id="image2">
+    <input id="image3" type="image">
+    <object id="image4" type="image/png">
+    <object id="image5" type="text/html"></object>
+</body>
+</html>

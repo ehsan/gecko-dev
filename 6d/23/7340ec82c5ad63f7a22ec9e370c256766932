@@ -1,0 +1,14 @@
+[DEFAULT]
+head =
+tail =
+
+[test_dict.js]
+[test_FileUtils.js]
+[test_Preferences.js]
+[test_Promise.js]
+[test_propertyListsUtils.js]
+[test_readCertPrefs.js]
+[test_sqlite.js]
+[test_task.js]
+[test_TelemetryTimestamps.js]
+[test_timer.js]

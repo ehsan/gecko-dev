@@ -1,0 +1,26 @@
+
+copy: content/html/content/test/file_fullscreen-denied-inner.html
+copyrev: 954b4e27c9fa6a645bb5fb3d3a9c1bb2805c1134
+
+<html>
+  <body onload='foo();'>
+  <script>
+    function foo() {
+      document.addEventListener('mozfullscreenerror',
+        function() {
+          parent.ok(true, "Request from an iframe without allowfullscreen should be denied");
+          parent.finish();
+        },
+        false);
+      document.addEventListener('mozfullscreenchange',
+        function() {
+          parent.ok(false, "Request from an iframe without allowfullscreen should be denied, but was granted!");
+          parent.finish();
+        },
+        false);
+      parent.is(document.mozFullScreenEnabled, false, "Full-screen should not be enabled, coz allowfullscreen isn't present.");
+      document.body.mozRequestFullScreen();    
+    }
+  </script>
+  </body>
+</html>

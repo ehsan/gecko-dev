@@ -1,0 +1,58 @@
+# -*- Mode: python; -*-c
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0./
+
+list_classes = [
+    {
+        'name': 'NodeList',
+        'nativeClass': 'nsINodeList'
+    },
+    {
+        'name': 'PropertyNodeList',
+        'nativeClass': 'mozilla::dom::PropertyNodeList'
+    },
+    {
+        'name': 'HTMLCollection',
+        'nativeClass': 'nsIHTMLCollection'
+    },
+    {
+        'name': 'HTMLOptionsCollection',
+        'nativeClass': 'nsHTMLOptionCollection'
+    },
+    {
+        'name': 'HTMLPropertiesCollection',
+        'nativeClass': 'mozilla::dom::HTMLPropertiesCollection'
+    }
+]
+
+prefableClasses = {
+    'DOMTokenList': 'nsDOMTokenList',
+    'DOMSettableTokenList': 'nsDOMSettableTokenList',
+    'ClientRectList': 'nsClientRectList',
+    'PaintRequestList': 'nsPaintRequestList',
+    'TouchList': 'nsDOMTouchList',
+    'FileList': 'nsDOMFileList',
+    'SVGLengthList': 'mozilla::DOMSVGLengthList',
+    'SVGNumberList': 'mozilla::DOMSVGNumberList',
+    'SVGPathSegList': 'mozilla::DOMSVGPathSegList',
+    'SVGPointList': 'mozilla::DOMSVGPointList',
+    'SVGTransformList': 'mozilla::DOMSVGTransformList',
+    }
+
+irregularFilenames = {
+    'nsHTMLOptionCollection': 'nsHTMLSelectElement',
+    'mozilla::dom::PropertyNodeList': 'HTMLPropertiesCollection',
+    'nsClientRectList': 'nsClientRect',
+    'nsPaintRequestList': 'nsPaintRequest',
+    'nsIDOMTouch': 'nsIDOMTouchEvent',
+    'nsIDOMTouchList': 'nsIDOMTouchEvent',
+    'nsDOMTouchList': 'nsDOMTouchEvent',
+    'nsDOMFileList': 'nsDOMFile',
+    }
+
+customInheritance = {
+    'nsIDOMPropertyNodeList': 'nsIDOMNodeList',
+    'nsIDOMHTMLOptionsCollection': 'nsIDOMHTMLCollection',
+    'nsIDOMHTMLPropertiesCollection': 'nsIDOMHTMLCollection',
+    }

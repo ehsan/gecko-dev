@@ -1,0 +1,10 @@
+
+copyrev: 02d5a668c3851a2d641770b1f3af2ddac05c7303
+copy: js/src/trace-test/tests/closures/closure-tests.js
+
+actual = '';
+expected = '';
+
+
+
+assertEq(actual, expected)

@@ -1,0 +1,5 @@
+
+copy: mobile/android/sync/preprocess-sources.mn
+copyrev: 89430577d64b09c801a5daffae4744506b7d73a2
+
+sync/GlobalConstants.java

@@ -1,0 +1,10 @@
+
+copy: content/canvas/test/android.json
+copyrev: ff8c6e646f3cc3ca9d3f2ca2ee9687f9a46f4860
+
+{
+  "runtests": {},
+  "excludetests": {
+      "dom/canvas/test/webgl/test_webgl_conformance_test_suite.html": ""
+  }
+}

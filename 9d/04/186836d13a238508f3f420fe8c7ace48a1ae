@@ -1,0 +1,11 @@
+
+copyrev: e89d3bb0630d78b8f65738d45baccc4d2cd4e4b0
+copy: js/src/trace-test/tests/basic/testContinueWithLabel2.js
+
+outer:
+for (var i = 10; i < 19; i++)
+    for (var j = 0; j < 9; j++)
+        if (j < i)
+            continue outer;
+
+checkStats({recorderStarted: 3, recorderAborted: 1, traceCompleted: 2});

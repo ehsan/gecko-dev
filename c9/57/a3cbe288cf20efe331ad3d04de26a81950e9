@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/i58202.dic
+copyrev: 2e31c1089dcfbf2d98d4b0e8fce224f2714738e1
+
+4
+foo
+bar
+Baz
+Boo

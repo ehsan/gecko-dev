@@ -1,0 +1,16 @@
+
+copy: js/src/jit-test/tests/parallelarray/bug853555.js
+copyrev: 9b53e8a0ffb6326150935e2dd3162f0e2e47c174
+
+function test() {
+  Object.prototype[0] = /a/;
+  function getterFunction(v) { return "getter"; }
+  Object.defineProperty(Array.prototype, 1, { get: getterFunction });
+  gczeal(4);
+  var p = new ParallelArray([1,2,3,4,5]);
+  p.scatter([0,1,0,3,01], 9, function (a,b) { return a+b; });
+}
+
+if (getBuildConfiguration().parallelJS)
+  test();
+

@@ -1,0 +1,20 @@
+
+copy: dom/imptests/html/html/dom/documents/dom-tree-accessors/document.getElementsByName/test_document.getElementsByName-id.html
+copyrev: cb9a0b770ffeb9a570ae28ad42c2b1308e1364f9
+
+<!DOCTYPE html>
+<title>getElementsByName and ids</title>
+<link rel="author" title="Ms2ger" href="mailto:ms2ger@gmail.com">
+<link rel="help" href="http://www.whatwg.org/html5/#dom-document-getelementsbyname">
+<link rel="stylesheet" href="/resources/testharness.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="log"></div>
+<div id="test">
+<div id="abcd"></div>
+</div>
+<script>
+test(function() {
+  assert_equals(document.getElementsByName("abcd").length, 0);
+});
+</script>

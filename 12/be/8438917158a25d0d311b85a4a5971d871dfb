@@ -1,0 +1,14 @@
+
+copy: content/canvas/test/file_drawWindow_source.html
+copyrev: 8f940d36e018e7eb10edc378d5ba5111623bf113
+
+<!DOCTYPE HTML>
+<style>
+
+html, body { margin: 0; padding: 0 }
+div { display: inline-block; margin: 10px; width: 20px; height: 20px }
+
+</style
+><div style="background: fuchsia"></div
+><div style="background: aqua"></div
+><div style="background: yellow"></div>

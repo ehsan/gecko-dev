@@ -1,0 +1,19 @@
+
+copy: content/svg/content/src/crashtests/880544-2.svg
+copyrev: b7a7d13a18897ca04a7a1a01609d93142eeaa36f
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <script>//<![CDATA[
+
+function add_watch()
+{
+  document.getElementById("e").x.baseVal.watch("0", function(){});
+}
+
+window.addEventListener("load", add_watch, false);
+
+  //]]></script>
+
+  <text id="e" x="10">foo</text>
+
+</svg>

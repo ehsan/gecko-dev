@@ -1,0 +1,5 @@
+
+copyrev: 54789ef4b4887a92bdd0439132a1e415764ffb1b
+copy: xpinstall/tests/corrupt.xpi
+
+This is a corrupt zip file

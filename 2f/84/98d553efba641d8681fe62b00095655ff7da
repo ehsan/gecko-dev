@@ -1,0 +1,11 @@
+
+copy: layout/reftests/forms/input/range/input-range-direction-unthemed-1.html
+copyrev: 1c11b5f23eddfb4ad9ce9ea94a297613335fb8fd
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: that direction:rtl behaves correctly -->
+  <body>
+    <input type='range' value=70 style="-moz-appearance:none; direction:rtl;">
+  </body>
+</html>

@@ -1,0 +1,22 @@
+
+copy: content/xml/content/crashtest/420429.xul
+copyrev: fac594d101cefa9af3c26a60967c4e70a0acb8c0
+
+<?xml version="1.0"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        onload="boom();">
+
+<?xml-stylesheet?>
+
+<script type="text/javascript">
+
+function boom()
+{
+  window.addEventListener("DOMCharacterDataModified", function(){}, false);
+  document.documentElement.cloneNode(true).getElementsByTagName("*").length;
+}
+
+</script>
+
+</window>

@@ -1,0 +1,17 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<style>
+div {
+  width: 500px;
+  height: 100px;
+  opacity: 0.999;
+  background: lime;
+  border: 1px solid black;
+}
+</style>
+</head>
+<body>
+<div></div>
+</body>
+</html>

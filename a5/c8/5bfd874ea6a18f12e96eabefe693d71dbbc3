@@ -1,0 +1,18 @@
+
+copy: content/html/content/test/forms/submit_invalid_file.sjs
+copyrev: 95bbe508c207e83c3e64f1be8005fd5312823b85
+
+function handleRequest(request, response)
+{
+  response.setStatusLine(request.httpVersion, 200, "Ok");
+  response.setHeader("Content-Type", "text/html");
+  response.setHeader("Cache-Control", "no-cache");
+
+  var result = {};
+  request.bodyInputStream.search("testfile", true, result, {});
+  if (result.value) {
+    response.write("SUCCESS");
+  } else {
+    response.write("FAIL");
+  }
+}

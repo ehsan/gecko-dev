@@ -1,0 +1,27 @@
+
+copy: dom/imptests/html/html/dom/documents/dom-tree-accessors/test_document.head-01.html
+copyrev: d94da5fdd137696ae6e22b6f1fe05dcb46cc19c9
+
+<!DOCTYPE html>
+<title>document.head</title>
+<link rel="author" title="Ms2ger" href="mailto:ms2ger@gmail.com">
+<link rel="help" href="http://www.whatwg.org/html5/#dom-document-head">
+<link rel="stylesheet" href="/resources/testharness.css">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id="log"></div>
+<script>
+test(function() {
+  var head = document.getElementsByTagName("head")[0];
+  assert_equals(document.head, head);
+  document.head = "";
+  assert_equals(document.head, head);
+  document.head = document.createElement("head");
+  assert_equals(document.head, head);
+  document.documentElement.appendChild(document.createElement("head"));
+  assert_equals(document.head, head);
+  var head2 = document.createElement("head");
+  document.documentElement.insertBefore(head2, head);
+  assert_equals(document.head, head2);
+});
+</script>

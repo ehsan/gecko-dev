@@ -1,0 +1,10 @@
+
+copy: mobile/branding/unofficial/android-resources.mn
+copyrev: 9f882b05e922e023792b9c1c4f74022b4554529a
+
+mobile/android/app/android/drawable/alertaddons.png
+mobile/android/app/android/drawable/alertdownloads.png
+mobile/android/branding/unofficial/content/splash.png
+mobile/android/branding/unofficial/content/splash_v9.9.png
+mobile/android/branding/unofficial/content/splash_v8.9.png
+mobile/android/branding/unofficial/content/favicon32.png

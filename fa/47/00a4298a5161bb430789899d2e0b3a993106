@@ -1,0 +1,25 @@
+
+copyrev: 068d1bc98a82286d26360e24b279f63018642fd0
+copy: js/src/trace-test/tests/basic/testLoopingAccumulator.js
+
+function addAccumulations(f) {
+  var a = f();
+  var b = f();
+  return a() + b();
+}
+
+function loopingAccumulator() {
+  var x = 0;
+  return function () {
+    for (var i = 0; i < 10; ++i) {
+      ++x;
+    }
+    return x;
+  }
+}
+
+function testLoopingAccumulator() {
+    var x = addAccumulations(loopingAccumulator);
+    return x;
+}
+assertEq(testLoopingAccumulator(), 20);

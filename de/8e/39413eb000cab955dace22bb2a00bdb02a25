@@ -1,0 +1,11 @@
+
+copy: other-licenses/branding/firefox/locales/jar.mn
+copyrev: 498064b9b7aec653a0286201e5b9af6f38a969cc
+
+#filter substitution
+
+@AB_CD@.jar:
+% locale branding @AB_CD@ %locale/branding/
+  locale/branding/brand.dtd        (%brand.dtd)
+* locale/branding/brand.properties (%brand.properties)
+* locale/branding/browserconfig.properties (browserconfig.properties)

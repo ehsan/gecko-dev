@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix.good
+copyrev: 126775324a4553161b5bfa0c68bf458bdbbc923b
+
+bar
+foos
+barfoos

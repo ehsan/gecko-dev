@@ -1,0 +1,5 @@
+
+copyrev: 6a6bbdcddebe816c4285c2eec00892d15dfcf1b7
+copy: dom/src/json/test/fail9.json
+
+{"Extra comma": true,}

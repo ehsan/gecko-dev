@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/flag.good
+copyrev: d0c8eda804db6160d67392c7d2d428c4a0c18c21
+
+foo
+foos
+foosbar
+foosbaz
+unfoo
+unfoos
+unfoosbar
+unfoosbaz

@@ -1,0 +1,9 @@
+
+copy: layout/xul/crashtests/433296-1.xul
+copyrev: ea6e861a897c665facc17d75299c86387defa561
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<hbox><listboxbody><listheader/><hbox><iframe/></hbox></listboxbody><tabpanels><tabpanels/></tabpanels></hbox>
+
+</window>

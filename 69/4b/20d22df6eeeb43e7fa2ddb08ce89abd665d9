@@ -1,0 +1,17 @@
+
+copy: content/html/content/reftests/autofocus/input-load.html
+copyrev: a792af1deb4edbf4b21b458e05af5c893014f821
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <script>
+    function focusHandler()
+    {
+      document.documentElement.removeAttribute('class');
+    }
+  </script>
+  <body>
+    <input><input autofocus onfocus="focusHandler();"><input autofocus onfocus="focusHandler();">
+  </body>
+</html>

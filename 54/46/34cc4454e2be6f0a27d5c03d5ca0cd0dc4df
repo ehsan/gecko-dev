@@ -1,0 +1,10 @@
+
+copy: security/coreconf/SCOOS5.0.mk
+copyrev: ae1b1a83b51d897001c3a94ded493a2cec7c94b3
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+include $(CORE_DEPTH)/coreconf/SCO_SV3.2.mk

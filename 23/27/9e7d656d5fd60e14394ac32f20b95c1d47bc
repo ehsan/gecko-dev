@@ -1,0 +1,21 @@
+
+copy: editor/composer/src/crashtests/428844-1.html
+copyrev: 9a0dff2d3d18152b56428a64b785591371e65367
+
+<html class="reftest-wait">
+<head>
+<script>
+function boom() {
+  var iframe = document.getElementById('inner');
+  iframe.addEventListener("load", function() {
+    document.documentElement.removeAttribute("class");
+  }, false);
+  iframe.src = "data:text/html,";
+  dump("Outer onload\n");
+}
+</script>
+</head>
+<body onload="boom()">
+<iframe src="428844-1-inner.xhtml" id="inner"></iframe>
+</body>
+</html>

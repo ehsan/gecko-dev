@@ -1,0 +1,18 @@
+
+copy: content/smil/crashtests/690994-1.svg
+copyrev: 1fca2b2d6f409d491675ca77e06e19afa99a1109
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="reftest-wait">
+<script>
+<![CDATA[
+function boom()
+{
+  document.documentElement.removeChild(document.getElementById("a"));
+  document.documentElement.removeAttribute("class");
+}
+]]>
+</script>
+<animate id="a" begin="a.end; -0.1s" end="a.begin+0.2s" onend="boom()"/>
+<animate id="a" begin="a.end; -0.1s" end="a.begin+0.2s"/>
+</svg>

@@ -1,0 +1,13 @@
+
+copy: content/html/content/crashtests/862084.html
+copyrev: 8f028fdca4c06f31adcc2c35df5b13762449eeba
+
+<!doctype html>
+<select></select>
+<script>
+var select = document.getElementsByTagName("select");
+select.item(0);
+select[0];
+select.namedItem("x")
+select["x"]
+</script>

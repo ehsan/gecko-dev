@@ -1,0 +1,8 @@
+
+copy: browser/devtools/debugger/test/blackboxing_three.js
+copyrev: ea7a080d100e0d22d4d6098e0ea15c3c8e4feada
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function three() { doDebuggerStatement(); }

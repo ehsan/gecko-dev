@@ -1,0 +1,17 @@
+
+copy: content/html/document/reftests/bug448564-1_ideal.html
+copyrev: f7be25602a6ccb2ced44f517ce170ae0cc83b04b
+
+<html>
+<head>
+  <link rel="stylesheet" type="text/css"
+        href="bug448564_forms.css">
+  </link>
+</head>
+<body>
+  <i><b>
+    <form>a</form>
+    <form>b</form>
+  </b></i>
+</body>
+</html>

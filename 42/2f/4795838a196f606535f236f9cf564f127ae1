@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-ui-invalid/default-style/input.html
+copyrev: 84da004cc3c4fa8bad88bcab65ecb72279d57a64
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <script>
+    function onloadHandler()
+    {
+      document.getElementById('e').setCustomValidity('foo');
+      document.getElementById('e').focus();
+    }
+  </script>
+  <body onload="onloadHandler();">
+    <input id='e' onfocus="document.documentElement.className='';">
+  </body>
+</html>

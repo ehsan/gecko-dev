@@ -1,0 +1,10 @@
+
+copy: media/libyuv/util/Makefile
+copyrev: 93f2df574065dfbd4da800ef1082d21d15a0d60c
+
+psnr: psnr.cc ssim.cc psnr_main.cc
+ifeq ($(CXX),icl)
+	$(CXX) /arch:SSE2 /Ox /openmp psnr.cc ssim.cc psnr_main.cc
+else
+	$(CXX) -msse2 -O3 -fopenmp -static -o psnr psnr.cc ssim.cc psnr_main.cc -Wl,--strip-all
+endif

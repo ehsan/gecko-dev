@@ -1,0 +1,26 @@
+
+copyrev: a02b0f80597fb224ff709254772bf3fe9d54501d
+copy: js/src/trace-test/tests/basic/testCaseTypeMismatchBadness.js
+
+function testCaseTypeMismatchBadness()
+{
+  for (var z = 0; z < 3; ++z)
+  {
+    switch ("")
+    {
+      default:
+      case 9:
+        break;
+
+      case "":
+      case <x/>:
+        break;
+    }
+  }
+
+  return "no crash";
+}
+assertEq(testCaseTypeMismatchBadness(), "no crash");
+checkStats({
+    recorderAborted: 0
+});

@@ -1,0 +1,13 @@
+
+copy: layout/reftests/transform-3d/scale3d-all-separate.html
+copyrev: 5087f23dbf602404d79acc66fb0bdad453771c92
+
+<html>
+<head>
+</head>
+<body>
+  <div style="-moz-transform: scaleX(2) scaleY(2); -moz-transform-origin: 0 0; width: 100px; height: 100px;">
+    Test Text
+  </div>
+</body>
+</html>

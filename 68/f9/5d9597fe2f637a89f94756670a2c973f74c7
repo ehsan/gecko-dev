@@ -1,0 +1,28 @@
+
+copy: layout/reftests/flexbox/flexbox-dyn-changeFrameWidth-4-iframe.html
+copyrev: 5d6547e8eed2aa4b6fa8487020427974b6e373a9
+
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0;
+      }
+      .outerContainer {
+        display: flex;
+        height: 100px;
+        background-color: red;
+      }
+      .innerContainer {
+        display: flex;
+        flex: 1;
+        background-color: lime;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="outerContainer">
+      <div class="innerContainer"></div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+
+copy: content/canvas/test/webgl-mochitest/moz.build
+copyrev: 0a58248554e0c1adcbf4f9d2ee04fea5b834275b
+
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+MOCHITEST_MANIFESTS += [
+    'mochitest.ini',
+]

@@ -1,0 +1,26 @@
+
+copy: js/src/xpconnect/crashtests/386680-1.html
+copyrev: e976eedf7be62a1a7e3cc05283d5b7ff4651a5a2
+
+<!DOCTYPE HTML>
+<html>
+<head>
+
+<script>
+
+function boom()
+{
+  o = {};
+  o.__proto__ = o.constructor;
+  p = o.constructor.prototype;
+  p.__proto__ = window;
+  null.__proto__ = {};
+}
+
+</script>
+</head>
+
+<body onload="boom()">
+
+</body>
+</html>

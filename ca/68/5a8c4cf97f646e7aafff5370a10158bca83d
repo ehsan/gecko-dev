@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule.dic
+copyrev: e1819538c2b589bd2b663e1e540fa8b7f2c6b87d
+
+3
+a/A
+b/B
+c/BC
+

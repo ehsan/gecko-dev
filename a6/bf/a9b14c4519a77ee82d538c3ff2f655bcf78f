@@ -1,0 +1,6 @@
+
+copyrev: da0df73308addec662b8b0aa89eb6b1ed151c1b1
+copy: js/src/trace-test/tests/jaeger/modWithConstLhs.js
+
+// |jit-test| error: ReferenceError;
+7%s;

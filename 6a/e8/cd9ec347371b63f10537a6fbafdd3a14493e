@@ -1,0 +1,21 @@
+
+copy: gfx/thebes/crashtests/385423-2.html
+copyrev: ee39e89d9badc7884789fb29e612f4685791f3d0
+
+<html class="reftest-wait">
+<head>
+<script>
+function boom()
+{
+  var div = document.getElementById("div")
+  div.appendChild(document.createTextNode(String.fromCharCode(0x076F) + String.fromCharCode(13) + String.fromCharCode(0x076F)));
+
+  document.documentElement.removeAttribute("class");
+} 
+</script>
+
+</head>
+<body onload="setTimeout(boom, 10);">
+<div style="text-transform: lowercase" id="div"></div>
+</body>
+</html>

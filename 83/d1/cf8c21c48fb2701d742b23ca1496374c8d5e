@@ -1,0 +1,5 @@
+
+copy: content/base/test/csp/file_bug886164_2.html^headers^
+copyrev: 0b98f22de8e9ce875791f9f874448001347d36b5
+
+Content-Security-Policy: default-src 'self'

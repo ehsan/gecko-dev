@@ -1,0 +1,5 @@
+
+copy: content/html/content/test/file_iframe_sandbox_pass.js
+copyrev: 50494436c0868e49a444bf4297e58077e1e95feb
+
+ok(true, "documents sandboxed with allow-scripts should be able to run <script src=...>");

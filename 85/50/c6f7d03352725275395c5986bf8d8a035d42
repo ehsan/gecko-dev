@@ -1,0 +1,18 @@
+
+copy: content/html/document/test/bug199692-nested-d2.html
+copyrev: 4c3a0905086fb0172d9d7cc8abe4006042e1b19a
+
+<!DOCTYPE html>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=199692
+-->
+<head>
+  <title>Nested, nested iframe for bug 199692 tests</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<body>
+    <div id="nest2div" style="border: 2px dotted blue;">nested, depth 2</div>
+</body>
+</html>
+

@@ -1,0 +1,13 @@
+
+copyrev: 74288229a494729d1a62e3f8176dad27eac8d446
+copy: js/src/trace-test/tests/jaeger/bug595921.js
+
+/* Don't assert. */
+x = <x/>
+function f(aaa) {
+    aaa.e = x
+}
+for each(let c in [x, x, x]) {
+    f(c)
+}
+assertEq(0,0);

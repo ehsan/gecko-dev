@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/textarea/textarea-dyn-readonly.html
+copyrev: a8f60babb70044c15c81cf554a7ef22378a62042
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if textarea is readonly, it is barred from constraint validation
+             and should not be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('t').readOnly='ro'; document.documentElement.className='';">
+    <textarea class='notvalid' id='t'></textarea>
+  </body>
+</html>

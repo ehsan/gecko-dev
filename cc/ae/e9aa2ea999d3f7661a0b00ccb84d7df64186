@@ -1,0 +1,48 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "domstubs.idl"
+#include "nsISupports.idl"
+
+[scriptable, uuid(fd1f9efa-3d6c-11e4-a7be-e3b99e7f903b)]
+interface nsICellBroadcastListener : nsISupports
+{
+  /**
+   * Called when a Cell Broadcast message has been received by the network.
+   */
+  void notifyMessageReceived(in unsigned long aServiceId,
+                             in DOMString aGsmGeographicalScope,
+                             in unsigned short aMessageCode,
+                             in unsigned short aMessageId,
+                             in DOMString aLanguage,
+                             in DOMString aBody,
+                             in DOMString aMessageClass,
+                             in DOMTimeStamp aTimestamp,
+                             in unsigned long aCdmaServiceCategory,
+                             in boolean aHasEtwsInfo,
+                             in DOMString aEtwsWarningType,
+                             in boolean aEtwsEmergencyUserAlert,
+                             in boolean aEtwsPopup);
+};
+
+/**
+ * XPCOM component that provides the cell broadcast information.
+ */
+[scriptable, uuid(05099b34-21f7-11e4-b3b9-1b1b03487cab)]
+interface nsICellBroadcastService : nsISupports
+{
+  /**
+   * Attribute CdmaServiceCategory is only valid in CDMA network.
+   * Set to CDMA_SERVICE_CATEGORY_INVALID if received from GSM/UMTS network.
+   */
+  const unsigned long CDMA_SERVICE_CATEGORY_INVALID = 0xFFFFFFFF;
+
+  /**
+   * Called to register receiving cellbroadcast messages.
+   *
+   * 'cellbroadcast' permission is required for registration/unregistration.
+   */
+  void registerListener(in nsICellBroadcastListener listener);
+  void unregisterListener(in nsICellBroadcastListener listener);
+};

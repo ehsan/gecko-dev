@@ -1,0 +1,14 @@
+
+copyrev: 18862ffc6dab76a7c5b1b980ba167d355412ee0d
+copy: js/src/trace-test/tests/jaeger/bug563000/eif-trap.js
+
+setDebug(true);
+
+function nop(){}
+function caller(obj) {
+  assertJit();
+  var x = "failure";
+  return x;
+}
+trap(caller, 14, "x = 'success'; nop()");
+assertEq(caller(this), "success");

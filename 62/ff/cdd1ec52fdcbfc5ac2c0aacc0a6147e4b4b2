@@ -1,0 +1,22 @@
+
+copy: memory/replace/dmd/test/full-heap-empty-expected.txt
+copyrev: c5e9c15711fa51329ecb5354c77a97f031a0a1e6
+
+#-----------------------------------------------------------------
+# dmd.py --filter-stacks-for-testing -o full-empty-live-actual.txt full-empty-live.json
+
+Invocation {
+  $DMD = '--mode=live --sample-below=1'
+  Sample-below size = 1
+}
+
+#-----------------------------------------------------------------
+
+# no live heap blocks
+
+#-----------------------------------------------------------------
+
+Summary {
+  Total: 0 bytes in 0 blocks
+}
+

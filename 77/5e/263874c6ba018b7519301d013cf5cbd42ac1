@@ -1,0 +1,25 @@
+
+copy: media/libyuv/all.gyp
+copyrev: a71054d13d432fe66579fa4e439af268a81b4c85
+
+# Copyright 2013 The LibYuv Project Authors. All rights reserved.
+#
+# Use of this source code is governed by a BSD-style license
+# that can be found in the LICENSE file in the root of the source
+# tree. An additional intellectual property rights grant can be found
+# in the file PATENTS. All contributing project authors may
+# be found in the AUTHORS file in the root of the source tree.
+
+# all.gyp and All target are for benefit of android gyp build.
+{
+  'targets': [
+    {
+      'target_name': 'All',
+      'type': 'none',
+      'dependencies': [
+        'libyuv.gyp:*',
+        'libyuv_test.gyp:*',
+      ],
+    },
+  ],
+}

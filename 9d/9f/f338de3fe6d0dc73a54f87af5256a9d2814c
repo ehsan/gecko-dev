@@ -1,0 +1,14 @@
+
+copyrev: 90a88b4923909865ee0b03e105cc6fdce48450a9
+copy: js/src/trace-test/tests/basic/testNegativeArrayLength.js
+
+function f() {
+    try {
+	for ( var i = 1; i > -2; i-- )
+	    new Array(i).join('*');
+    } catch (e) {
+	return e instanceof RangeError;
+    }
+    return false;
+}
+assertEq(f(), true);

@@ -1,0 +1,12 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/resources/samplerUniformShader.frag
+copyrev: ec55fa48215be4b50eb904a9e7e64ea6929998eb
+
+precision mediump float;
+uniform sampler2D s2D;
+uniform samplerCube sCube;
+void main()
+{
+    gl_FragColor = texture2D(s2D, vec2(0.5, 0.5)) +
+                   textureCube(sCube, vec3(0.5, 0.5, 0.5));
+}

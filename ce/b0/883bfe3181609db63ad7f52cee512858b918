@@ -1,0 +1,7 @@
+
+copyrev: 04e6af428644dbd220d22c2332e3308bcde4a56f
+copy: layout/reftests/svg/image/lime100x100-noSVGDimensions.svg
+
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1">
+  <rect width="100" height="100" fill="lime"/>
+</svg>

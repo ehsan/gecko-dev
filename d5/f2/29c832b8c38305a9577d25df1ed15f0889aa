@@ -1,0 +1,24 @@
+
+copy: layout/reftests/svg/as-image/img-widthAndHeight-slice-1.html
+copyrev: 75a9e480dabeb42f90d6b24e1574877d2c324c3a
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <link rel="stylesheet" type="text/css" href="svg-image-util.css" />
+  <script src="svg-image-util.js"></script>
+</head>
+<body>
+  <script>
+      var svgParams = {
+        viewBox:  null,
+        height :  "2em", // 20px
+        width :   "2em", // 20px
+        meetOrSlice: "slice"
+      };
+
+      appendSVGArrayWithParams(svgParams, "img");
+  </script>
+  <!-- Body gets populated by script -->
+</body>
+</html>

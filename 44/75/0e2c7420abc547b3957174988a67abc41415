@@ -1,0 +1,15 @@
+
+copy: layout/xul/crashtests/376137-2.html
+copyrev: 222f6c77471e1f2576cbaae4a67dda2b53dd5630
+
+<!DOCTYPE html>
+<title>Bug 376137</title>
+<style>
+p { width: 100%; border: solid 1px;}
+</style>
+
+<div style="display: -moz-inline-grid">
+  <div><p>M</p></div>
+  <div><p>N</p></div>
+</div>
+

@@ -1,0 +1,7 @@
+
+copy: media/webrtc/trunk/src/modules/audio_conference_mixer/OWNERS
+copyrev: a7236d07cce00025aafa65e981e4ef942a0ad906
+
+henrike@webrtc.org
+pwestin@webrtc.org
+andrew@webrtc.org

@@ -1,0 +1,15 @@
+
+copyrev: 2151285a478deafb4b3dc58efbfcdf7f4ed19899
+copy: js/src/trace-test/tests/basic/arith.js
+
+// |jit-test| TMFLAGS: full,fragprofile,treevis
+
+function arith()
+{
+  var accum = 0;
+  for (var i = 0; i < 100; i++) {
+    accum += (i * 2) - 1;
+  }
+  return accum;
+}
+assertEq(arith(), 9800);

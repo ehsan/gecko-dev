@@ -1,0 +1,5 @@
+
+copyrev: 4780dbb887918ae5a157e20ae9ea35224ee48931
+copy: dom/src/json/test/fail10.json
+
+{"Extra value after close": true} "misplaced quoted value"

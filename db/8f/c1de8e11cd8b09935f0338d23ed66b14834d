@@ -1,0 +1,15 @@
+
+copyrev: b4a2f48fa37e5007b4d870b852a0a662f47f1a19
+copy: js/src/trace-test/tests/jaeger/bug590083.js
+
+eval("\
+  (function(){\
+    for(var w in [0]) {\
+     function w(){}\
+     print(w)\
+    }\
+  })\
+")()
+
+/* Don't crash. */
+

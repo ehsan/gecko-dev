@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dta/test_document.body-getter-frameset-and-body.html.json
+copyrev: b8e8c97da7f3ad7a342c9092fdc459612b7345c4
+
+{
+  "document.body and framesets": true
+}

@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-valid/input/input-url-invalid.html
+copyrev: 276d47d8ad98bfa3aa38428edf672abc5544ccc5
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input isn't valid nor barred from constraint validation,
+             it should not be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='notvalid' type='url' value='foo'>
+  </body>
+</html>
+

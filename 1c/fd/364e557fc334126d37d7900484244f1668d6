@@ -1,0 +1,14 @@
+
+copy: browser/devtools/webconsole/test/browser/test-filter.html
+copyrev: e85ef63911b069c72e72ad21689af76e043e0eae
+
+<!DOCTYPE HTML>
+<html dir="ltr" xml:lang="en-US" lang="en-US"><head>
+    <title>Console test</title>
+    <script type="text/javascript">
+    </script>
+  </head>
+  <body>
+    <h1>Heads Up Display Filter Test Page</h1>
+  </body>
+</html>

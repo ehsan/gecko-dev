@@ -1,0 +1,5 @@
+
+copy: content/base/test/badMessageEvent.eventsource^headers^
+copyrev: aa53d24ddbeced3dfe0c9d0e520b51d931cfbdc6
+
+Content-Type: text/event-stream

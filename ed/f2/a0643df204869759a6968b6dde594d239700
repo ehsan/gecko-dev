@@ -1,0 +1,81 @@
+<!doctype html>
+<title>URL IDL tests</title>
+<script src=/resources/testharness.js></script>
+<script src=/resources/testharnessreport.js></script>
+<script src=/resources/WebIDLParser.js></script>
+<script src=/resources/idlharness.js></script>
+
+<h1>URL IDL tests</h1>
+<div id=log></div>
+
+<script type=text/plain>
+[Constructor(DOMString url, optional DOMString base = "about:blank"),
+ Exposed=Window,Worker]
+interface URL {
+  static DOMString domainToASCII(USVString domain);
+  static DOMString domainToUnicode(USVString domain);
+};
+URL implements URLUtils;
+
+[NoInterfaceObject]
+interface URLUtils {
+  stringifier attribute USVString href;
+  readonly attribute DOMString origin;
+
+           attribute USVString protocol;
+           attribute USVString username;
+           attribute USVString password;
+           attribute USVString host;
+           attribute USVString hostname;
+           attribute USVString port;
+           attribute USVString pathname;
+           attribute USVString search;
+           attribute URLSearchParams searchParams;
+           attribute USVString hash;
+};
+
+[NoInterfaceObject]
+interface URLUtilsReadOnly {
+  stringifier readonly attribute DOMString href;
+  readonly attribute DOMString origin;
+
+  readonly attribute DOMString protocol;
+  readonly attribute DOMString host;
+  readonly attribute DOMString hostname;
+  readonly attribute DOMString port;
+  readonly attribute DOMString pathname;
+  readonly attribute DOMString search;
+  readonly attribute DOMString hash;
+};
+interface URLSearchParams {
+  void append(USVString name, USVString value);
+  void delete(USVString name);
+  DOMString? get(USVString name);
+  sequence<DOMString> getAll(USVString name);
+  boolean has(USVString name);
+  void set(USVString name, USVString value);
+  stringifier;
+};
+typedef DOMString USVString;
+</script>
+<script>
+"use strict";
+var idlArray;
+setup(function() {
+	idlArray = new IdlArray();
+	[].forEach.call(document.querySelectorAll("script[type=text\\/plain]"), function(node) {
+		if (node.className == "untested") {
+			idlArray.add_untested_idls(node.textContent);
+		} else {
+			idlArray.add_idls(node.textContent);
+		}
+	});
+}, {explicit_done:true});
+window.onload = function() {
+	idlArray.add_objects({
+		URL: ['new URL("http://foo")']
+	});
+	idlArray.test();
+	done();
+};
+</script>

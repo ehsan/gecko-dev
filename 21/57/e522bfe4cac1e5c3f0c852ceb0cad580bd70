@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug687859-bom.js
+copyrev: d5879fc5e8406825cea217a5c4e52cfc47774e61
+
+﻿var stringFromBomScript = "€";

@@ -1,0 +1,25 @@
+
+copy: content/smil/crashtests/669225-2.svg
+copyrev: 13787da4a6437519c86ccbe73aa52f6d08e77a3c
+
+<?xml version="1.0"?>
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<script type="text/javascript">
+<![CDATA[
+
+function boom()
+{
+  var a = document.getElementById("a");
+  a.removeAttribute("end");
+  a.setAttribute("end", "a.begin");
+}
+
+window.addEventListener("load", boom, false);
+
+]]>
+</script>
+
+<animate end="0" id="a" onend="boom()"/>
+</svg>

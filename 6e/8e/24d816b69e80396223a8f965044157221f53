@@ -1,0 +1,19 @@
+
+copyrev: faa764b0fbabd256110e668203680191e87e7dad
+copy: js/src/trace-test/tests/basic/testMethodInit.js
+
+function testMethodInit() {  // bug 503198
+    function o() { return 'o'; }
+    function k() { return 'k'; }
+
+    var x;
+    for (var i = 0; i < 10; i++)
+        x = {o: o, k: k};
+    return x.o() + x.k();
+}
+assertEq(testMethodInit(), "ok");
+checkStats({
+  recorderStarted: 1,
+  traceCompleted: 1,
+  sideExitIntoInterpreter: 1
+});

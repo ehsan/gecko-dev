@@ -1,0 +1,25 @@
+
+copy: content/base/crashtests/679459.html
+copyrev: de79eec537f9f93d0e0a1a688352902ad9534255
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var t = document.createTextNode("a");
+  document.body.appendChild(t);
+  var r1 = document.createRange();
+  r1.setEnd(t, 1);
+  var r2 = document.createRange();
+  r2.setEnd(t, 0);
+  r2.deleteContents();
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

@@ -1,0 +1,18 @@
+
+copy: content/xbl/test/file_bug481558.xbl
+copyrev: ba3bfd64aa535a78b8a36a54b4ff95e33d19c0a0
+
+<bindings xmlns="http://www.mozilla.org/xbl"
+          xmlns:xbl="http://www.mozilla.org/xbl"
+          xmlns:html="http://www.w3.org/1999/xhtml">
+<binding id="test">
+  <content>
+    <children/>
+    Binding Attached
+  </content>
+  <implementation>
+    <property name="xblBoundProperty" onget="return 1;"
+              exposeToUntrustedContent="true"/>
+  </implementation>
+</binding>
+</bindings>

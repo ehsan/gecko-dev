@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule6.wrong
+copyrev: 3166fdf966ac40ca5afe578445c8e0e138477286
+
+abc
+abbbbbccccccc
+aabbccccccc
+aabbbbbbb

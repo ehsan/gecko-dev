@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/parallelarray/scatter-2.js
+copyrev: 4842ffa2ef58cbe52009c89dc1fdc8febc79d731
+
+load(libdir + "parallelarray-helpers.js");
+
+function testScatterIdentity() {
+  var p = new ParallelArray([1,2,3,4,5]);
+  var r = p.scatter([0,1,2,3,4]);
+  assertEqParallelArray(p, r);
+}
+
+if (getBuildConfiguration().parallelJS) testScatterIdentity();
+

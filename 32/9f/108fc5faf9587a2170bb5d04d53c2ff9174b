@@ -1,0 +1,21 @@
+
+copy: content/svg/content/src/crashtests/372046-1.svg
+copyrev: 2fd5960ab2d8e7129e08d7f3aab2f859beec61f6
+
+<svg xmlns="http://www.w3.org/2000/svg" onload="setTimeout(boom, 30);" class="reftest-wait">
+
+<script>
+function boom()
+{
+  try {
+    document.getElementById("path_1").pathSegList.insertItemBefore({}, 0);
+  } catch(e) {
+  }
+
+  document.documentElement.removeAttribute("class");
+}
+</script>
+
+<path id='path_1' d='M300,25 C500,100 575,300 330,350'/>
+
+</svg>

@@ -1,0 +1,8 @@
+
+copy: js/src/xpconnect/tests/mochitest/file_bug658560.html
+copyrev: 9bc187756a1634feda6f8a83031ec0d11e9d910b
+
+<html>
+    <body>
+    </body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/alias.good
+copyrev: 243dcbba6ab7f9cca3d5de83353f48b0e24a3ecf
+
+foo
+foox
+fooy
+fooyx

@@ -1,0 +1,5 @@
+
+copyrev: 87823d2f64467d299953c8c4ba9d31c7a24e0533
+copy: js/tests/js1_6/Array/shell.js
+
+gTestsubsuite = 'Array';

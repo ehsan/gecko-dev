@@ -1,0 +1,10 @@
+
+copy: editor/libeditor/crashtests/762183.html
+copyrev: 9aec329b231cd14895bb8f6da213b428bf97b7d6
+
+<body contenteditable=true>x   y
+<script>
+document.body.firstChild.splitText(2).splitText(1).splitText(1);
+getSelection().collapse(document.body, 1);
+document.execCommand("forwardDelete", false, null);
+</script>

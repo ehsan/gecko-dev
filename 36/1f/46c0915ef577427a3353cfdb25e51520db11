@@ -1,0 +1,20 @@
+
+copy: content/media/test/crashtests/933151.html
+copyrev: b7190e0d49e8f8395706241ee8eb2df67f9448b9
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var ac = new window.AudioContext();
+  var buffer = ac.createBuffer(1, 24313, 47250);
+  buffer.copyFromChannel(buffer.getChannelData(0), '');
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

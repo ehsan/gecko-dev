@@ -1,0 +1,26 @@
+
+copy: toolkit/themes/pinstripe/reftests/482681.xul
+copyrev: b06a8c40eac99cae08a67a4d839b4d6567b1334a
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin" type="text/css"?>
+<?xml-stylesheet href="data:text/css,
+vbox { height: 50px; }
+button {
+  color: transparent;
+  margin: 0;
+}
+" type="text/css"?>
+
+<window title="Buttons with mini, small and regular control font"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <vbox style="font-size: 9px">
+    <hbox><button label="Mini"/></hbox>
+  </vbox>
+  <vbox style="font: message-box">
+    <hbox><button label="Small"/></hbox>
+  </vbox>
+  <vbox style="font: -moz-dialog">
+    <hbox><button label="Regular"/></hbox>
+  </vbox>
+</window>

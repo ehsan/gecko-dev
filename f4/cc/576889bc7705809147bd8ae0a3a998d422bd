@@ -1,0 +1,8 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/renderbuffers/00_test_list.txt
+copyrev: 39e14175f8da6e847f0636ec08f40d1aee5d3451
+
+framebuffer-object-attachment.html
+framebuffer-test.html
+renderbuffer-initialization.html
+

@@ -1,0 +1,17 @@
+
+copy: js/src/jit-test/tests/parallelarray/shape-5.js
+copyrev: 6fefb0e106bd99e8bdec3d3eb7fc55710217be21
+
+load(libdir + "eqArrayHelper.js");
+
+function testShape() {
+  // Test shape immutability.
+  var p = new ParallelArray([1,2,3,4]);
+  p.shape[0] = 0;
+  p.shape[1] = 42;
+  assertEq(p[0], 1);
+  assertEqArray(p.shape, [4]);
+}
+
+// FIXME(bug 844988) immutability not enforced
+// if (getBuildConfiguration().parallelJS) testShape();

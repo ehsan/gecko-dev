@@ -1,0 +1,151 @@
+/* -*- Mode: C++; tab-width: 50; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * mozilla.org
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+#include "nsISupports.idl"
+
+interface nsISimpleEnumerator;
+
+[scriptable, uuid(d298b942-3e66-4cd3-9ff5-46abc69147a7)]
+interface nsIMemoryReporter : nsISupports
+{
+  /*
+   * The path that this memory usage should be reported under.  Paths can
+   * begin with a process name plus a colon, eg "Content:", but this is not
+   * necessary for the main process.  After the process name, paths are
+   * '/'-delimited, eg. "a/b/c".  There are two categories of paths.
+   *
+   * - Paths starting with "explicit" represent non-overlapping regions of 
+   *   memory that have been explicitly allocated with an OS-level allocation
+   *   (eg. mmap/VirtualAlloc/vm_allocate) or a heap-level allocation (eg.
+   *   malloc/calloc/operator new).  Each one can be viewed as representing a
+   *   path in a tree from the root node ("explicit") to a node lower in the
+   *   tree; this lower node does not have to be a leaf node.
+   *
+   *   So, for example, "explicit/a/b", "explicit/a/c", "explicit/d",
+   *   "explicit/d/e", and "explicit/d/f" define this tree:
+   *
+   *     explicit
+   *     |--a
+   *     |  |--b [*]
+   *     |  \--c [*]
+   *     \--d [*]
+   *        |--e [*]
+   *        \--f [*]
+   *
+   *   Nodes marked with a [*] have a reporter.
+   *
+   * - All other paths represent cross-cuttings memory regions, ie. ones that
+   *   may overlap arbitrarily with regions in the "explicit" tree.
+   */
+  readonly attribute string path;
+
+  /*
+   * Allocation kinds.  "MAPPED" means it is allocated directly by the OS, eg.
+   * by calling mmap, VirtualAlloc, vm_allocate, etc.  "HEAP" means it is
+   * allocated by the heap allocator, eg. by calling malloc, calloc, realloc,
+   * memalign, operator new, operator new[], etc.  "OTHER" means it doesn't fit
+   * into either of these categories;  such reporters should have a path that
+   * does *not* start with "explicit".
+   */
+  const PRInt32 MR_MAPPED = 0;
+  const PRInt32 MR_HEAP   = 1;
+  const PRInt32 MR_OTHER  = 2;
+
+  /*
+   * The memory kind, see MR_* above.
+   */
+  readonly attribute PRInt32 kind;
+
+  /*
+   * A human-readable description of this memory usage report.
+   */
+  readonly attribute string description;
+
+  /*
+   * The current amount of memory in use, as reported by this memory
+   * reporter.
+   */
+  readonly attribute long long memoryUsed;
+};
+
+[scriptable, uuid(7c62de18-1edd-40f8-9da2-a8c622763074)]
+interface nsIMemoryReporterManager : nsISupports
+{
+  /*
+   * Return an enumerator of nsIMemoryReporters that are currently registered.
+   */
+  nsISimpleEnumerator enumerateReporters ();
+
+  /*
+   * Register the given nsIMemoryReporter.  It is an error to register
+   * more than one reporter with the same path.  After a reporter is
+   * registered, it will be available via enumerateReporters().  The
+   * Manager service will hold a strong reference to the given reporter.
+   */
+  void registerReporter (in nsIMemoryReporter reporter);
+
+  /*
+   * Unregister the given memory reporter.
+   */
+  void unregisterReporter (in nsIMemoryReporter reporter);
+
+  /*
+   * Initialize.
+   */
+  void init ();
+};
+
+%{C++
+
+#define NS_MEMORY_REPORTER_IMPLEMENT(_classname,_path,_kind,_desc,_usageFunction,_dataptr) \
+    class MemoryReporter_##_classname : public nsIMemoryReporter {      \
+    public:                                                             \
+      NS_DECL_ISUPPORTS                                                 \
+      NS_IMETHOD GetPath(char **memoryPath) { *memoryPath = strdup(_path); return NS_OK; } \
+      NS_IMETHOD GetKind(int *kind) { *kind = _kind; return NS_OK; } \
+      NS_IMETHOD GetDescription(char **desc) { *desc = strdup(_desc); return NS_OK; } \
+      NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) { *memoryUsed = _usageFunction(_dataptr); return NS_OK; } \
+    };                                                                  \
+    NS_IMPL_ISUPPORTS1(MemoryReporter_##_classname, nsIMemoryReporter)
+
+#define NS_MEMORY_REPORTER_NAME(_classname)  MemoryReporter_##_classname
+
+NS_COM nsresult NS_RegisterMemoryReporter (nsIMemoryReporter *reporter);
+NS_COM nsresult NS_UnregisterMemoryReporter (nsIMemoryReporter *reporter);
+
+%}

@@ -1,0 +1,14 @@
+using MagicWindowHandle;
+using PRUint32;
+
+rpc protocol IFrameEmbedding
+{
+    rpc out init(MagicWindowHandle parentWidget);
+
+    rpc out loadURL(String uri);
+
+    rpc out move(PRUint32 x,
+                 PRUint32 y,
+                 PRUint32 width,
+                 PRUint32 height);
+};

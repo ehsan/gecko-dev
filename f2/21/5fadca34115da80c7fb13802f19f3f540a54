@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/link/001-novalid.html
+copyrev: 80f72ea8fa3679ca35fb20ccfc6fe57cf6d247b3
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset=utf-8>
+<title>link element missing href attribute</title>
+<link rel=stylesheet>
+</head>
+<body>
+</body>
+</html>

@@ -1,0 +1,27 @@
+
+copy: content/html/content/reftests/autofocus/select-create.html
+copyrev: 9522cca11e7da877587201b1400a38222dd772bb
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <script>
+      var body = document.body;
+
+      var i = document.createElement('select');
+      i.autofocus = false;
+      body.appendChild(i);
+
+      i = document.createElement('select');
+      i.autofocus = true;
+      i.onfocus = function() { setTimeout(document.documentElement.removeAttribute('class'), 0); };
+      body.appendChild(i);
+
+      i = document.createElement('select');
+      i.autofocus = true;
+      i.onfocus = function() { setTimeout(document.documentElement.removeAttribute('class'), 0); };
+      body.appendChild(i);
+    </script>
+  </body>
+</html>

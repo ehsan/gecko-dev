@@ -1,0 +1,10 @@
+
+copy: ipc/ipdl/test/ipdl/error/rpcMessageCompress.ipdl
+copyrev: 2c65b77a6c7cc4a5ec282c0ba552eda11bc6d725
+
+intr protocol intrMessageCompress {
+parent:
+    intr foo() compress;
+child:
+    intr bar() compress;
+};

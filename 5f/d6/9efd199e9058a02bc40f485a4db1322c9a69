@@ -1,0 +1,12 @@
+
+copy: mobile/android/base/resources/layout-v11/awesomebar_search.xml
+copyrev: d1802842787a68e66916ee21e42cd8ee5619226d
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/awesome_screen"
+              style="@style/Screen">
+
+    <include layout="@layout/awesomebar_tabs"/>
+
+</LinearLayout>

@@ -1,0 +1,16 @@
+
+copy: content/base/test/file_bug907892.html
+copyrev: 99f954534d61a664272a3ce119c4cd68cf8c495f
+
+<!DOCTYPE html>
+<script>
+  var threw;
+  try {
+    document.domain = "example.org";
+    threw = false;
+  } catch (e) {
+    threw = true;
+  }
+  var sandboxed = (location.search == "?sandboxed");
+  parent.postMessage({ threw: threw, sandboxed: sandboxed }, "*");
+</script>

@@ -1,0 +1,10 @@
+
+copy: js/src/jit-test/tests/parallelarray/filter-every-third-element.js
+copyrev: 298ec27fa1bbc9445465ce04fce28ab4e312d286
+
+load(libdir + "parallelarray-helpers.js");
+if (getBuildConfiguration().parallelJS)
+  assertArraySeqParResultsEq(range(0, 1024), "filter", function(e, i) {
+    return (i % 3) != 0;
+  });
+

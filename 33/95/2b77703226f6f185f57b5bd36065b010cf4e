@@ -1,0 +1,201 @@
+#filter substitution
+package @ANDROID_PACKAGE_NAME@.tests;
+
+import @ANDROID_PACKAGE_NAME@.*;
+import android.util.DisplayMetrics;
+
+import java.util.Arrays;
+
+/* Test the context menu on web content: Long click on a link,
+ * verify that the context menu is shown and verify that some
+ * of the menu actions work.
+ */
+
+public class testWebContentContextMenu extends AboutHomeTest {
+
+    // URLs and page titles. Make sure there is a title for each 
+    private final String URLS [] = {"/robocop/robocop_big_link.html", "/robocop/robocop_big_mailto.html", "/robocop/robocop_picture_link.html"};
+    private final String URL_TITLES [] = {"Big Link", "Big Mailto", "Picture Link"};
+
+    // Menu content strings
+    private final String LINK_MENU_ITEMS [] = {"Open Link in New Tab", "Open Link in Private Tab", "Copy Link", "Share Link", "Bookmark Link"};
+    private final String MAILTO_MENU_ITEMS [] = {"Open With an App", "Copy Email Address", "Share Email Address"};
+    private final String PHOTO_MENU_ITEMS [] = {"Copy Image Location", "Share Image", "Set Image As", "Save Image"};
+
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+
+    }
+
+    public void testWebContentContextMenu() {
+        blockForGeckoReady();
+
+        verfyLinkContextMenu();
+        verfyMailtoContextMenu();
+        verfyPhotoContextMenu();
+
+        // Clear data to remove the saved files
+        clearPrivateData();
+    }
+
+    public void openContextMenu(String pageLink) {
+        DisplayMetrics dm = new DisplayMetrics();
+        getActivity().getWindowManager().getDefaultDisplay().getMetrics(dm);
+
+        // The link has a 60px height, so let's try to hit the middle
+        float top = mDriver.getGeckoTop() + 30 * dm.density;
+        float left = mDriver.getGeckoLeft() + mDriver.getGeckoWidth() / 2;
+
+        String url = getAbsoluteUrl(pageLink);
+        getInstrumentation().waitForIdleSync();
+        loadUrl(url);
+        int pageIndex = Arrays.asList(URLS).indexOf(pageLink);
+        waitForText(URL_TITLES [pageIndex]);
+        mAsserter.dumpLog("long-clicking at "+left+", "+top);
+        mActions.clickLongOnScreen(left, top);
+    }
+
+    public void accessContextMenuOption(String pageLink, String opt) {
+        openContextMenu(pageLink);
+        mAsserter.ok(mSolo.waitForText(opt), "Waiting for " + opt + " option", "The " + opt + " option is present");
+        mSolo.clickOnText(opt);
+    }
+
+    public void verfyLinkContextMenu() {
+        String blankPage1 = getAbsoluteUrl("/robocop/robocop_blank_01.html");
+        for (String opt:LINK_MENU_ITEMS) {
+            if (opt.equals("Open Link in New Tab")) {
+                openContextMenu(URLS [0]);
+                mAsserter.ok(mSolo.waitForText(opt), "Waiting for " + opt + " option", "The " + opt + " option is present");
+                Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
+                Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+                mSolo.clickOnText(opt);
+
+                // Wait for the new tab and page to load
+                tabEventExpecter.blockForEvent();
+                contentEventExpecter.blockForEvent();
+                tabEventExpecter.unregisterListener();
+                contentEventExpecter.unregisterListener();
+
+                // See tab count
+                Element tabCount = mDriver.findElement(getActivity(), "tabs_counter");
+                String tabCountText = null;
+                if (tabCount != null) {
+                    tabCountText = tabCount.getText();
+                }
+                mAsserter.is(tabCountText, "2", "Number of tabs has increased");
+            }
+            else {
+                if (opt.equals("Open Link in Private Tab")) {
+                    accessContextMenuOption(URLS [2], opt);
+                    mAsserter.ok(mSolo.waitForText("New private tab opened"), "Waiting for private tab to open", "The private tab is opened");
+
+                    // Move to the Most Recent tab
+                    openAboutHomeTab(AboutHomeTabs.MOST_RECENT);
+
+                    // Verify that only the page loaded in a normal tab is saved in the history
+                    mAsserter.ok(mSolo.waitForText("Browser Blank Page 01"), "Looking in History for the page loaded in the normal tab", "Found it");
+                    mAsserter.ok(mSolo.waitForText("Browser Blank Page 02") == false, "Looking in History for the page loaded in the private tab", "Page is not present in History");
+                }
+                else {
+                    if (opt.equals("Copy Link")) {
+                        accessContextMenuOption(URLS [0], opt);
+
+                        // Verifying if the link was copied
+                        mSolo.clickLongOnText("Big Link");
+                        mAsserter.ok(mSolo.waitForText("^Paste$"), "Verify if the 'Paste' option is present", "The 'Paste' option is present");
+                        mSolo.clickOnText("^Paste$");
+                        mAsserter.ok(mSolo.waitForText(blankPage1), "Verify link", "The link was properly copied");
+                    }
+                    else {
+                        if (opt.equals("Share Link")) {
+                            accessContextMenuOption(URLS [0], opt);
+
+                            // Verifying if the Share Link option menu is opened
+                            mAsserter.ok(mSolo.waitForText("Share via"), "Waiting for the Share Link option menu to open", "The Share Link option menu is opened");
+                            mActions.sendSpecialKey(Actions.SpecialKey.BACK);// Close the Share Link option menu
+                            mSolo.waitForText("Big Link");
+                        }
+                        else {
+                            if (opt.equals("Bookmark Link")) {
+                                accessContextMenuOption(URLS [0], opt);
+                                mAsserter.is(mSolo.waitForText("Bookmark added"), true, "Bookmark added verified");
+                                mAsserter.ok(isBookmark(blankPage1), "Checking to see if the link was bookmarked","The link was bookmarked");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void verfyMailtoContextMenu() {
+        for (String opt:MAILTO_MENU_ITEMS) {
+            if (opt.equals("Copy Email Address")) {
+                openContextMenu(URLS [1]);
+                mAsserter.ok(mSolo.waitForText(opt), "Waiting for " + opt + " option", "The " + opt + " option is present");
+                mSolo.clickOnText(opt);
+
+                // Verifying if the email address was copied
+                mSolo.clickLongOnText("Big Mailto");
+                mAsserter.ok(mSolo.waitForText("^Paste$"), "Verify if the 'Paste' option is present", "The 'Paste' option is present");
+                mSolo.clickOnText("^Paste$");
+                mAsserter.ok(mSolo.waitForText("foo.bar@example.com"), "Verify email address", "The email address was properly copied");
+            }
+            else {
+                if (opt.equals("Share Email Address")) {
+                    accessContextMenuOption(URLS [1], opt);
+
+                    // Verifying if the Share email address option menu is opened
+                    mAsserter.ok(mSolo.waitForText("Share via"), "Waiting for the Share email address option menu to open", "The Share email address option menu is opened");
+                }
+            }
+        }
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK); // Close the Share email address option menu
+        mSolo.waitForText("Big Mailto");
+    }
+
+    // Load a picture test page and test for allowed menu actions
+    public void verfyPhotoContextMenu() {
+        for (String opt:PHOTO_MENU_ITEMS) {
+            if (opt.equals("Copy Image Location")) {
+
+                // This waitForIdleSync improves reliability of the following loadUrl.
+                // TODO: understand why!
+                getInstrumentation().waitForIdleSync();
+                accessContextMenuOption(URLS [2], opt);
+
+                // Verifying if the photo's link was copied
+                mSolo.clickLongOnText("Picture Link");
+                mAsserter.ok(mSolo.waitForText("^Paste$"), "Verify if the 'Paste' option is present", "The 'Paste' option is present");
+                mSolo.clickOnText("^Paste$");
+                mAsserter.ok(mSolo.waitForText("Firefox.jpg"), "Verify link", "The photo's link was properly copied");
+            }
+            else {
+                if (opt.equals("Share Image")) {
+                    accessContextMenuOption(URLS [2], opt);
+
+                    // Verifying if the Share Image option menu is opened
+                    mAsserter.ok(mSolo.waitForText("Share via"), "Waiting for the Share Image option menu to open", "The Share Image option menu is opened");
+                    mActions.sendSpecialKey(Actions.SpecialKey.BACK); // Close the Share Image option menu
+                    mSolo.waitForText("Picture Link");
+                }
+                else {
+                    if (opt.equals("Set Image As")) {
+                        openContextMenu(URLS [2]);
+                        mAsserter.ok(mSolo.waitForText(opt), "Waiting for " + opt + " option", "The " + opt + " option is present");
+                    }
+                    else {
+                        if (opt.equals("Save Image")) {
+                            mAsserter.ok(mSolo.searchText(opt), "Verify that the Save Image option exits", "The Save Image option exits");
+                            mSolo.clickOnText(opt);
+                            mAsserter.ok(mSolo.waitForText("Download started"), "Verify that the download started", "The download started");
+                            mSolo.waitForText("Picture Link");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,19 @@
+
+copy: content/media/test/crashtests/474744-1.html
+copyrev: e6236a8c0f28000cbe4e1f5e5fd98f22d2c16df9
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  document.body.innerHTML += "<video src='aim:yaz'><\/video>";
+}
+
+</script>
+</head>
+<body onload="boom();">
+</body>
+</html>

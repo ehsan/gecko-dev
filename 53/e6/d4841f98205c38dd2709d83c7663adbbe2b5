@@ -1,0 +1,11 @@
+
+copyrev: e7f8da80af7e39cb0246b71625877ab8937dd103
+copy: js/src/trace-test/tests/jaeger/bug565202.js
+
+options("strict", "werror");
+
+var o = {};
+
+// Don't throw here.
+if (o.a)
+    x = true;

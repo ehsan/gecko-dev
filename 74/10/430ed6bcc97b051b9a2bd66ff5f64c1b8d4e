@@ -1,0 +1,28 @@
+
+copy: content/smil/crashtests/588287-1.svg
+copyrev: c5ff419661a740f70c8d452dda66177e6c90ca4d
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" class="reftest-wait">
+<script>
+
+function boom()
+{
+  var animate = document.createElementNS("http://www.w3.org/2000/svg", "animate");
+  animate.setAttributeNS(null, "begin", "0.5s");
+  document.documentElement.appendChild(animate);
+  
+  setTimeout(function() {
+    var g = document.createElement("g");
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    g.appendChild(svg);
+    document.documentElement.appendChild(g);
+    svg.appendChild(animate);
+    document.documentElement.removeAttribute("class");
+  }, 400);
+}
+
+window.addEventListener("load", function() { setTimeout(boom, 200) }, false);
+
+</script>
+</svg>

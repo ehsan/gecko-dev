@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/i54633.wrong
+copyrev: 9db485c1db205d22175907dc8efeb51867daa81a
+
+editer
+Editer

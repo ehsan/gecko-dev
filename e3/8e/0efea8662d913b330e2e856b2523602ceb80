@@ -1,0 +1,28 @@
+
+copy: browser/devtools/styleinspector/test/doc_media_queries.html
+copyrev: ff3f68b0b886a1062b58cc14fd049b4e399309bb
+
+<html>
+<head>
+  <title>test</title>
+  <script type="application/javascript;version=1.7">
+
+  </script>
+  <style>
+    div {
+      width: 1000px;
+      height: 100px;
+      background-color: #f00;
+    }
+
+    @media screen and (min-width: 1px) {
+      div {
+        width: 200px;
+      }
+    }
+  </style>
+</head>
+<body>
+<div></div>
+</body>
+</html>

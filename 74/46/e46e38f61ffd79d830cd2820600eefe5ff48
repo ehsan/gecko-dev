@@ -1,0 +1,10 @@
+
+copy: browser/base/content/test/POSTSearchEngine.xml
+copyrev: 99df0bc85c8c8f61b9eace5d128f5ff642b50152
+
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>POST Search</ShortName>
+  <Url type="text/html" method="POST" template="http://mochi.test:8888/browser/browser/base/content/test/general/print_postdata.sjs">
+    <Param name="searchterms" value="{searchTerms}"/>
+  </Url>
+</OpenSearchDescription>

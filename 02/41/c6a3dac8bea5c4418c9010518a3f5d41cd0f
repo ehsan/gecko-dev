@@ -1,0 +1,9 @@
+
+copy: dom/sms/tests/xpcshell.ini
+copyrev: 86d811ba6ccbcd76486a2b859d84598f062a55e9
+
+[DEFAULT]
+head = 
+tail = 
+
+[test_smsservice_createsmsmessage.js]

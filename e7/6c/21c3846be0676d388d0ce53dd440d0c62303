@@ -1,0 +1,20 @@
+
+copy: js/src/xpconnect/crashtests/346512-1-frame1.xhtml
+copyrev: b75268a02934cbc6917afde38afebd33ae1be205
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+</head>
+
+<body>
+
+
+<div id="empty1"></div>
+
+<div id="movemychild"><hbox xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"/></div>
+
+
+
+</body>
+</html>

@@ -1,0 +1,29 @@
+
+copy: mobile/android/base/resources/drawable/menu_item_checkmark.xml
+copyrev: d1763aab650fb0106e3c59c7fddd0925b8af1c1e
+
+#filter substitution
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<selector xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:gecko="http://schemas.android.com/apk/res/@ANDROID_PACKAGE_NAME@">
+
+    <item gecko:state_more="true"
+          android:drawable="@drawable/menu_item_more"/>
+
+    <item gecko:state_more="false"
+          android:state_checkable="true"
+          android:state_checked="true"
+          android:drawable="@drawable/menu_item_check"/>
+
+    <item gecko:state_more="false"
+          android:state_checkable="true"
+          android:state_checked="false"
+          android:drawable="@drawable/menu_item_uncheck"/>
+
+    <item android:drawable="@android:color/transparent"/>
+
+</selector>

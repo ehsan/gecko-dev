@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/break.good
+copyrev: efdbbf710335a704db707bf6e031b5bd18f703d7
+
+foo
+bar
+fox-bax
+foo-bar
+foo–bar
+foo-bar-foo-bar
+foo-bar–foo-bar

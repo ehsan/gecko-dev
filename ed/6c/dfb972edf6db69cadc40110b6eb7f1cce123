@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern3.wrong
+copyrev: 398dfe3df7513bba329f5c01dc039eb562e1025a
+
+booban
+boobanfoo
+fozar
+fozarfoo
+fozan
+fozanfoo
+bozar
+bozarfoo

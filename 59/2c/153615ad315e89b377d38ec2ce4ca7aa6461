@@ -1,0 +1,14 @@
+
+copy: layout/base/tests/font-inflation/css-transform-1.html
+copyrev: 3f572c5b89735380821b6af93f4777af0f82488a
+
+<!DOCTYPE HTML>
+<style>
+div { font-size: 12px; width: 450px; line-height: 1.0 }
+span { -moz-transform-origin: 0 0; -moz-transform: scale(1.2); }
+</style>
+<!--
+In a 450px container, the minimum font size at 15em per line is 30px.
+This means we map 0px-45px into 30px-45px, so 12px gets mapped to 34px.
+-->
+<div><span>Hello world</span></div>

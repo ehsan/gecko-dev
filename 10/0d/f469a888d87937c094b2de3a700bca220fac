@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/submissions/Ms2ger/test_Document-createElementNS.html.json
+copyrev: 60f05d3e333c5ece2e531f8d704383822c033b35
+
+{
+  "Invalid Name: \u0300foo": true
+}

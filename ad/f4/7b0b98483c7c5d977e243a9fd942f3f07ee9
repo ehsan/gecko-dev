@@ -1,0 +1,26 @@
+
+copy: browser/themes/winstripe/downloads/contentAreaDownloadsView.css
+copyrev: 31b4f6ff4a011c5eb6ba557d570ffabef3ce2b1a
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url("chrome://global/skin/inContentUI.css");
+
+.downloadButton {
+  box-shadow: none;
+}
+
+.downloadButton:not([disabled="true"]):hover:active,
+.downloadButton:not([disabled]):hover:active {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+#downloadsListEmptyDescription {
+  margin: 1em;
+  text-align: center;
+  color: GrayText;
+}

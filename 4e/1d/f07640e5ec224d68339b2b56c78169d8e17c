@@ -1,0 +1,17 @@
+
+copy: layout/reftests/scrolling/deferred-anchor-ref.xhtml
+copyrev: 04e581735697710d81bc9f378c81c7e88d533526
+
+<?xml version="1.0"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>document.location.hash = "#d";</script>
+</head>
+<body style="margin: 0;">
+<div style="height: 50px; width: 50px; background-color: red;"/>
+<div style="height: 1000px;"/>
+<div id="d" style="height: 50px; width: 50px; background-color: green;"/>
+<div style="height: 1000px;"/>
+</body>
+</html>

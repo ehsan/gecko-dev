@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/approved/test_Range-cloneRange.html.json
+copyrev: 38e8e838cb9116a986461fe659469dea60aadda6
+
+{
+  "Range 45 \"detached\"": true
+}

@@ -1,0 +1,16 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/keygen/059-novalid.html
+copyrev: f6b48a2d36cde8d3f161134a3822485a2c0ce90e
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>keygen as &lt;label> descendant, with no ID</title>
+</head>
+<body>
+<label for="foo">
+<keygen>
+</label>
+</body>
+</html>

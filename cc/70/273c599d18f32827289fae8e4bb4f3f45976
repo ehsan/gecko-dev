@@ -1,0 +1,11 @@
+
+copyrev: 2b773f10559a7fc34931f10288f3bb0086ae05c6
+copy: js/src/trace-test/tests/jaeger/bug585408.js
+
+(function() {
+  function a() {}
+  a.e = a++
+})()
+
+/* Don't assert. */
+

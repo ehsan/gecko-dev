@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundcaseutf.good
+copyrev: d3bbe0c2e821a83bbbcdf185d9236eb268b68c1e
+
+áoóáoó
+Óoááoó

@@ -1,0 +1,14 @@
+
+copy: layout/reftests/svg/foreignObject-dynamic-abspos-01-ref.html
+copyrev: 4a1d840fd9e70cae3e49fca70d66c7c0338b087c
+
+<!DOCTYPE html>
+<div style="height: 100px">
+</div>
+<svg width="200" height="200" style="overflow: visible">
+  <foreignObject width="200" height="200">
+    <div id="x" style="position:fixed; top: 0; left: 0">
+      This is a test
+    </div>
+  </foreignObject>
+</svg>

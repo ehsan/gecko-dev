@@ -1,0 +1,8 @@
+
+copyrev: a79279d9d14d21f724ffe8118ff6cb74eba5c90f
+copy: modules/plugin/samples/default/mac/npnul.pkg
+
+# the null plugin goes in gecko-support because we search for plugins
+# in the application, not the GRE
+[gecko-support]
+dist/bin/plugins/Default\ Plugin.plugin

@@ -1,0 +1,5 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-600183-charset.html^headers^
+copyrev: b8eaead6865b1b196b3cdd3fdba5e9a3f9bc4ffb
+
+Content-Type: text/html; charset=gb2312

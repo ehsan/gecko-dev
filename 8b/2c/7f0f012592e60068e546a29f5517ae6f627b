@@ -1,0 +1,17 @@
+
+copyrev: 08f287b5415fcd85a07464a0b5f123adeda87a8d
+copy: js/src/trace-test/tests/basic/bug510437-2.js
+
+function f() {
+  eval("g=function() { \
+          for (let x=0; x < 2; ++x) { \
+            d=x \
+          } \
+        }")
+  g();
+  eval("var d")
+  g();
+}
+
+f();
+assertEq(d, 1);

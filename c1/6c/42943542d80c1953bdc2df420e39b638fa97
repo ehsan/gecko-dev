@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/fullstrip.dic
+copyrev: 591ea026554f90d4980be6b8f7390899b4ab6715
+
+2
+andare/A
+riandare/A
+

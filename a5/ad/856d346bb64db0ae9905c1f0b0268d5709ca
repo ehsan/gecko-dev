@@ -1,0 +1,24 @@
+
+copy: content/canvas/src/WebGLExtensionTextureFloat.cpp
+copyrev: 61da325018c5b275a82cd77526a1c673edb5ff95
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "WebGLContext.h"
+#include "WebGLExtensions.h"
+#include "mozilla/dom/WebGLRenderingContextBinding.h"
+
+using namespace mozilla;
+
+WebGLExtensionTextureFloat::WebGLExtensionTextureFloat(WebGLContext* context)
+    : WebGLExtensionBase(context)
+{
+}
+
+WebGLExtensionTextureFloat::~WebGLExtensionTextureFloat()
+{
+}
+
+IMPL_WEBGL_EXTENSION_GOOP(WebGLExtensionTextureFloat)

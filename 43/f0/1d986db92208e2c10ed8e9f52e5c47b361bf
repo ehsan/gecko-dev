@@ -1,0 +1,5 @@
+
+copyrev: 7af106030ef0a6baab56d9a116530261d77d0cc3
+copy: dom/src/json/test/fail2.json
+
+["Unclosed array"

@@ -1,0 +1,36 @@
+
+copy: content/base/test/test_bug298064.html
+copyrev: ec8c2cd12b2a36f057d09469b6bf839f0b792c21
+
+<!DOCTYPE HTML>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=298064
+-->
+<head>
+  <title>Test for Bug 298064</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=298064">Mozilla Bug 298064</a>
+<p id="display"><iframe src="bug298064-subframe.html"></iframe></p>
+<div id="content" style="display: none">
+  
+</div>
+<pre id="test">
+<script type="application/javascript">
+
+/** Test for Bug 298064 **/
+SimpleTest.waitForExplicitFinish()
+addLoadEvent(function() {
+  window.frames[0].test_func();
+});
+addLoadEvent(SimpleTest.finish);
+
+
+
+</script>
+</pre>
+</body>
+</html>

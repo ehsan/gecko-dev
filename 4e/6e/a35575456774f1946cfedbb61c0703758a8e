@@ -1,0 +1,14 @@
+
+copy: content/html/document/crashtests/494225.html
+copyrev: 1583674f74f552001ad43d0a9de561bd0aa62323
+
+<!doctype html>
+<html><head><script>
+  var x = "f: '" + document.fgColor +
+        "' b: '" + document.bgColor +
+        "' l: '" + document.linkColor +
+        "' a: '" + document.alinkColor +
+        "' v: '" + document.vlinkColor + "'";
+</script></head><body
+onload="document.body.appendChild(document.createTextNode(x))"
+></body></html>

@@ -1,0 +1,11 @@
+
+copyrev: 8556994bf40010701919c693054495368049435b
+copy: js/src/trace-test/tests/jaeger/bug557063.js
+
+(function() {
+  for (a = 0; a < 2; a++)
+    ''.watch("", function() {})
+})()
+
+/* Don't crash or assert. */
+

@@ -1,0 +1,12 @@
+
+copyrev: 7e5c7cf9f95fb964bf4aa24f221efb93ae742794
+copy: js/src/trace-test/tests/jaeger/bug597871.js
+
+for (a in [0, 0, 0, 0, 0, 0, 0, 0, 0]) {
+    try { (function() {
+            for each(l in [false, 0, 0, 0]) {}
+            h
+        })()
+    } catch(e) {}
+}
+

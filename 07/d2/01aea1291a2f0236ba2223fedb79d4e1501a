@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundaffix3.wrong
+copyrev: f815925b1a4ee06c265391ae357c205d9f34002a
+
+prefoobarsuf
+foosufbar
+fooprebar
+foosufprebar
+fooprebarsuf
+prefooprebarsuf

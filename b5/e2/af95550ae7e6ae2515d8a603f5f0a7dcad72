@@ -1,0 +1,22 @@
+
+copy: layout/reftests/forms/input/email/input-email-2.html
+copyrev: c15f408bfd483bcabadc62fa5b181281f0d54bc9
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: input element in email state looks like in text state -->
+  <script type="text/javascript">
+    function setToEmail()
+    {
+      document.getElementById('i').type = 'email';
+    }
+    function disableReftestWait()
+    {
+      document.documentElement.className = '';
+    }
+  </script>
+
+  <body onload="setToEmail(); disableReftestWait();">
+    <input type='checkbox' id='i'>
+  </body>
+</html>

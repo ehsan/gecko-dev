@@ -1,0 +1,8 @@
+
+copy: toolkit/components/filepicker/src/nsFilePicker.manifest
+copyrev: e21ea7543e26861a243d029de0eb4eaca0893212
+
+component {54ae32f8-1dd2-11b2-a209-df7c505370f8} nsFilePicker.js
+#ifndef MOZ_WIDGET_GTK2
+contract @mozilla.org/filepicker;1 {54ae32f8-1dd2-11b2-a209-df7c505370f8}
+#endif

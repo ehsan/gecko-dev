@@ -1,0 +1,5 @@
+
+copyrev: 2a373c7b8d4ee49ac1b6287df0f40b73721ccb1b
+copy: js/tests/ecma/FunctionObjects/shell.js
+
+gTestsubsuite = 'FunctionObjects';

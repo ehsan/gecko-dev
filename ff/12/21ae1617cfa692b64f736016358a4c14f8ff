@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/input/input-readonly.html
+copyrev: d8ff059eeff9536f8639511f24694ab739d8d586
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input is readonly, it is barred from constraint validation
+             and should not be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='notvalid' readonly>
+  </body>
+</html>

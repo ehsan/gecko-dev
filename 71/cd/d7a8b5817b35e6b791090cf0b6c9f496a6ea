@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/button/button-invalid.html
+copyrev: 741d4b6d97943ba309a3b96c68f6b47a4c59e330
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if button has a custom error, it should not be affected by :-moz-ui-invalid
+             pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('b').setCustomValidity('foo'); document.documentElement.className='';">
+    <button class='invalid' id='b'></button>
+  </body>
+</html>

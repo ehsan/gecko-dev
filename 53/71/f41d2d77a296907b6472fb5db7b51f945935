@@ -1,0 +1,14 @@
+
+copyrev: aa39b523093cb84db03b7a7b3955d123dfc3afc0
+copy: js/src/trace-test/tests/basic/testScriptGetter_JSOP_GETPROP.js
+
+var a = {get p() { return 11; }};
+
+function f() { return a; }
+
+var g = 0;
+for (var i = 0; i < 9; i++)
+    g += f().p;
+assertEq(g, 99);
+
+checkStats({recorderStarted: 1, recorderAborted: 0, traceCompleted: 1, traceTriggered: 1});

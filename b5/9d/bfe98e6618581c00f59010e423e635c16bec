@@ -1,0 +1,10 @@
+
+copyrev: 807a9d3d0ba558320b2a83b63158b861a84ba831
+copy: js/src/trace-test/tests/basic/testConstIf.js
+
+function testConstIf() {
+    var x;
+    for (var j=0;j<5;++j) { if (1.1 || 5) { } x = 2;}
+    return x;
+}
+assertEq(testConstIf(), 2);

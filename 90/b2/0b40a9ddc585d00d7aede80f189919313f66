@@ -1,0 +1,27 @@
+
+copy: content/media/test/crashtests/933156.html
+copyrev: ba45acc385436333a882dd203a7c92c19e0182f6
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<script>
+function boom()
+{
+  var ac = new window.AudioContext();
+
+  var panner = ac.createPanner();
+  panner.setPosition(8, 0.7643051305237005, 0.10292575673733972);
+
+  var oscillator = ac.createOscillator();
+  oscillator.connect(panner);
+  oscillator.start(0);
+
+  setTimeout(function() {
+    panner.panningModel = 'equalpower';
+    oscillator.stop(0);
+    document.documentElement.removeAttribute("class");
+  }, 0.5);
+}
+boom();
+</script>
+</html>

@@ -1,0 +1,8 @@
+
+copy: mobile/branding/aurora/locales/en-US/brand.dtd
+copyrev: fbec4d5284d822c565ab2f8b027adc60e2c00ae7
+
+<!ENTITY  brandShortName  "Aurora">
+<!ENTITY  brandFullName   "Mozilla Aurora">
+<!ENTITY  vendorShortName "Mozilla">
+<!ENTITY  logoTrademark   "">

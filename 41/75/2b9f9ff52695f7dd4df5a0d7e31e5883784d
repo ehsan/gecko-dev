@@ -1,0 +1,12 @@
+
+copy: content/base/crashtests/604262-1.html
+copyrev: 4834cfa0f47b0d2ad4a3dad1b8a69246ed2148ea
+
+<!DOCTYPE html>
+<script>
+
+var inputElem = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+inputElem.QueryInterface(Components.interfaces.imgIDecoderObserver);
+inputElem.onStartDecode(null);
+
+</script>

@@ -1,0 +1,25 @@
+
+copy: dom/base/test/csp/file_connect-src.html
+copyrev: 7b60e3f6e52c5bf12efceb313f87ed537a51e9fc
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Bug 1031530 - Test mapping of XMLHttpRequest to connect-src</title>
+  </head>
+  <body>
+  <script type="text/javascript">
+
+    try {
+      // Please note that file_testserver.sjs?foo does not return a response.
+      // For testing purposes this is not necessary because we only want to check
+      // whether CSP allows or blocks the load.
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", "file_testserver.sjs?foo", false);
+      xhr.send(null);
+    }
+    catch (e) { }
+
+  </script>
+</body>
+</html>

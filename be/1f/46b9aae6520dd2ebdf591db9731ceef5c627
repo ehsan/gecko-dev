@@ -1,0 +1,11 @@
+
+copy: modules/libpr0n/test/reftest/pngsuite-oddsizes/s01_3p01.html
+copyrev: b4cf22fc78ee06e176a771d47780d53bc704c91e
+
+<html><body>
+<table cellpadding='0' cellspacing='0' width='1' height='1'>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,0,255,1)'></td>
+</tr>
+</table>
+</body></html>

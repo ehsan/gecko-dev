@@ -1,0 +1,21 @@
+
+copy: content/xml/document/crashtests/431703-1.xhtml
+copyrev: 5e1dbfd8a3cca681cd8c1e63a1c1d7f2abf03eb6
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+<![CDATA[
+
+function boom()
+{
+  document.body.innerHTML = '<circle xmlns="http://www.w3.org/2000/svg" onload=""/>';
+}
+
+]]>
+</script>
+</head>
+
+<body onload="boom();"></body>
+
+</html>

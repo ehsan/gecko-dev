@@ -1,0 +1,11 @@
+
+copy: content/html/content/reftests/autofocus/textarea-ref.html
+copyrev: 069fd8a9b5fa83d612e04cfa7639f50d7d5b0f1b
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementsByTagName('textarea')[1].focus();">
+    <textarea></textarea><textarea onfocus="document.documentElement.removeAttribute('class');"></textarea><textarea></textarea>
+  </body>
+</html>

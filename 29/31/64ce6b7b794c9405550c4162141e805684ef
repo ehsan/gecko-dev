@@ -1,0 +1,17 @@
+
+copyrev: bf1f26f7cdf051f623d3d1bb2cc283f52c7a54d2
+copy: js/src/trace-test/tests/basic/testHolePushing.js
+
+function testHolePushing() {
+    var a = ["foobar", "baz"];
+    for (var i = 0; i < 5; i++)
+        a = [, "overwritten", "new"];
+    var s = "[";
+    for (i = 0; i < a.length; i++) {
+        s += (i in a) ? a[i] : "<hole>";
+        if (i != a.length - 1)
+            s += ",";
+    }
+    return s + "], " + (0 in a);
+}
+assertEq(testHolePushing(), "[<hole>,overwritten,new], false");

@@ -1,0 +1,7 @@
+
+copy: content/xml/content/crashtest/453278-frame.xml
+copyrev: 7ff836edb434842b0285120aca6c9edc6f9fcc32
+
+<xml xmlns:xlink="http://www.w3.org/1999/xlink">
+<xml xlink:href="#"  xlink:actuate="onLoad" xlink:type="simple"/>
+</xml>

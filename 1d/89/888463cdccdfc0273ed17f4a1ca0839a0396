@@ -1,0 +1,11 @@
+
+copy: browser/base/content/aboutSyncTabs.css
+copyrev: 07254a02571c0c3932b7ae0442586abd8cc6bdb8
+
+richlistitem[type="tab"] {
+  -moz-binding: url(chrome://browser/content/sync/aboutSyncTabs-bindings.xml#tab-listing);
+}
+
+richlistitem[type="client"] {
+  -moz-binding: url(chrome://browser/content/sync/aboutSyncTabs-bindings.xml#client-listing);
+}

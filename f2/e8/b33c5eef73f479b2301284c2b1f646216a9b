@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/condition.dic
+copyrev: 00119054e848af9eb351b3f03f82a2e292d18cd3
+
+5
+ofo/SP
+entertain/Q
+nianretne/R
+éra/Z
+wry/TU

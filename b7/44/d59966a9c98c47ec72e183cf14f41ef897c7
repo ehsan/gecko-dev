@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/simplifiedtriple.wrong
+copyrev: 29af8bc6835ff5595fe6bfd9026ce6334567bb4a
+
+glasssko

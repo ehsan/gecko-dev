@@ -1,0 +1,6 @@
+
+copy: layout/xul/crashtests/329327-1.xul
+copyrev: 3231d630192982306f69f25774e2e5e525c8d79b
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"><menulist equalsize="always"><y/> <z width="-444981589286"/> </menulist></window>

@@ -1,0 +1,10 @@
+
+copy: browser/themes/pinstripe/communicator/communicator.css
+copyrev: 39ad8f8f56dbcc04cd4ed1e585329fefc8e88e8b
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url("chrome://global/skin/");
+

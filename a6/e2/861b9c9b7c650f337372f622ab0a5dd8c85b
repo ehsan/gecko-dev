@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/forceucase.sug
+copyrev: 6b0dabd17f299b6f276b8dab5eabbd09a4dfd6cd
+
+Foobaz
+Foobarbaz

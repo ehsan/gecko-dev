@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/utf8.dic
+copyrev: c3d95a125bafb7ebee4b203752f01fe60bb78532
+
+2
+foo/A
+foó/A

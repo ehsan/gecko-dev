@@ -1,0 +1,10 @@
+
+copyrev: 96050185433388e4c62cd3e40dc9675924000755
+copy: js/src/trace-test/tests/basic/testBreak.js
+
+for (var i = 10; i < 19; i++)
+    for (var j = 0; j < 9; j++)
+        if (j < i)
+            break;
+
+checkStats({recorderStarted: 3, recorderAborted: 1, traceCompleted: 2});

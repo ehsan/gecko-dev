@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/a/100-novalid.html
+copyrev: ddbb6b1fc8e5b412283c18f592cbe994171bcc2e
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>invalid empty value for a/@name</title>
+<meta charset=utf-8>
+</head>
+<body>
+<a name=''></a>
+</body>
+</html>

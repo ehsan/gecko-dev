@@ -1,0 +1,15 @@
+
+copyrev: 05e5498d9a78a6b4f978aaeae86493de97dff7bd
+copy: js/src/trace-test/tests/jaeger/bug554580-3.js
+
+// |jit-test| error: SyntaxError
+Function("\n\
+  for (a = 0; a < 3; a++) {\n\
+    if (a == 0) {} else {\n\
+      __defineSetter__(\"\",1)\n\
+    }\n\
+  }\n\
+")()
+
+/* Don't crash/assert. */
+

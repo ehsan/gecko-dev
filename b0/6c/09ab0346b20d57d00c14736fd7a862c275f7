@@ -1,0 +1,27 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-618078-network-exceptions.html
+copyrev: bc931d12ba6353a96a1a13a8109bce7e7eb4faf6
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Web Console test for bug 618078 - exception in async network request
+      callback</title>
+    <!-- Any copyright is dedicated to the Public Domain.
+         http://creativecommons.org/publicdomain/zero/1.0/ -->
+    <script type="text/javascript">
+      var req = new XMLHttpRequest();
+      req.open('GET', 'http://example.com', true);
+      req.onreadystatechange = function() {
+        if (req.readyState == 4) {
+          bug618078exception();
+        }
+      };
+      req.send(null);
+    </script>
+  </head>
+  <body>
+    <p>Web Console test for bug 618078 - exception in async network request
+    callback.</p>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/param/model-isvalid.html
+copyrev: 4b000b7ac781dcbe89fb81c0ff18d8a132f8ce11
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;param&gt;</title>
+</head>
+<body>
+<p>
+  <object data='foo'><param name="foo" value='bar'></object>
+
+  <object data='foo'><param name="foo" value="!@#$%$ ^&amp;)"></object>
+  <object data='foo'><param name="foo" value="!@#$%$ ^&amp;)"></object>
+
+  <object data='foo'><param name="foo" value="uri"></object>
+  <object data='foo'><param name="foo" value="uri"></object>
+</p>
+</body>
+</html>

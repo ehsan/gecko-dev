@@ -1,0 +1,15 @@
+
+copy: testing/web-platform/tests/DOMEvents/tests/submissions/Microsoft/converted/dispatchEvent.UNSPECIFIED_EVENT_TYPE_ERR.html
+copyrev: 949385624c328bfc34f8e8eb050052a80103c49d
+
+<!doctype html>
+<meta charset=UTF-8>
+<link rel="author" title="tanvi@mozilla.com">
+<title>No inline script</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id=log></div>
+<script>
+unsafeScript = false;
+</script>
+<script src="assert_undefined.py?varName=unsafeScript"></script>

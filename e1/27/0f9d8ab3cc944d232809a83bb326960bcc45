@@ -1,0 +1,9 @@
+
+copyrev: 0c99801a9dbe2dea1a3c41b596c7a14dd7facf19
+copy: js/src/trace-test/tests/jaeger/bug556525.js
+
+for each(x in [new Number])
+    x.__proto__ = []
+++x[x]
+
+// don't assert

@@ -1,0 +1,43 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/ul/030-isvalid.html
+copyrev: def8e6bff10f47f1d22dcd6b8a8d8950d4f47666
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>Unordered List: &lt;ul&gt; &lt;li&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <ul class="class" id="id" lang="en">
+    <li class="class" id="id2" lang="en">text</li>
+  </ul>
+
+  <!-- can be empty -->
+  <ul></ul>
+  <ul>
+    <li></li>
+    <li></li>
+  </ul>
+
+  <!-- can contain structured inline -->
+  <ul>
+    <li>some <em>text</em>
+	  <pre>more text</pre>
+    </li>
+  </ul>
+
+  <!-- can contain blocks -->
+  <ul>
+    <li>
+      <p>some</p>
+      <p>text</p>
+    </li>
+  </ul>
+
+  <!-- can contain interactive -->
+  <ul><li><a>text</a></li></ul>
+
+</body>
+</html>

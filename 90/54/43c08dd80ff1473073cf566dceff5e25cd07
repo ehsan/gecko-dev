@@ -1,0 +1,15 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-console-replaced-api.html
+copyrev: 9b9aa0dc31311250ac9effe297666590047b9bef
+
+<!DOCTYPE HTML>
+<html dir="ltr" xml:lang="en-US" lang="en-US"><head>
+    <title>Console test replaced API</title>
+  </head>
+  <body>
+    <h1 id="header">Web Console Replace API Test</h1>
+    <script type="text/javascript">
+      window.console = {log: function (msg){}, info: function (msg){}, warn: function (msg){}, error: function (msg){}};
+    </script>
+  </body>
+</html>

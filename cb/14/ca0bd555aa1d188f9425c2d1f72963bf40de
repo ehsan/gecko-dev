@@ -1,0 +1,14 @@
+
+copyrev: a8b362153bb9dfbba2c7716e9c13087401a6ebc6
+copy: js/ctypes/libffi/libffi.pc.in
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=${libdir}/@PACKAGE_NAME@-@PACKAGE_VERSION@/include
+
+Name: @PACKAGE_NAME@
+Description: Library supporting Foreign Function Interfaces
+Version: @PACKAGE_VERSION@
+Libs: -L${libdir} -lffi
+Cflags: -I${includedir}

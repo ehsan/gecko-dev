@@ -1,0 +1,14 @@
+
+copy: dom/xul/test/chrome.ini
+copyrev: d062cb563eedfd449c093d802bcc9c1d1e7fc8bf
+
+[DEFAULT]
+support-files =
+  398289-resource.xul
+  file_bug236853.rdf
+
+[test_bug233643.xul]
+[test_bug236853.xul]
+[test_bug398289.html]
+[test_bug775972.xul]
+[test_import_xul_to_content.xul]

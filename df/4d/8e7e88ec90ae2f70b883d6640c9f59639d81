@@ -1,0 +1,26 @@
+
+copy: js/src/jit-test/tests/sharedbuf/bug1068458-toolong.js
+copyrev: f18ba23665a7fae4686473053bb742c5cdcf8bae
+
+// Various cases that used to assert, but will now throw (as they should).
+
+if (!this.SharedUint16Array)
+    quit();
+
+var thrown = false;
+try {
+    new SharedUint16Array(2147483647); // Bug 1068458
+}
+catch (e) {
+    thrown = true;
+}
+assertEq(thrown, true);
+
+var thrown = false;
+try {
+    new SharedUint16Array(0xdeadbeef); // Bug 1072176
+}
+catch (e) {
+    thrown = true;
+}
+assertEq(thrown, true);

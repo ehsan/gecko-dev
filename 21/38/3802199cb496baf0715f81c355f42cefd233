@@ -1,0 +1,15 @@
+
+copy: content/html/content/test/file_iframe_sandbox_navigation_start.html
+copyrev: 35e3f87b751e110dcffe125fdb9882c4a05df833
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for Bug 341604</title>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+I am just a normal HTML document, probably contained in a sandboxed iframe
+</body>
+</html>

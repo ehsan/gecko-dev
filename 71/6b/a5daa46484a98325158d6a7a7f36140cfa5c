@@ -1,0 +1,22 @@
+
+copy: js/src/jit-test/tests/e4x/bug613151.js
+copyrev: 087b1fce241dbcf2117d248bdf187ccbfa62f3d1
+
+// Iterating over a property with an Array id.
+function n() {}
+function g() {}
+eval("\
+  function a() {}\
+  function b() {\
+    for (w in this) {}\
+    Object.defineProperty(\
+      this, \
+      new Array, \
+      ({enumerable: true})\
+    )\
+  }\
+  for (z in [0, 0, 0]) b()\
+")
+
+// Test it doesn't assert.
+

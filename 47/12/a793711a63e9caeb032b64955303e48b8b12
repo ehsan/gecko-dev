@@ -1,0 +1,24 @@
+
+copy: editor/composer/src/crashtests/407062-1.html
+copyrev: f5ec1a88641f68f55dbf8d5de34ee1ce85a50220
+
+<html contentEditable="true">
+<head>
+
+<script type="text/javascript">
+
+function boom()
+{
+  var r = document.documentElement;
+  while(r.firstChild)
+    r.removeChild(r.firstChild);
+
+  document.execCommand("contentReadOnly", false, "");
+  document.documentElement.focus();
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

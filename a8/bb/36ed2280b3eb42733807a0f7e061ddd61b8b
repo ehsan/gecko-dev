@@ -1,0 +1,17 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/keygen/060-novalid.html
+copyrev: 583a2ef183622628e98540bbc83047133b8f0b42
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>keygen as redundant &lt;label> descendant</title>
+</head>
+<body>
+<label for="foo">
+<input id="foo">
+<keygen>
+</label>
+</body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/obsolete/007-novalid.html
+copyrev: 83a511c8aff858996e4ce66bba88e21e3913e8d9
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>the "font" element is obsolete</title>
+<meta charset=utf-8>
+</head>
+<body>
+<font>baz</font>
+</body>
+</html>

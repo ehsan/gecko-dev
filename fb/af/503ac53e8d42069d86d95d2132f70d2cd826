@@ -1,0 +1,8 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/glsl/samplers/00_test_list.txt
+copyrev: dc265910ae5bb54e9925e9186351efde097c5d22
+
+glsl-function-texture2d-bias.html
+glsl-function-texture2dlod.html
+glsl-function-texture2dproj.html
+

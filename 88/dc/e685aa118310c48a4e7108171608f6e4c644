@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-invalid/textarea/textarea-maxlength-valid.html
+copyrev: 8d131a850ed9c038d91df8f18f528539687f4bb0
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if textarea is valid and is not barred from constraint validation,
+             it should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <textarea class='notinvalid' maxlength="2"></textarea>
+  </body>
+</html>
+

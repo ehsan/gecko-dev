@@ -1,0 +1,7 @@
+
+copy: browser/devtools/styleinspector/test/browser_bug705707_is_content_stylesheet_imported2.css
+copyrev: aa25313c263e55a14a02a8eba6d3268543d288aa
+
+#target {
+  text-decoration: underline;
+}

@@ -1,0 +1,9 @@
+
+copy: toolkit/components/places/tests/unit/history/xpcshell.ini
+copyrev: 23253d0b1ffa7ca7c74d7cba113d4ea99951a4de
+
+[DEFAULT]
+head = head_history.js
+tail =
+
+[test_remove.js]

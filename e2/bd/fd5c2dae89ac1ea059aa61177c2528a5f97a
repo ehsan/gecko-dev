@@ -1,0 +1,15 @@
+
+copy: toolkit/components/places/tests/browser/bug_399606/399606-window.location.html
+copyrev: 38a08f9614b47feda672908c02999738f9d20a1c
+
+<html>
+<head>
+<title>window.location</title>
+<script>
+setTimeout('window.location = window.location', 1000);
+</script>
+</head>
+<body>
+Testing window.location
+</body>
+</html>

@@ -1,0 +1,15 @@
+
+copy: dom/webidl/ClientRectList.webidl
+copyrev: f06347bf1ca2bd26fb2c9f3f8e8d27abe4b0727a
+
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
+[ArrayClass]
+interface DOMRectList {
+  readonly attribute unsigned long length;
+  getter DOMRect? item(unsigned long index);
+};

@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule7.test
+copyrev: eb37fca4b008f8ee0576ce6ac763cf865ff62cd3
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME
+
+

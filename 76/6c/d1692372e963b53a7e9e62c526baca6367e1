@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_XHRSendData_doc.xml^headers^
+copyrev: 932c461451b27f92556f38f00750e81c653172c0
+
+Content-Type: application/xml; charset=ISO-8859-1

@@ -1,0 +1,5 @@
+
+copyrev: 25e1ae2f4988fd462da292a871240c069d64035b
+copy: js/tests/e4x/Types/shell.js
+
+gTestsubsuite = 'Types';

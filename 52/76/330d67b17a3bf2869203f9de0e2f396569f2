@@ -1,0 +1,5 @@
+
+copyrev: 413c04a66b4a53365bcf19eb41e97b2704f20dcd
+copy: dom/src/json/test/fail11.json
+
+{"Illegal expression": 1 + 2}

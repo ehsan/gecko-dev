@@ -1,0 +1,47 @@
+[testAwesomebar]
+# [testAwesomebarSwipes] # disabled on fig - bug 880060
+# [testBookmark] # disabled on fig - bug 880060
+# [testBookmarklets] # disabled on fig - bug 880060
+[testJNI]
+[testLoad]
+[testNewTab]
+[testOrderedBroadcast]
+[testPrefsObserver]
+[testPanCorrectness]
+# [test_bug720538] # disabled on fig - bug 897072
+[testFlingCorrectness]
+[testOverscroll]
+[testAxisLocking]
+[testAboutPage]
+# [testWebContentContextMenu] # see bug 862493
+[testPasswordProvider]
+# [testPasswordEncrypt] # see bug 824067
+[testFormHistory]
+[testBrowserProvider]
+# [testSearchSuggestions] # disabled on fig - bug 880060
+[testSharedPreferences]
+# [testThumbnails] # see bug 813107
+[testAddonManager]
+# [testHistory] # disabled on fig - bug 880060
+[testVkbOverlap]
+[testDoorHanger]
+[testTabHistory]
+[testShareLink]
+# [testClearPrivateData] # disabled on fig - bug 880060
+[testSettingsMenuItems]
+[testSystemPages]
+# [testPermissions] # see bug 757475
+[testJarReader]
+[testDistribution]
+[testFindInPage]
+# [testInputAwesomeBar] # disabled on fig - bug 880060
+# [testAddSearchEngine] # disabled on fig - bug 880060
+[testImportFromAndroid]
+[testMasterPassword]
+[testDeviceSearchEngine]
+
+# Used for Talos, please don't use in mochitest
+#[testPan]
+#[testCheck]
+#[testCheck2]
+#[testBrowserProviderPerf]

@@ -1,0 +1,15 @@
+
+copyrev: 6140176fea07c7f309bef757cfd04cb34ae0ee00
+copy: accessible/tests/mochitest/nsIAccessible_name.css
+
+box.first {
+  -moz-binding: url('chrome://mochikit/content/a11y/accessible/name.xbl#first');
+}
+
+.second {
+  -moz-binding: url('chrome://mochikit/content/a11y/accessible/name.xbl#second');
+}
+
+.third {
+  -moz-binding: url('chrome://mochikit/content/a11y/accessible/name.xbl#third');
+}

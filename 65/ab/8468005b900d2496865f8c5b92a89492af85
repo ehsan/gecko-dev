@@ -1,0 +1,8 @@
+
+copy: content/base/test/unit/4_result_4.xml
+copyrev: a315da3ed7c7f9ec1b0f623832a861739b34dd78
+
+<box xmlns="http://mozilla.org/ns4">
+        <other:what xmlns:other="http://mozilla.org/ns/other">lorem ipsum</other:what>
+        <description ho:foo="bar" xmlns:ho="http://mozilla.org/ns4" bla="hello" other:yes="no" xmlns:other="http://mozilla.org/ns/other" ho:foo2="bar2">xul fake</description>
+      </box>

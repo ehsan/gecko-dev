@@ -1,0 +1,7 @@
+
+copy: widget/src/cocoa/crashtests/444260-1.xul
+copyrev: f98d47e431c03bdebc13eed608a980f4344e39c8
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<hbox><button width="7788025414616">S</button></hbox>
+</window>

@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule4.aff
+copyrev: d62eed0d6e836262a00186c2e0282e60b121b3ae
+
+# English ordinal numbers
+WORDCHARS 0123456789
+COMPOUNDMIN 1
+ONLYINCOMPOUND c
+COMPOUNDRULE 2
+COMPOUNDRULE n*1t
+COMPOUNDRULE n*mp

@@ -1,0 +1,5 @@
+
+copy: mobile/android/sync/android-values-resources.mn
+copyrev: e66bb22748831119ef7657078bc0249a27533fd7
+
+res/values-large-v11/sync_styles.xml 

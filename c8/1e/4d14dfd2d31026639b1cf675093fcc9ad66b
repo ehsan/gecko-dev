@@ -1,0 +1,13 @@
+
+copy: layout/reftests/transform-3d/backface-visibility-1b.html
+copyrev: cb2e33e4b6d533ac649de9d3a6066f6d3de4fc74
+
+<html>
+<head>
+</head>
+<body>
+  <div style="-moz-transform: rotatex(180deg); -moz-backface-visibility: hidden; width: 100px; height: 100px; display: table">
+    Test Text
+  </div>
+</body>
+</html>

@@ -1,0 +1,6 @@
+
+copy: widget/src/cocoa/crashtests/460387-1.html
+copyrev: dcba0aedcd8403378bf401427fc451c120424017
+
+<!DOCTYPE html>
+<html><head></head><body><div style="display: table; padding: 625203mm; -moz-appearance: menulist;"></div></body></html>

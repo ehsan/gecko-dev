@@ -1,0 +1,22 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/dfn/model-novalid.html
+copyrev: 4407eab1ea44d6e4613691b36f426884e2f34b3d
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;dfn&gt;</title>
+</head>
+<body>
+  <!-- not a block -->
+  <dfn>text</dfn>
+
+  <!-- cannot contain structured inline -->
+  <p><dfn><ul><li>text</li></ul></dfn></p>
+
+  <!-- cannot contain interactive if parent forbids interactive -->
+  <p><a><dfn><a>text</a></dfn></a></p>
+  <p><a><var><dfn><a>text</a></dfn></var></a></p>
+</body>
+</html>

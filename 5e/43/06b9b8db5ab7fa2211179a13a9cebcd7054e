@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_XHR_pass1.xml
+copyrev: 180ef59d0b00774a70d959c001a25d2165152434
+
+<res>hello</res>

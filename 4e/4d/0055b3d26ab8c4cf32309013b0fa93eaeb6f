@@ -1,0 +1,14 @@
+
+copy: dom/security/test/csp/file_path_matching_redirect.html
+copyrev: cbc2c459e6fd68d60b7be916328f05124fa4e88f
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Bug 808292 - Implement path-level host-source matching to CSP</title>
+  </head>
+  <body>
+  <div id="testdiv">blocked</div>
+  <script src="http://example.com/tests/dom/base/test/csp/file_csp_path_matching_redirect_server.sjs"></script>
+</body>
+</html>

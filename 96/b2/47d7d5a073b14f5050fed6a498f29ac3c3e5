@@ -1,0 +1,10 @@
+
+copy: mobile/branding/nightly/content/jar.mn
+copyrev: a4db2fb25d4c8f72908d5823eb9a4d0419c8dc29
+
+chrome.jar:
+% content branding %content/branding/
+  content/branding/about.png                     (about.png)
+  content/branding/logoWordmark.png              (logoWordmark.png)
+  content/branding/logo.png                      (logo.png)
+  content/branding/favicon32.png                 (favicon32.png)

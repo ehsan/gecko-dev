@@ -1,0 +1,16 @@
+
+copyrev: 9234020661cf5925a47772a915336614bb8d55a1
+copy: js/src/trace-test/tests/basic/delete-indexed-names.js
+
+var a = ['p', 'q', 'r', 's', 't'];
+var o = {p:1, q:2, r:3, s:4, t:5};
+for (var i in o)
+    delete o[i];
+for each (var i in a)
+    assertEq(o.hasOwnProperty(i), false);
+
+checkStats({
+    recorderAborted:0,
+    traceCompleted:2,
+    sideExitIntoInterpreter:2
+});

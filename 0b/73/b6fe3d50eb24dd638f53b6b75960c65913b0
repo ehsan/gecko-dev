@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/test_document.title-07.html.json
+copyrev: 87ec5135c4b49346fc04c4091103e12ac989a67e
+
+{
+  "Document.title and DOMImplementation.createHTMLDocument 6": true
+}

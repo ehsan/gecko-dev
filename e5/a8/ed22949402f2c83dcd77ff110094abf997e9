@@ -1,0 +1,7 @@
+
+copy: mobile/android/base/GeckoTextView.java.in
+copyrev: 6e7174d6b7c434b73b7ffe9718ef231789ea62d9
+
+#filter substitution
+#define VIEWTYPE TextView
+#include GeckoView.java.frag

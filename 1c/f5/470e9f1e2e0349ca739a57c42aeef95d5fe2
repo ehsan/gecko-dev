@@ -1,0 +1,18 @@
+
+copy: content/xul/content/test/file_bug236853.rdf
+copyrev: 9536464d3f103e5fee29a6d38fdcb658df0bc4c4
+
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+	xmlns:ex="http://www.ex.org/ex-rdf#">
+
+	<rdf:Description about="urn:root">
+		<ex:nodes>
+			<rdf:Bag about="http://www.ex.org/nodes">
+				<rdf:li>
+					<rdf:Description about="http://www.ex.org/nodes/A"/>
+				</rdf:li>
+			</rdf:Bag>
+		</ex:nodes>
+	</rdf:Description>		
+</rdf:RDF>

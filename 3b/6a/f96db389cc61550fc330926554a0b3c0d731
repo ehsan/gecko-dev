@@ -1,0 +1,9 @@
+url-prefix ../../jsreftest.html?test=ecma_5/Function/
+script 15.3.4.3-01.js
+script arguments-caller-callee.js
+script function-caller.js
+script strict-arguments.js
+script arguments-property-attributes.js
+script function-bind.js
+script redefine-arguments-length.js
+script builtin-no-prototype.js

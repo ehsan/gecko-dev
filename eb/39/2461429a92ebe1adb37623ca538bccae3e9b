@@ -1,0 +1,9 @@
+
+copy: js/src/jit-test/tests/debug/Debug-debuggees-01.js
+copyrev: fd682cef42cd9b0405cc2aa152a5acc21b6f526c
+
+// A Debugger object created with no argument initially has no debuggees.
+var dbg = new Debugger;
+var debuggees = dbg.getDebuggees();
+assertEq(Array.isArray(debuggees), true);
+assertEq(debuggees.length, 0);

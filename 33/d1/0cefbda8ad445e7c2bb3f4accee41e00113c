@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/selection_visibility_after_reframe-ref.html
+copyrev: 313ca2ee78bede54d9c2a5975fe5e124497ca5bc
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input value="foo">
+  </body>
+</html>

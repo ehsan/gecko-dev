@@ -1,0 +1,19 @@
+
+copy: dom/imported-tests/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-17.htm
+copyrev: 0afc1ffc0bfafe791462301dd2d82d8b22142ca0
+
+<!doctype html>
+<html>
+ <head>
+  <title>document.getElementsByClassName(array): "b a"</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body class="a b">
+  <div id="log"></div>
+  <script>test(function() {
+                 assert_array_equals(document.getElementsByClassName(["b a"]), [document.body]);
+          })
+ </script>
+ </body>
+</html>

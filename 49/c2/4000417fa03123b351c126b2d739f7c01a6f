@@ -1,0 +1,13 @@
+
+copy: content/base/test/bug282547.sjs
+copyrev: 4bea1978945739c8d8d797543d528b67c0c6b204
+
+function handleRequest(request, response)
+{
+  response.setStatusLine(null, 401, "Unauthorized");
+
+  response.setHeader("WWW-Authenticate", "basic realm=\"restricted\"", false);
+
+  response.setHeader("Access-Control-Allow-Origin", "*", false);
+  response.setHeader("Access-Control-Allow-Credentials", "true", false);
+}

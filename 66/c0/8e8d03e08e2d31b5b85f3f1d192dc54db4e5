@@ -1,0 +1,11 @@
+
+copy: content/base/test/unit_ipc/xpcshell.ini
+copyrev: caba82b90d14327466b5838b07b10c8feb0f870e
+
+[DEFAULT]
+head =
+tail =
+skip-if = toolkit == 'android' || toolkit == 'gonk'
+
+[test_bug553888_wrap.js]
+[test_xhr_document_ipc.js]

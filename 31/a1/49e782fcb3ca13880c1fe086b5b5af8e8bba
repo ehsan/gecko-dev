@@ -1,0 +1,25 @@
+
+copy: dom/imptests/webapps/DOMCore/tests/submissions/Ms2ger/test_Document-createProcessingInstruction-literal-2.xhtml
+copyrev: c6638ab53d90dbad325830d99834a27b7cccc133
+
+<?xml-stylesheet href="support/style.css" type="text/css"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>ProcessingInstruction literals</title>
+<link rel="help" href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-processinginstruction-target"/>
+<link rel="help" href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-characterdata-data"/>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+</head>
+<body>
+<div id="log"/>
+<script>
+test(function() {
+  var pienc = document.firstChild;
+  assert_true(pienc instanceof ProcessingInstruction)
+  assert_equals(pienc.target, "xml-stylesheet")
+  assert_equals(pienc.data, 'href="support/style.css" type="text/css"')
+})
+</script>
+</body>
+</html>

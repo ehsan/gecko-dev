@@ -1,0 +1,11 @@
+
+copyrev: 0ac95463ad8aba8e70ba5284f8ec5bd5c030d947
+copy: browser/themes/pinstripe/browser/tabview/platform.css
+
+/* This file is for platform-specific CSS for TabView, and is loaded after the
+  platform-independent tabview.css, to allow overwriting.
+*/
+
+.close {
+  background: url(chrome://global/skin/icons/closetab.png) no-repeat;
+}

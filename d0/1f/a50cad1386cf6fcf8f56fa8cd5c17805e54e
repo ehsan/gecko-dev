@@ -1,0 +1,11 @@
+
+copyrev: 6827e912dfc6ad5143e4ed69c90042ae0ef3ce4c
+copy: js/src/trace-test/tests/basic/testObjectOrderedCmp.js
+
+function testObjectOrderedCmp()
+{
+  var a = new Array(5);
+  for(var i=0;i<5;++i) a[i] = ({} < {});
+  return a.join(",");
+}
+assertEq(testObjectOrderedCmp(), "false,false,false,false,false");

@@ -1,0 +1,7 @@
+
+copyrev: a98e4223ac788bba4335c95e271cf2606e925947
+copy: js/src/trace-test/tests/basic/bug578041.js
+
+__defineGetter__('x', Float32Array);
+with(this)
+    x;

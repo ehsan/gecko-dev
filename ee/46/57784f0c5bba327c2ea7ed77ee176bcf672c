@@ -1,0 +1,7 @@
+
+copy: dom/xul/crashtests/509719-1.xul
+copyrev: b77ab99e83d792d4b5991fa981e0cb80bd0cb790
+
+<?xul-overlay href="509719-1-overlay.xul"?>
+<window id="win" xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+</window>

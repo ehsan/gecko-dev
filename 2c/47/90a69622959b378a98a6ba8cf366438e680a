@@ -1,0 +1,24 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/104-isvalid.html
+copyrev: fffe6d0725c62a12ef351231bb109db2c25683f3
+
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+<!--
+
+Something or other
+
+-->
+  </style>
+  <meta charset=utf-8>
+  <title>&lt;STYLE&gt;s</title>
+  <style type="application/vnd.nonsense" title="My Style">
+    Something or other
+  </style>
+</head>
+<body>
+
+</body>
+</html>

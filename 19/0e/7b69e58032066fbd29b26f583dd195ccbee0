@@ -1,0 +1,5 @@
+
+copy: content/base/test/reftest/reftest.list
+copyrev: 95d785ae95a7faea324aeb819678943d511f16cf
+
+== test_bug920877.html test_bug920877-ref.html

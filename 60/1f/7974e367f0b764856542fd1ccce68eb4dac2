@@ -1,0 +1,5 @@
+
+copyrev: 42f4dd70c08112479fadcd31586154dacefc4e72
+copy: js/tests/ecma/GlobalObject/shell.js
+
+gTestsubsuite = 'GlobalObject';

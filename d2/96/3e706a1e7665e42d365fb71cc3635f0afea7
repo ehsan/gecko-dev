@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/base/001-novalid.html
+copyrev: 390e5bc17bccbd661e097599a62e1797b2221c2c
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset=utf-8>
+<base>
+<title>base element missing href and target attribute</title>
+</head>
+<body>
+</body>
+</html>

@@ -1,0 +1,22 @@
+
+copy: editor/libeditor/crashtests/776323.html
+copyrev: 0d21e945cdc51a14b57f3774baa704a577c42eb5
+
+<!DOCTYPE html>
+<html contenteditable="true">
+<head>
+<script>
+
+function boom()
+{
+  document.execCommand("inserthtml", false, "b");
+  var myrange = document.createRange();
+  myrange.selectNodeContents(document.getElementsByTagName("img")[0]);
+  window.getSelection().addRange(myrange);
+  document.execCommand("strikethrough", false, null);
+}
+
+</script>
+</head>
+<body onload="boom();"><img></body>
+</html>

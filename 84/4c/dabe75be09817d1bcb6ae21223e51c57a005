@@ -1,0 +1,5 @@
+
+copyrev: e5334f5e2a4c98eff52822343c4cdebc88e77d93
+copy: js/tests/ecma_5/Object/shell.js
+
+gTestsubsuite='Object';

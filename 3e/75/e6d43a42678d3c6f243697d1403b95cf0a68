@@ -1,0 +1,6 @@
+
+copy: layout/reftests/forms/radio-checked-native-notref.html
+copyrev: 460bfad249d9e9467b80d63e9765f7261d1e6250
+
+<!doctype html>
+<input type="radio">

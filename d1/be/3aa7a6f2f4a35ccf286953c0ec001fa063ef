@@ -1,0 +1,13 @@
+
+copy: content/canvas/test/webgl/failing_tests_android_x86.txt
+copyrev: 25a43e67fa9b5a0be30c1327eac91799dc8b531f
+
+# Failures for our x86 emulator test environment.
+
+conformance/extensions/oes-texture-float.html
+conformance/misc/error-reporting.html
+conformance/misc/object-deletion-behaviour.html
+conformance/misc/type-conversion-test.html
+conformance/programs/get-active-test.html
+conformance/textures/texture-npot.html
+conformance/textures/texture-size-cube-maps.html

@@ -1,0 +1,10 @@
+
+copyrev: aeb6479ff2fd9fcd70c2c518c740ac744a97cf3a
+copy: js/src/trace-test/tests/jaeger/bug585408-2.js
+
+for (let c in []) {
+    c << c++
+}
+
+/* Don't assert. */
+

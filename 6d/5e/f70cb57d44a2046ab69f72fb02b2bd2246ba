@@ -1,0 +1,16 @@
+
+copy: content/smil/crashtests/572938-1.svg
+copyrev: f9a8aa2ed9a758a8da1f48ae403f0bf550a7ea3f
+
+<svg xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <text id="myText">Used Text Element
+      <set attributeName="display" to="none"/>
+    </text>
+  </defs>
+  <use xlink:href="#myText" x="20" y="40"/>
+  <text x="20" y="60">Normal Text Element
+    <set attributeName="display" to="none"/>
+  </text>
+</svg>

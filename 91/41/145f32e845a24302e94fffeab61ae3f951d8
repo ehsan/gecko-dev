@@ -1,0 +1,11 @@
+
+copy: mobile/branding/aurora/locales/jar.mn
+copyrev: 19b53bb3cd1e3d15af2343b481c7ce9f121c542d
+
+#filter substitution
+
+@AB_CD@.jar:
+% locale branding @AB_CD@ %locale/branding/
+# Nightly branding only exists in en-US
+  locale/branding/brand.dtd        (en-US/brand.dtd)
+* locale/branding/brand.properties (en-US/brand.properties)

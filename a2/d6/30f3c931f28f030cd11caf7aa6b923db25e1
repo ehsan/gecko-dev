@@ -1,0 +1,20 @@
+
+copy: content/svg/content/src/crashtests/383685-1.svg
+copyrev: 8e82dbf7d93f7463eac7aa643a6a42aa48243804
+
+<svg xmlns="http://www.w3.org/2000/svg" onload="setTimeout(boom, 100);">
+
+<script>
+
+function boom()
+{
+  var gradient = document.getElementById("gradient");
+  gradient.spreadMethod.baseVal = undefined;
+  uneval({p: gradient.attributes});
+}
+
+</script>
+
+<linearGradient id="gradient" />
+
+</svg>

@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-calc/border-radius-1-ref.html
+copyrev: 0cf22f6665c86ccde9d0162e2c196796b0686bf0
+
+<!DOCTYPE HTML>
+<title>test for border-radius: calc()</title>
+<style>
+
+p {
+  height: 256px;
+  width: 512px;
+  background: blue;
+  border-radius: 21px 6px 12px 29px / 5px 16px 10px 3px;
+}
+
+</style>
+<p></p>

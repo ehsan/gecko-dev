@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/utf8.good
+copyrev: a59d5c080834b6a74f54a9127ade1fca82b20064
+
+foo
+foó
+fooőő
+fooő
+foóő
+foő
+foőo
+foőoo
+foóó

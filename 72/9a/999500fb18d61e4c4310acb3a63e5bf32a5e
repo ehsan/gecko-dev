@@ -1,0 +1,7 @@
+
+copy: netwerk/test/unit_ipc/test_bug528292_wrap.js
+copyrev: cd1451cace648dd99a4c54321bf6de2776d2c32e
+
+function run_test() {
+  run_test_in_child("../unit/test_bug528292.js");
+}

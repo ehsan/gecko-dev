@@ -1,0 +1,7 @@
+
+copy: mobile/branding/official/configure.sh
+copyrev: 7a0dcc74643a64eee515ed1f7dbb038a6f82910c
+
+MOZ_APP_DISPLAYNAME=Firefox
+ANDROID_PACKAGE_NAME=org.mozilla.firefox
+MOZ_UPDATER=

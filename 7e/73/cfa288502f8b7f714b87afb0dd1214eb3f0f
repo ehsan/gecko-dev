@@ -1,0 +1,17 @@
+
+copy: browser/components/privatebrowsing/test/browser/perwindow/browser_privatebrowsing_geoprompt_page.html
+copyrev: b714cb27b3532b810502e3e054d2c3243dd66551
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+  <head>
+    <title>Geolocation invoker</title>
+  </head>
+  <body>
+    <script type="text/javascript">
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        // ignore
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/footer/003-novalid.html
+copyrev: 041296668c99b131faea32d199b78bfcf91d4aba
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>"footer" with "header" descendant</title>
+</head>
+<body>
+<footer>
+<header></header>
+</footer>
+</body>
+</html>

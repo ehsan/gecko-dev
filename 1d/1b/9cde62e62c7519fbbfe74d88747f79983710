@@ -1,0 +1,15 @@
+
+copyrev: 12d6e083233de95c551197a1f3a6bdb91d4c128d
+copy: js/src/trace-test/tests/jaeger/bug563000/trap-self.js
+
+setDebug(true);
+x = "notset";
+function main() {
+  /* The JSOP_STOP in a. */
+  trap(main, 25, "success()");
+  x = "failure";
+}
+function success() { x = "success"; }
+
+main();
+assertEq(x, "success");

@@ -1,0 +1,5 @@
+
+copyrev: d20df6caa42799b0b2bc4d1f4c158eff1acef938
+copy: js/tests/ecma_3/Regress/shell.js
+
+gTestsubsuite = 'Regress';

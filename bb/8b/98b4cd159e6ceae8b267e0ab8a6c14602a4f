@@ -1,0 +1,65 @@
+
+copy: layout/reftests/bidi/dirAuto/dir_auto-pre-mixed-ref.html
+copyrev: 17368d27336f77feea7079a4a351e0b73350e1a2
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="author" title="Aharon Lanin" href="mailto:aharon@google.com" />
+    <link rel="author" title="HTML5 bidi test WG" href="mailto:html5bidi@googlegroups.com" />
+    <style>
+      body {
+        font-size:18px;
+        text-align:left;
+      }
+      .test, .ref {
+        border: medium solid gray;
+        width: 400px;
+        margin: 20px;
+      }
+      .comments {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="instructions"><p>Test passes if the two boxes below look exactly the same.</p></div>
+    <div class="test">
+      <div dir="ltr">
+        <pre dir="ltr">
+@123!
+@123!
+@123!
+@123!
+        </pre>
+      </div>
+      <div dir="rtl">
+        <pre dir="ltr">
+@123!
+@123!
+@123!
+@123!
+        </pre>
+      </div>
+    </div>
+    <div class="ref">
+      <div dir="ltr">
+        <pre dir="ltr">
+@123!
+@123!
+@123!
+@123!
+        </pre>
+      </div>
+      <div dir="rtl">
+        <pre dir="ltr">
+@123!
+@123!
+@123!
+@123!
+        </pre>
+      </div>
+    </div>
+  </body>
+</html>

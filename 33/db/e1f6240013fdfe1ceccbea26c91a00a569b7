@@ -1,0 +1,37 @@
+#filter substitution
+
+browser.jar:
+% content browser %content/
+* content/browser.xul                  (content/browser.xul)
+  content/browser.js                   (content/browser.js)
+  content/browser-ui.js                (content/browser-ui.js)
+  content/commandUtil.js               (content/commandUtil.js)
+  content/deckbrowser.xml              (content/deckbrowser.xml)
+  content/deckbrowser.css              (content/deckbrowser.css)
+  content/scrollbars.css               (content/scrollbars.css)
+  content/content.css                  (content/content.css)
+  content/shortcuts.js
+% content branding %branding/
+% locale branding @AB_CD@ %branding/
+  branding/brand.dtd                   (locale/@AB_CD@/brand/brand.dtd)
+  branding/brand.properties            (locale/@AB_CD@/brand/brand.properties)
+
+classic.jar:
+% skin browser classic/1.0 %
+  browser.css                          (skin/browser.css)
+  images/close.png                     (skin/images/close.png)
+  images/close-small.png               (skin/images/close-small.png)
+  images/default-favicon.png           (skin/images/default-favicon.png)
+  images/identity.png                  (skin/images/identity.png)
+  images/starred48.png                 (skin/images/starred48.png)
+  images/throbber.png                  (skin/images/throbber.png)
+  images/throbber.gif                  (skin/images/throbber.gif)
+  images/mono-toolbar.png              (skin/images/mono-toolbar.png)
+  images/toolbar-background.png        (skin/images/toolbar-background.png)
+  images/mono-sidebar.png              (skin/images/mono-sidebar.png)
+
+@AB_CD@.jar:
+% locale browser @AB_CD@ %
+  browser.dtd                          (locale/@AB_CD@/browser.dtd)
+  browser.properties                   (locale/@AB_CD@/browser.properties)
+  shortcuts.properties                 (locale/@AB_CD@/shortcuts.properties)

@@ -1,0 +1,11 @@
+
+copy: content/base/test/file_mixed_content_main_bug803225_websocket_wsh.py
+copyrev: 0898f73f5c3b67726bc2af7e8eb1b546c9f765bb
+
+from mod_pywebsocket import msgutil
+
+def web_socket_do_extra_handshake(request):
+  pass
+
+def web_socket_transfer_data(request):
+  resp = ""

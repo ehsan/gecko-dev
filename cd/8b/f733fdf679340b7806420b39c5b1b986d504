@@ -1,0 +1,7 @@
+
+copy: content/html/content/reftests/560059-video-dimensions.html
+copyrev: 3de43485f4be58c93333d3c512c0a5f6527ec2ed
+
+<!doctype html>
+<title>Video dimensions</title>
+<video style="border: thin solid black;"></video>

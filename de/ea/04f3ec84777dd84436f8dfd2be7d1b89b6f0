@@ -1,0 +1,7 @@
+
+copy: content/canvas/test/webgl-conformance/skipped_tests_winxp.txt
+copyrev: 6ad05062d76834b87d754608e66d366d5e3ef2a6
+
+conformance/more/conformance/quickCheckAPI-B2.html
+conformance/more/conformance/quickCheckAPI-B3.html
+conformance/more/functions/bufferSubDataBadArgs.html

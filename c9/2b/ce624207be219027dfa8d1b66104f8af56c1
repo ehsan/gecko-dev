@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/awesomeScreen"
+              style="@style/Screen">
+
+    <LinearLayout style="@style/AddressBar">
+    
+        <EditText android:id="@+android:id/awesomebar_text"
+                  style="@style/AddressBar.URL"
+                  android:background="@android:drawable/edit_text"
+                  android:inputType="textUri"
+                  android:imeOptions="actionGo">
+             <requestFocus/>
+        </EditText>
+
+    </LinearLayout>
+
+    <ListView android:id="@android:id/list"
+              android:layout_width="match_parent"
+              android:layout_height="fill_parent"
+              android:layout_weight="1"
+              android:background="#fff"
+              android:cacheColorHint="#fff"
+              android:divider="#666666"
+              android:dividerHeight="1dp"/>
+
+</LinearLayout>

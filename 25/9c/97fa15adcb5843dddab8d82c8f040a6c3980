@@ -1,0 +1,10 @@
+
+copyrev: f4165e441e9b9bd71a4a59d0aff68469fb308da5
+copy: js/src/trace-test/tests/basic/testBug520503-3.js
+
+(Function("for (var a = 0; a < 6; a++) {\
+        (function sum_indexing(b, c) {\
+            return b.length == c ? 0 : b[c] + sum_indexing(b, c + 1)\
+        })([(void 0), Infinity, Infinity], 0)\
+}"))()
+

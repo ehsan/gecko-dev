@@ -1,0 +1,13 @@
+
+copyrev: be072b2437f6494c366aa1158b18f6219c35874b
+copy: layout/reftests/svg/image/img-simple-3.html
+
+<html>
+<body>
+  <!-- Note: Despite the large width here, the SVG content won't scale, because
+       it hasn't provided a viewbox. It renders at a 100% zoom-level (just as
+       it would in an <embed> tag, and just as it would if we viewed it in a
+       100x600-sized browser window. -->
+  <img src="lime100x100.svg" width="600px">
+</body>
+</html>

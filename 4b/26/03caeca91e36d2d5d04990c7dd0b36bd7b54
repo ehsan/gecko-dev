@@ -1,0 +1,13 @@
+
+copyrev: ab1611925c691dccd3fdc8ccda3555de1828d1dd
+copy: js/src/trace-test/tests/basic/testErrorReportIn_getPrototypeOf.js
+
+actual = "";
+expect = "TypeError: \"kittens\" is not an object";
+try {
+    Object.getPrototypeOf.apply(null, ["kittens",4,3])
+} catch (e) {
+    actual = "" + e;
+}
+
+assertEq(actual, expect);

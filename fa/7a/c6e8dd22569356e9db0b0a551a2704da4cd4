@@ -1,0 +1,13 @@
+
+copy: dom/media/tests/ipc/ipc.json
+copyrev: b0da40f082f1c45908be83b671d79862c845bada
+
+{
+"runtests":{
+    "dom/media/tests/mochitest/test_getUserMedia_basicVideoAudio.html":"included",
+    "dom/media/tests/mochitest/test_peerConnection_basicAudioVideo.html":"included",
+    "dom/media/tests/mochitest/test_dataChannel_basicAudioVideo.html":"included"
+},
+"excludetests":{
+   }
+}

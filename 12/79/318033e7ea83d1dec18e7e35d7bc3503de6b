@@ -1,0 +1,14 @@
+classes = {
+    'NodeList': 'nsINodeList',
+    'HTMLCollection': 'nsIHTMLCollection',
+    'HTMLOptionsCollection': 'nsHTMLOptionCollection',
+    'TelephonyCallArray': 'mozilla::dom::telephony::TelephonyCallArray',
+    }
+
+irregularFilenames = {
+    'nsHTMLOptionCollection': 'nsHTMLSelectElement',
+    }
+
+customInheritance = {
+    'nsIDOMHTMLOptionsCollection': 'nsIDOMHTMLCollection',
+    }

@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/obsolete/dir-novalid.html
+copyrev: f9699bc4b227e8b1800e2d3bdfdd236b77f18cb4
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>the "dir" element is obsolete</title>
+<meta charset=utf-8>
+</head>
+<body>
+<dir></dir>
+</body>
+</html>

@@ -1,0 +1,13 @@
+
+copy: content/xul/document/test/overlay1_bug335375.xul
+copyrev: 6bf0ac335b7c795650d6d5b21800d1e534ec79d1
+
+<?xml version="1.0"?>
+<overlay id="overlay1"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <commandset id="test_commandset">
+    <command id="cmd_test"/>
+  </commandset>
+  <toolbarbutton id="button_test"
+                 command="cmd_test"/>
+</overlay>

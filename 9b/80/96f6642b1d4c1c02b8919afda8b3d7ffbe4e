@@ -1,0 +1,27 @@
+
+copy: modules/plugin/test/mochitest/plugin_window.html
+copyrev: 2439419c67b098a3e4bd0c77ee3015f7ade0ed91
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>NPAPI Stream Tests</title>
+</head>
+<body onload="doTest()">
+<p id="display"></p>
+<div id="content" style="display: none">
+This is a plugin test window.
+</div>
+<div id="test">
+<script class="testbody" type="text/javascript">
+
+function doTest() {
+  window.opener.continueTest();
+}
+
+</script>
+</div>
+</body>
+
+</html>
+

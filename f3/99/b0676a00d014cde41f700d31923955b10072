@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/parser/range-charref-novalid.html
+copyrev: 9d3136608bb5118b59525d1a57bd3c02023517c6
+
+<!doctype html><meta charset=utf-8><title>&amp;#x110000;</title><p>There should be an error.&#x110000;

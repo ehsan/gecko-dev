@@ -1,0 +1,19 @@
+
+copy: content/xul/content/crashtests/425821-1.xul
+copyrev: 621d692facf53aeeca96de2b1ba4b2ba4c6d788b
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"  onload="boom();">
+<script type="text/javascript">
+
+function boom()
+{
+  var XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+  var wiz = document.createElementNS(XUL_NS, "wizard");
+  var btn = document.createElementNS(XUL_NS, "hbox");
+  btn.setAttribute("anonid", "Buttons");
+  wiz.appendChild(btn);
+  wiz.cloneNode(true);
+}
+
+</script>
+</window>

@@ -1,0 +1,6 @@
+
+copy: mobile/branding/aurora/locales/en-US/brand.properties
+copyrev: 4f5a0536b0cb6ae568d714dab1c747addc6a9de2
+
+brandShortName=Aurora
+brandFullName=Mozilla Aurora

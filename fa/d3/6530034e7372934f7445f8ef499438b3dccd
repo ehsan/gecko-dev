@@ -1,0 +1,23 @@
+
+copy: js/src/jit-test/tests/parallelarray/map-fn-args.js
+copyrev: a3e8a180801b862594af4153088040b5033470ae
+
+function testMap() {
+  // Test map elemental fun args
+  var p = [1,2,3,4];
+  var m = p.mapPar(function(e) {
+    assertEq(e >= 1 && e <= 4, true);
+  });
+  var m = p.mapPar(function(e,i) {
+    assertEq(e >= 1 && e <= 4, true);
+    assertEq(i >= 0 && i < 4, true);
+  });
+  var m = p.mapPar(function(e,i,c) {
+    assertEq(e >= 1 && e <= 4, true);
+    assertEq(i >= 0 && i < 4, true);
+    assertEq(c, p);
+  });
+}
+
+if (getBuildConfiguration().parallelJS)
+  testMap();

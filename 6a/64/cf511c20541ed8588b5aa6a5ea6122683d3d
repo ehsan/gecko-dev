@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/i68568utf.aff
+copyrev: 70a4af79e626c9160489bf5669d01944f80cd208
+
+# Sant'Elia -> SANT'ELIA (Italian)
+# OpenOffice.org Issue 68658
+SET UTF-8
+
+PFX a Y 1
+PFX a 0 Foó' B
+
+WORDCHARS '

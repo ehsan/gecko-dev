@@ -1,0 +1,23 @@
+
+copy: content/svg/content/src/crashtests/719779-1.svg
+copyrev: 87fe9f44c5059dbf8408a340c77b7888dc2b7195
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="80" y="80" width="300" height="180" viewBox="0 0 200 120">
+
+    <defs>
+        <filter id="MyFilter" filterUnits="userSpaceOnUse" >
+            <feGaussianBlur />
+            <feOffset />
+            <feSpecularLighting >
+                <fePointLight />
+            </feSpecularLighting>
+            <feComposite />
+            <feMerge>
+                <feMergeNode />
+                <feMergeNode />
+            </feMerge>
+        </filter>
+    </defs>
+    <g transform="matrix(100,-2562303,3000,100,300,300) " filter="url(#MyFilter)"/>
+
+</svg>

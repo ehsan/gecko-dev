@@ -1,0 +1,27 @@
+
+copy: content/html/content/reftests/autofocus/button-create.html
+copyrev: 77922760dbee52b8b51be8566ec31d0ad5a56c0a
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <script>
+      var body = document.body;
+
+      var i = document.createElement('button');
+      i.autofocus = false;
+      body.appendChild(i);
+
+      i = document.createElement('button');
+      i.autofocus = true;
+      i.onfocus = function() { setTimeout(document.documentElement.removeAttribute('class'), 0); };
+      body.appendChild(i);
+
+      i = document.createElement('button');
+      i.autofocus = true;
+      i.onfocus = function() { setTimeout(document.documentElement.removeAttribute('class'), 0); };
+      body.appendChild(i);
+    </script>
+  </body>
+</html>

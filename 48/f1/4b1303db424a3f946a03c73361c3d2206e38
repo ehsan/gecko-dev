@@ -1,0 +1,30 @@
+
+copy: extensions/spellcheck/hunspell/tests/morph.good
+copyrev: 48f2dfdf39e976cc5073ea5969a65f1f147cde69
+
+drink
+drinks
+drinkable
+drinkables
+undrinkable
+undrinkables
+drank
+drunk
+phenomenon
+phenomena
+drink eat
+drink eats
+drink ate
+drink eaten
+drink eatable
+drink eatables
+drink phenomena
+drinks eat
+drinks eats
+drinks ate
+drinks eaten
+drinks eatable
+drinks eatables
+drinks phenomena
+undrinkable phenomena
+phenomenon drinks

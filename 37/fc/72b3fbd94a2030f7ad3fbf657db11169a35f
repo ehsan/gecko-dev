@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern3.good
+copyrev: 5edcca0364312470c58fa8a0e7a68211fedc95cb
+
+bozan
+barfoo
+banfoo
+banbar
+foobar
+fooban
+foobanbar
+boobar
+boobarfoo

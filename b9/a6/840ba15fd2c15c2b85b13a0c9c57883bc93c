@@ -1,0 +1,17 @@
+
+copy: media/webrtc/trunk/src/voice_engine/main/test/win_test/res/WinTest.rc2
+copyrev: b2b8b83a7921b5c08791ea3eed6aff9f4634fff4
+
+//
+// WinTest.RC2 - resources Microsoft Visual C++ does not edit directly
+//
+
+#ifdef APSTUDIO_INVOKED
+#error this file is not editable by Microsoft Visual C++
+#endif //APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Add manually edited resources here...
+
+/////////////////////////////////////////////////////////////////////////////

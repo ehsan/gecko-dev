@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/approved/test_Range-commonAncestorContainer.html.json
+copyrev: 2697bca90c3484c9ebb1efe7c39f363943c8fc5c
+
+{
+  "0: range [detached]": true
+}

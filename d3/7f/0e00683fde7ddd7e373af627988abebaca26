@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/conditionalprefix.wrong
+copyrev: 9f93cde3d548b4729073ebf718a42d27b3ecfb35
+
+undrink
+undrinks

@@ -1,0 +1,18 @@
+
+copy: content/base/crashtests/324871-1.html
+copyrev: 078f59cf1a4e3cdfd86098d993ae88b15b03f92c
+
+<html>
+<head>
+<script>
+function loaded() {
+  var node = document;
+  var handler = function(operation, key, data, src, dst) { alert(data); };
+  node.setUserData("foo", "data", handler);
+}
+</script>
+</head>
+<body onload="loaded();">
+<div id="elem"></div>
+</body>
+</html>

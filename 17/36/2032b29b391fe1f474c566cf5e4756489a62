@@ -1,0 +1,14 @@
+
+copy: layout/xul/base/src/crashtests/321056-1.xhtml
+copyrev: 1cbc3c185c61a5c7c91b37fb8874049cd4ebb8ae
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<xul:titlebar id="a"/>
+
+<script>
+var html = document.firstChild;
+var a = document.getElementById('a')
+document.removeChild(html)
+document.appendChild(a)
+</script>
+</html>

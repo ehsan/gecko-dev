@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/select/select-valid.html
+copyrev: 21ce92ec5557cae9fb93b74333a52dd8b5c4fa64
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if select has no custom error and is not barred from constraint
+             validation, it should be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <select class='valid'></select>
+  </body>
+</html>

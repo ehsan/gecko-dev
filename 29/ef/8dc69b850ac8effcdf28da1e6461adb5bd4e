@@ -1,0 +1,20 @@
+
+copy: gfx/thebes/crashtests/394246-1.html
+copyrev: 71449d8d630d5b413971d6a5e30e53cb4e2201da
+
+<html>
+<head>
+<script>
+function boom()
+{
+  var div = document.getElementById("div");
+  div.innerHTML = div.innerHTML.slice(1);
+}
+</script>
+</head>
+<body onload="boom();">
+
+<div id="div">t
+&#769;</div>
+
+</body></html>

@@ -1,0 +1,11 @@
+
+copy: browser/devtools/webconsole/test/browser/test-encoding-ISO-8859-1.html
+copyrev: 1099b11c75ebce141ad1da8725543af572760cd2
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="ISO-8859-1">
+</head>
+<body>üöä</body>
+</html>

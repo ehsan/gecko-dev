@@ -1,0 +1,5 @@
+
+copyrev: 588664e0978e76e88855df7f7ac245b977647767
+copy: js/tests/ecma_2/Exceptions/shell.js
+
+gTestsubsuite = 'Exceptions';

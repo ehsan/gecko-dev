@@ -1,0 +1,19 @@
+
+copy: layout/xul/base/src/crashtests/382746-1.xul
+copyrev: bb1952923d43cc8f8e8238caa49ad8c5c6b72aa4
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<grid>
+  <rows>
+    <column>
+      <hbox/>
+      <hbox/>
+    </column>
+    <hbox/>
+  </rows>
+</grid>
+
+</window>

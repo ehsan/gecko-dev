@@ -1,0 +1,36 @@
+
+copy: layout/xul/base/src/crashtests/538308-1.xul
+copyrev: 6a9a8ecdaf3a3aea77d4ea4492996b78b16f9d4b
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        onload="run()">
+
+    <tree id="tr" flex="1">
+        <treecols>
+            <treecol/>
+        </treecols>
+        <treechildren>
+            <html:optgroup id="group">
+                <html:option id="victim" label="never see this"/>
+            </html:optgroup>
+        </treechildren>
+    </tree>
+
+    <script type="text/javascript"><![CDATA[
+    function run() {
+        group = document.getElementById("group");
+        tc = document.createElement("treechildren");
+        group.appendChild(tc);
+
+        v = document.getElementById("victim");
+        v.parentNode.removeChild(v);
+        v = null;
+
+        tree = document.getElementById("tr");
+        col = tree.columns[0];
+        alert(tree.view.getItemAtIndex(1, col)); 
+    }
+    ]]></script>
+</window>

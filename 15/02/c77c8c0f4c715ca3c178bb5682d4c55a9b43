@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/bdo/023-novalid.html
+copyrev: b55b1752acf26186757c038e65c8a3517c5b2e06
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;br&gt;</title>
+</head>
+<body>
+  <br></br>
+</body>
+</html>

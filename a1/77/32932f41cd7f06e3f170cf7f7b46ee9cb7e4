@@ -1,0 +1,6 @@
+
+copy: content/base/test/file_bug604660-5.xml
+copyrev: aa75154604d846dd7c8aff73dd1ddee7150c336d
+
+<?xml version="1.0"?>
+<placeholder/>

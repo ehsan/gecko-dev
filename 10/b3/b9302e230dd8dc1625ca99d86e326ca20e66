@@ -1,0 +1,19 @@
+
+copy: layout/reftests/css-namespace/ref-lime-6.xml
+copyrev: 44ca73d179ba9a86af4233a64a428a4d5424391c
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+ <head>
+  <link rel="author" title="L. David Baron" href="http://dbaron.org/"/>
+  <link rel="author" title="Mozilla Foundation" href="http://mozilla.org/"/>
+  <title>CSS Namespaces Test Suite reference</title>
+ </head>
+ <body>
+  <p><test style="background: lime">This sentence should have a green background.</test></p>
+  <p><test style="background: lime">This sentence should have a green background.</test></p>
+  <p><test style="background: lime">This sentence should have a green background.</test></p>
+  <p><test style="background: lime">This sentence should have a green background.</test></p>
+  <p><test style="background: lime">This sentence should have a green background.</test></p>
+  <p><test style="background: lime">This sentence should have a green background.</test></p>
+ </body>
+</html>

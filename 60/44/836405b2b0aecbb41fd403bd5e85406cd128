@@ -1,0 +1,12 @@
+
+copy: toolkit/devtools/debugger/tests/mochitest/nonchrome_unsafeDereference.html
+copyrev: 77d87ca88da6d738c95e43009070e6ac9f002794
+
+<!DOCTYPE HTML>
+<html>
+<script>
+var xhr = new XMLHttpRequest;
+xhr.timeout = 1742;
+xhr.expando = 'Expando!';
+</script>
+</html>

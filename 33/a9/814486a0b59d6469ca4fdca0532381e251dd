@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/zeroaffix.dic
+copyrev: 53badf2f40ffdcc60b994b8575f1e5159d563b82
+
+2
+foo/XA	<FOO
+bar/XABC	<BAR

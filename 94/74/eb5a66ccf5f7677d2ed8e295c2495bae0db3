@@ -1,0 +1,27 @@
+
+copy: dom/svg/crashtests/345445-1.svg
+copyrev: 820c34b61fa92504ca0c6c6b126c20ef944fae5e
+
+<svg xmlns="http://www.w3.org/2000/svg" onload="setTimeout(boom, 30);" class="reftest-wait">
+
+<script>
+
+function boom()
+{
+  var doomed = document.getElementById("doomed");
+  doomed.parentNode.removeChild(doomed);
+  document.documentElement.removeAttribute("class");
+}
+
+</script>
+
+<g stroke="url(#grad)">
+
+  <g id="doomed">
+
+    <linearGradient id="grad" />
+    <rect fill="url(#grad)" />
+  </g>
+</g>
+
+</svg>

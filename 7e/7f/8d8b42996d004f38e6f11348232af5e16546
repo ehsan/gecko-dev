@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundcase.wrong
+copyrev: 15bb3dd58d129d163a96382f98da7e20b1fc3548
+
+fooBar
+BAZBar
+BAZfoo

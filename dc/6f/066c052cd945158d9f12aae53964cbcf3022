@@ -1,0 +1,11 @@
+
+copy: content/svg/content/src/crashtests/864509.svg
+copyrev: 600ea6b594d9e9b54108e07b2a47e56774271cad
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<script>
+document.documentElement.requiredFeatures.foo = null;
+</script>
+
+</svg>

@@ -1,0 +1,21 @@
+
+copy: mobile/locales/l10n-mozilla-1.9.2.ini
+copyrev: 14626773a10e6004702eb40f9639f9c539e19e98
+
+[general]
+depth = ../..
+source-depth = ..
+all = locales/all-locales
+
+[compare]
+dirs = mobile/android
+tld = mobile/android
+
+[includes]
+toolkit = toolkit/locales/l10n.ini
+
+[include_toolkit]
+type = hg
+mozilla = releases/mozilla-1.9.2
+repo = http://hg.mozilla.org/
+l10n.ini = toolkit/locales/l10n.ini

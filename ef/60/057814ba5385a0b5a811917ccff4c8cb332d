@@ -1,0 +1,29 @@
+
+copy: content/base/crashtests/360599-1.html
+copyrev: 9b37f779d6f2203d980164d2aeeb1896856f25b0
+
+<html>
+<head>
+<style>
+#b::first-letter { }
+#c::first-line { }
+</style>
+<title>Testcase bug 360599 - Crash [@ nsFrameList::DestroyFrames] with first-letter/first-line css and position: fixed</title>
+</head>
+<body>
+This page should not crash Mozilla
+<div id="c">
+  <table>
+    <div id="b" style="display:table-header-group;">
+      <q>
+        text
+        <div style="position:fixed;">
+          <q>y</q>
+        </div>
+      </q>  
+    </div>
+    <span style="display: table;"></span>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/338427-1.html
+copyrev: 9a3b8c18e247ab7e07988414cf32c3f8de2e2ac3
+
+<!DOCTYPE html>
+<html>
+<body>
+    <textarea lang="testing-XX">strangeimpossibleword</textarea>
+</body>
+</html>

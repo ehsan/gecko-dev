@@ -1,0 +1,6 @@
+
+copy: toolkit/components/downloads/src/nsDownloadManagerUI.manifest
+copyrev: e409cc42451ad15c711392b747ca660750d8aee4
+
+component {7dfdf0d1-aff6-4a34-bad1-d0fe74601642} nsDownloadManagerUI.js
+contract @mozilla.org/download-manager-ui;1 {7dfdf0d1-aff6-4a34-bad1-d0fe74601642}

@@ -1,0 +1,15 @@
+
+copy: editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/editable-body.html
+copyrev: 72364b948d0c951d9f449f42e2bd66a3a7f9b771
+
+﻿<!DOCTYPE html> 
+<html> 
+<head> 
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" /> 
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+  <link rel="stylesheet" href="editable.css" type="text/css">
+</head> 
+<body contentEditable="true"> 
+</body> 
+</html>

@@ -1,0 +1,90 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+TOOL_DIRS += ['app']
+
+MODULE = 'ipdlunittest'
+LIBRARY_NAME = 'ipdlunittest_s'
+
+EXPORTS.mozilla._ipdltest += [
+    'IPDLUnitTestProcessChild.h',
+    'IPDLUnitTests.h',
+    'IPDLUnitTestTypes.h',
+    'IPDLUnitTestUtils.h',
+]
+
+SOURCES += [
+    '$(IPDLTESTSRCS)',
+    'IPDLUnitTestProcessChild.cpp',
+    'IPDLUnitTests.cpp',
+    'IPDLUnitTestSubprocess.cpp',
+]
+
+IPDL_SOURCES += [
+    'PTestActorPunning.ipdl',
+    'PTestActorPunningPunned.ipdl',
+    'PTestActorPunningSub.ipdl',
+    'PTestBadActor.ipdl',
+    'PTestBadActorSub.ipdl',
+    'PTestBridgeMain.ipdl',
+    'PTestBridgeMainSub.ipdl',
+    'PTestBridgeSub.ipdl',
+    'PTestCrashCleanup.ipdl',
+    'PTestDataStructures.ipdl',
+    'PTestDataStructuresCommon.ipdlh',
+    'PTestDataStructuresSub.ipdl',
+    'PTestDesc.ipdl',
+    'PTestDescSub.ipdl',
+    'PTestDescSubsub.ipdl',
+    'PTestFailedCtor.ipdl',
+    'PTestFailedCtorSub.ipdl',
+    'PTestFailedCtorSubsub.ipdl',
+    'PTestHandle.ipdl',
+    'PTestHangs.ipdl',
+    'PTestIndirectProtocolParam.ipdlh',
+    'PTestIndirectProtocolParamFirst.ipdl',
+    'PTestIndirectProtocolParamManage.ipdl',
+    'PTestIndirectProtocolParamSecond.ipdl',
+    'PTestInterruptErrorCleanup.ipdl',
+    'PTestInterruptRaces.ipdl',
+    'PTestInterruptShutdownRace.ipdl',
+    'PTestJSON.ipdl',
+    'PTestLatency.ipdl',
+    'PTestManyChildAllocs.ipdl',
+    'PTestManyChildAllocsSub.ipdl',
+    'PTestMultiMgrs.ipdl',
+    'PTestMultiMgrsBottom.ipdl',
+    'PTestMultiMgrsLeft.ipdl',
+    'PTestMultiMgrsRight.ipdl',
+    'PTestNestedLoops.ipdl',
+    'PTestOpens.ipdl',
+    'PTestOpensOpened.ipdl',
+    'PTestRaceDeferral.ipdl',
+    'PTestRacyInterruptReplies.ipdl',
+    'PTestRacyReentry.ipdl',
+    'PTestRacyUndefer.ipdl',
+    'PTestRPC.ipdl',
+    'PTestSanity.ipdl',
+    'PTestSelfManage.ipdl',
+    'PTestSelfManageRoot.ipdl',
+    'PTestShmem.ipdl',
+    'PTestShutdown.ipdl',
+    'PTestShutdownSub.ipdl',
+    'PTestShutdownSubsub.ipdl',
+    'PTestStackHooks.ipdl',
+    'PTestSyncError.ipdl',
+    'PTestSyncHang.ipdl',
+    'PTestSyncWakeup.ipdl',
+    'PTestSysVShmem.ipdl',
+    'PTestUrgency.ipdl',
+]
+
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
+

@@ -1,0 +1,22 @@
+
+copy: editor/libeditor/base/crashtests/636074-1.html
+copyrev: c3700e4587d8aa14d104b95279e1f87896adf27f
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  document.getElementById("i").focus();
+  document.documentElement.contentEditable = "true";
+  document.execCommand("inserthtml", false, "<table>");
+  document.execCommand("indent", false, null);
+  document.execCommand("delete", false, null);
+}
+
+</script>
+</head>
+<body onload="boom();"><input id="i"></body>
+</html>

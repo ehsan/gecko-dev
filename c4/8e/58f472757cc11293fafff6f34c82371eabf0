@@ -1,0 +1,11 @@
+
+copyrev: c7c09fbfe7bdd940c797303ef21bd7ab333d0790
+copy: layout/reftests/bugs/bug488685.html
+
+<!DOCTYPE HTML>
+<html>
+<body>
+<img src="data:image/gif;base64,R0lGODlhEAAQAPAAALuWAAAAACH5BAUIAAEALAMAAwAKAAoAAAIMDI5nye0Po5xutVAAADs=">
+</body>
+</html>
+

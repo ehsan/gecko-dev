@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix3.good
+copyrev: a56fea9981360554ce47263c20594668ebd4c369
+
+foo
+foosbaz

@@ -1,0 +1,16 @@
+
+copyrev: b2af32fbb134a5191f0b1127d845f564170b6bf3
+copy: js/src/trace-test/tests/basic/forVarInWith.js
+
+function forVarInWith() {
+    function foo() ({notk:42});
+    function bar() ({p:1, q:2, r:3, s:4, t:5});
+    var o = foo();
+    var a = [];
+    with (o) {
+        for (var k in bar())
+            a[a.length] = k;
+    }
+    return a.join("");
+}
+assertEq(forVarInWith(), "pqrst");

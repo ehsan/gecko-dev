@@ -1,0 +1,13 @@
+
+copyrev: 24a0b52a4579322c0bfca431464db781123779fb
+copy: js/src/trace-test/tests/jaeger/bug563000/eif-getter-newvar.js
+
+setDebug(true);
+
+__defineGetter__("someProperty", function () { evalInFrame(1, "var x = 'success'"); });
+function caller(obj) {
+  assertJit();
+  obj.someProperty;
+  return x;
+}
+assertEq(caller(this), "success");

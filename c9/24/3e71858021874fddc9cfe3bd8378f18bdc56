@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/meta/html/semantics/embedded-content/the-canvas-element/size.attributes.parse.whitespace.html.ini
+copyrev: a883bec1ae4a1a535fa6c88ec6eefdea96388a07
+
+[PopStateEvent.html]
+  type: testharness
+  [document.createEvent]
+    expected: FAIL
+

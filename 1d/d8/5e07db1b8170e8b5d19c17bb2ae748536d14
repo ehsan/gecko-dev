@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/2999225.aff
+copyrev: a807e5edbc3584021711dd5fbcf27da198375d49
+
+COMPOUNDRULE 1
+COMPOUNDRULE ab
+
+COMPOUNDBEGIN A
+COMPOUNDEND B
+

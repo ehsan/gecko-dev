@@ -1,0 +1,18 @@
+
+copyrev: 80095f48e26b30acf41bcb309a2ce8aa57a6bdbb
+copy: js/src/trace-test/tests/basic/argumentsPassedToBuiltin.js
+
+// bug 504797
+
+function f() {
+  g(arguments, 1);
+}
+
+function g(a, b) {
+  var s = Array.prototype.slice.call(a, b);
+  assertEq(s[0] == undefined, false);
+}
+
+for (var i = 0; i < 10; ++i) {
+  f(1, 2, 3, 4);
+}

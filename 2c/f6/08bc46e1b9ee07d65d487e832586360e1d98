@@ -1,0 +1,34 @@
+Snapshots of cairo and glitz for mozilla usage.
+
+We only include the relevant parts of each release (generally, src/*.[ch]),
+as we have Makefile.in's that integrate into the Mozilla build system.  For
+documentation and similar, please see the official tarballs at
+http://www.cairographics.org/.
+
+VERSIONS:
+
+  cairo (1.7.4-136-g5ea2555)
+  pixman (pixman-0.11.10-8-g7180230)
+
+***** NOTE FOR VISUAL C++ 6.0 *****
+
+VC6 is not supported.  Please upgrade to VC8.
+
+==== Patches ====
+
+Some specific things:
+
+max-font-size.patch: Clamp freetype font size to 1000 to avoid overflow issues
+
+win32-logical-font-scale.patch: set CAIRO_WIN32_LOGICAL_FONT_SCALE to 1
+
+nonfatal-assertions.patch: Make assertions non-fatal
+
+buggy-repeat.patch: Unconditionally turn on buggy-repeat handling to bandaid bug 413583.
+
+tmpfile_wince.patch: Make Windows CE use tmpfile() on windows mobile due to the lack of _open_osfhandle and no fs permissions.
+
+==== pixman patches ====
+
+endian.patch: include cairo-platform.h for endian macros
+

@@ -1,0 +1,18 @@
+
+copyrev: 91a7cca88e1aa54df9218c8f3b4fd677b0f89b40
+copy: js/src/trace-test/tests/basic/testNewWithNonNativeProto.js
+
+function testNewWithNonNativeProto()
+{
+  function f() { }
+  var a = f.prototype = [];
+  for (var i = 0; i < 5; i++)
+    var o = new f();
+  return Object.getPrototypeOf(o) === a && o.splice === Array.prototype.splice;
+}
+assertEq(testNewWithNonNativeProto(), true);
+checkStats({
+  recorderStarted: 1,
+  recorderAborted: 0,
+  sideExitIntoInterpreter: 1
+});

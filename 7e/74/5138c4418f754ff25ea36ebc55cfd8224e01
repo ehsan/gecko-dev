@@ -1,0 +1,90 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* ===== alert.css =====================================================
+  == Styles specific to the alerts dialog.
+  ======================================================================= */
+
+@import url("chrome://global/skin/");
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+.alertBox {
+  border: 1px solid threedshadow;
+  background-color: -moz-Dialog;
+  min-height: 50px;
+  padding: 8px;
+}
+
+@media (-moz-windows-default-theme) {
+  .alertBox {
+    background-image: linear-gradient(to bottom, white 1px, rgba(255,255,255,0) 15px);
+  }
+}
+
+.alertBox[origin="top"] {
+  border-top: none;
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+.alertBox[origin="right"] {
+  border-right: none;
+  border-bottom-left-radius: 3px;
+  border-top-left-radius: 3px;
+}
+
+.alertBox[origin="bottom"] {
+  border-bottom: none;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+.alertBox[origin="left"] {
+  border-left: none;
+  border-bottom-right-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+.alertBox[orient="horizontal"] > .alertImageBox {
+  -moz-margin-end: 8px;
+}
+
+.alertBox[orient="vertical"] > .alertImageBox {
+  margin-bottom: 8px;
+}
+
+.alertTitle {
+  font-weight: bold;
+}
+
+#alertImage {
+  max-width: 48px;
+  max-height: 48px;
+}
+
+.alertText {
+  -moz-margin-end: 6px;
+}
+
+#alertNotification[clickable="true"] {
+  cursor: pointer;
+}
+
+label {
+  cursor: inherit;
+}
+
+.alertText[clickable="true"] {
+  color: -moz-nativehyperlinktext;
+  text-decoration: underline;
+}
+
+.alertText[clickable="true"]:hover:active {
+  color: #424F63;
+}
+
+.alertBox[orient="vertical"] > .alertTextBox {
+  -moz-box-align: center;
+}

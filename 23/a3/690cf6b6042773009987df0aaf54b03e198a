@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundaffix2.good
+copyrev: 00b4c9621560fb176f5416cb5c8fdad674570302
+
+foo
+prefoo
+foosuf
+prefoosuf
+prefoobarsuf
+foosufbar
+fooprebarsuf
+prefooprebarsuf

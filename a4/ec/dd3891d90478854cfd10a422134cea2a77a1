@@ -1,0 +1,13 @@
+
+copy: content/base/crashtests/450383-1.html
+copyrev: ea211b039b82b660309b289287f307126826432d
+
+<html>
+<BODY></BODY>
+<SCRIPT>
+    document.addEventListener("DOMCharacterDataModified",function(){
+        document.body.innerHTML=""; // change this to see memory corruption
+    },true);
+    document.body.innerHTML="<optGroup</form<textArea";
+</SCRIPT>
+</html>

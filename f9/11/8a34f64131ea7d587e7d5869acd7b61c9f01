@@ -1,0 +1,5 @@
+
+copyrev: 46e112d5245e5fa68cc3fd8b8030c84af960a938
+copy: dom/src/json/test/fail23.json
+
+["Bad value", truth]

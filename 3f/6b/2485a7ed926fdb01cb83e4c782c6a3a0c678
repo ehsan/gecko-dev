@@ -1,0 +1,6 @@
+
+copy: content/html/content/test/file_iframe_sandbox_redirect.html
+copyrev: 37c7aeb0729b1fd951b2f846f750ab4f0165268e
+
+<!DOCTYPE html>
+<body>redirect</body>

@@ -1,0 +1,24 @@
+
+copy: layout/xul/crashtests/475133.html
+copyrev: 8ada692f67d3cb1a695cc8ebf60614e875cc76b3
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+function x()
+{
+  document.removeEventListener("DOMAttrModified", x, false);
+  document.removeChild(document.documentElement);
+}
+
+function boom()
+{
+  var p = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "progressmeter");
+  document.addEventListener("DOMAttrModified", x, false);
+  document.documentElement.appendChild(p);
+}
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

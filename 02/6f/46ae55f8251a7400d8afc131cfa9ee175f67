@@ -1,0 +1,1002 @@
+// -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Mobile Browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mark Finkle <mfinkle@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+Components.utils.import("resource://gre/modules/utils.js");
+
+const TOOLBARSTATE_LOADING  = 1;
+const TOOLBARSTATE_LOADED   = 2;
+
+const URLBAR_FORCE  = 1;
+const URLBAR_EDIT   = 2;
+
+const kDefaultFavIconURL = "chrome://browser/skin/images/favicon-default-30.png";
+
+[
+  [
+    "gHistSvc",
+    "@mozilla.org/browser/nav-history-service;1",
+    [Ci.nsINavHistoryService, Ci.nsIBrowserHistory]
+  ],
+  [
+    "gURIFixup",
+    "@mozilla.org/docshell/urifixup;1",
+    [Ci.nsIURIFixup]
+  ],
+  [
+    "gPrefService",
+    "@mozilla.org/preferences-service;1",
+    [Ci.nsIPrefBranch2]
+  ]
+].forEach(function (service) {
+  let [name, contract, ifaces] = service;
+  window.__defineGetter__(name, function () {
+    delete window[name];
+    window[name] = Cc[contract].getService(ifaces.splice(0, 1)[0]);
+    if (ifaces.length)
+      ifaces.forEach(function (i) { return window[name].QueryInterface(i); });
+    return window[name];
+  });
+});
+
+var BrowserUI = {
+  _edit : null,
+  _throbber : null,
+  _autocompleteNavbuttons : null,
+  _favicon : null,
+  _faviconLink : null,
+  _dialogs: [],
+
+  _titleChanged : function(aDocument) {
+    var browser = Browser.selectedBrowser;
+    if (browser && aDocument != browser.contentDocument)
+      return;
+
+    var caption = aDocument.title;
+    if (!caption) {
+      caption = this.getDisplayURI(browser);
+      if (caption == "about:blank")
+        caption = "";
+    }
+    this._edit.value = caption;
+  },
+
+  /*
+   * Dispatched by window.close() to allow us to turn window closes into tabs
+   * closes.
+   */
+  _domWindowClose: function (aEvent) {
+    if (!aEvent.isTrusted)
+      return;
+
+    // Find the relevant tab, and close it.
+    let browsers = Browser.browsers;
+    for (let i = 0; i < browsers.length; i++) {
+      if (browsers[i].contentWindow == aEvent.target) {
+        Browser.closeTab(Browser.getTabAtIndex(i));
+        aEvent.preventDefault();
+        break;
+      }
+    }
+  },
+
+  _linkAdded : function(aEvent) {
+    let link = aEvent.originalTarget;
+    if (!link || !link.href)
+      return;
+
+    if (/\bicon\b/i(link.rel)) {
+      this._faviconLink = link.href;
+
+      // If the link changes after pageloading, update it right away.
+      // otherwise we wait until the pageload finishes
+      if (this._favicon.src != "")
+        this._setIcon(this._faviconLink);
+    }
+  },
+
+  _updateButtons : function(aBrowser) {
+    var back = document.getElementById("cmd_back");
+    var forward = document.getElementById("cmd_forward");
+
+    back.setAttribute("disabled", !aBrowser.canGoBack);
+    forward.setAttribute("disabled", !aBrowser.canGoForward);
+  },
+
+  _tabSelect : function(aEvent) {
+    var browser = Browser.selectedBrowser;
+    this._titleChanged(browser.contentDocument);
+    this._updateButtons(browser);
+    this.updateStar();
+    this._favicon.src = browser.mIconURL || kDefaultFavIconURL;
+
+    // for new tabs, _tabSelect & update(TOOLBARSTATE_LOADED) are called when
+    // about:blank is loaded. set _faviconLink here so it is not overriden in update
+    this._faviconLink = this._favicon.src;
+    this.updateIcon();
+  },
+
+  _setIcon : function(aURI) {
+    var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+    try {
+      var faviconURI = ios.newURI(aURI, null, null);
+    }
+    catch (e) {
+      faviconURI = null;
+    }
+
+    var fis = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
+    if (!faviconURI || faviconURI.schemeIs("javascript") || fis.isFailedFavicon(faviconURI))
+      faviconURI = ios.newURI(kDefaultFavIconURL, null, null);
+
+    var browser = getBrowser();
+    browser.mIconURL = faviconURI.spec;
+
+    fis.setAndLoadFaviconForPage(browser.currentURI, faviconURI, true);
+    this._favicon.src = faviconURI.spec;
+  },
+
+  showToolbar : function showToolbar(aFlags) {
+    this.hidePanel();
+
+    aFlags = aFlags || 0;
+
+    if (aFlags & URLBAR_FORCE) {
+      //ws.freeze("toolbar-main");
+      //ws.moveFrozenTo("toolbar-main", 0, 0);
+    }
+    else {
+      //ws.unfreeze("toolbar-main");
+    }
+
+    this._editToolbar(aFlags & URLBAR_EDIT);
+  },
+
+  _editToolbar : function _editToolbar(aEdit) {
+    var icons = document.getElementById("urlbar-icons");
+    if (aEdit && icons.getAttribute("mode") != "edit") {
+      icons.setAttribute("mode", "edit");
+      this._edit.defaultValue = this._edit.value;
+
+      let urlString = this.getDisplayURI(Browser.selectedBrowser);
+      if (urlString == "about:blank")
+        urlString = "";
+      this._edit.value = urlString;
+
+      // This is a workaround for bug 488420, needed to cycle focus for the
+      // IME state to be set properly. Testing shows we only really need to
+      // do this the first time.
+      this._edit.inputField.blur();
+
+      this._edit.inputField.focus();
+      this._edit.select();
+    }
+    else if (!aEdit && icons.getAttribute("mode") != "view") {
+      icons.setAttribute("mode", "view");
+      this._edit.inputField.blur();
+      this._edit.reallyClosePopup();
+    }
+  },
+
+  _closeOrQuit: function _closeOrQuit() {
+    // Close active dialog, if we have one. If not then close the application.
+    let dialog = this.activeDialog;
+    if (dialog)
+      dialog.close();
+    else
+      CommandUpdater.doCommand("cmd_quit");
+  },
+
+  get activeDialog() {
+    // Return the topmost dialog
+    if (this._dialogs.length)
+      return this._dialogs[this._dialogs.length - 1];
+    return null;
+  },
+
+  pushDialog : function pushDialog(aDialog) {
+    // If we have a dialog push it on the stack and set the attr for CSS
+    if (aDialog) {
+      this._dialogs.push(aDialog);
+      document.getElementById("toolbar-main").setAttribute("dialog", "true")
+    }
+  },
+  
+  popDialog : function popDialog() {
+    // Passing null means we pop the topmost dialog
+    if (this._dialogs.length)
+      this._dialogs.pop();
+
+    // If no more dialogs are being displayed, remove the attr for CSS
+    if (!this._dialogs.length)
+      document.getElementById("toolbar-main").removeAttribute("dialog")
+  },
+
+  switchPane : function(id) {
+    document.getElementById("panel-items").selectedPanel = document.getElementById(id);
+  },
+
+  showPrefSection : function(id) {
+    document.getElementById("prefs-list").scrollBoxObject.scrollToElement(document.getElementById(id));
+  },
+
+  get toolbarH() {
+    if (!this._toolbarH) {
+      let toolbar = document.getElementById("toolbar-main");
+      this._toolbarH = toolbar.boxObject.height;
+    }
+    return this._toolbarH;
+  },
+
+  _initControls : false,
+  sizeControls : function(windowW, windowH) {
+    let toolbar = document.getElementById("toolbar-main");
+    let tabs = document.getElementById("tabs-container");
+    let controls = document.getElementById("browser-controls");
+    if (!this._initControls) {
+      this._initControls = true;
+      //ws.moveUnfrozenTo("toolbar-main", null, -this.toolbarH);
+      //ws.moveUnfrozenTo("tabs-container", -tabs.boxObject.width, this.toolbarH);
+      //ws.moveUnfrozenTo("browser-controls", null, this.toolbarH);
+    }
+
+    toolbar.width = windowW;
+
+    let popup = document.getElementById("popup_autocomplete");
+    popup.top = this.toolbarH;
+    popup.height = windowH - this.toolbarH;
+    popup.width = windowW;
+
+    // notification box
+    document.getElementById("notifications").width = windowW;
+
+    // findbar
+    document.getElementById("findbar-container").width = windowW;
+
+    // identity
+    document.getElementById("identity-container").width = windowW;
+
+    // sidebars
+    let sideBarHeight = windowH - this.toolbarH;
+    controls.height = sideBarHeight;
+    tabs.height = sideBarHeight;
+
+    // bookmark editor
+    let bmkeditor = document.getElementById("bookmark-container");
+    bmkeditor.width = windowW;
+
+    // bookmark list
+    let bookmarks = document.getElementById("bookmarklist-container");
+    bookmarks.height = windowH;
+    bookmarks.width = windowW;
+
+    // select list UI
+    let selectlist = document.getElementById("select-container");
+    selectlist.height = windowH;
+    selectlist.width = windowW;
+
+    // tools panel
+    let panel = document.getElementById("panel-container");
+    panel.height = windowH;
+    panel.width = windowW;
+  },
+
+  init : function() {
+    this._edit = document.getElementById("urlbar-edit");
+    this._edit.addEventListener("keypress", this, true);
+    this._throbber = document.getElementById("urlbar-throbber");
+    this._favicon = document.getElementById("urlbar-favicon");
+    this._favicon.addEventListener("error", this, false);
+    this._autocompleteNavbuttons = document.getElementById("autocomplete_navbuttons");
+
+    document.getElementById("urlbar-editarea").addEventListener("click", this, false);
+
+    document.getElementById("tabs").addEventListener("TabSelect", this, true);
+
+    let browsers = document.getElementById("browsers");
+    browsers.addEventListener("DOMWindowClose", this, true);
+    browsers.addEventListener("UIShowSelect", this, false, true);
+
+    // XXX these really want to listen to only the the current browser
+    browsers.addEventListener("DOMTitleChanged", this, true);
+    browsers.addEventListener("DOMLinkAdded", this, true);
+
+
+    ExtensionsView.init();
+    DownloadsView.init();
+  },
+
+  uninit : function() {
+    ExtensionsView.uninit();
+  },
+
+  update : function(aState) {
+    let icons = document.getElementById("urlbar-icons");
+    let uri = Browser.selectedBrowser.currentURI;
+
+    switch (aState) {
+      case TOOLBARSTATE_LOADED:
+        icons.setAttribute("mode", "view");
+        if (uri.spec == "about:blank")
+          this.showToolbar(URLBAR_EDIT);
+        else
+          this.showToolbar();
+
+        if (!this._faviconLink)
+          this._faviconLink = uri.prePath + "/favicon.ico";
+        this._setIcon(this._faviconLink);
+        this.updateIcon();
+        this._faviconLink = null;
+        break;
+
+      case TOOLBARSTATE_LOADING:
+        this.showToolbar(URLBAR_FORCE);
+        // Force the mode back to "loading"
+        icons.setAttribute("mode", "loading");
+
+        this._favicon.src = "";
+        this._faviconLink = null;
+        this.updateIcon();
+        break;
+    }
+  },
+
+  updateIcon : function() {
+    if (Browser.selectedTab.isLoading()) {
+      this._throbber.hidden = false;
+      this._throbber.setAttribute("loading", "true");
+      this._favicon.hidden = true;
+    }
+    else {
+      this._favicon.hidden = false;
+      this._throbber.hidden = true;
+      this._throbber.removeAttribute("loading");
+    }
+  },
+
+  getDisplayURI : function(browser) {
+    var uri = browser.currentURI;
+
+    if (!this._URIFixup)
+      this._URIFixup = Cc["@mozilla.org/docshell/urifixup;1"].getService(Ci.nsIURIFixup);
+
+    try {
+      uri = this._URIFixup.createExposableURI(uri);
+    } catch (ex) {}
+
+    return uri.spec;
+  },
+
+  /* Set the location to the current content */
+  setURI : function() {
+    var browser = Browser.selectedBrowser;
+
+    // FIXME: deckbrowser should not fire TabSelect on the initial tab (bug 454028)
+    if (!browser.currentURI)
+      return;
+
+    // Update the navigation buttons
+    this._updateButtons(browser);
+
+    // Check for a bookmarked page
+    this.updateStar();
+
+    var urlString = this.getDisplayURI(browser);
+    if (urlString == "about:blank")
+      urlString = "";
+
+    this._edit.value = urlString;
+  },
+
+  goToURI : function(aURI) {
+    this._edit.reallyClosePopup();
+
+    if (!aURI)
+      aURI = this._edit.value;
+
+    var flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
+    getBrowser().loadURIWithFlags(aURI, flags, null, null);
+
+    gHistSvc.markPageAsTyped(gURIFixup.createFixupURI(aURI, 0));
+  },
+
+  search : function() {
+    var queryURI = "http://www.google.com/search?q=" + this._edit.value + "&hl=en&lr=&btnG=Search";
+    getBrowser().loadURI(queryURI, null, null, false);
+  },
+
+  showAutoComplete : function(showDefault) {
+    this.updateSearchEngines();
+    this._edit.showHistoryPopup();
+  },
+
+  doButtonSearch : function(button) {
+    if (!("engine" in button) || !button.engine)
+      return;
+
+    var urlbar = this._edit;
+    urlbar.open = false;
+    var value = urlbar.value;
+
+    var submission = button.engine.getSubmission(value, null);
+    getBrowser().loadURI(submission.uri.spec, null, submission.postData, false);
+  },
+
+  engines : null,
+  updateSearchEngines : function() {
+    if (this.engines)
+      return;
+
+    var searchService = Cc["@mozilla.org/browser/search-service;1"].getService(Ci.nsIBrowserSearchService);
+    var engines = searchService.getVisibleEngines({ });
+    this.engines = engines;
+
+    const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+    var container = this._autocompleteNavbuttons;
+    for (var e = 0; e < engines.length; e++) {
+      var button = document.createElementNS(kXULNS, "toolbarbutton");
+      var engine = engines[e];
+      button.id = engine.name;
+      button.setAttribute("label", engine.name);
+      button.className = "searchengine show-text button-dark";
+      if (engine.iconURI)
+        button.setAttribute("image", engine.iconURI.spec);
+      container.appendChild(button);
+      button.engine = engine;
+    }
+  },
+
+  updateStar : function() {
+    var star = document.getElementById("tool-star");
+    if (PlacesUtils.getMostRecentBookmarkForURI(Browser.selectedBrowser.currentURI) != -1)
+      star.setAttribute("starred", "true");
+    else
+      star.removeAttribute("starred");
+  },
+
+  goToBookmark : function goToBookmark(aEvent) {
+    if (aEvent.originalTarget.localName == "button")
+      return;
+
+    var list = document.getElementById("urllist-items");
+    BrowserUI.goToURI(list.selectedItem.value);
+  },
+
+  showHistory : function() {
+    // XXX Fix me with a real UI
+  },
+
+  showBookmarks : function () {
+    BookmarkList.show();
+  },
+
+  newTab : function newTab(aURI) {
+    //ws.panTo(0, -this.toolbarH);
+    return Browser.addTab(aURI || "about:blank", true);
+  },
+
+  closeTab : function closeTab(aTab) {
+    // If no tab is passed in, assume the current tab
+    Browser.closeTab(aTab || Browser.selectedTab);
+  },
+
+  selectTab : function selectTab(aTab) {
+    Browser.selectedTab = aTab;
+  },
+
+  hideTabs: function hideTabs() {
+/*
+    if (ws.isWidgetVisible("tabs-container")) {
+      let widthOfTabs = document.getElementById("tabs-container").boxObject.width;
+      ws.panBy(widthOfTabs, 0, true);
+    }
+*/
+  },
+
+  hideControls: function hideControls() {
+/*
+    if (ws.isWidgetVisible("browser-controls")) {
+      let widthOfControls = document.getElementById("browser-controls").boxObject.width;
+      ws.panBy(-widthOfControls, 0, true);
+    }
+*/
+  },
+
+  showPanel: function showPanel(aPage) {
+    let panelUI = document.getElementById("panel-container");
+
+    panelUI.hidden = false;
+    panelUI.width = window.innerWidth;
+    panelUI.height = window.innerHeight;
+
+    if (aPage != undefined)
+      this.switchPane(aPage);
+  },
+
+  hidePanel: function hidePanel() {
+    let panelUI = document.getElementById("panel-container");
+    panelUI.hidden = true;
+  },
+
+  handleEvent: function (aEvent) {
+    switch (aEvent.type) {
+      // Browser events
+      case "DOMTitleChanged":
+        this._titleChanged(aEvent.target);
+        break;
+      case "DOMLinkAdded":
+        this._linkAdded(aEvent);
+        break;
+      case "DOMWindowClose":
+        this._domWindowClose(aEvent);
+        break;
+      case "UIShowSelect":
+        SelectHelper.show(aEvent.target);
+        break;
+      case "TabSelect":
+        this._tabSelect(aEvent);
+        break;
+      // URL textbox events
+      case "click":
+        this.doCommand("cmd_openLocation");
+        break;
+      case "keypress":
+        if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE) {
+          this._edit.reset();
+          this._editToolbar(false);
+        }
+        break;
+      // Favicon events
+      case "error":
+        this._favicon.src = "chrome://browser/skin/images/default-favicon.png";
+        break;
+    }
+  },
+
+  supportsCommand : function(cmd) {
+    var isSupported = false;
+    switch (cmd) {
+      case "cmd_back":
+      case "cmd_forward":
+      case "cmd_reload":
+      case "cmd_stop":
+      case "cmd_search":
+      case "cmd_go":
+      case "cmd_openLocation":
+      case "cmd_star":
+      case "cmd_bookmarks":
+      case "cmd_quit":
+      case "cmd_close":
+      case "cmd_menu":
+      case "cmd_newTab":
+      case "cmd_closeTab":
+      case "cmd_actions":
+      case "cmd_panel":
+      case "cmd_sanitize":
+      case "cmd_zoomin":
+      case "cmd_zoomout":
+        isSupported = true;
+        break;
+      default:
+        isSupported = false;
+        break;
+    }
+    return isSupported;
+  },
+
+  isCommandEnabled : function(cmd) {
+    return true;
+  },
+
+  doCommand : function(cmd) {
+    var browser = getBrowser();
+    switch (cmd) {
+      case "cmd_back":
+        browser.goBack();
+        break;
+      case "cmd_forward":
+        browser.goForward();
+        break;
+      case "cmd_reload":
+        browser.reload();
+        break;
+      case "cmd_stop":
+        browser.stop();
+        break;
+      case "cmd_search":
+        this.search();
+        break;
+      case "cmd_go":
+        this.goToURI();
+        break;
+      case "cmd_openLocation":
+        this.showToolbar(URLBAR_EDIT | URLBAR_FORCE);
+        setTimeout(function () { BrowserUI.showAutoComplete(); }, 0);
+        break;
+      case "cmd_star":
+      {
+        this.hideControls();
+
+        var bookmarkURI = browser.currentURI;
+        var bookmarkTitle = browser.contentDocument.title || bookmarkURI.spec;
+
+        if (PlacesUtils.getMostRecentBookmarkForURI(bookmarkURI) == -1) {
+          var bookmarkId = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.bookmarks.unfiledBookmarksFolder, bookmarkURI, PlacesUtils.bookmarks.DEFAULT_INDEX, bookmarkTitle);
+          this.updateStar();
+
+          var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+          var faviconURI = ios.newURI(this._favicon.src, null, null);
+
+          PlacesUtils.favicons.setAndLoadFaviconForPage(bookmarkURI, faviconURI, true);
+        }
+        else {
+          BookmarkHelper.edit(bookmarkURI);
+        }
+        break;
+      }
+      case "cmd_bookmarks":
+        this.showBookmarks();
+        break;
+      case "cmd_quit":
+        goQuitApplication();
+        break;
+      case "cmd_close":
+        this._closeOrQuit();
+        break;
+      case "cmd_menu":
+        break;
+      case "cmd_newTab":
+        this.newTab();
+        break;
+      case "cmd_closeTab":
+        this.closeTab();
+        break;
+      case "cmd_sanitize":
+      {
+        // disable the button temporarily to indicate something happened
+        let button = document.getElementById("prefs-clear-data");
+        button.disabled = true;
+        setTimeout(function() { button.disabled = false; }, 5000);
+
+        Sanitizer.sanitize();
+        break;
+      }
+      case "cmd_panel":
+      {
+        let panelUI = document.getElementById("panel-container");
+        if (panelUI.hidden)
+          this.showPanel();
+        else
+          this.hidePanel();
+        break;
+      }
+      case "cmd_zoomin":
+        Browser.canvasBrowser.zoom(-1);
+        break;
+      case "cmd_zoomout":
+        Browser.canvasBrowser.zoom(1);
+        break;
+    }
+  }
+};
+
+var BookmarkHelper = {
+  _panel: null,
+  _editor: null,
+
+  edit: function BH_edit(aURI) {
+    let itemId = PlacesUtils.getMostRecentBookmarkForURI(aURI);
+    if (itemId == -1)
+      return;
+
+    let title = PlacesUtils.bookmarks.getItemTitle(itemId);
+    let tags = PlacesUtils.tagging.getTagsForURI(aURI, {});
+
+    this._editor = document.createElement("placeitem");
+    this._editor.setAttribute("id", "bookmark-item");
+    this._editor.setAttribute("flex", "1");
+    this._editor.setAttribute("type", "bookmark");
+    this._editor.setAttribute("ui", "manage");
+    this._editor.setAttribute("title", title);
+    this._editor.setAttribute("uri", aURI.spec);
+    this._editor.setAttribute("tags", tags.join(", "));
+    this._editor.setAttribute("onmove", "FolderPicker.show(this);");
+    this._editor.setAttribute("onclose", "BookmarkHelper.close()");
+    document.getElementById("bookmark-form").appendChild(this._editor);
+
+    let toolbar = document.getElementById("toolbar-main");
+    let top = toolbar.top + toolbar.boxObject.height;
+
+    this._panel = document.getElementById("bookmark-container");
+    this._panel.top = (top < 0 ? 0 : top);
+    this._panel.hidden = false;
+    BrowserUI.pushDialog(this);
+
+    let self = this;
+    setTimeout(function() {
+      self._editor.init(itemId);
+      self._editor.startEditing();
+    }, 0);
+
+    window.addEventListener("keypress", this, true);
+  },
+
+  close: function BH_close() {
+    window.removeEventListener("keypress", this, true);
+    BrowserUI.updateStar();
+
+    // Note: the _editor will have already saved the data, if needed, by the time
+    // this method is called, since this method is called via the "close" event.
+    this._editor.parentNode.removeChild(this._editor);
+    this._editor = null;
+
+    this._panel.hidden = true;
+    BrowserUI.popDialog();
+  },
+
+  handleEvent: function BH_handleEvent(aEvent) {
+    if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
+      this.close();
+  }
+};
+
+var BookmarkList = {
+  _panel: null,
+  _bookmarks: null,
+
+  show: function() {
+    this._panel = document.getElementById("bookmarklist-container");
+    this._panel.width = window.innerWidth;
+    this._panel.height = window.innerHeight;
+    this._panel.hidden = false;
+    BrowserUI.pushDialog(this);
+
+    this._bookmarks = document.getElementById("bookmark-items");
+    this._bookmarks.manageUI = false;
+    this._bookmarks.openFolder();
+
+    window.addEventListener("keypress", this, true);
+  },
+
+  close: function() {
+    window.removeEventListener("keypress", this, true);
+    BrowserUI.updateStar();
+
+    if (this._bookmarks.isEditing)
+      this._bookmarks.stopEditing();
+    this._bookmarks.blur();
+
+    this._panel.hidden = true;
+    BrowserUI.popDialog();
+  },
+
+  toggleManage: function() {
+    this._bookmarks.manageUI = !(this._bookmarks.manageUI);
+  },
+
+  openBookmark: function() {
+    let item = this._bookmarks.activeItem;
+    if (item.spec) {
+      this._panel.hidden = true;
+      BrowserUI.goToURI(item.spec);
+    }
+  },
+
+  handleEvent: function(aEvent) {
+    if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
+      this.close();
+  }
+};
+
+var FolderPicker = {
+  _control: null,
+  _panel: null,
+
+  show: function(aControl) {
+    this._panel = document.getElementById("folder-container");
+    this._panel.width = window.innerWidth;
+    this._panel.height = window.innerHeight;
+    this._panel.hidden = false;
+    BrowserUI.pushDialog(this);
+    
+    this._control = aControl;
+
+    let folders = document.getElementById("folder-items");
+    folders.openFolder();
+  },
+
+  close: function() {
+    this._panel.hidden = true;
+    BrowserUI.popDialog();
+  },
+
+  moveItem: function() {
+    let folders = document.getElementById("folder-items");
+    let itemId = (this._control.activeItem ? this._control.activeItem.itemId : this._control.itemId);
+    let folderId = PlacesUtils.bookmarks.getFolderIdForItem(itemId);
+    if (folders.selectedItem.itemId != folderId) {
+      PlacesUtils.bookmarks.moveItem(itemId, folders.selectedItem.itemId, PlacesUtils.bookmarks.DEFAULT_INDEX);
+      if (this._control.removeItem)
+        this._control.removeItem(this._control.activeItem);
+    }
+    this.close();
+  }
+};
+
+var SelectHelper = {
+  _panel: null,
+  _list: null,
+  _control: null,
+  _selectedIndexes: [],
+
+  _getSelectedIndexes: function() {
+    let indexes = [];
+    let control = this._control;
+
+    if (control.type == 'select-one') {
+      indexes.push(control.selectedIndex);
+    }
+    else {
+      for (let i = 0; i < control.options.length; i++) {
+        if (control.options[i].selected)
+          indexes.push(i)
+      }
+    }
+
+    return indexes;
+  },
+
+  show: function(aControl) {
+    if (!aControl)
+      return;
+
+    this._control = aControl;
+    this._selectedIndexes = this._getSelectedIndexes();
+
+    this._list = document.getElementById("select-list");
+    this._list.setAttribute("multiple", this._control.multiple ? "true" : "false");
+
+    let optionIndex = 0;
+    let children = this._control.children;
+    for (let i=0; i<children.length; i++) {
+      let child = children[i];
+      if (child instanceof HTMLOptGroupElement) {
+        let group = document.createElement("option");
+        group.setAttribute("label", child.label);
+        this._list.appendChild(group);
+        group.className = "optgroup";
+
+        let subchildren = child.children;
+        for (let ii=0; ii<subchildren.length; ii++) {
+          let subchild = subchildren[ii];
+          let item = document.createElement("option");
+          item.setAttribute("label", subchild.text);
+          this._list.appendChild(item);
+          item.className = "in-optgroup";
+          item.optionIndex = optionIndex++;
+          if (subchild.selected)
+            item.setAttribute("selected", "true");
+        }
+      } else if (child instanceof HTMLOptionElement) {
+        let item = document.createElement("option");
+        item.setAttribute("label", child.textContent);
+        this._list.appendChild(item);
+        item.optionIndex = optionIndex++;
+        if (child.selected)
+          item.setAttribute("selected", "true");
+      }
+    }
+
+    this._panel = document.getElementById("select-container");
+    this._panel.hidden = false;
+
+    this._list.focus();
+    this._list.addEventListener("click", this, false);
+  },
+
+  _forEachOption: function(aCallback) {
+      let children = this._list.children;
+      for (let i = 0; i < children.length; i++) {
+        let item = children[i];
+        if (!item.hasOwnProperty("optionIndex"))
+          continue;
+        aCallback(item);
+      }
+  },
+
+  _updateControl: function() {
+    let currentSelectedIndexes = this._getSelectedIndexes();
+
+    let isIdentical = currentSelectedIndexes.length == this._selectedIndexes.length;
+    if (isIdentical) {
+      for (let i = 0; i < currentSelectedIndexes.length; i++) {
+        if (currentSelectedIndexes[i] != this._selectedIndexes[i]) {
+          isIdentical = false;
+          break;
+        }
+      }
+    }
+
+    if (!isIdentical) {
+      let control = this._control.wrappedJSObject;
+      if ("onchange" in control)
+        control.onchange();
+    }
+  },
+
+  close: function() {
+    this._updateControl();
+
+    this._list.removeEventListener("click", this, false);
+    this._panel.hidden = true;
+
+    // Clear out the list for the next show
+    let empty = this._list.cloneNode(false);
+    this._list.parentNode.replaceChild(empty, this._list);
+    this._list = empty;
+
+    this._control.focus();
+  },
+
+  handleEvent: function(aEvent) {
+    switch (aEvent.type) {
+      case "click":
+        let item = aEvent.target;
+        let selectElement = this._control.wrappedJSObject.selectElement;
+        if (item && item.hasOwnProperty("optionIndex")) {
+          if (this._control.multiple) {
+            // Toggle the item state
+            item.selected = !item.selected;
+            selectElement.setOptionsSelectedByIndex(item.optionIndex, item.optionIndex, item.selected, false, false, true);
+          }
+          else {
+            // Unselect all options
+            this._forEachOption(
+              function(aItem) {
+                aItem.selected = false;
+              }
+            );
+
+            // Select the new one and update the control
+            item.selected = true;
+            selectElement.setOptionsSelectedByIndex(item.optionIndex, item.optionIndex, true, true, false, true);
+          }
+        }
+        break;
+    }
+  }
+};

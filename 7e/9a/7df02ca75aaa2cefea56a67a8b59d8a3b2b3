@@ -1,0 +1,11 @@
+
+copy: js/src/jit-test/tests/basic/bug665812.js
+copyrev: 5033688cf1b174a9fe112c4ce186fa2698986ea7
+
+// |jit-test| error: TypeError
+
+(function() {
+    function::d = 0
+    d.(l)
+    function d() {}
+})()

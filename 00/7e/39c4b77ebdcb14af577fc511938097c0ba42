@@ -1,0 +1,43 @@
+
+copy: dom/imported-tests/webapps/WebStorage/tests/submissions/Infraware/test_event_session_storageeventinit.html
+copyrev: b26a0fa3abc521b74a87129cbf94e166cadf2799
+
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <title>Web Storage</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body>
+    <h1>event_session_StorageEventInit</h1>
+    <div id="log"></div>
+    <script>
+        test(function() {
+            var t = async_test("storageeventinit test");
+            function onStorageEvent(event) {
+                t.step(function() {
+                    assert_equals(event.key, 'key');
+                    assert_equals(event.oldValue, 'oldValue');
+                    assert_equals(event.newValue, 'newValue');
+                    assert_equals(event.url, window.location.href);
+                    assert_equals(event.storageArea, window.sessionStorage);
+                });
+                t.done();
+            }
+
+            window.addEventListener('storage', onStorageEvent, false);
+
+            var event = new StorageEvent('storage', {
+                key: 'key',
+                oldValue: 'oldValue',
+                newValue: 'newValue',
+                url: window.location.href,
+                storageArea: window.sessionStorage
+            });
+
+            window.dispatchEvent(event);
+        });
+    </script>
+ </body>
+</html>

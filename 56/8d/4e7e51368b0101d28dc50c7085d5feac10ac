@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/embed/width-novalid.html
+copyrev: 1eb34f2399ed504e004ea861c3fdcfdb02eb3a7e
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>element embed with bad width value</title>
+</head>
+<body>
+<embed width="20%">
+</body>
+</html>

@@ -1,0 +1,5 @@
+
+copy: dom/security/test/csp/file_bug885433_allows.html^headers^
+copyrev: 9278524d0584b297b8f39164ee499bc53b6b7ad1
+
+Content-Security-Policy: img-src 'self';

@@ -1,0 +1,11 @@
+
+copy: dom/src/threads/test/chromeWorker_subworker.js
+copyrev: 4fe8b0a7205b705e5828751baca0ebe000bcfb20
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+onmessage = function(event) {
+  postMessage("Done!");
+};

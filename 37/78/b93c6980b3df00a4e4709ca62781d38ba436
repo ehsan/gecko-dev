@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/input/range/input-75pct-common-ref.html
+copyrev: 861ce49dee647b2cfc2c8cf5e4f76eb1edf1014a
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type=range value=75>
+  </body>
+</html>

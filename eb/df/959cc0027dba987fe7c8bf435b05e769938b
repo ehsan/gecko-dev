@@ -1,0 +1,5 @@
+
+copy: config/emptyvars-js.mk.in
+copyrev: 5bf1f4c9457c893a790241f38196b43d84fbd3bc
+
+@ALLEMPTYSUBSTS@

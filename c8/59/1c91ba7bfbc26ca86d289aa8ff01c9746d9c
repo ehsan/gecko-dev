@@ -1,0 +1,7 @@
+
+copy: mobile/android/base/GeckoEditText.java.in
+copyrev: 705877f5432f88841ca7f6f224ef2685f05ad161
+
+#filter substitution
+#define VIEWTYPE EditText
+#include GeckoView.java.frag

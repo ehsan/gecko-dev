@@ -1,0 +1,6 @@
+
+copyrev: 0230504f48913a7b47f8cacc5be1ed692b821870
+copy: browser/base/content/browserconfig.properties
+
+# Do NOT localize or otherwise change these values
+browser.startup.homepage=http://www.mozilla.org/projects/minefield/

@@ -1,0 +1,14 @@
+
+copy: security/coreconf/IRIX5.mk
+copyrev: c908dee2f7e90f0f1c13d9b3aa9bc05c38e3a6ef
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+include $(CORE_DEPTH)/coreconf/IRIX.mk
+
+ifndef NS_USE_GCC
+	ODD_CFLAGS += -xgot
+endif

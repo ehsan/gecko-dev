@@ -1,0 +1,21 @@
+
+copy: toolkit/devtools/debugger/tests/unit/pre_init_tab_actors.js
+copyrev: d5cf9a9feb4b4f9c8e160484816e9666d6c74c39
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function PreInitTabActor(aConnection) {}
+
+PreInitTabActor.prototype = {
+  actorPrefix: "preInitTab",
+  onPing: function onPing(aRequest) {
+    return { message: "pong" };
+  },
+};
+
+PreInitTabActor.prototype.requestTypes = {
+  "ping": PreInitTabActor.prototype.onPing,
+};
+
+DebuggerServer.addGlobalActor(PreInitTabActor, "preInitTabActor");

@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/img/width-height-negative-novalid.html
+copyrev: 02cee2e2d721132710337abbf3eec7b90f402203
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>img with negative values for width and height</title>
+</head>
+<body>
+<img src="url" width="-1" height="-1">
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copy: layout/xul/crashtests/564705-1.xul
+copyrev: d9a94f73a511166db6f5bcf42fbb9fbf7a8a3c69
+
+<?xml version="1.0"?>
+
+<?xml-stylesheet href="chrome://global/skin" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"><label value="&#x2026;" accesskey="b"></label></window>
+

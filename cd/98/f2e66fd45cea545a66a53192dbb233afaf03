@@ -1,0 +1,20 @@
+[
+{
+"size": 266240,
+"digest": "bb345b0e700ffab4d09436981f14b5de84da55a3f18a7f09ebc4364a4488acdeab8d46f447b12ac70f2da1444a68b8ce8b8675f0dae2ccf845e966d1df0f0869",
+"algorithm": "sha512",
+"filename": "mozmake.exe"
+},
+{
+"size": 51,
+"digest": "c8e40edb314eeabfb92c77cf5ff9a7857033f15dd65a00349bcf9e3e5b75624afc71f733b2ff7e029c20a78313038409c2bd022bf7e5a7e0c487fc2c2d640986",
+"algorithm": "sha512",
+"filename": "setup.sh"
+},
+{
+"size": 166407,
+"digest": "88fcc94f21818621e9e10107db913a3c787c6a68219c1e3e5fb26ebdf0864efdca4f05bd168d4851fee35c6b8d9ca4f9eb3ec229f565b7e6ce55ff6e7e899c24",
+"algorithm": "sha512",
+"filename": "sccache.tar.bz2"
+}
+]

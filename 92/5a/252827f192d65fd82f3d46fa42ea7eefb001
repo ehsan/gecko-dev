@@ -1,0 +1,11 @@
+
+copyrev: 8290313d265a96389dd44bbfd2e18147b2bf312a
+copy: js/src/trace-test/tests/basic/testDoubleZeroInSwitch1.js
+
+var a = Math.sin(Math.PI/2);  // spec does not specify precise answer here...
+if (a === 1) {    // ...but if a === 1 here...
+    switch (a) {
+      case 1: break;  // ...then it must also match here
+      default: throw "FAIL";
+    }
+}

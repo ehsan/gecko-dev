@@ -1,0 +1,21 @@
+
+copy: embedding/android/resources/drawable/awesomebar_tab_press.xml
+copyrev: 869b816f903430950c9df5b9ec7027ffb7f60f1d
+
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent"/>
+            <size android:height="48dip"/>
+        </shape>
+    </item>
+
+    <item android:top="46dip">
+        <shape android:shape="rectangle">
+            <solid android:color="#111111"/>
+        </shape>
+    </item>
+
+</layer-list>

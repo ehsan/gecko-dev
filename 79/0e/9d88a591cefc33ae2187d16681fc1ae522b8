@@ -1,0 +1,13 @@
+
+copy: toolkit/components/places/tests/browser/visituri/redirect_once.sjs
+copyrev: b6dc65aa66ba8a7e3b9c958d91721bb90e7c9749
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+function handleRequest(request, response) {
+  response.setStatusLine("1.1", 302, "Found");
+  response.setHeader("Location", "final.html", false);
+}

@@ -1,0 +1,42 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+EXPORTS.mozilla.storage += [
+    'Variant.h',
+    'Variant_inl.h',
+]
+
+UNIFIED_SOURCES += [
+    'FileSystemModule.cpp',
+    'mozStorageArgValueArray.cpp',
+    'mozStorageAsyncStatement.cpp',
+    'mozStorageAsyncStatementExecution.cpp',
+    'mozStorageAsyncStatementJSHelper.cpp',
+    'mozStorageAsyncStatementParams.cpp',
+    'mozStorageBindingParamsArray.cpp',
+    'mozStorageError.cpp',
+    'mozStoragePrivateHelpers.cpp',
+    'mozStorageResultSet.cpp',
+    'mozStorageRow.cpp',
+    'mozStorageService.cpp',
+    'mozStorageSQLFunctions.cpp',
+    'mozStorageStatement.cpp',
+    'mozStorageStatementJSHelper.cpp',
+    'mozStorageStatementParams.cpp',
+    'mozStorageStatementRow.cpp',
+    'SQLCollations.cpp',
+    'StorageBaseStatementInternal.cpp',
+    'TelemetryVFS.cpp',
+    'VacuumManager.cpp',
+]
+
+# These files need to be built separately because they #include variantToSQLiteT_impl.h.
+SOURCES += [
+    'mozStorageBindingParams.cpp',
+    'mozStorageConnection.cpp',
+]
+
+FINAL_LIBRARY = 'storagecomps'

@@ -1,0 +1,7 @@
+
+copy: dom/imptests/webapps/DOMCore/tests/submissions/Ms2ger/productions.js
+copyrev: a4a3aec87c97fdbe2c9d2a81fb5a9cb1026ec7a8
+
+var invalid_names = ["\\", "'", '"', "0", "0:a"] // XXX
+var valid_names = ["x", ":", "a:0"]
+var invalid_qnames = [":a", "b:", "x:y:z"] // XXX

@@ -1,0 +1,10 @@
+
+copy: js/src/jit-test/tests/binary-data/fuzz6.js
+copyrev: 3fc6467eb9fe5cedec441f7d7bd7a14d1c18e740
+
+// |jit-test| error:TypeError
+
+if (!this.hasOwnProperty("Type"))
+  throw new TypeError();
+
+new StructType(RegExp);

@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_XHRDocURI.xml
+copyrev: 731e24d49d22b6d586f52a9cc5a51ae79892b722
+
+<res xml:base="http://www.example.com/">data</res>

@@ -1,0 +1,30 @@
+
+copy: content/media/webaudio/test/test_pannerNode_equalPower.html
+copyrev: b95733a71f41cc52d5830ffaf7b110d488eba1a6
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>Test PannerNode</title>
+<script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+<script type="text/javascript" src="webaudio.js"></script>
+<script type="text/javascript" src="layouttest-glue.js"></script>
+<script type="text/javascript" src="blink/audio-testing.js"></script>
+<script type="text/javascript" src="blink/panner-model-testing.js"></script>
+<link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+<pre id="test">
+<script class="testbody" type="text/javascript">
+SimpleTest.waitForExplicitFinish();
+addLoadEvent(function() {
+  function checkFinished() {
+    SimpleTest.finish();
+  }
+  var ctx = new OfflineAudioContext(2, sampleRate * renderLengthSeconds, sampleRate);
+  createTestAndRun(ctx, nodesToCreate, 2, checkFinished);
+});
+</script>
+</pre>
+</body>
+</html>

@@ -1,0 +1,107 @@
+
+copy: modules/libpr0n/test/reftest/pngsuite-oddsizes/s09_3p02.html
+copyrev: 32247899f5bc3b8901d2997793d4fcf8b8cf4c9d
+
+<html><body>
+<table cellpadding='0' cellspacing='0' width='9' height='9'>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(0,180,255,1)'></td>
+  <td width='1' style='background-color: rgba(0,180,255,1)'></td>
+  <td width='1' style='background-color: rgba(0,180,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(0,180,255,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,180,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(0,180,255,1)'></td>
+  <td width='1' style='background-color: rgba(0,180,255,1)'></td>
+  <td width='1' style='background-color: rgba(0,180,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,0,255,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(255,180,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+<tr height='1'>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+  <td width='1' style='background-color: rgba(0,255,0,1)'></td>
+</tr>
+</table>
+</body></html>

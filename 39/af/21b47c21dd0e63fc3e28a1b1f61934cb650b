@@ -1,0 +1,5 @@
+
+copy: browser/branding/nightly/configure.sh
+copyrev: 7165098cccd282138fc112d08d5ea3c99dcfb909
+
+MOZ_APP_DISPLAYNAME=Aurora

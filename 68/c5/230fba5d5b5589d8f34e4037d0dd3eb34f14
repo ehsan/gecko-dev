@@ -1,0 +1,13 @@
+
+copy: layout/xul/base/src/crashtests/464407-1.xhtml
+copyrev: 394a14dbe74e67c3feb18348446d5b70d640718b
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<head>
+</head>
+<body>
+
+<xul:radio style="overflow: auto; height: 72057594037927940pt; display: table-cell;"/>
+
+</body>
+</html>

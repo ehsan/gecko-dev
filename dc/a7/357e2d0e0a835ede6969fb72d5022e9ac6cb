@@ -1,0 +1,15 @@
+
+copy: content/html/content/test/file_bug649778.html
+copyrev: eba751210d78365408096354cc6ee4fde7f1c22b
+
+<html>
+<script>
+function test() {
+  document.open();
+  document.write('<html><body>WYCIWYG DOCUMENT</body></html>');
+  document.close();
+}
+</script>
+<body onload="setTimeout(test, 0);">
+</body>
+</html>

@@ -1,0 +1,5 @@
+
+copy: js/src/xpconnect/tests/chrome/file_evalInSandbox.html
+copyrev: 52c7abdd0f49b3c9beae229dc5a54bc5e3d142d3
+
+<html><body><script>document.foo = 'bar';</script></body></html>

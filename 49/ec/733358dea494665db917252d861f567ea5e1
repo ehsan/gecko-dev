@@ -1,0 +1,11 @@
+
+copy: content/html/content/crashtests/515829-2.html
+copyrev: 9cd3ed8f8e121379dec75275301a83016e1842b0
+
+<!DOCTYPE html>
+<html>
+<head></head>
+<body onload="document.getElementById('x').innerHTML = '<button></button>';">
+<form><div id="x"><button></button></div><button></button><input type="image"></form>
+</body>
+</html>

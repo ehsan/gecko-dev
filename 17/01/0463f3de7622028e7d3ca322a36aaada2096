@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-invalid/default-style/button-ref.html
+copyrev: 1dd8981b13cdadadd32ca387e50a23678f36c323
+
+<!DOCTYPE>
+<html>
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <button class='invalid-ref'></button>
+  </body>
+</html>

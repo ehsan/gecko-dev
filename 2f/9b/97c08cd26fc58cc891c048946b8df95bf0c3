@@ -1,0 +1,104 @@
+<!DOCTYPE HTML>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=975261
+-->
+<head>
+  <meta charset="utf-8">
+  <title>Test OMTA animations start correctly (Bug 975261)</title>
+  <script type="application/javascript"
+    src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="application/javascript"
+    src="/tests/SimpleTest/paint_listener.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+  <style type="text/css">
+    @keyframes anim-opacity {
+       0% { opacity: 0.5 }
+       100% { opacity: 0.5 }
+    }
+    @keyframes anim-transform {
+       0% { transform: translate(50px); }
+       100% { transform: translate(50px); }
+    }
+    .target {
+      /* These two lines are needed so that an opacity/transform layer
+       * already exists when the animation is applied. */
+      opacity: 0.99;
+      transform: translate(99px);
+
+      /* Element needs geometry in order to be animated on the
+       * compositor. */
+      width: 100px;
+      height: 100px;
+      background-color: white;
+    }
+  </style>
+</head>
+<body>
+<a target="_blank"
+  href="https://bugzilla.mozilla.org/show_bug.cgi?id=975261">Mozilla Bug
+  975261</a>
+<div id="display"><div class="target"></div></div>
+<pre id="test">
+<script type="application/javascript">
+"use strict";
+
+var gOMTAPrefKey = "layers.offmainthreadcomposition.async-animations";
+var gOMTCEnabled = SpecialPowers.DOMWindowUtils.layerManagerRemote;
+var gTarget = document.querySelector(".target");
+
+if (gOMTCEnabled && SpecialPowers.getBoolPref(gOMTAPrefKey)) {
+  SimpleTest.waitForExplicitFinish();
+  window.addEventListener("load", function() {
+    // Using paint_listener.js functions inside an onload handler is not safe
+    // (bug 986367) so spin the event loop first
+    SimpleTest.executeSoon(testDelay);
+  });
+} else {
+  ok(true, "OMTA not available");
+}
+
+function testDelay() {
+  SpecialPowers.DOMWindowUtils.advanceTimeAndRefresh(0);
+
+  gTarget.setAttribute("style", "animation: 10s 10s anim-opacity linear");
+  SpecialPowers.DOMWindowUtils.advanceTimeAndRefresh(0);
+
+  waitForAllPaints(function() {
+    SpecialPowers.DOMWindowUtils.advanceTimeAndRefresh(10100);
+    waitForAllPaints(function() {
+      var opacity =
+        SpecialPowers.DOMWindowUtils.getOMTAStyle(gTarget, "opacity");
+      is(opacity, 0.5,
+         "opacity is set on compositor thread after delayed start");
+      gTarget.removeAttribute("style");
+      SpecialPowers.DOMWindowUtils.restoreNormalRefresh();
+      testTransform();
+    });
+  });
+}
+
+function testTransform() {
+  SpecialPowers.DOMWindowUtils.advanceTimeAndRefresh(0);
+
+  gTarget.setAttribute("style", "animation: 10s 10s anim-transform linear");
+  SpecialPowers.DOMWindowUtils.advanceTimeAndRefresh(0);
+
+  waitForAllPaints(function() {
+    SpecialPowers.DOMWindowUtils.advanceTimeAndRefresh(10100);
+    waitForAllPaints(function() {
+      var transform =
+        SpecialPowers.DOMWindowUtils.getOMTAStyle(gTarget, "transform");
+      is(transform, "matrix(1, 0, 0, 1, 50, 0)",
+         "transform is set on compositor thread after delayed start");
+      gTarget.removeAttribute("style");
+      SpecialPowers.DOMWindowUtils.restoreNormalRefresh();
+      SimpleTest.finish();
+    });
+  });
+}
+
+</script>
+</pre>
+</body>
+</html>

@@ -1,0 +1,15 @@
+
+copyrev: 3f3b26393f76836a5c0acf20e765f5da1e028dc2
+copy: js/src/trace-test/tests/jaeger/bug554675-3.js
+
+(function() {
+  try { (function() {
+      for each(let x in [0, /x/, 0, {}]) {
+        if (x < x) {}
+      }
+    })()
+  } catch(e) {}
+})()
+
+/* Don't assert. */
+

@@ -1,0 +1,10 @@
+
+copy: mobile/chrome/tests/remote_vkb.js
+copyrev: 6216c1e2af6aecdcccdd1d5da697aa58d130c6ae
+
+dump("====================== Content Script Loaded =======================\n");
+
+AsyncTests.add("Test:FocusRoot", function(aMessage, aJson) {
+  content.document.getElementById("root").focus();
+  return true;
+});

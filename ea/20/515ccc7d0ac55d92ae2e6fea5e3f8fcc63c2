@@ -1,0 +1,19 @@
+
+copy: content/base/test/file_bug675121.sjs
+copyrev: a607cdc2c8cc38775479f7c3e5f64e520a459f9a
+
+var timer;
+
+function handleRequest(request, response)
+{
+  response.setHeader("Cache-Control", "no-cache", false);
+  response.setHeader("Content-Type", "text/plain", false);
+  response.write("Responded");
+  response.processAsync();
+  timer = Components.classes["@mozilla.org/timer;1"]
+    .createInstance(Components.interfaces.nsITimer);
+  timer.initWithCallback(function() {
+      response.finish();
+    // 50ms certainly be enough for one refresh driver firing to happen!
+    }, 50, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+}

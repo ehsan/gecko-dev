@@ -1,0 +1,12 @@
+
+copyrev: 7d47adc0825d92b5636ec1e34c84d5ad4df6d745
+copy: js/src/trace-test/tests/basic/unboxint.js
+
+function unboxint() {
+    var q = 0;
+    var o = [4];
+    for (var i = 0; i < 100; ++i)
+        q = o[0] << 1;
+    return q;
+}
+assertEq(unboxint(), 8);

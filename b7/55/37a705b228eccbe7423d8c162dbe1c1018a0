@@ -1,0 +1,8 @@
+
+copy: mobile/android/locales/en-US/searchplugins/list.txt
+copyrev: ddfd4990177dc6c4bbcfa2fe8e18b3790145a171
+
+amazondotcom
+google
+twitter
+wikipedia

@@ -1,0 +1,17 @@
+
+copy: content/xbl/crashtests/336960-1.html
+copyrev: f0d9f812ca1b06df1b8016d2c1677b0d36eac22c
+
+<html class="reftest-wait">
+<head>
+
+<title>Testcase bug 336960 - Crash when window gets destroyed when constructor of xbl is running</title>
+<script>
+setTimeout('document.documentElement.className = ""', 500);
+</script>
+</head><body>
+This page should not crash Mozilla, you should see no iframe<br>
+<iframe src="./336960-1-inner.xhtml"></iframe>
+
+</body>
+</html>

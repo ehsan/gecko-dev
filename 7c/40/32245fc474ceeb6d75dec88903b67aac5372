@@ -1,0 +1,26 @@
+
+copy: editor/libeditor/html/crashtests/414178-1.html
+copyrev: bad3bbd0379e380e1ebdba9b0a2e6c8d59432d8d
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  var table = document.createElement("table");
+  document.body.appendChild(table);
+  table.contentEditable = "true";
+  table.focus();
+  try {
+    // This will throw, since it's attempting to inject a list inside a table
+    document.execCommand("insertunorderedlist", false, null);
+  } catch (e) {}
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

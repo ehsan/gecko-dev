@@ -1,0 +1,10 @@
+
+copy: layout/base/tests/font-inflation/text-2-ref.html
+copyrev: 510a59f73d358208f1912de060b62ef783378dab
+
+<!DOCTYPE HTML>
+<style>
+div { background: yellow }
+div { font-size: 34px; line-height: 1.0; width: 450px }
+</style>
+<div>Hello world</div>

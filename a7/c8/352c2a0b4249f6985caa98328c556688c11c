@@ -1,0 +1,15 @@
+
+copy: layout/reftests/text/auto-hyphenation-9-ref.html
+copyrev: aceb7a6d523bc25fda91f32d19cf78a8ff24aea0
+
+<!DOCTYPE html>
+<html>
+<meta charset="iso-8859-1">
+<!-- check that hyphenation is not applied when language is not specified -->
+<body>
+<div style="width: 5em; -moz-hyphens: auto;">
+supercalifragilisticexpialidocious
+</div>
+</body>
+</html>
+

@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix3.wrong
+copyrev: 15900b28f130e9f1375caf5c7faf2814f40087f2
+
+foos

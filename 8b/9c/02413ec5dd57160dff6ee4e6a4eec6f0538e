@@ -1,0 +1,633 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DIST_FILES = package-name.txt
+
+include $(topsrcdir)/mobile/android/base/android-services-files.mk
+
+MOZGLUE_JAVA_FILES := \
+  mozglue/ByteBufferInputStream.java \
+  mozglue/DirectBufferAllocator.java \
+  mozglue/GeneratableAndroidBridgeTarget.java \
+  mozglue/NativeReference.java \
+  mozglue/NativeZip.java \
+  mozglue/OptionalGeneratedParameter.java \
+  $(NULL)
+
+MOZGLUE_PP_JAVA_FILES := \
+  mozglue/GeckoLoader.java \
+  $(NULL)
+
+UTIL_JAVA_FILES := \
+  util/ActivityResultHandler.java \
+  util/ActivityResultHandlerMap.java \
+  util/Clipboard.java \
+  util/EventDispatcher.java \
+  util/FloatUtils.java \
+  util/GamepadUtils.java \
+  util/GeckoBackgroundThread.java \
+  util/GeckoEventListener.java \
+  util/GeckoEventResponder.java \
+  util/GeckoJarReader.java \
+  util/HardwareUtils.java \
+  util/INIParser.java \
+  util/INISection.java \
+  util/JSONUtils.java \
+  util/StringUtils.java \
+  util/ThreadUtils.java \
+  util/UiAsyncTask.java \
+  $(NULL)
+
+FENNEC_JAVA_FILES = \
+  ANRReporter.java \
+  ActivityHandlerHelper.java \
+  AlertNotification.java \
+  AlignRightLinkPreference.java \
+  AllCapsTextView.java \
+  AndroidImport.java \
+  AndroidImportPreference.java \
+  AnimatedHeightLayout.java \
+  AppNotificationClient.java \
+  AutocompleteHandler.java \
+  animation/AnimatorProxy.java \
+  animation/HeightChangeAnimation.java \
+  animation/PropertyAnimator.java \
+  animation/Rotate3DAnimation.java \
+  animation/ViewHelper.java \
+  BackButton.java \
+  BaseGeckoInterface.java \
+  BrowserApp.java \
+  BrowserToolbar.java \
+  BrowserToolbarBackground.java \
+  CameraImageResultHandler.java \
+  CameraVideoResultHandler.java \
+  CanvasDelegate.java \
+  CheckableLinearLayout.java \
+  ClickableWhenDisabledEditText.java \
+  ContactService.java \
+  ContextGetter.java \
+  CustomEditText.java \
+  db/BrowserDB.java \
+  db/LocalBrowserDB.java \
+  db/DBUtils.java \
+  DataReportingNotification.java \
+  Distribution.java \
+  DoorHanger.java \
+  DoorHangerPopup.java \
+  EditBookmarkDialog.java \
+  favicons/cache/FaviconCache.java \
+  favicons/cache/FaviconCacheElement.java \
+  favicons/cache/FaviconsForURL.java \
+  favicons/Favicons.java \
+  favicons/LoadFaviconTask.java \
+  favicons/OnFaviconLoadedListener.java \
+  FilePickerResultHandler.java \
+  FilePickerResultHandlerSync.java \
+  FindInPageBar.java \
+  FlowLayout.java \
+  FontSizePreference.java \
+  FormAssistPopup.java \
+  ForwardButton.java \
+  GeckoAccessibility.java \
+  GeckoApplication.java \
+  GeckoApp.java \
+  GeckoAppShell.java \
+  GeckoActivity.java \
+  GeckoBatteryManager.java \
+  GeckoConnectivityReceiver.java \
+  GeckoEditable.java \
+  GeckoEvent.java \
+  GeckoHalDefines.java \
+  GeckoInputConnection.java \
+  GeckoMessageReceiver.java \
+  GeckoPreferences.java \
+  GeckoPreferenceFragment.java \
+  GeckoProfile.java \
+  GeckoSmsManager.java \
+  GeckoThread.java \
+  GeckoJavaSampler.java \
+  GlobalHistory.java \
+  GeckoView.java \
+  health/BrowserHealthRecorder.java \
+  health/BrowserHealthReporter.java \
+  InputMethods.java \
+  JavaAddonManager.java \
+  LightweightTheme.java \
+  LightweightThemeDrawable.java \
+  LinkPreference.java \
+  MemoryMonitor.java \
+  MotionEventInterceptor.java \
+  MultiChoicePreference.java \
+  NotificationClient.java \
+  NotificationHandler.java \
+  NotificationHelper.java \
+  NotificationService.java \
+  NSSBridge.java \
+  OrderedBroadcastHelper.java \
+  PageActionLayout.java \
+  PrefsHelper.java \
+  PrivateDataPreference.java \
+  PrivateTab.java \
+  prompts/Prompt.java \
+  prompts/PromptInput.java \
+  prompts/PromptService.java \
+  prompts/IconGridInput.java \
+  Restarter.java \
+  sqlite/ByteBufferInputStream.java \
+  sqlite/MatrixBlobCursor.java \
+  sqlite/SQLiteBridge.java \
+  sqlite/SQLiteBridgeException.java \
+  ReaderModeUtils.java \
+  RemoteTabs.java \
+  RobocopAPI.java \
+  ServiceNotificationClient.java \
+  ScrollAnimator.java \
+  SessionParser.java \
+  ShapedButton.java \
+  SharedPreferencesHelper.java \
+  SiteIdentityPopup.java \
+  SmsManager.java \
+  SurfaceBits.java \
+  SyncPreference.java \
+  Tab.java \
+  TabCounter.java \
+  Tabs.java \
+  TabsPanel.java \
+  TabsTray.java \
+  TabsAccessor.java \
+  Telemetry.java \
+  TextSelection.java \
+  TextSelectionHandle.java \
+  ThumbnailHelper.java \
+  TouchEventInterceptor.java \
+  VideoPlayer.java \
+  WebAppAllocator.java \
+  WebAppImpl.java \
+  ZoomConstraints.java \
+  db/BrowserContract.java \
+  db/BrowserProvider.java \
+  db/FormHistoryProvider.java \
+  db/PerProfileContentProvider.java \
+  db/PasswordsProvider.java \
+  db/TabsProvider.java \
+  gfx/Axis.java \
+  gfx/BitmapUtils.java \
+  gfx/BufferedCairoImage.java \
+  gfx/CairoGLInfo.java \
+  gfx/CairoImage.java \
+  gfx/CairoUtils.java \
+  gfx/DisplayPortCalculator.java \
+  gfx/DisplayPortMetrics.java \
+  gfx/DrawTimingQueue.java \
+  gfx/FloatSize.java \
+  gfx/GeckoLayerClient.java \
+  gfx/GfxInfoThread.java \
+  gfx/GLController.java \
+  gfx/ImmutableViewportMetrics.java \
+  gfx/InputConnectionHandler.java \
+  gfx/IntSize.java \
+  gfx/JavaPanZoomController.java \
+  gfx/Layer.java \
+  gfx/LayerMarginsAnimator.java \
+  gfx/LayerRenderer.java \
+  gfx/LayerView.java \
+  gfx/NativePanZoomController.java \
+  gfx/NinePatchTileLayer.java \
+  gfx/Overscroll.java \
+  gfx/PanningPerfAPI.java \
+  gfx/PanZoomController.java \
+  gfx/PanZoomTarget.java \
+  gfx/PluginLayer.java \
+  gfx/PointUtils.java \
+  gfx/ProgressiveUpdateData.java \
+  gfx/RectUtils.java \
+  gfx/RenderTask.java \
+  gfx/ScrollbarLayer.java \
+  gfx/SimpleScaleGestureDetector.java \
+  gfx/SingleTileLayer.java \
+  gfx/SubdocumentScrollHelper.java \
+  gfx/TextLayer.java \
+  gfx/TextureGenerator.java \
+  gfx/TextureReaper.java \
+  gfx/TileLayer.java \
+  gfx/TouchEventHandler.java \
+  gfx/ViewTransform.java \
+  gfx/VirtualLayer.java \
+  home/BookmarksListAdapter.java \
+  home/BookmarksListView.java \
+  home/BookmarksPage.java \
+  home/BookmarkFolderView.java \
+  home/BrowserSearch.java \
+  home/HistoryPage.java \
+  home/HomeFragment.java \
+  home/HomeListView.java \
+  home/HomePager.java \
+  home/HomePagerTabStrip.java \
+  home/HomeBanner.java \
+  home/FadedTextView.java \
+  home/LastTabsPage.java \
+  home/MostRecentPage.java \
+  home/MultiTypeCursorAdapter.java \
+  home/PinSiteDialog.java \
+  home/ReadingListPage.java \
+  home/SearchEngine.java \
+  home/SearchEngineRow.java \
+  home/SearchLoader.java \
+  home/SimpleCursorLoader.java \
+  home/SuggestClient.java \
+  home/TabMenuStrip.java \
+  home/TopSitesGridItemView.java \
+  home/TopSitesGridView.java \
+  home/TopSitesPage.java \
+  home/TopSitesThumbnailView.java \
+  home/TwoLinePageRow.java \
+  menu/GeckoMenu.java \
+  menu/GeckoMenuInflater.java \
+  menu/GeckoMenuItem.java \
+  menu/GeckoSubMenu.java \
+  menu/MenuItemActionBar.java \
+  menu/MenuItemActionView.java \
+  menu/MenuItemDefault.java \
+  menu/MenuPanel.java \
+  menu/MenuPopup.java \
+  preferences/SearchPreferenceCategory.java \
+  preferences/SearchEnginePreference.java \
+  updater/UpdateServiceHelper.java \
+  updater/UpdateService.java \
+  widget/ActivityChooserModel.java \
+  widget/ButtonToast.java \
+  widget/ArrowPopup.java \
+  widget/DateTimePicker.java \
+  widget/Divider.java \
+  widget/FaviconView.java \
+  widget/GeckoPopupMenu.java \
+  widget/GeckoActionProvider.java \
+  widget/IconTabWidget.java \
+  widget/TabRow.java \
+  widget/ThumbnailView.java \
+  widget/TwoWayView.java \
+  GeckoNetworkManager.java \
+  GeckoScreenOrientationListener.java \
+  GeckoUpdateReceiver.java \
+  ReferrerReceiver.java \
+  $(NULL)
+
+BRAILLE_JAVA_FILES := \
+  com/googlecode/eyesfree/braille/selfbraille/ISelfBrailleService.java \
+  com/googlecode/eyesfree/braille/selfbraille/SelfBrailleClient.java \
+  com/googlecode/eyesfree/braille/selfbraille/WriteData.java \
+  $(NULL)
+
+WEBSOCKETS_JAVA_FILES := \
+  com/codebutler/android_websockets/HybiParser.java \
+  com/codebutler/android_websockets/WebSocketClient.java \
+  $(NULL)
+
+ifdef MOZ_WEBRTC
+WEBRTC_VIDEO_CAPTURE_JAVA_FILES = \
+  CaptureCapabilityAndroid.java \
+  VideoCaptureAndroid.java \
+  VideoCaptureDeviceInfoAndroid.java \
+  $(NULL)
+
+WEBRTC_AUDIO_CAPTURE_JAVA_FILES = \
+  WebRTCAudioDevice.java \
+  $(NULL)
+
+WEBRTC_JAVA_FILES = \
+  $(addprefix $(DEPTH)/media/webrtc/trunk/webrtc/modules/video_capture/android/java/org/webrtc/videoengine/, $(WEBRTC_VIDEO_CAPTURE_JAVA_FILES)) \
+  $(addprefix $(DEPTH)/media/webrtc/trunk/webrtc/modules/audio_device/android/org/webrtc/voiceengine/, $(WEBRTC_AUDIO_CAPTURE_JAVA_FILES)) \
+  $(NULL)
+endif
+
+ifdef MOZ_ANDROID_ANR_REPORTER
+DEFINES += -DMOZ_ANDROID_ANR_REPORTER=1
+endif
+
+FENNEC_PP_JAVA_FILES := \
+  App.java \
+  AppConstants.java \
+  widget/GeckoEditText.java \
+  widget/GeckoImageButton.java \
+  widget/GeckoImageView.java \
+  widget/GeckoLinearLayout.java \
+  widget/GeckoRelativeLayout.java \
+  widget/GeckoTextSwitcher.java \
+  widget/GeckoTextView.java \
+  SysInfo.java \
+  WebApp.java \
+  WebApps.java \
+  $(NULL)
+
+ifneq (,$(findstring -march=armv7,$(OS_CFLAGS)))
+MIN_CPU_VERSION=7
+else
+MIN_CPU_VERSION=5
+endif
+
+MOZ_APP_BUILDID=$(shell cat $(DEPTH)/config/buildid)
+
+ifeq (,$(ANDROID_VERSION_CODE))
+ifeq ($(CPU_ARCH),arm)
+ifeq ($(MIN_CPU_VERSION),7)
+ANDROID_VERSION_CODE=$(shell cat $(DEPTH)/config/buildid | cut -c1-10)
+else
+# decrement the version code by 1 for armv6 builds so armv7 builds will win any compatability ties
+ANDROID_VERSION_CODE=$(shell echo $$((`cat $(DEPTH)/config/buildid | cut -c1-10` - 1)))
+endif
+else #not arm, so x86
+# increment the version code by 1 for x86 builds so they are offered to x86 phones that have arm emulators
+ANDROID_VERSION_CODE=$(shell echo $$((`cat $(DEPTH)/config/buildid | cut -c1-10` + 1)))
+endif
+endif
+
+UA_BUILDID=$(shell echo $(ANDROID_VERSION_CODE) | cut -c1-8)
+
+MOZ_BUILD_TIMESTAMP=$(shell echo `$(PYTHON) $(topsrcdir)/toolkit/xre/make-platformini.py --print-timestamp`)
+
+ifdef MOZ_UPDATER
+DEFINES +=  -DMOZ_UPDATER=$(MOZ_UPDATER)
+endif
+
+# Mangle our package name to avoid Bug 750548.
+DEFINES += \
+  -DMANGLED_ANDROID_PACKAGE_NAME=$(subst fennec,f3nn3c,$(ANDROID_PACKAGE_NAME)) \
+  -DANDROID_PACKAGE_NAME=$(ANDROID_PACKAGE_NAME) \
+  -DANDROID_CPU_ARCH=$(ANDROID_CPU_ARCH) \
+  -DANDROID_VERSION_CODE=$(ANDROID_VERSION_CODE) \
+  -DCPU_ARCH=$(CPU_ARCH) \
+  -DGRE_MILESTONE=$(GRE_MILESTONE) \
+  -DMOZILLA_OFFICIAL=$(MOZILLA_OFFICIAL) \
+  -DMOZ_ANDROID_SHARED_ID="$(MOZ_ANDROID_SHARED_ID)" \
+  -DMOZ_ANDROID_SHARED_ACCOUNT_TYPE="$(MOZ_ANDROID_SHARED_ACCOUNT_TYPE)" \
+  -DMOZ_APP_ABI=$(TARGET_XPCOM_ABI) \
+  -DMOZ_APP_BASENAME=$(MOZ_APP_BASENAME) \
+  -DMOZ_APP_BUILDID=$(MOZ_APP_BUILDID) \
+  -DMOZ_APP_DISPLAYNAME="$(MOZ_APP_DISPLAYNAME)" \
+  -DMOZ_APP_ID=$(MOZ_APP_ID) \
+  -DMOZ_APP_NAME=$(MOZ_APP_NAME) \
+  -DMOZ_APP_VENDOR=$(MOZ_APP_VENDOR) \
+  -DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
+  -DMOZ_BUILD_TIMESTAMP=$(MOZ_BUILD_TIMESTAMP) \
+  -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME) \
+  -DMOZ_CRASHREPORTER=$(MOZ_CRASHREPORTER) \
+  -DMOZ_MIN_CPU_VERSION=$(MIN_CPU_VERSION) \
+  -DMOZ_UPDATE_CHANNEL=$(MOZ_UPDATE_CHANNEL) \
+  -DOMNIJAR_NAME=$(OMNIJAR_NAME) \
+  -DOS_TARGET=$(OS_TARGET) \
+  -DTARGET_XPCOM_ABI=$(TARGET_XPCOM_ABI) \
+  -DUA_BUILDID=$(UA_BUILDID) \
+  $(NULL)
+
+ifdef MOZ_PKG_SPECIAL
+DEFINES += -DMOZ_PKG_SPECIAL=$(MOZ_PKG_SPECIAL)
+endif
+
+ifdef MOZ_LINKER_EXTRACT
+DEFINES += -DMOZ_LINKER_EXTRACT=1
+endif
+
+GARBAGE += \
+  AndroidManifest.xml  \
+  classes.dex  \
+  $(MOZGLUE_PP_JAVA_FILES) \
+  $(FENNEC_PP_JAVA_FILES) \
+  $(SYNC_PP_JAVA_FILES) \
+  gecko.ap_  \
+  res/values/strings.xml \
+  R.java \
+  package-name.txt \
+  fennec_ids.txt \
+  Manifest.java \
+  javah.out \
+  jni-stubs.inc \
+  GeneratedJNIWrappers.cpp \
+  GeneratedJNIWrappers.h \
+  $(NULL)
+
+GARBAGE_DIRS += classes db jars res sync services
+
+# Bug 567884 - Need a way to find appropriate icons during packaging
+ifeq ($(MOZ_APP_NAME),fennec)
+ICON_PATH = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/fennec_48x48.png
+ICON_PATH_HDPI = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/fennec_72x72.png
+ICON_PATH_XHDPI = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/fennec_96x96.png
+ICON_PATH_XXHDPI = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/fennec_144x144.png
+else
+ICON_PATH = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/icon48.png
+ICON_PATH_HDPI = $(topsrcdir)/$(MOZ_BRANDING_DIRECTORY)/content/icon64.png
+endif
+
+JAVA_CLASSPATH = $(ANDROID_SDK)/android.jar
+
+ifdef MOZ_CRASHREPORTER
+FENNEC_JAVA_FILES += CrashReporter.java
+endif
+
+ALL_JARS = \
+  jars/gecko-browser.jar \
+  jars/gecko-mozglue.jar \
+  jars/gecko-util.jar \
+  jars/sync-thirdparty.jar \
+  jars/websockets.jar \
+  $(NULL)
+
+ifdef MOZ_WEBRTC
+ALL_JARS += jars/webrtc.jar
+endif
+
+thirdparty_source_dir = $(topsrcdir)/mobile/android/thirdparty
+
+JAVA_JAR_TARGETS += websockets
+websockets_DEST := jars/websockets.jar
+websockets_JAVAFILES := \
+  $(addprefix $(thirdparty_source_dir)/,$(WEBSOCKETS_JAVA_FILES)) \
+  $(NULL)
+websockets_JAVAC_FLAGS := -Xlint:all,-serial
+
+JAVA_JAR_TARGETS += gecko-browser
+gecko-browser_DEST := jars/gecko-browser.jar
+gecko-browser_JAVAFILES := \
+  $(FENNEC_JAVA_FILES) \
+  $(addprefix $(thirdparty_source_dir)/,$(BRAILLE_JAVA_FILES)) \
+  $(SYNC_JAVA_FILES) \
+  $(NULL)
+gecko-browser_PP_JAVAFILES := \
+  $(FENNEC_PP_JAVA_FILES) \
+  $(SYNC_PP_JAVA_FILES) \
+  R.java \
+  $(NULL)
+gecko-browser_EXTRA_JARS := \
+  jars/gecko-mozglue.jar \
+  jars/gecko-util.jar \
+  jars/sync-thirdparty.jar \
+  jars/websockets.jar \
+  $(NULL)
+gecko-browser_JAVAC_FLAGS := -Xlint:all,-deprecation,-fallthrough
+
+JAVA_JAR_TARGETS += gecko-mozglue
+gecko-mozglue_DEST := jars/gecko-mozglue.jar
+gecko-mozglue_JAVAFILES := \
+  $(MOZGLUE_JAVA_FILES) \
+  $(NULL)
+gecko-mozglue_PP_JAVAFILES := \
+  $(MOZGLUE_PP_JAVA_FILES) \
+  $(NULL)
+gecko-mozglue_JAVAC_FLAGS := -Xlint:all
+
+JAVA_JAR_TARGETS += gecko-util
+gecko-util_DEST := jars/gecko-util.jar
+gecko-util_JAVAFILES := \
+  $(UTIL_JAVA_FILES) \
+  $(NULL)
+gecko-util_EXTRA_JARS := \
+  jars/gecko-mozglue.jar \
+  $(NULL)
+gecko-util_JAVAC_FLAGS := -Xlint:all,-deprecation
+
+JAVA_JAR_TARGETS += sync-thirdparty
+sync-thirdparty_DEST := jars/sync-thirdparty.jar
+sync-thirdparty_JAVAFILES := \
+  $(addprefix $(thirdparty_source_dir)/,$(SYNC_THIRDPARTY_JAVA_FILES)) \
+  $(NULL)
+sync-thirdparty_JAVAC_FLAGS := -Xlint:none
+
+ifdef MOZ_WEBRTC
+JAVA_JAR_TARGETS += webrtc
+webrtc_DEST := jars/webrtc.jar
+webrtc_JAVAFILES := \
+  $(WEBRTC_JAVA_FILES) \
+  $(NULL)
+webrtc_EXTRA_JARS := \
+  jars/gecko-browser.jar \
+  jars/gecko-util.jar \
+  jars/gecko-mozglue.jar \
+  $(NULL)
+webrtc_JAVAC_FLAGS := -Xlint:all,-deprecation,-cast
+endif
+
+include $(topsrcdir)/config/makefiles/java-build.mk
+
+# We process ANDROID_RESFILES specially for now; the following flag
+# disables the default processing.
+IGNORE_ANDROID_RESFILES=1
+
+include $(topsrcdir)/config/rules.mk
+
+# Override the Java settings with some specific android settings
+include $(topsrcdir)/config/android-common.mk
+
+# Note that we're going to set up a dependency directly between embed_android.dex and the java files
+# Instead of on the .class files, since more than one .class file might be produced per .java file
+# Sync dependencies are provided in a single jar. Sync classes themselves are delivered as source,
+# because Android resource classes must be compiled together in order to avoid overlapping resource
+# indices.
+classes.dex: $(ALL_JARS)
+	@echo "DX classes.dex"
+	$(DX) --dex --output=classes.dex $(ALL_JARS) $(ANDROID_COMPAT_LIB)
+
+CLASSES_WITH_JNI= \
+    org.mozilla.gecko.GeckoAppShell \
+    org.mozilla.gecko.GeckoJavaSampler \
+    org.mozilla.gecko.gfx.NativePanZoomController \
+    org.mozilla.gecko.ANRReporter \
+    $(NULL)
+
+ifdef MOZ_WEBSMS_BACKEND
+# Note: if you are building with MOZ_WEBSMS_BACKEND turned on, then
+# you will get a build error because the generated jni-stubs.inc will
+# be different than the one checked in (i.e. it will have the sms-related
+# JNI stubs as well). Just copy the generated file to mozglue/android/
+# like the error message says and rebuild. All should be well after that.
+CLASSES_WITH_JNI += org.mozilla.gecko.GeckoSmsManager
+endif
+
+jni-stubs.inc: jars/gecko-browser.jar jars/gecko-mozglue.jar jars/gecko-util.jar jars/sync-thirdparty.jar
+	$(JAVAH) -o javah.out -bootclasspath $(JAVA_BOOTCLASSPATH) -classpath $(subst $(NULL) $(NULL),:,$^) $(CLASSES_WITH_JNI)
+	$(PYTHON) $(topsrcdir)/mobile/android/base/jni-generator.py javah.out $@
+
+ANNOTATION_PROCESSOR_JAR_FILES := $(DEPTH)/build/annotationProcessors/annotationProcessors.jar
+
+GeneratedJNIWrappers.cpp: $(ANNOTATION_PROCESSOR_JAR_FILES)
+GeneratedJNIWrappers.cpp: $(ALL_JARS)
+	$(JAVA) -classpath $(JAVA_BOOTCLASSPATH):$(ANNOTATION_PROCESSOR_JAR_FILES) org.mozilla.gecko.annotationProcessors.AnnotationProcessor $(ALL_JARS)
+
+# AndroidManifest.xml includes these files, so they need to be marked as dependencies.
+SERVICES_MANIFEST_FRAGMENTS = $(wildcard $(topsrcdir)/mobile/android/services/manifests/*.in)
+
+android-tgts = \
+  AndroidManifest.xml \
+  $(MOZGLUE_PP_JAVA_FILES) \
+  $(FENNEC_PP_JAVA_FILES) \
+  $(SYNC_PP_JAVA_FILES) \
+  package-name.txt \
+  $(NULL)
+
+android-preqs = \
+  Makefile.in \
+  widget/GeckoView.java.frag \
+  $(call mkdir_deps,$(sort $(dir $(MOZGLUE_PP_JAVA_FILES)))) \
+  $(call mkdir_deps,$(sort $(dir $(FENNEC_PP_JAVA_FILES)))) \
+  $(call mkdir_deps,$(sort $(dir $(SYNC_PP_JAVA_FILES)))) \
+  $(SERVICES_MANIFEST_FRAGMENTS) \
+  $(NULL)
+
+$(android-tgts): % : %.in $(android-preqs)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
+             $(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
+
+res/drawable-mdpi/icon.png: $(ICON_PATH)
+	$(NSINSTALL) -D res/drawable-mdpi
+	cp $(ICON_PATH) $@
+
+res/drawable-hdpi/icon.png: $(ICON_PATH_HDPI)
+	$(NSINSTALL) -D res/drawable-hdpi
+	cp $(ICON_PATH_HDPI) $@
+
+res/drawable-xhdpi/icon.png: $(ICON_PATH_XHDPI)
+	$(NSINSTALL) -D res/drawable-xhdpi
+	cp $(ICON_PATH_XHDPI) $@
+
+res/drawable-xxhdpi/icon.png: $(ICON_PATH_XXHDPI)
+	$(NSINSTALL) -D res/drawable-xxhdpi
+	cp $(ICON_PATH_XXHDPI) $@
+
+ANDROID_RESDIRS := $(subst resources/,res/,$(sort $(dir $(ANDROID_RESFILES))))
+
+$(call mkdir_deps,$(ANDROID_RESDIRS)): $(ANDROID_RESFILES) Makefile
+	$(RM) -r $(@D)
+	$(NSINSTALL) -D $(@D)
+	$(TOUCH) $@
+
+$(subst resources/,res/,$(ANDROID_RESFILES)): $(call mkdir_deps,$(ANDROID_RESDIRS)) $(ANDROID_RESFILES)
+	@echo "creating $@"
+	$(NSINSTALL) $(subst res/,$(srcdir)/resources/,$@) $(dir $@)
+
+res/values/strings.xml: $(call mkdir_deps,res/values)
+	$(MAKE) -C locales
+
+# With multilocale builds, there will be multiple strings.xml files. We need to
+# rebuild gecko.ap_ if any of them change.
+MULTILOCALE_STRINGS_XML_FILES := $(wildcard res/values-*/strings.xml)
+all_resources = \
+  $(MULTILOCALE_STRINGS_XML_FILES) \
+  AndroidManifest.xml \
+  $(subst resources/,res/,$(ANDROID_RESFILES)) \
+  $(ANDROID_GENERATED_RESFILES) \
+  $(NULL)
+
+R.java: $(all_resources)
+	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar -S res -J . --custom-package org.mozilla.gecko --non-constant-id
+
+gecko.ap_: $(all_resources)
+	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar  -S res -F $@
+
+fennec_ids.txt: fennec-ids-generator.py R.java
+	$(PYTHON) $(topsrcdir)/mobile/android/base/fennec-ids-generator.py -i R.java -o $@
+
+libs:: classes.dex package-name.txt jni-stubs.inc GeneratedJNIWrappers.cpp fennec_ids.txt
+	$(INSTALL) classes.dex $(FINAL_TARGET)
+	$(INSTALL) package-name.txt $(FINAL_TARGET)
+	@(diff jni-stubs.inc $(topsrcdir)/mozglue/android/jni-stubs.inc >/dev/null && diff GeneratedJNIWrappers.cpp $(topsrcdir)/widget/android/GeneratedJNIWrappers.cpp >/dev/null) || \
+	 (echo "*** Error: The generated JNI code has changed. Please run cp $(CURDIR)/jni-stubs.inc $(topsrcdir)/mozglue/android && cp $(CURDIR)/GeneratedJNIWrappers.* $(topsrcdir)/widget/android and repeat the build." && exit 1)

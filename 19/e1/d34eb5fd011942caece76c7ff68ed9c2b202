@@ -1,0 +1,17 @@
+
+copy: dom/network/interfaces/nsIDOMNavigatorNetwork.idl
+copyrev: b4d641ede09459cc7cde8f0abac3ebe76c72f706
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIDOMMozConnection;
+
+[uuid(7f021f5d-f704-4a29-b166-829595169aaf)]
+interface nsIMozNavigatorNetwork : nsISupports
+{
+  readonly attribute nsIDOMMozConnection mozConnection;
+};

@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/IJ.wrong
+copyrev: d34408d35a31b54afde358e466c36c7ab0439ed5
+
+Ijs

@@ -1,0 +1,7 @@
+
+copyrev: 7c89cb66f4843c591d927275dc26de3e98c1f479
+copy: js/src/trace-test/tests/basic/testGlobalAsProto.js
+
+var b = Object.create(this);
+for (var i = 0; i < 9; i++)
+    assertEq(b.i, i);

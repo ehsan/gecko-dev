@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/utfcompound.aff
+copyrev: 375e58eaaa5f4789589459d714f08da02ea9a729
+
+SET UTF-8
+COMPOUNDMIN 3
+COMPOUNDFLAG A

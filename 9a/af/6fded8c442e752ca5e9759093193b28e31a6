@@ -1,0 +1,11 @@
+
+copyrev: 433ed5665b3a7d5474c5924fac2fc7dccba91ef3
+copy: js/src/trace-test/tests/basic/bug547911-2.js
+
+var obj = {a: 0, b: 0, c: 0, d: 0, get e() { throw StopIteration; }};
+try {
+    for each (x in obj) {}
+    FAIL;
+} catch (exc) {
+    assertEq(exc, StopIteration);
+}

@@ -1,0 +1,6 @@
+
+copy: other-licenses/branding/firefox/configure.sh
+copyrev: f3bccc18b04cc8f1456853e9513741d0b3c2c4df
+
+MOZ_APP_DISPLAYNAME=Firefox
+MOZ_UA_BUILDID=20100101

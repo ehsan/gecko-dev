@@ -1,0 +1,22 @@
+
+copy: js/src/xpconnect/tests/mochitest/test2_bug629331.html
+copyrev: 1cd9afd8b3e75baa1b932a41175a33bdd11be5fa
+
+<!DOCTYPE html>
+<html>
+  <head>
+  </head>
+  <body>
+    <script>
+      document.domain = "example.org";
+
+      for (var j = 1; j <= 9; j++) {
+        parent.i = j;
+        var locali = parent.i;
+        parent.is(locali, j, 'step ' + j + ' worked');
+      }
+
+      parent.finish();
+    </script>
+  </body>
+</html>

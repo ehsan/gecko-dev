@@ -1,0 +1,9 @@
+
+copy: content/canvas/test/webgl/conformance/limits/00_test_list.txt
+copyrev: 7131b2a4eee8b2d0995fd8073db57f2cd6e240f8
+
+gl-min-attribs.html
+gl-max-texture-dimensions.html
+gl-min-textures.html
+gl-min-uniforms.html
+

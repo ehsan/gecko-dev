@@ -1,0 +1,16 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/header/nested-footer-novalid.html
+copyrev: a6627cd4afc761cc4cacad69eea66a06e98e6be1
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>"header" with "footer" descendant</title>
+</head>
+<body>
+<header>
+<footer></footer>
+</header>
+</body>
+</html>

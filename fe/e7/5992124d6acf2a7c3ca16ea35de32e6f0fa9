@@ -1,0 +1,14 @@
+
+copyrev: 0c6a96267dd40f68143b993d0a547300ed3f70b8
+copy: js/src/trace-test/tests/closures/bug540243.js
+
+for (a in (eval("\
+  (function() {\
+    return function() {\
+      yield ((function() {\
+        return d\
+      })())\
+    } ();\
+  var d = []\
+  })\
+"))());

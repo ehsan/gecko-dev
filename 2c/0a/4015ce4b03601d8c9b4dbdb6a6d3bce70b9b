@@ -1,0 +1,17 @@
+
+copy: js/src/xpconnect/crashtests/328553-1.html
+copyrev: 08f7e42d79845ba9d47068b0cb412846b2f7eb4f
+
+<html>
+<head>
+<script type="text/javascript">
+
+x = Components.interfaces.nsITableEditor;
+x.__proto__ = Components;
+x.QueryInterface;
+
+</script>
+</head>
+<body>
+</body>
+</html>

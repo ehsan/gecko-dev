@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/input/range/input-range-direction-unthemed-1-ref.html
+copyrev: 7fa1330a1fa3ce6af507114923ee8883a5561e46
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type='range' value=30 style="-moz-appearance:none;">
+  </body>
+</html>

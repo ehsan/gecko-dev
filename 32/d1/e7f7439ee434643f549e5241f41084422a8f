@@ -1,0 +1,20 @@
+
+copy: content/html/document/test/file_bug871161-1.html
+copyrev: e616f5c7fdc4a903a93e1797239c7997e60789fa
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=windows-1251>
+<title>Page with non-default charset</title>
+<script>
+function run() {
+  document.forms[0].submit();
+}
+</script>
+</head>
+<body onload="run();">
+<form method=post action="http://example.org/tests/dom/html/test/file_bug871161-2.html"></form>
+</body>
+</html>
+

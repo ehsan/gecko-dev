@@ -1,0 +1,8 @@
+# %S is the date and time at which the last sync successfully completed
+lastSync.label = Last Update: %S
+status.idle = Idle
+status.active = Working...
+status.offline = Offline
+status.error = Error
+shareBookmark.menuItem = Share This Folder...
+unShareBookmark.menuItem = Stop Sharing This Folder

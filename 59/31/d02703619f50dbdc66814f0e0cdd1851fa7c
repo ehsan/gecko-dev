@@ -1,0 +1,13 @@
+
+copy: content/svg/content/src/crashtests/412104-1.svg
+copyrev: 57627be6e47a611ce7aaf9730d4f3492adc6a2c3
+
+<svg xmlns="http://www.w3.org/2000/svg" 
+     xmlns:xbl="http://www.mozilla.org/xbl" 
+     onload="document.documentElement.style.MozBinding = 'url(#tsw)';">
+
+<xbl:bindings><xbl:binding id="tsw"><xbl:content>
+<text stroke-width="50%"><xbl:children/></text>
+</xbl:content></xbl:binding></xbl:bindings>
+
+</svg>

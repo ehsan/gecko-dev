@@ -1,0 +1,34 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script>
+      var testwindow;
+      function pingWorker() {
+        var port = navigator.mozSocial.getWorker().port;
+        port.onmessage = function(e) {
+          var topic = e.data.topic;
+          switch (topic) {
+            case "test-flyout-open":
+              navigator.mozSocial.openPanel("social_flyout.html");
+              break;
+            case "test-chatbox-open":
+              navigator.mozSocial.openChatWindow("social_chat.html",
+                function(chatwin) {
+                  port.postMessage({topic: "chatbox-opened",
+                                    result: chatwin ? "ok" : "failed"});
+                });
+              break;
+            case "test-isVisible":
+              port.postMessage({topic: "test-isVisible-response",
+                                result: navigator.mozSocial.isVisible});
+              break;
+          }
+        }
+        port.postMessage({topic: "sidebar-message", result: "ok"});
+      }
+    </script>
+  </head>
+  <body onload="pingWorker();">
+    <p>This is a test social sidebar.</p>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+
+copy: dom/svg/crashtests/601251-1.html
+copyrev: f9dd8efdf77ef7133b99da55069299d0f27cbd6e
+
+<!DOCTYPE html>
+<script>
+
+var cm = document.createElementNS("http://www.w3.org/2000/svg", "feConvolveMatrix");
+cm.kernelMatrix.baseVal.appendItem({});
+cm.setAttribute("kernelMatrix", "0 0 0 0 0 0 0 0 0"); 
+
+</script>

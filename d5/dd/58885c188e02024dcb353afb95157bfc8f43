@@ -1,0 +1,65 @@
+[interfaces.html]
+  type: testharness
+  [IDBRequest interface: existence and properties of interface object]
+    expected: FAIL
+
+  [IDBOpenDBRequest interface: existence and properties of interface object]
+    expected: FAIL
+
+  [IDBVersionChangeEvent interface: existence and properties of interface object]
+    expected: FAIL
+
+  [IDBVersionChangeEvent interface: existence and properties of interface prototype object]
+    expected: FAIL
+
+  [Stringification of new IDBVersionChangeEvent("foo")]
+    expected: FAIL
+
+  [IDBDatabase interface: existence and properties of interface object]
+    expected: FAIL
+
+  [IDBCursorWithValue interface: existence and properties of interface object]
+    expected: FAIL
+
+  [IDBTransaction interface: existence and properties of interface object]
+    expected: FAIL
+
+  [Window interface: attribute indexedDB]
+    expected: FAIL
+
+  [WorkerUtils interface: attribute indexedDB]
+    expected: FAIL
+
+  [IDBKeyRange interface object length]
+    expected: FAIL
+
+  [IDBRequest interface object length]
+    expected: FAIL
+
+  [IDBOpenDBRequest interface object length]
+    expected: FAIL
+
+  [IDBVersionChangeEvent interface object length]
+    expected: FAIL
+
+  [IDBFactory interface object length]
+    expected: FAIL
+
+  [IDBDatabase interface object length]
+    expected: FAIL
+
+  [IDBObjectStore interface object length]
+    expected: FAIL
+
+  [IDBIndex interface object length]
+    expected: FAIL
+
+  [IDBCursor interface object length]
+    expected: FAIL
+
+  [IDBCursorWithValue interface object length]
+    expected: FAIL
+
+  [IDBTransaction interface object length]
+    expected: FAIL
+

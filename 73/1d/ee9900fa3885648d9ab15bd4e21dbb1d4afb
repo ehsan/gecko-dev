@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/meta/workers/interfaces/DedicatedWorkerGlobalScope/EventTarget.worker.ini
+copyrev: 6902beadf4bdd9eb365345a8e3240c0e1acfab85
+
+[EventTarget.worker]
+  type: testharness
+  [removeEventListener]
+    expected: FAIL
+

@@ -1,0 +1,10 @@
+
+copyrev: ad8f755924d902bf155b6cae80470c01fc768a43
+copy: js/src/trace-test/tests/basic/testStringConstructorWithExtraArg.js
+
+function testStringConstructorWithExtraArg() {
+    for (let i = 0; i < 5; ++i)
+        new String(new String(), 2);
+    return "ok";
+}
+assertEq(testStringConstructorWithExtraArg(), "ok");

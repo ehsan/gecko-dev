@@ -1,0 +1,25 @@
+
+copy: layout/reftests/css-calc/height-table-1.html
+copyrev: 255a5877930e2991c86c68be53c70c576832982d
+
+<!DOCTYPE HTML>
+<title>Test that height:calc() with no percentages has an effect on inner table elements</title>
+<style>
+tbody, tr, td {
+  height: calc(500px);
+  min-height: calc(700px);
+  max-height: calc(2px);
+}
+</style>
+<table border>
+  <tbody>
+    <tr>
+      <td>cell</td>
+      <td>cell</td>
+    </tr>
+    <tr>
+      <td>cell</td>
+      <td>cell</td>
+    </tr>
+  </tbody>
+</table>

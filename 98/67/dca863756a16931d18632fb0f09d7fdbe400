@@ -1,0 +1,11 @@
+
+copy: profile/dirserviceprovider/standalone/Makefile.in
+copyrev: fead3f73df3dd95918778f168f96810fc74c95b6
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+include $(topsrcdir)/config/rules.mk
+
+STL_FLAGS =

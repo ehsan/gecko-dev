@@ -1,0 +1,5 @@
+
+copyrev: bba46c40c49019f20a31440b45af980770461569
+copy: js/tests/js1_2/regexp/shell.js
+
+gTestsubsuite = 'regexp';

@@ -1,0 +1,7 @@
+
+copy: content/html/content/crashtests/903106.html
+copyrev: c04db2b15e7bd296994cd9b9dbb03d92722244b9
+
+<script>
+  document.createElement("tr").sectionRowIndex;
+</script>

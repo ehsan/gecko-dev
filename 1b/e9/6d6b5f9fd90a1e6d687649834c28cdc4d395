@@ -1,0 +1,14 @@
+
+copy: dom/bluetooth/tests/marionette/manifest.ini
+copyrev: c491ac47bae36cdd61a9489d1a46a33f1558878d
+
+[DEFAULT]
+b2g = true
+browser = false
+qemu = true
+
+[test_dom_BluetoothManager_enabled.js]
+[test_dom_BluetoothManager_adapteradded.js]
+[test_dom_BluetoothAdapter_setters.js]
+[test_dom_BluetoothAdapter_getters.js]
+[test_dom_BluetoothAdapter_discovery.js]

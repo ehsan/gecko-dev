@@ -1,0 +1,15 @@
+
+copy: browser/devtools/styleinspector/test/doc_sourcemaps.html
+copyrev: 330d99179060479fb8b222d6b9d06e3de04b6a6d
+
+<!doctype html>
+<html>
+<head>
+  <title>testcase for testing CSS source maps</title>
+  <link rel="stylesheet" type="text/css" href="simple.css"/>
+  <link rel="stylesheet" type="text/css" href="sourcemaps.css"/>
+</head>
+<body>
+	<div>source maps <span>testcase</span></div>
+</body>
+</html>

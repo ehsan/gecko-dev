@@ -1,0 +1,12 @@
+
+copy: content/smil/crashtests/483584-1.svg
+copyrev: cb735c482ba7d414e3902a4a63c21f8a5ce4f70e
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink">
+  <g id="s">
+    <circle/>
+    <animateTransform attributeName="transform"/>
+  </g>
+  <use xlink:href="#s"/>
+</svg>

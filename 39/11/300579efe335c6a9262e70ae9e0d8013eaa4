@@ -1,0 +1,14 @@
+<!ENTITY about.startup.title "&brandShortName; Startup History">
+<!ENTITY about.startup.timestamp "Timestamp">
+<!ENTITY about.startup.elapsed "Elapsed Time">
+<!ENTITY about.startup.app.launched "&brandShortName; Launched">
+<!ENTITY about.startup.app.started "&brandShortName; Started">
+<!ENTITY about.startup.app.ready "&brandShortName; Ready">
+<!ENTITY about.startup.duration.launch "Launch Time">
+<!ENTITY about.startup.duration.startup "Startup Time">
+<!ENTITY about.startup.duration.ready "Elapsed Time">
+<!ENTITY about.startup.version "Version">
+<!ENTITY about.startup.table "Table">
+<!ENTITY about.startup.graph "Graph">
+<!ENTITY about.startup.eventdesc "Event Description">
+<!ENTITY about.startup.noevents "No Events Recorded">

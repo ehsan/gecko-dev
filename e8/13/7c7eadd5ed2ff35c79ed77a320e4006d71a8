@@ -1,0 +1,10 @@
+
+copyrev: 7276a751224c4743ece727f844be75f68f933be8
+copy: js/src/trace-test/tests/jaeger/bug589115.js
+
+for each(y in ['', 0, '']) {
+  y.lastIndexOf--
+}
+
+/* Don't assert/crash. */
+

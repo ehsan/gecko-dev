@@ -1,0 +1,8 @@
+
+copy: editor/composer/src/crashtests/428844-1-inner.xhtml
+copyrev: 95a112c31be1f5062b02a56ec7f3282b21918e24
+
+<?xml-stylesheet type="text/xsl" href="#a"?>
+<html xmlns="http://www.w3.org/1999/xhtml" onload="dump('Inner onload\n'); window.location.reload()" contenteditable="true">
+<xsl:stylesheet version="1.0" id="a" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"/>
+</html>

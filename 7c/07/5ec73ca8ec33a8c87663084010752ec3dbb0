@@ -1,0 +1,12 @@
+
+copy: testing/web-platform/meta/WebIDL/ecmascript-binding/es-exceptions/constructor-object.worker.ini
+copyrev: 2a153d055c5ff44405ca28cdefed23d5a42e1f68
+
+[constructor-object.worker]
+  type: testharness
+  [existence and properties of DOMException]
+    expected: FAIL
+
+  [existence of name and code properties on DOMException.prototype]
+    expected: FAIL
+

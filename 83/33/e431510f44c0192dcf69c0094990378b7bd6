@@ -1,0 +1,19 @@
+
+copy: content/svg/content/src/crashtests/880544-1.svg
+copyrev: aa1178818eef39f6c3bdf63664278ce1b832a815
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <script>//<![CDATA[
+
+function add_watch()
+{
+  document.getElementById("p").transform.baseVal.watch("0", function(){});
+}
+
+window.addEventListener("load", add_watch, false);
+
+  //]]></script>
+
+  <path id="p" transform="scale(1)" />
+
+</svg>

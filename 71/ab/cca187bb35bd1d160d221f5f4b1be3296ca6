@@ -1,0 +1,12 @@
+
+copy: mobile/locales/en-US/chrome/notification.dtd
+copyrev: 71c084c6de41d16a27a9855d17c77996338823a9
+
+
+<!-- 
+     LOCALIZATION NOTE (geolocation.learnMore): Use the
+     unicode ellipsis char, \u2026,
+     or use "..." unless \u2026 doesn't suit traditions in your
+     locale.
+-->
+<!ENTITY geolocation.learnMore         "Learn More…">

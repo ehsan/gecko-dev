@@ -1,0 +1,19 @@
+
+copy: browser/base/content/test/file_bug902156_3.html
+copyrev: 01d89e25608be88ff7530fdaa630239806e37028
+
+<!DOCTYPE HTML>
+<html>
+<!--
+  Test 3 for Bug 902156 - See file browser_bug902156.js for description.
+  https://bugzilla.mozilla.org/show_bug.cgi?id=902156
+-->
+<head>
+  <meta charset="utf-8">
+  <title>Test 3 for Bug 902156</title>
+</head>
+<body>
+  <div id="mctestdiv">Mixed Content Blocker enabled</div>
+  <script src="http://test1.example.com/browser/browser/base/content/test/general/file_bug902156.js" ></script>
+</body>
+</html>

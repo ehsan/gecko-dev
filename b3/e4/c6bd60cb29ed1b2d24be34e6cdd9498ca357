@@ -1,0 +1,13 @@
+
+copyrev: d3cadc747c201a9d55db2e46f7f17d0cca9065a7
+copy: js/src/trace-test/tests/jaeger/bug554580-2.js
+
+// |jit-test| error: RangeError
+(function() {
+  for each(let a in [function() {}, Infinity]) {
+    new Array(a)
+  }
+})()
+
+/* Don't assert/crash. */
+

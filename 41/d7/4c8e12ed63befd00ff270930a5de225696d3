@@ -1,0 +1,5 @@
+
+copy: browser/base/content/test/file_bug822367_1.js
+copyrev: b417d74a50780273c57e858772bb3df70e3b044e
+
+document.getElementById('p1').innerHTML="hello";

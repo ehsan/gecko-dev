@@ -1,0 +1,6 @@
+
+copy: toolkit/content/tests/widgets/popup_childframe_node.xul
+copyrev: 03e63dd453a2828a8d24ec955e2e54a7522fcd96
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" width="80" height="80"
+        onclick="document.documentElement.setAttribute('data', 'x' + document.popupNode)"/>

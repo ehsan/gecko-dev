@@ -1,0 +1,5 @@
+
+copy: content/base/test/script-2_bug597345.js
+copyrev: fa52e15296343bba414a1725d8ba4d1ee3e3772d
+
+document.write("Räksmörgås");

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/1463589.aff
+copyrev: 93561f40b345e0425097e2d63e770204bfbee9dc
+
+# capitalized ngram suggestion test data for
+# Sf.net Bug ID 1463589, reported by Frederik Fouvry.
+MAXNGRAMSUGS 1

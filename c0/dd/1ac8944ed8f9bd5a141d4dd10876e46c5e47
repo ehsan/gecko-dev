@@ -1,0 +1,14 @@
+
+copy: widget/src/cocoa/crashtests/403296-1.xhtml
+copyrev: 2de856a612a13db62b231d7279777abe9b9537ea
+
+<html xmlns="http://www.w3.org/1999/xhtml" 
+      class="reftest-wait"  
+      style="margin: 12em; padding: 20px 10em; opacity: 0.2; font-size: 11.2px; -moz-appearance: toolbar; white-space: nowrap;"><body 
+      style="position: absolute;" 
+      onload="setTimeout(function() { document.body.removeChild(document.getElementById('tr')); document.documentElement.removeAttribute('class'); }, 30);">
+
+xxx
+yyy
+
+<tr id="tr">300</tr></body></html>

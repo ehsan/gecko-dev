@@ -1,0 +1,5 @@
+
+copy: testing/mozbase/manifestdestiny/tests/verifyDirectory/test_1.js
+copyrev: bf98e84199a409edaff13b51211a0a198466ab13
+
+// test_1.js

@@ -1,0 +1,8 @@
+
+copy: content/base/test/badMessageEvent.eventsource
+copyrev: 7e1a50653a48860eda90c89672d8af8f5cbe185b
+
+retry:500
+event: message
+
+

@@ -1,0 +1,7 @@
+
+copy: layout/reftests/forms/textarea-resize.html
+copyrev: 9f69d28b9ecdb98061f0997f8f6588604d536d2e
+
+<html><body>
+<textarea style="-moz-appearance: none; background: white; border: 0; padding: 0; margin: 0; width: 100px; height: 100px;" resizable="false" multiline="true" width="100" height="100"></textarea>
+</body></html>

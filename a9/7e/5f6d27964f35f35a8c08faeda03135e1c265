@@ -1,0 +1,7 @@
+
+copy: layout/reftests/forms/input-file-width-clip-1.html
+copyrev: 9936812749dfb585057f48631fdc6881c1f90a33
+
+<div><input type="file" style="width: 5px"></div>
+<div><input type="file" style="width: 500px"></div>
+

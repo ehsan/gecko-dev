@@ -1,0 +1,17 @@
+
+copy: content/media/test/crashtests/880724.html
+copyrev: 971bd543419a98bb26e7a4f8556a55e98d106a8b
+
+<script>
+o1 = new window.AudioContext();
+o5 = o1.createConvolver();
+o5.buffer = function() {
+    var buffer = o1.createBuffer(2, 3, 33120);
+    for(var c=0; c<2; c++) {
+        for(var i=0; i<3; i++) {
+            buffer.getChannelData(c)[i] = -1;
+        }
+    }
+    return buffer;
+}();
+</script>

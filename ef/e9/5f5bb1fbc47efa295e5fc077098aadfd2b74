@@ -1,0 +1,11 @@
+
+copy: media/webrtc/trunk/src/voice_engine/main/test/android/android_test/.classpath
+copyrev: a51780dad3dbf7994b73728ea79643205168c4fd
+
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="com.android.ide.eclipse.adt.ANDROID_FRAMEWORK"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="gen"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

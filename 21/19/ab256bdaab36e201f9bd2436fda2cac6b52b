@@ -1,0 +1,10 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/submissions/Ms2ger/test_attributes.html.json
+copyrev: cf24c0edccec2db1c8fcbe39f032a7c8c29e2ad8
+
+{
+  "AttrExodus": true,
+  "setAttribute should throw a NAMESPACE_ERR when qualifiedName starts with 'xmlns'": true,
+  "First set attribute is returned by setAttribute": true,
+  "First set attribute is returned with mapped attribute set first": true
+}

@@ -1,0 +1,21 @@
+
+copy: embedding/android/resources/drawable/awesomebar_tab_focus_selected.xml
+copyrev: dd8e9ed147902c71c1aec23b535d0004fdf3c9dd
+
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent"/>
+            <size android:height="48dip"/>
+        </shape>
+    </item>
+
+    <item android:top="36dip">
+        <shape android:shape="rectangle">
+            <solid android:color="#111111"/>
+        </shape>
+    </item>
+
+</layer-list>

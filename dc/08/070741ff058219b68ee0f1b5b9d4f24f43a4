@@ -1,0 +1,18 @@
+
+copy: mobile/android/base/resources/color-large-v11/new_tablet_tab_strip_item_title.xml
+copyrev: 2919243f3c5f45d9cf14193d748524dd4eacd1bf
+
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android"
+	      xmlns:gecko="http://schemas.android.com/apk/res-auto">
+
+    <item android:state_checked="true"
+          gecko:state_private="true"
+          android:color="@color/text_color_primary_inverse"/>
+
+    <item android:state_checked="true"
+        android:color="@color/text_color_secondary"/>
+
+    <item android:color="@color/text_color_secondary"/>
+
+</selector>

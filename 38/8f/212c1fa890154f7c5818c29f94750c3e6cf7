@@ -1,0 +1,13 @@
+
+copyrev: 9726742868e012e12bc151952073d38f9e5ea6ef
+copy: testing/mozmill/mozmill-1.5.0/mozmill/extension/skin/chrome.css
+
+#mozmill-window {
+  /* bug 529589 -  Iframe inside a chrome window does not repaint until another window is focused */
+  background: white !important; 
+}
+
+#mozmill-window iframe {
+  border: none;
+  overflow: hidden;
+}

@@ -1,0 +1,7 @@
+
+copy: content/html/content/reftests/485377-ref.html
+copyrev: 1e0d7de1436387038405bb6fe0a480a3efb52865
+
+<!DOCTYPE html>
+<title>The mark element</title>
+<p>Foo <span style="background: yellow; color: black;">bar</span> baz.

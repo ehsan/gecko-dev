@@ -1,0 +1,11 @@
+
+copy: layout/reftests/forms/indeterminate-selector-ref.html
+copyrev: 01c5cd96b6a5d05065dc9de3bba235cf2895c1b7
+
+<style>
+#s {
+  margin: 50px;
+}
+</style>
+
+<input type="checkbox" id="s"><script>document.getElementById("s").indeterminate = true;</script>

@@ -1,0 +1,5 @@
+
+copy: layout/reftests/css-namespace/support/fail.css
+copyrev: b3a30f1a21c0e6fd4f04fe8ac4197c43b0fdbfdf
+
+* { background:red ! important }

@@ -1,0 +1,15 @@
+
+copy: content/base/crashtests/700512.html
+copyrev: d9551f79fff012ea429c3a28604bd742ac7a795c
+
+<html class="reftest-wait">
+  <script type="text/javascript">
+    var worker = new Worker("700512-worker.js");
+
+    worker.onmessage = function() {
+      document.documentElement.removeAttribute("class");
+    }
+
+    worker.postMessage(new Blob(["foo", "bar"]));
+  </script>
+</html>

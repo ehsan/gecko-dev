@@ -1,0 +1,10 @@
+
+copyrev: b38997cb2461a0f6a6381a546a7266e4862c6b98
+copy: layout/reftests/svg/image/zoom/reftest.list
+
+# Tests related to SVG being used as an image, with zooming
+
+# Simple <img> tests
+== img-zoomIn-1.html   squaredCircle-150x150-ref.html
+
+== img-zoomOut-1.html  squaredCircle-50x50-ref.html

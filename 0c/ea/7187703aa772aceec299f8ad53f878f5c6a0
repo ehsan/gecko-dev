@@ -1,0 +1,11 @@
+
+copy: dom/svg/crashtests/397551-1.svg
+copyrev: 852cd88cde8ce2d19243c1533111734afe15f5f7
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+
+  <g id="rec"><use xlink:href="#rec" /></g>
+
+  <use xlink:href="#rec" />
+
+</svg>

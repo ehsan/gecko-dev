@@ -1,0 +1,14 @@
+
+copy: browser/base/content/test/test_bug839103.html
+copyrev: bffdea8b4854293b5a4f0cc8b8dd15a10d9dda55
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Document for Bug 839103</title>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+  <style></style>
+</head>
+<body>
+</body>
+</html>

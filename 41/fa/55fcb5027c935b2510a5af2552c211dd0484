@@ -1,0 +1,8 @@
+
+copy: js/src/xpconnect/tests/unit/bug596580_versioned.js
+copyrev: 54f4d5740eab6e07c732cfedd49c9c80e48cd78e
+
+/* Some constructs that require a high default version number. */
+let x = 12;
+function simpleGen() { yield 12; }
+var e4xy = <html><title>Huzzah!</title></html>

@@ -1,0 +1,5 @@
+
+copyrev: 54feaedabd2fa69e83d6b22b1f7ee97b8d0b33e6
+copy: js/tests/e4x/TypeConversion/shell.js
+
+gTestsubsuite = 'TypeConversion';

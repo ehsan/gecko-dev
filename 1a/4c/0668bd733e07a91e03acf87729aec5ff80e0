@@ -1,0 +1,22 @@
+
+copy: js/src/xpconnect/tests/mochitest/test_bug601299.html
+copyrev: a30bca081a44ea76638c84699628a8d6692a4b2d
+
+<!DOCTYPE html>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=601299
+
+Trigger a fastnative from a frameless context.
+-->
+<head>
+  <title>Test for Bug 601299</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body onload="window.setTimeout(RegExp, 0); window.setTimeout(function() { ok(true); SimpleTest.finish(); }, 0);">
+<script>
+SimpleTest.waitForExplicitFinish();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: extensions/layout-debug/application.ini
+copyrev: 810ccb75e1df7344aec9a17c7468f3a8a1f0a519
+
+#filter substitution
+[App]
+Vendor=MozillaTest
+Name=LayoutDebug
+Version=0.1
+BuildID=@BUILD_ID@
+Copyright=Copyright (c) 2004 Mozilla.org
+ID={da915c15-c21a-41e2-95c3-2e0f76fd3191}
+
+[Gecko]
+MinVersion=@MOZILLA_VERSION_U@
+MaxVersion=@MOZILLA_VERSION_U@

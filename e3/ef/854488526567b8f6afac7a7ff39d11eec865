@@ -1,0 +1,13 @@
+
+copy: browser/base/content/test/general/plugin_clickToPlayAllow.html
+copyrev: 9eee8242c5772a363e9ec23c1eed2de3516ed072
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+<embed id="test" style="width: 200px; height: 200px" type="application/x-test">
+</body>
+</html>

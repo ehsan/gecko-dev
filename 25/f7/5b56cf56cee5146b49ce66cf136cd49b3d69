@@ -1,0 +1,12 @@
+
+copy: layout/reftests/text-decoration/underline-select-2.html
+copyrev: e882fbccd683d74eb342459f18a50ba83c57f2de
+
+<!doctype html>
+<html>
+<body>
+  <span style="text-decoration: underline">
+    Some<button>text</button>and a button
+  </span>
+</body>
+</html>

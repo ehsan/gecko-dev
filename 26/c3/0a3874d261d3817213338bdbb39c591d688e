@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/break.aff
+copyrev: 73a8e0fc59468f8a1dde59ce26a0d2c8bfcb71dc
+
+# word break points test, recursive break at dash and n-dash
+SET UTF-8
+
+BREAK 2
+BREAK -
+BREAK –
+
+WORDCHARS -–

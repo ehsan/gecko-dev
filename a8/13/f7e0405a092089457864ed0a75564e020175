@@ -1,0 +1,11 @@
+
+copy: js/src/jit-test/tests/parallelarray/compare-strings-eq.js
+copyrev: 8b7934f5b91e0723f5e8855cc31fa2e41b0dbfb4
+
+load(libdir + "parallelarray-helpers.js");
+
+if (getBuildConfiguration().parallelJS)
+  assertArraySeqParResultsEq(["a", "b", "c", "d", "e", "f", "g", "h",
+                              "i", "j", "k", "l", "m", "n", "o", "p",
+                              "q", "r", "s", "t", "u", "v", "w", "x",
+                              "y", "z"], "map", function(e) { return e == "u" || e == "x"; });

@@ -1,0 +1,16 @@
+
+copyrev: 7f23760f037ebc5de31e3d3d0ef7d1fafbdeb671
+copy: dom/src/base/crashtests/369413-1.html
+
+<html>
+<head>
+<script>
+try { atob(null); } catch(e) { }
+try { atob(""); } catch(e) { }
+try { atob("A="); } catch(e) { }
+try { atob("AA="); } catch(e) { }
+</script>
+</head>
+<body>
+</body>
+</html>

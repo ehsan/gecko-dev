@@ -1,0 +1,16 @@
+
+copy: js/src/vm/forkjoininlines.h
+copyrev: 8a55a753907fda4de300fd5e04c1d76161dc389f
+
+namespace js {
+
+ForkJoinSlice *
+ForkJoinSlice::current() {
+#ifdef JS_THREADSAFE_ION
+    return (ForkJoinSlice*) PR_GetThreadPrivate(ThreadPrivateIndex);
+#else
+    return NULL;
+#endif
+}
+
+}

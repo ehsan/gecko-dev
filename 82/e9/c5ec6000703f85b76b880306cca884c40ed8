@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/suggestiontest/Makefile.am
+copyrev: 16fe605f1dc3af75ac13b3516192b1cbd6ee944f
+
+EXTRA_DIST= \
+List_of_common_misspellings.txt \
+Makefile.orig \
+prepare \
+README \
+test 

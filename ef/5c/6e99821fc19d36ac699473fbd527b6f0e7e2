@@ -1,0 +1,7 @@
+
+copy: content/svg/content/test/a_href_destination.svg
+copyrev: 849cd248e562240649d0b1437d1ac1c14dd3f58b
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="green"/>
+</svg>

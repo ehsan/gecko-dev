@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-comma-valid-ref.html
+copyrev: 76d6712c278c3c75a84a09b3e44c368e82ca53f2
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea autofocus spellcheck="false">good,nice</textarea>
+  </body>
+</html>

@@ -1,0 +1,17 @@
+
+copy: layout/xul/crashtests/346083-1.xul
+copyrev: 1743c80373d3b5362bde73648701aab1bf40e927
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<body xmlns="http://www.w3.org/1999/xhtml">
+
+<script>
+<![CDATA[
+document.getBoxObjectFor(document.getElementsByTagName("body")[0]).setProperty("foo", undefined);
+]]>
+</script>
+
+</body>
+</window>

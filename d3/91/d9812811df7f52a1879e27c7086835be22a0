@@ -1,0 +1,24 @@
+
+copy: dom/xul/crashtests/354611-1.html
+copyrev: ae11460ac831434c04d767343e2e110009e34988
+
+<html>
+<head>
+<script>
+
+var XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+
+function boom()
+{
+  var z = document.createElementNS(XUL_NS, "window");
+  document.body.appendChild(z);
+  z.setAttribute("hidechrome", "true");
+}
+
+</script>
+
+<body onload="boom();">
+
+</body>
+
+</html>

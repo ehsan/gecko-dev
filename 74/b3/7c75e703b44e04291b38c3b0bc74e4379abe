@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-textarea-nofocus-ref.html
+copyrev: 41ec9dcc96f9a4bb5229603323c863b1cd59badb
+
+<!DOCTYPE html>
+<html>
+<body>
+  <textarea spellcheck="true">blahblahblah</textarea>
+</body>
+</html>

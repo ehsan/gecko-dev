@@ -1,0 +1,6 @@
+
+copy: layout/reftests/forms/checkbox-checked-native.html
+copyrev: a0cfcc4aaa1df64599aab1ded0e5074ddc0d6430
+
+<!doctype html>
+<input type="checkbox" checked>

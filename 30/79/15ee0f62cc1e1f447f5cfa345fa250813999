@@ -1,0 +1,10 @@
+
+copy: content/media/fmp4/ffmpeg/libav55/include/libavutil/audioconvert.h
+copyrev: ed24a9c426ffed050705269766b9c60671abba5c
+
+
+#include "version.h"
+
+#if FF_API_AUDIOCONVERT
+#include "channel_layout.h"
+#endif

@@ -1,0 +1,9 @@
+
+copy: layout/xul/base/src/crashtests/430356-1.xhtml
+copyrev: 624c8458be2e435483aefd2ff81e0375b66afce9
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<body style="visibility: collapse;">
+<tabpanels xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" style="width: -moz-max-content;"></tabpanels>
+</body>
+</html>

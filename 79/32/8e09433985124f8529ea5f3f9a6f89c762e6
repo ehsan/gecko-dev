@@ -1,0 +1,184 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* Panel styles */
+.panel {
+  /* XXX force proper content positioning by adding extra margin space
+   * taken away by reset.css
+   */
+  margin-top: 7px;
+  margin-bottom: 7px;
+
+  /* hide the extra margin space that the panel resizer now wants to show */
+  overflow: hidden;
+}
+
+.spacer {
+  margin-bottom: 1em;
+}
+
+.share {
+  background: #fbfbfb;
+}
+
+.share .description,
+.share .action input,
+.share > .action > .invite > .url-actions {
+  margin: 14px 14px 0 14px;
+}
+
+.share .description {
+  font-weight: 700;
+}
+
+.share .action input {
+  border: 1px solid #ccc; /* Overriding background style for a text input (see
+                             below) resets its borders to a weird beveled style;
+                             defining a default 1px border solves the issue. */
+  font-size: 1em;
+  padding: 0 10px;
+  border-radius: 2px;
+  outline: 0;
+  height: 26px;
+  width: calc(100% - 28px);
+}
+
+.share .action input.pending {
+  background-image: url(../img/loading-icon.gif);
+  background-repeat: no-repeat;
+  background-position: right;
+}
+
+.share .action .btn {
+  background-color: #0096DD;
+  border: 1px solid #0095DD;
+  color: #fff;
+  width: 50%;
+  height: 26px;
+  text-align: center;
+}
+
+.share > .action .btn:hover {
+  background-color: #008ACB;
+  border: 1px solid #008ACB;
+}
+
+.share > .action > .invite > .url-actions > .btn:first-child {
+  -moz-margin-end: 1em;
+}
+
+/* Specific cases */
+
+.panel #messages .alert {
+  margin-bottom: 0;
+}
+
+/* DnD menu */
+
+.dnd-status {
+  border: 1px solid transparent;
+  padding: 2px 4px;
+  font-size: .9em;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.dnd-status:hover {
+  border: 1px solid #DDD;
+  background: #F1F1F1;
+}
+
+.do-not-disturb {
+  position: relative;
+}
+
+.dnd-menu {
+  position: absolute;
+  top: -28px;
+  left: 0;
+  background: #fdfdfd;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  list-style: none;
+  padding: 5px;
+  border-radius: 2px;
+}
+
+.dnd-menu-item {
+  text-align: left;
+  margin: .3em 0;
+  padding: .2em .5em;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  font-size: 1em;
+  white-space: nowrap;
+}
+
+.dnd-menu-item:hover {
+  border: 1px solid #ccc;
+  background: #eee;
+}
+
+/* Status badges -- Available/Unavailable */
+
+.status {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 5px;
+  border-radius: 50%;
+}
+
+.status-available {
+  background: #6cb23e;
+}
+
+.status-dnd {
+  border: 1px solid #888;
+}
+
+/* Sign in/up link */
+
+.signin-link {
+  display: none; /* XXX This should be removed as soon bugs 1047144 & 979845 land */
+  line-height: 100%;
+  font-size: .9em;
+  text-decoration: none;
+  color: #888;
+  margin-top: 16px;
+}
+
+/* Terms of Service */
+
+.terms-service {
+  padding: 3px 10px 10px;
+  background: #FFF;
+  text-align: center;
+  opacity: .5;
+  transition: opacity .3s;
+  font-family: 'Lucida Grande', sans-serif;
+  font-size: .9em;
+}
+
+.terms-service a {
+  color: #0095dd;
+}
+
+/* Footer */
+
+.footer {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  align-content: stretch;
+  align-items: flex-start;
+  font-size: 1em;
+  border-top: 1px solid #D1D1D1;
+  background: #EAEAEA;
+  color: #7F7F7F;
+  padding: 14px;
+  margin-top: 14px;
+}
+

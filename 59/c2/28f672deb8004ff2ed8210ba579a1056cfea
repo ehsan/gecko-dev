@@ -1,0 +1,13 @@
+
+copyrev: d622b5eb1131bc94bff9fd87e4ff57448545064f
+copy: js/src/trace-test/tests/basic/testProxyConstructors.js
+
+// proxies can return primitives
+assertEq(new (Proxy.createFunction({}, function(){}, function(){})), undefined);
+
+x = Proxy.createFunction((function () {}), Uint16Array, wrap)
+new(wrap(x))
+
+// proxies can return the callee
+var x = Proxy.createFunction({}, function (q) { return q; });
+new x(x);

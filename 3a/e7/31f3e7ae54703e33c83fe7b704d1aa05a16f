@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/complexprefixes.aff
+copyrev: 5877809e06c6804c29d689e7eb44446313037ae5
+
+# set twofold prefix stripping
+# Coptic example by Moheb Mekhaiel
+COMPLEXPREFIXES
+
+PFX A Y 1
+PFX A 0 tek .
+
+PFX B Y 1
+PFX B 0 met/A .

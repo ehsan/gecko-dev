@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_keepcase.test
+copyrev: 528b95e6fbf689d6982413fe7d96c97872aa9a8f
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME

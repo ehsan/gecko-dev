@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/affixes.aff
+copyrev: 72161b9c907f33d0c628ffe1b48f226db37de3c7
+
+# simple example for affix compression (see Hunspell(4))
+PFX A Y 1
+PFX A 0 re .
+
+SFX B Y 2
+SFX B 0 ed [^y]
+SFX B y ied y

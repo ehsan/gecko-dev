@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundflag.aff
+copyrev: e64399fc7ec670886971c1e8062a0f8c70ad6763
+
+COMPOUNDMIN 3
+COMPOUNDFLAG A
+

@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/reputf.test
+copyrev: 8bea9d1c10caee33d0eaf3b73450ca7b8639a368
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME -i utf-8

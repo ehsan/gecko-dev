@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_forbiddenword1.test
+copyrev: 62872e60f9c88742e0fdd2a9de1454e37ce249ee
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME

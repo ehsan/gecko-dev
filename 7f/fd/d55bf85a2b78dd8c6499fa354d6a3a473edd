@@ -1,0 +1,40 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/iframe/model-isvalid.html
+copyrev: c5e0c7d380233958f16c4745839cde1fdbcf2a11
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;iframe&gt;</title>
+</head>
+<body>
+  <!-- is structured inline -->
+  <p><iframe
+      src="uri"
+      class="class"
+      lang="en"></iframe></p>
+
+  <!-- is strictly inline -->
+  <p><dfn><iframe
+      src="uri"
+      class="class"
+      lang="en"></iframe></dfn></p>
+
+  <p><dfn>strictly inline
+    <iframe>
+       text
+    </iframe>
+  </dfn></p>
+  <p>paragraph
+    <iframe>
+      text
+    </iframe>
+  </p>
+  <p><dfn>strictly inline
+    <iframe>
+      text
+    </iframe>
+  </dfn></p>
+</body>
+</html>

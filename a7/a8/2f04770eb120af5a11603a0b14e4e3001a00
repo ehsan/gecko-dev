@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompounddup.good
+copyrev: efc77c017d6224844c7e1085884e4ab22deca404
+
+barfoo
+foobar
+foofoobar
+foobarfoo
+barfoobarfoo

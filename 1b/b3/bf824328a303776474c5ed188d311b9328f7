@@ -1,0 +1,24 @@
+
+copy: browser/base/content/test/offlineChild2.html
+copyrev: df2cf7b393dcd6f74ccfa7ca03c53878ee1fc842
+
+<html manifest="offlineChild2.cacheManifest">
+<head>
+<title></title>
+<script type="text/javascript">
+
+function finish(success) {
+  window.parent.postMessage(success ? "success" : "failure", "*");
+}
+
+applicationCache.oncached = function() { finish(true); }
+applicationCache.onnoupdate = function() { finish(true); }
+applicationCache.onerror = function() { finish(false); }
+
+</script>
+</head>
+
+<body>
+<h1>Child</h1>
+</body>
+</html>

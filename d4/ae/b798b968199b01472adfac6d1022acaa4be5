@@ -1,0 +1,8 @@
+
+copy: embedding/android/locales/jar.mn
+copyrev: fa0132a9530fc9530be388c85d6ac582135183e3
+
+#filter substitution
+
+android-res.jar:
+  res/values-@AB_CD@/android_strings.dtd    (%android_strings.dtd)

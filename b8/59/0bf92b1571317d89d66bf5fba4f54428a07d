@@ -1,0 +1,20 @@
+
+copy: content/base/test/file_CSP_inlinescript_main_spec_compliant_allowed.html
+copyrev: 996c0c69053089cc9965d92fcd2c71cbb517996f
+
+<html>
+  <head>
+    <title>CSP inline script tests</title>
+  </head>
+  <body onload="window.parent.scriptRan(true, 'eventattr', 'event attribute in body tag fired')">
+
+    <script type="text/javascript">
+      //alert(window.parent.scriptRan);
+      window.parent.scriptRan(true, "textnode", "text node in a script tag executed.");
+    </script>
+
+    <iframe src='javascript:window.parent.parent.scriptRan(true, "jsuri", "javascript: uri in image tag")'></iframe>
+
+    <a id='anchortoclick' href='javascript:window.parent.scriptRan(true, "jsuri", "javascript: uri in anchor tag ran when clicked.");'>stuff</a>
+  </body>
+</html>

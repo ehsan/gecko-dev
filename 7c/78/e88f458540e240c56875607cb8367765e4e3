@@ -1,0 +1,10 @@
+
+copy: layout/reftests/css-valid/button/button-ref.html
+copyrev: e3c57d5ddec109a2af3d7f4cdf329d60f5bb9f15
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <button style="background-color: green;"></button>
+  </body>
+</html>

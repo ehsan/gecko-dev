@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps2.dic
+copyrev: 94eb006e156c9c5c9367b364412ee85c0aeee8c5
+
+3
+iPod/s
+iPodos/*
+ipodos

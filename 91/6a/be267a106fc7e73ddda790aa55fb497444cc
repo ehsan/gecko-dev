@@ -1,0 +1,102 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= gkstyle_s
+LIBXUL_LIBRARY	= 1
+ifndef _MSC_VER
+FAIL_ON_WARNINGS = 1
+endif # !_MSC_VER
+
+ifdef GNU_CC
+OS_CFLAGS := $(OS_CFLAGS) -Wshadow
+OS_CXXFLAGS := $(OS_CXXFLAGS) -Wshadow
+endif
+
+CPPSRCS		= \
+		AnimationCommon.cpp \
+		CSS.cpp \
+		nsCSSAnonBoxes.cpp \
+		nsCSSDataBlock.cpp \
+		Declaration.cpp \
+		ErrorReporter.cpp \
+		nsCSSKeywords.cpp \
+		ImageLoader.cpp \
+		Loader.cpp \
+		nsAnimationManager.cpp \
+		nsCSSParser.cpp \
+		nsCSSProps.cpp \
+		nsCSSPseudoClasses.cpp \
+		nsCSSPseudoElements.cpp \
+		nsCSSRuleProcessor.cpp \
+		nsCSSRules.cpp \
+		nsCSSScanner.cpp \
+		nsCSSStyleSheet.cpp \
+		nsCSSValue.cpp \
+		nsComputedDOMStyle.cpp \
+		nsDOMCSSAttrDeclaration.cpp \
+		nsDOMCSSDeclaration.cpp \
+		nsDOMCSSRGBColor.cpp \
+		nsDOMCSSRect.cpp \
+		nsDOMCSSValueList.cpp \
+		nsDOMMediaQueryList.cpp \
+		nsFontFaceLoader.cpp \
+		nsHTMLCSSStyleSheet.cpp \
+		nsHTMLStyleSheet.cpp \
+		nsLayoutStylesheetCache.cpp \
+		nsMediaFeatures.cpp \
+		nsNthIndexCache.cpp \
+		nsROCSSPrimitiveValue.cpp \
+		nsRuleData.cpp \
+		nsRuleNode.cpp \
+		nsStyleAnimation.cpp \
+		nsStyleContext.cpp \
+		nsStyleCoord.cpp \
+		nsStyleSet.cpp \
+		nsStyleStruct.cpp \
+		nsStyleTransformMatrix.cpp \
+		nsStyleUtil.cpp \
+		nsTransitionManager.cpp \
+		StyleRule.cpp \
+		$(NULL)
+
+FORCE_STATIC_LIB = 1
+
+include $(topsrcdir)/config/rules.mk
+
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+
+LOCAL_INCLUDES	+= \
+		-I$(srcdir)/../base \
+		-I$(topsrcdir)/dom/base \
+		-I$(srcdir)/../generic \
+		-I$(srcdir)/../xul/base/src \
+		-I$(srcdir)/../../content/base/src \
+		-I$(srcdir)/../../content/html/content/src \
+		-I$(srcdir)/../../content/xbl/src \
+		-I$(srcdir)/../../content/xul/document/src \
+		$(NULL)
+
+_FILES	= \
+	contenteditable.css \
+	designmode.css \
+	TopLevelImageDocument.css \
+	TopLevelVideoDocument.css \
+	$(NULL)
+
+GARBAGE		+= $(addprefix $(DIST)/bin/res/,$(_FILES))
+
+libs:: $(_FILES)
+	$(INSTALL) $^ $(DIST)/bin/res
+
+install:: $(_FILES)
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/res
+
+DEFINES += -D_IMPL_NS_LAYOUT

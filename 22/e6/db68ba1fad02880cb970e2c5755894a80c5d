@@ -1,0 +1,32 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH     = ../../../..
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+relativesrcdir  = layout/style/test/chrome
+
+include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
+
+_CHROME_FILES = \
+    test_bug535806.xul \
+    bug535806-css.css \
+    bug535806-html.html \
+    bug535806-xul.xul \
+    test_hover.html \
+    test_moz_document_rules.html \
+    hover_helper.html \
+    $(NULL)
+
+_TEST_FILES = \
+    moz_document_helper.html \
+    $(NULL)
+
+libs:: $(_CHROME_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
+
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

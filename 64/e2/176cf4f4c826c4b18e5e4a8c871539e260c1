@@ -1,0 +1,23 @@
+
+copyrev: a73fce8e3f304a285980d9cd71e043dc4d8b8cde
+copy: js/src/trace-test/tests/basic/testCaseAbort.js
+
+function testCaseAbort()
+{
+  var four = "4";
+  var r = 0;
+  for (var i = 0; i < 5; i++)
+  {
+    switch (i)
+    {
+      case four: r += 1; break;
+      default: r += 2; break;
+    }
+  }
+
+  return "" + r;
+}
+assertEq(testCaseAbort(), "10");
+checkStats({
+  recorderAborted: 0
+});

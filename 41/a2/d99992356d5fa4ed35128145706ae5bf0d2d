@@ -1,0 +1,10 @@
+
+copyrev: e28ed5067624e57714ad7cf3ed53a8810d89d3a3
+copy: js/src/trace-test/tests/basic/globalGet.js
+
+globalName = 907;
+var globalInt = 0;
+for (var i = 0; i < 500; i++)
+  globalInt = globalName + i;
+
+assertEq(globalInt, globalName + 499);

@@ -1,0 +1,6 @@
+
+copy: js/src/xpconnect/tests/unit/bug451678_subscript.js
+copyrev: 2aeb9f59fb16d39120e8f3e98b166a769600da74
+
+var tags = [];
+function makeTags() {}

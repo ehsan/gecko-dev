@@ -1,0 +1,5 @@
+
+copy: dom/security/test/csp/file_bug885433_blocks.html^headers^
+copyrev: 13fe3e40a2ec667ca1193f181a111ea38e5f02e3
+
+Content-Security-Policy: default-src 'self';

@@ -1,0 +1,16 @@
+
+copy: content/html/content/test/imports/file_cycle_3_C.html
+copyrev: 650db334826f8677dd28d3892005c9228b78934b
+
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <link rel="import" href="file_cycle_3_A.html" onload="loaded()" onerror="failed()"></link>
+  <link rel="import" href="file_cycle_3_B.html" onload="loaded()" onerror="failed()"></link>
+</head>
+<body>
+  <script>
+    order.push("C");
+  </script>
+</body>
+</html>

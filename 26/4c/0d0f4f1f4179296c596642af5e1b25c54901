@@ -1,0 +1,8 @@
+
+copyrev: b47951b4a97a649a1642b89df4dd7ff2a301a8ac
+copy: js/src/trace-test/tests/jaeger/bug555206.js
+
+// |jit-test| error: TypeError
+__defineGetter__("x",/a/)
+" ".replace(/\s/,"")
+x.b

@@ -1,0 +1,9 @@
+
+copy: dom/src/jsurl/crashtests/crashtests.list
+copyrev: 17156ee99695ed0a1327f67a355c91df836a90ed
+
+load 341963-1.html
+load 344874-1.html
+load 344996-1.xhtml
+load 457050-1.html
+load 1018583.html

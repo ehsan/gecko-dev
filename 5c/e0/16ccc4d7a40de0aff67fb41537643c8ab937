@@ -1,0 +1,7 @@
+
+copy: mobile/android/base/GeckoImageView.java.in
+copyrev: fcdeaf65f2e92a313313a604a7e86a24b214c44f
+
+#filter substitution
+#define VIEWTYPE ImageView
+#include GeckoView.java.frag

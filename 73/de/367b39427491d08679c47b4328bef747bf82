@@ -1,0 +1,5 @@
+
+copy: extensions/layout-debug/layoutdebug-prefs.js
+copyrev: f183193de7442c8a4710a42a1a77d45db51a953e
+
+pref("toolkit.defaultChromeURI", "chrome://layoutdebug/content/layoutdebug.xul");

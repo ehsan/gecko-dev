@@ -1,0 +1,10 @@
+
+copy: mobile/chrome/tests/browser_blank_02.html
+copyrev: 1da1d1ca9eaa9fb9bd33bfdb9dcd82546181dd9a
+
+<html>
+<title>Browser Blank Page 03</title>
+<body>
+<p>Browser Blank Page 03</p>
+</body>
+</html>

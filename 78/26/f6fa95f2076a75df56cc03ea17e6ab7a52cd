@@ -1,0 +1,7 @@
+
+copy: content/smil/crashtests/697640-1.svg
+copyrev: 8253a46918512a217820c3c71d6a87edd9df0058
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <animate id="b" end="b.end" dur="3s" />
+</svg>

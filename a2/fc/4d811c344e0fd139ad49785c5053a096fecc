@@ -1,0 +1,15 @@
+[DEFAULT]
+head = head.js
+tail = 
+
+[test_errno.js]
+
+[test_finalizer.js]
+[test_finalizer_shouldfail.js]
+[test_finalizer_shouldaccept.js]
+# Bug 751505: test fails consistently on a few platforms post CPG landing
+skip-if = true
+
+[test_jsctypes.js]
+# Bug 676989: test fails consistently on Android
+fail-if = os == "android"

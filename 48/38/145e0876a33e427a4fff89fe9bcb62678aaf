@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dta/test_document.title-06.html.json
+copyrev: 35cce48a1b45126ceb7c5adaeeca509526ffb9c7
+
+{
+  "document.title and the empty string": true
+}

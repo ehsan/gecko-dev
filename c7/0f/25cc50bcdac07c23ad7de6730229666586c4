@@ -1,0 +1,32 @@
+
+copy: browser/components/loop/content/shared/libs/otcdn/webrtc/v2.2.5/js/dynamic_config.min.js
+copyrev: 7701c2cb07faf3c3304dae954470c23e40670c58
+
+/**
+ * @license  OpenTok JavaScript Library v2.2.5
+ * http://www.tokbox.com/
+ *
+ * Copyright (c) 2014 TokBox, Inc.
+ * Released under the MIT license
+ * http://opensource.org/licenses/MIT
+ *
+ * Date: May 22 07:14:18 2014
+ */
+
+!(function() {
+  TB.Config.replaceWith({
+    global: {
+      exceptionLogging: {
+        enabled: true,
+        messageLimitPerPartner: 100
+      },
+
+      iceServers: {
+        enabled: false
+      },
+    },
+
+    partners: {
+    }
+  });
+})(TB);

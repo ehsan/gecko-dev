@@ -1,0 +1,18 @@
+
+copy: layout/xul/reftest/image-scaling-min-height-1-ref.xul
+copyrev: ea9b5af716ed8ac885ba78d2e4bf61489f98d19a
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml">
+<html:style><![CDATA[
+
+window { -moz-box-align: start; -moz-box-pack: start }
+hbox { background: yellow }
+vbox { background: blue; width: 15px; height: 15px }
+
+]]></html:style>
+
+<hbox><vbox /><label value="a b c d e f" /></hbox>
+
+</window>

@@ -1,0 +1,9 @@
+
+copy: js/src/xpconnect/crashtests/608963.html
+copyrev: 98d51f1668bec5c0a38014a07bd21a3efd27ef08
+
+<!DOCTYPE html>
+<script>
+Object.create(location).constructor;
+</script>
+

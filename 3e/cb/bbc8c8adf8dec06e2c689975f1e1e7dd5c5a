@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_XHR_fail1b.txt
+copyrev: 657d7f9275a2bfcf3bb941dc2eb520b9b48d51a1
+
+hello pass

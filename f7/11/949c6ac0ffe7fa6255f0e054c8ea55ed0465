@@ -1,0 +1,19 @@
+
+copy: content/media/test/crashtests/752784-1.html
+copyrev: dbdcccecf54ce6dc7ee47aed1637e2c4c93bc368
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+function boom()
+{
+  document.getElementById("a").mozCaptureStream();
+}
+</script>
+</head>
+
+<body onload="boom();">
+<audio id="a" src="sound.ogg">
+</body>
+</html>

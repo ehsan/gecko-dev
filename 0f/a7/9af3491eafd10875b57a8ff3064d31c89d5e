@@ -1,0 +1,19 @@
+
+copy: content/base/test/file_XHR_timeout.sjs
+copyrev: d1b28495c3307f8d7fd4172a0405e2d93a0cce53
+
+var timer = null;
+
+function handleRequest(request, response)
+{
+  response.processAsync();
+  timer = Components.classes["@mozilla.org/timer;1"]
+                    .createInstance(Components.interfaces.nsITimer);
+  timer.initWithCallback(function()
+  {
+    response.setStatusLine(null, 200, "OK");
+    response.setHeader("Content-Type", "text/plain", false);
+    response.write("hello");
+    response.finish();
+  }, 3000 /* milliseconds */, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+}

@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-ui-invalid/default-style/textarea-ref.html
+copyrev: 5dbd3a83958b45e40eab3c9a09696ea61f130df6
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementsByTagName('textarea')[0].focus();">
+    <textarea class='invalid-ref' onfocus="document.documentElement.className='';"></textarea>
+  </body>
+</html>

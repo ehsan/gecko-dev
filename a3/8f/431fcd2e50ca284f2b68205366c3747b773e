@@ -1,0 +1,8 @@
+
+copy: content/media/test/crashtests/889042.html
+copyrev: 981b1df988d1bf1a41bd2857d777e37844f847b0
+
+<!DOCTYPE html>
+<script>
+  (new AudioContext()).createConvolver().buffer = null;
+</script>

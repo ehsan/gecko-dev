@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/map.aff
+copyrev: 8b1ca3c31fc3bf75c40bb4303f1cd1dac9a4ce94
+
+# With MAP suggestion, Hunspell can add missing accents to a word.
+
+# switch off ngram suggestion for testing
+MAXNGRAMSUGS 0
+
+MAP 3
+MAP uúü
+MAP oóö
+MAP ß(ss)

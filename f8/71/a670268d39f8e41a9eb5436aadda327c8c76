@@ -1,0 +1,5 @@
+
+copyrev: 45dbeb5e316596ff343aff85570b0ec9331b4578
+copy: js/tests/ecma/ObjectObjects/shell.js
+
+gTestsubsuite = 'ObjectObjects';

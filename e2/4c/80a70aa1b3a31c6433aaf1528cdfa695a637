@@ -1,0 +1,36 @@
+
+copy: content/media/test/crashtests/459439-1.html
+copyrev: acd4dae9d6f9b5ac5a25c0dbe25bd1abc4a60450
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<head>
+<script type="text/javascript">
+var i = 0;
+function boom()
+{
+  var div = document.getElementById("div");
+  var audio = document.getElementById("audio");
+
+  audio.onload = null;
+
+  div.textContent = "FAIL";
+  audio.src += "";
+  div.textContent = "PASS?";
+
+  ++i;
+
+  setTimeout(done, 1);
+}
+
+function done()
+{
+  document.documentElement.removeAttribute("class");
+}
+</script>
+</head>
+<body>
+<audio id="audio" autoplay src="sound.ogg" oncanplaythrough="setTimeout(boom, 1);"></audio>
+<div id="div"></div>
+</body>
+</html>

@@ -1,0 +1,21 @@
+
+copy: other-licenses/virtualenv/virtualenv_embedded/deactivate.bat
+copyrev: 5d52a74ad5144508d7231e1ac5858dc217601bcc
+
+@echo off
+
+if defined _OLD_VIRTUAL_PROMPT (
+    set PROMPT=%_OLD_VIRTUAL_PROMPT%
+)
+set _OLD_VIRTUAL_PROMPT=
+
+if defined _OLD_VIRTUAL_PYTHONHOME (
+     set PYTHONHOME=%_OLD_VIRTUAL_PYTHONHOME%
+     set _OLD_VIRTUAL_PYTHONHOME=
+)
+
+if defined _OLD_VIRTUAL_PATH set PATH=%_OLD_VIRTUAL_PATH%
+
+set _OLD_VIRTUAL_PATH=
+
+:END

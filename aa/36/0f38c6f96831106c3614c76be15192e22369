@@ -1,0 +1,11 @@
+
+copy: layout/xul/base/reftest/popup-explicit-size.xul
+copyrev: 87cd9aa9e27dd5b26ce053b35876151a42943a66
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<window align="start" xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <label value="One"/>
+  <popup height="40"/>
+  <label value="Two"/>
+</window>

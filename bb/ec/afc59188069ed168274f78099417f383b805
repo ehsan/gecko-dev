@@ -1,0 +1,15 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/img/usemap-isvalid.html
+copyrev: b8cf007f2148889f60c0e19c652e0547a05b49f4
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;img&gt; with usemap attribute</title>
+</head>
+<body>
+  <map name="foo"></map>
+  <p><img src="url" usemap="#foo" alt="bar"></p>
+</body>
+</html>

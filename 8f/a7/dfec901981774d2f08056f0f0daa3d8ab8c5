@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-textarea-disabled.html
+copyrev: 848e0b90b9a48763b1e4659f91d79917d5791425
+
+<!DOCTYPE html>
+<html>
+<body>
+  <textarea spellcheck="false">blahblahblah</textarea>
+</body>
+</html>

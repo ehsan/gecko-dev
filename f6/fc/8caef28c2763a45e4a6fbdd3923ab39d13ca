@@ -1,0 +1,81 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "domstubs.idl"
+#include "nsIArray.idl"
+#include "nsIDOMEvent.idl"
+#include "nsIDOMEventTarget.idl"
+
+interface nsIDOMDOMRequest;
+
+[scriptable, uuid(b70b84f1-7ac9-4a92-bc32-8b6a7eb7879e)]
+interface mozIDOMApplication  : nsISupports
+{
+  readonly attribute jsval manifest;
+  readonly attribute DOMString manifestURL;
+  readonly attribute nsIArray receipts; /* an array of strings */
+  readonly attribute DOMString origin;
+  readonly attribute DOMString installOrigin;
+  readonly attribute unsigned long installTime;
+  
+  /* startPoint will be used when several launch_path exists for an app */
+  nsIDOMDOMRequest launch([optional] in DOMString startPoint);
+  nsIDOMDOMRequest uninstall(); 
+};
+
+[scriptable, uuid(870bfbdc-3e13-4042-99dd-18e25720782d)]
+interface mozIDOMApplicationEvent : nsIDOMEvent
+{
+  readonly attribute mozIDOMApplication application;
+};
+
+[scriptable, uuid(a82771f6-ba46-4073-9e6e-f1ad3f42b1f6)]
+interface mozIDOMApplicationMgmt : nsIDOMEventTarget
+{
+  /**
+   * the request will return the all the applications installed. Only accessible
+   * to privileged callers.
+   */
+  nsIDOMDOMRequest getAll();
+
+  /**
+   * event listener to get notified of application installs. Only settable by
+   * privileged callers.
+   * the event will be a mozIDOMApplicationEvent
+   */
+  attribute nsIDOMEventListener oninstall;
+
+  /**
+   * event listener to get notified of application uninstalls. Only settable by
+   * privileged callers.
+   * the event will be a mozIDOMApplicationEvent
+   */
+  attribute nsIDOMEventListener onuninstall;
+};
+
+[scriptable, uuid(f6929871-288b-4613-9a37-9a150760ac50)]
+interface mozIDOMApplicationRegistry : nsISupports
+{
+  /**
+   * Install a web app. onerror can be used to report errors,
+   * and oninstall if the caller is privileged.
+   *
+   * @param manifestUrl : the URL of the webapps manifest.
+   * @param parameters : A structure with optional information. 
+   *                     { receipts: ... } will be used to specify the payment receipts for this installation. 
+   */
+  nsIDOMDOMRequest install(in DOMString manifestUrl, [optional] in jsval parameters);
+
+  /**
+   * the request will return the application currently installed, or null.
+   */
+  nsIDOMDOMRequest getSelf();
+
+  /**
+   * the request will return the applications installed from this origin, or null.
+   */
+  nsIDOMDOMRequest getInstalled();
+
+  readonly attribute mozIDOMApplicationMgmt mgmt;
+};

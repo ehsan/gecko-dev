@@ -1,0 +1,8 @@
+
+copy: media/webrtc/trunk/src/modules/udp_transport/OWNERS
+copyrev: 65f2aea61bd2bbcf87634ea07c4b4f2e78e69826
+
+pwestin@webrtc.org
+henrikg@webrtc.org
+mallinath@webrtc.org
+tomasl@webrtc.org

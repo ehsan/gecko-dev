@@ -1,0 +1,20 @@
+
+copyrev: 0fb019baaf9f3c373e7069c7375dfa09480c8b51
+copy: js/src/trace-test/tests/jaeger/bug563000/trap-parent.js
+
+setDebug(true);
+x = "notset";
+function child() {
+  /* JSOP_STOP in parent. */
+  trap(parent, 17, "success()");
+}
+function parent() {
+  child();
+  x = "failure";
+}
+function success() {
+  x = "success";
+}
+
+parent()
+assertEq(x, "success");

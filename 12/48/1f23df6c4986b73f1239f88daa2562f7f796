@@ -1,0 +1,11 @@
+
+copyrev: 3840c896693b3174f8da079711863c0946c91dcb
+copy: js/src/trace-test/tests/basic/testBug465483.js
+
+function testBug465483() {
+    var a = new Array(4);
+    var c = 0;
+    for each (i in [4, 'a', 'b', (void 0)]) a[c++] = '' + (i + i);
+    return a.join(',');
+}
+assertEq(testBug465483(), '8,aa,bb,NaN');

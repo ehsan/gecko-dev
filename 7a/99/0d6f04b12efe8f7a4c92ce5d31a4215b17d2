@@ -1,0 +1,23 @@
+
+copy: content/html/content/test/file_iframe_sandbox_open_window_fail.html
+copyrev: 839caec2ec4ae46305913b65c9ba184515646248
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for Bug 341604</title>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+
+<body onLoad="doStuff()">
+  I should NOT be opened by a sandboxed iframe via any method
+</body>
+</html>
+
+<script>
+  function doStuff() {
+    window.opener.ok(false, "sandboxed documents should NOT be able to open windows");
+    self.close();
+  }
+</script>

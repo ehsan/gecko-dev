@@ -1,0 +1,17 @@
+
+copy: js/src/jit-test/tests/debug/hooks-throw-05.js
+copyrev: e0a8d13ea5b1349d5d0b086507ed413187bb82e0
+
+// |jit-test| debug
+// onExceptionUnwind returning undefined does not affect the thrown exception.
+
+var g = newGlobal('new-compartment');
+g.parent = this;
+g.eval("new Debugger(parent).onExceptionUnwind = function () {};");
+
+var obj = new Error("oops");
+try {
+    throw obj;
+} catch (exc) {
+    assertEq(exc, obj);
+}

@@ -1,0 +1,9 @@
+
+copyrev: acd8952f1a701b6ae2b427599d259442bd583792
+copy: layout/reftests/svg/image/zoom/squaredCircle-50x50-ref.html
+
+<html reftest-zoom="0.5">
+<body>
+  <embed src="squaredCircle.svg">
+</body>
+</html>

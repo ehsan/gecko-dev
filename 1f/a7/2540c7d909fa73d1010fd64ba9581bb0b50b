@@ -1,0 +1,24 @@
+
+copy: content/html/content/crashtests/673853.html
+copyrev: 0b958581f1b747298eba0693121d5a44c82e9ed8
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var otherDoc = document.implementation.createDocument('', '', null);
+  var input = otherDoc.createElementNS("http://www.w3.org/1999/xhtml", "input");
+  var form = otherDoc.createElementNS("http://www.w3.org/1999/xhtml", "form");
+  input.setAttributeNS(null, "form", "x");
+  form.setAttributeNS(null, "id", "x");
+  input.appendChild(form);
+  otherDoc.appendChild(input);
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

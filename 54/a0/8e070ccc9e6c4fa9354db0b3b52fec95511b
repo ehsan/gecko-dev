@@ -1,0 +1,7 @@
+
+copy: mobile/android/base/widget/GeckoImageButton.java.in
+copyrev: f219476fda61998e42872bf07adcc812fec5eff6
+
+#filter substitution
+#define VIEWTYPE ImageButton
+#include ThemedView.java.frag

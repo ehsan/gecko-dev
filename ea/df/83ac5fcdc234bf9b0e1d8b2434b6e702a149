@@ -1,0 +1,22 @@
+
+copy: js/src/tests/js1_8_5/extensions/debug-object-06.js
+copyrev: db10f65c02a0e0d8adeaa1998981cf48943afcb2
+
+// |jit-test| debug
+// Simple {throw:} resumption.
+
+load(libdir + "asserts.js");
+
+var g = newGlobal('new-compartment');
+
+var dbg = Debug(g);
+dbg.hooks = {
+    debuggerHandler: function (stack) {
+        return {throw: "oops"};
+    }
+};
+
+assertThrowsValue(function () { g.eval("debugger;"); }, "oops");
+
+g.eval("function f() { debugger; }");
+assertThrowsValue(function () { g.f(); }, "oops");

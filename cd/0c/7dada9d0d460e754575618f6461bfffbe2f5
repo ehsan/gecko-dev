@@ -1,0 +1,5 @@
+
+copyrev: 0cdcd58bc8ecdd7b6db555b1fa8b1f3cfeedee19
+copy: js/tests/js1_3/inherit/shell.js
+
+gTestsubsuite = 'inherit';

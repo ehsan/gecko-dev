@@ -1,0 +1,36 @@
+
+copy: gfx/thebes/crashtests/393822-1.html
+copyrev: e2310897ad5c8f9d9ae769356617085dc7d7954b
+
+<html xmlns="http://www.w3.org/1999/xhtml" class="reftest-wait">
+<head>
+<script>
+
+var ff;
+var jj;
+
+function boom()
+{
+  ff = document.createElement("font");
+  ff.setAttribute("size", "-2");
+  ff.appendChild(document.createTextNode("G"));
+  
+  jj = document.getElementById("jj");
+  
+  jj.appendChild(ff);
+  setTimeout(boom2, 30);
+}
+
+function boom2()
+{
+  jj.removeChild(ff);
+  
+  document.documentElement.removeAttribute("class");
+}
+  
+</script>
+</head>
+
+<body onload="boom();" dir="rtl"><div id="jj">h </div></body>
+
+</html>

@@ -1,0 +1,10 @@
+
+copyrev: dfeb03ea34ea14e95d4613abe08947cf8c6f1db9
+copy: modules/plugin/samples/4x-scriptable/np4xscr.def
+
+LIBRARY   NP4XSCR
+
+EXPORTS
+	NP_GetEntryPoints   @1
+	NP_Initialize       @2
+	NP_Shutdown         @3

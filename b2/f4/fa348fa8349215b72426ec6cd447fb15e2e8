@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug498897.css
+copyrev: aa4c0671a9424f1b9cfadf1790fb30715e548387
+
+body { background: orange; }

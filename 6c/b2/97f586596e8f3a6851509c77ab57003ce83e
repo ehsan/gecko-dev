@@ -1,0 +1,5 @@
+
+copyrev: fd536c3ab84221d5939cd3cde0139bfa20628f45
+copy: js/tests/ecma/Number/shell.js
+
+gTestsubsuite = 'Number';

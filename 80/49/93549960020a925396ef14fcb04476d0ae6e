@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/test_document.title-06.html.json
+copyrev: 4838145e0876a33e427a4fff89fe9bcb62678aaf
+
+{
+  "document.title and the empty string": true
+}

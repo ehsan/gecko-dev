@@ -1,0 +1,7 @@
+
+copy: mobile/android/base/widget/GeckoTextView.java.in
+copyrev: e5a8ed22949402f2c83dcd77ff110094abf997e9
+
+#filter substitution
+#define VIEWTYPE TextView
+#include ThemedView.java.frag

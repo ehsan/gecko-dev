@@ -1,0 +1,14 @@
+
+copyrev: 454fa4f599ccdcbe4018a708cd1402414abf797a
+copy: js/src/trace-test/tests/jaeger/bug588362-3.js
+
+for (a = 0; a < HOTLOOP + 5; a++) {
+    (function n() { {
+            function s() {}
+        }
+        yield[];
+    }());
+}
+
+/* Don't assert. */
+

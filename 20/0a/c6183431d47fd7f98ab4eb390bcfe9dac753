@@ -1,0 +1,17 @@
+
+copy: dom/src/threads/test/terminate_worker.js
+copyrev: 8f8280dfc38508b49507cd206c208d8a7651668a
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+onclose = function() {
+  postMessage("Closed!");
+}
+
+onmessage = function(event) {
+  throw "No messages should reach me!";
+}
+
+setInterval(function() { postMessage("Still alive!"); }, 100);

@@ -1,0 +1,6 @@
+
+copy: mobile/branding/unofficial/locales/en-US/brand.properties
+copyrev: 9a96f121cda46868777727fbb5bfec097548ea16
+
+brandShortName=Fennec
+brandFullName=Mozilla Fennec

@@ -1,0 +1,14 @@
+
+copy: extensions/spellcheck/hunspell/tests/i58202.good
+copyrev: 5c9c12b86a5b1a64b3049ca0d619955cd9712433
+
+foo
+bar
+Foo
+Bar
+Baz
+Boo
+FOO
+BAR
+BAZ
+BOO

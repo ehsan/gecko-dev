@@ -1,0 +1,13 @@
+
+copy: browser/base/content/test/general/plugin_test3.html
+copyrev: a920508e0f6ea09a0e935d3aad20b7b2e1439c99
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+<embed id="test" style="width: 0px; height: 0px" type="application/x-test">
+</body>
+</html>

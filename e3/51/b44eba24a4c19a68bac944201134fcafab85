@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/utf8_nonbmp.dic
+copyrev: 6ea2d8038f94ff82d4155ef37f10a65df0b75013
+
+4 # Old Persian numbers (1-4), source: Wikipedia
+𐏑
+𐏒
+𐏒𐏑
+𐏒𐏒

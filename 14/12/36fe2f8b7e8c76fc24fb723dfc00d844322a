@@ -1,0 +1,8 @@
+
+copy: content/canvas/test/webgl-conformance/skipped_tests_linux_mesa.txt
+copyrev: e28f92b9cf76040c25f0175a4f2833a03bb3ea43
+
+conformance/limits/gl-max-texture-dimensions.html
+conformance/misc/type-conversion-test.html
+conformance/reading/read-pixels-test.html
+conformance/textures/texture-mips.html

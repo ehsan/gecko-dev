@@ -1,0 +1,31 @@
+
+copy: browser/base/content/test/social_chat.html
+copyrev: 36392ea19c89c63f2c961e7dfc9e7eb489f1bcc9
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script>
+      function pingWorker() {
+        var port = navigator.mozSocial.getWorker().port;
+        port.postMessage({topic: "chatbox-message", result: "ok"});
+      }
+      window.addEventListener("socialFrameShow", function(e) {
+        var port = navigator.mozSocial.getWorker().port;
+        port.postMessage({topic: "chatbox-visibility", result: "shown"});
+      }, false);
+      window.addEventListener("socialFrameHide", function(e) {
+        var port = navigator.mozSocial.getWorker().port;
+        port.postMessage({topic: "chatbox-visibility", result: "hidden"});
+      }, false);
+      window.addEventListener("socialTest-CloseSelf", function(e) {
+        window.close();
+      }, false);
+    </script>
+  </head>
+  <body onload="pingWorker();">
+    <p>This is a test social chat window.</p>
+    <!-- an iframe here so this one page generates multiple load events -->
+    <iframe id="iframe" src="data:text/plain:this is an iframe"></iframe>
+  </body>
+</html>

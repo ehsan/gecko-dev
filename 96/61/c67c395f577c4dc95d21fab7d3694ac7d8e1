@@ -1,0 +1,19 @@
+
+copy: embedding/android/resources/layout/awesomebar_tab_indicator.xml
+copyrev: 43522180bb1ce56f00fcae1574d34f77d6486620
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="fill_parent"
+              android:layout_height="fill_parent"
+              android:padding="10sp"
+              android:gravity="center"
+              android:background="@drawable/awesomebar_tab_indicator">
+
+    <TextView android:id="@+id/title"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:layout_marginBottom="3dip"
+              android:textColor="@color/awesomebar_tab_text"/>
+
+</LinearLayout>

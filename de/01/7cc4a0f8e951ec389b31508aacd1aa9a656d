@@ -1,0 +1,22 @@
+
+copy: layout/reftests/css-invalid/textarea/style.css
+copyrev: 05b23fcf37b3f3ac80d24e68ce18a67def030e57
+
+/* Override default style */
+textarea:-moz-ui-invalid {
+  box-shadow: none;
+}
+
+textarea.notinvalid {
+  background-color: green;
+}
+textarea.notinvalid:-moz-ui-invalid {
+  background-color: red;
+}
+
+textarea.invalid {
+  background-color: red;
+}
+textarea.invalid:-moz-ui-invalid {
+  background-color: green;
+}

@@ -1,0 +1,11 @@
+
+copyrev: 8b69a173784e3a568629df52794d7fb5a6e815c3
+copy: js/src/trace-test/tests/basic/testReplace2.js
+
+function testReplace2() {
+    var s = "H e l l o", s1;
+    for (i = 0; i < 100; ++i)
+        s1 = s.replace(" ", "");
+    return s1;
+}
+assertEq(testReplace2(), "He l l o");

@@ -1,0 +1,8 @@
+
+copy: layout/xul/crashtests/412479-1.xhtml
+copyrev: 094739a0638c4d58361e2ee53f1ff14a1029cbb9
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<head></head>
+<body><xul:menubar style="display: table-column; padding: 10px 3000px;"/></body>
+</html>

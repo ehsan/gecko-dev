@@ -1,0 +1,15 @@
+
+copy: js/src/jit-test/tests/test-apply-many-args.js
+copyrev: 12ca96b474eb3a3b35530494c6ef80fe2a5d05dc
+
+function f(x) {
+    if (x == 0)
+        return;
+    arguments[0]--;
+    f.apply(null, arguments);
+}
+
+a = [10];
+for (var i = 0; i < 2000; ++i)
+  a.push(i);
+f.apply(null, a);

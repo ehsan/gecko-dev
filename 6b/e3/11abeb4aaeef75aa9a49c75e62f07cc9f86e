@@ -1,0 +1,13 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/lang/005-novalid.html
+copyrev: cdeab73a01b10925309891bc818e483308036a19
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>must be a valid BCP 47 language tag, or the empty string</title>
+<meta charset=utf-8>
+</head>
+<body lang=bat-smg><!-- bad extlang -->
+</body>
+</html>

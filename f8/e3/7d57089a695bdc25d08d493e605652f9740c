@@ -1,0 +1,5 @@
+
+copy: layout/xul/base/src/crashtests/397304-1.html
+copyrev: 65fbce7975effdb01787a9297eff24f14ad92f02
+
+<html><body><listboxbody style="display: -moz-grid-group;"></listboxbody></body></html>

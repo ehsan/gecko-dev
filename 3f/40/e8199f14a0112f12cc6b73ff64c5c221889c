@@ -1,0 +1,8 @@
+
+copy: content/base/test/unit_ipc/test_bug553888_wrap.js
+copyrev: 5f94c37c5ff2c774d33edc22ee24a98d21d84b9d
+
+function run_test()
+{
+  run_test_in_child("../unit/test_bug553888.js");
+}

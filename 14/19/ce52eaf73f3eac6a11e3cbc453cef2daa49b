@@ -1,0 +1,12 @@
+
+copy: js/src/jit-test/tests/binary-data/fuzz1.js
+copyrev: ee78dac7cb83f03f785c13d16a5e71f31ec4177b
+
+if (!this.hasOwnProperty("Type"))
+  exit(0);
+
+function eval() {
+    yield(undefined)
+}
+new(StructType)
+(eval())

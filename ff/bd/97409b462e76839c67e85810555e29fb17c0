@@ -1,0 +1,9 @@
+
+copy: tools/update-packaging/test/from-mac/Contents/MacOS/application.ini
+copyrev: e0fc3facecab60827c3f67d55afe9746f4c3fa3f
+
+[App]
+Vendor=Mozilla
+Name=MarTest
+Version=1
+BuildID=20120101010101

@@ -1,0 +1,12 @@
+
+copy: browser/metro/base/tests/browser_plugin_input.html
+copyrev: 930c2b93f1e8140fee79d51562d8e00973d019a5
+
+<html>
+<head>
+  <title>Test Plugin Input</title>
+</head>
+<body>
+  <embed id="plugin1" type="application/x-test" width="200" height="200"></embed>
+</body>
+</html>

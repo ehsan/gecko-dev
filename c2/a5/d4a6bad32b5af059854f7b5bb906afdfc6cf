@@ -1,0 +1,11 @@
+
+copy: mobile/chrome/content/deckbrowser.css
+copyrev: 04f0a33f08d78b33d284ae11132e520cee16b548
+
+deckbrowser {
+    -moz-binding: url("chrome://browser/content/deckbrowser.xml#deckbrowser");
+}
+
+#urlbar-edit {
+    -moz-binding: url("chrome://browser/content/urlbar.xml#autocomplete-aligned");
+}

@@ -1,0 +1,4 @@
+node_modules
+static/shared/libs
+test/shared/vendor
+

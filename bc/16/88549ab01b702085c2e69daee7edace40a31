@@ -1,0 +1,16 @@
+
+copy: browser/config/mozconfigs/macosx32/debug
+copyrev: d9cfbf608ae549b5d2e8b8d4d4443ab3a6b6e6db
+
+. $topsrcdir/build/macosx/mozconfig.leopard
+ac_add_options --enable-debug
+ac_add_options --enable-trace-malloc
+
+# Enable parallel compiling
+mk_add_options MOZ_MAKE_FLAGS="-j12"
+
+# Needed to enable breakpad in application.ini
+export MOZILLA_OFFICIAL=1
+
+ac_add_options --with-macbundlename-prefix=Firefox
+ac_add_options --with-ccache

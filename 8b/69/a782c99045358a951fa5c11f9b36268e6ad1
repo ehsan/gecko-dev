@@ -1,0 +1,12 @@
+
+copyrev: 42c1fe373f190cd43fa5ffcf0d2c8a9b8401186c
+copy: js/src/trace-test/tests/basic/testNativeLog.js
+
+function testNativeLog() {
+  var a = new Array(5);
+  for (var i = 0; i < 5; i++) {
+    a[i] = Math.log(Math.pow(Math.E, 10));
+  }
+  return a.join(",");
+}
+assertEq(testNativeLog(), "10,10,10,10,10");

@@ -1,0 +1,11 @@
+
+copy: content/xul/document/crashtests/344215-1.xul
+copyrev: c45561593f80ef4e5f787dc078d442c557876dfa
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<observes/>
+
+<description>You should not see any assertions in a debug build.</description>
+
+</window>

@@ -1,0 +1,16 @@
+
+copy: testing/web-platform/tests/websockets/interfaces/WebSocket/protocol/protocol-initial.html
+copyrev: b2af8ecea42054605b24eab5ed6310e6645d2a7a
+
+<!doctype html>
+<title>WebSockets: getting protocol in connecting</title>
+<script src=/resources/testharness.js></script>
+<script src=/resources/testharnessreport.js></script>
+<script src=../../../constants.js?pipe=sub></script>
+<div id=log></div>
+<script>
+test(function(t) {
+  // The protocol attribute must initially return the empty string
+  assert_equals((new WebSocket(SCHEME_AND_DOMAIN+'/')).protocol, '');
+});
+</script>

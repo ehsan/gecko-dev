@@ -1,0 +1,12 @@
+
+copyrev: 395860bbe052b2cc24c4103d3a133504668533d5
+copy: js/src/trace-test/tests/jaeger/bug583684.js
+
+// |jit-test| error: TypeError
+(function () {
+    var b = e
+    for (var [e] = b in w) c
+})()
+
+/* Don't assert. */
+

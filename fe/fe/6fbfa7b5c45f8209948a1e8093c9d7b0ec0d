@@ -1,0 +1,10 @@
+
+copyrev: 553b48c43ecd783424c65ff035f8c84f3a22eb49
+copy: js/src/trace-test/tests/jaeger/bug557070.js
+
+// |jit-test| error: InternalError
+
+for (e in (function x() { [eval()].some(x) } ()));
+
+/* Don't crash or assert. */
+

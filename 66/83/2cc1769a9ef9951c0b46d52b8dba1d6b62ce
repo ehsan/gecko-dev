@@ -1,0 +1,21 @@
+
+copy: other-licenses/simplejson-2.1.1/scripts/make_docs.py
+copyrev: 642a0a1961699577778255db004bf4ee7bfd083d
+
+#!/usr/bin/env python
+import os
+import subprocess
+import shutil
+
+SPHINX_BUILD = 'sphinx-build'
+
+DOCTREES_DIR = 'build/doctrees'
+HTML_DIR = 'docs'
+for dirname in DOCTREES_DIR, HTML_DIR:
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+res = subprocess.call([
+    SPHINX_BUILD, '-d', DOCTREES_DIR, '-b', 'html', '.', 'docs',
+])
+raise SystemExit(res)

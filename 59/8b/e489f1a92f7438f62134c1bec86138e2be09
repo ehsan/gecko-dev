@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/2970242.dic
+copyrev: 720ba38eddb9862f64b86ef79cd0f2d275ed2776
+
+3
+foo/ac
+bar/c
+baz/bc

@@ -1,0 +1,13 @@
+
+copy: dom/src/threads/test/threadErrors_worker3.js
+copyrev: 2a0707333569aef50617d7c5fa907ca1b5d50cac
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+// Unhandled exception in body
+onmessage = function(event) {
+};
+
+throw new Error("Bah!");

@@ -1,0 +1,16 @@
+
+copy: js/src/jit-test/tests/parallelarray/element-3.js
+copyrev: e7bade41447c5e10f2b167416df168b2b6e4bbda
+
+function testElement() {
+  var p = new ParallelArray([9]);
+  var desc = Object.getOwnPropertyDescriptor(p, "0");
+  assertEq(desc.enumerable, true);
+  assertEq(desc.configurable, false);
+  assertEq(desc.writable, false);
+  assertEq(desc.value, 9);
+}
+
+// FIXME(bug 844882) self-hosted object not array-like, exposes internal properties
+// if (getBuildConfiguration().parallelJS)
+//   testElement();

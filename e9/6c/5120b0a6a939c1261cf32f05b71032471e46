@@ -1,0 +1,3 @@
+. "$topsrcdir/mobile/android/config/mozconfigs/common"
+
+ac_add_options --target=i386-linux-android

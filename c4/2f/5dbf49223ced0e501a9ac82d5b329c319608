@@ -1,0 +1,19 @@
+
+copy: browser/metro/base/tests/mochitest/browser_context_menu_tests_04.html
+copyrev: 10d13c4b86d34dfb825ee6da6af83ef58ae63b90
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+    </style>
+  </head>
+<body style="padding: 10px; margin: 10px;">
+  <span id="text1">Test text</span>
+  <div contenteditable="true" id="div1" style="border: 2px solid blue; width: 200px; height: 200px;">
+    <table>
+      <tr><td>Test content</td></tr>
+    </table>
+  </div>
+</body>
+</html>

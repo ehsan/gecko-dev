@@ -1,0 +1,13 @@
+
+copy: dom/tests/mochitest/w3c/webapps.json
+copyrev: 6b0f7ea17146ab3b119aa8aa433d064c8cb1ea25
+
+{
+  "webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-10.xml": {
+    "document.getElementsByClassName(): compound": true
+  },
+
+  "webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-11.xml": {
+    "document.getElementsByClassName(): \"tricky\" compound": true
+  }
+}

@@ -1,0 +1,8 @@
+
+copyrev: ce2219de22670a2e0014a59494dac499a630937f
+copy: js/src/trace-test/tests/jaeger/bug580931-2.js
+
+// |jit-test| error: TypeError
+x = 0
+'a'.replace(/a/, x.toLocaleString)
+

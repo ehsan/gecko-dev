@@ -1,0 +1,12 @@
+
+copy: widget/src/crashtests/380359-1.xhtml
+copyrev: 68a69d56ebd38848d88e01f276c006382f00233f
+
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<body>
+
+<xul:hbox style="position: fixed; -moz-appearance: checkbox;" />
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+
+copy: tools/update-packaging/test/to-mac/Contents/MacOS/{foodir/force.txt
+copyrev: 806a3fb638311f872fcfa1728fd1c796a572e3c9
+
+file is same

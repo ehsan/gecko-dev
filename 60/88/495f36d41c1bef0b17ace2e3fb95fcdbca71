@@ -1,0 +1,18 @@
+
+copy: content/svg/content/src/crashtests/374882-1.svg
+copyrev: 3ae4906c540036e63676c772b46b95213a6bf63c
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<defs>
+
+    <filter id="over">
+        <feOffset in="SourceGraphic" dx="100" result="red" />
+        <feComposite in2="SourceGraphic" in="red" operator="over" />
+    </filter>
+
+</defs>
+
+<path d="M 0 0 L 0 50 L 50 0 z" x="300" filter="url(#over)"/>
+
+</svg>

@@ -1,0 +1,17 @@
+
+copy: layout/reftests/editor/caret_on_textarea_lastline-ref.html
+copyrev: b0e6e77fb952b7a8091a3b11126e3441470689ea
+
+<!DOCTYPE html>
+<html>
+<body onload="loaded()">
+<script>
+  function loaded() {
+    var t = document.querySelector('textarea');
+    t.selectionStart = t.selectionEnd = t.value.length;
+    t.focus();
+  }
+</script>
+<textarea>foo</textarea>
+</body>
+</html>

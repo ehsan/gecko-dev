@@ -1,0 +1,21 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/address/model-isvalid.html
+copyrev: 9cee2e8e42d53e003780555e973ec64460f3cc06
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;address&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <address class="class" id="id" lang="en">text</address>
+
+  <!-- can contain interactive -->
+  <address><a>text</a></address>
+
+  <!-- cannot contain structured inline -->
+  <address>text <em>elem</em></address>
+</body>
+</html>

@@ -1,0 +1,28 @@
+
+copyrev: 65d35cfe5e701af80fed473cfd8a24dd035f0e82
+copy: js/src/trace-test/tests/closures/nameinc-loop.js
+
+actual = '';
+expected = '1,2,3,4,5,5,1,2,3,4,5,5,1,2,3,4,5,5,1,2,3,4,5,5,1,2,3,4,5,5,1,2,3,4,5,5,1,2,3,4,5,5,1,2,3,4,5,5,1,2,3,4,5,5,1,2,3,4,5,5,';
+
+for (var i = 0; i < 10; ++i) {
+  var f = function() {
+    var p = 0;
+    
+    function g() {
+      for (var i = 0; i < 5; ++i) {
+	p++;
+	appendToActual(p);
+      }
+    }
+    
+    g();
+    
+    appendToActual(p);
+  }
+  f();
+}
+
+
+
+assertEq(actual, expected)

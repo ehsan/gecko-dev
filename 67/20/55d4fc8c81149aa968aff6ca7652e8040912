@@ -1,0 +1,6 @@
+
+copy: browser/base/content/test/gZipOfflineChild.html^headers^
+copyrev: b5a66d02e4fde2b5e3c4fc088e1184b911cfad53
+
+Content-Type: text/html
+Content-Encoding: gzip

@@ -1,0 +1,82 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+# libEGL depends on (links against!) libGLESv2!
+if CONFIG['MOZ_ANGLE_RENDERER']:
+    DIRS += ['src/libGLESv2', 'src/libEGL']
+
+MODULE = 'angle'
+
+EXPORTS.angle += [
+    'include/GLSLANG/ShaderLang.h',
+    'include/KHR/khrplatform.h',
+]
+
+CPP_SOURCES += [
+    'ArrayBoundsClamper.cpp',
+    'BuiltInFunctionEmulator.cpp',
+    'CodeGenGLSL.cpp',
+    'Compiler.cpp',
+    'DependencyGraph.cpp',
+    'DependencyGraphBuilder.cpp',
+    'DependencyGraphOutput.cpp',
+    'DependencyGraphTraverse.cpp',
+    'DetectRecursion.cpp',
+    'Diagnostics.cpp',
+    'DirectiveHandler.cpp',
+    'DirectiveParser.cpp',
+    'ExpressionParser.cpp',
+    'ForLoopUnroll.cpp',
+    'InfoSink.cpp',
+    'Initialize.cpp',
+    'InitializeDll.cpp',
+    'InitializeParseContext.cpp',
+    'Input.cpp',
+    'IntermTraverse.cpp',
+    'Intermediate.cpp',
+    'Lexer.cpp',
+    'Macro.cpp',
+    'MacroExpander.cpp',
+    'MapLongVariableNames.cpp',
+    'OutputESSL.cpp',
+    'OutputGLSL.cpp',
+    'OutputGLSLBase.cpp',
+    'ParseHelper.cpp',
+    'PoolAlloc.cpp',
+    'Preprocessor.cpp',
+    'PreprocessorDiagnostics.cpp',
+    'PreprocessorDirectiveHandler.cpp',
+    'QualifierAlive.cpp',
+    'RemoveTree.cpp',
+    'RestrictFragmentShaderTiming.cpp',
+    'RestrictVertexShaderTiming.cpp',
+    'ShaderLang.cpp',
+    'SymbolTable.cpp',
+    'Token.cpp',
+    'Tokenizer.cpp',
+    'TranslatorESSL.cpp',
+    'TranslatorGLSL.cpp',
+    'ValidateLimitations.cpp',
+    'VariableInfo.cpp',
+    'VariablePacker.cpp',
+    'VersionGLSL.cpp',
+    'compiler_debug.cpp',
+    'glslang_lex.cpp',
+    'glslang_tab.cpp',
+    'intermOut.cpp',
+    'parseConst.cpp',
+    'spooky.cpp',
+    'util.cpp',
+]
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
+    CPP_SOURCES += [
+        'ossource_win.cpp',
+    ]
+else:
+    CPP_SOURCES += [
+        'ossource_posix.cpp',
+    ]

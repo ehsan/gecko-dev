@@ -1,0 +1,21 @@
+
+copy: js/src/jit-test/tests/parallelarray/timeout.js
+copyrev: ba8dd101d2b49d764cbb4805885c3350fc93f8bb
+
+// |jit-test| exitstatus: 6;
+
+load(libdir + "parallelarray-helpers.js");
+
+function iterate(x) {
+  while (x == 2046) {
+    // for exactly one index, this infinitely loops!
+    // this ensures that the warmup doesn't loop.
+  }
+  return 22;
+}
+
+timeout(1);
+if (getBuildConfiguration().parallelJS)
+  Array.buildPar(2048, iterate);
+else
+  while (true);

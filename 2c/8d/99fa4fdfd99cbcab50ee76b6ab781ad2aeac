@@ -1,0 +1,15 @@
+
+copy: dom/security/test/csp/file_self_none_as_hostname_confusion.html
+copyrev: 1a5fb12e88162acdf5c8efeec337a4c3025bb3fd
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf8">
+    <title>Bug 587377 - CSP keywords "'self'" and "'none'" are easy to confuse with host names "self" and "none"</title>
+    <!-- Any copyright is dedicated to the Public Domain.
+       - http://creativecommons.org/publicdomain/zero/1.0/ -->
+  </head>
+  <body>
+  </body>
+</html>

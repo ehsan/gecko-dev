@@ -1,0 +1,22 @@
+
+copy: layout/reftests/forms/textarea-rtl-dynamic-style.html
+copyrev: 8606bb4539e45d8a5b18ec74b69710af34e352aa
+
+<!DOCTYPE HTML>
+<html class="reftest-wait">
+ <head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <title></title>
+ </head>
+ <body>
+  <textarea cols=20 rows=4></textarea>
+  <script>
+    onload = function() {
+      setTimeout(function() {
+        document.querySelector("textarea").style.direction = "rtl";
+        document.documentElement.removeAttribute("class");
+      });
+    };
+  </script>
+ </body>
+</html>

@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/circumfix.dic
+copyrev: 8c45271c8c4d0d50da961cc138b3dbfb86a0de70
+
+1
+nagy/C	po:adj

@@ -1,0 +1,13 @@
+
+copyrev: 1c5140e0b96b7d3a4b7949f83f9ad5996a012eb9
+copy: layout/reftests/svg-integration/clipPath-html-02-ref.svg
+
+<!--
+     Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/licenses/publicdomain/
+-->
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1"
+     xmlns:xlink="http://www.w3.org/1999/xlink">
+  <rect x="0" y="0" width="500" height="200" fill="lime"/>
+  <rect x="0" y="200" width="500" height="120" fill="blue"/>
+</svg>

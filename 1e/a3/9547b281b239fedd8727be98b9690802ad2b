@@ -1,0 +1,11 @@
+
+copy: mobile/xul/branding/unofficial/locales/jar.mn
+copyrev: 7b6377c70e9f801ca35ac903c793901d939d851e
+
+#filter substitution
+
+@AB_CD@.jar:
+% locale branding @AB_CD@ %locale/branding/
+# Nightly branding only exists in en-US
+  locale/branding/brand.dtd        (en-US/brand.dtd)
+* locale/branding/brand.properties (en-US/brand.properties)

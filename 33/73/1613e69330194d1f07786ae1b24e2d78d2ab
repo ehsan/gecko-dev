@@ -1,0 +1,21 @@
+
+copy: editor/libeditor/crashtests/459613.html
+copyrev: 69095d3f2c2274bf47ee0fae5fb7beb7694c4ac1
+
+<html class="reftest-wait">
+<head>
+<script type="text/javascript">
+
+function finish() {
+  document.documentElement.removeAttribute("class");
+}
+
+</script>
+</head>
+
+<body>
+
+<iframe src="459613-iframe.html" onload="finish();"></iframe>
+
+</body>
+</html>

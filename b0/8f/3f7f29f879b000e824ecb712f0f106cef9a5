@@ -1,0 +1,16 @@
+
+copy: layout/reftests/editor/xul/number-1.xul
+copyrev: 5ff6a3555438bb65f1a522a447bfbc8a625f254d
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml"
+        title="Textbox tests">
+
+  <script type="text/javascript" src="platform.js"/>
+
+  <textbox type="number"/>
+      
+</window>

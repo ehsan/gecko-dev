@@ -1,0 +1,30 @@
+
+copy: layout/reftests/w3c-css/submitted/flexbox/flexbox-abpos-child-1-ref.html
+copyrev: 08d6c1e6dccfc63850d76109f651f4dfb9290907
+
+<!DOCTYPE html>
+<!--
+     Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/
+-->
+<html>
+<head>
+  <title>CSS Reftest Reference</title>
+  <link rel="author" title="Daniel Holbert" href="mailto:dholbert@mozilla.com">
+  <meta charset="utf-8">
+  <style>
+    .tealBlock {
+      background: teal;
+      width: 20px;
+      height: 20px;
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="tealBlock"></div>
+  <div class="tealBlock"></div>
+  <div class="tealBlock"></div>
+  <div class="tealBlock"></div>
+</body>
+</html>

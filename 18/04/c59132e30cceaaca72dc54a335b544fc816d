@@ -1,0 +1,5 @@
+fennec (@MOZ_APP_VERSION@)  unstable; urgency=low
+
+  * Mozilla Nightly (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- Mozilla Mobile  <mobile@mozilla.com>  @MOZ_DEB_TIMESTAMP@

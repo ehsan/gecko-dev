@@ -1,0 +1,5 @@
+
+copy: mobile/app/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in
+copyrev: 0e1f1b449a661201a10d246d9bcac4108be802f6
+
+CFBundleName = "%APP_NAME%";

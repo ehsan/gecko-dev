@@ -1,0 +1,10 @@
+
+copyrev: 3b7ad324878594e337c88953bd672a062c7d87e7
+copy: js/src/trace-test/tests/basic/testUndefinedCmp.js
+
+function testUndefinedCmp() {
+    var a = false;
+    for (var j = 0; j < 4; ++j) { if (undefined < false) { a = true; } }
+    return a;
+}
+assertEq(testUndefinedCmp(), false);

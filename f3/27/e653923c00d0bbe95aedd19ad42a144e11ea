@@ -1,0 +1,9 @@
+
+copy: js/src/devtools/automation/dtrace
+copyrev: 0cc4528cb38cc075b1df86506959d2ba941d2732
+
+--enable-threadsafe
+--enable-optimize
+--enable-debug
+--enable-dtrace
+--enable-debug-symbols

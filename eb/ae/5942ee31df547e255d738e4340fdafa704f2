@@ -1,0 +1,14 @@
+
+copy: content/base/crashtests/845093-1.html
+copyrev: fdd38d9505627387c1f664830c539a22eb19a857
+
+<body dir=auto> u	
+<script>
+function initCF() {
+setTimeout("CFcrash()", 284);
+}
+document.addEventListener("DOMContentLoaded", initCF, false);
+function CFcrash() {
+try { document.designMode = 'on'; document.execCommand("InsertHTML", false, "world"); document.designMode = 'off'; } catch(e) {}
+try { document.designMode = 'on'; document.execCommand("inserthtml", false, "<span><div>"); } catch(e) {}
+}</script>>

@@ -1,0 +1,14 @@
+
+copyrev: 730c2f810f18a3219e976febb97f54f35bb5e721
+copy: js/src/trace-test/tests/basic/bitwiseAnd.js
+
+function bitwiseAnd_inner(bitwiseAndValue) {
+  for (var i = 0; i < 60000; i++)
+    bitwiseAndValue = bitwiseAndValue & i;
+  return bitwiseAndValue;
+}
+function bitwiseAnd()
+{
+  return bitwiseAnd_inner(12341234);
+}
+assertEq(bitwiseAnd(), 0);

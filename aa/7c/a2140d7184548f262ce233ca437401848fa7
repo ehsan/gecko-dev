@@ -1,0 +1,13 @@
+
+copy: content/base/test/file_base_xbl.xml
+copyrev: 225f940d6c3824f672b7cba6e3972dd7660cbd32
+
+<bindings xmlns="http://www.mozilla.org/xbl"
+          xmlns:xhtml="http://www.w3.org/1999/xhtml"
+          xmlns:svg="http://www.w3.org/2000/svg">
+<binding id="test">
+  <content>
+    <svg:g><svg:circle><xhtml:div xml:base="#shesellsseashellsbytheseashore"/></svg:circle><children/></svg:g>
+  </content>
+ </binding>
+</bindings>

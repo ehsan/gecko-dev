@@ -1,0 +1,5 @@
+
+copyrev: 3b14967a57f95aaa3d33f19a1c3579c5b5eb1faa
+copy: js/tests/ecma/Statements/shell.js
+
+gTestsubsuite = 'Statements';

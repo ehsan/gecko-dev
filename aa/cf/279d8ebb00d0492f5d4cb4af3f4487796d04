@@ -1,0 +1,19 @@
+
+copy: browser/base/content/test/head.js
+copyrev: 21db05fdd87658f324dc9b34268aacb12e1b5a7e
+
+
+function waitForCondition(condition, nextTest, errorMsg) {
+  var tries = 0;
+  var interval = setInterval(function() {
+    if (tries >= 30) {
+      ok(false, errorMsg);
+      moveOn();
+    }
+    if (condition()) {
+      moveOn();
+    }
+    tries++;
+  }, 100);
+  var moveOn = function() { clearInterval(interval); nextTest(); };
+}

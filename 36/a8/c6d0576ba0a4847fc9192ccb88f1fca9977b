@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern.dic
+copyrev: 7172c7fd8975bdd897815f165150b94e123b2a45
+
+4
+könny/A
+nyelés/A
+hossz/A
+számítás/A

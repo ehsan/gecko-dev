@@ -1,0 +1,13 @@
+
+copyrev: 83005055d864cf5bb8c8de943b052746c09286af
+copy: js/src/trace-test/tests/jaeger/bug599488.js
+
+/* Don't crash. */
+function foo(y) {
+  var x = y;
+  if (x != x)
+    return true;
+  return false;
+}
+assertEq(foo("three"), false);
+assertEq(foo(NaN), true);

@@ -1,0 +1,6 @@
+
+copy: js/src/jit-test/tests/parallelarray/parallelarraycompiledout.js
+copyrev: dfe91b5fb03cf1b14dd48de0dc4e466d162e668f
+
+if (!getBuildConfiguration().parallelJS)
+  assertEq(typeof ParallelArray, "undefined");

@@ -1,0 +1,8 @@
+
+copy: content/smil/crashtests/611927-1.svg
+copyrev: 9ef69d47ebd9400c1bc54a28a50f5f8e6657b5f5
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <animate attributeName="stroke-width"/>
+  <animate attributeName="stroke-width" by="10em"/>
+</svg>

@@ -1,0 +1,9 @@
+
+copy: media/libcubeb/README
+copyrev: 7abf85e6aaa77706a8e45f38a7b3daf238ecaf30
+
+[![Build Status](https://travis-ci.org/kinetiknz/cubeb.svg?branch=master)](https://travis-ci.org/kinetiknz/cubeb)
+
+See INSTALL for build instructions.
+
+Licensed under an ISC-style license.  See LICENSE for details.

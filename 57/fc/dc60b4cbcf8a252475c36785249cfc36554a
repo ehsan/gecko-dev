@@ -1,0 +1,8 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/resources/noopUniformShader.vert
+copyrev: dd3e97e6d8532e6d46c1b2b9585cf56c873ea142
+
+void main()
+{
+    gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+}

@@ -1,0 +1,5 @@
+
+copy: testing/mozbase/manifestdestiny/tests/include/crash-handling
+copyrev: ce887b481ce0093055f87106ef62faca5edf238e
+
+# dummy spot for "crash-handling" test

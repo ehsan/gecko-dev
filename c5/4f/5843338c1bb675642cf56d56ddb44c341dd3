@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/basic/bug557168-3.js
+copyrev: 37397f10374ed2cc85cbecfe03d063648f27e674
+
+x = <x/>
+try {
+  Function("\
+    for(var a = 0; a < 6; a++) {\
+      Number(x.u)\
+    }\
+  ")()
+} catch (e) {
+  assertEq(e.message, "too much recursion");
+}

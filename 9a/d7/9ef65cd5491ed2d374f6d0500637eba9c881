@@ -1,0 +1,18 @@
+
+copyrev: 6f08902f6d1664f4c28ca85ec0b15409f6bca0fc
+copy: js/src/trace-test/tests/arguments/args8.js
+
+actual = '';
+expected = '[object Arguments],[object Arguments],[object Arguments],[object Arguments],[object Arguments],';
+
+function h() {
+  return arguments;
+}
+
+for (var i = 0; i < 5; ++i) {
+  var p = h(i, i*2);
+  appendToActual(p);
+}
+
+
+assertEq(actual, expected)

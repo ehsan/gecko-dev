@@ -1,0 +1,11 @@
+
+copyrev: a231ebea3b1215f3aec46178998188f36119cb33
+copy: js/src/trace-test/tests/basic/bug579740.js
+
+
+for (a = 0; a < 4; a++) {
+    new Math.round(0).t
+}
+
+/* Don't assert. */
+

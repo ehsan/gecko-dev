@@ -1,0 +1,14 @@
+
+copy: toolkit/components/places/tests/browser/visituri/final.html
+copyrev: 4f557845c5e75d6997a4c16e4a45824a19d8b063
+
+<!--
+ Any copyright is dedicated to the Public Domain.
+ http://creativecommons.org/publicdomain/zero/1.0/
+-->
+
+<html>
+  <body>
+    OK we're done!
+  </body>
+</html>

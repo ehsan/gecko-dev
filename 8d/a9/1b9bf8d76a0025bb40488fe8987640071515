@@ -1,0 +1,17 @@
+
+copy: gfx/thebes/crashtests/408754-1.html
+copyrev: 0e62c22a9501ea5074503e84e7e09aa2e82eb22d
+
+<html>
+<head>
+<style>
+ .a { width: 17895680}
+ .b { width: 10}
+</style>
+</head>
+<body>
+<table><tr>
+<td class="a">a</td><td class="b">b</td>
+</tr></table>
+</body>
+</html>

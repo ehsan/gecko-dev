@@ -1,0 +1,12 @@
+
+copyrev: c7de93f261b8517e15a49963323823d9c327c535
+copy: layout/reftests/svg/image/list-simple-1.html
+
+<html>
+<body style="margin-left: 100px">
+  <ul style="list-style-image: url('lime100x100.svg')">
+    <li>abc
+    <li>def
+  </ul>
+</body>
+</html>

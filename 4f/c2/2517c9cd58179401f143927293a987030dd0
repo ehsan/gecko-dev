@@ -1,0 +1,6 @@
+
+copyrev: cfd751aa36436c1d592342ab408ac238d0591843
+copy: js/src/trace-test/tests/basic/bug510434.js
+
+var f = function(){ var arguments = 3; for (var j=0;j<4;++j) print(arguments); };
+f();

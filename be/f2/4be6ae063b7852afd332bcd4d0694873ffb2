@@ -1,0 +1,21 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/h3/model-isvalid.html
+copyrev: 42fa6e47e54dbdf121012a59ff86aead292db1a6
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;h3&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <h3 class="class" id="id" lang="en">text</h3>
+
+  <!-- can contain strictly inline -->
+  <h3>text <em>elem</em></h3>
+
+  <!-- can contain interactive -->
+  <h3><a>text</a></h3>
+</body>
+</html>

@@ -1,0 +1,22 @@
+
+copyrev: dd94e6a99a6cd0a43354d04e0bf799ae9920847b
+copy: js/src/trace-test/tests/closures/setname-inner-heavy.js
+
+actual = '';
+expected = 'undefined,';
+
+function f() { 
+    (eval("\
+        (function () {\
+            for (var z = 0; z < 2; ++z) {\
+                x = ''\
+            }\
+        })\
+    "))();
+}
+__defineSetter__("x", eval)
+f()
+appendToActual(x);
+
+
+assertEq(actual, expected)

@@ -1,0 +1,15 @@
+
+copyrev: 02dafe9a6df854746b05d26a995067e17ded5927
+copy: js/src/trace-test/tests/basic/testXMLPropertyNames.js
+
+var o = {};
+
+o.__defineGetter__(<x/>,function(){});
+<a b="2"/>.(o.__defineGetter__(new QName("foo"), function(){}));
+
+var i = 0;
+for (w in o) {
+    ++i;
+}
+
+assertEq(i, 2);

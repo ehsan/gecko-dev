@@ -1,0 +1,8 @@
+
+copy: content/svg/content/test/fragments-helper.svg
+copyrev: 16f6ef3cd751938822fc711c2437b424a190bd00
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <view id="view" viewBox="0 200 100 100" preserveAspectRatio="none"/>
+</svg>

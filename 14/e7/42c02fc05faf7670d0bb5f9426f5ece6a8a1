@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/keepcase.sug
+copyrev: bdd833213aa15e2ce69ad3e55179928537be990e
+
+foo
+foo
+Bar
+Bar
+baz.
+baz.
+Quux.
+Quux.

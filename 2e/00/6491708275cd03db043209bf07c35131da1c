@@ -1,0 +1,15 @@
+
+copy: layout/reftests/text/auto-hyphenation-1.html
+copyrev: 192fadd5bedde1fd89f143ccfe4b7138db6349c3
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>Hyphenation test</title></head>
+<!-- check that xml:lang beats lang -->
+<body lang="x-unknown-language" xml:lang="en-us">
+<div style="width: 5em; -moz-hyphens: auto; font-family:sans-serif;">
+supercalifragilisticexpialidocious
+</div>
+</body>
+</html>
+

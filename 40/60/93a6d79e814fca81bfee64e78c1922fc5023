@@ -1,0 +1,11 @@
+
+copyrev: a3bbe29bfae6d5161ba7158dc362ee1ceb0816a0
+copy: js/src/trace-test/tests/basic/bug601398.js
+
+(function () {
+    try {} finally {
+        let(z) {
+            return;
+        }
+    }
+})()

@@ -1,0 +1,13 @@
+
+copy: dom/src/threads/test/close_worker.js
+copyrev: b3c30c13dea8b8537de6c7753ebeb3408573c4da
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+onclose = function() {
+  postMessage("closed");
+};
+
+setTimeout(function() { close(); }, 1000);

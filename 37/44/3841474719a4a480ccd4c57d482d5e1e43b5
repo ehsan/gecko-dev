@@ -1,0 +1,10 @@
+
+copy: media/webrtc/trunk/src/modules/audio_device/main/test/android/audio_device_android_test/res/values/strings.xml
+copyrev: c046c8f332efdb717aab6c290aab17582f9617ad
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    
+    <string name="app_name">WebRTC Audio Device Android Test</string>
+<string name="run_button">Run Test</string>
+</resources>

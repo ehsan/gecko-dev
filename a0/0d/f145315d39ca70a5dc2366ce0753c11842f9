@@ -1,0 +1,17 @@
+
+copy: layout/reftests/forms/select-boguskids-ref.html
+copyrev: 55d0bcf7dc19d70b882cbcbb6c5306a70039ae95
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <select size="10">
+      <option>one</option>
+      <option>two</option>
+      <optgroup>
+        <option>three</option>
+        <option>four</option>
+      </optgroup>
+    </select>
+  </body>
+</html>

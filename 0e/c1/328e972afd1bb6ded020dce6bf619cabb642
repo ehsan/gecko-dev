@@ -1,0 +1,11 @@
+
+copyrev: 2d305a445def8e3c073e88a7c48e12f648ed76cd
+copy: js/src/trace-test/tests/basic/testNonStubGetter.js
+
+function testNonStubGetter() {
+    let ([] = false) { (this.watch("x", /a/g)); };
+    (function () { (eval("(function(){for each (x in [1, 2, 2]);});"))(); })();
+    this.unwatch("x");
+    return "ok";
+}
+assertEq(testNonStubGetter(), "ok");

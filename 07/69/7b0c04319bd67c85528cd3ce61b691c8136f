@@ -1,0 +1,12 @@
+
+copy: media/webrtc/trunk/third_party/libyuv/LICENSE_THIRD_PARTY
+copyrev: 51986de111b72a3f00ff6c5c5d3aaa145c503a2e
+
+This source tree contains third party source code which is governed by third
+party licenses. This file contains references to files which are under other
+licenses than the one provided in the LICENSE file in the root of the source
+tree.
+
+Files governed by third party licenses:
+source/x86inc.asm
+

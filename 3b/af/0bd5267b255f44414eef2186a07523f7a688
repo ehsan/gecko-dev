@@ -1,0 +1,13 @@
+. "$topsrcdir/build/mozconfig.common"
+
+CC="$topsrcdir/gcc/bin/gcc"
+CXX="$topsrcdir/gcc/bin/g++"
+
+# We want to make sure we use binutils and other binaries in the tooltool
+# package.
+mk_add_options PATH="$topsrcdir/gcc:$PATH"
+
+ac_add_options --enable-elf-hack
+
+# Avoid dependency on libstdc++ 4.7
+ac_add_options --enable-stdcxx-compat

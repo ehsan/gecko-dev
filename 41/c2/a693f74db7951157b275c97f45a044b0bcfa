@@ -1,0 +1,15 @@
+
+copy: browser/base/content/test/general/blockPluginVulnerableUpdatable.xml
+copyrev: a6bd64b80bc9f39ec9197aa0e999766b07f97563
+
+<?xml version="1.0"?>
+<blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist" lastupdate="1336406310000">
+  <emItems>
+  </emItems>
+  <pluginItems>
+    <pluginItem blockID="p9999">
+      <match name="filename" exp="libnptest\.so|nptest\.dll|Test\.plugin" />
+      <versionRange severity="0" vulnerabilitystatus="1"></versionRange>
+    </pluginItem>
+  </pluginItems>
+</blocklist>

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/input/range/input-range-not-other-type-unthemed-1a-notref.html
+copyrev: 7320e89ea78d7c0ab30f0954fa3a3ccea9194ed4
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type="text" style="-moz-appearance:none;">
+  </body>
+</html>

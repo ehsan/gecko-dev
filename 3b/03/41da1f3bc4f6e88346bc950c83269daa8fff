@@ -1,0 +1,13 @@
+
+copy: browser/base/content/test/general/plugin_big.html
+copyrev: 72a52562323df0e0a051161c7241a9d69bd78b2c
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+<embed id="test" style="width: 500px; height: 500px" type="application/x-test">
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copyrev: 99b7efdb437e9387493d50bd41d849ed776cdc29
+copy: js/src/trace-test/tests/basic/testConstantBooleanExpr.js
+
+function testConstantBooleanExpr()
+{
+    for (var j = 0; j < 3; ++j) { if(true <= true) { } }
+    return "ok";
+}
+assertEq(testConstantBooleanExpr(), "ok");

@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/parser/ufffe-charref-novalid.html
+copyrev: a758934b7e15cdba153dbb598e1e8ee0405e6c1e
+
+<!doctype html><meta charset=utf-8><title>&amp;#xFFFE;</title><p>There should be an error.&#xFFFE;

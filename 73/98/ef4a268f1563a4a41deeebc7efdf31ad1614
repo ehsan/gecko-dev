@@ -1,0 +1,13 @@
+
+copy: layout/reftests/editor/emptypasswd-2.html
+copyrev: 1af64a9393b24d760695ee0d6d97325b29fb15d2
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="password" value="abcdef">
+    <script>
+      document.getElementsByTagName("input")[0].value = "";
+    </script>
+</body>
+</html>

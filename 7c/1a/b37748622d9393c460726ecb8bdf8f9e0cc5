@@ -1,0 +1,5 @@
+
+copyrev: 76e527810b8243a83ac2c76a5e01c958c48a5074
+copy: dom/src/json/test/fail15.json
+
+["Illegal backslash escape: \x15"]

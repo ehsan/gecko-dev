@@ -1,0 +1,6 @@
+
+copy: uriloader/exthandler/tests/mailcap
+copyrev: 48051f183caeffee1549180dc34a3207c1ef7ce6
+
+text/plain; cat '%s'; needsterminal
+text/plain; sed '%s'

@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/input/input-button.html
+copyrev: abfb4bfbc1f512abe475a6d6ca16e38503f90036
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input is of button type, it is barred from constraint validation
+             and should not be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='notvalid' type='button'>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+
+copyrev: 1b5c8a22c097e06482d64efa6db253e53db4ddf1
+copy: js/src/trace-test/tests/pic/bug584642.js
+
+// |jit-test| error: ReferenceError
+Function("x=[(x)=s]")();
+/* Don't assert. */

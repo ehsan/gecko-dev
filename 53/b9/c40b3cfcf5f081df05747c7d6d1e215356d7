@@ -1,0 +1,20 @@
+
+copy: js/src/tests/js1_8_5/extensions/debug-object-05.js
+copyrev: e8a281419f1e291243e7699cd4924f9ec1f7e5f1
+
+// |jit-test| debug
+// A debugger statement in a debuggerHandler should not reenter.
+
+var g = newGlobal('new-compartment');
+var calls = 0;
+
+var dbg = Debug(g);
+dbg.hooks = {
+    debuggerHandler: function (stack) {
+        calls++;
+        debugger;
+    }
+};
+
+assertEq(g.eval("debugger; 7;"), 7);
+assertEq(calls, 1);

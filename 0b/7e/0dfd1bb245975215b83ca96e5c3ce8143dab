@@ -1,0 +1,13 @@
+
+copyrev: 581d071fe0cf6a68848697dcd0eaf29b10e1f8d8
+copy: js/src/trace-test/tests/closures/flat-closure-3.js
+
+actual = '';
+expected = 'nocrash,';
+
++[(e = {}, (function () e)()) for each (e in ["", {}, "", {}, ""])];
+
+appendToActual('nocrash')
+
+
+assertEq(actual, expected)

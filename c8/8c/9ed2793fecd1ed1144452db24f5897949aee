@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/forceucase.aff
+copyrev: 7cb04f73d3f6d4a69b009127359cf6b1b58c3a59
+
+# force capitalized compound
+TRY F
+FORCEUCASE A
+COMPOUNDFLAG C

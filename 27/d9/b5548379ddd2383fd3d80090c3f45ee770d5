@@ -1,0 +1,9 @@
+
+copy: layout/xul/base/src/crashtests/452185.xml
+copyrev: 4a38a12686bb1433e2afbeb4ec7f14df45637278
+
+<bindings xmlns="http://www.mozilla.org/xbl" xmlns:xlink="http://www.w3.org/1999/xlink">
+<binding id="a">
+<content><tbody xmlns="http://www.w3.org/1999/xhtml"><style>*::before { content:"b"; }</style></tbody></content>
+
+</binding></bindings>

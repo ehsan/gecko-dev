@@ -1,0 +1,17 @@
+
+copyrev: fd1f9652b7f1b44f74b74caaae2e88a01319a175
+copy: js/src/trace-test/tests/arguments/testDelArg1.js
+
+function f(x,y,z) {
+  z = 9;
+  delete arguments[2];
+  assertEq(arguments[2], undefined);
+  o = arguments;
+  assertEq(o[2], undefined);
+  assertEq(o[2] == undefined, true);
+}
+
+for (var i = 0; i < HOTLOOP+2; ++i) {
+    print(i);
+    f(1,2,3)
+}

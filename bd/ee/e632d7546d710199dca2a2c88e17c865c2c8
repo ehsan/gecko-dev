@@ -1,0 +1,9 @@
+
+copy: content/base/test/badMessageEvent2.eventsource
+copyrev: b21bc2214bc61df646a9c687de58f2ff0c7d4e82
+
+retry:500
+data: ok
+
+id: invalid-id
+data: not-ok

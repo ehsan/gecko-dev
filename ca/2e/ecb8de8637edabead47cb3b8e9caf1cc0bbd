@@ -1,0 +1,12 @@
+
+copy: modules/libpr0n/test/mochitest/bug497665-iframe.html
+copyrev: 8134e7bee35a25bf0be3bd1b171a5594bae3e09b
+
+<html>
+<head>
+<title>Bug 497665 iframe</title>
+<body>
+<img src="bug497665.sjs" width="100" height="100" id="image1" />
+<img src="bug497665.sjs" width="100" height="100" id="image2" />
+</body>
+</html>

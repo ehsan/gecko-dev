@@ -1,0 +1,16 @@
+
+copy: browser/base/content/test/app_subframe_bug575561.html
+copyrev: 81ebc599d64dd3f7e7c1f380275daf184fbd25ab
+
+<!DOCTYPE HTML>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=575561
+-->
+  <head>
+    <title>Test for links in app tab subframes</title>
+  </head>
+  <body>
+    <a href="http://example.org/browser/browser/base/content/test/general/dummy_page.html">different domain</a>
+  </body>
+</html>

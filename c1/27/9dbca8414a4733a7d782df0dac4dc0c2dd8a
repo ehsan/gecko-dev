@@ -1,0 +1,9 @@
+
+copy: browser/components/sessionstore/test/browser_frame_history_c.html
+copyrev: c4288463debe33e7c7e66d251b9492f1c4c41864
+
+<html>
+  <body>
+    I'm C!
+  </body>
+</html>

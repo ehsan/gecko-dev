@@ -1,0 +1,5 @@
+
+copyrev: 66abd0ac44bcfbe1e3b566bc7f885b9ebbb46030
+copy: testing/mozmill/mozmill-1.5.0/mozmill/extension/locale/en-US/overlay.dtd
+
+<!ENTITY mozmill "MozMill">

@@ -1,0 +1,33 @@
+
+copy: modules/freetype2/builds/win32/visualce/freetype.dsw
+copyrev: aad7e1843c9a43bfe102ab806b0d49e1d5090d41
+
+Microsoft Developer Studio Workspace File, Format Version 6.00
+# WARNING: DO NOT EDIT OR DELETE THIS WORKSPACE FILE!
+
+###############################################################################
+
+Project: "freetype"=.\freetype.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Global:
+
+Package=<5>
+{{{
+}}}
+
+Package=<3>
+{{{
+}}}
+
+###############################################################################
+

@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-10.xml.json
+copyrev: 14e1933b6dff80b1d4a440f7c3d72745e5bda826
+
+{
+  "document.getElementsByClassName(): compound": true
+}

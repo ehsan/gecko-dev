@@ -1,0 +1,28 @@
+
+copy: content/base/crashtests/371466-1.xhtml
+copyrev: bbd950f0aba25e504ecf2d88433d06efc479e5ff
+
+﻿<html xmlns="http://www.w3.org/1999/xhtml" class="reftest-wait">
+<head>
+<script>
+
+function boom()
+{
+  var marquee = document.getElementById("marquee");
+  var span = document.getElementById("span");
+  marquee.appendChild(span);
+  marquee.removeChild(span);
+  document.documentElement.removeAttribute("class");
+}
+
+</script>
+</head>
+
+<body onload="setTimeout(boom, 30);">
+
+<marquee id="marquee" />
+
+<span id="span"><div>Foo</div><textarea/></span>
+
+</body>
+</html>

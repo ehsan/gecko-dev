@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/fullstrip.good
+copyrev: 61819fc4121508c3856809e2a1adb636f0d32433
+
+andare
+vado
+va
+andiamo
+riandare
+rivado
+riva
+riandiamo
+

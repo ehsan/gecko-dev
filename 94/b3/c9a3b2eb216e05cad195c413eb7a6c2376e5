@@ -1,0 +1,17 @@
+
+copy: gfx/thebes/crashtests/398042-1.xhtml
+copyrev: f1b4208193a27f05a01036ee732d60b06b911a28
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<style id="s">
+maligngroup { white-space: pre; }
+</style>
+</head>
+
+<body onload="document.getElementById('s').disabled = true;">
+<ms xmlns="http://www.w3.org/1998/Math/MathML"><maligngroup>
+
+ </maligngroup></ms>
+</body>
+</html>

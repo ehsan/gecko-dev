@@ -1,0 +1,15 @@
+[mediasource-buffered.html]
+  type: testharness
+  expected: TIMEOUT
+  [Demuxed content with different lengths]
+    expected: FAIL
+
+  [Muxed tracks with different lengths]
+    expected: FAIL
+
+  [Demuxed content with an empty buffered range on one SourceBuffer]
+    expected: FAIL
+
+  [Muxed content empty buffered ranges.]
+    expected: FAIL
+

@@ -1,0 +1,18 @@
+
+copy: addon-sdk/source/python-lib/cuddlefish/tests/preferences-files/packages/preferences-branch/package.json
+copyrev: 8210b2b9d5f5bc5fb90db15c31119d9d3ac96fd7
+
+{
+    "id": "test-preferences-branch",
+    "fullName": "preferences-branch test",
+    "author": "Tomislav Jovanovic",
+
+    "preferences": [{
+        "name": "test42",
+        "type": "bool",
+        "title": "test42",
+        "value": true
+    }],
+
+    "preferences-branch": "human-readable"
+}

@@ -1,0 +1,17 @@
+
+copy: dom/svg/crashtests/406361-1.html
+copyrev: 656100bd78540520d0e3c606e710e078eef40f5a
+
+<html>
+<head>
+<script>
+function boom()
+{
+  var use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.patternTransform = "";
+}
+</script>
+</head>
+<body onload="boom();">
+</body>
+</html>

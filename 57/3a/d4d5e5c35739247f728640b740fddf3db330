@@ -1,0 +1,19 @@
+
+copyrev: 65c7be0641f91bbbc5698f9e9c4c6e44d008e2b4
+copy: js/src/trace-test/tests/basic/testIntOverflow.js
+
+function testIntOverflow() {
+    // int32_max - 7
+    var ival = 2147483647 - 7;
+    for (var i = 0; i < 30; i++) {
+        ival += 30;
+    }
+    return (ival < 2147483647);
+}
+assertEq(testIntOverflow(), false);
+checkStats({
+    recorderStarted: 1,
+    recorderAborted: 0,
+    traceCompleted: 1,
+    traceTriggered: 1,
+});

@@ -1,0 +1,11 @@
+
+copy: content/html/document/crashtests/378993-1.xhtml
+copyrev: ba0f7dbe849e678f8f663f642e4a15673cde7d2a
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<body>
+<script>
+document.createElement('AREA');
+</script>
+</body>
+</html>

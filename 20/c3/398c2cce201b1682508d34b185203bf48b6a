@@ -1,0 +1,6 @@
+
+copy: dom/telephony/gonk/TelephonyProvider.manifest
+copyrev: 18bf047de2b5f54c336cd0c02cb2d4c619dd6252
+
+component {67d26434-d063-4d28-9f48-5b3189788155} TelephonyService.js
+contract @mozilla.org/telephony/gonktelephonyservice;1 {67d26434-d063-4d28-9f48-5b3189788155}

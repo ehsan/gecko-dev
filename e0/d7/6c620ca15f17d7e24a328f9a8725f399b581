@@ -1,0 +1,18 @@
+
+copy: layout/reftests/editor/selection_visibility_after_reframe.html
+copyrev: f11292c84d293f1f8541de563884bc7062dc137c
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input value="foo">
+    <script>
+      var i = document.querySelector("input");
+      i.selectionStart = 1;
+      i.selectionEnd = 2;
+      i.style.display = "none";
+      document.body.clientHeight;
+      i.style.display = "";
+    </script>
+  </body>
+</html>

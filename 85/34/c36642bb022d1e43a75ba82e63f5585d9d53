@@ -1,0 +1,10 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/test_nameditem-03.html.json
+copyrev: eab188b88e6eee7dc179d7b2116858d01d460afb
+
+{
+  "If there are two applets, a collection should be returned. (name)": true,
+  "If there are two applets, a collection should be returned. (id)": true,
+  "If there are two applets, a collection should be returned. (name and id)": true,
+  "If there are two applets, a collection should be returned. (id and name)": true
+}

@@ -1,0 +1,40 @@
+
+copy: content/html/content/reftests/table-border-1.html
+copyrev: f28cb423980b9e2ca671edd33549a93382d0d051
+
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>Table borders</title>
+<table border>
+<tr><td>Test
+</table>
+<table border="">
+<tr><td>Test
+</table>
+<table border=null>
+<tr><td>Test
+</table>
+<table border=undefined>
+<tr><td>Test
+</table>
+<table border=foo>
+<tr><td>Test
+</table>
+<table border=1>
+<tr><td>Test
+</table>
+<table border=1foo>
+<tr><td>Test
+</table>
+<table border=1%>
+<tr><td>Test
+</table>
+<table border=-1>
+<tr><td>Test
+</table>
+<table border=-1foo>
+<tr><td>Test
+</table>
+<table border=-1%>
+<tr><td>Test
+</table>

@@ -1,0 +1,10 @@
+
+copyrev: ac9d97d4d1a2365fd6469d5e87ef3a32dbbf33d3
+copy: modules/plugin/tools/sdk/samples/simple/npsimple.def
+
+LIBRARY   NPSIMPLE
+
+EXPORTS
+	NP_GetEntryPoints   @1
+	NP_Initialize       @2
+	NP_Shutdown         @3

@@ -1,0 +1,5 @@
+
+copy: gfx/thebes/crashtests/385719-1.html
+copyrev: 9b3b038fc7cdaf7d5d3d894abc2562da8d725bb6
+
+<div>-<span>&zwj;</span>&#xB235;</div>

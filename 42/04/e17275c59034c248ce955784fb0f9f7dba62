@@ -1,0 +1,33 @@
+
+copyrev: 490cbadd06f9ac1b46f0154cf75c651822ab29b1
+copy: modules/plugin/tools/sdk/samples/basic/windows/npbasic.dsw
+
+Microsoft Developer Studio Workspace File, Format Version 6.00
+# WARNING: DO NOT EDIT OR DELETE THIS WORKSPACE FILE!
+
+###############################################################################
+
+Project: "npbasic"=.\npbasic.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Global:
+
+Package=<5>
+{{{
+}}}
+
+Package=<3>
+{{{
+}}}
+
+###############################################################################
+

@@ -1,0 +1,4 @@
+[select-an-image-source.html]
+  type: testharness
+  ["data:,a foo, data:,b bar"]
+    expected: FAIL

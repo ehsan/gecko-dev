@@ -1,0 +1,8 @@
+
+copyrev: f34fc983e66318779a6300a86b3d6f6cf06a9fcb
+copy: js/src/trace-test/tests/pic/fuzz1.js
+
+(function() {
+  for (a = 0; a < 2; a++)
+    ''.watch("", function() {})
+})()

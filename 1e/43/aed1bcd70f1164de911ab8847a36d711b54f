@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/checksharpsutf.sug
+copyrev: bcb555bc018d81eb191627028003a5cf247d8c45
+
+MÜSSIG, müßig

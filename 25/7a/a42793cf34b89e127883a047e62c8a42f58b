@@ -1,0 +1,39 @@
+*** test pending
+Service.PasswordEngine	INFO	Beginning sync
+Testing	INFO	Creating dir user-data/passwords/
+Service.RemoteStore	DEBUG	Downloading status file
+Testing	INFO	Retrieving user-data/passwords/status.json, returning status 404
+Service.PasswordEngine	INFO	Initial upload to server
+Service.JsonFilter	DEBUG	Encoding data as JSON
+Testing	INFO	Putting user-data/passwords/keys.json with data: {"ring":{}}
+Service.Resource	DEBUG	PUT request successful
+Service.JsonFilter	DEBUG	Encoding data as JSON
+Service.CryptoFilter	DEBUG	Encrypting data
+Testing	INFO	Putting user-data/passwords/snapshot.json with data: {"805ec58eb8dcded602999967e139be21acd0f194":{"hostname":"www.boogle.com","formSubmitURL":"http://www.boogle.com/search","httpRealm":"","username":"","password":"","usernameField":"test_person","passwordField":"test_password"}}
+Service.Resource	DEBUG	PUT request successful
+Service.JsonFilter	DEBUG	Encoding data as JSON
+Service.CryptoFilter	DEBUG	Encrypting data
+Testing	INFO	Putting user-data/passwords/deltas.json with data: []
+Service.Resource	DEBUG	PUT request successful
+Service.JsonFilter	DEBUG	Encoding data as JSON
+Testing	INFO	Putting user-data/passwords/status.json with data: {"GUID":"fake-guid","formatVersion":2,"snapVersion":0,"maxVersion":0,"snapEncryption":"none","deltasEncryption":"none","itemCount":1}
+Service.Resource	DEBUG	PUT request successful
+Service.RemoteStore	INFO	Full upload to server successful
+Service.SnapStore	INFO	Saving snapshot to disk
+root	DEBUG	{"version":0,"GUID":"fake-guid","snapshot":{"805ec58eb8dcded602999967e139be21acd0f194":{"hostname":"www.boogle.com","formSubmitURL":"http://www.boogle.com/search","httpRealm":"","username":"","password":"","usernameField":"test_person","passwordField":"test_password"}}}
+Testing	INFO	Initial sync done, re-syncing now.
+Service.PasswordEngine	INFO	Beginning sync
+Testing	INFO	Creating dir user-data/passwords/
+Service.RemoteStore	DEBUG	Downloading status file
+Testing	INFO	Retrieving user-data/passwords/status.json, returning status 200
+Service.Resource	DEBUG	GET request successful
+Service.JsonFilter	DEBUG	Decoding JSON data
+Service.RemoteStore	DEBUG	Downloading status file... done
+Service.PasswordEngine	INFO	Local snapshot version: 0
+Service.PasswordEngine	INFO	Server maxVersion: 0
+Service.RemoteStore	DEBUG	Using last sync snapshot as server snapshot (snap version == max version)
+Service.RemoteStore	TRACE	Local snapshot version == server maxVersion
+Service.PasswordEngine	INFO	Sync complete: no changes needed on client or server
+*** test finished
+*** exiting
+*** PASS ***

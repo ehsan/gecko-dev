@@ -1,0 +1,6 @@
+
+copy: mobile/branding/beta/locales/en-US/brand.properties
+copyrev: 25020b3b6a3198a170cc5854d6b78f41a3cab9f4
+
+brandShortName=Firefox Beta
+brandFullName=Mozilla Firefox Beta

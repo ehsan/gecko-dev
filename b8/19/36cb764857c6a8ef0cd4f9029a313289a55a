@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/utf8_bom.aff
+copyrev: d0b21d2825ccead05a116bf37f85a4bf299e005b
+
+﻿SET UTF-8
+
+# removing byte order mark from affix file

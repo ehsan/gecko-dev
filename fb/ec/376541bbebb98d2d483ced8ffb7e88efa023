@@ -1,0 +1,10 @@
+
+copy: config/autoconf-js.mk.in
+copyrev: c1b0f69e97cb470da71bfd4c2df53a60be5681ca
+
+ifndef INCLUDED_AUTOCONF_MK
+INCLUDED_AUTOCONF_MK = 1
+include $(DEPTH)/config/emptyvars.mk
+@ALLSUBSTS@
+include $(topsrcdir)/config/baseconfig.mk
+endif

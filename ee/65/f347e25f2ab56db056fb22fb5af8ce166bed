@@ -1,0 +1,21 @@
+
+copy: layout/base/tests/bug634406-1.html
+copyrev: 8fc63c1e5886b5692d941702e27310054afccba6
+
+<!DOCTYPE HTML><html><head>
+  <script type="text/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
+</head>
+<body>
+<textarea></textarea>
+<script>
+  var t = document.querySelector("textarea");
+  t.focus();
+
+  synthesizeKey("a", {});
+  synthesizeKey("A", {accelKey: true});
+  synthesizeKey("VK_RIGHT", {});
+  synthesizeKey("b", {});
+</script>
+</body>
+</html>

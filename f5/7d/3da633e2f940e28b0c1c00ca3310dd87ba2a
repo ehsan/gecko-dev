@@ -1,0 +1,14 @@
+
+copy: gfx/thebes/crashtests/385417-2.html
+copyrev: 5c63b255a495813abf25778f308038179f4e3c11
+
+<html>
+<head>
+</head>
+<body>
+
+<div><span style="text-transform: capitalize; font-variant: small-caps;">
+x</span></div>
+
+</body>
+</html>

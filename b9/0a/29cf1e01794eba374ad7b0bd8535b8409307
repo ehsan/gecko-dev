@@ -1,0 +1,10 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/option/081-novalid.html
+copyrev: 38905522830475c3d2dc177648360591809d6307
+
+<!doctype html>
+<meta charset=utf-8>
+<title>option element with empty label attribute</title>
+<select>
+<option label=""></option>
+</select>

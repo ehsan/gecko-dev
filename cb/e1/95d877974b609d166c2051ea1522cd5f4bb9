@@ -1,0 +1,5 @@
+
+copyrev: cd3110c5789c58c2897a938f983b1cec144c2bcb
+copy: layout/reftests/css-gradients/radial.html
+
+<div style="background: -moz-radial-gradient(100px 100px, closest-side, #ff0000 25px, #0000ff 50px) no-repeat; width: 300px; height: 300px;"><br></div>

@@ -1,0 +1,34 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-console-extras.html
+copyrev: 1f3d0eb99793920f9dc8ffff5b49766180069038
+
+<!DOCTYPE HTML>
+<html dir="ltr" xml:lang="en-US" lang="en-US"><head>
+    <title>Console extended API test</title>
+    <script type="text/javascript">
+      function test() {
+        console.log("start");
+        console.time();
+        console.timeEnd()
+        console.exception()
+        console.assert()
+        console.clear()
+        console.dir()
+        console.dirxml()
+        console.group()
+        console.groupCollapsed()
+        console.groupEnd()
+        console.profile()
+        console.profileEnd()
+        console.count()
+        console.table()
+        console.log("end");
+      }
+    </script>
+  </head>
+  <body>
+    <h1 id="header">Heads Up Display Demo</h1>
+    <button onclick="test();">Test Extended API</button>
+    <div id="myDiv"></div>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+
+copy: content/base/test/file_XHR_system_redirect.html^headers^
+copyrev: 4981514cde9bd2187524854164be6ab370dbf2ac
+
+HTTP 302 Found
+Location: file:///etc/passwd

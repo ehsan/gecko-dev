@@ -1,0 +1,26 @@
+
+copyrev: 541f1d092e9c4269ee2037b72564571c5bc65bbf
+copy: dom/src/base/crashtests/327571-1.html
+
+<html>
+<head>
+<script>
+
+function init()
+{
+
+  var x = document.getElementById("d");
+  x.__proto__ = document.getElementById("f");
+  x.inputname;
+}
+
+</script>
+</head>
+
+<body onload="init();">
+
+<div id="d"></div>
+<form id="f"><input name="inputname"></form>
+
+</body>
+</html>

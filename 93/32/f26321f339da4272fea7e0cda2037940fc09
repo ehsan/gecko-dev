@@ -1,0 +1,11 @@
+
+copy: content/svg/content/test/getSubStringLength-helper.svg
+copyrev: 9b53926e93dd80f30dabc0ca8a51bddcad5d9a63
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="750">
+  <style type="text/css">
+.t { font: 20px monospace; }
+  </style>
+  <text id="text" x="5" class="t" y="25">abc</text>
+</svg>

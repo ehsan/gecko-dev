@@ -1,0 +1,22 @@
+
+copy: content/canvas/crashtests/729116.html
+copyrev: e83e59ef1b8598ab7c35fa27d7b2d090d633f4ab
+
+﻿<html>
+<script language=javascript>
+
+function draw() {
+  var canv = document.getElementById("canv");
+  var ctx = canv.getContext("2d");
+  try {
+    canv.width = 50000;
+  } catch (e) { }
+
+  ctx.clearRect(0, 0, 10, 10);
+}
+
+</script>
+<body onload="draw()">
+<canvas id="canv" width="5" height="5"></canvas>
+</body>
+</html>

@@ -1,0 +1,12 @@
+
+copy: content/base/test/file_bug787778.sjs
+copyrev: fe999ce7077086e75175e8a144bafbea4990b9a9
+
+function handleRequest(request, response)
+{
+  response.processAsync();
+  response.setHeader("Content-Type", "text/plain", false);
+  response.setHeader("X-Frame-Options", "DENY", false);
+  
+  response.finish();
+}

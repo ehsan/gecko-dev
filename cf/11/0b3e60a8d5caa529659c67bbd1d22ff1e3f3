@@ -1,0 +1,19 @@
+
+copy: content/svg/content/src/crashtests/409811-1.html
+copyrev: 5cea1cb8987b0e95eb3e824b995020dcc3713663
+
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  var marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+  marker.orientType.baseVal = "";
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

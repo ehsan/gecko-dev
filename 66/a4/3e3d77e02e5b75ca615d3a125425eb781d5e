@@ -1,0 +1,7 @@
+
+copyrev: 2ea3520457f80bf26cd937d9854e2e980975e8a1
+copy: layout/reftests/svg/image/svg-image-util.css
+
+body   { margin: 0px; }
+img    { background: purple; border: 5px solid green}
+embed  { background: purple; border: 5px solid green}

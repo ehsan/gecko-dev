@@ -1,0 +1,5 @@
+
+copyrev: 5250209e16112b76a47ce70562720a19357a47e7
+copy: js/tests/js1_3/Boolean/shell.js
+
+gTestsubsuite = 'Boolean';

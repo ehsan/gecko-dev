@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/input/file/input-file-color-inherit.html
+copyrev: 900055cc7704d826bd284123b57207a44b576457
+
+<!DOCTYPE html>
+<html>
+  <body style='color: chartreuse;'>
+    <input type='file'>
+  </body>
+</html>

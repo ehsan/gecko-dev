@@ -1,0 +1,8 @@
+
+copy: js/src/jit-test/tests/parallelarray/scan-1.js
+copyrev: 68bb9ea25c2d62e30082606d50ae3efcfe9c7cf2
+
+load(libdir + "parallelarray-helpers.js");
+function sum(a, b) { return a+b; }
+if (getBuildConfiguration().parallelJS)
+  testArrayScanPar(range(1, 1024), sum);

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompounddup.wrong
+copyrev: cb69c61f5b825700c951126ccbe4bb5e4b9a9ac0
+
+foofoo
+foofoofoo
+foobarbar

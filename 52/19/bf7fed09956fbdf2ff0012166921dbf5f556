@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/forbiddenword.wrong
+copyrev: 9ffb1ffb9678d432f9ed1ed289933cec76ddc20a
+
+bars
+foos
+foobar
+barfoo

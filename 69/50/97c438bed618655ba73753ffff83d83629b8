@@ -1,0 +1,11 @@
+
+copy: content/base/crashtests/472593-1.html
+copyrev: e91743d1609e65a2cf7122a25a161e83bb928a8e
+
+<!DOCTYPE html>
+<html>
+<head>
+<body onload="document.getElementById('t').value = '';">
+<textarea rows="10" cols="1" wrap="hard" id="t">&#9;&#9;</textarea>
+</body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: content/base/test/file_CSP_bug802872.html
+copyrev: 2c7531a312b3cb5a875ed66500d6b156f3d9f74a
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Bug 802872</title>
+  <!-- Including SimpleTest.js so we can use AddLoadEvent !-->
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+  <script src='file_CSP_bug802872.js'></script>
+</body>
+</html>

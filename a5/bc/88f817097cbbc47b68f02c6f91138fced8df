@@ -1,0 +1,11 @@
+
+copy: mobile/xul/locales/en-US/chrome/webapps.dtd
+copyrev: c0de1c14609baa6cbcbe105cb2f0061d6c2a3b15
+
+<!ENTITY webapps.title.placeholder "Enter a title">
+<!ENTITY webapps.permissions "Allow access:">
+<!ENTITY webapps.perm.geolocation "Location-aware browsing">
+<!ENTITY webapps.perm.offline "Offline data storage">
+<!ENTITY webapps.perm.notifications "Desktop notifications">
+<!ENTITY webapps.perm.requestedHint "(requested)">
+<!ENTITY webapps.add-homescreen "Add to home screen">

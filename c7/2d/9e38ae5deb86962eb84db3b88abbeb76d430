@@ -1,0 +1,5 @@
+
+copy: dom/base/test/csp/file_CSP_bug909029_star.html^headers^
+copyrev: 26ad47af9b5588e00ff3c898a4680803b6fc7365
+
+Content-Security-Policy: default-src *; style-src * 'unsafe-inline';

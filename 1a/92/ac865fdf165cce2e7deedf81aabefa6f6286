@@ -1,0 +1,6 @@
+
+copy: content/base/test/xcsp/file_CSP_inlinescript_main.html^headers^
+copyrev: 6383388d0cfd42b782b2e99a32c347ca3a98e386
+
+X-Content-Security-Policy: allow 'self'
+Cache-Control: no-cache

@@ -1,0 +1,27 @@
+
+copy: dom/imported-tests/webapps/WebStorage/tests/submissions/Infraware/test_storage_session_getitem.html
+copyrev: f8d0cd4be69c99ce7b285420bec5f3ba02cef7e8
+
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <title>Web Storage</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body>
+    <h1>storage_session_getItem</h1>
+    <div id="log"></div>
+    <script>
+        test(function() {
+            sessionStorage.clear();
+            sessionStorage.setItem("name", "user1");
+            sessionStorage.setItem("age", "20");
+            test(function() {
+                assert_equals(sessionStorage.getItem("name"), "user1", "sessionStorage.getItem('name')")
+                assert_equals(sessionStorage.getItem("unknown"), null, "sessionStorage.getItem('unknown')")
+            }, "getItem method test")
+        });
+    </script>
+ </body>
+</html>

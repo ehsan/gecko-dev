@@ -1,0 +1,10 @@
+
+copy: content/svg/content/src/crashtests/385554-1.html
+copyrev: 3f37ad5e4aacd51f42f66a5b3c6d03f6c889810a
+
+<script>
+try {
+  document.createElementNS("http://www.w3.org/2000/svg", "svg").getScreenCTM();
+} catch(e) {
+}
+</script>

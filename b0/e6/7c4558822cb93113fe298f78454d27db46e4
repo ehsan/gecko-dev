@@ -1,0 +1,19 @@
+
+copy: layout/xul/crashtests/470063-1.html
+copyrev: 0f36b187c2944618c95f78b7d33ceaaf46df4c75
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  document.removeChild(document.documentElement)
+  document.appendChild(document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "hbox"));
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/complexprefixes.wrong
+copyrev: cd6fec8203b13ee2d43e3a5b89f91b3114c2ab71
+
+tekouro
+mettekouro

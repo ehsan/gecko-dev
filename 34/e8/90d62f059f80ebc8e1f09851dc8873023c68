@@ -1,0 +1,18 @@
+
+copy: layout/base/tests/font-inflation/intrinsic-max-1-ref.html
+copyrev: 204337a8d952dd2edfa9caad6b750fb53d786d51
+
+<!DOCTYPE HTML>
+<style>
+@font-face { font-family: Ahem; src: url(../fonts/Ahem.ttf); }
+html, body { margin: 0; padding: 0; }
+body { width: 450px }
+p {
+  margin: 0;
+  background: yellow;
+  color: blue;
+  width: 300px;
+  font: 24px Ahem;
+}
+</style>
+<p>This is tiny bit of text.</p>

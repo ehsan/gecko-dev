@@ -1,0 +1,40 @@
+
+copy: dom/imported-tests/webapps/WebStorage/tests/submissions/Ms2ger/test_storage_local_index_js.html
+copyrev: c7090f9d51b287452861ca77543933360295225b
+
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <title>Web Storage</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body>
+    <h1>storage_local_index</h1>
+    <div id="log"></div>
+    <script>
+        test(function() {
+            localStorage.clear();
+            localStorage["name"] = "user1";
+            localStorage["age"] = "42";
+            test(function() {
+                assert_equals(localStorage[-1], undefined);
+                assert_equals(localStorage[0], undefined);
+                assert_equals(localStorage[1], undefined);
+                assert_equals(localStorage[2], undefined);
+            })
+            test(function() {
+                assert_equals(localStorage["-1"], undefined);
+                assert_equals(localStorage["0"], undefined);
+                assert_equals(localStorage["1"], undefined);
+                assert_equals(localStorage["2"], undefined);
+            })
+            localStorage.setItem(1, "number");
+            test(function() {
+                assert_equals(localStorage[1], "number");
+                assert_equals(localStorage["1"], "number");
+            })
+        });
+    </script>
+ </body>
+</html>

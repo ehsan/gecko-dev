@@ -1,0 +1,5 @@
+
+copyrev: 72411be1f505245227cbe7939ea9a7e9b3ae0c9c
+copy: js/tests/ecma_3_1/RegExp/shell.js
+
+gTestsubsuite='RegExp';

@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/conditionalprefix.good
+copyrev: a52ff3852ccf57efdb9f04523b48a7840495d22f
+
+drink
+drinks
+drinkable
+drinkables
+undrinkable
+undrinkables

@@ -1,0 +1,15 @@
+
+copy: content/base/test/file_bug601803b.html
+copyrev: 372e6d4e709d5137bf3b999418208221ae4939f4
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test for Bug 601803</title>
+</head>
+<body>
+<script type="application/javascript">
+document.domain = "example.org";
+</script>
+</body>
+</html>

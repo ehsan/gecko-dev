@@ -1,0 +1,6 @@
+
+copy: content/base/crashtests/552651.xml
+copyrev: 6f6068934c41634a785066bedf4d716fe17fc0ac
+
+<foo>test</foo>
+

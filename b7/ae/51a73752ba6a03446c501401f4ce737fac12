@@ -1,0 +1,20 @@
+
+copy: content/xslt/tests/buster/result-view.css
+copyrev: 5ba42a32b3ea14248ca3e2ad7ea268280d36d82c
+
+label.heading {
+  font-size:   medium;
+  font-weight: bold;
+}
+
+button.close {
+  font-size:   small;
+}
+
+iframe {
+  padding-left: 10px;
+}
+
+vbox.hidden {
+    display: none;
+}

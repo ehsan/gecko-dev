@@ -1,0 +1,7 @@
+
+copy: mobile/android/sync/android-drawable-resources.mn
+copyrev: abc06b854a3676d76c818ab5682d247eacc4f16c
+
+mobile/android/base/resources/drawable/desktop.png
+mobile/android/base/resources/drawable/mobile.png
+mobile/android/base/resources/drawable/pin_background.xml

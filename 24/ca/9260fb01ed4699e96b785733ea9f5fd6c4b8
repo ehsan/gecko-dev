@@ -1,0 +1,12 @@
+
+copyrev: 815fbaa4f5260d4ec0415c69a629e613daef9bc2
+copy: js/src/trace-test/tests/basic/testNot.js
+
+function testNot() {
+    var a = new Object(), b = null, c = "foo", d = "", e = 5, f = 0, g = 5.5, h = -0, i = true, j = false, k = undefined;
+    var r;
+    for (var i = 0; i < 10; ++i)
+        r = [!a, !b, !c, !d, !e, !f, !g, !h, !i, !j, !k];
+    return r.join(",");
+}
+assertEq(testNot(), "false,true,false,true,false,true,false,true,false,true,true");

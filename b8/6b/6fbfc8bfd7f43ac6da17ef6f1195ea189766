@@ -1,0 +1,5 @@
+
+copy: layout/reftests/forms/indeterminate-unchecked-notref.html
+copyrev: b1f27a9b300aaf4b4fcb28a803f2f4556ff77924
+
+<input type="checkbox" style="-moz-appearance: none;">

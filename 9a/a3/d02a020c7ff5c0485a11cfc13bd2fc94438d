@@ -1,0 +1,10 @@
+
+copy: layout/reftests/css-valid/input/input-ref.html
+copyrev: 954421510824253b4d60c70023d25df6710c4e3b
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input style="background-color: green;">
+  </body>
+</html>

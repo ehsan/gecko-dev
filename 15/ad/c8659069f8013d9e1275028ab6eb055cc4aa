@@ -1,0 +1,6 @@
+
+copy: content/html/content/test/file_imports_redirect.html^headers^
+copyrev: f54177a47722243c10655f0788e6407135387ad7
+
+HTTP 301 Moved Permanently
+Location: http://mochi.test:8888/tests/dom/html/test/file_imports_redirected.html

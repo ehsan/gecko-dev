@@ -1,0 +1,24 @@
+
+copyrev: 23402b31e50cc86a9a282f4ca5f7a9a7736978b8
+copy: js/src/trace-test/tests/basic/testNativeMax.js
+
+function testNativeMax() {
+    var out = [], k;
+    for (var i = 0; i < 5; ++i) {
+        k = Math.max(k, i);
+    }
+    out.push(k);
+
+    k = 0;
+    for (var i = 0; i < 5; ++i) {
+        k = Math.max(k, i);
+    }
+    out.push(k);
+
+    for (var i = 0; i < 5; ++i) {
+        k = Math.max(0, -0);
+    }
+    out.push((1 / k) < 0);
+    return out.join(",");
+}
+assertEq(testNativeMax(), "NaN,4,false");

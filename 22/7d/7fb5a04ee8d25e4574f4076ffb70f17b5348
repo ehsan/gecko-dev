@@ -1,0 +1,13 @@
+
+copy: content/xml/document/resources/jar.mn
+copyrev: 015fe2ccb517ae36f3fa6ae69d016a3cec30f8a9
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+toolkit.jar:
+    content/global/xml/XMLPrettyPrint.css                 (XMLPrettyPrint.css)
+    content/global/xml/XMLMonoPrint.css                   (XMLMonoPrint.css)
+    content/global/xml/XMLPrettyPrint.xml                 (XMLPrettyPrint.xml)
+    content/global/xml/XMLPrettyPrint.xsl                 (XMLPrettyPrint.xsl)

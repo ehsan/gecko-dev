@@ -1,0 +1,13 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/accesskey/multi-character-key-label-novalid.html
+copyrev: d3f7460437f5c8820ac1c094bf31fea99b93780b
+
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8">
+<title>accesskey attribute with multi-character key label</title>
+</head>
+<body>
+<a href=url accesskey="a b ほげ">foo</a>
+</body>
+</html>

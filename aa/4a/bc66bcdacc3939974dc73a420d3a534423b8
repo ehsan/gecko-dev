@@ -1,0 +1,14 @@
+
+copyrev: 4eda5bd2142ac6725b0c68caf9347e89398f319d
+copy: js/src/trace-test/tests/jaeger/bug563000/simple-trap-2.js
+
+setDebug(true);
+var x = "notset";
+function main() { x = "failure"; }
+function success() { x = "success"; }
+
+/* The JSOP_STOP in a. */
+trap(main, 7, "success()");
+main();
+
+assertEq(x, "success");

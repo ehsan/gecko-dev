@@ -1,0 +1,19 @@
+
+copy: content/events/test/bug415498-doc2.html
+copyrev: 31e54d8ea8597a5ae7d5331a8e7393f0bb1b5bf3
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<script type="text/javascript">
+function init() {
+  // This will throw a HierarchyRequestError exception
+  var doc = document.implementation.createDocument(null, 'DOC', null);
+  doc.documentElement.appendChild(doc);
+}
+onload = init;
+</script>
+</head>
+<body>
+  Testcase for bug 415498. This page should show an exception in Error Console on load
+</body>

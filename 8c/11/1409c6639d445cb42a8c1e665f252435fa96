@@ -1,0 +1,17 @@
+
+copy: content/svg/content/src/crashtests/428841-1.svg
+copyrev: ce0f0d68f499c24128c4ca8c1aa1d4b765b58c55
+
+<svg xmlns="http://www.w3.org/2000/svg" onload="boom();">
+     
+<script type="text/javascript">
+
+function boom()
+{
+  var path = document.createElementNS("http://www.w3.org/2000/svg", "path"); 
+  path.getPathSegAtLength(1); 
+}
+
+</script>
+
+</svg>

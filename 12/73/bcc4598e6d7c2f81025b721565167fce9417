@@ -1,0 +1,9 @@
+
+copy: content/xslt/crashtests/182460-selects.xsl
+copyrev: fc9aaeab6855ca99429f6a084fac042afca653a2
+
+<html>
+<body>
+hi
+</body>
+</html>

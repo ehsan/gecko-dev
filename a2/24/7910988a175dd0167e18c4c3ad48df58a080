@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/zeroaffix.good
+copyrev: deb67baeaea8be881b1d232fd074536a38c87caf
+
+bar
+foo
+barbaz

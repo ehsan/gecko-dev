@@ -1,0 +1,9 @@
+
+copy: toolkit/themes/pinstripe/reftests/reftest.list
+copyrev: c50abb0382ede65f94f49b5ac084e6887efe67e1
+
+skip-if(!cocoaWidget) == 482681.xul 482681-ref.xul
+skip-if(!cocoaWidget) == radiosize.xul radiosize-ref.xul
+skip-if(!cocoaWidget) == checkboxsize.xul checkboxsize-ref.xul
+skip-if(!cocoaWidget) == baseline.xul about:blank
+skip-if(!cocoaWidget) == nostretch.xul nostretch-ref.xul

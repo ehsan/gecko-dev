@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/utf8_bom2.aff
+copyrev: e3b7f86e122e5d0fa9a07283d3aa7fcaed2d95df
+
+SET UTF-8
+
+# removing byte order mark from dic file

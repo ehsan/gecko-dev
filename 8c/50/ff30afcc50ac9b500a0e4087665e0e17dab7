@@ -1,0 +1,18 @@
+
+copy: extensions/spellcheck/hunspell/tests/germancompoundingold.good
+copyrev: 8a2ef567897711dcbb95b1e834c18ced667e3463
+
+Computer
+Computern
+Arbeit
+Arbeits-
+Computerarbeit
+Computerarbeits-
+Arbeitscomputer
+Arbeitscomputern
+Computerarbeitscomputer
+Computerarbeitscomputern
+Arbeitscomputerarbeit
+Computerarbeits-Computer
+Computerarbeits-Computern
+Computer-Arbeit

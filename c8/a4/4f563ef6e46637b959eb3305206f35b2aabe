@@ -1,0 +1,35 @@
+
+copy: layout/xul/crashtests/326879-1.xul
+copyrev: 2d76c393bf630556e8dae3f289bc12cc4b758542
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+
+
+<script>
+
+
+function init() { 
+
+  var menupopup = document.getElementsByTagName("menupopup")[0];
+  menupopup.ordinal = null;
+};
+
+
+window.addEventListener("load", init, false);
+
+</script>
+
+
+<menulist>
+  <menupopup>
+    <menuitem label="Foo"/>
+  </menupopup>
+</menulist>
+
+        
+
+</window>

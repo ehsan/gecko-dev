@@ -1,0 +1,22 @@
+
+copy: dom/imptests/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-15.htm
+copyrev: 6e7f0bb77c1a6e666cad2be017d30ea4514b6be4
+
+<!doctype html>
+<html class="a
+b">
+ <head>
+  <title>document.getElementsByClassName(array): "a\n"</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body class="a
+">
+  <div id="log"></div>
+  <script>test(function () {
+                 assert_array_equals(document.getElementsByClassName(["a\n"]), 
+                                    [document.documentElement, document.body]);
+          })
+ </script>
+ </body>
+</html>

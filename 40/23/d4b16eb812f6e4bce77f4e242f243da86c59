@@ -1,0 +1,12 @@
+
+copy: browser/themes/pinstripe/browser/fullscreen-video.css
+copyrev: ec3c06965fc570e0007b7f70b2e7ef2406b8b83e
+
+#close {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
+  background: url(KUI-close.png) center center no-repeat;
+}

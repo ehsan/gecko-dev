@@ -1,0 +1,5 @@
+
+copyrev: 06ab933175d4f32451177b991546c8cb2d5010a6
+copy: dom/src/json/test/fail20.json
+
+{"Double colon":: null}

@@ -1,0 +1,17 @@
+
+copyrev: 549ab2469f1161fa8405f857c20c8394f201cff4
+copy: js/src/trace-test/tests/jaeger/bug560221.js
+
+try {
+  (function() {
+    (Object.defineProperty(this, "x", ({
+      set: function() {}
+    })))
+  })()
+} catch(e) {}
+for (var a = 0; a < 4; a++) {
+  x = 7
+}
+
+/* Don't bogus assert. */
+

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-input-attr-before.html
+copyrev: 4f1cb749ef270a0e64607613b123d86de05165a8
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="text" spellcheck="true" value="blahblahblah">
+</body>
+</html>

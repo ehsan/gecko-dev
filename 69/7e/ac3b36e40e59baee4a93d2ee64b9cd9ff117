@@ -1,0 +1,5 @@
+
+copyrev: 49eb54b197edfb472315e288ae297fb34e1b407d
+copy: dom/src/json/test/fail3.json
+
+{unquoted_key: "keys must be quoted"}

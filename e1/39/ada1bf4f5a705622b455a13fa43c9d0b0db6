@@ -1,0 +1,6 @@
+
+copy: content/xbl/builtin/gtk2/jar.mn
+copyrev: 4c4d819c3ac77e48a2b6e54b7e719dc0eb509ceb
+
+toolkit.jar:
+* content/global/platformHTMLBindings.xml   (platformHTMLBindings.xml)

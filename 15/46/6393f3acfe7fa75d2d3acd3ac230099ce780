@@ -1,0 +1,12 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-malformedxml-external.xml
+copyrev: 8afc87ea73e974aacbd53af5858a88583e440d81
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+  </head>
+  <body>
+    <p>Web Console test for bug 595934 - category "malformed-xml".</p>
+  </body>

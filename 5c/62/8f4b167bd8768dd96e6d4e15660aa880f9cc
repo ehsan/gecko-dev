@@ -1,0 +1,10 @@
+
+copyrev: be477c07ca4be01a46cbe0a87df3410890abd2fd
+copy: js/src/trace-test/tests/jaeger/bug552644.js
+
+(function() {
+  for (e in ((function() {
+    yield
+  })())) return
+})()
+/* Don't assert. */

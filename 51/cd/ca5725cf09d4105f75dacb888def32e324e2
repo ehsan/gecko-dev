@@ -1,0 +1,14 @@
+
+copyrev: 9bb172b9826c202e73f7aaa3efb6fcf1e08e1144
+copy: js/src/trace-test/tests/jaeger/bug563000/eif-trap-typechange.js
+
+setDebug(true);
+
+function nop(){}
+function caller(obj) {
+  assertJit();
+  var x = ({ dana : "zuul" });
+  return x;
+}
+trap(caller, 23, "x = 'success'; nop()");
+assertEq(caller(this), "success");

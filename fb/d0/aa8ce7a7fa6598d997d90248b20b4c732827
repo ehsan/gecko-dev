@@ -1,0 +1,18 @@
+
+copyrev: 874b6cf0b3ed778ef6c75121f962e50fbf2f1725
+copy: testing/mozmill/mozmill-1.5.0/mozmill/extension/content/dxwindow.xul
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+ 
+<prefwindow id="mozmill-dxwindow"
+     title="DOM Explorer"
+     xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+ 
+<prefpane id="dxwindow" label="DOM Explorer">
+
+  <hbox id="dxtarget" align="center">
+  </hbox>
+</prefpane>
+ 
+</prefwindow>

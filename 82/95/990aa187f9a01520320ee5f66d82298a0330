@@ -1,0 +1,25 @@
+
+copy: content/base/crashtests/822691.html
+copyrev: 2c37f919d0f8a7e36d88465e599b0ea45a6cc411
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var frameDoc = document.getElementById("f").contentDocument;
+
+  var confusedNode = frameDoc.createTextNode("y");
+  confusedNode.__proto__ = document.createTextNode("x");
+  confusedNode.setUserData("key", "data", null);
+  confusedNode.setUserData("key", "data", null);
+}
+
+</script>
+</head>
+<body onload="boom();">
+<iframe src="data:text/html,1" id="f"></iframe>
+</body>
+</html>

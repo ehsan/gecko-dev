@@ -1,0 +1,7 @@
+
+copy: content/base/test/eventsource_redirect.resource^headers^
+copyrev: 0321f09b44fc0f5281ead6a750e881a859e9fa07
+
+HTTP 301 Moved Permanently
+Location: eventsource_redirect_to.resource
+

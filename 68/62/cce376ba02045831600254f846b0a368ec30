@@ -1,0 +1,32 @@
+
+copy: editor/libeditor/base/crashtests/713427-2.xhtml
+copyrev: 1d16ac14b3e1a3e6e7d6eff8f0cfcd2f7c2cf17e
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+<![CDATA[
+
+function boom()
+{
+  while (document.documentElement.firstChild) {
+    document.documentElement.removeChild(document.documentElement.firstChild);
+  }
+
+  var td = document.createElementNS("http://www.w3.org/1999/xhtml", "td");
+  td.setAttributeNS(null, "contenteditable", "true");
+  (document.documentElement).appendChild(td);
+  var head = document.createElementNS("http://www.w3.org/1999/xhtml", "head");
+  (document.documentElement).appendChild(head);
+
+  head.appendChild(td);
+}
+
+window.addEventListener("load", boom, false);
+
+]]>
+</script>
+</head>
+
+<body></body>
+</html>

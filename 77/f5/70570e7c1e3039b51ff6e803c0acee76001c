@@ -1,0 +1,22 @@
+
+copy: layout/reftests/css-valid/button/style.css
+copyrev: 38e098882c2d0053d48553e266c7d29c8e8cde0b
+
+/* Override default style */
+button:invalid {
+  box-shadow: none;
+}
+
+button.notvalid {
+  background-color: green;
+}
+button.notvalid:-moz-ui-valid {
+  background-color: red;
+}
+
+button.valid {
+  background-color: red;
+}
+button.valid:-moz-ui-valid {
+  background-color: green;
+}

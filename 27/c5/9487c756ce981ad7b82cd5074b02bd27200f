@@ -1,0 +1,9 @@
+
+copyrev: 6f063e117b4df27339904b07f48b714c0cef3ed7
+copy: js/src/trace-test/tests/basic/testAddUndefined.js
+
+function testAddUndefined() {
+    for (var j = 0; j < 3; ++j)
+        (0 + void 0) && 0;
+}
+testAddUndefined();

@@ -1,0 +1,13 @@
+
+copyrev: ce8e35ef575cf903f24fc1a35fba6857257a3e8b
+copy: js/src/trace-test/tests/basic/testNestedForIn.js
+
+function testNestedForIn() {
+    var a = {x: 1, y: 2, z: 3};
+    var s = '';
+    for (var p1 in a)
+        for (var p2 in a)
+            s += p1 + p2 + ' ';
+    return s;
+}
+assertEq(testNestedForIn(), 'xx xy xz yx yy yz zx zy zz ');

@@ -1,0 +1,12 @@
+[DEFAULT]
+support-files =
+  head.js
+
+[browser_NetworkPrioritizer.js]
+[browser_SignInToWebsite.js]
+[browser_UITour.js]
+support-files = uitour.*
+[browser_UITour2.js]
+support-files = uitour.*
+[browser_taskbar_preview.js]
+run-if = os == "win"

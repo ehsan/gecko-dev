@@ -1,0 +1,9 @@
+
+copy: gfx/thebes/crashtests/423270-1.html
+copyrev: 164a8acbc7e33de2d66154e9cc041090921fd4b8
+
+<html>
+<body>
+<p style="font-family: DejaVu Sans">&#814;</p>
+</body>
+</html>

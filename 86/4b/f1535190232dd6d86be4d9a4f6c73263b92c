@@ -1,0 +1,17 @@
+
+copy: js/src/xpconnect/src/dombindings.conf
+copyrev: 600d0da868b8d9712b86436c20bf38c6e4cbe953
+
+classes = {
+    'NodeList': 'nsINodeList',
+    'HTMLCollection': 'nsIHTMLCollection',
+    'HTMLOptionsCollection': 'nsHTMLOptionCollection',
+    }
+
+irregularFilenames = {
+    'nsHTMLOptionCollection': 'nsHTMLSelectElement',
+    }
+
+customInheritance = {
+    'nsIDOMHTMLOptionsCollection': 'nsIDOMHTMLCollection',
+    }

@@ -1,0 +1,32 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/hr/026-novalid.html
+copyrev: 1e8791cfb0d4c523b6ff67a3d19b7dd6b506d698
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;hr&gt;</title>
+</head>
+<body>
+  <!-- is not structured inline -->
+  <p>
+    <ul>
+      <li>
+        <hr>
+      </li>
+    </ul>
+  </p>
+
+  <!-- is not strictly inline -->
+  <p><dfn>text
+    <hr>
+  </dfn></p>
+
+  <!-- must be empty -->
+  <hr>
+    <p>p1</p>
+  
+  <hr><em>text</em>
+</body>
+</html>

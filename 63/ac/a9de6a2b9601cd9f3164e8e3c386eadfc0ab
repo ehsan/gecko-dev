@@ -1,0 +1,24 @@
+
+copy: content/svg/content/src/crashtests/369568-1.svg
+copyrev: b07f56a3f41b46e6e8a813fe92e439248c2e2f63
+
+<svg xmlns="http://www.w3.org/2000/svg" onload="boom()">
+
+<script>
+function boom()
+{
+  document.getElementById("Gaussian_Blur").href;
+}
+</script>
+
+<defs>
+<filter id="Gaussian_Blur">
+<feGaussianBlur in="SourceGraphic" stdDeviation="3"/>
+</filter>
+</defs>
+
+<ellipse cx="200" cy="150" rx="70" ry="40"
+style="fill:#ff0000;stroke:#000000;
+stroke-width:2;filter:url(#Gaussian_Blur)"/>
+
+</svg>

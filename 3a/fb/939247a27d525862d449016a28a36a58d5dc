@@ -1,0 +1,22 @@
+
+copy: content/media/test/crashtests/493915-1.html
+copyrev: f6115d83292ca0decb3e2f7560feba5a097c58ed
+
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  s = document.createElement("span");
+  a = document.createElement("audio");
+  a['src'] = "javascript:4";
+  a['loopend'] = 3;
+  s.appendChild(a);
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

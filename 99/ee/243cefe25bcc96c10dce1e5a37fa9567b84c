@@ -1,0 +1,15 @@
+
+copy: extensions/spellcheck/hunspell/tests/phone.dic
+copyrev: 97b50af4dd8b46049ae46abf5c8e3d02d1005c7c
+
+10
+Brasilia
+brassily
+Brazilian
+brilliance
+brilliancy
+brilliant
+brain
+brass
+Churchillian
+xxxxxxxxxx	ph:Brasilia

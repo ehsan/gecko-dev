@@ -1,0 +1,24 @@
+<!DOCTYPE>
+<html class="reftest-wait">
+  <script>
+
+function startTest()
+{
+  window.addEventListener('MozAfterPaint', finishTest, false);
+  var e = document.getElementById('e');
+  e.setCustomValidity('foo');
+  e.focus();
+}
+
+function finishTest()
+{
+  document.documentElement.className='';
+}
+
+window.addEventListener("MozReftestInvalidate", startTest, false);
+
+  </script>
+  <body>
+    <textarea id='e'></textarea>
+  </body>
+</html>

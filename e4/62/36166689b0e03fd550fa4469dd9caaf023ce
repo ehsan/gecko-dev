@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/colons_in_words.dic
+copyrev: 9c66bd49c3796a316d95ca9dcab2228ddb07524b
+
+2
+c:a
+S:t
+foo

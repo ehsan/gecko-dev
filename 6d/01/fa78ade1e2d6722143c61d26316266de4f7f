@@ -1,0 +1,5 @@
+
+copy: modules/libpr0n/test/reftest/gif/webcam.html
+copyrev: e4f918085a8340640e6259f679003338e09329d7
+
+<img src="webcam-simulacrum.mgif">

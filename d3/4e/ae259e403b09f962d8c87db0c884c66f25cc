@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundtriple.wrong
+copyrev: e83bcc065ce099d50ff4a4989c6063d47eabac37
+
+fooopera
+bareeel

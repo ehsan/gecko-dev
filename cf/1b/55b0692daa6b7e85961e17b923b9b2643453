@@ -1,0 +1,30 @@
+
+copy: layout/xul/base/src/grid/reftests/sizing-2d.xul
+copyrev: 42ea9683f5c077aaf548a77737c7c8511a0a29ad
+
+<?xml version="1.0"?>
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" align="start">
+  <grid>
+    <rows>
+      <row>
+        <box style="width: 25px; height: 25px" />
+        <box />
+      </row>
+      <row>
+        <box />
+        <box style="width: 75px; height: 75px" />
+      </row>
+    </rows>
+    <columns>
+      <column>
+        <box style="background: aqua" />
+        <box style="background: yellow; width: 50px; height: 50px" />
+      </column>
+      <column>
+        <box style="background: fuchsia; width: 100px; height: 100px" />
+        <box style="background: blue" />
+      </column>
+    </columns>
+  </grid>
+</window>

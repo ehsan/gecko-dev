@@ -1,0 +1,15 @@
+
+copyrev: e29546fa1ba1efc29b4bfae3d210d3f5cab4fd02
+copy: js/src/trace-test/tests/basic/testBranchingLoop.js
+
+function testBranchingLoop() {
+  var x = 0;
+  for (var i=0; i < 100; ++i) {
+    if (i == 51) {
+      x += 10;
+    }
+    x++;
+  }
+  return x;
+}
+assertEq(testBranchingLoop(), 110);

@@ -1,0 +1,17 @@
+
+copy: content/html/content/test/file_bug297761.html
+copyrev: 6ac894eb8860552676bb07c0506577959ba1d79f
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <base href="http://www.mozilla.org/">
+  </head>
+  <body>
+    <form action="">
+      <input type='submit' formaction="">
+      <button type='submit' formaction=""></button>
+      <input id='i' type='image' formaction="">
+    </form>
+  </body>
+</html>

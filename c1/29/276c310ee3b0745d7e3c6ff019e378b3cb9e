@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-period-valid.html
+copyrev: 09a0ceaefdd539091ee4db4936cc94d35be81ac0
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea autofocus>good.nice</textarea>
+  </body>
+</html>

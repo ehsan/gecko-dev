@@ -1,0 +1,38 @@
+
+copy: layout/reftests/editor/462758-grabbers-resizers-ref.html
+copyrev: 720977cab0f6d27886e2ed9406a9d62040f6401c
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<head>
+  <script type="text/javascript">
+    function init() {
+      var editor = document.querySelector("div[contenteditable]");
+      editor.addEventListener("focus", function() {
+        setTimeout(function() {
+          document.documentElement.className = "";
+        }, 0);
+      }, false);
+      editor.focus();
+    }
+  </script>
+  <style type="text/css">
+    html, body, div {
+      margin: 0;
+      padding: 0;
+    }
+    div {
+      border: 1px solid black;
+      margin: 50px;
+      height: 200px;
+      width: 200px;
+    }
+  </style>
+</head>
+<body onload="init()">
+  <div contenteditable>
+    this editable container should be neither draggable nor resizable.
+  </div>
+</body>
+</html>
+

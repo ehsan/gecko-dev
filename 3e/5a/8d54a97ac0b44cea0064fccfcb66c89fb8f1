@@ -1,0 +1,17 @@
+
+copyrev: 85f2d45cc5d3b36413232b1eeab6319fc331f7ce
+copy: js/src/trace-test/tests/closures/bug540131-3.js
+
+(function() {
+  (eval("\
+    (function() {\
+      let(e = eval(\"\
+        for(z=0;z<5;z++){}\
+      \"))\
+      (function(){\
+        x = e\
+      })()\
+    })\
+  "))()
+})();
+print(x)

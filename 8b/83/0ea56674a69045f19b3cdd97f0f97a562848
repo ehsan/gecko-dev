@@ -1,0 +1,20 @@
+
+copy: content/base/crashtests/771639.html
+copyrev: 88144ffb81a23fe163f38de28b09f4973520e476
+
+<!DOCTYPE html>
+<script>
+var root = document.documentElement;
+while(root.firstChild) { root.removeChild(root.firstChild); }
+var div = document.createElement("div");
+root.appendChild(div);
+
+document.addEventListener("DOMNodeRemoved", function() {
+  root.appendChild(document.createTextNode("some mutation"));
+}, false);
+
+var range = document.createRange();
+range.setStart(root, 0);
+range.setEnd(root, root.childNodes.length);
+range.deleteContents();
+</script>

@@ -1,0 +1,5 @@
+
+copy: content/media/test/invalid-cmap-s0c0.opus^headers^
+copyrev: 7da3fb2d0c72c83cbf2fb524dd07257a31d5ae73
+
+Cache-Control: no-store

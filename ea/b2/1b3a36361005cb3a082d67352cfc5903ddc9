@@ -1,0 +1,8 @@
+
+copy: browser/base/content/test/browser_scope.js
+copyrev: 711b20f2cd4c1a8db5126c01d2064bc39c32e8ae
+
+function test() {
+  ok(!!gBrowser, "gBrowser exists");
+  is(gBrowser, getBrowser(), "both ways of getting tabbrowser work");
+}

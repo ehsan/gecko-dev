@@ -1,0 +1,8 @@
+
+copy: js/src/jit-test/tests/binary-data/fuzz7.js
+copyrev: 5ff610a0a880aea5dfb84914b0bdd98cb94696fb
+
+if (!this.hasOwnProperty("Type"))
+  exit(0);
+
+new StructType(RegExp());

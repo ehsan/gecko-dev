@@ -1,0 +1,8 @@
+
+copy: content/svg/content/src/crashtests/344888-1.svg
+copyrev: b0afc36312bc2af5d51d3ab5c92f31557acc2380
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<rect x="0 0 30 40" />
+</svg>

@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/flagutf8.dic
+copyrev: dfd587834eaf29b42f4f19fea5462c013816d075
+
+1
+foo/AÜ

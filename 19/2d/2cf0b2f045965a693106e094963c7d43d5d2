@@ -1,0 +1,33 @@
+
+copyrev: cfcebe58d83c2883569a9403a32bd4d89cb05772
+copy: modules/plugin/samples/npthread/windows/npthread.dsw
+
+Microsoft Developer Studio Workspace File, Format Version 6.00
+# WARNING: DO NOT EDIT OR DELETE THIS WORKSPACE FILE!
+
+###############################################################################
+
+Project: "npthread"=.\npthread.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Global:
+
+Package=<5>
+{{{
+}}}
+
+Package=<3>
+{{{
+}}}
+
+###############################################################################
+

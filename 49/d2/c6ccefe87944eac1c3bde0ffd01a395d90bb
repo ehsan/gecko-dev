@@ -1,0 +1,26 @@
+
+copy: browser/themes/winstripe/browser/syncQuota.css
+copyrev: ef7c78c9483128e1eeaccda10bce6961567a289e
+
+#quotaDialog {
+  width: 33em;
+  height: 25em;
+}
+
+treechildren::-moz-tree-checkbox {
+  list-style-image: none;
+}
+treechildren::-moz-tree-checkbox(checked) {
+  list-style-image: url("chrome://global/skin/checkbox/cbox-check.gif");
+}
+treechildren::-moz-tree-checkbox(disabled) {
+  list-style-image: url("chrome://global/skin/checkbox/cbox-check-dis.gif");
+}
+
+#treeCaption {
+  height: 4em;
+}
+
+.captionWarning {
+  font-weight: bold;
+}

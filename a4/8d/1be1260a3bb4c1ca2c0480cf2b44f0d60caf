@@ -1,0 +1,23 @@
+
+copyrev: 7f5cddf5c6b497a109a3dbbfa65e122fb33a33f6
+copy: js/src/trace-test/tests/basic/bug529130.js
+
+// don't crash
+
+var q = 30;
+
+function var_iter(v) {
+  q--;
+  yield v;
+  if (q > 0) {
+    for each (let ret in var_iter(v)) {
+      var_iter(v);
+      yield ret;
+    }
+  }
+}
+
+for (x in var_iter([1, 2, 3, 4, 5, 6, 7, 8, 9]))
+ print(x);
+
+

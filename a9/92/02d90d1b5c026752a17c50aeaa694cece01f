@@ -1,0 +1,9 @@
+
+copy: browser/base/content/test/general/plugin_bug797677.html
+copyrev: 77dda6445c06096fe0f4003289da2229f45114a6
+
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body><embed id="plugin" type="9000"></embed></body>
+</html>

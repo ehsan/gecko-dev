@@ -1,0 +1,5 @@
+
+copyrev: 77ca8f0b663342fc1326a2e3408f39968ccddb04
+copy: js/src/trace-test/tests/jaeger/bug580712.js
+
+--''.trimLeft

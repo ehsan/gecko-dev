@@ -1,0 +1,17 @@
+
+copy: dom/workers/test/bug911085_worker.js
+copyrev: 55365a4cdd1e7b7d8f0f64e019773f93a4f7c4c4
+
+onmessage = function(evt) {
+  postMessage(postMessage('ignore') == undefined);
+
+  var id = setInterval(function() {}, 200);
+  postMessage(clearInterval(id) == undefined);
+
+  id = setTimeout(function() {}, 200);
+  postMessage(clearTimeout(id) == undefined);
+
+  postMessage(dump(42) == undefined);
+
+  postMessage('finished');
+}

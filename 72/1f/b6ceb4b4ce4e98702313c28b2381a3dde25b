@@ -1,0 +1,21 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/address/029-novalid.html
+copyrev: 431f3dc4f6f1faa8c2bb1b8e464b0a62aff6694b
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;address&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <address class="class" id="id" lang="en">text</address>
+
+  <!-- can contain interactive -->
+  <address><a>text</a></address>
+
+  <!-- cannot contain address inline -->
+  <address>text <address>elem</address></address>
+</body>
+</html>

@@ -1,0 +1,6 @@
+
+copy: layout/reftests/css-namespace/support/scope-002b.css
+copyrev: 8b13f3499c279b8ef705716a547dd5148dbd7d5f
+
+y|test { background: red }
+

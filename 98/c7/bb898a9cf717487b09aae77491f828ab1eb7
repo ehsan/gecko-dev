@@ -1,0 +1,7 @@
+
+copy: browser/devtools/styleinspector/test/browser_bug705707_is_content_stylesheet_linked.css
+copyrev: 228a4a97f1643ef3d77e6b0c323a70b8d098f9a9
+
+table  {
+  border-collapse: collapse;
+}

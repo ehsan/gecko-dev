@@ -1,0 +1,28 @@
+
+copy: mobile/chrome/tests/addons/browser_locale1/install.rdf
+copyrev: 0a643385669536df7a9318f53622d2af30cd2417
+
+<?xml version="1.0"?>
+
+<RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:em="http://www.mozilla.org/2004/em-rdf#">
+
+  <Description about="urn:mozilla:install-manifest">
+    <em:id>locale1@tests.mozilla.org</em:id>
+    <em:version>1.0</em:version>
+    <em:type>8</em:type>
+    <em:bootstrap>true</em:bootstrap>
+
+    <em:targetApplication>
+      <Description>
+        <em:id>toolkit@mozilla.org</em:id>
+        <em:minVersion>0</em:minVersion>
+        <em:maxVersion>*</em:maxVersion>
+      </Description>
+    </em:targetApplication>
+
+    <!-- Front End MetaData -->
+    <em:name>Test Locale</em:name>
+
+  </Description>
+</RDF>

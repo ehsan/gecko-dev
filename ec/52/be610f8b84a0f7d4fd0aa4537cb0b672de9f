@@ -1,0 +1,13 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-600183-charset.html
+copyrev: 45107557a403d594d9c0c4ea9c5c74e756532429
+
+<!DOCTYPE HTML>
+<html dir="ltr" xml:lang="en-US" lang="en-US"><head>
+    <meta charset="gb2312">
+    <title>Console HTTP test page (chinese)</title>
+  </head>
+  <body>
+    <p>的问候!</p>
+  </body>
+</html>

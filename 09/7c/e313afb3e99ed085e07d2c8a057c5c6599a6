@@ -1,0 +1,21 @@
+
+copyrev: a54a4734da88f982599230cfafa8c8cf6d3b5f16
+copy: js/src/trace-test/tests/basic/testCallElem.js
+
+function testCALLELEM()
+{
+    function f() {
+        return 5;
+    }
+
+    function g() {
+        return 7;
+    }
+
+    var x = [f,f,f,f,g];
+    var y = 0;
+    for (var i = 0; i < 5; ++i)
+        y = x[i]();
+    return y;
+}
+assertEq(testCALLELEM(), 7);

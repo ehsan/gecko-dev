@@ -1,0 +1,15 @@
+
+copy: mobile/installer/debian/fennec.aegis.in
+copyrev: dfbfdf87a35f8a984d6b2d8114bb457b840edd68
+
+#filter substitution
+<aegis>
+  <request>
+    <credential name="TrackerReadAccess" />
+    <credential name="TrackerWriteAccess" />
+    <credential name="Location" />
+    <for path="@installdir@/@MOZ_APP_NAME@" />
+    <for path="@installdir@/plugin-container" />
+  </request>
+</aegis>
+

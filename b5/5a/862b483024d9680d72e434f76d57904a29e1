@@ -1,0 +1,10 @@
+
+copy: js/src/jit-test/tests/arguments/e4x-descendants-with-arguments.js
+copyrev: d939b832671bf1e4e332ac0f453a61cb169c284c
+
+function f()
+{
+  var x = <><arguments/><arguments/></>;
+  x..arguments;
+}
+f();

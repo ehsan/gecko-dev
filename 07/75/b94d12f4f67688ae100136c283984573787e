@@ -1,0 +1,7 @@
+
+copy: layout/reftests/forms/input-text-size-1-ref.html
+copyrev: 15fc4b9cab0b224632f169d0191309f2cf5bd634
+
+<html lang="en">
+  <input size="4" value="1234" style="font-family: monospace">
+</html>

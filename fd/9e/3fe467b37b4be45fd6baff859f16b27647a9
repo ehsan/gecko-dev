@@ -1,0 +1,10 @@
+
+copy: toolkit/mozapps/extensions/test/browser/addon_prefs.xul
+copyrev: c139f36a95951caa81e422994de12d736f051f37
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        id="addon-test-about-window">
+  <label value="Oh hai!"/>
+</window>

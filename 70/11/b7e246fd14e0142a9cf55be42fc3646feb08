@@ -1,0 +1,6 @@
+
+copy: dom/mobileconnection/gonk/MobileConnectionGonkService.manifest
+copyrev: 7be93d728cc4e7ce76188f94f03535290154fc3e
+
+component {0c9c1a96-2c72-4c55-9e27-0ca73eb16f63} MobileConnectionService.js
+contract @mozilla.org/mobileconnection/gonkmobileconnectionservice;1 {0c9c1a96-2c72-4c55-9e27-0ca73eb16f63}

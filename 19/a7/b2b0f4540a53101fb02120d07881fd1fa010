@@ -1,0 +1,13 @@
+
+copy: dom/svg/crashtests/448244-1.svg
+copyrev: 38ca675e0fdc281f075c78a216098335069db579
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+
+<filter id="filter1">
+  <feTile/>
+</filter>
+
+<rect width="100%" height="100%" filter="url(#filter1)"/>
+
+</svg>

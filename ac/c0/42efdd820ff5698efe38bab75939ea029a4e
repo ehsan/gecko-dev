@@ -1,0 +1,15 @@
+
+copy: mobile/locales/l10n.ini
+copyrev: de0f96e898ca8ccfe7f605a1a94c7e918d4e3866
+
+[general]
+depth = ../..
+all = mobile/xul/locales/all-locales
+
+[compare]
+dirs = mobile
+
+[includes]
+toolkit = toolkit/locales/l10n.ini
+services_sync = services/sync/locales/l10n.ini
+embedding_android = embedding/android/locales/l10n.ini

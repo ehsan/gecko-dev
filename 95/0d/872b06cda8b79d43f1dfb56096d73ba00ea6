@@ -1,0 +1,15 @@
+
+copyrev: 03988abd1bc24c8f4451c019f401a53ff43b1d6e
+copy: js/src/trace-test/tests/basic/testBug466262.js
+
+//test no assert
+function testBug466262() {
+    var e = 1;
+    for (var d = 0; d < 3; ++d) {
+      if (d == 2) {
+        e = "";
+      }
+    }
+    return true;
+}
+assertEq(testBug466262(), true);

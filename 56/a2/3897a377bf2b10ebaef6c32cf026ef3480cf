@@ -1,0 +1,7 @@
+
+copyrev: dfc9638bb4caa2e424e821ca8410b86843211636
+copy: js/src/trace-test/tests/pic/fuzz2.js
+
+for each(let x in [0, {}, 0, {}]) {
+  x.valueOf
+}

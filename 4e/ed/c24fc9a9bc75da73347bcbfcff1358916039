@@ -1,0 +1,15 @@
+
+copy: toolkit/components/places/tests/browser/bug_399606/399606-location.reload.html
+copyrev: 4ecc7597205e63b43d03f5f682bcd148cdb9c603
+
+<html>
+<head>
+<title>location.reload()</title>
+<script>
+setTimeout('location.reload();', 100);
+</script>
+</head>
+<body>
+Testing location.reload();
+</body>
+</html>

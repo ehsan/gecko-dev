@@ -1,0 +1,11 @@
+
+copy: content/html/content/reftests/autofocus/autofocus-after-body-focus-ref.html
+copyrev: 38b83bb80cede8bca8e55357d7df9fb171053110
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementsByTagName('input')[0].focus();">
+    <input onfocus="document.documentElement.removeAttribute('class');">
+  </body>
+</html>

@@ -1,0 +1,5 @@
+
+copy: mobile/xul/installer/removed-files.in
+copyrev: 27d865d2cec9c8562a078d411f2e0f2eb675cd8b
+
+README.txt

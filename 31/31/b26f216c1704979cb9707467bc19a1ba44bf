@@ -1,0 +1,5 @@
+
+copy: dom/base/test/csp/file_subframe_run_js_if_allowed.html^headers^
+copyrev: 5c39b4479d12764b008be1815a70ad302e425087
+
+Content-Security-Policy: default-src *; script-src 'unsafe-inline'

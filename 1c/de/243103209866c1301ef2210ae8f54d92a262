@@ -1,0 +1,11 @@
+
+copyrev: 1ce9722018f5146b6a00d0f903e88caf18d79d6e
+copy: js/src/trace-test/tests/jaeger/bug573433.js
+
+// |jit-test| error: TypeError
+function f() {
+  eval("(function() \n{\nfor(x in[])\n{}\n})");
+  ("")()
+}
+f()
+

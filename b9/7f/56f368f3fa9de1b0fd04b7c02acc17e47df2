@@ -1,0 +1,16 @@
+
+copy: content/base/test/csp/file_CSP_evalscript_main.html
+copyrev: 7b5dfecebe11ef4d29e4b0a527bf0c6eb67724fe
+
+<html>
+  <head>
+    <title>CSP eval script tests</title>
+    <script type="application/javascript"
+             src="file_CSP_evalscript_main.js"></script>
+  </head>
+  <body>
+
+    Foo.
+
+  </body>
+</html>

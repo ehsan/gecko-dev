@@ -1,0 +1,5 @@
+
+copyrev: d9495f92759e0fc8078121126ca2d20b1c14df04
+copy: js/tests/ecma/Math/shell.js
+
+gTestsubsuite = 'Math';

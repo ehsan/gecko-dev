@@ -1,0 +1,5 @@
+
+copy: content/svg/content/src/crashtests/499879-1.svg
+copyrev: 4548e865a9182ad1ddc7fbcc46df62767ef8e885
+
+<svg xmlns="http://www.w3.org/2000/svg" onload="document.getElementById('b').tableValues.baseVal.initialize({});"><feFuncB id="b"/></svg>

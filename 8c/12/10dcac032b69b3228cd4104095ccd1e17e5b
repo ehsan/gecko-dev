@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundcase.aff
+copyrev: 95bca73be4dbe35ad785f5e8f42fc4c6e3ff17e5
+
+# forbid upper case letters at word bounds in compounding
+CHECKCOMPOUNDCASE
+COMPOUNDFLAG A

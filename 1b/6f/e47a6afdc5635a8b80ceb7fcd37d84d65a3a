@@ -1,0 +1,24 @@
+
+copy: dom/xul/templates/crashtests/329884-1.xul
+copyrev: 8fda3b0902eb080d8cf7e05500a4ce661baee62f
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+        
+<script>
+
+function rM(q1) { q1.parentNode.removeChild(q1); }
+
+function init2()
+{ 
+  rM(document.getElementById("t"));
+}
+
+window.addEventListener("load", init2, false);
+
+</script>
+
+<foo id="t" datasources="1.rdf" />
+
+</window>

@@ -1,0 +1,25 @@
+
+copy: layout/xul/base/src/crashtests/384105-1-inner.xul
+copyrev: a1d8b1827bdfebd65ca837fd6a80ed071a3e38bc
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<script id="script" xmlns="http://www.w3.org/1999/xhtml">
+function doe(){
+document.getElementById('a').removeAttribute('style');
+}
+setTimeout(doe,100);
+</script>
+<box id="a" style="position: absolute;">
+  <menuitem sizetopopup="always">
+    <menupopup style="position: absolute;"/>
+  </menuitem>
+
+  <box style="position: fixed;">
+    <tree>
+      <treecol>
+        <treecol/>
+      </treecol>
+    </tree>
+  </box>
+</box>
+</window>

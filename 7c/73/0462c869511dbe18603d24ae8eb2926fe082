@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:id="@+id/reload"
+          android:title="@string/reload"/>
+
+    <item android:id="@+id/bookmarks"
+          android:title="@string/bookmarks"
+          android:showAsAction="ifRoom"/>
+
+    <item android:id="@+id/preferences"
+          android:icon="@android:drawable/ic_menu_preferences"
+          android:enabled="false"
+          android:title="@string/preferences" />
+
+    <item android:id="@+id/share"
+          android:icon="@drawable/share"
+          android:title="@string/share" /> 
+
+    <item android:id="@+id/saveaspdf"
+          android:title="@string/saveaspdf" />
+
+    <item android:id="@+id/quit"
+          android:icon="@drawable/quit"
+          android:title="@string/quit" />
+
+</menu>

@@ -1,0 +1,28 @@
+
+copy: browser/base/content/test/bug592338.html
+copyrev: 5b4dbcd5b916d459009deee2feb7c44779b57769
+
+<html>
+<head>
+<script type="text/javascript">
+var theme = {
+  id: "test",
+  name: "Test Background",
+  headerURL: "http://example.com/firefox/personas/01/header.jpg",
+  footerURL: "http://example.com/firefox/personas/01/footer.jpg",
+  textcolor: "#fff",
+  accentcolor: "#6b6b6b"
+};
+
+function setTheme(node) {
+  node.setAttribute("data-browsertheme", JSON.stringify(theme));
+  var event = document.createEvent("Events");
+  event.initEvent("InstallBrowserTheme", true, false);
+  node.dispatchEvent(event);
+}
+</script>
+</head>
+<body>
+<a id="theme-install" href="#" onclick="setTheme(this)">Install</a>
+</body>
+</html>

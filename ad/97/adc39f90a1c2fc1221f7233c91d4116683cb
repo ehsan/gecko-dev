@@ -1,0 +1,9 @@
+
+copy: dom/xml/crashtests/382636-4.xul
+copyrev: 1059da860ee411d6b25d9b9fc828cbe764b3ac20
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="try { document.cloneNode(true); } catch (e) { }">
+
+<image src="tree.gif" width="49" height="60" flex="none" />
+
+</window>

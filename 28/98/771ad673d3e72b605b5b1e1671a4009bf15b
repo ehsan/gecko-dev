@@ -1,0 +1,10 @@
+
+copy: media/webrtc/trunk/tools/gyp/test/same-name/src/subdir1/func.c
+copyrev: 3457ae6a5bf82beba2a2230f5a6cac9d728b7264
+
+#include <stdio.h>
+
+void subdir1_func(void)
+{
+  printf("Hello %s from subdir1/func.c\n", PROG);
+}

@@ -1,0 +1,10 @@
+
+copy: content/svg/content/src/crashtests/zero-size-image.svg
+copyrev: 337b8d5c9a303024d7a6efeaf7ef59ca0f97f471
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink">
+  <!-- Test that we don't fail assertions with zero-size <image> elements. -->
+  <image xlink:href="data:image/svg+xml,%3Csvg%3E%3C%2Fsvg%3E"/>
+  <image xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAAAXNSR0IArs4c6QAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII%3D"/>
+</svg>

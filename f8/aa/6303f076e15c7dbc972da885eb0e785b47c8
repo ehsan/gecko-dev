@@ -1,0 +1,121 @@
+<!DOCTYPE HTML>
+<html>
+<!-- https://bugzilla.mozilla.org/show_bug.cgi?id=524223 -->
+<head>
+  <title>Test cross-domain CSS loading</title>
+  <script type="application/javascript"
+	  src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css"
+        href="/tests/SimpleTest/test.css"/>
+  <style type="text/css">
+    hr { border: none; clear: both }
+    .column {
+        margin: 10px;
+        float: left;
+    }
+    iframe {
+        width: 40px;
+        height: 680px;
+        border: none;
+        margin: 0;
+        padding: 0;
+    }
+    h2 { font-weight: normal; padding: 0 }
+    ol, h2 { font-size: 13px; line-height: 20px; }
+    ol { padding-left: 1em;
+         list-style-type: upper-roman }
+    ol ol { list-style-type: upper-alpha }
+    ol ol ol { list-style-type: decimal }
+  </style>
+</head>
+<body>
+<a target="_blank"
+   href="https://bugzilla.mozilla.org/show_bug.cgi?id=524223">Mozilla
+   Bug 524223</a>
+
+<hr/>
+
+<div class="column">
+<h2>&nbsp;</h2>
+<ol><li>text/css<ol><li>same origin<ol><li>valid</li>
+                                       <li>malformed</li>
+                                       <li>http error</li></ol></li>
+                  <li>cross origin<ol><li>valid</li>
+                                      <li>malformed</li>
+                                      <li>http error</li></ol></li>
+                  <li>same to cross<ol><li>valid</li>
+                                       <li>malformed</li>
+                                       <li>http error</li></ol></li>
+                  <li>cross to same<ol><li>valid</li>
+                                       <li>malformed</li>
+                                       <li>http error</li></ol></li></ol></li>
+    <li>text/html<ol><li>same origin<ol><li>valid</li>
+                                        <li>malformed</li>
+                                        <li>http error</li></ol></li>
+                     <li>cross origin<ol><li>valid</li>
+                                         <li>malformed</li>
+                                         <li>http error</li></ol></li>
+                     <li>same to cross<ol><li>valid</li>
+                                          <li>malformed</li>
+                                          <li>http error</li></ol></li>
+                     <li>cross to same<ol><li>valid</li>
+                                          <li>malformed</li>
+                                          <li>http error</li></ol></li></ol></li>
+</ol>
+</div>
+
+<div class="column">
+<h2>Quirks</h2>
+<iframe id="quirks" src="ccd-quirks.html"></iframe>
+</div>
+
+<div class="column">
+<h2>Standards</h2>
+<iframe id="standards" src="ccd-standards.html"></iframe>
+</div>
+
+<script type="application/javascript">
+
+/** Test for Bug 524223 **/
+function check_iframe(ifr) {
+    var doc = ifr.contentDocument;
+    var i;
+
+    // Check that all links have in fact either loaded or errored.
+    // Doesn't seem to be possible to do this for @import, but this is
+    // just a diagnostic, anyway.  See corresponding code in ccd-*.html.
+    var links = doc.getElementsByTagName("link");
+    for (i = 0; i < links.length; i++) {
+       ok(links[i].dataset.completed, ifr.id + " " + links[i].href + " loaded");
+    }
+
+    var cases = doc.getElementsByTagName("p");
+    for (i = 0; i < cases.length; i++) {
+	var color = doc.defaultView.getComputedStyle(cases[i], "")
+	    .getPropertyValue("background-color");
+
+	is(color, "rgb(0, 255, 0)", ifr.id + " " + cases[i].id);
+    }
+}
+
+var quirks = document.getElementById("quirks");
+var standards = document.getElementById("standards");
+var quirks_loaded = false;
+var standards_loaded = false;
+
+SimpleTest.waitForExplicitFinish();
+
+quirks.onload = function() { quirks_loaded = true; }
+standards.onload = function() { standards_loaded = true; }
+
+window.onload = function() {
+    ok(quirks_loaded, "quirks frame loaded");
+    ok(standards_loaded, "standards frame loaded");
+
+    check_iframe(quirks);
+    check_iframe(standards);
+    SimpleTest.finish();
+};
+</script>
+</body>
+</html>

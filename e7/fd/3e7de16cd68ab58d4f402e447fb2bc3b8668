@@ -1,0 +1,7 @@
+
+copy: content/base/test/file_XHRResponseURL.text^headers^
+copyrev: bf6e8ffa907ea039fe328971823ec41ad9f2aff2
+
+HTTP 200 OK
+Access-Control-Allow-Origin: *
+Content-Type: text/plain

@@ -1,0 +1,5 @@
+
+copy: parser/htmlparser/tests/mochitest/file_bug672453_meta_utf16.html
+copyrev: 6d78af14d6c9d8c4d586de2760fe6c1a95390615
+
+<meta charset="x-user-defined">

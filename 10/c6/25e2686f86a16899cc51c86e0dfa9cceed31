@@ -1,0 +1,13 @@
+
+copy: browser/components/privatebrowsing/test/browser/ctxmenu.html
+copyrev: fab2e2982ab1ab0e6b8784a246c8997417984dc6
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+  <head>
+    <title>Page containing an image</title>
+  </head>
+  <body>
+    <img src="ctxmenu-image.png">
+  </body>
+</html>

@@ -1,0 +1,7 @@
+
+copy: content/smil/crashtests/531550-1.svg
+copyrev: ba18a055d128a358da24332637e80120b1fdd358
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <g><animateTransform attributeName="transform" by="1"/></g>
+</svg>

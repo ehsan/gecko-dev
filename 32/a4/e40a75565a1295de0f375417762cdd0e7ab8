@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/colons_in_words.test
+copyrev: fa0cb29373bfb4087f542b4097aa5b49b40f8ea5
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME

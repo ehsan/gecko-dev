@@ -1,0 +1,9 @@
+[DEFAULT]
+subsuite = devtools
+support-files =
+  browser_fontinspector.html
+  ostrich-black.woff
+  ostrich-regular.woff
+  head.js
+
+[browser_fontinspector.js]

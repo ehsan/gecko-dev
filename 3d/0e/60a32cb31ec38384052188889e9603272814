@@ -1,0 +1,10 @@
+
+copy: content/canvas/test/chrome/chrome.ini
+copyrev: ff0352bb10bc1a0675b4b3f980e13cc2b2e1f5fc
+
+[DEFAULT]
+support-files = nonchrome_webgl_debug_renderer_info.html
+
+[test_webgl_debug_renderer_info.html]
+[test_drawWindow_widget_layers.html]
+support-files = ../file_drawWindow_source.html ../file_drawWindow_common.js

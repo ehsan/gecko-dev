@@ -1,0 +1,11 @@
+
+copyrev: f84ba185141a4d40ff291759b75294460023fb57
+copy: js/src/trace-test/tests/jaeger/bug584646.js
+
+switch (0) {
+  case 2:
+    k;
+  case (-1):
+  case 2:
+}
+/* Don't assert. */

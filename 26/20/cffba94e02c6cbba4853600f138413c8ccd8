@@ -1,0 +1,7 @@
+
+copy: layout/xul/base/src/crashtests/452185.html
+copyrev: 077d44caa86987889817e83ae246c444b7d8f721
+
+<html><head></head><body><div style="position: absolute;"> </div>
+<style>div, head {-moz-binding:url(452185.xml#a);</style>
+</body></html>

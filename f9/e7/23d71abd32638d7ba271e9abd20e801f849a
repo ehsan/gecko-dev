@@ -1,0 +1,7 @@
+
+copy: content/smil/crashtests/709907-1.svg
+copyrev: ffad482816830b0c7df0c1f99c42568f866215ff
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <animate attributeName="stroke-dasharray" from="-3" />
+</svg>

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-slash-valid-ref.html
+copyrev: 887763a91b395339bfc2a598c2bece2662d89e36
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea autofocus spellcheck="false">good/nice</textarea>
+  </body>
+</html>

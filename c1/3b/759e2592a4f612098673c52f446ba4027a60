@@ -1,0 +1,5 @@
+
+copy: browser/devtools/webconsole/test/browser/testscript.js
+copyrev: 1fa55ab5ba6d4fa2c8255d773fb41a6fc8e9ba3b
+
+console.log("running network console logging tests");

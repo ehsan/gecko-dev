@@ -1,0 +1,23 @@
+
+copy: content/xul/templates/tests/chrome/animals.xml
+copyrev: 37203f55ad9544ad7b606b6ecbc6a4cc7b3f1fbb
+
+<?xml version="1.0"?>
+
+<!DOCTYPE zoo [
+    <!ATTLIST species id ID #REQUIRED>
+]>
+
+<zoo>
+  <class>
+    <name>Reptiles</name>
+    <species id="Chamaeleo-chamaelon" name="Chameleon" specimens="2"/>
+  </class>
+  <class>
+    <name>Birds</name>
+    <species id="Dromaius-novaehollandiae" name="Emu" specimens="12"/>
+    <species id="Tyto-alba" name="Barn Owl" specimens="4"/>
+    <species id="Corvus-corax" name="Raven" specimens="0"/>
+    <location>Aviary</location>
+  </class>
+</zoo>

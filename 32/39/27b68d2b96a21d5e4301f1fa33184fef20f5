@@ -1,0 +1,16 @@
+
+copy: content/xul/document/crashtests/468211-2-binding.xml
+copyrev: 13021b280fbb545a13751c90ec129142cf99a4c3
+
+<bindings xmlns="http://www.mozilla.org/xbl">
+
+<binding id="xbl">
+
+<content>
+<mrow xmlns="http://www.w3.org/1998/Math/MathML" id="f">
+<box observes="f" xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"/>
+</mrow>
+</content>
+
+</binding>
+</bindings>

@@ -1,0 +1,15 @@
+
+copy: content/html/content/crashtests/682058.xhtml
+copyrev: 0b043d6a3dc059ee9c61287236bc335dbfd91c8f
+
+<?xml version="1.0"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body onload="test()">
+    <script>
+      function test() {
+        document.body.innerHTML = "Foobar";
+      }
+      document.addEventListener("DOMNodeRemoved", function() {});
+    </script>
+  </body>
+</html>

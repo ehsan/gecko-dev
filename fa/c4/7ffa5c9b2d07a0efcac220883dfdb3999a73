@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/embed/height-novalid.html
+copyrev: 067bf3b0db80dcb918affd990b315e00221288c1
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>element embed with bad height value</title>
+</head>
+<body>
+<embed height="20%">
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copy: editor/libeditor/html/tests/file_bug674770-1.html
+copyrev: 4c00abd85d4b04aa6a1e659e527e2078cfaaacd3
+
+<!DOCTYPE>
+<script>
+  localStorage["clicked"] = "true";
+  close();
+</script>

@@ -1,0 +1,15 @@
+classes = {
+    'NodeList': 'nsINodeList',
+    'HTMLCollection': 'nsIHTMLCollection',
+    'HTMLOptionsCollection': 'nsHTMLOptionCollection',
+    'DOMTokenList': 'nsDOMTokenList',
+    'DOMSettableTokenList': 'nsDOMSettableTokenList',
+    }
+
+irregularFilenames = {
+    'nsHTMLOptionCollection': 'nsHTMLSelectElement',
+    }
+
+customInheritance = {
+    'nsIDOMHTMLOptionsCollection': 'nsIDOMHTMLCollection',
+    }

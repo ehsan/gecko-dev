@@ -1,0 +1,31 @@
+
+copy: modules/plugin/test/mochitest/test_bug532208.html
+copyrev: b08edf1d99e2febe98bb3c0ee48f2f7439fc8462
+
+<head>
+<title>Test for correct async delivery of large streams, bug
+532208</title>
+
+<script type="application/javascript"
+src="/MochiKit/packed.js"></script>
+<script type="application/javascript"
+src="/tests/SimpleTest/SimpleTest.js"></script>
+
+<body onload="setTimeout(runTests, 2000)">
+  <embed id="plugin1" type="application/x-test" width="400"
+  height="400" src="large-pic.jpg" functiontofail="npp_write_rpc" streammode="normal"></embed>
+
+<script class="testbody" type="application/javascript">
+SimpleTest.waitForExplicitFinish();
+
+function runTests() {
+  try {
+    document.getElementById('plugin1').getPaintCount();
+    ok(true, "Data delivery didn't crash");
+  }
+  catch (e) {
+    ok(false, "Data delivery crashed");
+  }
+  SimpleTest.finish();
+}
+</script>

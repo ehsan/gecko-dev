@@ -1,0 +1,5 @@
+
+copyrev: e283df246d44a5c7f07c6384549c7af3312be001
+copy: js/tests/js1_2/statements/shell.js
+
+gTestsubsuite = 'statements';

@@ -1,0 +1,15 @@
+
+copyrev: e7f685e878479e71a96ce2983121ceb7d0ff37b7
+copy: accessible/tests/mochitest/z_states_frame.html
+
+<html>
+<!--
+Auxilliary file used as frame source.
+-->
+<head>
+</head>
+<body>
+<p>Frame source body has no role</p>
+</body>
+</html>
+

@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/ngram_utf_fix.test
+copyrev: b26129042390229a406aeb659027b00f04a8df36
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME -i utf-8

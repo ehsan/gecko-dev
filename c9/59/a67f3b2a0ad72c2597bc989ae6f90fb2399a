@@ -1,0 +1,9 @@
+
+copyrev: bc59a673e3443cfeed023618ebbd50920f85ed62
+copy: layout/reftests/svg/image/limeInRed100x100.svg
+
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1"
+     width="100" height="100">
+  <rect width="100%" height="100%" fill="red"/>
+  <rect x="25" y="25" width="50" height="50" fill="lime"/>
+</svg>

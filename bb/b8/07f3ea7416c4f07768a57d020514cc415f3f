@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-ui-invalid/default-style/input-ref.html
+copyrev: d7c6ef94fbae321b0bdc15ca5eb9933e3d97c4c4
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementsByTagName('input')[0].focus();">
+    <input class='invalid-ref' onfocus="document.documentElement.className='';">
+  </body>
+</html>

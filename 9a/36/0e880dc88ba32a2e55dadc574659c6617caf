@@ -1,0 +1,11 @@
+
+copyrev: d7271cd9ebd6228bc9a635f43e753e86e1fcff27
+copy: js/src/trace-test/tests/basic/testSlowNativeCtor.js
+
+delete _quit;
+
+function testSlowNativeCtor() {
+    for (var i = 0; i < 4; i++)
+	new Date().valueOf();
+}
+testSlowNativeCtor();

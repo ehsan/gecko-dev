@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/complexprefixesutf.good
+copyrev: 5c1a3bc5b8fa89acbefbfc86b054529ea8e83728
+
+ⲟⲩⲣⲟ
+ⲙⲉⲧⲟⲩⲣⲟ
+ⲧⲉⲕⲙⲉⲧⲟⲩⲣⲟ

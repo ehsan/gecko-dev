@@ -1,0 +1,19 @@
+
+copy: js/src/xpconnect/crashtests/346512-1-frame2.xhtml
+copyrev: 446a05be98b0036901f95b4a4a2a4b7cb991f357
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+</head>
+
+<body>
+
+<div id="empty2"></div>
+
+
+
+
+
+</body>
+</html>

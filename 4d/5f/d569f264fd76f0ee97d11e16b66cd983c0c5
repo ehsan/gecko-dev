@@ -1,0 +1,26 @@
+
+copyrev: 8dee4f885021ad54250b57e9ddb6cea3564240c0
+copy: js/src/trace-test/tests/closures/name4.js
+
+actual = '';
+expected = 'undefined,';
+
+function loop(f) {
+  var p;
+  for (var i = 0; i < 10; ++i) {
+    p = f();
+  }
+  return p;
+}
+
+function make(k, j) {
+  var g = function() { return k; }
+  k = j;
+  return g;
+}
+
+var f = make();
+appendToActual(loop(f));
+
+
+assertEq(actual, expected)

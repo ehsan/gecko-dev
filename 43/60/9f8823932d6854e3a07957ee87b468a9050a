@@ -1,0 +1,6 @@
+
+copy: mobile/installer/mobile-l10n.js
+copyrev: 78f1bdd582066b0c33a9fa5afd70500e7ba47b37
+
+// Inherit locale from the OS, used for multi-locale builds
+pref("intl.locale.matchOS", true);

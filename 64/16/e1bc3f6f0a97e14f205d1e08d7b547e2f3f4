@@ -1,0 +1,23 @@
+
+copy: dom/imported-tests/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-13.htm
+copyrev: 76ee96732637ec493e78e1698f12ae676ca47d72
+
+<!doctype html>
+<html class="a">
+ <head>
+  <title>element.getElementsByClassName(): adding an element</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body class="a">
+  <div id="log"></div>
+  <script>test(function() {
+                 var collection = document.body.getElementsByClassName("a");
+                 var ele = document.createElement("x-y-z");
+                 ele.className = "a";
+                 document.body.appendChild(ele);
+                 assert_array_equals(collection, [ele]);
+               })
+  </script>
+ </body>
+</html>

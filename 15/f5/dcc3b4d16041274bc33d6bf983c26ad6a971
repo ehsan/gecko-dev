@@ -1,0 +1,5 @@
+
+copy: content/base/crashtests/411882-1.xhtml
+copyrev: 7b311aa56758eb126bd942e6c582c26c7d20095c
+
+<html xmlns="http://www.w3.org/1999/xhtml"><body></body><textarea></textarea></html>

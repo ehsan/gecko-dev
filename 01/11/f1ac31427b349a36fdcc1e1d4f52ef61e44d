@@ -1,0 +1,15 @@
+
+copy: content/html/content/test/file_iframe_sandbox_b_if1.html
+copyrev: 01bfc6c6a9ee28541ae2587f782e674b099dcb2e
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for Bug 341604</title>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+  I am sandboxed without any permissions
+</body>
+</html>

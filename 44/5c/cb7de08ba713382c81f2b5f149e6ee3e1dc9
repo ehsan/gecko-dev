@@ -1,0 +1,27 @@
+
+copyrev: e295df7a6bb562d7759365b7bea4b9075ce6ca23
+copy: js/src/trace-test/tests/jaeger/bug563000/trap-self-from-trap.js
+
+setDebug(true);
+x = "notset";
+
+function doNothing() { }
+
+function myparent(nested) {
+  if (nested) {
+    /* JSOP_CALL to doNothing in myparent with nested = true. */
+    trap(myparent, 24, "success()");
+    doNothing();
+  } else {
+    doNothing();
+  }
+}
+/* JSOP_CALL to doNothing in myparent with nested = false. */
+trap(myparent, 35, "myparent(true)");
+
+function success() {
+  x = "success";
+}
+
+myparent(false);
+assertEq(x, "success");

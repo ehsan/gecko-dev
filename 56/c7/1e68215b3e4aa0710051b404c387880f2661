@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/meta/html/infrastructure/urls/dynamic-changes-to-base-urls/dynamic-urls.sub.xhtml.ini
+copyrev: b8facfe200283cb55f923aa76a9f6fc4b8bb8bfc
+
+[015.html]
+  type: testharness
+  expected:
+    if debug and (os == "win") and (version == "6.1.7601") and (processor == "x86") and (bits == 32): CRASH

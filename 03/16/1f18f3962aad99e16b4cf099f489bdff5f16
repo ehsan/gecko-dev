@@ -1,0 +1,14 @@
+
+copy: content/xul/document/crashtests/386914-1-inner.xul
+copyrev: 65d3d5760a903425c0a2051dfb8d7eeeca42f166
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" id="a">
+
+<box id="b" observes="a"/>
+
+<html:script xmlns:html="http://www.w3.org/1999/xhtml">
+document.getElementById('b').addEventListener('DOMAttrModified', function(e) {document.removeChild(document.documentElement);}, true);
+setTimeout(function() {document.getElementById('a').setAttribute('tabindex', '1') ;}, 100);
+</html:script>
+
+</window>

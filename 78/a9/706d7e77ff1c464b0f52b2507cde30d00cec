@@ -1,0 +1,12 @@
+
+copy: content/html/document/crashtests/388183-1.html
+copyrev: a17f7494b424a7c6ddb7d7f615e4d3a3bf1d5968
+
+<!DOCTYPE html>
+<html contenteditable="true">
+<head>
+</head>
+<body>
+<div contenteditable="true"></div>
+</body>
+</html>

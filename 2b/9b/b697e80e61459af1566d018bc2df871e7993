@@ -1,0 +1,8 @@
+
+copy: content/xbl/crashtests/477878-1.html
+copyrev: 7f3440348a134d2111f8f86ef2b7906ed1d73431
+
+<html>
+<head></head>
+<body><iframe style="display:none" src="data:text/html,<marquee>Marquee</marquee>" onload="this.style.display = '';"></iframe></body>
+</html>

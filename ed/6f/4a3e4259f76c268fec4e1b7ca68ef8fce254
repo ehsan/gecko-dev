@@ -1,0 +1,15 @@
+
+copyrev: ede99a7c9b27a7e5c6222a1c58aac6328b5e5239
+copy: accessible/tests/mochitest/z_states_framecheckbox.html
+
+<html>
+<!--
+Auxilliary file used as frame source.
+-->
+<head>
+</head>
+<body role="checkbox">
+<p>Checkbox</p>
+</body>
+</html>
+

@@ -1,0 +1,38 @@
+
+copy: ipc/ipdl/test/cxx/PTestRPCShutdownRace.ipdl
+copyrev: b2cafffe9757261b0db1deb028d119a0ab050e92
+
+namespace mozilla {
+namespace _ipdltest {
+
+intr protocol PTestInterruptShutdownRace {
+parent:
+    sync StartDeath();
+    async Orphan();
+
+child:
+    async Start();
+    intr Exit();
+    async __delete__();
+
+state START:
+    send Start goto START_DEATH;
+
+state START_DEATH:
+    recv StartDeath goto EXITING;
+
+state EXITING:
+    recv Orphan goto QUITTING1;
+    call Exit goto QUITTING2;
+
+state QUITTING1:
+    call Exit goto DEAD;
+state QUITTING2:
+    recv Orphan goto DEAD;
+
+state DEAD:
+    send __delete__;
+};
+
+} // namespace _ipdltest
+} // namespace mozilla

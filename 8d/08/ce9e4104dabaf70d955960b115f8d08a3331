@@ -1,0 +1,11 @@
+
+copy: mobile/branding/official/locales/jar.mn
+copyrev: ebe160621940053dd7e860fd39234fa6857b59b9
+
+#filter substitution
+
+@AB_CD@.jar:
+% locale branding @AB_CD@ %locale/branding/
+# Branding only exists in en-US
+  locale/branding/brand.dtd        (en-US/brand.dtd)
+* locale/branding/brand.properties (en-US/brand.properties)

@@ -1,0 +1,11 @@
+
+copy: gfx/angle/src/compiler/QualifierAlive.h
+copyrev: f6d124cf1becbbad8a807711491c7afa0063f93a
+
+//
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
+
+bool QualifierWritten(TIntermNode* root, TQualifier);

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/i54980.dic
+copyrev: 41e827b48ac1ef94e824c20e99c96ba185d6bf39
+
+2
+c½ur
+½uvre

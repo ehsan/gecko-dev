@@ -1,0 +1,24 @@
+
+copy: content/media/test/crashtests/894104.html
+copyrev: 643a1afbe005f062f5174ffaa819809b1cd01e85
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script>
+
+function boom()
+{
+  var frame = document.getElementById("f");
+  var frameWin = frame.contentWindow;
+  frameWin.VTTCue;
+  document.body.removeChild(frame);
+  new frameWin.VTTCue(0, 1, "Bug 894104").getCueAsHTML();
+}
+
+</script>
+</head>
+
+<body onload="boom();"><iframe id="f" src="data:text/html,1"></iframe></body>
+</html>

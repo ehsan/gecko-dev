@@ -1,0 +1,8 @@
+
+copy: content/base/test/bug461735-redirect1.sjs
+copyrev: a408a4152dc5bcecf07b37d3f14289cc2e9beffd
+
+function handleRequest(request, response) {
+  response.setStatusLine(null, 302, "Found");
+  response.setHeader("Location", "http://example.com/tests/dom/base/test/bug461735-post-redirect.js", false);
+}

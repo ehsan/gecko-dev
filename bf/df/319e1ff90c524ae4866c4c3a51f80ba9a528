@@ -1,0 +1,9 @@
+
+copy: testing/mozmill/simplejson-2.1.1/setup.cfg
+copyrev: fb38c851a794d7b2806605292ed5df5400e0e692
+
+[egg_info]
+tag_build = 
+tag_date = 0
+tag_svn_revision = 0
+

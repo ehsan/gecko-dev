@@ -1,0 +1,6 @@
+
+copy: content/base/test/file_CSP_evalscript_main_getCRMFRequest.html^headers^
+copyrev: f83582dea808a00cea8460eb60e42d2bf7178acf
+
+Cache-Control: no-cache
+X-Content-Security-Policy: default-src 'self'

@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/i53643.wrong
+copyrev: 04e3f1561163a3fd4c1b47dfe3eca9e88d3611a9
+
+1..2
+1,,2
+1.,2
+1,.2

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/iconv.dic
+copyrev: 0ffc5a33ca7846dbe3192520cef7a068f6ef0432
+
+4
+Chișinău
+Țepes
+ț
+Ș

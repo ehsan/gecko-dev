@@ -1,0 +1,11 @@
+
+copy: content/base/crashtests/400763-1.html
+copyrev: 6a4395ac0305100060a33eb37f9616bb1eb1e20b
+
+<html>
+<head>
+<script src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12NgYPgPAAEDAQDZqt2zAAAAAElFTkSuQmCC" charset="UTF-8"></script>
+</head>
+<body>
+</body>
+</html>

@@ -1,0 +1,16 @@
+
+copyrev: 282bb6d3dd3d4c977bd7a684f90817742583e2ee
+copy: dom/src/base/crashtests/329481-1.xhtml
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<body>
+<p>This page made Firefox leak domwindows and documents.</p>
+<span onmouseover="1"></span>
+<script>
+try {
+  window.__proto__ = document.createElement("div");
+} catch(e) {
+}
+</script>
+</body>
+</html>

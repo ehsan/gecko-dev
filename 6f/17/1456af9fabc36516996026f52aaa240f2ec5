@@ -1,0 +1,15 @@
+
+copyrev: b847c54ee5a0c0678e56ddf647ddd0e89cfb8d14
+copy: js/src/trace-test/tests/basic/testContinue.js
+
+function testContinue() {
+    var i;
+    var total = 0;
+    for (i = 0; i < 20; ++i) {
+        if (i == 11)
+            continue;
+        total++;
+    }
+    return total;
+}
+assertEq(testContinue(), 19);

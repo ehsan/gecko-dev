@@ -1,0 +1,30 @@
+
+copy: content/media/mediasource/test/crashtests/1059035.html
+copyrev: c0ebd699c8e5ee21c4594a0613c31fb0b1b90676
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+/*
+user_pref("media.mediasource.enabled", true);
+*/
+
+function boom()
+{
+    var mediaSource = new MediaSource();
+    var htmlAudio = document.createElement("audio");
+    htmlAudio.src = URL.createObjectURL(mediaSource);
+
+    setTimeout(function() {
+        var sourceBuffer = mediaSource.addSourceBuffer("video/webm");
+        mediaSource.removeSourceBuffer(sourceBuffer);
+        sourceBuffer.remove(0, 0);
+    }, 0);
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

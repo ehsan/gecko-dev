@@ -1,0 +1,12 @@
+
+copy: dom/filehandle/test/dummy_worker.js
+copyrev: 2f2ac57fcb85bcee81bb4a046cc747fe2af8539b
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+onmessage = function(event) {
+  throw("Shouldn't be called!");
+}

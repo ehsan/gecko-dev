@@ -1,0 +1,7 @@
+
+copy: browser/base/content/test/general/bug564387_video1.ogv^headers^
+copyrev: 15087c746c249f38265d5a8b8ba33639e30815f3
+
+Content-Disposition: filename="web-video1-expectedName.ogv" 
+Content-Type: video/ogg
+

@@ -1,0 +1,13 @@
+
+copy: content/xslt/crashtests/182460-table.xhtml
+copyrev: c6a79a35f6e29e5c87fe70399bc58e06d2ce0ce2
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>XSL Crash</title>
+</head>
+<body>
+<iframe src="182460-select.xml"></iframe>
+<script type="text/javascript" src="data:text/javascript,/*no code*/"/>
+</body>
+</html>

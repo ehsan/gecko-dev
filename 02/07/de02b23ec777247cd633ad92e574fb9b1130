@@ -1,0 +1,10 @@
+
+copy: dom/tv/test/file_app.template.webapp
+copyrev: 8be6c2efbe49065d7369563ec75395ff49c5cefb
+
+{
+  "name": "TV Test App (hosted)",
+  "description": "Hosted TV test app used for mochitest.",
+  "launch_path": "/tests/dom/tv/test/mochitest/TESTTOKEN",
+  "icons": { "128": "default_icon" }
+}

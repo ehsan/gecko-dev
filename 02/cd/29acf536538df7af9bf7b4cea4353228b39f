@@ -1,0 +1,10 @@
+
+copyrev: b44c5576015134e098d969416fec02b7c23e0ee4
+copy: layout/reftests/svg/image/img-simple-7.html
+
+<html>
+<body>
+  <!-- Like img-simple-6.html, but with an explicit 'height' on the <img> -->
+  <img src="lime200x100.svg" width="100px" height="100px">
+</body>
+</html>

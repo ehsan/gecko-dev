@@ -1,0 +1,5 @@
+
+copyrev: 26f59a9c1f5ade9fbf3687d7fc5be821800b6bc8
+copy: js/tests/js1_7/iterable/shell.js
+
+gTestsubsuite = 'iterable';

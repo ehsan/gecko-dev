@@ -1,0 +1,9 @@
+
+copy: layout/xul/base/src/crashtests/402912-1.xhtml
+copyrev: f907c34e68b7db5cc55c70900944bf0fc721c22f
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<body>
+<xul:vbox equalsize="always"><xul:hbox flex="1"><span><xul:hbox width="10" height="10"/></span><xul:button /></xul:hbox><xul:hbox maxheight="0"/></xul:vbox>
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/allcaps_utf.aff
+copyrev: dfdb2a758ea1933bb3c690f182dd0c6b8ced9867
+
+SET UTF-8
+WORDCHARS '.
+
+SFX S N 1
+SFX S 0 's .
+

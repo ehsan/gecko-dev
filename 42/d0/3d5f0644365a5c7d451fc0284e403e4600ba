@@ -1,0 +1,15 @@
+
+copy: mobile/xul/branding/unofficial/content/Makefile.in
+copyrev: 9ef82beaf48edf73d2d702790628ba0af1799099
+
+# Branding Makefile
+#  - jars chrome artwork
+
+DEPTH = ../../../..
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+include $(topsrcdir)/config/rules.mk

@@ -1,0 +1,24 @@
+
+copy: editor/libeditor/html/crashtests/766387.html
+copyrev: a6645a18615927481ef42e9a6b1a9ea810a9dd75
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  window.getSelection().removeAllRanges();
+  var r = document.createRange();
+  r.setStart(document.getElementById("x"), 1);
+  r.setEnd(document.getElementById("y"), 0);
+  window.getSelection().addRange(r);
+  document.execCommand("insertorderedlist", false, null);
+}
+
+</script>
+</head>
+
+<body onload="boom();"><div id="x" contenteditable="true">a</div><div id="y" contenteditable="true"></div></body>
+</html>

@@ -1,0 +1,19 @@
+
+copy: mobile/android/base/resources/drawable/home_page_title_background.xml
+copyrev: b7c0953ed653ac50b03458ced9d681ab59b64e85
+
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android" >
+    <item android:left="-1dp"
+          android:right="-1dp"
+          android:top="-1dp">
+
+        <shape android:shape="rectangle" >
+            <stroke android:width="1px"
+                    android:color="@color/doorhanger_divider_light" />
+
+            <solid android:color="#00000000" />
+        </shape>
+    </item>
+
+</layer-list>

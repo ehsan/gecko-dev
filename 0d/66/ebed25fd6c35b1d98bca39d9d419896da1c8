@@ -1,0 +1,10 @@
+
+copy: layout/xul/crashtests/387080-1.xul
+copyrev: 799fd2027f85ae60544de46cbc6d0ede3b8c9244
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <description>
+    <foo height="1793689537164611773" width="20000238421986669650" />
+  </description>
+</window>

@@ -1,0 +1,11 @@
+
+copy: mobile/android/base/resources/color/primary_text.xml
+copyrev: ac9ad4335c61d842be75b94daabf3ef361f3216c
+
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:state_enabled="false" android:color="@color/text_color_overlaybtn_disabled" />
+    <item android:color="@color/text_color_overlaybtn" />
+
+</selector>

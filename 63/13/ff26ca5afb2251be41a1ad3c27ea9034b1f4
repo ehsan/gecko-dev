@@ -1,0 +1,14 @@
+
+copy: content/html/content/crashtests/916322-2.html
+copyrev: 55e288a679fd89390a2d63142f4e683a7d1749c1
+
+<canvas height=200 id=gl>
+<script>
+// Without the fix, this would trigger an assertion in the debug build
+document.addEventListener("DOMContentLoaded", DifferentSizes, false);
+function DifferentSizes() {
+  gl.getContext("2d");
+  gl.removeAttribute('height');
+  gl.toBlob(function() { }, false)
+}
+</script>

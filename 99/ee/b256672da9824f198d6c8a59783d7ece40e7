@@ -1,0 +1,76 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+ifdef GNU_CC
+ifeq ($(OS_TARGET),Android)
+MODULE_OPTIMIZE_FLAGS = -O2
+endif
+endif
+
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+DEFINES += -DDISABLE_SOME_FLOATING_POINT
+ifndef NS_PRINTING
+DEFINES += -DCAIRO_OMIT_WIN32_PRINTING
+endif
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
+DEFINES += -DOS2_USE_PLATFORM_ALLOC
+ifdef MOZ_OS2_HIGH_MEMORY
+DEFINES += -DOS2_HIGH_MEMORY
+endif
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+OS_INCLUDES += $(MOZ_QT_CFLAGS)
+endif
+
+ifdef MOZ_X11
+OS_INCLUDES += $(XCFLAGS)
+endif
+
+ifdef MOZ_ENABLE_CAIRO_FT
+OS_INCLUDES += $(CAIRO_FT_CFLAGS)
+endif
+
+LOCAL_INCLUDES  += -I$(srcdir)
+
+INSTALL_TARGETS += cairo_features
+cairo_features_FILES := cairo-features.h
+cairo_features_DEST = $(DIST)/include/cairo
+cairo_features_TARGET := export
+
+include $(topsrcdir)/config/rules.mk
+
+ifdef GNU_CC
+# Disable spammy "missing initializer" GCC warning
+CFLAGS += -Wno-missing-field-initializers
+
+# Disable spammy "implicit conversion from enumeration type 'cairo_" warnings.
+CFLAGS += -Wno-conversion
+endif # GNU_CC
+
+DEFINES += -DPACKAGE_VERSION="\"moz\"" -DPACKAGE_BUGREPORT="\"http://bugzilla.mozilla.org/\""
+
+DEFINES += -DCAIRO_HAS_PTHREAD -D_GNU_SOURCE
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+DEFINES += -DCAIRO_WIN32_STATIC_BUILD
+endif
+
+ifdef MOZ_TREE_CAIRO
+DEFINES += -DMOZ_TREE_CAIRO
+endif
+
+ifndef MOZ_TREE_PIXMAN
+CFLAGS += $(MOZ_PIXMAN_CFLAGS)
+CXXFLAGS += $(MOZ_PIXMAN_CFLAGS)
+else
+DEFINES += -DMOZ_TREE_PIXMAN
+endif
+
+ifdef MOZ_TREE_FREETYPE
+DEFINES += -DHAVE_FT_LIBRARY_SETLCDFILTER -DFT_LCD_FILTER_H="$(topsrcdir)/modules/freetype2/include/freetype/ftlcdfil.h"
+endif

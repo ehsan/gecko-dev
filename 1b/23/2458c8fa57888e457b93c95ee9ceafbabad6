@@ -1,0 +1,10 @@
+
+copy: content/html/document/test/bug448564-echo.sjs
+copyrev: bf353bc7af425e1e9528927495cfe454a3eb6145
+
+function handleRequest(request, response) {
+  response.setHeader("Cache-Control", "no-cache", false);
+  response.setStatusLine(request.httpVersion, 200, "OK");
+
+  response.write(request.queryString);
+}

@@ -1,0 +1,7 @@
+
+copy: mobile/android/base/GeckoTextSwitcher.java.in
+copyrev: 999e8143048d94ea0b0395efd5bec7c13e542fbc
+
+#filter substitution
+#define VIEWTYPE TextSwitcher
+#include GeckoView.java.frag

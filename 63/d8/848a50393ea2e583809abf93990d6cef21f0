@@ -1,0 +1,8 @@
+
+copyrev: c5557934e98db33517fcd928ddca94e372e2e995
+copy: intl/strres/tests/397093.properties
+
+# Property file for test_bug397093.js 
+asciiProperty=Foo
+utf8Property=FÃ²Ã²
+latin1Property=Fòò

@@ -1,0 +1,23 @@
+
+copy: js/src/xpconnect/crashtests/639737-1.html
+copyrev: 9b541587a9b2748ad52404ab2383b9654a3ec2b8
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function b() { 
+  try { sset("u"); } catch(e) { }
+  try { [0].map(b); } catch(e) { }
+}
+
+var sset = document.documentElement.style.__lookupSetter__("textIndent");
+b();
+
+</script>
+</head>
+
+<body></body>
+</html>
+

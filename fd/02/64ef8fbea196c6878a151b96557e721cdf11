@@ -1,0 +1,14 @@
+
+copyrev: 6bf78278e4a5c7693c78ce650d4ee8871d179e07
+copy: js/src/trace-test/tests/basic/testAssignmentThatIgnoresSetterRetval.js
+
+var o = {
+    set x(v) {
+        return 42;
+    }
+};
+
+for (var i = 0; i < 10; ++i) {
+    var z = o.x = "choose me";
+    assertEq(z, "choose me");
+}

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/ignore.aff
+copyrev: c091d9b394bd77486f5f4ffccfee79fd2d4128ef
+
+# ignore characters in words (for Arabic Harakat or Hebrew niqqud)
+IGNORE aeiou
+
+PFX A Y 1
+PFX A 0 re .

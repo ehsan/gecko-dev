@@ -1,0 +1,9 @@
+
+copy: content/base/test/file_bothCSPheaders.html
+copyrev: 4a80c9ccd55b9e45c12066e157377555066576ab
+
+<html>
+<body>
+<img src="http://example.org/nonexistent.jpg"></img>
+</body>
+</html>

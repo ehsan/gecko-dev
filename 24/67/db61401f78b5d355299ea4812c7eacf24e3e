@@ -1,0 +1,10 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/option/080-isvalid.html
+copyrev: d036612327cccfd5328729b06dfe475a2c6bb3b1
+
+<!doctype html>
+<meta charset=utf-8>
+<title>non-empty option element</title>
+<select>
+<option>foo</option>
+</select>

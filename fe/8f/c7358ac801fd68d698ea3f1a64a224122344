@@ -1,0 +1,21 @@
+
+copyrev: b49f72c96d38db3148cde6143f32ea9e83e2dd77
+copy: js/src/trace-test/tests/basic/testDeepPropertyShadowing.js
+
+function testDeepPropertyShadowing()
+{
+    function h(node) {
+        var x = 0;
+        while (node) {
+            x++;
+            node = node.parent;
+        }
+        return x;
+    }
+    var tree = {__proto__: {__proto__: {parent: null}}};
+    h(tree);
+    h(tree);
+    tree.parent = {};
+    assertEq(h(tree), 2);
+}
+testDeepPropertyShadowing();

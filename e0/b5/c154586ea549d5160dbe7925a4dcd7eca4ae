@@ -1,0 +1,43 @@
+
+copyrev: 90be86839576a27c31d009b2ec051313e5cb1407
+copy: dom/plugins/PluginStreamParent.h
+
+/* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 8 -*- */
+
+#ifndef mozilla_plugins_BrowserStreamParent_h
+#define mozilla_plugins_BrowserStreamParent_h
+
+#include "mozilla/plugins/PBrowserStreamProtocolParent.h"
+
+namespace mozilla {
+namespace plugins {
+
+class PluginInstanceParent;
+
+class BrowserStreamParent : public PBrowserStreamProtocolParent
+{
+  friend class PluginModuleParent;
+  friend class PluginInstanceParent;
+
+public:
+  BrowserStreamParent(PluginInstanceParent* npp,
+                      NPStream* stream);
+  virtual ~BrowserStreamParent() { }
+
+  virtual nsresult AnswerNPN_RequestRead(const IPCByteRanges& ranges,
+                                         NPError* result);
+
+  int32_t WriteReady();
+  int32_t Write(int32_t offset, int32_t len, void* buffer);
+  void StreamAsFile(const char* fname);
+  NPError NPN_DestroyStream(NPError reason);
+
+private:
+  PluginInstanceParent* mNPP;
+  NPStream* mStream;
+};
+
+} // namespace plugins
+} // namespace mozilla
+
+#endif

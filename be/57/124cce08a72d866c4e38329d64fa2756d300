@@ -1,0 +1,6 @@
+
+copy: toolkit/mozapps/extensions/test/xpcshell-unpack/head_unpack.js
+copyrev: ce9ee8664c38d7ace746d2b234713a375f548e43
+
+Services.prefs.setBoolPref("extensions.alwaysUnpack", true);
+TEST_UNPACKED = true;

@@ -1,0 +1,5 @@
+
+copy: dom/security/test/csp/file_path_matching.js
+copyrev: bb5452a932e08af0b5d4edf525f405465689cbd1
+
+document.getElementById("testdiv").innerHTML = "allowed";

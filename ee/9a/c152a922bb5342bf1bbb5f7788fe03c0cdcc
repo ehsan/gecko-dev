@@ -1,0 +1,14 @@
+[DEFAULT]
+head = head.js
+tail =
+support-files =
+  common_test_Download.js
+# tail.js should quite possibly be in the tail key.
+  tail.js
+
+[test_DownloadCore.js]
+[test_DownloadIntegration.js]
+[test_DownloadLegacy.js]
+[test_DownloadList.js]
+[test_Downloads.js]
+[test_DownloadStore.js]

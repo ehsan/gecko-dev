@@ -1,0 +1,8 @@
+
+copy: modules/plugin/test/mochitest/crashing_subpage.html
+copyrev: bc2e2e960b1612e63af6eb2f5321bf3f3a2a31e6
+
+<html>
+<body onload="window.parent.frameLoaded()">
+  <h1>Crashing subpage</h1>
+  <embed id="plugin1" type="application/x-test" width="400" height="400" drawmode="solid" color="FF00FFFF"></embed>

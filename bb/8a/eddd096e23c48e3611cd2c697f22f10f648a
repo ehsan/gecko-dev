@@ -1,0 +1,8 @@
+
+copyrev: 0f19ab24e98e2fbff62721c7a940fc838282cf3e
+copy: js/src/trace-test/tests/basic/bug570663-1.js
+
+// don't crash
+for (var a = 0; a < 4; a++) {
+  switch (NaN) {}
+}

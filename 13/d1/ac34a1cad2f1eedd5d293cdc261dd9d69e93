@@ -1,0 +1,9 @@
+
+copy: media/webrtc/trunk/src/modules/remote_bitrate_estimator/OWNERS
+copyrev: dfad1ad8afefd3345e8e11b09888a9ed55ac1619
+
+pwestin@webrtc.org
+stefan@webrtc.org
+henrik.lundin@webrtc.org
+mflodman@webrtc.org
+asapersson@webrtc.org

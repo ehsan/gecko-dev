@@ -1,0 +1,10 @@
+
+copy: content/base/test/file_XHR_header.sjs
+copyrev: f4bb4afb6466b62dca97c864f3655f68f3d16d81
+
+// SJS file for getAllResponseRequests vs getResponseRequest
+function handleRequest(request, response)
+{
+  response.setHeader("X-Custom-Header-Bytes", "…", false);
+  response.write("42");
+}

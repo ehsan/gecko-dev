@@ -1,0 +1,8 @@
+
+copy: browser/devtools/inspector/test/browser_inspector_destroyselection.html
+copyrev: d31df2e31b0b8675f6590c686a77a24c854c739d
+
+<!DOCTYPE html>
+
+<h1>mop</h1>
+<iframe src="data:text/html;charset=utf-8,<!DOCTYPE HTML>%0D%0A<h1>kill me<span>.</span><%2Fh1>"></iframe>

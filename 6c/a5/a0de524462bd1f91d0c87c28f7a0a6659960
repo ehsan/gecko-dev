@@ -1,0 +1,25 @@
+
+copy: browser/base/content/test/browser_bug550565.js
+copyrev: ad5d81e008ef937aaa3baa2438bcd572a56e8136
+
+function test() {
+  waitForExplicitFinish();
+
+  let testPath = getRootDirectory(gTestPath);
+
+  let tab = gBrowser.addTab(testPath + "file_bug550565_popup.html");
+
+  tab.linkedBrowser.addEventListener("DOMContentLoaded", function() {
+    tab.linkedBrowser.removeEventListener("DOMContentLoaded", arguments.callee, true);
+
+    let expectedIcon = testPath + "file_bug550565_favicon.ico";
+
+    is(gBrowser.getIcon(tab), expectedIcon, "Correct icon before pushState.");
+    tab.linkedBrowser.contentWindow.history.pushState("page2", "page2", "page2");
+    is(gBrowser.getIcon(tab), expectedIcon, "Correct icon after pushState.");
+
+    gBrowser.removeTab(tab);
+
+    finish();
+  }, true);
+}

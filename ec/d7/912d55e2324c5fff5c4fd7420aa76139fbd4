@@ -1,0 +1,40 @@
+
+copy: layout/reftests/backgrounds/background-size-each-box.html
+copyrev: 084f5c662ea3e2b89b070418f1bae62340c666fe
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>box-decoration-break: clone</title>
+  <style type="text/css">
+@font-face
+{
+  font-family: Ahem;
+  src: url(../fonts/Ahem.ttf);
+}
+
+#outer
+{
+  border: 1px solid black;
+  width: 10em;
+}
+#ahem-lines
+{
+  font-family: Ahem;
+  font-size: 32px;
+  white-space: pre;
+  background-image: url(blue-8x20-green-8x20.png);
+  background-repeat: no-repeat;
+  box-decoration-break: clone;
+}
+</style>
+</head>
+<body>
+<div id="outer">
+<span id="ahem-lines">      <!-- EOL -->
+        <!-- mix it up for clone --><!-- EOL -->
+      <!-- EOL -->
+      <!-- EOL -->
+      </span></div>
+</body>
+</html>

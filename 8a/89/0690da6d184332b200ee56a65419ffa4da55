@@ -1,0 +1,17 @@
+
+copyrev: 56cef599a7b015c65fac8cb5c53ff7851dc6fd9e
+copy: dom/src/base/crashtests/244933-1.html
+
+<html>
+<body>
+<pre>
+<script>
+document.write(window.sidebar.something);
+for (i in window.sidebar)
+{
+	break
+}
+</script>
+</pre>
+</body>
+</html>

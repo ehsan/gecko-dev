@@ -1,0 +1,12 @@
+
+copy: js/src/devtools/automation/generational
+copyrev: dc150cf2310dd39066ac001a8d00fb985ae13913
+
+--enable-optimize
+--enable-debug
+--enable-stdcxx-compat
+--enable-ctypes
+--disable-shared-js
+--enable-exact-rooting
+--enable-gccompacting
+--enable-threadsafe

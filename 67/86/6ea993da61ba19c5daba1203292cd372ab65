@@ -1,0 +1,14 @@
+
+copyrev: f9ba1ef1d7aba12df91bc1a953bb14d263ea3a9c
+copy: js/src/trace-test/tests/basic/testRegExpTest.js
+
+// |jit-test| TMFLAGS: full,fragprofile,treevis; valgrind
+
+function testRegExpTest() {
+    var r = /abc/;
+    var flag = false;
+    for (var i = 0; i < 10; ++i)
+        flag = r.test("abc");
+    return flag;
+}
+assertEq(testRegExpTest(), true);

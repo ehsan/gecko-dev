@@ -1,0 +1,44 @@
+
+copy: layout/reftests/forms/input/range/input-range-moz-range-progress-3.html
+copyrev: e87d7a564f5942d5355557104958465940f2ffb2
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Test ::-moz-range-progress</title>
+    <style>
+
+input[type=range] {
+  width: 200px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  background-color: blue;
+}
+
+input[type=range]::-moz-range-track {
+  border: 0;
+  height: 10px;
+  background-color: red;
+}
+
+input[type=range]::-moz-range-progress {
+  height: 10px;
+  background-color: lime;
+}
+
+input[type=range]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  border-radius: 0;
+  background-image: none;
+  background-color: yellow;
+}
+
+    </style>
+  </head>
+  <body>
+    <input type=range value=100>
+  </body>
+</html>

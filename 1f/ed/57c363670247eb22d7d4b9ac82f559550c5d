@@ -1,0 +1,7 @@
+
+copy: browser/devtools/styleinspector/test/browser_bug705707_is_content_stylesheet_xul.css
+copyrev: d46eec70dcb0aa10969b4fb80412356328ba514c
+
+#target {
+  font-size: 200px;
+}

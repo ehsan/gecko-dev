@@ -1,0 +1,11 @@
+
+copy: toolkit/themes/winstripe/global/autocomplete-aero.css
+copyrev: b7c03efe18eb2bfee5cc6b5c10d27a63818b5f96
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%define WINDOWS_AERO
+%include autocomplete.css
+%undef WINDOWS_AERO

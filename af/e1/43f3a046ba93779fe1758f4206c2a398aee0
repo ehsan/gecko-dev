@@ -1,0 +1,13 @@
+
+copy: layout/xul/base/src/crashtests/360642-1.xul
+copyrev: b8686b3166de5b2cc664373253dd3658f7eb1808
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" 
+        class="reftest-wait"
+        onload="setTimeout(function() { var foo = document.getElementById('foo'); foo.parentNode.removeChild(foo); document.documentElement.removeAttribute('class'); }, 30);">
+        
+  <listboxbody>
+    <hbox id="foo"/>
+  </listboxbody>
+  
+</window>

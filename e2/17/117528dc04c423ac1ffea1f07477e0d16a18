@@ -1,0 +1,16 @@
+
+copy: toolkit/components/places/tests/browser/settitle/title1.html
+copyrev: 902c98fda3a97866ce8d700b8a904a48f85b6915
+
+<!--
+ Any copyright is dedicated to the Public Domain.
+ http://creativecommons.org/publicdomain/zero/1.0/
+-->
+
+<html>
+  <head>
+  </head>
+  <body>
+    title1.html
+  </body>
+</html>

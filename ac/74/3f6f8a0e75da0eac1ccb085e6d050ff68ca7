@@ -1,0 +1,9 @@
+
+copyrev: 7808ad0ab77c922766db9ee20edbaf8ea1ba1445
+copy: js/src/trace-test/tests/basic/bug601401.js
+
+let(e) {
+    with({}) try {} catch (x) {} finally {
+        let(y) {}
+    }
+}

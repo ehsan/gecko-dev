@@ -1,0 +1,26 @@
+
+copy: content/base/crashtests/551631-1.html
+copyrev: 21148fff0cf22480331a651894c87ebd399e8e66
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<base href="javascript:5">
+<script>
+
+function boom()
+{
+  var head = document.getElementsByTagName("head")[0];
+  var s = document.createElement("script");
+  s.async = "async";
+  s.src = "useBaseHrefAndFail";
+  s.q = "q";
+  head.appendChild(s);
+  head.removeChild(s);
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

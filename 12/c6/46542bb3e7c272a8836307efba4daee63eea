@@ -1,0 +1,232 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>Test for SMIL when things change after an animation is frozen</title>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="smilTestUtils.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=533291">Mozilla Bug 533291</a>
+<p id="display"></p>
+<div id="content" style="display: none">
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="120px" height="120px"
+     onload="this.pauseAnimations()">
+  <g id="circleParent">
+    <circle cx="0" cy="20" r="15" fill="blue" id="circle"/>
+  </g>
+</svg>
+</div>
+<pre id="test">
+<script class="testbody" type="text/javascript">
+<![CDATA[
+/** Test for SMIL values that are context-sensitive **/
+
+/* See bug 533291.
+   
+   The format of each test is basically:
+   1) create some animated and frozen state
+   2) test the animated values
+   3) change the context
+   4) test that context-sensitive animation values have changed
+
+   Ideally, after changing the context (3), the animated state would instantly
+   update. However, this is not currently the case for many situations.
+
+     For CSS properties we have bug 545282 - In animations involving 'inherit'
+     / 'currentColor', changes to inherited value / 'color' don't show up in
+     animated value immediately
+
+     For SVG lengths we have bug 508206 - Relative units used in
+     animation don't update immediately
+
+     (There are a few of todo_is's in the following tests so that if those bugs
+     are ever resolved we'll know to update this test case accordingly.)
+
+   So in between (3) and (4) we force a sample. This is currently done by
+   calling SVGSVGElement.setCurrentTime with the same current time which has the
+   side effect of forcing a sample.
+
+   What we *are* testing is that we're not too zealous with caching animation
+   values whilst in the frozen state. Normally we'd say, "Hey, we're frozen,
+   let's just use the same animation result as last time" but for some
+   context-sensitive animation values that doesn't work.
+*/
+
+/* Global Variables */
+const SVGNS = "http://www.w3.org/2000/svg";
+
+// Animation parameters -- not used for <set> animation
+const ANIM_DUR = "4s";
+const TIME_ANIM_END = "4";
+const TIME_AFTER_ANIM_END = "5";
+
+const gSvg = document.getElementById("svg");
+const gCircle = document.getElementById("circle");
+const gCircleParent = document.getElementById("circleParent");
+
+SimpleTest.waitForExplicitFinish();
+
+// MAIN FUNCTION
+// -------------
+
+function main()
+{
+  ok(gSvg.animationsPaused(), "should be paused by <svg> load handler");
+  is(gSvg.getCurrentTime(), 0, "should be paused at 0 in <svg> load handler");
+
+  const tests =
+    [ testBaseValueChange,
+      testCurrentColorChange,
+      testCurrentColorChangeUsingStyle,
+      testInheritChange,
+      testInheritChangeUsingStyle
+     ];
+
+  while (tests.length) {
+    tests.shift()();
+  }
+  SimpleTest.finish();
+}
+
+// HELPER FUNCTIONS
+// ----------------
+function createAnimSetTo(attrName, toVal)
+{
+  var anim = document.createElementNS(SVGNS,"set");
+  anim.setAttribute("attributeName", attrName);
+  anim.setAttribute("to", toVal);
+  return gCircle.appendChild(anim);
+}
+
+function createAnimBy(attrName, byVal)
+{
+  var anim = document.createElementNS(SVGNS,"animate");
+  anim.setAttribute("attributeName", attrName);
+  anim.setAttribute("dur", ANIM_DUR);
+  anim.setAttribute("begin","0s");
+  anim.setAttribute("by", byVal);
+  anim.setAttribute("fill", "freeze");
+  return gCircle.appendChild(anim);
+}
+
+// Common setup code for each test function: seek to 0, and make sure
+// the previous test cleaned up its animations.
+function setupTest() {
+  gSvg.setCurrentTime(0);
+  if (gCircle.firstChild) {
+    ok(false, "Previous test didn't clean up after itself.");
+  }
+}
+
+// THE TESTS
+// ---------
+
+function testBaseValueChange()
+{
+  setupTest();
+  var anim = createAnimBy("cx", "50");
+  gSvg.setCurrentTime(TIME_ANIM_END);
+  is(gCircle.cx.animVal.value, 50,
+     "Checking animated cx as anim ends");
+
+  gSvg.setCurrentTime(TIME_AFTER_ANIM_END);
+  is(gCircle.cx.animVal.value, 50,
+     "Checking animated cx after anim ends");
+
+  gCircle.setAttribute("cx", 20);
+  is(gCircle.cx.animVal.value, 70,
+     "Checking animated cx after anim ends & after changing base val");
+
+  anim.parentNode.removeChild(anim); // clean up
+}
+
+function testCurrentColorChange()
+{
+  gCircle.setAttribute("color", "red"); // At first: currentColor=red
+  var anim = createAnimSetTo("fill", "currentColor");
+
+  gSvg.setCurrentTime(0); // trigger synchronous sample
+  is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(255, 0, 0)",
+     "Checking animated fill=currentColor after animating");
+
+  gCircle.setAttribute("color", "lime"); // Change: currentColor=lime
+  // Bug 545282: We should really detect this change and update immediately but
+  // currently we don't until we get sampled again
+  todo_is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(0, 255, 0)",
+     "Checking animated fill=currentColor after updating context but before " +
+     "sampling");
+  gSvg.setCurrentTime(0);
+  is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(0, 255, 0)",
+     "Checking animated fill=currentColor after updating context");
+
+  // Clean up
+  gCircle.removeAttribute("color");
+  gCircle.removeChild(gCircle.firstChild);
+}
+
+function testCurrentColorChangeUsingStyle()
+{
+  setupTest();
+  gCircle.setAttribute("style", "color: red"); // At first: currentColor=red
+  var anim = createAnimSetTo("fill", "currentColor");
+
+  gSvg.setCurrentTime(0);
+  is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(255, 0, 0)",
+     "Checking animated fill=currentColor after animating (using style attr)");
+
+  gCircle.setAttribute("style", "color: lime"); // Change: currentColor=lime
+  gSvg.setCurrentTime(0);
+  is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(0, 255, 0)",
+     "Checking animated fill=currentColor after updating context "
+     + "(using style attr)");
+
+  // Clean up
+  gCircle.removeAttribute("style");
+  gCircle.removeChild(gCircle.firstChild);
+}
+
+function testInheritChange()
+{
+  setupTest();
+  gCircleParent.setAttribute("fill", "red"); // At first: inherit=red
+  var anim = createAnimSetTo("fill", "inherit");
+
+  gSvg.setCurrentTime(0);
+  is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(255, 0, 0)",
+     "Checking animated fill=inherit after animating");
+
+  gCircleParent.setAttribute("fill", "lime"); // Change: inherit=lime
+  gSvg.setCurrentTime(0);
+  is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(0, 255, 0)",
+     "Checking animated fill=inherit after updating context");
+
+  gCircleParent.removeAttribute("fill");
+  gCircle.removeChild(gCircle.firstChild);
+}
+
+function testInheritChangeUsingStyle()
+{
+  setupTest();
+  gCircleParent.setAttribute("style", "fill: red"); // At first: inherit=red
+  var anim = createAnimSetTo("fill", "inherit");
+
+  gSvg.setCurrentTime(0);
+  is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(255, 0, 0)",
+     "Checking animated fill=inherit after animating (using style attr)");
+
+  gCircleParent.setAttribute("style", "fill: lime"); // Change: inherit=lime
+  gSvg.setCurrentTime(0);
+  is(SMILUtil.getComputedStyleSimple(gCircle, "fill"), "rgb(0, 255, 0)",
+     "Checking animated fill=inherit after updating context "
+     + "(using style attr)");
+
+  gCircleParent.removeAttribute("style");
+  gCircle.removeChild(gCircle.firstChild);
+}
+
+window.addEventListener("load", main, false);
+]]>
+</script>
+</pre>
+</body>
+</html>

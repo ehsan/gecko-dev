@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-valid/output/output-ref.html
+copyrev: 248a4eac450a794f106d3e5c918afe7421a9fab3
+
+<!DOCTYPE html>
+<html>
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <output class='ref'>foo</output>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: content/events/crashtests/eventctor-nulldictionary.html
+copyrev: 2372a2596bcfc567c9a8d5ecb4b747b73f569413
+
+<!DOCTYPE html>
+<script>
+new MouseEvent("click", null);
+</script>

@@ -1,0 +1,14 @@
+
+copyrev: 049dd34ef118525cd15d573a4476e66a16b3e47b
+copy: dom/src/base/crashtests/327695-1.html
+
+<html>
+<head>
+<script>
+document.createTextNode("").__proto__.__proto__ = null;
+document.createTextNode("");
+</script>
+</head>
+<body>
+</body>
+</html>

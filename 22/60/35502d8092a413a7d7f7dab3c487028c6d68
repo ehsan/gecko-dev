@@ -1,0 +1,11 @@
+
+copy: content/base/test/file_bug708620.html
+copyrev: ac943841fa6e4c8c5268d742cec38612d53ad908
+
+<!doctype html>
+<meta charset=windows-1252>
+<title>Non-UTF form</title>
+<body onload="document.forms[0].submit();">
+<form action="file_bug708620-2.html">
+<input name=foo value=bar>
+</form>

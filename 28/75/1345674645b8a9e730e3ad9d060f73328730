@@ -1,0 +1,11 @@
+
+copy: toolkit/themes/gnomestripe/global/dropmarker.css
+copyrev: 4a66fdbd49060ebbd83b47f75053e383fb5aeb50
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+dropmarker {
+  -moz-appearance: menulist-button;
+}

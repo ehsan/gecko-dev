@@ -1,0 +1,31 @@
+
+copy: layout/xul/base/src/crashtests/328135-1.xul
+copyrev: 3f0f4559d55210b0113421b59e886c40d7f0b068
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+
+
+<script>
+
+function init() { 
+  var pop = document.getElementsByTagName("popup")[0];
+  SpecialPowers.wrap(document).getAnonymousNodes(pop)[0];
+  eval.eee = document.documentElement;
+};
+
+
+window.addEventListener("load", init, false);
+
+</script>
+
+<popup/>
+
+
+<tabbox/>
+
+
+</window>

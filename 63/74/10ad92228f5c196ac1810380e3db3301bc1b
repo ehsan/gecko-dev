@@ -1,0 +1,13 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/rendering/00_test_list.txt
+copyrev: 822d52db533d343dbd503909608a947133a0e78d
+
+draw-arrays-out-of-bounds.html
+draw-elements-out-of-bounds.html
+gl-clear.html
+gl-drawelements.html
+gl-scissor-test.html
+more-than-65536-indices.html
+point-size.html
+triangle.html
+line-loop-tri-fan.html

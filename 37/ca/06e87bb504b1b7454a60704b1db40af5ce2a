@@ -1,0 +1,27 @@
+
+copy: dom/src/threads/test/closeOnGC_server.sjs
+copyrev: dad2b17e5aa6e9531a46908729d5536b9cd99444
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+function handleRequest(request, response)
+{
+  response.setHeader("Content-Type", "text/plain", false);
+  response.setHeader("Cache-Control", "no-cache", false);
+
+  if (request.method == "POST") {
+    setState("seenPost", "1");
+    return;
+  }
+
+  if (request.method == "GET") {
+    if (getState("seenPost") == "1") {
+      response.write("closed");
+    }
+    return;
+  }
+
+  response.setStatusLine(request.httpVersion, 404, "Not found");
+}

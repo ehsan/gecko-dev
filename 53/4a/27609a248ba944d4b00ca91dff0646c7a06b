@@ -1,0 +1,23 @@
+
+copy: content/svg/content/src/crashtests/410659-3.svg
+copyrev: 181c444e08c077420198d4bdba6de0e429c55a29
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+
+  <filter id="filter1">
+    <feImage x="0"
+             y="0"
+             width="5%"
+             height="20%"
+             result="raster1" 
+             xlink:href="../../../../../testing/crashtest/images/tree.gif" />
+    <feTile />
+  </filter>
+
+  <rect x="0"
+        y="0"
+        width="100%"
+        height="100%"
+        filter="url(#filter1)" />
+
+</svg>

@@ -1,0 +1,11 @@
+
+copy: browser/devtools/debugger/test/test-location-changes-bp.js
+copyrev: 2ed55021bbd791ba752d61ca709168ae84bba7cb
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function myFunction() {
+  var a = 1;
+  debugger;
+}

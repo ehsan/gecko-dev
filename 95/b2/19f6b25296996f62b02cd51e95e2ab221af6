@@ -1,0 +1,5 @@
+
+copy: js/src/jit-test/tests/basic/bug716713.js
+copyrev: 7e007e4fdaf2565a5f5eb581a34307fb5300df63
+
+uneval(function() { @o() })

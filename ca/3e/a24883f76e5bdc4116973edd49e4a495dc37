@@ -1,0 +1,11 @@
+
+copy: content/html/content/crashtests/451123-1.html
+copyrev: fd8f6a0d06d80da6abea5f122de8468da59afac7
+
+<html>
+<head>
+</head>
+<body>
+<input type="file" type="file">
+</body>
+</html>

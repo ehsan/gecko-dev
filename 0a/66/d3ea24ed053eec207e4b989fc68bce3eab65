@@ -1,0 +1,9 @@
+
+copy: content/xslt/crashtests/111994.xml
+copyrev: a0a33aa6608fa2ab29e6d0d8222304083f25449a
+
+<?xml version="1.0" standalone="yes" ?>
+<?xml-stylesheet type="text/xsl" href="111994.xsl" ?>
+<root>
+  <item id="1001" name="name" />
+</root>

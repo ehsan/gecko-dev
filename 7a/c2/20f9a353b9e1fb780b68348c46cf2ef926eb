@@ -1,0 +1,15 @@
+
+copy: gfx/thebes/crashtests/348462-1.html
+copyrev: 6c8dbc5b8c482c23a560bb8bbf4cb7216dbb2f1b
+
+<html>
+<head>
+<style>.classname { font-size: 2666.3423423423423424 }</style>
+<title>bla crash</title>
+</head>
+
+<body>
+<p class="classname">crash!</p>
+</body>
+
+</html>

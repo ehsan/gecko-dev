@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-ui-invalid/default-style/textarea.html
+copyrev: ed0fd043d97024b7fbe5c7493eef4cedb206ac77
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <script>
+    function onloadHandler()
+    {
+      document.getElementById('e').setCustomValidity('foo');
+      document.getElementById('e').focus();
+    }
+  </script>
+  <body onload="onloadHandler();">
+    <textarea id='e' onfocus="document.documentElement.className='';"></textarea>
+  </body>
+</html>

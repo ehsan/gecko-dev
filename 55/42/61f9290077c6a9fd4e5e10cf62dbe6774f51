@@ -1,0 +1,18 @@
+
+copy: layout/xul/crashtests/329407-1.xml
+copyrev: 49336b3d3d292a8f8bef20709325d47cd8ef03ec
+
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      >
+
+<body>
+
+  <xul:hbox>
+    <select/>
+    <select/>
+  </xul:hbox>
+
+</body>
+
+</html>

@@ -1,0 +1,5 @@
+
+copyrev: 228def5d0c3bab3264e7f6d7b27f56acf7a628fe
+copy: js/tests/js1_5/Function/shell.js
+
+gTestsubsuite = 'Function';

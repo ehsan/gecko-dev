@@ -1,0 +1,6 @@
+
+copy: content/xml/document/crashtests/185285-1.xml
+copyrev: 16e4a2436e1f0b8bc61402e8f8614c7b4c91dad3
+
+<link xmlns="http://www.w3.org/1999/xhtml" href="some.css" rel="stylesheet" />
+<x />

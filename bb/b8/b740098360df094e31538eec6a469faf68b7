@@ -1,0 +1,5 @@
+
+copy: content/base/test/test_bug702439.html^headers^
+copyrev: 4756b22fc7f4d6af53c933094fd956df42fef821
+
+X-Content-Security-Policy: default-src *; options inline-script

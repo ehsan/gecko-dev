@@ -1,0 +1,5 @@
+
+copyrev: 2bf5c3d2763cbad70cdebbf64cb87f988e643e8f
+copy: modules/plugin/samples/default/mac/DefaultPluginPrefix.h
+
+#include "mozilla-config.h"

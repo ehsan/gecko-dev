@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/meta/html/semantics/embedded-content/the-img-element/srcset/select-an-image-source.html.ini
+copyrev: 4e036c4b220e85275e33ed86ac60afa2af0165c2
+
+[failing-test.html]
+  type: testharness
+  [Failing test]
+    expected: FAIL
+

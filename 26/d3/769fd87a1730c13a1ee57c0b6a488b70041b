@@ -1,0 +1,24 @@
+
+copy: layout/xul/base/src/crashtests/434458-1.xul
+copyrev: 7a46b6384ee1619da3a764e1469fd49693372892
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="setTimeout(boom, 30);" class="reftest-wait">
+
+<script>
+function boom() {
+  var a = document.getElementById('a');
+  var x = a.popupBoxObject;
+  a.parentNode.removeChild(a);
+  x.enableKeyboardNavigator(true);
+  x.openPopup(null, "after_start", 0, 0, false, false, null);
+  x.openPopupAtScreen(2, 2, false, null);
+  x.showPopup(document.documentElement, a, -1, -1, "popup", "topleft", "topleft");
+  x.hidePopup();
+  document.documentElement.removeAttribute("class");
+}
+
+</script>
+
+<menupopup id="a"/>
+
+</window>

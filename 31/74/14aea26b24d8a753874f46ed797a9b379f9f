@@ -1,0 +1,11 @@
+
+copy: dom/xml/tests/load/test.xml
+copyrev: 3cf5283a85fbc7527ce5b21105a18e4eea7de1e6
+
+<?xml version="1.0"?>
+<!DOCTYPE doc [
+<!ATTLIST p id ID #IMPLIED>
+]>
+<doc>
+  <p id="id1">Text from sample XML document.</p>
+</doc>

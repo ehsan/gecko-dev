@@ -1,0 +1,14 @@
+
+copy: browser/components/sessionstore/test/browser/browser_597315_b.html
+copyrev: 09669fdd18b1986a8965713770f6815867f298ec
+
+<html>
+  <body>
+    I'm B!<br/>
+    <a target="c" href="browser_597315_c1.html">click me first</a><br/>
+    <a target="c" href="browser_597315_c2.html">then click me</a><br/>
+    Close this tab.<br/>
+    Restore this tab.<br/>
+    Click back.<br/>
+  </body>
+</html>

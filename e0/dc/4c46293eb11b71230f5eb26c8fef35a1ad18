@@ -1,0 +1,10 @@
+
+copyrev: 4aa3f8d03f35cf88b8363c7dfa5a1a2ac1e3c215
+copy: js/src/trace-test/tests/basic/testInterpreterReentry.js
+
+function testInterpreterReentry() {
+    this.__defineSetter__('x', function(){})
+    for (var j = 0; j < 5; ++j) { x = 3; }
+    return 1;
+}
+assertEq(testInterpreterReentry(), 1);

@@ -1,0 +1,11 @@
+
+copyrev: ba99209509cc1a59e0859dad06a10b9f7d38b432
+copy: modules/libfishsound/README_MOZILLA
+
+The source from this directory was copied from the libfishsound-0.9.1
+source distribution using the update.sh script. The only changes made
+were those applied by update.sh and the addition/upate of Makefile.in
+files for the Mozilla build system.
+
+Some files are renamed during the copy to prevent clashes with object
+file names with other Mozilla libraries.

@@ -1,0 +1,12 @@
+
+copy: content/xul/content/crashtests/509719-2-overlay.xul
+copyrev: b6114d6032a3ed100c6df557f952ee190f26605c
+
+<overlay xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <script>
+    if (document.getElementById("testnode")) {
+      document.loadOverlay(window.location.href.substr(0,window.location.href.lastIndexOf('/')+1)+'509719-2-overlay.xul', null);
+    }
+  </script>
+  <box xmlns="http://www.w3.org/1999/xhtml" id="testnode" removeelement="true"/>
+</overlay>

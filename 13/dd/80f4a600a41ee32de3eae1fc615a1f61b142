@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/simplifiedtriple.good
+copyrev: f98fd6785a26552797fc717a087a41ed60477486
+
+glass
+sko
+glassko

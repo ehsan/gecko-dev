@@ -1,0 +1,24 @@
+
+copyrev: 2ef080b02b1b6558d1e1a7560f370c7924ded21e
+copy: js/src/trace-test/tests/basic/testMethodOverride.js
+
+function Q() {
+    this.m = function () {};
+}
+function callm(q) {
+    q.m();
+}
+var a = [];
+for (var i = 0; i < 5; i++) {
+    var q = new Q;
+    callm(q);
+    q.m = function () { return 42; };
+    a[i] = q;
+}
+for (var i = 0; i < 5; i++)
+    callm(a[i]);
+checkStats({
+    recorderStarted: 2,
+    traceCompleted: 3,
+    sideExitIntoInterpreter: 4
+});

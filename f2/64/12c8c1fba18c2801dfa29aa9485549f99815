@@ -1,0 +1,15 @@
+
+copy: js/src/xpconnect/crashtests/420513-1.html
+copyrev: 1cf0d499ad1db85d47929acf45da9e2627fe5401
+
+<html>
+<head>
+<script type="text/javascript">
+
+(new XPCNativeWrapper(document.documentElement))();
+
+</script>
+</head>
+<body>
+</body>
+</html>

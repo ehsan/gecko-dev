@@ -1,0 +1,25 @@
+
+copy: content/html/content/crashtests/613027.html
+copyrev: 8e7586cd68005cf03747d490ff0109975e2036ce
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var a = document.createElementNS("http://www.w3.org/1999/xhtml", "fieldset");
+  var b = document.createElementNS("http://www.w3.org/1999/xhtml", "legend");
+  var c = document.createElementNS("http://www.w3.org/1999/xhtml", "input");
+
+  a.appendChild(b);
+  a.appendChild(c);
+  a.removeChild(b);
+  c.expandoQ = a;
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

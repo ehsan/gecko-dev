@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/output/output-valid.html
+copyrev: 7c2f47c4720e389cc7eb9170a0fc881201e06c0f
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if output has no custom error and is not barred from constraint
+             validation, it should not affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <output class='notinvalid'>foo</output>
+  </body>
+</html>

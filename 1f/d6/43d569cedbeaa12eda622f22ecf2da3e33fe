@@ -1,0 +1,20 @@
+
+copy: layout/reftests/css-calc/text-indent-1-ref.html
+copyrev: a11ddf44a796025799fd758d5ec53d76e1e559d7
+
+<!DOCTYPE HTML>
+<title>text-indent: calc()</title>
+<style>
+
+body { width: 500px }
+p { font-size: 10px }
+
+</style>
+
+<p style="text-indent: 247px">50% - 3px</p>
+<p style="text-indent: 247px">25% - 3px + 25%</p>
+<p style="text-indent: 247px">25% - 3px + 12.5% * 2</p>
+<p style="text-indent: 247px">25% - 3px + 12.5%*2</p>
+<p style="text-indent: 247px">25% - 3px + 2*12.5%</p>
+<p style="text-indent: 247px">25% - 3px + 2 * 12.5%</p>
+<p style="text-indent: 250px">30% + 20%</p>

@@ -1,0 +1,27 @@
+
+copy: layout/reftests/css-calc/offsets-absolute-top-1-ref.html
+copyrev: 63f629a455984d5252a8145d0135b0910a4b902a
+
+<!DOCTYPE HTML>
+<title>Test for top:calc() on absolutely positioned elements</title>
+<style>
+body { margin: 0 }
+body > div { float: left; height: 100px; width: 3px; }
+div[style] { background: blue; position: relative; height: 10px; }
+</style>
+
+<!-- tests with a fixed-height container -->
+<div><div style="top: 50px"></div></div>
+<div><div style="top: 50px"></div></div>
+<div><div style="top: 75px"></div></div>
+<div><div style="top: 45px"></div></div>
+<div><div style="top: 40px"></div></div>
+<div><div style="top: 30px"></div></div>
+
+<!-- tests with an auto-top container -->
+<div><div style="top: 50px"></div></div>
+<div><div style="top: 50px"></div></div>
+<div><div style="top: 75px"></div></div>
+<div><div style="top: 45px"></div></div>
+<div><div style="top: 40px"></div></div>
+<div><div style="top: 30px"></div></div>

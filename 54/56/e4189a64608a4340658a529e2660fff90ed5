@@ -1,0 +1,15 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/hr/026-isvalid.html
+copyrev: 2659cc08edeccc8d09a59eb1970c9452f2b63c00
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;hr&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <hr class="class" id="id" lang="en">
+</body>
+</html>

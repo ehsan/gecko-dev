@@ -1,0 +1,21 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
+    DIRS += ['chrome']
+    CPP_SOURCES += [
+        'TestAUSReadStrings.cpp',
+        'TestAUSHelper.cpp',
+    ]
+
+XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
+    programs = [
+        fyl[0:-4] for fyl in CPP_SOURCES
+    ]
+    programs.sort()
+    SIMPLE_PROGRAMS += programs

@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/a/model-novalid.html
+copyrev: 0135a772e5469049e7efb148896ed76c6da5ef75
+
+<!doctype html>
+<meta charset=utf-8>
+<title>anchor with flow content and phrasing parent</title>
+<span><a><p>foo</p></a></span>

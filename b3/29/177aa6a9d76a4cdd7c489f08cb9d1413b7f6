@@ -1,0 +1,13 @@
+
+copy: dom/src/jsurl/test/pass.html
+copyrev: 6bc09c67877e36dea07599f34a2e733e5cd814e7
+
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+parent.passJSUrl = true;
+parent.finishTest();
+</script>
+</body>
+</html>

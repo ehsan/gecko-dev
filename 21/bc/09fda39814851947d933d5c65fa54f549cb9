@@ -1,0 +1,13 @@
+
+copyrev: 612787a24b00e0a413e74af2ebdce816d008c6d9
+copy: js/src/trace-test/tests/basic/testDecayingInnerLoop.js
+
+function testDecayingInnerLoop() {
+    var i, j, k = 10;
+    for (i = 0; i < 5000; ++i) {
+        for (j = 0; j < k; ++j);
+            --k;
+    }
+    return i;
+}
+assertEq(testDecayingInnerLoop(), 5000);

@@ -1,0 +1,5 @@
+
+copyrev: 95350f18fc67e8e500c8c9daadc37af35df64b12
+copy: js/src/trace-test/tests/jaeger/xor-sanity.js
+
+assertEq(-2^31, -31);

@@ -1,0 +1,16 @@
+
+copy: extensions/spellcheck/hunspell/tests/circumfix.morph
+copyrev: 8c99fc1a6bd68e585447827284fb05e329321a55
+
+> nagy
+analyze(nagy) =  st:nagy po:adj
+stem(nagy) = nagy
+> nagyobb
+analyze(nagyobb) =  st:nagy po:adj is:COMPARATIVE
+stem(nagyobb) = nagy
+> legnagyobb
+analyze(legnagyobb) =  fl:A st:nagy po:adj is:SUPERLATIVE
+stem(legnagyobb) = nagy
+> legeslegnagyobb
+analyze(legeslegnagyobb) =  fl:B st:nagy po:adj is:SUPERSUPERLATIVE
+stem(legeslegnagyobb) = nagy

@@ -1,0 +1,7 @@
+
+copy: js/src/devtools/rootAnalysis/expect.json
+copyrev: 857e342de4c380c00ac8a7c3c25f3d4e0fdb44cc
+
+{
+  "expect-hazards": 13
+}

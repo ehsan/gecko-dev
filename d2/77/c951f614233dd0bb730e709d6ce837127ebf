@@ -1,0 +1,24 @@
+
+copy: gfx/thebes/crashtests/395335-1.xhtml
+copyrev: 0fc62147250e00d486b723a8761d1c477af2b408
+
+<html xmlns="http://www.w3.org/1999/xhtml" 
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<head>
+<script>
+
+function boom()
+{
+  document.getElementById("tree").firstChild.data = "xyz";
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+
+<xul:tree id="tree">a</xul:tree>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+
+copy: mobile/xul/branding/unofficial/locales/en-US/brand.properties
+copyrev: 99272b1a9d87d2ad629d1be91a032417d9a1e3aa
+
+brandShortName=B2G
+brandFullName=Mozilla B2G

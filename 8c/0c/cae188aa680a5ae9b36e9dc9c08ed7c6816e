@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-invalid/textarea/textarea-fieldset-legend-ref.html
+copyrev: 71a193efd870527bfbdecf828a83392b298e21f0
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <fieldset>
+      <legend>
+        <textarea style="background-color: green;"></textarea>
+      </legend>
+    </fieldset>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+
+copy: browser/devtools/webconsole/test/browser/test-console.html
+copyrev: 152e1a7fb6c12e01ca3ceede2a430f1890bd53d2
+
+<!DOCTYPE HTML>
+<html dir="ltr" xml:lang="en-US" lang="en-US"><head>
+    <title>Console test</title>
+    <script type="text/javascript">
+      function test() {
+        var str = "Dolske Digs Bacon, Now and Forevermore."
+        for (var i=0; i < 5; i++) {
+          console.log(str);
+        } 
+      }
+      console.info("INLINE SCRIPT:");
+      test();
+      console.warn("I'm warning you, he will eat up all yr bacon.");
+      console.error("Error Message");
+    </script>
+  </head>
+  <body>
+    <h1 id="header">Heads Up Display Demo</h1>
+    <button onclick="test();">Log stuff about Dolske</button>
+    <div id="myDiv"></div>
+  </body>
+</html>

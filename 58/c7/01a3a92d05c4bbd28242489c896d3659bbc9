@@ -1,0 +1,25 @@
+
+copyrev: 7b7937ce40111b1bd265f008cff6f230f667737a
+copy: layout/reftests/svg/image/img-height-slice-2-ref.html
+
+<html class="reftest-wait">
+<head>
+  <link rel="stylesheet" type="text/css" href="svg-image-util.css" />
+  <script src="svg-image-util.js"></script>
+  <script>
+    function main() {
+      var svgParams = {
+        viewBox:  [0, 0, 40, 20],
+        height :  "2em",
+        meetOrSlice: "slice"
+      };
+
+      appendSVGArrayWithParams(svgParams, "embed");
+      document.documentElement.removeAttribute("class");
+    }
+  </script>
+</head>
+<body onload="main()">
+  <!-- Body gets populated by script -->
+</body>
+</html>

@@ -1,0 +1,33 @@
+
+copyrev: 4bd41ca7ed0d8afd2f099322969582b4ea9567f4
+copy: js/src/trace-test/tests/arguments/strict-nested-assign-shadowed-var.js
+
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/licenses/publicdomain/
+ */
+load(libdir + 'array-compare.js');
+
+var obj = {};
+
+/********************
+ * STRICT ARGUMENTS *
+ ********************/
+
+function strictNestedAssignShadowVar(p)
+{
+  "use strict";
+  function inner()
+  {
+    var p = 12;
+    function innermost() { p = 1776; return 12; }
+    return innermost();
+  }
+  return arguments;
+}
+
+assertEq(arraysEqual(strictNestedAssignShadowVar(), []), true);
+assertEq(arraysEqual(strictNestedAssignShadowVar(99), [99]), true);
+assertEq(arraysEqual(strictNestedAssignShadowVar(""), [""]), true);
+assertEq(arraysEqual(strictNestedAssignShadowVar(obj), [obj]), true);
+

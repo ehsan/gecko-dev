@@ -1,0 +1,10 @@
+
+copy: js/src/metrics/gc/README.txt
+copyrev: 3711b519a8222b5b9ea5a5ded06cd994b03e86df
+
+Usage:
+
+Requirements:
+1) The shell has to be compiled with --enable-gctimer
+
+Tested with python2.6

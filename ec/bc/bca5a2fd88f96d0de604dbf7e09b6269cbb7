@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/common/failing-test.html
+copyrev: dbcb09d51f744be6239e1903ed8e71286792c222
+
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>Failing test</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script>
+test(function() {
+  assert_unreached("Expected failure");
+});
+</script>

@@ -1,0 +1,18 @@
+
+copy: js/src/jit-test/tests/debug/debug-object-03.js
+copyrev: ad72e3243d3b760bdfc1e50b627c825d9d7891f5
+
+// |jit-test| debug
+var g = newGlobal('new-compartment');
+g.log = '';
+
+var dbg = Debug(g);
+var hooks = {
+    debuggerHandler: function (stack) {
+        g.log += '!';
+    }
+};
+dbg.hooks = hooks;
+assertEq(dbg.hooks, hooks);
+assertEq(g.eval("log += '1'; debugger; log += '2'; 3;"), 3);
+assertEq(g.log, '1!2');

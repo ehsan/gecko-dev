@@ -1,0 +1,15 @@
+
+copy: other-licenses/virtualenv/MANIFEST.in
+copyrev: 68b6c799d55bea33cf39232ec4c412fb64e407b5
+
+recursive-include bin *
+recursive-include docs *
+recursive-include scripts *
+recursive-include virtualenv_support *.egg *.tar.gz
+recursive-include virtualenv_embedded *
+recursive-exclude docs/_templates *
+recursive-exclude docs/_build *
+include virtualenv_support/__init__.py
+include *.py
+include AUTHORS.txt
+include LICENSE.txt

@@ -1,0 +1,11 @@
+
+copy: content/base/test/invalid_accesscontrol.resource
+copyrev: 6e533138bf0c0630d7475afe2d3e0f157e115cc3
+
+:this file must be enconded in utf8
+:and its Content-Type must be equal to text/event-stream
+
+event: message
+data: 1
+
+

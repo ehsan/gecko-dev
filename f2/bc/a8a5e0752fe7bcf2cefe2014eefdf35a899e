@@ -1,0 +1,24 @@
+
+copy: parser/htmlparser/public/nsParserBase.h
+copyrev: 9c1af566b07b11edd95da8e32b00c994d2b89c5b
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#ifndef nsParserBase_h_
+#define nsParserBase_h_
+
+#include "nsIChannel.h"
+
+class nsParserBase : public nsISupports
+{
+  public:
+    NS_IMETHOD_(bool) IsParserEnabled() { return true; }
+    NS_IMETHOD GetChannel(nsIChannel** aChannel) {
+      *aChannel = nullptr;
+      return NS_OK;
+    }
+};
+
+#endif // nsParserBase_h_

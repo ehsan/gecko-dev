@@ -1,0 +1,8 @@
+
+copy: mobile/branding/unofficial/locales/en-US/brand.dtd
+copyrev: e2d58c75d1b817615306e5c26ca92c6b57060883
+
+<!ENTITY  brandShortName  "Fennec">
+<!ENTITY  brandFullName   "Mozilla Fennec">
+<!ENTITY  vendorShortName "Mozilla">
+<!ENTITY  logoTrademark   "">

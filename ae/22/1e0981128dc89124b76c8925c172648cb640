@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/ignoreutf.good
+copyrev: af734f706621f6a228aeebe722889562ea7a0581
+
+طير	
+فتحة	
+ضمة	
+كسرة	
+فتحتان	
+ضمتان	
+كسرتان	
+شدة	
+سكون	

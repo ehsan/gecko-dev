@@ -1,0 +1,11 @@
+
+copy: editor/libeditor/tests/file_bug586662.html
+copyrev: 67f3d29d3a7c8862aa6d7562c9dbca7c144e8b48
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <div style="height: 20000px;"></div>
+    <textarea id="editor"></textarea>
+  </body>
+</html>

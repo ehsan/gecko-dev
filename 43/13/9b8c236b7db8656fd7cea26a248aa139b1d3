@@ -1,0 +1,19 @@
+
+copy: content/base/test/file_html_in_xhr.sjs
+copyrev: fdc37017c77e3d29dee4173f19e380bd10600e1f
+
+function handleRequest(request, response)
+{
+  response.setHeader("Content-Type", "text/javascript", false);
+  if (request.queryString.indexOf("report") != -1) {
+    if (getState("loaded") == "loaded") {
+      response.write("ok(false, 'This script was not supposed to get fetched.'); continueAfterReport();");
+    } else {
+      response.write("ok(true, 'This script was not supposed to get fetched.'); continueAfterReport();");      
+    }
+  } else {
+    setState("loaded", "loaded");
+    response.write('document.documentElement.setAttribute("data-fail", "FAIL");');
+  }
+}
+

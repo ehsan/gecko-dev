@@ -1,0 +1,29 @@
+
+copy: browser/base/content/test/tabview/browser_tabview_bug634077.js
+copyrev: f5f33f89c317783f504cc11cbca2fbb8fc1f8e6e
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function test() {
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"]
+                     .getService(Ci.nsISessionStore);
+
+  let assertVisibilityDataEquals = function (val, msg) {
+    is(ss.getWindowValue(window, TabView.VISIBILITY_IDENTIFIER), val, msg);
+  }
+
+  waitForExplicitFinish();
+
+  ss.setWindowValue(window, window.TabView.VISIBILITY_IDENTIFIER, "null");
+  assertVisibilityDataEquals("null", "we start with <null>");
+
+  showTabView(function () {
+    assertVisibilityDataEquals("true", "after showing visibility data is <true>");
+
+    hideTabView(function () {
+      assertVisibilityDataEquals("false", "after hiding visibility data is <false>");
+      finish();
+    });
+  });
+}

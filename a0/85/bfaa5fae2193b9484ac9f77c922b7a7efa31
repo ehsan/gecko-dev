@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundcase2.wrong
+copyrev: 87d3a2d1363b5d45c01a684364bbc3f6b455a21e
+
+áoóÓoá

@@ -1,0 +1,16 @@
+
+copyrev: f84ddce66d3c77e5286e11d4aff304065d24b33c
+copy: js/src/trace-test/tests/basic/bug572229.js
+
+// Don't crash
+
+function f(o, s) {
+    var k = s.substr(0, 1);
+    var c;
+    for (var i = 0; i < 10; ++i) {
+	c = k in o;
+    }
+    return c;
+}
+
+assertEq(f({ a: 66 }, 'abc'), true);

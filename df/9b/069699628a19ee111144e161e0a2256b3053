@@ -1,0 +1,6 @@
+
+copy: content/html/content/reftests/toblob-todataurl/quality-25-ref.html
+copyrev: 109e9aec73f06361d96b3cdc6fce9713af7bdf72
+
+<!doctype html>
+<html><body><img src='images/q25.jpg'/></table></body></html>

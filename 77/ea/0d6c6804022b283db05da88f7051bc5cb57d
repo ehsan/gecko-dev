@@ -1,0 +1,15 @@
+[DEFAULT]
+head = head.js
+tail =
+support-files = data/**
+
+[test_disabled_hosts.js]
+[test_legacy_empty_formSubmitURL.js]
+[test_legacy_validation.js]
+[test_logins_change.js]
+[test_logins_decrypt_failure.js]
+[test_logins_metainfo.js]
+[test_logins_search.js]
+[test_notifications.js]
+[test_storage.js]
+[test_storage_mozStorage.js]

@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug498897.html^headers^
+copyrev: 5097f1eba826e13b85daaefdb0bde9d1eb1f2418
+
+Link: <file_bug498897.css>; rel=stylesheet

@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/016-novalid.html
+copyrev: 8b4bb8f2c8330b7ba36536df60367f66e4723ce7
+
+<!doctype html>
+<meta charset=utf-8>
+<title>style@scoped as child of p (where flow content is not allowed)</title>
+<body>
+<p><style scoped></style></p>

@@ -1,0 +1,5 @@
+
+copy: widget/gtk2/crashtests/673390-1.html
+copyrev: 8599e2af10770da88f40917daf9c535b532ddd6a
+
+<div style="-moz-appearance: progresschunk; position: fixed"></div>

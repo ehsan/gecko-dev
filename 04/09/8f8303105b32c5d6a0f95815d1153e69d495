@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/ruby/missing-rt-novalid.html
+copyrev: bf635bc94e9c187f8e580206d943de64a9701575
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset=utf-8>
+<title>ruby element missing rt child</title>
+</head>
+<body>
+<ruby><rt></rt><rp></rp><rp></rp></ruby>
+</body>
+</html>

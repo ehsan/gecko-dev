@@ -1,0 +1,31 @@
+
+copyrev: 88cac14667f511d3609450db23647772c7a577a3
+copy: js/src/trace-test/tests/closures/setname-closure-2.js
+
+actual = '';
+expected = '16,';
+
+var f = function() {
+  var p = 1;
+  
+  function g() {
+    for (var i = 0; i < 5; ++i) {
+      p = i * i;
+    }
+  }
+  
+  function h() {
+    appendToActual(p);
+  }
+
+  return [g, h];
+};
+
+var [ g,h ] = f();
+for (var i = 0; i < 5; ++i) {
+  g();
+}
+h();
+
+
+assertEq(actual, expected)

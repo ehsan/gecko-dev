@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/breakdefault.sug
+copyrev: b553c383592fe26ed50e78907ee5770ca0c4e676
+
+scott
+scot-free
+foo-bar

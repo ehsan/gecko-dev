@@ -1,0 +1,5 @@
+
+copyrev: 6e7cd6cf1fbc1bd3c1334035b176b2c39b0f16cc
+copy: js/tests/js1_7/lexical/shell.js
+
+gTestsubsuite = 'lexical';

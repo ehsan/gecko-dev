@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundpattern2.dic
+copyrev: 3d9d2c6f3caba09de13f27c33dcd62195bb9f8f8
+
+2
+foo/A
+bar/A

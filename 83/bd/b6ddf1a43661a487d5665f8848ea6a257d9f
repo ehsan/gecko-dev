@@ -1,0 +1,19 @@
+
+copy: browser/base/content/tabcandy/overlay.js
+copyrev: 2b979e1ab953f5af0955d83950dedcb2c6cb66a6
+
+var tabcandy = {
+  onLoad: function() {
+    // initialization code
+    this.initialized = true;
+    this.strings = document.getElementById("tabcandy-strings");
+  },
+  onMenuItemCommand: function(e) {
+    var promptService = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
+                                  .getService(Components.interfaces.nsIPromptService);
+    promptService.alert(window, this.strings.getString("helloMessageTitle"),
+                                this.strings.getString("helloMessage"));
+  },
+
+};
+window.addEventListener("load", function(e) { tabcandy.onLoad(e); }, false);

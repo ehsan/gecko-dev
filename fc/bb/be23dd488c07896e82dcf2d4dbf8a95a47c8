@@ -1,0 +1,14 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-css-loader.css
+copyrev: 7e8c5e538ffa550479674b3884062adba9e0dc0b
+
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+body {
+  color: #0f0;
+  font-weight: bold;
+}
+

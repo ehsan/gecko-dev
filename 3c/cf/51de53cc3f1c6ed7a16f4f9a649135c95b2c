@@ -1,0 +1,10 @@
+
+copy: mobile/branding/nightly/android-resources.mn
+copyrev: fa36f7c1e899a904a650cb863a7ab0d582764156
+
+mobile/xul/app/android/drawable/alertaddons.png
+mobile/xul/app/android/drawable/alertdownloads.png
+mobile/xul/branding/nightly/content/splash.png
+mobile/xul/branding/nightly/content/splash_v9.9.png
+mobile/xul/branding/nightly/content/splash_v8.9.png
+mobile/xul/branding/nightly/content/favicon32.png

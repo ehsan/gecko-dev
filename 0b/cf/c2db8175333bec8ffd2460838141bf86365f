@@ -1,0 +1,20 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/br/023-isvalid.html
+copyrev: 43151c713c453ca93202bffc78566a4dea00ff79
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;br&gt;</title>
+</head>
+<body>
+  <!-- is structured inline -->
+  <p>text <br class="class" lang="en"></p>
+
+  <!-- is strictly inline -->
+  <p>text <dfn><br class="class" lang="en"></dfn></p>
+
+  <!-- must be empty -->
+</body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps3.wrong
+copyrev: c1551e66e64c6a4c26ff7f7b3814d5f2d3ab0e85
+
+unesco
+unesco's
+nasa
+nasa's

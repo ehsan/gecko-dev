@@ -1,0 +1,9 @@
+ptr = allocp 8
+five = imml 5
+stl five ptr 0
+three = imml 3
+stl three ptr 4
+v = ldl ptr 0
+u = ldl ptr 4
+res = addl u v
+retl res

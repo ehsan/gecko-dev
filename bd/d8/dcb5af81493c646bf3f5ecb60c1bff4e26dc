@@ -1,0 +1,15 @@
+
+copy: content/html/content/reftests/610935.html
+copyrev: 338138c6fde75581acf9f29204e3af515c9fe3fb
+
+<!doctype html>
+<title>Test for bug 610935</title>
+<style>
+div { width:300px; background:yellow; height:50px; }
+td { background:blue; }
+</style>
+<div>
+  <table width="150%" cellspacing="0" cellpadding="0" border="0">
+    <tr><td>parent div float=left</td></tr>
+  </table>
+</div>

@@ -1,0 +1,16 @@
+
+copyrev: 7d3d473ccb5964d21478b8c390115e70ba47e87a
+copy: js/src/trace-test/tests/basic/bug570663-2.js
+
+function f() {
+    var x;
+    for (var a = 0; a < 4; a++) {
+	switch (NaN) {
+	default:
+	    x = a;
+	}
+    }
+    assertEq(x, 3);
+}
+
+f();

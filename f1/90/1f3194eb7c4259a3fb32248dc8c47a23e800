@@ -1,0 +1,76 @@
+#filter substitution
+package @ANDROID_PACKAGE_NAME@.tests;
+
+import @ANDROID_PACKAGE_NAME@.*;
+import android.widget.ListView;
+
+public class testClearPrivateData extends PixelTest {
+
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
+
+    public void testClearPrivateData() {
+        blockForGeckoReady();
+        clearHistory();
+        clearSiteSettings();
+    }
+
+    private void clearHistory() {
+        // Loading a page so we are sure that there is at leats one history entry
+        String url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
+        loadAndPaint(url);
+
+        // Checking that the history list is not empty
+        ListView hList = getHistoryList("Today|Yesterday");
+        mAsserter.ok(hList.getAdapter().getCount() > 0,"checking history exists","history exists");
+
+        // Quit the awesomescreen
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+        waitForText("Browser Blank Page 01");
+
+        // Clearing private data
+        selectSettingsItem("Privacy & Security", "Clear private data");
+        Actions.EventExpecter ClearDataEventExpecter = mActions.expectGeckoEvent("Sanitize:Finished");
+        mAsserter.ok(mSolo.searchButton("Clear data"),"checking clear button","clear button exists");
+        mSolo.clickOnButton("Clear data");
+        ClearDataEventExpecter.blockForEvent();
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+
+        // Checking that history list is empty
+        hList = getHistoryList("History", 0);
+        mAsserter.ok(hList != null,"checking history is cleared ","history is cleared");
+    }
+
+    public void clearSiteSettings() {
+        String url = getAbsoluteUrl("/robocop/robocop_geolocation.html");
+        // Loading geolocation page
+        loadAndPaint(url);
+        mSolo.waitForText("Share your location");
+        mAsserter.is(mSolo.searchText("Share your location"), true, "Geolocation doorhanger has been displayed");
+
+        // Pressing "Share" button
+        mSolo.clickOnButton("Share");
+        mAsserter.is(mSolo.searchText("Share your location"), false, "Geolocation doorhanger has been hidden");
+
+        // Re-loading geolocation page
+        loadAndPaint(url);
+        mSolo.waitForText("Share your location");
+        mAsserter.is(mSolo.searchText("Share your location"), false, "Geolocation doorhanger has been displayed");
+
+        // Clearing private data
+        selectSettingsItem("Privacy & Security", "Clear private data");
+        Actions.EventExpecter ClearDataEventExpecter = mActions.expectGeckoEvent("Sanitize:Finished");
+        mAsserter.ok(mSolo.searchButton("Clear data"),"checking clear button","clear button exists");
+        mSolo.clickOnButton("Clear data");
+        ClearDataEventExpecter.blockForEvent();
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+
+        // Re-trigger geolocation notification in new tab
+        addTab(url); // Using addTab(url) because loadAndPaint(url) seems to fail at this step
+        mSolo.waitForText("Share your location");
+        mAsserter.is(mSolo.searchText("Share your location"), true, "Geolocation doorhanger has been displayed");
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+    }
+}

@@ -1,0 +1,10 @@
+
+copy: content/canvas/test/webgl/00_test_list.txt
+copyrev: 0e01099005eeca083544740b4f7b47a8a2c0626b
+
+// files that end in .txt list other tests
+// other lines are assumed to be .html files
+
+conformance/00_test_list.txt
+conformance/more/00_test_list.txt
+

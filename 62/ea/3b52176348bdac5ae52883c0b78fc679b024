@@ -1,0 +1,11 @@
+
+copy: build/pylib/blessings/tox.ini
+copyrev: 475123fd55ce04c7d157e2b46d42fd1056079d41
+
+[tox]
+envlist = py25, py26, py27, py32
+
+[testenv]
+commands = nosetests blessings
+deps = nose
+changedir = .tox  # So Python 3 runs don't pick up incompatible, un-2to3'd source from the cwd

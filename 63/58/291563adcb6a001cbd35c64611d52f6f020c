@@ -1,0 +1,15 @@
+
+copy: content/xml/document/resources/XMLMonoPrint.css
+copyrev: 0e26e47072565b2613e0b7b7fccde2d499b87f16
+
+@charset "UTF-8";
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url("chrome://global/content/xml/XMLPrettyPrint.css");
+
+#top > .expander-open {
+  font-family: monospace;
+  white-space: pre;
+}

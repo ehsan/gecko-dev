@@ -1,0 +1,22 @@
+
+copy: layout/reftests/svg/smil/style/anim-css-strokewidth-4-from-by-px-px.svg
+copyrev: 106ccf3cb0390e1efdecc5e89966dc38c53e626d
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     class="reftest-wait"
+     onload="go()">
+  <style>
+    rect { stroke: blue; stroke-width: 30px; }
+  </style>
+  <script xlink:href="../smil-grid.js" type="text/javascript"/>
+  <script xlink:href="../smil-util.js" type="text/javascript"/>
+  <script>
+    function go() {
+      var animAttrHash = { "attributeName" : "stroke-width",
+                           "from"          : "30",
+                           "by"            : "-20" };
+      testAnimatedRectGrid("animate", [animAttrHash]);
+    }
+  </script>
+</svg>

@@ -1,0 +1,23 @@
+
+copy: content/svg/content/src/crashtests/405639-1.svg
+copyrev: 0c2f98ff398043f6c33ef741ec8f1f10560157e9
+
+<svg xmlns="http://www.w3.org/2000/svg" 
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     onload="boom();">
+     
+<script type="text/javascript">
+
+function boom() { 
+  var greensquare = document.getElementById("greensquare");
+  var use = document.getElementById("use");
+  greensquare.appendChild(use);
+}
+
+</script>
+
+<rect id="greensquare" x="10" y="10" width="10" height="10" fill="green" />
+
+<use xlink:href="#greensquare" id="use" />
+
+</svg>

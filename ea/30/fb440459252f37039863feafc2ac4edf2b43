@@ -1,0 +1,21 @@
+
+copyrev: 384f93b65606e67e7242df7fc9264314726db015
+copy: js/src/trace-test/tests/closures/bug540136.js
+
+// |jit-test| error: TypeError
+
+(eval("\
+ (function () {\
+   for (var[x] = function(){} in \
+     (function m(a) {\
+       if (a < 1) {\
+         x;\
+         return\
+       }\
+       return m(a - 1) + m(a - 2)\
+     })(7)\
+     (eval(\"\"))\
+   )\
+   ([])\
+ })\
+"))()

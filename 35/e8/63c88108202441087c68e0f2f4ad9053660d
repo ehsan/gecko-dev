@@ -1,0 +1,13 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/accesskey/003-novalid.html
+copyrev: 4c8307a00d52e2419a7cf991743f47189ca75f56
+
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8">
+<title>accesskey attribute with duplicate key labels</title>
+</head>
+<body>
+<a href=url accesskey="a b ぬ c ぬ">foo</a>
+</body>
+</html>

@@ -1,0 +1,28 @@
+
+copy: browser/devtools/webconsole/test/browser/test-bug-597136-external-script-errors.html
+copyrev: ec429cb0c13af6238c36fe07e46a9e13504bb188
+
+<!DOCTYPE html>
+<html>
+<!--
+  ***** BEGIN LICENSE BLOCK *****
+  * Any copyright is dedicated to the Public Domain.
+  * http://creativecommons.org/publicdomain/zero/1.0/
+  *
+  * Contributor(s):
+  *  Patrick Walton <pcwalton@mozilla.com>
+  *
+  * ***** END LICENSE BLOCK *****
+  -->
+  <head>
+    <title>Test for bug 597136: external script errors</title>
+  </head>
+  <body>
+    <h1>Test for bug 597136: external script errors</h1>
+    <p><button onclick="f()">Click me</button</p>
+
+    <script type="text/javascript"
+      src="test-bug-597136-external-script-errors.js"></script>
+  </body>
+</html>
+

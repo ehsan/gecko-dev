@@ -1,0 +1,31 @@
+
+copy: js/src/xpconnect/tests/mochitest/bug589028_helper.html
+copyrev: e35a22947a8b082ca4bd84b48166ee5674b2d49b
+
+<html>
+    <head>
+        <script>
+        function getMyOption() {
+            return new Option();
+        }
+        function getCallersOption(caller) {
+            return new caller.Option();
+        }
+        function getMyAudio() {
+            return new Audio();
+        }
+        function getCallersAudio(caller) {
+            return new caller.Audio();
+        }
+        function getMyImage() {
+            return new Image();
+        }
+        function getCallersImage(caller) {
+            return new caller.Image();
+        }
+        </script>
+    </head>
+    <body>
+        the iframe
+    </body>
+</html>

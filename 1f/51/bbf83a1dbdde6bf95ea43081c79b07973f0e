@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/i53643.dic
+copyrev: 8cebc854d050e9b77fcac41c87c8350011dc7772
+
+1
+foo

@@ -1,0 +1,11 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/submissions/Ms2ger/test_case.html.json
+copyrev: 92e9e0c630caa01fa3bdfd17e299041be04c13b2
+
+{
+  "getElementsByTagName abc": true,
+  "getElementsByTagName Abc": true,
+  "getElementsByTagName ABC": true,
+  "getElementsByTagName \u00e4": true,
+  "getElementsByTagName \u00c4": true
+}

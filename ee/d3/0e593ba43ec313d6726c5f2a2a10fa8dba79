@@ -1,0 +1,14 @@
+
+copyrev: 98f55c7e72b9d6f50fa5358ed71c08d4e26bac11
+copy: js/src/trace-test/tests/basic/testGlobalOptimize-6.js
+
+var test;
+function f() {
+  with ({a: 2}) {
+    let (a = 5) {
+      test = (function () { return a; })();
+    }
+  }
+}
+f();
+assertEq(test, 5);

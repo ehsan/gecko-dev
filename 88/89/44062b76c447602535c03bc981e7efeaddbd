@@ -1,0 +1,21 @@
+
+copy: content/svg/content/src/crashtests/428228-1.svg
+copyrev: 73a5827a630886df8395e742a3ff3d2d4caae1c0
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:svg="http://www.w3.org/2000/svg">
+<head>
+<script type="text/javascript">
+
+// Test that removing a direct child element of an SVG <svg> doesnt' crash:
+
+function boom()
+{
+  document.getElementById("s").removeChild(document.getElementById("r"));
+}
+
+</script>
+</head>
+
+<body onload="boom();">&#x06C0;<svg:svg id="s"><svg:rect id="r"/></svg:svg></body>
+
+</html>

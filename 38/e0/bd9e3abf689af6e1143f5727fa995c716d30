@@ -1,0 +1,14 @@
+
+copy: layout/reftests/editor/694880-1.html
+copyrev: 0576a402d05826e34f5335703c9deaecc65c50aa
+
+<!DOCTYPE html>
+<html>
+  <style>
+    :-moz-read-only { color: green; }
+    :-moz-read-write { color: red; }
+  </style>
+  <body onload="document.designMode='on';document.designMode='off'">
+    <div>test</div>
+  </body>
+</html>

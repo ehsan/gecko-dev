@@ -1,0 +1,22 @@
+
+copy: content/base/crashtests/529670.html
+copyrev: a614fd4e543d6a0999921388d0433788a850c24a
+
+<!DOCTYPE HTML>
+<html><head>
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+    <title>Testcase for bug 529670</title>
+<script>
+function boom() {
+  document.createRange().getClientRects()
+  document.createRange().getBoundingClientRect()
+
+  var range = document.createRange();
+  range.detach();
+  range.getClientRects()
+  range.getBoundingClientRect()
+}
+</script>
+</head>
+<body onload="boom()"></body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/lang/002-novalid.html
+copyrev: 86f98cf1601373c16bfc389121f1f0499b180e5c
+
+<!DOCTYPE html>
+<html xml:lang="en" lang="fr">
+<head>
+<meta charset=utf-8>
+<title>When "xml:lang" is specified, the element must also have "lang" present with the same value</title>
+</head>
+<body>
+<p></p>
+</body>
+</html>

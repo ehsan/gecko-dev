@@ -1,0 +1,12 @@
+
+copy: gfx/thebes/crashtests/206561-1.html
+copyrev: 5468cb30e1ecd9c560828032ba134e6ec1881e7a
+
+<html>
+   <head>
+      <title>bug 206561</title>
+   </head>
+   <body>
+      <div style="height: 100%; opacity: 0.8;"></div>
+   </body>
+</html>

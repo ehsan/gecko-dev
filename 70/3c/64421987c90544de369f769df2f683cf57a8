@@ -1,0 +1,19 @@
+
+copy: dom/security/test/csp/file_bug836922_npolicies.html
+copyrev: 365d5662e9a50c461b7bc68ab52ea4f1cd1fc260
+
+<html>
+  <head>
+    <link rel='stylesheet' type='text/css'
+          href='/tests/dom/base/test/csp/file_CSP.sjs?testid=css_self&type=text/css' />
+    <link rel='stylesheet' type='text/css'
+          href='http://example.com/tests/dom/base/test/csp/file_CSP.sjs?testid=css_examplecom&type=text/css' />
+
+  </head>
+  <body>
+    <img src="/tests/dom/base/test/csp/file_CSP.sjs?testid=img_self&type=img/png"> </img>
+    <img src="http://example.com/tests/dom/base/test/csp/file_CSP.sjs?testid=img_examplecom&type=img/png"> </img>
+    <script src='/tests/dom/base/test/csp/file_CSP.sjs?testid=script_self&type=text/javascript'></script>
+
+  </body>
+</html>

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/nosuggest.aff
+copyrev: 5a61c26df43f2756346523e2ac1bffb9ce786d3b
+
+# don't suggest word with NOSUGGEST flag (for example vulgar or obscene words)
+# See OpenOffice.org Issue #55498
+# (nosuggest.sug is an empty file)
+NOSUGGEST A
+COMPOUNDFLAG B

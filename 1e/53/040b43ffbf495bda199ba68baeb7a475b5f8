@@ -1,0 +1,15 @@
+
+copy: layout/reftests/editor/caret_on_focus.html
+copyrev: 2f74e8ab293b2a015c671fac2438dd134f6d3228
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      div { min-height: 20px; }
+    </style>
+  </head>
+  <body onload="document.querySelector('div').focus();">
+    <div contenteditable="true"> </div>
+  </body>
+</html>

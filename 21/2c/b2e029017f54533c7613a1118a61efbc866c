@@ -1,0 +1,15 @@
+
+copy: content/base/crashtests/564114.html
+copyrev: 7df20e46d5216790e09cefe71b893cbfd78523c3
+
+<html>
+<head>
+<script type="text/javascript">
+
+document.documentElement.compareDocumentPosition(null);
+
+</script>
+</head>
+
+<body></body>
+</html>

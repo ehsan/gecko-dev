@@ -1,0 +1,10 @@
+
+copyrev: 30989db95401370eca457745590643c4ed06c068
+copy: js/src/trace-test/tests/basic/testDivisionWithNegative1.js
+
+function testDivisionWithNegative1() {
+    for (var i = 3; i >= 0; --i)
+        c = i / -1;
+    return 1/c;
+}
+assertEq(testDivisionWithNegative1(), -Infinity);

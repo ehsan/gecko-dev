@@ -1,0 +1,8 @@
+
+copyrev: 4dd0e193358053aa0e5601782e1b37f500725e00
+copy: js/src/trace-test/tests/closures/bug540528.js
+
+(function() {
+  var a
+  eval("for(b in[0,0,0,0]){}[a=0]")
+})()

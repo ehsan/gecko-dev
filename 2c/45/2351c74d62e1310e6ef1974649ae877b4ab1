@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/korean.aff
+copyrev: 2413105d746eee730952777f28709d96bb5b4c76
+
+SET UTF-8

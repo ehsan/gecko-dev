@@ -1,0 +1,14 @@
+
+copyrev: a44d7582d7142b8cd0e212f45a234bd24d394428
+copy: layout/reftests/bugs/413027-4-ref.html
+
+<html><head>
+<title>Testcase for bug 413027 - Marquee height is sized too small, clipping text vertically</title>
+</head>
+<body>
+
+<div style="background-color: lime; width: 600px; float:left;">
+  <div style="margin: 100px 0px;">text</div>
+</div>
+      
+</body></html>

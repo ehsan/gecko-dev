@@ -1,0 +1,12 @@
+
+copy: layout/xul/base/src/crashtests/350460.xul
+copyrev: 6041cbbe55f8b2abd4db79bcfec9a199116c9d1b
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+ title="Crash [@ DoDeletingFrameSubtree] after reloading a xul page a few times with display: -moz-popup and menuitem">
+  <menuitem style="display: -moz-popup;">
+    <box style="display: -moz-popup;">
+      <box style="display: -moz-popup;"/>
+    </box>
+  </menuitem>
+</window>

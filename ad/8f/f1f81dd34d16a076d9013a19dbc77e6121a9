@@ -1,0 +1,9 @@
+
+copy: mobile/app/profile/extensions/feedback@mobile.mozilla.org/chrome.manifest
+copyrev: c60252f3a5eaea1a161eab3a23496a0ffe273166
+
+content feedback content/
+skin    feedback classic/1.0 skin/
+locale  feedback en-US       locale/en-US/
+
+overlay	chrome://browser/content/browser.xul  chrome://feedback/content/overlay.xul

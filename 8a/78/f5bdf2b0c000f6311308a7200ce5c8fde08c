@@ -1,0 +1,16 @@
+
+copy: dom/base/test/csp/file_bug886164_4.html
+copyrev: 8bb18994702a899fcb35ad7b757726a690b27f82
+
+<html>
+<head> <meta charset="utf-8"> </head>
+  <body>
+    <!-- sandbox -->
+    <!-- Content-Security-Policy: default-src 'none' -->
+
+    <!-- these should be stopped by CSP -->
+    <img src="http://example.org/tests/dom/security/test/csp/file_CSP.sjs?testid=img4_bad&type=img/png"> </img>
+    <img src="/tests/dom/security/test/csp/file_CSP.sjs?testid=img4a_bad&type=img/png" />
+
+  </body>
+</html>

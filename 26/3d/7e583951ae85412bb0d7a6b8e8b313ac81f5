@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps2.aff
+copyrev: 9260fc5a46d3e2b371103579a1e621930c6237be
+
+# forbidden all caps words are case sensitive
+# iPod -> ipodos ("iPodic" in Hungarian)
+FORBIDDENWORD *
+SFX s N 1
+SFX s 0 os .
+

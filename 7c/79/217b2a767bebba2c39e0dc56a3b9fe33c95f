@@ -1,0 +1,13 @@
+
+copy: browser/base/content/test/offlineEvent.html
+copyrev: 8f070c216942c4e5210cbc6ceb2d891c6eb10895
+
+<html manifest="offlineEvent.cacheManifest">
+<head>
+<title></title>
+</head>
+
+<body>
+<h1>Child</h1>
+</body>
+</html>

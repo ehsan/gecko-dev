@@ -1,0 +1,13 @@
+
+copy: content/base/crashtests/1027461-1.html
+copyrev: 0f86bdfb87620e2947b5914a87e533c8f128dbf6
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <link rel="import" href="1027461-inner.xul">
+    </head>
+    <body>
+    </body>
+</html>

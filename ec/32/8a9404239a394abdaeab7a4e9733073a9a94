@@ -1,0 +1,19 @@
+
+copyrev: baeb4b856186f03d44d0757972362c924256c6b3
+copy: js/src/trace-test/tests/jaeger/bug563000/trap-own-callsite.js
+
+setDebug(true);
+x = "notset";
+function myparent(nested) {
+  if (nested) {
+    /* myparent call in myparent. */
+    trap(myparent, 39, "failure()");
+  } else {
+    x = "success";   
+    myparent(true);
+  }
+}
+function failure() { x = "failure"; }
+
+myparent(false);
+assertEq(x, "success");

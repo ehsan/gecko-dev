@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/approved/test_Range-cloneContents.html.json
+copyrev: 52d04daa8fd0521089f1b634b58ba37ec1fdcbde
+
+{
+  "Detached Range": true
+}

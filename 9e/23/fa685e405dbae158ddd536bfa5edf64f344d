@@ -1,0 +1,12 @@
+
+copy: content/xbl/test/file_bug950909.html
+copyrev: 42e4ff9b520a710cb301950a47ccf5f73e051393
+
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+<div style="-moz-binding: url(chrome://mochitests/content/chrome/dom/xbl/test/file_bug950909.xml#testBinding"></div>
+</body>
+</html>

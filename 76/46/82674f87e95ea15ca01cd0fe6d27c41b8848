@@ -1,0 +1,12 @@
+
+copy: layout/base/tests/font-inflation/decoration-1-ref.html
+copyrev: 833927898a41886dd5db4f7f00d07f88ed855263
+
+<!DOCTYPE HTML>
+<style>
+div { background: yellow }
+div { font-size: 34px; line-height: 1.0; width: 450px }
+span { font-size: 36px }
+div { text-decoration: underline overline line-through }
+</style>
+<div>Hello <span>world</span></div>

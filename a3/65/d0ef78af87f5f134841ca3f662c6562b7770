@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/newline-1.html
+copyrev: ebe139fba2dd755420e6f4083dec95317f5c4092
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="text" value="aaa&#10;bbb">
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copyrev: 69380dee97008296379d4cd4565184afa730674a
+copy: js/src/trace-test/tests/basic/bug602088.js
+
+// |jit-test| error: TypeError
+/* vim: set ts=4 sw=4 tw=99 et: */
+
+var p = Proxy.createFunction({}, function(x, y) { undefined.x(); });
+print(new p(1, 2));
+

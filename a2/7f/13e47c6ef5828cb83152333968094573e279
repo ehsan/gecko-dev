@@ -1,0 +1,10 @@
+
+copyrev: ba8202ac202d892c3a4059262d1da3005ac8aac0
+copy: modules/plugin/samples/npthread/windows/npthread.def
+
+LIBRARY   NPTHREAD
+
+EXPORTS
+	NP_GetEntryPoints   @1
+	NP_Initialize       @2
+	NP_Shutdown         @3

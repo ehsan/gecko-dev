@@ -1,0 +1,18 @@
+
+copyrev: 0b5eb52496adac04e9a3aa5c814e5f44c775b170
+copy: js/src/trace-test/tests/basic/testMethodInitSafety.js
+
+function testMethodInitSafety() {
+    function f() { return 'fail'; }
+    function g() { return 'ok'; }
+
+    var s;
+    var arr = [f, f, f, f, g];
+    //assertEq(arr.length > RUNLOOP, true);
+    for (var i = 0; i < arr.length; i++) {
+        var x = {m: arr[i]};
+        s = x.m();
+    }
+    return s;
+}
+assertEq(testMethodInitSafety(), "ok");

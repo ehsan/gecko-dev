@@ -1,0 +1,6 @@
+
+copy: content/base/src/contentAreaDropListener.manifest
+copyrev: fce519ff2db118b6cf2bbeb263b0c9072e8a99b2
+
+component {1f34bc80-1bc7-11d6-a384-d705dd0746fc} contentAreaDropListener.js
+contract @mozilla.org/content/dropped-link-handler;1 {1f34bc80-1bc7-11d6-a384-d705dd0746fc}

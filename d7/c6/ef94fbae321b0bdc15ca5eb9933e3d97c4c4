@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-invalid/default-style/input-ref.html
+copyrev: 38ed8a5477520bbe35cf4d6801953586bdf71e91
+
+<!DOCTYPE>
+<html>
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='invalid-ref'>
+  </body>
+</html>

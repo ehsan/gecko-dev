@@ -1,0 +1,6 @@
+
+copy: content/html/content/reftests/toblob-todataurl/quality-0-ref.html
+copyrev: 353c4c140765d6787566140a650c3bb90615d5cf
+
+<!doctype html>
+<html><body><img src='images/q0.jpg'/></table></body></html>

@@ -1,0 +1,13 @@
+
+copy: layout/xul/base/src/crashtests/237787-1.xul
+copyrev: 019021b803d4dc444a7dd0a316e3867ce57ae528
+
+<?xml version="1.0"?>
+<window	xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+	<toolbar>
+		<arrowscrollbox>
+			<menulist editable="true">
+			</menulist>
+		</arrowscrollbox>
+	</toolbar>
+</window>

@@ -1,0 +1,10 @@
+
+copy: content/html/content/crashtests/811226.html
+copyrev: 66a614689854283c047d2a7e58e0621cea1d6175
+
+<!DOCTYPE html>
+<html>
+<body onload="document.getElementById('s').onerror;">
+<span id="s" onerror="0;"></span>
+</body>
+</html>

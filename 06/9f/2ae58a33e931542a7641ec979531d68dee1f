@@ -1,0 +1,6 @@
+
+copy: b2g/config/emulator-ics/releng-emulator-ics.tt
+copyrev: 7eb5464c4ca583e140c4c22fe11fd984bab42f24
+
+[
+]

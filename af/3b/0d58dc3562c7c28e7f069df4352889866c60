@@ -1,0 +1,22 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+.title {
+  background-image: url("chrome://browser/skin/welcome-back.svg");
+}
+
+.radioRestoreContainer:not(:last-child) {
+  margin-bottom: 0.2em;
+}
+
+/* tablist starts out hidden, but JS may make it visible in response to
+   clicks on the radio buttons by setting an "available" attribute.
+*/
+#tabList {
+  display: none;
+}
+
+#tabList[available] {
+  display: -moz-box;
+}

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/passwd-ref.html
+copyrev: b9e80f554e31062ee5dbc988b2d3fc569138d0a1
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="password" value="abcdef">
+</body>
+</html>

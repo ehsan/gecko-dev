@@ -1,0 +1,11 @@
+
+copy: dom/xul/templates/crashtests/404346-1.xul
+copyrev: 544a66464fa9d739759eb44c69688441e2a03c8f
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<box id="b">
+<box id="a" template="b"/>
+<triple/>
+</box>
+<box datasources="" observes="a" ref="bbb"/>
+</window>

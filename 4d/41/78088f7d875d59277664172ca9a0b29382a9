@@ -1,0 +1,11 @@
+
+copy: ipc/ipdl/test/ipdl/error/tooWeakRPCAsync.ipdl
+copyrev: 31a10e24a87c274fe4bda074ce57cf9b9f335803
+
+protocol tooWeakRPCAsync {
+
+    // it's an error to declare an async protocol with an intr message
+
+parent:  intr Msg();
+
+};

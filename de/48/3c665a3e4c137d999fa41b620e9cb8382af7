@@ -1,0 +1,4 @@
+
+copy: dom/security/test/csp/file_report_uri_missing_in_report_only_header.html
+copyrev: a561244a3abed52b2b8b6c53aa15edcd450c5001
+

@@ -1,0 +1,22 @@
+
+copyrev: 1cd1422f72dfd0e4fc85ffd6ffd14dff397e9526
+copy: js/src/trace-test/tests/closures/flat-closure-1.js
+
+actual = '';
+expected = '0,1,2,3,4,';
+
+function g(a) {
+}
+
+function f(y) {
+  var q;
+  q = function() { appendToActual(y); };
+  q();
+}
+
+for (var i = 0; i < 5; ++i) {
+  f(i);
+ }
+
+
+assertEq(actual, expected)

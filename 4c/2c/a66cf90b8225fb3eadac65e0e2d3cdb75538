@@ -1,0 +1,12 @@
+
+copyrev: 0c5b8735ddf6360abb16da676fa0d7646fb46950
+copy: js/src/trace-test/tests/basic/bitwiseGlobal.js
+
+bitwiseAndValue = Math.pow(2,32);
+for (var i = 0; i < 60000; i++)
+  bitwiseAndValue = bitwiseAndValue & i;
+
+assertEq(bitwiseAndValue, 0);
+
+
+

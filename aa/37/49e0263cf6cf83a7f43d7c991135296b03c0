@@ -1,0 +1,29 @@
+
+copy: media/webrtc/trunk/webrtc/modules/audio_coding/neteq4/random_vector_unittest.cc
+copyrev: 0b02998ec1c3845b27678218b89d83e2df55bc78
+
+/*
+ *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+// Unit tests for RandomVector class.
+
+#include "webrtc/modules/audio_coding/neteq/random_vector.h"
+
+#include "testing/gtest/include/gtest/gtest.h"
+
+namespace webrtc {
+
+TEST(RandomVector, CreateAndDestroy) {
+  RandomVector random_vector;
+}
+
+// TODO(hlundin): Write more tests.
+
+}  // namespace webrtc

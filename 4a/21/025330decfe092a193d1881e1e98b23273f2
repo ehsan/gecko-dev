@@ -1,0 +1,8 @@
+
+copy: content/media/test/crashtests/1015662.html
+copyrev: 219b9547f6c4a7ffd8695fa0501c85aeb21be797
+
+<!DOCTYPE html>
+<body>
+<video><track src="javascript:5"></track></video>
+</body>

@@ -1,0 +1,11 @@
+
+copyrev: 4cf5981ebd73c64f8c7a0a733b40e759503b7916
+copy: js/src/trace-test/tests/basic/testPrimitiveConstructorPrototype.js
+
+function testPrimitiveConstructorPrototype() {
+    var f = function(){};
+    f.prototype = false;
+    for (let j=0;j<5;++j) { new f; }
+    return "ok";
+}
+assertEq(testPrimitiveConstructorPrototype(), "ok");

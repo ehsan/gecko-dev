@@ -1,0 +1,8 @@
+
+copy: addon-sdk/source/test/addons/manifest-localized/locale/en-US.properties
+copyrev: 948daed2de2e789badbf9d8be6e4e3919c32473c
+
+extensions.manifest-localized@jetpack.title = title-en
+extensions.manifest-localized@jetpack.author = author-en
+extensions.manifest-localized@jetpack.description = description-en
+extensions.manifest-localized@jetpack.homepage = homepage-en

@@ -1,0 +1,19 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/p/025-isvalid.html
+copyrev: 0fbf78ddc2fa3f8a2a08dadf0fbf08cb7f192c6a
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;p&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <p class="class" id="id" lang="en">text</p>
+
+  <!-- can contain interactive -->
+  <p><a>text</a></p>
+
+</body>
+</html>

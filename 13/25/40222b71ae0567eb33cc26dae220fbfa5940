@@ -1,0 +1,31 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/div/model-novalid.html
+copyrev: c6ca7bc64270d1abce14c60167f3b570d05a3897
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;div&gt;</title>
+</head>
+<body>
+  <!-- is not strictly inline -->
+  <p><dfn>text 
+    <div>
+      <p>text</p>
+    </div>
+  </dfn></p>
+
+  <!-- is not structured inline -->
+  <p>text 
+    <div>
+      <p>text</p>
+    </div>
+  </p>
+
+  <!-- cannot contain inline -->
+  <div>
+    some <em>text</em>
+  </div>
+</body>
+</html>

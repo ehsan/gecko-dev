@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/button/button-dyn-not-disabled.html
+copyrev: 9672ab84024d484716959d02bb11df1a42489a30
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if button is not disabled, it is candidate for constraint validation
+             and should be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('b').removeAttribute('disabled'); document.documentElement.className='';">
+    <button class='valid' id='b' disabled></button>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_keepcase.sug
+copyrev: 2ac18f489bec7dfb8c9962ad741a4dbba8d7836b
+
+Tv-word, Tv- word, Word
+Tv- word, Word
+word -tv, word-tv, word
+word -tv, word-tv, word
+wordword-tv, word
+Tv-word-tv
+NATO-
+-NATO

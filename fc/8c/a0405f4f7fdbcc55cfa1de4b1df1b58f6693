@@ -1,0 +1,11 @@
+
+copy: content/media/webspeech/synth/ipc/test/mochitest.ini
+copyrev: 2656b79b985df10413a02c36fc1aaa1c9536b4ce
+
+[DEFAULT]
+skip-if = e10s
+support-files =
+  file_ipc.html
+
+[test_ipc.html]
+skip-if = buildapp == 'b2g' || toolkit == 'android' #bug 857673 # b2g(comp.classes['@mozilla.org/special-powers-observer;1'] is undefined) b2g-debug(comp.classes['@mozilla.org/special-powers-observer;1'] is undefined) b2g-desktop(comp.classes['@mozilla.org/special-powers-observer;1'] is undefined)

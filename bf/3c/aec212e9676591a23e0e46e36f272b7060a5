@@ -1,0 +1,12 @@
+
+copy: layout/reftests/editor/caret_on_positioned.html
+copyrev: 5f44687252905fc47263c7fc86847da7cfd08f38
+
+<html><head>
+<title>caret should be visible on stack context contents</title>
+</head><body>
+<div id="d" style="position: absolute; width: 100px; height: 100px; background: none repeat scroll 0% 0% cyan;" contenteditable=""></div>
+<script>
+document.getElementById("d").focus();
+</script>
+</body></html>

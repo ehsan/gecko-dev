@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/utf8_nonbmp.wrong
+copyrev: b589295effdb5e1d7f36dd02a9cf34e00d5cd5a5
+
+𐏑𐏒𐏒	
+𐏑𐏒𐏒	

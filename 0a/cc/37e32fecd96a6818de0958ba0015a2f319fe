@@ -1,0 +1,9 @@
+
+copy: browser/components/sessionstore/test/browser/browser_464620_xd.html
+copyrev: 5d9a82a372006fd03c58923363345a8fb2f76399
+
+<title>Cross Document File for bug 464620</title>
+
+<body onload="document.designMode='on';" bgcolor="red">
+  This document is editable.
+</body>

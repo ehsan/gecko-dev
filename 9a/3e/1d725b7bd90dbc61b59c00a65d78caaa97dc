@@ -1,0 +1,12 @@
+
+copy: gfx/thebes/crashtests/407761-1.html
+copyrev: 8fd9465afcb4d3725886037866e6adeddad307dc
+
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html> <head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title></title>
+</head>
+<body>
+<span style="font-family: Verdana">IIIIIiiii'm dumb. ಠ_ಠ</span>
+</body> </html>

@@ -1,0 +1,9 @@
+
+copy: addon-sdk/source/data/test-content-symbiont.js
+copyrev: fed9e0367cef9a18228bc2a7d67ed9f4677ff523
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+// test-content-symbiont

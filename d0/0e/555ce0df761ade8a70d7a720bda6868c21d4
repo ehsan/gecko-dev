@@ -1,0 +1,15 @@
+
+copyrev: 9b7a4048279fbbbd51a12b182c8b22c356c72d04
+copy: js/src/trace-test/tests/basic/testForEach.js
+
+function testForEach() {
+    var r;
+    var a = ["zero", "one", "two", "three"];
+    for (var i = 0; i < RUNLOOP; i++) {
+        r = "";
+        for each (var s in a)
+            r += s + " ";
+    }
+    return r;
+}
+assertEq(testForEach(), "zero one two three ");

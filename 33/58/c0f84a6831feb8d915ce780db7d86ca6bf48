@@ -1,0 +1,12 @@
+
+copyrev: 291c670f63f3894cb2e368b22cbb9fdfdad7eaa7
+copy: js/src/trace-test/tests/arguments/args-redefine-length-2.js
+
+function t()
+{
+  var a = arguments;
+  Object.defineProperty(a, "length", { value: 17 });
+  for (var i = 0; i < 5; i++)
+    assertEq(a.length, 17);
+}
+t();

@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule3.good
+copyrev: 0833b598e4f85fbe4de4b5fddebc64e3ac0fb38f
+
+a
+b
+c
+ab
+abc
+ac
+bc

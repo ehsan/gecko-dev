@@ -1,0 +1,9 @@
+
+copy: content/svg/content/test/a_href_helper_02_03.svg
+copyrev: 8a5cd20438c56e04728421c536d62f4e5b1ed1fd
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <a id="a" xlink:href="initial.svg">
+    <rect width="100%" height="100%"/>
+  </a>
+</svg>

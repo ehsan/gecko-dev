@@ -1,0 +1,26 @@
+
+copy: browser/devtools/debugger/test/browser_dbg_big-data.html
+copyrev: a8d45821a5e81b65452412b6cc0c96b928827b70
+
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Debugger test page</title>
+  </head>
+
+  <body>
+    <button onclick="test(10000)">Click me!</button>
+
+    <script type="text/javascript">
+      function test(aNumber) {
+        var buffer = new ArrayBuffer(aNumber);
+        var z = new Int8Array(buffer);
+        debugger;
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,31 @@
+
+copy: layout/xul/base/src/crashtests/151826-1.xul
+copyrev: 31382223f6811c62079be78972a6f61f19f39e84
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window
+   title      = "Arrowscrollbox->Splitter Crash Testcase"
+   xmlns      = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+   xmlns:html="http://www.w3.org/1999/xhtml"
+   width      = "300"
+   height     = "200"
+   orient     = "vertical"
+>
+<vbox flex="1">
+
+<scrollbox flex="1">
+<vbox flex="1">
+<vbox id="box_1">
+<hbox><label value="Test"/></hbox>
+</vbox>
+<splitter collapse="none"/>
+<vbox id="box_2">
+<hbox><label value="Test"/></hbox>
+</vbox>
+</vbox>
+</scrollbox>
+
+</vbox>
+</window>

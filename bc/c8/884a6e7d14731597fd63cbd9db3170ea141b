@@ -1,0 +1,15 @@
+
+copy: content/svg/content/src/crashtests/397017-1.html
+copyrev: 7d08ae7638373b1e8ce7fe89a1e36a0db8217a69
+
+<html>
+<head>
+<script>
+var f = document.createElementNS("http://www.w3.org/2000/svg", "feFuncA");
+f.setAttribute("tableValues", "3 7 5");
+f.removeAttribute("tableValues");
+</script>
+</head>
+<body>
+</body>
+</html>

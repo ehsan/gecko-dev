@@ -1,0 +1,5 @@
+
+copyrev: 67eb73f2cda399915cd39df514da76ab6aaeeb89
+copy: dom/src/json/test/fail17.json
+
+["Illegal backslash escape: \017"]

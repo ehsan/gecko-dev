@@ -1,0 +1,47 @@
+#filter substitution
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE resources [
+#includesubst @BRANDPATH@
+#includesubst @STRINGSPATH@
+]>
+<resources>
+  <string name="splash_firstrun">&splash_firstrun;</string>
+  <string name="no_space_to_start_error">&no_space_to_start_error;</string>
+  <string name="error_loading_file">&error_loading_file;</string>
+
+  <string name="awesomebar_all_pages_title">&awesomebar_all_pages_title;</string>
+  <string name="awesomebar_bookmarks_title">&awesomebar_bookmarks_title;</string>
+  <string name="awesomebar_history_title">&awesomebar_history_title;</string>
+
+  <string name="crash_reporter_title">&crash_reporter_title;</string>
+  <string name="crash_message">&crash_message;</string>
+  <string name="crash_help_message">&crash_help_message;</string>
+  <string name="crash_send_report_message">&crash_send_report_message;</string>
+  <string name="crash_include_url">&crash_include_url;</string>
+  <string name="crash_close_label">&crash_close_label;</string>
+  <string name="crash_restart_label">&crash_restart_label;</string>
+  <string name="sending_crash_report">&sending_crash_report;</string>
+  <string name="exit_label">&exit_label;</string>
+  <string name="continue_label">&continue_label;</string>
+
+  <string name="launcher_shortcuts_title">&launcher_shortcuts_title;</string>
+  <string name="launcher_shortcuts_empty">&launcher_shortcuts_empty;</string>
+  
+  <string name="choose_file">&choose_file;</string>
+
+  <string name="quit">&quit;</string>
+  <string name="bookmarks_title">&bookmarks_title;</string>
+  <string name="bookmarks">&bookmarks;</string>
+  <string name="bookmark_add">&bookmark_add;</string>
+
+  <string name="history_today_section">&history_today_section;</string>
+  <string name="history_yesterday_section">&history_yesterday_section;</string>
+  <string name="history_week_section">&history_week_section;</string>
+  <string name="history_older_section">&history_older_section;</string>
+
+  <string name="share">&share;</string>
+  <string name="saveaspdf">&saveaspdf;</string>
+
+  <string name="reload">&reload;</string>
+  <string name="new_tab">&new_tab;</string>
+</resources>

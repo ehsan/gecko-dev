@@ -1,0 +1,8 @@
+
+copy: dom/src/json/test/mochitest.ini
+copyrev: d51463919856516458231e412ddf0edc8ec111d5
+
+[DEFAULT]
+skip-if = e10s
+
+[test_json.html]

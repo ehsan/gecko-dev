@@ -1,0 +1,27 @@
+
+copy: media/webrtc/trunk/webrtc/modules/audio_coding/neteq4/post_decode_vad_unittest.cc
+copyrev: 8bf6294d344a5508e608df30f333dea1c81779da
+
+/*
+ *  Copyright (c) 2013 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+#include "webrtc/test/run_test.h"
+
+#include <stdio.h>
+
+namespace webrtc {
+namespace test {
+
+void RunTest(void(*test)()) {
+  (*test)();
+}
+
+}  // namespace test
+}  // namespace webrtc

@@ -1,0 +1,12 @@
+
+copyrev: 1eb0073081c749cf4aca7d777873962411dcde0b
+copy: js/src/trace-test/tests/jaeger/unsignedShiftZero.js
+
+
+function f(a) { 
+    return a >>> 0; 
+};
+
+assertEq(f(-2147483647), 2147483649);
+assertEq(f(-2147483648), 2147483648);
+assertEq(f(-2147483649), 2147483647);

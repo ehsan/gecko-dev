@@ -1,0 +1,11 @@
+
+copy: toolkit/themes/winstripe/mozapps/extensions/extensions-aero.css
+copyrev: 325f0f5fe68afa8d445911a535fa0eb3c201190f
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%define WINDOWS_AERO
+%include extensions.css
+%undef WINDOWS_AERO

@@ -1,0 +1,5 @@
+
+copy: layout/reftests/forms/indeterminate-checked.html
+copyrev: 111e032d3ff51b8bf82e18d7e8ebcef801f53a82
+
+<input type="checkbox" id="s" checked style="-moz-appearance: none;"><script>document.getElementById("s").indeterminate = true;</script>

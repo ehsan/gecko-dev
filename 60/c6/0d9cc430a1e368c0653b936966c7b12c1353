@@ -1,0 +1,15 @@
+
+copy: dom/media/tests/identity/idp.html
+copyrev: f222cc0d24d5f018b99537275ea5cbbbf03ee254
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>IDP Proxy</title>
+    <script src="idp-proxy.js"></script>
+  </head>
+  <body>
+    Test IDP Proxy
+  </body>
+</html>

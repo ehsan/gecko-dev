@@ -1,0 +1,25 @@
+
+copy: content/html/content/crashtests/682460.html
+copyrev: 51be8c5961f00f56d1bc8b1c419ebe11a40f5287
+
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var f = function() {
+    document.documentElement.offsetHeight;
+  };
+  window.addEventListener("DOMSubtreeModified", f, true);
+
+  document.getElementsByTagName("table")[0].setAttribute("cellpadding", "2");
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+<table><tr><td></td></tr></table>
+</body>
+</html>

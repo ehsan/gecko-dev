@@ -1,0 +1,53 @@
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+EXPORTS.mozilla.dom += [
+    'DOMMMIError.h',
+    'ipc/MobileConnectionIPCSerializer.h',
+    'MobileCellInfo.h',
+    'MobileConnection.h',
+    'MobileConnectionArray.h',
+    'MobileConnectionCallback.h',
+    'MobileConnectionInfo.h',
+    'MobileNetworkInfo.h',
+]
+
+EXPORTS.mozilla.dom.mobileconnection += [
+    'ipc/MobileConnectionChild.h',
+    'ipc/MobileConnectionIPCService.h',
+    'ipc/MobileConnectionParent.h',
+]
+
+SOURCES += [
+    'DOMMMIError.cpp',
+    'ipc/MobileConnectionChild.cpp',
+    'ipc/MobileConnectionIPCService.cpp',
+    'ipc/MobileConnectionParent.cpp',
+    'MobileCellInfo.cpp',
+    'MobileConnection.cpp',
+    'MobileConnectionArray.cpp',
+    'MobileConnectionCallback.cpp',
+    'MobileConnectionInfo.cpp',
+    'MobileNetworkInfo.cpp',
+]
+
+IPDL_SOURCES += [
+    'ipc/PMobileConnection.ipdl',
+    'ipc/PMobileConnectionRequest.ipdl',
+    'ipc/PMobileConnectionTypes.ipdlh',
+]
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
+    EXTRA_COMPONENTS += [
+        'gonk/MobileConnectionGonkService.js',
+        'gonk/MobileConnectionGonkService.manifest',
+    ]
+
+FAIL_ON_WARNINGS = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
+
+FINAL_LIBRARY = 'xul'

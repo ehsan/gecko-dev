@@ -1,0 +1,18 @@
+
+copyrev: 034c4e008f881f7c868cd624362c117cf8ce6e67
+copy: js/src/trace-test/tests/basic/nestedExitLoop.js
+
+function nestedExit(x) {
+    var q = 0;
+    for (var i = 0; i < 10; ++i)
+    {
+        if (x)
+            ++q;
+    }
+}
+function nestedExitLoop() {
+    for (var j = 0; j < 10; ++j)
+        nestedExit(j < 7);
+    return "ok";
+}
+assertEq(nestedExitLoop(), "ok");

@@ -1,0 +1,22 @@
+
+copyrev: e84be63a32e94a154639f17ed5da21f2b614e5e0
+copy: js/src/trace-test/tests/basic/testDifferingArgc.js
+
+function doTestDifferingArgc(a, b)
+{
+    var k = 0;
+    for (var i = 0; i < 10; i++)
+    {
+        k += i;
+    }
+    return k;
+}
+function testDifferingArgc()
+{
+    var x = 0;
+    x += doTestDifferingArgc(1, 2);
+    x += doTestDifferingArgc(1);
+    x += doTestDifferingArgc(1, 2, 3);
+    return x;
+}
+assertEq(testDifferingArgc(), 45*3);

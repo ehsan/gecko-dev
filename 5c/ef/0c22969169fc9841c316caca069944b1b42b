@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_cpdpat2.good
+copyrev: 4b0b84ef43faf026fe59318a654e354e90f4256c
+
+zout-suikertest

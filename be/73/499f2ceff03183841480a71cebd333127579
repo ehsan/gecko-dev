@@ -1,0 +1,9 @@
+
+copy: browser/base/content/test/bug364677-data.xml
+copyrev: 853b651daf11051400d7da7fcdc0df49df165d04
+
+<rss version="2.0">
+  <channel>
+    <title>t</title>
+  </channel>
+</rss>

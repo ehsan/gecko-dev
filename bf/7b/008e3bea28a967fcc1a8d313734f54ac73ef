@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug558431.html^headers^
+copyrev: 8df1d6859b30c7e4999b479b7926962da379dff4
+
+X-Content-Security-Policy: invalid-uri

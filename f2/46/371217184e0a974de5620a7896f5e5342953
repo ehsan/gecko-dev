@@ -1,0 +1,8 @@
+
+copyrev: 760b15e134104779e8173c0b5c2311ef8bffb6b3
+copy: js/src/trace-test/tests/basic/bug557168.js
+
+x = <x/>
+for (var z = 0; z < 4; z++) {
+    print(x.z)
+}

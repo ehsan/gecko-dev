@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/basic/bug673705.js
+copyrev: a657b57686f3576c54e21c729ff731f9a2458d4a
+
+function bug673705() {
+  var x;
+  try {
+  } catch (e) {
+  } finally {
+    print(x);
+  }
+  return x;
+}
+assertEq(bug673705(), undefined);

@@ -1,0 +1,15 @@
+
+copy: content/html/content/reftests/52019-1.html
+copyrev: 8fb915498ab42f4a878c535b56b5126b56c5b03e
+
+<html>
+<head>
+<title>Test for Bug 52019</title>
+</head>
+<body>
+<font size="+.5">font</font>
+<font size="-.5">font</font>
+<font size="+2.5">font</font>
+<font size="-2.5">font</font>
+</body>
+</html>

@@ -1,0 +1,15 @@
+
+copy: toolkit/devtools/qrcode/encoder/moz.build
+copyrev: 14bd44fca2b5521fbbc55e078af482f0dc3f8a7b
+
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+JS_MODULES_PATH = 'modules/devtools/qrcode/decoder'
+
+EXTRA_JS_MODULES += [
+    'index.js',
+]

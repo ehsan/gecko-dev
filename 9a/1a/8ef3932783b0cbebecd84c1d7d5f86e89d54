@@ -1,0 +1,5 @@
+
+copyrev: 1d3b121ca15b3caabf2cf1964b6d390b4a54ddc5
+copy: toolkit/mozapps/extensions/test/unit/addons/test_bug428341_2/install.rdf
+
+This install.rdf is malformed.

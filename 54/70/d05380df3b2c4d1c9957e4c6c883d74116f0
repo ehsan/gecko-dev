@@ -1,0 +1,27 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+VPATH       = \
+  $(srcdir) \
+  $(srcdir)/basic \
+  $(srcdir)/client \
+  $(srcdir)/composite \
+  $(srcdir)/opengl \
+  $(srcdir)/d3d9 \
+  $(srcdir)/d3d10 \
+  $(srcdir)/d3d11 \
+  $(srcdir)/ipc \
+  $(NULL)
+
+include $(topsrcdir)/config/rules.mk
+
+CXXFLAGS += \
+        -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright \
+        -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright/openmax \
+        -I$(ANDROID_SOURCE)/frameworks/av/include/media/stagefright \
+        -I$(ANDROID_SOURCE)/frameworks/native/include/media/openmax \
+        $(NULL)
+
+CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)

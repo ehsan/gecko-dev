@@ -1,0 +1,15 @@
+
+copyrev: 71f050a27f9416e36a52bed67b7c9e443e78b98e
+copy: js/src/trace-test/tests/basic/testBug604210.js
+
+function f() {
+    var msg = '';
+    try {
+        var x = undefined;
+        print(x.foo);
+    } catch (e) {
+        msg = '' + e;
+    }
+    assertEq(msg, "TypeError: x is undefined");
+}
+f();

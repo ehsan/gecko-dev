@@ -1,0 +1,26 @@
+
+copy: layout/reftests/css-invalid/output/style.css
+copyrev: e083f0a964401fdc2500e9ab459c426926dfb839
+
+/* Override default style */
+output {
+  color: black;
+}
+
+output.notinvalid {
+  color: green;
+}
+output.notinvalid:-moz-ui-invalid {
+  color: red;
+}
+
+output.invalid {
+  color: red;
+}
+output.invalid:-moz-ui-invalid {
+  color: green;
+}
+
+output.ref {
+  color: green;
+}

@@ -1,0 +1,12 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/test_nameditem-02.html.json
+copyrev: 7243c83667e53ff27a715821eedb4546a6d86a17
+
+{
+  "If the only named item is an iframe, the contentWindow should be returned.": true,
+  "If there are two iframes, a collection should be returned.": true,
+  "If there are an iframe and another element (iframe first), a collection should be returned.": true,
+  "If there are an iframe and another element (iframe last), a collection should be returned.": true,
+  "If an iframe has a name and a different id, it should be returned by its name.": true,
+  "An iframe whose name looks like an array index should work.": true
+}

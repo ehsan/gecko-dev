@@ -1,0 +1,8 @@
+
+copy: content/html/document/test/bug499092.xml
+copyrev: 62aa5d5f4a36a18636ecc6f538e9e2192616e5f7
+
+<?xml version="1.0"?>
+<doc xmlns:aa="http://www.w3.org/1999/xhtml">
+<aa:title>XML OK</aa:title>
+</doc>

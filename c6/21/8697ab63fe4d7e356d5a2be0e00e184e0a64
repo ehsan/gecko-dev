@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug604660-4.js
+copyrev: b7862b0bda4175634266e8c4cc8bf80c2144e97e
+
+parent.scriptRan(4);

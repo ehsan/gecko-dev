@@ -1,0 +1,13 @@
+
+copyrev: 0a540df936bbde6c09d1f6aeee489e3edf1d88df
+copy: js/src/trace-test/tests/jaeger/bug583158.js
+
+// |jit-test| error: ReferenceError
+function g() {
+  var rv = (function() {
+    this << 1
+  })()
+  if (a) (function() {})
+}
+g()
+

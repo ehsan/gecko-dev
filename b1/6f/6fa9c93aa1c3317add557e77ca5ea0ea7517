@@ -1,0 +1,21 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/p/025-novalid.html
+copyrev: e9e808d209c511431875667887351deeeb79085d
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;p&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <p class="class" id="id" lang="en">text</p>
+
+  <!-- can contain interactive -->
+  <p><a>text</a></p>
+
+  <!-- cannot contain structured inline -->
+  <p>text <ul><li>list</li></ul> <em>elem</em></p>
+</body>
+</html>

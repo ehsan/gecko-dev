@@ -1,0 +1,27 @@
+
+copy: content/html/document/crashtests/601422.html
+copyrev: af4fa7e909cea69c3b425320eb273bddefcd9cc8
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var frame = document.getElementById("f");
+  var frameDoc = frame.contentDocument;
+  document.body.removeChild(frame);
+  try { frameDoc.shrinkToFit(); }catch(e){}
+  try { frameDoc.restoreImageTo(1,1); }catch(e){}
+  try { frameDoc.restoreImage(); }catch(e){}
+  try { frameDoc.toggleImageSize(); }catch(e){}
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+<iframe id="f" src="data:image/gif;base64,R0lGODlhAQABAID/AP///wAAACwAAAAAAQABAAACAkQBADs="></iframe>
+</body>
+</html>

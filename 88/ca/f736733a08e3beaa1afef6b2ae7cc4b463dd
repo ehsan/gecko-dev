@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/condition.test
+copyrev: 5a474fed7df2d71f0a85f69d128ee347fb7bed61
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME -i ISO8859-2

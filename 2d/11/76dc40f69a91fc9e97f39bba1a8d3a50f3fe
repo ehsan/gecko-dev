@@ -1,0 +1,5 @@
+
+copy: gfx/thebes/crashtests/429899-1.html
+copyrev: d0c048a82d02ee5a321813fe17211e02ef35abb9
+
+<!DOCTYPE html><html><body><span>&#x1104</span><span>&#x1104</span><span>&#x116A</span></body></html>

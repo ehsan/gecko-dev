@@ -1,0 +1,5 @@
+
+copy: testing/mozbase/manifestdestiny/tests/include/flowers
+copyrev: 23fa0d1cddf6b0fa4897439222e98c1eb05cd291
+
+# dummy spot for "flowers" test

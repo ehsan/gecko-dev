@@ -1,0 +1,5 @@
+
+copy: toolkit/mozapps/downloads/tests/chrome/unknownContentType_dialog_layout_data.pif
+copyrev: 213af26dfc795c22f9e154d737dc2f75d246ea37
+
+Dummy content for unknownContentType_dialog_layout_data.pif

@@ -1,0 +1,16 @@
+
+copy: browser/components/sessionstore/test/browser/browser_485482_sample.html
+copyrev: 553d049022015007fd397489b9c6dfb0c0fe2f9e
+
+<!DOCTYPE html>
+<title>Test for bug 485482</title>
+
+<bad=name>
+  <input type="text">
+</bad=name>
+
+<worse=name>
+  <l0c@l+na~e"'§>
+    <input type="checkbox" name="check"> Check
+  </l0c@l+na~e"'§>
+</worse=name>

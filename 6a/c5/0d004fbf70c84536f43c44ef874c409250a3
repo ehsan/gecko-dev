@@ -1,0 +1,26 @@
+
+copyrev: e959adeafda07185f8de6738afc92a1129ae7843
+copy: modules/libvorbis/todo.txt
+
+Open project list for further development:
+
+libvorbis:
+
+Meaningful error code returns
+
+still some padding at EOS
+
+Option for brute-forcing vq search on maptype 2 (helps on undertrained
+sets).
+
+encoder switch interface for binary compat through changes; ioctl()-like?
+
+API changes: 
+  break up some of the more monolithic calls (eg, allow access
+       to MDCT domain data, additional low level framing capability)
+  convenience calls for text comments
+
+other:
+
+command line suite
+'crashme'

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-hyphen-multiple-invalid.html
+copyrev: 3bfb487ef856ec97e10c69cf18d0189f50048728
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea style="width: 400px; height: 200px;" autofocus>-hlloe hlloe- --hlloe --hlloe ---hlloe hlloe--- ---hlloe----</textarea>
+  </body>
+</html>

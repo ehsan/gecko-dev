@@ -1,0 +1,5 @@
+
+copyrev: e664bb20743239fb178ec2a6a2dea6560a419483
+copy: js/tests/e4x/Global/shell.js
+
+gTestsubsuite = 'Global';

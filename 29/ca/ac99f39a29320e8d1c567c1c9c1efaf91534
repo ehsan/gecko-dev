@@ -1,0 +1,6 @@
+
+copyrev: b04eea557a41647187f508ea46f5ee77a1949a9e
+copy: js/src/trace-test/tests/basic/bug601395.js
+
+// |jit-test| error: SyntaxError;
+let(y = let(d = []) u, x

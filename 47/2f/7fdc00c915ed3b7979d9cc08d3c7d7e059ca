@@ -1,0 +1,11 @@
+
+copy: dom/svg/crashtests/398926-stroke.svg
+copyrev: d772c00d5c05a6824a09b2af63eea1f1c1c0404e
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<pattern id="pat" />
+
+<rect x="10" y="10" width="100" height="100" stroke="url(#pat)" />
+
+</svg>

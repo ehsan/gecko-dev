@@ -1,0 +1,27 @@
+
+copy: content/xul/content/crashtests/384740-1.xul
+copyrev: 62dfed75e017d68ad47fa28cc07f0a2b310c0c7f
+
+<?xml version="1.0"?>
+
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="boom()">
+
+<script>
+
+function boom()
+{
+  var XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+
+  var scrollbar = document.createElementNS(XUL_NS, 'scrollbar');
+  document.documentElement.appendChild(scrollbar);
+  var sbb = SpecialPowers.unwrap(SpecialPowers.wrap(document).getAnonymousNodes(scrollbar))[0];
+  var action = document.createElementNS(XUL_NS, 'action');
+  action.setAttribute('datasources', "");
+  sbb.appendChild(action);
+}
+
+</script>
+
+</window>

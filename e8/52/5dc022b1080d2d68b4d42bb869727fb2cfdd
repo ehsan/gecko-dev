@@ -1,0 +1,6 @@
+
+copyrev: e3a666f29d057de86e80765e1d84b38e40bba22d
+copy: js/src/trace-test/tests/basic/bug601428.js
+
+// |jit-test| error: SyntaxError;
+let({}=[c for(x in[])]){let

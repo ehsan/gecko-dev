@@ -1,0 +1,13 @@
+
+copy: mobile/chrome/tests/addons/browser_install1_1/bootstrap.js
+copyrev: af322c60f8579e2da79f3ffad7096dff98bd5e59
+
+/* Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+function install(data, reason) {}
+function startup(data, reason) {}
+function shutdown(data, reason) {}
+function uninstall(data, reason) {}
+

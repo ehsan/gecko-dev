@@ -1,0 +1,11 @@
+
+copy: js/src/jit-test/tests/parallelarray/get-4.js
+copyrev: 9fd25812144e7d331188290ea29422a9a3de3e61
+
+function testGetBounds() {
+  var p = new ParallelArray([1,2,3,4]);
+  assertEq(p.get(42), undefined);
+}
+
+if (getBuildConfiguration().parallelJS)
+  testGetBounds();

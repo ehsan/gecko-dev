@@ -1,0 +1,5 @@
+
+copy: layout/reftests/forms/indeterminate-native-checked-notref.html
+copyrev: 258acb1a44a2fee17efd1b7d4f4635f98ea6f5c3
+
+<input type="checkbox" checked>

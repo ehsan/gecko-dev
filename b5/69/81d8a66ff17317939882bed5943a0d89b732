@@ -1,0 +1,11 @@
+
+copy: js/src/jit-test/tests/parallelarray/bug783924.js
+copyrev: 4d56fbc20a99c07e2a3c1d61bf5df4dcdfb7d1f5
+
+function bug783924() {
+  // Shouldn't throw.
+  Function("ParallelArray([])")();
+}
+
+if (getBuildConfiguration().parallelJS)
+  bug783924();

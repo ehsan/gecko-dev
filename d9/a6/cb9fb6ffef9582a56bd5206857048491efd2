@@ -1,0 +1,6 @@
+
+copy: toolkit/components/places/src/nsPlacesAutoComplete.manifest
+copyrev: bfdeab2bd1e9096348aca0e214c41c7e35053a83
+
+component {d0272978-beab-4adc-a3d4-04b76acfa4e7} nsPlacesAutoComplete.js
+contract @mozilla.org/autocomplete/search;1?name=history {d0272978-beab-4adc-a3d4-04b76acfa4e7}

@@ -1,0 +1,9 @@
+
+copy: content/base/test/file_XHR_system_redirect.html
+copyrev: dfb7629b3947f1cbb76d281da8334bc5028390d0
+
+<!DOCTYPE html>
+<html>
+<body>
+</body>
+</html>

@@ -1,0 +1,13 @@
+
+copy: content/xbl/crashtests/463511-1.xhtml
+copyrev: f291cdcbc2ca9c77f6d51357030a9d8e14cdb840
+
+<html xmlns="http://www.w3.org/1999/xhtml" style="-moz-binding: url(#foo)">
+<head>
+<bindings xmlns="http://www.mozilla.org/xbl">
+<binding id="foo"><content><listcell xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"><children xmlns="http://www.mozilla.org/xbl"/></listcell></content></binding>
+</bindings>
+</head>
+
+<body onload="document.documentElement.innerHTML = 'x';"></body>
+</html>

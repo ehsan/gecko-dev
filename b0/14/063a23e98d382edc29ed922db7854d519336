@@ -1,0 +1,10 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/approved/test_exceptions.html.json
+copyrev: ac6394047c9f65723e4479fa5fefbd65fc288dfc
+
+{
+  "exception.hasOwnProperty(\"message\")": true,
+  "Object.getOwnPropertyDescriptor(exception, \"message\")": true,
+  "In iframe: exception.hasOwnProperty(\"message\")": true,
+  "In iframe: Object.getOwnPropertyDescriptor(exception, \"message\")": true
+}

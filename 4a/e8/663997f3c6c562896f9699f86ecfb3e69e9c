@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/video/model-novalid.html
+copyrev: e515228709a8376f1b6468556cd25f4233a38b89
+
+<!doctype html>
+<meta charset=utf-8>
+<title>video with flow content and phrasing parent</title>
+<span><video><p>foo</p></video></span>

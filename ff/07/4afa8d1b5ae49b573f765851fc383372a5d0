@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-invalid/input/input-required-invalid.html
+copyrev: 2140fb02632bd4619921f402cf5649a4342925fe
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input isn't valid nor barred from constraint validation,
+             it should be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='invalid' required>
+  </body>
+</html>
+

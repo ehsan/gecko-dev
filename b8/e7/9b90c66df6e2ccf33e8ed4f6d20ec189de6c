@@ -1,0 +1,17 @@
+
+copy: content/html/content/test/imports/file_cycle_5_D.html
+copyrev: c29ab56898a78eca9bfb235e95d2ac399b360c66
+
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <link rel="import" href="file_cycle_5_A.html" onload="loaded()" onerror="failed()"></link>
+  <link rel="import" href="file_cycle_5_B.html" onload="loaded()" onerror="failed()"></link>
+  <link rel="import" href="file_cycle_5_C.html" onload="loaded()" onerror="failed()"></link>
+</head>
+<body>
+  <script>
+    order.push("D");
+  </script>
+</body>
+</html>

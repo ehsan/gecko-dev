@@ -1,0 +1,9 @@
+
+copy: layout/reftests/css-invalid/default-style/reftest.list
+copyrev: 237d3fca344852e421a6b8d45e0c1e50953b5ab4
+
+== input.html input-ref.html
+== button.html button-ref.html
+== textarea.html textarea-ref.html
+== select.html select-ref.html
+== fieldset.html fieldset-ref.html

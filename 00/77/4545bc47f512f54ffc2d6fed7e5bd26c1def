@@ -1,0 +1,16 @@
+
+copy: layout/base/tests/bug240933-1-ref.html
+copyrev: b8294ba3d772987b8a60bb7a3610fc3c798896cd
+
+<!DOCTYPE HTML><html>
+<body>
+<textarea id="t" rows="4">
+
+</textarea>
+<script>
+  var t = document.getElementById("t");
+  t.selectionStart = t.selectionEnd = t.value.length;
+  t.focus();
+</script>
+</body>
+</html>

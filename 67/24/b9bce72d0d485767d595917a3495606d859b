@@ -1,0 +1,37 @@
+
+copy: media/webrtc/trunk/src/modules/video_capture/main/source/Mac/QTKit/video_capture_recursive_lock.mm
+copyrev: a92c7675b4c87045a0f5246b0a27dc9dcb89eb9d
+
+//
+//  video_capture_recursive_lock.mm
+//
+//
+
+#import "video_capture_recursive_lock.h"
+
+@implementation VideoCaptureRecursiveLock
+
+@synthesize locked = _locked;
+
+- (id)init{
+    self = [super init];
+    if(nil == self){
+        return nil;
+    }
+
+    [self setLocked:NO];
+    return self;
+}
+
+- (void)lock{
+    [self setLocked:YES];
+    [super lock];
+}
+
+- (void)unlock{
+    [self setLocked:NO];
+    [super unlock];
+}
+
+
+@end

@@ -1,0 +1,11 @@
+
+copy: mobile/chrome/tests/browser_focus.html
+copyrev: 311aa1ca07ec5b587639c5ed1de5c0105dbaa5b5
+
+<html>
+  <head>
+    <title>Focus/Activate test</title>
+  </head>
+  <body>
+  </body>
+</html>

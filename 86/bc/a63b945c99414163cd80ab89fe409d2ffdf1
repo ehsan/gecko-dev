@@ -1,0 +1,9 @@
+
+copyrev: 93c162bce99d3fee0d19921745f1060bd5163f0d
+copy: js/src/trace-test/tests/jaeger/bug577646.js
+
+try {
+  []();
+} catch(e) {}
+
+/* Don't crash. */

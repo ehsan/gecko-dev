@@ -1,0 +1,12 @@
+
+copy: content/html/content/reftests/41464-1a.html
+copyrev: 9f1c8d66a3113d3b31dfddb9200d60fb929a5f5d
+
+<!DOCTYPE html>
+<title>Dynamic manipulation of textarea.wrap</title>
+<link rel=help href=http://www.whatwg.org/html5/#dom-textarea-wrap>
+<link rel=author title=Ms2ger href=mailto:ms2ger@gmail.com>
+<textarea wrap=off cols=20>01234567890 01234567890 01234567890</textarea>
+<script>
+document.getElementsByTagName("textarea")[0].wrap = "soft";
+</script>

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/slash.dic
+copyrev: 9136cbb66d1820e29b93c499b3270f2514f4e723
+
+4
+/
+1\/2
+http:\/\/
+\/usr\/share\/myspell\/

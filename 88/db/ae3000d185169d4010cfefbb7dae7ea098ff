@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_keepcase.dic
+copyrev: 49854233f0d452b123b63d594f68e261974f60da
+
+5
+tv-/KB
+-tv/KE
+word/C
+NATO-/B
+-NATO/E
+

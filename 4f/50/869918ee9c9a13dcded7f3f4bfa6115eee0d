@@ -1,0 +1,10 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/015-novalid.html
+copyrev: 0157f335571aaa60fb3b0d86174b228ae6b93915
+
+<!doctype html>
+<head>
+<meta charset=utf-8>
+<title>style@scoped in head</title>
+<style scoped></style>
+</head>

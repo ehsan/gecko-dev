@@ -1,0 +1,15 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix5.good
+copyrev: 4c8f1a9af6e4874a881c2608871b182453073da6
+
+foo
+prefoo
+foosuf
+prefoosuf
+foosufbar
+prefoosufbar
+pseudoprefoosuf
+pseudoprefoosufbar
+pseudoprefoopseudosufbar
+prefoopseudosuf
+prefoopseudosufbar

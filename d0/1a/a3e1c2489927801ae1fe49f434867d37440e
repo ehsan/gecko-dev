@@ -1,0 +1,5 @@
+
+copy: tools/update-packaging/test/from-mac/Contents/MacOS/removed.txt
+copyrev: 483232ba300d26026dab869f7fbc388fa2576c6d
+
+removed

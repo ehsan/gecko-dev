@@ -1,0 +1,9 @@
+
+copy: content/base/test/file_htmlserializer_1_no_body.html
+copyrev: 001d0b083253bb8f1c7434affdf91c0c4f5ca546
+
+<!DOCTYPE html>
+<html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title>Test for html serializer</title>
+
+</head></html>

@@ -1,0 +1,21 @@
+
+copy: content/base/crashtests/327694.html
+copyrev: 415f0f89e537d98159353d8ee263d72c32f30250
+
+<html><head>
+
+<script>
+
+function init()
+{
+  var y = document.getElementById("tt");
+  var z = y.firstChild;
+  y.removeChild(z);
+  z.text;
+}
+
+window.addEventListener("load", init, false);
+
+</script>
+</head><body><div id="tt"><a href="http://www.mozilla.org">Foo</a></div>
+</body></html>

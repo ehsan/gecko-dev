@@ -1,0 +1,16 @@
+
+copy: webapprt/test/chrome/mozpay-success.html
+copyrev: f28cffc0c8a7b7f10eb7b9d1bece57740dd42a88
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+  </head>
+  <body>
+    <script>
+    mozPaymentProvider.paymentFailed('Chocolate rejected.');
+    </script>
+    <p id="msg">Webapp waiting to pay...</p>
+  </body>
+</html>

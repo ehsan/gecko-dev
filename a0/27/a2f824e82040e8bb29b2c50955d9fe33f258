@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundflag.dic
+copyrev: ba8d73d04c22e2af63163cf7a4db949b81fce173
+
+4
+foo/A
+bar/A
+xy/A
+yz/A

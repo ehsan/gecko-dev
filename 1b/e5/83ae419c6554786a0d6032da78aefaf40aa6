@@ -1,0 +1,15 @@
+
+copy: content/html/content/reftests/484200-1.html
+copyrev: 448611ad74f82f6a1ea41291482be16f27daf3c4
+
+<html>
+<head>
+<title>Test for Bug 484200</title>
+<style src=style>
+p { background:lime }
+</style>
+</head>
+<body>
+<p>xxxxx</p>
+</body>
+</html>

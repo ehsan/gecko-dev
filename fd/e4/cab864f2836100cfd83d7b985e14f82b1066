@@ -1,0 +1,11 @@
+
+copy: browser/devtools/styleinspector/test/doc_sourcemaps.css
+copyrev: 08d689b15756186fc3e6e1437a4c1ca0df6f0247
+
+div {
+  color: #ff0066; }
+
+span {
+  background-color: #EEE; }
+
+/*# sourceMappingURL=sourcemaps.css.map */

@@ -1,0 +1,25 @@
+
+copy: js/src/jit-test/tests/debug/hooks-throw-03.js
+copyrev: 831b873b5847dc9e5d7462ed21d454e48cc71c35
+
+// |jit-test| debug
+// hooks.throw is not called for exceptions thrown and handled in the debugger.
+
+var g = newGlobal('new-compartment');
+var dbg = Debug(g);
+g.log = '';
+dbg.hooks = {
+    debuggerHandler: function (frame) {
+        try {
+            throw new Error("oops");
+        } catch (exc) {
+            g.log += exc.message;
+        }
+    },
+    throw: function (frame) {
+        g.log += 'BAD';
+    }
+};
+
+g.eval("debugger; log += ' ok';");
+assertEq(g.log, 'oops ok');

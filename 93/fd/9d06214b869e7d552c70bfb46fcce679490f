@@ -1,0 +1,267 @@
+/* Platform-independent structural styling for
+ * <strike>Tab Candy</strike> Panorama
+----------------------------------*/
+
+html {
+  overflow: hidden;
+/*   image-rendering: -moz-crisp-edges; */
+}
+
+body {
+  padding: 0px;
+  margin: 0 auto;
+}
+
+#content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -999999;
+}
+
+/* Tabs
+----------------------------------*/
+
+.tab {
+  position: absolute;
+  overflow: visible !important;
+}
+
+.tab canvas,
+.cached-thumb {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0px;
+  left: 0px;
+}
+
+.thumb {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.favicon {
+  position: absolute;
+}
+
+.close {
+  position: absolute;
+  cursor: pointer;
+}
+
+.expander {
+  position: absolute;
+}
+
+.tab-title {
+  position: absolute;
+}
+
+.stacked .tab-title {
+  display: none;
+}
+
+.stack-trayed .tab-title {
+  display: block !important;
+}
+
+/* Tab: Zooming
+----------------------------------*/
+
+.front {
+  z-index: 999999 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  -moz-transform: none !important;
+  image-rendering: -moz-crisp-edges;
+}
+
+/* Groups
+----------------------------------*/
+
+.groupItem {
+  position: absolute;
+}
+
+.appTabTray {
+  position: absolute;
+}
+
+/* Other Items
+----------------------------------*/
+
+.undo {
+  position: absolute;
+}
+
+.undo .close {
+  display: inline-block;
+  position: relative;
+}
+
+.info-item {
+  position: absolute;
+}
+
+/* Trenches
+----------------------------------*/
+
+.guideTrench, 
+.visibleTrench, 
+.activeVisibleTrench {
+  position: absolute;
+}
+
+.guideTrench {
+  z-index: -101;
+}
+
+.visibleTrench {
+  z-index: -103;
+}
+
+.activeVisibleTrench {
+  z-index: -102;
+}
+
+/* Other
+----------------------------------*/
+
+.newTabButton {
+  position: absolute !important;
+  z-index: 99999;
+}
+
+.titlebar {
+  position: absolute;
+}
+
+.title-shield {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+}
+
+.transparentBorder {
+  border: 1px solid transparent !important;
+}
+
+.stackExpander {
+  position: absolute;
+}
+
+.shield {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+}
+
+/* Resizable
+----------------------------------*/
+.resizer {
+  position: absolute;
+}
+
+.iq-resizable-handle {
+  position: absolute;
+  z-index: 99999;
+  display: block;
+}
+
+.iq-resizable-disabled .iq-resizable-handle, 
+.iq-resizable-autohide .iq-resizable-handle {
+  display: none;
+}
+
+/* Exit button
+----------------------------------*/
+#exit-button {
+  position: absolute;
+  z-index: 1000;
+}
+
+/* Search
+----------------------------------*/
+
+#search{
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  z-index: 1000;  
+}
+
+html[dir=rtl] #search {
+  left: auto;
+  right: 0;
+}
+
+#searchbox{
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  z-index: 1050;
+}
+
+html[dir=rtl] #searchbox {
+  right: auto;
+  left: 20px;
+}
+
+#actions{
+  position: absolute;
+  top: 100px;
+  right: 0px;
+  z-index:10;
+}
+
+html[dir=rtl] #actions {
+  right: auto;
+  left: 0;
+}
+
+#actions #searchbutton{
+  position: relative;
+  top: 0;
+  left: 0;
+}
+
+html[dir=rtl] #actions #searchbutton {
+  left: auto;
+  right: 0;
+}
+
+#otherresults{
+  position: absolute;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.onTop{
+  z-index: 1010 !important;
+}
+
+.inlineMatch{
+  display: inline-block;
+}
+
+.inlineMatch>span{
+  display: inline-block;
+  overflow: hidden;
+}

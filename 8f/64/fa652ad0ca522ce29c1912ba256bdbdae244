@@ -1,0 +1,11 @@
+
+copy: content/base/test/bug819051.sjs
+copyrev: f18f72fd5bc63745091d0b54db36dc2ab43962a8
+
+function handleRequest(request, response)
+{
+    response.setStatusLine(request.httpVersion, 200, "Ok");
+    response.setHeader("X-appended-result", request.getHeader("X-appended-to-this"));
+    response.setHeader("X-Accept-Result", request.getHeader("Accept"));
+    response.write("");
+}

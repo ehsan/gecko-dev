@@ -1,0 +1,13 @@
+
+copy: content/html/content/crashtests/795221-4.html
+copyrev: 1f491f698971641d491258f3da5348f0646d657d
+
+<!DOCTYPE html>
+<svg>
+  <style>
+    div { }
+  </style>
+</svg>
+<script>
+  document.styleSheets[0].cssRules[0].style.foo = document;
+</script>

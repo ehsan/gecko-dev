@@ -1,0 +1,20 @@
+
+copy: gfx/angle/src/compiler/preprocessor/new/DirectiveHandler.cpp
+copyrev: 0858c6a332c89ebbd1ec78e3ad8dc569177f03b2
+
+//
+// Copyright (c) 2012 The ANGLE Project Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
+
+#include "DirectiveHandler.h"
+
+namespace pp
+{
+
+DirectiveHandler::~DirectiveHandler()
+{
+}
+
+}  // namespace pp

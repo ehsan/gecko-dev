@@ -1,0 +1,19 @@
+
+copy: layout/reftests/css-valid/textarea/reftest.list
+copyrev: 88b7932aed22a99a9ce8d1870bee628adb17620b
+
+== textarea-valid.html textarea-ref.html
+== textarea-customerror.html textarea-ref.html
+== textarea-disabled.html textarea-ref.html
+== textarea-dyn-disabled.html textarea-ref.html
+== textarea-dyn-not-disabled.html textarea-ref.html
+== textarea-readonly.html textarea-ref.html
+== textarea-dyn-readonly.html textarea-ref.html
+== textarea-dyn-not-readonly.html textarea-ref.html
+== textarea-maxlength-valid.html textarea-ref.html
+== textarea-maxlength-invalid.html textarea-withtext-ref.html
+== textarea-required-valid.html textarea-withtext-ref.html
+== textarea-required-invalid.html textarea-ref.html
+== textarea-disabled-fieldset-1.html textarea-fieldset-ref.html
+== textarea-disabled-fieldset-2.html textarea-fieldset-ref.html
+== textarea-fieldset-legend.html textarea-fieldset-legend-ref.html

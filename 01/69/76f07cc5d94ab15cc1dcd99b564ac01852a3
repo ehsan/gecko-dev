@@ -1,0 +1,9 @@
+
+copy: gfx/thebes/crashtests/532726-1.html
+copyrev: c06b49cdff6354bdd5b4b9e063aaf91ee5dd4483
+
+<html>
+<body style="word-spacing: 10px">
+<div>X &#x0301;&#x0000;</div>
+</body>
+</html>

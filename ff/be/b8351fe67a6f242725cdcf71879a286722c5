@@ -1,0 +1,16 @@
+
+copy: extensions/spellcheck/hunspell/tests/complexprefixesutf.aff
+copyrev: faa346adeddc161334ee1ec6991659ffaeff5483
+
+# Coptic example by Moheb Mekhaiel
+# Encoded with the new Coptic character encoding of Unicode 4.1
+SET UTF-8
+
+# set twofold prefix stripping
+COMPLEXPREFIXES
+
+PFX A Y 1
+PFX A 0 ⲧⲉⲕ .
+
+PFX B Y 1
+PFX B 0 ⲙⲉⲧ/A .

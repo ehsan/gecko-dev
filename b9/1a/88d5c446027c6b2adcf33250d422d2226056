@@ -1,0 +1,15 @@
+
+copyrev: af80f689b8fab56bdb9e6b88ea264fc676eb7012
+copy: js/ctypes/libffi/configure.host
+
+# configure.host
+#
+# This shell script handles all host based configuration for libffi.
+# 
+
+# THIS TABLE IS SORTED.  KEEP IT THAT WAY.
+case "${host}" in
+  frv*-elf)
+    LDFLAGS=`echo $LDFLAGS | sed "s/\-B[^ ]*libgloss\/frv\///"`\ -B`pwd`/../libgloss/frv/
+    ;;
+esac

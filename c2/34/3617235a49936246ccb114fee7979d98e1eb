@@ -1,0 +1,32 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 et sw=2 tw=80: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIIDBKeyRange;
+interface nsIIDBOpenDBRequest;
+
+/**
+ * Interface that defines the indexedDB property on a window.  See
+ * http://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#idl-def-IDBFactory
+ * for more information.
+ */
+[scriptable, builtinclass, uuid(885abbb7-cf81-4945-b5f1-07fed07ada82)]
+interface nsIIDBFactory : nsISupports
+{
+  [optional_argc]
+  nsIIDBOpenDBRequest
+  open([Null(Stringify)] in DOMString name,
+       [optional] in long long version);
+
+  nsIIDBOpenDBRequest
+  deleteDatabase(in AString name);
+
+  [implicit_jscontext]
+  short
+  cmp(in jsval first,
+      in jsval second);
+};

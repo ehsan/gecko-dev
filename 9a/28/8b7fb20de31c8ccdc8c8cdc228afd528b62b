@@ -1,0 +1,1006 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE bindings [
+<!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
+%browserDTD;
+]>
+
+<bindings
+    xmlns="http://www.mozilla.org/xbl"
+    xmlns:xbl="http://www.mozilla.org/xbl"
+    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <binding id="autocomplete-aligned" extends="chrome://global/content/bindings/autocomplete.xml#autocomplete">
+    <implementation>
+      <method name="openPopup">
+        <body><![CDATA[
+          this.popup.openAutocompletePopup(this, null);
+        ]]></body>
+      </method>
+      <method name="closePopup">
+        <body><![CDATA[
+          // hack! we want to revert to the "all results" popup when the
+          // controller would otherwise close us because of an empty search
+          // string.
+          if (this.value == "")
+            this.showHistoryPopup();
+        ]]></body>
+      </method>
+    </implementation>
+    <handlers>
+      <handler event="keypress" keycode="VK_RETURN" phase="capturing">
+        <![CDATA[
+          if (this.popup.allBookmarksItemSelected) {
+            this.popup.closePopup();
+            CommandUpdater.doCommand("cmd_bookmarks");
+          }
+        ]]>
+      </handler>
+    </handlers>
+  </binding>
+
+  <binding id="popup_autocomplete_result">
+    <content orient="vertical">
+      <xul:hbox class="autocomplete-item-label" align="center" xbl:inherits="tags, favorite" mousethrough="always">
+        <xul:image xbl:inherits="src"/>
+        <xul:label flex="1" crop="center" xbl:inherits="value"/>
+      </xul:hbox>
+      <xul:label class="autocomplete-item-url" xbl:inherits="value=url" crop="center" mousethrough="always"/>
+    </content>
+  </binding>
+
+  <binding id="popup_autocomplete">
+    <content>
+      <xul:vbox class="autocomplete-box" flex="1">
+        <!-- 12 child items, to match browser.urlbar.maxRichResults -->
+        <xul:scrollbox orient="vertical"
+                       class="autocomplete-items"
+                       anonid="autocomplete-items"
+                       flex="1000">
+          <xul:autocompleteresult anonid="allbookmarks"
+                                  value="&allBookmarks.label;"
+                                  class="allbookmarks"/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+          <xul:autocompleteresult/>
+        </xul:scrollbox>
+        <children/>
+      </xul:vbox>
+    </content>
+
+    <implementation implements="nsIAutoCompletePopup, nsIDOMEventListener">
+      <constructor><![CDATA[
+        window.addEventListener("blur", this, true);
+      ]]></constructor>
+
+      <!-- Used by the chrome input handler -->
+      <property name="boxObject"
+                readonly="true"
+                onget="return this._items.boxObject;"/>
+
+      <field name="_scrollBoxObject">
+        this.boxObject.QueryInterface(Components.interfaces.nsIScrollBoxObject);
+      </field>
+
+      <!-- nsIAutocompleteInput -->
+      <property name="overrideValue"
+                readonly="true"
+                onget="return null;"/>
+
+      <field name="_input"/>
+      <property name="input"
+                readonly="true"
+                onget="return this._input;"/>
+
+      <field name="_selectedIndex">-1</field>
+      <field name="_selectedItem"/>
+      <property name="selectedIndex"
+                onget="return this._allBookmarksItem._hidden ? this._selectedIndex : this._selectedIndex - 1;">
+        <setter><![CDATA[
+          // Ignore invalid indices
+          if (val < -1 ||
+              val > this._matchCount - 1)
+            return val;
+
+          if (this._selectedItem)
+            this._styleItem(this._selectedItem, false);
+
+          // highlight the selected item
+          let item = this._items.childNodes.item(val);
+          if (item) {
+            this._selectedItem = item;
+            this._styleItem(this._selectedItem, true);
+            this._scrollBoxObject.ensureElementIsVisible(this._selectedItem);
+          }
+
+          return this._selectedIndex = val;
+        ]]></setter>
+      </property>
+
+      <field name="_popupOpen">false</field>
+      <property name="popupOpen"
+                readonly="true"
+                onget="return this._popupOpen;"/>
+
+      <method name="openAutocompletePopup">
+        <parameter name="aInput"/>
+        <parameter name="aElement"/>
+        <body><![CDATA[
+          if (this._popupOpen)
+            return;
+
+          BrowserUI.pushDialog(this);
+
+          this._selectedItem = null;
+          this._input = aInput;
+          this._input.select();
+
+          if (this.hidden)
+            this.hidden = false;
+          this.collapsed = false;
+          this._popupOpen = true;
+
+          this.invalidate();
+        ]]></body>
+      </method>
+
+      <method name="closePopup">
+        <body><![CDATA[
+          if (!this._popupOpen)
+            return;
+
+          this.selectedIndex = -1;
+          this.input.controller.stopSearch();
+
+          this.collapsed = true;
+          this._popupOpen = false;
+
+          // Scroll to the top left for the next open (only if necessary).
+          // Doing this now rather than in open() turns out to be faster,
+          // possibly because it avoids scrolling too soon after we uncollapse
+          // ourselves
+          if (this._items.scrollTop || this._items.scrollLeft)
+            this._scrollBoxObject.scrollTo(0, 0);
+
+          BrowserUI.showToolbar(false);
+          BrowserUI.popDialog();
+        ]]></body>
+      </method>
+
+      <!-- Helper used by active dialog system -->
+      <method name="close">
+        <body><![CDATA[
+          this.input.reset();
+          this.input.blur();
+          this.closePopup();
+        ]]></body>
+      </method>
+
+      <field name="_XULNS">("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul")</field>
+
+      <method name="invalidate">
+        <body><![CDATA[
+          // Don't bother doing work if we're not even open
+          if (!this.popupOpen)
+            return;
+
+          let controller = this.input.controller;
+          let searchString = controller.searchString;
+          let items = this._items;
+
+          // Remove the allBookmarksItem if present, before populating the list.
+          if (!this._allBookmarksItem._hidden) {
+            items.removeChild(this._allBookmarksItem);
+            this._allBookmarksItem._hidden = true;
+          }
+
+          // Need to iterate over all our existing entries at a minimum, to make
+          // sure they're either updated or cleared out. We might also have to
+          // add extra items.
+          let matchCount = this._matchCount;
+          let children = items.childNodes;
+          let iterCount = Math.max(children.length, matchCount);
+          for (let i = 0; i < iterCount; ++i) {
+            let item = children.item(i);
+
+            // Create an item if needed
+            if (!item) {
+              item = document.createElementNS(this._XULNS, "xul:autocompleteresult");
+              items.appendChild(item);
+            }
+
+            item._index = i;
+
+            // Check whether there's an entry to fill
+            if (i > matchCount - 1) {
+              // Just clear out the old item
+              item.setAttribute("value", "");
+              item.removeAttribute("favorite");
+              item._empty = true;
+
+              continue;
+            }
+            item._empty = false;
+
+            // Assign the values
+            let type = controller.getStyleAt(i);
+            let title = controller.getCommentAt(i);
+            let tags = '';
+            
+            if (type == "tag")
+              [, title, tags] = title.match(/^(.+) \u2013 (.+)$/);
+            item.setAttribute("tags", tags);
+
+            let url = controller.getValueAt(i);
+            item.setAttribute("value", title || url);
+            item.setAttribute("url", url);
+
+            let isBookmark = ((type == "bookmark") || (type == "tag"));
+            item.setAttribute("favorite", isBookmark);
+            item.setAttribute("src", controller.getImageAt(i));
+          }
+
+          // Show the "no results" or "all bookmarks" entries as needed
+          this._updateNoResultsItem(matchCount);
+          if (searchString == "") {
+            items.insertBefore(this._allBookmarksItem, items.firstChild);
+            this._allBookmarksItem._hidden = false;
+          }
+        ]]></body>
+      </method>
+
+      <method name="_updateNoResultsItem">
+        <parameter name="isResults" />
+        <body><![CDATA[
+          let noResultsItem = this._items.childNodes.item(1);
+          if (isResults) {
+            noResultsItem.className = "";
+          }
+          else {
+            noResultsItem.className = "noresults";
+            noResultsItem.setAttribute("value", "]]>&noResults.label;<![CDATA[");
+          }
+        ]]></body>
+      </method>
+
+      <field name="_allBookmarksItem">document.getAnonymousElementByAttribute(this, "anonid", "allbookmarks");</field>
+      
+      <property name="allBookmarksItemSelected" readonly="true"
+                onget="return this._selectedItem == this._allBookmarksItem;"/>
+
+      <method name="selectBy">
+        <parameter name="aReverse"/>
+        <parameter name="aPage"/>
+        <body><![CDATA[
+          let newIndex;
+          let lastIndex = this._matchCount - 1;
+
+          if (this._selectedIndex == -1)
+            newIndex = aReverse ? lastIndex : 0;
+          else
+            newIndex = this._selectedIndex + (aReverse ? -1 : 1);
+
+          // Deal with rollover
+          if (newIndex > lastIndex)
+            newIndex = 0;
+          else if (newIndex < 0)
+            newIndex = lastIndex;
+
+          this.selectedIndex = newIndex;
+        ]]></body>
+      </method>
+
+      <!-- Helpers -->
+      <field name="_items">
+        document.getAnonymousElementByAttribute(this,
+                        "anonid", "autocomplete-items");
+      </field>
+
+      <property name="_matchCount"
+                readonly="true">
+        <getter><![CDATA[
+          let matchCount = this.input.controller.matchCount;
+          return matchCount + (this._allBookmarksItem._hidden ? 0 : 1);
+        ]]></getter>
+      </property>
+
+      <!-- Handles blur events on the window while the popup is open. -->
+      <method name="handleEvent">
+        <parameter name="aEvent"/>
+        <body><![CDATA[
+          if (aEvent.type == "blur") {
+            if (this._popupOpen)
+              this.close();
+          } else {
+            Components.utils.reportError("autocomplete popup received " +
+                                         "unexpected event: " + aEvent.type);
+          }
+        ]]></body>
+      </method>
+
+      <method name="_styleItem">
+        <parameter name="aItem"/>
+        <parameter name="aAddStyle"/>
+        <body><![CDATA[
+          if (aAddStyle)
+            aItem.className += " autocompleteresult-selected";
+          else
+            aItem.className = aItem.className.replace(/\s*autocompleteresult-selected/, "");
+        ]]></body>
+      </method>
+    </implementation>
+
+    <handlers>
+      <handler event="click" button="0">
+        <![CDATA[
+          let target = event.originalTarget;
+          if (target == this._allBookmarksItem) {
+            // XXX bug 516575
+            // select the item, since closing the popup can be slow...
+            // we should stop doing this when that isn't the case
+            this.selectedIndex = 0;
+            this.close();
+            CommandUpdater.doCommand("cmd_bookmarks");
+          }
+          else if (target.localName == "autocompleteresult" && !target._empty) {
+            let offset = this._allBookmarksItem._hidden ? 0 : 1;
+            // XXX bug 516575
+            // same as above - we can just set _selectedIndex directly to avoid
+            // styling the selected item when closing the popup is fast enough
+            this.selectedIndex = target._index + offset;
+            this.input.controller.handleEnter(true);
+          }
+        ]]>
+      </handler>
+    </handlers>
+  </binding>
+
+  <binding id="place-base">
+    <content/>
+    <implementation>
+      <constructor>
+        <![CDATA[
+          let itemId = this.getAttribute("itemid");
+          if (itemId)
+            this.init(itemId);
+        ]]>
+      </constructor>
+
+      <field name="_itemId">null</field>
+      <field name="_uri">null</field>
+      <field name="_control">null</field>
+      <field name="_isEditing">false</field>
+
+      <field name="_ioService" readonly="true">
+        Components.classes["@mozilla.org/network/io-service;1"]
+                  .getService(Components.interfaces.nsIIOService);
+      </field>
+      <field name="_faviconService" readonly="true">
+        Components.classes["@mozilla.org/browser/favicon-service;1"]
+                  .getService(Components.interfaces.nsIFaviconService);
+      </field>
+
+      <field name="_nameField">
+        document.getAnonymousElementByAttribute(this, "anonid", "name");
+      </field>
+      <field name="_uriField">
+        document.getAnonymousElementByAttribute(this, "anonid", "uri");
+      </field>
+      <field name="_tagsField">
+        document.getAnonymousElementByAttribute(this, "anonid", "tags");
+      </field>
+      <property name="itemId" onget="return this._itemId"/>
+      <property name="type" onget="return this.getAttribute('type');"/>
+
+      <property name="name" onget="return this._nameField.value"
+                            onset="this._nameField.value = val; return val;"/>
+      <property name="spec" onget="return this._uriField.value"
+                            onset="this._uriField.value = val; return val;"/>
+      <property name="tags" onget="return this._tagsField.value"
+                            onset="this._tagsField.value = val; return val;"/>
+      <property name="tagsAsArray" readonly="true">
+        <getter>
+          <![CDATA[
+            // we don't require the leading space (after each comma)
+            var tags = this.tags.split(",");
+            for (var i = 0; i < tags.length; i++) {
+              // remove trailing and leading spaces
+              tags[i] = tags[i].trim();
+
+              // remove empty entries from the array.
+              if (tags[i] == "") {
+                tags.splice(i, 1);
+                i--;
+              }
+            }
+
+            return tags;
+          ]]>
+        </getter>
+      </property>
+      <property name="isEditing" readonly="true" onget="return this._isEditing;"/>
+      <property name="control" readonly="true">
+        <getter>
+          <![CDATA[
+            if (this._control)
+              return this._control;
+
+            let parent = this.parentNode;
+            while (parent) {
+              if (parent.localName == "placelist") {
+                this._control = parent;
+                return this._control;
+              }
+              parent = parent.parentNode;
+            }
+            return null;
+          ]]>
+        </getter>
+      </property>
+
+      <method name="init">
+        <parameter name="aItemId"/>
+        <body>
+          <![CDATA[
+            this._itemId = aItemId;
+            if (!this._itemId)
+              return;
+
+            if (this.hasAttribute("uri") && this.type != "folder") {
+              this._uri = this._ioService.newURI(this.getAttribute("uri"), null, null);
+              this.setAttribute("src", this._faviconService.getFaviconImageForPage(this._uri).spec);
+            }
+          ]]>
+        </body>
+      </method>
+      <method name="startEditing">
+        <parameter name="autoSelect"/>
+        <body>
+          <![CDATA[
+            if (!this._itemId)
+              return;
+
+            this._isEditing = true;
+            if (this.control) {
+              this.setAttribute("selected", "true");
+              this.control.scrollBoxObject.ensureElementIsVisible(this);
+              this.control.activeItem = this;
+            }
+
+            this.updateFields();
+
+            this._nameField.focus();
+            if (autoSelect)
+              this._nameField.select();
+          ]]>
+        </body>
+      </method>
+      <method name="stopEditing">
+        <parameter name="shouldSave"/>
+        <body>
+          <![CDATA[
+            if (shouldSave)
+              this.save();
+
+            this._isEditing = false;
+            if (this.control) {
+              this.control.activeItem.removeAttribute("selected");
+              this.control.activeItem = null;
+            }
+
+            this.updateFields();
+
+            let focusedElement = document.commandDispatcher.focusedElement;
+            if (focusedElement)
+              focusedElement.blur();
+
+            let event = document.createEvent("Events");
+            event.initEvent("close", true, false);
+            this.dispatchEvent(event);
+          ]]>
+        </body>
+      </method>
+      <method name="save">
+        <body>
+          <![CDATA[
+            // Update the tags
+            if (this._uri && this.type != "folder") {
+              let currentTags = PlacesUtils.tagging.getTagsForURI(this._uri, {});
+              let tags = this.tagsAsArray;
+              if (tags.length > 0 || currentTags.length > 0) {
+                let tagsToRemove = [];
+                let tagsToAdd = [];
+                for (let i = 0; i < currentTags.length; i++) {
+                  if (tags.indexOf(currentTags[i]) == -1)
+                    tagsToRemove.push(currentTags[i]);
+                }
+                for (let i = 0; i < tags.length; i++) {
+                  if (currentTags.indexOf(tags[i]) == -1)
+                    tagsToAdd.push(tags[i]);
+                }
+
+                if (tagsToAdd.length > 0)
+                  PlacesUtils.tagging.tagURI(this._uri, tagsToAdd);
+                if (tagsToRemove.length > 0)
+                  PlacesUtils.tagging.untagURI(this._uri, tagsToRemove);
+              }
+              this.setAttribute('tags', this.tags);
+
+              // If the URI was updated change it in the bookmark, but don't
+              // allow a blank URI. Revert to previous URI if blank.
+              let spec = this.spec;
+              if (spec && this._uri.spec != spec) {
+                try {
+                  this._uri = this._ioService.newURI(spec, null, null);
+                  PlacesUtils.bookmarks.changeBookmarkURI(this._itemId, this._uri);
+                  this.setAttribute('uri', this.spec);
+                }
+                catch (e) { }
+              }
+              if (spec != this._uri.spec)
+                spec = this.spec = this._uri.spec;
+            }
+
+            // Update the name and use the URI if name is blank
+            this.name = this.name || spec;
+            this.setAttribute('title', this.name);
+            PlacesUtils.bookmarks.setItemTitle(this._itemId, this.name);
+          ]]>
+        </body>
+      </method>
+      <method name="remove">
+        <body>
+          <![CDATA[
+            PlacesUtils.bookmarks.removeItem(this._itemId);
+
+            // If this was the last bookmark (excluding tag-items and livemark
+            // children, see getMostRecentBookmarkForURI) for the bookmark's url,
+            // remove the url from tag containers as well.
+            if (this._uri && this.type != "folder") {
+              if (PlacesUtils.getMostRecentBookmarkForURI(this._uri) == -1) {
+                var tags = PlacesUtils.tagging.getTagsForURI(this._uri, {});
+                PlacesUtils.tagging.untagURI(this._uri, tags);
+              }
+            }
+
+            this.stopEditing(false);
+
+            let event = document.createEvent("Events");
+            event.initEvent("BookmarkRemove", true, false);
+            this.dispatchEvent(event);
+
+            if (this.control)
+              this.control.removeItem(this);
+
+          ]]>
+        </body>
+      </method>
+      <method name="updateFields">
+        <body>
+          <![CDATA[
+            // implemented by sub classes
+          ]]>
+        </body>
+      </method>
+    </implementation>
+  </binding>
+
+  <binding id="place-item" extends="chrome://browser/content/bindings.xml#place-base">
+    <content orient="vertical">
+      <xul:hbox anonid="bookmark-item" class="bookmark-item-label" align="center" flex="1" xbl:inherits="tags" mousethrough="always">
+        <xul:image xbl:inherits="src"/>
+        <xul:label flex="1" crop="center" xbl:inherits="value=title"/>
+      </xul:hbox>
+      <xul:label anonid="bookmark-url" class="bookmark-item-url" xbl:inherits="value=uri" crop="center" mousethrough="always"/>
+
+      <xul:hbox anonid="bookmark-manage" class="bookmark-manage" hidden="true" flex="1">
+        <xul:image xbl:inherits="src"/>
+        <xul:vbox flex="1">
+          <xul:vbox flex="1">
+            <xul:textbox anonid="name" xbl:inherits="value=title"/>
+            <xul:textbox anonid="uri" xbl:inherits="value=uri"/>
+            <xul:textbox anonid="tags" xbl:inherits="value=tags" emptytext="&editBookmarkTags.label;"/>
+          </xul:vbox>
+        
+         <xul:hbox class="bookmark-controls" align="center">
+            <xul:button anonid="remove-button" class="bookmark-remove" label="&editBookmarkRemove.label;"
+                        oncommand="document.getBindingParent(this).remove()"/>
+            <xul:spacer flex="1"/>
+            <xul:button anonid="done-button" class="bookmark-done" label="&editBookmarkDone.label;"
+                        oncommand="document.getBindingParent(this).stopEditing(true)"/>
+          </xul:hbox>
+        </xul:vbox>
+      </xul:hbox>
+    </content>
+
+    <implementation>
+      <method name="updateFields">
+        <body>
+          <![CDATA[
+            document.getAnonymousElementByAttribute(this, "anonid", "bookmark-item").hidden = this._isEditing;
+            document.getAnonymousElementByAttribute(this, "anonid", "bookmark-url").hidden = this._isEditing;
+
+            document.getAnonymousElementByAttribute(this, "anonid", "bookmark-manage").hidden = !this._isEditing;
+          ]]>
+        </body>
+      </method>
+    </implementation>
+  </binding>
+
+  <binding id="place-folder" extends="chrome://browser/content/bindings.xml#place-item">
+    <implementation>
+      <method name="updateFields">
+        <body>
+          <![CDATA[
+            document.getAnonymousElementByAttribute(this, "anonid", "bookmark-item").hidden = this._isEditing;
+            document.getAnonymousElementByAttribute(this, "anonid", "bookmark-url").hidden = this._isEditing;
+
+
+            this._uriField.hidden = true;
+            this._tagsField.hidden = true;
+            document.getAnonymousElementByAttribute(this, "anonid", "bookmark-manage").hidden = !this._isEditing;
+          ]]>
+        </body>
+      </method>
+    </implementation>
+  </binding>
+
+  <binding id="place-label" extends="chrome://browser/content/bindings.xml#place-base">
+    <content align="center">
+      <xul:spacer xbl:inherits="width=indent"/>
+      <xul:image anonid="favicon" class="bookmark-folder-image"/>
+      <xul:label anonid="name" crop="end" flex="1" xbl:inherits="value=title"/>
+    </content>
+  </binding>
+
+  <binding id="place-list">
+    <content orient="vertical" flex="1">
+      <xul:vbox anonid="parent-items" class="place-list-parents" />
+      <xul:richlistbox anonid="child-items" class="place-list-children" flex="1"/>
+    </content>
+    <implementation>
+      <constructor>
+        <![CDATA[
+          this._type = this.getAttribute("type");
+          this._mode = this.getAttribute("mode");
+        ]]>
+      </constructor>
+      <field name="_bundle" readonly="true">
+        Components.classes["@mozilla.org/intl/stringbundle;1"]
+                  .getService(Components.interfaces.nsIStringBundleService)
+                  .createBundle("chrome://browser/locale/browser.properties");
+      </field>
+
+      <field name="_type"/>
+      <field name="_mode"/>
+      <field name="_activeItem">null</field>
+      <field name="_ignoreEditing">false</field>
+      <field name="_manageUI">false</field>
+      <field name="_parents">
+        document.getAnonymousElementByAttribute(this, "anonid", "parent-items");
+      </field>
+      <field name="_children">
+        document.getAnonymousElementByAttribute(this, "anonid", "child-items");
+      </field>
+
+      <property name="scrollBoxObject" readonly="true" onget="return this._children.scrollBoxObject;"/>
+
+      <property name="items" readonly="true" onget="return this._children.childNodes"/>
+
+      <property name="isRootFolder" readonly="true">
+        <getter>
+          <![CDATA[
+            let currentFolderId = this._parents.lastChild.getAttribute("itemid");
+            return currentFolderId == PlacesUtils.bookmarks.unfiledBookmarksFolder;
+          ]]>
+        </getter>
+      </property>
+
+      <property name="activeItem">
+        <getter>
+          <![CDATA[
+            return this._activeItem;
+          ]]>
+        </getter>
+        <setter>
+          <![CDATA[
+            if (!this._ignoreEditing) {
+              if (this._activeItem && this._activeItem.isEditing) {
+                this._ignoreEditing = true;
+                this._activeItem.stopEditing(false);
+                this._ignoreEditing = false;
+              }
+
+              this._activeItem = val;
+            }
+            return val;
+          ]]>
+        </setter>
+      </property>
+
+      <property name="manageUI">
+        <getter>
+          <![CDATA[
+            return this._manageUI;
+          ]]>
+        </getter>
+        <setter>
+          <![CDATA[
+            if (this._manageUI != val) {
+              this._manageUI = val;
+              if (this._manageUI) {
+                this.setAttribute("ui", "manage");
+                if (this.getAttribute("autoedit") == "true" && this._children.hasChildNodes())
+                  this._children.firstChild.startEditing();
+              }
+              else {
+                if (this._activeItem && this._activeItem.isEditing)
+                  this._activeItem.stopEditing();
+                this.removeAttribute("ui");
+              }
+            }
+            return val;
+          ]]>
+        </setter>
+      </property>
+
+      <method name="_getChildren">
+        <parameter name="aFolder"/>
+        <body>
+          <![CDATA[
+            let items = [];
+
+            let options = PlacesUtils.history.getNewQueryOptions();
+            options.queryType = (this._type == "bookmarks" ? options.QUERY_TYPE_BOOKMARKS : options.QUERY_TYPE_HISTORY);
+            let query = PlacesUtils.history.getNewQuery();
+
+            if (aFolder)
+              query.setFolders([aFolder], 1);
+            let result = PlacesUtils.history.executeQuery(query, options);
+            let rootNode = result.root;
+            rootNode.containerOpen = true;
+    
+            let cc = rootNode.childCount;
+            for (var i=0; i<cc; ++i) {
+              var node = rootNode.getChild(i);
+              if (this._mode == "folders" && node.type == node.RESULT_TYPE_FOLDER) {
+                items.push(node);
+              }
+              else if (this._mode == "") {
+                items.push(node);
+              }
+            }
+            rootNode.containerOpen = false;
+            return items;
+          ]]>
+        </body>
+      </method>
+
+      <method name="openFolder">
+        <parameter name="aRootFolder"/>
+        <body>
+          <![CDATA[
+            aRootFolder = aRootFolder || PlacesUtils.bookmarks.unfiledBookmarksFolder;
+
+            this._activeItem = null;
+
+            let parents = this._parents;
+            while (parents.firstChild)
+              parents.removeChild(parents.firstChild);
+
+            const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+            var self = this;
+
+            let folderId = aRootFolder;
+            do {
+              let title = PlacesUtils.bookmarks.getItemTitle(folderId);
+
+              let parent = document.createElementNS(XULNS, "placelabel");
+              parent.setAttribute("class", "bookmark-folder");
+              parent.setAttribute("itemid", folderId);
+              parent.setAttribute("indent", 0);
+              parent.setAttribute("title", title);
+              parents.insertBefore(parent, parents.firstChild);
+
+              // XXX Fix me - use <handler>?
+              parent.addEventListener("click", function(e) { self.openFolder(e.target.previousSibling.itemId); }, false);
+
+              folderId = PlacesUtils.bookmarks.getFolderIdForItem(folderId);
+            } while (folderId != PlacesUtils.bookmarks.placesRoot)
+
+            let children = this._children;
+            while (children.firstChild)
+              children.removeChild(children.firstChild);
+
+            children.scrollBoxObject.scrollTo(0, 0);
+
+            let childItems = this._getChildren(aRootFolder);
+            for (let i=0; i<childItems.length; i++) {
+              let node = childItems[i];
+              children.appendChild(this.createItem(node));
+            }
+          ]]>
+        </body>
+      </method>
+
+      <method name="createItem">
+        <parameter name="aItem"/>
+        <body>
+          <![CDATA[
+            const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+
+            let child = document.createElementNS(XULNS, "placeitem");
+            child.setAttribute("itemid", aItem.itemId);
+            child.setAttribute("class", "bookmark-item");
+            child.setAttribute("title", aItem.title);
+            child.setAttribute("uri", aItem.uri);
+            child.setAttribute("tags", aItem.tags);
+            if (aItem.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER)
+              child.setAttribute("type", "folder");
+
+            // XXX make a <handler>
+            var self = this;
+            child.addEventListener("click", function(e) { self._fireOpen(e, child); }, false);
+
+            return child;
+          ]]>
+        </body>
+      </method>
+
+      <method name="removeItem">
+        <parameter name="aItem"/>
+        <body>
+          <![CDATA[
+            this._children.removeChild(aItem);
+          ]]>
+        </body>
+      </method>
+
+      <method name="_fireOpen">
+        <parameter name="aEvent"/>
+        <parameter name="aItem"/>
+        <body>
+          <![CDATA[
+            if (aEvent.originalTarget.localName == "button" || this._activeItem == aItem)
+              return;
+
+            if (this._manageUI) {
+              aItem.startEditing();
+              return;
+            }
+
+            if (aItem.type == "folder") {
+              this.openFolder(aItem.itemId);
+            }
+            else {
+              // Force the item to be active
+              this._activeItem = aItem;
+
+              // This is a callback used to forward information to some
+              // external code [we fire an event & a pseudo attribute event]
+              let event = document.createEvent("Events");
+              event.initEvent("BookmarkOpen", true, false);
+              this.dispatchEvent(event);
+              let func = new Function("event", this.getAttribute("onopen"));
+              func.call(this, event);
+            }
+          ]]>
+        </body>
+      </method>
+    </implementation>
+  </binding>
+
+  <binding id="richlistitem" extends="chrome://global/content/bindings/richlistbox.xml#richlistitem">
+    <handlers>
+      <handler event="mousedown" phase="capturing">
+        <![CDATA[
+          event.stopPropagation();
+        ]]>
+      </handler>
+    </handlers>
+  </binding>
+
+  <binding id="menulist" display="xul:box" extends="chrome://global/content/bindings/menulist.xml#menulist">
+    <handlers>
+      <handler event="mousedown" phase="capturing">
+        <![CDATA[
+          // Stop the normal menupopup from appearing
+          event.stopPropagation();
+        ]]>
+      </handler>
+
+      <handler event="click" button="0">
+        <![CDATA[
+          if (this.disabled || this.itemCount == 0)
+            return;
+      
+          this.focus();
+          SelectHelper.show(this);
+        ]]>
+      </handler>
+    </handlers>
+  </binding>
+
+  <binding id="chrome-input">
+    <content>
+      <children />
+    </content>
+    <handlers>
+      <handler event="click" button="0">
+        <![CDATA[
+          var showEvent = document.createEvent("Events");
+          showEvent.initEvent("UIShowForm", true, false);
+          this.dispatchEvent(showEvent);
+        ]]>
+      </handler>
+    </handlers>
+  </binding>
+
+  <binding id="chrome-select">
+    <content>
+      <children />
+    </content>
+
+    <implementation>
+      <property name="selectElement"
+                onget="return this.QueryInterface(Components.interfaces.nsISelectElement);"
+                readonly="true"/>
+    </implementation>
+
+    <handlers>
+      <handler event="mousedown" button="0" phase="capturing">
+        <![CDATA[
+          event.stopPropagation();
+          event.preventDefault();
+        ]]>
+      </handler>
+
+      <handler event="click" button="0">
+        <![CDATA[
+          let options = this.options;
+          if (options.length == 0)
+            return;
+      
+          var showEvent = document.createEvent("Events");
+          showEvent.initEvent("UIShowForm", true, false);
+          this.dispatchEvent(showEvent);
+        ]]>
+      </handler>
+    </handlers>
+  </binding>
+
+  <binding id="chrome-select-option">
+    <content orient="horizontal" flex="1">
+      <xul:image anonid="check"/>
+      <xul:label anonid="label" xbl:inherits="value=label"/>
+    </content>
+
+    <implementation>
+      <property name="selected">
+        <getter>
+          <![CDATA[
+            return this.hasAttribute("selected");
+          ]]>
+        </getter>
+        <setter>
+          <![CDATA[
+            if (val)
+              this.setAttribute("selected", "true");
+            else
+              this.removeAttribute("selected");
+            return val;
+          ]]>
+        </setter>
+      </property>
+    </implementation>
+  </binding>
+</bindings>

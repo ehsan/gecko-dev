@@ -1,0 +1,18 @@
+
+copy: dom/src/threads/test/longThread_worker.js
+copyrev: be066c242d252b40a199f44bb914ba91b0cab593
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+onmessage = function(event) {
+  switch (event.data) {
+    case "start":
+      for (var i = 0; i < 10000000; i++) { };
+      postMessage("done");
+      break;
+    default:
+      throw "Bad message: " + event.data;
+  }
+};

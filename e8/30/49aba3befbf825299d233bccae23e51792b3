@@ -1,0 +1,7 @@
+
+copy: mobile/android/base/widget/GeckoRelativeLayout.java.in
+copyrev: 538e06aa393049c58b6d2310f9512c219596a881
+
+#filter substitution
+#define VIEWTYPE RelativeLayout
+#include ThemedView.java.frag

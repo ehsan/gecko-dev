@@ -1,0 +1,17 @@
+
+copy: browser/components/privatebrowsing/test/browser/browser_privatebrowsing_protocolhandler_page.html
+copyrev: 293cc6409afca11487ce6e34d59df8a0b14dbafb
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+  <head>
+    <title>Protocol registrar page</title>
+  </head>
+  <body>
+    <script type="text/javascript">
+      navigator.registerProtocolHandler("testprotocol",
+          "https://example.com/foobar?uri=%s",
+          "Test Protocol");
+    </script>
+  </body>
+</html>

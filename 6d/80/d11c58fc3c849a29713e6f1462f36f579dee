@@ -1,0 +1,11 @@
+
+copyrev: c7e14b95b51ffab9e65f649a8c7c30382c3647f4
+copy: js/src/trace-test/tests/jaeger/bug583689.js
+
+function f() {
+    if (-[]) delete y
+}
+for (c in [0, 0, 0, 0]) {
+    new f
+}
+

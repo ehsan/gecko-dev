@@ -1,0 +1,20 @@
+
+copy: content/base/crashtests/1026714.html
+copyrev: 0c4ee261478e62eb79336b4373f39c585d42e347
+
+<!DOCTYPE html>
+<html>
+<body onload="f()">
+  <div></div>
+  <style>
+    div { color: blue; }
+  </style>
+  <script>
+    function f() {
+      // This should not leak.
+      var div = document.querySelector("div");
+      var shadow = div.createShadowRoot();
+      shadow.innerHTML = '<div><style scoped>p { color: green; }</style>';
+    }
+  </script>
+</body>

@@ -1,0 +1,17 @@
+
+copy: dom/browser-element/mochitest/test_browserElement_oop_CanGoBack.html
+copyrev: bd2bf95be81e41dabaf48ad2dd0e78adf93e8021
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test of browser element.</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="application/javascript" src="browserElementTestHelpers.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<script type="application/javascript;version=1.7" src="browserElement_BackForward.js">
+</script>
+</body>
+</html>

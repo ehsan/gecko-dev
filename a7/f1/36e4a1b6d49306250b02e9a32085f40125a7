@@ -1,0 +1,5 @@
+
+copyrev: 3d23589e1629d9d4980e2f5cf19d8863e55b853b
+copy: js/tests/js1_3/misc/shell.js
+
+gTestsubsuite = 'misc';

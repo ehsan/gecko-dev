@@ -1,0 +1,42 @@
+<!ENTITY wizard.title                     "Weave Setup">
+
+<!ENTITY welcome.title                    "Welcome">
+<!ENTITY welcome.description              "Explain how Weave works...">
+<!ENTITY curUser.label			  "Current Weave user">
+<!ENTITY newUser.label			  "New Weave user">
+
+<!ENTITY verify.title                     "Account Verification">
+<!ENTITY msg.label	                  "Please enter all fields.">
+<!ENTITY username.label                   "User name:">
+<!ENTITY password.label            	  "Password:">
+<!ENTITY passphrase.label		  "Passphrase:">
+<!ENTITY reminder.label		          "Forget your account information? ">
+<!ENTITY href.text			  "Click here.">
+<!ENTITY verify.label			  "Verifying username and password...">
+
+<!ENTITY create.title			  "Create Account">
+<!ENTITY username.description		  "Enter a unique username."> 
+<!ENTITY reenterPassword.label		  "Re-enter password:">
+<!ENTITY passphrase.description		  "Explain what a passphrase is..."> 
+<!ENTITY reenterPassphrase.label	  "Re-enter passphrase:">
+<!ENTITY moreInfo.label			  "More information on choosing a phrase.">
+<!ENTITY email.description		  "Explain email address...">
+<!ENTITY email.label			  "Email address:">
+<!ENTITY captcha.label		  	  "So we can verify you are a real person...">
+<!ENTITY terms.label			  "Terms, license (?)">
+
+<!ENTITY data.title			  "Data">
+<!ENTITY data.description		  "Choose the data that you would like Weave to store for you.">
+<!ENTITY bookmarks.label	          "Bookmarks">
+<!ENTITY history.label	          	  "History">
+<!ENTITY cookies.label	          	  "Cookies">
+<!ENTITY passwords.label	          "Saved Passwords">
+<!ENTITY formdata.label	          	  "Form Data">
+<!ENTITY data.note		  	  "Weave will synchronize this data every 30 seconds.">
+
+<!ENTITY final.title			  "Finish">
+<!ENTITY final.description		  "Installing Weave...">
+
+<!ENTITY finalStep1.label		  "Signed in.">
+<!ENTITY finalStep2.label		  "Uploading to remote server...">
+<!ENTITY finalStep3.label		  "Synchronize Weave accounts">

@@ -1,0 +1,12 @@
+
+copy: layout/xul/crashtests/384491-1.xhtml
+copyrev: f0935185657e05e77c8015262486dab3a451a9f1
+
+<html xmlns="http://www.w3.org/1999/xhtml" 
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<body>
+
+<xul:listboxbody style="overflow: hidden" />
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+
+copyrev: e436ff53b10613c6e1e18b2d9de9b31e728ad2e5
+copy: xpfe/components/jar.mn
+
+toolkit.jar:
+    content/global/autocomplete.xml                             (resources/content/autocomplete.xml)
+    content/global/autocomplete.css                             (resources/content/autocomplete.css)

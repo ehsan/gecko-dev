@@ -1,0 +1,13 @@
+
+copy: gfx/thebes/test/gfxTestCocoaHelper.h
+copyrev: 5c9ceed95140d9c9214167e85069f2acf16fcb80
+
+#ifndef GFX_TEST_COCOA_HELPER_H
+#define GFX_TEST_COCOA_HELPER_H
+
+extern "C" {
+    void CocoaPoolInit();
+    void CocoaPoolRelease();
+}
+
+#endif

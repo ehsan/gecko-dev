@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/i54980.aff
+copyrev: dedc0d1eec16d901b86ef85de8b0f8423dfa832b
+
+# ISO-8859-15 (extended latin-1) support for French, Finnish and EURO symbol
+SET ISO8859-15

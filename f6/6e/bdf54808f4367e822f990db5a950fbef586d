@@ -1,0 +1,11 @@
+
+copyrev: c169652632ce4a043bd95227dbbcfa84b9ceffc0
+copy: modules/plugin/samples/default/windows/npnul32.def
+
+LIBRARY   NPNUL32
+
+EXPORTS
+  NP_GetEntryPoints     @1
+  NP_Initialize         @2
+  NP_Shutdown           @3
+  NP_GetMIMEDescription @4

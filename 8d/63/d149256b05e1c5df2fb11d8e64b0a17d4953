@@ -1,0 +1,8 @@
+
+copyrev: 84c5ea73496b69a2a7370e5f3a597e7409b31b78
+copy: modules/plugin/samples/default/os2/npnul.pkg
+
+# the null plugin goes in gecko-support because we search for plugins
+# in the application, not the GRE
+[gecko-support]
+dist/bin/plugins/@SHARED_LIBRARY@

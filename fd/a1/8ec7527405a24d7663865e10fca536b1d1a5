@@ -1,0 +1,5 @@
+
+copyrev: 402dc4fad456f5d6346ab74c615d566499cabb8a
+copy: dom/src/json/test/fail24.json
+
+['single quote']

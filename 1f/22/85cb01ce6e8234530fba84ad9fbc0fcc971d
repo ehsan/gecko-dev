@@ -1,0 +1,14 @@
+
+copy: content/media/test/chrome.ini
+copyrev: d542043886689adba80fb6d99f247097484df173
+
+#Media chrome tests
+
+[DEFAULT]
+support-files =
+  basic.vtt
+  seek.webm
+
+[test_texttrackcue_chrome.html]
+[test_texttrack_chrome.html]
+[test_texttracklist_chrome.html]

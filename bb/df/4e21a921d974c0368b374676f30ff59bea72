@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule6.good
+copyrev: 49263a01487d32eeaf75bdda546963522a510c6b
+
+aa
+aaaaaa
+aabbbc
+aaaaabbbbbbcccccc

@@ -1,0 +1,6 @@
+
+copy: dom/tests/mochitest/w3c/html.txt
+copyrev: 0658c2d403274b8d01c48e853e3772317628dc51
+
+https://dvcs.w3.org/hg/html|html
+tests/submission/Mozilla

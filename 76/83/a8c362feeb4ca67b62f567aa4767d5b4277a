@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/parallelarray/partition-throws.js
+copyrev: c6adfa527fa51e0bd4edf5a1426925c96478c820
+
+load(libdir + "asserts.js");
+
+function testPartitionDivisible() {
+  var p = new ParallelArray([1,2,3,4]);
+  var pp;
+  assertThrowsInstanceOf(function () { pp = p.partition(3); }, Error);
+  assertThrowsInstanceOf(function () { pp = p.partition(.34); }, Error);
+}
+
+if (getBuildConfiguration().parallelJS) testPartitionDivisible();

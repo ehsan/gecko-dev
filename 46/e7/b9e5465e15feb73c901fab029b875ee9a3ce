@@ -1,0 +1,10 @@
+
+copy: content/xul/content/test/mochitest.ini
+copyrev: 2f6ef507cce76e9c2181567bd80212a7ec0c6d6f
+
+[DEFAULT]
+skip-if = buildapp == 'mulet' || buildapp == 'b2g' #tests that use xul
+
+[test_bug486990.xul]
+skip-if = toolkit == 'android' #TIMED_OUT
+[test_bug749367.xul]

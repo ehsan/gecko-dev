@@ -1,0 +1,8 @@
+
+copy: dom/imported-tests/webapps.mk
+copyrev: 9f55b1a423c4374fe45a2675041af8c839e12f61
+
+DIRS += \
+  webapps/DOMCore/tests/submissions/Opera \
+  webapps/WebStorage/tests/submissions \
+  $(NULL)

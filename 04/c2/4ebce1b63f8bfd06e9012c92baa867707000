@@ -1,0 +1,31 @@
+
+copy: dom/src/jsurl/crashtests/344874-1.html
+copyrev: f8f39a9e951acafb3d2196302ffd84a344c35d35
+
+<html>
+<head>
+<script>
+
+var img;
+
+function boo()
+{
+  img = document.getElementById("img");
+  setScriptSrc();
+}
+
+function setScriptSrc()
+{
+  img.src = "javascript:setScriptSrc();";
+}
+
+</script>
+</head>
+
+<body onload="setTimeout(boo, 30);">
+
+<img src="../../../../testing/crashtest/images/tree.gif" id="img">
+
+</body>
+
+</html>

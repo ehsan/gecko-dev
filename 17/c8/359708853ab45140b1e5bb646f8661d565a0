@@ -1,0 +1,25 @@
+
+copyrev: c37746e72688de71d62a18f497c1fd88c268548a
+copy: js/src/trace-test/tests/basic/testBug579602.js
+
+// don't panic
+
+f = function() {
+  x = yield
+}
+rv = f()
+for (a in rv) (function() {})
+x = Proxy.create((function() {
+  return {
+    defineProperty: gc
+  }
+})(), x)
+with({
+  d: (({
+    x: Object.defineProperty(x, "", ({
+      set: Array.e
+    }))
+  }))
+}) {}
+
+// don't crash

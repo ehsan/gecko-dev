@@ -1,0 +1,22 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/condition_utf.wrong
+copyrev: a7967efdda400d6820019f2851fe8045ac336ad4
+
+óőósuf4
+pre4óőó
+óőósuf5
+pre5óőó
+óőósuf8
+pre8óőó
+óőósuf9
+pre9óőó
+óőósuf11
+pre11óőó
+óőósuf12
+pre12óőó
+óőósuf15
+pre15óőó
+óőósuf17
+óőósuf18
+pre17óőó
+pre18óőó

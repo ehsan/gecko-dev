@@ -1,0 +1,13 @@
+
+copyrev: 96974d02cac4befec406e4bd42442f32fc99c212
+copy: js/src/trace-test/tests/basic/testBug584650.js
+
+if (typeof gczeal != "function")
+    gczeal = function() {}
+
+// don't crash
+x = (evalcx('lazy'))
+x.watch("", function () {})
+gczeal(1)
+for (w in x) {}
+

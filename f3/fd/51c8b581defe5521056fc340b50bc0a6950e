@@ -1,0 +1,5 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-css-loader.css^headers^
+copyrev: 555f848c9bdea515e0877cd4a8a9c67ce04e16e7
+
+Content-Type: image/png

@@ -1,0 +1,6 @@
+
+copy: dom/base/test/csp/file_bug836922_npolicies.html^headers^
+copyrev: 38079c25e3866b56fcc937b604defef421f65b9c
+
+content-security-policy: default-src 'self'; img-src 'none'; report-uri http://mochi.test:8888/tests/dom/security/test/csp/file_bug836922_npolicies_violation.sjs
+content-security-policy-report-only: default-src *; img-src 'self'; script-src 'none'; report-uri http://mochi.test:8888/tests/dom/security/test/csp/file_bug836922_npolicies_ro_violation.sjs

@@ -1,0 +1,13 @@
+
+copy: editor/libeditor/base/crashtests/713427-1.html
+copyrev: 1e2c585724f4b77e39448d5bc720d203b40bc26a
+
+<span>
+<script contenteditable="true"></script>
+<blockquote>
+<input>
+<code style="display: table-row;">
+<html contenteditable="true">
+</blockquote>
+
+

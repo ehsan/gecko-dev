@@ -1,0 +1,21 @@
+
+copy: js/src/jit-test/tests/parallelarray/reduce-throws.js
+copyrev: 322552b412dc17325373f6cd846d5538c290fcf8
+
+load(libdir + "asserts.js");
+
+function testReduceThrows() {
+  // Throw on empty
+  assertThrowsInstanceOf(function () {
+    var p = new ParallelArray([]);
+    p.reduce(function (v, p) { return v*p; });
+  }, Error);
+  // Throw on not function
+  assertThrowsInstanceOf(function () {
+    var p = new ParallelArray([1]);
+    p.reduce(42);
+  }, TypeError);
+}
+
+// FIXME(bug 844886) sanity check argument types
+// if (getBuildConfiguration().parallelJS) testReduceThrows();

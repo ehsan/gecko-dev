@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/korean.wrong
+copyrev: dfd23e9ee934feb699d36e78756280c6dc9f63ff
+
+들어오세

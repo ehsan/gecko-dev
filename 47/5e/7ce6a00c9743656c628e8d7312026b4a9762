@@ -1,0 +1,13 @@
+
+copyrev: d19355ee550531e7d22bfc45ed112d6102b0062e
+copy: layout/reftests/bugs/bug488685-ref.html
+
+<!DOCTYPE HTML>
+<html>
+<body>
+<div style="padding: 3px;">
+<div style="width: 10px; height: 10px; background-position: -3px -3px; background-image: url(data:image/gif;base64,R0lGODlhEAAQAPAAALuWAAAAACH5BAUIAAEALAMAAwAKAAoAAAIMDI5nye0Po5xutVAAADs=)"></div>
+</div>
+</body>
+</html>
+

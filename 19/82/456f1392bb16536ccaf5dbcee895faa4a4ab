@@ -1,0 +1,27 @@
+
+copy: toolkit/themes/winstripe/global/customizeToolbar.css
+copyrev: 85cf849932d0af236275c77254076689aa5ed3c3
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+window,
+dialog {
+  padding: 6px;
+}
+
+#instructions {
+  font-weight: bold;
+  font-size: larger;
+}
+
+#palette-box {
+  -moz-appearance: listbox;
+  margin: 0 0 10px;
+}
+
+#palette-box > toolbarpaletteitem {
+  padding: 8px 2px;
+  margin: 0 8px;
+}

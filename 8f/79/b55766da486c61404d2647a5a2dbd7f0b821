@@ -1,0 +1,12 @@
+
+copy: dom/src/jsurl/crashtests/457050-1-inner.html
+copyrev: 8a6350d45ac53ac136dcd320317290c097619eff
+
+<html>
+<head>
+<link rel="stylesheet" type="text/css" href="javascript:'p { color: green }'">
+</head>
+<body onload="parent.next(window);">
+<p>Hello</p>
+</body>
+</html>

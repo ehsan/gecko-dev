@@ -1,0 +1,7 @@
+
+copy: dom/mms/src/ril/MmsService.manifest
+copyrev: e3707699a5a80ea0088aca54e8c0b5e0c8d78e01
+
+# MmsService.js
+component {217ddd76-75db-4210-955d-8806cd8d87f9} MmsService.js
+contract @mozilla.org/mms/rilmmsservice;1 {217ddd76-75db-4210-955d-8806cd8d87f9}

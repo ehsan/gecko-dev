@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/parallelarray/map-factorial.js
+copyrev: d6d6fd8dae5ec00138e256f7c5c9a6641542c416
+
+load(libdir + "parallelarray-helpers.js");
+
+function factorial(n) {
+  if (n == 0)
+    return 1;
+  return n * factorial(n - 1);
+}
+
+if (getBuildConfiguration().parallelJS)
+  assertArraySeqParResultsEq(range(0, 64), "map", factorial);

@@ -1,0 +1,26 @@
+
+copy: content/html/content/crashtests/338649-1.xhtml
+copyrev: d93d94418c640ccfee35481c5a63cfceaa85c784
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>ASSERTION: Options collection broken</title>
+</head>
+
+<body>
+
+<div>
+
+<select>
+  <option id="n29">B
+    <optgroup label="middle" id="n20">
+      <option>N</option>
+    </optgroup>
+  </option>
+  <option>M</option>
+</select>
+
+</div>
+
+</body>
+</html>

@@ -1,0 +1,17 @@
+
+copy: mobile/android/base/newtablet/res/layout-large-v11/tab_strip_item.xml
+copyrev: 8bbf4d9c44e77c5f6d2cc8ef078fa8d2bdae9391
+
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!-- The paddings are asymmetric here to compensate the padding around the
+     the close button within the TabStripItemView -->
+<org.mozilla.gecko.tabs.TabStripItemView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="@dimen/new_tablet_tab_strip_item_width"
+    android:layout_height="match_parent"
+    android:paddingLeft="28dp"
+    android:paddingRight="12dp"/>

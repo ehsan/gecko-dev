@@ -1,0 +1,11 @@
+
+copy: browser/devtools/shared/Jsbeautify.jsm
+copyrev: 24d93a3036a76290f88d374e162a6cba5ba71b68
+
+var { cssBeautify } = require("devtools/toolkit/jsbeautify/beautify-css");
+var { htmlBeautify } = require("devtools/toolkit/jsbeautify/beautify-html");
+var { jsBeautify } = require("devtools/toolkit/jsbeautify/beautify-js");
+
+exports.css = cssBeautify;
+exports.html = htmlBeautify;
+exports.js = jsBeautify;

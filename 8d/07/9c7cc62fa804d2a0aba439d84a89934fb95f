@@ -1,0 +1,23 @@
+
+copy: testing/mozmill/simplejson-2.1.1/docs/_static/stickysidebar.css
+copyrev: 1411307e66a07ad77c03ed2946baf080437ba88f
+
+/**
+ * Sphinx Doc Design -- Sticky sidebar Overrides
+ */
+
+div.sphinxsidebar {
+    top: 30px;
+    left: 0px;
+    position: fixed;
+    margin: 0;
+    float: none;
+}
+
+div.related {
+    position: fixed;
+}
+
+div.documentwrapper {
+    margin-top: 30px;
+}

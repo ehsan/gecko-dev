@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/label/001-novalid.html
+copyrev: 1784ddb9c3c381d9eba39fd59e9c015eeca9fab1
+
+<!doctype html><meta charset=utf-8><title>&lt;label>&lt;input>&lt;input></title><p>There should be an error. <label><input><input></label>

@@ -1,0 +1,19 @@
+
+copy: dom/base/test/csp/file_form-action.html
+copyrev: bd6ec74032fc5b1ea61f4b2e0e80beaf96733c28
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Bug 529697 - Test mapping of form submission to form-action</title>
+</head>
+<body>
+  <form action="submit-form">
+    <input id="submitButton" type="submit" value="Submit form">
+  </form>
+  <script type="text/javascript">
+  var submitButton = document.getElementById('submitButton');
+  submitButton.click();
+  </script>
+</body>
+</html>

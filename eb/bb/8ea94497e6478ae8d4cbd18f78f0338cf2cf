@@ -1,0 +1,21 @@
+
+copy: content/base/crashtests/646184.html
+copyrev: 707a7da10148d988b42dcee3709beb48da2fdeed
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var f = document.getElementById("f");
+  var w = f.contentWindow;
+  f.parentNode.removeChild(f);
+  w.localStorage;
+}
+
+</script>
+</head>
+<body onload="boom();"><iframe id="f" src="data:text/html,1"></iframe></body>
+</html>

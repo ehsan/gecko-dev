@@ -1,0 +1,13 @@
+
+copyrev: 7aa32b76e0c227ba5740a9abf09ea71b8a3cd61a
+copy: js/src/trace-test/tests/jaeger/bug563000/eif-trap-newvar.js
+
+setDebug(true);
+
+function nop(){}
+function caller(obj) {
+  assertJit();
+  return x;
+}
+trap(caller, 7, "var x = 'success'; nop()");
+assertEq(caller(this), "success");

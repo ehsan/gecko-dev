@@ -1,0 +1,16 @@
+
+copyrev: 2f6718ff26488613e88f5384f74dc47f9efb02b0
+copy: js/src/trace-test/tests/basic/bug584499-2.js
+
+function f(x) {
+    var s = "a";
+    var last = "";
+    for (var i = 0; i < HOTLOOP + 2; i++) {
+        last = s[x];
+    }
+    return last;
+}
+
+f(0);
+
+assertEq(f(1), undefined);

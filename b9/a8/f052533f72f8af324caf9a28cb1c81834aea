@@ -1,0 +1,27 @@
+
+copy: media/webrtc/trunk/third_party/libyuv/unit_test/testdata/tegra3.txt
+copyrev: f08bab9eed1fd50163bd3bec260e9291c8900e20
+
+Processor       : ARMv7 Processor rev 9 (v7l)
+processor       : 0
+BogoMIPS        : 1992.29
+
+processor       : 1
+BogoMIPS        : 1992.29
+
+processor       : 2
+BogoMIPS        : 1992.29
+
+processor       : 3
+BogoMIPS        : 1992.29
+
+Features        : swp half thumb fastmult vfp edsp neon vfpv3
+CPU implementer : 0×41
+CPU architecture: 7
+CPU variant     : 0×2
+CPU part        : 0xc09
+CPU revision    : 9
+
+Hardware        : cardhu
+Revision        : 0000
+

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundaffix3.good
+copyrev: ec0d885d6cb3b91ea40df766810b6402552f2213
+
+foo
+foofoo
+prefoo
+foosuf
+prefoosuf

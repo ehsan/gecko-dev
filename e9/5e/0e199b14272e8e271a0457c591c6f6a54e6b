@@ -1,0 +1,5 @@
+
+copyrev: 5d697ef9518a1d5f8b8344d62c4f9881ef8e1793
+copy: js/tests/ecma_3/FunExpr/shell.js
+
+gTestsubsuite = 'FunExpr';

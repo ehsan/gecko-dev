@@ -1,0 +1,24 @@
+
+copy: dom/svg/test/dataTypes-helper.svg
+copyrev: 00e60e579708d2e7b7726cd000c5c8f578983ae2
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="750">
+  <defs>
+    <filter id="filter">
+      <!-- <boolean> (preserveAlpha) -->
+      <!-- <enum> (edgeMode) -->
+      <!-- <number> (divisor) -->
+      <!-- <integer> (targetX) -->
+      <!-- <integer-optional-integer> (order) -->
+      <!-- <string> (result) -->
+      <feConvolveMatrix id="convolve"/>
+      <!-- <number-optional-number> (stdDeviation) -->
+      <feGaussianBlur id="blur"/>
+    </filter>
+    <!-- <angle> (orient) -->
+    <!-- <length> (markerWidth) -->
+    <!-- <preserveAspectRatio> (preserveAspectRatio) -->
+    <marker id="marker"/>
+  </defs>
+</svg>

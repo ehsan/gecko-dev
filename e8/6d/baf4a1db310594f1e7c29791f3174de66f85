@@ -1,0 +1,21 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-workers.html
+copyrev: 0ad1b1b913aaba237e1834e413aa80c78daa8cdc
+
+<html lang="en">
+  <head>
+    <title>Web Console test for bug 595934 - category: DOM Worker
+      javascript</title>
+    <!-- Any copyright is dedicated to the Public Domain.
+         http://creativecommons.org/publicdomain/zero/1.0/ -->
+  </head>
+  <body>
+    <p id="foobar">Web Console test for bug 595934 - category "DOM Worker
+    javascript".</p>
+    <script type="text/javascript">
+      var myWorker = new Worker("test-bug-595934-workers.js");
+      myWorker.postMessage("hello world");
+    </script>
+  </body>
+</html>
+

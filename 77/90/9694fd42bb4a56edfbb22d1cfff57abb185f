@@ -1,0 +1,18 @@
+
+copy: js/src/jit-test/tests/parallelarray/element-1.js
+copyrev: fa0ef2973cbbd3ed5b230a3b0a98c350413d330a
+
+function testElement() {
+  // Test getting element from 1D
+  var a = [1,{},"a",false]
+  var p = new ParallelArray(a);
+  for (var i = 0; i < a.length; i++) {
+    assertEq(p.get(i), p.get(i));
+    assertEq(p.get(i), a[i]);
+  }
+  // Test out of bounds
+  assertEq(p.get(42), undefined);
+}
+
+if (getBuildConfiguration().parallelJS)
+  testElement();

@@ -1,0 +1,25 @@
+
+copy: editor/libeditor/html/crashtests/766795.html
+copyrev: 149523c5478815890f928a71acc524b1920d9c5f
+
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var fragEl = document.createElement("span");
+  fragEl.setAttribute("contenteditable", "true");
+  fragEl.setAttribute("style", "position: absolute;");
+
+  var frag = document.createDocumentFragment();
+  frag.appendChild(fragEl);
+
+  window.getSelection().selectAllChildren(fragEl);
+}
+
+</script>
+</head>
+
+<body contenteditable="true" onload="boom();"></body>
+</html>

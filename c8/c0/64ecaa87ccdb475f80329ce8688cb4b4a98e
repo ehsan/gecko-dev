@@ -1,0 +1,20 @@
+
+copyrev: c2bddb10d061cd1bbaebd66bf379fdd87f7d0b01
+copy: js/src/trace-test/tests/basic/testBug550210.js
+
+function g(e) {
+    return ("" + e);
+}
+
+function blah() {
+    do {
+        yield;
+    } while ({}(p = arguments));
+}
+rv = blah();
+try {
+    for (a in rv) ;
+} catch (e) {
+    print("" + g(e));
+}
+gc();

@@ -1,0 +1,18 @@
+
+copy: content/html/content/reftests/596455-1b.html
+copyrev: 13e9bd4a1f68fa7794000ca74a60cb8ce6b32fb1
+
+<!DOCTYPE html>
+<html class='reftest-wait'>
+  <script>
+    function onLoadHandler()
+    {
+      document.getElementById('l').value = document.getElementById('i').value;
+      document.documentElement.className='';
+    }
+  </script>
+  <body onload="onLoadHandler();">
+    <input value='foo&#13;bar' type='hidden' id='i'>
+    <textarea id='l'></textarea>
+  </body>
+</html>

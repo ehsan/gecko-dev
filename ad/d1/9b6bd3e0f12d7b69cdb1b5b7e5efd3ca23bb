@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_cpdpat.dic
+copyrev: cfd0a67da2f0c4b1d0b9c25825f20f2a953a4315
+
+3
+schoonheid/Ch
+port/CcXs
+sport/Cc

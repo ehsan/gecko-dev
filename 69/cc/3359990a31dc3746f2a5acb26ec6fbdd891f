@@ -1,0 +1,13 @@
+
+copy: layout/xul/base/src/tree/src/crashtests/399715-1.xhtml
+copyrev: adc427a61fa418468078dbcccbbb7e583cc29d82
+
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+      
+<body style="float: right;" onload="document.body.style.cssFloat = '';">
+
+<xul:tree><xul:hbox><xul:treecol /></xul:hbox></xul:tree>
+
+</body>
+</html>

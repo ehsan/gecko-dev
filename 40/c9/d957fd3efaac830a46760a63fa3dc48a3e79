@@ -1,0 +1,12 @@
+
+copy: layout/base/tests/bug467672-1.html
+copyrev: f1f0ea93b8627041c00819dbd5a123cbe39b0d33
+
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+</head>
+<body>
+  <img src="youwontfindme.png" width="100" height="50" alt="345">
+</body>
+</html>

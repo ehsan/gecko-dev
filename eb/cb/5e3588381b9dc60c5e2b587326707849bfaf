@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule.aff
+copyrev: 3a4351edc96a5005d7dfc2138d1259efec419f7d
+
+COMPOUNDMIN 1
+COMPOUNDRULE 1
+COMPOUNDRULE ABC

@@ -1,0 +1,5 @@
+
+copy: dom/security/test/csp/file_bug886164_3.html^headers^
+copyrev: 3d0645fde88684c18e618ff0f67e02a0241e4b44
+
+Content-Security-Policy: default-src 'none'

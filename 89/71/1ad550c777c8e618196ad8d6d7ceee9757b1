@@ -1,0 +1,14 @@
+
+copy: content/html/content/test/file_srcdoc-2.html
+copyrev: c19ed0bf2f456942a7d210b5c02f8e6ec36c0824
+
+<!doctype html>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=802895
+-->
+<body>
+<iframe id="iframe" srcdoc="Hello World"></iframe>
+</body>
+
+</html>

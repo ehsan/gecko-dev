@@ -1,0 +1,15 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/spellcheck/053-isvalid.html
+copyrev: eddb50fbff9f77dce4c19b671673f6a1144f6a41
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>valid spellcheck</title>
+</head>
+<body>
+<p spellcheck="true"></p>
+<p spellcheck="false"></p>
+</body>
+</html>

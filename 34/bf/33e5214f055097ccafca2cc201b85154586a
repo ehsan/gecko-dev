@@ -1,0 +1,14 @@
+
+copy: toolkit/themes/winstripe/global/menulist-aero.css
+copyrev: eece6e6201fbf7fa5ad817a6e04789264503f5d3
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+% include all of the Luna styles
+%include menulist.css
+
+menulist:-moz-focusring:not([open="true"]):not(.menulist-compact) > .menulist-label-box {
+  border: 1px dotted ThreeDDarkShadow;
+}

@@ -1,0 +1,8 @@
+
+copy: browser/app/profile/extensions/uriloader@pdf.js/README.mozilla
+copyrev: dfbfd58f3ef2c3a837bbe17a3c9cd64ebb19b74f
+
+This is the pdf.js project output, https://github.com/mozilla/pdf.js
+
+Current extension version is: 0.2.536
+

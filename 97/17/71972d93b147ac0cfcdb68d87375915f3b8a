@@ -1,0 +1,18 @@
+
+copyrev: 5d6494632646fcf154a46530b3cd53ce85a50651
+copy: js/src/trace-test/tests/basic/testNativeArgsRooting.js
+
+if ('gczeal' in this)
+(function () {
+   (eval("\
+       (function () {\
+           for (var y = 0; y < 16; ++y) {\
+               if (y % 3 == 2) {\
+                   gczeal(1);\
+               } else {\
+                   print(0 / 0);\
+               }\
+           }\
+       });\
+   "))()
+})();

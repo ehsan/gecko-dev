@@ -1,0 +1,14 @@
+
+copyrev: 17ada6ef4a6c8f8b4dc82349833f8a8c881baa98
+copy: js/src/trace-test/tests/jaeger/bug583160.js
+
+(function() {
+  for (a in []) {
+    (function() {})
+    ([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+h.I])
+  }
+})()
+
+/* Don't assert. */
+

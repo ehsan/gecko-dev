@@ -1,0 +1,11 @@
+
+copy: content/html/content/reftests/autofocus/button-ref.html
+copyrev: 4697b0d77f36aa18633166204667545370de3079
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementsByTagName('button')[1].focus();">
+    <button></button><button onfocus="document.documentElement.removeAttribute('class');"></button><button></button>
+  </body>
+</html>

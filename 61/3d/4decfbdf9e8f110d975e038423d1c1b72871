@@ -1,0 +1,20 @@
+
+copy: other-licenses/simplejson-2.1.1/docs/_static/rightsidebar.css
+copyrev: 9a0bcd028a03c3d304736f051645b16e8fe04700
+
+/**
+ * Sphinx Doc Design -- Right Side Bar Overrides
+ */
+
+
+div.sphinxsidebar {
+    float: right;
+}
+
+div.bodywrapper {
+    margin: 0 230px 0 0;
+}
+
+div.inlinecomments {
+    right: 250px;
+}

@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/textarea/textarea-readonly.html
+copyrev: 9305fdb8784fbe0e3f0a52f22b6a6293afc033ba
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if textarea is readonly, it is barred from constraint validation
+             and should not be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <textarea class='notvalid' readonly></textarea>
+  </body>
+</html>

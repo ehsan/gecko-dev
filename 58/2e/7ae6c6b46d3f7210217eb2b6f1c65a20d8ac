@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule5.aff
+copyrev: b5fafacc4a514b72d70e4c8517af298e01b48800
+
+# number + percent
+SET UTF-8
+COMPOUNDMIN 1
+COMPOUNDRULE 2
+COMPOUNDRULE N*%?
+COMPOUNDRULE NN*.NN*%?
+WORDCHARS 0123456789‰.

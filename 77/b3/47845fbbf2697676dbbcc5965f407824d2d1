@@ -1,0 +1,8 @@
+
+copyrev: 4856bd13ea07efb6c2dd7a1e6a6ddc6c49cc55ba
+copy: js/src/trace-test/tests/basic/bug574280.js
+
+for (p = 0; p < 4; p++) {
+  a = 0
+  new XMLList
+}

@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps3.dic
+copyrev: 21c8dab4419fec76971131d3192162a4e41e26f8
+
+4
+UNESCO/S
+Unesco/S
+Nasa/S
+NASA/S
+ACTS
+act/s

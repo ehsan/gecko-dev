@@ -1,0 +1,24 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/model-isvalid.html
+copyrev: 2c4790a69622959b378a98a6ba8cf366438e680a
+
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+<!--
+
+Something or other
+
+-->
+  </style>
+  <meta charset=utf-8>
+  <title>&lt;STYLE&gt;s</title>
+  <style type="application/vnd.nonsense" title="My Style">
+    Something or other
+  </style>
+</head>
+<body>
+
+</body>
+</html>

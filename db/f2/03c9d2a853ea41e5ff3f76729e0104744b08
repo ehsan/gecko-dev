@@ -1,0 +1,21 @@
+
+copy: dom/imported-tests/webapps/WebStorage/tests/submissions/Infraware/iframe/local_set_item_clear_iframe.html
+copyrev: 340569f0277728b415d60263514b79f16648b0b1
+
+<!DOCTYPE HTML>
+<html>
+ <body>
+	<script>
+		if (('localStorage' in window) && window.localStorage !== null){
+			try {
+				localStorage.setItem("name", "user1");
+			} catch (e) {
+				parent.fail("setItem method is failed.");
+			}
+			localStorage.clear();
+		} else {
+			parent.fail("localStorage is not supported.");
+		}	
+	</script>
+ </body>
+</html>

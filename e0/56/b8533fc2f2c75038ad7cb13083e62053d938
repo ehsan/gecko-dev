@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix5.dic
+copyrev: 2d868dffd0045a84c5dfcf9e118d12683f2fab37
+
+1
+foo/AC

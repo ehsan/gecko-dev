@@ -1,0 +1,7 @@
+
+copy: dom/src/notification/ChromeNotifications.manifest
+copyrev: 0f38ea2f95f7a5924bfbcca66a2e80da5bd80b83
+
+# ChromeNotifications.js
+component {74f94093-8b37-497e-824f-c3b250a911da} ChromeNotifications.js
+contract @mozilla.org/mozChromeNotifications;1 {74f94093-8b37-497e-824f-c3b250a911da}

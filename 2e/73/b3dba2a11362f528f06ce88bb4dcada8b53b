@@ -1,0 +1,21 @@
+
+copy: layout/base/tests/bug597519-1.html
+copyrev: 9be9eef64683f09384d21087eb3b7c9c9fcbe9eb
+
+<!DOCTYPE HTML><html><head>
+  <script type="text/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
+</head>
+<body>
+<textarea maxlength="3"></textarea>
+<script>
+  var t = document.querySelector("textarea");
+  t.focus();
+
+  synthesizeKey("a", {});
+  synthesizeKey("b", {});
+  synthesizeKey("VK_ENTER", {});
+  synthesizeKey("c", {});
+</script>
+</body>
+</html>

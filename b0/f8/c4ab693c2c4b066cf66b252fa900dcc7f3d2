@@ -1,0 +1,5 @@
+
+copy: content/base/test/bug696301-script-1.js^headers^
+copyrev: 44b07fa0f6491b04b2301f572f91690aa13ba54a
+
+Access-Control-Allow-Origin: *

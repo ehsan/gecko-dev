@@ -1,0 +1,10 @@
+
+copy: media/webrtc/trunk/tools/gyp/test/same-name/src/func.c
+copyrev: 789af1d9f555cdf2737988eeb146bd26f1c7e9f2
+
+#include <stdio.h>
+
+void func(void)
+{
+  printf("Hello %s from func.c\n", PROG);
+}

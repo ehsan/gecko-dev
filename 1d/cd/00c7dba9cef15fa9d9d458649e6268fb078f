@@ -1,0 +1,16 @@
+
+copy: dom/src/jsurl/test/load-stopping-1d.html
+copyrev: 7746732c015911087e4a001e9e7098c0c4e52865
+
+<!DOCTYPE html>
+<head>
+<script>
+  function foo() {
+    return "aaa";
+  }
+</script>
+</head>
+<body>
+<img src="javascript: foo()">
+<script>parent.passJSUrl4 = true</script>
+</body>

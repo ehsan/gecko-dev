@@ -1,0 +1,22 @@
+
+copy: layout/reftests/forms/placeholder/placeholder-7.html
+copyrev: 063fa95caa7301e45c4b58231d7ea9c0bb71945c
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: when focused, element should show placeholder. -->
+  <script type="text/javascript">
+    function focusPlaceholder()
+    {
+      document.getElementById('p1').focus();
+    }
+    function disableReftestWait()
+    {
+      document.documentElement.className = '';
+    }
+  </script>
+
+  <body onload="focusPlaceholder();">
+    <input type="text" id="p1" value="" placeholder="my placeholder" onfocus="disableReftestWait();">
+  </body>
+</html>

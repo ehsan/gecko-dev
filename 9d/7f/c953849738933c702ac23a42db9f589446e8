@@ -1,0 +1,16 @@
+
+copy: layout/reftests/forms/button-max-height.html
+copyrev: e46fbe2aedcfce1afa77b7bad00a3f480af4708e
+
+<!DOCTYPE html>
+<style>
+  button {
+    max-height: 50px;
+    padding: 23px;
+    border: 1px solid black;
+    box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    overflow: hidden;
+  }
+</style>
+<button>Some text</button>

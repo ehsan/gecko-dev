@@ -1,0 +1,6 @@
+
+copy: content/base/test/csp/file_policyuri_async_fetch.html
+copyrev: 31003671c6376b50fd47072c67a83c793523cd95
+
+<iframe id="inner"
+        src="/tests/content/base/test/file_CSP.sjs?content=%3Cdiv%20id%3D%22test%22%3Etest%20558431%3C/div%3E"></iframe>

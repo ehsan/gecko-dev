@@ -1,0 +1,5 @@
+
+copyrev: a807f126b462e35b56f2978277fa20fb8f8c423f
+copy: dom/src/json/test/fail7.json
+
+["Comma after the close"],

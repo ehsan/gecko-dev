@@ -1,0 +1,13 @@
+
+copy: dom/base/test/csp/file_worker_redirect.html
+copyrev: 532325848d75aaa6046c3eb079c891cde66f080d
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>Bug 949706 - CSP: Correct handling of web workers importing scripts that get redirected</title>
+  </head>
+  <body>
+  <script src="file_worker_redirect.sjs?stage_0_script_loads_worker"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copyrev: 49d0769eb82e5f2bc7a697680df674d7068f0beb
+copy: testing/mozmill/jsbridge-2.4.0/jsbridge/extension/chrome/content/overlay.xul
+
+<?xml version="1.0"?>
+<overlay id="jsbridge-overlay"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <script src="overlay.js"/>
+</overlay>

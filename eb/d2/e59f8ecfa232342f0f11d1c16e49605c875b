@@ -1,0 +1,10 @@
+
+copyrev: 6187a2866fd947aec000dc5c216d808fa8d95f7a
+copy: js/src/trace-test/tests/basic/testEqFalseEmptyString.js
+
+function testEqFalseEmptyString() {
+    var x = [];
+    for (var i=0;i<5;++i) x.push(false == "");
+    return x.join(",");
+}
+assertEq(testEqFalseEmptyString(), "true,true,true,true,true");

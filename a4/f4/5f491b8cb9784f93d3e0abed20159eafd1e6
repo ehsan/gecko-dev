@@ -1,0 +1,30 @@
+
+copy: mobile/chrome/skin/notification.css
+copyrev: b8a881c37bd9333c446514443eb776f7dbf24e95
+
+notification {
+  background: rgb(255, 255, 176);
+  color: black;
+}
+
+notification button {
+  -moz-appearance: none !important;
+  background: none !important;
+  border: 1px solid rgb(192, 192, 160) !important;
+  -moz-border-radius: 6px !important;
+  -moz-border-top-colors: rgb(192, 192, 160) !important;
+  -moz-border-right-colors: rgb(192, 192, 160) !important;
+  -moz-border-bottom-colors: rgb(192, 192, 160) !important;
+  -moz-border-left-colors: rgb(192, 192, 160) !important;
+  margin: 12px 0 12px 6px;
+}
+
+.sn-button-text {
+  background: transparent !important;
+  color: black !important;
+}
+
+.sn-button-extra-text {
+  color: grey;
+  font-size: 8pt !important;
+}

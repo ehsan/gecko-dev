@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundtriple.dic
+copyrev: d7a11543be9c8be5936776f3f28a55337ad186f0
+
+4
+foo/A
+opera/A
+eel/A
+bare/A

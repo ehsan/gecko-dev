@@ -1,0 +1,20 @@
+
+copy: layout/reftests/editor/unneeded_scroll-ref.html
+copyrev: c35958b7a712cb561465e432e5f094773261d141
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <div>
+      <textarea>I
+        am
+        a
+        long
+        long
+        long
+        long
+        textarea
+      </textarea>
+    </div>
+  </body>
+</html>

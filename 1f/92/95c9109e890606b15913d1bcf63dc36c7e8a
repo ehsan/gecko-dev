@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/nobogusnode-1.html
+copyrev: 9eb0ceaa8f68a194af2b7c9372e8c92cca16d379
+
+<!DOCTYPE html>
+<html>
+<body contenteditable>
+  This is a test.
+</body>
+</html>

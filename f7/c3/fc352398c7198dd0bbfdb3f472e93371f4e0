@@ -1,0 +1,9 @@
+
+copy: editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/js/range-bootstrap.js
+copyrev: 2eee40e6f0c2b08e132a092e8c3e6d22e1386899
+
+goog.require('goog.dom.Range');
+
+window.createFromWindow = goog.dom.Range.createFromWindow;
+window.createFromNodes = goog.dom.Range.createFromNodes;
+window.createCaret = goog.dom.Range.createCaret;

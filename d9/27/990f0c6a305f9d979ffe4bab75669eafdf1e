@@ -1,0 +1,11 @@
+
+copy: content/base/test/file_bug541937.html
+copyrev: df583499b558849e4efc6952e8debaaf5dee57d5
+
+<html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title>Test</title>
+   <link rel="Top" href="">  foo </link>
+
+</head><body>
+  <p>Hello world</p>
+</body></html>

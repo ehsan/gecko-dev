@@ -1,0 +1,16 @@
+
+copy: js/src/xpconnect/crashtests/346258-1.html
+copyrev: 25f7405b575affbecba2866cbf9b0b21a5b70231
+
+<html>
+<head>
+<script type="text/javascript">
+
+var sg = document.__lookupGetter__("styleSheets");
+sg.call(document, undefined);
+
+</script>
+</head>
+<body>
+</body>
+</html>

@@ -1,0 +1,32 @@
+
+copy: content/html/content/reftests/573322-no-quirks-ref.html
+copyrev: a6223996c0ab7943a02f85310642a311334d6cd7
+
+<!DOCTYPE html>
+<style>
+div { background: green; border: solid blue; width: 100px; height: 100px; }
+</style>
+<table border=1 width=50%>
+<tr>
+<td><div></div>left
+</table>
+<table border=1 width=50%>
+<tr>
+<td><div></div>justify
+</table>
+<table border=1 width=50%>
+<tr>
+<td style="text-align: -moz-right;"><div></div>right
+</table>
+<table border=1 width=50%>
+<tr>
+<td style="text-align: -moz-center;"><div></div>center
+</table>
+<table border=1 width=50%>
+<tr>
+<td style="text-align: -moz-center;"><div></div>middle
+</table>
+<table border=1 width=50%>
+<tr>
+<td style="text-align: center;"><div></div>absmiddle
+</table>

@@ -1,0 +1,7 @@
+
+copy: testing/web-platform/meta/html/semantics/text-level-semantics/the-wbr-element/wbr-element.html.ini
+copyrev: f05395a308a89a2618609f8b81ee387e14a4a59c
+
+[dir_auto-N-EN.html]
+  type: reftest
+  expected: FAIL

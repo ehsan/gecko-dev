@@ -1,0 +1,7 @@
+
+copyrev: fdb16005478796aa5fc1ed2f050ff3b2e44ddce8
+copy: js/src/trace-test/tests/basic/bug569651.js
+
+// don't crash or assert
+
++Function("switch(\"\"){case 1:case 8:}");

@@ -1,0 +1,9 @@
+
+copy: embedding/android/locales/l10n.ini
+copyrev: c6bae00a679b475b9cb851931e3c77cc379b707b
+
+[general]
+depth = ../../..
+
+[compare]
+dirs = mobile/android/base

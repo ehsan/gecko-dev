@@ -1,0 +1,161 @@
+#urlbar-edit {
+    -moz-binding: url("chrome://browser/content/bindings.xml#autocomplete-aligned");
+}
+
+#tabs {
+    -moz-binding: url("chrome://browser/content/tabs.xml#tablist");
+}
+
+richlistitem[type="documenttab"] {
+    -moz-binding: url("chrome://browser/content/tabs.xml#documenttab");
+}
+
+#prefs-container > scrollbox
+{
+    overflow: auto;
+}
+
+richpref[type="bool"] {
+    -moz-binding: url("chrome://browser/content/preferences/richpref.xml#richpref-bool");
+}
+
+richpref[type="boolint"] {
+    -moz-binding: url("chrome://browser/content/preferences/richpref.xml#richpref-boolint");
+}
+
+richpref[type="button"] {
+    -moz-binding: url("chrome://browser/content/preferences/richpref.xml#richpref-button");
+}
+
+richpref[type="string"] {
+    -moz-binding: url("chrome://browser/content/preferences/richpref.xml#richpref-string");
+}
+
+notificationbox {
+  overflow: -moz-hidden-unscrollable;
+}
+
+notification {
+    -moz-binding: url("chrome://browser/content/notification.xml#notification");
+}
+
+notification[type="geo"] {
+    -moz-binding: url("chrome://browser/content/notification.xml#geo-notification");
+}
+
+#popup_autocomplete {
+  -moz-binding: url("chrome://browser/content/bindings.xml#popup_autocomplete");
+}
+
+.autocomplete-items > autocompleteresult {
+  -moz-binding: url("chrome://browser/content/bindings.xml#popup_autocomplete_result");
+}
+
+autocompleteresult[value=""] {
+  visibility: hidden;
+}
+
+placeitem {
+  -moz-binding: url("chrome://browser/content/bindings.xml#place-item");
+}
+
+placeitem[type="folder"] {
+  -moz-binding: url("chrome://browser/content/bindings.xml#place-folder");
+}
+
+placelist {
+  -moz-binding: url("chrome://browser/content/bindings.xml#place-list");
+}
+
+placetree {
+  -moz-binding: url("chrome://browser/content/bindings.xml#place-tree");
+}
+
+placelabel {
+  -moz-binding: url("chrome://browser/content/bindings.xml#place-label");
+}
+
+radio {
+  -moz-binding: url("chrome://global/content/bindings/radio.xml#radio");
+}
+
+checkbox {
+  -moz-binding: url("chrome://browser/content/checkbox.xml#checkbox-radio");
+}
+
+#select-list > option {
+  -moz-binding: url("chrome://browser/content/bindings.xml#chrome-select-option");
+}
+
+/* richlist defaults ------------------------------------------------------- */
+richlistitem[typeName="local"] {
+  -moz-binding: url("chrome://browser/content/bindings/extensions.xml#extension-local");
+}
+
+richlistitem[typeName="search"] {
+  -moz-binding: url("chrome://browser/content/bindings/extensions.xml#extension-search");
+}
+
+richlistitem[typeName="search"] hbox.addon-type-or-rating {
+  -moz-binding: url("chrome://browser/content/bindings/extensions.xml#extension-search-recommended");
+}
+
+richlistitem[typeName="search"] hbox.addon-type-or-rating[rating] {
+  -moz-binding: url("chrome://browser/content/bindings/extensions.xml#extension-search-rating");
+}
+
+richlistitem[typeName="message"] {
+  -moz-binding: url("chrome://browser/content/bindings/extensions.xml#extension-message");
+}
+
+richlistitem[typeName="download"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-downloading");
+}
+
+richlistitem[typeName="download"][state="1"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-done");
+}
+
+richlistitem[typeName="download"][state="2"],
+richlistitem[typeName="download"][state="3"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-retry");
+}
+
+richlistitem[typeName="download"][state="4"] {
+  -moz-binding: url("chrome://browser/content/bindings/downloads.xml#download-paused");
+}
+
+/* addons states ----------------------------------------------------------- */
+.hide-on-enable,
+.show-on-uninstall,
+.show-on-install,
+.show-on-restart,
+richlistitem[isDisabled="true"] .hide-on-disable {
+  display: none;
+}
+
+richlistitem[opType="needs-restart"] .show-on-restart,
+richlistitem[opType="needs-uninstall"] .show-on-uninstall,
+richlistitem[opType="needs-install"] .show-on-install,
+richlistitem[opType="needs-enable"] .show-on-enable,
+richlistitem[opType="needs-disable"] .show-on-disable,
+richlistitem[isDisabled="true"] .show-on-disable {
+  display: -moz-box;
+}
+
+richlistitem[opType="needs-restart"] .hide-on-restart,
+richlistitem[opType="needs-uninstall"] .hide-on-uninstall,
+richlistitem[opType="needs-install"] .hide-on-install,
+richlistitem[opType="needs-enable"] .hide-on-enable,
+richlistitem[opType="needs-disable"] .hide-on-disable {
+  display: none;
+}
+
+richlistitem[type="error"],
+richlistitem[type="warning"] {
+  -moz-binding: url("chrome://browser/content/bindings/console.xml#error");
+}
+
+richlistitem[type="message"]{
+  -moz-binding: url("chrome://browser/content/bindings/console.xml#message");
+}

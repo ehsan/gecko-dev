@@ -1,0 +1,10 @@
+
+copy: mobile/xul/branding/unofficial/content/jar.mn
+copyrev: 605c9d95020be8301fe81197fe471a1f7f7929e9
+
+chrome.jar:
+% content branding %content/branding/
+  content/branding/about.png                     (about.png)
+  content/branding/logoWordmark.png              (logoWordmark.png)
+  content/branding/logo.png                      (logo.png)
+  content/branding/favicon32.png                 (favicon32.png)

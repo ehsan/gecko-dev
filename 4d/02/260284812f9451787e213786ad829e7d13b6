@@ -1,0 +1,12 @@
+
+copy: dom/broadcastchannel/tests/broadcastchannel_worker.js
+copyrev: 8162c052cd8f4f237f52b908df846431945509a4
+
+(new BroadcastChannel('foobar')).postMessage('READY');
+
+(new BroadcastChannel('foobar')).addEventListener('message', function(event) {
+  if (event.data != 'READY') {
+    event.target.postMessage(event.data);
+  }
+}, false);
+

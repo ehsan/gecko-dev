@@ -1,0 +1,35 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>Testcase, bug 347912</title>
+<style type="text/css">
+
+body { background: green; }
+
+div { height: 10px; margin: 1em; }
+
+</style>
+</head>
+<body>
+
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+<div></div>
+
+</body>
+</html>

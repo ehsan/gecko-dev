@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/br/model-novalid.html
+copyrev: 671137871d4f217434ce5f36243c75507c82b806
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;br&gt;</title>
+</head>
+<body>
+  <br></br>
+</body>
+</html>

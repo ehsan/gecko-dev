@@ -1,0 +1,11 @@
+
+copyrev: a441c3b2f2c1f6773dbc19dd6fe23cbf65d80ca5
+copy: js/src/trace-test/tests/basic/testAbortedImacroDecompilation.js
+
+function f() {
+    for (var i=0; i<9; i++)
+        assertEq("" + f, expected);
+}
+
+var expected = "" + f;
+f();

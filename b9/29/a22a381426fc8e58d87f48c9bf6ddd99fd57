@@ -1,0 +1,10 @@
+
+copyrev: 0343c54e1c6aa013389b4f698a4ae1e2214b3bf0
+copy: js/src/trace-test/tests/basic/testNegativeGETELEMIndex.js
+
+function testNegativeGETELEMIndex()
+{
+    for (let i=0;i<3;++i) /x/[-4];
+    return "ok";
+}
+assertEq(testNegativeGETELEMIndex(), "ok");

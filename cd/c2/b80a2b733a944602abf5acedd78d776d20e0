@@ -1,0 +1,36 @@
+
+copyrev: 00b8b0caa4011925542848e1330698a1aa5ab38c
+copy: js/src/jit-test/tests/bug606083.js
+
+// vim: set ts=4 sw=4 tw=99 et:
+function f(L) {
+    do {
+     L: for (var i = 0; i < L; i++) {
+            break L;
+        }
+    } while (0);
+}
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);
+f(1);

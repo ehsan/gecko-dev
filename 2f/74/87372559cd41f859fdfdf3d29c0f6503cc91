@@ -1,0 +1,21 @@
+
+copy: content/xbl/test/file_bug481558css.sjs
+copyrev: 1f3ac9ad9e68f2a8341809f5c7664901046b4088
+
+function handleRequest(request, response)
+{
+  var query = {};
+  request.queryString.split('&').forEach(function (val) {
+    [name, value] = val.split('=');
+    query[name] = unescape(value);
+  });
+
+  response.setHeader("Content-Type", "text/css", false);
+  css = "#" + query.id + " { -moz-binding: url(\"";
+  if (query.server) {
+    css += "http://" + query.server + "/tests/dom/xbl/test/";
+  }
+  css += "file_bug481558.xbl#test\"); }";
+
+  response.write(css);
+}

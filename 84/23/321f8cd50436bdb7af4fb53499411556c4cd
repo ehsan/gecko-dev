@@ -1,0 +1,5 @@
+
+copy: content/base/test/csp/file_CSP_bug916446.html^headers^
+copyrev: 5f299f8c9a39c02c0e003ed44452f2b8c4b14ac6
+
+x-content-security-policy-report-only: options eval-script; script-src 'self' ; report-uri /csp_report

@@ -1,0 +1,5 @@
+
+copyrev: 8293536393b802089d8b7c4f61fcd50311e5f0d1
+copy: dom/src/json/test/fail4.json
+
+["extra comma",]

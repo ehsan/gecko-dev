@@ -1,0 +1,14 @@
+
+copyrev: 0c2a2765369f8d3959bd57de3289bb48e3b66e13
+copy: js/src/trace-test/tests/basic/testSlowNativeBail.js
+
+function testSlowNativeBail() {
+    var a = ['0', '1', '2', '3', '+'];
+    try {
+	for (var i = 0; i < a.length; i++)
+	    new RegExp(a[i]);
+    } catch (exc) {
+        assertEq(""+exc, "SyntaxError: invalid quantifier");
+    }
+}
+testSlowNativeBail();

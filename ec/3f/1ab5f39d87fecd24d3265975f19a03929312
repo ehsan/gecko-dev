@@ -1,0 +1,12 @@
+
+copy: content/svg/content/src/crashtests/398926-both-different.svg
+copyrev: 02ef70ba6c4980b1f4d10e55c96ca0c4058abd83
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<pattern id="pat1" />
+<pattern id="pat2" />
+
+<rect x="10" y="10" width="100" height="100" stroke="url(#pat1)" fill="url(#pat2)" />
+
+</svg>

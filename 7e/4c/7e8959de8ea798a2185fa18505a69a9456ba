@@ -1,0 +1,16 @@
+
+copy: toolkit/components/places/tests/inline/xpcshell.ini
+copyrev: c373eaaafc9007b180c093332debbe9a0505ee27
+
+[DEFAULT]
+head = head_autocomplete.js
+tail = 
+
+[test_autocomplete_functional.js]
+[test_casing.js]
+[test_do_not_trim.js]
+[test_keywords.js]
+[test_queryurl.js]
+[test_trimming.js]
+[test_typed.js]
+[test_zero_frecency.js]

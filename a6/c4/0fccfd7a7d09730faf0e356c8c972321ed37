@@ -1,0 +1,12 @@
+
+copy: js/src/xpconnect/tests/mochitest/file_evalInSandbox.html
+copyrev: 764b0923042831d325f8b20e0ef701f8019e9d1d
+
+<html>
+    <body>
+        <script>
+            document.foo = "bar";
+            windowfoo = "windowbar";
+        </script>
+    </body>
+</html>

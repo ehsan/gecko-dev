@@ -1,0 +1,8 @@
+[idl-test.html]
+  type: testharness
+  [GainNode interface: existence and properties of interface object]
+    expected: FAIL
+
+  [GainNode interface object length]
+    expected: FAIL
+

@@ -1,0 +1,11 @@
+
+copy: layout/base/tests/font-inflation/text-3-ref.html
+copyrev: 4635dad3f8576a7d6bf16fd523222589ec759a1f
+
+<!DOCTYPE HTML>
+<style>
+div { background: yellow }
+span { background: aqua }
+div { font-size: 34px; width: 450px }
+</style>
+<div><span>Hello world</span></div>

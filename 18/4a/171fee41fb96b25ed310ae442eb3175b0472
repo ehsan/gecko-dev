@@ -1,0 +1,11 @@
+
+copyrev: 8856dd322e09cfa5ab4c6d39af6cdbcf36969472
+copy: layout/reftests/css-gradients/twostops-ref.html
+
+<!DOCTYPE HTML>
+<html>
+<body>
+<div style="background:#0000ff; width:300px; height:150px;"></div>
+<div style="background:#ff0000; width:300px; height:150px;"></div>
+</body>
+</html>

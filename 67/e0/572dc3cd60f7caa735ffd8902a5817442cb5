@@ -1,0 +1,8 @@
+[idl-test.html]
+  type: testharness
+  [AudioDestinationNode interface: existence and properties of interface object]
+    expected: FAIL
+
+  [AudioDestinationNode interface object length]
+    expected: FAIL
+

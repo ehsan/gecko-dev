@@ -1,0 +1,8 @@
+
+copy: content/base/crashtests/752226-2.html
+copyrev: 51b0526c034ee4265bffe18fa40943e116ca1b0c
+
+<!DOCTYPE html>
+<script>
+document.createElement("video").src = null
+</script>

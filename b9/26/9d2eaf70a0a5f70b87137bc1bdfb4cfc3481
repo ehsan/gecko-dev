@@ -1,0 +1,15 @@
+
+copy: image/test/reftest/generic/accept-image-catchall.html
+copyrev: c69aed20c3164aa5abd1f186780f43476d68dd34
+
+<!DOCTYPE html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=817531
+-->
+<html>
+<head>
+  <title>Referer: header should be correct</title>
+</head>
+<body background="background-referrer.sjs">
+</body>
+</html>

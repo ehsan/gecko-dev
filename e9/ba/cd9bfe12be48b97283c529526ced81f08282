@@ -1,0 +1,24 @@
+
+copy: layout/reftests/editor/674212-spellcheck-ref.html
+copyrev: 767feed3701495031127b769866ca489867fb94b
+
+<!DOCTYPE html>
+<html lang="en-US" class="reftest-wait">
+<head>
+  <script type="text/javascript">
+    function init() {
+      var editor = document.querySelector("div[contenteditable]");
+      editor.addEventListener("focus", function() {
+        setTimeout(function() {
+          document.documentElement.className = "";
+        }, 0);
+      }, false);
+      editor.focus();
+    }
+  </script>
+</head>
+<body onload="init()">
+  <div contenteditable spellcheck>This is another misspellored word.</div>
+</body>
+</html>
+

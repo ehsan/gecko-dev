@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/parser/u007f-charref-novalid.html
+copyrev: 31f53f93e2af1fcbc8b8322afb1940298cbf9e11
+
+<!doctype html><meta charset=utf-8><title>&amp;#x007F;</title><p>There should be an error.&#x007F;

@@ -1,0 +1,13 @@
+
+copy: js/src/jit-test/tests/parallelarray/reduce-sum.js
+copyrev: e2f45ce240f29c41b52e9070dfe027907461313d
+
+load(libdir + "parallelarray-helpers.js");
+
+function testReduce() {
+  function sum(v, p) { return v+p; }
+  assertArraySeqParResultsEq(range(1, 513), "reduce", sum);
+}
+
+if (getBuildConfiguration().parallelJS)
+  testReduce();

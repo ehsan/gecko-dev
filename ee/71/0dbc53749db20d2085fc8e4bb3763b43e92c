@@ -1,0 +1,21 @@
+
+copy: memory/replace/dmd/test/full-heap-expected1.txt
+copyrev: 85ddbee2d20f8a7a0a700cce869b5b7aa6d764d0
+
+#-----------------------------------------------------------------
+
+Invocation {
+  $DMD = '--mode=test'
+  Sample-below size = 1
+}
+
+#-----------------------------------------------------------------
+
+# no live heap blocks
+
+#-----------------------------------------------------------------
+
+Summary {
+  Total: 0 bytes in 0 blocks
+}
+

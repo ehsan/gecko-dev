@@ -1,0 +1,15 @@
+
+copyrev: baf8a7f21ad7b68c39faae08ce46751376ee88ea
+copy: js/src/trace-test/tests/jaeger/bug585391.js
+
+var x = (function () {
+    return [, , ]
+}());
+(function () {
+    while (x > 7 & 0) {
+        return
+    }
+}())
+
+/* Don't assert. */
+

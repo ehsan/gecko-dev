@@ -1,0 +1,10 @@
+
+copy: browser/devtools/debugger/test/test-editor-mode
+copyrev: ccf54c64c99abb3b75663df071e44d387cae6fae
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function secondCall() {
+  eval("debugger;");
+}

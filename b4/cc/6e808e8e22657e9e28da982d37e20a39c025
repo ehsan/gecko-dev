@@ -1,0 +1,17 @@
+
+copyrev: d06b68db5db3e819991bb284f4ea70089afd7e96
+copy: js/src/trace-test/tests/jaeger/bug585540.js
+
+try {
+    (function () {
+        gczeal(2)()
+    })()
+} catch (e) {}
+(function () {
+    for (y in [/x/, Boolean, Boolean, 0, Boolean]) {
+        [Math.floor(this)].some(function () {})
+    }
+})()
+
+/* Don't crash. */
+

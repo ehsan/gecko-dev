@@ -1,0 +1,14 @@
+
+copy: browser/devtools/inspector/test/doc_inspector_menu.html
+copyrev: b34512aa13684b7a5552b3d4e7803c17627367b1
+
+<!DOCTYPE html>
+<head>
+  <title>Inspector Tree Menu Test</title>
+</head>
+<body>
+  <div>
+    <h1>Inspector Tree Menu Test</h1>
+    <p>This is some example text</p>
+  </div>
+</body>

@@ -1,0 +1,10 @@
+
+copy: extensions/spellcheck/hunspell/tests/iconv.good
+copyrev: 645c960dcdd07a0d148431f54cce335e96331a13
+
+Chișinău
+Chişinău
+Țepes
+Ţepes
+Ş
+ţ

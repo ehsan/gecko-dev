@@ -1,0 +1,13 @@
+
+copyrev: 5ee2b24a3095d8183bd80872aaeacd948e14797b
+copy: js/src/trace-test/tests/jaeger/getelem-sanity-1.js
+
+var obj = {attr: 'value'};
+
+(function() {
+    var name = 'attr';
+    for (var i = 0; i < 10; ++i)
+        assertEq(obj[name], 'value');
+})();
+
+/* Look up a string id. */

@@ -1,0 +1,6 @@
+
+copy: services/sync/SyncComponents.manifest
+copyrev: ce9035f55ae2fa18d2f4fced1019887e8ec4d099
+
+# Register resource aliases
+resource services-common resource://gre/modules/services-common/

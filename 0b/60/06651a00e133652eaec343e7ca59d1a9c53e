@@ -1,0 +1,13 @@
+
+copyrev: c6185b312a563f467a376a922cee8b59dad5e0ad
+copy: js/src/trace-test/tests/jaeger/bug563000/test-debugger-2.js
+
+function main() {
+  debugger;
+  return "failure";
+}
+
+setDebuggerHandler("'success'");
+setDebug(true);
+
+assertEq(main(), "success");

@@ -1,0 +1,12 @@
+
+copyrev: b8105b5642c9a1e8288bdccb4130d05299a8bfda
+copy: js/src/trace-test/tests/jaeger/bug592973-3.js
+
+// vim: set ts=4 sw=4 tw=99 et:
+function f([a, b, c, d]) {
+  a = b;
+  return function () { return a + b + c + d; };
+}
+
+var F = f(["a", "b", "c", "d"]);
+assertEq(F(), "bbcd");

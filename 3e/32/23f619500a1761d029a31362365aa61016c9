@@ -1,0 +1,40 @@
+
+copy: layout/reftests/backgrounds/background-size-continuous.html
+copyrev: 186a728cd1e77c98153f44a058ee774a91d9d806
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>box-decoration-break: slice</title>
+  <style type="text/css">
+@font-face
+{
+  font-family: Ahem;
+  src: url(../fonts/Ahem.ttf);
+}
+
+#outer
+{
+  border: 1px solid black;
+  width: 10em;
+}
+#ahem-lines
+{
+  font-family: Ahem;
+  font-size: 32px;
+  white-space: pre;
+  background-image: url(blue-8x20-green-8x20.png);
+  background-repeat: no-repeat;
+  box-decoration-break: slice;
+}
+</style>
+</head>
+<body>
+<div id="outer">
+<span id="ahem-lines">      <!-- EOL -->
+        <!-- mix it up for slice --><!-- EOL -->
+      <!-- EOL -->
+      <!-- EOL -->
+      </span></div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+
+copy: dom/xml/test/old/load/display.xml
+copyrev: 0a7fd5cbae7fb1169d1462d3eda2d5b8216e3ca2
+
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/css" href="display.css"?>
+<!DOCTYPE doc [
+<!ATTLIST d id ID #IMPLIED>
+]>
+<doc>
+  <foo xmlns="foobar">One</foo> <x:bar xmlns:x="barfoo">Two</x:bar>
+  <d id="id3">Three</d>
+</doc>

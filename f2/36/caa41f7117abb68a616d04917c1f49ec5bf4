@@ -1,0 +1,14 @@
+
+copyrev: b53ebd0bbcd21d4005b0f78b30c87a71e697482f
+copy: js/src/trace-test/tests/jaeger/getelem-sanity-7.js
+
+var obj = {count: 24};
+var key = 'count';
+
+for (var i = 0; i < 1024; ++i) {
+    var result = obj[key];
+    if (i === 2)
+        obj.newAttr = 42;
+}
+
+/* Perform getelem across shape change. */

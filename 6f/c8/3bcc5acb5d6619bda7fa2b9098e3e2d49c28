@@ -1,0 +1,16 @@
+
+copyrev: 0af8b336afc0deb9e969b848b7fdeb7ddccb27e8
+copy: js/src/trace-test/tests/jaeger/bug563000/test-debugger-1.js
+
+var result = "unset";
+function main() {
+  result = "failure";
+  debugger;
+}
+function nop() { }
+
+setDebuggerHandler("result = 'success'; nop()");
+setDebug(true);
+
+main();
+assertEq(result, "success");

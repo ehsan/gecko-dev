@@ -1,0 +1,8 @@
+
+copy: testing/docker/builder/get_gaia_revision.js
+copyrev: e68882eda9b5caeb7fa006b436130e3d5705754a
+
+#! /usr/bin/env node
+var fs = require('fs');
+var data = fs.readFileSync('/home/worker/mozilla-central/source/b2g/config/gaia.json');
+console.log(JSON.parse(data).revision);

@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-ui-invalid/default-style/button-ref.html
+copyrev: 17010463f3de7622028e7d3ca322a36aaada2096
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementsByTagName('button')[0].focus();">
+    <button class='invalid-ref' onfocus="document.documentElement.className='';"></button>
+  </body>
+</html>

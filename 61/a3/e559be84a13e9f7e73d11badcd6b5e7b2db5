@@ -1,0 +1,6 @@
+
+copy: content/canvas/test/image_green-redirect^headers^
+copyrev: f2c5474b3fd14bc6699b06644004ccb4e43df35e
+
+HTTP 302 Moved
+Location: http://example.com/tests/dom/canvas/test/image_green-1x1.png

@@ -1,0 +1,38 @@
+#filter substitution
+
+firstrun.jar:
+% content firstrun %content/ contentaccessible=yes
+  content/firstrun_splash.gif           (firstrun/firstrun_splash.gif)
+  content/firstrun_background.gif       (firstrun/firstrun_background.gif)
+  content/firstrun.html                 (firstrun/firstrun.html)
+  content/favicon.png                   (firstrun/favicon.png)
+
+classic.jar:
+% skin browser classic/1.0 %
+  platform.css                         (platform.css)
+  browser.css                          (browser.css)
+  notification.css                     (notification.css)
+  images/tab_close.png                 (images/tab_close.png)
+  images/default-favicon.png           (images/default-favicon.png)
+  images/identity.png                  (images/identity.png)
+  images/starred48.png                 (images/starred48.png)
+  images/tag.png                       (images/tag.png)
+  images/throbber.png                  (images/throbber.png)
+  images/navigation_magnifier.gif      (images/navigation_magnifier.gif)
+  images/folder.png                    (images/folder.png)
+  images/folder_close.png              (images/folder_close.png)
+  images/addons-24.png                 (images/addons-24.png)
+  images/downloads-24.png              (images/downloads-24.png)
+  images/preferences-24.png            (images/preferences-24.png)
+  images/settings-24.png               (images/settings-24.png)
+  images/back-24.png                   (images/back-24.png)
+  images/back-disabled-24.png          (images/back-disabled-24.png)
+  images/forward-24.png                (images/forward-24.png)
+  images/forward-disabled-24.png       (images/forward-disabled-24.png)
+  images/bookmarkpage-24.png           (images/bookmarkpage-24.png)
+  images/bookmarkpage-on-24.png        (images/bookmarkpage-on-24.png)
+  images/bookmarks-24.png              (images/bookmarks-24.png)
+  images/stop-16.png                   (images/stop-16.png)
+  images/reload-16.png                 (images/reload-16.png)
+  images/go-16.png                     (images/go-16.png)
+  images/newtab-24.png                 (images/newtab-24.png)

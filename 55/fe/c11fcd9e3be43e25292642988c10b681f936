@@ -1,0 +1,9 @@
+
+copy: browser/components/sessionstore/test/browser_597315_a.html
+copyrev: 0012eea9f05cd4aed1a075ad7cfe6d7ce5a797ea
+
+<html>
+  <body>
+    I'm A!
+  </body>
+</html>

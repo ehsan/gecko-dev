@@ -1,0 +1,10 @@
+
+copy: layout/xul/base/src/crashtests/420424-1.xul
+copyrev: 87b0442c2a03aefce94a9f0cf57dfc8699d126d0
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        onload="document.getElementById('a').ensureElementIsVisible(null);">
+
+<listbox id="a"/>
+
+</window>

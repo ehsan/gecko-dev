@@ -1,0 +1,5 @@
+
+copyrev: a8da824368aab89d0c4c26cb47460d0a847fa790
+copy: js/tests/ecma_3/Unicode/shell.js
+
+gTestsubsuite = 'Unicode';

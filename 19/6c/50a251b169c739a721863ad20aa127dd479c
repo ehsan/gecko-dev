@@ -1,0 +1,11 @@
+
+copy: content/base/crashtests/493281-1.html
+copyrev: 17ea6ac5212a0dd707638d8119ba180944a235d1
+
+<html>
+    <body>
+        <div id="foo">
+            <script>with (document.all) foo</script>
+        </div>
+    </body>
+</html>

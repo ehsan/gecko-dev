@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/opentaal_keepcase.good
+copyrev: f5b9a053b9645d54ff28f4c9abb3f9d1e01c689b
+
+tv-word
+word-tv
+NATO-word
+word-NATO

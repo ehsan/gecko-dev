@@ -1,0 +1,24 @@
+
+copy: content/base/test/xcsp/file_CSP_inlinescript_main.html
+copyrev: 5af5ba426c7b3ea9f5a1b66f1c57cb18541f5320
+
+<!--
+-- The original CSP implementation predates the CSP 1.0 spec and didn't
+-- block inline styles, so when the prefixed X-Content-Security-Policy header is used,
+-- as it is for this file, inline styles should be allowed.
+-->
+<html>
+  <head>
+    <title>CSP inline script tests</title>
+  </head>
+  <body onload="window.parent.scriptRan(false, 'eventattr', 'event attribute in body tag fired')">
+
+    <script type="text/javascript">
+      window.parent.scriptRan(false, "textnode", "text node in a script tag executed.");
+    </script>
+
+    <iframe src='javascript:window.parent.parent.scriptRan(false, "jsuri", "javascript: uri in image tag")'></iframe>
+
+    <a id='anchortoclick' href='javascript:window.parent.scriptRan(false, "jsuri", "javascript: uri in anchor tag ran when clicked.");'>stuff</a>
+  </body>
+</html>

@@ -1,0 +1,5 @@
+
+copyrev: 2840c91f761383271a0a3bf7aea7bf414ec7e3c5
+copy: content/media/video/test/crashtests/468763-1.html
+
+<html><head></head><body><video src="nosuchprotocol:"></video></body></html>

@@ -1,0 +1,8 @@
+
+copyrev: f3392591432d5056c833614856e787e876276962
+copy: js/src/trace-test/tests/jaeger/getelem-sanity-5.js
+
+var x = { 0: 5, 1: 5 };
+assertEq(x[0] + x[1], 10);
+
+/* int32 getelem on object. */

@@ -1,0 +1,34 @@
+
+copy: content/svg/content/src/crashtests/380101-1.svg
+copyrev: 4eb129d79c4098001429770de5411559cb40ddfe
+
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" 
+     xmlns:html="http://www.w3.org/1999/xhtml"
+     xmlns="http://www.w3.org/2000/svg" 
+     onload="setTimeout(boom, 30);"
+     class="reftest-wait">
+
+<html:style>
+  .zind { z-index: 0; }
+  .gencon:after { content: counter(chicken); }
+</html:style>
+
+<script>
+function boom()
+{
+  document.getElementById("define").setAttribute("class", "gencon");
+  document.getElementById("use").setAttribute("class", "zind");
+
+  document.documentElement.removeAttribute("class");
+}
+</script>
+
+<defs>
+  <g id="define">
+    <rect x="0" y="0" width="75" height="75" fill="green"/>
+  </g>
+</defs>
+
+<use xlink:href="#define" x="0" y="20" id="use" />
+
+</svg>

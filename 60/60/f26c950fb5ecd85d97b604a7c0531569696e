@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/digits_in_words.wrong
+copyrev: 59877c2de29c76615525e7ba68ff4a345a1dffd3
+
+-jährig

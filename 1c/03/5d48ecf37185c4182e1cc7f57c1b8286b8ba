@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/breakoff.wrong
+copyrev: 6930b921aed7c8e7af9e20ae72f087806ac419d7
+
+foo-
+-foo
+foo-bar
+foo-bar-foo-bar
+scot

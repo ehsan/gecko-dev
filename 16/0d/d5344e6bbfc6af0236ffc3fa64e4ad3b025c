@@ -1,0 +1,29 @@
+
+copy: media/webrtc/trunk/src/modules/video_processing/main/source/brighten.h
+copyrev: fba7caf61d0cd4ca56ea9c68ba0421291b5b059c
+
+/*
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree. An additional intellectual property rights grant can be found
+ *  in the file PATENTS.  All contributing project authors may
+ *  be found in the AUTHORS file in the root of the source tree.
+ */
+
+#ifndef MODULES_VIDEO_PROCESSING_MAIN_SOURCE_BRIGHTEN_H_
+#define MODULES_VIDEO_PROCESSING_MAIN_SOURCE_BRIGHTEN_H_
+
+#include "typedefs.h"
+#include "modules/video_processing/main/interface/video_processing.h"
+
+namespace webrtc {
+namespace VideoProcessing {
+
+WebRtc_Word32 Brighten(I420VideoFrame* frame, int delta);
+
+}  // namespace VideoProcessing
+}  // namespace webrtc
+
+#endif  // MODULES_VIDEO_PROCESSING_MAIN_SOURCE_BRIGHTEN_H_

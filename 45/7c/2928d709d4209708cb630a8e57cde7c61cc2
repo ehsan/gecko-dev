@@ -1,0 +1,5 @@
+
+copy: dom/base/test/csp/file_CSP_main.html^headers^
+copyrev: c847114d965bd73b8c36eb603c09562bfe92733d
+
+Content-Security-Policy: default-src 'self' ; style-src 'unsafe-inline' 'self'

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/oconv.wrong
+copyrev: d797daf531138db63cc0ecc8a2cc8362fffea600
+
+béb
+dád
+aábcde

@@ -1,0 +1,9 @@
+
+copy: content/xul/document/test/overlay2_bug335375.xul
+copyrev: c25887dae80b48b201806d87060bc30cb8051d70
+
+<?xml version="1.0"?>
+<overlay id="overlay2"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <command id="cmd_test" accesskey="C"/>
+</overlay>

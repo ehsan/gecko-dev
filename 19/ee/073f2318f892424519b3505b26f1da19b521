@@ -1,0 +1,13 @@
+
+copy: testing/mochitest/specialpowers/jar.mn
+copyrev: 6d527032654d35b3114c6d8a81b9d53f7a6075de
+
+specialpowers.jar:
+% content specialpowers %content/
+  content/specialpowers.js (content/specialpowers.js)
+  content/specialpowersAPI.js (content/specialpowersAPI.js)
+  content/SpecialPowersObserverAPI.js (content/SpecialPowersObserverAPI.js)
+  content/MozillaLogger.js (content/MozillaLogger.js)
+
+% resource specialpowers %modules/
+  modules/MockFilePicker.jsm (content/MockFilePicker.jsm)

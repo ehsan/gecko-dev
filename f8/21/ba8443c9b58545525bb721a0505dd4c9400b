@@ -1,0 +1,16 @@
+
+copyrev: 4e638946aee70410965275901a60d2ea118ba0ba
+copy: js/src/trace-test/tests/basic/bug552196.js
+
+(Function("\
+  for (a = 0; a < 5; a++)\n\
+  (function f(b) {\n\
+    if (b > 0) {\n\
+      f(b - 1)\n\
+    }\n\
+  })\n\
+  (3)\n\
+"))()
+
+/* Don't assert. */
+

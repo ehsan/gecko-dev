@@ -1,0 +1,15 @@
+
+copy: gfx/src/thebes/crashtests/445711.html
+copyrev: 53a3c1707051e95c3c7811c43ede020878fa3377
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+ "http://www.w3.org/TR/REC-html401-19991224/strict.dtd">
+<html>
+ <head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Tamil testcase</title>
+ </head>
+ <body>
+  <p>&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;&#x0BCC;</p>
+ </body>
+</html>

@@ -1,0 +1,13 @@
+
+copy: content/svg/content/src/crashtests/369051-1.svg
+copyrev: 32da9991c3c61a280ed221b11c5fe630adfb6d19
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<text x="240" y="240">
+  <svg xmlns="http://www.w3.org/2000/svg">
+    <circle xmlns="http://www.w3.org/2000/svg" cx="5cm" cy="5cm" r="50" style="fill: green;"/>
+  </svg>
+</text>
+
+</svg>

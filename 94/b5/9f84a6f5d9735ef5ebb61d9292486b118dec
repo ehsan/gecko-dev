@@ -1,0 +1,19 @@
+
+copy: dom/tests/mochitest/w3c/webapps/DOMCore/tests/submissions/Opera/test_getElementsByClassName-08.htm
+copyrev: 255d563b1570d558b1519386a499c8255bea44f7
+
+<!doctype html>
+<html>
+ <head>
+  <title>document.getElementsByClassName(): multiple classes</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body class="a">
+  <div id="log"></div>
+  <script> test(function() {
+                  document.getElementsByClassName("a\fa"), [document.body]
+                }) 
+  </script>
+ </body>
+</html>

@@ -1,0 +1,13 @@
+
+copy: layout/reftests/forms/input/file/input-file-size.html
+copyrev: bb41a503b57981cc9e2065f5d8976717d509cb60
+
+<!DOCTYPE html>
+<!-- size should have no impact on <input type='file'>. -->
+<html>
+  <body>
+    <input type='file' size='5'>
+    <br>
+    <input type='file' multiple size='30'>
+  </body>
+</html>

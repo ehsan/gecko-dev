@@ -1,0 +1,16 @@
+
+copy: extensions/spellcheck/hunspell/tests/zeroaffix.aff
+copyrev: 74920d21033db7a8275663c0b520d0e50651a05a
+
+PSEUDOROOT X
+COMPOUNDFLAG Y
+
+SFX A Y 1
+SFX A 0 0 . >
+
+SFX B Y 1
+SFX B 0 0 . <ZERO>>
+
+SFX C Y 2
+SFX C 0 0/XAB . <ZERODERIV>
+SFX C 0 baz/XAB . <DERIV>

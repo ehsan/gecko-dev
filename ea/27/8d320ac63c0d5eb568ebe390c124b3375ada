@@ -1,0 +1,10 @@
+
+copy: modules/plugin/test/reftest/plugin-transform-1-ref.html
+copyrev: 186f9739b89976d6ffdff21824ee1bfb0d68d01d
+
+<!DOCTYPE HTML>
+<html>
+<body>
+<embed type="application/x-test"></embed>
+</body>
+</html>

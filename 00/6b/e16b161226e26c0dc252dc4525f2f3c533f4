@@ -1,0 +1,9 @@
+
+copy: python/mozbuild/mozbuild/test/frontend/data/test-manifest-empty/empty.ini
+copyrev: e04d21adafeefdb09b083a80e181b80f832f4b08
+
+[DEFAULT]
+install-to-subdir = subdir
+support-files = support.txt
+
+[test_foo.html]

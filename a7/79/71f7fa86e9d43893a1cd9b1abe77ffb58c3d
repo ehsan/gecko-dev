@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/input/002-novalid.html
+copyrev: 25a160cd503f335d151b7a6710eb5b13ecb4d147
+
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>invalid pattern</title>
+<p><input pattern='*'></p>

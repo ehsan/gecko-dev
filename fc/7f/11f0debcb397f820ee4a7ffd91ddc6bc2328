@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-ui-invalid/default-style/button.html
+copyrev: 1949111541a534641d044d4fbcb3845cf4dbf729
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <script>
+    function onloadHandler()
+    {
+      document.getElementById('e').setCustomValidity('foo');
+      document.getElementById('e').focus();
+    }
+  </script>
+  <body onload="onloadHandler();">
+    <button id='e' onfocus="document.documentElement.className='';"></button>
+  </body>
+</html>

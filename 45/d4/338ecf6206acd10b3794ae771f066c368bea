@@ -1,0 +1,8 @@
+
+copyrev: 8e18d752327923581160797ea658a22ca1071f87
+copy: js/src/trace-test/tests/jaeger/compare-wrong-1.js
+
+function f(a) { return a; }
+assertEq(print < f, false);
+assertEq(print > f, true);
+

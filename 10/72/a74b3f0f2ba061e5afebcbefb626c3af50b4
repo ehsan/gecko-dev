@@ -1,0 +1,10 @@
+
+copy: modules/plugin/test/mochitest/307-xo-redirect.sjs
+copyrev: 323ea2c49329f087d6e10cc7993da2966e0ba18f
+
+function handleRequest(request, response)
+{
+  response.setStatusLine(request.httpVersion, 307, "Moved temporarily");
+  response.setHeader("Location", "http://example.org/tests/dom/plugins/test/loremipsum.txt");
+  response.setHeader("Content-Type", "text/html");
+}

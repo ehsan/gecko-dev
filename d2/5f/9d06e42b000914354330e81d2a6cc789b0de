@@ -1,0 +1,11 @@
+
+copy: browser/devtools/styleinspector/test/sourcemaps.css.map
+copyrev: 1ceeb9abd6ea8184023cd2ba0237203ea7dca8c2
+
+{
+"version": 3,
+"mappings": "AAGA,GAAI;EACF,KAAK,EAHU,OAAI;;AAMrB,IAAK;EACH,gBAAgB,EAAE,IAAI",
+"sources": ["doc_sourcemaps.scss"],
+"names": [],
+"file": "doc_sourcemaps.css"
+}

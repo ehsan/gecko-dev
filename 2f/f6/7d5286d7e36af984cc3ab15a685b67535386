@@ -1,0 +1,9 @@
+
+copyrev: cb8ecf2e1fba40120b24c893a66327eafe3de75c
+copy: js/src/trace-test/tests/closures/bug540131.js
+
+try {
+ (function() {
+   let(x = (eval("for(y in[0,0,0,0]){}"))) {}
+ })()
+} catch(e) {}

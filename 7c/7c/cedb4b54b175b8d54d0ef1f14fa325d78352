@@ -1,0 +1,9 @@
+
+copy: browser/devtools/styleinspector/test/browser_bug705707_is_content_stylesheet_imported.css
+copyrev: 070fca6d7ef85e5d9efede5e3ea2ee61bfca3c31
+
+@import url("./doc_content_stylesheet_imported2.css");
+
+#target {
+  text-decoration: underline;
+}

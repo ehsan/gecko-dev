@@ -1,0 +1,146 @@
+<html>
+
+<head>
+  <title>Text attribute changed event for misspelled text</title>
+
+  <link rel="stylesheet" type="text/css"
+        href="chrome://mochikit/content/tests/SimpleTest/test.css" />
+
+  <script type="application/javascript"
+          src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="application/javascript"
+          src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
+
+  <script type="application/javascript"
+          src="../common.js"></script>
+  <script type="application/javascript"
+          src="../role.js"></script>
+  <script type="application/javascript"
+          src="../states.js"></script>
+  <script type="application/javascript"
+          src="../events.js"></script>
+  <script type="application/javascript"
+          src="../attributes.js"></script>
+
+  <script type="application/javascript">
+
+    const nsIDOMNSEditableElement =
+      Components.interfaces.nsIDOMNSEditableElement;
+
+    Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm");
+
+    function spelledTextInvoker(aID, aText, aTests)
+    {
+      this.DOMNode = getNode(aID);
+
+      this.eventSeq = [
+        new invokerChecker(EVENT_TEXT_ATTRIBUTE_CHANGED, this.DOMNode)
+      ];
+
+      this.invoke = function spelledTextInvoker_invoke()
+      {
+        var editor = this.DOMNode.QueryInterface(nsIDOMNSEditableElement).editor;
+        var spellChecker = new InlineSpellChecker(editor);
+        spellChecker.enabled = true;
+
+        //var spellchecker = editor.getInlineSpellChecker(true);
+        //spellchecker.enableRealTimeSpell = true;
+
+        this.DOMNode.value = aText;
+      }
+
+      this.finalCheck = function spelledTextInvoker_finalCheck()
+      {
+        var defAttrs = buildDefaultTextAttrs(this.DOMNode, kInputFontSize,
+                                             kNormalFontWeight,
+                                             kInputFontFamily);
+        testDefaultTextAttrs(aID, defAttrs);
+
+        var attrs = { };
+        var misspelledAttrs = {
+          "invalid": "spelling"
+        };
+
+        for (var i = 0; i < aTests.length; i++) {
+          testTextAttrs(aID, aTests[i].start,
+                        aTests[i].misspelled ? misspelledAttrs : attrs,
+                        defAttrs, aTests[i].start, aTests[i].end);
+        }
+      }
+
+      this.getID = function spelledTextInvoker_getID()
+      {
+        return "text attribute change for misspelled text";
+      }
+    }
+
+    /**
+     * Do tests.
+     */
+    //gA11yEventDumpID = "eventdump"; // debug stuff
+    gA11yEventDumpToConsole = true;
+
+    var gQueue = null;
+    function doTests()
+    {
+      // Synth focus before spellchecking turning on to make sure editor
+      // gets a time for initialization.
+
+      gQueue = new eventQueue();
+      gQueue.push(new synthFocus("input"));
+
+      var tests = [
+        { misspelled: false, start: 0, end: 11},
+        { misspelled: true, start: 11, end: 17},
+        { misspelled: false, start: 17, end: 18},
+        { misspelled: true, start: 18, end: 22}
+      ];
+      gQueue.push(new spelledTextInvoker("input", "valid text inalid tixt",
+                                         tests));
+
+      tests = [
+        { misspelled: false, start: 0, end: 4}
+      ];
+      gQueue.push(new spelledTextInvoker("input", "that", tests));
+
+      tests = [
+        { misspelled: true, start: 0, end: 4}
+      ];
+      gQueue.push(new spelledTextInvoker("input", "taht", tests));
+
+      tests = [
+        { misspelled: true, start: 0, end: 4},
+        { misspelled: false, start: 4, end: 8}
+      ];
+      gQueue.push(new spelledTextInvoker("input", "taht cat", tests));
+
+      gQueue.invoke(); // Will call SimpleTest.finish();
+    }
+
+    SimpleTest.waitForExplicitFinish();
+    addA11yLoadEvent(doTests);
+  </script>
+</head>
+
+<body>
+
+  <a target="_blank"
+     href="https://bugzilla.mozilla.org/show_bug.cgi?id=345759"
+     title="Implement text attributes">
+    Mozilla Bug 345759
+  </a>
+  <a target="_blank"
+     href="https://bugzilla.mozilla.org/show_bug.cgi?id=770564"
+     title="improve performance of getting spelling text attribute"
+    Mozilla Bug 770564
+  </a>
+  <p id="display"></p>
+  <div id="content" style="display: none"></div>
+  <pre id="test">
+  </pre>
+
+  <input id="input"/>
+
+  <div id="eventdump"></div>
+</body>
+</html>

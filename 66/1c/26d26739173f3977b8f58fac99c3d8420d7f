@@ -1,0 +1,14 @@
+
+copy: content/html/document/test/bug446483-iframe.html
+copyrev: 16c066981be1ddd06e6f92c2070b064eca040429
+
+<script>
+function doe(){
+window.focus();
+window.getSelection().collapse(document.body, 0);
+}
+setTimeout(doe,50);
+
+setTimeout(function() {window.location.reload()}, 200);
+</script>
+<span contenteditable="true"></span>

@@ -1,0 +1,13 @@
+
+copy: js/src/jit-test/tests/ion/simd-bug1123631.js
+copyrev: bf93e640b122fa4b837bc6f13f0408000b08c90e
+
+if (!this.hasOwnProperty("SIMD"))
+  quit();
+
+var float64x2 = SIMD.float64x2;
+function test() {
+  var a = float64x2(1, 2);
+}
+test();
+test();

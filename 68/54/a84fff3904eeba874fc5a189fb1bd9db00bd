@@ -1,0 +1,15 @@
+
+copy: extensions/spellcheck/hunspell/tests/rep.wrong
+copyrev: 7fd6181d29316cd5fda4ce4515219397c66be788
+
+phorm
+fantom
+vacashun
+vacashuns
+alot
+un'alunno
+foo
+foobars
+barfoos
+vinteún
+autos

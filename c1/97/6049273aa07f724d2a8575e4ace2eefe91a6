@@ -1,0 +1,7 @@
+
+copy: build/pylib/blessings/MANIFEST.in
+copyrev: 1d1c89f64e268f40ca7e025d5885ee2103fcbd06
+
+include README.rst
+include LICENSE
+include tox.ini

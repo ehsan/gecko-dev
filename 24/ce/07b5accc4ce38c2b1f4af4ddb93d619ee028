@@ -1,0 +1,17 @@
+
+copy: js/src/jit-test/tests/parallelarray/closure-2.js
+copyrev: 1ad5feef46f87e04449f59ba23445ac2a29e54f6
+
+load(libdir + "parallelarray-helpers.js");
+
+function testClosureCreation() {
+  var a = range(0, 64);
+  var makeadd1 = function (v) { return function (x) { return x+1; }; };
+  for (var i in MODES) {
+    var m = a.mapPar(makeadd1, MODES[i]);
+    assertEq(m[1](2), 3); // (\x.x+1) 2 == 3
+  }
+}
+
+if (getBuildConfiguration().parallelJS)
+  testClosureCreation();

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/.  -->
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Loop</title>
+    <link rel="stylesheet" type="text/css" href="shared/css/common.css">
+    <link rel="stylesheet" type="text/css" href="shared/css/conversation.css">
+    <link rel="stylesheet" type="text/css" href="css/webapp.css">
+    <link rel="prefetch" type="application/l10n" href="l10n/data.ini">
+  </head>
+  <body onload="loop.webapp.init();">
+
+    <header>
+      <h1>Loop</h1>
+    </header>
+
+    <div id="home">
+      <p data-l10n-id="welcome">Welcome to the Loop web client.</p>
+    </div>
+
+    <form id="conversation-form" class="hide">
+      <p>
+        <button class="btn btn-success" data-l10n-id="start_call">Start call</button>
+      </p>
+    </form>
+
+    <div id="conversation" class="conversation hide">
+      <nav class="controls">
+        <button class="btn" data-l10n-id="start">Start</button>
+        <button class="btn" data-l10n-id="stop">Stop</button>
+      </nav>
+      <!-- XXX: We really want .nested instead of .side-by-side, but partner SDK
+                makes it rather difficult. To be investigated later. -->
+      <div class="media side-by-side">
+        <div id="incoming" class="remote"></div>
+        <div id="outgoing" class="local"></div>
+      </div>
+    </div>
+
+    <!-- libs -->
+    <script src="http://static.opentok.com/webrtc/v2.0/js/TB.min.js"></script>
+    <script type="text/javascript" src="shared/libs/webl10n-20130617.js"></script>
+    <script type="text/javascript" src="shared/libs/jquery-2.1.0.js"></script>
+    <script type="text/javascript" src="shared/libs/lodash-2.4.1.js"></script>
+    <script type="text/javascript" src="shared/libs/backbone-1.1.2.js"></script>
+
+    <!-- app scripts -->
+    <script type="text/javascript" src="js/webapp.js"></script>
+
+    <script>
+    // Set the 'lang' and 'dir' attributes to <html> when the page is translated
+    window.addEventListener('localized', function() {
+      document.documentElement.lang = document.webL10n.getLanguage();
+      document.documentElement.dir = document.webL10n.getDirection();
+    }, false);
+    </script>
+  </body>
+</html>

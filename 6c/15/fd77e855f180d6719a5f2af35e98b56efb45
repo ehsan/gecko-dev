@@ -1,0 +1,10 @@
+
+copy: layout/reftests/css-invalid/select/select-disabled-ref.html
+copyrev: 95b2c092fc4ce2c90994500fbfbeb8357ba05103
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <select disabled style="background-color: green;"></select>
+  </body>
+</html>

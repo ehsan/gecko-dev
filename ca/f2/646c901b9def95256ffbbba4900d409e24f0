@@ -1,0 +1,7 @@
+
+copy: media/webrtc/trunk/src/modules/audio_coding/main/OWNERS
+copyrev: aff599dc5e679f3616b42623849e301e9a0896a6
+
+tina.legrand@webrtc.org
+turaj@webrtc.org
+jan.skoglund@webrtc.org

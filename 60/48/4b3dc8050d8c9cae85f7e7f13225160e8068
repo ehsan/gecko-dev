@@ -1,0 +1,7 @@
+
+copyrev: 153db56090f2862f7d55afee03785cca7aa3e6c6
+copy: testing/mozmill/mozmill-1.5.0/mozmill/extension/locale/en-US/mozmill.dtd
+
+<!ENTITY title.label "MozMill IDE">
+<!ENTITY separate.label "This is a separate window!">
+<!ENTITY close.label "Close">

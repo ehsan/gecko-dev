@@ -1,0 +1,28 @@
+
+copy: content/media/fmp4/wmf/moz.build
+copyrev: 0560b6076e08271ac3cc7c012c3ee457d3d1dbc6
+
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+EXPORTS += [
+    'MFTDecoder.h',
+    'WMFAudioMFTManager.h',
+    'WMFDecoderModule.h',
+    'WMFMediaDataDecoder.h',
+    'WMFVideoMFTManager.h',
+]
+UNIFIED_SOURCES += [
+    'MFTDecoder.cpp',
+    'WMFAudioMFTManager.cpp',
+    'WMFDecoderModule.cpp',
+    'WMFMediaDataDecoder.cpp',
+    'WMFVideoMFTManager.cpp',
+]
+
+FINAL_LIBRARY = 'xul'
+
+FAIL_ON_WARNINGS = True

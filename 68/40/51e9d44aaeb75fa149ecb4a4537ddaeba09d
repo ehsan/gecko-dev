@@ -1,0 +1,22 @@
+
+copyrev: 3809930d284bddf3274b6d000955efd1411333a1
+copy: js/src/trace-test/tests/jaeger/bug553784.js
+
+// |jit-test| allow-oom
+(function(){
+  (x)=<x>></x>
+})()
+try{
+  (function(){
+    ((function a(aaaaaa,bbbbbb){
+      if(aaaaaa.length==bbbbbb){
+        return eval%bbbbbb.valueOf()
+      }
+      cccccc=a(aaaaaa,bbbbbb+1)
+      return cccccc._=x
+    })([,,,,,,,,,,,,,,,,,,0],0))
+  })()
+}catch(e){}
+
+/* Don't assert. */
+

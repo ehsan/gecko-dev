@@ -1,0 +1,7 @@
+
+copy: content/html/content/reftests/557840.html
+copyrev: a748bddadfa5e964f4707bb7bc5f859896c653e3
+
+<!doctype html>
+<title>Canvas and hspace, vspace</title>
+<canvas hspace="42" vspace="42" style="background: black;"></canvas>

@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/digits_in_words.test
+copyrev: 8e280a49213175431bbefc92e4d3f57c5bd1bdf8
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME -i utf-8

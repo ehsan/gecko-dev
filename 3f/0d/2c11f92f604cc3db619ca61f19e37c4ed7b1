@@ -1,0 +1,22 @@
+
+copy: js/src/xpconnect/tests/mochitest/file_doublewrappedcompartments.html
+copyrev: 502ea301c01ff7f36136caa51c042a06a5385e9b
+
+<html>
+    <head>
+        <script>
+            var fcn = function() {};
+            var iter = document.createNodeIterator(document, NodeFilter.SHOW_ELEMENT, fcn, false);
+            var filter = iter.filter;
+
+            function testme(obj) {
+                netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+                const Ci = Components.interfaces;
+                const utils = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                                    .getInterface(Ci.nsIDOMWindowUtils);
+
+                return utils.getClassName(obj) != "Proxy" &&
+                       typeof obj.QueryInterface == 'function';
+            }
+        </script>
+    </head>

@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/test_nameditem-04.html.json
+copyrev: 002c5a1ce75e1d1e19e3f8a8e4b7f81dad24d08b
+
+{
+  "If there are two forms, a collection should be returned. (name)": true
+}

@@ -1,0 +1,29 @@
+
+copy: dom/imported-tests/webapps/WebStorage/tests/submissions/Infraware/test_storage_session_clear.html
+copyrev: 17bfd1794d24d1c9059e51ebc89d93312bcbd2f0
+
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <title>Web Storage</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body>
+    <h1>storage_session_clear</h1>
+    <div id="log"></div>
+    <script>
+        test(function() {
+            sessionStorage.clear();
+            sessionStorage.setItem("name", "user1");
+
+            assert_not_equals(sessionStorage.getItem("name"), null);
+            assert_equals(sessionStorage.length, 1);
+
+            sessionStorage.clear();
+            assert_equals(sessionStorage.getItem("name"), null, "sessionStorage.getItem('name')")
+            assert_equals(sessionStorage.length, 0, "sessionStorage.length")
+        });
+    </script>
+ </body>
+</html>

@@ -1,0 +1,10 @@
+
+copy: content/base/test/csp/file_bothCSPheaders.html
+copyrev: f726d4fc7dd58e6dd1d68a08e1b6544f068ea618
+
+<html>
+<body>
+<img src="http://example.org/prefixed.jpg"></img>
+<img src="/unprefixed.jpg"></img>
+</body>
+</html>

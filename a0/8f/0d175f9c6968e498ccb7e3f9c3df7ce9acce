@@ -1,0 +1,5 @@
+
+copyrev: c91635110b63dad1687c84142d479f6c69323eba
+copy: js/tests/js1_5/GetSet/shell.js
+
+gTestsubsuite = 'GetSet';

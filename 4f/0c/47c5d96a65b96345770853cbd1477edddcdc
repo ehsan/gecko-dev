@@ -1,0 +1,16 @@
+
+copy: toolkit/locales/en-US/chrome/mozapps/xpinstall/xpinstallConfirm.properties
+copyrev: 788aa7b37c0616e4ced5fdd7ac328d852d8a18e2
+
+unverified=(Author not verified)
+signed=(%S)
+
+itemWarnIntroMultiple=You have asked to install the following %S items:
+itemWarnIntroSingle=You have asked to install the following item:
+installButtonDisabledLabel=Install (%S)
+installButtonLabel=Install Now
+
+installComplete=Software Installation is complete. You will have to restart %S for changes to take effect.
+installCompleteTitle=Installation Complete
+
+error-203=Error Installing Item

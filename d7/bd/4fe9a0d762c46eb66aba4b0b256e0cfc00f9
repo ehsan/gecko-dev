@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/title/empty-novalid.html
+copyrev: f1fdd320181e96162bf4d356a3f20b0f2f3a984d
+
+<!doctype html>
+<!-- document with empty title element -->
+<meta charset=utf-8>
+<title></title>

@@ -1,0 +1,23 @@
+
+copyrev: 0210c233e6ee72e702e14e7b230b25b30c6bd7a3
+copy: js/src/trace-test/tests/closures/flat-closure-5.js
+
+actual = '';
+expected = 'undefined,[object Object],undefined,[object Object],undefined,[object Object],undefined,[object Object],undefined,[object Object],undefined,[object Object],undefined,[object Object],undefined,[object Object],undefined,[object Object],undefined,[object Object],';
+
+function f() {
+for (var q = 0; q < 10; ++q) {
+    for each(let b in [(void 0), {}]) {
+	(function() {
+	    for (var i = 0; i < 1; ++i) {
+	      appendToActual('' + b)
+	    }
+        }())
+    }
+}
+}
+
+f()
+
+
+assertEq(actual, expected)

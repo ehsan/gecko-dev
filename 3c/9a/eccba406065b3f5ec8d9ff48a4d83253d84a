@@ -1,0 +1,8 @@
+
+copy: content/xslt/crashtests/601543.html
+copyrev: 5a9d88ef8c9cd31d47f9bfdfc458b4ee1b6d5894
+
+<!DOCTYPE html>
+<script>
+(new XSLTProcessor).setParameter('', '', [{}, null]);
+</script>

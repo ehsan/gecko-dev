@@ -1,0 +1,15 @@
+
+copyrev: eeb767843317c8a8a542ec01dda79f4a665fe2e3
+copy: js/src/trace-test/tests/basic/testif.js
+
+function testif() {
+    var q = 0;
+    for (var i = 0; i < 100; i++) {
+        if ((i & 1) == 0)
+            q++;
+        else
+            q--;
+    }
+    return q;
+}
+assertEq(testif(), 0);

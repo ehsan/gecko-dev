@@ -1,0 +1,10 @@
+
+copy: content/base/test/bug435425_redirect.sjs
+copyrev: b5535a672058d06314cd95a8b97dcddeea4d976f
+
+function handleRequest(request, response)
+{
+  response.setStatusLine(null, 302, "Moved");
+  response.setHeader("Location", "http://www.mozilla.org", false);
+}
+

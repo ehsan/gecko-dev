@@ -1,0 +1,12 @@
+
+copyrev: 4fcf1e0114cd00207c31a0c8a5f2ce6c4f73677e
+copy: js/src/trace-test/tests/basic/testMatchAsCondition.js
+
+function testMatchAsCondition() {
+    var a = ['0', '0', '0', '0'];
+    var r = /0/;
+    "x".q;
+    for (var z = 0; z < 4; z++)
+        a[z].match(r) ? 1 : 2;
+}
+testMatchAsCondition();

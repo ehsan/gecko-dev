@@ -1,0 +1,22 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/i/model-novalid.html
+copyrev: b6e2b8f366e5074229d668842ebf611f585813d7
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;i&gt;</title>
+</head>
+<body>
+  <!-- not a block -->
+  <i>text</i>
+
+  <!-- cannot contain structured inline -->
+  <p><i><ul><li>text</li></ul></i></p>
+
+  <!-- cannot contain interactive if parent forbids interactive -->
+  <p><a><i><a>text</a></i></a></p>
+  <p><a><dfn><i><a>text</a></i></dfn></a></p>
+</body>
+</html>

@@ -1,0 +1,20 @@
+
+copy: gfx/thebes/crashtests/377461-1.xhtml
+copyrev: cdf97131707665c38c3ee7733ef3c1a41c56aaa0
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+function boom()
+{
+  var div = document.getElementById("div");
+  div.textContent = "\uFDDE\r\uFDDE";
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+<div id="div"></div>
+</body>
+</html>

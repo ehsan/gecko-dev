@@ -1,0 +1,19 @@
+
+copy: layout/reftests/w3c-css/submitted/values3/calc-background-image-gradient-1-ref.html
+copyrev: 9c267cffd06b4ba40206c603dd0ebbd3040673c4
+
+<!DOCTYPE HTML>
+<title>Test for calc() on background-image gradients</title>
+<style>
+
+p {
+    height: 50px; width: 200px;
+    border: thin solid;
+}
+
+#one { background-image: -moz-radial-gradient(150px 20px, circle farthest-side, red, green); }
+#two { background-image: -moz-linear-gradient(-22px -35px -45deg, blue, yellow); }
+
+</style>
+<p id="one"></p>
+<p id="two"></p>

@@ -1,0 +1,5 @@
+
+copyrev: 6d44cdc2389d114fd79c4606d6ee45c8f28dcc95
+copy: js/tests/ecma/NativeObjects/shell.js
+
+gTestsubsuite = 'NativeObjects';

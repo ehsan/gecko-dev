@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/label/for-descendant-no-id-novalid.html
+copyrev: 0c27c41ac387c7ed4bd5e5417deddf3b19b7181e
+
+<!doctype html><meta charset=utf-8><title>&lt;input id=a>&lt;label for=a>&lt;input></title><p>There should be an error. <input id=a><label for=a><input></label>

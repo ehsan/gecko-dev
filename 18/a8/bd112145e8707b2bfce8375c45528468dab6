@@ -1,0 +1,32 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/ins/model-isvalid.html
+copyrev: 8e0d9f793270cd9d82a38d4aaf0157e6f1993776
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;ins&gt;</title>
+</head>
+<body>
+
+  <!-- can contain strictly inline while in strictly inline context -->
+  <p><dfn>strictly inline
+    <ins>
+      <em>text</em>
+    </ins>
+  </dfn></p>
+
+  <!-- can contain interactive if ancestor does not forbid it -->
+  <p>paragraph
+    <ins>
+      <a>link</a>
+    </ins>
+  </p>
+  <p><dfn>strictly inline
+    <ins>
+      <a>link</a>
+    </ins>
+  </dfn></p>
+</body>
+</html>

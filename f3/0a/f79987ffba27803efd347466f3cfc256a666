@@ -1,0 +1,9 @@
+
+copyrev: 729dd6f87656a4b9bc0381e5dc4ee5af986613d0
+copy: js/src/trace-test/tests/basic/testArrayNamedProp.js
+
+function testArrayNamedProp() {
+    for (var x = 0; x < 10; ++x) { [4].sort-- }
+    return "ok";
+}
+assertEq(testArrayNamedProp(), "ok");

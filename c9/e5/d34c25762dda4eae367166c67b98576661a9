@@ -1,0 +1,7 @@
+
+copyrev: acf5cc5ac7e01982ae29841a642023c3517e1fcb
+copy: js/src/trace-test/tests/basic/testEvalCalledFromWatchOverSetter.js
+
+__defineSetter__("x", function(){});
+this.watch("x", eval);
+x = 0;

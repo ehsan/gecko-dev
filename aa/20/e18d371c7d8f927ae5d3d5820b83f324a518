@@ -1,0 +1,13 @@
+
+copy: extensions/spellcheck/hunspell/tests/utfcompound.dic
+copyrev: fb06e46e442d578048876b91a80398f56d5e1f78
+
+8
+foo/A
+bar/A
+fóó/A
+áár/A
+xy/A
+yz/A
+éé/A
+őő/A

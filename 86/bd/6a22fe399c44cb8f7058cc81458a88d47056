@@ -1,0 +1,10 @@
+
+copy: layout/reftests/css-valid/input/input-email-ref.html
+copyrev: 173e81529ba8143529d4fb762710d22f09249feb
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input value='foo@bar.com' style="background-color: green;">
+  </body>
+</html>

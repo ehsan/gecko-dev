@@ -1,0 +1,7 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/reading/00_test_list.txt
+copyrev: c74a80cb2ab311107d33fab94e8ef05bc15b0a87
+
+read-pixels-pack-alignment.html
+read-pixels-test.html
+

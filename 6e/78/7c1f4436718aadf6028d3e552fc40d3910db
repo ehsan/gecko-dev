@@ -1,0 +1,8 @@
+
+copy: mobile/android/base/websockets/README_MOZILLA
+copyrev: 63eb4a764f924d8d4dfd39a05f48c25d7cb13485
+
+The source from this directory was copied from koush's fork of codebutler's
+android-websockets library:
+
+https://github.com/koush/android-websockets/commit/98ec59625c8050e3ba9f44a1137485c93af9d48a

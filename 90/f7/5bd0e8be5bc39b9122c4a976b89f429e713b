@@ -1,0 +1,8 @@
+
+copy: content/base/crashtests/667336-1.html
+copyrev: 9a9f65ed462515c7cfc9ec95b5dc4540f87060b2
+
+<!DOCTYPE html>
+<script>
+document.createElement("div").children.item(-1);
+</script>

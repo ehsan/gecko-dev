@@ -1,0 +1,14 @@
+
+copy: browser/devtools/webconsole/test/browser/test-bug-595934-css-loader.css
+copyrev: fcbbbe23dd488c07896e82dcf2d4dbf8a95a47c8
+
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+body {
+  color: #0f0;
+  font-weight: bold;
+}
+

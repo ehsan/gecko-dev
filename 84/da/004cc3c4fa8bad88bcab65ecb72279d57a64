@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-invalid/default-style/input.html
+copyrev: 65a8ecdc760b45dd728a5a730c51bebc3bd21541
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <script>
+    function onloadHandler()
+    {
+      document.getElementById('e').setCustomValidity('foo');
+      document.documentElement.className='';
+    }
+  </script>
+  <body onload="onloadHandler();">
+    <input id='e'>
+  </body>
+</html>

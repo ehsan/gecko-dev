@@ -1,0 +1,571 @@
+<?xml version="1.0"?>
+
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is Mozilla Mobile Browser.
+   -
+   - The Initial Developer of the Original Code is
+   - Mozilla Corporation.
+   - Portions created by the Initial Developer are Copyright (C) 2008
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -   Brad Lassey <blassey@mozilla.com>
+   -   Mark Finkle <mfinkle@mozila.com>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the LGPL or the GPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+<?xml-stylesheet href="chrome://browser/skin/platform.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/skin/browser.css" type="text/css"?>
+<?xml-stylesheet href="chrome://browser/content/browser.css" type="text/css"?>
+
+<!DOCTYPE window [
+<!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
+%browserDTD;
+<!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
+%brandDTD;
+<!ENTITY % prefsDTD SYSTEM "chrome://browser/locale/preferences.dtd">
+%prefsDTD;
+]>
+
+<window id="main-window"
+        onload="Browser.startup();"
+        onunload="Browser.shutdown();"
+        onclose="return Browser.closing();"
+        windowtype="navigator:browser"
+        title="&brandShortName;"
+#ifdef MOZ_PLATFORM_MAEMO
+        sizemode="fullscreen"
+#else
+        width="800"
+        height="500"
+#endif
+        onkeypress="onDebugKeyPress(event);"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml">
+
+  <script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
+  <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>
+  <script type="application/javascript" src="chrome://global/content/viewZoomOverlay.js"/>
+  <script type="application/javascript" src="chrome://browser/content/commandUtil.js"/>
+  <script type="application/javascript" src="chrome://browser/content/exceptions.js"/>
+  <script type="application/javascript" src="chrome://browser/content/browser.js"/>
+  <script type="application/javascript" src="chrome://browser/content/browser-ui.js"/>
+  <script type="application/javascript" src="chrome://browser/content/sanitize.js"/>
+  <script type="application/javascript" src="chrome://browser/content/preferences.js"/>
+  <script type="application/javascript" src="chrome://browser/content/extensions.js"/>
+  <script type="application/javascript" src="chrome://browser/content/downloads.js"/>
+  <script type="application/javascript" src="chrome://browser/content/console.js"/>
+  <script type="application/javascript" src="chrome://browser/content/Util.js"/>
+  <script type="application/javascript" src="chrome://browser/content/InputHandler.js"/>
+  <script type="application/javascript" src="chrome://browser/content/TileManager.js"/>
+  <script type="application/javascript" src="chrome://browser/content/BrowserView.js"/>
+  <script type="application/javascript" src="chrome://browser/content/AnimatedZoom.js"/>
+  <script type="application/javascript" src="chrome://browser/content/sync.js"/>
+
+  <stringbundleset id="stringbundleset">
+    <stringbundle id="bundle_browser" src="chrome://browser/locale/browser.properties"/>
+    <stringbundle id="bundle_brand" src="chrome://branding/locale/brand.properties"/>
+  </stringbundleset>
+
+  <broadcasterset id="broadcasterset">
+    <broadcaster id="bcast_contentShowing"/>
+  </broadcasterset>
+
+  <observerset id="observerset">
+    <observes id="observe_contentShowing" element="bcast_contentShowing" attribute="disabled"/>
+  </observerset>
+
+  <commandset id="mainCommandSet">
+    <!-- basic navigation -->
+    <command id="cmd_back" label="&back.label;" disabled="true" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_forward" label="&forward.label;" disabled="true" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_reload" label="&reload.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_forceReload" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_stop" label="&stop.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_go" label="&go.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_openLocation" label="&openLocation.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <!-- tabs -->
+    <command id="cmd_newTab" label="&newtab.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_closeTab" label="&closetab.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_remoteTabs" oncommand="WeaveGlue.openRemoteTabs();"/>
+    <command id="cmd_undoCloseTab" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <!-- bookmarking -->
+    <command id="cmd_star" label="&star.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <!-- misc -->
+    <command id="cmd_close" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_quit" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_menu" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_actions" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_panel" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_sanitize" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <!-- screen/display -->
+    <command id="cmd_fullscreen" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_zoomin" observes="bcast_contentShowing" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_zoomout" observes="bcast_contentShowing" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_lockscreen" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <command id="cmd_volumeLeft" observes="bcast_contentShowing" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_volumeRight" observes="bcast_contentShowing" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <!-- scrolling -->
+    <command id="cmd_scrollPageUp" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_scrollPageDown" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <!-- editing -->
+    <command id="cmd_cut" label="&cut.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_copy" label="&copy.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_copylink" label="&copylink.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_paste" label="&paste.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_delete" label="&delete.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+    <command id="cmd_selectAll" label="&selectAll.label;" oncommand="CommandUpdater.doCommand(this.id);"/>
+
+    <!-- forms navigation -->
+    <command id="cmd_formPrevious" oncommand="FormHelperUI.goToPrevious();"/>
+    <command id="cmd_formNext" oncommand="FormHelperUI.goToNext();"/>
+    <command id="cmd_formClose" oncommand="FormHelperUI.hide();"/>
+
+    <!-- find navigation -->
+    <command id="cmd_findPrevious" oncommand="FindHelperUI.goToPrevious();"/>
+    <command id="cmd_findNext" oncommand="FindHelperUI.goToNext();"/>
+    <command id="cmd_findClose" oncommand="FindHelperUI.hide();"/>
+    <command id="cmd_find" oncommand="FindHelperUI.show();"/>
+  </commandset>
+
+  <keyset id="mainKeyset">
+    <!-- basic navigation -->
+    <key id="key_back" keycode="VK_LEFT" command="cmd_back" modifiers="control"/>
+    <key id="key_forward" keycode="VK_RIGHT" command="cmd_forward" modifiers="control"/>
+    <key id="key_back2" keycode="VK_BACK" command="cmd_back"/>
+    <key id="key_forward2" keycode="VK_BACK" command="cmd_forward" modifiers="shift"/>
+#ifndef MOZ_PLATFORM_MAEMO
+    <key id="key_reload" keycode="VK_F5" command="cmd_reload"/>
+    <key id="key_forceReload" keycode="VK_F5" modifiers="shift" command="cmd_forceReload"/>
+#else
+    <key id="key_lockscreen" key="o" modifiers="accel,shift" command="cmd_lockscreen"/>
+    <!-- F5 on maemo is "home" which is a task switching key -->
+#endif
+    <key id="key_lockscreen" key="o" modifiers="accel,shift" command="cmd_lockscreen"/>
+    <key id="key_reload2" key="r" modifiers="accel" command="cmd_reload"/>
+    <key id="key_forceReload2" key="r" modifiers="accel,shift" command="cmd_forceReload"/>
+    <key id="key_focusURL" key="l" modifiers="accel" command="cmd_openLocation"/>
+
+    <!-- scrolling -->
+    <key id="key_pageUp" keycode="VK_UP" modifiers="shift" command="cmd_scrollPageUp"/>
+    <key id="key_pageDown" keycode="VK_DOWN" modifiers="shift" command="cmd_scrollPageDown"/>
+
+    <!-- misc -->
+    <key id="key_zoomin" keycode="VK_UP" modifiers="accel" command="cmd_zoomin"/>
+    <key id="key_zoomout" keycode="VK_DOWN" modifiers="accel" command="cmd_zoomout"/>
+    <key id="key_find" key="f" modifiers="accel" command="cmd_find"/>
+    <key id="key_quit" key="q" modifiers="accel" command="cmd_quit"/>
+    <key id="key_fullscreen" keycode="VK_F6" command="cmd_fullscreen"/>
+    <key id="key_zoomin2" keycode="VK_F7" command="cmd_volumeRight"/>
+    <key id="key_zoomout2" keycode="VK_F8" command="cmd_volumeLeft"/>
+
+    <!-- tabs -->
+    <key id="key_newTab" key="t" modifiers="accel" command="cmd_newTab"/>
+    <key id="key_closeTab" key="w" modifiers="accel" command="cmd_closeTab"/>
+    <key id="key_undoCloseTab" key="t" modifiers="accel,shift" command="cmd_undoCloseTab"/>
+  </keyset>
+
+  <stack flex="1" id="stack">
+    <scrollbox id="controls-scrollbox" style="overflow: hidden; -moz-box-orient: horizontal; position: relative;" flex="1">
+      <vbox class="panel-dark">
+        <spacer class="toolbar-height"/>
+        <!-- Left toolbar -->
+        <vbox id="tabs-container" class="panel-dark" flex="1">
+          <vbox id="tabs" onselect="BrowserUI.selectTab(this);" onclosetab="BrowserUI.closeTab(this)" flex="1"/>
+          <hbox id="tabs-controls">
+            <toolbarbutton id="newtab-button" class="button-image" command="cmd_newTab"/>
+            <toolbarbutton id="remotetabs-button" class="button-image" disabled="true" command="cmd_remoteTabs"/>
+          </hbox>
+        </vbox>
+      </vbox>
+
+      <!-- Page Area -->
+      <stack class="window-width window-height">
+        <scrollbox id="page-scrollbox" class="window-width window-height" style="overflow: hidden;">
+          <vbox>
+            <!-- Main Toolbar -->
+            <box id="toolbar-container" class="panel-dark toolbar-height">
+              <box id="toolbar-moveable-container">
+                <toolbar id="toolbar-main" class="panel-dark window-width">
+#ifdef MOZ_PLATFORM_MAEMO
+                  <toolbarbutton id="tool-app-switch" class="button-image" oncommand="BrowserUI.switchTask();"/>
+#endif
+                  <hbox id="urlbar-container" flex="1">
+                    <box id="identity-box"
+                         onclick="getIdentityHandler().handleIdentityButtonEvent(event);"
+                         onkeypress="getIdentityHandler().handleIdentityButtonEvent(event);">
+                      <box id="urlbar-image-box" mousethrough="always">
+                        <image id="urlbar-throbber"/>
+                        <image id="urlbar-favicon" hidden="true"/>
+                      </box>
+                    </box>
+                    <textbox id="urlbar-edit"
+                             type="autocomplete"
+                             autocompletesearch="history"
+                             autocompletepopup="popup_autocomplete"
+                             enablehistory="false"
+                             maxrows="6"
+                             completeselectedindex="true"
+                             minresultsforpopup="0"
+                             oncontextmenu="event.preventDefault();"
+                             emptytext="&urlbar.emptytext;"
+                             flex="1"
+                             ontextentered="BrowserUI.goToURI();"
+                             clickSelectsAll="true"/>
+                    <hbox id="urlbar-icons" mode="view">
+                      <toolbarbutton id="tool-reload" class="urlbar-cap-button"
+                                     oncommand="CommandUpdater.doCommand(event.shiftKey ? 'cmd_forceReload' : 'cmd_reload');"/>
+                      <toolbarbutton id="tool-stop" class="urlbar-cap-button" command="cmd_stop"/>
+                      <toolbarbutton id="tool-go" class="urlbar-cap-button" command="cmd_go"/>
+                    </hbox>
+                  </hbox>
+                  <toolbarbutton id="tool-app-close" class="urlbar-button button-image" command="cmd_close"/>
+                </toolbar>
+              </box>
+            </box>
+
+            <notificationbox id="notifications" class="window-width"/>
+
+            <!-- Content viewport -->
+            <vbox class="window-width window-height">
+              <stack id="tile-stack" class="window-width" flex="1">
+                <scrollbox id="content-scrollbox" style="overflow: hidden;" class="window-width" flex="1">
+                  <!-- Content viewport -->
+                  <html:div id="tile-container" style="overflow: hidden;" tabindex="-1">
+                    <html:canvas id="content-overlay" style="display: none; position: absolute; z-index: 1000; left: 0; top: 0;">
+                    </html:canvas>
+                  </html:div>
+                </scrollbox>
+                <html:canvas id="view-buffer" style="display: none;" moz-opaque="true">
+                </html:canvas>
+              </stack>
+              <box id="content-navigator-spacer" hidden="true"/>
+            </vbox>
+          </vbox>
+        </scrollbox>
+
+        <!-- popup for content navigator helper -->
+        <vbox id="content-navigator" class="window-width" top="0" spacer="content-navigator-spacer">
+          <arrowscrollbox id="form-helper-autofill" collapsed="true" align="center" flex="1" orient="horizontal"
+                          onclick="FormHelperUI.doAutoComplete(event.target);"/>
+          <textbox id="select-helper-textbox" class="content-navigator-item" oncommand="SelectHelperUI.filter(this.value)" type="search" flex="1" hidden="true"/>
+          <textbox id="find-helper-textbox" class="content-navigator-item" oncommand="FindHelperUI.search(this.value)" oninput="FindHelperUI.updateCommands(this.value);" type="search" flex="1"/>
+        </vbox>
+      </stack>
+
+      <!-- Right toolbar -->
+      <vbox class="panel-dark">
+        <!-- Because of the stack + fixed position of the urlbar when it is in
+             locked mode the event on the top-right part of the urlbar are
+             swallow by this spacer, but not with the mousethrough attribute
+        -->
+        <spacer class="toolbar-height" mousethrough="always"/>
+
+        <vbox id="browser-controls" style="overflow: -moz-hidden-unscrollable;" class="panel-dark" flex="1">
+          <toolbarbutton id="tool-star" class="browser-control-button button-image" command="cmd_star"/>
+          <toolbarbutton id="tool-back" class="browser-control-button button-image" command="cmd_back"/>
+          <toolbarbutton id="tool-forward" class="browser-control-button button-image" command="cmd_forward"/>
+          <toolbarspring/>
+          <toolbarbutton id="tool-panel-open" class="page-button button-image" command="cmd_panel"/>
+        </vbox>
+      </vbox>
+    </scrollbox>
+
+    <!-- popup for site identity information -->
+    <vbox id="identity-container" hidden="true" class="panel-dark window-width" mode="unknownIdentity">
+      <hbox id="identity-popup-container" flex="1" align="top">
+        <image id="identity-popup-icon"/>
+        <vbox id="identity-popup-content-box" flex="1">
+          <hbox flex="1">
+            <label id="identity-popup-connectedToLabel" value="&identity.connectedTo2;"/>
+            <label id="identity-popup-connectedToLabel2" flex="1">&identity.unverifiedsite2;</label>
+            <description id="identity-popup-content-host" flex="1"/>
+          </hbox>
+          <hbox id="identity-popup-runBy-box">
+            <label id="identity-popup-runByLabel" value="&identity.runBy2;"/>
+            <description id="identity-popup-content-owner"/>
+            <description id="identity-popup-content-supplemental"/>
+          </hbox>
+          <description id="identity-popup-content-verifier"/>
+        </vbox>
+        <vbox align="center" pack="start">
+          <image id="identity-popup-encryption-icon"/>
+          <description id="identity-popup-encryption-label"/>
+        </vbox>
+      </hbox>
+
+      <hbox id="pageactions-container" class="window-width" hidden="true">
+        <pageaction id="pageaction-findinpage" title="&pageactions.findInPage;"
+          onclick="FindHelperUI.show();"/>
+        <pageaction id="pageaction-saveas" title="&pageactions.saveas.pdf;"
+          onclick="PageActions.savePageAsPDF();"/>
+        <pageaction id="pageaction-share" title="&pageactions.share.page;"
+          onclick="SharingUI.show(getBrowser().currentURI.spec, getBrowser().contentTitle);"/>
+        <pageaction id="pageaction-password" title="&pageactions.password.forget;"
+          onclick="PageActions.forgetPassword(); PageAction.hideItem(this);"/>
+        <pageaction id="pageaction-reset" title="&pageactions.reset;"
+          onclick="PageActions.clearPagePermissions(); PageActions.hideItem(this);"/>
+        <pageaction id="pageaction-search" title="&pageactions.search.addNew;"/>
+      </hbox>
+    </vbox>
+
+    <vbox id="newtab-popup" hidden="true" class="dialog-dark" onclick="NewTabPopup.selectTab()" align="center" left="21">
+      <label/>
+    </vbox>
+
+    <vbox id="bookmark-popup" hidden="true" class="dialog-dark" align="center" left="0">
+      <label value="&bookmarkPopup.label;"/>
+      <separator class="thin"/>
+      <vbox>
+        <button id="bookmark-popup-edit" label="&bookmarkEdit.label;" class="button-dark" oncommand="BookmarkHelper.edit();"/>
+        <spacer/>
+        <button id="bookmark-popup-remove" label="&bookmarkRemove.label;" class="button-dark" oncommand="BookmarkPopup.hide(); removeBookmarksForURI(getBrowser().currentURI);"/>
+      </vbox>
+    </vbox>
+
+    <vbox id="bookmark-container" hidden="true" class="panel-dark window-width">
+      <hbox id="bookmark-form" align="start">
+        <image id="bookmark-image"/>
+      </hbox>
+      <hbox pack="center">
+        <button class="button-dark" label="&editBookmarkDone.label;" oncommand="BookmarkHelper.save();"/>
+      </hbox>
+    </vbox>
+
+    <box id="panel-container" class="panel-dark window-width window-height" style="-moz-stack-sizing: ignore" left="10000" hidden="true">
+      <box id="panel-controls" oncommand="BrowserUI.switchPane(event.target.getAttribute('linkedpanel'));">
+        <toolbarbutton id="tool-addons" type="radio" group="1" class="panel-button button-image" linkedpanel="addons-container"/>
+        <toolbarbutton id="tool-downloads" type="radio" group="1" class="panel-button button-image" linkedpanel="downloads-container"/>
+        <toolbarbutton id="tool-preferences" type="radio" group="1" checked="true" class="panel-button button-image" linkedpanel="prefs-container"/>
+        <toolbarbutton id="tool-console" type="radio" group="1" hidden="true" class="panel-button button-image" linkedpanel="console-container"/>
+        <toolbarbutton id="tool-panel-close" class="page-button button-image" command="cmd_panel"/>
+      </box>
+      <deck id="panel-items" selectedIndex="2" flex="1">
+        <vbox id="addons-container" flex="1">
+          <hbox id="addons-header" class="panel-header">
+            <label value="&addonsHeader.label;"/>
+          </hbox>
+          <notificationbox id="addons-messages" flex="1">
+            <richlistbox id="addons-list" flex="1" onselect="ExtensionsView.hideOnSelect(event)">
+              <richlistitem id="addons-local" class="section-header" align="center" nohighlight="true">
+                <label value="&addonsLocal.label;" flex="1"/>
+                <spacer flex="1"/>
+                <button id="addons-update-all" label="&addonsUpdate.label;" hidden="true"
+                        oncommand="ExtensionsView.updateAll();"/>
+              </richlistitem>
+              <richlistitem id="addons-repo" class="section-header" nohighlight="true">
+                <label value="&addonsRepo.label;" flex="1"/>
+                <textbox id="addons-search-text" emptytext="&addonsSearch2.emptytext;" type="search" searchbutton="false"
+                         oncommand="ExtensionsView.getAddonsFromRepo(this.value);"/>
+              </richlistitem>
+            </richlistbox>
+          </notificationbox>
+        </vbox>
+
+        <vbox id="downloads-container" flex="1">
+          <hbox id="downloads-header" class="panel-header">
+            <label value="&downloadsHeader.label;" flex="1"/>
+          </hbox>
+          <richlistbox id="downloads-list" flex="1" onselect="this.ensureSelectedElementIsVisible()"/>
+        </vbox>
+
+        <vbox id="prefs-container" flex="1">
+          <hbox id="prefs-header" class="panel-header">
+            <label value="&prefsHeader.label;"/>
+          </hbox>
+          <notificationbox id="prefs-messages" flex="1">
+            <richlistbox id="prefs-list" seltype="single" flex="1" onselect="this.ensureSelectedElementIsVisible()">
+              <setting title="&about.title;" type="control">
+                <button id="prefs-about-button" label="&about.button;"
+#ifdef MOZ_OFFICIAL_BRANDING
+# these two point to the same page, this just matters for what shows up in the
+# URL bar
+                        oncommand="BrowserUI.newTab('about:firefox', true);"/>
+#else
+                        oncommand="BrowserUI.newTab('about:fennec', true);"/>
+#endif
+              </setting>
+              <setting id="prefs-uilanguage" title="&language.title;" type="control">
+                <menulist id="prefs-languages" oncommand="PreferencesView.updateLocale();">
+                  <menupopup>
+                    <menuitem id="prefs-languages-auto" label="&language.auto;" value="auto"/>
+                  </menupopup>
+                </menulist>
+              </setting>
+              <setting id="prefs-homepage" title="&homepage.title;" type="control">
+                <menulist id="prefs-homepage-options" oncommand="PreferencesView.updateHomePage();">
+                  <menupopup>
+                    <menuitem id="prefs-homepage-default" label="&homepage.default;" value="default"/>
+                    <menuitem id="prefs-homepage-none" label="&homepage.none;" value="none"/>
+                    <menuitem id="prefs-homepage-currentpage" label="&homepage.currentpage;" value="currentpage"/>
+                  </menupopup>
+                </menulist>
+              </setting>
+              <settings id="prefs-content" label="&content.title;">
+                <setting pref="permissions.default.image" title="&showImages.title;" type="boolint" on="1" off="2"/>
+                <setting pref="javascript.enabled" type="bool" title="&enableJavaScript.title;"/>
+              </settings>
+              <settings id="prefs-privacy" label="&privacy.title;">
+                <setting pref="network.cookie.cookieBehavior" title="&allowCookies.title;" type="boolint" on="0" off="2"/>
+                <setting pref="signon.rememberSignons" title="&rememberPasswords.title;" type="bool"/>
+                <setting title="&clearPrivateData2.title;" type="control">
+                  <button id="prefs-clear-data" label="&clearPrivateData.button;" command="cmd_sanitize"/>
+                </setting>
+              </settings>
+              <settings id="prefs-sync" label="&sync.title;">
+                <setting id="sync-user" type="string" title="&sync.username;" />
+                <setting id="sync-pass" type="string" inputtype="password" title="&sync.password;" />
+                <setting id="sync-secret" type="string" inputtype="password" title="&sync.secretPhrase;" />
+                <setting id="sync-device" type="string" title="&sync.deviceName;" onchange="WeaveGlue.changeName(this)" collapsed="true"/>
+                <setting id="sync-connect" type="control">
+                  <button label="&sync.connect;" oncommand="WeaveGlue.connect();" />
+                </setting>
+                <setting id="sync-disconnect" type="control" collapsed="true">
+                  <button label="&sync.disconnect;" oncommand="WeaveGlue.disconnect();" />
+                </setting>
+                <setting id="sync-sync" type="control" collapsed="true">
+                  <button id="sync-syncButton" label="&sync.syncNow;" oncommand="WeaveGlue.sync();" />
+                </setting>
+              </settings>
+            </richlistbox>
+          </notificationbox>
+        </vbox>
+
+        <vbox id="console-container" flex="1">
+          <vbox id="console-header" class="panel-header">
+            <label value="&consoleHeader.label;"/>
+            <hbox align="center">
+              <label value="&consoleCodeEval.label;" control="console-eval-textbox"/>
+              <textbox id="console-eval-textbox" class="toolbar" value="" onkeypress="ConsoleView.onEvalKeyPress(event)" flex="1"/>
+              <button id="console-button-eval" class="button-dark show-text" label="&consoleEvaluate.label;" oncommand="ConsoleView.evaluateTypein()"/>
+            </hbox>
+            <hbox align="center" pack="end">
+              <radiogroup id="console-filter" class="toggle-dark" oncommand="ConsoleView.changeMode();">
+                <radio id="console-filter-all" label="&consoleAll.label;" value="all" selected="true"/>
+                <radio id="console-filter-messages" label="&consoleMessages.label;" value="message"/>
+                <radio id="console-filter-warnings" label="&consoleWarnings.label;" value="warning"/>
+                <radio id="console-filter-errors" label="&consoleErrors.label;" value="error"/>
+              </radiogroup>
+              <button id="console-clear" class="button-dark show-text" oncommand="ConsoleView.clearConsole();" label="&consoleClear.label;"/>
+            </hbox>
+          </vbox>
+
+          <richlistbox id="console-box" class="console-box" flex="1" onkeypress="ConsoleView.onConsoleBoxKeyPress(event)"/>
+        </vbox>
+      </deck>
+    </box>
+
+    <!-- titlebar autocomplete results -->
+    <vbox id="popup_autocomplete" class="panel-dark" hidden="true">
+      <arrowscrollbox id="autocomplete_navbuttons"
+                      style="-moz-user-focus: ignore;"
+                      align="center"
+                      flex="1"
+                      orient="horizontal">
+        <image class="tool-search"/>
+        <radiogroup id="search-buttons" class="toggle-dark" style="-moz-user-focus: ignore;"
+                    onclick="BrowserUI.doButtonSearch(event.target);">
+        </radiogroup>
+      </arrowscrollbox>
+    </vbox>
+
+    <!-- bookmark window -->
+    <vbox id="bookmarklist-container" class="panel-dark" hidden="true">
+      <hbox id="bookmarklist-header">
+        <description flex="1">&bookmarksHeader.label;</description>
+        <toolbarbutton id="tool-bookmarks-close" class="urlbar-button button-image" command="cmd_close"/>
+      </hbox>
+      <placelist id="bookmark-items" type="bookmarks" flex="1" onopen="BookmarkList.openBookmark();" autoedit="true"/>
+    </vbox>
+
+    <!-- options dialog for select form field -->
+    <vbox id="select-container" hidden="true" pack="center">
+      <spacer id="select-spacer" flex="1000"/>
+      <vbox id="select-container-inner" class="dialog-dark" flex="1">
+        <scrollbox id="select-list" flex="1" orient="vertical"/>
+        <hbox id="select-buttons" pack="center">
+          <button id="select-buttons-done" class="button-dark" label="&selectHelper.done;" oncommand="SelectHelperUI.hide();"/>
+        </hbox>
+      </vbox>
+      <spacer flex="1000"/>
+    </vbox>
+
+    <hbox id="context-container" class="window-width window-height context-block" top="0" left="0" hidden="true">
+      <vbox id="context-popup" class="dialog-dark">
+        <hbox id="context-header">
+          <label id="context-hint" crop="center" flex="1"/>
+        </hbox>
+        <richlistbox id="context-commands" onclick="ContextHelper.hide();">
+          <richlistitem class="context-command" id="context-openinnewtab" type="link-saveable" onclick="ContextCommands.openInNewTab();">
+            <label value="&contextOpenInNewTab.label;"/>
+          </richlistitem>
+          <richlistitem class="context-command" id="context-saveimage" type="image-loaded" onclick="ContextCommands.saveImage();">
+            <label value="&contextSaveImage.label;"/>
+          </richlistitem>
+          <richlistitem class="context-command" id="context-share-link" type="link" onclick="ContextCommands.shareLink();">
+            <label value="&contextShareLink.label;"/>
+          </richlistitem>
+          <richlistitem class="context-command" id="context-share-image" type="image" onclick="ContextCommands.shareMedia();">
+            <label value="&contextShareImage.label;"/>
+          </richlistitem>
+          <richlistitem class="context-command" id="context-editbookmark" type="edit-bookmark" onclick="ContextCommands.editBookmark();">
+            <label value="&contextEditBookmark.label;"/>
+          </richlistitem>
+          <richlistitem class="context-command" id="context-removebookmark" type="edit-bookmark" onclick="ContextCommands.removeBookmark();">
+            <label value="&contextRemoveBookmark.label;"/>
+          </richlistitem>
+        </richlistbox>
+      </vbox>
+    </hbox>
+
+    <!-- alerts for content -->
+    <hbox id="alerts-container" hidden="true" align="start" class="dialog-dark" top="0" left="0"
+          onclick="AlertsHelper.click(event);">
+      <image id="alerts-image"/>
+      <vbox flex="1">
+        <label id="alerts-title" value=""/>
+        <description id="alerts-text" flex="1"/>
+      </vbox>
+    </hbox>
+  </stack>
+
+  <box>
+    <html:div style="position: relative; overflow: -moz-hidden-unscrollable; max-width: 0px; max-height: 0px; visibility: hidden;">
+      <html:div id="browsers" style="position: absolute;"/>
+    </html:div>
+  </box>
+
+  <tooltip default="true" id="default-tooltip"/>
+
+</window>

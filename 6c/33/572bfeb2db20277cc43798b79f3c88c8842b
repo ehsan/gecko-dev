@@ -1,0 +1,5 @@
+
+copy: mobile/android/config/tooltool-manifests/android-x86/android/releng.manifest
+copyrev: 624917ae5009e6dc1c277cc4b5bd85eb136ba8f0
+
+[]

@@ -1,0 +1,13 @@
+
+copyrev: eef18ad6399dcd098336db1408abbdd819909fba
+copy: js/src/trace-test/tests/pic/bug558616.js
+
+(function() {
+  for each(let d in [{}, {}, 0]) {
+    for each(e in [0, 0, 0, 0, 0, 0, 0, 0, 0]) {
+      d.__defineSetter__("", function() {})
+    }
+  }
+})()
+
+// don't assert

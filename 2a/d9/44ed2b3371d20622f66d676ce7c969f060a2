@@ -1,0 +1,5 @@
+
+copy: browser/base/content/test/test_bug435035.html
+copyrev: b261f40fc6ef051af389fbfefb3a5d71892d4d12
+
+<img src="http://example.com/browser/browser/base/content/test/general/moz.png">

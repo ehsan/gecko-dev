@@ -1,0 +1,5 @@
+
+copy: toolkit/mozapps/extensions/test/addons/test_chromemanifest_1/chrome.manifest
+copyrev: b1ba7a91a3ed7aca353fb42eff9610511e946aa3
+
+locale test-langpack    x-testing locale/x-testing

@@ -1,0 +1,10 @@
+
+copy: content/media/gmp/rlz/README.mozilla
+copyrev: 3ef06de1b36598a8064e0003d2f9d633323528ba
+
+Code taken from rlz project: https://code.google.com/p/rlz/
+
+Revision: 134, then with unused code stripped out.
+
+Note: base/ contains wrappers/dummies to provide implementations of the
+Chromium APIs that this code relies upon.

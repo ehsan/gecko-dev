@@ -1,0 +1,13 @@
+
+copyrev: cfba8b7c419edda8e6646c600f324bbd9e08052c
+copy: js/src/trace-test/tests/basic/testToUpperToLower.js
+
+function testToUpperToLower() {
+    var s = "Hello", s1, s2;
+    for (i = 0; i < 100; ++i) {
+        s1 = s.toLowerCase();
+        s2 = s.toUpperCase();
+    }
+    return s1 + s2;
+}
+assertEq(testToUpperToLower(), "helloHELLO");

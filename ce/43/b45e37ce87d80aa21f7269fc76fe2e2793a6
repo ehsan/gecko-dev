@@ -1,0 +1,10 @@
+
+copyrev: 3dd7744a1ebac614101234ce530c7b344381fd4c
+copy: js/src/trace-test/tests/basic/testDivOverflow.js
+
+for (d in [0, 0]) {
+    const a = (d -= (++d).toString())
+	for each(b in [Number(1) << d, 0, 0xC]) {
+        b / a
+	    }
+}

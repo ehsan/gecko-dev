@@ -1,0 +1,10 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/option/081-isvalid.html
+copyrev: 805e836d115812c09daacdbd76184ba363b21ad4
+
+<!doctype html>
+<meta charset=utf-8>
+<title>option element with label attribute</title>
+<select>
+<option label=foo></option>
+</select>

@@ -1,0 +1,9 @@
+
+copy: mobile/installer/debian/fennec.service.in
+copyrev: 7bdee6f00f8019578d466cada5167879cc3acb67
+
+#filter substitution
+[D-BUS Service]
+Name=mozilla.@MOZ_APP_NAME@
+Exec=@installdir@/fennec 
+

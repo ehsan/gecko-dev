@@ -1,0 +1,33 @@
+
+copy: content/base/crashtests/395469-1.xhtml
+copyrev: f0450db1e7fe50fb1847c53b8d6dee5aea1b2671
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+
+<bindings xmlns="http://www.mozilla.org/xbl"><binding id="empty"><content></content></binding></bindings>
+
+<style>
+
+.bef:before { content: counter(c); }
+
+.fl:first-letter { }
+
+</style>
+
+<script>
+
+function boom()
+{
+  document.getElementById("xblize").style.MozBinding = "url('#empty')";
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+
+<div class="fl"><span class="bef" id="xblize"></span><span class="bef"></span></div>
+
+</body>
+</html>

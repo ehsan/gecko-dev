@@ -1,0 +1,15 @@
+
+copy: toolkit/themes/winstripe/global/printPageSetup.css
+copyrev: 854be6847c4b542ec17cb72a01d9fc6167083118
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+.portrait-page {
+  list-style-image: url("chrome://global/skin/icons/Portrait.png");
+}
+
+.landscape-page {
+  list-style-image: url("chrome://global/skin/icons/Landscape.png");
+}

@@ -1,0 +1,20 @@
+
+copyrev: 42ac0551928a6e09ddf9255e016aefb94da666d2
+copy: js/src/trace-test/tests/basic/bug594205.js
+
+var re = /a(b)c/;
+
+for (var i = 0; i < 10; i++) {
+    // These two are of a form where we can convert exec() to test().
+    if (!re.exec("abc")) print("huh?");
+    re.exec("abc");
+}
+
+RegExp.prototype.test = 1;
+
+for (var i = 0; i < 10; i++) {
+    // These two are the same form, but we've replaced test(), so we must
+    // not convert.
+    if (!re.exec("abc")) print("huh?");     // don't crash/assert
+    re.exec("abc");                         // don't crash/assert
+}

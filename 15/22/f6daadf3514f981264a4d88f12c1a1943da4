@@ -1,0 +1,15 @@
+
+copy: browser/base/content/test/bug564387.html
+copyrev: bb5660dd5ff16d34e44db4660fa40a52766c0311
+
+<html>
+  <!-- https://bugzilla.mozilla.org/show_bug.cgi?id=564387 -->
+  <head>
+    <title> Bug 564387 test</title>
+  </head>
+  <body>
+    Testing for Mozilla Bug: 564387
+    <br>
+    <video src="bug564387_video1.ogv" id="video1"> </video> 
+  </body>
+</html>

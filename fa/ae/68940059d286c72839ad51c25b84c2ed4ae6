@@ -1,0 +1,11 @@
+
+copy: dom/svg/crashtests/613899-2.svg
+copyrev: c1e2fc0514abee3350907ec27ac6524d126e9ee8
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink">
+  <set/>
+  <filter id="disp">
+    <feImage xlink:href="#THIS_SVG_FILE_AS_AN_IMAGE"/>
+  </filter>
+</svg>

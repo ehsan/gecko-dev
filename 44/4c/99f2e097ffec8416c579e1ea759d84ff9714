@@ -1,0 +1,16 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/header/nested-header-novalid.html
+copyrev: ee38cc17edb4369617cf1c290e588904ce9fd63a
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>"header" with "header" descendant</title>
+</head>
+<body>
+<header>
+<header></header>
+</header>
+</body>
+</html>

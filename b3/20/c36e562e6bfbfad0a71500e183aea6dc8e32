@@ -1,0 +1,15 @@
+
+copy: layout/reftests/editor/spellcheck-input-property-dynamic.html
+copyrev: 27c4f782c4f5f5493debd5f0b38c70a6da88c1a3
+
+<!DOCTYPE html>
+<html>
+<body onload="init()">
+    <input type="text" value="blahblahblah">
+    <script>
+      function init() {
+        document.querySelector("input").spellcheck = true;
+      }
+    </script>
+</body>
+</html>

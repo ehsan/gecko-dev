@@ -1,0 +1,10 @@
+
+copy: addon-sdk/source/python-lib/cuddlefish/tests/preferences-files/packages/no-prefs/package.json
+copyrev: 7d950c298bca76a392ee4c80b2866ad547d5441c
+
+{
+    "id": "jid1-fZHqN9JfrDBa8A",
+    "title": "No Prefs Test",
+    "author": "Erik Vold",
+    "loader": "lib/main.js"
+}

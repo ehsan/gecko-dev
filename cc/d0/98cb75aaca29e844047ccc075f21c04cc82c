@@ -1,0 +1,17 @@
+
+copy: modules/libpr0n/test/mochitest/bug552605.sjs
+copyrev: 4e53932b1359b00845cf1cb93c5e49e1413c3fa1
+
+function handleRequest(request, response)
+{
+  var redirectstate = "/image/test/mochitest/bug89419.sjs";
+  response.setStatusLine("1.1", 302, "Found");
+  if (getState(redirectstate) == "") {
+    response.setHeader("Location", "red.png", false);
+    setState(redirectstate, "red");
+  } else {
+    response.setHeader("Location", "blue.png", false);
+    setState(redirectstate, "");
+  }
+  response.setHeader("Cache-Control", "no-cache", false);
+}

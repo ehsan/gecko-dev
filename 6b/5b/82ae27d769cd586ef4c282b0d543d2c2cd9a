@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/2970242.good
+copyrev: 9a6b5dee2c962ac81f96131bff200748ddf90bb8
+
+foobar
+barfoo
+bazfoo
+barbaz
+bazbar

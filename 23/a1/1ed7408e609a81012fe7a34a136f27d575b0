@@ -1,0 +1,18 @@
+
+copy: mobile/android/base/newtablet/res/layout-large-v11/new_tablet_tabs_panel_back_button.xml
+copyrev: 104bb82ab45ae950838b18b74243dd9ec25ab492
+
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
+             android:id="@+id/nav_back"
+             android:layout_width="@dimen/tabs_panel_indicator_width"
+             android:layout_height="match_parent"
+             android:minWidth="@dimen/tabs_panel_indicator_width"
+             android:src="@drawable/new_tablet_nav_back"
+             android:contentDescription="@string/back"
+             android:background="@drawable/action_bar_button_inverse"/>
+

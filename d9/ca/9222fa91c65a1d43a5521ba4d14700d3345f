@@ -1,0 +1,6 @@
+[WeakMap.prototype-properties.html]
+  type: testharness
+
+  [WeakMap.prototype.get.length]
+    expected: FAIL
+

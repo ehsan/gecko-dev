@@ -1,0 +1,21 @@
+
+copy: browser/components/certerror/content/aboutCertError.css
+copyrev: d41fde5d969a8d76d458f1bb7205de0ebd3d13fb
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* Logical CSS rules belong here, but presentation & theming rules
+   should live in the CSS of the appropriate theme */
+
+#technicalContentText {
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.expander[hidden],
+.expander[hidden] + *,
+.expander[collapsed] + * {
+  display: none;
+}

@@ -1,0 +1,12 @@
+
+copy: browser/branding/nightly/locales/jar.mn
+copyrev: d01969d4b6a75ba9abd05103e2440bc37736980d
+
+#filter substitution
+
+@AB_CD@.jar:
+% locale branding @AB_CD@ %locale/branding/
+# Aurora branding only exists in en-US
+  locale/branding/brand.dtd        (en-US/brand.dtd)
+* locale/branding/brand.properties (en-US/brand.properties)
+* locale/branding/browserconfig.properties (browserconfig.properties)

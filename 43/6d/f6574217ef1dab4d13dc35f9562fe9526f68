@@ -1,0 +1,15 @@
+
+copy: modules/libpr0n/test/reftest/ico/reftest.list
+copyrev: e9424ac9aa2365e1a9a828fdfed645d166bc7b95
+
+# ICO tests
+
+include ico-bmp-1bpp/reftest.list
+include ico-bmp-4bpp/reftest.list
+include ico-bmp-8bpp/reftest.list
+include ico-bmp-24bpp/reftest.list
+include ico-bmp-32bpp/reftest.list
+include ico-bmp-corrupted/reftest.list
+include ico-png/reftest.list
+include ico-mixed/reftest.list
+include cur/reftest.list

@@ -1,0 +1,23 @@
+
+copy: editor/libeditor/html/crashtests/513375-1.xhtml
+copyrev: 79872aab112f4c4c55c0f221d167b9eb4d86bd2a
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head contenteditable="true">
+<script type="text/javascript">
+<![CDATA[
+
+function boom()
+{
+  var r = document.createRange();
+  r.selectNode(document.body);
+  r.deleteContents();
+  try { document.execCommand("selectAll", false, null); } catch(e) { }
+}
+
+]]>
+</script>
+</head>
+
+<body onload="boom();" contenteditable="true"></body>
+</html>

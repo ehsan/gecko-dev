@@ -1,0 +1,13 @@
+
+copy: dom/src/threads/test/relativeLoad_sub_worker2.js
+copyrev: e15a13d5c551e86c849a43bd2c3f479449db022d
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+const importSubURL = "relativeLoad_sub_import.js";
+
+importScripts(importSubURL);
+
+postMessage(workerSubURL);

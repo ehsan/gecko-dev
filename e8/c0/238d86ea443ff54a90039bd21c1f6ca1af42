@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_html_in_xhr2.html
+copyrev: b00698c241f426c3707d1af9d1a3e0d72c09cf3d
+
+<meta charset="windows-1251">Ю

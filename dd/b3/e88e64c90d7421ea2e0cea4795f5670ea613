@@ -1,0 +1,8 @@
+
+copy: widget/src/cocoa/crashtests/460349-1.xhtml
+copyrev: f1fa13902a342f5b6f4d33a3c31311e2516209ce
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head></head>
+<body><div><mstyle xmlns="http://www.w3.org/1998/Math/MathML" style="-moz-appearance: button;"/></div></body>
+</html>

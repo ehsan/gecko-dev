@@ -1,0 +1,13 @@
+
+copy: layout/xul/base/src/crashtests/384871-1-inner.xul
+copyrev: 870a19240e11849df12ac1f004e531acf71078a9
+
+<popup xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<script xmlns="http://www.w3.org/1999/xhtml">
+function doe(){
+document.documentElement.autoPosition = 'on';
+window.location.reload();
+}
+setTimeout(doe, 300);
+</script>
+</popup>

@@ -1,0 +1,22 @@
+
+copy: js/src/jit-test/tests/parallelarray/inline-new-bad-type.js
+copyrev: 42377850d64c231e73fc918f5435734f81b3685d
+
+// |jit-test| error: RangeError
+//
+// Run with --ion-eager.
+if (getBuildConfiguration().parallelJS) {
+  function TestCase(n, d, e, a) {};
+  function reportCompare() {
+    var testcase = new TestCase("x", 0);
+  }
+  reportCompare();
+  TestCase = ParallelArray;
+  gczeal(6);
+  try {
+    reportCompare();
+  } catch(exc1) {}
+  reportCompare();
+} else {
+  throw new RangeError();
+}

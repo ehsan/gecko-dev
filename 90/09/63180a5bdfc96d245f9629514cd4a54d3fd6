@@ -1,0 +1,26 @@
+
+copy: modules/plugin/test/reftest/plugin-background-10-step.html
+copyrev: a03c946cd156d1b5548f3b9da9cca52540e1e32c
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<head>
+  <link rel="stylesheet" type="text/css" href="plugin-background.css"></link>
+  <script type="text/javascript">
+var NUM_STEPS = 10;
+  </script>
+  <script type="text/javascript" src="plugin-background.js"></script>
+</head>
+<body>
+  <div id="bad">Test some plugin stuff.</div>
+  <div id="good"></div>
+
+  <embed id="plugin" type="application/x-test" width="199" height="199"
+         drawmode="solid" color="330000FF"></embed>
+
+  <div id="topbar"></div>
+  <div id="leftbar"></div>
+  <div id="rightbar"></div>
+  <div id="bottombar"></div>
+</body>
+</html>

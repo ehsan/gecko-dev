@@ -1,0 +1,14 @@
+
+copy: layout/reftests/forms/textarea-rtl-scrollbar.html
+copyrev: 2d393039f2199b39665401b8ef8da44efb83e25b
+
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <title></title>
+ </head>
+ <body>
+  <textarea dir="rtl" cols=20 rows=4 style="overflow: scroll; resize: none"></textarea>
+ </body>
+</html>

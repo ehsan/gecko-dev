@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/textarea/textarea-customerror.html
+copyrev: bbbfc14cd842ee9a584a219e7f5ad2ddf5d2427e
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if textarea has a custom error, it should not be affected by :-moz-ui-valid
+             pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('t').setCustomValidity('foo'); document.documentElement.className='';">
+    <textarea class='notvalid' id='t'></textarea>
+  </body>
+</html>

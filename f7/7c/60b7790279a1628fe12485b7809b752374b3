@@ -1,0 +1,9 @@
+
+copy: content/html/content/crashtests/828180.html
+copyrev: 3c6a33edf1bd0598503ea967e62df61bfc567d8e
+
+<script>
+var table = document.createElement("table");
+table.tHead = null;
+table.tFoot = null;
+</script>

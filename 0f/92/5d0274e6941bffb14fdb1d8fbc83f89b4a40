@@ -1,0 +1,18 @@
+
+copyrev: d2cfddbd2af3d3060ae213cccde5f79462305442
+copy: js/src/trace-test/tests/basic/bug510642.js
+
+// Don't crash or assert.
+
+(function () {
+    var x;
+    (eval("\
+    (function () {\
+        for (y in [0, 0]) let(a)((function () {\
+            for (w in [0, 0])\
+                x = 0\
+        })());\
+        with({}) {}\
+    })\
+    "))()
+})()

@@ -1,0 +1,18 @@
+
+copy: browser/devtools/debugger/test/browser_dbg_tab2.html
+copyrev: 4d3fe3f0aab08691380f908143329fccfd2e14b0
+
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Empty test page 2</title>
+  </head>
+
+  <body>
+  </body>
+
+</html>

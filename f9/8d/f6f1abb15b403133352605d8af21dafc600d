@@ -1,0 +1,34 @@
+allprojects {
+    // Expose the per-object-directory configuration to all projects.
+    ext {
+        mozconfig = gradle.mozconfig
+        topsrcdir = gradle.mozconfig.topsrcdir
+        topobjdir = gradle.mozconfig.topobjdir
+    }
+}
+
+buildDir "${topobjdir}/mobile/android/gradle/build"
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:0.14.4'
+    }
+}
+
+repositories {
+    jcenter()
+}
+
+subprojects {
+    task generateCodeAndResources(type:Exec) {
+        workingDir "${topobjdir}"
+
+        commandLine "${topsrcdir}/mach"
+        args 'build'
+        args 'mobile/android/base/gradle-targets'
+    }
+}

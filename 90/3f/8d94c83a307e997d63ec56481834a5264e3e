@@ -1,0 +1,17 @@
+
+copy: security/coreconf/IRIX6.2.mk
+copyrev: 8087f9e26851cc037a6a6b58fe5d738b437cd37f
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+
+# catch unresolved symbols
+
+SHLIB_LD_OPTS += -no_unresolved
+
+include $(CORE_DEPTH)/coreconf/IRIX6.mk
+
+OS_CFLAGS += -DIRIX6_2

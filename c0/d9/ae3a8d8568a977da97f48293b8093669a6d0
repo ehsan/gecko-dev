@@ -1,0 +1,8 @@
+
+copyrev: f80a6e8841bd7d74f724d833bcb3630782a374a1
+copy: js/src/trace-test/tests/basic/testHOTLOOPSize.js
+
+function testHOTLOOPSize() {
+    return HOTLOOP > 1;
+}
+assertEq(testHOTLOOPSize(), true);

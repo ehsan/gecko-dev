@@ -1,0 +1,6 @@
+
+copy: media/webrtc/trunk/third_party/libyuv/OWNERS
+copyrev: c0a14139197d8fe245981fb262d7ed3af2a0fe8b
+
+fbarchard@chromium.org
+mflodman@chromium.org

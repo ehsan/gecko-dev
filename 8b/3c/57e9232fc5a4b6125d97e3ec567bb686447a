@@ -1,0 +1,9 @@
+
+copy: security/coreconf/OSF1V3.0.mk
+copyrev: eb78d083f14d96db411ba36edfa595d7ab2a9e16
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+include $(CORE_DEPTH)/coreconf/OSF1.mk

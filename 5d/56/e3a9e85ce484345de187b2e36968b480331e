@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug717511_2.html^headers^
+copyrev: d9c6c4e4c2e0883aa6b7d2eb5834055fae2ebcb0
+
+X-Content-Security-Policy: default-src 'self'   ,    allow *

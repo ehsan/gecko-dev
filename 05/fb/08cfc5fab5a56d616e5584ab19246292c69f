@@ -1,0 +1,6 @@
+
+copy: content/html/content/reftests/toblob-todataurl/quality-75-ref.html
+copyrev: 399f2103ae31de568eb408f61866ff9a46f48254
+
+<!doctype html>
+<html><body><img src='images/q75.jpg'/></table></body></html>

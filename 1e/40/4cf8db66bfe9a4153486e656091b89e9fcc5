@@ -1,0 +1,5 @@
+
+copy: media/webrtc/trunk/src/modules/audio_processing/test/android/apmtest/jni/Application.mk
+copyrev: 80a82d40215cc6b8d273c8fbf46734def0212785
+
+APP_PLATFORM := android-9

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/button-first-letter-1.html
+copyrev: c0061eec4c6cb875b053bc67d51e23fe97497581
+
+<!DOCTYPE html>
+<style>
+  button::first-letter { color: green; }
+  body { line-height: 0; }
+</style>
+<button>Some text</button>

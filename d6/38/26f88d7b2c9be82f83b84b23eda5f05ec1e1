@@ -1,0 +1,7 @@
+
+copy: content/base/test/unit/1_original.xml
+copyrev: e331b74bf826e731a6c172d8b2098a840c23208d
+
+<?xml version="1.0"?>
+
+<foo /> <!-- é -->

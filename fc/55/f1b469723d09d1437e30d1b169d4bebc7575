@@ -1,0 +1,10 @@
+
+copy: addon-sdk/source/data/test-message-manager.js
+copyrev: c5349862da9083ac1e0cdb1ba54748fa1409beda
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+const TEST_VALUE = 11;
+

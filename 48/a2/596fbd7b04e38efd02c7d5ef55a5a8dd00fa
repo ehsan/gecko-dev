@@ -1,0 +1,8 @@
+
+copy: content/smil/crashtests/526875-1.svg
+copyrev: 5054ba8b50e009034c7dd713b23d99a435066f3e
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <animate attributeName="fill-opacity" by="-1"/>
+</svg>

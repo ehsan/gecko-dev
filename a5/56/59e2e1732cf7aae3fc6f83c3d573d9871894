@@ -1,0 +1,14 @@
+
+copy: content/base/crashtests/522516-1.html
+copyrev: 914a501614b3725d9a2cd93ddf5e7305a7a9a993
+
+<!DOCTYPE html>
+<html>
+<body onload="document.getElementById('a').appendChild(document.getElementById('b'));">
+
+<div id="b"></div>
+<div style="filter: url(#b);"></div>
+<div id="a"></div>
+
+</body>
+</html>

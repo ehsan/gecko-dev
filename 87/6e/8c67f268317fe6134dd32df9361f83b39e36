@@ -1,0 +1,25 @@
+
+copy: layout/xul/base/src/crashtests/189814-1.xul
+copyrev: c02c854dda6f04266a2de8b8234bcf86330d7973
+
+<?xml version="1.0"?>
+
+<window
+  id="sliderprint" title="Print These Sliders"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  style="background-color: white">
+
+  <label>
+  With the Classic theme, printing causes the browser to crash. adding style="-moz-appearance: none" to the
+  thumb prevents the crash. The crash doesn't happen at all with Modern.
+  </label>
+  <spacer height="10"/>
+    <hbox>
+
+        <slider style="height: 174px; width: 24px" orient="vertical">
+            <thumb/>
+        </slider>
+
+    </hbox>
+
+</window>

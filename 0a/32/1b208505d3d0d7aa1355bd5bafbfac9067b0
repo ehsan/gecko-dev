@@ -1,0 +1,7 @@
+
+copy: content/media/webvtt/WebVTT.manifest
+copyrev: 33e49a8ca2f33904f76c7d3269b947111d5c82bb
+
+# WebVTTParserWrapper
+component {acf6e493-0092-4b26-b172-241e375c57ab} WebVTTParserWrapper.js
+contract @mozilla.org/webvttParserWrapper;1 {acf6e493-0092-4b26-b172-241e375c57ab}

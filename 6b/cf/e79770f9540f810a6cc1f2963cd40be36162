@@ -1,0 +1,20 @@
+
+copyrev: a63ab2799116432c8bcc83de5da2d1ee55965036
+copy: js/src/trace-test/tests/arguments/args-mutate-length-1.js
+
+actual = '';
+expected = '0,0,0,';
+
+function f() {
+  arguments.length--;
+  for (var i = 0; i < arguments.length; ++i) {
+    appendToActual(i);
+  }
+}
+
+f(1, 2);
+f(1, 2);
+f(2, 2);
+
+
+assertEq(actual, expected)

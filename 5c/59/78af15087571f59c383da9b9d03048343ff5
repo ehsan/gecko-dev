@@ -1,0 +1,22 @@
+
+copy: layout/reftests/css-invalid/select/select-dyn-disabled.html
+copyrev: c352073248003f65e432a2d376173faaa1e2cc36
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if select is disabled and invalid, it is barred from constraint
+             validation and should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <script>
+    function onLoadHandler()
+    {
+      var e = document.getElementById('s');
+      e.setCustomValidity('foo');
+      e.disabled = 'true';
+      document.documentElement.className='';
+    }
+  </script>
+  <body onload="onLoadHandler();">
+    <select class='notinvalid' id='s'></select>
+  </body>
+</html>

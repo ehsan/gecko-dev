@@ -1,0 +1,10 @@
+
+copy: content/svg/content/src/crashtests/539167-1.svg
+copyrev: ff404c01c15ea138bdcbe8aef31ea32cecd0676e
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <circle id="circle" transform="">
+    <animateTransform attributeName="transform" from="0" to="0.6"/>
+  </circle>
+  <use xlink:href="#circle"/>
+</svg>

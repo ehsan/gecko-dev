@@ -1,0 +1,19 @@
+
+copy: dom/imptests/webapps/DOMCore/tests/submissions/Ms2ger/test_Document-getElementById.html
+copyrev: 6195a46a30a23207c574a8a17dfbe16c4c3f8f2e
+
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>Document.getElementById with an empty string</title>
+<link rel=help href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-document-getelementbyid">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<div id="log"></div>
+<div id=""></div>
+<script>
+test(function() {
+  assert_equals(document.getElementById(""), null)
+  // XXX needs more tests
+})
+</script>

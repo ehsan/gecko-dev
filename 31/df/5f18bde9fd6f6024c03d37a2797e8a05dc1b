@@ -1,0 +1,10 @@
+
+copyrev: 246cabb6ce87155da0db7ebb28d3b46a4dab08c0
+copy: layout/reftests/table-anonymous-boxes/white-space-1-ref.html
+
+<!DOCTYPE HTML>
+<html>
+  <body>
+    a bc d
+  </body>
+</html>

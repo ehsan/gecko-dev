@@ -1,0 +1,13 @@
+
+copy: layout/xul/crashtests/384037-1.xhtml
+copyrev: ec03416ab0d89cd95f8248429828ba081abcc960
+
+<html xmlns="http://www.w3.org/1999/xhtml" 
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<body>
+
+<xul:splitter id="s" collapse="both" state="collapsed" />
+
+</body>
+</html>
+

@@ -1,0 +1,7 @@
+
+copy: js/src/xpconnect/src/README
+copyrev: fbf3288425c6454a740927ce0cdc1d571ec4fe12
+
+
+see http://www.mozilla.org/scriptable
+

@@ -1,0 +1,11 @@
+
+copy: layout/reftests/forms/input/range/input-range-different-fraction-of-range-unthemed-1.html
+copyrev: d236f29050f7e8e04ad5fb7ed3b5863d3b8d01a8
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: that range with value=70 is different to the default value=50. -->
+  <body>
+    <input type='range' style="-moz-appearance:none;" value=90 min=20 max=120>
+  </body>
+</html>

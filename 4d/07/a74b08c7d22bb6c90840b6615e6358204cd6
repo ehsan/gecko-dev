@@ -1,0 +1,26 @@
+
+copy: dom/svg/crashtests/369291-1.svg
+copyrev: da02b47e9ca06a3ec26afcc769917bfe251ff39d
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:html="http://www.w3.org/1999/xhtml"
+     onload="setTimeout(boom, 30);"
+     class="reftest-wait">
+
+<html:script>
+
+function boom()
+{
+  try {
+    document.getElementById("defs").getBBox();
+  } catch(e) {
+    // getBBox is expected to throw, because defs is not displayed.
+    document.documentElement.removeAttribute("class");
+  }
+}
+
+</html:script>
+
+<defs id="defs" />
+
+</svg>

@@ -1,0 +1,13 @@
+
+copy: layout/xul/base/src/crashtests/265161-1.xul
+copyrev: 30ebf0f227f1559fc1cc3e8e5b36abb297857f5b
+
+<?xml version="1.0"?>
+<window
+	xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+	xmlns:html="http://www.w3.org/1999/xhtml">
+			<html:div>
+				<listitem>
+				</listitem>
+			</html:div>
+</window>

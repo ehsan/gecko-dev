@@ -1,0 +1,11 @@
+
+copy: dom/src/json/test/unit/decodeFromStream-01.json
+copyrev: e2aebd68cb04ee3774dcdb3308d957b1a3473119
+
+{
+    "JSON Test Pattern pass3": {
+        "The outermost value": "must be an object or array.",
+        "In this test": "It is an object."
+    }
+}
+

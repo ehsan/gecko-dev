@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-valid/input/input-maxlength-valid.html
+copyrev: e4e668f8789e8917fc8701624aca26a941fb0555
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input is valid and is not barred from constraint validation,
+             it should be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='valid' maxlength="2">
+  </body>
+</html>
+

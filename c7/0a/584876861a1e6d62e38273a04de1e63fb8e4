@@ -1,0 +1,12 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/017-isvalid.html
+copyrev: db3c1285c9f1a3144fc07f213695c5081b0de253
+
+<!doctype html>
+<meta charset=utf-8>
+<title>style@scoped as child of div with flow content after</title>
+<body>
+<div>
+<style scoped></style>
+<p>foo
+</div>

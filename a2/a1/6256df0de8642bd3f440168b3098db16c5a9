@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/lang/empty-isvalid.html
+copyrev: 4c06742a07908ab578d0109f63c1ecbc060c56b5
+
+<!DOCTYPE html>
+<html lang="">
+<head>
+<meta charset=utf-8>
+<title>must be a valid BCP 47 language tag, or the empty string</title>
+</head>
+<body>
+<p></p>
+</body>
+</html>

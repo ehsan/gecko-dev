@@ -1,0 +1,66 @@
+namespace mozilla {
+namespace test {
+
+//-----------------------------------------------------------------------------
+// "Hello world" example
+protocol Test
+{
+child:
+    Hello();
+
+parent:
+    World();
+};
+
+
+//-----------------------------------------------------------------------------
+// Example solution to exercise
+/*
+sync protocol Test
+{
+both:
+    Ping();
+    Pong(int status);
+
+parent:
+    GetValue(String key);
+    GetValues(StringArray keys);
+    sync SetValue(String key, String val) returns (bool ok);
+
+child:
+    TellValue(String key, String val);
+    TellValues(StringArray keys, StringArray vals);
+
+state START:
+    send Ping goto START;
+    recv Pong goto START;
+
+    recv SetValue goto HAVE_VALUES;
+
+state HAVE_VALUES:
+    send Ping goto HAVE_VALUES;
+    recv Pong goto HAVE_VALUES;
+
+    recv SetValue goto HAVE_VALUES;
+
+    recv GetValue goto TELLING_VALUE;
+    recv GetValues goto TELLING_VALUES;
+
+state TELLING_VALUE:
+    send Ping goto TELLING_VALUE;
+    recv Pong goto TELLING_VALUE;
+
+    send TellValue goto HAVE_VALUES;
+
+state TELLING_VALUES:
+    send Ping goto TELLING_VALUES;
+    recv Pong goto TELLING_VALUES;
+
+    send TellValues goto HAVE_VALUES;
+};
+//
+*/
+
+} // namespace test
+} // namespace mozilla
+

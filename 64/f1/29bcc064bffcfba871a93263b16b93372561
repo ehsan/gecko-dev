@@ -1,0 +1,47 @@
+
+copy: content/xml/tests/books/common.css
+copyrev: 3a3c93350c091381d8e29a065ea2dbe9ab6267a6
+
+SearchResult {
+  display: block;
+  margin-top: 8px;
+  margin-left: 8px;
+}
+
+Header {
+  width: 612px;
+  display: block;
+}
+
+SearchTitle {
+  display: block;
+  width: 280px;
+  border-bottom: thin solid black;
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+} 
+
+SearchTitle:first-line {
+  font-family: Verdana, Sans-Serif;
+  color: #cc6600;
+  font-size: 14pt;
+}
+
+Toolbar {
+  font-family: Verdana, Sans-Serif;
+  float: right;
+  font-size: 7pt;
+  display: block;
+  border: ridge #ddddff 4px;
+  width: 220px;
+  margin-right: 0px;
+  text-align: center;
+}
+
+Label {
+  font-weight: bold;
+}
+
+input {
+  margin-top: 2px;
+}

@@ -1,0 +1,13 @@
+
+copy: browser/devtools/styleinspector/test/doc_urls_clickable.css
+copyrev: fa56474d77cdea334ac66396c1ed66531c1291bf
+
+.relative1 {
+    background-image: url(../test-image.png);
+}
+.absolute {
+    background: url("http://example.com/browser/browser/devtools/styleinspector/test/test-image.png");
+}
+.base64 {
+    background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==');
+}

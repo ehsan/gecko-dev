@@ -1,0 +1,8 @@
+
+copy: content/base/test/bug426308-redirect.sjs
+copyrev: d5caf6f151a54e4844e1ecc62f5b5fd6ddb1acbb
+
+function handleRequest(request, response) {
+  response.setStatusLine(null, 302, "Found");
+  response.setHeader("Location", request.queryString, false);
+}

@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundaffix.aff
+copyrev: 393077d98eba04885e0b7cf4f974752764cbadc6
+
+COMPOUNDFLAG X
+
+PFX P Y 1
+PFX P   0     pre         .
+
+SFX S Y 1
+SFX S   0     suf         .

@@ -1,0 +1,20 @@
+
+copyrev: 0f025f237afa1d25ad349a307f8450de0d99b040
+copy: js/src/trace-test/tests/arguments/args9.js
+
+actual = '';
+expected = '10,20,';
+
+function h() {
+  var p;
+  for (var i = 0; i < 5; ++i) {
+    p = arguments;
+  }
+  appendToActual(p[0]);
+  appendToActual(p[1]);
+}
+
+h(10, 20);
+
+
+assertEq(actual, expected)

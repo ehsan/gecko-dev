@@ -1,0 +1,17 @@
+
+copyrev: 2160774fe41f899d9039923c266d6a8efb6a1e3e
+copy: js/src/xpconnect/tests/chrome/file_wrappers-2.html
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <script>
+      var obj = {a: 3, next: 1};
+      var to_iterate = Object.create(obj);
+      var enumerate = { 0: 0, "hi": "there" };
+      function func () {};
+      var o = {};
+      var a = [1];
+    </script>
+  </body>
+</html>

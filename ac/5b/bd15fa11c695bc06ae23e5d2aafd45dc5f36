@@ -1,0 +1,13 @@
+
+copy: mobile/chrome/tests/remote_formsZoom.js
+copyrev: 74ac2d4e9c3cec397ce83c59ff0f64b9fe42bc51
+
+dump("====================== Content Script Loaded =======================\n");
+
+let assistant = Content.formAssistant;
+
+AsyncTests.add("FormAssist:Show", function(aMessage, aJson) {
+  let element = content.document.getElementById(aJson.id);
+  assistant.open(element);
+});
+

@@ -1,0 +1,5 @@
+
+copy: layout/reftests/css-gradients/linear-keywords.html
+copyrev: fc1ae2207bf321fe6c0591f15c29d8680f8c0990
+
+<div style="background: -moz-linear-gradient(left top, #0000ff, #000000) no-repeat; width: 300px; height: 300px;"><br></div>

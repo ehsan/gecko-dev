@@ -1,0 +1,20 @@
+
+copyrev: fc9c6d84380c4f5f20e9a26329c21ecce695467c
+copy: js/src/trace-test/tests/basic/bug513038.js
+
+// Just don't assert or crash.
+
+function f() {
+  let c
+  try {
+    (eval("\
+      (function(){\
+        with(\
+          __defineGetter__(\"x\", function(){for(a = 0; a < 3; a++){c=a}})\
+        ){}\
+      })\
+    "))()
+  } catch(e) {}
+}
+f()
+print(x)

@@ -1,0 +1,25 @@
+
+copy: mobile/chrome/content/share.xul
+copyrev: e96aa38e973a342f1b7487d0fd7a93a99d9064ca
+
+<?xml version="1.0"?>
+
+<!DOCTYPE prompt SYSTEM "chrome://browser/locale/prompt.dtd">
+
+<dialog id="share-dialog"
+  xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <keyset>
+    <key keycode="VK_ESCAPE" command="cmd_cancel"/>
+  </keyset>
+
+  <commandset>
+    <command id="cmd_cancel" oncommand="SharingUI.hide();"/>
+  </commandset>
+
+  <hbox class="prompt-header">
+    <label id="share-title" crop="center" flex="1"/>
+  </hbox>
+
+  <hbox id="share-buttons-box" class="prompt-buttons"/>
+</dialog>

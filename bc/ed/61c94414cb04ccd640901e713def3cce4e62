@@ -1,0 +1,8 @@
+
+copyrev: 63212ae07a8c54c8da2be674946760c16e1a725b
+copy: browser/locales/en-US/chrome/branding/brand.dtd
+
+<!ENTITY  brandShortName        "Minefield">
+<!ENTITY  brandFullName         "Minefield">            
+<!ENTITY  vendorShortName       "Mozilla">
+<!ENTITY  logoCopyright         " ">

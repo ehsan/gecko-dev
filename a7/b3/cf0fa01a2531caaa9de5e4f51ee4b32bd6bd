@@ -1,0 +1,9 @@
+
+copy: layout/reftests/editor/nobogusnode-2.html
+copyrev: 434a0f6b52d1685270629590b63f608091407238
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<body contenteditable="true">
+  This is a test.
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copy: layout/base/tests/bug613807-1-ref.html
+copyrev: 41b159f84d82c7a69af7f76363d12ac79cafaeb1
+
+<!DOCTYPE HTML>
+<html>
+<body onload="document.querySelector('textarea').focus()">
+<textarea id="t" rows="4"></textarea>
+</body>
+</html>

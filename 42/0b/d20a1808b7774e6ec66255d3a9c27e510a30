@@ -1,0 +1,21 @@
+
+copy: content/media/test/crashtests/876024-2.html
+copyrev: 6c038e4c2304daa737bd4c9887a71f02640bc95e
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script>
+
+function boom()
+{
+  var bufferSource = new AudioContext().createScriptProcessor().context.createBufferSource();
+  bufferSource.start(0, 0, 0);
+  bufferSource.stop(562949953421313);
+}
+
+</script></head>
+
+<body onload="boom();"></body>
+</html>

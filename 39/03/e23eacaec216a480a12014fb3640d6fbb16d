@@ -1,0 +1,8 @@
+
+copy: js/src/jit-test/tests/parallelarray/surfaces-3.js
+copyrev: 22e1ba1164970e056b0d9bc188bea50168caeccd
+
+// ParallelArray objects are frozen.
+
+// FIXME(bug 844988) immutability not enforced
+// if (getBuildConfiguration().parallelJS) assertEq(Object.isFrozen(new ParallelArray), true);

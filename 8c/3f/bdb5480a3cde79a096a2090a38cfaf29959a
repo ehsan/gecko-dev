@@ -1,0 +1,22 @@
+
+copy: content/media/webaudio/test/test_bug866570.html
+copyrev: e0d72f54be98e181b722ef0e173838760cd237f5
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Crashtest for bug 859600</title>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+<pre id="test">
+<script class="testbody" type="text/javascript">
+
+(new AudioContext()).foo = null;
+ok(true, "The test should not fatally assert");
+
+</script>
+</pre>
+</body>
+</html>

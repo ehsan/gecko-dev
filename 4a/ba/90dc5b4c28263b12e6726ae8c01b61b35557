@@ -1,0 +1,7 @@
+
+copy: content/svg/content/src/crashtests/573316-1.svg
+copyrev: 8bee379b7037a6eed8db0cf8d87a78ba0c5eef85
+
+﻿<svg xmlns="http://www.w3.org/2000/svg">
+<text dx="&#x3FAB;"/>
+</svg>

@@ -1,0 +1,10 @@
+
+copyrev: d5a5b076fd9da827566fb69aee9eae3f7bd07255
+copy: js/src/trace-test/tests/basic/testArrayComp1.js
+
+load(libdir + 'range.js');
+
+function testArrayComp1() {
+    return [a for (a in range(0, 10))].join('');
+}
+assertEq(testArrayComp1(), '0123456789');

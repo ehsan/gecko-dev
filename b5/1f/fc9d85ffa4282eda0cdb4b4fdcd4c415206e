@@ -1,0 +1,12 @@
+
+copy: gfx/thebes/crashtests/546870-1.html
+copyrev: 73fda98414675ff5e8c1a8646c0f408ee4980ce9
+
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body onload="document.getElementById('button').value='';">
+<input id="button" type="button" value="Should not crash" style="width: 1px; white-space: normal;">
+</body>
+</html>

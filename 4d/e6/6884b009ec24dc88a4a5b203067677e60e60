@@ -1,0 +1,7 @@
+
+copyrev: dc749f86edd788a1c3eb8d5abc24865890dd2bf1
+copy: testing/mozmill/mozmill-1.5.0/mozmill/extension/zipexclude.lst
+
+*.svn*
+*.DS_Store*
+zipexclude.lst

@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/utf8_nonbmp.aff
+copyrev: 924a48dc115be9a93b0c1920a7c20894d04e7673
+
+SET UTF-8

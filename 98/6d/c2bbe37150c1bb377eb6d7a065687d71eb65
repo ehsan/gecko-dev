@@ -1,0 +1,25 @@
+
+copyrev: 7a562d053b5c0c911f536eb926431476f081fb1c
+copy: content/media/test/test_seek9.html
+
+function test_seek8(v, seekTime, is, ok, finish) {
+
+var completed = false;
+
+function startTest() {
+  v.currentTime = 1000;
+}
+
+function seekEnded() {
+  if (completed)
+    return false;
+
+  ok(Math.abs(v.currentTime - v.duration) < 0.2,
+     "currentTime " + v.currentTime + " close to " + v.duration);
+  finish();
+}
+
+v.addEventListener("loadedmetadata", startTest, false);
+v.addEventListener("seeked", seekEnded, false);
+
+}

@@ -1,0 +1,11 @@
+
+copyrev: a49004652290b44c7f4f17d3b88859bcdc31b233
+copy: js/tests/ecma_3/Object/browser.js
+
+var GLOBAL = 'Window';
+
+function isObject(obj)
+{
+  return obj instanceof Object || obj == window;
+}
+

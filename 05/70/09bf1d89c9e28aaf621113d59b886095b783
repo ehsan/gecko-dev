@@ -1,0 +1,8 @@
+
+copy: content/html/document/test/bug448564-submit.js
+copyrev: 2bbf330bda1a6fd27cea815b3d59f7fd0da21bb5
+
+var inputs = document.getElementsByTagName("input");
+for (var input, i = 0; input = inputs[i]; ++i)
+  if ("submit" == input.type)
+    input.click();

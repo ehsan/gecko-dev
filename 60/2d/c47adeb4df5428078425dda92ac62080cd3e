@@ -1,0 +1,10 @@
+
+copyrev: fde2e629861e6b132dbd0869c1f40b16c4771538
+copy: js/src/trace-test/tests/basic/putargsNoReturn.js
+
+function f(a) {
+    x = arguments;
+}
+for (var i = 0; i < 9; i++)
+    f(123);
+assertEq(x[0], 123);

@@ -1,0 +1,12 @@
+
+copy: layout/reftests/forms/input/file/input-file-rtl.html
+copyrev: 0080d3930fa0e74f69ac70d6a31596aa266cab8c
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <div dir='rtl'>
+      <input type='file'>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+
+copyrev: 6a1084bbae62b65bc1b6e1fa153722f3857812c8
+copy: js/src/trace-test/tests/basic/testBranchingUnstableLoop.js
+
+function testBranchingUnstableLoop() {
+  var x = 0;
+  for (var i=0; i < 100; ++i) {
+    if (i == 51) {
+      x += 10.1;
+    }
+    x++;
+  }
+  return x;
+}
+assertEq(testBranchingUnstableLoop(), 110.1);

@@ -1,0 +1,17 @@
+
+copyrev: 202a102a6dc04b32e8be695aad403dd0cfa42c0e
+copy: js/src/trace-test/tests/basic/call2.js
+
+function g(x) {
+    if ((x & 1) == 1) return 1;
+    return 2;
+}
+
+function f(n) {
+    var q = 0;
+    for (var i = 0; i < n; i++)
+        q += g(i);
+    return q;
+}
+
+assertEq(f(1000), 1500);

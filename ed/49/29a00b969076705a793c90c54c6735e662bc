@@ -1,0 +1,13 @@
+
+copy: content/html/content/crashtests/741250.xhtml
+copyrev: 373774a3615c1b35dba19b931ee3cda53b7d5307
+
+<input form="f" id="x" xmlns="http://www.w3.org/1999/xhtml">
+<form id="f"></form>
+<script>
+window.addEventListener("load", function() {
+  var x = document.getElementById("x");
+  x.appendChild(x.cloneNode(true));
+}, false);
+</script>
+</input>

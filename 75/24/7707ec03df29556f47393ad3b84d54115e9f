@@ -1,0 +1,25 @@
+
+copy: layout/reftests/forms/input-percentage-padding-ref.html
+copyrev: 434a3d4dda582b25bad9d539933529f70f23ae10
+
+<!doctype html>
+<html>
+    <head>
+        <style>
+            .container {
+                width: 400px;
+                background: #ddd;
+            }
+            .text-input {
+                width: 200px; /* 50% */
+                padding: 40px; /* 10% */
+                background: #fff;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <input type="text" class="text-input" />
+        </div>
+    </body>
+</html>

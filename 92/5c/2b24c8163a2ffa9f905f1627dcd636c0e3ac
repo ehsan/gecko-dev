@@ -1,0 +1,22 @@
+
+copy: content/html/content/crashtests/798802-1.html
+copyrev: e6653d1bb0914f790f4f2ebb87b6b293f3239999
+
+<html>
+  <head>
+    <script>
+      onload = function() {
+        var canvas2d = document.createElement('canvas')
+        canvas2d.setAttribute('width', 0)
+        document.body.appendChild(canvas2d)
+        var ctx2d = canvas2d.getContext('2d')
+        ctx2d.fillStyle = 'black'
+        var gl = document.createElement('canvas').getContext('experimental-webgl')
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas2d)
+        ctx2d.fillRect(0, 0, 1, 1)
+      }
+    </script>
+  </head>
+  <body>
+  </body>
+</html>

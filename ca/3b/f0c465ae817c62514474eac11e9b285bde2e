@@ -1,0 +1,5 @@
+
+copyrev: f47af868893c528d0dbf7bb503239ca2bf77aa7c
+copy: js/tests/ecma/SourceText/shell.js
+
+gTestsubsuite = 'SourceText';

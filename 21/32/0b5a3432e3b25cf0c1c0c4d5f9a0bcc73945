@@ -1,0 +1,263 @@
+<?xml version="1.0"?>
+
+<bindings id="videoContolBindings"
+   xmlns="http://www.mozilla.org/xbl"
+   xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+   xmlns:xbl="http://www.mozilla.org/xbl"
+   xmlns:svg="http://www.w3.org/2000/svg">
+
+  <binding id="videoControls">
+
+    <resources>
+        <stylesheet src="chrome://global/skin/media/videocontrols.css"/>
+    </resources>
+
+    <xbl:content xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+        <spacer flex="1"/>
+        <hbox id="controlBar">
+            <image id="playButton"
+                   onclick="if (event.button == 0) this.parentNode.parentNode.Utils.togglePause();"/>
+            <box id="controlsMiddle" flex="1"/>
+            <image id="muteButton"
+                   onclick="if (event.button == 0) this.parentNode.parentNode.Utils.toggleMute();"/>
+        </hbox>
+    </xbl:content>
+
+    <implementation implements="nsISecurityCheckedComponent">
+        <!-- nsISecurityCheckedComponent -->
+        <method name="canCreateWrapper">
+            <parameter name="aIID"/>
+            <body>
+                return "AllAccess";
+            </body>
+        </method> 
+
+        <method name="canCallMethod">
+            <parameter name="aIID"/>
+            <parameter name="aMethodName"/> 
+            <body>
+                return "AllAccess";
+            </body>
+        </method> 
+
+        <method name="canGetProperty">
+            <parameter name="aIID"/>
+            <parameter name="aPropertyName"/> 
+            <body>
+                return "AllAccess";
+            </body>
+        </method> 
+
+        <method name="canSetProperty">
+            <parameter name="aIID"/>
+            <parameter name="aPropertyName"/>
+            <body>
+                return "AllAccess";
+            </body>
+        </method> 
+
+        <method name="QueryInterface">
+            <parameter name="aIID"/>
+            <body>
+            <![CDATA[
+            if (!iid.equals(Components.interfaces.nsISecurityCheckedComponent))
+                throw Components.results.NS_ERROR_NO_INTERFACE;
+            return this;
+            ]]>
+            </body>
+        </method>
+
+        <constructor>
+            <![CDATA[
+            this.init();
+            ]]>
+        </constructor>
+
+        <field name="Utils">
+            <![CDATA[ ({
+                debug : false,
+                video : null,
+                controlBar : null,
+                playButton : null,
+                muteButton : null,
+
+                FADE_TIME_MAX  : 200, // ms
+                FADE_TIME_STEP : 30,  // ms
+
+                fadeTime : 0,         // duration of active fade animation
+                fadingIn: true,       // are we fading in, or fading out?
+                fadeTimer : null,
+                controlsVisible : false,
+
+                get dynamicControls() {
+                    // Don't fade controls for <audio> elements.
+                    var enabled = this.video instanceof HTMLVideoElement;
+
+                    // Allow tests to explicitly suppress the fading of controls.
+                    if (this.video.hasAttribute("mozNoDynamicControls"))
+                        enabled = false;
+
+                    return enabled;
+                },
+                
+                handleEvent : function (aEvent) {
+                    this.log("Got " + aEvent.type + " media event");
+                    switch (aEvent.type) {
+                        case "play":
+                            this.playButton.setAttribute("paused", false);
+                            break;
+                        case "pause":
+                        case "ended":
+                            this.playButton.setAttribute("paused", true);
+                            break;
+                        case "volumechange":
+                            this.muteButton.setAttribute("muted", this.video.muted);
+                            break;
+                        default:
+                            this.log("!!! event " + aEvent.type + " not handled!");
+                    }
+                },
+
+                onMouseInOut : function (event) {
+                    if (!this.dynamicControls)
+                        return;
+
+                    var isMouseOver = (event.type == "mouseover");
+
+                    // Ignore events caused by transitions between child nodes.
+                    if (this.isChildNode(event.target) &&
+                        this.isChildNode(event.relatedTarget))
+                        return;
+
+                    // Don't show controls when they're disabled, but do allow a
+                    // mouseout to hide controls that were disabled after being shown.
+                    if (!this.video.controls && (isMouseOver || !this.controlsVisible))
+                        return;
+
+                    this.log("Fading controls " + (isMouseOver ? "in" : "out"));
+
+                    var directionChange = (isMouseOver != this.fadingIn);
+                    this.fadingIn = isMouseOver;
+
+                    // When switching direction mid-fade, adjust fade time for current fade state.
+                    if (directionChange && this.fadeTime)
+                        this.fadeTime = this.FADE_TIME_MAX - this.fadeTime;
+
+                    if (!this.fadeTimer)
+                        this.fadeTimer = setInterval(this.fadeControls, this.FADE_TIME_STEP, this);
+
+                    // If we're fading in, immediately make the controls clickable.
+                    // Otherwise they might not activate until the first fadeTimer
+                    // fires, which is hard to test reliably.
+                    if (this.fadingIn)
+                        this.controlBar.style.visibility = "visible";
+                },
+
+                fadeControls : function (self, lateness) {
+                    // Update elapsed time, and compute position as a percent
+                    // of total. Last frame could run over, so clamp to 1.
+                    self.fadeTime += self.FADE_TIME_STEP + lateness;
+                    var pos = self.fadeTime / self.FADE_TIME_MAX;
+                    if (pos > 1)
+                        pos = 1;
+                    
+                    // Calculate the opacity for our position in the animation.
+                    var opacity;
+                    if (self.fadingIn)
+                        opacity = Math.pow(pos, 0.5);
+                    else
+                        opacity = Math.pow(1 - pos, 0.5);
+                    self.controlsVisible = (opacity ? true : false);
+
+                    self.controlBar.style.opacity = opacity;
+
+                    // Use .visibility to ignore mouse clicks when hidden.
+                    if (self.controlsVisible)
+                        self.controlBar.style.visibility = "visible";
+                    else
+                        self.controlBar.style.visibility = "hidden";
+
+                    // Is the animation done?
+                    if (pos == 1) {
+                        clearInterval(self.fadeTimer);
+                        self.fadeTimer = null;
+                        self.fadeTime = 0;
+                    }
+                },
+
+                togglePause : function () {
+                    if (this.video.paused)
+                        this.video.play();
+                    else
+                        this.video.pause();
+
+                    // We'll handle style changes in the event listener for
+                    // the "play" and "pause" events, same as if content
+                    // script was controlling video playback.
+                },
+
+                toggleMute : function () {
+                    this.video.muted = !this.video.muted;
+
+                    // We'll handle style changes in the event listener for
+                    // the "volumechange" event, same as if content script was
+                    // controlling volume.
+                },
+
+                isChildNode : function (node) {
+                    while (node) {
+                        if (node == this.video)
+                            break;
+                        node = node.parentNode;
+                    }
+                    return (node == this.video);
+                },
+
+                log : function (msg) {
+                    if (this.debug)
+                        dump("videoctl: " + msg + "\n");
+                }
+            }) ]]>
+        </field>
+
+        <method name="init">
+            <body>
+            <![CDATA[
+            var video = this.parentNode;
+            this.Utils.video = video;
+
+            this.Utils.controlBar = document.getAnonymousElementByAttribute(this, "id", "controlBar");
+            this.Utils.playButton = document.getAnonymousElementByAttribute(this, "id", "playButton");
+            this.Utils.muteButton = document.getAnonymousElementByAttribute(this, "id", "muteButton");
+
+            // Set initial state of play/pause button.
+            this.Utils.playButton.setAttribute("paused", video.paused);
+            // Controls are initially faded out and hidden (to ignore mouse clicks)
+            if (this.Utils.dynamicControls) {
+                this.Utils.controlBar.style.opacity = 0;
+                this.Utils.controlBar.style.visibility = "hidden";
+            }
+
+            // Use Utils.handleEvent() callback for all media events.
+            video.addEventListener("play",         this.Utils, false);
+            video.addEventListener("pause",        this.Utils, false);
+            video.addEventListener("ended",        this.Utils, false);
+            video.addEventListener("volumechange", this.Utils, false);
+
+            this.Utils.log("--- videocontrols initialized ---");
+            ]]>
+            </body>
+        </method>
+
+    </implementation>
+
+    <handlers>
+        <handler event="mouseover">
+            this.Utils.onMouseInOut(event);
+        </handler>
+        <handler event="mouseout">
+            this.Utils.onMouseInOut(event);
+        </handler>
+    </handlers>
+  </binding>
+</bindings>

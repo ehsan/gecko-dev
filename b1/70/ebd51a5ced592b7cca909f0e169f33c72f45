@@ -1,0 +1,22 @@
+
+copyrev: b7e7ecd98962992816d844a7e6e000049abd5776
+copy: js/src/trace-test/tests/basic/testWhileObjectOrNull.js
+
+function testWhileObjectOrNull()
+{
+  try
+  {
+    for (var i = 0; i < 3; i++)
+    {
+      var o = { p: { p: null } };
+      while (o.p)
+        o = o.p;
+    }
+    return "pass";
+  }
+  catch (e)
+  {
+    return "threw exception: " + e;
+  }
+}
+assertEq(testWhileObjectOrNull(), "pass");

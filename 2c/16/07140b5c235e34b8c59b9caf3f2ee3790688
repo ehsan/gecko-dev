@@ -1,0 +1,29 @@
+
+copy: layout/reftests/editor/input-text-onfocus-reframe-ref.html
+copyrev: 174a563025c2190cf69796b1d78a7fed7a805529
+
+<!DOCTYPE HTML>
+<html class="reftest-wait">
+<head>
+	<title>bug 536421</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<body onload="doTest()">
+  <input value="test" id="textbox" onfocus="triggerBug();" type="text">
+  <script type="text/javascript">
+    function finishTest()
+    {
+      document.documentElement.removeAttribute("class");
+    }
+    function triggerBug()
+    {
+      finishTest();
+    }
+    function doTest()
+    {
+      var t = document.getElementById("textbox");
+      t.focus();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+
+copy: content/smil/test/smilExtDoc_helper.svg
+copyrev: 8c4003339d438f41d67d70a2e30a84f7efffc57c
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <filter id="filter">
+    <feFlood flood-color="red">
+      <set attributeName="flood-color" to="lime" begin="0.001"/>
+    </feFlood>
+  </filter>
+</svg>

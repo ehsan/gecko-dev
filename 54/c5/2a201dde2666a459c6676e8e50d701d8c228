@@ -1,0 +1,10 @@
+
+copy: dom/src/jar.mn
+copyrev: 0a4c08c3e62be5c766bd68b10d62e1215ef5feac
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+toolkit.jar:
+   res/hiddenWindow.html                 (res/hiddenWindow.html)

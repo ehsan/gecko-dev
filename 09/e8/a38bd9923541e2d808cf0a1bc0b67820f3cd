@@ -1,0 +1,19 @@
+
+copy: dom/tests/mochitest/localstorage/frame_clear_browser_data.html
+copyrev: f4e8da372d627f6700162a1f0d2320bc1b603afc
+
+<!DOCTYPE html>
+<html>
+  <body>
+  </body>
+  <script>
+    addEventListener('message', function(e) {
+      if (e.data == 'clear') {
+        navigator.mozApps.getSelf().onsuccess = function() {
+          this.result.clearBrowserData();
+          document.body.innerHTML = "<done></done>";
+        };
+      }
+    });
+  </script>
+</html>

@@ -1,0 +1,6 @@
+
+copy: dom/tests/mochitest/w3c/html.json
+copyrev: 915663ce0dd22c537dc159aa3efdccdbc93f224f
+
+{
+}

@@ -1,0 +1,8 @@
+
+copy: browser/base/content/test/browser_bug616836.js
+copyrev: 656321f92288e3253246f727f9d57882f493e02a
+
+function test() {
+  is(document.querySelectorAll("#appmenu-popup [accesskey]").length, 0,
+     "there should be no items with access keys in the app menu popup");
+}

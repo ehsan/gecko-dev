@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_XHR_binary1.bin^headers^
+copyrev: 0571aa738d4a765a299417a022b6b810ff4f11a8
+
+Content-Type: application/binary

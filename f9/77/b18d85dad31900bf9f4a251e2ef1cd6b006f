@@ -1,0 +1,8 @@
+
+copy: browser/base/content/test/disablechrome.html
+copyrev: efa77fa7613520b240767a54f91cab6d989ba087
+
+<html>
+<body>
+</body>
+</html>

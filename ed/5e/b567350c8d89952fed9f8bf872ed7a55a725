@@ -1,0 +1,5 @@
+
+copyrev: f4cdbd0192478a54ea44e2704046588d63b0db81
+copy: js/tests/js1_5/Scope/shell.js
+
+gTestsubsuite = 'Scope';

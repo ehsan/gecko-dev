@@ -1,0 +1,6 @@
+
+copy: layout/reftests/forms/radio-checked-native.html
+copyrev: ceb419c93409b02c7c1129c71f56e45bf144a740
+
+<!doctype html>
+<input type="radio" checked>

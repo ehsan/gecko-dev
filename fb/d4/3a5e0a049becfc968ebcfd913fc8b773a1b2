@@ -1,0 +1,15 @@
+
+copy: layout/reftests/font-inflation/input-text-2-ref.html
+copyrev: 7183b4a9b84a545df0fcb92093aa25a6bb6644e0
+
+<!DOCTYPE HTML>
+<style>
+div { font-size: 12px; line-height: 1.0; width: 450px }
+input { font-size: 12px; }
+input { height: 50px }
+</style>
+<!--
+Because this input has a fixed height (and also a fixed width), font
+inflation should be disabled.
+-->
+<div><input type="text" value="Hello world" size="15"></div>

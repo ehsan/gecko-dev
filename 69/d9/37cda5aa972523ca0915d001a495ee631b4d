@@ -1,0 +1,8 @@
+
+copy: mobile/xul/branding/official/locales/en-US/brand.dtd
+copyrev: addf3be630a70b827fb4589b341bf72cdaa761e6
+
+<!ENTITY  brandShortName  "B2G">
+<!ENTITY  brandFullName   "Mozilla B2G">
+<!ENTITY  vendorShortName "Mozilla">
+<!ENTITY  logoTrademark   "B2G and the B2G logos are trademarks of the Mozilla Foundation.">

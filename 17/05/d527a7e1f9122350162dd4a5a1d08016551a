@@ -1,0 +1,12 @@
+
+copy: browser/base/content/test/alltabslistener.html
+copyrev: a33e33a42fc0f3cb9881d6663319756243629588
+
+<html>
+<head>
+<title>Test page for bug 463387</title>
+</head>
+<body>
+<p>Test page for bug 463387</p>
+</body>
+</html>

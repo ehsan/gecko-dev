@@ -1,0 +1,17 @@
+
+copy: gfx/angle/src/compiler/InitializeDll.h
+copyrev: 70b95b40d479543b2ffb35095166af77c5ca2e5c
+
+//
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
+#ifndef __INITIALIZEDLL_H
+#define __INITIALIZEDLL_H
+
+bool InitProcess();
+void DetachProcess();
+
+#endif // __INITIALIZEDLL_H
+

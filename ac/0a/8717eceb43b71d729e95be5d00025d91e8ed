@@ -1,0 +1,5 @@
+
+copyrev: 837b02dde49060b73e482c61fc4dfd9698606ae3
+copy: js/tests/ecma/ExecutionContexts/shell.js
+
+gTestsubsuite = 'ExecutionContexts';

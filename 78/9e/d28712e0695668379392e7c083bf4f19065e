@@ -1,0 +1,9 @@
+
+copy: js/src/jit-test/tests/basic/bug731724.js
+copyrev: 75009cded7d52722c26aff76f3ba188ab6fadd34
+
+function g(s) {
+    return eval(s)
+}
+f = g("(function(){({x:function::arguments})})")
+f()

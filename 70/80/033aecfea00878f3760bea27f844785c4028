@@ -1,0 +1,18 @@
+
+copy: content/base/test/websocket_hybi/mochitest.ini
+copyrev: 22458a794b131341d5dec104697c7c807fe4272d
+
+[DEFAULT]
+skip-if = e10s
+support-files =
+  file_binary-frames_wsh.py
+  file_check-binary-messages_wsh.py
+
+[test_receive-arraybuffer.html]
+skip-if = buildapp == 'b2g' || toolkit == 'android'
+[test_receive-blob.html]
+skip-if = buildapp == 'b2g' || toolkit == 'android'
+[test_send-arraybuffer.html]
+skip-if = buildapp == 'b2g' || toolkit == 'android'
+[test_send-blob.html]
+skip-if = buildapp == 'b2g' || toolkit == 'android'

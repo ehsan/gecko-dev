@@ -1,0 +1,11 @@
+
+copy: editor/libeditor/html/crashtests/407277-1.html
+copyrev: 662223834fd3be99d46e731f31eda29ea17d8a6d
+
+<html>
+<head>
+</head>
+<body style="margin: initial;" 
+      contenteditable="true" 
+      onload="document.execCommand('outdent', false, null);"></body>
+</html>

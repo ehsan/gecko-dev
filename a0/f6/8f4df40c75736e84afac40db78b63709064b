@@ -1,0 +1,5 @@
+
+copy: browser/devtools/webconsole/test/browser/test-data.json
+copyrev: 34c6aed6e690f15d6488c7d5c56a9f75cd49fcbf
+
+{ id: "test JSON data", myArray: [ "foo", "bar", "baz", "biff" ] }

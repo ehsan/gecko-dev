@@ -1,0 +1,58 @@
+verifyStatusUnverified.label    = Status: Unverified
+verifyStatusVerifying.label     = Status: Verifying account...
+verifyStatusLoginVerified.label = Status: Account Verified
+verifyStatusLoginFailed.label   = Status: Authentication Failed
+
+initStatusReadyToSync.label     = Status: Ready to Transfer Data
+initStatusSyncing.label         = Status: Transferring Data...
+initStatusSyncComplete.label    = Status: Transfer Complete
+initStatusSyncFailed.label      = Status: Transfer Failed
+
+invalidCredentials.alert        = You must provide a valid Weave user name and password to continue.
+
+usernameTaken.label		= That username is already taken. Please choose another.
+usernameAvailable.label		= Available.
+
+loginFailed.label		= Please enter a valid username and password.
+
+requiredFields.label		= Please enter all required fields.
+
+passwordsUnmatched.label	= Passwords don't match. Please re-enter.
+passphrasesUnmatched.label 	= Passphrases don't match. Please re-enter.
+
+noPassphrase.alert = You must enter a passphrase
+samePasswordAndPassphrase.label = Your password and passphrase must be different
+samePasswordAndPassphrase.alert = Your password and passphrase must be different
+
+invalidEmail.label		= Invalid email address.
+emailAlreadyExists.label	= Email address already exists. 
+
+emailTaken.label 		= Email address already exists.
+emailInvalid.label 		= Invalid email address.
+emailOk.label			= Email address is valid.
+
+missingCaptchaResponse.label	= Please enter the words in the Captcha box.
+incorrectCaptcha.label		= Incorrect Captcha response. Try again.
+internalError.label		= Sorry! We had a problem. Please try again.
+
+initialLogin-progress.label     = Signing you in...
+initialLogin-done.label         = Sign-in successful. 
+initialLogin-error.label        = Problem signing in.
+
+initialPrefs-progress.label     = Setting your preferences...
+initialPrefs-done.label         = Preferences set. 
+
+initialReset-progress.label     = Clearing your default bookmarks...
+initialReset-done.label         = Default bookmarks cleared. 
+
+initialSync-progress.label      = Synchronizing your data...
+initialSync-done.label          = Sync successful.
+initialSync-error.label         = Problem syncing data. 
+
+initialLoginFailed.description1 = Our server is having problems and we couldn't log you in. 
+initialLoginFailed.description2 = to try again, or click "Done" to exit the setup wizard and try again later. 
+
+initialSyncFailed.description1  = Our server is having problems and we couldn't synchronize your data. 
+initialSyncFailed.description2  = to try again, or click "Done" to exit the setup wizard and try again later. 
+
+tryAgain.text			= Click here

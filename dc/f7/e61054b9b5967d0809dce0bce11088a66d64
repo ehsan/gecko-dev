@@ -1,0 +1,9 @@
+
+copy: gfx/thebes/crashtests/470418-1.html
+copyrev: 009b03ce7f359c10d4b71f876c5bc7bea9388dbb
+
+<!DOCTYPE html>
+<html>
+<head></head>
+<body><div style="text-transform: capitalize">&#x06CD;A</div></body>
+</html>

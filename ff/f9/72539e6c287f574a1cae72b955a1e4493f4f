@@ -1,0 +1,16 @@
+
+copy: extensions/spellcheck/hunspell/tests/complexprefixes2.aff
+copyrev: 09e95ace92058a4d1009679becc8ad29a3f30503
+
+# complex prefixes with morphological analysis
+COMPLEXPREFIXES
+WORDCHARS _
+
+PFX A Y 1
+PFX A 0 tek . affix_1/
+
+PFX B Y 1
+PFX B 0 met/A . affix_2/
+
+SFX C Y 1
+SFX C 0 _test_ . /suffix_1

@@ -1,0 +1,37 @@
+# Popup Blocker
+popupWarning=%S prevented this site from opening a pop-up window.
+popupWarningMultiple=%S prevented this site from opening %S pop-up windows.
+popupButtonAlwaysAllow=Always Allow
+popupButtonAlwaysAllow.accesskey=A
+popupButtonNeverWarn=Never tell me
+popupButtonNeverWarn.accesskey=N
+
+# XPInstall
+xpinstallPromptWarning=%S prevented this site (%S) from asking you to install software on your computer.
+xpinstallPromptAllowButton=Allow
+xpinstallPromptAllowButton.accesskey=A
+xpinstallDisabledMessageLocked=Software installation has been disabled by your system administrator.
+xpinstallDisabledMessage=Software installation is currently disabled. Click Enable and try again.
+xpinstallDisabledButton=Enable
+xpinstallDisabledButton.accesskey=n
+
+# Site Identity
+identity.identified.verifier=Verified by: %S
+identity.identified.verified_by_you=You have added a security exception for this site
+identity.identified.state_and_country=%S, %S
+identity.identified.title_with_country=%S (%S)
+identity.encrypted=Your connection to this web site is encrypted to prevent eavesdropping.
+identity.unencrypted=Your connection to this web site is not encrypted.
+identity.unknown.tooltip=This web site does not supply identity information.
+identity.ownerUnknown2=(unknown)
+
+# Geolocation UI
+gelocation.exactLocation=Exact Location
+gelocation.exactLocation.subLabel=within 10 feet
+gelocation.exactLocationKey=E
+gelocation.neighborhoodLocation=Neighborhood
+gelocation.neighborhoodLocation.subLabel=within 1 mile
+gelocation.neighborhoodLocationKey=N
+gelocation.nothingLocation=Nothing
+gelocation.nothingLocationKey=C
+geolocation.requestMessage=%S wants to know where you are.  Tell them:

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix2.dic
+copyrev: 66de7f25e98c8a86a7b083fd8bea317b36634b68
+
+4
+foo	st:foo id:1
+foo/YX	st:foo id:2
+foo/Y	st:foo id:3
+bar/Y

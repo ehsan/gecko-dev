@@ -1,0 +1,8 @@
+
+copy: media/webrtc/trunk/src/modules/audio_device/OWNERS
+copyrev: d362104f62a0efe529db350e8f21d58c12647dc9
+
+henrikg@webrtc.org
+henrika@webrtc.org
+niklas.enbom@webrtc.org
+xians@webrtc.org

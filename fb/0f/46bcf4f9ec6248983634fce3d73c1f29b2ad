@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/opentaal_cpdpat.wrong
+copyrev: f1b0eea3f26b633ef4e4fc4b2ff6ec4438c74c11
+
+schoonheidsport

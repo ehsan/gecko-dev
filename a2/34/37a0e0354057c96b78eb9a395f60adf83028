@@ -1,0 +1,13 @@
+
+copy: browser/base/content/test/tabview/search2.html
+copyrev: a301ba3b2830c40076310f2ce0f6f24c6bdd6d59
+
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-US">
+<head>
+  <title>search test 2</title>
+</head>
+<body>
+</body>
+</html>

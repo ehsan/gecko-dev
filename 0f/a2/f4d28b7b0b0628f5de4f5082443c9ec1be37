@@ -1,0 +1,14 @@
+
+copy: toolkit/components/places/tests/browser/visituri/begin.html
+copyrev: f64bf0a811fa953c0bdfd2b447f35957d2d95fbc
+
+<!--
+ Any copyright is dedicated to the Public Domain.
+ http://creativecommons.org/publicdomain/zero/1.0/
+-->
+
+<html>
+  <body>
+    <a id="clickme" href="redirect_twice.sjs">Redirect twice</a>
+  </body>
+</html>

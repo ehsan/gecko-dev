@@ -1,0 +1,20 @@
+
+copy: content/html/document/test/bug448564-iframe-3.html
+copyrev: 4f257f9f0a1d2a49b0db23309cbb3f6d246acfdb
+
+<html>
+<body>
+
+  <table>
+    <span><form action="bug448564-echo.sjs" method="GET">
+      <tr><td><input name="a" value="aval"></td></tr>
+      <input type="hidden" name="b" value="bval">
+      <input name="c" value="cval">
+      <tr><td><input name="d" value="dval" type="submit"></td></tr>
+    </form></span>
+  </table>
+
+  <script src="bug448564-submit.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,22 @@
+
+copy: browser/base/content/test/test_bug462673.html
+copyrev: 298f0f9d7ade77e8ad01f195f89ff973ef51ade6
+
+<html>
+<head>
+<script>
+var w;
+function openIt() {
+  w = window.open("", "window2");
+}
+function closeIt() {
+  if (w) {
+    w.close();
+    w = null;
+  }
+}
+</script>
+</head>
+<body onload="openIt();" onunload="closeIt();">
+</body>
+</html>

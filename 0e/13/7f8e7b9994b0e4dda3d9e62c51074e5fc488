@@ -1,0 +1,13 @@
+
+copy: browser/devtools/styleinspector/test/browser_bug705707_is_content_stylesheet.xul
+copyrev: f11f24a98cab062c92ef7fccaf207dbd9fcba9dc
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/xul.css" type="text/css"?>
+<?xml-stylesheet href="./doc_content_stylesheet_xul.css"
+                 type="text/css"?>
+<!DOCTYPE window>
+<window id="testwindow" xmlns:html="http://www.w3.org/1999/xhtml"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <label id="target" value="Simple XUL document" />
+</window>

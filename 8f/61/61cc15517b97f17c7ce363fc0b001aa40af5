@@ -1,0 +1,23 @@
+
+copy: rdf/base/idl/nsIRDFPurgeableDataSource.idl
+copyrev: 6816d9e5c395016acc3e232233377f9ed40a74de
+
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+#include "nsIRDFResource.idl"
+#include "nsIRDFNode.idl"
+
+[scriptable, uuid(951700F0-FED0-11D2-BDD9-00104BDE6048)]
+interface nsIRDFPurgeableDataSource : nsISupports
+{
+    boolean Mark(in nsIRDFResource aSource,
+                 in nsIRDFResource aProperty,
+                 in nsIRDFNode aTarget,
+                 in boolean aTruthValue);
+
+    void Sweep();
+};

@@ -1,0 +1,7 @@
+
+copy: mobile/branding/aurora/configure.sh
+copyrev: 6f93adaa289211e0dce71b766ef2390c32fb8af8
+
+MOZ_APP_DISPLAYNAME=Aurora
+ANDROID_PACKAGE_NAME=org.mozilla.fennec_aurora
+MOZ_UPDATER=1

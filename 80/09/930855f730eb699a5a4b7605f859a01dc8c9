@@ -1,0 +1,11 @@
+
+copy: toolkit/themes/winstripe/mozapps/extensions/newaddon-aero.css
+copyrev: fd592de27bc12aef474ccf0ded13c2df86b2eaeb
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%define WINDOWS_AERO
+%include newaddon.css
+%undef WINDOWS_AERO

@@ -1,0 +1,13 @@
+
+copyrev: 8fa78bfcde95d6f457480706e56173127e5653ae
+copy: js/src/trace-test/tests/basic/testMethodInitUneval.js
+
+for (var j = 0; j < 7; ++j)
+    uneval({x: function () {}});
+
+checkStats({
+    recorderStarted: 1,
+    recorderAborted: 0,
+    traceCompleted: 1,
+    sideExitIntoInterpreter: 4
+});

@@ -1,0 +1,31 @@
+
+copy: browser/components/sessionstore/test/browser/browser_528776.js
+copyrev: c1b20709b04ed6d695ac26bc8c1d8e41ebd69709
+
+function browserWindowsCount(expected) {
+  var count = 0;
+  var e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  is(count, expected,
+     "number of open browser windows according to nsIWindowMediator");
+  is(JSON.parse(ss.getBrowserState()).windows.length, expected,
+     "number of open browser windows according to getBrowserState");
+}
+
+function test() {
+  waitForExplicitFinish();
+
+  browserWindowsCount(1);
+
+  var win = openDialog(location, "", "chrome,all,dialog=no");
+  win.addEventListener("load", function () {
+    win.removeEventListener("load", arguments.callee, false);
+    browserWindowsCount(2);
+    win.close();
+    browserWindowsCount(1);
+    finish();
+  }, false);
+}

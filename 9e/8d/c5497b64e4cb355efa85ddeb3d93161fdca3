@@ -1,0 +1,9 @@
+
+copyrev: 5a3f20cd69a2bae1a55966a72e661114b851e4ed
+copy: js/src/trace-test/tests/basic/testGlobalProtoAccess.js
+
+function testGlobalProtoAccess() {
+    return "ok";
+}
+this.__proto__.a = 3; for (var j = 0; j < 4; ++j) { [a]; }
+assertEq(testGlobalProtoAccess(), "ok");

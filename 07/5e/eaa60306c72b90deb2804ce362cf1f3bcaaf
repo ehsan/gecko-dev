@@ -1,0 +1,5 @@
+
+copy: content/base/test/xcsp/file_multi_policy_injection_bypass_2.html^headers^
+copyrev: a2c8dca77d8d24e74e2e2d651cd27345f411d432
+
+Content-Security-Policy: default-src 'self'   ,    default-src *

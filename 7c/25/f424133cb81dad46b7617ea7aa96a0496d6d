@@ -1,0 +1,8 @@
+
+copy: content/html/content/crashtests/738744.xhtml
+copyrev: 39326099a4b3ff9cdf6846fbd72ba448f0fb33c2
+
+<input xmlns="http://www.w3.org/1999/xhtml" form="f">
+  <form id="f" />
+  <input form="f" />
+</input>

@@ -1,0 +1,9 @@
+
+copy: content/smil/crashtests/699325-1.svg
+copyrev: cf3d039c854d1f4bd2614a295e64892984f4ea65
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <rect fill="blue" height="100" width="100">
+    <animate id="a" attributeName="x"  calcMode="paced" values="50; 50; 50"/>
+  </rect>
+</svg>

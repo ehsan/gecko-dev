@@ -1,0 +1,36 @@
+
+copy: content/base/crashtests/766426.html
+copyrev: c86a6287dcaaee032cd658eaebaaf56c1caa05ff
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+    var j = 0;
+    var a = document.getElementById("a");
+    var r = document.createRange();
+    r.setStart(a.childNodes[0], 0);
+    r.setEnd(a.childNodes[1], 0);
+
+    function f()
+    {
+        if (++j >= 2) {
+            document.removeEventListener("DOMNodeRemoved", f, false);
+        }
+        r.extractContents();
+    }
+
+    document.addEventListener("DOMNodeRemoved", f, false);
+
+    r.extractContents();
+}
+
+</script>
+</head>
+<body onload="boom();">
+<div id="a"><span><span></span></span>X</div>
+</body>
+</html>

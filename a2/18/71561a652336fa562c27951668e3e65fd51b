@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/breakdefault.wrong
+copyrev: 71e339d66935c3da51ce32712c9cb1e84a722df0
+
+scot
+sco-free
+fo-bar

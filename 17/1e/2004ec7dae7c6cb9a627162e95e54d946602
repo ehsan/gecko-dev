@@ -1,0 +1,11 @@
+
+copy: content/canvas/crashtests/727547.html
+copyrev: 6d2e583da6bbc5269ad9099c03e6696edf8d790c
+
+<!doctype html>
+<canvas></canvas>
+<script>
+var canvas = document.body.firstChild,
+    gl = canvas.getContext("experimental-webgl");
+gl.texImage2D(0, 0, 0, 0, 0, { width: 10, height: 10, data: 7 });
+</script>

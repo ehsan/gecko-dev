@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/input/pattern-asterisk-novalid.html
+copyrev: a77971f7fa86e9d43893a1cd9b1abe77ffb58c3d
+
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>invalid pattern</title>
+<p><input pattern='*'></p>

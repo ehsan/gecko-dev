@@ -1,0 +1,39 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH            = ../../..
+topsrcdir        = @top_srcdir@
+srcdir           = @srcdir@
+VPATH            = @srcdir@
+
+relativesrcdir   = dom/sms/tests
+
+include $(DEPTH)/config/autoconf.mk
+
+DIRS = \
+  $(NULL)
+
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES = \
+  test_sms_basics.html \
+  test_smsfilter.html \
+  $(NULL)
+
+_CHROME_TEST_FILES = \
+  $(NULL)
+
+ifdef MOZ_B2G_RIL
+_CHROME_TEST_FILES += \
+  test_smsdatabaseservice.xul \
+  $(NULL)
+endif
+
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+ifneq (,$(_CHROME_TEST_FILES))
+libs:: $(_CHROME_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
+endif

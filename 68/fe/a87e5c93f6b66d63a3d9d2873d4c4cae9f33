@@ -1,0 +1,10 @@
+
+copy: other-licenses/virtualenv/virtualenv_embedded/distutils.cfg
+copyrev: fc544708832970da5ed8ee8a783d1efd97205c85
+
+# This is a config file local to this virtualenv installation
+# You may include options that will be used by all distutils commands,
+# and by easy_install.  For instance:
+#
+#   [easy_install]
+#   find_links = http://mylocalsite

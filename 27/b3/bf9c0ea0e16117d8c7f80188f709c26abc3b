@@ -1,0 +1,15 @@
+
+copy: js/src/jit-test/tests/bug842429.js
+copyrev: 1f682aadc6456a0597b815a6013df844a81f390b
+
+function gen() {
+    try {
+	yield 3;
+    } finally {
+	quit();
+    }
+}
+try {
+    for (var i in gen())
+	foo();
+} catch (e) {}

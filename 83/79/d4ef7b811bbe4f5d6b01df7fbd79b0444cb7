@@ -1,0 +1,11 @@
+
+copy: content/html/content/reftests/autofocus/autofocus-after-load-ref.html
+copyrev: ffe44a1aebb710ec1958c8491b1b00f03d8ef0a2
+
+<!DOCTYPE html>
+<html>
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input><textarea></textarea><select></select><button></button>
+  </body>
+</html>

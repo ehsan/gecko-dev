@@ -1,0 +1,35 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/img/model-isvalid.html
+copyrev: 90378cc0acdbe8e5f2d4ea3d6c8e0c6d1c785e69
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;img&gt;</title>
+</head>
+<body>
+  <!-- is structured inline -->
+  <p><a href='foo'><img
+      src="url"
+      alt="text"
+      width="42"
+      height="095"
+      ismap="ismap"
+      class="class"
+      lang="en"></a></p>
+
+  <!-- is strictly inline -->
+  <p><a href='foo'><dfn><img
+      src="url"
+      alt="text"
+      width="42"
+      height="095"
+      ismap="ismap"
+      class="class"
+      lang="en"></dfn></a></p>
+
+  <!-- src and alt are required, others optional -->
+  <p><img src="ur" alt="text"></p>
+</body>
+</html>

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/keepcase.aff
+copyrev: 84fa9cfa0ed616ebc9b74cf9fa70e1b5f8d988b2
+
+# keep case in signed words
+KEEPCASE A
+WORDCHARS .

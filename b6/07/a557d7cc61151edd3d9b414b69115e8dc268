@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/alias.dic
+copyrev: 72d5645910171de75cb85033b4e5be042065a1a6
+
+1
+foo/1

@@ -1,0 +1,9 @@
+
+copy: content/base/test/file_htmlserializer_ipv6.html
+copyrev: 1aaa0caf1b8ef62d3ea1286b1b0d5afec4aed33e
+
+<!DOCTYPE html><html><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>Testcase for IPv6 addresses</title>
+  <body>
+    <a href="http://[2001:4860:a003::68]/">Test</a>
+  </body></html>

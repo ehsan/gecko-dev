@@ -1,0 +1,10 @@
+
+copy: dom/imptests/failures/html/html/obsolete/implreq/oeaaa/test_script-IDL-event-htmlfor.html.json
+copyrev: 1c1415fbcebcc38d1425068da68515c37def7f73
+
+{
+  "event and htmlFor IDL attributes of HTMLScriptElement 1": true,
+  "event and htmlFor IDL attributes of HTMLScriptElement 2": true,
+  "event and htmlFor IDL attributes of HTMLScriptElement 3": true,
+  "event and htmlFor IDL attributes of HTMLScriptElement 4": true
+}

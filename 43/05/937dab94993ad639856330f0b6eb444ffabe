@@ -1,0 +1,11 @@
+
+copy: modules/libpr0n/test/mochitest/bug496292-iframe-ref.html
+copyrev: df53399c29faeffcbfdd6a7dfe1b44daf6f9cf92
+
+<html>
+<head>
+<title>Bug 496292 reference iframe</title>
+<body>
+<img src="blue.png" width="100" height="100" id="image" />
+</body>
+</html>

@@ -1,0 +1,15 @@
+
+copyrev: ee2fc9b9761755ee0695d5e3bee257ce67402a34
+copy: js/src/trace-test/tests/basic/innerLoopIntOuterDouble.js
+
+function innerLoopIntOuterDouble() {
+    var n = 10000, i=0, j=0, count=0, limit=0;
+    for (i = 1; i <= n; ++i) {
+        limit = i * 1;
+        for (j = 0; j < limit; ++j) {
+            ++count;
+        }
+    }
+    return "" + count;
+}
+assertEq(innerLoopIntOuterDouble(), "50005000");

@@ -1,0 +1,10 @@
+
+copy: content/html/content/reftests/596455-ref-2.html
+copyrev: 110509e4e2321652bed610fb95f3fe61f56729b0
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea>foobar</textarea>
+  </body>
+</html>

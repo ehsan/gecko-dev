@@ -1,0 +1,23 @@
+
+copy: browser/base/content/test/browser_bug664672.js
+copyrev: 5e68f43c14cd652ad435293863edf1f4b7a3cf2b
+
+function test() {
+  waitForExplicitFinish();
+
+  var tab = gBrowser.addTab();
+
+  tab.addEventListener("TabClose", function () {
+    tab.removeEventListener("TabClose", arguments.callee, false);
+
+    ok(tab.linkedBrowser, "linkedBrowser should still exist during the TabClose event");
+
+    executeSoon(function () {
+      ok(!tab.linkedBrowser, "linkedBrowser should be gone after the TabClose event");
+
+      finish();
+    });
+  }, false);
+
+  gBrowser.removeTab(tab);
+}

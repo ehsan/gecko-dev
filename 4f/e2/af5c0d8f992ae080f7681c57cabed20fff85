@@ -1,0 +1,8 @@
+
+copy: content/html/content/reftests/hidden-1-ref.html
+copyrev: b66b3e02b46c81baa75c7f1da53865a658160f94
+
+<!doctype html>
+<title>The hidden attribute</title>
+<link rel=author title=Ms2ger href=mailto:Ms2ger@gmail.com>
+<p>This line should be visible.

@@ -1,0 +1,11 @@
+
+copy: layout/reftests/css-invalid/default-style/textarea-ref.html
+copyrev: 241651d8b71c9bd616f973de924846cdf65ada51
+
+<!DOCTYPE>
+<html>
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <textarea class='invalid-ref'></textarea>
+  </body>
+</html>

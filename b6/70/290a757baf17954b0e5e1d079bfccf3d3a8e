@@ -1,0 +1,9 @@
+
+copy: dom/src/threads/test/newError_worker.js
+copyrev: 3f98187ce81a2034d2a9a0b0bb939f1ddaaebacb
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+throw new Error("foo!");

@@ -1,0 +1,12 @@
+
+copyrev: 95322d990984ea743e981a1f0df7a694aaa17f8f
+copy: js/src/trace-test/tests/arguments/bug554670-1.js
+
+x = true;
+(function() {
+  for each(let c in [0, x]) {
+    (arguments)[4] *= c
+  }
+})()
+
+// don't assert

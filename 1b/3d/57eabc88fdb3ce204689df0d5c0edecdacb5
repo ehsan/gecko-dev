@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/input/range/input-range-same-fraction-of-range-unthemed-1-ref.html
+copyrev: 30f2f65b021a02edad6439946e5f595f0474626b
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type="range" value=70 style="-moz-appearance:none;">
+  </body>
+</html>

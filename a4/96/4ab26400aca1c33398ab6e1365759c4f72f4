@@ -1,0 +1,6 @@
+
+copy: content/html/document/reftests/bug448564_forms.css
+copyrev: 2642388b7c15e15d2f89ecafd701934d3079cc1f
+
+/* make nesting obvious */
+form { border: 1px solid black; }

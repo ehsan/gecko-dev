@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/parser/003-novalid.html
+copyrev: 9b9da050e532d088e990c4da68b57a94ffdd0620
+
+<!doctype html><meta charset=utf-8><title>&amp;#x0d;</title><p>There should be an error.&#x0d;

@@ -1,0 +1,9 @@
+
+copyrev: 55a770369155ed1e639ec1038a45b00d0f126792
+copy: js/src/trace-test/tests/jaeger/bug588363-1.js
+
+({eval} = Object.defineProperty(evalcx("lazy"), "", {}))
+eval("eval(/x/)", [])
+
+/* Don't assert or crash. */
+

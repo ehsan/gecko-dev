@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundflag.wrong
+copyrev: a40b76ec60215d35005e269a4b22bf12f6c9dfd0
+
+xyyz
+fooxy
+xyfoo
+fooxybar

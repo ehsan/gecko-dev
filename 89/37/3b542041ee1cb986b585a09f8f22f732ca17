@@ -1,0 +1,8 @@
+
+copyrev: 44182b7401af8acfdf3972b5a04e0caec5e7e26a
+copy: js/src/tests/js1_8_1/trace/shell.js
+
+// The loop count at which we trace
+const RECORDLOOP = this.tracemonkey ? tracemonkey.HOTLOOP : 8;
+// The loop count at which we run the trace
+const RUNLOOP = RECORDLOOP + 1;

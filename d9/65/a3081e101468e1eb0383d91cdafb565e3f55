@@ -1,0 +1,26 @@
+
+copyrev: 05f1704c79c3edc1671ce5fbce5e7bc956ecf9a6
+copy: layout/reftests/svg/image/img-widthAndHeight-meet-2-ref.html
+
+<html class="reftest-wait">
+<head>
+  <link rel="stylesheet" type="text/css" href="svg-image-util.css" />
+  <script src="svg-image-util.js"></script>
+  <script>
+    function main() {
+      var svgParams = {
+        viewBox:  [0, 0, 40, 20],
+        height :  "2em",
+        width :   "2em",
+        meetOrSlice: "meet"
+      };
+
+      appendSVGArrayWithParams(svgParams, "embed");
+      document.documentElement.removeAttribute("class");
+    }
+  </script>
+</head>
+<body onload="main()">
+  <!-- Body gets populated by script -->
+</body>
+</html>

@@ -1,0 +1,22 @@
+
+copy: js/src/xpconnect/crashtests/468552-1.html
+copyrev: ff6e03f184c590668f90c55d99ab6207a8f605f6
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  var dp = document.__proto__;
+  dp.__proto__ = new XPCNativeWrapper(new XMLSerializer);
+  try {
+    dp.isSupported();
+  } catch(e) { }
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

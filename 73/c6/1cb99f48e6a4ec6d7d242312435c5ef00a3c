@@ -1,0 +1,12 @@
+
+copy: modules/libpr0n/test/unit/test_async_notification_404.js
+copyrev: 1756ff7a8d4eb341a89d169d966cb9b2861a600c
+
+/*
+ * Test to ensure that load/decode notifications are delivered completely and
+ * asynchronously when dealing with a file that's a 404.
+ */
+var ioService = Components.classes["@mozilla.org/network/io-service;1"].getService(Components.interfaces.nsIIOService);
+var uri = ioService.newURI("http://localhost:8088/async-notification-never-here.jpg", null, null);
+
+load('async_load_tests.js');

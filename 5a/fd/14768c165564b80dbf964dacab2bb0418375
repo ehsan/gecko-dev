@@ -1,0 +1,34 @@
+
+copy: content/base/crashtests/116848-1.html
+copyrev: 9bc9cf4ef74718acfb386f465ccdc8f0b39f84d7
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+   <title>Test case boiled down from www.sjetmarka.no</title>
+</head>
+<body>
+  <table>
+    <tr>
+      <td>
+        <SCRIPT language="JavaScript1.2">
+          document.write('<div>')
+         </script>
+         Hei og velkommen til Mozilla
+         <head>
+           <script language="JavaScript1.2">
+             document.write('</div>')
+           </script>
+         </head>
+      </td>
+    </tr>
+  </table>
+  <table>
+    <tr>
+      <td>
+        God jul til alle
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,0 +1,7 @@
+
+copy: content/base/test/bug461735-post-redirect.js
+copyrev: daab30a1258c17dc67b5685cbc717609b9c7ec79
+
+var a = 0;
+var b = 0;
+c();

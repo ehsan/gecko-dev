@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundcase.good
+copyrev: cb8509651f297605d08523a91236844e5bef7db3
+
+Barfoo
+foo-Bar
+foo-BAZ
+BAZ-foo
+BAZ-Bar

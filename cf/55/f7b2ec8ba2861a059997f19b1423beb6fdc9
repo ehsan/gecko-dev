@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <select style="-moz-appearance:none">
+      <option selected disabled>Option one</option>
+      <option>Option two</option>
+    </select>
+  </body>
+</html>

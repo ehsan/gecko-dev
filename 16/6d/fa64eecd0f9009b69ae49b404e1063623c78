@@ -1,0 +1,9 @@
+
+copy: layout/reftests/css-valid/reftest.list
+copyrev: b6f70baee588f88f0994fabc8945adda364c1553
+
+# :-moz-ui-valid should apply on the following elements
+include button/reftest.list
+include input/reftest.list
+include select/reftest.list
+include textarea/reftest.list

@@ -1,0 +1,12 @@
+
+copy: content/html/content/crashtests/307616-1.html
+copyrev: 54fc9cf684a112d0607248ed98a0880bc290385f
+
+<html>
+<head><title>Testcase for assertion</title></head>
+<body>
+
+<input type="image" src="./nosuch.gif" alt="Search">
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+
+copyrev: ed3097178065df0c96a780381885dcc0ff6dd320
+copy: js/src/trace-test/tests/jaeger/bug549398.js
+
+(function () {
+    eval("\
+      for(var z = 0 ; z < 2 ; ++z) {\
+        this\
+      }\
+      ", (<x/>))
+})()
+
+/* Don't crash. */
+

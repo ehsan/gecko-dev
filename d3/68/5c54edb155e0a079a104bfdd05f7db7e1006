@@ -1,0 +1,25 @@
+
+copy: layout/base/tests/bug613433-ref.html
+copyrev: ca79911fbeced951f7e4a80681064e0ec02f9029
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <head>
+    <style>
+      div {
+        min-height: 36px;
+      }
+    </style>
+    <script>
+      function test() {
+        document.querySelector("div").focus();
+      }
+      function onfocus() {
+        document.documentElement.removeAttribute("class");
+      }
+    </script>
+  </head>
+  <body onload="test()">
+    <div contenteditable onfocus="onfocus()"></div>
+  </body>
+</html>

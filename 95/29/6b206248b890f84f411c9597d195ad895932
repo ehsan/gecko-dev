@@ -1,0 +1,5 @@
+
+copy: gfx/thebes/crashtests/306649-1.xml
+copyrev: 077220f3d389c3b16489ad749616113d4c0fa56a
+
+<?xml version="1.0"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"         "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg xmlns="http://www.w3.org/2000/svg">    <g transform="scale(1e10)">        <rect x="0" y="0" width="400" height="200" rx="50" ry="50"            fill="none" stroke="purple" stroke-width="30"/>    </g></svg>

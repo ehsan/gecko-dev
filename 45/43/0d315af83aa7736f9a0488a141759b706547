@@ -1,0 +1,5 @@
+
+copy: content/base/test/csp/file_CSP_bug941404_xhr.html^headers^
+copyrev: a21b846738392989ed61d2dccbac3f5beac8e6b8
+
+Content-Security-Policy: default-src 'none' 'unsafe-inline' 'unsafe-eval'

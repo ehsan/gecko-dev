@@ -1,0 +1,15 @@
+
+copy: content/html/content/test/imports/file_importC4.html
+copyrev: 91a170c1a7723f46341a24fe61fe03d885d73728
+
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <link rel="import" href="file_importC5.html" onload="loaded()" onerror="failed()"></link>
+  </head>
+  <body>
+    <script>
+      order.push("C4");
+    </script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+
+copy: content/base/test/badHTTPResponseCode.eventsource^headers^
+copyrev: 1dff9a41514db1e223c1f0cca2f2e6e6641c0d55
+
+HTTP 404 Not Found
+Content-Type: text/event-stream

@@ -1,0 +1,16 @@
+
+copy: mobile/config/mozconfigs/linux-desktop/nightly
+copyrev: c0cf14cc6f11cce59a4f3aa2ea6f4df4f48da463
+
+mk_add_options MOZ_PKG_FORMAT=BZ2
+ac_add_options --enable-application=mobile/android
+
+# Nightlies only since this has a cost in performance
+ac_add_options --enable-js-diagnostics
+
+CC=/tools/gcc-4.5/bin/gcc
+CXX=/tools/gcc-4.5/bin/g++
+# Avoid dependency on libstdc++ 4.5
+ac_add_options --enable-stdcxx-compat
+
+export MOZILLA_OFFICIAL=1

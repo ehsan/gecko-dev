@@ -1,0 +1,179 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH       = @DEPTH@
+topsrcdir   = @top_srcdir@
+srcdir      = @srcdir@
+VPATH       = \
+  $(srcdir) \
+  $(srcdir)/basic \
+  $(srcdir)/client \
+  $(srcdir)/composite \
+  $(srcdir)/opengl \
+  $(srcdir)/d3d9 \
+  $(srcdir)/d3d10 \
+  $(srcdir)/ipc \
+  $(NULL)
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME   = layers
+LIBXUL_LIBRARY = 1
+FORCE_STATIC_LIB = 1
+
+DEFINES += -DIMPL_THEBES
+ifdef MOZ_DEBUG
+DEFINES += -DD3D_DEBUG_INFO
+endif
+
+CPPSRCS = \
+        BasicImages.cpp \
+        BasicLayerManager.cpp \
+        BasicCanvasLayer.cpp \
+        BasicColorLayer.cpp \
+        BasicContainerLayer.cpp \
+        BasicImageLayer.cpp \
+        BasicLayersImpl.cpp \
+        BasicThebesLayer.cpp \
+        BasicTiledThebesLayer.cpp \
+        CompositableHost.cpp \
+        CompositableTransactionParent.cpp \
+        ImageContainer.cpp \
+        Layers.cpp \
+        LayersLogging.cpp \
+        RenderTrace.cpp \
+        ReadbackProcessor.cpp \
+        ThebesLayerBuffer.cpp \
+        CanvasLayerOGL.cpp \
+        ColorLayerOGL.cpp \
+        ContainerLayerOGL.cpp \
+        ImageLayerOGL.cpp \
+        LayerManagerOGL.cpp \
+        ThebesLayerOGL.cpp \
+        LayerManagerOGLProgram.cpp \
+        CanvasLayerComposite.cpp \
+        ColorLayerComposite.cpp \
+        ContainerLayerComposite.cpp \
+        ImageLayerComposite.cpp \
+        LayerManagerComposite.cpp \
+        ThebesLayerComposite.cpp \
+        LayerSorter.cpp \
+        LayerTreeInvalidation.cpp \
+        ImageLayers.cpp \
+        TexturePoolOGL.cpp \
+        $(NULL)
+
+GTEST_CPPSRCS = \
+        TestTiledLayerBuffer.cpp \
+        $(NULL)
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+ifdef MOZ_ENABLE_D3D9_LAYER
+CPPSRCS += \
+        LayerManagerD3D9.cpp \
+        ThebesLayerD3D9.cpp \
+        ContainerLayerD3D9.cpp \
+        ImageLayerD3D9.cpp \
+        ColorLayerD3D9.cpp \
+        CanvasLayerD3D9.cpp \
+        DeviceManagerD3D9.cpp \
+        Nv3DVUtils.cpp \
+        $(NULL)
+endif
+ifdef MOZ_ENABLE_D3D10_LAYER
+CPPSRCS += \
+        CanvasLayerD3D10.cpp \
+        ColorLayerD3D10.cpp \
+        ContainerLayerD3D10.cpp \
+        ImageLayerD3D10.cpp \
+        LayerManagerD3D10.cpp \
+        ReadbackManagerD3D10.cpp \
+        ShadowLayerUtilsD3D10.cpp \
+        ThebesLayerD3D10.cpp \
+        $(NULL)
+endif
+endif
+
+CPPSRCS += \
+        AsyncPanZoomController.cpp \
+        Axis.cpp \
+        CanvasClient.cpp \
+        CompositableClient.cpp \
+        Compositor.cpp \
+        CompositorOGL.cpp \
+        CompositorCocoaWidgetHelper.cpp \
+        CompositorChild.cpp \
+        CompositorParent.cpp \
+        ContentClient.cpp \
+        ContentHost.cpp \
+        Effects.cpp \
+        GestureEventListener.cpp \
+        ImageBridgeChild.cpp \
+        ImageBridgeParent.cpp \
+        ShadowLayers.cpp \
+        ShadowLayerChild.cpp \
+        ShadowLayersChild.cpp \
+        ShadowLayerParent.cpp \
+        ShadowLayersParent.cpp \
+        SharedPlanarYCbCrImage.cpp \
+        ShmemYCbCrImage.cpp \
+        SharedRGBImage.cpp \
+        TaskThrottler.cpp \
+        ImageClient.cpp \
+        ImageHost.cpp \
+        ISurfaceAllocator.cpp \
+        TextureClient.cpp \
+        TextureClientOGL.cpp \
+        TextureHost.cpp \
+        TextureHostOGL.cpp \
+        TiledContentClient.cpp \
+        TiledContentHost.cpp \
+        $(NULL)
+
+ifdef MOZ_X11 #{
+CPPSRCS += ShadowLayerUtilsX11.cpp
+endif #}
+
+ifdef MOZ_ENABLE_D3D10_LAYER
+DEFINES	+= -DMOZ_ENABLE_D3D10_LAYER
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+EXPORTS_mozilla/layers += GLManager.h
+CPPSRCS += ShadowLayerUtilsMac.cpp \
+           GLManager.cpp \
+           $(NULL)
+endif
+
+# NB: Gralloc is available on other platforms that use the android GL
+# libraries, but only Gonk is able to use it reliably because Gecko
+# has full system permissions there.
+ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
+CPPSRCS += \
+        ShadowLayerUtilsGralloc.cpp \
+        GrallocImages.cpp \
+        GonkIOSurfaceImage.cpp \
+        $(NULL)
+endif
+
+include $(topsrcdir)/config/rules.mk
+
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+
+LOCAL_INCLUDES += \
+        -I$(topsrcdir)/content/events/src \
+        -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright \
+        -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright/openmax \
+        $(NULL)
+
+CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(MOZ_PIXMAN_CFLAGS) $(TK_CFLAGS)
+
+ifdef _MSC_VER
+ifeq ($(CPU_ARCH),x86_64)
+# Workaround compiler bug (Bug 795594)
+LayerTreeInvalidation.$(OBJ_SUFFIX): CXXFLAGS += -GL-
+Layers.$(OBJ_SUFFIX): CXXFLAGS += -GL-
+endif
+endif

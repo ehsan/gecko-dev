@@ -1,0 +1,20 @@
+
+copy: js/src/jit-test/tests/basic/testBug0012.js
+copyrev: a7568dbcabebe26172042924cfa330c45b488fcc
+
+// |jit-test| error:out of memory
+
+gcPreserveCode();
+evaluate("gcparam(\"maxBytes\", gcparam(\"gcBytes\") + 4*1024);");
+evaluate("\
+function testDontEnum(F) { \
+  function test() {\
+    typeof (new test(\"1\")) != 'function'\
+  }\
+  test();\
+} \
+var list = [];\
+for (i in list)\
+  var F = this[list[i]];\
+actual = testDontEnum(F);\
+");

@@ -1,0 +1,16 @@
+
+copy: extensions/spellcheck/hunspell/tests/alias.aff
+copyrev: 4febc957aaf3b93ad8ed5722e8dd6ce270964c88
+
+# aliases for flag vectors (AF)
+# AB -> 1
+# A -> 2
+AF 2
+AF AB
+AF A
+
+SFX A Y 1
+SFX A 0 x .
+
+SFX B Y 1
+SFX B 0 y/2 .

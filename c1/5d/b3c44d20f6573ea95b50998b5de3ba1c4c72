@@ -1,0 +1,15 @@
+
+copy: browser/components/privatebrowsing/test/browser/browser_privatebrowsing_localStorage_before_after_page.html
+copyrev: 8d89c3a9c92ac0c40089dd5ff2aa8c0cdab572a2
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script type="text/javascript">
+  localStorage.clear();
+  localStorage.setItem('zzztest', 'zzzvalue');
+  document.title = localStorage.length;
+</script>
+</head>
+<body>
+</body>
+</html>

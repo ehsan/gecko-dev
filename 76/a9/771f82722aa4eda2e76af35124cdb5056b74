@@ -1,0 +1,11 @@
+
+copy: js/src/xpconnect/tests/mochitest/file_nodelists.html
+copyrev: b1338dacd387b3d77f89a949796760ed8f1bbf4c
+
+<html>
+    <body>
+        <p>
+        <p>
+        <p>
+    </body>
+</html>

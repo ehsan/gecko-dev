@@ -1,0 +1,10 @@
+
+copyrev: 82b9729176edd06d01ceb17a751b9ddbd357fd0a
+copy: js/src/trace-test/tests/jaeger/bug585341.js
+
+__defineGetter__("x", Float64Array)
+Function("\
+  with(this) {\
+    eval(\"x\")\
+  }\
+")()

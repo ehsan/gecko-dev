@@ -1,0 +1,9 @@
+
+copy: content/media/test/crashtests/844563.html
+copyrev: 89fb07071f96b3259051f9d126d38fa80997de90
+
+<script>
+var a = document.createElementNS("http://www.w3.org/1999/xhtml", "audio");
+a.mozPreservesPitch = a;
+</script>
+

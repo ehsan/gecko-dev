@@ -1,0 +1,10 @@
+
+copy: content/canvas/crashtests/802926-1.html
+copyrev: 73da9927cbf363f4e28ed75a054ef8950609482f
+
+<!DOCTYPE html>
+<script>
+
+document.createElement('canvas').toBlob(null);
+
+</script>

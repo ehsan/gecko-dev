@@ -1,0 +1,22 @@
+
+copy: media/webrtc/trunk/src/video_engine/main/test/android_test/res/layout/row.xml
+copyrev: 6e0a2f9b2bdb26bcbcd9704bdb2f83757ff41669
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="3dip">
+  <TextView
+     android:layout_toRightOf="@+id/image"
+     android:padding="3dip"
+     android:layout_marginTop="2dip"
+     android:textColor="#000"
+     android:textStyle="bold"
+     android:id="@+id/spinner_row"
+     android:text="description"
+     android:layout_marginLeft="5dip"
+     android:layout_width="wrap_content"
+     android:layout_height="wrap_content"/>
+</RelativeLayout>

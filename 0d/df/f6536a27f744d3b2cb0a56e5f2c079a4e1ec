@@ -1,0 +1,23 @@
+
+copy: browser/devtools/commandline/test/browser_gcli_break.html
+copyrev: 5c0dfa789e95622afd3f0868f913790c55103c06
+
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Browser GCLI break command test</title>
+    <!-- Any copyright is dedicated to the Public Domain.
+         http://creativecommons.org/publicdomain/zero/1.0/ -->
+    <script type="text/javascript">
+      function firstCall() {
+        eval("window.line0 = Error().lineNumber; secondCall();");
+      }
+      function secondCall() {
+        eval("debugger;");
+      }
+    </script>
+  </head>
+  <body>
+  </body>
+</html>

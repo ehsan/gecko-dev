@@ -1,0 +1,14 @@
+
+copy: dom/svg/crashtests/837450-1.svg
+copyrev: a385ab8ee32554f02ca7c183b8f17cc3b7f608eb
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<script>
+
+var root = document.documentElement;
+root.getTransformToElement(root);
+
+</script>
+
+</svg>

@@ -1,0 +1,20 @@
+
+copy: js/src/xpconnect/crashtests/326615-1.html
+copyrev: d0c62019943c4148598f6a70521351ec000593f5
+
+<html>
+<head>
+</head>
+<body>
+
+<script>
+
+try { 
+  document.body.compareDocumentPosition(<foo/>);
+} catch (e) { 
+}
+
+</script>
+
+</body>
+</html>

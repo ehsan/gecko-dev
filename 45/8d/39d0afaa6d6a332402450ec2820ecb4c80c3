@@ -1,0 +1,12 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-empty-getelementbyid.js
+copyrev: 71b51d2d9758e0cf67334f6b979e2b10def1620c
+
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+window.addEventListener("load", function() {
+  document.getElementById("");
+}, false);

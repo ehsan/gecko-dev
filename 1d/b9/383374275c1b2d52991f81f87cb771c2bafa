@@ -1,0 +1,22 @@
+
+copy: content/html/document/reftests/bug917595-1-ref.html
+copyrev: ae6814971065781dc6539416806e9a14eb0aee4d
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<style>
+  iframe {
+    width:  100%;
+    height: 100%;
+    border: 0px;
+  }
+</style>
+<script>
+  document.addEventListener('MozReftestInvalidate',
+                            () => document.documentElement.removeAttribute('class'),
+                            false);
+</script>
+<body>
+  <iframe src="bug917595-unrotated.jpg" scrolling="no" marginwidth="0" marginheight="0"></iframe>
+</body>
+</html>

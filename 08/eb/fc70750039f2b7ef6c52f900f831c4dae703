@@ -1,0 +1,14 @@
+
+copyrev: 57750f8d307e2d4adb2dc7224f1512eabd4d6863
+copy: layout/reftests/bugs/374193-1xbl.xml
+
+<bindings xmlns="http://www.mozilla.org/xbl">
+<binding id="a">
+<implementation>
+<constructor>
+  this.style.position='fixed';
+</constructor>
+</implementation>
+<content><children/></content>
+</binding>
+</bindings>

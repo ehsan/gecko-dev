@@ -1,0 +1,19 @@
+
+copy: js/src/xpconnect/crashtests/616930-1.html
+copyrev: 0bb075098f54de3f61fdd879c39a1cf94e5442d0
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  window.__proto__.__proto__ = InstallTrigger;
+  window.DOMParser;
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-valid/input/input-email-invalid.html
+copyrev: 01e4d2b5e0b5a0f76b18ff8ad578017b2b9a9f3c
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input isn't valid nor barred from constraint validation,
+             it should not be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='notvalid' type='email' value='foo'>
+  </body>
+</html>
+

@@ -1,0 +1,19 @@
+
+copy: browser/devtools/debugger/test/binary_search.html
+copyrev: 0ba1b6f43e2dc940fb24db3503180bf25268bc0b
+
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Debugger test page</title>
+  </head>
+
+  <body>
+    <script type="text/javascript" src="code_binary_search.js"></script>
+  </body>
+
+</html>

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundrep.dic
+copyrev: ec887fb7495ca4a4712e033ce2c7b59d598f3bf3
+
+3
+szer/A
+víz/A
+szerviz
+kocsi/A

@@ -1,0 +1,24 @@
+
+copyrev: a86215181718b112b38da2581f7fed1181c31888
+copy: js/src/trace-test/tests/basic/testLengthOnNonNativeProto.js
+
+function testLengthOnNonNativeProto()
+{
+  var o = {};
+  o.__proto__ = [3];
+  for (var j = 0; j < 5; j++)
+    o[0];
+
+  var o2 = {};
+  o2.__proto__ = [];
+  for (var j = 0; j < 5; j++)
+    o2.length;
+
+  function foo() { }
+  foo.__proto__ = [];
+  for (var j = 0; j < 5; j++)
+    foo.length;
+
+  return "no assertion";
+}
+assertEq(testLengthOnNonNativeProto(), "no assertion");

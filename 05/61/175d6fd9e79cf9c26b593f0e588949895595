@@ -1,0 +1,7 @@
+
+copyrev: 1c116296dff25c943555ad425b9aa081361ca3c9
+copy: dom/src/geolocation/GPSDGeolocationProvider.manifest
+
+component {0A3BE523-0F2A-32CC-CCD8-1E5986D5A79D} GPSDGeolocationProvider.manifest
+contract @mozilla.org/geolocation/gpsd/provider;1 {0A3BE523-0F2A-32CC-CCD8-1E5986D5A79D}
+category geolocation-provider GPSDProvider @mozilla.org/geolocation/gpsd/provider;1

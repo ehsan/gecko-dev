@@ -1,0 +1,5 @@
+
+copy: addon-sdk/source/data/test-net-url.txt
+copyrev: f3da92f41b719f738f673c6a87e84f63efd1b045
+
+Hello, ゼロ!

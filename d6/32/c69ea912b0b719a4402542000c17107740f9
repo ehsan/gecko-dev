@@ -1,0 +1,11 @@
+
+copyrev: 2ebae7e368378f449db39e128d34fc884dc06b07
+copy: js/src/trace-test/tests/basic/testModuloWithNegative2.js
+
+function f(v, e) {
+    for (var i = 0; i < 9; i++)
+        v %= e;
+    return v;
+}
+f(0, 1);
+assertEq(f(-2, 2), -0);

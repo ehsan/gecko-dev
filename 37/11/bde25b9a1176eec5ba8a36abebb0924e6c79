@@ -1,0 +1,15 @@
+
+copy: toolkit/mozapps/update/test_timermanager/unit/xpcshell.ini
+copyrev: e359859d2e5def737ee3a7a18f09e9519615e31f
+
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0. If a copy of the MPL was not distributed with this
+; file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+[DEFAULT]
+head = 
+tail = 
+
+[consumerNotifications.js]
+# Bug 676992: test consistently fails on Android
+fail-if = os == "android"

@@ -1,0 +1,9 @@
+
+copy: layout/reftests/css-namespace/support/syntax-007.css
+copyrev: 0195155fcfa3849c1ee5d31ad7e581b77ed1d0d2
+
+@charset "UTF-8";
+@namespace url("test");
+@namespace url("test2");
+*|test { background:lime }
+test { background:red }

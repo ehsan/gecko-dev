@@ -1,0 +1,11 @@
+
+copy: content/base/crashtests/426987-1.html
+copyrev: aeb1b4b1b8016195c1c1e97e4567e47548277ccc
+
+<html>
+<head>
+</head>
+<body>
+<iframe src="data:text/html,<html><body onunload=&quot;parent.document.body.style.overflow = 'auto';&quot;></body></html>"></iframe>
+</body>
+</html>

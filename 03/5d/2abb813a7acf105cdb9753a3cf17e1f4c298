@@ -1,0 +1,5 @@
+
+copy: dom/src/json/test/unit/decodeFromStream-small.json
+copyrev: b9fa0b98c3420913a7eed60019ee187563aefe47
+
+{}

@@ -1,0 +1,9 @@
+
+copy: browser/base/content/test/file_bug902156.js
+copyrev: 1a2eb175115c828e8b2be392b81a97ebea63b5a1
+
+/* 
+ * Once the mixed content blocker is disabled for the page, this scripts loads
+ * and updates the text inside the div container.
+ */
+document.getElementById("mctestdiv").innerHTML = "Mixed Content Blocker disabled";

@@ -1,0 +1,23 @@
+
+copy: content/base/crashtests/828054.html
+copyrev: 4adc6373e6d9ffdc97fc3a2f0ec09ea0b082c20f
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var outer = document.createElement("div");
+  outer.setAttribute("dir", "auto");
+  var inner = document.createElement("div");
+  inner.appendChild(document.createTextNode("A"));
+  outer.appendChild(inner);
+  inner.setAttribute("dir", "auto");
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

@@ -1,0 +1,12 @@
+
+copy: content/html/content/test/bug100533_iframe.html
+copyrev: a49b250410c46d1d750b2d2340f44349e4f610a7
+
+<html>
+<head>
+<title></title>
+</head>
+<body>
+<form method='get' action='bug100533_load.html' id='b'><input type="submit"/></form>
+</body>
+</html>

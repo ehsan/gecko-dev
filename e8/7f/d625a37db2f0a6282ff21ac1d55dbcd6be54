@@ -1,0 +1,5 @@
+
+copy: dom/telephony/nsTelephonyWorker.manifest
+copyrev: 6cc64bd72f85dfae81903722395aceba09417e00
+
+component {2d831c8d-6017-435b-a80c-e5d422810cea} RadioInterfaceLayer.js

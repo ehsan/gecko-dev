@@ -1,0 +1,15 @@
+
+copy: content/html/content/test/imports/file_importC8.html
+copyrev: 6aeb91f58b36ea5af1c8d7ff377f37278e1d76ce
+
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <link rel="import" href="file_importC9.html" onload="loaded()" onerror="failed()"></link>
+  </head>
+  <body>
+    <script>
+      order.push("C8");
+    </script>
+  </body>
+</html>

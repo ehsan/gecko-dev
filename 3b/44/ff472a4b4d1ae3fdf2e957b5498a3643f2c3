@@ -1,0 +1,12 @@
+
+copy: widget/src/cocoa/crashtests/435223-1.html
+copyrev: 442e2a4615ed9be55a537afce8f8653a63d92b38
+
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+<div style="min-width: -moz-max-content;"><div style="-moz-appearance: button;"><div style="margin: 0 100%;"></div></div></div>
+</body>
+</html>

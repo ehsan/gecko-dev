@@ -1,0 +1,28 @@
+
+copy: layout/reftests/editor/unneeded_scroll.html
+copyrev: c9decf9b81efdc69ed35e40d1aa77b3bee1b0ed8
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        var t = document.querySelector("textarea");
+        t.focus();
+        document.querySelector("#dst").appendChild(t);
+      }, false);
+    </script>
+    <div>
+      <textarea>I
+        am
+        a
+        long
+        long
+        long
+        long
+        textarea
+      </textarea>
+    </div>
+    <div id="dst"></div>
+  </body>
+</html>

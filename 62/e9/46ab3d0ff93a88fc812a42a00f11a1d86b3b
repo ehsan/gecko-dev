@@ -1,0 +1,9 @@
+
+copy: content/xml/document/crashtests/382636-2.svg
+copyrev: bdae8007b3e9239b215b90cb6db5dc86b8794f50
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" onload="document.cloneNode(true);">
+
+<image xlink:href="tree.gif" width="49" height="60" />
+
+</svg>

@@ -1,0 +1,15 @@
+
+copyrev: e6125b36a74b92c061c406d0bf8d95c4e427dc54
+copy: js/src/trace-test/tests/basic/bug557168-2.js
+
+x = <x/>
+try {
+  Function("\
+    (function f() {\
+      ({x}=x);\
+      f()\
+    })()\
+  ")()
+} catch (e) {
+  assertEq(e.message, "too much recursion");
+}

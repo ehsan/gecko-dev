@@ -1,0 +1,15 @@
+
+copy: editor/libeditor/html/tests/browserscope/lib/browserscope/richtext/editable.html
+copyrev: 5df7f36d45bbaf255385b9f488953ccbf7457a9b
+
+﻿<html>
+<head>
+  <script>
+    function load(){
+      window.document.designMode = "On";
+    }
+  </script>
+</head>
+<body contentEditable="true" onload="load()">
+</body>
+</html>

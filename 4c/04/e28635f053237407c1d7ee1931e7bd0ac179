@@ -1,0 +1,12 @@
+
+copy: content/html/content/crashtests/590387.html
+copyrev: 6a6c25fd9fc4fe30d6938a576b4c41001a2b73e7
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+document.createElement("div").innerHTML = "<output form=x>";
+</script>
+</head>
+</html>

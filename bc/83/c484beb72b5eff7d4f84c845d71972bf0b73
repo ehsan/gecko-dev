@@ -1,0 +1,6 @@
+
+copy: dom/base/test/csp/file_CSP_evalscript_main_allowed.html^headers^
+copyrev: 8288b6559fd29dcecbd62fdc9d6294b4c71c01e6
+
+Cache-Control: no-cache
+Content-Security-Policy: default-src 'self' ; script-src 'self' 'unsafe-eval'

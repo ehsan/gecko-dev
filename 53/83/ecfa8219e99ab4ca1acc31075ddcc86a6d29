@@ -1,0 +1,7 @@
+
+copyrev: be03539775d7a47bd156cd6d3bad0adf18742273
+copy: js/src/trace-test/tests/basic/testInitelemWithSetter.js
+
+Object.prototype.__defineSetter__(1, function () { throw "fit"; });
+for (var i =0; i<9; i++)
+    ({1:'a'});

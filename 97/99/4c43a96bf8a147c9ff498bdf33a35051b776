@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-valid/textarea/textarea-required-valid.html
+copyrev: b9671eb9ea138e37e0e01e7e30d612f557969c5f
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if textarea is valid and not barred from constraint validation,
+             it should be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <textarea class='valid' required>foo</textarea>
+  </body>
+</html>
+

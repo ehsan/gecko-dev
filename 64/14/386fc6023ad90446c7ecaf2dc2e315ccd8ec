@@ -1,0 +1,21 @@
+
+copy: editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/tests/__init__.py
+copyrev: 791bebbaa5371d21bba2bcc7275616dff2a7e380
+
+__all__ = [
+  'apply',
+  'applyCSS',
+  'change',
+  'changeCSS',
+  'delete',
+  'forwarddelete',
+  'insert',
+  'queryEnabled',
+  'queryIndeterm',
+  'queryState',
+  'querySupported',
+  'queryValue',
+  'selection',
+  'unapply',
+  'unapplyCSS'
+]

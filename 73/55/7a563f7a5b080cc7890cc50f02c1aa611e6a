@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/keygen/057-novalid.html
+copyrev: cabf11bae3085c41b529c8893f376c72764b589f
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>keygen with invalid empty "keytype" attribute</title>
+</head>
+<body>
+<keygen keytype="">
+</body>
+</html>

@@ -1,0 +1,7 @@
+
+copy: toolkit/components/startup/src/nsTryToClose.manifest
+copyrev: 161be4318826db45931102917fec9eb9ba4c93e2
+
+component {b69155f4-a8bf-453d-8653-91d1456e1d3d} nsTryToClose.js
+contract @mozilla.org/appshell/trytoclose;1 {b69155f4-a8bf-453d-8653-91d1456e1d3d}
+category app-startup nsTryToClose service,@mozilla.org/appshell/trytoclose;1

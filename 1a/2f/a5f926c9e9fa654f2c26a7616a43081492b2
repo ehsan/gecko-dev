@@ -1,0 +1,9 @@
+
+copy: content/html/content/test/forms/chrome.ini
+copyrev: 750311f2df02621e8c4243c009bf2db043d5f7f4
+
+[DEFAULT]
+support-files =
+  submit_invalid_file.sjs
+[test_autocompleteinfo.html]
+[test_submit_invalid_file.html]

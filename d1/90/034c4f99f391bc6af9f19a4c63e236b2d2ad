@@ -1,0 +1,19 @@
+
+copyrev: a1a5bca6e48c8a009f074845ba151ee559fdcd25
+copy: js/src/trace-test/tests/basic/bug509982.js
+
+function g() {
+    const e = 0;
+    return function () {
+        switch (7) {
+        case e:
+        }
+    };
+}
+
+for (var i = 0; i < 2; i++) {
+    let f = g;
+    f();
+}
+
+// Just test that we don't crash.

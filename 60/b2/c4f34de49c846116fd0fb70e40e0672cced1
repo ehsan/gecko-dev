@@ -1,0 +1,5 @@
+
+copy: dom/system/b2g/RadioInterfaceLayer.manifest
+copyrev: e87fd625a37db2f0a6282ff21ac1d55dbcd6be54
+
+component {2d831c8d-6017-435b-a80c-e5d422810cea} RadioInterfaceLayer.js

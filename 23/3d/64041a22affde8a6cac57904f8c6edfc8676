@@ -1,0 +1,9 @@
+
+copy: layout/reftests/css-invalid/default-style/style.css
+copyrev: 085fdc344146e60533ebba03386e021479fe8d49
+
+.invalid-ref {
+}
+
+.barred-ref {
+}

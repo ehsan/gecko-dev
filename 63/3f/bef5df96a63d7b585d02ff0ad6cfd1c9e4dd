@@ -1,0 +1,29 @@
+
+copy: content/xbl/test/file_bug379959_cross.html
+copyrev: cba76019d03068e9542805109bb39991029d9e90
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<style>
+#div1 {
+  color: green;
+  -moz-binding: url(file_bug379959_xbl.xml#xbltest);
+}
+#div2 {
+  color: green;
+  -moz-binding: url(http://example.com/tests/dom/xbl/test/file_bug379959_xbl.xml#xbltest);
+}
+</style>
+<body>
+<div id="div1"></div>
+<div id="div2"></div>
+<script>
+onload = function() {
+  nodes = SpecialPowers.wrap(document).getAnonymousNodes(document.getElementById('div1'));
+  parent.postMessage(nodes ? nodes.length : 0, "http://mochi.test:8888");
+  nodes = SpecialPowers.wrap(document).getAnonymousNodes(document.getElementById('div2'));
+  parent.postMessage(nodes ? nodes.length : 0, "http://mochi.test:8888");
+}
+</script>
+</html>

@@ -1,0 +1,12 @@
+
+copyrev: 3018f02e82e573a95685df2feee1186719b11121
+copy: js/src/trace-test/tests/basic/bug536748.js
+
+// Do not assert.
+
+var s = "a";
+var b = 32767;
+
+for (var i = 0; i < 10; ++i) {
+  b = b & s.charCodeAt();
+}

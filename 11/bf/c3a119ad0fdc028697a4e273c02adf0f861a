@@ -1,0 +1,25 @@
+
+copy: editor/libeditor/html/crashtests/793866.html
+copyrev: 11fef025320deb1050beaa95ebb3411008bda3c8
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var b = document.body;
+  b.contentEditable = "true";
+  document.execCommand("contentReadOnly", false, null);
+  b.focus();
+  b.contentEditable = "false";
+  document.documentElement.contentEditable = "true";
+  document.createDocumentFragment().appendChild(b);
+  document.documentElement.focus();
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

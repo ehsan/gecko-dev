@@ -1,0 +1,7 @@
+
+copyrev: 0bc8501fd18afc0602bbc08e6f962d9bb4ff2ba6
+copy: js/src/trace-test/tests/jaeger/bug582900.js
+
+// |jit-test| error: ReferenceError
+
+[].x >>= a | 0

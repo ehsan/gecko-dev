@@ -1,0 +1,18 @@
+
+copyrev: 11abb8f8f593a9a1e58a6b549525018439949382
+copy: js/src/trace-test/tests/arguments/args7.js
+
+actual = '';
+expected = '5,4,3,2,1,';
+
+function f() {
+  while (arguments.length > 0) {
+    appendToActual(arguments[arguments.length-1]);
+    arguments.length--;
+  }
+}
+
+f(1, 2, 3, 4, 5);
+
+
+assertEq(actual, expected)

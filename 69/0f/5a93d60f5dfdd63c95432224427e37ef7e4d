@@ -1,0 +1,9 @@
+
+copy: gfx/thebes/crashtests/416637-1.html
+copyrev: 0a3dcc232fb5c1c033c24047ce3a2de6b59df88a
+
+<!DOCTYPE html>
+<html>
+<head></head>
+<body style="font-size: 10000%">&#x2029;&#x0301;</body>
+</html>

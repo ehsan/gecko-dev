@@ -1,0 +1,5 @@
+
+copyrev: 475ab7e34ffa0c9f628abb370b273de07a557eca
+copy: js/tests/js1_5/GC/shell.js
+
+gTestsubsuite = 'GC';

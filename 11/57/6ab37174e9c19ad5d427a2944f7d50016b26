@@ -1,0 +1,6 @@
+
+copy: memory/mozutils/dummy.cpp
+copyrev: 7145f1cff67c354a09120847809d114355ee9918
+
+void _dummy(void) {
+}

@@ -1,0 +1,5 @@
+
+copyrev: 17b96483f3d3294b07688d42a6353a6051763154
+copy: toolkit/content/tests/chrome/bug437844.dtd
+
+<!ENTITY locale.dir "rtl">

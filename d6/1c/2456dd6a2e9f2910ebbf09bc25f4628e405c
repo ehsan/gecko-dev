@@ -1,0 +1,24 @@
+
+copy: testing/web-platform/meta/IndexedDB/interfaces.worker.ini
+copyrev: 6c199ad2810d42315b3fa0f3ce9e4d402819bb53
+
+[interfaces.worker]
+  type: testharness
+  [WorkerUtils interface: attribute indexedDB]
+    expected: FAIL
+
+  [IDBCursorWithValue interface: existence and properties of interface object]
+    expected: FAIL
+
+  [IDBCursorWithValue interface object length]
+    expected: FAIL
+
+  [IDBCursorWithValue interface: existence and properties of interface prototype object]
+    expected: FAIL
+
+  [IDBCursorWithValue interface: existence and properties of interface prototype object\'s "constructor" property]
+    expected: FAIL
+
+  [IDBCursorWithValue interface: attribute value]
+    expected: FAIL
+

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/css-invalid/textarea/textarea-ref.html
+copyrev: 07722f99ef49095558cb5f7c06aae7350f1ec77a
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea style="background-color: green;"></textarea>
+  </body>
+</html>

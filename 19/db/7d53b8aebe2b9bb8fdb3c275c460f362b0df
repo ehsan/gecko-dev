@@ -1,0 +1,15 @@
+
+copyrev: 8a2e48109b7c7d1e01ff91e6569a099b0fbda818
+copy: js/src/trace-test/tests/basic/testModuloWithNegative1.js
+
+function testModuloWithNegative1() {
+    var v = 0;
+    for (var i = 0; i < 2; ++i) {
+        c = v;
+        v -= 1;
+        for (var j = 0; j < 2; ++j)
+            c %= -1;
+    }
+    return 1/c;
+}
+assertEq(testModuloWithNegative1(), -Infinity);

@@ -1,0 +1,10 @@
+
+copy: content/html/content/reftests/468263-1b.html
+copyrev: 10875b18091a2ecc58880ad858488c7e8d78287a
+
+<!DOCTYPE HTML>
+<html>
+<body>
+    <input id="image3" type="image" src="pass.png">
+</body>
+</html>

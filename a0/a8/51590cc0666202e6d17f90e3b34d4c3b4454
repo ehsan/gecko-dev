@@ -1,0 +1,14 @@
+
+copyrev: 4db44eca523cbc3cc2ab7d5a7de823d25ae7a142
+copy: js/src/trace-test/tests/basic/bug560234.js
+
+function test() {
+    var a = ['x', '', '', '', '', '', '', 'x'];
+    var b = '';
+    for (var i = 0; i < a.length; i++) {
+        (function() {
+            a[i].replace(/x/, function() { return b; });
+        }());
+    }
+}
+test();  // should NOT get a ReferenceError for b on trace

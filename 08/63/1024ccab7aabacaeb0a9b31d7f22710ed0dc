@@ -1,0 +1,9 @@
+
+copy: content/html/content/crashtests/614988-1.html
+copyrev: ae11a48488f91c67efb0853324170d223be30059
+
+<!DOCTYPE html>
+<html>
+<head><script>window.addEventListener("load", function() { var t = document.getElementById("t"); t.appendChild(t.previousSibling); }, false);</script></head>
+<body><fieldset><legend></legend><textarea id="t"></textarea></fieldset></body>
+</html>

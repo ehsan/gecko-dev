@@ -1,0 +1,8 @@
+
+copy: content/canvas/test/webgl/failing_tests_mac_mtnlion.txt
+copyrev: f48c5ec703e8c94f4094b2e145daab88675a9860
+
+conformance/glsl/functions/glsl-function-smoothstep-gentype.html
+conformance/glsl/variables/gl-pointcoord.html
+conformance/limits/gl-max-texture-dimensions.html
+conformance/textures/texture-size.html

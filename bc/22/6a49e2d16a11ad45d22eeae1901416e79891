@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/input/range/input-range-not-other-type-unthemed-1c-notref.html
+copyrev: 6134dda23c61113494b82d76638d3e0fb3f24f2b
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type="checkbox" style="-moz-appearance:none;">
+  </body>
+</html>

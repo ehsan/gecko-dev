@@ -1,0 +1,7 @@
+
+copy: layout/reftests/css-namespace/support/scope-002a.css
+copyrev: 39f5268b404c92e4641c523ada780abe06140375
+
+@namespace x url("test");
+@namespace y url("test");
+w|test { background:red }

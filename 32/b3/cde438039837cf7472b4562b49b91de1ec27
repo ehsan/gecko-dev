@@ -1,0 +1,20 @@
+
+copy: content/html/content/test/file_iframe_sandbox_d_if12.html
+copyrev: 64672ab98e9d984761a688c9a81500753ebe5b72
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for Bug 341604</title>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<script type="application/javascript">
+function doTest() {
+  window.parent.postMessage({test:'if_11'}, "*");
+}
+</script>
+<body onload='doTest()'>
+  I am sandboxed with 'allow-scripts'
+</body>
+</html>

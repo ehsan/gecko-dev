@@ -1,0 +1,37 @@
+
+copy: browser/base/content/test/browser_bug724239.js
+copyrev: 02df1efff745503b364251e29e3eb17d6c2d51d0
+
+/* Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function test() {
+  waitForExplicitFinish();
+  BrowserOpenTab();
+
+  let tab = gBrowser.selectedTab;
+  let browser = tab.linkedBrowser;
+
+  registerCleanupFunction(function () { gBrowser.removeTab(tab); });
+
+  whenBrowserLoaded(browser, function () {
+    browser.loadURI("http://example.com/");
+
+    whenBrowserLoaded(browser, function () {
+      ok(!gBrowser.canGoBack, "about:newtab wasn't added to the session history");
+      finish();
+    });
+  });
+}
+
+function whenBrowserLoaded(aBrowser, aCallback) {
+  if (aBrowser.contentDocument.readyState == "complete") {
+    executeSoon(aCallback);
+    return;
+  }
+
+  aBrowser.addEventListener("load", function onLoad() {
+    aBrowser.removeEventListener("load", onLoad, true);
+    executeSoon(aCallback);
+  }, true);
+}

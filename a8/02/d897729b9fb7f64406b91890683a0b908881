@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/test_document.title-03.html.json
+copyrev: 0dd359c2e92e80f0cb1891e9b76ee326206abfc9
+
+{
+  " document.title  and space normalization  ": true
+}

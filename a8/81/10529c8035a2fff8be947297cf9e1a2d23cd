@@ -1,0 +1,8 @@
+
+copy: other-licenses/branding/firefox/locales/en-US/brand.dtd
+copyrev: cd4042f19677c6b4632679ca0bc8d4820d3c1f87
+
+<!ENTITY  brandShortName        "Firefox">
+<!ENTITY  brandFullName         "Mozilla Firefox">
+<!ENTITY  vendorShortName       "Mozilla">
+<!ENTITY  trademarkInfo.part1   "Firefox and the Firefox logos are trademarks of the Mozilla Foundation.">

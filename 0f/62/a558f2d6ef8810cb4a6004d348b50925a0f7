@@ -1,0 +1,11 @@
+
+copyrev: 7958ad4435840f4b51285d9e5f42f781cd869ac4
+copy: browser/themes/gnomestripe/browser/tabview/platform.css
+
+/* This file is for platform-specific CSS for TabView, and is loaded after the
+  platform-independent tabview.css, to allow overwriting.
+*/
+
+.close {
+  background: url("moz-icon://stock/gtk-close?size=menu") no-repeat;
+}

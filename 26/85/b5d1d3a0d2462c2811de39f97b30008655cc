@@ -1,0 +1,15 @@
+
+copy: content/html/document/test/bug445004-outer-rel.html
+copyrev: 43e9f0a8d05a616bc2666b48866d5ebf4ebf8cf6
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <base href="http://example.org/tests/dom/html/test/bug445004-outer.html">
+    <script>document.domain = "example.org"</script>
+  </head>  
+  <body>
+    <iframe width="500" height="200" src="bug445004-inner.html"
+            onload="window.frames[0].doIt()"></iframe>
+  </body>
+</html>

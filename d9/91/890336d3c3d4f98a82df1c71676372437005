@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_websocket_http_resource.txt
+copyrev: c16cf44cb65d6aa2d76fe67a585ad5aee9fef81f
+
+server data

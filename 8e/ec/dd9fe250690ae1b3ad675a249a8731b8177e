@@ -1,0 +1,6 @@
+
+copy: media/webrtc/trunk/src/modules/audio_coding/neteq/OWNERS
+copyrev: 47347594262c9b01938a7976426d583f18476c14
+
+henrik.lundin@webrtc.org
+tina.legrand@webrtc.org

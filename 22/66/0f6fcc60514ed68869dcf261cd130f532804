@@ -1,0 +1,11 @@
+
+copy: toolkit/themes/winstripe/mozapps/extensions/selectAddons-aero.css
+copyrev: 1e5eca6e36f5e3a333ce7a196f97d8bf5ad7bcfc
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%define WINDOWS_AERO
+%include selectAddons.css
+%undef WINDOWS_AERO

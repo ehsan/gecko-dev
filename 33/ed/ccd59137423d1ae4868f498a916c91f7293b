@@ -1,0 +1,36 @@
+deckbrowser {
+    -moz-binding: url("chrome://browser/content/deckbrowser.xml#deckbrowser");
+}
+
+#urlbar-edit {
+    -moz-binding: url("chrome://browser/content/urlbar.xml#autocomplete-aligned");
+}
+
+richlistitem[type="documenttab"] {
+    -moz-binding: url("chrome://browser/content/deckbrowser.xml#documenttab");
+}
+
+#prefs-container > scrollbox
+{
+    overflow: auto;
+}
+
+richpref[type="bool"] {
+    -moz-binding: url("chrome://browser/content/preferences/richpref.xml#richpref-bool");
+}
+
+richpref[type="boolint"] {
+    -moz-binding: url("chrome://browser/content/preferences/richpref.xml#richpref-boolint");
+}
+
+richpref[type="button"] {
+    -moz-binding: url("chrome://browser/content/preferences/richpref.xml#richpref-button");
+}
+
+notification {
+    -moz-binding: url("chrome://browser/content/notification.xml#notification");
+}
+
+notification button {
+    -moz-binding: url("chrome://browser/content/notification.xml#notification-button");
+}

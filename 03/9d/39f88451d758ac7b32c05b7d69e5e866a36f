@@ -1,0 +1,31 @@
+
+copy: extensions/spellcheck/hunspell/tests/base_utf.good
+copyrev: 6e97082991135b0d5b2be21654df1f9cd026fdf6
+
+created
+uncreate
+uncreated
+imply
+implied
+unnatural
+conveyed
+sawyer
+NASA
+FAQs
+can’t
+doesn’t
+won’t
+Created
+Hello
+HELLO
+NASA
+etc.
+etc
+HELLO
+lip.
+text.
+NASA.
+Text.
+TEXT.
+Hunspell.
+HUNSPELL.

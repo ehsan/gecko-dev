@@ -1,0 +1,19 @@
+
+copy: dom/src/threads/test/chromeWorker_worker.js
+copyrev: 9a086b13944816e8c70dacbee7aa5086336c0b10
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+if (!("ctypes" in self)) {
+  throw "No ctypes!";
+}
+
+onmessage = function(event) {
+  let worker = new ChromeWorker("chromeWorker_subworker.js");
+  worker.onmessage = function(event) {
+    postMessage(event.data);
+  }
+  worker.postMessage(event.data);
+}

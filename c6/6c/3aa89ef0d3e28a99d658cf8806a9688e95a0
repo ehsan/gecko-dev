@@ -1,0 +1,9 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/test_nameditem-06.html.json
+copyrev: 296b6abf0792afeb7f8414edadea006377206259
+
+{
+  "If there are two imgs, a collection should be returned. (name)": true,
+  "If there is one img, it should not be returned (id)": true,
+  "If there are two imgs, nothing should be returned. (id)": true
+}

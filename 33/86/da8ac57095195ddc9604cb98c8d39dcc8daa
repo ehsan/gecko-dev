@@ -1,0 +1,7 @@
+
+copyrev: 25f2d119c1e4cbd1e81469f58d5d664be6ff0c79
+copy: js/src/trace-test/tests/basic/testBug520503-1.js
+
+(new Function("for (var j=0; j<9; ++j) { (function sum_indexing(array,start){return array.length==start ? 0 : array[start]+ sum_indexing(array,start+1)})([true,true,undefined],0)}"))()
+
+/* Should not have crashed. */

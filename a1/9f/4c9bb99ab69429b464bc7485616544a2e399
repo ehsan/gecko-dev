@@ -1,0 +1,6 @@
+
+copy: dom/xml/tests/mochitest/file_bug293347.xml
+copyrev: a58bef8c8bbeebd4f4f90a9ae5443068fd427c60
+
+<?xml-stylesheet type="text/xsl" href="file_bug293347xslt.xml"?>
+<doc/>

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/onlyincompound2.wrong
+copyrev: 60045cb213a8732df3913f43b549de23580359eb
+
+pseudos
+foopseudos
+pseudofoo

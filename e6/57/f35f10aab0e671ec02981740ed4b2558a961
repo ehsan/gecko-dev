@@ -1,0 +1,7 @@
+
+copy: mobile/xul/branding/official/configure.sh
+copyrev: 564cd24c21b711893bfe781df83d66ad92caec72
+
+MOZ_APP_DISPLAYNAME=B2G
+ANDROID_PACKAGE_NAME=org.mozilla.b2g
+MOZ_UPDATER=

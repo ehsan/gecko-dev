@@ -1,0 +1,15 @@
+
+copy: layout/reftests/text/auto-hyphenation-8.html
+copyrev: d7583043ae11fdce3bb38a1c42f99c0548d80b0c
+
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><title>Hyphenation test</title></head>
+<!-- check that hyphenation is not applied when language is not specified -->
+<body>
+<div style="width: 5em; -moz-hyphens: auto;">
+supercalifragilisticexpialidocious
+</div>
+</body>
+</html>
+

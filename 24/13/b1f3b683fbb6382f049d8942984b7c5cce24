@@ -1,0 +1,13 @@
+
+copy: layout/base/tests/bug389321-2-ref.html
+copyrev: 9f414df26c14a49a2afe5f764b954e7f6c7f7478
+
+<!DOCTYPE HTML><html>
+<body>
+  <div contenteditable id="x" style="height: 30px; outline: none;"></div>
+<script>
+  var div = document.getElementById('x');
+  div.focus();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-valid/button/button-fieldset-legend-ref.html
+copyrev: 45e36e0c7cf05c76a06c9facd894d595309c0ce6
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <fieldset>
+      <legend>
+        <button style="background-color: green;"></button>
+      </legend>
+    </fieldset>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/IJ.aff
+copyrev: 8eb48ce0a60c1f4e15ec10e5ef362df61658fbee
+
+# check bad capitalisation of Dutch letter IJ.
+TRY i
+FORBIDDENWORD *
+PFX i N 1
+PFX i ij IJ ij
+
+REP 1
+REP ij IJ

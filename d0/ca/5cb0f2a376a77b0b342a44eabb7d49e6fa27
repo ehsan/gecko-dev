@@ -1,0 +1,8 @@
+
+copy: layout/reftests/flexbox/reftest.list
+copyrev: 4416976d45a4f4a692ace6ff97c474b67fcbb912
+
+== flexbox-attributes-no-box-horizontal.xhtml flexbox-attributes-no-box-horizontal-ref.xhtml
+== flexbox-attributes-no-box-vertical.xhtml flexbox-attributes-no-box-vertical-ref.xhtml
+== flexbox-attributes-no-input-horizontal.xhtml flexbox-attributes-no-input-horizontal-ref.xhtml
+== flexbox-attributes-no-input-vertical.xhtml flexbox-attributes-no-input-vertical-ref.xhtml

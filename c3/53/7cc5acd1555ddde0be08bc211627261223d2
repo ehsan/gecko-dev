@@ -1,0 +1,17 @@
+
+copyrev: e2a75d166ca986065e5fe4effb2b62e430379371
+copy: js/src/trace-test/tests/basic/testBranchingUnstableObject.js
+
+function testBranchingUnstableObject() {
+  var x = {s: "a"};
+  var t = "";
+  for (var i=0; i < 100; ++i) {
+      if (i == 51)
+      {
+        x.s = 5;
+      }
+      t += x.s;
+  }
+  return t.length;
+}
+assertEq(testBranchingUnstableObject(), 100);

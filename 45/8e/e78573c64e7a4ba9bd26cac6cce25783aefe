@@ -1,0 +1,14 @@
+
+copyrev: 49b37232a6f3cb4fc241e073b1e9fd4a9d10394d
+copy: js/src/trace-test/tests/basic/testDivision.js
+
+function testDivision() {
+    var a = 32768;
+    var b;
+    while (b !== 1) {
+        b = a / 2;
+        a = b;
+    }
+    return a;
+}
+assertEq(testDivision(), 1);

@@ -1,0 +1,14 @@
+
+copy: content/html/content/test/imports/file_cycle_2_C.html
+copyrev: 9526b0bd6e5f1bcb5b76a8232b6c8e971351ab08
+
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+</head>
+<body>
+  <script>
+    order.push("C");
+  </script>
+</body>
+</html>

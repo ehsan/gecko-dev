@@ -1,0 +1,7 @@
+
+copy: content/base/test/viewport_helpers.js
+copyrev: d484ad8368d083dfdcd0c8867357785c5f184124
+
+function scaleRatio(scale) {
+  return {"set": [["layout.css.devPixelsPerPx", "" + scale]]};
+}

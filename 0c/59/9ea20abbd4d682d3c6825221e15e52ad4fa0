@@ -1,0 +1,18 @@
+
+copy: layout/xul/base/src/crashtests/514300-1.xul
+copyrev: 0d1b386d18f84d49ddcaaeca58b44246e49b21da
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin" type="text/css"?>
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="document.getElementById('listbox').removeChild(document.getElementById('span'));">
+
+<bindings xmlns="http://www.mozilla.org/xbl">
+  <binding id="foo">
+    <content><listitem xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"><children xmlns="http://www.mozilla.org/xbl"/></listitem></content>
+  </binding>
+</bindings>
+
+<listbox id="listbox" style="-moz-binding: url(#foo)"><span xmlns="http://www.w3.org/1999/xhtml" id="span"/></listbox>
+
+</window>

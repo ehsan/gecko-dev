@@ -1,0 +1,6 @@
+
+copy: python/mozbuild/mozbuild/test/frontend/data/test-manifest-install-subdir/subdir.ini
+copyrev: 006be16b161226e26c0dc252dc4525f2f3c533f4
+
+[DEFAULT]
+foo = bar

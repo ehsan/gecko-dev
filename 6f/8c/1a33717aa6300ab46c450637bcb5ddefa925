@@ -1,0 +1,16 @@
+
+copy: content/events/test/bug457672.html
+copyrev: 724459dd41264c445c1933ad46551f44e3b564b3
+
+<html>
+  <head>
+    <script>
+      window.addEventListener("focus", function() { window.close(); }, false);
+      function done() {
+        window.focus();
+      }
+    </script>
+  </head>
+  <body onload="done();">
+  </body>
+</html>

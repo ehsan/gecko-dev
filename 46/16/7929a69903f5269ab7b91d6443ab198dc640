@@ -1,0 +1,6 @@
+
+copy: mobile/locales/en-US/chrome/brand/brand.properties
+copyrev: f54d1376878836d2a2efb33a41726cb5b4f95297
+
+brandShortName=Fennec
+brandFullName=Fennec

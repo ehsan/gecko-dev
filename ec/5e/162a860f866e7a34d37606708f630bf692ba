@@ -1,0 +1,15 @@
+
+copyrev: 8c668d2bdfd4a565aa0fac3f53a01bdf83a81743
+copy: js/src/trace-test/tests/jaeger/bug554675-2.js
+
+function a(code) {
+  var f = new Function("for each(let x in[false,'',/x/,'',{}]){if(x<x){(({}))}else if(x){}else{}}");
+  try {
+    f()
+  } catch(e) {}
+}
+a()
+a()
+
+/* Don't crash (CLI only). */
+

@@ -1,0 +1,8 @@
+
+copy: mobile/installer/debian/fennec.policy.in
+copyrev: 4f9d85d0ed0d98fc486063a35e6b8bab03507a6a
+
+#filter substitution
+[classify browser]
+@installdir@/@MOZ_APP_NAME@
+@installdir@/plugin-container

@@ -1,0 +1,26 @@
+
+copy: browser/devtools/debugger/test/test-location-changes-bp.html
+copyrev: ff742a7b7908bdf9bce37eb1a27c18125421ea42
+
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Debugger test page</title>
+  </head>
+
+  <body>
+    <button onclick="myFunction()">Click me!</button>
+
+    <script type="text/javascript" src="code_location-changes.js"></script>
+    <script type="text/javascript">
+      function runDebuggerStatement() {
+        debugger;
+      }
+    </script>
+  </body>
+
+</html>

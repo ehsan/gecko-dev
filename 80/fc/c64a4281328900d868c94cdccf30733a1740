@@ -1,0 +1,9 @@
+
+copy: layout/xul/base/src/crashtests/374102-1.xul
+copyrev: c97a2443aa67ea4c95dba5763943c81ac8b4f443
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<tabpanels>
+<treechildren style="display: -moz-deck;"/>
+</tabpanels>
+</window>

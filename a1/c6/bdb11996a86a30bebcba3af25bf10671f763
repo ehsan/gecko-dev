@@ -1,0 +1,6 @@
+
+copy: content/base/crashtests/1027461-inner.xul
+copyrev: ce042adf002a33b38da34f3d35e1424c38a0c40a
+
+<?xml?>
+<empty-xul-file />

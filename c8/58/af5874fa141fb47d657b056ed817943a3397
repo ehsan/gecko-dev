@@ -1,0 +1,20 @@
+
+copy: media/webrtc/trunk/tools/gyp/test/same-name/src/prog1.c
+copyrev: 92b579fe5e14d6e68d95efffe6766a477ddfd994
+
+#include <stdio.h>
+
+extern void func(void);
+
+int main(int argc, char *argv[])
+{
+  printf("Hello from prog1.c\n");
+  func();
+  /*
+   * Uncomment to test same-named files in different directories,
+   * which Visual Studio doesn't support.
+  subdir1_func();
+  subdir2_func();
+   */
+  return 0;
+}

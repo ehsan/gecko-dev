@@ -1,0 +1,16 @@
+
+copyrev: e594f781a8b08ba506e988e736e3d112056ffb22
+copy: js/src/trace-test/tests/basic/bug560234b.js
+
+function f(a) {
+   function g() {
+       yield function () a;
+   }
+   if (a == 8)
+       return g();
+   a = 3;
+}
+var x;
+for (var i = 0; i < 9; i++)
+   x = f(i);
+x.next()();  // ReferenceError: a is not defined.

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/opentaal_forbiddenword1.good
+copyrev: 55ecede928a86620325973fe73ff41304c99b7ea
+
+fooword
+wordbar
+barwordfoo

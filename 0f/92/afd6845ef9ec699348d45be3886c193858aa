@@ -1,0 +1,1211 @@
+<?xml version="1.0"?>
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is the Extension Manager UI.
+   -
+   - The Initial Developer of the Original Code is
+   - the Mozilla Foundation.
+   - Portions created by the Initial Developer are Copyright (C) 2010
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -   Blair McBride <bmcbride@mozilla.com>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the LGPL or the GPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+
+<!DOCTYPE page [
+<!ENTITY % extensionsDTD SYSTEM "chrome://mozapps/locale/extensions/extensions.dtd">
+%extensionsDTD;
+]>
+
+<bindings id="addonBindings"
+          xmlns="http://www.mozilla.org/xbl"
+          xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+          xmlns:xbl="http://www.mozilla.org/xbl">
+
+
+  <!-- Rating - displays current/average rating, allows setting user rating -->
+  <binding id="rating">
+    <content>
+      <xul:image class="star"
+                 onmouseover="document.getBindingParent(this)._hover(1);"
+                 onclick="document.getBindingParent(this).userRating = 1;"/>
+      <xul:image class="star"
+                 onmouseover="document.getBindingParent(this)._hover(2);"
+                 onclick="document.getBindingParent(this).userRating = 2;"/>
+      <xul:image class="star"
+                 onmouseover="document.getBindingParent(this)._hover(3);"
+                 onclick="document.getBindingParent(this).userRating = 3;"/>
+      <xul:image class="star"
+                 onmouseover="document.getBindingParent(this)._hover(4);"
+                 onclick="document.getBindingParent(this).userRating = 4;"/>
+      <xul:image class="star"
+                 onmouseover="document.getBindingParent(this)._hover(5);"
+                 onclick="document.getBindingParent(this).userRating = 5;"/>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        this._updateStars();
+      ]]></constructor>
+
+      <property name="stars" readonly="true">
+        <getter><![CDATA[
+          return document.getAnonymousNodes(this);
+        ]]></getter>
+      </property>
+
+      <property name="averageRating">
+        <getter><![CDATA[
+          if (this.hasAttribute("averagerating"))
+            return this.getAttribute("averagerating");
+          return -1;
+        ]]></getter>
+        <setter><![CDATA[
+          this.setAttribute("averagerating", val);
+          if (this.showRating == "average")
+            this._updateStars();
+        ]]></setter>
+      </property>
+
+      <property name="userRating">
+        <getter><![CDATA[
+          if (this.hasAttribute("userrating"))
+            return this.getAttribute("userrating");
+          return -1;
+        ]]></getter>
+        <setter><![CDATA[
+          if (this.showRating != "user")
+            return;
+          this.setAttribute("userrating", val);
+          if (this.showRating == "user")
+            this._updateStars();
+        ]]></setter>
+      </property>
+
+      <property name="showRating">
+        <getter><![CDATA[
+          if (this.hasAttribute("showrating"))
+            return this.getAttribute("showrating");
+          return "average";
+        ]]></getter>
+        <setter><![CDATA[
+          if (val != "average" || val != "user")
+            throw new Error("Invalid value");
+          this.setAttribute("showrating", val);
+          this._updateStars();
+        ]]></setter>
+      </property>
+
+      <method name="_updateStars">
+        <body><![CDATA[
+          var stars = this.stars;
+          var rating = this[this.showRating + "Rating"];
+          // average ratings can be non-whole numbers, round them so they
+          // match to their closest star
+          rating = Math.round(rating);
+          for (let i = 0; i < stars.length; i++)
+            stars[i].setAttribute("on", rating > i);
+        ]]></body>
+      </method>
+
+      <method name="_hover">
+        <parameter name="aScore"/>
+        <body><![CDATA[
+          if (this.showRating != "user")
+            return;
+          var stars = this.stars;
+          for (let i = 0; i < stars.length; i++)
+            stars[i].setAttribute("on", i <= (aScore -1));
+        ]]></body>
+      </method>
+
+    </implementation>
+
+    <handlers>
+      <handler event="mouseout">
+        this._updateStars();
+      </handler>
+    </handlers>
+  </binding>
+
+  <!-- Download progress - shows graphical progress of download and any
+       related status message. -->
+  <binding id="download-progress">
+    <content>
+      <xul:stack flex="1">
+        <xul:hbox flex="1">
+          <xul:hbox class="start-cap"/>
+          <xul:progressmeter anonid="progress" class="progress" flex="1"
+                             min="0" max="100"/>
+          <xul:hbox class="end-cap"/>
+        </xul:hbox>
+        <xul:hbox class="status-container">
+          <xul:button anonid="pause" class="pause"
+                      tooltiptext="&progress.pause.tooltip;"/>
+          <xul:spacer flex="1"/>
+          <xul:label anonid="status" class="status"/>
+          <xul:spacer flex="1"/>
+          <xul:button anonid="cancel" class="cancel"
+                      tooltiptext="&progress.cancel.tooltip;"/>
+        </xul:hbox>
+      </xul:stack>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        var progress = 0;
+        if (this.hasAttribute("progress"))
+          progress = parseInt(this.getAttribute("progress"));
+        this.progress = progress;
+      ]]></constructor>
+
+      <field name="_progress">
+        document.getAnonymousElementByAttribute(this, "anonid", "progress");
+      </field>
+      <field name="_pause">
+        document.getAnonymousElementByAttribute(this, "anonid", "pause");
+      </field>
+      <field name="_cancel">
+        document.getAnonymousElementByAttribute(this, "anonid", "cancel");
+      </field>
+      <field name="_status">
+        document.getAnonymousElementByAttribute(this, "anonid", "status");
+      </field>
+
+      <property name="progress">
+        <getter><![CDATA[
+          return this._progress.value;
+        ]]></getter>
+        <setter><![CDATA[
+          this._progress.value = val;
+          if (val == this._progress.max)
+            this.setAttribute("complete", true);
+        ]]></setter>
+      </property>
+
+      <property name="maxProgress">
+        <getter><![CDATA[
+          return this._progress.max;
+        ]]></getter>
+        <setter><![CDATA[
+          if (val == -1) {
+            this._progress.mode = "undetermined";
+            return;
+          }
+          this._progress.mode = "determined";
+          this._progress.max = val;
+        ]]></setter>
+      </property>
+
+      <property name="status">
+        <getter><![CDATA[
+          return this._status.value;
+        ]]></getter>
+        <setter><![CDATA[
+          this._status.value = val;
+        ]]></setter>
+      </property>
+    </implementation>
+  </binding>
+
+
+  <!-- Sorters - displays and controls the sort state of a list. -->
+  <binding id="sorters">
+    <content orient="horizontal">
+      <xul:button anonid="btn-name" class="sorter"
+                  label="&sort.name.label;" tooltiptext="&sort.name.tooltip;"
+                  oncommand="this.parentNode._handleChange('name');"/>
+      <xul:button anonid="btn-size" class="sorter"
+                  label="&sort.size.label;" tooltiptext="&sort.size.tooltip;"
+                  oncommand="this.parentNode._handleChange('size');"/>
+      <xul:button anonid="btn-date" class="sorter"
+                  label="&sort.dateUpdated.label;"
+                  tooltiptext="&sort.dateUpdated.tooltip;"
+                  oncommand="this.parentNode._handleChange('dateUpdated');"/>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        if (!this.hasAttribute("sortby"))
+          this.setAttribute("sortby", "name");
+
+        this._refreshState();
+      ]]></constructor>
+
+      <field name="handler">null</field>
+      <field name="_btnName">
+        document.getAnonymousElementByAttribute(this, "anonid", "btn-name");
+      </field>
+      <field name="_btnSize">
+        document.getAnonymousElementByAttribute(this, "anonid", "btn-size");
+      </field>
+      <field name="_btnDate">
+        document.getAnonymousElementByAttribute(this, "anonid", "btn-date");
+      </field>
+
+      <property name="sortBy">
+        <getter><![CDATA[
+          return this.getAttribute("sortby");
+        ]]></getter>
+        <setter><![CDATA[
+          this.setAttribute("sortby", val);
+          this._refreshState();
+        ]]></setter>
+      </property>
+
+      <property name="ascending">
+        <getter><![CDATA[
+          return this.hasAttribute("ascending");
+        ]]></getter>
+        <setter><![CDATA[
+          if (val)
+            this.setAttribute("ascending", true);
+          else
+            this.removeAttribute("ascending");
+          this._refreshState();
+        ]]></setter>
+      </property>
+
+      <method name="_handleChange">
+        <parameter name="aSort"/>
+        <body><![CDATA[
+          const ASCENDING_SORT_FIELDS = ["name"];
+
+          if (aSort == this.sortBy) {
+            this.ascending = !this.ascending;
+            return;
+          }
+
+          this.sortBy = aSort;
+          // Name sorting defaults to ascending, others to descending
+          this.ascending = ASCENDING_SORT_FIELDS.indexOf(aSort) >= 0;
+
+          this._refreshState();
+        ]]></body>
+      </method>
+
+      <method name="_refreshState">
+        <body><![CDATA[
+          var sortBy = this.sortBy;
+          var checkState = this.ascending ? 2 : 1;
+
+          if (sortBy == "name")
+            this._btnName.checkState = checkState;
+          else
+            this._btnName.checkState = 0;
+
+          if (sortBy == "size")
+            this._btnSize.checkState = checkState;
+          else
+            this._btnSize.checkState = 0;
+
+          if (sortBy == "dateUpdated")
+            this._btnDate.checkState = checkState;
+          else
+            this._btnDate.checkState = 0;
+
+
+          if (this.handler && "onSortChanged" in this.handler)
+            this.handler.onSortChanged(sortBy, this.ascending);
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+
+
+  <!-- Categories list - displays the list of categories on the left pane. -->
+  <binding id="categories-list"
+           extends="chrome://global/content/bindings/richlistbox.xml#richlistbox">
+    <implementation>
+      <!-- This needs to be overridden to allow the fancy animation while not
+           allowing that item to be selected when hiding.  -->
+      <method name="_canUserSelect">
+        <parameter name="aItem"/>
+        <body>
+        <![CDATA[
+          if (aItem.hasAttribute("disabled") &&
+              aItem.getAttribute("disabled") == "true")
+            return false;
+          var style = document.defaultView.getComputedStyle(aItem, "");
+          return style.display != "none" && style.visibility == "visible";
+        ]]>
+        </body>
+      </method>
+    </implementation>
+  </binding>
+
+
+  <!-- Category item - an item in the category list. -->
+  <binding id="category"
+           extends="chrome://global/content/bindings/richlistbox.xml#richlistitem">
+    <content align="center">
+      <xul:image anonid="icon" class="category-icon"/>
+      <xul:label anonid="name" class="category-name" flex="1" xbl:inherits="value=name"/>
+      <xul:label anonid="badge" class="category-badge" xbl:inherits="value=count"/>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        if (!this.hasAttribute("count"))
+          this.setAttribute("count", 0);
+      ]]></constructor>
+
+      <property name="badgeCount">
+        <getter><![CDATA[
+          return this.getAttribute("count");
+        ]]></getter>
+        <setter><![CDATA[
+          this.setAttribute("count", aCount);
+        ]]></setter>
+      </property>
+    </implementation>
+  </binding>
+
+
+  <!-- Creator link - Name of a user/developer, providing a link if relevant. -->
+  <binding id="creator-link">
+    <content>
+      <xul:label anonid="label" value="&addon.createdBy.label;"/>
+      <xul:label anonid="creator-link" class="creator-link text-link"/>
+      <xul:label anonid="creator-name" class="creator-name"/>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        if (this.hasAttribute("nameonly") &&
+            this.getAttribute("nameonly") == "true") {
+          this._label.hidden = true;
+        }
+      ]]></constructor>
+
+      <field name="_label">
+        document.getAnonymousElementByAttribute(this, "anonid", "label");
+      </field>
+      <field name="_creatorLink">
+        document.getAnonymousElementByAttribute(this, "anonid", "creator-link");
+      </field>
+      <field name="_creatorName">
+        document.getAnonymousElementByAttribute(this, "anonid", "creator-name");
+      </field>
+
+      <method name="setCreator">
+        <parameter name="aName"/>
+        <parameter name="aURL"/>
+        <body><![CDATA[
+          if (!aName) {
+            this.collapsed = true;
+            return;
+          }
+          this.collapsed = false;
+          var showLink = !!aURL;
+          if (showLink) {
+            this._creatorLink.value = aName;
+            this._creatorLink.href = aURL;
+          } else {
+            this._creatorName.value = aName;
+          }
+          this._creatorLink.hidden = !showLink;
+          this._creatorName.hidden = showLink;
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+
+
+  <!-- Install status - Displays the status of an install/upgrade. -->
+  <binding id="install-status">
+    <content>
+      <xul:label anonid="message"/>
+      <xul:progressmeter anonid="progress" class="download-progress"/>
+      <xul:button anonid="restart-needed" hidden="true" command="cmd_restartApp"
+                  class="addon-control" label="&addon.restartNow.label;"
+                  tooltiptext="&addon.restartNow.tooltip;"/>
+      <xul:button anonid="restart-install" hidden="true"
+                  class="addon-control" label="&addon.install.label;"
+                  tooltiptext="&addon.install.tooltip;"
+                  oncommand="document.getBindingParent(this).restartInstall();"/>
+      <xul:button anonid="undo" hidden="true"
+                  class="addon-control" label="&addon.undo.label;"
+                  tooltiptext="&addon.undo.tooltip;"
+                  oncommand="document.getBindingParent(this).undoAction();"/>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        if (this.mInstall)
+          this.initWithInstall(this.mInstall);
+        else if (this.mControl.mAddon.install)
+          this.initWithInstall(this.mControl.mAddon.install);
+        else if (this.mAddon)
+          this.refreshState();
+      ]]></constructor>
+
+      <destructor><![CDATA[
+        if (this.mInstall)
+          this.mInstall.removeListener(this);
+      ]]></destructor>
+
+      <field name="_message">
+        document.getAnonymousElementByAttribute(this, "anonid", "message");
+      </field>
+      <field name="_progress">
+        document.getAnonymousElementByAttribute(this, "anonid", "progress");
+      </field>
+      <field name="_restartNeeded">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "restart-needed");
+      </field>
+      <field name="_restartInstall">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "restart-install");
+      </field>
+      <field name="_undo">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "undo");
+      </field>
+
+      <method name="initWithInstall">
+        <parameter name="aInstall"/>
+        <body><![CDATA[
+          if (this.mInstall) {
+            this.mInstall.removeListener(this);
+            this.mInstall = null;
+          }
+          this.mInstall = aInstall;
+          this.refreshState();
+          this.mInstall.addListener(this);
+        ]]></body>
+      </method>
+
+      <method name="refreshState">
+        <body><![CDATA[
+          var showRestartInstall = false;
+          var showRestartNeeded = false;
+          var showUndo = false;
+
+          if (this.mInstall) {
+
+            switch (this.mInstall.state) {
+              case AddonManager.STATE_AVAILABLE:
+                break;
+              case AddonManager.STATE_DOWNLOADING:
+                this.showMessage("installDownloading");
+                break;
+              case AddonManager.STATE_CHECKING:
+                this.showMessage("installVerifying");
+                break;
+              case AddonManager.STATE_DOWNLOADED:
+                this.showMessage("installDownloaded");
+                break;
+              case AddonManager.STATE_DOWNLOAD_FAILED:
+                // XXXunf expose what error occured (bug 553487)
+                this.showMessage("installDownloadFailed", true);
+                break;
+              case AddonManager.STATE_INSTALLING:
+                this.showMessage("installInstalling");
+                break;
+              case AddonManager.STATE_INSTALLED:
+                if (this.mInstall.existingAddon)
+                  this.showMessage("installUpdatePending", true);
+                else
+                  this.showMessage("installInstallPending", true);
+                if (isPending(this.mInstall.addon, "install"))
+                  showRestartNeeded = true;
+                break;
+              case AddonManager.STATE_INSTALL_FAILED:
+                // XXXunf expose what error occured (bug 553487)
+                this.showMessage("installFailed", true);
+                break;
+              case AddonManager.STATE_CANCELLED:
+                this.showMessage("installCancelled", true);
+                showRestartInstall = true;
+                break;
+            }
+
+          } else if (this.mAddon) {
+
+            // Not using an AddonInstall object for this action
+            var pending = this.mAddon.pendingOperations;
+            if (pending & AddonManager.PENDING_INSTALL) {
+              this.showMessage("installInstallPending", true);
+            } else if (pending & AddonManager.PENDING_UPGRADE) {
+              this.showMessage("installUpdatePending", true);
+            } else if (pending & AddonManager.PENDING_ENABLE) {
+              this.showMessage("installEnablePending", true);
+              showUndo = true;
+            } else if (pending & AddonManager.PENDING_DISABLE) {
+              this.showMessage("installDisablePending", true);
+              showUndo = true;
+            }
+            showRestartNeeded = true;
+
+          }
+
+          this._restartInstall.hidden = !showRestartInstall;
+          this._restartNeeded.hidden = !showRestartNeeded;
+          this._undo.hidden = !showUndo;
+        ]]></body>
+      </method>
+
+      <method name="showMessage">
+        <parameter name="aMsgId"/>
+        <parameter name="aHideProgress"/>
+        <body><![CDATA[
+          this._message.setAttribute("hidden", !aHideProgress);
+          this._progress.setAttribute("hidden", aHideProgress);
+
+          var msg = gStrings.ext.GetStringFromName(aMsgId);
+          if (aHideProgress)
+            this._message.value = msg;
+          else
+            this._progress.status = msg;
+        ]]></body>
+      </method>
+
+      <method name="restartInstall">
+        <body><![CDATA[
+          this.mInstall.install();
+        ]]></body>
+      </method>
+
+      <method name="undoAction">
+        <body><![CDATA[
+          if (!this.mAddon)
+            return;
+          var pending = this.mAddon.pendingOperations;
+          if (pending & AddonManager.PENDING_ENABLE)
+            this.mAddon.userDisabled = true;
+          else if (pending & AddonManager.PENDING_DISABLE)
+            this.mAddon.userDisabled = false;
+          this.refreshState();
+        ]]></body>
+      </method>
+
+      <method name="onDownloadStarted">
+        <body><![CDATA[
+          this.refreshState();
+        ]]></body>
+      </method>
+
+      <method name="onDownloadEnded">
+        <body><![CDATA[
+          this.refreshState();
+        ]]></body>
+      </method>
+
+      <method name="onDownloadFailed">
+        <body><![CDATA[
+          this.refreshState();
+        ]]></body>
+      </method>
+
+      <method name="onDownloadProgress">
+        <body><![CDATA[
+          this._progress.maxProgress = this.mInstall.maxProgress;
+          this._progress.progress = this.mInstall.progress;
+        ]]></body>
+      </method>
+
+      <method name="onInstallStarted">
+        <body><![CDATA[
+          this.refreshState();
+        ]]></body>
+      </method>
+
+      <method name="onInstallEnded">
+        <body><![CDATA[
+          this.refreshState();
+          this.mControl.onInstallCompleted();
+        ]]></body>
+      </method>
+
+      <method name="onInstallFailed">
+        <body><![CDATA[
+          this.refreshState();
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+
+
+  <!-- Addon - base - parent binding of any item representing an addon. -->
+  <binding id="addon-base"
+           extends="chrome://global/content/bindings/richlistbox.xml#richlistitem">
+    <implementation>
+      <method name="hasPermission">
+        <parameter name="aPerm"/>
+        <body><![CDATA[
+          var perm = AddonManager["PERM_CAN_" + aPerm.toUpperCase()];
+          return !!(this.mAddon.permissions & perm);
+        ]]></body>
+      </method>
+
+      <method name="isPending">
+        <parameter name="aAction"/>
+        <body><![CDATA[
+          var action = AddonManager["PENDING_" + aAction.toUpperCase()];
+          return !!(this.mAddon.pendingOperations & action);
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+
+
+  <!-- Addon - generic - An normal installed addon item -->
+  <binding id="addon-generic"
+           extends="chrome://mozapps/content/extensions/extensions.xml#addon-base">
+    <content>
+      <xul:vbox>
+        <xul:image anonid="icon" class="icon"/>
+        <xul:spacer flex="1"/>
+      </xul:vbox>
+      <xul:vbox flex="1" class="fade">
+        <xul:hbox class="name-container">
+          <xul:label anonid="name" class="name" xbl:inherits="value=name"/>
+          <xul:label anonid="version" class="version"/>
+          <xul:label class="disabled-postfix" value="&addon.disabled.postfix;"/>
+        </xul:hbox>
+        <xul:label anonid="creator" class="creator"/>
+        <xul:description anonid="description" class="description" flex="1"/>
+      </xul:vbox>
+      <xul:vbox align="end">
+        <xul:vbox class="details-container fade">
+          <xul:hbox anonid="incompatible-container"
+                    class="warning incompatible-warning">
+            <xul:image class="warning-icon"/>
+            <xul:label anonid="incompatible-warning"/>
+          </xul:hbox>
+          <xul:hbox>
+            <xul:label value="&rating.label;"/>
+            <xul:label class="meta-rating" userrating="-1" showrating="average"/>
+          </xul:hbox>
+          <xul:label anonid="date-updated" unknown="&addon.unknownDate;"/>
+          <xul:vbox anonid="extra-details" class="extra-details">
+            <xul:label anonid="formatted-size"/>
+            <xul:label anonid="homepage" class="homepage text-link"
+                       value="&addon.homepage;"/>
+          </xul:vbox>
+          <xul:hbox>
+            <xul:spacer flex="1"/>
+            <xul:button type="checkbox" anonid="toggle-more" class="toggle-more"
+                        label="&showMore.label;"
+                        tooltiptext="&showMore.tooltip;"
+                        showless="&showLess.label;"
+                        showlesstooltip="&showLess.tooltip;"
+                        showmore="&showMore.label;"
+                        showmoretooltip="&showMore.tooltip;"
+                        oncommand="document.getBindingParent(this).toggleDetails();"/>
+          </xul:hbox>
+        </xul:vbox>
+        <xul:spacer flex="1"/>
+        <xul:hbox anonid="control-container" class="control-container">
+          <xul:button anonid="preferences-btn" class="addon-control"
+                      label="&cmd.showPreferences.label;"
+                      tooltiptext="&cmd.showPreferences.tooltip;"
+                      oncommand="document.getBindingParent(this).showPreferences();"/>
+          <xul:button anonid="remove-btn" class="addon-control remove"
+                      label="&cmd.uninstallAddon.label;"
+                      tooltiptext="&cmd.uninstallAddon.tooltip;"
+                      oncommand="document.getBindingParent(this).uninstall();"/>
+          <xul:button anonid="enable-btn"  class="addon-control enable"
+                      label="&cmd.enableAddon.label;"
+                      tooltiptext="&cmd.enableAddon.tooltip;"
+                      oncommand="document.getBindingParent(this).userDisabled = false;"/>
+          <xul:button anonid="disable-btn" class="addon-control disable"
+                      label="&cmd.disableAddon.label;"
+                      tooltiptext="&cmd.disableAddon.tooltip;"
+                      oncommand="document.getBindingParent(this).userDisabled = true;"/>
+        </xul:hbox>
+        <xul:hbox class="status-container">
+          <xul:hbox anonid="checking-update" hidden="true">
+            <xul:image class="spinner"/>
+            <xul:label value="&addon.checkingForUpdates.label;"/>
+          </xul:hbox>
+          <xul:hbox anonid="install-status" class="install-status"
+                    hidden="true"/>
+        </xul:hbox>
+      </xul:vbox>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        this._installStatus.mControl = this;
+        this._installStatus.mAddon = this.mAddon;
+
+        var numExtraDetails = this._extraDetails.childElementCount;
+
+        this.setAttribute("contextmenu", "addonitem-popup");
+
+        this._incompatibleWarning.value = gStrings.ext.formatStringFromName(
+          "incompatibleWith",
+          [gStrings.brandShortName, gStrings.appVersion], 2
+        );
+
+        this._showStatus("none");
+        this._updateSize();
+        this._updateDates();
+        this._updateState();
+
+        var homepageURL = this.mAddon.homepageURL;
+        if (homepageURL) {
+          this._homepage.href = homepageURL;
+          this._homepage.setAttribute("tooltiptext", homepageURL);
+        } else {
+          this._homepage.hidden = true;
+          numExtraDetails--;
+        }
+
+        var iconURL = this.mAddon.iconURL;
+        if (iconURL)
+          this._icon.src = iconURL;
+
+        this._version.value = this.mAddon.version;
+
+        var creator = this.mAddon.creator;
+        var creatorURL = this.mAddon.creatorURL;
+        // XXxunf api
+        this._creator.setCreator(creator, creatorURL || homepageURL);
+
+        this._description.textContent = this.mAddon.description;
+
+        if (numExtraDetails == 0)
+          this._toggleMore.hidden = true;
+
+        gEventManager.registerAddonListener(this, this.mAddon.id);
+      ]]></constructor>
+
+      <destructor><![CDATA[
+        gEventManager.unregisterAddonListener(this, this.mAddon.id);
+      ]]></destructor>
+
+      <field name="_toggleMore">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "toggle-more");
+      </field>
+      <field name="_extraDetails">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "extra-details");
+      </field>
+      <field name="_incompatibleContainer">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "incompatible-container");
+      </field>
+      <field name="_incompatibleWarning">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "incompatible-warning");
+      </field>
+      <field name="_creator">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "creator");
+      </field>
+      <field name="_homepage">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "homepage");
+      </field>
+      <field name="_version">
+        document.getAnonymousElementByAttribute(this, "anonid", "version");
+      </field>
+      <field name="_icon">
+        document.getAnonymousElementByAttribute(this, "anonid", "icon");
+      </field>
+      <field name="_size">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "formatted-size");
+      </field>
+      <field name="_dateUpdated">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "date-updated");
+      </field>
+      <field name="_description">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "description");
+      </field>
+      <field name="_preferencesBtn">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "preferences-btn");
+      </field>
+      <field name="_enableBtn">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "enable-btn");
+      </field>
+      <field name="_disableBtn">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "disable-btn");
+      </field>
+      <field name="_removeBtn">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "remove-btn");
+      </field>
+      <field name="_controlContainer">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "control-container");
+      </field>
+      <field name="_installStatus">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "install-status");
+      </field>
+      <field name="_checkingUpdate">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "checking-update");
+      </field>
+
+      <property name="userDisabled">
+        <getter><![CDATA[
+          return this.mAddon.userDisabled;
+        ]]></getter>
+        <setter><![CDATA[
+          this.mAddon.userDisabled = val;
+        ]]></setter>
+      </property>
+
+      <method name="toggleDetails">
+        <body><![CDATA[
+          if (this.hasAttribute("show-extra")) {
+            this._extraDetails.style.height = "0px";
+            this._toggleMore.setAttribute(
+              "label",
+              this._toggleMore.getAttribute("showmore")
+            );
+            this._toggleMore.setAttribute(
+              "tooltiptext",
+              this._toggleMore.getAttribute("showmoretooltip")
+            );
+            this.removeAttribute("show-extra");
+          } else {
+            this._extraDetails.style.height = this._extraDetails.scrollHeight +
+                                              "px";
+            this._toggleMore.setAttribute(
+              "label",
+              this._toggleMore.getAttribute("showless")
+            );
+            this._toggleMore.setAttribute(
+              "tooltiptext",
+              this._toggleMore.getAttribute("showlesstooltip")
+            );
+            this.setAttribute("show-extra", "true");
+          }
+        ]]></body>
+      </method>
+
+      <method name="_showStatus">
+        <parameter name="aType"/>
+        <body><![CDATA[
+          this._controlContainer.hidden = aType != "none";
+          this._installStatus.hidden = aType != "progress";
+          if (aType == "progress")
+            this._installStatus.refreshState();
+          this._checkingUpdate.hidden = aType != "checking-update";
+        ]]></body>
+      </method>
+
+      <method name="_updateSize">
+        <body><![CDATA[
+          var bytes = this.getAttribute("size"); // this.mAddon.size;
+          var formatted = gStrings.dl.GetStringFromName("doneSizeUnknown");
+          if (bytes && bytes > 0) {
+            let [size, unit] = DownloadUtils.convertByteUnits(bytes);
+            formatted = gStrings.dl.GetStringFromName("doneSize");
+            formatted = formatted.replace("#1", size).replace("#2", unit);
+          }
+          this._size.value = formatted;
+        ]]></body>
+      </method>
+
+      <method name="_updateDates">
+        <body><![CDATA[
+          function formatDate(aDate) {
+            return Cc["@mozilla.org/intl/scriptabledateformat;1"]
+                     .getService(Ci.nsIScriptableDateFormat)
+                     .FormatDate("",
+                                 Ci.nsIScriptableDateFormat.dateFormatLong,
+                                 aDate.getFullYear(),
+                                 aDate.getMonth() + 1,
+                                 aDate.getDate()
+                                 );
+          }
+
+          if (this.mAddon.updateDate)
+            this._dateUpdated.value = formatDate(this.mAddon.updateDate);
+          else
+            this._dateUpdated.value = this._dateUpdated.getAttribute("unknown");
+        ]]></body>
+      </method>
+
+      <method name="_updateState">
+        <body><![CDATA[
+          this.setAttribute("incompatible", !this.mAddon.isCompatible);
+
+          this._preferencesBtn.hidden = !this.mAddon.optionsURL;
+
+          this._enableBtn.hidden = !this.hasPermission("enable");
+          this._disableBtn.hidden = !this.hasPermission("disable");
+          this._removeBtn.hidden = !this.hasPermission("uninstall");
+
+          var showAsActive = this.mAddon.isActive;
+          if (this.isPending("enable"))
+            showAsActive = true;
+          else if (this.isPending("disable"))
+            showAsActive = false;
+          this.setAttribute("active", showAsActive);
+
+          var pending = this.mAddon.pendingOperations;
+          this.setAttribute("pending", pending != 0);
+          this._showStatus(pending != 0 ? "progress" : "none");
+        ]]></body>
+      </method>
+
+      <method name="uninstall">
+        <body><![CDATA[
+          this.mAddon.uninstall();
+        ]]></body>
+      </method>
+
+      <method name="showPreferences">
+        <body><![CDATA[
+          gViewController.doCommand("cmd_showItemPreferences", this.mAddon);
+        ]]></body>
+      </method>
+
+      <method name="showInDetailView">
+        <body><![CDATA[
+          gViewController.loadView("addons://detail/" +
+                                   encodeURIComponent(this.mAddon.id));
+        ]]></body>
+      </method>
+
+      <method name="onEnabling">
+        <body><![CDATA[
+          this._updateState();
+        ]]></body>
+      </method>
+
+      <method name="onEnabled">
+        <body><![CDATA[
+          this._updateState();
+        ]]></body>
+      </method>
+
+      <method name="onDisabling">
+        <body><![CDATA[
+          this._updateState();
+        ]]></body>
+      </method>
+
+      <method name="onDisabled">
+        <body><![CDATA[
+          this._updateState();
+        ]]></body>
+      </method>
+
+      <method name="onUninstalling">
+        <parameter name="aRestartRequired"/>
+        <body><![CDATA[
+          this.setAttribute("restartrequired", aRestartRequired);
+          this.setAttribute("status", "uninstalled");
+        ]]></body>
+      </method>
+
+      <method name="onOperationCancelled">
+        <body><![CDATA[
+          this._updateState();
+        ]]></body>
+      </method>
+
+      <method name="onNoUpdateAvailable">
+        <body><![CDATA[
+          this._showStatus("none");
+        ]]></body>
+      </method>
+
+      <method name="onCheckingUpdate">
+        <body><![CDATA[
+          this._showStatus("checking-update");
+        ]]></body>
+      </method>
+
+      <method name="onCompatibilityUpdateAvailable">
+        <body><![CDATA[
+          this._updateState();
+        ]]></body>
+      </method>
+
+      <method name="onNewInstall">
+        <parameter name="aInstall"/>
+        <body><![CDATA[
+          this._showStatus("progress");
+          this._installStatus.initWithInstall(aInstall);
+        ]]></body>
+      </method>
+
+      <method name="onInstallEnded">
+        <body><![CDATA[
+          if (!this.isPending("upgrade"))
+            this._showStatus("none");
+          else
+            this.setAttribute("pending", true);
+        ]]></body>
+      </method>
+    </implementation>
+
+    <handlers>
+      <handler event="click" button="0" clickcount="2"><![CDATA[
+        this.showInDetailView();
+      ]]></handler>
+    </handlers>
+  </binding>
+
+
+  <!-- Addon - uninstalled - An uninstalled addon that can be re-installed. -->
+  <!-- XXXunf this doesn't take into account restart-less uninstalls. bug 561263 -->
+  <binding id="addon-uninstalled"
+           extends="chrome://mozapps/content/extensions/extensions.xml#addon-base">
+    <content>
+      <xul:spacer flex="1"/>
+      <xul:hbox class="container">
+        <xul:label anonid="notice" class="notice"/>
+        <xul:button anonid="undo-btn" class="button-link"
+                    label="&addon.undoUninstall.label;"
+                    tooltiptext="&addon.undoUninstall.tooltip;"
+                    oncommand="document.getBindingParent(this).cancelUninstall();"/>
+        <xul:button anonid="restart-btn" class="button-link"
+                    label="&addon.restartNow.label;"
+                    tooltiptext="&addon.restartNow.tooltip;"
+                    command="cmd_restartApp"/>
+      </xul:hbox>
+      <xul:spacer flex="1"/>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        this._notice.value = gStrings.ext.formatStringFromName("uninstallNotice",
+                                                               [this.mAddon.name],
+                                                               1);
+
+        if (!this.isPending("uninstall"))
+          this._restartBtn.setAttribute("hidden", true);
+
+        gEventManager.registerAddonListener(this, this.mAddon.id);
+      ]]></constructor>
+
+      <destructor><![CDATA[
+        gEventManager.unregisterAddonListener(this, this.mAddon.id);
+      ]]></destructor>
+
+      <field name="_notice" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "notice");
+      </field>
+      <field name="_restartBtn" readonly="true">
+        document.getAnonymousElementByAttribute(this, "anonid", "restart-btn");
+      </field>
+
+      <method name="cancelUninstall">
+        <body><![CDATA[
+          this.removeAttribute("restartrequired");
+          this.mAddon.userDisabled = false;
+          this.mAddon.cancelUninstall();
+        ]]></body>
+      </method>
+
+      <method name="onOperationCancelled">
+        <body><![CDATA[
+          if (!this.isPending("uninstall"))
+            this.setAttribute("status", "installed");
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+
+
+  <!-- Addon - installing - an addon item that is currently being installed -->
+  <binding id="addon-installing"
+           extends="chrome://mozapps/content/extensions/extensions.xml#addon-base">
+    <content>
+      <xul:image anonid="icon" class="icon"/>
+      <xul:label anonid="name" class="name"/>
+      <xul:spacer flex="1"/>
+      <xul:hbox anonid="install-status" class="install-status"/>
+    </content>
+
+    <implementation>
+      <constructor><![CDATA[
+        this._installStatus.mControl = this;
+        if (this.mAddon) {
+          this._installStatus.mAddon = this.mAddon;
+        } else {
+          this._installStatus.mInstall = this.mInstall;
+        }
+        this.refreshInfo();
+      ]]></constructor>
+
+      <field name="_icon">
+        document.getAnonymousElementByAttribute(this, "anonid", "icon");
+      </field>
+      <field name="_name">
+        document.getAnonymousElementByAttribute(this, "anonid", "name");
+      </field>
+      <field name="_installStatus">
+        document.getAnonymousElementByAttribute(this, "anonid",
+                                                "install-status");
+      </field>
+
+      <method name="onInstallCompleted">
+        <body><![CDATA[
+          this.refreshInfo();
+          if (!this.isPending("install")) {
+            delete this.mInstall;
+            this.setAttribute("status", "installed");
+          }
+        ]]></body>
+      </method>
+
+      <method name="refreshInfo">
+        <body><![CDATA[
+          this.mAddon = this.mAddon || this.mInstall.addon;
+          if (this.mAddon) {
+            this._icon.src = this.mAddon.iconURL || this.mInstall.iconURL;
+            this._name.value = this.mAddon.name;
+          } else {
+            this._icon.src = this.mInstall.iconURL;
+            // AddonInstall.name isn't always available - fallback to filename
+            if (this.mInstall.name) {
+              this._name.value = this.mInstall.name;
+            } else {
+              var url = Components.classes["@mozilla.org/network/standard-url;1"]
+                                  .createInstance(Components.interfaces.nsIStandardURL);
+              url.init(url.URLTYPE_STANDARD, 80, this.mInstall.sourceURL,
+                       null, null);
+              url.QueryInterface(Components.interfaces.nsIURL);
+              this._name.value = url.fileName;
+            }
+          }
+        ]]></body>
+      </method>
+    </implementation>
+  </binding>
+
+</bindings>

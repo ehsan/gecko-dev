@@ -1,0 +1,5 @@
+
+copy: dom/encoding/test/reftest/bug863728-1-ref.html
+copyrev: 247e0037735048a5aac04e534dd94b807daea686
+
+<meta charset=utf-8>�

@@ -1,0 +1,16 @@
+
+copy: content/base/crashtests/231475-1.html
+copyrev: 02fe45013a6d59628b0914df67ecc2b405b1162f
+
+<html><body>
+<script type="text/javascript">
+//function doBold(){
+range = document.createRange();
+newNode = document.createElement("b");
+range.selectNodeContents(document);
+ 
+range.surroundContents(newNode)
+//}
+</script>
+text
+</body></html>

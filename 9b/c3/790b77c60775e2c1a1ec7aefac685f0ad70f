@@ -1,0 +1,11 @@
+
+copy: content/base/crashtests/443538-1.svg
+copyrev: e300361c6f3f6e93b9f63cd527079593646e8a1f
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     onload="document.getElementById('use').removeChild(document.getElementById('s'));">
+
+  <use id="use" xlink:href="#s"><g id="s"/></use>
+
+</svg>

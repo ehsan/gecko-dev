@@ -1,0 +1,13 @@
+
+copyrev: a8782546fdf536967bd1427207b7b32521874965
+copy: js/src/trace-test/tests/basic/testScriptGetter_JSOP_GETARGPROP.js
+
+function test(a) {
+    var s = '';
+    for (var i = 0; i < 9; i++)
+	s += a.p;
+    assertEq(s, 'qqqqqqqqq');
+}
+test({get p() { return 'q'; }});
+
+checkStats({recorderStarted: 1, recorderAborted: 0, traceCompleted: 1, traceTriggered: 1});

@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug687859-16.js^headers^
+copyrev: 4403d3225308be5ce150a28d0431f5ee45139e55
+
+Content-Type: text/javascript; charset=tis-620

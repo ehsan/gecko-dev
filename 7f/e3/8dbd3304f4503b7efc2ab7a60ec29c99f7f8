@@ -1,0 +1,42 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/ol/model-isvalid.html
+copyrev: 9a74cb34761ebeccdb74e905ee9381a66acd855a
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>Ordered List: &lt;ol&gt; &lt;li&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <ol class="class" id="id" lang="en" start="05">
+    <li class="class" id="id2" lang="en" value="9">text</li>
+  </ol>
+
+  <!-- can be empty -->
+  <ol></ol>
+  <ol>
+    <li></li>
+    <li></li>
+  </ol>
+
+  <!-- can contain structured inline -->
+  <ol>
+    <li>some <em>text</em>
+	  <pre>more text</pre>
+    </li>
+  </ol>
+
+  <!-- can contain blocks -->
+  <ol>
+    <li>
+      <p>some</p>
+      <p>text</p>
+    </li>
+  </ol>
+
+  <!-- can contain interactive -->
+  <ol><li><a>text</a></li></ol>
+</body>
+</html>

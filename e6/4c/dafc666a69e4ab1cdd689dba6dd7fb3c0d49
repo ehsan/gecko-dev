@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug687859-charset.js
+copyrev: 3ada30ae9fe07c6a7c358e97bd4a0dd28313fe38
+
+var stringFromCharsetScript = "¡";

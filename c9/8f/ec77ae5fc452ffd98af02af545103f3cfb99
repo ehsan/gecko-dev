@@ -1,0 +1,35 @@
+
+copy: content/base/crashtests/816253.html
+copyrev: fea95964ef158aeac57726b9d75be7b3d4bd53c7
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <script>
+            window.onload = function() {
+                setInterval(
+                    function next_step() {
+                        var style = document.createElement('style');
+                        style.innerHTML = "{ }";
+                        document.getElementsByTagName("*")[ 7 ].appendChild(style);
+                        window.dump('.');
+                    }, 10);
+            }
+        </script>
+    </head>
+    <body>
+        <div id="console"></div>
+        <div id="parentDiv">
+            <div id="left-to-right" dir="auto" class="testElement">
+                <input type="text" value="מקור השם עברית">Test test test
+            </div>
+        </div>
+        <script id="des">
+            var el = document.getElementById("left-to-right");
+            document.defaultView.getComputedStyle(el, null).getPropertyValue('border-right-color');
+
+            document.getElementById("parentDiv").style.display = "none";
+        </script>
+
+    </body>
+</html>

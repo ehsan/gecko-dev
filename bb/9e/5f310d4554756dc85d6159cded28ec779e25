@@ -1,0 +1,21 @@
+
+copy: editor/composer/src/crashtests/removing-editable-xslt.html
+copyrev: 0a17a86adbde5939b9f0365ffe39cd526d73bd6d
+
+<html class="reftest-wait">
+<head>
+<script>
+function boom()
+{
+  document.getElementById("i").src = "removing-editable-xslt-inner.xhtml";
+  setTimeout(function() { 
+    document.body.removeChild(document.getElementById("i"));
+    document.documentElement.removeAttribute("class");
+  }, 0);
+}
+</script>
+</head>
+<body onload="boom();">
+<iframe id="i"></iframe>
+</body>
+</html>

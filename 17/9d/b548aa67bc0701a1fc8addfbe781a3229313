@@ -1,0 +1,9 @@
+
+copy: content/html/content/test/file_imports_redirect.html
+copyrev: cf592bb7fcd94bbf442b3813bf047fcdd408f7d5
+
+<!DOCTYPE html>
+<html>
+<body>
+</body>
+</html>

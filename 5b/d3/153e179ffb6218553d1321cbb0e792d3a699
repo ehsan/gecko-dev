@@ -1,0 +1,9 @@
+
+copyrev: 0fd59ef644f0405e5941e462c06d4029e4c528b8
+copy: js/src/trace-test/tests/jaeger/bug557068.js
+
+for each(let x in [0, {}, 0, {}]) {
+  x.valueOf
+}
+
+// don't crash

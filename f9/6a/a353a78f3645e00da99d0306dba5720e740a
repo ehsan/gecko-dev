@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-invalid/default-style/fieldset.html
+copyrev: 4123cff828a44f73184052ecc74490e48d239975
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <script>
+    function onloadHandler()
+    {
+      document.getElementById('e').setCustomValidity('foo');
+      document.documentElement.className='';
+    }
+  </script>
+  <body onload="onloadHandler();">
+    <fieldset id='e'></fieldset>
+  </body>
+</html>

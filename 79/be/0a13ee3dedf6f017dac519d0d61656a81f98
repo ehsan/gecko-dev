@@ -1,0 +1,5 @@
+
+copy: toolkit/mozapps/downloads/tests/chrome/unknownContentType_dialog_layout_data.pif^headers^
+copyrev: 57faa673ab4a36e0bf267bac2b0a49ad8f3e5bb4
+
+Content-Type: application/octet-stream

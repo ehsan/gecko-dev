@@ -1,0 +1,24 @@
+
+copy: mobile/chrome/tests/browser_test.js
+copyrev: 6dea1828f4da077eec650b8842413c381ef3c9bd
+
+// Tests for the test functions in head.js
+
+function test() {
+  waitForExplicitFinish();
+  testWaitForAndContinue();
+}
+
+function testWaitForAndContinue() {
+  waitForAndContinue(function() {
+    ok(true, "continues on success")
+    testWaitForAndContinue2();
+  }, function() true);
+}
+
+function testWaitForAndContinue2() {
+  waitForAndContinue(function() {
+    ok(true, "continues on failure");
+    finish();
+  }, function() false);
+}

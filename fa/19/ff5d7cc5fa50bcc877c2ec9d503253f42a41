@@ -1,0 +1,9 @@
+
+copyrev: f34e075b8d4f2d8f67feae4ea2a10cf25091c7d4
+copy: js/src/trace-test/tests/jaeger/globalOptimize-1.js
+
+/* Test that NaN does not trigger js_InitMathClass & constants while parsing. */
+var NaN
+
+var x = 2;
+

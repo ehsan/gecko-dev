@@ -1,0 +1,4 @@
+
+copy: other-licenses/virtualenv/virtualenv_support/__init__.py
+copyrev: e69c2cdb257047b49631dd36a4b3cda7e2806ea0
+

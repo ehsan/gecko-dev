@@ -1,0 +1,12 @@
+
+copy: dom/src/threads/test/threadErrors_worker1.js
+copyrev: 363453390a0a1474d4df0d53f768079b8505da98
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+// Syntax error
+onmessage = function(event) {
+  for (var i = 0; i < 10) { }
+}

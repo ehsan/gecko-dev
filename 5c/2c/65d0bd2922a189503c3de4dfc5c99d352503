@@ -1,0 +1,12 @@
+
+copy: content/canvas/test/webgl/conformance/resources/intArrayUniformShader.vert
+copyrev: 522e4d1fb9b966acf712473bfeb637535a018a4c
+
+uniform int ival;
+uniform int ival2[2];
+
+void main()
+{
+    int sum = ival + ival2[0] + ival2[1];
+    gl_Position = vec4(sum, 0.0, 0.0, 1.0);
+}

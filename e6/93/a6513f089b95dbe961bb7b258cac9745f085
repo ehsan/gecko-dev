@@ -1,0 +1,16 @@
+
+copyrev: 6eef05763964ff6f20a3a0f4d62a774af6e2f231
+copy: js/src/trace-test/tests/basic/testEliminatedGuardWithinAnchor.js
+
+function testEliminatedGuardWithinAnchor() {
+    for (let i = 0; i < 5; ++i) { i / (i * i); }
+    return "ok";
+}
+
+assertEq(testEliminatedGuardWithinAnchor(), "ok");
+
+if (HAVE_TM) {
+    checkStats({
+        sideExitIntoInterpreter: (jitstats.archIsARM ? 1 : 3)
+    });
+}

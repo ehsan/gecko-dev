@@ -1,0 +1,6 @@
+
+copy: embedding/android/package-name.txt.in
+copyrev: 0da7ebbe663edcabfaa1fb24950b257171267fab
+
+#filter substitution
+@ANDROID_PACKAGE_NAME@

@@ -1,0 +1,6 @@
+
+copyrev: c8da157f46e5f781ad8238fd9a7e02d48ce40507
+copy: dom/src/geolocation/NetworkGeolocationProvider.manifest
+
+component {77DA64D3-7458-4920-9491-86CC9914F904} NetworkGeolocationProvider.js
+contract @mozilla.org/geolocation/provider;1 {77DA64D3-7458-4920-9491-86CC9914F904}

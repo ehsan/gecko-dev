@@ -1,0 +1,13 @@
+
+copyrev: 433481dcec3362c1670fcadefb7df1a193442ead
+copy: js/src/trace-test/tests/basic/testBug566556.js
+
+var msg = "";
+try {
+    this.__defineSetter__('x', Object.create);
+    this.watch('x', function() {});
+    x = 3;
+} catch (e) {
+    msg = e.toString();
+}
+assertEq(msg, "TypeError: (void 0) is not an object or null");

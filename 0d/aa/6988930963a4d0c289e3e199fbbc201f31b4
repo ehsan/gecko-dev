@@ -1,0 +1,22 @@
+
+copy: editor/libeditor/base/crashtests/766360.html
+copyrev: 95b6aceb9d0baa9b26648f8051806e34f1f4c3ba
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var r = document.createRange();
+  r.setEnd(document.createTextNode("x"), 0);
+  window.getSelection().addRange(r);
+  document.execCommand("inserthtml", false, "y");
+}
+
+</script>
+</head>
+
+<body contenteditable="true" onload="boom();"></body>
+</html>

@@ -1,0 +1,14 @@
+
+copyrev: b3572084925431638b4b2f4124971e757a83672e
+copy: js/src/trace-test/tests/basic/bug536445.js
+
+var x;
+var str = "a";
+assertEq(str.charCodeAt(Infinity) | 0, 0);
+for (var i = 0; i < 10; ++i)
+  x = str.charCodeAt(Infinity) | 0;
+assertEq(x, 0);
+for (var i = 0; i < 10; ++i)
+  x = str.charCodeAt(Infinity);
+assertEq(x | 0, 0);
+

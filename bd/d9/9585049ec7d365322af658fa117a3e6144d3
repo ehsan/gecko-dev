@@ -1,0 +1,8 @@
+
+copy: js/src/jit-test/tests/parallelarray/bug894782.js
+copyrev: 440ee19d8cf2663d9f9e6453dffee9988b0bb24c
+
+// Don't crash
+
+print(ParallelArray())
+String(Object.create(ParallelArray(8077, function() {})))

@@ -1,0 +1,7 @@
+
+copy: dom/tests/mochitest/w3c/html.mk
+copyrev: 6b5a46cbbb6de8ffa52eebe5c1cb2897ddfd609c
+
+DIRS += \
+  html/tests/submission/Mozilla \
+  $(NULL)

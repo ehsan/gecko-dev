@@ -1,0 +1,11 @@
+
+copy: content/xul/templates/src/crashtests/crashtests.list
+copyrev: ffd9e7d9ec1de7da99c30f8e0336c5b2c5677a12
+
+load 257752-1-recursion.xul
+load 329884-1.xul
+skip-if(winWidget) load 330012-1.xul # bug 742455
+load 404346-1.xul
+load 415019-1.xul
+load 417840-1.xul
+load 424418-1.xul

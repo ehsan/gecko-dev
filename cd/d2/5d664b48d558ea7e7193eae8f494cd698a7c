@@ -1,0 +1,7 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/glsl/variables/00_test_list.txt
+copyrev: 115bc6e8b0614e88ae57f61ccc4b00fb6a8b00ef
+
+gl-fragcoord.html
+gl-frontfacing.html
+gl-pointcoord.html

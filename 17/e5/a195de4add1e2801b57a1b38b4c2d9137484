@@ -1,0 +1,5 @@
+
+copy: content/base/test/csp/file_policyuri_regression_from_multipolicy_policy
+copyrev: 4a6bbd14b3820bf7f4db3b86a93d16cac64fb215
+
+default-src 'self';

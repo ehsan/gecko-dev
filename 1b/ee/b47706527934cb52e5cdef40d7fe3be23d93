@@ -1,0 +1,15 @@
+
+copy: layout/reftests/editor/spellcheck-textarea-property-dynamic-override.html
+copyrev: 0885c817dc3361264c4f514963bed75073a3c00f
+
+<!DOCTYPE html>
+<html>
+<body onload="init()">
+    <textarea spellcheck="true">blahblahblah</textarea>
+    <script>
+      function init() {
+        document.querySelector("textarea").spellcheck = false;
+      }
+    </script>
+</body>
+</html>

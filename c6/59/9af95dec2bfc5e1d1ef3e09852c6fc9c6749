@@ -1,0 +1,26 @@
+
+copy: layout/reftests/css-calc/height-block-1-ref.html
+copyrev: 68b64a2b3a232418d98f8b806682fbed2886ec18
+
+<!DOCTYPE HTML>
+<title>Test for height:calc() or min-height:calc() on blocks</title>
+<style>
+body { margin: 0 }
+body > div { float: left; width: 1px; background: blue; }
+</style>
+
+<!-- tests with a fixed-height container -->
+<div style="height: 50px"></div>
+<div style="height: 50px"></div>
+<div style="height: 75px"></div>
+<div style="height: 45px"></div>
+<div style="height: 40px"></div>
+<div style="height: 30px"></div>
+
+<!-- tests with an auto-height container -->
+<div style="height: 50px"></div>
+<div style="height: 10px"></div>
+<div style="height: 10px"></div>
+<div style="height: 10px"></div>
+<div style="height: 10px"></div>
+<div style="height: 10px"></div>

@@ -1,0 +1,5 @@
+
+copy: content/xul/templates/src/crashtests/424418-1.xul
+copyrev: 62bf43ca1a62e28ba9c17dee43799a65c02c3ba6
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"><hbox datasources="u"/></window>

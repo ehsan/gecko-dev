@@ -1,0 +1,11 @@
+
+copy: dom/src/threads/test/WorkerTest_badworker.js
+copyrev: 9eee38c4190b1280125f20091293ecfb7c0e259b
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+onmessage = function(event) {
+  throw "Shouldn't be able to read this!";
+}

@@ -1,0 +1,8 @@
+
+copy: layout/xul/crashtests/137216-1.xul
+copyrev: 5b6fa16858b1f092b4b43efd142fc96260f8e434
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+	<iframe style="position:absolute;"/>
+</window>

@@ -1,0 +1,11 @@
+
+copyrev: 3100b145deea3329547baf986e2634310e8c7550
+copy: js/src/trace-test/tests/jaeger/bug592973-2.js
+
+function f(a) {
+  function a() {
+  }
+}
+
+/* Don't assert on JOF_NAME test in BindNameToSlot(). */
+

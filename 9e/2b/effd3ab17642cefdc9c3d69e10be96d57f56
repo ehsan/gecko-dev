@@ -1,0 +1,9 @@
+
+copy: dom/workers/test/relativeLoad_sub_import.js
+copyrev: ee6d7b27b7ae8e5b711108eb563f9ede02751bd4
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+const workerSubURL = "subdir/relativeLoad_sub_worker.js";

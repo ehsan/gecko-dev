@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundrule4.wrong
+copyrev: fdce9377ae3b291ca591979b49901a5360889c12
+
+1th
+2th
+3th
+10001th
+10011st

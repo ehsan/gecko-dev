@@ -1,0 +1,12 @@
+
+copyrev: 084e3988b0b6dfc38007469a0cb7e1672b1e1b75
+copy: js/src/trace-test/tests/basic/testObjectToNumber.js
+
+function testObjectToNumber() {
+    var o = {valueOf: function()-3};
+    var x = 0;
+    for (var i = 0; i < 10; i++)
+        x -= o;
+    return x;
+}
+assertEq(testObjectToNumber(), 30);

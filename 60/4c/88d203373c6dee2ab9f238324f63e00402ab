@@ -1,0 +1,7 @@
+
+copyrev: 949c60b4069ad2336ce0867fca396de217852207
+copy: js/src/trace-test/tests/jaeger/bug549603.js
+
+// |jit-test| error: ReferenceError
+x ? o : [] && x
+

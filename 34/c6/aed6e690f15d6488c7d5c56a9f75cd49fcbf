@@ -1,0 +1,5 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-data.json
+copyrev: 24a0e4e4ae1b838fe9b1940814f8677df5895a7d
+
+{ id: "test JSON data", myArray: [ "foo", "bar", "baz", "biff" ] }

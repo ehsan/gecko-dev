@@ -1,0 +1,6 @@
+
+copy: content/base/test/csp/file_CSP_evalscript_main_spec_compliant_allowed_getCRMFRequest.html^headers^
+copyrev: 35e6a45260592ee9cf850e92a06d692585d6359f
+
+Cache-Control: no-cache
+Content-Security-Policy: default-src 'self' ; script-src 'self' 'unsafe-eval'

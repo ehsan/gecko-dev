@@ -1,0 +1,11 @@
+
+copy: content/html/content/reftests/autofocus/style.css
+copyrev: 9e15a96db6415ef836ba4ace9439ff022a079442
+
+:focus { background-color: green; }
+
+/**
+ * autofocus is considered like a keyboard focus and .focus() isn't.
+ * We might change that with bug 620056 but for these tests, we don't really care.
+ */
+::-moz-focus-inner { border: none; }

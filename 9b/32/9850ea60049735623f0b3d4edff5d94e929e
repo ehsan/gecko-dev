@@ -1,0 +1,27 @@
+
+copy: js/src/jit-test/tests/ion/bug716895.js
+copyrev: aca96dcfd6fa57ab35b530cb260e601a47e80c82
+
+function addConstraint(blaat) {
+    return blaat.v1
+}
+
+function ScaleConstraint() {
+    this.direction = null
+    this.v1 = {};
+    addConstraint(this);
+}
+
+function EqualityConstraint() {
+    this.v1 = {};
+    addConstraint(this);
+}
+
+function deltaBlue() {
+    new EqualityConstraint();
+    new ScaleConstraint();
+}
+
+for (var n = 0; n<100; n++) {
+    deltaBlue()
+}

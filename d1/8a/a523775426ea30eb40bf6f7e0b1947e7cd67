@@ -1,0 +1,18 @@
+
+copy: layout/reftests/css-invalid/textarea/textarea-fieldset-legend.html
+copyrev: c4b5a7d327a783b1e05a6018d0bc768794dc74cd
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if textarea has a disabled fieldset ancestor, but is in the first
+             legend, it is not barred from constraint validation and should be
+             affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <fieldset disabled>
+      <legend>
+        <textarea class='invalid' required></textarea>
+      </legend>
+    </fieldset>
+  </body>
+</html>

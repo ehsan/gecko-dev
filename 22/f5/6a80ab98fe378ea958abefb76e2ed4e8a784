@@ -1,0 +1,12 @@
+
+copyrev: 5f0d746320c6abd75864cbadbb4d9f24fba3f878
+copy: js/src/trace-test/tests/basic/testBug555484.js
+
+var result = "";
+o = { valueOf:function(){ throw "cow" } };
+try {
+    String.fromCharCode(o);
+} catch (e) {
+    result = e.toString();
+}
+assertEq(result, "cow");

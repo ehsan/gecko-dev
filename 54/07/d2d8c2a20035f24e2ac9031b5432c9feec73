@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/onlyincompound.aff
+copyrev: 8a90e4b94d15656e72dc6cda9039f25b71e94a0e
+
+# words only in compounds (see also fogemorpheme example)
+ONLYINCOMPOUND O
+COMPOUNDFLAG A
+SFX B Y 1
+SFX B 0 s .

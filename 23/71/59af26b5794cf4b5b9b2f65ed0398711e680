@@ -1,0 +1,17 @@
+
+copy: content/base/crashtests/448615-1.html
+copyrev: d0de36844f81e1e51b85f406aeb88820aa0b6c85
+
+<!DOCTYPE html>
+<html>
+<head>
+<style type="text/css">
+
+div:first-letter { float: right; }
+
+</style>
+</head>
+
+<body><div>A</div></body>
+
+</html>

@@ -1,0 +1,17 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/submissions/Ms2ger/test_historical.html.json
+copyrev: 15595f3802ae904314794d02cf1948a7c3c7da7c
+
+{
+  "Historical DOM features must be removed: CDATASection": true,
+  "Historical DOM features must be removed: createCDATASection": true,
+  "Historical DOM features must be removed: createAttribute": true,
+  "Historical DOM features must be removed: createAttributeNS": true,
+  "Historical DOM features must be removed: inputEncoding": true,
+  "Historical DOM features must be removed: getAttributeNode": true,
+  "Historical DOM features must be removed: getAttributeNodeNS": true,
+  "Historical DOM features must be removed: setAttributeNode": true,
+  "Historical DOM features must be removed: removeAttributeNode": true,
+  "DocumentType member must be nuked: internalSubset": true,
+  "Node member must be nuked: hasAttributes": true
+}

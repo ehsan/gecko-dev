@@ -1,0 +1,7 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dta/test_document.title-07.html.json
+copyrev: 4044e47cb446e7687d69a57bb91b105ff1bccdda
+
+{
+  "Document.title and DOMImplementation.createHTMLDocument 6": true
+}

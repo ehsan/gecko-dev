@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/germancompounding.dic
+copyrev: 0a28f02edf66b09cb1b74a850599f774975f54d1
+
+4
+Arbeit/A-
+Computer/BC-
+-/W
+Arbeitsnehmer/Z

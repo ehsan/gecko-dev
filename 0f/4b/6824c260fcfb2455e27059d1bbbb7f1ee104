@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/canvas/070-novalid.html
+copyrev: 846c36a8deef2445fff570b7c1443184f416b4a1
+
+<!doctype html>
+<meta charset=utf-8>
+<title>canvas with flow content and phrasing parent</title>
+<span><canvas><p>foo</p></canvas></span>

@@ -1,0 +1,22 @@
+
+copy: layout/reftests/editor/spellcheck-textarea-focused-notreadonly.html
+copyrev: 06ace6c60097654e9b8811c35eb8ca5b00e94795
+
+<!DOCTYPE html>
+<html>
+<body>
+
+  <textarea id="testBox" readonly></textarea>
+  <script type="text/javascript">
+    //Adding focus to the textbox should trigger a spellcheck
+    var textbox = document.getElementById("testBox");
+    addEventListener("load", function() {
+      textbox.readOnly = false;
+      textbox.focus();
+      textbox.value = "blahblahblah";
+      textbox.selectionStart = textbox.selectionEnd = 0;
+    }, false);
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+
+copy: layout/base/tests/font-inflation/video-1.html
+copyrev: 0fee6d29345124f51fd454595717d1860ea86484
+
+<!DOCTYPE HTML>
+<video src="../webm-video/black140x100.webm"></video>

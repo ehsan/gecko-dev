@@ -1,0 +1,10 @@
+
+copy: dom/src/threads/test/importScripts_worker_imported3.js
+copyrev: e708824fc217fae3dacf898ce32c289423b4ca9e
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+// Deliberate syntax error, should generate a worker exception!
+for (var index = 0; index < 100) {}

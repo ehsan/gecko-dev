@@ -1,0 +1,37 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH     = ../../..
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+MODULE = browserdir
+LIBRARY_NAME = browserdir_s
+
+TEST_DIRS += tests
+
+FORCE_STATIC_LIB = 1
+
+# Because we are an application component, link against the CRT statically
+# (on Windows, but only if we're not building our own CRT for jemalloc)
+ifndef MOZ_MEMORY
+USE_STATIC_LIBS      = 1
+endif
+
+EXPORTS_NAMESPACES = mozilla/browser
+EXPORTS_mozilla/browser = DirectoryProvider.h
+
+CPPSRCS = DirectoryProvider.cpp
+
+LOCAL_INCLUDES = -I$(srcdir)/../build
+
+EXTRA_DSO_LDOPTS = \
+	$(XPCOM_GLUE_LDOPTS) \
+	$(NSPR_LIBS) \
+	$(NULL)
+
+include $(topsrcdir)/config/rules.mk

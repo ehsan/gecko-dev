@@ -1,0 +1,16 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-css-loader.html
+copyrev: 25124c8d44cb22a05f6462b7f8cc99604983bd44
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Web Console test for bug 595934 - category: CSS Loader</title>
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+    <link rel="stylesheet" href="test-bug-595934-css-loader.css">
+  </head>
+  <body>
+    <p>Web Console test for bug 595934 - category "CSS Loader".</p>
+  </body>
+</html>

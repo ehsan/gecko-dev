@@ -1,0 +1,13 @@
+
+copy: js/src/jit-test/tests/parallelarray/bug857846.js
+copyrev: 63ca9ab5718b254ffd4e579e280843b2e7182350
+
+function testNegativeZeroScatter() {
+  // Don't crash.
+  var p = new ParallelArray([0]);
+  var r = p.scatter([-0], 0, undefined, 1);
+}
+
+if (getBuildConfiguration().parallelJS) {
+  testNegativeZeroScatter();
+}

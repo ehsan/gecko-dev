@@ -1,0 +1,6 @@
+
+copy: mozglue/build/dummy.cpp
+copyrev: 37e6aa8409c06c03e23ad3fa97f01c528612c2a1
+
+void _dummy(void) {
+}

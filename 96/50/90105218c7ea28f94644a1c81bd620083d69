@@ -1,0 +1,25 @@
+
+copy: browser/base/content/test/browser_bug609700.js
+copyrev: 17d88090c4f4e7f34a5b02e4e01332ac9104ce8e
+
+function test() {
+  waitForExplicitFinish();
+
+  Services.ww.registerNotification(function (aSubject, aTopic, aData) {
+    if (aTopic == "domwindowopened") {
+      Services.ww.unregisterNotification(arguments.callee);
+
+      ok(true, "duplicateTabIn opened a new window");
+
+      aSubject.addEventListener("load", function () {
+        aSubject.removeEventListener("load", arguments.callee, false);
+        executeSoon(function () {
+          aSubject.close();
+          finish();
+        });
+      }, false);
+    }
+  });
+
+  duplicateTabIn(gBrowser.selectedTab, "window");
+}

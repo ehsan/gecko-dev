@@ -1,0 +1,18 @@
+
+copyrev: 393927d88f81eeb514277481b41c49c997b63651
+copy: ipc/ipdl/test/cxx/PTestArraysSub.ipdl
+
+include protocol PTestDataStructures;
+
+namespace mozilla {
+namespace _ipdltest {
+
+sync protocol PTestDataStructuresSub {
+    manager PTestDataStructures;
+
+parent:
+    sync __delete__();
+};
+
+} // namespace _ipdltest
+} // namespace mozilla

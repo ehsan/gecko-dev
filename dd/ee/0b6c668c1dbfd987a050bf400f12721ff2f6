@@ -1,0 +1,16 @@
+
+copy: content/html/content/crashtests/504183-1.html
+copyrev: 57f691d62bb36cb4d8baa913c2d898e9d5da23f4
+
+<html class="reftest-wait">
+<input id="a" type="file">
+<script>
+function doe() {
+var elem = document.getElementById('a');
+elem.style.display = "none";
+elem.focus();
+document.documentElement.className = "";
+}
+setTimeout(doe, 0);
+</script>
+</html>

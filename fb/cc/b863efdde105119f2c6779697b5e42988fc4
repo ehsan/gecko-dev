@@ -1,0 +1,20 @@
+
+copyrev: 82b895e98b9165207707fc74faec280422f722ca
+copy: js/src/trace-test/tests/closures/t019.js
+
+actual = '';
+expected = 'undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,';
+
+for (x = 0; x < 10; ++x) {
+  for each(let a in ['', NaN, 3, 5.5, {}]) {
+        appendToActual((function() {
+            for (let y = 0; y < 1; ++y) {
+                '' + a
+            }
+        })())
+    }
+}
+
+
+
+assertEq(actual, expected)

@@ -1,0 +1,8 @@
+
+copy: mobile/chrome/tests/addons/browser_locale1/chrome.manifest
+copyrev: 9128912a589bd384a0d6e688b6b942ecb222dd34
+
+locale mozapps te-st chrome # locale
+locale browser te-st chrome # duplicate locale
+locale browser te-st-a chrome # second locale
+locale branding te-st-3 chrome # wrong component

@@ -1,0 +1,24 @@
+
+copy: content/html/content/crashtests/838256-1.html
+copyrev: e429be95879f08052d3c6d45bf20598a4a8cbaa1
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+
+::-moz-range-track {
+  display: none ! important;
+}
+
+::-moz-range-thumb {
+  display: none ! important;
+}
+
+</style>
+</head>
+<body>
+<input type="range">
+</body>
+</html>

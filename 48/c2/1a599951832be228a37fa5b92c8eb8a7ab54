@@ -1,0 +1,8 @@
+
+copy: content/base/crashtests/642022-1.html
+copyrev: 6b142738d91265d991237fea07682298cb48ab3b
+
+<!DOCTYPE html>
+<script>
+InstallTrigger.constructor.create(window).setTimeout(Array, 0);
+</script>

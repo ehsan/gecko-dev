@@ -1,0 +1,11 @@
+
+copy: content/xbl/crashtests/432813-1-xbl.xml
+copyrev: 8f3f7ef92f147662a193e848213e1c3469302956
+
+<bindings xmlns="http://www.mozilla.org/xbl">
+<binding id="a">
+<content>
+<div xmlns="http://www.w3.org/1999/xhtml" style="-moz-binding: inherit;"/>
+</content>
+</binding>
+</bindings>

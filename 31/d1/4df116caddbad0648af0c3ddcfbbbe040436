@@ -1,0 +1,5 @@
+
+copy: browser/devtools/commandline/test/browser_cmd_jsb_script.jsi
+copyrev: b703b2f8d5a4a6868fd25fec8d94d7670c0a5afe
+
+function somefunc(){for(let n=0;n<500;n++){if(n%2==1){console.log(n);console.log(n+1);}}}

@@ -1,0 +1,33 @@
+
+copyrev: 4902641cb3c610239162ffa45e2c9c320165ffa4
+copy: modules/plugin/tools/sdk/samples/scriptable/windows/npscriptable.dsw
+
+Microsoft Developer Studio Workspace File, Format Version 6.00
+# WARNING: DO NOT EDIT OR DELETE THIS WORKSPACE FILE!
+
+###############################################################################
+
+Project: "npscriptable"=.\npscriptable.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
+Global:
+
+Package=<5>
+{{{
+}}}
+
+Package=<3>
+{{{
+}}}
+
+###############################################################################
+

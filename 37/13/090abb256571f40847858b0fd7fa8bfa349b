@@ -1,0 +1,17 @@
+
+copy: extensions/spellcheck/hunspell/tests/i58202.wrong
+copyrev: 7b4d6160efa5933ed8eec27faf044ecf781263ae
+
+fOO
+BAr
+baz
+BOo
+foobar
+fooBar
+Foobar
+FooBar
+fooBaz
+FooBaz
+Bazfoo
+BazFoo
+BazBoo

@@ -1,0 +1,11 @@
+
+copyrev: 31d0f2c601c11e20144369d0e9b55c4142bbb63e
+copy: js/src/trace-test/tests/jaeger/bug582884.js
+
+(function () {
+    x ^ x++
+    var x
+})()
+
+/* Don't assert. */
+

@@ -1,0 +1,6 @@
+
+copy: media/webrtc/trunk/src/modules/audio_processing/OWNERS
+copyrev: 0a25c97a5fa07dcfec9a96f544e78f5559778801
+
+andrew@webrtc.org
+bjornv@webrtc.org

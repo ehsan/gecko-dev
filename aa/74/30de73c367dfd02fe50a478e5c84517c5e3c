@@ -1,0 +1,11 @@
+
+copy: content/xml/document/resources/moz.build
+copyrev: ca3cec447fcd944d9434c55db751a464418b1757
+
+# -*- Mode: python; c-basic-offset: 4; indent-tabs-mode: nil; tab-width: 40 -*-
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+JAR_MANIFESTS += ['jar.mn']

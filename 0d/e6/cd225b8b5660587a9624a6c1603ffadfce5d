@@ -1,0 +1,10 @@
+
+copy: layout/base/tests/font-inflation/css-transform-1-ref.html
+copyrev: b06e6f16bad8df33fe217f15cbddb5092a83943c
+
+<!DOCTYPE HTML>
+<style>
+div { font-size: 34px; width: 150px; line-height: 1.0; white-space: nowrap }
+span { -moz-transform-origin: 0 0; -moz-transform: scale(1.2); }
+</style>
+<div><span>Hello world</span></div>

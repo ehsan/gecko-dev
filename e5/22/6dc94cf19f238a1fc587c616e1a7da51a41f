@@ -1,0 +1,11 @@
+
+copy: js/src/xpconnect/crashtests/603146-1.html
+copyrev: 889902a56b9f1fd692f098088b5b3c2a585d9ec7
+
+<!DOCTYPE html>
+<script>
+
+delete XMLHttpRequest.prototype.mozResponseArrayBuffer;
+(new XMLHttpRequest).mozResponseArrayBuffer;
+
+</script>

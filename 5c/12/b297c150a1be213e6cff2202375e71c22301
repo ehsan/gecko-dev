@@ -1,0 +1,5 @@
+
+copyrev: c18b9426d311f1cf457ee1869a62bff27987826d
+copy: dom/src/json/test/fail32.json
+
+{"Comma instead if closing brace": true,

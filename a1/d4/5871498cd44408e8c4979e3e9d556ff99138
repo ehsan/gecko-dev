@@ -1,0 +1,17 @@
+
+copyrev: 78a9b1417376107726ce45d9d0ea832dead4ed28
+copy: js/src/trace-test/tests/basic/testSetMethod.js
+
+function C() {
+    this.a = function() {};
+    this.b = function() {};
+}
+for (var i = 0; i < 9; i++)
+    new C;
+
+checkStats({
+    recorderStarted: 1,
+    recorderAborted: 0,
+    traceCompleted: 1,
+    sideExitIntoInterpreter: 1
+});

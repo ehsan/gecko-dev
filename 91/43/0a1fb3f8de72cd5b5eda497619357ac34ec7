@@ -1,0 +1,15 @@
+
+copyrev: ed513f69ba0f7abe7377e082735d50a9342f75b9
+copy: layout/reftests/table-anonymous-boxes/white-space-1.html
+
+<!DOCTYPE HTML>
+<html>
+  <body>
+    <span>
+      <span>a</span>
+      <span style="display: table-cell">b</span>
+      <span style="display: table-cell">c</span>
+      <span>d</span>
+    </span>
+  </body>
+</html>

@@ -1,0 +1,14 @@
+
+copyrev: 3d0602884da017db371d5231d2fd7c0eba3efdcb
+copy: js/src/trace-test/tests/basic/bug589318.js
+
+// Use arguments in an eval.
+code = " \
+function f(a) { var x = a; } \
+for (var i = 0; i < 10; i++) { f(5); } \
+";
+
+eval(code);
+
+
+// Test it doesn't assert.

@@ -1,0 +1,9 @@
+
+copy: addon-sdk/source/data/test-context-menu.js
+copyrev: 09c1d64dc9314b62ec2bb98ab3e583407b7a4ae4
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+self.on("context", function () true);

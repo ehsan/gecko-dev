@@ -1,0 +1,13 @@
+
+copy: layout/xul/base/src/grid/crashtests/313173-1.html
+copyrev: c377ff79026a13b89f485a32af295d07bf8c0997
+
+<html class="reftest-wait">
+<head>
+<script>
+setTimeout('document.documentElement.className = ""', 500);
+</script>
+<body>
+<iframe src="313173-1-inner.xul"></iframe>
+</body>
+</html>

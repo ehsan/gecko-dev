@@ -1,0 +1,15 @@
+
+copy: layout/reftests/forms/checkbox-radio-stretched-ref.html
+copyrev: 567b8baf4338e6ac565713194948ca55ee08c5a9
+
+<!DOCTYPE html>
+<html>
+<body>
+
+<form>
+  <input type="checkbox"/>
+  <input type="radio"/>
+</form>
+
+</body>
+</html>

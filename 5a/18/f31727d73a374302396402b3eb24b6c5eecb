@@ -1,0 +1,17 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix2.morph
+copyrev: b9fd6e606612f6fc4307ec60f8aa7415be3ed60d
+
+> foo
+analyze(foo) =  st:foo id:1
+analyze(foo) =  st:foo id:3
+stem(foo) = foo
+> bar
+analyze(bar) =  st:bar
+stem(bar) = bar
+> foobar
+analyze(foobar) =  pa:foo st:foo id:3 pa:bar
+stem(foobar) = foo
+> barfoo
+analyze(barfoo) =  pa:bar st:bar pa:foo st:foo id:3
+stem(barfoo) = barfoo

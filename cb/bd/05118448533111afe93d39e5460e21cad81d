@@ -1,0 +1,10 @@
+
+copy: content/canvas/crashtests/746813-1.html
+copyrev: 6898358c6cabd7f918991bf6ed734cc6e7bf0c88
+
+<!DOCTYPE html>
+<html>
+<body onload="document.getElementById('c').getContext('2d').mozCurrentTransformInverse;">
+<canvas id="c" width="772" height="76441"></canvas>
+</body>
+</html>

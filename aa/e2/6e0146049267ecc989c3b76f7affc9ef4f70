@@ -1,0 +1,16 @@
+
+copyrev: 208e41fa8ec1426907118b36b6c6ddc2ffedc5df
+copy: toolkit/mozapps/update/src/updater/macbuild/Contents/Resources/English.lproj/MainMenu.nib/classes.nib
+
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            CLASS = UpdaterUI; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {progressBar = NSProgressIndicator; progressTextField = NSTextField; }; 
+            SUPERCLASS = NSObject; 
+        }
+    ); 
+    IBVersion = 1; 
+}

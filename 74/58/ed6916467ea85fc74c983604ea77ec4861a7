@@ -1,0 +1,10 @@
+
+copy: content/xbl/builtin/emacs/jar.mn
+copyrev: d1b1cd8e606528e364e1a962c8d271707752ad9b
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+toolkit.jar:
+* content/global/platformHTMLBindings.xml   (platformHTMLBindings.xml)

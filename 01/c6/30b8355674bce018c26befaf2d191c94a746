@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=463934
+-->
+<head>
+  <title>Test for Bug 463934</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=463934">Mozilla Bug 463934</a>
+<p id="display"></p>
+<div id="content" style="display: none"></div>
+
+<iframe id="svg" src="bounds-helper.svg"></iframe>
+
+<pre id="test">
+<script class="testbody" type="application/javascript">
+SimpleTest.waitForExplicitFinish();
+
+var doc;
+
+function Rect(left, top, width, height) {
+  this.left=left;
+  this.top=top;
+  this.width=width;
+  this.height=height;
+  this.roundOut=roundOut;
+  this.isApproximately=isApproximately;
+}
+
+function roundOut() {
+  with (this) {
+    var right = Math.ceil(left + width);
+    var bottom = Math.ceil(top + height);
+    left = Math.floor(left);
+	top = Math.floor(top);
+	width = right - left;
+	height = bottom - top;   
+  }
+}
+
+function isApproximately(rectId) {
+  this.roundOut();
+  var rect = doc.getElementById(rectId).getBoundingClientRect();
+  with (this) {
+    ok ((Math.abs(left - rect.left) <= 1), rectId + ".getBoundingClientRect().left is " + left + " should be approximately " + rect.left);
+    ok ((Math.abs(top - rect.top) <= 1), rectId + ".getBoundingClientRect().top is " + top + " should be approximately " + rect.top);
+    ok ((Math.abs(width - rect.width) <= 1), rectId + ".getBoundingClientRect().width is " + width + " should be approximately " + rect.width);
+    ok ((Math.abs(height - rect.height) <= 1), rectId + ".getBoundingClientRect().height is " + height + " should be approximately " + rect.height);
+  }
+}
+
+function runTest()
+{
+  doc = $("svg").contentWindow.document;
+  
+  var len1 = doc.getElementById("text1").getComputedTextLength();
+  
+  var sin45 = Math.sin(Math.PI / 4);
+
+  var rect = new Rect(25, 8, len1, 21);
+  rect.isApproximately("text1");		
+
+  rect = new Rect(25 + 100, 8, len1, 21);
+  rect.isApproximately("text2");
+		
+  rect = new Rect(158, 14, (len1 + 21) * sin45, (21  + len1) * sin45);
+  rect.isApproximately("text3");
+		
+  rect = new Rect(200, 128, 2 * (len1 + 21) * sin45, 2 * (21 + len1) * sin45);
+  rect.isApproximately("text4");
+		
+  rect = new Rect(50, 50, 50, 50);
+  rect.isApproximately("rect1")
+
+  rect = new Rect(175 - 50 * sin45, 75 - 50 * sin45 , 50 * sin45 * 2, 50 * sin45 * 2);
+  rect.isApproximately("rect2")
+
+  rect = new Rect(50, 160 , 100, 100);
+  rect.isApproximately("rect3");		
+
+  rect = new Rect(350 - 100 * sin45, 150 - 100 * sin45, 100 * sin45 * 2, 100 * sin45 * 2);
+  rect.isApproximately("rect4");		
+
+  rect = new Rect(49, 49, 52, 52);
+  rect.isApproximately("rect1a");		
+
+  rect = new Rect(175 - 52 * sin45, 75 - 52 * sin45, 52 * sin45 * 2, 52 * sin45 * 2);
+  rect.isApproximately("rect2a");		
+
+  rect = new Rect(48, 158, 104, 104);
+  rect.isApproximately("rect3a");
+
+  rect = new Rect(350 - 104 * sin45, 150 - 104 * sin45, 104 * sin45 * 2, 104 * sin45 * 2);
+  rect.isApproximately("rect4a");		
+
+  var len1a = doc.getElementById("text1a").getComputedTextLength();
+
+  rect = new Rect(85 - 1, 8, len1a + 1, 22);
+  rect.isApproximately("text1a");		
+  
+  rect = new Rect(85 - 5 + 100, 8, len1a + 9, 25);
+  rect.isApproximately("text2a");		
+  
+  SimpleTest.finish();
+}
+
+window.addEventListener("load", runTest, false);
+</script>
+</pre>
+</body>
+</html>

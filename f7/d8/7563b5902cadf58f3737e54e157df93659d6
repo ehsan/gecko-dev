@@ -1,0 +1,5 @@
+
+copyrev: 5a69a59b49bd0a1f410f5fd45f49ec8aacb3415c
+copy: js/src/trace-test/tests/basic/bug568276.js
+
+function outer(a) { var b, c, d, e, f, g, h, i; function a() {} }

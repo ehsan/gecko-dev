@@ -1,0 +1,13 @@
+
+copy: content/base/test/chrome/host_bug814638.xul
+copyrev: 04ad3c9f56766ecd10671212d0b797621b561e8a
+
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/css" href="chrome://global/skin"?>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=814638
+-->
+<window title="Mozilla Bug 814638"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <iframe flex="1" src="frame_bug814638.xul"/>
+</window>

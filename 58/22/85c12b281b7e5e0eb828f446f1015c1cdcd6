@@ -1,0 +1,33 @@
+
+copy: content/base/crashtests/399712-1.html
+copyrev: efd18e18088cb2fbb671d0f7ee5e51c110865a9c
+
+<html class="reftest-wait">
+<head>
+<script>
+
+function boom()
+{
+  document.getElementById("ta").style.overflow = "scroll";
+  setTimeout(boom2, 12);
+}
+
+function boom2()
+{
+  document.getElementById("ta").style.overflow = "";
+  setTimeout(boom, 12);
+}
+
+function cont()
+{
+  document.documentElement.removeAttribute("class");
+}
+</script>
+</head>
+
+<body onload="boom(); setTimeout(cont, 800);">
+
+<textarea id="ta">x</textarea>
+
+</body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/binary-data/fuzz9.js
+copyrev: 3a7da3257c9fe435c5e4ac7376d78b59b0ee27f1
+
+// |jit-test| error: TypeError
+
+if (!this.hasOwnProperty("Type"))
+  throw new TypeError();
+
+var Vec3 = new ArrayType(float32, 3);
+var Sprite = new ArrayType(Vec3, 3);
+var mario = new Sprite();
+mario[/\u00ee[]/] = new Vec3([1, 0, 0]);
+

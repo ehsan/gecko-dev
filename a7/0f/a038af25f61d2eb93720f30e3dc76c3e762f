@@ -1,0 +1,6 @@
+
+copy: dom/imported-tests/html.txt
+copyrev: e362381d7b2d8803f6e48efe2ab672e859c5e251
+
+https://dvcs.w3.org/hg/html|html
+tests/submission/Mozilla

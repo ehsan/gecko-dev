@@ -1,0 +1,16 @@
+
+copy: docshell/test/browser/file_bug234628-7-child.html
+copyrev: cc8667c36913c98a1d723e1723fdaebf70c675ab
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="hz-gb-2312">
+<meta content="width=device-width, initial-scale=1" name="viewport">
+<title>meta declaration in parent and meta HZ in child</title>
+</head>
+<body>
+<p>China if decoded as HZ: ~{VP~}</p>
+</body>
+</html>
+

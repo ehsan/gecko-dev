@@ -1,0 +1,11 @@
+
+copy: content/media/test/crashtests/495794-1.html
+copyrev: 6cc607b5ab7a2bd98a2a2cf165ea738392574b34
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <body>
+    <audio src="495794-1.ogg" autoplay onended="document.documentElement.className=undefined"></audio>
+  </body>
+</html>
+

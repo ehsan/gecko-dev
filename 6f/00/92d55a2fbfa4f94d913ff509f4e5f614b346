@@ -1,0 +1,20 @@
+[
+{
+"size": 82,
+"digest": "70a6126249e40aa1da32248bf6bfe45e0d8c87334579ec0cf69403e61b635e27c766d9bf08d530978286552f158ee24c74b0168a57cc6b734dcfed4fc5e09cff",
+"algorithm": "sha512", 
+"filename": "setup.sh"
+}, 
+{
+"size": 80458572,
+"digest": "e5101f9dee1e462f6cbd3897ea57eede41d23981825c7b20d91d23ab461875d54d3dfc24999aa58a31e8b01f49fb3140e05ffe5af2957ef1d1afb89fd0dfe1ad",
+"algorithm": "sha512", 
+"filename": "gcc.tar.xz"
+},
+{
+"size": 166407,
+"digest": "88fcc94f21818621e9e10107db913a3c787c6a68219c1e3e5fb26ebdf0864efdca4f05bd168d4851fee35c6b8d9ca4f9eb3ec229f565b7e6ce55ff6e7e899c24",
+"algorithm": "sha512",
+"filename": "sccache.tar.bz2"
+}
+]

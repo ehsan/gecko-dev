@@ -1,0 +1,27 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+#include "domstubs.idl"
+
+[scriptable, uuid(30361a5b-a3b8-4dbc-b464-e08761abb123)]
+interface nsITabParent : nsISupports
+{
+  void injectTouchEvent(in AString aType,
+                        [array, size_is(count)] in uint32_t aIdentifiers,
+                        [array, size_is(count)] in int32_t aXs,
+                        [array, size_is(count)] in int32_t aYs,
+                        [array, size_is(count)] in uint32_t aRxs,
+                        [array, size_is(count)] in uint32_t aRys,
+                        [array, size_is(count)] in float aRotationAngles,
+                        [array, size_is(count)] in float aForces,
+                        in uint32_t count,
+                        in long aModifiers);
+
+  readonly attribute boolean useAsyncPanZoom;
+
+  void setIsDocShellActive(in bool aIsActive);
+
+  readonly attribute uint64_t tabId;
+};

@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_CSP_bug663567_blocks.xml^headers^
+copyrev: c9c5e592cc3147b7dd2045a002639470f6d7d1f0
+
+Content-Security-Policy: default-src *.example.com

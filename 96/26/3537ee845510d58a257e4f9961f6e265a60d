@@ -1,0 +1,9 @@
+
+copy: dom/src/threads/test/relativeLoad_import.js
+copyrev: 7cbf797f9a942d4da0956a817e7df47605e21ecb
+
+/**
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+const workerURL = "relativeLoad_worker.js";

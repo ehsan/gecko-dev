@@ -1,0 +1,8 @@
+
+copy: mobile/android/base/gradle_AndroidManifest.xml
+copyrev: d1cfde792e93f046f85d321c75b6b5958cf8a939
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.mozilla.gecko">
+
+</manifest>

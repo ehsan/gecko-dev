@@ -1,0 +1,53 @@
+DEPTH      = ../../../..
+topsrcdir  = @top_srcdir@
+srcdir     = @srcdir@
+VPATH      = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+MODULE = url-classifier
+LIBRARY_NAME = urlclassifier_s
+XPIDL_MODULE = url-classifier
+LIBXUL_LIBRARY = 1
+FORCE_STATIC_LIB = 1
+
+
+REQUIRES = necko \
+           storage \
+           string \
+           xpcom \
+           $(ZLIB_REQUIRES) \
+           $(NULL)
+
+CPPSRCS = \
+          nsUrlClassifierDBService.cpp \
+          nsUrlClassifierStreamUpdater.cpp \
+          nsUrlClassifierUtils.cpp \
+          $(NULL)
+
+CSRCS = \
+        sha512.c \
+        nssstubs.c \
+        $(NULL)
+
+# sha512.c requires NSS headers
+LOCAL_INCLUDES = \
+                 -I$(srcdir)/../../build \
+                 -I$(DIST)/public/nss \
+                 -I$(DIST)/private/nss \
+                 -I$(topsrcdir)/security/nss/lib/freebl \
+                 -I$(topsrcdir)/security/nss/lib/freebl/ecl \
+                 -I$(topsrcdir)/security/nss/lib/cryptohi \
+                 -I$(topsrcdir)/security/nss/lib/util \
+                 $(NULL)
+
+
+# Same as JS components that are run through the pre-processor.
+EXTRA_PP_COMPONENTS = nsUrlClassifierLib.js \
+                      nsUrlClassifierListManager.js \
+                      $(NULL)
+
+include $(topsrcdir)/config/rules.mk
+
+export:: $(topsrcdir)/security/nss/lib/freebl/sha512.c
+	$(INSTALL) $^ .

@@ -1,0 +1,12 @@
+
+copyrev: 5d4d8070ff85ee1c6ca280ff119eca2d37e45976
+copy: js/src/trace-test/tests/basic/arityMismatchMissingArg.js
+
+function arityMismatchMissingArg(arg)
+{
+  for (var a = 0, i = 1; i < 10000; i *= 2) {
+    a += i;
+  }
+  return a;
+}
+assertEq(arityMismatchMissingArg(), 16383);

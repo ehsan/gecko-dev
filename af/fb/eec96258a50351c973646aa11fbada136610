@@ -1,0 +1,12 @@
+
+copy: content/html/content/reftests/figure.html
+copyrev: 5323a8fec36facc2e490ef0e771c2ec7c2f4f27e
+
+<!doctype html>
+<title>The figure element</title>
+<link rel=author title=Ms2ger href=ms2ger@gmail.com>
+<link rel=help href=http://www.whatwg.org/html5/#the-figure-element>
+<figure>
+<figcaption>Caption</figcaption>
+Figure
+</figure>

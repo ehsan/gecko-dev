@@ -1,0 +1,15 @@
+
+copy: content/html/document/reftests/bug448564-1_well-formed.html
+copyrev: 498a298e09949053a07007a1489459bfbfe89b81
+
+<html>
+<head>
+  <link rel="stylesheet" type="text/css"
+        href="bug448564_forms.css">
+  </link>
+</head>
+<body>
+  <form><i><b>a</b></i></form>
+  <form><i><b>b</b></i></form>
+</body>
+</html>

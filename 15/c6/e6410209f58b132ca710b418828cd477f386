@@ -1,0 +1,12 @@
+
+copy: modules/plugin/test/reftest/plugin-transform-2.html
+copyrev: a57536ee8e807922699ce86a43e5273994a04e93
+
+<!DOCTYPE HTML>
+<html>
+<body>
+<embed type="application/x-test" drawmode="solid" color="FF00FF00"
+       style="width:100px; height:100px; -moz-transform-origin:top left;
+              -moz-transform:scale(2); display:block"></embed>
+</body>
+</html>

@@ -1,0 +1,15 @@
+<!ENTITY browser.title         "Firefox">
+
+<!ENTITY cut.label             "Cut">
+<!ENTITY copy.label            "Copy">
+<!ENTITY copylink.label        "Copy Link Location">
+<!ENTITY paste.label           "Paste">
+<!ENTITY delete.label          "Delete">
+<!ENTITY selectAll.label       "Select All">
+<!ENTITY noSuggestions.label   "(No suggestions)">
+<!ENTITY addToDictionary.label "Add to Dictionary">
+
+<!ENTITY newTab.label          "New Tab">
+<!ENTITY closeTab.label        "Close Tab">
+<!ENTITY switchTab.label       "Switch Tab...">
+<!ENTITY addons.label          "Add-ons">

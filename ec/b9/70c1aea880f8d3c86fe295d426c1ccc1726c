@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundaffix2.dic
+copyrev: da7e573ef087a0cec7e1f1670b2715374a3d4eed
+
+2
+foo/XPS
+bar/XPS

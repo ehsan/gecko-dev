@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_XHR_pass3.txt
+copyrev: d691a726bf55a2520c49f3f47983db8b846e4889
+
+redirect file

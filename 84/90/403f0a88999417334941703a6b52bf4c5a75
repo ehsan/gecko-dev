@@ -1,0 +1,11 @@
+
+copy: browser/components/sessionstore/test/browser/browser_623779.js
+copyrev: 0a850dd37448dc715485058f5f7b72d6d2fc395b
+
+function test() {
+  gBrowser.pinTab(gBrowser.selectedTab);
+  var newTab = gBrowser.duplicateTab(gBrowser.selectedTab);
+  ok(!newTab.pinned, "duplicating a pinned tab creates unpinned tab");
+  gBrowser.removeTab(newTab);
+  gBrowser.unpinTab(gBrowser.selectedTab);
+}

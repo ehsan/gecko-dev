@@ -1,0 +1,10 @@
+
+copy: content/base/test/bug455629-helper.svg
+copyrev: 2fe34d1eb06f73891a015079e39dee05729b4da1
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <g transform="scale(0.5)">
+    <foreignObject id="f" width="100" height="100"/>
+  </g>
+</svg>

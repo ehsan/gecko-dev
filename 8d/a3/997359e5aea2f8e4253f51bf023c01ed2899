@@ -1,0 +1,10 @@
+
+copyrev: fb0a92882f29e371143e2c67bbe90591ea79d332
+copy: js/src/trace-test/tests/basic/bug584499-1.js
+
+// |jit-test| error: TypeError
+var s = "12345";
+for(var i=0; i<7; i++) {
+    print(s[i].length);
+}
+

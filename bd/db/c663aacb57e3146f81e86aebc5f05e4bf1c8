@@ -1,0 +1,10 @@
+
+copy: dom/system/b2g/tests/xpcshell.ini
+copyrev: 5f7c8e9da75b05be6daed0235aebfc7177aa8bc5
+
+[DEFAULT]
+head = header_helpers.js
+tail =
+
+[test_ril_worker_buf.js]
+[test_ril_worker_sms.js]

@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-textarea-attr.html
+copyrev: 4d0115c75b8ae52591da00e05c66aae0219e568d
+
+<!DOCTYPE html>
+<html>
+<body>
+  <textarea>blahblahblah</textarea>
+</body>
+</html>

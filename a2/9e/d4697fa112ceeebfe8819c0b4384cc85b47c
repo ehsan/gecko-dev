@@ -1,0 +1,25 @@
+
+copy: browser/devtools/debugger/test/browser_dbg_debuggerstatement.html
+copyrev: b6a10729bea953fb3a61297676bdf39f9951b64d
+
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+<!doctype html>
+
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Debugger test page</title>
+  </head>
+
+  <body>
+    <button>Click me!</button>
+
+    <script type="text/javascript">
+      function runDebuggerStatement() {
+        debugger;
+      }
+    </script>
+  </body>
+
+</html>

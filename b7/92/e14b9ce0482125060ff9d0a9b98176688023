@@ -1,0 +1,6 @@
+
+copy: content/base/test/file_XHR_fail1.txt^headers^
+copyrev: 5c7a70d2356ce9beb3cc4a82f90985cf204588f4
+
+HTTP 301 Moved Permanently
+Location: http://example.com/tests/dom/base/test/file_XHR_pass2.txt

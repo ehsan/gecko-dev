@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=Mozilla.Fennec
+Exec=/usr/local/fennec/fennec 
+

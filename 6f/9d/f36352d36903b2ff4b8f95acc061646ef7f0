@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/checksharpsutf.aff
+copyrev: d29f80cf834a4715a91664b140e93a8ff6f2f37f
+
+# test ß - SS special capitalizing in UTF-8
+SET UTF-8
+CHECKSHARPS
+WORDCHARS ÃŸ.
+KEEPCASE k

@@ -1,0 +1,6 @@
+
+copy: mobile/chrome/locale/en-US/brand/brand.dtd
+copyrev: 0a45fbe89d6a442acd426534a0a14e34aabc36cd
+
+<!ENTITY  brandShortName  "Fennec">
+<!ENTITY  brandFullName   "Fennec">

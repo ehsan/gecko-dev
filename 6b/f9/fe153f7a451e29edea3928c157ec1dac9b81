@@ -1,0 +1,7 @@
+
+copy: js/src/jit-test/tests/parallelarray/filter-very-few.js
+copyrev: f77a6ca8aa5b5060a4ae5b6ea3a9862e80c76502
+
+load(libdir + "parallelarray-helpers.js");
+if (getBuildConfiguration().parallelJS)
+  assertArraySeqParResultsEq(range(0, 1024), "filter", function(i) { return i <= 1 || i >= 1022; });

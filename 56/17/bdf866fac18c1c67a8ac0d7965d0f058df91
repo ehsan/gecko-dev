@@ -1,0 +1,13 @@
+
+copy: content/events/crashtests/457776-1.html
+copyrev: fb29ff1e69075babe7e7e9f7668400273bedfecf
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+new XMLHttpRequest().upload.onabort = function(){};
+</script>
+</head>
+<body>
+</body>
+</html>

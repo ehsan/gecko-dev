@@ -1,0 +1,140 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the GCLI.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Joe Walker <jwalker@mozilla.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+#gclichrome-body {
+  margin: 0;
+  padding: 0;
+  font: message-box;
+}
+
+.gcli-row-out {
+  padding: 0 5px;
+  line-height: 1.2em;
+  border-top: none;
+  border-bottom: none;
+}
+
+.gcli-row-out p,
+.gcli-row-out h1,
+.gcli-row-out h2,
+.gcli-row-out h3 {
+  margin: 5px 0;
+}
+
+.gcli-out-shortcut {
+  border: 1px solid #999;
+  border-radius: 3px;
+  padding: 1px 4px 0;
+  margin: 0 4px;
+  font-size: 80%;
+  font-family: Consolas, Inconsolata, "Courier New", monospace;
+  cursor: pointer;
+  vertical-align: bottom;
+  white-space: pre;
+  background-color: #fff;
+}
+
+.gcli-out-shortcut:before {
+  color: #66F;
+  content: '\bb';
+}
+
+
+/* From: $GCLI/lib/gcli/commands/help.css */
+
+.gcli-help-arrow {
+  font-size: 70%;
+  color: #AAA;
+}
+
+.gcli-help-synopsis {
+  font-family: Consolas, Inconsolata, "Courier New", monospace;
+  font-weight: normal;
+  padding: 0 3px;
+  margin: 0 10px;
+  border: 1px solid #999;
+  border-radius: 3px;
+}
+
+.gcli-help-synopsis:before {
+  color: #66F;
+}
+
+.gcli-help-description {
+  margin: 0 20px;
+  padding: 0;
+}
+
+.gcli-help-parameter {
+  margin: 0 30px;
+  padding: 0;
+}
+
+.gcli-help-header {
+  margin: 10px 0 6px;
+}
+
+
+/* From: $GCLI/lib/gcli/ui/fields/menu.css */
+
+.gcli-menu-name {
+  -moz-padding-start: 8px;
+}
+
+.gcli-menu-desc {
+  -moz-padding-end: 8px;
+  color: #999;
+}
+
+.gcli-menu-option:hover {
+  background-color: #EEE;
+}
+
+.gcli-menu-highlight,
+.gcli-menu-highlight.gcli-menu-option:hover {
+  background-color: #DDD;
+}
+
+.gcli-menu-error {
+  padding: 8px 10px 2px;
+  font-size: 80%;
+  color: red;
+}
+
+.gcli-menu-typed {
+  color: hsl(25,78%,50%);
+}

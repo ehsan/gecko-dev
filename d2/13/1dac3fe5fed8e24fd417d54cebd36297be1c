@@ -1,0 +1,13 @@
+
+copyrev: 5d0a88ba04bdcbf1a37da7e58fe8b4d549052bba
+copy: js/src/trace-test/tests/basic/stringSplitTest.js
+
+function stringSplitTest()
+{
+  var s = "a,b"
+  var a = null;
+  for (var i = 0; i < 10; ++i)
+    a = s.split(",");
+  return a.join();
+}
+assertEq(stringSplitTest(), "a,b");

@@ -1,0 +1,7 @@
+
+copy: content/xul/content/crashtests/360078-1xbl.xml
+copyrev: 50151da1718bd89fe6aa07731301d96c4c57c708
+
+<bindings xmlns="http://www.mozilla.org/xbl"><binding id="foo"><content>
+<a xmlns="http://www.w3.org/1999/xhtml" href="http://www.mozilla.org/" id="mlink">Foo<children xmlns="http://www.mozilla.org/xbl"/></a>
+</content></binding></bindings>

@@ -1,0 +1,5 @@
+
+copy: content/base/test/csp/file_CSP_bug663567_allows.xml^headers^
+copyrev: 0170736ad3f4ecf52b9508c5161e75c254a9c8ee
+
+Content-Security-Policy: default-src 'self'

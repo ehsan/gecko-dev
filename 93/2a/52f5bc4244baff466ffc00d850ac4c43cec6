@@ -1,0 +1,19 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-html.html
+copyrev: db7c883a80b5b8e7ee44892fd52b841bf6ae14c7
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Web Console test for bug 595934 - category: HTML</title>
+<!-- Any copyright is dedicated to the Public Domain.
+     http://creativecommons.org/publicdomain/zero/1.0/ -->
+  </head>
+  <body>
+    <p>Web Console test for bug 595934 - category "HTML".</p>
+    <form action="?" enctype="multipart/form-data">
+      <p><label>Input <input type="text" value="test value"></label></p>
+    </form>
+  </body>
+</html>
+

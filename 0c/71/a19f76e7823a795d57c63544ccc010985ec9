@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/2970240.good
+copyrev: 97e7edf71c0b7554f44a2d3a5c6bd756fe0c0dfe
+
+firstmiddlelast

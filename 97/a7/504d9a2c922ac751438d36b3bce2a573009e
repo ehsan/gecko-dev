@@ -1,0 +1,13 @@
+
+copy: js/src/jit-test/tests/parallelarray/index-1.js
+copyrev: 93c69e9a2dfc49b316838e0b98e8acbcdad3fd38
+
+function test() {
+  var N = 22;
+  var p = new ParallelArray([N], function(i) { return i; });
+  for (var i = 0; i < N; i++)
+    assertEq(p.get(i), i);
+}
+
+if (getBuildConfiguration().parallelJS)
+  test();

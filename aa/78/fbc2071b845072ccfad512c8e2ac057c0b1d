@@ -1,0 +1,8 @@
+
+copy: content/base/crashtests/786854.html
+copyrev: 5c9f1ad61a7fbdc05707f73661c88ad03c7d29b1
+
+<!DOCTYPE html>
+<body>
+<table background=""></table>
+</body>

@@ -1,0 +1,8 @@
+
+copy: browser/branding/nightly/locales/en-US/brand.dtd
+copyrev: 1323745c218576fa1bddc163a3062fd00b256b33
+
+<!ENTITY  brandShortName        "Aurora">
+<!ENTITY  brandFullName         "Aurora">
+<!ENTITY  vendorShortName       "Mozilla">
+<!ENTITY  trademarkInfo.part1   " ">

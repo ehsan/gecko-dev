@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/usemap/001-novalid.html
+copyrev: fa3b469ee97ba86ad57246b4d1d8db119514055d
+
+<!doctype html><meta charset=utf-8><title>usemap="#"</title>There should be an error.<img src="foo" alt="" usemap="#">

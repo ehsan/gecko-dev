@@ -1,0 +1,23 @@
+
+copy: content/base/test/variable_style_sheet.sjs
+copyrev: 17895ef85a4da93ff6f79abd04309f15f94e3845
+
+function handleRequest(request, response)
+{
+  response.setHeader("Cache-Control", "no-cache", false);
+  response.setHeader("Content-Type", "text/css", false);
+
+  var accessCount;
+  var state = getState("varSSAccessCount");
+  if (!state) {
+    setState("varSSAccessCount", "0");
+    accessCount = 0;
+  } else {
+    setState("varSSAccessCount", (parseInt(state) + 1).toString());
+    accessCount = parseInt(state) + 1;
+  }
+
+  response.write("#content { background-color: rgb(" +
+                 (accessCount % 256) +
+                 ", 0, 0); }");
+}

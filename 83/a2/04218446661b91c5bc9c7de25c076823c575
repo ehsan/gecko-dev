@@ -1,0 +1,9 @@
+
+copy: content/media/test/crashtests/876024-1.html
+copyrev: 5c72e0ee1d4fc32f04064aafdb7da4a946b609cf
+
+<script>
+o1 = new window.AudioContext(2, 8, 44100);
+o4 = o1.createBiquadFilter();
+o4.detune.setValueAtTime(0.0843, 1.7976931348623157e+308);
+</script>

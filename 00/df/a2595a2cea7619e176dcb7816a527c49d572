@@ -1,0 +1,8 @@
+
+copy: mobile/locales/en-US/updater/updater.ini
+copyrev: 3637ce2039d5d6b790fa9a3ecea2fe035c8c329d
+
+; This file is in the UTF-8 encoding
+[Strings]
+TitleText=%MOZ_APP_DISPLAYNAME% Update
+InfoText=%MOZ_APP_DISPLAYNAME% is installing your updates and will start in a few moments…

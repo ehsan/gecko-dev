@@ -1,0 +1,9 @@
+
+copy: gfx/thebes/crashtests/396321-1.svg
+copyrev: de187596e1913189398c47a8b8e4f36b2fd6fdf8
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<text>&#x202B;x</text>
+
+</svg>

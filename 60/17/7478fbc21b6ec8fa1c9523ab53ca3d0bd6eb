@@ -1,0 +1,9 @@
+
+copy: embedding/android/resources/layout/launch_app_list.xml
+copyrev: 9e169c4f2479330172d2630625bbb32b67056e5e
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              style="@style/Screen"
+              android:padding="3dip"
+              android:windowIsFloating="true"/>

@@ -1,0 +1,12 @@
+
+copyrev: 372daf0c9472a372df535bd929115ebac3d3f6e9
+copy: browser/base/content/test/autodiscovery.html
+
+<!DOCTYPE HTML>
+<html>
+  <head id="linkparent">
+    <title>Autodiscovery Test</title>
+  </head>
+  <body>
+  </body>
+</html>

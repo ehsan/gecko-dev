@@ -1,0 +1,16 @@
+
+copyrev: c7e7fd00f842957398c49069d07719608d81ec1a
+copy: testing/mozmill/mozmill-1.5.0/mozmill/extension/content/overlay_tb.xul
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://mozmill/skin/overlay.css" type="text/css"?>
+<!DOCTYPE overlay SYSTEM "chrome://mozmill/locale/overlay.dtd">
+<overlay id="mozmill-overlay"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <script src="overlay.js"/>
+
+  <menupopup id="taskPopup">
+    <menuitem id="mozmill-mozmill" label="&mozmill;" 
+              oncommand="MozMill.onMenuItemCommand(event);"/>
+  </menupopup>
+</overlay>

@@ -1,0 +1,50 @@
+
+copy: content/html/content/reftests/table-border-1-ref.html
+copyrev: 81564a3c16297fdc817dd2855d219ef82a1cb856
+
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>Table borders</title>
+<style>
+table {
+  border-width: 1px;
+  border-style: outset;
+}
+td {
+  border-width: 1px;
+  border-style: inset;
+}
+</style>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>
+<table>
+<tr><td>Test
+</table>

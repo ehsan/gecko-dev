@@ -1,0 +1,8 @@
+
+copy: content/base/test/invalid_accesscontrol.resource^headers^
+copyrev: 7097fde8b39a429ae0bb9a41679c9aaaa924e1a4
+
+Access-Control-Allow-Origin: http://an.accesscrontrol.domain:80
+Content-Type: text/event-stream
+Cache-Control: no-cache, must-revalidate
+

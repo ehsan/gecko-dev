@@ -1,0 +1,7 @@
+
+copy: js/src/jit-test/tests/parallelarray/filter-all.js
+copyrev: fdc72756ba06997520f34fffecab2a700145610b
+
+load(libdir + "parallelarray-helpers.js");
+if (getBuildConfiguration().parallelJS)
+  assertArraySeqParResultsEq(range(0, 1024), "filter", function() { return true; });

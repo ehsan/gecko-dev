@@ -1,0 +1,12 @@
+
+copy: content/html/content/crashtests/616401.html
+copyrev: 83f155a44d0ee4dfaacd7355e472717550f545ba
+
+<!doctype html>
+<script>
+var c = document.createElement("canvas");
+c.getContext("experimental-webgl", {
+  get a() { throw 7; },
+  get b() { throw 8; }
+});
+</script>

@@ -1,0 +1,14 @@
+
+copy: modules/plugin/test/reftest/border-padding-2-ref.html
+copyrev: 4e63a39bd668d9987102dc8b7bdfe83d4f0c3bdc
+
+<!DOCTYPE html>
+<html>
+<body style="margin:0">
+<div style="width:184px; height:192px; margin:90px 80px; outline:5px dashed blue;
+            border:dotted black; border-width:4px 8px 4px 8px;
+            background:cyan;">
+  <object style="margin:3px 1px; height:186px; width:182px; display:block;" type="application/x-test"></object>
+</div>
+</body>
+</html>

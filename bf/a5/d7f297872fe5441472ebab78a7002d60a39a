@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+
+<window id="main-window"
+        onload="startup();"
+        windowtype="navigator:browser"
+        xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:svg="http://www.w3.org/2000/svg"
+        xmlns:html="http://www.w3.org/1999/xhtml">
+
+<script type="application/javascript" src="chrome://browser/content/browser.js"/>
+
+<browser id="home" type="content-primary" flex="1"/>
+
+</window>

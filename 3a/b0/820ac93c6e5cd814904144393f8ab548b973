@@ -1,0 +1,27 @@
+
+copy: content/html/content/test/file_bug209275_2.html
+copyrev: b7d82a313a7f7800a3a61f2d5ed45f32b9e59cd8
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <base href="http://example.com" />
+</head>
+<body onload="load();">
+Page 2 initial state
+
+<script>
+function load() {
+  // Nuke and rebuild the page.
+  document.removeChild(document.documentElement);
+  html = document.createElement("html");
+  html.innerHTML = "<body><a href='/' id='link'>B</a></body>"
+  document.appendChild(html);
+
+  // Tell our parent to have a look at us
+  parent.gGen.next();
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copy: content/html/content/crashtests/819745.html
+copyrev: a49ee9df1699e2da34ef8a0b7d66b2d62d354c6d
+
+<!doctype="html">
+<body>
+<script>
+  document.body.onerror = null;
+</script>

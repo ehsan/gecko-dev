@@ -1,0 +1,14 @@
+
+copy: toolkit/components/startup/tests/browser/beforeunload.html
+copyrev: 83962bd382558a284db7e6417ed9fd22ca838957
+
+<html>
+  <script>
+  window.onbeforeunload = function(event){
+    event.returnValue = 'Test beforeunload handler';
+  }
+  </script>
+  <body>
+    Test page
+  </body>
+</html>

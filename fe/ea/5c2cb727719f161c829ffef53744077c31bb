@@ -1,0 +1,37 @@
+
+copy: content/base/crashtests/344882-1.html
+copyrev: 1431424d818240fe6cf68a2d1105d580aa19f7f5
+
+<html class="reftest-wait">
+<head>
+<script>
+var obj;
+
+function boo()
+{
+  obj = document.getElementById("obj");
+  setScriptSrc();
+}
+
+function setScriptSrc()
+{
+  obj.data = "javascript:setScriptSrc2();";
+}
+
+function setScriptSrc2() 
+{
+  obj.data = "javascript:void 0";
+
+  document.documentElement.removeAttribute("class");
+}
+
+</script>
+</head>
+
+<body onload="setTimeout(boo, 30);">
+
+<object data="../../../testing/crashtest/images/tree.gif" id="obj">
+
+</body>
+
+</html>

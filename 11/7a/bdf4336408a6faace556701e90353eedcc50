@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd" [
+<!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd" >
+%brandDTD;
+<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd" >
+%globalDTD;
+<!ENTITY % firstrunDTD SYSTEM "chrome://browser/locale/firstrun.dtd" >
+%firstrunDTD;
+]>
+
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - Version: MPL 1.1/GPL 2.0/LGPL 2.1
+   -
+   - The contents of this file are subject to the Mozilla Public License Version
+   - 1.1 (the "License"); you may not use this file except in compliance with
+   - the License. You may obtain a copy of the License at
+   - http://www.mozilla.org/MPL/
+   -
+   - Software distributed under the License is distributed on an "AS IS" basis,
+   - WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+   - for the specific language governing rights and limitations under the
+   - License.
+   -
+   - The Original Code is Mozilla Communicator client code, released
+   - March 31, 1998.
+   -
+   - The Initial Developer of the Original Code is
+   - Netscape Communications Corporation.
+   - Portions created by the Initial Developer are Copyright (C) 1998-1999
+   - the Initial Developer. All Rights Reserved.
+   -
+   - Contributor(s):
+   -   Henrik Gemal <mozilla@gemal.dk>
+   -   Daniel Veditz <dveditz@netscape.com>
+   -   Alexey Chernyak <alexeyc@bigfoot.com>
+   -   Steffen Wilberg <steffen.wilberg@web.de>
+   -
+   - Alternatively, the contents of this file may be used under the terms of
+   - either the GNU General Public License Version 2 or later (the "GPL"), or
+   - the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+   - in which case the provisions of the GPL or the LGPL are applicable instead
+   - of those above. If you wish to allow use of your version of this file only
+   - under the terms of either the GPL or the LGPL, and not to allow others to
+   - use your version of this file under the terms of the MPL, indicate your
+   - decision by deleting the provisions above and replace them with the notice
+   - and other provisions required by the GPL or the LGPL. If you do not delete
+   - the provisions above, a recipient may use your version of this file under
+   - the terms of any one of the MPL, the GPL or the LGPL.
+   -
+   - ***** END LICENSE BLOCK ***** -->
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+  <meta name="viewport" content="width=480; initial-scale=.6667; user-scalable=0;" />
+  <title>&firstrun.title;</title>
+  <link rel="icon" type="image/png" href="chrome://branding/content/favicon32.png" />
+  <link rel="stylesheet" href="chrome://browser/skin/firstRun.css" type="text/css"/>
+
+  <script><![CDATA[
+    var Ci = Components.interfaces, Cc = Components.classes;
+    function reloadIfDone(aImg) {
+      if (!(aImg instanceof Ci.nsIImageLoadingContent))
+         return;
+
+      var request = aImg.getRequest(Ci.nsIImageLoadingContent.CURRENT_REQUEST);
+      var imgIContainer = request.image;
+
+      if (imgIContainer.currentFrameIndex == imgIContainer.numFrames - 1) {
+        imgIContainer.resetAnimation();
+        imgIContainer.startAnimation();
+      }
+    }
+  ]]></script>
+</head>
+
+<body id="firstrun" class="">
+  <div id="wrapper">
+    <div id="header">
+      <a href="http://mozilla.com/m"><img src="chrome://browser/content/firstrun/mozilla.png" width="64" height="17"/></a>
+    </div>
+  
+    <div id="head">
+      <h1><img src="chrome://branding/content/logoWordmark.png"/></h1>
+      <p>&firstrun.heading;</p>
+    </div>
+  
+    <div id="content">
+      <h2>&firstrun.recommended;</h2>
+    
+      <ul id="recommended">
+        <li id="weave"><a href="https://addons.mozilla.org/mobile/addon/10868"><b>&firstrun.weave.title;</b> <span>&firstrun.weave.description;</span></a></li>
+        <li id="starter"><a href="https://addons.mozilla.org/firefox/collection/mobilestarterkit"><b>&firstrun.starter.title;</b> <span>&firstrun.starter.description;</span></a></li>
+        <li id="tour"><a href="#demo" id="show-demo"><b>&firstrun.tour.title;</b> <span>&firstrun.tour.description;</span></a></li>
+      </ul>
+
+      <p id="features"><a href="http://mozilla.com/m/features">&firstrun.features;</a></p>
+
+      <p id="demo" style="display: none">
+        <img id="animation" src="" onclick="reloadIfDone(this);"/>
+      </p>
+    
+      <script>
+        var preload = new Image();
+        preload.src = "chrome://browser/content/firstrun/animation.gif";
+    
+        document.getElementById("show-demo").addEventListener("click", function() {
+          document.getElementById("demo").style.display = "block";
+          document.getElementById("animation").setAttribute("src", preload.src);
+          document.getElementById("demo").scrollIntoView();
+        }, false);
+      </script>
+    </div>
+  
+    <div id="footer">
+      <ul class="nav">
+        <li><a href="http://mozilla.com/m/faq">&firstrun.faq;</a></li>
+        <li><a href="http://mozilla.com/m/privacy">&firstrun.privacy;</a></li>
+      </ul>
+  
+      <div id="follow">
+        <p>&firstrun.follow;</p>
+        <ul>
+          <li id="follow-twitter"><a href="http://twitter.com/mozmobile"><img src="chrome://browser/content/firstrun/twitter.png" height="41" width="42" /></a></li>
+          <li id="follow-facebook"><a href="http://www.facebook.com/firefoxformobile"><img src="chrome://browser/content/firstrun/facebook.png" height="41" width="42" /></a></li>
+        </ul>
+      </div>
+    </div>  
+  </div>
+</body>
+</html>

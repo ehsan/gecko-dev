@@ -1,0 +1,136 @@
+/* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/**
+ * Debugger content
+ */
+
+.dbg-default {
+  cursor: default;
+}
+
+/**
+ * Stack frames
+ */
+
+#stack {
+  width: 200px;
+}
+
+#stackframes {
+  overflow: auto;
+}
+
+.dbg-stackframe {
+  display: block;
+}
+
+.dbg-stackframe-name {
+  float: left;
+}
+
+.dbg-stackframe-details {
+  float: right;
+}
+
+.dbg-stackframe-name:-moz-locale-dir(rtl) {
+  float: right;
+}
+
+.dbg-stackframe-details:-moz-locale-dir(rtl) {
+  float: left;
+}
+
+/**
+ * Properties elements
+ */
+
+#properties {
+  width: 250px;
+}
+
+#variables {
+  overflow: auto;
+}
+
+/**
+ * Scope element
+ */
+
+.scope {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+}
+
+.scope > .details {
+  display: none;
+}
+
+.scope > .details[open] {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+}
+
+/**
+ * Variable element
+ */
+
+.variable {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+}
+
+.variable > .title {
+  white-space: nowrap;
+}
+
+.variable > .details {
+  display: none;
+}
+
+.variable > .details[open] {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+}
+
+/**
+ * Property element
+ */
+
+.property {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+}
+
+.property > .title {
+  white-space: nowrap;
+}
+
+.property > .title > .key {
+  display: inline-block;
+}
+
+.property > .title > .value {
+  display: inline-block;
+}
+
+.property > .details {
+  display: none;
+}
+
+.property > .details[open] {
+  display: -moz-box;
+  -moz-box-orient: vertical;
+}
+
+/**
+ * Display helpers
+ */
+
+.unselectable {
+  -moz-user-select: -moz-none;
+  cursor: default;
+}

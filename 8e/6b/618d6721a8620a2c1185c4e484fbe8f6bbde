@@ -1,0 +1,27 @@
+
+copy: dom/imported-tests/webapps/WebStorage/tests/submissions/Ms2ger/test_storage_session_length_js.html
+copyrev: 416ed700d57aa60a8d6f04924533b402c1f6ccd7
+
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <title>Web Storage</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body>
+    <h1>storage_session_length</h1>
+    <div id="log"></div>
+    <script>
+        test(function() {
+            sessionStorage.clear();
+            assert_equals(sessionStorage.length, 0, "sessionStorage.length")
+
+            sessionStorage["name"] = "user1";
+            sessionStorage["age"] = "20";
+
+            assert_equals(sessionStorage.length, 2, "sessionStorage.length")
+        });
+    </script>
+ </body>
+</html>

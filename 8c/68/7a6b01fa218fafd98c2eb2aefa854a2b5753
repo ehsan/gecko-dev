@@ -1,0 +1,16 @@
+
+copyrev: 0af6d4fbf388c1cefdb208dc000a86aee81fa7ef
+copy: js/src/trace-test/tests/jaeger/bug549521.js
+
+function f(y) {
+    if (y)
+        return;
+    let(x) {
+        for (;;) {}
+    }
+}
+
+
+/* Don't assert. */
+f(1);
+

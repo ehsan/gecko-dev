@@ -1,0 +1,14 @@
+
+copy: content/svg/content/src/crashtests/831561.html
+copyrev: 7ca7110797b33c2ac243372a5af5d529e6aac8d1
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <script>
+      var clipPath = document.createElementNS("http://www.w3.org/2000/svg",
+                                              "clipPath");
+      clipPath["hasExtension"].apply(clipPath,[]);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,26 @@
+
+copy: layout/reftests/css-calc/background-image-gradient-1-ref.html
+copyrev: 38fa9ce8349b78b908ba1e017d06374fb31bedc7
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>CSS Reference: Test for calc() on background-image gradients</title>
+  <link rel="author" title="L. David Baron" href="http://dbaron.org/">
+  <link rel="help" href="http://www.w3.org/TR/css3-values/#calc-notation">
+  <meta name="flags" content="">
+<style type="text/css">
+
+p {
+    height: 50px; width: 200px;
+    border: thin solid;
+}
+
+#one { background-image: radial-gradient(circle farthest-side at 150px 20px, red, green); }
+
+</style>
+</head>
+<body>
+<p id="one"></p>
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/2970240.aff
+copyrev: 258e5a5b18b61d2a349075d2e66e2df9d91fc45e
+
+# test words with three parts
+CHECKCOMPOUNDPATTERN 1
+CHECKCOMPOUNDPATTERN le fi
+COMPOUNDFLAG c
+

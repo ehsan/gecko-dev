@@ -1,0 +1,10 @@
+
+copy: dom/xul/crashtests/461917-1.xhtml
+copyrev: 27807d1ff3b3d239228a02be6b6e5d4019802061
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head></head>
+<body>
+<tabs xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onselect="#"><wizard/></tabs>
+</body>
+</html>

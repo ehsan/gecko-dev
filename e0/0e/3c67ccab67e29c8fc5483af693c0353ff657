@@ -1,0 +1,9 @@
+
+copyrev: e1ede6453132552575d37a28ad21a554e056fb95
+copy: layout/reftests/bugs/336736-1-ref.html
+
+<html>
+<body>
+<div style="background: green; width: 50px">&nbsp;</div>
+</body>
+</html>

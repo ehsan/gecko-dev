@@ -1,0 +1,17 @@
+
+copyrev: a5c656d632d42bd19959ba9f2bc951c2279b041f
+copy: js/src/trace-test/tests/jaeger/bug563000/untrap-self.js
+
+setDebug(true);
+x = "notset";
+function main() {
+  /* JSOP_STOP in main. */
+  untrap(main, 23);
+  x = "success";
+}
+function failure() { x = "failure"; }
+
+/* JSOP_STOP in main. */
+trap(main, 23, "failure()");
+main();
+assertEq(x, "success");

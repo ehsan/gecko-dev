@@ -1,0 +1,17 @@
+
+copy: extensions/spellcheck/hunspell/tests/i58202.sug
+copyrev: 694b8e01d689cf8d7d28fd97c8740090bdf341ae
+
+foo, Boo
+Bar
+Baz
+Boo
+foo bar
+foo Bar
+Foo bar
+Foo Bar
+foo Baz
+Foo Baz
+Baz foo
+Baz Foo
+Baz Boo

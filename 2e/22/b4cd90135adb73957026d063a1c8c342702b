@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/complexprefixes2.good
+copyrev: fc469978cfaf0e04e404702b9355de524b280dae
+
+ouro
+metouro
+tekmetouro
+ouro_test_

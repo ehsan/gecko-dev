@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/i54980.test
+copyrev: f8b484a48bf4dce37e5c8b55bdfce3ecaf363fdb
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME -i ISO8859-15

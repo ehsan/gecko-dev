@@ -1,0 +1,14 @@
+
+copy: mobile/android/base/tests/testDeviceSearchEngine.java.in
+copyrev: 1be830250678f5c4292bee1228854f76160bde77
+
+package org.mozilla.gecko.tests;
+
+import org.mozilla.gecko.*;
+
+
+public class testDeviceSearchEngine extends JavascriptTest {
+    public testDeviceSearchEngine() {
+        super("testDeviceSearchEngine.js");
+    }
+}

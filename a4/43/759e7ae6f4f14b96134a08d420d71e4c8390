@@ -1,0 +1,18 @@
+
+copy: content/media/test/crashtests/868504.html
+copyrev: d28b6080dab3fdeea6490af48c3b23657eb4be89
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+    new AudioContext().createBufferSource().playbackRate.linearRampToValueAtTime(0, -1);
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

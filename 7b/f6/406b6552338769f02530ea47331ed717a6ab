@@ -1,0 +1,25 @@
+
+copy: content/base/crashtests/709954.html
+copyrev: 67c4abe1b0cf48b084ec63bbeaa87c2e4c7c3fd6
+
+<!DOCTYPE html>
+<html>
+
+<head>
+<script>
+
+function boom()
+{
+  setTimeout(function(){
+    document.documentElement.removeChild(document.body);
+  }, 0);
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+<input value="f" pattern="[">
+</body>
+
+</html>

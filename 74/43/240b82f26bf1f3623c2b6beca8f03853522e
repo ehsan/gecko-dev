@@ -1,0 +1,13 @@
+
+copy: content/html/content/reftests/hidden-1f.html
+copyrev: fa1267942d8aae868ce0dca19a6335fdef9ed460
+
+<!doctype html>
+<title>The hidden attribute</title>
+<link rel=author title=Ms2ger href=mailto:Ms2ger@gmail.com>
+<link rel=help href=http://www.whatwg.org/html/#the-hidden-attribute>
+<link rel=help href=http://www.whatwg.org/html/#hidden-elements>
+<style>
+p { display: block !important; }
+</style>
+<p hidden>This line should be visible.

@@ -1,0 +1,12 @@
+
+copyrev: eb03572248277b75be7d5d2742ef9363e8f08fc0
+copy: js/src/trace-test/tests/jaeger/bug554675-1.js
+
+(function() {
+  for (e in [0, 0]) {
+    if (/x/ < this) {}
+  }
+})()
+
+/* Don't assert. */
+

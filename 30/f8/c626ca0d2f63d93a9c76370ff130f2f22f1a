@@ -1,0 +1,19 @@
+
+copy: dom/base/test/csp/file_multi_policy_injection_bypass.html
+copyrev: 56191750ff4870d44d08d8fea44c3ea4e560539c
+
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=717511
+-->
+  <body>
+    <!-- these should be stopped by CSP after fixing bug 717511.  :) -->
+    <img src="http://example.org/tests/dom/security/test/file_CSP.sjs?testid=img_bad&type=img/png"> </img>
+    <script src='http://example.org/tests/dom/security/test/file_CSP.sjs?testid=script_bad&type=text/javascript'></script>
+
+    <!-- these should load ok after fixing bug 717511.  :) -->
+    <img src="file_CSP.sjs?testid=img_good&type=img/png" />
+    <script src='file_CSP.sjs?testid=script_good&type=text/javascript'></script>
+
+  </body>
+</html>

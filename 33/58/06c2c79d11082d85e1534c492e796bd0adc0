@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/condition_utf.dic
+copyrev: 84f2c5cf6f775d3c3ba3fddec64645236c403ed8
+
+1
+óőó/SP

@@ -1,0 +1,23 @@
+
+copy: content/svg/content/src/crashtests/369291-2.svg
+copyrev: afbdcb3575c7e71520a7f394800e69d7505b6541
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:html="http://www.w3.org/1999/xhtml"
+     onload="setTimeout(boom, 30);"
+     class="reftest-wait">
+
+<html:script>
+
+function boom()
+{
+  document.getElementById("rect").getBBox();
+
+  document.documentElement.removeAttribute("class");
+}
+
+</html:script>
+
+<rect id="rect" />
+
+</svg>

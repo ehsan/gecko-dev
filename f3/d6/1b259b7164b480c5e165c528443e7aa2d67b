@@ -1,0 +1,14 @@
+
+copyrev: a27d5d8e4e394a475436e64e4bd341774567fab1
+copy: js/src/trace-test/tests/pic/set-assign.js
+
+function f() {
+    var o = { a: 555 };
+
+    for (var j = 0; j < 10; ++j) {
+	var i = o.a = 100 + j;
+	assertEq(i, 100 + j);
+    }
+}
+
+f()

@@ -1,0 +1,6 @@
+
+copy: content/canvas/test/webgl-conformance/skipped_tests_win_vista.txt
+copyrev: 872f3996ca076916c9ac44dc2664310e456f1362
+
+conformance/textures/tex-image-and-sub-image-2d-with-video.html
+conformance/textures/texture-npot-video.html

@@ -1,0 +1,11 @@
+
+copy: layout/xul/crashtests/431738.xhtml
+copyrev: 2efdf018daed0b051276ab174590b191cfb1e5de
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<body>
+<div>
+<span style="font-size: 0pt;"><xul:listboxbody><span style="border: 1px solid red;"/></xul:listboxbody></span>
+</div>
+</body>
+</html>

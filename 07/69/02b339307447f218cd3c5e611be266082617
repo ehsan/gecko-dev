@@ -1,0 +1,43 @@
+
+copyrev: f4f52375d3a5451b4d0c6328f89b04eab8b2eafb
+copy: js/src/trace-test/tests/basic/bug551705.js
+
+(Function("\
+  for each(let x in [\n\
+  true,\n\
+  (1),\n\
+  (1),\n\
+  (1),\n\
+  (1),\n\
+  true,\n\
+  true,\n\
+  true,\n\
+  (1),\n\
+  true,\n\
+  true,\n\
+  (1),\n\
+  true,\n\
+  true,\n\
+  (1),\n\
+  (1),\n\
+  true,\n\
+  true,\n\
+  true,\n\
+  true\n\
+  ]) { \n\
+    ((function f(aaaaaa) {\n\
+       return aaaaaa.length == 0 ? 0 : aaaaaa[0] + f(aaaaaa.slice(1))\n\
+     })([\n\
+      x,\n\
+      Math.I,\n\
+      '',\n\
+      null,\n\
+      Math.I,\n\
+      null,\n\
+      new String(),\n\
+      new String()\n\
+      ]))\n\
+}"))()
+
+/* Don't assert/crash. */
+

@@ -1,0 +1,13 @@
+
+copy: content/xml/content/crashtest/453278.html
+copyrev: 2a96790d7631b288b39b5a2623389e94c367dffd
+
+<html>
+<head>
+<title> Bug 453278 - Crash [@ nsContentUtils::TriggerLink] with xlink stuff in display: none iframe</title><style>
+</style>
+</head>
+<body>
+<iframe id="content" src="453278-frame.xml" style="display: none;"></iframe>
+</body>
+</html>

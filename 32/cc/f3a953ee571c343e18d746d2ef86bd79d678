@@ -1,0 +1,7 @@
+
+copy: browser/devtools/styleinspector/test/browser_ruleview_734259_style_editor_link.css
+copyrev: 7f46a6d9730227de6a98c5fdaa75ec68b2347104
+
+div {
+  opacity: 1;
+}

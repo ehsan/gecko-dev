@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/warn.dic
+copyrev: 0ba585f26dcc91e796377702d181bc3ed718f9b9
+
+1
+foo/WA
+bar

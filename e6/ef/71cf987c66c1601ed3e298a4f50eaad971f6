@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-dotafterquote-valid-ref.html
+copyrev: 8f23809cde51ad7458dbf7b1d10fbcae8f76ba6c
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea autofocus spellcheck="false">'Apple'.</textarea>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+
+copy: modules/plugin/test/crashtests/110650-1.html
+copyrev: 0fef2b7630158be230c2e2740b7dbece2f65091b
+
+<HTML>
+<HEAD>
+<TITLE>123246 testcase</TITLE>
+</HEAD>
+<BODY>
+<object align="right" width=100>
+</object> 
+</BODY >
+</HTML>
+
+

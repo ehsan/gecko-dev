@@ -1,0 +1,5 @@
+
+copyrev: 6fc6ee4e05479c452b9b1ef14e0eb87ebb417f54
+copy: js/tests/js1_8_1/decompilation/shell.js
+
+gTestsubsuite='decompilation';

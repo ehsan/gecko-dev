@@ -1,0 +1,15 @@
+
+copy: content/html/content/test/imports/file_cycle_4_A.html
+copyrev: 36c842272e2861ccf0ada67d1178ceb028cd37ca
+
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <link rel="import" href="file_cycle_4_B.html" onload="loaded()" onerror="failed()"></link>
+</head>
+<body>
+  <script>
+    order.push("A");
+  </script>
+</body>
+</html>

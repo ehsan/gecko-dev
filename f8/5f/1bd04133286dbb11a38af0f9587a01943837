@@ -1,0 +1,17 @@
+
+copy: toolkit/themes/winstripe/global/console/console-aero.css
+copyrev: fb5edde838692e8e7fb158fb31bd966c079a7bdf
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%include console.css
+
+#ToolbarMode {
+  -moz-appearance: -moz-win-browsertabbar-toolbox;
+}
+
+#ToolbarEval {
+  -moz-appearance: toolbox;
+}

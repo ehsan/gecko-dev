@@ -1,0 +1,20 @@
+
+copy: layout/xul/base/src/grid/reftests/row-sizing-1.xul
+copyrev: 0f7d6ab1c3a1ba77f4485dbf3944e6b5ae4e0a5b
+
+<?xml version="1.0"?>
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        orient="horizontal"
+        title="XUL Grid Test">
+  <grid>
+    <rows>
+      <row style="background:aqua">
+        <label value="Top" />
+      </row>
+      <row style="background:yellow">
+        <textbox value="Bottom" />
+      </row>
+    </rows>
+  </grid>
+</window>

@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/compoundflag.good
+copyrev: 4c841a3f23c92dbfce46b90217ee3490f432c152
+
+foobar
+barfoo
+foobarfoo

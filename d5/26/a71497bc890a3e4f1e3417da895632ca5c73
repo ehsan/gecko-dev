@@ -1,0 +1,15 @@
+
+copy: mobile/android/base/tests/testDeviceSearchEngine.java
+copyrev: 4509fdc0b5d56caa2463221bf97cacee0c94a9dc
+
+#filter substitution
+package @ANDROID_PACKAGE_NAME@.tests;
+
+import @ANDROID_PACKAGE_NAME@.*;
+
+
+public class testDeviceSearchEngine extends JavascriptTest {
+    public testDeviceSearchEngine() {
+        super("testDeviceSearchEngine.js");
+    }
+}

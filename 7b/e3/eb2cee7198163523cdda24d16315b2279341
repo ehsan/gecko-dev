@@ -1,0 +1,15 @@
+
+copy: accessible/tests/mochitest/name.css
+copyrev: d3a0d16c9033ce500bea4ad31f874a5fba1f0829
+
+box.first {
+  -moz-binding: url('general.xbl#first');
+}
+
+.second {
+  -moz-binding: url('general.xbl#second');
+}
+
+.third {
+  -moz-binding: url('general.xbl#third');
+}

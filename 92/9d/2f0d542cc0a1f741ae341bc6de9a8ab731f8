@@ -1,0 +1,16 @@
+
+copy: modules/libpr0n/test/reftest/icon/win/bug415761cleanup.sjs
+copyrev: 0fcbb3428faa848a971d6b3811edc2fcb4ed61d8
+
+function handleRequest(request, response)
+{
+  var self = Components.classes["@mozilla.org/file/local;1"]
+                       .createInstance(Components.interfaces.nsILocalFile);
+  self.initWithPath(getState("__LOCATION__"));
+  var dest = self.parent;
+  dest.append("\u263a.ico");
+  if (dest.exists())
+    dest.remove(false);
+  response.setStatusLine(request.httpVersion, 200, "OK");
+  response.setHeader("Content-Type", "text/html");
+}

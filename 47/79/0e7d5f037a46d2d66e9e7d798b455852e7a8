@@ -1,0 +1,16 @@
+
+copy: dom/svg/crashtests/388712-1.svg
+copyrev: 5997fdf012007185ce984c2ecc21839550438aaa
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:html="http://www.w3.org/1999/xhtml" xmlns:xlink="http://www.w3.org/1999/xlink">
+
+	<defs>
+    <g id="s">
+      <rect x="0" y="0" width="75" height="75" fill="lightblue" />
+      <html:form><html:label/></html:form>
+    </g>
+  </defs>
+
+  <use xlink:href="#s" x="150" y="25" />
+
+</svg>

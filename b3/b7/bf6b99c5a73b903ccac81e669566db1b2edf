@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/i53643.aff
+copyrev: 3f071310fed48682a02577fdfbaa3b17f2fb53c0
+
+# check numbers with separators
+WORDCHARS 0123456789.-,

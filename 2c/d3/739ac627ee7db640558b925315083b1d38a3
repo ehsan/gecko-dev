@@ -1,0 +1,15 @@
+
+copy: browser/components/privatebrowsing/test/browser/popup.html
+copyrev: 8cb6f8ff9c5c66ddba4bc7357d194a32e20f60a7
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+  <head>
+    <title>Page creating a popup</title>
+  </head>
+  <body>
+    <script type="text/javascript">
+      window.open("data:text/plain,test", "testwin");
+    </script>
+  </body>
+</html>

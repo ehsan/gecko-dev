@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/title/003-novalid.html
+copyrev: 81219823efba9677635b3225a3854fd5a54f69ee
+
+<!doctype html>
+<!-- document with empty title element -->
+<meta charset=utf-8>
+<title></title>

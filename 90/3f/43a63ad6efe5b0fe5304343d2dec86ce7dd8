@@ -1,0 +1,20 @@
+
+copy: layout/xul/base/src/crashtests/400779-1.xhtml
+copyrev: ac0d9fcef5706ed5fc3c742e309c1f7bf8bc0a05
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<head>
+<script>
+
+function boom()
+{
+  var menulist = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "menulist");
+  document.getElementById("h").appendChild(menulist);
+}
+
+</script>
+</head>
+<body onload="boom();">
+<xul:listboxbody><xul:hbox id="h"/></xul:listboxbody>
+</body>
+</html>

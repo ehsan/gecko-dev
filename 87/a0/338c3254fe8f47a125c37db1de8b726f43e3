@@ -1,0 +1,12 @@
+
+copyrev: 5b31faa159fd4112ec25bb9cae475f4ca73fdf29
+copy: js/src/trace-test/tests/basic/testNewArrayCount2.js
+
+function testNewArrayCount2() {
+    function count(a) { var n = 0; for (var p in a) n++; return n; }
+    var x = 0;
+    for (var i = 0; i < 10; ++i)
+        x = count(new Array(1,2,3));
+    return x;
+}
+assertEq(testNewArrayCount2(), 3);

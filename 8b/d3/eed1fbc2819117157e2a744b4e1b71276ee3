@@ -1,0 +1,19 @@
+
+copyrev: c514ce1a3500b1cd602ab6482ff7d0a4cd7b3eaa
+copy: js/src/trace-test/tests/basic/outerline.js
+
+function outerline(){
+    var i=0;
+    var j=0;
+
+    for (i = 3; i<= 100000; i+=2)
+    {
+        for (j = 3; j < 1000; j+=2)
+        {
+            if ((i & 1) == 1)
+                break;
+        }
+    }
+    return "ok";
+}
+assertEq(outerline(), "ok");

@@ -1,0 +1,59 @@
+
+copy: build/valgrind/cross-architecture.sup
+copyrev: 2acf629f3a52704232c591545e16be0f1238fbb8
+
+####################################
+#  Leaks in third party libraries  #
+####################################
+{
+   Bug 793537
+   Memcheck:Leak
+   ...
+   obj:/usr/lib64/libpango-1.0.so.0.2800.1
+   ...
+}
+{
+   Bug 793539 which may be fixed or change when bug 713802 is fixed
+   Memcheck:Leak
+   ...
+   obj:/usr/lib64/libgnomevfs-2.so.0.2400.2
+   ...
+}
+{
+   Bug 793598
+   Memcheck:Leak
+   ...
+   obj:/lib64/libdbus-1.so.3.4.0
+   ...
+}
+{
+   Bug 793600
+   Memcheck:Leak
+   fun:realloc
+   obj:/usr/lib64/libfontconfig.so.1.4.4
+   obj:/usr/lib64/libfontconfig.so.1.4.4
+   fun:FcDefaultSubstitute
+   fun:_ZN17gfxPangoFontGroup11MakeFontSetEP14_PangoLanguagedP9nsAutoRefI10_FcPatternE
+   ...
+}
+{
+   Bug 794366
+   Memcheck:Leak
+   ...
+   obj:/usr/lib64/libgtk-x11-2.0.so.0.1800.9
+   ...
+}
+{
+   Bug 794368
+   Memcheck:Leak
+   ...
+   obj:/usr/lib64/libXrandr.so.2.2.0
+   ...
+}
+{
+   Bug 794373
+   Memcheck:Leak
+   ...
+   obj:/lib64/libgobject-2.0.so.0.2200.5
+   ...
+}

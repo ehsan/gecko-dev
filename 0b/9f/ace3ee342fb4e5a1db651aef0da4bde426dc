@@ -1,0 +1,12 @@
+
+copy: browser/components/privatebrowsing/test/browser/perwindow/browser_privatebrowsing_placesTitleNoUpdate.html
+copyrev: 7c7dbe7d0de075b33d0786e4535f2cb7f7258b59
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+  <head>
+    <title>Title 1</title>
+  </head>
+  <body>
+  </body>
+</html>

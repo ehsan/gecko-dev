@@ -1,0 +1,7 @@
+
+copy: extensions/spellcheck/hunspell/tests/onlyincompound2.good
+copyrev: 6015765f506ebf40b27aa26edae7abccb57590f9
+
+foo
+foopseudo
+pseudosfoo

@@ -1,0 +1,27 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/q/013-isvalid.html
+copyrev: 5b7a1342868418de0cf3b5b3fbfd122bc2141a51
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;q&gt;</title>
+</head>
+<body>
+  <!-- is structured inline -->
+  <p><q cite="url" class="class" lang="en">text</q></p>
+
+  <!-- is strictly inline -->
+  <p><dfn><q cite="url" class="class" lang="en">text</q></dfn></p>
+
+  <!-- can be empty -->
+  <p>text <q></q></p>
+  <p>text <dfn><q></q></dfn></p>
+
+  <!-- can contain interactive -->
+  <p><q><a>text</a></q></p>
+  <p><dfn><q><a>text</a></q></dfn></p>
+
+</body>
+</html>

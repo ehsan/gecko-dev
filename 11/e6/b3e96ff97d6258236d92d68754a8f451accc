@@ -1,0 +1,8 @@
+include checkbox/reftest.list
+include email/reftest.list
+include tel/reftest.list
+include search/reftest.list
+include url/reftest.list
+include file/reftest.list
+include radio/reftest.list
+include range/reftest.list

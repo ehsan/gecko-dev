@@ -1,0 +1,12 @@
+
+copy: content/xul/document/crashtests/extA1.xul
+copyrev: f61a9728348906b2070a539467fe2ffd6c050954
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE overlay SYSTEM "chrome://exta/locale/exta.dtd">
+<overlay id="extA1"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <vbox id="browser-bottombox">
+    <statusbar id="extAbar" />
+  </vbox>
+</overlay>

@@ -1,0 +1,23 @@
+
+copy: layout/xul/base/src/tree/src/crashtests/479931-1.xhtml
+copyrev: 56bdc736206aea1c301ea68c3e5f06047b51b459
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  var o = document.createElementNS("http://www.w3.org/1999/xhtml", "option");
+  var q = document.getElementById("q");
+  q.appendChild(o);
+}
+
+</script>
+</head>
+<body onload="boom();">
+
+<xul:tree><xul:treechildren id="q"><div/></xul:treechildren></xul:tree>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copy: js/src/jit-test/tests/bug842430.js
+copyrev: 94bed9e3e5d87404f030d4bd44f67baeeefa0d5c
+
+test();
+function test() {
+    ({}).abstract;
+}
+test();

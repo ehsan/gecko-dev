@@ -1,0 +1,17 @@
+
+copy: browser/base/content/test/test_wyciwyg_copying.html
+copyrev: c4348a5fd44e597b344cccea4e1924dd6074cc3a
+
+<html>
+<body>
+<script>
+  function go() {
+    var w = window.open();
+    w.document.open();
+    w.document.write("<html><body>test document</body></html>");
+    w.document.close();
+  }
+</script>
+<button id="btn" onclick="go();">test</button>
+</body>
+</html>

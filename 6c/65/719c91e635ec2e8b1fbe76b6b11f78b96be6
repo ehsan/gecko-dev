@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/affixes.good
+copyrev: 328457b951d63a436f7ff877e899f2cc142bcc87
+
+hello
+try
+tried
+work
+worked
+rework
+reworked

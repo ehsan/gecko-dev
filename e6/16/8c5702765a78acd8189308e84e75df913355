@@ -1,0 +1,17 @@
+
+copy: gfx/thebes/crashtests/348462-2.html
+copyrev: 82676aaa96403c6e81494bc897350e2097b44b3b
+
+<html>
+<head>
+<script type="text/javascript">
+
+function boom() { 
+  document.body.appendChild(document.createTextNode(String.fromCharCode(25261)))
+  document.body.style.fontSize = '8388608px';
+}
+
+</script>
+</head>
+<body onload="boom()"></body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/canvas/070-isvalid.html
+copyrev: 4317b001cbeda2577502a9a07b34c5c8c91b6a98
+
+<!doctype html>
+<meta charset=utf-8>
+<title>canvas with flow content and flow parent</title>
+<div><canvas><p>foo</p></canvas></div>

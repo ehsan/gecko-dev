@@ -1,0 +1,13 @@
+
+copy: content/xbl/crashtests/336744-1.html
+copyrev: 4a6cb62c17223e7ee357b6e49113ecf45003dd6c
+
+<html class="reftest-wait">
+<head>
+<script>
+setTimeout('document.documentElement.className = ""', 1000);
+</script>
+<body>
+<iframe src="336744-1-inner.html"></iframe>
+</body>
+</html>

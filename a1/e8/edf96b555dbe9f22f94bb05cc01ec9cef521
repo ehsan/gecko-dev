@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/utf8_bom.dic
+copyrev: 7c8ee998ea6aeff015d5bd387f401d10e37edab4
+
+1
+apéritif

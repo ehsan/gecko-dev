@@ -1,0 +1,18 @@
+
+copyrev: 04763bcea5bff96b4eb0411132762d5414ae7183
+copy: js/src/trace-test/tests/arguments/args-range-const.js
+
+actual = '';
+expected = 'undefined,undefined,undefined,undefined,undefined,';
+
+function h() {
+  for (var i = 0; i < 5; ++i) {
+    var a = arguments;
+    appendToActual(a[100]);
+  }
+}
+
+h();
+
+
+assertEq(actual, expected)

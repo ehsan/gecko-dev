@@ -1,0 +1,20 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-observe-http-ajax.html
+copyrev: f8ff7e7d9513344a244a878442f50a260a2f90e5
+
+<!DOCTYPE HTML>
+<html dir="ltr" xml:lang="en-US" lang="en-US"><head>
+    <title>Console HTTP test page</title>
+    <script type="text/javascript">
+      function test() {
+        var xmlhttp = new XMLHttpRequest();
+        xmlhttp.open('get', 'test-data.json', false);
+        xmlhttp.send(null);
+      }
+    </script>
+  </head>
+  <body onload="test();">
+    <h1>Heads Up Display HTTP & AJAX Test Page</h1>
+    <h2>This page fires an ajax request so we can see the http logging of the console</h2>
+  </body>
+</html>

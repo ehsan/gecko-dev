@@ -1,0 +1,12 @@
+
+copy: browser/base/content/test/browser_duplicateIDs.js
+copyrev: 95e0ce999401e2e0cc739d06c342c15a0069abe0
+
+function test() {
+  var ids = {};
+  Array.forEach(document.querySelectorAll("[id]"), function (node) {
+    var id = node.id;
+    ok(!(id in ids), id + " should be unique");
+    ids[id] = null;
+  });
+}

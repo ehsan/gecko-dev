@@ -1,0 +1,13 @@
+
+copyrev: a7bdbf54e998e31ee266ba72c425a3657135e7fd
+copy: js/src/trace-test/tests/basic/testMethodInitDeref.js
+
+for (var j = 0; j < 7; ++j)
+    ({x: function () {}}).x;
+
+checkStats({
+    recorderStarted: 1,
+    recorderAborted: 0,
+    traceCompleted: 1,
+    sideExitIntoInterpreter: 1
+});

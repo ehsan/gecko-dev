@@ -1,0 +1,15 @@
+
+copy: toolkit/components/places/tests/browser/bug_399606/399606-window.location.href.html
+copyrev: 5cac9fb3ab122a1347641f88e889907c2ec2e436
+
+<html>
+<head>
+<title>window.location.href</title>
+<script>
+setTimeout('window.location.href = window.location.href', 1000);
+</script>
+</head>
+<body>
+Testing window.location.href
+</body>
+</html>

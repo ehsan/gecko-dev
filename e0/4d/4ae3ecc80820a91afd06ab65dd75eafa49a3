@@ -1,0 +1,6 @@
+
+copy: content/base/test/csp/file_CSP_evalscript_main.html^headers^
+copyrev: fb7c053b932facf6247947444a90bac3502a28dc
+
+Cache-Control: no-cache
+X-Content-Security-Policy: default-src 'self'

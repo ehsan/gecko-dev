@@ -1,0 +1,5 @@
+
+copyrev: a7bb41b7f9abb795d038e377dc97a9901e8ecdf6
+copy: js/tests/js1_7/block/shell.js
+
+gTestsubsuite = 'block';

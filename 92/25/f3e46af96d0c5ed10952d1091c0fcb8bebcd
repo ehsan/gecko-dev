@@ -1,0 +1,8 @@
+
+copy: dom/xul/crashtests/253479-2.xul
+copyrev: 45954a860b5650cd7c433b46f4a39d6fe981ccb6
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <x style="position:fixed;"/>
+</window>

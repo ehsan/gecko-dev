@@ -1,0 +1,10 @@
+
+copy: layout/reftests/forms/input/range/input-75pct-unthemed-common-ref.html
+copyrev: 8bc478695c493e53395bce1b619929c8e1f86ea7
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input type=range value=75 style="-moz-appearance:none">
+  </body>
+</html>

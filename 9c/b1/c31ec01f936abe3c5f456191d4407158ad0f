@@ -1,0 +1,33 @@
+
+copy: layout/xul/base/src/grid/crashtests/312784-1.xul
+copyrev: b6d1fcd39d6354d0908d07b671af6a1e4e453211
+
+<?xml version="1.0"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<script type="application/x-JavaScript">
+function crash() {
+  document.getElementById("test").style.display = "none";
+}
+
+function clickit() {
+  var button = document.getElementById('button');
+  var evt = document.createEvent("MouseEvents");
+  evt.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+  button.dispatchEvent(evt);
+}
+
+window.onload = clickit;
+
+</script>
+
+        <grid>
+          <columns>
+            <column/>
+          </columns>
+          <rows id="test">
+	    <row><button label="placeholder"/></row>
+          </rows>
+        </grid>
+<button id="button" label="Crash me" onclick="crash()"/>
+</window>

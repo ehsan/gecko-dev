@@ -1,0 +1,11 @@
+
+copy: extensions/spellcheck/hunspell/tests/utfcompound.wrong
+copyrev: 3270d1939bcf7dd258d8f9be8894a49d1fc585d1
+
+xyyz
+fooxy
+xyfoo
+fooxybar
+ééőő
+fóóéé
+őőáár

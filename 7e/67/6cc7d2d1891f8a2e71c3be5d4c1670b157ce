@@ -1,0 +1,10 @@
+
+copy: dom/xul/test/bug497875-iframe.xul
+copyrev: 2b4cc1805aaf142ed51e3647498739b2cecd5631
+
+<?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" xmlns:html="http://www.w3.org/1999/xhtml">
+<box onerror="document.loadOverlay('file:///does-not-exist', null);" >
+<html:script src="ftp://some.website.that.will.cause.an.error"/>
+</box>
+</window>

@@ -1,0 +1,12 @@
+
+copyrev: 3b6970a6f5bd548e3130f3940cc92816d4a65b4b
+copy: js/src/trace-test/tests/basic/newArrayTest.js
+
+function newArrayTest()
+{
+  var a = [];
+  for (var i = 0; i < 10; i++)
+    a[i] = new Array();
+  return a.map(function(x) x.length).toString();
+}
+assertEq(newArrayTest(), "0,0,0,0,0,0,0,0,0,0");

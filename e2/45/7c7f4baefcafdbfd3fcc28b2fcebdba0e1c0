@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/emptypasswd-1.html
+copyrev: 8b14316f3ab78ba91c115b4f667160e5b4bfd603
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="password">
+</body>
+</html>

@@ -1,0 +1,14 @@
+
+copy: accessible/public/ia2/IA2Marshal.def
+copyrev: 6e4f913acc46b96232203143643bbd1081af52b5
+
+;+# This Source Code Form is subject to the terms of the Mozilla Public
+;+# License, v. 2.0. If a copy of the MPL was not distributed with this
+;+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+LIBRARY        IA2Marshal.dll
+EXPORTS        DllGetClassObject      PRIVATE
+               DllCanUnloadNow        PRIVATE
+               DllRegisterServer      PRIVATE
+               DllUnregisterServer    PRIVATE
+

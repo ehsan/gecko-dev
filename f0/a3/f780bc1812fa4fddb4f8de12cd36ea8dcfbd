@@ -1,0 +1,21 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/h6/039-isvalid.html
+copyrev: 9bd4ccd1d74b5a0650908e93df4305ba6e2b18a4
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;h6&gt;</title>
+</head>
+<body>
+  <!-- is block -->
+  <h6 class="class" id="id" lang="en">text</h6>
+
+  <!-- can contain strictly inline -->
+  <h6>text <em>elem</em></h6>
+
+  <!-- can contain interactive -->
+  <h6><a>text</a></h6>
+</body>
+</html>

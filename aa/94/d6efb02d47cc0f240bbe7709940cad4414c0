@@ -1,0 +1,9 @@
+
+copyrev: 5a90bab8dbb7e795a3e394204a5a138a807b408a
+copy: js/src/trace-test/tests/jaeger/bug591606.js
+
+var c = []
+function c() {}
+
+/* Don't assert. */
+

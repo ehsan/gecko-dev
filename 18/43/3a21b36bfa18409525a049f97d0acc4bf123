@@ -1,0 +1,7 @@
+
+copy: content/html/content/test/file_iframe_sandbox_close.html
+copyrev: 816f6a325c8f02feea7a5524e2e326c4613ca6bc
+
+<script>
+  self.close();
+</script>

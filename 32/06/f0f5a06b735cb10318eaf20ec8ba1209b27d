@@ -1,0 +1,5 @@
+
+copyrev: c28e9a83f58963893b57b458f44879ffd8a75f6a
+copy: js/src/trace-test/tests/basic/bug557841.js
+
+eval("for(a = 0; a < 4; a++) x = 1;", []);

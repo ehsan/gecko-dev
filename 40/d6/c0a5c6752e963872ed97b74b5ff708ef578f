@@ -1,0 +1,9 @@
+
+copyrev: 0357b0bb50001bb89d4a1640820b14ea5e93403c
+copy: js/src/trace-test/tests/basic/testSetPropNeitherMissNorHit.js
+
+function testSetPropNeitherMissNorHit() {
+    for (var j = 0; j < 5; ++j) { if (({}).__proto__ = 1) { } }
+    return "ok";
+}
+assertEq(testSetPropNeitherMissNorHit(), "ok");

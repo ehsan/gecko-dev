@@ -1,0 +1,5 @@
+
+copy: dom/security/test/csp/file_bug886164_5.html^headers^
+copyrev: 7b644826ad199cf0c3e6426af54eadf0971550d9
+
+Content-Security-Policy: default-src 'none' 'unsafe-inline';

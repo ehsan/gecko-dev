@@ -1,0 +1,7 @@
+
+copyrev: 97abf3129d254b151e17a4ca893c4e328f79e2da
+copy: js/tests/dikdik-n.tests
+
+js2_0/Class/shell.js
+ # uses implements keyword.  This is not implemented yet.
+js2_0/Class/class-007.js

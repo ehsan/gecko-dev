@@ -1,0 +1,11 @@
+
+copy: content/base/crashtests/845093-2.html
+copyrev: 21e8472ddb88fd31998828c9dec329729d3bf5c6
+
+><bdi id=test1><refa id=test2>&#xf921;>></bdi>><h1 id=test3><script>
+document.addEventListener("DOMContentLoaded", CFcrash, false);
+function CFcrash() {
+test1.setAttribute("dir", "invalid");
+test2.textContent = "	&#xf851;S	";
+test3.appendChild(test1);
+}</script>

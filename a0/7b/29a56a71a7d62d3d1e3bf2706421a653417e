@@ -1,0 +1,16 @@
+
+copyrev: 4029be2d6910e75c6ba70a1fa1490b49b226d93f
+copy: js/src/trace-test/tests/basic/testInvalidCharCodeAt.js
+
+function doTestInvalidCharCodeAt(input)
+{
+    var q = "";
+    for (var i = 0; i < 10; i++)
+       q += input.charCodeAt(i);
+    return q;
+}
+function testInvalidCharCodeAt()
+{
+    return doTestInvalidCharCodeAt("");
+}
+assertEq(testInvalidCharCodeAt(), "NaNNaNNaNNaNNaNNaNNaNNaNNaNNaN");

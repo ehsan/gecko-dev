@@ -1,0 +1,7 @@
+
+copy: browser/devtools/styleinspector/test/doc_content_stylesheet_xul.css
+copyrev: 6dc9cbcc4a5ccf20f22d08a28bf95719de09a8ca
+
+#target {
+  font-size: 200px;
+}

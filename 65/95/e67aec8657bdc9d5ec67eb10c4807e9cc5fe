@@ -1,0 +1,8 @@
+
+copy: browser/components/sessionstore/test/browser/browser_447951_sample.html
+copyrev: 3d0988e0284673f50b1a8957625e16173a006699
+
+<!DOCTYPE html>
+<title>Testcase for bug 447951</title>
+
+<a href="#end">click me</a>

@@ -1,0 +1,16 @@
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsIDOMEvent.idl"
+
+/**
+ * For more information on this interface please see
+ * http://www.w3.org/TR/SVG11/script.html#InterfaceSVGEvent
+ */
+
+[scriptable, uuid(40c55169-8b5e-456d-a58b-ee4518d93c40)]
+interface nsIDOMSVGEvent : nsIDOMEvent
+{
+};

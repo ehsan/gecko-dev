@@ -1,0 +1,17 @@
+
+copy: layout/xul/base/src/grid/crashtests/423802-crash.xul
+copyrev: 1a1c16b5d1dadf1475e4361fd9247179a58c6008
+
+<?xml version="1.0"?>
+
+<window xmlns  = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+<grid>
+  <columns>
+    <column id="col1" flex="1"/>
+  <column id="col2" flex="1"/>
+    <column id="col3" flex="P-2"/>
+  </columns>
+</grid>
+
+</window>

@@ -1,0 +1,5 @@
+
+copy: js/xpconnect/tests/mochitest/file_mozMatchesSelector.html
+copyrev: e367d8e8233ac935a434eb65cae0fb18e0d503cc
+
+<html><body></body></html>

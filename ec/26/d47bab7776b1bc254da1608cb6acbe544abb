@@ -1,0 +1,5 @@
+
+copyrev: 19fc3c26f614304ea52faa6e5ed942a4b7e0423f
+copy: js/tests/js1_6/Regress/shell.js
+
+gTestsubsuite = 'Regress';

@@ -1,0 +1,22 @@
+
+copy: content/svg/content/src/crashtests/761507-1.svg
+copyrev: df8011891c41575761f3f3d1f6cf7e4b5a8760ea
+
+<svg xmlns="http://www.w3.org/2000/svg">
+<script>
+<![CDATA[
+
+function boom()
+{
+  var r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  var f = r.requiredFeatures;
+  f.appendItem(1);
+  document.implementation.createDocument('', '', null).adoptNode(r);
+  r.getAttribute("requiredFeatures");
+}
+
+window.addEventListener("load", boom, false);
+
+]]>
+</script>
+</svg>

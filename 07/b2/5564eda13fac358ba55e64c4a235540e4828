@@ -1,0 +1,11 @@
+
+copy: modules/libpr0n/test/mochitest/bug89419-iframe.html
+copyrev: 7bae440df309f0d74349fc464661ca0e130aac90
+
+<html>
+<head>
+<title>Bug 89419 iframe</title>
+<body>
+<img src="bug89419.sjs" width="100" height="100" />
+</body>
+</html>

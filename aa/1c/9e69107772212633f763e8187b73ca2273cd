@@ -1,0 +1,7 @@
+URL:         http://hg.ecmascript.org/tests/test262/
+changeset:   364:8bd874363ed7
+tag:         tip
+user:        Norbert Lindenberg <ecmascript@lindenbergsoftware.com>
+date:        Mon Apr 15 20:05:50 2013 -0700
+summary:     Updated minor unit value for Uganda Shilling to 0 per ISO 4217 Amendment Number 155.
+

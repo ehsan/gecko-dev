@@ -1,0 +1,18 @@
+
+copy: gfx/thebes/crashtests/393746-1.xhtml
+copyrev: c2e12ba8283440a379c67a0b6947fb09f07166d3
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+function boom()
+{
+  var text = document.createTextNode("t");
+  document.getElementById("foo").appendChild(text);
+}
+</script>
+</head>
+
+<body onload="boom();" dir="rtl"><b id="foo"></b> x </body>
+
+</html>

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/allcaps.aff
+copyrev: ebdf47476d4f5b9c6594de9c7cb8a2047b9e908f
+
+# check uppercase forms of allcaps word + affix and words with mixed casing
+WORDCHARS '.
+
+SFX S N 1
+SFX S   0     's      .

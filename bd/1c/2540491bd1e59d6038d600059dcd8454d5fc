@@ -1,0 +1,14 @@
+
+copy: browser/locales/en-US/webapp-uninstaller/webapp-uninstaller.properties
+copyrev: 13bc189bb1c64517ef964cedb017132b9bfa0b8b
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+
+# LOCALIZATION NOTE: This file must be saved as UTF8
+# LOCALIZATION NOTE: $AppName will be replaced with the (already localized)
+#                    name of the webapp being uninstalled.
+
+^UninstallCaption=$AppName Uninstall
+UN_CONFIRM_UNINSTALL=$AppName will be uninstalled from your computer.

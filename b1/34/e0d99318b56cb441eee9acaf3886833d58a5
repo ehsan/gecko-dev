@@ -1,0 +1,13 @@
+
+copy: mobile/android/base/resources/drawable/address_bar_right_edge.xml
+copyrev: d90cde4254d1d9fbfeffd7525319fe97878246b3
+
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<clip xmlns:android="http://schemas.android.com/apk/res/android"
+      android:drawable="@drawable/url_bar_entry"
+      android:clipOrientation="horizontal"
+      android:gravity="right"/>

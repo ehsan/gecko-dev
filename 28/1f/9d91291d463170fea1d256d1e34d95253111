@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/IJ.good
+copyrev: c9fc73f7521d2335e10dcb7de4102a3223ddaae6
+
+ijs
+IJs

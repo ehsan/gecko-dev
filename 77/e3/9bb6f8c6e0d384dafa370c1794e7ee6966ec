@@ -1,0 +1,11 @@
+
+copyrev: ce9049f1ee9f8441467fd045d78114298c205948
+copy: js/src/trace-test/tests/jaeger/bug554580-1.js
+
+// |jit-test| error: TypeError
+for (var a = 0; a < 7; ++a) {
+    if (a == 1) {
+        Iterator()
+    }
+}
+

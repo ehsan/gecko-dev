@@ -1,0 +1,16 @@
+
+copyrev: 0a4145a31df9ca711141c402c66855fb999cf92f
+copy: js/src/trace-test/tests/basic/testDeepBailFromHasInstance.js
+
+var arr = [StopIteration, StopIteration, StopIteration, StopIteration, {}];
+var obj = {};
+var x;
+var result = 'no error';
+try {
+    for (var i = 0; i < arr.length; i++)
+        x = (obj instanceof arr[i]);  // last iteration throws, triggering deep bail
+} catch (exc) {
+    result = exc.constructor.name;
+}
+assertEq(result, 'TypeError');
+

@@ -1,0 +1,15 @@
+
+copy: layout/reftests/editor/selection_visibility_after_reframe-2.html
+copyrev: fc2eda20d86aa050a24a5eca22d15bb057232a1a
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <input value="foo">
+    <script>
+      var i = document.querySelector("input");
+      i.selectionStart = 1;
+      i.selectionEnd = 2;
+    </script>
+  </body>
+</html>

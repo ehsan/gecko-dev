@@ -1,0 +1,17 @@
+
+copy: layout/reftests/css-invalid/default-style/button.html
+copyrev: 0bf40d2d586412bd9727cdfd8925de1824d72fa4
+
+<!DOCTYPE>
+<html class="reftest-wait">
+  <script>
+    function onloadHandler()
+    {
+      document.getElementById('e').setCustomValidity('foo');
+      document.documentElement.className='';
+    }
+  </script>
+  <body onload="onloadHandler();">
+    <button id='e'></button>
+  </body>
+</html>

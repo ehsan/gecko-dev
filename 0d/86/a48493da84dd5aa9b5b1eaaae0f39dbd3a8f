@@ -1,0 +1,8 @@
+
+copy: browser/devtools/debugger/test/blackboxing_one.js
+copyrev: dfe1384250f437d14f274beb430a1f45f1deb521
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function one() { two(); }

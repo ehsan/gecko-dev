@@ -1,0 +1,19 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/dialog/001-novalid.html
+copyrev: 3cbec927dc52c152da82db84690f317c6d79c111
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;dialog&gt;</title>
+</head>
+<body>
+<dialog>
+<dt>Foo</dt>
+<dt>Bar</dt>
+<dd><p>Blah</p></dd>
+<dd><p>Bleh</p></dd>
+</dialog>
+</body>
+</html>

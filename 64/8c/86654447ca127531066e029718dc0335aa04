@@ -1,0 +1,8 @@
+[battery-interface-idlharness.html]
+  type: testharness
+  [BatteryManager interface: existence and properties of interface object]
+    expected: FAIL
+
+  [BatteryManager interface object length]
+    expected: FAIL
+

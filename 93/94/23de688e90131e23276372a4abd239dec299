@@ -1,0 +1,29 @@
+
+copy: dom/svg/crashtests/413174-1.svg
+copyrev: 7f0a3c14bce3fbb17b19e6db0aeaaf1364acec75
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     onload="boom();">
+
+  <script>
+
+function boom()
+{
+  var g = document.getElementById("g");
+  var use = document.getElementById("use");
+
+  g.appendChild(use);
+  document.documentElement.appendChild(use);
+  document.documentElement.appendChild(g);
+}
+
+  </script>
+
+  <g id="g" style="counter-reset: c;">
+    <rect width="1" height="1"/>
+  </g>
+
+  <use id="use" xlink:href="#g"/>
+
+</svg>

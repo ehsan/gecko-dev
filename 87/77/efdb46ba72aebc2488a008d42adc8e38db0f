@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/data/not-xml-serializable-novalid.html
+copyrev: a0a781c018ef67faf7472f0258d01812cf1520b3
+
+<!doctype html>
+<meta charset=utf-8>
+<title>starts with the string "data-", has at least one character after the hyphen, is XML-compatible, and contains no uppercase ASCII letters</title>
+<p data-z:foo=""><!-- not serializable as XML -->

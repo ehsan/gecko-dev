@@ -1,0 +1,5 @@
+
+copy: dom/svg/crashtests/397704-1.svg
+copyrev: 68a2b504b7614c16aebb7983ee632f3297c9ecbc
+
+<svg xmlns="http://www.w3.org/2000/svg"><marker orient="0" /></svg>

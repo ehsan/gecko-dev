@@ -1,0 +1,8 @@
+
+copy: content/media/mediasource/test/crashtests/crashtests.list
+copyrev: 24e7a607e8acb1f9ee73ca43e4e6076970b4b2c0
+
+test-pref(media.mediasource.enabled,true) load 926665.html
+test-pref(media.mediasource.enabled,true) load 931388.html
+test-pref(media.mediasource.enabled,true) load 1005366.html
+test-pref(media.mediasource.enabled,true) load 1059035.html

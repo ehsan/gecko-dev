@@ -1,0 +1,5 @@
+
+copy: modules/libimg/png/crashtests/crashtests.list
+copyrev: a16d710774b69385a49297452b19b4f2f87f3e79
+
+load 374810-1.html

@@ -1,0 +1,10 @@
+
+copy: content/base/crashtests/815276.html
+copyrev: c4f12c804ff14aaa3aacc68c6872846ff3a2a66e
+
+<!DOCTYPE html>
+<html>
+<body onload="((new DOMParser).parseFromString('<x/>', 'text/xml')).adoptNode(document.getElementById('v'));">
+<div id="v"><bdi>x</bdi></div>
+</body>
+</html>

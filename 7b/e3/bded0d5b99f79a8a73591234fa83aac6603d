@@ -1,0 +1,13 @@
+
+copyrev: cfbb4db3af2ad606569683f3012ff553b66b4a78
+copy: js/src/trace-test/tests/basic/testStaticsInRegExp.js
+
+'abcdef'.replace(/a(\w+)c/, function() {
+    assertEq(RegExp.lastMatch, 'abc');
+    '123456'.replace(/1(\d+)3/, function() {
+        assertEq(RegExp.lastMatch, '123');
+    });
+    assertEq(RegExp.lastMatch, '123');
+});
+assertEq(RegExp.lastMatch, 'abc');
+

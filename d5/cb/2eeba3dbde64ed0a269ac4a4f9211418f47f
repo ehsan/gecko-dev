@@ -1,0 +1,16 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/keygen/058-novalid.html
+copyrev: 8bcc47aa39522758cfaf530414e08013fd8dc206
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8>
+<title>keygen as &lt;label> descendant, with wrong ID</title>
+</head>
+<body>
+<label for="foo">
+<keygen id="bar">
+</label>
+</body>
+</html>

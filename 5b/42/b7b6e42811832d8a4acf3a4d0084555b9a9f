@@ -1,0 +1,8 @@
+
+copy: content/base/crashtests/752226-1.html
+copyrev: 2f72cd8f37a863bb0e97390d15bd31140a422b45
+
+<!DOCTYPE html>
+<script>
+var worker = new Worker("data:text/javascript,setTimeout(null)");
+</script>

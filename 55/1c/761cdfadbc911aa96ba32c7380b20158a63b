@@ -1,0 +1,25 @@
+
+copy: js/src/xpconnect/crashtests/504000-1.html
+copyrev: 0f6126e2392ac80f0d39de827eae76ac0b8cffa3
+
+<!DOCTYPE HTML>
+<html>
+<head>
+<script>
+
+
+function f() {
+  for (var j in { a:1, b:2, c:3, d:4, e:5 }) {
+  }
+}
+
+function boom()
+{
+  f();
+  Function.prototype.__defineGetter__("xxx", function(){});
+}
+
+</script></head>
+
+<body onload="boom();"></body>
+</html>

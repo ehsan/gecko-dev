@@ -1,0 +1,11 @@
+[DEFAULT]
+head = head_downloads.js
+tail = 
+
+[test_DownloadLastDir.js]
+[test_DownloadLastDirWithCPS.js]
+[test_DownloadPaths.js]
+[test_DownloadUtils.js]
+[test_lowMinutes.js]
+[test_syncedDownloadUtils.js]
+[test_unspecified_arguments.js]

@@ -1,0 +1,11 @@
+
+copy: layout/reftests/forms/input/email/input-email-1.html
+copyrev: ef1e88c1c526b57eb96a0ebe5479156f1db62106
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: input element in email state looks like in text state -->
+  <body>
+    <input type="email">
+  </body>
+</html>

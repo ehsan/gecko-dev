@@ -1,0 +1,14 @@
+
+copy: browser/base/content/test/general/bug564387.html
+copyrev: 1522f6daadf3514f981264a4d88f12c1a1943da4
+
+<html>
+  <head>
+    <title>Document with Web Video</title>
+  </head>
+  <body>
+    This document has some web video in it.
+    <br>
+    <video src="web_video1.ogv" id="video1"> </video>
+  </body>
+</html>

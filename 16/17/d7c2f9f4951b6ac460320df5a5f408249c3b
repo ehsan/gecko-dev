@@ -1,0 +1,20 @@
+
+copy: gfx/thebes/crashtests/474410-1.html
+copyrev: 2bf1f1add128f962eee3a7a527f61fa224a1024c
+
+<!DOCTYPE html>
+<html>
+<head>
+<style type="text/css">
+
+div { -moz-transform: matrix(3, 1, 16.8, 5.6, 0, 0); }
+div > div { border: 1px dashed #9ab; }
+
+</style>
+</head>
+<body>
+
+<div><div></div></div>
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+
+copyrev: b3ede9781e9ce9ffe8ba01f7cb4d2ce842ed63ae
+copy: js/tests/js1_8_1/JSON/shell.js
+
+gTestsubsuite='JSON';

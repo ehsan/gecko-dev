@@ -1,0 +1,11 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-encoding-ISO-8859-1.html
+copyrev: 6518a2892fd287272f0a2c7d8c4a8819ea8b1506
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="ISO-8859-1">
+</head>
+<body>üöä</body>
+</html>

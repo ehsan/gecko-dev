@@ -1,0 +1,11 @@
+
+copy: content/html/content/crashtests/865147.html
+copyrev: ddb7b392845d191bd753e6010880318a2467eabf
+
+<!doctype html>
+<select></select>
+<script>
+var select = document.getElementsByTagName("select")[0];
+var newOpt = document.createElement("option");
+select.add(newOpt, newOpt);
+</script>

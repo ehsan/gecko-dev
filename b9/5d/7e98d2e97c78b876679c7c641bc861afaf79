@@ -1,0 +1,12 @@
+
+copy: js/src/devtools/automation/rootanalysis
+copyrev: a4f88fece6d56aafe89388e0f603a1641de7a836
+
+--enable-optimize
+--enable-debug
+--enable-stdcxx-compat
+--enable-ctypes
+--disable-shared-js
+--enable-exact-rooting
+--enable-gcgenerational
+--enable-threadsafe

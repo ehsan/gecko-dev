@@ -1,0 +1,17 @@
+
+copy: browser/devtools/webconsole/test/browser/test-property-provider.html
+copyrev: 90df37af22501e5f8051db05c6aaee6057d5327f
+
+<!DOCTYPE HTML>
+<html dir="ltr" xml:lang="en-US" lang="en-US"><head>
+    <title>Property provider test</title>
+    <script>
+        var testObj = {
+            testProp: 'testValue'
+        };
+    </script>
+  </head>
+  <body>
+    <h1>Heads Up Property Provider  Test Page</h1>
+  </body>
+</html>

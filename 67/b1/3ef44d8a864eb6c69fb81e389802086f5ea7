@@ -1,0 +1,21 @@
+
+copy: toolkit/devtools/debugger/tests/unit/post_init_tab_actors.js
+copyrev: 9821a1a4bb9eb9d5a85bc6465e30a8011cdcc82e
+
+/* Any copyright is dedicated to the Public Domain.
+   http://creativecommons.org/publicdomain/zero/1.0/ */
+
+function PostInitTabActor(aConnection) {}
+
+PostInitTabActor.prototype = {
+  actorPostfix: "postInitTab",
+  onPing: function onPing(aRequest) {
+    return { message: "pong" };
+  },
+};
+
+PostInitTabActor.prototype.requestTypes = {
+  "ping": PostInitTabActor.prototype.onPing,
+};
+
+DebuggerServer.addGlobalActor(PostInitTabActor, "postInitTabActor");

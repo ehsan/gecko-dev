@@ -1,0 +1,14 @@
+
+copy: js/src/xpconnect/tests/mochitest/bug504877_helper.html
+copyrev: c39a3c3e39e06145e2b5e078ac1a8784dbb681ae
+
+<html>
+    <head>
+        <script>
+            function getblat() {
+                return blat;
+            }
+            foopy = 42;
+        </script>
+    </head>
+</html>

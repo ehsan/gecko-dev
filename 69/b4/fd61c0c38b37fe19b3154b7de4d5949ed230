@@ -1,0 +1,21 @@
+
+copyrev: c94202b7a6bf51c1d6300ba94ddf3aa8a4dfe70d
+copy: js/src/trace-test/tests/basic/testRegExpLiteral.js
+
+function testRegExpLiteral()
+{
+  var a;
+  for (var i = 0; i < 15; i++)
+    a = /foobar/;
+}
+
+testRegExpLiteral();
+
+checkStats({
+             recorderStarted: 1,
+             sideExitIntoInterpreter: 1,
+             recorderAborted: 0,
+             traceTriggered: 1,
+             traceCompleted: 1
+           });
+

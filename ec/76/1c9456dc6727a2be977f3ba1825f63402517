@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/role/001-novalid.html
+copyrev: 3ee1b3ff41e614805b108464e94e1f771932bd0f
+
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title>The attribute value MUST allow a token list as the value</title>
+<input type=checkbox aria-checked=true role="switch menuitemcheckbox checkbox input">
+<!-- "switch" & "input" are unrecognized; "checkbox" is superfluous -->

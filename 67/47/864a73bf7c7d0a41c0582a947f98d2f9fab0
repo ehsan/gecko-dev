@@ -1,0 +1,5 @@
+
+copy: editor/libeditor/base/crashtests/459613-iframe.html
+copyrev: 0b127595822db9d7510d0ec7ac42d8da8262128b
+
+<html><body><textarea>notaword</textarea></body></html>

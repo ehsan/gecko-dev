@@ -1,0 +1,9 @@
+
+copy: content/svg/content/src/crashtests/385554-2.xul
+copyrev: bcb96b95c4ae60781b479689550ef04531aee651
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<svg xmlns="http://www.w3.org/2000/svg">
+<foreignObject/>
+</svg>
+</window>

@@ -1,0 +1,10 @@
+
+copy: dom/imptests/failures/html/html/dom/documents/dom-tree-accessors/test_nameditem-05.html.json
+copyrev: c8218145ef8c1707a87e5a8570bbeb6580b20546
+
+{
+  "If there are two embeds, a collection should be returned. (name)": true,
+  "If there is one embed, it should not be returned (id)": true,
+  "If there are two embeds, nothing should be returned. (id)": true,
+  "A name shouldn't affect getting an embed by id": true
+}

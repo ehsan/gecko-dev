@@ -1,0 +1,19 @@
+
+copy: editor/libeditor/html/crashtests/499844-1.html
+copyrev: 40a0c228f63737c80fa0b467069dd60f1c3a7510
+
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  document.body.contentEditable = "true";
+  document.execCommand("outdent", false, null);
+}
+
+</script>
+</head>
+
+<body style="word-spacing: 3px;" onload="boom();"> &#x0301;</body>
+</html>

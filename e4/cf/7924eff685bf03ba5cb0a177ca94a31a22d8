@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/obsolete/009-novalid.html
+copyrev: 8c45577e381bbe2cebc84d44e863e531f635ef28
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>the "noframes" element is obsolete</title>
+<meta charset=utf-8>
+</head>
+<body>
+<noframes>baz</noframes>
+</body>
+</html>

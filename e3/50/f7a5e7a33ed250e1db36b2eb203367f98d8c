@@ -1,0 +1,11 @@
+
+copy: content/html/content/crashtests/680922-binding.xml
+copyrev: 34d336ad487422dc4111a234fa36b1076ed85622
+
+<bindings xmlns="http://www.mozilla.org/xbl" xmlns:html="http://www.w3.org/1999/xhtml">
+<binding id="xbl" inheritstyle="false">
+<content>
+<html:form id="g" observes="b"/>
+</content>
+</binding>
+</bindings>

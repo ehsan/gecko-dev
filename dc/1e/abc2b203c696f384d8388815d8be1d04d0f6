@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/checkcompoundrep.aff
+copyrev: 4956d6c5ae74c6bc57e52c7634ee47f52fdb2a14
+
+// forbid compound word, if it is also a non compound word with a REP fault
+// In example: Hungarian `szervíz' (szer+víz) compound word is forbidden, because 
+// this word is also a dictionary word (szerviz) with typical fault (i->í)
+CHECKCOMPOUNDREP
+COMPOUNDFLAG A
+
+REP 1
+REP í i

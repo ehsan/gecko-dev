@@ -1,0 +1,6 @@
+
+copy: content/base/test/file_XHR_pass3.txt^headers^
+copyrev: 690611f10c2635ce1f37885250c3a8fed55b8f15
+
+HTTP 301 Moved Permanently
+Location: file_XHR_pass2.txt

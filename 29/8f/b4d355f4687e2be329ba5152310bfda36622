@@ -1,0 +1,16 @@
+
+copyrev: 1a71fff47703438f077edba8de12b052752551dd
+copy: js/src/trace-test/tests/basic/missingArgTest.js
+
+function arity1(x)
+{
+  return (x == undefined) ? 1 : 0;
+}
+function missingArgTest() {
+  var q;
+  for (var i = 0; i < 10; i++) {
+    q = arity1();
+  }
+  return q;
+}
+assertEq(missingArgTest(), 1);

@@ -1,0 +1,12 @@
+
+copyrev: 9acafed37ed05dbb0007abca4f9f62d549d9bc4b
+copy: js/src/trace-test/tests/basic/testRegexpGet.js
+
+function testRegexpGet() {
+    var re = /hi/;
+    var a = [];
+    for (let i = 0; i < 5; ++i)
+        a.push(re.source);
+    return a.toString();
+}
+assertEq(testRegexpGet(), "hi,hi,hi,hi,hi");

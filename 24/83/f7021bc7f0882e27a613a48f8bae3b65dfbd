@@ -1,0 +1,16 @@
+
+copy: js/src/jit-test/tests/parallelarray/flatten-throws.js
+copyrev: 30191a8a64900ccbd0c40b278b8fd8238f4b2d13
+
+// |jit-test| error: Error;
+
+function testFlattenFlat() {
+  // Throw on flattening flat array
+  var p = new ParallelArray([1]);
+  var f = p.flatten();
+}
+
+if (getBuildConfiguration().parallelJS)
+  testFlattenFlat();
+else
+  throw new Error();

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/keepcase.dic
+copyrev: 5ea431e79e93be1ba30f95db31f4d3e37ced02f9
+
+4
+foo/A
+Bar/A
+baz./A
+Quux./A

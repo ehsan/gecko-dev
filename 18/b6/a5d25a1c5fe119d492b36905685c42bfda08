@@ -1,0 +1,5 @@
+
+copyrev: 79f521cf30d73692ae316d880dfa79f4665ea4f8
+copy: js/src/trace-test/tests/basic/testIteratorReification.js
+
+for (b in evalcx('')) {}

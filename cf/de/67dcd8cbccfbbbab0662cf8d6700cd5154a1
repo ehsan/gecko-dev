@@ -1,0 +1,25 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+[scriptable, function, uuid(7a16feb4-5a78-4589-9174-b728f26942e2)]
+interface nsIActivityUIGlueCallback : nsISupports
+{
+    void handleEvent(in long choice);
+};
+
+/**
+  * To be implemented by @mozilla.org/dom/activities/ui-glue;1
+  */
+[scriptable, uuid(03e6743c-2fc3-43fa-bcb3-0476947c8ac5)]
+interface nsIActivityUIGlue : nsISupports
+{
+    /**
+      * @param options     The ActivityOptions object in the form of { name: "send", data: { ... } }
+      * @param activities  A json blob which is an array of { "title":"...", "icon":"..." }.
+      * @param onresult    The callback to send the index of the choosen activity. Send -1 if no choice is made.
+      */
+    void chooseActivity(in jsval options, in jsval activities, in nsIActivityUIGlueCallback onresult);
+};

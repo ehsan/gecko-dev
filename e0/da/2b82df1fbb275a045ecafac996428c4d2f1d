@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-input-attr-inherit.html
+copyrev: dbe398735b46e0f9e3c54f297f669180896040a4
+
+<!DOCTYPE html>
+<html>
+<body>
+    <span spellcheck="true"><input type="text" value="blahblahblah"></span>
+</body>
+</html>

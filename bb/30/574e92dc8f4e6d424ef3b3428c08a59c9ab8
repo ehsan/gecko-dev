@@ -1,0 +1,13 @@
+
+copyrev: 5ac48f884e3d9505aaf6830ba8ee18aa60fc80b8
+copy: js/src/trace-test/tests/basic/bug520498.js
+
+var Q = 0;
+try {
+   (function f(i) { Q = i; if (i == 100000) return; f(i+1); })(1)
+} catch (e) {
+}
+
+if (Q == 100000)
+   assertEq(Q, "fail");
+

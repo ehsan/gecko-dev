@@ -1,0 +1,16 @@
+
+copyrev: bc8df71bea97d930007152d2034d7bf8fa902d4a
+copy: js/src/trace-test/tests/basic/bug583615.js
+
+// |jit-test| slow;
+
+try {
+    x = <x><y/></x>
+    x += /x /
+} catch (e) {}
+for each(a in [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+0, 0]) {
+    x += x;
+}
+default xml namespace = x;
+<x></x>

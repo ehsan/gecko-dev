@@ -1,0 +1,5 @@
+
+copyrev: 1138899bfeb4d0c16cf98c3179a227b42737c5e1
+copy: js/tests/ecma/Date/shell.js
+
+gTestsubsuite = 'Date';

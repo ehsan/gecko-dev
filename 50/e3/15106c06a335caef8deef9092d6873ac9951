@@ -1,0 +1,10 @@
+
+copy: toolkit/devtools/debugger/tests/unit/source-map-data/sourcemapped.coffee
+copyrev: fe94766a2314dc9536f4e435bd2e4a0bf53b6c3f
+
+foo = (n) ->
+  return "foo" + i for i in [0...n]
+
+[first, second, third] = foo(3)
+
+debugger

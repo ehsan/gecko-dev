@@ -1,0 +1,5 @@
+
+copy: mobile/installer/debian/compat.in
+copyrev: 1377b3e918215dec35603691cf77a160c6b8b815
+
+4

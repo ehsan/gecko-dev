@@ -1,0 +1,7 @@
+
+copy: mobile/android/base/GeckoLinearLayout.java.in
+copyrev: 5d2fcea0fea64956743fbb3e37e0cd43141f55bf
+
+#filter substitution
+#define VIEWTYPE LinearLayout
+#include GeckoView.java.frag

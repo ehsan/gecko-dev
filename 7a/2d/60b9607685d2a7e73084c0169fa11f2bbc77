@@ -1,0 +1,19 @@
+
+copy: content/base/crashtests/494810-1.html
+copyrev: e74174787865325d7cc4b753892d6543e21d47fd
+
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  document.domain = "[";
+  window.sessionStorage;
+}
+
+</script>
+</head>
+
+<body onload="boom();"></body>
+</html>

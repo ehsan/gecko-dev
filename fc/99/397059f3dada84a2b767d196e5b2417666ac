@@ -1,0 +1,7 @@
+
+copy: content/media/test/crashtests/875911.html
+copyrev: 4a1a12782b610454ed657af3ef74ea5bbc9aac12
+
+<script>
+  new OfflineAudioContext(1, 10, 48000);
+</script>

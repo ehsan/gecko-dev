@@ -1,0 +1,20 @@
+
+copyrev: 3e8f56c3bb2e3a44c2e6842a81b94f59b1705c22
+copy: js/src/trace-test/tests/closures/bug541239.js
+
+function m() {
+ var d = 73;
+
+ return (eval("\n\
+   (function() {\n\
+     return function() {\n\
+       yield ((function() {\n\
+         print(d);\n\
+         return d\n\
+       })())\n\
+     } ();\n\
+   })\n\
+ "))();
+}
+
+m().next();

@@ -1,0 +1,5 @@
+
+copyrev: 5cc7e53c14e48432021c3aa1f4c97014f3b6a066
+copy: dom/src/json/test/fail22.json
+
+["Colon instead of comma": false]

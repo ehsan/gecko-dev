@@ -1,0 +1,13 @@
+
+copy: content/base/test/file_XHRDocURI.html
+copyrev: 713eebf6f4ec95c69f3c7992575ca4a874a733f1
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>XMLHttpRequest return document URIs</title>
+  </head>
+  <body>
+    <div id="data">data</div>
+  </body>
+</html>

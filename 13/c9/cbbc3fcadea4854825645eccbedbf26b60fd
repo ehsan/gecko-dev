@@ -1,0 +1,11 @@
+
+copy: content/base/test/unit/4_result_2.xml
+copyrev: 92cf49c6da351d520789300c87a2d528b93de903
+
+<falsexul:xul xmlns:falsexul="http://mozilla.org/ns3" xmlns:other="http://mozilla.org/ns/other">
+      <box xmlns="http://mozilla.org/ns">
+        <other:what>lorem ipsum</other:what>
+        <description>xul fake</description>
+        <what xmlns="http://mozilla.org/ns/other">lorem ipsum <falsexul:label value="hello"/> the return</what>
+      </box>
+    </falsexul:xul>

@@ -1,0 +1,18 @@
+
+copyrev: dc53b016163850b555b8bdf95b1958d74955ff5b
+copy: js/src/trace-test/tests/basic/setArgumentsLength.js
+
+var count = 0;
+
+function f() {
+  arguments.length--;
+  for (var i = 0; i < arguments.length; ++i) {
+    ++count;
+  }
+}
+
+f(1, 2);
+f(1, 2);
+f(2, 2);
+
+assertEq(count, 3);

@@ -1,0 +1,21 @@
+
+copy: content/html/content/reftests/autofocus/autofocus-leaves-iframe-ref.html
+copyrev: 432f141cc9067767ceadd0472237a19a10350bb6
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <script>
+    function loadHandler()
+    {
+      frames[0].document.getElementsByTagName('input')[0].onfocus = function() {
+        document.documentElement.removeAttribute('class');
+      }
+      frames[0].document.getElementsByTagName('input')[0].focus();
+    }
+  </script>
+  <body onload="loadHandler();">
+    <iframe src="data:text/html,<input>"></iframe>
+    <input></input>
+  </body>
+</html>

@@ -1,0 +1,28 @@
+
+copy: js/src/tests/js1_8_5/extensions/debug-object-17.js
+copyrev: 920b5768e9eb8138ff7f77617eb66f5ae2877ddc
+
+// |jit-test| debug
+// Disabling a Debug object causes events to stop being delivered to it
+// immediately, even if we're in the middle of dispatching.
+
+var g = newGlobal('new-compartment');
+var log;
+
+var arr = [];
+for (var i = 0; i < 4; i++) {
+    arr[i] = new Debug(g);
+    arr[i].hooks = {
+        num: i,
+        debuggerHandler: function () {
+            log += this.num;
+            // Disable them all.
+            for (var j = 0; j < arr.length; j++)
+                arr[j].enabled = false;
+        }
+    };
+}
+
+log = '';
+g.eval("debugger; debugger;");
+assertEq(log, '0');

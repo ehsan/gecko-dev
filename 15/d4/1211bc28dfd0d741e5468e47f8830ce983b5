@@ -1,0 +1,13 @@
+
+copy: gfx/thebes/crashtests/389326-1.html
+copyrev: 86760d107c59cb924fca5b451c1a49e20b920757
+
+<html class="reftest-wait">
+<head>
+<script>
+setTimeout('document.documentElement.className = ""', 1000);
+</script>
+<body>
+<iframe src="389326-1-inner.xhtml"></iframe>
+</body>
+</html>

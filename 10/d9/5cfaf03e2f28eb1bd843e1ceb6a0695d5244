@@ -1,0 +1,12 @@
+
+copy: extensions/spellcheck/hunspell/tests/forbiddenword.dic
+copyrev: 548a66fdea42bd2a9a214ee0e05d9c4c45158f8a
+
+5
+foo/S	[1]
+foo/YX	[2]
+foo/Y	[3]
+foo/S	[4]
+bar/YS	[5]
+bars/X
+foos/X

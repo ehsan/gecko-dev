@@ -1,0 +1,23 @@
+
+copy: layout/xul/base/src/crashtests/391974-1-inner.xul
+copyrev: 0f853b5772631f4ee4622205a26ceed86bad727a
+
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<menuitem>
+<tooltip/>
+<box/>
+</menuitem>
+
+<script xmlns="http://www.w3.org/1999/xhtml">
+function doe2() {
+document.getElementsByTagName('menuitem')[0].setAttribute('description', 'tetx');
+}
+
+function doe3() {
+document.getElementsByTagName('menuitem')[0].removeAttribute('description');
+document.getElementsByTagName('tooltip')[0].setAttribute('ordinal', '0');
+}
+setTimeout(doe2,150);
+setTimeout(doe3,200);
+</script>
+</window>

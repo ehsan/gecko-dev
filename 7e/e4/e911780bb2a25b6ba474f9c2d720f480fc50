@@ -1,0 +1,9 @@
+
+copy: content/media/webaudio/test/blink/mochitest.ini
+copyrev: 37696d3ea450df7d961580daf361fa58ce995224
+
+[DEFAULT]
+support-files =
+  audio-testing.js
+  convolution-testing.js
+  panner-model-testing.js

@@ -1,0 +1,13 @@
+
+copyrev: 71537f3aef314af11e5c70f56ad18baf9ea1c916
+copy: js/src/trace-test/tests/basic/testMissingMethod.js
+
+var o = {y: function () {}};
+var a = [o, o, o, o, o, o, o, o, o];
+a[RECORDLOOP - 1] = {};
+try {
+    for (var i = 0; i < 9; i++)
+        a[i].y();
+} catch (exc) {
+    assertEq(exc.name, "TypeError"); // should happen when i == RECORDLOOP - 1
+}

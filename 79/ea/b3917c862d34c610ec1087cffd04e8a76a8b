@@ -1,0 +1,13 @@
+
+copy: content/html/content/test/file_iframe_sandbox_redirect_target.html
+copyrev: 2bcdfed27625142c2a44890ca500f772a17d97f4
+
+<!DOCTYPE html>
+<head>
+  <script>
+    onmessage = function(event) {
+      parent.postMessage(event.data + " redirect target", "*");
+    }
+  </script>
+</head>
+<body>I have been redirected</body>

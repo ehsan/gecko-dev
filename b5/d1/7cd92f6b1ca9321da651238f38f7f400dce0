@@ -1,0 +1,20 @@
+
+copyrev: fdd643bdfe306f57fbb3aade9a7d2b6d37829eb3
+copy: js/src/trace-test/tests/basic/testPutOnEmptyArgsObject.js
+
+var g;
+
+function h() {
+    return arguments.length;
+}
+
+function f() {
+    var args = arguments;
+    g = function() { return h.apply(this, args); }
+}
+
+for (var i = 0; i < 10; ++i) {
+    f();
+}
+
+assertEq(g(), 0);

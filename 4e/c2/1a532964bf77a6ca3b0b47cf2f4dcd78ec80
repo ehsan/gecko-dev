@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/output/output-invalid.html
+copyrev: 137591bd5f957f5241c8652c0fa62f960b3a2066
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if output has a custom error, it should be affected by
+             :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('b').setCustomValidity('foo'); document.documentElement.className='';">
+    <output class='invalid' id='b'>foo</output>
+  </body>
+</html>

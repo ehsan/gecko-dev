@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-invalid/input/input-disabled.html
+copyrev: 6481c22b4997bc8a4519eb2fbb202af2c3803c5a
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if input is disabled, it is barred from constraint validation
+             and should not be affected by :-moz-ui-invalid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <input class='notinvalid' disabled>
+  </body>
+</html>

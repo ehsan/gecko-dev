@@ -1,0 +1,13 @@
+
+copy: intl/locale/src/unix/Makefile.in
+copyrev: 3422ebab5c002d56e5cab3ea1742a5deb07b8cd9
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+include $(topsrcdir)/config/rules.mk
+
+unixcharset.properties.h: $(srcdir)/../props2arrays.py unixcharset.properties
+	$(PYTHON) $^ $@

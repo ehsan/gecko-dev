@@ -1,0 +1,5 @@
+
+copyrev: 2e9604c20a32c801ea7cf53d9d7d6064b795ea57
+copy: js/tests/ecma_3/Operators/shell.js
+
+gTestsubsuite = 'Operators';

@@ -1,0 +1,8 @@
+
+copy: extensions/spellcheck/hunspell/tests/unit/data/utf8_bom2.test
+copyrev: 7b89a640238be78774be19c8aa43cf2b87b5e8c4
+
+#!/bin/sh
+DIR="`dirname $0`"
+NAME="`basename $0 .test`"
+$DIR/test.sh $NAME -i utf-8 -1

@@ -1,0 +1,22 @@
+
+copyrev: 692bdea0e9ff3d0d85262cb5bd7eced89e9807c5
+copy: js/src/trace-test/tests/basic/name-inactive-inferflags.js
+
+function addAccumulations(f) {
+  var a = f();
+  var b = f();
+  return a() + b();
+}
+
+function loopingAccumulator() {
+  var x = 0;
+  return function () {
+    for (var i = 0; i < 10; ++i) {
+      ++x;
+    }
+    return x;
+  }
+}
+
+var x = addAccumulations(loopingAccumulator);
+assertEq(x, 20);

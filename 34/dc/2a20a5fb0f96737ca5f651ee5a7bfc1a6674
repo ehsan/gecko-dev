@@ -1,0 +1,5 @@
+
+copyrev: be50897c4a3715c68d4c4e39a3a3a28827e859fa
+copy: dom/src/json/test/fail12.json
+
+{"Illegal invocation": alert()}

@@ -1,0 +1,37 @@
+
+copy: content/base/crashtests/338391-1.xhtml
+copyrev: 13fdb1f92d7042f224d087d8477c2801e143628c
+
+<html xmlns="http://www.w3.org/1999/xhtml" class="reftest-wait">
+<head>
+
+<script>
+
+function boom()
+{
+  var n = document.getElementById("n");
+
+  document.addEventListener("DOMNodeRemoved", foozle, false);
+  n.parentNode.removeChild(n);
+  document.removeEventListener("DOMNodeRemoved", foozle, false);
+
+  function foozle()
+  {
+    document.removeEventListener("DOMNodeRemoved", foozle, false); // prevent accidental recursion
+
+    n.parentNode.removeChild(n);
+    
+    document.documentElement.removeAttribute("class");
+  }
+}
+
+</script>
+
+</head>
+
+<body onload="setTimeout(boom, 30)">
+
+<div id="n"></div>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+
+copyrev: 48656c307d1c23d6d7f3fd606454348aed1bda4c
+copy: layout/reftests/svg/image/img-dyn-1-ref.html
+
+<html>
+<body>
+  <div style="width: 200px; height: 200px; border: 2px dashed green">
+    <img src="squaredCircle-viewBox-noSize.svg">
+  </div>
+</body>
+</html>

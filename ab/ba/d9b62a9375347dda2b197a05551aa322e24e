@@ -1,0 +1,11 @@
+
+copy: js/src/xpconnect/tests/mochitest/inner.html
+copyrev: cdb295b757bc2677fdf4c551e7d8a60889c792be
+
+<html>
+    <head>
+        <title>Inner frame for bug 39685 mochitest</title>
+    </head>
+    <body onload="x = 4">
+    </body>
+</html>

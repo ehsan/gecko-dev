@@ -1,0 +1,6 @@
+
+copy: mobile/installer/debian/menu.in
+copyrev: 62aea2ca15507db3b8df94285ee38188387dd199
+
+?package(fennec):needs="X11|text|vc|wm" section="Apps/Internet"\
+  title="fennec" command="/usr/bin/fennec"

@@ -1,0 +1,13 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/018-isvalid.html
+copyrev: 32b7f5c0cacd696076eea244c1b8f148af46f45c
+
+<!doctype html>
+<meta charset=utf-8>
+<title>mutliple adjacent style@scoped as child of div with flow content after</title>
+<body>
+<div>
+<style scoped></style>
+<style scoped></style>
+<p>foo</p>
+</div>

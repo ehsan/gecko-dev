@@ -1,0 +1,6 @@
+
+copyrev: a49109456665cfa1ecaf3fb594509d25c8cccde8
+copy: dom/src/json/test/fail28.json
+
+["line\
+break"]

@@ -1,0 +1,28 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/var/018-isvalid.html
+copyrev: 475a0b6fd303c1cd11d26fd8d692dff60fe7c22a
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;var&gt;</title>
+</head>
+<body>
+  <!-- is structured inline -->
+  <p><var class="class" lang="en">text</var></p>
+
+  <!-- is strictly inline -->
+  <p><dfn><var class="class" lang="en">text</var></dfn></p>
+
+  <!-- can be empty -->
+  <p>text <var></var></p>
+  <p>text <dfn><var></var></dfn></p>
+
+  <!-- can contain interactive -->
+  <p><var><a>text</a></var></p>
+  <p><dfn><var><a>text</a></var></dfn></p>
+
+  <!-- cannot contain structured inline -->
+</body>
+</html>

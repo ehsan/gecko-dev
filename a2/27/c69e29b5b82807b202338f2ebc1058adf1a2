@@ -1,0 +1,149 @@
+<!--
+  Any copyright is dedicated to the Public Domain.
+  http://creativecommons.org/publicdomain/zero/1.0/
+-->
+<html>
+<head>
+  <title>Indexed Database Property Test</title>
+
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+
+  <script type="text/javascript;version=1.7">
+    function testSteps()
+    {
+      const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
+      const nsIIDBTransaction = Components.interfaces.nsIIDBTransaction;
+
+      // Test object stores
+
+      const name = window.location.pathname;
+      const keyPaths = [
+        { keyPath: "id",      value: { id: 5 },                      key: 5 },
+        { keyPath: "id",      value: { id: "14", iid: 12 },          key: "14" },
+        { keyPath: "id",      value: { iid: "14", id: 12 },          key: 12 },
+        { keyPath: "id",      value: {} },
+        { keyPath: "id",      value: { id: {} } },
+        { keyPath: "id",      value: { id: /x/ } },
+        { keyPath: "id",      value: 2 },
+        { keyPath: "id",      value: undefined },
+        { keyPath: "foo.id",  value: { foo: { id: 7 } },             key: 7 },
+        { keyPath: "foo.id",  value: { id: 7, foo: { id: "asdf" } }, key: "asdf" },
+        { keyPath: "foo.id",  value: { foo: { id: undefined } } },
+        { keyPath: "foo.id",  value: { foo: 47 } },
+        { keyPath: "foo.id",  value: {} },
+        { keyPath: "",        value: "foopy",                        key: "foopy" },
+        { keyPath: "",        value: 2,                              key: 2 },
+        { keyPath: "",        value: undefined },
+        { keyPath: "",        value: { id: 12 } },
+        { keyPath: "",        value: /x/ },
+        { keyPath: "foo.bar", value: { baz: 1, foo: { baz2: 2, bar: "xo" } },     key: "xo" },
+        { keyPath: "foo.bar.baz", value: { foo: { bar: { bazz: 16, baz: 17 } } }, key: 17 },
+        { keyPath: "foo..id", exception: true },
+        { keyPath: "foo.",    exception: true },
+        { keyPath: "fo o",    exception: true },
+        { keyPath: "foo ",    exception: true },
+        { keyPath: "foo[bar]",exception: true },
+        { keyPath: "$('id').stuff", exception: true },
+        { keyPath: "foo.2.bar", exception: true },
+        { keyPath: "foo. .bar", exception: true },
+        { keyPath: ".bar",    exception: true },
+      ];
+
+      let request = mozIndexedDB.open(name, 1);
+      request.onerror = errorHandler;
+      request.onupgradeneeded = grabEventAndContinueHandler;
+      let event = yield;
+      let db = event.target.result;
+
+      let stores = {};
+
+      // Test creating object stores and inserting data
+      for (let i = 0; i < keyPaths.length; i++) {
+        let info = keyPaths[i];
+        test = " for " + JSON.stringify(info);
+        if (!stores[info.keyPath]) {
+          try {
+            let objectStore = db.createObjectStore(info.keyPath, { keyPath: info.keyPath });
+            ok(!("exception" in info), "expected exception behavior observed" + test);
+            is(objectStore.keyPath, info.keyPath, "objectStore has correct keyPath property" + test);
+            stores[info.keyPath] = objectStore;
+          } catch (e) {
+            ok("exception" in info, "expected exception behavior observed" + test);
+            ok(e instanceof DOMException, "Got a DOM Exception" + test);
+            is(e.code, DOMException.SYNTAX_ERR, "expect a syntax error" + test);
+            continue;
+          }
+        }
+
+        let store = stores[info.keyPath];
+
+        try {
+          request = store.add(info.value);
+          ok("key" in info, "successfully created request to insert value" + test);
+        } catch (e) {
+          ok(!("key" in info), "threw when attempted to insert" + test);
+          ok(e instanceof IDBDatabaseException, "Got a IDBDatabaseException" + test);
+          is(e.code, IDBDatabaseException.DATA_ERR, "expect a DATA_ERR error" + test);
+          continue;
+        }
+
+        request.onerror = errorHandler;
+        request.onsuccess = grabEventAndContinueHandler;
+
+        let e = yield;
+        is(e.type, "success", "inserted successfully" + test);
+        is(e.target, request, "expected target" + test);
+        is(request.result, info.key, "found correct key" + test);
+
+        store.clear().onsuccess = grabEventAndContinueHandler;
+        yield;
+      }
+
+      // Attempt to create indexes and insert data
+      let store = db.createObjectStore("indexStore");
+      let indexes = {};
+      for (let i = 0; i < keyPaths.length; i++) {
+        let info = keyPaths[i];
+        if (!indexes[info.keyPath]) {
+          try {
+            let index = store.createIndex(info.keyPath, info.keyPath);
+            ok(!("exception" in info), "expected exception behavior observed");
+            is(index.keyPath, info.keyPath, "index has correct keyPath property");
+            indexes[info.keyPath] = index;
+          } catch (e) {
+            ok("exception" in info, "expected exception behavior observed");
+            ok(e instanceof DOMException, "Got a DOM Exception");
+            is(e.code, DOMException.SYNTAX_ERR, "expect a syntax error");
+            continue;
+          }
+        }
+        
+        let index = indexes[info.keyPath];
+
+        request = store.add(info.value, 1);
+        if ("key" in info) {
+          index.getKey(info.key).onsuccess = grabEventAndContinueHandler;
+          e = yield;
+          is(e.target.result, 1, "found value when reading from index");
+        }
+        else {
+          index.count().onsuccess = grabEventAndContinueHandler;
+          e = yield;
+          is(e.target.result, 0, "index should be empty");
+        }
+
+        store.clear().onsuccess = grabEventAndContinueHandler;
+        yield;
+      }
+
+      finishTest();
+      yield;
+    }
+  </script>
+  <script type="text/javascript;version=1.7" src="helpers.js"></script>
+</head>
+
+<body onload="runTest();"></body>
+
+</html>

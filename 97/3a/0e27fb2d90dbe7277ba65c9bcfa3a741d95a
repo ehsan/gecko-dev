@@ -1,0 +1,10 @@
+
+copy: layout/reftests/editor/spellcheck-hyphen-multiple-valid-ref.html
+copyrev: 61e30c0b30f15e9385e4ab2b0a42436ee7a6b6ba
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea style="width: 400px; height: 200px;" autofocus spellcheck="false">- -- --- -hello hello- --hello --hello ---hello hello--- ---hello----</textarea>
+  </body>
+</html>

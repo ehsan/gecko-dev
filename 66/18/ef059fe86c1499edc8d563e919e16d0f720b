@@ -1,0 +1,11 @@
+
+copy: toolkit/themes/winstripe/global/notification-aero.css
+copyrev: 9c53ffad4b55807e7450689d57c72385125a5771
+
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%define WINDOWS_AERO
+%include notification.css
+%undef WINDOWS_AERO

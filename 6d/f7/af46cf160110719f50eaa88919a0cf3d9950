@@ -1,0 +1,8 @@
+
+copy: modules/libpr0n/test/reftest/ico/ico-mixed/reftest.list
+copyrev: 22c598aaaada4ab5c518aeda48762128bb7f3c90
+
+# ICO BMP and PNG mixed tests
+
+== mixed-bmp-png.ico mixed-bmp-png.png
+

@@ -1,0 +1,14 @@
+
+copy: content/html/document/reftests/bug448564-4a.html
+copyrev: b33d10a4a5e1ee770260993b8a90f4214bdb115f
+
+<html>
+<body>
+  <b><i>
+    <!-- Closing a form causes any open residual style tags to be closed
+         as well.  This test ensures that these tags get reopened. -->
+    <form>form contents</form>
+    bold text
+  </i></b>
+</body>
+</html>

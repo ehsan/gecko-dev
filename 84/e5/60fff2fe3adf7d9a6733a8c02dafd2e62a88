@@ -1,0 +1,14 @@
+
+copyrev: 878ede9cce5ab86d93d4910dd3d9f5d78a6808c0
+copy: layout/reftests/bugs/429849-1-ref.html
+
+<html>
+<head>
+<title>Bug 429849 – marquee text not on one line , part of this line on top and second part on bottom</title>
+</head>
+<body>
+<marquee behavior=alternate scrollamount=0 direction=right>
+This text should be on one line
+</marquee>
+</body>
+</html>

@@ -1,0 +1,10 @@
+
+copy: js/src/jit-test/tests/basic/bug632206.js
+copyrev: afe7c619b712ec21cebcac7e80d9426f21643378
+
+// don't crash
+x = <x/>
+for (a = 0; a < 9; a++) {
+  x.elements()
+}
+

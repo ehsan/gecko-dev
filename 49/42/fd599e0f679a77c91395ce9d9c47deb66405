@@ -1,0 +1,6 @@
+
+copy: browser/branding/nightly/locales/browserconfig.properties
+copyrev: 62d7866ae55ccaa5458084180b19bb4ace9ce2b9
+
+# Do NOT localize or otherwise change these values
+browser.startup.homepage=about:home

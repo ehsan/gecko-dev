@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-US">
+<head>
+  <title>Switch</title>
+  <meta http-equiv="Content-Type" content="application/xhtml+xml; charset=utf-8" />
+  <link rel="icon" href="chrome://tabcandy/content/tabcandy.png"/>
+  <link rel="stylesheet" href="css/groups.css" type="text/css">
+</head>
+
+<body>
+  <div id="top-border" />
+  <script type="text/javascript;version=1.8">
+  </script>
+
+  <script type="text/javascript;version=1.8" src="../../js/optional/stacktrace.js"></script>
+  <script type="text/javascript;version=1.8" src="../../js/core/jquery.js"></script>
+  <script type="text/javascript;version=1.8" src="../../js/optional/jquery-tabcandy-easing.js"></script>    
+<!--   <script type="text/javascript;version=1.8" src="../../js/optional/jquery.lint.js"></script>   -->
+  <script type="text/javascript;version=1.8" src="../../js/optional/jquery-ui.js"></script>  
+  <script type="text/javascript;version=1.8" src="../../js/core/utils.js"></script>
+  <script type="text/javascript;version=1.8" src="js/storage.js"></script>
+  <script type="text/javascript;version=1.8" src="../../js/core/toolbar-button.js"></script>    
+  <script type="text/javascript;version=1.8">
+  	Utils.log('it begins!');
+/*     Utils.testLogging(); */
+  </script>
+  <script type="text/javascript;version=1.8" src="../../js/core/tabs.js"></script>
+  <script type="text/javascript;version=1.8" src="../../js/core/mirror.js"></script>
+  <script type="text/javascript;version=1.8" src="js/items.js"></script>  
+  <script type="text/javascript;version=1.8" src="js/tabitems.js"></script>  
+  <script type="text/javascript;version=1.8" src="js/groups.js"></script>
+  
+  <!-- BEGIN Switch Control -->
+  <script type="text/javascript;version=1.8" src="../../js/optional/switch.js"></script>  
+  <!-- We create the actual switch in ui.js -->
+  <!-- END Switch Control -->
+
+  <script type="text/javascript;version=1.8" src="js/ui.js"></script>  
+  <script type="text/javascript;version=1.8">
+/*
+  var uservoiceOptions = {
+    // required
+    key: 'mozillalabs',
+    host: 'feedback.mozillalabs.com', 
+    forum: '56804',
+    showTab: true,  
+    // optional
+    alignment: 'left',
+    background_color:'#E9E9E9', 
+    text_color: 'black',
+    hover_color: '#AAA',
+    lang: 'en',
+  };
+
+  function _loadUserVoice() {
+    var s = document.createElement('script');
+    s.setAttribute('type', 'text/javascript');
+    s.setAttribute('src', ("https:" == document.location.protocol ? "https://" : "http://") + "cdn.uservoice.com/javascripts/widgets/tab.js");
+    document.getElementsByTagName('head')[0].appendChild(s);
+  }
+  _loadSuper = window.onload;
+  window.onload = (typeof window.onload != 'function') ? _loadUserVoice : function() {    
+  _loadSuper(); _loadUserVoice(); };
+*/
+  </script>
+  
+</body>
+</html>

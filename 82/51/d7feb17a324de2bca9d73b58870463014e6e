@@ -1,0 +1,10 @@
+
+copyrev: 998d61abc67186aaa43089d7dc372dbe4f00ca34
+copy: layout/reftests/svg/image/background-simple-1.html
+
+<html>
+<body>
+  <div style="height: 100px; width: 100px;
+              background-image: url('lime100x100.svg')">
+</body>
+</html>

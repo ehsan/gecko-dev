@@ -1,0 +1,5 @@
+
+copyrev: e3955c392fed547a432d5553c233f387edaf44ac
+copy: js/tests/e4x/Namespace/shell.js
+
+gTestsubsuite = 'Namespace';

@@ -1,0 +1,14 @@
+
+copyrev: 4cf6c48a4bef8c22a4bc98cef2e4cec9df7501d3
+copy: js/src/trace-test/tests/basic/testThinForEach.js
+
+function testThinForEach() {
+    var a = ["red"];
+    var n = 0;
+    for (var i = 0; i < 10; i++)
+        for each (var v in a)
+            if (v)
+                n++;
+    return n;
+}
+assertEq(testThinForEach(), 10);

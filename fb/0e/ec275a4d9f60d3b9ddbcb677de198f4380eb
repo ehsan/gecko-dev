@@ -1,0 +1,17 @@
+
+copy: layout/reftests/editor/dynamic-overflow-change-ref.html
+copyrev: daccc856cbd0013f005061b3ca958a7490390de4
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <textarea rows="2" style="overflow: hidden;">
+      this
+      is
+      a
+      textarea
+      with
+      overflow
+    </textarea>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+
+copy: content/html/content/test/file_iframe_sandbox_d_if8.html
+copyrev: 95500ead5cd57d9d9d8d88ce925064dd8a3741fd
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for Bug 341604</title>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+
+<script type="application/javascript">
+  function doTest() {
+    window.parent.modify_if_8();
+  }
+</script>
+
+<body onload="doTest()">
+  I am sandboxed with 'allow-scripts' and 'allow-same-origin' the first time I am loaded, and with 'allow-scripts' the second time
+</body>
+</html>

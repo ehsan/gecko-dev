@@ -1,0 +1,22 @@
+
+copy: layout/reftests/css-calc/transform-origin-1.html
+copyrev: ecd9a945bc1c669c03ce7b45f05189dea4c9596f
+
+<!DOCTYPE HTML>
+<title>Test for calc() on transform-origin</title>
+<style>
+
+body { margin: 100px }
+
+p {
+    height: 50px; width: 200px;
+    background: yellow;
+    transform: rotate(15deg);
+}
+
+#one { transform-origin: calc(50px + 50%) calc(100% - 30px); }
+#two { transform-origin: calc(-12.5% + 3px) calc(-10px - 50%); }
+
+</style>
+<p id="one">hello</p>
+<p id="two">hello</p>

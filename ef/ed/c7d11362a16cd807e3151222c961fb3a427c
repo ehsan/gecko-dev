@@ -1,0 +1,26 @@
+
+copy: layout/reftests/css-invalid/button/button-disabled-fieldset-1.html
+copyrev: a8717f9c0b3240d8ec410c21d17fd0879be77fce
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if button has a disabled fieldset ancestor, it is barred from
+             constraint validation and should not be affected by :-moz-ui-invalid
+             pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <script>
+    function onLoadHandler()
+    {
+      var e = document.getElementById('b');
+      e.setCustomValidity('foo');
+      document.documentElement.className='';
+    }
+  </script>
+  <body onload="onLoadHandler();">
+    <fieldset disabled>
+      <fieldset>
+        <button class='notinvalid' id='b'></button>
+      </fieldset>
+    </fieldset>
+  </body>
+</html>

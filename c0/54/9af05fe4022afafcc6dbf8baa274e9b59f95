@@ -1,0 +1,14 @@
+
+copyrev: 7d509081d0cbf9e60377a705cef4b7a798a2597f
+copy: js/src/trace-test/tests/jaeger/bug583688.js
+
+// |jit-test| error: ReferenceError
+__defineSetter__("x", function () {})
+try {
+    __defineGetter__("d", (Function("x")))
+} catch (e) {}
+d
+print(delete x)
+throw d
+
+

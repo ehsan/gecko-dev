@@ -1,0 +1,11 @@
+
+copy: layout/reftests/forms/input/tel/input-tel-1.html
+copyrev: a586a2cf5483c63993c61565dc8adc88007de0c9
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: input element in telephone state looks like in text state -->
+  <body>
+    <input type="tel">
+  </body>
+</html>

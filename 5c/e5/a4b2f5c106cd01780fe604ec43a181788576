@@ -1,0 +1,10 @@
+
+copyrev: 5d1eb4a60e208203dd7ff7e75dc655ccfa62b063
+copy: js/src/trace-test/tests/jaeger/bug577996.js
+
+Function("\n\
+  for each(y in[0,0,0]) {\n\
+    for(x in[0,0,0,0,0,0,0,0,0,new Boolean(true),0,0,0,new Boolean(true)]) {}\n\
+  }\n\
+")()
+

@@ -1,0 +1,21 @@
+
+copy: layout/base/tests/font-inflation/intrinsic-fit-1a.html
+copyrev: 2ce7f263df435299c3cc8074635f32af09150194
+
+<!DOCTYPE HTML>
+<style>
+@font-face { font-family: Ahem; src: url(../fonts/Ahem.ttf); }
+html, body { margin: 0; padding: 0; }
+body { width: 10px }
+p {
+  margin: 0;
+  background: yellow;
+  color: blue;
+  width: -moz-fit-content; /* computes to 60px */
+  font: 12px Ahem;
+}
+</style>
+<!--
+In a 60px container, the minimum font size at 15em per line is 4px.
+-->
+<p>This is tiny bit of text.</p>

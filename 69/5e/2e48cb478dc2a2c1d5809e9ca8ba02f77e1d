@@ -1,0 +1,15 @@
+
+copy: modules/libpr0n/test/reftest/ico/ico-bmp-corrupted/reftest.list
+copyrev: 3665eb3d67b54556e2ec47bb297ef6ec219a16b8
+
+# ICOs containing corrupted BMP tests
+
+# Invalid value for bits per pixel (BPP)
+== wrapper.html?invalid-bpp.ico about:blank
+# Invalid BPP values for RLE4
+== wrapper.html?invalid-compression-RLE4.ico about:blank
+# Invalid BPP values for RLE8
+== wrapper.html?invalid-compression-RLE8.ico about:blank
+# Invalid compression value
+== wrapper.html?invalid-compression.ico about:blank
+

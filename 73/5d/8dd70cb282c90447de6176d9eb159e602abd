@@ -1,0 +1,12 @@
+
+copy: content/html/content/crashtests/602117.html
+copyrev: 0529d58d339409d9b02137cb7074f057a2903895
+
+<!DOCTYPE html>
+<html>
+  <script>
+    var isindex = document.createElement("isindex");
+    isindex.setAttribute("form", "f");
+    isindex.form;
+  </script>
+</html>

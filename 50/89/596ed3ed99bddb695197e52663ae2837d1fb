@@ -1,0 +1,15 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-canvas.js
+copyrev: 42450471c7c26b1f160711b75a1bb92bf2f80a0a
+
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+window.addEventListener("DOMContentLoaded", function() {
+  var canvas = document.querySelector("canvas");
+  var context = canvas.getContext("2d");
+  context.strokeStyle = document;
+}, false);
+

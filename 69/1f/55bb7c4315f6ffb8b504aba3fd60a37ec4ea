@@ -1,0 +1,31 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test to ensure TCPSocket permission enabled and open works with tcp-socket perm</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<p id="display"></p>
+<div id="content" style="display: none">
+</div>
+<pre id="test">
+<script type="application/javascript">
+
+/** Test to ensure TCPSocket permission being turned on enables
+  mozTCPSocket, and mozTCPSocket constructor works when
+  the tcp-socket permission has been granted.
+**/
+SpecialPowers.setBoolPref("dom.mozTCPSocket.enabled", true);
+SpecialPowers.addPermission("tcp-socket", true, document);
+
+ok('mozTCPSocket' in window, "window.mozTCPSocket should be accessible if dom.mozTCPSocket.enabled is true");
+
+ok(new mozTCPSocket('localhost', 80), "window.mozTCPSocket ctor should work for content that has the tcp-socket permission");
+
+SpecialPowers.setBoolPref("dom.mozTCPSocket.enabled", false);
+
+</script>
+</pre>
+</body>
+</html>

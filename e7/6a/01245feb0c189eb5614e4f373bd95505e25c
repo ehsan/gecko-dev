@@ -1,0 +1,11 @@
+
+copyrev: ea39badb4e2dbaaa1149a8649353ecac12560226
+copy: js/src/trace-test/tests/basic/testSubstring.js
+
+function testSubstring() {
+    for (var i = 0; i < 5; ++i) {
+        actual = "".substring(5);
+    }
+    return actual;
+}
+assertEq(testSubstring(), "");

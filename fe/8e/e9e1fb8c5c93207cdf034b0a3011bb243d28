@@ -1,0 +1,6 @@
+
+copyrev: d2c1c73c77f2a98ad67f2d471e8681127bdddfef
+copy: testing/mozmill/mozmill-1.5.0/MANIFEST.in
+
+recursive-include docs *
+recursive-include mozmill/extension *

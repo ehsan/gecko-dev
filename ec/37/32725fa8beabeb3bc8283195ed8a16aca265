@@ -1,0 +1,27 @@
+
+copyrev: 4b55b4ff6b62f0bd3844253c1130df8ca09b6d48
+copy: js/src/trace-test/tests/arguments/argsx-4.js
+
+actual = '';
+expected = '[object Arguments] undefined undefined,[object Arguments] undefined undefined,';
+
+function f() {
+  g(arguments);
+}
+
+function g(a, b, c) {
+  h(arguments);
+  a = 1;
+  b = 2;
+  c = 3;
+  h(arguments);
+}
+
+function h(a, b, c) {
+  appendToActual(a + ' ' + b + ' ' + c);
+}
+
+f(4, 5, 6);
+
+
+assertEq(actual, expected)

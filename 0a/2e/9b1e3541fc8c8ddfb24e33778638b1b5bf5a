@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/ngram_utf_fix.wrong
+copyrev: b461e0c819e0ce1ff540d1af5133fac29e618a1b
+
+времячко
+человеко

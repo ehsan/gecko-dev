@@ -1,0 +1,695 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Mobile Browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mark Finkle <mfinkle@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+/* global skin ------------------------------------------------------------- */
+@import url(chrome://global/skin/);
+
+/* general stuff ------------------------------------------------------------ */
+:root {
+  font-family: "Nokia Sans", Tahoma, sans-serif !important;
+  font-size: 24px !important;
+}
+
+menu,
+menuitem {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+description,
+label {
+  /* force mac to use the same margins as windows and linux */
+  -moz-margin-start: 6px;
+  -moz-margin-end: 5px;
+}
+
+/* Override any OS inverse themes */
+richlistbox,
+textbox {
+  color: black;
+  background-color: white;
+}
+
+#default-tooltip {
+  visibility: hidden; /* disabled in Fennec */
+}
+
+/* textboxes --------------------------------------------------------------- */
+textbox:not([type="number"]) {
+  min-height: 48px;
+  border: 3px solid #262629;
+  -moz-border-radius: 8px;
+  -moz-border-top-colors: -moz-initial;
+  -moz-border-right-colors: -moz-initial;
+  -moz-border-bottom-colors: -moz-initial;
+  -moz-border-left-colors: -moz-initial;
+}
+
+textbox[isempty="true"] {
+  color: gray;
+}
+
+/* panels ------------------------------------------------------------------ */
+.panel-dark {
+  color: white;
+  background-color: #36373b;
+}
+
+/* sidebars spacer --------------------------------------------------------- */
+.sidebar-spacer {
+  background-color: #36373b;
+}
+
+/* dialog popups ----------------------------------------------------------- */
+.dialog-dark {
+  color: #fff;
+  background-color: #36373b;
+  border-width: 4px 3px 4px 3px;
+  border-style: solid;
+  -moz-border-top-colors: black #4a4b4f;
+  -moz-border-left-colors: black #4a4b4f;
+  -moz-border-bottom-colors: black #4a4b4f;
+  -moz-border-right-colors: black #4a4b4f;
+  -moz-border-radius: 8px 8px 8px 8px;
+  -moz-box-shadow: black 0 2px 2px;
+  padding: 8px;
+}
+
+/* prompt dialogs ---------------------------------------------------------- */
+.context-block,
+.modal-block {
+  -moz-box-align: center;
+  -moz-box-pack: center;
+  background-color: rgba(128, 128, 128, 0.5);
+  padding: 64px;
+}
+
+dialog {
+  color: #fff !important;
+  background-color: transparent;
+  -moz-border-radius: 8px;
+  -moz-box-shadow: black 0 2px 2px;
+}
+
+dialog > .prompt-header {
+  padding: 8px;
+  font-size: 18px !important;
+  -moz-border-radius: 8px 8px 0 0;
+  background-color: #36373b;
+  border-style: solid;
+  border-width: 4px 3px 2px 3px;
+  -moz-border-top-colors: black #4a4b4f;
+  -moz-border-left-colors: black #4a4b4f;
+  -moz-border-bottom-colors: black #4a4b4f;
+  -moz-border-right-colors: black #4a4b4f;
+}
+
+dialog > .prompt-header > .prompt-title {
+  font-size: 24px !important;
+}
+
+@media (max-width: 499px) {
+  .context-block,
+  .modal-block {
+    padding: 32px;
+  }
+
+  dialog > .prompt-header {
+    font-size: 16px !important;
+  }
+
+  dialog > .prompt-header > .prompt-title {
+    font-size: 18px !important;
+  }
+}
+
+dialog > .prompt-header > .prompt-message {
+  margin-top: 8px;
+  white-space: pre-wrap;
+}
+
+dialog > .prompt-header > .button-checkbox {
+  margin-left: 24px;
+}
+
+/* buttons ----------------------------------------------------------------- */
+.button-text,
+.toolbarbutton-text {
+  font-weight: normal;
+  font-size: 24px !important;
+}
+
+button {
+  min-width: 48px !important; /* button size */
+  min-height: 48px !important; /* button size */
+  color: #000;
+  padding: 2px 4px;
+  border-width: 8px !important;
+  -moz-border-image: url("chrome://browser/skin/images/button-default-64.png") 8 repeat repeat;
+  background-color: transparent;
+  -moz-appearance: none !important;
+}
+
+button[type="checkbox"][checked="true"],
+button:not([disabled="true"]):active:hover {
+  -moz-border-image: url("chrome://browser/skin/images/button-active-64.png") 8 repeat repeat;
+}
+
+button[disabled="true"] {
+  color: #aaa !important;
+}
+
+button:focus > .button-box {
+  border: 1px solid transparent;
+}
+
+/* dark buttons ------------------------------------------------------------ */
+/*
+  we set notification buttons here as well, since the style can't be set in
+  scoped CSS file, like notification.css, when the buttons are added later
+*/
+
+button.button-dark,
+notification button {
+  color: #fff !important;
+  background: transparent !important;
+  -moz-border-image: url("chrome://browser/skin/images/buttondark-default-64.png") 8 repeat repeat;
+}
+
+/* notification background is too light for a white caption */
+notification button {
+  color: #000 !important;
+}
+
+button.button-dark[type="checkbox"][checked="true"],
+button.button-dark:not([disabled="true"]):active:hover,
+notification button:not([disabled="true"]):active:hover {
+  -moz-border-image: url("chrome://browser/skin/images/buttondark-active-64.png") 8 repeat repeat;
+}
+
+button.button-dark[disabled="true"] {
+  color: #7e7e7e !important;
+}
+
+/* spinbuttons ------------------------------------------------------------- */
+.numberbox-input-box {
+  max-width: 128px;
+  border: 3px solid #262629;
+  border-right: 0px solid transparent;
+  -moz-border-radius-topleft: 8px;
+  -moz-border-radius-bottomleft: 8px;
+  -moz-border-top-colors: -moz-initial;
+  -moz-border-bottom-colors: -moz-initial;
+  -moz-border-left-colors: -moz-initial;
+}
+
+.spinbuttons-box {
+  -moz-box-orient: horizontal !important;
+  -moz-box-direction: reverse !important;
+}
+
+.spinbuttons-up .button-icon,
+.spinbuttons-down .button-icon {
+  display: block;
+}
+
+.spinbuttons-up {
+  border-width: 8px;
+  -moz-border-image: url("chrome://browser/skin/images/toggleoff-inactive-64.png") 8 repeat repeat !important;
+  list-style-image: url("chrome://browser/skin/images/arrowup-16.png");
+}
+
+.spinbuttons-up:hover:active:not([disabled=true]) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleoff-active-64.png") 8 repeat repeat !important;
+}
+
+.spinbuttons-down {
+  border-width: 8px;
+  -moz-border-image: url("chrome://browser/skin/images/togglemiddle-inactive-64.png") 8 repeat repeat !important;
+  list-style-image: url("chrome://browser/skin/images/arrowdown-16.png");
+}
+
+.spinbuttons-down:hover:active:not([disabled=true]) {
+  -moz-border-image: url("chrome://browser/skin/images/togglemiddle-active-64.png") 8 repeat repeat !important;
+}
+
+/* toolbar buttons --------------------------------------------------------- */
+toolbarbutton {
+  min-width: 64px !important; /* primary button size */
+  min-height: 64px !important; /* primary button size */
+  -moz-appearance: none !important;
+  margin: 0;
+  padding: 2px;
+}
+
+toolbarbutton:not(.show-text) .toolbarbutton-text {
+  display: none !important;
+}
+
+toolbarbutton:not(.show-text) .toolbarbutton-icon,
+toolbarbutton:not([image]) .toolbarbutton-icon,
+toolbarbutton[image=''] .toolbarbutton-icon {
+  -moz-margin-end: 0;
+}
+
+toolbarbutton:hover,
+toolbarbutton:hover:active,
+toolbarbutton[open="true"] {
+  border-color: transparent;
+}
+
+/* dark buttons ------------------------------------------------------------ */
+toolbarbutton.button-dark {
+  color: #fff;
+  padding: 2px 4px;
+  border-width: 10px;
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkboth-inactive-64.png") 10 repeat repeat;
+}
+
+toolbarbutton.button-dark[type="checkbox"][checked="true"],
+toolbarbutton.button-dark:not([disabled="true"]):active:hover {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkboth-active-64.png") 10 repeat repeat;
+}
+
+toolbarbutton.button-dark[disabled="true"] {
+  color: #7e7e7e;
+}
+
+toolbarbutton.button-dark[type="checkbox"][checked="true"] {
+  /* checked overrides */
+  color: #fff !important;
+  background: none !important;
+  padding: 2px 4px !important;
+}
+
+/* image buttons ----------------------------------------------------------- */
+.button-image {
+  padding: 0 !important;
+  background: #36373b !important;
+  border: none !important;
+  min-width: 0 !important; /* the image drives the size */
+  min-height: 0 !important; /* the image drives the size */
+}
+
+/* checkbox buttons ----------------------------------------------------------- */
+.button-checkbox {
+  color: #fff;
+  padding: 0 !important;
+  background: none !important;
+  border: none !important;
+  -moz-border-image: none !important;
+}
+
+.button-checkbox > .button-image-icon {
+  -moz-margin-end: 8px;
+  list-style-image: url("chrome://browser/skin/images/check-unselected-30.png");
+}
+
+.button-checkbox[checked="true"] > .button-image-icon {
+  list-style-image: url("chrome://browser/skin/images/check-selected-30.png");
+}
+
+.button-checkbox:hover:active > .button-box,
+.button-checkbox[checked="true"] > .button-box {
+  padding-top: 1px;
+  padding-bottom: 2px;
+  -moz-padding-start: 3px;
+  -moz-padding-end: 4px;
+}
+
+/* radio buttons ----------------------------------------------------------- */
+radiogroup {
+  -moz-box-orient: horizontal;
+}
+
+.radio-label {
+  font-weight: normal;
+  font-size: 24px !important;
+}
+
+radio {
+  color: #36373b;
+  min-width: 48px !important; /* button size */
+  min-height: 48px !important;
+  padding: 2px !important;
+  margin: 0;
+  border-width: 8px;
+  -moz-box-align: center;
+  -moz-appearance: none;
+  -moz-border-image: url("chrome://browser/skin/images/togglemiddle-inactive-64.png") 8 repeat repeat;
+}
+
+radio .radio-icon, radio .radio-check {
+  display: none;
+}
+
+radio:not([disabled=true]):active:hover,
+radio[selected] {
+  color: #000;
+  -moz-border-image: url("chrome://browser/skin/images/togglemiddle-active-64.png") 8 repeat repeat;
+}
+
+radio:first-child {
+  -moz-border-image: url("chrome://browser/skin/images/toggleleft-inactive-64.png") 8 repeat repeat;
+}
+
+radio:first-child:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleright-inactive-64.png") 8 repeat repeat;
+}
+
+radio:not([disabled=true]):first-child:active:hover,
+radio:first-child[selected] {
+  -moz-border-image: url("chrome://browser/skin/images/toggleleft-active-64.png") 8 repeat repeat;
+}
+
+radio:not([disabled=true]):first-child:active:hover:-moz-locale-dir(rtl),
+radio:first-child[selected]:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleright-active-64.png") 8 repeat repeat;
+}
+
+radio:last-child {
+  -moz-border-image: url("chrome://browser/skin/images/toggleright-inactive-64.png") 8 repeat repeat;
+}
+
+radio:last-child:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleleft-inactive-64.png") 8 repeat repeat;
+}
+
+radio:not([disabled=true]):last-child:active:hover,
+radio:last-child[selected] {
+  -moz-border-image: url("chrome://browser/skin/images/toggleright-active-64.png") 8 repeat repeat;
+}
+
+radio:not([disabled=true]):last-child:active:hover:-moz-locale-dir(rtl),
+radio:last-child[selected]:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleleft-active-64.png") 8 repeat repeat;
+}
+
+radio:first-child:last-child {
+  -moz-border-image: url("chrome://browser/skin/images/toggleboth-inactive-64.png") 8 repeat repeat;
+}
+
+radio:not([disabled=true]):first-child:last-child:active:hover,
+radio:first-child:last-child[selected] {
+  -moz-border-image: url("chrome://browser/skin/images/toggleboth-active-64.png") 8 repeat repeat;
+}
+
+/* checkbox radios --------------------------------------------------------- */
+checkbox {
+  margin: 1px 5px 2px 5px; /* match platform style for buttons */
+}
+
+radio.checkbox-radio-on {
+  -moz-border-image: url("chrome://browser/skin/images/toggleon-inactive-64.png") 8 repeat repeat;
+}
+
+radio.checkbox-radio-on:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleon-inactive-rtl-64.png") 8 repeat repeat;
+}
+
+radio.checkbox-radio-on[selected] {
+  -moz-border-image: url("chrome://browser/skin/images/toggleon-active-64.png") 8 repeat repeat;
+}
+
+radio.checkbox-radio-on[selected]:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleon-active-rtl-64.png") 8 repeat repeat;
+}
+
+radio.checkbox-radio-off {
+  -moz-border-image: url("chrome://browser/skin/images/toggleoff-inactive-64.png") 8 repeat repeat;
+}
+
+radio.checkbox-radio-off:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleoff-inactive-rtl-64.png") 8 repeat repeat;
+}
+
+radio.checkbox-radio-off[selected] {
+  -moz-border-image: url("chrome://browser/skin/images/toggleoff-active-64.png") 8 repeat repeat;
+}
+
+radio.checkbox-radio-off[selected]:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggleoff-active-rtl-64.png") 8 repeat repeat;
+}
+
+radio.checkbox-radio-on:not([selected]) .radio-label-box,
+radio.checkbox-radio-off:not([selected]) .radio-label-box {
+  visibility: hidden;
+}
+
+/* dark radios ------------------------------------------------------------- */
+.toggle-dark radio {
+  color: #fff;
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkmiddle-inactive-64.png") 8 repeat repeat;
+}
+
+.toggle-dark:not([disabled=true]) radio:active:hover,
+.toggle-dark radio[selected] {
+  color: #fff;
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkmiddle-active-64.png") 8 repeat repeat;
+}
+
+.toggle-dark radio:first-child {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkleft-inactive-64.png") 8 repeat repeat;
+}
+
+.toggle-dark radio:first-child:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkright-inactive-64.png") 8 repeat repeat;
+}
+
+.toggle-dark:not([disabled=true]) radio:first-child:active:hover,
+.toggle-dark radio:first-child[selected] {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkleft-active-64.png") 8 repeat repeat;
+}
+
+.toggle-dark:not([disabled=true]) radio:first-child:active:hover:-moz-locale-dir(rtl),
+.toggle-dark radio:first-child[selected]:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkright-active-64.png") 8 repeat repeat;
+}
+
+.toggle-dark radio:last-child {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkright-inactive-64.png") 8 repeat repeat;
+}
+
+.toggle-dark radio:last-child:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkleft-inactive-64.png") 8 repeat repeat;
+}
+
+.toggle-dark:not([disabled=true]) radio:last-child:active:hover,
+.toggle-dark radio:last-child[selected] {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkright-active-64.png") 8 repeat repeat;
+}
+
+.toggle-dark:not([disabled=true]) radio:last-child:active:hover:-moz-locale-dir(rtl),
+.toggle-dark radio:last-child[selected]:-moz-locale-dir(rtl) {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkleft-active-64.png") 8 repeat repeat;
+}
+
+.toggle-dark radio:first-child:last-child {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkboth-inactive-64.png") 8 repeat repeat;
+}
+
+.toggle-dark:not([disabled=true]) radio:first-child:last-child:active:hover,
+.toggle-dark radio:first-child:last-child[selected] {
+  -moz-border-image: url("chrome://browser/skin/images/toggledarkboth-active-64.png") 8 repeat repeat;
+}
+
+/* richlistbox ------------------------------------------------------------- */
+richlistbox {
+  margin: 0;
+}
+
+richlistitem {
+  min-height: 70px; /* row size */
+  padding: 5px;
+  border-bottom: 1px solid rgb(207,207,207);
+}
+
+richlistitem label.title,
+richlistitem description.title {
+  font-size: 24px !important;
+}
+
+richlistitem label.normal,
+richlistitem description.normal {
+  color: gray;
+  font-size: 18px !important;
+  white-space: pre-wrap;
+}
+
+richlistitem label.normal-bold,
+richlistitem description.normal-bold {
+  font-weight: bold;
+  font-size: 18px !important;
+  white-space: pre-wrap;
+}
+
+richlistitem[selected="true"] {
+  color: black;
+  background-color: white;
+}
+
+richlistitem:active:not([selected="true"]):not([nohighlight="true"]) {
+  background-color: #8db8d8;
+}
+
+richlistitem.section-header,
+richlistitem[selected="true"].section-header {
+  font-weight: bold;
+  color: #000;
+  background-color: lightgray;
+}
+
+richlistitem .show-on-select {
+  visibility: collapse;
+}
+
+richlistitem[selected="true"] .show-on-select {
+  visibility: visible;
+}
+
+richlistitem .hide-on-select {
+  visibility: visible;
+}
+
+richlistitem[selected="true"] .hide-on-select {
+  visibility: collapse;
+}
+
+richlistitem[typeName="message"] {
+  border-bottom: 0;
+}
+
+/* colorpicker ------------------------------------------------------------- */
+colorpicker > panel {
+  background-color: #36373b;
+}
+
+colorpicker > vbox {
+  background-color: #36373b;
+}
+
+/* textbox ----------------------------------------------------------------- */
+.textbox-search-icon {
+  list-style-image: url("chrome://browser/skin/images/search-glass-30.png");
+  -moz-image-region: auto;
+}
+
+.textbox-search-clear {
+  list-style-image: url("chrome://browser/skin/images/search-clear-30.png");
+  -moz-image-region: auto;
+}
+
+/* menulist ---------------------------------------------------------------- */
+.menulist-label {
+  font-family: "Nokia Sans", Tahoma, sans-serif !important;
+  font-weight: normal;
+  font-size: 24px !important;
+}
+
+menulist {
+  min-width: 48px !important; /* button size */
+  min-height: 48px !important; /* button size */
+  color: #000;
+  padding: 2px;
+  border-width: 8px !important;
+  -moz-border-image: url("chrome://browser/skin/images/button-default-64.png") 8 repeat repeat;
+  -moz-appearance: none !important;
+}
+
+menulist:not([disabled="true"]):active:hover {
+  -moz-border-image: url("chrome://browser/skin/images/button-active-64.png") 8 repeat repeat;
+}
+
+menulist[disabled="true"] {
+  color: #aaa !important;
+}
+
+menulist.button-dark {
+  color: #fff !important;
+  background: transparent !important;
+  -moz-border-image: url("chrome://browser/skin/images/buttondark-default-64.png") 8 repeat repeat;
+}
+
+menulist.button-dark:not([disabled="true"]):active:hover {
+  -moz-border-image: url("chrome://browser/skin/images/buttondark-active-64.png") 8 repeat repeat;
+}
+
+menulist.button-dark[disabled="true"] {
+  color: #7e7e7e !important;
+}
+
+menulist > dropmarker {
+  height: 30px;
+  width: 38px;
+  margin-left: 5px;
+  background-color: transparent; /* for windows */
+  border: none;                  /* for windows */
+  -moz-box-align: center;
+  -moz-box-pack: center;
+  list-style-image: url("chrome://browser/skin/images/dropmarker-30.png");
+  -moz-image-region: auto;
+  display: block;
+}
+
+menulist > dropmarker:-moz-locale-dir(rtl) {
+  list-style-image: url("chrome://browser/skin/images/dropmarker-rtl-30.png");
+}
+
+menulist[disabled="true"] > dropmarker {
+  list-style-image: url("chrome://browser/skin/images/dropmarker-disabled-30.png");
+}
+
+menulist[disabled="true"] > dropmarker:-moz-locale-dir(rtl) {
+  list-style-image: url("chrome://browser/skin/images/dropmarker-disabled-rtl-30.png");
+}
+
+/* progressmeter ----------------------------------------------------------- */
+progressmeter {
+  background-color: #fff;
+  padding: 4px;
+  height: 32px;
+  border: 3px solid #aaa;
+  -moz-border-top-colors: -moz-initial;
+  -moz-border-right-colors: -moz-initial;
+  -moz-border-bottom-colors: -moz-initial;
+  -moz-border-left-colors: -moz-initial;
+  -moz-border-radius: 8px;
+}
+
+.progress-bar {
+  background-color: #8db8d8;
+}

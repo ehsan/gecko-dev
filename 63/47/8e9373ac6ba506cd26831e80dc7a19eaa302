@@ -1,0 +1,25 @@
+
+copyrev: 3715f427b6b3ed4dab249392f77a5208384b60e9
+copy: js/src/trace-test/tests/closures/t010.js
+
+actual = '';
+expected = '101,';
+
+function looper(f) {
+  for (var i = 0; i < 10; ++i) {
+    for (var j = 0; j < 10; ++j) {
+      f();
+    }
+  }
+}
+
+function tester() {
+  var x = 1;
+  looper(function() { ++x; });
+  return x;
+}
+
+appendToActual(tester());
+
+
+assertEq(actual, expected)

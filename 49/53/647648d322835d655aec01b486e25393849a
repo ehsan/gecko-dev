@@ -1,0 +1,11 @@
+
+copy: dom/svg/crashtests/398926-both-same.svg
+copyrev: 9808f038218d4ec596de914f32b74660cf55689d
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<pattern id="pat" />
+
+<rect x="10" y="10" width="100" height="100" stroke="url(#pat)" fill="url(#pat)" />
+
+</svg>

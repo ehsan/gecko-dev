@@ -1,0 +1,28 @@
+
+copy: content/media/test/crashtests/926619.html
+copyrev: 5df2255cda6fdc15e873e88462abed9f2b698fc7
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script>
+
+function boom()
+{
+  var ac = new window.AudioContext();
+
+  var _ChannelMergerNode = ac.createChannelMerger(4);
+
+  var _MediaStreamAudioDestinationNode = ac.createMediaStreamDestination();
+  var _MediaStream = _MediaStreamAudioDestinationNode.stream;
+  var _MediaStreamAudioSourceNode = ac.createMediaStreamSource(_MediaStream);
+
+  _ChannelMergerNode.connect(_MediaStreamAudioDestinationNode, 0, 0);
+  _MediaStreamAudioSourceNode.connect(_ChannelMergerNode, 0, 0);
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

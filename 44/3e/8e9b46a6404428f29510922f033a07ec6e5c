@@ -1,0 +1,9 @@
+
+copy: layout/reftests/forms/button-first-letter-1-noref.html
+copyrev: b6ff7ab1441821451cf5c502221c99eb280b959e
+
+<!DOCTYPE html>
+<style>
+  body { line-height: 0; }
+</style>
+<button>Some text</button>

@@ -1,0 +1,13 @@
+
+copyrev: 6163782dd6ce374bb482a64dda7c9035d6a16d2e
+copy: xpcom/tests/static-checker/e3.cpp
+
+typedef int PRUint32;
+typedef int PRInt32;
+
+typedef PRUint32 nsresult;
+
+nsresult foo(__attribute__((user("outparam"))) int *a) {
+  *a = 0;
+  return 1;
+}

@@ -1,0 +1,7 @@
+
+copy: dom/imported-tests/html.mk
+copyrev: c2bed4d64f12860b719a3c654271d805c4e9e66f
+
+DIRS += \
+  html/tests/submission/Mozilla \
+  $(NULL)

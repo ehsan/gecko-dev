@@ -1,0 +1,18 @@
+
+copy: content/html/document/test/file_bug871161-2.html
+copyrev: 426fee654e884fb98deafcb8bbf8c200e7de3507
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>Page without declared charset</title>
+<script>
+function done() {
+  window.opener.postMessage(document.characterSet, "*");
+}
+</script>
+</head>
+<body onload="done();">
+</body>
+</html>
+

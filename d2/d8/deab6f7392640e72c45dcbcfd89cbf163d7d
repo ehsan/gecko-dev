@@ -1,0 +1,9 @@
+
+copy: testing/mozbase/manifestdestiny/tests/relative-path.ini
+copyrev: cf60f2ee9982371ed9358f3c1c5a5af03f880f9e
+
+[foo]
+path = ../fleem
+
+[bar]
+path = ../testsSIBLING/example

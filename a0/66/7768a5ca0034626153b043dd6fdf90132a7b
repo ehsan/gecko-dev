@@ -1,0 +1,21 @@
+
+copy: layout/reftests/forms/input/range/input-stepUp-unthemed.html
+copyrev: f306aa63aa2bbca9578eda079df40dcc14e45034
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: when changing the 'value' IDL property, the thumb of the range
+             should be moved to the appropriate position -->
+  <script type="text/javascript">
+    function setValue()
+    {
+      document.getElementById('i').stepUp();
+      document.documentElement.className = '';
+    }
+    document.addEventListener("MozReftestInvalidate", setValue);
+    setTimeout(setValue, 2000); // useful when not running under reftest suite
+  </script>
+  <body>
+    <input type=range id='i' value=50 step=25 style='-moz-appearance:none'>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+
+copy: mobile/app/profile/extensions/feedback@mobile.mozilla.org/skin/overlay.css
+copyrev: b406e1449c50d7f83326cbe436438c928cb83c44
+
+#tool-feedback {
+  list-style-image: url("chrome://feedback/skin/beta-hdpi.png");
+}
+
+#feedback-feedback-happy {
+  list-style-image: url("chrome://feedback/skin/happy-32.png");
+}
+
+#feedback-feedback-sad {
+  list-style-image: url("chrome://feedback/skin/sad-32.png");
+}

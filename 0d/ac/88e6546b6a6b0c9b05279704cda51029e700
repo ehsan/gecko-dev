@@ -1,0 +1,17 @@
+
+copy: content/canvas/test/webgl/conformance/00_readme.txt
+copyrev: 455c4a45fc390ea0f2e349619e975fc270a4daf6
+
+This file "00_test_list.txt" lists which files the test harness should run.
+
+If you add new tests you can update it with
+
+on windows
+
+   dir /b *.html >00_test_list.txt
+
+on OSX / Linux
+
+   ls -1 *.html >00_test_list.txt
+
+

@@ -1,0 +1,12 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/017-novalid.html
+copyrev: 703c57b8f19604bae02ec0bc32036fac29f2aef1
+
+<!doctype html>
+<meta charset=utf-8>
+<title>style@scoped as child of div with flow content before</title>
+<body>
+<div>
+<p>foo</p>
+<style scoped></style>
+</div>

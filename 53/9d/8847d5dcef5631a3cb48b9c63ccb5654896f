@@ -1,0 +1,14 @@
+
+copy: browser/devtools/debugger/test/binary_search.map
+copyrev: 11d5e5a765f76e26c71bad748c2b649d7b76cc25
+
+{
+  "version": 3,
+  "file": "code_binary_search.js",
+  "sourceRoot": "",
+  "sources": [
+    "code_binary_search.coffee"
+  ],
+  "names": [],
+  "mappings": ";AACA;CAAA;CAAA,CAAA,CAAuB,EAAA,CAAjB,GAAkB,IAAxB;CAEE,OAAA,UAAA;CAAA,EAAQ,CAAR,CAAA;CAAA,EACQ,CAAR,CAAa,CAAL;CADR,EAEQ,CAAR,CAAA;CAEA,EAA0C,CAAR,CAAtB,MAAN;CAGJ,EAA6B,CAAR,CAAA,CAArB;CAAA,EAAQ,CAAR,CAAQ,GAAR;QAAA;CACA,EAA6B,CAAR,CAAA,CAArB;CAAA,EAAQ,EAAR,GAAA;QADA;CAAA,EAIQ,CAAI,CAAZ,CAAA;CAXF,IAIA;CAUA,GAAA,CAAS;CAAT,YAA8B;MAA9B;AAA0C,CAAD,YAAA;MAhBpB;CAAvB,EAAuB;CAAvB"
+}

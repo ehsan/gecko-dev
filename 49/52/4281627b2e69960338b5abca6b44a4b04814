@@ -1,0 +1,14 @@
+
+copy: extensions/spellcheck/hunspell/tests/morph.dic
+copyrev: 08235ee5a3ce9e62a291cda87ddd9f784512a51a
+
+9
+drink/S	po:noun
+drink/RQ	po:verb	al:drank	al:drunk	ts:present
+drank	po:verb	st:drink	is:past_1
+drunk	po:verb	st:drink	is:past_2
+eat/RQ	po:verb	al:ate	al:eaten	ts:present
+ate	po:verb	st:eat	is:past_1
+eaten	po:verb	st:eat	is:past_2
+phenomenon	po:noun	al:phenomena
+phenomena	po:noun st:phenomenon	is:plur

@@ -1,0 +1,19 @@
+
+copyrev: 56a19eaadccd2ee5dc0d1282d9283746543a3953
+copy: js/src/trace-test/tests/jaeger/bug563000/untrap-own-trapsite.js
+
+setDebug(true);
+x = "notset";
+function child() {
+  /* JSOP_STOP in parent */
+  untrap(parent, 10);
+  x = "success";
+}
+function parent() {
+  x = "failure";
+}
+/* JSOP_STOP in parent */
+trap(parent, 10, "child()");
+
+parent();
+assertEq(x, "success");

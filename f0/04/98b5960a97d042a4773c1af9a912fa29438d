@@ -1,0 +1,11 @@
+
+copy: dom/src/jsurl/test/load-stopping-1b.html
+copyrev: 560f543859efbf49991b6ec0fcdb1f2d99eca7cf
+
+<!DOCTYPE html>
+<head>
+</head>
+<body>
+<script>parent.passJSUrl2 = true</script>
+
+</body>

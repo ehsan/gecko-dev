@@ -1,0 +1,9 @@
+
+copy: js/src/xpconnect/tests/unit/component_import.manifest
+copyrev: b6f0d5a8d17ffbde405abd0d60b3c4dac1ed7f36
+
+component {6b933fe6-6eba-4622-ac86-e4f654f1b474} component_import.js
+contract @mozilla.org/tests/module-importer;1 {6b933fe6-6eba-4622-ac86-e4f654f1b474}
+
+component {708a896a-b48d-4bff-906e-fc2fd134b296} component_import.js
+contract @mozilla.org/tests/module-importer;2 {708a896a-b48d-4bff-906e-fc2fd134b296}

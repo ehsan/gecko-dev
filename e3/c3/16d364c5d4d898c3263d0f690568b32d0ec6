@@ -1,0 +1,17 @@
+
+copy: extensions/spellcheck/hunspell/tests/opentaal_cpdpat.aff
+copyrev: 2f7a91aa92881a2ed0d5a97f4243e6e3ce71d464
+
+FLAG long
+COMPOUNDBEGIN Ca
+COMPOUNDMIDDLE Cb
+COMPOUNDEND Cc
+COMPOUNDPERMITFLAG Cp
+ONLYINCOMPOUND Cx
+
+CHECKCOMPOUNDPATTERN 1
+CHECKCOMPOUNDPATTERN /Ch /Xs
+
+SFX Ch Y 2
+SFX Ch 0 s/CaCbCxCp .
+SFX Ch 0 s-/CaCbCcCp .

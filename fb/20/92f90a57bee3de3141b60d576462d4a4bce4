@@ -1,0 +1,13 @@
+
+copy: content/xml/document/crashtests/382636-1.xml
+copyrev: b4f20e60f832cbb94b33b7718fc72ffa57e0be95
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+</head>
+<body onload="document.cloneNode(true);">
+
+<img src="tree.gif" />
+
+</body>
+</html>

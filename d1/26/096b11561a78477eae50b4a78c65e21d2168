@@ -1,0 +1,8 @@
+
+copy: media/webrtc/trunk/src/modules/utility/OWNERS
+copyrev: 8c11fc32745da61b2fd57cbdc1813294964b4fd0
+
+henrike@webrtc.org
+pwestin@webrtc.org
+asapersson@webrtc.org
+perkj@webrtc.org

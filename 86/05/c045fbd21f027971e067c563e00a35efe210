@@ -1,0 +1,18 @@
+
+copy: content/base/crashtests/326618-1.html
+copyrev: 88049a1a2ba59604f9ffd698904f095c6911174a
+
+<html>
+<head>
+</head>
+<body>
+<script>
+
+try {
+  document.body.removeChild(function(){});
+} catch (e) {
+}
+
+</script>
+</body>
+</html>

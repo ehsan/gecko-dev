@@ -1,0 +1,10 @@
+
+copy: js/src/jit-test/tests/collections/Map-size-2.js
+copyrev: d224bdd1eefdb87c7d404bfea43d8ed8a141f7e1
+
+// Each Map has its own size.
+
+var m1 = Map(), m2 = Map();
+m1.set("x", 3);
+assertEq(m1.size(), 1);
+assertEq(m2.size(), 0);

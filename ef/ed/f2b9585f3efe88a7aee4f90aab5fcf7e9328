@@ -1,0 +1,13 @@
+
+copy: browser/components/privatebrowsing/test/browser/global/browser_privatebrowsing_windowtitle_page.html
+copyrev: 247206e7b7b7ee5c7adda08d700cd2dea01cabd2
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+  <head>
+    <title>Test title</title>
+  </head>
+  <body>
+    Test page for the window title test
+  </body>
+</html>

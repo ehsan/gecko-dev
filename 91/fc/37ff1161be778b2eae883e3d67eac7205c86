@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/video/model-isvalid.html
+copyrev: a8241e06bb16d2767117880c9b2d68877496000a
+
+<!doctype html>
+<meta charset=utf-8>
+<title>video with flow content and flow parent</title>
+<div><video><p>foo</p></video></div>

@@ -1,0 +1,24 @@
+
+copy: layout/base/tests/bug644428-1.html
+copyrev: 80d07129c68135c4fa080edd5bbe568bb1f3db54
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
+    <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
+  </head>
+  <body onload="setupCaret()" spellcheck="false">
+    <div contenteditable>a<span>b</span>c </div>
+    <script>
+      function setupCaret() {
+        var div = document.querySelector("div");
+        div.focus();
+        var sel = window.getSelection();
+        sel.collapse(div, 3);
+        synthesizeKey("VK_BACK_SPACE", {});
+        synthesizeKey("VK_BACK_SPACE", {});
+      }
+    </script>
+  </body>
+</html>

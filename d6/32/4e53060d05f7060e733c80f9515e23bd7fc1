@@ -1,0 +1,14 @@
+
+copy: layout/reftests/text/auto-hyphenation-8.html
+copyrev: 865b472a3c618d22ead5ee90aa78616ae3db89f6
+
+<!DOCTYPE html>
+<html>
+<!-- check that hyphenation is not applied when language is not specified -->
+<body>
+<div style="width: 5em; -moz-hyphens: none;">
+supercalifragilisticexpialidocious
+</div>
+</body>
+</html>
+

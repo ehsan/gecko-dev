@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/utf8_nonbmp.sug
+copyrev: 6a64e05f3fd1b902a789e3079431858db9876d23
+
+𐏒𐏑, 𐏒𐏒
+𐏒𐏑, 𐏒𐏒

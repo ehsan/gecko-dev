@@ -1,0 +1,8 @@
+
+copyrev: 3f274226ed57184d9bfe51c637eae524c107ee37
+copy: js/src/trace-test/tests/jaeger/getelem-sanity-6.js
+
+var x = {1: 2, 3: 4};
+assertEq(x[1], 2);
+
+/* getelem with non-dense array and known type int32. */

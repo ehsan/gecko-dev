@@ -1,0 +1,21 @@
+
+copy: content/html/content/test/file_iframe_sandbox_form_pass.html
+copyrev: 6694d39172d6b60c8c02a6e11cbc68f5a59a3100
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Test for Bug 341604</title>
+</head>
+
+<body onLoad="doStuff()">
+  I should be loaded by a form submit from a sandbox with 'allow-forms'
+</body>
+</html>
+
+<script>
+  function doStuff() {
+    window.parent.postMessage({ok: true, desc: "documents sandboxed with allow-forms should be able to submit forms"}, "*");
+  }
+</script>

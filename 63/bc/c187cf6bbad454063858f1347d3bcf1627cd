@@ -1,0 +1,17 @@
+
+copyrev: a7358e9fac2be01f78917d82d17845903e197624
+copy: dom/src/base/crashtests/462947.html
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+navigator.mimeTypes.length;
+navigator.mimeTypes.length;
+
+</script>
+</head>
+
+<body></body>
+</html>

@@ -1,0 +1,5 @@
+
+copy: toolkit/mozapps/update/test/marionette/data/bad.xml
+copyrev: 440b6fe73c3c0987c30811ed18a20807e35a4fd8
+
+<updates

@@ -1,0 +1,28 @@
+
+copyrev: e65200330777f219abb5a2b6a1391bb43fb4966e
+copy: js/src/trace-test/tests/closures/set-outer-trace-1.js
+
+actual = '';
+expected = '10,19,128,337,646,1055,1564,2173,2882,3691,4600,';
+
+function f() {
+  var x = 10;
+  
+  var g = function(p) {
+    for (var i = 0; i < 10; ++i) {
+      x = p + i;
+    }
+  }
+  
+  for (var i = 0; i < 10; ++i) {
+    appendToActual(x);
+    g(100 * i + x);
+  }
+
+  appendToActual(x);
+}
+
+f();
+
+
+assertEq(actual, expected)

@@ -1,0 +1,13 @@
+
+copy: layout/reftests/css-valid/textarea/textarea-dyn-disabled.html
+copyrev: 3656faa6b331d6eb382a587a90de819d12b9edbd
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+  <!-- Test: if textarea is disabled, it is barred from constraint validation
+             and should not be affected by :-moz-ui-valid pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body onload="document.getElementById('t').disabled='true'; document.documentElement.className='';">
+    <textarea class='notvalid' id='t'></textarea>
+  </body>
+</html>

@@ -1,0 +1,8 @@
+
+copy: media/webrtc/trunk/src/modules/video_coding/codecs/OWNERS
+copyrev: a18e7c37d07eb69d612e698b9c71524321afc3a4
+
+stefan@webrtc.org
+mikhal@webrtc.org
+marpan@webrtc.org
+henrik.lundin@webrtc.org

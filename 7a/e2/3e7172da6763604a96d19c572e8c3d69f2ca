@@ -1,0 +1,31 @@
+
+copy: editor/libeditor/crashtests/766845.xhtml
+copyrev: 878105c49d77d66a104dbbc20915363aa3242569
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+<![CDATA[
+
+function boom()
+{
+  window.getSelection().removeAllRanges();
+  var r1 = document.createRange();
+  r1.setStart(document.body, 0);
+  r1.setEnd  (document.body, 1);
+  window.getSelection().addRange(r1);
+  var r2 = document.createRange();
+  r2.setStart(document.body, 1);
+  r2.setEnd  (document.body, 2);
+  window.getSelection().addRange(r2);
+  if (document.queryCommandEnabled("inserthtml"))
+    document.execCommand("inserthtml", false, "1");
+}
+
+]]>
+</script>
+</head>
+
+<body contenteditable="true" onload="boom();"><div></div><div></div></body>
+
+</html>

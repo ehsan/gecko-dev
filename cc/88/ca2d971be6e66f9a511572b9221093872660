@@ -1,0 +1,7 @@
+
+copy: content/svg/content/test/animated-svg-image-helper.html
+copyrev: def257b2be675cb084af8c5a96c3a7de58675ab2
+
+<html>
+  <img src="animated-svg-image-helper.svg">
+</html>

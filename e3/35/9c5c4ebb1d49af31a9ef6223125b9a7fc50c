@@ -1,0 +1,10 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/scoped-in-head-novalid.html
+copyrev: d6011c46d280118673f8b68eebf26bb1f131454a
+
+<!doctype html>
+<head>
+<meta charset=utf-8>
+<title>style@scoped in head</title>
+<style scoped></style>
+</head>

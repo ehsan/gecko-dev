@@ -1,0 +1,8 @@
+
+copy: content/base/test/file_bug869432.eventsource
+copyrev: ac4b393cd3bfa549ad478ab65573360c018131df
+
+retry:500
+data: data
+
+

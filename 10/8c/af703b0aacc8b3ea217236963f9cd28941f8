@@ -1,0 +1,5 @@
+
+copy: tools/update-packaging/test/to-mac/Contents/MacOS/distribution/extensions/added/file.txt
+copyrev: acb8dd27b91da7b358a406cf3aa22f4941175b48
+
+extfile

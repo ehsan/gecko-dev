@@ -1,0 +1,12 @@
+
+copy: content/base/crashtests/815043.html
+copyrev: 2247713c5656ae0bf240cbff07490544425942fd
+
+<!DOCTYPE html>
+<html>
+<body onload="document.getElementById('x').dir = '';">
+
+<div><bdi><bdi id="x"><span></span></bdi></bdi></div>
+
+</body>
+</html>

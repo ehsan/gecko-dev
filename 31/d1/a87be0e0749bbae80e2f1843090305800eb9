@@ -1,0 +1,15 @@
+
+copyrev: f66ee7d0cacc5a68e80d3dffb47e6561d50c5a09
+copy: js/src/trace-test/tests/jaeger/bug553781.js
+
+(function () {
+    try {
+        return
+    } catch (x if i) {
+        return
+    }
+    for (z in []);
+})()
+
+/* Don't assert */
+

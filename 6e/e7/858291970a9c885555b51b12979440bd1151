@@ -1,0 +1,5 @@
+
+copyrev: 8bf10227d85a8778d41f88c487f6571ca64ec1f2
+copy: dom/src/json/test/fail25.json
+
+["	tab	character	in	string	"]

@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/attributes/data/003-novalid.html
+copyrev: 8576d857a6a1673f7485651fe9e1ab8fb23f5ef0
+
+<!doctype html>
+<meta charset=utf-8>
+<title>starts with the string "data-", has at least one character after the hyphen, is XML-compatible, and contains no uppercase ASCII letters</title>
+<p data-=""> <!-- no characters after the hypen -->

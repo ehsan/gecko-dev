@@ -1,0 +1,5 @@
+
+copy: content/base/crashtests/606729-1.html
+copyrev: 73b03e49e67d808fb11c9aa0577e37b26954f6d9
+
+<script async src="data:">0</script>

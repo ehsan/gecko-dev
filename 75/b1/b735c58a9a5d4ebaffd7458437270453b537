@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/e4x/bug737251.js
+copyrev: 120bbc03e2d373bca5f7977d2c0d26687656a626
+
+a = {}
+a.getOwnPropertyDescriptor = Array;
+b = Proxy.create(a)
+for (x in this)
+try {
+  (function() {
+    "use strict";
+    b[2] = x // don't assert
+  })()
+} catch (e) {}

@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/forceucase.wrong
+copyrev: b30830f5b742973d9a96187369ea7a4ab259b58f
+
+foobaz
+foobarbaz

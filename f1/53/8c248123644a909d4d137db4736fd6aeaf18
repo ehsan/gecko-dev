@@ -1,0 +1,14 @@
+
+copy: layout/reftests/css-valid/input/input-fieldset-legend-ref.html
+copyrev: 0aee1028be30891f99074474ce6cd11afeccfa14
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <fieldset>
+      <legend>
+        <input style="background-color: green;"></input>
+      </legend>
+    </fieldset>
+  </body>
+</html>

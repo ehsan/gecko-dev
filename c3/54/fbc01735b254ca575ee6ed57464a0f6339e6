@@ -1,0 +1,15 @@
+
+copy: content/base/crashtests/450385-1.html
+copyrev: 0ed645ad263423f89778477d42a5c859dc933708
+
+<html>
+<BODY></BODY>
+<SCRIPT>
+document.body.addEventListener("DOMCharacterDataModified", function () {
+    document.body.innerHTML = "";
+    eventChild.appendChild(event.relatedNode);
+}, true);
+document.addEventListener("DOMNodeInserted", function () {}, true);
+document.body.innerHTML="]<kbd><small></kbd><base><optGroup></optGroup>";
+</SCRIPT>
+</html>

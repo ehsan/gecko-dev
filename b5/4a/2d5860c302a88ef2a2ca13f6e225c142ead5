@@ -1,0 +1,9 @@
+
+copy: content/media/test/region.vtt
+copyrev: 795d4994970d19fc0de075317a5225b908c63b01
+
+WEBVTT
+Region: id=fred width=62% lines=5 regionanchor=4%,78% viewportanchor=10%,90% scroll=up
+
+00:01.000 --> 00:02.000 region:fred
+Test here.

@@ -1,0 +1,20 @@
+
+copy: content/smil/crashtests/556841-1.svg
+copyrev: b3940e03b5b8bba5b8d26629f3c7e1690f7b6ad6
+
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     class="reftest-wait"
+     onload="go()">
+  <script>
+    function go() {
+      // setCurrentTime to force a sample
+      document.documentElement.setCurrentTime(2);
+      document.documentElement.removeAttribute("class");
+    }
+  </script>
+  <rect fill="teal" x="50" y="50" width="20" height="20">
+    <animateTransform attributeName="transform" type="rotate" by="30"
+                      calcMode="paced" dur="4s"/>
+  </rect>
+</svg>

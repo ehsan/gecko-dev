@@ -1,0 +1,16 @@
+
+copyrev: 4cd890bf0293e54109ad61d638561dc76ec698e8
+copy: js/src/trace-test/tests/basic/testDenseArrayProp.js
+
+function testDenseArrayProp()
+{
+    [].__proto__.x = 1;
+    ({}).__proto__.x = 2;
+    var a = [[],[],[],({}).__proto__];
+    for (var i = 0; i < a.length; ++i)
+        uneval(a[i].x);
+    delete [].__proto__.x;
+    delete ({}).__proto__.x;
+    return "ok";
+}
+assertEq(testDenseArrayProp(), "ok");

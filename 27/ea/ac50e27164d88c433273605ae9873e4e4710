@@ -1,0 +1,30 @@
+
+copy: content/html/content/crashtests/324918-1.xhtml
+copyrev: d832d9cc248a588f3bf6450c96f9e598794b6bd1
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+
+
+function init()
+{ 
+  var sel = document.getElementById("sel");
+  var div = document.getElementById("div");
+  var newo = document.createElementNS("http://www.w3.org/1999/xhtml", "option");
+
+  sel.appendChild(div);
+  div.appendChild(newo);
+  sel.removeChild(div);
+}
+
+</script>
+</head>
+<body onload="init();">
+
+<div id="div"><option></option></div>
+
+<select id="sel"></select>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/needaffix.aff
+copyrev: a959408b25af597557c555c2830f8369e1ffc2cb
+
+NEEDAFFIX X
+COMPOUNDFLAG Y
+
+SFX A Y 1
+SFX A 0 s/Y .

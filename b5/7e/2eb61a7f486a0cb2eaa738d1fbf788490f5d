@@ -1,0 +1,8 @@
+
+copy: layout/xul/base/src/crashtests/536931-1.xhtml
+copyrev: 4ddffea9f0f225072dd393fc448013a10de45902
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<listbox id="listbox" xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"><tab/></listbox>
+<script>window.addEventListener("load", function() { document.documentElement.appendChild(document.getElementById("listbox")); }, false);</script>
+</html>

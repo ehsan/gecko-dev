@@ -1,0 +1,15 @@
+
+copyrev: d20c3f03560fae02d85c43e1ba49730bdded6bef
+copy: js/src/trace-test/tests/basic/testGetCallObj.js
+
+function testGetCallObjInlined(i) {
+    if (i > 7) eval("1");
+    return 1;
+}
+
+function testGetCallObj() {
+    for (var i = 0; i < 10; ++i)
+        testGetCallObjInlined(i);
+    return "ok";
+}
+assertEq(testGetCallObj(), "ok");

@@ -1,0 +1,12 @@
+
+copy: content/xul/document/test/overlay_640158.xul
+copyrev: 0c01cfab9dac86c4b44d4f5f01d5090811bc3acf
+
+<?xml version="1.0"?>
+<overlay id="overlay1"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <window id="rootwin">
+    <box id="bar" testattr="original"/>
+  </window>
+</overlay>
+

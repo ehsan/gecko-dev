@@ -1,0 +1,14 @@
+
+copy: content/base/test/bug682592-subframe.html
+copyrev: 68e4459f0cda268a5fa271ca05ec59ed97206b0f
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" >
+    <title></title>
+</head>
+<body>
+<p id="content"></p>
+</body>
+</html>

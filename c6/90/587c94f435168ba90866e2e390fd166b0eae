@@ -1,0 +1,13 @@
+
+copy: content/html/content/test/file_bug893537.html
+copyrev: 9aab8ba2561e9afddb9bfa2ba83fad2385e592c8
+
+<!doctype html>
+<html>
+<!--
+https://bugzilla.mozilla.org/show_bug.cgi?id=893537
+-->
+<body>
+<iframe id="iframe" src="data:text/html;charset=US-ASCII,Goodbye World" srcdoc="Hello World"></iframe>
+</body>
+</html>

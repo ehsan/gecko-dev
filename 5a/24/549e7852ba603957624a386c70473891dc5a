@@ -1,0 +1,8 @@
+
+copy: dom/imptests/failures/webapps/DOMCore/tests/submissions/Ms2ger/test_Document-getElementsByTagName.html.json
+copyrev: e9a4671702974fb8124fd282794fa52a0a67c28b
+
+{
+  "Document.getElementsByTagName 1": true,
+  "Document.getElementsByTagName 2": true
+}

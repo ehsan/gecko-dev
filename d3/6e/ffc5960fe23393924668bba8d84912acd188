@@ -1,0 +1,14 @@
+
+copy: layout/xul/base/src/tree/src/crashtests/399692-1.xhtml
+copyrev: 8839d6fd40220e986244d5cdd92badf117aef64b
+
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<head>
+</head>
+<body>
+
+<xul:treechildren style="display: inline;" />
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+
+copyrev: 05537c43a49eaa7a51e130ae1e90879f2f363334
+copy: js/tests/ecma_3_1/extensions/shell.js
+
+gTestsubsuite = 'extensions';

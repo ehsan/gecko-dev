@@ -1,0 +1,5 @@
+
+copyrev: 83c4bdff1126626536f694adb7e01580d0007199
+copy: js/src/trace-test/tests/jaeger/crash-on-compare.js
+
+assertEq(Infinity >= Infinity ? true : false, true);

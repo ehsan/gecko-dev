@@ -1,0 +1,22 @@
+
+copy: content/html/content/crashtests/614279.html
+copyrev: e962b543f67f306bb52060b1166c8bb2e00b2023
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var a = document.createElementNS("http://www.w3.org/1999/xhtml", "datalist");
+  var b = document.createElementNS("http://www.w3.org/1999/xhtml", "option");
+
+  a.appendChild(b);
+  b.expando = a.options;
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>

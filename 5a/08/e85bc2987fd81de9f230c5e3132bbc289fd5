@@ -1,0 +1,24 @@
+
+copy: js/src/xpconnect/crashtests/400349-1.html
+copyrev: 0e81c2f1b0af1bd75322a05ca1130ff49723f74d
+
+<html>
+<head>
+
+<script>
+
+function init() {
+  window.removeEventListener("load", init, false);
+
+  var fr = document.getElementsByTagName("iframe")[0];
+  var b = fr.contentDocument.body;
+
+  fr.parentNode.removeChild(fr);
+  b.parentNode;
+}
+
+window.addEventListener("load", init, false);
+
+</script>
+
+</head><body><iframe></iframe></body></html>

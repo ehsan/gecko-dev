@@ -1,0 +1,5 @@
+
+copy: content/base/test/file_bug782342.txt
+copyrev: f364c71200befbc1784665bb5642927a7bbb490b
+
+hello world

@@ -1,0 +1,19 @@
+
+copy: content/xml/document/crashtests/994740-1.xhtml
+copyrev: bcf1b8a6f238877a7da03dd5b0f4d685b3486fdc
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+<![CDATA[
+
+function boom()
+{
+    document.createElement("head").innerHTML = "<";
+}
+
+]]>
+</script></head>
+
+<body onload="boom();"></body>
+</html>

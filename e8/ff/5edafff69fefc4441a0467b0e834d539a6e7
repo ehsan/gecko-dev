@@ -1,0 +1,8 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/area/media-novalid.html
+copyrev: 13f897b41e42a14d051d37f652562d8fbc982112
+
+<!doctype html>
+<meta charset=utf-8>
+<title>area element with "media" attribute</title>
+<map name=foo><area media=all></map>

@@ -1,0 +1,14 @@
+
+copy: mobile/android/base/tests/testJNI.java.in
+copyrev: b0b3ca7a30200f42762530a5c8ccaa165efa6c10
+
+package org.mozilla.gecko.tests;
+
+import org.mozilla.gecko.*;
+
+
+public class testJNI extends JavascriptTest {
+    public testJNI() {
+        super("testJNI.js");
+    }
+}

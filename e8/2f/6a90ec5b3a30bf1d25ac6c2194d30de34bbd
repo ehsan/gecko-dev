@@ -1,0 +1,7 @@
+
+copyrev: 15e8716aefd34da0311d097ec1c55f3970e4d1b8
+copy: js/src/trace-test/tests/basic/testBoolToString.js
+
+// |jit-test| error: TypeError;
+var bts = true.toString;
+bts();

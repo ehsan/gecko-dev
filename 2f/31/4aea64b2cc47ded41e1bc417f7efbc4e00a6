@@ -1,0 +1,8 @@
+
+copy: content/base/test/csp/chrome.ini
+copyrev: 3709a4cc5aa4a3bfd76391bf5e99304516ffba9a
+
+[DEFAULT]
+
+[test_csp_bug768029.html]
+[test_csp_bug773891.html]

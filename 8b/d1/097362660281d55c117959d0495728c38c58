@@ -1,0 +1,12 @@
+
+copy: gfx/thebes/crashtests/383473-1.html
+copyrev: a3bfd957f03c48a8d857894c7f20544011d8f6ef
+
+<!DOCTYPE html>
+<html>
+<body>
+
+<span style="font-size:72px; font-size-adjust:24">X</span>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+
+copy: security/coreconf/ReliantUNIX5.4.mk
+copyrev: c707fc7d55191eb9ac8a434a90ed8b6d064c7654
+
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+include $(CORE_DEPTH)/coreconf/ReliantUNIX.mk

@@ -1,0 +1,7 @@
+
+copy: layout/reftests/forms/textarea-resize-background.html
+copyrev: c98fd9037a304aab6cd4fa7c7552966283965260
+
+<html><body>
+<textarea style="width: 200px; height: 200px; margin: 0; background: lightgreen; border: none;"></textarea>
+</body></html>

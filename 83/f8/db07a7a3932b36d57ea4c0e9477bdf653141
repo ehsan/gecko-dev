@@ -1,0 +1,17 @@
+[
+{
+"clang_version": "r163716"
+},
+{
+"size": 47,
+"digest": "2005a41fe97a5e00997063705f39d42b6a43b1cf7ba306cbc7b1513de34cdcd050fc6326efa2107f19ba0cc67914745dbf13154fa748010a93cf072481ef4aaa",
+"algorithm": "sha512",
+"filename": "setup.sh"
+},
+{
+"size": 61047821,
+"digest": "964837fd04d0ff7b0c01ca6ed8f3716256b9334e0d1200a7a06235bf837a75d41371d389b401cc15744ff509ecf96f31bdc0e679a0b3a6be93090673d5432ba4",
+"algorithm": "sha512",
+"filename": "clang.tar.bz2"
+}
+]

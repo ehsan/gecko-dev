@@ -1,0 +1,12 @@
+
+copy: content/base/crashtests/829428.html
+copyrev: 3dc72de46b4029d1fd91c9c84a4557826f5bc5bb
+
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body onload="document.getElementById('inner').dir = 'auto';">
+<div dir="auto"><div id="inner"><svg></svg></div></div>
+</body>
+</html>

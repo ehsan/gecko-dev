@@ -1,0 +1,11 @@
+
+copyrev: 81692361f3a73022f8668c27b23acbfa73762918
+copy: toolkit/mozapps/extensions/test/unit/addons/test_bug428341_3/install.rdf
+
+<?xml version="1.0"?>
+
+<!-- This rdf is valid, but no install manifest resource -->
+
+<RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:em="http://www.mozilla.org/2004/em-rdf#">
+</RDF>

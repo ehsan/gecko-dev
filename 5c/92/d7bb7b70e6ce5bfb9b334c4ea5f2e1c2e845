@@ -1,0 +1,14 @@
+
+copy: js/src/jit-test/tests/parallelarray/bug854050.js
+copyrev: 5d29e3838409324bba251d7d1572ad221cc41605
+
+function bug854050() {
+  // Shouldn't crash. Tests Ion's argumentsRectifier loading the right
+  // IonScript depending on execution mode.
+  for (z = 0; z < 1; z++)
+    function x(b, x) {}
+  ParallelArray(47, x);
+}
+
+if (getBuildConfiguration().parallelJS)
+  bug854050();

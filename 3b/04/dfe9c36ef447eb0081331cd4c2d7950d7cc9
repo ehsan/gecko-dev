@@ -1,0 +1,24 @@
+
+copy: testing/mochitest/tests/test_SimpleTestGetTestFileURL.html
+copyrev: 3912d29030f2ea933caee82e6f6119a2e64ce038
+
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test for SpecialPowers extension</title>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+
+<pre id="test">
+<script class="testbody" type="text/javascript">
+
+var filename = "MyTestDataFile.txt";
+var url = SimpleTest.getTestFileURL(filename);
+is(url, document.location.href.replace(/test_SimpleTestGetTestFileURL\.html.*/, filename));
+
+</script>
+</pre>
+</body>
+</html>

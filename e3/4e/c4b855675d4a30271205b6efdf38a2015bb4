@@ -1,0 +1,9 @@
+
+copy: js/src/xpconnect/crashtests/290162-1.html
+copyrev: d01cf933b6eb573e4de4d38054599ba6f2ee1769
+
+<script>
+	InstallTrigger.install.call(document,"a","a");
+</script>
+
+

@@ -1,0 +1,10 @@
+
+copy: content/html/document/reftests/bug448564-4b.html
+copyrev: 1969153d94214d4823f6897f13e3e8bef8f55fcc
+
+<html>
+<body>
+  <form><b><i>form contents</i></b></form>
+  <b><i>bold text</i></b>
+</body>
+</html>

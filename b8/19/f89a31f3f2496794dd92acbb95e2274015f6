@@ -1,0 +1,6 @@
+
+copy: media/libyuv/OWNERS
+copyrev: 97d536e78272b9f4772cdcfac63562c7481bcc5b
+
+fbarchard@chromium.org
+mflodman@chromium.org

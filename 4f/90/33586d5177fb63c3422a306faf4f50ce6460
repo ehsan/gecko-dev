@@ -1,0 +1,9 @@
+
+copy: media/libyuv/tools/valgrind-libyuv/tsan/suppressions.txt
+copyrev: 2f068575f1c3ef94edf128f237481f5849b00c7c
+
+# This file is used in addition to the one already maintained in Chrome.
+# It acts as a place holder for future additions for this project.
+# It must exist for the Python wrapper script to work properly.
+
+

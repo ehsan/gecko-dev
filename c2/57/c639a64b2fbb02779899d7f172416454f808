@@ -1,0 +1,11 @@
+
+copyrev: f97c183831aaec54c06b044f26d165c6e41ec2d7
+copy: layout/reftests/bugs/407016-2.html
+
+<html>
+<body>
+<marquee scrollamount="0" style="height: 50px; background-color: lime;">
+<div style="width: 9999px;">&nbsp;</div>
+</marquee>
+</body>
+</html>

@@ -1,0 +1,13 @@
+
+copyrev: 0a569c1bd2f2b5b1fadcb85486b1a7e2a4c2bad5
+copy: js/src/trace-test/tests/jaeger/bug580703.js
+
+
+
+let(w)(function () {
+    w
+})
+let(e)(function () {
+    e
+})
+

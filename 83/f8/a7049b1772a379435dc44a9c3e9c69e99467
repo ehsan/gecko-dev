@@ -1,0 +1,6 @@
+
+copy: extensions/spellcheck/hunspell/tests/flag.dic
+copyrev: 027458fde22d647293cbb56f1138f8125e93b9b3
+
+1
+foo/A3

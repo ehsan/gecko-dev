@@ -1,0 +1,32 @@
+#filter substitution
+
+browser.jar:
+% content browser %content/
+* content/browser.xul                  (content/browser.xul)
+  content/browser.js                   (content/browser.js)
+  content/browser-ui.js                (content/browser-ui.js)
+  content/commandUtil.js               (content/commandUtil.js)
+  content/bindings.xml                 (content/bindings.xml)
+  content/tabs.xml                     (content/tabs.xml)
+  content/checkbox.xml                 (content/checkbox.xml)
+  content/notification.xml             (content/notification.xml)
+  content/bindings/extensions.xml      (content/bindings/extensions.xml)
+  content/bindings/downloads.xml       (content/bindings/downloads.xml)
+  content/bindings/console.xml         (content/bindings/console.xml)
+  content/browser.css                  (content/browser.css)
+  content/cursor.css                   (content/cursor.css)
+  content/content.css                  (content/content.css)
+  content/checkerboard.png             (content/checkerboard.png)
+% content branding %content/branding/
+  content/preferences/richpref.xml     (content/preferences/richpref.xml)
+* content/sanitize.xul                 (content/sanitize.xul)
+* content/sanitize.js                  (content/sanitize.js)
+  content/WidgetStack.js               (content/WidgetStack.js)
+  content/BrowserView.js               (content/BrowserView.js)
+  content/TileManager.js               (content/TileManager.js)
+  content/CanvasBrowser.js             (content/CanvasBrowser.js)
+  content/InputHandler.js              (content/InputHandler.js)
+  content/Util.js                      (content/Util.js)
+  content/extensions.js                (content/extensions.js)
+  content/downloads.js                 (content/downloads.js)
+  content/console.js                   (content/console.js)

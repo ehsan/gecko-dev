@@ -1,0 +1,13 @@
+
+copy: browser/devtools/debugger/test/blackboxing_blackboxme.js
+copyrev: a8b0f7eeb021b4d0186e9eb2bc215c753f0a7873
+
+function blackboxme(fn) {
+  (function one() {
+    (function two() {
+      (function three() {
+        fn();
+      }());
+    }());
+  }());
+}

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <LinearLayout android:id="@+id/home_empty_view"
+                  android:layout_width="fill_parent"
+                  android:layout_height="fill_parent"
+                  android:orientation="vertical"
+                  android:gravity="center"
+                  android:paddingLeft="50dp"
+                  android:paddingRight="50dp"
+                  android:visibility="gone">
+
+        <ImageView android:id="@+id/home_empty_image"
+                   android:layout_width="wrap_content"
+                   android:layout_height="wrap_content"
+                   android:paddingBottom="15dp"
+                   android:scaleType="fitXY"/>
+
+        <TextView android:id="@+id/home_empty_text"
+                  android:layout_width="fill_parent"
+                  android:layout_height="wrap_content"
+                  android:gravity="center"
+                  android:textAppearance="@style/TextAppearance.EmptyMessage"/>
+
+    </LinearLayout>
+
+    <TextView android:id="@+id/title"
+              style="@style/Widget.Home.PageTitle"
+              android:visibility="gone"/>
+
+    <org.mozilla.gecko.home.HomeListView
+            android:id="@+id/list"
+            android:layout_width="fill_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
+
+</merge>

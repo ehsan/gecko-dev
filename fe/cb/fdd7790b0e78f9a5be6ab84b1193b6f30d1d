@@ -1,0 +1,31 @@
+
+copy: layout/xul/base/src/grid/reftests/row-or-column-sizing-3.xul
+copyrev: 76015e2c90cdcc1e4fef8f54887c8b79661cd1ba
+
+<?xml version="1.0"?>
+<!DOCTYPE window>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        title="XUL Grid Test">
+  <grid>
+    <columns>
+      <column>
+        <hbox />
+        <hbox />
+      </column>
+      <column>
+        <label value="Upper right" />
+        <hbox />
+      </column>
+    </columns>
+    <rows>
+      <row>
+        <hbox />
+        <hbox />
+      </row>
+      <row>
+        <textbox value="Lower left" />
+        <hbox />
+      </row>
+    </rows>
+  </grid>
+</window>

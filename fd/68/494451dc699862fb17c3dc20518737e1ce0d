@@ -1,0 +1,5 @@
+
+copy: js/src/xpconnect/tests/unit/bogus_exports_type.jsm
+copyrev: 8f1354a52c086bf946c3e1b76e0ffd08aae98599
+
+var EXPORTED_SYMBOLS = "not an array";

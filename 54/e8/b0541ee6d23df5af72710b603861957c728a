@@ -1,0 +1,9 @@
+
+copy: extensions/spellcheck/hunspell/tests/i68568utf.wrong
+copyrev: 5af6f4af1a0f16344455933ce279b421b2d5fdce
+
+foó'bár
+foó'Bár
+Foó'bár
+foó'
+FOÓ'

@@ -1,0 +1,15 @@
+
+copy: dom/svg/crashtests/427325-1.svg
+copyrev: 97b02ff56a398de8011148262c5168e22f1e1d9e
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+  <filter id="f">
+    <feGaussianBlur stdDeviation="0.1"/>
+  </filter>
+
+  <g filter="url(#f)">
+    <rect width="100" height="100" fill="lime"/>
+  </g>
+
+</svg>

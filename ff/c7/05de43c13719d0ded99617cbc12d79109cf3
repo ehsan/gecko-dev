@@ -1,0 +1,16 @@
+
+copy: toolkit/themes/winstripe/mozapps/plugins/pluginInstallerWizard.css
+copyrev: 014446c6820fb40e07a8b5fcceb7474f7fd9f196
+
+#licenseContainer, #pluginList {
+  -moz-appearance: listbox;
+  margin: 2px 4px;
+  border: 2px solid;
+  -moz-border-top-colors: ThreeDShadow ThreeDDarkShadow;
+  -moz-border-right-colors: ThreeDHighlight ThreeDLightShadow;
+  -moz-border-bottom-colors: ThreeDHighlight ThreeDLightShadow;
+  -moz-border-left-colors: ThreeDShadow ThreeDDarkShadow;
+  background-color: -moz-Field;
+  color: -moz-FieldText;
+}
+

@@ -1,0 +1,22 @@
+
+copy: content/html/content/crashtests/580507-1.xhtml
+copyrev: 93e817239ce3871b435b217a38d668c4c103cb8c
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var input = document.getElementById("i");
+  input.setAttribute('type', "image");
+  input.removeAttribute('type');
+  input.placeholder = "Y";
+}
+
+</script>
+</head>
+
+<body onload="boom();"><input id="i" /></body>
+</html>

@@ -1,0 +1,12 @@
+
+copy: dom/xul/test/window_bug583948.xul
+copyrev: 72fba8017fd92a43829617be82044dac4b1dc389
+
+<?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" onload="opener.update()">
+
+<command oncommandupdate="document.removeChild(document.documentElement)" commandupdater="true"/>
+<box command="c"/>
+<iframe/>
+
+</window>

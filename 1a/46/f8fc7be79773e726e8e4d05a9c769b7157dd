@@ -1,0 +1,12 @@
+
+copy: content/media/test/crashtests/846612.html
+copyrev: 6a435403b78d91414c90628d019a410799b4e29c
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var a = document.querySelector("audio");
+  a.playbackRate = 2;
+  a.play();
+});
+</script>
+<audio src="495794-1.ogg"></audio>

@@ -1,0 +1,22 @@
+
+copyrev: 5d1ea792c3b97b58c23a2d9429e82807959b5acf
+copy: js/src/trace-test/tests/jaeger/bug563000/trap-self-as-parent.js
+
+setDebug(true);
+x = "notset";
+
+function myparent(nested) {
+  if (nested) {
+    /* noop call in myparent */
+    trap(myparent, 50, "success()");
+  } else {
+    myparent(true);
+    x = "failure";
+    noop();
+  }
+}
+function noop() { }
+function success() { x = "success"; }
+
+myparent();
+assertEq(x, "success");

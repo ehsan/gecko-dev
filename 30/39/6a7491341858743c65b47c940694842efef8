@@ -1,0 +1,15 @@
+
+copy: browser/devtools/markupview/test/browser_inspector_markup_962647_search.html
+copyrev: aa3486c874538b1ca67c07c72f4159dfd8587ff3
+
+<!DOCTYPE html>
+<html>
+<head></head>
+<body>
+  <ul>
+    <li>
+      <span>this is an <em>important</em> node</span>
+    </li>
+  </ul>
+</body>
+</html>

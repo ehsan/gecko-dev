@@ -1,0 +1,11 @@
+
+copyrev: 1c3a9719660dfdba0bd89a149c4ddaa727653f5f
+copy: js/src/trace-test/tests/jaeger/bug589461.js
+
+function f(h, i, Q) {
+  var L = Q;
+  var H = h;
+
+  return h[i] * L ^ L * 0x1010100;
+}
+assertEq(f([6], 0, 12345), 1768429654);

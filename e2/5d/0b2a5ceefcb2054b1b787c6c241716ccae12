@@ -1,0 +1,4 @@
+two = imml 2
+three = imml 3
+res = addl two three
+retl res

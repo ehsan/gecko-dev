@@ -1,0 +1,25 @@
+
+copy: testing/web-platform/tests/dom/nodes/Document-createProcessingInstruction-literal-2.xhtml
+copyrev: ff49cce416e86bf5108e7a8e013b65bb03be7a20
+
+<?xml-stylesheet href="support/style.css" type="text/css"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>ProcessingInstruction literals</title>
+<link rel="help" href="https://dom.spec.whatwg.org/#dom-processinginstruction-target"/>
+<link rel="help" href="https://dom.spec.whatwg.org/#dom-characterdata-data"/>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+</head>
+<body>
+<div id="log"/>
+<script>
+test(function() {
+  var pienc = document.firstChild;
+  assert_true(pienc instanceof ProcessingInstruction)
+  assert_equals(pienc.target, "xml-stylesheet")
+  assert_equals(pienc.data, 'href="support/style.css" type="text/css"')
+})
+</script>
+</body>
+</html>

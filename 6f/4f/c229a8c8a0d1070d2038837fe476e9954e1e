@@ -1,0 +1,11 @@
+
+copy: content/xul/content/crashtests/509719-2.xul
+copyrev: fa2020dac37a8fe200e75940a6f8b67f510c51cb
+
+<?xml-stylesheet href="chrome://browser/skin/" type="text/css"?>
+<window id="win" xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <box id="testnode" onDOMAttrModified="this.parentNode.removeChild(this)"/>
+  <script>
+document.loadOverlay(window.location.href.substr(0,window.location.href.lastIndexOf('/')+1)+'509719-2-overlay.xul', null);
+  </script>
+</window>

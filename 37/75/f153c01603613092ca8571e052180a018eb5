@@ -1,0 +1,11 @@
+
+copy: dom/svg/crashtests/398926-fill.svg
+copyrev: 1e3884413b26567a54620b573d329cd26bd61e1b
+
+<svg xmlns="http://www.w3.org/2000/svg">
+
+<pattern id="pat" />
+
+<rect x="10" y="10" width="100" height="100" fill="url(#pat)" />
+
+</svg>

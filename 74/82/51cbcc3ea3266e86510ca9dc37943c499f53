@@ -1,0 +1,13 @@
+
+copy: content/canvas/src/Makefile.in
+copyrev: 368ccc9c20041379647e21022460361b796f232e
+
+# 
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+include $(topsrcdir)/config/rules.mk
+
+CXXFLAGS	+= $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
+

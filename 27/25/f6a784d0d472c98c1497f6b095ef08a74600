@@ -1,0 +1,22 @@
+
+copy: extensions/spellcheck/hunspell/tests/alias3.aff
+copyrev: 151805dae0b174da98c1741d012eb417aac39f73
+
+# morph. aliases with complex prefixes
+COMPLEXPREFIXES
+WORDCHARS _
+
+AM 4
+AM affix_1/
+AM affix_2/
+AM /suffix_1
+AM [stem_1]
+
+PFX A Y 1
+PFX A 0 tek . 1
+
+PFX B Y 1
+PFX B 0 met/A . 2
+
+SFX C Y 1
+SFX C 0 _test_ . 3

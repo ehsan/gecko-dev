@@ -1,0 +1,6 @@
+. "$topsrcdir/mobile/android/config/mozconfigs/common"
+
+ac_add_options --target=arm-linux-androideabi
+ac_add_options --with-arch=armv6
+
+export MOZ_PKG_SPECIAL=armv6

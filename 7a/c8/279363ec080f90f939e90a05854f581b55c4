@@ -1,0 +1,22 @@
+
+copyrev: 3a87b101e0c85ccdfca9d9384f10e12d52ceff0f
+copy: toolkit/mozapps/extensions/test/unit/addons/test_bug463819_7/install.rdf
+
+<?xml version="1.0"?>
+
+<RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:em="http://www.mozilla.org/2004/em-rdf#">
+  <Description about="urn:mozilla:install-manifest">
+    <em:id>test_bug463819_7@tests.mozilla.org</em:id>
+    <em:version>1</em:version>
+    <em:targetApplication>
+      <Description>
+        <em:id>xpcshell@tests.mozilla.org</em:id>
+        <em:minVersion>1</em:minVersion>
+        <em:maxVersion>2</em:maxVersion>
+      </Description>
+    </em:targetApplication>
+    <em:name>Test for Bug 463819</em:name>
+    <em:updateURL>http://localhost:4444/test_bug463819.rdf</em:updateURL>
+  </Description>
+</RDF>

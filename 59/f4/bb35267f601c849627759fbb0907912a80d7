@@ -1,0 +1,19 @@
+
+copy: content/media/test/crashtests/576612-1.html
+copyrev: 556d77beef4420c6b2a8835344ea5c631d4e5e2c
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script>
+function boom()
+{
+
+  var v = document.getElementById("v");
+  v.src = "data:text/plain,_";
+  document.documentElement.appendChild(v);
+
+}
+</script>
+</head>
+<body onload="boom();"><video id="v" src="data:video/ogg;codecs=&quot;theora,vorbis&quot;,1"></video></body>
+</html>

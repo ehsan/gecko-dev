@@ -1,0 +1,20 @@
+
+copy: dom/svg/crashtests/842463-1.html
+copyrev: 22757344d1458c061c7e2b96108c22c9d4f7d633
+
+<!DOCTYPE html>
+<html>
+<head>
+<script>
+
+function boom()
+{
+  var f = document.createElementNS("http://www.w3.org/2000/svg", "feImage");
+  f.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", "#s");
+}
+
+</script>
+</head>
+<body onload="boom();"></body>
+</html>
+

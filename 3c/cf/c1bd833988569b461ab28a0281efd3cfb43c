@@ -1,0 +1,16 @@
+
+copy: layout/reftests/forms/select-multiple-ref.html
+copyrev: 72853d2f02fb891e16ecebb2322482516d72432f
+
+<!DOCTYPE html>
+<html>
+  <body>
+    <select size='4'>
+      <option>Tulip</option>
+      <option>Lily</option>
+      <option>Gagea</option>
+      <option>Snowflake</option>
+      <option>Ismene</option>
+    </select>
+  </body>
+</html>

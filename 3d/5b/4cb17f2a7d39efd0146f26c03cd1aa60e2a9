@@ -1,0 +1,9 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/style/scoped-isvalid.html
+copyrev: a313f56cae600900ac597421f6eca88088fd3996
+
+<!doctype html>
+<meta charset=utf-8>
+<title>style@scoped as child of div</title>
+<body>
+<div><style scoped></style></div>

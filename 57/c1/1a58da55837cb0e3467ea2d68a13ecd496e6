@@ -1,0 +1,66 @@
+<!--
+  Any copyright is dedicated to the Public Domain.
+  http://creativecommons.org/publicdomain/zero/1.0/
+-->
+<html>
+<head>
+  <title>Indexed Database Property Test</title>
+
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+
+  <script type="text/javascript">
+    function run_test()
+    {
+      const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
+      const name = window.location.pathname;
+      const description = "My Test Database";
+      const objectStoreName = "Objects";
+
+      function errorHandler(event) {
+        ok(false, "indexedDB error (" + event.code + "): " + event.message);
+        SimpleTest.finish();
+      }
+
+      var request = indexedDB.open(name, description);
+      request.onerror = errorHandler;
+      request.onsuccess = function(event) {
+        ok(event.source === indexedDB, "correct event.source");
+        var db = event.result;
+
+        var count = db.objectStores.length;
+        is(count, 0, "correct objectStores list");
+
+        try {
+          request = db.createObjectStore(null, null);
+          ok(false, "createObjectStore with null name should throw");
+        }
+        catch(e) {
+          ok(true, "createObjectStore with null name should throw");
+        }
+
+        request = db.createObjectStore(objectStoreName, null);
+        request.onerror = errorHandler;
+        request.onsuccess = function(event) {
+          ok(event.source === db, "correct event.source");
+          var objectStore = event.result;
+
+          is(objectStore.name, objectStoreName, "Bad name");
+          is(objectStore.mode, nsIIDBObjectStore.READ_WRITE, "Bad mode");
+          is(objectStore.keyPath, "", "Bad keyPath");
+          if(objectStore.indexNames.length, 0, "Bad indexNames");
+          is(db.objectStores.length, 1, "Bad objectStores list");
+          SimpleTest.finish();
+        }
+      }
+    }
+
+    SimpleTest.waitForExplicitFinish();
+  </script>
+
+</head>
+
+<body onload="run_test();">
+</body>
+</html>

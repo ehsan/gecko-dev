@@ -1,0 +1,15 @@
+
+copy: content/svg/content/src/crashtests/435209-1.svg
+copyrev: 216550230fdd995707681226a9a773c394667c44
+
+<svg xmlns="http://www.w3.org/2000/svg">
+<path/>
+
+<script xmlns="http://www.w3.org/1999/xhtml"><![CDATA[
+var x=document.getElementsByTagName('path')[0];
+var y = x.pathSegList;
+var z = x.createSVGPathSegMovetoRel(0,0);
+y.appendItem(z,0);
+y.replaceItem(z, 0);
+]]></script>
+</svg>

@@ -1,0 +1,21 @@
+
+copy: editor/libeditor/html/tests/browserscope/lib/richtext2/richtext2/static/editable-dM.html
+copyrev: 660d372f76ad9e08cd1f825cc0286031fd465590
+
+﻿<!DOCTYPE html> 
+<html> 
+<head> 
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" /> 
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+  <link rel="stylesheet" href="editable.css" type="text/css">
+
+  <script>
+    function setDesignMode() {
+      window.document.designMode = "On";
+    }
+  </script>
+</head> 
+<body onload="setDesignMode()"> 
+</body> 
+</html>

@@ -1,0 +1,26 @@
+
+copy: content/svg/content/src/crashtests/466576-1.xhtml
+copyrev: 967f07c418b90527139184d7a8983833761fbb0e
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  try {
+    document.getElementById("y").gradientTransform.baseVal.appendItem(function(){});
+  } catch(e) { }
+
+  document.documentElement.innerHTML;
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+
+<linearGradient id="y" xmlns="http://www.w3.org/2000/svg" />
+
+</body>
+</html>

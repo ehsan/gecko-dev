@@ -1,0 +1,16 @@
+
+copy: mobile/locales/en-US/chrome/config.dtd
+copyrev: 199ba6a2c3808e4e6b3d95c599cf5f5c31a298ba
+
+<!ENTITY empty.label            "Search">
+<!ENTITY newpref.label          "Add a New Preference">
+<!ENTITY addpref.name           "Name">
+<!ENTITY addpref.value          "Value">
+
+<!ENTITY cancel.label           "Cancel">
+<!ENTITY reset.label            "Reset">
+<!ENTITY done.label             "Done">
+
+<!ENTITY integer.label          "Integer">
+<!ENTITY string.label           "String">
+<!ENTITY boolean.label          "Boolean">

@@ -1,0 +1,10 @@
+
+copy: mobile/config/mozconfigs/win32-desktop/l10n-mozconfig
+copyrev: a4e2a90f29c04fc7544d48a1bd6ac7ea8668888b
+
+mk_add_options MOZ_PKG_FORMAT=ZIP
+
+ac_add_options --with-l10n-base=../../l10n-central
+ac_add_options --enable-application=mobile
+ac_add_options --disable-compile-environment
+ac_add_options --disable-angle

@@ -1,0 +1,16 @@
+
+copy: content/base/crashtests/561981-1.html
+copyrev: 4288bb67d524eec60bd61d457cb4aad93d8b34d9
+
+<html class="reftest-wait">
+<head>
+<script>
+function finish() {
+  document.documentElement.removeAttribute("class");
+}
+</script>
+</head>
+<body onload="setTimeout(finish, 5000)">
+<iframe src="561981-1-iframe.xhtml"></iframe>
+</body>
+</html>

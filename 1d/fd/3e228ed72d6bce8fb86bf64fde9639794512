@@ -1,0 +1,8 @@
+
+copy: editor/composer/crashtests/removing-editable-xslt-inner.xhtml
+copyrev: 240e88b250176cd6a6b5be721b3e797dd5cae83f
+
+<?xml-stylesheet type="text/xsl" href="#a"?>
+<html xmlns="http://www.w3.org/1999/xhtml"  contenteditable="true">
+<xsl:stylesheet version="1.0" id="a" xmlns:xsl="http://www.w3.org/1999/XSL/Transform"/>
+</html>

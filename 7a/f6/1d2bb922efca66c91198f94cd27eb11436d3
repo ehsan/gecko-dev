@@ -1,0 +1,13 @@
+
+copyrev: f1bcc952489feb53052ba5e5de99b205de1926b2
+copy: js/src/trace-test/tests/basic/testInitMethod.js
+
+for (var i = 0; i < 9; i++)
+    x = {a: function() {}, b: function() {}};
+
+checkStats({
+    recorderStarted: 1,
+    recorderAborted: 0,
+    traceCompleted: 1,
+    sideExitIntoInterpreter: 1
+});

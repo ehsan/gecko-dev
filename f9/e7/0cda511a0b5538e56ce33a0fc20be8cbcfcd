@@ -1,0 +1,11 @@
+
+copy: browser/components/translation/test/xpcshell.ini
+copyrev: 2ecccc935c63b072f795cd2905d7413601b0ccba
+
+[DEFAULT]
+head = 
+tail = 
+firefox-appdir = browser
+
+[test_cld2.js]
+[test_healthreport.js]

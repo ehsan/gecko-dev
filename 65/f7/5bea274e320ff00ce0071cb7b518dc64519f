@@ -1,0 +1,5 @@
+
+copy: media/webrtc/trunk/src/modules/audio_device/main/test/android/audio_device_android_test/src/org/webrtc/voiceengine/AudioDeviceAndroid.java
+copyrev: 5829460094108d016a2194733f0f7e28aec9cc59
+
+../../../../../../../source/android/org/webrtc/voiceengine/AudioDeviceAndroid.java

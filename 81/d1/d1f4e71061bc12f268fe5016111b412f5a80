@@ -1,0 +1,16 @@
+
+copy: mobile/android/base/json-simple/JSONAware.java
+copyrev: 5c721d5d8e813ba53439f8d2ccf9e5d64ba26452
+
+package org.json.simple;
+
+/**
+ * Beans that support customized output of JSON text shall implement this interface.  
+ * @author FangYidong<fangyidong@yahoo.com.cn>
+ */
+public interface JSONAware {
+	/**
+	 * @return JSON text
+	 */
+	String toJSONString();
+}

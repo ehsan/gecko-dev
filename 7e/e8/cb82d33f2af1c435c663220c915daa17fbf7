@@ -1,0 +1,37 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/img/model-novalid.html
+copyrev: 8ed6acf366242f7cc7bf431a8b340813e5975e4d
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <title>&lt;img&gt;</title>
+</head>
+<body>
+  <!-- is structured inline -->
+  <p><img
+      src="url"
+      alt="text"
+      width="42"
+      height="095"
+      usemap="url"
+      ismap="ismap"
+      class="class"
+      lang="en"></img></p>
+
+  <!-- is strictly inline -->
+  <p><dfn><img
+      src="url"
+      alt="text"
+      width="42"
+      height="095"
+      usemap="url"
+      ismap="ismap"
+      class="class"
+      lang="en"></img></dfn></p>
+
+  <!-- src and alt are required, others optional -->
+  <p><img src="ur" alt="text"></img></p>
+</body>
+</html>

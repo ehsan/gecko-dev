@@ -1,0 +1,51 @@
+
+copy: toolkit/mozapps/update/test/TestAUSReadStrings1.ini
+copyrev: 5a3acd542f7cd1bb41cf984562e04432266c7899
+
+; This file is in the UTF-8 encoding
+
+[BogusSection1]
+
+; Comment
+
+Title=Bogus Title
+
+; Comment
+
+Info=Bogus Info
+
+; Comment
+
+[Strings]
+
+Bogus1=Bogus1
+
+; Comment
+
+Title=Title Test - Испытание Δοκιμή テスト 測試 测试
+
+; Comment
+
+Bogus2=Bogus2
+
+; Comment
+
+Info=Info Test - Испытание Δοκιμή テスト 測試 测试…
+
+; Comment
+
+Bogus3=Bogus3
+
+; Comment
+
+[BogusSection2]
+
+; Comment
+
+Title=Bogus Title
+
+; Comment
+
+Info=Bogus Info
+
+; Comment

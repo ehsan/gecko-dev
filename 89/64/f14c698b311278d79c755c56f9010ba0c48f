@@ -1,0 +1,11 @@
+
+copy: content/html/content/reftests/468263-2-alternate-ref.html
+copyrev: 86a542133f2794d5359418a04cc6957281a515b2
+
+<!DOCTYPE HTML>
+<html>
+<body>
+    <img id="image1" src="">
+    <input id="image3" type="image">
+</body>
+</html>

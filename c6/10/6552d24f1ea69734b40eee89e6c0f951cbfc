@@ -1,0 +1,19 @@
+
+copy: browser/devtools/markupview/test/browser_inspector_markup_mutation_flashing.html
+copyrev: 12184c742249a7f89c52d1e80c0c6b3dcfe63d6d
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>mutation flashing test</title>
+</head>
+<body>
+  <div id="root">
+    <ul class="list">
+      <li class="item">item</li>
+      <li class="item">item</li>
+    </ul>
+  </div>
+</body>
+</html>

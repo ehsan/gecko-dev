@@ -1,0 +1,8 @@
+
+copy: services/sync/tps/chrome.manifest
+copyrev: fd1428383a93babe265b059e2b9bc90891f4e75c
+
+resource tps modules/
+component {4e5bd3f0-41d3-11df-9879-0800200c9a66} components/tps-cmdline.js
+contract @mozilla.org/commandlinehandler/general-startup;1?type=tps {4e5bd3f0-41d3-11df-9879-0800200c9a66}
+category command-line-handler m-tps @mozilla.org/commandlinehandler/general-startup;1?type=tps

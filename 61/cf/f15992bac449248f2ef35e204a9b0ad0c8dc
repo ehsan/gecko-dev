@@ -1,0 +1,15 @@
+
+copy: layout/reftests/editor/spellcheck-input-ref.html
+copyrev: b6e9f887c2a9578ee0c991dc153b18dfc6c2a680
+
+<!DOCTYPE html>
+<html>
+<body>
+    <input type="text" value="blahblahblah" spellcheck="true">
+    <script>
+      var i = document.getElementsByTagName("input")[0];
+      i.focus(); // init the editor
+      i.blur();  // we actually don't need the focus
+    </script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+
+copy: widget/src/cocoa/crashtests/464589-1.html
+copyrev: 19df0cc0607cff931a122c31429757bde1eaa5fb
+
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  var o2 = document.createElement("option");
+  document.getElementById("o1").appendChild(o2);
+  o2.style.padding = "131072cm";
+}
+
+</script>
+</head>
+
+<body onload="boom();">
+
+<select><option id="o1" style="height: 0cm;"></option></select>
+
+</body>
+</html>

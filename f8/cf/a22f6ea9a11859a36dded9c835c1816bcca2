@@ -1,0 +1,9 @@
+
+copy: layout/reftests/forms/input-text-size-2-ref.html
+copyrev: 098cf1607d261f637affcd21b45fc6e956340207
+
+<html lang="en">
+<body style="background-color:white;">
+  <input size="40" value="1234" style="background-color:white; color:black; font-family: monospace; border: none">
+</body>
+</html>

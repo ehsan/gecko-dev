@@ -1,0 +1,15 @@
+
+copy: media/webrtc/trunk/third_party/libyuv/codereview.settings
+copyrev: 3b43b1e491cc5b215f554155453436a46a93d01f
+
+# This file is used by gcl to get repository specific information.
+# The LibYuv code review is via WebRtc's code review
+CODE_REVIEW_SERVER: webrtc-codereview.appspot.com
+#CC_LIST:
+VIEW_VC: https://code.google.com/p/libyuv/source/detail?r=
+#STATUS:
+TRY_ON_UPLOAD: False
+TRYSERVER_ROOT: src
+TRYSERVER_SVN_URL: svn://svn.chromium.org/chrome-try/try-libyuv
+#GITCL_PREUPLOAD:
+#GITCL_PREDCOMMIT:

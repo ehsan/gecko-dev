@@ -1,0 +1,5 @@
+
+copy: extensions/spellcheck/hunspell/tests/opentaal_cpdpat2.wrong
+copyrev: 39aea92dc43d1a97b4f32ec7397fc88829b85739
+
+zoutsuikertest

@@ -1,0 +1,19 @@
+
+copy: js/src/tests/js1_8_5/extensions/debug-object-07.js
+copyrev: fde6b8af0815f3601b67612b94f7d292224ee864
+
+// |jit-test| debug
+// Simple {return:} resumption.
+
+var g = newGlobal('new-compartment');
+
+var dbg = Debug(g);
+dbg.hooks = {
+    debuggerHandler: function (stack) {
+        return {return: 1234};
+    }
+};
+
+assertEq(g.eval("debugger; false;"), 1234);
+g.eval("function f() { debugger; return 'bad'; }");
+assertEq(g.f(), 1234);

@@ -1,0 +1,10 @@
+
+copy: js/src/jit-test/tests/binary-data/fuzz5.js
+copyrev: f957de665f2a981cb07433595ab661df83c3ce42
+
+if (!this.hasOwnProperty("Type"))
+  exit(0);
+
+var Color = new StructType({r: uint8, g: uint8, b: uint8});
+var white2 = new Color({r: 255, toString: null, b: 253});
+

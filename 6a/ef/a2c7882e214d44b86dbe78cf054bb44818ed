@@ -1,0 +1,25 @@
+
+copy: testing/mochitest/tests/test_sanityException2.html
+copyrev: 73a171cb43de73696af96bc5f9ae96549b91114d
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test that uncaught exceptions in mochitests cause failures</title>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+</head>
+<body>
+<a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=670817">Mozilla Bug 670817</a>
+<script>
+SimpleTest.waitForExplicitFinish();
+ok(true, "a call to ok");
+SimpleTest.executeSoon(function() {
+  SimpleTest.expectUncaughtException();
+  throw "an uncaught exception";
+});
+SimpleTest.executeSoon(function() {
+  SimpleTest.finish();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: extensions/spellcheck/hunspell/tests/digits_in_words.dic
+copyrev: af24ef99fd1c3b701d469b2a83ba87176d824f3f
+
+11
+0/a
+1/a
+2/a
+3/a
+4/a
+5/a
+6/a
+7/a
+8/a
+9/a
+-jährig/bc

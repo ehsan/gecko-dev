@@ -1,0 +1,4 @@
+export CC=$topsrcdir/clang/bin/clang
+export CXX=$topsrcdir/clang/bin/clang++
+
+ac_add_options --enable-stdcxx-compat

@@ -1,0 +1,10 @@
+
+copy: content/base/test/file_bug622088.sjs
+copyrev: 86bd0e0fdd25c4854753a9d571494114b6374d54
+
+function handleRequest(request, response)
+{
+  // Echos the referrer back to the requester.
+  response.setHeader('Content-Type', 'text/plain', false);
+  response.write(request.getHeader('Referer'));
+}

@@ -1,0 +1,23 @@
+
+copy: editor/libeditor/html/crashtests/467647-1.html
+copyrev: 3410d221a7d8a74e46b29f11fc448e169198b440
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+function boom()
+{
+  document.getElementById("s").focus();
+  try { 
+    document.execCommand("insertorderedlist", false, null);
+  } catch(e) { }
+}
+
+</script>
+</head>
+
+<body onload="boom();"><span id="s" contenteditable="true">One<div></div></span><marquee></marquee></body>
+
+</html>

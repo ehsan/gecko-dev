@@ -1,0 +1,11 @@
+
+copy: layout/reftests/editor/338427-1-ref.html
+copyrev: 35e085c23a583bcb979a1ca1bd6bf51e9f44f26a
+
+<!DOCTYPE html>
+<html>
+<body>
+    <textarea spellcheck="false" lang="testing-XX">strangeimpossibleword</textarea>
+</body>
+</html>
+

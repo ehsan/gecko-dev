@@ -1,0 +1,5 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/elements/label/002-novalid.html
+copyrev: 9a545f09f6ff0e3a186594c273c699197f3147f3
+
+<!doctype html><meta charset=utf-8><title>&lt;input id=a>&lt;label for=a>&lt;input></title><p>There should be an error. <input id=a><label for=a><input></label>

@@ -1,0 +1,6 @@
+
+copy: content/base/test/file_XHRSendData_doc.xml
+copyrev: 6023d267ee8de62e4930f3dcf20832739f23c71c
+
+<!-- comment -->
+<out>hi</out>

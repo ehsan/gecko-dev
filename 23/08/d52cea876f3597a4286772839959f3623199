@@ -1,0 +1,8 @@
+[interfaces.html]
+  type: testharness
+  [Notification interface: existence and properties of interface object]
+    expected: FAIL
+
+  [Notification interface object length]
+    expected: FAIL
+

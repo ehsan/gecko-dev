@@ -1,0 +1,23 @@
+
+copy: content/svg/content/src/crashtests/410659-2.svg
+copyrev: 1254aafefa8a53b7c2d0e12664313b40ca76841e
+
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+
+  <filter id="filter1">
+    <feImage x="0"
+             y="0"
+             width="5%"
+             height="20%"
+             result="raster1" />
+
+
+  </filter>
+
+  <rect x="0"
+        y="0"
+        width="100%"
+        height="100%"
+        filter="url(#filter1)" />
+
+</svg>

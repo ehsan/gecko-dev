@@ -1,0 +1,8 @@
+
+copy: media/webrtc/trunk/src/common_audio/OWNERS
+copyrev: cf7efb9a2d6576cc428a7a21284d4c50d987cb53
+
+bjornv@webrtc.org
+tina.legrand@webrtc.org
+jan.skoglund@webrtc.org
+andrew@webrtc.org

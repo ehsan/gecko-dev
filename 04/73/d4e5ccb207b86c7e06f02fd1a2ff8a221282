@@ -1,0 +1,6 @@
+[DEFAULT]
+head = 
+tail = 
+
+[test_parser.js]
+[test_namespace_support.js]

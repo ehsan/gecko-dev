@@ -1,0 +1,25 @@
+
+copyrev: 44bf848f14dfacb5dd1d7a8a1c8e13f8619ef679
+copy: js/src/trace-test/tests/arguments/args4.js
+
+actual = '';
+expected = '51,';
+
+var g = 0;
+
+function h(args) {
+  g = args[1];
+}
+
+function f() {
+  h(arguments);
+}
+
+for (var i = 0; i < 10000; ++i) {
+  f(100, 51);
+}
+
+appendToActual(g);
+
+
+assertEq(actual, expected)

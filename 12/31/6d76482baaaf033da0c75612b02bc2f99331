@@ -1,0 +1,18 @@
+
+copyrev: 4bb6423e095094b8efb384581926e5d6686515a6
+copy: js/src/trace-test/tests/basic/testNativeSetter.js
+
+function testNativeSetter() {
+    var re = /foo/;
+    var N = RUNLOOP + 10;
+    for (var i = 0; i < N; i++)
+        re.lastIndex = i;
+    assertEq(re.lastIndex, N - 1);
+}
+testNativeSetter();
+checkStats({
+    recorderStarted: 1,
+    recorderAborted: 0,
+    traceTriggered: 1,
+    sideExitIntoInterpreter: 1
+});

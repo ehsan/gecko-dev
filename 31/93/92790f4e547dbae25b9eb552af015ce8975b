@@ -1,0 +1,25 @@
+
+copy: dom/imptests/html/html/dom/documents/dta/doc.gEBN/test_doc.gEBN-id.xhtml
+copyrev: a34b1b938c4a87eb149c9bbc92d3429a5aa7c46f
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>getElementsByName and ids</title>
+<link rel="author" title="Ms2ger" href="mailto:ms2ger@gmail.com"/>
+<link rel="help" href="http://www.whatwg.org/html5/#dom-document-getelementsbyname"/>
+<link rel="stylesheet" href="/resources/testharness.css"/>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+</head>
+<body>
+<div id="log"></div>
+<div id="test">
+<div id="abcd"></div>
+</div>
+<script>
+test(function() {
+  assert_equals(document.getElementsByName("abcd").length, 0);
+});
+</script>
+</body>
+</html>

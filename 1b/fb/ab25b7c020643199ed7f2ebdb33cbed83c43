@@ -1,0 +1,14 @@
+
+copy: toolkit/components/console/hudservice/tests/browser/test-bug-595934-css-parser.css
+copyrev: 951cf3d22ef55c072a7481a021598da183bb7b13
+
+/*
+ * Any copyright is dedicated to the Public Domain.     
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
+
+p {
+  color: #0f0;
+  foobarCssParser: failure;
+}
+

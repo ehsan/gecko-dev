@@ -1,0 +1,6 @@
+
+copy: extensions/layout-debug/chrome.manifest
+copyrev: b9decc0f58195f7461612c72c3d896a384fa76d8
+
+content layoutdebug jar:layoutdebug.jar!/content/layoutdebug/
+locale layoutdebug en-US jar:layoutdebug.jar!/locale/en-US/layoutdebug/

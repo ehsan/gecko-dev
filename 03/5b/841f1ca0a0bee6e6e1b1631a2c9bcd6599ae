@@ -1,0 +1,16 @@
+
+copy: content/mathml/content/crashtests/462929-1.html
+copyrev: b9a664b19a51d4c7c683135cd445327213454c39
+
+<!DOCTYPE html>
+<html>
+<head>
+<script type="text/javascript">
+
+var a = document.createElementNS("http://www.w3.org/2000/svg", "foo");
+var b = document.createElementNS("http://www.w3.org/1998/Math/MathML", "math");
+
+</script>
+</head>
+<body></body>
+</html>

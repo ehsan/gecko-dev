@@ -1,0 +1,10 @@
+
+copyrev: db3098706da7a648b420337bb77347039da960ee
+copy: js/src/trace-test/tests/basic/testSlowNativeWithNullThis.js
+
+x = 0
+for (a = 0; a < 3; a++) {
+    (function () {
+        return Float64Array
+    })()(x, 1)
+}

@@ -1,0 +1,15 @@
+
+copy: content/html/content/test/imports/file_importB1.html
+copyrev: 81ae3f8e19f9ef48c78d81dc315d5352f501c43c
+
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <link rel="import" href="file_importB2.html" id="B2" onload="loaded()" onerror="failed()"></link>
+  </head>
+  <body>
+    <script>
+      order.push("B1");
+    </script>
+  </body>
+</html>

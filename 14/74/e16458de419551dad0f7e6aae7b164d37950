@@ -1,0 +1,21 @@
+
+copy: layout/reftests/forms/input/file/input-file-rtl-ref.xul
+copyrev: da7f682e19c2864f00ce61e76807a805ba5d6882
+
+<?xml version="1.0"?>
+<?xml-stylesheet href="style.css" type="text/css"?>
+<window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        xmlns:html="http://www.w3.org/1999/xhtml">
+  <vbox>
+    <html:style>
+      vbox {
+       margin-right: 8px;
+      }
+    </html:style>
+    <html:div dir='rtl'>
+      <html:div class='file' dir='rtl'>
+        <html:button>Browse&#8230;</html:button><label value="No file selected."/>
+      </html:div>
+    </html:div>
+  </vbox>
+</window>

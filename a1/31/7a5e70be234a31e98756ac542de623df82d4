@@ -1,0 +1,18 @@
+
+copy: addon-sdk/source/python-lib/cuddlefish/tests/preferences-files/packages/curly-id/package.json
+copyrev: 1d6ef7f4e2a19af36b31d1ad26ce12003a187e57
+
+{
+    "id": "{34a1eae1-c20a-464f-9b0e-000000000000}",
+    "fullName": "curly ID test",
+    "author": "Tomislav Jovanovic",
+
+    "preferences": [{
+        "name": "test13",
+        "type": "integer",
+        "title": "test13",
+        "value": 26
+    }],
+
+    "preferences-branch": "invalid^branch*name"
+}

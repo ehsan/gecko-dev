@@ -1,0 +1,12 @@
+
+copy: embedding/android/resources/drawable/tabs_level.xml
+copyrev: ef14bb73b2c28b005e4eb58a2e2892fc85bd2168
+
+<?xml version="1.0" encoding="utf-8"?>
+<level-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:maxLevel="0" android:drawable="@android:color/transparent"/>
+    <item android:maxLevel="1" android:drawable="@drawable/tabs_plus"/>
+    <item android:minLevel="2" android:maxLevel="100" android:drawable="@drawable/tabs_more"/>
+
+</level-list>

@@ -1,0 +1,14 @@
+
+copy: testing/web-platform/tests/conformance-checkers/html/obsolete/002-novalid.html
+copyrev: 58259941d6aab991a6d940360f2912fe6982e5e2
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>the "applet" element is obsolete</title>
+<meta charset=utf-8>
+</head>
+<body>
+<applet>baz</applet>
+</body>
+</html>

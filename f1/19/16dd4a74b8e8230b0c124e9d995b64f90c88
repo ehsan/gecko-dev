@@ -1,0 +1,30 @@
+
+copy: layout/reftests/margin-collapsing/inline-block-child-2.html
+copyrev: dae9433e061ae8b46c3aab07d0ef43763e938d76
+
+<!DOCTYPE html>
+<html class="reftest-wait">
+<head>
+<style type="text/css">
+#inline-block {
+ display: inline-block;
+ margin: 10px 0;
+ background-color: green;
+}
+#block {
+ margin: 10px 0;
+ background-color: lightgreen;
+}
+</style>
+<script type="text/javascript">
+function test() {
+ document.getElementById('block').style.display = 'block';
+ document.documentElement.removeAttribute('class');
+}
+document.addEventListener('MozReftestInvalidate', test, false);
+</script>
+</head>
+<body>
+<div id="inline-block"><span id="block">Hello Kitty</span></div>
+</body>
+</html>

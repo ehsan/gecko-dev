@@ -1,0 +1,8 @@
+
+copy: content/canvas/test/webgl-conformance/conformance/glsl/misc/include.vs
+copyrev: 54beba49c29c8d665be5cdfc854bb730ecad5706
+
+// Do not delete!
+// Needed to help glsl-conformance tests.
+
+

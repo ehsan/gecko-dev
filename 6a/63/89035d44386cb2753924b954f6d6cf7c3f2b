@@ -1,0 +1,14 @@
+
+copy: layout/reftests/svg/smil/anim-indefinite-to-1.svg
+copyrev: 6f0a6fa5ef7d42a95eb58a7d91c973afbbfaefa0
+
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- Test that an indefinite to-animation just sticks to the base value for
+       animateMotion. -->
+  <rect width="100%" height="100%" fill="lime"/>
+
+  <rect x="15" y="15" width="100" height="100" fill="red"/>
+  <rect x="15" y="15" width="100" height="100" fill="lime">
+    <animateMotion to="500,500" dur="indefinite"/>
+  </rect>
+</svg>

@@ -1,0 +1,21 @@
+
+copy: content/events/crashtests/recursive-DOMNodeInserted.html
+copyrev: c48cbe82453590067b4bfc45168bfe22074973f9
+
+<HTML>
+<HEAD>
+<TITLE></TITLE>
+
+</HEAD>
+<BODY BGCOLOR="#FFFFFF" TEXT="#000000" LINK="#0000FF" VLINK="#800080" onload="test()">
+<INPUT id="txt1" type="text" value="">
+
+<SCRIPT>
+document.addEventListener("DOMNodeInserted",test,0);
+count = 0;
+function test(){
+   n = document.createTextNode("test");
+   document.body.appendChild(n);
+}
+</SCRIPT>
+</BODY>

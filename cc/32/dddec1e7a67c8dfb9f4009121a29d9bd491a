@@ -1,0 +1,5 @@
+
+copy: content/base/test/badContentType.eventsource^headers^
+copyrev: af266ba12465500b6b0236b355753f7b87d46813
+
+Content-Type: text/plain

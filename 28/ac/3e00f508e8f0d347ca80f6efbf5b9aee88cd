@@ -1,0 +1,18 @@
+
+copy: layout/reftests/css-invalid/textarea/textarea-disabled-fieldset-1.html
+copyrev: 57f446ede4119ce7742a4d5f6863f97caa2d2388
+
+<!DOCTYPE html>
+<html>
+  <!-- Test: if textarea has a disabled fieldset ancestor, it is barred from
+             constraint validation and should not be affected by :-moz-ui-invalid
+             pseudo-class. -->
+  <link rel='stylesheet' type='text/css' href='style.css'>
+  <body>
+    <fieldset disabled>
+      <fieldset>
+        <textarea class='notinvalid' required></textarea>
+      </fieldset>
+    </fieldset>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+
+copy: browser/base/content/test/plugin_bug744745.html
+copyrev: 4dec0dc3f9b91c530e8401191fec837df907abf0
+
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body>
+<style>
+.x {
+  opacity: 0 !important;
+}
+</style>
+<object id="test" class="x" type="application/x-test" width=200 height=200></object>
+</body>
+</html>

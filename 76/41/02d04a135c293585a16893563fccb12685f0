@@ -1,0 +1,5 @@
+
+copy: editor/libeditor/html/crashtests/535632-1.xhtml
+copyrev: 38ae23d725d5bce42d9e6c636b04180414427898
+
+<body xmlns="http://www.w3.org/1999/xhtml" style="margin: 200px;" contenteditable="true" onload="document.execCommand('outdent', false, null);" />
