@@ -217,22 +217,11 @@ loop.shared.views = (function(_, OT, l10n) {
       }
     },
 
-    getInitialProps: function() {
-      return {
-        video: {enabled: true},
-        audio: {enabled: true}
-      };
-    },
-
     getInitialState: function() {
       return {
-        video: this.props.video,
-        audio: this.props.audio
+        video: {enabled: false},
+        audio: {enabled: false}
       };
-    },
-
-    componentWillMount: function() {
-      this.publisherConfig.publishVideo = this.props.video.enabled;
     },
 
     componentDidMount: function() {

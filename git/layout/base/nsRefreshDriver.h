@@ -276,7 +276,7 @@ public:
   void NotifyTransactionCompleted(uint64_t aTransactionId) MOZ_OVERRIDE;
   void RevokeTransactionId(uint64_t aTransactionId) MOZ_OVERRIDE;
 
-  bool IsWaitingForPaint(mozilla::TimeStamp aTime);
+  bool IsWaitingForPaint();
 
   // nsARefreshObserver
   NS_IMETHOD_(MozExternalRefCountType) AddRef(void) { return TransactionIdAllocator::AddRef(); }
@@ -355,11 +355,10 @@ private:
   // True if Tick() was skipped because of mWaitingForTransaction and
   // we should schedule a new Tick immediately when resumed instead
   // of waiting until the next interval.
-  bool mSkippedPaints;
+  uint32_t mSkippedPaints;
 
   int64_t mMostRecentRefreshEpochTime;
   mozilla::TimeStamp mMostRecentRefresh;
-  mozilla::TimeStamp mMostRecentTick;
 
   // separate arrays for each flush type we support
   ObserverArray mObservers[3];

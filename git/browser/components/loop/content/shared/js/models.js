@@ -14,21 +14,17 @@ loop.shared.models = (function() {
    */
   var ConversationModel = Backbone.Model.extend({
     defaults: {
-      connected:    false,         // Session connected flag
-      ongoing:      false,         // Ongoing call flag
-      callerId:     undefined,     // Loop caller id
-      loopToken:    undefined,     // Loop conversation token
-      loopVersion:  undefined,     // Loop version for /calls/ information. This
-                                   // is the version received from the push
-                                   // notification and is used by the server to
-                                   // determine the pending calls
-      sessionId:    undefined,     // OT session id
-      sessionToken: undefined,     // OT session token
-      apiKey:       undefined,     // OT api key
-      callType:     undefined,     // The type of incoming call selected by
-                                   // other peer ("audio" or "audio-video")
-      selectedCallType: undefined  // The selected type for the call that was
-                                   // initiated ("audio" or "audio-video")
+      connected:    false,     // Session connected flag
+      ongoing:      false,     // Ongoing call flag
+      callerId:     undefined, // Loop caller id
+      loopToken:    undefined, // Loop conversation token
+      loopVersion:  undefined, // Loop version for /calls/ information. This
+                               // is the version received from the push
+                               // notification and is used by the server to
+                               // determine the pending calls
+      sessionId:    undefined, // OT session id
+      sessionToken: undefined, // OT session token
+      apiKey:       undefined  // OT api key
     },
 
     /**
@@ -118,7 +114,7 @@ loop.shared.models = (function() {
       this._pendingCallTimer = setTimeout(
         handleOutgoingCallTimeout.bind(this), this.pendingCallTimeout);
 
-      this.setOutgoingSessionData(sessionData);
+      this.setSessionData(sessionData);
       this.trigger("call:outgoing");
     },
 
@@ -133,31 +129,15 @@ loop.shared.models = (function() {
 
     /**
      * Sets session information.
-     * Session data received by creating an outgoing call.
      *
      * @param {Object} sessionData Conversation session information.
      */
-    setOutgoingSessionData: function(sessionData) {
+    setSessionData: function(sessionData) {
       // Explicit property assignment to prevent later "surprises"
       this.set({
         sessionId:    sessionData.sessionId,
         sessionToken: sessionData.sessionToken,
         apiKey:       sessionData.apiKey
-      });
-    },
-
-    /**
-     * Sets session information about the incoming call.
-     *
-     * @param {Object} sessionData Conversation session information.
-     */
-    setIncomingSessionData: function(sessionData) {
-      // Explicit property assignment to prevent later "surprises"
-      this.set({
-        sessionId:    sessionData.sessionId,
-        sessionToken: sessionData.sessionToken,
-        apiKey:       sessionData.apiKey,
-        callType:     sessionData.callType || "audio-video"
       });
     },
 
@@ -187,22 +167,6 @@ loop.shared.models = (function() {
       this.session.disconnect();
       this.set("ongoing", false)
           .once("session:ended", this.stopListening, this);
-    },
-
-    /**
-     * Helper function to determine if video stream is available for the
-     * incoming or outgoing call
-     *
-     * @param {string} callType Incoming or outgoing call
-     */
-    hasVideoStream: function(callType) {
-      if (callType === "incoming") {
-        return this.get("callType") === "audio-video";
-      }
-      if (callType === "outgoing") {
-        return this.get("selectedCallType") === "audio-video";
-      }
-      return undefined;
     },
 
     /**

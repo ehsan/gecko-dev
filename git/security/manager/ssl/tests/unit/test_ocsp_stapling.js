@@ -141,8 +141,7 @@ function add_tests(certDB, otherTestCA) {
   // Check that OCSP responder certificates with key sizes below 1024 bits are
   // rejected, even when the main certificate chain keys are at least 1024 bits.
   add_ocsp_test("keysize-ocsp-delegated.example.com",
-                getXPCOMStatusFromNSS(MOZILLA_PKIX_ERROR_INADEQUATE_KEY_SIZE),
-                true);
+                getXPCOMStatusFromNSS(SEC_ERROR_INVALID_KEY), true);
 }
 
 function check_ocsp_stapling_telemetry() {

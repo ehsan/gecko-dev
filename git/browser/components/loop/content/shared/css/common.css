@@ -109,11 +109,6 @@ h1, h2, h3 {
   height: auto;
 }
 
-  .btn-large + .btn-chevron {
-    padding: 1rem;
-    height: 100%; /* match full height of button */
-  }
-
 /*
  * Left / Right padding elements
  * used to center components
@@ -138,20 +133,17 @@ h1, h2, h3 {
     border: 1px solid #006b9d;
   }
 
-.btn-success,
-.btn-success + .btn-chevron {
+.btn-success {
   background-color: #74bf43;
   border: 1px solid #74bf43;
 }
 
-  .btn-success:hover,
-  .btn-success + .btn-chevron:hover {
+  .btn-success:hover {
     background-color: #6cb23e;
     border: 1px solid #6cb23e;
   }
 
-  .btn-success:active,
-  .btn-success + .btn-chevron:active {
+  .btn-success:active {
     background-color: #64a43a;
     border: 1px solid #64a43a;
   }
@@ -242,8 +234,6 @@ h1, h2, h3 {
 
 .button-group .btn {
   flex: 1;
-  border-bottom-right-radius: 0;
-  border-top-right-radius: 0;
 }
 
 /* Alerts */
@@ -302,35 +292,23 @@ h1, h2, h3 {
   opacity: 0;
 }
 
-.icon,
-.icon-small,
-.icon-audio,
-.icon-video {
+.btn-large .icon {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
   background-size: 20px;
   background-repeat: no-repeat;
   vertical-align: top;
-  background-position: 80% center;
-}
-
-.icon-small {
-  background-size: 10px;
+  margin-left: 10px;
 }
 
 .icon-video {
   background-image: url("../img/video-inverse-14x14.png");
 }
 
-.icon-audio {
-  background-image: url("../img/audio-default-16x16@1.5x.png");
-}
-
 @media (min-resolution: 2dppx) {
   .icon-video {
     background-image: url("../img/video-inverse-14x14@2x.png");
-  }
-
-  .icon-audio {
-    background-image: url("../img/audio-default-16x16@2x.png");
   }
 }
 

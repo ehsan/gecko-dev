@@ -96,10 +96,8 @@
                                           NS_ERROR_INVALID_ARG));
 
       // Put cursor in an ignored subtree
-      // set isFromUserInput to false, just to test..
       gQueue.push(new setVCPosInvoker(docAcc, null, null,
-                                      getAccessible(doc.getElementById("hidden-link")),
-                                      false));
+                                      getAccessible(doc.getElementById("hidden-link"))));
       // Next item shoud be outside of that subtree
       gQueue.push(new setVCPosInvoker(docAcc, "moveNext", ObjectTraversalRule, "An "));
 

@@ -469,8 +469,7 @@ public:
   AccVCChangeEvent(Accessible* aAccessible,
                    nsIAccessible* aOldAccessible,
                    int32_t aOldStart, int32_t aOldEnd,
-                   int16_t aReason,
-                   EIsFromUserInput aIsFromUserInput = eFromUserInput);
+                   int16_t aReason);
 
   virtual ~AccVCChangeEvent() { }
 

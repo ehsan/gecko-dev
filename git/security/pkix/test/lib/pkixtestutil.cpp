@@ -25,7 +25,6 @@
 #include "pkixtestutil.h"
 
 #include <cerrno>
-#include <cstdio>
 #include <limits>
 #include <new>
 
@@ -35,6 +34,7 @@
 #include "pkix/pkixnss.h"
 #include "pkixder.h"
 #include "pkixutil.h"
+#include "prerror.h"
 #include "prinit.h"
 #include "prprf.h"
 #include "secder.h"
@@ -54,12 +54,7 @@ deleteCharArray(char* chars)
   delete[] chars;
 }
 
-inline void
-fclose_void(FILE* file) {
-  (void) fclose(file);
-}
-
-typedef mozilla::pkix::ScopedPtr<FILE, fclose_void> ScopedFILE;
+} // unnamed namespace
 
 FILE*
 OpenFile(const char* dir, const char* filename, const char* mode)
@@ -72,6 +67,7 @@ OpenFile(const char* dir, const char* filename, const char* mode)
   ScopedPtr<char, deleteCharArray>
     path(new (nothrow) char[strlen(dir) + 1 + strlen(filename) + 1]);
   if (!path) {
+    PR_SetError(SEC_ERROR_NO_MEMORY, 0);
     return nullptr;
   }
   strcpy(path.get(), dir);
@@ -85,17 +81,20 @@ OpenFile(const char* dir, const char* filename, const char* mode)
     errno_t error = fopen_s(&rawFile, path.get(), mode);
     if (error) {
       // TODO: map error to NSPR error code
+      PR_SetError(PR_FILE_NOT_FOUND_ERROR, error);
       rawFile = nullptr;
     }
     file = rawFile;
   }
 #else
   file = fopen(path.get(), mode);
+  if (!file) {
+    // TODO: map errno to NSPR error code
+    PR_SetError(PR_FILE_NOT_FOUND_ERROR, errno);
+  }
 #endif
   return file.release();
 }
-
-} // unnamed namespace
 
 Result
 TamperOnce(SECItem& item,
@@ -222,7 +221,8 @@ private:
         data[2] = length % 256;
         break;
       default:
-        abort();
+        PR_NOT_REACHED("EncodeLength: bad lengthLength");
+        PR_Abort();
     }
   }
 
@@ -291,7 +291,8 @@ HashAlgorithmToLength(SECOidTag hashAlg)
     case SEC_OID_SHA512:
       return SHA512_LENGTH;
     default:
-      abort();
+      PR_NOT_REACHED("HashAlgorithmToLength: bad hashAlg");
+      PR_Abort();
   }
   return 0;
 }
@@ -384,6 +385,7 @@ Integer(PLArenaPool* arena, long value)
 {
   if (value < 0 || value > 127) {
     // TODO: add encoding of larger values
+    PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
     return nullptr;
   }
 
@@ -426,6 +428,7 @@ PRTimeToEncodedTime(PLArenaPool* arena, PRTime time, TimeEncoding encoding)
 
   if (encoding == UTCTime &&
       (exploded.tm_year < 1950 || exploded.tm_year >= 2050)) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
 
@@ -512,6 +515,7 @@ SignedData(PLArenaPool* arena, const SECItem* tbsData,
   assert(tbsData);
   assert(privKey);
   if (!arena || !tbsData || !privKey) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
 
@@ -592,6 +596,7 @@ Extension(PLArenaPool* arena, SECOidTag extnIDTag,
 {
   assert(arena);
   if (!arena) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
 
@@ -729,6 +734,7 @@ CreateEncodedCertificate(PLArenaPool* arena, long version,
   assert(issuerNameDER);
   assert(subjectNameDER);
   if (!arena || !issuerNameDER || !subjectNameDER) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
 
@@ -789,6 +795,7 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
   assert(subject);
   assert(subjectPublicKey);
   if (!arena || !issuer || !subject || !subjectPublicKey) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
 
@@ -924,6 +931,7 @@ CreateEncodedBasicConstraints(PLArenaPool* arena, bool isCA,
 {
   assert(arena);
   if (!arena) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
 
@@ -957,6 +965,7 @@ CreateEncodedEKUExtension(PLArenaPool* arena, SECOidTag const* ekus,
   assert(arena);
   assert(ekus);
   if (!arena || (!ekus && ekusCount != 0)) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
 
@@ -981,11 +990,13 @@ SECItem*
 CreateEncodedOCSPResponse(OCSPResponseContext& context)
 {
   if (!context.arena) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
 
   if (!context.skipResponseBytes) {
     if (!context.signerPrivateKey) {
+      PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
       return nullptr;
     }
   }
@@ -1052,7 +1063,7 @@ ResponseBytes(OCSPResponseContext& context)
   SECItem id_pkix_ocsp_basic = {
     siBuffer,
     const_cast<uint8_t*>(id_pkix_ocsp_basic_encoded),
-    sizeof(id_pkix_ocsp_basic_encoded)
+    PR_ARRAY_SIZE(id_pkix_ocsp_basic_encoded)
   };
   SECItem* response = BasicOCSPResponse(context);
   if (!response) {
@@ -1110,7 +1121,7 @@ OCSPExtension(OCSPResponseContext& context, OCSPResponseExtension* extension)
     SECItem critical = {
       siBuffer,
       const_cast<uint8_t*>(trueEncoded),
-      sizeof(trueEncoded)
+      PR_ARRAY_SIZE(trueEncoded)
     };
     if (output.Add(&critical) != Success) {
       return nullptr;
@@ -1413,8 +1424,8 @@ CertStatus(OCSPResponseContext& context)
                           revocationTime);
     }
     default:
-      assert(false);
-      // fall through
+      PR_NOT_REACHED("CertStatus: bad context.certStatus");
+      PR_Abort();
   }
   return nullptr;
 }

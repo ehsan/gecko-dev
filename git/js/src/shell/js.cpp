@@ -175,8 +175,8 @@ static bool OOM_printAllocationCount = false;
 #endif
 
 enum JSShellErrNum {
-#define MSG_DEF(name, count, exception, format) \
-    name,
+#define MSG_DEF(name, number, count, exception, format) \
+    name = number,
 #include "jsshell.msg"
 #undef MSG_DEF
     JSShellErr_Limit
@@ -1056,9 +1056,7 @@ static bool
 CacheEntry_setBytecode(JSContext *cx, HandleObject cache, uint8_t *buffer, uint32_t length)
 {
     JS_ASSERT(CacheEntry_isCacheEntry(cache));
-    ArrayBufferObject::BufferContents contents =
-        ArrayBufferObject::BufferContents::create<ArrayBufferObject::PLAIN_BUFFER>(buffer);
-    Rooted<ArrayBufferObject*> arrayBuffer(cx, ArrayBufferObject::create(cx, length, contents));
+    Rooted<ArrayBufferObject*> arrayBuffer(cx, ArrayBufferObject::create(cx, length, buffer));
 
     if (!arrayBuffer || !ArrayBufferObject::ensureNonInline(cx, arrayBuffer))
         return false;
@@ -4904,7 +4902,7 @@ Help(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static const JSErrorFormatString jsShell_ErrorFormatString[JSShellErr_Limit] = {
-#define MSG_DEF(name, count, exception, format) \
+#define MSG_DEF(name, number, count, exception, format) \
     { format, count, JSEXN_ERR } ,
 #include "jsshell.msg"
 #undef MSG_DEF
@@ -5060,12 +5058,8 @@ env_enumerate(JSContext *cx, HandleObject obj)
 static bool
 env_resolve(JSContext *cx, HandleObject obj, HandleId id, MutableHandleObject objp)
 {
-    if (JSID_IS_SYMBOL(id))
-        return true;
-
-    RootedString idstring(cx, IdToString(cx, id));
-    if (!idstring)
-        return false;
+    RootedValue idvalue(cx, IdToValue(id));
+    RootedString idstring(cx, ToString(cx, idvalue));
     JSAutoByteString idstr;
     if (!idstr.encodeLatin1(cx, idstring))
         return false;

@@ -229,8 +229,7 @@ public:
     // queued buffers will be acquired in order.  In asynchronous mode,
     // a queued buffer may be replaced by a subsequently queued buffer.
     //
-    // The default mode is synchronous.
-    // This should be called only during initialization.
+    // The default mode is asynchronous.
     virtual status_t setSynchronousMode(bool enabled);
 
     // connect attempts to connect a producer API to the GonkBufferQueue.  This
