@@ -6,22 +6,10 @@ from __future__ import unicode_literals
 
 import os
 
-from mozbuild.base import MozbuildObject
-
-from moztesting.util import parse_test_path
-
-from mach.base import (
-    CommandArgument,
-    CommandProvider,
-    Command,
-)
+from mozbuild.testing.test import TestRunner
 
 
-generic_help = 'Test to run. Can be specified as a single file, a ' +\
-'directory, or omitted. If omitted, the entire test suite is executed.'
-
-
-class ReftestRunner(MozbuildObject):
+class ReftestRunner(TestRunner):
     """Easily run reftests.
 
     This currently contains just the basics for running reftests. We may want
@@ -39,7 +27,7 @@ class ReftestRunner(MozbuildObject):
 
     def _find_manifest(self, suite, test_file):
         assert test_file
-        parsed = parse_test_path(test_file, self.topsrcdir)
+        parsed = self._parse_test_path(test_file)
         if parsed['is_dir']:
             return os.path.join(parsed['normalized'], self._manifest_file(suite))
 
@@ -72,24 +60,3 @@ class ReftestRunner(MozbuildObject):
 
         # TODO hook up harness via native Python
         self._run_make(directory='.', target=suite, append_env=env)
-
-
-@CommandProvider
-class MachCommands(MozbuildObject):
-    @Command('reftest', help='Run a reftest.')
-    @CommandArgument('test_file', default=None, nargs='?', metavar='TEST',
-        help=generic_help)
-    def run_reftest(self, test_file):
-        self._run_reftest(test_file, 'reftest')
-
-    @Command('crashtest', help='Run a crashtest.')
-    @CommandArgument('test_file', default=None, nargs='?', metavar='TEST',
-        help=generic_help)
-    def run_crashtest(self, test_file):
-        self._run_reftest(test_file, 'crashtest')
-
-    def _run_reftest(self, test_file, flavor):
-        reftest = self._spawn(ReftestRunner)
-        reftest.run_reftest_test(test_file, flavor)
-
-
