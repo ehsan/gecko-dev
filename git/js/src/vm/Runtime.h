@@ -63,13 +63,13 @@ extern mozilla::ThreadLocal<PerThreadData*> TlsPerThreadData;
 
 struct DtoaState;
 
-extern MOZ_COLD void
+extern void
 js_ReportOutOfMemory(js::ExclusiveContext *cx);
 
-extern MOZ_COLD void
+extern void
 js_ReportAllocationOverflow(js::ExclusiveContext *maybecx);
 
-extern MOZ_COLD void
+extern void
 js_ReportOverRecursed(js::ExclusiveContext *cx);
 
 namespace js {

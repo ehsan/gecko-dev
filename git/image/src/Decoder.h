@@ -403,13 +403,6 @@ protected:
   bool NeedsToFlushData() const { return mNeedsToFlushData; }
 
   /**
-   * CompleteDecode() finishes up the decoding process after Decode() determines
-   * that we're finished. It records final progress and does all the cleanup
-   * that's possible off-main-thread.
-   */
-  void CompleteDecode();
-
-  /**
    * Ensures that a given frame number exists with the given parameters, and
    * returns a RawAccessFrameRef for that frame.
    * It is not possible to create sparse frame arrays; you can only append
@@ -464,7 +457,6 @@ protected:
   bool mDecodeDone;
   bool mDataError;
   bool mDecodeAborted;
-  bool mShouldReportError;
   bool mImageIsTransient;
   bool mImageIsLocked;
 

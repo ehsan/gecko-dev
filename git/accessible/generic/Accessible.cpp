@@ -109,7 +109,6 @@ Accessible::Accessible(nsIContent* aContent, DocAccessible* aDoc) :
   mStateFlags(0), mContextFlags(0), mType(0), mGenericTypes(0),
   mIndexOfEmbeddedChild(-1), mRoleMapEntry(nullptr)
 {
-  mBits.groupInfo = nullptr;
 #ifdef NS_DEBUG_X
    {
      nsCOMPtr<nsIPresShell> shell(do_QueryReferent(aShell));
@@ -1950,11 +1949,7 @@ Accessible::UnbindFromParent()
   mParent = nullptr;
   mIndexInParent = -1;
   mIndexOfEmbeddedChild = -1;
-  if (IsProxy())
-    MOZ_CRASH("this should never be called on proxy wrappers");
-
-  delete mBits.groupInfo;
-  mBits.groupInfo = nullptr;
+  mGroupInfo = nullptr;
   mContextFlags &= ~eHasNameDependentParent;
 }
 
@@ -2530,20 +2525,17 @@ Accessible::GetActionRule() const
 AccGroupInfo*
 Accessible::GetGroupInfo()
 {
-  if (IsProxy())
-    MOZ_CRASH("This should never be called on proxy wrappers");
-
-  if (mBits.groupInfo){
+  if (mGroupInfo){
     if (HasDirtyGroupInfo()) {
-      mBits.groupInfo->Update();
+      mGroupInfo->Update();
       SetDirtyGroupInfo(false);
     }
 
-    return mBits.groupInfo;
+    return mGroupInfo;
   }
 
-  mBits.groupInfo = AccGroupInfo::CreateGroupInfo(this);
-  return mBits.groupInfo;
+  mGroupInfo = AccGroupInfo::CreateGroupInfo(this);
+  return mGroupInfo;
 }
 
 void

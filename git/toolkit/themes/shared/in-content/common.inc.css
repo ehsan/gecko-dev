@@ -383,23 +383,23 @@ xul|textbox[disabled="true"] {
 /* Links */
 
 html|a,
-.text-link,
-.inline-link {
+xul|*.text-link,
+xul|*.inline-link {
   line-height: 22px;
   color: #0095dd;
   text-decoration: none;
 }
 
 html|a:hover,
-.text-link:hover,
-.inline-link:hover {
-  color: #178ce5;
-  text-decoration: underline;
+xul|*.text-link:hover,
+xul|*.inline-link:hover {
+  color: #4cb1ff;
+  text-decoration: none;
 }
 
 html|a:hover:active,
-.text-link:hover:active,
-.inline-link:hover:active {
+xul|*.text-link:hover:active,
+xul|*.inline-link:hover:active {
   color: #ff9500;
   text-decoration: none;
 }

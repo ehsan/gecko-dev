@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <stdarg.h>
 
+#include "JavaScriptParent.h"
+
 #include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Assertions.h"
@@ -42,7 +44,6 @@
 #include "mozilla/dom/HTMLEmbedElementBinding.h"
 #include "mozilla/dom/HTMLAppletElementBinding.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "WorkerPrivate.h"
 #include "nsDOMClassInfo.h"
 

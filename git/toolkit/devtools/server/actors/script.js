@@ -2730,10 +2730,12 @@ SourceActor.prototype = {
   },
 
   _createBreakpoint: function(loc, originalLoc, condition) {
-    return this.setBreakpoint({
-      line: loc.line,
-      column: loc.column,
-    }, condition).then(response => {
+    return resolve(null).then(() => {
+      return this.setBreakpoint({
+        line: loc.line,
+        column: loc.column,
+      }, condition);
+    }).then(response => {
       var actual = response.actualLocation;
       if (actual) {
         if (this.source) {
@@ -2930,9 +2932,9 @@ SourceActor.prototype = {
       // store and the breakpoint will be set at that time. This is similar to
       // GDB's "pending" breakpoints for shared libraries that aren't loaded
       // yet.
-      return Promise.resolve({
+      return {
         actor: actor.actorID
-      });
+      }
     }
 
     // Ignore scripts for which the BreakpointActor is already a breakpoint
@@ -2940,7 +2942,7 @@ SourceActor.prototype = {
     scripts = scripts.filter((script) => !actor.hasScript(script));
 
     if (location.column) {
-      return Promise.resolve(this._setBreakpointAtColumn(scripts, location, actor));
+      return this._setBreakpointAtColumn(scripts, location, actor);
     }
 
     let result;
@@ -2964,10 +2966,10 @@ SourceActor.prototype = {
     }
 
     if (!result) {
-      return Promise.resolve({
+      return {
         error: "noCodeAtLineColumn",
         actor: actor.actorID
-      });
+      };
     }
 
     const { line, entryPoints } = result;
@@ -2985,10 +2987,10 @@ SourceActor.prototype = {
       if (existingActor) {
         actor.onDelete();
         this.breakpointActorMap.deleteActor(location);
-        return Promise.resolve({
+        return {
           actor: existingActor.actorID,
           actualLocation
-        });
+        };
       } else {
         actor.location = actualLocation;
         actor.location = {
@@ -3002,10 +3004,10 @@ SourceActor.prototype = {
 
     setBreakpointOnEntryPoints(this.threadActor, actor, entryPoints);
 
-    return Promise.resolve({
+    return {
       actor: actor.actorID,
       actualLocation
-    });
+    };
   },
 
   /**

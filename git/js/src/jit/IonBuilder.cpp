@@ -5381,10 +5381,6 @@ IonBuilder::createThisScriptedSingleton(JSFunction *target, MDefinition *callee)
     if (!templateObject->hasTenuredProto() || templateObject->getProto() != proto)
         return nullptr;
 
-    types::TypeObjectKey *templateObjectType = types::TypeObjectKey::get(templateObject->type());
-    if (templateObjectType->hasFlags(constraints(), types::OBJECT_FLAG_NEW_SCRIPT_CLEARED))
-        return nullptr;
-
     types::StackTypeSet *thisTypes = types::TypeScript::ThisTypes(target->nonLazyScript());
     if (!thisTypes || !thisTypes->hasType(types::Type::ObjectType(templateObject)))
         return nullptr;
@@ -7556,7 +7552,7 @@ IonBuilder::pushReferenceLoadFromTypedObject(MDefinition *typedObj,
 
     types::TemporaryTypeSet *observedTypes = bytecodeTypes(pc);
 
-    MInstruction *load = nullptr;  // initialize to silence GCC warning
+    MInstruction *load;
     BarrierKind barrier = PropertyReadNeedsTypeBarrier(analysisContext, constraints(),
                                                        typedObj, name, observedTypes);
 
@@ -11638,7 +11634,7 @@ IonBuilder::storeReferenceTypedObjectValue(MDefinition *typedObj,
     size_t alignment = ReferenceTypeDescr::alignment(type);
     loadTypedObjectElements(typedObj, byteOffset, alignment, &elements, &scaledOffset, &adjustment);
 
-    MInstruction *store = nullptr;  // initialize to silence GCC warning
+    MInstruction *store;
     switch (type) {
       case ReferenceTypeDescr::TYPE_ANY:
         if (NeedsPostBarrier(info(), value))

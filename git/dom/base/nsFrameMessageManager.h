@@ -28,7 +28,6 @@
 #include "js/RootingAPI.h"
 #include "nsTObserverArray.h"
 #include "mozilla/dom/StructuredCloneUtils.h"
-#include "mozilla/jsipc/CpowHolder.h"
 
 namespace mozilla {
 namespace dom {
@@ -135,8 +134,13 @@ struct nsMessageListenerInfo
   nsWeakPtr mWeakListener;
 };
 
+class CpowHolder
+{
+public:
+  virtual bool ToObject(JSContext* cx, JS::MutableHandle<JSObject*> objp) = 0;
+};
 
-class MOZ_STACK_CLASS SameProcessCpowHolder : public mozilla::jsipc::CpowHolder
+class MOZ_STACK_CLASS SameProcessCpowHolder : public CpowHolder
 {
 public:
   SameProcessCpowHolder(JSRuntime *aRuntime, JS::Handle<JSObject*> aObj)
@@ -226,7 +230,7 @@ public:
 
   nsresult ReceiveMessage(nsISupports* aTarget, const nsAString& aMessage,
                           bool aIsSync, const StructuredCloneData* aCloneData,
-                          mozilla::jsipc::CpowHolder* aCpows, nsIPrincipal* aPrincipal,
+                          CpowHolder* aCpows, nsIPrincipal* aPrincipal,
                           InfallibleTArray<nsString>* aJSONRetVal);
 
   void AddChildManager(nsFrameMessageManager* aManager);

@@ -5419,7 +5419,7 @@ UpdateFrameIterPc(FrameIter &iter)
         jit::JitFrameLayout *jsFrame = (jit::JitFrameLayout *)frame->top();
         jit::JitActivation *activation = iter.activation()->asJit();
 
-        ActivationIterator activationIter(activation->cx()->runtime());
+        ActivationIterator activationIter(activation->cx()->perThreadData);
         while (activationIter.activation() != activation)
             ++activationIter;
 
@@ -7371,11 +7371,12 @@ DebuggerEnv_find(JSContext *cx, unsigned argc, Value *vp)
 
         /* This can trigger resolve hooks. */
         ErrorCopier ec(ac);
-        bool found;
-        for (; env; env = env->enclosingScope()) {
-            if (!HasProperty(cx, env, id, &found))
+        RootedShape prop(cx);
+        RootedObject pobj(cx);
+        for (; env && !prop; env = env->enclosingScope()) {
+            if (!LookupProperty(cx, env, id, &pobj, &prop))
                 return false;
-            if (found)
+            if (prop)
                 break;
         }
     }

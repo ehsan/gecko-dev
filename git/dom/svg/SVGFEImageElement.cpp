@@ -306,7 +306,9 @@ SVGFEImageElement::OutputIsTainted(const nsTArray<bool>& aInputsAreTainted,
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
 SVGFEImageElement::PreserveAspectRatio()
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(this);
+  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
+  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
+  return ratio.forget();
 }
 
 SVGAnimatedPreserveAspectRatio *
