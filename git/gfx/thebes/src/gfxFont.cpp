@@ -111,7 +111,7 @@ const nsString& gfxFontEntry::FamilyName()
 }
 
 already_AddRefed<gfxFont>
-gfxFontEntry::FindOrMakeFont(const gfxFontStyle *aStyle, PRBool aNeedsBold)
+gfxFontEntry::GetOrMakeFont(const gfxFontStyle *aStyle, PRBool aNeedsBold)
 {
     // the font entry name is the psname, not the family name
     nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(Name(), aStyle);
@@ -1428,7 +1428,7 @@ gfxFontGroup::gfxFontGroup(const nsAString& aFamilies, const gfxFontStyle *aStyl
             gfxPlatformFontList::PlatformFontList()->GetDefaultFont(aStyle, needsBold);
         NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
 
-        nsRefPtr<gfxFont> font = defaultFont->FindOrMakeFont(aStyle, needsBold);
+        nsRefPtr<gfxFont> font = defaultFont->GetOrMakeFont(aStyle, needsBold);
         if (font) {
             mFonts.AppendElement(font);
         }
@@ -1476,7 +1476,7 @@ gfxFontGroup::FindPlatformFont(const nsAString& aName,
 
     // add to the font group, unless it's already there
     if (fe && !fontGroup->HasFont(fe)) {
-        nsRefPtr<gfxFont> font = fe->FindOrMakeFont(fontStyle, needsBold);
+        nsRefPtr<gfxFont> font = fe->GetOrMakeFont(fontStyle, needsBold);
         if (font) {
             fontGroup->mFonts.AppendElement(font);
         }
@@ -2086,7 +2086,7 @@ gfxFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
 
             // if a pref font is used, it's likely to be used again in the same text run.
             // the style doesn't change so the face lookup can be cached rather than calling
-            // FindOrMakeFont repeatedly.  speeds up FindFontForChar lookup times for subsequent
+            // GetOrMakeFont repeatedly.  speeds up FindFontForChar lookup times for subsequent
             // pref font lookups
             if (family == mLastPrefFamily && mLastPrefFont->HasCharacter(aCh)) {
                 font = mLastPrefFont;
@@ -2098,7 +2098,7 @@ gfxFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
             gfxFontEntry *fe = family->FindFontForStyle(mStyle, needsBold);
             // if ch in cmap, create and return a gfxFont
             if (fe && fe->TestCharacterMap(aCh)) {
-                nsRefPtr<gfxFont> prefFont = fe->FindOrMakeFont(&mStyle, needsBold);
+                nsRefPtr<gfxFont> prefFont = fe->GetOrMakeFont(&mStyle, needsBold);
                 if (!prefFont) continue;
                 mLastPrefFamily = family;
                 mLastPrefFont = prefFont;
@@ -2119,7 +2119,7 @@ gfxFontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
     gfxFontEntry *fe = 
         gfxPlatformFontList::PlatformFontList()->FindFontForChar(aCh, GetFontAt(0));
     if (fe) {
-        nsRefPtr<gfxFont> font = fe->FindOrMakeFont(&mStyle, PR_FALSE); // ignore bolder considerations in system fallback case...
+        nsRefPtr<gfxFont> font = fe->GetOrMakeFont(&mStyle, PR_FALSE); // ignore bolder considerations in system fallback case...
         return font.forget();
     }
 
@@ -2216,90 +2216,46 @@ AccountStorageForTextRun(gfxTextRun *aTextRun, PRInt32 aSign)
     // Also ignores GlyphRun array, again because it hasn't been constructed
     // by the time this gets called. If there's only one glyphrun that's stored
     // directly in the textrun anyway so no additional overhead.
-    PRUint32 length = aTextRun->GetLength();
-    PRInt32 bytes = length * sizeof(gfxTextRun::CompressedGlyph);
+    PRInt32 bytesPerChar = sizeof(gfxTextRun::CompressedGlyph);
     if (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_PERSISTENT) {
-      bytes += length * ((aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_8BIT) ? 1 : 2);
-      bytes += sizeof(gfxTextRun::CompressedGlyph) - 1;
-      bytes &= ~(sizeof(gfxTextRun::CompressedGlyph) - 1);
+      bytesPerChar += (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_8BIT) ? 1 : 2;
     }
-    bytes += sizeof(gfxTextRun);
+    PRInt32 bytes = sizeof(gfxTextRun) + aTextRun->GetLength()*bytesPerChar;
     gTextRunStorage += bytes*aSign;
     gTextRunStorageHighWaterMark = PR_MAX(gTextRunStorageHighWaterMark, gTextRunStorage);
 }
 #endif
 
-// Helper for textRun creation to preallocate storage for glyphs and text;
-// this function returns a pointer to the newly-allocated glyph storage,
-// AND modifies the aText parameter if TEXT_IS_PERSISTENT was not set.
-// In that case, the text is appended to the glyph storage, so a single
-// delete[] operation in the textRun destructor will free both.
-// Returns nsnull if allocation fails.
-gfxTextRun::CompressedGlyph *
-gfxTextRun::AllocateStorage(const void*& aText, PRUint32 aLength, PRUint32 aFlags)
-{
-    // Here, we rely on CompressedGlyph being the largest unit we care about for
-    // allocation/alignment of either glyph data or text, so we allocate an array
-    // of CompressedGlyphs, then take the last chunk of that and cast a pointer to
-    // PRUint8* or PRUnichar* for text storage.
-
-    // always need to allocate storage for the glyph data
-    PRUint64 allocCount = aLength;
-
-    // if the text is not persistent, we also need space for a copy
-    if (!(aFlags & gfxTextRunFactory::TEXT_IS_PERSISTENT)) {
-        // figure out number of extra CompressedGlyph elements we need to
-        // get sufficient space for the text
-        if (aFlags & gfxTextRunFactory::TEXT_IS_8BIT) {
-            allocCount += (aLength + sizeof(CompressedGlyph)-1)
-                          / sizeof(CompressedGlyph);
-        } else {
-            allocCount += (aLength*sizeof(PRUnichar) + sizeof(CompressedGlyph)-1)
-                          / sizeof(CompressedGlyph);
-        }
-    }
-
-    // allocate the storage we need, returning nsnull on failure rather than
-    // throwing an exception (because web content can create huge runs)
-    CompressedGlyph *storage = new (std::nothrow) CompressedGlyph[allocCount];
-    if (!storage) {
-        NS_WARNING("failed to allocate glyph/text storage for text run!");
-        return nsnull;
-    }
-
-    // copy the text if we need to keep a copy in the textrun
-    if (!(aFlags & gfxTextRunFactory::TEXT_IS_PERSISTENT)) {
-        if (aFlags & gfxTextRunFactory::TEXT_IS_8BIT) {
-            PRUint8 *newText = reinterpret_cast<PRUint8*>(storage + aLength);
-            memcpy(newText, aText, aLength);
-            aText = newText;
-        } else {
-            PRUnichar *newText = reinterpret_cast<PRUnichar*>(storage + aLength);
-            memcpy(newText, aText, aLength*sizeof(PRUnichar));
-            aText = newText;
-        }
-    }
-
-    return storage;
-}
-
 gfxTextRun *
 gfxTextRun::Create(const gfxTextRunFactory::Parameters *aParams, const void *aText,
                    PRUint32 aLength, gfxFontGroup *aFontGroup, PRUint32 aFlags)
 {
-    CompressedGlyph *glyphStorage = AllocateStorage(aText, aLength, aFlags);
-    if (!glyphStorage) {
-        return nsnull;
+    return new (aLength, aFlags)
+        gfxTextRun(aParams, aText, aLength, aFontGroup, aFlags, sizeof(gfxTextRun));
+}
+
+void *
+gfxTextRun::operator new(size_t aSize, PRUint32 aLength, PRUint32 aFlags)
+{
+    NS_ASSERTION(aSize % sizeof(CompressedGlyph) == 0, "Alignment broken!");
+    aSize += sizeof(CompressedGlyph)*aLength;
+    if (!(aFlags & gfxTextRunFactory::TEXT_IS_PERSISTENT)) {
+        NS_ASSERTION(aSize % 2 == 0, "Alignment broken!");
+        aSize += ((aFlags & gfxTextRunFactory::TEXT_IS_8BIT) ? 1 : 2)*aLength;
     }
 
-    return new gfxTextRun(aParams, aText, aLength, aFontGroup, aFlags, glyphStorage);
+    return new PRUint8[aSize];
+}
+
+void gfxTextRun::operator delete(void *p)
+{
+    delete[] static_cast<PRUint8*>(p);
 }
 
 gfxTextRun::gfxTextRun(const gfxTextRunFactory::Parameters *aParams, const void *aText,
                        PRUint32 aLength, gfxFontGroup *aFontGroup, PRUint32 aFlags,
-                       CompressedGlyph *aGlyphStorage)
-  : mCharacterGlyphs(aGlyphStorage),
-    mUserData(aParams->mUserData),
+                       PRUint32 aObjectSize)
+  : mUserData(aParams->mUserData),
     mFontGroup(aFontGroup),
     mAppUnitsPerDevUnit(aParams->mAppUnitsPerDevUnit),
     mFlags(aFlags), mCharacterCount(aLength), mHashCode(0)
@@ -2311,10 +2267,24 @@ gfxTextRun::gfxTextRun(const gfxTextRunFactory::Parameters *aParams, const void 
         mSkipChars.TakeFrom(aParams->mSkipChars);
     }
 
+    mCharacterGlyphs = reinterpret_cast<CompressedGlyph*>
+        (reinterpret_cast<PRUint8*>(this) + aObjectSize);
+    memset(mCharacterGlyphs, 0, sizeof(CompressedGlyph)*aLength);
+
     if (mFlags & gfxTextRunFactory::TEXT_IS_8BIT) {
         mText.mSingle = static_cast<const PRUint8 *>(aText);
+        if (!(mFlags & gfxTextRunFactory::TEXT_IS_PERSISTENT)) {
+            PRUint8 *newText = reinterpret_cast<PRUint8*>(mCharacterGlyphs + aLength);
+            memcpy(newText, aText, aLength);
+            mText.mSingle = newText;    
+        }
     } else {
         mText.mDouble = static_cast<const PRUnichar *>(aText);
+        if (!(mFlags & gfxTextRunFactory::TEXT_IS_PERSISTENT)) {
+            PRUnichar *newText = reinterpret_cast<PRUnichar*>(mCharacterGlyphs + aLength);
+            memcpy(newText, aText, aLength*sizeof(PRUnichar));
+            mText.mDouble = newText;    
+        }
     }
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
     AccountStorageForTextRun(this, 1);
@@ -2332,11 +2302,6 @@ gfxTextRun::~gfxTextRun()
     // Make it easy to detect a dead text run
     mFlags = 0xFFFFFFFF;
 #endif
-
-    // this will also delete the text, if it is owned by the run,
-    // because we merge the storage allocations
-    delete [] mCharacterGlyphs;
-
     NS_RELEASE(mFontGroup);
     MOZ_COUNT_DTOR(gfxTextRun);
 }
