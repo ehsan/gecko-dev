@@ -6,7 +6,7 @@
 
 PROGRAM = 'webapprt-stub'
 
-SOURCES += [
+CMMSRCS += [
     'webapprt.mm',
 ]
 

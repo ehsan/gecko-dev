@@ -8,7 +8,7 @@ TEST_TOOL_DIRS += ['chrome']
 
 MODULE = 'layout'
 
-HOST_SOURCES += [
+HOST_CPPSRCS += [
     'ListCSSProperties.cpp',
 ]
 

@@ -89,10 +89,10 @@ EXPORTS.mozilla.threads += [
 
 include('objs.mozbuild')
 
-SOURCES += xpcom_gluens_src_cppsrcs
-SOURCES += xpcom_glue_src_cppsrcs
+CPP_SOURCES += xpcom_gluens_src_cppsrcs
+CPP_SOURCES += xpcom_glue_src_cppsrcs
 
-SOURCES += [
+CPP_SOURCES += [
     'GenericModule.cpp',
     'nsStringAPI.cpp',
 ]

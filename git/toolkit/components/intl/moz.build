@@ -6,7 +6,7 @@
 
 MODULE = 'intl'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsCharsetMenu.cpp',
 ]
 

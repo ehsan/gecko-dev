@@ -112,9 +112,6 @@ nsLookAndFeelIntPref nsXPLookAndFeel::sIntPrefs[] =
   { "ui.tooltipDelay",
     eIntID_TooltipDelay,
     false, 0 },
-  { "ui.physicalHomeButton",
-    eIntID_PhysicalHomeButton,
-    false, 0 },
 };
 
 nsLookAndFeelFloatPref nsXPLookAndFeel::sFloatPrefs[] =

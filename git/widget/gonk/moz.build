@@ -23,7 +23,7 @@ EXPORTS += [
 DIRS += ['libdisplay', 'nativewindow']
 
 # libui files
-SOURCES += ['libui/' + src for src in [
+CPP_SOURCES += ['libui/' + src for src in [
     'EventHub.cpp',
     'Input.cpp',
     'InputApplication.cpp',
@@ -44,7 +44,7 @@ SOURCES += ['libui/' + src for src in [
     'VirtualKeyMap.cpp',
 ]]
 
-SOURCES += [
+CPP_SOURCES += [
     'Framebuffer.cpp',
     'GfxInfo.cpp',
     'GonkMemoryPressureMonitoring.cpp',
@@ -64,6 +64,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'widget_gonk'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -18,6 +18,7 @@ DEFINES += -DMOZ_ANDROID_OMTC
 endif
 
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 DEFINES := $(filter-out -DUNICODE,$(DEFINES))
 

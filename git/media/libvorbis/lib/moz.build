@@ -8,7 +8,7 @@ MODULE = 'vorbis'
 
 LIBRARY_NAME = 'vorbis'
 
-SOURCES += [
+CSRCS += [
     'vorbis_analysis.c',
     'vorbis_bitrate.c',
     'vorbis_block.c',

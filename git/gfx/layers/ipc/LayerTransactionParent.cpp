@@ -489,7 +489,7 @@ LayerTransactionParent::RecvGetTransform(PLayerParent* aParent,
   }
   float scale = 1;
   gfxPoint3D scaledOrigin;
-  gfxPoint3D transformOrigin;
+  gfxPoint3D mozOrigin;
   for (uint32_t i=0; i < layer->GetAnimations().Length(); i++) {
     if (layer->GetAnimations()[i].data().type() == AnimationData::TTransformData) {
       const TransformData& data = layer->GetAnimations()[i].data().get_TransformData();
@@ -498,13 +498,13 @@ LayerTransactionParent::RecvGetTransform(PLayerParent* aParent,
         gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(data.origin().x, scale)),
                    NS_round(NSAppUnitsToFloatPixels(data.origin().y, scale)),
                    0.0f);
-      transformOrigin = data.transformOrigin();
+      mozOrigin = data.mozOrigin();
       break;
     }
   }
 
   aTransform->Translate(-scaledOrigin);
-  *aTransform = nsLayoutUtils::ChangeMatrixBasis(-scaledOrigin - transformOrigin, *aTransform);
+  *aTransform = nsLayoutUtils::ChangeMatrixBasis(-scaledOrigin - mozOrigin, *aTransform);
   return true;
 }
 

@@ -12,7 +12,7 @@ EXPORTS += [
 
 LIBRARY_NAME = 'mozsqlite3'
 
-SOURCES += [
+CSRCS += [
     'sqlite3.c',
 ]
 

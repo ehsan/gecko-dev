@@ -14,7 +14,7 @@ XPIDL_MODULE = 'services-crypto-component'
 
 MODULE = 'services-crypto'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsSyncJPAKE.cpp',
 ]
 

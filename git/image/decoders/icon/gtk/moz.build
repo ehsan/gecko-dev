@@ -6,7 +6,7 @@
 
 MODULE = 'imgicon'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsIconChannel.cpp',
 ]
 

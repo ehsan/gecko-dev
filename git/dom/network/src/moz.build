@@ -13,7 +13,7 @@ EXPORTS.mozilla.dom.network += [
     'Types.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'Connection.cpp',
     'TCPServerSocketChild.cpp',
     'TCPServerSocketParent.cpp',
@@ -22,7 +22,7 @@ SOURCES += [
 ]
 
 if CONFIG['MOZ_B2G_RIL']:
-    SOURCES += [
+    CPP_SOURCES += [
         'MobileConnection.cpp',
     ]
     EXTRA_JS_MODULES = [
@@ -58,6 +58,4 @@ FAIL_ON_WARNINGS = True
 LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'dom_network_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

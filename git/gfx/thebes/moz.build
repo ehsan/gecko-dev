@@ -59,7 +59,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
         'gfxFT2Fonts.h',
         'gfxPDFSurface.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'gfxAndroidPlatform.cpp',
         'gfxFT2FontBase.cpp',
         'gfxFT2FontList.cpp',
@@ -75,7 +75,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
         'gfxFT2Fonts.h',
         'gfxPDFSurface.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'gfxAndroidPlatform.cpp',
         'gfxFT2FontBase.cpp',
         'gfxFT2FontList.cpp',
@@ -91,7 +91,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
         'gfxQuartzNativeDrawing.h',
         'gfxQuartzSurface.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'gfxCoreTextShaper.cpp',
         'gfxMacFont.cpp',
         'gfxPlatformMac.cpp',
@@ -109,7 +109,7 @@ elif CONFIG['MOZ_WIDGET_GTK']:
         'gfxPSSurface.h',
     ]
 
-    SOURCES += [
+    CPP_SOURCES += [
         'gfxFontconfigUtils.cpp',
         'gfxFT2FontBase.cpp',
         'gfxFT2Utils.cpp',
@@ -125,19 +125,19 @@ elif CONFIG['MOZ_WIDGET_GTK']:
             'gfxXlibNativeRenderer.h',
             'gfxXlibSurface.h',
         ]
-        SOURCES += [
+        CPP_SOURCES += [
             'gfxXlibNativeRenderer.cpp',
             'gfxXlibSurface.cpp',
         ]
 
     if CONFIG['MOZ_PANGO']:
         EXPORTS += ['gfxPangoFonts.h']
-        SOURCES += [
+        CPP_SOURCES += [
             'gfxPangoFonts.cpp',
         ]
     else:
         EXPORTS += ['gfxFT2Fonts.h']
-        SOURCES += [
+        CPP_SOURCES += [
             'gfxPangoFonts.cpp',
         ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
@@ -147,7 +147,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
         'gfxOS2Surface.h',
         'gfxPDFSurface.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'gfxFontconfigUtils.cpp',
         'gfxOS2Fonts.cpp',
         'gfxOS2Platform.cpp',
@@ -163,7 +163,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
         'gfxQtNativeRenderer.h',
         'gfxQtPlatform.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'gfxFontconfigUtils.cpp',
         'gfxFT2FontBase.cpp',
         'gfxFT2Utils.cpp',
@@ -177,19 +177,19 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
         EXPORTS += [
             'gfxXlibSurface.h',
         ]
-        SOURCES += [
+        CPP_SOURCES += [
             'gfxQtNativeRenderer.cpp',
             'gfxXlibSurface.cpp',
         ]
 
     if CONFIG['MOZ_PANGO']:
         EXPORTS += ['gfxPangoFonts.h']
-        SOURCES += [
+        CPP_SOURCES += [
             'gfxPangoFonts.cpp',
         ]
     else:
         EXPORTS += ['gfxFT2Fonts.h']
-        SOURCES += [
+        CPP_SOURCES += [
             'gfxFT2Fonts.cpp',
         ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
@@ -204,7 +204,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'gfxWindowsPlatform.h',
         'gfxWindowsSurface.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'gfxGDIFont.cpp',
         'gfxGDIFontList.cpp',
         'gfxGDIShaper.cpp',
@@ -216,7 +216,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'nsUnicodeRange.cpp',
     ]
     if CONFIG['MOZ_ENABLE_DWRITE_FONT']:
-        SOURCES += [
+        CPP_SOURCES += [
             'gfxD2DSurface.cpp',
             'gfxDWriteCommon.cpp',
             'gfxDWriteFontList.cpp',
@@ -227,11 +227,11 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
 
 # Are we targeting x86 or x64?  If so, build gfxAlphaRecoverySSE2.cpp.
 if CONFIG['INTEL_ARCHITECTURE']:
-    SOURCES += [
+    CPP_SOURCES += [
         'gfxAlphaRecoverySSE2.cpp',
     ]
 
-SOURCES += [
+CPP_SOURCES += [
     'gfx3DMatrix.cpp',
     'gfxAlphaRecovery.cpp',
     'gfxASurface.cpp',
@@ -266,7 +266,7 @@ SOURCES += [
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CMMSRCS += [
         'gfxMacPlatformFontList.mm',
     ]
 
@@ -279,6 +279,4 @@ MSVC_ENABLE_PGO = True
 LIBRARY_NAME = 'thebes'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

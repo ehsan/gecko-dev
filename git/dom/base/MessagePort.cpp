@@ -245,7 +245,8 @@ PostMessageRunnable::Run()
     scInfo.mEvent = this;
     scInfo.mPort = mPort;
 
-    if (!buffer.read(cx, &messageData, &kPostMessageCallbacks, &scInfo)) {
+    if (!buffer.read(cx, messageData.address(), &kPostMessageCallbacks,
+                     &scInfo)) {
       return NS_ERROR_DOM_DATA_CLONE_ERR;
     }
   }

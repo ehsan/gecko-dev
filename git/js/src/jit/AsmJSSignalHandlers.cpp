@@ -159,7 +159,7 @@ RuntimeForCurrentThread()
     if (!threadData)
         return nullptr;
 
-    return threadData->runtimeIfOnOwnerThread();
+    return threadData->runtimeFromMainThread();
 }
 #endif // !defined(XP_MACOSX)
 

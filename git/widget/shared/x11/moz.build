@@ -6,7 +6,7 @@
 
 MODULE = 'widget'
 
-SOURCES += [
+CSRCS += [
     'keysym2ucs.c',
 ]
 

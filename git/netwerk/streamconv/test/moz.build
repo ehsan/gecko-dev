@@ -8,7 +8,7 @@ MODULE = 'TestStreamConv'
 
 PROGRAM = 'TestStreamConv'
 
-SOURCES += [
+CPP_SOURCES += [
     'Converters.cpp',
     'TestStreamConv.cpp',
 ]

@@ -810,18 +810,22 @@ EnsureCanEnterIon(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *frame
 // The following data is kept in a temporary heap-allocated buffer, stored in
 // IonRuntime (high memory addresses at top, low at bottom):
 //
-//     +----->+=================================+  --      <---- High Address
+//            +=================================+  --      <---- High Address
+//            |                                 |   |
+//            |     ...Locals/Stack...          |   |
+//            |                                 |   |
+//            +---------------------------------+   |
+//            |                                 |   |
+//            |     ...StackFrame...            |   |-- Fake StackFrame
+//            |                                 |   |
+//     +----> +---------------------------------+   |
 //     |      |                                 |   |
-//     |      |     ...BaselineFrame...         |   |-- Copy of BaselineFrame + stack values
-//     |      |                                 |   |
-//     |      +---------------------------------+   |
-//     |      |                                 |   |
-//     |      |     ...Locals/Stack...          |   |
+//     |      |     ...Args/This...             |   |
 //     |      |                                 |   |
 //     |      +=================================+  --
 //     |      |     Padding(Maybe Empty)        |
 //     |      +=================================+  --
-//     +------|-- baselineFrame                 |   |-- IonOsrTempData
+//     +------|-- stackFrame                    |   |-- IonOsrTempData
 //            |   jitcode                       |   |
 //            +=================================+  --      <---- Low Address
 //
@@ -830,27 +834,31 @@ EnsureCanEnterIon(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *frame
 struct IonOsrTempData
 {
     void *jitcode;
-    uint8_t *baselineFrame;
+    uint8_t *stackFrame;
 };
 
 static IonOsrTempData *
 PrepareOsrTempData(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *frame,
                    HandleScript script, jsbytecode *pc, void *jitcode)
 {
+    // Calculate the (numLocals + numStackVals), and the number  of formal args.
     size_t numLocalsAndStackVals = frame->numValueSlots();
+    size_t numFormalArgs = frame->isFunctionFrame() ? frame->numFormalArgs() : 0;
 
     // Calculate the amount of space to allocate:
-    //      BaselineFrame space:
+    //      StackFrame space:
     //          (sizeof(Value) * (numLocals + numStackVals))
-    //        + sizeof(BaselineFrame)
+    //        + sizeof(StackFrame)
+    //        + (sizeof(Value) * (numFormalArgs + 1))   // +1 for ThisV
     //
     //      IonOsrTempData space:
     //          sizeof(IonOsrTempData)
 
-    size_t frameSpace = sizeof(BaselineFrame) + sizeof(Value) * numLocalsAndStackVals;
+    size_t stackFrameSpace = (sizeof(Value) * numLocalsAndStackVals) + sizeof(StackFrame)
+                           + (sizeof(Value) * (numFormalArgs + 1));
     size_t ionOsrTempDataSpace = sizeof(IonOsrTempData);
 
-    size_t totalSpace = AlignBytes(frameSpace, sizeof(Value)) +
+    size_t totalSpace = AlignBytes(stackFrameSpace, sizeof(Value)) +
                         AlignBytes(ionOsrTempDataSpace, sizeof(Value));
 
     IonOsrTempData *info = (IonOsrTempData *)cx->runtime()->getIonRuntime(cx)->allocateOsrTempData(totalSpace);
@@ -861,15 +869,44 @@ PrepareOsrTempData(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *fram
 
     info->jitcode = jitcode;
 
-    // Copy the BaselineFrame + local/stack Values to the buffer. Arguments and
-    // |this| are not copied but left on the stack: the Baseline and Ion frame
-    // share the same frame prefix and Ion won't clobber these values. Note
-    // that info->baselineFrame will point to the *end* of the frame data, like
-    // the frame pointer register in baseline frames.
-    uint8_t *frameStart = (uint8_t *)info + AlignBytes(ionOsrTempDataSpace, sizeof(Value));
-    info->baselineFrame = frameStart + frameSpace;
+    uint8_t *stackFrameStart = (uint8_t *)info + AlignBytes(ionOsrTempDataSpace, sizeof(Value));
+    info->stackFrame = stackFrameStart + (numFormalArgs * sizeof(Value)) + sizeof(Value);
 
-    memcpy(frameStart, (uint8_t *)frame - numLocalsAndStackVals * sizeof(Value), frameSpace);
+    //
+    // Initialize the fake StackFrame.
+    //
+
+    // Copy formal args and thisv.
+    memcpy(stackFrameStart, frame->argv() - 1, (numFormalArgs + 1) * sizeof(Value));
+
+    // Initialize ScopeChain, Exec, ArgsObj, and Flags fields in StackFrame struct.
+    uint8_t *stackFrame = info->stackFrame;
+    *((JSObject **) (stackFrame + StackFrame::offsetOfScopeChain())) = frame->scopeChain();
+    if (frame->script()->needsArgsObj()) {
+        JS_ASSERT(frame->hasArgsObj());
+        *((JSObject **) (stackFrame + StackFrame::offsetOfArgumentsObject())) = &frame->argsObj();
+    }
+    if (frame->isFunctionFrame()) {
+        // Store the function in exec field, and StackFrame::FUNCTION for flags.
+        *((JSFunction **) (stackFrame + StackFrame::offsetOfExec())) = frame->fun();
+        *((uint32_t *) (stackFrame + StackFrame::offsetOfFlags())) = StackFrame::FUNCTION;
+    } else {
+        *((JSScript **) (stackFrame + StackFrame::offsetOfExec())) = frame->script();
+        *((uint32_t *) (stackFrame + StackFrame::offsetOfFlags())) = 0;
+    }
+
+    // Set return value.
+    if (frame->hasReturnValue()) {
+        *((uint32_t *) (stackFrame + StackFrame::offsetOfFlags())) |= StackFrame::HAS_RVAL;
+        *((Value *) (stackFrame + StackFrame::offsetOfReturnValue())) = *(frame->returnValue());
+    }
+
+    // Do locals and stack values.  Note that in the fake StackFrame, these go from
+    // low to high addresses, while on the C stack, they go from high to low addresses.
+    // So we can't use memcpy on this, but must copy the values in reverse order.
+    Value *stackFrameLocalsStart = (Value *) (stackFrame + sizeof(StackFrame));
+    for (size_t i = 0; i < numLocalsAndStackVals; i++)
+        stackFrameLocalsStart[i] = *(frame->valueSlot(i));
 
     IonSpew(IonSpew_BaselineOSR, "Allocated IonOsrTempData at %p", (void *) info);
     IonSpew(IonSpew_BaselineOSR, "Jitcode is %p", info->jitcode);
@@ -1004,7 +1041,7 @@ ICUseCount_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
 
     // Jump into Ion.
     masm.loadPtr(Address(osrDataReg, offsetof(IonOsrTempData, jitcode)), scratchReg);
-    masm.loadPtr(Address(osrDataReg, offsetof(IonOsrTempData, baselineFrame)), OsrFrameReg);
+    masm.loadPtr(Address(osrDataReg, offsetof(IonOsrTempData, stackFrame)), OsrFrameReg);
     masm.jump(scratchReg);
 
     // No jitcode available, do nothing.

@@ -6,7 +6,7 @@
 
 MODULE = 'synthpico'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsPicoService.cpp',
     'PicoModule.cpp'
 ]
@@ -15,5 +15,3 @@ LIBRARY_NAME = 'synthpico'
 LIBXUL_LIBRARY = True
 EXPORT_LIBRARY = True
 FAIL_ON_WARNINGS = True
-include('/ipc/chromium/chromium-config.mozbuild')
-

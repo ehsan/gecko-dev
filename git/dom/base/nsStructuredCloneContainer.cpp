@@ -52,8 +52,7 @@ nsStructuredCloneContainer::InitFromJSVal(const JS::Value & aData,
 
   uint64_t* jsBytes = nullptr;
   bool success = JS_WriteStructuredClone(aCx, jsData, &jsBytes, &mSize,
-                                         nullptr, nullptr,
-                                         JS::UndefinedHandleValue);
+                                         nullptr, nullptr, JSVAL_VOID);
   NS_ENSURE_STATE(success);
   NS_ENSURE_STATE(jsBytes);
 
@@ -112,7 +111,8 @@ nsStructuredCloneContainer::DeserializeToVariant(JSContext *aCx,
   JS::Rooted<JS::Value> jsStateObj(aCx);
   bool hasTransferable = false;
   bool success = JS_ReadStructuredClone(aCx, mData, mSize, mVersion,
-                                        &jsStateObj, nullptr, nullptr) &&
+                                        jsStateObj.address(), nullptr,
+                                        nullptr) &&
                  JS_StructuredCloneHasTransferables(mData, mSize,
                                                     &hasTransferable);
   // We want to be sure that mData doesn't contain transferable objects

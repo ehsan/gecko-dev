@@ -715,7 +715,7 @@ public:
           clonedObjects.SwapElements(mClonedObjects);
 
           JS::Rooted<JS::Value> response(aCx);
-          if (!responseBuffer.read(aCx, &response, callbacks, &clonedObjects)) {
+          if (!responseBuffer.read(aCx, response.address(), callbacks, &clonedObjects)) {
             return false;
           }
 
@@ -1154,7 +1154,7 @@ public:
         WorkerStructuredCloneCallbacks(true);
 
       JS::Rooted<JS::Value> body(cx);
-      if (mBody.read(cx, &body, callbacks, &mClonedObjects)) {
+      if (mBody.read(cx, body.address(), callbacks, &mClonedObjects)) {
         if (NS_FAILED(xpc->JSValToVariant(cx, body.address(),
                                           getter_AddRefs(variant)))) {
           rv = NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -1970,10 +1970,10 @@ XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
 
   JSContext* cx = GetJSContext();
 
-  JS::Rooted<JS::Value> valToClone(cx);
+  jsval valToClone;
   if (JS_IsArrayBufferObject(aBody) || JS_IsArrayBufferViewObject(aBody) ||
       file::GetDOMBlobFromJSObject(aBody)) {
-    valToClone.setObject(*aBody);
+    valToClone = OBJECT_TO_JSVAL(aBody);
   }
   else {
     JSString* bodyStr = JS_ValueToString(cx, OBJECT_TO_JSVAL(aBody));
@@ -1981,7 +1981,7 @@ XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;
     }
-    valToClone.setString(bodyStr);
+    valToClone = STRING_TO_JSVAL(bodyStr);
   }
 
   JSStructuredCloneCallbacks* callbacks =

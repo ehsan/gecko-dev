@@ -6,7 +6,7 @@
 
 MODULE = 'finalizationwitness'
 
-SOURCES += [
+CPP_SOURCES += [
   'FinalizationWitnessService.cpp',
 ]
 

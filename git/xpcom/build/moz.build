@@ -26,27 +26,27 @@ EXPORTS.mozilla += [
 
 if CONFIG['OS_ARCH'] == 'WINNT':
     EXPORTS.mozilla += ['perfprobe.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'mozPoisonWriteBase.cpp',
         'mozPoisonWriteWin.cpp',
         'perfprobe.cpp',
     ]
 elif CONFIG['OS_ARCH'] == 'Darwin':
-    SOURCES += [
+    CPP_SOURCES += [
         'mozPoisonWriteBase.cpp',
         'mozPoisonWriteMac.cpp',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'mozPoisonWriteStub.cpp',
     ]
 
 include('../glue/objs.mozbuild')
 
-SOURCES += xpcom_gluens_src_cppsrcs
-SOURCES += xpcom_glue_src_cppsrcs
+CPP_SOURCES += xpcom_gluens_src_cppsrcs
+CPP_SOURCES += xpcom_glue_src_cppsrcs
 
-SOURCES += [
+CPP_SOURCES += [
     'FileLocation.cpp',
     'FrozenFunctions.cpp',
     'nsXPComInit.cpp',
@@ -62,6 +62,4 @@ MSVC_ENABLE_PGO = True
 LIBRARY_NAME = 'xpcom_core'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

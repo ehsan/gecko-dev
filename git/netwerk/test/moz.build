@@ -47,7 +47,7 @@ sources = [
 #    TestUDPSocketProvider',
 #]
 
-SOURCES += [
+CPP_SOURCES += [
     '%s.cpp' % s for s in sources
 ]
 

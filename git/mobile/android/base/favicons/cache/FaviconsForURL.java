@@ -138,14 +138,7 @@ public class FaviconsForURL {
      */
     public int ensureDominantColor() {
         if (mDominantColor == -1) {
-            // Find a payload, any payload, that is not invalidated.
-            for (FaviconCacheElement element : mFavicons) {
-                if (!element.mInvalidated) {
-                    mDominantColor = BitmapUtils.getDominantColor(element.mFaviconPayload);
-                    return mDominantColor;
-                }
-            }
-            mDominantColor = 0xFFFFFF;
+            mDominantColor = BitmapUtils.getDominantColor(getNextPrimary(0).mFaviconPayload);
         }
 
         return mDominantColor;

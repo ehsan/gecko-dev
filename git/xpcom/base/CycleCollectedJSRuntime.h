@@ -168,6 +168,7 @@ public:
   void RemoveJSHolder(void* aHolder);
 #ifdef DEBUG
   bool IsJSHolder(void* aHolder);
+  void SetObjectToUnlink(void* aObject) { mObjectToUnlink = aObject; }
   void AssertNoObjectsToTrace(void* aPossibleJSHolder);
 #endif
 
@@ -222,6 +223,10 @@ private:
   nsRefPtr<IncrementalFinalizeRunnable> mFinalizeRunnable;
 
   nsCOMPtr<nsIException> mPendingException;
+
+#ifdef DEBUG
+  void* mObjectToUnlink;
+#endif
 };
 
 } // namespace mozilla

@@ -6,7 +6,7 @@
 
 PROGRAM = 'linktool'
 
-SOURCES += [
+CPP_SOURCES += [
     'linktool.cpp',
 ]
 

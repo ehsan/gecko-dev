@@ -266,7 +266,7 @@ IonBuilder::canEnterInlinedFunction(JSFunction *target)
 }
 
 bool
-IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
+IonBuilder::canInlineTarget(JSFunction *target, bool constructing)
 {
     if (!target->isInterpreted()) {
         IonSpew(IonSpew_Inlining, "Cannot inline due to non-interpreted");
@@ -297,7 +297,7 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
         return false;
     }
 
-    if (callInfo.constructing() && !target->isInterpretedConstructor()) {
+    if (constructing && !target->isInterpretedConstructor()) {
         IonSpew(IonSpew_Inlining, "Cannot inline because callee is not a constructor");
         return false;
     }
@@ -313,18 +313,6 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
     // Don't inline functions which don't have baseline scripts.
     if (!inlineScript->hasBaselineScript()) {
         IonSpew(IonSpew_Inlining, "%s:%d Cannot inline target with no baseline jitcode",
-                                  inlineScript->filename(), inlineScript->lineno);
-        return false;
-    }
-
-    if (TooManyArguments(target->nargs)) {
-        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline too many args",
-                                  inlineScript->filename(), inlineScript->lineno);
-        return false;
-    }
-
-    if (TooManyArguments(callInfo.argc())) {
-        IonSpew(IonSpew_Inlining, "%s:%d Cannot inline too many args",
                                   inlineScript->filename(), inlineScript->lineno);
         return false;
     }
@@ -3959,7 +3947,7 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
         return true;
 
     // Determine whether inlining is possible at callee site
-    if (!canInlineTarget(target, callInfo))
+    if (!canInlineTarget(target, callInfo.constructing()))
         return false;
 
     // Heuristics!
@@ -5725,9 +5713,12 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
 
     if (info().fun()) {
         // Initialize |this| parameter.
-        MParameter *thisv = MParameter::New(MParameter::THIS_SLOT, nullptr);
+        uint32_t slot = info().thisSlot();
+        ptrdiff_t offset = StackFrame::offsetOfThis(info().fun());
+
+        MOsrValue *thisv = MOsrValue::New(entry, offset);
         osrBlock->add(thisv);
-        osrBlock->initSlot(info().thisSlot(), thisv);
+        osrBlock->initSlot(slot, thisv);
 
         // Initialize arguments.
         for (uint32_t i = 0; i < info().nargs(); i++) {
@@ -5750,9 +5741,10 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
                 osrBlock->add(osrv);
                 osrBlock->initSlot(slot, osrv);
             } else {
-                MParameter *arg = MParameter::New(i, nullptr);
-                osrBlock->add(arg);
-                osrBlock->initSlot(slot, arg);
+                ptrdiff_t offset = StackFrame::offsetOfFormalArg(info().fun(), i);
+                MOsrValue *osrv = MOsrValue::New(entry, offset);
+                osrBlock->add(osrv);
+                osrBlock->initSlot(slot, osrv);
             }
         }
     }
@@ -5760,7 +5752,7 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
     // Initialize locals.
     for (uint32_t i = 0; i < info().nlocals(); i++) {
         uint32_t slot = info().localSlot(i);
-        ptrdiff_t offset = BaselineFrame::reverseOffsetOfLocal(i);
+        ptrdiff_t offset = StackFrame::offsetOfFixed(i);
 
         MOsrValue *osrv = MOsrValue::New(entry, offset);
         osrBlock->add(osrv);
@@ -5771,7 +5763,7 @@ IonBuilder::newOsrPreheader(MBasicBlock *predecessor, jsbytecode *loopEntry)
     uint32_t numStackSlots = preheader->stackDepth() - info().firstStackSlot();
     for (uint32_t i = 0; i < numStackSlots; i++) {
         uint32_t slot = info().stackSlot(i);
-        ptrdiff_t offset = BaselineFrame::reverseOffsetOfLocal(info().nlocals() + i);
+        ptrdiff_t offset = StackFrame::offsetOfFixed(info().nlocals() + i);
 
         MOsrValue *osrv = MOsrValue::New(entry, offset);
         osrBlock->add(osrv);
@@ -8057,32 +8049,21 @@ IonBuilder::jsop_getprop(PropertyName *name)
     bool barrier = PropertyReadNeedsTypeBarrier(cx, context(), constraints(),
                                                 current->peek(-1), name, types);
 
-    // Always use a call if we are doing the definite properties analysis and
-    // not actually emitting code, to simplify later analysis. Also skip deeper
-    // analysis if there are no known types for this operation, as it will
-    // always invalidate when executing.
-    if (info().executionMode() == DefinitePropertiesAnalysis || types->empty()) {
-        MDefinition *obj = current->peek(-1);
-        MCallGetProperty *call = MCallGetProperty::New(obj, name, *pc == JSOP_CALLPROP);
-        current->add(call);
-
-        // During the definite properties analysis we can still try to bake in
-        // constants read off the prototype chain, to allow inlining later on.
-        // In this case we still need the getprop call so that the later
-        // analysis knows when the |this| value has been read from.
-        if (info().executionMode() == DefinitePropertiesAnalysis) {
-            if (!getPropTryConstant(&emitted, name, types) || emitted)
-                return emitted;
-        }
-
-        current->pop();
-        current->push(call);
-        return resumeAfter(call) && pushTypeBarrier(call, types, true);
-    }
-
     // Try to hardcode known constants.
     if (!getPropTryConstant(&emitted, name, types) || emitted)
         return emitted;
+
+    // Except when loading constants above, always use a call if we are doing
+    // the definite properties analysis and not actually emitting code, to
+    // simplify later analysis. Also skip deeper analysis if there are no known
+    // types for this operation, as it will always invalidate when executing.
+    if (info().executionMode() == DefinitePropertiesAnalysis || types->empty()) {
+        MDefinition *obj = current->pop();
+        MCallGetProperty *call = MCallGetProperty::New(obj, name, *pc == JSOP_CALLPROP);
+        current->add(call);
+        current->push(call);
+        return resumeAfter(call) && pushTypeBarrier(call, types, true);
+    }
 
     // Try to emit loads from known binary data blocks
     if (!getPropTryTypedObject(&emitted, name, types) || emitted)
@@ -9552,7 +9533,7 @@ IonBuilder::lookupTypeRepresentationSet(MDefinition *typedObj,
 
     TypeRepresentationSetBuilder set;
     for (uint32_t i = 0; i < types->getObjectCount(); i++) {
-        types::TypeObject *type = types->getTypeObject(i);
+        types::TypeObject *type = types->getTypeObject(0);
         if (!type || type->unknownProperties())
             return true;
 

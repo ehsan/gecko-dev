@@ -417,8 +417,7 @@ GetParamsForMessage(JSContext* aCx,
                     JSAutoStructuredCloneBuffer& aBuffer,
                     StructuredCloneClosure& aClosure)
 {
-  JS::Rooted<JS::Value> v(aCx, aJSON);
-  if (WriteStructuredClone(aCx, v, aBuffer, aClosure)) {
+  if (WriteStructuredClone(aCx, aJSON, aBuffer, aClosure)) {
     return true;
   }
   JS_ClearPendingException(aCx);
@@ -428,6 +427,7 @@ GetParamsForMessage(JSContext* aCx,
   //    properly cases when interface is implemented in JS and used
   //    as a dictionary.
   nsAutoString json;
+  JS::Rooted<JS::Value> v(aCx, aJSON);
   NS_ENSURE_TRUE(JS_Stringify(aCx, &v, JS::NullPtr(), JS::NullHandleValue,
                               JSONCreator, &json), false);
   NS_ENSURE_TRUE(!json.IsEmpty(), false);
@@ -853,7 +853,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
 
         JS::Rooted<JS::Value> json(ctx, JS::NullValue());
         if (aCloneData && aCloneData->mDataLength &&
-            !ReadStructuredClone(ctx, *aCloneData, &json)) {
+            !ReadStructuredClone(ctx, *aCloneData, json.address())) {
           JS_ClearPendingException(ctx);
           return NS_OK;
         }

@@ -6,7 +6,7 @@
 
 MODULE = 'layout'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsMathMLChar.cpp',
     'nsMathMLContainerFrame.cpp',
     'nsMathMLFrame.cpp',

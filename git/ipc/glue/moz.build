@@ -36,7 +36,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     EXPORTS.mozilla.ipc += [
         'Transport_win.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'CrossProcessMutex_windows.cpp',
         'SharedMemory_windows.cpp',
         'Transport_win.cpp',
@@ -46,7 +46,7 @@ else:
     EXPORTS.mozilla.ipc += [
         'Transport_posix.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'CrossProcessMutex_unimplemented.cpp',
         'SharedMemory_posix.cpp',
         'Transport_posix.cpp',
@@ -57,18 +57,18 @@ else:
 # impl.
 if CONFIG['OS_TARGET'] == 'Android':
     EXPORTS.mozilla.ipc += ['SharedMemoryBasic_android.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'SharedMemoryBasic_android.cpp',
     ]
 else:
     EXPORTS.mozilla.ipc += ['SharedMemoryBasic_chromium.h']
 
 if CONFIG['OS_ARCH'] == 'Linux':
-    SOURCES += [
+    CPP_SOURCES += [
         'ProcessUtils_linux.cpp',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'ProcessUtils_none.cpp',
     ]
 
@@ -76,7 +76,7 @@ EXPORTS.ipc += [
     'IPCMessageUtils.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'BrowserProcessSubThread.cpp',
     'FileDescriptor.cpp',
     'FileDescriptorUtils.cpp',
@@ -105,6 +105,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'mozipc_s'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

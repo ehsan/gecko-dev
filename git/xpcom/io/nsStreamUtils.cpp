@@ -15,7 +15,6 @@
 #include "nsString.h"
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
-#include "nsIBufferedStreams.h"
 
 using namespace mozilla;
 
@@ -669,11 +668,6 @@ TestInputStream(nsIInputStream *inStr,
 bool
 NS_InputStreamIsBuffered(nsIInputStream *stream)
 {
-    nsCOMPtr<nsIBufferedInputStream> bufferedIn = do_QueryInterface(stream);
-    if (bufferedIn) {
-        return true;
-    }
-
     bool result = false;
     uint32_t n;
     nsresult rv = stream->ReadSegments(TestInputStream,
@@ -697,11 +691,6 @@ TestOutputStream(nsIOutputStream *outStr,
 bool
 NS_OutputStreamIsBuffered(nsIOutputStream *stream)
 {
-    nsCOMPtr<nsIBufferedOutputStream> bufferedOut = do_QueryInterface(stream);
-    if (bufferedOut) {
-        return true;
-    }
-
     bool result = false;
     uint32_t n;
     stream->WriteSegments(TestOutputStream, &result, 1, &n);

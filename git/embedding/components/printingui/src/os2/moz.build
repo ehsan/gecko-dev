@@ -6,7 +6,7 @@
 
 MODULE = 'embedcomponents'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsPrintingPromptService.cpp',
     'nsPrintProgress.cpp',
     'nsPrintProgressParams.cpp',

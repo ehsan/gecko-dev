@@ -16,7 +16,7 @@ EXPORTS += [
     'nsITextControlFrame.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsButtonFrameRenderer.cpp',
     'nsColorControlFrame.cpp',
     'nsComboboxControlFrame.cpp',

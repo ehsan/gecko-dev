@@ -6,7 +6,7 @@
 
 MODULE = 'transformiix'
 
-SOURCES += [
+CPP_SOURCES += [
     'txXMLParser.cpp',
     'txXMLUtils.cpp',
 ]

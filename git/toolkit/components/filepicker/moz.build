@@ -13,7 +13,7 @@ if CONFIG['MOZ_XUL'] and \
         XPIDL_SOURCES += [
             'nsIFileView.idl',
         ]
-        SOURCES += [
+        CPP_SOURCES += [
             'nsFileView.cpp',
         ]
         EXTRA_COMPONENTS += [

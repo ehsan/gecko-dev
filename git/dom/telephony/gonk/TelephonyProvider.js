@@ -18,13 +18,8 @@ const GONK_TELEPHONYPROVIDER_CONTRACTID =
 const GONK_TELEPHONYPROVIDER_CID =
   Components.ID("{67d26434-d063-4d28-9f48-5b3189788155}");
 
-const NS_XPCOM_SHUTDOWN_OBSERVER_ID   = "xpcom-shutdown";
-
-const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
-
-const kPrefRilNumRadioInterfaces = "ril.numRadioInterfaces";
-const kPrefRilDebuggingEnabled = "ril.debugging.enabled";
-const kPrefDefaultServiceId = "dom.telephony.defaultServiceId";
+const kPrefenceChangedObserverTopic = "nsPref:changed";
+const kXpcomShutdownObserverTopic   = "xpcom-shutdown";
 
 const nsIAudioManager = Ci.nsIAudioManager;
 const nsITelephonyProvider = Ci.nsITelephonyProvider;
@@ -88,12 +83,9 @@ function TelephonyProvider() {
   this._listeners = [];
 
   this._updateDebugFlag();
-  this.defaultServiceId = this._getDefaultServiceId();
 
-  Services.prefs.addObserver(kPrefRilDebuggingEnabled, this, false);
-  Services.prefs.addObserver(kPrefDefaultServiceId, this, false);
-
-  Services.obs.addObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
+  Services.obs.addObserver(this, kPrefenceChangedObserverTopic, false);
+  Services.obs.addObserver(this, kXpcomShutdownObserverTopic, false);
 }
 TelephonyProvider.prototype = {
   classID: GONK_TELEPHONYPROVIDER_CID,
@@ -273,26 +265,13 @@ TelephonyProvider.prototype = {
   _updateDebugFlag: function _updateDebugFlag() {
     try {
       DEBUG = RIL.DEBUG_RIL ||
-              Services.prefs.getBoolPref(kPrefRilDebuggingEnabled);
+              Services.prefs.getBoolPref("ril.debugging.enabled");
     } catch (e) {}
-  },
-
-  _getDefaultServiceId: function _getDefaultServiceId() {
-    let id = Services.prefs.getIntPref(kPrefDefaultServiceId);
-    let numRil = Services.prefs.getIntPref(kPrefRilNumRadioInterfaces);
-
-    if (id >= numRil || id < 0) {
-      id = 0;
-    }
-
-    return id;
   },
 
   /**
    * nsITelephonyProvider interface.
    */
-
-  defaultServiceId: 0,
 
   registerListener: function(aListener) {
     if (this._listeners.indexOf(aListener) >= 0) {
@@ -527,19 +506,18 @@ TelephonyProvider.prototype = {
 
   observe: function observe(aSubject, aTopic, aData) {
     switch (aTopic) {
-      case NS_PREFBRANCH_PREFCHANGE_TOPIC_ID:
-        if (aData === kPrefRilDebuggingEnabled) {
+      case kPrefenceChangedObserverTopic:
+        if (aData === "ril.debugging.enabled") {
           this._updateDebugFlag();
-	} else if (aData === kPrefDefaultServiceId) {
-          this.defaultServiceId = this._getDefaultServiceId();
         }
         break;
 
-      case NS_XPCOM_SHUTDOWN_OBSERVER_ID:
+      case kXpcomShutdownObserverTopic:
         // Cancel the timer for the call-ring wake lock.
         this._cancelCallRingWakeLockTimer();
 
-        Services.obs.removeObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
+        Services.obs.removeObserver(this, kPrefenceChangedObserverTopic);
+        Services.obs.removeObserver(this, kXpcomShutdownObserverTopic);
         break;
     }
   }

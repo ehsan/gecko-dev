@@ -10,7 +10,7 @@ EXPORTS.mozilla.dom += [
     'XMLDocument.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsXMLContentSink.cpp',
     'nsXMLFragmentContentSink.cpp',
     'nsXMLPrettyPrinter.cpp',
