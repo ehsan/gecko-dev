@@ -202,9 +202,9 @@ LocalDebuggerTransport.prototype = {
    */
   send: function LDT_send(aPacket) {
     try {
-      // Avoid the cost of JSON.stringify() when logging is disabled.
+      // Avoid the cost of uneval() when logging is disabled.
       if (wantLogging) {
-        dumpn("Got: " + JSON.stringify(aPacket, null, 2));
+        dumpn("Got: " + uneval(aPacket));
       }
       this._deepFreeze(aPacket);
       let self = this;
