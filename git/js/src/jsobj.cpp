@@ -1051,7 +1051,7 @@ EvalCacheLookup(JSContext *cx, JSLinearString *str, JSStackFrame *caller, uintN 
     while ((script = *scriptp) != NULL) {
         if (script->savedCallerFun &&
             script->staticLevel == staticLevel &&
-            script->getVersion() == version &&
+            script->version == version &&
             !script->hasSingletons &&
             (script->principals == principals ||
              (principals->subsume(principals, script->principals) &&
@@ -1258,8 +1258,7 @@ EvalKernel(JSContext *cx, uintN argc, Value *vp, EvalType evalType, JSStackFrame
         uint32 tcflags = TCF_COMPILE_N_GO | TCF_NEED_MUTABLE_SCRIPT | TCF_COMPILE_FOR_EVAL;
         script = Compiler::compileScript(cx, scopeobj, callerFrame,
                                          principals, tcflags, chars, length,
-                                         filename, lineno, cx->findVersion(),
-                                         linearStr, staticLevel);
+                                         filename, lineno, linearStr, staticLevel);
         if (!script)
             return false;
     }
@@ -1283,7 +1282,7 @@ EvalKernel(JSContext *cx, uintN argc, Value *vp, EvalType evalType, JSStackFrame
     return ok;
 }
 
-JS_FRIEND_API(bool)
+bool
 IsBuiltinEvalFunction(JSFunction *fun)
 {
     return fun->maybeNative() == eval;
@@ -3209,7 +3208,7 @@ js_NewWithObject(JSContext *cx, JSObject *proto, JSObject *parent, jsint depth)
     JSStackFrame *priv = js_FloatingFrameIfGenerator(cx, cx->fp());
 
     obj->init(cx, &js_WithClass, proto, parent, priv, false);
-    obj->setMap(cx->compartment->emptyWithShape);
+    obj->setMap(cx->runtime->emptyWithShape);
     OBJ_SET_BLOCK_DEPTH(cx, obj, depth);
 
     AutoObjectRooter tvr(cx, obj);
@@ -3235,7 +3234,7 @@ js_NewBlockObject(JSContext *cx)
         return NULL;
 
     blockObj->init(cx, &js_BlockClass, NULL, NULL, NULL, false);
-    blockObj->setMap(cx->compartment->emptyBlockShape);
+    blockObj->setMap(cx->runtime->emptyBlockShape);
     return blockObj;
 }
 
@@ -4393,42 +4392,6 @@ JSObject::freeSlot(JSContext *cx, uint32 slot)
     return false;
 }
 
-JS_FRIEND_API(bool)
-js_UnbrandAndClearSlots(JSContext *cx, JSObject *obj)
-{
-    JS_ASSERT(obj->isNative());
-    JS_ASSERT(obj->isGlobal());
-
-    if (!obj->unbrand(cx))
-        return false;
-
-    /*
-     * Clear the prototype cache. We must not clear the other global
-     * reserved slots, as other code will crash if they are arbitrarily
-     * reset (e.g., regexp statics).
-     */
-    for (int key = JSProto_Null; key < JSRESERVED_GLOBAL_THIS; key++)
-        JS_SetReservedSlot(cx, obj, key, JSVAL_VOID);
-
-    /*
-     * Clear the non-reserved slots.
-     */
-    ClearValueRange(obj->slots + JSCLASS_RESERVED_SLOTS(obj->clasp),
-                    obj->capacity - JSCLASS_RESERVED_SLOTS(obj->clasp),
-                    obj->clasp == &js_ArrayClass);
-
-    /*
-     * We just overwrote all slots to undefined, so the freelist has
-     * been trashed. We need to clear the head pointer or else we will
-     * crash later. This leaks slots but the object is all but dead
-     * anyway.
-     */
-    if (obj->hasPropertyTable())
-        obj->lastProperty()->table->freelist = SHAPE_INVALID_SLOT;
-
-    return true;
-}
-
 /* JSBOXEDWORD_INT_MAX as a string */
 #define JSBOXEDWORD_INT_MAX_STRING "1073741823"
 
@@ -4682,7 +4645,7 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
      * member declaration.
      */
     if (obj->isDelegate() && (attrs & (JSPROP_READONLY | JSPROP_SETTER)))
-        cx->runtime->protoHazardShape = js_GenerateShape(cx);
+        cx->runtime->protoHazardShape = js_GenerateShape(cx, false);
 
     /* Use the object's class getter and setter by default. */
     clasp = obj->getClass();
@@ -5311,7 +5274,7 @@ js_GetPropertyHelperWithShapeInline(JSContext *cx, JSObject *obj, JSObject *rece
             if (op == JSOP_GETXPROP) {
                 flags = JSREPORT_ERROR;
             } else {
-                if (!cx->hasStrictOption() ||
+                if (!JS_HAS_STRICT_OPTION(cx) ||
                     (op != JSOP_GETPROP && op != JSOP_GETELEM) ||
                     js_CurrentPCIsInImacro(cx)) {
                     return JS_TRUE;
@@ -5444,7 +5407,7 @@ js_CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname)
 
     /* If neither cx nor the code is strict, then no check is needed. */
     if (!(fp->isScriptFrame() && fp->script()->strictModeCode) &&
-        !cx->hasStrictOption()) {
+        !JS_HAS_STRICT_OPTION(cx)) {
         return true;
     }
 
@@ -5520,7 +5483,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                 if (pd.attrs & JSPROP_READONLY) {
                     if (strict)
                         return obj->reportReadOnly(cx, id);
-                    if (cx->hasStrictOption())
+                    if (JS_HAS_STRICT_OPTION(cx))
                         return obj->reportReadOnly(cx, id, JSREPORT_STRICT | JSREPORT_WARNING);
                     return true;
                 }
@@ -5565,7 +5528,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
                 /* Error in strict mode code, warn with strict option, otherwise do nothing. */
                 if (strict)
                     return obj->reportReadOnly(cx, id);
-                if (cx->hasStrictOption())
+                if (JS_HAS_STRICT_OPTION(cx))
                     return obj->reportReadOnly(cx, id, JSREPORT_STRICT | JSREPORT_WARNING);
                 return JS_TRUE;
             }
@@ -5658,7 +5621,7 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
             /* Error in strict mode code, warn with strict option, otherwise do nothing. */
             if (strict)
                 return obj->reportNotExtensible(cx);
-            if (cx->hasStrictOption())
+            if (JS_HAS_STRICT_OPTION(cx))
                 return obj->reportNotExtensible(cx, JSREPORT_STRICT | JSREPORT_WARNING);
             return JS_TRUE;
         }

@@ -956,12 +956,6 @@ JS_StringToVersion(const char *string);
 #define JSOPTION_METHODJIT      JS_BIT(14)      /* Whole-method JIT. */
 #define JSOPTION_PROFILING      JS_BIT(15)      /* Profiler to make tracer/methodjit choices. */
 
-/* Options which reflect compile-time properties of scripts. */
-#define JSCOMPILEOPTION_MASK    (JSOPTION_XML | JSOPTION_ANONFUNFIX)
-
-#define JSRUNOPTION_MASK        (JS_BITMASK(16) & ~JSCOMPILEOPTION_MASK)
-#define JSALLOPTION_MASK        (JSCOMPILEOPTION_MASK | JSRUNOPTION_MASK)
-
 extern JS_PUBLIC_API(uint32)
 JS_GetOptions(JSContext *cx);
 
@@ -1965,7 +1959,7 @@ struct JSClass {
  */
 #define JSCLASS_GLOBAL_FLAGS                                                  \
     (JSCLASS_IS_GLOBAL |                                                      \
-     JSCLASS_HAS_RESERVED_SLOTS(JSRESERVED_GLOBAL_THIS + JSRESERVED_GLOBAL_SLOTS_COUNT))
+     JSCLASS_HAS_RESERVED_SLOTS(JSProto_LIMIT * 3 + JSRESERVED_GLOBAL_SLOTS_COUNT))
 
 /* Fast access to the original value of each standard class's prototype. */
 #define JSCLASS_CACHED_PROTO_SHIFT      (JSCLASS_HIGH_FLAGS_SHIFT + 8)

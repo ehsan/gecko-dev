@@ -152,12 +152,12 @@ FilteringWrapper<Base, Policy>::enter(JSContext *cx, JSObject *wrapper, jsid id,
 #define SOW FilteringWrapper<JSCrossCompartmentWrapper, OnlyIfSubjectIsSystem>
 #define SCSOW FilteringWrapper<JSWrapper, OnlyIfSubjectIsSystem>
 #define COW FilteringWrapper<JSCrossCompartmentWrapper, ExposedPropertiesOnly>
-#define XOW FilteringWrapper<XrayWrapper<JSCrossCompartmentWrapper>, \
+#define XOW FilteringWrapper<XrayWrapper<JSCrossCompartmentWrapper, CrossCompartmentXray>, \
                              CrossOriginAccessiblePropertiesOnly>
 #define NNXOW FilteringWrapper<JSCrossCompartmentWrapper, CrossOriginAccessiblePropertiesOnly>
-#define LW    FilteringWrapper<XrayWrapper<JSWrapper>, \
+#define LW    FilteringWrapper<XrayWrapper<JSWrapper, SameCompartmentXray>, \
                                SameOriginOrCrossOriginAccessiblePropertiesOnly>
-#define XLW   FilteringWrapper<XrayWrapper<JSCrossCompartmentWrapper>, \
+#define XLW   FilteringWrapper<XrayWrapper<JSCrossCompartmentWrapper, CrossCompartmentXray>, \
                                SameOriginOrCrossOriginAccessiblePropertiesOnly>
 
 template<> SOW SOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |

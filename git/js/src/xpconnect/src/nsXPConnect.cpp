@@ -970,7 +970,7 @@ CreateNewCompartment(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
         return false;
 
     *global = tempGlobal;
-    *compartment = tempGlobal->compartment();
+    *compartment = tempGlobal->getCompartment();
 
     js::SwitchToCompartment sc(cx, *compartment);
     JS_SetCompartmentPrivate(cx, *compartment, priv_holder.forget());
