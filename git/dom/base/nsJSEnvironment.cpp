@@ -559,7 +559,7 @@ NS_ScriptErrorReporter(JSContext *cx,
   if (!JSREPORT_IS_WARNING(report->flags)) {
     JSStackFrame * fp = nsnull;
     while ((fp = JS_FrameIterator(cx, &fp))) {
-      if (JS_IsScriptFrame(cx, fp)) {
+      if (!JS_IsNativeFrame(cx, fp)) {
         return;
       }
     }
@@ -3161,23 +3161,21 @@ static JSClass OptionsClass = {
 #include "nsTraceMalloc.h"
 
 static JSBool
-TraceMallocDisable(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocDisable(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     NS_TraceMallocDisable();
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocEnable(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocEnable(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     NS_TraceMallocEnable();
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocOpenLogFile(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocOpenLogFile(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     int fd;
     JSString *str;
@@ -3186,7 +3184,7 @@ TraceMallocOpenLogFile(JSContext *cx, uintN argc, jsval *vp)
     if (argc == 0) {
         fd = -1;
     } else {
-        str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+        str = JS_ValueToString(cx, argv[0]);
         if (!str)
             return JS_FALSE;
         filename = JS_GetStringBytes(str);
@@ -3196,19 +3194,19 @@ TraceMallocOpenLogFile(JSContext *cx, uintN argc, jsval *vp)
             return JS_FALSE;
         }
     }
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(fd));
+    *rval = INT_TO_JSVAL(fd);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocChangeLogFD(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocChangeLogFD(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     int32 fd, oldfd;
 
     if (argc == 0) {
         oldfd = -1;
     } else {
-        if (!JS_ValueToECMAInt32(cx, JS_ARGV(cx, vp)[0], &fd))
+        if (!JS_ValueToECMAInt32(cx, argv[0], &fd))
             return JS_FALSE;
         oldfd = NS_TraceMallocChangeLogFD(fd);
         if (oldfd == -2) {
@@ -3216,46 +3214,44 @@ TraceMallocChangeLogFD(JSContext *cx, uintN argc, jsval *vp)
             return JS_FALSE;
         }
     }
-    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(oldfd));
+    *rval = INT_TO_JSVAL(oldfd);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocCloseLogFD(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocCloseLogFD(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     int32 fd;
 
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     if (argc == 0)
         return JS_TRUE;
-    if (!JS_ValueToECMAInt32(cx, JS_ARGV(cx, vp)[0], &fd))
+    if (!JS_ValueToECMAInt32(cx, argv[0], &fd))
         return JS_FALSE;
     NS_TraceMallocCloseLogFD((int) fd);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocLogTimestamp(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocLogTimestamp(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
     const char *caption;
 
-    str = JS_ValueToString(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID);
+    str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
     caption = JS_GetStringBytes(str);
     NS_TraceMallocLogTimestamp(caption);
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-TraceMallocDumpAllocations(JSContext *cx, uintN argc, jsval *vp)
+TraceMallocDumpAllocations(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
     const char *pathname;
 
-    str = JS_ValueToString(cx, argc ? JS_ARGV(cx, vp)[0] : JSVAL_VOID);
+    str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
     pathname = JS_GetStringBytes(str);
@@ -3263,19 +3259,18 @@ TraceMallocDumpAllocations(JSContext *cx, uintN argc, jsval *vp)
         JS_ReportError(cx, "can't dump to %s: %s", pathname, strerror(errno));
         return JS_FALSE;
     }
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSFunctionSpec TraceMallocFunctions[] = {
-    {"TraceMallocDisable",         TraceMallocDisable,         0, 0},
-    {"TraceMallocEnable",          TraceMallocEnable,          0, 0},
-    {"TraceMallocOpenLogFile",     TraceMallocOpenLogFile,     1, 0},
-    {"TraceMallocChangeLogFD",     TraceMallocChangeLogFD,     1, 0},
-    {"TraceMallocCloseLogFD",      TraceMallocCloseLogFD,      1, 0},
-    {"TraceMallocLogTimestamp",    TraceMallocLogTimestamp,    1, 0},
-    {"TraceMallocDumpAllocations", TraceMallocDumpAllocations, 1, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"TraceMallocDisable",         TraceMallocDisable,         0, 0, 0},
+    {"TraceMallocEnable",          TraceMallocEnable,          0, 0, 0},
+    {"TraceMallocOpenLogFile",     TraceMallocOpenLogFile,     1, 0, 0},
+    {"TraceMallocChangeLogFD",     TraceMallocChangeLogFD,     1, 0, 0},
+    {"TraceMallocCloseLogFD",      TraceMallocCloseLogFD,      1, 0, 0},
+    {"TraceMallocLogTimestamp",    TraceMallocLogTimestamp,    1, 0, 0},
+    {"TraceMallocDumpAllocations", TraceMallocDumpAllocations, 1, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 
 #endif /* NS_TRACE_MALLOC */
@@ -3358,11 +3353,11 @@ static JSFunctionSpec JProfFunctions[] = {
 
 #ifdef MOZ_SHARK
 static JSFunctionSpec SharkFunctions[] = {
-    {"startShark",                 js_StartShark,              0, 0},
-    {"stopShark",                  js_StopShark,               0, 0},
-    {"connectShark",               js_ConnectShark,            0, 0},
-    {"disconnectShark",            js_DisconnectShark,         0, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"startShark",                 js_StartShark,              0, 0, 0},
+    {"stopShark",                  js_StopShark,               0, 0, 0},
+    {"connectShark",               js_ConnectShark,            0, 0, 0},
+    {"disconnectShark",            js_DisconnectShark,         0, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 #endif
 

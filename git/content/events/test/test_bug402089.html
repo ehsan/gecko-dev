@@ -10,8 +10,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=402089
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
-<!-- setTimeout so that the test starts after paint suppression ends -->
-<body onload="setTimeout(doTest,0);">
+<body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=402089">Mozilla Bug 402089</a>
 <p id="display"></p>
 <div id="content">
@@ -62,6 +61,7 @@ function doTest() {
 }
 
 SimpleTest.waitForExplicitFinish();
+addLoadEvent(doTest);
 </script>
 </pre>
 </body>

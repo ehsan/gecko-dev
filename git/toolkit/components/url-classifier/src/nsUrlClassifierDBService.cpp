@@ -3418,7 +3418,6 @@ nsUrlClassifierDBServiceWorker::OpenDb()
     }
   }
 
-  connection->SetGrowthIncrement(5 * 1024 * 1024, EmptyCString());
   rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING("PRAGMA synchronous=OFF"));
   NS_ENSURE_SUCCESS(rv, rv);
 

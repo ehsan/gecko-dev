@@ -111,14 +111,11 @@ getUTF8StringArgument(JSContext *cx, JSObject *obj, PRUint16 argNum,
 }
 
 static JSBool
-netscape_security_isPrivilegeEnabled(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_isPrivilegeEnabled(JSContext *cx, JSObject *obj, uintN argc,
+                                     jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
     JSBool result = JS_FALSE;
-    char *cap = getStringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp));
+    char *cap = getStringArgument(cx, obj, 0, argc, argv);
     if (cap) {
         nsresult rv;
         nsCOMPtr<nsIScriptSecurityManager> securityManager = 
@@ -131,19 +128,16 @@ netscape_security_isPrivilegeEnabled(JSContext *cx, uintN argc, jsval *vp)
                 result = JS_FALSE;
         }
     }
-    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(result));
+    *rval = BOOLEAN_TO_JSVAL(result);
     return JS_TRUE;
 }
 
 
 static JSBool
-netscape_security_enablePrivilege(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_enablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
+                                  jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    char *cap = getStringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp));
+    char *cap = getStringArgument(cx, obj, 0, argc, argv);
     if (!cap)
         return JS_FALSE;
 
@@ -158,18 +152,14 @@ netscape_security_enablePrivilege(JSContext *cx, uintN argc, jsval *vp)
     rv = securityManager->EnableCapability(cap);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-netscape_security_disablePrivilege(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_disablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
+                                   jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    char *cap = getStringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp));
+    char *cap = getStringArgument(cx, obj, 0, argc, argv);
     if (!cap)
         return JS_FALSE;
 
@@ -184,18 +174,14 @@ netscape_security_disablePrivilege(JSContext *cx, uintN argc, jsval *vp)
     rv = securityManager->DisableCapability(cap);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-netscape_security_revertPrivilege(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_revertPrivilege(JSContext *cx, JSObject *obj, uintN argc,
+                                  jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    char *cap = getStringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp));
+    char *cap = getStringArgument(cx, obj, 0, argc, argv);
     if (!cap)
         return JS_FALSE;
 
@@ -210,21 +196,17 @@ netscape_security_revertPrivilege(JSContext *cx, uintN argc, jsval *vp)
     rv = securityManager->RevertCapability(cap);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-netscape_security_setCanEnablePrivilege(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_setCanEnablePrivilege(JSContext *cx, JSObject *obj, uintN argc,
+                                        jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
     if (argc < 2) return JS_FALSE;
     nsCAutoString principalFingerprint;
-    getUTF8StringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp), principalFingerprint);
-    char *cap = getStringArgument(cx, obj, 1, argc, JS_ARGV(cx, vp));
+    getUTF8StringArgument(cx, obj, 0, argc, argv, principalFingerprint);
+    char *cap = getStringArgument(cx, obj, 1, argc, argv);
     if (principalFingerprint.IsEmpty() || !cap)
         return JS_FALSE;
 
@@ -240,19 +222,15 @@ netscape_security_setCanEnablePrivilege(JSContext *cx, uintN argc, jsval *vp)
                                                  nsIPrincipal::ENABLE_GRANTED);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSBool
-netscape_security_invalidate(JSContext *cx, uintN argc, jsval *vp)
+netscape_security_invalidate(JSContext *cx, JSObject *obj, uintN argc,
+                             jsval *argv, jsval *rval)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
     nsCAutoString principalFingerprint;
-    getUTF8StringArgument(cx, obj, 0, argc, JS_ARGV(cx, vp), principalFingerprint);
+    getUTF8StringArgument(cx, obj, 0, argc, argv, principalFingerprint);
     if (principalFingerprint.IsEmpty())
         return JS_FALSE;
 
@@ -269,20 +247,19 @@ netscape_security_invalidate(JSContext *cx, uintN argc, jsval *vp)
                                                  nsIPrincipal::ENABLE_GRANTED);
     if (NS_FAILED(rv))
         return JS_FALSE;
-    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
 
 static JSFunctionSpec PrivilegeManager_static_methods[] = {
-    { "isPrivilegeEnabled", netscape_security_isPrivilegeEnabled,   1,0},
-    { "enablePrivilege",    netscape_security_enablePrivilege,      1,0},
-    { "disablePrivilege",   netscape_security_disablePrivilege,     1,0},
-    { "revertPrivilege",    netscape_security_revertPrivilege,      1,0},
+    { "isPrivilegeEnabled", netscape_security_isPrivilegeEnabled,   1,0,0},
+    { "enablePrivilege",    netscape_security_enablePrivilege,      1,0,0},
+    { "disablePrivilege",   netscape_security_disablePrivilege,     1,0,0},
+    { "revertPrivilege",    netscape_security_revertPrivilege,      1,0,0},
     //-- System Cert Functions
     { "setCanEnablePrivilege", netscape_security_setCanEnablePrivilege,
-                                                                    2,0},
-    { "invalidate",            netscape_security_invalidate,        1,0},
-    {nsnull,nsnull,0,0}
+                                                                    2,0,0},
+    { "invalidate",            netscape_security_invalidate,        1,0,0},
+    {nsnull,nsnull,0,0,0}
 };
 
 /*

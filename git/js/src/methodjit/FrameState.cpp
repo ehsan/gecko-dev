@@ -474,31 +474,30 @@ FrameState::syncAndKill(Registers kill, Uses uses)
 void
 FrameState::merge(Assembler &masm, Changes changes) const
 {
-    Registers search(Registers::AvailRegs & ~freeRegs.freeMask);
+    Registers temp(Registers::TempRegs);
 
-    while (!search.empty()) {
-        RegisterID reg = search.peekReg();
-
-        FrameEntry *fe = regstate[reg].usedBy();
-        if (!fe)
+    for (uint32 i = 0; i < tracker.nentries; i++) {
+        FrameEntry *fe = tracker[i];
+        if (fe >= sp)
             continue;
+
+        /* Copies do not have registers. */
+        if (fe->isCopy()) {
+            JS_ASSERT(!fe->data.inRegister());
+            JS_ASSERT(!fe->type.inRegister());
+            continue;
+        }
 
 #if defined JS_PUNBOX64
         if (fe->data.inRegister() && fe->type.inRegister()) {
             masm.loadValueAsComponents(addressOf(fe), fe->type.reg(), fe->data.reg());
-            search.takeReg(fe->data.reg());
-            search.takeReg(fe->type.reg());
         } else
 #endif
         {
-            if (fe->data.inRegister()) {
+            if (fe->data.inRegister())
                 masm.loadPayload(addressOf(fe), fe->data.reg());
-                search.takeReg(fe->data.reg());
-            }
-            if (fe->type.inRegister()) {
+            if (fe->type.inRegister())
                 masm.loadTypeTag(addressOf(fe), fe->type.reg());
-                search.takeReg(fe->type.reg());
-            }
         }
     }
 }
@@ -1106,34 +1105,6 @@ FrameState::allocForSameBinary(FrameEntry *fe, JSOp op, BinaryAlloc &alloc)
 
     if (alloc.lhsType.isSet())
         unpinReg(alloc.lhsType.reg());
-}
-
-void
-FrameState::ensureFullRegs(FrameEntry *fe)
-{
-    FrameEntry *backing = fe;
-    if (fe->isCopy())
-        backing = fe->copyOf();
-
-    if (!fe->type.inMemory()) {
-        if (fe->data.inRegister())
-            return;
-        if (fe->type.inRegister())
-            pinReg(fe->type.reg());
-        if (fe->data.inMemory())
-            tempRegForData(fe);
-        if (fe->type.inRegister())
-            unpinReg(fe->type.reg());
-    } else if (!fe->data.inMemory()) {
-        if (fe->type.inRegister())
-            return;
-        if (fe->data.inRegister())
-            pinReg(fe->data.reg());
-        if (fe->type.inMemory())
-            tempRegForType(fe);
-        if (fe->data.inRegister())
-            unpinReg(fe->data.reg());
-    }
 }
 
 void
