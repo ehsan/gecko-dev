@@ -1659,6 +1659,12 @@ HeadsUpDisplay.prototype = {
   },
 
   /**
+   * The JSTerm object that contains the console's inputNode
+   *
+   */
+  jsterm: null,
+
+  /**
    * creates and attaches the console input node
    *
    * @param nsIDOMWindow aWindow
@@ -1672,7 +1678,7 @@ HeadsUpDisplay.prototype = {
     if (appName() == "FIREFOX") {
       let outputCSSClassOverride = "hud-msg-node hud-console";
       let mixin = new JSTermFirefoxMixin(context, aParentNode, aExistingConsole, outputCSSClassOverride);
-      let inputNode = new JSTerm(context, aParentNode, mixin);
+      this.jsterm = new JSTerm(context, aParentNode, mixin);
     }
     else {
       throw new Error("Unsupported Gecko Application");
@@ -1969,90 +1975,82 @@ HeadsUpDisplay.prototype = {
  */
 function HUDConsole(aHeadsUpDisplay)
 {
-  this.hud = aHeadsUpDisplay;
-  this.hudId = this.hud.hudId;
-  this.outputNode = this.hud.outputNode;
-  this.chromeDocument = this.hud.chromeDocument;
-  this.makeHTMLNode = this.hud.makeHTMLNode;
-  this.created = new Date();
-  this.hud._console = this;
-  HUDService.updateLoadGroup(this.hudId, this.hud.loadGroup);
-};
+  let hud = aHeadsUpDisplay;
+  let hudId = hud.hudId;
+  let outputNode = hud.outputNode;
+  let chromeDocument = hud.chromeDocument;
+  let makeHTMLNode = hud.makeHTMLNode;
 
-HUDConsole.prototype = {
-  created: null,
+  aHeadsUpDisplay._console = this;
 
-  log: function console_log(aMessage)
-  {
-    this.message = aMessage;
-    this.sendToHUDService("log");
-  },
+  HUDService.updateLoadGroup(hudId, hud.loadGroup);
 
-  info: function console_info(aMessage)
-  {
-    this.message = aMessage;
-    this.sendToHUDService("info");
-  },
-
-  warn: function console_warn(aMessage)
-  {
-    this.message = aMessage;
-    this.sendToHUDService("warn");
-  },
-
-  error: function console_error(aMessage)
-  {
-    this.message = aMessage;
-    this.sendToHUDService("error");
-  },
-
-  exception: function console_exception(aMessage)
-  {
-    this.message = aMessage;
-    this.sendToHUDService("exception");
-  },
-
-  timeStamp: function Console_timeStamp()
-  {
-    return ConsoleUtils.timeStamp(new Date());
-  },
-
-  sendToHUDService: function console_send(aLevel)
+  let sendToHUDService = function console_send(aLevel, aArguments)
   {
     // check to see if logging is on for this level before logging!
-    var filterState = HUDService.getFilterState(this.hudId, aLevel);
+    var filterState = HUDService.getFilterState(hudId, aLevel);
 
     if (!filterState) {
       // Ignoring log message
       return;
     }
 
-    let ts = this.timeStamp();
-    let messageNode =
-      this.hud.makeHTMLNode("div");
+    let ts = ConsoleUtils.timeStamp(new Date());
+    let messageNode = hud.makeHTMLNode("div");
 
     let klass = "hud-msg-node hud-" + aLevel;
 
     messageNode.setAttribute("class", klass);
 
-    let timestampedMessage =
-      this.chromeDocument.createTextNode(ts + ": " + this.message);
+    let argumentArray = [];
+    for (var i = 0; i < aArguments.length; i++) {
+      argumentArray.push(aArguments[i]);
+    }
 
-    messageNode.appendChild(timestampedMessage);
+    let message = argumentArray.join(' ');
+    let timestampedMessage = ts + ": " + message;
+
+    messageNode.appendChild(chromeDocument.createTextNode(timestampedMessage));
+
     // need a constructor here to properly set all attrs
     let messageObject = {
       logLevel: aLevel,
-      hudId: this.hud.hudId,
-      message: this.hud.message,
+      hudId: hud.hudId,
+      message: message,
       timeStamp: ts,
       origin: "HUDConsole",
     };
 
-    HUDService.logMessage(messageObject, this.hud.outputNode, messageNode);
+    HUDService.logMessage(messageObject, hud.outputNode, messageNode);
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Console API.
+  this.log = function console_log()
+  {
+    sendToHUDService("log", arguments);
+  },
+
+  this.info = function console_info()
+  {
+    sendToHUDService("info", arguments);
+  },
+
+  this.warn = function console_warn()
+  {
+    sendToHUDService("warn", arguments);
+  },
+
+  this.error = function console_error()
+  {
+    sendToHUDService("error", arguments);
+  },
+
+  this.exception = function console_exception()
+  {
+    sendToHUDService("exception", arguments);
   }
 };
-
-
 
 /**
  * Creates a DOM Node factory for either XUL nodes or HTML nodes - as
@@ -2186,21 +2184,29 @@ JSTerm.prototype = {
     return this.context.get().QueryInterface(Ci.nsIDOMWindowInternal);
   },
 
-  execute: function JST_execute()
+  execute: function JST_execute(aExecuteString)
   {
     // attempt to execute the content of the inputNode
-    var str = this.inputNode.value;
+    var str = aExecuteString || this.inputNode.value;
     if (!str) {
       this.console.log("no value to execute");
       return;
     }
+
+    this.writeOutput(str);
+
     try {
       var result =
       Cu.evalInSandbox(str, this.sandbox, "default", "HUD Console", 1);
-      this.writeOutput(str);
 
-      if (result !== undefined) {
+      if (result || result === false || result === " ") {
         this.writeOutput(result);
+      }
+      else if (result === undefined) {
+        this.writeOutput("undefined");
+      }
+      else if (result === null) {
+        this.writeOutput("null");
       }
     }
     catch (ex) {
@@ -2228,6 +2234,15 @@ JSTerm.prototype = {
     node.appendChild(textNode);
     this.outputNode.appendChild(node);
     node.scrollIntoView(false);
+  },
+
+  clearOutput: function JST_clearOutput()
+  {
+    let outputNode = this.outputNode;
+
+    while (outputNode.firstChild) {
+      outputNode.removeChild(outputNode.firstChild);
+    }
   },
 
   keyDown: function JSTF_keyDown(aEvent)
@@ -2278,12 +2293,22 @@ JSTerm.prototype = {
             // up arrow: history previous
             if (self.caretInFirstLine()){
               self.historyPeruse(true);
+              if (aEvent.cancelable) {
+                let inputEnd = self.inputNode.value.length;
+                self.inputNode.setSelectionRange(inputEnd, inputEnd);
+                aEvent.preventDefault();
+              }
             }
             break;
           case 40:
             // down arrow: history next
             if (self.caretInLastLine()){
               self.historyPeruse(false);
+              if (aEvent.cancelable) {
+                let inputEnd = self.inputNode.value.length;
+                self.inputNode.setSelectionRange(inputEnd, inputEnd);
+                aEvent.preventDefault();
+              }
             }
             break;
           case 9:
@@ -2312,27 +2337,33 @@ JSTerm.prototype = {
     if (!this.history.length) {
       return;
     }
+
     // Up Arrow key
     if (aFlag) {
-      var idx = this.historyPlaceHolder--;
-      if (idx < - 1) {
+      if (this.historyPlaceHolder <= 0) {
         return;
       }
-      var inputVal = this.history[idx - 1];
 
+      let inputVal = this.history[--this.historyPlaceHolder];
       if (inputVal){
-        this.inputNode.value = this.history[idx - 1];
+        this.inputNode.value = inputVal;
       }
     }
+    // Down Arrow key
     else {
-      var idx = this.historyPlaceHolder++;
-      if (idx > (this.history.length + 1)) {
+      if (this.historyPlaceHolder == this.history.length - 1) {
+        this.historyPlaceHolder ++;
+        this.inputNode.value = "";
         return;
       }
-      var inputVal = this.history[idx + 1];
-
-      if (inputVal){
-        this.inputNode.value = this.history[idx + 1];
+      else if (this.historyPlaceHolder >= (this.history.length)) {
+        return;
+      }
+      else {
+        let inputVal = this.history[++this.historyPlaceHolder];
+        if (inputVal){
+          this.inputNode.value = inputVal;
+        }
       }
     }
   },
