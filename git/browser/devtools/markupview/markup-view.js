@@ -76,6 +76,7 @@ function MarkupView(aInspector, aFrame, aControllerWindow) {
 
   // Creating the popup to be used to show CSS suggestions.
   let options = {
+    fixedWidth: true,
     autoSelect: true,
     theme: "auto"
   };

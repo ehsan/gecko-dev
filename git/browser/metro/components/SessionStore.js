@@ -338,7 +338,6 @@ SessionStore.prototype = {
     // Assign it a unique identifier and create its data object
     aWindow.__SSID = "window" + gUUIDGenerator.generateUUID().toString();
     this._windows[aWindow.__SSID] = { tabs: [], selected: 0, _closedTabs: [] };
-    this._orderedWindows.push(aWindow.__SSID);
 
     // Perform additional initialization when the first window is loading
     if (this._loadState == STATE_STOPPED) {
@@ -349,6 +348,9 @@ SessionStore.prototype = {
       if (!this.shouldRestore()) {
         this._clearCache();
         Services.obs.notifyObservers(null, "sessionstore-windows-restored", "");
+
+        // If nothing is being restored, we only have our single Metro window.
+        this._orderedWindows.push(aWindow.__SSID);
       }
     }
 
@@ -552,13 +554,15 @@ SessionStore.prototype = {
 
   _getTabData: function(aWindow) {
     return aWindow.Browser.tabs
-      .filter(tab => !tab.isPrivate && tab.browser.__SS_data)
+      .filter(tab => !tab.isPrivate)
       .map(tab => {
         let browser = tab.browser;
-        let tabData = browser.__SS_data;
-        if (browser.__SS_extdata)
-          tabData.extData = browser.__SS_extdata;
-        return tabData;
+        if (browser.__SS_data) {
+          let tabData = browser.__SS_data;
+          if (browser.__SS_extdata)
+            tabData.extData = browser.__SS_extdata;
+          return tabData;
+        }
       });
   },
 
@@ -797,7 +801,6 @@ SessionStore.prototype = {
         } catch (ex) { /* currentGroupId is undefined if user has no tab groups */ }
 
         // Move all window data from sessionstore.js to this._windows.
-        this._orderedWindows = [];
         for (let i = 0; i < data.windows.length; i++) {
           let SSID;
           if (i != windowIndex) {
