@@ -1106,7 +1106,6 @@ Simulator::setLastDebuggerInput(char *input)
 void
 Simulator::FlushICache(void *start_addr, size_t size)
 {
-    IonSpewCont(IonSpew_CacheFlush, "[%p %zx]", start_addr, size);
     if (!Simulator::ICacheCheckingEnabled)
         return;
     SimulatorRuntime *srt = Simulator::Current()->srt_;

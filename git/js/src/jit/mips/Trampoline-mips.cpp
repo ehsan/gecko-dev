@@ -137,6 +137,8 @@ JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     MOZ_ASSERT(OsrFrameReg == reg_frame);
 
     MacroAssembler masm(cx);
+    AutoFlushCache afc("GenerateEnterJIT", cx->runtime()->jitRuntime());
+
     GeneratePrologue(masm);
 
     const Address slotToken(sp, sizeof(EnterJITRegs) + offsetof(EnterJITArgs, calleeToken));
@@ -302,7 +304,6 @@ JitRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     GenerateReturn(masm, ShortJump);
 
     Linker linker(masm);
-    AutoFlushICache afc("GenerateEnterJIT");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
 
 #ifdef JS_ION_PERF
@@ -375,7 +376,6 @@ JitRuntime::generateInvalidator(JSContext *cx)
     masm.branch(bailoutTail);
 
     Linker linker(masm);
-    AutoFlushICache afc("Invalidator");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
     IonSpew(IonSpew_Invalidate, "   invalidation thunk created at %p", (void *) code->raw());
 
@@ -507,7 +507,6 @@ JitRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     masm.ret();
     Linker linker(masm);
-    AutoFlushICache afc("ArgumentsRectifier");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
 
     CodeOffsetLabel returnLabel(returnOffset);
@@ -631,7 +630,6 @@ JitRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
     GenerateBailoutThunk(cx, masm, frameClass);
 
     Linker linker(masm);
-    AutoFlushICache afc("BailoutTable");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
 
 #ifdef JS_ION_PERF
@@ -648,7 +646,6 @@ JitRuntime::generateBailoutHandler(JSContext *cx)
     GenerateBailoutThunk(cx, masm, NO_FRAME_SIZE_CLASS_ID);
 
     Linker linker(masm);
-    AutoFlushICache afc("BailoutHandler");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
 
 #ifdef JS_ION_PERF
@@ -845,7 +842,6 @@ JitRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
                     f.extraValuesToPop * sizeof(Value)));
 
     Linker linker(masm);
-    AutoFlushICache afc("VMWrapper");
     JitCode *wrapper = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
     if (!wrapper)
         return nullptr;
@@ -895,7 +891,6 @@ JitRuntime::generatePreBarrier(JSContext *cx, MIRType type)
     masm.ret();
 
     Linker linker(masm);
-    AutoFlushICache afc("PreBarrier");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
 
 #ifdef JS_ION_PERF
@@ -955,7 +950,6 @@ JitRuntime::generateDebugTrapHandler(JSContext *cx)
     masm.ret();
 
     Linker linker(masm);
-    AutoFlushICache afc("DebugTrapHandler");
     JitCode *codeDbg = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
 
 #ifdef JS_ION_PERF
@@ -974,7 +968,6 @@ JitRuntime::generateExceptionTailStub(JSContext *cx)
     masm.handleFailureWithHandlerTail();
 
     Linker linker(masm);
-    AutoFlushICache afc("ExceptionTailStub");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
 
 #ifdef JS_ION_PERF
@@ -992,7 +985,6 @@ JitRuntime::generateBailoutTailStub(JSContext *cx)
     masm.generateBailoutTail(a1, a2);
 
     Linker linker(masm);
-    AutoFlushICache afc("BailoutTailStub");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::OTHER_CODE);
 
 #ifdef JS_ION_PERF

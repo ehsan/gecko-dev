@@ -77,9 +77,6 @@
 #include "EHABIStackWalk.h"
 #endif
 
-// Memory profile
-#include "nsMemoryReporterManager.h"
-
 #include <string.h>
 #include <stdio.h>
 #include <list>
@@ -226,22 +223,11 @@ static void ProfilerSignalHandler(int signal, siginfo_t* info, void* context) {
 #endif
   sample->threadProfile = sCurrentThreadProfile;
   sample->timestamp = mozilla::TimeStamp::Now();
-  sample->rssMemory = sample->threadProfile->mRssMemory;
 
   Sampler::GetActiveSampler()->Tick(sample);
 
   sCurrentThreadProfile = NULL;
   sem_post(&sSignalHandlingDone);
-}
-
-static void ProfilerSignalThread(ThreadProfile *profile,
-                                 bool isFirstProfiledThread)
-{
-  if (isFirstProfiledThread && Sampler::GetActiveSampler()->ProfileMemory()) {
-    profile->mRssMemory = nsMemoryReporterManager::ResidentFast();
-  } else {
-    profile->mRssMemory = 0;
-  }
 }
 
 // If the Nuwa process is enabled, we need to use the wrapper of tgkill() to
@@ -298,7 +284,6 @@ static void* SignalSender(void* arg) {
       std::vector<ThreadInfo*> threads =
         SamplerRegistry::sampler->GetRegisteredThreads();
 
-      bool isFirstProfiledThread = true;
       for (uint32_t i = 0; i < threads.size(); i++) {
         ThreadInfo* info = threads[i];
 
@@ -320,14 +305,6 @@ static void* SignalSender(void* arg) {
 
         int threadId = info->ThreadId();
 
-        // Profile from the signal sender for information which is not signal
-        // safe, and will have low variation between the emission of the signal
-        // and the signal handler catch.
-        ProfilerSignalThread(sCurrentThreadProfile, isFirstProfiledThread);
-
-        // Profile from the signal handler for information which is signal safe
-        // and needs to be precise too, such as the stack of the interrupted
-        // thread.
         if (tgkill(vm_tgid_, threadId, SIGPROF) != 0) {
           printf_stderr("profiler failed to signal tid=%d\n", threadId);
 #ifdef DEBUG
@@ -338,7 +315,6 @@ static void* SignalSender(void* arg) {
 
         // Wait for the signal handler to run before moving on to the next one
         sem_wait(&sSignalHandlingDone);
-        isFirstProfiledThread = false;
       }
     }
 

@@ -4176,7 +4176,9 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
         if (targetScript->getUseCount() < optimizationInfo().usesBeforeInlining() &&
             info().executionMode() != DefinitePropertiesAnalysis)
         {
-            return DontInline(targetScript, "Vetoed: callee is insufficiently hot.");
+            IonSpew(IonSpew_Inlining, "Cannot inline %s:%u: callee is insufficiently hot.",
+                    targetScript->filename(), targetScript->lineno());
+            return InliningDecision_UseCountTooLow;
         }
     }
 
@@ -4211,6 +4213,7 @@ IonBuilder::selectInliningTargets(ObjectVector &targets, CallInfo &callInfo, Boo
           case InliningDecision_Error:
             return false;
           case InliningDecision_DontInline:
+          case InliningDecision_UseCountTooLow:
             inlineable = false;
             break;
           case InliningDecision_Inline:
@@ -4331,6 +4334,8 @@ IonBuilder::inlineCallsite(ObjectVector &targets, ObjectVector &originals,
             return InliningStatus_Error;
           case InliningDecision_DontInline:
             return InliningStatus_NotInlined;
+          case InliningDecision_UseCountTooLow:
+            return InliningStatus_UseCountTooLow;
           case InliningDecision_Inline:
             break;
         }
@@ -4955,6 +4960,7 @@ IonBuilder::jsop_funcall(uint32_t argc)
           case InliningDecision_Error:
             return false;
           case InliningDecision_DontInline:
+          case InliningDecision_UseCountTooLow:
             break;
           case InliningDecision_Inline:
             if (target->isInterpreted())
@@ -5095,6 +5101,7 @@ IonBuilder::jsop_funapplyarguments(uint32_t argc)
       case InliningDecision_Error:
         return false;
       case InliningDecision_DontInline:
+      case InliningDecision_UseCountTooLow:
         break;
       case InliningDecision_Inline:
         if (target->isInterpreted())
@@ -5165,6 +5172,13 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     if (targets.length() == 1)
         target = &targets[0]->as<JSFunction>();
 
+    if (target && status == InliningStatus_UseCountTooLow) {
+        MRecompileCheck *check = MRecompileCheck::New(alloc(), target->nonLazyScript(),
+                                                      optimizationInfo().usesBeforeInlining(),
+                                                      MRecompileCheck::RecompileCheck_Inlining);
+        current->add(check);
+    }
+
     return makeCall(target, callInfo, hasClones);
 }
 
@@ -5198,7 +5212,7 @@ IonBuilder::testShouldDOMCall(types::TypeSet *inTypes,
     // If all the DOM objects flowing through are legal with this
     // property, we can bake in a call to the bottom half of the DOM
     // accessor
-    DOMInstanceClassHasProtoAtDepth instanceChecker =
+    DOMInstanceClassMatchesProto instanceChecker =
         compartment->runtime()->DOMcallbacks()->instanceClassMatchesProto;
 
     const JSJitInfo *jinfo = func->jitInfo();
@@ -5210,7 +5224,10 @@ IonBuilder::testShouldDOMCall(types::TypeSet *inTypes,
         if (!curType)
             continue;
 
-        if (!instanceChecker(curType->clasp(), jinfo->protoID, jinfo->depth))
+        if (!curType->hasTenuredProto())
+            return false;
+        JSObject *proto = curType->proto().toObjectOrNull();
+        if (!instanceChecker(proto, jinfo->protoID, jinfo->depth))
             return false;
     }
 
@@ -6134,7 +6151,10 @@ IonBuilder::insertRecompileCheck()
     OptimizationLevel nextLevel = js_IonOptimizations.nextLevel(curLevel);
     const OptimizationInfo *info = js_IonOptimizations.get(nextLevel);
     uint32_t useCount = info->usesBeforeCompile(topBuilder->script());
-    current->add(MRecompileCheck::New(alloc(), topBuilder->script(), useCount));
+
+    MRecompileCheck *check = MRecompileCheck::New(alloc(), topBuilder->script(), useCount,
+                                MRecompileCheck::RecompileCheck_OptimizationLevel);
+    current->add(check);
 }
 
 JSObject *
@@ -8866,6 +8886,7 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, MDefinition *obj, PropertyName
           case InliningDecision_Error:
             return false;
           case InliningDecision_DontInline:
+          case InliningDecision_UseCountTooLow:
             break;
           case InliningDecision_Inline:
             inlineable = true;
@@ -9282,6 +9303,7 @@ IonBuilder::setPropTryCommonSetter(bool *emitted, MDefinition *obj,
           case InliningDecision_Error:
             return false;
           case InliningDecision_DontInline:
+          case InliningDecision_UseCountTooLow:
             break;
           case InliningDecision_Inline:
             if (!inlineScriptedCall(callInfo, commonSetter))

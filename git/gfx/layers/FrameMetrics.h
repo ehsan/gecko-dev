@@ -76,6 +76,7 @@ public:
     , mCumulativeResolution(1)
     , mTransformScale(1)
     , mDevPixelsPerCSSPixel(1)
+    , mPresShellId(-1)
     , mMayHaveTouchListeners(false)
     , mIsRoot(false)
     , mHasScrollgrab(false)
@@ -87,7 +88,6 @@ public:
     , mRootCompositionSize(0, 0)
     , mDisplayPortMargins(0, 0, 0, 0)
     , mUseDisplayPortMargins(false)
-    , mPresShellId(-1)
   {}
 
   // Default copy ctor and operator= are fine
@@ -334,6 +334,8 @@ public:
   // resolution.
   CSSToLayoutDeviceScale mDevPixelsPerCSSPixel;
 
+  uint32_t mPresShellId;
+
   // Whether or not this frame may have touch listeners.
   bool mMayHaveTouchListeners;
 
@@ -430,16 +432,6 @@ public:
     return mUseDisplayPortMargins;
   }
 
-  uint32_t GetPresShellId() const
-  {
-    return mPresShellId;
-  }
-
-  void SetPresShellId(uint32_t aPresShellId)
-  {
-    mPresShellId = aPresShellId;
-  }
-
 private:
   // New fields from now on should be made private and old fields should
   // be refactored to be private.
@@ -490,8 +482,6 @@ private:
   // If this is true then we use the display port margins on this metrics,
   // otherwise use the display port rect.
   bool mUseDisplayPortMargins;
-
-  uint32_t mPresShellId;
 };
 
 /**
@@ -526,7 +516,7 @@ struct ScrollableLayerGuid {
 
   ScrollableLayerGuid(uint64_t aLayersId, const FrameMetrics& aMetrics)
     : mLayersId(aLayersId)
-    , mPresShellId(aMetrics.GetPresShellId())
+    , mPresShellId(aMetrics.mPresShellId)
     , mScrollId(aMetrics.GetScrollId())
   {
     MOZ_COUNT_CTOR(ScrollableLayerGuid);

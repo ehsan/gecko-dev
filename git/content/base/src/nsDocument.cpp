@@ -28,7 +28,6 @@
 #include "mozilla/Telemetry.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsILoadContext.h"
 #include "nsUnicharUtils.h"
 #include "nsContentList.h"
 #include "nsIObserver.h"
@@ -2338,21 +2337,21 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
     nsIScriptSecurityManager *securityManager =
       nsContentUtils::GetSecurityManager();
     if (securityManager) {
-      nsCOMPtr<nsILoadContext> loadContext(mDocumentContainer);
+      nsCOMPtr<nsIDocShell> docShell(mDocumentContainer);
 
-      if (!loadContext && aLoadGroup) {
+      if (!docShell && aLoadGroup) {
         nsCOMPtr<nsIInterfaceRequestor> cbs;
         aLoadGroup->GetNotificationCallbacks(getter_AddRefs(cbs));
-        loadContext = do_GetInterface(cbs);
+        docShell = do_GetInterface(cbs);
       }
 
-      MOZ_ASSERT(loadContext,
-                 "must have a load context or pass in an explicit principal");
+      MOZ_ASSERT(docShell,
+                 "must be in a docshell or pass in an explicit principal");
 
       nsCOMPtr<nsIPrincipal> principal;
       nsresult rv = securityManager->
-        GetLoadContextCodebasePrincipal(mDocumentURI, loadContext,
-                                        getter_AddRefs(principal));
+        GetDocShellCodebasePrincipal(mDocumentURI, docShell,
+                                     getter_AddRefs(principal));
       if (NS_SUCCEEDED(rv)) {
         SetPrincipal(principal);
       }
@@ -9107,17 +9106,14 @@ nsDocument::CloneDocHelper(nsDocument* clone) const
       docLoader->GetLoadGroup(getter_AddRefs(loadGroup));
     }
     nsCOMPtr<nsIChannel> channel = GetChannel();
-    nsCOMPtr<nsIURI> uri;
-    if (channel) {
-      NS_GetFinalChannelURI(channel, getter_AddRefs(uri));
+    if (channel && loadGroup) {
+      clone->Reset(channel, loadGroup);
     } else {
-      uri = nsIDocument::GetDocumentURI();
+      nsIURI* uri = static_cast<const nsIDocument*>(this)->GetDocumentURI();
+      if (uri) {
+        clone->ResetToURI(uri, loadGroup, NodePrincipal());
+      }
     }
-    clone->mChannel = channel;
-    if (uri) {
-      clone->ResetToURI(uri, loadGroup, NodePrincipal());
-    }
-
     clone->SetContainer(mDocumentContainer);
   }
 

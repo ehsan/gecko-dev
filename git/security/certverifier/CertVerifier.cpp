@@ -188,11 +188,9 @@ SECStatus chainValidationCallback(void* state, const CERTCertList* certList,
     }
   }
 
-  bool enforceTestMode = (callbackState->pinningEnforcementLevel ==
-                          CertVerifier::pinningEnforceTestMode);
   *chainOK = PublicKeyPinningService::
-    ChainHasValidPins(certList, callbackState->hostname, callbackState->time,
-                      enforceTestMode);
+               ChainHasValidPins(certList, callbackState->hostname,
+                                 callbackState->time);
 
   return SECSuccess;
 }

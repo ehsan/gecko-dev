@@ -55,7 +55,8 @@ def isTypeCopyConstructible(type):
 def wantsAddProperty(desc):
     return (desc.concrete and
             desc.wrapperCache and
-            not desc.interface.getExtendedAttribute("Global"))
+            not (desc.workers and
+                 desc.interface.getExtendedAttribute("Global")))
 
 
 # We'll want to insert the indent at the beginnings of lines, but we
@@ -69,7 +70,7 @@ def indent(s, indentLevel=2):
     Indent C++ code.
 
     Weird secret feature: this doesn't indent lines that start with # (such as
-    #include lines or #ifdef/#endif).
+    #include lines).
     """
     if s == "":
         return s
@@ -2476,6 +2477,11 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
             interfaceClass = "nullptr"
             interfaceCache = "nullptr"
 
+        if self.descriptor.concrete:
+            domClass = "&Class.mClass"
+        else:
+            domClass = "nullptr"
+
         isGlobal = self.descriptor.interface.getExtendedAttribute("Global") is not None
         if not isGlobal and self.properties.hasNonChromeOnly():
             properties = "&sNativeProperties"
@@ -2496,6 +2502,7 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
                                         ${protoClass}, ${protoCache},
                                         constructorProto, ${interfaceClass}, ${constructHookHolder}, ${constructArgs}, ${namedConstructors},
                                         ${interfaceCache},
+                                        ${domClass},
                                         ${properties},
                                         ${chromeProperties},
                                         ${name}, aDefineOnGlobal);
@@ -2507,6 +2514,7 @@ class CGCreateInterfaceObjectsMethod(CGAbstractMethod):
             constructArgs=constructArgs,
             namedConstructors=namedConstructors,
             interfaceCache=interfaceCache,
+            domClass=domClass,
             properties=properties,
             chromeProperties=chromeProperties,
             name='"' + self.descriptor.interface.identifier.name + '"' if needInterfaceObject else "nullptr")
@@ -6675,13 +6683,7 @@ class CGGenericMethod(CGAbstractBindingMethod):
             const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(args.calleev());
             MOZ_ASSERT(info->type() == JSJitInfo::Method);
             JSJitMethodOp method = info->method;
-            bool ok = method(cx, obj, self, JSJitMethodCallArgs(args));
-            #ifdef DEBUG
-            if (ok) {
-              AssertReturnTypeMatchesJitinfo(info, args.rval());
-            }
-            #endif
-            return ok;
+            return method(cx, obj, self, JSJitMethodCallArgs(args));
             """)))
 
 
@@ -6979,13 +6981,7 @@ class CGGenericGetter(CGAbstractBindingMethod):
             const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(args.calleev());
             MOZ_ASSERT(info->type() == JSJitInfo::Getter);
             JSJitGetterOp getter = info->getter;
-            bool ok = getter(cx, obj, self, JSJitGetterCallArgs(args));
-            #ifdef DEBUG
-            if (ok) {
-              AssertReturnTypeMatchesJitinfo(info, args.rval());
-            }
-            #endif
-            return ok;
+            return getter(cx, obj, self, JSJitGetterCallArgs(args));
             """)))
 
 
@@ -7120,9 +7116,6 @@ class CGGenericSetter(CGAbstractBindingMethod):
               return false;
             }
             args.rval().set(JSVAL_VOID);
-            #ifdef DEBUG
-            AssertReturnTypeMatchesJitinfo(info, args.rval());
-            #endif
             return true;
             """,
             name=self.descriptor.interface.identifier.name)))
@@ -7589,12 +7582,7 @@ def getEnumValueName(value):
         raise SyntaxError('"_empty" is not an IDL enum value we support yet')
     if value == "":
         return "_empty"
-    nativeName = MakeNativeName(value)
-    if nativeName == "EndGuard_":
-        raise SyntaxError('Enum value "' + value + '" cannot be used because it'
-                          ' collides with our internal EndGuard_ value.  Please'
-                          ' rename our internal EndGuard_ to something else')
-    return nativeName
+    return MakeNativeName(value)
 
 
 class CGEnum(CGThing):
@@ -7614,11 +7602,10 @@ class CGEnum(CGThing):
 
             MOZ_BEGIN_ENUM_CLASS(${name}, uint32_t)
               $*{enums}
-              EndGuard_
             MOZ_END_ENUM_CLASS(${name})
             """,
             name=self.enum.identifier.name,
-            enums=",\n".join(map(getEnumValueName, self.enum.values())) + ",\n")
+            enums=",\n".join(map(getEnumValueName, self.enum.values())) + "\n")
         strings = CGNamespace(self.stringsNamespace(),
                               CGGeneric(declare="extern const EnumEntry %s[%d];\n"
                                         % (ENUM_ENTRY_VARIABLE_NAME, self.nEnumStrings())))

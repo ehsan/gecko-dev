@@ -3097,12 +3097,6 @@ MacroAssemblerARMCompat::unboxObject(const ValueOperand &src, Register dest)
 }
 
 void
-MacroAssemblerARMCompat::unboxObject(const Address &src, Register dest)
-{
-    ma_ldr(payloadOf(src), dest);
-}
-
-void
 MacroAssemblerARMCompat::unboxValue(const ValueOperand &src, AnyRegister dest)
 {
     if (dest.isFloat()) {

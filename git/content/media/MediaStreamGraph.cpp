@@ -77,7 +77,6 @@ MediaStreamGraphImpl::FinishStream(MediaStream* aStream)
     return;
   STREAM_LOG(PR_LOG_DEBUG, ("MediaStream %p will finish", aStream));
   aStream->mFinished = true;
-  aStream->mBuffer.AdvanceKnownTracksTime(STREAM_TIME_MAX);
   // Force at least one more iteration of the control loop, since we rely
   // on UpdateCurrentTime to notify our listeners once the stream end
   // has been reached.
@@ -207,9 +206,7 @@ MediaStreamGraphImpl::ExtractPendingInput(SourceMediaStream* aStream,
         aStream->mUpdateTracks.RemoveElementAt(i);
       }
     }
-    if (!aStream->mFinished) {
-      aStream->mBuffer.AdvanceKnownTracksTime(aStream->mUpdateKnownTracksTime);
-    }
+    aStream->mBuffer.AdvanceKnownTracksTime(aStream->mUpdateKnownTracksTime);
   }
   if (aStream->mBuffer.GetEnd() > 0) {
     aStream->mHasCurrentData = true;
@@ -2412,7 +2409,6 @@ void
 SourceMediaStream::AdvanceKnownTracksTime(StreamTime aKnownTime)
 {
   MutexAutoLock lock(mMutex);
-  MOZ_ASSERT(aKnownTime >= mUpdateKnownTracksTime);
   mUpdateKnownTracksTime = aKnownTime;
   if (!mDestroyed) {
     GraphImpl()->EnsureNextIteration();

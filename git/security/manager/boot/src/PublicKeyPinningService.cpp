@@ -151,7 +151,7 @@ TransportSecurityPreloadCompare(const void *key, const void *entry) {
  */
 static bool
 CheckPinsForHostname(const CERTCertList *certList, const char *hostname,
-                     const PRTime time, bool enforceTestMode)
+                     const PRTime time)
 {
   if (!certList) {
     return false;
@@ -199,9 +199,7 @@ CheckPinsForHostname(const CERTCertList *certList, const char *hostname,
       histogram = foundEntry->mIsMoz
         ? Telemetry::CERT_PINNING_MOZ_TEST_RESULTS
         : Telemetry::CERT_PINNING_TEST_RESULTS;
-      if (!enforceTestMode) {
-        retval = true;
-      }
+      retval = true;
     }
     // We can collect per-host pinning violations for this host because it is
     // operationally critical to Firefox.
@@ -230,8 +228,7 @@ CheckPinsForHostname(const CERTCertList *certList, const char *hostname,
  * evaluating at the first OK pin).
  */
 static bool
-CheckChainAgainstAllNames(const CERTCertList* certList, const PRTime time,
-                          bool enforceTestMode) {
+CheckChainAgainstAllNames(const CERTCertList* certList, const PRTime time) {
   PR_LOG(gPublicKeyPinningLog, PR_LOG_DEBUG,
          ("pkpin: top of checkChainAgainstAllNames"));
   CERTCertListNode* node = CERT_LIST_HEAD(certList);
@@ -275,7 +272,7 @@ CheckChainAgainstAllNames(const CERTCertList* certList, const PRTime time,
         // cannot call CheckPinsForHostname on empty or null hostname
         break;
       }
-      if (CheckPinsForHostname(certList, hostName, time, enforceTestMode)) {
+      if (CheckPinsForHostname(certList, hostName, time)) {
         hasValidPins = true;
         break;
       }
@@ -289,8 +286,7 @@ CheckChainAgainstAllNames(const CERTCertList* certList, const PRTime time,
 bool
 PublicKeyPinningService::ChainHasValidPins(const CERTCertList* certList,
                                            const char* hostname,
-                                           const PRTime time,
-                                           bool enforceTestMode)
+                                           const PRTime time)
 {
   if (!certList) {
     return false;
@@ -299,7 +295,7 @@ PublicKeyPinningService::ChainHasValidPins(const CERTCertList* certList,
     return true;
   }
   if (!hostname || hostname[0] == 0) {
-    return CheckChainAgainstAllNames(certList, time, enforceTestMode);
+    return CheckChainAgainstAllNames(certList, time);
   }
-  return CheckPinsForHostname(certList, hostname, time, enforceTestMode);
+  return CheckPinsForHostname(certList, hostname, time);
 }
