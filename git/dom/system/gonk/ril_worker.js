@@ -10203,14 +10203,7 @@ let ICCRecordHelper = {
         // MCC is the first 3 digits of IMSI.
         RIL.iccInfo.mcc = imsi.substr(0,3);
         // The 4th byte of the response is the length of MNC.
-        let mncLength = ad && ad[3];
-        if (!mncLength) {
-          // If response dose not contain the length of MNC, check the MCC table
-          // to decide the length of MNC.
-          let index = MCC_TABLE_FOR_MNC_LENGTH_IS_3.indexOf(RIL.iccInfo.mcc);
-          mncLength = (index !== -1) ? 3 : 2;
-        }
-        RIL.iccInfo.mnc = imsi.substr(3, mncLength);
+        RIL.iccInfo.mnc = imsi.substr(3, ad[3]);
         if (DEBUG) debug("MCC: " + RIL.iccInfo.mcc + " MNC: " + RIL.iccInfo.mnc);
         ICCUtilsHelper.handleICCInfoChange();
       }
