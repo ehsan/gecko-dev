@@ -50,7 +50,6 @@ import android.view.LayoutInflater;
 import android.view.MenuInflater;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.Interpolator;
 import android.view.inputmethod.InputMethodManager;
@@ -191,10 +190,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
         urlEditLayout = (ToolbarEditLayout) findViewById(R.id.edit_layout);
 
         urlBarEntryDefaultLayoutParams = (RelativeLayout.LayoutParams) urlBarEntry.getLayoutParams();
-        // API level 19 adds a RelativeLayout.LayoutParams copy constructor, so we explicitly cast
-        // to ViewGroup.MarginLayoutParams to ensure consistency across platforms.
-        urlBarEntryShrunkenLayoutParams = new RelativeLayout.LayoutParams(
-                (ViewGroup.MarginLayoutParams) urlBarEntryDefaultLayoutParams);
+        urlBarEntryShrunkenLayoutParams = new RelativeLayout.LayoutParams(urlBarEntryDefaultLayoutParams);
         urlBarEntryShrunkenLayoutParams.addRule(RelativeLayout.ALIGN_RIGHT, R.id.edit_layout);
         urlBarEntryShrunkenLayoutParams.rightMargin = 0;
 
@@ -401,7 +397,7 @@ public class BrowserToolbar extends ThemedRelativeLayout
 
     public boolean onBackPressed() {
         if (isEditing()) {
-            cancelEdit();
+            stopEditing();
             return true;
         }
 

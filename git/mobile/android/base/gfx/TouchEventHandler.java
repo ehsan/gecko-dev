@@ -254,8 +254,6 @@ final class TouchEventHandler implements Tabs.OnTabsChangedListener {
 
             if (event != null) {
                 dispatchEvent(event, allowDefaultAction);
-                event.recycle();
-                event = null;
             }
             if (mEventQueue.isEmpty()) {
                 // we have processed the backlog of events, and are all caught up.
