@@ -205,7 +205,7 @@ nsFileControlFrame::DnDListener::HandleEvent(nsIDOMEvent* aEvent)
   NS_ASSERTION(mFrame, "We should have been unregistered");
 
   bool defaultPrevented = false;
-  aEvent->GetDefaultPrevented(&defaultPrevented);
+  aEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented) {
     return NS_OK;
   }

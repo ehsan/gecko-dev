@@ -4573,7 +4573,7 @@ nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMKeyEvent* aKeyEvent,
                                          bool aGetCharCode)
 {
   bool defaultPrevented;
-  aKeyEvent->GetDefaultPrevented(&defaultPrevented);
+  aKeyEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented)
     return false;
 
