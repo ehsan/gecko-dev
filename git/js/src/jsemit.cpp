@@ -2025,8 +2025,6 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         dn = pn->pn_lexdef;
         JS_ASSERT(dn->pn_defn);
         pn->pn_dflags |= (dn->pn_dflags & PND_CONST);
-        if (pn->isDeoptimized())
-            return JS_TRUE;
     } else {
         if (!pn->pn_defn)
             return JS_TRUE;
@@ -2618,7 +2616,6 @@ EmitNameOp(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
             op = JSOP_CALLNAME;
             break;
           case JSOP_GETGVAR:
-            JS_ASSERT(!cg->funbox);
             op = JSOP_CALLGVAR;
             break;
           case JSOP_GETARG:
@@ -3585,7 +3582,13 @@ js_EmitFunctionScript(JSContext *cx, JSCodeGenerator *cg, JSParseNode *body)
     }
 
     if (cg->flags & TCF_FUN_UNBRAND_THIS) {
-        if (js_Emit1(cx, cg, JSOP_UNBRANDTHIS) < 0)
+        if (js_Emit1(cx, cg, JSOP_THIS) < 0)
+            return false;
+        if (js_Emit1(cx, cg, JSOP_UNBRAND) < 0)
+            return false;
+        if (js_NewSrcNote(cx, cg, SRC_HIDDEN) < 0)
+            return false;
+        if (js_Emit1(cx, cg, JSOP_POP) < 0)
             return false;
     }
 
@@ -5738,7 +5741,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
          */
         pn2 = pn->pn_left;
         atomIndex = (jsatomid) -1;              /* quell GCC overwarning */
-        switch (PN_TYPE(pn2)) {
+        switch (pn2->pn_type) {
           case TOK_NAME:
             if (!BindNameToSlot(cx, cg, pn2))
                 return JS_FALSE;
@@ -5827,9 +5830,10 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                         return JS_FALSE;
                     EMIT_INDEX_OP(JSOP_GETXPROP, atomIndex);
                 } else {
-                    JS_ASSERT(PN_OP(pn2) != JSOP_GETUPVAR);
                     EMIT_UINT16_IMM_OP((PN_OP(pn2) == JSOP_SETGVAR)
                                        ? JSOP_GETGVAR
+                                       : (PN_OP(pn2) == JSOP_GETUPVAR)
+                                       ? JSOP_GETUPVAR
                                        : (PN_OP(pn2) == JSOP_SETARG)
                                        ? JSOP_GETARG
                                        : JSOP_GETLOCAL,
@@ -6329,6 +6333,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
       case TOK_LP:
       {
         bool callop = (PN_TYPE(pn) == TOK_LP);
+        uintN oldflags;
 
         /*
          * Emit callable invocation or operator new (constructor call) code.
@@ -6393,7 +6398,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
          * JSOP_NEW bytecode with a two-byte immediate telling how many args
          * were pushed on the operand stack.
          */
-        uintN oldflags = cg->flags;
+        oldflags = cg->flags;
         cg->flags &= ~TCF_IN_FOR_INIT;
         for (pn3 = pn2->pn_next; pn3; pn3 = pn3->pn_next) {
             if (!js_EmitTree(cx, cg, pn3))
