@@ -36,7 +36,7 @@ class Shape;
  * in debug builds and crash in release builds. Instead, we use a safe-for-crash
  * pointer.
  */
-static MOZ_ALWAYS_INLINE void
+static JS_ALWAYS_INLINE void
 Debug_SetValueRangeToCrashOnTouch(Value *beg, Value *end)
 {
 #ifdef DEBUG
@@ -45,7 +45,7 @@ Debug_SetValueRangeToCrashOnTouch(Value *beg, Value *end)
 #endif
 }
 
-static MOZ_ALWAYS_INLINE void
+static JS_ALWAYS_INLINE void
 Debug_SetValueRangeToCrashOnTouch(Value *vec, size_t len)
 {
 #ifdef DEBUG
@@ -53,7 +53,7 @@ Debug_SetValueRangeToCrashOnTouch(Value *vec, size_t len)
 #endif
 }
 
-static MOZ_ALWAYS_INLINE void
+static JS_ALWAYS_INLINE void
 Debug_SetValueRangeToCrashOnTouch(HeapValue *vec, size_t len)
 {
 #ifdef DEBUG
@@ -1543,7 +1543,7 @@ class ObjectImpl : public gc::BarrieredCell<ObjectImpl>
 namespace gc {
 
 template <>
-MOZ_ALWAYS_INLINE Zone *
+JS_ALWAYS_INLINE Zone *
 BarrieredCell<ObjectImpl>::zone() const
 {
     const ObjectImpl* obj = static_cast<const ObjectImpl*>(this);
@@ -1553,7 +1553,7 @@ BarrieredCell<ObjectImpl>::zone() const
 }
 
 template <>
-MOZ_ALWAYS_INLINE Zone *
+JS_ALWAYS_INLINE Zone *
 BarrieredCell<ObjectImpl>::zoneFromAnyThread() const
 {
     const ObjectImpl* obj = static_cast<const ObjectImpl*>(this);

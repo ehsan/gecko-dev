@@ -28,6 +28,7 @@
 #include "nsTArray.h"                   // for nsTArray
 
 class gfxContext;
+struct gfxMatrix;
 class gfxASurface;
 
 namespace mozilla {
@@ -157,7 +158,7 @@ public:
               float aOpacity,
               gfx::CompositionOp aOp,
               gfxASurface* aMask,
-              const gfx::Matrix* aMaskTransform)
+              const gfxMatrix* aMaskTransform)
   {
     RotatedContentBuffer::DrawTo(aLayer, aTarget, aOpacity, aOp,
                                  aMask, aMaskTransform);

@@ -32,7 +32,6 @@ var gInitialized = false;
 var gOverrideFunctions = [
   function (aHttpChannel) UserAgentOverrides.getOverrideForURI(aHttpChannel.URI)
 ];
-var gBuiltUAs = new Map;
 
 this.UserAgentOverrides = {
   init: function uao_init() {
@@ -54,9 +53,6 @@ this.UserAgentOverrides = {
     UserAgentUpdates.init(function(overrides) {
       gOverrideForHostCache.clear();
       if (overrides) {
-        for (let domain in overrides) {
-          overrides[domain] = getUserAgentFromOverride(overrides[domain]);
-        }
         overrides.get = function(key) this[key];
       }
       gUpdatedOverrides = overrides;
@@ -133,22 +129,6 @@ this.UserAgentOverrides = {
   }
 };
 
-function getUserAgentFromOverride(override)
-{
-  let userAgent = gBuiltUAs.get(override);
-  if (userAgent !== undefined) {
-    return userAgent;
-  }
-  let [search, replace] = override.split("#", 2);
-  if (search && replace) {
-    userAgent = DEFAULT_UA.replace(new RegExp(search, "g"), replace);
-  } else {
-    userAgent = override;
-  }
-  gBuiltUAs.set(override, userAgent);
-  return userAgent;
-}
-
 function buildOverrides() {
   gOverrides.clear();
   gOverrideForHostCache.clear();
@@ -161,7 +141,17 @@ function buildOverrides() {
 
   for (let domain of domains) {
     let override = gPrefBranch.getCharPref(domain);
-    let userAgent = getUserAgentFromOverride(override);
+    let userAgent = builtUAs.get(override);
+
+    if (userAgent === undefined) {
+      let [search, replace] = override.split("#", 2);
+      if (search && replace) {
+        userAgent = DEFAULT_UA.replace(new RegExp(search, "g"), replace);
+      } else {
+        userAgent = override;
+      }
+      builtUAs.set(override, userAgent);
+    }
 
     if (userAgent != DEFAULT_UA) {
       gOverrides.set(domain, userAgent);

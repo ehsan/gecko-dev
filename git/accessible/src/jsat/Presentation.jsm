@@ -22,8 +22,6 @@ XPCOMUtils.defineLazyModuleGetter(this, 'BrailleGenerator',
   'resource://gre/modules/accessibility/OutputGenerator.jsm');
 XPCOMUtils.defineLazyModuleGetter(this, 'Roles',
   'resource://gre/modules/accessibility/Constants.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'States',
-  'resource://gre/modules/accessibility/Constants.jsm');
 
 this.EXPORTED_SYMBOLS = ['Presentation'];
 
@@ -286,14 +284,16 @@ AndroidPresenter.prototype = {
         });
       }
     } else {
-      let state = Utils.getState(aContext.accessible);
+      let state = Utils.getStates(aContext.accessible)[0];
       androidEvents.push({eventType: (isExploreByTouch) ?
                            this.ANDROID_VIEW_HOVER_ENTER : focusEventType,
                          text: UtteranceGenerator.genForContext(aContext).output,
                          bounds: aContext.bounds,
                          clickable: aContext.accessible.actionCount > 0,
-                         checkable: state.contains(States.CHECKABLE),
-                         checked: state.contains(States.CHECKED),
+                         checkable: !!(state &
+                                       Ci.nsIAccessibleStates.STATE_CHECKABLE),
+                         checked: !!(state &
+                                     Ci.nsIAccessibleStates.STATE_CHECKED),
                          brailleOutput: brailleOutput});
     }
 
@@ -305,10 +305,10 @@ AndroidPresenter.prototype = {
   },
 
   actionInvoked: function AndroidPresenter_actionInvoked(aObject, aActionName) {
-    let state = Utils.getState(aObject);
+    let state = Utils.getStates(aObject)[0];
 
     // Checkable objects will have a state changed event we will use instead.
-    if (state.contains(States.CHECKABLE))
+    if (state & Ci.nsIAccessibleStates.STATE_CHECKABLE)
       return null;
 
     return {
@@ -316,7 +316,7 @@ AndroidPresenter.prototype = {
       details: [{
         eventType: this.ANDROID_VIEW_CLICKED,
         text: UtteranceGenerator.genForAction(aObject, aActionName),
-        checked: state.contains(States.CHECKED)
+        checked: !!(state & Ci.nsIAccessibleStates.STATE_CHECKED)
       }]
     };
   },

@@ -5,6 +5,7 @@
 
 #include "ImageLayers.h"
 #include "ImageContainer.h"             // for ImageContainer
+#include "gfx3DMatrix.h"                // for gfx3DMatrix
 #include "gfxRect.h"                    // for gfxRect
 #include "nsDebug.h"                    // for NS_ASSERTION
 #include "nsISupportsImpl.h"            // for ImageContainer::Release, etc

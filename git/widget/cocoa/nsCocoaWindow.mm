@@ -903,10 +903,8 @@ NS_IMETHODIMP nsCocoaWindow::Show(bool bState)
     }
   }
   
-  if (mPopupContentView) {
-    mPopupContentView->Show(bState);
-    [[mWindow contentView] setNeedsDisplay:YES];
-  }
+  if (mPopupContentView)
+      mPopupContentView->Show(bState);
 
   [mWindow setBeingShown:NO];
 

@@ -126,9 +126,7 @@ ChromeStackWalker(void *aPC, void *aSP, void *aClosure)
 }
 
 static void
-GetChromeHangReport(Telemetry::ProcessedStack &aStack,
-                    int32_t &aSystemUptime,
-                    int32_t &aFirefoxUptime)
+GetChromeHangReport(Telemetry::ProcessedStack &aStack)
 {
   MOZ_ASSERT(winMainThreadHandle);
 
@@ -146,19 +144,6 @@ GetChromeHangReport(Telemetry::ProcessedStack &aStack,
   if (ret == -1)
     return;
   aStack = Telemetry::GetStackAndModules(rawStack);
-
-  // Record system uptime (in minutes) at the time of the hang
-  aSystemUptime = ((GetTickCount() / 1000) - (gTimeout * 2)) / 60;
-
-  // Record Firefox uptime (in minutes) at the time of the hang
-  bool error;
-  TimeStamp processCreation = TimeStamp::ProcessCreation(error);
-  if (!error) {
-    TimeDuration td = TimeStamp::Now() - processCreation;
-    aFirefoxUptime = (static_cast<int32_t>(td.ToSeconds()) - (gTimeout * 2)) / 60;
-  } else {
-    aFirefoxUptime = -1;
-  }
 }
 #endif
 
@@ -177,8 +162,6 @@ ThreadMain(void*)
 
 #ifdef REPORT_CHROME_HANGS
   Telemetry::ProcessedStack stack;
-  int32_t systemUptime = -1;
-  int32_t firefoxUptime = -1;
 #endif
 
   while (true) {
@@ -201,31 +184,24 @@ ThreadMain(void*)
         timestamp == lastTimestamp &&
         gTimeout > 0) {
       ++waitCount;
-#ifdef REPORT_CHROME_HANGS
-      // Capture the chrome-hang stack + Firefox & system uptimes after
-      // the minimum hang duration has been reached (not when the hang ends)
-      if (waitCount == 2) {
-        GetChromeHangReport(stack, systemUptime, firefoxUptime);
-      }
-#else
-      // This is the crash-on-hang feature.
-      // See bug 867313 for the quirk in the waitCount comparison
       if (waitCount >= 2) {
+#ifdef REPORT_CHROME_HANGS
+        GetChromeHangReport(stack);
+#else
         int32_t delay =
           int32_t(PR_IntervalToSeconds(now - timestamp));
         if (delay >= gTimeout) {
           MonitorAutoUnlock unlock(*gMonitor);
           Crash();
         }
-      }
 #endif
+      }
     }
     else {
 #ifdef REPORT_CHROME_HANGS
       if (waitCount >= 2) {
         uint32_t hangDuration = PR_IntervalToSeconds(now - lastTimestamp);
-        Telemetry::RecordChromeHang(hangDuration, stack,
-                                    systemUptime, firefoxUptime);
+        Telemetry::RecordChromeHang(hangDuration, stack);
         stack.Clear();
       }
 #endif

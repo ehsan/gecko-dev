@@ -21,6 +21,7 @@
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "LayersTypes.h"
 
+struct gfxMatrix;
 struct nsIntSize;
 
 namespace mozilla {
@@ -291,7 +292,7 @@ public:
               float aOpacity,
               gfx::CompositionOp aOp,
               gfxASurface* aMask,
-              const gfx::Matrix* aMaskTransform);
+              const gfxMatrix* aMaskTransform);
 
 protected:
   TemporaryRef<gfx::DrawTarget>

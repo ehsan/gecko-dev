@@ -215,13 +215,11 @@ PropertyTree::lookupChild(ThreadSafeContext *cx, Shape *parent, const StackShape
         return nullptr;
     }
 
-#if defined(JSGC_INCREMENTAL) && defined(DEBUG)
-    if (shape) {
-        JS::Zone *zone = shape->arenaHeader()->zone;
-        JS_ASSERT(!zone->needsBarrier());
-        JS_ASSERT(!(zone->isGCSweeping() && !shape->isMarked() &&
-                    !shape->arenaHeader()->allocatedDuringIncremental));
-    }
+#ifdef JSGC_INCREMENTAL
+    mozilla::DebugOnly<JS::Zone *> zone = shape->arenaHeader()->zone;
+    JS_ASSERT(!zone->needsBarrier());
+    JS_ASSERT(!(zone->isGCSweeping() && !shape->isMarked() &&
+		!shape->arenaHeader()->allocatedDuringIncremental));
 #endif
 
     return shape;

@@ -790,7 +790,7 @@ JSRuntime::updateMallocCounter(JS::Zone *zone, size_t nbytes)
 {
     /* We tolerate any thread races when updating gcMallocBytes. */
     gcMallocBytes -= ptrdiff_t(nbytes);
-    if (MOZ_UNLIKELY(gcMallocBytes <= 0))
+    if (JS_UNLIKELY(gcMallocBytes <= 0))
         onTooMuchMalloc();
     else if (zone)
         zone->updateMallocCounter(nbytes);

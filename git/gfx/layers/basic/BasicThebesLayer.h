@@ -10,6 +10,7 @@
 #include "RotatedBuffer.h"              // for RotatedContentBuffer, etc
 #include "BasicImplData.h"              // for BasicImplData
 #include "BasicLayers.h"                // for BasicLayerManager
+#include "gfx3DMatrix.h"                // for gfx3DMatrix
 #include "gfxPoint.h"                   // for gfxPoint
 #include "mozilla/RefPtr.h"             // for RefPtr
 #include "mozilla/gfx/BasePoint.h"      // for BasePoint
