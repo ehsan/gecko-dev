@@ -5,60 +5,16 @@
 #include "WindowsLocationProvider.h"
 #include "nsGeoPosition.h"
 #include "nsIDOMGeoPositionError.h"
-#include "nsComponentManagerUtils.h"
 #include "prtime.h"
-#include "MLSFallback.h"
-#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS(WindowsLocationProvider::MLSUpdate, nsIGeolocationUpdate);
-
-WindowsLocationProvider::MLSUpdate::MLSUpdate(nsIGeolocationUpdate* aCallback)
-: mCallback(aCallback)
-{
-}
-
-NS_IMETHODIMP
-WindowsLocationProvider::MLSUpdate::Update(nsIDOMGeoPosition *aPosition)
-{
-  if (!mCallback) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIDOMGeoPositionCoords> coords;
-  aPosition->GetCoords(getter_AddRefs(coords));
-  if (!coords) {
-    return NS_ERROR_FAILURE;
-  }
-
-  Telemetry::Accumulate(Telemetry::GEOLOCATION_WIN8_SOURCE_IS_MLS, true);
-
-  return mCallback->Update(aPosition);
-}
-
-NS_IMETHODIMP
-WindowsLocationProvider::MLSUpdate::LocationUpdatePending()
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-WindowsLocationProvider::MLSUpdate::NotifyError(uint16_t aError)
-{
-  if (!mCallback) {
-    return NS_ERROR_FAILURE;
-  }
-  return mCallback->NotifyError(aError);
-}
-
-
 class LocationEvent MOZ_FINAL : public ILocationEvents
 {
 public:
-  LocationEvent(nsIGeolocationUpdate* aCallback, WindowsLocationProvider *aProvider)
-    : mCallback(aCallback), mProvider(aProvider), mCount(0) {
+  LocationEvent(nsIGeolocationUpdate* aCallback)
+    : mCallback(aCallback), mCount(0) {
   }
 
   // IUnknown interface
@@ -74,7 +30,6 @@ public:
 
 private:
   nsCOMPtr<nsIGeolocationUpdate> mCallback;
-  nsRefPtr<WindowsLocationProvider> mProvider;
   ULONG mCount;
 };
 
@@ -118,34 +73,18 @@ LocationEvent::OnStatusChanged(REFIID aReportType,
     return S_OK;
   }
 
-  // When registering event, REPORT_INITIALIZING is fired at first.
-  // Then, when the location is found, REPORT_RUNNING is fired.
-  if (aStatus == REPORT_RUNNING) {
-    // location is found by Windows Location provider, we use it.
-    mProvider->CancelMLSProvider();
-    return S_OK;
-  }
-
-  // Cannot get current location at this time.  We use MLS instead until
-  // Location API returns RUNNING status.
-  if (NS_SUCCEEDED(mProvider->CreateAndWatchMLSProvider(mCallback))) {
-    return S_OK;
-  }
-
-  // Cannot watch location by MLS provider.  We must return error by
-  // Location API.
   uint16_t err;
   switch (aStatus) {
   case REPORT_ACCESS_DENIED:
     err = nsIDOMGeoPositionError::PERMISSION_DENIED;
     break;
-  case REPORT_NOT_SUPPORTED:
   case REPORT_ERROR:
     err = nsIDOMGeoPositionError::POSITION_UNAVAILABLE;
     break;
   default:
     return S_OK;
   }
+
   mCallback->NotifyError(err);
   return S_OK;
 }
@@ -184,18 +123,12 @@ LocationEvent::OnLocationChanged(REFIID aReportType,
                       PR_Now());
   mCallback->Update(position);
 
-  Telemetry::Accumulate(Telemetry::GEOLOCATION_WIN8_SOURCE_IS_MLS, false);
-
   return S_OK;
 }
 
 NS_IMPL_ISUPPORTS(WindowsLocationProvider, nsIGeolocationProvider)
 
 WindowsLocationProvider::WindowsLocationProvider()
-{
-}
-
-WindowsLocationProvider::~WindowsLocationProvider()
 {
 }
 
@@ -206,14 +139,12 @@ WindowsLocationProvider::Startup()
   if (FAILED(::CoCreateInstance(CLSID_Location, nullptr, CLSCTX_INPROC_SERVER,
                                 IID_ILocation,
                                 getter_AddRefs(location)))) {
-    // We will use MLS provider
-    return NS_OK;
+    return NS_ERROR_FAILURE;
   }
 
   IID reportTypes[] = { IID_ILatLongReport };
   if (FAILED(location->RequestPermissions(nullptr, reportTypes, 1, FALSE))) {
-    // We will use MLS provider
-    return NS_OK;
+    return NS_ERROR_FAILURE;
   }
 
   mLocation = location;
@@ -223,17 +154,11 @@ WindowsLocationProvider::Startup()
 NS_IMETHODIMP
 WindowsLocationProvider::Watch(nsIGeolocationUpdate* aCallback)
 {
-  if (mLocation) {
-    nsRefPtr<LocationEvent> event = new LocationEvent(aCallback, this);
-    if (SUCCEEDED(mLocation->RegisterForReport(event, IID_ILatLongReport, 0))) {
-      return NS_OK;
-    }
+  nsRefPtr<LocationEvent> event = new LocationEvent(aCallback);
+  if (FAILED(mLocation->RegisterForReport(event, IID_ILatLongReport, 0))) {
+    return NS_ERROR_FAILURE;
   }
-
-  // Cannot use Location API.  We will use MLS instead.
-  mLocation = nullptr;
-
-  return CreateAndWatchMLSProvider(aCallback);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -244,8 +169,6 @@ WindowsLocationProvider::Shutdown()
     mLocation = nullptr;
   }
 
-  CancelMLSProvider();
-
   return NS_OK;
 }
 
@@ -253,8 +176,7 @@ NS_IMETHODIMP
 WindowsLocationProvider::SetHighAccuracy(bool enable)
 {
   if (!mLocation) {
-    // MLS provider doesn't support HighAccuracy
-    return NS_OK;
+    return NS_ERROR_FAILURE;
   }
 
   LOCATION_DESIRED_ACCURACY desiredAccuracy;
@@ -268,29 +190,6 @@ WindowsLocationProvider::SetHighAccuracy(bool enable)
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
-}
-
-nsresult
-WindowsLocationProvider::CreateAndWatchMLSProvider(
-  nsIGeolocationUpdate* aCallback)
-{
-  if (mMLSProvider) {
-    return NS_OK;
-  }
-
-  mMLSProvider = new MLSFallback();
-  return mMLSProvider->Startup(new MLSUpdate(aCallback));
-}
-
-void
-WindowsLocationProvider::CancelMLSProvider()
-{
-  if (!mMLSProvider) {
-    return;
-  }
-
-  mMLSProvider->Shutdown();
-  mMLSProvider = nullptr;
 }
 
 } // namespace dom

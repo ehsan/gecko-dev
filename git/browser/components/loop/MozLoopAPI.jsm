@@ -623,13 +623,6 @@ function injectLoopAPI(targetWindow) {
       }
     },
 
-    TWO_WAY_MEDIA_CONN_LENGTH: {
-      enumerable: true,
-      get: function() {
-        return Cu.cloneInto(TWO_WAY_MEDIA_CONN_LENGTH, targetWindow);
-      }
-    },
-
     fxAEnabled: {
       enumerable: true,
       get: function() {
@@ -744,14 +737,14 @@ function injectLoopAPI(targetWindow) {
     /**
      * Adds a value to a telemetry histogram.
      *
-     * @param  {string} histogramId Name of the telemetry histogram to update.
-     * @param  {string} value       Label of bucket to increment in the histogram.
+     * @param  {string}  histogramId Name of the telemetry histogram to update.
+     * @param  {integer} value       Value to add to the histogram.
      */
-    telemetryAddKeyedValue: {
+    telemetryAdd: {
       enumerable: true,
       writable: true,
       value: function(histogramId, value) {
-        Services.telemetry.getKeyedHistogramById(histogramId).add(value);
+        Services.telemetry.getHistogramById(histogramId).add(value);
       }
     },
 

@@ -1104,11 +1104,6 @@ struct RtspConnectionHandler : public AHandler {
 
             case kWhatSeek1:
             {
-                if (mAborted || !mSeekPending) {
-                    LOGV("We're aborted, dropping stale packet.");
-                    break;
-                }
-
                 // Session is paused now.
                 for (size_t i = 0; i < mTracks.size(); ++i) {
                     TrackInfo *info = &mTracks.editItemAt(i);
@@ -1141,14 +1136,16 @@ struct RtspConnectionHandler : public AHandler {
 
             case kWhatSeek2:
             {
+                CHECK(mSeekPending);
+
                 int32_t result;
                 CHECK(msg->findInt32("result", &result));
 
                 LOGI("PLAY completed with result %d (%s)",
                      result, strerror(-result));
-                if (mAborted || !mSeekPending) {
-                    LOGV("We're aborted, dropping stale packet.");
-                    break;
+                if (mAborted) {
+                  LOGV("we're aborted, dropping stale packet.");
+                  break;
                 }
 
                 for (size_t i = 0; i < mTracks.size(); i++) {

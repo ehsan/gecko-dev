@@ -15,6 +15,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
+#include <windows.h>
 
 namespace mozilla {
 namespace dom {
@@ -244,6 +245,8 @@ FileUtils::BodyDeleteFiles(nsIFile* aBaseDir, const nsTArray<nsID>& aIdList)
     }
 
     // Again, only treat removal as hard failure in debug build.
+    printf("rv: %x lasterror: %x\n", (unsigned)rv, (unsigned)::GetLastError());
+    fflush(stdout);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
   }
 

@@ -8,7 +8,6 @@
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "nsXULAppAPI.h"
-#include "nsIObserverService.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::jsipc;
@@ -16,9 +15,7 @@ using namespace mozilla::jsipc;
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS(ContentBridgeParent,
-                  nsIContentParent,
-                  nsIObserver)
+NS_IMPL_ISUPPORTS(ContentBridgeParent, nsIContentParent)
 
 ContentBridgeParent::ContentBridgeParent(Transport* aTransport)
   : mTransport(aTransport)
@@ -32,10 +29,6 @@ ContentBridgeParent::~ContentBridgeParent()
 void
 ContentBridgeParent::ActorDestroy(ActorDestroyReason aWhy)
 {
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (os) {
-    os->RemoveObserver(this, "content-child-shutdown");
-  }
   MessageLoop::current()->PostTask(
     FROM_HERE,
     NewRunnableMethod(this, &ContentBridgeParent::DeferredDestroy));
@@ -55,16 +48,6 @@ ContentBridgeParent::Create(Transport* aTransport, ProcessId aOtherProcess)
 
   DebugOnly<bool> ok = bridge->Open(aTransport, handle, XRE_GetIOMessageLoop());
   MOZ_ASSERT(ok);
-
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (os) {
-    os->AddObserver(bridge, "content-child-shutdown", false);
-  }
-
-  // Initialize the message manager (and load delayed scripts) now that we
-  // have established communications with the child.
-  bridge->mMessageManager->InitWithCallback(bridge);
-
   return bridge.get();
 }
 
@@ -177,17 +160,6 @@ ContentBridgeParent::GetCPOWManager()
     return CPOWManagerFor(ManagedPJavaScriptParent()[0]);
   }
   return CPOWManagerFor(SendPJavaScriptConstructor());
-}
-
-NS_IMETHODIMP
-ContentBridgeParent::Observe(nsISupports* aSubject,
-                             const char* aTopic,
-                             const char16_t* aData)
-{
-  if (!strcmp(aTopic, "content-child-shutdown")) {
-    Close();
-  }
-  return NS_OK;
 }
 
 } // namespace dom

@@ -126,9 +126,7 @@ describe("loop.webapp", function() {
         client: client,
         conversation: conversation,
         notifications: notifications,
-        sdk: {
-          on: sandbox.stub()
-        },
+        sdk: {},
         dispatcher: dispatcher
       });
     });

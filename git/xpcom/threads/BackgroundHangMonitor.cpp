@@ -140,10 +140,6 @@ public:
   Telemetry::HangStack mHangStack;
   // Statistics for telemetry
   Telemetry::ThreadHangStats mStats;
-  // Annotations for the current hang
-  UniquePtr<HangMonitor::HangAnnotations> mAnnotations;
-  // Annotators registered for this thread
-  HangMonitor::Observer::Annotators mAnnotators;
 
   BackgroundHangThread(const char* aName,
                        uint32_t aTimeoutMs,
@@ -278,8 +274,6 @@ BackgroundHangManager::RunMonitorThread()
           currentThread->mStackHelper.GetStack(currentThread->mHangStack);
           currentThread->mHangStart = interval;
           currentThread->mHanging = true;
-          currentThread->mAnnotations =
-            currentThread->mAnnotators.GatherAnnotations();
         }
       } else {
         if (MOZ_LIKELY(interval != currentThread->mHangStart)) {
@@ -378,12 +372,12 @@ BackgroundHangThread::ReportHang(PRIntervalTime aHangTime)
        oldHistogram != mStats.mHangs.end(); oldHistogram++) {
     if (newHistogram == *oldHistogram) {
       // New histogram matches old one
-      oldHistogram->Add(aHangTime, Move(mAnnotations));
+      oldHistogram->Add(aHangTime);
       return *oldHistogram;
     }
   }
   // Add new histogram
-  newHistogram.Add(aHangTime, Move(mAnnotations));
+  newHistogram.Add(aHangTime);
   mStats.mHangs.append(Move(newHistogram));
   return mStats.mHangs.back();
 }
@@ -562,33 +556,6 @@ BackgroundHangMonitor::Allow()
 #endif
 }
 
-bool
-BackgroundHangMonitor::RegisterAnnotator(HangMonitor::Annotator& aAnnotator)
-{
-#ifdef MOZ_ENABLE_BACKGROUND_HANG_MONITOR
-  BackgroundHangThread* thisThread = BackgroundHangThread::FindThread();
-  if (!thisThread) {
-    return false;
-  }
-  return thisThread->mAnnotators.Register(aAnnotator);
-#else
-  return false;
-#endif
-}
-
-bool
-BackgroundHangMonitor::UnregisterAnnotator(HangMonitor::Annotator& aAnnotator)
-{
-#ifdef MOZ_ENABLE_BACKGROUND_HANG_MONITOR
-  BackgroundHangThread* thisThread = BackgroundHangThread::FindThread();
-  if (!thisThread) {
-    return false;
-  }
-  return thisThread->mAnnotators.Unregister(aAnnotator);
-#else
-  return false;
-#endif
-}
 
 /* Because we are iterating through the BackgroundHangThread linked list,
    we need to take a lock. Using MonitorAutoLock as a base class makes

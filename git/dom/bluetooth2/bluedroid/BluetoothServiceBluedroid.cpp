@@ -1593,76 +1593,74 @@ BluetoothServiceBluedroid::BondStateChangedNotification(
     return;
   }
 
-  BT_LOGR("Bond state: %d status: %d", aState, aStatus);
-
   bool bonded = (aState == BOND_STATE_BONDED);
-  if (aStatus != STATUS_SUCCESS) {
-    if (!bonded) { // Active/passive pair failed
-      BT_LOGR("Pair failed! Abort pairing.");
 
-      // Notify adapter of pairing aborted
-      DistributeSignal(NS_LITERAL_STRING(PAIRING_ABORTED_ID),
-                       NS_LITERAL_STRING(KEY_ADAPTER));
-
-      // Reject pair promise
-      if (!sBondingRunnableArray.IsEmpty()) {
-        DispatchReplyError(sBondingRunnableArray[0], aStatus);
-        sBondingRunnableArray.RemoveElementAt(0);
-      }
-    } else if (!sUnbondingRunnableArray.IsEmpty()) { // Active unpair failed
-      // Reject unpair promise
-      DispatchReplyError(sUnbondingRunnableArray[0], aStatus);
-      sUnbondingRunnableArray.RemoveElementAt(0);
+  // Update bonded address array
+  nsString remoteBdAddr = nsString(aRemoteBdAddr);
+  if (bonded) {
+    if (!sAdapterBondedAddressArray.Contains(remoteBdAddr)) {
+      sAdapterBondedAddressArray.AppendElement(remoteBdAddr);
     }
-
-    return;
+  } else {
+    sAdapterBondedAddressArray.RemoveElement(remoteBdAddr);
   }
 
-  // Retrieve and remove pairing device name from hash table
-  nsString deviceName;
+  // Update attribute BluetoothDevice.paired
+  InfallibleTArray<BluetoothNamedValue> propertiesArray;
+  BT_APPEND_NAMED_VALUE(propertiesArray, "Paired", bonded);
+
+  // Retrieve device name from hash table of pairing device name.
+  nsString deviceName = EmptyString();
   bool nameExists = sPairingNameTable.Get(aRemoteBdAddr, &deviceName);
   if (nameExists) {
     sPairingNameTable.Remove(aRemoteBdAddr);
   }
 
-  // Update bonded address array and append pairing device name
-  InfallibleTArray<BluetoothNamedValue> propertiesArray;
-  nsString remoteBdAddr = nsString(aRemoteBdAddr);
-  if (!bonded) {
-    sAdapterBondedAddressArray.RemoveElement(remoteBdAddr);
-  } else {
-    if (!sAdapterBondedAddressArray.Contains(remoteBdAddr)) {
-      sAdapterBondedAddressArray.AppendElement(remoteBdAddr);
-    }
-
-    // We don't assert |!deviceName.IsEmpty()| here since empty string is
-    // also a valid name. According to Bluetooth Core Spec. v3.0 - Sec. 6.22,
-    // "a valid Bluetooth name is a UTF-8 encoding string which is up to 248
-    // bytes in length."
+  // Update attribute BluetoothDevice.name if the device is paired.
+  if (bonded && aStatus == STATUS_SUCCESS) {
     MOZ_ASSERT(nameExists);
+
+    // We don't assert |!deviceName.IsEmpty()| here since empty string is also
+    // a valid name.
+    // According to Bluetooth Core Spec. v3.0 - Sec. 6.22, a valid Bluetooth
+    // name is a UTF-8 encoding string which is up to 248 bytes in length.
     BT_APPEND_NAMED_VALUE(propertiesArray, "Name", deviceName);
   }
 
-  // Notify device of attribute changed
-  BT_APPEND_NAMED_VALUE(propertiesArray, "Paired", bonded);
   DistributeSignal(NS_LITERAL_STRING("PropertyChanged"),
                    aRemoteBdAddr,
                    BluetoothValue(propertiesArray));
 
-  // Notify adapter of device paired/unpaired
-  BT_INSERT_NAMED_VALUE(propertiesArray, 0, "Address", remoteBdAddr);
-  DistributeSignal(bonded ? NS_LITERAL_STRING(DEVICE_PAIRED_ID)
-                          : NS_LITERAL_STRING(DEVICE_UNPAIRED_ID),
+  // Insert address to signal properties and notify adapter.
+  BT_INSERT_NAMED_VALUE(propertiesArray, 0, "Address", nsString(aRemoteBdAddr));
+
+  nsString signalName = bonded ? NS_LITERAL_STRING(DEVICE_PAIRED_ID)
+                               : NS_LITERAL_STRING(DEVICE_UNPAIRED_ID);
+
+  DistributeSignal(signalName,
                    NS_LITERAL_STRING(KEY_ADAPTER),
                    BluetoothValue(propertiesArray));
 
-  // Resolve existing pair/unpair promise
-  if (bonded && !sBondingRunnableArray.IsEmpty()) {
-    DispatchReplySuccess(sBondingRunnableArray[0]);
-    sBondingRunnableArray.RemoveElementAt(0);
-  } else if (!bonded && !sUnbondingRunnableArray.IsEmpty()) {
-    DispatchReplySuccess(sUnbondingRunnableArray[0]);
-    sUnbondingRunnableArray.RemoveElementAt(0);
+  if (aStatus == STATUS_SUCCESS) {
+    // Resolve existing pair/unpair promise when pair/unpair succeeded
+    if (bonded && !sBondingRunnableArray.IsEmpty()) {
+      DispatchReplySuccess(sBondingRunnableArray[0]);
+      sBondingRunnableArray.RemoveElementAt(0);
+    } else if (!bonded && !sUnbondingRunnableArray.IsEmpty()) {
+      DispatchReplySuccess(sUnbondingRunnableArray[0]);
+      sUnbondingRunnableArray.RemoveElementAt(0);
+    }
+  } else {
+    // Reject existing pair/unpair promise when pair/unpair failed
+    if (!bonded && !sBondingRunnableArray.IsEmpty()) {
+      DispatchReplyError(sBondingRunnableArray[0],
+                         NS_LITERAL_STRING("Pair failed"));
+      sBondingRunnableArray.RemoveElementAt(0);
+    } else if (bonded && !sUnbondingRunnableArray.IsEmpty()) {
+      DispatchReplyError(sUnbondingRunnableArray[0],
+                         NS_LITERAL_STRING("Unpair failed"));
+      sUnbondingRunnableArray.RemoveElementAt(0);
+    }
   }
 }
 

@@ -10019,11 +10019,6 @@ IonBuilder::improveThisTypesForCall()
     MFilterTypeSet *filter = MFilterTypeSet::New(alloc(), thisDef, types);
     current->add(filter);
     current->rewriteAtDepth(-2, filter);
-
-    // FilterTypeSetPolicy::adjustInputs will insert an infallible Unbox(Object)
-    // for the input. Don't hoist this unbox above the getprop or getelem
-    // operation.
-    filter->setDependency(current->peek(-1)->toInstruction());
     return true;
 }
 

@@ -77,6 +77,10 @@ NS_IMETHODIMP
 nsStorageStream::Init(uint32_t aSegmentSize, uint32_t aMaxSize)
 {
   mSegmentedBuffer = new nsSegmentedBuffer();
+  if (!mSegmentedBuffer) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   mSegmentSize = aSegmentSize;
   mSegmentSizeLog2 = mozilla::FloorLog2(aSegmentSize);
 
@@ -406,6 +410,10 @@ nsStorageStream::NewInputStream(int32_t aStartingOffset,
 
   nsStorageInputStream* inputStream =
     new nsStorageInputStream(this, mSegmentSize);
+  if (!inputStream) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   NS_ADDREF(inputStream);
 
   nsresult rv = inputStream->Seek(aStartingOffset);
@@ -630,6 +638,10 @@ NS_NewStorageStream(uint32_t aSegmentSize, uint32_t aMaxSize,
                     nsIStorageStream** aResult)
 {
   nsStorageStream* storageStream = new nsStorageStream();
+  if (!storageStream) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   NS_ADDREF(storageStream);
   nsresult rv = storageStream->Init(aSegmentSize, aMaxSize);
   if (NS_FAILED(rv)) {
