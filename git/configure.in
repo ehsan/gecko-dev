@@ -201,6 +201,11 @@ case "$target" in
         esac
     fi
     if test -z "$MIDL"; then MIDL=midl; fi
+
+    # need override this flag since we don't use $(LDFLAGS) for this.
+    if test -z "$HOST_LDFLAGS" ; then
+        HOST_LDFLAGS=" "
+    fi
     ;;
 *-darwin*)
     # we prefer gcc-4.2 over gcc on older darwin, so
@@ -225,14 +230,7 @@ if test -n "$L10NBASEDIR"; then
     if test "$L10NBASEDIR" = "yes" -o "$L10NBASEDIR" = "no"; then
         AC_MSG_ERROR([--with-l10n-base must specify a path])
     elif test -d "$L10NBASEDIR"; then
-        case "$host_os" in
-        mingw*)
-            L10NBASEDIR=`cd "$L10NBASEDIR" && pwd -W`
-            ;;
-        *)
-            L10NBASEDIR=`cd "$L10NBASEDIR" && pwd`
-            ;;
-        esac
+        L10NBASEDIR=`cd "$L10NBASEDIR" && pwd`
     else
         AC_MSG_ERROR([Invalid value --with-l10n-base, $L10NBASEDIR doesn't exist])
     fi
@@ -2210,7 +2208,15 @@ case "$host" in
     esac
 
     case "${host_cpu}" in
+    i*86)
+        if test -n "$_WIN32_MSVC"; then
+            HOST_LDFLAGS="$HOST_LDFLAGS -MACHINE:X86"
+        fi
+        ;;
     x86_64)
+        if test -n "$_WIN32_MSVC"; then
+            HOST_LDFLAGS="$HOST_LDFLAGS -MACHINE:X64"
+        fi
         HOST_CFLAGS="$HOST_CFLAGS -D_AMD64_"
         ;;
     esac
@@ -2266,6 +2272,7 @@ fi
 
 dnl Get mozilla version from central milestone file
 MOZILLA_VERSION=`$PERL $srcdir/config/milestone.pl -topsrcdir $srcdir`
+MOZILLA_UAVERSION=`$PERL $srcdir/config/milestone.pl -topsrcdir $srcdir -uaversion`
 
 dnl Get version of various core apps from the version files.
 FIREFOX_VERSION=`cat $_topsrcdir/browser/config/version.txt`
@@ -2276,6 +2283,7 @@ fi
 
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION,"$MOZILLA_VERSION")
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION_U,$MOZILLA_VERSION)
+AC_DEFINE_UNQUOTED(MOZILLA_UAVERSION,"$MOZILLA_UAVERSION")
 
 MOZ_DOING_LTO(lto_is_enabled)
 
@@ -2689,12 +2697,16 @@ ia64*-hpux*)
             CXXFLAGS="$CXXFLAGS -mstackrealign -fno-keep-inline-dllexport"
         else
             AC_DEFINE(HAVE_STDCALL)
+            DSO_LDOPTS="$DSO_LDOPTS -MACHINE:X86"
         fi
 
         MOZ_CHECK_HEADERS(mmintrin.h)
     	AC_DEFINE(_X86_)
 	;;
     x86_64-*)
+        if test -n "$_WIN32_MSVC"; then
+            DSO_LDOPTS="$DSO_LDOPTS -MACHINE:X64"
+        fi
         AC_DEFINE(_AMD64_)
         ;;
     *)
@@ -2913,6 +2925,10 @@ ia64*-hpux*)
 esac
 
 AC_SUBST(MOZ_LINKER)
+if test -n "$MOZ_LINKER"; then
+  AC_DEFINE(MOZ_LINKER)
+fi
+AC_SUBST(MOZ_ENABLE_SZIP)
 
 dnl Only one oddball right now (QNX), but this gives us flexibility
 dnl if any other platforms need to override this in the future.
@@ -7672,6 +7688,18 @@ fi
 AC_SUBST(MOZ_B2G_RIL)
 
 dnl ========================================================
+dnl = Enable Bluetooth Interface for B2G (Gonk usually)
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(b2g-bt,
+[  --enable-b2g-bt      Set compile flags necessary for compiling Bluetooth API for B2G ],
+    MOZ_B2G_BT=1,
+    MOZ_B2G_BT= )
+if test -n "$MOZ_B2G_BT"; then
+   AC_DEFINE(MOZ_B2G_BT)
+fi
+AC_SUBST(MOZ_B2G_BT)
+
+dnl ========================================================
 dnl = Support for demangling undefined symbols
 dnl ========================================================
 if test -z "$SKIP_LIBRARY_CHECKS"; then
@@ -8646,6 +8674,8 @@ AC_SUBST(MOZ_APP_VERSION)
 AC_DEFINE_UNQUOTED(MOZ_UA_FIREFOX_VERSION, "$FIREFOX_VERSION")
 AC_DEFINE_UNQUOTED(FIREFOX_VERSION,$FIREFOX_VERSION)
 AC_SUBST(FIREFOX_VERSION)
+AC_DEFINE_UNQUOTED(MOZ_UA_BUILDID, "$MOZ_UA_BUILDID")
+AC_SUBST(MOZ_UA_BUILDID)
 
 # We can't use the static application.ini data when building against
 # a libxul SDK.

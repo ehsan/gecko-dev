@@ -92,6 +92,7 @@
 #include "js/MemoryMetrics.h"
 #include "mozilla/Util.h"
 #include "yarr/BumpPointerAllocator.h"
+#include "vm/MethodGuard.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -792,7 +793,8 @@ JSRuntime::JSRuntime()
 #ifdef DEBUG
     noGCOrAllocationCheck(0),
 #endif
-    inOOMReport(0)
+    inOOMReport(0),
+    jitHardening(false)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&contextList);
@@ -993,30 +995,6 @@ JS_PUBLIC_API(void)
 JS_SetRuntimePrivate(JSRuntime *rt, void *data)
 {
     rt->data = data;
-}
-
-JS_PUBLIC_API(size_t)
-JS::SystemCompartmentCount(const JSRuntime *rt)
-{
-    size_t n = 0;
-    for (size_t i = 0; i < rt->compartments.length(); i++) {
-        if (rt->compartments[i]->isSystemCompartment) {
-            ++n;
-        }
-    }
-    return n;
-}
-
-JS_PUBLIC_API(size_t)
-JS::UserCompartmentCount(const JSRuntime *rt)
-{
-    size_t n = 0;
-    for (size_t i = 0; i < rt->compartments.length(); i++) {
-        if (!rt->compartments[i]->isSystemCompartment) {
-            ++n;
-        }
-    }
-    return n;
 }
 
 #ifdef JS_THREADSAFE
@@ -2189,6 +2167,14 @@ JS_GetObjectPrototype(JSContext *cx, JSObject *forObj)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, forObj);
     return forObj->global().getOrCreateObjectPrototype(cx);
+}
+
+JS_PUBLIC_API(JSObject *)
+JS_GetFunctionPrototype(JSContext *cx, JSObject *forObj)
+{
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, forObj);
+    return forObj->global().getOrCreateFunctionPrototype(cx);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -4314,11 +4300,9 @@ static Class prop_iter_class = {
     JS_ResolveStub,
     JS_ConvertStub,
     prop_iter_finalize,
-    NULL,           /* reserved0   */
     NULL,           /* checkAccess */
     NULL,           /* call        */
     NULL,           /* construct   */
-    NULL,           /* xdrObject   */
     NULL,           /* hasInstance */
     prop_iter_trace
 };
