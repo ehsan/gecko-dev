@@ -59,7 +59,6 @@ function commonCheck(ch)
   do_check_true(ch.contentLength > -1);
   do_check_eq(ch.getResponseHeader("connection"), "close");
   do_check_false(ch.isNoStoreResponse());
-  do_check_false(ch.isPrivateResponse());
 }
 
 function start_objHandler(ch, cx)

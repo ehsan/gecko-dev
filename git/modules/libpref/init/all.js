@@ -3752,19 +3752,12 @@ pref("browser.zoom.reflowZoom.reflowTimeout", 500);
  */
 pref("browser.zoom.reflowZoom.reflowTextOnPageLoad", true);
 
-//
 // Image-related prefs
-//
-
 // The maximum size, in bytes, of the decoded images we cache
 pref("image.cache.size", 5242880);
-
 // A weight, from 0-1000, to place on time when comparing to size.
 // Size is given a weight of 1000 - timeweight.
 pref("image.cache.timeweight", 500);
-
-// Whether we attempt to downscale images during decoding.
-pref("image.downscale-during-decode.enabled", false);
 
 // The default Accept header sent for images loaded over HTTP(S)
 pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
@@ -3799,7 +3792,7 @@ pref("image.mem.decode_bytes_at_a_time", 16384);
 
 // Minimum timeout for expiring unused images from the surface cache, in
 // milliseconds. This controls how long we store cached temporary surfaces.
-pref("image.mem.surfacecache.min_expiration_ms", 60000); // 60s
+pref("image.mem.surfacecache.min_expiration_ms", 60000); // 60ms
 
 // Maximum size for the surface cache, in kilobytes.
 pref("image.mem.surfacecache.max_size_kb", 1048576); // 1GB
