@@ -14,11 +14,9 @@
 class MathMLTextRunFactory : public nsTransformingTextRunFactory {
 public:
   MathMLTextRunFactory(nsTransformingTextRunFactory* aInnerTransformingTextRunFactory,
-                       uint32_t aFlags, uint8_t aSSTYScriptLevel,
-                       float aFontInflation)
+                       uint32_t aFlags, uint8_t aSSTYScriptLevel)
     : mInnerTransformingTextRunFactory(aInnerTransformingTextRunFactory),
       mFlags(aFlags),
-      mFontInflation(aFontInflation),
       mSSTYScriptLevel(aSSTYScriptLevel) {}
 
   virtual void RebuildTextRun(nsTransformedTextRun* aTextRun,
@@ -33,7 +31,6 @@ public:
 protected:
   nsAutoPtr<nsTransformingTextRunFactory> mInnerTransformingTextRunFactory;
   uint32_t mFlags;
-  float mFontInflation;
   uint8_t mSSTYScriptLevel;
 };
 

@@ -91,7 +91,6 @@ protected:
                    const OptionalURIParams&   docUri,
                    const OptionalURIParams&   referrerUri,
                    const OptionalURIParams&   internalRedirectUri,
-                   const OptionalURIParams&   topWindowUri,
                    const uint32_t&            loadFlags,
                    const RequestHeaderTuples& requestHeaders,
                    const nsCString&           requestMethod,

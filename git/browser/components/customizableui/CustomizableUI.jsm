@@ -61,7 +61,7 @@ const kIteratorSymbol = JS_HAS_SYMBOLS ? Symbol.iterator : "@@iterator";
  * The current version. We can use this to auto-add new default widgets as necessary.
  * (would be const but isn't because of testing purposes)
  */
-let kVersion = 4;
+let kVersion = 1;
 
 /**
  * gPalette is a map of every widget that CustomizableUI.jsm knows about, keyed
@@ -217,7 +217,7 @@ let CustomizableUIInternal = {
       "bookmarks-menu-button",
       "downloads-button",
       "home-button",
-      "loop-button",
+      "loop-call-button",
     ];
 
     if (Services.prefs.getBoolPref(kPrefWebIDEInNavbar)) {
@@ -314,15 +314,6 @@ let CustomizableUIInternal = {
           gFuturePlacements.set(widget.defaultArea, new Set([id]));
         }
       }
-    }
-
-    if (currentVersion < 2) {
-      // Nuke the old 'loop-call-button' out of orbit.
-      CustomizableUI.removeWidgetFromArea("loop-call-button");
-    }
-
-    if (currentVersion < 4) {
-      CustomizableUI.removeWidgetFromArea("loop-button-throttled");
     }
   },
 

@@ -11,6 +11,7 @@
 #include "nsIFrame.h"
 #include "nsIWidget.h"
 #include "nsReadableUtils.h"
+#include "nsRenderingContext.h"
 #include "nsIDOMWindow.h"
 #include "nsIContent.h"
 

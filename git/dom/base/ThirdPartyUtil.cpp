@@ -12,18 +12,9 @@
 #include "nsILoadContext.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
-#include "nsIURI.h"
 #include "nsThreadUtils.h"
-#include "prlog.h"
 
 NS_IMPL_ISUPPORTS(ThirdPartyUtil, mozIThirdPartyUtil)
-
-//
-// NSPR_LOG_MODULES=thirdPartyUtil:5
-//
-static PRLogModuleInfo *gThirdPartyLog;
-#undef LOG
-#define LOG(args)     PR_LOG(gThirdPartyLog, PR_LOG_DEBUG, args)
 
 nsresult
 ThirdPartyUtil::Init()
@@ -32,10 +23,6 @@ ThirdPartyUtil::Init()
 
   nsresult rv;
   mTLDService = do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv);
-
-    if (!gThirdPartyLog)
-        gThirdPartyLog = PR_NewLogModule("thirdPartyUtil");
-
   return rv;
 }
 
@@ -75,11 +62,7 @@ ThirdPartyUtil::GetURIFromWindow(nsIDOMWindow* aWin, nsIURI** result)
     return NS_ERROR_INVALID_ARG;
   }
 
-  if (prin->GetIsNullPrincipal()) {
-    LOG(("ThirdPartyUtil::GetURIFromWindow can't use null principal\n"));
-    return NS_ERROR_INVALID_ARG;
-  }
-
+  nsCOMPtr<nsIURI> uri;
   rv = prin->GetURI(result);
   return rv;
 }

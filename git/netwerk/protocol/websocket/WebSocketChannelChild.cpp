@@ -120,31 +120,6 @@ WebSocketChannelChild::DispatchToTargetThread(ChannelEvent *aChannelEvent)
                           NS_DISPATCH_NORMAL);
 }
 
-class EventTargetDispatcher : public ChannelEvent
-{
-public:
-  EventTargetDispatcher(ChannelEvent* aChannelEvent,
-                        nsIEventTarget* aEventTarget)
-    : mChannelEvent(aChannelEvent)
-    , mEventTarget(aEventTarget)
-  {}
-
-  void Run()
-  {
-    if (mEventTarget) {
-      mEventTarget->Dispatch(new WrappedChannelEvent(mChannelEvent.forget()),
-                             NS_DISPATCH_NORMAL);
-      return;
-    }
-
-    mChannelEvent->Run();
-  }
-
-private:
-  nsAutoPtr<ChannelEvent> mChannelEvent;
-  nsCOMPtr<nsIEventTarget> mEventTarget;
-};
-
 class StartEvent : public ChannelEvent
 {
  public:
@@ -179,10 +154,8 @@ WebSocketChannelChild::RecvOnStart(const nsCString& aProtocol,
                                    const bool& aEncrypted)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new StartEvent(this, aProtocol, aExtensions,
-                                      aEffectiveURL, aEncrypted),
-                       mTargetThread));
+    mEventQ->Enqueue(new StartEvent(this, aProtocol, aExtensions,
+                                    aEffectiveURL, aEncrypted));
   } else if (mTargetThread) {
     DispatchToTargetThread(new StartEvent(this, aProtocol, aExtensions,
                                           aEffectiveURL, aEncrypted));
@@ -232,8 +205,7 @@ bool
 WebSocketChannelChild::RecvOnStop(const nsresult& aStatusCode)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new StopEvent(this, aStatusCode), mTargetThread));
+    mEventQ->Enqueue(new StopEvent(this, aStatusCode));
   } else if (mTargetThread) {
     DispatchToTargetThread(new StopEvent(this, aStatusCode));
   } else {
@@ -281,8 +253,7 @@ bool
 WebSocketChannelChild::RecvOnMessageAvailable(const nsCString& aMsg)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new MessageEvent(this, aMsg, false), mTargetThread));
+    mEventQ->Enqueue(new MessageEvent(this, aMsg, false));
   } else if (mTargetThread) {
     DispatchToTargetThread(new MessageEvent(this, aMsg, false));
    } else {
@@ -305,8 +276,7 @@ bool
 WebSocketChannelChild::RecvOnBinaryMessageAvailable(const nsCString& aMsg)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new MessageEvent(this, aMsg, true), mTargetThread));
+    mEventQ->Enqueue(new MessageEvent(this, aMsg, true));
   } else if (mTargetThread) {
     DispatchToTargetThread(new MessageEvent(this, aMsg, true));
   } else {
@@ -347,8 +317,7 @@ bool
 WebSocketChannelChild::RecvOnAcknowledge(const uint32_t& aSize)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new AcknowledgeEvent(this, aSize), mTargetThread));
+    mEventQ->Enqueue(new AcknowledgeEvent(this, aSize));
   } else if (mTargetThread) {
     DispatchToTargetThread(new AcknowledgeEvent(this, aSize));
   } else {
@@ -393,9 +362,7 @@ WebSocketChannelChild::RecvOnServerClose(const uint16_t& aCode,
                                          const nsCString& aReason)
 {
   if (mEventQ->ShouldEnqueue()) {
-    mEventQ->Enqueue(new EventTargetDispatcher(
-                       new ServerCloseEvent(this, aCode, aReason),
-                       mTargetThread));
+    mEventQ->Enqueue(new ServerCloseEvent(this, aCode, aReason));
   } else if (mTargetThread) {
     DispatchToTargetThread(new ServerCloseEvent(this, aCode, aReason));
   } else {

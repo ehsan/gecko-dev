@@ -104,8 +104,7 @@ public:
     COMPRESSION_ERROR = 9,
     CONNECT_ERROR = 10,
     ENHANCE_YOUR_CALM = 11,
-    INADEQUATE_SECURITY = 12,
-    HTTP_1_1_REQUIRED = 13
+    INADEQUATE_SECURITY = 12
   };
 
   // These are frame flags. If they, or other undefined flags, are

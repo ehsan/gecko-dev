@@ -925,18 +925,13 @@ const CustomizableWidgets = [
       win.MailIntegration.sendLinkForWindow(win.content);
     }
   }, {
-    id: "loop-button",
+    id: "loop-call-button",
     type: "custom",
     label: "loop-call-button3.label",
     tooltiptext: "loop-call-button3.tooltiptext",
     defaultArea: CustomizableUI.AREA_NAVBAR,
-    introducedInVersion: 4,
+    introducedInVersion: 1,
     onBuild: function(aDocument) {
-      // If we're not supposed to see the button, return zip.
-      if (!Services.prefs.getBoolPref("loop.enabled")) {
-        return null;
-      }
-
       let node = aDocument.createElementNS(kNSXUL, "toolbarbutton");
       node.setAttribute("id", this.id);
       node.classList.add("toolbarbutton-1");
@@ -948,7 +943,6 @@ const CustomizableWidgets = [
       node.addEventListener("command", function(event) {
         aDocument.defaultView.LoopUI.openCallPanel(event);
       });
-
       return node;
     }
   }, {

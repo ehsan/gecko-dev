@@ -151,11 +151,6 @@ public: /* internal necko use only */
         return NS_OK;
     }
 
-    nsresult SetTopWindowURI(nsIURI* aTopWindowURI) {
-        mTopWindowURI = aTopWindowURI;
-        return NS_OK;
-    }
-
     nsresult OpenCacheEntry(bool usingSSL);
     nsresult ContinueConnect();
 

@@ -692,8 +692,7 @@ nsresult nsImageBoxFrame::OnStopRequest(imgIRequest *request,
   // an error yet and we've already started decoding, we must only fire these
   // events after we finish decoding.
   if (NS_SUCCEEDED(aStatus) && !(reqStatus & imgIRequest::STATUS_ERROR) &&
-      (reqStatus & imgIRequest::STATUS_DECODE_STARTED) &&
-      !(reqStatus & imgIRequest::STATUS_DECODE_COMPLETE)) {
+      reqStatus & imgIRequest::STATUS_DECODE_STARTED) {
     mFireEventOnDecode = true;
   } else {
     if (NS_SUCCEEDED(aStatus)) {
