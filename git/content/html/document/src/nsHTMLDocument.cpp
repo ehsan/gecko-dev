@@ -1202,8 +1202,8 @@ nsHTMLDocument::GetCookie(nsAString& aCookie, ErrorResult& rv)
     service->GetCookieString(codebaseURI, mChannel, getter_Copies(cookie));
     // CopyUTF8toUTF16 doesn't handle error
     // because it assumes that the input is valid.
-    nsContentUtils::ConvertStringFromEncoding(NS_LITERAL_CSTRING("UTF-8"),
-                                              cookie, aCookie);
+    nsContentUtils::ConvertStringFromCharset(NS_LITERAL_CSTRING("utf-8"),
+                                             cookie, aCookie);
   }
 }
 
@@ -2096,7 +2096,7 @@ nsHTMLDocument::GetSelection(nsISelection** aReturn)
   return rv.ErrorCode();
 }
 
-already_AddRefed<Selection>
+already_AddRefed<nsISelection>
 nsHTMLDocument::GetSelection(ErrorResult& rv)
 {
   nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetScopeObject());
@@ -2112,8 +2112,7 @@ nsHTMLDocument::GetSelection(ErrorResult& rv)
 
   nsCOMPtr<nsISelection> sel;
   rv = window->GetSelection(getter_AddRefs(sel));
-  nsRefPtr<Selection> selection = static_cast<Selection*>(sel.get());
-  return selection.forget();
+  return sel.forget();
 }
 
 NS_IMETHODIMP

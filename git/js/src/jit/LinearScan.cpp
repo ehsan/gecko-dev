@@ -519,7 +519,6 @@ LinearScanAllocator::populateSafepoints()
                 DebugOnly<LDefinition*> def = reg->def();
                 JS_ASSERT_IF(def->policy() == LDefinition::MUST_REUSE_INPUT,
                              def->type() == LDefinition::GENERAL ||
-                             def->type() == LDefinition::INT32 ||
                              def->type() == LDefinition::FLOAT32 ||
                              def->type() == LDefinition::DOUBLE);
                 continue;
@@ -798,18 +797,8 @@ LinearScanAllocator::allocateSlotFor(const LiveInterval *interval)
     LinearScanVirtualRegister *reg = &vregs[interval->vreg()];
 
     SlotList *freed;
-    if (reg->type() == LDefinition::DOUBLE)
+    if (reg->type() == LDefinition::DOUBLE || reg->type() == LDefinition::FLOAT32)
         freed = &finishedDoubleSlots_;
-#if JS_BITS_PER_WORD == 64
-    else if (reg->type() == LDefinition::GENERAL ||
-             reg->type() == LDefinition::OBJECT ||
-             reg->type() == LDefinition::SLOTS)
-        freed = &finishedDoubleSlots_;
-#endif
-#ifdef JS_PUNBOX64
-    else if (reg->type() == LDefinition::BOX)
-        freed = &finishedDoubleSlots_;
-#endif
 #ifdef JS_NUNBOX32
     else if (IsNunbox(reg))
         freed = &finishedNunboxSlots_;
@@ -839,7 +828,11 @@ LinearScanAllocator::allocateSlotFor(const LiveInterval *interval)
         }
     }
 
-    return stackSlotAllocator.allocateSlot(reg->type());
+    if (IsNunbox(reg))
+        return stackSlotAllocator.allocateValueSlot();
+    if (reg->isDouble())
+        return stackSlotAllocator.allocateDoubleSlot();
+    return stackSlotAllocator.allocateSlot();
 }
 
 bool
@@ -882,7 +875,7 @@ LinearScanAllocator::spill()
     }
     JS_ASSERT(stackSlot <= stackSlotAllocator.stackHeight());
 
-    return assign(LStackSlot(stackSlot));
+    return assign(LStackSlot(stackSlot, reg->isDouble()));
 }
 
 void
@@ -891,18 +884,8 @@ LinearScanAllocator::freeAllocation(LiveInterval *interval, LAllocation *alloc)
     LinearScanVirtualRegister *mine = &vregs[interval->vreg()];
     if (!IsNunbox(mine)) {
         if (alloc->isStackSlot()) {
-            if (mine->type() == LDefinition::DOUBLE)
+            if (alloc->toStackSlot()->isDouble())
                 finishedDoubleSlots_.append(interval);
-#if JS_BITS_PER_WORD == 64
-            else if (mine->type() == LDefinition::GENERAL ||
-                     mine->type() == LDefinition::OBJECT ||
-                     mine->type() == LDefinition::SLOTS)
-                finishedDoubleSlots_.append(interval);
-#endif
-#ifdef JS_PUNBOX64
-            else if (mine->type() == LDefinition::BOX)
-                finishedDoubleSlots_.append(interval);
-#endif
             else
                 finishedSlots_.append(interval);
         }
@@ -965,7 +948,7 @@ LinearScanAllocator::findBestFreeRegister(CodePosition *freeUntil)
 
     // Compute free-until positions for all registers
     CodePosition freeUntilPos[AnyRegister::Total];
-    bool needFloat = vregs[current->vreg()].isFloatReg();
+    bool needFloat = vregs[current->vreg()].isDouble();
     for (RegisterSet regs(allRegisters_); !regs.empty(needFloat); ) {
         AnyRegister reg = regs.takeAny(needFloat);
         freeUntilPos[reg.code()] = CodePosition::MAX;
@@ -1060,7 +1043,7 @@ LinearScanAllocator::findBestBlockedRegister(CodePosition *nextUsed)
 
     // Compute next-used positions for all registers
     CodePosition nextUsePos[AnyRegister::Total];
-    bool needFloat = vregs[current->vreg()].isFloatReg();
+    bool needFloat = vregs[current->vreg()].isDouble();
     for (RegisterSet regs(allRegisters_); !regs.empty(needFloat); ) {
         AnyRegister reg = regs.takeAny(needFloat);
         nextUsePos[reg.code()] = CodePosition::MAX;

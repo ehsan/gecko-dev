@@ -50,15 +50,15 @@ class MacroAssemblerARM : public Assembler
     void convertInt32ToDouble(const Address &src, FloatRegister dest);
     void convertUInt32ToFloat32(const Register &src, const FloatRegister &dest);
     void convertUInt32ToDouble(const Register &src, const FloatRegister &dest);
-    void convertDoubleToFloat32(const FloatRegister &src, const FloatRegister &dest,
-                                Condition c = Always);
+    void convertDoubleToFloat(const FloatRegister &src, const FloatRegister &dest,
+                              Condition c = Always);
     void branchTruncateDouble(const FloatRegister &src, const Register &dest, Label *fail);
     void convertDoubleToInt32(const FloatRegister &src, const Register &dest, Label *fail,
                               bool negativeZeroCheck = true);
     void convertFloat32ToInt32(const FloatRegister &src, const Register &dest, Label *fail,
                                bool negativeZeroCheck = true);
 
-    void convertFloat32ToDouble(const FloatRegister &src, const FloatRegister &dest);
+    void convertFloatToDouble(const FloatRegister &src, const FloatRegister &dest);
     void branchTruncateFloat32(const FloatRegister &src, const Register &dest, Label *fail);
     void convertInt32ToFloat32(const Register &src, const FloatRegister &dest);
     void convertInt32ToFloat32(const Address &src, FloatRegister dest);
@@ -318,7 +318,6 @@ class MacroAssemblerARM : public Assembler
 
     void ma_vneg(FloatRegister src, FloatRegister dest, Condition cc = Always);
     void ma_vmov(FloatRegister src, FloatRegister dest, Condition cc = Always);
-    void ma_vmov_f32(FloatRegister src, FloatRegister dest, Condition cc = Always);
     void ma_vabs(FloatRegister src, FloatRegister dest, Condition cc = Always);
     void ma_vabs_f32(FloatRegister src, FloatRegister dest, Condition cc = Always);
 
@@ -486,6 +485,12 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         setFramePushed(framePushed_ + value);
     }
   public:
+    enum Result {
+        GENERAL,
+        DOUBLE,
+        FLOAT
+    };
+
     MacroAssemblerARMCompat()
       : inCall_(false),
         enoughMemory_(true),
@@ -1143,22 +1148,22 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     // The following functions are exposed for use in platform-shared code.
     void Push(const Register &reg) {
         ma_push(reg);
-        adjustFrame(sizeof(intptr_t));
+        adjustFrame(STACK_SLOT_SIZE);
     }
     void Push(const Imm32 imm) {
         push(imm);
-        adjustFrame(sizeof(intptr_t));
+        adjustFrame(STACK_SLOT_SIZE);
     }
     void Push(const ImmWord imm) {
         push(imm);
-        adjustFrame(sizeof(intptr_t));
+        adjustFrame(STACK_SLOT_SIZE);
     }
     void Push(const ImmPtr imm) {
         Push(ImmWord(uintptr_t(imm.value)));
     }
     void Push(const ImmGCPtr ptr) {
         push(ptr);
-        adjustFrame(sizeof(intptr_t));
+        adjustFrame(STACK_SLOT_SIZE);
     }
     void Push(const FloatRegister &t) {
         VFPRegister r = VFPRegister(t);
@@ -1176,19 +1181,19 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
 
     void PushWithPadding(const Register &reg, const Imm32 extraSpace) {
         pushWithPadding(reg, extraSpace);
-        adjustFrame(sizeof(intptr_t) + extraSpace.value);
+        adjustFrame(STACK_SLOT_SIZE + extraSpace.value);
     }
     void PushWithPadding(const Imm32 imm, const Imm32 extraSpace) {
         pushWithPadding(imm, extraSpace);
-        adjustFrame(sizeof(intptr_t) + extraSpace.value);
+        adjustFrame(STACK_SLOT_SIZE + extraSpace.value);
     }
 
     void Pop(const Register &reg) {
         ma_pop(reg);
-        adjustFrame(-sizeof(intptr_t));
+        adjustFrame(-STACK_SLOT_SIZE);
     }
     void implicitPop(uint32_t args) {
-        JS_ASSERT(args % sizeof(intptr_t) == 0);
+        JS_ASSERT(args % STACK_SLOT_SIZE == 0);
         adjustFrame(-args);
     }
     uint32_t framePushed() const {
@@ -1272,8 +1277,8 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void loadFloatAsDouble(const Address &addr, const FloatRegister &dest);
     void loadFloatAsDouble(const BaseIndex &src, const FloatRegister &dest);
 
-    void loadFloat32(const Address &addr, const FloatRegister &dest);
-    void loadFloat32(const BaseIndex &src, const FloatRegister &dest);
+    void loadFloat(const Address &addr, const FloatRegister &dest);
+    void loadFloat(const BaseIndex &src, const FloatRegister &dest);
 
     void store8(const Register &src, const Address &address);
     void store8(const Imm32 &imm, const Address &address);
@@ -1309,10 +1314,10 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         ma_vmov(src, dest);
     }
 
-    void storeFloat32(FloatRegister src, Address addr) {
+    void storeFloat(FloatRegister src, Address addr) {
         ma_vstr(VFPRegister(src).singleOverlay(), Operand(addr));
     }
-    void storeFloat32(FloatRegister src, BaseIndex addr) {
+    void storeFloat(FloatRegister src, BaseIndex addr) {
         // Harder cases not handled yet.
         JS_ASSERT(addr.offset == 0);
         uint32_t scale = Imm32::ShiftOf(addr.scale).value;
@@ -1404,9 +1409,9 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     // automatically adjusted. It is extremely important that esp-relative
     // addresses are computed *after* setupABICall(). Furthermore, no
     // operations should be emitted while setting arguments.
-    void passABIArg(const MoveOperand &from, MoveOp::Type type);
+    void passABIArg(const MoveOperand &from);
     void passABIArg(const Register &reg);
-    void passABIArg(const FloatRegister &reg, MoveOp::Type type);
+    void passABIArg(const FloatRegister &reg);
     void passABIArg(const ValueOperand &regs);
 
   protected:
@@ -1414,13 +1419,13 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
 
   private:
     void callWithABIPre(uint32_t *stackAdjust);
-    void callWithABIPost(uint32_t stackAdjust, MoveOp::Type result);
+    void callWithABIPost(uint32_t stackAdjust, Result result);
 
   public:
     // Emits a call to a C/C++ function, resolving all argument moves.
-    void callWithABI(void *fun, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(AsmJSImmPtr imm, MoveOp::Type result = MoveOp::GENERAL);
-    void callWithABI(const Address &fun, MoveOp::Type result = MoveOp::GENERAL);
+    void callWithABI(void *fun, Result result = GENERAL);
+    void callWithABI(AsmJSImmPtr imm, Result result = GENERAL);
+    void callWithABI(const Address &fun, Result result = GENERAL);
 
     CodeOffsetLabel labelForPatch() {
         return CodeOffsetLabel(nextOffset().getOffset());
@@ -1487,7 +1492,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         return as_cmp(bounded, Imm8(0));
     }
 
-    void moveFloat32(FloatRegister src, FloatRegister dest) {
+    void moveFloat(FloatRegister src, FloatRegister dest) {
         as_vmov(VFPRegister(src).singleOverlay(), VFPRegister(dest).singleOverlay());
     }
 };
