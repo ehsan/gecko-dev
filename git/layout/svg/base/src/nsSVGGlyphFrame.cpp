@@ -190,6 +190,8 @@ NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGGlyphFrame(aContext);
 }
 
+NS_IMPL_FRAMEARENA_HELPERS(nsSVGGlyphFrame)
+
 //----------------------------------------------------------------------
 // nsQueryFrame methods
 
@@ -1351,8 +1353,8 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
       textRunSize = PRECISE_SIZE;
     } else {
       textRunSize = size*contextScale;
-      textRunSize = PR_MAX(textRunSize, CLAMP_MIN_SIZE);
-      textRunSize = PR_MIN(textRunSize, CLAMP_MAX_SIZE);
+      textRunSize = NS_MAX(textRunSize, double(CLAMP_MIN_SIZE));
+      textRunSize = NS_MIN(textRunSize, double(CLAMP_MAX_SIZE));
     }
 
     const nsFont& font = fontData->mFont;

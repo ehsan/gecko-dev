@@ -865,7 +865,6 @@ pref("network.proxy.no_proxies_on",         "localhost, 127.0.0.1");
 pref("network.proxy.failover_timeout",      1800); // 30 minutes
 pref("network.online",                      true); //online/offline
 pref("network.cookie.cookieBehavior",       0); // 0-Accept, 1-dontAcceptForeign, 2-dontUse
-pref("network.cookie.disableCookieForMailNews", true); // disable all cookies for mail
 pref("network.cookie.lifetimePolicy",       0); // accept normally, 1-askBeforeAccepting, 2-acceptForSession,3-acceptForNDays
 pref("network.cookie.alwaysAcceptSessionCookies", false);
 pref("network.cookie.prefsMigrated",        false);
@@ -1126,7 +1125,7 @@ pref("layout.css.dpi", -1);
 // automatically based on the DPI. A positive value is used as-is. This effectively
 // controls the size of a CSS "px". This is only used for pixel-based
 // (screen) output devices.
-pref("layout.css.devPixelsPerPx", -1);
+pref("layout.css.devPixelsPerPx", "-1");
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
