@@ -45,8 +45,6 @@
 #include "jscntxt.h"
 #include "jsscript.h"
 #include "jsprf.h"
-#include "jsinterp.h"
-#include "jsscope.h"
 
 using namespace avmplus;
 using namespace nanojit;
@@ -333,24 +331,6 @@ static inline int getType(jsval v)
     return JSVAL_TAG(v);
 }   
 
-static inline bool isInt(jsval v)
-{
-    return getType(v) == JSVAL_INT;
-}
-
-static inline bool isDouble(jsval v)
-{
-    return (getType(v) == JSVAL_DOUBLE) && !isInt(v);
-}
-
-static inline jsint asInt(jsval v)
-{
-    JS_ASSERT(isInt(v));
-    if (JSVAL_IS_DOUBLE(v)) 
-        return js_DoubleToECMAInt32(*JSVAL_TO_DOUBLE(v));
-    return JSVAL_TO_INT(v);
-}
-
 /* Write out a type map for the current scopes and all outer scopes,
    up until the entry scope. */
 static void
@@ -396,7 +376,10 @@ unbox_jsval(jsval v, int t, double* slot)
         *(bool*)slot = JSVAL_TO_BOOLEAN(v);
         break;
     case JSVAL_INT:
-        *(jsint*)slot = asInt(v);
+        if (JSVAL_IS_DOUBLE(v))
+            *(jsint*)slot = js_DoubleToECMAInt32(*JSVAL_TO_DOUBLE(v));
+        else
+            *(jsint*)slot = JSVAL_TO_INT(v);
         break;
     case JSVAL_DOUBLE:
         *(jsdouble*)slot = *JSVAL_TO_DOUBLE(v);
@@ -482,7 +465,7 @@ void
 TraceRecorder::import(jsval* p, char *prefix, int index)
 {
     JS_ASSERT(onFrame(p));
-    LIns *ins = lir->insLoad(isDouble(*p) ? LIR_ldq : LIR_ld,
+    LIns *ins = lir->insLoad(JSVAL_IS_DOUBLE(*p) ? LIR_ldq : LIR_ld,
             fragment->sp, -fragmentInfo->nativeStackBase + nativeFrameOffset(p) + 8);
     tracker.set(p, ins);
 #ifdef DEBUG
@@ -701,7 +684,7 @@ TraceRecorder::stack(int n, LIns* i)
 bool
 TraceRecorder::inc(jsval& v, jsint incr, bool pre)
 {
-    if (isInt(v)) {
+    if (JSVAL_IS_INT(v)) {
         LIns* before = get(&v);
         LIns* after = lir->ins2i(LIR_add, before, incr);
         guard(false, lir->ins1(LIR_ov, after));
@@ -717,27 +700,27 @@ TraceRecorder::cmp(LOpcode op, bool negate)
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
-    if (isInt(l) && isInt(r)) {
+    if (JSVAL_IS_INT(l) && JSVAL_IS_INT(r)) {
         LIns* x = lir->ins2(op, get(&l), get(&r));
         if (negate)
             x = lir->ins2i(LIR_eq, x, 0);
         bool cond;
         switch (op) {
         case LIR_lt:
-            cond = asInt(l) < asInt(r); 
+            cond = JSVAL_TO_INT(l) < JSVAL_TO_INT(r); 
             break;
         case LIR_gt:
-            cond = asInt(l) > asInt(r); 
+            cond = JSVAL_TO_INT(l) > JSVAL_TO_INT(r); 
             break;
         case LIR_le:
-            cond = asInt(l) <= asInt(r); 
+            cond = JSVAL_TO_INT(l) <= JSVAL_TO_INT(r); 
             break;
         case LIR_ge:
-            cond = asInt(l) >= asInt(r); 
+            cond = JSVAL_TO_INT(l) >= JSVAL_TO_INT(r); 
             break;
         default:
             JS_ASSERT(cond == LIR_eq);
-            cond = asInt(l) == asInt(r);
+            cond = JSVAL_TO_INT(l) == JSVAL_TO_INT(r);
             break;
         }
         /* The interpreter fuses comparisons and the following branch,
@@ -762,27 +745,11 @@ TraceRecorder::ibinary(LOpcode op, bool ov)
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
-    if (isInt(l) && isInt(r)) {
+    if (JSVAL_IS_INT(l) && JSVAL_IS_INT(r)) {
         LIns* result = lir->ins2(op, get(&l), get(&r));
         if (ov)
             guard(false, lir->ins1(LIR_ov, result));
         set(&l, result);
-        return true;
-    }
-    return false;
-}
-
-bool
-TraceRecorder::map_is_native(JSObjectMap* map, LIns* map_ins)
-{
-    LIns* ops = lir->insLoadi(map_ins, offsetof(JSObjectMap, ops));
-    if (map->ops == &js_ObjectOps) {
-        guard(true, lir->ins2i(LIR_eq, ops, (long)&js_ObjectOps));
-        return true;
-    }
-    LIns* n = lir->insLoadi(ops, offsetof(JSObjectOps, newObjectMap));
-    if (map->ops->newObjectMap == js_ObjectOps.newObjectMap) {
-        guard(true, lir->ins2i(LIR_eq, n, (long)js_ObjectOps.newObjectMap));
         return true;
     }
     return false;
@@ -898,15 +865,23 @@ bool TraceRecorder::JSOP_URSH()
 }
 bool TraceRecorder::JSOP_ADD()
 {
+    jsval& r = stackval(-1);
+    jsval& l = stackval(-2);
+    if (JSVAL_IS_INT(l) && JSVAL_IS_INT(r)) {
+        LIns* result = lir->ins2(LIR_add, get(&l), get(&r));
+        guard(false, lir->ins1(LIR_ov, result));
+        set(&l, result);
+        return true;
+    }
     return false;
 }
 bool TraceRecorder::JSOP_SUB()
 {
-    return false;
+    return ibinary(LIR_sub, true);
 }
 bool TraceRecorder::JSOP_MUL()
 {
-    return false;
+    return ibinary(LIR_mul, true);
 }
 bool TraceRecorder::JSOP_DIV()
 {
@@ -926,7 +901,9 @@ bool TraceRecorder::JSOP_BITNOT()
 }
 bool TraceRecorder::JSOP_NEG()
 {
-    return false;
+    jsval& v = stackval(-1);
+    set(&v, lir->ins1(LIR_neg, get(&v)));
+    return true;
 }
 bool TraceRecorder::JSOP_NEW()
 {
@@ -1038,15 +1015,18 @@ bool TraceRecorder::JSOP_STRING()
 }
 bool TraceRecorder::JSOP_ZERO()
 {
-    return false;
+    stack(0, lir->insImm(0));
+    return true;
 }
 bool TraceRecorder::JSOP_ONE()
 {
-    return false;
+    stack(0, lir->insImm(1));
+    return true;
 }
 bool TraceRecorder::JSOP_NULL()
 {
-    return false;
+    stack(0, lir->insImm(0));
+    return true;
 }
 bool TraceRecorder::JSOP_THIS()
 {
@@ -1054,11 +1034,13 @@ bool TraceRecorder::JSOP_THIS()
 }
 bool TraceRecorder::JSOP_FALSE()
 {
-    return false;
+    stack(0, lir->insImm(0));
+    return true;
 }
 bool TraceRecorder::JSOP_TRUE()
 {
-    return false;
+    stack(0, lir->insImm(1));
+    return true;
 }
 bool TraceRecorder::JSOP_OR()
 {
@@ -1227,12 +1209,8 @@ bool TraceRecorder::JSOP_POPN()
 }
 bool TraceRecorder::JSOP_BINDNAME()
 {
-    /* BINDNAME is a no-op for the recorder. We wait until we hit the
-       SETNAME/SETPROP that uses it. This is safe because the 
-       interpreter calculates here the scope we will use and we
-       will use that value to guard against in SETNAME/SETPROP. */
-    return true;
-}    
+    return false;
+}
 bool TraceRecorder::JSOP_SETNAME()
 {
     return false;
@@ -1323,7 +1301,7 @@ bool TraceRecorder::JSOP_SETLOCALPOP()
 }
 bool TraceRecorder::JSOP_GROUP()
 {
-    return false;
+    return true; // no-op
 }
 bool TraceRecorder::JSOP_SETCALL()
 {
