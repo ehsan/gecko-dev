@@ -13,7 +13,7 @@ function test() {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.contentWindow;
+    gDebugger = gPane.debuggerWindow;
 
     testSimpleCall();
   });
@@ -25,9 +25,6 @@ function testSimpleCall() {
 
       let globalScope = gDebugger.DebuggerView.Properties.globalScope;
       let localScope = gDebugger.DebuggerView.Properties.localScope;
-      globalScope.empty();
-      localScope.empty();
-
       let windowVar = globalScope.addVar("window");
       let documentVar = globalScope.addVar("document");
       let localVar0 = localScope.addVar("localVariable");
@@ -82,18 +79,10 @@ function testSimpleCall() {
       ok(localVar5, "The localVar5 hasn't been created correctly.");
 
 
-      for each (let elt in globalScope.querySelector(".details").childNodes) {
-        info("globalScope :: " + {
-          id: elt.id, className: elt.className }.toSource());
-      }
       is(globalScope.querySelector(".details").childNodes.length, 2,
         "The globalScope doesn't contain all the created variable elements.");
 
-      for each (let elt in localScope.querySelector(".details").childNodes) {
-        info("localScope :: " + {
-          id: elt.id, className: elt.className }.toSource());
-      }
-      is(localScope.querySelector(".details").childNodes.length, 6,
+      is(localScope.querySelector(".details").childNodes.length, 7,
         "The localScope doesn't contain all the created variable elements.");
 
 

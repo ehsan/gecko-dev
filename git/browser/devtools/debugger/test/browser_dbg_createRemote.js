@@ -1,80 +1,86 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
 /*
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
-
-// Tests that a remote debugger can be created in a new window.
-
-var gWindow = null;
+var gProcess = null;
 var gTab = null;
-var gAutoConnect = null;
-
-const TEST_URL = EXAMPLE_URL + "browser_dbg_iframes.html";
+var gDebuggee = null;
 
 function test() {
-  debug_remote(TEST_URL, function(aTab, aDebuggee, aWindow) {
+  remote_debug_tab_pane(STACK_URL, aOnClosing, function(aTab, aDebuggee, aProcess) {
     gTab = aTab;
-    gWindow = aWindow;
-    let gDebugger = gWindow.contentWindow;
+    gDebuggee = aDebuggee;
+    gProcess = aProcess;
 
-    is(gDebugger.document.getElementById("close").getAttribute("hidden"), "true",
-      "The close button should be hidden in a remote debugger.");
+    testSimpleCall();
+  });
+}
 
-    is(gDebugger.DebuggerController.activeThread.paused, false,
-      "Should be running after debug_remote.");
+function testSimpleCall() {
+  Services.tm.currentThread.dispatch({ run: function() {
 
-    gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
-      Services.tm.currentThread.dispatch({ run: function() {
+    ok(gProcess._dbgProcess,
+      "The remote debugger process wasn't created properly!");
+    ok(gProcess._dbgProcess.isRunning,
+      "The remote debugger process isn't running!");
+    is(typeof gProcess._dbgProcess.pid, "number",
+      "The remote debugger process doesn't have a pid (?!)");
 
-        let frames = gDebugger.DebuggerView.StackFrames._frames;
-        let childNodes = frames.childNodes;
+    info("process location: " + gProcess._dbgProcess.location);
+    info("process pid: " + gProcess._dbgProcess.pid);
+    info("process name: " + gProcess._dbgProcess.processName);
+    info("process sig: " + gProcess._dbgProcess.processSignature);
 
-        is(gDebugger.DebuggerController.activeThread.paused, true,
-          "Should be paused after an interrupt request.");
+    ok(gProcess._dbgProfile,
+      "The remote debugger profile wasn't created properly!");
+    ok(gProcess._dbgProfile.localDir,
+      "The remote debugger profile doesn't have a localDir...");
+    ok(gProcess._dbgProfile.rootDir,
+      "The remote debugger profile doesn't have a rootDir...");
+    ok(gProcess._dbgProfile.name,
+      "The remote debugger profile doesn't have a name...");
 
-        is(frames.querySelectorAll(".dbg-stackframe").length, 1,
-          "Should have one frame in the stack.");
+    info("profile localDir: " + gProcess._dbgProfile.localDir);
+    info("profile rootDir: " + gProcess._dbgProfile.rootDir);
+    info("profile name: " + gProcess._dbgProfile.name);
 
-        gDebugger.DebuggerController.activeThread.addOneTimeListener("resumed", function() {
-          Services.tm.currentThread.dispatch({ run: function() {
-            closeDebuggerAndFinish(gTab, true);
-          }}, 0);
-        });
+    let profileService = Cc["@mozilla.org/toolkit/profile-service;1"]
+      .createInstance(Ci.nsIToolkitProfileService);
 
-        EventUtils.sendMouseEvent({ type: "click" },
-          gDebugger.document.getElementById("resume"),
-          gDebugger);
-      }}, 0);
-    });
+    let profile = profileService.getProfileByName(gProcess._dbgProfile.name);
 
-    let iframe = gTab.linkedBrowser.contentWindow.wrappedJSObject.frames[0];
+    ok(profile,
+      "The remote debugger profile wasn't *actually* created properly!");
+    is(profile.localDir.path, gProcess._dbgProfile.localDir.path,
+      "The remote debugger profile doesn't have the correct localDir!");
+    is(profile.rootDir.path, gProcess._dbgProfile.rootDir.path,
+      "The remote debugger profile doesn't have the correct rootDir!");
 
-    is(iframe.document.title, "Browser Debugger Test Tab", "Found the iframe");
+    DebuggerUI.toggleRemoteDebugger();
+  }}, 0);
+}
 
-    iframe.runDebuggerStatement();
-  },
-  function beforeTabAdded() {
-    if (!DebuggerServer.initialized) {
-      DebuggerServer.init();
-      DebuggerServer.addBrowserActors();
-    }
-    DebuggerServer.closeListener();
+function aOnClosing() {
+  ok(!gProcess._dbgProcess.isRunning,
+    "The remote debugger process isn't closed as it should be!");
+  is(gProcess._dbgProcess.exitValue, (Services.appinfo.OS == "WINNT" ? 0 : 256),
+    "The remote debugger process didn't die cleanly.");
 
-    gAutoConnect = Services.prefs.getBoolPref("devtools.debugger.remote-autoconnect");
-    Services.prefs.setBoolPref("devtools.debugger.remote-autoconnect", true);
+  info("process exit value: " + gProcess._dbgProcess.exitValue);
 
-    // Open the listener at some point in the future to test automatic reconnect.
-    window.setTimeout(function() {
-      DebuggerServer.openListener(
-        Services.prefs.getIntPref("devtools.debugger.remote-port"));
-    }, Math.random() * 1000);
+  info("profile localDir: " + gProcess._dbgProfile.localDir.path);
+  info("profile rootDir: " + gProcess._dbgProfile.rootDir.path);
+  info("profile name: " + gProcess._dbgProfile.name);
+
+  executeSoon(function() {
+    finish();
   });
 }
 
 registerCleanupFunction(function() {
-  Services.prefs.setBoolPref("devtools.debugger.remote-autoconnect", gAutoConnect);
   removeTab(gTab);
-  gWindow = null;
+  gProcess = null;
   gTab = null;
-  gAutoConnect = null;
+  gDebuggee = null;
 });
