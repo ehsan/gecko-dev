@@ -81,9 +81,6 @@ bool
 EventWasCanceled(JSContext* aCx, JSObject* aEvent);
 
 bool
-EventImmediatePropagationStopped(JSContext* aCx, JSObject* aEvent);
-
-bool
 DispatchEventToTarget(JSContext* aCx, JSObject* aTarget, JSObject* aEvent,
                       bool* aPreventDefaultCalled);
 

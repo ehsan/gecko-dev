@@ -52,7 +52,8 @@ _TEST_FILES =\
 		test_bug536379-2.html \
 		test_bug557726.html \
 		test_bug609549.xhtml \
+		test_isinheritableproperty.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)
-	$(INSTALL) $^ $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+	$(INSTALL) $^ $(DEPTH)/$(mochitestdir)/tests/$(relativesrcdir)
