@@ -97,7 +97,11 @@ const KEY_UPDROOT         = "UpdRootD";
 const DIR_UPDATES         = "updates";
 const FILE_UPDATE_STATUS  = "update.status";
 const FILE_UPDATE_VERSION = "update.version";
+#ifdef ANDROID
+const FILE_UPDATE_ARCHIVE = "update.apk";
+#else
 const FILE_UPDATE_ARCHIVE = "update.mar";
+#endif
 const FILE_UPDATE_LOG     = "update.log"
 const FILE_UPDATES_DB     = "updates.xml";
 const FILE_UPDATE_ACTIVE  = "active-update.xml";
@@ -2584,7 +2588,7 @@ Downloader.prototype = {
       if (this._verifyDownload()) {
         state = STATE_PENDING;
 
-        // We only need to explicitly show the prompt if this is a backround
+        // We only need to explicitly show the prompt if this is a background
         // download, since otherwise some kind of UI is already visible and
         // that UI will notify.
         if (this.background)
@@ -2751,7 +2755,8 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateAvailable: function UP_showUpdateAvailable(update) {
-    if (!this._enabled || this._getUpdateWindow())
+    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false) ||
+        this._getUpdateWindow())
       return;
 
     var stringsPrefix = "updateAvailable_" + update.type + ".";
@@ -2769,7 +2774,7 @@ UpdatePrompt.prototype = {
    */
   showUpdateDownloaded: function UP_showUpdateDownloaded(update, background) {
     if (background) {
-      if (!this._enabled)
+      if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false))
         return;
 
       var stringsPrefix = "updateDownloaded_" + update.type + ".";
@@ -2790,8 +2795,9 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateInstalled: function UP_showUpdateInstalled() {
-    if (!this._enabled || this._getUpdateWindow() ||
-        !getPref("getBoolPref", PREF_APP_UPDATE_SHOW_INSTALLED_UI, false))
+    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false) ||
+        !getPref("getBoolPref", PREF_APP_UPDATE_SHOW_INSTALLED_UI, false) ||
+        this._getUpdateWindow())
       return;
 
     var page = "installed";
@@ -2814,13 +2820,8 @@ UpdatePrompt.prototype = {
    * See nsIUpdateService.idl
    */
   showUpdateError: function UP_showUpdateError(update) {
-    if (update.errorCode &&
-        (update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE ||
-         update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE)) {
-      this._showUIWhenIdle(null, URI_UPDATE_PROMPT_DIALOG, null,
-                           UPDATE_WINDOW_NAME, null, update);
+    if (getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false))
       return;
-    }
 
     // In some cases, we want to just show a simple alert dialog:
     if (update.state == STATE_FAILED && update.errorCode == WRITE_ERROR) {
@@ -2829,10 +2830,18 @@ UpdatePrompt.prototype = {
                                                     [Services.appinfo.name,
                                                      Services.appinfo.name], 2);
       Services.ww.getNewPrompter(null).alert(title, text);
-    } else {
-      this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null, UPDATE_WINDOW_NAME,
-                   "errors", update);
+      return;
     }
+
+    if (update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE ||
+        update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE) {
+      this._showUIWhenIdle(null, URI_UPDATE_PROMPT_DIALOG, null,
+                           UPDATE_WINDOW_NAME, null, update);
+      return;
+    }
+
+    this._showUI(null, URI_UPDATE_PROMPT_DIALOG, null, UPDATE_WINDOW_NAME,
+                 "errors", update);
   },
 
   /**
@@ -2841,13 +2850,6 @@ UpdatePrompt.prototype = {
   showUpdateHistory: function UP_showUpdateHistory(parent) {
     this._showUI(parent, URI_UPDATE_HISTORY_DIALOG, "modal,dialog=yes",
                  "Update:History", null, null);
-  },
-
-  /**
-   * Whether or not we are enabled (i.e. not in Silent mode)
-   */
-  get _enabled() {
-    return !getPref("getBoolPref", PREF_APP_UPDATE_SILENT, false);
   },
 
   /**
