@@ -263,9 +263,7 @@ nsDocAccessible::GetDescription(nsAString& aDescription)
 
   if (aDescription.IsEmpty()) {
     nsAutoString description;
-    nsTextEquivUtils::
-      GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
-                             description);
+    GetTextFromRelationID(nsAccessibilityAtoms::aria_describedby, description);
     aDescription = description;
   }
 

@@ -590,16 +590,18 @@ nsWebShell::EnsureCommandHandler()
 {
   if (!mCommandManager)
   {
-    nsCOMPtr<nsPICommandUpdater> commandUpdater =
-      do_CreateInstance("@mozilla.org/embedcomp/command-manager;1");
-    if (!commandUpdater) return NS_ERROR_OUT_OF_MEMORY;
+    mCommandManager = do_CreateInstance("@mozilla.org/embedcomp/command-manager;1");
+    if (!mCommandManager) return NS_ERROR_OUT_OF_MEMORY;
     
-    nsCOMPtr<nsIDOMWindow> domWindow =
-      do_GetInterface(static_cast<nsIInterfaceRequestor *>(this));
-
-    nsresult rv = commandUpdater->Init(domWindow);
-    if (NS_SUCCEEDED(rv))
-      mCommandManager = do_QueryInterface(commandUpdater);
+    nsCOMPtr<nsPICommandUpdater>       commandUpdater = do_QueryInterface(mCommandManager);
+    if (!commandUpdater) return NS_ERROR_FAILURE;
+    
+    nsCOMPtr<nsIDOMWindow> domWindow = do_GetInterface(static_cast<nsIInterfaceRequestor *>(this));
+#ifdef DEBUG
+    nsresult rv =
+#endif
+    commandUpdater->Init(domWindow);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Initting command manager failed");
   }
   
   return mCommandManager ? NS_OK : NS_ERROR_FAILURE;

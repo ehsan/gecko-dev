@@ -5383,12 +5383,11 @@ PresShell::Paint(nsIView*             aView,
   // background color as recorded in the prescontext is guaranteed to
   // be opaque.
 
-  PRBool needTransparency = PR_FALSE;
   nscolor backgroundColor = mPresContext->DefaultBackgroundColor();
   for (nsIView *view = aView; view; view = view->GetParent()) {
     if (view->HasWidget() &&
         view->GetWidget()->GetTransparencyMode() != eTransparencyOpaque) {
-      needTransparency = PR_TRUE;
+      backgroundColor = NS_RGBA(0,0,0,0);
       break;
     }
   }
@@ -5409,11 +5408,9 @@ PresShell::Paint(nsIView*             aView,
   // backstop colors.
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
   if (!frame) {
-    if (!needTransparency) {
-      backgroundColor = NS_ComposeColors(backgroundColor, viewDefaultColor);
-      aRenderingContext->SetColor(backgroundColor);
-      aRenderingContext->FillRect(aDirtyRegion.GetBounds());
-    }
+    backgroundColor = NS_ComposeColors(backgroundColor, viewDefaultColor);
+    aRenderingContext->SetColor(backgroundColor);
+    aRenderingContext->FillRect(aDirtyRegion.GetBounds());
     return NS_OK;
   }
 
@@ -5437,8 +5434,7 @@ PresShell::Paint(nsIView*             aView,
   }
 
   nsLayoutUtils::PaintFrame(aRenderingContext, frame, aDirtyRegion,
-                            needTransparency ? NS_RGBA(0,0,0,0)
-                            : backgroundColor);
+                            backgroundColor);
   return NS_OK;
 }
 
@@ -6047,8 +6043,9 @@ PresShell::AdjustContextMenuKeyEvent(nsMouseEvent* aEvent)
 
       nsCOMPtr<nsIWidget> widget = popupFrame->GetWindow();
       aEvent->widget = widget;
-      nsIntPoint widgetPoint = widget->WidgetToScreenOffset();
-      aEvent->refPoint = itemFrame->GetScreenRect().BottomLeft() - widgetPoint;
+      nsIntRect widgetRect(0, 0, 1, 1);
+      widget->WidgetToScreen(widgetRect, widgetRect);
+      aEvent->refPoint = itemFrame->GetScreenRect().BottomLeft() - widgetRect.TopLeft();
 
       mCurrentEventContent = itemFrame->GetContent();
       mCurrentEventFrame = itemFrame;

@@ -66,9 +66,7 @@ NS_IMETHODIMP
 nsXFormsLabelAccessible::GetDescription(nsAString& aDescription)
 {
   nsAutoString description;
-  nsresult rv = nsTextEquivUtils::
-    GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
-                           description);
+  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_describedby, description);
   aDescription = description;
   return rv;
 }

@@ -4909,7 +4909,7 @@ var contentAreaDNDObserver = {
 
       var dragType = aXferData.flavour.contentType;
       var dragData = aXferData.data;
-      if (dragType == TAB_DROP_TYPE) {
+      if (dragType == "application/x-moz-tabbrowser-tab") {
         // If the tab was dragged from some other tab bar, its own dragend
         // handler will take care of detaching the tab
         if (dragData instanceof XULElement && dragData.localName == "tab" &&
@@ -4958,7 +4958,7 @@ var contentAreaDNDObserver = {
   getSupportedFlavours: function ()
     {
       var flavourSet = new FlavourSet();
-      flavourSet.appendFlavour(TAB_DROP_TYPE);
+      flavourSet.appendFlavour("application/x-moz-tabbrowser-tab");
       flavourSet.appendFlavour("text/x-moz-url");
       flavourSet.appendFlavour("text/plain");
       flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
@@ -6868,8 +6868,6 @@ let gPrivateBrowsingUI = {
   onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
     this._setPBMenuTitle("stop");
 
-    document.getElementById("menu_import").setAttribute("disabled", "true");
-
     this._privateBrowsingAutoStarted = this._privateBrowsingService.autoStarted;
 
     if (!this._privateBrowsingAutoStarted) {
@@ -6894,8 +6892,6 @@ let gPrivateBrowsingUI = {
   onExitPrivateBrowsing: function PBUI_onExitPrivateBrowsing() {
     if (BrowserSearch.searchBar)
       BrowserSearch.searchBar.textbox.reset();
-
-    document.getElementById("menu_import").removeAttribute("disabled");
 
     gFindBar.getElement("findbar-textbox").reset();
 

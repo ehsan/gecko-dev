@@ -63,13 +63,6 @@ enum EActionRule
   eSwitchAction
 };
 
-enum ELiveAttrRule
-{
-  eNoLiveAttr,
-  eOffLiveAttr,
-  ePoliteLiveAttr
-};
-
 // ARIA attribute characteristic masks, grow as needed
 
 /**
@@ -121,10 +114,6 @@ struct nsRoleMapEntry
 
   // Action mapping rule, how to expose nsIAccessible action
   EActionRule actionRule;
-
-  // 'live' and 'container-live' object attributes mapping rule: how to expose
-  // these object attributes if ARIA 'live' attribute is missed.
-  ELiveAttrRule liveAttRule;
 
   // Automatic state mapping rule: always include in nsIAccessibleStates
   PRUint32 state;   // or kNoReqStates if no nsIAccessibleStates are automatic for this role.
