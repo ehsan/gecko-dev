@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+interface MozIccInfo;
+
 [Pref="dom.icc.enabled"]
 interface MozIcc : EventTarget
 {
@@ -14,7 +16,7 @@ interface MozIcc : EventTarget
    * Also, the attribute is set to null and this MozIcc object becomes invalid.
    * Calling asynchronous functions raises exception then.
    */
-  readonly attribute (MozIccInfo or MozGsmIccInfo or MozCdmaIccInfo)? iccInfo;
+  readonly attribute MozIccInfo? iccInfo;
 
   /**
    * The 'iccinfochange' event is notified whenever the icc info object

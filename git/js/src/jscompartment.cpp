@@ -535,14 +535,14 @@ JSCompartment::markRoots(JSTracer *trc)
      * If a compartment is on-stack, we mark its global so that
      * JSContext::global() remains valid.
      */
-    if (enterCompartmentDepth && global_.unbarrieredGet())
+    if (enterCompartmentDepth && global_)
         MarkObjectRoot(trc, global_.unsafeGet(), "on-stack compartment global");
 }
 
 void
 JSCompartment::sweepInnerViews()
 {
-    innerViews.sweep(runtimeFromAnyThread());
+    innerViews.sweep(runtimeFromMainThread());
 }
 
 void
@@ -555,13 +555,13 @@ JSCompartment::sweepTypeObjectTables()
 void
 JSCompartment::sweepSavedStacks()
 {
-    savedStacks_.sweep(runtimeFromAnyThread());
+    savedStacks_.sweep(runtimeFromMainThread());
 }
 
 void
 JSCompartment::sweepGlobalObject(FreeOp *fop)
 {
-    if (global_.unbarrieredGet() && IsObjectAboutToBeFinalizedFromAnyThread(global_.unsafeGet())) {
+    if (global_ && IsObjectAboutToBeFinalized(global_.unsafeGet())) {
         if (debugMode())
             Debugger::detachAllDebuggersFromGlobal(fop, global_);
         global_.set(nullptr);
@@ -571,8 +571,8 @@ JSCompartment::sweepGlobalObject(FreeOp *fop)
 void
 JSCompartment::sweepSelfHostingScriptSource()
 {
-    if (selfHostingScriptSource.unbarrieredGet() &&
-        IsObjectAboutToBeFinalizedFromAnyThread((JSObject **) selfHostingScriptSource.unsafeGet()))
+    if (selfHostingScriptSource &&
+        IsObjectAboutToBeFinalized((JSObject **) selfHostingScriptSource.unsafeGet()))
     {
         selfHostingScriptSource.set(nullptr);
     }
@@ -593,13 +593,13 @@ JSCompartment::sweepRegExps()
      * code for the lifetime of the JIT script. Thus, we must perform
      * sweeping after clearing jit code.
      */
-    regExps.sweep(runtimeFromAnyThread());
+    regExps.sweep(runtimeFromMainThread());
 }
 
 void
 JSCompartment::sweepDebugScopes()
 {
-    JSRuntime *rt = runtimeFromAnyThread();
+    JSRuntime *rt = runtimeFromMainThread();
     if (debugScopes)
         debugScopes->sweep(rt);
 }
@@ -619,7 +619,7 @@ JSCompartment::sweepNativeIterators()
     while (ni != enumerators) {
         JSObject *iterObj = ni->iterObj();
         NativeIterator *next = ni->next();
-        if (gc::IsObjectAboutToBeFinalizedFromAnyThread(&iterObj))
+        if (gc::IsObjectAboutToBeFinalized(&iterObj))
             ni->unlink();
         ni = next;
     }
@@ -636,9 +636,9 @@ JSCompartment::sweepCrossCompartmentWrappers()
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         CrossCompartmentKey key = e.front().key();
-        bool keyDying = IsCellAboutToBeFinalizedFromAnyThread(&key.wrapped);
-        bool valDying = IsValueAboutToBeFinalizedFromAnyThread(e.front().value().unsafeGet());
-        bool dbgDying = key.debugger && IsObjectAboutToBeFinalizedFromAnyThread(&key.debugger);
+        bool keyDying = IsCellAboutToBeFinalized(&key.wrapped);
+        bool valDying = IsValueAboutToBeFinalized(e.front().value().unsafeGet());
+        bool dbgDying = key.debugger && IsObjectAboutToBeFinalized(&key.debugger);
         if (keyDying || valDying || dbgDying) {
             MOZ_ASSERT(key.kind != CrossCompartmentKey::StringWrapper);
             e.removeFront();

@@ -20,9 +20,6 @@
 struct JSCompartment;
 
 namespace js {
-
-class GCParallelTask;
-
 namespace gcstats {
 
 enum Phase {
@@ -112,7 +109,6 @@ struct Statistics
 
     void beginPhase(Phase phase);
     void endPhase(Phase phase);
-    void endParallelPhase(Phase phase, const GCParallelTask *task);
 
     void beginSlice(const ZoneGCStats &zoneStats, JS::gcreason::Reason reason);
     void endSlice();
@@ -238,41 +234,25 @@ struct AutoPhase
 {
     AutoPhase(Statistics &stats, Phase phase
               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : stats(stats), task(nullptr), phase(phase), enabled(true)
+      : stats(stats), phase(phase), enabled(true)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         stats.beginPhase(phase);
     }
-
     AutoPhase(Statistics &stats, bool condition, Phase phase
               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : stats(stats), task(nullptr), phase(phase), enabled(condition)
+      : stats(stats), phase(phase), enabled(condition)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         if (enabled)
             stats.beginPhase(phase);
     }
-
-    AutoPhase(Statistics &stats, const GCParallelTask &task, Phase phase
-              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : stats(stats), task(&task), phase(phase), enabled(true)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        if (enabled)
-            stats.beginPhase(phase);
-    }
-
     ~AutoPhase() {
-        if (enabled) {
-            if (task)
-                stats.endParallelPhase(phase, task);
-            else
-                stats.endPhase(phase);
-        }
+        if (enabled)
+            stats.endPhase(phase);
     }
 
     Statistics &stats;
-    const GCParallelTask *task;
     Phase phase;
     bool enabled;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER

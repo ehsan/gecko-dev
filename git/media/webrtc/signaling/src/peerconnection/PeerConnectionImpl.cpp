@@ -260,7 +260,6 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
   , mIdentity(nullptr)
   , mPrivacyRequested(false)
   , mSTSThread(nullptr)
-  , mAllowIceLoopback(false)
   , mMedia(nullptr)
   , mNumAudioStreams(0)
   , mNumVideoStreams(0)
@@ -610,7 +609,6 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
   }
 
   mMedia = new PeerConnectionMedia(this);
-  mMedia->SetAllowIceLoopback(mAllowIceLoopback);
 
   // Connect ICE slots.
   mMedia->SignalIceGatheringStateChange.connect(

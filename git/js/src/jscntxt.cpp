@@ -101,9 +101,8 @@ JSCompartment::sweepCallsiteClones()
     if (callsiteClones.initialized()) {
         for (CallsiteCloneTable::Enum e(callsiteClones); !e.empty(); e.popFront()) {
             CallsiteCloneKey key = e.front().key();
-            if (IsObjectAboutToBeFinalizedFromAnyThread(&key.original) ||
-                IsScriptAboutToBeFinalizedFromAnyThread(&key.script) ||
-                IsObjectAboutToBeFinalizedFromAnyThread(e.front().value().unsafeGet()))
+            if (IsObjectAboutToBeFinalized(&key.original) || IsScriptAboutToBeFinalized(&key.script) ||
+                IsObjectAboutToBeFinalized(e.front().value().unsafeGet()))
             {
                 e.removeFront();
             } else if (key != e.front().key()) {

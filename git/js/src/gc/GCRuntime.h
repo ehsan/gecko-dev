@@ -36,13 +36,18 @@ class AutoTraceSession;
 
 class ChunkPool
 {
-    Chunk *head_;
-    size_t count_;
+    Chunk   *emptyChunkListHead;
+    size_t  emptyCount;
 
   public:
-    ChunkPool() : head_(nullptr), count_(0) {}
+    ChunkPool()
+      : emptyChunkListHead(nullptr),
+        emptyCount(0)
+    {}
 
-    size_t count() const { return count_; }
+    size_t getEmptyCount() const {
+        return emptyCount;
+    }
 
     /* Must be called with the GC lock taken. */
     inline Chunk *get(JSRuntime *rt);
@@ -52,7 +57,7 @@ class ChunkPool
 
     class Enum {
       public:
-        explicit Enum(ChunkPool &pool) : pool(pool), chunkp(&pool.head_) {}
+        explicit Enum(ChunkPool &pool) : pool(pool), chunkp(&pool.emptyChunkListHead) {}
         bool empty() { return !*chunkp; }
         Chunk *front();
         inline void popFront();
@@ -590,7 +595,7 @@ class GCRuntime
      */
     js::gc::Chunk         *systemAvailableChunkListHead;
     js::gc::Chunk         *userAvailableChunkListHead;
-    js::gc::ChunkPool     emptyChunks;
+    js::gc::ChunkPool     chunkPool;
 
     js::RootedValueMap    rootsHash;
 
@@ -691,12 +696,6 @@ class GCRuntime
     JS::Zone              *sweepZone;
     int                   sweepKindIndex;
     bool                  abortSweepAfterCurrentGroup;
-
-    /*
-     * Concurrent sweep infrastructure.
-     */
-    void startTask(GCParallelTask &task, gcstats::Phase phase);
-    void joinTask(GCParallelTask &task, gcstats::Phase phase);
 
     /*
      * List head of arenas allocated during the sweep phase.

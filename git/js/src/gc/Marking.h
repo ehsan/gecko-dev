@@ -98,7 +98,6 @@ void Mark##base##RootRange(JSTracer *trc, size_t len, type **thing, const char *
 bool Is##base##Marked(type **thingp);                                                             \
 bool Is##base##Marked(BarrieredBase<type*> *thingp);                                              \
 bool Is##base##AboutToBeFinalized(type **thingp);                                                 \
-bool Is##base##AboutToBeFinalizedFromAnyThread(type **thingp);                                    \
 bool Is##base##AboutToBeFinalized(BarrieredBase<type*> *thingp);                                  \
 type *Update##base##IfRelocated(JSRuntime *rt, BarrieredBase<type*> *thingp);                     \
 type *Update##base##IfRelocated(JSRuntime *rt, type **thingp);
@@ -220,9 +219,6 @@ IsValueMarked(Value *v);
 bool
 IsValueAboutToBeFinalized(Value *v);
 
-bool
-IsValueAboutToBeFinalizedFromAnyThread(Value *v);
-
 /*** Slot Marking ***/
 
 bool
@@ -330,9 +326,6 @@ IsCellMarked(Cell **thingp);
 
 bool
 IsCellAboutToBeFinalized(Cell **thing);
-
-bool
-IsCellAboutToBeFinalizedFromAnyThread(Cell **thing);
 
 inline bool
 IsMarked(BarrieredBase<Value> *v)

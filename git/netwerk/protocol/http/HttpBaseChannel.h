@@ -41,7 +41,6 @@
 #include "nsISecurityConsoleMessage.h"
 
 extern PRLogModuleInfo *gHttpLog;
-class nsPerformance;
 
 namespace mozilla {
 namespace net {
@@ -240,8 +239,6 @@ protected:
 
   // drop reference to listener, its callbacks, and the progress sink
   void ReleaseListeners();
-
-  nsPerformance* GetPerformance();
 
   NS_IMETHOD DoApplyContentConversions(nsIStreamListener *aNextListener,
                                      nsIStreamListener **aNewNextListener,

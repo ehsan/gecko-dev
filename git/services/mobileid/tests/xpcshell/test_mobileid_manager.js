@@ -457,7 +457,7 @@ add_test(function() {
       credStore._("add").call(1).arg(2, PHONE_NUMBER);
       credStore._("add").call(1).arg(3, ORIGIN);
       credStore._("add").call(1).arg(4, SESSION_TOKEN);
-      credStore._("add").call(1).arg(5, []);
+      credStore._("add").call(1).arg(5, null);
 
 
       // MockUI.
@@ -960,10 +960,10 @@ add_test(function() {
       credStore._("add").call(1).arg(2, PHONE_NUMBER);
       credStore._("add").call(1).arg(3, ORIGIN);
       credStore._("add").call(1).arg(4, SESSION_TOKEN);
-      credStore._("add").call(1).arg(5, []);
+      credStore._("add").call(1).arg(5, null);
       credStore._("setDeviceIccIds").callsLength(1);
       credStore._("setDeviceIccIds").call(1).arg(1, PHONE_NUMBER);
-      credStore._("setDeviceIccIds").call(1).arg(2, []);
+      credStore._("setDeviceIccIds").call(1).arg(2, null);
 
       // MockUI.
       ui._("startFlow").callsLength(1);
@@ -1054,7 +1054,7 @@ add_test(function() {
       credStore._("add").call(1).arg(2, ANOTHER_PHONE_NUMBER);
       credStore._("add").call(1).arg(3, ORIGIN);
       credStore._("add").call(1).arg(4, _sessionToken);
-      credStore._("add").call(1).arg(5, []);
+      credStore._("add").call(1).arg(5, null);
       credStore._("setDeviceIccIds").callsLength(0);
       credStore._("removeOrigin").callsLength(1);
       credStore._("removeOrigin").call(1).arg(1, PHONE_NUMBER);
@@ -1139,7 +1139,7 @@ add_test(function() {
       credStore._("add").call(1).arg(2, PHONE_NUMBER);
       credStore._("add").call(1).arg(3, ORIGIN);
       credStore._("add").call(1).arg(4, _sessionToken);
-      credStore._("add").call(1).arg(5, []);
+      credStore._("add").call(1).arg(5, null);
       credStore._("setDeviceIccIds").callsLength(1);
       credStore._("removeOrigin").callsLength(0);
 
@@ -1229,7 +1229,7 @@ add_test(function() {
       credStore._("add").call(1).arg(2, ANOTHER_PHONE_NUMBER);
       credStore._("add").call(1).arg(3, ORIGIN);
       credStore._("add").call(1).arg(4, _sessionToken);
-      credStore._("add").call(1).arg(5, []);
+      credStore._("add").call(1).arg(5, null);
       credStore._("setDeviceIccIds").callsLength(0);
       credStore._("removeOrigin").callsLength(1);
       credStore._("removeOrigin").call(1).arg(1, PHONE_NUMBER);
@@ -1278,7 +1278,7 @@ add_test(function() {
     sessionToken: _sessionToken,
     msisdn: PHONE_NUMBER,
     origin: ORIGIN,
-    deviceIccIds: []
+    deviceIccIds: null
   };
 
   let ui = new MockUi({
@@ -1323,7 +1323,7 @@ add_test(function() {
       credStore._("add").call(1).arg(2, PHONE_NUMBER);
       credStore._("add").call(1).arg(3, ORIGIN);
       credStore._("add").call(1).arg(4, SESSION_TOKEN);
-      credStore._("add").call(1).arg(5, []);
+      credStore._("add").call(1).arg(5, null);
       credStore._("setDeviceIccIds").callsLength(0);
       credStore._("delete").callsLength(1);
       credStore._("delete").call(1).arg(1, PHONE_NUMBER);
@@ -1383,8 +1383,12 @@ add_test(function() {
 
   MobileIdentityManager._mobileConnectionService = {
     _interfaces: [RADIO_INTERFACE, ANOTHER_RADIO_INTERFACE],
-    getItemByServiceId: function(aIndex) {
-      return this._interfaces[aIndex];
+    getVoiceConnectionInfo: function(aIndex) {
+      return this._interfaces[aIndex].voice;
+    },
+
+    getDataConnectionInfo: function(aIndex) {
+      return this._interfaces[aIndex].data;
     }
   };
 

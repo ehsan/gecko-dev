@@ -202,9 +202,7 @@ protected:
     size_t mFacesCount, mMaxLevelWithCustomImages;
     nsTArray<ImageInfo> mImageInfos;
 
-    bool mHaveGeneratedMipmap; // set by generateMipmap
-    bool mImmutable; // set by texStorage*
-
+    bool mHaveGeneratedMipmap;
     WebGLTextureFakeBlackStatus mFakeBlackStatus;
 
     void EnsureMaxLevelWithCustomImagesAtLeast(size_t aMaxLevelWithCustomImages) {
@@ -273,23 +271,10 @@ public:
 
     void SetFakeBlackStatus(WebGLTextureFakeBlackStatus x);
 
-    bool IsImmutable() const { return mImmutable; }
-    void SetImmutable() { mImmutable = true; }
-
-    size_t MaxLevelWithCustomImages() const { return mMaxLevelWithCustomImages; }
-
     // Returns the current fake-black-status, except if it was Unknown,
     // in which case this function resolves it first, so it never returns Unknown.
     WebGLTextureFakeBlackStatus ResolvedFakeBlackStatus();
 };
-
-inline TexImageTarget
-TexImageTargetForTargetAndFace(TexTarget target, size_t face)
-{
-    return target == LOCAL_GL_TEXTURE_2D
-           ? LOCAL_GL_TEXTURE_2D
-           : LOCAL_GL_TEXTURE_CUBE_MAP_POSITIVE_X + face;
-}
 
 } // namespace mozilla
 

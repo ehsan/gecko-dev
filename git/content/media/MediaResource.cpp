@@ -83,6 +83,7 @@ ChannelMediaResource::ChannelMediaResource(MediaDecoder* aDecoder,
     mCacheStream(MOZ_THIS_IN_INITIALIZER_LIST()),
     mLock("ChannelMediaResource.mLock"),
     mIgnoreResume(false),
+    mSeekingForMetadata(false),
     mIsTransportSeekable(true)
 {
 #ifdef PR_LOGGING
@@ -357,7 +358,11 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
   }
 
   mReopenOnError = false;
-  mIgnoreClose = false;
+  // If we are seeking to get metadata, because we are playing an OGG file,
+  // ignore if the channel gets closed without us suspending it explicitly. We
+  // don't want to tell the element that the download has finished whereas we
+  // just happended to have reached the end of the media while seeking.
+  mIgnoreClose = mSeekingForMetadata;
 
   if (mSuspendCount > 0) {
     // Re-suspend the channel if it needs to be suspended
@@ -803,6 +808,16 @@ nsresult ChannelMediaResource::Seek(int32_t aWhence, int64_t aOffset)
   return mCacheStream.Seek(aWhence, aOffset);
 }
 
+void ChannelMediaResource::StartSeekingForMetadata()
+{
+  mSeekingForMetadata = true;
+}
+
+void ChannelMediaResource::EndSeekingForMetadata()
+{
+  mSeekingForMetadata = false;
+}
+
 int64_t ChannelMediaResource::Tell()
 {
   NS_ASSERTION(!NS_IsMainThread(), "Don't call on main thread");
@@ -1216,6 +1231,8 @@ public:
   virtual nsresult ReadAt(int64_t aOffset, char* aBuffer,
                           uint32_t aCount, uint32_t* aBytes);
   virtual nsresult Seek(int32_t aWhence, int64_t aOffset);
+  virtual void     StartSeekingForMetadata() {};
+  virtual void     EndSeekingForMetadata() {};
   virtual int64_t  Tell();
 
   // Any thread
