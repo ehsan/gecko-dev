@@ -248,6 +248,7 @@ public:
   PRBool IMEMouseHandling(PRInt32 aAction, LPARAM lParam);
   PRBool IMECompositionHitTest(POINT * ptPos);
   PRBool HandleMouseActionOfIME(PRInt32 aAction, POINT* ptPos);
+  void GetCompositionWindowPos(HIMC hIMC, PRUint32 aEventType, COMPOSITIONFORM *cpForm);
 
   // nsSwitchToUIThread interface
   virtual BOOL            CallMethod(MethodInfo *info);
@@ -409,13 +410,9 @@ protected:
 
   void GetNonClientBounds(nsIntRect &aRect);
   void HandleTextEvent(HIMC hIMEContext, PRBool aCheckAttr = PR_TRUE);
-  void HandleStartComposition(HIMC hIMEContext);
-  void HandleEndComposition();
+  BOOL HandleStartComposition(HIMC hIMEContext);
+  void HandleEndComposition(void);
   void GetTextRangeList(PRUint32* textRangeListLengthResult, nsTextRangeArray* textRangeListResult);
-  PRBool GetCharacterRectOfSelectedTextAt(PRInt32 aOffset,
-                                          nsIntRect &aCharRect);
-  PRBool GetCaretRect(nsIntRect &aCaretRect);
-  PRBool SetIMERelatedWindowsPos(HIMC aIMEContext);
 
   void ConstrainZLevel(HWND *aAfter);
 
@@ -467,11 +464,8 @@ protected:
   static PRInt32    sIMECompClauseArrayLength;
   static PRInt32    sIMECompClauseArraySize;
   static long       sIMECursorPosition;
-  static PRBool     sIMENativeCaretIsCreated;
 
   // For describing composing frame
-  // XXX mnakano -  We should remove this, because its value may be wrong in
-  // some cases, and we should query it when it is needed.
   static RECT*      sIMECompCharPos;
 
   static TriStateBool sCanQuit;
