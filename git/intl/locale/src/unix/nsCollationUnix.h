@@ -11,11 +11,10 @@
 #include "nsICollation.h"
 #include "nsCollation.h"  // static library
 #include "plstr.h"
-#include "mozilla/Attributes.h"
 
 
 
-class nsCollationUnix MOZ_FINAL : public nsICollation {
+class nsCollationUnix : public nsICollation {
 
 protected:
   nsCollation   *mCollation;

@@ -21,8 +21,7 @@
 
 namespace gl
 {
-class Texture2D;
-class TextureCubeMap;
+class Texture;
 class Renderbuffer;
 class Colorbuffer;
 class DepthStencilbuffer;
@@ -59,12 +58,12 @@ class RenderbufferInterface
     DISALLOW_COPY_AND_ASSIGN(RenderbufferInterface);
 };
 
-class RenderbufferTexture2D : public RenderbufferInterface
+class RenderbufferTexture : public RenderbufferInterface
 {
   public:
-    RenderbufferTexture2D(Texture2D *texture, GLenum target);
+    RenderbufferTexture(Texture *texture, GLenum target);
 
-    virtual ~RenderbufferTexture2D();
+    virtual ~RenderbufferTexture();
 
     void addProxyRef(const Renderbuffer *proxy);
     void releaseProxy(const Renderbuffer *proxy);
@@ -81,37 +80,9 @@ class RenderbufferTexture2D : public RenderbufferInterface
     virtual unsigned int getSerial() const;
 
   private:
-    DISALLOW_COPY_AND_ASSIGN(RenderbufferTexture2D);
+    DISALLOW_COPY_AND_ASSIGN(RenderbufferTexture);
 
-    BindingPointer <Texture2D> mTexture2D;
-    GLenum mTarget;
-};
-
-class RenderbufferTextureCubeMap : public RenderbufferInterface
-{
-  public:
-    RenderbufferTextureCubeMap(TextureCubeMap *texture, GLenum target);
-
-    virtual ~RenderbufferTextureCubeMap();
-
-    void addProxyRef(const Renderbuffer *proxy);
-    void releaseProxy(const Renderbuffer *proxy);
-
-    IDirect3DSurface9 *getRenderTarget();
-    IDirect3DSurface9 *getDepthStencil();
-
-    virtual GLsizei getWidth() const;
-    virtual GLsizei getHeight() const;
-    virtual GLenum getInternalFormat() const;
-    virtual D3DFORMAT getD3DFormat() const;
-    virtual GLsizei getSamples() const;
-
-    virtual unsigned int getSerial() const;
-
-  private:
-    DISALLOW_COPY_AND_ASSIGN(RenderbufferTextureCubeMap);
-
-    BindingPointer <TextureCubeMap> mTextureCubeMap;
+    BindingPointer <Texture> mTexture;
     GLenum mTarget;
 };
 

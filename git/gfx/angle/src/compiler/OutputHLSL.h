@@ -15,7 +15,7 @@
 
 namespace sh
 {
-class UnfoldShortCircuit;
+class UnfoldSelect;
 
 class OutputHLSL : public TIntermTraverser
 {
@@ -48,7 +48,6 @@ class OutputHLSL : public TIntermTraverser
     bool visitLoop(Visit visit, TIntermLoop*);
     bool visitBranch(Visit visit, TIntermBranch*);
 
-    void traverseStatements(TIntermNode *node);
     bool isSingleStatement(TIntermNode *node);
     bool handleExcessiveLoop(TIntermLoop *node);
     void outputTriplet(Visit visit, const TString &preString, const TString &inString, const TString &postString);
@@ -64,7 +63,7 @@ class OutputHLSL : public TIntermTraverser
     TString structLookup(const TString &typeName);
 
     TParseContext &mContext;
-    UnfoldShortCircuit *mUnfoldShortCircuit;
+    UnfoldSelect *mUnfoldSelect;
     bool mInsideFunction;
 
     // Output streams
@@ -86,12 +85,6 @@ class OutputHLSL : public TIntermTraverser
     bool mUsesTextureCube;
     bool mUsesTextureCube_bias;
     bool mUsesTextureCubeLod;
-    bool mUsesTexture2DLod0;
-    bool mUsesTexture2DLod0_bias;
-    bool mUsesTexture2DProjLod0;
-    bool mUsesTexture2DProjLod0_bias;
-    bool mUsesTextureCubeLod0;
-    bool mUsesTextureCubeLod0_bias;
     bool mUsesDepthRange;
     bool mUsesFragCoord;
     bool mUsesPointCoord;
@@ -140,12 +133,6 @@ class OutputHLSL : public TIntermTraverser
     unsigned int mScopeDepth;
 
     int mUniqueIndex;   // For creating unique names
-
-    bool mContainsLoopDiscontinuity;
-    bool mOutputLod0Function;
-    bool mInsideDiscontinuousLoop;
-
-    TIntermSymbol *mExcessiveLoopIndex;
 };
 }
 

@@ -15,8 +15,4 @@
   TypeName(const TypeName&);               \
   void operator=(const TypeName&)
 
-#if defined(_MSC_VER)
-#define snprintf _snprintf
-#endif
-
 #endif // COMMON_ANGLEUTILS_H_

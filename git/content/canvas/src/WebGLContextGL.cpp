@@ -442,9 +442,6 @@ NS_IMETHODIMP
 WebGLContext::BufferData(WebGLenum target, const JS::Value& data, GLenum usage,
                          JSContext* cx)
 {
-    if (!IsContextStable())
-        return NS_OK;
-
     if (data.isNull()) {
         BufferData(target, static_cast<ArrayBuffer*>(nsnull), usage);
         return NS_OK;
@@ -1528,17 +1525,8 @@ WebGLContext::DoFakeVertexAttrib0(WebGLuint vertexCount)
     if (whatDoesAttrib0Need == VertexAttrib0Status::Default)
         return true;
 
-    if (!mAlreadyWarnedAboutFakeVertexAttrib0) {
-        GenerateWarning("Drawing without vertex attrib 0 array enabled forces the browser "
-                        "to do expensive emulation work when running on desktop OpenGL "
-                        "platforms, for example on Mac. It is preferable to always draw "
-                        "with vertex attrib 0 array enabled, by using bindAttribLocation "
-                        "to bind some always-used attribute to location 0.");
-        mAlreadyWarnedAboutFakeVertexAttrib0 = true;
-    }
-
     CheckedUint32 checked_dataSize = CheckedUint32(vertexCount) * 4 * sizeof(WebGLfloat);
-
+    
     if (!checked_dataSize.isValid()) {
         ErrorOutOfMemory("Integer overflow trying to construct a fake vertex attrib 0 array for a draw-operation "
                          "with %d vertices. Try reducing the number of vertices.", vertexCount);
@@ -2846,11 +2834,6 @@ WebGLContext::GetRenderbufferParameter(WebGLenum target, WebGLenum pname)
         return JS::NullValue();
     }
 
-    if (!mBoundRenderbuffer) {
-        ErrorInvalidOperation("getRenderbufferParameter: no render buffer is bound");
-        return JS::NullValue();
-    }
-
     MakeContextCurrent();
 
     switch (pname) {
@@ -2869,7 +2852,13 @@ WebGLContext::GetRenderbufferParameter(WebGLenum target, WebGLenum pname)
         }
         case LOCAL_GL_RENDERBUFFER_INTERNAL_FORMAT:
         {
-            return JS::NumberValue(mBoundRenderbuffer->InternalFormat());
+            GLint i = 0;
+            gl->fGetRenderbufferParameteriv(target, pname, &i);
+            if (i == LOCAL_GL_DEPTH24_STENCIL8)
+            {
+                i = LOCAL_GL_DEPTH_STENCIL;
+            }
+            return JS::NumberValue(uint32_t(i));
         }
         default:
             ErrorInvalidEnumInfo("getRenderbufferParameter: parameter", pname);
@@ -2966,7 +2955,9 @@ WebGLContext::GetProgramParameter(WebGLProgram *prog, WebGLenum pname)
             return JS::BooleanValue(prog->IsDeleteRequested());
         case LOCAL_GL_LINK_STATUS:
         {
-            return JS::BooleanValue(prog->LinkStatus());
+            GLint i = 0;
+            gl->fGetProgramiv(progname, pname, &i);
+            return JS::BooleanValue(bool(i));
         }
         case LOCAL_GL_VALIDATE_STATUS:
         {
@@ -3706,20 +3697,11 @@ WebGLContext::LinkProgram(WebGLProgram *program, ErrorResult& rv)
         return;
     }
 
-    GLint ok;
-    if (gl->WorkAroundDriverBugs() &&
-        program->HasBadShaderAttached())
-    {
-        // it's a common driver bug, caught by program-test.html, that linkProgram doesn't
-        // correctly preserve the state of an in-use program that has been attached a bad shader
-        // see bug 777883
-        ok = false;
-    } else {
-        MakeContextCurrent();
-        gl->fLinkProgram(progname);
-        gl->fGetProgramiv(progname, LOCAL_GL_LINK_STATUS, &ok);
-    }
+    MakeContextCurrent();
+    gl->fLinkProgram(progname);
 
+    GLint ok;
+    gl->fGetProgramiv(progname, LOCAL_GL_LINK_STATUS, &ok);
     if (ok) {
         bool updateInfoSucceeded = program->UpdateInfo();
         program->SetLinkStatus(updateInfoSucceeded);
@@ -3751,8 +3733,8 @@ WebGLContext::LinkProgram(WebGLProgram *program, ErrorResult& rv)
             for (size_t i = 0; i < program->AttachedShaders().Length(); i++) {
 
                 WebGLShader* shader = program->AttachedShaders()[i];
-                
-                if (shader->CompileStatus())
+                GetShaderInfoLog(shader, log, rv);
+                if (rv.Failed() || log.IsEmpty())
                     continue;
 
                 const char *shaderTypeName = nsnull;
@@ -3765,8 +3747,6 @@ WebGLContext::LinkProgram(WebGLProgram *program, ErrorResult& rv)
                     NS_ABORT();
                     shaderTypeName = "<unknown>";
                 }
-
-                GetShaderInfoLog(shader, log, rv);
 
                 GenerateWarning("linkProgram: a %s shader used in this program failed to "
                                 "compile, with this log:\n%s\n",
@@ -4919,8 +4899,6 @@ WebGLContext::CompileShader(WebGLShader *shader)
 
     WebGLuint shadername = shader->GLName();
 
-    shader->SetCompileStatus(false);
-
     MakeContextCurrent();
 
     ShShaderOutput targetShaderSourceLanguage = gl->IsGLES2() ? SH_ESSL_OUTPUT : SH_GLSL_OUTPUT;
@@ -5003,7 +4981,6 @@ WebGLContext::CompileShader(WebGLShader *shader)
                 shader->SetTranslationFailure(NS_LITERAL_CSTRING("Internal error: failed to get shader info log"));
             }
             ShDestruct(compiler);
-            shader->SetCompileStatus(false);
             return;
         }
 
@@ -5045,13 +5022,9 @@ WebGLContext::CompileShader(WebGLShader *shader)
             // we always query uniform info, regardless of useShaderSourceTranslation,
             // as we need it to validate uniform setter calls, and it doesn't rely on
             // shader translation.
-            char mappedNameLength = strlen(mapped_name);
-            char mappedNameLastChar = mappedNameLength > 1
-                                      ? mapped_name[mappedNameLength - 1]
-                                      : 0;
             shader->mUniformInfos.AppendElement(WebGLUniformInfo(
                                                     size,
-                                                    mappedNameLastChar == ']',
+                                                    length > 1 && mapped_name[length - 1] == ']',
                                                     type));
         }
 
@@ -5092,9 +5065,6 @@ WebGLContext::CompileShader(WebGLShader *shader)
         ShDestruct(compiler);
 
         gl->fCompileShader(shadername);
-        GLint ok;
-        gl->fGetShaderiv(shadername, LOCAL_GL_COMPILE_STATUS, &ok);
-        shader->SetCompileStatus(ok);
     }
 #endif
 }

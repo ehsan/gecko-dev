@@ -28,8 +28,7 @@
 
     throw new Error("osfile_win.jsm cannot be used from the main thread yet");
   }
-  importScripts("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
-  importScripts("resource://gre/modules/osfile/osfile_win_allthreads.jsm");
+  importScripts("resource://gre/modules/osfile/osfile_shared.jsm");
 
   (function(exports) {
      "use strict";
@@ -44,21 +43,24 @@
      }
      exports.OS.Win.File = {};
 
-     let LOG = OS.Shared.LOG.bind(OS.Shared, "Win", "back");
-     let libc = exports.OS.Shared.Win.libc;
+     let LOG = OS.Shared.LOG.bind(OS.Shared, "OS.Win.File");
+
+     let libc = ctypes.open("kernel32.dll");
+     if (!libc) {
+       throw new Error("Could not open kernel32.dll");
+     }
 
      /**
       * Initialize the Windows module.
       *
       * @param {function=} declareFFI
       */
-     // FIXME: Both |init| and |aDeclareFFI| are deprecated, we should remove them
      let init = function init(aDeclareFFI) {
        let declareFFI;
        if (aDeclareFFI) {
          declareFFI = aDeclareFFI.bind(null, libc);
        } else {
-         declareFFI = exports.OS.Shared.Win.declareFFI;
+         declareFFI = OS.Shared.declareFFI.bind(null, libc);
        }
 
        // Shorthands
@@ -325,6 +327,11 @@
                     /*nbytes_wr*/Types.DWORD.out_ptr,
                     /*overlapped*/Types.void_t.inout_ptr // FIXME: Implement?
          );
+
+       // Export useful stuff for extensibility
+
+       exports.OS.Win.libc = libc;
+       exports.OS.Win.declareFFI = declareFFI;
      };
      exports.OS.Win.File._init = init;
    })(this);

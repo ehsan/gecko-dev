@@ -26,13 +26,6 @@ function translatePduErrorToStatus(error) {
   return MMS_PDU_STATUS_UNRECOGNISED;
 }
 
-function defineLazyRegExp(obj, name, pattern) {
-  obj.__defineGetter__(name, function() {
-    delete obj[name];
-    return obj[name] = new RegExp(pattern);
-  });
-}
-
 /**
  * Internal decoding function for boolean values.
  *
@@ -87,100 +80,25 @@ let Address = {
     let str = EncodedStringValue.decode(data);
 
     let result;
-    if (((result = str.match(this.REGEXP_DECODE_PLMN)) != null)
-        || ((result = str.match(this.REGEXP_DECODE_IPV4)) != null)
-        || ((result = str.match(this.REGEXP_DECODE_IPV6)) != null)
-        || ((result = str.match(this.REGEXP_DECODE_CUSTOM)) != null)) {
+    if (((result = str.match(/^(\+?[\d.-]+)\/TYPE=(PLMN)$/)) != null)
+        || ((result = str.match(/^(\d{1,3}(?:\.\d{1,3}){3})\/TYPE=(IPv4)$/)) != null)
+        || ((result = str.match(/^([\da-fA-F]{4}(?::[\da-fA-F]{4}){7})\/TYPE=(IPv6)$/)) != null)
+        || ((result = str.match(/^([\w\+\-.%]+)\/TYPE=(\w+)$/)) != null)) {
       return {address: result[1], type: result[2]};
     }
 
     let type;
-    if (str.match(this.REGEXP_NUM)) {
+    if (str.match(/^[\+*#]\d+$/)) {
       type = "num";
-    } else if (str.match(this.REGEXP_ALPHANUM)) {
+    } else if (str.match(/^\w+$/)) {
       type = "alphanum";
-    } else if (str.indexOf("@") > 0) {
-      // E-mail should match the definition of `mailbox` as described in section
-      // 3.4 of RFC2822, but excluding the obsolete definitions as indicated by
-      // the "obs-" prefix. Here we match only a `@` character.
-      type = "email";
     } else {
-      throw new WSP.CodeError("Address: invalid address");
+      type = "unknown";
     }
 
     return {address: str, type: type};
   },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param value
-   *        An object of two string-typed attributes: address and type.
-   */
-  encode: function encode(data, value) {
-    if (!value || !value.type || !value.address) {
-      throw new WSP.CodeError("Address: invalid value");
-    }
-
-    let str;
-    switch (value.type) {
-      case "email":
-        if (value.address.indexOf("@") > 0) {
-          str = value.address;
-        }
-        break;
-      case "num":
-        if (value.address.match(this.REGEXP_NUM)) {
-          str = value.address;
-        }
-        break;
-      case "alphanum":
-        if (value.address.match(this.REGEXP_ALPHANUM)) {
-          str = value.address;
-        }
-        break;
-      case "IPv4":
-        if (value.address.match(this.REGEXP_ENCODE_IPV4)) {
-          str = value.address + "/TYPE=IPv4";
-        }
-        break;
-      case "IPv6":
-        if (value.address.match(this.REGEXP_ENCODE_IPV6)) {
-          str = value.address + "/TYPE=IPv6";
-        }
-        break;
-      case "PLMN":
-        if (value.address.match(this.REGEXP_ENCODE_PLMN)) {
-          str = value.address + "/TYPE=PLMN";
-        }
-        break;
-      default:
-        if (value.type.match(this.REGEXP_ENCODE_CUSTOM_TYPE)
-            && value.address.match(this.REGEXP_ENCODE_CUSTOM_ADDR)) {
-          str = value.address + "/TYPE=" + value.type;
-	}
-        break;
-    }
-
-    if (!str) {
-      throw new WSP.CodeError("Address: invalid value: " + JSON.stringify(value));
-    }
-
-    EncodedStringValue.encode(data, str);
-  },
 };
-
-defineLazyRegExp(Address, "REGEXP_DECODE_PLMN",        "^(\\+?[\\d.-]+)\\/TYPE=(PLMN)$");
-defineLazyRegExp(Address, "REGEXP_DECODE_IPV4",        "^(\\d{1,3}(?:\\.\\d{1,3}){3})\\/TYPE=(IPv4)$");
-defineLazyRegExp(Address, "REGEXP_DECODE_IPV6",        "^([\\da-fA-F]{4}(?::[\\da-fA-F]{4}){7})\\/TYPE=(IPv6)$");
-defineLazyRegExp(Address, "REGEXP_DECODE_CUSTOM",      "^([\\w\\+\\-.%]+)\\/TYPE=(\\w+)$");
-defineLazyRegExp(Address, "REGEXP_ENCODE_PLMN",        "^\\+?[\\d.-]+$");
-defineLazyRegExp(Address, "REGEXP_ENCODE_IPV4",        "^\\d{1,3}(?:\\.\\d{1,3}){3}$");
-defineLazyRegExp(Address, "REGEXP_ENCODE_IPV6",        "^[\\da-fA-F]{4}(?::[\\da-fA-F]{4}){7}$");
-defineLazyRegExp(Address, "REGEXP_ENCODE_CUSTOM_TYPE", "^\\w+$");
-defineLazyRegExp(Address, "REGEXP_ENCODE_CUSTOM_ADDR", "^[\\w\\+\\-.%]+$");
-defineLazyRegExp(Address, "REGEXP_NUM",                "^[\\+*#]\\d+$");
-defineLazyRegExp(Address, "REGEXP_ALPHANUM",           "^\\w+$");
 
 /**
  * Header-field = MMS-header | Application-header
@@ -316,20 +234,6 @@ let ContentClassValue = {
     }
 
     throw new WSP.CodeError("Content-class-value: invalid class " + value);
-  },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param value
-   *        A numeric content class value to be encoded.
-   */
-  encode: function encode(data, value) {
-    if ((value < 128) || (value > 135)) {
-      throw new WSP.CodeError("Content-class-value: invalid class " + value);
-    }
-
-    WSP.Octet.encode(data, value);
   },
 };
 
@@ -497,30 +401,6 @@ let Parameter = {
 
     return params;
   },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param param
-   *        An object containing two attributes: `name` and `value`.
-   * @param options
-   *        Extra context for encoding.
-   */
-  encode: function encode(data, param, options) {
-    if (!param || !param.name) {
-      throw new WSP.CodeError("Parameter-name: empty param name");
-    }
-
-    let entry = MMS_WELL_KNOWN_PARAMS[param.name.toLowerCase()];
-    if (entry) {
-      WSP.ShortInteger.encode(data, entry.number);
-    } else {
-      WSP.TextString.encode(data, param.name);
-    }
-
-    WSP.encodeAlternatives(data, param.value, options,
-                           WSP.ConstrainedEncoding, WSP.TextString);
-  },
 };
 
 /**
@@ -604,63 +484,6 @@ let EncodedStringValue = {
       return this.decodeCharsetEncodedString(data);
     }
   },
-
-  /**
-   * Always encode target string with UTF-8 encoding.
-   *
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param str
-   *        A string.
-   */
-  encodeCharsetEncodedString: function encodeCharsetEncodedString(data, str) {
-    let conv = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-               .createInstance(Ci.nsIScriptableUnicodeConverter);
-    // `When the text string cannot be represented as us-ascii, the character
-    // set SHALL be encoded as utf-8(IANA MIBenum 106) which has unique byte
-    // ordering.` ~ OMA-TS-MMS_CONF-V1_3-20110913-A clause 10.2.1
-    conv.charset = "UTF-8";
-
-    let raw;
-    try {
-      raw = conv.convertToByteArray(str);
-    } catch (e) {
-      throw new WSP.CodeError("Charset-encoded-string: " + e.message);
-    }
-
-    let length = raw.length + 2; // Charset number and NUL character
-    // Prepend <Octet 127> if necessary.
-    if (raw[0] >= 128) {
-      ++length;
-    }
-
-    WSP.ValueLength.encode(data, length);
-
-    let entry = WSP.WSP_WELL_KNOWN_CHARSETS["utf-8"];
-    WSP.IntegerValue.encode(data, entry.number);
-
-    if (raw[0] >= 128) {
-      WSP.Octet.encode(data, 127);
-    }
-    WSP.Octet.encodeMultiple(data, raw);
-    WSP.Octet.encode(data, 0);
-  },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param str
-   *        A string.
-   */
-  encode: function encode(data, str) {
-    let begin = data.offset;
-    try {
-      WSP.TextString.encode(data, str);
-    } catch (e) {
-      data.offset = begin;
-      this.encodeCharsetEncodedString(data, str);
-    }
-  },
 };
 
 /**
@@ -701,39 +524,6 @@ let ExpiryValue = {
 
     return result;
   },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param value
-   *        A Date object for absolute expiry or an integer for relative one.
-   */
-  encode: function encode(data, value) {
-    let isDate, begin = data.offset;
-    if (value instanceof Date) {
-      isDate = true;
-      WSP.DateValue.encode(data, value);
-    } else if (typeof value == "number") {
-      isDate = false;
-      WSP.DeltaSecondsValue.encode(data, value);
-    } else {
-      throw new CodeError("Expiry-value: invalid value type");
-    }
-
-    // Calculate how much octets will be written and seek back.
-    // TODO: use memmove, see bug 730873
-    let len = data.offset - begin;
-    data.offset = begin;
-
-    WSP.ValueLength.encode(data, len + 1);
-    if (isDate) {
-      WSP.Octet.encode(data, 128);
-      WSP.DateValue.encode(data, value);
-    } else {
-      WSP.Octet.encode(data, 129);
-      WSP.DeltaSecondsValue.encode(data, value);
-    }
-  },
 };
 
 /**
@@ -772,31 +562,6 @@ let FromValue = {
     }
 
     return result;
-  },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param value
-   *        A Address-value or null for MMS Proxy-Relay Insert-Address mode.
-   */
-  encode: function encode(data, value) {
-    if (!value) {
-      WSP.ValueLength.encode(data, 1);
-      WSP.Octet.encode(data, 129);
-      return;
-    }
-
-    // Calculate how much octets will be written and seek back.
-    // TODO: use memmove, see bug 730873
-    let begin = data.offset;
-    Address.encode(data, value);
-    let len = data.offset - begin;
-    data.offset = begin;
-
-    WSP.ValueLength.encode(data, len + 1);
-    WSP.Octet.encode(data, 128);
-    Address.encode(data, value);
   },
 };
 
@@ -871,8 +636,6 @@ let PreviouslySentDateValue = {
  * @see OMA-TS-MMS_ENC-V1_3-20110913-A clause 7.3.27
  */
 let MessageClassValue = {
-  WELL_KNOWN_CLASSES: ["personal", "advertisement", "informational", "auto"],
-
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -883,8 +646,11 @@ let MessageClassValue = {
    */
   decodeClassIdentifier: function decodeClassIdentifier(data) {
     let value = WSP.Octet.decode(data);
-    if ((value >= 128) && (value < (128 + this.WELL_KNOWN_CLASSES.length))) {
-      return this.WELL_KNOWN_CLASSES[value - 128];
+    switch (value) {
+      case 128: return "personal";
+      case 129: return "advertisement";
+      case 130: return "informational";
+      case 131: return "auto";
     }
 
     throw new WSP.CodeError("Class-identifier: invalid id " + value);
@@ -903,20 +669,6 @@ let MessageClassValue = {
     } catch (e) {
       data.offset = begin;
       return WSP.TokenText.decode(data);
-    }
-  },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param klass
-   */
-  encode: function encode(data, klass) {
-    let index = this.WELL_KNOWN_CLASSES.indexOf(klass.toLowerCase());
-    if (index >= 0) {
-      WSP.Octet.encode(data, index + 128);
-    } else {
-      WSP.TokenText.encode(data, klass);
     }
   },
 };
@@ -996,30 +748,6 @@ let MmFlagsValue = {
 
     return result;
   },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param value
-   *        An object containing an integer `type` and an string-typed
-   *        `text` attributes.
-   */
-  encode: function encode(data, value) {
-    if ((value.type < 128) || (value.type > 130)) {
-      throw new WSP.CodeError("MM-flags-value: invalid type " + value.type);
-    }
-
-    // Calculate how much octets will be written and seek back.
-    // TODO: use memmove, see bug 730873
-    let begin = data.offset;
-    EncodedStringValue.encode(data, value.text);
-    let len = data.offset - begin;
-    data.offset = begin;
-
-    WSP.ValueLength.encode(data, len + 1);
-    WSP.Octet.encode(data, value.type);
-    EncodedStringValue.encode(data, value.text);
-  },
 };
 
 /**
@@ -1049,22 +777,6 @@ let MmStateValue = {
 
     throw new WSP.CodeError("MM-state-value: invalid state " + state);
   },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param state
-   *        A numeric state value to be encoded.
-   *
-   * @throws CodeError if state is not in the range 128..132.
-   */
-  encode: function encode(data, state) {
-    if ((state < 128) || (state > 132)) {
-      throw new WSP.CodeError("MM-state-value: invalid state " + state);
-    }
-
-    WSP.Octet.encode(data, state);
-  },
 };
 
 /**
@@ -1091,20 +803,6 @@ let PriorityValue = {
     }
 
     throw new WSP.CodeError("Priority-value: invalid priority " + priority);
-  },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param priority
-   *        A numeric priority value to be encoded.
-   */
-  encode: function encode(data, priority) {
-    if ((priority < 128) || (priority > 130)) {
-      throw new WSP.CodeError("Priority-value: invalid priority " + priority);
-    }
-
-    WSP.Octet.encode(data, priority);
   },
 };
 
@@ -1152,64 +850,6 @@ let ReplyChargingValue = {
     }
 
     throw new WSP.CodeError("Reply-charging-value: invalid value " + value);
-  },
-
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param value
-   *        An integer value within thr range 128..131.
-   */
-  encode: function encode(data, value) {
-    if ((value < 128) || (value > 131)) {
-      throw new WSP.CodeError("Reply-charging-value: invalid value " + value);
-    }
-
-    WSP.Octet.encode(data, value);
-  },
-};
-
-/**
- * When used in a PDU other than M-Mbox-Delete.conf and M-Delete.conf:
- *
- *   Response-text-value = Encoded-string-value
- *
- * When used in the M-Mbox-Delete.conf and M-Delete.conf PDUs:
- *
- *   Response-text-Del-value = Value-length Status-count-value Response-text-value
- *
- * @see OMA-TS-MMS_ENC-V1_3-20110913-A clause 7.3.49
- */
-let ResponseText = {
-  /**
-   * @param data
-   *        A wrapped object containing raw PDU data.
-   * @param options
-   *        Extra context for decoding.
-   *
-   * @return An object containing a string-typed `text` attribute and a
-   *         integer-typed `statusCount` one.
-   */
-  decode: function decode(data, options) {
-    let type = WSP.ensureHeader(options, "x-mms-message-type");
-
-    let result = {};
-    if ((type == MMS_PDU_TYPE_MBOX_DELETE_CONF)
-        || (type == MMS_PDU_TYPE_DELETE_CONF)) {
-      let length = WSP.ValueLength.decode(data);
-      let end = data.offset + length;
-
-      result.statusCount = WSP.IntegerValue.decode(data);
-      result.text = EncodedStringValue.decode(data);
-
-      if (data.offset != end) {
-        data.offset = end;
-      }
-    } else {
-      result.text = EncodedStringValue.decode(data);
-    }
-
-    return result;
   },
 };
 
@@ -1433,35 +1073,20 @@ let PduHelper = {
   },
 
   /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param headers
-   *        A dictionary object containing multiple name/value mapping.
-   * @param name
-   *        Name of the header field to be encoded.
+   * Convert javascript Array to an nsIInputStream.
    */
-  encodeHeader: function encodeHeader(data, headers, name) {
-    let value = headers[name];
-    if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i++) {
-        HeaderField.encode(data, {name: name, value: value[i]}, headers);
-      }
-    } else {
-      HeaderField.encode(data, {name: name, value: value}, headers);
-    }
-  },
+  convertArrayToInputStream: function convertDataToInputStream(array) {
+    let storageStream = Cc["@mozilla.org/storagestream;1"]
+                        .createInstance(Ci.nsIStorageStream);
+    storageStream.init(4096, array.length, null);
 
-  /**
-   * @param data
-   *        A wrapped object to store encoded raw data.
-   * @param headers
-   *        A dictionary object containing multiple name/value mapping.
-   */
-  encodeHeaderIfExists: function encodeHeaderIfExists(data, headers, name) {
-    // Header value could be zero or null.
-    if (headers[name] !== undefined) {
-      this.encodeHeader(data, headers, name);
-    }
+    let boStream = Cc["@mozilla.org/binaryoutputstream;1"]
+                   .createInstance(Ci.nsIBinaryOutputStream);
+    boStream.setOutputStream(storageStream.getOutputStream(0));
+    boStream.writeByteArray(array, array.length)
+    boStream.close();
+
+    return storageStream.newInputStream(0);
   },
 
   /**
@@ -1477,15 +1102,26 @@ let PduHelper = {
       data = {array: [], offset: 0};
     }
 
+    function encodeHeader(name) {
+      HeaderField.encode(data, {name: name, value: headers[name]});
+    }
+
+    function encodeHeaderIfExists(name) {
+      // Header value could be zero or null.
+      if (headers[name] !== undefined) {
+        encodeHeader(name);
+      }
+    }
+
     // `In the encoding of the header fields, the order of the fields is not
     // significant, except that X-Mms-Message-Type, X-Mms-Transaction-ID (when
     // present) and X-Mms-MMS-Version MUST be at the beginning of the message
     // headers, in that order, and if the PDU contains a message body the
     // Content Type MUST be the last header field, followed by message body.`
     // ~ OMA-TS-MMS_ENC-V1_3-20110913-A section 7
-    this.encodeHeader(data, headers, "x-mms-message-type");
-    this.encodeHeaderIfExists(data, headers, "x-mms-transaction-id");
-    this.encodeHeaderIfExists(data, headers, "x-mms-mms-version");
+    encodeHeader("x-mms-message-type");
+    encodeHeaderIfExists("x-mms-transaction-id");
+    encodeHeaderIfExists("x-mms-mms-version");
 
     for (let key in headers) {
       if ((key == "x-mms-message-type")
@@ -1494,10 +1130,15 @@ let PduHelper = {
           || (key == "content-type")) {
         continue;
       }
-      this.encodeHeader(data, headers, key);
+      encodeHeader(key);
     }
 
-    this.encodeHeaderIfExists(data, headers, "content-type");
+    encodeHeaderIfExists("content-type");
+
+    // Remove extra space consumed during encoding.
+    while (data.array.length > data.offset) {
+      data.array.pop();
+    }
 
     return data;
   },
@@ -1522,15 +1163,8 @@ let PduHelper = {
 
       let data = this.encodeHeaders(null, msg.headers);
       debug("Composed PDU Header: " + JSON.stringify(data.array));
-      WSP.PduHelper.appendArrayToMultiStream(multiStream, data.array, data.offset);
-
-      if (msg.content) {
-        WSP.PduHelper.appendArrayToMultiStream(multiStream, msg.content, msg.content.length);
-      } else if (msg.parts) {
-        WSP.PduHelper.composeMultiPart(multiStream, msg.parts);
-      } else if (typeinfo.hasContent) {
-        throw new WSP.CodeError("Missing message content");
-      }
+      let headerStream = this.convertArrayToInputStream(data.array);
+      multiStream.appendStream(headerStream);
 
       return multiStream;
     } catch (e) {
@@ -1550,15 +1184,6 @@ const MMS_PDU_TYPES = (function () {
     };
   }
 
-  add(MMS_PDU_TYPE_SEND_REQ, true, ["x-mms-message-type",
-                                    "x-mms-transaction-id",
-                                    "x-mms-mms-version",
-                                    "from",
-                                    "content-type"]);
-  add(MMS_PDU_TYPE_SEND_CONF, false, ["x-mms-message-type",
-                                      "x-mms-transaction-id",
-                                      "x-mms-mms-version",
-                                      "x-mms-response-status"]);
   add(MMS_PDU_TYPE_NOTIFICATION_IND, false, ["x-mms-message-type",
                                              "x-mms-transaction-id",
                                              "x-mms-mms-version",
@@ -1574,12 +1199,6 @@ const MMS_PDU_TYPES = (function () {
                                            "x-mms-transaction-id",
                                            "x-mms-mms-version",
                                            "x-mms-status"]);
-  add(MMS_PDU_TYPE_DELIVERY_IND, false, ["x-mms-message-type",
-                                         "x-mms-mms-version",
-                                         "message-id",
-                                         "to",
-                                         "date",
-                                         "x-mms-status"]);
 
   return pdus;
 })();
@@ -1587,7 +1206,7 @@ const MMS_PDU_TYPES = (function () {
 /**
  * Header field names and assigned numbers.
  *
- * @see OMA-TS-MMS_ENC-V1_3-20110913-A clause 7.4
+ * @see OMA-TS-MMS_ENC-V1_3-20110913-A clause 7.3.4
  */
 const MMS_HEADER_FIELDS = (function () {
   let names = {};
@@ -1606,7 +1225,7 @@ const MMS_HEADER_FIELDS = (function () {
   add("content-type",                            0x04, WSP.ContentTypeValue);
   add("date",                                    0x05, WSP.DateValue);
   add("x-mms-delivery-report",                   0x06, BooleanValue);
-  add("x-mms-delivery-time",                     0x07, ExpiryValue);
+  //add("x-mms-delivery-time", 0x07);
   add("x-mms-expiry",                            0x08, ExpiryValue);
   add("from",                                    0x09, FromValue);
   add("x-mms-message-class",                     0x0A, MessageClassValue);
@@ -1617,9 +1236,9 @@ const MMS_HEADER_FIELDS = (function () {
   add("x-mms-priority",                          0x0F, PriorityValue);
   add("x-mms-read-report",                       0x10, BooleanValue);
   add("x-mms-report-allowed",                    0x11, BooleanValue);
-  add("x-mms-response-status",                   0x12, RetrieveStatusValue);
-  add("x-mms-response-text",                     0x13, ResponseText);
-  add("x-mms-sender-visibility",                 0x14, BooleanValue);
+  //add("x-mms-response-status", 0x12);
+  //add("x-mms-response-text", 0x13);
+  //add("x-mms-sender-visibility", 0x14);
   add("x-mms-status",                            0x15, StatusValue);
   add("subject",                                 0x16, EncodedStringValue);
   add("to",                                      0x17, Address);
@@ -1636,8 +1255,8 @@ const MMS_HEADER_FIELDS = (function () {
   add("x-mms-store",                             0x22, BooleanValue);
   add("x-mms-mm-state",                          0x23, MmStateValue);
   add("x-mms-mm-flags",                          0x24, MmFlagsValue);
-  add("x-mms-store-status",                      0x25, RetrieveStatusValue);
-  add("x-mms-store-status-text",                 0x26, EncodedStringValue);
+  //add("x-mms-store-status", 0x25);
+  //add("x-mms-store-status-text", 0x26);
   add("x-mms-stored",                            0x27, BooleanValue);
   //add("x-mms-attributes", 0x28);
   add("x-mms-totals",                            0x29, BooleanValue);
@@ -1680,7 +1299,6 @@ const MMS_WELL_KNOWN_PARAMS = (function () {
     params[name] = params[number] = entry;
   }
 
-  // Encoding Version: 1.2
   add("type", 0x02, WSP.TypeValue);
 
   return params;
@@ -1720,7 +1338,6 @@ const EXPORTED_SYMBOLS = ALL_CONST_SYMBOLS.concat([
   "PriorityValue",
   "RecommendedRetrievalModeValue",
   "ReplyChargingValue",
-  "ResponseText",
   "RetrieveStatusValue",
   "StatusValue",
 

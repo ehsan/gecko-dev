@@ -332,6 +332,10 @@
                  label="&preferencesCmd2.label;"
 #endif
                  oncommand="openPreferences();">
+          <menuitem id="appmenu_socialToggle"
+                    type="checkbox"
+                    autocheck="false"
+                    command="Social:Toggle"/>
           <menupopup id="appmenu_customizeMenu"
                      onpopupshowing="onViewToolbarsPopupShowing(event, document.getElementById('appmenu_toggleToolbarsSeparator'));">
             <menuitem id="appmenu_preferences"
@@ -342,10 +346,6 @@
 #endif
                       oncommand="openPreferences();"/>
             <menuseparator/>
-            <menuitem id="appmenu_socialToggle"
-                      type="checkbox"
-                      autocheck="false"
-                      command="Social:Toggle"/>
             <menuseparator id="appmenu_toggleToolbarsSeparator"/>
             <menuitem id="appmenu_toggleTabsOnTop"
                       label="&viewTabsOnTop.label;"

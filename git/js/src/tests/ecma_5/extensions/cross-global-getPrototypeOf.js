@@ -42,9 +42,8 @@ assertEq(otherGetProto(other.otherObj), other.otherProto);
 other.evaluate("var newOtherProto = { newOtherProto: 1 }; " +
                "otherObj.__proto__ = newOtherProto;");
 assertEq(otherGetProto(other.otherObj), other.newOtherProto);
-
-// TODO This assertion fails due to bug 764307
-//assertEq(getProto(other.otherObj), other.newOtherProto);
+Math.sin();
+assertEq(getProto(other.otherObj), other.newOtherProto);
 
 
 /******************************************************************************/

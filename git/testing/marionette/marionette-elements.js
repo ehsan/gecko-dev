@@ -62,7 +62,7 @@ ElementManager.prototype = {
   */
   addToKnownElements: function EM_addToKnownElements(element) {
     for (let i in this.seenItems) {
-      if (XPCNativeWrapper(this.seenItems[i]) == XPCNativeWrapper(element)) {
+      if (this.seenItems[i] == element) {
         return i;
       }
     }

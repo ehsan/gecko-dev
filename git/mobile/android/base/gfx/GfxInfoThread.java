@@ -78,25 +78,20 @@ public class GfxInfoThread extends Thread {
             EGL10.EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
             EGL10.EGL_NONE
         };
-
-        String noES2SupportMsg = "Maybe this device does not support OpenGL ES2?";
-
         if (!egl.eglChooseConfig(eglDisplay,
                                  configAttribs,
                                  null,
                                  0,
                                  returnedNumberOfConfigs))
         {
-            eglError(egl, "eglChooseConfig failed to query OpenGL ES2 configs. " +
-                          noES2SupportMsg);
+            eglError(egl, "eglChooseConfig failed (querying number of configs)");
             return;
         }
 
         // get the first config
         int numConfigs = returnedNumberOfConfigs[0];
         if (numConfigs == 0) {
-            error("eglChooseConfig returned zero OpenGL ES2 configs. " +
-                  noES2SupportMsg);
+            error("eglChooseConfig returned zero configs");
             return;
         }
 
@@ -107,8 +102,7 @@ public class GfxInfoThread extends Thread {
                                  numConfigs,
                                  returnedNumberOfConfigs))
         {
-            eglError(egl, "eglChooseConfig failed (listing OpenGL ES2 configs). " +
-                          noES2SupportMsg);
+            eglError(egl, "eglChooseConfig failed (listing configs)");
             return;
         }
 
@@ -122,8 +116,7 @@ public class GfxInfoThread extends Thread {
                                                      EGL10.EGL_NO_CONTEXT,
                                                      contextAttribs);
         if (eglContext == EGL10.EGL_NO_CONTEXT) {
-            eglError(egl, "eglCreateContext failed to create a OpenGL ES2 context" +
-                          noES2SupportMsg);
+            eglError(egl, "eglCreateContext failed");
             return;
         }
 

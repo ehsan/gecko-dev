@@ -6,7 +6,6 @@
 
 #include "compiler/ValidateLimitations.h"
 #include "compiler/InfoSink.h"
-#include "compiler/InitializeParseContext.h"
 #include "compiler/ParseHelper.h"
 
 namespace {

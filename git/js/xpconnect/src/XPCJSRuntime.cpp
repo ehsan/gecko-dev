@@ -1112,7 +1112,7 @@ XPCJSRuntime::~XPCJSRuntime()
 }
 
 static void
-GetCompartmentName(JSCompartment *c, nsCString &name, bool replaceSlashes)
+GetCompartmentName(JSCompartment *c, nsCString &name)
 {
     if (js::IsAtomsCompartment(c)) {
         name.AssignLiteral("atoms");
@@ -1131,12 +1131,11 @@ GetCompartmentName(JSCompartment *c, nsCString &name, bool replaceSlashes)
                 name.Append(location);
             }
         }
-
+        
         // A hack: replace forward slashes with '\\' so they aren't
         // treated as path separators.  Users of the reporters
         // (such as about:memory) have to undo this change.
-        if (replaceSlashes)
-            name.ReplaceChar('/', '\\');
+        name.ReplaceChar('/', '\\');
     } else {
         name.AssignLiteral("null-principal");
     }
@@ -1612,7 +1611,7 @@ class JSCompartmentsMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
         // silently ignore OOM errors
         Paths *paths = static_cast<Paths *>(data);
         nsCString path;
-        GetCompartmentName(c, path, true);
+        GetCompartmentName(c, path);
         path.Insert(js::IsSystemCompartment(c)
                     ? NS_LITERAL_CSTRING("compartments/system/")
                     : NS_LITERAL_CSTRING("compartments/user/"),
@@ -1725,7 +1724,7 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
                                            JS::CompartmentStats *cstats) MOZ_OVERRIDE {
         nsCAutoString cJSPathPrefix, cDOMPathPrefix;
         nsCString cName;
-        GetCompartmentName(c, cName, true);
+        GetCompartmentName(c, cName);
 
         // Get the compartment's global.
         nsXPConnect *xpc = nsXPConnect::GetXPConnect();
@@ -1941,17 +1940,6 @@ AccumulateTelemetryCallback(int id, uint32_t sample)
     }
 }
 
-static void
-CompartmentNameCallback(JSRuntime *rt, JSCompartment *comp,
-                        char *buf, size_t bufsize)
-{
-    nsCString name;
-    GetCompartmentName(comp, name, false);
-    if (name.Length() >= bufsize)
-        name.Truncate(bufsize - 1);
-    memcpy(buf, name.get(), name.Length() + 1);
-}
-
 bool XPCJSRuntime::gNewDOMBindingsEnabled;
 bool XPCJSRuntime::gExperimentalBindingsEnabled;
 
@@ -2039,7 +2027,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
 #endif
     JS_SetContextCallback(mJSRuntime, ContextCallback);
     JS_SetDestroyCompartmentCallback(mJSRuntime, CompartmentDestroyedCallback);
-    JS_SetCompartmentNameCallback(mJSRuntime, CompartmentNameCallback);
     JS_SetGCCallback(mJSRuntime, GCCallback);
     JS_SetFinalizeCallback(mJSRuntime, FinalizeCallback);
     JS_SetExtraGCRootsTracer(mJSRuntime, TraceBlackJS, this);

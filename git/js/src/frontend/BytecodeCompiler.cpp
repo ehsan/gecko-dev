@@ -50,8 +50,10 @@ CheckLength(JSContext *cx, size_t length)
 
 JSScript *
 frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *callerFrame,
-                        const CompileOptions &options,
+                        JSPrincipals *principals, JSPrincipals *originPrincipals,
+                        bool compileAndGo, bool noScriptRval,
                         const jschar *chars, size_t length,
+                        const char *filename, unsigned lineno, JSVersion version,
                         JSString *source_ /* = NULL */,
                         unsigned staticLevel /* = 0 */)
 {
@@ -68,13 +70,13 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         }
         ~ProbesManager() { Probes::compileScriptEnd(filename, lineno); }
     };
-    ProbesManager probesManager(options.filename, options.lineno);
+    ProbesManager probesManager(filename, lineno);
 
     /*
      * The scripted callerFrame can only be given for compile-and-go scripts
      * and non-zero static level requires callerFrame.
      */
-    JS_ASSERT_IF(callerFrame, options.compileAndGo);
+    JS_ASSERT_IF(callerFrame, compileAndGo);
     JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
     if (!CheckLength(cx, length))
@@ -82,14 +84,15 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     AutoAttachToRuntime attacher(cx->runtime);
     SourceCompressionToken sct(cx->runtime);
     ScriptSource *ss = NULL;
-    if (!cx->hasRunOption(JSOPTION_ONLY_CNG_SOURCE) || options.compileAndGo) {
+    if (!cx->hasRunOption(JSOPTION_ONLY_CNG_SOURCE) || compileAndGo) {
         ss = ScriptSource::createFromSource(cx, chars, length, false, &sct);
         if (!ss)
             return NULL;
         attacher.ss = ss;
     }
 
-    Parser parser(cx, options, chars, length, /* foldConstants = */ true);
+    Parser parser(cx, principals, originPrincipals, chars, length, filename, lineno, version,
+                  /* foldConstants = */ true, compileAndGo);
     if (!parser.init())
         return NULL;
 
@@ -99,9 +102,19 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (!tc.init())
         return NULL;
 
-    bool savedCallerFun = options.compileAndGo && callerFrame && callerFrame->isFunctionFrame();
-    Rooted<JSScript*> script(cx, JSScript::Create(cx, NullPtr(), savedCallerFun,
-                                                  options, staticLevel, ss, 0, length));
+    bool savedCallerFun = compileAndGo && callerFrame && callerFrame->isFunctionFrame();
+    Rooted<JSScript*> script(cx, JSScript::Create(cx,
+                                                  /* enclosingScope = */ NullPtr(),
+                                                  savedCallerFun,
+                                                  principals,
+                                                  originPrincipals,
+                                                  compileAndGo,
+                                                  noScriptRval,
+                                                  version,
+                                                  staticLevel,
+                                                  ss,
+                                                  0,
+                                                  length));
     if (!script)
         return NULL;
 
@@ -111,7 +124,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     JS_ASSERT_IF(globalScope, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalScope->getClass()));
 
     BytecodeEmitter bce(/* parent = */ NULL, &parser, &sc, script, callerFrame, !!globalScope,
-                        options.lineno);
+                        lineno);
     if (!bce.init())
         return NULL;
 
@@ -119,7 +132,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     if (callerFrame && callerFrame->isScriptFrame() && callerFrame->script()->strictModeCode)
         sc.strictModeState = StrictMode::STRICT;
 
-    if (options.compileAndGo) {
+    if (compileAndGo) {
         if (source) {
             /*
              * Save eval program source in script->atoms[0] for the
@@ -239,8 +252,10 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 // Compile a JS function body, which might appear as the value of an event
 // handler attribute in an HTML <INPUT> tag, or in a Function() constructor.
 bool
-frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions options,
-                              Bindings *bindings, const jschar *chars, size_t length)
+frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun,
+                              JSPrincipals *principals, JSPrincipals *originPrincipals,
+                              Bindings *bindings, const jschar *chars, size_t length,
+                              const char *filename, unsigned lineno, JSVersion version)
 {
     if (!CheckLength(cx, length))
         return false;
@@ -251,8 +266,8 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
         return NULL;
     attacher.ss = ss;
 
-    options.setCompileAndGo(false);
-    Parser parser(cx, options, chars, length, /* foldConstants = */ true);
+    Parser parser(cx, principals, originPrincipals, chars, length, filename, lineno, version,
+                  /* foldConstants = */ true, /* compileAndGo = */ false);
     if (!parser.init())
         return false;
 
@@ -267,14 +282,24 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
     if (!funtc.init())
         return false;
 
-    Rooted<JSScript*> script(cx, JSScript::Create(cx, NullPtr(), false, options,
-                                                  staticLevel, ss, 0, length));
+    Rooted<JSScript*> script(cx, JSScript::Create(cx,
+                                                  /* enclosingScope = */ NullPtr(),
+                                                  /* savedCallerFun = */ false,
+                                                  principals,
+                                                  originPrincipals,
+                                                  /* compileAndGo = */ false,
+                                                  /* noScriptRval = */ false,
+                                                  version,
+                                                  staticLevel,
+                                                  ss,
+                                                  0,
+                                                  length));
     if (!script)
         return false;
 
     StackFrame *nullCallerFrame = NULL;
     BytecodeEmitter funbce(/* parent = */ NULL, &parser, &funsc, script, nullCallerFrame,
-                           /* hasGlobalScope = */ false, options.lineno);
+                           /* hasGlobalScope = */ false, lineno);
     if (!funbce.init())
         return false;
 

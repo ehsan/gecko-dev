@@ -6710,10 +6710,6 @@ nsTextFrame::AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
   }
 }
 
-bool nsTextFrame::IsCurrentFontInflation(float aInflation) const {
-  return fabsf(aInflation - GetFontSizeInflation()) < 1e-6;
-}
-
 // XXX Need to do something here to avoid incremental reflow bugs due to
 // first-line and first-letter changing min-width
 /* virtual */ void
@@ -6723,7 +6719,7 @@ nsTextFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
   TextRunType trtype = (inflation == 1.0f) ? eNotInflated : eInflated;
 
-  if (trtype == eInflated && !IsCurrentFontInflation(inflation)) {
+  if (trtype == eInflated && inflation != GetFontSizeInflation()) {
     // FIXME: Ideally, if we already have a text run, we'd move it to be
     // the uninflated text run.
     ClearTextRun(nsnull, nsTextFrame::eInflated);
@@ -6859,7 +6855,7 @@ nsTextFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
   TextRunType trtype = (inflation == 1.0f) ? eNotInflated : eInflated;
 
-  if (trtype == eInflated && !IsCurrentFontInflation(inflation)) {
+  if (trtype == eInflated && inflation != GetFontSizeInflation()) {
     // FIXME: Ideally, if we already have a text run, we'd move it to be
     // the uninflated text run.
     ClearTextRun(nsnull, nsTextFrame::eInflated);
@@ -7154,9 +7150,12 @@ nsTextFrame::SetLength(PRInt32 aLength, nsLineLayout* aLineLayout,
 bool
 nsTextFrame::IsFloatingFirstLetterChild() const
 {
+  if (!(GetStateBits() & TEXT_FIRST_LETTER))
+    return false;
   nsIFrame* frame = GetParent();
-  return frame && frame->GetStyleDisplay()->IsFloating() &&
-         frame->GetType() == nsGkAtoms::letterFrame;
+  if (!frame || frame->GetType() != nsGkAtoms::letterFrame)
+    return false;
+  return frame->GetStyleDisplay()->IsFloating();
 }
 
 struct NewlineProperty {
@@ -7399,7 +7398,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
 
   float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
 
-  if (!IsCurrentFontInflation(fontSizeInflation)) {
+  if (fontSizeInflation != GetFontSizeInflation()) {
     // FIXME: Ideally, if we already have a text run, we'd move it to be
     // the uninflated text run.
     ClearTextRun(nsnull, nsTextFrame::eInflated);
@@ -7409,7 +7408,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
     EnsureTextRun(nsTextFrame::eInflated, ctx,
                   lineContainer, aLineLayout.GetLine(), &flowEndInTextRun);
 
-  NS_ABORT_IF_FALSE(IsCurrentFontInflation(fontSizeInflation),
+  NS_ABORT_IF_FALSE(GetFontSizeInflation() == fontSizeInflation,
                     "EnsureTextRun should have set font size inflation");
 
   if (mTextRun && iter.GetOriginalEnd() < offset + length) {

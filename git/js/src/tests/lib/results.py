@@ -1,6 +1,6 @@
 import re
 from subprocess import list2cmdline
-from progressbar import NullProgressBar, ProgressBar
+from progressbar import ProgressBar
 
 class TestOutput:
     """Output from a test run."""
@@ -83,27 +83,18 @@ class ResultsSink:
         self.fp = options.output_fp
 
         self.groups = {}
-        self.counts = {'PASS': 0, 'FAIL': 0, 'TIMEOUT': 0, 'SKIP': 0}
+        self.counts = [ 0, 0, 0 ]
         self.n = 0
 
-        if options.hide_progress:
-            self.pb = NullProgressBar()
-        else:
-            fmt = [
-                {'value': 'PASS',    'color': 'green'},
-                {'value': 'FAIL',    'color': 'red'},
-                {'value': 'TIMEOUT', 'color': 'blue'},
-                {'value': 'SKIP',    'color': 'brightgray'},
-            ]
-            self.pb = ProgressBar(testcount, fmt)
+        self.pb = None
+        if not options.hide_progress:
+            self.pb = ProgressBar('', testcount, 16)
 
     def push(self, output):
-        if output.timed_out:
-            self.counts['TIMEOUT'] += 1
         if isinstance(output, NullTestOutput):
             if self.options.tinderbox:
                 self.print_tinderbox_result('TEST-KNOWN-FAIL', output.test.path, time=output.dt, skip=True)
-            self.counts['SKIP'] += 1
+            self.counts[2] += 1
             self.n += 1
         else:
             if self.options.show_cmd:
@@ -124,11 +115,11 @@ class ResultsSink:
             self.n += 1
 
             if result.result == TestResult.PASS and not result.test.random:
-                self.counts['PASS'] += 1
+                self.counts[0] += 1
             elif result.test.expect and not result.test.random:
-                self.counts['FAIL'] += 1
+                self.counts[1] += 1
             else:
-                self.counts['SKIP'] += 1
+                self.counts[2] += 1
 
             if self.options.tinderbox:
                 if len(result.results) > 1:
@@ -143,14 +134,19 @@ class ResultsSink:
                 return
 
             if dev_label:
+                if self.pb:
+                    self.fp.write("\n")
                 def singular(label):
                     return "FIXED" if label == "FIXES" else label[:-1]
-                self.pb.message("%s - %s" % (singular(dev_label), output.test.path))
+                print >> self.fp, "%s - %s" % (singular(dev_label), output.test.path)
 
-        self.pb.update(self.n, self.counts)
+        if self.pb:
+            self.pb.label = '[%4d|%4d|%4d]'%tuple(self.counts)
+            self.pb.update(self.n)
 
     def finish(self, completed):
-        self.pb.finish(completed)
+        if self.pb:
+            self.pb.finish(completed)
         if not self.options.tinderbox:
             self.list(completed)
 

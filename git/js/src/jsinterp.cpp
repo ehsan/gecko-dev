@@ -880,6 +880,18 @@ DoIncDec(JSContext *cx, HandleScript script, jsbytecode *pc, const Value &v, Val
 #define POP_COPY_TO(v)           v = *--regs.sp
 #define POP_RETURN_VALUE()       regs.fp()->setReturnValue(*--regs.sp)
 
+#define VALUE_TO_BOOLEAN(cx, vp, b)                                           \
+    JS_BEGIN_MACRO                                                            \
+        vp = &regs.sp[-1];                                                    \
+        if (vp->isNull()) {                                                   \
+            b = false;                                                        \
+        } else {                                                              \
+            b = ToBoolean(*vp);                                               \
+        }                                                                     \
+    JS_END_MACRO
+
+#define POP_BOOLEAN(cx, vp, b)   do { VALUE_TO_BOOLEAN(cx, vp, b); regs.sp--; } while(0)
+
 #define FETCH_OBJECT(cx, n, obj)                                              \
     JS_BEGIN_MACRO                                                            \
         Value *vp_ = &regs.sp[n];                                             \
@@ -1608,8 +1620,9 @@ END_CASE(JSOP_GOTO)
 
 BEGIN_CASE(JSOP_IFEQ)
 {
-    bool cond = ToBoolean(regs.sp[-1]);
-    regs.sp--;
+    bool cond;
+    Value *_;
+    POP_BOOLEAN(cx, _, cond);
     if (cond == false) {
         len = GET_JUMP_OFFSET(regs.pc);
         BRANCH(len);
@@ -1619,8 +1632,9 @@ END_CASE(JSOP_IFEQ)
 
 BEGIN_CASE(JSOP_IFNE)
 {
-    bool cond = ToBoolean(regs.sp[-1]);
-    regs.sp--;
+    bool cond;
+    Value *_;
+    POP_BOOLEAN(cx, _, cond);
     if (cond != false) {
         len = GET_JUMP_OFFSET(regs.pc);
         BRANCH(len);
@@ -1630,7 +1644,9 @@ END_CASE(JSOP_IFNE)
 
 BEGIN_CASE(JSOP_OR)
 {
-    bool cond = ToBoolean(regs.sp[-1]);
+    bool cond;
+    Value *_;
+    VALUE_TO_BOOLEAN(cx, _, cond);
     if (cond == true) {
         len = GET_JUMP_OFFSET(regs.pc);
         DO_NEXT_OP(len);
@@ -1640,7 +1656,9 @@ END_CASE(JSOP_OR)
 
 BEGIN_CASE(JSOP_AND)
 {
-    bool cond = ToBoolean(regs.sp[-1]);
+    bool cond;
+    Value *_;
+    VALUE_TO_BOOLEAN(cx, _, cond);
     if (cond == false) {
         len = GET_JUMP_OFFSET(regs.pc);
         DO_NEXT_OP(len);
@@ -2091,8 +2109,9 @@ END_CASE(JSOP_MOD)
 
 BEGIN_CASE(JSOP_NOT)
 {
-    bool cond = ToBoolean(regs.sp[-1]);
-    regs.sp--;
+    Value *_;
+    bool cond;
+    POP_BOOLEAN(cx, _, cond);
     PUSH_BOOLEAN(!cond);
 }
 END_CASE(JSOP_NOT)

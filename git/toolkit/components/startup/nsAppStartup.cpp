@@ -277,33 +277,7 @@ nsAppStartup::Run(void)
 }
 
 static TimeStamp gRecordedShutdownStartTime;
-static bool gAlreadyFreedShutdownTimeFileName = false;
 static char *gRecordedShutdownTimeFileName = NULL;
-
-static char *
-GetShutdownTimeFileName()
-{
-  if (gAlreadyFreedShutdownTimeFileName) {
-    return NULL;
-  }
-
-  if (!gRecordedShutdownTimeFileName) {
-    nsCOMPtr<nsIFile> mozFile;
-    NS_GetSpecialDirectory(NS_APP_PREFS_50_DIR, getter_AddRefs(mozFile));
-    if (!mozFile)
-      return NULL;
-
-    mozFile->AppendNative(NS_LITERAL_CSTRING("Telemetry.ShutdownTime.txt"));
-    nsCAutoString nativePath;
-    nsresult rv = mozFile->GetNativePath(nativePath);
-    if (!NS_SUCCEEDED(rv))
-      return NULL;
-
-    gRecordedShutdownTimeFileName = PL_strdup(nativePath.get());
-  }
-
-  return gRecordedShutdownTimeFileName;
-}
 
 static void
 RecordShutdownStartTimeStamp() {
@@ -312,19 +286,29 @@ RecordShutdownStartTimeStamp() {
 
   gRecordedShutdownStartTime = TimeStamp::Now();
 
-  GetShutdownTimeFileName();
+  nsCOMPtr<nsIFile> mozFile;
+  NS_GetSpecialDirectory(NS_APP_PREFS_50_DIR, getter_AddRefs(mozFile));
+  if (!mozFile)
+    return;
+
+  mozFile->AppendNative(NS_LITERAL_CSTRING("Telemetry.ShutdownTime.txt"));
+  nsCAutoString nativePath;
+  nsresult rv = mozFile->GetNativePath(nativePath);
+  if (!NS_SUCCEEDED(rv))
+    return;
+
+  gRecordedShutdownTimeFileName = PL_strdup(nativePath.get());
 }
 
 namespace mozilla {
 void
 RecordShutdownEndTimeStamp() {
-  if (!gRecordedShutdownTimeFileName || gAlreadyFreedShutdownTimeFileName)
+  if (!gRecordedShutdownTimeFileName)
     return;
 
   nsCString name(gRecordedShutdownTimeFileName);
   PL_strfree(gRecordedShutdownTimeFileName);
   gRecordedShutdownTimeFileName = NULL;
-  gAlreadyFreedShutdownTimeFileName = true;
 
   nsCString tmpName = name;
   tmpName += ".tmp";
@@ -563,39 +547,6 @@ nsAppStartup::ExitLastWindowClosingSurvivalArea(void)
   if (mRunning)
     Quit(eConsiderQuit);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAppStartup::GetLastShutdownDuration(PRUint32 *aResult)
-{
-  if (!mCachedShutdownTime) {
-    const char *filename = GetShutdownTimeFileName();
-
-    if (!filename) {
-      *aResult = 0;
-      return NS_OK;
-    }
-
-    FILE *f = fopen(filename, "r");
-    if (!f) {
-      *aResult = 0;
-      return NS_OK;
-    }
-
-    int shutdownTime;
-    int r = fscanf(f, "%d\n", &shutdownTime);
-    if (r != 1) {
-      *aResult = 0;
-      return NS_OK;
-    }
-
-    fclose(f);
-    mLastShutdownTime = shutdownTime;
-    mCachedShutdownTime = true;
-  }
-
-  *aResult = mLastShutdownTime;
   return NS_OK;
 }
 

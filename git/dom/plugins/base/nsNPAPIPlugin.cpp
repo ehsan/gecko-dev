@@ -93,7 +93,6 @@ using mozilla::plugins::PluginModuleParent;
 
 #ifdef XP_WIN
 #include <windows.h>
-#include "nsWindowsHelpers.h"
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -279,6 +278,20 @@ static bool GMA9XXGraphics()
     ::CGLDestroyRendererInfo(renderer);
   }
   return hasIntelGMA9XX;
+}
+#endif
+
+#ifdef XP_WIN
+static bool
+IsVistaOrLater()
+{
+  OSVERSIONINFO info;
+
+  ZeroMemory(&info, sizeof(OSVERSIONINFO));
+  info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+  GetVersionEx(&info);
+
+  return info.dwMajorVersion >= 6;
 }
 #endif
 

@@ -11,7 +11,6 @@
 #include "nsIPrintOptions.h" 
 #include "nsCOMPtr.h"
 #include "nsString.h"
-#include "mozilla/Attributes.h"
 
 #include "nsCRT.h" /* should be <limits.h>? */
 
@@ -66,7 +65,7 @@ protected:
 //-------------------------------------------------------------------------
 // Printer Enumerator
 //-------------------------------------------------------------------------
-class nsPrinterEnumeratorGTK MOZ_FINAL : public nsIPrinterEnumerator
+class nsPrinterEnumeratorGTK : public nsIPrinterEnumerator
 {
 public:
   nsPrinterEnumeratorGTK();

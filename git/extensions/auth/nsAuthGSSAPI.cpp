@@ -567,9 +567,3 @@ nsAuthGSSAPI::Wrap(const void *inToken,
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAuthGSSAPI::GetModuleProperties(PRUint32 *flags)
-{
-    *flags = 0;
-    return NS_OK;
-}

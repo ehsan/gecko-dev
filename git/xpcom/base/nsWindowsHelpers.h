@@ -5,7 +5,6 @@
 #ifndef nsWindowsHelpers_h
 #define nsWindowsHelpers_h
 
-#include <windows.h>
 #include "nsAutoRef.h"
 #include "nscore.h"
 
@@ -82,18 +81,5 @@ public:
 typedef nsAutoRef<HKEY> nsAutoRegKey;
 typedef nsAutoRef<SC_HANDLE> nsAutoServiceHandle;
 typedef nsAutoRef<HANDLE> nsAutoHandle;
-
-namespace
-{
-  bool
-  IsVistaOrLater()
-  {
-    OSVERSIONINFO info;
-    ZeroMemory(&info, sizeof(OSVERSIONINFO));
-    info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&info);
-    return info.dwMajorVersion >= 6;
-  }
-}
 
 #endif

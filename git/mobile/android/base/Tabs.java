@@ -350,8 +350,7 @@ public class Tabs implements GeckoEventListener {
         UNSELECTED,
         ADDED,
         RESTORED,
-        LOCATION_CHANGE,
-        MENU_UPDATED
+        LOCATION_CHANGE
     }
 
     public void notifyListeners(Tab tab, TabEvents msg) {

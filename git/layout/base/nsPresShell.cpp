@@ -1643,10 +1643,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
   }
 
   for (nsIFrame* f = rootFrame; f; f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
-    if (f->GetStateBits() & NS_FRAME_NO_COMPONENT_ALPHA) {
-      f->InvalidateFrameSubtree();
-      f->RemoveStateBits(NS_FRAME_NO_COMPONENT_ALPHA);
-    }
+    f->RemoveStateBits(NS_FRAME_NO_COMPONENT_ALPHA);
   }
 
   Element *root = mDocument->GetRootElement();

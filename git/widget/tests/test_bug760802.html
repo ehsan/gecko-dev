@@ -33,24 +33,15 @@ function getBaseWindowInterface(win) {
     .nsIBaseWindow;
 }
 
-function getBaseWindowInterfaceFromDocShell(win) {
-  return win.QueryInterface(Ci.nsIInterfaceRequestor)
-    .getInterface(Ci.nsIWebNavigation)
-    .QueryInterface(Ci.nsIDocShell)
-    .QueryInterface(Ci.nsIBaseWindow);
-}
-
-function shouldThrowException(fun, exception) {
+function shouldThrow(fun) {
   try {
     fun.call();
     return false;
   } catch (e) {
-    $("display").innerHTML += "<br>OK thrown: "+e.message;
-    return (e instanceof Components.Exception &&
-            e.result === exception)
+    return true;
   }
 }
-function doesntThrowException(fun) !shouldThrowException(fun)
+function doesntThrow(fun) !shouldThrow(fun)
 
 
 var baseWindow = getBaseWindowInterface(window);
@@ -59,11 +50,10 @@ $("display").innerHTML = "found nativeHandle for this window: "+nativeHandle;
 
 var wm = Cc["@mozilla.org/appshell/window-mediator;1"].getService(Ci.nsIWindowMediator);
 var win = wm.getMostRecentWindow("navigator:browser");
-var docShell = getBaseWindowInterfaceFromDocShell(win);
+var docShell = win.gBrowser.docShell;
 
 ok(
-  shouldThrowException(function(){docShell.nativeHandle;},
-              Components.results.NS_ERROR_NOT_IMPLEMENTED),
+  shouldThrow(function(){docShell.getInterface(Ci.nsIBaseWindow).nativeHandle;}),
   "nativeHandle should not be implemented for nsDocShell"
 );
 

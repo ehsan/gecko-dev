@@ -1108,9 +1108,6 @@ class IDLSequenceType(IDLType):
         return self.inner.unroll()
 
     def isDistinguishableFrom(self, other):
-        if other.isUnion():
-            # Just forward to the union; it'll deal
-            return other.isDistinguishableFrom(self)
         return (other.isPrimitive() or other.isString() or other.isEnum() or
                 other.isDictionary() or other.isDate() or
                 other.isNonCallbackInterface())
@@ -1270,9 +1267,6 @@ class IDLArrayType(IDLType):
         return self.inner.unroll()
 
     def isDistinguishableFrom(self, other):
-        if other.isUnion():
-            # Just forward to the union; it'll deal
-            return other.isDistinguishableFrom(self)
         return (other.isPrimitive() or other.isString() or other.isEnum() or
                 other.isDictionary() or other.isDate() or
                 other.isNonCallbackInterface())
@@ -1414,9 +1408,6 @@ class IDLWrapperType(IDLType):
             assert False
 
     def isDistinguishableFrom(self, other):
-        if other.isUnion():
-            # Just forward to the union; it'll deal
-            return other.isDistinguishableFrom(self)
         assert self.isInterface() or self.isEnum() or self.isDictionary()
         if self.isEnum():
             return (other.isInterface() or other.isObject() or
@@ -1562,9 +1553,6 @@ class IDLBuiltinType(IDLType):
         return IDLBuiltinType.TagLookup[self._typeTag]
 
     def isDistinguishableFrom(self, other):
-        if other.isUnion():
-            # Just forward to the union; it'll deal
-            return other.isDistinguishableFrom(self)
         if self.isPrimitive() or self.isString():
             return (other.isInterface() or other.isObject() or
                     other.isCallback() or other.isDictionary() or
@@ -1875,10 +1863,6 @@ class IDLAttribute(IDLInterfaceMember):
     def handleExtendedAttribute(self, name, list):
         if name == "TreatNonCallableAsNull":
             self.type.markTreatNonCallableAsNull();
-        if name == "SetterInfallible" and self.readonly:
-            raise WebIDLError("Readonly attributes must not be flagged as "
-                              "[SetterInfallible]",
-                              [self.location])
         IDLInterfaceMember.handleExtendedAttribute(self, name, list)
 
     def resolve(self, parentScope):
@@ -1988,9 +1972,6 @@ class IDLCallbackType(IDLType, IDLObjectWithScope):
         pass
 
     def isDistinguishableFrom(self, other):
-        if other.isUnion():
-            # Just forward to the union; it'll deal
-            return other.isDistinguishableFrom(self)
         return (other.isPrimitive() or other.isString() or other.isEnum() or
                 other.isNonCallbackInterface() or other.isDate())
 
@@ -2292,17 +2273,6 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
         raise WebIDLError("Signatures with %d arguments for method '%s' are not "
                           "distinguishable" % (argc, self.identifier.name),
                           locations)
-
-    def handleExtendedAttribute(self, name, list):
-        if name == "GetterInfallible":
-            raise WebIDLError("Methods must not be flagged as "
-                              "[GetterInfallible]",
-                              [self.location])
-        if name == "SetterInfallible":
-            raise WebIDLError("Methods must not be flagged as "
-                              "[SetterInfallible]",
-                              [self.location])
-        IDLInterfaceMember.handleExtendedAttribute(self, name, list)
 
 class IDLImplementsStatement(IDLObject):
     def __init__(self, location, implementor, implementee):

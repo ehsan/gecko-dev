@@ -1,10 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
   style="@style/SyncLayout" >
-  <TextView
-      style="@style/SyncTop"
-      android:id="@+id/redirect_top"
+  <LinearLayout
+    android:id="@+id/redirect_top"
+    style="@style/SyncTop">
+    <ImageView
+      style="@style/SyncTopIcon" />
+    <TextView
+      style="@style/SyncTextTitle"
       android:text="@string/sync_title_redirect_to_set_up_sync" />
+  </LinearLayout>
   <TextView
     style="@style/SyncTextItem"
     android:layout_below="@id/redirect_top"
@@ -17,11 +22,15 @@
     android:orientation="horizontal" >
 
     <Button
-      style="@style/SyncButton"
+      android:layout_width="fill_parent"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
       android:onClick="redirectToSetupHandler"
       android:text="@string/sync_button_set_up_sync" />
-    <Button
-      style="@style/SyncButton"
+     <Button
+      android:layout_width="fill_parent"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
       android:onClick="cancelClickHandler"
       android:text="@string/sync_button_cancel" />
   </LinearLayout>

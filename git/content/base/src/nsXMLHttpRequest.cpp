@@ -1457,7 +1457,7 @@ nsXMLHttpRequest::GetAllResponseHeaders(nsString& aResponseHeaders)
       aResponseHeaders.AppendLiteral(";charset=");
       AppendASCIItoUTF16(value, aResponseHeaders);
     }
-    aResponseHeaders.AppendLiteral("\r\n");
+    aResponseHeaders.Append('\n');
   }
 }
 
@@ -3981,7 +3981,7 @@ nsHeaderVisitor::VisitHeader(const nsACString &header, const nsACString &value)
         mHeaders.Append(header);
         mHeaders.Append(": ");
         mHeaders.Append(value);
-        mHeaders.Append("\r\n");
+        mHeaders.Append('\n');
     }
     return NS_OK;
 }

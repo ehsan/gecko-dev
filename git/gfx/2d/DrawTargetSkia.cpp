@@ -206,14 +206,10 @@ void SetPaintPattern(SkPaint& aPaint, const Pattern& aPattern, Float aAlpha = 1.
                                                           &stops->mPositions.front(), 
                                                           stops->mCount, 
                                                           mode);
-
-        if (shader) {
-            SkMatrix mat;
-            GfxMatrixToSkiaMatrix(pat.mMatrix, mat);
-            shader->setLocalMatrix(mat);
-            SkSafeUnref(aPaint.setShader(shader));
-        }
-
+        SkMatrix mat;
+        GfxMatrixToSkiaMatrix(pat.mMatrix, mat);
+        shader->setLocalMatrix(mat);
+        SkSafeUnref(aPaint.setShader(shader));
       } else {
         aPaint.setColor(SkColorSetARGB(0, 0, 0, 0));
       }
@@ -237,13 +233,10 @@ void SetPaintPattern(SkPaint& aPaint, const Pattern& aPattern, Float aAlpha = 1.
                                                                   &stops->mPositions.front(), 
                                                                   stops->mCount, 
                                                                   mode);
-        if (shader) {
-            SkMatrix mat;
-            GfxMatrixToSkiaMatrix(pat.mMatrix, mat);
-            shader->setLocalMatrix(mat);
-            SkSafeUnref(aPaint.setShader(shader));
-        }
-
+        SkMatrix mat;
+        GfxMatrixToSkiaMatrix(pat.mMatrix, mat);
+        shader->setLocalMatrix(mat);
+        SkSafeUnref(aPaint.setShader(shader));
       } else {
         aPaint.setColor(SkColorSetARGB(0, 0, 0, 0));
       }

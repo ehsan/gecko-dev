@@ -3204,12 +3204,10 @@ Parse(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
-    CompileOptions options(cx);
-    options.setFileAndLine("<string>", 1)
-           .setCompileAndGo(false);
-    Parser parser(cx, options,
+    Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
                   JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
-                  /* foldConstants = */ true);
+                  "<string>", /* lineno = */ 1, cx->findVersion(),
+                  /* foldConstants = */ true, /* compileAndGo = */ false);
     if (!parser.init())
         return false;
 

@@ -17,7 +17,6 @@
 
 #include "base/basictypes.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/StaticPtr.h"
 #include "mozilla/Hal.h"
 #include "nsIScreen.h"
 #include "nsIScreenManager.h"
@@ -151,7 +150,7 @@ ConvertToDomOrientation(PRUint32 aRotation, ScreenOrientation *aResult)
 
 // Note that all operations with sOrientationSensorObserver
 // should be on the main thread.
-static StaticAutoPtr<OrientationObserver> sOrientationSensorObserver;
+static nsAutoPtr<OrientationObserver> sOrientationSensorObserver;
 
 } // Anonymous namespace
 

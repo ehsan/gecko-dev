@@ -4681,9 +4681,15 @@ var TabsInTitlebar = {
     this._readPref();
     Services.prefs.addObserver(this._prefName, this, false);
 
-    // Don't trust the initial value of the sizemode attribute; wait for
-    // the resize event (handled in tabbrowser.xml).
+    // Don't trust the initial value of the sizemode attribute; wait for the resize event.
     this.allowedBy("sizemode", false);
+    window.addEventListener("resize", function (event) {
+      if (event.target != window)
+        return;
+      let sizemode = document.documentElement.getAttribute("sizemode");
+      TabsInTitlebar.allowedBy("sizemode",
+                               sizemode == "maximized" || sizemode == "fullscreen");
+    }, false);
 
     this._initialized = true;
 #endif

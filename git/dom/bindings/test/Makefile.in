@@ -49,18 +49,6 @@ bindinggen_dependencies := \
   $(GLOBAL_DEPS) \
   $(NULL)
 
-MOCHITEST_FILES = \
-  test_enums.html \
-  test_integers.html \
-  test_interfaceToString.html \
-  test_lookupGetter.html \
-  test_InstanceOf.html \
-  test_traceProtos.html \
-  test_forOf.html \
-  forOf_iframe.html \
-  test_sequence_wrapping.html \
-  $(NULL)
-
 # Include rules.mk before any of our targets so our first target is coming from
 # rules.mk and running make with no target in this dir does the right thing.
 include $(topsrcdir)/config/rules.mk
@@ -70,6 +58,18 @@ $(CPPSRCS): ../%Binding.cpp: $(bindinggen_dependencies) \
                              $(NULL)
 	$(MAKE) -C .. $*Binding.h
 	$(MAKE) -C .. $*Binding.cpp
+
+MOCHITEST_FILES = \
+  test_enums.html \
+  test_integers.html \
+  test_interfaceToString.html \
+  test_lookupGetter.html \
+  test_InstanceOf.html \
+  test_traceProtos.html \
+  test_forOf.html \
+  forOf_iframe.html \
+  $(NULL)
+
 
 check::
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) $(topsrcdir)/config/pythonpath.py \

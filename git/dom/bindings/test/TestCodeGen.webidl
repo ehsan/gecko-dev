@@ -23,17 +23,11 @@ callback TestCallback = void();
 
 TestInterface implements ImplementedInterface;
 
-// This interface is only for use in the constructor below
-interface OnlyForUseInConstructor {
-};
-
 [Constructor,
  Constructor(DOMString str),
  Constructor(unsigned long num, boolean? bool),
  Constructor(TestInterface? iface),
- Constructor(TestNonCastableInterface iface)
- // , Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3)
- ]
+ Constructor(TestNonCastableInterface iface)]
 interface TestInterface {
   // Integer types
   // XXXbz add tests for infallible versions of all the integer stuff
@@ -298,8 +292,6 @@ interface TestInterface {
   void passSequenceOfDictionaries(sequence<Dict> x);
   void passDictionaryOrLong(optional Dict x);
   void passDictionaryOrLong(long x);
-
-  void passDictContainingDict(optional DictContainingDict arg);
 };
 
 interface TestNonWrapperCacheInterface {
@@ -360,8 +352,4 @@ dictionary ParentDict : GrandparentDict {
   long c = 5;
   TestInterface someInterface;
   TestExternalInterface someExternalInterface;
-};
-
-dictionary DictContainingDict {
-  Dict memberDict;
 };

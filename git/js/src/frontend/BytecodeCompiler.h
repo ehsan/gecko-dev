@@ -15,12 +15,17 @@ namespace frontend {
 
 JSScript *
 CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *callerFrame,
-              const CompileOptions &options, const jschar *chars, size_t length,
+              JSPrincipals *principals, JSPrincipals *originPrincipals,
+              bool compileAndGo, bool noScriptRval,
+              const jschar *chars, size_t length,
+              const char *filename, unsigned lineno, JSVersion version,
               JSString *source_ = NULL, unsigned staticLevel = 0);
 
 bool
-CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions options,
-                    Bindings *bindings, const jschar *chars, size_t length);
+CompileFunctionBody(JSContext *cx, HandleFunction fun,
+                    JSPrincipals *principals, JSPrincipals *originPrincipals,
+                    Bindings *bindings, const jschar *chars, size_t length,
+                    const char *filename, unsigned lineno, JSVersion version);
 
 } /* namespace frontend */
 } /* namespace js */

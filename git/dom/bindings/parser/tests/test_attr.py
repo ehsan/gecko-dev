@@ -287,16 +287,3 @@ def WebIDLTest(parser, harness):
         attr = attrs[i]
         (QName, name, type, readonly) = data
         checkAttr(attr, QName % "NullableArrayOfNullableTypes", name, type % "OrNullArrayOrNull", readonly)
-
-    parser = parser.reset()
-    threw = False
-    try:
-        parser.parse("""
-          interface A {
-            [SetterInfallible] readonly attribute boolean foo;
-          };
-        """)
-        results = parser.finish()
-    except Exception, x:
-        threw = True
-    harness.ok(threw, "Should not allow [SetterInfallible] on readonly attributes")

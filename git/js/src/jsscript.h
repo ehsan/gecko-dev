@@ -441,7 +441,7 @@ struct JSScript : public js::gc::Cell
 
   private:
 #ifdef JS_METHODJIT
-    JITScriptSet *mJITInfo;
+    JITScriptSet *jitInfo;
 #endif
     js::HeapPtrFunction function_;
     js::HeapPtrObject   enclosingScope_;
@@ -560,7 +560,9 @@ struct JSScript : public js::gc::Cell
 
   public:
     static JSScript *Create(JSContext *cx, js::HandleObject enclosingScope, bool savedCallerFun,
-                            const JS::CompileOptions &options, unsigned staticLevel,
+                            JSPrincipals *principals, JSPrincipals *originPrincipals,
+                            bool compileAndGo, bool noScriptRval,
+                            JSVersion version, unsigned staticLevel,
                             js::ScriptSource *ss, uint32_t sourceStart, uint32_t sourceEnd);
 
     // Three ways ways to initialize a JSScript.  Callers of partiallyInit()
@@ -680,24 +682,24 @@ struct JSScript : public js::gc::Cell
     friend class js::mjit::CallCompiler;
 
   public:
-    bool hasMJITInfo() {
-        return mJITInfo != NULL;
+    bool hasJITInfo() {
+        return jitInfo != NULL;
     }
 
-    static size_t offsetOfMJITInfo() { return offsetof(JSScript, mJITInfo); }
+    static size_t offsetOfJITInfo() { return offsetof(JSScript, jitInfo); }
 
-    inline bool ensureHasMJITInfo(JSContext *cx);
-    inline void destroyMJITInfo(js::FreeOp *fop);
+    inline bool ensureHasJITInfo(JSContext *cx);
+    inline void destroyJITInfo(js::FreeOp *fop);
 
     JITScriptHandle *jitHandle(bool constructing, bool barriers) {
-        JS_ASSERT(mJITInfo);
+        JS_ASSERT(jitInfo);
         return constructing
-               ? (barriers ? &mJITInfo->jitHandleCtorBarriered : &mJITInfo->jitHandleCtor)
-               : (barriers ? &mJITInfo->jitHandleNormalBarriered : &mJITInfo->jitHandleNormal);
+               ? (barriers ? &jitInfo->jitHandleCtorBarriered : &jitInfo->jitHandleCtor)
+               : (barriers ? &jitInfo->jitHandleNormalBarriered : &jitInfo->jitHandleNormal);
     }
 
     js::mjit::JITScript *getJIT(bool constructing, bool barriers) {
-        if (!mJITInfo)
+        if (!jitInfo)
             return NULL;
         JITScriptHandle *jith = jitHandle(constructing, barriers);
         return jith->isValid() ? jith->getValid() : NULL;

@@ -5,7 +5,6 @@
 //
 
 #include "gtest/gtest.h"
-
 #include "Token.h"
 
 TEST(TokenTest, DefaultConstructor)
@@ -14,8 +13,8 @@ TEST(TokenTest, DefaultConstructor)
     EXPECT_EQ(0, token.type);
     EXPECT_EQ(0, token.flags);
     EXPECT_EQ(0, token.location.line);
-    EXPECT_EQ(0, token.location.file);
-    EXPECT_EQ("", token.text);
+    EXPECT_EQ(0, token.location.string);
+    EXPECT_STREQ("", token.value.c_str());
 }
 
 TEST(TokenTest, Assignment)
@@ -24,15 +23,15 @@ TEST(TokenTest, Assignment)
     token.type = 1;
     token.flags = 1;
     token.location.line = 1;
-    token.location.file = 1;
-    token.text.assign("foo");
+    token.location.string = 1;
+    token.value.assign("foo");
 
     token = pp::Token();
     EXPECT_EQ(0, token.type);
     EXPECT_EQ(0, token.flags);
     EXPECT_EQ(0, token.location.line);
-    EXPECT_EQ(0, token.location.file);
-    EXPECT_EQ("", token.text);
+    EXPECT_EQ(0, token.location.string);
+    EXPECT_STREQ("", token.value.c_str());
 }
 
 TEST(TokenTest, Equals)
@@ -52,13 +51,13 @@ TEST(TokenTest, Equals)
     EXPECT_FALSE(token.equals(pp::Token()));
     token.location.line = 0;
 
-    token.location.file = 1;
+    token.location.string = 1;
     EXPECT_FALSE(token.equals(pp::Token()));
-    token.location.file = 0;
+    token.location.string = 0;
 
-    token.text.assign("foo");
+    token.value.assign("foo");
     EXPECT_FALSE(token.equals(pp::Token()));
-    token.text.clear();
+    token.value.clear();
 
     EXPECT_TRUE(token.equals(pp::Token()));
 }
@@ -76,15 +75,15 @@ TEST(TokenTest, HasLeadingSpace)
 TEST(TokenTest, Write)
 {
     pp::Token token;
-    token.text.assign("foo");
+    token.value.assign("foo");
     std::stringstream out1;
     out1 << token;
     EXPECT_TRUE(out1.good());
-    EXPECT_EQ("foo", out1.str());
+    EXPECT_STREQ("foo", out1.str().c_str());
 
     token.setHasLeadingSpace(true);
     std::stringstream out2;
     out2 << token;
     EXPECT_TRUE(out2.good());
-    EXPECT_EQ(" foo", out2.str());
+    EXPECT_STREQ(" foo", out2.str().c_str());
 }

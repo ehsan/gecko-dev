@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,9 +15,6 @@
 #include <d3d9.h>
 
 #include <string>
-
-const D3DFORMAT D3DFMT_INTZ = ((D3DFORMAT)(MAKEFOURCC('I','N','T','Z')));
-const D3DFORMAT D3DFMT_NULL = ((D3DFORMAT)(MAKEFOURCC('N','U','L','L')));
 
 namespace gl
 {
@@ -39,9 +36,9 @@ GLsizei ComputePitch(GLsizei width, GLenum format, GLenum type, GLint alignment)
 GLsizei ComputeCompressedPitch(GLsizei width, GLenum format);
 GLsizei ComputeCompressedSize(GLsizei width, GLsizei height, GLenum format);
 bool IsCompressed(GLenum format);
-bool IsDepthTexture(GLenum format);
 bool IsCubemapTextureTarget(GLenum target);
 bool IsInternalTextureTarget(GLenum target);
+bool CheckTextureFormatType(GLenum format, GLenum type);
 GLenum ExtractFormat(GLenum internalformat);
 GLenum ExtractType(GLenum internalformat);
 
@@ -63,8 +60,8 @@ D3DTEXTUREADDRESS ConvertTextureWrap(GLenum wrap);
 D3DCULL ConvertCullMode(GLenum cullFace, GLenum frontFace);
 D3DCUBEMAP_FACES ConvertCubeFace(GLenum cubeFace);
 DWORD ConvertColorMask(bool red, bool green, bool blue, bool alpha);
-D3DTEXTUREFILTERTYPE ConvertMagFilter(GLenum magFilter, float maxAnisotropy);
-void ConvertMinFilter(GLenum minFilter, D3DTEXTUREFILTERTYPE *d3dMinFilter, D3DTEXTUREFILTERTYPE *d3dMipFilter, float maxAnisotropy);
+D3DTEXTUREFILTERTYPE ConvertMagFilter(GLenum magFilter);
+void ConvertMinFilter(GLenum minFilter, D3DTEXTUREFILTERTYPE *d3dMinFilter, D3DTEXTUREFILTERTYPE *d3dMipFilter);
 bool ConvertPrimitiveType(GLenum primitiveType, GLsizei elementCount,
                           D3DPRIMITIVETYPE *d3dPrimitiveType, int *d3dPrimitiveCount);
 D3DFORMAT ConvertRenderbufferFormat(GLenum format);
@@ -82,9 +79,6 @@ GLuint GetDepthSize(D3DFORMAT depthFormat);
 GLuint GetStencilSize(D3DFORMAT stencilFormat);
 bool IsFloat32Format(D3DFORMAT surfaceFormat);
 bool IsFloat16Format(D3DFORMAT surfaceFormat);
-bool IsDepthTextureFormat(D3DFORMAT surfaceFormat);
-bool IsStencilTextureFormat(D3DFORMAT surfaceFormat);
-bool IsCompressedD3DFormat(D3DFORMAT format);
 
 GLsizei GetSamplesFromMultisampleType(D3DMULTISAMPLE_TYPE type);
 

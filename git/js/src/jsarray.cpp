@@ -141,6 +141,7 @@ js_GetLengthProperty(JSContext *cx, JSObject *obj, uint32_t *lengthp)
         return true;
     }
 
+
     return ToUint32(cx, value, (uint32_t *)lengthp);
 }
 
@@ -485,11 +486,12 @@ SetOrDeleteArrayElement(JSContext *cx, HandleObject obj, double index,
 }
 
 JSBool
-js_SetLengthProperty(JSContext *cx, HandleObject obj, double length)
+js_SetLengthProperty(JSContext *cx, JSObject *objArg, double length)
 {
     Value v = NumberValue(length);
 
     /* We don't support read-only array length yet. */
+    Rooted<JSObject*> obj(cx, objArg);
     return obj->setProperty(cx, obj, cx->runtime->atomState.lengthAtom, &v, false);
 }
 
@@ -686,7 +688,7 @@ array_lookupSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
 }
 
 JSBool
-js_GetDenseArrayElementValue(JSContext *cx, HandleObject obj, jsid id, Value *vp)
+js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     JS_ASSERT(obj->isDenseArray());
 
@@ -2394,7 +2396,7 @@ array_pop_dense(JSContext *cx, HandleObject obj, CallArgs &args)
         return false;
 
     args.rval() = elt;
-
+    
     // obj may not be a dense array any more, e.g. if the element was a missing
     // and a getter supplied by the prototype modified the object.
     if (obj->isDenseArray()) {
@@ -2404,7 +2406,7 @@ array_pop_dense(JSContext *cx, HandleObject obj, CallArgs &args)
         obj->setArrayLength(cx, index);
         return true;
     }
-
+    
     return js_SetLengthProperty(cx, obj, index);
 }
 
@@ -3080,16 +3082,16 @@ array_lastIndexOf(JSContext *cx, unsigned argc, Value *vp)
 class ArrayForEachBehavior
 {
   public:
-    static bool shouldExit(Value &callbackRval, Value *rval) { return false; }
+    static bool shouldExit(Value &callval, Value *rval) { return false; }
     static Value lateExitValue() { return UndefinedValue(); }
 };
 
 class ArrayEveryBehavior
 {
   public:
-    static bool shouldExit(Value &callbackRval, Value *rval)
+    static bool shouldExit(Value &callval, Value *rval)
     {
-        if (!ToBoolean(callbackRval)) {
+        if (!ToBoolean(callval)) {
             *rval = BooleanValue(false);
             return true;
         }
@@ -3101,9 +3103,9 @@ class ArrayEveryBehavior
 class ArraySomeBehavior
 {
   public:
-    static bool shouldExit(Value &callbackRval, Value *rval)
+    static bool shouldExit(Value &callval, Value *rval)
     {
-        if (ToBoolean(callbackRval)) {
+        if (ToBoolean(callval)) {
             *rval = BooleanValue(true);
             return true;
         }
@@ -3659,7 +3661,7 @@ EnsureNewArrayElements(JSContext *cx, JSObject *obj, uint32_t length)
 
 template<bool allocateCapacity>
 static JS_ALWAYS_INLINE JSObject *
-NewArray(JSContext *cx, uint32_t length, RawObject protoArg)
+NewArray(JSContext *cx, uint32_t length, JSObject *proto_)
 {
     gc::AllocKind kind = GuessArrayGCKind(length);
     JS_ASSERT(CanBeFinalizedInBackground(kind, &ArrayClass));
@@ -3683,8 +3685,7 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg)
     }
 
     Rooted<GlobalObject*> parent(cx, parent_);
-    RootedObject proto(cx, protoArg);
-    PoisonPtr(reinterpret_cast<uintptr_t *>(protoArg));
+    RootedObject proto(cx, proto_);
 
     if (!proto && !FindProto(cx, &ArrayClass, parent, &proto))
         return NULL;
@@ -3717,19 +3718,25 @@ NewArray(JSContext *cx, uint32_t length, RawObject protoArg)
 }
 
 JSObject * JS_FASTCALL
-NewDenseEmptyArray(JSContext *cx, RawObject proto /* = NULL */)
+NewDenseEmptyArray(JSContext *cx, JSObject *proto)
 {
     return NewArray<false>(cx, 0, proto);
 }
 
 JSObject * JS_FASTCALL
-NewDenseAllocatedArray(JSContext *cx, uint32_t length, RawObject proto /* = NULL */)
+NewDenseAllocatedArray(JSContext *cx, uint32_t length, JSObject *proto)
 {
     return NewArray<true>(cx, length, proto);
 }
 
 JSObject * JS_FASTCALL
-NewDenseUnallocatedArray(JSContext *cx, uint32_t length, RawObject proto /* = NULL */)
+NewDenseAllocatedEmptyArray(JSContext *cx, uint32_t length, JSObject *proto)
+{
+    return NewArray<true>(cx, length, proto);
+}
+
+JSObject * JS_FASTCALL
+NewDenseUnallocatedArray(JSContext *cx, uint32_t length, JSObject *proto)
 {
     return NewArray<false>(cx, length, proto);
 }
@@ -3738,7 +3745,8 @@ NewDenseUnallocatedArray(JSContext *cx, uint32_t length, RawObject proto /* = NU
 JSObject * JS_FASTCALL
 mjit::stubs::NewDenseUnallocatedArray(VMFrame &f, uint32_t length)
 {
-    JSObject *obj = NewArray<false>(f.cx, length, (RawObject)f.scratch);
+    JSObject *proto = (JSObject *) f.scratch;
+    JSObject *obj = NewArray<false>(f.cx, length, proto);
     if (!obj)
         THROWV(NULL);
 
@@ -3747,7 +3755,7 @@ mjit::stubs::NewDenseUnallocatedArray(VMFrame &f, uint32_t length)
 #endif
 
 JSObject *
-NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *vp, RawObject proto /* = NULL */)
+NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *vp, JSObject *proto /* = NULL */)
 {
     // XXX vp may be an internal pointer to an object's dense array elements.
     SkipRoot skip(cx, &vp);
@@ -3777,11 +3785,12 @@ NewSlowEmptyArray(JSContext *cx)
     return obj;
 }
 
-} // namespace js
+}
+
 
 #ifdef DEBUG
 JSBool
-js_ArrayInfo(JSContext *cx, unsigned argc, Value *vp)
+js_ArrayInfo(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     JSObject *array;

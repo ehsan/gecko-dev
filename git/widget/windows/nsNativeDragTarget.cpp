@@ -31,13 +31,13 @@ static POINTL gDragLastPoint;
 /*
  * class nsNativeDragTarget
  */
-nsNativeDragTarget::nsNativeDragTarget(nsIWidget * aWidget)
+nsNativeDragTarget::nsNativeDragTarget(nsIWidget * aWnd)
   : m_cRef(0), 
     mEffectsAllowed(DROPEFFECT_MOVE | DROPEFFECT_COPY | DROPEFFECT_LINK),
     mEffectsPreferred(DROPEFFECT_NONE),
-    mTookOwnRef(false), mWidget(aWidget), mDropTargetHelper(nsnull)
+    mTookOwnRef(false), mWindow(aWnd), mDropTargetHelper(nsnull)
 {
-  mHWnd = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
+  mHWnd = (HWND)mWindow->GetNativeData(NS_NATIVE_WINDOW);
 
   /*
    * Create/Get the DragService that we have implemented
@@ -97,7 +97,7 @@ nsNativeDragTarget::GetGeckoDragAction(DWORD grfKeyState, LPDWORD pdwEffect,
 {
   // If a window is disabled or a modal window is on top of it
   // (which implies it is disabled), then we should not allow dropping.
-  if (!mWidget->IsEnabled()) {
+  if (!mWindow->IsEnabled()) {
     *pdwEffect = DROPEFFECT_NONE;
     *aGeckoAction = nsIDragService::DRAGDROP_ACTION_NONE;
     return;
@@ -153,9 +153,9 @@ void
 nsNativeDragTarget::DispatchDragDropEvent(PRUint32 aEventType, POINTL aPT)
 {
   nsEventStatus status;
-  nsDragEvent event(true, aEventType, mWidget);
+  nsDragEvent event(true, aEventType, mWindow);
 
-  nsWindow * win = static_cast<nsWindow *>(mWidget);
+  nsWindow * win = static_cast<nsWindow *>(mWindow);
   win->InitEvent(event);
   POINT cpos;
 
@@ -176,7 +176,7 @@ nsNativeDragTarget::DispatchDragDropEvent(PRUint32 aEventType, POINTL aPT)
 
   event.inputSource = static_cast<nsBaseDragService*>(mDragService)->GetInputSource();
 
-  mWidget->DispatchEvent(&event, status);
+  mWindow->DispatchEvent(&event, status);
 }
 
 void

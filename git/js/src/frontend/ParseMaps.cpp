@@ -148,6 +148,15 @@ AtomDecls::addShadow(JSAtom *atom, Definition *defn)
     return p.value().pushFront(cx, defn);
 }
 
+bool
+AtomDecls::addHoist(JSAtom *atom, Definition *defn)
+{
+    AtomDefnListAddPtr p = map->lookupForAdd(atom);
+    if (p)
+        return p.value().pushBack(cx, defn);
+    return map->add(p, atom, DefinitionList(defn));
+}
+
 void
 frontend::InitAtomMap(JSContext *cx, frontend::AtomIndexMap *indices, HeapPtrAtom *atoms)
 {

@@ -261,14 +261,13 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
                                     evalType == DIRECT_EVAL ? CALLED_FROM_JSOP_EVAL
                                                             : NOT_CALLED_FROM_JSOP_EVAL);
 
-        CompileOptions options(cx);
-        options.setFileAndLine(filename, lineno)
-               .setCompileAndGo(true)
-               .setNoScriptRval(false)
-               .setPrincipals(principals)
-               .setOriginPrincipals(originPrincipals);
-        JSScript *compiled = frontend::CompileScript(cx, scopeobj, caller, options,
-                                                     chars, length, linearStr,
+        bool compileAndGo = true;
+        bool noScriptRval = false;
+        JSScript *compiled = frontend::CompileScript(cx, scopeobj, caller,
+                                                     principals, originPrincipals,
+                                                     compileAndGo, noScriptRval,
+                                                     chars, length, filename,
+                                                     lineno, cx->findVersion(), linearStr,
                                                      staticLevel);
         if (!compiled)
             return false;

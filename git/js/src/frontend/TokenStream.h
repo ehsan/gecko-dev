@@ -478,8 +478,9 @@ class TokenStream
   public:
     typedef Vector<jschar, 32> CharBuffer;
 
-    TokenStream(JSContext *cx, const CompileOptions &options,
-                const jschar *base, size_t length, StrictModeGetter *smg);
+    TokenStream(JSContext *cx, JSPrincipals *principals, JSPrincipals *originPrincipals,
+                const jschar *base, size_t length, const char *filename, unsigned lineno,
+                JSVersion version, StrictModeGetter *smg);
 
     ~TokenStream();
 

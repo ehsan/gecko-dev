@@ -10,7 +10,6 @@
 #include "mozilla/dom/battery/Constants.h"
 
 #include <windows.h>
-#include "nsWindowsHelpers.h"
 
 using namespace mozilla::dom::battery;
 
@@ -27,6 +26,18 @@ static UNREGISTERPOWERSETTINGNOTIFICATION sUnregisterPowerSettingNotification = 
 static HPOWERNOTIFY sPowerHandle = nsnull;
 static HPOWERNOTIFY sCapacityHandle = nsnull;
 static HWND sHWnd = nsnull;
+
+static bool
+IsVistaOrLater()
+{
+  OSVERSIONINFO info;
+
+  ZeroMemory(&info, sizeof(OSVERSIONINFO));
+  info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+  GetVersionEx(&info);
+
+  return info.dwMajorVersion >= 6;
+}
 
 static void
 UpdateHandler(nsITimer* aTimer, void* aClosure) {

@@ -182,7 +182,6 @@ public:
 #endif
 
   float GetFontSizeInflation() const;
-  bool IsCurrentFontInflation(float aInflation) const;
   bool HasFontSizeInflation() const {
     return (GetStateBits() & TEXT_HAS_FONT_INFLATION) != 0;
   }

@@ -60,7 +60,7 @@ SettingsLock.prototype = {
             let checkKeyRequest = store.get(key);
             checkKeyRequest.onsuccess = function (event) {
               if (!event.target.result) {
-                debug("MOZSETTINGS-SET-WARNING: " + key + " is not in the database. Please add it to build/settings.js\n");
+                dump("MOZSETTINGS-SET-WARNING: " + key + " is not in the database. Please add it to build/settings.js\n");
               }
             }
 
@@ -94,7 +94,7 @@ SettingsLock.prototype = {
             debug("result: " + JSON.stringify(event.target.result));
 
             if (event.target.result.length == 0) {
-              debug("MOZSETTINGS-GET-WARNING: " + info.name + " is not in the database. Please add it to build/settings.js\n");
+              dump("MOZSETTINGS-GET-WARNING: " + info.name + " is not in the database. Please add it to build/settings.js\n");
             }
 
             let results = {

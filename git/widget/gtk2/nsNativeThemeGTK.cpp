@@ -625,6 +625,7 @@ private:
   GtkThemeWidgetType mGTKWidgetType;
   gint mFlags;
   GtkTextDirection mDirection;
+  GdkWindow* mWindow;
   const GdkRectangle& mGDKRect;
   const GdkRectangle& mGDKClip;
 };

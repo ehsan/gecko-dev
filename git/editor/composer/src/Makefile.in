@@ -32,8 +32,7 @@ CPPSRCS  = \
 
 include $(topsrcdir)/config/rules.mk
 
-INCLUDES        += \
-	$(NULL)
+INCLUDES        += -I../../libeditor/base/src
 
 _FILES = \
 	$(srcdir)/res/EditorOverride.css \

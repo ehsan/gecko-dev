@@ -39,6 +39,27 @@ static double FlushToZero(double aVal)
     return aVal;
 }
 
+/* Helper function to fill in an nscoord with the specified nsCSSValue. */
+static nscoord CalcLength(const nsCSSValue &aValue,
+                          nsStyleContext* aContext,
+                          nsPresContext* aPresContext,
+                          bool &aCanStoreInRuleTree)
+{
+  if (aValue.GetUnit() == eCSSUnit_Pixel ||
+      aValue.GetUnit() == eCSSUnit_Number) {
+    // Handle this here (even though nsRuleNode::CalcLength handles it
+    // fine) so that callers are allowed to pass a null style context
+    // and pres context to SetToTransformFunction if they know (as
+    // nsStyleAnimation does) that all lengths within the transform
+    // function have already been computed to pixels and percents.
+    //
+    // Raw numbers are treated as being pixels.
+    return nsPresContext::CSSPixelsToAppUnits(aValue.GetFloatValue());
+  }
+  return nsRuleNode::CalcLength(aValue, aContext, aPresContext,
+                                aCanStoreInRuleTree);
+}
+
 static float
 ProcessTranslatePart(const nsCSSValue& aValue,
                      nsStyleContext* aContext,
@@ -51,19 +72,6 @@ ProcessTranslatePart(const nsCSSValue& aValue,
 
   if (aValue.GetUnit() == eCSSUnit_Percent) {
     percent = aValue.GetPercentValue();
-  } else if (aValue.GetUnit() == eCSSUnit_Pixel ||
-             aValue.GetUnit() == eCSSUnit_Number) {
-    // Handle this here (even though nsRuleNode::CalcLength handles it
-    // fine) so that callers are allowed to pass a null style context
-    // and pres context to SetToTransformFunction if they know (as
-    // nsStyleAnimation does) that all lengths within the transform
-    // function have already been computed to pixels and percents.
-    //
-    // Raw numbers are treated as being pixels.
-    //
-    // Don't convert to aValue to AppUnits here to avoid precision issues.
-    return aValue.GetFloatValue() *
-           (float(nsPresContext::AppUnitsPerCSSPixel()) / aAppUnitsPerMatrixUnit);
   } else if (aValue.IsCalcUnit()) {
     nsRuleNode::ComputedCalc result =
       nsRuleNode::SpecifiedCalcToComputedCalc(aValue, aContext, aPresContext,
@@ -71,8 +79,8 @@ ProcessTranslatePart(const nsCSSValue& aValue,
     percent = result.mPercent;
     offset = result.mLength;
   } else {
-    offset = nsRuleNode::CalcLength(aValue, aContext, aPresContext,
-                                    aCanStoreInRuleTree);
+    offset = CalcLength(aValue, aContext, aPresContext,
+                         aCanStoreInRuleTree);
   }
 
   return (percent * NSAppUnitsToFloatPixels(aSize, aAppUnitsPerMatrixUnit)) + 

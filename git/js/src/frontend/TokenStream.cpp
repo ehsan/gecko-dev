@@ -121,13 +121,14 @@ frontend::IsIdentifier(JSLinearString *str)
 #endif
 
 /* Initialize members that aren't initialized in |init|. */
-TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
-                         const jschar *base, size_t length, StrictModeGetter *smg)
+TokenStream::TokenStream(JSContext *cx, JSPrincipals *prin, JSPrincipals *originPrin,
+                         const jschar *base, size_t length, const char *fn, unsigned ln,
+                         JSVersion v, StrictModeGetter *smg)
   : tokens(),
     tokensRoot(cx, &tokens),
     cursor(),
     lookahead(),
-    lineno(options.lineno),
+    lineno(ln),
     flags(),
     linebase(base),
     prevLinebase(NULL),
@@ -135,16 +136,15 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     prevLinebaseRoot(cx, &prevLinebase),
     userbuf(base, length),
     userbufRoot(cx, &userbuf),
-    filename(options.filename),
+    filename(fn),
     sourceMap(NULL),
     listenerTSData(),
     tokenbuf(cx),
-    version(options.version),
-    allowXML(VersionHasAllowXML(options.version)),
-    moarXML(VersionHasMoarXML(options.version)),
+    version(v),
+    allowXML(VersionHasAllowXML(v)),
+    moarXML(VersionHasMoarXML(v)),
     cx(cx),
-    originPrincipals(JSScript::normalizeOriginPrincipals(options.principals,
-                                                         options.originPrincipals)),
+    originPrincipals(JSScript::normalizeOriginPrincipals(prin, originPrin)),
     strictModeGetter(smg)
 {
     if (originPrincipals)
@@ -154,7 +154,7 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     void *listenerData = cx->runtime->debugHooks.sourceHandlerData;
 
     if (listener)
-        listener(options.filename, options.lineno, base, length, &listenerTSData, listenerData);
+        listener(fn, ln, base, length, &listenerTSData, listenerData);
 
     /*
      * This table holds all the token kinds that satisfy these properties:
@@ -209,7 +209,7 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
      * parser needing it (the so-called "pump-priming" model) might be a better
      * way to address the dependency from statements on the current token.
      */
-    tokens[0].pos.begin.lineno = tokens[0].pos.end.lineno = options.lineno;
+    tokens[0].pos.begin.lineno = tokens[0].pos.end.lineno = ln;
 }
 
 #ifdef _MSC_VER

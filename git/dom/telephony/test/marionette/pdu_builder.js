@@ -2,11 +2,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-let Cu = SpecialPowers.wrap(Components).utils;
-let RIL = {};
-
-Cu.import("resource://gre/modules/ril_consts.js", RIL);
-
 // Only bring in what we need from ril_worker/RadioInterfaceLayer here. Reusing
 // that code turns out to be a nightmare, so there is some code duplication.
 let PDUBuilder = {
@@ -51,14 +46,14 @@ let PDUBuilder = {
                                                       langIndex,
                                                       langShiftIndex)
   {
-    const langTable = RIL.PDU_NL_LOCKING_SHIFT_TABLES[langIndex];
-    const langShiftTable = RIL.PDU_NL_SINGLE_SHIFT_TABLES[langShiftIndex];
+    const langTable = PDU_NL_LOCKING_SHIFT_TABLES[langIndex];
+    const langShiftTable = PDU_NL_SINGLE_SHIFT_TABLES[langShiftIndex];
 
     let dataBits = paddingBits;
     let data = 0;
     for (let i = 0; i < message.length; i++) {
       let septet = langTable.indexOf(message[i]);
-      if (septet == RIL.PDU_NL_EXTENDED_ESCAPE) {
+      if (septet == PDU_NL_EXTENDED_ESCAPE) {
         continue;
       }
 
@@ -72,11 +67,11 @@ let PDUBuilder = {
                           + langIndex + ":" + langShiftIndex + "!");
         }
 
-        if (septet == RIL.PDU_NL_RESERVED_CONTROL) {
+        if (septet == PDU_NL_RESERVED_CONTROL) {
           continue;
         }
 
-        data |= RIL.PDU_NL_EXTENDED_ESCAPE << dataBits;
+        data |= PDU_NL_EXTENDED_ESCAPE << dataBits;
         dataBits += 7;
         data |= septet << dataBits;
         dataBits += 7;
@@ -94,9 +89,9 @@ let PDUBuilder = {
   },
 
   buildAddress: function buildAddress(address) {
-    let addressFormat = RIL.PDU_TOA_ISDN; // 81
+    let addressFormat = PDU_TOA_ISDN; // 81
     if (address[0] == '+') {
-      addressFormat = RIL.PDU_TOA_INTERNATIONAL | RIL.PDU_TOA_ISDN; // 91
+      addressFormat = PDU_TOA_INTERNATIONAL | PDU_TOA_ISDN; // 91
       address = address.substring(1);
     }
 
@@ -147,8 +142,8 @@ let PDUBuilder = {
     }
 
     this.writeStringAsSeptets(options.body, paddingBits,
-                              RIL.PDU_NL_IDENTIFIER_DEFAULT,
-                              RIL.PDU_NL_IDENTIFIER_DEFAULT);
+                              PDU_NL_IDENTIFIER_DEFAULT,
+                              PDU_NL_IDENTIFIER_DEFAULT);
     return this.buf;
   }
 };

@@ -7,11 +7,9 @@
 #ifndef _EXTENSION_BEHAVIOR_INCLUDED_
 #define _EXTENSION_BEHAVIOR_INCLUDED_
 
-#include <map>
-#include <string>
+#include "compiler/Common.h"
 
-typedef enum
-{
+typedef enum {
     EBhRequire,
     EBhEnable,
     EBhWarn,
@@ -21,17 +19,20 @@ typedef enum
 
 inline const char* getBehaviorString(TBehavior b)
 {
-    switch(b)
-    {
-      case EBhRequire: return "require";
-      case EBhEnable: return "enable";
-      case EBhWarn: return "warn";
-      case EBhDisable: return "disable";
-      default: return NULL;
+    switch(b) {
+      case EBhRequire:
+        return "require";
+      case EBhEnable:
+        return "enable";
+      case EBhWarn:
+        return "warn";
+      case EBhDisable:
+        return "disable";
+      default:
+        return NULL;
     }
 }
 
-// Mapping between extension name and behavior.
-typedef std::map<std::string, TBehavior> TExtensionBehavior;
+typedef TMap<TString, TBehavior> TExtensionBehavior;
 
 #endif // _EXTENSION_TABLE_INCLUDED_

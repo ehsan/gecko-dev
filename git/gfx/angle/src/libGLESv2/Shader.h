@@ -42,7 +42,7 @@ typedef std::list<Varying> VaryingList;
 
 class Shader
 {
-    friend class ProgramBinary;
+    friend Program;
 
   public:
     Shader(ResourceManager *manager, GLuint handle);
@@ -128,7 +128,7 @@ typedef std::vector<Attribute> AttributeArray;
 
 class VertexShader : public Shader
 {
-    friend class ProgramBinary;
+    friend Program;
 
   public:
     VertexShader(ResourceManager *manager, GLuint handle);

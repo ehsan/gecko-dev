@@ -50,7 +50,6 @@ NVIDIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string.h>
 #include <ctype.h>
 
-#include "common/angleutils.h"
 #include "compiler/compilerdebug.h"
 #include "compiler/preprocessor/slglobals.h"
 #include "compiler/util.h"
@@ -440,10 +439,10 @@ void DumpTokenStream(FILE *fp, TokenStream *s, yystypepp * yylvalpp) {
         switch (token) {
         case CPP_IDENTIFIER:
         case CPP_TYPEIDENTIFIER:
-            snprintf(str, sizeof(str), "%s ", GetAtomString(atable, yylvalpp->sc_ident));
+            sprintf(str, "%s ", GetAtomString(atable, yylvalpp->sc_ident));
             break;
         case CPP_STRCONSTANT:
-            snprintf(str, sizeof(str), "\"%s\"", GetAtomString(atable, yylvalpp->sc_ident));
+            sprintf(str, "\"%s\"", GetAtomString(atable, yylvalpp->sc_ident));
             break;
         case CPP_FLOATCONSTANT:
             //printf("%g9.6 ", yylvalpp->sc_fval);
@@ -453,9 +452,9 @@ void DumpTokenStream(FILE *fp, TokenStream *s, yystypepp * yylvalpp) {
             break;
         default:
             if (token >= 127)
-                snprintf(str, sizeof(str), "%s ", GetAtomString(atable, token));
+                sprintf(str, "%s ", GetAtomString(atable, token));
             else
-                snprintf(str, sizeof(str), "%c", token);
+                sprintf(str, "%c", token);
             break;
         }
         CPPDebugLogMsg(str);

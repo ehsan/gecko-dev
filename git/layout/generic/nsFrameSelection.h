@@ -694,11 +694,9 @@ private:
   //batching
   PRInt32 mBatching;
     
-  // Limit selection navigation to a child of this node.
-  nsCOMPtr<nsIContent> mLimiter;
-  // Limit selection navigation to a descendant of this node.
-  nsCOMPtr<nsIContent> mAncestorLimiter;
-
+  nsIContent *mLimiter;     //limit selection navigation to a child of this node.
+  nsIContent *mAncestorLimiter; // Limit selection navigation to a descendant of
+                                // this node.
   nsIPresShell *mShell;
 
   PRInt16 mSelectionChangeReason; // reason for notifications of selection changing

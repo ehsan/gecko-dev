@@ -8,8 +8,8 @@
 // display on which graphics are drawn. Implements EGLDisplay.
 // [EGL 1.4] section 2.1.2 page 3.
 
-#ifndef LIBEGL_DISPLAY_H_
-#define LIBEGL_DISPLAY_H_
+#ifndef INCLUDE_DISPLAY_H_
+#define INCLUDE_DISPLAY_H_
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -23,7 +23,6 @@
 #include "libGLESv2/Context.h"
 
 #include "libEGL/Config.h"
-#include "libEGL/ShaderCache.h"
 #include "libEGL/Surface.h"
 
 namespace egl
@@ -79,12 +78,10 @@ class Display
     virtual bool getLuminanceAlphaTextureSupport();
     virtual bool getVertexTextureSupport() const;
     virtual bool getNonPower2TextureSupport() const;
-    virtual bool getDepthTextureSupport() const;
     virtual bool getOcclusionQuerySupport() const;
     virtual bool getInstancingSupport() const;
-    virtual float getTextureFilterAnisotropySupport() const;
     virtual D3DPOOL getBufferPool(DWORD usage) const;
-    virtual D3DPOOL getTexturePool(DWORD usage) const;
+    virtual D3DPOOL getTexturePool(bool renderable) const;
 
     virtual void notifyDeviceLost();
     bool isDeviceLost();
@@ -92,9 +89,6 @@ class Display
     bool isD3d9ExDevice() const { return mD3d9Ex != NULL; }
     const char *getExtensionString() const;
     bool shareHandleSupported() const;
-
-    virtual IDirect3DVertexShader9 *createVertexShader(const DWORD *function, size_t length);
-    virtual IDirect3DPixelShader9 *createPixelShader(const DWORD *function, size_t length);
 
   private:
     DISALLOW_COPY_AND_ASSIGN(Display);
@@ -119,9 +113,6 @@ class Display
 
     // A pool of event queries that are currently unused.
     std::vector<IDirect3DQuery9*> mEventQueryPool;
-
-    VertexShaderCache mVertexShaderCache;
-    PixelShaderCache mPixelShaderCache;
 
     D3DCAPS9 mDeviceCaps;
     D3DADAPTER_IDENTIFIER9 mAdapterIdentifier;
@@ -150,4 +141,4 @@ class Display
 };
 }
 
-#endif   // LIBEGL_DISPLAY_H_
+#endif   // INCLUDE_DISPLAY_H_

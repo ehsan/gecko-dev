@@ -251,11 +251,6 @@ class CompartmentChecker
             check(obj->compartment());
     }
 
-    template<typename T>
-    void check(Handle<T> handle) {
-        check(handle.get());
-    }
-
     void check(JSString *str) {
         if (!str->isAtom())
             check(str->compartment());

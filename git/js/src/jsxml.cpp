@@ -1761,9 +1761,9 @@ ParseXMLSource(JSContext *cx, HandleString src)
     }
 
     {
-        CompileOptions options(cx);
-        options.setFileAndLine(filename, lineno);
-        Parser parser(cx, options, chars, length, /* foldConstants = */ true);
+        Parser parser(cx, /* prin = */ NULL, /* originPrin = */ NULL,
+                      chars, length, filename, lineno, cx->findVersion(),
+                      /* foldConstants = */ true, /* compileAndGo = */ false);
         if (parser.init()) {
             JSObject *scopeChain = GetCurrentScopeChain(cx);
             if (!scopeChain) {
@@ -7310,9 +7310,8 @@ NewXMLObject(JSContext *cx, JSXML *xml)
 }
 
 JSObject *
-js_GetXMLObject(JSContext *cx, JSXML *xmlArg)
+js_GetXMLObject(JSContext *cx, JSXML *xml)
 {
-    Rooted<JSXML*> xml(cx, xmlArg);
     JSObject *obj;
 
     obj = xml->object;
@@ -7400,12 +7399,12 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
     cx->runtime->gcExactScanningEnabled = false;
 
     JS_ASSERT(obj->isNative());
-    Rooted<GlobalObject*> global(cx, &obj->asGlobal());
+    GlobalObject *global = &obj->asGlobal();
 
-    RootedObject xmlProto(cx, global->createBlankPrototype(cx, &XMLClass));
+    JSObject *xmlProto = global->createBlankPrototype(cx, &XMLClass);
     if (!xmlProto)
         return NULL;
-    Rooted<JSXML*> xml(cx, js_NewXML(cx, JSXML_CLASS_TEXT));
+    JSXML *xml = js_NewXML(cx, JSXML_CLASS_TEXT);
     if (!xml)
         return NULL;
     xmlProto->setPrivate(xml);
@@ -7450,7 +7449,7 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
         return NULL;
 
     /* Define the isXMLName function. */
-    if (!JS_DefineFunction(cx, global, js_isXMLName_str, xml_isXMLName, 1, 0))
+    if (!JS_DefineFunction(cx, obj, js_isXMLName_str, xml_isXMLName, 1, 0))
         return NULL;
 
     return xmlProto;

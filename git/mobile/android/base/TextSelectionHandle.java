@@ -13,7 +13,6 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.RelativeLayout;
 import android.widget.ImageView;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.gfx.LayerController;
 import org.json.JSONObject;
 
@@ -29,7 +28,6 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
 
     private int mLeft;
     private int mTop;
-    private PointF mGeckoPoint;
     private int mTouchStartX;
     private int mTouchStartY;
 
@@ -110,18 +108,11 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
             Log.e(LOGTAG, "Can't position handle because layerController is null");
             return;
         }
+        PointF geckoPoint = new PointF((float) left, (float) top);
+        geckoPoint = layerController.convertLayerPointToViewPoint(geckoPoint);
 
-        mGeckoPoint = new PointF((float) left, (float) top);
-        ImmutableViewportMetrics metrics = layerController.getViewportMetrics();
-        repositionWithViewport(metrics.viewportRectLeft, metrics.viewportRectTop, metrics.zoomFactor);
-    }
-
-    void repositionWithViewport(float x, float y, float zoom) {
-        PointF viewPoint = new PointF((mGeckoPoint.x * zoom) - x,
-                                      (mGeckoPoint.y * zoom) - y);
-
-        mLeft = Math.round(viewPoint.x) - (mHandleType.equals(HandleType.START) ? mWidth - mShadow : mShadow);
-        mTop = Math.round(viewPoint.y);
+        mLeft = Math.round(geckoPoint.x) - (mHandleType.equals(HandleType.START) ? mWidth - mShadow : mShadow);
+        mTop = Math.round(geckoPoint.y);
 
         setLayoutPosition();
     }

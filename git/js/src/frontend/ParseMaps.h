@@ -339,6 +339,11 @@ class DefinitionList
  * introduced by previous declarations (and which are now shadowed), using the
  * method addShadow. When we leave the block associated with the let, the method
  * remove is used to unshadow the declaration immediately preceding it.
+ *
+ * Due to hoisting, a declaration with block scope can sometimes shadow a
+ * declaration with function scope that appears *after* it. In this case, we
+ * pretend that we actually encountered the latter declaration *before* the
+ * former, using the method addHoist.
  */
 class AtomDecls
 {
@@ -371,6 +376,7 @@ class AtomDecls
     /* Add-or-update a known-unique definition for |atom|. */
     inline bool addUnique(JSAtom *atom, Definition *defn);
     bool addShadow(JSAtom *atom, Definition *defn);
+    bool addHoist(JSAtom *atom, Definition *defn);
 
     /* Updating the definition for an entry that is known to exist is infallible. */
     void updateFirst(JSAtom *atom, Definition *defn) {

@@ -19,7 +19,6 @@
 #include "prlog.h"
 
 #include "nsWindowsDllInterceptor.h"
-#include "nsWindowsHelpers.h"
 
 using namespace mozilla;
 
@@ -155,6 +154,18 @@ private:
   const T* mMappedView;
   void* mRealView;
 };
+
+bool
+IsVistaOrLater()
+{
+  OSVERSIONINFO info;
+
+  ZeroMemory(&info, sizeof(OSVERSIONINFO));
+  info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+  GetVersionEx(&info);
+
+  return info.dwMajorVersion >= 6;
+}
 
 bool
 CheckASLR(const wchar_t* path)

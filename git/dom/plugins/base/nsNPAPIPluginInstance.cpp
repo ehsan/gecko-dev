@@ -218,15 +218,11 @@ nsNPAPIPluginInstance::Destroy()
   mPlugin = nsnull;
 
 #if MOZ_WIDGET_ANDROID
-  if (mContentSurface)
-    mContentSurface->SetFrameAvailableCallback(nsnull);
-  
   mContentTexture = nsnull;
   mContentSurface = nsnull;
 
   std::map<void*, VideoInfo*>::iterator it;
   for (it = mVideos.begin(); it != mVideos.end(); it++) {
-    it->second->mSurfaceTexture->SetFrameAvailableCallback(nsnull);
     delete it->second;
   }
   mVideos.clear();
@@ -992,15 +988,9 @@ nsSurfaceTexture* nsNPAPIPluginInstance::CreateSurfaceTexture()
   if (!surface)
     return nsnull;
 
-  nsCOMPtr<nsIRunnable> frameCallback = NS_NewRunnableMethod(this, &nsNPAPIPluginInstance::OnSurfaceTextureFrameAvailable);
+  nsCOMPtr<nsIRunnable> frameCallback = NS_NewRunnableMethod(this, &nsNPAPIPluginInstance::RedrawPlugin);
   surface->SetFrameAvailableCallback(frameCallback);
   return surface;
-}
-
-void nsNPAPIPluginInstance::OnSurfaceTextureFrameAvailable()
-{
-  if (mRunning == RUNNING && mOwner)
-    RedrawPlugin();
 }
 
 void* nsNPAPIPluginInstance::AcquireContentWindow()
