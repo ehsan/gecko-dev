@@ -285,7 +285,6 @@ class EqualityCompiler : public BaseCompiler
         RegisterID tmp = ic.tempReg;
         
         /* JSString::isAtom === (lengthAndFlags & ATOM_MASK == 0) */
-        JS_STATIC_ASSERT(JSString::ATOM_FLAGS == 0);
         Imm32 atomMask(JSString::ATOM_MASK);
         
         masm.load32(Address(lvr.dataReg(), JSString::offsetOfLengthAndFlags()), tmp);
@@ -1131,8 +1130,13 @@ ic::SplatApplyArgs(VMFrame &f)
     }
 
     int delta = length - 1;
-    if (delta > 0 && !BumpStack(f, delta))
-        THROWV(false);
+    if (delta > 0) {
+        if (!BumpStack(f, delta))
+            THROWV(false);
+
+        MakeRangeGCSafe(f.regs.sp, delta);
+    }
+
     f.regs.sp += delta;
 
     /* Steps 7-8. */
