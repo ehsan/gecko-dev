@@ -151,7 +151,11 @@ nsSMILAnimationController::Resume(PRUint32 aType)
 
   if (wasPaused && !mPauseState && mChildContainerTable.Count()) {
     Sample(); // Run the first sample manually
-    MaybeStartSampling(GetRefreshDriverForDoc(mDocument));
+    if (mAnimationElementTable.Count()) {
+      StartSampling(GetRefreshDriverForDoc(mDocument));
+    } else {
+      mDeferredStartSampling = PR_TRUE;
+    }
   }
 }
 
@@ -295,8 +299,8 @@ void
 nsSMILAnimationController::NotifyRefreshDriverCreated(
     nsRefreshDriver* aRefreshDriver)
 {
-  if (!mPauseState) {
-    MaybeStartSampling(aRefreshDriver);
+  if (!mPauseState && !mDeferredStartSampling) {
+    StartSampling(aRefreshDriver);
   }
 }
 
@@ -339,22 +343,6 @@ nsSMILAnimationController::StopSampling(nsRefreshDriver* aRefreshDriver)
                       aRefreshDriver == GetRefreshDriverForDoc(mDocument),
                       "Stopping sampling with wrong refresh driver");
     aRefreshDriver->RemoveRefreshObserver(this, Flush_Style);
-  }
-}
-
-void
-nsSMILAnimationController::MaybeStartSampling(nsRefreshDriver* aRefreshDriver)
-{
-  if (mDeferredStartSampling) {
-    // We've received earlier 'MaybeStartSampling' calls, and we're
-    // deferring until we get a registered animation.
-    return;
-  }
-
-  if (mAnimationElementTable.Count()) {
-    StartSampling(aRefreshDriver);
-  } else {
-    mDeferredStartSampling = PR_TRUE;
   }
 }
 
@@ -832,11 +820,15 @@ nsresult
 nsSMILAnimationController::AddChild(nsSMILTimeContainer& aChild)
 {
   TimeContainerPtrKey* key = mChildContainerTable.PutEntry(&aChild);
-  NS_ENSURE_TRUE(key, NS_ERROR_OUT_OF_MEMORY);
+  NS_ENSURE_TRUE(key,NS_ERROR_OUT_OF_MEMORY);
 
   if (!mPauseState && mChildContainerTable.Count() == 1) {
     Sample(); // Run the first sample manually
-    MaybeStartSampling(GetRefreshDriverForDoc(mDocument));
+    if (mAnimationElementTable.Count()) {
+      StartSampling(GetRefreshDriverForDoc(mDocument));
+    } else {
+      mDeferredStartSampling = PR_TRUE;
+    }
   }
 
   return NS_OK;
