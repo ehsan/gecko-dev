@@ -182,18 +182,8 @@ ProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, b
         return false;
     /* The control-flow here differs from ::get() because of the fall-through case below. */
     if (desc.obj) {
-        // Check for read-only properties.
-        if (desc.attrs & JSPROP_READONLY) {
-            if (strict) {
-                JSAutoByteString bytes(cx, JSID_TO_STRING(id));
-                if (!bytes)
-                    return false;
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                     JSMSG_CANT_REDEFINE_PROP, bytes.ptr());
-                return false;
-            }
+        if (desc.attrs & JSPROP_READONLY)
             return true;
-        }
         if (!desc.setter) {
             // Be wary of the odd explicit undefined setter case possible through
             // Object.defineProperty.
@@ -218,18 +208,8 @@ ProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, b
     if (!getPropertyDescriptor(cx, proxy, id, true, &desc))
         return false;
     if (desc.obj) {
-        // Check for read-only properties.
-        if (desc.attrs & JSPROP_READONLY) {
-            if (strict) {
-                JSAutoByteString bytes(cx, JSID_TO_STRING(id));
-                if (!bytes)
-                    return false;
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                     JSMSG_CANT_REDEFINE_PROP, bytes.ptr());
-                return false;
-            }
+        if (desc.attrs & JSPROP_READONLY)
             return true;
-        }
         if (!desc.setter) {
             // Be wary of the odd explicit undefined setter case possible through
             // Object.defineProperty.
@@ -1686,6 +1666,10 @@ callable_Call(JSContext *cx, unsigned argc, Value *vp)
 JSBool
 callable_Construct(JSContext *cx, unsigned argc, Value *vp)
 {
+    JSObject *thisobj = js_CreateThis(cx, &JS_CALLEE(cx, vp).toObject());
+    if (!thisobj)
+        return false;
+
     JSObject *callable = &vp[0].toObject();
     JS_ASSERT(callable->getClass() == &CallableObjectClass);
     Value fval = callable->getSlot(JSSLOT_CALLABLE_CONSTRUCT);
@@ -1725,7 +1709,7 @@ callable_Construct(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
 
-    bool ok = Invoke(cx, UndefinedValue(), fval, argc, vp + 2, vp);
+    bool ok = Invoke(cx, ObjectValue(*thisobj), fval, argc, vp + 2, vp);
     return ok;
 }
 

@@ -199,9 +199,11 @@ private:
 #define NS_DISCONNECT_EVENT_HANDLER(_event)                                   \
   if (mOn##_event##Listener) { mOn##_event##Listener->Disconnect(); }
 
-#define NS_UNMARK_LISTENER_WRAPPER(_event)                                    \
-  if (tmp->mOn##_event##Listener) {                                           \
-    xpc_TryUnmarkWrappedGrayObject(tmp->mOn##_event##Listener->GetInner());   \
+#define NS_UNMARK_LISTENER_WRAPPER(_event)                       \
+  if (tmp->mOn##_event##Listener) {                              \
+    nsCOMPtr<nsIXPConnectWrappedJS> wjs =                        \
+      do_QueryInterface(tmp->mOn##_event##Listener->GetInner()); \
+    xpc_UnmarkGrayObject(wjs);                                   \
   }
 
 #endif // nsDOMEventTargetHelper_h_

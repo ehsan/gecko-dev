@@ -871,8 +871,6 @@ ContainerState::CreateOrRecycleThebesLayer(nsIFrame* aActiveScrolledRoot)
   matrix.Translate(gfxPoint(pixOffset.x, pixOffset.y));
   layer->SetTransform(gfx3DMatrix::From2D(matrix));
 
-  // FIXME: Temporary workaround for bug 681192 and bug 724786.
-#ifndef MOZ_JAVA_COMPOSITOR
   // Calculate exact position of the top-left of the active scrolled root.
   // This might not be 0,0 due to the snapping in ScaleToNearestPixels.
   gfxPoint activeScrolledRootTopLeft = scaledOffset - matrix.GetTranslation();
@@ -884,7 +882,6 @@ ContainerState::CreateOrRecycleThebesLayer(nsIFrame* aActiveScrolledRoot)
     nsIntRect invalidate = layer->GetValidRegion().GetBounds();
     layer->InvalidateRegion(invalidate);
   }
-#endif
 
   return layer.forget();
 }
@@ -1047,7 +1044,6 @@ ContainerState::PopThebesLayerData()
     data->mLayer->SetVisibleRegion(nsIntRegion());
   } else {
     layer = data->mLayer;
-    imageContainer = nsnull;
   }
 
   gfxMatrix transform;
@@ -1055,7 +1051,7 @@ ContainerState::PopThebesLayerData()
     NS_ERROR("Only 2D transformations currently supported");
   }
   
-  // ImageLayers are already configured with a visible region
+  //ImageLayers are already configured with a visible region
   if (!imageContainer) {
     NS_ASSERTION(!transform.HasNonIntegerTranslation(),
                  "Matrix not just an integer translation?");

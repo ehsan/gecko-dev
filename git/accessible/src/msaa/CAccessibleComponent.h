@@ -65,6 +65,14 @@ public:
 
   // nsISupports
   NS_IMETHOD QueryInterface(const nsIID& uuid, void** result) = 0;
+
+protected:
+
+  /**
+   * Return ARGB value for CSS property like 'color' or 'background-color'.
+   */
+  HRESULT GetARGBValueFromCSSProperty(const nsAString& aPropName,
+                                      IA2Color *aColorValue);
 };
 
 #endif

@@ -760,7 +760,7 @@ nsBaseWidget::AutoUseBasicLayerManager::~AutoUseBasicLayerManager()
 bool
 nsBaseWidget::GetShouldAccelerate()
 {
-#if defined(XP_WIN) || defined(ANDROID) || (MOZ_PLATFORM_MAEMO > 5) || defined(MOZ_GL_PROVIDER)
+#if defined(XP_WIN) || defined(ANDROID) || (MOZ_PLATFORM_MAEMO > 5)
   bool accelerateByDefault = true;
 #elif defined(XP_MACOSX)
 /* quickdraw plugins don't work with OpenGL so we need to avoid OpenGL when we want to support
@@ -846,8 +846,8 @@ nsBaseWidget::GetShouldAccelerate()
 
 void nsBaseWidget::CreateCompositor()
 {
+  mCompositorParent = new CompositorParent(this);
   mCompositorThread = new Thread("CompositorThread");
-  mCompositorParent = new CompositorParent(this, mCompositorThread);
   if (mCompositorThread->Start()) {
     LayerManager* lm = CreateBasicLayerManager();
     MessageLoop *childMessageLoop = mCompositorThread->message_loop();

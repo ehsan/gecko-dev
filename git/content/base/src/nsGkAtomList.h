@@ -1216,8 +1216,7 @@ GK_ATOM(fy, "fy")
 GK_ATOM(G, "G")
 GK_ATOM(g, "g")
 GK_ATOM(gamma, "gamma")
-// 'generic' conflicts with msvc11 winrt compiler extensions
-GK_ATOM(generic_, "generic")
+GK_ATOM(generic, "generic")
 GK_ATOM(glyph, "glyph")
 GK_ATOM(glyphRef, "glyphRef")
 GK_ATOM(glyph_orientation_horizontal, "glyph-orientation-horizontal")
@@ -1865,47 +1864,6 @@ GK_ATOM(Taiwanese, "zh-TW")
 GK_ATOM(HongKongChinese, "zh-HK")
 GK_ATOM(Unicode, "x-unicode")
 
-// language codes specifically referenced in the gfx code
-GK_ATOM(ko, "ko")
-GK_ATOM(zh_cn, "zh-cn")
-GK_ATOM(zh_hk, "zh-hk")
-GK_ATOM(zh_tw, "zh-tw")
-
-// additional codes used in nsUnicodeRange.cpp
-GK_ATOM(x_cyrillic, "x-cyrillic")
-GK_ATOM(he, "he")
-GK_ATOM(ar, "ar")
-GK_ATOM(x_baltic, "x-baltic")
-GK_ATOM(x_devanagari, "x-devanagari")
-GK_ATOM(x_tamil, "x-tamil")
-GK_ATOM(x_armn, "x-armn")
-GK_ATOM(x_beng, "x-beng")
-GK_ATOM(x_cans, "x-cans")
-GK_ATOM(x_ethi, "x-ethi")
-GK_ATOM(x_geor, "x-geor")
-GK_ATOM(x_gujr, "x-gujr")
-GK_ATOM(x_guru, "x-guru")
-GK_ATOM(x_khmr, "x-khmr")
-GK_ATOM(x_knda, "x-knda")
-GK_ATOM(x_mlym, "x-mlym")
-GK_ATOM(x_orya, "x-orya")
-GK_ATOM(x_sinh, "x-sinh")
-GK_ATOM(x_telu, "x-telu")
-GK_ATOM(x_tibt, "x-tibt")
-
-// used in gfxGDIFontList.h
-GK_ATOM(ko_xxx, "ko-xxx")
-GK_ATOM(x_central_euro, "x-central-euro")
-GK_ATOM(x_symbol, "x-symbol")
-
-// referenced in all.js
-GK_ATOM(x_user_def, "x-user-def")
-
-// additional languages that use Turkish-style case transformation
-GK_ATOM(az, "az")
-GK_ATOM(ba, "ba")
-GK_ATOM(crh, "crh")
-
 // Names for editor transactions
 GK_ATOM(TypingTxnName, "Typing")
 GK_ATOM(IMETxnName, "IME")
@@ -1976,8 +1934,7 @@ GK_ATOM(VolumeUp, "VolumeUp")
 GK_ATOM(VolumeDown, "VolumeDown")
 GK_ATOM(Menu, "Menu")
 
-// Smooth scroll events origins
-GK_ATOM(mouseWheel, "mouseWheel")  // For discrete wheel events (e.g. not OSX magic mouse)
+// Smooth scroll profiles
 GK_ATOM(pixels,     "pixels")
 GK_ATOM(lines,      "lines")
 GK_ATOM(pages,      "pages")

@@ -117,8 +117,10 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsEventSource)
       NS_UNMARK_LISTENER_WRAPPER(Message)
       NS_UNMARK_LISTENER_WRAPPER(Error)
     }
-    if (!isBlack && tmp->PreservingWrapper()) {
-      xpc_UnmarkGrayObject(tmp->GetWrapperPreserveColor());
+    if (!isBlack) {
+      xpc_UnmarkGrayObject(tmp->PreservingWrapper() ? 
+                           tmp->GetWrapperPreserveColor() :
+                           tmp->GetExpandoObjectPreserveColor());
     }
     return true;
   }
@@ -467,7 +469,7 @@ nsEventSource::Observe(nsISupports* aSubject,
     return NS_OK;
   }
 
-  DebugOnly<nsresult> rv;
+  nsresult rv;
   if (strcmp(aTopic, DOM_WINDOW_FROZEN_TOPIC) == 0) {
     rv = Freeze();
     NS_ASSERTION(rv, "Freeze() failed");

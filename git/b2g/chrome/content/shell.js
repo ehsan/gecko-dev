@@ -7,12 +7,16 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
+const CC = Components.Constructor;
 const Cr = Components.results;
+
+const LocalFile = CC('@mozilla.org/file/local;1',
+                     'nsILocalFile',
+                     'initWithPath');
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource://gre/modules/ContactService.jsm');
-Cu.import('resource://gre/modules/Webapps.jsm');
 
 XPCOMUtils.defineLazyGetter(Services, 'env', function() {
   return Cc['@mozilla.org/process/environment;1']
@@ -39,20 +43,31 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'fm', function() {
            .getService(Ci.nsFocusManager);
 });
 
+#ifndef MOZ_WIDGET_GONK
+// In order to use http:// scheme instead of file:// scheme
+// (that is much more restricted) the following code kick-off
+// a local http server listening on http://127.0.0.1:7777 and
+// http://localhost:7777.
+function startupHttpd(baseDir, port) {
+  const httpdURL = 'chrome://browser/content/httpd.js';
+  let httpd = {};
+  Services.scriptloader.loadSubScript(httpdURL, httpd);
+  let server = new httpd.nsHttpServer();
+  server.registerDirectory('/', new LocalFile(baseDir));
+  server.registerContentType('appcache', 'text/cache-manifest');
+  server.start(port);
+}
+#endif
+
 // FIXME Bug 707625
 // until we have a proper security model, add some rights to
 // the pre-installed web applications
 // XXX never grant 'content-camera' to non-gaia apps
 function addPermissions(urls) {
   let permissions = [
-    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app',
-    'websettings-read', 'websettings-readwrite',
-    'content-camera', 'webcontacts-manage', 'wifi-manage', 'desktop-notification',
-    'geolocation'
+    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'content-camera', 'webcontacts-manage'
   ];
   urls.forEach(function(url) {
-    url = url.trim();
-    dump("XxXxX adding permissions for " + url);
     let uri = Services.io.newURI(url, null, null);
     let allow = Ci.nsIPermissionManager.ALLOW_ACTION;
 
@@ -77,13 +92,23 @@ var shell = {
         return homeSrc;
     } catch (e) {}
 
-    return Services.prefs.getCharPref('browser.homescreenURL');
+    let urls = Services.prefs.getCharPref('browser.homescreenURL').split(',');
+    for (let i = 0; i < urls.length; i++) {
+      let url = urls[i];
+      if (url.substring(0, 7) != 'file://')
+        return url;
+
+      let file = new LocalFile(url.substring(7, url.length));
+      if (file.exists())
+        return url;
+    }
+    return null;
   },
 
   start: function shell_init() {
     let homeURL = this.homeURL;
     if (!homeURL) {
-      let msg = 'Fatal error during startup: No homescreen found: try setting B2G_HOMESCREEN';
+      let msg = 'Fatal error during startup: [No homescreen found]';
       return alert(msg);
     }
 
@@ -104,12 +129,32 @@ var shell = {
       Services.audioManager.masterVolume = 0.5;
     } catch(e) {}
 
-    let domains = "";
     try {
-      domains = Services.prefs.getCharPref('b2g.privileged.domains');
-    } catch(e) {}
+      Services.io.offline = false;
 
-    addPermissions(domains.split(","));
+      let fileScheme = 'file://';
+      if (homeURL.substring(0, fileScheme.length) == fileScheme) {
+#ifndef MOZ_WIDGET_GONK
+        homeURL = homeURL.replace(fileScheme, '');
+
+        let baseDir = homeURL.split('/');
+        baseDir.pop();
+        baseDir = baseDir.join('/');
+
+        const SERVER_PORT = 7777;
+        startupHttpd(baseDir, SERVER_PORT);
+
+        let baseHost = 'http://localhost';
+        homeURL = homeURL.replace(baseDir, baseHost + ':' + SERVER_PORT);
+#else
+        homeURL = 'http://localhost:7777' + homeURL.replace(fileScheme, '');
+#endif
+      }
+      addPermissions([homeURL]);
+    } catch (e) {
+      let msg = 'Fatal error during startup: [' + e + '[' + homeURL + ']';
+      return alert(msg);
+    }
 
     // Load webapi.js as a frame script
     let frameScriptUrl = 'chrome://browser/content/webapi.js';
@@ -118,10 +163,6 @@ var shell = {
     } catch (e) {
       dump('Error loading ' + frameScriptUrl + ' as a frame script: ' + e + '\n');
     }
-
-    CustomEventManager.init();
-
-    WebappsHelper.init();
 
     let browser = this.contentBrowser;
     browser.homePage = homeURL;
@@ -279,36 +320,17 @@ var shell = {
 };
 
 (function PowerManager() {
-  // This will eventually be moved to content, so use content API as
-  // much as possible here. TODO: Bug 738530
-  let power = navigator.mozPower;
-  let idleHandler = function idleHandler(subject, topic, time) {
-    if (topic === "idle") {
-      if (power.getWakeLockState("screen") != "locked-foreground") {
+  let idleHandler = {
+    observe: function(subject, topic, time) {
+      if (topic === "idle") {
+        // TODO: Check wakelock status. See bug 697132.
         screen.mozEnabled = false;
       }
-    }
-  }
-  let wakeLockHandler = function wakeLockHandler(topic, state) {
-    // Turn off the screen when no one needs the it or all of them are
-    // invisible, otherwise turn the screen on. Note that the CPU
-    // might go to sleep as soon as the screen is turned off and
-    // acquiring wake lock will not bring it back (actually the code
-    // is not executed at all).
-    if (topic == "screen") {
-      if (state != "locked-foreground") {
-        if (Services.idle.idleTime > idleTimeout*1000) {
-          screen.mozEnabled = false;
-        }
-      } else {
-        screen.mozEnabled = true;
-      }
-    }
+    },
   }
   let idleTimeout = Services.prefs.getIntPref("power.screen.timeout");
   if (idleTimeout) {
     Services.idle.addIdleObserver(idleHandler, idleTimeout);
-    power.addWakeLockListener(wakeLockHandler);
   }
 })();
 
@@ -398,107 +420,3 @@ Services.obs.addObserver(function onConsoleAPILogEvent(subject, topic, data) {
   serverSocket.asyncListen(listener);
 })();
 
-CustomEventManager = {
-  init: function custevt_init() {
-    window.addEventListener("ContentStart", (function(evt) {
-      content.addEventListener("mozContentEvent", this, false, true);
-    }).bind(this), false);
-  },
-
-  handleEvent: function custevt_handleEvent(evt) {
-    let detail = evt.detail;
-    dump("XXX FIXME : Got a mozContentEvent: " + detail.type);
-
-    switch(detail.type) {
-      case "desktop-notification-click":
-      case "desktop-notification-close":
-        AlertsHelper.handleEvent(detail);
-        break;
-      case "webapps-install-granted":
-      case "webapps-install-denied":
-        WebappsHelper.handleEvent(detail);
-        break;
-    }
-  }
-}
-
-AlertsHelper = {
-  _listeners: {},
-  _count: 0,
-
-  handleEvent: function alert_handleEvent(detail) {
-    if (!detail || !detail.id)
-      return;
-
-    let listener = this._listeners[detail.id];
-    let topic = detail.type == "desktop-notification-click" ? "alertclickcallback" : "alertfinished";
-    listener.observer.observe(null, topic, listener.cookie);
-
-    // we're done with this notification
-    if (topic === "alertfinished")
-      delete this._listeners[detail.id];
-  },
-
-  registerListener: function alert_registerListener(cookie, alertListener) {
-    let id = "alert" + this._count++;
-    this._listeners[id] = { observer: alertListener, cookie: cookie };
-    return id;
-  },
-
-  showAlertNotification: function alert_showAlertNotification(imageUrl, title, text, textClickable, 
-                                                              cookie, alertListener, name) {
-    let id = this.registerListener(cookie, alertListener);
-    shell.sendEvent(content, "mozChromeEvent", { type: "desktop-notification", id: id, icon: imageUrl, 
-                                                 title: title, text: text } );
-  }
-}
-
-WebappsHelper = {
-  _installers: {},
-  _count: 0,
-
-  init: function webapps_init() {
-    Services.obs.addObserver(this, "webapps-launch", false);
-    Services.obs.addObserver(this, "webapps-ask-install", false);
-  },
-
-  registerInstaller: function webapps_registerInstaller(data) {
-    let id = "installer" + this._count++;
-    this._installers[id] = data;
-    return id;
-  },
-
-  handleEvent: function webapps_handleEvent(detail) {
-    if (!detail || !detail.id)
-      return;
-
-    let installer = this._installers[detail.id];
-    switch (detail.type) {
-      case "webapps-install-granted":
-        DOMApplicationRegistry.confirmInstall(installer);
-        break;
-      case "webapps-install-denied":
-        DOMApplicationRegistry.denyInstall(installer);
-        break;
-    }
-  },
-
-  observe: function webapps_observe(subject, topic, data) {
-    let json = JSON.parse(data);
-    switch(topic) {
-      case "webapps-launch":
-        DOMApplicationRegistry.getManifestFor(json.origin, function(aManifest) {
-          if (!aManifest)
-            return;
-
-          let manifest = new DOMApplicationManifest(aManifest, json.origin);
-          shell.sendEvent(content, "mozChromeEvent", { type: "webapps-launch", url: manifest.fullLaunchPath(), origin: json.origin });
-        });
-        break;
-      case "webapps-ask-install":
-        let id = this.registerInstaller(json);
-        shell.sendEvent(content, "mozChromeEvent", { type: "webapps-ask-install", id: id, app: json.app } );
-        break;
-    }
-  }
-}

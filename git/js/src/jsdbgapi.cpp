@@ -482,13 +482,13 @@ JS_GetFunctionNative(JSContext *cx, JSFunction *fun)
 }
 
 JS_PUBLIC_API(JSPrincipals *)
-JS_GetScriptPrincipals(JSScript *script)
+JS_GetScriptPrincipals(JSContext *cx, JSScript *script)
 {
     return script->principals;
 }
 
 JS_PUBLIC_API(JSPrincipals *)
-JS_GetScriptOriginPrincipals(JSScript *script)
+JS_GetScriptOriginPrincipals(JSContext *cx, JSScript *script)
 {
     return script->originPrincipals;
 }
@@ -642,6 +642,17 @@ JS_PUBLIC_API(JSObject *)
 JS_GetFrameCalleeObject(JSContext *cx, JSStackFrame *fp)
 {
     return Valueify(fp)->maybeCalleev().toObjectOrNull();
+}
+
+JS_PUBLIC_API(JSBool)
+JS_GetValidFrameCalleeObject(JSContext *cx, JSStackFrame *fp, jsval *vp)
+{
+    Value v;
+
+    if (!Valueify(fp)->getValidCalleeObject(cx, &v))
+        return false;
+    *vp = v.isObject() ? v : JSVAL_VOID;
+    return true;
 }
 
 JS_PUBLIC_API(JSBool)

@@ -68,14 +68,14 @@ class nsPaintRequestList MOZ_FINAL : public nsIDOMPaintRequestList,
 public:
   nsPaintRequestList(nsIDOMEvent *aParent) : mParent(aParent)
   {
-    SetIsDOMBinding();
+    SetIsProxy();
   }
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsPaintRequestList)
   NS_DECL_NSIDOMPAINTREQUESTLIST
   
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap)
   {
     return mozilla::dom::binding::PaintRequestList::create(cx, scope, this,

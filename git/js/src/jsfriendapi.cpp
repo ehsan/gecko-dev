@@ -717,18 +717,6 @@ SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback)
     return old;
 }
 
-jschar *
-GCDescription::formatMessage(JSRuntime *rt) const
-{
-    return rt->gcStats.formatMessage();
-}
-
-jschar *
-GCDescription::formatJSON(JSRuntime *rt, uint64_t timestamp) const
-{
-    return rt->gcStats.formatJSON(timestamp);
-}
-
 JS_FRIEND_API(bool)
 WantGCSlice(JSRuntime *rt)
 {

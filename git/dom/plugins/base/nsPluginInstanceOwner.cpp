@@ -47,12 +47,8 @@
 #ifdef MOZ_WIDGET_QT
 #include <QWidget>
 #include <QKeyEvent>
-#if defined(MOZ_X11)
-#if defined(Q_WS_X11)
+#ifdef MOZ_X11
 #include <QX11Info>
-#else
-#include "gfxQtPlatform.h"
-#endif
 #endif
 #undef slots
 #endif
@@ -419,13 +415,8 @@ nsPluginInstanceOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
   // If we're going to null out mInstance after use, be sure to call
   // mInstance->InvalidateOwner() here, since it now won't be called
   // from our destructor.  This fixes bug 613376.
-  if (mInstance && !aInstance) {
+  if (mInstance && !aInstance)
     mInstance->InvalidateOwner();
-
-#ifdef MOZ_WIDGET_ANDROID
-    RemovePluginView();
-#endif
-  }
 
   mInstance = aInstance;
 
@@ -757,7 +748,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
   }
 
   return rv;
-#elif (defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)) && defined(MOZ_X11)
+#elif defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
   // X11 window managers want the toplevel window for WM_TRANSIENT_FOR.
   nsIWidget* win = mObjectFrame->GetNearestWidget();
   if (!win)
@@ -1808,7 +1799,7 @@ bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
 
 void nsPluginInstanceOwner::RemovePluginView()
 {
-  if (!mInstance)
+  if (!mInstance || !mObjectFrame)
     return;
 
   void* surface = mInstance->GetJavaSurface();
@@ -2435,7 +2426,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 #ifdef MOZ_WIDGET_GTK2
         Window root = GDK_ROOT_WINDOW();
 #elif defined(MOZ_WIDGET_QT)
-        Window root = RootWindowOfScreen(DefaultScreenOfDisplay(mozilla::DefaultXDisplay()));
+        Window root = QX11Info::appRootWindow();
 #else
         Window root = None; // Could XQueryTree, but this is not important.
 #endif
@@ -2551,13 +2542,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           event.time = anEvent.time;
 
           QWidget* qWidget = static_cast<QWidget*>(widget->GetNativeData(NS_NATIVE_WINDOW));
-
           if (qWidget)
-#if defined(Q_WS_X11)
             event.root = qWidget->x11Info().appRootWindow();
-#else
-            event.root = RootWindowOfScreen(DefaultScreenOfDisplay(gfxQtPlatform::GetXDisplay(qWidget)));
-#endif
 
           // deduce keycode from the information in the attached QKeyEvent
           const QKeyEvent* qtEvent = static_cast<const QKeyEvent*>(anEvent.pluginEvent);
@@ -2931,14 +2917,8 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
 
   PRInt32 model = mInstance->GetANPDrawingModel();
 
-  float xResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetXResolution();
-  float yResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetYResolution();
-
-  gfxRect scaledFrameRect = aFrameRect;
-  scaledFrameRect.Scale(xResolution, yResolution);
-
   if (model == kSurface_ANPDrawingModel) {
-    if (!AddPluginView(scaledFrameRect)) {
+    if (!AddPluginView(aFrameRect)) {
       Invalidate();
     }
     return;
@@ -2948,9 +2928,11 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
     if (!mLayer)
       mLayer = new AndroidMediaLayer();
 
-    mLayer->UpdatePosition(scaledFrameRect, xResolution);
+    // FIXME: this is gross
+    float zoomLevel = aFrameRect.width / (float)mPluginWindow->width;
+    mLayer->UpdatePosition(aFrameRect, zoomLevel);
 
-    SendSize((int)scaledFrameRect.width, (int)scaledFrameRect.height);
+    SendSize((int)aFrameRect.width, (int)aFrameRect.height);
     return;
   }
 
@@ -3074,9 +3056,9 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
     gdk_x11_screen_get_xscreen(gdk_visual_get_screen(gdkVisual));
 #endif
 #ifdef MOZ_WIDGET_QT
-  Display* dpy = mozilla::DefaultXDisplay();
-  Screen* screen = DefaultScreenOfDisplay(dpy);
-  Visual* visual = DefaultVisualOfScreen(screen);
+  Display* dpy = QX11Info().display();
+  Screen* screen = ScreenOfDisplay(dpy, QX11Info().screen());
+  Visual* visual = static_cast<Visual*>(QX11Info().visual());
 #endif
   renderer.Draw(aContext, nsIntSize(window->width, window->height),
                 rendererFlags, screen, visual, nsnull);

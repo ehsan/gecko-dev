@@ -326,14 +326,15 @@ WebappsApplicationMgmt.prototype = {
     if (this.hasPrivileges)
       this._oninstall = aCallback;
     else
-      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
+
+      throw new Components.exception("Denied", Cr.NS_ERROR_FAILURE);
   },
 
   set onuninstall(aCallback) {
     if (this.hasPrivileges)
       this._onuninstall = aCallback;
     else
-      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
+      throw new Components.exception("Denied", Cr.NS_ERROR_FAILURE);
   },
 
   receiveMessage: function(aMessage) {

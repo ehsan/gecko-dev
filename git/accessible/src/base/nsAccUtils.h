@@ -108,6 +108,14 @@ public:
   static PRInt32 GetARIAOrDefaultLevel(nsAccessible *aAccessible);
 
   /**
+   * Compute position in group (posinset) and group size (setsize) for
+   * nsIDOMXULSelectControlItemElement node.
+   */
+  static void GetPositionAndSizeForXULSelectControlItem(nsIContent *aContent,
+                                                        PRInt32 *aPosInSet,
+                                                        PRInt32 *aSetSize);
+
+  /**
    * Compute group level for nsIDOMXULContainerItemElement node.
    */
   static PRInt32 GetLevelForXULContainerItem(nsIContent *aContent);
@@ -187,6 +195,11 @@ public:
    */
   static nsAccessible* GetSelectableContainer(nsAccessible* aAccessible,
                                               PRUint64 aState);
+
+  /**
+   * Return multi selectable container for the given item.
+   */
+  static nsAccessible *GetMultiSelectableContainer(nsINode *aNode);
 
   /**
    * Return true if the DOM node of given accessible has aria-selected="true"

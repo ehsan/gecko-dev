@@ -567,13 +567,6 @@ Navigator::JavaEnabled(bool* aReturn)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-Navigator::TaintEnabled(bool *aReturn)
-{
-  *aReturn = false;
-  return NS_OK;
-}
-
 void
 Navigator::RefreshMIMEArray()
 {
@@ -972,7 +965,8 @@ Navigator::GetMozPower(nsIDOMMozPowerManager** aPower)
     mPowerManager->Init(win);
   }
 
-  nsCOMPtr<nsIDOMMozPowerManager> power(mPowerManager);
+  nsCOMPtr<nsIDOMMozPowerManager> power =
+    do_QueryInterface(NS_ISUPPORTS_CAST(nsIDOMMozPowerManager*, mPowerManager));
   power.forget(aPower);
 
   return NS_OK;
@@ -1153,7 +1147,7 @@ Navigator::GetMozBluetooth(nsIDOMBluetoothAdapter** aBluetooth)
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
     NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
-    mBluetooth = new bluetooth::BluetoothAdapter(window);
+    mBluetooth = new bluetooth::BluetoothAdapter();
 
     bluetooth = mBluetooth;
   }

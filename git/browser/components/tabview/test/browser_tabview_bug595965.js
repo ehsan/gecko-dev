@@ -53,98 +53,87 @@ function onTabViewShown(win) {
      "$appTabTray container is not visible");
 
   // pin the tab, make sure the TabItem goes away and the icon comes on
-  whenAppTabIconAdded(function() {
-    is(groupItem._children.length, 0,
-       "the app tab's TabItem was removed from the group");
-    is(appTabCount(groupItem), 1, "there's now one app tab icon");
+  gBrowser.pinTab(xulTabs[0]);
+  is(groupItem._children.length, 0,
+     "the app tab's TabItem was removed from the group");
+  is(appTabCount(groupItem), 1, "there's now one app tab icon");
 
-    is(tray.css("-moz-column-count"), 1,
-       "$appTabTray column count is 1");
-    isnot(parseInt(trayContainer.css("width")), 0,
-       "$appTabTray container is visible");
+  is(tray.css("-moz-column-count"), 1,
+     "$appTabTray column count is 1");
+  isnot(parseInt(trayContainer.css("width")), 0,
+     "$appTabTray container is visible");
 
+  let iconHeight = iQ(iQ(".appTabIcon", tray)[0]).height();
+  let trayHeight = parseInt(trayContainer.css("height"));
+  let rows = Math.floor(trayHeight / iconHeight);
+  let icons = rows * 2;
 
-    let iconHeight = iQ(iQ(".appTabIcon", tray)[0]).height();
-    let trayHeight = parseInt(trayContainer.css("height"));
-    let rows = Math.floor(trayHeight / iconHeight);
-    let icons = rows * 2;
+  // add enough tabs to have two columns
+  for (let i = 1; i < icons; i++) {
+    xulTabs.push(gBrowser.loadOneTab("about:blank"));
+    gBrowser.pinTab(xulTabs[i]);
+  }
 
-    function pinnedSomeTabs() {
-      is(appTabCount(groupItem), icons, "number of app tab icons is correct");
+  is(appTabCount(groupItem), icons, "number of app tab icons is correct");
 
-      is(tray.css("-moz-column-count"), 2,
-         "$appTabTray column count is 2");
+  is(tray.css("-moz-column-count"), 2,
+     "$appTabTray column count is 2");
 
-      ok(!trayContainer.hasClass("appTabTrayContainerTruncated"),
-         "$appTabTray container does not have .appTabTrayContainerTruncated");
+  ok(!trayContainer.hasClass("appTabTrayContainerTruncated"),
+     "$appTabTray container does not have .appTabTrayContainerTruncated");
 
-      // add one more tab
-      xulTabs.push(gBrowser.loadOneTab("about:blank"));
-      whenAppTabIconAdded(function() {
-        is(tray.css("-moz-column-count"), 3,
-           "$appTabTray column count is 3");
+  // add one more tab
+  xulTabs.push(gBrowser.loadOneTab("about:blank"));
+  gBrowser.pinTab(xulTabs[xulTabs.length-1]);
 
-        ok(trayContainer.hasClass("appTabTrayContainerTruncated"),
-           "$appTabTray container hasClass .appTabTrayContainerTruncated");
+  is(tray.css("-moz-column-count"), 3,
+     "$appTabTray column count is 3");
 
-        // remove all but one app tabs
-        for (let i = 1; i < xulTabs.length; i++)
-          gBrowser.removeTab(xulTabs[i]);
+  ok(trayContainer.hasClass("appTabTrayContainerTruncated"),
+     "$appTabTray container hasClass .appTabTrayContainerTruncated");
 
-        is(tray.css("-moz-column-count"), 1,
-           "$appTabTray column count is 1");
+  // remove all but one app tabs
+  for (let i = 1; i < xulTabs.length; i++)
+    gBrowser.removeTab(xulTabs[i]);
 
-        is(appTabCount(groupItem), 1, "there's now one app tab icon");
+  is(tray.css("-moz-column-count"), 1,
+     "$appTabTray column count is 1");
 
-        ok(!trayContainer.hasClass("appTabTrayContainerTruncated"),
-           "$appTabTray container does not have .appTabTrayContainerTruncated");
+  is(appTabCount(groupItem), 1, "there's now one app tab icon");
 
-        // unpin the last remaining tab
-        gBrowser.unpinTab(xulTabs[0]);
+  ok(!trayContainer.hasClass("appTabTrayContainerTruncated"),
+     "$appTabTray container does not have .appTabTrayContainerTruncated");
 
-        is(parseInt(trayContainer.css("width")), 0,
-           "$appTabTray container is not visible");
+  // When the tab was pinned, the last active group with an item got the focus.
+  // Therefore, switching the focus back to group item one.
+  contentWindow.UI.setActive(groupItem);
 
-        // When the tab was pinned, the last active group with an item got the focus.
-        // Therefore, switching the focus back to group item one.
-        contentWindow.UI.setActive(groupItem);
+  // unpin the last remaining tab
+  gBrowser.unpinTab(xulTabs[0]);
 
-        is(appTabCount(groupItem), 0, "there are no app tab icons");
+  is(parseInt(trayContainer.css("width")), 0,
+     "$appTabTray container is not visible");
 
-        is(groupItem._children.length, 1, "the normal tab shows in the group");
+  is(appTabCount(groupItem), 0, "there are no app tab icons");
 
-        gBrowser.removeTab(xulTabs[0]);
+  is(groupItem._children.length, 1, "the normal tab shows in the group");
 
-        // close the group
-        groupItem.close();
+  gBrowser.removeTab(xulTabs[0]);
 
-        hideTabView(function() {
-          ok(!TabView.isVisible(), "Tab View is hidden");
+  // close the group
+  groupItem.close();
 
-          is(contentWindow.GroupItems.groupItems.length, 1,
-             "we finish with one group");
-          is(gBrowser.tabs.length, 1, "we finish with one tab");
+  hideTabView(function() {
+    ok(!TabView.isVisible(), "Tab View is hidden");
 
-          win.close();
+    is(contentWindow.GroupItems.groupItems.length, 1,
+       "we finish with one group");
+    is(gBrowser.tabs.length, 1, "we finish with one tab");
 
-          executeSoon(finish);
-        }, win);
-      }, win);
-      win.gBrowser.pinTab(xulTabs[xulTabs.length-1]);
-    };
+    win.close();
 
-    // add enough tabs to have two columns
-    let returnCount = 0;
-    for (let i = 1; i < icons; i++) {
-      xulTabs.push(gBrowser.loadOneTab("about:blank"));
-      whenAppTabIconAdded(function() {
-        if (++returnCount == (icons - 1))
-          executeSoon(pinnedSomeTabs);
-      }, win);
-      win.gBrowser.pinTab(xulTabs[i]);
-    }
+    executeSoon(finish);
   }, win);
-  win.gBrowser.pinTab(xulTabs[0]);
 }
 
 function appTabCount(groupItem) {

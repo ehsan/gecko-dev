@@ -91,8 +91,7 @@ DOMCI_CASTABLE_INTERFACE(nsSVGStylableElement, nsIContent, 9, _extra)         \
 DOMCI_CASTABLE_INTERFACE(nsIDOMWebGLRenderingContext,                         \
                          nsIDOMWebGLRenderingContext, 10, _extra)             \
 DOMCI_CASTABLE_INTERFACE(nsIWebGLUniformLocation,                             \
-                         nsIWebGLUniformLocation, 11, _extra)                 \
-DOMCI_CASTABLE_INTERFACE(nsIDOMImageData, nsIDOMImageData, 12, _extra)
+                         nsIWebGLUniformLocation, 11, _extra)
  
 // Make sure all classes mentioned in DOMCI_CASTABLE_INTERFACES
 // have been declared.

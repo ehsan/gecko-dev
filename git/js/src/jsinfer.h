@@ -314,23 +314,26 @@ enum {
     /* Whether any objects this represents are not typed arrays. */
     OBJECT_FLAG_NON_TYPED_ARRAY       = 0x00040000,
 
+    /* Whether any represented script has had arguments objects created. */
+    OBJECT_FLAG_CREATED_ARGUMENTS     = 0x00080000,
+
     /* Whether any represented script is considered uninlineable. */
-    OBJECT_FLAG_UNINLINEABLE          = 0x00080000,
+    OBJECT_FLAG_UNINLINEABLE          = 0x00100000,
 
     /* Whether any objects have an equality hook. */
-    OBJECT_FLAG_SPECIAL_EQUALITY      = 0x00100000,
+    OBJECT_FLAG_SPECIAL_EQUALITY      = 0x00200000,
 
     /* Whether any objects have been iterated over. */
-    OBJECT_FLAG_ITERATED              = 0x00200000,
+    OBJECT_FLAG_ITERATED              = 0x00400000,
 
     /* Outer function which has been marked reentrant. */
-    OBJECT_FLAG_REENTRANT_FUNCTION    = 0x00400000,
+    OBJECT_FLAG_REENTRANT_FUNCTION    = 0x00800000,
 
     /* For a global object, whether flags were set on the RegExpStatics. */
-    OBJECT_FLAG_REGEXP_FLAGS_SET      = 0x00800000,
+    OBJECT_FLAG_REGEXP_FLAGS_SET      = 0x01000000,
 
     /* Flags which indicate dynamic properties of represented objects. */
-    OBJECT_FLAG_DYNAMIC_MASK          = 0x00ff0000,
+    OBJECT_FLAG_DYNAMIC_MASK          = 0x01ff0000,
 
     /*
      * Whether all properties of this object are considered unknown.
@@ -441,13 +444,13 @@ class TypeSet
     void addSetElement(JSContext *cx, JSScript *script, jsbytecode *pc,
                        TypeSet *objectTypes, TypeSet *valueTypes);
     void addCall(JSContext *cx, TypeCallsite *site);
-    void addArith(JSContext *cx, JSScript *script, jsbytecode *pc,
-                  TypeSet *target, TypeSet *other = NULL);
+    void addArith(JSContext *cx, TypeSet *target, TypeSet *other = NULL);
     void addTransformThis(JSContext *cx, JSScript *script, TypeSet *target);
     void addPropagateThis(JSContext *cx, JSScript *script, jsbytecode *pc,
                           Type type, TypeSet *types = NULL);
     void addFilterPrimitives(JSContext *cx, TypeSet *target, FilterKind filter);
     void addSubsetBarrier(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target);
+    void addLazyArguments(JSContext *cx, TypeSet *target);
 
     /*
      * Make an type set with the specified debugging name, not embedded in
@@ -905,13 +908,16 @@ struct TypeObjectEntry
 };
 typedef HashSet<ReadBarriered<TypeObject>, TypeObjectEntry, SystemAllocPolicy> TypeObjectSet;
 
+/*
+ * Call to mark a script's arguments as having been created, recompile any
+ * dependencies and walk the stack if necessary to fix any lazy arguments.
+ */
+extern void
+MarkArgumentsCreated(JSContext *cx, JSScript *script);
+
 /* Whether to use a new type object when calling 'new' at script/pc. */
 bool
 UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc);
-
-/* Whether to use a new type object for an initializer opcode at script/pc. */
-bool
-UseNewTypeForInitializer(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 /*
  * Whether Array.prototype, or an object on its proto chain, has an
@@ -1084,7 +1090,7 @@ class TypeScript
     static inline TypeObject *StandardType(JSContext *cx, JSScript *script, JSProtoKey kind);
 
     /* Get a type object for an allocation site in this script. */
-    static inline TypeObject *InitObject(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoKey kind);
+    static inline TypeObject *InitObject(JSContext *cx, JSScript *script, const jsbytecode *pc, JSProtoKey kind);
 
     /*
      * Monitor a bytecode pushing a value which is not accounted for by the

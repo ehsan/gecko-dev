@@ -58,8 +58,6 @@
 
 namespace mozilla {
 
-class AndroidGeckoLayerClient;
-
 void InitAndroidJavaWrappers(JNIEnv *jEnv);
 
 /*
@@ -153,72 +151,31 @@ protected:
     static jfieldID jTopField;
 };
 
-class AndroidViewTransform : public WrappedJavaObject {
+class AndroidGeckoSoftwareLayerClient : public WrappedJavaObject {
 public:
-    static void InitViewTransformClass(JNIEnv *jEnv);
+    static void InitGeckoSoftwareLayerClientClass(JNIEnv *jEnv);
+ 
+     void Init(jobject jobj);
+ 
+    AndroidGeckoSoftwareLayerClient() {}
+    AndroidGeckoSoftwareLayerClient(jobject jobj) { Init(jobj); }
 
-    void Init(jobject jobj);
-
-    AndroidViewTransform() {}
-    AndroidViewTransform(jobject jobj) { Init(jobj); }
-
-    float GetX();
-    float GetY();
-    float GetScale();
+    jobject LockBuffer();
+    unsigned char *LockBufferBits();
+    void UnlockBuffer();
+    bool BeginDrawing(int aWidth, int aHeight, int aTileWidth, int aTileHeight, nsIntRect &aDirtyRect, const nsAString &aMetadata, bool aHasDirectTexture);
+    void EndDrawing(const nsIntRect &aRect);
 
 private:
-    static jclass jViewTransformClass;
-    static jfieldID jXField;
-    static jfieldID jYField;
-    static jfieldID jScaleField;
-};
-
-class AndroidLayerRendererFrame : public WrappedJavaObject {
-public:
-    static void InitLayerRendererFrameClass(JNIEnv *jEnv);
-
-    void Init(jobject jobj);
-    void Dispose();
-
-    void BeginDrawing();
-    void DrawBackground();
-    void DrawForeground();
-    void EndDrawing();
-
-private:
-    static jclass jLayerRendererFrameClass;
-    static jmethodID jBeginDrawingMethod;
-    static jmethodID jDrawBackgroundMethod;
-    static jmethodID jDrawForegroundMethod;
-    static jmethodID jEndDrawingMethod;
-};
-
-class AndroidGeckoLayerClient : public WrappedJavaObject {
-public:
-    static void InitGeckoLayerClientClass(JNIEnv *jEnv);
-
-    void Init(jobject jobj);
-
-    AndroidGeckoLayerClient() {}
-    AndroidGeckoLayerClient(jobject jobj) { Init(jobj); }
-
-    void SetFirstPaintViewport(float aOffsetX, float aOffsetY, float aZoom, float aPageWidth, float aPageHeight);
-    void SetPageSize(float aZoom, float aPageWidth, float aPageHeight);
-    void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
-                          nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
-    void CreateFrame(AndroidLayerRendererFrame& aFrame);
-    void ActivateProgram();
-    void DeactivateProgram();
+    static jclass jGeckoSoftwareLayerClientClass;
+    static jmethodID jLockBufferMethod;
+    static jmethodID jUnlockBufferMethod;
 
 protected:
-    static jclass jGeckoLayerClientClass;
-    static jmethodID jSetFirstPaintViewport;
-    static jmethodID jSetPageSize;
-    static jmethodID jSyncViewportInfoMethod;
-    static jmethodID jCreateFrameMethod;
-    static jmethodID jActivateProgramMethod;
-    static jmethodID jDeactivateProgramMethod;
+     static jmethodID jBeginDrawingMethod;
+     static jmethodID jEndDrawingMethod;
 };
+
 
 class AndroidGeckoSurfaceView : public WrappedJavaObject
 {
@@ -427,6 +384,25 @@ public:
     static jmethodID jGetTimeMethod;
 };
 
+class AndroidAddress : public WrappedJavaObject
+{
+public:
+    static void InitAddressClass(JNIEnv *jEnv);
+    static nsGeoPositionAddress* CreateGeoPositionAddress(JNIEnv *jenv, jobject jobj);
+    static jclass jAddressClass;
+    static jmethodID jGetAddressLineMethod;
+    static jmethodID jGetAdminAreaMethod;
+    static jmethodID jGetCountryNameMethod;
+    static jmethodID jGetFeatureNameMethod;
+    static jmethodID jGetLocalityMethod;
+    static jmethodID jGetPostalCodeMethod;
+    static jmethodID jGetPremisesMethod;
+    static jmethodID jGetSubAdminAreaMethod;
+    static jmethodID jGetSubLocalityMethod;
+    static jmethodID jGetSubThoroughfareMethod;
+    static jmethodID jGetThoroughfareMethod;
+};
+
 class AndroidGeckoEvent : public WrappedJavaObject
 {
 public:
@@ -463,9 +439,13 @@ public:
     nsTArray<float> Pressures() { return mPressures; }
     nsTArray<float> Orientations() { return mOrientations; }
     nsTArray<nsIntPoint> PointRadii() { return mPointRadii; }
+    double Alpha() { return mAlpha; }
+    double Beta() { return mBeta; }
+    double Gamma() { return mGamma; }
     double X() { return mX; }
     double Y() { return mY; }
     double Z() { return mZ; }
+    double Distance() { return mDistance; }
     const nsIntRect& Rect() { return mRect; }
     nsAString& Characters() { return mCharacters; }
     nsAString& CharactersExtra() { return mCharactersExtra; }
@@ -481,9 +461,9 @@ public:
     int RangeForeColor() { return mRangeForeColor; }
     int RangeBackColor() { return mRangeBackColor; }
     nsGeoPosition* GeoPosition() { return mGeoPosition; }
+    nsGeoPositionAddress* GeoAddress() { return mGeoAddress; }
     double Bandwidth() { return mBandwidth; }
     bool CanBeMetered() { return mCanBeMetered; }
-    short ScreenOrientation() { return mScreenOrientation; }
 
 protected:
     int mAction;
@@ -500,13 +480,15 @@ protected:
     int mOffset, mCount;
     int mRangeType, mRangeStyles;
     int mRangeForeColor, mRangeBackColor;
+    double mAlpha, mBeta, mGamma;
     double mX, mY, mZ;
+    double mDistance;
     int mPointerIndex;
     nsString mCharacters, mCharactersExtra;
     nsRefPtr<nsGeoPosition> mGeoPosition;
+    nsRefPtr<nsGeoPositionAddress> mGeoAddress;
     double mBandwidth;
     bool mCanBeMetered;
-    short mScreenOrientation;
 
     void ReadIntArray(nsTArray<int> &aVals,
                       JNIEnv *jenv,
@@ -533,6 +515,9 @@ protected:
     static jfieldID jOrientations;
     static jfieldID jPressures;
     static jfieldID jPointRadii;
+    static jfieldID jAlphaField;
+    static jfieldID jBetaField;
+    static jfieldID jGammaField;
     static jfieldID jXField;
     static jfieldID jYField;
     static jfieldID jZField;
@@ -554,19 +539,18 @@ protected:
     static jfieldID jRangeForeColorField;
     static jfieldID jRangeBackColorField;
     static jfieldID jLocationField;
+    static jfieldID jAddressField;
 
     static jfieldID jBandwidthField;
     static jfieldID jCanBeMeteredField;
-
-    static jfieldID jScreenOrientationField;
 
 public:
     enum {
         NATIVE_POKE = 0,
         KEY_EVENT = 1,
         MOTION_EVENT = 2,
-        SENSOR_EVENT = 3,
-        UNUSED1_EVENT = 4,
+        ORIENTATION_EVENT = 3,
+        ACCELERATION_EVENT = 4,
         LOCATION_EVENT = 5,
         IME_EVENT = 6,
         DRAW = 7,
@@ -584,13 +568,9 @@ public:
         VIEWPORT = 20,
         VISITED = 21,
         NETWORK_CHANGED = 22,
-        UNUSED3_EVENT = 23,
+        PROXIMITY_EVENT = 23,
         ACTIVITY_RESUMING = 24,
         SCREENSHOT = 25,
-        UNUSED2_EVENT = 26,
-        SCREENORIENTATION_CHANGED = 27,
-        COMPOSITOR_PAUSE = 28,
-        COMPOSITOR_RESUME = 29,
         dummy_java_enum_list_end
     };
 

@@ -53,16 +53,20 @@ ifneq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
 DIRS = windows
 endif
 
+ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
+DIRS = cocoa
+endif
+
 ifneq (,$(filter android,$(MOZ_WIDGET_TOOLKIT)))
 DIRS = android
 endif
 
 ifdef MOZ_B2G_RIL
-DIRS += gonk
+DIRS += b2g
 endif
 
 CPPSRCS     = \
-  nsDeviceSensors.cpp \
+  nsDeviceMotion.cpp \
   $(NULL)
 
 # We fire the nsDOMDeviceAcceleration
@@ -80,11 +84,8 @@ EXTRA_COMPONENTS = \
 endif
 
 EXPORTS     = \
-  nsDeviceSensors.h \
+  nsDeviceMotion.h \
   $(NULL)
-
-# We fire the nsDOMDeviceAcceleration
-LOCAL_INCLUDES += -I$(topsrcdir)/content/events/src
 
 include $(topsrcdir)/config/config.mk
 
@@ -92,6 +93,6 @@ include $(topsrcdir)/config/config.mk
 LIBXUL_LIBRARY   = 1
 FORCE_STATIC_LIB = 1
 EXPORT_LIBRARY = 1
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
+
 include $(topsrcdir)/config/rules.mk
 

@@ -53,7 +53,6 @@
 #endif
 
 static bool gHasActions = false;
-static bool gHasCaps = false;
 
 static void notify_action_cb(NotifyNotification *notification,
                              gchar *action, gpointer user_data)
@@ -345,7 +344,6 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
 
     GList *server_caps = notify_get_server_caps();
     if (server_caps) {
-      gHasCaps = true;
       for (GList* cap = server_caps; cap != NULL; cap = cap->next) {
         if (!strcmp((char*) cap->data, "actions")) {
           gHasActions = true;
@@ -355,12 +353,6 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
       g_list_foreach(server_caps, (GFunc)g_free, NULL);
       g_list_free(server_caps);
     }
-  }
-
-  if (!gHasCaps) {
-    // if notify_get_server_caps() failed above we need to assume
-    // there is no notification-server to display anything
-    return NS_ERROR_FAILURE;
   }
 
   if (!gHasActions && aAlertTextClickable)

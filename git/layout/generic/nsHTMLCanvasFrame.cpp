@@ -195,7 +195,7 @@ nsHTMLCanvasFrame::GetIntrinsicRatio()
 nsHTMLCanvasFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                nsSize aCBSize, nscoord aAvailableWidth,
                                nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                               PRUint32 aFlags)
+                               bool aShrinkWrap)
 {
   nsIntSize size = GetCanvasSize();
 

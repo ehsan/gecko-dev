@@ -116,6 +116,7 @@ public:
   virtual bool Init();
   virtual void Shutdown();
   virtual nsIFrame* GetFrame() const;
+  virtual bool IsDefunct() const;
   virtual nsINode* GetNode() const { return mDocument; }
   virtual nsIDocument* GetDocumentNode() const { return mDocument; }
 

@@ -302,10 +302,11 @@ public:
     return mParentBackend;
   }
 
-  /**
-   * Flag the next paint as the first for a document.
+  /*
+   * No need to use double buffer in system memory with GPU rendering,
+   * texture used as front buffer.
    */
-  void SetIsFirstPaint() { mIsFirstPaint = true; }
+  bool ShouldDoubleBuffer() { return GetParentBackendType() == LayerManager::LAYERS_BASIC; }
 
 protected:
   ShadowLayerForwarder();
@@ -331,8 +332,6 @@ private:
 
   Transaction* mTxn;
   LayersBackend mParentBackend;
-
-  bool mIsFirstPaint;
 };
 
 

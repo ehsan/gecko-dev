@@ -86,7 +86,8 @@ class nsBaseContentList : public nsINodeList
 public:
   nsBaseContentList()
   {
-    SetIsDOMBinding();
+    // Mark ourselves as a proxy
+    SetIsProxy();
   }
   virtual ~nsBaseContentList();
 
@@ -137,7 +138,7 @@ public:
 
   virtual PRInt32 IndexOf(nsIContent *aContent, bool aDoFlush);
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap) = 0;
 
 protected:
@@ -161,7 +162,7 @@ public:
   {
     return mRoot;
   }
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap);
 
 private:
@@ -292,7 +293,7 @@ public:
   virtual ~nsContentList();
 
   // nsWrapperCache
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap);
 
   // nsIDOMHTMLCollection

@@ -58,10 +58,6 @@ namespace mozilla {
 namespace dom {
 namespace binding {
 
-enum {
-    JSPROXYSLOT_PROTOSHAPE = 0,
-    JSPROXYSLOT_EXPANDO = 1
-};
 
 static jsid s_prototype_id = JSID_VOID;
 
@@ -538,26 +534,26 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
 
 template<class LC>
 JSObject *
-ListBase<LC>::create(JSContext *cx, JSObject *scope, ListType *aList,
+ListBase<LC>::create(JSContext *cx, XPCWrappedNativeScope *scope, ListType *aList,
                      nsWrapperCache* aWrapperCache, bool *triedToWrap)
 {
     *triedToWrap = true;
 
-    JSObject *parent = WrapNativeParent(cx, scope, aList->GetParentObject());
+    JSObject *parent = WrapNativeParent(cx, scope->GetGlobalJSObject(), aList->GetParentObject());
     if (!parent)
         return NULL;
 
     JSAutoEnterCompartment ac;
-    if (js::GetGlobalForObjectCrossCompartment(parent) != scope) {
+    if (js::GetGlobalForObjectCrossCompartment(parent) != scope->GetGlobalJSObject()) {
         if (!ac.enter(cx, parent))
             return NULL;
+
+        scope = XPCWrappedNativeScope::FindInJSObjectScope(cx, parent);
     }
 
-    XPCWrappedNativeScope *xpcscope =
-        XPCWrappedNativeScope::FindInJSObjectScope(cx, parent);
-    JSObject *proto = getPrototype(cx, xpcscope, triedToWrap);
+    JSObject *proto = getPrototype(cx, scope, triedToWrap);
     if (!proto && !*triedToWrap)
-        aWrapperCache->ClearIsDOMBinding();
+        aWrapperCache->ClearIsProxy();
     if (!proto)
         return NULL;
     JSObject *obj = NewProxyObject(cx, &ListBase<LC>::instance,
@@ -741,12 +737,8 @@ ListBase<LC>::ensureExpandoObject(JSContext *cx, JSObject *obj)
         JSCompartment *compartment = js::GetObjectCompartment(obj);
         xpc::CompartmentPrivate *priv =
             static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
-        if (!priv->RegisterDOMExpandoObject(obj))
+        if (!priv->RegisterDOMExpandoObject(expando))
             return NULL;
-
-        nsWrapperCache* cache;
-        CallQueryInterface(getListObject(obj), &cache);
-        cache->SetPreservingWrapper(true);
 
         js::SetProxyExtra(obj, JSPROXYSLOT_EXPANDO, ObjectValue(*expando));
         JS_SetPrivate(expando, js::GetProxyPrivate(obj).toPrivate());

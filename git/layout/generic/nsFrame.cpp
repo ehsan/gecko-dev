@@ -86,6 +86,7 @@
 #include "nsGkAtoms.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSPseudoElements.h"
+#include "nsIHTMLContentSink.h" 
 #include "nsCSSFrameConstructor.h"
 
 #include "nsFrameTraversal.h"
@@ -123,7 +124,6 @@
 #include "nsDeckFrame.h"
 
 #include "gfxContext.h"
-#include "nsRenderingContext.h"
 #include "CSSCalc.h"
 #include "nsAbsoluteContainingBlock.h"
 
@@ -2725,14 +2725,15 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
   if (aAmountBack == eSelectWord) {
     // To avoid selecting the previous word when at start of word,
     // first move one character forward.
-    nsPeekOffsetStruct pos(eSelectCharacter,
-                           eDirNext,
-                           aStartPos,
-                           0,
-                           aJumpLines,
-                           true,  //limit on scrolled views
-                           false,
-                           false);
+    nsPeekOffsetStruct pos;
+    pos.SetData(eSelectCharacter,
+                eDirNext,
+                aStartPos,
+                0,
+                aJumpLines,
+                true,  //limit on scrolled views
+                false,
+                false);
     rv = PeekOffset(&pos);
     if (NS_SUCCEEDED(rv)) {
       baseFrame = pos.mResultFrame;
@@ -2740,27 +2741,29 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
     }
   }
 
-  // Use peek offset one way then the other:
-  nsPeekOffsetStruct startpos(aAmountBack,
-                              eDirPrevious,
-                              baseOffset,
-                              0,
-                              aJumpLines,
-                              true,  //limit on scrolled views
-                              false,
-                              false);
+  // Use peek offset one way then the other:  
+  nsPeekOffsetStruct startpos;
+  startpos.SetData(aAmountBack,
+                   eDirPrevious,
+                   baseOffset, 
+                   0,
+                   aJumpLines,
+                   true,  //limit on scrolled views
+                   false,
+                   false);
   rv = baseFrame->PeekOffset(&startpos);
   if (NS_FAILED(rv))
     return rv;
 
-  nsPeekOffsetStruct endpos(aAmountForward,
-                            eDirNext,
-                            aStartPos,
-                            0,
-                            aJumpLines,
-                            true,  //limit on scrolled views
-                            false,
-                            false);
+  nsPeekOffsetStruct endpos;
+  endpos.SetData(aAmountForward,
+                 eDirNext,
+                 aStartPos, 
+                 0,
+                 aJumpLines,
+                 true,  //limit on scrolled views
+                 false,
+                 false);
   rv = PeekOffset(&endpos);
   if (NS_FAILED(rv))
     return rv;
@@ -3738,11 +3741,10 @@ nsFrame::GetIntrinsicRatio()
 nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                      nsSize aCBSize, nscoord aAvailableWidth,
                      nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                     PRUint32 aFlags)
+                     bool aShrinkWrap)
 {
   nsSize result = ComputeAutoSize(aRenderingContext, aCBSize, aAvailableWidth,
-                                  aMargin, aBorder, aPadding,
-                                  aFlags & eShrinkWrap);
+                                  aMargin, aBorder, aPadding, aShrinkWrap);
   nsSize boxSizingAdjust(0,0);
   const nsStylePosition *stylePos = GetStylePosition();
 
@@ -5781,15 +5783,15 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-nsIFrame::CaretPosition
-nsIFrame::GetExtremeCaretPosition(bool aStart)
+nsPeekOffsetStruct nsIFrame::GetExtremeCaretPosition(bool aStart)
 {
-  CaretPosition result;
+  nsPeekOffsetStruct result;
 
   FrameTarget targetFrame = DrillDownToSelectionFrame(this, !aStart);
   FrameContentRange range = GetRangeForFrame(targetFrame.frame);
   result.mResultContent = range.content;
   result.mContentOffset = aStart ? range.start : range.end;
+  result.mAttachForward = (result.mContentOffset == range.start);
   return result;
 }
 

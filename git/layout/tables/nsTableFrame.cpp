@@ -1509,11 +1509,11 @@ nsTableFrame::IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext)
 nsTableFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                           nsSize aCBSize, nscoord aAvailableWidth,
                           nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                          PRUint32 aFlags)
+                          bool aShrinkWrap)
 {
   nsSize result =
     nsContainerFrame::ComputeSize(aRenderingContext, aCBSize, aAvailableWidth,
-                                  aMargin, aBorder, aPadding, aFlags);
+                                  aMargin, aBorder, aPadding, aShrinkWrap);
 
   // If we're a container for font size inflation, then shrink
   // wrapping inside of us should not apply font size inflation.

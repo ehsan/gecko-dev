@@ -76,6 +76,7 @@
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsDOMCID.h"
 #include "nsUnicharUtils.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsXBLEventHandler.h"
 #include "nsXBLSerialize.h"
@@ -301,7 +302,8 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   if (!boundGlobal)
     return NS_OK;
 
-  nsIScriptContext *boundContext = boundGlobal->GetScriptContext();
+  nsIScriptContext *boundContext =
+    boundGlobal->GetScriptContext(nsIProgrammingLanguage::JAVASCRIPT);
   if (!boundContext)
     return NS_OK;
 

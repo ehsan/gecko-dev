@@ -925,7 +925,7 @@ CallMethodIfPresent(JSContext *cx, JSObject *obj, const char *name, int argc, Va
     JSAtom *atom = js_Atomize(cx, name, strlen(name));
     Value fval;
     return atom &&
-           js_GetMethod(cx, obj, ATOM_TO_JSID(atom), 0, &fval) &&
+           js_GetMethod(cx, obj, ATOM_TO_JSID(atom), JSGET_NO_METHOD_BARRIER, &fval) &&
            (!js_IsCallable(fval) ||
             Invoke(cx, ObjectValue(*obj), fval, argc, argv, rval));
 }
@@ -2163,7 +2163,7 @@ DebuggerScript_trace(JSTracer *trc, JSObject *obj)
         /* This comes from a private pointer, so no barrier needed. */
         if (JSScript *script = GetScriptReferent(obj)) {
             MarkScriptUnbarriered(trc, &script, "Debugger.Script referent");
-            obj->setPrivateUnbarriered(script);
+            SetScriptReferent(obj, script);
         }
     }
 }

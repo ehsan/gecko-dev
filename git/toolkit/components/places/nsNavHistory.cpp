@@ -4418,9 +4418,11 @@ nsNavHistory::FilterResultSet(nsNavHistoryQueryResultNode* aQueryNode,
         nodeIndex > 0 && aSet[nodeIndex]->mURI == aSet[nodeIndex-1]->mURI)
       continue;
 
-    if (aSet[nodeIndex]->mItemId != -1 && aQueryNode &&
-        aQueryNode->mItemId == aSet[nodeIndex]->mItemId) {
-      continue;
+    PRInt64 parentId = -1;
+    if (aSet[nodeIndex]->mItemId != -1) {
+      if (aQueryNode && aQueryNode->mItemId == aSet[nodeIndex]->mItemId)
+        continue;
+      parentId = aSet[nodeIndex]->mFolderId;
     }
 
     // Append the node only if it matches one of the queries.

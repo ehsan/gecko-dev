@@ -50,8 +50,10 @@ PARALLEL_DIRS = \
   examples \
   $(NULL)
 
-ifdef MAKENSISU
+ifeq ($(OS_ARCH),WINNT)
+ifdef MOZ_INSTALLER
 DIRS += installer/windows
+endif
 endif
 
 ifeq ($(OS_ARCH),WINNT)

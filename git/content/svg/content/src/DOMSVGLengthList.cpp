@@ -100,7 +100,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGLengthList)
 NS_INTERFACE_MAP_END
 
 JSObject*
-DOMSVGLengthList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
+DOMSVGLengthList::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+                             bool *triedToWrap)
 {
   return mozilla::dom::binding::SVGLengthList::create(cx, scope, this,
                                                       triedToWrap);

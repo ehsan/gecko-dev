@@ -34,17 +34,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
 #include "nsSVGFilterInstance.h"
-
-// Keep others in (case-insensitive) order:
-#include "gfxPlatform.h"
-#include "gfxUtils.h"
-#include "nsIDOMSVGUnitTypes.h"
-#include "nsRenderingContext.h"
-#include "nsSVGFilterElement.h"
-#include "nsSVGFilterPaintCallback.h"
 #include "nsSVGUtils.h"
+#include "nsIDOMSVGUnitTypes.h"
+#include "gfxPlatform.h"
+#include "nsSVGFilterPaintCallback.h"
+#include "nsSVGFilterElement.h"
+#include "nsLayoutUtils.h"
+#include "gfxUtils.h"
 
 float
 nsSVGFilterInstance::GetPrimitiveNumber(PRUint8 aCtxType, float aValue) const
@@ -199,9 +196,10 @@ nsSVGFilterInstance::BuildPrimitives()
 {
   // First build mFilterInfo. It's important that we don't change that
   // array after we start storing pointers to its elements!
-  for (nsIContent* child = mFilterElement->nsINode::GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  PRUint32 count = mFilterElement->GetChildCount();
+  PRUint32 i;
+  for (i = 0; i < count; ++i) {
+    nsIContent* child = mFilterElement->GetChildAt(i);
     nsRefPtr<nsSVGFE> primitive;
     CallQueryInterface(child, (nsSVGFE**)getter_AddRefs(primitive));
     if (!primitive)
@@ -215,7 +213,7 @@ nsSVGFilterInstance::BuildPrimitives()
   nsTHashtable<ImageAnalysisEntry> imageTable;
   imageTable.Init(10);
 
-  for (PRUint32 i = 0; i < mPrimitives.Length(); ++i) {
+  for (i = 0; i < mPrimitives.Length(); ++i) {
     PrimitiveInfo* info = &mPrimitives[i];
     nsSVGFE* filter = info->mFE;
     nsAutoTArray<nsSVGStringInfo,2> sources;

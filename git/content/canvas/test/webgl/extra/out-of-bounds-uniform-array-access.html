@@ -51,10 +51,13 @@ debug("Tests a WebGL program that accesses out of bounds uniform array elements"
 
 function main() {
   var wtu = WebGLTestUtils;
-  var gl = wtu.create3DContext("example");
+  var canvas = document.getElementById("example");
+
+  var gl = wtu.create3DContext(canvas);
   var program = wtu.setupProgram(
       gl,
-      ['vshader', 'fshader'],
+      [wtu.loadShaderFromScript(gl, 'vshader', gl.VERTEX_SHADER),
+       wtu.loadShaderFromScript(gl, 'fshader', gl.FRAGMENT_SHADER)],
       ['vPosition'], [0]);
   var gridRes = 255;
   wtu.setupQuad(gl, gridRes, 0);

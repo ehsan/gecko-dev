@@ -56,8 +56,6 @@ try {
 try {
   var gluesvc = Cc["@mozilla.org/browser/browserglue;1"].
                 getService(Ci.nsIBrowserGlue);
-  // Avoid default bookmarks import.
-  gluesvc.QueryInterface(Ci.nsIObserver).observe(null, "initial-migration", null);
 } catch(ex) {
   do_throw("Could not get BrowserGlue service\n");
 }

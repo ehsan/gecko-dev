@@ -41,9 +41,6 @@
 #include "gfxASurface.h"
 #include "nsRect.h"
 
-typedef void* EGLImageKHR;
-typedef void* EGLClientBuffer;
-
 namespace mozilla {
 
 /**

@@ -64,9 +64,6 @@
 #include "nsToolkitCompsCID.h"
 #include "nsNetUtil.h"
 #include "nsTArray.h"
-#include "jsapi.h"
-
-#include "mozilla/Util.h"
 
 #include <Carbon/Carbon.h>
 
@@ -78,8 +75,6 @@
 #define SAFARI_DATE_OFFSET                978307200
 #define SAFARI_HOME_PAGE_PREF             "HomePage"
 #define MIGRATION_BUNDLE                  "chrome://browser/locale/migration/migration.properties"
-
-using namespace mozilla;
 
 ///////////////////////////////////////////////////////////////////////////////
 // nsSafariProfileMigrator
@@ -198,9 +193,17 @@ nsSafariProfileMigrator::GetSourceExists(bool* aResult)
 }
 
 NS_IMETHODIMP
-nsSafariProfileMigrator::GetSourceProfiles(JS::Value* aResult)
+nsSafariProfileMigrator::GetSourceHasMultipleProfiles(bool* aResult)
 {
-  *aResult = JSVAL_NULL;
+  // Safari only has one profile per-user.
+  *aResult = false;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSafariProfileMigrator::GetSourceProfiles(nsIArray** aResult)
+{
+  *aResult = nsnull;
   return NS_OK;
 }
 
@@ -974,6 +977,10 @@ nsSafariProfileMigrator::CopyBookmarksBatched(bool aReplace)
     NS_ENSURE_SUCCESS(rv, rv);
   }
   else {
+    nsCOMPtr<nsIFile> profile;
+    GetProfilePath(nsnull, profile);
+    rv = InitializeBookmarks(profile);
+    NS_ENSURE_SUCCESS(rv, rv);
     // In replace mode we are merging at the top level.
     folder = bookmarksMenuFolderId;
   }

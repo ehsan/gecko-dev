@@ -41,7 +41,7 @@
 #include "jsapi.h"
 #include "nsIInterfaceRequestorUtils.h"
 
-using mozilla::dom::gonk::SystemWorkerManager;
+using mozilla::dom::telephony::SystemWorkerManager;
 
 namespace mozilla {
 namespace dom {

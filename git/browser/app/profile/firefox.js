@@ -39,13 +39,8 @@
 
 #filter substitution
 
-#
-# SYNTAX HINTS:
-#
-#  - Dashes are delimiters; use underscores instead.
-#  - The first character after a period must be alphabetic.
-#  - Computed values (e.g. 50 * 1024) don't work.
-#
+# SYNTAX HINTS:  dashes are delimiters.  Use underscores instead.
+#  The first character after a period must be alphabetic.
 
 #ifdef XP_UNIX
 #ifndef XP_MACOSX

@@ -81,6 +81,7 @@
 #include "nsNodeUtils.h"
 
 #include "nsNetCID.h"
+#include "nsIIOService.h"
 #include "nsICookieService.h"
 
 #include "nsIServiceManager.h"
@@ -133,8 +134,6 @@
 #include "mozilla/Preferences.h"
 #include "nsMimeTypes.h"
 #include "nsIRequest.h"
-#include "nsHtml5TreeOpExecutor.h"
-#include "nsHtml5Parser.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -733,17 +732,11 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
   nsCOMPtr<nsIWyciwygChannel> wyciwygChannel;
   
-  // For error reporting
-  nsHtml5TreeOpExecutor* executor = nsnull;
-  if (loadAsHtml5) {
-    executor = static_cast<nsHtml5TreeOpExecutor*> (mParser->GetContentSink());
-  }
-
   if (!IsHTML() || !docShell) { // no docshell for text/html XHR
     charsetSource = IsHTML() ? kCharsetFromWeakDocTypeDefault
                              : kCharsetFromDocTypeDefault;
     charset.AssignLiteral("UTF-8");
-    TryChannelCharset(aChannel, charsetSource, charset, executor);
+    TryChannelCharset(aChannel, charsetSource, charset);
     parserCharsetSource = charsetSource;
     parserCharset = charset;
   } else {
@@ -765,7 +758,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
       // Don't actually get the charset from the channel if this is a
       // wyciwyg channel; it'll always be UTF-16
       if (!wyciwygChannel &&
-          TryChannelCharset(aChannel, charsetSource, charset, executor)) {
+          TryChannelCharset(aChannel, charsetSource, charset)) {
         // Use the channel's charset (e.g., charset from HTTP
         // "Content-Type" header).
       }
@@ -1559,7 +1552,6 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
   // resetting the document.
   mSecurityInfo = securityInfo;
 
-  mParserAborted = false;
   bool loadAsHtml5 = nsHtml5Module::sEnabled;
   if (loadAsHtml5) {
     mParser = nsHtml5Module::NewHtml5Parser();
@@ -1646,8 +1638,8 @@ nsHTMLDocument::Close()
   }
 
   ++mWriteLevel;
-  nsresult rv = (static_cast<nsHtml5Parser*>(mParser.get()))->Parse(
-    EmptyString(), nsnull, GetContentTypeInternal(), true);
+  nsresult rv = mParser->Parse(EmptyString(), nsnull,
+                               GetContentTypeInternal(), true);
   --mWriteLevel;
 
   // XXX Make sure that all the document.written content is
@@ -1701,13 +1693,6 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
     // No calling document.write*() on XHTML!
 
     return NS_ERROR_DOM_INVALID_STATE_ERR;
-  }
-
-  if (mParserAborted) {
-    // Hixie says aborting the parser doesn't undefine the insertion point.
-    // However, since we null out mParser in that case, we track the
-    // theoretically defined insertion point using mParserAborted.
-    return NS_OK;
   }
 
   nsresult rv = NS_OK;
@@ -1773,11 +1758,13 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
   // since the concatenation of strings costs more than we like. And
   // why pay that price when we don't need to?
   if (aNewlineTerminate) {
-    rv = (static_cast<nsHtml5Parser*>(mParser.get()))->Parse(
-      aText + new_line, key, GetContentTypeInternal(), false);
+    rv = mParser->Parse(aText + new_line,
+                        key, GetContentTypeInternal(),
+                        false);
   } else {
-    rv = (static_cast<nsHtml5Parser*>(mParser.get()))->Parse(
-      aText, key, GetContentTypeInternal(), false);
+    rv = mParser->Parse(aText,
+                        key, GetContentTypeInternal(),
+                        false);
   }
 
   --mWriteLevel;
@@ -2695,8 +2682,8 @@ nsHTMLDocument::EditingStateChanged()
     rv = LoadChromeSheetSync(uri, true, getter_AddRefs(sheet));
     NS_ENSURE_TRUE(sheet, rv);
 
-    bool result = agentSheets.AppendObject(sheet);
-    NS_ENSURE_TRUE(result, NS_ERROR_OUT_OF_MEMORY);
+    rv = agentSheets.AppendObject(sheet);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     // Should we update the editable state of all the nodes in the document? We
     // need to do this when the designMode value changes, as that overrides
@@ -2709,8 +2696,8 @@ nsHTMLDocument::EditingStateChanged()
       rv = LoadChromeSheetSync(uri, true, getter_AddRefs(sheet));
       NS_ENSURE_TRUE(sheet, rv);
 
-      result = agentSheets.AppendObject(sheet);
-      NS_ENSURE_TRUE(result, NS_ERROR_OUT_OF_MEMORY);
+      rv = agentSheets.AppendObject(sheet);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       // Disable scripting and plugins.
       rv = editSession->DisableJSAndPlugins(window);

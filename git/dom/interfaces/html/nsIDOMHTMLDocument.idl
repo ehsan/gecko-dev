@@ -47,7 +47,7 @@
  */
 interface nsISelection;
 
-[scriptable, uuid(0d59c4f0-2272-4a72-8197-da6f86353ec1)]
+[scriptable, uuid(cc1af020-6543-429c-82d7-840cda3be0b9)]
 interface nsIDOMHTMLDocument : nsIDOMDocument
 {
   readonly attribute DOMString            URL;
@@ -91,8 +91,8 @@ interface nsIDOMHTMLDocument : nsIDOMDocument
   attribute DOMString       designMode;
 
   boolean                   execCommand(in DOMString commandID,
-                                        [optional] in boolean doShowUI,
-                                        [optional] in DOMString value);
+                                        in boolean doShowUI,
+                                        in DOMString value);
 
   // returns true if the help is being shown for command (false if not)
   boolean                   execCommandShowHelp(in DOMString commandID);

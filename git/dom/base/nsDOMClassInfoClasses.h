@@ -350,7 +350,6 @@ DOMCI_CLASS(CanvasRenderingContext2D)
 DOMCI_CLASS(CanvasGradient)
 DOMCI_CLASS(CanvasPattern)
 DOMCI_CLASS(TextMetrics)
-DOMCI_CLASS(ImageData)
 
 // SmartCard Events
 DOMCI_CLASS(SmartCardEvent)
@@ -423,6 +422,7 @@ DOMCI_CLASS(MessageEvent)
 DOMCI_CLASS(GeoGeolocation)
 DOMCI_CLASS(GeoPosition)
 DOMCI_CLASS(GeoPositionCoords)
+DOMCI_CLASS(GeoPositionAddress)
 DOMCI_CLASS(GeoPositionError)
 
 DOMCI_CLASS(MozBatteryManager)
@@ -532,7 +532,6 @@ DOMCI_CLASS(MozCSSKeyframesRule)
 
 DOMCI_CLASS(MediaQueryList)
 DOMCI_CLASS(CustomEvent)
-DOMCI_CLASS(MozSettingsEvent)
 
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(Telephony)
@@ -542,7 +541,6 @@ DOMCI_CLASS(CallEvent)
 
 #ifdef MOZ_B2G_BT
 DOMCI_CLASS(BluetoothAdapter)
-DOMCI_CLASS(BluetoothDevice)
 #endif
 
 DOMCI_CLASS(DOMError)

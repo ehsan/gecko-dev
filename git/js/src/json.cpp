@@ -59,7 +59,6 @@
 #include "jsxml.h"
 
 #include "frontend/TokenStream.h"
-#include "vm/StringBuffer.h"
 
 #include "jsatominlines.h"
 #include "jsboolinlines.h"
@@ -67,6 +66,7 @@
 #include "jsobjinlines.h"
 
 #include "vm/Stack-inl.h"
+#include "vm/StringBuffer-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -312,7 +312,7 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
     if (vp->isObject()) {
         Value toJSON;
         jsid id = ATOM_TO_JSID(cx->runtime->atomState.toJSONAtom);
-        if (!js_GetMethod(cx, &vp->toObject(), id, 0, &toJSON))
+        if (!js_GetMethod(cx, &vp->toObject(), id, JSGET_NO_METHOD_BARRIER, &toJSON))
             return false;
 
         if (js_IsCallable(toJSON)) {

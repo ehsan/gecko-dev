@@ -74,13 +74,13 @@
 #include "jslibmath.h"
 
 #include "vm/GlobalObject.h"
-#include "vm/StringBuffer.h"
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/MethodGuard-inl.h"
 #include "vm/Stack-inl.h"
+#include "vm/StringBuffer-inl.h"
 
 using namespace mozilla;
 using namespace js;
@@ -2654,7 +2654,8 @@ js_InitDateClass(JSContext *cx, JSObject *obj)
         return NULL;
     SetDateToNaN(cx, dateProto);
 
-    JSFunction *ctor = global->createConstructor(cx, js_Date, CLASS_ATOM(cx, Date), MAXARGS);
+    JSFunction *ctor = global->createConstructor(cx, js_Date, &DateClass,
+                                                 CLASS_ATOM(cx, Date), MAXARGS);
     if (!ctor)
         return NULL;
 

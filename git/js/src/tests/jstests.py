@@ -83,8 +83,6 @@ if __name__ == '__main__':
                   help='extra args to pass to the JS shell')
     op.add_option('-g', '--debug', dest='debug', action='store_true',
                   help='run test in debugger')
-    op.add_option('--debugger', dest='debugger', default='gdb -q --args',
-                  help='debugger command')
     op.add_option('--valgrind', dest='valgrind', action='store_true',
                   help='run tests in valgrind')
     op.add_option('--valgrind-args', dest='valgrind_args',
@@ -114,7 +112,7 @@ if __name__ == '__main__':
         if OPTIONS.valgrind:
             print >> sys.stderr, "--debug and --valgrind options are mutually exclusive"
             sys.exit(2)
-        debugger_prefix = OPTIONS.debugger.split(' ')
+        debugger_prefix = ['gdb', '-q', '--args']
     elif OPTIONS.valgrind:
         debugger_prefix = ['valgrind']
         if os.uname()[0] == 'Darwin':
@@ -227,11 +225,12 @@ if __name__ == '__main__':
     results = None
     try:
         results = ResultsSink(output_file, OPTIONS)
-        for t in skipped_list:
-            results.push(NullTestOutput(t))
         run_tests(test_list, results)
     finally:
         os.chdir(curdir)
+
+    for t in skipped_list:
+        results.push(NullTestOutput(t))
 
     if output_file != sys.stdout:
         output_file.close()

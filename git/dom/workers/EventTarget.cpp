@@ -59,7 +59,8 @@ namespace {
   JSClass _varname = { \
     _name, 0, \
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub, \
-    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub \
+    JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, JS_FinalizeStub, \
+    JSCLASS_NO_OPTIONAL_MEMBERS \
   };
 
 DECL_EVENTTARGET_CLASS(gClass, "EventTarget")
@@ -69,7 +70,7 @@ DECL_EVENTTARGET_CLASS(gMainThreadClass, "WorkerEventTarget")
 
 inline
 bool
-EnsureObjectIsEventTarget(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
+EnsureObjectIsEventTarget(JSContext* aCx, JSObject* aObj, char* aFunctionName)
 {
   JSClass* classPtr = JS_GetClass(aObj);
   if (ClassIsWorker(classPtr) || ClassIsWorkerGlobalScope(classPtr) ||

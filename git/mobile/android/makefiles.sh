@@ -58,3 +58,9 @@ if [ ! "$LIBXUL_SDK" ]; then
     mobile/android/components/build/Makefile
   "
 fi
+
+if [ "$ENABLE_TESTS" ]; then
+  add_makefiles "
+    mobile/android/chrome/tests/Makefile
+  "
+fi

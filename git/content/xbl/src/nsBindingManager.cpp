@@ -45,6 +45,8 @@
 #include "nsIURL.h"
 #include "nsIChannel.h"
 #include "nsXPIDLString.h"
+#include "nsIParser.h"
+#include "nsParserCIID.h"
 #include "nsNetUtil.h"
 #include "plstr.h"
 #include "nsIContent.h"
@@ -111,7 +113,7 @@ public:
   nsXBLInsertionPoint* GetInsertionPointAt(PRInt32 i) { return static_cast<nsXBLInsertionPoint*>(mElements->ElementAt(i)); }
   void RemoveInsertionPointAt(PRInt32 i) { mElements->RemoveElementAt(i); }
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap)
   {
     return mozilla::dom::binding::NodeList::create(cx, scope, this,
@@ -136,7 +138,7 @@ nsAnonymousContentList::nsAnonymousContentList(nsIContent *aContent,
 
   // We don't reference count our Anonymous reference (to avoid circular
   // references). We'll be told when the Anonymous goes away.
-  SetIsDOMBinding();
+  SetIsProxy();
 }
 
 nsAnonymousContentList::~nsAnonymousContentList()
@@ -1344,7 +1346,7 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
   return NS_OK;
 }
 
-typedef nsTHashtable<nsPtrHashKey<nsIStyleRuleProcessor> > RuleProcessorSet;
+typedef nsTHashtable<nsVoidPtrHashKey> RuleProcessorSet;
 
 static PLDHashOperator
 EnumRuleProcessors(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
@@ -1369,10 +1371,10 @@ struct WalkAllRulesData {
 };
 
 static PLDHashOperator
-EnumWalkAllRules(nsPtrHashKey<nsIStyleRuleProcessor> *aKey, void* aClosure)
+EnumWalkAllRules(nsVoidPtrHashKey *aKey, void* aClosure)
 {
-  nsIStyleRuleProcessor *ruleProcessor = aKey->GetKey();
-    
+  nsIStyleRuleProcessor *ruleProcessor =
+    static_cast<nsIStyleRuleProcessor*>(const_cast<void*>(aKey->GetKey()));
   WalkAllRulesData *data = static_cast<WalkAllRulesData*>(aClosure);
 
   (*(data->mFunc))(ruleProcessor, data->mData);
@@ -1402,10 +1404,10 @@ struct MediumFeaturesChangedData {
 };
 
 static PLDHashOperator
-EnumMediumFeaturesChanged(nsPtrHashKey<nsIStyleRuleProcessor> *aKey, void* aClosure)
+EnumMediumFeaturesChanged(nsVoidPtrHashKey *aKey, void* aClosure)
 {
-  nsIStyleRuleProcessor *ruleProcessor = aKey->GetKey();
-    
+  nsIStyleRuleProcessor *ruleProcessor =
+    static_cast<nsIStyleRuleProcessor*>(const_cast<void*>(aKey->GetKey()));
   MediumFeaturesChangedData *data =
     static_cast<MediumFeaturesChangedData*>(aClosure);
 

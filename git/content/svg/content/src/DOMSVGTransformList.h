@@ -78,7 +78,7 @@ public:
                       const SVGTransformList &aInternalList)
     : mAList(aAList)
   {
-    SetIsDOMBinding();
+    SetIsProxy();
 
     // aInternalList must be passed in explicitly because we can't use
     // InternalList() here. (Because it depends on IsAnimValList, which depends
@@ -97,7 +97,7 @@ public:
     }
   }
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap);
 
   nsISupports* GetParentObject()

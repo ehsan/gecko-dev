@@ -50,7 +50,6 @@
 #include "nsUTF8Utils.h" // for LossyConvertEncoding
 #include "nsCRT.h"
 #include "nsParser.h"
-#include "nsCharsetSource.h"
 
 // We replace NUL characters with this character.
 static PRUnichar sInvalid = UCS2_REPLACEMENT_CHAR;

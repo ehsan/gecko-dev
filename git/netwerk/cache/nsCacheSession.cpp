@@ -102,14 +102,13 @@ nsCacheSession::OpenCacheEntry(const nsACString &         key,
 
 NS_IMETHODIMP nsCacheSession::AsyncOpenCacheEntry(const nsACString & key,
                                                   nsCacheAccessMode accessRequested,
-                                                  nsICacheListener *listener,
-                                                  bool              noWait)
+                                                  nsICacheListener *listener)
 {
     nsresult rv;
     rv = nsCacheService::OpenCacheEntry(this,
                                         key,
                                         accessRequested,
-                                        !noWait,
+                                        nsICache::BLOCKING,
                                         listener,
                                         nsnull); // no result
 
@@ -127,10 +126,4 @@ NS_IMETHODIMP nsCacheSession::IsStorageEnabled(bool *result)
 {
 
     return nsCacheService::IsStorageEnabledForPolicy(StoragePolicy(), result);
-}
-
-NS_IMETHODIMP nsCacheSession::DoomEntry(const nsACString &key,
-                                        nsICacheListener *listener)
-{
-    return nsCacheService::DoomEntry(this, key, listener);
 }

@@ -49,6 +49,7 @@
 #include "jsfun.h"
 #include "jsiter.h"
 #include "jsnum.h"
+#include "jstypedarray.h"
 
 #include "js/Vector.h"
 
@@ -59,9 +60,6 @@ js_InitObjectClass(JSContext *cx, JSObject *obj);
 
 extern JSObject *
 js_InitFunctionClass(JSContext *cx, JSObject *obj);
-
-extern JSObject *
-js_InitTypedArrayClasses(JSContext *cx, JSObject *obj);
 
 namespace js {
 
@@ -201,7 +199,7 @@ class GlobalObject : public JSObject {
      * ctor, a method which creates objects with the given class.
      */
     JSFunction *
-    createConstructor(JSContext *cx, JSNative ctor, JSAtom *name, unsigned length,
+    createConstructor(JSContext *cx, JSNative ctor, Class *clasp, JSAtom *name, unsigned length,
                       gc::AllocKind kind = JSFunction::FinalizeKind);
 
     /*

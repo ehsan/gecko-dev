@@ -49,13 +49,11 @@
 #include "nsIObserver.h"
 #include "nsThreadUtils.h"
 
-#include "AndroidFlexViewWrapper.h"
 #include "AndroidJavaWrappers.h"
 
 #include "nsIMutableArray.h"
 #include "nsIMIMEInfo.h"
 #include "nsColor.h"
-#include "BasicLayers.h"
 #include "gfxRect.h"
 
 #include "nsIAndroidBridge.h"
@@ -73,10 +71,6 @@ extern "C" JNIEnv * GetJNIForThread();
 extern bool mozilla_AndroidBridge_SetMainThread(void *);
 extern jclass GetGeckoAppShellClass();
 
-namespace base {
-class Thread;
-} // end namespace base
-
 namespace mozilla {
 
 namespace hal {
@@ -85,15 +79,10 @@ class NetworkInformation;
 } // namespace hal
 
 namespace dom {
-class ScreenOrientationWrapper;
 namespace sms {
 struct SmsFilterData;
 } // namespace sms
 } // namespace dom
-
-namespace layers {
-class CompositorParent;
-} // namespace layers
 
 // The order and number of the members in this structure must correspond
 // to the attrsAppearance array in GeckoAppShell.getSystemColors()
@@ -119,11 +108,6 @@ public:
         NOTIFY_IME_SETOPENSTATE = 1,
         NOTIFY_IME_CANCELCOMPOSITION = 2,
         NOTIFY_IME_FOCUSCHANGE = 3
-    };
-
-    enum {
-        LAYER_CLIENT_TYPE_NONE = 0,
-        LAYER_CLIENT_TYPE_GL = 2            // AndroidGeckoGLLayerClient
     };
 
     static AndroidBridge *ConstructBridge(JNIEnv *jEnv,
@@ -176,8 +160,9 @@ public:
 
     void AcknowledgeEventSync();
 
+    void EnableDeviceMotion(bool aEnable);
+
     void EnableLocation(bool aEnable);
-    void EnableLocationHighAccuracy(bool aEnable);
 
     void EnableSensor(int aSensorType);
 
@@ -189,8 +174,8 @@ public:
 
     void ScheduleRestart();
 
-    void SetLayerClient(jobject jobj);
-    AndroidGeckoLayerClient &GetLayerClient() { return *mLayerClient; }
+    void SetSoftwareLayerClient(jobject jobj);
+    AndroidGeckoSoftwareLayerClient &GetSoftwareLayerClient() { return mSoftwareLayerClient; }
 
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
@@ -240,8 +225,7 @@ public:
 
     int GetDPI();
 
-    void ShowFilePickerForExtensions(nsAString& aFilePath, const nsAString& aExtensions);
-    void ShowFilePickerForMimeType(nsAString& aFilePath, const nsAString& aMimeType);
+    void ShowFilePicker(nsAString& aFilePath, nsAString& aFilters);
 
     void PerformHapticFeedback(bool aIsLongPress);
 
@@ -330,10 +314,6 @@ public:
     /* See GLHelpers.java as to why this is needed */
     void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
 
-    // Switch Java to composite with the Gecko Compositor thread
-    void RegisterCompositor();
-    EGLSurface ProvideEGLSurface();
-
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result);
 
     bool GetStaticIntField(const char *className, const char *fieldName, PRInt32* aInt);
@@ -405,25 +385,10 @@ public:
     void EnableNetworkNotifications();
     void DisableNetworkNotifications();
 
-    void SetFirstPaintViewport(float aOffsetX, float aOffsetY, float aZoom, float aPageWidth, float aPageHeight);
-    void SetPageSize(float aZoom, float aPageWidth, float aPageHeight);
-    void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
-                          nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
-
     jobject CreateSurface();
     void DestroySurface(jobject surface);
     void ShowSurface(jobject surface, const gfxRect& aRect, bool aInverted, bool aBlend);
     void HideSurface(jobject surface);
-
-    // This method doesn't take a ScreenOrientation because it's an enum and
-    // that would require including the header which requires include IPC
-    // headers which requires including basictypes.h which requires a lot of
-    // changes...
-    void GetScreenOrientation(dom::ScreenOrientationWrapper& aOrientation);
-    void EnableScreenOrientationNotifications();
-    void DisableScreenOrientationNotifications();
-    void LockScreenOrientation(const dom::ScreenOrientationWrapper& aOrientation);
-    void UnlockScreenOrientation();
 
 protected:
     static AndroidBridge *sBridge;
@@ -437,15 +402,12 @@ protected:
 
     // the GeckoSurfaceView
     AndroidGeckoSurfaceView mSurfaceView;
-
-    AndroidGeckoLayerClient *mLayerClient;
+    AndroidGeckoSoftwareLayerClient mSoftwareLayerClient;
 
     // the GeckoAppShell java class
     jclass mGeckoAppShellClass;
 
-    AndroidBridge();
-    ~AndroidBridge();
-
+    AndroidBridge() { }
     bool Init(JNIEnv *jEnv, jclass jGeckoApp);
 
     bool mOpenedGraphicsLibraries;
@@ -462,8 +424,8 @@ protected:
     jmethodID jNotifyIMEChange;
     jmethodID jNotifyScreenShot;
     jmethodID jAcknowledgeEventSync;
+    jmethodID jEnableDeviceMotion;
     jmethodID jEnableLocation;
-    jmethodID jEnableLocationHighAccuracy;
     jmethodID jEnableSensor;
     jmethodID jDisableSensor;
     jmethodID jReturnIMEQueryResult;
@@ -480,8 +442,7 @@ protected:
     jmethodID jGetClipboardText;
     jmethodID jSetClipboardText;
     jmethodID jShowAlertNotification;
-    jmethodID jShowFilePickerForExtensions;
-    jmethodID jShowFilePickerForMimeType;
+    jmethodID jShowFilePicker;
     jmethodID jAlertsProgressListener_OnProgress;
     jmethodID jAlertsProgressListener_OnCancel;
     jmethodID jGetDpi;
@@ -529,12 +490,6 @@ protected:
     jmethodID jEnableNetworkNotifications;
     jmethodID jDisableNetworkNotifications;
 
-    jmethodID jGetScreenOrientation;
-    jmethodID jEnableScreenOrientationNotifications;
-    jmethodID jDisableScreenOrientationNotifications;
-    jmethodID jLockScreenOrientation;
-    jmethodID jUnlockScreenOrientation;
-
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
     jclass jEGLContextImplClass;
@@ -542,9 +497,6 @@ protected:
     jclass jEGLDisplayImplClass;
     jclass jEGLContextClass;
     jclass jEGL10Class;
-
-    jclass jFlexSurfaceView;
-    jmethodID jRegisterCompositorMethod;
 
     // some convinient types to have around
     jclass jStringClass;

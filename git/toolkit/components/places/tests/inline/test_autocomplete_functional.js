@@ -10,10 +10,13 @@ add_autocomplete_test([
   "visit2.mozilla.org/",
   function ()
   {
-    let places = [{ uri: NetUtil.newURI("http://visit1.mozilla.org") },
-                  { uri: NetUtil.newURI("http://visit2.mozilla.org"),
-                    transition: TRANSITION_TYPED }];
-    addVisits(places);
+    let urls = [{ url: NetUtil.newURI("http://visit1.mozilla.org"),
+                  transition: undefined,
+                },
+                { url: NetUtil.newURI("http://visit2.mozilla.org"),
+                  transition: TRANSITION_TYPED,
+                }];
+    addVisits(urls);
   }
 ]);
 
@@ -23,7 +26,12 @@ add_autocomplete_test([
   "visit1.mozilla.org/",
   function ()
   {
-    addVisits(NetUtil.newURI("http://www.visit1.mozilla.org"));
+
+    let urls = [{ url: NetUtil.newURI("http://www.visit1.mozilla.org"),
+                  transition: undefined,
+                },
+               ];
+    addVisits(urls);
   }
 ]);
 
@@ -33,7 +41,12 @@ add_autocomplete_test([
   "visit3.mozilla.org/",
   function ()
   {
-    addVisits(NetUtil.newURI("http://www.visit3.mozilla.org"));
+
+    let urls = [{ url: NetUtil.newURI("http://www.visit3.mozilla.org"),
+                  transition: undefined,
+                },
+               ];
+    addVisits(urls);
   }
 ]);
 
@@ -43,7 +56,12 @@ add_autocomplete_test([
   "www.me.mozilla.org/",
   function ()
   {
-    addVisits(NetUtil.newURI("http://www.me.mozilla.org"));
+
+    let urls = [{ url: NetUtil.newURI("http://www.me.mozilla.org"),
+                  transition: undefined,
+                },
+               ];
+    addVisits(urls);
   }
 ]);
 
@@ -53,8 +71,13 @@ add_autocomplete_test([
   "bookmark1.mozilla.org/",
   function ()
   {
+
+    let urls = [{ url: NetUtil.newURI("http://bookmark1.mozilla.org/foo"),
+                  transition: undefined,
+                },
+               ];
     addBookmark({ url: "http://bookmark1.mozilla.org/", });
-    addVisits(NetUtil.newURI("http://bookmark1.mozilla.org/foo"));
+    addVisits(urls);
   }
 ]);
 
@@ -65,9 +88,14 @@ add_autocomplete_test([
   function ()
   {
 
-    let places = [{ uri: NetUtil.newURI("http://smokey.mozilla.org/foo/bar/baz?bacon=delicious") },
-                  { uri: NetUtil.newURI("http://smokey.mozilla.org/foo/bar/baz?bacon=smokey") }];
-    addVisits(places);
+    let urls = [{ url: NetUtil.newURI("http://smokey.mozilla.org/foo/bar/baz?bacon=delicious"),
+                  transition: undefined,
+                },
+                { url: NetUtil.newURI("http://smokey.mozilla.org/foo/bar/baz?bacon=smokey"),
+                  transition: undefined,
+                },
+               ];
+    addVisits(urls);
   }
 ]);
 
@@ -78,9 +106,14 @@ add_autocomplete_test([
   function ()
   {
 
-    let places = [{ uri: NetUtil.newURI("http://smokey.mozilla.org/foo/bar/baz?bacon=delicious") },
-                  { uri: NetUtil.newURI("http://smokey.mozilla.org/foo/bar/baz?bacon=smokey") }];
-    addVisits(places);
+    let urls = [{ url: NetUtil.newURI("http://smokey.mozilla.org/foo/bar/baz?bacon=delicious"),
+                  transition: undefined,
+                },
+                { url: NetUtil.newURI("http://smokey.mozilla.org/foo/bar/baz?bacon=smokey"),
+                  transition: undefined,
+                },
+               ];
+    addVisits(urls);
   }
 ]);
 
@@ -90,7 +123,12 @@ add_autocomplete_test([
   "smokey.mozilla.org/foo?bacon=delicious",
   function ()
   {
-    addVisits(NetUtil.newURI("http://smokey.mozilla.org/foo?bacon=delicious"));
+
+    let urls = [{ url: NetUtil.newURI("http://smokey.mozilla.org/foo?bacon=delicious"),
+                  transition: undefined,
+                },
+               ];
+    addVisits(urls);
   }
 ]);
 
@@ -100,6 +138,11 @@ add_autocomplete_test([
   "smokey.mozilla.org/foo?bacon=delicious#bar",
   function ()
   {
-    addVisits(NetUtil.newURI("http://smokey.mozilla.org/foo?bacon=delicious#bar"));
+
+    let urls = [{ url: NetUtil.newURI("http://smokey.mozilla.org/foo?bacon=delicious#bar"),
+                  transition: undefined,
+                },
+               ];
+    addVisits(urls);
   }
 ]);

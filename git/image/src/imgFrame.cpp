@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "imgFrame.h"
-#include "DiscardTracker.h"
 
 #include <limits.h>
 
@@ -67,8 +66,6 @@ static PRUint32 gTotalDDBSize = 0;
 #define kMaxSingleDDBSize (4*1024*1024)
 
 #endif
-
-using namespace mozilla::image;
 
 // Returns true if an image of aWidth x aHeight is allowed and legal.
 static bool AllowedImageSize(PRInt32 aWidth, PRInt32 aHeight)
@@ -145,13 +142,11 @@ imgFrame::imgFrame() :
   mSinglePixel(false),
   mNeverUseDeviceSurface(false),
   mFormatChanged(false),
-  mCompositingFailed(false),
-  mNonPremult(false),
+  mCompositingFailed(false)
 #ifdef USE_WIN_SURFACE
-  mIsDDBSurface(false),
+  , mIsDDBSurface(false)
 #endif
-  mLocked(false),
-  mInformedDiscardTracker(false)
+  , mLocked(false)
 {
   static bool hasCheckedOptimize = false;
   if (!hasCheckedOptimize) {
@@ -171,10 +166,6 @@ imgFrame::~imgFrame()
       gTotalDDBSize -= mSize.width * mSize.height * 4;
   }
 #endif
-
-  if (mInformedDiscardTracker) {
-    DiscardTracker::InformAllocation(-4 * mSize.height * mSize.width);
-  }
 }
 
 nsresult imgFrame::Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, 
@@ -236,14 +227,6 @@ nsresult imgFrame::Init(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight,
 #endif
   }
 
-  // Inform the discard tracker that we've allocated some memory, but only if
-  // we're not a paletted image (paletted images are not usually large and are
-  // used only for animated frames, which we don't discard).
-  if (!mPalettedImageData) {
-    DiscardTracker::InformAllocation(4 * mSize.width * mSize.height);
-    mInformedDiscardTracker = true;
-  }
-
   return NS_OK;
 }
 
@@ -253,11 +236,6 @@ nsresult imgFrame::Optimize()
     return NS_OK;
 
   if (mPalettedImageData || mOptSurface || mSinglePixel)
-    return NS_OK;
-
-  // Don't do single-color opts on non-premult data.
-  // Cairo doesn't support non-premult single-colors.
-  if (mNonPremult)
     return NS_OK;
 
   /* Figure out if the entire image is a constant color */
@@ -276,12 +254,11 @@ nsresult imgFrame::Optimize()
       if (mFormat == gfxASurface::ImageFormatARGB32 ||
           mFormat == gfxASurface::ImageFormatRGB24)
       {
-        // Should already be premult if desired.
-        gfxRGBA::PackedColorType inputType = gfxRGBA::PACKED_XRGB;
-        if (mFormat == gfxASurface::ImageFormatARGB32)
-          inputType = gfxRGBA::PACKED_ARGB_PREMULTIPLIED;
-
-        mSinglePixelColor = gfxRGBA(firstPixel, inputType);
+        mSinglePixelColor = gfxRGBA
+          (firstPixel,
+           (mFormat == gfxImageSurface::ImageFormatRGB24 ?
+            gfxRGBA::PACKED_XRGB :
+            gfxRGBA::PACKED_ARGB_PREMULTIPLIED));
 
         mSinglePixel = true;
 
@@ -294,14 +271,6 @@ nsresult imgFrame::Optimize()
 #ifdef XP_MACOSX
         mQuartzSurface = nsnull;
 #endif
-
-        // We just dumped most of our allocated memory, so tell the discard
-        // tracker that we're not using any at all.
-        if (mInformedDiscardTracker) {
-          DiscardTracker::InformAllocation(-4 * mSize.width * mSize.height);
-          mInformedDiscardTracker = false;
-        }
-
         return NS_OK;
       }
     }
@@ -441,7 +410,6 @@ imgFrame::SurfaceForDrawing(bool               aDoPadding,
     }
     tmpCtx.Rectangle(available);
     tmpCtx.Fill();
-
     return SurfaceWithFormat(new gfxSurfaceDrawable(surface, size), format);
   }
 
@@ -524,8 +492,6 @@ nsresult imgFrame::Extract(const nsIntRect& aRegion, imgFrame** aResult)
   nsresult rv = subImage->Init(0, 0, aRegion.width, aRegion.height, 
                                mFormat, mPaletteDepth);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  subImage->SetAsNonPremult(mNonPremult);
 
   // scope to destroy ctx
   {
@@ -780,11 +746,6 @@ void imgFrame::SetHasNoAlpha()
       mFormat = gfxASurface::ImageFormatRGB24;
       mFormatChanged = true;
   }
-}
-
-void imgFrame::SetAsNonPremult(bool aIsNonPremult)
-{
-  mNonPremult = aIsNonPremult;
 }
 
 bool imgFrame::GetCompositingFailed() const

@@ -1084,9 +1084,7 @@ MarkIfGCThingWord(JSTracer *trc, uintptr_t w)
     JS_snprintf(nameBuf, sizeof(nameBuf), pattern, thing);
     JS_SET_TRACING_NAME(trc, nameBuf);
 #endif
-    void *tmp = thing;
-    MarkKind(trc, &tmp, traceKind);
-    JS_ASSERT(tmp == thing);
+    MarkKind(trc, thing, traceKind);
 
 #ifdef DEBUG
     if (trc->runtime->gcIncrementalState == MARK_ROOTS)
@@ -1132,7 +1130,7 @@ MarkConservativeStackRoots(JSTracer *trc, bool useSavedRoots)
              root++)
         {
             JS_SET_TRACING_NAME(trc, "cstack");
-            MarkKind(trc, &root->thing, root->kind);
+            MarkKind(trc, root->thing, root->kind);
         }
         return;
     }
@@ -2059,9 +2057,7 @@ GCMarker::markBufferedGrayRoots()
         debugPrintArg = elem->debugPrintArg;
         debugPrintIndex = elem->debugPrintIndex;
 #endif
-        void *tmp = elem->thing;
-        MarkKind(this, &tmp, elem->kind);
-        JS_ASSERT(tmp == elem->thing);
+        MarkKind(this, elem->thing, elem->kind);
     }
 
     grayRoots.clearAndFree();
@@ -2151,7 +2147,7 @@ gc_root_traversal(JSTracer *trc, const RootEntry &entry)
 #endif
     const char *name = entry.value.name ? entry.value.name : "root";
     if (entry.value.type == JS_GC_ROOT_GCTHING_PTR)
-        MarkGCThingRoot(trc, reinterpret_cast<void **>(entry.key), name);
+        MarkGCThingRoot(trc, *reinterpret_cast<void **>(entry.key), name);
     else
         MarkValueRoot(trc, reinterpret_cast<Value *>(entry.key), name);
 }
@@ -2160,9 +2156,7 @@ static void
 gc_lock_traversal(const GCLocks::Entry &entry, JSTracer *trc)
 {
     JS_ASSERT(entry.value >= 1);
-    void *tmp = entry.key;
-    MarkGCThingRoot(trc, &tmp, "locked object");
-    JS_ASSERT(tmp == entry.key);
+    MarkGCThingRoot(trc, entry.key, "locked object");
 }
 
 namespace js {
@@ -2429,7 +2423,7 @@ TriggerCompartmentGC(JSCompartment *comp, gcreason::Reason reason)
         return;
     }
 
-    if (comp == rt->atomsCompartment) {
+    if (rt->gcMode == JSGC_MODE_GLOBAL || comp == rt->atomsCompartment) {
         /* We can't do a compartmental GC of the default compartment. */
         TriggerGC(rt, reason);
         return;
@@ -2479,7 +2473,7 @@ MaybeGC(JSContext *cx)
     }
 
     if (comp->gcMallocAndFreeBytes > comp->gcTriggerMallocAndFreeBytes) {
-        GCSlice(cx, comp, GC_NORMAL, gcreason::MAYBEGC);
+        GCSlice(cx, rt->gcMode == JSGC_MODE_GLOBAL ? NULL : comp, GC_NORMAL, gcreason::MAYBEGC);
         return;
     }
 
@@ -2972,10 +2966,7 @@ BeginMarkPhase(JSRuntime *rt)
      * to the object and start using it. This object might never be marked, so
      * a GC hazard would exist.
      */
-    {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_PURGE);
-        PurgeRuntime(rt);
-    }
+    PurgeRuntime(rt);
 
     /*
      * Mark phase.
@@ -3159,6 +3150,18 @@ SweepPhase(JSContext *cx, JSGCInvocationKind gckind)
 {
     JSRuntime *rt = cx->runtime;
 
+#ifdef JS_THREADSAFE
+    if (rt->hasContexts() && rt->gcHelperThread.prepareForBackgroundSweep())
+        cx->gcBackgroundFree = &rt->gcHelperThread;
+#endif
+
+    /* Purge the ArenaLists before sweeping. */
+    for (GCCompartmentsIter c(rt); !c.done(); c.next())
+        c->arenas.purge();
+
+    if (rt->gcFinalizeCallback)
+        rt->gcFinalizeCallback(cx, JSFINALIZE_START);
+
     /*
      * Sweep phase.
      *
@@ -3175,21 +3178,6 @@ SweepPhase(JSContext *cx, JSGCInvocationKind gckind)
      */
     gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP);
 
-#ifdef JS_THREADSAFE
-    if (rt->hasContexts() && rt->gcHelperThread.prepareForBackgroundSweep())
-        cx->gcBackgroundFree = &rt->gcHelperThread;
-#endif
-
-    /* Purge the ArenaLists before sweeping. */
-    for (GCCompartmentsIter c(rt); !c.done(); c.next())
-        c->arenas.purge();
-
-    {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_FINALIZE_START);
-        if (rt->gcFinalizeCallback)
-            rt->gcFinalizeCallback(cx, JSFINALIZE_START);
-    }
-
     /* Finalize unreachable (key,value) pairs in all weak maps. */
     WeakMapBase::sweepAll(&rt->gcMarker);
 
@@ -3201,13 +3189,9 @@ SweepPhase(JSContext *cx, JSGCInvocationKind gckind)
     if (!rt->gcCurrentCompartment)
         Debugger::sweepAll(cx);
 
-    {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_COMPARTMENTS);
-
-        bool releaseTypes = !rt->gcCurrentCompartment && ReleaseObservedTypes(rt);
-        for (GCCompartmentsIter c(rt); !c.done(); c.next())
-            c->sweep(cx, releaseTypes);
-    }
+    bool releaseTypes = !rt->gcCurrentCompartment && ReleaseObservedTypes(rt);
+    for (GCCompartmentsIter c(rt); !c.done(); c.next())
+        c->sweep(cx, releaseTypes);
 
     {
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_OBJECT);
@@ -3252,7 +3236,7 @@ SweepPhase(JSContext *cx, JSGCInvocationKind gckind)
          * script's filename. See bug 323267.
          */
         for (GCCompartmentsIter c(rt); !c.done(); c.next())
-            SweepScriptFilenames(c);
+            js_SweepScriptFilenames(c);
 
         /*
          * This removes compartments from rt->compartment, so we do it last to make
@@ -3272,7 +3256,7 @@ SweepPhase(JSContext *cx, JSGCInvocationKind gckind)
     }
 
     {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_FINALIZE_END);
+        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_XPCONNECT);
         if (rt->gcFinalizeCallback)
             rt->gcFinalizeCallback(cx, JSFINALIZE_END);
     }
@@ -3474,10 +3458,8 @@ IncrementalGCSlice(JSContext *cx, int64_t budget, JSGCInvocationKind gckind)
         rt->gcMarker.start(rt);
         JS_ASSERT(IS_GC_MARKING_TRACER(&rt->gcMarker));
 
-        for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-            gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_CODE);
+        for (GCCompartmentsIter c(rt); !c.done(); c.next())
             c->discardJitCode(cx);
-        }
 
         BeginMarkPhase(rt);
 
@@ -3634,12 +3616,8 @@ GCCycle(JSContext *cx, JSCompartment *comp, int64_t budget, JSGCInvocationKind g
      * background allocation to finish so we can avoid taking the GC lock
      * when manipulating the chunks during the GC.
      */
-    {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_WAIT_BACKGROUND_THREAD);
-
-        JS_ASSERT(!cx->gcBackgroundFree);
-        rt->gcHelperThread.waitBackgroundSweepOrAllocEnd();
-    }
+    JS_ASSERT(!cx->gcBackgroundFree);
+    rt->gcHelperThread.waitBackgroundSweepOrAllocEnd();
 #endif
 
     if (budget == SliceBudget::Unlimited) {
@@ -3703,30 +3681,17 @@ Collect(JSContext *cx, JSCompartment *comp, int64_t budget,
     JS_ASSERT_IF(budget != SliceBudget::Unlimited, JSGC_INCREMENTAL);
 
 #ifdef JS_GC_ZEAL
-    bool restartVerify = cx->runtime->gcVerifyData &&
-                         cx->runtime->gcZeal() == ZealVerifierValue &&
-                         reason != gcreason::CC_FORCED;
-
     struct AutoVerifyBarriers {
         JSContext *cx;
-        bool restart;
-        AutoVerifyBarriers(JSContext *cx, bool restart)
-          : cx(cx), restart(restart)
-        {
-            if (cx->runtime->gcVerifyData)
-                EndVerifyBarriers(cx);
+        bool inVerify;
+        AutoVerifyBarriers(JSContext *cx) : cx(cx), inVerify(cx->runtime->gcVerifyData) {
+            if (inVerify) EndVerifyBarriers(cx);
         }
-        ~AutoVerifyBarriers() {
-            if (restart)
-                StartVerifyBarriers(cx);
-        }
-    } av(cx, restartVerify);
+        ~AutoVerifyBarriers() { if (inVerify) StartVerifyBarriers(cx); }
+    } av(cx);
 #endif
 
     RecordNativeStackTopForGC(rt);
-
-    if (rt->gcMode == JSGC_MODE_GLOBAL)
-        comp = NULL;
 
     /* This is a heuristic to avoid resets. */
     if (rt->gcIncrementalState != NO_INCREMENTAL && !rt->gcIncrementalCompartment)
@@ -3740,7 +3705,6 @@ Collect(JSContext *cx, JSCompartment *comp, int64_t budget,
          * is the last context). Invoke the callback regardless.
          */
         if (rt->gcIncrementalState == NO_INCREMENTAL) {
-            gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_GC_BEGIN);
             if (JSGCCallback callback = rt->gcCallback)
                 callback(rt, JSGC_BEGIN);
         }
@@ -3753,7 +3717,6 @@ Collect(JSContext *cx, JSCompartment *comp, int64_t budget,
         }
 
         if (rt->gcIncrementalState == NO_INCREMENTAL) {
-            gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_GC_END);
             if (JSGCCallback callback = rt->gcCallback)
                 callback(rt, JSGC_END);
         }
@@ -4458,11 +4421,8 @@ VerifyBarriers(JSContext *cx)
 void
 MaybeVerifyBarriers(JSContext *cx, bool always)
 {
-    if (cx->runtime->gcZeal() != ZealVerifierValue) {
-        if (cx->runtime->gcVerifyData)
-            EndVerifyBarriers(cx);
+    if (cx->runtime->gcZeal() != ZealVerifierValue)
         return;
-    }
 
     uint32_t freq = cx->runtime->gcZealFrequency;
 

@@ -42,8 +42,9 @@
 class nsIArray;
 
 #define NS_ISCRIPTTIMEOUTHANDLER_IID \
-{ 0xd60ec934, 0x0c75, 0x4777, \
-  { 0xba, 0x41, 0xb8, 0x2f, 0x37, 0xc9, 0x13, 0x56 } }
+{ /* {17a9ce1a-d73b-45d1-8145-a0ae57bcc76e} */ \
+  0x17a9ce1a, 0xd73b, 0x45d1, \
+ { 0x81, 0x45, 0xa0, 0xae, 0x57, 0xbc, 0xc7, 0x6e } }
 
 /**
  * Abstraction of the script objects etc required to do timeouts in a
@@ -74,6 +75,9 @@ public:
   // If a script object, get the argv suitable for passing back to the
   // script context.
   virtual nsIArray *GetArgv() = 0;
+
+  // Get the language version for this timeout.
+  virtual PRUint32 GetScriptVersion() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIScriptTimeoutHandler,

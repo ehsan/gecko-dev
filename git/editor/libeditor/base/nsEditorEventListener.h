@@ -86,8 +86,6 @@ public:
   NS_IMETHOD Focus(nsIDOMEvent* aEvent);
   NS_IMETHOD Blur(nsIDOMEvent* aEvent);
 
-  void SpellCheckIfNeeded();
-
 protected:
   nsresult InstallToEditor();
   void UninstallFromEditor();

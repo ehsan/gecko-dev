@@ -237,7 +237,8 @@ nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
   nsScriptNameSpaceManager *nameSpaceManager = nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, nsnull);
 
-  const nsGlobalNameStruct *globalStruct = nameSpaceManager->LookupName(aName);
+  const nsGlobalNameStruct *globalStruct;
+  nameSpaceManager->LookupName(aName, &globalStruct);
   if (globalStruct) {
     if (globalStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfoCreator) {
       nsresult rv;
@@ -247,8 +248,8 @@ nsDOMScriptObjectFactory::GetExternalClassInfoInstance(const nsAString& aName)
       rv = creator->RegisterDOMCI(NS_ConvertUTF16toUTF8(aName).get(), this);
       NS_ENSURE_SUCCESS(rv, nsnull);
 
-      globalStruct = nameSpaceManager->LookupName(aName);
-      NS_ENSURE_TRUE(globalStruct, nsnull);
+      rv = nameSpaceManager->LookupName(aName, &globalStruct);
+      NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && globalStruct, nsnull);
 
       NS_ASSERTION(globalStruct->mType == nsGlobalNameStruct::eTypeExternalClassInfo,
                    "The classinfo data for this class didn't get registered.");

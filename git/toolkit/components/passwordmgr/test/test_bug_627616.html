@@ -31,13 +31,11 @@
         login2 = Cc["@mozilla.org/login-manager/loginInfo;1"].createInstance(Ci.nsILoginInfo);
         login2.init("http://mochi.test:8888", null, "mochirealm", "user1name", "user1pass", "", "");
         pwmgr.addLogin(login2);
-        startCallbackTimer();
     }
     function cleanup() {
         var pwmgr = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
         pwmgr.removeLogin(login);        
         pwmgr.removeLogin(login2);
-        timer.cancel();
     }
 
     function makeXHR(expectedStatus, expectedText, extra) {
@@ -61,6 +59,7 @@
     function testNonAnonymousCredentials() {
       var xhr = makeXHR(200, "OK");
       xhr.send();
+      startCallbackTimer();
     }
 
     function testAnonymousCredentials() {
@@ -78,14 +77,10 @@
       xhr.send();
     }
 
-    var gExpectedDialogs = 0;
     var gCurrentTest;
     function runNextTest() {
-      is(gExpectedDialogs, 0, "received expected number of auth dialogs");
-      Cc["@mozilla.org/network/http-auth-manager;1"].getService(Components.interfaces.nsIHttpAuthManager).clearAll();
       if (pendingTests.length > 0) {
-        ({expectedDialogs: gExpectedDialogs,
-          test: gCurrentTest}) = pendingTests.shift();
+        gCurrentTest = pendingTests.shift();
         gCurrentTest.call(this);
       } else {
         cleanup();
@@ -93,9 +88,8 @@
       }
     }
 
-    var pendingTests = [{expectedDialogs: 2, test: testNonAnonymousCredentials},
-                        {expectedDialogs: 1, test: testAnonymousCredentials},
-                        {expectedDialogs: 0, test: testAnonymousNoAuth}];
+    var pendingTests = [testNonAnonymousCredentials, testAnonymousCredentials,
+                        testAnonymousNoAuth];
     init();
     runNextTest();
 
@@ -103,8 +97,9 @@
     {
         var dialog = doc.getElementById("commonDialog");
         dialog.acceptDialog();
-        gExpectedDialogs--;
-        startCallbackTimer();
+        if (gCurrentTest == testNonAnonymousCredentials) {
+          startCallbackTimer();
+        }
     }
 </script>
 </body>

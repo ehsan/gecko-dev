@@ -44,8 +44,8 @@
 #endif
 
 #ifdef MOZ_WIDGET_QT
-#include <QApplication>
-#include <QWidget>
+#include <QtGui/QApplication>
+#include <QtGui/QWidget>
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID

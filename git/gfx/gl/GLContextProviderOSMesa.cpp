@@ -37,7 +37,6 @@
 
 #include "GLContextProvider.h"
 #include "GLContext.h"
-#include "GLLibraryLoader.h"
 #include "nsDebug.h"
 #include "nsString.h"
 #include "nsIWidget.h"
@@ -119,7 +118,7 @@ OSMesaLibrary::EnsureInitialized()
         return false;
     }
 
-    GLLibraryLoader::SymLoadStruct symbols[] = {
+    LibrarySymbolLoader::SymLoadStruct symbols[] = {
         { (PRFuncPtr*) &fCreateContextExt, { "OSMesaCreateContextExt", NULL } },
         { (PRFuncPtr*) &fMakeCurrent, { "OSMesaMakeCurrent", NULL } },
         { (PRFuncPtr*) &fPixelStore, { "OSMesaPixelStore", NULL } },
@@ -130,7 +129,7 @@ OSMesaLibrary::EnsureInitialized()
         { NULL, { NULL } }
     };
 
-    if (!GLLibraryLoader::LoadSymbols(mOSMesaLibrary, &symbols[0])) {
+    if (!LibrarySymbolLoader::LoadSymbols(mOSMesaLibrary, &symbols[0])) {
         LogMessage("Couldn't find required entry points in OSMesa libary");
         return false;
     }
@@ -259,8 +258,7 @@ GLContextProviderOSMesa::CreateForWindow(nsIWidget *aWidget)
 
 already_AddRefed<GLContext>
 GLContextProviderOSMesa::CreateOffscreen(const gfxIntSize& aSize,
-                                         const ContextFormat& aFormat,
-                                         const ContextFlags)
+                                         const ContextFormat& aFormat)
 {
     if (!sOSMesaLibrary.EnsureInitialized()) {
         return nsnull;

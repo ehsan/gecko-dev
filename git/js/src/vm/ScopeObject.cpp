@@ -42,10 +42,12 @@
 #include "jscompartment.h"
 #include "jsiter.h"
 #include "jsscope.h"
+#if JS_HAS_XDR
+#include "jsxdrapi.h"
+#endif
 
 #include "GlobalObject.h"
 #include "ScopeObject.h"
-#include "Xdr.h"
 
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
@@ -63,6 +65,13 @@ js_PutCallObject(StackFrame *fp)
     JS_ASSERT_IF(fp->isEvalFrame(), fp->isStrictEvalFrame());
     JS_ASSERT(fp->isEvalFrame() == callobj.isForEval());
 
+    /* Get the arguments object to snapshot fp's actual argument values. */
+    if (fp->hasArgsObj()) {
+        if (callobj.arguments().isMagic(JS_UNASSIGNED_ARGUMENTS))
+            callobj.setArguments(ObjectValue(fp->argsObj()));
+        js_PutArgsObject(fp);
+    }
+
     JSScript *script = fp->script();
     Bindings &bindings = script->bindings;
 
@@ -77,7 +86,7 @@ js_PutCallObject(StackFrame *fp)
         JS_ASSERT(script == callobj.getCalleeFunction()->script());
         JS_ASSERT(script == fun->script());
 
-        unsigned n = bindings.countLocalNames();
+        unsigned n = bindings.countArgsAndVars();
         if (n > 0) {
             uint32_t nvars = bindings.countVars();
             uint32_t nargs = bindings.countArgs();
@@ -244,8 +253,6 @@ CallObject::createForFunction(JSContext *cx, StackFrame *fp)
 
     callobj->setStackFrame(fp);
     fp->setScopeChainWithOwnCallObj(*callobj);
-    if (fp->hasArgsObj())
-        callobj->setArguments(ObjectValue(fp->argsObj()));
     return callobj;
 }
 
@@ -264,29 +271,26 @@ CallObject::createForStrictEval(JSContext *cx, StackFrame *fp)
 JSBool
 CallObject::getArgumentsOp(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
-    *vp = obj->asCall().arguments();
+    CallObject &callobj = obj->asCall();
 
-    /*
-     * This can only happen through eval-in-frame. Eventually, this logic can
-     * be hoisted into debugger scope wrappers. That will allow 'arguments' to
-     * be a pure data property and allow call_resolve to be removed.
-     */
-    if (vp->isMagic(JS_UNASSIGNED_ARGUMENTS)) {
-        StackFrame *fp = obj->asCall().maybeStackFrame();
-        ArgumentsObject *argsObj = ArgumentsObject::createUnexpected(cx, fp);
-        if (!argsObj)
+    StackFrame *fp = callobj.maybeStackFrame();
+    if (fp && callobj.arguments().isMagic(JS_UNASSIGNED_ARGUMENTS)) {
+        JSObject *argsobj = js_GetArgsObject(cx, fp);
+        if (!argsobj)
             return false;
-
-        *vp = ObjectValue(*argsObj);
-        obj->asCall().setArguments(*vp);
+        vp->setObject(*argsobj);
+    } else {
+        /* Nested functions cannot get the 'arguments' of enclosing scopes. */
+        JS_ASSERT(!callobj.arguments().isMagic(JS_UNASSIGNED_ARGUMENTS));
+        *vp = callobj.arguments();
     }
-
     return true;
 }
 
 JSBool
 CallObject::setArgumentsOp(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
 {
+    /* Nested functions cannot set the 'arguments' of enclosing scopes. */
     JS_ASSERT(obj->asCall().maybeStackFrame());
     obj->asCall().setArguments(*vp);
     return true;
@@ -329,6 +333,28 @@ CallObject::setArgOp(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value
 }
 
 JSBool
+CallObject::getUpvarOp(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+{
+    CallObject &callobj = obj->asCall();
+    JS_ASSERT((int16_t) JSID_TO_INT(id) == JSID_TO_INT(id));
+    unsigned i = (uint16_t) JSID_TO_INT(id);
+
+    *vp = callobj.getCallee()->toFunction()->getFlatClosureUpvar(i);
+    return true;
+}
+
+JSBool
+CallObject::setUpvarOp(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
+{
+    CallObject &callobj = obj->asCall();
+    JS_ASSERT((int16_t) JSID_TO_INT(id) == JSID_TO_INT(id));
+    unsigned i = (uint16_t) JSID_TO_INT(id);
+
+    callobj.getCallee()->toFunction()->setFlatClosureUpvar(i, *vp);
+    return true;
+}
+
+JSBool
 CallObject::getVarOp(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     CallObject &callobj = obj->asCall();
@@ -362,22 +388,6 @@ CallObject::setVarOp(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value
 
     TypeScript::SetLocal(cx, script, i, *vp);
 
-    return true;
-}
-
-bool
-CallObject::containsVarOrArg(PropertyName *name, Value *vp, JSContext *cx)
-{
-    jsid id = ATOM_TO_JSID(name);
-    const Shape *shape = nativeLookup(cx, id);
-    if (!shape)
-        return false;
-
-    PropertyOp op = shape->getterOp();
-    if (op != getVarOp && op != getArgOp)
-        return false;
-
-    JS_ALWAYS_TRUE(op(cx, this, INT_TO_JSID(shape->shortid()), vp));
     return true;
 }
 
@@ -862,19 +872,6 @@ block_setProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *v
     return true;
 }
 
-bool
-ClonedBlockObject::containsVar(PropertyName *name, Value *vp, JSContext *cx)
-{
-    jsid id = ATOM_TO_JSID(name);
-    const Shape *shape = nativeLookup(cx, id);
-    if (!shape)
-        return false;
-
-    JS_ASSERT(shape->getterOp() == block_getProperty);
-    JS_ALWAYS_TRUE(block_getProperty(cx, this, INT_TO_JSID(shape->shortid()), vp));
-    return true;
-}
-
 StaticBlockObject *
 StaticBlockObject::create(JSContext *cx)
 {
@@ -934,6 +931,8 @@ Class js::BlockClass = {
     JS_ConvertStub
 };
 
+#if JS_HAS_XDR
+
 #define NO_PARENT_INDEX UINT32_MAX
 
 static uint32_t
@@ -953,17 +952,16 @@ FindObjectIndex(JSObjectArray *array, JSObject *obj)
     return NO_PARENT_INDEX;
 }
 
-template<XDRMode mode>
 bool
-js::XDRStaticBlockObject(XDRState<mode> *xdr, JSScript *script, StaticBlockObject **objp)
+js::XDRStaticBlockObject(JSXDRState *xdr, JSScript *script, StaticBlockObject **objp)
 {
-    JSContext *cx = xdr->cx();
+    JSContext *cx = xdr->cx;
 
     StaticBlockObject *obj = NULL;
     uint32_t parentId = 0;
     uint32_t count = 0;
     uint32_t depthAndCount = 0;
-    if (mode == XDR_ENCODE) {
+    if (xdr->mode == JSXDR_ENCODE) {
         obj = *objp;
         parentId = JSScript::isValidOffset(script->objectsOffset)
                    ? FindObjectIndex(script->objects(), obj->enclosingBlock())
@@ -976,10 +974,10 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, JSScript *script, StaticBlockObjec
     }
 
     /* First, XDR the parent atomid. */
-    if (!xdr->codeUint32(&parentId))
+    if (!JS_XDRUint32(xdr, &parentId))
         return false;
 
-    if (mode == XDR_DECODE) {
+    if (xdr->mode == JSXDR_DECODE) {
         obj = StaticBlockObject::create(cx);
         if (!obj)
             return false;
@@ -997,10 +995,10 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, JSScript *script, StaticBlockObjec
 
     AutoObjectRooter tvr(cx, obj);
 
-    if (!xdr->codeUint32(&depthAndCount))
+    if (!JS_XDRUint32(xdr, &depthAndCount))
         return false;
 
-    if (mode == XDR_DECODE) {
+    if (xdr->mode == JSXDR_DECODE) {
         uint32_t depth = uint16_t(depthAndCount >> 16);
         count = uint16_t(depthAndCount);
         obj->setStackDepth(depth);
@@ -1011,7 +1009,7 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, JSScript *script, StaticBlockObjec
          */
         for (unsigned i = 0; i < count; i++) {
             JSAtom *atom;
-            if (!XDRAtom(xdr, &atom))
+            if (!js_XDRAtom(xdr, &atom))
                 return false;
 
             /* The empty string indicates an int id. */
@@ -1051,15 +1049,11 @@ js::XDRStaticBlockObject(XDRState<mode> *xdr, JSScript *script, StaticBlockObjec
                            ? JSID_TO_ATOM(propid)
                            : cx->runtime->emptyString;
 
-            if (!XDRAtom(xdr, &atom))
+            if (!js_XDRAtom(xdr, &atom))
                 return false;
         }
     }
     return true;
 }
 
-template bool
-js::XDRStaticBlockObject(XDRState<XDR_ENCODE> *xdr, JSScript *script, StaticBlockObject **objp);
-
-template bool
-js::XDRStaticBlockObject(XDRState<XDR_DECODE> *xdr, JSScript *script, StaticBlockObject **objp);
+#endif  /* JS_HAS_XDR */

@@ -59,7 +59,6 @@
 #include "nsISupportsImpl.h"
 #include "gfxPattern.h"
 #include "mozilla/HashFunctions.h"
-#include "nsIMemoryReporter.h"
 
 typedef struct _cairo_scaled_font cairo_scaled_font_t;
 
@@ -80,6 +79,15 @@ class nsILanguageAtomService;
 
 typedef struct _hb_blob_t hb_blob_t;
 
+// We should eliminate these synonyms when it won't cause many merge conflicts.
+#define FONT_STYLE_NORMAL              NS_FONT_STYLE_NORMAL
+#define FONT_STYLE_ITALIC              NS_FONT_STYLE_ITALIC
+#define FONT_STYLE_OBLIQUE             NS_FONT_STYLE_OBLIQUE
+
+// We should eliminate these synonyms when it won't cause many merge conflicts.
+#define FONT_WEIGHT_NORMAL             NS_FONT_WEIGHT_NORMAL
+#define FONT_WEIGHT_BOLD               NS_FONT_WEIGHT_BOLD
+
 #define FONT_MAX_SIZE                  2000.0
 
 #define NO_FONT_LANGUAGE_OVERRIDE      0
@@ -90,8 +98,6 @@ struct THEBES_API gfxFontFeature {
     PRUint32 mValue; // 0 = off, 1 = on, larger values may be used as parameters
                      // to features that select among multiple alternatives
 };
-
-struct FontListSizes;
 
 inline bool
 operator<(const gfxFontFeature& a, const gfxFontFeature& b)
@@ -116,13 +122,23 @@ struct THEBES_API gfxFontStyle {
                  const nsString& aLanguageOverride);
     gfxFontStyle(const gfxFontStyle& aStyle);
 
-    // the language (may be an internal langGroup code rather than an actual
-    // language code) specified in the document or element's lang property,
-    // or inferred from the charset
-    nsRefPtr<nsIAtom> language;
+    // The style of font (normal, italic, oblique)
+    PRUint8 style : 7;
 
-    // custom opentype feature settings
-    nsTArray<gfxFontFeature> featureSettings;
+    // Say that this font is a system font and therefore does not
+    // require certain fixup that we do for fonts from untrusted
+    // sources.
+    bool systemFont : 1;
+
+    // Say that this font is used for print or print preview.
+    bool printerFont : 1;
+
+    // The weight of the font: 100, 200, ... 900.
+    PRUint16 weight;
+
+    // The stretch of the font (the sum of various NS_FONT_STRETCH_*
+    // constants; see gfxFontConstants.h).
+    PRInt16 stretch;
 
     // The logical size of the font, in pixels
     gfxFloat size;
@@ -132,6 +148,11 @@ struct THEBES_API gfxFontStyle {
     // rendering or measuring a string. A value of 0 means no adjustment
     // needs to be done.
     float sizeAdjust;
+
+    // the language (may be an internal langGroup code rather than an actual
+    // language code) specified in the document or element's lang property,
+    // or inferred from the charset
+    nsRefPtr<nsIAtom> language;
 
     // Language system tag, to override document language;
     // an OpenType "language system" tag represented as a 32-bit integer
@@ -145,23 +166,8 @@ struct THEBES_API gfxFontStyle {
     // in order to get correct glyph shapes.)
     PRUint32 languageOverride;
 
-    // The weight of the font: 100, 200, ... 900.
-    PRUint16 weight;
-
-    // The stretch of the font (the sum of various NS_FONT_STRETCH_*
-    // constants; see gfxFontConstants.h).
-    PRInt8 stretch;
-
-    // Say that this font is a system font and therefore does not
-    // require certain fixup that we do for fonts from untrusted
-    // sources.
-    bool systemFont : 1;
-
-    // Say that this font is used for print or print preview.
-    bool printerFont : 1;
-
-    // The style of font (normal, italic, oblique)
-    PRUint8 style : 2;
+    // custom opentype feature settings
+    nsTArray<gfxFontFeature> featureSettings;
 
     // Return the final adjusted font size for the given aspect ratio.
     // Not meant to be called when sizeAdjust = 0.
@@ -210,7 +216,6 @@ public:
         mIsLocalUserFont(false), mStandardFace(aIsStandardFace),
         mSymbolFont(false),
         mIgnoreGDEF(false),
-        mIgnoreGSUB(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
 #ifdef MOZ_GRAPHITE
         mCheckedForGraphiteTables(false),
@@ -244,7 +249,6 @@ public:
     bool IsItalic() const { return mItalic; }
     bool IsBold() const { return mWeight >= 600; } // bold == weights 600 and above
     bool IgnoreGDEF() const { return mIgnoreGDEF; }
-    bool IgnoreGSUB() const { return mIgnoreGSUB; }
 
     virtual bool IsSymbolFont();
 
@@ -316,12 +320,6 @@ public:
     hb_blob_t *ShareFontTableAndGetBlob(PRUint32 aTag,
                                         FallibleTArray<PRUint8>* aTable);
 
-    // For memory reporting
-    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
-
     nsString         mName;
 
     bool             mItalic      : 1;
@@ -334,7 +332,6 @@ public:
     bool             mStandardFace : 1;
     bool             mSymbolFont  : 1;
     bool             mIgnoreGDEF  : 1;
-    bool             mIgnoreGSUB  : 1;
 
     PRUint16         mWeight;
     PRInt16          mStretch;
@@ -369,7 +366,6 @@ protected:
         mStandardFace(false),
         mSymbolFont(false),
         mIgnoreGDEF(false),
-        mIgnoreGSUB(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
 #ifdef MOZ_GRAPHITE
         mCheckedForGraphiteTables(false),
@@ -475,11 +471,6 @@ private:
         hb_blob_t *GetBlob() const;
 
         void Clear();
-
-        static size_t
-        SizeOfEntryExcludingThis(FontTableHashEntry *aEntry,
-                                 nsMallocSizeOfFun   aMallocSizeOf,
-                                 void*               aUserArg);
 
     private:
         static void DeleteFontTableBlobData(void *aBlobData);
@@ -647,12 +638,6 @@ public:
     // if so set the mIsSimpleFamily flag (defaults to False before we've checked)
     void CheckForSimpleFamily();
 
-    // For memory reporter
-    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
-
 protected:
     // fills in an array with weights of faces that match style,
     // returns whether any matching entries found
@@ -743,15 +728,6 @@ struct gfxTextRange {
  * completely, with all its words, and avoid the cost of aging the words
  * individually. That only happens with longer-lived fonts.
  */
-struct FontCacheSizes {
-    FontCacheSizes()
-        : mFontInstances(0), mShapedWords(0)
-    { }
-
-    size_t mFontInstances; // memory used by instances of gfxFont subclasses
-    size_t mShapedWords; // memory used by the per-font shapedWord caches
-};
-
 class THEBES_API gfxFontCache MOZ_FINAL : public nsExpirationTracker<gfxFont,3> {
 public:
     enum {
@@ -805,20 +781,7 @@ public:
         mFonts.EnumerateEntries(ClearCachedWordsForFont, nsnull);
     }
 
-    void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                             FontCacheSizes*   aSizes) const;
-    void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                             FontCacheSizes*   aSizes) const;
-
 protected:
-    class MemoryReporter
-        : public nsIMemoryMultiReporter
-    {
-    public:
-        NS_DECL_ISUPPORTS
-        NS_DECL_NSIMEMORYMULTIREPORTER
-    };
-
     void DestroyFont(gfxFont *aFont);
 
     static gfxFontCache *gGlobalCache;
@@ -850,10 +813,6 @@ protected:
 
         gfxFont* mFont;
     };
-
-    static size_t SizeOfFontEntryExcludingThis(HashEntry*        aHashEntry,
-                                               nsMallocSizeOfFun aMallocSizeOf,
-                                               void*             aUserArg);
 
     nsTHashtable<HashEntry> mFonts;
 
@@ -1026,9 +985,6 @@ public:
 
     PRUint32 GetAppUnitsPerDevUnit() { return mAppUnitsPerDevUnit; }
 
-    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
 private:
     class HashEntry : public nsUint32HashKey {
     public:
@@ -1065,7 +1021,9 @@ private:
             return widths[indexInBlock];
         }
 
-        PRUint32 SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+#ifdef DEBUG
+        PRUint32 ComputeSize();
+#endif
         
         ~GlyphWidths();
 
@@ -1084,7 +1042,7 @@ private:
 
         nsTArray<PtrBits> mBlocks;
     };
-
+    
     GlyphWidths             mContainedGlyphWidths;
     nsTHashtable<HashEntry> mTightGlyphExtents;
     PRUint32                mAppUnitsPerDevUnit;
@@ -1300,10 +1258,6 @@ public:
     virtual PRInt32 GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID) {
         return -1;
     }
-
-    // Return Azure GlyphRenderingOptions for drawing this font.
-    virtual mozilla::TemporaryRef<mozilla::gfx::GlyphRenderingOptions>
-      GetGlyphRenderingOptions() { return nsnull; }
 
     gfxFloat SynthesizeSpaceWidth(PRUint32 aCh);
 
@@ -1521,11 +1475,6 @@ public:
         }
     }
 
-    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontCacheSizes*   aSizes) const;
-    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontCacheSizes*   aSizes) const;
-
 protected:
     // Call the appropriate shaper to generate glyphs for aText and store
     // them into aShapedWord.
@@ -1609,11 +1558,6 @@ protected:
 
         nsAutoPtr<gfxShapedWord> mShapedWord;
     };
-
-    static size_t
-    WordCacheEntrySizeOfExcludingThis(CacheHashEntry*   aHashEntry,
-                                      nsMallocSizeOfFun aMallocSizeOf,
-                                      void*             aUserArg);
 
     nsTHashtable<CacheHashEntry> mWordCache;
 
@@ -2614,8 +2558,7 @@ public:
     // Call this, don't call "new gfxTextRun" directly. This does custom
     // allocation and initialization
     static gfxTextRun *Create(const gfxTextRunFactory::Parameters *aParams,
-                              PRUint32 aLength, gfxFontGroup *aFontGroup,
-                              PRUint32 aFlags);
+        const void *aText, PRUint32 aLength, gfxFontGroup *aFontGroup, PRUint32 aFlags);
 
     // The text is divided into GlyphRuns as necessary
     struct GlyphRun {
@@ -2837,7 +2780,7 @@ protected:
      * new, after allocating a block large enough for the glyph records to
      * follow the base textrun object.
      */
-    gfxTextRun(const gfxTextRunFactory::Parameters *aParams,
+    gfxTextRun(const gfxTextRunFactory::Parameters *aParams, const void *aText,
                PRUint32 aLength, gfxFontGroup *aFontGroup, PRUint32 aFlags);
 
     /**
@@ -3094,7 +3037,7 @@ protected:
      */
     gfxTextRun *MakeEmptyTextRun(const Parameters *aParams, PRUint32 aFlags);
     gfxTextRun *MakeSpaceTextRun(const Parameters *aParams, PRUint32 aFlags);
-    gfxTextRun *MakeBlankTextRun(PRUint32 aLength,
+    gfxTextRun *MakeBlankTextRun(const void* aText, PRUint32 aLength,
                                  const Parameters *aParams, PRUint32 aFlags);
 
     // Used for construction/destruction.  Not intended to change the font set

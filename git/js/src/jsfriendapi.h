@@ -521,8 +521,8 @@ IsObjectInContextCompartment(const JSObject *obj, const JSContext *cx);
 
 /*
  * NB: these flag bits are encoded into the bytecode stream in the immediate
- * operand of JSOP_ITER, so don't change them without advancing vm/Xdr.h's
- * XDR_BYTECODE_VERSION.
+ * operand of JSOP_ITER, so don't change them without advancing jsxdrapi.h's
+ * JSXDR_BYTECODE_VERSION.
  */
 #define JSITER_ENUMERATE  0x1   /* for-in compatible hidden default iterator */
 #define JSITER_FOREACH    0x2   /* return [key, value] pair rather than key */
@@ -699,14 +699,12 @@ enum GCProgress {
     GC_CYCLE_END
 };
 
-struct JS_FRIEND_API(GCDescription) {
+struct GCDescription {
+    const char *logMessage;
     bool isCompartment;
 
-    GCDescription(bool isCompartment)
-      : isCompartment(isCompartment) {}
-
-    jschar *formatMessage(JSRuntime *rt) const;
-    jschar *formatJSON(JSRuntime *rt, uint64_t timestamp) const;
+    GCDescription(const char *msg, bool isCompartment)
+      : logMessage(msg), isCompartment(isCompartment) {}
 };
 
 typedef void

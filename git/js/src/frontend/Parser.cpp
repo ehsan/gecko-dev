@@ -1069,8 +1069,31 @@ LeaveFunction(ParseNode *fn, TreeContext *funtc, PropertyName *funName = NULL,
                 dn->setOp(JSOP_CALLEE);
                 dn->pn_cookie.set(funtc->staticLevel, UpvarCookie::CALLEE_SLOT);
                 dn->pn_dflags |= PND_BOUND;
+
+                /*
+                 * If this named function expression uses its own name other
+                 * than to call itself, flag this function specially.
+                 */
+                if (dn->isFunArg())
+                    funbox->tcflags |= TCF_FUN_USES_OWN_NAME;
                 foundCallee = 1;
                 continue;
+            }
+
+            if (!(funbox->tcflags & TCF_FUN_SETS_OUTER_NAME) &&
+                dn->isAssigned()) {
+                /*
+                 * Make sure we do not fail to set TCF_FUN_SETS_OUTER_NAME if
+                 * any use of dn in funtc assigns. See NoteLValue for the easy
+                 * backward-reference case; this is the hard forward-reference
+                 * case where we pay a higher price.
+                 */
+                for (ParseNode *pnu = dn->dn_uses; pnu; pnu = pnu->pn_link) {
+                    if (pnu->isAssigned() && pnu->pn_blockid >= funtc->bodyid) {
+                        funbox->tcflags |= TCF_FUN_SETS_OUTER_NAME;
+                        break;
+                    }
+                }
             }
 
             Definition *outer_dn = tc->decls.lookupFirst(atom);
@@ -1358,13 +1381,23 @@ Parser::functionDef(PropertyName *funName, FunctionType type, FunctionSyntaxKind
         return NULL;
     pn->pn_body = NULL;
     pn->pn_cookie.makeFree();
-    pn->pn_dflags = 0;
+
+    /*
+     * If this is a function expression, mark this function as escaping (as a
+     * "funarg") unless it is immediately applied (we clear PND_FUNARG if so --
+     * see memberExpr).
+     *
+     * Treat function sub-statements (those not at body level of a function or
+     * program) as escaping funargs, since we can't statically analyze their
+     * definitions and uses.
+     */
+    bool bodyLevel = tc->atBodyLevel();
+    pn->pn_dflags = (kind == Expression || !bodyLevel) ? PND_FUNARG : 0;
 
     /*
      * Record names for function statements in tc->decls so we know when to
      * avoid optimizing variable references that might name a function.
      */
-    bool bodyLevel = tc->atBodyLevel();
     if (kind == Statement) {
         if (Definition *dn = tc->decls.lookupFirst(funName)) {
             Definition::Kind dn_kind = dn->kind();
@@ -1605,6 +1638,15 @@ Parser::functionDef(PropertyName *funName, FunctionType type, FunctionSyntaxKind
     if (funtc.flags & TCF_FUN_HEAVYWEIGHT) {
         fun->flags |= JSFUN_HEAVYWEIGHT;
         outertc->flags |= TCF_FUN_HEAVYWEIGHT;
+    } else {
+        /*
+         * If this function is not at body level of a program or function (i.e.
+         * it is a function statement that is not a direct child of a program
+         * or function), then our enclosing function, if any, must be
+         * heavyweight.
+         */
+        if (!bodyLevel && kind == Statement)
+            outertc->flags |= TCF_FUN_HEAVYWEIGHT;
     }
 
     JSOp op = JSOP_NOP;
@@ -1621,10 +1663,6 @@ Parser::functionDef(PropertyName *funName, FunctionType type, FunctionSyntaxKind
             JS_ASSERT(!outertc->inStrictMode());
             op = JSOP_DEFFUN;
             outertc->noteMightAliasLocals();
-            outertc->noteHasExtensibleScope();
-            outertc->flags |= TCF_FUN_HEAVYWEIGHT;
-            if (fun->atom == context->runtime->atomState.argumentsAtom)
-                outertc->noteLocalOverwritesArguments();
         }
     }
 
@@ -1812,12 +1850,9 @@ Parser::statements()
             if (tc->atBodyLevel()) {
                 pn->pn_xflags |= PNX_FUNCDEFS;
             } else {
-                /*
-                 * General deoptimization was done in functionDef, here we just
-                 * need to tell TOK_LC in Parser::statement to add braces.
-                 */
-                JS_ASSERT(tc->hasExtensibleScope());
                 tc->flags |= TCF_HAS_FUNCTION_STMT;
+                /* Function statements extend the Call object at runtime. */
+                tc->noteHasExtensibleScope();
             }
         }
         pn->append(next);
@@ -2047,7 +2082,7 @@ DefineGlobal(ParseNode *pn, BytecodeEmitter *bce, PropertyName *name)
                 globalObj != holder ||
                 shape->configurable() ||
                 !shape->hasSlot() ||
-                !shape->hasDefaultGetter() ||
+                !shape->hasDefaultGetterOrIsMethod() ||
                 !shape->hasDefaultSetter()) {
                 return true;
             }
@@ -2378,6 +2413,9 @@ NoteLValue(JSContext *cx, ParseNode *pn, TreeContext *tc, unsigned dflag = PND_A
         }
 
         dn->pn_dflags |= dflag;
+
+        if (dn->pn_cookie.isFree() || dn->frameLevel() < tc->staticLevel)
+            tc->flags |= TCF_FUN_SETS_OUTER_NAME;
     }
 
     pn->pn_dflags |= dflag;
@@ -2393,8 +2431,7 @@ NoteLValue(JSContext *cx, ParseNode *pn, TreeContext *tc, unsigned dflag = PND_A
      */
     JSAtom *lname = pn->pn_atom;
     if (lname == cx->runtime->atomState.argumentsAtom) {
-        tc->flags |= TCF_FUN_HEAVYWEIGHT;
-        tc->noteLocalOverwritesArguments();
+        tc->flags |= (TCF_FUN_HEAVYWEIGHT | TCF_FUN_LOCAL_ARGUMENTS);
         tc->countArgumentsUse(pn);
     } else if (tc->inFunction() && lname == tc->fun()->atom) {
         tc->flags |= TCF_FUN_HEAVYWEIGHT;
@@ -2415,10 +2452,8 @@ BindDestructuringVar(JSContext *cx, BindData *data, ParseNode *pn, TreeContext *
      */
     JS_ASSERT(pn->isKind(PNK_NAME));
     atom = pn->pn_atom;
-    if (atom == cx->runtime->atomState.argumentsAtom) {
-        tc->flags |= TCF_FUN_HEAVYWEIGHT;
-        tc->noteLocalOverwritesArguments();
-    }
+    if (atom == cx->runtime->atomState.argumentsAtom)
+        tc->flags |= (TCF_FUN_HEAVYWEIGHT | TCF_FUN_LOCAL_ARGUMENTS);
 
     data->pn = pn;
     if (!data->binder(cx, data, atom, tc))
@@ -3887,7 +3922,18 @@ Parser::expressionStatement()
     pn->pn_pos = pn2->pn_pos;
     pn->pn_kid = pn2;
 
-    if (pn2->getKind() == PNK_ASSIGN) {
+    switch (pn2->getKind()) {
+      case PNK_LP:
+        /*
+         * Flag lambdas immediately applied as statements as instances of
+         * the JS "module pattern". See CheckForImmediatelyAppliedLambda.
+         */
+        if (pn2->pn_head->isKind(PNK_FUNCTION) &&
+            !pn2->pn_head->pn_funbox->node->isFunArg()) {
+            pn2->pn_head->pn_funbox->tcflags |= TCF_FUN_MODULE_PATTERN;
+        }
+        break;
+      case PNK_ASSIGN:
         /*
          * Keep track of all apparent methods created by assignments such
          * as this.foo = function (...) {...} in a function that could end
@@ -3904,6 +3950,8 @@ Parser::expressionStatement()
             pn2->pn_right->pn_link = tc->funbox->methods;
             tc->funbox->methods = pn2->pn_right;
         }
+        break;
+      default:;
     }
 
     /* Check termination of this primitive statement. */
@@ -4375,10 +4423,8 @@ Parser::variables(ParseNodeKind kind, StaticBlockObject *blockObj, VarContext va
 
             if (tc->inFunction() && name == context->runtime->atomState.argumentsAtom) {
                 tc->noteArgumentsNameUse(pn2);
-                if (!blockObj) {
-                    tc->flags |= TCF_FUN_HEAVYWEIGHT;
-                    tc->noteLocalOverwritesArguments();
-                }
+                if (!blockObj)
+                    tc->flags |= (TCF_FUN_HEAVYWEIGHT | TCF_FUN_LOCAL_ARGUMENTS);
             }
         }
     } while (tokenStream.matchToken(TOK_COMMA));
@@ -5556,7 +5602,7 @@ Parser::generatorExpr(ParseNode *kid)
         return NULL;
     genfn->setOp(JSOP_LAMBDA);
     JS_ASSERT(!genfn->pn_body);
-    genfn->pn_dflags = 0;
+    genfn->pn_dflags = PND_FUNARG;
 
     {
         TreeContext *outertc = tc;
@@ -5665,6 +5711,21 @@ Parser::argumentList(ParseNode *listNode)
     return JS_TRUE;
 }
 
+/* Check for an immediately-applied (new'ed) lambda and clear PND_FUNARG. */
+static ParseNode *
+CheckForImmediatelyAppliedLambda(ParseNode *pn)
+{
+    if (pn->isKind(PNK_FUNCTION)) {
+        JS_ASSERT(pn->isArity(PN_FUNC));
+
+        FunctionBox *funbox = pn->pn_funbox;
+        JS_ASSERT((funbox->function())->flags & JSFUN_LAMBDA);
+        if (!(funbox->tcflags & (TCF_FUN_USES_ARGUMENTS | TCF_FUN_USES_OWN_NAME)))
+            pn->pn_dflags &= ~PND_FUNARG;
+    }
+    return pn;
+}
+
 ParseNode *
 Parser::memberExpr(JSBool allowCallSyntax)
 {
@@ -5681,6 +5742,7 @@ Parser::memberExpr(JSBool allowCallSyntax)
         ParseNode *ctorExpr = memberExpr(JS_FALSE);
         if (!ctorExpr)
             return NULL;
+        ctorExpr = CheckForImmediatelyAppliedLambda(ctorExpr);
         lhs->setOp(JSOP_NEW);
         lhs->initList(ctorExpr);
         lhs->pn_pos.begin = ctorExpr->pn_pos.begin;
@@ -5854,6 +5916,7 @@ Parser::memberExpr(JSBool allowCallSyntax)
                 return NULL;
             nextMember->setOp(JSOP_CALL);
 
+            lhs = CheckForImmediatelyAppliedLambda(lhs);
             if (lhs->isOp(JSOP_NAME)) {
                 if (lhs->pn_atom == context->runtime->atomState.evalAtom) {
                     /* Select JSOP_EVAL and flag tc as heavyweight. */
@@ -6018,8 +6081,7 @@ Parser::qualifiedSuffix(ParseNode *pn)
         return NULL;
 
     /* This qualifiedSuffice may refer to 'arguments'. */
-    tc->flags |= TCF_FUN_HEAVYWEIGHT;
-    tc->noteLocalOverwritesArguments();
+    tc->flags |= (TCF_FUN_HEAVYWEIGHT | TCF_FUN_LOCAL_ARGUMENTS);
 
     /* Left operand of :: must be evaluated if it is an identifier. */
     if (pn->isOp(JSOP_QNAMEPART))
@@ -6065,8 +6127,7 @@ Parser::qualifiedIdentifier()
         return NULL;
     if (tokenStream.matchToken(TOK_DBLCOLON)) {
         /* Hack for bug 496316. Slowing down E4X won't make it go away, alas. */
-        tc->flags |= TCF_FUN_HEAVYWEIGHT;
-        tc->noteLocalOverwritesArguments();
+        tc->flags |= (TCF_FUN_HEAVYWEIGHT | TCF_FUN_LOCAL_ARGUMENTS);
         pn = qualifiedSuffix(pn);
     }
     return pn;
@@ -6581,8 +6642,7 @@ Parser::propertyQualifiedIdentifier()
     JS_ASSERT(tokenStream.peekToken() == TOK_DBLCOLON);
 
     /* Deoptimize QualifiedIdentifier properties to avoid tricky analysis. */
-    tc->flags |= TCF_FUN_HEAVYWEIGHT;
-    tc->noteLocalOverwritesArguments();
+    tc->flags |= (TCF_FUN_HEAVYWEIGHT | TCF_FUN_LOCAL_ARGUMENTS);
 
     PropertyName *name = tokenStream.currentToken().name();
     ParseNode *node = NameNode::create(PNK_NAME, name, tc);
@@ -6662,12 +6722,31 @@ Parser::identifierName(bool afterDoubleDot)
                 dn = MakePlaceholder(node, tc);
                 if (!dn || !tc->lexdeps->add(p, name, dn))
                     return NULL;
+
+                /*
+                 * In case this is a forward reference to a function,
+                 * we pessimistically set PND_FUNARG if the next token
+                 * is not a left parenthesis.
+                 *
+                 * If the definition eventually parsed into dn is not a
+                 * function, this flag won't hurt, and if we do parse a
+                 * function with pn's name, then the PND_FUNARG flag is
+                 * necessary for safe context->display-based optimiza-
+                 * tion of the closure's static link.
+                 */
+                if (tokenStream.peekToken() != TOK_LP)
+                    dn->pn_dflags |= PND_FUNARG;
             }
         }
 
         JS_ASSERT(dn->isDefn());
         LinkUseToDef(node, dn, tc);
 
+        /* Here we handle the backward function reference case. */
+        if (tokenStream.peekToken() != TOK_LP)
+            dn->pn_dflags |= PND_FUNARG;
+
+        node->pn_dflags |= (dn->pn_dflags & PND_FUNARG);
         if (stmt && stmt->type == STMT_WITH)
             node->pn_dflags |= PND_DEOPTIMIZED;
     }

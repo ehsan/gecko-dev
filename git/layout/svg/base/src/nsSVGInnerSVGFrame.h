@@ -91,6 +91,8 @@ public:
   virtual gfxMatrix GetCanvasTM();
 
   // nsISVGSVGFrame interface:
+  virtual void SuspendRedraw();
+  virtual void UnsuspendRedraw();
   virtual void NotifyViewportChange();
 
 protected:

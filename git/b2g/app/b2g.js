@@ -40,34 +40,13 @@
 pref("toolkit.defaultChromeURI", "chrome://browser/content/shell.xul");
 pref("browser.chromeURL", "chrome://browser/content/");
 #ifdef MOZ_OFFICIAL_BRANDING
-pref("browser.homescreenURL", "http://homescreen.gaiamobile.org/");
+pref("browser.homescreenURL", "file:///system/home/homescreen.html");
 #else
-pref("browser.homescreenURL", "http://homescreen.gaiamobile.org/");
+pref("browser.homescreenURL", "file:///data/local/homescreen.html,file:///system/home/homescreen.html");
 #endif
 
-// All the privileged domains
-// XXX TODO : we should read them from a file somewhere
-pref("b2g.privileged.domains", "http://browser.gaiamobile.org,
-	                            http://calculator.gaiamobile.org,
-	                            http://contacts.gaiamobile.org,
-	                            http://camera.gaiamobile.org,
-	                            http://clock.gaiamobile.org,
-	                            http://crystalskull.gaiamobile.org,
-	                            http://cubevid.gaiamobile.org,
-	                            http://dialer.gaiamobile.org,
-	                            http://gallery.gaiamobile.org,
-	                            http://homescreen.gaiamobile.org,
-	                            http://maps.gaiamobile.org,
-	                            http://market.gaiamobile.org,
-	                            http://music.gaiamobile.org,
-	                            http://penguinpop.gaiamobile.org,
-	                            http://settings.gaiamobile.org,
-	                            http://sms.gaiamobile.org,
-	                            http://towerjelly.gaiamobile.org,
-	                            http://video.gaiamobile.org");
-
 // URL for the dialer application.
-pref("dom.telephony.app.phone.url", "http://dialer.gaiamobile.org,http://homescreen.gaiamobile.org");
+pref("dom.telephony.app.phone.url", "http://localhost:7777/data/local/apps/dialer/dialer.html,http://localhost:7777/data/local/apps/homescreen/homescreen.html,http://localhost:7777/apps/dialer/dialer.html,http://localhost:7777/apps/homescreen/homescreen.html");
 
 // Device pixel to CSS px ratio, in percent. Set to -1 to calculate based on display density.
 pref("browser.viewport.scaleRatio", -1);
@@ -76,11 +55,9 @@ pref("browser.viewport.scaleRatio", -1);
 pref("browser.ignoreNativeFrameTextSelection", true);
 
 /* cache prefs */
-#ifdef MOZ_WIDGET_GONK
 pref("browser.cache.disk.enable", true);
 pref("browser.cache.disk.capacity", 55000); // kilobytes
 pref("browser.cache.disk.parent_directory", "/cache");
-#endif
 pref("browser.cache.disk.smart_size.enabled", false);
 pref("browser.cache.disk.smart_size.first_run", false);
 
@@ -92,8 +69,7 @@ pref("image.cache.size", 1048576); // bytes
 
 /* offline cache prefs */
 pref("browser.offline-apps.notify", false);
-pref("browser.cache.offline.enable", true);
-pref("offline-apps.allow_by_default", true);
+pref("browser.cache.offline.enable", false);
 
 /* protocol warning prefs */
 pref("network.protocol-handler.warn-external.tel", false);
@@ -171,7 +147,7 @@ pref("dom.disable_open_during_load", true);
 pref("privacy.popups.showBrowserMessage", true);
 
 pref("keyword.enabled", true);
-pref("keyword.URL", "https://www.google.com/m?ie=UTF-8&oe=UTF-8&sourceid=navclient&gfns=1&q=");
+pref("keyword.URL", "http://www.google.com/m?ie=UTF-8&oe=UTF-8&sourceid=navclient&gfns=1&q=");
 
 pref("accessibility.typeaheadfind", false);
 pref("accessibility.typeaheadfind.timeout", 5000);
@@ -415,7 +391,7 @@ pref("layers.acceleration.force-enabled", true);
 // screen.enabled and screen.brightness properties.
 pref("dom.screenEnabledProperty.enabled", true);
 pref("dom.screenBrightnessProperty.enabled", true);
-pref("dom.mozScreenWhitelist", "http://homescreen.gaiamobile.org,http://settings.gaiamobile.org");
+pref("dom.mozScreenWhitelist", "http://localhost:7777");
 
 // handle links targeting new windows
 // 1=current window/tab, 2=new window, 3=new tab in most recent window
@@ -428,18 +404,15 @@ pref("browser.link.open_newwindow.restriction", 0);
 
 // Enable browser frame
 pref("dom.mozBrowserFramesEnabled", true);
-pref("dom.mozBrowserFramesWhitelist", "http://homescreen.gaiamobile.org,http://browser.gaiamobile.org");
+pref("dom.mozBrowserFramesWhitelist", "http://localhost:7777");
 
 // Temporary permission hack for WebSMS
 pref("dom.sms.enabled", true);
-pref("dom.sms.whitelist", "file://,http://homescreen.gaiamobile.org,http://sms.gaiamobile.org");
+pref("dom.sms.whitelist", "file://,http://localhost:7777");
 
 // Temporary permission hack for WebContacts
 pref("dom.mozContacts.enabled", true);
-pref("dom.mozContacts.whitelist", "http://dialer.gaiamobile.org,http://sms.gaiamobile.org");
-
-// WebSettings
-pref("dom.mozSettings.enabled", true);
+pref("dom.mozContacts.whitelist", "http://localhost:7777");
 
 // Ignore X-Frame-Options headers.
 pref("b2g.ignoreXFrameOptions", true);
@@ -467,7 +440,6 @@ pref("b2g.keys.search.enabled", false);
 
 // Screen timeout in minutes
 pref("power.screen.timeout", 60);
-pref("dom.power.whitelist", "http://homescreen.gaiamobile.org,http://settings.gaiamobile.org");
 
 pref("full-screen-api.enabled", true);
 
@@ -481,31 +453,3 @@ pref("ril.data.roaming.enabled", false);
 pref("ril.data.apn", "");
 pref("ril.data.user", "");
 pref("ril.data.passwd", "");
-
-//Enable/disable marionette server, set listening port
-pref("marionette.defaultPrefs.enabled", true);
-pref("marionette.defaultPrefs.port", 2828);
-
-#ifdef MOZ_UPDATER
-pref("app.update.enabled", true);
-pref("app.update.auto", true);
-pref("app.update.silent", true);
-pref("app.update.mode", 0);
-pref("app.update.incompatible.mode", 0);
-pref("app.update.service.enabled", true);
-
-// The URL hosting the update manifest.
-pref("app.update.url", "http://update.boot2gecko.org/m2.5/updates.xml");
-// Interval at which update manifest is fetched.  In units of seconds.
-pref("app.update.interval", 3600); // 1 hour
-// First interval to elapse before checking for update.  In units of
-// milliseconds.  Capped at 10 seconds.
-pref("app.update.timerFirstInterval", 30000);
-pref("app.update.timerMinimumDelay", 30); // seconds
-// Don't throttle background updates.
-pref("app.update.download.backgroundInterval", 0);
-
-// Enable update logging for now, to diagnose growing pains in the
-// field.
-pref("app.update.log", true);
-#endif

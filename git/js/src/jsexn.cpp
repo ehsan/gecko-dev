@@ -65,13 +65,13 @@
 #include "jswrapper.h"
 
 #include "vm/GlobalObject.h"
-#include "vm/StringBuffer.h"
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
+#include "vm/StringBuffer-inl.h"
 
 using namespace mozilla;
 using namespace js;
@@ -111,25 +111,21 @@ Class js::ErrorClass = {
     exn_trace
 };
 
-template <typename T>
-struct JSStackTraceElemImpl {
-    T                   funName;
+typedef struct JSStackTraceElem {
+    js::HeapPtrString   funName;
     size_t              argc;
     const char          *filename;
-    unsigned            ulineno;
-};
-
-typedef JSStackTraceElemImpl<HeapPtrString> JSStackTraceElem;
-typedef JSStackTraceElemImpl<JSString *>    JSStackTraceStackElem;
+    unsigned               ulineno;
+} JSStackTraceElem;
 
 typedef struct JSExnPrivate {
     /* A copy of the JSErrorReport originally generated. */
     JSErrorReport       *errorReport;
     js::HeapPtrString   message;
     js::HeapPtrString   filename;
-    unsigned            lineno;
+    unsigned               lineno;
     size_t              stackDepth;
-    int                 exnType;
+    int                exnType;
     JSStackTraceElem    stackElems[1];
 } JSExnPrivate;
 
@@ -290,42 +286,11 @@ struct SuppressErrorsGuard
     }
 };
 
-struct AppendWrappedArg {
-    JSContext *cx;
-    AutoValueVector &values;
-    AppendWrappedArg(JSContext *cx, AutoValueVector &values)
-      : cx(cx),
-        values(values)
-    {}
-
+struct AppendArg {
+    Vector<Value> &values;
+    AppendArg(Vector<Value> &values) : values(values) {}
     bool operator()(unsigned, Value *vp) {
-        Value v = *vp;
-
-        /*
-         * Try to wrap.
-         *
-         * If wrap() fails, there's a good chance that it's because we're
-         * already in the process of throwing a native stack limit exception.
-         *
-         * This causes wrap() to throw, but it can't actually create an exception
-         * because we're already making one here, and cx->generatingError is true.
-         * So it returns false without an exception set on the stack. If we propagate
-         * that, it constitutes an uncatchable exception.
-         *
-         * So we just ignore exceptions. If wrap actually does set a pending
-         * exception, or if the caller sloppily left an exception on cx (which the
-         * e4x parser does), it doesn't matter - it will be overwritten shortly.
-         *
-         * NB: In the sloppy e4x case, one might thing we should clear the
-         * exception before calling wrap(). But wrap() has to be ok with pending
-         * exceptions, since it wraps exception objects during cross-compartment
-         * unwinding.
-         */
-        if (!cx->compartment->wrap(cx, &v))
-            v = JSVAL_VOID;
-
-        /* Append the value. */
-        return values.append(v);
+        return values.append(*vp);
     }
 };
 
@@ -341,19 +306,21 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
 
     JSCheckAccessOp checkAccess = cx->runtime->securityCallbacks->checkObjectAccess;
 
-    Vector<JSStackTraceStackElem> frames(cx);
-    AutoValueVector values(cx);
+    Vector<JSStackTraceElem> frames(cx);
+    Vector<Value> values(cx);
     {
         SuppressErrorsGuard seg(cx);
         for (FrameRegsIter i(cx); !i.done(); ++i) {
-            StackFrame *fp = i.fp();
-
             /*
-             * Ask the crystal CAPS ball whether we can see values across
-             * compartment boundaries.
-             *
-             * NB: 'fp' may point to cross-compartment values that require wrapping.
+             * An exception object stores stack values from 'fp' which may be
+             * in a different compartment from 'exnObject'. Engine compartment
+             * invariants require such values to be wrapped. A simpler solution
+             * is to just cut off the backtrace at compartment boundaries.
+             * Also, avoid exposing values from different security principals.
              */
+            StackFrame *fp = i.fp();
+            if (fp->compartment() != cx->compartment)
+                break;
             if (checkAccess && fp->isNonEvalFunctionFrame()) {
                 Value v = NullValue();
                 jsid callerid = ATOM_TO_JSID(cx->runtime->atomState.callerAtom);
@@ -363,20 +330,18 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
 
             if (!frames.growBy(1))
                 return false;
-            JSStackTraceStackElem &frame = frames.back();
+            JSStackTraceElem &frame = frames.back();
             if (fp->isNonEvalFunctionFrame()) {
-                frame.funName = fp->fun()->atom ? fp->fun()->atom : cx->runtime->emptyString;
+                frame.funName.init(fp->fun()->atom ? fp->fun()->atom : cx->runtime->emptyString);
                 frame.argc = fp->numActualArgs();
-                if (!fp->forEachCanonicalActualArg(AppendWrappedArg(cx, values)))
+                if (!fp->forEachCanonicalActualArg(AppendArg(values)))
                     return false;
             } else {
-                frame.funName = NULL;
+                frame.funName.init(NULL);
                 frame.argc = 0;
             }
             if (fp->isScriptFrame()) {
-                frame.filename = SaveScriptFilename(cx, fp->script()->filename);
-                if (!frame.filename)
-                    return false;
+                frame.filename = fp->script()->filename;
                 frame.ulineno = PCToLineNumber(fp->script(), i.pc());
             } else {
                 frame.ulineno = 0;
@@ -425,12 +390,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     HeapValue *valuesDest = reinterpret_cast<HeapValue *>(framesDest + frames.length());
     JS_ASSERT(valuesDest == GetStackTraceValueBuffer(priv));
 
-    for (size_t i = 0; i < frames.length(); ++i) {
-        framesDest[i].funName.init(frames[i].funName);
-        framesDest[i].argc = frames[i].argc;
-        framesDest[i].filename = frames[i].filename;
-        framesDest[i].ulineno = frames[i].ulineno;
-    }
+    PodCopy(framesDest, frames.begin(), frames.length());
     for (size_t i = 0; i < values.length(); ++i)
         valuesDest[i].init(cx->compartment, values[i]);
 
@@ -465,7 +425,7 @@ exn_trace(JSTracer *trc, JSObject *obj)
             if (elem->funName)
                 MarkString(trc, &elem->funName, "stack trace function name");
             if (IS_GC_MARKING_TRACER(trc) && elem->filename)
-                MarkScriptFilename(elem->filename);
+                js_MarkScriptFilename(elem->filename);
             vcount += elem->argc;
         }
         vp = GetStackTraceValueBuffer(priv);
@@ -622,7 +582,7 @@ ValueToShortSource(JSContext *cx, const Value &v)
          * memory, for too many classes (see Mozilla bug 166743).
          */
         char buf[100];
-        JS_snprintf(buf, sizeof buf, "[object %s]", js::UnwrapObject(obj, false)->getClass()->name);
+        JS_snprintf(buf, sizeof buf, "[object %s]", obj->getClass()->name);
         str = JS_NewStringCopyZ(cx, buf);
     }
 
@@ -1034,7 +994,7 @@ InitErrorClass(JSContext *cx, GlobalObject *global, int type, JSObject &proto)
     }
 
     /* Create the corresponding constructor. */
-    JSFunction *ctor = global->createConstructor(cx, Exception, name, 1,
+    JSFunction *ctor = global->createConstructor(cx, Exception, &ErrorClass, name, 1,
                                                  JSFunction::ExtendedFinalizeKind);
     if (!ctor)
         return NULL;
@@ -1114,6 +1074,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
     const JSErrorFormatString *errorString;
     JSExnType exn;
     jsval tv[4];
+    JSBool ok;
     JSObject *errProto, *errObject;
     JSString *messageStr, *filenameStr;
 
@@ -1122,7 +1083,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
      */
     JS_ASSERT(reportp);
     if (JSREPORT_IS_WARNING(reportp->flags))
-        return false;
+        return JS_FALSE;
 
     /* Find the exception index associated with this error. */
     errorNumber = (JSErrNum) reportp->errorNumber;
@@ -1145,12 +1106,19 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
      * with the given error number.
      */
     if (exn == JSEXN_NONE)
-        return false;
+        return JS_FALSE;
 
-    /* Prevent infinite recursion. */
+    /*
+     * Prevent runaway recursion, via cx->generatingError.  If an out-of-memory
+     * error occurs, no exception object will be created, but we don't assume
+     * that OOM is the only kind of error that subroutines of this function
+     * called below might raise.
+     */
     if (cx->generatingError)
-        return false;
-    AutoScopedAssign<bool> asa(&cx->generatingError, true);
+        return JS_FALSE;
+
+    MUST_FLOW_THROUGH("out");
+    cx->generatingError = JS_TRUE;
 
     /* Protect the newly-created strings below from nesting GCs. */
     PodArrayZero(tv);
@@ -1161,32 +1129,45 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
      * exception constructor name in the scope chain of the current context's
      * top stack frame, or in the global object if no frame is active.
      */
-    if (!js_GetClassPrototype(cx, NULL, GetExceptionProtoKey(exn), &errProto))
-        return false;
+    ok = js_GetClassPrototype(cx, NULL, GetExceptionProtoKey(exn), &errProto);
+    if (!ok)
+        goto out;
     tv[0] = OBJECT_TO_JSVAL(errProto);
 
-    if (!(errObject = NewObjectWithGivenProto(cx, &ErrorClass, errProto, NULL)))
-        return false;
+    errObject = NewObjectWithGivenProto(cx, &ErrorClass, errProto, NULL);
+    if (!errObject) {
+        ok = JS_FALSE;
+        goto out;
+    }
     tv[1] = OBJECT_TO_JSVAL(errObject);
 
-    if (!(messageStr = JS_NewStringCopyZ(cx, message)))
-        return false;
+    messageStr = JS_NewStringCopyZ(cx, message);
+    if (!messageStr) {
+        ok = JS_FALSE;
+        goto out;
+    }
     tv[2] = STRING_TO_JSVAL(messageStr);
 
-    if (!(filenameStr = JS_NewStringCopyZ(cx, reportp->filename)))
-        return false;
+    filenameStr = JS_NewStringCopyZ(cx, reportp->filename);
+    if (!filenameStr) {
+        ok = JS_FALSE;
+        goto out;
+    }
     tv[3] = STRING_TO_JSVAL(filenameStr);
 
-    if (!InitExnPrivate(cx, errObject, messageStr, filenameStr,
-                        reportp->lineno, reportp, exn)) {
-        return false;
-    }
+    ok = InitExnPrivate(cx, errObject, messageStr, filenameStr,
+                        reportp->lineno, reportp, exn);
+    if (!ok)
+        goto out;
 
     JS_SetPendingException(cx, OBJECT_TO_JSVAL(errObject));
 
     /* Flag the error report passed in to indicate an exception was raised. */
     reportp->flags |= JSREPORT_EXCEPTION;
-    return true;
+
+out:
+    cx->generatingError = JS_FALSE;
+    return ok;
 }
 
 JSBool

@@ -148,7 +148,6 @@
 #include "nsBlobProtocolHandler.h"
 
 #include "nsCharsetAlias.h"
-#include "nsCharsetSource.h"
 #include "nsIParser.h"
 #include "nsIContentSink.h"
 
@@ -156,6 +155,7 @@
 #include "nsIDateTimeFormat.h"
 #include "nsEventDispatcher.h"
 #include "nsMutationEvent.h"
+#include "nsIDOMXPathEvaluator.h"
 #include "nsDOMCID.h"
 
 #include "jsapi.h"
@@ -177,7 +177,6 @@
 #include "nsFrameLoader.h"
 #include "nsEscape.h"
 #include "nsObjectLoadingContent.h"
-#include "nsHtml5TreeOpExecutor.h"
 #ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
@@ -1420,9 +1419,12 @@ nsDOMImplementation::CreateDocument(const nsAString& aNamespaceURI,
 
   nsresult rv;
   if (!aQualifiedName.IsEmpty()) {
+    nsIParserService *parserService = nsContentUtils::GetParserService();
+    NS_ENSURE_TRUE(parserService, NS_ERROR_FAILURE);
+
     const nsAFlatString& qName = PromiseFlatString(aQualifiedName);
     const PRUnichar *colon;
-    rv = nsContentUtils::CheckQName(qName, true, &colon);
+    rv = parserService->CheckQName(qName, true, &colon);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (colon &&
@@ -1557,7 +1559,7 @@ nsDocument::nsDocument(const char* aContentType)
 }
 
 static PLDHashOperator
-ClearAllBoxObjects(nsIContent* aKey, nsPIBoxObject* aBoxObject, void* aUserArg)
+ClearAllBoxObjects(const void* aKey, nsPIBoxObject* aBoxObject, void* aUserArg)
 {
   if (aBoxObject) {
     aBoxObject->Clear();
@@ -1627,10 +1629,8 @@ nsDocument::~nsDocument()
   while (--indx >= 0) {
     mCatalogSheets[indx]->SetOwningDocument(nsnull);
   }
-  if (mAttrStyleSheet) {
+  if (mAttrStyleSheet)
     mAttrStyleSheet->SetOwningDocument(nsnull);
-    NS_RELEASE(mAttrStyleSheet);
-  }
   if (mStyleAttrStyleSheet)
     mStyleAttrStyleSheet->SetOwningDocument(nsnull);
 
@@ -1654,6 +1654,14 @@ nsDocument::~nsDocument()
     mNodeInfoManager->DropDocumentReference();
   }
 
+  if (mAttrStyleSheet) {
+    mAttrStyleSheet->SetOwningDocument(nsnull);
+  }
+  
+  if (mStyleAttrStyleSheet) {
+    mStyleAttrStyleSheet->SetOwningDocument(nsnull);
+  }
+
   delete mHeaderData;
 
   if (mBoxObjectTable) {
@@ -1671,8 +1679,6 @@ nsDocument::~nsDocument()
   // unlocked state, and then clear the table.
   SetImageLockingState(false);
   mImageTracker.Clear();
-
-  mPlugins.Clear();
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocument)
@@ -1768,7 +1774,7 @@ RadioGroupsTraverser(const nsAString& aKey, nsRadioGroupStruct* aData,
 }
 
 static PLDHashOperator
-BoxObjectTraverser(nsIContent* key, nsPIBoxObject* boxObject, void* userArg)
+BoxObjectTraverser(const void* key, nsPIBoxObject* boxObject, void* userArg)
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
@@ -2023,8 +2029,7 @@ nsDocument::Init()
   mScriptLoader = new nsScriptLoader(this);
   NS_ENSURE_TRUE(mScriptLoader, NS_ERROR_OUT_OF_MEMORY);
 
-  if (!mImageTracker.Init() ||
-      !mPlugins.Init()) {
+  if (!mImageTracker.Init()) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -2269,11 +2274,8 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
     }
     mAttrStyleSheet->Reset(aURI);
   } else {
-    rv = NS_NewHTMLStyleSheet(&mAttrStyleSheet, aURI, this);
-    if (NS_FAILED(rv)) {
-      NS_IF_RELEASE(mAttrStyleSheet);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    rv = NS_NewHTMLStyleSheet(getter_AddRefs(mAttrStyleSheet), aURI, this);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // Don't use AddStyleSheet, since it'll put the sheet into style
@@ -2547,7 +2549,6 @@ void
 nsDocument::StopDocumentLoad()
 {
   if (mParser) {
-    mParserAborted = true;
     mParser->Terminate();
   }
 }
@@ -3158,8 +3159,7 @@ nsDocument::SetHeaderData(nsIAtom* aHeaderField, const nsAString& aData)
 bool
 nsDocument::TryChannelCharset(nsIChannel *aChannel,
                               PRInt32& aCharsetSource,
-                              nsACString& aCharset,
-                              nsHtml5TreeOpExecutor* aExecutor)
+                              nsACString& aCharset)
 {
   if(kCharsetFromChannel <= aCharsetSource) {
     return true;
@@ -3173,8 +3173,6 @@ nsDocument::TryChannelCharset(nsIChannel *aChannel,
       if(NS_SUCCEEDED(rv)) {
         aCharsetSource = kCharsetFromChannel;
         return true;
-      } else if (aExecutor && !charsetVal.IsEmpty()) {
-        aExecutor->ComplainAboutBogusProtocolCharset(this);
       }
     }
   }
@@ -3514,12 +3512,12 @@ nsDocument::AppendChildTo(nsIContent* aKid, bool aNotify)
   return nsDocument::InsertChildAt(aKid, GetChildCount(), aNotify);
 }
 
-void
+nsresult
 nsDocument::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 {
   nsCOMPtr<nsIContent> oldKid = GetChildAt(aIndex);
   if (!oldKid) {
-    return;
+    return NS_OK;
   }
 
   if (oldKid->IsElement()) {
@@ -3527,8 +3525,10 @@ nsDocument::RemoveChildAt(PRUint32 aIndex, bool aNotify)
     DestroyElementMaps();
   }
 
-  doRemoveChildAt(aIndex, aNotify, oldKid, mChildren);
+  nsresult rv =
+    doRemoveChildAt(aIndex, aNotify, oldKid, mChildren);
   mCachedRootElement = nsnull;
+  return rv;
 }
 
 PRInt32
@@ -5359,7 +5359,7 @@ nsDocument::GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult)
   *aResult = nsnull;
 
   if (!mBoxObjectTable) {
-    mBoxObjectTable = new nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject>;
+    mBoxObjectTable = new nsInterfaceHashtable<nsVoidPtrHashKey, nsPIBoxObject>;
     if (mBoxObjectTable && !mBoxObjectTable->Init(12)) {
       mBoxObjectTable = nsnull;
     }
@@ -5984,6 +5984,7 @@ BlastFunc(nsAttrHashKey::KeyType aKey, nsDOMAttribute *aData, void* aUserArg)
 static void
 BlastSubtreeToPieces(nsINode *aNode)
 {
+  PRUint32 i, count;
   if (aNode->IsElement()) {
     nsGenericElement *element = static_cast<nsGenericElement*>(aNode);
     const nsDOMAttributeMap *map = element->GetAttributeMap();
@@ -6005,10 +6006,16 @@ BlastSubtreeToPieces(nsINode *aNode)
     }
   }
 
-  PRUint32 count = aNode->GetChildCount();
-  for (PRUint32 i = 0; i < count; ++i) {
+  count = aNode->GetChildCount();
+  for (i = 0; i < count; ++i) {
     BlastSubtreeToPieces(aNode->GetFirstChild());
-    aNode->RemoveChildAt(0, false);
+#ifdef DEBUG
+    nsresult rv =
+#endif
+      aNode->RemoveChildAt(0, false);
+
+    // XXX Should we abort here?
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Uhoh, RemoveChildAt shouldn't fail!");
   }
 }
 
@@ -6112,7 +6119,8 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
       // Remove from parent.
       nsCOMPtr<nsINode> parent = adoptedNode->GetNodeParent();
       if (parent) {
-        parent->RemoveChildAt(parent->IndexOf(adoptedNode), true);
+        rv = parent->RemoveChildAt(parent->IndexOf(adoptedNode), true);
+        NS_ENSURE_SUCCESS(rv, rv);
       }
 
       break;
@@ -8077,12 +8085,9 @@ nsIDocument::CreateStaticClone(nsISupports* aCloneContainer)
   nsCOMPtr<nsIDocument> clonedDoc;
   if (NS_SUCCEEDED(rv)) {
     clonedDoc = do_QueryInterface(clonedNode);
-    if (clonedDoc) {
-      if (IsStaticDocument()) {
-        clonedDoc->mOriginalDocument = mOriginalDocument;
-      } else {
-        clonedDoc->mOriginalDocument = this;
-      }
+    nsCOMPtr<nsIDOMDocument> clonedDOMDoc = do_QueryInterface(clonedDoc);
+    if (clonedDOMDoc) {
+      clonedDoc->mOriginalDocument = this;
       PRInt32 sheetsCount = GetNumberOfStyleSheets();
       for (PRInt32 i = 0; i < sheetsCount; ++i) {
         nsRefPtr<nsCSSStyleSheet> sheet = do_QueryObject(GetStyleSheetAt(i));
@@ -8244,10 +8249,10 @@ void
 nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation)
 {
   PR_STATIC_ASSERT(eDeprecatedOperationCount <= 64);
-  if (mWarnedAbout & (1ull << aOperation)) {
+  if (mWarnedAbout & (1 << aOperation)) {
     return;
   }
-  mWarnedAbout |= (1ull << aOperation);
+  mWarnedAbout |= (1 << aOperation);
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
                                   "DOM Core", this,
                                   nsContentUtils::eDOM_PROPERTIES,
@@ -8350,51 +8355,6 @@ nsDocument::RemoveImage(imgIRequest* aImage)
   aImage->RequestDiscard();
 
   return rv;
-}
-
-nsresult
-nsDocument::AddPlugin(nsIObjectLoadingContent* aPlugin)
-{
-  MOZ_ASSERT(aPlugin);
-  if (!mPlugins.PutEntry(aPlugin)) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  return NS_OK;
-}
-
-void
-nsDocument::RemovePlugin(nsIObjectLoadingContent* aPlugin)
-{
-  MOZ_ASSERT(aPlugin);
-  mPlugins.RemoveEntry(aPlugin);
-}
-
-static bool
-AllSubDocumentPluginEnum(nsIDocument* aDocument, void* userArg)
-{
-  nsTArray<nsIObjectLoadingContent*>* plugins =
-    reinterpret_cast< nsTArray<nsIObjectLoadingContent*>* >(userArg);
-  MOZ_ASSERT(plugins);
-  aDocument->GetPlugins(*plugins);
-  return true;
-}
-
-static PLDHashOperator
-AllPluginEnum(nsPtrHashKey<nsIObjectLoadingContent>* aPlugin, void* userArg)
-{
-  nsTArray<nsIObjectLoadingContent*>* allPlugins =
-    reinterpret_cast< nsTArray<nsIObjectLoadingContent*>* >(userArg);
-  MOZ_ASSERT(allPlugins);
-  allPlugins->AppendElement(aPlugin->GetKey());
-  return PL_DHASH_NEXT;
-}
-
-void
-nsDocument::GetPlugins(nsTArray<nsIObjectLoadingContent*>& aPlugins)
-{
-  aPlugins.SetCapacity(aPlugins.Length() + mPlugins.Count());
-  mPlugins.EnumerateEntries(AllPluginEnum, &aPlugins);
-  EnumerateSubDocuments(AllSubDocumentPluginEnum, &aPlugins);
 }
 
 PLDHashOperator LockEnumerator(imgIRequest* aKey,
@@ -9010,7 +8970,7 @@ nsDocument::RequestFullScreen(Element* aElement, bool aWasCallerChrome)
   NS_ASSERTION(GetFullScreenElement() == aElement,
                "Full-screen element should be the requested element!");
   NS_ASSERTION(IsFullScreenDoc(), "Should be full-screen doc");
-  nsCOMPtr<nsIDOMElement> fse;
+  nsCOMPtr<nsIDOMHTMLElement> fse;
   GetMozFullScreenElement(getter_AddRefs(fse));
   nsCOMPtr<nsIContent> c(do_QueryInterface(fse));
   NS_ASSERTION(c->AsElement() == aElement,
@@ -9028,7 +8988,7 @@ nsDocument::RequestFullScreen(Element* aElement, bool aWasCallerChrome)
 }
 
 NS_IMETHODIMP
-nsDocument::GetMozFullScreenElement(nsIDOMElement **aFullScreenElement)
+nsDocument::GetMozFullScreenElement(nsIDOMHTMLElement **aFullScreenElement)
 {
   NS_ENSURE_ARG_POINTER(aFullScreenElement);
   *aFullScreenElement = nsnull;

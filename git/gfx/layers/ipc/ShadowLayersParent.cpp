@@ -148,13 +148,8 @@ ShadowLayersParent::Destroy()
 
 bool
 ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
-                               const bool& isFirstPaint,
                                InfallibleTArray<EditReply>* reply)
 {
-#ifdef COMPOSITOR_PERFORMANCE_WARNING
-  TimeStamp updateStart = TimeStamp::Now();
-#endif
-
   MOZ_LAYERS_LOG(("[ParentSide] received txn with %d edits", cset.Length()));
 
   if (mDestroyed || layer_manager()->IsDestroyed()) {
@@ -225,6 +220,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       layer->SetOpacity(common.opacity());
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetTransform(common.transform());
+      layer->SetTileSourceRect(common.useTileSourceRect() ? &common.tileSourceRect() : NULL);
       static bool fixedPositionLayersEnabled = getenv("MOZ_ENABLE_FIXED_POSITION_LAYERS") != 0;
       if (fixedPositionLayersEnabled) {
         layer->SetIsFixedPosition(common.isFixedPosition());
@@ -323,7 +319,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
         static_cast<ShadowThebesLayer*>(shadow->AsLayer());
       const ThebesBuffer& newFront = op.newFrontBuffer();
 
+#ifdef MOZ_RENDERTRACE
       RenderTraceInvalidateStart(thebes, "FF00FF", op.updatedRegion().GetBounds());
+#endif
 
       OptionalThebesBuffer newBack;
       nsIntRegion newValidRegion;
@@ -338,7 +336,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
           newBack, newValidRegion,
           readonlyFront, frontUpdatedRegion));
 
+#ifdef MOZ_RENDERTRACE
       RenderTraceInvalidateEnd(thebes, "FF00FF");
+#endif
       break;
     }
     case Edit::TOpPaintCanvas: {
@@ -349,7 +349,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowCanvasLayer* canvas =
         static_cast<ShadowCanvasLayer*>(shadow->AsLayer());
 
+#ifdef MOZ_RENDERTRACE
       RenderTraceInvalidateStart(canvas, "FF00FF", canvas->GetVisibleRegion().GetBounds());
+#endif
 
       canvas->SetAllocator(this);
       CanvasSurface newBack;
@@ -358,7 +360,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       replyv.push_back(OpBufferSwap(shadow, NULL,
                                     newBack));
 
+#ifdef MOZ_RENDERTRACE
       RenderTraceInvalidateEnd(canvas, "FF00FF");
+#endif
       break;
     }
     case Edit::TOpPaintImage: {
@@ -369,7 +373,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowImageLayer* image =
         static_cast<ShadowImageLayer*>(shadow->AsLayer());
 
+#ifdef MOZ_RENDERTRACE
       RenderTraceInvalidateStart(image, "FF00FF", image->GetVisibleRegion().GetBounds());
+#endif
 
       image->SetAllocator(this);
       SharedImage newBack;
@@ -377,7 +383,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       replyv.push_back(OpImageSwap(shadow, NULL,
                                    newBack));
 
+#ifdef MOZ_RENDERTRACE
       RenderTraceInvalidateEnd(image, "FF00FF");
+#endif
       break;
     }
 
@@ -398,14 +406,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   // other's buffer contents.
   ShadowLayerManager::PlatformSyncBeforeReplyUpdate();
 
-  mShadowLayersManager->ShadowLayersUpdated(isFirstPaint);
-
-#ifdef COMPOSITOR_PERFORMANCE_WARNING
-  int compositeTime = (int)(mozilla::TimeStamp::Now() - updateStart).ToMilliseconds();
-  if (compositeTime > 15) {
-    printf_stderr("Compositor: Layers update took %i ms (blocking gecko).\n", compositeTime);
-  }
-#endif
+  mShadowLayersManager->ShadowLayersUpdated();
 
   return true;
 }

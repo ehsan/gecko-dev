@@ -32,7 +32,8 @@ function init()
   var canvas2d = document.getElementById("canvas2d");
 
   var wtu = WebGLTestUtils;
-  gl = wtu.create3DContext("example");
+  var canvas = document.getElementById("example");
+  gl = wtu.create3DContext(canvas);
   var program = wtu.setupTexturedQuad(gl);
 
   var textureLoc = gl.getUniformLocation(program, "tex");

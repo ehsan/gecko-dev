@@ -53,8 +53,12 @@
 #include "nsIURL.h"
 #include "nsIChannel.h"
 #include "nsXPIDLString.h"
+#include "nsIParser.h"
+#include "nsParserCIID.h"
+#include "nsNetUtil.h"
 #include "plstr.h"
 #include "nsIContent.h"
+#include "nsIDOMElement.h"
 #include "nsIDocument.h"
 #include "nsIXMLContentSink.h"
 #include "nsContentCID.h"
@@ -1106,7 +1110,11 @@ nsXBLService::LoadBindingDocumentInfo(nsIContent* aBoundElement,
     }
   }
 
-  info.forget(aResult);
+  if (!info)
+    return NS_OK;
+ 
+  *aResult = info;
+  NS_IF_ADDREF(*aResult);
 
   return NS_OK;
 }

@@ -855,10 +855,6 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     }
 
     UpdateEditableState(aNotify);
-    nsTextEditorState *state = GetEditorState();
-    if (state) {
-      state->UpdateEditableState(aNotify);
-    }
     UpdateState(aNotify);
   }
 

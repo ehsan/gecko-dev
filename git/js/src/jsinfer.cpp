@@ -678,17 +678,14 @@ TypeSet::addCall(JSContext *cx, TypeCallsite *site)
 class TypeConstraintArith : public TypeConstraint
 {
 public:
-    JSScript *script;
-    jsbytecode *pc;
-
     /* Type set receiving the result of the arithmetic. */
     TypeSet *target;
 
     /* For addition operations, the other operand. */
     TypeSet *other;
 
-    TypeConstraintArith(JSScript *script, jsbytecode *pc, TypeSet *target, TypeSet *other)
-        : TypeConstraint("arith"), script(script), pc(pc), target(target), other(other)
+    TypeConstraintArith(TypeSet *target, TypeSet *other)
+        : TypeConstraint("arith"), target(target), other(other)
     {
         JS_ASSERT(target);
     }
@@ -697,9 +694,9 @@ public:
 };
 
 void
-TypeSet::addArith(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target, TypeSet *other)
+TypeSet::addArith(JSContext *cx, TypeSet *target, TypeSet *other)
 {
-    add(cx, cx->typeLifoAlloc().new_<TypeConstraintArith>(script, pc, target, other));
+    add(cx, cx->typeLifoAlloc().new_<TypeConstraintArith>(target, other));
 }
 
 /* Subset constraint which transforms primitive values into appropriate objects. */
@@ -800,7 +797,7 @@ static inline const Shape *
 GetSingletonShape(JSContext *cx, JSObject *obj, jsid id)
 {
     const Shape *shape = obj->nativeLookup(cx, id);
-    if (shape && shape->hasDefaultGetter() && shape->hasSlot())
+    if (shape && shape->hasDefaultGetterOrIsMethod() && shape->hasSlot())
         return shape;
     return NULL;
 }
@@ -922,6 +919,34 @@ void
 TypeSet::addSubsetBarrier(JSContext *cx, JSScript *script, jsbytecode *pc, TypeSet *target)
 {
     add(cx, cx->typeLifoAlloc().new_<TypeConstraintSubsetBarrier>(script, pc, target));
+}
+
+/*
+ * Constraint which marks a pushed ARGUMENTS value as unknown if the script has
+ * an arguments object created in the future.
+ */
+class TypeConstraintLazyArguments : public TypeConstraint
+{
+public:
+    TypeSet *target;
+
+    TypeConstraintLazyArguments(TypeSet *target)
+        : TypeConstraint("lazyArgs"), target(target)
+    {}
+
+    void newType(JSContext *cx, TypeSet *source, Type type) {}
+
+    void newObjectState(JSContext *cx, TypeObject *object, bool force)
+    {
+        if (object->hasAnyFlags(OBJECT_FLAG_CREATED_ARGUMENTS))
+            target->addType(cx, Type::UnknownType());
+    }
+};
+
+void
+TypeSet::addLazyArguments(JSContext *cx, TypeSet *target)
+{
+    add(cx, cx->typeLifoAlloc().new_<TypeConstraintLazyArguments>(target));
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -1302,29 +1327,27 @@ TypeConstraintArith::newType(JSContext *cx, TypeSet *source, Type type)
         } else if (type.isPrimitive(JSVAL_TYPE_DOUBLE)) {
             if (other->hasAnyFlag(TYPE_FLAG_UNDEFINED | TYPE_FLAG_NULL |
                                   TYPE_FLAG_INT32 | TYPE_FLAG_DOUBLE | TYPE_FLAG_BOOLEAN |
-                                  TYPE_FLAG_ANYOBJECT)) {
+                                  TYPE_FLAG_ANYOBJECT) ||
+                other->getObjectCount() != 0) {
                 target->addType(cx, Type::DoubleType());
-            } else if (other->getObjectCount() != 0) {
-                TypeDynamicResult(cx, script, pc, Type::DoubleType());
             }
         } else if (type.isPrimitive(JSVAL_TYPE_STRING)) {
             target->addType(cx, Type::StringType());
-        } else if (other->hasAnyFlag(TYPE_FLAG_DOUBLE)) {
-            target->addType(cx, Type::DoubleType());
-        } else if (other->hasAnyFlag(TYPE_FLAG_UNDEFINED | TYPE_FLAG_NULL |
-                                     TYPE_FLAG_INT32 | TYPE_FLAG_BOOLEAN |
-                                     TYPE_FLAG_ANYOBJECT)) {
-            target->addType(cx, Type::Int32Type());
-        } else if (other->getObjectCount() != 0) {
-            TypeDynamicResult(cx, script, pc, Type::Int32Type());
+        } else {
+            if (other->hasAnyFlag(TYPE_FLAG_UNDEFINED | TYPE_FLAG_NULL |
+                                  TYPE_FLAG_INT32 | TYPE_FLAG_BOOLEAN |
+                                  TYPE_FLAG_ANYOBJECT) ||
+                other->getObjectCount() != 0) {
+                target->addType(cx, Type::Int32Type());
+            }
+            if (other->hasAnyFlag(TYPE_FLAG_DOUBLE))
+                target->addType(cx, Type::DoubleType());
         }
     } else {
         if (type.isUnknown())
             target->addType(cx, Type::UnknownType());
         else if (type.isPrimitive(JSVAL_TYPE_DOUBLE))
             target->addType(cx, Type::DoubleType());
-        else if (!type.isAnyObject() && type.isObject())
-            TypeDynamicResult(cx, script, pc, Type::Int32Type());
         else
             target->addType(cx, Type::Int32Type());
     }
@@ -1629,6 +1652,47 @@ TypeSet::HasObjectFlags(JSContext *cx, TypeObject *object, TypeObjectFlags flags
     types->add(cx, cx->typeLifoAlloc().new_<TypeConstraintFreezeObjectFlags>(
                       cx->compartment->types.compiledInfo, flags), false);
     return false;
+}
+
+void
+types::MarkArgumentsCreated(JSContext *cx, JSScript *script)
+{
+    JS_ASSERT(!script->createdArgs);
+
+    script->createdArgs = true;
+    script->uninlineable = true;
+
+    MarkTypeObjectFlags(cx, script->function(),
+                        OBJECT_FLAG_CREATED_ARGUMENTS | OBJECT_FLAG_UNINLINEABLE);
+
+    if (!script->usedLazyArgs)
+        return;
+
+    AutoEnterTypeInference enter(cx);
+
+#ifdef JS_METHODJIT
+    mjit::ExpandInlineFrames(cx->compartment);
+#endif
+
+    if (!script->ensureRanAnalysis(cx, NULL))
+        return;
+
+    ScriptAnalysis *analysis = script->analysis();
+
+    for (FrameRegsIter iter(cx); !iter.done(); ++iter) {
+        StackFrame *fp = iter.fp();
+        if (fp->isScriptFrame() && fp->script() == script) {
+            /*
+             * Check locals and stack slots, assignment to individual arguments
+             * is treated as an escape on the arguments.
+             */
+            Value *sp = fp->base() + analysis->getCode(iter.pc()).stackDepth;
+            for (Value *vp = fp->slots(); vp < sp; vp++) {
+                if (vp->isParticularMagic(JS_LAZY_ARGUMENTS))
+                    *vp = ObjectOrNullValue(js_GetArgsObject(cx, fp));
+            }
+        }
+    }
 }
 
 static inline void
@@ -2010,30 +2074,6 @@ types::UseNewType(JSContext *cx, JSScript *script, jsbytecode *pc)
         jsid id = GetAtomId(cx, script, pc, 0);
         if (id == id_prototype(cx))
             return true;
-    }
-
-    return false;
-}
-
-bool
-types::UseNewTypeForInitializer(JSContext *cx, JSScript *script, jsbytecode *pc)
-{
-    /*
-     * Objects created outside loops in global and eval scripts should have
-     * singleton types. For now this is only done for plain objects, not arrays.
-     */
-
-    if (!cx->typeInferenceEnabled() || script->function())
-        return false;
-
-    JSOp op = JSOp(*pc);
-    if (op == JSOP_NEWOBJECT || (op == JSOP_NEWINIT && GET_UINT8(pc) == JSProto_Object)) {
-        AutoEnterTypeInference enter(cx);
-
-        if (!script->ensureRanAnalysis(cx, NULL))
-            return false;
-
-        return !script->analysis()->getCode(pc).inLoop;
     }
 
     return false;
@@ -2739,7 +2779,7 @@ UpdatePropertyType(JSContext *cx, TypeSet *types, JSObject *obj, const Shape *sh
     if (shape->hasGetterValue() || shape->hasSetterValue()) {
         types->setOwnProperty(cx, true);
         types->addType(cx, Type::UnknownType());
-    } else if (shape->hasDefaultGetter() && shape->hasSlot()) {
+    } else if (shape->hasDefaultGetterOrIsMethod() && shape->hasSlot()) {
         const Value &value = obj->nativeGetSlot(shape->slot());
 
         /*
@@ -2946,6 +2986,9 @@ TypeObject::setFlags(JSContext *cx, TypeObjectFlags flags)
 
     if (singleton) {
         /* Make sure flags are consistent with persistent object state. */
+        JS_ASSERT_IF(flags & OBJECT_FLAG_CREATED_ARGUMENTS,
+                     (flags & OBJECT_FLAG_UNINLINEABLE) &&
+                     interpretedFunction->script()->createdArgs);
         JS_ASSERT_IF(flags & OBJECT_FLAG_UNINLINEABLE,
                      interpretedFunction->script()->uninlineable);
         JS_ASSERT_IF(flags & OBJECT_FLAG_REENTRANT_FUNCTION,
@@ -3186,9 +3229,6 @@ static inline TypeObject *
 GetInitializerType(JSContext *cx, JSScript *script, jsbytecode *pc)
 {
     if (!script->hasGlobal())
-        return NULL;
-
-    if (UseNewTypeForInitializer(cx, script, pc))
         return NULL;
 
     JSOp op = JSOp(*pc);
@@ -3589,10 +3629,14 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         poppedTypes(pc, 0)->addSubset(cx, &pushed[0]);
         break;
 
-      case JSOP_GETXPROP: {
+      case JSOP_GETXPROP:
+      case JSOP_GETFCSLOT:
+      case JSOP_CALLFCSLOT: {
         TypeSet *seen = bytecodeTypes(pc);
         addTypeBarrier(cx, pc, seen, Type::UnknownType());
         seen->addSubset(cx, &pushed[0]);
+        if (op == JSOP_CALLFCSLOT)
+            pushed[0].addPropagateThis(cx, script, pc, Type::UndefinedType());
         break;
       }
 
@@ -3621,7 +3665,8 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       }
 
       case JSOP_SETARG:
-      case JSOP_SETLOCAL: {
+      case JSOP_SETLOCAL:
+      case JSOP_SETLOCALPOP: {
         uint32_t slot = GetBytecodeSlot(script, pc);
         if (!trackSlot(slot) && slot < TotalSlots(script)) {
             TypeSet *types = TypeScript::SlotTypes(script, slot);
@@ -3647,10 +3692,10 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_LOCALDEC: {
         uint32_t slot = GetBytecodeSlot(script, pc);
         if (trackSlot(slot)) {
-            poppedTypes(pc, 0)->addArith(cx, script, pc, &pushed[0]);
+            poppedTypes(pc, 0)->addArith(cx, &pushed[0]);
         } else if (slot < TotalSlots(script)) {
             TypeSet *types = TypeScript::SlotTypes(script, slot);
-            types->addArith(cx, script, pc, types);
+            types->addArith(cx, types);
             types->addSubset(cx, &pushed[0]);
         } else {
             pushed[0].addType(cx, Type::UnknownType());
@@ -3658,15 +3703,23 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         break;
       }
 
-      case JSOP_ARGUMENTS:
+      case JSOP_ARGUMENTS: {
         /* Compute a precise type only when we know the arguments won't escape. */
-        if (script->needsArgsObj())
+        TypeObject *funType = script->function()->getType(cx);
+        if (funType->unknownProperties() || funType->hasAnyFlags(OBJECT_FLAG_CREATED_ARGUMENTS)) {
             pushed[0].addType(cx, Type::UnknownType());
-        else
-            pushed[0].addType(cx, Type::LazyArgsType());
+            break;
+        }
+        TypeSet *types = funType->getProperty(cx, JSID_EMPTY, false);
+        if (!types)
+            break;
+        types->addLazyArguments(cx, &pushed[0]);
+        pushed[0].addType(cx, Type::LazyArgsType());
         break;
+      }
 
-      case JSOP_SETPROP: {
+      case JSOP_SETPROP:
+      case JSOP_SETMETHOD: {
         jsid id = GetAtomId(cx, script, pc, 0);
         poppedTypes(pc, 1)->addSetProperty(cx, script, pc, poppedTypes(pc, 0), id);
         poppedTypes(pc, 0)->addSubset(cx, &pushed[0]);
@@ -3732,30 +3785,44 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         break;
 
       case JSOP_ADD:
-        poppedTypes(pc, 0)->addArith(cx, script, pc, &pushed[0], poppedTypes(pc, 1));
-        poppedTypes(pc, 1)->addArith(cx, script, pc, &pushed[0], poppedTypes(pc, 0));
+        poppedTypes(pc, 0)->addArith(cx, &pushed[0], poppedTypes(pc, 1));
+        poppedTypes(pc, 1)->addArith(cx, &pushed[0], poppedTypes(pc, 0));
         break;
 
       case JSOP_SUB:
       case JSOP_MUL:
       case JSOP_MOD:
       case JSOP_DIV:
-        poppedTypes(pc, 0)->addArith(cx, script, pc, &pushed[0]);
-        poppedTypes(pc, 1)->addArith(cx, script, pc, &pushed[0]);
+        poppedTypes(pc, 0)->addArith(cx, &pushed[0]);
+        poppedTypes(pc, 1)->addArith(cx, &pushed[0]);
         break;
 
       case JSOP_NEG:
       case JSOP_POS:
-        poppedTypes(pc, 0)->addArith(cx, script, pc, &pushed[0]);
+        poppedTypes(pc, 0)->addArith(cx, &pushed[0]);
         break;
 
       case JSOP_LAMBDA:
-      case JSOP_DEFFUN: {
-        JSObject *obj = script->getObject(GET_UINT32_INDEX(pc));
+      case JSOP_LAMBDA_FC:
+      case JSOP_DEFFUN:
+      case JSOP_DEFLOCALFUN:
+      case JSOP_DEFLOCALFUN_FC: {
+        unsigned off = (op == JSOP_DEFLOCALFUN || op == JSOP_DEFLOCALFUN_FC) ? SLOTNO_LEN : 0;
+        JSObject *obj = script->getObject(GET_UINT32_INDEX(pc + off));
 
         TypeSet *res = NULL;
-        if (op == JSOP_LAMBDA)
+        if (op == JSOP_LAMBDA || op == JSOP_LAMBDA_FC) {
             res = &pushed[0];
+        } else if (op == JSOP_DEFLOCALFUN || op == JSOP_DEFLOCALFUN_FC) {
+            uint32_t slot = GetBytecodeSlot(script, pc);
+            if (trackSlot(slot)) {
+                res = &pushed[0];
+            } else {
+                /* Should not see 'let' vars here. */
+                JS_ASSERT(slot < TotalSlots(script));
+                res = TypeScript::SlotTypes(script, slot);
+            }
+        }
 
         if (res) {
             if (script->hasGlobal())
@@ -3808,15 +3875,8 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_NEWINIT:
       case JSOP_NEWARRAY:
       case JSOP_NEWOBJECT: {
-        TypeSet *types = script->analysis()->bytecodeTypes(pc);
-        types->addSubset(cx, &pushed[0]);
-
-        if (UseNewTypeForInitializer(cx, script, pc)) {
-            /* Defer types pushed by this bytecode until runtime. */
-            break;
-        }
-
         TypeObject *initializer = GetInitializerType(cx, script, pc);
+        TypeSet *types = script->analysis()->bytecodeTypes(pc);
         if (script->hasGlobal()) {
             if (!initializer)
                 return false;
@@ -3825,6 +3885,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
             JS_ASSERT(!initializer);
             types->addType(cx, Type::UnknownType());
         }
+        types->addSubset(cx, &pushed[0]);
         break;
       }
 
@@ -3873,7 +3934,8 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         state.hasHole = true;
         break;
 
-      case JSOP_INITPROP: {
+      case JSOP_INITPROP:
+      case JSOP_INITMETHOD: {
         const SSAValue &objv = poppedValue(pc, 1);
         jsbytecode *initpc = script->code + objv.pushedOffset();
         TypeObject *initializer = GetInitializerType(cx, script, initpc);
@@ -4179,6 +4241,122 @@ ScriptAnalysis::analyzeTypes(JSContext *cx)
         }
         result = result->next;
     }
+
+    if (!script->usesArguments || script->createdArgs)
+        return;
+
+    /*
+     * Do additional analysis to determine whether the arguments object in the
+     * script can escape.
+     */
+
+    /*
+     * Note: don't check for strict mode code here, even though arguments
+     * accesses in such scripts will always be deoptimized. These scripts can
+     * have a JSOP_ARGUMENTS in their prologue which the usesArguments check
+     * above does not account for. We filter in the interpreter and JITs
+     * themselves.
+     */
+    if (script->function()->isHeavyweight() || cx->compartment->debugMode() || localsAliasStack()) {
+        MarkArgumentsCreated(cx, script);
+        return;
+    }
+
+    offset = 0;
+    while (offset < script->length) {
+        Bytecode *code = maybeCode(offset);
+        jsbytecode *pc = script->code + offset;
+
+        if (code && JSOp(*pc) == JSOP_ARGUMENTS) {
+            Vector<SSAValue> seen(cx);
+            if (!followEscapingArguments(cx, SSAValue::PushedValue(offset, 0), &seen)) {
+                MarkArgumentsCreated(cx, script);
+                return;
+            }
+        }
+
+        offset += GetBytecodeLength(pc);
+    }
+
+    /*
+     * The VM is now free to use the arguments in this script lazily. If we end
+     * up creating an arguments object for the script in the future or regard
+     * the arguments as escaping, we need to walk the stack and replace lazy
+     * arguments objects with actual arguments objects.
+     */
+    script->usedLazyArgs = true;
+}
+
+bool
+ScriptAnalysis::followEscapingArguments(JSContext *cx, const SSAValue &v, Vector<SSAValue> *seen)
+{
+    /*
+     * trackUseChain is false for initial values of variables, which
+     * cannot hold the script's arguments object.
+     */
+    if (!trackUseChain(v))
+        return true;
+
+    for (unsigned i = 0; i < seen->length(); i++) {
+        if (v == (*seen)[i])
+            return true;
+    }
+    if (!seen->append(v)) {
+        cx->compartment->types.setPendingNukeTypes(cx);
+        return false;
+    }
+
+    SSAUseChain *use = useChain(v);
+    while (use) {
+        if (!followEscapingArguments(cx, use, seen))
+            return false;
+        use = use->next;
+    }
+
+    return true;
+}
+
+bool
+ScriptAnalysis::followEscapingArguments(JSContext *cx, SSAUseChain *use, Vector<SSAValue> *seen)
+{
+    if (!use->popped)
+        return followEscapingArguments(cx, SSAValue::PhiValue(use->offset, use->u.phi), seen);
+
+    jsbytecode *pc = script->code + use->offset;
+    uint32_t which = use->u.which;
+
+    JSOp op = JSOp(*pc);
+
+    if (op == JSOP_POP || op == JSOP_POPN)
+        return true;
+
+    /* Allow GETELEM and LENGTH on arguments objects that don't escape. */
+
+    /*
+     * Note: if the element index is not an integer we will mark the arguments
+     * as escaping at the access site.
+     */
+    if (op == JSOP_GETELEM && which == 1)
+        return true;
+
+    if (op == JSOP_LENGTH)
+        return true;
+
+    /* Allow assignments to non-closed locals (but not arguments). */
+
+    if (op == JSOP_SETLOCAL) {
+        uint32_t slot = GetBytecodeSlot(script, pc);
+        if (!trackSlot(slot))
+            return false;
+        if (!followEscapingArguments(cx, SSAValue::PushedValue(use->offset, 0), seen))
+            return false;
+        return followEscapingArguments(cx, SSAValue::WrittenVar(slot, use->offset), seen);
+    }
+
+    if (op == JSOP_GETLOCAL)
+        return followEscapingArguments(cx, SSAValue::PushedValue(use->offset, 0), seen);
+
+    return false;
 }
 
 bool
@@ -5531,6 +5709,8 @@ JSObject::makeLazyType(JSContext *cx)
     if (isFunction() && toFunction()->isInterpreted()) {
         type->interpretedFunction = toFunction();
         JSScript *script = type->interpretedFunction->script();
+        if (script->createdArgs)
+            type->flags |= OBJECT_FLAG_CREATED_ARGUMENTS;
         if (script->uninlineable)
             type->flags |= OBJECT_FLAG_UNINLINEABLE;
         if (script->reentrantOuterFunction)

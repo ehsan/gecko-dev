@@ -274,9 +274,10 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                      aBuilder->GetDocument());
         PRUint32 pos = parent->IndexOf(node);
         NS_ASSERTION((pos >= 0), "Element not found as child of its parent");
-        parent->RemoveChildAt(pos, true);
+        rv = parent->RemoveChildAt(pos, true);
+        NS_ENSURE_SUCCESS(rv, rv);
       }
-      return NS_OK;
+      return rv;
     }
     case eTreeOpAppendChildrenToNewParent: {
       nsCOMPtr<nsIContent> node = *(mOne.node);
@@ -290,7 +291,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       bool didAppend = false;
       while (node->HasChildren()) {
         nsCOMPtr<nsIContent> child = node->GetFirstChild();
-        node->RemoveChildAt(0, true);
+        rv = node->RemoveChildAt(0, true);
+        NS_ENSURE_SUCCESS(rv, rv);
         rv = parent->AppendChildTo(child, false);
         NS_ENSURE_SUCCESS(rv, rv);
         didAppend = true;
@@ -586,7 +588,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return AppendToDocument(asContent, aBuilder);
     }
     case eTreeOpMarkAsBroken: {
-      aBuilder->MarkAsBroken(NS_ERROR_OUT_OF_MEMORY);
+      aBuilder->MarkAsBroken();
       return rv;
     }
     case eTreeOpRunScript: {
@@ -627,8 +629,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpNeedsCharsetSwitchTo: {
       char* str = mOne.charPtr;
       PRInt32 charsetSource = mFour.integer;
-      PRInt32 lineNumber = mTwo.integer;
-      aBuilder->NeedsCharsetSwitchTo(str, charsetSource, (PRUint32)lineNumber);
+      aBuilder->NeedsCharsetSwitchTo(str, charsetSource);
       return rv;    
     }
     case eTreeOpUpdateStyleSheet: {
@@ -690,13 +691,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       if (NS_FAILED(NS_DispatchToMainThread(event))) {
         NS_WARNING("failed to dispatch svg load dispatcher");
       }
-      return rv;
-    }
-    case eTreeOpMaybeComplainAboutCharset: {
-      char* msgId = mOne.charPtr;
-      bool error = mTwo.integer;
-      PRInt32 lineNumber = mThree.integer;
-      aBuilder->MaybeComplainAboutCharset(msgId, error, (PRUint32)lineNumber);
       return rv;
     }
     case eTreeOpAddClass: {

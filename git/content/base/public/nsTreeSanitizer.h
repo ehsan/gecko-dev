@@ -43,10 +43,6 @@
 #include "nsIPrincipal.h"
 #include "mozilla/dom/Element.h"
 
-/**
- * See the documentation of nsIParserUtils::sanitize for documentation
- * about the default behavior and the configuration options of this sanitizer.
- */
 class NS_STACK_CLASS nsTreeSanitizer {
 
   public:
@@ -54,9 +50,10 @@ class NS_STACK_CLASS nsTreeSanitizer {
     /**
      * The constructor.
      *
-     * @param aFlags Flags from nsIParserUtils
+     * @param aAllowStyles Whether to allow <style> and style=""
+     * @param aAllowComments Whether to allow comment nodes
      */
-    nsTreeSanitizer(PRUint32 aFlags = 0);
+    nsTreeSanitizer(bool aAllowStyles, bool aAllowComments);
 
     static void InitializeStatics();
     static void ReleaseStatics();
@@ -70,14 +67,6 @@ class NS_STACK_CLASS nsTreeSanitizer {
      */
     void Sanitize(nsIContent* aFragment);
 
-    /**
-     * Sanitizes a disconnected (not in a docshell) document freshly obtained
-     * from a parser. The document must not be embedded in a docshell and must
-     * not have had a chance to get mutation event listeners attached to it.
-     * The root element must be <html>.
-     */
-    void Sanitize(nsIDocument* aDocument);
-
   private:
 
     /**
@@ -89,33 +78,6 @@ class NS_STACK_CLASS nsTreeSanitizer {
      * Whether comment nodes are allowed.
      */
     bool mAllowComments;
-
-    /**
-     * Whether HTML <font>, <center>, bgcolor="", etc., are dropped.
-     */
-    bool mDropNonCSSPresentation;
-
-    /**
-     * Whether to remove forms and form controls (excluding fieldset/legend).
-     */
-    bool mDropForms;
-
-    /**
-     * Whether only cid: embeds are allowed.
-     */
-    bool mCidEmbedsOnly;
-
-    /**
-     * Whether to drop <img>, <video>, <audio> and <svg>.
-     */
-    bool mDropMedia;
-
-    /**
-     * Whether we are sanitizing a full document (as opposed to a fragment).
-     */
-    bool mFullDocument;
-
-    void SanitizeChildren(nsINode* aRoot);
 
     /**
      * Queries if an element must be replaced with its children.
@@ -216,14 +178,9 @@ class NS_STACK_CLASS nsTreeSanitizer {
     static nsTHashtable<nsISupportsHashKey>* sElementsHTML;
 
     /**
-     * The whitelist of non-presentational HTML attributes.
+     * The whitelist of HTML attributes.
      */
     static nsTHashtable<nsISupportsHashKey>* sAttributesHTML;
-
-    /**
-     * The whitelist of presentational HTML attributes.
-     */
-    static nsTHashtable<nsISupportsHashKey>* sPresAttributesHTML;
 
     /**
      * The whitelist of SVG elements.

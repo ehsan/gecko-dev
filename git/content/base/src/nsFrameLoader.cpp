@@ -56,6 +56,7 @@
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIWebNavigation.h"
 #include "nsIWebProgress.h"
@@ -101,6 +102,8 @@
 #include "nsINameSpaceManager.h"
 
 #include "nsThreadUtils.h"
+#include "nsIContentViewer.h"
+#include "nsIView.h"
 
 #include "nsIDOMChromeWindow.h"
 #include "nsInProcessTabChildGlobal.h"

@@ -382,7 +382,8 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
                 print "Warning: cleaning up pidfile '%s' was unsuccessful from the test harness" % self.pidFile
 
 def main():
-    automation = RemoteAutomation(None)
+    dm_none = devicemanagerADB.DeviceManagerADB(None, None)
+    automation = RemoteAutomation(dm_none)
     parser = RemoteOptions(automation)
     options, args = parser.parse_args()
 
@@ -390,18 +391,13 @@ def main():
         print "Error: you must provide a device IP to connect to via the --device option"
         sys.exit(1)
 
-    try:
-        if (options.dm_trans == "adb"):
-            if (options.deviceIP):
-                dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
-            else:
-                dm = devicemanagerADB.DeviceManagerADB(None, None)
+    if (options.dm_trans == "adb"):
+        if (options.deviceIP):
+            dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
         else:
-            dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
-    except devicemanager.DMError:
-        print "Error: exception while initializing devicemanager.  Most likely the device is not in a testable state."
-        sys.exit(1)
-
+            dm = dm_none
+    else:
+         dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
     automation.setDeviceManager(dm)
 
     if (options.remoteProductName != None):

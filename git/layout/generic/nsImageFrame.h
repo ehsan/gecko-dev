@@ -62,7 +62,6 @@ class nsDisplayImage;
 class nsPresContext;
 class nsImageFrame;
 class nsTransform2D;
-class nsImageLoadingContent;
 
 namespace mozilla {
 namespace layers {
@@ -184,25 +183,7 @@ public:
 
   nsRect GetInnerArea() const;
 
-  /**
-   * Return a map element associated with this image.
-   */
-  mozilla::dom::Element* GetMapElement() const
-  {
-    nsAutoString usemap;
-    if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::usemap, usemap)) {
-      return mContent->OwnerDoc()->FindImageMap(usemap);
-    }
-    return nsnull;
-  }
-
-  /**
-   * Return true if the image has associated image map.
-   */
-  bool HasImageMap() const { return mImageMap || GetMapElement(); }
-
   nsImageMap* GetImageMap();
-  nsImageMap* GetExistingImageMap() const { return mImageMap; }
 
   virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
@@ -216,7 +197,7 @@ protected:
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             PRUint32 aFlags) MOZ_OVERRIDE;
+                             bool aShrinkWrap);
 
   bool IsServerImageMap();
 
@@ -251,7 +232,6 @@ protected:
 
 protected:
   friend class nsImageListener;
-  friend class nsImageLoadingContent;
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
   nsresult OnDataAvailable(imgIRequest *aRequest, bool aCurrentFrame,
                            const nsIntRect *rect);
@@ -261,10 +241,6 @@ protected:
   nsresult FrameChanged(imgIRequest *aRequest,
                         imgIContainer *aContainer,
                         const nsIntRect *aDirtyRect);
-  /**
-   * Notification that aRequest will now be the current request.
-   */
-  void NotifyNewCurrentRequest(imgIRequest *aRequest, nsresult aStatus);
 
 private:
   // random helpers

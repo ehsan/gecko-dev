@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -58,7 +58,6 @@
 #include "nsIMemoryReporter.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsContentUtils.h"
-#include "nsWrapperCache.h"
 
 #include "GLContextProvider.h"
 #include "Layers.h"
@@ -538,18 +537,12 @@ public:
 
     // nsICanvasRenderingContextInternal
     NS_IMETHOD SetCanvasElement(nsHTMLCanvasElement* aParentCanvas);
-    nsHTMLCanvasElement* HTMLCanvasElement() {
-        return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
-    }
-
     NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height);
     NS_IMETHOD InitializeWithSurface(nsIDocShell *docShell, gfxASurface *surface, PRInt32 width, PRInt32 height)
         { return NS_ERROR_NOT_IMPLEMENTED; }
     NS_IMETHOD Reset()
         { /* (InitializeWithSurface) */ return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD Render(gfxContext *ctx,
-                      gfxPattern::GraphicsFilter f,
-                      PRUint32 aFlags = RenderFlagPremultAlpha);
+    NS_IMETHOD Render(gfxContext *ctx, gfxPattern::GraphicsFilter f);
     NS_IMETHOD GetInputStream(const char* aMimeType,
                               const PRUnichar* aEncoderOptions,
                               nsIInputStream **aStream);
@@ -695,14 +688,10 @@ protected:
         return ((x + y - 1) / y) * y;
     }
 
-    nsresult BufferData_size(WebGLenum target, WebGLsizei size, WebGLenum usage);
-    nsresult BufferData_buf(WebGLenum target, JSObject* data, WebGLenum usage);
-    nsresult BufferData_array(WebGLenum target, JSObject* data, WebGLenum usage);
-
-    nsresult BufferSubData_buf(WebGLenum target, PRInt32 offset, JSObject* data);
-    nsresult BufferSubData_array(WebGLenum target, PRInt32 offset, JSObject* data);
-
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
+    nsHTMLCanvasElement *HTMLCanvasElement() {
+        return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
+    }
 
     nsRefPtr<gl::GLContext> gl;
 
@@ -765,7 +754,7 @@ protected:
         WebGL_MOZ_WEBGL_lose_context,
         WebGLExtensionID_Max
     };
-    nsAutoTArray<nsRefPtr<WebGLExtension>, WebGLExtensionID_Max> mEnabledExtensions;
+    nsRefPtr<WebGLExtension> mEnabledExtensions[WebGLExtensionID_Max];
     bool IsExtensionEnabled(WebGLExtensionID ext) const {
         NS_ABORT_IF_FALSE(ext >= 0 && ext < WebGLExtensionID_Max, "bogus index!");
         return mEnabledExtensions[ext] != nsnull;
@@ -815,6 +804,8 @@ protected:
                                 void *pixels, PRUint32 byteLength,
                                 int jsArrayType,
                                 int srcFormat, bool srcPremultiplied);
+    nsresult ReadPixels_base(WebGLint x, WebGLint y, WebGLsizei width, WebGLsizei height,
+                             WebGLenum format, WebGLenum type, JSObject* pixels);
     nsresult TexParameter_base(WebGLenum target, WebGLenum pname,
                                WebGLint *intParamPtr, WebGLfloat *floatParamPtr);
 
@@ -998,8 +989,6 @@ public:
         return mContext == other &&
             mContextGeneration == other->Generation();
     }
-
-    WebGLContext *Context() const { return mContext; }
 
 protected:
     WebGLContext *mContext;
@@ -2545,17 +2534,14 @@ protected:
 class WebGLExtension
     : public nsIWebGLExtension
     , public WebGLContextBoundObject
-    , public nsWrapperCache
 {
 public:
     WebGLExtension(WebGLContext *baseContext)
         : WebGLContextBoundObject(baseContext)
     {}
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLExtension)
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLEXTENSION
-
     virtual ~WebGLExtension() {}
 };
 

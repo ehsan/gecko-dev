@@ -220,6 +220,7 @@ struct nsCycleCollectorParams
 #ifdef DEBUG_CC
     bool mReportStats;
     bool mHookMalloc;
+    bool mFaultIsFatal;
     bool mLogPointers;
     PRUint32 mShutdownCollections;
 #endif
@@ -231,6 +232,7 @@ struct nsCycleCollectorParams
                         PR_GetEnv("XPCOM_CC_DRAW_GRAPHS") != NULL),
         mReportStats   (PR_GetEnv("XPCOM_CC_REPORT_STATS") != NULL),
         mHookMalloc    (PR_GetEnv("XPCOM_CC_HOOK_MALLOC") != NULL),
+        mFaultIsFatal  (PR_GetEnv("XPCOM_CC_FAULT_IS_FATAL") != NULL),
         mLogPointers   (PR_GetEnv("XPCOM_CC_LOG_POINTERS") != NULL),
 
         mShutdownCollections(DEFAULT_SHUTDOWN_COLLECTIONS)
@@ -782,7 +784,7 @@ struct GCGraph
 
 // XXX Would be nice to have an nsHashSet<KeyType> API that has
 // Add/Remove/Has rather than PutEntry/RemoveEntry/GetEntry.
-typedef nsTHashtable<nsPtrHashKey<const void> > PointerSet;
+typedef nsTHashtable<nsVoidPtrHashKey> PointerSet;
 
 static inline void
 ToParticipant(nsISupports *s, nsXPCOMCycleCollectionParticipant **cp);
@@ -890,7 +892,7 @@ public:
                     nsXPCOMCycleCollectionParticipant *cp;
                     ToParticipant(e->mObject, &cp);
 
-                    cp->UnmarkIfPurple(e->mObject);
+                    cp->UnmarkPurple(e->mObject);
                 }
 
                 if (--mCount == 0)
@@ -1012,7 +1014,7 @@ static bool
 AddPurpleRoot(GCGraphBuilder &builder, nsISupports *root);
 
 static PLDHashOperator
-selectionCallback(nsPtrHashKey<const void>* key, void* userArg)
+selectionCallback(nsVoidPtrHashKey* key, void* userArg)
 {
     CallbackClosure *closure = static_cast<CallbackClosure*>(userArg);
     if (AddPurpleRoot(closure->mBuilder,
@@ -1241,15 +1243,68 @@ static nsCycleCollector *sCollector = nsnull;
 // Utility functions
 ////////////////////////////////////////////////////////////////////////
 
-MOZ_NEVER_INLINE static void
+class CCRunnableFaultReport : public nsRunnable {
+public:
+    CCRunnableFaultReport(const nsCString& report)
+    {
+        CopyUTF8toUTF16(report, mReport);
+    }
+    
+    NS_IMETHOD Run() {
+        nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+        if (obs) {
+            obs->NotifyObservers(nsnull, "cycle-collector-fault",
+                                 mReport.get());
+        }
+
+        nsCOMPtr<nsIConsoleService> cons =
+            do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+        if (cons) {
+            cons->LogStringMessage(mReport.get());
+        }
+        return NS_OK;
+    }
+
+private:
+    nsString mReport;
+};
+
+static void
 Fault(const char *msg, const void *ptr=nsnull)
 {
-    if (ptr)
-        printf("Fault in cycle collector: %s (ptr: %p)\n", msg, ptr);
-    else
-        printf("Fault in cycle collector: %s\n", msg);
+#ifdef DEBUG_CC
+    // This should be nearly impossible, but just in case.
+    if (!sCollector)
+        return;
 
-    NS_RUNTIMEABORT("cycle collector fault");
+    if (sCollector->mParams.mFaultIsFatal) {
+
+        if (ptr)
+            printf("Fatal fault in cycle collector: %s (ptr: %p)\n", msg, ptr);
+        else
+            printf("Fatal fault in cycle collector: %s\n", msg);
+
+        exit(1);
+    }
+#endif
+
+    nsPrintfCString str(256, "Fault in cycle collector: %s (ptr: %p)\n",
+                        msg, ptr);
+    NS_NOTREACHED(str.get());
+
+    // When faults are not fatal, we assume we're running in a
+    // production environment and we therefore want to disable the
+    // collector on a fault. This will unfortunately cause the browser
+    // to leak pretty fast wherever creates cyclical garbage, but it's
+    // probably a better user experience than crashing. Besides, we
+    // *should* never hit a fault.
+
+    sCollector->mParams.mDoNothing = true;
+
+    // Report to observers off an event so we don't run JS under GC
+    // (which is where we might be right now).
+    nsCOMPtr<nsIRunnable> ev = new CCRunnableFaultReport(str);
+    NS_DispatchToMainThread(ev);
 }
 
 #ifdef DEBUG_CC
@@ -1277,7 +1332,7 @@ Fault(const char *msg, PtrInfo *pi)
     Fault(msg, pi->mPointer);
 }
 #else
-static void
+inline void
 Fault(const char *msg, PtrInfo *pi)
 {
     Fault(msg, pi->mPointer);
@@ -1916,7 +1971,7 @@ GCGraphBuilder::NoteRoot(PRUint32 langID, void *root,
         return;
     }
 
-    if (!participant->CanSkipInCC(root) || WantAllTraces()) {
+    if (!participant->CanSkipThis(root) || WantAllTraces()) {
         AddNode(root, participant, langID);
     }
 }
@@ -2143,7 +2198,7 @@ AddPurpleRoot(GCGraphBuilder &builder, nsISupports *root)
         }
     }
 
-    cp->UnmarkIfPurple(root);
+    cp->UnmarkPurple(root);
 
     return true;
 }
@@ -2175,7 +2230,7 @@ nsPurpleBuffer::RemoveSkippable(bool removeChildlessNodes)
                         (!removeChildlessNodes || MayHaveChild(o, cp))) {
                         continue;
                     }
-                    cp->UnmarkIfPurple(o);
+                    cp->UnmarkPurple(o);
                 }
                 Remove(e);
             }
@@ -2185,7 +2240,7 @@ nsPurpleBuffer::RemoveSkippable(bool removeChildlessNodes)
 
 #ifdef DEBUG_CC
 static PLDHashOperator
-noteAllCallback(nsPtrHashKey<const void>* key, void* userArg)
+noteAllCallback(nsVoidPtrHashKey* key, void* userArg)
 {
     GCGraphBuilder *builder = static_cast<GCGraphBuilder*>(userArg);
     builder->NoteXPCOMRoot(
@@ -3359,7 +3414,7 @@ nsCycleCollector::Shutdown()
 #ifdef DEBUG_CC
 
 static PLDHashOperator
-AddExpectedGarbage(nsPtrHashKey<const void> *p, void *arg)
+AddExpectedGarbage(nsVoidPtrHashKey *p, void *arg)
 {
     GCGraphBuilder *builder = static_cast<GCGraphBuilder*>(arg);
     nsISupports *root =

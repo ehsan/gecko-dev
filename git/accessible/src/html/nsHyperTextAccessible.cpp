@@ -132,7 +132,7 @@ nsHyperTextAccessible::NativeRole()
     return roles::FORM;
 
   if (tag == nsGkAtoms::blockquote || tag == nsGkAtoms::div ||
-      tag == nsGkAtoms::section || tag == nsGkAtoms::nav)
+      tag == nsGkAtoms::nav)
     return roles::SECTION;
 
   if (tag == nsGkAtoms::h1 || tag == nsGkAtoms::h2 ||
@@ -168,8 +168,11 @@ nsHyperTextAccessible::NativeState()
 
   nsCOMPtr<nsIEditor> editor = GetEditor();
   if (editor) {
-    states |= states::EDITABLE;
-
+    PRUint32 flags;
+    editor->GetFlags(&flags);
+    if (0 == (flags & nsIPlaintextEditor::eEditorReadonlyMask)) {
+      states |= states::EDITABLE;
+    }
   } else if (mContent->Tag() == nsGkAtoms::article) {
     // We want <article> to behave like a document in terms of readonly state.
     states |= states::READONLY;
@@ -780,6 +783,7 @@ nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
   }
 
   // Ask layout for the new node and offset, after moving the appropriate amount
+  nsPeekOffsetStruct pos;
 
   nsresult rv;
   PRInt32 contentOffset = aFromOffset;
@@ -793,9 +797,9 @@ nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
     }
   }
 
-  nsPeekOffsetStruct pos(aAmount, aDirection, contentOffset,
-                         0, kIsJumpLinesOk, kIsScrollViewAStop, kIsKeyboardSelect, kIsVisualBidi,
-                         wordMovementType);
+  pos.SetData(aAmount, aDirection, contentOffset,
+              0, kIsJumpLinesOk, kIsScrollViewAStop, kIsKeyboardSelect, kIsVisualBidi,
+              wordMovementType);
   rv = aFromFrame->PeekOffset(&pos);
   if (NS_FAILED(rv)) {
     if (aDirection == eDirPrevious) {
@@ -1223,7 +1227,7 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   }
 
   if (FocusMgr()->IsFocused(this)) {
-    PRInt32 lineNumber = CaretLineNumber();
+    PRInt32 lineNumber = GetCaretLineNumber();
     if (lineNumber >= 1) {
       nsAutoString strLineNumber;
       strLineNumber.AppendInt(lineNumber);
@@ -1239,9 +1243,6 @@ nsHyperTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   if (mContent->Tag() == nsGkAtoms::nav)
     nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("navigation"));
-  else if (mContent->Tag() == nsGkAtoms::section) 
-    nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::xmlroles,
-                           NS_LITERAL_STRING("region"));
   else if (mContent->Tag() == nsGkAtoms::footer) 
     nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("contentinfo"));
@@ -1682,7 +1683,7 @@ nsHyperTextAccessible::GetCaretOffset(PRInt32 *aCaretOffset)
 }
 
 PRInt32
-nsHyperTextAccessible::CaretLineNumber()
+nsHyperTextAccessible::GetCaretLineNumber()
 {
   // Provide the line number for the caret, relative to the
   // currently focused node. Use a 1-based index

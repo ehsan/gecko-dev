@@ -44,15 +44,10 @@
  * entries at the top.
  */
 
-/*
- * SYNTAX HINTS:
- *
- *  - Dashes are delimiters; use underscores instead.
- *  - The first character after a period must be alphabetic.
- *  - Computed values (e.g. 50 * 1024) don't work.
- */
+// SYNTAX HINTS:  dashes are delimiters.  Use underscores instead.
+//  The first character after a period must be alphabetic.
 
-pref("keyword.URL", "https://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
+pref("keyword.URL", "http://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
 pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("general.useragent.compatMode.firefox", false);
@@ -241,10 +236,6 @@ pref("gfx.canvas.azure.enabled", true);
 #endif
 #endif
 
-#ifdef ANDROID
-pref("gfx.textures.poweroftwo.force-enabled", false);
-#endif
-
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
 
@@ -320,9 +311,6 @@ pref("toolkit.telemetry.server", "https://data.mozilla.com");
 pref("toolkit.telemetry.server_owner", "Mozilla");
 // Information page about telemetry (temporary ; will be about:telemetry in the end)
 pref("toolkit.telemetry.infoURL", "http://www.mozilla.com/legal/privacy/firefox.html#telemetry");
-// Determines whether full SQL strings are returned when they might contain sensitive info
-// i.e. dynamically constructed SQL strings or SQL executed by addons against addon DBs
-pref("toolkit.telemetry.debugSlowSql", false);
 
 // Disable remote debugging protocol logging
 pref("devtools.debugger.log", false);
@@ -809,22 +797,10 @@ pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
 pref("network.http.proxy.pipelining", false);
 
 // Max number of requests in the pipeline
-pref("network.http.pipelining.maxrequests" , 32);
-
-// An optimistic request is one pipelined when policy might allow a new
-// connection instead
-pref("network.http.pipelining.max-optimistic-requests" , 4);
-
-pref("network.http.pipelining.aggressive", false);
-pref("network.http.pipelining.maxsize" , 300000);
-pref("network.http.pipelining.read-timeout", 10000);
+pref("network.http.pipelining.maxrequests" , 4);
 
 // Prompt for 307 redirects
 pref("network.http.prompt-temp-redirect", true);
-
-// If true generate CORRUPTED_CONTENT errors for entities that
-// contain an invalid Assoc-Req response header
-pref("network.http.assoc-req.enforce", false);
 
 // On networks deploying QoS, it is recommended that these be lockpref()'d,
 // since inappropriate marking can easily overwhelm bandwidth reservations
@@ -1356,16 +1332,14 @@ pref("mousewheel.horizscroll.withmetakey.sysnumlines",true);
 
 // These define the smooth scroll behavior (min ms, max ms) for different triggers
 // Some triggers:
-// mouseWheel: Discrete mouse wheel events, Synaptics touchpads on windows (generate wheel events)
+// Pixels: Discrete mouse wheel events, Synaptics touchpads on windows (generate wheel events)
 // Lines:  Up/Down/Left/Right KB arrows
 // Pages:  Page up/down, Space
 // Scrollbars: Clicking scrollbars arrows, clicking scrollbars tracks
 // Note: Currently OS X trackpad and magic mouse don't use our smooth scrolling
 // Note: These are relevant only when "general.smoothScroll" is enabled
-pref("general.smoothScroll.mouseWheel.durationMinMS", 200);
-pref("general.smoothScroll.mouseWheel.durationMaxMS", 400);
-pref("general.smoothScroll.pixels.durationMinMS", 150);
-pref("general.smoothScroll.pixels.durationMaxMS", 150);
+pref("general.smoothScroll.pixels.durationMinMS", 200);
+pref("general.smoothScroll.pixels.durationMaxMS", 800);
 pref("general.smoothScroll.lines.durationMinMS", 150);
 pref("general.smoothScroll.lines.durationMaxMS", 150);
 pref("general.smoothScroll.pages.durationMinMS", 150);
@@ -1374,8 +1348,6 @@ pref("general.smoothScroll.scrollbars.durationMinMS", 150);
 pref("general.smoothScroll.scrollbars.durationMaxMS", 150);
 pref("general.smoothScroll.other.durationMinMS", 150);
 pref("general.smoothScroll.other.durationMaxMS", 150);
-// Enable disable smooth scrolling for different triggers (when "general.smoothScroll" is enabled)
-pref("general.smoothScroll.mouseWheel", true);
 pref("general.smoothScroll.pixels", true);
 pref("general.smoothScroll.lines", true);
 pref("general.smoothScroll.pages", true);
@@ -2067,7 +2039,8 @@ pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 pref("print.extend_native_print_dialog", true);
 
 // Locate Java by scanning the Sun JRE installation directory with a minimum version
-pref("plugin.scan.SunJRE", "1.6");
+// Note: Does not scan if security.enable_java is not true
+pref("plugin.scan.SunJRE", "1.3");
 
 // Locate plugins by scanning the Adobe Acrobat installation directory with a minimum version
 pref("plugin.scan.Acrobat", "5.0");
@@ -2088,6 +2061,13 @@ pref("plugin.allow.asyncdrawing", false);
 // Help Windows NT, 2000, and XP dialup a RAS connection
 // when a network address is unreachable.
 pref("network.autodial-helper.enabled", true);
+
+// Pref to control whether we set ddeexec subkeys for the http
+// Internet shortcut protocol if we are handling it.  These
+// subkeys will be set only while we are running (to avoid the
+// problem of Windows showing an alert when it tries to use DDE
+// and we're not already running).
+pref("advanced.system.supportDDEExec", true);
 
 // Switch the keyboard layout per window
 pref("intl.keyboard.per_window_layout", false);
@@ -2380,19 +2360,19 @@ pref("font.name-list.serif.zh-CN", "STSong,Heiti SC");
 pref("font.name-list.sans-serif.zh-CN", "STHeiti,Heiti SC");
 pref("font.name-list.monospace.zh-CN", "STHeiti,Heiti SC");
 
-pref("font.name.serif.zh-TW", "Times"); 
-pref("font.name.sans-serif.zh-TW", "Helvetica");  
-pref("font.name.monospace.zh-TW", "Courier");  
-pref("font.name-list.serif.zh-TW", "Times,LiSong Pro,Heiti TC");
-pref("font.name-list.sans-serif.zh-TW", "Helvetica,Heiti TC,LiHei Pro");
-pref("font.name-list.monospace.zh-TW", "Courier,Heiti TC,LiHei Pro");
+pref("font.name.serif.zh-TW", "Apple LiSung"); 
+pref("font.name.sans-serif.zh-TW", "Apple LiGothic");  
+pref("font.name.monospace.zh-TW", "Apple LiGothic");  
+pref("font.name-list.serif.zh-TW", "Apple LiSung,Heiti TC");
+pref("font.name-list.sans-serif.zh-TW", "Apple LiGothic,Heiti TC");
+pref("font.name-list.monospace.zh-TW", "Apple LiGothic,Heiti TC");
 
-pref("font.name.serif.zh-HK", "Times");
-pref("font.name.sans-serif.zh-HK", "Helvetica");
-pref("font.name.monospace.zh-HK", "Courier");
-pref("font.name-list.serif.zh-HK", "Times,LiSong Pro,Heiti TC");
-pref("font.name-list.sans-serif.zh-HK", "Helvetica,Heiti TC,LiHei Pro");
-pref("font.name-list.monospace.zh-HK", "Courier,Heiti TC,LiHei Pro");
+pref("font.name.serif.zh-HK", "LiSong Pro");
+pref("font.name.sans-serif.zh-HK", "LiHei Pro");
+pref("font.name.monospace.zh-HK", "LiHei Pro");
+pref("font.name-list.serif.zh-HK", "LiSong Pro,Heiti TC");
+pref("font.name-list.sans-serif.zh-HK", "LiHei Pro,Heiti TC");
+pref("font.name-list.monospace.zh-HK", "LiHei Pro,Heiti TC");
 
 pref("font.default.ar", "sans-serif");
 pref("font.size.variable.ar", 16);
@@ -2544,7 +2524,7 @@ pref("ui.key.generalAccessKey", -1);
 // Use 0 for disabled, 1 for Shift, 2 for Ctrl, 4 for Alt, 8 for Meta (Cmd)
 // (values can be combined, e.g. 3 for Ctrl+Shift)
 pref("ui.key.chromeAccess", 2);
-pref("ui.key.contentAccess", 6);
+pref("ui.key.contentAccess", 2);
 
 // print_extra_margin enables platforms to specify an extra gap or margin
 // around the content of the page for Print Preview only
@@ -2812,12 +2792,10 @@ pref("font.alias-list", "sans,sans-serif,serif,monospace");
 pref("font.name.serif.el", "Droid Serif");
 pref("font.name.sans-serif.el", "Droid Sans");
 pref("font.name.monospace.el", "Droid Sans Mono");
-pref("font.name-list.sans-serif.el", "Roboto, Droid Sans");
 
 pref("font.name.serif.he", "Droid Serif");
 pref("font.name.sans-serif.he", "Droid Sans");
 pref("font.name.monospace.he", "Droid Sans Mono");
-pref("font.name-list.sans-serif.he", "Droid Sans Hebrew, Droid Sans");
 
 pref("font.name.serif.ja", "Droid Serif");
 pref("font.name.sans-serif.ja", "Droid Sans Japanese");
@@ -2832,12 +2810,10 @@ pref("font.name.monospace.ko", "Droid Sans Mono");
 pref("font.name.serif.th", "Droid Serif");
 pref("font.name.sans-serif.th", "Droid Sans");
 pref("font.name.monospace.th", "Droid Sans Mono");
-pref("font.name-list.sans-serif.th", "Droid Sans Thai, Droid Sans");
 
 pref("font.name.serif.tr", "Droid Serif");
 pref("font.name.sans-serif.tr", "Droid Sans");
 pref("font.name.monospace.tr", "Droid Sans Mono");
-pref("font.name-list.sans-serif.tr", "Roboto, Droid Sans");
 
 pref("font.name.serif.x-baltic", "Droid Serif");
 pref("font.name.sans-serif.x-baltic", "Droid Sans");
@@ -3390,10 +3366,6 @@ pref("image.mem.max_ms_before_yield", 5);
 // The maximum source data size for which we auto sync decode
 pref("image.mem.max_bytes_for_sync_decode", 150000);
 
-// The maximum amount of decoded image data we'll willingly keep around (we
-// might keep around more than this, but we'll try to get down to this value).
-pref("image.mem.max_decoded_image_kb", 51200);
-
 // WebGL prefs
 pref("webgl.force-enabled", false);
 pref("webgl.disabled", false);
@@ -3508,9 +3480,6 @@ pref("dom.sms.whitelist", "");
 // WebContacts
 pref("dom.mozContacts.enabled", false);
 pref("dom.mozContacts.whitelist", "");
-
-// WebSettings
-pref("dom.mozSettings.enabled", false);
 
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);

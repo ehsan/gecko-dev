@@ -237,7 +237,6 @@ function createMochitestServer(serverBasePath)
   server.registerContentType("sjs", "sjs"); // .sjs == CGI-like functionality
   server.registerContentType("jar", "application/x-jar");
   server.registerContentType("ogg", "application/ogg");
-  server.registerContentType("pdf", "application/pdf");
   server.registerContentType("ogv", "video/ogg");
   server.registerContentType("oga", "audio/ogg");
   server.registerContentType("dat", "text/plain; charset=utf-8");

@@ -13,6 +13,7 @@ ObjectPrincipalsFinder(JSObject *)
 static const JSSecurityCallbacks seccb = {
     NULL,
     NULL,
+    NULL,
     ObjectPrincipalsFinder,
     NULL
 };
@@ -100,8 +101,8 @@ testInner(const char *asciiChars, JSPrincipals *principal, JSPrincipals *originP
     CHECK(eval(asciiChars, principal, originPrincipal, &rval));
 
     JSScript *script = JS_GetFunctionScript(cx, JSVAL_TO_OBJECT(rval)->toFunction());
-    CHECK(JS_GetScriptPrincipals(script) == principal);
-    CHECK(JS_GetScriptOriginPrincipals(script) == originPrincipal);
+    CHECK(JS_GetScriptPrincipals(cx, script) == principal);
+    CHECK(JS_GetScriptOriginPrincipals(cx, script) == originPrincipal);
 
     return true;
 }

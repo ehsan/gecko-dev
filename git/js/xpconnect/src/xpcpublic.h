@@ -55,6 +55,7 @@
 #include "nsTArray.h"
 
 class nsIPrincipal;
+class nsIXPConnectWrappedJS;
 struct nsDOMClassInfoData;
 
 #ifndef BAD_TLS_INDEX
@@ -137,9 +138,9 @@ xpc_FastGetCachedWrapper(nsWrapperCache *cache, JSObject *scope, jsval *vp)
     if (cache) {
         JSObject* wrapper = cache->GetWrapper();
         NS_ASSERTION(!wrapper ||
-                     !cache->IsDOMBinding() ||
+                     !cache->IsProxy() ||
                      !IS_SLIM_WRAPPER(wrapper),
-                     "Should never have a slim wrapper when IsDOMBinding()");
+                     "Should never have a slim wrapper when IsProxy()");
         if (wrapper &&
             js::GetObjectCompartment(wrapper) == js::GetObjectCompartment(scope) &&
             (IS_SLIM_WRAPPER(wrapper) ||
@@ -195,9 +196,9 @@ xpc_UnmarkGrayObject(JSObject *obj)
 extern void
 xpc_MarkInCCGeneration(nsISupports* aVariant, PRUint32 aGeneration);
 
-// If aWrappedJS is a JS wrapper, unmark its JSObject.
+// Unmarks aWrappedJS's JSObject.
 extern void
-xpc_TryUnmarkWrappedGrayObject(nsISupports* aWrappedJS);
+xpc_UnmarkGrayObject(nsIXPConnectWrappedJS* aWrappedJS);
 
 extern void
 xpc_UnmarkSkippableJSHolders();
@@ -253,6 +254,16 @@ inline bool instanceIsProxy(JSObject *obj)
     return js::IsProxy(obj) &&
            js::GetProxyHandler(obj)->family() == ProxyFamily();
 }
+extern JSClass ExpandoClass;
+inline bool isExpandoObject(JSObject *obj)
+{
+    return js::GetObjectJSClass(obj) == &ExpandoClass;
+}
+
+enum {
+    JSPROXYSLOT_PROTOSHAPE = 0,
+    JSPROXYSLOT_EXPANDO = 1
+};
 
 typedef JSObject*
 (*DefineInterface)(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled);

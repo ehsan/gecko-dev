@@ -42,8 +42,6 @@
 #include "gfxFT2FontList.h"
 #include "gfxImageSurface.h"
 #include "nsXULAppAPI.h"
-#include "nsIScreen.h"
-#include "nsIScreenManager.h"
 
 #include "cairo.h"
 
@@ -59,15 +57,6 @@ static FT_Library gPlatformFTLibrary = NULL;
 gfxAndroidPlatform::gfxAndroidPlatform()
 {
     FT_Init_FreeType(&gPlatformFTLibrary);
-
-    nsCOMPtr<nsIScreenManager> screenMgr = do_GetService("@mozilla.org/gfx/screenmanager;1");
-    nsCOMPtr<nsIScreen> screen;
-    screenMgr->GetPrimaryScreen(getter_AddRefs(screen));
-    PRInt32 depth = 24;
-    screen->GetColorDepth(&depth);
-
-    mOffscreenFormat = depth == 16 ? gfxASurface::ImageFormatRGB16_565 :
-                                     gfxASurface::ImageFormatARGB32;
 }
 
 gfxAndroidPlatform::~gfxAndroidPlatform()

@@ -88,6 +88,7 @@
 #include "nsStyleSet.h"
 #include "prlog.h"
 #include "nsIObserverService.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 #include "mozilla/Services.h"
 #include "mozilla/dom/Element.h"
@@ -136,19 +137,18 @@ struct RuleValue : RuleSelectorPair {
     eMaxAncestorHashes = 4
   };
 
-  RuleValue(const RuleSelectorPair& aRuleSelectorPair, PRInt32 aIndex,
-            bool aQuirksMode) :
+  RuleValue(const RuleSelectorPair& aRuleSelectorPair, PRInt32 aIndex) :
     RuleSelectorPair(aRuleSelectorPair),
     mIndex(aIndex)
   {
-    CollectAncestorHashes(aQuirksMode);
+    CollectAncestorHashes();
   }
 
   PRInt32 mIndex; // High index means high weight/order.
   uint32_t mAncestorSelectorHashes[eMaxAncestorHashes];
 
 private:
-  void CollectAncestorHashes(bool aQuirksMode) {
+  void CollectAncestorHashes() {
     // Collect up our mAncestorSelectorHashes.  It's not clear whether it's
     // better to stop once we've found eMaxAncestorHashes of them or to keep
     // going and preferentially collect information from selectors higher up the
@@ -163,28 +163,24 @@ private:
         continue;
       }
 
-      // Now sel is supposed to select one of our ancestors.  Grab
-      // whatever info we can from it into mAncestorSelectorHashes.
-      // But in qurks mode, don't grab IDs and classes because those
-      // need to be matched case-insensitively.
-      if (!aQuirksMode) {
-        nsAtomList* ids = sel->mIDList;
-        while (ids) {
-          mAncestorSelectorHashes[hashIndex++] = ids->mAtom->hash();
-          if (hashIndex == eMaxAncestorHashes) {
-            return;
-          }
-          ids = ids->mNext;
+      // Now sel is supposed to select one of our ancestors.  Grab whatever info
+      // we can from it into mAncestorSelectorHashes.
+      nsAtomList* ids = sel->mIDList;
+      while (ids) {
+        mAncestorSelectorHashes[hashIndex++] = ids->mAtom->hash();
+        if (hashIndex == eMaxAncestorHashes) {
+          return;
         }
+        ids = ids->mNext;
+      }
 
-        nsAtomList* classes = sel->mClassList;
-        while (classes) {
-          mAncestorSelectorHashes[hashIndex++] = classes->mAtom->hash();
-          if (hashIndex == eMaxAncestorHashes) {
-            return;
-          }
-          classes = classes->mNext;
+      nsAtomList* classes = sel->mClassList;
+      while (classes) {
+        mAncestorSelectorHashes[hashIndex++] = classes->mAtom->hash();
+        if (hashIndex == eMaxAncestorHashes) {
+          return;
         }
+        classes = classes->mNext;
       }
 
       // Only put in the tag name if it's all-lowercase.  Otherwise we run into
@@ -632,7 +628,7 @@ void RuleHash::AppendRuleToTable(PLDHashTable* aTable, const void* aKey,
                                          (PL_DHashTableOperate(aTable, aKey, PL_DHASH_ADD));
   if (!entry)
     return;
-  entry->mRules.AppendElement(RuleValue(aRuleInfo, mRuleCount++, mQuirksMode));
+  entry->mRules.AppendElement(RuleValue(aRuleInfo, mRuleCount++));
 }
 
 static void
@@ -650,7 +646,7 @@ AppendRuleToTagTable(PLDHashTable* aTable, nsIAtom* aKey,
 
 void RuleHash::AppendUniversalRule(const RuleSelectorPair& aRuleInfo)
 {
-  mUniversalRules.AppendElement(RuleValue(aRuleInfo, mRuleCount++, mQuirksMode));
+  mUniversalRules.AppendElement(RuleValue(aRuleInfo, mRuleCount++));
 }
 
 void RuleHash::AppendRule(const RuleSelectorPair& aRuleInfo)
@@ -677,7 +673,7 @@ void RuleHash::AppendRule(const RuleSelectorPair& aRuleInfo)
     RULE_HASH_STAT_INCREMENT(mClassSelectors);
   }
   else if (selector->mLowercaseTag) {
-    RuleValue ruleValue(aRuleInfo, mRuleCount++, mQuirksMode);
+    RuleValue ruleValue(aRuleInfo, mRuleCount++);
     if (!mTagTable.ops) {
       PL_DHashTableInit(&mTagTable, &RuleHash_TagTable_Ops, nsnull,
                         sizeof(RuleHashTagTableEntry), 16);
@@ -1079,6 +1075,63 @@ RuleCascadeData::AttributeListFor(nsIAtom* aAttribute)
   return &entry->mSelectors;
 }
 
+class nsPrivateBrowsingObserver : nsIObserver,
+                                  nsSupportsWeakReference
+{
+public:
+  nsPrivateBrowsingObserver();
+
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
+
+  void Init();
+  bool InPrivateBrowsing() const { return mInPrivateBrowsing; }
+
+private:
+  bool mInPrivateBrowsing;
+};
+
+NS_IMPL_ISUPPORTS2(nsPrivateBrowsingObserver, nsIObserver, nsISupportsWeakReference)
+
+nsPrivateBrowsingObserver::nsPrivateBrowsingObserver()
+  : mInPrivateBrowsing(false)
+{
+}
+
+void
+nsPrivateBrowsingObserver::Init()
+{
+  nsCOMPtr<nsIObserverService> observerService =
+    mozilla::services::GetObserverService();
+  if (observerService) {
+    observerService->AddObserver(this, "profile-after-change", true);
+    observerService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, true);
+  }
+}
+
+nsresult
+nsPrivateBrowsingObserver::Observe(nsISupports *aSubject,
+                                   const char *aTopic,
+                                   const PRUnichar *aData)
+{
+  if (!strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC)) {
+    if (!nsCRT::strcmp(aData, NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).get())) {
+      mInPrivateBrowsing = true;
+    } else {
+      mInPrivateBrowsing = false;
+    }
+  }
+  else if (!strcmp(aTopic, "profile-after-change")) {
+    nsCOMPtr<nsIPrivateBrowsingService> pbService =
+      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+    if (pbService)
+      pbService->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
+  }
+  return NS_OK;
+}
+
+static nsPrivateBrowsingObserver *gPrivateBrowsingObserver = nsnull;
+
 // -------------------------------
 // CSS Style rule processor implementation
 //
@@ -1111,6 +1164,11 @@ nsCSSRuleProcessor::Startup()
 {
   Preferences::AddBoolVarCache(&gSupportVisitedPseudo, VISITED_PSEUDO_PREF,
                                true);
+
+  gPrivateBrowsingObserver = new nsPrivateBrowsingObserver();
+  NS_ENSURE_TRUE(gPrivateBrowsingObserver, NS_ERROR_OUT_OF_MEMORY);
+  NS_ADDREF(gPrivateBrowsingObserver);
+  gPrivateBrowsingObserver->Init();
 
   return NS_OK;
 }
@@ -1248,6 +1306,8 @@ nsCSSRuleProcessor::FreeSystemMetrics()
 nsCSSRuleProcessor::Shutdown()
 {
   FreeSystemMetrics();
+  // Make sure we don't crash if Shutdown is called before Init
+  NS_IF_RELEASE(gPrivateBrowsingObserver);
 }
 
 /* static */ bool
@@ -1271,7 +1331,7 @@ nsCSSRuleProcessor::GetWindowsThemeIdentifier()
 
 /* static */
 nsEventStates
-nsCSSRuleProcessor::GetContentState(Element* aElement, const TreeMatchContext& aTreeMatchContext)
+nsCSSRuleProcessor::GetContentState(Element* aElement)
 {
   nsEventStates state = aElement->StyleState();
 
@@ -1282,7 +1342,7 @@ nsCSSRuleProcessor::GetContentState(Element* aElement, const TreeMatchContext& a
   if (state.HasState(NS_EVENT_STATE_VISITED) &&
       (!gSupportVisitedPseudo ||
        aElement->OwnerDoc()->IsBeingUsedAsImage() ||
-       aTreeMatchContext.mUsingPrivateBrowsing)) {
+       gPrivateBrowsingObserver->InPrivateBrowsing())) {
     state &= ~NS_EVENT_STATE_VISITED;
     state |= NS_EVENT_STATE_UNVISITED;
   }
@@ -1301,11 +1361,10 @@ nsCSSRuleProcessor::IsLink(Element* aElement)
 nsEventStates
 nsCSSRuleProcessor::GetContentStateForVisitedHandling(
                      Element* aElement,
-                     const TreeMatchContext& aTreeMatchContext,
                      nsRuleWalker::VisitedHandlingType aVisitedHandling,
                      bool aIsRelevantLink)
 {
-  nsEventStates contentState = GetContentState(aElement, aTreeMatchContext);
+  nsEventStates contentState = GetContentState(aElement);
   if (contentState.HasAtLeastOneOfStates(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED)) {
     NS_ABORT_IF_FALSE(IsLink(aElement), "IsLink() should match state");
     contentState &= ~(NS_EVENT_STATE_VISITED | NS_EVENT_STATE_UNVISITED);
@@ -2067,7 +2126,6 @@ static bool SelectorMatches(Element* aElement,
           nsEventStates contentState =
             nsCSSRuleProcessor::GetContentStateForVisitedHandling(
                                          aElement,
-                                         aTreeMatchContext,
                                          aTreeMatchContext.VisitedHandling(),
                                          aNodeMatchContext.mIsRelevantLink);
           if (!contentState.HasAtLeastOneOfStates(statesToCheck)) {
@@ -2846,7 +2904,7 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
     // rules in order; just pass 0.
     AppendRuleToTagTable(&cascade->mAnonBoxRules,
                          aRuleInfo->mSelector->mLowercaseTag,
-                         RuleValue(*aRuleInfo, 0, aCascade->mQuirksMode));
+                         RuleValue(*aRuleInfo, 0));
   } else {
 #ifdef MOZ_XUL
     NS_ASSERTION(pseudoType == nsCSSPseudoElements::ePseudo_XULTree,
@@ -2855,7 +2913,7 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
     // rules in order; just pass 0.
     AppendRuleToTagTable(&cascade->mXULTreeRules,
                          aRuleInfo->mSelector->mLowercaseTag,
-                         RuleValue(*aRuleInfo, 0, aCascade->mQuirksMode));
+                         RuleValue(*aRuleInfo, 0));
 #else
     NS_NOTREACHED("Unexpected pseudo type");
 #endif

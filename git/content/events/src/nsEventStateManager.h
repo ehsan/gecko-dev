@@ -353,8 +353,7 @@ protected:
                         nsMouseScrollEvent* aMouseEvent,
                         nsIScrollableFrame::ScrollUnit aScrollQuantity,
                         bool aAllowScrollSpeedOverride,
-                        nsQueryContentEvent* aQueryEvent = nsnull,
-                        nsIAtom *aOrigin = nsnull);
+                        nsQueryContentEvent* aQueryEvent = nsnull);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
   nsresult GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv);

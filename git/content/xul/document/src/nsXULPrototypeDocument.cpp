@@ -85,10 +85,10 @@ public:
     virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
 
     virtual JSObject* GetGlobalJSObject();
-    virtual nsresult EnsureScriptEnvironment();
+    virtual nsresult EnsureScriptEnvironment(PRUint32 aLangID);
 
-    virtual nsIScriptContext *GetScriptContext();
-    virtual nsresult SetScriptContext(nsIScriptContext *ctx);
+    virtual nsIScriptContext *GetScriptContext(PRUint32 lang);
+    virtual nsresult SetScriptContext(PRUint32 language, nsIScriptContext *ctx);
 
     // nsIScriptObjectPrincipal methods
     virtual nsIPrincipal* GetPrincipal();
@@ -683,8 +683,10 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULPDGlobalObject)
 //
 
 nsresult
-nsXULPDGlobalObject::SetScriptContext(nsIScriptContext *aScriptContext)
+nsXULPDGlobalObject::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptContext)
 {
+  NS_ABORT_IF_FALSE(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+                    "We don't support this language ID");
   // almost a clone of nsGlobalWindow
   if (!aScriptContext) {
     NS_WARNING("Possibly early removal of script object, see bug #41608");
@@ -711,8 +713,10 @@ nsXULPDGlobalObject::SetScriptContext(nsIScriptContext *aScriptContext)
 }
 
 nsresult
-nsXULPDGlobalObject::EnsureScriptEnvironment()
+nsXULPDGlobalObject::EnsureScriptEnvironment(PRUint32 lang_id)
 {
+  NS_ABORT_IF_FALSE(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+                    "We don't support this language ID");
   if (mContext) {
     return NS_OK;
   }
@@ -748,21 +752,23 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
   }
 
   NS_ENSURE_SUCCESS(rv, NS_OK);
-  rv = SetScriptContext(ctxNew);
+  rv = SetScriptContext(lang_id, ctxNew);
   NS_ENSURE_SUCCESS(rv, NS_OK);
   return NS_OK;
 }
 
 nsIScriptContext*
-nsXULPDGlobalObject::GetScriptContext()
+nsXULPDGlobalObject::GetScriptContext(PRUint32 lang_id)
 {
+  NS_ABORT_IF_FALSE(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+                    "We don't support this language ID");
   // This global object creates a context on demand - do that now.
-  nsresult rv = EnsureScriptEnvironment();
+  nsresult rv = EnsureScriptEnvironment(nsIProgrammingLanguage::JAVASCRIPT);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to setup script language");
     return NULL;
   }
-
+  // Note that EnsureScriptEnvironment has validated lang_id
   return mContext;
 }
 

@@ -63,9 +63,7 @@
 #include "WrapperFactory.h"
 #include "AccessCheck.h"
 
-#ifdef MOZ_JSDEBUGGER
 #include "jsdIDebuggerService.h"
-#endif
 
 #include "XPCQuickStubs.h"
 #include "dombindings.h"
@@ -508,7 +506,7 @@ struct NoteWeakMapsTracer : public js::WeakMapTracer
 };
 
 static void
-TraceWeakMapping(js::WeakMapTracer *trc, JSObject *m,
+TraceWeakMapping(js::WeakMapTracer *trc, JSObject *m, 
                  void *k, JSGCTraceKind kkind,
                  void *v, JSGCTraceKind vkind)
 {
@@ -595,7 +593,7 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
 #endif
 
     GetRuntime()->AddXPConnectRoots(cb);
-
+ 
     NoteWeakMapsTracer trc(GetRuntime()->GetJSRuntime(), TraceWeakMapping, cb);
     js::TraceWeakMaps(&trc);
 
@@ -860,12 +858,11 @@ xpc_MarkInCCGeneration(nsISupports* aVariant, PRUint32 aGeneration)
 }
 
 void
-xpc_TryUnmarkWrappedGrayObject(nsISupports* aWrappedJS)
+xpc_UnmarkGrayObject(nsIXPConnectWrappedJS* aWrappedJS)
 {
-    nsCOMPtr<nsIXPConnectWrappedJS> wjs = do_QueryInterface(aWrappedJS);
-    if (wjs) {
+    if (aWrappedJS) {
         // Unmarks gray JSObject.
-        static_cast<nsXPCWrappedJS*>(wjs.get())->GetJSObject();
+        static_cast<nsXPCWrappedJS*>(aWrappedJS)->GetJSObject();
     }
 }
 
@@ -2446,10 +2443,8 @@ nsXPConnect::Peek(JSContext * *_retval)
     return NS_OK;
 }
 
-#ifdef MOZ_JSDEBUGGER
 void
-nsXPConnect::CheckForDebugMode(JSRuntime *rt)
-{
+nsXPConnect::CheckForDebugMode(JSRuntime *rt) {
     JSContext *cx = NULL;
 
     if (gDebugMode == gDesiredDebugMode) {
@@ -2516,14 +2511,6 @@ fail:
         JS_SetRuntimeDebugMode(rt, false);
     gDesiredDebugMode = gDebugMode = false;
 }
-#else //MOZ_JSDEBUGGER not defined
-void
-nsXPConnect::CheckForDebugMode(JSRuntime *rt)
-{
-    gDesiredDebugMode = gDebugMode = false;
-}
-#endif //#ifdef MOZ_JSDEBUGGER
-
 
 NS_EXPORT_(void)
 xpc_ActivateDebugMode()
@@ -2793,157 +2780,6 @@ nsXPConnect::NotifyDidPaint()
 
     js::NotifyDidPaint(cx);
     return NS_OK;
-}
-
-const PRUint8 HAS_PRINCIPALS_FLAG               = 1;
-const PRUint8 HAS_ORIGIN_PRINCIPALS_FLAG        = 2;
-
-static nsresult
-WriteScriptOrFunction(nsIObjectOutputStream *stream, JSContext *cx,
-                      JSScript *script, JSObject *functionObj)
-{
-    // Exactly one of script or functionObj must be given
-    MOZ_ASSERT(!script != !functionObj);
-
-    if (!script)
-        script = JS_GetFunctionScript(cx, JS_GetObjectFunction(functionObj));
-
-    nsIPrincipal *principal =
-        nsJSPrincipals::get(JS_GetScriptPrincipals(script));
-    nsIPrincipal *originPrincipal =
-        nsJSPrincipals::get(JS_GetScriptOriginPrincipals(script));
-
-    PRUint8 flags = 0;
-    if (principal)
-        flags |= HAS_PRINCIPALS_FLAG;
-
-    // Optimize for the common case when originPrincipals == principals. As
-    // originPrincipals is set to principals when the former is null we can
-    // simply skip the originPrincipals when they are the same as principals.
-    if (originPrincipal && originPrincipal != principal)
-        flags |= HAS_ORIGIN_PRINCIPALS_FLAG;
-
-    nsresult rv = stream->Write8(flags);
-    if (NS_FAILED(rv))
-        return rv;
-
-    if (flags & HAS_PRINCIPALS_FLAG) {
-        rv = stream->WriteObject(principal, true);
-        if (NS_FAILED(rv))
-            return rv;
-    }
-
-    if (flags & HAS_ORIGIN_PRINCIPALS_FLAG) {
-        rv = stream->WriteObject(originPrincipal, true);
-        if (NS_FAILED(rv))
-            return rv;
-    }
-
-    uint32_t size;
-    void* data;
-    {
-        JSAutoRequest ar(cx);
-        if (functionObj)
-            data = JS_EncodeInterpretedFunction(cx, functionObj, &size);
-        else
-            data = JS_EncodeScript(cx, script, &size);
-    }
-
-    if (!data)
-        return NS_ERROR_OUT_OF_MEMORY;
-    MOZ_ASSERT(size);
-    rv = stream->Write32(size);
-    if (NS_SUCCEEDED(rv))
-        rv = stream->WriteBytes(static_cast<char *>(data), size);
-    js_free(data);
-
-    return rv;
-}
-
-static nsresult
-ReadScriptOrFunction(nsIObjectInputStream *stream, JSContext *cx,
-                     JSScript **scriptp, JSObject **functionObjp)
-{
-    // Exactly one of script or functionObj must be given
-    MOZ_ASSERT(!scriptp != !functionObjp);
-
-    PRUint8 flags;
-    nsresult rv = stream->Read8(&flags);
-    if (NS_FAILED(rv))
-        return rv;
-
-    nsJSPrincipals* principal = nsnull;
-    nsCOMPtr<nsIPrincipal> readPrincipal;
-    if (flags & HAS_PRINCIPALS_FLAG) {
-        rv = stream->ReadObject(true, getter_AddRefs(readPrincipal));
-        if (NS_FAILED(rv))
-            return rv;
-        principal = nsJSPrincipals::get(readPrincipal);
-    }
-
-    nsJSPrincipals* originPrincipal = nsnull;
-    nsCOMPtr<nsIPrincipal> readOriginPrincipal;
-    if (flags & HAS_ORIGIN_PRINCIPALS_FLAG) {
-        rv = stream->ReadObject(true, getter_AddRefs(readOriginPrincipal));
-        if (NS_FAILED(rv))
-            return rv;
-        originPrincipal = nsJSPrincipals::get(readOriginPrincipal);
-    }
-
-    PRUint32 size;
-    rv = stream->Read32(&size);
-    if (NS_FAILED(rv))
-        return rv;
-
-    char* data;
-    rv = stream->ReadBytes(size, &data);
-    if (NS_FAILED(rv))
-        return rv;
-
-    {
-        JSAutoRequest ar(cx);
-        if (scriptp) {
-            JSScript *script = JS_DecodeScript(cx, data, size, principal, originPrincipal);
-            if (!script)
-                rv = NS_ERROR_OUT_OF_MEMORY;
-            else
-                *scriptp = script;
-        } else {
-            JSObject *funobj = JS_DecodeInterpretedFunction(cx, data, size,
-                                                            principal, originPrincipal);
-            if (!funobj)
-                rv = NS_ERROR_OUT_OF_MEMORY;
-            else
-                *functionObjp = funobj;
-        }
-    }
-
-    nsMemory::Free(data);
-    return rv;
-}
-
-NS_IMETHODIMP
-nsXPConnect::WriteScript(nsIObjectOutputStream *stream, JSContext *cx, JSScript *script)
-{
-    return WriteScriptOrFunction(stream, cx, script, nsnull);
-}
-
-NS_IMETHODIMP
-nsXPConnect::ReadScript(nsIObjectInputStream *stream, JSContext *cx, JSScript **scriptp)
-{
-    return ReadScriptOrFunction(stream, cx, scriptp, nsnull);
-}
-
-NS_IMETHODIMP
-nsXPConnect::WriteFunction(nsIObjectOutputStream *stream, JSContext *cx, JSObject *functionObj)
-{
-    return WriteScriptOrFunction(stream, cx, nsnull, functionObj);
-}
-
-NS_IMETHODIMP
-nsXPConnect::ReadFunction(nsIObjectInputStream *stream, JSContext *cx, JSObject **functionObjp)
-{
-    return ReadScriptOrFunction(stream, cx, nsnull, functionObjp);
 }
 
 /* These are here to be callable from a debugger */

@@ -64,8 +64,10 @@
 #include "nsLinebreakConverter.h"
 #include "nsIDocument.h"
 #include "nsIFrame.h"
+#include "nsIFormControlFrame.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsGUIEvent.h"
+#include "nsLinebreakConverter.h"
 #include "nsPresState.h"
 #include "nsReadableUtils.h"
 #include "nsEventDispatcher.h"
@@ -1293,7 +1295,6 @@ nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
     if (aName == nsGkAtoms::readonly) {
       UpdateEditableState(aNotify);
-      mState->UpdateEditableState(aNotify);
     }
     UpdateState(aNotify);
   }

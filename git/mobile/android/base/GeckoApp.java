@@ -42,7 +42,7 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.FloatSize;
-import org.mozilla.gecko.gfx.GeckoLayerClient;
+import org.mozilla.gecko.gfx.GeckoSoftwareLayerClient;
 import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.LayerController;
@@ -51,7 +51,6 @@ import org.mozilla.gecko.gfx.PlaceholderLayerClient;
 import org.mozilla.gecko.gfx.RectUtils;
 import org.mozilla.gecko.gfx.SurfaceTextureLayer;
 import org.mozilla.gecko.gfx.ViewportMetrics;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.Tab.HistoryEntry;
 
 import java.io.*;
@@ -71,7 +70,6 @@ import org.json.*;
 import android.os.*;
 import android.app.*;
 import android.text.*;
-import android.text.format.Time;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.view.ViewGroup.LayoutParams;
@@ -141,9 +139,11 @@ abstract public class GeckoApp
     public static FormAssistPopup mFormAssistPopup;
     public Favicons mFavicons;
 
+    private Geocoder mGeocoder;
+    private Address  mLastGeoAddress;
     private static LayerController mLayerController;
     private static PlaceholderLayerClient mPlaceholderLayerClient;
-    private static GeckoLayerClient mLayerClient;
+    private static GeckoSoftwareLayerClient mSoftwareLayerClient;
     private AboutHomeContent mAboutHomeContent;
     private static AbsoluteLayout mPluginContainer;
 
@@ -151,7 +151,7 @@ abstract public class GeckoApp
     public String mLastSnapshotUri;
     public String mLastViewport;
     public byte[] mLastScreen;
-    private int mOwnActivityDepth = 0;
+    public int mOwnActivityDepth = 0;
     private boolean mRestoreSession = false;
     private boolean mInitialized = false;
 
@@ -177,8 +177,7 @@ abstract public class GeckoApp
 
     private static final int FILE_PICKER_REQUEST = 1;
     private static final int AWESOMEBAR_REQUEST = 2;
-    private static final int CAMERA_IMAGE_CAPTURE_REQUEST = 3;
-    private static final int CAMERA_VIDEO_CAPTURE_REQUEST = 4;
+    private static final int CAMERA_CAPTURE_REQUEST = 3;
 
     public static boolean checkLaunchState(LaunchState checkState) {
         synchronized(sLaunchState) {
@@ -453,10 +452,10 @@ abstract public class GeckoApp
 
         forward.setEnabled(tab.canDoForward());
 
-        // Disable share menuitem for about:, chrome:, file:, and resource: URIs
+        // Disable share menuitem for about:, chrome: and file: URIs
         String scheme = Uri.parse(tab.getURL()).getScheme();
         share.setEnabled(!(scheme.equals("about") || scheme.equals("chrome") ||
-                           scheme.equals("file") || scheme.equals("resource")));
+                           scheme.equals("file")));
 
         // Disable save as PDF for about:home and xul pages
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
@@ -538,6 +537,10 @@ abstract public class GeckoApp
         }
     }
 
+    public String getLastViewport() {
+        return mLastViewport;
+    }
+
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         if (mOwnActivityDepth > 0)
@@ -561,18 +564,21 @@ abstract public class GeckoApp
         }
 
         public void run() {
-            if (mLayerClient == null)
+            if (mSoftwareLayerClient == null)
                 return;
 
-            synchronized (mLayerClient) {
+            synchronized (mSoftwareLayerClient) {
                 if (!Tabs.getInstance().isSelectedTab(mThumbnailTab))
+                    return;
+
+                if (getLayerController().getLayerClient() != mSoftwareLayerClient)
                     return;
 
                 HistoryEntry lastHistoryEntry = mThumbnailTab.getLastHistoryEntry();
                 if (lastHistoryEntry == null)
                     return;
 
-                ViewportMetrics viewportMetrics = mLayerClient.getGeckoViewportMetrics();
+                ViewportMetrics viewportMetrics = mSoftwareLayerClient.getGeckoViewportMetrics();
                 // If we don't have viewport metrics, the screenshot won't be right so bail
                 if (viewportMetrics == null)
                     return;
@@ -595,7 +601,8 @@ abstract public class GeckoApp
 
     void getAndProcessThumbnailForTab(final Tab tab, boolean forceBigSceenshot) {
         boolean isSelectedTab = Tabs.getInstance().isSelectedTab(tab);
-        final Bitmap bitmap = isSelectedTab ? mLayerClient.getBitmap() : null;
+        final Bitmap bitmap = isSelectedTab ?
+            mSoftwareLayerClient.getBitmap() : null;
         
         if (bitmap != null) {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -610,9 +617,8 @@ abstract public class GeckoApp
             }
 
             mLastScreen = null;
-            View view = mLayerController.getView();
-            int sw = forceBigSceenshot ? view.getWidth() : tab.getMinScreenshotWidth();
-            int sh = forceBigSceenshot ? view.getHeight(): tab.getMinScreenshotHeight();
+            int sw = forceBigSceenshot ? mSoftwareLayerClient.getWidth() : tab.getMinScreenshotWidth();
+            int sh = forceBigSceenshot ? mSoftwareLayerClient.getHeight(): tab.getMinScreenshotHeight();
             int dw = forceBigSceenshot ? sw : tab.getThumbnailWidth();
             int dh = forceBigSceenshot ? sh : tab.getThumbnailHeight();
             GeckoAppShell.sendEventToGecko(GeckoEvent.createScreenshotEvent(tab.getId(), sw, sh, dw, dh));
@@ -883,16 +889,7 @@ abstract public class GeckoApp
                 final int tabId = message.getInt("tabID");
                 final String uri = message.getString("uri");
                 final String title = message.getString("title");
-                final String backgroundColor = message.getString("bgColor");
                 handleContentLoaded(tabId, uri, title);
-                if (getLayerController() != null) {
-                    if (backgroundColor != null) {
-                        getLayerController().setCheckerboardColor(backgroundColor);
-                    } else {
-                        // Default to black if no color is given
-                        getLayerController().setCheckerboardColor(0);
-                    }
-                }
                 Log.i(LOGTAG, "URI - " + uri + ", title - " + title);
             } else if (event.equals("DOMTitleChanged")) {
                 final int tabId = message.getInt("tabID");
@@ -944,6 +941,9 @@ abstract public class GeckoApp
                 final String uri = message.getString("uri");
                 final String title = message.getString("title");
                 handleLoadError(tabId, uri, title);
+            } else if (event.equals("onCameraCapture")) {
+                //GeckoApp.mAppContext.doCameraCapture(message.getString("path"));
+                doCameraCapture();
             } else if (event.equals("Doorhanger:Add")) {
                 handleDoorHanger(message);
             } else if (event.equals("Doorhanger:Remove")) {
@@ -1320,7 +1320,7 @@ abstract public class GeckoApp
                 // want to load the image straight away. If tab is still
                 // loading, we only load the favicon once the page's content
                 // is fully loaded (see handleContentLoaded()).
-                if (tab.getState() != Tab.STATE_LOADING) {
+                if (tab.getState() != tab.STATE_LOADING) {
                     mMainHandler.post(new Runnable() {
                         public void run() {
                             loadFavicon(tab);
@@ -1362,12 +1362,12 @@ abstract public class GeckoApp
                 if (tab == null)
                     return;
 
-                ImmutableViewportMetrics targetViewport = mLayerController.getViewportMetrics();
-                ImmutableViewportMetrics pluginViewport;
+                ViewportMetrics targetViewport = mLayerController.getViewportMetrics();
+                ViewportMetrics pluginViewport;
                 
                 try {
                     JSONObject viewportObject = new JSONObject(metadata);
-                    pluginViewport = new ImmutableViewportMetrics(new ViewportMetrics(viewportObject));
+                    pluginViewport = new ViewportMetrics(viewportObject);
                 } catch (JSONException e) {
                     Log.e(LOGTAG, "Bad viewport metadata: ", e);
                     return;
@@ -1462,7 +1462,7 @@ abstract public class GeckoApp
             return;
         }
 
-        PointF origin = metrics.getOrigin();
+        PointF origin = metrics.getDisplayportOrigin();
         x = x + (int)origin.x;
         y = y + (int)origin.y;
 
@@ -1471,7 +1471,7 @@ abstract public class GeckoApp
         if (layer == null)
             return;
 
-        layer.update(new Rect(x, y, x + w, y + h), metrics.getZoomFactor(), inverted, blend);
+        layer.update(new Point(x, y), new IntSize(w, h), metrics.getZoomFactor(), inverted, blend);
         layerView.addLayer(layer);
 
         // FIXME: shouldn't be necessary, layer will request
@@ -1557,7 +1557,7 @@ abstract public class GeckoApp
     }
 
     public void repositionPluginViews(Tab tab, boolean setVisible) {
-        ImmutableViewportMetrics targetViewport = mLayerController.getViewportMetrics();
+        ViewportMetrics targetViewport = mLayerController.getViewportMetrics();
 
         if (targetViewport == null)
             return;
@@ -1570,8 +1570,7 @@ abstract public class GeckoApp
                 view.setVisibility(View.VISIBLE);
             }
 
-            if (mPluginContainer.indexOfChild(view) >= 0)
-                mPluginContainer.updateViewLayout(view, lp);
+            mPluginContainer.updateViewLayout(view, lp);
         }
     }
 
@@ -1593,11 +1592,15 @@ abstract public class GeckoApp
     // The ActionBar needs to be refreshed on rotation as different orientation uses different resources
     public void refreshActionBar() {
         if (Build.VERSION.SDK_INT >= 11) {
-            LinearLayout actionBar = (LinearLayout) getLayoutInflater().inflate(R.layout.browser_toolbar, null);
-            mBrowserToolbar.from(actionBar);
+            mBrowserToolbar = (BrowserToolbar) getLayoutInflater().inflate(R.layout.browser_toolbar, null);
+            mBrowserToolbar.init();
             mBrowserToolbar.refresh();
             GeckoActionBar.setBackgroundDrawable(this, getResources().getDrawable(R.drawable.gecko_actionbar_bg));
-            GeckoActionBar.setCustomView(this, actionBar);
+            GeckoActionBar.setDisplayOptions(this, ActionBar.DISPLAY_SHOW_CUSTOM, ActionBar.DISPLAY_SHOW_CUSTOM |
+                                                                                  ActionBar.DISPLAY_SHOW_HOME |
+                                                                                  ActionBar.DISPLAY_SHOW_TITLE |
+                                                                                  ActionBar.DISPLAY_USE_LOGO);
+            GeckoActionBar.setCustomView(this, mBrowserToolbar);
         }
     }
 
@@ -1624,23 +1627,17 @@ abstract public class GeckoApp
             mRestoreSession = savedInstanceState.getBoolean(SAVED_STATE_SESSION);
         }
 
-        LayoutInflater.from(this).setFactory(GeckoViewsFactory.getInstance());
-
         super.onCreate(savedInstanceState);
 
         mOrientation = getResources().getConfiguration().orientation;
 
         setContentView(R.layout.gecko_app);
 
-        LinearLayout actionBar;
         if (Build.VERSION.SDK_INT >= 11) {
-            actionBar = (LinearLayout) GeckoActionBar.getCustomView(this);
+            mBrowserToolbar = (BrowserToolbar) GeckoActionBar.getCustomView(this);
         } else {
-            actionBar = (LinearLayout) findViewById(R.id.browser_toolbar);
+            mBrowserToolbar = (BrowserToolbar) findViewById(R.id.browser_toolbar);
         }
-
-        mBrowserToolbar = new BrowserToolbar(mAppContext);
-        mBrowserToolbar.from(actionBar);
 
         // setup gecko layout
         mGeckoLayout = (RelativeLayout) findViewById(R.id.gecko_layout);
@@ -1673,6 +1670,7 @@ abstract public class GeckoApp
             checkAndLaunchUpdate();
         }
 
+        mBrowserToolbar.init();
         mBrowserToolbar.setTitle(mLastTitle);
 
         String passedUri = null;
@@ -1680,10 +1678,9 @@ abstract public class GeckoApp
         if (uri != null && uri.length() > 0)
             passedUri = mLastTitle = uri;
 
-        mRestoreSession |= getProfile().shouldRestoreSession();
         if (passedUri == null || passedUri.equals("about:home")) {
             // show about:home if we aren't restoring previous session
-            if (!mRestoreSession) {
+            if (! getProfile().hasSession()) {
                 mBrowserToolbar.updateTabCount(1);
                 showAboutHome();
             }
@@ -1702,7 +1699,7 @@ abstract public class GeckoApp
             // loading it twice
             intent.setAction(Intent.ACTION_MAIN);
             intent.setData(null);
-            passedUri = "about:empty";
+            passedUri = null;
         }
 
         sGeckoThread = new GeckoThread(intent, passedUri, mRestoreSession);
@@ -1732,9 +1729,10 @@ abstract public class GeckoApp
 
         if (mLayerController == null) {
             /*
-             * Create a layer client, but don't hook it up to the layer controller yet.
+             * Create a layer client so that Gecko will have a buffer to draw into, but don't hook
+             * it up to the layer controller yet.
              */
-            mLayerClient = new GeckoLayerClient(this);
+            mSoftwareLayerClient = new GeckoSoftwareLayerClient(this);
 
             /*
              * Hook a placeholder layer client up to the layer controller so that the user can pan
@@ -1746,15 +1744,10 @@ abstract public class GeckoApp
              * run experience, perhaps?
              */
             mLayerController = new LayerController(this);
-            View v = mLayerController.getView();
+            mPlaceholderLayerClient = PlaceholderLayerClient.createInstance(this);
+            mLayerController.setLayerClient(mPlaceholderLayerClient);
 
-            mPlaceholderLayerClient = new PlaceholderLayerClient(mLayerController, mLastViewport);
-            if (!mPlaceholderLayerClient.loadScreenshot()) {
-                // Instead of flickering the checkerboard, show a white screen until Gecko paints
-                v.setBackgroundColor(Color.WHITE);
-            }
-
-            mGeckoLayout.addView(v, 0);
+            mGeckoLayout.addView(mLayerController.getView(), 0);
         }
 
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
@@ -2057,7 +2050,6 @@ abstract public class GeckoApp
 
         unregisterReceiver(mConnectivityReceiver);
         GeckoNetworkManager.getInstance().stop();
-        GeckoScreenOrientationListener.getInstance().stop();
     }
 
     @Override
@@ -2089,13 +2081,8 @@ abstract public class GeckoApp
             refreshActionBar();
         }
 
-        mMainHandler.post(new Runnable() {
-          public void run() {
-            registerReceiver(mConnectivityReceiver, mConnectivityFilter);
-            GeckoNetworkManager.getInstance().start();
-            GeckoScreenOrientationListener.getInstance().start();
-          }
-        });
+        registerReceiver(mConnectivityReceiver, mConnectivityFilter);
+        GeckoNetworkManager.getInstance().start();
 
         if (mOwnActivityDepth > 0)
             mOwnActivityDepth--;
@@ -2180,6 +2167,8 @@ abstract public class GeckoApp
             if (isFinishing())
                 SmsManager.getInstance().shutdown();
         }
+
+        GeckoNetworkManager.getInstance().stop();
 
         super.onDestroy();
 
@@ -2354,184 +2343,24 @@ abstract public class GeckoApp
         Log.i(LOGTAG, "Profile migration took " + timeDiff + " ms");
     }
 
-    /**
-     * The FilePickerPromptRunnable has to be called to show an intent-like
-     * context menu UI using the PromptService.
-     */
-    private class FilePickerPromptRunnable implements Runnable {
-        public FilePickerPromptRunnable(String aTitle, PromptService.PromptListItem[] aItems) {
-            super();
-            mTitle = aTitle;
-            mItems = aItems;
-        }
-
-        public void run() {
-            GeckoAppShell.getPromptService().Show(mTitle, "", null, mItems, false);
-        }
-
-        private String mTitle;
-        private PromptService.PromptListItem[] mItems;
-    }
-
-    private int addIntentActivitiesToList(Intent intent, ArrayList<PromptService.PromptListItem> items, ArrayList<Intent> aIntents) {
-        PackageManager pm = mAppContext.getPackageManager();
-        final List<ResolveInfo> lri =
-            pm.queryIntentActivityOptions(GeckoApp.mAppContext.getComponentName(), null, intent, 0);
-
-        if (lri == null) {
-            return 0;
-        }
-
-        for (int i=0; i<lri.size(); i++) {
-            final ResolveInfo ri = lri.get(i);
-            Intent rintent = new Intent(intent);
-            rintent.setComponent(new ComponentName(
-                    ri.activityInfo.applicationInfo.packageName,
-                    ri.activityInfo.name));
-
-            PromptService.PromptListItem item = new PromptService.PromptListItem(ri.loadLabel(pm).toString());
-            item.icon = ri.loadIcon(pm);
-            items.add(item);
-            aIntents.add(rintent);
-        }
-
-        return lri.size();
-    }
-
-    private int AddFilePickingActivities(ArrayList<PromptService.PromptListItem> aItems, String aType, ArrayList<Intent> aIntents) {
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType(aType);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-
-        return addIntentActivitiesToList(intent, aItems, aIntents);
-    }
-
-    static private String generateImageName() {
-        Time now = new Time();
-        now.setToNow();
-        return now.format("%Y-%m-%d %H.%M.%S") + ".jpg";
-    }
-
-    private PromptService.PromptListItem[] getItemsAndIntentsForFilePicker(String aMimeType, ArrayList<Intent> aIntents) {
-        ArrayList<PromptService.PromptListItem> items = new ArrayList<PromptService.PromptListItem>();
-
-        if (aMimeType.equals("audio/*")) {
-            if (AddFilePickingActivities(items, "audio/*", aIntents) <= 0) {
-                AddFilePickingActivities(items, "*/*", aIntents);
-            }
-        } else if (aMimeType.equals("image/*")) {
-            mImageFilePath = generateImageName();
-            Intent intent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-            intent.putExtra(MediaStore.EXTRA_OUTPUT,
-                            Uri.fromFile(new File(Environment.getExternalStorageDirectory(),
-                                                  mImageFilePath)));
-            addIntentActivitiesToList(intent, items, aIntents);
-
-            if (AddFilePickingActivities(items, "image/*", aIntents) <= 0) {
-              AddFilePickingActivities(items, "*/*", aIntents);
-            }
-        } else if (aMimeType.equals("video/*")) {
-            Intent intent = new Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE);
-            addIntentActivitiesToList(intent, items, aIntents);
-
-            if (AddFilePickingActivities(items, "video/*", aIntents) <= 0) {
-              AddFilePickingActivities(items, "*/*", aIntents);
-            }
-        } else {
-            mImageFilePath = generateImageName();
-            Intent intent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
-            intent.putExtra(MediaStore.EXTRA_OUTPUT,
-                            Uri.fromFile(new File(Environment.getExternalStorageDirectory(),
-                                                  mImageFilePath)));
-            addIntentActivitiesToList(intent, items, aIntents);
-
-            intent = new Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE);
-            addIntentActivitiesToList(intent, items, aIntents);
-
-            AddFilePickingActivities(items, "*/*", aIntents);
-        }
-
-        return items.toArray(new PromptService.PromptListItem[] {});
-    }
-
-    private String getFilePickerTitle(String aMimeType) {
-        if (aMimeType.equals("audio/*")) {
-            return getString(R.string.filepicker_audio_title);
-        } else if (aMimeType.equals("image/*")) {
-            return getString(R.string.filepicker_image_title);
-        } else if (aMimeType.equals("video/*")) {
-            return getString(R.string.filepicker_video_title);
-        } else {
-            return getString(R.string.filepicker_title);
-        }
-    }
-
-    private Intent getFilePickerIntent(String aMimeType) {
-        ArrayList<Intent> intents = new ArrayList<Intent>();
-        PromptService.PromptListItem[] items = getItemsAndIntentsForFilePicker(aMimeType, intents);
-
-        if (intents.size() == 0) {
-            Log.i(LOGTAG, "no activities for the file picker!");
-            return null;
-        }
-
-        if (intents.size() == 1)
-            return intents.get(0);
-
-        GeckoAppShell.getHandler().post(new FilePickerPromptRunnable(getFilePickerTitle(aMimeType), items));
-
-        String promptServiceResult = "";
-        try {
-            promptServiceResult = PromptService.waitForReturn();
-        } catch (InterruptedException e) {
-            Log.e(LOGTAG, "showing prompt failed: ",  e);
-            return null;
-        }
-
-        int itemId = -1;
-        try {
-            itemId = new JSONObject(promptServiceResult).getInt("button");
-
-            if (itemId == -1) {
-                return null;
-            }
-        } catch (org.json.JSONException e) {
-            Log.e(LOGTAG, "result from promptservice was invalid: ", e);
-            return null;
-        }
-
-        return intents.get(itemId);
-    }
-
-    private String mImageFilePath = "";
     private SynchronousQueue<String> mFilePickerResult = new SynchronousQueue<String>();
-
     public String showFilePicker(String aMimeType) {
-        Intent intent = getFilePickerIntent(aMimeType);
-
-        if (intent == null) {
-            return "";
-        }
-
-        if (intent.getAction().equals(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)) {
-            startActivityForResult(intent, CAMERA_IMAGE_CAPTURE_REQUEST);
-        } else if (intent.getAction().equals(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)) {
-            startActivityForResult(intent, CAMERA_VIDEO_CAPTURE_REQUEST);
-        } else if (intent.getAction().equals(Intent.ACTION_GET_CONTENT)) {
-            startActivityForResult(intent, FILE_PICKER_REQUEST);
-        } else {
-            Log.e(LOGTAG, "We should not get an intent with another action!");
-            return "";
-        }
-
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(aMimeType);
+        GeckoApp.this.
+            startActivityForResult(
+                Intent.createChooser(intent, getString(R.string.choose_file)),
+                FILE_PICKER_REQUEST);
         String filePickerResult = "";
 
         try {
             while (null == (filePickerResult = mFilePickerResult.poll(1, TimeUnit.MILLISECONDS))) {
+                Log.i(LOGTAG, "processing events from showFilePicker ");
                 GeckoAppShell.processNextNativeEvent();
             }
         } catch (InterruptedException e) {
-            Log.e(LOGTAG, "showing file picker failed: ",  e);
+            Log.i(LOGTAG, "showing file picker ",  e);
         }
 
         return filePickerResult;
@@ -2551,12 +2380,13 @@ abstract public class GeckoApp
             // if we're not adding a new tab, show the old url
             Tab tab = Tabs.getInstance().getSelectedTab();
             if (tab != null) {
-                String url = tab.getURL();
-                if (url != null) {
-                    intent.putExtra(AwesomeBar.CURRENT_URL_KEY, url);
+                Tab.HistoryEntry he = tab.getLastHistoryEntry();
+                if (he != null) {
+                    intent.putExtra(AwesomeBar.CURRENT_URL_KEY, he.mUri);
                 }
             }
         }
+        mOwnActivityDepth++;
         startActivityForResult(intent, AWESOMEBAR_REQUEST);
         return true;
     }
@@ -2698,41 +2528,25 @@ abstract public class GeckoApp
                     loadRequest(url, type, searchEngine, userEntered);
             }
             break;
-        case CAMERA_IMAGE_CAPTURE_REQUEST:
-            try {
-                if (resultCode != Activity.RESULT_OK) {
-                    mFilePickerResult.put("");
-                    break;
-                }
-
-                File file = new File(Environment.getExternalStorageDirectory(), mImageFilePath);
-                mImageFilePath = "";
-                mFilePickerResult.put(file.getAbsolutePath());
-            } catch (InterruptedException e) {
-                Log.i(LOGTAG, "error returning file picker result", e);
-            }
-
-            break;
-        case CAMERA_VIDEO_CAPTURE_REQUEST:
-            try {
-                if (data == null || resultCode != Activity.RESULT_OK) {
-                    mFilePickerResult.put("");
-                    break;
-                }
-
-                Cursor cursor = managedQuery(data.getData(),
-                                             new String[] { MediaStore.Video.Media.DATA },
-                                             null,
-                                             null,
-                                             null);
-                cursor.moveToFirst();
-                mFilePickerResult.put(cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)));
-            } catch (InterruptedException e) {
-                Log.i(LOGTAG, "error returning file picker result", e);
-            }
-
+        case CAMERA_CAPTURE_REQUEST:
+            Log.i(LOGTAG, "Returning from CAMERA_CAPTURE_REQUEST: " + resultCode);
+            File file = new File(Environment.getExternalStorageDirectory(), "cameraCapture-" + Integer.toString(kCaptureIndex) + ".jpg");
+            kCaptureIndex++;
+            GeckoEvent e = GeckoEvent.createBroadcastEvent("cameraCaptureDone", resultCode == Activity.RESULT_OK ?
+                                          "{\"ok\": true,  \"path\": \"" + file.getPath() + "\" }" :
+                                          "{\"ok\": false, \"path\": \"" + file.getPath() + "\" }");
+            GeckoAppShell.sendEventToGecko(e);
             break;
        }
+    }
+
+    public void doCameraCapture() {
+        File file = new File(Environment.getExternalStorageDirectory(), "cameraCapture-" + Integer.toString(kCaptureIndex) + ".jpg");
+
+        Intent intent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(file));
+
+        startActivityForResult(intent, CAMERA_CAPTURE_REQUEST);
     }
 
     // If searchEngine is provided, url will be used as the search query.
@@ -2790,23 +2604,65 @@ abstract public class GeckoApp
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Add", args.toString()));
     }
 
-    /* This method is referenced by Robocop via reflection. */
-    public GeckoLayerClient getLayerClient() { return mLayerClient; }
+    public GeckoSoftwareLayerClient getSoftwareLayerClient() { return mSoftwareLayerClient; }
     public LayerController getLayerController() { return mLayerController; }
 
     // accelerometer
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+    public void onAccuracyChanged(Sensor sensor, int accuracy)
+    {
+    }
 
     public void onSensorChanged(SensorEvent event)
     {
+        Log.w(LOGTAG, "onSensorChanged "+event);
         GeckoAppShell.sendEventToGecko(GeckoEvent.createSensorEvent(event));
+    }
+
+    private class GeocoderRunnable implements Runnable {
+        Location mLocation;
+        GeocoderRunnable (Location location) {
+            mLocation = location;
+        }
+        public void run() {
+            try {
+                List<Address> addresses = mGeocoder.getFromLocation(mLocation.getLatitude(),
+                                                                    mLocation.getLongitude(), 1);
+                // grab the first address.  in the future,
+                // may want to expose multiple, or filter
+                // for best.
+                mLastGeoAddress = addresses.get(0);
+                GeckoAppShell.sendEventToGecko(GeckoEvent.createLocationEvent(mLocation, mLastGeoAddress));
+            } catch (Exception e) {
+                Log.w(LOGTAG, "GeocoderTask "+e);
+            }
+        }
     }
 
     // geolocation
     public void onLocationChanged(Location location)
     {
         Log.w(LOGTAG, "onLocationChanged "+location);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createLocationEvent(location));
+        if (mGeocoder == null)
+            mGeocoder = new Geocoder(mLayerController.getView().getContext(), Locale.getDefault());
+
+        if (mLastGeoAddress == null) {
+            GeckoAppShell.getHandler().post(new GeocoderRunnable(location));
+        }
+        else {
+            float[] results = new float[1];
+            Location.distanceBetween(location.getLatitude(),
+                                     location.getLongitude(),
+                                     mLastGeoAddress.getLatitude(),
+                                     mLastGeoAddress.getLongitude(),
+                                     results);
+            // pfm value.  don't want to slam the
+            // geocoder with very similar values, so
+            // only call after about 100m
+            if (results[0] > 100)
+                GeckoAppShell.getHandler().post(new GeocoderRunnable(location));
+        }
+
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createLocationEvent(location, mLastGeoAddress));
     }
 
     public void onProviderDisabled(String provider)
@@ -2827,7 +2683,7 @@ abstract public class GeckoApp
             mPlaceholderLayerClient.destroy();
 
         LayerController layerController = getLayerController();
-        layerController.setLayerClient(mLayerClient);
+        layerController.setLayerClient(mSoftwareLayerClient);
     }
 
     public class GeckoAppHandler extends Handler {
@@ -2847,18 +2703,6 @@ abstract public class GeckoApp
             }
         }
     } 
-
-    @Override
-    public void startActivity(Intent intent) {
-        mOwnActivityDepth++;
-        super.startActivity(intent);
-    }
-
-    @Override
-    public void startActivityForResult(Intent intent, int request) {
-        mOwnActivityDepth++;
-        super.startActivityForResult(intent, request);
-    }
 }
 
 class PluginLayoutParams extends AbsoluteLayout.LayoutParams
@@ -2870,20 +2714,20 @@ class PluginLayoutParams extends AbsoluteLayout.LayoutParams
     private int mOriginalY;
     private int mOriginalWidth;
     private int mOriginalHeight;
-    private ImmutableViewportMetrics mOriginalViewport;
+    private ViewportMetrics mOriginalViewport;
     private float mLastResolution;
 
-    public PluginLayoutParams(int aX, int aY, int aWidth, int aHeight, ImmutableViewportMetrics aViewport) {
+    public PluginLayoutParams(int aX, int aY, int aWidth, int aHeight, ViewportMetrics aViewport) {
         super(aWidth, aHeight, aX, aY);
 
-        Log.i(LOGTAG, "Creating plugin at " + aX + ", " + aY + ", " + aWidth + "x" + aHeight + ", (" + (aViewport.zoomFactor * 100) + "%)");
+        Log.i(LOGTAG, "Creating plugin at " + aX + ", " + aY + ", " + aWidth + "x" + aHeight + ", (" + (aViewport.getZoomFactor() * 100) + "%)");
 
         mOriginalX = aX;
         mOriginalY = aY;
         mOriginalWidth = aWidth;
         mOriginalHeight = aHeight;
         mOriginalViewport = aViewport;
-        mLastResolution = aViewport.zoomFactor;
+        mLastResolution = aViewport.getZoomFactor();
 
         clampToMaxSize();
     }
@@ -2900,22 +2744,22 @@ class PluginLayoutParams extends AbsoluteLayout.LayoutParams
         }
     }
 
-    public void reset(int aX, int aY, int aWidth, int aHeight, ImmutableViewportMetrics aViewport) {
-        PointF origin = aViewport.getOrigin();
+    public void reset(int aX, int aY, int aWidth, int aHeight, ViewportMetrics aViewport) {
+        PointF origin = aViewport.getDisplayportOrigin();
 
-        this.x = mOriginalX = aX;
-        this.y = mOriginalY = aY;
+        x = mOriginalX = aX + (int)origin.x;
+        y = mOriginalY = aY + (int)origin.y;
         width = mOriginalWidth = aWidth;
         height = mOriginalHeight = aHeight;
         mOriginalViewport = aViewport;
-        mLastResolution = aViewport.zoomFactor;
+        mLastResolution = aViewport.getZoomFactor();
 
         clampToMaxSize();
     }
 
     private void reposition(Point aOffset, float aResolution) {
-        this.x = mOriginalX + aOffset.x;
-        this.y = mOriginalY + aOffset.y;
+        x = mOriginalX + aOffset.x;
+        y = mOriginalY + aOffset.y;
 
         if (!FloatUtils.fuzzyEquals(mLastResolution, aResolution)) {
             width = Math.round(aResolution * mOriginalWidth);
@@ -2926,14 +2770,14 @@ class PluginLayoutParams extends AbsoluteLayout.LayoutParams
         }
     }
 
-    public void reposition(ImmutableViewportMetrics viewport) {
-        PointF targetOrigin = viewport.getOrigin();
-        PointF originalOrigin = mOriginalViewport.getOrigin();
+    public void reposition(ViewportMetrics viewport) {
+        PointF targetOrigin = viewport.getDisplayportOrigin();
+        PointF originalOrigin = mOriginalViewport.getDisplayportOrigin();
 
         Point offset = new Point(Math.round(originalOrigin.x - targetOrigin.x),
                                  Math.round(originalOrigin.y - targetOrigin.y));
 
-        reposition(offset, viewport.zoomFactor);
+        reposition(offset, viewport.getZoomFactor());
     }
 
     public float getLastResolution() {

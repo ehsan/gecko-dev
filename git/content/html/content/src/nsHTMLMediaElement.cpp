@@ -57,8 +57,6 @@
 #include "nsThreadUtils.h"
 #include "nsIThreadInternal.h"
 #include "nsContentUtils.h"
-#include "nsIRequest.h"
-
 #include "nsFrameManager.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
@@ -92,6 +90,7 @@
 #include "nsIDOMNotifyAudioAvailableEvent.h"
 #include "nsMediaFragmentURIParser.h"
 #include "nsURIHashKey.h"
+#include "nsContentUtils.h"
 #include "nsIScriptError.h"
 
 #ifdef MOZ_OGG
@@ -1411,10 +1410,7 @@ nsHTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
     if (NS_SUCCEEDED(elem->NodePrincipal()->Equals(NodePrincipal(), &equal)) && equal &&
         elem->mCORSMode == mCORSMode) {
       NS_ASSERTION(elem->mDecoder && elem->mDecoder->GetResource(), "Decoder gone");
-      MediaResource* resource = elem->mDecoder->GetResource();
-      if (resource->CanClone()) {
-        return elem;
-      }
+      return elem;
     }
   }
   return nsnull;
@@ -2851,13 +2847,6 @@ void nsHTMLMediaElement::SetRequestHeaders(nsIHttpChannel* aChannel)
 {
   // Send Accept header for video and audio types only (Bug 489071)
   SetAcceptHeader(aChannel);
-
-  // Media elements are likely candidates for HTTP Pipeline head of line
-  // blocking problems, so disable pipelines.
-  nsLoadFlags loadflags;
-  aChannel->GetLoadFlags(&loadflags);
-  loadflags |= nsIRequest::INHIBIT_PIPELINE;
-  aChannel->SetLoadFlags(loadflags);
 
   // Apache doesn't send Content-Length when gzip transfer encoding is used,
   // which prevents us from estimating the video length (if explicit Content-Duration

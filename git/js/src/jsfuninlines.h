@@ -85,6 +85,48 @@ JSFunction::initializeExtended()
 }
 
 inline void
+JSFunction::setJoinable()
+{
+    JS_ASSERT(isInterpreted());
+    flags |= JSFUN_JOINABLE;
+}
+
+inline bool
+JSFunction::isClonedMethod() const
+{
+    return joinable() && isExtended() && getExtendedSlot(METHOD_OBJECT_SLOT).isObject();
+}
+
+inline JSAtom *
+JSFunction::methodAtom() const
+{
+    return (joinable() && isExtended() && getExtendedSlot(METHOD_PROPERTY_SLOT).isString())
+           ? (JSAtom *) getExtendedSlot(METHOD_PROPERTY_SLOT).toString()
+           : NULL;
+}
+
+inline void
+JSFunction::setMethodAtom(JSAtom *atom)
+{
+    JS_ASSERT(joinable());
+    setExtendedSlot(METHOD_PROPERTY_SLOT, js::StringValue(atom));
+}
+
+inline JSObject *
+JSFunction::methodObj() const
+{
+    JS_ASSERT(joinable());
+    return isClonedMethod() ? &getExtendedSlot(METHOD_OBJECT_SLOT).toObject() : NULL;
+}
+
+inline void
+JSFunction::setMethodObj(JSObject& obj)
+{
+    JS_ASSERT(joinable());
+    setExtendedSlot(METHOD_OBJECT_SLOT, js::ObjectValue(obj));
+}
+
+inline void
 JSFunction::setExtendedSlot(size_t which, const js::Value &val)
 {
     JS_ASSERT(which < js::ArrayLength(toExtended()->extendedSlots));
@@ -96,6 +138,74 @@ JSFunction::getExtendedSlot(size_t which) const
 {
     JS_ASSERT(which < js::ArrayLength(toExtended()->extendedSlots));
     return toExtended()->extendedSlots[which];
+}
+
+inline bool
+JSFunction::hasFlatClosureUpvars() const
+{
+    JS_ASSERT(isFlatClosure());
+    return isExtended() && !getExtendedSlot(FLAT_CLOSURE_UPVARS_SLOT).isUndefined();
+}
+
+inline js::HeapValue *
+JSFunction::getFlatClosureUpvars() const
+{
+    JS_ASSERT(hasFlatClosureUpvars());
+    return (js::HeapValue *) getExtendedSlot(FLAT_CLOSURE_UPVARS_SLOT).toPrivate();
+}
+
+inline void
+JSFunction::finalizeUpvars()
+{
+    /*
+     * Cloned function objects may be flat closures with upvars to free.
+     *
+     * We must not access JSScript here that is stored in JSFunction. The
+     * script can be finalized before the function or closure instances. So we
+     * just check if JSSLOT_FLAT_CLOSURE_UPVARS holds a private value encoded
+     * as a double. We must also ignore newborn closures that do not have the
+     * private pointer set.
+     *
+     * FIXME bug 648320 - allocate upvars on the GC heap to avoid doing it
+     * here explicitly.
+     */
+    if (hasFlatClosureUpvars()) {
+        js::HeapValue *upvars = getFlatClosureUpvars();
+        js::Foreground::free_(upvars);
+    }
+}
+
+inline js::Value
+JSFunction::getFlatClosureUpvar(uint32_t i) const
+{
+    JS_ASSERT(hasFlatClosureUpvars());
+    JS_ASSERT(script()->bindings.countUpvars() == script()->upvars()->length);
+    JS_ASSERT(i < script()->bindings.countUpvars());
+    return getFlatClosureUpvars()[i];
+}
+
+inline void
+JSFunction::setFlatClosureUpvar(uint32_t i, const js::Value &v)
+{
+    JS_ASSERT(isFlatClosure());
+    JS_ASSERT(script()->bindings.countUpvars() == script()->upvars()->length);
+    JS_ASSERT(i < script()->bindings.countUpvars());
+    getFlatClosureUpvars()[i] = v;
+}
+
+inline void
+JSFunction::initFlatClosureUpvar(uint32_t i, const js::Value &v)
+{
+    JS_ASSERT(isFlatClosure());
+    JS_ASSERT(script()->bindings.countUpvars() == script()->upvars()->length);
+    JS_ASSERT(i < script()->bindings.countUpvars());
+    getFlatClosureUpvars()[i].init(v);
+}
+
+/* static */ inline size_t
+JSFunction::getFlatClosureUpvarsOffset()
+{
+    return offsetof(js::FunctionExtended, extendedSlots[FLAT_CLOSURE_UPVARS_SLOT]);
 }
 
 namespace js {
@@ -246,10 +356,10 @@ inline JSFunction *
 CloneFunctionObjectIfNotSingleton(JSContext *cx, JSFunction *fun, JSObject *parent)
 {
     /*
-     * For attempts to clone functions at a function definition opcode,
-     * don't perform the clone if the function has singleton type. This
-     * was called pessimistically, and we need to preserve the type's
-     * property that if it is singleton there is only a single object
+     * For attempts to clone functions at a function definition opcode or from
+     * a method barrier, don't perform the clone if the function has singleton
+     * type. This was called pessimistically, and we need to preserve the
+     * type's property that if it is singleton there is only a single object
      * with its type in existence.
      */
     if (fun->hasSingletonType()) {

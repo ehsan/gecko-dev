@@ -67,10 +67,6 @@ class nsICanvasElementExternal : public nsISupports {
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ICANVASELEMENTEXTERNAL_IID)
 
-  enum {
-    RenderFlagPremultAlpha = 0x1
-  };
-
   /**
    * Get the size in pixels of this canvas element
    */
@@ -81,8 +77,7 @@ public:
    * to the given gfxContext at the origin of its coordinate space.
    */
   NS_IMETHOD RenderContextsExternal(gfxContext *ctx,
-                                    gfxPattern::GraphicsFilter aFilter,
-                                    PRUint32 aFlags = RenderFlagPremultAlpha) = 0;
+                                    gfxPattern::GraphicsFilter aFilter) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICanvasElementExternal, NS_ICANVASELEMENTEXTERNAL_IID)

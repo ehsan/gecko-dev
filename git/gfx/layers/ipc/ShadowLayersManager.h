@@ -54,7 +54,7 @@ class ShadowLayersManager
 {
 
 public:
-  virtual void ShadowLayersUpdated(bool isFirstPaint) = 0;
+  virtual void ShadowLayersUpdated() = 0;
 };
 
 } // layers

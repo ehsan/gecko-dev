@@ -117,13 +117,7 @@
 
     void StreamEnded();
 
-    void NeedsCharsetSwitchTo(const nsACString& aEncoding,
-                              PRInt32 aSource,
-                              PRInt32 aLineNumber);
-
-    void MaybeComplainAboutCharset(const char* aMsgId,
-                                   bool aError,
-                                   PRInt32 aLineNumber);
+    void NeedsCharsetSwitchTo(const nsACString& aEncoding, PRInt32 aSource);
 
     void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
 

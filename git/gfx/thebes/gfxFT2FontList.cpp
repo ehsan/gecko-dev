@@ -136,7 +136,7 @@ FT2FontEntry::CreateScaledFont(const gfxFontStyle *aStyle)
 
     // synthetic oblique by skewing via the font matrix
     bool needsOblique = !IsItalic() &&
-            (aStyle->style & (NS_FONT_STYLE_ITALIC | NS_FONT_STYLE_OBLIQUE));
+            (aStyle->style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE));
 
     if (needsOblique) {
         const double kSkewFactor = 0.25;
@@ -387,23 +387,6 @@ FT2FontEntry::GetFontTable(PRUint32 aTableTag,
     NS_ENSURE_TRUE(status == 0, NS_ERROR_FAILURE);
 
     return NS_OK;
-}
-
-void
-FT2FontEntry::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                  FontListSizes*    aSizes) const
-{
-    gfxFontEntry::SizeOfExcludingThis(aMallocSizeOf, aSizes);
-    aSizes->mFontListSize +=
-        mFilename.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-}
-
-void
-FT2FontEntry::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                  FontListSizes*    aSizes) const
-{
-    aSizes->mFontListSize += aMallocSizeOf(this);
-    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 /*
@@ -783,14 +766,6 @@ gfxFT2FontList::AppendFacesFromFontFile(nsCString& aFileName,
                 if (family->IsBadUnderlineFamily()) {
                     fe->mIsBadUnderlineFont = true;
                 }
-
-                // bug 721719 - set the IgnoreGSUB flag on entries for Roboto
-                // because of unwanted on-by-default "ae" ligature.
-                // (See also AppendFaceFromFontListEntry.)
-                if (name.EqualsLiteral("roboto")) {
-                    fe->mIgnoreGSUB = true;
-                }
-
                 AppendToFaceList(faceList, name, fe);
 #ifdef PR_LOGGING
                 if (LOG_ENABLED()) {
@@ -999,17 +974,6 @@ gfxFT2FontList::AppendFaceFromFontListEntry(const FontListEntry& aFLE,
         family->AddFontEntry(fe);
         if (family->IsBadUnderlineFamily()) {
             fe->mIsBadUnderlineFont = true;
-        }
-
-        // bug 721719 - set the IgnoreGSUB flag on entries for Roboto
-        // because of unwanted on-by-default "ae" ligature.
-        // This totally sucks, but if we don't hack around these broken fonts
-        // we get really bad text rendering, which we can't inflict on users. :(
-        // If we accumulate a few more examples of this stuff, it'll be time
-        // to create some prefs for the list of fonts where we need to ignore
-        // layout tables. Sigh.
-        if (name.EqualsLiteral("roboto")) {
-            fe->mIgnoreGSUB = true;
         }
     }
 }

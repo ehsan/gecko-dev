@@ -568,16 +568,6 @@ _TEST_FILES2 = \
 		bug696301-script-1.js \
 		bug696301-script-1.js^headers^ \
 		bug696301-script-2.js \
-		test_bug737565.html \
-		test_bug737612.html \
-		test_bug738108.html \
-		test_bug366944.html \
-		test_bug650386_redirect_301.html \
-		test_bug650386_redirect_302.html \
-		test_bug650386_redirect_303.html \
-		test_bug650386_redirect_307.html \
-		file_bug650386_content.sjs \
-		file_bug650386_report.sjs \
 		$(NULL)
 
 _CHROME_FILES =	\

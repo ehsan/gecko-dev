@@ -1109,9 +1109,8 @@ nsContentEventHandler::OnSelectionEvent(nsSelectionEvent* aEvent)
   selPrivate->EndBatchChanges();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  selPrivate->ScrollIntoViewInternal(
-    nsISelectionController::SELECTION_FOCUS_REGION,
-    false, nsIPresShell::ScrollAxis(), nsIPresShell::ScrollAxis());
+  selPrivate->ScrollIntoView(
+      nsISelectionController::SELECTION_FOCUS_REGION, false, -1, -1);
   aEvent->mSucceeded = true;
   return NS_OK;
 }

@@ -184,7 +184,7 @@ nsTextNode::CloneDataNode(nsINodeInfo *aNodeInfo, bool aCloneText) const
   return it;
 }
 
-void
+nsresult
 nsTextNode::BindToAttribute(nsIAttribute* aAttr)
 {
   NS_ASSERTION(!IsInDoc(), "Unbind before binding!");
@@ -194,17 +194,18 @@ nsTextNode::BindToAttribute(nsIAttribute* aAttr)
   mParent = aAttr;
   SetParentIsContent(false);
   ClearInDocument();
-  SetSubtreeRootPointer(aAttr->SubtreeRoot());
+  return NS_OK;
 }
 
-void
+nsresult
 nsTextNode::UnbindFromAttribute()
 {
   NS_ASSERTION(GetNodeParent(), "Bind before unbinding!");
-  NS_ASSERTION(GetNodeParent()->IsNodeOfType(nsINode::eATTRIBUTE),
+  NS_ASSERTION(GetNodeParent() &&
+               GetNodeParent()->IsNodeOfType(nsINode::eATTRIBUTE),
                "Use this method only to unbind from an attribute!");
   mParent = nsnull;
-  SetSubtreeRootPointer(this);
+  return NS_OK;
 }
 
 nsresult

@@ -244,6 +244,7 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetPageX(PRInt32* aPageX)
 {
   NS_ENSURE_ARG_POINTER(aPageX);
+#ifdef MOZ_TOUCH
   if (mPrivateDataDuplicated) {
     *aPageX = mPagePoint.x;
   } else {
@@ -252,6 +253,9 @@ nsDOMUIEvent::GetPageX(PRInt32* aPageX)
                                         mEvent->refPoint,
                                         mClientPoint).x;
   }
+#else
+  *aPageX = GetPagePoint().x;
+#endif
   return NS_OK;
 }
 
@@ -259,6 +263,7 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetPageY(PRInt32* aPageY)
 {
   NS_ENSURE_ARG_POINTER(aPageY);
+#ifdef MOZ_TOUCH
   if (mPrivateDataDuplicated) {
     *aPageY = mPagePoint.y;
   } else {
@@ -267,6 +272,9 @@ nsDOMUIEvent::GetPageY(PRInt32* aPageY)
                                         mEvent->refPoint,
                                         mClientPoint).y;
   }
+#else
+  *aPageY = GetPagePoint().y;
+#endif
   return NS_OK;
 }
 
@@ -405,6 +413,7 @@ nsDOMUIEvent::GetIsChar(bool* aIsChar)
 NS_METHOD
 nsDOMUIEvent::DuplicatePrivateData()
 {
+#ifdef MOZ_TOUCH
   mClientPoint = nsDOMEvent::GetClientCoords(mPresContext,
                                              mEvent,
                                              mEvent->refPoint,
@@ -418,6 +427,13 @@ nsDOMUIEvent::DuplicatePrivateData()
   nsIntPoint screenPoint = nsDOMEvent::GetScreenCoords(mPresContext,
                                                        mEvent,
                                                        mEvent->refPoint);
+#else
+  mClientPoint = GetClientPoint();
+  mLayerPoint = GetLayerPoint();
+  mPagePoint = GetPagePoint();
+  // GetScreenPoint converts mEvent->refPoint to right coordinates.
+  nsIntPoint screenPoint = GetScreenPoint();
+#endif
   nsresult rv = nsDOMEvent::DuplicatePrivateData();
   if (NS_SUCCEEDED(rv)) {
     mEvent->refPoint = screenPoint;

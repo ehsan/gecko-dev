@@ -74,12 +74,6 @@ extensions/Makefile
 "
 
 if [ ! "$LIBXUL_SDK" ]; then
-  if [ "$STLPORT_SOURCES" ]; then
-    add_makefiles "
-      build/stlport/Makefile
-      build/stlport/stl/config/_android.h
-    "
-  fi
   add_makefiles "
     memory/mozalloc/Makefile
     mozglue/Makefile
@@ -125,14 +119,6 @@ fi
 if [ "$COMPILER_DEPEND" = "" -a "$MOZ_NATIVE_MAKEDEPEND" = "" ]; then
   add_makefiles "
     config/mkdepend/Makefile
-  "
-fi
-
-if [ "$ENABLE_MARIONETTE" ]; then
-  add_makefiles "
-    testing/marionette/Makefile
-    testing/marionette/components/Makefile
-    testing/marionette/tests/Makefile
   "
 fi
 

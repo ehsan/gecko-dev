@@ -49,6 +49,8 @@
 #include "nsIChannel.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
+#include "nsIParser.h"
+#include "nsParserCIID.h"
 #include "nsNetUtil.h"
 #include "plstr.h"
 #include "nsIContent.h"
@@ -83,6 +85,7 @@
 #include "nsXBLBinding.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsEventListenerManager.h"
 #include "nsGUIEvent.h"
 
 #include "prprf.h"

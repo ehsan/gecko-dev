@@ -45,8 +45,4 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= parser
 DIRS            = expat xml htmlparser html
 
-EXPORTS = \
-  nsCharsetSource.h \
-  $(NULL)
-
 include $(topsrcdir)/config/rules.mk

@@ -120,6 +120,7 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsscope.h"
+#include "jsstr.h"
 #include "jswrapper.h"
 #include "methodjit/MethodJIT.h"
 #include "methodjit/StubCalls.h"
@@ -127,7 +128,7 @@
 
 #include "vm/ArgumentsObject.h"
 #include "vm/MethodGuard.h"
-#include "vm/StringBuffer.h"
+#include "vm/StringBuffer-inl.h"
 
 #include "ds/Sort.h"
 
@@ -139,7 +140,6 @@
 #include "jsstrinlines.h"
 
 #include "vm/ArgumentsObject-inl.h"
-#include "vm/ObjectImpl-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace mozilla;
@@ -3701,7 +3701,8 @@ js_InitArrayClass(JSContext *cx, JSObject *obj)
     arrayProto->setArrayLength(cx, 0);
 
     RootedVarFunction ctor(cx);
-    ctor = global->createConstructor(cx, js_Array, CLASS_ATOM(cx, Array), 1);
+    ctor = global->createConstructor(cx, js_Array, &ArrayClass,
+                                     CLASS_ATOM(cx, Array), 1);
     if (!ctor)
         return NULL;
 

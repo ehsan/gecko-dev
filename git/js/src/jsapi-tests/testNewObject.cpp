@@ -4,8 +4,6 @@
 
 #include "tests.h"
 
-#include "jsfriendapi.h"
-
 const size_t N = 1000;
 static jsval argv[N];
 
@@ -15,7 +13,7 @@ constructHook(JSContext *cx, unsigned argc, jsval *vp)
     // Check that arguments were passed properly from JS_New.
     JSObject *callee = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
 
-    JSObject *obj = JS_NewObjectForConstructor(cx, js::Jsvalify(&js::ObjectClass), vp);
+    JSObject *obj = JS_NewObjectForConstructor(cx, vp);
     if (!obj) {
         JS_ReportError(cx, "test failed, could not construct object");
         return false;

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.TimeUnit;
+
 import org.json.simple.parser.ParseException;
 import org.mozilla.gecko.sync.AlreadySyncingException;
 import org.mozilla.gecko.sync.GlobalConstants;
@@ -20,7 +21,6 @@ import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
 import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
-import org.mozilla.gecko.sync.net.ConnectionMonitorThread;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
 
@@ -290,10 +290,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
       // notify us in a failure case. Oh, concurrent programming.
       new Thread(fetchAuthToken).start();
 
-      // Start our stale connection monitor thread.
-      ConnectionMonitorThread stale = new ConnectionMonitorThread();
-      stale.start();
-
       Log.i(LOG_TAG, "Waiting on sync monitor.");
       try {
         syncMonitor.wait();
@@ -302,9 +298,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
         extendEarliestNextSync(next);
       } catch (InterruptedException e) {
         Log.i(LOG_TAG, "Waiting on sync monitor interrupted.", e);
-      } finally {
-        // And we're done with HTTP stuff.
-        stale.shutdown();
       }
     }
  }
@@ -336,7 +329,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     Log.i(LOG_TAG, "Performing sync.");
     this.syncResult   = syncResult;
     this.localAccount = account;
-
     // TODO: default serverURL.
     GlobalSession globalSession = new GlobalSession(SyncConfiguration.DEFAULT_USER_API,
                                                     serverURL, username, password, prefsPath,
@@ -428,11 +420,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   public synchronized void setClientsCount(int clientsCount) {
     mAccountManager.setUserData(localAccount, Constants.NUM_CLIENTS,
         Integer.toString(clientsCount));
-  }
-
-  @Override
-  public boolean isLocalGUID(String guid) {
-    return getAccountGUID().equals(guid);
   }
 
   @Override

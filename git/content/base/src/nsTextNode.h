@@ -74,8 +74,8 @@ public:
   virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
                                               bool aCloneText) const;
 
-  void BindToAttribute(nsIAttribute* aAttr);
-  void UnbindFromAttribute();
+  nsresult BindToAttribute(nsIAttribute* aAttr);
+  nsresult UnbindFromAttribute();
 
   virtual nsXPCClassInfo* GetClassInfo();
 

@@ -81,8 +81,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBaseContentList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBaseContentList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  if (nsCCUncollectableMarker::sGeneration && tmp->IsBlack() &&
-      NS_LIKELY(!cb.WantAllTraces())) {
+  if (nsCCUncollectableMarker::sGeneration && tmp->IsBlack()) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mElements)
@@ -193,7 +192,7 @@ NS_IMPL_ADDREF_INHERITED(nsSimpleContentList, nsBaseContentList)
 NS_IMPL_RELEASE_INHERITED(nsSimpleContentList, nsBaseContentList)
 
 JSObject*
-nsSimpleContentList::WrapObject(JSContext *cx, JSObject *scope,
+nsSimpleContentList::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                 bool *triedToWrap)
 {
   return mozilla::dom::binding::NodeList::create(cx, scope, this, triedToWrap);
@@ -510,7 +509,8 @@ nsContentList::~nsContentList()
 }
 
 JSObject*
-nsContentList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
+nsContentList::WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+                          bool *triedToWrap)
 {
   return mozilla::dom::binding::HTMLCollection::create(cx, scope, this,
                                                        triedToWrap);

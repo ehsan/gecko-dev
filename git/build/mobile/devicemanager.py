@@ -235,12 +235,12 @@ class DeviceManager:
 
 
   @abstractmethod
-  def killProcess(self, appname, forceKill=False):
+  def killProcess(self, appname):
     """
     external function
     returns:
-    success: True
-    failure: False
+    success: output from testagent
+    failure: None
     """
     
   @abstractmethod

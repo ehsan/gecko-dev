@@ -34,15 +34,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
+#include "nsIDocument.h"
 #include "nsSVGMaskFrame.h"
-
-// Keep others in (case-insensitive) order:
+#include "nsSVGContainerFrame.h"
+#include "nsSVGMaskElement.h"
+#include "nsSVGEffects.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
-#include "nsRenderingContext.h"
-#include "nsSVGEffects.h"
-#include "nsSVGMaskElement.h"
 
 //----------------------------------------------------------------------
 // Implementation

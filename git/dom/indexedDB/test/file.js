@@ -3,6 +3,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
+var builder = new MozBlobBuilder();
 var manager = null;
 var bufferCache = [];
 var utils = SpecialPowers.getDOMWindowUtils(window);
@@ -41,12 +42,14 @@ function compareBuffers(buffer1, buffer2)
 
 function getBlob(type, buffer)
 {
-  return new Blob([buffer], {type: type});
+  builder.append(buffer);
+  return builder.getBlob(type);
 }
 
 function getFile(name, type, buffer)
 {
-  return new Blob([buffer], {type: type});
+  builder.append(buffer);
+  return builder.getFile(name, type);
 }
 
 function getRandomBlob(size)

@@ -146,10 +146,10 @@ CPPSRCS		= \
 		jswatchpoint.cpp \
 		jsweakmap.cpp \
 		jswrapper.cpp \
+		jsxdrapi.cpp \
 		jsxml.cpp \
 		prmjtime.cpp \
 		sharkctl.cpp \
-		ArgumentsObject.cpp \
 		ScopeObject.cpp \
 		Debugger.cpp \
 		GlobalObject.cpp \
@@ -176,7 +176,6 @@ CPPSRCS		= \
 		Statistics.cpp \
 		StringBuffer.cpp \
 		Unicode.cpp \
-		Xdr.cpp \
 		$(NULL)
 
 # Changes to internal header files, used externally, massively slow down
@@ -189,7 +188,6 @@ INSTALLED_HEADERS = \
 		jsalloc.h \
 		jsapi.h \
 		jsatom.h \
-		jsatom.tbl \
 		jsclass.h \
 		jsclist.h \
 		jsdbgapi.h \
@@ -210,6 +208,7 @@ INSTALLED_HEADERS = \
 		jsutil.h \
 		jsversion.h \
 		jswrapper.h \
+		jsxdrapi.h \
 		jsval.h \
 		$(NULL)
 

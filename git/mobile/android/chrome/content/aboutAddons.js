@@ -28,7 +28,6 @@ function init() {
   Services.obs.addObserver(Addons, "browser-search-engine-modified", false);
 
   AddonManager.addInstallListener(Addons);
-  AddonManager.addAddonListener(Addons);
   Addons.getAddons();
   showList();
 }
@@ -36,7 +35,6 @@ function init() {
 function uninit() {
   Services.obs.removeObserver(Addons, "browser-search-engine-modified");
   AddonManager.removeInstallListener(Addons);
-  AddonManager.removeAddonListener(Addons);
 }
 
 function openLink(aElement) {
@@ -71,8 +69,6 @@ function showList() {
 }
 
 var Addons = {
-  _restartCount: 0,
-
   _createItem: function _createItem(aAddon) {
     let outer = document.createElement("div");
     outer.setAttribute("addonID", aAddon.id);
@@ -298,98 +294,120 @@ var Addons = {
     details.style.display = "block";
   },
 
-  setEnabled: function setEnabled(aValue, aAddon) {
+  enable: function enable() {
     let detailItem = document.querySelector("#addons-details > .addon-item");
-    let addon = aAddon || detailItem.addon;
-    if (!addon)
+    if (!detailItem.addon)
       return;
 
-    let listItem = this._getElementForAddon(addon.id);
-
     let opType;
-    if (addon.type == "search") {
-      addon.engine.hidden = !aValue;
-      opType = aValue ? "needs-enable" : "needs-disable";
-    } else if (addon.type == "theme") {
-      if (aValue) {
-        // We can have only one theme enabled, so disable the current one if any
-        let list = document.getElementById("addons-list");
-        let item = list.firstElementChild;
-        while (item) {
-          if (item.addon && (item.addon.type == "theme") && (item.addon.isActive)) {
-            this.setEnabled(false, item);
-            break;
-          }
-          item = item.nextSibling;
+    let isDisabled;
+    if (detailItem.addon.type == "search") {
+      isDisabled = false;
+      detailItem.addon.engine.hidden = false;
+      opType = "needs-enable";
+    } else if (detailItem.addon.type == "theme") {
+      // We can have only one theme enabled, so disable the current one if any
+      let theme = null;
+      let list = document.getElementById("addons-list");
+      let item = list.firstElementChild;
+      while (item) {
+        if (item.addon && (item.addon.type == "theme") && (item.addon.isActive)) {
+          theme = item;
+          break;
         }
+        item = item.nextSibling;
       }
-      addon.userDisabled = !aValue;
-    } else if (addon.type == "locale") {
-      addon.userDisabled = !aValue;
+      if (theme)
+        this.disable(theme);
+
+      detailItem.addon.userDisabled = false;
+      isDisabled = false;
     } else {
-      addon.userDisabled = !aValue;
-      opType = this._getOpTypeForOperations(addon.pendingOperations);
+      detailItem.addon.userDisabled = false;
+      isDisabled = false;
+      opType = this._getOpTypeForOperations(detailItem.addon.pendingOperations);
 
-      if ((addon.pendingOperations & AddonManager.PENDING_ENABLE) ||
-          (addon.pendingOperations & AddonManager.PENDING_DISABLE)) {
+      if (detailItem.addon.pendingOperations & AddonManager.PENDING_ENABLE) {
         this.showRestart();
-      } else if (listItem && /needs-(enable|disable)/.test(listItem.getAttribute("opType"))) {
-        this.hideRestart();
+      } else {
+        if (detailItem.getAttribute("opType") == "needs-disable")
+          this.hideRestart();
       }
     }
 
-    if (addon == detailItem.addon) {
-      detailItem.setAttribute("isDisabled", !aValue);
-      if (opType)
-        detailItem.setAttribute("opType", opType);
-      else
-        detailItem.removeAttribute("opType");
-    }
+    detailItem.setAttribute("opType", opType);
+    detailItem.setAttribute("isDisabled", isDisabled);
 
     // Sync to the list item
-    if (listItem) {
-      listItem.setAttribute("isDisabled", !aValue);
-      if (opType)
-        listItem.setAttribute("opType", opType);
-      else
-        listItem.removeAttribute("opType");
-    }
-  },
-
-  enable: function enable() {
-    this.setEnabled(true);
+    let listItem = this._getElementForAddon(detailItem.addon.id);
+    listItem.setAttribute("isDisabled", detailItem.getAttribute("isDisabled"));
+    listItem.setAttribute("opType", detailItem.getAttribute("opType"));
   },
 
   disable: function disable() {
-    this.setEnabled(false);
+    let detailItem = document.querySelector("#addons-details > .addon-item");
+    if (!detailItem.addon)
+      return;
+
+    let opType;
+    let isDisabled;
+    if (detailItem.addon.type == "search") {
+      isDisabled = true;
+      detailItem.addon.engine.hidden = true;
+      opType = "needs-disable";
+    } else if (detailItem.addon.type == "theme") {
+      detailItem.addon.userDisabled = true;
+      isDisabled = true;
+    } else if (detailItem.addon.type == "locale") {
+      detailItem.addon.userDisabled = true;
+      isDisabled = true;
+    } else {
+      detailItem.addon.userDisabled = true;
+      opType = this._getOpTypeForOperations(detailItem.addon.pendingOperations);
+      isDisabled = !detailItem.addon.isActive;
+
+      if (detailItem.addon.pendingOperations & AddonManager.PENDING_DISABLE) {
+        this.showRestart();
+      } else {
+        if (detailItem.getAttribute("opType") == "needs-enable")
+          this.hideRestart();
+      }
+    }
+
+    detailItem.setAttribute("opType", opType);
+    detailItem.setAttribute("isDisabled", isDisabled);
+
+    // Sync to the list item
+    let listItem = this._getElementForAddon(detailItem.addon.id);
+    listItem.setAttribute("isDisabled", detailItem.getAttribute("isDisabled"));
+    listItem.setAttribute("opType", detailItem.getAttribute("opType"));
   },
 
   uninstall: function uninstall() {
     let list = document.getElementById("addons-list");
     let detailItem = document.querySelector("#addons-details > .addon-item");
-
-    let addon = detailItem.addon;
-    if (!addon)
+    if (!detailItem.addon)
       return;
 
-    let listItem = this._getElementForAddon(addon.id);
+    let listItem = this._getElementForAddon(detailItem.addon.id);
 
-    if (addon.type == "search") {
+    if (detailItem.addon.type == "search") {
       // Make sure the engine isn't hidden before removing it, to make sure it's
       // visible if the user later re-adds it (works around bug 341833)
-      addon.engine.hidden = false;
-      Services.search.removeEngine(addon.engine);
+      detailItem.addon.engine.hidden = false;
+      Services.search.removeEngine(detailItem.addon.engine);
       // the search-engine-modified observer will take care of updating the list
       history.back();
     } else {
-      addon.uninstall();
-      if (addon.pendingOperations & AddonManager.PENDING_UNINSTALL) {
+      detailItem.addon.uninstall();
+      let opType = this._getOpTypeForOperations(detailItem.addon.pendingOperations);
+
+      if (detailItem.addon.pendingOperations & AddonManager.PENDING_UNINSTALL) {
         this.showRestart();
 
         // A disabled addon doesn't need a restart so it has no pending ops and
         // can't be cancelled
-        let opType = this._getOpTypeForOperations(addon.pendingOperations);
-        if (!addon.isActive && opType == "")
+        if (!detailItem.addon.isActive && opType == "")
           opType = "needs-uninstall";
 
         detailItem.setAttribute("opType", opType);
@@ -403,41 +421,25 @@ var Addons = {
 
   cancelUninstall: function ev_cancelUninstall() {
     let detailItem = document.querySelector("#addons-details > .addon-item");
-    let addon = detailItem.addon;
-    if (!addon)
+    if (!detailItem.addon)
       return;
 
-    addon.cancelUninstall();
+    detailItem.addon.cancelUninstall();
     this.hideRestart();
 
-    let opType = this._getOpTypeForOperations(addon.pendingOperations);
+    let opType = this._getOpTypeForOperations(detailItem.addon.pendingOperations);
     detailItem.setAttribute("opType", opType);
 
-    let listItem = this._getElementForAddon(addon.id);
+    let listItem = this._getElementForAddon(detailItem.addon.id);
     listItem.setAttribute("opType", opType);
   },
 
-  showRestart: function showRestart() {
-    this._restartCount++;
-    gChromeWin.XPInstallObserver.showRestartPrompt();
+  showRestart: function showRestart(aMode) {
+    // TODO (bug 704406)
   },
 
-  hideRestart: function hideRestart() {
-    this._restartCount--;
-    if (this._restartCount == 0)
-      gChromeWin.XPInstallObserver.hideRestartPrompt();
-  },
-
-  onEnabled: function(aAddon) {
-    let listItem = this._getElementForAddon(aAddon.id);
-    if (!listItem)
-      return;
-
-    // Reload the details to pick up any options now that it's enabled.
-    listItem.setAttribute("optionsURL", aAddon.optionsURL || "");
-    let detailItem = document.querySelector("#addons-details > .addon-item");
-    if (aAddon == detailItem.addon)
-      this.showDetails(listItem);
+  hideRestart: function hideRestart(aMode) {
+    // TODO (bug 704406)
   },
 
   onInstallEnded: function(aInstall, aAddon) {

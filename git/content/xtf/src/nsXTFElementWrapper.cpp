@@ -270,14 +270,16 @@ nsXTFElementWrapper::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
   return rv;
 }
 
-void
+nsresult
 nsXTFElementWrapper::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 {
+  nsresult rv;
   if (mNotificationMask & nsIXTFElement::NOTIFY_WILL_REMOVE_CHILD)
     GetXTFElement()->WillRemoveChild(aIndex);
-  nsXTFElementWrapperBase::RemoveChildAt(aIndex, aNotify);
+  rv = nsXTFElementWrapperBase::RemoveChildAt(aIndex, aNotify);
   if (mNotificationMask & nsIXTFElement::NOTIFY_CHILD_REMOVED)
     GetXTFElement()->ChildRemoved(aIndex);
+  return rv;
 }
 
 nsIAtom *

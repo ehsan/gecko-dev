@@ -38,18 +38,16 @@
 #ifndef NSSVGINTEGRATIONUTILS_H_
 #define NSSVGINTEGRATIONUTILS_H_
 
+#include "nsPoint.h"
+#include "nsRect.h"
+#include "gfxRect.h"
 #include "gfxMatrix.h"
 #include "gfxPattern.h"
-#include "gfxRect.h"
-#include "nsRect.h"
 
-class nsDisplayList;
-class nsDisplayListBuilder;
 class nsIFrame;
+class nsDisplayListBuilder;
+class nsDisplayList;
 class nsRenderingContext;
-
-struct nsPoint;
-struct nsSize;
 
 /***** Integration of SVG effects with regular frame painting *****/
 

@@ -97,8 +97,6 @@ public:
 
     void NotifyNativeEvent();
 
-    static void NotifyScreenInitialized();
-
 protected:
     virtual ~nsAppShell();
 
@@ -107,7 +105,6 @@ protected:
 private:
     nsresult AddFdHandler(int fd, FdHandlerCallback handlerFunc,
                           const char* deviceName);
-    void InitInputDevices();
 
     // This is somewhat racy but is perfectly safe given how the callback works
     bool mNativeCallbackRequest;

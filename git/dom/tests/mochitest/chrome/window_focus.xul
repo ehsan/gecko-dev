@@ -537,13 +537,8 @@ function startTest()
     gLastFocusMethod = (key == "D" || key == "G") ? fm.FLAG_BYMOVEFOCUS : fm.FLAG_BYKEY;
 
     // on Windows and Linux, the shift key must be pressed for content area access keys
-    // and on Mac, the alt key must be pressed for content area access keys
-    var isContent = (getById(keys[k]).ownerDocument.defaultView == gChildWindow);
-    if (navigator.platform.indexOf("Mac") == -1) {
-      accessKeyDetails.shiftKey = isContent;
-    } else {
-      accessKeyDetails.altKey = isContent;
-    }
+    if (navigator.platform.indexOf("Mac") == -1)
+      accessKeyDetails.shiftKey = (getById(keys[k]).ownerDocument.defaultView == gChildWindow);
 
     expectFocusShift(function () synthesizeKey(key, accessKeyDetails),
                      null, getById(keys[k]), true, "accesskey " + key);

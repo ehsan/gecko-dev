@@ -19,8 +19,6 @@
 
 namespace js {
 
-class ObjectImpl;
-
 /*
  * Header structure for object element arrays. This structure is immediately
  * followed by an array of elements, with the elements member in an object
@@ -30,7 +28,6 @@ class ObjectImpl;
 class ObjectElements
 {
     friend struct ::JSObject;
-    friend class ObjectImpl;
 
     /* Number of allocated slots. */
     uint32_t capacity;
@@ -174,80 +171,10 @@ class ObjectImpl : public gc::Cell
 
     JSObject * asObjectPtr() { return reinterpret_cast<JSObject *>(this); }
 
-    /* These functions are public, and they should remain public. */
-
-  public:
-    JSObject * getProto() const {
-        return type_->proto;
-    }
-
-    inline bool isExtensible() const;
-
-    /*
-     * XXX Once the property/element split of bug 586842 is complete, these
-     *     methods should move back to JSObject.
-     */
-    inline bool isDenseArray() const;
-    inline bool isSlowArray() const;
-    inline bool isArray() const;
-
-    inline HeapSlotArray getDenseArrayElements();
-    inline const Value & getDenseArrayElement(uint32_t idx);
-    inline uint32_t getDenseArrayInitializedLength();
-
-  protected:
-#ifdef DEBUG
-    void checkShapeConsistency();
-#else
-    void checkShapeConsistency() { }
-#endif
-
-  private:
-    /*
-     * Get internal pointers to the range of values starting at start and
-     * running for length.
-     */
-    inline void getSlotRangeUnchecked(uint32_t start, uint32_t length,
-                                      HeapSlot **fixedStart, HeapSlot **fixedEnd,
-                                      HeapSlot **slotsStart, HeapSlot **slotsEnd);
-    inline void getSlotRange(uint32_t start, uint32_t length,
-                             HeapSlot **fixedStart, HeapSlot **fixedEnd,
-                             HeapSlot **slotsStart, HeapSlot **slotsEnd);
-
   protected:
     friend struct GCMarker;
     friend struct Shape;
     friend class NewObjectCache;
-
-    inline bool hasContiguousSlots(uint32_t start, uint32_t count) const;
-
-    inline void invalidateSlotRange(uint32_t start, uint32_t count);
-    inline void initializeSlotRange(uint32_t start, uint32_t count);
-
-    /*
-     * Initialize a flat array of slots to this object at a start slot.  The
-     * caller must ensure that are enough slots.
-     */
-    void initSlotRange(uint32_t start, const Value *vector, uint32_t length);
-
-    /*
-     * Copy a flat array of slots to this object at a start slot. Caller must
-     * ensure there are enough slots in this object.
-     */
-    void copySlotRange(uint32_t start, const Value *vector, uint32_t length);
-
-#ifdef DEBUG
-    enum SentinelAllowed {
-        SENTINEL_NOT_ALLOWED,
-        SENTINEL_ALLOWED
-    };
-
-    /*
-     * Check that slot is in range for the object's allocated slots.
-     * If sentinelAllowed then slot may equal the slot capacity.
-     */
-    bool slotInRange(uint32_t slot, SentinelAllowed sentinel = SENTINEL_NOT_ALLOWED) const;
-#endif
 
     /* Minimum size for dynamically allocated slots. */
     static const uint32_t SLOT_CAPACITY_MIN = 8;
@@ -267,14 +194,12 @@ class ObjectImpl : public gc::Cell
         return shape_;
     }
 
-    inline bool isNative() const;
-
     types::TypeObject *type() const {
         MOZ_ASSERT(!hasLazyType());
         return type_;
     }
 
-    uint32_t numFixedSlots() const {
+    size_t numFixedSlots() const {
         return reinterpret_cast<const shadow::Object *>(this)->numFixedSlots();
     }
 
@@ -290,10 +215,7 @@ class ObjectImpl : public gc::Cell
      */
     bool hasLazyType() const { return type_->lazy(); }
 
-    inline uint32_t slotSpan() const;
-
-    /* Compute dynamicSlotsCount() for this object. */
-    inline uint32_t numDynamicSlots() const;
+    inline bool isNative() const;
 
     const Shape * nativeLookup(JSContext *cx, jsid id);
 
@@ -320,65 +242,13 @@ class ObjectImpl : public gc::Cell
      */
     inline bool inDictionaryMode() const;
 
-    const Value &getSlot(uint32_t slot) const {
-        MOZ_ASSERT(slotInRange(slot));
-        uint32_t fixed = numFixedSlots();
-        if (slot < fixed)
-            return fixedSlots()[slot];
-        return slots[slot - fixed];
-    }
-
-    HeapSlot *getSlotAddressUnchecked(uint32_t slot) {
-        uint32_t fixed = numFixedSlots();
-        if (slot < fixed)
-            return fixedSlots() + slot;
-        return slots + (slot - fixed);
-    }
-
-    HeapSlot *getSlotAddress(uint32_t slot) {
-        /*
-         * This can be used to get the address of the end of the slots for the
-         * object, which may be necessary when fetching zero-length arrays of
-         * slots (e.g. for callObjVarArray).
-         */
-        MOZ_ASSERT(slotInRange(slot, SENTINEL_ALLOWED));
-        return getSlotAddressUnchecked(slot);
-    }
-
-    HeapSlot &getSlotRef(uint32_t slot) {
-        MOZ_ASSERT(slotInRange(slot));
-        return *getSlotAddress(slot);
-    }
-
-    inline HeapSlot &nativeGetSlotRef(uint32_t slot);
-    inline const Value &nativeGetSlot(uint32_t slot) const;
-
-    inline void setSlot(uint32_t slot, const Value &value);
-    inline void initSlot(uint32_t slot, const Value &value);
-    inline void initSlotUnchecked(uint32_t slot, const Value &value);
-
-    /* For slots which are known to always be fixed, due to the way they are allocated. */
-
-    HeapSlot &getFixedSlotRef(uint32_t slot) {
-        MOZ_ASSERT(slot < numFixedSlots());
-        return fixedSlots()[slot];
-    }
-
-    const Value &getFixedSlot(uint32_t slot) const {
-        MOZ_ASSERT(slot < numFixedSlots());
-        return fixedSlots()[slot];
-    }
-
-    inline void setFixedSlot(uint32_t slot, const Value &value);
-    inline void initFixedSlot(uint32_t slot, const Value &value);
-
     /*
      * Get the number of dynamic slots to allocate to cover the properties in
      * an object with the given number of fixed slots and slot span. The slot
      * capacity is not stored explicitly, and the allocated size of the slot
      * array is kept in sync with this count.
      */
-    static inline uint32_t dynamicSlotsCount(uint32_t nfixed, uint32_t span);
+    static inline size_t dynamicSlotsCount(size_t nfixed, size_t span);
 
     /* Memory usage functions. */
     inline size_t sizeOfThis() const;
@@ -417,19 +287,6 @@ class ObjectImpl : public gc::Cell
     inline void privateWriteBarrierPost(void **oldval);
     void markChildren(JSTracer *trc);
 
-    /* Private data accessors. */
-
-    inline void *&privateRef(uint32_t nfixed) const; /* XXX should be private, not protected! */
-
-    inline bool hasPrivate() const;
-    inline void *getPrivate() const;
-    inline void setPrivate(void *data);
-    inline void setPrivateUnbarriered(void *data);
-    inline void initPrivate(void *data);
-
-    /* Access private data for an object with a known number of fixed slots. */
-    inline void *getPrivate(uint32_t nfixed) const;
-
     /* JIT Accessors */
     static size_t offsetOfShape() { return offsetof(ObjectImpl, shape_); }
     HeapPtrShape *addressOfShape() { return &shape_; }
@@ -447,6 +304,15 @@ class ObjectImpl : public gc::Cell
     }
     static size_t getPrivateDataOffset(size_t nfixed) { return getFixedSlotOffset(nfixed); }
     static size_t offsetOfSlots() { return offsetof(ObjectImpl, slots); }
+
+    /* These functions are public, and they should remain public. */
+
+  public:
+    JSObject * getProto() const {
+        return type_->proto;
+    }
+
+    inline bool isExtensible() const;
 };
 
 } /* namespace js */

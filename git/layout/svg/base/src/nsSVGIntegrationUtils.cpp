@@ -35,21 +35,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
 #include "nsSVGIntegrationUtils.h"
 
-// Keep others in (case-insensitive) order:
-#include "gfxDrawable.h"
-#include "nsDisplayList.h"
-#include "nsLayoutUtils.h"
-#include "nsRenderingContext.h"
-#include "nsSVGClipPathFrame.h"
-#include "nsSVGEffects.h"
-#include "nsSVGFilterFrame.h"
-#include "nsSVGFilterPaintCallback.h"
-#include "nsSVGMaskFrame.h"
-#include "nsSVGPaintServerFrame.h"
 #include "nsSVGUtils.h"
+#include "nsSVGEffects.h"
+#include "nsRegion.h"
+#include "nsLayoutUtils.h"
+#include "nsDisplayList.h"
+#include "nsSVGFilterPaintCallback.h"
+#include "nsSVGFilterFrame.h"
+#include "nsSVGClipPathFrame.h"
+#include "nsSVGMaskFrame.h"
+#include "gfxPlatform.h"
+#include "gfxDrawable.h"
+#include "nsSVGPaintServerFrame.h"
 
 // ----------------------------------------------------------------------
 

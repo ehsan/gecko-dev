@@ -1644,14 +1644,26 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
 {
 #if defined(MOZ_WIDGET_ANDROID)
   if (mInstanceOwner) {
+    NPWindow *window;
+    mInstanceOwner->GetWindow(window);
+
     gfxRect frameGfxRect =
       PresContext()->AppUnitsToGfxUnits(aPluginRect);
     gfxRect dirtyGfxRect =
       PresContext()->AppUnitsToGfxUnits(aDirtyRect);
-
     gfxContext* ctx = aRenderingContext.ThebesContext();
 
-    mInstanceOwner->Paint(ctx, frameGfxRect, dirtyGfxRect);
+    gfx3DMatrix matrix3d = nsLayoutUtils::GetTransformToAncestor(this, nsnull);
+
+    gfxMatrix matrix2d;
+    if (!matrix3d.Is2D(&matrix2d))
+      return;
+
+    // The matrix includes the frame's position, so we need to transform
+    // from 0,0 to get the correct coordinates.
+    frameGfxRect.MoveTo(0, 0);
+
+    mInstanceOwner->Paint(ctx, matrix2d.Transform(frameGfxRect), dirtyGfxRect);
     return;
   }
 #endif
@@ -2163,16 +2175,6 @@ nsIFrame*
 NS_NewObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsObjectFrame(aContext);
-}
-
-bool
-nsObjectFrame::PaintedByGecko()
-{
-#ifdef XP_MACOSX
-  return true;
-#else
-  return !mWidget;
-#endif
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsObjectFrame)

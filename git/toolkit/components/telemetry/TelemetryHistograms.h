@@ -53,15 +53,12 @@
 #define HISTOGRAM_BOOLEAN(id, message) HISTOGRAM(id, 0, 1, 2, BOOLEAN, message)
 /* Likewise for FLAG histograms. */
 #define HISTOGRAM_FLAG(id, message) HISTOGRAM(id, 0, 1, 2, FLAG, message)
-/* Convenience macro for LINEAR histograms where we want buckets from 1 to N, inclusive. */
-#define HISTOGRAM_ENUMERATED_VALUES(id, n, message) \
-  HISTOGRAM(id, 1, n, n+1, LINEAR, message)
 
 /**
  * a11y telemetry
  */
 HISTOGRAM_BOOLEAN(A11Y_INSTANTIATED, "has accessibility support been instantiated")
-HISTOGRAM_ENUMERATED_VALUES(A11Y_CONSUMERS, 9, "Accessibility client by enum id")
+HISTOGRAM(A11Y_CONSUMERS, 1, 9, 10, LINEAR, "Accessibility client by enum id")
 HISTOGRAM_BOOLEAN(A11Y_ISIMPLEDOM_USAGE, "have the ISimpleDOM* accessibility interfaces been used")
 HISTOGRAM_BOOLEAN(A11Y_IATABLE_USAGE, "has the IAccessibleTable accessibility interface been used")
 HISTOGRAM_BOOLEAN(A11Y_XFORMS_USAGE, "has XForms accessibility been instantiated")
@@ -365,7 +362,6 @@ HISTOGRAM_BOOLEAN(FX_KEYWORD_URL_USERSET, "Firefox: keyword.URL has a user-set v
 HISTOGRAM(FX_IDENTITY_POPUP_OPEN_MS, 1, 1000, 10, EXPONENTIAL, "Firefox: Time taken by the identity popup to open in milliseconds")
 HISTOGRAM(FX_APP_MENU_OPEN_MS, 1, 1000, 10, EXPONENTIAL, "Firefox: Time taken by the app-menu opening in milliseconds")
 HISTOGRAM(FX_BOOKMARKS_TOOLBAR_INIT_MS, 50, 5000, 10, EXPONENTIAL, "Firefox: Time to initialize the bookmarks toolbar view (ms)")
-HISTOGRAM(FX_NEW_WINDOW_MS, 1, 10000, 20, EXPONENTIAL, "Firefox: Time taken to open a new browser window (ms)")
 
 /**
  * Thumbnail Service telemetry.
@@ -391,7 +387,6 @@ HISTOGRAM(HTML_FOREGROUND_REFLOW_MS, 1, 3000, 10, EXPONENTIAL, "HTML reflows in 
 HISTOGRAM(HTML_BACKGROUND_REFLOW_MS, 1, 3000, 10, EXPONENTIAL, "HTML reflows in background windows (ms)")
 HISTOGRAM(XUL_INITIAL_FRAME_CONSTRUCTION, 1, 3000, 10, EXPONENTIAL, "initial xul frame construction")
 HISTOGRAM_BOOLEAN(XMLHTTPREQUEST_ASYNC_OR_SYNC, "Type of XMLHttpRequest, async or sync")
-HISTOGRAM_BOOLEAN(MULTIPART_XHR_RESPONSE, "XMLHttpRequest response was of type multipart/x-mixed-replace.")
 
 /**
  * DOM telemetry.
@@ -429,8 +424,7 @@ HISTOGRAM_FLAG(TELEMETRY_TEST_FLAG, "a testing histogram; not meant to be touche
  * Startup Crash Detection
  */
 HISTOGRAM_FLAG(STARTUP_CRASH_DETECTED, "Whether there was a crash during the last startup")
-HISTOGRAM_ENUMERATED_VALUES(SAFE_MODE_USAGE, 3, "Whether the user is in safe mode (No, Yes, Forced)")
+HISTOGRAM(SAFE_MODE_USAGE, 1, 3, 4, LINEAR, "Whether the user is in safe mode (No, Yes, Forced)")
 
-#undef HISTOGRAM_ENUMERATED_VALUES
 #undef HISTOGRAM_BOOLEAN
 #undef HISTOGRAM_FLAG

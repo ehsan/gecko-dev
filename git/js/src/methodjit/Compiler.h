@@ -262,7 +262,7 @@ class Compiler : public BaseCompiler
             return getPropLabels_;
         }
         ic::SetPropLabels &setPropLabels() {
-            JS_ASSERT(kind == ic::PICInfo::SET);
+            JS_ASSERT(kind == ic::PICInfo::SET || kind == ic::PICInfo::SETMETHOD);
             return setPropLabels_;
         }
         ic::BindNameLabels &bindNameLabels() {

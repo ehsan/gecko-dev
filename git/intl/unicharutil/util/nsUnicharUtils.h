@@ -56,18 +56,18 @@ void ToUpperCase(nsAString&);
 void ToLowerCase(const nsAString& aSource, nsAString& aDest);
 void ToUpperCase(const nsAString& aSource, nsAString& aDest);
 
-PRUint32 ToLowerCase(PRUint32);
-PRUint32 ToUpperCase(PRUint32);
-PRUint32 ToTitleCase(PRUint32);
+PRUnichar ToLowerCase(PRUnichar);
+PRUnichar ToUpperCase(PRUnichar);
+PRUnichar ToTitleCase(PRUnichar);
 
 void ToLowerCase(const PRUnichar*, PRUnichar*, PRUint32);
 void ToUpperCase(const PRUnichar*, PRUnichar*, PRUint32);
 
-inline bool IsUpperCase(PRUint32 c) {
+inline bool IsUpperCase(PRUnichar c) {
   return ToLowerCase(c) != c;
 }
 
-inline bool IsLowerCase(PRUint32 c) {
+inline bool IsLowerCase(PRUnichar c) {
   return ToUpperCase(c) != c;
 }
 

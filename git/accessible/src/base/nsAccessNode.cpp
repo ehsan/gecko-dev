@@ -117,6 +117,12 @@ void nsAccessNode::LastRelease()
 // nsAccessNode public
 
 bool
+nsAccessNode::IsDefunct() const
+{
+  return !mContent;
+}
+
+bool
 nsAccessNode::Init()
 {
   return true;
@@ -212,7 +218,7 @@ void nsAccessNode::ShutdownXPAccessibility()
 // nsAccessNode protected
 nsPresContext* nsAccessNode::GetPresContext()
 {
-  if (!mDoc)
+  if (IsDefunct())
     return nsnull;
 
   nsIPresShell* presShell(mDoc->PresShell());
@@ -256,7 +262,7 @@ nsAccessNode::IsPrimaryForNode() const
 void
 nsAccessNode::ScrollTo(PRUint32 aScrollType)
 {
-  if (!mDoc)
+  if (IsDefunct())
     return;
 
   nsIPresShell* shell = mDoc->PresShell();
@@ -271,9 +277,9 @@ nsAccessNode::ScrollTo(PRUint32 aScrollType)
   if (!content)
     return;
 
-  nsIPresShell::ScrollAxis vertical, horizontal;
-  nsCoreUtils::ConvertScrollTypeToPercents(aScrollType, &vertical, &horizontal);
-  shell->ScrollContentIntoView(content, vertical, horizontal,
+  PRInt16 vPercent, hPercent;
+  nsCoreUtils::ConvertScrollTypeToPercents(aScrollType, &vPercent, &hPercent);
+  shell->ScrollContentIntoView(content, vPercent, hPercent,
                                nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
 }
 
@@ -282,7 +288,7 @@ nsAccessNode::Language(nsAString& aLanguage)
 {
   aLanguage.Truncate();
 
-  if (!mDoc)
+  if (IsDefunct())
     return;
 
   nsCoreUtils::GetLanguageFor(mContent, nsnull, aLanguage);

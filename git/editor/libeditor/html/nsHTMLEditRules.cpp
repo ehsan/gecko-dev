@@ -347,8 +347,9 @@ nsHTMLEditRules::BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection)
     }
 
     // Stabilize the document against contenteditable count changes
-    nsCOMPtr<nsIDOMDocument> doc = mHTMLEditor->GetDOMDocument();
-    NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+    nsCOMPtr<nsIDOMDocument> doc;
+    res = mHTMLEditor->GetDocument(getter_AddRefs(doc));
+    NS_ENSURE_SUCCESS(res, res);
     nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(doc);
     NS_ENSURE_TRUE(htmlDoc, NS_ERROR_FAILURE);
     if (htmlDoc->GetEditingState() == nsIHTMLDocument::eContentEditable) {
@@ -384,8 +385,9 @@ nsHTMLEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
 
     // Reset the contenteditable count to its previous value
     if (mRestoreContentEditableCount) {
-      nsCOMPtr<nsIDOMDocument> doc = mHTMLEditor->GetDOMDocument();
-      NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+      nsCOMPtr<nsIDOMDocument> doc;
+      res = mHTMLEditor->GetDocument(getter_AddRefs(doc));
+      NS_ENSURE_SUCCESS(res, res);
       nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(doc);
       NS_ENSURE_TRUE(htmlDoc, NS_ERROR_FAILURE);
       if (htmlDoc->GetEditingState() == nsIHTMLDocument::eContentEditable) {
@@ -1259,8 +1261,10 @@ nsHTMLEditRules::WillInsert(nsISelection *aSelection, bool *aCancel)
   }
 
   // we need to get the doc
-  nsCOMPtr<nsIDOMDocument> doc = mHTMLEditor->GetDOMDocument();
-  NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIDOMDocument>doc;
+  res = mHTMLEditor->GetDocument(getter_AddRefs(doc));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(doc, NS_ERROR_NULL_POINTER);
     
   // for every property that is set, insert a new inline style node
   return CreateStyleForInsertText(aSelection, doc);
@@ -1332,8 +1336,10 @@ nsHTMLEditRules::WillInsertText(PRInt32          aAction,
     return NS_ERROR_FAILURE;
 
   // we need to get the doc
-  nsCOMPtr<nsIDOMDocument> doc = mHTMLEditor->GetDOMDocument();
-  NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIDOMDocument>doc;
+  res = mHTMLEditor->GetDocument(getter_AddRefs(doc));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(doc, NS_ERROR_NULL_POINTER);
     
   if (aAction == kInsertTextIME) 
   { 

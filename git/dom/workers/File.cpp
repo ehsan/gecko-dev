@@ -40,7 +40,6 @@
 #include "File.h"
 
 #include "nsIDOMFile.h"
-#include "nsDOMBlobBuilder.h"
 
 #include "jsapi.h"
 #include "jsatom.h"
@@ -58,7 +57,6 @@
 
 USING_WORKERS_NAMESPACE
 
-using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
 using mozilla::dom::workers::exceptions::ThrowFileExceptionForCode;
 
 namespace {
@@ -112,32 +110,12 @@ private:
     return NULL;
   }
 
-  static nsIDOMBlob*
-  Unwrap(JSContext* aCx, JSObject* aObj)
-  {
-    return GetPrivate(aObj);
-  }
-
   static JSBool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    nsRefPtr<nsDOMMultipartFile> file = new nsDOMMultipartFile();
-    nsresult rv = file->InitInternal(aCx, aArgc, JS_ARGV(aCx, aVp),
-                                     Unwrap);
-    if (NS_FAILED(rv)) {
-      ThrowDOMExceptionForCode(aCx,
-        NS_ERROR_GET_MODULE(rv) == NS_ERROR_MODULE_DOM ?
-          NS_ERROR_GET_CODE(rv) : UNKNOWN_ERR);
-      return false;
-    }
-
-    JSObject* obj = file::CreateBlob(aCx, file);
-    if (!obj) {
-      return false;
-    }
-
-    JS_SET_RVAL(aCx, aVp, OBJECT_TO_JSVAL(obj));
-    return true;
+    JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_WRONG_CONSTRUCTOR,
+                         sClass.name);
+    return false;
   }
 
   static void
@@ -241,7 +219,8 @@ JSClass Blob::sClass = {
   "Blob",
   JSCLASS_HAS_PRIVATE,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
+  JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 JSPropertySpec Blob::sProperties[] = {
@@ -391,7 +370,8 @@ JSClass File::sClass = {
   "File",
   JSCLASS_HAS_PRIVATE,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
-  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
+  JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
+  JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 JSPropertySpec File::sProperties[] = {

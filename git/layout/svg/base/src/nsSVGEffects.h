@@ -38,25 +38,14 @@
 #ifndef NSSVGEFFECTS_H_
 #define NSSVGEFFECTS_H_
 
-#include "FramePropertyTable.h"
-#include "mozilla/dom/Element.h"
-#include "nsHashKeys.h"
-#include "nsID.h"
+#include "nsIContent.h"
 #include "nsIFrame.h"
-#include "nsIMutationObserver.h"
-#include "nsInterfaceHashtable.h"
-#include "nsISupportsBase.h"
-#include "nsISupportsImpl.h"
 #include "nsReferencedElement.h"
 #include "nsStubMutationObserver.h"
 #include "nsSVGUtils.h"
-#include "nsTHashtable.h"
-#include "nsTraceRefcnt.h"
+#include "nsInterfaceHashtable.h"
 #include "nsURIHashKey.h"
 
-class nsIAtom;
-class nsIPresShell;
-class nsIURI;
 class nsSVGClipPathFrame;
 class nsSVGFilterFrame;
 class nsSVGMaskFrame;
@@ -280,7 +269,7 @@ public:
   void RemoveAll();
 
 private:
-  nsTHashtable<nsPtrHashKey<nsSVGRenderingObserver> > mObservers;
+  nsTHashtable<nsVoidPtrHashKey> mObservers;
 };
 
 class nsSVGEffects {

@@ -301,6 +301,7 @@ struct GetElementIC : public BasePolyIC {
     LookupStatus update(VMFrame &f, JSObject *obj, const Value &v, jsid id, Value *vp);
     LookupStatus attachGetProp(VMFrame &f, JSObject *obj, const Value &v, PropertyName *name,
                                Value *vp);
+    LookupStatus attachArguments(VMFrame &f, JSObject *obj, const Value &v, jsid id, Value *vp);
     LookupStatus attachTypedArray(VMFrame &f, JSObject *obj, const Value &v, jsid id, Value *vp);
     LookupStatus disable(VMFrame &f, const char *reason);
     LookupStatus error(JSContext *cx);
@@ -384,6 +385,7 @@ struct PICInfo : public BasePolyIC {
     {
         GET,        // JSOP_GETPROP
         SET,        // JSOP_SETPROP, JSOP_SETNAME
+        SETMETHOD,  // JSOP_SETMETHOD
         NAME,       // JSOP_NAME
         BIND,       // JSOP_BINDNAME
         XNAME       // JSOP_GETXPROP
@@ -460,7 +462,7 @@ struct PICInfo : public BasePolyIC {
     types::TypeSet *rhsTypes;
     
     inline bool isSet() const {
-        return kind == SET;
+        return kind == SET || kind == SETMETHOD;
     }
     inline bool isGet() const {
         return kind == GET;

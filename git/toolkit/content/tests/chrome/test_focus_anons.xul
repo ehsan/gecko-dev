@@ -58,8 +58,7 @@ function runTests()
   $("scale").focus();
 
   var accessKeyDetails = (navigator.platform.indexOf("Mac") >= 0) ?
-                         { altKey: true, ctrlKey : true } :
-                         { altKey : true, shiftKey: true };
+                         { ctrlKey : true } : { altKey : true, shiftKey: true };
 
   gExpectedBlur = document.getAnonymousNodes($("scale"))[0];
   gExpectedFocus = $("menulist").inputField;

@@ -50,7 +50,6 @@
 #include "nsISelection.h"
 #include "nsCRT.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIPrivateDOMEvent.h"
 
 #include "nsIDOMRange.h"
 #include "nsIDOMDOMStringList.h"
@@ -125,7 +124,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertTextFromTransferable(nsITransferable *aTr
                                                             PRInt32 aDestOffset,
                                                             bool aDoDeleteSelection)
 {
-  HandlingTrustedAction trusted(this);
+  FireTrustedInputEvent trusted(this);
 
   nsresult rv = NS_OK;
   char* bestFlavor = nsnull;
@@ -193,18 +192,10 @@ nsresult nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
   nsresult rv = dragEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDragSession> dragSession = nsContentUtils::GetDragSession();
-  NS_ASSERTION(dragSession, "No drag session");
-
-  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aDropEvent));
-  nsDragEvent* dragEventInternal = static_cast<nsDragEvent *>(privateEvent->GetInternalNSEvent());
-  if (nsContentUtils::CheckForSubFrameDrop(dragSession, dragEventInternal)) {
-    return NS_OK;
-  }
-
   // Current doc is destination
-  nsCOMPtr<nsIDOMDocument> destdomdoc = GetDOMDocument();
-  NS_ENSURE_TRUE(destdomdoc, NS_ERROR_NOT_INITIALIZED);
+  nsCOMPtr<nsIDOMDocument> destdomdoc; 
+  rv = GetDocument(getter_AddRefs(destdomdoc)); 
+  NS_ENSURE_SUCCESS(rv, rv);
 
   PRUint32 numItems = 0;
   rv = dataTransfer->GetMozItemCount(&numItems);
@@ -365,7 +356,8 @@ NS_IMETHODIMP nsPlaintextEditor::Paste(PRInt32 aSelectionType)
     if (NS_SUCCEEDED(clipboard->GetData(trans, aSelectionType)) && IsModifiable())
     {
       // handle transferable hooks
-      nsCOMPtr<nsIDOMDocument> domdoc = GetDOMDocument();
+      nsCOMPtr<nsIDOMDocument> domdoc;
+      GetDocument(getter_AddRefs(domdoc));
       if (!nsEditorHookUtils::DoInsertionHook(domdoc, nsnull, trans))
         return NS_OK;
 
@@ -385,7 +377,8 @@ NS_IMETHODIMP nsPlaintextEditor::PasteTransferable(nsITransferable *aTransferabl
     return NS_OK;
 
   // handle transferable hooks
-  nsCOMPtr<nsIDOMDocument> domdoc = GetDOMDocument();
+  nsCOMPtr<nsIDOMDocument> domdoc;
+  GetDocument(getter_AddRefs(domdoc));
   if (!nsEditorHookUtils::DoInsertionHook(domdoc, nsnull, aTransferable))
     return NS_OK;
 

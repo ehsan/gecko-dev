@@ -45,7 +45,6 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/unused.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/layers/RenderTrace.h"
 
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
@@ -89,6 +88,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 
 // The dimensions of the current android view
 static gfxIntSize gAndroidBounds = gfxIntSize(0, 0);
+static gfxIntSize gAndroidTileSize = gfxIntSize(0, 0);
 static gfxIntSize gAndroidScreenBounds;
 
 #ifdef ACCESSIBILITY
@@ -96,10 +96,14 @@ bool nsWindow::sAccessibilityEnabled = false;
 #endif
 
 #ifdef MOZ_JAVA_COMPOSITOR
-#include "mozilla/layers/CompositorChild.h"
-#include "mozilla/layers/CompositorParent.h"
 #include "mozilla/Mutex.h"
 #include "nsThreadUtils.h"
+#include "AndroidDirectTexture.h"
+
+static AndroidDirectTexture* sDirectTexture = new AndroidDirectTexture(2048, 2048,
+        AndroidGraphicBuffer::UsageSoftwareWrite | AndroidGraphicBuffer::UsageTexture,
+        gfxASurface::ImageFormatRGB16_565);
+
 #endif
 
 
@@ -214,9 +218,6 @@ nsWindow::~nsWindow()
         mRootAccessible = nsnull;
 #endif
     ALOG("nsWindow %p destructor", (void*)this);
-#ifdef MOZ_JAVA_COMPOSITOR
-    SetCompositor(NULL, NULL, NULL);
-#endif
 }
 
 bool
@@ -765,6 +766,8 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
         return mLayerManager;
     }
 
+    printf_stderr("nsWindow::GetLayerManager\n");
+
     nsWindow *topWindow = TopWindow();
 
     if (!topWindow) {
@@ -772,21 +775,7 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
         mLayerManager = CreateBasicLayerManager();
         return mLayerManager;
     }
-#ifdef MOZ_JAVA_COMPOSITOR
-    bool useCompositor =
-        Preferences::GetBool("layers.offmainthreadcomposition.enabled", false);
 
-    if (useCompositor) {
-        CreateCompositor();
-        if (mLayerManager) {
-            SetCompositor(mCompositorParent, mCompositorChild, mCompositorThread);
-            return mLayerManager;
-        }
-
-        // If we get here, then off main thread compositing failed to initialize.
-        sFailedToCreateGLContext = true;
-    }
-#endif
     mUseAcceleratedRendering = GetShouldAccelerate();
 
     if (!mUseAcceleratedRendering ||
@@ -797,31 +786,101 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
         return mLayerManager;
     }
 
-    if (!mLayerManager) {
-        if (!sGLContext) {
-            // the window we give doesn't matter here
-            sGLContext = mozilla::gl::GLContextProvider::CreateForWindow(this);
-        }
+    if (!sGLContext) {
+        // the window we give doesn't matter here
+        sGLContext = mozilla::gl::GLContextProvider::CreateForWindow(this);
+    }
 
-        if (sGLContext) {
-                nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
-                        new mozilla::layers::LayerManagerOGL(this);
+    if (sGLContext) {
+        nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
+            new mozilla::layers::LayerManagerOGL(this);
 
-                if (layerManager && layerManager->Initialize(sGLContext))
-                        mLayerManager = layerManager;
-                sValidSurface = true;
-        }
+        if (layerManager && layerManager->Initialize(sGLContext))
+            mLayerManager = layerManager;
+        sValidSurface = true;
+    }
 
-        if (!sGLContext || !mLayerManager) {
-                sGLContext = nsnull;
-                sFailedToCreateGLContext = true;
+    if (!sGLContext || !mLayerManager) {
+        sGLContext = nsnull;
+        sFailedToCreateGLContext = true;
 
-                mLayerManager = CreateBasicLayerManager();
-        }
+        mLayerManager = CreateBasicLayerManager();
     }
 
     return mLayerManager;
 }
+
+gfxASurface*
+nsWindow::GetThebesSurface()
+{
+    /* This is really a dummy surface; this is only used when doing reflow, because
+     * we need a RenderingContext to measure text against.
+     */
+
+    // XXX this really wants to return already_AddRefed, but this only really gets used
+    // on direct assignment to a gfxASurface
+    return new gfxImageSurface(gfxIntSize(5,5), gfxImageSurface::ImageFormatRGB24);
+}
+
+#ifdef MOZ_JAVA_COMPOSITOR
+
+void
+nsWindow::BindToTexture()
+{
+    sDirectTexture->Bind();
+}
+
+bool
+nsWindow::HasDirectTexture()
+{
+  static bool sTestedDirectTexture = false;
+  static bool sHasDirectTexture = false;
+
+  // If we already tested, return early
+  if (sTestedDirectTexture)
+    return sHasDirectTexture;
+
+  sTestedDirectTexture = true;
+
+  nsAutoString board;
+  AndroidGraphicBuffer* buffer = NULL;
+  unsigned char* bits = NULL;
+
+  if (AndroidGraphicBuffer::IsBlacklisted()) {
+    ALOG("device is blacklisted for direct texture");
+    goto cleanup;
+  }
+
+  buffer = new AndroidGraphicBuffer(512, 512,
+      AndroidGraphicBuffer::UsageSoftwareWrite | AndroidGraphicBuffer::UsageTexture,
+      gfxASurface::ImageFormatRGB16_565);
+
+  if (buffer->Lock(AndroidGraphicBuffer::UsageSoftwareWrite, &bits) != 0 || !bits) {
+    ALOG("failed to lock graphic buffer");
+    buffer->Unlock();
+    goto cleanup;
+  }
+
+  if (buffer->Unlock() != 0) {
+    ALOG("failed to unlock graphic buffer");
+    goto cleanup;
+  }
+
+  if (!buffer->Reallocate(1024, 1024, gfxASurface::ImageFormatRGB16_565)) {
+    ALOG("failed to reallocate graphic buffer");
+    goto cleanup;
+  }
+
+  sHasDirectTexture = true;
+
+cleanup:
+  if (buffer)
+    delete buffer;
+
+  return sHasDirectTexture;
+}
+
+#endif
 
 void
 nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
@@ -844,7 +903,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             }
         case AndroidGeckoEvent::SIZE_CHANGED: {
             nsTArray<nsIntPoint> points = ae->Points();
-            NS_ASSERTION(points.Length() == 2, "Size changed does not have enough coordinates");
+            NS_ASSERTION(points.Length() != 3, "Size changed does not have enough coordinates");
 
             int nw = points[0].x;
             int nh = points[0].y;
@@ -860,9 +919,12 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                     if (gTopLevelWindows[i]->mIsVisible)
                         gTopLevelWindows[i]->Resize(gAndroidBounds.width,
                                                     gAndroidBounds.height,
-                                                    false);
+                                                    true);
                 }
             }
+
+            gAndroidTileSize.width = points[2].x;
+            gAndroidTileSize.height = points[2].y;
 
             int newScreenWidth = points[1].x;
             int newScreenHeight = points[1].y;
@@ -941,9 +1003,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
 
         case AndroidGeckoEvent::DRAW:
-            layers::renderTraceEventStart("Global draw start", "414141");
             win->OnDraw(ae);
-            layers::renderTraceEventEnd("414141");
             break;
 
         case AndroidGeckoEvent::IME_EVENT:
@@ -983,31 +1043,6 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             sValidSurface = false;
             break;
 
-#ifdef MOZ_JAVA_COMPOSITOR
-        case AndroidGeckoEvent::COMPOSITOR_PAUSE:
-            // The compositor gets paused when the app is about to go into the
-            // background. While the compositor is paused, we need to ensure that
-            // no layer tree updates (from draw events) occur, since the compositor
-            // cannot make a GL context current in order to process updates.
-            if (sCompositorChild) {
-                sCompositorChild->SendPause();
-            }
-            sCompositorPaused = true;
-            break;
-
-        case AndroidGeckoEvent::COMPOSITOR_RESUME:
-            // When we receive this, the compositor has already been told to
-            // resume. (It turns out that waiting till we reach here to tell
-            // the compositor to resume takes too long, resulting in a black
-            // flash.) This means it's now safe for layer updates to occur.
-            // Since we might have prevented one or more draw events from
-            // occurring while the compositor was paused, we need to schedule
-            // a draw event now.
-            sCompositorPaused = false;
-            win->RedrawAll();
-            break;
-#endif
-
         case AndroidGeckoEvent::GECKO_EVENT_SYNC:
             AndroidBridge::Bridge()->AcknowledgeEventSync();
             break;
@@ -1044,7 +1079,6 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 bool
 nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
 {
-    mozilla::layers::RenderTraceScope trace("DrawTo", "717171");
     if (!mIsVisible)
         return false;
 
@@ -1072,11 +1106,9 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
 
         switch (GetLayerManager(nsnull)->GetBackendType()) {
             case LayerManager::LAYERS_BASIC: {
-
                 nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
 
                 {
-                    mozilla::layers::RenderTraceScope trace2("Basic DrawTo", "727272");
                     AutoLayerManagerSetup
                       setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
 
@@ -1096,7 +1128,6 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
             }
 
             case LayerManager::LAYERS_OPENGL: {
-
                 static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
                     SetClippingRegion(nsIntRegion(boundsRect));
 
@@ -1156,14 +1187,11 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
         return;
     }
 
-    nsRefPtr<nsWindow> kungFuDeathGrip(this);
-
     AndroidBridge::AutoLocalJNIFrame jniFrame;
 #ifdef MOZ_JAVA_COMPOSITOR
-    // We're paused, or we haven't been given a window-size yet, so do nothing
-    if (sCompositorPaused || gAndroidBounds.width <= 0 || gAndroidBounds.height <= 0) {
+    // We haven't been given a window-size yet, so do nothing
+    if (gAndroidBounds.width <= 0 || gAndroidBounds.height <= 0)
         return;
-    }
 
     /*
      * Check to see whether the presentation shell corresponding to the document on the screen
@@ -1173,7 +1201,6 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
     nsCOMPtr<nsIAndroidDrawMetadataProvider> metadataProvider =
         AndroidBridge::Bridge()->GetDrawMetadataProvider();
 
-    layers::renderTraceEventStart("Check supress", "424242");
     bool paintingSuppressed = false;
     if (metadataProvider) {
         metadataProvider->PaintingSuppressed(&paintingSuppressed);
@@ -1181,23 +1208,73 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
     if (paintingSuppressed) {
         return;
     }
-    layers::renderTraceEventEnd("Check supress", "424242");
 
-    layers::renderTraceEventStart("Get surface", "424545");
-    static unsigned char bits2[32 * 32 * 2];
-    nsRefPtr<gfxImageSurface> targetSurface =
-        new gfxImageSurface(bits2, gfxIntSize(32, 32), 32 * 2,
-                            gfxASurface::ImageFormatRGB16_565);
-    layers::renderTraceEventEnd("Get surface", "424545");
-
-    layers::renderTraceEventStart("Widget draw to", "434646");
-    nsIntRect dirtyRect = ae->Rect().Intersect(nsIntRect(0, 0, gAndroidBounds.width, gAndroidBounds.height));
-    if (targetSurface->CairoStatus()) {
-        ALOG("### Failed to create a valid surface from the bitmap");
-    } else {
-        DrawTo(targetSurface, dirtyRect);
+    nsAutoString metadata;
+    if (metadataProvider) {
+        metadataProvider->GetDrawMetadata(metadata);
     }
-    layers::renderTraceEventEnd("Widget draw to", "434646");
+
+    nsIntRect dirtyRect = ae->Rect().Intersect(nsIntRect(0, 0, gAndroidBounds.width, gAndroidBounds.height));
+
+    AndroidGeckoSoftwareLayerClient &client =
+        AndroidBridge::Bridge()->GetSoftwareLayerClient();
+    if (!client.BeginDrawing(gAndroidBounds.width, gAndroidBounds.height,
+                             gAndroidTileSize.width, gAndroidTileSize.height,
+                             dirtyRect, metadata, HasDirectTexture())) {
+        return;
+    }
+
+    unsigned char *bits = NULL;
+    if (HasDirectTexture()) {
+      if (sDirectTexture->Width() != gAndroidBounds.width ||
+          sDirectTexture->Height() != gAndroidBounds.height) {
+        sDirectTexture->Reallocate(gAndroidBounds.width, gAndroidBounds.height);
+      }
+
+      sDirectTexture->Lock(AndroidGraphicBuffer::UsageSoftwareWrite, dirtyRect, &bits);
+    } else {
+      bits = client.LockBufferBits();
+    }
+    if (!bits) {
+        ALOG("### Failed to lock buffer");
+    } else {
+        // If tile size is 0,0, we assume we only have a single tile
+        int tileWidth = (gAndroidTileSize.width > 0) ? gAndroidTileSize.width : gAndroidBounds.width;
+        int tileHeight = (gAndroidTileSize.height > 0) ? gAndroidTileSize.height : gAndroidBounds.height;
+
+        int offset = 0;
+
+        for (int y = 0; y < gAndroidBounds.height; y += tileHeight) {
+            for (int x = 0; x < gAndroidBounds.width; x += tileWidth) {
+                int width = NS_MIN(tileWidth, gAndroidBounds.width - x);
+                int height = NS_MIN(tileHeight, gAndroidBounds.height - y);
+
+                nsRefPtr<gfxImageSurface> targetSurface =
+                    new gfxImageSurface(bits + offset,
+                                        gfxIntSize(width, height),
+                                        width * 2,
+                                        gfxASurface::ImageFormatRGB16_565);
+
+                offset += width * height * 2;
+
+                if (targetSurface->CairoStatus()) {
+                    ALOG("### Failed to create a valid surface from the bitmap");
+                    break;
+                } else {
+                    targetSurface->SetDeviceOffset(gfxPoint(-x, -y));
+                    DrawTo(targetSurface, dirtyRect);
+                }
+            }
+        }
+    }
+
+    if (HasDirectTexture()) {
+        sDirectTexture->Unlock();
+    } else {
+        client.UnlockBuffer();
+    }
+
+    client.EndDrawing(dirtyRect);
     return;
 #endif
 
@@ -1723,8 +1800,6 @@ nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key)
     case AndroidKeyEvent::KEYCODE_ENVELOPE:
         break;
     case AndroidKeyEvent::KEYCODE_DPAD_CENTER:
-        event.keyCode = NS_VK_ENTER;
-        break;
     case AndroidKeyEvent::KEYCODE_ENTER:
         event.keyCode = NS_VK_RETURN;
         break;
@@ -2266,77 +2341,4 @@ nsWindow::GetIMEUpdatePreference()
 {
     return nsIMEUpdatePreference(true, true);
 }
-
-#ifdef MOZ_JAVA_COMPOSITOR
-void
-nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {
-    AndroidBridge::AutoLocalJNIFrame jniFrame(GetJNIForThread());
-
-    AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
-    client.CreateFrame(mLayerRendererFrame);
-
-    client.ActivateProgram();
-    mLayerRendererFrame.BeginDrawing();
-    mLayerRendererFrame.DrawBackground();
-    client.DeactivateProgram();
-}
-
-void
-nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {
-    AndroidBridge::AutoLocalJNIFrame jniFrame(GetJNIForThread());
-    NS_ABORT_IF_FALSE(!mLayerRendererFrame.isNull(),
-                      "Frame should have been created in DrawWindowUnderlay()!");
-
-    AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
-
-    client.ActivateProgram();
-    mLayerRendererFrame.DrawForeground();
-    mLayerRendererFrame.EndDrawing();
-    client.DeactivateProgram();
-
-    mLayerRendererFrame.Dispose();
-}
-
-// off-main-thread compositor fields and functions
-
-nsRefPtr<mozilla::layers::CompositorParent> nsWindow::sCompositorParent = 0;
-nsRefPtr<mozilla::layers::CompositorChild> nsWindow::sCompositorChild = 0;
-base::Thread * nsWindow::sCompositorThread = 0;
-bool nsWindow::sCompositorPaused = false;
-
-void
-nsWindow::SetCompositor(mozilla::layers::CompositorParent* aCompositorParent,
-                        mozilla::layers::CompositorChild* aCompositorChild,
-                        ::base::Thread* aCompositorThread)
-{
-    sCompositorParent = aCompositorParent;
-    sCompositorChild = aCompositorChild;
-    sCompositorThread = aCompositorThread;
-}
-
-void
-nsWindow::ScheduleComposite()
-{
-    if (sCompositorParent) {
-        sCompositorParent->ScheduleRenderOnCompositorThread();
-    }
-}
-
-void
-nsWindow::SchedulePauseComposition()
-{
-    if (sCompositorParent) {
-        sCompositorParent->SchedulePauseOnCompositorThread();
-    }
-}
-
-void
-nsWindow::ScheduleResumeComposition()
-{
-    if (sCompositorParent) {
-        sCompositorParent->ScheduleResumeOnCompositorThread();
-    }
-}
-
-#endif
 

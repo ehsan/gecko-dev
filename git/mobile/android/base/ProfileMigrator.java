@@ -153,9 +153,7 @@ public class ProfileMigrator {
         "       MAX(history.visit_date) AS h_date, "      +
         "       COUNT(*) AS h_visits, "                   +
         // see BrowserDB.filterAllSites for this formula
-        "       MAX(1, 100 * 225 / (" +
-                  "((MAX(history.visit_date)/1000 - ?) / 86400000) * " +
-                  "((MAX(history.visit_date)/1000 - ?) / 86400000) + 225)) AS a_recent, " +
+        "       MAX(1, (((MAX(history.visit_date)/1000) - ?) / 86400000 + 120)) AS a_recent, " +
         "       favicon.data            AS f_data, "      +
         "       favicon.mime_type       AS f_mime_type, " +
         "       places.guid             AS p_guid, "      +
@@ -192,22 +190,15 @@ public class ProfileMigrator {
         private ArrayList<ContentProviderOperation> mOperations;
 
         protected Uri getBookmarksUri() {
-            Uri.Builder uriBuilder = Bookmarks.CONTENT_URI.buildUpon()
-                .appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1");
-            return uriBuilder.build();
+            return Bookmarks.CONTENT_URI;
         }
 
         protected Uri getHistoryUri() {
-            Uri.Builder uriBuilder = History.CONTENT_URI.buildUpon()
-                .appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1");
-            return uriBuilder.build();
-
+            return History.CONTENT_URI;
         }
 
         protected Uri getImagesUri() {
-            Uri.Builder uriBuilder = Images.CONTENT_URI.buildUpon()
-                .appendQueryParameter(BrowserContract.PARAM_SHOW_DELETED, "1");
-            return uriBuilder.build();
+            return Images.CONTENT_URI;
         }
 
         private long getFolderId(String guid) {
@@ -323,8 +314,6 @@ public class ProfileMigrator {
                 ContentValues values = new ContentValues();
                 ContentProviderOperation.Builder builder = null;
                 values.put(History.DATE_LAST_VISITED, date);
-                // Restore deleted record if possible
-                values.put(History.IS_DELETED, 0);
 
                 if (cursor.moveToFirst()) {
                     int visitsCol = cursor.getColumnIndexOrThrow(History.VISITS);
@@ -453,11 +442,9 @@ public class ProfileMigrator {
             mOperations = new ArrayList<ContentProviderOperation>();
 
             try {
-                final String currentTime = Long.toString(System.currentTimeMillis());
                 final String[] queryParams = new String[] {
                     /* current time */
-                    currentTime,
-                    currentTime,
+                    Long.toString(System.currentTimeMillis()),
                     /*
                        History entries to return. No point
                        in retrieving more than we can store.
@@ -540,7 +527,7 @@ public class ProfileMigrator {
                 parent = mRerootMap.get(parent);
             }
             values.put(Bookmarks.PARENT, parent);
-            values.put(Bookmarks.TYPE, (folder ? Bookmarks.TYPE_FOLDER : Bookmarks.TYPE_BOOKMARK));
+            values.put(Bookmarks.IS_FOLDER, (folder ? 1 : 0));
 
             Cursor cursor = null;
             ContentProviderOperation.Builder builder = null;

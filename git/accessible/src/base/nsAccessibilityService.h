@@ -48,8 +48,6 @@
 
 #include "nsIObserver.h"
 
-class nsImageFrame;
-
 namespace mozilla {
 namespace a11y {
 
@@ -93,50 +91,48 @@ public:
                                                   bool aCanCreate);
   already_AddRefed<nsAccessible>
     CreateHTMLButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLBRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   already_AddRefed<nsAccessible>
     CreateHTMLCanvasAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLCaptionAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLCheckboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLComboboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   already_AddRefed<nsAccessible>
     CreateHTMLFileInputAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLGroupboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLHRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLImageAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
-    CreateHTMLImageMapAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLLabelAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLListboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLMediaAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame, nsIContent* aContent,
                                     nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLRadioButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLTableAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLTableCellAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLTextAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHTMLTextFieldAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateHyperTextAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
+  virtual already_AddRefed<nsAccessible>
     CreateOuterDocAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
 
   virtual nsAccessible* AddNativeRootAccessible(void* aAtkAccessible);
@@ -159,11 +155,6 @@ public:
                                 nsIContent* aHTMLListItemContent,
                                 bool aHasBullet);
 
-  /**
-   * Update the image map.
-   */
-  void UpdateImageMap(nsImageFrame* aImageFrame);
-
   virtual void NotifyOfAnchorJumpTo(nsIContent *aTarget);
 
   virtual void PresShellDestroyed(nsIPresShell* aPresShell);
@@ -173,10 +164,8 @@ public:
    */
   virtual void PresShellActivated(nsIPresShell* aPresShell);
 
-  /**
-   * Recreate an accessible for the given content node in the presshell.
-   */
-  void RecreateAccessible(nsIPresShell* aPresShell, nsIContent* aContent);
+  virtual void RecreateAccessible(nsIPresShell* aPresShell,
+                                  nsIContent* aContent);
 
   virtual void FireAccessibleEvent(PRUint32 aEvent, nsAccessible* aTarget);
 
@@ -415,8 +404,7 @@ static const char kRoleNames[][20] = {
   "gridcell",            //ROLE_GRID_CELL
   "embedded object",     //ROLE_EMBEDDED_OBJECT
   "note",                //ROLE_NOTE
-  "figure",              //ROLE_FIGURE
-  "check rich option"    //ROLE_CHECK_RICH_OPTION
+  "figure"               //ROLE_FIGURE
 };
 
 /**

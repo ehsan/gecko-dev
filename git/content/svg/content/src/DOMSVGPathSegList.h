@@ -88,7 +88,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGPathSegList)
   NS_DECL_NSIDOMSVGPATHSEGLIST
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
                                bool *triedToWrap);
 
   nsISupports* GetParentObject()
@@ -171,7 +171,7 @@ private:
     : mElement(aElement)
     , mIsAnimValList(aIsAnimValList)
   {
-    SetIsDOMBinding();
+    SetIsProxy();
 
     InternalListWillChangeTo(InternalList()); // Sync mItems
   }

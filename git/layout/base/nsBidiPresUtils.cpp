@@ -86,14 +86,12 @@ struct BidiParagraphData {
   nsAutoPtr<nsBidi>   mBidiEngine;
   nsIFrame*           mPrevFrame;
   nsAutoPtr<BidiParagraphData> mSubParagraph;
-  PRUint8             mParagraphDepth;
 
   void Init(nsBlockFrame *aBlockFrame)
   {
     mContentToFrameIndex.Init();
     mBidiEngine = new nsBidi();
     mPrevContent = nsnull;
-    mParagraphDepth = 0;
 
     bool styleDirectionIsRTL =
       (NS_STYLE_DIRECTION_RTL == aBlockFrame->GetStyleVisibility()->mDirection);
@@ -151,10 +149,19 @@ struct BidiParagraphData {
     mBidiEngine = new nsBidi();
     mPrevContent = nsnull;
     mIsVisual = aBpd->mIsVisual;
+    mParaLevel = aBpd->mParaLevel;
+
+    // If the containing paragraph has a level of NSBIDI_DEFAULT_LTR, set
+    // the sub-paragraph to NSBIDI_LTR (we can't use GetParaLevel to find the
+    // resolved paragraph level, because the containing paragraph hasn't yet
+    // been through bidi resolution
+    if (mParaLevel == NSBIDI_DEFAULT_LTR) {
+      mParaLevel = NSBIDI_LTR;
+    }
     mReset = false;
   }
 
-  void Reset(nsIFrame* aBDIFrame, BidiParagraphData *aBpd)
+  void Reset(nsIFrame* aFrame, BidiParagraphData *aBpd)
   {
     mReset = true;
     mLogicalFrames.Clear();
@@ -162,15 +169,37 @@ struct BidiParagraphData {
     mContentToFrameIndex.Clear();
     mBuffer.SetLength(0);
     mPrevFrame = aBpd->mPrevFrame;
-    mParagraphDepth = aBpd->mParagraphDepth + 1;
+    // We need to copy in embeddings (but not overrides!) from the containing
+    // paragraph so that the line(s) including this sub-paragraph will be
+    // correctly reordered.
+    for (PRUint32 i = 0; i < aBpd->mEmbeddingStack.Length(); ++i) {
+      switch(aBpd->mEmbeddingStack[i]) {
+        case kRLE:
+        case kRLO:
+          mParaLevel = NextOddLevel(mParaLevel);
+          break;
 
+        case kLRE:
+        case kLRO:
+          mParaLevel = NextEvenLevel(mParaLevel);
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    nsIFrame* container = aFrame->GetParent();
     bool isRTL = (NS_STYLE_DIRECTION_RTL ==
-                  aBDIFrame->GetStyleVisibility()->mDirection);
-    mParaLevel = mParagraphDepth * 2;
-    if (isRTL) ++mParaLevel;
+                  container->GetStyleVisibility()->mDirection);
+    if ((isRTL & 1) != (mParaLevel & 1)) {
+      mParaLevel = isRTL ? NextOddLevel(mParaLevel) : NextEvenLevel(mParaLevel);
+    }
 
-    if (aBDIFrame->GetStyleTextReset()->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_OVERRIDE) {
+    if (container->GetStyleTextReset()->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_OVERRIDE) {
       PushBidiControl(isRTL ? kRLO : kLRO);
+    } else {
+      PushBidiControl(isRTL ? kRLE : kLRE);
     }
   }
 
@@ -304,6 +333,16 @@ struct BidiParagraphData {
     }
   }
 
+  nsBidiLevel NextOddLevel(nsBidiLevel aLevel)
+  {
+    return (aLevel + 1) | 1;
+  }
+
+  nsBidiLevel NextEvenLevel(nsBidiLevel aLevel)
+  {
+    return (aLevel + 2) & ~1;
+  }
+
   static bool
   IsFrameInCurrentLine(nsBlockInFlowLineIterator* aLineIter,
                        nsIFrame* aPrevFrame, nsIFrame* aFrame)
@@ -414,23 +453,13 @@ IsBidiSplittable(nsIFrame* aFrame) {
     && frameType != nsGkAtoms::lineFrame;
 }
 
-/**
- * Create non-fluid continuations for the ancestors of a given frame all the way
- * up the frame tree until we hit a non-splittable frame (a line or a block).
- *
- * @param aParent the first parent frame to be split
- * @param aFrame the child frames after this frame are reparented to the
- *        newly-created continuation of aParent.
- *        If aFrame is null, all the children of aParent are reparented.
- */
 static nsresult
-SplitInlineAncestors(nsIFrame* aParent,
-                     nsIFrame* aFrame)
+SplitInlineAncestors(nsIFrame*     aFrame)
 {
-  nsPresContext *presContext = aParent->PresContext();
+  nsPresContext *presContext = aFrame->PresContext();
   nsIPresShell *presShell = presContext->PresShell();
   nsIFrame* frame = aFrame;
-  nsIFrame* parent = aParent;
+  nsIFrame* parent = aFrame->GetParent();
   nsIFrame* newParent;
 
   while (IsBidiSplittable(parent)) {
@@ -443,24 +472,21 @@ SplitInlineAncestors(nsIFrame* aParent,
       return rv;
     }
     
-    // Split the child list after |frame|, unless it is the last child.
-    if (!frame || frame->GetNextSibling()) {
-      nsContainerFrame* container = do_QueryFrame(parent);
-      nsFrameList tail = container->StealFramesAfter(frame);
+    // Split the child list after |frame|.
+    nsContainerFrame* container = do_QueryFrame(parent);
+    nsFrameList tail = container->StealFramesAfter(frame);
 
-      // Reparent views as necessary
-      rv = nsContainerFrame::ReparentFrameViewList(presContext, tail, parent, newParent);
-      if (NS_FAILED(rv)) {
-        return rv;
-      }
-
-      // The parent's continuation adopts the siblings after the split.
-      rv = newParent->InsertFrames(nsIFrame::kNoReflowPrincipalList, nsnull, tail);
-      if (NS_FAILED(rv)) {
-        return rv;
-      }
+    // Reparent views as necessary
+    rv = nsContainerFrame::ReparentFrameViewList(presContext, tail, parent, newParent);
+    if (NS_FAILED(rv)) {
+      return rv;
     }
     
+    // The parent's continuation adopts the siblings after the split.
+    rv = newParent->InsertFrames(nsIFrame::kNoReflowPrincipalList, nsnull, tail);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
     // The list name kNoReflowPrincipalList would indicate we don't want reflow
     nsFrameList temp(newParent, newParent);
     rv = grandparent->InsertFrames(nsIFrame::kNoReflowPrincipalList, parent, temp);
@@ -489,26 +515,23 @@ MakeContinuationFluid(nsIFrame* aFrame, nsIFrame* aNext)
 
 // If aFrame is the last child of its parent, convert bidi continuations to
 // fluid continuations for all of its inline ancestors.
-// If it isn't the last child, make sure that its continuation is fluid.
 static void
 JoinInlineAncestors(nsIFrame* aFrame)
 {
-  nsIFrame* frame = aFrame;
-  do {
+  if (aFrame->GetNextSibling()) {
+    return;
+  }
+  nsIFrame* frame = aFrame->GetParent();
+  while (frame && IsBidiSplittable(frame)) {
     nsIFrame* next = frame->GetNextContinuation();
     if (next) {
-      // Don't join frames if they come from different paragraph depths (i.e.
-      // one is bidi isolated relative to the other
-      if (nsBidiPresUtils::GetParagraphDepth(frame) ==
-          nsBidiPresUtils::GetParagraphDepth(next)) {
-        MakeContinuationFluid(frame, next);
-      }
+      MakeContinuationFluid(frame, next);
     }
     // Join the parent only as long as we're its last child.
     if (frame->GetNextSibling())
       break;
     frame = frame->GetParent();
-  } while (frame && IsBidiSplittable(frame));
+  }
 }
 
 static nsresult
@@ -557,7 +580,7 @@ CreateContinuation(nsIFrame*  aFrame,
 
   if (!aIsFluid) {  
     // Split inline ancestor frames
-    rv = SplitInlineAncestors(parent, aFrame);
+    rv = SplitInlineAncestors(aFrame);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -682,9 +705,6 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
 #endif
 #endif
 
-  nsIFrame* firstFrame = nsnull;
-  nsIFrame* lastFrame = nsnull;
-
   for (; ;) {
     if (fragmentLength <= 0) {
       // Get the next frame from mLogicalFrames
@@ -702,10 +722,6 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
         fragmentLength = 1;
       }
       else {
-        if (!firstFrame) {
-          firstFrame = frame;
-        }
-        lastFrame = frame;
         currentLine = aBpd->GetLineForFrameAt(frameIndex);
         content = frame->GetContent();
         if (!content) {
@@ -721,8 +737,6 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
                          NS_INT32_TO_PTR(embeddingLevel));
           propTable->Set(frame, nsIFrame::BaseLevelProperty(),
                          NS_INT32_TO_PTR(aBpd->GetParaLevel()));
-          propTable->Set(frame, nsIFrame::ParagraphDepthProperty(),
-                         NS_INT32_TO_PTR(aBpd->mParagraphDepth));
           continue;
         }
         PRInt32 start, end;
@@ -757,8 +771,6 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
                      NS_INT32_TO_PTR(embeddingLevel));
       propTable->Set(frame, nsIFrame::BaseLevelProperty(),
                      NS_INT32_TO_PTR(aBpd->GetParaLevel()));
-      propTable->Set(frame, nsIFrame::ParagraphDepthProperty(),
-                     NS_INT32_TO_PTR(aBpd->mParagraphDepth));
       if (isTextFrame) {
         if ( (runLength > 0) && (runLength < fragmentLength) ) {
           /*
@@ -776,7 +788,7 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
           }
           nextBidi->AdjustOffsetsForBidi(runEnd,
                                          contentOffset + fragmentLength);
-          lastFrame = frame = nextBidi;
+          frame = nextBidi;
           contentOffset = runEnd;
         } // if (runLength < fragmentLength)
         else {
@@ -791,7 +803,6 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
               RemoveBidiContinuation(aBpd, frame,
                                      frameIndex, newIndex, lineOffset);
               frameIndex = newIndex;
-              lastFrame = frame = aBpd->FrameAt(frameIndex);
             }
           } else if (fragmentLength > 0 && runLength > fragmentLength) {
             /*
@@ -859,9 +870,8 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
             child = parent;
             parent = child->GetParent();
           }
-          if (parent && IsBidiSplittable(parent)) {
-            SplitInlineAncestors(parent, child);
-          }
+          if (parent && IsBidiSplittable(parent))
+            SplitInlineAncestors(child);
         }
       }
       else {
@@ -872,31 +882,6 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
       }
     }
   } // for
-
-  if (aBpd->mParagraphDepth > 1) {
-    nsIFrame* child;
-    nsIFrame* parent;
-    if (firstFrame) {
-      child = firstFrame->GetParent();
-      if (child) {
-        parent = child->GetParent();
-        if (parent && IsBidiSplittable(parent)) {
-          // no need to null-check the result of GetPrevSibling, because
-          // SplitInlineAncestors accepts a null parameter
-          SplitInlineAncestors(parent, child->GetPrevSibling());
-        }
-      }
-    }
-    if (lastFrame) {
-      child = lastFrame->GetParent();
-      if (child) {
-        parent = child->GetParent();
-        if (parent && IsBidiSplittable(parent)) {
-          SplitInlineAncestors(parent, child);
-        }
-      }
-    }
-  }
 
 #ifdef DEBUG
 #ifdef REALLY_NOISY_BIDI
@@ -1137,7 +1122,7 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
            */
           bool isLastContinuation = !frame->GetNextContinuation();
           if (!frame->GetPrevContinuation() || !subParagraph->mReset) {
-            subParagraph->Reset(frame, aBpd);
+            subParagraph->Reset(kid, aBpd);
           }
           TraverseFrames(aBlockFrame, aLineIter, kid, subParagraph);
           if (isLastContinuation) {
@@ -1192,8 +1177,8 @@ nsBidiPresUtils::ReorderFrames(nsIFrame*            aFirstFrameOnLine,
   RepositionInlineFrames(&bld, aFirstFrameOnLine);
 }
 
-nsIFrame*
-nsBidiPresUtils::GetFirstLeaf(nsIFrame* aFrame)
+nsBidiLevel
+nsBidiPresUtils::GetFrameEmbeddingLevel(nsIFrame* aFrame)
 {
   nsIFrame* firstLeaf = aFrame;
   while (!IsBidiLeaf(firstLeaf)) {
@@ -1202,21 +1187,8 @@ nsBidiPresUtils::GetFirstLeaf(nsIFrame* aFrame)
     firstLeaf = (realFrame->GetType() == nsGkAtoms::letterFrame) ?
                  realFrame : firstChild;
   }
-  return firstLeaf;
+  return NS_GET_EMBEDDING_LEVEL(firstLeaf);
 }
-
-nsBidiLevel
-nsBidiPresUtils::GetFrameEmbeddingLevel(nsIFrame* aFrame)
-{
-  return NS_GET_EMBEDDING_LEVEL(nsBidiPresUtils::GetFirstLeaf(aFrame));
-}
-
-PRUint8
-nsBidiPresUtils::GetParagraphDepth(nsIFrame* aFrame)
-{
-  return NS_GET_PARAGRAPH_DEPTH(nsBidiPresUtils::GetFirstLeaf(aFrame));
-}
-
 
 nsBidiLevel
 nsBidiPresUtils::GetFrameBaseLevel(nsIFrame* aFrame)
@@ -1556,8 +1528,6 @@ nsBidiPresUtils::RemoveBidiContinuation(BidiParagraphData *aBpd,
     (nsBidiLevel)NS_PTR_TO_INT32(props.Get(nsIFrame::EmbeddingLevelProperty()));
   nsBidiLevel baseLevel =
     (nsBidiLevel)NS_PTR_TO_INT32(props.Get(nsIFrame::BaseLevelProperty()));
-  PRUint8 paragraphDepth = 
-    NS_PTR_TO_INT32(props.Get(nsIFrame::ParagraphDepthProperty()));
 
   for (PRInt32 index = aFirstIndex + 1; index <= aLastIndex; index++) {
     nsIFrame* frame = aBpd->FrameAt(index);
@@ -1572,8 +1542,6 @@ nsBidiPresUtils::RemoveBidiContinuation(BidiParagraphData *aBpd,
                      NS_INT32_TO_PTR(embeddingLevel));
       frameProps.Set(nsIFrame::BaseLevelProperty(),
                      NS_INT32_TO_PTR(baseLevel));
-      frameProps.Set(nsIFrame::ParagraphDepthProperty(),
-                     NS_INT32_TO_PTR(paragraphDepth));
       frame->AddStateBits(NS_FRAME_IS_BIDI);
       while (frame) {
         nsIFrame* prev = frame->GetPrevContinuation();
@@ -1585,16 +1553,6 @@ nsBidiPresUtils::RemoveBidiContinuation(BidiParagraphData *aBpd,
         }
       }
     }
-  }
-
-  // Make sure that the last continuation we made fluid does not itself have a
-  // fluid continuation (this can happen when re-resolving after dynamic changes
-  // to content)
-  nsIFrame* lastFrame = aBpd->FrameAt(aLastIndex);
-  nsIFrame* next = lastFrame->GetNextInFlow();
-  if (next) {
-    lastFrame->SetNextContinuation(next);
-    next->SetPrevContinuation(lastFrame);
   }
 }
 

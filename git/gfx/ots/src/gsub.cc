@@ -63,10 +63,8 @@ const ots::LookupSubtableParser::TypeParser kGsubTypeParsers[] = {
     ParseReverseChainingContextSingleSubstitution}
 };
 
-// TODO(bashi): Port Chromium's arraysize macro and use it instead of sizeof().
 const ots::LookupSubtableParser kGsubLookupSubtableParser = {
-  sizeof(kGsubTypeParsers) / sizeof(kGsubTypeParsers[0]),
-  GSUB_TYPE_EXTENSION_SUBSTITUTION, kGsubTypeParsers
+  GSUB_TYPE_RESERVED, GSUB_TYPE_EXTENSION_SUBSTITUTION, kGsubTypeParsers
 };
 
 // Lookup Type 1:

@@ -163,7 +163,8 @@ PowerManagerService::NewWakeLock(const nsAString &aTopic,
   nsresult rv = wakelock->Init(aTopic, aWindow);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDOMMozWakeLock> wl(wakelock);
+  nsCOMPtr<nsIDOMMozWakeLock> wl =
+    do_QueryInterface(NS_ISUPPORTS_CAST(nsIDOMMozWakeLock*, wakelock));
   wl.forget(aWakeLock);
 
   return NS_OK;

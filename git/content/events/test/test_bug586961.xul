@@ -34,7 +34,7 @@ function clicked(event) {
 
 function test() {
   var accessKeyDetails = (navigator.platform.indexOf("Mac") >= 0) ?
-                         { altKey : true, ctrlKey : true } : 
+                         { ctrlKey : true } : 
                          { altKey : true, shiftKey: true };
   synthesizeKey("k", accessKeyDetails);
 }

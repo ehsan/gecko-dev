@@ -1,7 +1,39 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Android code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Sriram Ramasubramanian <sriram@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package org.mozilla.gecko;
 
@@ -14,7 +46,6 @@ import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Build;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
@@ -28,8 +59,6 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
-
-import org.mozilla.gecko.sync.setup.SyncAccounts;
 
 public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
 
@@ -47,13 +76,9 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
     private static final int TABS_LIST_ITEM_HEIGHT = 102;
     private static final int TABS_ADD_TAB_HEIGHT = 50;
 
-    private static final String ABOUT_HOME = "about:home";
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        LayoutInflater.from(this).setFactory(GeckoViewsFactory.getInstance());
 
         setContentView(R.layout.tabs_tray);
 
@@ -77,13 +102,6 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
             }
         });
 
-        RelativeLayout toolbar = (RelativeLayout) findViewById(R.id.toolbar);
-        toolbar.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View v) {
-                // Consume the click event to avoid enclosing container consuming it
-            }
-        });
-
         LinearLayout container = (LinearLayout) findViewById(R.id.container);
         container.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
@@ -99,33 +117,30 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
         sPreferredHeight = (int) (0.67 * metrics.heightPixels);
         sMaxHeight = (int) (sPreferredHeight + (0.33 * sListItemHeight));
 
-        Tabs.registerOnTabsChangedListener(this);
-        Tabs.getInstance().refreshThumbnails();
+        Tabs tabs = Tabs.getInstance();
+        tabs.registerOnTabsChangedListener(this);
+        tabs.refreshThumbnails();
         onTabChanged(null, null);
 
-        // If Sync is set up, query the database for remote clients.
-        final Context context = getApplicationContext();
-        new SyncAccounts.AccountsExistTask() {
-            @Override
-            protected void onPostExecute(Boolean result) {
-                if (!result.booleanValue()) {
-                    return;
-                }
-                TabsAccessor.areClientsAvailable(context, new TabsAccessor.OnClientsAvailableListener() {
-                    @Override
-                    public void areAvailable(boolean available) {
-                        final int visibility = available ? View.VISIBLE : View.GONE;
-                        mRemoteTabs.setVisibility(visibility);
-                    }
-                });
-            }
-        }.execute(context);
+         // If sync is set up, query the database for remote clients
+         // Cleanup after Bug: 734211 is fixed
+         if (AccountManager.get(getApplicationContext()).getAccountsByType("org.mozilla.firefox_sync").length > 0) {
+             TabsAccessor.areClientsAvailable(getApplicationContext(), new TabsAccessor.OnClientsAvailableListener() {
+                 @Override
+                 public void areAvailable(boolean available) {
+                     if (available)
+                         mRemoteTabs.setVisibility(View.VISIBLE);
+                     else
+                         mRemoteTabs.setVisibility(View.GONE);
+                 }
+             });
+        }
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Tabs.unregisterOnTabsChangedListener(this);
+        Tabs.getInstance().unregisterOnTabsChangedListener(this);
     }
 
     public void onTabChanged(Tab tab, Tabs.TabEvents msg) {
@@ -271,8 +286,6 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
             Drawable thumbnailImage = tab.getThumbnail();
             if (thumbnailImage != null)
                 thumbnail.setImageDrawable(thumbnailImage);
-            else if (TextUtils.equals(tab.getURL(), ABOUT_HOME))
-                thumbnail.setImageResource(R.drawable.abouthome_thumbnail);
             else
                 thumbnail.setImageResource(R.drawable.tab_thumbnail_default);
 

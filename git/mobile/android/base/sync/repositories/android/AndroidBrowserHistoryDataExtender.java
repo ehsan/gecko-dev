@@ -138,11 +138,6 @@ public class AndroidBrowserHistoryDataExtender extends CachedSQLiteOpenHelper {
   }
 
   public JSONArray visitsForGUID(String guid) throws NullCursorException {
-    if (guid == null) {
-      Logger.warn(LOG_TAG, "Asked for visits for null GUID.");
-      return new JSONArray();
-    }
-
     Logger.debug(LOG_TAG, "Fetching visits for GUID " + guid);
     Cursor visits = fetch(guid);
     try {

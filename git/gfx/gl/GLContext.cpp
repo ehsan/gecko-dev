@@ -55,10 +55,7 @@
 #include "gfxCrashReporterUtils.h"
 #include "gfxUtils.h"
 
-#include "mozilla/Preferences.h"
 #include "mozilla/Util.h" // for DebugOnly
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace gl {
@@ -109,6 +106,94 @@ static const char *sExtensionNames[] = {
     "GL_EXT_robustness",
     NULL
 };
+
+bool
+LibrarySymbolLoader::OpenLibrary(const char *library)
+{
+    PRLibSpec lspec;
+    lspec.type = PR_LibSpec_Pathname;
+    lspec.value.pathname = library;
+
+    mLibrary = PR_LoadLibraryWithFlags(lspec, PR_LD_LAZY | PR_LD_LOCAL);
+    if (!mLibrary)
+        return false;
+
+    return true;
+}
+
+bool
+LibrarySymbolLoader::LoadSymbols(SymLoadStruct *firstStruct, bool tryplatform, const char *prefix)
+{
+    return LoadSymbols(mLibrary, firstStruct, tryplatform ? mLookupFunc : nsnull, prefix);
+}
+
+PRFuncPtr
+LibrarySymbolLoader::LookupSymbol(PRLibrary *lib,
+                                  const char *sym,
+                                  PlatformLookupFunction lookupFunction)
+{
+    PRFuncPtr res = 0;
+
+    // try finding it in the library directly, if we have one
+    if (lib) {
+        res = PR_FindFunctionSymbol(lib, sym);
+    }
+
+    // then try looking it up via the lookup symbol
+    if (!res && lookupFunction) {
+        res = lookupFunction(sym);
+    }
+
+    // finally just try finding it in the process
+    if (!res) {
+        PRLibrary *leakedLibRef;
+        res = PR_FindFunctionSymbolAndLibrary(sym, &leakedLibRef);
+    }
+
+    return res;
+}
+
+bool
+LibrarySymbolLoader::LoadSymbols(PRLibrary *lib,
+                                 SymLoadStruct *firstStruct,
+                                 PlatformLookupFunction lookupFunction,
+                                 const char *prefix)
+{
+    char sbuf[MAX_SYMBOL_LENGTH * 2];
+    int failCount = 0;
+
+    SymLoadStruct *ss = firstStruct;
+    while (ss->symPointer) {
+        *ss->symPointer = 0;
+
+        for (int i = 0; i < MAX_SYMBOL_NAMES; i++) {
+            if (ss->symNames[i] == nsnull)
+                break;
+
+            const char *s = ss->symNames[i];
+            if (prefix && *prefix != 0) {
+                strcpy(sbuf, prefix);
+                strcat(sbuf, ss->symNames[i]);
+                s = sbuf;
+            }
+
+            PRFuncPtr p = LookupSymbol(lib, s, lookupFunction);
+            if (p) {
+                *ss->symPointer = p;
+                break;
+            }
+        }
+
+        if (*ss->symPointer == 0) {
+            fprintf (stderr, "Can't find symbol '%s'\n", ss->symNames[0]);
+            failCount++;
+        }
+
+        ss++;
+    }
+
+    return failCount == 0 ? true : false;
+}
 
 /*
  * XXX - we should really know the ARB/EXT variants of these
@@ -279,7 +364,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             };
 
             if (!LoadSymbols(&symbols_ES2[0], trygl, prefix)) {
-                NS_ERROR("OpenGL ES 2.0 supported, but symbols could not be loaded.");
+                NS_RUNTIMEABORT("OpenGL ES 2.0 supported, but symbols could not be loaded.");
                 mInitialized = false;
             }
         } else {
@@ -293,7 +378,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             };
 
             if (!LoadSymbols(&symbols_desktop[0], trygl, prefix)) {
-                NS_ERROR("Desktop symbols failed to load.");
+                NS_RUNTIMEABORT("Desktop symbols failed to load.");
                 mInitialized = false;
             }
         }
@@ -303,15 +388,12 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
     const char *glRendererString;
 
     if (mInitialized) {
-        // The order of these strings must match up with the order of the enum
-        // defined in GLContext.h for vendor IDs
         glVendorString = (const char *)fGetString(LOCAL_GL_VENDOR);
         const char *vendorMatchStrings[VendorOther] = {
                 "Intel",
                 "NVIDIA",
                 "ATI",
-                "Qualcomm",
-                "Imagination"
+                "Qualcomm"
         };
         mVendor = VendorOther;
         for (int i = 0; i < VendorOther; ++i) {
@@ -321,15 +403,9 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             }
         }
 
-        // The order of these strings must match up with the order of the enum
-        // defined in GLContext.h for renderer IDs
         glRendererString = (const char *)fGetString(LOCAL_GL_RENDERER);
         const char *rendererMatchStrings[RendererOther] = {
-                "Adreno 200",
-                "Adreno 205",
-                "PowerVR SGX 530",
-                "PowerVR SGX 540",
-
+                "Adreno 200"
         };
         mRenderer = RendererOther;
         for (int i = 0; i < RendererOther; ++i) {
@@ -375,7 +451,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 };
 
                 if (!LoadSymbols(&robustnessSymbols[0], trygl, prefix)) {
-                    NS_ERROR("GL supports ARB_robustness without supplying GetGraphicsResetStatusARB.");
+                    NS_RUNTIMEABORT("GL supports ARB_robustness without supplying GetGraphicsResetStatusARB.");
                     mInitialized = false;
                 } else {
                     mHasRobustness = true;
@@ -387,7 +463,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                 };
 
                 if (!LoadSymbols(&robustnessSymbols[0], trygl, prefix)) {
-                    NS_ERROR("GL supports EGL_robustness without supplying GetGraphicsResetStatusEXT.");
+                    NS_RUNTIMEABORT("GL supports EGL_robustness without supplying GetGraphicsResetStatusEXT.");
                     mInitialized = false;
                 } else {
                     mHasRobustness = true;
@@ -403,7 +479,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                     { NULL, { NULL } },
             };
             if (!LoadSymbols(&auxSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports framebuffer_blit without supplying glBlitFramebuffer");
+                NS_RUNTIMEABORT("GL supports framebuffer_blit without supplying glBlitFramebuffer");
                 mInitialized = false;
             }
         }
@@ -415,7 +491,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
                     { NULL, { NULL } },
             };
             if (!LoadSymbols(&auxSymbols[0], trygl, prefix)) {
-                NS_ERROR("GL supports framebuffer_multisample without supplying glRenderbufferStorageMultisample");
+                NS_RUNTIMEABORT("GL supports framebuffer_multisample without supplying glRenderbufferStorageMultisample");
                 mInitialized = false;
             }
         }
@@ -439,19 +515,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         mViewportStack.AppendElement(nsIntRect(v[0], v[1], v[2], v[3]));
 
         fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
-        fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mMaxCubeMapTextureSize);
         fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mMaxRenderbufferSize);
-
-#ifdef XP_MACOSX
-        if (mVendor == VendorIntel) {
-            // see bug 737182 for 2D textures, bug 684822 for cube map textures.
-            mMaxTextureSize        = NS_MIN(mMaxTextureSize,        4096);
-            mMaxCubeMapTextureSize = NS_MIN(mMaxCubeMapTextureSize, 512);
-            // for good measure, we align renderbuffers on what we do for 2D textures
-            mMaxRenderbufferSize   = NS_MIN(mMaxRenderbufferSize,   4096);
-        }
-#endif
-
         mMaxTextureImageSize = mMaxTextureSize;
 
         UpdateActualFormat();
@@ -531,102 +595,19 @@ GLContext::InitExtensions()
 #endif
 }
 
-// Take texture data in a given buffer and copy it into a larger buffer,
-// padding out the edge pixels for filtering if necessary
-static void
-CopyAndPadTextureData(const GLvoid* srcBuffer,
-                      GLvoid* dstBuffer,
-                      GLsizei srcWidth, GLsizei srcHeight,
-                      GLsizei dstWidth, GLsizei dstHeight,
-                      GLsizei stride, GLint pixelsize)
-{
-    unsigned char *rowDest = static_cast<unsigned char*>(dstBuffer);
-    const unsigned char *source = static_cast<const unsigned char*>(srcBuffer);
-
-    for (GLsizei h = 0; h < srcHeight; ++h) {
-        memcpy(rowDest, source, srcWidth * pixelsize);
-        rowDest += dstWidth * pixelsize;
-        source += stride;
-    }
-
-    GLsizei padHeight = srcHeight;
-
-    // Pad out an extra row of pixels so that edge filtering doesn't use garbage data
-    if (dstHeight > srcHeight) {
-        memcpy(rowDest, source - stride, srcWidth * pixelsize);
-        padHeight++;
-    }
-
-    // Pad out an extra column of pixels
-    if (dstWidth > srcWidth) {
-        rowDest = static_cast<unsigned char*>(dstBuffer) + srcWidth * pixelsize;
-        for (GLsizei h = 0; h < padHeight; ++h) {
-            memcpy(rowDest, rowDest - pixelsize, pixelsize);
-            rowDest += dstWidth * pixelsize;
-        }
-    }
-}
-
 bool
 GLContext::IsExtensionSupported(const char *extension)
 {
     return ListHasExtension(fGetString(LOCAL_GL_EXTENSIONS), extension);
 }
 
-// In both of these cases (for the Adreno at least) it is impossible
-// to determine good or bad driver versions for POT texture uploads,
-// so blacklist them all. Newer drivers use a different rendering
-// string in the form "Adreno (TM) 200" and the drivers we've seen so
-// far work fine with NPOT textures, so don't blacklist those until we
-// have evidence of any problems with them.
 bool
 GLContext::CanUploadSubTextures()
 {
     // There are certain GPUs that we don't want to use glTexSubImage2D on
     // because that function can be very slow and/or buggy
-    if (Renderer() == RendererAdreno200 || Renderer() == RendererAdreno205)
-        return false;
 
-    // On PowerVR glTexSubImage does a readback, so it will be slower
-    // than just doing a glTexImage2D() directly. i.e. 26ms vs 10ms
-    if (Renderer() == RendererSGX540 || Renderer() == RendererSGX530)
-        return false;
-
-    return true;
-}
-
-bool
-GLContext::CanUploadNonPowerOfTwo()
-{
-    static bool sPowerOfTwoForced;
-    static bool sPowerOfTwoPrefCached = false;
-
-    if (!sPowerOfTwoPrefCached) {
-        sPowerOfTwoPrefCached = true;
-        mozilla::Preferences::AddBoolVarCache(&sPowerOfTwoForced,
-                                              "gfx.textures.poweroftwo.force-enabled");
-    }
-
-    // Some GPUs driver crash when uploading non power of two 565 textures.
-    return sPowerOfTwoForced ? false : (Renderer() != RendererAdreno200 &&
-                                        Renderer() != RendererAdreno205);
-}
-
-bool
-GLContext::WantsSmallTiles()
-{
-    // We must use small tiles for good performance if we can't use
-    // glTexSubImage2D() for some reason.
-    if (!CanUploadSubTextures())
-        return true;
-
-    // We can't use small tiles on the SGX 540, because of races in texture upload.
-    if (Renderer() == RendererSGX540)
-        return false;
-
-    // Don't use small tiles otherwise. (If we implement incremental texture upload,
-    // then we will want to revisit this.)
-    return false;
+    return !(Renderer() == RendererAdreno200);
 }
 
 // Common code for checking for both GL extensions and GLX extensions.
@@ -696,6 +677,9 @@ void GLContext::ApplyFilterToBoundTexture(gfxPattern::GraphicsFilter aFilter)
         fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_NEAREST);
         fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_NEAREST);
     } else {
+        if (aFilter != gfxPattern::FILTER_GOOD) {
+            NS_WARNING("Unsupported filter type!");
+        }
         fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
        fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
     }
@@ -874,14 +858,11 @@ TiledTextureImage::TiledTextureImage(GLContext* aGL,
     : TextureImage(aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, aUseNearestFilter)
     , mCurrentImage(0)
     , mInUpdate(false)
-    , mRows(0)
-    , mColumns(0)
     , mGL(aGL)
     , mUseNearestFilter(aUseNearestFilter)
     , mTextureState(Created)
-    , mIterationCallback(nsnull)
 {
-    mTileSize = mGL->WantsSmallTiles() ? 256 : mGL->GetMaxTextureSize();
+    mTileSize = mGL->GetMaxTextureSize();
     if (aSize != nsIntSize(0,0)) {
         Resize(aSize);
     }
@@ -904,19 +885,14 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
     }
 
     bool result = true;
-    int oldCurrentImage = mCurrentImage;
-    BeginTileIteration();
-    do {
-        nsIntRect tileRect = GetTileRect();
-        int xPos = tileRect.x;
-        int yPos = tileRect.y;
-
+    for (unsigned i = 0; i < mImages.Length(); i++) {
+        int xPos = (i % mColumns) * mTileSize;
+        int yPos = (i / mColumns) * mTileSize;
         nsIntRegion tileRegion;
+        nsIntRect tileRect = nsIntRect(nsIntPoint(xPos, yPos), mImages[i]->GetSize());
         tileRegion.And(region, tileRect); // intersect with tile
-
         if (tileRegion.IsEmpty())
             continue;
-
         if (mGL->CanUploadSubTextures()) {
           tileRegion.MoveBy(-xPos, -yPos); // translate into tile local space
         } else {
@@ -924,18 +900,10 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
           tileRect.x = tileRect.y = 0;
           tileRegion = nsIntRegion(tileRect);
         }
-
-        result &= mImages[mCurrentImage]->
-          DirectUpdate(aSurf, tileRegion, aFrom + nsIntPoint(xPos, yPos));
-
-        // Override a callback cancelling iteration if the texture wasn't valid.
-        // We need to force the update in that situation, or we may end up
-        // showing invalid/out-of-date texture data.
-        if (mCurrentImage == mImages.Length() - 1)
-            break;
-    } while (NextTile() || (mTextureState != Valid));
-    mCurrentImage = oldCurrentImage;
-
+        result &= mImages[i]->DirectUpdate(aSurf,
+                                           tileRegion,
+                                           aFrom + nsIntPoint(xPos, yPos));
+    }
     mShaderType = mImages[0]->GetShaderProgramType();
     mTextureState = Valid;
     return result;
@@ -1086,24 +1054,11 @@ void TiledTextureImage::BeginTileIteration()
 
 bool TiledTextureImage::NextTile()
 {
-    bool continueIteration = true;
-
-    if (mIterationCallback)
-        continueIteration = mIterationCallback(this, mCurrentImage,
-                                               mIterationCallbackData);
-
     if (mCurrentImage + 1 < mImages.Length()) {
         mCurrentImage++;
-        return continueIteration;
+        return true;
     }
     return false;
-}
-
-void TiledTextureImage::SetIterationCallback(TileIterationCallback aCallback,
-                                             void* aCallbackData)
-{
-    mIterationCallback = aCallback;
-    mIterationCallbackData = aCallbackData;
 }
 
 nsIntRect TiledTextureImage::GetTileRect()
@@ -1128,100 +1083,31 @@ TiledTextureImage::ApplyFilter()
 }
 
 /*
- * Resize, trying to reuse tiles. The reuse strategy is to decide on reuse per
- * column. A tile on a column is reused if it hasn't changed size, otherwise it
- * is discarded/replaced. Extra tiles on a column are pruned after iterating
- * each column, and extra rows are pruned after iteration over the entire image
- * finishes.
+ * simple resize, just discards everything. we can be more clever just
+ * adding or discarding tiles, but do we want this?
  */
 void TiledTextureImage::Resize(const nsIntSize& aSize)
 {
     if (mSize == aSize && mTextureState != Created) {
         return;
     }
-
-    // calculate rows and columns, rounding up
-    unsigned int columns = (aSize.width  + mTileSize - 1) / mTileSize;
-    unsigned int rows = (aSize.height + mTileSize - 1) / mTileSize;
-
-    // Iterate over old tile-store and insert/remove tiles as necessary
-    int row;
-    unsigned int i = 0;
-    for (row = 0; row < (int)rows; row++) {
-        // If we've gone beyond how many rows there were before, set mColumns to
-        // zero so that we only create new tiles.
-        if (row >= (int)mRows)
-            mColumns = 0;
-
-        // Similarly, if we're on the last row of old tiles and the height has
-        // changed, discard all tiles in that row.
-        // This will cause the pruning of columns not to work, but we don't need
-        // to worry about that, as no more tiles will be reused past this point
-        // anyway.
-        if ((row == (int)mRows - 1) && (aSize.height != mSize.height))
-            mColumns = 0;
-
-        int col;
-        for (col = 0; col < (int)columns; col++) {
-            nsIntSize size( // use tilesize first, then the remainder
-                    (col+1) * mTileSize > (unsigned int)aSize.width  ? aSize.width  % mTileSize : mTileSize,
-                    (row+1) * mTileSize > (unsigned int)aSize.height ? aSize.height % mTileSize : mTileSize);
-
-            bool replace = false;
-
-            // Check if we can re-use old tiles.
-            if (col < (int)mColumns) {
-                // Reuse an existing tile. If the tile is an end-tile and the
-                // width differs, replace it instead.
-                if (mSize.width != aSize.width) {
-                    if (col == (int)mColumns - 1) {
-                        // Tile at the end of the old column, replace it with
-                        // a new one.
-                        replace = true;
-                    } else if (col == (int)columns - 1) {
-                        // Tile at the end of the new column, create a new one.
-                    } else {
-                        // Before the last column on both the old and new sizes,
-                        // reuse existing tile.
-                        i++;
-                        continue;
-                    }
-                } else {
-                    // Width hasn't changed, reuse existing tile.
-                    i++;
-                    continue;
-                }
-            }
-
-            // Create a new tile.
-            nsRefPtr<TextureImage> teximg =
-                    mGL->TileGenFunc(size, mContentType, mUseNearestFilter);
-            if (replace)
-                mImages.ReplaceElementAt(i, teximg.forget());
-            else
-                mImages.InsertElementAt(i, teximg.forget());
-            i++;
-        }
-
-        // Prune any unused tiles on the end of the column.
-        if (row < (int)mRows) {
-            for (col = (int)mColumns - col; col > 0; col--) {
-                mImages.RemoveElementAt(i);
-            }
-        }
-    }
-
-    // Prune any unused tiles at the end of the store.
-    unsigned int length = mImages.Length();
-    for (; i < length; i++)
-      mImages.RemoveElementAt(mImages.Length()-1);
-
-    // Reset tile-store properties.
-    mRows = rows;
-    mColumns = columns;
     mSize = aSize;
+    mImages.Clear();
+    // calculate rows and columns, rounding up
+    mColumns = (aSize.width  + mTileSize - 1) / mTileSize;
+    mRows    = (aSize.height + mTileSize - 1) / mTileSize;
+
+    for (unsigned int row = 0; row < mRows; row++) {
+      for (unsigned int col = 0; col < mColumns; col++) {
+          nsIntSize size( // use tilesize first, then the remainder
+                  (col+1) * mTileSize > (unsigned int)aSize.width  ? aSize.width  % mTileSize : mTileSize,
+                  (row+1) * mTileSize > (unsigned int)aSize.height ? aSize.height % mTileSize : mTileSize);
+          nsRefPtr<TextureImage> teximg =
+                  mGL->TileGenFunc(size, mContentType, mUseNearestFilter);
+          mImages.AppendElement(teximg.forget());
+      }
+    }
     mTextureState = Allocated;
-    mCurrentImage = 0;
 }
 
 PRUint32 TiledTextureImage::GetTileCount()
@@ -2085,23 +1971,16 @@ GLContext::BlitTextureImage(TextureImage *aSrc, const nsIntRect& aSrcRect,
             PushViewportRect(nsIntRect(0, 0, dstSize.width, dstSize.height));
 
             RectTriangles rects;
-
-            nsIntSize realTexSize = srcSize;
-            if (!CanUploadNonPowerOfTwo()) {
-                realTexSize = nsIntSize(NextPowerOfTwo(srcSize.width),
-                                        NextPowerOfTwo(srcSize.height));
-            }
-
             if (aSrc->GetWrapMode() == LOCAL_GL_REPEAT) {
                 rects.addRect(/* dest rectangle */
                         dx0, dy0, dx1, dy1,
                         /* tex coords */
-                        srcSubRect.x / float(realTexSize.width),
-                        srcSubRect.y / float(realTexSize.height),
-                        srcSubRect.XMost() / float(realTexSize.width),
-                        srcSubRect.YMost() / float(realTexSize.height));
+                        srcSubRect.x / float(srcSize.width),
+                        srcSubRect.y / float(srcSize.height),
+                        srcSubRect.XMost() / float(srcSize.width),
+                        srcSubRect.YMost() / float(srcSize.height));
             } else {
-                DecomposeIntoNoRepeatTriangles(srcSubRect, realTexSize, rects);
+                DecomposeIntoNoRepeatTriangles(srcSubRect, srcSize, rects);
 
                 // now put the coords into the d[xy]0 .. d[xy]1 coordinate space
                 // from the 0..1 that it comes out of decompose
@@ -2346,41 +2225,6 @@ GLContext::TexImage2D(GLenum target, GLint level, GLint internalformat,
     NS_ASSERTION(format == internalformat,
                  "format and internalformat not the same for glTexImage2D on GLES2");
 
-    if (!CanUploadNonPowerOfTwo()
-        && (stride != width * pixelsize
-        || !IsPowerOfTwo(width)
-        || !IsPowerOfTwo(height))) {
-
-        // Pad out texture width and height to the next power of two
-        // as we don't support/want non power of two texture uploads
-        GLsizei paddedWidth = NextPowerOfTwo(width);
-        GLsizei paddedHeight = NextPowerOfTwo(height);
-
-        GLvoid* paddedPixels = new unsigned char[paddedWidth * paddedHeight * pixelsize];
-
-        // Pad out texture data to be in a POT sized buffer for uploading to
-        // a POT sized texture
-        CopyAndPadTextureData(pixels, paddedPixels, width, height,
-                              paddedWidth, paddedHeight, stride, pixelsize);
-
-        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
-                 NS_MIN(GetAddressAlignment((ptrdiff_t)paddedPixels),
-                        GetAddressAlignment((ptrdiff_t)paddedWidth * pixelsize)));
-        fTexImage2D(target,
-                    border,
-                    internalformat,
-                    paddedWidth,
-                    paddedHeight,
-                    border,
-                    format,
-                    type,
-                    paddedPixels);
-        fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
-
-        delete[] static_cast<unsigned char*>(paddedPixels);
-        return;
-    }
-
     if (stride == width * pixelsize) {
         fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT,
                  NS_MIN(GetAddressAlignment((ptrdiff_t)pixels),
@@ -2571,8 +2415,7 @@ GLContext::TexSubImage2DWithoutUnpackSubimage(GLenum target, GLint level,
 
 void
 GLContext::RectTriangles::addRect(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1,
-                                  GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1,
-                                  bool flip_y /* = false */)
+                                  GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1)
 {
     vert_coord v;
     v.x = x0; v.y = y0;
@@ -2589,37 +2432,20 @@ GLContext::RectTriangles::addRect(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1
     v.x = x1; v.y = y1;
     vertexCoords.AppendElement(v);
 
-    if (flip_y) {
-        tex_coord t;
-        t.u = tx0; t.v = ty1;
-        texCoords.AppendElement(t);
-        t.u = tx1; t.v = ty1;
-        texCoords.AppendElement(t);
-        t.u = tx0; t.v = ty0;
-        texCoords.AppendElement(t);
+    tex_coord t;
+    t.u = tx0; t.v = ty0;
+    texCoords.AppendElement(t);
+    t.u = tx1; t.v = ty0;
+    texCoords.AppendElement(t);
+    t.u = tx0; t.v = ty1;
+    texCoords.AppendElement(t);
 
-        t.u = tx0; t.v = ty0;
-        texCoords.AppendElement(t);
-        t.u = tx1; t.v = ty1;
-        texCoords.AppendElement(t);
-        t.u = tx1; t.v = ty0;
-        texCoords.AppendElement(t);
-    } else {
-        tex_coord t;
-        t.u = tx0; t.v = ty0;
-        texCoords.AppendElement(t);
-        t.u = tx1; t.v = ty0;
-        texCoords.AppendElement(t);
-        t.u = tx0; t.v = ty1;
-        texCoords.AppendElement(t);
-
-        t.u = tx0; t.v = ty1;
-        texCoords.AppendElement(t);
-        t.u = tx1; t.v = ty0;
-        texCoords.AppendElement(t);
-        t.u = tx1; t.v = ty1;
-        texCoords.AppendElement(t);
-    }
+    t.u = tx0; t.v = ty1;
+    texCoords.AppendElement(t);
+    t.u = tx1; t.v = ty0;
+    texCoords.AppendElement(t);
+    t.u = tx1; t.v = ty1;
+    texCoords.AppendElement(t);
 }
 
 static GLfloat
@@ -2639,14 +2465,13 @@ WrapTexCoord(GLfloat v)
 void
 GLContext::DecomposeIntoNoRepeatTriangles(const nsIntRect& aTexCoordRect,
                                           const nsIntSize& aTexSize,
-                                          RectTriangles& aRects,
-                                          bool aFlipY /* = false */)
+                                          RectTriangles& aRects)
 {
     // normalize this
     nsIntRect tcr(aTexCoordRect);
-    while (tcr.x >= aTexSize.width)
+    while (tcr.x > aTexSize.width)
         tcr.x -= aTexSize.width;
-    while (tcr.y >= aTexSize.height)
+    while (tcr.y > aTexSize.height)
         tcr.y -= aTexSize.height;
 
     // Compute top left and bottom right tex coordinates
@@ -2706,58 +2531,47 @@ GLContext::DecomposeIntoNoRepeatTriangles(const nsIntRect& aTexCoordRect,
                  aTexCoordRect.height <= aTexSize.height, "tex coord rect would cause tiling!");
 
     if (!xwrap && !ywrap) {
-        aRects.addRect(0.0f, 0.0f,
-                       1.0f, 1.0f,
-                       tl[0], tl[1],
-                       br[0], br[1],
-                       aFlipY);
+        aRects.addRect(0.0f, 0.0f, 1.0f, 1.0f,
+                       tl[0], tl[1], br[0], br[1]);
     } else if (!xwrap && ywrap) {
         GLfloat ymid = (1.0f - tl[1]) / ylen;
         aRects.addRect(0.0f, 0.0f,
                        1.0f, ymid,
                        tl[0], tl[1],
-                       br[0], 1.0f,
-                       aFlipY);
+                       br[0], 1.0f);
         aRects.addRect(0.0f, ymid,
                        1.0f, 1.0f,
                        tl[0], 0.0f,
-                       br[0], br[1],
-                       aFlipY);
+                       br[0], br[1]);
     } else if (xwrap && !ywrap) {
         GLfloat xmid = (1.0f - tl[0]) / xlen;
         aRects.addRect(0.0f, 0.0f,
                        xmid, 1.0f,
                        tl[0], tl[1],
-                       1.0f, br[1],
-                       aFlipY);
+                       1.0f, br[1]);
         aRects.addRect(xmid, 0.0f,
                        1.0f, 1.0f,
                        0.0f, tl[1],
-                       br[0], br[1],
-                       aFlipY);
+                       br[0], br[1]);
     } else {
         GLfloat xmid = (1.0f - tl[0]) / xlen;
         GLfloat ymid = (1.0f - tl[1]) / ylen;
         aRects.addRect(0.0f, 0.0f,
                        xmid, ymid,
                        tl[0], tl[1],
-                       1.0f, 1.0f,
-                       aFlipY);
+                       1.0f, 1.0f);
         aRects.addRect(xmid, 0.0f,
                        1.0f, ymid,
                        0.0f, tl[1],
-                       br[0], 1.0f,
-                       aFlipY);
+                       br[0], 1.0f);
         aRects.addRect(0.0f, ymid,
                        xmid, 1.0f,
                        tl[0], 0.0f,
-                       1.0f, br[1],
-                       aFlipY);
+                       1.0f, br[1]);
         aRects.addRect(xmid, ymid,
                        1.0f, 1.0f,
                        0.0f, 0.0f,
-                       br[0], br[1],
-                       aFlipY);
+                       br[0], br[1]);
     }
 }
 

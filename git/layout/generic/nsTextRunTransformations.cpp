@@ -39,7 +39,6 @@
 
 #include "nsTextFrameUtils.h"
 #include "gfxSkipChars.h"
-#include "nsGkAtoms.h"
 
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
@@ -48,10 +47,6 @@
 #include "nsUnicharUtils.h"
 
 #define SZLIG 0x00DF
-
-// Unicode characters needing special casing treatment in tr/az languages
-#define LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE  0x0130
-#define LATIN_SMALL_LETTER_DOTLESS_I           0x0131
 
 nsTransformedTextRun *
 nsTransformedTextRun::Create(const gfxTextRunFactory::Parameters* aParams,
@@ -295,11 +290,9 @@ nsFontVariantTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
         isLowercase = runIsLowercase;
       } else {
         if (styles[i]->GetStyleFont()->mFont.variant == NS_STYLE_FONT_VARIANT_SMALL_CAPS) {
-          PRUint32 ch = str[i];
-          if (NS_IS_HIGH_SURROGATE(ch) && i < length - 1 && NS_IS_LOW_SURROGATE(str[i + 1])) {
-            ch = SURROGATE_TO_UCS4(ch, str[i + 1]);
-          }
-          PRUint32 ch2 = ToUpperCase(ch);
+          PRUnichar ch = str[i];
+          PRUnichar ch2;
+          ch2 = ToUpperCase(ch);
           isLowercase = ch != ch2 || ch == SZLIG;
         } else {
           // Don't transform the character! I.e., pretend that it's not lowercase
@@ -362,49 +355,27 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
   nsAutoTArray<PRUint8,50> canBreakBeforeArray;
   PRUint32 extraCharsCount = 0;
 
-  const nsIAtom* lang = nsnull;
-  bool turkishCasing = false;
   PRUint32 i;
   for (i = 0; i < length; ++i) {
-    PRUint32 ch = str[i];
-    nsStyleContext* styleContext = styles[i];
+    PRUnichar ch = str[i];
 
     charsToMergeArray.AppendElement(false);
-    styleArray.AppendElement(styleContext);
+    styleArray.AppendElement(styles[i]);
     canBreakBeforeArray.AppendElement(aTextRun->CanBreakLineBefore(i));
 
     PRUint8 style = mAllUppercase ? NS_STYLE_TEXT_TRANSFORM_UPPERCASE
-      : styleContext->GetStyleText()->mTextTransform;
+      : styles[i]->GetStyleText()->mTextTransform;
     bool extraChar = false;
-
-    if (NS_IS_HIGH_SURROGATE(ch) && i < length - 1 && NS_IS_LOW_SURROGATE(str[i + 1])) {
-      ch = SURROGATE_TO_UCS4(ch, str[i + 1]);
-    }
-
-    if (lang != styleContext->GetStyleFont()->mLanguage) {
-      lang = styleContext->GetStyleFont()->mLanguage;
-      turkishCasing = lang == nsGkAtoms::tr ||
-                      lang == nsGkAtoms::az ||
-                      lang == nsGkAtoms::ba ||
-                      lang == nsGkAtoms::crh ||
-                      lang == nsGkAtoms::tt;
-    }
 
     switch (style) {
     case NS_STYLE_TEXT_TRANSFORM_LOWERCASE:
-      if (turkishCasing && ch == 'I') {
-        ch = LATIN_SMALL_LETTER_DOTLESS_I;
-      } else {
-        ch = ToLowerCase(ch);
-      }
+      ch = ToLowerCase(ch);
       break;
     case NS_STYLE_TEXT_TRANSFORM_UPPERCASE:
       if (ch == SZLIG) {
         convertedString.Append('S');
         extraChar = true;
         ch = 'S';
-      } else if (turkishCasing && ch == 'i') {
-        ch = LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE;
       } else {
         ch = ToUpperCase(ch);
       }
@@ -415,8 +386,6 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
           convertedString.Append('S');
           extraChar = true;
           ch = 'S';
-        } else if (turkishCasing && ch == 'i') {
-          ch = LATIN_CAPITAL_LETTER_I_WITH_DOT_ABOVE;
         } else {
           ch = ToTitleCase(ch);
         }
@@ -426,21 +395,11 @@ nsCaseTransformTextRunFactory::RebuildTextRun(nsTransformedTextRun* aTextRun,
       break;
     }
 
-    if (IS_IN_BMP(ch)) {
-      convertedString.Append(ch);
-    } else {
-      convertedString.Append(H_SURROGATE(ch));
-      convertedString.Append(L_SURROGATE(ch));
-      i++;
-      charsToMergeArray.AppendElement(false);
-      styleArray.AppendElement(styleContext);
-      canBreakBeforeArray.AppendElement(false);
-    }
-
+    convertedString.Append(ch);
     if (extraChar) {
       ++extraCharsCount;
       charsToMergeArray.AppendElement(true);
-      styleArray.AppendElement(styleContext);
+      styleArray.AppendElement(styles[i]);
       canBreakBeforeArray.AppendElement(false);
     }
   }

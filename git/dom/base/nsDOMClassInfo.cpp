@@ -39,8 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/Util.h"
-// On top because they include basictypes.h:
-#include "SmsFilter.h"
+#include "SmsFilter.h" // On top because it includes basictypes.h.
 
 #ifdef XP_WIN
 #undef GetClassName
@@ -208,7 +207,6 @@
 #include "nsWebSocket.h"
 #include "nsIDOMCloseEvent.h"
 #include "nsEventSource.h"
-#include "nsIDOMSettingsManager.h"
 
 // includes needed for the prototype chain interfaces
 #include "nsIDOMNavigator.h"
@@ -527,14 +525,10 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 
 #ifdef MOZ_B2G_BT
 #include "BluetoothAdapter.h"
-#include "BluetoothDevice.h"
 #endif
 
 #include "DOMError.h"
 #include "DOMRequest.h"
-
-#undef None // something included above defines this preprocessor symbol, maybe Xlib headers
-#include "WebGLContext.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1308,8 +1302,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TextMetrics, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(ImageData, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(SmartCardEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1430,6 +1422,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(GeoPositionCoords, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
+  NS_DEFINE_CLASSINFO_DATA(GeoPositionAddress, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
   NS_DEFINE_CLASSINFO_DATA(GeoPositionError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -1529,18 +1524,14 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLActiveInfo, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(WebGLExtension, WebGLExtensionSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ADDPROPERTY)
-  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionStandardDerivatives, WebGLExtensionSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ADDPROPERTY)
-  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionTextureFilterAnisotropic, WebGLExtensionSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ADDPROPERTY)
-  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionLoseContext, WebGLExtensionSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS |
-                           nsIXPCScriptable::WANT_ADDPROPERTY)
+  NS_DEFINE_CLASSINFO_DATA(WebGLExtension, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionStandardDerivatives, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionTextureFilterAnisotropic, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(WebGLExtensionLoseContext, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(PaintRequest, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1618,9 +1609,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(CustomEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
-  NS_DEFINE_CLASSINFO_DATA(MozSettingsEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
 #ifdef MOZ_B2G_RIL
   NS_DEFINE_CLASSINFO_DATA(Telephony, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
@@ -1632,8 +1620,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
 #ifdef MOZ_B2G_BT
   NS_DEFINE_CLASSINFO_DATA(BluetoothAdapter, nsEventTargetSH,
-                           EVENTTARGET_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(BluetoothDevice, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
 #endif
 
@@ -1684,7 +1670,6 @@ NS_DEFINE_EVENT_CTOR(PopStateEvent)
 NS_DEFINE_EVENT_CTOR(HashChangeEvent)
 NS_DEFINE_EVENT_CTOR(PageTransitionEvent)
 NS_DEFINE_EVENT_CTOR(CloseEvent)
-NS_DEFINE_EVENT_CTOR(MozSettingsEvent)
 NS_DEFINE_EVENT_CTOR(UIEvent)
 NS_DEFINE_EVENT_CTOR(MouseEvent)
 nsresult
@@ -1717,7 +1702,6 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(HashChangeEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(PageTransitionEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(CloseEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MozSettingsEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(UIEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MouseEvent)
   NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(StorageEvent)
@@ -2492,7 +2476,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Screen, nsIDOMScreen)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMScreen)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(DOMPrototype, nsIDOMDOMConstructor)
@@ -3871,10 +3854,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMTextMetrics)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(ImageData, nsIDOMImageData)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMImageData)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(XSLTProcessor, nsIXSLTProcessor)
     DOM_CLASSINFO_MAP_ENTRY(nsIXSLTProcessor)
     DOM_CLASSINFO_MAP_ENTRY(nsIXSLTProcessorPrivate)
@@ -4041,6 +4020,10 @@ nsDOMClassInfo::Init()
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoPositionCoords)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(GeoPositionAddress, nsIDOMGeoPositionAddress)
+     DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoPositionAddress)
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(GeoPositionError, nsIDOMGeoPositionError)
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoPositionError)
   DOM_CLASSINFO_MAP_END
@@ -4086,7 +4069,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(MozConnection, nsIDOMMozConnection)
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozConnection)
-     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(CSSFontFaceRule, nsIDOMCSSFontFaceRule)
@@ -4370,11 +4352,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(MozSettingsEvent, nsIDOMMozSettingsEvent)
-     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozSettingsEvent)
-     DOM_CLASSINFO_EVENT_MAP_ENTRIES
-   DOM_CLASSINFO_MAP_END
-
 #ifdef MOZ_B2G_RIL
   DOM_CLASSINFO_MAP_BEGIN(Telephony, nsIDOMTelephony)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMTelephony)
@@ -4395,10 +4372,6 @@ nsDOMClassInfo::Init()
 #ifdef MOZ_B2G_BT
   DOM_CLASSINFO_MAP_BEGIN(BluetoothAdapter, nsIDOMBluetoothAdapter)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothAdapter)
-  DOM_CLASSINFO_MAP_END  
-  
-  DOM_CLASSINFO_MAP_BEGIN(BluetoothDevice, nsIDOMBluetoothDevice)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothDevice)
   DOM_CLASSINFO_MAP_END
 #endif
 
@@ -4887,8 +4860,9 @@ GetExternalClassInfo(nsScriptNameSpaceManager *aNameSpaceManager,
   rv = creator->RegisterDOMCI(NS_ConvertUTF16toUTF8(aName).get(), sof);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  const nsGlobalNameStruct *name_struct = aNameSpaceManager->LookupName(aName);
-  if (name_struct &&
+  const nsGlobalNameStruct *name_struct;
+  rv = aNameSpaceManager->LookupName(aName, &name_struct);
+  if (NS_SUCCEEDED(rv) && name_struct &&
       name_struct->mType == nsGlobalNameStruct::eTypeExternalClassInfo) {
     *aResult = name_struct;
   }
@@ -5274,8 +5248,10 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSObject *obj,
 
   nsHTMLDocument *document = GetDocument(obj);
 
-  if (!document) {
-    // If we don't have a document, return early.
+  if (!document ||
+      document->GetCompatibilityMode() != eCompatibility_NavQuirks) {
+    // If we don't have a document, or if the document is not in
+    // quirks mode, return early.
 
     return JS_TRUE;
   }
@@ -5927,7 +5903,7 @@ private:
       return NS_ERROR_UNEXPECTED;
     }
 
-    *aNameStruct = nameSpaceManager->LookupName(aName);
+    nameSpaceManager->LookupName(aName, aNameStruct);
 
     // Return NS_OK here, aName just isn't a DOM class but nothing failed.
     return NS_OK;
@@ -6547,9 +6523,10 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
 
   nsDependentJSString name(id);
 
+  const nsGlobalNameStruct *name_struct = nsnull;
   const PRUnichar *class_name = nsnull;
-  const nsGlobalNameStruct *name_struct =
-    nameSpaceManager->LookupName(name, &class_name);
+
+  nameSpaceManager->LookupName(name, &name_struct, &class_name);
 
   if (!name_struct) {
     return NS_OK;
@@ -10857,32 +10834,4 @@ nsSVGStringListSH::GetStringAt(nsISupports *aNative, PRInt32 aIndex,
   return rv;
 }
 
-NS_IMETHODIMP
-WebGLExtensionSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                              JSObject *obj, jsid id, jsval *vp, bool *_retval)
-{
-  WebGLExtensionSH::PreserveWrapper(GetNative(wrapper, obj));
 
-  return NS_OK;
-}
-
-void
-WebGLExtensionSH::PreserveWrapper(nsISupports *aNative)
-{
-  WebGLExtension* ext = static_cast<WebGLExtension*>(aNative);
-  nsContentUtils::PreserveWrapper(aNative, ext);
-}
-
-nsresult
-WebGLExtensionSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
-                            JSObject *globalObj, JSObject **parentObj)
-{
-  *parentObj = globalObj;
-
-  WebGLExtension *ext = static_cast<WebGLExtension*>(nativeObj);
-  WebGLContext *webgl = ext->Context();
-  nsHTMLCanvasElement *canvas = webgl->HTMLCanvasElement();
-  nsINode *node = static_cast<nsINode*>(canvas);
-
-  return WrapNativeParent(cx, globalObj, node, node, parentObj);
-}

@@ -16,7 +16,7 @@ exit DOM full-screen mode.
   }
   </style>
 </head>
-<body>
+<body onload="startTest();">
 
 <script type="application/javascript">
 
@@ -49,9 +49,9 @@ function fullscreenchange2(event) {
   finish();
 }
 
-function begin() {
+function startTest() {
   document.addEventListener("mozfullscreenchange", fullscreenchange1, false);
-  document.body.mozRequestFullScreen();
+  SimpleTest.waitForFocus(function() {document.body.mozRequestFullScreen();});
 }
 
 </script>

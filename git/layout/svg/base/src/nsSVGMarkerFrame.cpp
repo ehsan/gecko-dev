@@ -34,16 +34,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
+#include "nsIDOMSVGAnimatedRect.h"
+#include "nsIDOMSVGRect.h"
+#include "nsIDocument.h"
 #include "nsSVGMarkerFrame.h"
-
-// Keep others in (case-insensitive) order:
-#include "gfxContext.h"
-#include "nsRenderingContext.h"
+#include "nsSVGPathGeometryFrame.h"
 #include "nsSVGEffects.h"
 #include "nsSVGMarkerElement.h"
 #include "nsSVGPathGeometryElement.h"
-#include "nsSVGPathGeometryFrame.h"
+#include "gfxContext.h"
 
 nsIFrame*
 NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -227,7 +226,7 @@ nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
       // to use UnionEdges, but we must special case the first bbox so that we don't
       // include the initial gfxRect(0,0,0,0).
       gfxRect childBBox = child->GetBBoxContribution(tm, aFlags);
-      if (firstChild && (childBBox.Width() > 0 || childBBox.Height() > 0)) {
+      if (firstChild) {
         bbox = childBBox;
         firstChild = false;
         continue;

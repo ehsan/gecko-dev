@@ -114,8 +114,8 @@ public class GeckoAppShell
     public static native void callObserver(String observerKey, String topic, String data);
     public static native void removeObserver(String observerKey);
     public static native void loadGeckoLibsNative(String apkName);
-    public static native void loadSQLiteLibsNative(String apkName, boolean shouldExtract);
-    public static native void loadNSSLibsNative(String apkName, boolean shouldExtract);
+    public static native void loadSQLiteLibsNative(String apkName);
+    public static native void loadNSSLibsNative(String apkName);
     public static native void onChangeNetworkLinkStatus(String status);
     public static native void reportJavaCrash(String stack);
 
@@ -398,8 +398,8 @@ public class GeckoAppShell
                 }
             }
         }
-        loadSQLiteLibsNative(apkName, extractLibs);
-        loadNSSLibsNative(apkName, extractLibs);
+        loadSQLiteLibsNative(apkName);
+        loadNSSLibsNative(apkName);
         loadGeckoLibsNative(apkName);
     }
 
@@ -1105,13 +1105,9 @@ public class GeckoAppShell
         GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER);
     }
 
-    public static String showFilePickerForExtensions(String aExtensions) {
+    public static String showFilePicker(String aFilters) {
         return GeckoApp.mAppContext.
-            showFilePicker(getMimeTypeFromExtensions(aExtensions));
-    }
-
-    public static String showFilePickerForMimeType(String aMimeType) {
-        return GeckoApp.mAppContext.showFilePicker(aMimeType);
+            showFilePicker(getMimeTypeFromExtensions(aFilters));
     }
 
     public static void performHapticFeedback(boolean aIsLongPress) {
@@ -1565,7 +1561,7 @@ public class GeckoAppShell
         Log.i("GeckoShell", "post to " + (mainThread ? "main " : "") + "java thread");
         getMainHandler().post(new GeckoRunnableCallback());
     }
-
+    
     public static android.hardware.Camera sCamera = null;
     
     static native void cameraCallbackBridge(byte[] data);
@@ -1843,24 +1839,4 @@ public class GeckoAppShell
 
     // This is only used in Native Fennec.
     public static void setPreventPanning(final boolean aPreventPanning) { }
-
-    public static short getScreenOrientation() {
-        return GeckoScreenOrientationListener.getInstance().getScreenOrientation();
-    }
-
-    public static void enableScreenOrientationNotifications() {
-        GeckoScreenOrientationListener.getInstance().enableNotifications();
-    }
-
-    public static void disableScreenOrientationNotifications() {
-        GeckoScreenOrientationListener.getInstance().disableNotifications();
-    }
-
-    public static void lockScreenOrientation(int aOrientation) {
-        GeckoScreenOrientationListener.getInstance().lockScreenOrientation(aOrientation);
-    }
-
-    public static void unlockScreenOrientation() {
-        GeckoScreenOrientationListener.getInstance().unlockScreenOrientation();
-    }
 }

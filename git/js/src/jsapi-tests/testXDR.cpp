@@ -4,6 +4,7 @@
 
 #include "tests.h"
 #include "jsscript.h"
+#include "jsxdrapi.h"
 
 static JSScript *
 CompileScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
@@ -27,42 +28,48 @@ CompileScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
     return script;
 }
 
-JSScript *
-FreezeThaw(JSContext *cx, JSScript *script)
+template<typename T>
+T *
+FreezeThawImpl(JSContext *cx, T *thing, JSBool (*xdrAction)(JSXDRState *xdr, T **))
 {
     // freeze
+    JSXDRState *w = JS_XDRNewMem(cx, JSXDR_ENCODE);
+    if (!w)
+        return NULL;
+
+    void *memory = NULL;
     uint32_t nbytes;
-    void *memory = JS_EncodeScript(cx, script, &nbytes);
+    if (xdrAction(w, &thing)) {
+        void *p = JS_XDRMemGetData(w, &nbytes);
+        if (p) {
+            memory = JS_malloc(cx, nbytes);
+            if (memory)
+                memcpy(memory, p, nbytes);
+        }
+    }
+    JS_XDRDestroy(w);
     if (!memory)
         return NULL;
 
     // thaw
-    script = JS_DecodeScript(cx, memory, nbytes, script->principals, script->originPrincipals);
-    js_free(memory);
-    return script;
+    JSXDRState *r = JS_XDRNewMem(cx, JSXDR_DECODE);
+    JS_XDRMemSetData(r, memory, nbytes);
+    if (!xdrAction(r, &thing))
+        thing = NULL;
+    JS_XDRDestroy(r);  // this frees `memory
+    return thing;
 }
 
 static JSScript *
-GetScript(JSContext *cx, JSObject *funobj)
+FreezeThaw(JSContext *cx, JSScript *script)
 {
-    return JS_GetFunctionScript(cx, JS_GetObjectFunction(funobj));
+    return FreezeThawImpl(cx, script, JS_XDRScript);
 }
 
-JSObject *
+static JSObject *
 FreezeThaw(JSContext *cx, JSObject *funobj)
 {
-    // freeze
-    uint32_t nbytes;
-    void *memory = JS_EncodeInterpretedFunction(cx, funobj, &nbytes);
-    if (!memory)
-        return NULL;
-
-    // thaw
-    JSScript *script = GetScript(cx, funobj);
-    funobj = JS_DecodeInterpretedFunction(cx, memory, nbytes,
-                                          script->principals, script->originPrincipals);
-    js_free(memory);
-    return funobj;
+    return FreezeThawImpl(cx, funobj, JS_XDRFunctionObject);
 }
 
 static JSPrincipals testPrincipals[] = {
@@ -70,39 +77,76 @@ static JSPrincipals testPrincipals[] = {
     { 1 },
 };
 
+static JSBool
+TranscodePrincipals(JSXDRState *xdr, JSPrincipals **principalsp)
+{
+    uint32_t index;
+    if (xdr->mode == JSXDR_ENCODE) {
+        JSPrincipals *p = *principalsp;
+        for (index = 0; ; ++index) {
+            if (index == mozilla::ArrayLength(testPrincipals))
+                return false;
+            if (p == &testPrincipals[index])
+                break;
+        }
+    }
+
+    if (!JS_XDRUint32(xdr, &index))
+        return false;
+
+    if (xdr->mode == JSXDR_DECODE) {
+        if (index >= mozilla::ArrayLength(testPrincipals))
+            return false;
+        *principalsp = &testPrincipals[index];
+        JS_HoldPrincipals(*principalsp);
+    }
+
+    return true;
+}
+
 BEGIN_TEST(testXDR_principals)
 {
+    static const JSSecurityCallbacks seccb = {
+        NULL,
+        NULL,
+        TranscodePrincipals,
+        NULL,
+        NULL
+    };
+
+    JS_SetSecurityCallbacks(rt, &seccb);
+
     JSScript *script;
     for (int i = TEST_FIRST; i != TEST_END; ++i) {
         script = createScriptViaXDR(NULL, NULL, i);
         CHECK(script);
-        CHECK(!JS_GetScriptPrincipals(script));
-        CHECK(!JS_GetScriptOriginPrincipals(script));
+        CHECK(!JS_GetScriptPrincipals(cx, script));
+        CHECK(!JS_GetScriptOriginPrincipals(cx, script));
     
         script = createScriptViaXDR(NULL, NULL, i);
         CHECK(script);
-        CHECK(!JS_GetScriptPrincipals(script));
-        CHECK(!JS_GetScriptOriginPrincipals(script));
+        CHECK(!JS_GetScriptPrincipals(cx, script));
+        CHECK(!JS_GetScriptOriginPrincipals(cx, script));
         
         script = createScriptViaXDR(&testPrincipals[0], NULL, i);
         CHECK(script);
-        CHECK(JS_GetScriptPrincipals(script) == &testPrincipals[0]);
-        CHECK(JS_GetScriptOriginPrincipals(script) == &testPrincipals[0]);
+        CHECK(JS_GetScriptPrincipals(cx, script) == &testPrincipals[0]);
+        CHECK(JS_GetScriptOriginPrincipals(cx, script) == &testPrincipals[0]);
         
         script = createScriptViaXDR(&testPrincipals[0], &testPrincipals[0], i);
         CHECK(script);
-        CHECK(JS_GetScriptPrincipals(script) == &testPrincipals[0]);
-        CHECK(JS_GetScriptOriginPrincipals(script) == &testPrincipals[0]);
+        CHECK(JS_GetScriptPrincipals(cx, script) == &testPrincipals[0]);
+        CHECK(JS_GetScriptOriginPrincipals(cx, script) == &testPrincipals[0]);
         
         script = createScriptViaXDR(&testPrincipals[0], &testPrincipals[1], i);
         CHECK(script);
-        CHECK(JS_GetScriptPrincipals(script) == &testPrincipals[0]);
-        CHECK(JS_GetScriptOriginPrincipals(script) == &testPrincipals[1]);
+        CHECK(JS_GetScriptPrincipals(cx, script) == &testPrincipals[0]);
+        CHECK(JS_GetScriptOriginPrincipals(cx, script) == &testPrincipals[1]);
         
         script = createScriptViaXDR(NULL, &testPrincipals[1], i);
         CHECK(script);
-        CHECK(!JS_GetScriptPrincipals(script));
-        CHECK(JS_GetScriptOriginPrincipals(script) == &testPrincipals[1]);
+        CHECK(!JS_GetScriptPrincipals(cx, script));
+        CHECK(JS_GetScriptOriginPrincipals(cx, script) == &testPrincipals[1]);
     }
 
     return true;
@@ -146,7 +190,7 @@ JSScript *createScriptViaXDR(JSPrincipals *prin, JSPrincipals *orig, int testCas
         if (!funobj)
             return NULL;
     }
-    return GetScript(cx, funobj);
+    return JS_GetFunctionScript(cx, JS_GetObjectFunction(funobj));
 }
 
 END_TEST(testXDR_principals)

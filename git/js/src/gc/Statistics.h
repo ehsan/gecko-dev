@@ -52,28 +52,19 @@ namespace js {
 namespace gcstats {
 
 enum Phase {
-    PHASE_GC_BEGIN,
-    PHASE_WAIT_BACKGROUND_THREAD,
-    PHASE_PURGE,
     PHASE_MARK,
     PHASE_MARK_ROOTS,
     PHASE_MARK_DELAYED,
     PHASE_MARK_OTHER,
-    PHASE_FINALIZE_START,
     PHASE_SWEEP,
-    PHASE_SWEEP_COMPARTMENTS,
     PHASE_SWEEP_OBJECT,
     PHASE_SWEEP_STRING,
     PHASE_SWEEP_SCRIPT,
     PHASE_SWEEP_SHAPE,
     PHASE_DISCARD_CODE,
     PHASE_DISCARD_ANALYSIS,
-    PHASE_DISCARD_TI,
-    PHASE_SWEEP_TYPES,
-    PHASE_CLEAR_SCRIPT_ANALYSIS,
-    PHASE_FINALIZE_END,
+    PHASE_XPCONNECT,
     PHASE_DESTROY,
-    PHASE_GC_END,
 
     PHASE_LIMIT
 };
@@ -85,7 +76,7 @@ enum Stat {
     STAT_LIMIT
 };
 
-class StatisticsSerializer;
+static const size_t BUFFER_SIZE = 8192;
 
 struct Statistics {
     Statistics(JSRuntime *rt);
@@ -104,9 +95,6 @@ struct Statistics {
         JS_ASSERT(s < STAT_LIMIT);
         counts[s]++;
     }
-
-    jschar *formatMessage();
-    jschar *formatJSON(uint64_t timestamp);
 
   private:
     JSRuntime *runtime;
@@ -148,15 +136,19 @@ struct Statistics {
     /* Number of events of this type for this GC. */
     unsigned int counts[STAT_LIMIT];
 
-    /* Allocated space before the GC started. */
-    size_t preBytes;
+    char buffer[BUFFER_SIZE];
+    bool needComma;
 
     void beginGC();
     void endGC();
 
     int64_t gcDuration();
+    double t(int64_t t);
     void printStats();
-    bool formatData(StatisticsSerializer &ss, uint64_t timestamp);
+    void fmt(const char *f, ...);
+    void fmtIfNonzero(const char *name, double t);
+    void formatPhases(int64_t *times);
+    const char *formatData();
 
     double computeMMU(int64_t resolution);
 };

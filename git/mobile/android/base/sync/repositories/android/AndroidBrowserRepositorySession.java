@@ -1,6 +1,40 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android Sync Client.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jason Voll <jvoll@mozilla.com>
+ *   Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package org.mozilla.gecko.sync.repositories.android;
 
@@ -84,13 +118,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
    */
   protected abstract Record retrieveDuringFetch(Cursor cur) throws NoGuidForIdException, NullCursorException, ParentNotFoundException;
 
-  /**
-   * Override this to allow records to be skipped during insertion.
-   *
-   * For example, a session subclass might skip records of an unsupported type.
-   */
-  protected boolean shouldIgnore(Record record) {
-    return false;
+  // Must be overriden by AndroidBookmarkRepositorySession.
+  protected boolean checkRecordType(Record record) {
+    return true;
   }
 
   /**
@@ -363,8 +393,8 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
         // including livemarks and queries, are simply ignored.
         // See Bug 708149. This might be resolved by Fennec changing its database
         // schema, or by Sync storing non-applied records in its own private database.
-        if (shouldIgnore(record)) {
-          Logger.debug(LOG_TAG, "Ignoring record " + record.guid);
+        if (!checkRecordType(record)) {
+          Logger.debug(LOG_TAG, "Ignoring record " + record.guid + " due to unknown record type.");
 
           // Don't throw: we don't want to abort the entire sync when we get a livemark!
           // delegate.onRecordStoreFailed(new InvalidBookmarkTypeException(null));
@@ -456,16 +486,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
           }
 
           // TODO: pass in timestamps?
-
-          // This section of code will only run if the incoming record is not
-          // marked as deleted, so we never want to just drop ours from the database:
-          // we need to upload it later.
-          // Allowing deleted items to propagate through `replace` allows normal
-          // logging and side-effects to occur, and is no more expensive than simply
-          // bumping the modified time.
-          Logger.debug(LOG_TAG, "Replacing existing " + existingRecord.guid +
-                       (toStore.deleted ? " with deleted record " : " with record ") +
-                       toStore.guid);
+          Logger.debug(LOG_TAG, "Replacing " + existingRecord.guid + " with record " + toStore.guid);
           Record replaced = replace(toStore, existingRecord);
 
           // Note that we don't track records here; deciding that is the job
@@ -498,9 +519,9 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   protected void storeRecordDeletion(final Record record) {
-    // TODO: we ought to mark the record as deleted rather than purging it,
+    // TODO: we ought to mark the record as deleted rather than deleting it,
     // in order to support syncing to multiple destinations. Bug 722607.
-    dbHelper.purgeGuid(record.guid);
+    dbHelper.delete(record);      // TODO: mm?
     delegate.onRecordStoreSucceeded(record);
   }
 
@@ -579,20 +600,14 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
 
     Logger.debug(LOG_TAG, "Finding existing record for incoming record with GUID " + record.guid);
     String recordString = buildRecordString(record);
-    if (recordString == null) {
-      Logger.debug(LOG_TAG, "No record string for incoming record " + record.guid);
-      return null;
-    }
-
     Logger.debug(LOG_TAG, "Searching with record string " + recordString);
     String guid = getRecordToGuidMap().get(recordString);
-    if (guid == null) {
-      Logger.debug(LOG_TAG, "findExistingRecord failed to find one for " + record.guid);
-      return null;
+    if (guid != null) {
+      Logger.debug(LOG_TAG, "Found one. Returning computed record.");
+      return retrieveByGUIDDuringStore(guid);
     }
-
-    Logger.debug(LOG_TAG, "Found one. Returning computed record.");
-    return retrieveByGUIDDuringStore(guid);
+    Logger.debug(LOG_TAG, "findExistingRecord failed to find one for " + record.guid);
+    return null;
   }
 
   public HashMap<String, String> getRecordToGuidMap() throws NoGuidForIdException, NullCursorException, ParentNotFoundException {
@@ -617,10 +632,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
       while (!cur.isAfterLast()) {
         Record record = retrieveDuringStore(cur);
         if (record != null) {
-          final String recordString = buildRecordString(record);
-          if (recordString != null) {
-            recordToGuid.put(recordString, record.guid);
-          }
+          recordToGuid.put(buildRecordString(record), record.guid);
         }
         cur.moveToNext();
       }
@@ -631,10 +643,6 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
   }
 
   public void putRecordToGuidMap(String recordString, String guid) throws NoGuidForIdException, NullCursorException, ParentNotFoundException {
-    if (recordString == null) {
-      return;
-    }
-
     if (recordToGuid == null) {
       createRecordToGuidMap();
     }
@@ -670,10 +678,5 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
       dbHelper.wipe();
       delegate.onWipeSucceeded();
     }
-  }
-
-  // For testing purposes.
-  public AndroidBrowserRepositoryDataAccessor getDBHelper() {
-    return dbHelper;
   }
 }

@@ -244,7 +244,6 @@ public:
   nsresult SetFrameTimeout(PRUint32 aFrameNum, PRInt32 aTimeout);
   nsresult SetFrameBlendMethod(PRUint32 aFrameNum, PRInt32 aBlendMethod);
   nsresult SetFrameHasNoAlpha(PRUint32 aFrameNum);
-  nsresult SetFrameAsNonPremult(PRUint32 aFrameNum, bool aIsNonPremult);
 
   /**
    * Sets the size of the container. This should only be called by the
@@ -636,7 +635,7 @@ private: // data
 
   // Discard members
   PRUint32                   mLockCount;
-  DiscardTracker::Node       mDiscardTrackerNode;
+  DiscardTrackerNode         mDiscardTrackerNode;
 
   // Source data members
   FallibleTArray<char>       mSourceData;

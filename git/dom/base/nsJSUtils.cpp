@@ -143,7 +143,7 @@ nsJSUtils::GetStaticScriptContext(JSContext* aContext, JSObject* aObj)
   if (!nativeGlobal)
     return nsnull;
 
-  return nativeGlobal->GetScriptContext();
+  return nativeGlobal->GetScriptContext(nsIProgrammingLanguage::JAVASCRIPT);
 }
 
 nsIScriptGlobalObject *

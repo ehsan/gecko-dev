@@ -34,11 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Keep in (case-insensitive) order:
 #include "nsContainerFrame.h"
-#include "nsGkAtoms.h"
-#include "nsIFrame.h"
-#include "nsLiteralString.h"
 #include "nsSVGEffects.h"
 #include "nsSVGFilters.h"
 

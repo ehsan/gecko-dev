@@ -1106,7 +1106,7 @@ CheckStackAndEnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, bool part
 
     Value *stackLimit = cx->stack.space().getStackLimit(cx, REPORT_ERROR);
     if (!stackLimit)
-        return Jaeger_ThrowBeforeEnter;
+        return Jaeger_Throwing;
 
     return EnterMethodJIT(cx, fp, code, stackLimit, partial);
 }

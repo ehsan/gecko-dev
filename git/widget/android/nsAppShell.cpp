@@ -56,11 +56,10 @@
 #include "prenv.h"
 
 #include "AndroidBridge.h"
+#include "nsDeviceMotionSystem.h"
 #include <android/log.h>
 #include <pthread.h>
 #include <wchar.h>
-
-#include "mozilla/dom/ScreenOrientation.h"
 
 #ifdef MOZ_ANDROID_HISTORY
 #include "nsAndroidHistory.h"
@@ -83,6 +82,7 @@ using namespace mozilla;
 PRLogModuleInfo *gWidgetLog = nsnull;
 #endif
 
+nsDeviceMotionSystem *gDeviceMotionSystem = nsnull;
 nsIGeolocationUpdate *gLocationCallback = nsnull;
 nsAutoPtr<mozilla::AndroidGeckoEvent> gLastSizeChange;
 
@@ -96,7 +96,7 @@ nsAppShell::nsAppShell()
       mQueueCond(mCondLock, "nsAppShell.mQueueCond"),
       mNumDraws(0),
       mNumViewports(0),
-      mPendingSensorEvents(false)
+      mPendingOrientationEvents(false)
 {
     gAppShell = this;
 }
@@ -331,52 +331,43 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         NativeEventCallback();
         break;
 
-    case AndroidGeckoEvent::SENSOR_EVENT:
-      {
-        mPendingSensorEvents = false;
-        InfallibleTArray<float> values;
-        mozilla::hal::SensorType type = (mozilla::hal::SensorType) curEvent->Flags();
+    case AndroidGeckoEvent::ACCELERATION_EVENT:
+        gDeviceMotionSystem->DeviceMotionChanged(nsIDeviceMotionData::TYPE_ACCELERATION,
+                                                 -curEvent->X(),
+                                                 curEvent->Y(),
+                                                 curEvent->Z());
+        break;
 
-        switch (type) {
-          case hal::SENSOR_ORIENTATION:
-            values.AppendElement(curEvent->X());
-            values.AppendElement(-curEvent->Y()); 
-            values.AppendElement(-curEvent->Z());
-            break;
-
-          case hal::SENSOR_ACCELERATION:
-          case hal::SENSOR_LINEAR_ACCELERATION:
-          case hal::SENSOR_GYROSCOPE:
-            values.AppendElement(-curEvent->X());
-            values.AppendElement(curEvent->Y());
-            values.AppendElement(curEvent->Z());
-            break;
-
-        case hal::SENSOR_PROXIMITY:
-            values.AppendElement(curEvent->X());
-            break;
-
-        default:
-            __android_log_print(ANDROID_LOG_ERROR,
-                                "Gecko", "### SENSOR_EVENT fired, but type wasn't known %d",
-                                type);
-        }
-
-        const hal::SensorAccuracyType &accuracy = (hal::SensorAccuracyType) curEvent->MetaState();
-        hal::SensorData sdata(type, PR_Now(), values, accuracy);
-        hal::NotifySensorChange(sdata);
-      }
-      break;
+    case AndroidGeckoEvent::ORIENTATION_EVENT:
+        gDeviceMotionSystem->DeviceMotionChanged(nsIDeviceMotionData::TYPE_ORIENTATION,
+                                                 -curEvent->Alpha(),
+                                                 curEvent->Beta(),
+                                                 curEvent->Gamma());
+        mPendingOrientationEvents = false;
+        break;
 
     case AndroidGeckoEvent::LOCATION_EVENT: {
         if (!gLocationCallback)
             break;
 
         nsGeoPosition* p = curEvent->GeoPosition();
-        if (p)
+        nsGeoPositionAddress* a = curEvent->GeoAddress();
+
+        if (p) {
+            p->SetAddress(a);
             gLocationCallback->Update(curEvent->GeoPosition());
+        }
         else
             NS_WARNING("Received location event without geoposition!");
+        break;
+    }
+
+    case AndroidGeckoEvent::PROXIMITY_EVENT: {
+        InfallibleTArray<float> values;
+        values.AppendElement(curEvent->Distance());
+        
+        hal::SensorData sdata(hal::SENSOR_PROXIMITY, PR_Now(), values);
+        hal::NotifySensorChange(sdata);
         break;
     }
 
@@ -468,7 +459,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             break;
 
         nsTArray<nsIntPoint> points = curEvent->Points();
-        NS_ASSERTION(points.Length() == 2, "Screenshot event does not have enough coordinates");
+        NS_ASSERTION(points.Length() != 2, "Screenshot event does not have enough coordinates");
         bridge->TakeScreenshot(domWindow, 0, 0, points[0].x, points[0].y, points[1].x, points[1].y, curEvent->MetaState(), scale);
         break;
     }
@@ -547,11 +538,6 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::SCREENORIENTATION_CHANGED: {
-        hal::NotifyScreenOrientationChange(static_cast<dom::ScreenOrientation>(curEvent->ScreenOrientation()));
-        break;
-    }
-
     default:
         nsWindow::OnGlobalAndroidEvent(curEvent);
     }
@@ -616,20 +602,10 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
                     delete event;
                 }
             }
-        } else if (ae->Type() == AndroidGeckoEvent::COMPOSITOR_PAUSE ||
-                   ae->Type() == AndroidGeckoEvent::COMPOSITOR_RESUME) {
-            // Give priority to these events, but maintain their order wrt each other.
-            int i = 0;
-            while (i < mEventQueue.Length() &&
-                   (mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_PAUSE ||
-                    mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_RESUME)) {
-                i++;
-            }
-            mEventQueue.InsertElementAt(i, ae);
-        } else if (ae->Type() == AndroidGeckoEvent::SENSOR_EVENT) {
-            if (!mPendingSensorEvents)
-                mEventQueue.AppendElement(ae);
-            mPendingSensorEvents = true;
+        } else if (ae->Type() == AndroidGeckoEvent::ORIENTATION_EVENT) {
+            if (!mPendingOrientationEvents)
+                 mEventQueue.AppendElement(ae);
+            mPendingOrientationEvents = true;
         } else {
             mEventQueue.AppendElement(ae);
         }

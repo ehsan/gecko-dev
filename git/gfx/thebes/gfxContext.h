@@ -54,7 +54,6 @@
 #include "mozilla/gfx/2D.h"
 
 typedef struct _cairo cairo_t;
-struct GlyphBufferAzure;
 template <typename T> class FallibleTArray;
 
 /**
@@ -718,7 +717,6 @@ public:
 
 private:
   friend class GeneralPattern;
-  friend class GlyphBufferAzure;
 
   typedef mozilla::gfx::Matrix Matrix;
   typedef mozilla::gfx::DrawTarget DrawTarget;
@@ -739,7 +737,6 @@ private:
       , clipWasReset(false)
       , fillRule(mozilla::gfx::FILL_WINDING)
       , aaMode(mozilla::gfx::AA_SUBPIXEL)
-      , patternTransformChanged(false)
     {}
 
     mozilla::gfx::CompositionOp op;
@@ -762,8 +759,6 @@ private:
     mozilla::RefPtr<DrawTarget> drawTarget;
     mozilla::RefPtr<DrawTarget> parentTarget;
     mozilla::gfx::AntialiasMode aaMode;
-    bool patternTransformChanged;
-    Matrix patternTransform;
   };
 
   // This ensures mPath contains a valid path (in user space!)
@@ -773,7 +768,6 @@ private:
   void FillAzure(mozilla::gfx::Float aOpacity);
   void PushClipsToDT(mozilla::gfx::DrawTarget *aDT);
   CompositionOp GetOp();
-  void TransformWillChange();
 
   bool mPathIsRect;
   bool mTransformChanged;
