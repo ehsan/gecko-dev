@@ -37,23 +37,26 @@ function runInspectorTests()
 {
   Services.obs.removeObserver(runInspectorTests,
     InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
+  Services.obs.addObserver(treePanelTests,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY, false);
 
   ok(InspectorUI.toolbar, "we have the toolbar.");
   ok(!InspectorUI.toolbar.hidden, "toolbar is visible");
   ok(InspectorUI.inspecting, "Inspector is inspecting");
-  ok(!InspectorUI.markupOpen, "Inspector Tree Panel is not open");
+  ok(!InspectorUI.treePanel.isOpen(), "Inspector Tree Panel is not open");
   ok(!InspectorUI.sidebar.visible, "Inspector sidebar should not visible.");
   ok(InspectorUI.highlighter, "Highlighter is up");
   InspectorUI.inspectNode(doc.body);
   InspectorUI.stopInspecting();
 
-  InspectorUI.currentInspector.once("markuploaded", treePanelTests);
-  InspectorUI.currentInspector.openMarkup();
+  InspectorUI.treePanel.open();
 }
 
 function treePanelTests()
 {
-  ok(InspectorUI.currentInspector.markupOpen, "Inspector Tree Panel is open");
+  Services.obs.removeObserver(treePanelTests,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY);
+  ok(InspectorUI.treePanel.isOpen(), "Inspector Tree Panel is open");
 
   InspectorUI.toggleSidebar();
   ok(InspectorUI.sidebar.visible, "Inspector Sidebar should be open");
@@ -167,6 +170,7 @@ function finishInspectorTests(subject, topic, aWinIdString)
 
   is(parseInt(aWinIdString), winId, "winId of destroyed Inspector matches");
   ok(!InspectorUI.highlighter, "Highlighter is gone");
+  ok(!InspectorUI.treePanel, "Inspector Tree Panel is closed");
   ok(!InspectorUI.inspecting, "Inspector is not inspecting");
   ok(!InspectorUI._sidebar, "Inspector Sidebar is closed");
   ok(!InspectorUI.toolbar, "toolbar is hidden");

@@ -41,9 +41,10 @@ function test() {
 
   function runTests() {
     Services.obs.removeObserver(runTests, InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
+    Services.obs.addObserver(testCopyInnerMenu, InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY, false);
     InspectorUI.stopInspecting();
     InspectorUI.inspectNode(node1, true);
-    testCopyInnerMenu();
+    InspectorUI.treePanel.open();
   }
 
   function testCopyInnerMenu() {
