@@ -245,7 +245,7 @@ html[dir=rtl] .overlay {
   right: 1px;
   -moz-border-start: 1px solid #E1E1E1;
   padding: 0 5px;
-  overflow-x: hidden;
+  overflow: -moz-hidden-unscrollable;
   text-align: start;
   line-height: 0;
 }
@@ -258,7 +258,6 @@ html[dir=rtl] .appTabTrayContainer {
 .appTabTray {
   display: inline-block;
   -moz-column-width: 16px;
-  -moz-column-count: 0;
   -moz-column-gap: 5px;
 }
 
