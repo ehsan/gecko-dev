@@ -1549,8 +1549,7 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsD
           }
           nsDisplayWrapList *list = static_cast<nsDisplayWrapList*>(item);
           rv = WrapPreserve3DListInternal(aFrame, aBuilder, list->GetList(), aIndex);
-          newList.AppendToTop(list->GetList());
-          list->~nsDisplayWrapList();
+          newList.AppendToTop(item);
           break;
         }
         case nsDisplayItem::TYPE_OPACITY: {
@@ -1775,6 +1774,13 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
       rv = WrapPreserve3DList(this, aBuilder, &resultList);
       if (NS_FAILED(rv))
         return rv;
+
+      if (resultList.Count() > 1) {
+        rv = resultList.AppendNewToTop(
+          new (aBuilder) nsDisplayWrapList(aBuilder, this, &resultList));
+        if (NS_FAILED(rv))
+          return rv;
+      }
     } else {
       rv = resultList.AppendNewToTop(
         new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList));
@@ -2271,12 +2277,12 @@ nsFrame::IsSelectable(bool* aSelectable, PRUint8* aSelectStyle) const
     selectStyle = NS_STYLE_USER_SELECT_NONE;
 
   // return stuff
+  if (aSelectable)
+    *aSelectable = (selectStyle != NS_STYLE_USER_SELECT_NONE);
   if (aSelectStyle)
     *aSelectStyle = selectStyle;
   if (mState & NS_FRAME_GENERATED_CONTENT)
     *aSelectable = PR_FALSE;
-  else
-    *aSelectable = (selectStyle != NS_STYLE_USER_SELECT_NONE);
   return NS_OK;
 }
 
@@ -4068,8 +4074,7 @@ nsIFrame::GetOffsetToCrossDoc(const nsIFrame* aOther, const PRInt32 aAPD) const
   if (PresContext()->GetRootPresContext() !=
         aOther->PresContext()->GetRootPresContext()) {
     // crash right away, we are almost certainly going to crash anyway.
-    NS_RUNTIMEABORT("trying to get the offset between frames in different "
-                    "document hierarchies?");
+    *(static_cast<PRInt32*>(nsnull)) = 3;
   }
 
   const nsIFrame* root = nsnull;

@@ -221,6 +221,7 @@ void
 nsTableOuterFrame::GetChildLists(nsTArray<ChildList>* aLists) const
 {
   nsHTMLContainerFrame::GetChildLists(aLists);
+  mFrames.AppendIfNonempty(aLists, kPrincipalList);
   mCaptionFrames.AppendIfNonempty(aLists, kCaptionList);
 }
 

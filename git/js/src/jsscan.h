@@ -46,7 +46,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include "jscntxt.h"
 #include "jsversion.h"
 #include "jsopcode.h"
 #include "jsprvtd.h"

@@ -37,7 +37,7 @@
 
 #include "nsDOMSerializer.h"
 #include "nsIDOMNode.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsIOutputStream.h"
 #include "nsINode.h"
 #include "nsIDocument.h"

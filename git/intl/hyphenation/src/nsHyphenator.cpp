@@ -40,22 +40,22 @@
 #include "nsUTF8Utils.h"
 #include "nsIUGenCategory.h"
 #include "nsUnicharUtilCIID.h"
-#include "nsIURI.h"
+#include "nsNetUtil.h"
 
 #include "hyphen.h"
 
-nsHyphenator::nsHyphenator(nsIURI *aURI)
+nsHyphenator::nsHyphenator(nsIFile *aFile)
   : mDict(nsnull)
 {
-  nsCString uriSpec;
-  nsresult rv = aURI->GetSpec(uriSpec);
+  nsCString urlSpec;
+  nsresult rv = NS_GetURLSpecFromFile(aFile, urlSpec);
   if (NS_FAILED(rv)) {
     return;
   }
-  mDict = hnj_hyphen_load(uriSpec.get());
+  mDict = hnj_hyphen_load(urlSpec.get());
 #ifdef DEBUG
   if (mDict) {
-    printf("loaded hyphenation patterns from %s\n", uriSpec.get());
+    printf("loaded hyphenation patterns from %s\n", urlSpec.get());
   }
 #endif
   mCategories = do_GetService(NS_UNICHARCATEGORY_CONTRACTID, &rv);

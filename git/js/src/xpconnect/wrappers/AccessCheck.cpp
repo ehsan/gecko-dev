@@ -247,11 +247,11 @@ AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
         }
 
         if (fp)
-            scope = JS_GetGlobalForFrame(fp);
+            scope = JS_GetFrameScopeChainRaw(fp);
     }
 
     if (!scope)
-        scope = JS_GetGlobalForScopeChain(cx);
+        scope = JS_GetScopeChain(cx);
 
     nsIPrincipal *subject;
     nsIPrincipal *object;
@@ -262,7 +262,7 @@ AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
         if (!ac.enter(cx, scope))
             return false;
 
-        subject = GetPrincipal(scope);
+        subject = GetPrincipal(JS_GetGlobalForObject(cx, scope));
     }
 
     if (!subject)

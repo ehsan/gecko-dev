@@ -45,9 +45,29 @@
 
 #include "jscntxtinlines.h"
 #include "jsgcinlines.h"
-#include "vm/String-inl.h"
 
 namespace js {
+
+static inline bool
+CheckStringLength(JSContext *cx, size_t length)
+{
+    if (JS_UNLIKELY(length > JSString::MAX_LENGTH)) {
+        if (JS_ON_TRACE(cx)) {
+            /*
+             * If we can't leave the trace, signal OOM condition, otherwise
+             * exit from trace before throwing.
+             */
+            if (!CanLeaveTrace(cx))
+                return NULL;
+
+            LeaveTrace(cx);
+        }
+        js_ReportAllocationOverflow(cx);
+        return false;
+    }
+
+    return true;
+}
 
 /*
  * String builder that eagerly checks for over-allocation past the maximum
@@ -222,7 +242,7 @@ StringBuffer::length() const
 inline bool
 StringBuffer::checkLength(size_t length)
 {
-    return JSString::validateLength(context(), length);
+    return CheckStringLength(context(), length);
 }
 
 extern bool

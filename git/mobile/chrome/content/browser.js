@@ -1338,12 +1338,10 @@ Browser.MainDragger.prototype = {
   },
 
   dragMove: function dragMove(dx, dy, scroller, aIsKinetic) {
-    if (this._canGrabSidebar) {
-      this._grabSidebar = TabletSidebar.tryGrab(dx);
-      // After trying once, don't keep checking every move.
-      this._canGrabSidebar = false;
+    if (this._canGrabSidebar && !this._grabSidebar && dx) {
+      this._grabSidebar = true;
+      TabletSidebar.grab();
     }
-
     if (this._grabSidebar) {
       TabletSidebar.slideBy(dx);
       return;
@@ -1952,7 +1950,8 @@ const ContentTouchHandler = {
     // Check if the user touched near to one of the edges of the browser area
     // or if the urlbar is showing
     this.canCancelPan = (aX >= rect.left + kSafetyX) && (aX <= rect.right - kSafetyX) &&
-                        (aY >= rect.top  + kSafetyY);
+                        (aY >= rect.top  + kSafetyY) &&
+                        (bcr.top == 0 || Util.isTablet());
   },
 
   tapDown: function tapDown(aX, aY) {
@@ -3181,11 +3180,9 @@ function rendererFactory(aBrowser, aCanvas) {
  * window but floats over it.
  */
 var ViewableAreaObserver = {
-  _ignoreTabletSidebar: false, // Don't leave room for the tablet tabs sidebar
-
   get width() {
     let width = this._width || window.innerWidth;
-    if (!this._ignoreTabletSidebar && Util.isTablet())
+    if (!TabletSidebar._grabbed && Util.isTablet())
       width -= this.sidebarWidth;
     return width;
   },
@@ -3252,11 +3249,7 @@ var ViewableAreaObserver = {
 #endif
   },
 
-  update: function va_update(aParams) {
-    aParams = aParams || {};
-    if ("setIgnoreTabletSidebar" in aParams)
-      this._ignoreTabletSidebar = aParams.setIgnoreTabletSidebar;
-
+  update: function va_update() {
     this._sidebarWidth = null;
 
     let oldHeight = parseInt(Browser.styles["viewable-height"].height);

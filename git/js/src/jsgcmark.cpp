@@ -555,27 +555,23 @@ MarkRoot(JSTracer *trc, JSXML *thing, const char *name)
 }
 
 static void
-PrintPropertyId(char *buf, size_t bufsize, jsid propid, const char *label)
-{
-    JS_ASSERT(!JSID_IS_VOID(propid));
-    if (JSID_IS_ATOM(propid)) {
-        size_t n = PutEscapedString(buf, bufsize, JSID_TO_ATOM(propid), 0);
-        if (n < bufsize)
-            JS_snprintf(buf + n, bufsize - n, " %s", label);
-    } else if (JSID_IS_INT(propid)) {
-        JS_snprintf(buf, bufsize, "%d %s", JSID_TO_INT(propid), label);
-    } else {
-        JS_snprintf(buf, bufsize, "<object> %s", label);
-    }
-}
-
-static void
 PrintPropertyGetterOrSetter(JSTracer *trc, char *buf, size_t bufsize)
 {
     JS_ASSERT(trc->debugPrinter == PrintPropertyGetterOrSetter);
     Shape *shape = (Shape *)trc->debugPrintArg;
-    PrintPropertyId(buf, bufsize, shape->propid,
-                    trc->debugPrintIndex ? js_setter_str : js_getter_str); 
+    jsid propid = shape->propid;
+    JS_ASSERT(!JSID_IS_VOID(propid));
+    const char *name = trc->debugPrintIndex ? js_setter_str : js_getter_str;
+
+    if (JSID_IS_ATOM(propid)) {
+        size_t n = PutEscapedString(buf, bufsize, JSID_TO_ATOM(propid), 0);
+        if (n < bufsize)
+            JS_snprintf(buf + n, bufsize - n, " %s", name);
+    } else if (JSID_IS_INT(shape->propid)) {
+        JS_snprintf(buf, bufsize, "%d %s", JSID_TO_INT(propid), name);
+    } else {
+        JS_snprintf(buf, bufsize, "<object> %s", name);
+    }
 }
 
 static void
@@ -583,7 +579,13 @@ PrintPropertyMethod(JSTracer *trc, char *buf, size_t bufsize)
 {
     JS_ASSERT(trc->debugPrinter == PrintPropertyMethod);
     Shape *shape = (Shape *)trc->debugPrintArg;
-    PrintPropertyId(buf, bufsize, shape->propid, " method");
+    jsid propid = shape->propid;
+    JS_ASSERT(!JSID_IS_VOID(propid));
+
+    JS_ASSERT(JSID_IS_ATOM(propid));
+    size_t n = PutEscapedString(buf, bufsize, JSID_TO_ATOM(propid), 0);
+    if (n < bufsize)
+        JS_snprintf(buf + n, bufsize - n, " method");
 }
 
 static inline void

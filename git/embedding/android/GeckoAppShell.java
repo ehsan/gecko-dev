@@ -1334,11 +1334,11 @@ public class GeckoAppShell
         try {
             int showPassword =
                 Settings.System.getInt(GeckoApp.mAppContext.getContentResolver(),
-                                       Settings.System.TEXT_SHOW_PASSWORD, 1);
+                                       Settings.System.TEXT_SHOW_PASSWORD);
             return (showPassword > 0);
         }
         catch (Exception e) {
-            return true;
+            return false;
         }
     }
     public static void addPluginView(final View view,
@@ -1591,8 +1591,7 @@ public class GeckoAppShell
             sCamera.setPreviewCallbackWithBuffer(new android.hardware.Camera.PreviewCallback() {
                 public void onPreviewFrame(byte[] data, android.hardware.Camera camera) {
                     cameraCallbackBridge(data);
-                    if (sCamera != null)
-                        sCamera.addCallbackBuffer(sCameraBuffer);
+                    sCamera.addCallbackBuffer(sCameraBuffer);
                 }
             });
             sCamera.startPreview();

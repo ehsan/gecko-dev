@@ -48,11 +48,9 @@
 #include "mozilla/dom/ContentChild.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsComponentManagerUtils.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsContentUtils.h"
 #include "nsDirectoryServiceUtils.h"
-#include "nsDOMClassInfoID.h"
-#include "nsIPrincipal.h"
+#include "nsDOMClassInfo.h"
 #include "nsEscape.h"
 #include "nsHashKeys.h"
 #include "nsPIDOMWindow.h"
@@ -68,7 +66,6 @@
 #include "IDBKeyRange.h"
 #include "IndexedDatabaseManager.h"
 #include "LazyIdleThread.h"
-#include "nsIScriptSecurityManager.h"
 
 using namespace mozilla;
 

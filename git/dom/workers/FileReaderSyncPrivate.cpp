@@ -42,7 +42,7 @@
 #include "nsCExternalHandlerService.h"
 #include "nsComponentManagerUtils.h"
 #include "nsCOMPtr.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
 #include "nsIDOMFile.h"
 #include "nsICharsetAlias.h"

@@ -256,8 +256,7 @@ def checkStubMember(member, isCustom):
     # Check for unknown properties.
     for attrname, value in vars(member).items():
         if value is True and attrname not in ('readonly','optional_argc',
-                                              'traceable','implicit_jscontext',
-                                              'getter', 'stringifier'):
+                                              'traceable','implicit_jscontext'):
             raise UserError("%s %s: unrecognized property %r"
                             % (member.kind.capitalize(), memberId,
                                attrname))
@@ -1005,8 +1004,7 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
             if member.implicit_jscontext:
                 argv.append('cx')
             if member.optional_argc:
-                argv.append('NS_MIN<PRUint32>(argc, %d) - %d' % 
-                            (len(member.params), requiredArgs))
+                argv.append('argc - %d' % requiredArgs)
             if not isVoidType(member.realtype):
                 argv.append(outParamForm(resultname, member.realtype))
             args = ', '.join(argv)
@@ -1702,7 +1700,6 @@ stubTopTemplate = '''\
 #include "nsDependentString.h"
 #include "xpcprivate.h"  // for XPCCallContext
 #include "xpcquickstubs.h"
-#include "nsWrapperCacheInlines.h"
 #include "jsbuiltins.h"
 '''
 

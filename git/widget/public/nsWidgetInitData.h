@@ -132,8 +132,7 @@ struct nsWidgetInitData {
       mListenForResizes(PR_FALSE),
       mUnicode(PR_TRUE),
       mRTL(PR_FALSE),
-      mNoAutoHide(PR_FALSE),
-      mIsDragPopup(PR_FALSE)
+      mNoAutoHide(PR_FALSE)
   {
   }
 

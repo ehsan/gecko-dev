@@ -110,7 +110,8 @@ public:
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
-                              nsSVGElement *aSVGElement);
+                              nsSVGElement *aSVGElement,
+                              bool aDoSetAttr);
   void GetBaseValueString(nsAString& aValue);
 
   nsresult SetBaseAlign(PRUint16 aAlign, nsSVGElement *aSVGElement);

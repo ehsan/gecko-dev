@@ -589,7 +589,7 @@ class UnwantedForeground : public Foreground {
  *     JS_GUARD_OBJECT_NOTIFIER_PARAM.
  */
 #ifdef DEBUG
-class JS_FRIEND_API(JSGuardObjectNotifier)
+class JSGuardObjectNotifier
 {
 private:
     bool* mStatementDone;
@@ -605,7 +605,7 @@ public:
     }
 };
 
-class JS_FRIEND_API(JSGuardObjectNotificationReceiver)
+class JSGuardObjectNotificationReceiver
 {
 private:
     bool mStatementDone;

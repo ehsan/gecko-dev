@@ -1012,6 +1012,8 @@ public:
    */
   void SortByContentOrder(nsDisplayListBuilder* aBuilder, nsIContent* aCommonAncestor);
 
+  void SortByZPosition(nsDisplayListBuilder* aBuilder, nsIContent* aCommonAncestor);
+
   /**
    * Generic stable sort. Take care, because some of the items might be nsDisplayLists
    * themselves.
@@ -2133,8 +2135,6 @@ public:
   };
 
   const gfx3DMatrix& GetTransform(float aFactor);
-
-  float GetHitDepthAtPoint(const nsPoint& aPoint);
 
   /**
    * TransformRect takes in as parameters a rectangle (in aFrame's coordinate

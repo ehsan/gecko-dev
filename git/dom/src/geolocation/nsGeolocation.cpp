@@ -57,7 +57,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMWindow.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsComponentManagerUtils.h"
 #include "nsICategoryManager.h"
 #include "nsISupportsPrimitives.h"

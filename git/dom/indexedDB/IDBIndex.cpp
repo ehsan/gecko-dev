@@ -44,7 +44,7 @@
 #include "nsIIDBKeyRange.h"
 #include "nsIJSContextStack.h"
 
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
 #include "mozilla/storage.h"

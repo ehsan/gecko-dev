@@ -103,7 +103,8 @@ ParseNumberOptionalNumber(const nsAString& aValue,
 
 nsresult
 nsSVGNumberPair::SetBaseValueString(const nsAString &aValueAsString,
-                                    nsSVGElement *aSVGElement)
+                                    nsSVGElement *aSVGElement,
+                                    bool aDoSetAttr)
 {
   float val[2];
 
@@ -144,7 +145,8 @@ nsSVGNumberPair::GetBaseValueString(nsAString &aValueAsString)
 
 void
 nsSVGNumberPair::SetBaseValue(float aValue, PairIndex aPairIndex,
-                              nsSVGElement *aSVGElement)
+                              nsSVGElement *aSVGElement,
+                              bool aDoSetAttr)
 {
   PRUint32 index = (aPairIndex == eFirst ? 0 : 1);
   mBaseVal[index] = aValue;
@@ -157,12 +159,13 @@ nsSVGNumberPair::SetBaseValue(float aValue, PairIndex aPairIndex,
     aSVGElement->AnimationNeedsResample();
   }
 #endif
-  aSVGElement->DidChangeNumberPair(mAttrEnum, true);
+  aSVGElement->DidChangeNumberPair(mAttrEnum, aDoSetAttr);
 }
 
 void
 nsSVGNumberPair::SetBaseValues(float aValue1, float aValue2,
-                               nsSVGElement *aSVGElement)
+                               nsSVGElement *aSVGElement,
+                               bool aDoSetAttr)
 {
   mBaseVal[0] = aValue1;
   mBaseVal[1] = aValue2;
@@ -176,7 +179,7 @@ nsSVGNumberPair::SetBaseValues(float aValue1, float aValue2,
     aSVGElement->AnimationNeedsResample();
   }
 #endif
-  aSVGElement->DidChangeNumberPair(mAttrEnum, true);
+  aSVGElement->DidChangeNumberPair(mAttrEnum, aDoSetAttr);
 }
 
 void

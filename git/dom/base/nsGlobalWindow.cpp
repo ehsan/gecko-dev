@@ -66,7 +66,7 @@
 #include "prmem.h"
 #include "jsapi.h"              // for JSAutoRequest
 #include "jsdbgapi.h"           // for JS_ClearWatchPointsForObject
-#include "jsfriendapi.h"        // for JS_GetGlobalForFrame
+#include "jsfriendapi.h"        // for JS_GetFrameScopeChainRaw
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfo.h"
 #include "nsJSEnvironment.h"
@@ -167,6 +167,7 @@
 #include "nsIWindowWatcher.h"
 #include "nsPIWindowWatcher.h"
 #include "nsIContentViewer.h"
+#include "nsDOMClassInfo.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
@@ -247,7 +248,6 @@
 
 #include "mozilla/Telemetry.h"
 #include "nsLocation.h"
-#include "nsWrapperCacheInlines.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDOMLeakPRLog;
@@ -5906,11 +5906,11 @@ nsGlobalWindow::CallerInnerWindow()
     }
 
     if (fp)
-      scope = JS_GetGlobalForFrame(fp);
+      scope = JS_GetFrameScopeChainRaw(fp);
   }
 
   if (!scope)
-    scope = JS_GetGlobalForScopeChain(cx);
+    scope = JS_GetScopeChain(cx);
 
   JSAutoEnterCompartment ac;
   if (!ac.enter(cx, scope))
@@ -5918,7 +5918,8 @@ nsGlobalWindow::CallerInnerWindow()
 
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
   nsContentUtils::XPConnect()->
-    GetWrappedNativeOfJSObject(cx, scope, getter_AddRefs(wrapper));
+    GetWrappedNativeOfJSObject(cx, ::JS_GetGlobalForObject(cx, scope),
+                               getter_AddRefs(wrapper));
   if (!wrapper)
     return nsnull;
 
@@ -6006,7 +6007,7 @@ PostMessageReadStructuredClone(JSContext* cx,
 
     nsISupports* supports;
     if (JS_ReadBytes(reader, &supports, sizeof(supports))) {
-      JSObject* global = JS_GetGlobalForScopeChain(cx);
+      JSObject* global = JS_GetGlobalForObject(cx, JS_GetScopeChain(cx));
       if (global) {
         jsval val;
         nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
@@ -10175,11 +10176,6 @@ nsGlobalWindow::SetHasOrientationEventListener()
 {
   mHasDeviceMotion = PR_TRUE;
   EnableDeviceMotionUpdates();
-}
-
-void
-nsGlobalWindow::RemoveOrientationEventListener() {
-  DisableDeviceMotionUpdates();
 }
 
 NS_IMETHODIMP

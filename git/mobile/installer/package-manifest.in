@@ -72,9 +72,6 @@
 #elif _MSC_VER == 1600
 @BINPATH@/msvcp100.dll
 @BINPATH@/msvcr100.dll
-#elif _MSC_VER == 1700
-@BINPATH@/msvcp110.dll
-@BINPATH@/msvcr110.dll
 #endif
 
 #endif

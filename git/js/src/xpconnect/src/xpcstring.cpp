@@ -139,5 +139,5 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
         if (!str)
             JS_free(cx, chars);
     }
-    return str ? STRING_TO_JSVAL(str) : JSVAL_NULL;
+    return STRING_TO_JSVAL(str);
 }

@@ -83,11 +83,9 @@ const size_t FINALIZE_LIMIT = FINALIZE_LAST + 1;
 
 /*
  * Live objects are marked black. How many other additional colors are available
- * depends on the size of the GCThing. Objects marked gray are eligible for
- * cycle collection.
+ * depends on the size of the GCThing.
  */
 static const uint32 BLACK = 0;
-static const uint32 GRAY = 1;
 
 /*
  * A GC cell is the base class for all GC things.

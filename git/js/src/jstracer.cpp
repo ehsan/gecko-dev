@@ -72,6 +72,7 @@
 #include "jsmath.h"
 #include "jsobj.h"
 #include "jsopcode.h"
+#include "jsregexp.h"
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstaticcheck.h"
@@ -79,8 +80,6 @@
 #include "jstracer.h"
 #include "jsxml.h"
 #include "jstypedarray.h"
-
-#include "builtin/RegExp.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
@@ -95,7 +94,6 @@
 #include "jstypedarrayinlines.h"
 
 #include "vm/CallObject-inl.h"
-#include "vm/RegExpObject-inl.h"
 #include "vm/Stack-inl.h"
 
 #ifdef JS_METHODJIT
@@ -11391,7 +11389,7 @@ TraceRecorder::callSpecializedNative(JSNativeTraceInfo *trcinfo, uintN argc,
                 if (!arg.isString())
                     goto next_specialization;
             } else if (argtype == 'r') {
-                if (!ValueIsRegExp(arg))
+                if (!VALUE_IS_REGEXP(cx, arg))
                     goto next_specialization;
             } else if (argtype == 'f') {
                 if (!IsFunctionObject(arg))
@@ -11532,7 +11530,7 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
                 }
             }
         } else if (vp[2].isString() && mode == JSOP_CALL) {
-            if (native == regexp_exec) {
+            if (native == js_regexp_exec) {
                 /*
                  * If the result of the call will be unused or only tested against
                  * nullness, we replace the call to RegExp.exec() on the
@@ -11548,12 +11546,12 @@ TraceRecorder::callNative(uintN argc, JSOp mode)
                         Value pval;
                         jsid id = ATOM_TO_JSID(cx->runtime->atomState.testAtom);
                         if (HasDataProperty(cx, proto, id, &pval) &&
-                            IsNativeFunction(pval, regexp_test))
+                            IsNativeFunction(pval, js_regexp_test))
                         {
                             vp[0] = pval;
                             funobj = &pval.toObject();
                             fun = funobj->getFunctionPrivate();
-                            native = regexp_test;
+                            native = js_regexp_test;
                         }
                     }
                 }
