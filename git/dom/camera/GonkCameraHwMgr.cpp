@@ -178,7 +178,7 @@ GonkCameraHardware::Init()
   mNativeWindow = new GonkNativeWindow(GonkCameraHardware::MIN_UNDEQUEUED_BUFFERS);
   mCamera->setPreviewTarget(mNativeWindow->getBufferQueue());
 #elif ANDROID_VERSION >= 17
-  mNativeWindow = new GonkNativeWindow(GonkCameraHardware::MIN_UNDEQUEUED_BUFFERS);
+  mNativeWindow = new GonkNativeWindow();
   mCamera->setPreviewTexture(mNativeWindow->getBufferQueue());
 #else
   mNativeWindow = new GonkNativeWindow();
