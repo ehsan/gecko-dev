@@ -3,7 +3,7 @@ $inherits:
 task:
   workerType: emulator-ics-debug
   scopes:
-    - 'docker-worker:cache:workspace-emulator-ics-debug'
+    - 'docker-worker:cache:build-emulator-ics-debug'
   metadata:
     name: '[TC] B2G Emulator ICS Debug'
   extra:
@@ -16,7 +16,7 @@ task:
 
   payload:
     cache:
-      workspace-emulator-ics-debug: /home/worker/workspace
+      build-emulator-ics-debug: /home/worker/object-folder
     env:
       TARGET: 'emulator'
       B2G_DEBUG: 1

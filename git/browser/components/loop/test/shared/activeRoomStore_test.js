@@ -31,16 +31,13 @@ describe("loop.store.ActiveRoomStore", function () {
         on: sinon.stub(),
         off: sinon.stub()
       },
-      setScreenShareState: sinon.stub(),
-      getActiveTabWindowId: sandbox.stub().callsArgWith(0, null, 42)
+      setScreenShareState: sinon.stub()
     };
 
     fakeSdkDriver = {
       connectSession: sandbox.stub(),
       disconnectSession: sandbox.stub(),
-      forceDisconnectAll: sandbox.stub().callsArg(0),
-      startScreenShare: sandbox.stub(),
-      endScreenShare: sandbox.stub().returns(true)
+      forceDisconnectAll: sandbox.stub().callsArg(0)
     };
 
     fakeMultiplexGum = {
@@ -690,60 +687,6 @@ describe("loop.store.ActiveRoomStore", function () {
       }));
 
       expect(store.getStoreState().receivingScreenShare).eql(true);
-    });
-  });
-
-  describe("#startScreenShare", function() {
-    it("should set the state to 'pending'", function() {
-      store.startScreenShare(new sharedActions.StartScreenShare({
-        type: "window"
-      }));
-
-      sinon.assert.calledOnce(dispatcher.dispatch);
-      sinon.assert.calledWith(dispatcher.dispatch,
-        new sharedActions.ScreenSharingState({
-          state: SCREEN_SHARE_STATES.PENDING
-        }));
-    });
-
-    it("should invoke the SDK driver with the correct options for window sharing", function() {
-      store.startScreenShare(new sharedActions.StartScreenShare({
-        type: "window"
-      }));
-
-      sinon.assert.calledOnce(fakeSdkDriver.startScreenShare);
-      sinon.assert.calledWith(fakeSdkDriver.startScreenShare, {
-        videoSource: "window"
-      });
-    });
-
-    it("should invoke the SDK driver with the correct options for tab sharing", function() {
-      store.startScreenShare(new sharedActions.StartScreenShare({
-        type: "browser"
-      }));
-
-      sinon.assert.calledOnce(fakeMozLoop.getActiveTabWindowId);
-
-      sinon.assert.calledOnce(fakeSdkDriver.startScreenShare);
-      sinon.assert.calledWith(fakeSdkDriver.startScreenShare, {
-        videoSource: "browser",
-        constraints: {
-          browserWindow: 42,
-          scrollWithPage: true
-        }
-      });
-    })
-  });
-
-  describe("#endScreenShare", function() {
-    it("should set the state to 'inactive'", function() {
-      store.endScreenShare();
-
-      sinon.assert.calledOnce(dispatcher.dispatch);
-      sinon.assert.calledWith(dispatcher.dispatch,
-        new sharedActions.ScreenSharingState({
-          state: SCREEN_SHARE_STATES.INACTIVE
-        }));
     });
   });
 

@@ -69,31 +69,18 @@ RemoteWebProgress.prototype = {
 };
 
 function RemoteWebProgressManager (aBrowser) {
+  this._browser = aBrowser;
   this._topLevelWebProgress = new RemoteWebProgress(this, true);
   this._progressListeners = [];
 
-  this.swapBrowser(aBrowser);
+  this._browser.messageManager.addMessageListener("Content:StateChange", this);
+  this._browser.messageManager.addMessageListener("Content:LocationChange", this);
+  this._browser.messageManager.addMessageListener("Content:SecurityChange", this);
+  this._browser.messageManager.addMessageListener("Content:StatusChange", this);
+  this._browser.messageManager.addMessageListener("Content:ProgressChange", this);
 }
 
 RemoteWebProgressManager.prototype = {
-  swapBrowser: function(aBrowser) {
-    if (this._messageManager) {
-      this._messageManager.removeMessageListener("Content:StateChange", this);
-      this._messageManager.removeMessageListener("Content:LocationChange", this);
-      this._messageManager.removeMessageListener("Content:SecurityChange", this);
-      this._messageManager.removeMessageListener("Content:StatusChange", this);
-      this._messageManager.removeMessageListener("Content:ProgressChange", this);
-    }
-
-    this._browser = aBrowser;
-    this._messageManager = aBrowser.messageManager;
-    this._messageManager.addMessageListener("Content:StateChange", this);
-    this._messageManager.addMessageListener("Content:LocationChange", this);
-    this._messageManager.addMessageListener("Content:SecurityChange", this);
-    this._messageManager.addMessageListener("Content:StatusChange", this);
-    this._messageManager.addMessageListener("Content:ProgressChange", this);
-  },
-
   get topLevelWebProgress() {
     return this._topLevelWebProgress;
   },

@@ -7,6 +7,8 @@ import json
 import subprocess
 from StringIO import StringIO
 
+DEFAULT_OBJDIR = "/home/worker/object-folder"
+
 gecko_dir = sys.argv[1]
 os.chdir(gecko_dir)
 
@@ -15,6 +17,6 @@ environment = json.load(StringIO(result))
 
 topobjdir = environment["mozconfig"]["topobjdir"]
 if topobjdir is None:
-    topobjdir = sys.argv[2]
+    topobjdir = DEFAULT_OBJDIR
 
 print(topobjdir)
