@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -250,10 +249,6 @@ public class BaseResource implements Resource {
       delegate.handleHttpProtocolException(e);
     } catch (IOException e) {
       delegate.handleHttpIOException(e);
-    } catch (Exception e) {
-      // Bug 740731: Don't let an exception fall through. Wrapping isn't
-      // optimal, but often the exception is treated as an Exception anyway.
-      delegate.handleHttpIOException(new IOException(e));
     }
   }
 
@@ -267,16 +262,9 @@ public class BaseResource implements Resource {
     } catch (KeyManagementException e) {
       Logger.error(LOG_TAG, "Couldn't prepare client.", e);
       delegate.handleTransportException(e);
-      return;
     } catch (NoSuchAlgorithmException e) {
       Logger.error(LOG_TAG, "Couldn't prepare client.", e);
       delegate.handleTransportException(e);
-      return;
-    } catch (Exception e) {
-      // Bug 740731: Don't let an exception fall through. Wrapping isn't
-      // optimal, but often the exception is treated as an Exception anyway.
-      delegate.handleTransportException(new GeneralSecurityException(e));
-      return;
     }
     this.execute();
   }

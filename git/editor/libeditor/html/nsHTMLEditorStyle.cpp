@@ -1498,8 +1498,7 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
     // Let's see in what kind of element the selection is
     PRInt32 offset;
     nsCOMPtr<nsIDOMNode> selectedNode;
-    GetStartNodeAndOffset(selection, getter_AddRefs(selectedNode), &offset);
-    NS_ENSURE_TRUE(selectedNode, NS_OK);
+    res = GetStartNodeAndOffset(selection, getter_AddRefs(selectedNode), &offset);
     if (IsTextNode(selectedNode)) {
       nsCOMPtr<nsIDOMNode> parent;
       res = selectedNode->GetParentNode(getter_AddRefs(parent));

@@ -1,4 +1,8 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
 'use strict';
@@ -163,29 +167,29 @@ var StepperManager = (function StepperManagerClosure() {
     enabled: false,
     active: false,
     // Stepper specific functions.
-    create: function create(pageIndex) {
+    create: function create(pageNumber) {
       var debug = document.createElement('div');
-      debug.id = 'stepper' + pageIndex;
+      debug.id = 'stepper' + pageNumber;
       debug.setAttribute('hidden', true);
       debug.className = 'stepper';
       stepperDiv.appendChild(debug);
       var b = document.createElement('option');
-      b.textContent = 'Page ' + (pageIndex + 1);
-      b.value = pageIndex;
+      b.textContent = 'Page ' + (pageNumber + 1);
+      b.value = pageNumber;
       stepperChooser.appendChild(b);
-      var initBreakPoints = breakPoints[pageIndex] || [];
-      var stepper = new Stepper(debug, pageIndex, initBreakPoints);
+      var initBreakPoints = breakPoints[pageNumber] || [];
+      var stepper = new Stepper(debug, pageNumber, initBreakPoints);
       steppers.push(stepper);
       if (steppers.length === 1)
-        this.selectStepper(pageIndex, false);
+        this.selectStepper(pageNumber, false);
       return stepper;
     },
-    selectStepper: function selectStepper(pageIndex, selectPanel) {
+    selectStepper: function selectStepper(pageNumber, selectPanel) {
       if (selectPanel)
         this.manager.selectPanel(1);
       for (var i = 0; i < steppers.length; ++i) {
         var stepper = steppers[i];
-        if (stepper.pageIndex == pageIndex)
+        if (stepper.pageNumber == pageNumber)
           stepper.panel.removeAttribute('hidden');
         else
           stepper.panel.setAttribute('hidden', true);
@@ -193,11 +197,11 @@ var StepperManager = (function StepperManagerClosure() {
       var options = stepperChooser.options;
       for (var i = 0; i < options.length; ++i) {
         var option = options[i];
-        option.selected = option.value == pageIndex;
+        option.selected = option.value == pageNumber;
       }
     },
-    saveBreakPoints: function saveBreakPoints(pageIndex, bps) {
-      breakPoints[pageIndex] = bps;
+    saveBreakPoints: function saveBreakPoints(pageNumber, bps) {
+      breakPoints[pageNumber] = bps;
       sessionStorage.setItem('pdfjsBreakPoints', JSON.stringify(breakPoints));
     }
   };
@@ -205,12 +209,12 @@ var StepperManager = (function StepperManagerClosure() {
 
 // The stepper for each page's IRQueue.
 var Stepper = (function StepperClosure() {
-  function Stepper(panel, pageIndex, initialBreakPoints) {
+  function Stepper(panel, pageNumber, initialBreakPoints) {
     this.panel = panel;
     this.len;
     this.breakPoint = 0;
     this.nextBreakPoint = null;
-    this.pageIndex = pageIndex;
+    this.pageNumber = pageNumber;
     this.breakPoints = initialBreakPoints;
     this.currentIdx = -1;
   }
@@ -256,7 +260,7 @@ var Stepper = (function StepperClosure() {
               self.breakPoints.push(x);
             else
               self.breakPoints.splice(self.breakPoints.indexOf(x), 1);
-            StepperManager.saveBreakPoints(self.pageIndex, self.breakPoints);
+            StepperManager.saveBreakPoints(self.pageNumber, self.breakPoints);
           }
         })(i);
 
@@ -278,7 +282,7 @@ var Stepper = (function StepperClosure() {
       return null;
     },
     breakIt: function breakIt(idx, callback) {
-      StepperManager.selectStepper(this.pageIndex, true);
+      StepperManager.selectStepper(this.pageNumber, true);
       var self = this;
       var dom = document;
       self.currentIdx = idx;
@@ -423,9 +427,8 @@ var PDFBug = (function PDFBugClosure() {
       panels.setAttribute('class', 'panels');
       ui.appendChild(panels);
 
-      var container = document.getElementById('viewerContainer');
-      container.appendChild(ui);
-      container.style.right = panelWidth + 'px';
+      document.body.appendChild(ui);
+      document.body.style.paddingRight = panelWidth + 'px';
 
       // Initialize all the debugging tools.
       var tools = this.tools;

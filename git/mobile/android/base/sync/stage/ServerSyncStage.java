@@ -37,7 +37,6 @@ import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionBeginDeleg
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionCreationDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
 import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionWipeDelegate;
-import org.mozilla.gecko.sync.synchronizer.ServerLocalSynchronizer;
 import org.mozilla.gecko.sync.synchronizer.Synchronizer;
 import org.mozilla.gecko.sync.synchronizer.SynchronizerDelegate;
 
@@ -140,7 +139,7 @@ public abstract class ServerSyncStage implements
   public Synchronizer getConfiguredSynchronizer(GlobalSession session) throws NoCollectionKeysSetException, URISyntaxException, NonObjectJSONException, IOException, ParseException {
     Repository remote = wrappedServerRepo();
 
-    Synchronizer synchronizer = new ServerLocalSynchronizer();
+    Synchronizer synchronizer = new Synchronizer();
     synchronizer.repositoryA = remote;
     synchronizer.repositoryB = this.getLocalRepository();
     synchronizer.load(getConfig());
@@ -522,5 +521,12 @@ public abstract class ServerSyncStage implements
     } else {
       session.abort(lastException, reason);
     }
+  }
+
+  @Override
+  public void onSynchronizeAborted(Synchronizer synchronize) {
+    Logger.info(LOG_TAG, "onSynchronizeAborted.");
+
+    session.abort(null, "Synchronization was aborted.");
   }
 }

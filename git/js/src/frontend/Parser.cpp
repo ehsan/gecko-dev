@@ -5567,7 +5567,6 @@ Parser::assignExprWithoutYield(unsigned msg)
     GenexpGuard yieldGuard(this);
 #endif
     ParseNode *res = assignExpr();
-    yieldGuard.endBody();
     if (res) {
 #ifdef JS_HAS_GENERATORS
         if (!yieldGuard.checkValidBody(res, msg)) {

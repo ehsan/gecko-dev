@@ -646,7 +646,7 @@ NotificationController::CreateTextChangeEventFor(AccMutationEvent* aEvent)
   if (!container)
     return;
 
-  HyperTextAccessible* textAccessible = container->AsHyperText();
+  nsHyperTextAccessible* textAccessible = container->AsHyperText();
   if (!textAccessible)
     return;
 

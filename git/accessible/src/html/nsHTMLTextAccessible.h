@@ -38,7 +38,7 @@ public:
 /**
  * Used for HTML label element.
  */
-class nsHTMLLabelAccessible : public HyperTextAccessibleWrap
+class nsHTMLLabelAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsHTMLLabelAccessible(nsIContent* aContent, DocAccessible* aDoc);
@@ -53,7 +53,7 @@ public:
 /**
  * Used for HTML output element.
  */
-class nsHTMLOutputAccessible : public HyperTextAccessibleWrap
+class nsHTMLOutputAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsHTMLOutputAccessible(nsIContent* aContent, DocAccessible* aDoc);

@@ -18,10 +18,6 @@ ifndef INCLUDED_AUTOTARGETS_MK #{
 MKDIR ?= mkdir -p
 TOUCH ?= touch
 
-# Deps will be considered intermediate when used as a pre-requisite for
-# wildcard targets.  Inhibit their removal, mkdir -p is a standalone op.
-.PRECIOUS: %/.mkdir.done
-
 ###########################################################################
 # Threadsafe directory creation
 # GENERATED_DIRS - Automated creation of these directories.

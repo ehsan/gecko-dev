@@ -630,7 +630,6 @@ public:
   void SetFrame(nsTextControlFrame *aFrame){mFrame = aFrame;}
 
   void SettingValue(bool aValue) { mSettingValue = aValue; }
-  void SetValueChanged(bool aSetValueChanged) { mSetValueChanged = aSetValueChanged; }
 
   NS_DECL_ISUPPORTS
 
@@ -668,11 +667,6 @@ protected:
    * refrain from calling OnValueChanged.
    */
   bool mSettingValue;
-  /**
-   * Whether we are in the process of a SetValue call that doesn't want
-   * |SetValueChanged| to be called.
-   */
-  bool mSetValueChanged;
 };
 
 
@@ -687,7 +681,6 @@ nsTextInputListener::nsTextInputListener(nsITextControlElement* aTxtCtrlElement)
 , mHadUndoItems(false)
 , mHadRedoItems(false)
 , mSettingValue(false)
-, mSetValueChanged(true)
 {
 }
 
@@ -864,9 +857,7 @@ nsTextInputListener::EditAction()
 
   // Make sure we know we were changed (do NOT set this to false if there are
   // no undo items; JS could change the value and we'd still need to save it)
-  if (mSetValueChanged) {
-    frame->SetValueChanged(true);
-  }
+  frame->SetValueChanged(true);
 
   if (!mSettingValue) {
     mTxtCtrlElement->OnValueChanged(true);
@@ -1325,7 +1316,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
     rv = newEditor->EnableUndo(false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    SetValue(defaultValue, false, false);
+    SetValue(defaultValue, false);
 
     rv = newEditor->EnableUndo(true);
     NS_ASSERTION(NS_SUCCEEDED(rv),"Transaction Manager must have failed");
@@ -1509,7 +1500,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
   // Now that we don't have a frame any more, store the value in the text buffer.
   // The only case where we don't do this is if a value transfer is in progress.
   if (!mValueTransferInProgress) {
-    SetValue(value, false, false);
+    SetValue(value, false);
   }
 
   if (mRootNode && mMutationObserver) {
@@ -1728,8 +1719,7 @@ nsTextEditorState::GetValue(nsAString& aValue, bool aIgnoreWrap) const
 }
 
 void
-nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
-                            bool aSetValueChanged)
+nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput)
 {
   if (mEditor && mBoundFrame) {
     // The InsertText call below might flush pending notifications, which
@@ -1834,7 +1824,6 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
         mEditor->SetFlags(flags);
 
         mTextListener->SettingValue(true);
-        mTextListener->SetValueChanged(aSetValueChanged);
 
         // Also don't enforce max-length here
         PRInt32 savedMaxLength;
@@ -1847,7 +1836,6 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
           plaintextEditor->InsertText(insertValue);
         }
 
-        mTextListener->SetValueChanged(true);
         mTextListener->SettingValue(false);
 
         if (!weakFrame.IsAlive()) {
@@ -1857,7 +1845,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, bool aUserInput,
           // the existing selection -- see bug 574558), in which case we don't
           // need to reset the value here.
           if (!mBoundFrame) {
-            SetValue(newValue, false, aSetValueChanged);
+            SetValue(newValue, false);
           }
           valueSetter.Cancel();
           return;

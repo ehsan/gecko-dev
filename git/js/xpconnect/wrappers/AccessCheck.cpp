@@ -493,8 +493,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
                 nsCOMPtr<nsIDocument> doc =
                     do_QueryInterface(win->GetExtantDocument());
                 if (doc) {
-                    doc->WarnOnceAbout(nsIDocument::eNoExposedProps,
-                                       /* asError = */ true);
+                    doc->WarnOnceAbout(nsIDocument::eNoExposedProps);
                 }
             }
 

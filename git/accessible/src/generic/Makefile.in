@@ -20,12 +20,10 @@ CPPSRCS = \
   ARIAGridAccessible.cpp \
   DocAccessible.cpp \
   FormControlAccessible.cpp \
-  HyperTextAccessible.cpp \
   OuterDocAccessible.cpp \
   RootAccessible.cpp \
   TextLeafAccessible.cpp \
   $(NULL)
-
 EXPORTS_NAMESPACES = mozilla/a11y
 
 EXPORTS_mozilla/a11y = \

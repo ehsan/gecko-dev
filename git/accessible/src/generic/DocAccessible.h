@@ -10,8 +10,8 @@
 #include "nsIAccessibleDocument.h"
 #include "nsIAccessiblePivot.h"
 
-#include "HyperTextAccessibleWrap.h"
 #include "nsEventShell.h"
+#include "nsHyperTextAccessibleWrap.h"
 #include "NotificationController.h"
 
 #include "nsClassHashtable.h"
@@ -31,7 +31,7 @@ class nsAccessiblePivot;
 
 const PRUint32 kDefaultCacheSize = 256;
 
-class DocAccessible : public HyperTextAccessibleWrap,
+class DocAccessible : public nsHyperTextAccessibleWrap,
                       public nsIAccessibleDocument,
                       public nsIDocumentObserver,
                       public nsIObserver,
@@ -91,7 +91,7 @@ public:
 
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
 
-  // HyperTextAccessible
+  // nsHyperTextAccessible
   virtual already_AddRefed<nsIEditor> GetEditor() const;
 
   // DocAccessible

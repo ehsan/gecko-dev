@@ -175,10 +175,10 @@ public class Crypto5MiddlewareRepositorySession extends MiddlewareRepositorySess
     try {
       rec.encrypt();
     } catch (UnsupportedEncodingException e) {
-      delegate.onRecordStoreFailed(e, record.guid);
+      delegate.onRecordStoreFailed(e);
       return;
     } catch (CryptoException e) {
-      delegate.onRecordStoreFailed(e, record.guid);
+      delegate.onRecordStoreFailed(e);
       return;
     }
     // Allow the inner session to do delegate handling.

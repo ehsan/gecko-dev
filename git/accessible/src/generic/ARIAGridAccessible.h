@@ -8,7 +8,7 @@
 
 #include "nsIAccessibleTable.h"
 
-#include "HyperTextAccessibleWrap.h"
+#include "nsHyperTextAccessibleWrap.h"
 #include "TableAccessible.h"
 #include "xpcAccessibleTable.h"
 
@@ -88,7 +88,7 @@ protected:
 /**
  * Accessible for ARIA gridcell and rowheader/columnheader.
  */
-class ARIAGridCellAccessible : public HyperTextAccessibleWrap,
+class ARIAGridCellAccessible : public nsHyperTextAccessibleWrap,
                                public nsIAccessibleTableCell
 {
 public:
