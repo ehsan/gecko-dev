@@ -1,4 +1,4 @@
-# 
+#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -12,11 +12,11 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is the Netscape security libraries.
+# The Original Code is mozilla.org Code.
 #
 # The Initial Developer of the Original Code is
 # Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1994-2000
+# Portions created by the Initial Developer are Copyright (C) 1998
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -35,23 +35,8 @@
 #
 # ***** END LICENSE BLOCK *****
 
-CORE_DEPTH = ../../..
+#
+# Config stuff for Compaq OpenVMS
+#
 
-# MODULE public and private header  directories are implicitly REQUIRED.
-MODULE = nss
-
-CSRCS = \
-	conflict.c \
-	nonspr10.c \
-	remtest.c \
-	$(NULL)
-
-# The MODULE is always implicitly required.
-# Listing it here in REQUIRES makes it appear twice in the cc command line.
-REQUIRES = seccmd dbm
-
-PROGRAMS = $(CSRCS:.c=)
-
-TARGETS = $(PROGRAMS)
-
-NO_MD_RELEASE = 1
+include $(CORE_DEPTH)/coreconf/OpenVMS.mk

@@ -610,13 +610,13 @@ sftkdb_FreeUpdatePasswordKey(SFTKDBHandle *handle)
 {
     SECItem *key = NULL;
 
-    /* don't have one */
-    if (!handle) {
+    /* if we're a cert db, we don't have one */
+    if (handle->type == SFTK_CERTDB_TYPE) {
 	return;
     }
 
-    /* if we're a cert db, we don't have one */
-    if (handle->type == SFTK_CERTDB_TYPE) {
+    /* don't have one */
+    if (!handle) {
 	return;
     }
 

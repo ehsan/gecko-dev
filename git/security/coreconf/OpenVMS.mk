@@ -1,4 +1,4 @@
-# 
+#
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -12,11 +12,11 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is the Netscape security libraries.
+# The Original Code is mozilla.org Code.
 #
 # The Initial Developer of the Original Code is
 # Netscape Communications Corporation.
-# Portions created by the Initial Developer are Copyright (C) 1994-2000
+# Portions created by the Initial Developer are Copyright (C) 1998
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -35,23 +35,41 @@
 #
 # ***** END LICENSE BLOCK *****
 
-CORE_DEPTH = ../../..
+#
+# Config stuff for Compaq OpenVMS
+#
 
-# MODULE public and private header  directories are implicitly REQUIRED.
-MODULE = nss
+include $(CORE_DEPTH)/coreconf/UNIX.mk
 
-CSRCS = \
-	conflict.c \
-	nonspr10.c \
-	remtest.c \
-	$(NULL)
+CC			= cc
+CCC			= cxx
 
-# The MODULE is always implicitly required.
-# Listing it here in REQUIRES makes it appear twice in the cc command line.
-REQUIRES = seccmd dbm
+RANLIB			= /gnu/bin/true
 
-PROGRAMS = $(CSRCS:.c=)
+CPU_ARCH		:= $(shell uname -Wh)
 
-TARGETS = $(PROGRAMS)
+OS_CFLAGS		= -DVMS
+OS_CXXFLAGS		= -DVMS
 
-NO_MD_RELEASE = 1
+#
+# XCFLAGS are the only CFLAGS that are used during a link operation. Defining
+# OPTIMIZER in XCFLAGS means that each compilation line gets OPTIMIZER
+# included twice, but at least we get OPTIMIZER included in the link
+# operations; and OpenVMS needs it!
+#
+XCFLAGS                        += $(OPTIMIZER)
+
+DSO_LDOPTS	= -shared -auto_symvec
+MKSHLIB		= $(CC) $(OPTIMIZER) $(LDFLAGS) $(DSO_LDOPTS)
+
+ifdef MAPFILE
+# Add LD options to restrict exported symbols to those in the map file
+endif
+# Change PROCESS to put the mapfile in the correct format for this platform
+PROCESS_MAP_FILE = cp $< $@
+
+
+#
+# Always set CPU_TAG on Linux, OpenVMS, WINCE.
+#
+CPU_TAG = _$(CPU_ARCH)
