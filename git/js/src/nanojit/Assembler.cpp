@@ -116,6 +116,14 @@ namespace nanojit
     Assembler::Assembler(Fragmento* frago)
         : _frago(frago)
         , _gc(frago->core()->gc)
+		, _thisfrag(NULL)
+		, _branchStateMap(NULL)
+		, _latestGuard(NULL)
+		, _functions(NULL)
+		, _nIns(NULL)
+		, _nExitIns(NULL)
+		, _nativePages(NULL)
+		, _nativeExitPages(NULL)
 	{
         AvmCore *core = frago->core();
 		nInit(core);
@@ -737,11 +745,13 @@ namespace nanojit
 	    return getresv(ins) == 0;
 	}
 
-	NIns* Assembler::beginAssembly(RegAllocMap* branchStateMap)
+	NIns* Assembler::beginAssembly(Fragment* frag, RegAllocMap* branchStateMap)
 	{
 		_activation.lowwatermark = 1;
 		_activation.tos = _activation.lowwatermark;
 		_activation.highwatermark = _activation.tos;
+
+		_thisfrag = frag;
 		
 		counter_reset(native);
 		counter_reset(exitnative);
