@@ -332,6 +332,9 @@ public:
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
 
+  NS_IMETHOD              ModalEventFilter(PRBool aRealEvent, void *aEvent,
+                                           PRBool *aForWindow);
+
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
@@ -346,9 +349,11 @@ public:
 
   NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
   NS_IMETHOD              Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
+  NS_IMETHOD              InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous);
   NS_IMETHOD              Validate();
 
   virtual void*           GetNativeData(PRUint32 aDataType);
+  NS_IMETHOD              SetColorMap(nsColorMap *aColorMap);
   NS_IMETHOD              Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect);
   virtual nsIntPoint      WidgetToScreenOffset();
   NS_IMETHOD              BeginResizingChildren(void);
@@ -361,6 +366,17 @@ public:
 
   NS_IMETHOD              Update();
 
+  virtual void      ConvertToDeviceCoordinates(nscoord &aX, nscoord &aY);
+  void              LocalToWindowCoordinate(nsIntPoint& aPoint)         { ConvertToDeviceCoordinates(aPoint.x, aPoint.y); }
+  void              LocalToWindowCoordinate(nscoord& aX, nscoord& aY)   { ConvertToDeviceCoordinates(aX, aY); }
+  void              LocalToWindowCoordinate(nsIntRect& aRect)           { ConvertToDeviceCoordinates(aRect.x, aRect.y); }
+
+  NS_IMETHOD        SetMenuBar(void* aMenuBar);
+  NS_IMETHOD        ShowMenuBar(PRBool aShow);
+
+  NS_IMETHOD        GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight);
+  NS_IMETHOD        SetPreferredSize(PRInt32 aWidth, PRInt32 aHeight);
+  
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, PRUint32 aHotspotX, PRUint32 aHotspotY);
   
@@ -392,6 +408,7 @@ public:
   NS_IMETHOD        SetWindowShadowStyle(PRInt32 aStyle);
   
   // Mac specific methods
+  virtual PRBool    PointInWidget(Point aThePoint);
   
   virtual PRBool    DispatchWindowEvent(nsGUIEvent& event);
   
@@ -414,6 +431,8 @@ protected:
   PRBool            ReportDestroyEvent();
   PRBool            ReportMoveEvent();
   PRBool            ReportSizeEvent();
+
+  NS_IMETHOD        CalcOffset(PRInt32 &aX,PRInt32 &aY);
 
   virtual PRBool    OnPaint(nsPaintEvent & aEvent);
 

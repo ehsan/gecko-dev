@@ -44,10 +44,7 @@
 
 class mozStorageStatement;
 
-namespace mozilla {
-namespace storage {
-
-class StatementJSHelper : public nsIXPCScriptable
+class mozStorageStatementJSHelper : public nsIXPCScriptable
 {
 public:
   NS_DECL_ISUPPORTS
@@ -57,8 +54,5 @@ private:
   nsresult getRow(mozStorageStatement *, JSContext *, JSObject *, jsval *);
   nsresult getParams(mozStorageStatement *, JSContext *, JSObject *, jsval *);
 };
-
-} // namespace storage
-} // namespace mozilla
 
 #endif // __MOZSTORAGESTATEMENTJSHELPER_H__

@@ -49,7 +49,6 @@
 
 #include "nsTransform2D.h"
 
-#include "gfxContext.h"
 
 class nsDisplayItemCanvas : public nsDisplayItem {
 public:
@@ -225,7 +224,6 @@ void
 nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
                                const nsRect& aDirtyRect, nsPoint aPt) 
 {
-  nsPresContext *presContext = PresContext();
   nsRect inner = GetInnerArea() + aPt;
 
   nsCOMPtr<nsICanvasElement> canvas(do_QueryInterface(GetContent()));
@@ -236,24 +234,34 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
   if (inner.width == 0 || inner.height == 0)
     return;
 
-  nsIntSize sizeCSSPixels = GetCanvasSize();
-  nsSize sizeAppUnits(nsPresContext::CSSPixelsToAppUnits(sizeCSSPixels.width),
-                      nsPresContext::CSSPixelsToAppUnits(sizeCSSPixels.height));
+  nsIntSize canvasSize = GetCanvasSize();
+  nsSize sizeAppUnits(PresContext()->DevPixelsToAppUnits(canvasSize.width),
+                      PresContext()->DevPixelsToAppUnits(canvasSize.height));
 
-  gfxContext *ctx = aRenderingContext.ThebesContext();
+  // XXXvlad clip to aDirtyRect!
 
-  gfxFloat sx = inner.width / (gfxFloat) sizeAppUnits.width;
-  gfxFloat sy = inner.height / (gfxFloat) sizeAppUnits.height;
+  if (inner.Size() != sizeAppUnits)
+  {
+    float sx = inner.width / (float) sizeAppUnits.width;
+    float sy = inner.height / (float) sizeAppUnits.height;
 
-  ctx->Save();
+    aRenderingContext.PushState();
+    aRenderingContext.Translate(inner.x, inner.y);
+    aRenderingContext.Scale(sx, sy);
 
-  ctx->Translate(gfxPoint(presContext->AppUnitsToGfxUnits(inner.x),
-                          presContext->AppUnitsToGfxUnits(inner.y)));
-  ctx->Scale(sx, sy);
+    canvas->RenderContexts(aRenderingContext.ThebesContext());
 
-  canvas->RenderContexts(ctx);
+    aRenderingContext.PopState();
+  } else {
+    //nsIRenderingContext::AutoPushTranslation(&aRenderingContext, px, py);
 
-  ctx->Restore();
+    aRenderingContext.PushState();
+    aRenderingContext.Translate(inner.x, inner.y);
+
+    canvas->RenderContexts(aRenderingContext.ThebesContext());
+
+    aRenderingContext.PopState();
+  }
 }
 
 NS_IMETHODIMP

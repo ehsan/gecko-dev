@@ -901,6 +901,10 @@ var PlacesSearchBox = {
       //scopeBtn.label = PlacesOrganizer._places.selectedNode.title;
       break;
     case "bookmarks":
+      // Make sure we're getting uri results.
+      // We do not yet support searching into grouped queries or into
+      // tag containers, so we must fall to the default case.
+      currentOptions.resultType = currentOptions.RESULT_TYPE_URI;
       content.applyFilter(filterString, this.folders);
       break;
     case "history":
@@ -908,8 +912,6 @@ var PlacesSearchBox = {
         var query = PlacesUtils.history.getNewQuery();
         query.searchTerms = filterString;
         var options = currentOptions.clone();
-        // Make sure we're getting uri results.
-        options.resultType = currentOptions.RESULT_TYPE_URI;
         options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
         content.load([query], options);
       }

@@ -233,7 +233,6 @@ protected:
     nsInt64 mMaxTotalProgress;
 
     PLDHashTable mRequestInfoHash;
-    nsInt64 mCompletedTotalProgress;
 
     /*
      * This flag indicates that the loader is loading a document.  It is set
@@ -268,7 +267,6 @@ private:
     PRInt64 GetMaxTotalProgress();
 
     nsresult AddRequestInfo(nsIRequest* aRequest);
-    void RemoveRequestInfo(nsIRequest* aRequest);
     nsRequestInfo *GetRequestInfo(nsIRequest* aRequest);
     void ClearRequestInfoHash();
     PRInt64 CalculateMaxProgress();

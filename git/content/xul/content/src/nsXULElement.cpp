@@ -103,7 +103,6 @@
 #include "nsIServiceManager.h"
 #include "nsICSSStyleRule.h"
 #include "nsIStyleSheet.h"
-#include "nsDOMCSSAttrDeclaration.h"
 #include "nsIURL.h"
 #include "nsIViewManager.h"
 #include "nsIWidget.h"
@@ -160,6 +159,7 @@
 // Global object maintenance
 nsICSSParser* nsXULPrototypeElement::sCSSParser = nsnull;
 nsIXBLService * nsXULElement::gXBLService = nsnull;
+nsICSSOMFactory* nsXULElement::gCSSOMFactory = nsnull;
 
 /**
  * A tearoff class for nsXULElement to implement nsIScriptEventHandlerOwner.
@@ -191,6 +191,7 @@ private:
 //----------------------------------------------------------------------
 
 static NS_DEFINE_CID(kXULPopupListenerCID,        NS_XULPOPUPLISTENER_CID);
+static NS_DEFINE_CID(kCSSOMFactoryCID,            NS_CSSOMFACTORY_CID);
 
 //----------------------------------------------------------------------
 
@@ -1928,8 +1929,14 @@ nsXULElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
     if (!slots->mStyle) {
-        slots->mStyle = new nsDOMCSSAttributeDeclaration(this);
-        NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
+        if (!gCSSOMFactory) {
+            rv = CallGetService(kCSSOMFactoryCID, &gCSSOMFactory);
+            NS_ENSURE_SUCCESS(rv, rv);
+        }
+
+        rv = gCSSOMFactory->CreateDOMCSSAttributeDeclaration(this,
+                getter_AddRefs(slots->mStyle));
+        NS_ENSURE_SUCCESS(rv, rv);
         SetFlags(NODE_MAY_HAVE_STYLE);
     }
 

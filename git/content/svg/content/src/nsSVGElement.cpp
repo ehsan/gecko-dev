@@ -826,7 +826,6 @@ nsSVGElement::sViewportsMap[] = {
 // PresentationAttributes-Makers
 /* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sMarkersMap[] = {
-  { &nsGkAtoms::marker },
   { &nsGkAtoms::marker_end },
   { &nsGkAtoms::marker_mid },
   { &nsGkAtoms::marker_start },

@@ -70,6 +70,7 @@
 #include "nsIXULTemplateBuilder.h"
 #include "nsIBoxObject.h"
 #include "nsIXBLService.h"
+#include "nsICSSOMFactory.h"
 #include "nsLayoutCID.h"
 #include "nsAttrAndChildArray.h"
 #include "nsGkAtoms.h"
@@ -489,11 +490,13 @@ public:
     }
     static void ReleaseGlobals() {
         NS_IF_RELEASE(gXBLService);
+        NS_IF_RELEASE(gCSSOMFactory);
     }
 
 protected:
     // pseudo-constants
     static nsIXBLService*       gXBLService;
+    static nsICSSOMFactory*     gCSSOMFactory;
 
 public:
     static nsresult

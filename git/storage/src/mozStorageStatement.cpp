@@ -49,21 +49,19 @@
 #include "nsIProgrammingLanguage.h"
 
 #include "mozStorageConnection.h"
+#include "mozStorageStatement.h"
 #include "mozStorageStatementJSHelper.h"
 #include "mozStorageValueArray.h"
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageEvents.h"
 #include "mozStorageStatementParams.h"
 #include "mozStorageStatementRow.h"
-#include "mozStorageStatement.h"
 
 #include "prlog.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gStorageLog;
 #endif
-
-using namespace mozilla::storage;
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIClassInfo
@@ -89,7 +87,7 @@ public:
     GetHelperForLanguage(PRUint32 aLanguage, nsISupports **_helper)
     {
         if (aLanguage == nsIProgrammingLanguage::JAVASCRIPT) {
-            static StatementJSHelper sJSHelper;
+            static mozStorageStatementJSHelper sJSHelper;
             *_helper = &sJSHelper;
             return NS_OK;
         }
@@ -312,7 +310,8 @@ mozStorageStatement::Finalize()
             do_QueryInterface(mStatementParamsHolder);
         nsCOMPtr<mozIStorageStatementParams> iParams =
             do_QueryWrappedNative(wrapper);
-        StatementParams *params = static_cast<StatementParams *>(iParams.get());
+        mozStorageStatementParams *params =
+            static_cast<mozStorageStatementParams *>(iParams.get());
         params->mStatement = nsnull;
         mStatementParamsHolder = nsnull;
     }
@@ -322,7 +321,8 @@ mozStorageStatement::Finalize()
             do_QueryInterface(mStatementRowHolder);
         nsCOMPtr<mozIStorageStatementRow> iRow =
             do_QueryWrappedNative(wrapper);
-        StatementRow *row = static_cast<StatementRow *>(iRow.get());
+        mozStorageStatementRow *row =
+            static_cast<mozStorageStatementRow *>(iRow.get());
         row->mStatement = nsnull;
         mStatementRowHolder = nsnull;
     }

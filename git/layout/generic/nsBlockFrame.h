@@ -304,9 +304,7 @@ public:
       { return marginLeft + borderBoxWidth + marginRight; }
   };
   static ReplacedElementWidthToClear
-    WidthToClearPastFloats(nsBlockReflowState& aState,
-                           const nsRect& aFloatAvailableSpace,
-                           nsIFrame* aFrame);
+    WidthToClearPastFloats(nsBlockReflowState& aState, nsIFrame* aFrame);
 
   /**
    * Walks up the frame tree, starting with aCandidate, and returns the first
@@ -531,17 +529,14 @@ protected:
                              LineReflowStatus* aLineReflowStatus);
 
   // Compute the available width for a float. 
-  nsRect AdjustFloatAvailableSpace(nsBlockReflowState& aState,
-                                   const nsRect&       aFloatAvailableSpace,
-                                   nsIFrame*           aFloatFrame);
+  nsRect ComputeFloatAvailableSpace(nsBlockReflowState& aState,
+                                    nsIFrame*           aFloatFrame);
   // Computes the border-box width of the float
   nscoord ComputeFloatWidth(nsBlockReflowState& aState,
-                            const nsRect&       aFloatAvailableSpace,
                             nsPlaceholderFrame* aPlaceholder);
   // An incomplete aReflowStatus indicates the float should be split
   // but only if the available height is constrained.
   nsresult ReflowFloat(nsBlockReflowState& aState,
-                       const nsRect&       aFloatAvailableSpace,
                        nsPlaceholderFrame* aPlaceholder,
                        nsMargin&           aFloatMargin,
                        nsReflowStatus&     aReflowStatus);

@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+// vim:cindent:ts=8:et:sw=4:
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,15 +13,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Oracle Corporation code.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- *  Oracle Corporation
- * Portions created by the Initial Developer are Copyright (C) 2004
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
+ *   L. David Baron <dbaron@dbaron.org> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,34 +37,31 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef _MOZSTORAGESTATEMENTROW_H_
-#define _MOZSTORAGESTATEMENTROW_H_
+/* an XPCOM service for cross-module creation of DOM .style objects */
 
-#include "mozIStorageStatementWrapper.h"
-#include "nsIXPCScriptable.h"
-#include "mozStorageStatement.h"
-#include "nsString.h"
-#include "nsVoidArray.h"
+#include "nsCSSOMFactory.h"
+#include "nsDOMCSSAttrDeclaration.h"
 
-class mozStorageStatementRow : public mozIStorageStatementRow,
-                               public nsIXPCScriptable
+nsCSSOMFactory::nsCSSOMFactory()
 {
-public:
-    mozStorageStatementRow(mozStorageStatement *aStatement);
+}
 
-    // nsISupports interface
-    NS_DECL_ISUPPORTS
+nsCSSOMFactory::~nsCSSOMFactory()
+{
+}
 
-    // mozIStorageStatementRow interface (empty)
-    NS_DECL_MOZISTORAGESTATEMENTROW
+NS_IMPL_ISUPPORTS1(nsCSSOMFactory, nsICSSOMFactory)
 
-    // nsIXPCScriptable interface
-    NS_DECL_NSIXPCSCRIPTABLE
-protected:
-
-    mozStorageStatement *mStatement;
-
-    friend class mozStorageStatement;
-};
-
-#endif /* _MOZSTORAGESTATEMENTROW_H_ */
+NS_IMETHODIMP
+nsCSSOMFactory::CreateDOMCSSAttributeDeclaration(nsIContent *aContent,
+                                                 nsDOMCSSDeclaration **aResult)
+{
+    nsDOMCSSDeclaration *result = new nsDOMCSSAttributeDeclaration(aContent);
+    if (!result) {
+        *aResult = 0;
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+    NS_ADDREF(result);
+    *aResult = result;
+    return NS_OK;
+}
