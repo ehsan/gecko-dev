@@ -1277,7 +1277,14 @@ let CompositionManager =  {
     if (!this._isStarted) {
       return;
     }
-    domWindowUtils.sendCompositionEvent('compositioncommit', text, '');
+    // Update the composing text.
+    let compositionString = domWindowUtils.createCompositionStringSynthesizer();
+    compositionString.setString(text);
+    // Set the cursor position to |text.length| so that the text will be
+    // committed before the cursor position.
+    compositionString.setCaret(text.length, 0);
+    compositionString.dispatchEvent();
+    domWindowUtils.sendCompositionEvent('compositionend', text, '');
     this._isStarted = false;
   },
 

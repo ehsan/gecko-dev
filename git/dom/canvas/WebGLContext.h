@@ -72,6 +72,7 @@ class WebGLContextBoundObject;
 class WebGLActiveInfo;
 class WebGLExtensionBase;
 class WebGLBuffer;
+struct WebGLVertexAttribData;
 class WebGLShader;
 class WebGLProgram;
 class WebGLQuery;
@@ -82,7 +83,7 @@ class WebGLSampler;
 class WebGLShaderPrecisionFormat;
 class WebGLTexture;
 class WebGLVertexArray;
-struct WebGLVertexAttribData;
+
 
 namespace dom {
 class ImageData;
@@ -95,8 +96,6 @@ template<typename> struct Nullable;
 namespace gfx {
 class SourceSurface;
 }
-
-typedef WebGLRefPtr<WebGLQuery> WebGLQueryRefPtr;
 
 WebGLTexelFormat GetWebGLTexelFormat(TexInternalFormat format);
 
@@ -351,7 +350,7 @@ public:
     void ClearDepth(GLclampf v);
     void ClearStencil(GLint v);
     void ColorMask(WebGLboolean r, WebGLboolean g, WebGLboolean b, WebGLboolean a);
-    void CompileShader(WebGLShader* shader);
+    void CompileShader(WebGLShader *shader);
     void CompressedTexImage2D(GLenum target, GLint level,
                               GLenum internalformat, GLsizei width,
                               GLsizei height, GLint border,
@@ -824,6 +823,30 @@ public:
     void RestoreContext();
 
 // -----------------------------------------------------------------------------
+// Asynchronous Queries (WebGLContextAsyncQueries.cpp)
+public:
+    already_AddRefed<WebGLQuery> CreateQuery();
+    void DeleteQuery(WebGLQuery *query);
+    void BeginQuery(GLenum target, WebGLQuery *query);
+    void EndQuery(GLenum target);
+    bool IsQuery(WebGLQuery *query);
+    already_AddRefed<WebGLQuery> GetQuery(GLenum target, GLenum pname);
+    JS::Value GetQueryObject(JSContext* cx, WebGLQuery *query, GLenum pname);
+    void GetQueryObject(JSContext* cx, WebGLQuery *query, GLenum pname,
+                        JS::MutableHandle<JS::Value> retval) {
+        retval.set(GetQueryObject(cx, query, pname));
+    }
+
+private:
+    // ANY_SAMPLES_PASSED(_CONSERVATIVE) slot
+    WebGLRefPtr<WebGLQuery> mActiveOcclusionQuery;
+
+    // LOCAL_GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN slot
+    WebGLRefPtr<WebGLQuery> mActiveTransformFeedbackQuery;
+
+    WebGLRefPtr<WebGLQuery>* GetQueryTargetSlot(GLenum target, const char* infos);
+
+// -----------------------------------------------------------------------------
 // Buffer Objects (WebGLContextBuffers.cpp)
 public:
     void BindBuffer(GLenum target, WebGLBuffer* buf);
@@ -855,14 +878,6 @@ private:
     WebGLRefPtr<WebGLBuffer>* GetBufferSlotByTarget(GLenum target, const char* infos);
     WebGLRefPtr<WebGLBuffer>* GetBufferSlotByTargetIndexed(GLenum target, GLuint index, const char* infos);
     bool ValidateBufferUsageEnum(GLenum target, const char* infos);
-
-// -----------------------------------------------------------------------------
-// Queries (WebGL2ContextQueries.cpp)
-protected:
-    WebGLQueryRefPtr* GetQueryTargetSlot(GLenum target);
-
-    WebGLQueryRefPtr mActiveOcclusionQuery;
-    WebGLQueryRefPtr mActiveTransformFeedbackQuery;
 
 // -----------------------------------------------------------------------------
 // State and State Requests (WebGLContextState.cpp)
@@ -1069,9 +1084,6 @@ public:
         return mGLMaxVertexAttribs;
     }
 
-
-    bool IsFormatValidForFB(GLenum sizedFormat) const;
-
 protected:
     // Represents current status of the context with respect to context loss.
     // That is, whether the context is lost, and what part of the context loss
@@ -1103,10 +1115,6 @@ protected:
 
     // enable an extension. the extension should not be enabled before.
     void EnableExtension(WebGLExtensionID ext);
-
-    // Enable an extension if it's supported. Return the extension on success.
-    WebGLExtensionBase* EnableSupportedExtension(JSContext* js,
-                                                 WebGLExtensionID ext);
 
     // returns true if the extension has been enabled by calling getExtension.
     bool IsExtensionEnabled(WebGLExtensionID ext) const;

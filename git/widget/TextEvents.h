@@ -342,20 +342,6 @@ public:
   {
     return mRanges ? mRanges->Length() : 0;
   }
-
-  bool CausesDOMTextEvent() const
-  {
-    return message == NS_COMPOSITION_CHANGE ||
-           message == NS_COMPOSITION_COMMIT ||
-           message == NS_COMPOSITION_COMMIT_AS_IS;
-  }
-
-  bool CausesDOMCompositionEndEvent() const
-  {
-    return message == NS_COMPOSITION_END ||
-           message == NS_COMPOSITION_COMMIT ||
-           message == NS_COMPOSITION_COMMIT_AS_IS;
-  }
 };
 
 /******************************************************************************

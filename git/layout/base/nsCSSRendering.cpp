@@ -85,9 +85,9 @@ struct InlineBackgroundData
   void Reset()
   {
     mBoundingBox.SetRect(0,0,0,0);
-    mContinuationPoint = mLineContinuationPoint = mUnbrokenMeasure = 0;
+    mContinuationPoint = mLineContinuationPoint = mUnbrokenWidth = 0;
     mFrame = mBlockFrame = nullptr;
-    mPIStartBorderData.Reset();
+    mLeftBorderData.Reset();
   }
 
   /**
@@ -101,31 +101,25 @@ struct InlineBackgroundData
 
     SetFrame(aFrame);
 
-    nscoord pos; // an x coordinate if writing-mode is horizontal;
-                 // y coordinate if vertical
+    nscoord x;
     if (mBidiEnabled) {
-      pos = mLineContinuationPoint;
+      x = mLineContinuationPoint;
 
       // Scan continuations on the same line as aFrame and accumulate the widths
       // of frames that are to the left (if this is an LTR block) or right
       // (if it's RTL) of the current one.
       bool isRtlBlock = (mBlockFrame->StyleVisibility()->mDirection ==
                            NS_STYLE_DIRECTION_RTL);
-      nscoord curOffset = mVertical ? aFrame->GetOffsetTo(mBlockFrame).y
-                                    : aFrame->GetOffsetTo(mBlockFrame).x;
+      nscoord curOffset = aFrame->GetOffsetTo(mBlockFrame).x;
 
       // If the continuation is fluid we know inlineFrame is not on the same line.
       // If it's not fluid, we need to test further to be sure.
       nsIFrame* inlineFrame = aFrame->GetPrevContinuation();
       while (inlineFrame && !inlineFrame->GetNextInFlow() &&
              AreOnSameLine(aFrame, inlineFrame)) {
-        nscoord frameOffset = mVertical
-          ? inlineFrame->GetOffsetTo(mBlockFrame).y
-          : inlineFrame->GetOffsetTo(mBlockFrame).x;
-        if (isRtlBlock == (frameOffset >= curOffset)) {
-          pos += mVertical
-               ? inlineFrame->GetSize().height
-               : inlineFrame->GetSize().width;
+        nscoord frameXOffset = inlineFrame->GetOffsetTo(mBlockFrame).x;
+        if(isRtlBlock == (frameXOffset >= curOffset)) {
+          x += inlineFrame->GetSize().width;
         }
         inlineFrame = inlineFrame->GetPrevContinuation();
       }
@@ -133,82 +127,59 @@ struct InlineBackgroundData
       inlineFrame = aFrame->GetNextContinuation();
       while (inlineFrame && !inlineFrame->GetPrevInFlow() &&
              AreOnSameLine(aFrame, inlineFrame)) {
-        nscoord frameOffset = mVertical
-          ? inlineFrame->GetOffsetTo(mBlockFrame).y
-          : inlineFrame->GetOffsetTo(mBlockFrame).x;
-        if (isRtlBlock == (frameOffset >= curOffset)) {
-          pos += mVertical
-                 ? inlineFrame->GetSize().height
-                 : inlineFrame->GetSize().width;
+        nscoord frameXOffset = inlineFrame->GetOffsetTo(mBlockFrame).x;
+        if(isRtlBlock == (frameXOffset >= curOffset)) {
+          x += inlineFrame->GetSize().width;
         }
         inlineFrame = inlineFrame->GetNextContinuation();
       }
       if (isRtlBlock) {
         // aFrame itself is also to the right of its left edge, so add its width.
-        pos += mVertical ? aFrame->GetSize().height : aFrame->GetSize().width;
-        // pos is now the distance from the left [top] edge of aFrame to the right [bottom] edge
+        x += aFrame->GetSize().width;
+        // x is now the distance from the left edge of aFrame to the right edge
         // of the unbroken content. Change it to indicate the distance from the
-        // left [top] edge of the unbroken content to the left [top] edge of aFrame.
-        pos = mUnbrokenMeasure - pos;
+        // left edge of the unbroken content to the left edge of aFrame.
+        x = mUnbrokenWidth - x;
       }
     } else {
-      pos = mContinuationPoint;
+      x = mContinuationPoint;
     }
 
     // Assume background-origin: border and return a rect with offsets
     // relative to (0,0).  If we have a different background-origin,
     // then our rect should be deflated appropriately by our caller.
-    return mVertical
-      ? nsRect(0, -pos, mFrame->GetSize().width, mUnbrokenMeasure)
-      : nsRect(-pos, 0, mUnbrokenMeasure, mFrame->GetSize().height);
+    return nsRect(-x, 0, mUnbrokenWidth, mFrame->GetSize().height);
   }
 
   /**
    * Return a continuous rect for (an inline) aFrame relative to the
-   * continuation that should draw the left[top]-border.  This is used when painting
+   * continuation that should draw the left-border.  This is used when painting
    * borders and clipping backgrounds.  This may NOT be the same continuous rect
-   * as for drawing backgrounds; the continuation with the left[top]-border might be
+   * as for drawing backgrounds; the continuation with the left-border might be
    * somewhere in the middle of that rect (e.g. BIDI), in those cases we need
-   * the reverse background order starting at the left[top]-border continuation.
+   * the reverse background order starting at the left-border continuation.
    */
   nsRect GetBorderContinuousRect(nsIFrame* aFrame, nsRect aBorderArea)
   {
     // Calling GetContinuousRect(aFrame) here may lead to Reset/Init which
-    // resets our mPIStartBorderData so we save it ...
-    PhysicalInlineStartBorderData saved(mPIStartBorderData);
+    // resets our mLeftBorderData so we save it ...
+    LeftBorderData saved(mLeftBorderData);
     nsRect joinedBorderArea = GetContinuousRect(aFrame);
-    if (!saved.mIsValid || saved.mFrame != mPIStartBorderData.mFrame) {
-      if (aFrame == mPIStartBorderData.mFrame) {
-        if (mVertical) {
-          mPIStartBorderData.SetCoord(joinedBorderArea.y);
-        } else {
-          mPIStartBorderData.SetCoord(joinedBorderArea.x);
-        }
-      } else if (mPIStartBorderData.mFrame) {
-        if (mVertical) {
-          mPIStartBorderData.SetCoord(GetContinuousRect(mPIStartBorderData.mFrame).y);
-        } else {
-          mPIStartBorderData.SetCoord(GetContinuousRect(mPIStartBorderData.mFrame).x);
-        }
+    if (!saved.mIsValid || saved.mFrame != mLeftBorderData.mFrame) {
+      if (aFrame == mLeftBorderData.mFrame) {
+        mLeftBorderData.SetX(joinedBorderArea.x);
+      } else if (mLeftBorderData.mFrame) {
+        mLeftBorderData.SetX(GetContinuousRect(mLeftBorderData.mFrame).x);
       }
     } else {
       // ... and restore it when possible.
-      mPIStartBorderData.mCoord = saved.mCoord;
+      mLeftBorderData.mX = saved.mX;
     }
-    if (mVertical) {
-      if (joinedBorderArea.y > mPIStartBorderData.mCoord) {
-        joinedBorderArea.y =
-          -(mUnbrokenMeasure + joinedBorderArea.y - aBorderArea.height);
-      } else {
-        joinedBorderArea.y -= mPIStartBorderData.mCoord;
-      }
+    if (joinedBorderArea.x > mLeftBorderData.mX) {
+      joinedBorderArea.x =
+        -(mUnbrokenWidth + joinedBorderArea.x - aBorderArea.width);
     } else {
-      if (joinedBorderArea.x > mPIStartBorderData.mCoord) {
-        joinedBorderArea.x =
-          -(mUnbrokenMeasure + joinedBorderArea.x - aBorderArea.width);
-      } else {
-        joinedBorderArea.x -= mPIStartBorderData.mCoord;
-      }
+      joinedBorderArea.x -= mLeftBorderData.mX;
     }
     return joinedBorderArea;
   }
@@ -230,27 +201,22 @@ struct InlineBackgroundData
   }
 
 protected:
-  // This is a coordinate on the inline axis, but is not a true logical inline-
-  // coord because it is always measured from left to right (if horizontal) or
-  // from top to bottom (if vertical), ignoring any bidi RTL directionality.
-  // We'll call this "physical inline start", or PIStart for short.
-  struct PhysicalInlineStartBorderData {
+  struct LeftBorderData {
     nsIFrame* mFrame;   // the continuation that may have a left-border
-    nscoord   mCoord;   // cached GetContinuousRect(mFrame).x or .y
-    bool      mIsValid; // true if mCoord is valid
+    nscoord   mX;       // cached GetContinuousRect(mFrame).x
+    bool      mIsValid; // true if mX is valid
     void Reset() { mFrame = nullptr; mIsValid = false; }
-    void SetCoord(nscoord aCoord) { mCoord = aCoord; mIsValid = true; }
+    void SetX(nscoord aX) { mX = aX; mIsValid = true; }
   };
 
   nsIFrame*      mFrame;
   nsBlockFrame*  mBlockFrame;
   nsRect         mBoundingBox;
   nscoord        mContinuationPoint;
-  nscoord        mUnbrokenMeasure;
+  nscoord        mUnbrokenWidth;
   nscoord        mLineContinuationPoint;
-  PhysicalInlineStartBorderData mPIStartBorderData;
+  LeftBorderData mLeftBorderData;
   bool           mBidiEnabled;
-  bool           mVertical;
 
   void SetFrame(nsIFrame* aFrame)
   {
@@ -273,8 +239,7 @@ protected:
 
     // Get our last frame's size and add its width to our continuation
     // point before we cache the new frame.
-    mContinuationPoint += mVertical ? mFrame->GetSize().height
-                                    : mFrame->GetSize().width;
+    mContinuationPoint += mFrame->GetSize().width;
 
     // If this a new line, update mLineContinuationPoint.
     if (mBidiEnabled &&
@@ -324,7 +289,7 @@ protected:
 
   void Init(nsIFrame* aFrame)
   {
-    mPIStartBorderData.Reset();
+    mLeftBorderData.Reset();
     mBidiEnabled = aFrame->PresContext()->BidiEnabled();
     if (mBidiEnabled) {
       // Find the containing block frame
@@ -338,23 +303,20 @@ protected:
       NS_ASSERTION(mBlockFrame, "Cannot find containing block.");
     }
 
-    mVertical = aFrame->GetWritingMode().IsVertical();
-
     // Start with the previous flow frame as our continuation point
     // is the total of the widths of the previous frames.
     nsIFrame* inlineFrame = GetPrevContinuation(aFrame);
     while (inlineFrame) {
-      if (!mPIStartBorderData.mFrame &&
-          !(mVertical ? inlineFrame->GetSkipSides().Top()
-                      : inlineFrame->GetSkipSides().Left())) {
-        mPIStartBorderData.mFrame = inlineFrame;
+      if (!mLeftBorderData.mFrame &&
+          !inlineFrame->GetSkipSides().Left()) {
+        mLeftBorderData.mFrame = inlineFrame;
       }
       nsRect rect = inlineFrame->GetRect();
-      mContinuationPoint += mVertical ? rect.height : rect.width;
+      mContinuationPoint += rect.width;
       if (mBidiEnabled && !AreOnSameLine(aFrame, inlineFrame)) {
-        mLineContinuationPoint += mVertical ? rect.height : rect.width;
+        mLineContinuationPoint += rect.width;
       }
-      mUnbrokenMeasure += mVertical ? rect.height : rect.width;
+      mUnbrokenWidth += rect.width;
       mBoundingBox.UnionRect(mBoundingBox, rect);
       inlineFrame = GetPrevContinuation(inlineFrame);
     }
@@ -363,13 +325,12 @@ protected:
     // unbroken width.
     inlineFrame = aFrame;
     while (inlineFrame) {
-      if (!mPIStartBorderData.mFrame &&
-          !(mVertical ? inlineFrame->GetSkipSides().Top()
-                      : inlineFrame->GetSkipSides().Left())) {
-        mPIStartBorderData.mFrame = inlineFrame;
+      if (!mLeftBorderData.mFrame &&
+          !inlineFrame->GetSkipSides().Left()) {
+        mLeftBorderData.mFrame = inlineFrame;
       }
       nsRect rect = inlineFrame->GetRect();
-      mUnbrokenMeasure += mVertical ? rect.height : rect.width;
+      mUnbrokenWidth += rect.width;
       mBoundingBox.UnionRect(mBoundingBox, rect);
       inlineFrame = GetNextContinuation(inlineFrame);
     }

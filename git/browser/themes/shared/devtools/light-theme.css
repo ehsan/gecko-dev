@@ -15,7 +15,6 @@
   --theme-toolbar-background: #f0f1f2;
   --theme-selection-background: #4c9ed9;
   --theme-selection-color: #f5f7fa;
-  --theme-selection-background-semitransparent: rgba(76, 158, 217, .23);
   --theme-splitter-color: #aaaaaa;
   --theme-comment: hsl(90,2%,46%);
 
@@ -51,7 +50,7 @@
 }
 
 .theme-bg-darker {
-  background: var(--theme-selection-background-semitransparent);
+  background: #EFEFEF;
 }
 
 .theme-selected,

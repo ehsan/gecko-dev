@@ -331,8 +331,7 @@ PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
     aStatus = mAttachedWidgetListener->HandleEvent(event, mUseAttachedEvents);
   }
 
-  if (event->mClass == eCompositionEventClass &&
-      event->AsCompositionEvent()->CausesDOMCompositionEndEvent()) {
+  if (event->message == NS_COMPOSITION_END) {
     mIMEComposing = false;
   }
 

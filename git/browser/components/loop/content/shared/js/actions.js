@@ -225,10 +225,7 @@ loop.shared.actions = (function() {
      * XXX: should move to some roomActions module - refs bug 1079284
      */
     GetAllRoomsError: Action.define("getAllRoomsError", {
-      // There's two types of error possible - one thrown by our code (and Error)
-      // and the other is an Object about the error codes from the server as
-      // returned by the Hawk request.
-      error: [Error, Object]
+      error: Error
     }),
 
     /**

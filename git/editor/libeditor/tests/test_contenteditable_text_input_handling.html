@@ -257,7 +257,16 @@ function runTests()
     is(querySelectedText.text, "",
        "query selected text event returns wrong selected text" + when);
     // commit composition
-    synthesizeComposition({ type: "compositioncommitasis" });
+    synthesizeCompositionChange(
+      { "composition":
+        { "string": "\u3089",
+          "clauses":
+          [
+            { "length": 0, "attr": 0 }
+          ]
+        },
+        "caret": { "start": 1, "length": 0 }
+      });
     queryText = synthesizeQueryTextContent(0, 100);
     ok(queryText, "query text event result is null after commit" + when);
     if (!queryText) {
@@ -285,6 +294,8 @@ function runTests()
     is(querySelectedText.text, "",
        "query selected text event returns wrong selected text after commit" +
          when);
+    // end composition
+    synthesizeComposition({ type: "compositionend", data: "\u3089" });
 
     checkValue(staticContent, "\u3089");
     checkValue(inputInStatic, "\u3089");

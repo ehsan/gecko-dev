@@ -102,7 +102,6 @@ namespace mozilla {
 #undef NS_ROOT_EVENT_CLASS
 
 // BasicEvents.h
-struct BaseEventFlags;
 struct EventFlags;
 
 // TextEvents.h
