@@ -329,14 +329,13 @@ APZCCallbackHelper::GetDOMWindowUtils(const nsIContent* aContent)
 }
 
 bool
-APZCCallbackHelper::GetOrCreateScrollIdentifiers(nsIContent* aContent,
-                                                 uint32_t* aPresShellIdOut,
-                                                 FrameMetrics::ViewID* aViewIdOut)
+APZCCallbackHelper::GetScrollIdentifiers(const nsIContent* aContent,
+                                         uint32_t* aPresShellIdOut,
+                                         FrameMetrics::ViewID* aViewIdOut)
 {
-    if (!aContent) {
+    if (!aContent || !nsLayoutUtils::FindIDFor(aContent, aViewIdOut)) {
         return false;
     }
-    *aViewIdOut = nsLayoutUtils::FindOrCreateIDFor(aContent);
     nsCOMPtr<nsIDOMWindowUtils> utils = GetDOMWindowUtils(aContent);
     return utils && (utils->GetPresShellId(aPresShellIdOut) == NS_OK);
 }

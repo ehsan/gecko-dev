@@ -391,6 +391,9 @@ pref("content.ime.strict_policy", true);
 // $ adb shell start
 pref("browser.dom.window.dump.enabled", false);
 
+// Turn on the CSP 1.0 parser for Content Security Policy headers
+pref("security.csp.speccompliant", true);
+
 // Default Content Security Policy to apply to privileged and certified apps
 pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'");
 // If you change this CSP, make sure to update the fast path in nsCSPService.cpp
@@ -839,7 +842,6 @@ pref("general.useragent.updates.retry", 86400); // 1 day
 pref("media.useAudioChannelService", true);
 
 pref("b2g.version", @MOZ_B2G_VERSION@);
-pref("b2g.osName", @MOZ_B2G_OS_NAME@);
 
 // Disable console buffering to save memory.
 pref("consoleservice.buffered", false);

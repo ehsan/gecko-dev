@@ -268,6 +268,7 @@ private:
   mozilla::dom::CSSValue* DoGetGridAutoFlow();
   mozilla::dom::CSSValue* DoGetGridAutoColumns();
   mozilla::dom::CSSValue* DoGetGridAutoRows();
+  mozilla::dom::CSSValue* DoGetGridAutoPosition();
   mozilla::dom::CSSValue* DoGetGridTemplateAreas();
   mozilla::dom::CSSValue* DoGetGridTemplateColumns();
   mozilla::dom::CSSValue* DoGetGridTemplateRows();
