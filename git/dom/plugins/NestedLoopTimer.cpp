@@ -1,4 +1,6 @@
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: sw=4 ts=4 et :
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -11,14 +13,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla Plugin App.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is mozilla.org code.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s):
- *   Gavin Sharp <gavin@gavinsharp.com> (original author)
+ * Contributors(s):
+ *  Tero Koskinen <tero.koskinen@iki.fi>  (Original Author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,36 +36,45 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function test() {
-  /** Tests for Services.jsm (Bug 512784) **/
-  ok(Services, "Services object exists");
-  checkServices();
+#include <QtCore/QTimer>
+
+#include "NestedLoopTimer.h"
+#include "mozilla/plugins/PluginModuleChild.h"
+
+namespace mozilla {
+namespace plugins {
+
+NestedLoopTimer::NestedLoopTimer(PluginModuleChild *pmc):
+     QObject(), mModule(pmc), mQTimer(NULL)
+{
 }
 
-function checkService(service, interface) {
-  ok(service in Services, "Services." + service + " exists");
-  ok(Services[service] instanceof interface, "Services." + service + " is an " + interface);
+NestedLoopTimer::~NestedLoopTimer()
+{
+    if (mQTimer) {
+        mQTimer->stop();
+        delete mQTimer;
+        mQTimer = NULL;
+    }
 }
 
-function checkServices() {
-  checkService("prefs", Ci.nsIPrefBranch2);
-  checkService("prefs", Ci.nsIPrefService);
-  checkService("wm", Ci.nsIWindowMediator);
-  checkService("perms", Ci.nsIPermissionManager);
-  checkService("io", Ci.nsIIOService);
-  checkService("io", Ci.nsIIOService2);
-  checkService("appinfo", Ci.nsIXULAppInfo);
-  checkService("appinfo", Ci.nsIXULRuntime);
-  checkService("dirsvc", Ci.nsIDirectoryService);
-  checkService("dirsvc", Ci.nsIProperties);
-  checkService("prompt", Ci.nsIPromptService);
-  if ("nsIBrowserSearchService" in Ci)
-    checkService("search", Ci.nsIBrowserSearchService);
-  checkService("storage", Ci.mozIStorageService);
-  checkService("vc", Ci.nsIVersionComparator);
-  checkService("locale", Ci.nsILocaleService);
-  checkService("scriptloader", Ci.mozIJSSubScriptLoader);
-  checkService("ww", Ci.nsIWindowWatcher);
-  checkService("tm", Ci.nsIThreadManager);
-  checkService("strings", Ci.nsIStringBundleService);
+void NestedLoopTimer::timeOut()
+{
+    // just detected a nested loop; start a timer that will
+    // periodically rpc-call back into the browser and process some
+    // events
+    mQTimer = new QTimer(this);
+    QObject::connect(mQTimer, SIGNAL(timeout()), this,
+                     SLOT(processSomeEvents()));
+    mQTimer->setInterval(kNestedLoopDetectorIntervalMs);
+    mQTimer->start();
 }
+
+void NestedLoopTimer::processSomeEvents()
+{
+    if (mModule)
+        mModule->CallProcessSomeEvents();
+}
+
+} /* namespace plugins */
+} /* namespace mozilla */
