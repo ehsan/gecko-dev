@@ -703,8 +703,6 @@ let CustomizableUIInternal = {
       // We remove location attributes here to make sure they're gone too when a
       // widget is removed from a toolbar to the palette. See bug 930950.
       this.removeLocationAttributes(widgetNode);
-      // We also need to remove the panel context menu if it's there:
-      this.ensureButtonContextMenu(widgetNode);
       widgetNode.removeAttribute("wrap");
       if (gPalette.has(aWidgetId) || this.isSpecialWidget(aWidgetId)) {
         container.removeChild(widgetNode);
@@ -1141,6 +1139,8 @@ let CustomizableUIInternal = {
     LOG("handleWidgetCommand");
 
     if (aWidget.type == "button") {
+      this.maybeAutoHidePanel(aEvent);
+
       if (aWidget.onCommand) {
         try {
           aWidget.onCommand.call(null, aEvent);
@@ -1162,6 +1162,10 @@ let CustomizableUIInternal = {
 
   handleWidgetClick: function(aWidget, aNode, aEvent) {
     LOG("handleWidgetClick");
+    if (aWidget.type == "button") {
+      this.maybeAutoHidePanel(aEvent);
+    }
+
     if (aWidget.onClick) {
       try {
         aWidget.onClick.call(null, aEvent);
@@ -1318,7 +1322,7 @@ let CustomizableUIInternal = {
     let target = aEvent.originalTarget;
     let closemenu = "auto";
     let widgetType = "button";
-    while (target.parentNode && target.localName != "panel") {
+    while (target.localName != "panel") {
       closemenu = target.getAttribute("closemenu");
       widgetType = target.getAttribute("widget-type");
       if (closemenu == "none" || closemenu == "single" ||
