@@ -97,6 +97,7 @@ public:
   NS_IMETHOD GetKeyboardShortcut(nsAString& _retval);
 
   // nsAccessNode
+  virtual PRBool Init();
   virtual void Shutdown();
 
   // nsAccessible
@@ -106,15 +107,15 @@ public:
   virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
 
 protected:
-  // nsAccessible
-  virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
-
-  // nsLinkableAccessible
-
   /**
    * Return an accessible for cached action node.
    */
   nsAccessible *GetActionAccessible() const;
+
+  /**
+   * Cache action node.
+   */
+  virtual void CacheActionContent();
 
   nsCOMPtr<nsIContent> mActionContent;
   PRPackedBool mIsLink;

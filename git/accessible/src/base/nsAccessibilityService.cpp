@@ -837,6 +837,28 @@ nsAccessibilityService::GetCachedAccessibleOrContainer(nsINode* aNode)
   return accessible;
 }
 
+PRBool
+nsAccessibilityService::InitAccessible(nsAccessible *aAccessible,
+                                       nsRoleMapEntry *aRoleMapEntry)
+{
+  if (!aAccessible)
+    return PR_FALSE;
+
+  // Add to cache an accessible, etc.
+  if (!aAccessible->Init()) {
+    NS_ERROR("Failed to initialize an accessible!");
+
+    aAccessible->Shutdown();
+    return PR_FALSE;
+  }
+
+  NS_ASSERTION(aAccessible->IsInCache(),
+               "Initialized accessible not in the cache!");
+
+  aAccessible->SetRoleMapEntry(aRoleMapEntry);
+  return PR_TRUE;
+}
+
 static PRBool HasRelatedContent(nsIContent *aContent)
 {
   nsAutoString id;
@@ -936,13 +958,6 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     return areaAcc;
   }
 
-  nsDocAccessible* docAcc =
-    GetAccService()->GetDocAccessible(aNode->GetOwnerDoc());
-  if (!docAcc) {
-    NS_NOTREACHED("No document for accessible being created!");
-    return nsnull;
-  }
-
   // Attempt to create an accessible based on what we know.
   nsRefPtr<nsAccessible> newAcc;
   if (content->IsNodeOfType(nsINode::eTEXT)) {
@@ -961,7 +976,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     }
     if (weakFrame.IsAlive()) {
       newAcc = weakFrame.GetFrame()->CreateAccessible();
-      if (docAcc->BindToDocument(newAcc, nsnull))
+      if (InitAccessible(newAcc, nsnull))
         return newAcc.forget();
       return nsnull;
     }
@@ -989,7 +1004,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     }
 
     newAcc = new nsHyperTextAccessibleWrap(content, aWeakShell);
-    if (docAcc->BindToDocument(newAcc, nsAccUtils::GetRoleMapEntry(aNode)))
+    if (InitAccessible(newAcc, nsAccUtils::GetRoleMapEntry(aNode)))
       return newAcc.forget();
     return nsnull;
   }
@@ -1176,7 +1191,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     }
   }
 
-  if (docAcc->BindToDocument(newAcc, roleMapEntry))
+  if (InitAccessible(newAcc, roleMapEntry))
     return newAcc.forget();
   return nsnull;
 }
@@ -1333,29 +1348,22 @@ nsAccessibilityService::GetAreaAccessible(nsIFrame* aImageFrame,
 
   // Try to get image map accessible from the global cache or create it
   // if failed.
-  nsRefPtr<nsAccessible> image = GetCachedAccessible(aImageFrame->GetContent(),
-                                                     aWeakShell);
-  if (!image) {
-    image = CreateHTMLImageAccessible(aImageFrame->GetContent(),
-                                      aImageFrame->PresContext()->PresShell());
+  nsRefPtr<nsAccessible> imageAcc =
+    GetCachedAccessible(aImageFrame->GetContent(), aWeakShell);
+  if (!imageAcc) {
+    imageAcc = CreateHTMLImageAccessible(aImageFrame->GetContent(),
+                                         aImageFrame->PresContext()->PresShell());
 
-    nsDocAccessible* document =
-      GetAccService()->GetDocAccessible(aAreaNode->GetOwnerDoc());
-    if (!document) {
-      NS_NOTREACHED("No document for accessible being created!");
-      return nsnull;
-    }
-
-    if (!document->BindToDocument(image, nsnull))
+    if (!InitAccessible(imageAcc, nsnull))
       return nsnull;
   }
 
   if (aImageAccessible)
-    *aImageAccessible = image;
+    *aImageAccessible = imageAcc;
 
   // Make sure <area> accessible children of the image map are cached so
   // that they should be available in global cache.
-  image->EnsureChildren();
+  imageAcc->EnsureChildren();
 
   return GetCachedAccessible(aAreaNode, aWeakShell);
 }
@@ -1763,7 +1771,7 @@ nsAccessibilityService::AddNativeRootAccessible(void* aAtkAccessible)
   if (!applicationAcc)
     return nsnull;
 
-  nsRefPtr<nsNativeRootAccessibleWrap> nativeRootAcc =
+  nsNativeRootAccessibleWrap* nativeRootAcc =
      new nsNativeRootAccessibleWrap((AtkObject*)aAtkAccessible);
   if (!nativeRootAcc)
     return nsnull;

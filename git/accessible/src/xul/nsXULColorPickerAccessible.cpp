@@ -41,7 +41,6 @@
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
-#include "nsDocAccessible.h"
 
 #include "nsIDOMElement.h"
 
@@ -172,8 +171,5 @@ nsXULColorPickerAccessible::CacheChildren()
       AppendChild(child);
       return;
     }
-
-    // Unbind rejected accessibles from the document.
-    GetDocAccessible()->UnbindFromDocument(child);
   }
 }
