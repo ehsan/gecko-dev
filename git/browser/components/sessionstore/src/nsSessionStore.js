@@ -1617,9 +1617,14 @@ SessionStoreService.prototype = {
           if (cookie.isSession && _this._checkPrivacyLevel(cookie.isSecure)) {
             // use the cookie's host, path, and name as keys into a hash,
             // to make sure we serialize each cookie only once
-            if (!(cookie.host in jscookies &&
-                  cookie.path in jscookies[cookie.host] &&
-                  cookie.name in jscookies[cookie.host][cookie.path])) {
+            var isInHash = false;
+            try {
+              if (jscookies[cookie.host][cookie.path][cookie.name])
+                isInHash = true;
+            } catch (e) {
+              // not in hash yet
+            }
+            if (!isInHash) {
               var jscookie = { "host": cookie.host, "value": cookie.value };
               // only add attributes with non-default values (saving a few bits)
               if (cookie.path) jscookie.path = cookie.path;
