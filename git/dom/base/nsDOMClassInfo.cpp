@@ -2043,9 +2043,7 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
         // we also pass in the calling window as the first argument
         unsigned argc = args.length() + 1;
         JS::AutoValueVector argv(cx);
-        if (!argv.resize(argc)) {
-          return NS_ERROR_OUT_OF_MEMORY;
-        }
+        argv.resize(argc);
 
         nsCOMPtr<nsIDOMWindow> currentWin(do_GetInterface(currentInner));
         rv = WrapNative(cx, obj, currentWin, &NS_GET_IID(nsIDOMWindow),
@@ -2060,7 +2058,9 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
         }
 
         JS::Rooted<JS::Value> frval(cx);
-        bool ret = JS_CallFunctionValue(cx, thisObject, funval, argv, frval.address());
+        bool ret = JS_CallFunctionValue(cx, thisObject, funval,
+                                        argc, argv.begin(),
+                                        frval.address());
 
         if (!ret) {
           return NS_ERROR_FAILURE;

@@ -18,12 +18,9 @@
 
 class nsICycleCollectorListener;
 class nsIXPConnectJSObjectHolder;
+class nsRootedJSValueArray;
 class nsScriptNameSpaceManager;
 class nsCycleCollectionNoteRootCallback;
-
-namespace JS {
-class AutoValueVector;
-}
 
 namespace mozilla {
 template <class> class Maybe;
@@ -150,7 +147,9 @@ protected:
   // Helper to convert xpcom datatypes to jsvals.
   nsresult ConvertSupportsTojsvals(nsISupports *aArgs,
                                    JS::Handle<JSObject*> aScope,
-                                   JS::AutoValueVector &aArgsOut);
+                                   uint32_t *aArgc,
+                                   JS::Value **aArgv,
+                                   mozilla::Maybe<nsRootedJSValueArray> &aPoolRelease);
 
   nsresult AddSupportsPrimitiveTojsvals(nsISupports *aArg, JS::Value *aArgv);
 

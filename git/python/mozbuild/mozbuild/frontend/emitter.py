@@ -37,7 +37,6 @@ from .data import (
     PreprocessedWebIDLFile,
     Program,
     ReaderSummary,
-    Resources,
     SandboxWrapped,
     SimpleProgram,
     TestWebIDLFile,
@@ -227,7 +226,6 @@ class TreeMetadataEmitter(LoggingMixin):
             'FILES_PER_UNIFIED_FILE',
             'FORCE_SHARED_LIB',
             'FORCE_STATIC_LIB',
-            'USE_STATIC_LIBS',
             'GENERATED_FILES',
             'HOST_LIBRARY_NAME',
             'IS_COMPONENT',
@@ -240,7 +238,6 @@ class TreeMetadataEmitter(LoggingMixin):
             'OS_LIBS',
             'RCFILE',
             'RESFILE',
-            'DEFFILE',
             'SDK_LIBRARY',
         ]
         for v in varlist:
@@ -310,10 +307,6 @@ class TreeMetadataEmitter(LoggingMixin):
         defines = sandbox.get('DEFINES')
         if defines:
             yield Defines(sandbox, defines)
-
-        resources = sandbox.get('RESOURCE_FILES')
-        if resources:
-            yield Resources(sandbox, resources, defines)
 
         program = sandbox.get('PROGRAM')
         if program:

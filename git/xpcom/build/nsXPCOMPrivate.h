@@ -194,8 +194,6 @@ namespace mozilla {
 nsresult
 ShutdownXPCOM(nsIServiceManager* servMgr);
 
-void SetICUMemoryFunctions();
-
 /**
  * C++ namespaced version of NS_LogTerm.
  */

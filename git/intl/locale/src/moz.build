@@ -42,8 +42,3 @@ GENERATED_FILES = [
 LOCAL_INCLUDES += [
     '/intl/uconv/src',
 ]
-
-RESOURCE_FILES += [
-    'langGroups.properties',
-    'language.properties',
-]

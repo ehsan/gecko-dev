@@ -1344,11 +1344,9 @@ let RIL = {
    *        Integer doing something XXX TODO
    */
   dial: function(options) {
-    let onerror = (function onerror(options, errorMsg) {
-      options.success = false;
-      options.errorMsg = errorMsg;
-      this.sendChromeMessage(options);
-    }).bind(this, options);
+    let onerror = (function onerror(errorMsg) {
+      this._sendCallError(-1, errorMsg);
+    }).bind(this);
 
     if (this._isEmergencyNumber(options.number)) {
       this.dialEmergencyNumber(options, onerror);
@@ -1412,7 +1410,7 @@ let RIL = {
   },
 
   sendDialRequest: function(options) {
-    Buf.newParcel(options.request, options);
+    Buf.newParcel(options.request);
     Buf.writeString(options.number);
     Buf.writeInt32(options.clirMode || 0);
     Buf.writeInt32(options.uusInfo || 0);
@@ -1928,8 +1926,8 @@ let RIL = {
   /**
    * Get failure casue code for the most recently failed PDP context.
    */
-  getFailCauseCode: function(callback) {
-    Buf.simpleRequest(REQUEST_LAST_CALL_FAIL_CAUSE, {callback: callback});
+  getFailCauseCode: function(options) {
+    Buf.simpleRequest(REQUEST_LAST_CALL_FAIL_CAUSE, options);
   },
 
   /**
@@ -3484,10 +3482,7 @@ let RIL = {
           this._handleDisconnectedCall(currentCall);
         } else {
           delete this.currentCalls[currentCall.callIndex];
-          this.getFailCauseCode((function(call, failCause) {
-            call.failCause = failCause;
-            this._handleDisconnectedCall(call);
-          }).bind(this, currentCall));
+          this.getFailCauseCode(currentCall);
         }
         continue;
       }
@@ -3667,6 +3662,12 @@ let RIL = {
     let message = {rilMessageType: "callDisconnected",
                    call: disconnectedCall};
     this.sendChromeMessage(message);
+  },
+
+  _sendCallError: function(callIndex, errorMsg) {
+    this.sendChromeMessage({rilMessageType: "callError",
+                            callIndex: callIndex,
+                            errorMsg: errorMsg});
   },
 
   _sendDataCallError: function(message, errorCode) {
@@ -5102,14 +5103,10 @@ RIL[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CALLS(length, opti
   this._processCalls(calls);
 };
 RIL[REQUEST_DIAL] = function REQUEST_DIAL(length, options) {
-  options.success = (options.rilRequestError === 0);
-  if (options.success) {
-    this.sendChromeMessage(options);
-  } else {
-    this.getFailCauseCode((function(options, failCause) {
-      options.errorMsg = failCause;
-      this.sendChromeMessage(options);
-    }).bind(this, options));
+  if (options.rilRequestError) {
+    // The connection is not established yet.
+    options.callIndex = -1;
+    this.getFailCauseCode(options);
   }
 };
 RIL[REQUEST_GET_IMSI] = function REQUEST_GET_IMSI(length, options) {
@@ -5176,11 +5173,20 @@ RIL[REQUEST_CONFERENCE] = function REQUEST_CONFERENCE(length, options) {
 };
 RIL[REQUEST_UDUB] = null;
 RIL[REQUEST_LAST_CALL_FAIL_CAUSE] = function REQUEST_LAST_CALL_FAIL_CAUSE(length, options) {
-  let num = length ? Buf.readInt32() : 0;
-  let failCause = num ? RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[Buf.readInt32()] : null;
-  if (options.callback) {
-    options.callback(failCause);
+  let num = 0;
+  if (length) {
+    num = Buf.readInt32();
   }
+  if (!num) {
+    // No response of REQUEST_LAST_CALL_FAIL_CAUSE. Change the call state into
+    // 'disconnected' directly.
+    this._handleDisconnectedCall(options);
+    return;
+  }
+
+  let failCause = Buf.readInt32();
+  options.failCause = RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[failCause];
+  this._handleDisconnectedCall(options);
 };
 RIL[REQUEST_SIGNAL_STRENGTH] = function REQUEST_SIGNAL_STRENGTH(length, options) {
   this._receivedNetworkInfo(NETWORK_INFO_SIGNAL);

@@ -513,7 +513,6 @@ public:
     static bool GetPrefLayersDump();
     static bool GetPrefLayersScrollGraph();
     static bool GetPrefLayersEnableTiles();
-    static bool GetPrefLayersDrawFPS();
 
     static bool OffMainThreadCompositionRequired();
 

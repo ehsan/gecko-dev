@@ -388,7 +388,8 @@ args_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             return true;
     }
 
-    if (!baseops::DefineGeneric(cx, argsobj, id, UndefinedHandleValue, ArgGetter, ArgSetter, attrs))
+    RootedValue undef(cx, UndefinedValue());
+    if (!baseops::DefineGeneric(cx, argsobj, id, undef, ArgGetter, ArgSetter, attrs))
         return false;
 
     objp.set(argsobj);
@@ -510,7 +511,8 @@ strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
         setter = CastAsStrictPropertyOp(argsobj->global().getThrowTypeError());
     }
 
-    if (!baseops::DefineGeneric(cx, argsobj, id, UndefinedHandleValue, getter, setter, attrs))
+    RootedValue undef(cx, UndefinedValue());
+    if (!baseops::DefineGeneric(cx, argsobj, id, undef, getter, setter, attrs))
         return false;
 
     objp.set(argsobj);

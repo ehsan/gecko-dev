@@ -34,5 +34,3 @@ LOCAL_INCLUDES += [
     '../../../build',
 ]
 
-# Statically link to the CRT on Windows
-USE_STATIC_LIBS = True
