@@ -89,12 +89,17 @@ def is_read_allowed(path, config):
     path = mozpath.normpath(path)
     topsrcdir = mozpath.normpath(config.topsrcdir)
 
-    if mozpath.basedir(path, [topsrcdir]):
+    if path.startswith(topsrcdir):
         return True
 
-    if config.external_source_dir and \
-            mozpath.basedir(path, [config.external_source_dir]):
-        return True
+    external_dirs = config.substs.get('EXTERNAL_SOURCE_DIR', '').split()
+    for external in external_dirs:
+        if not os.path.isabs(external):
+            external = mozpath.join(config.topsrcdir, external)
+        external = mozpath.normpath(external)
+
+        if path.startswith(external):
+            return True
 
     return False
 
@@ -127,13 +132,30 @@ class MozbuildSandbox(Sandbox):
         self.config = config
         self.metadata = dict(metadata)
 
-        topobjdir = config.topobjdir
+        topobjdir = mozpath.abspath(config.topobjdir)
         topsrcdir = config.topsrcdir
+        norm_topsrcdir = mozpath.normpath(topsrcdir)
 
-        if not mozpath.basedir(path, [topsrcdir]):
-            if config.external_source_dir and \
-                    mozpath.basedir(path, [config.external_source_dir]):
-                topsrcdir = config.external_source_dir
+        self.external_source_dirs = []
+        external_dirs = config.substs.get('EXTERNAL_SOURCE_DIR', '').split()
+        for external in external_dirs:
+            external = mozpath.normpath(external)
+
+            if not os.path.isabs(external):
+                external = mozpath.join(config.topsrcdir, external)
+
+            external = mozpath.normpath(external)
+            self.external_source_dirs.append(external)
+
+
+        if not path.startswith(norm_topsrcdir):
+            for external in self.external_source_dirs:
+                if not path.startswith(external):
+                    continue
+
+                topsrcdir = external
+
+                break
 
         self.topsrcdir = topsrcdir
 
@@ -180,10 +202,7 @@ class MozbuildSandbox(Sandbox):
         if os.path.isabs(path):
             if filesystem_absolute:
                 return path
-            roots = [self.topsrcdir]
-            if self.config.external_source_dir:
-                roots.append(self.config.external_source_dir)
-            for root in roots:
+            for root in [self.topsrcdir] + self.external_source_dirs:
                 # mozpath.join would ignore the self.topsrcdir argument if we
                 # passed in the absolute path, so omit the leading /
                 p = mozpath.normpath(mozpath.join(root, path[1:]))
@@ -559,16 +578,6 @@ class BuildReaderError(Exception):
                 verb = 'read'
             elif inner.args[1] == 'set_unknown':
                 verb = 'write'
-            elif inner.args[1] == 'reassign':
-                s.write('The underlying problem is an attempt to reassign ')
-                s.write('a reserved UPPERCASE variable.\n')
-                s.write('\n')
-                s.write('The reassigned variable causing the error is:\n')
-                s.write('\n')
-                s.write('    %s\n' % inner.args[2])
-                s.write('\n')
-                s.write('Maybe you meant "+=" instead of "="?\n')
-                return
             else:
                 raise AssertionError('Unhandled global_ns: %s' % inner.args[1])
 
@@ -672,7 +681,7 @@ class BuildReader(object):
         """
         path = mozpath.join(self.topsrcdir, 'moz.build')
         return self.read_mozbuild(path, self.config, read_tiers=True,
-            filesystem_absolute=True)
+            filesystem_absolute=True, metadata={'tier': None})
 
     def walk_topsrcdir(self):
         """Read all moz.build files in the source tree.
@@ -845,7 +854,9 @@ class BuildReader(object):
                         'Directory (%s) registered multiple times in %s' % (
                             d, var), sandbox)
 
-                recurse_info[d] = {}
+                recurse_info[d] = {'tier': metadata.get('tier', None),
+                                   'parent': sandbox['RELATIVEDIR'],
+                                   'var': var}
                 if 'exports' in sandbox.metadata:
                     sandbox.recompute_exports()
                     recurse_info[d]['exports'] = dict(sandbox.metadata['exports'])
@@ -864,7 +875,10 @@ class BuildReader(object):
                         raise SandboxValidationError(
                             'Tier directory (%s) registered multiple '
                             'times in %s' % (d, tier), sandbox)
-                    recurse_info[d] = {'check_external': True}
+                    recurse_info[d] = {'tier': tier,
+                                       'parent': sandbox['RELATIVEDIR'],
+                                       'check_external': True,
+                                       'var': 'DIRS'}
 
         for relpath, child_metadata in recurse_info.items():
             if 'check_external' in child_metadata:
