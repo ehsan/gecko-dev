@@ -542,11 +542,8 @@ var CastingApps = {
     }
 
     this.session.remoteMedia.shutdown();
-    this._shutdown();
-  },
-
-  _shutdown: function() {
     this.session.app.stop();
+
     let video = this.session.videoRef.get();
     if (video) {
       this._sendEventToVideo(video, { active: false });
@@ -574,7 +571,6 @@ var CastingApps = {
 
   onRemoteMediaStop: function(aRemoteMedia) {
     sendMessageToJava({ type: "Casting:Stopped" });
-    this._shutdown();
   },
 
   onRemoteMediaStatus: function(aRemoteMedia) {

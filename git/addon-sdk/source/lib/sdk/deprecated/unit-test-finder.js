@@ -50,7 +50,7 @@ const removeDups = (array) => array.reduce((result, value) => {
   return result;
 }, []);
 
-const getSuites = function getSuites({ id, filter }) {
+const getSuites = function getSuites({ id }) {
   return getAddon(id).then(addon => {
     let fileURI = addon.getResourceURI("tests/");
     let isPacked = fileURI.scheme == "jar";
@@ -58,8 +58,9 @@ const getSuites = function getSuites({ id, filter }) {
     let file = xpiURI.QueryInterface(Ci.nsIFileURL).file;
     let suites = [];
     let addEntry = (entry) => {
-      if (filter(entry) && TEST_REGEX.test(entry)) {
-        let suite = (isNative ? "./" : "") + (RegExp.$2 || "") + RegExp.$3;
+      let pass = TEST_REGEX.test(entry);
+      if (pass) {
+        let suite = (isNative ? "./" : "") + RegExp.$2 + RegExp.$3;
         suites.push(suite);
       }
     }
@@ -89,9 +90,7 @@ const getSuites = function getSuites({ id, filter }) {
 }
 exports.getSuites = getSuites;
 
-const makeFilters = function makeFilters(options) {
-  options = options || {};
-
+const makeFilter = function makeFilter(options) {
   // A filter string is {fileNameRegex}[:{testNameRegex}] - ie, a colon
   // optionally separates a regex for the test fileName from a regex for the
   // testName.
@@ -101,24 +100,23 @@ const makeFilters = function makeFilters(options) {
 
     if (colonPos === -1) {
       filterFileRegex = new RegExp(options.filter);
-      filterNameRegex = { test: () => true }
     } else {
       filterFileRegex = new RegExp(options.filter.substr(0, colonPos));
       filterNameRegex = new RegExp(options.filter.substr(colonPos + 1));
     }
-
-    return {
-      fileFilter: (name) => filterFileRegex.test(name),
-      testFilter: (name) => filterNameRegex.test(name)
-    }
+    // This function will first be called with just the filename; if
+    // it returns true the module will be loaded then the function
+    // called again with both the filename and the testname.
+    return (filename, testname) => {
+      return filterFileRegex.test(filename) &&
+             ((testname && filterNameRegex) ? filterNameRegex.test(testname)
+                                            : true);
+    };
   }
 
-  return {
-    fileFilter: () => true,
-    testFilter: () => true
-  };
+  return () => true;
 }
-exports.makeFilters = makeFilters;
+exports.makeFilter = makeFilter;
 
 let loader = Loader(module);
 const NOT_TESTS = ['setup', 'teardown'];
@@ -132,9 +130,8 @@ var TestFinder = exports.TestFinder = function TestFinder(options) {
 
 TestFinder.prototype = {
   findTests: function findTests() {
-    let { fileFilter, testFilter } = makeFilters({ filter: this.filter });
-
-    return getSuites({ id: id, filter: fileFilter }).then(suites => {
+    return getSuites({ id: id }).then(suites => {
+      let filter = makeFilter({ filter: this.filter });
       let tests = [];
 
       suites.forEach(suite => {
@@ -161,7 +158,7 @@ TestFinder.prototype = {
 
         if (this.testInProcess) {
           for (let name of Object.keys(suiteModule).sort()) {
-            if (NOT_TESTS.indexOf(name) === -1 && testFilter(name)) {
+            if (NOT_TESTS.indexOf(name) === -1 && filter(suite, name)) {
               tests.push({
                 setup: suiteModule.setup,
                 teardown: suiteModule.teardown,

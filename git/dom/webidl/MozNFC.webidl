@@ -5,7 +5,7 @@
  /* Copyright © 2013 Deutsche Telekom, Inc. */
 
 [NoInterfaceObject,
- CheckPermissions="nfc-manager", AvailableIn="CertifiedApps"]
+ CheckPermissions="nfc-manager"]
 interface MozNFCManager {
    /**
     * API to check if the given application's manifest
@@ -44,9 +44,7 @@ interface MozNFCManager {
 
 [JSImplementation="@mozilla.org/navigatorNfc;1",
  NavigatorProperty="mozNfc",
- Func="Navigator::HasNFCSupport",
- CheckPermissions="nfc-read nfc-write",
- AvailableIn="CertifiedApps"]
+ Func="Navigator::HasNFCSupport"]
 interface MozNFC : EventTarget {
    /**
     * Returns MozNFCTag object or null in case of invalid sessionToken

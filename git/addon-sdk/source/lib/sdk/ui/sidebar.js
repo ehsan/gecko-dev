@@ -87,7 +87,7 @@ const Sidebar = Class({
 
         bar.addEventListener('command', function() {
           if (isSidebarShowing(window, self)) {
-            hideSidebar(window, self).catch(() => {});
+            hideSidebar(window, self);
             return;
           }
 
@@ -168,7 +168,7 @@ const Sidebar = Class({
           return;
 
         // hide the sidebar if it is showing
-        hideSidebar(window, self).catch(() => {});
+        hideSidebar(window, self);
 
         // kill the menu item
         let { bar } = windowNS(window);
@@ -267,7 +267,7 @@ exports.Sidebar = Sidebar;
 
 function validateTitleAndURLCombo(sidebar, title, url) {
   url = resolveURL(url);
-
+  
   if (sidebar.title == title && sidebar.url == url) {
     return false;
   }
