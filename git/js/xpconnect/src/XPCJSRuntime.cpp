@@ -1999,7 +1999,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     JS_SetGrayGCRootsTracer(mJSRuntime, TraceGrayJS, this);
     JS_SetWrapObjectCallbacks(mJSRuntime,
                               xpc::WrapperFactory::Rewrap,
-                              xpc::WrapperFactory::WrapForSameCompartment,
                               xpc::WrapperFactory::PrepareForWrapping);
     js::SetPreserveWrapperCallback(mJSRuntime, PreserveWrapper);
 #ifdef MOZ_CRASHREPORTER

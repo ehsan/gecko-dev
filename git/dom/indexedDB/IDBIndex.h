@@ -55,7 +55,7 @@ class AsyncConnectionHelper;
 class IDBObjectStore;
 struct IndexInfo;
 
-class IDBIndex MOZ_FINAL : public nsIIDBIndex
+class IDBIndex : public nsIIDBIndex
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

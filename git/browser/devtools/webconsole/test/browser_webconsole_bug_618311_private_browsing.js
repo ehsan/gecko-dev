@@ -41,11 +41,16 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 let pb = Cc["@mozilla.org/privatebrowsing;1"].
          getService(Ci.nsIPrivateBrowsingService);
 
+registerCleanupFunction(function() {
+  Services.prefs.clearUserPref("devtools.gcli.enable");
+});
+
 function test() {
+  Services.prefs.setBoolPref("devtools.gcli.enable", false);
   addTab("data:text/html;charset=utf-8,Web Console test for bug 618311 (private browsing)");
 
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
+  browser.addEventListener("load", function() {
+    browser.removeEventListener("load", arguments.callee, true);
 
     registerCleanupFunction(function() {
       pb.privateBrowsingEnabled = false;
@@ -57,10 +62,9 @@ function test() {
     togglePBAndThen(function() {
       ok(pb.privateBrowsingEnabled, "private browsing is enabled");
 
-      openConsole(gBrowser.selectedTab, function() {
-        content.location = TEST_URI;
-        gBrowser.selectedBrowser.addEventListener("load", tabLoaded, true);
-      });
+      HUDService.activateHUDForContext(gBrowser.selectedTab);
+      content.location = TEST_URI;
+      gBrowser.selectedBrowser.addEventListener("load", tabLoaded, true);
     });
   }, true);
 }
@@ -129,7 +133,6 @@ function tabLoaded() {
 
         ok(!pb.privateBrowsingEnabled, "private browsing is not enabled");
 
-        gBrowser.removeCurrentTab();
         executeSoon(finishTest);
       });
     }

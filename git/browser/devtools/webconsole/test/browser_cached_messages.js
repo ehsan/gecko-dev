@@ -44,7 +44,8 @@ function test()
 
   expectUncaughtException();
 
-  addTab(TEST_URI);
+  gBrowser.selectedTab = gBrowser.addTab(TEST_URI);
+
   gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
     gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
     testOpenUI(true);
@@ -56,26 +57,27 @@ function testOpenUI(aTestReopen)
   // test to see if the messages are
   // displayed when the console UI is opened
 
-  openConsole(null, function(hud) {
-    testLogEntry(hud.outputNode, "log Bazzle",
-                 "Find a console log entry from before console UI is opened",
-                 false, null);
+  HUDService.activateHUDForContext(gBrowser.selectedTab);
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hud = HUDService.getHudReferenceById(hudId);
 
-    testLogEntry(hud.outputNode, "error Bazzle",
-                 "Find a console error entry from before console UI is opened",
-                 false, null);
+  testLogEntry(hud.outputNode, "log Bazzle",
+               "Find a console log entry from before console UI is opened",
+               false, null);
 
-    testLogEntry(hud.outputNode, "bazBug611032", "Found the JavaScript error");
-    testLogEntry(hud.outputNode, "cssColorBug611032", "Found the CSS error");
+  testLogEntry(hud.outputNode, "error Bazzle",
+               "Find a console error entry from before console UI is opened",
+               false, null);
 
+  testLogEntry(hud.outputNode, "bazBug611032", "Found the JavaScript error");
+  testLogEntry(hud.outputNode, "cssColorBug611032", "Found the CSS error");
+
+  HUDService.deactivateHUDForContext(gBrowser.selectedTab);
+
+  if (aTestReopen) {
     HUDService.deactivateHUDForContext(gBrowser.selectedTab);
-
-    if (aTestReopen) {
-      HUDService.deactivateHUDForContext(gBrowser.selectedTab);
-      executeSoon(testOpenUI);
-    }
-    else {
-      executeSoon(finish);
-    }
-  });
+    executeSoon(testOpenUI);
+  } else {
+    executeSoon(finish);
+  }
 }

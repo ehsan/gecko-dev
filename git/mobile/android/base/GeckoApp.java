@@ -118,6 +118,7 @@ abstract public class GeckoApp
     public static final String ACTION_UPDATE        = "org.mozilla.gecko.UPDATE";
     public static final String ACTION_INIT_PW       = "org.mozilla.gecko.INIT_PW";
     public static final String SAVED_STATE_TITLE    = "title";
+    public static final String SAVED_STATE_SESSION  = "session";
 
     StartupMode mStartupMode = null;
     private LinearLayout mMainLayout;
@@ -145,7 +146,7 @@ abstract public class GeckoApp
     private AboutHomeContent mAboutHomeContent;
     private static AbsoluteLayout mPluginContainer;
 
-    private int mRestoreMode = GeckoAppShell.RESTORE_NONE;
+    private boolean mRestoreSession = false;
     private boolean mInitialized = false;
 
     static class ExtraMenuItem implements MenuItem.OnMenuItemClickListener {
@@ -549,6 +550,7 @@ abstract public class GeckoApp
         Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab != null)
             outState.putString(SAVED_STATE_TITLE, tab.getDisplayTitle());
+        outState.putBoolean(SAVED_STATE_SESSION, true);
     }
 
     void getAndProcessThumbnailForTab(final Tab tab) {
@@ -1558,7 +1560,7 @@ abstract public class GeckoApp
 
         if (savedInstanceState != null) {
             mBrowserToolbar.setTitle(savedInstanceState.getString(SAVED_STATE_TITLE));
-            mRestoreMode = GeckoAppShell.RESTORE_OOM;
+            mRestoreSession = savedInstanceState.getBoolean(SAVED_STATE_SESSION);
         }
 
         ((GeckoApplication) getApplication()).addApplicationLifecycleCallbacks(this);
@@ -1591,13 +1593,12 @@ abstract public class GeckoApp
             mBrowserToolbar.setTitle(uri);
         }
 
-        if (mRestoreMode == GeckoAppShell.RESTORE_NONE && getProfile().shouldRestoreSession())
-            mRestoreMode = GeckoAppShell.RESTORE_CRASH;
+        mRestoreSession |= getProfile().shouldRestoreSession();
 
         boolean isExternalURL = passedUri != null && !passedUri.equals("about:home");
         if (!isExternalURL) {
             // show about:home if we aren't restoring previous session
-            if (mRestoreMode == GeckoAppShell.RESTORE_NONE) {
+            if (!mRestoreSession) {
                 mBrowserToolbar.updateTabCount(1);
                 showAboutHome();
             }
@@ -1605,7 +1606,7 @@ abstract public class GeckoApp
             mBrowserToolbar.updateTabCount(1);
         }
 
-        mBrowserToolbar.setProgressVisibility(isExternalURL || (mRestoreMode != GeckoAppShell.RESTORE_NONE));
+        mBrowserToolbar.setProgressVisibility(isExternalURL || mRestoreSession);
 
         // Start migrating as early as possible, can do this in
         // parallel with Gecko load.
@@ -1625,7 +1626,7 @@ abstract public class GeckoApp
             passedUri = "about:empty";
         }
 
-        sGeckoThread = new GeckoThread(intent, passedUri, mRestoreMode);
+        sGeckoThread = new GeckoThread(intent, passedUri, mRestoreSession);
         if (!ACTION_DEBUG.equals(action) &&
             checkAndSetLaunchState(LaunchState.Launching, LaunchState.Launched)) {
             sGeckoThread.start();

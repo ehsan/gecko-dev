@@ -170,7 +170,6 @@ struct FunctionBox;
 struct ObjectBox;
 struct ParseNode;
 struct Parser;
-struct SharedContext;
 class TokenStream;
 struct Token;
 struct TokenPos;

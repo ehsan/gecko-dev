@@ -41,31 +41,25 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 
 function test() {
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("DOMContentLoaded", onLoad, false);
 }
 
-function consoleOpened(hud) {
-  waitForSuccess({
-    name: "two nodes displayed",
-    validatorFn: function()
-    {
-      return hud.outputNode.querySelectorAll(".hud-msg-node").length == 2;
-    },
-    successFn: function()
-    {
-      let nodes = hud.outputNode.querySelectorAll(".hud-msg-node");
-      ok(/start/.test(nodes[0].textContent), "start found");
-      ok(/end/.test(nodes[1].textContent), "end found - complete!");
-
-      finishTest();
-    },
-    failureFn: finishTest,
-  });
-
-  let button = content.document.querySelector("button");
+function onLoad() {
+  browser.removeEventListener("DOMContentLoaded", onLoad, false);
+  let doc = content.document;
+  openConsole();
+  let button = doc.querySelector("button");
   ok(button, "we have the button");
   EventUtils.sendMouseEvent({ type: "click" }, button, content);
+  executeSoon(testButtonClicked);
+}
+
+function testButtonClicked()
+{
+  let outputNode = HUDService.getHudByWindow(content).outputNode;
+  let nodes = outputNode.querySelectorAll(".hud-msg-node");
+  is(nodes.length, 2, "two nodes");
+  ok(/start/.test(nodes[0].textContent), "start found");
+  ok(/end/.test(nodes[1].textContent), "end found - complete!");
+  finishTest();
 }

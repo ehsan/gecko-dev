@@ -103,12 +103,8 @@ struct GlobalScope {
     RootedVarObject globalObj;
 };
 
-struct BytecodeEmitter
+struct BytecodeEmitter : public TreeContext
 {
-    SharedContext   *sc;            /* context shared between parsing and bytecode generation */
-
-    BytecodeEmitter *parent;        /* enclosing function or global context */
-
     struct {
         jsbytecode  *base;          /* base of JS bytecode vector */
         jsbytecode  *limit;         /* one byte beyond end of bytecode */
@@ -154,16 +150,15 @@ struct BytecodeEmitter
 
     uint16_t        typesetCount;   /* Number of JOF_TYPESET opcodes generated */
 
-    /* These two should only be true if sc->inFunction() is false. */
-    const bool      noScriptRval:1;     /* The caller is JS_Compile*Script*. */
-    const bool      needScriptGlobal:1; /* API caller does not want result value 
-                                           from global script. */
+    BytecodeEmitter(Parser *parser, unsigned lineno);
+    bool init(JSContext *cx, TreeContext::InitBehavior ib = USED_AS_CODE_GENERATOR);
 
-    bool            hasSingletons:1;    /* script contains singleton initializer JSOP_OBJECT */
-
-    BytecodeEmitter(Parser *parser, SharedContext *sc, unsigned lineno,
-                    bool noScriptRval, bool needScriptGlobal);
-    bool init();
+    // This is a down-cast.  It's necessary and safe -- although
+    // TreeContext::parent is a |TreeContext *|, a BytecodeEmitter's parent is
+    // always itself a BytecodeEmitter.
+    BytecodeEmitter *parentBCE() {
+        return static_cast<BytecodeEmitter *>(parent);
+    }
 
     /*
      * Note that BytecodeEmitters are magic: they own the arena "top-of-stack"
@@ -173,6 +168,7 @@ struct BytecodeEmitter
      */
     ~BytecodeEmitter();
 
+    bool compilingForEval() const { return !!(flags & TCF_COMPILE_FOR_EVAL); }
     JSVersion version() const { return parser->versionWithFlags(); }
 
     bool isAliasedName(ParseNode *pn);
@@ -197,13 +193,13 @@ struct BytecodeEmitter
     }
 
     bool checkSingletonContext() {
-        if (!parser->compileAndGo || sc->inFunction)
+        if (!compileAndGo() || inFunction())
             return false;
-        for (StmtInfo *stmt = sc->topStmt; stmt; stmt = stmt->down) {
+        for (StmtInfo *stmt = topStmt; stmt; stmt = stmt->down) {
             if (STMT_IS_LOOP(stmt))
                 return false;
         }
-        hasSingletons = true;
+        flags |= TCF_HAS_SINGLETONS;
         return true;
     }
 

@@ -41,7 +41,6 @@ package org.mozilla.gecko;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
-import android.database.ContentObserver;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -103,7 +102,6 @@ public class AwesomeBarTabs extends TabHost {
     private View.OnTouchListener mListTouchListener;
     private JSONArray mSearchEngines;
     private ContentResolver mContentResolver;
-    private ContentObserver mContentObserver;
 
     private BookmarksQueryTask mBookmarksQueryTask;
     private HistoryQueryTask mHistoryQueryTask;
@@ -178,7 +176,7 @@ public class AwesomeBarTabs extends TabHost {
                 viewHolder.faviconView.setImageBitmap(bitmap);
             }
 
-            Integer bookmarkId = (Integer) historyItem.get(Combined.BOOKMARK_ID);
+            Long bookmarkId = (Long) historyItem.get(Combined.BOOKMARK_ID);
 
             // The bookmark id will be 0 (null in database) when the url
             // is not a bookmark.
@@ -498,8 +496,7 @@ public class AwesomeBarTabs extends TabHost {
             String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
             String title = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE));
             byte[] favicon = cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON));
-            Integer bookmarkId = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.BOOKMARK_ID));
-            Integer historyId = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.HISTORY_ID));
+            Long bookmarkId = cursor.getLong(cursor.getColumnIndexOrThrow(Combined.BOOKMARK_ID));
 
             // Use the URL instead of an empty title for consistency with the normal URL
             // bar view - this is the equivalent of getDisplayTitle() in Tab.java
@@ -513,7 +510,6 @@ public class AwesomeBarTabs extends TabHost {
                 historyItem.put(URLColumns.FAVICON, favicon);
 
             historyItem.put(Combined.BOOKMARK_ID, bookmarkId);
-            historyItem.put(Combined.HISTORY_ID, historyId);
 
             return historyItem;
         }
@@ -582,17 +578,6 @@ public class AwesomeBarTabs extends TabHost {
                 new int[] { R.id.title },
                 result.second
             );
-
-            if (mContentObserver == null) {
-                // Register an observer to update the history tab contents if they change.
-                mContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
-                    public void onChange(boolean selfChange) {
-                        mHistoryQueryTask = new HistoryQueryTask();
-                        mHistoryQueryTask.execute();
-                    }
-                };
-                BrowserDB.registerHistoryObserver(mContentResolver, mContentObserver);
-            }
 
             final ExpandableListView historyList =
                     (ExpandableListView) findViewById(R.id.history_list);
@@ -751,7 +736,6 @@ public class AwesomeBarTabs extends TabHost {
         mInflated = false;
         mSearchEngines = new JSONArray();
         mContentResolver = context.getContentResolver();
-        mContentObserver = null;
         mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
     }
 
@@ -1015,9 +999,6 @@ public class AwesomeBarTabs extends TabHost {
             if (bookmarksCursor != null)
                 bookmarksCursor.close();
         }
-
-        if (mContentObserver != null)
-            BrowserDB.unregisterContentObserver(mContentResolver, mContentObserver);
     }
 
     public void filter(String searchTerm) {

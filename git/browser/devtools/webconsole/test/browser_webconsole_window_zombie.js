@@ -8,10 +8,7 @@ const POSITION_PREF = "devtools.webconsole.position";
 
 function test() {
   addTab(TEST_URI);
-  browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, consoleOpened);
-  }, true);
+  browser.addEventListener("DOMContentLoaded", onLoad, false);
   registerCleanupFunction(testEnd);
 }
 
@@ -19,7 +16,13 @@ function testEnd() {
   Services.prefs.clearUserPref(POSITION_PREF);
 }
 
-function consoleOpened(hudRef) {
+function onLoad() {
+  browser.removeEventListener("DOMContentLoaded", onLoad, false);
+
+  openConsole();
+
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hudRef = HUDService.hudReferences[hudId];
   let hudBox = hudRef.HUDBox;
 
   // listen for the panel popupshown event.
@@ -30,7 +33,7 @@ function consoleOpened(hudRef) {
 
     document.addEventListener("popuphidden", function popupHidden() {
       document.removeEventListener("popuphidden", popupHidden, false);
-      executeSoon(finishTest);
+      finishTest();
     }, false);
 
     // Close the window console via the menu item

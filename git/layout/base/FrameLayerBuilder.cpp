@@ -1151,7 +1151,7 @@ ContainerState::ThebesLayerData::UpdateCommonClipCount(
       }
     }
     mCommonClipCount = clipCount;
-    NS_ASSERTION(mItemClip.mRoundedClipRects.Length() >= PRUint32(mCommonClipCount),
+    NS_ASSERTION(mItemClip.mRoundedClipRects.Length() >= mCommonClipCount,
                  "Inconsistent common clip count.");
   } else {
     // first item in the layer
@@ -2411,7 +2411,7 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
     return;
 
   nsTArray<ClippedDisplayItem> items;
-  PRUint32 commonClipCount;
+  PRInt32 commonClipCount;
   nsIFrame* containerLayerFrame;
   {
     ThebesLayerItemsEntry* entry =
@@ -2648,6 +2648,7 @@ FrameLayerBuilder::Clip::ApplyRoundedRectsTo(gfxContext* aContext,
                                              PRInt32 A2D,
                                              PRUint32 aBegin, PRUint32 aEnd) const
 {
+  NS_ASSERTION(aBegin >= 0, "Start index must be positive.");
   aEnd = NS_MIN<PRUint32>(aEnd, mRoundedClipRects.Length());
 
   for (PRUint32 i = aBegin; i < aEnd; ++i) {

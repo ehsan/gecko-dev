@@ -11,7 +11,6 @@
 #include "States.h"
 
 #include "nsBlockFrame.h"
-#include "nsBulletFrame.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -86,15 +85,15 @@ HTMLLIAccessible::GetBounds(PRInt32* aX, PRInt32* aY,
                             PRInt32* aWidth, PRInt32* aHeight)
 {
   nsresult rv = nsAccessibleWrap::GetBounds(aX, aY, aWidth, aHeight);
-  if (NS_FAILED(rv) || !mBullet || mBullet->IsInside())
+  if (NS_FAILED(rv) || !mBullet)
     return rv;
 
   PRInt32 bulletX = 0, bulletY = 0, bulletWidth = 0, bulletHeight = 0;
   rv = mBullet->GetBounds(&bulletX, &bulletY, &bulletWidth, &bulletHeight);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  *aWidth += *aX - bulletX;
   *aX = bulletX; // Move x coordinate of list item over to cover bullet as well
+  *aWidth += bulletWidth;
   return NS_OK;
 }
 
@@ -144,13 +143,6 @@ HTMLLIAccessible::CacheChildren()
 
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLListBulletAccessible: nsAccessNode
-
-nsIFrame*
-HTMLListBulletAccessible::GetFrame() const
-{
-  nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
-  return blockFrame ? blockFrame->GetBullet() : nsnull;
-}
 
 bool
 HTMLListBulletAccessible::IsPrimaryForNode() const
@@ -206,14 +198,4 @@ HTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
     blockFrame->GetBulletText(bulletText);
 
   aText.Append(Substring(bulletText, aStartOffset, aLength));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// HTMLListBulletAccessible: public
-
-bool
-HTMLListBulletAccessible::IsInside() const
-{
-  nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
-  return blockFrame ? blockFrame->HasInsideBullet() : false;
 }

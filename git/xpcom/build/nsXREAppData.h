@@ -148,11 +148,6 @@ struct nsXREAppData
    *   UAppData = $HOME/$profile
    */
   const char *profile;
-
-  /**
-   * The application name to use in the User Agent string.
-   */
-  const char *UAName;
 };
 
 /**

@@ -79,7 +79,6 @@ nsHttpConnection::nsHttpConnection()
     , mCurrentBytesRead(0)
     , mMaxBytesRead(0)
     , mTotalBytesRead(0)
-    , mTotalBytesWritten(0)
     , mKeepAlive(true) // assume to keep-alive by default
     , mKeepAliveMask(true)
     , mSupportsPipelining(false) // assume low-grade server
@@ -870,7 +869,6 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
                     LOG(("ProxyStartSSL failed [rv=%x]\n", rv));
             }
             mCompletedProxyConnect = true;
-            mProxyConnectInProgress = false;
             rv = mSocketOut->AsyncWait(this, 0, 0, nsnull);
             // XXX what if this fails -- need to handle this error
             NS_ASSERTION(NS_SUCCEEDED(rv), "mSocketOut->AsyncWait failed");
@@ -1196,11 +1194,8 @@ nsHttpConnection::OnReadSegment(const char *buf,
         mSocketOutCondition = rv;
     else if (*countRead == 0)
         mSocketOutCondition = NS_BASE_STREAM_CLOSED;
-    else {
+    else
         mSocketOutCondition = NS_OK; // reset condition
-        if (!mProxyConnectInProgress)
-            mTotalBytesWritten += *countRead;
-    }
 
     return mSocketOutCondition;
 }

@@ -2171,6 +2171,19 @@ nsFrameLoader::GetRootContentView(nsIContentView** aContentView)
   return NS_OK;
 }
 
+static already_AddRefed<nsIDocShell>
+GetRootDocShell(nsIDocument *aDocument)
+{
+  nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(aDocument->GetWindow());
+  nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(webNav);
+  NS_ENSURE_TRUE(treeItem, NULL);
+
+  nsCOMPtr<nsIDocShellTreeItem> rootItem;
+  treeItem->GetRootTreeItem(getter_AddRefs(rootItem));
+  nsCOMPtr<nsIDocShell> rootDocShell = do_QueryInterface(rootItem);
+  return rootDocShell.forget();
+}
+
 nsresult
 nsFrameLoader::EnsureMessageManager()
 {
@@ -2199,11 +2212,14 @@ nsFrameLoader::EnsureMessageManager()
   NS_ENSURE_STATE(cx);
 
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow =
-    do_QueryInterface(GetOwnerDoc()->GetWindow());
-  nsCOMPtr<nsIChromeFrameMessageManager> parentManager;
-  if (chromeWindow) {
-    chromeWindow->GetMessageManager(getter_AddRefs(parentManager));
+    do_QueryInterface(OwnerDoc()->GetWindow());
+  if (!chromeWindow) {
+    nsCOMPtr<nsIDocShell> rootDocShell = GetRootDocShell(OwnerDoc());
+    nsCOMPtr<nsIDOMWindow> rootWindow = do_GetInterface(rootDocShell);
+    chromeWindow = do_GetInterface(rootWindow);
   }
+  nsCOMPtr<nsIChromeFrameMessageManager> parentManager;
+  chromeWindow->GetMessageManager(getter_AddRefs(parentManager));
 
   if (ShouldUseRemoteProcess()) {
     mMessageManager = new nsFrameMessageManager(true,
