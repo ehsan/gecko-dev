@@ -207,6 +207,9 @@ private: // data
   bool mNonPremult;
   bool mOptimizable;
 
+  /** Have we called DiscardTracker::InformAllocation()? */
+  bool mInformedDiscardTracker;
+
   friend class DrawableFrameRef;
   friend class RawAccessFrameRef;
 };
