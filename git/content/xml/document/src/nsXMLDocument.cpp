@@ -104,8 +104,7 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   nsIURI* aBaseURI,
                   nsIPrincipal* aPrincipal,
                   bool aLoadedAsData,
-                  nsIScriptGlobalObject* aEventObject,
-                  bool aSVGDocument)
+                  nsIScriptGlobalObject* aEventObject)
 {
   // Note: can't require that aDocumentURI/aBaseURI/aPrincipal be non-null,
   // since at least one caller (XMLHttpRequest) doesn't have decent args to
@@ -118,9 +117,7 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
   nsCOMPtr<nsIDocument> d;
   bool isHTML = false;
   bool isXHTML = false;
-  if (aSVGDocument) {
-    rv = NS_NewSVGDocument(getter_AddRefs(d));
-  } else if (aDoctype) {
+  if (aDoctype) {
     nsAutoString publicId, name;
     aDoctype->GetPublicId(publicId);
     if (publicId.IsEmpty()) {
