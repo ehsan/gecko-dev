@@ -90,7 +90,7 @@
 #include "nsNetUtil.h"
 #include "nsIContentViewerEdit.h"
 #include "nsIContentViewerFile.h"
-#include "nsCSSLoader.h"
+#include "mozilla/css/Loader.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -109,8 +109,8 @@
 #include "nsIImageLoadingContent.h"
 #include "nsCopySupport.h"
 #include "nsIDOMHTMLFrameSetElement.h"
-#ifdef MOZ_XUL
 #include "nsIXULWindow.h"
+#ifdef MOZ_XUL
 #include "nsIXULDocument.h"
 #include "nsXULPopupManager.h"
 #endif
@@ -789,8 +789,7 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
   //
   // now register ourselves as a focus listener, so that we get called
   // when the focus changes in the window
-  nsDocViewerFocusListener *focusListener;
-  NS_NEWXPCOM(focusListener, nsDocViewerFocusListener);
+  nsDocViewerFocusListener *focusListener = new nsDocViewerFocusListener();
   NS_ENSURE_TRUE(focusListener, NS_ERROR_OUT_OF_MEMORY);
 
   focusListener->Init(this);
@@ -861,7 +860,9 @@ DocumentViewerImpl::InitInternal(nsIWidget* aParentWidget,
     // it in one place (Show()) and require that callers call init(), open(),
     // show() in that order or something.
     if (!mPresContext &&
-        (aParentWidget || containerView || mDocument->GetDisplayDocument())) {
+        (aParentWidget || containerView ||
+         (mDocument->GetDisplayDocument() &&
+          mDocument->GetDisplayDocument()->GetShell()))) {
       // Create presentation context
       if (mIsPageMode) {
         //Presentation context already created in SetPageMode which is calling this method
@@ -1905,6 +1906,28 @@ DocumentViewerImpl::Move(PRInt32 aX, PRInt32 aY)
   return NS_OK;
 }
 
+static PRBool
+SetVisibilityOnXULWindow(nsIDocShellTreeItem* aTreeItem)
+{
+  if (!aTreeItem)
+    return PR_FALSE;
+  nsCOMPtr<nsIDocShellTreeOwner> owner;
+  aTreeItem->GetTreeOwner(getter_AddRefs(owner));
+  if (owner) {
+    // We need the base win interface of the parent xul window, not
+    // the doc shell of owner, which would recurse here when we call
+    // SetVisibility.
+    nsCOMPtr<nsIXULWindow> xulWin = do_GetInterface(owner);
+    nsCOMPtr<nsIBaseWindow> baseWin = do_GetInterface(xulWin);
+    if (baseWin) {
+      baseWin->SetVisibility(PR_TRUE);
+      return PR_TRUE;
+    }
+  }
+  NS_WARNING("Doc viewer attached to a parent that isn't a xul window??");
+  return PR_FALSE;
+}
+
 NS_IMETHODIMP
 DocumentViewerImpl::Show(void)
 {
@@ -1944,25 +1967,16 @@ DocumentViewerImpl::Show(void)
     }
   }
 
-  // XXX - If this DocumentViewer belongs to an nsIXULWindow that will at some
-  // point in the future call 'Show' on its window, we shouldn't call it.
-  // See bug 574690.
-  nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryReferent(mContainer);
-  nsCOMPtr<nsIXULWindow> xulWin;
-  PRBool willShowWindow = PR_FALSE;
-  if (treeItem) {
-    nsCOMPtr<nsIDocShellTreeOwner> owner;
-    treeItem->GetTreeOwner(getter_AddRefs(owner));
-    if (owner) {
-      xulWin = do_GetInterface(owner);
-      if (xulWin) {
-        xulWin->WillShowWindow(&willShowWindow);
-      }
+  if (mWindow) {
+    // When attached to a top level xul window, use SetVisibility instead
+    // of calling Show directly on the widget. SetVisibility will insure
+    // the show is delayed until after the chrome document has loaded and
+    // the proper window dimensions are set.
+    nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryReferent(mContainer));
+    if (!mAttachedToParent ||
+        (mAttachedToParent && !SetVisibilityOnXULWindow(treeItem))) {
+      mWindow->Show(PR_TRUE);
     }
-  }
-
-  if (mWindow && !willShowWindow) {
-    mWindow->Show(PR_TRUE);
   }
 
   if (mDocument && !mPresShell) {
@@ -3316,6 +3330,8 @@ DocumentViewerImpl::GetPopupNode(nsIDOMNode** aNode)
 {
   NS_ENSURE_ARG_POINTER(aNode);
 
+  *aNode = nsnull;
+
   // get the document
   nsIDocument* document = GetDocument();
   NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
@@ -3328,7 +3344,22 @@ DocumentViewerImpl::GetPopupNode(nsIDOMNode** aNode)
     NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
 
     // get the popup node
-    root->GetPopupNode(aNode); // addref happens here
+    nsCOMPtr<nsIDOMNode> node = root->GetPopupNode();
+#ifdef MOZ_XUL
+    if (!node) {
+      nsPIDOMWindow* rootWindow = root->GetWindow();
+      if (rootWindow) {
+        nsCOMPtr<nsIDocument> rootDoc = do_QueryInterface(rootWindow->GetExtantDocument());
+        if (rootDoc) {
+          nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+          if (pm) {
+            node = pm->GetLastTriggerPopupNode(rootDoc);
+          }
+        }
+      }
+    }
+#endif
+    node.swap(*aNode);
   }
 
   return NS_OK;

@@ -79,13 +79,45 @@ static JSFunctionSpec sLibraryFunctions[] = {
   JS_FS_END
 };
 
+JSBool
+Library::Name(JSContext* cx, uintN argc, jsval *vp)
+{
+  if (argc != 1) {
+    JS_ReportError(cx, "libraryName takes one argument");
+    return JS_FALSE;
+  }
+
+  jsval arg = JS_ARGV(cx, vp)[0];
+  JSString* str = NULL;
+  if (JSVAL_IS_STRING(arg)) {
+    str = JSVAL_TO_STRING(arg);
+  }
+  else {
+    JS_ReportError(cx, "name argument must be a string");
+      return JS_FALSE;
+  }
+
+  AutoString resultString;
+  AppendString(resultString, DLL_PREFIX);
+  AppendString(resultString, str);
+  AppendString(resultString, DLL_SUFFIX);
+
+  JSString *result = JS_NewUCStringCopyN(cx, resultString.begin(),
+                                         resultString.length());
+  if (!result)
+    return JS_FALSE;
+
+  JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(result));
+  return JS_TRUE;
+}
+
 JSObject*
 Library::Create(JSContext* cx, jsval aPath)
 {
   JSObject* libraryObj = JS_NewObject(cx, &sLibraryClass, NULL, NULL);
   if (!libraryObj)
     return NULL;
-  js::AutoValueRooter root(cx, libraryObj);
+  js::AutoObjectRooter root(cx, libraryObj);
 
   // initialize the library
   if (!JS_SetReservedSlot(cx, libraryObj, SLOT_LIBRARY, PRIVATE_TO_JSVAL(NULL)))
@@ -236,24 +268,21 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
     return JS_FALSE;
   }
 
-  const char* name = JS_GetStringBytesZ(cx, JSVAL_TO_STRING(argv[0]));
-  if (!name)
-    return JS_FALSE;
-
+  JSObject* fnObj = NULL;
   JSObject* typeObj;
-  js::AutoValueRooter root(cx);
+  js::AutoObjectRooter root(cx);
   bool isFunction = argc > 2;
   if (isFunction) {
     // Case 1).
     // Create a FunctionType representing the function.
-    typeObj = FunctionType::CreateInternal(cx,
-                argv[1], argv[2], &argv[3], argc - 3);
-    if (!typeObj)
+    fnObj = FunctionType::CreateInternal(cx,
+              argv[1], argv[2], &argv[3], argc - 3);
+    if (!fnObj)
       return JS_FALSE;
-    root.setObject(typeObj);
+    root.setObject(fnObj);
 
     // Make a function pointer type.
-    typeObj = PointerType::CreateInternal(cx, typeObj);
+    typeObj = PointerType::CreateInternal(cx, fnObj);
     if (!typeObj)
       return JS_FALSE;
     root.setObject(typeObj);
@@ -269,16 +298,22 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
 
     typeObj = JSVAL_TO_OBJECT(argv[1]);
     if (CType::GetTypeCode(cx, typeObj) == TYPE_pointer) {
-      JSObject* baseType = PointerType::GetBaseType(cx, typeObj);
-      isFunction = baseType && CType::GetTypeCode(cx, baseType) == TYPE_function;
+      fnObj = PointerType::GetBaseType(cx, typeObj);
+      isFunction = fnObj && CType::GetTypeCode(cx, fnObj) == TYPE_function;
     }
   }
 
   void* data;
   PRFuncPtr fnptr;
+  JSString* nameStr = JSVAL_TO_STRING(argv[0]);
+  AutoCString symbol;
   if (isFunction) {
+    // Build the symbol, with mangling if necessary.
+    FunctionType::BuildSymbolName(cx, nameStr, fnObj, symbol);
+    AppendString(symbol, "\0");
+
     // Look up the function symbol.
-    fnptr = PR_FindFunctionSymbol(library, name);
+    fnptr = PR_FindFunctionSymbol(library, symbol.begin());
     if (!fnptr) {
       JS_ReportError(cx, "couldn't find function symbol in library");
       return JS_FALSE;
@@ -287,7 +322,10 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
 
   } else {
     // 'typeObj' is another data type. Look up the data symbol.
-    data = PR_FindSymbol(library, name);
+    AppendString(symbol, nameStr);
+    AppendString(symbol, "\0");
+
+    data = PR_FindSymbol(library, symbol.begin());
     if (!data) {
       JS_ReportError(cx, "couldn't find symbol in library");
       return JS_FALSE;

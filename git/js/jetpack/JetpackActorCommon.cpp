@@ -39,15 +39,15 @@
 #include "base/basictypes.h"
 #include "jscntxt.h"
 
+#include "jsapi.h"
+#include "jstl.h"
+#include "jshashtable.h"
+
 #include "mozilla/jetpack/JetpackActorCommon.h"
 #include "mozilla/jetpack/PJetpack.h"
 #include "mozilla/jetpack/PHandleParent.h"
 #include "mozilla/jetpack/PHandleChild.h"
 #include "mozilla/jetpack/Handle.h"
-
-#include "jsapi.h"
-#include "jstl.h"
-#include "jshashtable.h"
 
 using mozilla::jetpack::JetpackActorCommon;
 using mozilla::jetpack::PHandleParent;
@@ -71,7 +71,7 @@ public:
   > MapType;
 
   OpaqueSeenType() {
-    NS_ASSERTION(map.init(1), "Failed to initialize map");
+    (void) map.init(1);
   }
 
   bool ok() { return map.initialized(); }
@@ -146,7 +146,7 @@ JetpackActorCommon::jsval_to_PrimVariant(JSContext* cx, JSType type, jsval from,
     if (JSVAL_IS_INT(from))
       *to = JSVAL_TO_INT(from);
     else if (JSVAL_IS_DOUBLE(from))
-      *to = *JSVAL_TO_DOUBLE(from);
+      *to = JSVAL_TO_DOUBLE(from);
     else
       return false;
     return true;
@@ -278,7 +278,7 @@ JetpackActorCommon::jsval_from_PrimVariant(JSContext* cx,
     return true;
 
   case PrimVariant::Tdouble:
-    return !!JS_NewDoubleValue(cx, from.get_double(), to);
+    return !!JS_NewNumberValue(cx, from.get_double(), to);
 
   case PrimVariant::TnsString: {
     const nsString& str = from.get_nsString();
@@ -298,7 +298,7 @@ JetpackActorCommon::jsval_from_PrimVariant(JSContext* cx,
 
   case PrimVariant::TPHandleParent: {
     JSObject* hobj =
-      static_cast<const HandleParent*>(from.get_PHandleParent())->ToJSObject(cx);
+      static_cast<HandleParent*>(from.get_PHandleParent())->ToJSObject(cx);
     if (!hobj)
       return false;
     *to = OBJECT_TO_JSVAL(hobj);
@@ -307,7 +307,7 @@ JetpackActorCommon::jsval_from_PrimVariant(JSContext* cx,
 
   case PrimVariant::TPHandleChild: {
     JSObject* hobj =
-      static_cast<const HandleChild*>(from.get_PHandleChild())->ToJSObject(cx);
+      static_cast<HandleChild*>(from.get_PHandleChild())->ToJSObject(cx);
     if (!hobj)
       return false;
     *to = OBJECT_TO_JSVAL(hobj);
@@ -349,11 +349,11 @@ JetpackActorCommon::jsval_from_CompVariant(JSContext* cx,
     for (PRUint32 i = 0; i < kvs.Length(); ++i) {
       const KeyValue& kv = kvs.ElementAt(i);
       js::AutoValueRooter toSet(cx);
-      if (!jsval_from_Variant(cx, kv.value(), toSet.addr(), seen) ||
+      if (!jsval_from_Variant(cx, kv.value(), toSet.jsval_addr(), seen) ||
           !JS_SetUCProperty(cx, obj,
                             kv.key().get(),
                             kv.key().Length(),
-                            toSet.addr()))
+                            toSet.jsval_addr()))
         return false;
     }
 
@@ -452,23 +452,17 @@ JetpackActorCommon::RecvMessage(JSContext* cx,
   JSObject* implGlobal = JS_GetGlobalObject(cx);
   js::AutoValueRooter rval(cx);
 
-  const uint32 savedOptions =
-    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT);
-
   for (PRUint32 i = 0; i < snapshot.Length(); ++i) {
     Variant* vp = results ? results->AppendElement() : NULL;
     rval.set(JSVAL_VOID);
     if (!JS_CallFunctionValue(cx, implGlobal, snapshot[i], argc, argv,
-                              rval.addr())) {
-      // If a receiver throws, we drop the exception on the floor.
-      JS_ClearPendingException(cx);
+                              rval.jsval_addr())) {
+      (void) JS_ReportPendingException(cx);
       if (vp)
         *vp = void_t();
-    } else if (vp && !jsval_to_Variant(cx, rval.value(), vp))
+    } else if (vp && !jsval_to_Variant(cx, rval.jsval_value(), vp))
       *vp = void_t();
   }
-
-  JS_SetOptions(cx, savedOptions);
 
   return true;
 }

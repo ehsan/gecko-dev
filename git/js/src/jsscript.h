@@ -47,8 +47,6 @@
 #include "jsprvtd.h"
 #include "jsdbgapi.h"
 
-JS_BEGIN_EXTERN_C
-
 /*
  * Type of try note associated with each catch or finally block, and also with
  * for-in loops.
@@ -58,6 +56,60 @@ typedef enum JSTryNoteKind {
     JSTRY_FINALLY,
     JSTRY_ITER
 } JSTryNoteKind;
+
+namespace js {
+
+/*
+ * Indicates a location in the stack that an upvar value can be retrieved from
+ * as a two tuple of (level, slot).
+ *
+ * Some existing client code uses the level value as a delta, or level "skip"
+ * quantity. We could probably document that through use of more types at some
+ * point in the future.
+ *
+ * Existing XDR code wants this to be backed by a 32b integer for serialization,
+ * so we oblige.
+ *
+ * TODO: consider giving more bits to the slot value and takings ome from the level.
+ */
+class UpvarCookie 
+{
+    uint32 value;
+
+    static const uint32 FREE_VALUE = 0xfffffffful;
+
+    void checkInvariants() {
+        JS_STATIC_ASSERT(sizeof(UpvarCookie) == sizeof(uint32));
+        JS_STATIC_ASSERT(UPVAR_LEVEL_LIMIT < FREE_LEVEL);
+    }
+
+  public:
+    /*
+     * All levels above-and-including FREE_LEVEL are reserved so that
+     * FREE_VALUE can be used as a special value.
+     */
+    static const uint16 FREE_LEVEL = 0x3fff;
+
+    /*
+     * If a function has a higher static level than this limit, we will not
+     * optimize it using UPVAR opcodes.
+     */
+    static const uint16 UPVAR_LEVEL_LIMIT = 16;
+    static const uint16 CALLEE_SLOT = 0xffff;
+    static bool isLevelReserved(uint16 level) { return level >= FREE_LEVEL; }
+
+    bool isFree() const { return value == FREE_VALUE; }
+    uint32 asInteger() const { return value; }
+    /* isFree check should be performed before using these accessors. */
+    uint16 level() const { JS_ASSERT(!isFree()); return value >> 16; }
+    uint16 slot() const { JS_ASSERT(!isFree()); return uint16(value); }
+
+    void set(const UpvarCookie &other) { set(other.level(), other.slot()); }
+    void set(uint16 newLevel, uint16 newSlot) { value = (uint32(newLevel) << 16) | newSlot; }
+    void makeFree() { set(0xffff, 0xffff); JS_ASSERT(isFree()); }
+};
+
+}
 
 /*
  * Exception handling record.
@@ -82,16 +134,14 @@ typedef struct JSObjectArray {
 } JSObjectArray;
 
 typedef struct JSUpvarArray {
-    uint32          *vector;    /* array of indexed upvar cookies */
+    js::UpvarCookie *vector;    /* array of indexed upvar cookies */
     uint32          length;     /* count of indexed upvar cookies */
 } JSUpvarArray;
 
-#define CALLEE_UPVAR_SLOT               0xffff
-#define FREE_STATIC_LEVEL               0x3fff
-#define FREE_UPVAR_COOKIE               0xffffffff
-#define MAKE_UPVAR_COOKIE(skip,slot)    ((skip) << 16 | (slot))
-#define UPVAR_FRAME_SKIP(cookie)        ((uint32)(cookie) >> 16)
-#define UPVAR_FRAME_SLOT(cookie)        ((uint16)(cookie))
+typedef struct JSConstArray {
+    js::Value       *vector;    /* array of indexed constant values */
+    uint32          length;
+} JSConstArray;
 
 #define JS_OBJECT_ARRAY_SIZE(length)                                          \
     (offsetof(JSObjectArray, vector) + sizeof(JSObject *) * (length))
@@ -115,11 +165,16 @@ struct JSScript {
                                        regexps or 0 if none. */
     uint8           trynotesOffset; /* offset to the array of try notes or
                                        0 if none */
+    uint8           constOffset;    /* offset to the array of constants or
+                                       0 if none */
     bool            noScriptRval:1; /* no need for result value of last
                                        expression statement */
     bool            savedCallerFun:1; /* object 0 is caller function */
     bool            hasSharps:1;      /* script uses sharp variables */
     bool            strictModeCode:1; /* code is in strict mode */
+    bool            warnedAboutTwoArgumentEval:1; /* have warned about use of
+                                                     obsolete eval(s, o) in
+                                                     this script */
 
     jsbytecode      *main;      /* main entry point, after predef'ing prolog */
     JSAtomMap       atomMap;    /* maps immediate index to literal struct */
@@ -159,6 +214,11 @@ struct JSScript {
         return (JSTryNoteArray *) ((uint8 *) this + trynotesOffset);
     }
 
+    JSConstArray *consts() {
+        JS_ASSERT(constOffset != 0);
+        return (JSConstArray *) ((uint8 *) this + constOffset);
+    }
+
     JSAtom *getAtom(size_t index) {
         JS_ASSERT(index < atomMap.length);
         return atomMap.vector[index];
@@ -173,6 +233,12 @@ struct JSScript {
     inline JSFunction *getFunction(size_t index);
 
     inline JSObject *getRegExp(size_t index);
+
+    const js::Value &getConst(size_t index) {
+        JSConstArray *arr = consts();
+        JS_ASSERT(index < arr->length);
+        return arr->vector[index];
+    }
 
     /*
      * The isEmpty method tells whether this script has code that computes any
@@ -227,7 +293,7 @@ StackDepth(JSScript *script)
         }                                                                     \
     JS_END_MACRO
 
-extern JS_FRIEND_DATA(JSClass) js_ScriptClass;
+extern JS_FRIEND_DATA(js::Class) js_ScriptClass;
 
 extern JSObject *
 js_InitScriptClass(JSContext *cx, JSObject *obj);
@@ -286,7 +352,7 @@ js_SweepScriptFilenames(JSRuntime *rt);
 extern JSScript *
 js_NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
              uint32 nobjects, uint32 nupvars, uint32 nregexps,
-             uint32 ntrynotes);
+             uint32 ntrynotes, uint32 nconsts);
 
 extern JSScript *
 js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg);
@@ -364,7 +430,5 @@ js_GetOpcode(JSContext *cx, JSScript *script, jsbytecode *pc)
 extern JSBool
 js_XDRScript(JSXDRState *xdr, JSScript **scriptp, bool needMutableScript,
              JSBool *hasMagic);
-
-JS_END_EXTERN_C
 
 #endif /* jsscript_h___ */

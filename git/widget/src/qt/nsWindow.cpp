@@ -65,6 +65,8 @@
 #include <QPinchGesture>
 #endif // QT version check
 
+#include "nsXULAppAPI.h"
+
 #include "prlink.h"
 
 #include "nsWindow.h"
@@ -665,60 +667,6 @@ nsWindow::Update()
     return NS_OK;
 }
 
-void
-nsWindow::Scroll(const nsIntPoint& aDelta,
-                 const nsTArray<nsIntRect>& aDestRects,
-                 const nsTArray<nsIWidget::Configuration>& aConfigurations)
-{
-    if (!mWidget) {
-        NS_ERROR("No widget to scroll.");
-        return;
-    }
-
-    nsAutoTArray<nsWindow*,1> windowsToShow;
-    // Hide any widgets that are becoming invisible or that are moving.
-    // Moving widgets are hidden for the duration of the scroll so that
-    // the XCopyArea treats their drawn pixels as part of the window
-    // that should be scrolled. This works well when the widgets are
-    // moving because they're being scrolled, which is normally true.
-    for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-        const Configuration& configuration = aConfigurations[i];
-        nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-        NS_ASSERTION(w->GetParent() == this,
-                     "Configuration widget is not a child");
-        if (w->mIsShown &&
-            (configuration.mClipRegion.IsEmpty() ||
-             configuration.mBounds != w->mBounds)) {
-            w->NativeShow(PR_FALSE);
-            windowsToShow.AppendElement(w);
-        }
-    }
-
-    for (BlitRectIter iter(aDelta, aDestRects); !iter.IsDone(); ++iter) {
-        const nsIntRect & r = iter.Rect();
-        QRegion goodReg(QRect(r.x, r.y, r.width, r.height));
-        goodReg = goodReg.subtracted(mDirtyScrollArea);
-
-        const QVector<QRect> myRects = goodReg.rects();
-        for (QVector<QRect>::const_iterator it = myRects.constBegin(); it < myRects.constEnd(); ++it) {
-            QRect rect(*it);
-            mWidget->scroll(aDelta.x, aDelta.y, rect);
-            // Calculate dirty area which is need to be updated
-            QRegion dirtyReg(rect);
-            rect.translate(aDelta.x, aDelta.y);
-            dirtyReg = dirtyReg.subtracted(rect);
-            mDirtyScrollArea = mDirtyScrollArea.united(dirtyReg);
-        }
-    }
-
-    ConfigureChildren(aConfigurations);
-
-    // Show windows again...
-    for (PRUint32 i = 0; i < windowsToShow.Length(); ++i) {
-        windowsToShow[i]->NativeShow(PR_TRUE);
-    }
-}
-
 // Returns the graphics view widget for this nsWindow by iterating
 // the chain of parents until a toplevel window with a view/scene is found.
 // (This function always returns something or asserts if the precondition
@@ -1029,7 +977,8 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption)
     event.refPoint.y = r.y();
     event.region = nsIntRegion(rect);
     {
-      AutoLayerManagerSetup setupLayerManager(this, ctx);
+      AutoLayerManagerSetup
+          setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
       status = DispatchEvent(&event);
     }
 
@@ -1308,10 +1257,11 @@ nsEventStatus
 nsWindow::OnFocusInEvent(QEvent *aEvent)
 {
     LOGFOCUS(("OnFocusInEvent [%p]\n", (void *)this));
+
     if (!mWidget)
         return nsEventStatus_eIgnore;
 
-    DispatchActivateEvent();
+    DispatchActivateEventOnTopLevelWindow();
 
     LOGFOCUS(("Events sent from focus in event [%p]\n", (void *)this));
     return nsEventStatus_eIgnore;
@@ -1322,8 +1272,10 @@ nsWindow::OnFocusOutEvent(QEvent *aEvent)
 {
     LOGFOCUS(("OnFocusOutEvent [%p]\n", (void *)this));
 
-    if (mWidget)
-        DispatchDeactivateEvent();
+    if (!mWidget)
+        return nsEventStatus_eIgnore;
+
+    DispatchDeactivateEventOnTopLevelWindow();
 
     LOGFOCUS(("Done with container focus out [%p]\n", (void *)this));
     return nsEventStatus_eIgnore;
@@ -1807,6 +1759,9 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     mNeedsMove = PR_FALSE;
 
     if (mIsTopLevel) {
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+      if (XRE_GetProcessType() != GeckoProcessType_Default)
+#endif
       GetViewWidget()->setGeometry(aX, aY, aWidth, aHeight);
     }
     mWidget->setGeometry(aX, aY, aWidth, aHeight);
@@ -1820,7 +1775,11 @@ nsWindow::NativeShow(PRBool aAction)
 {
     if (aAction) {
         QWidget *widget = GetViewWidget();
-        if (widget && !widget->isVisible())
+        // On e10s, we never want the child process or plugin process
+        // to go fullscreen because if we do the window because visible
+        // do to disabled Qt-Xembed
+        if ((XRE_GetProcessType() == GeckoProcessType_Default) &&
+            widget && !widget->isVisible())
             MakeFullScreen(mSizeMode == nsSizeMode_Fullscreen);
         mWidget->show();
 
@@ -1842,24 +1801,6 @@ nsWindow::GetHasTransparentBackground(PRBool& aTransparent)
 {
     aTransparent = mIsTransparent;
     return NS_OK;
-}
-
-void
-nsWindow::GetToplevelWidget(MozQWidget **aWidget)
-{
-    MozQGraphicsView *view = static_cast<MozQGraphicsView*>(GetViewWidget());
-    if (view)
-        *aWidget = view->GetTopLevelWidget();
-}
-
-nsWindow *
-nsWindow::GetTopLevelNsWindow()
-{
-    MozQWidget *widget = nsnull;
-    GetToplevelWidget(&widget);
-    if (widget)
-        return widget->getReceiver();
-    return nsnull;
 }
 
 void *
@@ -1938,10 +1879,7 @@ NS_IMETHODIMP
 nsWindow::HideWindowChrome(PRBool aShouldHide)
 {
     if (!mWidget) {
-        // Pass the request to the toplevel window
-        MozQWidget *topWidget = nsnull;
-        GetToplevelWidget(&topWidget);
-//        return topWindow->HideWindowChrome(aShouldHide);
+        // Nothing to hide
         return NS_ERROR_FAILURE;
     }
 
@@ -2089,7 +2027,13 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 
     if (mIsTopLevel) {
         QGraphicsView* newView = nsnull;
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+        if (XRE_GetProcessType() == GeckoProcessType_Default) {
+            newView = new MozMGraphicsView(widget);
+        } else
+#else
         newView = new MozQGraphicsView(widget);
+#endif
         if (!newView) {
             delete widget;
             return nsnull;
@@ -2160,7 +2104,7 @@ nsWindow::SetAcceleratedRendering(PRBool aEnabled)
 mozilla::layers::LayerManager*
 nsWindow::GetLayerManager()
 {
-    nsWindow *topWindow = GetTopLevelNsWindow();
+    nsWindow *topWindow = static_cast<nsWindow*>(GetTopLevelWidget());
     if (!topWindow)
         return nsBaseWidget::GetLayerManager();
 
@@ -2259,6 +2203,22 @@ nsWindow::DispatchDeactivateEvent(void)
     nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, this);
     nsEventStatus status;
     DispatchEvent(&event, status);
+}
+
+void
+nsWindow::DispatchActivateEventOnTopLevelWindow(void)
+{
+    nsWindow * topLevelWindow = static_cast<nsWindow*>(GetTopLevelWidget());
+    if (topLevelWindow != nsnull)
+         topLevelWindow->DispatchActivateEvent();
+}
+
+void
+nsWindow::DispatchDeactivateEventOnTopLevelWindow(void)
+{
+    nsWindow * topLevelWindow = static_cast<nsWindow*>(GetTopLevelWidget());
+    if (topLevelWindow != nsnull)
+         topLevelWindow->DispatchDeactivateEvent();
 }
 
 void
@@ -2495,7 +2455,14 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
     switch (aState) {
         case nsIWidget::IME_STATUS_ENABLED:
         case nsIWidget::IME_STATUS_PASSWORD:
-            mWidget->showVKB();
+            {
+                PRInt32 openDelay = 200;
+                nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+                if (prefs)
+                  prefs->GetIntPref("ui.vkb.open.delay", &openDelay);
+
+                mWidget->requestVKB(openDelay);
+            }
             break;
         default:
             mWidget->hideVKB();

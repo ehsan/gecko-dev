@@ -37,8 +37,8 @@
 
 /* internal interface for all rule types in a CSS style sheet */
 
-#ifndef nsICSSRule_h___
-#define nsICSSRule_h___
+#ifndef nsICSSRule_h
+#define nsICSSRule_h
 
 #include "nsIStyleRule.h"
 #include "nsIDOMCSSRule.h"
@@ -46,11 +46,12 @@
 class nsCSSStyleSheet;
 class nsICSSGroupRule;
 class nsAString;
+template<class T> struct already_AddRefed;
 
-// IID for the nsICSSRule interface {2a1fef35-eee9-4a5d-bc87-e2228acc926b}
-#define NS_ICSS_RULE_IID     \
-{ 0x2a1fef35, 0xeee9, 0x4a5d, \
- { 0xbc, 0x87, 0xe2, 0x22, 0x8a, 0xcc, 0x92, 0x6b } }
+// IID for the nsICSSRule interface
+#define NS_ICSS_RULE_IID \
+{ 0x1f560b20, 0xa829, 0x4b99, \
+  { 0x87, 0xbd, 0x8c, 0x87, 0x95, 0x2b, 0x3b, 0xb6 } }
 
 
 // inheriting from nsIStyleRule is only for style rules, not other rule types
@@ -74,13 +75,16 @@ public:
     DOCUMENT_RULE
   };
 
-  NS_IMETHOD GetType(PRInt32& aType) const = 0;
+  virtual PRInt32 GetType() const = 0;
 
-  NS_IMETHOD GetStyleSheet(nsIStyleSheet*& aSheet) const = 0;
-  NS_IMETHOD SetStyleSheet(nsCSSStyleSheet* aSheet) = 0;
-  NS_IMETHOD SetParentRule(nsICSSGroupRule* aRule) = 0;
+  virtual already_AddRefed<nsIStyleSheet> GetStyleSheet() const = 0;
+  virtual void SetStyleSheet(nsCSSStyleSheet* aSheet) = 0;
+  virtual void SetParentRule(nsICSSGroupRule* aRule) = 0;
 
-  NS_IMETHOD Clone(nsICSSRule*& aClone) const = 0;
+  /**
+   * Clones |this|. Never returns NULL.
+   */
+  virtual already_AddRefed<nsICSSRule> Clone() const = 0;
 
   // Note that this returns null for inline style rules since they aren't
   // supposed to have a DOM rule representation (and our code wouldn't work).
@@ -101,4 +105,4 @@ nsresult
 NS_NewCSSCharsetRule(nsICSSRule** aInstancePtrResult,
                      const nsAString& aEncoding);
 
-#endif /* nsICSSRule_h___ */
+#endif /* nsICSSRule_h */

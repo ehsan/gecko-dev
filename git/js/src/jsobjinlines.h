@@ -46,10 +46,12 @@
 #include "jsiter.h"
 #include "jsobj.h"
 #include "jsscope.h"
+#include "jsstaticcheck.h"
 #include "jsxml.h"
 
 #include "jsdtracef.h"
 
+#include "jscntxt.h"
 #include "jsscopeinlines.h"
 
 inline void
@@ -60,7 +62,7 @@ JSObject::dropProperty(JSContext *cx, JSProperty *prop)
         JS_UNLOCK_OBJ(cx, this);
 }
 
-inline jsval
+inline js::Value
 JSObject::getSlotMT(JSContext *cx, uintN slot)
 {
 #ifdef JS_THREADSAFE
@@ -70,20 +72,20 @@ JSObject::getSlotMT(JSContext *cx, uintN slot)
      * (obj->scope()->ownercx == cx), to avoid needlessly switching from
      * lock-free to lock-full scope when doing GC on a different context
      * from the last one to own the scope.  The caller in this case is
-     * probably a JSClass.mark function, e.g., fun_mark, or maybe a
+     * probably a Class.mark function, e.g., fun_mark, or maybe a
      * finalizer.
      */
     OBJ_CHECK_SLOT(this, slot);
     return (scope()->title.ownercx == cx)
-           ? this->lockedGetSlot(slot)
-           : js_GetSlotThreadSafe(cx, this, slot);
+         ? this->lockedGetSlot(slot)
+         : js::Valueify(js_GetSlotThreadSafe(cx, this, slot));
 #else
     return this->lockedGetSlot(slot);
 #endif
 }
 
 inline void
-JSObject::setSlotMT(JSContext *cx, uintN slot, jsval value)
+JSObject::setSlotMT(JSContext *cx, uintN slot, const js::Value &value)
 {
 #ifdef JS_THREADSAFE
     /* Thread-safe way to set a slot. */
@@ -91,10 +93,23 @@ JSObject::setSlotMT(JSContext *cx, uintN slot, jsval value)
     if (scope()->title.ownercx == cx)
         this->lockedSetSlot(slot, value);
     else
-        js_SetSlotThreadSafe(cx, this, slot, value);
+        js_SetSlotThreadSafe(cx, this, slot, js::Jsvalify(value));
 #else
     this->lockedSetSlot(slot, value);
 #endif
+}
+
+inline js::Value
+JSObject::getReservedSlot(uintN index) const
+{
+    uint32 slot = JSSLOT_START(getClass()) + index;
+    return (slot < numSlots()) ? getSlot(slot) : js::UndefinedValue();
+}
+
+inline bool
+JSObject::canHaveMethodBarrier() const
+{
+    return isObject() || isFunction() || isPrimitive() || isDate();
 }
 
 inline bool
@@ -103,7 +118,7 @@ JSObject::isPrimitive() const
     return isNumber() || isString() || isBoolean();
 }
 
-inline jsval
+inline const js::Value &
 JSObject::getPrimitiveThis() const
 {
     JS_ASSERT(isPrimitive());
@@ -111,7 +126,7 @@ JSObject::getPrimitiveThis() const
 }
 
 inline void 
-JSObject::setPrimitiveThis(jsval pthis)
+JSObject::setPrimitiveThis(const js::Value &pthis)
 {
     JS_ASSERT(isPrimitive());
     fslots[JSSLOT_PRIMITIVE_THIS] = pthis;
@@ -123,105 +138,36 @@ JSObject::staticAssertArrayLengthIsInPrivateSlot()
     JS_STATIC_ASSERT(JSSLOT_ARRAY_LENGTH == JSSLOT_PRIVATE);
 }
 
-inline bool
-JSObject::isDenseArrayMinLenCapOk(bool strictAboutLength) const
-{
-    JS_ASSERT(isDenseArray());
-    uint32 length = uncheckedGetArrayLength();
-    uint32 capacity = uncheckedGetDenseArrayCapacity();
-    uint32 minLenCap = uint32(fslots[JSSLOT_DENSE_ARRAY_MINLENCAP]);
-
-    // This function can be called while the LENGTH and MINLENCAP slots are
-    // still set to JSVAL_VOID and there are no dslots (ie. the capacity is
-    // zero).  If 'strictAboutLength' is false we allow this.
-    return minLenCap == JS_MIN(length, capacity) ||
-           (!strictAboutLength && minLenCap == uint32(JSVAL_VOID) &&
-            length == uint32(JSVAL_VOID) && capacity == 0);
-}
-
-inline uint32
-JSObject::uncheckedGetArrayLength() const
-{
-    return uint32(fslots[JSSLOT_ARRAY_LENGTH]);
-}
-
 inline uint32
 JSObject::getArrayLength() const
 {
     JS_ASSERT(isArray());
-    JS_ASSERT_IF(isDenseArray(), isDenseArrayMinLenCapOk());
-    return uncheckedGetArrayLength();
+    return fslots[JSSLOT_ARRAY_LENGTH].toPrivateUint32();
 }
 
 inline void 
-JSObject::setDenseArrayLength(uint32 length)
+JSObject::setArrayLength(uint32 length)
 {
-    JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_ARRAY_LENGTH] = length;
-    uint32 capacity = uncheckedGetDenseArrayCapacity();
-    fslots[JSSLOT_DENSE_ARRAY_MINLENCAP] = JS_MIN(length, capacity);
-}
-
-inline void 
-JSObject::setSlowArrayLength(uint32 length)
-{
-    JS_ASSERT(isSlowArray());
-    fslots[JSSLOT_ARRAY_LENGTH] = length;
-}
-
-inline uint32 
-JSObject::getDenseArrayCount() const
-{
-    JS_ASSERT(isDenseArray());
-    return uint32(fslots[JSSLOT_DENSE_ARRAY_COUNT]);
-}
-
-inline void 
-JSObject::setDenseArrayCount(uint32 count)
-{
-    JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_DENSE_ARRAY_COUNT] = count;
-}
-
-inline void 
-JSObject::incDenseArrayCountBy(uint32 posDelta)
-{
-    JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_DENSE_ARRAY_COUNT] += posDelta;
-}
-
-inline void 
-JSObject::decDenseArrayCountBy(uint32 negDelta)
-{
-    JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_DENSE_ARRAY_COUNT] -= negDelta;
-}
-
-inline uint32
-JSObject::uncheckedGetDenseArrayCapacity() const
-{
-    return dslots ? uint32(dslots[-1]) : 0;
+    JS_ASSERT(isArray());
+    fslots[JSSLOT_ARRAY_LENGTH].setPrivateUint32(length);
 }
 
 inline uint32
 JSObject::getDenseArrayCapacity() const
 {
     JS_ASSERT(isDenseArray());
-    JS_ASSERT(isDenseArrayMinLenCapOk(/* strictAboutLength = */false));
-    return uncheckedGetDenseArrayCapacity();
+    return fslots[JSSLOT_DENSE_ARRAY_CAPACITY].toPrivateUint32();
 }
 
 inline void
 JSObject::setDenseArrayCapacity(uint32 capacity)
 {
     JS_ASSERT(isDenseArray());
-    JS_ASSERT(dslots);
-    dslots[-1] = capacity;
-    uint32 length = uncheckedGetArrayLength();
-    fslots[JSSLOT_DENSE_ARRAY_MINLENCAP] = JS_MIN(length, capacity);
+    JS_ASSERT(!capacity == !dslots);
+    fslots[JSSLOT_DENSE_ARRAY_CAPACITY].setPrivateUint32(capacity);
 }
 
-inline jsval
+inline const js::Value &
 JSObject::getDenseArrayElement(uint32 i) const
 {
     JS_ASSERT(isDenseArray());
@@ -229,7 +175,7 @@ JSObject::getDenseArrayElement(uint32 i) const
     return dslots[i];
 }
 
-inline jsval *
+inline js::Value *
 JSObject::addressOfDenseArrayElement(uint32 i)
 {
     JS_ASSERT(isDenseArray());
@@ -238,14 +184,14 @@ JSObject::addressOfDenseArrayElement(uint32 i)
 }
 
 inline void
-JSObject::setDenseArrayElement(uint32 i, jsval v)
+JSObject::setDenseArrayElement(uint32 i, const js::Value &v)
 {
     JS_ASSERT(isDenseArray());
     JS_ASSERT(i < getDenseArrayCapacity());
     dslots[i] = v;
 }
 
-inline jsval *
+inline js::Value *
 JSObject::getDenseArrayElements() const
 {
     JS_ASSERT(isDenseArray());
@@ -260,16 +206,13 @@ JSObject::freeDenseArrayElements(JSContext *cx)
         cx->free(dslots - 1);
         dslots = NULL;
     }
-    fslots[JSSLOT_DENSE_ARRAY_MINLENCAP] = 0;
-    JS_ASSERT(isDenseArrayMinLenCapOk());
 }
 
 inline void 
 JSObject::voidDenseOnlyArraySlots()
 {
     JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_DENSE_ARRAY_COUNT] = JSVAL_VOID;
-    fslots[JSSLOT_DENSE_ARRAY_MINLENCAP] = JSVAL_VOID;
+    fslots[JSSLOT_DENSE_ARRAY_CAPACITY].setUndefined();
 }
 
 inline void
@@ -277,7 +220,7 @@ JSObject::setArgsLength(uint32 argc)
 {
     JS_ASSERT(isArguments());
     JS_ASSERT(argc <= JS_ARGS_LENGTH_MAX);
-    fslots[JSSLOT_ARGS_LENGTH] = INT_TO_JSVAL(argc << 1);
+    fslots[JSSLOT_ARGS_LENGTH].setInt32(argc << 1);
     JS_ASSERT(!isArgsLengthOverridden());
 }
 
@@ -285,7 +228,7 @@ inline uint32
 JSObject::getArgsLength() const
 {
     JS_ASSERT(isArguments());
-    uint32 argc = uint32(JSVAL_TO_INT(fslots[JSSLOT_ARGS_LENGTH])) >> 1;
+    uint32 argc = uint32(fslots[JSSLOT_ARGS_LENGTH].toInt32()) >> 1;
     JS_ASSERT(argc <= JS_ARGS_LENGTH_MAX);
     return argc;
 }
@@ -294,21 +237,18 @@ inline void
 JSObject::setArgsLengthOverridden()
 {
     JS_ASSERT(isArguments());
-    jsval v = fslots[JSSLOT_ARGS_LENGTH];
-    v = INT_TO_JSVAL(JSVAL_TO_INT(v) | 1);
-    JS_ASSERT(JSVAL_IS_INT(v));
-    fslots[JSSLOT_ARGS_LENGTH] = v;
+    fslots[JSSLOT_ARGS_LENGTH].getInt32Ref() |= 1;
 }
 
 inline bool
 JSObject::isArgsLengthOverridden() const
 {
     JS_ASSERT(isArguments());
-    jsval v = fslots[JSSLOT_ARGS_LENGTH];
-    return (JSVAL_TO_INT(v) & 1) != 0;
+    const js::Value &v = fslots[JSSLOT_ARGS_LENGTH];
+    return (v.toInt32() & 1) != 0;
 }
 
-inline jsval 
+inline const js::Value & 
 JSObject::getArgsCallee() const
 {
     JS_ASSERT(isArguments());
@@ -316,13 +256,13 @@ JSObject::getArgsCallee() const
 }
 
 inline void 
-JSObject::setArgsCallee(jsval callee)
+JSObject::setArgsCallee(const js::Value &callee)
 {
     JS_ASSERT(isArguments());
     fslots[JSSLOT_ARGS_CALLEE] = callee;
 }
 
-inline jsval
+inline const js::Value &
 JSObject::getArgsElement(uint32 i) const
 {
     JS_ASSERT(isArguments());
@@ -330,75 +270,61 @@ JSObject::getArgsElement(uint32 i) const
     return dslots[i];
 }
 
+inline js::Value *
+JSObject::addressOfArgsElement(uint32 i) const
+{
+    JS_ASSERT(isArguments());
+    JS_ASSERT(i < numSlots() - JS_INITIAL_NSLOTS);
+    return &dslots[i];
+}
+
 inline void
-JSObject::setArgsElement(uint32 i, jsval v)
+JSObject::setArgsElement(uint32 i, const js::Value &v)
 {
     JS_ASSERT(isArguments());
     JS_ASSERT(i < numSlots() - JS_INITIAL_NSLOTS);
     dslots[i] = v;
 }
 
-inline jsval
+inline const js::Value &
 JSObject::getDateLocalTime() const
 {
     JS_ASSERT(isDate());
     return fslots[JSSLOT_DATE_LOCAL_TIME];
 }
 
-inline jsval *
-JSObject::addressOfDateLocalTime()
-{
-    JS_ASSERT(isDate());
-    return &fslots[JSSLOT_DATE_LOCAL_TIME];
-}
-
 inline void 
-JSObject::setDateLocalTime(jsval time)
+JSObject::setDateLocalTime(const js::Value &time)
 {
     JS_ASSERT(isDate());
     fslots[JSSLOT_DATE_LOCAL_TIME] = time;
 }
 
-inline jsval
+inline const js::Value &
 JSObject::getDateUTCTime() const
 {
     JS_ASSERT(isDate());
     return fslots[JSSLOT_DATE_UTC_TIME];
 }
 
-inline jsval *
-JSObject::addressOfDateUTCTime()
-{
-    JS_ASSERT(isDate());
-    return &fslots[JSSLOT_DATE_UTC_TIME];
-}
-
 inline void 
-JSObject::setDateUTCTime(jsval time)
+JSObject::setDateUTCTime(const js::Value &time)
 {
     JS_ASSERT(isDate());
     fslots[JSSLOT_DATE_UTC_TIME] = time;
 }
 
-inline jsval
-JSObject::getRegExpLastIndex() const
+inline bool
+JSObject::hasMethodObj(const JSObject& obj) const
 {
-    JS_ASSERT(isRegExp());
-    return fslots[JSSLOT_REGEXP_LAST_INDEX];
+    return fslots[JSSLOT_FUN_METHOD_OBJ].isObject() &&
+           &fslots[JSSLOT_FUN_METHOD_OBJ].toObject() == &obj;
 }
 
-inline jsval *
-JSObject::addressOfRegExpLastIndex()
+inline void
+JSObject::setMethodObj(JSObject& obj)
 {
-    JS_ASSERT(isRegExp());
-    return &fslots[JSSLOT_REGEXP_LAST_INDEX];
-}
-
-inline void 
-JSObject::zeroRegExpLastIndex()
-{
-    JS_ASSERT(isRegExp());
-    fslots[JSSLOT_REGEXP_LAST_INDEX] = JSVAL_ZERO;
+    fslots[JSSLOT_FUN_METHOD_OBJ].setObject(obj);
 }
 
 inline NativeIterator *
@@ -417,61 +343,73 @@ inline jsval
 JSObject::getNamePrefix() const
 {
     JS_ASSERT(isNamespace() || isQName());
-    return fslots[JSSLOT_NAME_PREFIX];
+    return js::Jsvalify(fslots[JSSLOT_NAME_PREFIX]);
 }
 
 inline void
 JSObject::setNamePrefix(jsval prefix)
 {
     JS_ASSERT(isNamespace() || isQName());
-    fslots[JSSLOT_NAME_PREFIX] = prefix;
+    fslots[JSSLOT_NAME_PREFIX] = js::Valueify(prefix);
 }
 
 inline jsval
 JSObject::getNameURI() const
 {
     JS_ASSERT(isNamespace() || isQName());
-    return fslots[JSSLOT_NAME_URI];
+    return js::Jsvalify(fslots[JSSLOT_NAME_URI]);
 }
 
 inline void
 JSObject::setNameURI(jsval uri)
 {
     JS_ASSERT(isNamespace() || isQName());
-    fslots[JSSLOT_NAME_URI] = uri;
+    fslots[JSSLOT_NAME_URI] = js::Valueify(uri);
 }
 
 inline jsval
 JSObject::getNamespaceDeclared() const
 {
     JS_ASSERT(isNamespace());
-    return fslots[JSSLOT_NAMESPACE_DECLARED];
+    return js::Jsvalify(fslots[JSSLOT_NAMESPACE_DECLARED]);
 }
 
 inline void
 JSObject::setNamespaceDeclared(jsval decl)
 {
     JS_ASSERT(isNamespace());
-    fslots[JSSLOT_NAMESPACE_DECLARED] = decl;
+    fslots[JSSLOT_NAMESPACE_DECLARED] = js::Valueify(decl);
 }
 
 inline jsval
 JSObject::getQNameLocalName() const
 {
     JS_ASSERT(isQName());
-    return fslots[JSSLOT_QNAME_LOCAL_NAME];
+    return js::Jsvalify(fslots[JSSLOT_QNAME_LOCAL_NAME]);
 }
 
 inline void
 JSObject::setQNameLocalName(jsval name)
 {
     JS_ASSERT(isQName());
-    fslots[JSSLOT_QNAME_LOCAL_NAME] = name;
+    fslots[JSSLOT_QNAME_LOCAL_NAME] = js::Valueify(name);
+}
+
+inline JSObject *
+JSObject::getWithThis() const
+{
+    return &fslots[JSSLOT_WITH_THIS].toObject();
 }
 
 inline void
-JSObject::initSharingEmptyScope(JSClass *clasp, JSObject *proto, JSObject *parent,
-                                jsval privateSlotValue)
+JSObject::setWithThis(JSObject *thisp)
+{
+    fslots[JSSLOT_WITH_THIS].setObject(*thisp);
+}
+
+inline void
+JSObject::initSharingEmptyScope(js::Class *clasp, JSObject *proto, JSObject *parent,
+                                const js::Value &privateSlotValue)
 {
     init(clasp, proto, parent, privateSlotValue);
 
@@ -484,7 +422,7 @@ inline void
 JSObject::freeSlotsArray(JSContext *cx)
 {
     JS_ASSERT(hasSlotsArray());
-    JS_ASSERT(size_t(dslots[-1]) > JS_INITIAL_NSLOTS);
+    JS_ASSERT(dslots[-1].toPrivateUint32() > JS_INITIAL_NSLOTS);
     cx->free(dslots - 1);
 }
 
@@ -507,39 +445,22 @@ JSObject::unbrand(JSContext *cx)
     return true;
 }
 
-inline bool
-JSObject::isCallable()
-{
-    if (isNative())
-        return isFunction() || getClass()->call;
-
-    return !!map->ops->call;
-}
-
-static inline bool
-js_IsCallable(jsval v)
-{
-    return !JSVAL_IS_PRIMITIVE(v) && JSVAL_TO_OBJECT(v)->isCallable();
-}
-
 namespace js {
 
-typedef Vector<PropertyDescriptor, 1> PropertyDescriptorArray;
-
-class AutoDescriptorArray : private AutoGCRooter
+class AutoPropDescArrayRooter : private AutoGCRooter
 {
   public:
-    AutoDescriptorArray(JSContext *cx)
+    AutoPropDescArrayRooter(JSContext *cx)
       : AutoGCRooter(cx, DESCRIPTORS), descriptors(cx)
     { }
 
-    PropertyDescriptor *append() {
-        if (!descriptors.append(PropertyDescriptor()))
+    PropDesc *append() {
+        if (!descriptors.append(PropDesc()))
             return NULL;
         return &descriptors.back();
     }
 
-    PropertyDescriptor& operator[](size_t i) {
+    PropDesc& operator[](size_t i) {
         JS_ASSERT(i < descriptors.length());
         return descriptors[i];
     }
@@ -547,26 +468,34 @@ class AutoDescriptorArray : private AutoGCRooter
     friend void AutoGCRooter::trace(JSTracer *trc);
 
   private:
-    PropertyDescriptorArray descriptors;
+    PropDescArray descriptors;
 };
 
-class AutoDescriptor : private AutoGCRooter, public JSPropertyDescriptor
+class AutoPropertyDescriptorRooter : private AutoGCRooter, public PropertyDescriptor
 {
   public:
-    AutoDescriptor(JSContext *cx) : AutoGCRooter(cx, DESCRIPTOR) {
+    AutoPropertyDescriptorRooter(JSContext *cx) : AutoGCRooter(cx, DESCRIPTOR) {
         obj = NULL;
         attrs = 0;
-        getter = setter = (JSPropertyOp) NULL;
-        value = JSVAL_VOID;
+        getter = setter = (PropertyOp) NULL;
+        value.setUndefined();
+    }
+
+    AutoPropertyDescriptorRooter(JSContext *cx, PropertyDescriptor *desc) : AutoGCRooter(cx, DESCRIPTOR) {
+        obj = desc->obj;
+        attrs = desc->attrs;
+        getter = desc->getter;
+        setter = desc->setter;
+        value = desc->value;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 };
 
 static inline bool
-InitScopeForObject(JSContext* cx, JSObject* obj, JSClass *clasp, JSObject* proto, JSObjectOps* ops)
+InitScopeForObject(JSContext* cx, JSObject* obj, js::Class *clasp, JSObject* proto)
 {
-    JS_ASSERT(ops->isNative());
+    JS_ASSERT(clasp->isNative());
     JS_ASSERT(proto == obj->getProto());
 
     /* Share proto's emptyScope only if obj is similar to proto. */
@@ -575,7 +504,7 @@ InitScopeForObject(JSContext* cx, JSObject* obj, JSClass *clasp, JSObject* proto
     if (proto && proto->isNative()) {
         JS_LOCK_OBJ(cx, proto);
         scope = proto->scope();
-        if (scope->canProvideEmptyScope(ops, clasp)) {
+        if (scope->canProvideEmptyScope(clasp)) {
             JSScope *emptyScope = scope->getEmptyScope(cx, clasp);
             JS_UNLOCK_SCOPE(cx, scope);
             if (!emptyScope)
@@ -588,17 +517,18 @@ InitScopeForObject(JSContext* cx, JSObject* obj, JSClass *clasp, JSObject* proto
     }
 
     if (!scope) {
-        scope = JSScope::create(cx, ops, clasp, obj, js_GenerateShape(cx, false));
+        scope = JSScope::create(cx, clasp, obj, js_GenerateShape(cx, false));
         if (!scope)
             goto bad;
-
-        /* Let JSScope::create set freeslot so as to reserve slots. */
-        JS_ASSERT(scope->freeslot >= JSSLOT_PRIVATE);
-        if (scope->freeslot > JS_INITIAL_NSLOTS &&
-            !obj->allocSlots(cx, scope->freeslot)) {
-            scope->destroy(cx);
+        uint32 freeslot = JSSLOT_FREE(clasp);
+        JS_ASSERT(freeslot >= scope->freeslot);
+        if (freeslot > JS_INITIAL_NSLOTS && !obj->allocSlots(cx, freeslot))
             goto bad;
-        }
+        scope->freeslot = freeslot;
+#ifdef DEBUG
+        if (freeslot < obj->numSlots())
+            obj->setSlot(freeslot, UndefinedValue());
+#endif
     }
 
     obj->map = scope;
@@ -610,35 +540,167 @@ InitScopeForObject(JSContext* cx, JSObject* obj, JSClass *clasp, JSObject* proto
     return false;
 }
 
+/*
+ * Helper optimized for creating a native instance of the given class (not the
+ * class's prototype object). Use this in preference to NewObject, but use
+ * NewBuiltinClassInstance if you need the default class prototype as proto,
+ * and its parent global as parent.
+ */
 static inline JSObject *
-NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
-                        JSObject *parent, size_t objectSize = 0)
+NewNativeClassInstance(JSContext *cx, Class *clasp, JSObject *proto, JSObject *parent)
 {
+    JS_ASSERT(proto);
+    JS_ASSERT(proto->isNative());
+    JS_ASSERT(parent);
+
     DTrace::ObjectCreationScope objectCreationScope(cx, cx->fp, clasp);
 
-    /* Always call the class's getObjectOps hook if it has one. */
-    JSObjectOps *ops = clasp->getObjectOps
-                       ? clasp->getObjectOps(cx, clasp)
-                       : &js_ObjectOps;
+    /*
+     * Allocate an object from the GC heap and initialize all its fields before
+     * doing any operation that can potentially trigger GC.
+     */
+    JSObject* obj = js_NewGCObject(cx);
+
+    if (obj) {
+        /*
+         * Default parent to the parent of the prototype, which was set from
+         * the parent of the prototype's constructor.
+         */
+        obj->init(clasp, proto, parent, JSObject::defaultPrivate(clasp));
+
+        JS_LOCK_OBJ(cx, proto);
+        JSScope *scope = proto->scope();
+        JS_ASSERT(scope->canProvideEmptyScope(clasp));
+        scope = scope->getEmptyScope(cx, clasp);
+        JS_UNLOCK_OBJ(cx, proto);
+
+        if (!scope) {
+            obj = NULL;
+        } else {
+            obj->map = scope;
+        }
+    }
+
+    objectCreationScope.handleCreation(obj);
+    return obj;
+}
+
+bool
+FindClassPrototype(JSContext *cx, JSObject *scope, JSProtoKey protoKey, JSObject **protop,
+                   Class *clasp);
+
+/*
+ * Helper used to create Boolean, Date, RegExp, etc. instances of built-in
+ * classes with class prototypes of the same Class. See, e.g., jsdate.cpp,
+ * jsregexp.cpp, and js_PrimitiveToObject in jsobj.cpp. Use this to get the
+ * right default proto and parent for clasp in cx.
+ */
+static inline JSObject *
+NewBuiltinClassInstance(JSContext *cx, Class *clasp)
+{
+    VOUCH_DOES_NOT_REQUIRE_STACK();
+
+    JSProtoKey protoKey = JSCLASS_CACHED_PROTO_KEY(clasp);
+    JS_ASSERT(protoKey != JSProto_Null);
+
+    /* NB: inline-expanded and specialized version of js_GetClassPrototype. */
+    JSObject *global;
+    if (!cx->fp) {
+        global = cx->globalObject;
+        OBJ_TO_INNER_OBJECT(cx, global);
+        if (!global)
+            return NULL;
+    } else {
+        global = cx->fp->scopeChain->getGlobal();
+    }
+    JS_ASSERT(global->getClass()->flags & JSCLASS_IS_GLOBAL);
+
+    const Value &v = global->getReservedSlot(JSProto_LIMIT + protoKey);
+    JSObject *proto;
+    if (v.isObject()) {
+        proto = &v.toObject();
+        JS_ASSERT(proto->getParent() == global);
+    } else {
+        if (!FindClassPrototype(cx, global, protoKey, &proto, clasp))
+            return NULL;
+    }
+
+    return NewNativeClassInstance(cx, clasp, proto, global);
+}
+
+static inline JSProtoKey
+GetClassProtoKey(js::Class *clasp)
+{
+    JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(clasp);
+    if (key != JSProto_Null)
+        return key;
+    if (clasp->flags & JSCLASS_IS_ANONYMOUS)
+        return JSProto_Object;
+    return JSProto_Null;
+}
+
+namespace WithProto {
+    enum e {
+        Class = 0,
+        Given = 1
+    };
+}
+
+/*
+ * Create an instance of any class, native or not, JSFunction-sized or not.
+ *
+ * If withProto is 'Class':
+ *    If proto is null:
+ *      for a built-in class:
+ *        use the memoized original value of the class constructor .prototype
+ *        property object
+ *      else if available
+ *        the current value of .prototype
+ *      else
+ *        Object.prototype.
+ *
+ *    If parent is null, default it to proto->getParent() if proto is non
+ *    null, else to null.
+ *
+ * If withProto is 'Given':
+ *    We allocate an object with exactly the given proto.  A null parent
+ *    defaults to proto->getParent() if proto is non-null (else to null).
+ *
+ * If isFunction is true, return a JSFunction-sized object. If isFunction is
+ * false, return a normal object.
+ *
+ * Note that as a template, there will be lots of instantiations, which means
+ * the internals will be specialized based on the template parameters.
+ */
+namespace detail
+{
+template <bool withProto, bool isFunction>
+static JS_ALWAYS_INLINE JSObject *
+NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
+{
+    /* Bootstrap the ur-object, and make it the default prototype object. */
+    if (withProto == WithProto::Class && !proto) {
+        JSProtoKey protoKey = GetClassProtoKey(clasp);
+        if (!js_GetClassPrototype(cx, parent, protoKey, &proto, clasp))
+            return NULL;
+        if (!proto && !js_GetClassPrototype(cx, parent, JSProto_Object, &proto))
+            return NULL;
+     }
+
+
+    DTrace::ObjectCreationScope objectCreationScope(cx, cx->fp, clasp);
 
     /*
      * Allocate an object from the GC heap and initialize all its fields before
      * doing any operation that can potentially trigger GC. Functions have a
      * larger non-standard allocation size.
+     *
+     * The should be specialized by the template.
      */
-    JSObject* obj;
-    if (clasp == &js_FunctionClass && !objectSize) {
-        obj = (JSObject*) js_NewGCFunction(cx);
-#ifdef DEBUG
-        if (obj) {
-            memset((uint8 *) obj + sizeof(JSObject), JS_FREE_PATTERN,
-                   sizeof(JSFunction) - sizeof(JSObject));
-        }
-#endif
-    } else {
-        JS_ASSERT(!objectSize || objectSize == sizeof(JSObject));
-        obj = js_NewGCObject(cx);
-    }
+    JSObject* obj = isFunction
+                    ? (JSObject *)js_NewGCFunction(cx)
+                    : js_NewGCObject(cx);
+
     if (!obj)
         goto out;
 
@@ -651,62 +713,43 @@ NewObjectWithGivenProto(JSContext *cx, JSClass *clasp, JSObject *proto,
               (!parent && proto) ? proto->getParent() : parent,
               JSObject::defaultPrivate(clasp));
 
-    if (ops->isNative()) {
-        if (!InitScopeForObject(cx, obj, clasp, proto, ops)) {
+    if (clasp->isNative()) {
+        if (!InitScopeForObject(cx, obj, clasp, proto)) {
             obj = NULL;
             goto out;
         }
     } else {
-        JS_ASSERT(ops->objectMap->ops == ops);
-        obj->map = const_cast<JSObjectMap *>(ops->objectMap);
-    }
-
-    /*
-     * Do not call debug hooks on trace, because we might be in a non-_FAIL
-     * builtin. See bug 481444.
-     */
-    if (cx->debugHooks->objectHook && !JS_ON_TRACE(cx)) {
-        AutoValueRooter tvr(cx, obj);
-        AutoKeepAtoms keep(cx->runtime);
-        cx->debugHooks->objectHook(cx, obj, JS_TRUE,
-                                   cx->debugHooks->objectHookData);
-        cx->weakRoots.finalizableNewborns[FINALIZE_OBJECT] = obj;
+        obj->map = const_cast<JSObjectMap *>(&JSObjectMap::sharedNonNative);
     }
 
 out:
     objectCreationScope.handleCreation(obj);
     return obj;
 }
+}
 
-static inline JSProtoKey
-GetClassProtoKey(JSClass *clasp)
+static JS_ALWAYS_INLINE JSObject *
+NewFunction(JSContext *cx, JSObject *parent)
 {
-    JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(clasp);
-    if (key != JSProto_Null)
-        return key;
-    if (clasp->flags & JSCLASS_IS_ANONYMOUS)
-        return JSProto_Object;
-    return JSProto_Null;
+    return detail::NewObject<WithProto::Class, true>(cx, &js_FunctionClass, NULL, parent);
 }
 
-static inline JSObject *
-NewObject(JSContext *cx, JSClass *clasp, JSObject *proto,
-          JSObject *parent, size_t objectSize = 0)
+template <WithProto::e withProto>
+static JS_ALWAYS_INLINE JSObject *
+NewNonFunction(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
 {
-    /* Bootstrap the ur-object, and make it the default prototype object. */
-    if (!proto) {
-        JSProtoKey protoKey = GetClassProtoKey(clasp);
-        if (!js_GetClassPrototype(cx, parent, protoKey, &proto, clasp))
-            return NULL;
-        if (!proto &&
-            !js_GetClassPrototype(cx, parent, JSProto_Object, &proto)) {
-            return NULL;
-        }
-    }
-
-    return NewObjectWithGivenProto(cx, clasp, proto, parent, objectSize);
+    return detail::NewObject<withProto, false>(cx, clasp, proto, parent);
 }
 
+template <WithProto::e withProto>
+static JS_ALWAYS_INLINE JSObject *
+NewObject(JSContext *cx, js::Class *clasp, JSObject *proto, JSObject *parent)
+{
+    return (clasp == &js_FunctionClass)
+           ? detail::NewObject<withProto, true>(cx, clasp, proto, parent)
+           : detail::NewObject<withProto, false>(cx, clasp, proto, parent);
 }
+
+} /* namespace js */
 
 #endif /* jsobjinlines_h___ */

@@ -74,6 +74,7 @@
 #include "nsTArray.h"
 #include "nsIConsoleService.h"
 #include "nsIUploadChannel2.h"
+#include "nsXULAppAPI.h"
 
 #include "mozilla/FunctionTimer.h"
 
@@ -270,9 +271,13 @@ nsIOService::Init()
     NS_TIME_FUNCTION_MARK("Set up the recycling allocator");
 
     gIOService = this;
-    
-    // go into managed mode if we can
-    mNetworkLinkService = do_GetService(NS_NETWORK_LINK_SERVICE_CONTRACTID);
+
+#ifdef MOZ_IPC
+    // go into managed mode if we can, and chrome process
+    if (XRE_GetProcessType() == GeckoProcessType_Default)
+#endif
+        mNetworkLinkService = do_GetService(NS_NETWORK_LINK_SERVICE_CONTRACTID);
+
     if (!mNetworkLinkService)
         mManageOfflineStatus = PR_FALSE;
 
@@ -319,13 +324,15 @@ NS_IMPL_THREADSAFE_ISUPPORTS5(nsIOService,
 ////////////////////////////////////////////////////////////////////////////////
 
 nsresult
-nsIOService::OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
-                               PRUint32 flags)
+nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
+                                    PRUint32 flags,
+                                    nsAsyncRedirectVerifyHelper *helper)
 {
     nsCOMPtr<nsIChannelEventSink> sink =
         do_GetService(NS_GLOBAL_CHANNELEVENTSINK_CONTRACTID);
     if (sink) {
-        nsresult rv = sink->OnChannelRedirect(oldChan, newChan, flags);
+        nsresult rv = helper->DelegateOnChannelRedirect(sink, oldChan,
+                                                        newChan, flags);
         if (NS_FAILED(rv))
             return rv;
     }
@@ -335,11 +342,11 @@ nsIOService::OnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
         mChannelEventSinks.GetEntries();
     PRInt32 len = entries.Count();
     for (PRInt32 i = 0; i < len; ++i) {
-        nsresult rv = entries[i]->OnChannelRedirect(oldChan, newChan, flags);
+        nsresult rv = helper->DelegateOnChannelRedirect(entries[i], oldChan,
+                                                        newChan, flags);
         if (NS_FAILED(rv))
             return rv;
     }
-
     return NS_OK;
 }
 
@@ -678,10 +685,24 @@ nsIOService::SetOffline(PRBool offline)
     if (mSettingOffline) {
         return NS_OK;
     }
+
     mSettingOffline = PR_TRUE;
 
     nsCOMPtr<nsIObserverService> observerService =
         mozilla::services::GetObserverService();
+
+    NS_ASSERTION(observerService, "The observer service should not be null");
+
+#ifdef MOZ_IPC
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+        if (observerService) {
+            (void)observerService->NotifyObservers(nsnull,
+                NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, offline ? 
+                NS_LITERAL_STRING("true").get() :
+                NS_LITERAL_STRING("false").get());
+        }
+    }
+#endif
 
     while (mSetOfflineValue != mOffline) {
         offline = mSetOfflineValue;

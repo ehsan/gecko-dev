@@ -1,3 +1,7 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99:
+ */
+
 #include "tests.h"
 #include "jsfun.h"  // for js::IsInternalFunctionObject
 
@@ -29,7 +33,7 @@ BEGIN_TEST(testLookup_bug522590)
 END_TEST(testLookup_bug522590)
 
 JSBool
-document_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags, JSObject **objp)
+document_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject **objp)
 {
     // If id is "all", and we're not detecting, resolve document.all=true.
     jsvalRoot v(cx);

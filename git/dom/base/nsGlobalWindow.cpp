@@ -45,6 +45,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
+#include "base/basictypes.h"
+#endif
+
 // Local Includes
 #include "nsGlobalWindow.h"
 #include "nsScreen.h"
@@ -171,6 +175,7 @@
 #include "nsNetUtil.h"
 #include "nsFocusManager.h"
 #include "nsIJSON.h"
+#include "nsIXULWindow.h"
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
 #include "nsIDOMXULControlElement.h"
@@ -222,6 +227,8 @@ static PRLogModuleInfo* gDOMLeakPRLog;
 #endif
 
 using namespace mozilla::dom;
+using mozilla::TimeStamp;
+using mozilla::TimeDuration;
 
 nsIDOMStorageList *nsGlobalWindow::sGlobalStorageList  = nsnull;
 
@@ -636,7 +643,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
 : mFrameElement(nsnull), mDocShell(nsnull), mModalStateDepth(0),
   mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(PR_FALSE),
   mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
-  mMayHavePaintEventListener(PR_FALSE),
+  mMayHavePaintEventListener(PR_FALSE), mMayHaveTouchEventListener(PR_FALSE),
   mIsModalContentWindow(PR_FALSE), mIsActive(PR_FALSE),
   mInnerWindow(nsnull), mOuterWindow(aOuterWindow) {}
 
@@ -687,7 +694,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     , mCallCleanUpAfterModalDialogCloses(PR_FALSE)
     , mWindowID(gNextWindowID++)
 {
-  memset(mScriptGlobals, 0, sizeof(mScriptGlobals));
   nsLayoutStatics::AddRef();
 
   // Initialize the PRCList (this).
@@ -920,7 +926,7 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
   if (mCleanedUp)
     return;
   mCleanedUp = PR_TRUE;
-    
+
   mNavigator = nsnull;
   mScreen = nsnull;
   mHistory = nsnull;
@@ -965,10 +971,7 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
          this)->mMessageManager.get())->Disconnect();
   }
 
-  PRUint32 scriptIndex;
-  NS_STID_FOR_INDEX(scriptIndex) {
-    mInnerWindowHolders[scriptIndex] = nsnull;
-  }
+  mInnerWindowHolder = nsnull;
   mArguments = nsnull;
   mArgumentsLast = nsnull;
   mArgumentsOrigin = nsnull;
@@ -1040,14 +1043,9 @@ nsGlobalWindow::ReallyClearScope(nsRunnable *aRunnable)
   }
 
   NotifyWindowIDDestroyed("inner-window-destroyed");
-
-  PRUint32 lang_id;
-  NS_STID_FOR_ID(lang_id) {
-    // Note that scx comes from the outer window.  If this is an inner
-    // window, it may not be the current inner for its outer.
-    nsIScriptContext *scx = GetScriptContextInternal(lang_id);
-    if (scx)
-      scx->ClearScope(mScriptGlobals[NS_STID_INDEX(lang_id)], PR_TRUE);
+  nsIScriptContext *scx = GetContextInternal();
+  if (scx) {
+    scx->ClearScope(mJSObject, PR_TRUE);
   }
 }
 
@@ -1078,6 +1076,8 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
     mListenerManager->Disconnect();
     mListenerManager = nsnull;
   }
+
+  mLocation = nsnull;
 
   if (mDocument) {
     NS_ASSERTION(mDoc, "Why is mDoc null?");
@@ -1133,9 +1133,22 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
 // nsGlobalWindow::nsISupports
 //*****************************************************************************
 
+#define WINDOW_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(_class)                      \
+  if (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||                                \
+      aIID.Equals(NS_GET_IID(nsXPCClassInfo))) {                              \
+    foundInterface = NS_GetDOMClassInfoInstance(IsInnerWindow()               \
+                                                ? eDOMClassInfo_Inner##_class##_id \
+                                                : eDOMClassInfo_##_class##_id);\
+    if (!foundInterface) {                                                    \
+      *aInstancePtr = nsnull;                                                 \
+      return NS_ERROR_OUT_OF_MEMORY;                                          \
+    }                                                                         \
+  } else
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGlobalWindow)
 
 DOMCI_DATA(Window, nsGlobalWindow)
+DOMCI_DATA(InnerWindow, nsGlobalWindow)
 
 // QueryInterface implementation for nsGlobalWindow
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
@@ -1157,7 +1170,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
   NS_INTERFACE_MAP_ENTRY(nsIDOMStorageWindow)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Window)
+  WINDOW_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Window)
 NS_INTERFACE_MAP_END
 
 
@@ -1178,13 +1191,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mArguments)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mArgumentsLast)
 
-  for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mScriptContexts[i])
-  }
-
-  for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInnerWindowHolders[i])
-  }
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInnerWindowHolder)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOpenerScriptPrincipal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mListenerManager)
@@ -1220,13 +1227,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mArguments)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mArgumentsLast)
 
-  for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mScriptContexts[i])
-  }
-
-  for (PRUint32 i = 0; i < NS_STID_ARRAY_UBOUND; ++i) {      
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mInnerWindowHolders[i])
-  }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mInnerWindowHolder)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOpenerScriptPrincipal)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mListenerManager)
@@ -1285,31 +1286,19 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_END
 nsresult
 nsGlobalWindow::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptContext)
 {
-  nsresult rv;
-  
-  PRBool ok = NS_STID_VALID(lang_id);
-  NS_ASSERTION(ok, "Invalid programming language ID requested");
-  NS_ENSURE_TRUE(ok, NS_ERROR_INVALID_ARG);
-  PRUint32 lang_ndx = NS_STID_INDEX(lang_id);
-
+  NS_ASSERTION(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+               "We don't support this language ID");
   NS_ASSERTION(IsOuterWindow(), "Uh, SetScriptContext() called on inner window!");
 
-  if (!aScriptContext)
-    NS_WARNING("Possibly early removal of script object, see bug #41608");
-  else {
-    // should probably assert the context is clean???
-    aScriptContext->WillInitializeContext();
-    // Bind the script context and the global object
-    rv = aScriptContext->InitContext(this);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_ASSERTION(!aScriptContext || !mScriptContexts[lang_ndx],
-               "Bad call to SetContext()!");
-
-  void *script_glob = nsnull;
+  NS_ASSERTION(!aScriptContext || !mContext, "Bad call to SetContext()!");
 
   if (aScriptContext) {
+    // should probably assert the context is clean???
+    aScriptContext->WillInitializeContext();
+
+    nsresult rv = aScriptContext->InitContext();
+    NS_ENSURE_SUCCESS(rv, rv);
+
     if (IsFrame()) {
       // This window is a [i]frame, don't bother GC'ing when the
       // frame's context is destroyed since a GC will happen when the
@@ -1317,107 +1306,52 @@ nsGlobalWindow::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptCont
 
       aScriptContext->SetGCOnDestruction(PR_FALSE);
     }
+  }
 
-    aScriptContext->DidInitializeContext();
-    script_glob = aScriptContext->GetNativeGlobal();
-    NS_ASSERTION(script_glob, "GetNativeGlobal returned NULL!");
-  }
-  // for now, keep mContext real.
-  if (lang_id == nsIProgrammingLanguage::JAVASCRIPT) {
-    mContext = aScriptContext;
-    mJSObject = (JSObject *)script_glob;
-  }
-  mScriptContexts[lang_ndx] = aScriptContext;
-  mScriptGlobals[lang_ndx] = script_glob;
+  mContext = aScriptContext;
   return NS_OK;
 }
 
 nsresult
 nsGlobalWindow::EnsureScriptEnvironment(PRUint32 aLangID)
 {
+  NS_ASSERTION(aLangID == nsIProgrammingLanguage::JAVASCRIPT,
+               "We don't support this language ID");
   FORWARD_TO_OUTER(EnsureScriptEnvironment, (aLangID), NS_ERROR_NOT_INITIALIZED);
-  nsresult rv;
- 
-  PRBool ok = NS_STID_VALID(aLangID);
-  NS_ASSERTION(ok, "Invalid programming language ID requested");
-  NS_ENSURE_TRUE(ok, NS_ERROR_INVALID_ARG);
-  PRUint32 lang_ndx = NS_STID_INDEX(aLangID);
 
-  if (mScriptGlobals[lang_ndx])
-      return NS_OK; // already initialized for this language.
+  if (mJSObject)
+      return NS_OK;
+
+  NS_ASSERTION(!GetCurrentInnerWindowInternal(),
+               "mJSObject is null, but we have an inner window?");
+
   nsCOMPtr<nsIScriptRuntime> scriptRuntime;
-  rv = NS_GetScriptRuntimeByID(aLangID, getter_AddRefs(scriptRuntime));
+  nsresult rv = NS_GetScriptRuntimeByID(aLangID, getter_AddRefs(scriptRuntime));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIScriptContext> context;
   rv = scriptRuntime->CreateContext(getter_AddRefs(context));
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = SetScriptContext(aLangID, context);
-  NS_ENSURE_SUCCESS(rv, rv);
-  // Note that SetScriptContext has taken a reference to the context.
-  // If we have arguments, tell the new language about it.
-  nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
-  if (currentInner) {
-    // We are being initialized after the document has been setup.
-    // Do what would have been done in SetNewDocument had we been around then.
-    NS_ASSERTION(!mInnerWindowHolders[lang_ndx], "already have a holder?");
-    nsCOMPtr<nsISupports> &holder = mInnerWindowHolders[lang_ndx];
-    PRBool isChrome = PR_FALSE; // xxxmarkh - what about this??
-    void *&innerGlob = currentInner->mScriptGlobals[lang_ndx];
-    rv = context->CreateNativeGlobalForInner(this, isChrome,
-                                             &innerGlob,
-                                             getter_AddRefs(holder));
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ASSERTION(innerGlob && holder, "Failed to get global and holder");
-    rv = context->ConnectToInner(currentInner, mScriptGlobals[lang_ndx]);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsCOMPtr<nsIDOMDocument> doc(do_QueryInterface(mDocument));
-    if (doc)
-      context->DidSetDocument(doc, innerGlob);
 
-    if (mArgumentsLast != nsnull) {
-      context->SetProperty(innerGlob, "arguments", mArgumentsLast);
-    }
-  }
-  return NS_OK;
+  return SetScriptContext(aLangID, context);
 }
 
 nsIScriptContext *
 nsGlobalWindow::GetScriptContext(PRUint32 lang)
 {
+  NS_ASSERTION(lang == nsIProgrammingLanguage::JAVASCRIPT,
+               "We don't support this language ID");
+
   FORWARD_TO_OUTER(GetScriptContext, (lang), nsnull);
-
-  PRBool ok = NS_STID_VALID(lang);
-  NS_ASSERTION(ok, "Invalid programming language ID requested");
-  NS_ENSURE_TRUE(ok, nsnull);
-
-  PRUint32 lang_ndx = NS_STID_INDEX(lang);
-
-  // for now we are still storing the JS versions in members.  Check the
-  // JS elements of our array are still in sync.  Do this each time we are
-  // called, as much JS specific code still goes via GetContext
-  NS_ASSERTION(mScriptContexts[NS_STID_INDEX(nsIProgrammingLanguage::JAVASCRIPT)] == mContext &&
-               mScriptGlobals[NS_STID_INDEX(nsIProgrammingLanguage::JAVASCRIPT)] == mJSObject,
-               "JS language contexts are confused");
-  return mScriptContexts[lang_ndx];
+  return mContext;
 }
 
 void *
 nsGlobalWindow::GetScriptGlobal(PRUint32 lang)
 {
-  PRBool ok = NS_STID_VALID(lang);
-  NS_ASSERTION(ok, "Invalid programming language ID requested");
-  NS_ENSURE_TRUE(ok, nsnull);
-
-  PRUint32 lang_ndx = NS_STID_INDEX(lang);
-
-  // for now we are still storing the JS versions in members.  Check the
-  // JS elements of our array are still in sync.  Do this each time we are
-  // called, as much JS specific code still goes via GetGlobalJSObject
-  NS_ASSERTION(mScriptContexts[NS_STID_INDEX(nsIProgrammingLanguage::JAVASCRIPT)] == mContext &&
-               mScriptGlobals[NS_STID_INDEX(nsIProgrammingLanguage::JAVASCRIPT)] == mJSObject,
-               "JS language contexts are confused");
-  return mScriptGlobals[lang_ndx];
+  NS_ASSERTION(lang == nsIProgrammingLanguage::JAVASCRIPT,
+               "We don't support this language ID");
+  return mJSObject;
 }
 
 nsIScriptContext *
@@ -1436,9 +1370,8 @@ nsGlobalWindow::GetGlobalJSObject()
 {
   NS_ASSERTION(mJSObject == GetScriptGlobal(nsIProgrammingLanguage::JAVASCRIPT),
                "GetGlobalJSObject confused?");
-  return mJSObject;
+  return FastGetGlobalJSObject();
 }
-
 
 PRBool
 nsGlobalWindow::WouldReuseInnerWindow(nsIDocument *aNewDocument)
@@ -1577,29 +1510,23 @@ public:
   NS_DECL_ISUPPORTS
 
   WindowStateHolder(nsGlobalWindow *aWindow,
-                    nsCOMPtr<nsISupports> aHolders[],
+                    nsIXPConnectJSObjectHolder *aHolder,
                     nsNavigator *aNavigator,
-                    nsLocation *aLocation,
                     nsIXPConnectJSObjectHolder *aOuterProto);
 
   nsGlobalWindow* GetInnerWindow() { return mInnerWindow; }
-  nsISupports* GetInnerWindowHolder(PRUint32 aScriptTypeID)
-  { return mInnerWindowHolders[NS_STID_INDEX(aScriptTypeID)]; }
+  nsIXPConnectJSObjectHolder *GetInnerWindowHolder()
+  { return mInnerWindowHolder; }
 
   nsNavigator* GetNavigator() { return mNavigator; }
-  nsLocation* GetLocation() { return mLocation; }
   nsIXPConnectJSObjectHolder* GetOuterProto() { return mOuterProto; }
 
   void DidRestoreWindow()
   {
-    PRUint32 lang_ndx;
     mInnerWindow = nsnull;
 
-    NS_STID_FOR_INDEX(lang_ndx) {
-        mInnerWindowHolders[lang_ndx] = nsnull;
-    }
+    mInnerWindowHolder = nsnull;
     mNavigator = nsnull;
-    mLocation = nsnull;
     mOuterProto = nsnull;
   }
 
@@ -1609,31 +1536,25 @@ protected:
   nsGlobalWindow *mInnerWindow;
   // We hold onto this to make sure the inner window doesn't go away. The outer
   // window ends up recalculating it anyway.
-  nsCOMPtr<nsISupports> mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
+  nsCOMPtr<nsIXPConnectJSObjectHolder> mInnerWindowHolder;
   nsRefPtr<nsNavigator> mNavigator;
-  nsRefPtr<nsLocation> mLocation;
   nsCOMPtr<nsIXPConnectJSObjectHolder> mOuterProto;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WindowStateHolder, WINDOWSTATEHOLDER_IID)
 
 WindowStateHolder::WindowStateHolder(nsGlobalWindow *aWindow,
-                                     nsCOMPtr<nsISupports> aHolders[],
+                                     nsIXPConnectJSObjectHolder *aHolder,
                                      nsNavigator *aNavigator,
-                                     nsLocation *aLocation,
                                      nsIXPConnectJSObjectHolder *aOuterProto)
   : mInnerWindow(aWindow),
     mNavigator(aNavigator),
-    mLocation(aLocation),
     mOuterProto(aOuterProto)
 {
   NS_PRECONDITION(aWindow, "null window");
   NS_PRECONDITION(aWindow->IsInnerWindow(), "Saving an outer window");
 
-  PRUint32 lang_ndx;
-  NS_STID_FOR_INDEX(lang_ndx) {
-    mInnerWindowHolders[lang_ndx] = aHolders[lang_ndx];
-  }
+  mInnerWindowHolder = aHolder;
 
   aWindow->SuspendTimeouts();
 }
@@ -1688,8 +1609,14 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   if (IsFrozen()) {
     // This outer is now getting its first inner, thaw the outer now
     // that it's ready and is getting an inner window.
+    mContext->CreateOuterObject(this, aDocument->NodePrincipal());
+    mContext->DidInitializeContext();
+    mJSObject = (JSObject *)mContext->GetNativeGlobal();
+
     Thaw();
   }
+
+  // XXX Brain transplant outer window JSObject and create new one!
 
   NS_ASSERTION(!GetCurrentInnerWindow() ||
                GetCurrentInnerWindow()->GetExtantDocument() == mDocument,
@@ -1779,19 +1706,13 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   mLastOpenedURI = aDocument->GetDocumentURI();
 #endif
 
-  PRUint32 st_id; // we loop over all our context/globs lots!
-  NS_STID_FOR_ID(st_id) {
-    nsIScriptContext *langContext = GetScriptContextInternal(st_id);
-    if (langContext)
-        langContext->WillInitializeContext();
-  }
+  mContext->WillInitializeContext();
 
   nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
 
   nsRefPtr<nsGlobalWindow> newInnerWindow;
 
-  nsCOMPtr<nsIDOMChromeWindow> thisChrome =
-    do_QueryInterface(static_cast<nsIDOMWindow *>(this));
+  PRBool thisChrome = IsChromeWindow();
   nsCOMPtr<nsIXPConnectJSObjectHolder> navigatorHolder;
   jsval nav;
 
@@ -1808,12 +1729,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   // initialize the new inner window. If we don't, things
   // (Object.prototype etc) could leak from the old outer to the new
   // inner scope.
-  NS_STID_FOR_ID(st_id) {
-    nsIScriptContext *langContext = GetScriptContextInternal(st_id);
-    if (langContext)
-      langContext->ClearScope(mScriptGlobals[NS_STID_INDEX(st_id)],
-                              PR_FALSE);
-  }
+  mContext->ClearScope(mJSObject, PR_FALSE);
 
   if (reUseInnerWindow) {
     // We're reusing the current inner window.
@@ -1822,7 +1738,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     newInnerWindow = currentInner;
 
     if (aDocument != oldDoc) {
-      nsWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
+      nsCommonWindowSH::InvalidateGlobalScopePolluter(cx, currentInner->mJSObject);
     }
   } else {
     if (aState) {
@@ -1830,13 +1746,10 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       NS_ASSERTION(wsh, "What kind of weird state are you giving me here?");
 
       newInnerWindow = wsh->GetInnerWindow();
-      NS_STID_FOR_ID(st_id) {
-          mInnerWindowHolders[NS_STID_INDEX(st_id)] = wsh->GetInnerWindowHolder(st_id);
-      }
+      mInnerWindowHolder = wsh->GetInnerWindowHolder();
 
       // These assignments addref.
       mNavigator = wsh->GetNavigator();
-      mLocation = wsh->GetLocation();
 
       if (mNavigator) {
         // Update mNavigator's docshell pointer now.
@@ -1855,8 +1768,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
           newInnerWindow = new nsGlobalWindow(this);
         }
       }
-
-      mLocation = nsnull;
     }
 
     if (!newInnerWindow) {
@@ -1899,23 +1810,16 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       mCreatingInnerWindow = PR_TRUE;
       // Every script context we are initialized with must create a
       // new global.
-      rv = NS_OK;
-      NS_STID_FOR_ID(st_id) {
-        PRUint32 st_ndx = NS_STID_INDEX(st_id);
-        nsIScriptContext *this_ctx = GetScriptContextInternal(st_id);
-        if (this_ctx) {
-          void *&newGlobal = newInnerWindow->mScriptGlobals[st_ndx];
-          nsCOMPtr<nsISupports> &holder = mInnerWindowHolders[st_ndx];
-          rv |= this_ctx->CreateNativeGlobalForInner(sgo, isChrome,
-                                                     &newGlobal,
-                                                     getter_AddRefs(holder));
-          NS_ASSERTION(NS_SUCCEEDED(rv) && newGlobal && holder, 
-                      "Failed to get script global and holder");
-          if (st_id == nsIProgrammingLanguage::JAVASCRIPT) {
-              newInnerWindow->mJSObject = (JSObject *)newGlobal;
-          }
-        }
-      }
+      void *&newGlobal = (void *&)newInnerWindow->mJSObject;
+      nsCOMPtr<nsIXPConnectJSObjectHolder> &holder = mInnerWindowHolder;
+      rv = mContext->CreateNativeGlobalForInner(sgo, isChrome,
+                                                aDocument->NodePrincipal(),
+                                                &newGlobal,
+                                                getter_AddRefs(holder));
+      NS_ASSERTION(NS_SUCCEEDED(rv) && newGlobal && holder,
+                   "Failed to get script global and holder");
+      newInnerWindow->mJSObject = (JSObject *)newGlobal;
+
       mCreatingInnerWindow = PR_FALSE;
       Thaw();
 
@@ -1982,20 +1886,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // ensure that the outer window gets a new prototype so we don't
     // leak prototype properties from the old inner window to the
     // new one.
-    NS_STID_FOR_ID(st_id) {
-      nsIScriptContext *this_ctx = GetScriptContextInternal(st_id);
-      if (st_id == nsIProgrammingLanguage::JAVASCRIPT)
-          JS_BeginRequest((JSContext *)this_ctx->GetNativeContext());
-      if (this_ctx) {
-        this_ctx->InitContext(this);
-        // Now that both the the inner and outer windows are initialized
-        // let each script context do its magic to hook them together.
-        void *glob = mScriptGlobals[NS_STID_INDEX(st_id)];
-        this_ctx->ConnectToInner(newInnerWindow, glob);
-      }
-      if (st_id == nsIProgrammingLanguage::JAVASCRIPT)
-          JS_EndRequest((JSContext *)this_ctx->GetNativeContext());
-    }
+    mContext->InitOuterWindow();
+
+    // Now that both the the inner and outer windows are initialized
+    // let the script context do its magic to hook them together.
+    mContext->ConnectToInner(newInnerWindow, mJSObject);
 
     nsCOMPtr<nsIContent> frame = do_QueryInterface(GetFrameElementInternal());
     if (frame && frame->GetOwnerDoc()) {
@@ -2005,16 +1900,12 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       }
     }
   }
+
   // Tell the contexts we have completed setting up the doc.
-  NS_STID_FOR_ID(st_id) {
-    // Add an extra ref in case we release mContext during GC.
-    nsCOMPtr<nsIScriptContext> this_ctx =
-                                  GetScriptContextInternal(st_id);
-    if (this_ctx) {
-      nsCOMPtr<nsIDOMDocument> dd(do_QueryInterface(aDocument));
-      this_ctx->DidSetDocument(dd, newInnerWindow->GetScriptGlobal(st_id));
-    }
-  }
+  // Add an extra ref in case we release mContext during GC.
+  nsCOMPtr<nsIScriptContext> kungFuDeathGrip(mContext);
+  nsCOMPtr<nsIDOMDocument> dd(do_QueryInterface(aDocument));
+  mContext->DidSetDocument(dd, newInnerWindow->mJSObject);
 
   // Now that the prototype is all set up, install the global scope
   // polluter. This must happen after the above prototype fixup. If
@@ -2029,8 +1920,8 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
   if ((!reUseInnerWindow || aDocument != oldDoc) && !aState) {
     nsCOMPtr<nsIHTMLDocument> html_doc(do_QueryInterface(mDocument));
-    nsWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject,
-                                           html_doc);
+    nsCommonWindowSH::InstallGlobalScopePolluter(cx, newInnerWindow->mJSObject,
+                                                 html_doc);
   }
 
   // This code should not be called during shutdown any more (now that
@@ -2038,6 +1929,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   // check xpc here.
   nsIXPConnect *xpc = nsContentUtils::XPConnect();
 
+  nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
   if (aState) {
     // Restoring from session history.
 
@@ -2060,7 +1952,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // the old inner will again be on the outer window's prototype
     // chain.
 
-    nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
     rv = xpc->GetWrappedNativeOfJSObject(cx, mJSObject,
                                          getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -2084,45 +1975,36 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
         // make sure the cached document property gets updated.
 
         // XXXmarkh - tell other languages about this?
-        JSAutoRequest ar(cx);
         ::JS_DeleteProperty(cx, currentInner->mJSObject, "document");
       }
     } else {
       rv = newInnerWindow->InnerSetNewDocument(aDocument);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      NS_STID_FOR_ID(st_id) {
-        nsIScriptContext *this_ctx = GetScriptContextInternal(st_id);
-        if (this_ctx) {
-          // Initialize DOM classes etc on the inner window.
-          void *glob = newInnerWindow->mScriptGlobals[NS_STID_INDEX(st_id)];
-          rv = this_ctx->InitClasses(glob);
-          NS_ENSURE_SUCCESS(rv, rv);
+      // Initialize DOM classes etc on the inner window.
+      rv = mContext->InitClasses(mJSObject);
+      NS_ENSURE_SUCCESS(rv, rv);
 
-          if (navigatorHolder &&
-              st_id == nsIProgrammingLanguage::JAVASCRIPT) {
-            // Restore window.navigator onto the new inner window.
-            JSAutoRequest ar(cx);
+      if (navigatorHolder) {
+        // Restore window.navigator onto the new inner window.
 
-            ::JS_DefineProperty(cx, newInnerWindow->mJSObject, "navigator",
-                                nav, nsnull, nsnull,
-                                JSPROP_ENUMERATE | JSPROP_PERMANENT |
-                                JSPROP_READONLY);
+        ::JS_DefineProperty(cx, newInnerWindow->mJSObject, "navigator",
+                            nav, nsnull, nsnull,
+                            JSPROP_ENUMERATE | JSPROP_PERMANENT |
+                            JSPROP_READONLY);
 
-            // The Navigator's prototype object keeps a reference to the
-            // window in which it was first created and can thus cause that
-            // window to stay alive for too long. Reparenting it here allows
-            // the window to be collected sooner.
-            nsIDOMNavigator* navigator =
-              static_cast<nsIDOMNavigator*>(mNavigator);
+        // The Navigator's prototype object keeps a reference to the
+        // window in which it was first created and can thus cause that
+        // window to stay alive for too long. Reparenting it here allows
+        // the window to be collected sooner.
+        nsIDOMNavigator* navigator =
+          static_cast<nsIDOMNavigator*>(mNavigator);
 
-            xpc->
-              ReparentWrappedNativeIfFound(cx, JSVAL_TO_OBJECT(nav),
-                                           newInnerWindow->mJSObject,
-                                           navigator,
-                                           getter_AddRefs(navigatorHolder));
-          }
-        }
+        xpc->
+          ReparentWrappedNativeIfFound(cx, JSVAL_TO_OBJECT(nav),
+                                       newInnerWindow->mJSObject,
+                                       navigator,
+                                       getter_AddRefs(navigatorHolder));
       }
     }
 
@@ -2140,15 +2022,18 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     newInnerWindow->mChromeEventHandler = mChromeEventHandler;
   }
 
-  NS_STID_FOR_ID(st_id) {
-    // Add an extra ref in case we release mContext during GC.
-    nsCOMPtr<nsIScriptContext> this_ctx =
-                                  GetScriptContextInternal(st_id);
-    if (this_ctx) {
-      this_ctx->GC();
-      this_ctx->DidInitializeContext();
-    }
+  mContext->GC();
+  mContext->DidInitializeContext();
+
+  if (!wrapper) {
+    rv = xpc->GetWrappedNativeOfJSObject(cx, mJSObject,
+                                         getter_AddRefs(wrapper));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
+
+  rv = xpc->UpdateXOWs((JSContext *)GetContextInternal()->GetNativeContext(),
+                       wrapper, nsIXPConnect::XPC_XOW_NAVIGATED);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsContentUtils::AddScriptRunner(
     NS_NewRunnableMethod(this, &nsGlobalWindow::DispatchDOMWindowCreated));
@@ -2159,6 +2044,10 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 void
 nsGlobalWindow::DispatchDOMWindowCreated()
 {
+  if (!mDoc || !mDocument) {
+    return;
+  }
+
   // Fire DOMWindowCreated at chrome event listeners
   nsContentUtils::DispatchChromeEvent(mDoc, mDocument, NS_LITERAL_STRING("DOMWindowCreated"),
                                       PR_TRUE /* bubbles */,
@@ -2225,8 +2114,6 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
   if (aDocShell == mDocShell)
     return;
 
-  PRUint32 lang_id;
-  nsIScriptContext *langCtx;
   // SetDocShell(nsnull) means the window is being torn down. Drop our
   // reference to the script context, allowing it to be deleted
   // later. Meanwhile, keep our weak reference to the script object
@@ -2265,11 +2152,8 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       mDoc = nsnull;
     }
 
-    // clear all scopes
-    NS_STID_FOR_ID(lang_id) {
-      langCtx = mScriptContexts[NS_STID_INDEX(lang_id)];
-      if (langCtx)
-        langCtx->ClearScope(mScriptGlobals[NS_STID_INDEX(lang_id)], PR_TRUE);
+    if (mContext) {
+      mContext->ClearScope(mJSObject, PR_TRUE);
     }
 
     ClearControllers();
@@ -2284,33 +2168,22 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       mArgumentsOrigin = nsnull;
     }
 
-    PRUint32 st_ndx;
-
-    // Drop holders and tell each context to cleanup and release them now.
-    NS_ASSERTION(mContext == mScriptContexts[NS_STID_INDEX(nsIProgrammingLanguage::JAVASCRIPT)],
-                 "Contexts confused");
-    NS_STID_FOR_INDEX(st_ndx) {
-      mInnerWindowHolders[st_ndx] = nsnull;
-      langCtx = mScriptContexts[st_ndx];
-      if (langCtx) {
-        langCtx->GC();
-        langCtx->FinalizeContext();
-        mScriptContexts[st_ndx] = nsnull;
-      }
+    if (mContext) {
+      mContext->GC();
+      mContext->FinalizeContext();
+      mContext = nsnull;
     }
+
 #ifdef DEBUG
     nsCycleCollector_DEBUG_shouldBeFreed(mContext);
     nsCycleCollector_DEBUG_shouldBeFreed(static_cast<nsIScriptGlobalObject*>(this));
 #endif
-    mContext = nsnull; // we nuked it above also
   }
 
   mDocShell = aDocShell;        // Weak Reference
 
   if (mNavigator)
     mNavigator->SetDocShell(aDocShell);
-  if (mLocation)
-    mLocation->SetDocShell(aDocShell);
   if (mHistory)
     mHistory->SetDocShell(aDocShell);
   if (mFrames)
@@ -2522,20 +2395,12 @@ nsGlobalWindow::DispatchDOMEvent(nsEvent* aEvent,
 void
 nsGlobalWindow::OnFinalize(PRUint32 aLangID, void *aObject)
 {
-  if (!NS_STID_VALID(aLangID)) {
-    NS_ERROR("Invalid language ID");
-    return;
+  NS_ASSERTION(aLangID == nsIProgrammingLanguage::JAVASCRIPT,
+               "We don't support this language ID");
+
+  if (aObject == mJSObject) {
+    mJSObject = nsnull;
   }
-  PRUint32 lang_ndx = NS_STID_INDEX(aLangID);
-  if (aObject == mScriptGlobals[lang_ndx]) {
-    mScriptGlobals[lang_ndx] = nsnull;
-  } else if (mScriptGlobals[lang_ndx]) {
-    NS_ERROR("Huh? Script language created more than one wrapper for this global!");
-  } else {
-    NS_WARNING("Weird, we're finalized with a null language global?");
-  }
-  if (aLangID==nsIProgrammingLanguage::JAVASCRIPT)
-    mJSObject = nsnull; // all relevant assertions and nulling done above.
 }
 
 void
@@ -2594,22 +2459,12 @@ nsGlobalWindow::DefineArgumentsProperty(nsIArray *aArguments)
   if (mIsModalContentWindow) {
     // Modal content windows don't have an "arguments" property, they
     // have a "dialogArguments" property which is handled
-    // separately. See nsWindowSH::NewResolve().
+    // separately. See nsCommonWindowSH::NewResolve().
 
     return NS_OK;
   }
 
-  PRUint32 langID;
-  NS_STID_FOR_ID(langID) {
-    void *glob = GetScriptGlobal(langID);
-    ctx = GetScriptContext(langID);
-    if (glob && ctx) {
-      nsresult rv = ctx->SetProperty(glob, "arguments", aArguments);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
-
-  return NS_OK;
+  return GetContextInternal()->SetProperty(mJSObject, "arguments", aArguments);
 }
 
 //*****************************************************************************
@@ -3646,6 +3501,38 @@ nsGlobalWindow::GetMozPaintCount(PRUint64* aResult)
 }
 
 NS_IMETHODIMP
+nsGlobalWindow::MozRequestAnimationFrame()
+{
+  FORWARD_TO_INNER(MozRequestAnimationFrame, (), NS_ERROR_NOT_INITIALIZED);
+
+  if (!mDoc) {
+    return NS_OK;
+  }
+
+  mDoc->ScheduleBeforePaintEvent();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsGlobalWindow::GetMozAnimationStartTime(PRInt64 *aTime)
+{
+  FORWARD_TO_INNER(GetMozAnimationStartTime, (aTime), NS_ERROR_NOT_INITIALIZED);
+
+  if (mDoc) {
+    nsIPresShell* presShell = mDoc->GetShell();
+    if (presShell) {
+      *aTime = presShell->GetPresContext()->RefreshDriver()->
+        MostRecentRefreshEpochTime() / PR_USEC_PER_MSEC;
+      return NS_OK;
+    }
+  }
+
+  // If all else fails, just be compatible with Date.now()
+  *aTime = JS_Now() / PR_USEC_PER_MSEC;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsGlobalWindow::SetScreenX(PRInt32 aScreenX)
 {
   FORWARD_TO_OUTER(SetScreenX, (aScreenX), NS_ERROR_NOT_INITIALIZED);
@@ -4076,6 +3963,15 @@ nsGlobalWindow::SetFullScreen(PRBool aFullScreen)
   // respond visually if we are kicked into full screen mode
   if (!DispatchCustomEvent("fullscreen")) {
     return NS_OK;
+  }
+
+  // Prevent chrome documents which are still loading from resizing
+  // the window after we set fullscreen mode.
+  nsCOMPtr<nsIBaseWindow> treeOwnerAsWin;
+  GetTreeOwner(getter_AddRefs(treeOwnerAsWin));
+  nsCOMPtr<nsIXULWindow> xulWin(do_GetInterface(treeOwnerAsWin));
+  if (aFullScreen && xulWin) {
+    xulWin->SetIntrinsicallySized(PR_FALSE);
   }
 
   nsCOMPtr<nsIWidget> widget = GetMainWidget();
@@ -5789,7 +5685,7 @@ nsGlobalWindow::FinalClose()
   if (cx) {
     nsIScriptContext *currentCX = nsJSUtils::GetDynamicScriptContext(cx);
 
-    if (currentCX && currentCX == mContext) {
+    if (currentCX && currentCX == GetContextInternal()) {
       // We ignore the return value here.  If setting the termination function
       // fails, it's better to fail to close the window than it is to crash
       // (which is what would tend to happen if we did this synchronously
@@ -6938,12 +6834,13 @@ nsGlobalWindow::GetPrivateRoot()
 NS_IMETHODIMP
 nsGlobalWindow::GetLocation(nsIDOMLocation ** aLocation)
 {
-  FORWARD_TO_OUTER(GetLocation, (aLocation), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_INNER(GetLocation, (aLocation), NS_ERROR_NOT_INITIALIZED);
 
   *aLocation = nsnull;
 
-  if (!mLocation && mDocShell) {
-    mLocation = new nsLocation(mDocShell);
+  nsIDocShell *docShell = GetDocShell();
+  if (!mLocation && docShell) {
+    mLocation = new nsLocation(docShell);
     if (!mLocation) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -7004,6 +6901,35 @@ nsGlobalWindow::SetActive(PRBool aActive)
 {
   nsPIDOMWindow::SetActive(aActive);
   NotifyDocumentTree(mDoc, nsnull);
+}
+
+void nsGlobalWindow::MaybeUpdateTouchState()
+{
+  FORWARD_TO_INNER_VOID(MaybeUpdateTouchState, ());
+
+  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+
+  nsCOMPtr<nsIDOMWindow> focusedWindow;
+  fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
+
+  if(this == focusedWindow) {
+    UpdateTouchState();
+  }
+}
+
+void nsGlobalWindow::UpdateTouchState()
+{
+  FORWARD_TO_INNER_VOID(UpdateTouchState, ());
+
+  nsCOMPtr<nsIWidget> mainWidget = GetMainWidget();
+  if (!mainWidget)
+    return;
+
+  if (mMayHaveTouchEventListener) {
+    mainWidget->RegisterTouchWindow();
+  } else {
+    mainWidget->UnregisterTouchWindow();
+  }
 }
 
 void
@@ -8221,13 +8147,9 @@ void
 nsGlobalWindow::ClearWindowScope(nsISupports *aWindow)
 {
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aWindow));
-  PRUint32 lang_id;
-  NS_STID_FOR_ID(lang_id) {
-    nsIScriptContext *scx = sgo->GetScriptContext(lang_id);
-    if (scx) {
-      void *global = sgo->GetScriptGlobal(lang_id);
-      scx->ClearScope(global, PR_TRUE);
-    }
+  nsIScriptContext *scx = sgo->GetContext();
+  if (scx) {
+    scx->ClearScope(sgo->GetGlobalJSObject(), PR_TRUE);
   }
 }
 
@@ -8323,14 +8245,14 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     timeout->mPrincipal = ourPrincipal;
   }
 
-  PRTime delta = (PRTime)realInterval * PR_USEC_PER_MSEC;
+  TimeDuration delta = TimeDuration::FromMilliseconds(realInterval);
 
   if (!IsFrozen() && !mTimeoutsSuspendDepth) {
     // If we're not currently frozen, then we set timeout->mWhen to be the
     // actual firing time of the timer (i.e., now + delta). We also actually
     // create a timer and fire it off.
 
-    timeout->mWhen = PR_Now() + delta;
+    timeout->mWhen = TimeStamp::Now() + delta;
 
     timeout->mTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
     if (NS_FAILED(rv)) {
@@ -8351,12 +8273,13 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     // The timeout is now also held in the timer's closure.
     timeout->AddRef();
   } else {
-    // If we are frozen, however, then we instead simply set timeout->mWhen to
-    // be the "time remaining" in the timeout (i.e., the interval itself). We
-    // don't create a timer for it, since that will happen when we are thawed
-    // and the timeout will then get a timer and run to completion.
+    // If we are frozen, however, then we instead simply set
+    // timeout->mTimeRemaining to be the "time remaining" in the timeout (i.e.,
+    // the interval itself). We don't create a timer for it, since that will
+    // happen when we are thawed and the timeout will then get a timer and run
+    // to completion.
 
-    timeout->mWhen = delta;
+    timeout->mTimeRemaining = delta;
   }
 
   timeout->mWindow = this;
@@ -8462,8 +8385,8 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
 
   // A native timer has gone off. See which of our timeouts need
   // servicing
-  PRTime now = PR_Now();
-  PRTime deadline;
+  TimeStamp now = TimeStamp::Now();
+  TimeStamp deadline;
 
   if (aTimeout && aTimeout->mWhen > now) {
     // The OS timer fired early (yikes!), and possibly out of order
@@ -8505,6 +8428,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
   // win_run_timeout(). This dummy timeout serves as the head of the
   // list for any timeouts inserted as a result of running a timeout.
   dummy_timeout.mFiringDepth = firingDepth;
+  dummy_timeout.mWhen = now;
   PR_INSERT_AFTER(&dummy_timeout, last_expired_timeout);
 
   // Don't let ClearWindowTimeouts throw away our stack-allocated
@@ -8613,13 +8537,9 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     } else {
       // Let the script handler know about the "secret" final argument that
       // indicates timeout lateness in milliseconds
-      PRTime lateness = now - timeout->mWhen;
+      TimeDuration lateness = now - timeout->mWhen;
 
-      // Make sure to cast the unsigned PR_USEC_PER_MSEC to signed
-      // PRTime to make the division do the right thing on 64-bit
-      // platforms whether lateness is positive or negative.
-      handler->SetLateness((PRIntervalTime)(lateness /
-                                            (PRTime)PR_USEC_PER_MSEC));
+      handler->SetLateness(lateness.ToMilliseconds());
 
       nsCOMPtr<nsIVariant> dummy;
       nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));
@@ -8676,35 +8596,32 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     // timeout, accounting for clock drift.
     if (timeout->mInterval) {
       // Compute time to next timeout for interval timer.
-      PRTime nextInterval = (PRTime)timeout->mInterval * PR_USEC_PER_MSEC;
-
       // Make sure nextInterval is at least DOM_MIN_TIMEOUT_VALUE.
-      // Note: We must cast the rhs expression to PRTime to work
-      // around what looks like a compiler bug on x86_64.
-      if (nextInterval < (PRTime)(DOM_MIN_TIMEOUT_VALUE * PR_USEC_PER_MSEC)) {
-         nextInterval = DOM_MIN_TIMEOUT_VALUE * PR_USEC_PER_MSEC;
-      }
+      TimeDuration nextInterval =
+        TimeDuration::FromMilliseconds(NS_MAX(timeout->mInterval,
+                                              PRUint32(DOM_MIN_TIMEOUT_VALUE)));
 
       // If we're running pending timeouts because they've been temporarily
       // disabled (!aTimeout), set the next interval to be relative to "now",
       // and not to when the timeout that was pending should have fired.  Also
       // check if the next interval timeout is overdue.  If so, then restart
       // the interval from now.
-      if (!aTimeout || nextInterval + timeout->mWhen <= now)
-        nextInterval += now;
+      TimeStamp firingTime;
+      if (!aTimeout || timeout->mWhen + nextInterval <= now)
+        firingTime = now + nextInterval;
       else
-        nextInterval += timeout->mWhen;
+        firingTime = timeout->mWhen + nextInterval;
 
-      PRTime delay = nextInterval - PR_Now();
+      TimeDuration delay = firingTime - TimeStamp::Now();
 
       // And make sure delay is nonnegative; that might happen if the timer
       // thread is firing our timers somewhat early.
-      if (delay < 0) {
-        delay = 0;
+      if (delay < TimeDuration(0)) {
+        delay = TimeDuration(0);
       }
 
       if (timeout->mTimer) {
-        timeout->mWhen = nextInterval;
+        timeout->mWhen = firingTime;
 
         // Reschedule the OS timer. Don't bother returning any error
         // codes if this fails since the callers of this method
@@ -8718,7 +8635,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
         // consistency).
         nsresult rv = timeout->mTimer->
           InitWithFuncCallback(TimerCallback, timeout,
-                               (PRInt32)(delay / (PRTime)PR_USEC_PER_MSEC),
+                               delay.ToMilliseconds(),
                                nsITimer::TYPE_ONE_SHOT);
 
         if (NS_FAILED(rv)) {
@@ -8742,7 +8659,7 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
                      "How'd our timer end up null if we're not frozen or "
                      "suspended?");
 
-        timeout->mWhen = delay;
+        timeout->mTimeRemaining = delay;
         isInterval = PR_TRUE;
       }
     }
@@ -8947,7 +8864,11 @@ nsGlobalWindow::InsertTimeoutIntoList(nsTimeout *aTimeout)
   nsTimeout* prevSibling;
   for (prevSibling = LastTimeout();
        IsTimeout(prevSibling) && prevSibling != mTimeoutInsertionPoint &&
-         prevSibling->mWhen > aTimeout->mWhen;
+         // This condition needs to match the one in SetTimeoutOrInterval that
+         // determines whether to set mWhen or mTimeRemaining.
+         ((IsFrozen() || mTimeoutsSuspendDepth) ?
+          prevSibling->mTimeRemaining > aTimeout->mTimeRemaining :
+          prevSibling->mWhen > aTimeout->mWhen);
        prevSibling = prevSibling->Prev()) {
     /* Do nothing; just searching */
   }
@@ -9194,9 +9115,8 @@ nsGlobalWindow::SaveWindowState(nsISupports **aState)
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsISupports> state = new WindowStateHolder(inner,
-                                                      mInnerWindowHolders,
+                                                      mInnerWindowHolder,
                                                       mNavigator,
-                                                      mLocation,
                                                       proto);
   NS_ENSURE_TRUE(state, NS_ERROR_OUT_OF_MEMORY);
 
@@ -9262,13 +9182,13 @@ nsGlobalWindow::SuspendTimeouts(PRUint32 aIncrease,
       dts->SuspendWorkersForGlobal(static_cast<nsIScriptGlobalObject*>(this));
     }
   
-    PRTime now = PR_Now();
+    TimeStamp now = TimeStamp::Now();
     for (nsTimeout *t = FirstTimeout(); IsTimeout(t); t = t->Next()) {
-      // Change mWhen to be the time remaining for this timer.    
+      // Set mTimeRemaining to be the time remaining for this timer.
       if (t->mWhen > now)
-        t->mWhen -= now;
+        t->mTimeRemaining = t->mWhen - now;
       else
-        t->mWhen = 0;
+        t->mTimeRemaining = TimeDuration(0);
   
       // Drop the XPCOM timer; we'll reschedule when restoring the state.
       if (t->mTimer) {
@@ -9337,9 +9257,9 @@ nsGlobalWindow::ResumeTimeouts(PRBool aThawChildren)
     }
 
     // Restore all of the timeouts, using the stored time remaining
-    // (stored in timeout->mWhen).
+    // (stored in timeout->mTimeRemaining).
 
-    PRTime now = PR_Now();
+    TimeStamp now = TimeStamp::Now();
 
 #ifdef DEBUG
     PRBool _seenDummyTimeout = PR_FALSE;
@@ -9357,18 +9277,16 @@ nsGlobalWindow::ResumeTimeouts(PRBool aThawChildren)
         continue;
       }
 
-      // Make sure to cast the unsigned PR_USEC_PER_MSEC to signed
-      // PRTime to make the division do the right thing on 64-bit
-      // platforms whether t->mWhen is positive or negative (which is
-      // likely to always be positive here, but cast anyways for
-      // consistency).
+      // XXXbz the combination of the way |delay| and |t->mWhen| are set here
+      // makes no sense.  Are we trying to impose that min timeout value or
+      // not???
       PRUint32 delay =
-        NS_MAX(((PRUint32)(t->mWhen / (PRTime)PR_USEC_PER_MSEC)),
-               (PRUint32)DOM_MIN_TIMEOUT_VALUE);
+        NS_MAX(PRInt32(t->mTimeRemaining.ToMilliseconds()),
+               DOM_MIN_TIMEOUT_VALUE);
 
       // Set mWhen back to the time when the timer is supposed to
       // fire.
-      t->mWhen += now;
+      t->mWhen = now + t->mTimeRemaining;
 
       t->mTimer = do_CreateInstance("@mozilla.org/timer;1");
       NS_ENSURE_TRUE(t->mTimer, NS_ERROR_OUT_OF_MEMORY);
@@ -9469,11 +9387,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGlobalChromeWindow,
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 DOMCI_DATA(ChromeWindow, nsGlobalChromeWindow)
+DOMCI_DATA(InnerChromeWindow, nsGlobalChromeWindow)
 
 // QueryInterface implementation for nsGlobalChromeWindow
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsGlobalChromeWindow)
   NS_INTERFACE_MAP_ENTRY(nsIDOMChromeWindow)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ChromeWindow)
+  WINDOW_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ChromeWindow)
 NS_INTERFACE_MAP_END_INHERITING(nsGlobalWindow)
 
 NS_IMPL_ADDREF_INHERITED(nsGlobalChromeWindow, nsGlobalWindow)
@@ -9569,6 +9488,25 @@ nsGlobalChromeWindow::GetAttentionWithCycleCount(PRInt32 aCycleCount)
   }
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsGlobalChromeWindow::BeginWindowMove(nsIDOMEvent *aMouseDownEvent)
+{
+  nsCOMPtr<nsIWidget> widget = GetMainWidget();
+  if (!widget) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIPrivateDOMEvent> privEvent = do_QueryInterface(aMouseDownEvent);
+  NS_ENSURE_TRUE(privEvent, NS_ERROR_FAILURE);
+  nsEvent *internalEvent = privEvent->GetInternalNSEvent();
+  NS_ENSURE_TRUE(internalEvent &&
+                 internalEvent->eventStructType == NS_MOUSE_EVENT,
+                 NS_ERROR_FAILURE);
+  nsMouseEvent *mouseEvent = static_cast<nsMouseEvent*>(internalEvent);
+
+  return widget->BeginMoveDrag(mouseEvent);
 }
 
 //Note: This call will lock the cursor, it will not change as it moves.
@@ -9733,10 +9671,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsGlobalModalWindow,
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 DOMCI_DATA(ModalContentWindow, nsGlobalModalWindow)
+DOMCI_DATA(InnerModalContentWindow, nsGlobalModalWindow)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsGlobalModalWindow)
   NS_INTERFACE_MAP_ENTRY(nsIDOMModalContentWindow)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ModalContentWindow)
+  WINDOW_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ModalContentWindow)
 NS_INTERFACE_MAP_END_INHERITING(nsGlobalWindow)
 
 NS_IMPL_ADDREF_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
@@ -9838,6 +9777,10 @@ nsNavigator::nsNavigator(nsIDocShell *aDocShell)
 
 nsNavigator::~nsNavigator()
 {
+  if (mMimeTypes)
+    mMimeTypes->Invalidate();
+  if (mPlugins)
+    mPlugins->Invalidate();
 }
 
 //*****************************************************************************
@@ -9939,13 +9882,6 @@ nsNavigator::GetAppVersion(nsAString& aAppVersion)
     if (NS_FAILED(rv))
       return rv;
 
-    AppendASCIItoUTF16(str, aAppVersion);
-
-    aAppVersion.AppendLiteral("; ");
-
-    rv = service->GetLanguage(str);
-    if (NS_FAILED(rv))
-      return rv;
     AppendASCIItoUTF16(str, aAppVersion);
 
     aAppVersion.Append(PRUnichar(')'));
@@ -10269,8 +10205,15 @@ nsNavigator::LoadingNewDocument()
   // Release these so that they will be recreated for the
   // new document (if requested).  The plugins or mime types
   // arrays may have changed.  See bug 150087.
-  mMimeTypes = nsnull;
-  mPlugins = nsnull;
+  if (mMimeTypes) {
+    mMimeTypes->Invalidate();
+    mMimeTypes = nsnull;
+  }
+
+  if (mPlugins) {
+    mPlugins->Invalidate();
+    mPlugins = nsnull;
+  }
 
   if (mGeolocation)
   {

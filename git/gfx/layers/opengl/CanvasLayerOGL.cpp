@@ -54,12 +54,17 @@ using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::gl;
 
-CanvasLayerOGL::~CanvasLayerOGL()
+void
+CanvasLayerOGL::Destroy()
 {
-  mOGLManager->MakeCurrent();
+  if (!mDestroyed) {
+    if (mTexture) {
+      GLContext *cx = mOGLManager->glForResources();
+      cx->MakeCurrent();
+      cx->fDeleteTextures(1, &mTexture);
+    }
 
-  if (mTexture) {
-    gl()->fDeleteTextures(1, &mTexture);
+    mDestroyed = PR_TRUE;
   }
 }
 
@@ -68,23 +73,25 @@ CanvasLayerOGL::Initialize(const Data& aData)
 {
   NS_ASSERTION(mCanvasSurface == nsnull, "BasicCanvasLayer::Initialize called twice!");
 
+  if (aData.mGLContext != nsnull &&
+      aData.mSurface != nsnull)
+  {
+    NS_WARNING("CanvasLayerOGL can't have both surface and GLContext");
+    return;
+  }
+
   if (aData.mSurface) {
     mCanvasSurface = aData.mSurface;
-    NS_ASSERTION(aData.mGLContext == nsnull,
-                 "CanvasLayerOGL can't have both surface and GLContext");
     mNeedsYFlip = PR_FALSE;
-    if (mCanvasSurface->GetType() == gfxASurface::SurfaceTypeXlib)
-      mCanvasSurfaceAsGLContext = sGLContextProvider.CreateForNativePixmapSurface(mCanvasSurface);
   } else if (aData.mGLContext) {
-    // this must be a pbuffer context
-    void *pbuffer = aData.mGLContext->GetNativeData(GLContext::NativePBuffer);
-    if (!pbuffer) {
-      NS_WARNING("CanvasLayerOGL with GL context without NativePBuffer");
+    if (!aData.mGLContext->IsOffscreen()) {
+      NS_WARNING("CanvasLayerOGL with a non-offscreen GL context given");
       return;
     }
 
     mCanvasGLContext = aData.mGLContext;
     mGLBufferIsPremultiplied = aData.mGLBufferIsPremultiplied;
+
     mNeedsYFlip = PR_TRUE;
   } else {
     NS_WARNING("CanvasLayerOGL::Initialize called without surface or GL context!");
@@ -95,8 +102,29 @@ CanvasLayerOGL::Initialize(const Data& aData)
 }
 
 void
+CanvasLayerOGL::MakeTexture()
+{
+  if (mTexture != 0)
+    return;
+
+  gl()->fGenTextures(1, &mTexture);
+
+  gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
+  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
+  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
+}
+
+void
 CanvasLayerOGL::Updated(const nsIntRect& aRect)
 {
+  if (mDestroyed) {
+    return;
+  }
+
   NS_ASSERTION(mUpdatedRect.IsEmpty(),
                "CanvasLayer::Updated called more than once during a transaction!");
 
@@ -104,38 +132,18 @@ CanvasLayerOGL::Updated(const nsIntRect& aRect)
 
   mUpdatedRect.UnionRect(mUpdatedRect, aRect);
 
-  if (mCanvasSurfaceAsGLContext) {
-    PRBool newTexture = mTexture == 0;
-    if (newTexture) {
-      gl()->fGenTextures(1, &mTexture);
-
-      gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-      gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
-
-      mUpdatedRect = mBounds;
-    } else {
-      gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-      gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+  if (mCanvasGLContext &&
+      mCanvasGLContext->GetContextType() == gl()->GetContextType())
+  {
+    if (gl()->BindOffscreenNeedsTexture(mCanvasGLContext) &&
+        mTexture == 0)
+    {
+      MakeTexture();
     }
-    mCanvasSurfaceAsGLContext->BindTexImage();
-  } else if (mCanvasSurface) {
+  } else {
     PRBool newTexture = mTexture == 0;
     if (newTexture) {
-      gl()->fGenTextures(1, &mTexture);
-
-      gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-      gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
-
+      MakeTexture();
       mUpdatedRect = mBounds;
     } else {
       gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
@@ -143,40 +151,50 @@ CanvasLayerOGL::Updated(const nsIntRect& aRect)
     }
 
     nsRefPtr<gfxImageSurface> updatedAreaImageSurface;
-    nsRefPtr<gfxASurface> sourceSurface = mCanvasSurface;
+    if (mCanvasSurface) {
+      nsRefPtr<gfxASurface> sourceSurface = mCanvasSurface;
 
 #ifdef XP_WIN
-    if (sourceSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
-      sourceSurface = static_cast<gfxWindowsSurface*>(sourceSurface.get())->GetImageSurface();
-      if (!sourceSurface)
-        sourceSurface = mCanvasSurface;
-    }
+      if (sourceSurface->GetType() == gfxASurface::SurfaceTypeWin32) {
+        sourceSurface = static_cast<gfxWindowsSurface*>(sourceSurface.get())->GetImageSurface();
+        if (!sourceSurface)
+          sourceSurface = mCanvasSurface;
+      }
 #endif
 
 #if 0
-    // XXX don't copy, blah.
-    // but need to deal with stride on the gl side; do this later.
-    if (mCanvasSurface->GetType() == gfxASurface::SurfaceTypeImage) {
-      gfxImageSurface *s = static_cast<gfxImageSurface*>(mCanvasSurface.get());
-      if (s->Format() == gfxASurface::ImageFormatARGB32 ||
-          s->Format() == gfxASurface::ImageFormatRGB24)
-      {
-        updatedAreaImageSurface = ...;
-      } else {
-        NS_WARNING("surface with format that we can't handle");
-        return;
-      }
-    } else
+      // XXX don't copy, blah.
+      // but need to deal with stride on the gl side; do this later.
+      if (mCanvasSurface->GetType() == gfxASurface::SurfaceTypeImage) {
+        gfxImageSurface *s = static_cast<gfxImageSurface*>(mCanvasSurface.get());
+        if (s->Format() == gfxASurface::ImageFormatARGB32 ||
+            s->Format() == gfxASurface::ImageFormatRGB24)
+        {
+          updatedAreaImageSurface = ...;
+        } else {
+          NS_WARNING("surface with format that we can't handle");
+          return;
+        }
+      } else
 #endif
-    {
+      {
+        updatedAreaImageSurface =
+          new gfxImageSurface(gfxIntSize(mUpdatedRect.width, mUpdatedRect.height),
+                              gfxASurface::ImageFormatARGB32);
+        nsRefPtr<gfxContext> ctx = new gfxContext(updatedAreaImageSurface);
+        ctx->Translate(gfxPoint(-mUpdatedRect.x, -mUpdatedRect.y));
+        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+        ctx->SetSource(sourceSurface);
+        ctx->Paint();
+      }
+    } else if (mCanvasGLContext) {
       updatedAreaImageSurface =
         new gfxImageSurface(gfxIntSize(mUpdatedRect.width, mUpdatedRect.height),
                             gfxASurface::ImageFormatARGB32);
-      nsRefPtr<gfxContext> ctx = new gfxContext(updatedAreaImageSurface);
-      ctx->Translate(gfxPoint(-mUpdatedRect.x, -mUpdatedRect.y));
-      ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-      ctx->SetSource(sourceSurface);
-      ctx->Paint();
+      mCanvasGLContext->ReadPixelsIntoImageSurface(mUpdatedRect.x, mUpdatedRect.y,
+                                                   mUpdatedRect.width,
+                                                   mUpdatedRect.height,
+                                                   updatedAreaImageSurface);
     }
 
     if (newTexture) {
@@ -200,42 +218,6 @@ CanvasLayerOGL::Updated(const nsIntRect& aRect)
                            LOCAL_GL_UNSIGNED_BYTE,
                            updatedAreaImageSurface->Data());
     }
-  } else if (mCanvasGLContext) {
-    // we just need to create a texture that we'll use, the first time through
-    PRBool newTexture = mTexture == 0;
-    if (newTexture) {
-      gl()->fGenTextures(1, (GLuint*)&mTexture);
-
-      gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-      gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
-
-      mUpdatedRect = mBounds;
-    }
-
-#if defined(XP_MACOSX)
-    // We only need to do this for the first time we set up the texture
-    if (newTexture) {
-      CGLError err;
-      err = CGLTexImagePBuffer((CGLContextObj) gl()->GetNativeData(GLContext::NativeCGLContext),
-                               (CGLPBufferObj) mCanvasGLContext->GetNativeData(GLContext::NativePBuffer),
-                               LOCAL_GL_BACK);
-      if (err) {
-        NS_WARNING("CanvasLayerOGL::Updated CGLTexImagePBuffer failed");
-      }
-    }
-#elif defined(XP_WIN)
-    // We need to do this every time before we paint
-    if (!sWGLLibrary.fBindTexImage((HANDLE) mCanvasGLContext->GetNativeData(GLContext::NativePBuffer),
-                                   LOCAL_WGL_FRONT_LEFT_ARB)) {
-      NS_WARNING("CanvasLayerOGL::Updated wglBindTexImageARB failed");
-    }
-#else
-    NS_WARNING("CanvasLayerOGL::Updated with GL context, but I don't know how to render on this platform!");
-#endif
   }
 
   // sanity
@@ -256,9 +238,17 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
   ColorTextureLayerProgram *program = nsnull;
 
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
-  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
 
-  if (mCanvasGLContext || mCanvasSurfaceAsGLContext) {
+  if (mTexture) {
+    gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+  }
+
+  bool useGLContext = mCanvasGLContext &&
+    mCanvasGLContext->GetContextType() == gl()->GetContextType();
+
+  if (useGLContext) {
+    gl()->BindTex2DOffscreen(mCanvasGLContext);
+    DEBUG_GL_ERROR_CHECK(gl());
     program = mOGLManager->GetRGBALayerProgram();
   } else {
     program = mOGLManager->GetBGRALayerProgram();
@@ -273,14 +263,11 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 
   mOGLManager->BindAndDrawQuad(program, mNeedsYFlip ? true : false);
 
-#if defined(XP_WIN)
-  // We need to do this ever time after we paint, before anyone
-  // draws into the pbuffer again
-  if (mCanvasGLContext) {
-    sWGLLibrary.fReleaseTexImage((HANDLE) mCanvasGLContext->GetNativeData(GLContext::NativePBuffer),
-                                 LOCAL_WGL_FRONT_LEFT_ARB);
+  DEBUG_GL_ERROR_CHECK(gl());
+
+  if (useGLContext) {
+    gl()->UnbindTex2DOffscreen(mCanvasGLContext);
   }
-#endif
 
   mUpdatedRect.Empty();
 }

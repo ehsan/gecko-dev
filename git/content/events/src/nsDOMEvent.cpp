@@ -37,6 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
+#include "base/basictypes.h"
+#include "IPC/IPCMessageUtils.h"
+#endif
 #include "nsCOMPtr.h"
 #include "nsDOMEvent.h"
 #include "nsEventStateManager.h"
@@ -77,6 +81,9 @@ static const char* const sEventNames[] = {
   "SVGLoad", "SVGUnload", "SVGAbort", "SVGError", "SVGResize", "SVGScroll",
   "SVGZoom",
 #endif // MOZ_SVG
+#ifdef MOZ_SMIL
+  "beginEvent", "endEvent", "repeatEvent",
+#endif // MOZ_SMIL
 #ifdef MOZ_MEDIA
   "loadstart", "progress", "suspend", "emptied", "stalled", "play", "pause",
   "loadedmetadata", "loadeddata", "waiting", "playing", "canplay",
@@ -84,6 +91,7 @@ static const char* const sEventNames[] = {
   "durationchange", "volumechange",
 #endif // MOZ_MEDIA
   "MozAfterPaint",
+  "MozBeforePaint",
   "MozSwipeGesture",
   "MozMagnifyGestureStart",
   "MozMagnifyGestureUpdate",
@@ -93,6 +101,9 @@ static const char* const sEventNames[] = {
   "MozRotateGesture",
   "MozTapGesture",
   "MozPressTapGesture",
+  "MozTouchDown",
+  "MozTouchMove",
+  "MozTouchUp",
   "MozScrolledAreaChanged",
   "transitionend"
 };
@@ -185,6 +196,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
       case NS_MOUSE_EVENT:
       case NS_MOUSE_SCROLL_EVENT:
       case NS_SIMPLE_GESTURE_EVENT:
+      case NS_MOZTOUCH_EVENT:
         static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nsnull;
         break;
       case NS_DRAG_EVENT:
@@ -214,6 +226,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
       case NS_MOUSE_EVENT:
       case NS_MOUSE_SCROLL_EVENT:
       case NS_SIMPLE_GESTURE_EVENT:
+      case NS_MOZTOUCH_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->relatedTarget");
         cb.NoteXPCOMChild(
           static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
@@ -388,7 +401,7 @@ nsDOMEvent::GetCancelable(PRBool* aCancelable)
 NS_IMETHODIMP
 nsDOMEvent::GetTimeStamp(PRUint64* aTimeStamp)
 {
-  LL_UI2L(*aTimeStamp, mEvent->time);
+  *aTimeStamp = mEvent->time;
   return NS_OK;
 }
 
@@ -769,6 +782,15 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       break;
     }
 #endif // MOZ_SVG
+#ifdef MOZ_SMIL
+    case NS_SMIL_TIME_EVENT:
+    {
+      newEvent = new nsUIEvent(PR_FALSE, msg, 0);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
+      newEvent->eventStructType = NS_SMIL_TIME_EVENT;
+      break;
+    }
+#endif // MOZ_SMIL
     case NS_SIMPLE_GESTURE_EVENT:
     {
       nsSimpleGestureEvent* oldSimpleGestureEvent = static_cast<nsSimpleGestureEvent*>(mEvent);
@@ -789,6 +811,14 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
                                        oldTransitionEvent->propertyName,
                                        oldTransitionEvent->elapsedTime);
       NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
+      break;
+    }
+    case NS_MOZTOUCH_EVENT:
+    {
+      newEvent = new nsMozTouchEvent(PR_FALSE, msg, nsnull,
+                                     static_cast<nsMozTouchEvent*>(mEvent)->streamId);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
+      isInputEvent = PR_TRUE;
       break;
     }
     default:
@@ -1221,6 +1251,14 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
   case NS_SVG_ZOOM:
     return sEventNames[eDOMEvents_SVGZoom];
 #endif // MOZ_SVG
+#ifdef MOZ_SMIL
+  case NS_SMIL_BEGIN:
+    return sEventNames[eDOMEvents_beginEvent];
+  case NS_SMIL_END:
+    return sEventNames[eDOMEvents_endEvent];
+  case NS_SMIL_REPEAT:
+    return sEventNames[eDOMEvents_repeatEvent];
+#endif // MOZ_SMIL
 #ifdef MOZ_MEDIA
   case NS_LOADSTART:
     return sEventNames[eDOMEvents_loadstart];
@@ -1265,6 +1303,8 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
 #endif
   case NS_AFTERPAINT:
     return sEventNames[eDOMEvents_afterpaint];
+  case NS_BEFOREPAINT:
+    return sEventNames[eDOMEvents_beforepaint];
   case NS_SIMPLE_GESTURE_SWIPE:
     return sEventNames[eDOMEvents_MozSwipeGesture];
   case NS_SIMPLE_GESTURE_MAGNIFY_START:
@@ -1283,6 +1323,12 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_MozTapGesture];
   case NS_SIMPLE_GESTURE_PRESSTAP:
     return sEventNames[eDOMEvents_MozPressTapGesture];
+  case NS_MOZTOUCH_DOWN:
+    return sEventNames[eDOMEvents_MozTouchDown];
+  case NS_MOZTOUCH_MOVE:
+    return sEventNames[eDOMEvents_MozTouchMove];
+  case NS_MOZTOUCH_UP:
+    return sEventNames[eDOMEvents_MozTouchUp];
   case NS_SCROLLEDAREACHANGED:
     return sEventNames[eDOMEvents_MozScrolledAreaChanged];
   case NS_TRANSITION_END:
@@ -1324,6 +1370,61 @@ nsDOMEvent::GetPreventDefault(PRBool* aReturn)
   *aReturn = mEvent && (mEvent->flags & NS_EVENT_FLAG_NO_DEFAULT);
   return NS_OK;
 }
+
+void
+nsDOMEvent::Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType)
+{
+#ifdef MOZ_IPC
+  if (aSerializeInterfaceType) {
+    IPC::WriteParam(aMsg, NS_LITERAL_STRING("event"));
+  }
+
+  nsString type;
+  GetType(type);
+  IPC::WriteParam(aMsg, type);
+
+  PRBool bubbles = PR_FALSE;
+  GetBubbles(&bubbles);
+  IPC::WriteParam(aMsg, bubbles);
+
+  PRBool cancelable = PR_FALSE;
+  GetCancelable(&cancelable);
+  IPC::WriteParam(aMsg, cancelable);
+
+  PRBool trusted = PR_FALSE;
+  GetIsTrusted(&trusted);
+  IPC::WriteParam(aMsg, trusted);
+
+  // No timestamp serialization for now!
+#endif
+}
+
+PRBool
+nsDOMEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
+{
+#ifdef MOZ_IPC
+  nsString type;
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &type), PR_FALSE);
+
+  PRBool bubbles = PR_FALSE;
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &bubbles), PR_FALSE);
+
+  PRBool cancelable = PR_FALSE;
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &cancelable), PR_FALSE);
+
+  PRBool trusted = PR_FALSE;
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &trusted), PR_FALSE);
+
+  nsresult rv = InitEvent(type, bubbles, cancelable);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  SetTrusted(trusted);
+
+  return PR_TRUE;
+#else
+  return PR_FALSE;
+#endif
+}
+
 
 nsresult NS_NewDOMEvent(nsIDOMEvent** aInstancePtrResult,
                         nsPresContext* aPresContext,

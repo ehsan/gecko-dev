@@ -67,6 +67,7 @@
 #include "nsSVGClipPathFrame.h"
 #include "nsSVGMaskFrame.h"
 #include "nsSVGContainerFrame.h"
+#include "nsSVGTextContainerFrame.h"
 #include "nsSVGLength2.h"
 #include "nsGenericElement.h"
 #include "nsSVGGraphicElement.h"
@@ -185,11 +186,6 @@ SVGPrefChanged(const char *aPref, void *aClosure)
     return 0;
 
   gSVGEnabled = prefVal;
-  if (gSVGEnabled)
-    nsContentDLF::RegisterSVG();
-  else
-    nsContentDLF::UnregisterSVG();
-
   return 0;
 }
 
@@ -269,6 +265,7 @@ nsSVGUtils::GetFontSize(Element *aElement)
     nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
                                                          nsnull, nsnull);
   if (!styleContext) {
+    // ReportToConsole
     NS_WARNING("Couldn't get style context for content in GetFontStyle");
     return 1.0f;
   }
@@ -306,6 +303,7 @@ nsSVGUtils::GetFontXHeight(Element *aElement)
     nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
                                                          nsnull, nsnull);
   if (!styleContext) {
+    // ReportToConsole
     NS_WARNING("Couldn't get style context for content in GetFontStyle");
     return 1.0f;
   }
@@ -333,6 +331,7 @@ nsSVGUtils::GetFontXHeight(nsStyleContext *aStyleContext)
                                                getter_AddRefs(fontMetrics));
 
   if (!fontMetrics) {
+    // ReportToConsole
     NS_WARNING("no FontMetrics in GetFontXHeight()");
     return 1.0f;
   }
@@ -811,8 +810,7 @@ nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
                                 float aViewportWidth, float aViewportHeight,
                                 float aViewboxX, float aViewboxY,
                                 float aViewboxWidth, float aViewboxHeight,
-                                const nsSVGPreserveAspectRatio &aPreserveAspectRatio,
-                                PRBool aIgnoreAlign)
+                                const nsSVGPreserveAspectRatio &aPreserveAspectRatio)
 {
   NS_ASSERTION(aViewboxWidth > 0, "viewBox width must be greater than zero!");
   NS_ASSERTION(aViewboxHeight > 0, "viewBox height must be greater than zero!");
@@ -826,10 +824,6 @@ nsSVGUtils::GetViewBoxTransform(nsSVGElement* aElement,
   if (meetOrSlice == nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_UNKNOWN)
     meetOrSlice = nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET;
 
-  // alignment disabled for this matrix setup
-  if (aIgnoreAlign)
-    align = nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMINYMIN;
-    
   float a, d, e, f;
   a = aViewportWidth / aViewboxWidth;
   d = aViewportHeight / aViewboxHeight;
@@ -1364,9 +1358,23 @@ nsSVGUtils::ClipToGfxRect(nsIntRect* aRect, const gfxRect& aGfxRect)
 gfxRect
 nsSVGUtils::GetBBox(nsIFrame *aFrame)
 {
+  if (aFrame->GetContent()->IsNodeOfType(nsINode::eTEXT)) {
+    aFrame = aFrame->GetParent();
+  }
   gfxRect bbox;
   nsISVGChildFrame *svg = do_QueryFrame(aFrame);
   if (svg) {
+    // It is possible to apply a gradient, pattern, clipping path, mask or
+    // filter to text. When one of these facilities is applied to text
+    // the bounding box is the entire ‘text’ element in all
+    // cases.
+    nsSVGTextContainerFrame* metrics = do_QueryFrame(aFrame);
+    if (metrics) {
+      while (aFrame->GetType() != nsGkAtoms::svgTextFrame) {
+        aFrame = aFrame->GetParent();
+      }
+      svg = do_QueryFrame(aFrame);
+    }
     bbox = svg->GetBBoxContribution(gfxMatrix());
   } else {
     bbox = nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(aFrame);
@@ -1560,6 +1568,11 @@ nsSVGRenderState::nsSVGRenderState(nsIRenderingContext *aContext) :
   mRenderMode(NORMAL), mRenderingContext(aContext)
 {
   mGfxContext = aContext->ThebesContext();
+}
+
+nsSVGRenderState::nsSVGRenderState(gfxContext *aContext) :
+  mRenderMode(NORMAL), mGfxContext(aContext)
+{
 }
 
 nsSVGRenderState::nsSVGRenderState(gfxASurface *aSurface) :

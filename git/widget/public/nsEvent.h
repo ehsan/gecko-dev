@@ -44,6 +44,12 @@
  * header files that are totally unnecessary.
  */
 
+enum UIStateChangeType {
+  UIStateChangeType_NoChange,
+  UIStateChangeType_Set,
+  UIStateChangeType_Clear
+};
+
 /**
  * Return status for event processors.
  */
@@ -89,6 +95,7 @@ class nsMouseScrollEvent;
 class nsReconversionEvent;
 class nsTooltipEvent;
 class nsSimpleGestureEvent;
+class nsMozTouchEvent;
 class nsContentCommandEvent;
 
 #endif // nsEvent_h__

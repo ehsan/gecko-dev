@@ -65,6 +65,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsIDOMClassInfo.h"
 #include "nsWhitespaceTokenizer.h"
+#include "nsTreeContentView.h"
 
 // For security check
 #include "nsIDocument.h"
@@ -92,7 +93,7 @@ public:
     virtual void NodeWillBeDestroyed(const nsINode* aNode);
 
 protected:
-    friend NS_IMETHODIMP
+    friend nsresult
     NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult);
 
     nsXULTreeBuilder();
@@ -277,7 +278,7 @@ protected:
 
 //----------------------------------------------------------------------
 
-NS_IMETHODIMP
+nsresult
 NS_NewXULTreeBuilder(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 {
     *aResult = nsnull;
@@ -467,6 +468,9 @@ nsXULTreeBuilder::GetSelection(nsITreeSelection** aSelection)
 NS_IMETHODIMP
 nsXULTreeBuilder::SetSelection(nsITreeSelection* aSelection)
 {
+    NS_ENSURE_TRUE(!aSelection ||
+                   nsTreeContentView::CanTrustTreeSelection(aSelection),
+                   NS_ERROR_DOM_SECURITY_ERR);
     mSelection = aSelection;
     return NS_OK;
 }
@@ -1086,6 +1090,7 @@ nsXULTreeBuilder::PerformActionOnCell(const PRUnichar* aAction, PRInt32 aRow, ns
 void
 nsXULTreeBuilder::NodeWillBeDestroyed(const nsINode* aNode)
 {
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
     if (mObservers)
         mObservers->Clear();
 

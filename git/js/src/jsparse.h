@@ -320,7 +320,7 @@ struct JSParseNode {
         struct {                        /* two kids if binary */
             JSParseNode *left;
             JSParseNode *right;
-            jsval       val;            /* switch case value */
+            js::Value   *pval;          /* switch case value */
             uintN       iflags;         /* JSITER_* flags for TOK_FOR node */
         } binary;
         struct {                        /* one kid if unary */
@@ -339,7 +339,7 @@ struct JSParseNode {
                                            base object of TOK_DOT */
                 JSDefinition *lexdef;   /* lexical definition for this use */
             };
-            uint32      cookie;         /* upvar cookie with absolute frame
+            js::UpvarCookie cookie;     /* upvar cookie with absolute frame
                                            level (not relative skip), possibly
                                            in current frame */
             uint32      dflags:12,      /* definition/use flags, see below */
@@ -372,7 +372,7 @@ struct JSParseNode {
 #define pn_kid3         pn_u.ternary.kid3
 #define pn_left         pn_u.binary.left
 #define pn_right        pn_u.binary.right
-#define pn_val          pn_u.binary.val
+#define pn_pval         pn_u.binary.pval
 #define pn_iflags       pn_u.binary.iflags
 #define pn_kid          pn_u.unary.kid
 #define pn_num          pn_u.unary.num
@@ -465,12 +465,12 @@ public:
 
     uintN frameLevel() const {
         JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
-        return UPVAR_FRAME_SKIP(pn_cookie);
+        return pn_cookie.level();
     }
 
     uintN frameSlot() const {
         JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
-        return UPVAR_FRAME_SLOT(pn_cookie);
+        return pn_cookie.slot();
     }
 
     inline bool test(uintN flag) const;
@@ -767,7 +767,7 @@ struct JSDefinition : public JSParseNode
 
     bool isFreeVar() const {
         JS_ASSERT(pn_defn);
-        return pn_cookie == FREE_UPVAR_COOKIE || test(PND_GVAR);
+        return pn_cookie.isFree() || test(PND_GVAR);
     }
 
     // Grr, windows.h or something under it #defines CONST...
@@ -933,7 +933,7 @@ struct Parser : private js::AutoGCRooter
     Parser(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL)
       : js::AutoGCRooter(cx, PARSER), context(cx),
         aleFreeList(NULL), tokenStream(cx), principals(NULL), callerFrame(cfp),
-        callerVarObj(cfp ? cfp->varobj(cx->containingCallStack(cfp)) : NULL),
+        callerVarObj(cfp ? cfp->varobj(cx->containingSegment(cfp)) : NULL),
         nodeList(NULL), functionCount(0), traceListHead(NULL), tc(NULL),
         keepAtoms(cx->runtime)
     {

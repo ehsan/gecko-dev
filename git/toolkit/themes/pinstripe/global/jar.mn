@@ -3,6 +3,8 @@ toolkit.jar:
   skin/classic/global/10pct_transparent_grey.png
   skin/classic/global/50pct_transparent_grey.png
   skin/classic/global/about.css                                      (../../winstripe/global/about.css)
+  skin/classic/global/aboutCache.css                                 (../../winstripe/global/aboutCache.css)
+  skin/classic/global/aboutCacheEntry.css                            (../../winstripe/global/aboutCacheEntry.css)
   skin/classic/global/aboutMemory.css                                (../../winstripe/global/aboutMemory.css)
   skin/classic/global/aboutSupport.css                               (../../winstripe/global/aboutSupport.css)
   skin/classic/global/appPicker.css                                  (../../winstripe/global/appPicker.css)
@@ -86,6 +88,7 @@ toolkit.jar:
   skin/classic/global/icons/closetab-active.png                      (icons/closetab-active.png)
   skin/classic/global/icons/closetab-hover.png                       (icons/closetab-hover.png)
   skin/classic/global/icons/closetab.png                             (icons/closetab.png)
+  skin/classic/global/icons/commandline.png                          (icons/commandline.png)
   skin/classic/global/icons/information-16.png                       (icons/information-16.png)
   skin/classic/global/icons/information-24.png                       (icons/information-24.png)
   skin/classic/global/icons/information-32.png                       (icons/information-32.png)

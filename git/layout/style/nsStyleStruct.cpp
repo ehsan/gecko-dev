@@ -210,7 +210,9 @@ nsChangeHint nsStyleFont::CalcFontDifference(const nsFont& aFont1, const nsFont&
       (aFont1.familyNameQuirks == aFont2.familyNameQuirks) &&
       (aFont1.weight == aFont2.weight) &&
       (aFont1.stretch == aFont2.stretch) &&
-      (aFont1.name == aFont2.name)) {
+      (aFont1.name == aFont2.name) &&
+      (aFont1.featureSettings == aFont2.featureSettings) &&
+      (aFont1.languageOverride == aFont2.languageOverride)) {
     if ((aFont1.decorations == aFont2.decorations)) {
       return NS_STYLE_HINT_NONE;
     }
@@ -1144,6 +1146,17 @@ nsChangeHint nsStylePosition::MaxDifference()
 }
 #endif
 
+/* static */ PRBool
+nsStylePosition::WidthCoordDependsOnContainer(const nsStyleCoord &aCoord)
+{
+  return aCoord.GetUnit() == eStyleUnit_Auto ||
+         aCoord.GetUnit() == eStyleUnit_Percent ||
+         (aCoord.IsCalcUnit() && aCoord.CalcHasPercent()) ||
+         (aCoord.GetUnit() == eStyleUnit_Enumerated &&
+          (aCoord.GetIntValue() == NS_STYLE_WIDTH_FIT_CONTENT ||
+           aCoord.GetIntValue() == NS_STYLE_WIDTH_AVAILABLE));
+}
+
 // --------------------
 // nsStyleTable
 //
@@ -1365,6 +1378,8 @@ nsStyleImage::DoCopy(const nsStyleImage& aOther)
     SetImageData(aOther.mImage);
   else if (aOther.mType == eStyleImageType_Gradient)
     SetGradientData(aOther.mGradient);
+  else if (aOther.mType == eStyleImageType_Element)
+    SetElementId(aOther.mElementId);
 
   SetCropRect(aOther.mCropRect);
 }
@@ -1376,6 +1391,8 @@ nsStyleImage::SetNull()
     mGradient->Release();
   else if (mType == eStyleImageType_Image)
     NS_RELEASE(mImage);
+  else if (mType == eStyleImageType_Element)
+    nsCRT::free(mElementId);
 
   mType = eStyleImageType_Null;
   mCropRect = nsnull;
@@ -1407,6 +1424,18 @@ nsStyleImage::SetGradientData(nsStyleGradient* aGradient)
   if (aGradient) {
     mGradient = aGradient;
     mType = eStyleImageType_Gradient;
+  }
+}
+
+void
+nsStyleImage::SetElementId(const PRUnichar* aElementId)
+{
+  if (mType != eStyleImageType_Null)
+    SetNull();
+
+  if (aElementId) {
+    mElementId = nsCRT::strdup(aElementId);
+    mType = eStyleImageType_Element;
   }
 }
 
@@ -1493,6 +1522,9 @@ nsStyleImage::IsOpaque() const
     return PR_FALSE;
   }
 
+  if (mType == eStyleImageType_Element)
+    return PR_FALSE;
+
   NS_ABORT_IF_FALSE(mType == eStyleImageType_Image, "unexpected image type");
 
   nsCOMPtr<imgIContainer> imageContainer;
@@ -1524,6 +1556,7 @@ nsStyleImage::IsComplete() const
     case eStyleImageType_Null:
       return PR_FALSE;
     case eStyleImageType_Gradient:
+    case eStyleImageType_Element:
       return PR_TRUE;
     case eStyleImageType_Image:
     {
@@ -1559,6 +1592,9 @@ nsStyleImage::operator==(const nsStyleImage& aOther) const
 
   if (mType == eStyleImageType_Gradient)
     return *mGradient == *aOther.mGradient;
+
+  if (mType == eStyleImageType_Element)
+    return nsCRT::strcmp(mElementId, aOther.mElementId) == 0;
 
   return PR_TRUE;
 }
@@ -1618,16 +1654,32 @@ nsStyleBackground::~nsStyleBackground()
 
 nsChangeHint nsStyleBackground::CalcDifference(const nsStyleBackground& aOther) const
 {
-  if (mBackgroundColor != aOther.mBackgroundColor ||
-      mBackgroundInlinePolicy != aOther.mBackgroundInlinePolicy ||
-      mImageCount != aOther.mImageCount)
-    return NS_STYLE_HINT_VISUAL;
+  const nsStyleBackground* moreLayers =
+    mImageCount > aOther.mImageCount ? this : &aOther;
+  const nsStyleBackground* lessLayers =
+    mImageCount > aOther.mImageCount ? &aOther : this;
 
-  // We checked the image count above.
-  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, this) {
-    if (mLayers[i] != aOther.mLayers[i])
-      return NS_STYLE_HINT_VISUAL;
+  bool hasVisualDifference = false;
+
+  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, moreLayers) {
+    if (i < lessLayers->mImageCount) {
+      if (moreLayers->mLayers[i] != lessLayers->mLayers[i]) {
+        if ((moreLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element) ||
+            (lessLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element))
+          return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
+        hasVisualDifference = true;
+      }
+    } else {
+      if (moreLayers->mLayers[i].mImage.GetType() == eStyleImageType_Element)
+        return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
+      hasVisualDifference = true;
+    }
   }
+
+  if (hasVisualDifference ||
+      mBackgroundColor != aOther.mBackgroundColor ||
+      mBackgroundInlinePolicy != aOther.mBackgroundInlinePolicy)
+    return NS_STYLE_HINT_VISUAL;
 
   return NS_STYLE_HINT_NONE;
 }
@@ -1636,7 +1688,7 @@ nsChangeHint nsStyleBackground::CalcDifference(const nsStyleBackground& aOther) 
 /* static */
 nsChangeHint nsStyleBackground::MaxDifference()
 {
-  return NS_STYLE_HINT_VISUAL;
+  return NS_CombineHint(nsChangeHint_UpdateEffects, NS_STYLE_HINT_VISUAL);
 }
 #endif
 
@@ -1808,7 +1860,7 @@ nsStyleDisplay::nsStyleDisplay()
   mClipFlags = NS_STYLE_CLIP_AUTO;
   mClip.SetRect(0,0,0,0);
   mOpacity = 1.0f;
-  mTransformPresent = PR_FALSE; // No transform
+  mSpecifiedTransform = nsnull;
   mTransformOrigin[0].SetPercentValue(0.5f); // Transform is centered on origin
   mTransformOrigin[1].SetPercentValue(0.5f); 
   mTransitions.AppendElement();
@@ -1846,8 +1898,8 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
   mOpacity = aSource.mOpacity;
 
   /* Copy over the transformation information. */
-  mTransformPresent = aSource.mTransformPresent;
-  if (mTransformPresent)
+  mSpecifiedTransform = aSource.mSpecifiedTransform;
+  if (mSpecifiedTransform)
     mTransform = aSource.mTransform;
   
   /* Copy over transform origin. */
@@ -1888,16 +1940,17 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mAppearance != aOther.mAppearance)
     NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_ReflowFrame, nsChangeHint_RepaintFrame));
 
-  if (mOpacity != aOther.mOpacity)
-    NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
+  if (mOpacity != aOther.mOpacity) {
+    NS_UpdateHint(hint, nsChangeHint_UpdateOpacityLayer);
+  }
 
   /* If we've added or removed the transform property, we need to reconstruct the frame to add
    * or remove the view object, and also to handle abs-pos and fixed-pos containers.
    */
-  if (mTransformPresent != aOther.mTransformPresent) {
+  if (HasTransform() != aOther.HasTransform()) {
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
   }
-  else if (mTransformPresent) {
+  else if (HasTransform()) {
     /* Otherwise, if we've kept the property lying around and we already had a
      * transform, we need to see whether or not we've changed the transform.
      * If so, we need to do a reflow and a repaint. The reflow is to recompute
@@ -1906,7 +1959,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
      */
     if (mTransform != aOther.mTransform)
       NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_ReflowFrame,
-                                         nsChangeHint_RepaintFrame));
+                                         nsChangeHint_UpdateTransformLayer));
     
     for (PRUint8 index = 0; index < 2; ++index)
       if (mTransformOrigin[index] != aOther.mTransformOrigin[index]) {
@@ -1934,7 +1987,8 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
 nsChangeHint nsStyleDisplay::MaxDifference()
 {
   // All the parts of FRAMECHANGE are present above in CalcDifference.
-  return NS_STYLE_HINT_FRAMECHANGE;
+  return nsChangeHint(NS_STYLE_HINT_FRAMECHANGE | nsChangeHint_UpdateOpacityLayer |
+                      nsChangeHint_UpdateTransformLayer);
 }
 #endif
 

@@ -46,7 +46,6 @@
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsutil.h"
-#include "jstl.h"
 
 #ifdef WIN32
 #    include <windows.h>
@@ -67,7 +66,11 @@ JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
     fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
     fflush(stderr);
 #if defined(WIN32)
-    DebugBreak();
+    /*
+     * We used to call DebugBreak() on Windows, but amazingly, it causes
+     * the MSVS 2010 debugger not to be able to recover a call stack.
+     */
+    *((int *) NULL) = 0;
     exit(3);
 #elif defined(__APPLE__)
     /*

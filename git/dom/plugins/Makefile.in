@@ -62,6 +62,7 @@ EXPORTS_mozilla/plugins = \
   NPEventOSX.h \
   NPEventWindows.h \
   NPEventX11.h \
+  NPEventAndroid.h \
   PluginIdentifierChild.h \
   PluginIdentifierParent.h \
   PluginInstanceChild.h \
@@ -127,6 +128,13 @@ CPPSRCS = \
 
 ifeq (WINNT,$(OS_ARCH))
 CPPSRCS += COMMessageFilter.cpp
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+CMMSRCS   += \
+    PluginUtilsOSX.mm \
+    PluginInterposeOSX.mm \
+    $(NULL)
 endif
 
 LOCAL_INCLUDES = \

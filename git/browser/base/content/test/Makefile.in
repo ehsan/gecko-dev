@@ -40,6 +40,8 @@ srcdir		= @srcdir@
 VPATH		= @srcdir@
 relativesrcdir  = browser/base/content/test
 
+DIRS += tabview
+
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
@@ -68,7 +70,6 @@ _TEST_FILES = \
 		gZipOfflineChild.html^headers^ \
 		gZipOfflineChild.cacheManifest \
 		gZipOfflineChild.cacheManifest^headers^ \
-		test_bug452451.html \
 		$(NULL)
 
 ifeq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
@@ -99,6 +100,7 @@ _BROWSER_FILES = \
                  title_test.svg \
                  browser_bug329212.js \
                  browser_bug356571.js \
+                 browser_bug380960.js \
                  browser_bug386835.js \
                  browser_bug405137.js \
                  browser_bug406216.js \
@@ -125,15 +127,20 @@ _BROWSER_FILES = \
                  browser_bug491431.js \
                  browser_bug495058.js \
                  browser_bug517902.js \
+                 browser_bug519216.js \
                  browser_bug520538.js \
                  browser_bug521216.js \
                  browser_bug537474.js \
                  browser_bug550565.js \
+                 browser_bug553455.js \
                  browser_bug555224.js \
                  browser_bug555767.js \
                  browser_bug556061.js \
                  browser_bug562649.js \
                  browser_bug563588.js \
+                 browser_bug577121.js \
+                 browser_bug580956.js \
+                 browser_bug581242.js \
                  browser_contextSearchTabPosition.js \
                  browser_ctrlTab.js \
                  browser_discovery.js \
@@ -143,7 +150,9 @@ _BROWSER_FILES = \
                  browser_inspector_initialization.js \
                  browser_inspector_treeSelection.js \
                  browser_inspector_highlighter.js \
-                 browser_overflowScroll.js \
+                 browser_inspector_stylePanel.js \
+                 browser_inspector_iframeTest.js \
+                 browser_inspector_scrolling.js \
                  browser_pageInfo.js \
                  browser_page_style_menu.js \
                  browser_pinnedTabs.js \
@@ -159,6 +168,10 @@ _BROWSER_FILES = \
                  browser_selectTabAtIndex.js \
                  browser_tabfocus.js \
                  browser_tabs_owner.js \
+                 browser_visibleTabs.js \
+                 browser_visibleTabs_contextMenu.js \
+                 browser_visibleTabs_bookmarkAllPages.js \
+                 browser_visibleTabs_tabPreview.js \
                  discovery.html \
                  moz.png \
                  test_bug435035.html \
@@ -178,9 +191,19 @@ _BROWSER_FILES = \
     $(NULL)
 
 ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-_BROWSER_FILES += browser_bug462289.js
+_BROWSER_FILES += \
+		browser_bug462289.js \
+		$(NULL)
 else
-_BROWSER_FILES += browser_customize.js
+_BROWSER_FILES += \
+		browser_customize.js \
+		$(NULL)
+endif
+
+ifneq (gtk2,$(MOZ_WIDGET_TOOLKIT))
+_BROWSER_FILES += \
+		browser_overflowScroll.js \
+		$(NULL)
 endif
 
 libs:: $(_TEST_FILES)

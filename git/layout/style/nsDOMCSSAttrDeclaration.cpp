@@ -38,11 +38,11 @@
 /* DOM object for element.style */
 
 #include "nsDOMCSSAttrDeclaration.h"
-#include "nsCSSDeclaration.h"
+#include "mozilla/css/Declaration.h"
 #include "nsIDocument.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsICSSStyleRule.h"
-#include "nsCSSLoader.h"
+#include "mozilla/css/Loader.h"
 #include "nsIURI.h"
 #include "nsINameSpaceManager.h"
 #include "nsStyleConsts.h"
@@ -50,6 +50,8 @@
 #include "nsIContent.h"
 #include "nsIPrincipal.h"
 #include "nsNodeUtils.h"
+
+namespace css = mozilla::css;
 
 nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(nsIContent *aContent
 #ifdef MOZ_SMIL
@@ -83,7 +85,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMCSSAttributeDeclaration)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMCSSAttributeDeclaration)
 
 nsresult
-nsDOMCSSAttributeDeclaration::DeclarationChanged()
+nsDOMCSSAttributeDeclaration::SetCSSDeclaration(css::Declaration* aDecl)
 {
   NS_ASSERTION(mContent, "Must have content node to set the decl!");
   nsICSSStyleRule* oldRule =
@@ -93,11 +95,12 @@ nsDOMCSSAttributeDeclaration::DeclarationChanged()
     mContent->GetInlineStyleRule();
   NS_ASSERTION(oldRule, "content must have rule");
 
-  nsCOMPtr<nsICSSStyleRule> newRule = oldRule->DeclarationChanged(PR_FALSE);
+  nsCOMPtr<nsICSSStyleRule> newRule =
+    oldRule->DeclarationChanged(aDecl, PR_FALSE);
   if (!newRule) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-    
+
   return
 #ifdef MOZ_SMIL
     mIsSMILOverride ? mContent->SetSMILOverrideStyleRule(newRule, PR_TRUE) :
@@ -126,51 +129,46 @@ nsDOMCSSAttributeDeclaration::DocToUpdate()
   return mContent->GetOwnerDoc();
 }
 
-nsresult
-nsDOMCSSAttributeDeclaration::GetCSSDeclaration(nsCSSDeclaration **aDecl,
-                                                PRBool aAllocate)
+css::Declaration*
+nsDOMCSSAttributeDeclaration::GetCSSDeclaration(PRBool aAllocate)
 {
-  nsresult result = NS_OK;
+  if (!mContent)
+    return nsnull;
 
-  *aDecl = nsnull;
-  if (mContent) {
-    nsICSSStyleRule* cssRule =
+  nsICSSStyleRule* cssRule;
 #ifdef MOZ_SMIL
-      mIsSMILOverride ? mContent->GetSMILOverrideStyleRule() :
+  if (mIsSMILOverride)
+    cssRule = mContent->GetSMILOverrideStyleRule();
+  else
 #endif // MOZ_SMIL
-      mContent->GetInlineStyleRule();
-    if (cssRule) {
-      *aDecl = cssRule->GetDeclaration();
-    }
-    else if (aAllocate) {
-      nsCSSDeclaration *decl = new nsCSSDeclaration();
-      if (!decl)
-        return NS_ERROR_OUT_OF_MEMORY;
-      if (!decl->InitializeEmpty()) {
-        decl->RuleAbort();
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      
-      nsCOMPtr<nsICSSStyleRule> newRule;
-      result = NS_NewCSSStyleRule(getter_AddRefs(newRule), nsnull, decl);
-      if (NS_FAILED(result)) {
-        decl->RuleAbort();
-        return result;
-      }
-        
-      result =
-#ifdef MOZ_SMIL
-        mIsSMILOverride ?
-          mContent->SetSMILOverrideStyleRule(newRule, PR_FALSE) :
-#endif // MOZ_SMIL
-          mContent->SetInlineStyleRule(newRule, PR_FALSE);
-      if (NS_SUCCEEDED(result)) {
-        *aDecl = decl;
-      }
-    }
+    cssRule = mContent->GetInlineStyleRule();
+
+  if (cssRule) {
+    return cssRule->GetDeclaration();
+  }
+  if (!aAllocate) {
+    return nsnull;
   }
 
-  return result;
+  // cannot fail
+  css::Declaration *decl = new css::Declaration();
+  decl->InitializeEmpty();
+  nsCOMPtr<nsICSSStyleRule> newRule = NS_NewCSSStyleRule(nsnull, decl);
+
+  // this *can* fail (inside SetAttrAndNotify, at least).
+  nsresult rv;
+#ifdef MOZ_SMIL
+  if (mIsSMILOverride)
+    rv = mContent->SetSMILOverrideStyleRule(newRule, PR_FALSE);
+  else
+#endif // MOZ_SMIL
+    rv = mContent->SetInlineStyleRule(newRule, PR_FALSE);
+
+  if (NS_FAILED(rv)) {
+    return nsnull; // the decl will be destroyed along with the style rule
+  }
+
+  return decl;
 }
 
 /*

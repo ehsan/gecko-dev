@@ -249,38 +249,25 @@ nsRect nsCanvasFrame::CanvasArea() const
   return result;
 }
 
-/*
- * Override nsDisplayBackground methods so that we pass aBGClipRect to
- * PaintBackground, covering the whole overflow area.
- */
-class nsDisplayCanvasBackground : public nsDisplayBackground {
-public:
-  nsDisplayCanvasBackground(nsIFrame *aFrame)
-    : nsDisplayBackground(aFrame)
-  {
+void
+nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
+                                 nsIRenderingContext* aCtx)
+{
+  nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
+  nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
+  nsRect bgClipRect = frame->CanvasArea() + offset;
+
+  if (NS_GET_A(mExtraBackgroundColor) > 0) {
+    aCtx->SetColor(mExtraBackgroundColor);
+    aCtx->FillRect(bgClipRect);
   }
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)
-  {
-    nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    return frame->CanvasArea() + aBuilder->ToReferenceFrame(mFrame);
-  }
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx)
-  {
-    nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
-    nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
-    nsRect bgClipRect = frame->CanvasArea() + offset;
-    nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
-                                    mVisibleRect,
-                                    nsRect(offset, mFrame->GetSize()),
-                                    aBuilder->GetBackgroundPaintFlags(),
-                                    &bgClipRect);
-  }
-
-  NS_DISPLAY_DECL_NAME("CanvasBackground")
-};
+  nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
+                                  mVisibleRect,
+                                  nsRect(offset, mFrame->GetSize()),
+                                  aBuilder->GetBackgroundPaintFlags(),
+                                  &bgClipRect);
+}
 
 /**
  * A display item to paint the focus ring for the document.
@@ -312,7 +299,7 @@ public:
     frame->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(mFrame));
   }
 
-  NS_DISPLAY_DECL_NAME("CanvasFocus")
+  NS_DISPLAY_DECL_NAME("CanvasFocus", TYPE_CANVAS_FOCUS)
 };
 
 NS_IMETHODIMP
@@ -458,6 +445,11 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       mFrames.InsertFrames(this, nsnull, *overflow);
     }
   }
+
+  // Set our size up front, since some parts of reflow depend on it
+  // being already set.  Note that the computed height may be
+  // unconstrained; that's ok.  Consumers should watch out for that.
+  SetSize(nsSize(aReflowState.ComputedWidth(), aReflowState.ComputedHeight())); 
 
   // Reflow our one and only normal child frame. It's either the root
   // element's frame or a placeholder for that frame, if the root element

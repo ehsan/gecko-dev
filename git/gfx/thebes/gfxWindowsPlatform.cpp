@@ -75,6 +75,38 @@
 
 #ifdef CAIRO_HAS_D2D_SURFACE
 #include "gfxD2DSurface.h"
+
+#include <d3d10_1.h>
+
+#include "nsIMemoryReporter.h"
+#include "nsMemory.h"
+
+class D2DCacheReporter :
+    public nsIMemoryReporter
+{
+public:
+    D2DCacheReporter()
+    { }
+
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHOD GetPath(char **memoryPath) {
+        *memoryPath = strdup("gfx/d2d/surfacecache");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetDescription(char **desc) {
+        *desc = strdup("Memory used by Direct2D internal surface cache.");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
+        *memoryUsed = cairo_d2d_get_image_surface_cache_usage();
+        return NS_OK;
+    }
+}; 
+
+NS_IMPL_ISUPPORTS1(D2DCacheReporter, nsIMemoryReporter)
 #endif
 
 #ifdef WINCE
@@ -103,6 +135,18 @@ typedef HRESULT (WINAPI*DWriteCreateFactoryFunc)(
   __in   DWRITE_FACTORY_TYPE factoryType,
   __in   REFIID iid,
   __out  IUnknown **factory
+);
+#endif
+
+#ifdef CAIRO_HAS_D2D_SURFACE
+typedef HRESULT (WINAPI*D3D10CreateDevice1Func)(
+  IDXGIAdapter *pAdapter,
+  D3D10_DRIVER_TYPE DriverType,
+  HMODULE Software,
+  UINT Flags,
+  D3D10_FEATURE_LEVEL1 HardwareLevel,
+  UINT SDKVersion,
+  ID3D10Device1 **ppDevice
 );
 #endif
 
@@ -137,6 +181,64 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #endif
 
     nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    
+    OSVERSIONINFOA versionInfo;
+    versionInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOA);
+    ::GetVersionExA(&versionInfo);
+    bool isVistaOrHigher = versionInfo.dwMajorVersion >= 6;
+
+#ifdef CAIRO_HAS_D2D_SURFACE
+    NS_RegisterMemoryReporter(new D2DCacheReporter());
+    mD2DDevice = NULL;
+
+    if (isVistaOrHigher && 0) {
+        // We need a DWriteFactory to work.
+        HMODULE d3d10module = LoadLibraryA("d3d10_1.dll");
+        D3D10CreateDevice1Func createD3DDevice = (D3D10CreateDevice1Func)
+            GetProcAddress(d3d10module, "D3D10CreateDevice1");
+        nsRefPtr<ID3D10Device1> device;
+
+        if (createD3DDevice) {
+            // We try 10.0 first even though we prefer 10.1, since we want to
+            // fail as fast as possible if 10.x isn't supported.
+            HRESULT hr = createD3DDevice(
+	        NULL, 
+	        D3D10_DRIVER_TYPE_HARDWARE,
+	        NULL,
+	        D3D10_CREATE_DEVICE_BGRA_SUPPORT |
+	        D3D10_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS,
+	        D3D10_FEATURE_LEVEL_10_0,
+	        D3D10_1_SDK_VERSION,
+	        getter_AddRefs(device));
+
+            if (SUCCEEDED(hr)) {
+                // We have 10.0, let's try 10.1.
+                // XXX - This adds an additional 10-20ms for people who are
+                // getting direct2d. We'd really like to do something more
+                // clever.
+                nsRefPtr<ID3D10Device1> device1;
+                hr = createD3DDevice(
+	            NULL, 
+	            D3D10_DRIVER_TYPE_HARDWARE,
+	            NULL,
+	            D3D10_CREATE_DEVICE_BGRA_SUPPORT |
+	            D3D10_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS,
+	            D3D10_FEATURE_LEVEL_10_1,
+	            D3D10_1_SDK_VERSION,
+	            getter_AddRefs(device1));
+
+                if (SUCCEEDED(hr)) {
+                    device = device1;
+                }
+
+                mD2DDevice = cairo_d2d_create_device_from_d3d10device(device);
+                if (mD2DDevice) {
+                    mRenderMode = RENDER_DIRECT2D;
+                }
+            }
+        }
+    }
+#endif
 
 #ifdef CAIRO_HAS_DWRITE_FONT
     nsresult rv;
@@ -147,8 +249,10 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     if (NS_FAILED(rv)) {
         useDirectWrite = PR_FALSE;
     }
-            
-    if (useDirectWrite) {
+
+    // Enable when it's preffed on -and- we're using Vista or higher. Or when
+    // we're going to use D2D.
+    if ((useDirectWrite && isVistaOrHigher) || mRenderMode == RENDER_DIRECT2D) {
         DWriteCreateFactoryFunc createDWriteFactory = (DWriteCreateFactoryFunc)
             GetProcAddress(LoadLibraryW(L"dwrite.dll"), "DWriteCreateFactory");
 
@@ -180,8 +284,11 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 #ifndef CAIRO_HAS_D2D_SURFACE
                 return;
 #else
-                if (!cairo_d2d_has_support()) {
-                    return;
+                if (!mD2DDevice) {
+		    mD2DDevice = cairo_d2d_create_device();
+                    if (!mD2DDevice) {
+                        return;
+                    }
                 }
 #ifdef CAIRO_HAS_DWRITE_FONT
                 if (!GetDWriteFactory()) {
@@ -202,6 +309,11 @@ gfxWindowsPlatform::~gfxWindowsPlatform()
 {
     // not calling FT_Done_FreeType because cairo may still hold references to
     // these FT_Faces.  See bug 458169.
+#ifdef CAIRO_HAS_D2D_SURFACE
+    if (mD2DDevice) {
+	cairo_release_device(mD2DDevice);
+    }
+#endif
 }
 
 gfxPlatformFontList*

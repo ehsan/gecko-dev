@@ -9,12 +9,9 @@
     background-color: @customToolbarColor@;
   }
 
-  #navigator-toolbox[tabsontop="true"] > #TabsToolbar > #tabbrowser-tabs > .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
-    background-image: -moz-radial-gradient(center top, white, rgba(255,255,255,0) 60%),
-                      -moz-linear-gradient(left, transparent, transparent 1px,
-                                                 @toolbarHighlight@ 1px, @toolbarHighlight@),
-                      -moz-linear-gradient(left, transparent, transparent 1px,
-                                                 @customToolbarColor@ 1px, @customToolbarColor@);
+  .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
+    background-image: -moz-linear-gradient(rgba(255,255,255,.7), @toolbarHighlight@ 30%),
+                      -moz-linear-gradient(@customToolbarColor@, @customToolbarColor@);
   }
 }
 
@@ -25,8 +22,12 @@
   }
 
   /* the new titlebar requires this, or content will be clipped at the top of the screen. */
-  #main-window[sizemode="maximized"] {
+  #main-window[sizemode="maximized"][chromemargin^="0,"] {
     margin-top: 8px;
+  }
+
+  #main-window[sizemode="normal"][chromemargin^="0,"] {
+    margin-top: 2px;
   }
 
   #main-window:not(:-moz-lwtheme)[inFullscreen="true"] {
@@ -35,9 +36,9 @@
   }
 
   #toolbar-menubar:not(:-moz-lwtheme),
-  #navigator-toolbox[tabsontop="true"] > #TabsToolbar:not(:-moz-lwtheme),
-  #navigator-toolbox:not([tabsontop="true"]) > #nav-bar:not(:-moz-lwtheme),
-  #navigator-toolbox:not([tabsontop="true"]) > #nav-bar + #customToolbars + #PersonalToolbar[collapsed="true"] + #TabsToolbar:last-child:not(:-moz-lwtheme) {
+  #TabsToolbar[tabsontop="true"]:not(:-moz-lwtheme),
+  #navigator-toolbox[tabsontop="false"] > #nav-bar:not(:-moz-lwtheme),
+  #nav-bar + #customToolbars + #PersonalToolbar[collapsed="true"] + #TabsToolbar[tabsontop="false"]:last-child:not(:-moz-lwtheme) {
     background: transparent !important;
     color: black;
     text-shadow: 0 0 .7em white, 0 0 .7em white, 0 1px 0 rgba(255,255,255,.4);
@@ -50,10 +51,10 @@
 
   /* Make the window draggable by glassed toolbars (bug 555081) */
   #toolbar-menubar:not([autohide="true"]),
-  #navigator-toolbox[tabsontop="true"] > #TabsToolbar,
-  #navigator-toolbox:not([tabsontop="true"]) > #nav-bar,
-  #navigator-toolbox:not([tabsontop="true"]) > #nav-bar + #customToolbars + #PersonalToolbar[collapsed="true"] + #TabsToolbar:last-child,
-  #navigator-toolbox > toolbar:not(#toolbar-menubar):not(#fullscr-toggler):-moz-lwtheme {
+  #TabsToolbar[tabsontop="true"],
+  #navigator-toolbox[tabsontop="false"] > #nav-bar,
+  #nav-bar + #customToolbars + #PersonalToolbar[collapsed="true"] + #TabsToolbar[tabsontop="false"]:last-child,
+  #navigator-toolbox > toolbar:not(#toolbar-menubar):-moz-lwtheme {
     -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar-drag");
   }
 
@@ -88,15 +89,13 @@
 
   .tabbrowser-tab:not(:-moz-lwtheme):not([selected="true"]),
   .tabs-newtab-button:not(:-moz-lwtheme) {
-    background-image: -moz-linear-gradient(left, transparent, transparent 1px,
-                                                 rgba(255,255,255,.4) 1px, rgba(255,255,255,.4));
+    background-image: -moz-linear-gradient(hsla(0,0%,100%,.4), hsla(0,0%,75%,.4) 50%);
     text-shadow: 0 1px 0 rgba(255,255,255,.4);
   }
 
   .tabbrowser-tab:not(:-moz-lwtheme):not([selected="true"]):hover,
   .tabs-newtab-button:not(:-moz-lwtheme):hover {
-    background-image: -moz-linear-gradient(left, transparent, transparent 1px,
-                                                 rgba(255,255,255,.6) 1px, rgba(255,255,255,.6));
+    background-image: -moz-linear-gradient(hsla(0,0%,100%,.6), hsla(0,0%,75%,.6) 50%);
   }
 
   #allTabs-panel,

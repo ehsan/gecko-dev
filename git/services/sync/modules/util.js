@@ -146,6 +146,15 @@ let Utils = {
         throw batchEx;
     };
   },
+  
+  createStatement: function createStatement(db, query) {
+    // Gecko 2.0
+    if (db.createAsyncStatement)
+      return db.createAsyncStatement(query);
+
+    // Gecko <2.0
+    return db.createStatement(query);
+  },
 
   queryAsync: function(query, names) {
     // Allow array of names, single name, and no name
@@ -742,6 +751,30 @@ let Utils = {
     return ret;
   },
 
+  encodeUTF8: function(str) {
+    try {
+      var unicodeConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
+                             .createInstance(Ci.nsIScriptableUnicodeConverter);
+      unicodeConverter.charset = "UTF-8";
+      str = unicodeConverter.ConvertFromUnicode(str);
+      return str + unicodeConverter.Finish();
+    } catch(ex) {
+      return null;
+    }
+  },
+
+  decodeUTF8: function(str) {
+    try {
+      var unicodeConverter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
+                             .createInstance(Ci.nsIScriptableUnicodeConverter);
+      unicodeConverter.charset = "UTF-8";
+      str = unicodeConverter.ConvertToUnicode(str);
+      return str + unicodeConverter.Finish();
+    } catch(ex) {
+      return null;
+    }
+  },
+
   /**
    * Create an array like the first but without elements of the second
    */
@@ -885,3 +918,8 @@ Svc.Obs = Observers;
 let Str = {};
 ["errors", "sync"]
   .forEach(function(lazy) Utils.lazy2(Str, lazy, Utils.lazyStrings(lazy)));
+
+Svc.Obs.add("xpcom-shutdown", function () {
+  for (let name in Svc)
+    delete Svc[name];
+});

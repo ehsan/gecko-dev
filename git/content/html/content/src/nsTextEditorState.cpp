@@ -48,7 +48,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsTextControlFrame.h"
 #include "nsIControllers.h"
-#include "nsIDOMNSHTMLInputElement.h"
+#include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsITransactionManager.h"
 #include "nsIControllerContext.h"
@@ -726,7 +726,7 @@ DoCommandCallback(const char *aCommand, void *aData)
   nsIContent *content = frame->GetContent();
 
   nsCOMPtr<nsIControllers> controllers;
-  nsCOMPtr<nsIDOMNSHTMLInputElement> input = do_QueryInterface(content);
+  nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(content);
   if (input) {
     input->GetControllers(getter_AddRefs(controllers));
   } else {
@@ -904,7 +904,8 @@ nsTextEditorState::nsTextEditorState(nsITextControlElement* aOwningElement)
   : mTextCtrlElement(aOwningElement),
     mBoundFrame(nsnull),
     mTextListener(nsnull),
-    mEditorInitialized(PR_FALSE)
+    mEditorInitialized(PR_FALSE),
+    mInitializing(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsTextEditorState);
 }
@@ -969,6 +970,36 @@ nsTextEditorState::GetSelectionController() const
   return mSelCon;
 }
 
+// Helper class, used below in BindToFrame().
+class PrepareEditorEvent : public nsRunnable {
+public:
+  PrepareEditorEvent(nsTextEditorState &aState,
+                     nsIContent *aOwnerContent,
+                     const nsAString &aCurrentValue)
+    : mState(aState)
+    , mOwnerContent(aOwnerContent)
+    , mCurrentValue(aCurrentValue)
+  {
+  }
+
+  NS_IMETHOD Run() {
+    // Transfer the saved value to the editor if we have one
+    const nsAString *value = nsnull;
+    if (!mCurrentValue.IsEmpty()) {
+      value = &mCurrentValue;
+    }
+
+    mState.PrepareEditor(value);
+
+    return NS_OK;
+  }
+
+private:
+  nsTextEditorState &mState;
+  nsCOMPtr<nsIContent> mOwnerContent; // strong reference
+  nsAutoString mCurrentValue;
+};
+
 nsresult
 nsTextEditorState::BindToFrame(nsTextControlFrame* aFrame)
 {
@@ -1029,35 +1060,6 @@ nsTextEditorState::BindToFrame(nsTextControlFrame* aFrame)
 
   // If an editor exists from before, prepare it for usage
   if (mEditor) {
-    class PrepareEditorEvent : public nsRunnable {
-    public:
-      PrepareEditorEvent(nsTextEditorState &aState,
-                         nsIContent *aOwnerContent,
-                         const nsAString &aCurrentValue)
-        : mState(aState)
-        , mOwnerContent(aOwnerContent)
-        , mCurrentValue(aCurrentValue)
-      {
-      }
-
-      NS_IMETHOD Run() {
-        // Transfer the saved value to the editor if we have one
-        const nsAString *value = nsnull;
-        if (!mCurrentValue.IsEmpty()) {
-          value = &mCurrentValue;
-        }
-
-        mState.PrepareEditor(value);
-
-        return NS_OK;
-      }
-
-    private:
-      nsTextEditorState &mState;
-      nsCOMPtr<nsIContent> mOwnerContent; // strong reference
-      nsAutoString mCurrentValue;
-    };
-
     nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
     NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
 
@@ -1081,6 +1083,12 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   if (mEditorInitialized) {
     // Do not initialize the editor multiple times.
     return NS_OK;
+  }
+
+  // Don't attempt to initialize recursively!
+  InitializationGuard guard(*this);
+  if (guard.IsInitializingRecursively()) {
+    return NS_ERROR_NOT_INITIALIZED;
   }
 
   // Note that we don't check mEditor here, because we might already have one
@@ -1126,7 +1134,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   } else {
     if (aValue) {
       // Set the correct value in the root node
-      rv = mBoundFrame->UpdateValueDisplay(PR_FALSE, PR_FALSE, aValue);
+      rv = mBoundFrame->UpdateValueDisplay(PR_TRUE, PR_FALSE, aValue);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -1162,7 +1170,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
 
   if (!SuppressEventHandlers(presContext)) {
     nsCOMPtr<nsIControllers> controllers;
-    nsCOMPtr<nsIDOMNSHTMLInputElement> inputElement =
+    nsCOMPtr<nsIDOMHTMLInputElement> inputElement =
       do_QueryInterface(mTextCtrlElement);
     if (inputElement) {
       rv = inputElement->GetControllers(getter_AddRefs(controllers));
@@ -1341,7 +1349,7 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
   if (!SuppressEventHandlers(mBoundFrame->PresContext()))
   {
     nsCOMPtr<nsIControllers> controllers;
-    nsCOMPtr<nsIDOMNSHTMLInputElement> inputElement =
+    nsCOMPtr<nsIDOMHTMLInputElement> inputElement =
       do_QueryInterface(mTextCtrlElement);
     if (inputElement)
       inputElement->GetControllers(getter_AddRefs(controllers));
@@ -1452,7 +1460,8 @@ nsTextEditorState::CreateRootNode()
                                                  kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = NS_NewHTMLElement(getter_AddRefs(mRootNode), nodeInfo, PR_FALSE);
+  nsresult rv = NS_NewHTMLElement(getter_AddRefs(mRootNode), nodeInfo.forget(),
+                                  PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the necessary classes on the text control. We use class values
@@ -1514,7 +1523,8 @@ nsTextEditorState::CreatePlaceholderNode()
                                            kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  rv = NS_NewHTMLElement(getter_AddRefs(mPlaceholderDiv), nodeInfo, PR_FALSE);
+  rv = NS_NewHTMLElement(getter_AddRefs(mPlaceholderDiv), nodeInfo.forget(),
+                         PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Create the text node for the placeholder text before doing anything else
@@ -1608,15 +1618,6 @@ nsTextEditorState::GetValue(nsAString& aValue, PRBool aIgnoreWrap) const
       mTextCtrlElement->GetDefaultValueFromContent(aValue);
     } else {
       aValue = NS_ConvertUTF8toUTF16(*mValue);
-    }
-
-    if (IsSingleLineTextControl()) {
-      // If the value is not owned by the frame, then we should handle any
-      // existing newline characters inside it, instead of relying on the
-      // editor to do it for us.
-      nsString value(aValue);
-      nsTextEditRules::HandleNewLines(value, -1);
-      aValue.Assign(value);
     }
   }
 }
@@ -1834,6 +1835,10 @@ nsTextEditorState::ValueWasChanged(PRBool aNotify)
 void
 nsTextEditorState::UpdatePlaceholderText(PRBool aNotify)
 {
+  // If we don't have a placeholder div, there's nothing to do.
+  if (!mPlaceholderDiv)
+    return;
+
   nsAutoString placeholderValue;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(mTextCtrlElement);
@@ -1898,7 +1903,8 @@ void
 nsAnonDivObserver::ContentRemoved(nsIDocument* aDocument,
                                   nsIContent*  aContainer,
                                   nsIContent*  aChild,
-                                  PRInt32      aIndexInContainer)
+                                  PRInt32      aIndexInContainer,
+                                  nsIContent*  aPreviousSibling)
 {
   mTextEditorState->ClearValueCache();
 }

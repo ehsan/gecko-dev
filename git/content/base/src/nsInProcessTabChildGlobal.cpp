@@ -49,6 +49,7 @@
 #include "nsScriptLoader.h"
 #include "nsIJSContextStack.h"
 #include "nsFrameLoader.h"
+#include "nsIPrivateDOMEvent.h"
 
 bool SendSyncMessageToParent(void* aCallbackData,
                              const nsAString& aMessage,
@@ -61,7 +62,7 @@ bool SendSyncMessageToParent(void* aCallbackData,
   nsTArray<nsCOMPtr<nsIRunnable> > asyncMessages;
   asyncMessages.SwapElements(tabChild->mASyncMessages);
   PRUint32 len = asyncMessages.Length();
-  for (PRInt32 i = 0; i < len; ++i) {
+  for (PRUint32 i = 0; i < len; ++i) {
     nsCOMPtr<nsIRunnable> async = asyncMessages[i];
     async->Run();
   }
@@ -110,14 +111,13 @@ bool SendAsyncMessageToParent(void* aCallbackData,
 nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
                                                      nsIContent* aOwner,
                                                      nsFrameMessageManager* aChrome)
-: mCx(nsnull), mDocShell(aShell), mInitialized(PR_FALSE), mLoadingScript(PR_FALSE),
+: mDocShell(aShell), mInitialized(PR_FALSE), mLoadingScript(PR_FALSE),
   mDelayedDisconnect(PR_FALSE), mOwner(aOwner), mChromeMessageManager(aChrome)
 {
 }
 
 nsInProcessTabChildGlobal::~nsInProcessTabChildGlobal()
 {
-  Disconnect();
   NS_ASSERTION(!mCx, "Couldn't release JSContext?!?");
 }
 
@@ -182,13 +182,38 @@ nsInProcessTabChildGlobal::GetDocShell(nsIDocShell** aDocShell)
 void
 nsInProcessTabChildGlobal::Disconnect()
 {
+  // Let the frame scripts know the child is being closed. We do any other
+  // cleanup after the event has been fired. See DelayedDisconnect
+  nsContentUtils::AddScriptRunner(
+     NS_NewRunnableMethod(this, &nsInProcessTabChildGlobal::DelayedDisconnect)
+  );
+}
+
+void
+nsInProcessTabChildGlobal::DelayedDisconnect()
+{
+  // Don't let the event escape
+  mOwner = nsnull;
+
+  // Fire the "unload" event
+  nsCOMPtr<nsIDOMEvent> event;
+  NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
+  if (event) {
+    event->InitEvent(NS_LITERAL_STRING("unload"), PR_FALSE, PR_FALSE);
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+    privateEvent->SetTrusted(PR_TRUE);
+
+    PRBool dummy;
+    nsDOMEventTargetHelper::DispatchEvent(event, &dummy);
+  }
+
+  // Continue with the Disconnect cleanup
   nsCOMPtr<nsIDOMWindow> win = do_GetInterface(mDocShell);
   nsCOMPtr<nsPIDOMWindow> pwin = do_QueryInterface(win);
   if (pwin) {
     pwin->SetChromeEventHandler(pwin->GetChromeEventHandler());
   }
   mDocShell = nsnull;
-  mOwner = nsnull;
   mChromeMessageManager = nsnull;
   if (mMessageManager) {
     static_cast<nsFrameMessageManager*>(mMessageManager.get())->Disconnect();
@@ -196,8 +221,7 @@ nsInProcessTabChildGlobal::Disconnect()
   }
   if (!mLoadingScript) {
     if (mCx) {
-      JS_DestroyContext(mCx);
-      mCx = nsnull;
+      DestroyCx();
     }
   } else {
     mDelayedDisconnect = PR_TRUE;
@@ -286,8 +310,9 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
 
   nsresult rv =
     xpc->InitClassesWithNewWrappedGlobal(cx, scopeSupports,
-                                         NS_GET_IID(nsISupports), flags,
-                                         getter_AddRefs(mGlobal));
+                                         NS_GET_IID(nsISupports),
+                                         GetPrincipal(), EmptyCString(),
+                                         flags, getter_AddRefs(mGlobal));
   NS_ENSURE_SUCCESS(rv, false);
 
   JSObject* global = nsnull;
@@ -295,7 +320,7 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
   NS_ENSURE_SUCCESS(rv, false);
 
   JS_SetGlobalObject(cx, global);
-
+  DidCreateCx();
   return NS_OK;
 }
 
@@ -306,67 +331,10 @@ nsInProcessTabChildGlobal::LoadFrameScript(const nsAString& aURL)
     mInitialized = PR_TRUE;
     Init();
   }
-  if (!mGlobal || !mCx) {
-    return;
-  }
-
-  nsCString url = NS_ConvertUTF16toUTF8(aURL);
-  nsCOMPtr<nsIURI> uri;
-  nsresult rv = NS_NewURI(getter_AddRefs(uri), url);
-  if (NS_FAILED(rv)) {
-    return;
-  }
-  nsCOMPtr<nsIChannel> channel;
-  NS_NewChannel(getter_AddRefs(channel), uri);
-  if (!channel) {
-    return;
-  }
-
-  nsCOMPtr<nsIInputStream> input;
-  channel->Open(getter_AddRefs(input));
-  nsString dataString;
-  if (input) {
-    const PRUint32 bufferSize = 256;
-    char buffer[bufferSize];
-    nsCString data;
-    PRUint32 avail = 0;
-    input->Available(&avail);
-    PRUint32 read = 0;
-    if (avail) {
-      while (NS_SUCCEEDED(input->Read(buffer, bufferSize, &read)) && read) {
-        data.Append(buffer, read);
-        read = 0;
-      }
-    }
-    nsScriptLoader::ConvertToUTF16(channel, (PRUint8*)data.get(), data.Length(),
-                                   EmptyString(), nsnull, dataString);
-  }
-
-  if (!dataString.IsEmpty()) {
-    JSAutoRequest ar(mCx);
-    jsval retval;
-    JSObject* global = nsnull;
-    mGlobal->GetJSObject(&global);
-    if (!global) {
-      return;
-    }
-
-    JSPrincipals* jsprin = nsnull;
-    mPrincipal->GetJSPrincipals(mCx, &jsprin);
-    nsContentUtils::XPConnect()->FlagSystemFilenamePrefix(url.get(), PR_TRUE);
-    nsContentUtils::ThreadJSContextStack()->Push(mCx);
-    PRBool tmp = mLoadingScript;
-    mLoadingScript = PR_TRUE;
-    JS_EvaluateUCScriptForPrincipals(mCx, global, jsprin,
-                                     (jschar*)dataString.get(),
-                                     dataString.Length(),
-                                     url.get(), 1, &retval);
-    //XXX Argh, JSPrincipals are manually refcounted!
-    JSPRINCIPALS_DROP(mCx, jsprin);
-    mLoadingScript = tmp;
-    JSContext* unused;
-    nsContentUtils::ThreadJSContextStack()->Pop(&unused);
-  }
+  PRBool tmp = mLoadingScript;
+  mLoadingScript = PR_TRUE;
+  LoadFrameScriptInternal(aURL);
+  mLoadingScript = tmp;
   if (!mLoadingScript && mDelayedDisconnect) {
     mDelayedDisconnect = PR_FALSE;
     Disconnect();

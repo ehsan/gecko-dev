@@ -142,6 +142,11 @@ public:
     eDOMEvents_SVGScroll,
     eDOMEvents_SVGZoom,
 #endif // MOZ_SVG
+#ifdef MOZ_SMIL
+    eDOMEvents_beginEvent,
+    eDOMEvents_endEvent,
+    eDOMEvents_repeatEvent,
+#endif // MOZ_SMIL
 #ifdef MOZ_MEDIA
     eDOMEvents_loadstart,
     eDOMEvents_progress,
@@ -165,6 +170,7 @@ public:
     eDOMEvents_volumechange,
 #endif
     eDOMEvents_afterpaint,
+    eDOMEvents_beforepaint,
     eDOMEvents_MozSwipeGesture,
     eDOMEvents_MozMagnifyGestureStart,
     eDOMEvents_MozMagnifyGestureUpdate,
@@ -174,6 +180,9 @@ public:
     eDOMEvents_MozRotateGesture,
     eDOMEvents_MozTapGesture,
     eDOMEvents_MozPressTapGesture,
+    eDOMEvents_MozTouchDown,
+    eDOMEvents_MozTouchMove,
+    eDOMEvents_MozTouchUp,
     eDOMEvents_MozScrolledAreaChanged,
     eDOMEvents_transitionend
   };
@@ -196,6 +205,9 @@ public:
   NS_IMETHOD_(PRBool)    IsDispatchStopped();
   NS_IMETHOD_(nsEvent*)    GetInternalNSEvent();
   NS_IMETHOD    SetTrusted(PRBool aTrusted);
+
+  virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
+  virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
 
   static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 

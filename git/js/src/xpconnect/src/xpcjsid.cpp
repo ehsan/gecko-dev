@@ -286,69 +286,24 @@ NS_METHOD GetSharedScriptableHelperForJSIID(PRUint32 language,
 
 static JSBool gClassObjectsWereInited = JS_FALSE;
 
-NS_DECL_CI_INTERFACE_GETTER(nsJSIID)
-// Can't make this static. http://bugzilla.mozilla.org/show_bug.cgi?id=81436
-nsIClassInfo* NS_CLASSINFO_NAME(nsJSIID);
+#define NULL_CID \
+{ 0x00000000, 0x0000, 0x0000, \
+  { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } }
 
-static const nsModuleComponentInfo CI_nsJSIID =
-    {"JSIID",
-     {0x26ecb8d0, 0x35c9, 0x11d5, { 0x90, 0xb2, 0x0, 0x10, 0xa4, 0xe7, 0x3d, 0x9a }},
-     nsnull, nsnull, nsnull,nsnull, nsnull,
-     NS_CI_INTERFACE_GETTER_NAME(nsJSIID),
-     GetSharedScriptableHelperForJSIID,
-     &NS_CLASSINFO_NAME(nsJSIID), nsIClassInfo::THREADSAFE};
+NS_DECL_CI_INTERFACE_GETTER(nsJSIID)
+NS_IMPL_CLASSINFO(nsJSIID, GetSharedScriptableHelperForJSIID,
+                  nsIClassInfo::THREADSAFE, NULL_CID)
 
 NS_DECL_CI_INTERFACE_GETTER(nsJSCID)
-// Can't make this static. http://bugzilla.mozilla.org/show_bug.cgi?id=81436
-nsIClassInfo* NS_CLASSINFO_NAME(nsJSCID);
+NS_IMPL_CLASSINFO(nsJSCID, NULL, nsIClassInfo::THREADSAFE, NULL_CID)
 
-static const nsModuleComponentInfo CI_nsJSCID =
-    {"JSCID",
-     {0x9255b5b0, 0x35cf, 0x11d5, { 0x90, 0xb2, 0x0, 0x10, 0xa4, 0xe7, 0x3d, 0x9a }},
-     nsnull, nsnull, nsnull,nsnull, nsnull,
-     NS_CI_INTERFACE_GETTER_NAME(nsJSCID), nsnull,
-     &NS_CLASSINFO_NAME(nsJSCID), nsIClassInfo::THREADSAFE};
-
-JSBool xpc_InitJSxIDClassObjects()
+void xpc_InitJSxIDClassObjects()
 {
-    if(gClassObjectsWereInited)
-        return JS_TRUE;
-
-    nsresult rv = NS_OK;
-
-    if(!NS_CLASSINFO_NAME(nsJSIID))
-    {
-        nsCOMPtr<nsIGenericFactory> factory;
-        rv = NS_NewGenericFactory(getter_AddRefs(factory), &CI_nsJSIID);
-        if(NS_FAILED(rv))
-            goto return_failure;
-        rv = factory->QueryInterface(NS_GET_IID(nsIClassInfo),
-                                     (void**)&NS_CLASSINFO_NAME(nsJSIID));
-        if(NS_FAILED(rv))
-            goto return_failure;
+    if(!gClassObjectsWereInited) {
+        gSharedScriptableHelperForJSIID = new SharedScriptableHelperForJSIID();
+        NS_ADDREF(gSharedScriptableHelperForJSIID);
     }
-
-    if(!NS_CLASSINFO_NAME(nsJSCID))
-    {
-        nsCOMPtr<nsIGenericFactory> factory;
-        rv = NS_NewGenericFactory(getter_AddRefs(factory), &CI_nsJSCID);
-        if(NS_FAILED(rv))
-            goto return_failure;
-        rv = factory->QueryInterface(NS_GET_IID(nsIClassInfo),
-                                     (void**)&NS_CLASSINFO_NAME(nsJSCID));
-        if(NS_FAILED(rv))
-            goto return_failure;
-    }
-
-    gSharedScriptableHelperForJSIID = new SharedScriptableHelperForJSIID();
-    if(!gSharedScriptableHelperForJSIID)
-        goto return_failure;
-    NS_ADDREF(gSharedScriptableHelperForJSIID);
-
     gClassObjectsWereInited = JS_TRUE;
-    return JS_TRUE;
-return_failure:
-    return JS_FALSE;
 }
 
 void xpc_DestroyJSxIDClassObjects()
@@ -474,7 +429,7 @@ nsJSIID::NewID(nsIInterfaceInfo* aInfo)
 NS_IMETHODIMP
 nsJSIID::NewResolve(nsIXPConnectWrappedNative *wrapper,
                     JSContext * cx, JSObject * obj,
-                    jsval id, PRUint32 flags,
+                    jsid id, PRUint32 flags,
                     JSObject * *objp, PRBool *_retval)
 {
     XPCCallContext ccx(JS_CALLER, cx);
@@ -496,12 +451,8 @@ nsJSIID::NewResolve(nsIXPConnectWrappedNative *wrapper,
         if(!member->GetConstantValue(ccx, iface, &val))
             return NS_ERROR_OUT_OF_MEMORY;
 
-        jsid idid;
-        if(!JS_ValueToId(cx, id, &idid))
-            return NS_ERROR_OUT_OF_MEMORY;
-
         *objp = obj;
-        *_retval = JS_DefinePropertyById(cx, obj, idid, val, nsnull, nsnull,
+        *_retval = JS_DefinePropertyById(cx, obj, id, val, nsnull, nsnull,
                                          JSPROP_ENUMERATE | JSPROP_READONLY |
                                          JSPROP_PERMANENT);
     }
@@ -545,7 +496,7 @@ nsJSIID::Enumerate(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
                      JSContext * cx, JSObject * obj,
-                     jsval val, PRBool *bp, PRBool *_retval)
+                     const jsval &val, PRBool *bp, PRBool *_retval)
 {
     *bp = JS_FALSE;
     nsresult rv = NS_OK;
@@ -920,7 +871,7 @@ nsJSCID::Construct(nsIXPConnectWrappedNative *wrapper,
 
     // 'push' a call context and call on it
     XPCCallContext ccx(JS_CALLER, cx, obj, nsnull,
-                       rt->GetStringJSVal(XPCJSRuntime::IDX_CREATE_INSTANCE),
+                       rt->GetStringID(XPCJSRuntime::IDX_CREATE_INSTANCE),
                        argc, argv, vp);
 
     *_retval = XPCWrappedNative::CallMethod(ccx);
@@ -931,7 +882,7 @@ nsJSCID::Construct(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsJSCID::HasInstance(nsIXPConnectWrappedNative *wrapper,
                      JSContext * cx, JSObject * obj,
-                     jsval val, PRBool *bp, PRBool *_retval)
+                     const jsval &val, PRBool *bp, PRBool *_retval)
 {
     *bp = JS_FALSE;
     nsresult rv = NS_OK;

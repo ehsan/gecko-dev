@@ -42,6 +42,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsMediaDecoder.h"
 #include "nsIChannel.h"
+#include "nsIHttpChannel.h"
 #include "nsThreadUtils.h"
 #include "nsIDOMRange.h"
 #include "nsCycleCollectionParticipant.h"
@@ -67,7 +68,8 @@ public:
     CANPLAY_YES
   };
 
-  nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
+  nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                     PRUint32 aFromParser = 0);
   virtual ~nsHTMLMediaElement();
 
   /**
@@ -238,7 +240,7 @@ public:
   // returns a null-terminated list of supported codecs
   // in *aSupportedCodecs. This list should not be freed, it is static data.
   static CanPlayStatus CanHandleMediaType(const char* aMIMEType,
-                                          const char*** aSupportedCodecs);
+                                          char const *const ** aSupportedCodecs);
 
   // Returns the CanPlayStatus indicating if we can handle the
   // full MIME type including the optional codecs parameter.
@@ -250,14 +252,26 @@ public:
   // false here even if CanHandleMediaType would return true.
   static PRBool ShouldHandleMediaType(const char* aMIMEType);
 
-  /**
-   * Initialize data for available media types
-   */
-  static void InitMediaTypes();
-  /**
-   * Shutdown data for available media types
-   */
-  static void ShutdownMediaTypes();
+#ifdef MOZ_OGG
+  static bool IsOggEnabled();
+  static bool IsOggType(const nsACString& aType);
+  static const char gOggTypes[3][16];
+  static char const *const gOggCodecs[3];
+#endif
+
+#ifdef MOZ_WAVE
+  static bool IsWaveEnabled();
+  static bool IsWaveType(const nsACString& aType);
+  static const char gWaveTypes[4][16];
+  static char const *const gWaveCodecs[2];
+#endif
+
+#ifdef MOZ_WEBM
+  static bool IsWebMEnabled();
+  static bool IsWebMType(const nsACString& aType);
+  static const char gWebMTypes[2][17];
+  static char const *const gWebMCodecs[4];
+#endif
 
   /**
    * Called when a child source element is added to this media element. This
@@ -293,6 +307,13 @@ public:
   PRBool GetPlayedOrSeeked() const { return mHasPlayedOrSeeked; }
 
   nsresult CopyInnerTo(nsGenericElement* aDest) const;
+
+  /**
+   * Sets the Accept header on the HTTP channel to the required
+   * video or audio MIME types.
+   */
+  virtual nsresult SetAcceptHeader(nsIHttpChannel* aChannel) = 0;
+
 protected:
   class MediaLoadListener;
   class LoadNextSourceEvent;

@@ -283,9 +283,9 @@ MySecMan::CanGetService(JSContext * aJSContext, const nsCID & aCID)
     }
 }
 
-/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsval aName, inout voidPtr aPolicy); */
+/* void CanAccess (in PRUint32 aAction, in nsIXPCNativeCallContext aCallContext, in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in nsISupports aObj, in nsIClassInfo aClassInfo, in jsid aName, inout voidPtr aPolicy); */
 NS_IMETHODIMP 
-MySecMan::CanAccess(PRUint32 aAction, nsAXPCNativeCallContext *aCallContext, JSContext * aJSContext, JSObject * aJSObject, nsISupports *aObj, nsIClassInfo *aClassInfo, jsval aName, void * *aPolicy)
+MySecMan::CanAccess(PRUint32 aAction, nsAXPCNativeCallContext *aCallContext, JSContext * aJSContext, JSObject * aJSObject, nsISupports *aObj, nsIClassInfo *aClassInfo, jsid aName, void * *aPolicy)
 {
     switch(mMode)
     {
@@ -779,10 +779,6 @@ int main()
     {
         nsCOMPtr<nsIServiceManager> servMan;
         NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
-        nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
-        NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
-        if(registrar)
-            registrar->AutoRegister(nsnull);
     
         // get the JSRuntime from the runtime svc, if possible
         nsCOMPtr<nsIJSRuntimeService> rtsvc =

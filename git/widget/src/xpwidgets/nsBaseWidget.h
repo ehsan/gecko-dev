@@ -46,6 +46,7 @@
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
+#include "BasicLayers.h"
 
 class nsIContent;
 class nsAutoRollup;
@@ -63,6 +64,9 @@ class gfxContext;
 class nsBaseWidget : public nsIWidget
 {
   friend class nsAutoRollup;
+
+protected:
+  typedef mozilla::layers::BasicLayerManager BasicLayerManager;
 
 public:
   nsBaseWidget();
@@ -116,7 +120,7 @@ public:
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetClientOffset(nsIntPoint &aPt);
+  virtual nsIntPoint      GetClientOffset();
   NS_IMETHOD              EnableDragDrop(PRBool aEnable);
   NS_IMETHOD              GetAttention(PRInt32 aCycleCount);
   virtual PRBool          HasPendingInputEvent();
@@ -128,6 +132,7 @@ public:
   virtual PRBool          ShowsResizeIndicator(nsIntRect* aResizerRect);
   virtual void            FreeNativeData(void * data, PRUint32 aDataType) {}
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
+  NS_IMETHOD              BeginMoveDrag(nsMouseEvent* aEvent);
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              ResetInputState() { return NS_OK; }
@@ -150,6 +155,23 @@ public:
   NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
   NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
+  NS_IMETHOD              RegisterTouchWindow();
+  NS_IMETHOD              UnregisterTouchWindow();
+
+  nsPopupLevel PopupLevel() { return mPopupLevel; }
+
+  virtual nsIntSize       ClientToWindowSize(const nsIntSize& aClientSize)
+  {
+    return aClientSize;
+  }
+
+  // return true if this is a popup widget with a native titlebar
+  PRBool IsPopupWithTitleBar() const
+  {
+    return (mWindowType == eWindowType_popup && 
+            mBorderStyle != eBorderStyle_default &&
+            mBorderStyle & eBorderStyle_title);
+  }
 
   /**
    * Use this when GetLayerManager() returns a BasicLayerManager
@@ -158,7 +180,8 @@ public:
    */
   class AutoLayerManagerSetup {
   public:
-    AutoLayerManagerSetup(nsBaseWidget* aWidget, gfxContext* aTarget);
+    AutoLayerManagerSetup(nsBaseWidget* aWidget, gfxContext* aTarget,
+                          BasicLayerManager::BufferMode aDoubleBuffering);
     ~AutoLayerManagerSetup();
   private:
     nsBaseWidget* mWidget;
@@ -222,6 +245,7 @@ protected:
   PRUint32          mClipRectCount;
   PRInt32           mZIndex;
   nsSizeMode        mSizeMode;
+  nsPopupLevel      mPopupLevel;
 
   // the last rolled up popup. Only set this when an nsAutoRollup is in scope,
   // so it can be cleared automatically.
@@ -275,91 +299,6 @@ class nsAutoRollup
 
   nsAutoRollup();
   ~nsAutoRollup();
-};
-
-/**
- * BlitRectIter and/or ScrollRectIterBase are classes used in
- * nsIWidget::Scroll() implementations.  They provide sorting of rectangles
- * such that copying from rects[i] - aDelta to rects[i] does not alter
- * anything in rects[j] for each j > i when rect[i] and rect[j] do not
- * intersect each other nor any other rectangle.  That is, it is safe to just
- * copy non-intersecting rectangles in the order provided.
- *
- * ScrollRectIterBase is only instantiated within derived classes.  It expects
- * to be initialized through BaseInit() with a linked list of rectangles.
- *
- * BlitRectIter provides a simple constructor from an array of nsIntRects.
- */
-
-class ScrollRectIterBase {
-public:
-  PRBool IsDone() { return mHead == nsnull; }
-  void operator++() { mHead = mHead->mNext; }
-  const nsIntRect& Rect() const { return *mHead; }
-
-protected:
-  ScrollRectIterBase() {}
-
-  struct ScrollRect : public nsIntRect {
-    ScrollRect(const nsIntRect& aIntRect) : nsIntRect(aIntRect) {}
-
-    // Flip the coordinate system so that we can assume that the rectangles
-    // are moving in the direction of decreasing x and y (left and up).
-    // This function is its own inverse.
-    void Flip(const nsIntPoint& aDelta)
-    {
-      if (aDelta.x > 0) x = -XMost();
-      if (aDelta.y > 0) y = -YMost();
-    }
-
-    ScrollRect* mNext;
-  };
-
-  void BaseInit(const nsIntPoint& aDelta, ScrollRect* aHead);
-
-private:
-  void Flip(const nsIntPoint& aDelta)
-  {
-    for (ScrollRect* r = mHead; r; r = r->mNext) {
-      r->Flip(aDelta);
-    }
-  }
-
-  /**
-   * Comparator for an initial sort of the rectangles.  The rectangles are
-   * primarily sorted in increasing y, which is required for the algorithm.
-   * The secondary sort is in decreasing x, chosen to make Move() more
-   * efficient for rows of rectangles with equal y.
-   */
-  class InitialSortComparator {
-  public:
-    PRBool Equals(const ScrollRect* a, const ScrollRect* b) const
-    {
-      return a->y == b->y && a->x == b->x;
-    }
-    PRBool LessThan(const ScrollRect* a, const ScrollRect* b) const
-    {
-      return a->y < b->y || (a->y == b->y && a->x > b->x);
-    }
-  };
-
-  void Move(ScrollRect** aUnmovedLink);
-
-  // Linked list of rectangles; these are assumed owned by the derived class
-  ScrollRect* mHead;
-  // Used in sorting to point to the last mNext link in the moved chain.
-  ScrollRect** mTailLink;
-};
-
-class BlitRectIter : public ScrollRectIterBase {
-public:
-  BlitRectIter(const nsIntPoint& aDelta, const nsTArray<nsIntRect>& aRects);
-private:
-  // Copying is not supported.
-  BlitRectIter(const BlitRectIter&);
-  void operator=(const BlitRectIter&);
-
-  nsTArray<ScrollRect> mRects;
 };
 
 #endif // nsBaseWidget_h__

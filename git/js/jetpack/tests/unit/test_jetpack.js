@@ -1,8 +1,4 @@
-/*
-var jps = jps || Components.classes["@mozilla.org/jetpack/service;1"]
-  .getService(Components.interfaces.nsIJetpackService),
-  jetpack = null;
-*/
+var jetpack = null;
 
 load("handle_tests.js");
 function createHandle() {
@@ -10,11 +6,11 @@ function createHandle() {
 }
 
 function run_test() {
-  //jetpack = jps.createJetpack();
-  return;
+  jetpack = createJetpack({
+    skipRegisterError: true,
+    scriptFile: do_get_file("impl.js")
+  });
   run_handle_tests();
-
-  jetpack.loadImplementation("file://" + do_get_file("impl.js").path);
 
   var circ1 = {},
       circ2 = {},
@@ -165,6 +161,20 @@ function run_test() {
   jetpack.registerReceiver("duplicate receivers",
                            function() { do_test_finished() });
 
+  jetpack.registerReceiver("test result", function(name, c, msg) {
+    dump("TEST-INFO | test_jetpack.js | remote check '" + msg + "' result: " + c + "\n");
+    do_check_true(c);
+  });
+  jetpack.registerReceiver("sandbox done", do_test_finished);
+
+  jetpack.registerReceiver("core:exception",
+			   function(msgName, e) {
+			       do_check_true(/throwing on request/.test(e.message));
+			       do_test_finished();
+			   });
+
+  do_test_pending();
+  do_test_pending();
   do_test_pending();
   do_test_pending();
   do_test_pending();
@@ -186,5 +196,9 @@ function run_test() {
                       undefined, null, true, false, 1, 2, 999, 1/4, "oyez");
   jetpack.sendMessage("drop methods", drop);
   jetpack.sendMessage("exception coping");
+
   jetpack.sendMessage("duplicate receivers");
+
+  jetpack.sendMessage("test sandbox");
+  jetpack.sendMessage("throw");
 }

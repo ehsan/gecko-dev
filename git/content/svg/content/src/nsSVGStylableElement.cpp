@@ -65,7 +65,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGStylableElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGStylableElement::nsSVGStylableElement(nsINodeInfo *aNodeInfo)
+nsSVGStylableElement::nsSVGStylableElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGStylableElementBase(aNodeInfo)
 {
 }
@@ -97,7 +97,13 @@ nsSVGStylableElement::GetClassName(nsIDOMSVGAnimatedString** aClassName)
 NS_IMETHODIMP
 nsSVGStylableElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  return nsSVGStylableElementBase::GetStyle(aStyle);
+  nsresult rv;
+  *aStyle = GetStyle(&rv);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  NS_ADDREF(*aStyle);
+  return NS_OK;
 }
 
 /* nsIDOMCSSValue getPresentationAttribute (in DOMString name); */

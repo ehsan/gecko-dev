@@ -275,16 +275,14 @@ public:
   }
 #endif
 
-  virtual Type GetType() { return TYPE_PLUGIN; }
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion,
-                                   nsRegion* aVisibleRegionBeforeMove);
+                                   nsRegion* aVisibleRegion);
 
-  NS_DISPLAY_DECL_NAME("Plugin")
+  NS_DISPLAY_DECL_NAME("Plugin", TYPE_PLUGIN)
 
   // Compute the desired position and clip region of the plugin's widget.
   // This will only be called for plugins which have been registered

@@ -222,8 +222,7 @@ nsImageBoxFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aPrevInFlow)
 {
   if (!mListener) {
-    nsImageBoxListener *listener;
-    NS_NEWXPCOM(listener, nsImageBoxListener);
+    nsImageBoxListener *listener = new nsImageBoxListener();
     NS_ADDREF(listener);
     listener->SetFrame(this);
     listener->QueryInterface(NS_GET_IID(imgIDecoderObserver), getter_AddRefs(mListener));
@@ -325,7 +324,7 @@ public:
   // event receiver for us
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("XULImage")
+  NS_DISPLAY_DECL_NAME("XULImage", TYPE_XUL_IMAGE)
 };
 
 void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
@@ -548,8 +547,8 @@ NS_IMETHODIMP nsImageBoxFrame::OnStopDecode(imgIRequest *request,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *container,
-                                            nsIntRect *dirtyRect)
+NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *aContainer,
+                                            const nsIntRect *aDirtyRect)
 {
   nsBoxLayoutState state(PresContext());
   this->Redraw(state);
@@ -595,12 +594,12 @@ NS_IMETHODIMP nsImageBoxListener::OnStopDecode(imgIRequest *request,
   return mFrame->OnStopDecode(request, status, statusArg);
 }
 
-NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *container,
-                                               nsIntRect *dirtyRect)
+NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *aContainer,
+                                               const nsIntRect *aDirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(container, dirtyRect);
+  return mFrame->FrameChanged(aContainer, aDirtyRect);
 }
 

@@ -66,7 +66,6 @@
 #include "nsIScreen.h"
 #include "nsIScreenManager.h"
 #include "nsIScriptContext.h"
-#include "nsIGenericFactory.h"
 #include "nsIJSContextStack.h"
 #include "nsIObserverService.h"
 #include "nsIScriptGlobalObject.h"
@@ -624,7 +623,7 @@ nsWindowWatcher::OpenWindowJSInternal(nsIDOMWindow *aParent,
         NS_ASSERTION(aParent, "We've _got_ to have a parent here!");
 
         nsCOMPtr<nsIDOMWindow> newWindow;
-        rv = provider->ProvideWindow(aParent, chromeFlags,
+        rv = provider->ProvideWindow(aParent, chromeFlags, aCalledFromJS,
                                      sizeSpec.PositionSpecified(),
                                      sizeSpec.SizeSpecified(),
                                      uriToLoad, name, features, &windowIsNew,
@@ -1513,10 +1512,12 @@ PRUint32 nsWindowWatcher::CalculateChromeFlags(const char *aFeatures,
      to mean "OS' choice." */
 
   // default titlebar and closebox to "on," if not mentioned at all
-  if (!PL_strcasestr(aFeatures, "titlebar"))
-    chromeFlags |= nsIWebBrowserChrome::CHROME_TITLEBAR;
-  if (!PL_strcasestr(aFeatures, "close"))
-    chromeFlags |= nsIWebBrowserChrome::CHROME_WINDOW_CLOSE;
+  if (!(chromeFlags & nsIWebBrowserChrome::CHROME_WINDOW_POPUP)) {
+    if (!PL_strcasestr(aFeatures, "titlebar"))
+      chromeFlags |= nsIWebBrowserChrome::CHROME_TITLEBAR;
+    if (!PL_strcasestr(aFeatures, "close"))
+      chromeFlags |= nsIWebBrowserChrome::CHROME_WINDOW_CLOSE;
+  }
 
   if (aDialog && !presenceFlag)
     chromeFlags = nsIWebBrowserChrome::CHROME_DEFAULT;

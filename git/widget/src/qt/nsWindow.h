@@ -168,9 +168,6 @@ public:
     NS_IMETHOD         Invalidate(const nsIntRect &aRect,
                                   PRBool        aIsSynchronous);
     NS_IMETHOD         Update();
-    void               Scroll(const nsIntPoint&,
-                              const nsTArray<nsIntRect>&,
-                              const nsTArray<nsIWidget::Configuration>&);
 
     virtual void*      GetNativeData(PRUint32 aDataType);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
@@ -205,6 +202,8 @@ public:
 
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
+    void DispatchActivateEventOnTopLevelWindow(void);
+    void DispatchDeactivateEventOnTopLevelWindow(void);
     void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
 
     nsEventStatus DispatchEvent(nsGUIEvent *aEvent) {
@@ -309,8 +308,6 @@ protected:
     gfxASurface*       GetThebesSurface();
 
 private:
-    void               GetToplevelWidget(MozQWidget **aWidget);
-    nsWindow*          GetTopLevelNsWindow();
     void*              SetupPluginPort(void);
     nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
     void               SetDefaultIcon(void);

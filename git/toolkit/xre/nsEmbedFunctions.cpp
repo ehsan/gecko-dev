@@ -68,12 +68,12 @@
 #include "nsAutoRef.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsExceptionHandler.h"
-#include "nsStaticComponents.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsWidgetsCID.h"
 #include "nsXREDirProvider.h"
 
+#include "mozilla/Omnijar.h"
 #ifdef MOZ_IPC
 #include "nsX11ErrorHandler.h"
 #include "base/at_exit.h"
@@ -91,6 +91,14 @@
 
 #include "mozilla/jetpack/JetpackProcessChild.h"
 #include "mozilla/plugins/PluginProcessChild.h"
+#include "mozilla/dom/ContentProcess.h"
+#include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/ContentChild.h"
+
+#include "mozilla/jsipc/ContextWrapperParent.h"
+
+#include "mozilla/ipc/TestShellParent.h"
+#include "mozilla/ipc/XPCShellEnvironment.h"
 
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
@@ -107,6 +115,16 @@ using mozilla::ipc::ScopedXREEmbed;
 
 using mozilla::jetpack::JetpackProcessChild;
 using mozilla::plugins::PluginProcessChild;
+using mozilla::dom::ContentProcess;
+using mozilla::dom::ContentParent;
+using mozilla::dom::ContentChild;
+
+using mozilla::jsipc::PContextWrapperParent;
+using mozilla::jsipc::ContextWrapperParent;
+
+using mozilla::ipc::TestShellParent;
+using mozilla::ipc::TestShellCommandParent;
+using mozilla::ipc::XPCShellEnvironment;
 
 using mozilla::startup::sChildProcessType;
 #endif
@@ -116,14 +134,6 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #ifdef XP_WIN
 static const PRUnichar kShellLibraryName[] =  L"shell32.dll";
 #endif
-
-void
-XRE_GetStaticComponents(nsStaticModuleInfo const **aStaticComponents,
-                        PRUint32 *aComponentCount)
-{
-  *aStaticComponents = kPStaticModules;
-  *aComponentCount = kStaticModuleCount;
-}
 
 nsresult
 XRE_LockProfileDirectory(nsILocalFile* aDirectory,
@@ -139,15 +149,12 @@ XRE_LockProfileDirectory(nsILocalFile* aDirectory,
   return rv;
 }
 
-static nsStaticModuleInfo *sCombined;
 static PRInt32 sInitCounter;
 
 nsresult
-XRE_InitEmbedding(nsILocalFile *aLibXULDirectory,
-                  nsILocalFile *aAppDirectory,
-                  nsIDirectoryServiceProvider *aAppDirProvider,
-                  nsStaticModuleInfo const *aStaticComponents,
-                  PRUint32 aStaticComponentCount)
+XRE_InitEmbedding2(nsILocalFile *aLibXULDirectory,
+		   nsILocalFile *aAppDirectory,
+		   nsIDirectoryServiceProvider *aAppDirProvider)
 {
   // Initialize some globals to make nsXREDirProvider happy
   static char* kNullCommandLine[] = { nsnull };
@@ -173,20 +180,7 @@ XRE_InitEmbedding(nsILocalFile *aLibXULDirectory,
   if (NS_FAILED(rv))
     return rv;
 
-  // Combine the toolkit static components and the app components.
-  PRUint32 combinedCount = kStaticModuleCount + aStaticComponentCount;
-
-  sCombined = new nsStaticModuleInfo[combinedCount];
-  if (!sCombined)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  memcpy(sCombined, kPStaticModules,
-         sizeof(nsStaticModuleInfo) * kStaticModuleCount);
-  memcpy(sCombined + kStaticModuleCount, aStaticComponents,
-         sizeof(nsStaticModuleInfo) * aStaticComponentCount);
-
-  rv = NS_InitXPCOM3(nsnull, aAppDirectory, gDirServiceProvider,
-                     sCombined, combinedCount);
+  rv = NS_InitXPCOM2(nsnull, aAppDirectory, gDirServiceProvider);
   if (NS_FAILED(rv))
     return rv;
 
@@ -224,7 +218,6 @@ XRE_TermEmbedding()
 
   gDirServiceProvider->DoShutdown();
   NS_ShutdownXPCOM(nsnull);
-  delete [] sCombined;
   delete gDirServiceProvider;
 }
 
@@ -381,47 +374,72 @@ XRE_InitChildProcess(int aArgc,
     return NS_ERROR_FAILURE;
   }
 
-  // Associate this thread with a UI MessageLoop
-  MessageLoopForUI uiMessageLoop;
+  MessageLoop::Type uiLoopType;
+  switch (aProcess) {
+  case GeckoProcessType_Content:
+      // Content processes need the XPCOM/chromium frankenventloop
+      uiLoopType = MessageLoop::TYPE_MOZILLA_CHILD;
+      break;
+  default:
+      uiLoopType = MessageLoop::TYPE_UI;
+      break;
+  }
+
   {
-    nsAutoPtr<ProcessChild> process;
+    // This is a lexical scope for the MessageLoop below.  We want it
+    // to go out of scope before NS_LogTerm() so that we don't get
+    // spurious warnings about XPCOM objects being destroyed from a
+    // static context.
 
-    switch (aProcess) {
-    case GeckoProcessType_Default:
-      NS_RUNTIMEABORT("This makes no sense");
-      break;
+    // Associate this thread with a UI MessageLoop
+    MessageLoop uiMessageLoop(uiLoopType);
+    {
+      nsAutoPtr<ProcessChild> process;
 
-    case GeckoProcessType_Plugin:
-      process = new PluginProcessChild(parentHandle);
-      break;
+      switch (aProcess) {
+      case GeckoProcessType_Default:
+        NS_RUNTIMEABORT("This makes no sense");
+        break;
 
-    case GeckoProcessType_Jetpack:
-      process = new JetpackProcessChild(parentHandle);
-      break;
+      case GeckoProcessType_Plugin:
+        process = new PluginProcessChild(parentHandle);
+        break;
 
-    case GeckoProcessType_IPDLUnitTest:
+      case GeckoProcessType_Content:
+        process = new ContentProcess(parentHandle);
+        break;
+
+      case GeckoProcessType_Jetpack:
+        process = new JetpackProcessChild(parentHandle);
+        break;
+
+      case GeckoProcessType_IPDLUnitTest:
 #ifdef MOZ_IPDL_TESTS
-      process = new IPDLUnitTestProcessChild(parentHandle);
+        process = new IPDLUnitTestProcessChild(parentHandle);
 #else 
-      NS_RUNTIMEABORT("rebuild with --enable-ipdl-tests");
+        NS_RUNTIMEABORT("rebuild with --enable-ipdl-tests");
 #endif
-      break;
+        break;
 
-    default:
-      NS_RUNTIMEABORT("Unknown main thread class");
+      default:
+        NS_RUNTIMEABORT("Unknown main thread class");
+      }
+
+      if (!process->Init()) {
+        NS_LogTerm();
+        return NS_ERROR_FAILURE;
+      }
+
+      // Run the UI event loop on the main thread.
+      uiMessageLoop.MessageLoop::Run();
+
+      // Allow ProcessChild to clean up after itself before going out of
+      // scope and being deleted
+      process->CleanUp();
+#ifdef MOZ_OMNIJAR
+      mozilla::SetOmnijar(nsnull);
+#endif
     }
-
-    if (!process->Init()) {
-      NS_LogTerm();
-      return NS_ERROR_FAILURE;
-    }
-
-    // Run the UI event loop on the main thread.
-    uiMessageLoop.MessageLoop::Run();
-
-    // Allow ProcessChild to clean up after itself before going out of
-    // scope and being deleted
-    process->CleanUp();
   }
 
   NS_LogTerm();
@@ -539,6 +557,13 @@ XRE_RunAppShell()
     return appShell->Run();
 }
 
+template<>
+struct RunnableMethodTraits<ContentChild>
+{
+    static void RetainCallee(ContentChild* obj) { }
+    static void ReleaseCallee(ContentChild* obj) { }
+};
+
 void
 XRE_ShutdownChildProcess()
 {
@@ -554,6 +579,59 @@ XRE_ShutdownChildProcess()
   //  (4) ProcessChild joins the IO thread
   //  (5) exit()
   MessageLoop::current()->Quit(); 
+}
+
+namespace {
+TestShellParent* gTestShellParent = nsnull;
+TestShellParent* GetOrCreateTestShellParent()
+{
+    if (!gTestShellParent) {
+        ContentParent* parent = ContentParent::GetSingleton();
+        NS_ENSURE_TRUE(parent, nsnull);
+        gTestShellParent = parent->CreateTestShell();
+        NS_ENSURE_TRUE(gTestShellParent, nsnull);
+    }
+    return gTestShellParent;
+}
+}
+
+bool
+XRE_SendTestShellCommand(JSContext* aCx,
+                         JSString* aCommand,
+                         void* aCallback)
+{
+    TestShellParent* tsp = GetOrCreateTestShellParent();
+    NS_ENSURE_TRUE(tsp, false);
+
+    nsDependentString command((PRUnichar*)JS_GetStringChars(aCommand),
+                              JS_GetStringLength(aCommand));
+    if (!aCallback) {
+        return tsp->SendExecuteCommand(command);
+    }
+
+    TestShellCommandParent* callback = static_cast<TestShellCommandParent*>(
+        tsp->SendPTestShellCommandConstructor(command));
+    NS_ENSURE_TRUE(callback, false);
+
+    jsval callbackVal = *reinterpret_cast<jsval*>(aCallback);
+    NS_ENSURE_TRUE(callback->SetCallback(aCx, callbackVal), false);
+
+    return true;
+}
+
+bool
+XRE_GetChildGlobalObject(JSContext* aCx, JSObject** aGlobalP)
+{
+    TestShellParent* tsp = GetOrCreateTestShellParent();
+    return tsp && tsp->GetGlobalJSObject(aCx, aGlobalP);
+}
+
+bool
+XRE_ShutdownTestShell()
+{
+  if (!gTestShellParent)
+    return true;
+  return ContentParent::GetSingleton()->DestroyTestShell(gTestShellParent);
 }
 
 #ifdef MOZ_X11

@@ -133,6 +133,7 @@ PRBool NS_SVGEnabled();
 #include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
 #include "nsContentSink.h"
+#include "nsFrameMessageManager.h"
 
 extern void NS_ShutdownChainItemPool();
 
@@ -225,11 +226,6 @@ nsLayoutStatics::Initialize()
   nsMathMLOperators::AddRefTable();
 #endif
 
-#ifdef MOZ_SVG
-  if (NS_SVGEnabled())
-    nsContentDLF::RegisterSVG();
-#endif
-
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
   nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
@@ -278,10 +274,6 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-#ifdef MOZ_MEDIA
-  nsHTMLMediaElement::InitMediaTypes();
-#endif
-
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::InitLibrary();
 #endif
@@ -306,6 +298,7 @@ nsLayoutStatics::Initialize()
 void
 nsLayoutStatics::Shutdown()
 {
+  nsFrameScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
@@ -325,6 +318,7 @@ nsLayoutStatics::Shutdown()
   nsFrame::DisplayReflowShutdown();
 #endif
   nsCellMap::Shutdown();
+  nsFrame::ShutdownLayerActivityTimer();
 
 #ifdef MOZ_SVG
   nsSVGUtils::Shutdown();
@@ -379,9 +373,6 @@ nsLayoutStatics::Shutdown()
 
   nsDOMThreadService::Shutdown();
 
-#ifdef MOZ_MEDIA
-  nsHTMLMediaElement::ShutdownMediaTypes();
-#endif
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::ShutdownLibrary();
 #endif

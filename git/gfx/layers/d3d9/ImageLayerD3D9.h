@@ -62,6 +62,8 @@ public:
 
   virtual gfxIntSize GetCurrentSize();
 
+  virtual PRBool SetLayerManager(LayerManager *aManager);
+
 private:
   typedef mozilla::Mutex Mutex;
 
@@ -82,8 +84,6 @@ public:
   }
 
   // LayerD3D9 Implementation
-  virtual LayerType GetType();
-
   virtual Layer* GetLayer();
 
   virtual void RenderLayer();

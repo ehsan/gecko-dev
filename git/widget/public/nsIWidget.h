@@ -111,8 +111,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-{ 0x271ac413, 0xa202, 0x46dc, \
-{ 0xbc, 0xd5, 0x67, 0xa1, 0xfb, 0x58, 0x89, 0x7f } }
+  { 0x21eff578, 0x942a, 0x40ff, \
+    { 0x98, 0xb9, 0x75, 0x49, 0x0b, 0x68, 0x24, 0xa2 } }
 
 /*
  * Window shadow styles
@@ -285,6 +285,8 @@ class nsIWidget : public nsISupports {
      */
     NS_IMETHOD SetParent(nsIWidget* aNewParent) = 0;
 
+    NS_IMETHOD RegisterTouchWindow() = 0;
+    NS_IMETHOD UnregisterTouchWindow() = 0;
 
     /**
      * Return the parent Widget of this Widget or nsnull if this is a 
@@ -561,10 +563,10 @@ class nsIWidget : public nsISupports {
     /**
      * Get the client offset from the window origin.
      *
-     * @param aPt on return it holds the width and height of the offset.
+     * @return the x and y of the offset.
      *
      */
-    NS_IMETHOD GetClientOffset(nsIntPoint &aPt) = 0;
+    virtual nsIntPoint GetClientOffset() = 0;
 
     /**
      * Get the foreground color for this widget
@@ -692,6 +694,10 @@ class nsIWidget : public nsISupports {
      * 
      * This will invalidate areas of the children that have changed, but
      * does not need to invalidate any part of this widget.
+     * 
+     * Children should be moved in the order given; the array is
+     * sorted so to minimize unnecessary invalidation if children are
+     * moved in that order.
      */
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations) = 0;
 
@@ -764,31 +770,6 @@ class nsIWidget : public nsISupports {
      */
     virtual LayerManager* GetLayerManager() = 0;
 
-    /**
-     * Scroll a set of rectangles in this widget and (as simultaneously as
-     * possible) modify the specified child widgets.
-     * 
-     * This will invalidate areas of the children that have changed, unless
-     * they have just moved by the scroll amount, but does not need to
-     * invalidate any part of this widget, except where the scroll
-     * operation fails to blit because part of the window is unavailable
-     * (e.g. partially offscreen).
-     * 
-     * The caller guarantees that the rectangles in aDestRects are
-     * non-intersecting.
-     *
-     * @param aDelta amount to scroll (device pixels)
-     * @param aDestRects rectangles to copy into
-     * (device pixels relative to this widget)
-     * @param aReconfigureChildren commands to set the bounds and clip
-     * region of a subset of the children of this widget; these should
-     * be performed simultaneously with the scrolling, as far as possible,
-     * to avoid visual artifacts.
-     */
-    virtual void Scroll(const nsIntPoint& aDelta,
-                        const nsTArray<nsIntRect>& aDestRects,
-                        const nsTArray<Configuration>& aReconfigureChildren) = 0;
-
     /** 
      * Internal methods
      */
@@ -831,6 +812,13 @@ class nsIWidget : public nsISupports {
      */
 
     virtual nsIntPoint WidgetToScreenOffset() = 0;
+
+    /**
+     * Given the specified client size, return the corresponding window size,
+     * which includes the area for the borders and titlebar. This method
+     * should work even when the window is not yet visible.
+     */
+    virtual nsIntSize ClientToWindowSize(const nsIntSize& aClientSize) = 0;
 
     /**
      * Dispatches an event to the widget
@@ -960,6 +948,11 @@ class nsIWidget : public nsISupports {
      * Begin a window resizing drag, based on the event passed in.
      */
     NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical) = 0;
+
+    /**
+     * Begin a window moving drag, based on the event passed in.
+     */
+    NS_IMETHOD BeginMoveDrag(nsMouseEvent* aEvent) = 0;
 
     enum Modifiers {
         CAPS_LOCK = 0x01, // when CapsLock is active

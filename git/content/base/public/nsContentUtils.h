@@ -69,6 +69,7 @@
 #include "nsIPrefBranch2.h"
 #include "mozilla/AutoRestore.h"
 #include "nsINode.h"
+#include "nsHashtable.h"
 
 #include "jsapi.h"
 
@@ -110,8 +111,8 @@ class nsIScriptContext;
 class nsIRunnable;
 class nsIInterfaceRequestor;
 template<class E> class nsCOMArray;
+template<class K, class V> class nsRefPtrHashtable;
 struct JSRuntime;
-class nsICaseConversion;
 class nsIUGenCategory;
 class nsIWidget;
 class nsIDragSession;
@@ -120,6 +121,7 @@ class nsPIDOMEventTarget;
 class nsIPresShell;
 class nsIXPConnectJSObjectHolder;
 class nsPrefOldCallback;
+class nsPrefObserverHashKey;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -130,6 +132,7 @@ class nsIMIMEHeaderParam;
 class nsIObserver;
 class nsPresContext;
 class nsIChannel;
+struct nsIntMargin;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -157,6 +160,7 @@ enum EventNameType {
   EventNameType_XUL = 0x0002,
   EventNameType_SVGGraphic = 0x0004, // svg graphic elements
   EventNameType_SVGSVG = 0x0008, // the svg element
+  EventNameType_SMIL = 0x0016, // smil elements
 
   EventNameType_HTMLXUL = 0x0003,
   EventNameType_All = 0xFFFF
@@ -220,6 +224,11 @@ public:
    * checks for UniversalXPConnect in addition to aCapability.
    */
   static PRBool   IsCallerTrustedForCapability(const char* aCapability);
+
+  /**
+   * Returns the parent node of aChild crossing document boundaries.
+   */
+  static nsINode* GetCrossDocParentNode(nsINode* aChild);
 
   /**
    * Do not ever pass null pointers to this method.  If one of your
@@ -485,6 +494,8 @@ public:
 
   static imgILoader* GetImgLoader()
   {
+    if (!sImgLoaderInitialized)
+      InitImgLoader();
     return sImgLoader;
   }
 
@@ -606,11 +617,6 @@ public:
   static nsIWordBreaker* WordBreaker()
   {
     return sWordBreaker;
-  }
-  
-  static nsICaseConversion* GetCaseConv()
-  {
-    return sCaseConv;
   }
 
   static nsIUGenCategory* GetGenCat()
@@ -1491,12 +1497,14 @@ public:
   /**
    * Convert ASCII A-Z to a-z.
    */
+  static void ASCIIToLower(nsAString& aStr);
   static void ASCIIToLower(const nsAString& aSource, nsAString& aDest);
 
   /**
    * Convert ASCII a-z to A-Z.
    */
   static void ASCIIToUpper(nsAString& aStr);
+  static void ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
 
   static nsIInterfaceRequestor* GetSameOriginChecker();
 
@@ -1565,17 +1573,33 @@ public:
                              // If non-null aHolder will keep the jsval alive
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nsnull,
-                             PRBool aAllowWrapping = PR_FALSE);
+                             PRBool aAllowWrapping = PR_FALSE)
+  {
+    return WrapNative(cx, scope, native, nsnull, aIID, vp, aHolder,
+                      aAllowWrapping);
+  }
 
   // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
   static nsresult WrapNative(JSContext *cx, JSObject *scope,
-                             nsISupports *native,  jsval *vp,
+                             nsISupports *native, jsval *vp,
                              // If non-null aHolder will keep the jsval alive
                              // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nsnull,
                              PRBool aAllowWrapping = PR_FALSE)
   {
-    return WrapNative(cx, scope, native, nsnull, vp, aHolder, aAllowWrapping);
+    return WrapNative(cx, scope, native, nsnull, nsnull, vp, aHolder,
+                      aAllowWrapping);
+  }
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
+                             nsISupports *native, nsWrapperCache *cache,
+                             jsval *vp,
+                             // If non-null aHolder will keep the jsval alive
+                             // while there's a ref to it
+                             nsIXPConnectJSObjectHolder** aHolder = nsnull,
+                             PRBool aAllowWrapping = PR_FALSE)
+  {
+    return WrapNative(cx, scope, native, cache, nsnull, vp, aHolder,
+                      aAllowWrapping);
   }
 
   static void StripNullChars(const nsAString& aInStr, nsAString& aOutStr);
@@ -1666,6 +1690,12 @@ private:
   static PRBool CanCallerAccess(nsIPrincipal* aSubjectPrincipal,
                                 nsIPrincipal* aPrincipal);
 
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
+                             nsISupports *native, nsWrapperCache *cache,
+                             const nsIID* aIID, jsval *vp,
+                             nsIXPConnectJSObjectHolder** aHolder,
+                             PRBool aAllowWrapping);
+
   static nsIDOMScriptObjectFactory *sDOMScriptObjectFactory;
 
   static nsIXPConnect *sXPConnect;
@@ -1686,8 +1716,13 @@ private:
 
   static nsIPrefBranch2 *sPrefBranch;
   // For old compatibility of RegisterPrefCallback
-  static nsCOMArray<nsPrefOldCallback> *sPrefCallbackList;
+  static nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
+    *sPrefCallbackTable;
 
+  static bool sImgLoaderInitialized;
+  static void InitImgLoader();
+
+  // The following two members are initialized lazily
   static imgILoader* sImgLoader;
   static imgICache* sImgCache;
 
@@ -1707,7 +1742,6 @@ private:
 
   static nsILineBreaker* sLineBreaker;
   static nsIWordBreaker* sWordBreaker;
-  static nsICaseConversion* sCaseConv;
   static nsIUGenCategory* sGenCat;
 
   // Holds pointers to nsISupports* that should be released at shutdown
@@ -1779,46 +1813,39 @@ public:
   // aPtr should be the pointer to the jsval we want to protect
   nsAutoGCRoot(jsval* aPtr, nsresult* aResult
                MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
-    mPtr(aPtr)
+    mPtr(aPtr), mRootType(RootType_JSVal)
   {
     MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
+    mResult = *aResult = AddJSGCRoot(aPtr, RootType_JSVal, "nsAutoGCRoot");
   }
 
   // aPtr should be the pointer to the JSObject* we want to protect
   nsAutoGCRoot(JSObject** aPtr, nsresult* aResult
                MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
-    mPtr(aPtr)
+    mPtr(aPtr), mRootType(RootType_Object)
   {
     MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
-  }
-
-  // aPtr should be the pointer to the thing we want to protect
-  nsAutoGCRoot(void* aPtr, nsresult* aResult
-               MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM) :
-    mPtr(aPtr)
-  {
-    MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
-    mResult = *aResult = AddJSGCRoot(aPtr, "nsAutoGCRoot");
+    mResult = *aResult = AddJSGCRoot(aPtr, RootType_Object, "nsAutoGCRoot");
   }
 
   ~nsAutoGCRoot() {
     if (NS_SUCCEEDED(mResult)) {
-      RemoveJSGCRoot(mPtr);
+      RemoveJSGCRoot((jsval *)mPtr, mRootType);
     }
   }
 
   static void Shutdown();
 
 private:
-  static nsresult AddJSGCRoot(void *aPtr, const char* aName);
-  static nsresult RemoveJSGCRoot(void *aPtr);
+  enum RootType { RootType_JSVal, RootType_Object };
+  static nsresult AddJSGCRoot(void *aPtr, RootType aRootType, const char* aName);
+  static nsresult RemoveJSGCRoot(void *aPtr, RootType aRootType);
 
   static nsIJSRuntimeService* sJSRuntimeService;
   static JSRuntime* sJSScriptRuntime;
 
   void* mPtr;
+  RootType mRootType;
   nsresult mResult;
   MOZILLA_DECL_USE_GUARD_OBJECT_NOTIFIER
 };

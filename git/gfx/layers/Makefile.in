@@ -47,6 +47,10 @@ VPATH       = \
 
 include $(DEPTH)/config/autoconf.mk
 
+ifdef MOZ_IPC
+VPATH       += $(srcdir)/ipc
+endif
+
 MODULE         = thebes
 LIBRARY_NAME   = layers
 LIBXUL_LIBRARY = 1
@@ -66,19 +70,24 @@ EXPORTS = \
         $(NULL)
 
 CPPSRCS = \
+	Layers.cpp \
         BasicImages.cpp \
         BasicLayers.cpp \
-        LayerManagerOGL.cpp \
+        ThebesLayerBuffer.cpp \
+        CanvasLayerOGL.cpp \
         ColorLayerOGL.cpp \
-        ThebesLayerOGL.cpp \
         ContainerLayerOGL.cpp \
         ImageLayerOGL.cpp \
-	CanvasLayerOGL.cpp \
+        LayerManagerOGL.cpp \
+        ThebesLayerOGL.cpp \
         $(NULL)
- 
+
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 ifdef MOZ_ENABLE_D3D9_LAYER
-EXPORTS += LayerManagerD3D9.h
+EXPORTS += \
+        LayerManagerD3D9.h \
+        DeviceManagerD3D9.h \
+        $(NULL)
 
 CPPSRCS += \
         LayerManagerD3D9.cpp \
@@ -87,9 +96,23 @@ CPPSRCS += \
         ImageLayerD3D9.cpp \
         ColorLayerD3D9.cpp \
         CanvasLayerD3D9.cpp \
+        DeviceManagerD3D9.cpp \
         $(NULL)
 endif
 endif
+
+ifdef MOZ_IPC #{
+EXPORTS_NAMESPACES = mozilla/layers
+EXPORTS_mozilla/layers =\
+        ShadowLayers.h \
+        $(NULL)
+
+CPPSRCS += \
+        ShadowLayers.cpp \
+        ShadowLayerParent.cpp \
+        ShadowLayersParent.cpp \
+        $(NULL)
+endif #}
 
 # Enable GLES2.0 under maemo
 ifdef MOZ_X11
@@ -99,6 +122,10 @@ endif
 endif
 
 include $(topsrcdir)/config/rules.mk
+
+ifdef MOZ_IPC
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+endif
 
 CXXFLAGS += $(MOZ_CAIRO_CFLAGS)
 

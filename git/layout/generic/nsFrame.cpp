@@ -121,6 +121,7 @@
 #include "nsBlockFrame.h"
 #include "nsDisplayList.h"
 #include "nsIObjectLoadingContent.h"
+#include "nsExpirationTracker.h"
 #ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGEffects.h"
@@ -349,7 +350,7 @@ nsFrame::Init(nsIContent*      aContent,
     mState |= state & (NS_FRAME_SELECTED_CONTENT |
                        NS_FRAME_INDEPENDENT_SELECTION |
                        NS_FRAME_IS_SPECIAL |
-                       NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS);
+                       NS_FRAME_MAY_BE_TRANSFORMED);
   }
   if (mParent) {
     nsFrameState state = mParent->GetStateBits();
@@ -361,7 +362,7 @@ nsFrame::Init(nsIContent*      aContent,
   if (GetStyleDisplay()->HasTransform()) {
     // The frame gets reconstructed if we toggle the -moz-transform
     // property, so we can set this bit here and then ignore it.
-    mState |= NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS;
+    mState |= NS_FRAME_MAY_BE_TRANSFORMED;
   }
   
   DidSetStyleContext(nsnull);
@@ -720,7 +721,7 @@ nsIFrame::GetPaddingRect() const
 PRBool
 nsIFrame::IsTransformed() const
 {
-  return (mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) &&
+  return (mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
     GetStyleDisplay()->HasTransform();
 }
 
@@ -836,7 +837,7 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("SelectionOverlay")
+  NS_DISPLAY_DECL_NAME("SelectionOverlay", TYPE_SELECTION_OVERLAY)
 private:
   PRInt16 mSelectionValue;
 };
@@ -1057,23 +1058,7 @@ static PRBool ApplyAbsPosClipping(nsDisplayListBuilder* aBuilder,
   if (!aFrame->GetAbsPosClipRect(aDisp, aRect, aFrame->GetSize()))
     return PR_FALSE;
 
-  // A moving frame should not be allowed to clip a non-moving frame.
-  // Abs-pos clipping always clips frames below it in the frame tree, except
-  // for when an abs-pos frame clips a fixed-pos frame. So when fixed-pos
-  // elements are present we do not allow a moving abs-pos frame with
-  // an out-of-flow descendant (which could be a fixed frame) child to clip
-  // anything. It's OK to not clip anything, even the moving children ...
-  // all that could happen is that we get unnecessarily conservative results
-  // for nsLayoutUtils::ComputeRepaintRegionForCopy ... but this is a rare
-  // situation.
-  if (aBuilder->HasMovingFrames() &&
-      aFrame->PresContext()->FrameManager()->GetRootFrame()->
-          GetFirstChild(nsGkAtoms::fixedList) &&
-      aBuilder->IsMovingFrame(aFrame))
-    return PR_FALSE;
-
   *aRect += aBuilder->ToReferenceFrame(aFrame);
-
   return PR_TRUE;
 }
 
@@ -1232,13 +1217,15 @@ DisplayDebugBorders(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
   // REVIEW: From nsContainerFrame::PaintChild
   if (nsFrame::GetShowFrameBorders() && !aFrame->GetRect().IsEmpty()) {
     aLists.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(aFrame, PaintDebugBorder, "DebugBorder"));
+        nsDisplayGeneric(aFrame, PaintDebugBorder, "DebugBorder",
+                         nsDisplayItem::TYPE_DEBUG_BORDER));
   }
   // Draw a border around the current event target
   if (nsFrame::GetShowEventTargetFrameBorder() &&
       aFrame->PresContext()->PresShell()->GetDrawEventTargetFrame() == aFrame) {
     aLists.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(aFrame, PaintEventTargetBorder, "EventTargetBorder"));
+        nsDisplayGeneric(aFrame, PaintEventTargetBorder, "EventTargetBorder",
+                         nsDisplayItem::TYPE_EVENT_TARGET_BORDER));
   }
 }
 #endif
@@ -1270,7 +1257,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   /* If we're being transformed, we need to invert the matrix transform so that we don't 
    * grab points in the wrong coordinate system!
    */
-  if ((mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) &&
+  if ((mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
       disp->HasTransform()) {
     dirtyRect = nsDisplayTransform::UntransformRect(dirtyRect, this, nsPoint(0, 0));
     inTransform = PR_TRUE;
@@ -1395,7 +1382,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   /* If we're going to apply a transformation, wrap everything in an
    * nsDisplayTransform.
    */
-  if ((mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) &&
+  if ((mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
       disp->HasTransform()) {
     nsDisplayTransform* transform = new (aBuilder) nsDisplayTransform(this, &resultList);
     if (!transform)  
@@ -1467,9 +1454,14 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       dirty.Empty();
     }
     pseudoStackingContext = PR_TRUE;
+  } else if (aBuilder->GetSelectedFramesOnly() &&
+             aChild->IsLeaf() &&
+             !(aChild->GetStateBits() & NS_FRAME_SELECTED_CONTENT)) {
+    return NS_OK;
   }
 
-  if (aBuilder->GetPaintAllFrames()) {
+  if (aBuilder->GetSelectedFramesOnly() &&
+      (aChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
     dirty = aChild->GetOverflowRect();
   } else if (!(aChild->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
     // No need to descend into aChild to catch placeholders for visible
@@ -1503,9 +1495,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
 
   // Child is composited if it's transformed, partially transparent, or has
   // SVG effects.
-  PRBool isComposited = disp->mOpacity != 1.0f ||
-    ((aChild->mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) && 
-     aChild->GetStyleDisplay()->HasTransform())
+  PRBool isComposited = disp->mOpacity != 1.0f || aChild->IsTransformed()
 #ifdef MOZ_SVG
     || nsSVGIntegrationUtils::UsingEffectsForFrame(aChild)
 #endif
@@ -3531,23 +3521,80 @@ nsPoint nsIFrame::GetOffsetTo(const nsIFrame* aOther) const
 {
   NS_PRECONDITION(aOther,
                   "Must have frame for destination coordinate system!");
+
+  NS_ASSERTION(PresContext() == aOther->PresContext(),
+               "GetOffsetTo called on frames in different documents");
+
   nsPoint offset(0, 0);
   const nsIFrame* f;
-  for (f = this; f != aOther && f;
-       f = nsLayoutUtils::GetCrossDocParentFrame(f, &offset)) {
+  for (f = this; f != aOther && f; f = f->GetParent()) {
     offset += f->GetPosition();
   }
 
   if (f != aOther) {
     // Looks like aOther wasn't an ancestor of |this|.  So now we have
-    // the root-document-relative position of |this| in |offset|.  Convert back
+    // the root-frame-relative position of |this| in |offset|.  Convert back
     // to the coordinates of aOther
-    nsPoint negativeOffset(0,0);
     while (aOther) {
       offset -= aOther->GetPosition();
-      aOther = nsLayoutUtils::GetCrossDocParentFrame(aOther, &negativeOffset);
+      aOther = aOther->GetParent();
     }
-    offset -= negativeOffset;
+  }
+
+  return offset;
+}
+
+nsPoint nsIFrame::GetOffsetToCrossDoc(const nsIFrame* aOther) const
+{
+  return GetOffsetToCrossDoc(aOther, PresContext()->AppUnitsPerDevPixel());
+}
+
+nsPoint
+nsIFrame::GetOffsetToCrossDoc(const nsIFrame* aOther, const PRInt32 aAPD) const
+{
+  NS_PRECONDITION(aOther,
+                  "Must have frame for destination coordinate system!");
+  NS_ASSERTION(PresContext()->GetRootPresContext() ==
+                 aOther->PresContext()->GetRootPresContext(),
+               "trying to get the offset between frames in different document "
+               "hierarchies?");
+
+  const nsIFrame* root = nsnull;
+  // offset will hold the final offset
+  // docOffset holds the currently accumulated offset at the current APD, it
+  // will be converted and added to offset when the current APD changes.
+  nsPoint offset(0, 0), docOffset(0, 0);
+  const nsIFrame* f = this;
+  PRInt32 currAPD = PresContext()->AppUnitsPerDevPixel();
+  while (f && f != aOther) {
+    docOffset += f->GetPosition();
+    nsIFrame* parent = f->GetParent();
+    if (parent) {
+      f = parent;
+    } else {
+      nsPoint newOffset(0, 0);
+      root = f;
+      f = nsLayoutUtils::GetCrossDocParentFrame(f, &newOffset);
+      PRInt32 newAPD = f ? f->PresContext()->AppUnitsPerDevPixel() : 0;
+      if (!f || newAPD != currAPD) {
+        // Convert docOffset to the right APD and add it to offset.
+        offset += docOffset.ConvertAppUnits(currAPD, aAPD);
+        docOffset.x = docOffset.y = 0;
+      }
+      currAPD = newAPD;
+      docOffset += newOffset;
+    }
+  }
+  if (f == aOther) {
+    offset += docOffset.ConvertAppUnits(currAPD, aAPD);
+  } else {
+    // Looks like aOther wasn't an ancestor of |this|.  So now we have
+    // the root-document-relative position of |this| in |offset|. Subtract the
+    // root-document-relative position of |aOther| from |offset|.
+    // This call won't try to recurse again because root is an ancestor of
+    // aOther.
+    nsPoint negOffset = aOther->GetOffsetToCrossDoc(root, aAPD);
+    offset -= negOffset;
   }
 
   return offset;
@@ -3644,13 +3691,13 @@ nsIFrame::AreAncestorViewsVisible() const
 }
 
 nsIWidget*
-nsIFrame::GetWindow() const
+nsIFrame::GetNearestWidget() const
 {
   return GetClosestView()->GetNearestWidget(nsnull);
 }
 
 nsIWidget*
-nsIFrame::GetWindowOffset(nsPoint& aOffset) const
+nsIFrame::GetNearestWidget(nsPoint& aOffset) const
 {
   nsPoint offsetToView;
   nsPoint offsetToWidget;
@@ -3670,6 +3717,101 @@ PRBool
 nsIFrame::IsLeaf() const
 {
   return PR_TRUE;
+}
+
+void
+nsIFrame::InvalidateLayer(const nsRect& aDamageRect, PRUint32 aDisplayItemKey)
+{
+  NS_ASSERTION(aDisplayItemKey > 0, "Need a key");
+
+  if (!FrameLayerBuilder::HasDedicatedLayer(this, aDisplayItemKey)) {
+    Invalidate(aDamageRect);
+    return;
+  }
+
+  InvalidateWithFlags(aDamageRect, INVALIDATE_NO_THEBES_LAYERS);
+}
+
+class LayerActivity {
+public:
+  LayerActivity(nsIFrame* aFrame) : mFrame(aFrame) {}
+  ~LayerActivity();
+  nsExpirationState* GetExpirationState() { return &mState; }
+
+  nsIFrame* mFrame;
+  nsExpirationState mState;
+};
+
+class LayerActivityTracker : public nsExpirationTracker<LayerActivity,4> {
+public:
+  // 75-100ms is a good timeout period. We use 4 generations of 25ms each.
+  enum { GENERATION_MS = 100 };
+  LayerActivityTracker()
+    : nsExpirationTracker<LayerActivity,4>(GENERATION_MS) {}
+  ~LayerActivityTracker() {
+    AgeAllGenerations();
+  }
+
+  virtual void NotifyExpired(LayerActivity* aObject);
+};
+
+static LayerActivityTracker* gLayerActivityTracker = nsnull;
+
+LayerActivity::~LayerActivity()
+{
+  if (mFrame) {
+    NS_ASSERTION(gLayerActivityTracker, "Should still have a tracker");
+    gLayerActivityTracker->RemoveObject(this);
+  }
+}
+
+static void DestroyLayerActivity(void* aPropertyValue)
+{
+  delete static_cast<LayerActivity*>(aPropertyValue);
+}
+
+NS_DECLARE_FRAME_PROPERTY(LayerActivityProperty, DestroyLayerActivity)
+
+void
+LayerActivityTracker::NotifyExpired(LayerActivity* aObject)
+{
+  RemoveObject(aObject);
+
+  nsIFrame* f = aObject->mFrame;
+  aObject->mFrame = nsnull;
+  f->Properties().Delete(LayerActivityProperty());
+  f->InvalidateOverflowRect();
+}
+
+void
+nsIFrame::MarkLayersActive()
+{
+  FrameProperties properties = Properties();
+  LayerActivity* layerActivity =
+    static_cast<LayerActivity*>(properties.Get(LayerActivityProperty()));
+  if (layerActivity) {
+    gLayerActivityTracker->MarkUsed(layerActivity);
+  } else {
+    if (!gLayerActivityTracker) {
+      gLayerActivityTracker = new LayerActivityTracker();
+    }
+    layerActivity = new LayerActivity(this);
+    gLayerActivityTracker->AddObject(layerActivity);
+    properties.Set(LayerActivityProperty(), layerActivity);
+  }
+}
+
+PRBool
+nsIFrame::AreLayersMarkedActive()
+{
+  return Properties().Get(LayerActivityProperty()) != nsnull;
+}
+
+/* static */ void
+nsFrame::ShutdownLayerActivityTimer()
+{
+  delete gLayerActivityTracker;
+  gLayerActivityTracker = nsnull;
 }
 
 void
@@ -3721,8 +3863,21 @@ nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
    *
    * See bug #452496 for more details.
    */
-  if ((mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) &&
-      GetStyleDisplay()->HasTransform()) {
+  if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
+      !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
+    // XXX for now I'm going to assume this is in the local coordinate space
+    // This only matters for frames with transforms and retained layers,
+    // which can't happen right now since transforms trigger fallback
+    // rendering and the display items that trigger layers are nested inside
+    // the nsDisplayTransform
+    // XXX need to set INVALIDATE_NO_THEBES_LAYERS for certain kinds of
+    // invalidation, e.g. video update, 'opacity' change
+    FrameLayerBuilder::InvalidateThebesLayerContents(this,
+        aDamageRect + nsPoint(aX, aY));
+    // Don't need to invalidate any more Thebes layers
+    aFlags |= INVALIDATE_NO_THEBES_LAYERS;
+  }
+  if (IsTransformed()) {
     nsRect newDamageRect;
     newDamageRect.UnionRect(nsDisplayTransform::TransformRect
                             (aDamageRect, this, nsPoint(-aX, -aY)), aDamageRect);
@@ -3740,6 +3895,7 @@ nsIFrame::InvalidateInternal(const nsRect& aDamageRect, nscoord aX, nscoord aY,
                              nsIFrame* aForChild, PRUint32 aFlags)
 {
 #ifdef MOZ_SVG
+  nsSVGEffects::InvalidateDirectRenderingObservers(this);
   if (nsSVGIntegrationUtils::UsingEffectsForFrame(this)) {
     nsRect r = nsSVGIntegrationUtils::GetInvalidAreaForChangedSource(this,
             aDamageRect + nsPoint(aX, aY));
@@ -3760,7 +3916,7 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
 {
   NS_PRECONDITION(aOutAncestor, "Need a place to put the ancestor!");
 
-  /* Whether or not we're transformed, the matrix will be relative to our
+  /* If we're transformed, the matrix will be relative to our
    * cross-doc parent frame.
    */
   *aOutAncestor = nsLayoutUtils::GetCrossDocParentFrame(this);
@@ -3774,7 +3930,7 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
      * coordinates to our parent.
      */
     NS_ASSERTION(*aOutAncestor, "Cannot transform the viewport frame!");
-    nsPoint delta = GetOffsetTo(*aOutAncestor);
+    nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
     PRInt32 scaleFactor = PresContext()->AppUnitsPerDevPixel();
 
     gfxMatrix result =
@@ -3813,7 +3969,7 @@ nsIFrame::GetTransformMatrix(nsIFrame **aOutAncestor)
   /* Translate from this frame to our ancestor, if it exists.  That's the
    * entire transform, so we're done.
    */
-  nsPoint delta = GetOffsetTo(*aOutAncestor);
+  nsPoint delta = GetOffsetToCrossDoc(*aOutAncestor);
   PRInt32 scaleFactor = PresContext()->AppUnitsPerDevPixel();
   return gfxMatrix().Translate
     (gfxPoint(NSAppUnitsToFloatPixels(delta.x, scaleFactor),
@@ -3835,14 +3991,56 @@ nsIFrame::InvalidateOverflowRect()
   Invalidate(GetOverflowRectRelativeToSelf());
 }
 
+NS_DECLARE_FRAME_PROPERTY(DeferInvalidatesProperty, nsIFrame::DestroyRegion)
+
 void
 nsIFrame::InvalidateRoot(const nsRect& aDamageRect, PRUint32 aFlags)
 {
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+
+  if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
+      !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
+    FrameLayerBuilder::InvalidateThebesLayerContents(this, aDamageRect);
+  }
+
   PRUint32 flags =
     (aFlags & INVALIDATE_IMMEDIATE) ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_NO_SYNC;
+
+  nsRect rect = aDamageRect;
+  nsRegion* excludeRegion = static_cast<nsRegion*>
+    (Properties().Get(DeferInvalidatesProperty()));
+  if (excludeRegion) {
+    flags = NS_VMREFRESH_DEFERRED;
+
+    if (aFlags & INVALIDATE_EXCLUDE_CURRENT_PAINT) {
+      nsRegion r;
+      r.Sub(rect, *excludeRegion);
+      if (r.IsEmpty())
+        return;
+      rect = r.GetBounds();
+    }
+  }
+
   nsIView* view = GetView();
   NS_ASSERTION(view, "This can only be called on frames with views");
-  view->GetViewManager()->UpdateView(view, aDamageRect, flags);
+  view->GetViewManager()->UpdateView(view, rect, flags);
+}
+
+void
+nsIFrame::BeginDeferringInvalidatesForDisplayRoot(const nsRegion& aExcludeRegion)
+{
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+  Properties().Set(DeferInvalidatesProperty(), new nsRegion(aExcludeRegion));
+}
+
+void
+nsIFrame::EndDeferringInvalidatesForDisplayRoot()
+{
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+  Properties().Delete(DeferInvalidatesProperty());
 }
 
 /**
@@ -3972,8 +4170,7 @@ nsIFrame::GetOverflowRectRelativeToParent() const
 nsRect
 nsIFrame::GetOverflowRectRelativeToSelf() const
 {
-  if ((mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) &&
-      GetStyleDisplay()->HasTransform()) {
+  if (IsTransformed()) {
     nsRect* preTransformBBox = static_cast<nsRect*>
       (Properties().Get(PreTransformBBoxProperty()));
     if (preTransformBBox)
@@ -5671,9 +5868,7 @@ nsIFrame::FinishAndStoreOverflow(nsRect* aOverflowArea, nsSize aNewSize)
       &hasOutlineOrEffects);
 
   /* If we're transformed, transform the overflow rect by the current transformation. */
-  PRBool hasTransform =
-    (mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) && 
-    GetStyleDisplay()->HasTransform();
+  PRBool hasTransform = IsTransformed();
   if (hasTransform) {
     Properties().
       Set(nsIFrame::PreTransformBBoxProperty(), new nsRect(*aOverflowArea));

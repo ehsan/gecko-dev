@@ -1075,6 +1075,11 @@ nsMediaCache::Update()
               blockIndex));
           FreeBlock(blockIndex);
         }
+      } else {
+        LOG(PR_LOG_DEBUG, ("Could not trim cache block %d (destination %d, predicted next use %f, latest predicted use for overflow %f",
+                           blockIndex, destinationBlockIndex,
+                           PredictNextUse(now, destinationBlockIndex).ToSeconds(),
+                           latestPredictedUseForOverflow.ToSeconds()));
       }
     }
     // Try chopping back the array of cache entries and the cache file.
@@ -1199,11 +1204,13 @@ nsMediaCache::Update()
         for (PRUint32 j = 0; j < i; ++j) {
           nsMediaCacheStream* other = mStreams[j];
           if (other->mResourceID == stream->mResourceID &&
-              !other->mCacheSuspended &&
+              !other->mClient->IsSuspended() &&
               other->mChannelOffset/BLOCK_SIZE == desiredOffset/BLOCK_SIZE) {
             // This block is already going to be read by the other stream.
             // So don't try to read it from this stream as well.
             enableReading = PR_FALSE;
+            LOG(PR_LOG_DEBUG, ("Stream %p waiting on same block (%lld) from stream %p",
+                               stream, desiredOffset/BLOCK_SIZE, other));
             break;
           }
         }
@@ -1446,6 +1453,9 @@ nsMediaCache::OpenStream(nsMediaCacheStream* aStream)
   LOG(PR_LOG_DEBUG, ("Stream %p opened", aStream));
   mStreams.AppendElement(aStream);
   aStream->mResourceID = mNextResourceID++;
+
+  // Queue an update since a new stream has been opened.
+  gMediaCache->QueueUpdate();
 }
 
 void

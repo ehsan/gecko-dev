@@ -76,6 +76,7 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
 #include "nsIPrincipal.h"
+#include "nsWildCard.h"
 
 #include "nsIXPConnect.h"
 
@@ -365,22 +366,58 @@ RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag)
   // Get per-library whitelist/blacklist pref string
   // "dom.ipc.plugins.enabled.filename.dll" and fall back to the default value
   // of "dom.ipc.plugins.enabled"
+  // The "filename.dll" part can contain shell wildcard pattern
 
-  nsCAutoString pluginLibPref(aFilePath);
-  PRInt32 slashPos = pluginLibPref.RFindCharInSet("/\\");
+  nsCAutoString prefFile(aFilePath);
+  PRInt32 slashPos = prefFile.RFindCharInSet("/\\");
   if (kNotFound == slashPos)
     return PR_FALSE;
-  pluginLibPref.Cut(0, slashPos + 1);
-  ToLowerCase(pluginLibPref);
-  pluginLibPref.Insert("dom.ipc.plugins.enabled.", 0);
+  prefFile.Cut(0, slashPos + 1);
+  ToLowerCase(prefFile);
+
+  nsCAutoString prefGroupKey("dom.ipc.plugins.enabled.");
+
+  PRUint32 prefCount;
+  char** prefNames;
+  nsresult rv = prefs->GetChildList(prefGroupKey.get(),
+                                    &prefCount, &prefNames);
 
   PRBool oopPluginsEnabled = PR_FALSE;
-  if (NS_SUCCEEDED(prefs->GetBoolPref(pluginLibPref.get(),
-                                      &oopPluginsEnabled)))
-    return oopPluginsEnabled;
+  PRBool prefSet = PR_FALSE;
 
-  oopPluginsEnabled = PR_FALSE;
-  prefs->GetBoolPref("dom.ipc.plugins.enabled", &oopPluginsEnabled);
+  if (NS_SUCCEEDED(rv) && prefCount > 0) {
+    PRUint32 prefixLength = prefGroupKey.Length();
+    for (PRUint32 currentPref = 0; currentPref < prefCount; currentPref++) {
+      // Get the mask
+      const char* maskStart = prefNames[currentPref] + prefixLength;
+      PRBool match = PR_FALSE;
+
+      int valid = NS_WildCardValid(maskStart);
+      if (valid == INVALID_SXP) {
+         continue;
+      }
+      else if(valid == NON_SXP) {
+        // mask is not a shell pattern, compare it as normal string
+        match = (strcmp(prefFile.get(), maskStart) == 0);
+      }
+      else {
+        match = (NS_WildCardMatch(prefFile.get(), maskStart, 0) == MATCH);
+      }
+
+      if (match && NS_SUCCEEDED(prefs->GetBoolPref(prefNames[currentPref],
+                                                   &oopPluginsEnabled))) {
+        prefSet = PR_TRUE;
+        break;
+      }
+    }
+    NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(prefCount, prefNames);
+  }
+
+  if (!prefSet) {
+    oopPluginsEnabled = PR_FALSE;
+    prefs->GetBoolPref("dom.ipc.plugins.enabled", &oopPluginsEnabled);
+  }
+
   return oopPluginsEnabled;
 }
 
@@ -479,7 +516,19 @@ nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
   return NS_OK;
 }
 
-NS_METHOD
+PluginLibrary*
+nsNPAPIPlugin::GetLibrary()
+{
+  return mLibrary;
+}
+
+NPPluginFuncs*
+nsNPAPIPlugin::PluginFuncs()
+{
+  return &mPluginFuncs;
+}
+
+NS_IMETHODIMP
 nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 {
   if (!aResult)
@@ -487,8 +536,7 @@ nsNPAPIPlugin::CreatePluginInstance(nsIPluginInstance **aResult)
 
   *aResult = NULL;
 
-  nsRefPtr<nsNPAPIPluginInstance> inst =
-    new nsNPAPIPluginInstance(&mPluginFuncs, mLibrary);
+  nsRefPtr<nsNPAPIPluginInstance> inst = new nsNPAPIPluginInstance(this);
   if (!inst)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -694,7 +742,7 @@ doGetIdentifier(JSContext *cx, const NPUTF8* name)
   if (!str)
     return NULL;
 
-  return (NPIdentifier)STRING_TO_JSVAL(str);
+  return StringToNPIdentifier(str);
 }
 
 #if defined(MOZ_MEMORY_WINDOWS) && !defined(MOZ_MEMORY_WINCE)
@@ -1357,25 +1405,23 @@ _getintidentifier(int32_t intid)
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_getstringidentifier called from the wrong thread\n"));
   }
-  return (NPIdentifier)INT_TO_JSVAL(intid);
+  return IntToNPIdentifier(intid);
 }
 
 NPUTF8* NP_CALLBACK
-_utf8fromidentifier(NPIdentifier identifier)
+_utf8fromidentifier(NPIdentifier id)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_utf8fromidentifier called from the wrong thread\n"));
   }
-  if (!identifier)
+  if (!id)
     return NULL;
 
-  jsval v = (jsval)identifier;
-
-  if (!JSVAL_IS_STRING(v)) {
+  if (!NPIdentifierIsString(id)) {
     return nsnull;
   }
 
-  JSString *str = JSVAL_TO_STRING(v);
+  JSString *str = NPIdentifierToString(id);
 
   return
     ToNewUTF8String(nsDependentString((PRUnichar *)::JS_GetStringChars(str),
@@ -1383,29 +1429,27 @@ _utf8fromidentifier(NPIdentifier identifier)
 }
 
 int32_t NP_CALLBACK
-_intfromidentifier(NPIdentifier identifier)
+_intfromidentifier(NPIdentifier id)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_intfromidentifier called from the wrong thread\n"));
   }
-  jsval v = (jsval)identifier;
 
-  if (!JSVAL_IS_INT(v)) {
+  if (!NPIdentifierIsInt(id)) {
     return PR_INT32_MIN;
   }
 
-  return JSVAL_TO_INT(v);
+  return NPIdentifierToInt(id);
 }
 
 bool NP_CALLBACK
-_identifierisstring(NPIdentifier identifier)
+_identifierisstring(NPIdentifier id)
 {
   if (!NS_IsMainThread()) {
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_identifierisstring called from the wrong thread\n"));
   }
-  jsval v = (jsval)identifier;
 
-  return JSVAL_IS_STRING(v);
+  return NPIdentifierIsString(id);
 }
 
 NPObject* NP_CALLBACK
@@ -1553,6 +1597,8 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   JSContext *cx = GetJSContextFromDoc(doc);
   NS_ENSURE_TRUE(cx, false);
 
+  JSAutoRequest req(cx);
+
   nsCOMPtr<nsIScriptContext> scx = GetScriptContextFromJSContext(cx);
   NS_ENSURE_TRUE(scx, false);
 
@@ -1562,6 +1608,8 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
   if (!obj) {
     return false;
   }
+
+  OBJ_TO_INNER_OBJECT(cx, obj);
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };

@@ -60,7 +60,7 @@ pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
 #ifndef WINCE
-pref("browser.cache.disk.capacity",         51200);
+pref("browser.cache.disk.capacity",         256000);
 #else
 pref("browser.cache.disk.capacity",         20000);
 #endif
@@ -156,6 +156,9 @@ pref("media.enforce_same_site_origin", false);
 // Media cache size in kilobytes
 pref("media.cache_size", 512000);
 
+#ifdef MOZ_RAW
+pref("media.raw.enabled", true);
+#endif
 #ifdef MOZ_OGG
 pref("media.ogg.enabled", true);
 #endif
@@ -170,7 +173,7 @@ pref("media.webm.enabled", true);
 pref("media.autoplay.enabled", true);
 
 // 0 = Off, 1 = Full, 2 = Tagged Images Only. 
-// See eCMSMode in gfx/thebes/public/gfxPlatform.h
+// See eCMSMode in gfx/thebes/gfxPlatform.h
 pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
@@ -219,6 +222,7 @@ pref("accessibility.tabfocus_applies_to_xul", true);
 pref("accessibility.usetexttospeech", "");
 pref("accessibility.usebrailledisplay", "");
 pref("accessibility.accesskeycausesactivation", true);
+pref("accessibility.mouse_focuses_formcontrol", false);
 
 // Type Ahead Find
 pref("accessibility.typeaheadfind", true);
@@ -694,7 +698,8 @@ pref("network.http.redirection-limit", 20);
 
 // Enable http compression: comment this out in case of problems with 1.1
 // NOTE: support for "compress" has been disabled per bug 196406.
-pref("network.http.accept-encoding" ,"gzip,deflate");
+// NOTE: separate values with comma+space (", "): see bug 576033
+pref("network.http.accept-encoding", "gzip, deflate");
 
 pref("network.http.pipelining"      , false);
 pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
@@ -1254,13 +1259,17 @@ pref("editor.positioning.offset",            0);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_script_run_time", 10);
 
+#ifndef DEBUG
 // How long a plugin is allowed to process a synchronous IPC message
 // before we consider it "hung".
-#ifndef DEBUG
 pref("dom.ipc.plugins.timeoutSecs", 45);
+// How long a plugin launch is allowed to take before
+// we consider it failed.
+pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
 #else
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
+pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
 #endif
 
 #ifndef ANDROID
@@ -3117,8 +3126,14 @@ pref("image.mem.discardable", false);
 // them to be decoded on demand when they are drawn.
 pref("image.mem.decodeondraw", false);
 
+// Minimum timeout for image discarding (in milliseconds). The actual time in
+// which an image must inactive for it to be discarded will vary between this
+// value and twice this value.
+pref("image.mem.min_discard_timeout_ms", 10000);
+
 // WebGL prefs
 pref("webgl.enabled_for_all_sites", false);
+pref("webgl.shader_validator", true);
 pref("webgl.software_render", false);
 pref("webgl.osmesalib", "");
 

@@ -73,7 +73,6 @@
 #include "nsCOMArray.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsMemory.h"
-#include "nsIGenericFactory.h"
 #include "nsISupportsImpl.h"
 #include "nsIJSRuntimeService.h"
 #include "nsCOMPtr.h"
@@ -157,7 +156,7 @@ JSPrincipals *gJSPrincipals = nsnull;
 nsAutoString *gWorkingDirectory = nsnull;
 
 static JSBool
-GetLocationProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
+GetLocationProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
 #if (!defined(XP_WIN) && !defined(XP_UNIX)) || defined(WINCE)
     //XXX: your platform should really implement this
@@ -661,6 +660,56 @@ Clear(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
+#ifdef MOZ_IPC
+
+static JSBool
+SendCommand(JSContext* cx,
+            JSObject* obj,
+            uintN argc,
+            jsval* argv,
+            jsval* rval)
+{
+    if (argc == 0) {
+        JS_ReportError(cx, "Function takes at least one argument!");
+        return JS_FALSE;
+    }
+
+    JSString* str = JS_ValueToString(cx, argv[0]);
+    if (!str) {
+        JS_ReportError(cx, "Could not convert argument 1 to string!");
+        return JS_FALSE;
+    }
+
+    if (argc > 1 && JS_TypeOfValue(cx, argv[1]) != JSTYPE_FUNCTION) {
+        JS_ReportError(cx, "Could not convert argument 2 to function!");
+        return JS_FALSE;
+    }
+
+    if (!XRE_SendTestShellCommand(cx, str, argc > 1 ? &argv[1] : nsnull)) {
+        JS_ReportError(cx, "Couldn't send command!");
+        return JS_FALSE;
+    }
+
+    return JS_TRUE;
+}
+
+static JSBool
+GetChildGlobalObject(JSContext* cx,
+                     JSObject*,
+                     uintN,
+                     jsval*,
+                     jsval* rval)
+{
+    JSObject* global;
+    if (XRE_GetChildGlobalObject(cx, &global)) {
+        *rval = OBJECT_TO_JSVAL(global);
+        return JS_TRUE;
+    }
+    return JS_FALSE;
+}
+
+#endif // MOZ_IPC
+
 /*
  * JSContext option name to flag map. The option names are in alphabetical
  * order for better reporting.
@@ -796,6 +845,10 @@ static JSFunctionSpec glob_functions[] = {
 #ifdef DEBUG
     {"dumpHeap",        DumpHeap,       5,0,0},
 #endif
+#ifdef MOZ_IPC
+    {"sendCommand",     SendCommand,    1,0,0},
+    {"getChildGlobalObject", GetChildGlobalObject, 0,0,0},
+#endif
 #ifdef MOZ_SHARK
     {"startShark",      js_StartShark,      0,0,0},
     {"stopShark",       js_StopShark,       0,0,0},
@@ -817,7 +870,7 @@ JSClass global_class = {
 };
 
 static JSBool
-env_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
+env_setProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
 #if !defined XP_BEOS && !defined XP_OS2 && !defined SOLARIS
@@ -825,7 +878,11 @@ env_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     const char *name, *value;
     int rv;
 
-    idstr = JS_ValueToString(cx, id);
+    jsval idval;
+    if (!JS_IdToValue(cx, id, &idval))
+        return JS_FALSE;
+    
+    idstr = JS_ValueToString(cx, idval);
     valstr = JS_ValueToString(cx, *vp);
     if (!idstr || !valstr)
         return JS_FALSE;
@@ -896,7 +953,7 @@ env_enumerate(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-env_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
+env_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             JSObject **objp)
 {
     JSString *idstr, *valstr;
@@ -905,7 +962,11 @@ env_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     if (flags & JSRESOLVE_ASSIGNING)
         return JS_TRUE;
 
-    idstr = JS_ValueToString(cx, id);
+    jsval idval;
+    if (!JS_IdToValue(cx, id, &idval))
+        return JS_FALSE;
+
+    idstr = JS_ValueToString(cx, idval);
     if (!idstr)
         return JS_FALSE;
     name = JS_GetStringBytes(idstr);
@@ -1088,7 +1149,7 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
+    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-r manifest]... [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
     return 2;
 }
 
@@ -1328,17 +1389,17 @@ FullTrustSecMan::CanAccess(PRUint32 aAction,
                            nsAXPCNativeCallContext *aCallContext,
                            JSContext * aJSContext, JSObject * aJSObject,
                            nsISupports *aObj, nsIClassInfo *aClassInfo,
-                           jsval aName, void * *aPolicy)
+                           jsid aName, void * *aPolicy)
 {
     return NS_OK;
 }
 
-/* [noscript] void checkPropertyAccess (in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in string aClassName, in jsval aProperty, in PRUint32 aAction); */
+/* [noscript] void checkPropertyAccess (in JSContextPtr aJSContext, in JSObjectPtr aJSObject, in string aClassName, in jsid aProperty, in PRUint32 aAction); */
 NS_IMETHODIMP
 FullTrustSecMan::CheckPropertyAccess(JSContext * aJSContext,
                                      JSObject * aJSObject,
                                      const char *aClassName,
-                                     jsval aProperty, PRUint32 aAction)
+                                     jsid aProperty, PRUint32 aAction)
 {
     return NS_OK;
 }
@@ -1766,18 +1827,28 @@ main(int argc, char **argv)
         argv += 2;
     }
 
+    while (argc > 1 && !strcmp(argv[1], "-r")) {
+        if (argc < 3)
+            return usage();
+
+        nsCOMPtr<nsILocalFile> lf;
+        rv = XRE_GetFileFromPath(argv[2], getter_AddRefs(lf));
+        if (NS_FAILED(rv)) {
+            printf("Couldn't get manifest file.\n");
+            return 1;
+        }
+        XRE_AddManifestLocation(NS_COMPONENT_LOCATION, lf);
+
+        argc -= 2;
+        argv += 2;
+    }
+
     {
         nsCOMPtr<nsIServiceManager> servMan;
         rv = NS_InitXPCOM2(getter_AddRefs(servMan), appDir, &dirprovider);
         if (NS_FAILED(rv)) {
             printf("NS_InitXPCOM2 failed!\n");
             return 1;
-        }
-        {
-            nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servMan);
-            NS_ASSERTION(registrar, "Null nsIComponentRegistrar");
-            if (registrar)
-                registrar->AutoRegister(nsnull);
         }
 
         nsCOMPtr<nsIJSRuntimeService> rtsvc = do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
@@ -1812,25 +1883,26 @@ main(int argc, char **argv)
         xpc->SetSecurityManagerForJSContext(cx, secman, 0xFFFF);
 
 #ifndef XPCONNECT_STANDALONE
+        nsCOMPtr<nsIPrincipal> systemprincipal;
+
         // Fetch the system principal and store it away in a global, to use for
         // script compilation in Load() and ProcessFile() (including interactive
         // eval loop)
         {
-            nsCOMPtr<nsIPrincipal> princ;
 
             nsCOMPtr<nsIScriptSecurityManager> securityManager =
                 do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
             if (NS_SUCCEEDED(rv) && securityManager) {
-                rv = securityManager->GetSystemPrincipal(getter_AddRefs(princ));
+                rv = securityManager->GetSystemPrincipal(getter_AddRefs(systemprincipal));
                 if (NS_FAILED(rv)) {
                     fprintf(gErrFile, "+++ Failed to obtain SystemPrincipal from ScriptSecurityManager service.\n");
                 } else {
                     // fetch the JS principals and stick in a global
-                    rv = princ->GetJSPrincipals(cx, &gJSPrincipals);
+                    rv = systemprincipal->GetJSPrincipals(cx, &gJSPrincipals);
                     if (NS_FAILED(rv)) {
                         fprintf(gErrFile, "+++ Failed to obtain JS principals from SystemPrincipal.\n");
                     }
-                    secman->SetSystemPrincipal(princ);
+                    secman->SetSystemPrincipal(systemprincipal);
                 }
             } else {
                 fprintf(gErrFile, "+++ Failed to get ScriptSecurityManager service, running without principals");
@@ -1866,6 +1938,8 @@ main(int argc, char **argv)
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
                                                   NS_GET_IID(nsISupports),
+                                                  systemprincipal,
+                                                  EmptyCString(),
                                                   nsIXPConnect::
                                                       FLAG_SYSTEM_GLOBAL_OBJECT,
                                                   getter_AddRefs(holder));
@@ -1923,6 +1997,11 @@ main(int argc, char **argv)
         JS_GC(cx);
         JS_DestroyContext(cx);
     } // this scopes the nsCOMPtrs
+
+#ifdef MOZ_IPC
+    if (!XRE_ShutdownTestShell())
+        NS_ERROR("problem shutting down testshell");
+#endif
 
 #ifdef MOZ_CRASHREPORTER
     // Get the crashreporter service while XPCOM is still active.

@@ -64,8 +64,9 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIINIParser.h"
+#include "common/linux/linux_libc_support.h"
+#include "common/linux/linux_syscall_support.h"
 #if defined(MOZ_IPC)
-#  include "common/linux/linux_syscall_support.h"
 #  include "client/linux/crash_generation/client_info.h"
 #  include "client/linux/crash_generation/crash_generation_server.h"
 #endif
@@ -120,6 +121,7 @@ typedef std::wstring xpstring;
 #define CONVERT_UTF16_TO_XP_CHAR(x) x
 #define CONVERT_XP_CHAR_TO_UTF16(x) x
 #define XP_STRLEN(x) wcslen(x)
+#define my_strlen strlen
 #define CRASH_REPORTER_FILENAME "crashreporter.exe"
 #define PATH_SEPARATOR "\\"
 #define XP_PATH_SEPARATOR L"\\"
@@ -137,12 +139,22 @@ typedef char XP_CHAR;
 typedef std::string xpstring;
 #define CONVERT_UTF16_TO_XP_CHAR(x) NS_ConvertUTF16toUTF8(x)
 #define CONVERT_XP_CHAR_TO_UTF16(x) NS_ConvertUTF8toUTF16(x)
-#define XP_STRLEN(x) strlen(x)
 #define CRASH_REPORTER_FILENAME "crashreporter"
 #define PATH_SEPARATOR "/"
 #define XP_PATH_SEPARATOR "/"
 #define XP_PATH_MAX PATH_MAX
+#ifdef XP_LINUX
+#define XP_STRLEN(x) my_strlen(x)
+#define XP_TTOA(time, buffer, base) my_timetostring(time, buffer, sizeof(buffer))
+#else
+#define XP_STRLEN(x) strlen(x)
 #define XP_TTOA(time, buffer, base) sprintf(buffer, "%ld", time)
+#define my_strlen strlen
+#define sys_close close
+#define sys_fork fork
+#define sys_open open
+#define sys_write write
+#endif
 #endif // XP_WIN32
 
 static const XP_CHAR dumpFileExtension[] = {'.', 'd', 'm', 'p',
@@ -213,6 +225,15 @@ static const char* kSubprocessBlacklist[] = {
 
 #endif  // MOZ_IPC
 
+#ifdef XP_LINUX
+inline void
+my_timetostring(time_t t, char* buffer, size_t buffer_length)
+{
+  my_memset(buffer, 0, buffer_length);
+  my_itos(buffer, t, my_int_len(t));
+}
+#endif
+
 #ifdef XP_WIN
 static void
 CreateFileFromPath(const xpstring& path, nsILocalFile** file)
@@ -268,7 +289,14 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
 
   // calculate time since last crash (if possible), and store
   // the time of this crash.
-  time_t crashTime = time(NULL);
+  time_t crashTime;
+#ifdef XP_LINUX
+  struct kernel_timeval tv;
+  sys_gettimeofday(&tv, NULL);
+  crashTime = tv.tv_sec;
+#else
+  crashTime = time(NULL);
+#endif
   time_t timeSinceLastCrash = 0;
   // stringified versions of the above
   char crashTimeString[32];
@@ -277,11 +305,11 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
   int timeSinceLastCrashStringLen = 0;
 
   XP_TTOA(crashTime, crashTimeString, 10);
-  crashTimeStringLen = strlen(crashTimeString);
+  crashTimeStringLen = my_strlen(crashTimeString);
   if (lastCrashTime != 0) {
     timeSinceLastCrash = crashTime - lastCrashTime;
     XP_TTOA(timeSinceLastCrash, timeSinceLastCrashString, 10);
-    timeSinceLastCrashStringLen = strlen(timeSinceLastCrashString);
+    timeSinceLastCrashStringLen = my_strlen(timeSinceLastCrashString);
   }
   // write crash time to file
   if (lastCrashTimeFilename[0] != 0) {
@@ -295,13 +323,13 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
       CloseHandle(hFile);
     }
 #elif defined(XP_UNIX)
-    int fd = open(lastCrashTimeFilename,
-                  O_WRONLY | O_CREAT | O_TRUNC,
-                  0600);
+    int fd = sys_open(lastCrashTimeFilename,
+                      O_WRONLY | O_CREAT | O_TRUNC,
+                      0600);
     if (fd != -1) {
-      ssize_t ignored = write(fd, crashTimeString, crashTimeStringLen);
+      ssize_t ignored = sys_write(fd, crashTimeString, crashTimeStringLen);
       (void)ignored;
-      close(fd);
+      sys_close(fd);
     }
 #endif
   }
@@ -362,25 +390,25 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
 #elif defined(XP_UNIX)
   if (!crashReporterAPIData->IsEmpty()) {
     // write out API data
-    int fd = open(extraDataPath,
-                  O_WRONLY | O_CREAT | O_TRUNC,
-                  0666);
+    int fd = sys_open(extraDataPath,
+                      O_WRONLY | O_CREAT | O_TRUNC,
+                      0666);
 
     if (fd != -1) {
       // not much we can do in case of error
-      ssize_t ignored = write(fd, crashReporterAPIData->get(),
-                              crashReporterAPIData->Length());
-      ignored = write(fd, kCrashTimeParameter, kCrashTimeParameterLen);
-      ignored = write(fd, crashTimeString, crashTimeStringLen);
-      ignored = write(fd, "\n", 1);
+      ssize_t ignored = sys_write(fd, crashReporterAPIData->get(),
+                                  crashReporterAPIData->Length());
+      ignored = sys_write(fd, kCrashTimeParameter, kCrashTimeParameterLen);
+      ignored = sys_write(fd, crashTimeString, crashTimeStringLen);
+      ignored = sys_write(fd, "\n", 1);
       if (timeSinceLastCrash != 0) {
-        ignored = write(fd, kTimeSinceLastCrashParameter,
+        ignored = sys_write(fd, kTimeSinceLastCrashParameter,
                         kTimeSinceLastCrashParameterLen);
-        ignored = write(fd, timeSinceLastCrashString,
+        ignored = sys_write(fd, timeSinceLastCrashString,
                         timeSinceLastCrashStringLen);
-        ignored = write(fd, "\n", 1);
+        ignored = sys_write(fd, "\n", 1);
       }
-      close (fd);
+      sys_close(fd);
     }
   }
 
@@ -388,7 +416,7 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
     return returnValue;
   }
 
-  pid_t pid = fork();
+  pid_t pid = sys_fork();
 
   if (pid == -1)
     return false;
@@ -550,7 +578,8 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
 
   // store application start time
   char timeString[32];
-  XP_TTOA(time(NULL), timeString, 10);
+  time_t startupTime = time(NULL);
+  XP_TTOA(startupTime, timeString, 10);
   AnnotateCrashReport(NS_LITERAL_CSTRING("StartupTime"),
                       nsDependentCString(timeString));
 
@@ -571,7 +600,11 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
 
 bool GetEnabled()
 {
+#if defined(XP_MACOSX)
   return gExceptionHandler != nsnull;
+#else
+  return gExceptionHandler != nsnull && !gExceptionHandler->IsOutOfProcess();
+#endif
 }
 
 bool GetMinidumpPath(nsAString& aPath)

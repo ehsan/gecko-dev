@@ -114,7 +114,7 @@
 #include "nsIParser.h"
 #include "nsIParserService.h"
 #include "nsCSSStyleSheet.h"
-#include "nsCSSLoader.h"
+#include "mozilla/css/Loader.h"
 #include "nsIScriptError.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsEventDispatcher.h"
@@ -378,7 +378,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
         cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObjectOwner*>(tmp->mPrototypes[i]));
     }
 
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTooltipNode)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLocalStore)
 
     if (tmp->mOverlayLoadObservers.IsInitialized())
@@ -388,14 +387,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTooltipNode)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_RELEASE_INHERITED(nsXULDocument, nsXMLDocument)
 
 
-DOMCI_DATA(XULDocument, nsXULDocument)
+DOMCI_NODE_DATA(XULDocument, nsXULDocument)
 
 // QueryInterface implementation for nsXULDocument
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULDocument)
@@ -727,7 +725,7 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
     }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
-    PRBool notify = mInitialLayoutComplete || mHandlingDelayedBroadcasters;
+    PRBool notify = mDocumentLoaded || mHandlingDelayedBroadcasters;
 
     // We may be copying event handlers etc, so we must also copy
     // the script-type to the listener.
@@ -988,6 +986,8 @@ nsXULDocument::AttributeWillChange(nsIDocument* aDocument,
     // See if we need to update our ref map.
     if (aAttribute == nsGkAtoms::ref ||
         (aAttribute == nsGkAtoms::id && !aContent->GetIDAttributeName())) {
+        // Might not need this, but be safe for now.
+        nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
         RemoveElementFromRefMap(aContent->AsElement());
     }
 }
@@ -998,6 +998,9 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                                 nsIAtom* aAttribute, PRInt32 aModType)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
+
+    // Might not need this, but be safe for now.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
     // XXXbz once we change AttributeChanged to take Element, we can nix this line
     Element* aElement = aElementContent->AsElement();
@@ -1097,6 +1100,9 @@ nsXULDocument::ContentAppended(nsIDocument* aDocument,
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
     
+    // Might not need this, but be safe for now.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+
     // Update our element map
     nsresult rv = NS_OK;
     for (nsIContent* cur = aFirstNewContent; cur && NS_SUCCEEDED(rv);
@@ -1113,6 +1119,9 @@ nsXULDocument::ContentInserted(nsIDocument* aDocument,
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
+    // Might not need this, but be safe for now.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
+
     AddSubtreeToDocument(aChild);
 }
 
@@ -1120,9 +1129,13 @@ void
 nsXULDocument::ContentRemoved(nsIDocument* aDocument,
                               nsIContent* aContainer,
                               nsIContent* aChild,
-                              PRInt32 aIndexInContainer)
+                              PRInt32 aIndexInContainer,
+                              nsIContent* aPreviousSibling)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
+
+    // Might not need this, but be safe for now.
+    nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
     RemoveSubtreeFromDocument(aChild);
 }
@@ -1513,25 +1526,22 @@ nsXULDocument::GetHeight(PRInt32* aHeight)
 NS_IMETHODIMP
 nsXULDocument::GetPopupNode(nsIDOMNode** aNode)
 {
-    // Get popup node.
-    nsresult rv = TrustedGetPopupNode(aNode); // addref happens here
-
-    if (NS_SUCCEEDED(rv) && *aNode && !nsContentUtils::CanCallerAccess(*aNode)) {
-        NS_RELEASE(*aNode);
-        return NS_ERROR_DOM_SECURITY_ERR;
-    }
-
-    return rv;
-}
-
-NS_IMETHODIMP
-nsXULDocument::TrustedGetPopupNode(nsIDOMNode** aNode)
-{
     *aNode = nsnull;
 
+    nsCOMPtr<nsIDOMNode> node;
     nsCOMPtr<nsPIWindowRoot> rootWin = GetWindowRoot();
     if (rootWin)
-        rootWin->GetPopupNode(aNode); // addref happens here
+        node = rootWin->GetPopupNode(); // addref happens here
+
+    if (!node) {
+        nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+        if (pm) {
+            node = pm->GetLastTriggerPopupNode(this);
+        }
+    }
+
+    if (node && nsContentUtils::CanCallerAccess(node))
+      node.swap(*aNode);
 
     return NS_OK;
 }
@@ -1600,25 +1610,22 @@ nsXULDocument::GetPopupRangeOffset(PRInt32* aRangeOffset)
 NS_IMETHODIMP
 nsXULDocument::GetTooltipNode(nsIDOMNode** aNode)
 {
-    if (mTooltipNode && !nsContentUtils::CanCallerAccess(mTooltipNode)) {
-        return NS_ERROR_DOM_SECURITY_ERR;
-    }
-    *aNode = mTooltipNode;
-    NS_IF_ADDREF(*aNode);
-    return NS_OK;
-}
+    *aNode = nsnull;
 
-NS_IMETHODIMP
-nsXULDocument::TrustedGetTooltipNode(nsIDOMNode** aNode)
-{
-    NS_IF_ADDREF(*aNode = mTooltipNode);
+    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+    if (pm) {
+        nsCOMPtr<nsIDOMNode> node = pm->GetLastTriggerTooltipNode(this);
+        if (node && nsContentUtils::CanCallerAccess(node))
+            node.swap(*aNode);
+    }
+
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsXULDocument::SetTooltipNode(nsIDOMNode* aNode)
 {
-    mTooltipNode = aNode;
+    // do nothing
     return NS_OK;
 }
 
@@ -2424,7 +2431,7 @@ nsXULDocument::PrepareToWalk()
 
     // Do one-time initialization if we're preparing to walk the
     // master document's prototype.
-    nsCOMPtr<Element> root;
+    nsRefPtr<Element> root;
 
     if (mState == eState_Master) {
         // Add the root element
@@ -2915,7 +2922,7 @@ nsXULDocument::ResumeWalk()
                 nsXULPrototypeElement* protoele =
                     static_cast<nsXULPrototypeElement*>(childproto);
 
-                nsCOMPtr<Element> child;
+                nsRefPtr<Element> child;
 
                 if (!processingOverlayHookupNodes) {
                     rv = CreateElementFromPrototype(protoele,
@@ -3665,7 +3672,7 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
     }
 #endif
 
-    nsCOMPtr<Element> result;
+    nsRefPtr<Element> result;
 
     if (aPrototype->mNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
         // If it's a XUL element, it'll be lightweight until somebody
@@ -3684,14 +3691,16 @@ nsXULDocument::CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
                                                     aPrototype->mNodeInfo->NamespaceID());
         if (!newNodeInfo) return NS_ERROR_OUT_OF_MEMORY;
         nsCOMPtr<nsIContent> content;
-        rv = NS_NewElement(getter_AddRefs(content), newNodeInfo->NamespaceID(),
-                           newNodeInfo, PR_FALSE);
+        PRInt32 ns = newNodeInfo->NamespaceID();
+        nsCOMPtr<nsINodeInfo> xtfNi = newNodeInfo;
+        rv = NS_NewElement(getter_AddRefs(content), ns, newNodeInfo.forget(),
+                           PR_FALSE);
         if (NS_FAILED(rv)) return rv;
 
         result = content->AsElement();
 
 #ifdef MOZ_XTF
-        if (result && newNodeInfo->NamespaceID() > kNameSpaceID_LastBuiltin) {
+        if (result && xtfNi->NamespaceID() > kNameSpaceID_LastBuiltin) {
             result->BeginAddingChildren();
         }
 #endif
@@ -3711,7 +3720,7 @@ nsXULDocument::CreateOverlayElement(nsXULPrototypeElement* aPrototype,
 {
     nsresult rv;
 
-    nsCOMPtr<Element> element;
+    nsRefPtr<Element> element;
     rv = CreateElementFromPrototype(aPrototype, getter_AddRefs(element));
     if (NS_FAILED(rv)) return rv;
 
@@ -3825,7 +3834,7 @@ nsXULDocument::CreateTemplateBuilder(nsIContent* aElement)
                                           getter_AddRefs(bodyContent));
 
         if (! bodyContent) {
-            nsresult rv = document->CreateElem(nsGkAtoms::treechildren,
+            nsresult rv = document->CreateElem(nsAtomString(nsGkAtoms::treechildren),
                                                nsnull, kNameSpaceID_XUL,
                                                PR_FALSE,
                                                getter_AddRefs(bodyContent));

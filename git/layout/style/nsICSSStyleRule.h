@@ -54,9 +54,14 @@
 #include "nsCSSPseudoClasses.h"
 
 class nsIAtom;
-class nsCSSDeclaration;
 class nsCSSStyleSheet;
 struct nsCSSSelectorList;
+
+namespace mozilla {
+namespace css {
+class Declaration;
+}
+}
 
 struct nsAtomList {
 public:
@@ -287,11 +292,10 @@ private:
   nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy); 
 };
 
-// c6065b5e-4870-4dc5-9be3-747b6e317b25
+// 97eb9881-55fb-462c-be1a-b6309d42f8d0
 #define NS_ICSS_STYLE_RULE_IID \
-{ 0xc6065b5e, 0x4870, 0x4dc5, \
-  { 0x9b, 0xe3, 0x74, 0x7b, 0x6e, 0x31, 0x7b, 0x25 } }
-
+{ 0x97eb9881, 0x55fb, 0x462c, \
+  { 0xbe, 0x1a, 0xb6, 0x30, 0x9d, 0x42, 0xf8, 0xd0 } }
 
 class nsICSSStyleRule : public nsICSSRule {
 public:
@@ -303,19 +307,20 @@ public:
   virtual PRUint32 GetLineNumber(void) const = 0;
   virtual void SetLineNumber(PRUint32 aLineNumber) = 0;
 
-  virtual nsCSSDeclaration* GetDeclaration(void) const = 0;
+  virtual mozilla::css::Declaration* GetDeclaration(void) const = 0;
 
   /**
-   * Return a new |nsIStyleRule| instance that replaces the current one,
-   * due to a change in the |nsCSSDeclaration|.  Due to the
-   * |nsIStyleRule| contract of immutability, this must be called if the
-   * declaration is modified.
+   * Return a new |nsIStyleRule| instance that replaces the current
+   * one, with |aDecl| replacing the previous declaration. Due to the
+   * |nsIStyleRule| contract of immutability, this must be called if
+   * the declaration is modified.
    *
    * |DeclarationChanged| handles replacing the object in the container
    * sheet or group rule if |aHandleContainer| is true.
    */
   virtual already_AddRefed<nsICSSStyleRule>
-    DeclarationChanged(PRBool aHandleContainer) = 0;
+  DeclarationChanged(mozilla::css::Declaration* aDecl,
+                     PRBool aHandleContainer) = 0;
 
   /**
    * The rule processor must call this method before calling
@@ -334,9 +339,8 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICSSStyleRule, NS_ICSS_STYLE_RULE_IID)
 
-nsresult
-NS_NewCSSStyleRule(nsICSSStyleRule** aInstancePtrResult,
-                   nsCSSSelectorList* aSelector,
-                   nsCSSDeclaration* aDeclaration);
+already_AddRefed<nsICSSStyleRule>
+NS_NewCSSStyleRule(nsCSSSelectorList* aSelector,
+                   mozilla::css::Declaration* aDeclaration);
 
 #endif /* nsICSSStyleRule_h___ */

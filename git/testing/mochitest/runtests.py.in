@@ -267,7 +267,6 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
     options.httpPort = self._automation.DEFAULT_HTTP_PORT
     options.sslPort = self._automation.DEFAULT_SSL_PORT
     options.webSocketPort = self._automation.DEFAULT_WEBSOCKET_PORT
-    options.webSocketProxyPort = self._automation.DEFAULT_WEBSOCKET_PROXY_PORT
 
     if options.vmwareRecording:
       if not self._automation.IS_WIN32:
@@ -488,20 +487,6 @@ class Mochitest(object):
 
     return browserEnv
 
-  def runExtensionRegistration(self, options, browserEnv):
-    """ run once with -silent to let the extension manager do its thing
-        and then exit the app
-    """
-    self.automation.log.info("INFO | runtests.py | Performing extension manager registration: start.\n")
-    # Don't care about this |status|: |runApp()| reporting it should be enough.
-    status = self.automation.runApp(None, browserEnv, options.app,
-                                options.profilePath, ["-silent"],
-                                utilityPath = options.utilityPath,
-                                xrePath = options.xrePath,
-                                symbolsPath=options.symbolsPath)
-    # We don't care to call |processLeakLog()| for this step.
-    self.automation.log.info("\nINFO | runtests.py | Performing extension manager registration: end.")
-
   def buildURLOptions(self, options):
     """ Add test control options from the command line to the url 
 
@@ -594,8 +579,6 @@ class Mochitest(object):
     self.buildURLOptions(options)
     if (len(self.urlOpts) > 0):
       testURL += "?" + "&".join(self.urlOpts)
-
-    self.runExtensionRegistration(options, browserEnv)
 
     # Remove the leak detection file so it can't "leak" to the tests run.
     # The file is not there if leak logging was not enabled in the application build.
@@ -706,9 +689,11 @@ overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-t
     return self.installChromeFile(temp_file, options)
 
   def installChromeFile(self, filename, options):
-    (p, file) = os.path.split(filename)
     (path, leaf) = os.path.split(options.app)
-    manifest = os.path.join(path, "chrome", file)
+    manifestdir = os.path.join(path, "distribution", "bundles", "mochitest")
+    if not os.path.exists(manifestdir):
+      os.makedirs(manifestdir)
+    manifest = os.path.join(manifestdir, "chrome.manifest")
     shutil.copy(filename, manifest)
     return manifest
 
@@ -740,8 +725,7 @@ def main():
   automation.setServerInfo(options.webServer, 
                            options.httpPort, 
                            options.sslPort, 
-                           options.webSocketPort, 
-                           options.webSocketProxyPort)
+                           options.webSocketPort)
   sys.exit(mochitest.runTests(options))
 
 if __name__ == "__main__":

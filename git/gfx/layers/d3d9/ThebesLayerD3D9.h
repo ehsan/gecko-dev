@@ -42,7 +42,6 @@
 #include "LayerManagerD3D9.h"
 #include "gfxImageSurface.h"
 
-
 namespace mozilla {
 namespace layers {
 
@@ -60,26 +59,25 @@ public:
   void InvalidateRegion(const nsIntRegion& aRegion);
 
   /* LayerD3D9 implementation */
-  LayerType GetType();
   Layer* GetLayer();
   virtual PRBool IsEmpty();
   virtual void RenderLayer();
   virtual void CleanResources();
 
-  /* ThebesLayerD3D9 */
-  nsIntRect GetVisibleRect() { return mVisibleRegion.GetBounds(); }
-  const nsIntRect &GetInvalidatedRect();
-
 private:
-  /*
-   * Currently invalidated rectangular area.
-   */
-  nsIntRect mInvalidatedRect;
-
   /*
    * D3D9 texture
    */
   nsRefPtr<IDirect3DTexture9> mTexture;
+
+  /* This contains the D2D surface if we have one */
+  nsRefPtr<gfxASurface> mD2DSurface;
+
+  /* Have a region of our layer drawn */
+  void DrawRegion(const nsIntRegion &aRegion);
+
+  /* Create a new texture */
+  void CreateNewTexture(const gfxIntSize &aSize);
 };
 
 } /* layers */

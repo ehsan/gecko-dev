@@ -55,12 +55,18 @@ SimpleTest.ok = function (condition, name, diag) {
 **/
 SimpleTest.is = function (a, b, name) {
     var repr = MochiKit.Base.repr;
-    SimpleTest.ok(a == b, name, repr(a) + " should equal " + repr(b));
+    var pass = (a == b);
+    var diag = pass ? repr(a) + " should equal " + repr(b)
+                    : "got " + repr(a) + ", expected " + repr(b)
+    SimpleTest.ok(pass, name, diag);
 };
 
 SimpleTest.isnot = function (a, b, name) {
     var repr = MochiKit.Base.repr;
-    SimpleTest.ok(a != b, name, repr(a) + " should not equal " + repr(b));
+    var pass = (a != b);
+    var diag = pass ? repr(a) + " should not equal " + repr(b)
+                    : "didn't expect " + repr(a) + ", but got it";
+    SimpleTest.ok(pass, name, diag);
 };
 
 //  --------------- Test.Builder/Test.More todo() -----------------
@@ -99,12 +105,18 @@ SimpleTest._logResult = function(test, passString, failString) {
 
 SimpleTest.todo_is = function (a, b, name) {
     var repr = MochiKit.Base.repr;
-    SimpleTest.todo(a == b, name, repr(a) + " should equal " + repr(b));
+    var pass = (a == b);
+    var diag = pass ? repr(a) + " should equal " + repr(b)
+                    : "got " + repr(a) + ", expected " + repr(b);
+    SimpleTest.todo(pass, name, diag);
 };
 
 SimpleTest.todo_isnot = function (a, b, name) {
     var repr = MochiKit.Base.repr;
-    SimpleTest.todo(a != b, name, repr(a) + " should not equal " + repr(b));
+    var pass = (a != b);
+    var diag = pass ? repr(a) + " should not equal " + repr(b)
+                    : "didn't expect " + repr(a) + ", but got it";
+    SimpleTest.todo(pass, name, diag);
 };
 
 
@@ -286,13 +298,18 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     fm.getFocusedElementForWindow(targetWindow, true, childTargetWindow);
     childTargetWindow = childTargetWindow.value;
 
+    function info(msg) {
+      if (SimpleTest._logEnabled)
+        SimpleTest._logResult({result: true, name: msg}, "TEST-INFO");
+    }
+
     function debugFocusLog(prefix) {
         netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
         var baseWindow = targetWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                                      .getInterface(Components.interfaces.nsIWebNavigation)
                                      .QueryInterface(Components.interfaces.nsIBaseWindow);
-        SimpleTest.ok(true, prefix + " -- loaded: " + targetWindow.document.readyState +
+        info(prefix + " -- loaded: " + targetWindow.document.readyState +
            " active window: " +
                (fm.activeWindow ? "(" + fm.activeWindow + ") " + fm.activeWindow.location : "<no window active>") +
            " focused window: " +
@@ -343,7 +360,7 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
         (expectBlankPage == (targetWindow.location == "about:blank")) &&
         targetWindow.document.readyState == "complete";
     if (!SimpleTest.waitForFocus_loaded) {
-        SimpleTest.ok(true, "must wait for load");
+        info("must wait for load");
         targetWindow.addEventListener("load", waitForEvent, true);
     }
 
@@ -357,12 +374,12 @@ SimpleTest.waitForFocus = function (callback, targetWindow, expectBlankPage) {
     // If this is a child frame, ensure that the frame is focused.
     SimpleTest.waitForFocus_focused = (focusedChildWindow == childTargetWindow);
     if (SimpleTest.waitForFocus_focused) {
-        SimpleTest.ok(true, "already focused");
+        info("already focused");
         // If the frame is already focused and loaded, call the callback directly.
         maybeRunTests();
     }
     else {
-        SimpleTest.ok(true, "must wait for focus");
+        info("must wait for focus");
         childTargetWindow.addEventListener("focus", waitForEvent, true);
         childTargetWindow.focus();
     }

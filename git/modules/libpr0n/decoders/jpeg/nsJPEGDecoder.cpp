@@ -56,6 +56,8 @@
 
 #include "gfxPlatform.h"
 
+using namespace mozilla::imagelib;
+
 extern "C" {
 #include "iccjpeg.h"
 
@@ -145,9 +147,11 @@ NS_IMETHODIMP nsJPEGDecoder::Init(imgIContainer *aImage,
                                   imgIDecoderObserver *aObserver,
                                   PRUint32 aFlags)
 {
+  NS_ABORT_IF_FALSE(aImage->GetType() == imgIContainer::TYPE_RASTER,
+                    "wrong type of imgIContainer for decoding into");
 
   /* Grab the parameters. */
-  mImage = aImage;
+  mImage = static_cast<RasterImage*>(aImage);
   mObserver = aObserver;
   mFlags = aFlags;
 
@@ -444,7 +448,7 @@ nsresult nsJPEGDecoder::Write(const char *aBuffer, PRUint32 aCount)
     }
 
     /* Force to use our YCbCr to Packed RGB converter when possible */
-    if (!mTransform && (gfxPlatform::GetCMSMode() == eCMSMode_Off) &&
+    if (!mTransform && (gfxPlatform::GetCMSMode() != eCMSMode_All) &&
         mInfo.jpeg_color_space == JCS_YCbCr && mInfo.out_color_space == JCS_RGB) {
       /* Special case for the most common case: transform from YCbCr direct into packed ARGB */
       mInfo.out_color_components = 4; /* Packed ARGB pixels are always 4 bytes...*/

@@ -39,6 +39,7 @@
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLMediaElement.h"
+#include "nsHTMLTimeRanges.h"
 #include "nsGenericHTMLElement.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -86,6 +87,7 @@
 #include "BasicLayers.h"
 #include <limits>
 #include "nsIDocShellTreeItem.h"
+#include "nsIAsyncVerifyRedirectCallback.h"
 
 #ifdef MOZ_OGG
 #include "nsOggDecoder.h"
@@ -95,6 +97,9 @@
 #endif
 #ifdef MOZ_WEBM
 #include "nsWebMDecoder.h"
+#endif
+#ifdef MOZ_RAW
+#include "nsRawDecoder.h"
 #endif
 
 #ifdef PR_LOGGING
@@ -349,15 +354,19 @@ NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnDataAvailable(nsIRequest*
   return mNextListener->OnDataAvailable(aRequest, aContext, aStream, aOffset, aCount);
 }
 
-NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnChannelRedirect(nsIChannel* aOldChannel,
-                                                                       nsIChannel* aNewChannel,
-                                                                       PRUint32 aFlags)
+NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::AsyncOnChannelRedirect(nsIChannel* aOldChannel,
+                                                                            nsIChannel* aNewChannel,
+                                                                            PRUint32 aFlags,
+                                                                            nsIAsyncVerifyRedirectCallback* cb)
 {
+  // TODO is this really correct?? See bug #579329.
   if (mElement)
     mElement->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
   nsCOMPtr<nsIChannelEventSink> sink = do_QueryInterface(mNextListener);
   if (sink)
-    return sink->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
+    return sink->AsyncOnChannelRedirect(aOldChannel, aNewChannel, aFlags, cb);
+
+  cb->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }
 
@@ -478,7 +487,9 @@ void nsHTMLMediaElement::AbortExistingLoads()
   // with a different load ID to silently be cancelled.
   mCurrentLoadID++;
 
+  PRBool fireTimeUpdate = PR_FALSE;
   if (mDecoder) {
+    fireTimeUpdate = mDecoder->GetCurrentTime() != 0.0;
     mDecoder->Shutdown();
     mDecoder = nsnull;
   }
@@ -496,6 +507,7 @@ void nsHTMLMediaElement::AbortExistingLoads()
   mIsLoadingFromSrcAttribute = PR_FALSE;
   mSuspendedAfterFirstFrame = PR_FALSE;
   mAllowSuspendAfterFirstFrame = PR_TRUE;
+  mSourcePointer = nsnull;
 
   // TODO: The playback rate must be set to the default playback rate.
 
@@ -504,7 +516,13 @@ void nsHTMLMediaElement::AbortExistingLoads()
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_NOTHING);
     mPaused = PR_TRUE;
 
-    // TODO: The current playback position must be set to 0.
+    if (fireTimeUpdate) {
+      // Since we destroyed the decoder above, the current playback position
+      // will now be reported as 0. The playback position was non-zero when
+      // we destroyed the decoder, so fire a timeupdate event so that the
+      // change will be reflected in the controls.
+      DispatchAsyncSimpleEvent(NS_LITERAL_STRING("timeupdate"));
+    }
     DispatchSimpleEvent(NS_LITERAL_STRING("emptied"));
   }
 
@@ -727,6 +745,9 @@ nsresult nsHTMLMediaElement::LoadResource(nsIURI* aURI)
     hc->SetRequestHeader(NS_LITERAL_CSTRING("Range"),
                          NS_LITERAL_CSTRING("bytes=0-"),
                          PR_FALSE);
+
+    // Send Accept header for video and audio types only (Bug 489071)
+    SetAcceptHeader(hc);
   }
 
   rv = mChannel->AsyncOpen(listener, nsnull);
@@ -945,7 +966,8 @@ NS_IMETHODIMP nsHTMLMediaElement::SetMuted(PRBool aMuted)
   return NS_OK;
 }
 
-nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
+nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                                       PRUint32 aFromParser)
   : nsGenericHTMLElement(aNodeInfo),
     mCurrentLoadID(0),
     mNetworkState(nsIDOMHTMLMediaElement::NETWORK_EMPTY),
@@ -1010,7 +1032,7 @@ void nsHTMLMediaElement::StopSuspendingAfterFirstFrame()
     return;
   mSuspendedAfterFirstFrame = PR_FALSE;
   if (mDecoder) {
-    mDecoder->Resume();
+    mDecoder->Resume(PR_TRUE);
   }
 }
 
@@ -1185,27 +1207,59 @@ void nsHTMLMediaElement::UnbindFromTree(PRBool aDeep,
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 
+#ifdef MOZ_RAW
+static const char gRawTypes[][16] = {
+  "video/x-raw",
+  "video/x-raw-yuv"
+};
+
+static const char* gRawCodecs[] = {
+  nsnull
+};
+
+static const char* gRawMaybeCodecs[] = {
+  nsnull
+};
+
+static PRBool IsRawEnabled()
+{
+  return nsContentUtils::GetBoolPref("media.raw.enabled");
+}
+
+static PRBool IsRawType(const nsACString& aType)
+{
+  if (!IsRawEnabled())
+    return PR_FALSE;
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gRawTypes); ++i) {
+    if (aType.EqualsASCII(gRawTypes[i]))
+      return PR_TRUE;
+  }
+  return PR_FALSE;
+}
+#endif
 #ifdef MOZ_OGG
 // See http://www.rfc-editor.org/rfc/rfc5334.txt for the definitions
 // of Ogg media types and codec types
-static const char gOggTypes[][16] = {
+const char nsHTMLMediaElement::gOggTypes[3][16] = {
   "video/ogg",
   "audio/ogg",
   "application/ogg"
 };
 
-static const char* gOggCodecs[] = {
+char const *const nsHTMLMediaElement::gOggCodecs[3] = {
   "vorbis",
   "theora",
   nsnull
 };
 
-static PRBool IsOggEnabled()
+bool
+nsHTMLMediaElement::IsOggEnabled()
 {
   return nsContentUtils::GetBoolPref("media.ogg.enabled");
 }
 
-static PRBool IsOggType(const nsACString& aType)
+bool
+nsHTMLMediaElement::IsOggType(const nsACString& aType)
 {
   if (!IsOggEnabled())
     return PR_FALSE;
@@ -1221,24 +1275,26 @@ static PRBool IsOggType(const nsACString& aType)
 // See http://www.rfc-editor.org/rfc/rfc2361.txt for the definitions
 // of WAVE media types and codec types. However, the audio/vnd.wave
 // MIME type described there is not used.
-static const char gWaveTypes[][16] = {
+const char nsHTMLMediaElement::gWaveTypes[4][16] = {
   "audio/x-wav",
   "audio/wav",
   "audio/wave",
   "audio/x-pn-wav"
 };
 
-static const char* gWaveCodecs[] = {
+char const *const nsHTMLMediaElement::gWaveCodecs[2] = {
   "1", // Microsoft PCM Format
   nsnull
 };
 
-static PRBool IsWaveEnabled()
+bool
+nsHTMLMediaElement::IsWaveEnabled()
 {
   return nsContentUtils::GetBoolPref("media.wave.enabled");
 }
 
-static PRBool IsWaveType(const nsACString& aType)
+bool
+nsHTMLMediaElement::IsWaveType(const nsACString& aType)
 {
   if (!IsWaveEnabled())
     return PR_FALSE;
@@ -1251,24 +1307,26 @@ static PRBool IsWaveType(const nsACString& aType)
 #endif
 
 #ifdef MOZ_WEBM
-static const char gWebMTypes[][17] = {
+const char nsHTMLMediaElement::gWebMTypes[2][17] = {
   "video/webm",
   "audio/webm"
 };
 
-static const char* gWebMCodecs[] = {
+char const *const nsHTMLMediaElement::gWebMCodecs[4] = {
   "vp8",
   "vp8.0",
   "vorbis",
   nsnull
 };
 
-static PRBool IsWebMEnabled()
+bool
+nsHTMLMediaElement::IsWebMEnabled()
 {
   return nsContentUtils::GetBoolPref("media.webm.enabled");
 }
 
-static PRBool IsWebMType(const nsACString& aType)
+bool
+nsHTMLMediaElement::IsWebMType(const nsACString& aType)
 {
   if (!IsWebMEnabled())
     return PR_FALSE;
@@ -1283,8 +1341,14 @@ static PRBool IsWebMType(const nsACString& aType)
 /* static */
 nsHTMLMediaElement::CanPlayStatus 
 nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
-                                       const char*** aCodecList)
+                                       char const *const ** aCodecList)
 {
+#ifdef MOZ_RAW
+  if (IsRawType(nsDependentCString(aMIMEType))) {
+    *aCodecList = gRawCodecs;
+    return CANPLAY_MAYBE;
+  }
+#endif
 #ifdef MOZ_OGG
   if (IsOggType(nsDependentCString(aMIMEType))) {
     *aCodecList = gOggCodecs;
@@ -1309,6 +1373,10 @@ nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
 /* static */
 PRBool nsHTMLMediaElement::ShouldHandleMediaType(const char* aMIMEType)
 {
+#ifdef MOZ_RAW
+  if (IsRawType(nsDependentCString(aMIMEType)))
+    return PR_TRUE;
+#endif
 #ifdef MOZ_OGG
   if (IsOggType(nsDependentCString(aMIMEType)))
     return PR_TRUE;
@@ -1326,7 +1394,7 @@ PRBool nsHTMLMediaElement::ShouldHandleMediaType(const char* aMIMEType)
 }
 
 static PRBool
-CodecListContains(const char** aCodecs, const nsAString& aCodec)
+CodecListContains(char const *const * aCodecs, const nsAString& aCodec)
 {
   for (PRInt32 i = 0; aCodecs[i]; ++i) {
     if (aCodec.EqualsASCII(aCodecs[i]))
@@ -1346,7 +1414,7 @@ nsHTMLMediaElement::GetCanPlay(const nsAString& aType)
     return CANPLAY_NO;
 
   NS_ConvertUTF16toUTF8 mimeTypeUTF8(mimeType);
-  const char** supportedCodecs;
+  char const *const * supportedCodecs;
   CanPlayStatus status = CanHandleMediaType(mimeTypeUTF8.get(),
                                             &supportedCodecs);
   if (status == CANPLAY_NO)
@@ -1392,60 +1460,17 @@ nsHTMLMediaElement::CanPlayType(const nsAString& aType, nsAString& aResult)
   return NS_OK;
 }
 
-/* static */
-void nsHTMLMediaElement::InitMediaTypes()
-{
-  nsresult rv;
-  nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
-  if (NS_SUCCEEDED(rv)) {
-#ifdef MOZ_OGG
-    if (IsOggEnabled()) {
-      for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gOggTypes); i++) {
-        catMan->AddCategoryEntry("Gecko-Content-Viewers", gOggTypes[i],
-                                 "@mozilla.org/content/document-loader-factory;1",
-                                 PR_FALSE, PR_TRUE, nsnull);
-      }
-    }
-#endif
-#ifdef MOZ_WEBM
-    if (IsWebMEnabled()) {
-      for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gWebMTypes); i++) {
-        catMan->AddCategoryEntry("Gecko-Content-Viewers", gWebMTypes[i],
-                                 "@mozilla.org/content/document-loader-factory;1",
-                                 PR_FALSE, PR_TRUE, nsnull);
-      }
-    }
-#endif
-  }
-}
-
-/* static */
-void nsHTMLMediaElement::ShutdownMediaTypes()
-{
-  nsresult rv;
-  nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
-  if (NS_SUCCEEDED(rv)) {
-#ifdef MOZ_OGG
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gOggTypes); i++) {
-      catMan->DeleteCategoryEntry("Gecko-Content-Viewers", gOggTypes[i], PR_FALSE);
-    }
-#endif
-#ifdef MOZ_WAVE
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gWaveTypes); i++) {
-      catMan->DeleteCategoryEntry("Gecko-Content-Viewers", gWaveTypes[i], PR_FALSE);
-    }
-#endif
-#ifdef MOZ_WEBM
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gWebMTypes); i++) {
-      catMan->DeleteCategoryEntry("Gecko-Content-Viewers", gWebMTypes[i], PR_FALSE);
-    }
-#endif
-  }
-}
-
 already_AddRefed<nsMediaDecoder>
 nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
 {
+#ifdef MOZ_RAW
+  if (IsRawType(aType)) {
+    nsRefPtr<nsRawDecoder> decoder = new nsRawDecoder();
+    if (decoder && decoder->Init(this)) {
+      return decoder.forget().get();
+    }
+  }
+#endif
 #ifdef MOZ_OGG
   if (IsOggType(aType)) {
     nsRefPtr<nsOggDecoder> decoder = new nsOggDecoder();
@@ -1707,11 +1732,6 @@ PRBool nsHTMLMediaElement::ShouldCheckAllowOrigin()
                                      PR_TRUE);
 }
 
-// Number of bytes to add to the download size when we're computing
-// when the download will finish --- a safety margin in case bandwidth
-// or other conditions are worse than expected
-static const PRInt32 gDownloadSizeSafetyMargin = 1000000;
-
 void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
 {
   if (mReadyState < nsIDOMHTMLMediaElement::HAVE_METADATA) {
@@ -1721,8 +1741,6 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
     // The arrival of more data can't change us out of this readyState.
     return;
   }
-
-  nsMediaDecoder::Statistics stats = mDecoder->GetStatistics();
 
   if (aNextFrame != NEXT_FRAME_AVAILABLE) {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
@@ -1738,25 +1756,17 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
   // make a real estimate, so we go straight to HAVE_ENOUGH_DATA once
   // we've downloaded enough data that our download rate is considered
   // reliable. We have to move to HAVE_ENOUGH_DATA at some point or
-  // autoplay elements for live streams will never play.
+  // autoplay elements for live streams will never play. Otherwise we
+  // move to HAVE_ENOUGH_DATA if we can play through the entire media
+  // without stopping to buffer.
+  nsMediaDecoder::Statistics stats = mDecoder->GetStatistics();
   if (stats.mTotalBytes < 0 ? stats.mDownloadRateReliable :
-                              stats.mTotalBytes == stats.mDownloadPosition) {
+                              stats.mTotalBytes == stats.mDownloadPosition ||
+      mDecoder->CanPlayThrough())
+  {
     ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
     return;
   }
-
-  if (stats.mDownloadRateReliable && stats.mPlaybackRateReliable) {
-    PRInt64 bytesToDownload = stats.mTotalBytes - stats.mDownloadPosition;
-    PRInt64 bytesToPlayback = stats.mTotalBytes - stats.mPlaybackPosition;
-    double timeToDownload =
-      (bytesToDownload + gDownloadSizeSafetyMargin)/stats.mDownloadRate;
-    double timeToPlay = bytesToPlayback/stats.mPlaybackRate;
-    if (timeToDownload <= timeToPlay) {
-      ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
-      return;
-    }
-  }
-
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_FUTURE_DATA);
 }
 
@@ -1996,7 +2006,7 @@ void nsHTMLMediaElement::NotifyOwnerDocumentActivityChanged()
         mDecoder->Pause();
         mDecoder->Suspend();
       } else {
-        mDecoder->Resume();
+        mDecoder->Resume(PR_FALSE);
         if (!mPaused && !mDecoder->IsEnded()) {
           mDecoder->Play();
         }
@@ -2203,4 +2213,14 @@ nsHTMLMediaElement::CopyInnerTo(nsGenericElement* aDest) const
     }
   }
   return rv;
+}
+
+nsresult nsHTMLMediaElement::GetBuffered(nsIDOMHTMLTimeRanges** aBuffered)
+{
+  nsHTMLTimeRanges* ranges = new nsHTMLTimeRanges();
+  NS_ADDREF(*aBuffered = ranges);
+  if (mReadyState >= nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA && mDecoder) {
+    return mDecoder->GetBuffered(ranges);
+  }
+  return NS_OK;
 }

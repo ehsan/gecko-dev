@@ -49,7 +49,6 @@
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
-#include "nsGUIEvent.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 
@@ -167,6 +166,9 @@ public:
 
     win->mMutationBits |= aType;
   }
+
+  virtual void MaybeUpdateTouchState() {}
+  virtual void UpdateTouchState() {}
 
   // GetExtantDocument provides a backdoor to the DOM GetDocument accessor
   nsIDOMDocument* GetExtantDocument() const
@@ -395,11 +397,6 @@ public:
   virtual PRBool CanClose() = 0;
   virtual nsresult ForceClose() = 0;
 
-  void SetModalContentWindow(PRBool aIsModalContentWindow)
-  {
-    mIsModalContentWindow = aIsModalContentWindow;
-  }
-
   PRBool IsModalContentWindow() const
   {
     return mIsModalContentWindow;
@@ -423,6 +420,16 @@ public:
     return mMayHavePaintEventListener;
   }
   
+  /**
+   * Call this to indicate that some node (this window, its document,
+   * or content in that document) has a touch event listener.
+   */
+  void SetHasTouchEventListeners()
+  {
+    mMayHaveTouchEventListener = PR_TRUE;
+    MaybeUpdateTouchState();
+  }
+
   /**
    * Initialize window.java and window.Packages.
    */
@@ -561,6 +568,7 @@ protected:
   PRPackedBool           mIsHandlingResizeEvent;
   PRPackedBool           mIsInnerWindow;
   PRPackedBool           mMayHavePaintEventListener;
+  PRPackedBool           mMayHaveTouchEventListener;
 
   // This variable is used on both inner and outer windows (and they
   // should match).

@@ -52,6 +52,11 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
+  Cu.import("resource://gre/modules/NetUtil.jsm");
+  return NetUtil;
+});
+
 const PREF_EM_NEW_ADDONS_LIST = "extensions.newAddons";
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -123,6 +128,31 @@ BrowserGlue.prototype = {
     Services.prefs.savePrefFile(null);
   },
 
+#ifdef MOZ_SERVICES_SYNC
+  _setSyncAutoconnectDelay: function BG__setSyncAutoconnectDelay() {
+    // Assume that a non-zero value for services.sync.autoconnectDelay should override
+    if (Services.prefs.prefHasUserValue("services.sync.autoconnectDelay")) {
+      let prefDelay = Services.prefs.getIntPref("services.sync.autoconnectDelay");
+
+      if (prefDelay > 0)
+        return;
+    }
+
+    // delays are in seconds
+    const MAX_DELAY = 300;
+    let delay = 3;
+    let enum = Services.wm.getEnumerator("navigator:browser");
+    while (enum.hasMoreElements()) {
+      delay += enum.getNext().gBrowser.tabs.length;
+    }
+    delay = delay <= MAX_DELAY ? delay : MAX_DELAY;
+
+    let syncTemp = {};
+    Cu.import("resource://services-sync/service.js", syncTemp);
+    syncTemp.Weave.Service.delayedAutoConnect(delay);
+  },
+#endif
+
   // nsIObserver implementation 
   observe: function BG_observe(subject, topic, data) {
     switch (topic) {
@@ -159,6 +189,11 @@ BrowserGlue.prototype = {
         break;
       case "browser-lastwindow-close-granted":
         this._setPrefToSaveSession();
+        break;
+#endif
+#ifdef MOZ_SERVICES_SYNC
+      case "weave:service:ready":
+        this._setSyncAutoconnectDelay();
         break;
 #endif
       case "session-save":
@@ -234,6 +269,9 @@ BrowserGlue.prototype = {
     os.addObserver(this, "browser-lastwindow-close-requested", false);
     os.addObserver(this, "browser-lastwindow-close-granted", false);
 #endif
+#ifdef MOZ_SERVICES_SYNC
+    os.addObserver(this, "weave:service:ready", false);
+#endif
     os.addObserver(this, "session-save", false);
     os.addObserver(this, "places-init-complete", false);
     this._isPlacesInitObserver = true;
@@ -257,6 +295,9 @@ BrowserGlue.prototype = {
 #ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
     os.removeObserver(this, "browser-lastwindow-close-requested");
     os.removeObserver(this, "browser-lastwindow-close-granted");
+#endif
+#ifdef MOZ_SERVICES_SYNC
+    os.removeObserver(this, "weave:service:ready", false);
 #endif
     os.removeObserver(this, "session-save");
     if (this._isIdleObserver)
@@ -397,7 +438,7 @@ BrowserGlue.prototype = {
       var browser = browserEnum.getNext();
       var tabbrowser = browser.document.getElementById("content");
       if (tabbrowser)
-        pagecount += tabbrowser.browsers.length;
+        pagecount += tabbrowser.browsers.length - tabbrowser._numPinnedTabs;
     }
 
     this._saveSession = false;
@@ -428,7 +469,7 @@ BrowserGlue.prototype = {
                             getService(Ci.nsIPrivateBrowsingService).
                             privateBrowsingEnabled;
     if (!showPrompt || inPrivateBrowsing)
-      return false;
+      return;
 
     var quitBundle = Services.strings.createBundle("chrome://browser/locale/quitDialog.properties");
     var brandBundle = Services.strings.createBundle("chrome://branding/locale/brand.properties");
@@ -817,16 +858,18 @@ BrowserGlue.prototype = {
       var dirService = Cc["@mozilla.org/file/directory_service;1"].
                        getService(Ci.nsIProperties);
 
-      var bookmarksFile = null;
+      var bookmarksURI = null;
       if (restoreDefaultBookmarks) {
         // User wants to restore bookmarks.html file from default profile folder
-        bookmarksFile = dirService.get("profDef", Ci.nsILocalFile);
-        bookmarksFile.append("bookmarks.html");
+        bookmarksURI = NetUtil.newURI("resource:///defaults/profile/bookmarks.html");
       }
-      else
-        bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
+      else {
+        var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
+        if (bookmarksFile.exists())
+          bookmarksURI = NetUtil.newURI(bookmarksFile);
+      }
 
-      if (bookmarksFile.exists()) {
+      if (bookmarksURI) {
         // Add an import observer.  It will ensure that smart bookmarks are
         // created once the operation is complete.
         Services.obs.addObserver(this, "bookmarks-restore-success", false);
@@ -836,7 +879,7 @@ BrowserGlue.prototype = {
         try {
           var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
                          getService(Ci.nsIPlacesImportExportService);
-          importer.importHTMLFromFile(bookmarksFile, true /* overwrite existing */);
+          importer.importHTMLFromURI(bookmarksURI, true /* overwrite existing */);
         } catch (err) {
           // Report the error, but ignore it.
           Cu.reportError("Bookmarks.html file could be corrupt. " + err);
@@ -953,19 +996,20 @@ BrowserGlue.prototype = {
   },
 
   _migrateUI: function BG__migrateUI() {
-    var migration = 0;
+    const UI_VERSION = 2;
+    let currentUIVersion = 0;
     try {
-      migration = Services.prefs.getIntPref("browser.migration.version");
+      currentUIVersion = Services.prefs.getIntPref("browser.migration.version");
     } catch(ex) {}
+    if (currentUIVersion >= UI_VERSION)
+      return;
 
-    if (migration == 0) {
+    this._rdf = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
+    this._dataSource = this._rdf.GetDataSource("rdf:local-store");
+    this._dirty = false;
+
+    if (currentUIVersion < 1) {
       // this code should always migrate pre-FF3 profiles to the current UI state
-
-      // grab the localstore.rdf and make changes needed for new UI
-      this._rdf = Cc["@mozilla.org/rdf/rdf-service;1"].getService(Ci.nsIRDFService);
-      this._dataSource = this._rdf.GetDataSource("rdf:local-store");
-      this._dirty = false;
-
       let currentsetResource = this._rdf.GetResource("currentset");
       let toolbars = ["nav-bar", "toolbar-menubar", "PersonalToolbar"];
       for (let i = 0; i < toolbars.length; i++) {
@@ -989,18 +1033,35 @@ BrowserGlue.prototype = {
           break;
         }
       }
-
-      // force the RDF to be saved
-      if (this._dirty)
-        this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
-
-      // free up the RDF service
-      this._rdf = null;
-      this._dataSource = null;
-
-      // update the migration version
-      Services.prefs.setIntPref("browser.migration.version", 1);
     }
+
+    if (currentUIVersion < 2) {
+      // This code adds the customizable bookmarks button.
+      let currentsetResource = this._rdf.GetResource("currentset");
+      let toolbarResource = this._rdf.GetResource("chrome://browser/content/browser.xul#nav-bar");
+      let currentset = this._getPersist(toolbarResource, currentsetResource);
+      // Need to migrate only if toolbar is customized and the element is not found.
+      if (currentset &&
+          currentset.indexOf("bookmarks-menu-button-container") == -1) {
+        if (currentset.indexOf("fullscreenflex") != -1) {
+          currentset = currentset.replace(/(^|,)fullscreenflex($|,)/,
+                                          "$1bookmarks-menu-button-container,fullscreenflex$2")
+        }
+        else {
+          currentset += ",bookmarks-menu-button-container";
+        }
+        this._setPersist(toolbarResource, currentsetResource, currentset);
+      }
+    }
+
+    if (this._dirty)
+      this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
+
+    delete this._rdf;
+    delete this._dataSource;
+
+    // Update the migration version.
+    Services.prefs.setIntPref("browser.migration.version", UI_VERSION);
   },
 
   _getPersist: function BG__getPersist(aSource, aProperty) {
@@ -1234,9 +1295,7 @@ BrowserGlue.prototype = {
 
 
   // for XPCOM
-  classDescription: "Firefox Browser Glue Service",
   classID:          Components.ID("{eab9012e-5f74-4cbc-b2b5-a590235513cc}"),
-  contractID:       "@mozilla.org/browser/browserglue;1",
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference,
@@ -1244,21 +1303,12 @@ BrowserGlue.prototype = {
 
   // redefine the default factory for XPCOMUtils
   _xpcom_factory: BrowserGlueServiceFactory,
-
-  // get this contractID registered for certain categories via XPCOMUtils
-  _xpcom_categories: [
-    // make BrowserGlue a startup observer
-    { category: "app-startup", service: true,
-      apps: [ /* Firefox */ "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}" ] }
-  ]
 }
 
 function GeolocationPrompt() {}
 
 GeolocationPrompt.prototype = {
-  classDescription: "Geolocation Prompting Component",
   classID:          Components.ID("{C6E8C44D-9F39-4AF7-BCC0-76E38A8310F5}"),
-  contractID:       "@mozilla.org/geolocation/prompt;1",
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
 
@@ -1350,11 +1400,8 @@ GeolocationPrompt.prototype = {
 
     chromeWin.PopupNotifications.show(browser, "geolocation", message, "geo-notification-icon",
                                       mainAction, secondaryActions);
-  },
+  }
 };
 
-
-//module initialization
-function NSGetModule(aCompMgr, aFileSpec) {
-  return XPCOMUtils.generateModule([BrowserGlue, GeolocationPrompt]);
-}
+var components = [BrowserGlue, GeolocationPrompt];
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

@@ -131,6 +131,7 @@ WeaveSvc.prototype = {
 
   get passphrase() ID.get("WeaveCryptoID").password,
   set passphrase(value) ID.get("WeaveCryptoID").password = value,
+  get passphraseUTF8() ID.get("WeaveCryptoID").passwordUTF8,
 
   get serverURL() Svc.Prefs.get("serverURL"),
   set serverURL(value) {
@@ -268,12 +269,12 @@ WeaveSvc.prototype = {
 
     if (!this._checkCrypto()) {
       this.enabled = false;
-      this._log.error("Could not load the Weave crypto component. Disabling " +
+      this._log.info("Could not load the Weave crypto component. Disabling " +
                       "Weave, since it will not work correctly.");
     }
 
+    Svc.Obs.add("weave:service:setup-complete", this);
     Svc.Obs.add("network:offline-status-changed", this);
-    Svc.Obs.add("private-browsing", this);
     Svc.Obs.add("weave:service:sync:finish", this);
     Svc.Obs.add("weave:service:sync:error", this);
     Svc.Obs.add("weave:service:backoff:interval", this);
@@ -292,6 +293,10 @@ WeaveSvc.prototype = {
 
     this._updateCachedURLs();
 
+    let status = this._checkSetup();
+    if (status != STATUS_DISABLED && status != CLIENT_NOT_CONFIGURED)
+      Svc.Obs.notify("weave:engine:start-tracking");
+
     // Applications can specify this preference if they want autoconnect
     // to happen after a fixed delay.
     let delay = Svc.Prefs.get("autoconnectDelay");
@@ -306,7 +311,10 @@ WeaveSvc.prototype = {
   },
 
   _checkSetup: function WeaveSvc__checkSetup() {
-    if (!this.username) {
+    if (!this.enabled) {
+      Status.service = STATUS_DISABLED;
+    }
+    else if (!this.username) {
       this._log.debug("checkSetup: no username set");
       Status.login = LOGIN_FAILED_NO_USERNAME;
     }
@@ -404,14 +412,14 @@ WeaveSvc.prototype = {
 
   observe: function WeaveSvc__observe(subject, topic, data) {
     switch (topic) {
+      case "weave:service:setup-complete":
+        let status = this._checkSetup();
+        if (status != STATUS_DISABLED && status != CLIENT_NOT_CONFIGURED)
+            Svc.Obs.notify("weave:engine:start-tracking");
+        break;
       case "network:offline-status-changed":
         // Whether online or offline, we'll reschedule syncs
         this._log.trace("Network offline status change: " + data);
-        this._checkSyncStatus();
-        break;
-      case "private-browsing":
-        // Entering or exiting private browsing? Reschedule syncs
-        this._log.trace("Private browsing change: " + data);
         this._checkSyncStatus();
         break;
       case "weave:service:sync:error":
@@ -576,6 +584,26 @@ WeaveSvc.prototype = {
             return true;
 
           case 401:
+            // Login failed.  If the password contains non-ASCII characters,
+            // perhaps the server password is an old low-byte only one?
+            let id = ID.get('WeaveID');
+            if (id.password != id.passwordUTF8) {
+              let res = new Resource(this.infoURL);
+              let auth = new BrokenBasicAuthenticator(id);
+              res.authenticator = auth;
+              test = res.get();
+              if (test.status == 200) {
+                this._log.debug("Non-ASCII password detected. "
+                                + "Changing to UTF-8 version.");
+                // Let's change the password on the server to the UTF8 version.
+                let url = this.userAPI + this.username + "/password";
+                res = new Resource(url);
+                res.authenticator = auth;
+                res.post(id.passwordUTF8);
+                return this.verifyLogin();
+              }
+            }
+            // Yes, we want to fall through to the 404 case.
           case 404:
             // Check that we're verifying with the correct cluster
             if (this._setCluster())
@@ -609,10 +637,22 @@ WeaveSvc.prototype = {
       try {
         let pubkey = PubKeys.getDefaultKey();
         let privkey = PrivKeys.get(pubkey.privateKeyUri);
-        return Svc.Crypto.verifyPassphrase(
+        let result = Svc.Crypto.verifyPassphrase(
+          privkey.payload.keyData, this.passphraseUTF8,
+          privkey.payload.salt, privkey.payload.iv
+        );
+        if (result)
+          return true;
+
+        // Passphrase validation failed. Perhaps because the keys are
+        // based on an old low-byte only passphrase?
+        result = Svc.Crypto.verifyPassphrase(
           privkey.payload.keyData, this.passphrase,
           privkey.payload.salt, privkey.payload.iv
         );
+        if (result)
+          this._needUpdatedKeys = true;
+        return result;
       } catch (e) {
         // this means no keys are present (or there's a network error)
         return true;
@@ -623,7 +663,7 @@ WeaveSvc.prototype = {
     this._notify("changepwd", "", function() {
       let url = this.userAPI + this.username + "/password";
       try {
-        let resp = new Resource(url).post(newpass);
+        let resp = new Resource(url).post(Utils.encodeUTF8(newpass));
         if (resp.status != 200) {
           this._log.debug("Password change failed: " + resp);
           return false;
@@ -677,6 +717,7 @@ WeaveSvc.prototype = {
       Svc.Login.removeLogin(login);
     });
     Svc.Obs.notify("weave:service:start-over");
+    Svc.Obs.notify("weave:engine:stop-tracking");
   },
 
   delayedAutoConnect: function delayedAutoConnect(delay) {
@@ -725,6 +766,7 @@ WeaveSvc.prototype = {
       if (Svc.IO.offline)
         throw "Application is offline, login should not be called";
 
+      let initialStatus = this._checkSetup();
       if (username)
         this.username = username;
       if (password)
@@ -734,6 +776,12 @@ WeaveSvc.prototype = {
 
       if (this._checkSetup() == CLIENT_NOT_CONFIGURED)
         throw "aborting login, client not configured";
+
+      // Calling login() with parameters when the client was
+      // previously not configured means setup was completed.
+      if (initialStatus == CLIENT_NOT_CONFIGURED
+          && (username || password || passphrase))
+        Svc.Obs.notify("weave:service:setup-complete");
 
       this._log.info("Logging in user " + this.username);
 
@@ -817,10 +865,10 @@ WeaveSvc.prototype = {
   },
 
   createAccount: function WeaveSvc_createAccount(username, password, email,
-                                            captchaChallenge, captchaResponse)
-  {
+                                            captchaChallenge, captchaResponse) {
     let payload = JSON.stringify({
-      "password": password, "email": email,
+      "password": Utils.encodeUTF8(password),
+      "email": email,
       "captcha-challenge": captchaChallenge,
       "captcha-response": captchaResponse
     });
@@ -1004,9 +1052,6 @@ WeaveSvc.prototype = {
       reason = kSyncWeaveDisabled;
     else if (Svc.IO.offline)
       reason = kSyncNetworkOffline;
-    else if (Svc.Private && Svc.Private.privateBrowsingEnabled)
-      // Svc.Private doesn't exist on Fennec -- don't assume it's there.
-      reason = kSyncInPrivateBrowsing;
     else if (Status.minimumNextSync > Date.now())
       reason = kSyncBackoffNotMet;
     else if (!this._loggedIn)
@@ -1049,6 +1094,9 @@ WeaveSvc.prototype = {
       return;
     }
 
+    if (this._needUpdatedKeys)
+      this._updateKeysToUTF8Passphrase();
+
     // Only set the wait time to 0 if we need to sync right away
     let wait;
     if (this.globalScore > this.syncThreshold) {
@@ -1056,6 +1104,62 @@ WeaveSvc.prototype = {
       wait = 0;
     }
     this._scheduleNextSync(wait);
+  },
+
+  _updateKeysToUTF8Passphrase: function _updateKeysToUTF8Passphrase() {
+    // Rewrap private key in UTF-8 encoded passphrase.
+    let pubkey = PubKeys.getDefaultKey();
+    let privkey = PrivKeys.get(pubkey.privateKeyUri);
+
+    this._log.debug("Rewrapping private key with UTF-8 encoded passphrase.");
+    let oldPrivKeyData = privkey.payload.keyData;
+    privkey.payload.keyData = Svc.Crypto.rewrapPrivateKey(
+      oldPrivKeyData, this.passphrase,
+      privkey.payload.salt, privkey.payload.iv, this.passphraseUTF8
+    );
+    let response = new Resource(privkey.uri).put(privkey);
+    if (!response.success) {
+      this._log("Uploading rewrapped private key failed!");
+      this._needUpdatedKeys = false;
+      return;
+    }
+
+    // Recompute HMAC for symmetric bulk keys based on UTF-8 encoded passphrase.
+    let oldHmacKey = Svc.KeyFactory.keyFromString(Ci.nsIKeyObject.HMAC,
+                                                  this.passphrase);
+    let enginesToWipe = [];
+
+    for each (let engine in Engines.getAll()) {
+      let meta = CryptoMetas.get(engine.cryptoMetaURL);
+      if (!meta)
+        continue;
+
+      this._log.debug("Recomputing HMAC for key at " + engine.cryptoMetaURL
+                      + " with UTF-8 encoded passphrase.");
+      for each (key in meta.keyring) {
+        if (key.hmac != Utils.sha256HMAC(key.wrapped, oldHmacKey)) {
+          this._log.debug("Key SHA256 HMAC mismatch! Wiping server.");
+          enginesToWipe.push(engine.name);
+          meta = null;
+          break;
+        }
+        key.hmac = Utils.sha256HMAC(key.wrapped, meta.hmacKey);
+      }
+
+      if (!meta)
+        continue;
+
+      response = new Resource(meta.uri).put(meta);
+      if (!response.success) {
+        this._log.debug("Key upload failed: " + response);
+      }
+    }
+
+    if (enginesToWipe.length) {
+      this._log.debug("Wiping engines " + enginesToWipe.join(", "));
+      this.wipeRemote(enginesToWipe);
+    }
+    this._needUpdatedKeys = false;
   },
 
   /**
@@ -1220,6 +1324,7 @@ WeaveSvc.prototype = {
 
     // if we don't have a node, get one.  if that fails, retry in 10 minutes
     if (this.clusterURL == "" && !this._setCluster()) {
+      Status.sync = NO_SYNC_NODE_FOUND;
       this._scheduleNextSync(10 * 60 * 1000);
       return;
     }
@@ -1233,8 +1338,6 @@ WeaveSvc.prototype = {
     // we'll handle that later
     Status.resetBackoff();
 
-    this.globalScore = 0;
-
     // Ping the server with a special info request once a day
     let infoURL = this.infoURL;
     let now = Math.floor(Date.now() / 1000);
@@ -1246,8 +1349,15 @@ WeaveSvc.prototype = {
 
     // Figure out what the last modified time is for each collection
     let info = new Resource(infoURL).get();
-    if (!info.success)
+    if (!info.success) {
+      if (info.status == 401) {
+        this.logout();
+        Status.login = LOGIN_FAILED_LOGIN_REJECTED;
+      }
       throw "aborting sync, failed to get collections";
+    }
+
+    this.globalScore = 0;
 
     // Convert the response to an object and read out the modified times
     for each (let engine in [Clients].concat(Engines.getAll()))
@@ -1414,7 +1524,7 @@ WeaveSvc.prototype = {
     if (Utils.checkStatus(resp.status, null, [500, [502, 504]])) {
       Status.enforceBackoff = true;
       if (resp.status == 503 && resp.headers["retry-after"])
-        Observers.notify("weave:service:backoff:interval", parseInt(resp.headers["retry-after"], 10));
+        Svc.Obs.notify("weave:service:backoff:interval", parseInt(resp.headers["retry-after"], 10));
     }
   },
   /**
@@ -1437,7 +1547,7 @@ WeaveSvc.prototype = {
    *        Array of collections to wipe. If not given, all collections are wiped.
    */
   wipeServer: function WeaveSvc_wipeServer(collections)
-    this._catch(this._notify("wipe-server", "", function() {
+    this._notify("wipe-server", "", function() {
       if (!collections) {
         collections = [];
         let info = new Resource(this.infoURL).get();
@@ -1445,19 +1555,23 @@ WeaveSvc.prototype = {
           collections.push(name);
       }
       for each (let name in collections) {
-        try {
-          new Resource(this.storageURL + name).delete();
-
-          // Remove the crypto record from the server and local cache
-          let crypto = this.storageURL + "crypto/" + name;
-          new Resource(crypto).delete();
-          CryptoMetas.del(crypto);
+        let url = this.storageURL + name;
+        let response = new Resource(url).delete();
+        if (response.status != 200 && response.status != 404) {
+          throw "Aborting wipeServer. Server responded with "
+                + response.status + " response for " + url;
         }
-        catch(ex) {
-          this._log.debug("Exception on wipe of '" + name + "': " + Utils.exceptionStr(ex));
+
+        // Remove the crypto record from the server and local cache
+        let crypto = this.storageURL + "crypto/" + name;
+        response = new Resource(crypto).delete();
+        CryptoMetas.del(crypto);
+        if (response.status != 200 && response.status != 404) {
+          throw "Aborting wipeServer. Server responded with "
+                + response.status + " response for " + crypto;
         }
       }
-    }))(),
+    })(),
 
   /**
    * Wipe all local user data.

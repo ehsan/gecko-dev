@@ -165,9 +165,11 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
 
     if (!ok) {
         GDIFontEntry *fe = static_cast<GDIFontEntry*>(GetFontEntry());
+        PRBool useUniscribeOnly = !fe->IsTrueType() || fe->IsSymbolFont();
 
-        if (UseUniscribe(aTextRun, aString, aRunStart, aRunLength)
-            && !fe->mForceGDI)
+        if (useUniscribeOnly ||
+            (UseUniscribe(aTextRun, aString, aRunStart, aRunLength)
+             && !fe->mForceGDI))
         {
             // first try Uniscribe
             if (!mUniscribeShaper) {
@@ -182,13 +184,15 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
             }
 
             // fallback to GDI shaping
-            if (!mPlatformShaper) {
-                CreatePlatformShaper();
-            }
+            if (!useUniscribeOnly) {
+                if (!mPlatformShaper) {
+                    CreatePlatformShaper();
+                }
 
-            ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
-                                              aRunStart, aRunLength, 
-                                              aRunScript);
+                ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
+                                                  aRunStart, aRunLength, 
+                                                  aRunScript);
+            }
 
         } else {
             // first use GDI
@@ -324,7 +328,8 @@ gfxGDIFont::Initialize()
         DWORD len = GetGlyphOutlineW(dc.GetDC(), PRUnichar('x'), GGO_METRICS, &gm, 0, nsnull, &kIdentityMatrix);
         if (len == GDI_ERROR || gm.gmptGlyphOrigin.y <= 0) {
             // 56% of ascent, best guess for true type
-            mMetrics->xHeight = ROUND((double)metrics.tmAscent * 0.56);
+            mMetrics->xHeight =
+                ROUND((double)metrics.tmAscent * DEFAULT_XHEIGHT_FACTOR);
         } else {
             mMetrics->xHeight = gm.gmptGlyphOrigin.y;
         }
@@ -333,7 +338,7 @@ gfxGDIFont::Initialize()
         mMetrics->emAscent = ROUND(mMetrics->emHeight * (double)oMetrics.otmAscent / typEmHeight);
         mMetrics->emDescent = mMetrics->emHeight - mMetrics->emAscent;
         if (oMetrics.otmEMSquare > 0) {
-            mFUnitsConvFactor = GetAdjustedSize() / oMetrics.otmEMSquare;
+            mFUnitsConvFactor = float(GetAdjustedSize() / oMetrics.otmEMSquare);
         }
     } else {
         // Make a best-effort guess at extended metrics
@@ -349,7 +354,8 @@ gfxGDIFont::Initialize()
             return;
         }
 
-        mMetrics->xHeight = ROUND((float)metrics.tmAscent * 0.56f); // 56% of ascent, best guess for non-true type
+        mMetrics->xHeight =
+            ROUND((float)metrics.tmAscent * DEFAULT_XHEIGHT_FACTOR);
         mMetrics->superscriptOffset = mMetrics->xHeight;
         mMetrics->subscriptOffset = mMetrics->xHeight;
         mMetrics->strikeoutSize = 1;
@@ -455,8 +461,10 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize)
     if (fe->mIsUserFont) {
         if (fe->IsItalic())
             italic = PR_FALSE; // avoid synthetic italic
-        if (fe->IsBold()) {
-            weight = 400; // avoid synthetic bold
+        if (fe->IsBold() || !mNeedsBold) {
+            // avoid GDI synthetic bold which occurs when weight
+            // specified is >= font data weight + 200
+            weight = 200; 
         }
     }
 

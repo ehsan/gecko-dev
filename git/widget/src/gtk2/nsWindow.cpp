@@ -339,19 +339,8 @@ typedef void (*_gdk_window_set_urgency_hint_fn)(GdkWindow *window,
 // cursor cache
 static GdkCursor *gCursorCache[eCursorCount];
 
-// Global update pixmap
-static PRBool gUseBufferPixmap = PR_FALSE;
-static GdkPixmap *gBufferPixmap = nsnull;
-static gfxIntSize gBufferPixmapSize(0,0);
-static gfxIntSize gBufferPixmapMaxSize(0,0);
-static int gBufferPixmapUsageCount = 0;
-
 // imported in nsWidgetFactory.cpp
 PRBool gDisableNativeTheme = PR_FALSE;
-
-// If this is 1, then a 24bpp buffer surface is always
-// created for exposes, even if the display has a different depth
-static PRBool gForce24bpp = PR_FALSE;
 
 static GtkWidget *gInvisibleContainer = NULL;
 
@@ -458,16 +447,6 @@ nsWindow::nsWindow()
     mDFB            = NULL;
     mDFBLayer       = NULL;
 #endif
-
-
-    if (gUseBufferPixmap) {
-        if (gBufferPixmapMaxSize.width == 0) {
-            gBufferPixmapMaxSize.width = gdk_screen_width();
-            gBufferPixmapMaxSize.height = gdk_screen_height();
-        }
-
-        gBufferPixmapUsageCount++;
-    }
 }
 
 nsWindow::~nsWindow()
@@ -725,27 +704,21 @@ nsWindow::Destroy(void)
     mIsDestroyed = PR_TRUE;
     mCreated = PR_FALSE;
 
-    nsRefPtr<GLContext> gl;
-    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL)
-    {
-        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
-        gl = manager->gl();
-    }
-
     /** Need to clean our LayerManager up while still alive */
-    mLayerManager = NULL;
+    if (mLayerManager) {
+        nsRefPtr<GLContext> gl = nsnull;
+        if (mLayerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+            LayerManagerOGL *ogllm = static_cast<LayerManagerOGL*>(mLayerManager.get());
+            gl = ogllm->gl();
+        }
 
-    if (gUseBufferPixmap &&
-        gBufferPixmapUsageCount &&
-        --gBufferPixmapUsageCount == 0)
-    {
-        if (gBufferPixmap)
-            g_object_unref(G_OBJECT(gBufferPixmap));
+        mLayerManager->Destroy();
 
-        gBufferPixmap = nsnull;
-        gBufferPixmapSize.width = 0;
-        gBufferPixmapSize.height = 0;
+        if (gl) {
+            gl->MarkDestroyed();
+        }
     }
+    mLayerManager = nsnull;
 
     g_signal_handlers_disconnect_by_func(gtk_settings_get_default(),
                                          FuncToGpointer(theme_changed_cb),
@@ -822,9 +795,6 @@ nsWindow::Destroy(void)
 
         gdk_window_set_user_data(mGdkWindow, NULL);
         g_object_set_data(G_OBJECT(mGdkWindow), "nsWindow", NULL);
-        if (gl) {
-            gl->WindowDestroyed();
-        }
         gdk_window_destroy(mGdkWindow);
         mGdkWindow = nsnull;
     }
@@ -1444,7 +1414,16 @@ nsWindow::SetFocus(PRBool aRaise)
 NS_IMETHODIMP
 nsWindow::GetScreenBounds(nsIntRect &aRect)
 {
-    aRect = nsIntRect(WidgetToScreenOffset(), mBounds.Size());
+    if (mIsTopLevel && mContainer) {
+        // use the point including window decorations
+        gint x, y;
+        gdk_window_get_root_origin(GTK_WIDGET(mContainer)->window, &x, &y);
+        aRect.MoveTo(x, y);
+    }
+    else {
+        aRect.MoveTo(WidgetToScreenOffset());
+    }
+    aRect.SizeTo(mBounds.Size());
     LOG(("GetScreenBounds %d %d | %d %d | %d %d\n",
          aRect.x, aRect.y,
          mBounds.width, mBounds.height,
@@ -1701,293 +1680,6 @@ nsWindow::Update()
     return NS_OK;
 }
 
-static pixman_box32
-ToPixmanBox(const nsIntRect& aRect)
-{
-    pixman_box32_t result;
-    result.x1 = aRect.x;
-    result.y1 = aRect.y;
-    result.x2 = aRect.XMost();
-    result.y2 = aRect.YMost();
-    return result;
-}
-
-static nsIntRect
-ToIntRect(const pixman_box32& aBox)
-{
-    nsIntRect result;
-    result.x = aBox.x1;
-    result.y = aBox.y1;
-    result.width = aBox.x2 - aBox.x1;
-    result.height = aBox.y2 - aBox.y1;
-    return result;
-}
-
-static void
-InitRegion(pixman_region32* aRegion,
-           const nsTArray<nsIntRect>& aRects)
-{
-    nsAutoTArray<pixman_box32,10> rects;
-    rects.SetCapacity(aRects.Length());
-    for (PRUint32 i = 0; i < aRects.Length (); ++i) {
-        if (!aRects[i].IsEmpty()) {
-            rects.AppendElement(ToPixmanBox(aRects[i]));
-        }
-    }
-
-    pixman_region32_init_rects(aRegion,
-                               rects.Elements(), rects.Length());
-}
-
-static void
-GetIntRects(pixman_region32& aRegion, nsTArray<nsIntRect>* aRects)
-{
-    int nRects;
-    pixman_box32* boxes = pixman_region32_rectangles(&aRegion, &nRects);
-    aRects->SetCapacity(aRects->Length() + nRects);
-    for (int i = 0; i < nRects; ++i) {
-        aRects->AppendElement(ToIntRect(boxes[i]));
-    }
-}
-
-/**
- * ScrollItemIter uses ScrollRectIterBase to order blit rectangles and
- * rectangular child clip regions in a way such that moving the items in this
- * order will avoid conflicts of blit rectangles.  Conflicts with child
- * windows are also avoided in situations with simple child window
- * arrangements.
- *
- * The blit rectangles must not intersect with any other rectangles (of either
- * blits or children).  Note that child clip regions are not guaranteed to be
- * exclusive of other child clip regions, so ScrollItemIter may not
- * necessarily provide an optimal order (if a child rectangle intersects
- * another child rectangle).
- */
-class ScrollItemIter : public ScrollRectIterBase {
-public:
-    // Each aChildRects[i] corresponds to
-    ScrollItemIter(const nsIntPoint& aDelta,
-                   const nsTArray<nsIntRect>& aBlitRects,
-                   const nsTArray<const nsIWidget::Configuration*>aChildConfs,
-                   const nsTArray<nsIntRect>& aChildSubRects);
-
-    PRBool IsBlit() const { return !Configuration(); };
-
-private:
-    struct ScrollItem : public ScrollRect {
-        ScrollItem(const nsIntRect& aIntRect) : ScrollRect(aIntRect) {}
-
-        const nsIWidget::Configuration *mChildConf;
-    };
-
-public:
-    const nsIWidget::Configuration* Configuration() const
-    {
-        return static_cast<const ScrollItem&>(Rect()).mChildConf;
-    }
-
-private:
-    // Copying is not supported.
-    ScrollItemIter(const ScrollItemIter&);
-    void operator=(const ScrollItemIter&);
-
-    nsTArray<ScrollItem> mRects;
-};
-
-ScrollItemIter::ScrollItemIter(const nsIntPoint& aDelta,
-                               const nsTArray<nsIntRect>& aBlitRects,
-                               const nsTArray<const nsIWidget::Configuration*>aChildConfs,
-                               const nsTArray<nsIntRect>& aChildSubRects)
-  : mRects(aBlitRects.Length() + aChildConfs.Length())
-{
-    for (PRUint32 i = 0; i < aBlitRects.Length(); ++i) {
-        if (ScrollItem* item = mRects.AppendElement(aBlitRects[i])) {
-            item->mChildConf = nsnull;
-        }
-    }
-
-    PRUint32 numChildren =
-        NS_MIN(aChildConfs.Length(), aChildSubRects.Length());
-    for (PRUint32 i = 0; i < numChildren; ++i) {
-        if (ScrollItem* item = mRects.AppendElement(aChildSubRects[i])) {
-            item->mChildConf = aChildConfs[i];
-        }
-    }
-
-    // Link items into a chain.
-    ScrollRect *next = nsnull;
-    for (PRUint32 i = mRects.Length(); i--; ) {
-        mRects[i].mNext = next;
-        next = &mRects[i];
-    }
-
-    BaseInit(aDelta, next);
-}
-
-void
-nsWindow::Scroll(const nsIntPoint& aDelta,
-                 const nsTArray<nsIntRect>& aDestRects,
-                 const nsTArray<Configuration>& aConfigurations)
-{
-    if (!mGdkWindow) {
-        NS_ERROR("Cannot scroll widget");
-        return;
-    }
-
-    // Empty Xlib's request buffer to reduce the likelihood of it getting
-    // emptied mid way through the scroll, in the hope that the server gets
-    // all the requests at once.
-    gdk_display_flush(gdk_drawable_get_display(GDK_DRAWABLE(mGdkWindow)));
-
-    // Collect the destination positions of moving child windows where they
-    // will eventually obscure their parent.
-    nsTArray<const Configuration*> movingChildren;
-    nsTArray<nsIntRect> movingChildSubRects;
-
-    for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-        const Configuration* conf = &aConfigurations[i];
-        nsWindow* w = static_cast<nsWindow*>(conf->mChild);
-        NS_ASSERTION(w->GetParent() == this,
-                     "Configured widget is not a child");
-
-        if (!w->mIsShown)
-            continue;
-
-        // Set the clip region of all visible windows to the intersection of
-        // the current and new region.  This reduces the conflict area with
-        // other objects (including stationary objects).
-        w->SetWindowClipRegion(conf->mClipRegion, PR_TRUE);
-
-        if (conf->mBounds.TopLeft() == w->mBounds.TopLeft())
-            continue; // window is not moving
-
-        nsAutoTArray<nsIntRect,1> rects; // of clip region intersection
-        w->GetWindowClipRegion(&rects);
-
-        // ScrollItemIter is designed only for rectangular scroll items.
-        //
-        // It is not suitable to use the bounding rectangle of complex child
-        // clip regions because that rectangle may intersect with blit
-        // rectangles and ScrollItemIter would then not necessarily provide
-        // the correct order for any such blit rectangles.  If child windows
-        // are not moved in the optimal order there will be some flicker
-        // during the scroll, which will be corrected through invalidations,
-        // but, if blit rectangles were moved in the wrong order, then some
-        // parts would get moved twice, which would not be corrected through
-        // invalidations.
-        //
-        // Choosing a sub-rectangle for the scroll item would make some parts
-        // of the child window scroll nicely but not others.  This can
-        // actually look worse than the whole window being moved out of order,
-        // so moving of child windows with complex clip regions is simply
-        // delayed until after blitting.
-        if (rects.Length() != 1)
-            continue; // no moving content or non-rectangular clip-region
-
-        movingChildren.AppendElement(conf);
-
-        // Destination position wrt mGdkWindow top left.
-        nsIntRect subRect = rects[0] + conf->mBounds.TopLeft();
-        movingChildSubRects.AppendElement(subRect);
-    }
-
-    nsAutoRef<pixman_region32> blitRegion;
-    InitRegion(&blitRegion, aDestRects);
-
-    // Remove some parts of the moving parent region that will be covered by
-    // moving child widgets.  These parts won't need drawing anyway, and it
-    // breaks up the blit rectangles so that we have a chance of moving them
-    // without conflicts with child rectangles.
-    //
-    // Also, subtracting the child sub-rectangles from the blit region ensures
-    // that the blit rectangles will not overlap with any blit or child
-    // rectangles, so ScrollItemIter will ensure that blit rectangles do not
-    // conflict with each other.
-    {
-        nsAutoRef<pixman_region32> childRegion;
-        InitRegion(&childRegion, movingChildSubRects);
-
-        pixman_region32_subtract(&blitRegion, &blitRegion, &childRegion);
-    }
-
-    nsTArray<nsIntRect> blitRects;
-    GetIntRects(blitRegion, &blitRects);
-
-    GdkRegion* updateArea = gdk_region_new(); // aborts on OOM
-
-    for (ScrollItemIter iter(aDelta, blitRects,
-                             movingChildren, movingChildSubRects);
-         !iter.IsDone(); ++iter) {
-        if (iter.IsBlit()) {
-            // The parts of source regions not covered by their destination
-            // get marked invalid by gdk_window_move_region.  This is
-            // necessary (until covered by another blit) because GDK
-            // translates any pending expose events to the destination, and so
-            // doesn't know whether an expose event might have been due on the
-            // source.
-            //
-            // However, GDK 2.18 does not subtract the invalid regions at the
-            // destinations from the update_area, so the seams between
-            // different moves remain invalid.  GDK 2.18 also delays and
-            // queues move operations.  If gdk_window_process_updates is
-            // called before the moves are flushed, GDK 2.18 removes the
-            // invalid seams from the move regions, so the seams are left with
-            // their old content until they get redrawn.  Therefore, the
-            // subtraction of destination invalid regions is performed here.
-            GdkRegion* recentUpdates = gdk_window_get_update_area(mGdkWindow);
-            if (recentUpdates) {
-                gdk_region_union(updateArea, recentUpdates);
-                gdk_region_destroy(recentUpdates);
-            } 
-
-            // We don't attempt to collect rects into regions because
-            // gdk_window_move_region, up to GDK 2.16, has a bug where it
-            // doesn't restrict blitting to the given region, and blits its
-            // full bounding box.
-            nsIntRect source = iter.Rect() - aDelta;
-            GdkRectangle gdkSource =
-                { source.x, source.y, source.width, source.height };
-            GdkRegion* rectRegion = gdk_region_rectangle(&gdkSource);
-            gdk_window_move_region(mGdkWindow, rectRegion,
-                                   aDelta.x, aDelta.y);
-
-            // The update_area on mGdkWindow from the move_region contains
-            // invalidations from the move:
-            // 1. The part of the source region not covered by the destination.
-            // 2. Any destination regions for which the source was obscured by
-            //    parent window clips or child windows.
-            //
-            // Our copy of the old invalid region needs adjusting.
-
-            // The part of the old invalid region that is moving.
-            GdkRegion* updateChanges = gdk_region_copy(rectRegion);
-            gdk_region_intersect(updateChanges, updateArea);
-            gdk_region_offset(updateChanges, aDelta.x, aDelta.y);
-
-            // Make |rectRegion| the destination
-            gdk_region_offset(rectRegion, aDelta.x, aDelta.y);
-            // Remove any old invalid areas covered at the destination.
-            gdk_region_subtract(updateArea, rectRegion);
-            gdk_region_union(updateArea, updateChanges);
-
-            gdk_region_destroy(updateChanges);
-            gdk_region_destroy(rectRegion);
-        } else {
-            const Configuration *conf = iter.Configuration();
-            nsWindow* w = static_cast<nsWindow*>(conf->mChild);
-            const nsIntRect& newBounds = conf->mBounds;
-            // (This move will modify the invalid_area on mGdkWindow to
-            // include areas that are uncovered when the child moves.)
-            w->Move(newBounds.x, newBounds.y);
-        }
-    }
-
-    gdk_window_invalidate_region(mGdkWindow, updateArea, FALSE);
-    gdk_region_destroy(updateArea);
-
-    ConfigureChildren(aConfigurations);
-}
-
 void*
 nsWindow::GetNativeData(PRUint32 aDataType)
 {
@@ -2094,14 +1786,8 @@ nsWindow::WidgetToScreenOffset()
 {
     gint x = 0, y = 0;
 
-    if (mContainer) {
-        gdk_window_get_root_origin(GTK_WIDGET(mContainer)->window,
-                                   &x, &y);
-        LOG(("WidgetToScreenOffset (container) %d %d\n", x, y));
-    }
-    else if (mGdkWindow) {
+    if (mGdkWindow) {
         gdk_window_get_origin(mGdkWindow, &x, &y);
-        LOG(("WidgetToScreenOffset (drawing) %d %d\n", x, y));
     }
 
     return nsIntPoint(x, y);
@@ -2323,6 +2009,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     nsPaintEvent event(PR_TRUE, NS_PAINT, this);
     event.refPoint.x = aEvent->area.x;
     event.refPoint.y = aEvent->area.y;
+    event.willSendDidPaint = PR_TRUE;
 
     GdkRectangle *rects;
     gint nrects;
@@ -2390,13 +2077,9 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         return FALSE;
     }
 
-    // The context that we'll actually paint into. When we're double-
-    // buffering, this can be different from ctx.
-    nsRefPtr<gfxContext> paintCtx = ctx;
-
 #ifdef MOZ_DFB
-    gfxPlatformGtk::GetPlatform()->SetGdkDrawable(ctx->OriginalSurface(),
-                                                  GDK_DRAWABLE(mGdkWindow));
+    gfxPlatformGtk::SetGdkDrawable(ctx->OriginalSurface(),
+                                   GDK_DRAWABLE(mGdkWindow));
 
     // clip to the update region
     ctx->NewPath();
@@ -2404,15 +2087,13 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         ctx->Rectangle(gfxRect(r->x, r->y, r->width, r->height));
     }
     ctx->Clip();
+
+    BasicLayerManager::BufferMode layerBuffering =
+        BasicLayerManager::BUFFER_NONE;
 #endif
 
 #ifdef MOZ_X11
-    nsIntRect boundsRect = event.region.GetBounds();
-
-    GdkPixmap* bufferPixmap = nsnull;
-    gfxIntSize bufferPixmapSize;
-
-    nsRefPtr<gfxASurface> bufferPixmapSurface;
+    nsIntRect boundsRect; // for translucent only
 
     ctx->NewPath();
     if (translucent) {
@@ -2420,6 +2101,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         // call UpdateTranslucentWindowAlpha once. After we have dropped
         // support for non-Thebes graphics, UpdateTranslucentWindowAlpha will be
         // our private interface so we can rework things to avoid this.
+        boundsRect = event.region.GetBounds();
         ctx->Rectangle(gfxRect(boundsRect.x, boundsRect.y,
                                boundsRect.width, boundsRect.height));
     } else {
@@ -2429,82 +2111,16 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
     }
     ctx->Clip();
 
-    // double buffer
+    BasicLayerManager::BufferMode layerBuffering;
     if (translucent) {
+        // The double buffering is done here to extract the shape mask.
+        // (The shape mask won't be necessary when a visual with an alpha
+        // channel is used on compositing window managers.)
+        layerBuffering = BasicLayerManager::BUFFER_NONE;
         ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
     } else {
-        // Instead of just doing PushGroup we're going to do a little dance
-        // to ensure that GDK creates the pixmap, so it doesn't go all
-        // XGetGeometry on us in gdk_pixmap_foreign_new_for_display when we
-        // paint native themes
-        gint depth;
-
-        if (gForce24bpp) {
-            depth = 24; // 24 always
-        } else {
-            depth = gdk_drawable_get_depth(GDK_DRAWABLE(mGdkWindow));
-        }
-
-        // Make sure we won't create something that will overload the X server
-        nsIntSize safeSize = GetSafeWindowSize(boundsRect.Size());
-        boundsRect.width = safeSize.width;
-        boundsRect.height = safeSize.height;
-
-        if (!gUseBufferPixmap ||
-            boundsRect.width > gBufferPixmapMaxSize.width ||
-            boundsRect.height > gBufferPixmapMaxSize.height)
-        {
-            // create a one-off always if we're not using the global pixmap
-            // if gUseBufferPixmap == TRUE, who's redrawing an area bigger than the screen?
-            bufferPixmap = gdk_pixmap_new(GDK_DRAWABLE(mGdkWindow),
-                                          boundsRect.width, boundsRect.height,
-                                          depth);
-            bufferPixmapSize.width = boundsRect.width;
-            bufferPixmapSize.height = boundsRect.height;
-        } else if (boundsRect.width > gBufferPixmapSize.width ||
-                   boundsRect.height > gBufferPixmapSize.height)
-        {
-            // grow the global pixmap
-            if (gBufferPixmap)
-                g_object_unref(G_OBJECT(gBufferPixmap));
-
-            gBufferPixmapSize.width = PR_MAX(gBufferPixmapSize.width, boundsRect.width);
-            gBufferPixmapSize.height = PR_MAX(gBufferPixmapSize.height, boundsRect.height);
-
-            gBufferPixmap = gdk_pixmap_new(GDK_DRAWABLE(mGdkWindow),
-                                           gBufferPixmapSize.width, gBufferPixmapSize.height,
-                                           depth);
-
-            // use the newly-resized global
-            bufferPixmap = gBufferPixmap;
-            bufferPixmapSize = gBufferPixmapSize;
-        }  else {
-            // global's big enough, just use it
-            bufferPixmap = gBufferPixmap;
-            bufferPixmapSize = gBufferPixmapSize;
-        }
-
-        if (bufferPixmap) {
-            bufferPixmapSurface = GetSurfaceForGdkDrawable(GDK_DRAWABLE(bufferPixmap),
-                                                           nsIntSize(bufferPixmapSize.width, bufferPixmapSize.height));
-
-            if (bufferPixmapSurface && bufferPixmapSurface->CairoStatus()) {
-                bufferPixmapSurface = nsnull;
-            }
-            if (bufferPixmapSurface) {
-                gfxPlatformGtk::GetPlatform()->SetGdkDrawable(
-                        static_cast<gfxASurface *>(bufferPixmapSurface),
-                        GDK_DRAWABLE(bufferPixmap));
-
-                bufferPixmapSurface->SetDeviceOffset(gfxPoint(-boundsRect.x, -boundsRect.y));
-                nsRefPtr<gfxContext> newCtx = new gfxContext(bufferPixmapSurface);
-                if (newCtx) {
-                    paintCtx = newCtx.forget();
-                } else {
-                    bufferPixmapSurface = nsnull;
-                }
-            }
-        }
+        // Get the layer manager to do double buffering (if necessary).
+        layerBuffering = BasicLayerManager::BUFFER_BUFFERED;
     }
 
 #if 0
@@ -2521,16 +2137,16 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
 
     nsEventStatus status;
     {
-      AutoLayerManagerSetup setupLayerManager(this, paintCtx);
+      AutoLayerManagerSetup setupLayerManager(this, ctx, layerBuffering);
       DispatchEvent(&event, status);
     }
 
 #ifdef MOZ_X11
     // DispatchEvent can Destroy us (bug 378273), avoid doing any paint
     // operations below if that happened - it will lead to XError and exit().
-    if (NS_LIKELY(!mIsDestroyed)) {
-        if (status != nsEventStatus_eIgnore) {
-            if (translucent) {
+    if (translucent) {
+        if (NS_LIKELY(!mIsDestroyed)) {
+            if (status != nsEventStatus_eIgnore) {
                 nsRefPtr<gfxPattern> pattern = ctx->PopGroup();
                 ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
                 ctx->SetPattern(pattern);
@@ -2553,26 +2169,23 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
                                                                    boundsRect.width, boundsRect.height),
                                                          img->Data(), img->Stride());
                 }
-            } else {
-                if (bufferPixmapSurface) {
-                    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-                    ctx->SetSource(bufferPixmapSurface);
-                    ctx->Paint();
-                }
             }
-        } else {
-            // ignore
-            if (translucent)
-                ctx->PopGroup();
         }
-
-        // if we had to allocate a local pixmap, free it here
-        if (bufferPixmap && bufferPixmap != gBufferPixmap)
-            g_object_unref(G_OBJECT(bufferPixmap));
     }
 #endif // MOZ_X11
 
     g_free(rects);
+
+    nsPaintEvent didPaintEvent(PR_TRUE, NS_DID_PAINT, this);
+    DispatchEvent(&didPaintEvent, status);
+
+    // Synchronously flush any new dirty areas
+    GdkRegion* dirtyArea = gdk_window_get_update_area(mGdkWindow);
+    if (dirtyArea) {
+        gdk_window_invalidate_region(mGdkWindow, dirtyArea, PR_FALSE);
+        gdk_region_destroy(dirtyArea);
+        gdk_window_process_updates(mGdkWindow, PR_FALSE);
+    }
 
     // check the return value!
     return TRUE;
@@ -2592,16 +2205,17 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
     // Toplevel windows need to have their bounds set so that we can
     // keep track of our location.  It's not often that the x,y is set
     // by the layout engine.  Width and height are set elsewhere.
+    nsIntPoint pnt(aEvent->x, aEvent->y);
     if (mIsTopLevel) {
         mPlaced = PR_TRUE;
         // Need to translate this into the right coordinates
         mBounds.MoveTo(WidgetToScreenOffset());
+        pnt = mBounds.TopLeft();
     }
 
     nsGUIEvent event(PR_TRUE, NS_MOVE, this);
 
-    event.refPoint.x = aEvent->x;
-    event.refPoint.y = aEvent->y;
+    event.refPoint = pnt;
 
     // XXX mozilla will invalidate the entire window after this move
     // complete.  wtf?
@@ -3443,8 +3057,21 @@ nsWindow::OnKeyPressEvent(GtkWidget *aWidget, GdkEventKey *aEvent)
         DispatchEvent(&contextMenuEvent, status);
     }
     else {
-        // send the key press event
-        DispatchEvent(&event, status);
+        // If the character code is in the BMP, send the key press event.
+        // Otherwise, send a text event with the equivalent UTF-16 string.
+        if (IS_IN_BMP(event.charCode)) {
+            DispatchEvent(&event, status);
+        }
+        else {
+            nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, this);
+            PRUnichar textString[3];
+            textString[0] = H_SURROGATE(event.charCode);
+            textString[1] = L_SURROGATE(event.charCode);
+            textString[2] = 0;
+            textEvent.theText = textString;
+            textEvent.time = event.time;
+            DispatchEvent(&textEvent, status);
+        }
     }
 
     // If the event was consumed, return.
@@ -4130,10 +3757,9 @@ nsWindow::Create(nsIWidget        *aParent,
             }
         }
         else if (mWindowType == eWindowType_popup) {
-            // The value of aParent contains a code: If a popup window has a
-            // non-NULL nsIWidget* aParent, it indicates that it should not be
-            // above all other windows (e.g a noautohide panel).
-            if (!aParent) {
+            // Popups that are not noautohide are only temporary. The are used
+            // for menus and the like and disappear when another window is used.
+            if (!aInitData->mNoAutoHide) {
                 // For most popups, use the standard GtkWindowType
                 // GTK_WINDOW_POPUP, which will use a Window with the
                 // override-redirect attribute (for temporary windows).
@@ -4145,7 +3771,16 @@ nsWindow::Create(nsIWidget        *aParent,
                 GtkWindow* gtkWin = GTK_WINDOW(mShell);
                 // ... but the window manager does not decorate this window,
                 // nor provide a separate taskbar icon.
-                gtk_window_set_decorated(gtkWin, FALSE);
+                if (mBorderStyle == eBorderStyle_default) {
+                  gtk_window_set_decorated(GTK_WINDOW(mShell), FALSE);
+                }
+                else {
+                  PRBool decorate = mBorderStyle & eBorderStyle_title;
+                  gtk_window_set_decorated(GTK_WINDOW(mShell), decorate);
+                  if (decorate) {
+                    gtk_window_set_deletable(GTK_WINDOW(mShell), mBorderStyle & eBorderStyle_close);
+                  }
+                }
                 gtk_window_set_skip_taskbar_hint(gtkWin, TRUE);
                 // Element focus is managed by the parent window so the
                 // WM_HINTS input field is set to False to tell the window
@@ -4227,6 +3862,12 @@ nsWindow::Create(nsIWidget        *aParent,
                                     // indicates that we already have the
                                     // standard cursor.
             SetCursor(eCursor_standard);
+
+            if (aInitData->mNoAutoHide) {
+                gint wmd = ConvertBorderStyles(mBorderStyle);
+                if (wmd != -1)
+                  gdk_window_set_decorations(mShell->window, (GdkWMDecoration) wmd);
+            }
         }
     }
         break;
@@ -4791,6 +4432,55 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
     return NS_OK;
 }
 
+static pixman_box32
+ToPixmanBox(const nsIntRect& aRect)
+{
+    pixman_box32_t result;
+    result.x1 = aRect.x;
+    result.y1 = aRect.y;
+    result.x2 = aRect.XMost();
+    result.y2 = aRect.YMost();
+    return result;
+}
+
+static nsIntRect
+ToIntRect(const pixman_box32& aBox)
+{
+    nsIntRect result;
+    result.x = aBox.x1;
+    result.y = aBox.y1;
+    result.width = aBox.x2 - aBox.x1;
+    result.height = aBox.y2 - aBox.y1;
+    return result;
+}
+
+static void
+InitRegion(pixman_region32* aRegion,
+           const nsTArray<nsIntRect>& aRects)
+{
+    nsAutoTArray<pixman_box32,10> rects;
+    rects.SetCapacity(aRects.Length());
+    for (PRUint32 i = 0; i < aRects.Length (); ++i) {
+        if (!aRects[i].IsEmpty()) {
+            rects.AppendElement(ToPixmanBox(aRects[i]));
+        }
+    }
+
+    pixman_region32_init_rects(aRegion,
+                               rects.Elements(), rects.Length());
+}
+
+static void
+GetIntRects(pixman_region32& aRegion, nsTArray<nsIntRect>* aRects)
+{
+    int nRects;
+    pixman_box32* boxes = pixman_region32_rectangles(&aRegion, &nRects);
+    aRects->SetCapacity(aRects->Length() + nRects);
+    for (int i = 0; i < nRects; ++i) {
+        aRects->AppendElement(ToIntRect(boxes[i]));
+    }
+}
+
 void
 nsWindow::SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                               PRBool aIntersectWithExisting)
@@ -5314,6 +5004,7 @@ nsWindow::ConvertBorderStyles(nsBorderStyle aStyle)
     if (aStyle == eBorderStyle_default)
         return -1;
 
+    // note that we don't handle eBorderStyle_close yet
     if (aStyle & eBorderStyle_all)
         w |= GDK_DECOR_ALL;
     if (aStyle & eBorderStyle_border)
@@ -5328,11 +5019,6 @@ nsWindow::ConvertBorderStyles(nsBorderStyle aStyle)
         w |= GDK_DECOR_MINIMIZE;
     if (aStyle & eBorderStyle_maximize)
         w |= GDK_DECOR_MAXIMIZE;
-    if (aStyle & eBorderStyle_close) {
-#ifdef DEBUG
-        printf("we don't handle eBorderStyle_close yet... please fix me\n");
-#endif /* DEBUG */
-    }
 
     return w;
 }
@@ -5392,7 +5078,8 @@ nsWindow::HideWindowChrome(PRBool aShouldHide)
     else
         wmd = ConvertBorderStyles(mBorderStyle);
 
-    gdk_window_set_decorations(mShell->window, (GdkWMDecoration) wmd);
+    if (wmd != -1)
+      gdk_window_set_decorations(mShell->window, (GdkWMDecoration) wmd);
 
     if (wasVisible)
         gdk_window_show(mShell->window);
@@ -6350,14 +6037,6 @@ initialize_prefs(void)
     if (NS_SUCCEEDED(rv))
         gRaiseWindows = val;
 
-    rv = prefs->GetBoolPref("mozilla.widget.force-24bpp", &val);
-    if (NS_SUCCEEDED(rv))
-        gForce24bpp = val;
-
-    rv = prefs->GetBoolPref("mozilla.widget.use-buffer-pixmap", &val);
-    if (NS_SUCCEEDED(rv))
-        gUseBufferPixmap = val;
-
     rv = prefs->GetBoolPref("mozilla.widget.disable-native-theme", &val);
     if (NS_SUCCEEDED(rv))
         gDisableNativeTheme = val;
@@ -6743,7 +6422,9 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                                    const nsIntSize& aSize)
 {
     GdkVisual* visual = gdk_drawable_get_visual(aDrawable);
-    Display* xDisplay = gdk_x11_drawable_get_xdisplay(aDrawable);
+    Screen* xScreen =
+        gdk_x11_screen_get_xscreen(gdk_drawable_get_screen(aDrawable));
+    Display* xDisplay = DisplayOfScreen(xScreen);
     Drawable xDrawable = gdk_x11_drawable_get_xid(aDrawable);
 
     gfxASurface* result = nsnull;
@@ -6769,7 +6450,7 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
                 break;
         }
 
-        result = new gfxXlibSurface(xDisplay, xDrawable, pf,
+        result = new gfxXlibSurface(xScreen, xDrawable, pf,
                                     gfxIntSize(aSize.width, aSize.height));
     }
 
@@ -6836,21 +6517,83 @@ nsWindow::GetThebesSurface()
     return mThebesSurface;
 }
 
+// Code shared begin BeginMoveDrag and BeginResizeDrag
+PRBool
+nsWindow::GetDragInfo(nsMouseEvent* aMouseEvent,
+                      GdkWindow** aWindow, gint* aButton,
+                      gint* aRootX, gint* aRootY)
+{
+    if (aMouseEvent->button != nsMouseEvent::eLeftButton) {
+        // we can only begin a move drag with the left mouse button
+        return PR_FALSE;
+    }
+    *aButton = 1;
+
+    // get the gdk window for this widget
+    GdkWindow* gdk_window = mGdkWindow;
+    if (!gdk_window) {
+        return PR_FALSE;
+    }
+    NS_ABORT_IF_FALSE(GDK_IS_WINDOW(gdk_window), "must really be window");
+
+    // find the top-level window
+    gdk_window = gdk_window_get_toplevel(gdk_window);
+    NS_ABORT_IF_FALSE(gdk_window,
+                      "gdk_window_get_toplevel should not return null");
+    *aWindow = gdk_window;
+
+    if (!aMouseEvent->widget) {
+        return PR_FALSE;
+    }
+
+    // FIXME: It would be nice to have the widget position at the time
+    // of the event, but it's relatively unlikely that the widget has
+    // moved since the mousedown.  (On the other hand, it's quite likely
+    // that the mouse has moved, which is why we use the mouse position
+    // from the event.)
+    nsIntPoint offset = aMouseEvent->widget->WidgetToScreenOffset();
+    *aRootX = aMouseEvent->refPoint.x + offset.x;
+    *aRootY = aMouseEvent->refPoint.y + offset.y;
+
+    return PR_TRUE;
+}
+
+NS_IMETHODIMP
+nsWindow::BeginMoveDrag(nsMouseEvent* aEvent)
+{
+    NS_ABORT_IF_FALSE(aEvent, "must have event");
+    NS_ABORT_IF_FALSE(aEvent->eventStructType == NS_MOUSE_EVENT,
+                      "event must have correct struct type");
+
+    GdkWindow *gdk_window;
+    gint button, screenX, screenY;
+    if (!GetDragInfo(aEvent, &gdk_window, &button, &screenX, &screenY)) {
+        return NS_ERROR_FAILURE;
+    }
+
+    // tell the window manager to start the move
+    gdk_window_begin_move_drag(gdk_window, button, screenX, screenY,
+                               aEvent->time);
+
+    return NS_OK;
+}
+
 NS_IMETHODIMP
 nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical)
 {
     NS_ENSURE_ARG_POINTER(aEvent);
 
     if (aEvent->eventStructType != NS_MOUSE_EVENT) {
-      // you can only begin a resize drag with a mouse event
-      return NS_ERROR_INVALID_ARG;
+        // you can only begin a resize drag with a mouse event
+        return NS_ERROR_INVALID_ARG;
     }
 
     nsMouseEvent* mouse_event = static_cast<nsMouseEvent*>(aEvent);
 
-    if (mouse_event->button != nsMouseEvent::eLeftButton) {
-      // you can only begin a resize drag with the left mouse button
-      return NS_ERROR_INVALID_ARG;
+    GdkWindow *gdk_window;
+    gint button, screenX, screenY;
+    if (!GetDragInfo(mouse_event, &gdk_window, &button, &screenX, &screenY)) {
+        return NS_ERROR_FAILURE;
     }
 
     // work out what GdkWindowEdge we're talking about
@@ -6881,39 +6624,9 @@ nsWindow::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVert
         }
     }
 
-    // get the gdk window for this widget
-    GdkWindow* gdk_window = mGdkWindow;
-    if (!GDK_IS_WINDOW(gdk_window)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    // find the top-level window
-    gdk_window = gdk_window_get_toplevel(gdk_window);
-    if (!GDK_IS_WINDOW(gdk_window)) {
-      return NS_ERROR_FAILURE;
-    }
-
-
-    // get the current (default) display
-    GdkDisplay* display = gdk_display_get_default();
-    if (!GDK_IS_DISPLAY(display)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    // get the current pointer position and button state
-    GdkScreen* screen = NULL;
-    gint screenX, screenY;
-    GdkModifierType mask;
-    gdk_display_get_pointer(display, &screen, &screenX, &screenY, &mask);
-
-    // we only support resizing with button 1
-    if (!(mask & GDK_BUTTON1_MASK)) {
-        return NS_ERROR_FAILURE;
-    }
-
     // tell the window manager to start the resize
-    gdk_window_begin_resize_drag(gdk_window, window_edge, 1,
-            screenX, screenY, aEvent->time);
+    gdk_window_begin_resize_drag(gdk_window, window_edge, button,
+                                 screenX, screenY, aEvent->time);
 
     return NS_OK;
 }

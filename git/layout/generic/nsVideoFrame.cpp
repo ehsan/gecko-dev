@@ -57,12 +57,14 @@
 #include "nsBoxFrame.h"
 #include "nsImageFrame.h"
 #include "nsIImageLoadingContent.h"
+#include "nsDisplayList.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
 #include "nsIAccessibilityService.h"
 #endif
 
+using namespace mozilla;
 using namespace mozilla::layers;
 
 nsIFrame*
@@ -99,7 +101,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
                                             nsnull,
                                             kNameSpaceID_XHTML);
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-    mPosterImage = NS_NewHTMLImageElement(nodeInfo);
+    mPosterImage = NS_NewHTMLImageElement(nodeInfo.forget());
     NS_ENSURE_TRUE(mPosterImage, NS_ERROR_OUT_OF_MEMORY);
 
     // Set the nsImageLoadingContent::ImageState() to 0. This means that the
@@ -127,7 +129,7 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 
   nsresult rv = NS_NewElement(getter_AddRefs(mVideoControls),
                               kNameSpaceID_XUL,
-                              nodeInfo,
+                              nodeInfo.forget(),
                               PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!aElements.AppendElement(mVideoControls))
@@ -175,7 +177,8 @@ CorrectForAspectRatio(const gfxRect& aRect, const nsIntSize& aRatio)
 
 already_AddRefed<Layer>
 nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
-                         LayerManager* aManager)
+                         LayerManager* aManager,
+                         nsDisplayItem* aItem)
 {
   nsRect area = GetContentRect() + aBuilder->ToReferenceFrame(GetParent());
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
@@ -184,6 +187,14 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     return nsnull;
 
   nsRefPtr<ImageContainer> container = element->GetImageContainer();
+  // If we have a container with a different layer manager, try to hand
+  // off the container to the new one.
+  if (container && container->Manager() != aManager) {
+    // we don't care about the return type here -- if the set didn't take, it'll
+    // be handled when we next check the manager
+    container->SetLayerManager(aManager);
+  }
+
   // If we have a container with the right layer manager already, we don't
   // need to do anything here. Otherwise we need to set up a temporary
   // ImageContainer, capture the video data and store it in the temp
@@ -200,6 +211,10 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
       // Get video from the existing container. It was created for a
       // different layer manager, so we do fallback through cairo.
       imageSurface = container->GetCurrentAsSurface(&cairoData.mSize);
+      if (!imageSurface) {
+        // we couldn't do fallback, so we've got nothing to do here
+        return nsnull;
+      }
       cairoData.mSurface = imageSurface;
     } else {
       // We're probably printing.
@@ -239,9 +254,13 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                       presContext->AppUnitsToGfxUnits(area.height));
   r = CorrectForAspectRatio(r, videoSize);
 
-  nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
-  if (!layer)
-    return nsnull;
+  nsRefPtr<ImageLayer> layer = static_cast<ImageLayer*>
+    (aBuilder->LayerBuilder()->GetLeafLayerFor(aBuilder, aManager, aItem));
+  if (!layer) {
+    layer = aManager->CreateImageLayer();
+    if (!layer)
+      return nsnull;
+  }
 
   layer->SetContainer(container);
   layer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(this));
@@ -348,7 +367,7 @@ public:
   }
 #endif
   
-  NS_DISPLAY_DECL_NAME("Video")
+  NS_DISPLAY_DECL_NAME("Video", TYPE_VIDEO)
 
   // It would be great if we could override IsOpaque to return false here,
   // but it's probably not safe to do so in general. Video frames are
@@ -367,7 +386,25 @@ public:
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager)
   {
-    return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager);
+    return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
+  }
+
+  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
+                                   LayerManager* aManager)
+  {
+    if (aManager->GetBackendType() != LayerManager::LAYERS_BASIC) {
+      // For non-basic layer managers we can assume that compositing
+      // layers is very cheap, and since ImageLayers don't require
+      // additional memory of the video frames we have to have anyway,
+      // we can't save much by making layers inactive. Also, for many
+      // accelerated layer managers calling
+      // imageContainer->GetCurrentAsSurface can be very expensive. So
+      // just always be active for these managers.
+      return LAYER_ACTIVE;
+    }
+    nsHTMLMediaElement* elem =
+      static_cast<nsHTMLMediaElement*>(mFrame->GetContent());
+    return elem->IsPotentiallyPlaying() ? LAYER_ACTIVE : LAYER_INACTIVE;
   }
 };
 

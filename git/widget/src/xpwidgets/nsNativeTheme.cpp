@@ -50,7 +50,6 @@
 #include "nsILookAndFeel.h"
 #include "nsThemeConstants.h"
 #include "nsIComponentManager.h"
-#include "nsIDOMNSHTMLInputElement.h"
 #include "nsPIDOMWindow.h"
 
 nsNativeTheme::nsNativeTheme()
@@ -213,7 +212,7 @@ nsNativeTheme::GetIndeterminate(nsIFrame* aFrame)
   }
 
   // Check for an HTML input element
-  nsCOMPtr<nsIDOMNSHTMLInputElement> inputElt = do_QueryInterface(content);
+  nsCOMPtr<nsIDOMHTMLInputElement> inputElt = do_QueryInterface(content);
   if (inputElt) {
     PRBool indeterminate;
     inputElt->GetIndeterminate(&indeterminate);
@@ -444,8 +443,8 @@ nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
     if (parent->GetContent() == parentContent) {
       if (aLeftOfParent) {
         nsIntRect selfBounds, parentBounds;
-        aFrame->GetWindow()->GetScreenBounds(selfBounds);
-        parent->GetWindow()->GetScreenBounds(parentBounds);
+        aFrame->GetNearestWidget()->GetScreenBounds(selfBounds);
+        parent->GetNearestWidget()->GetScreenBounds(parentBounds);
         *aLeftOfParent = selfBounds.x < parentBounds.x;
       }
       return PR_TRUE;

@@ -71,7 +71,7 @@ interface nsIPrincipal;
 interface nsIWebBrowserPrint;
 interface nsIVariant;
 
-[scriptable, uuid(3adde256-05a9-43a7-a190-f8fe75eecfd6)]
+[scriptable, uuid(bf6db598-3833-400b-9e53-ec220cb2496c)]
 interface nsIDocShell : nsISupports
 {
   /**
@@ -511,4 +511,21 @@ interface nsIDocShell : nsISupports
    * is loaded.
    */
   readonly attribute nsIWebBrowserPrint printPreview;
+
+  /**
+   * Whether this docshell can execute scripts based on its hierarchy.
+   * The rule of thumb here is that we disable js if this docshell or any
+   * of its parents disallow scripting, unless the only reason for js being
+   * disabled in this docshell is a parent docshell having a document that
+   * is in design mode.  In that case, we explicitly allow scripting on the
+   * current docshell.
+   */
+  readonly attribute boolean canExecuteScripts;
+
+  /**
+   * Sets whether a docshell is active. An active docshell is one that is
+   * visible, and thus is not a good candidate for certain optimizations
+   * like image frame discarding. Docshells are active unless told otherwise.
+   */
+  attribute boolean isActive;
 };
