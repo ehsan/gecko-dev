@@ -1874,11 +1874,16 @@ case "$target" in
     AR_DELETE="$AR d"
     AR_FLAGS='-OUT:"$@"'
 
+    if test -z "$AS_BIN"; then
+        AS="$AS_BIN"
+    fi
     DSO_CFLAGS=
     DSO_PIC_CFLAGS=
     DLL_SUFFIX=.dll
     BIN_SUFFIX='.exe'
-    RC=rc.exe
+    if test -z "$RC"; then 
+        RC=rc.exe  
+    fi
     # certain versions of cygwin's makedepend barf on the 
     # #include <string> vs -I./dist/include/string issue so don't use it
     SYSTEM_MAKEDEPEND=
@@ -2985,6 +2990,17 @@ dnl Try for MMX support
 dnl NB - later gcc versions require -mmmx for this header to be successfully
 dnl included (or another option which implies it, such as -march=pentium-mmx)
 AC_CHECK_HEADERS(mmintrin.h)
+
+AC_MSG_CHECKING(for ARM SIMD support)
+AC_TRY_COMPILE([],
+               [asm("uqadd8 r1, r1, r2");],
+               result="yes", result="no")
+AC_MSG_RESULT("$result")
+if test "$result" = "yes"; then
+    AC_DEFINE(HAVE_ARM_SIMD)
+    HAVE_ARM_SIMD=1
+fi
+AC_SUBST(HAVE_ARM_SIMD)
 
 dnl Check whether the compiler supports the new-style C++ standard
 dnl library headers (i.e. <new>) or needs the old "new.h"
