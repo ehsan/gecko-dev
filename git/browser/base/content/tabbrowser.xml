@@ -1410,12 +1410,8 @@
 
             var l = this.mTabContainer.childNodes.length;
             if (l == 1) {
-              if (this.mPrefs.getBoolPref("browser.tabs.closeWindowWithLastTab")) {
-                closeWindow(true);
-                return null;
-              }
-              BrowserOpenTab();
-              l++;
+              closeWindow(true);
+              return null;
             }
             if (l == 2) {
               var autohide = this.mPrefs.getBoolPref("browser.tabs.autoHide");
@@ -1473,7 +1469,7 @@
         <body>
           <![CDATA[
             if (!aTab)
-              return;
+              return null;
 
             var browser = this.getBrowserForTab(aTab);
             var length = this.mTabs.length;

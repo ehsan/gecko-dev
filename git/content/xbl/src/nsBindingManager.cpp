@@ -990,6 +990,7 @@ nsBindingManager::ProcessAttachedQueue(PRUint32 aSkipSize)
 
   mProcessingAttachedStack = PR_TRUE;
 
+  PRUint32 currentIndex = aSkipSize;
   // Excute constructors. Do this from high index to low
   while (mAttachedStack.Length() > aSkipSize) {
     PRUint32 lastItem = mAttachedStack.Length() - 1;

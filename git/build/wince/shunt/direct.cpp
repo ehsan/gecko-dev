@@ -49,7 +49,9 @@ extern "C" {
 
 MOZCE_SHUNT_API int mkdir(const char* inDirname)
 {
-    WINCE_LOG_API_CALL("mkdir called\n");
+#ifdef API_LOGGING
+    mozce_printf("mkdir called\n");
+#endif
     
     int retval = -1;
     
@@ -72,7 +74,9 @@ MOZCE_SHUNT_API int mkdir(const char* inDirname)
 
 MOZCE_SHUNT_API int rmdir(const char* inDirname)
 {
-    WINCE_LOG_API_CALL_1("rmdir called (%s)\n", inDirname);
+#ifdef API_LOGGING
+    mozce_printf("rmdir called (%s)\n", inDirname);
+#endif
     
     int retval = -1;
     

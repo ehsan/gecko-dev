@@ -225,8 +225,8 @@ mozStorageRow::GetBlob(PRUint32 aIndex, PRUint32 *_size, PRUint8 **_blob)
     return NS_ERROR_ILLEGAL_VALUE;
 
   PRUint16 type;
-  nsIID interfaceIID;
-  return mData.ObjectAt(aIndex)->GetAsArray(&type, &interfaceIID, _size,
+  nsIID interface;
+  return mData.ObjectAt(aIndex)->GetAsArray(&type, &interface, _size,
                                             reinterpret_cast<void **>(_blob));
 }
 

@@ -260,6 +260,7 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
 {
   PRIntn skipSides = GetSkipSides();
   const nsStyleBorder* borderStyle = GetStyleBorder();
+  const nsStylePadding* paddingStyle = GetStylePadding();
        
   nscoord topBorder = borderStyle->GetActualBorderWidth(NS_SIDE_TOP);
   nscoord yoff = 0;
@@ -273,7 +274,8 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
   nsRect rect(aPt.x, aPt.y + yoff, mRect.width, mRect.height - yoff);
 
   nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
-                                  aDirtyRect, rect, PR_TRUE);
+                                  aDirtyRect, rect, *borderStyle,
+                                  *paddingStyle, PR_TRUE);
 
    if (mLegendFrame) {
 

@@ -80,7 +80,7 @@
 #include "prmjtime.h"
 #include "jsstaticcheck.h"
 
-#if !defined JS_THREADSAFE && defined JS_TRACER
+#ifdef JS_TRACER
 #include "jstracer.h"
 #endif
 
@@ -873,6 +873,9 @@ JS_ShutDown(void)
     js_CleanupLocks();
 #endif
     PRMJ_NowShutdown();
+#ifdef JS_TRACER
+    js_ShutDownJIT();
+#endif    
 }
 
 JS_PUBLIC_API(void *)
@@ -5838,7 +5841,7 @@ JS_SetGCZeal(JSContext *cx, uint8 zeal)
 
 /************************************************************************/
 
-#if !defined(STATIC_JS_API) && defined(XP_WIN) && !defined (WINCE)
+#if !defined(STATIC_JS_API) && defined(XP_WIN)
 
 #include <windows.h>
 

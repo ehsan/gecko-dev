@@ -548,7 +548,7 @@ sub dbg {
 sub outresults
 {
     dbg "sorting temp file $temp";
-    system("sort -u < $temp");
+    system("sort < $temp | uniq");
     dbg "finished sorting";
 }
 

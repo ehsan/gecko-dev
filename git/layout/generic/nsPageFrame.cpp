@@ -571,9 +571,12 @@ nsPageFrame::PaintPageContent(nsIRenderingContext& aRenderingContext,
   }
   aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
 
+  const nsStyleBorder* border = GetStyleBorder();
+  const nsStylePadding* padding = GetStylePadding();
   nsRect backgroundRect = nsRect(nsPoint(0, 0), pageContentFrame->GetSize());
   nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,
-                                  rect, backgroundRect, PR_TRUE);
+                                  rect, backgroundRect, *border, *padding,
+                                  PR_TRUE);
 
   nsLayoutUtils::PaintFrame(&aRenderingContext, pageContentFrame,
                             nsRegion(rect), NS_RGBA(0,0,0,0));

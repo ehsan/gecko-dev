@@ -174,7 +174,8 @@ class Preprocessor:
       for k,v in os.environ.iteritems():
         self.context[k] = v
     def handleD(option, opt, value, parser):
-      vals = value.split('=', 1)
+      vals = value.split('=')
+      assert len(vals) < 3
       if len(vals) == 1:
         vals.append(1)
       elif unescapeDefines and escapedValue.match(vals[1]):

@@ -1708,7 +1708,8 @@ nsScriptSecurityManager::CanExecuteScripts(JSContext* cx,
             if (NS_FAILED(rv)) return rv;
             if (appType == nsIDocShell::APP_TYPE_MAIL) 
             {
-                *result = mIsMailJavaScriptEnabled;
+                // we are temporarily disabling js in mail for TB 3.0 b1
+                *result = PR_FALSE; // mIsMailJavaScriptEnabled;
             }
         }
     }
@@ -3785,8 +3786,7 @@ nsScriptSecurityManager::ScriptSecurityPrefChanged()
 
     rv = mSecurityPref->SecurityGetBoolPref(sJSMailEnabledPrefName, &temp);
     // JavaScript in Mail defaults to disabled in failure cases.
-    // disable javascript in mailnews for TB 3.0 beta1
-    mIsMailJavaScriptEnabled = PR_FALSE; // NS_SUCCEEDED(rv) && temp;
+    mIsMailJavaScriptEnabled = NS_SUCCEEDED(rv) && temp;
 
     rv = mSecurityPref->SecurityGetBoolPref(sFileOriginPolicyPrefName, &temp);
     sStrictFileOriginPolicy = NS_SUCCEEDED(rv) && temp;
