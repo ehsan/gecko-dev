@@ -287,8 +287,6 @@ nsEventStatus GestureEventListener::HandlePinchGestureEvent(const MultiTouchInpu
     mState = GESTURE_NONE;
 
     rv = nsEventStatus_eConsumeNoDefault;
-  } else if (mState == GESTURE_WAITING_PINCH) {
-    mState = GESTURE_NONE;
   }
 
   if (aClearTouches) {

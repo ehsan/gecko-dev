@@ -177,7 +177,6 @@ SideMenuWidget.prototype = {
 
     this._orderedMenuElementsArray.splice(
       this._orderedMenuElementsArray.indexOf(aChild), 1);
-
     this._itemsByElement.delete(aChild);
 
     if (this._selectedItem == aChild) {

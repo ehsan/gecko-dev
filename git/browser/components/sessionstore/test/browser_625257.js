@@ -56,7 +56,8 @@ function test() {
 
       // Start a load and interrupt it by closing the tab
       tab.linkedBrowser.loadURI(URI_TO_LOAD);
-      yield waitForLoadStarted(tab);
+      let loaded = yield waitForLoadStarted(tab);
+      ok(loaded, "Load started");
 
       let tabClosing = waitForTabClosed();
       gBrowser.removeTab(tab);
