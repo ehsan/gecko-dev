@@ -11,7 +11,6 @@ Cu.import("resource://testing-common/services/sync/utils.js");
 Cu.import("resource://services-common/hawk.js");
 Cu.import("resource://gre/modules/FxAccounts.jsm");
 Cu.import("resource://gre/modules/FxAccountsClient.jsm");
-Cu.import("resource://gre/modules/FxAccountsCommon.js");
 
 const SECOND_MS = 1000;
 const MINUTE_MS = SECOND_MS * 60;
@@ -34,25 +33,22 @@ MockFxAccountsClient.prototype = {
   __proto__: FxAccountsClient.prototype
 };
 
-function MockFxAccounts() {
-  return new FxAccounts({
-    _now_is: Date.now(),
+let MockFxAccounts = function() {
+  this._now_is = Date.now();
 
-    now: function () {
+  let mockInternal = {
+    now: () => {
       return this._now_is;
     },
 
-    getCertificate: function(data, keyPair, mustBeValidUntil) {
-      this.cert = {
-        validUntil: Date.now() + CERT_LIFETIME,
-        cert: "certificate",
-      };
-      return Promise.resolve(this.cert.cert);
-    },
-
     fxAccountsClient: new MockFxAccountsClient()
-  });
-}
+  };
+
+  FxAccounts.apply(this, [mockInternal]);
+};
+MockFxAccounts.prototype = {
+  __proto__: FxAccounts.prototype,
+};
 
 function run_test() {
   initTestLogging("Trace");
@@ -133,7 +129,7 @@ add_test(function test_resourceAuthenticatorSkew() {
   do_check_eq(fxaClient.localtimeOffsetMsec, localtimeOffsetMsec);
 
   let fxa = new MockFxAccounts();
-  fxa.internal._now_is = now;
+  fxa._now_is = now;
   fxa.internal.fxAccountsClient = fxaClient;
 
   // Picked up by the signed-in user module
@@ -145,10 +141,6 @@ add_test(function test_resourceAuthenticatorSkew() {
 
   // Mocks within mocks...
   configureFxAccountIdentity(browseridManager, identityConfig);
-
-  // Ensure the new FxAccounts mock has a signed-in user.
-  fxa.internal.signedInUser = browseridManager._fxaService.internal.signedInUser;
-
   browseridManager._fxaService = fxa;
 
   do_check_eq(browseridManager._fxaService.internal.now(), now);
@@ -194,14 +186,10 @@ add_test(function test_RESTResourceAuthenticatorSkew() {
   let fxaClient = new MockFxAccountsClient();
   fxaClient.hawk = hawkClient;
   let fxa = new MockFxAccounts();
-  fxa.internal._now_is = now;
+  fxa._now_is = now;
   fxa.internal.fxAccountsClient = fxaClient;
 
   configureFxAccountIdentity(browseridManager, identityConfig);
-
-  // Ensure the new FxAccounts mock has a signed-in user.
-  fxa.internal.signedInUser = browseridManager._fxaService.internal.signedInUser;
-
   browseridManager._fxaService = fxa;
 
   do_check_eq(browseridManager._fxaService.internal.now(), now);
