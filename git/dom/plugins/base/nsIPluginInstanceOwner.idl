@@ -49,9 +49,7 @@ class nsPluginEvent;
 
 [ptr] native nsNPAPIPluginInstancePtr(nsNPAPIPluginInstance);
 
-// Do not make this interface scriptable, because the virtual functions in C++
-// blocks will make script call the wrong functions.
-[uuid(23bd0a76-a5dc-4a1d-be76-13d7a0dfd9ff)]
+[uuid(17E89C1F-AE62-448E-83D5-C33FA6E07A19)]
 interface nsIPluginInstanceOwner : nsISupports
 {
   /**
@@ -117,6 +115,11 @@ interface nsIPluginInstanceOwner : nsISupports
    * Invalidate the region
    */
   void invalidateRegion(in NPRegion aRegion);
+
+  /**
+   * Force a redraw
+   */
+  void forceRedraw();
 
   /**
    * Get NetscapeWindow, corresponds to NPNVnetscapeWindow

@@ -477,7 +477,6 @@ let Buf = {
    *        Integer specifying the request type.
    */
   newParcel: function newParcel(type) {
-    if (DEBUG) debug("New outgoing parcel of type " + type);
     // We're going to leave room for the parcel size at the beginning.
     this.outgoingIndex = PARCEL_SIZE_SIZE;
     this.writeUint32(type);
@@ -538,27 +537,6 @@ let RIL = {
     }
 
     this.rilQuirksInitialized = true;
-  },
-
-  /**
-   * Parse an integer from a string, falling back to a default value
-   * if the the provided value is not a string or does not contain a valid
-   * number.
-   * 
-   * @param string
-   *        String to be parsed.
-   * @param defaultValue
-   *        Default value to be used.
-   */
-  parseInt: function RIL_parseInt(string, defaultValue) {
-    let number = parseInt(string, 10);
-    if (!isNaN(number)) {
-      return number;
-    }
-    if (defaultValue === undefined) {
-      defaultValue = null;
-    }
-    return defaultValue;
   },
 
   /**
@@ -839,8 +817,8 @@ let RIL = {
    *
    * @param radioTech
    *        Integer to indicate radio technology.
-   *        DATACALL_RADIOTECHNOLOGY_CDMA => CDMA.
-   *        DATACALL_RADIOTECHNOLOGY_GSM  => GSM.
+   *        DATACALL_RADIOTECHONLOGY_CDMA => CDMA.
+   *        DATACALL_RADIOTECHONLOGY_GSM  => GSM.
    * @param apn
    *        String containing the name of the APN to connect to.
    * @param user
@@ -1129,25 +1107,21 @@ RIL[REQUEST_GET_MUTE] = null;
 RIL[REQUEST_QUERY_CLIP] = null;
 RIL[REQUEST_LAST_DATA_CALL_FAIL_CAUSE] = null;
 RIL[REQUEST_DATA_CALL_LIST] = function REQUEST_DATA_CALL_LIST(length) {
-  let num = 0;
-  if (length) {
-    num = Buf.readUint32();
-  }
-  if (!num) {
-    Phone.onDataCallList(null);
+  let datacalls = [];
+
+  if (!length) {
     return;
   }
 
-  let datacalls = {};
+  let num = Buf.readUint32();
   for (let i = 0; i < num; i++) {
-    let datacall = {
+    datacalls.push({
       cid: Buf.readUint32().toString(),
       active: Buf.readUint32(),
       type: Buf.readString(),
       apn: Buf.readString(),
       address: Buf.readString()
-    };
-    datacalls[datacall.cid] = datacall;
+    });
   }
 
   Phone.onDataCallList(datacalls);
@@ -1230,9 +1204,7 @@ RIL[UNSOLICITED_NITZ_TIME_RECEIVED] = null;
 RIL[UNSOLICITED_SIGNAL_STRENGTH] = function UNSOLICITED_SIGNAL_STRENGTH() {
   this[REQUEST_SIGNAL_STRENGTH]();
 };
-RIL[UNSOLICITED_DATA_CALL_LIST_CHANGED] = function UNSOLICITED_DATA_CALL_LIST_CHANGED(length) {
-  Phone.onDataCallListChanged();
-};
+RIL[UNSOLICITED_DATA_CALL_LIST_CHANGED] = null;
 RIL[UNSOLICITED_SUPP_SVC_NOTIFICATION] = null;
 RIL[UNSOLICITED_STK_SESSION_END] = null;
 RIL[UNSOLICITED_STK_PROACTIVE_COMMAND] = null;
@@ -1288,9 +1260,6 @@ let Phone = {
   IMEISV: null,
   IMSI: null,
   SMSC: null,
-
-  registrationState: {},
-  gprsRegistrationState: {},
 
   /**
    * List of strings identifying the network operator.
@@ -1406,7 +1375,7 @@ let Phone = {
       this.sendDOMMessage({
         type: "radiostatechange",
         radioState: (newState == RADIO_STATE_OFF) ?
-                     GECKO_RADIOSTATE_OFF : GECKO_RADIOSTATE_READY
+                     DOM_RADIOSTATE_OFF : DOM_RADIOSTATE_READY
       });
 
       //XXX TODO For now, just turn the radio on if it's off. for the real
@@ -1423,7 +1392,7 @@ let Phone = {
       //TODO do that
 
       this.sendDOMMessage({type: "radiostatechange",
-                           radioState: GECKO_RADIOSTATE_UNAVAILABLE});
+                           radioState: DOM_RADIOSTATE_UNAVAILABLE});
     }
 
     if (newState == RADIO_STATE_SIM_READY  ||
@@ -1435,13 +1404,13 @@ let Phone = {
       RIL.getSignalStrength();
       RIL.getSMSCAddress();
       this.sendDOMMessage({type: "cardstatechange",
-                           cardState: GECKO_CARDSTATE_READY});
+                           cardState: DOM_CARDSTATE_READY});
     }
     if (newState == RADIO_STATE_SIM_LOCKED_OR_ABSENT  ||
         newState == RADIO_STATE_RUIM_LOCKED_OR_ABSENT) {
       RIL.getICCStatus();
       this.sendDOMMessage({type: "cardstatechange",
-                           cardState: GECKO_CARDSTATE_UNAVAILABLE});
+                           cardState: DOM_CARDSTATE_UNAVAILABLE});
     }
 
     let wasOn = this.radioState != RADIO_STATE_OFF &&
@@ -1476,7 +1445,8 @@ let Phone = {
           currentCall.state = newCall.state;
           this._handleChangedCallState(currentCall);
         }
-      } else {
+      }
+      else {
         // Call is no longer reported by the radio. Remove from our map and
         // send disconnected state change.
         delete this.currentCalls[currentCall.callIndex];
@@ -1526,10 +1496,10 @@ let Phone = {
 
     if ((!iccStatus) || (iccStatus.cardState == CARD_STATE_ABSENT)) {
       if (DEBUG) debug("ICC absent");
-      if (this.cardState == GECKO_CARDSTATE_ABSENT) {
+      if (this.cardState == DOM_CARDSTATE_ABSENT) {
         return;
       }
-      this.cardState = GECKO_CARDSTATE_ABSENT;
+      this.cardState = DOM_CARDSTATE_ABSENT;
       this.sendDOMMessage({type: "cardstatechange",
                            cardState: this.cardState});
       return;
@@ -1542,10 +1512,10 @@ let Phone = {
         (this.radioState == RADIO_STATE_NV_NOT_READY) ||
         (this.radioState == RADIO_STATE_NV_READY)) {
       if (DEBUG) debug("ICC not ready");
-      if (this.cardState == GECKO_CARDSTATE_NOT_READY) {
+      if (this.cardState == DOM_CARDSTATE_NOT_READY) {
         return;
       }
-      this.cardState = GECKO_CARDSTATE_NOT_READY;
+      this.cardState = DOM_CARDSTATE_NOT_READY;
       this.sendDOMMessage({type: "cardstatechange",
                            cardState: this.cardState});
       return;
@@ -1560,10 +1530,10 @@ let Phone = {
         if (DEBUG) {
           debug("Subscription application is not present in iccStatus.");
         }
-        if (this.cardState == GECKO_CARDSTATE_ABSENT) {
+        if (this.cardState == DOM_CARDSTATE_ABSENT) {
           return;
         }
-        this.cardState = GECKO_CARDSTATE_ABSENT;
+        this.cardState = DOM_CARDSTATE_ABSENT;
         this.sendDOMMessage({type: "cardstatechange",
                              cardState: this.cardState});
         return;
@@ -1572,21 +1542,21 @@ let Phone = {
       let newCardState;
       switch (app.app_state) {
         case CARD_APP_STATE_PIN:
-          newCardState = GECKO_CARDSTATE_PIN_REQUIRED;
+          newCardState = DOM_CARDSTATE_PIN_REQUIRED;
           break;
         case CARD_APP_STATE_PUK:
-          newCardState = GECKO_CARDSTATE_PUK_REQUIRED;
+          newCardState = DOM_CARDSTATE_PUK_REQUIRED;
           break;
         case CARD_APP_STATE_SUBSCRIPTION_PERSO:
-          newCardState = GECKO_CARDSTATE_NETWORK_LOCKED;
+          newCardState = DOM_CARDSTATE_NETWORK_LOCKED;
           break;
         case CARD_APP_STATE_READY:
-          newCardState = GECKO_CARDSTATE_READY;
+          newCardState = DOM_CARDSTATE_READY;
           break;
         case CARD_APP_STATE_UNKNOWN:
         case CARD_APP_STATE_DETECTED:
         default:
-          newCardState = GECKO_CARDSTATE_NOT_READY;
+          newCardState = DOM_CARDSTATE_NOT_READY;
       }
 
       if (this.cardState == newCardState) {
@@ -1637,67 +1607,12 @@ let Phone = {
     this.IMEISV = imeiSV;
   },
 
-  onRegistrationState: function onRegistrationState(state) {
-    let rs = this.registrationState;
-    let stateChanged = false;
-
-    let regState = RIL.parseInt(state[0], NETWORK_CREG_STATE_UNKNOWN);
-    if (rs.regState != regState) {
-      rs.regState = regState;
-      stateChanged = true;
-    }
-
-    let radioTech = RIL.parseInt(state[3], NETWORK_CREG_TECH_UNKNOWN);
-    if (rs.radioTech != radioTech) {
-      rs.radioTech = radioTech;
-      stateChanged = true;
-    }
-
-    // TODO: This zombie code branch that will be raised from the dead once
-    // we add explicit CDMA support everywhere (bug 726098).
-    let cdma = false;
-    if (cdma) {
-      let baseStationId = RIL.parseInt(state[4]);
-      let baseStationLatitude = RIL.parseInt(state[5]);
-      let baseStationLongitude = RIL.parseInt(state[6]);
-      if (!baseStationLatitude && !baseStationLongitude) {
-        baseStationLatitude = baseStationLongitude = null;
-      }
-      let cssIndicator = RIL.parseInt(state[7]);
-      let systemId = RIL.parseInt(state[8]);
-      let networkId = RIL.parseInt(state[9]);
-      let roamingIndicator = RIL.parseInt(state[10]);
-      let systemIsInPRL = RIL.parseInt(state[11]);
-      let defaultRoamingIndicator = RIL.parseInt(state[12]);
-      let reasonForDenial = RIL.parseInt(state[13]);
-    }
-
-    if (stateChanged) {
-      this.sendDOMMessage({type: "registrationstatechange",
-                           registrationState: rs});
-    }
+  onRegistrationState: function onRegistrationState(newState) {
+    this.registrationState = newState;
   },
 
-  onGPRSRegistrationState: function onGPRSRegistrationState(state) {
-    let rs = this.gprsRegistrationState;
-    let stateChanged = false;
-
-    let regState = RIL.parseInt(state[0], NETWORK_CREG_STATE_UNKNOWN);
-    if (rs.regState != regState) {
-      rs.regState = regState;
-      stateChanged = true;
-    }
-
-    let radioTech = RIL.parseInt(state[3], NETWORK_CREG_TECH_UNKNOWN);
-    if (rs.radioTech != radioTech) {
-      rs.radioTech = radioTech;
-      stateChanged = true;
-    }
-
-    if (stateChanged) {
-      this.sendDOMMessage({type: "gprsregistrationstatechange",
-                           gprsRegistrationState: rs});
-    }
+  onGPRSRegistrationState: function onGPRSRegistrationState(newState) {
+    this.gprsRegistrationState = newState;
   },
 
   onOperator: function onOperator(operator) {
@@ -1717,7 +1632,7 @@ let Phone = {
   },
 
   onSignalStrength: function onSignalStrength(strength) {
-    if (DEBUG) debug("Signal strength " + JSON.stringify(strength));
+    debug("Signal strength " + JSON.stringify(strength));
     this.sendDOMMessage({type: "signalstrengthchange",
                          signalStrength: strength});
   },
@@ -1806,9 +1721,8 @@ let Phone = {
     let options = this.activeDataRequests[token];
     delete this.activeDataRequests[token];
 
-    let datacall = this.currentDataCalls[cid] = {
-      active: -1,
-      state: GECKO_NETWORK_STATE_CONNECTING,
+    this.currentDataCalls[cid] = {
+      state: GECKO_DATACALL_STATE_CONNECTED,
       cid: cid,
       apn: options.apn,
       ifname: ifname,
@@ -1817,65 +1731,71 @@ let Phone = {
       gw: gw,
     };
     this.sendDOMMessage({type: "datacallstatechange",
-                         datacall: datacall});
-
-    // Let's get the list of data calls to ensure we know whether it's active
-    // or not.
-    RIL.getDataCallList();
+                         state: GECKO_DATACALL_STATE_CONNECTED,
+                         cid: cid,
+                         apn: options.apn,
+                         ifname: ifname,
+                         ipaddr: ipaddr,
+                         dns: dns,
+                         gateway: gw});
   },
 
   onDeactivateDataCall: function onDeactivateDataCall(token) {
     let options = this.activeDataRequests[token];
     delete this.activeDataRequests[token];
 
-    let datacall = this.currentDataCalls[options.cid];
-    delete this.currentDataCalls[options.cid];
-    datacall.state = GECKO_NETWORK_STATE_DISCONNECTED;
+    let cid = options.cid;
+    if (!(cid in this.currentDataCalls)) {
+      return;
+    }
+
+    let apn = this.currentDataCalls[cid].apn;
+    delete this.currentDataCalls[cid];
     this.sendDOMMessage({type: "datacallstatechange",
-                         datacall: datacall});
+                         state: GECKO_DATACALL_STATE_DISCONNECTED,
+                         cid: cid,
+                         apn: apn});
   },
 
   onDataCallList: function onDataCallList(datacalls) {
-    for each (let currentDataCall in this.currentDataCalls) {
-      let newDataCall;
-      if (datacalls) {
-        newDataCall = datacalls[currentDataCall.cid];
-        delete datacalls[currentDataCall.cid];
-      }
+    let currentDataCalls = this.currentDataCalls;
 
-      if (newDataCall) {
-        switch (newDataCall.active) {
-          case DATACALL_INACTIVE:
-            newDataCall.state = GECKO_NETWORK_STATE_DISCONNECTED;
-            break;
-          case DATACALL_ACTIVE_DOWN:
-            newDataCall.state = GECKO_NETWORK_STATE_SUSPENDED;
-            break;
-          case DATACALL_ACTIVE_UP:
-            newDataCall.state = GECKO_NETWORK_STATE_CONNECTED;
-            break;
-        }
-        if (newDataCall.state != currentDataCall.state) {
-          currentDataCall.active = newDataCall.active;
-          currentDataCall.state = newDataCall.state;
-          this.sendDOMMessage({type: "datacallstatechange",
-                               datacall: currentDataCall});
-        }
-      } else {
-        delete this.currentCalls[currentDataCall.callIndex];
-        currentDataCall.state = GECKO_NETWORK_STATE_DISCONNECTED;
-        this.sendDOMMessage({type: "datacallstatechange",
-                             datacall: currentDataCall});
-      }
-    }
-
+    // Sync content of currentDataCalls and data call list.
     for each (let datacall in datacalls) {
-      if (DEBUG) debug("Unexpected data call: " + JSON.stringify(datacall));
-    }
-  },
+      let {cid, apn} = datacall;
 
-  onDataCallListChanged: function onDataCallListChanged() {
-    RIL.getDataCallList();
+      if (datacall.active != DATACALL_INACTIVE) {
+        // XXX: This should be followed up.
+        // datacall.active == DATACALL_ACTIVE_DOWN(1) for my device
+        if (!(cid in currentDataCalls)) {
+          let datacall = {state: GECKO_DATACALL_STATE_CONNECTED,
+                          cid: cid,
+                          apn: apn,
+                          ipaddr: datacall.address};
+          currentDataCalls[cid] = datacall;
+
+          this.sendDOMMessage({type: "datacallstatechange",
+                               state: GECKO_DATACALL_STATE_CONNECTED,
+                               cid: cid,
+                               apn: apn});
+        }
+      } else {                 // datacall.active == DATACALL_INACTIVE
+        if (cid in currentDataCalls) {
+          delete currentDataCalls[cid];
+          this.sendDOMMessage({type: "datacallstatechange",
+                               state: GECKO_DATACALL_STATE_DISCONNECTED,
+                               cid: cid,
+                               apn: apn});
+        }
+      }
+    }
+
+    let datacall_list = [];
+    for each (let datacall in this.currentDataCalls) {
+      datacall_list.push(datacall);
+    }
+    this.sendDOMMessage({type: "datacalllist",
+                         datacalls: datacall_list});
   },
 
   /**
@@ -1912,15 +1832,6 @@ let Phone = {
       calls.push(call);
     }
     this.sendDOMMessage({type: "enumerateCalls", calls: calls});
-  },
-
-  enumerateDataCalls: function enumerateDataCalls() {
-    let datacall_list = [];
-    for each (let datacall in this.currentDataCalls) {
-      datacall_list.push(datacall);
-    }
-    this.sendDOMMessage({type: "datacalllist",
-                         datacalls: datacall_list});
   },
 
   /**
@@ -2041,8 +1952,11 @@ let Phone = {
 
     let token = RIL.setupDataCall(options.radioTech, options.apn,
                                   options.user, options.passwd,
-                                  options.chappap, options.pdptype);
+                                  options.chappap, options.reason);
     this.activeDataRequests[token] = options;
+    this.sendDOMMessage({type: "datacallstatechange",
+                         state: GECKO_DATACALL_STATE_CONNECTING,
+                         apn: options.apn});
   },
 
   /**
@@ -2053,14 +1967,15 @@ let Phone = {
       return;
     }
 
-    let reason = options.reason || DATACALL_DEACTIVATE_NO_REASON;
-    let token = RIL.deactivateDataCall(options.cid, reason);
-    this.activeDataRequests[token] = options;
-
     let datacall = this.currentDataCalls[options.cid];
-    datacall.state = GECKO_NETWORK_STATE_DISCONNECTING;
+    datacall.state = GECKO_DATACALL_STATE_DISCONNECTING;
+
+    let token = RIL.deactivateDataCall(options.cid, options.reason);
+    this.activeDataRequests[token] = options;
     this.sendDOMMessage({type: "datacallstatechange",
-                         datacall: datacall});
+                         state: GECKO_DATACALL_STATE_DISCONNECTING,
+                         cid: options.cid,
+                         apn: datacall.apn});
   },
 
   /**

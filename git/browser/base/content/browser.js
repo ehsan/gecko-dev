@@ -1228,12 +1228,12 @@ function BrowserStartup() {
   if ("arguments" in window && window.arguments[0])
     uriToLoad = window.arguments[0];
 
-  var isLoadingBlank = isBlankPageURL(uriToLoad);
+  var isLoadingBlank = uriToLoad == "about:blank";
   var mustLoadSidebar = false;
 
   prepareForStartup();
 
-  if (uriToLoad && uriToLoad != "about:blank") {
+  if (uriToLoad && !isLoadingBlank) {
     if (uriToLoad instanceof Ci.nsISupportsArray) {
       let count = uriToLoad.Count();
       let specs = [];

@@ -93,16 +93,16 @@ DebuggerView.Stackframes = {
     let resume = document.getElementById("resume");
     let status = document.getElementById("status");
 
-    // If we're paused, show a pause label and a resume label on the button.
+    // if we're paused, show a pause label and disable the resume button
     if (aState === "paused") {
       status.textContent = DebuggerView.getStr("pausedState");
-      resume.label = DebuggerView.getStr("resumeLabel");
+      resume.disabled = false;
     } else if (aState === "attached") {
-      // If we're attached, do the opposite.
+      // if we're attached, do the opposite
       status.textContent = DebuggerView.getStr("runningState");
-      resume.label = DebuggerView.getStr("pauseLabel");
+      resume.disabled = true;
     } else {
-      // No valid state parameter.
+      // no valid state parameter
       status.textContent = "";
     }
   },
@@ -272,14 +272,10 @@ DebuggerView.Stackframes = {
   },
 
   /**
-   * Listener handling the pause/resume button click event.
+   * Listener handling the resume button click event.
    */
   _onResumeButtonClick: function DVF__onResumeButtonClick() {
-    if (ThreadState.activeThread.paused) {
-      ThreadState.activeThread.resume();
-    } else {
-      ThreadState.activeThread.interrupt();
-    }
+    ThreadState.activeThread.resume();
   },
 
   /**
@@ -1094,17 +1090,6 @@ DebuggerView.Scripts = {
     script.setUserData("sourceScript", aSource, null);
     this._scripts.selectedItem = script;
     return script;
-  },
-
-  /**
-   * Returns the list of URIs for scripts in the page.
-   */
-  scriptLocations: function DVS_scriptLocations() {
-    let locations = [];
-    for (let i = 0; i < this._scripts.itemCount; i++) {
-      locations.push(this._scripts.getItemAtIndex(i).value);
-    }
-    return locations;
   },
 
   /**

@@ -46,7 +46,8 @@ function test_simple_breakpoint()
 
       });
       // Continue until the breakpoint is hit.
-      gThreadClient.resume();
+      gThreadClient.resume(function () {
+      });
 
     });
 
