@@ -14,8 +14,7 @@ SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])
 from runreftest import RefTest
 from runreftest import ReftestOptions
 from automation import Automation
-import devicemanager
-import droid
+import devicemanager, devicemanagerADB, devicemanagerSUT
 from remoteautomation import RemoteAutomation, fennecLogcatFilters
 
 class RemoteOptions(ReftestOptions):
@@ -393,11 +392,11 @@ def main(args):
     try:
         if (options.dm_trans == "adb"):
             if (options.deviceIP):
-                dm = droid.DroidADB(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
+                dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
             else:
-                dm = droid.DroidADB(None, None, deviceRoot=options.remoteTestRoot)
+                dm = devicemanagerADB.DeviceManagerADB(None, None, deviceRoot=options.remoteTestRoot)
         else:
-            dm = droid.DroidSUT(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
+            dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
     except devicemanager.DMError:
         print "Error: exception while initializing devicemanager.  Most likely the device is not in a testable state."
         return 1

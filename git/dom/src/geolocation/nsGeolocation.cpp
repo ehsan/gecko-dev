@@ -187,16 +187,18 @@ public:
   // event should remove the request from it.  If we ever
   // have to do more, then we can change this around.
   RequestSendLocationEvent(nsIDOMGeoPosition* aPosition,
+                           bool aCachePosition,
                            nsGeolocationRequest* aRequest,
                            Geolocation* aLocator)
     : mPosition(aPosition),
+      mCachePosition(aCachePosition),
       mRequest(aRequest),
       mLocator(aLocator)
   {
   }
 
   NS_IMETHOD Run() {
-    mRequest->SendLocation(mPosition);
+    mRequest->SendLocation(mPosition, mCachePosition);
     if (mLocator) {
       mLocator->RemoveRequest(mRequest);
     }
@@ -205,8 +207,10 @@ public:
 
 private:
   nsCOMPtr<nsIDOMGeoPosition> mPosition;
+  bool mCachePosition;
   nsRefPtr<nsGeolocationRequest> mRequest;
-  nsRefPtr<Geolocation> mLocator;
+
+  nsRefPtr<Geolocation>        mLocator;
 };
 
 class RequestRestartTimerEvent : public nsRunnable
@@ -304,6 +308,7 @@ nsGeolocationRequest::nsGeolocationRequest(Geolocation* aLocator,
                                            int32_t aWatchId)
   : mAllowed(false),
     mCleared(false),
+    mIsFirstUpdate(true),
     mIsWatchPositionRequest(aWatchPositionRequest),
     mCallback(aCallback),
     mErrorCallback(aErrorCallback),
@@ -467,7 +472,7 @@ nsGeolocationRequest::Allow()
 
     nsCOMPtr<nsIRunnable> ev =
       new RequestSendLocationEvent(
-        lastPosition, this, mIsWatchPositionRequest ? nullptr : mLocator);
+        lastPosition, true, this, mIsWatchPositionRequest ? nullptr : mLocator);
 
     NS_DispatchToMainThread(ev);
   }
@@ -511,7 +516,7 @@ nsGeolocationRequest::MarkCleared()
 }
 
 void
-nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
+nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition, bool aCachePosition)
 {
   if (mCleared || !mAllowed) {
     return;
@@ -538,7 +543,9 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
     return;
   }
 
-  mLocator->SetCachedPosition(wrapped);
+  if (aCachePosition) {
+    mLocator->SetCachedPosition(wrapped);
+  }
 
   // Ensure that the proper context is on the stack (bug 452762)
   nsCxPusher pusher;
@@ -577,10 +584,23 @@ nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
   if (!mAllowed) {
     return false;
   }
-
-  nsCOMPtr<nsIRunnable> ev = new RequestSendLocationEvent(aPosition,
-                                                          this,
-                                                          mIsWatchPositionRequest ? nullptr :  mLocator);
+  // Only dispatch callbacks if this is the first position for this request, or
+  // if the accuracy is as good or improving.
+  //
+  // This ensures that all listeners get at least one position callback, particularly
+  // in the case when newly detected positions are all less accurate than the cached one.
+  //
+  // Fixes bug 596481
+  nsCOMPtr<nsIRunnable> ev;
+  if (mIsFirstUpdate) {
+    mIsFirstUpdate = false;
+    ev  = new RequestSendLocationEvent(aPosition,
+                                       true,
+                                       this,
+                                       mIsWatchPositionRequest ? nullptr :  mLocator);
+  } else {
+    ev = new RequestRestartTimerEvent(this);
+  }
   NS_DispatchToMainThread(ev);
   return true;
 }

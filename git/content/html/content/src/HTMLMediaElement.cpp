@@ -1599,7 +1599,7 @@ HTMLMediaElement::MozGetMetadata(JSContext* cx, ErrorResult& aRv)
     return nullptr;
   }
 
-  JS::Rooted<JSObject*> tags(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JSObject* tags = JS_NewObject(cx, nullptr, nullptr, nullptr);
   if (!tags) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -2389,7 +2389,7 @@ nsresult HTMLMediaElement::InitializeDecoderAsClone(MediaDecoder* aOriginal)
     decoder->SetMediaSeekable(aOriginal->IsMediaSeekable());
   }
 
-  nsRefPtr<MediaResource> resource = originalResource->CloneData(decoder);
+  MediaResource* resource = originalResource->CloneData(decoder);
   if (!resource) {
     LOG(PR_LOG_DEBUG, ("%p Failed to cloned stream for decoder %p", this, decoder.get()));
     return NS_ERROR_FAILURE;
@@ -2421,7 +2421,7 @@ nsresult HTMLMediaElement::InitializeDecoderForChannel(nsIChannel* aChannel,
 
   LOG(PR_LOG_DEBUG, ("%p Created decoder %p for type %s", this, decoder.get(), mimeType.get()));
 
-  nsRefPtr<MediaResource> resource = MediaResource::Create(decoder, aChannel);
+  MediaResource* resource = MediaResource::Create(decoder, aChannel);
   if (!resource)
     return NS_ERROR_OUT_OF_MEMORY;
 

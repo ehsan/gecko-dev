@@ -376,58 +376,25 @@ public class TabsPanel extends LinearLayout
 
         final Resources resources = getContext().getResources();
         final int toolbarHeight = resources.getDimensionPixelSize(R.dimen.browser_toolbar_height);
-        final int tabsPanelWidth = getWidth();
 
         if (mVisible) {
-            AnimatorProxy proxy;
-
-            proxy = AnimatorProxy.create(mHeader);
-            if (mIsSideBar) {
-                proxy.setTranslationX(-tabsPanelWidth);
-            } else {
-                proxy.setTranslationY(-toolbarHeight);
-            }
+            AnimatorProxy proxy = AnimatorProxy.create(mHeader);
+            proxy.setTranslationY(-toolbarHeight);
 
             proxy = AnimatorProxy.create(mTabsContainer);
-            if (mIsSideBar) {
-                proxy.setTranslationX(-tabsPanelWidth);
-            } else {
-                proxy.setTranslationY((float) (-toolbarHeight));
-                proxy.setAlpha(0);
-            }
-
-            // The footer view is only present on the sidebar
-            if (mIsSideBar) {
-                proxy = AnimatorProxy.create(mFooter);
-                proxy.setTranslationX(-tabsPanelWidth);
-            }
+            proxy.setTranslationY((float) (-toolbarHeight));
+            proxy.setAlpha(0);
         }
 
-        if (mIsSideBar) {
-            final int translationX = (mVisible ? 0 : -tabsPanelWidth);
-
-            animator.attach(mTabsContainer,
-                            PropertyAnimator.Property.TRANSLATION_X,
-                            translationX);
-            animator.attach(mHeader,
-                            PropertyAnimator.Property.TRANSLATION_X,
-                            translationX);
-            animator.attach(mFooter,
-                            PropertyAnimator.Property.TRANSLATION_X,
-                            translationX);
-        } else {
-            final int translationY = (mVisible ? 0 : -toolbarHeight);
-
-            animator.attach(mTabsContainer,
-                            PropertyAnimator.Property.ALPHA,
-                            mVisible ? 1.0f : 0.0f);
-            animator.attach(mTabsContainer,
-                            PropertyAnimator.Property.TRANSLATION_Y,
-                            translationY);
-            animator.attach(mHeader,
-                            PropertyAnimator.Property.TRANSLATION_Y,
-                            translationY);
-        }
+        animator.attach(mTabsContainer,
+                        PropertyAnimator.Property.ALPHA,
+                        mVisible ? 1.0f : 0.0f);
+        animator.attach(mHeader,
+                        PropertyAnimator.Property.TRANSLATION_Y,
+                        mVisible ? 0 : -toolbarHeight);
+        animator.attach(mTabsContainer,
+                        PropertyAnimator.Property.TRANSLATION_Y,
+                        mVisible ? 0 : -toolbarHeight);
 
         mHeader.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         mTabsContainer.setLayerType(View.LAYER_TYPE_HARDWARE, null);

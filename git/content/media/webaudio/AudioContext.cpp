@@ -244,7 +244,6 @@ void
 AudioContext::UnregisterAudioBufferSourceNode(AudioBufferSourceNode* aNode)
 {
   mAudioBufferSourceNodes.RemoveEntry(aNode);
-  UpdatePannerSource();
 }
 
 void
@@ -260,6 +259,13 @@ AudioContext::UnregisterScriptProcessorNode(ScriptProcessorNode* aNode)
 }
 
 static PLDHashOperator
+UnregisterPannerNodeOn(nsPtrHashKey<AudioBufferSourceNode>* aEntry, void* aData)
+{
+  aEntry->GetKey()->UnregisterPannerNode();
+  return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
 FindConnectedSourcesOn(nsPtrHashKey<PannerNode>* aEntry, void* aData)
 {
   aEntry->GetKey()->FindConnectedSources();
@@ -269,6 +275,7 @@ FindConnectedSourcesOn(nsPtrHashKey<PannerNode>* aEntry, void* aData)
 void
 AudioContext::UpdatePannerSource()
 {
+  mAudioBufferSourceNodes.EnumerateEntries(UnregisterPannerNodeOn, nullptr);
   mPannerNodes.EnumerateEntries(FindConnectedSourcesOn, nullptr);
 }
 

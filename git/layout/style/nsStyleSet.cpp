@@ -1321,15 +1321,13 @@ nsStyleSet::ResolvePseudoElementStyle(Element* aParentElement,
 
   // For pseudos, |data.IsLink()| being true means that
   // our parent node is a link.
-  uint32_t flags = eNoFlags;
+  // Also: Flex containers shouldn't have pseudo-elements, so given that we're
+  // looking up pseudo-element style, make sure we're not treating our node as
+  // a flex item.
+  uint32_t flags = eSkipFlexItemStyleFixup;
   if (aType == nsCSSPseudoElements::ePseudo_before ||
       aType == nsCSSPseudoElements::ePseudo_after) {
     flags |= eDoAnimation;
-  } else {
-    // Flex containers don't expect to have any pseudo-element children aside
-    // from ::before and ::after.  So if we have such a child, we're not
-    // actually in a flex container, and we should skip flex-item style fixup.
-    flags |= eSkipFlexItemStyleFixup;
   }
 
   return GetContext(aParentContext, ruleNode, visitedRuleNode,
@@ -1389,15 +1387,13 @@ nsStyleSet::ProbePseudoElementStyle(Element* aParentElement,
 
   // For pseudos, |data.IsLink()| being true means that
   // our parent node is a link.
-  uint32_t flags = eNoFlags;
+  // Also: Flex containers shouldn't have pseudo-elements, so given that we're
+  // looking up pseudo-element style, make sure we're not treating our node as
+  // a flex item.
+  uint32_t flags = eSkipFlexItemStyleFixup;
   if (aType == nsCSSPseudoElements::ePseudo_before ||
       aType == nsCSSPseudoElements::ePseudo_after) {
     flags |= eDoAnimation;
-  } else {
-    // Flex containers don't expect to have any pseudo-element children aside
-    // from ::before and ::after.  So if we have such a child, we're not
-    // actually in a flex container, and we should skip flex-item style fixup.
-    flags |= eSkipFlexItemStyleFixup;
   }
 
   nsRefPtr<nsStyleContext> result =

@@ -102,19 +102,19 @@ AudioNodeStream::SetInt32Parameter(uint32_t aIndex, int32_t aValue)
 
 void
 AudioNodeStream::SetTimelineParameter(uint32_t aIndex,
-                                      const AudioParamTimeline& aValue)
+                                      const AudioEventTimeline<ErrorResult>& aValue)
 {
   class Message : public ControlMessage {
   public:
     Message(AudioNodeStream* aStream, uint32_t aIndex,
-            const AudioParamTimeline& aValue)
+            const AudioEventTimeline<ErrorResult>& aValue)
       : ControlMessage(aStream), mValue(aValue), mIndex(aIndex) {}
     virtual void Run()
     {
       static_cast<AudioNodeStream*>(mStream)->Engine()->
           SetTimelineParameter(mIndex, mValue);
     }
-    AudioParamTimeline mValue;
+    AudioEventTimeline<ErrorResult> mValue;
     uint32_t mIndex;
   };
   GraphImpl()->AppendMessage(new Message(this, aIndex, aValue));
@@ -247,8 +247,7 @@ AudioNodeStream::ObtainInputBlock(AudioChunk* aTmpChunk)
     MediaStream* s = mInputs[i]->GetSource();
     AudioNodeStream* a = static_cast<AudioNodeStream*>(s);
     MOZ_ASSERT(a == s->AsAudioNodeStream());
-    if (a->IsFinishedOnGraphThread() ||
-        a->IsAudioParamStream()) {
+    if (a->IsFinishedOnGraphThread()) {
       continue;
     }
     AudioChunk* chunk = &a->mLastChunk;

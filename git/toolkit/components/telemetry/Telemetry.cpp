@@ -60,12 +60,12 @@ class AutoHashtable : public nsTHashtable<EntryType>
 public:
   AutoHashtable(uint32_t initSize = PL_DHASH_MIN_SIZE);
   ~AutoHashtable();
-  typedef bool (*ReflectEntryFunc)(EntryType *entry, JSContext *cx, JS::Handle<JSObject*> obj);
-  bool ReflectIntoJS(ReflectEntryFunc entryFunc, JSContext *cx, JS::Handle<JSObject*> obj);
+  typedef bool (*ReflectEntryFunc)(EntryType *entry, JSContext *cx, JSObject *obj);
+  bool ReflectIntoJS(ReflectEntryFunc entryFunc, JSContext *cx, JSObject *obj);
 private:
   struct EnumeratorArgs {
     JSContext *cx;
-    JS::Handle<JSObject*> obj;
+    JSObject *obj;
     ReflectEntryFunc entryFunc;
   };
   static PLDHashOperator ReflectEntryStub(EntryType *entry, void *arg);
@@ -101,7 +101,7 @@ AutoHashtable<EntryType>::ReflectEntryStub(EntryType *entry, void *arg)
 template<typename EntryType>
 bool
 AutoHashtable<EntryType>::ReflectIntoJS(ReflectEntryFunc entryFunc,
-                                        JSContext *cx, JS::Handle<JSObject*> obj)
+                                        JSContext *cx, JSObject *obj)
 {
   EnumeratorArgs args = { cx, obj, entryFunc };
   uint32_t num = this->EnumerateEntries(ReflectEntryStub, static_cast<void*>(&args));
@@ -282,13 +282,13 @@ private:
                            SanitizedState state);
 
   static bool ReflectMainThreadSQL(SlowSQLEntryType *entry, JSContext *cx,
-                                   JS::Handle<JSObject*> obj);
+                                   JSObject *obj);
   static bool ReflectOtherThreadsSQL(SlowSQLEntryType *entry, JSContext *cx,
-                                     JS::Handle<JSObject*> obj);
+                                     JSObject *obj);
   static bool ReflectSQL(const SlowSQLEntryType *entry, const Stat *stat,
-                         JSContext *cx, JS::Handle<JSObject*> obj);
+                         JSContext *cx, JSObject *obj);
 
-  bool AddSQLInfo(JSContext *cx, JS::Handle<JSObject*> rootObj, bool mainThread,
+  bool AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread,
                   bool privateSQL);
   bool GetSQLStats(JSContext *cx, JS::Value *ret, bool includePrivateSql);
 
@@ -310,8 +310,8 @@ private:
   typedef nsBaseHashtableET<nsCStringHashKey, AddonHistogramMapType *> AddonEntryType;
   typedef AutoHashtable<AddonEntryType> AddonMapType;
   static bool AddonHistogramReflector(AddonHistogramEntryType *entry,
-                                      JSContext *cx, JS::Handle<JSObject*> obj);
-  static bool AddonReflector(AddonEntryType *entry, JSContext *cx, JS::Handle<JSObject*> obj);
+                                      JSContext *cx, JSObject *obj);
+  static bool AddonReflector(AddonEntryType *entry, JSContext *cx, JSObject *obj);
   static bool CreateHistogramForAddon(const nsACString &name,
                                       AddonHistogramInfo &info);
   void ReadLateWritesStacks();
@@ -520,10 +520,8 @@ GetHistogramByEnumId(Telemetry::ID id, Histogram **ret)
 bool
 FillRanges(JSContext *cx, JS::Handle<JSObject*> array, Histogram *h)
 {
-  JS::Rooted<JS::Value> range(cx);
   for (size_t i = 0; i < h->bucket_count(); i++) {
-    range = INT_TO_JSVAL(h->ranges(i));
-    if (!JS_DefineElement(cx, array, i, range, nullptr, nullptr, JSPROP_ENUMERATE))
+    if (!JS_DefineElement(cx, array, i, INT_TO_JSVAL(h->ranges(i)), NULL, NULL, JSPROP_ENUMERATE))
       return false;
   }
   return true;
@@ -536,7 +534,7 @@ enum reflectStatus {
 };
 
 enum reflectStatus
-ReflectHistogramAndSamples(JSContext *cx, JS::Handle<JSObject*> obj, Histogram *h,
+ReflectHistogramAndSamples(JSContext *cx, JSObject *obj, Histogram *h,
                            const Histogram::SampleSet &ss)
 {
   // We don't want to reflect corrupt histograms.
@@ -594,12 +592,12 @@ ReflectHistogramAndSamples(JSContext *cx, JS::Handle<JSObject*> obj, Histogram *
       return REFLECT_FAILURE;
     }
   }
-
+ 
   return REFLECT_OK;
 }
 
 enum reflectStatus
-ReflectHistogramSnapshot(JSContext *cx, JS::Handle<JSObject*> obj, Histogram *h)
+ReflectHistogramSnapshot(JSContext *cx, JSObject *obj, Histogram *h)
 {
   Histogram::SampleSet ss;
   h->SnapshotSample(&ss);
@@ -698,7 +696,7 @@ WrapAndReturnHistogram(Histogram *h, JSContext *cx, JS::Value *ret)
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub
   };
 
-  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, &JSHistogram_class, nullptr, nullptr));
+  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, &JSHistogram_class, NULL, NULL));
   if (!obj)
     return NS_ERROR_FAILURE;
   if (!(JS_DefineFunction(cx, obj, "add", JSHistogram_Add, 1, 0)
@@ -990,21 +988,21 @@ bool
 TelemetryImpl::ReflectSQL(const SlowSQLEntryType *entry,
                           const Stat *stat,
                           JSContext *cx,
-                          JS::Handle<JSObject*> obj)
+                          JSObject *obj)
 {
   if (stat->hitCount == 0)
     return true;
 
   const nsACString &sql = entry->GetKey();
-  JS::Rooted<JS::Value> hitCount(cx, UINT_TO_JSVAL(stat->hitCount));
-  JS::Rooted<JS::Value> totalTime(cx, UINT_TO_JSVAL(stat->totalTime));
+  JS::Value hitCount = UINT_TO_JSVAL(stat->hitCount);
+  JS::Value totalTime = UINT_TO_JSVAL(stat->totalTime);
 
   JS::Rooted<JSObject*> arrayObj(cx, JS_NewArrayObject(cx, 0, nullptr));
   if (!arrayObj) {
     return false;
   }
-  return (JS_SetElement(cx, arrayObj, 0, hitCount.address())
-          && JS_SetElement(cx, arrayObj, 1, totalTime.address())
+  return (JS_SetElement(cx, arrayObj, 0, &hitCount)
+          && JS_SetElement(cx, arrayObj, 1, &totalTime)
           && JS_DefineProperty(cx, obj,
                                sql.BeginReading(),
                                OBJECT_TO_JSVAL(arrayObj),
@@ -1013,23 +1011,23 @@ TelemetryImpl::ReflectSQL(const SlowSQLEntryType *entry,
 
 bool
 TelemetryImpl::ReflectMainThreadSQL(SlowSQLEntryType *entry, JSContext *cx,
-                                    JS::Handle<JSObject*> obj)
+                                    JSObject *obj)
 {
   return ReflectSQL(entry, &entry->mData.mainThread, cx, obj);
 }
 
 bool
 TelemetryImpl::ReflectOtherThreadsSQL(SlowSQLEntryType *entry, JSContext *cx,
-                                      JS::Handle<JSObject*> obj)
+                                      JSObject *obj)
 {
   return ReflectSQL(entry, &entry->mData.otherThreads, cx, obj);
 }
 
 bool
-TelemetryImpl::AddSQLInfo(JSContext *cx, JS::Handle<JSObject*> rootObj, bool mainThread,
+TelemetryImpl::AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread,
                           bool privateSQL)
 {
-  JS::Rooted<JSObject*> statsObj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JS::Rooted<JSObject*> statsObj(cx, JS_NewObject(cx, NULL, NULL, NULL));
   if (!statsObj)
     return false;
 
@@ -1279,7 +1277,7 @@ TelemetryImpl::UnregisterAddonHistograms(const nsACString &id)
 NS_IMETHODIMP
 TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::Value *ret)
 {
-  JS::Rooted<JSObject*> root_obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JS::Rooted<JSObject*> root_obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
   if (!root_obj)
     return NS_ERROR_FAILURE;
   *ret = OBJECT_TO_JSVAL(root_obj);
@@ -1306,14 +1304,13 @@ TelemetryImpl::GetHistogramSnapshots(JSContext *cx, JS::Value *ret)
   IdentifyCorruptHistograms(hs);
 
   // OK, now we can actually reflect things.
-  JS::Rooted<JSObject*> hobj(cx);
   for (HistogramIterator it = hs.begin(); it != hs.end(); ++it) {
     Histogram *h = *it;
     if (!ShouldReflectHistogram(h) || IsEmpty(h)) {
       continue;
     }
 
-    hobj = JS_NewObject(cx, nullptr, nullptr, nullptr);
+    JS::Rooted<JSObject*> hobj(cx, JS_NewObject(cx, NULL, NULL, NULL));
     if (!hobj) {
       return NS_ERROR_FAILURE;
     }
@@ -1356,7 +1353,7 @@ TelemetryImpl::CreateHistogramForAddon(const nsACString &name,
 
 bool
 TelemetryImpl::AddonHistogramReflector(AddonHistogramEntryType *entry,
-                                       JSContext *cx, JS::Handle<JSObject*> obj)
+                                       JSContext *cx, JSObject *obj)
 {
   AddonHistogramInfo &info = entry->mData;
 
@@ -1375,7 +1372,7 @@ TelemetryImpl::AddonHistogramReflector(AddonHistogramEntryType *entry,
     return true;
   }
 
-  JS::Rooted<JSObject*> snapshot(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JS::Rooted<JSObject*> snapshot(cx, JS_NewObject(cx, NULL, NULL, NULL));
   if (!snapshot) {
     // Just consider this to be skippable.
     return true;
@@ -1399,10 +1396,10 @@ TelemetryImpl::AddonHistogramReflector(AddonHistogramEntryType *entry,
 
 bool
 TelemetryImpl::AddonReflector(AddonEntryType *entry,
-                              JSContext *cx, JS::Handle<JSObject*> obj)
+                              JSContext *cx, JSObject *obj)
 {
   const nsACString &addonId = entry->GetKey();
-  JS::Rooted<JSObject*> subobj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JS::Rooted<JSObject*> subobj(cx, JS_NewObject(cx, NULL, NULL, NULL));
   if (!subobj) {
     return false;
   }
@@ -1422,7 +1419,7 @@ NS_IMETHODIMP
 TelemetryImpl::GetAddonHistogramSnapshots(JSContext *cx, JS::Value *ret)
 {
   *ret = JSVAL_VOID;
-  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JS::Rooted<JSObject*> obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
   if (!obj) {
     return NS_ERROR_FAILURE;
   }
@@ -1437,7 +1434,7 @@ TelemetryImpl::GetAddonHistogramSnapshots(JSContext *cx, JS::Value *ret)
 bool
 TelemetryImpl::GetSQLStats(JSContext *cx, JS::Value *ret, bool includePrivateSql)
 {
-  JS::Rooted<JSObject*> root_obj(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JS::Rooted<JSObject*> root_obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
   if (!root_obj)
     return false;
   *ret = OBJECT_TO_JSVAL(root_obj);
@@ -1790,9 +1787,10 @@ NS_IMETHODIMP
 TelemetryImpl::GetRegisteredHistograms(JSContext *cx, JS::Value *ret)
 {
   size_t count = ArrayLength(gHistograms);
-  JS::Rooted<JSObject*> info(cx, JS_NewObject(cx, nullptr, nullptr, nullptr));
+  JS::Rooted<JSObject*> info(cx, JS_NewObject(cx, NULL, NULL, NULL));
   if (!info)
     return NS_ERROR_FAILURE;
+  JS::AutoObjectRooter root(cx, info);
 
   for (size_t i = 0; i < count; ++i) {
     JSString *comment = JS_InternString(cx, gHistograms[i].comment());

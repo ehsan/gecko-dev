@@ -1211,9 +1211,7 @@ class IDLType(IDLObject):
         'dictionary',
         'enum',
         'callback',
-        'union',
-        'sequence',
-        'array'
+        'union'
         )
 
     def __init__(self, location, name):
@@ -1288,7 +1286,7 @@ class IDLType(IDLObject):
         return False
 
     def isAny(self):
-        return self.tag() == IDLType.Tags.any
+        return self.tag() == IDLType.Tags.any and not self.isSequence()
 
     def isDate(self):
         return self.tag() == IDLType.Tags.date
@@ -1521,7 +1519,8 @@ class IDLSequenceType(IDLType):
         return self.inner.includesRestrictedFloat()
 
     def tag(self):
-        return IDLType.Tags.sequence
+        # XXXkhuey this is probably wrong.
+        return self.inner.tag()
 
     def resolveType(self, parentScope):
         assert isinstance(parentScope, IDLScope)
@@ -1704,7 +1703,8 @@ class IDLArrayType(IDLType):
         return False
 
     def tag(self):
-        return IDLType.Tags.array
+        # XXXkhuey this is probably wrong.
+        return self.inner.tag()
 
     def resolveType(self, parentScope):
         assert isinstance(parentScope, IDLScope)
@@ -4264,8 +4264,8 @@ class Parser(Tokenizer):
         """
             NonAnyType : DATE TypeSuffix
         """
-        p[0] = self.handleModifiers(BuiltinTypes[IDLBuiltinType.Types.date],
-                                    p[2])
+        assert False
+        pass
 
     def p_ConstType(self, p):
         """

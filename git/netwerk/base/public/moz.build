@@ -10,8 +10,8 @@ XPIDL_SOURCES += [
     'nsIApplicationCacheChannel.idl',
     'nsIApplicationCacheContainer.idl',
     'nsIApplicationCacheService.idl',
-    'nsIArrayBufferInputStream.idl',
     'nsIAsyncStreamCopier.idl',
+    'nsIArrayBufferInputStream.idl',
     'nsIAsyncVerifyRedirectCallback.idl',
     'nsIAuthInformation.idl',
     'nsIAuthModule.idl',
@@ -108,8 +108,8 @@ XPIDL_SOURCES += [
     'nsIUnicharStreamLoader.idl',
     'nsIUploadChannel.idl',
     'nsIUploadChannel2.idl',
-    'nsPILoadGroupInternal.idl',
     'nsPISocketTransportService.idl',
+    'nsPILoadGroupInternal.idl',
 ]
 
 if CONFIG['MOZ_TOOLKIT_SEARCH']:

@@ -172,7 +172,6 @@ webidl_files = \
   NodeIterator.webidl \
   NodeList.webidl \
   Notification.webidl \
-  NotifyAudioAvailableEvent.webidl \
   NotifyPaintEvent.webidl \
   PaintRequest.webidl \
   PaintRequestList.webidl \

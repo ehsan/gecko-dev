@@ -24,9 +24,6 @@
 #endif
 #include <inputscope.h>
 
-// TSF InputScope, for earlier SDK 8
-#define IS_SEARCH static_cast<InputScope>(50)
-
 struct ITfThreadMgr;
 struct ITfDocumentMgr;
 struct ITfDisplayAttributeMgr;

@@ -736,6 +736,9 @@ pref("dom.min_timeout_value", 4);
 // And for background windows
 pref("dom.min_background_timeout_value", 1000);
 
+// Run content XBL in a separate scope.
+pref("dom.xbl_scopes", true);
+
 // Stop defining the Components object in content.
 pref("dom.omit_components_in_content", true);
 
@@ -3961,8 +3964,6 @@ pref("layers.acceleration.force-enabled", false);
 #endif
 
 pref("layers.acceleration.draw-fps", false);
-
-pref("layers.draw-borders", false);
 
 pref("layers.offmainthreadcomposition.enabled", false);
 // same effect as layers.offmainthreadcomposition.enabled, but specifically for

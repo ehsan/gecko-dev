@@ -8,7 +8,6 @@
 #include <stdarg.h>
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/FloatingPoint.h"
 
 #include "BindingUtils.h"
 
@@ -19,7 +18,6 @@
 #include "xpcprivate.h"
 #include "XPCQuickStubs.h"
 #include "XrayWrapper.h"
-#include "jsfriendapi.h"
 
 #include "mozilla/dom/HTMLObjectElement.h"
 #include "mozilla/dom/HTMLObjectElementBinding.h"
@@ -311,7 +309,6 @@ DefineConstructor(JSContext* cx, JS::Handle<JSObject*> global, const char* name,
 
 static JSObject*
 CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
-                      JS::Handle<JSObject*> constructorProto,
                       JSClass* constructorClass,
                       const JSNativeHolder* constructorNative,
                       unsigned ctorNargs, const NamedConstructor* namedConstructors,
@@ -321,12 +318,20 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
                       const char* name)
 {
   JS::Rooted<JSObject*> constructor(cx);
+  bool isCallbackInterface = constructorClass == js::Jsvalify(&js::ObjectClass);
   if (constructorClass) {
-    MOZ_ASSERT(constructorProto);
+    JSObject* constructorProto;
+    if (isCallbackInterface) {
+      constructorProto = JS_GetObjectPrototype(cx, global);
+    } else {
+      constructorProto = JS_GetFunctionPrototype(cx, global);
+    }
+    if (!constructorProto) {
+      return NULL;
+    }
     constructor = JS_NewObject(cx, constructorClass, constructorProto, global);
   } else {
     MOZ_ASSERT(constructorNative);
-    MOZ_ASSERT(constructorProto == JS_GetFunctionPrototype(cx, global));
     constructor = CreateConstructor(cx, global, name, constructorNative,
                                     ctorNargs);
   }
@@ -334,7 +339,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
     return NULL;
   }
 
-  if (constructorClass) {
+  if (constructorClass && !isCallbackInterface) {
     // Have to shadow Function.prototype.toString, since that throws
     // on things that are not js::FunctionClass.
     JS::Rooted<JSFunction*> toString(cx,
@@ -501,7 +506,6 @@ void
 CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
                        JS::Handle<JSObject*> protoProto,
                        JSClass* protoClass, JSObject** protoCache,
-                       JS::Handle<JSObject*> constructorProto,
                        JSClass* constructorClass, const JSNativeHolder* constructor,
                        unsigned ctorNargs, const NamedConstructor* namedConstructors,
                        JSObject** constructorCache, const DOMClass* domClass,
@@ -554,8 +558,7 @@ CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
 
   JSObject* interface;
   if (constructorClass || constructor) {
-    interface = CreateInterfaceObject(cx, global, constructorProto,
-                                      constructorClass, constructor,
+    interface = CreateInterfaceObject(cx, global, constructorClass, constructor,
                                       ctorNargs, namedConstructors, proto,
                                       properties, chromeOnlyProperties, name);
     if (!interface) {
@@ -1712,44 +1715,6 @@ ReportLenientThisUnwrappingFailure(JSContext* cx, JS::Handle<JSObject*> obj)
   if (window && window->GetDoc()) {
     window->GetDoc()->WarnOnceAbout(nsIDocument::eLenientThis);
   }
-}
-
-// Date implementation methods
-Date::Date() :
-  mMsecSinceEpoch(MOZ_DOUBLE_NaN())
-{
-}
-
-bool
-Date::IsUndefined() const
-{
-  return MOZ_DOUBLE_IS_NaN(mMsecSinceEpoch);
-}
-
-bool
-Date::SetTimeStamp(JSContext* cx, JSObject* objArg)
-{
-  JS::Rooted<JSObject*> obj(cx, objArg);
-  MOZ_ASSERT(JS_ObjectIsDate(cx, obj));
-
-  obj = js::CheckedUnwrap(obj);
-  // This really sucks: even if JS_ObjectIsDate, CheckedUnwrap can _still_ fail
-  if (!obj) {
-    return false;
-  }
-  mMsecSinceEpoch = js_DateGetMsecSinceEpoch(obj);
-  return true;
-}
-
-bool
-Date::ToDateObject(JSContext* cx, JS::Value* vp) const
-{
-  JSObject* obj = JS_NewDateObjectMsec(cx, mMsecSinceEpoch);
-  if (!obj) {
-    return false;
-  }
-  *vp = JS::ObjectValue(*obj);
-  return true;
 }
 
 } // namespace dom

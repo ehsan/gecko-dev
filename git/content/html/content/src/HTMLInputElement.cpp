@@ -97,6 +97,7 @@
 #include <limits>
 
 // input type=date
+#include "jsapi.h"
 #include "js/Date.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
@@ -733,8 +734,17 @@ HTMLInputElement::Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const
   nsresult rv = const_cast<HTMLInputElement*>(this)->CopyInnerTo(it);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  switch (GetValueMode()) {
-    case VALUE_MODE_VALUE:
+  switch (mType) {
+    case NS_FORM_INPUT_EMAIL:
+    case NS_FORM_INPUT_SEARCH:
+    case NS_FORM_INPUT_TEXT:
+    case NS_FORM_INPUT_PASSWORD:
+    case NS_FORM_INPUT_TEL:
+    case NS_FORM_INPUT_URL:
+    case NS_FORM_INPUT_NUMBER:
+    case NS_FORM_INPUT_DATE:
+    case NS_FORM_INPUT_TIME:
+    case NS_FORM_INPUT_RANGE:
       if (mValueChanged) {
         // We don't have our default value anymore.  Set our value on
         // the clone.
@@ -744,7 +754,7 @@ HTMLInputElement::Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const
         it->SetValueInternal(value, false, true);
       }
       break;
-    case VALUE_MODE_FILENAME:
+    case NS_FORM_INPUT_FILE:
       if (it->OwnerDoc()->IsStaticDocument()) {
         // We're going to be used in print preview.  Since the doc is static
         // we can just grab the pretty string and use it as wallpaper
@@ -754,17 +764,20 @@ HTMLInputElement::Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const
         it->mFiles.AppendObjects(mFiles);
       }
       break;
-    case VALUE_MODE_DEFAULT_ON:
+    case NS_FORM_INPUT_RADIO:
+    case NS_FORM_INPUT_CHECKBOX:
       if (mCheckedChanged) {
         // We no longer have our original checked state.  Set our
         // checked state on the clone.
         it->DoSetChecked(mChecked, false, true);
       }
       break;
-    case VALUE_MODE_DEFAULT:
-      if (mType == NS_FORM_INPUT_IMAGE && it->OwnerDoc()->IsStaticDocument()) {
+    case NS_FORM_INPUT_IMAGE:
+      if (it->OwnerDoc()->IsStaticDocument()) {
         CreateStaticImageClone(it);
       }
+      break;
+    default:
       break;
   }
 
@@ -1387,12 +1400,11 @@ HTMLInputElement::ConvertNumberToString(double aValue,
   }
 }
 
-
-Nullable<Date>
-HTMLInputElement::GetValueAsDate(ErrorResult& aRv)
+JS::Value
+HTMLInputElement::GetValueAsDate(JSContext* aCx, ErrorResult& aRv)
 {
   if (mType != NS_FORM_INPUT_DATE && mType != NS_FORM_INPUT_TIME) {
-    return Nullable<Date>();
+    return JS::NullValue();
   }
 
   switch (mType) {
@@ -1402,10 +1414,26 @@ HTMLInputElement::GetValueAsDate(ErrorResult& aRv)
       nsAutoString value;
       GetValueInternal(value);
       if (!GetValueAsDate(value, &year, &month, &day)) {
-        return Nullable<Date>();
+        return JS::NullValue();
       }
 
-      return Nullable<Date>(Date(JS::MakeDate(year, month - 1, day)));
+      JSObject* date = JS_NewDateObjectMsec(aCx, 0);
+      if (!date) {
+        JS_ClearPendingException(aCx);
+        return JS::NullValue();
+      }
+
+      JS::Value rval;
+      JS::Value fullYear[3];
+      fullYear[0].setInt32(year);
+      fullYear[1].setInt32(month - 1);
+      fullYear[2].setInt32(day);
+      if (!JS::Call(aCx, date, "setUTCFullYear", 3, fullYear, &rval)) {
+        JS_ClearPendingException(aCx);
+        return JS::NullValue();
+      }
+
+      return JS::ObjectOrNullValue(date);
     }
     case NS_FORM_INPUT_TIME:
     {
@@ -1413,32 +1441,71 @@ HTMLInputElement::GetValueAsDate(ErrorResult& aRv)
       nsAutoString value;
       GetValueInternal(value);
       if (!ParseTime(value, &millisecond)) {
-        return Nullable<Date>();
+        return JS::NullValue();
       }
 
-      return Nullable<Date>(Date(millisecond));
+      JSObject* date = JS_NewDateObjectMsec(aCx, millisecond);
+      if (!date) {
+        JS_ClearPendingException(aCx);
+        return JS::NullValue();
+      }
+
+      return JS::ObjectValue(*date);
     }
   }
 
   MOZ_ASSERT(false, "Unrecognized input type");
   aRv.Throw(NS_ERROR_UNEXPECTED);
-  return Nullable<Date>();
+  return JS::NullValue();
+}
+
+NS_IMETHODIMP
+HTMLInputElement::GetValueAsDate(JSContext* aCx, JS::Value* aDate)
+{
+  ErrorResult rv;
+  *aDate = GetValueAsDate(aCx, rv);
+  return rv.ErrorCode();
 }
 
 void
-HTMLInputElement::SetValueAsDate(Nullable<Date> aDate, ErrorResult& aRv)
+HTMLInputElement::SetValueAsDate(JSContext* aCx, JS::Value aDate, ErrorResult& aRv)
 {
   if (mType != NS_FORM_INPUT_DATE && mType != NS_FORM_INPUT_TIME) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
 
-  if (aDate.IsNull() || aDate.Value().IsUndefined()) {
+  if (aDate.isNullOrUndefined()) {
     aRv = SetValue(EmptyString());
     return;
   }
 
-  SetValue(aDate.Value().TimeStamp());
+  // TODO: return TypeError when HTMLInputElement is converted to WebIDL, see
+  // bug 826302.
+  if (!aDate.isObject() || !JS_ObjectIsDate(aCx, &aDate.toObject())) {
+    SetValue(EmptyString());
+    aRv.Throw(NS_ERROR_INVALID_ARG);
+    return;
+  }
+
+  JSObject& date = aDate.toObject();
+  JS::Value timestamp;
+  if (!JS::Call(aCx, &date, "getTime", 0, nullptr, &timestamp) ||
+      !timestamp.isNumber() || MOZ_DOUBLE_IS_NaN(timestamp.toNumber())) {
+    JS_ClearPendingException(aCx);
+    SetValue(EmptyString());
+    return;
+  }
+
+  SetValue(timestamp.toNumber());
+}
+
+NS_IMETHODIMP
+HTMLInputElement::SetValueAsDate(JSContext* aCx, const JS::Value& aDate)
+{
+  ErrorResult rv;
+  SetValueAsDate(aCx, aDate, rv);
+  return rv.ErrorCode();
 }
 
 NS_IMETHODIMP
@@ -4403,40 +4470,53 @@ NS_IMETHODIMP
 HTMLInputElement::SaveState()
 {
   nsRefPtr<HTMLInputElementState> inputState;
-  switch (GetValueMode()) {
-    case VALUE_MODE_DEFAULT_ON:
-      if (mCheckedChanged) {
-        inputState = new HTMLInputElementState();
-        inputState->SetChecked(mChecked);
-      }
-      break;
-    case VALUE_MODE_FILENAME:
-      if (mFiles.Count()) {
-        inputState = new HTMLInputElementState();
-        inputState->SetFiles(mFiles);
-      }
-      break;
-    case VALUE_MODE_VALUE:
-    case VALUE_MODE_DEFAULT:
-      // VALUE_MODE_DEFAULT shouldn't have their value saved except 'hidden',
-      // mType shouldn't be NS_FORM_INPUT_PASSWORD and value should have changed.
-      if ((GetValueMode() == VALUE_MODE_DEFAULT &&
-           mType != NS_FORM_INPUT_HIDDEN) ||
-          mType == NS_FORM_INPUT_PASSWORD || !mValueChanged) {
+  switch (mType) {
+    case NS_FORM_INPUT_CHECKBOX:
+    case NS_FORM_INPUT_RADIO:
+      {
+        if (mCheckedChanged) {
+          inputState = new HTMLInputElementState();
+          inputState->SetChecked(mChecked);
+        }
         break;
       }
 
-      inputState = new HTMLInputElementState();
-      nsAutoString value;
-      GetValue(value);
-      DebugOnly<nsresult> rv =
-        nsLinebreakConverter::ConvertStringLineBreaks(
-             value,
-             nsLinebreakConverter::eLinebreakPlatform,
-             nsLinebreakConverter::eLinebreakContent);
-      NS_ASSERTION(NS_SUCCEEDED(rv), "Converting linebreaks failed!");
-      inputState->SetValue(value);
+    // Never save passwords in session history
+    case NS_FORM_INPUT_PASSWORD:
       break;
+    case NS_FORM_INPUT_EMAIL:
+    case NS_FORM_INPUT_SEARCH:
+    case NS_FORM_INPUT_TEXT:
+    case NS_FORM_INPUT_TEL:
+    case NS_FORM_INPUT_URL:
+    case NS_FORM_INPUT_HIDDEN:
+    case NS_FORM_INPUT_NUMBER:
+    case NS_FORM_INPUT_DATE:
+    case NS_FORM_INPUT_TIME:
+    case NS_FORM_INPUT_RANGE:
+      {
+        if (mValueChanged) {
+          inputState = new HTMLInputElementState();
+          nsAutoString value;
+          GetValue(value);
+          DebugOnly<nsresult> rv =
+            nsLinebreakConverter::ConvertStringLineBreaks(
+                 value,
+                 nsLinebreakConverter::eLinebreakPlatform,
+                 nsLinebreakConverter::eLinebreakContent);
+          NS_ASSERTION(NS_SUCCEEDED(rv), "Converting linebreaks failed!");
+          inputState->SetValue(value);
+       }
+      break;
+    }
+    case NS_FORM_INPUT_FILE:
+      {
+        if (mFiles.Count()) {
+          inputState = new HTMLInputElementState();
+          inputState->SetFiles(mFiles);
+        }
+        break;
+      }
   }
 
   nsresult rv = NS_OK;
@@ -4580,29 +4660,37 @@ HTMLInputElement::RestoreState(nsPresState* aState)
     (do_QueryInterface(aState->GetStateProperty()));
 
   if (inputState) {
-    switch (GetValueMode()) {
-      case VALUE_MODE_DEFAULT_ON:
-        if (inputState->IsCheckedSet()) {
-          restoredCheckedState = true;
-          DoSetChecked(inputState->GetChecked(), true, true);
-        }
-        break;
-      case VALUE_MODE_FILENAME:
+    switch (mType) {
+      case NS_FORM_INPUT_CHECKBOX:
+      case NS_FORM_INPUT_RADIO:
         {
-          const nsCOMArray<nsIDOMFile>& files = inputState->GetFiles();
-          SetFiles(files, true);
-        }
-        break;
-      case VALUE_MODE_VALUE:
-      case VALUE_MODE_DEFAULT:
-        if (GetValueMode() == VALUE_MODE_DEFAULT &&
-            mType != NS_FORM_INPUT_HIDDEN) {
+          if (inputState->IsCheckedSet()) {
+            restoredCheckedState = true;
+            DoSetChecked(inputState->GetChecked(), true, true);
+          }
           break;
         }
 
-        SetValueInternal(inputState->GetValue(), false, true);
-        break;
-        break;
+      case NS_FORM_INPUT_EMAIL:
+      case NS_FORM_INPUT_SEARCH:
+      case NS_FORM_INPUT_TEXT:
+      case NS_FORM_INPUT_TEL:
+      case NS_FORM_INPUT_URL:
+      case NS_FORM_INPUT_HIDDEN:
+      case NS_FORM_INPUT_NUMBER:
+      case NS_FORM_INPUT_DATE:
+      case NS_FORM_INPUT_TIME:
+      case NS_FORM_INPUT_RANGE:
+        {
+          SetValueInternal(inputState->GetValue(), false, true);
+          break;
+        }
+      case NS_FORM_INPUT_FILE:
+        {
+          const nsCOMArray<nsIDOMFile>& files = inputState->GetFiles();
+          SetFiles(files, true);
+          break;
+        }
     }
   }
 

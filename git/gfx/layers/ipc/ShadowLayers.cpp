@@ -165,7 +165,6 @@ CompositableForwarder::IdentifyTextureHost(const TextureFactoryIdentifier& aIden
 ShadowLayerForwarder::ShadowLayerForwarder()
  : mShadowManager(NULL)
  , mIsFirstPaint(false)
- , mDrawColoredBorders(false)
 {
   mTxn = new Transaction();
 }
@@ -360,11 +359,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
   RenderTraceScope rendertrace("Foward Transaction", "000091");
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(!mTxn->Finished(), "forgot BeginTransaction?");
-
-  if (mDrawColoredBorders != gfxPlatform::DrawLayerBorders()) {
-    mDrawColoredBorders = gfxPlatform::DrawLayerBorders();
-    mTxn->AddEdit(OpSetColoredBorders(mDrawColoredBorders));
-  }
 
   AutoTxnEnd _(mTxn);
 

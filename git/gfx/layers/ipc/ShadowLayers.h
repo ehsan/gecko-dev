@@ -432,7 +432,6 @@ private:
   Transaction* mTxn;
 
   bool mIsFirstPaint;
-  bool mDrawColoredBorders;
 };
 
 class CompositableClient;

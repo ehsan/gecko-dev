@@ -698,10 +698,11 @@ nsDocumentViewer::InitPresentationStuff(bool aDoInitialReflow)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now make the shell for the document
-  mPresShell = mDocument->CreateShell(mPresContext, mViewManager, styleSet);
-  if (!mPresShell) {
+  rv = mDocument->CreateShell(mPresContext, mViewManager, styleSet,
+                              getter_AddRefs(mPresShell));
+  if (NS_FAILED(rv)) {
     delete styleSet;
-    return NS_ERROR_FAILURE;
+    return rv;
   }
 
   // We're done creating the style set

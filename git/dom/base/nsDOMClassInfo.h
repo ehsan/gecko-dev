@@ -375,9 +375,8 @@ public:
                                               JS::MutableHandle<JSObject*> objp);
   static JSBool GlobalScopePolluterGetProperty(JSContext *cx, JSHandleObject obj,
                                                JSHandleId id, JSMutableHandleValue vp);
-  static JSBool InvalidateGlobalScopePolluter(JSContext *cx, JSObject* obj);
-  static nsresult InstallGlobalScopePolluter(JSContext *cx,
-                                             JS::Handle<JSObject*> obj);
+  static JSBool InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj);
+  static nsresult InstallGlobalScopePolluter(JSContext *cx, JSObject *obj);
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsWindowSH(aData);
