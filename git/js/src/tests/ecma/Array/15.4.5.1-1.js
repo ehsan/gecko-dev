@@ -115,8 +115,6 @@ new TestCase(   SECTION,
 
 
 for ( var i = 0X0020, TEST_STRING = "var A = new Array( " ; i < 0x00ff; i++ ) {
-  if (i === "u".charCodeAt(0) || i === "x".charCodeAt(0))
-    continue;
   TEST_STRING += "\'\\"+ String.fromCharCode( i ) +"\'";
   if ( i < 0x00FF - 1   ) {
     TEST_STRING += ",";
@@ -125,7 +123,7 @@ for ( var i = 0X0020, TEST_STRING = "var A = new Array( " ; i < 0x00ff; i++ ) {
       }
 }
 
-var LENGTH = 0x00ff - 0x0020 - 2 /* "u"/"x" exclusions above */;
+var LENGTH = 0x00ff - 0x0020;
 
 new TestCase(   SECTION,
 		TEST_STRING +" A[150] = 'hello'; A[150]",

@@ -204,7 +204,6 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
   nscoord auPerDevPixel = aContainerFrame->PresContext()->AppUnitsPerDevPixel();
   nsIntPoint scrollOffset =
     aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
-  // metricsScrollOffset is in layer coordinates.
   nsIntPoint metricsScrollOffset = aMetrics->mViewportScrollOffset;
 
   if (aRootFrameLoader->AsyncScrollEnabled() && !aMetrics->mDisplayPort.IsEmpty()) {
@@ -226,7 +225,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
 static void
 BuildListForLayer(Layer* aLayer,
                   nsFrameLoader* aRootFrameLoader,
-                  const gfx3DMatrix& aTransform,
+                  gfx3DMatrix aTransform,
                   nsDisplayListBuilder* aBuilder,
                   nsDisplayList& aShadowTree,
                   nsIFrame* aSubdocFrame)
@@ -246,8 +245,6 @@ BuildListForLayer(Layer* aLayer,
     // Calculate transform for this layer.
     nsContentView* view =
       aRootFrameLoader->GetCurrentRemoteFrame()->GetContentView(scrollId);
-    // XXX why don't we include aLayer->GetTransform() in the inverse-scale here?
-    // This seems wrong, but it doesn't seem to cause bugs!
     gfx3DMatrix applyTransform = ComputeShadowTreeTransform(
       aSubdocFrame, aRootFrameLoader, metrics, view->GetViewConfig(),
       1 / GetXScale(aTransform), 1 / GetYScale(aTransform));
@@ -255,15 +252,14 @@ BuildListForLayer(Layer* aLayer,
 
     // As mentioned above, bounds calculation also depends on the scale
     // of this layer.
-    gfx3DMatrix tmpTransform = aTransform;
-    Scale(tmpTransform, GetXScale(applyTransform), GetYScale(applyTransform));
+    Scale(aTransform, GetXScale(applyTransform), GetYScale(applyTransform));
 
     // Calculate rect for this layer based on aTransform.
     nsRect bounds;
     {
       nscoord auPerDevPixel = aSubdocFrame->PresContext()->AppUnitsPerDevPixel();
       bounds = metrics->mViewport.ToAppUnits(auPerDevPixel);
-      ApplyTransform(bounds, tmpTransform, auPerDevPixel);
+      ApplyTransform(bounds, aTransform, auPerDevPixel);
 
     }
 
@@ -285,7 +281,7 @@ BuildListForLayer(Layer* aLayer,
 static void
 TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
                     nsIFrame* aFrame, Layer* aLayer,
-                    const ViewTransform& aTransform)
+                    ViewTransform& aTransform)
 {
   ShadowLayer* shadow = aLayer->AsShadowLayer();
   shadow->SetShadowClipRect(aLayer->GetClipRect());
@@ -294,38 +290,32 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
   const FrameMetrics* metrics = GetFrameMetrics(aLayer);
 
   gfx3DMatrix shadowTransform;
-  ViewTransform layerTransform = aTransform;
 
   if (metrics && metrics->IsScrollable()) {
     const ViewID scrollId = metrics->mScrollId;
     const nsContentView* view =
       aFrameLoader->GetCurrentRemoteFrame()->GetContentView(scrollId);
     NS_ABORT_IF_FALSE(view, "Array of views should be consistent with layer tree");
-    const gfx3DMatrix& currentTransform = aLayer->GetTransform();
 
     ViewTransform viewTransform = ComputeShadowTreeTransform(
       aFrame, aFrameLoader, metrics, view->GetViewConfig(),
-      1 / (GetXScale(currentTransform)*layerTransform.mXScale),
-      1 / (GetYScale(currentTransform)*layerTransform.mYScale)
+      1 / aTransform.mXScale, 1 / aTransform.mYScale
     );
 
-    // Apply the layer's own transform *before* the view transform
-    shadowTransform = gfx3DMatrix(viewTransform) * currentTransform;
-
     if (metrics->IsRootScrollable()) {
-      layerTransform.mTranslation = viewTransform.mTranslation;
-      // Apply the root frame translation *before* we do the rest of the transforms.
-      nsIntPoint rootFrameOffset = GetRootFrameOffset(aFrame, aBuilder);
-      shadowTransform = shadowTransform *
-          gfx3DMatrix::Translation(float(rootFrameOffset.x), float(rootFrameOffset.y), 0.0);
+      aTransform.mTranslation = viewTransform.mTranslation;
+      viewTransform.mTranslation += GetRootFrameOffset(aFrame, aBuilder);
     }
+
+    shadowTransform = gfx3DMatrix(viewTransform) * aLayer->GetTransform();
+
   } else {
     shadowTransform = aLayer->GetTransform();
   }
 
   if (aLayer->GetIsFixedPosition() &&
       !aLayer->GetParent()->GetIsFixedPosition()) {
-    ReverseTranslate(shadowTransform, layerTransform);
+    ReverseTranslate(shadowTransform, aTransform);
     const nsIntRect* clipRect = shadow->GetShadowClipRect();
     if (clipRect) {
       nsIntRect transformedClipRect(*clipRect);
@@ -335,12 +325,12 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
   }
 
   shadow->SetShadowTransform(shadowTransform);
-  layerTransform.mXScale *= GetXScale(shadowTransform);
-  layerTransform.mYScale *= GetYScale(shadowTransform);
+  aTransform.mXScale *= GetXScale(shadowTransform);
+  aTransform.mYScale *= GetYScale(shadowTransform);
 
   for (Layer* child = aLayer->GetFirstChild();
        child; child = child->GetNextSibling()) {
-    TransformShadowTree(aBuilder, aFrameLoader, aFrame, child, layerTransform);
+    TransformShadowTree(aBuilder, aFrameLoader, aFrame, child, aTransform);
   }
 }
 
@@ -829,8 +819,7 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 
 already_AddRefed<Layer>
 nsDisplayRemote::BuildLayer(nsDisplayListBuilder* aBuilder,
-                            LayerManager* aManager,
-                            const ContainerParameters& aContainerParameters)
+                            LayerManager* aManager)
 {
   PRInt32 appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   nsIntRect visibleRect = GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);

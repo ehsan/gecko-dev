@@ -21,7 +21,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -2469,11 +2468,6 @@ nsGenericElement::GetAttributeNode(const nsAString& aName,
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = nsnull;
 
-  nsIDocument* document = GetOwnerDoc();
-  if (document) {
-    document->WarnOnceAbout(nsIDocument::eGetAttributeNode);
-  }
-
   nsCOMPtr<nsIDOMNamedNodeMap> map;
   nsresult rv = GetAttributes(getter_AddRefs(map));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2496,11 +2490,6 @@ nsGenericElement::SetAttributeNode(nsIDOMAttr* aAttribute,
   NS_ENSURE_ARG_POINTER(aAttribute);
 
   *aReturn = nsnull;
-
-  nsIDocument* document = GetOwnerDoc();
-  if (document) {
-    document->WarnOnceAbout(nsIDocument::eSetAttributeNode);
-  }
 
   nsCOMPtr<nsIDOMNamedNodeMap> map;
   nsresult rv = GetAttributes(getter_AddRefs(map));
@@ -2525,11 +2514,6 @@ nsGenericElement::RemoveAttributeNode(nsIDOMAttr* aAttribute,
   NS_ENSURE_ARG_POINTER(aAttribute);
 
   *aReturn = nsnull;
-
-  nsIDocument* document = GetOwnerDoc();
-  if (document) {
-    document->WarnOnceAbout(nsIDocument::eRemoveAttributeNode);
-  }
 
   nsCOMPtr<nsIDOMNamedNodeMap> map;
   nsresult rv = GetAttributes(getter_AddRefs(map));
@@ -2626,12 +2610,8 @@ nsGenericElement::GetAttributeNodeNS(const nsAString& aNamespaceURI,
                                      nsIDOMAttr** aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
-  *aReturn = nsnull;
 
-  nsIDocument* document = GetOwnerDoc();
-  if (document) {
-    document->WarnOnceAbout(nsIDocument::eGetAttributeNodeNS);
-  }
+  *aReturn = nsnull;
 
   nsCOMPtr<nsIDOMNamedNodeMap> map;
   nsresult rv = GetAttributes(getter_AddRefs(map));
@@ -2653,12 +2633,8 @@ nsGenericElement::SetAttributeNodeNS(nsIDOMAttr* aNewAttr,
 {
   NS_ENSURE_ARG_POINTER(aReturn);
   NS_ENSURE_ARG_POINTER(aNewAttr);
-  *aReturn = nsnull;
 
-  nsIDocument* document = GetOwnerDoc();
-  if (document) {
-    document->WarnOnceAbout(nsIDocument::eSetAttributeNodeNS);
-  }
+  *aReturn = nsnull;
 
   nsCOMPtr<nsIDOMNamedNodeMap> map;
   nsresult rv = GetAttributes(getter_AddRefs(map));
@@ -3075,9 +3051,11 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     DeleteProperty(nsGkAtoms::transitionsOfBeforeProperty);
     DeleteProperty(nsGkAtoms::transitionsOfAfterProperty);
     DeleteProperty(nsGkAtoms::transitionsProperty);
+#ifdef MOZ_CSS_ANIMATIONS
     DeleteProperty(nsGkAtoms::animationsOfBeforeProperty);
     DeleteProperty(nsGkAtoms::animationsOfAfterProperty);
     DeleteProperty(nsGkAtoms::animationsProperty);
+#endif
   }
 
   // Unset this since that's what the old code effectively did.
@@ -4322,11 +4300,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGenericElement)
     else {
       PR_snprintf(name, sizeof(name), "nsGenericElement %s", localName.get());
     }
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsGenericElement),
-                              name);
+    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsGenericElement),
+                    name);
   }
   else {
-    NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsGenericElement, tmp->mRefCnt.get())
+    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsGenericElement),
+                    "nsGenericElement");
   }
 
   // Always need to traverse script objects, so do that before we check

@@ -266,7 +266,18 @@ NS_IMPL_BOOL_ATTR(nsHTMLSharedElement, Compact, compact)
 NS_IMPL_URI_ATTR(nsHTMLSharedElement, Cite, cite)
 
 // nsIDOMHTMLHeadElement
-// Empty
+// Deprecated and not exposed to script, but has to be implemented in order to
+// not break binary compat.
+NS_IMETHODIMP
+nsHTMLSharedElement::GetProfile(nsAString& aValue)
+{
+  return NS_ERROR_FAILURE;
+}
+NS_IMETHODIMP
+nsHTMLSharedElement::SetProfile(const nsAString& aValue)
+{
+  return NS_ERROR_FAILURE;
+}
 
 // nsIDOMHTMLHtmlElement
 NS_IMPL_STRING_ATTR(nsHTMLSharedElement, Version, version)

@@ -265,12 +265,6 @@ JSProxyHandler::fun_toString(JSContext *cx, JSObject *proxy, uintN indent)
 }
 
 bool
-JSProxyHandler::defaultValue(JSContext *cx, JSObject *proxy, JSType hint, Value *vp)
-{
-    return DefaultValue(cx, proxy, hint, vp);
-}
-
-bool
 JSProxyHandler::call(JSContext *cx, JSObject *proxy, uintN argc, Value *vp)
 {
     JS_ASSERT(OperationInProgress(cx, proxy));
@@ -886,14 +880,6 @@ JSProxy::fun_toString(JSContext *cx, JSObject *proxy, uintN indent)
     return proxy->getProxyHandler()->fun_toString(cx, proxy, indent);
 }
 
-bool
-JSProxy::defaultValue(JSContext *cx, JSObject *proxy, JSType hint, Value *vp)
-{
-    JS_CHECK_RECURSION(cx, return NULL);
-    AutoPendingProxyOperation pending(cx, proxy);
-    return proxy->getProxyHandler()->defaultValue(cx, proxy, hint, vp);
-}
-
 static JSObject *
 proxy_innerObject(JSContext *cx, JSObject *obj)
 {
@@ -997,13 +983,6 @@ proxy_TraceFunction(JSTracer *trc, JSObject *obj)
 }
 
 static JSBool
-proxy_Convert(JSContext *cx, JSObject *proxy, JSType hint, Value *vp)
-{
-    JS_ASSERT(proxy->isProxy());
-    return JSProxy::defaultValue(cx, proxy, hint, vp);
-}
-
-static JSBool
 proxy_Fix(JSContext *cx, JSObject *obj, bool *fixed, AutoIdVector *props)
 {
     JS_ASSERT(obj->isProxy());
@@ -1051,7 +1030,7 @@ JS_FRIEND_API(Class) ObjectProxyClass = {
     StrictPropertyStub,   /* setProperty */
     EnumerateStub,
     ResolveStub,
-    proxy_Convert,
+    ConvertStub,
     proxy_Finalize,       /* finalize    */
     NULL,                 /* reserved0   */
     NULL,                 /* checkAccess */
@@ -1332,7 +1311,7 @@ callable_Call(JSContext *cx, uintN argc, Value *vp)
     return ok;
 }
 
-JSBool
+static JSBool
 callable_Construct(JSContext *cx, uintN argc, Value *vp)
 {
     JSObject *thisobj = js_CreateThis(cx, &JS_CALLEE(cx, vp).toObject());

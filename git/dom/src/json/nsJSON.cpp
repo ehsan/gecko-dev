@@ -39,7 +39,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "jsapi.h"
-#include "jsdbgapi.h"
+#include "jsdtoa.h"
+#include "jsprvtd.h"
+#include "jsbool.h"
+#include "jsarena.h"
+#include "jscntxt.h"
+#include "jsinterp.h"
+#include "jsiter.h"
+#include "jstypes.h"
 #include "nsIServiceManager.h"
 #include "nsJSON.h"
 #include "nsIXPConnect.h"

@@ -879,6 +879,7 @@ nsresult imgLoader::InitCache()
 
 nsresult imgLoader::Init()
 {
+  nsresult rv;
   ReadAcceptHeaderPref();
 
   Preferences::AddWeakObserver(this, "image.http.accept");

@@ -255,7 +255,7 @@ let Async = {
         output(err);
         return;
       }
-      Utils.nextTick(function () { f(items[i], cb); });
+      Utils.delay(function () { f(items[i], cb); });
     }
     f(items[i], cb);
   },

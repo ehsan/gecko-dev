@@ -1350,12 +1350,12 @@ TokenStream::getTokenInternal()
      * early allows subsequent checking to be faster.
      */
     if (JS_UNLIKELY(c >= 128)) {
-        if (JS_ISSPACE_OR_BOM(c)) {
-            if (c == LINE_SEPARATOR || c == PARA_SEPARATOR) {
-                updateLineInfoForEOL();
-                updateFlagsForEOL();
-            }
+        if (JS_ISSPACE_OR_BOM(c))
+            goto retry;
 
+        if (c == LINE_SEPARATOR || c == PARA_SEPARATOR) {
+            updateLineInfoForEOL();
+            updateFlagsForEOL();
             goto retry;
         }
 
@@ -1578,10 +1578,6 @@ TokenStream::getTokenInternal()
                                       + JS7_UNHEX(cp[2])) << 4)
                                     + JS7_UNHEX(cp[3]);
                                 skipChars(4);
-                            } else {
-                                ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
-                                                         JSMSG_MALFORMED_ESCAPE, "Unicode");
-                                goto error;
                             }
                         } else if (c == 'x') {
                             jschar cp[2];
@@ -1589,16 +1585,9 @@ TokenStream::getTokenInternal()
                                 JS7_ISHEX(cp[0]) && JS7_ISHEX(cp[1])) {
                                 c = (JS7_UNHEX(cp[0]) << 4) + JS7_UNHEX(cp[1]);
                                 skipChars(2);
-                            } else {
-                                ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
-                                                         JSMSG_MALFORMED_ESCAPE, "hexadecimal");
-                                goto error;
                             }
                         } else if (c == '\n') {
-                            /*
-                             * ES5 7.8.4: an escaped line terminator represents
-                             * no character.
-                             */
+                            /* ECMA follows C by removing escaped newlines. */
                             continue;
                         }
                         break;

@@ -160,7 +160,7 @@ function run_next_test() {
 
     setMaxPages(gCurrentTest.maxPages);
     // Expire now, observers will check results.
-    force_expiration_step(-1);
+    force_expiration_step();
   }
   else {
     clearMaxPages();

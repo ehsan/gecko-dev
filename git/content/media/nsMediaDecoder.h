@@ -372,6 +372,7 @@ public:
   // target paint time of the next video frame to be displayed.
   // Ownership of the image is transferred to the layers subsystem.
   void SetVideoData(const gfxIntSize& aSize,
+                    float aPixelAspectRatio,
                     Image* aImage,
                     TimeStamp aTarget);
 
@@ -443,6 +444,9 @@ protected:
   // the video element does not use video data or sizes that are
   // in the midst of being changed.
   Mutex mVideoUpdateLock;
+
+  // Pixel aspect ratio (ratio of the pixel width to pixel height)
+  float mPixelAspectRatio;
 
   // The framebuffer size to use for audioavailable events.
   PRUint32 mFrameBufferLength;

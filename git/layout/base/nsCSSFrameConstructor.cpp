@@ -7689,13 +7689,13 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       }
     }
     if (aChange & nsChangeHint_UpdateOpacityLayer) {
-      aFrame->MarkLayersActive(nsChangeHint_UpdateOpacityLayer);
+      aFrame->MarkLayersActive();
       aFrame->InvalidateLayer(aFrame->GetVisualOverflowRectRelativeToSelf(),
                               nsDisplayItem::TYPE_OPACITY);
     }
     
     if (aChange & nsChangeHint_UpdateTransformLayer) {
-      aFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
+      aFrame->MarkLayersActive();
       // Invalidate the old transformed area. The new transformed area
       // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
       aFrame->InvalidateTransformLayer();

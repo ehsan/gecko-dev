@@ -139,7 +139,7 @@ abstract public class GeckoApp
                         mLibLoadThread.join();
                 } catch (InterruptedException ie) {}
                 surfaceView.mSplashStatusMsg =
-                    getResources().getString(R.string.splash_screen_loading);
+                    getResources().getString(R.string.splash_screen_label);
                 surfaceView.drawSplashScreen();
                 // unpack files in the components directory
                 try {
@@ -260,10 +260,10 @@ abstract public class GeckoApp
              new File(getApplication().getPackageResourcePath()).lastModified()
              >= libxulFile.lastModified()))
             surfaceView.mSplashStatusMsg =
-                getResources().getString(R.string.splash_screen_installing_libs);
+                getResources().getString(R.string.splash_screen_installing);
         else
             surfaceView.mSplashStatusMsg =
-                getResources().getString(R.string.splash_screen_loading);
+                getResources().getString(R.string.splash_screen_label);
         mLibLoadThread.start();
     }
 

@@ -43,7 +43,6 @@
 #include "jsgc.h"
 #include "jsgcmark.h"
 #include "jsiter.h"
-#include "jsmath.h"
 #include "jsproxy.h"
 #include "jsscope.h"
 #include "jstracer.h"
