@@ -161,13 +161,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 nsFocusManager* nsFocusManager::sInstance = nsnull;
 bool nsFocusManager::sMouseFocusesFormControl = false;
-bool nsFocusManager::sTestMode = false;
 
 static const char* kObservedPrefs[] = {
   "accessibility.browsewithcaret",
   "accessibility.tabfocus_applies_to_xul",
   "accessibility.mouse_focuses_formcontrol",
-  "focusmanager.testmode",
   NULL
 };
 
@@ -199,8 +197,6 @@ nsFocusManager::Init()
 
   sMouseFocusesFormControl =
     Preferences::GetBool("accessibility.mouse_focuses_formcontrol", false);
-
-  sTestMode = Preferences::GetBool("focusmanager.testmode", false);
 
   Preferences::AddWeakObservers(fm, kObservedPrefs);
 
@@ -238,9 +234,6 @@ nsFocusManager::Observe(nsISupports *aSubject,
       sMouseFocusesFormControl =
         Preferences::GetBool("accessibility.mouse_focuses_formcontrol",
                              false);
-    }
-    else if (data.EqualsLiteral("focusmanager.testmode")) {
-      sTestMode = Preferences::GetBool("focusmanager.testmode", false);
     }
   } else if (!nsCRT::strcmp(aTopic, "xpcom-shutdown")) {
     mActiveWindow = nsnull;
@@ -1071,7 +1064,7 @@ nsFocusManager::NotifyFocusStateChange(nsIContent* aContent,
 void
 nsFocusManager::EnsureCurrentWidgetFocused()
 {
-  if (!mFocusedWindow || sTestMode)
+  if (!mFocusedWindow)
     return;
 
   // get the main child widget for the focused window and ensure that the
@@ -1577,7 +1570,7 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
     if (mActiveWindow) {
       nsIFrame* contentFrame = content->GetPrimaryFrame();
       nsIObjectFrame* objectFrame = do_QueryFrame(contentFrame);
-      if (aAdjustWidgets && objectFrame && !sTestMode) {
+      if (aAdjustWidgets && objectFrame) {
         // note that the presshell's widget is being retrieved here, not the one
         // for the object frame.
         nsIViewManager* vm = presShell->GetViewManager();
@@ -1751,7 +1744,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     if (objectFrame)
       objectFrameWidget = objectFrame->GetWidget();
   }
-  if (aAdjustWidgets && !objectFrameWidget && !sTestMode) {
+  if (aAdjustWidgets && !objectFrameWidget) {
     nsIViewManager* vm = presShell->GetViewManager();
     if (vm) {
       nsCOMPtr<nsIWidget> widget;
@@ -1798,7 +1791,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
       // no longer be in the same document, due to the events we fired above when
       // aIsNewDocument.
       if (presShell->GetDocument() == aContent->GetDocument()) {
-        if (aAdjustWidgets && objectFrameWidget && !sTestMode)
+        if (aAdjustWidgets && objectFrameWidget)
           objectFrameWidget->SetFocus(false);
 
         // if the object being focused is a remote browser, activate remote content
@@ -1840,8 +1833,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     // the plugin not to be focusable, update the system focus by focusing
     // the root widget.
     if (aAdjustWidgets && objectFrameWidget &&
-        mFocusedWindow == aWindow && mFocusedContent == nsnull &&
-        !sTestMode) {
+        mFocusedWindow == aWindow && mFocusedContent == nsnull) {
       nsIViewManager* vm = presShell->GetViewManager();
       if (vm) {
         nsCOMPtr<nsIWidget> widget;
@@ -1972,15 +1964,6 @@ nsFocusManager::RaiseWindow(nsPIDOMWindow* aWindow)
   // being lowered
   if (!aWindow || aWindow == mActiveWindow || aWindow == mWindowBeingLowered)
     return;
-
-  if (sTestMode) {
-    // In test mode, emulate the existing window being lowered and the new
-    // window being raised.
-    if (mActiveWindow)
-      WindowLowered(mActiveWindow);
-    WindowRaised(aWindow);
-    return;
-  }
 
 #if defined(XP_WIN) || defined(XP_OS2)
   // Windows would rather we focus the child widget, otherwise, the toplevel

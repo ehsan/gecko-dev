@@ -119,27 +119,10 @@ XPCOMUtils.defineLazyGetter(this, "AutocompletePopup", function () {
   return obj.AutocompletePopup;
 });
 
-XPCOMUtils.defineLazyGetter(this, "ScratchpadManager", function () {
-  var obj = {};
-  try {
-    Cu.import("resource:///modules/devtools/scratchpad-manager.jsm", obj);
-  }
-  catch (err) {
-    Cu.reportError(err);
-  }
-  return obj.ScratchpadManager;
-});
-
 XPCOMUtils.defineLazyGetter(this, "namesAndValuesOf", function () {
   var obj = {};
   Cu.import("resource:///modules/PropertyPanel.jsm", obj);
   return obj.namesAndValuesOf;
-});
-
-XPCOMUtils.defineLazyGetter(this, "gConsoleStorage", function () {
-  let obj = {};
-  Cu.import("resource://gre/modules/ConsoleAPIStorage.jsm", obj);
-  return obj.ConsoleAPIStorage;
 });
 
 function LogFactory(aMessagePrefix)
@@ -1432,18 +1415,6 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Gets the ID of the inner window of this DOM window
-   *
-   * @param nsIDOMWindow aWindow
-   * @returns integer
-   */
-  getInnerWindowId: function HS_getInnerWindowId(aWindow)
-  {
-    return aWindow.QueryInterface(Ci.nsIInterfaceRequestor).
-           getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
-  },
-
-  /**
    * Gets the top level content window that has an outer window with
    * the given ID or returns null if no such content window exists
    *
@@ -2174,8 +2145,7 @@ HUD_SERVICE.prototype =
                                               sourceURL,
                                               sourceLine,
                                               clipboardText,
-                                              level,
-                                              aMessage.timeStamp);
+                                              level);
 
     // Make the node bring up the property panel, to allow the user to inspect
     // the stack trace.
@@ -2242,38 +2212,18 @@ HUD_SERVICE.prototype =
   /**
    * Reports an error in the page source, either JavaScript or CSS.
    *
+   * @param number aCategory
+   *        The category of the message; either CATEGORY_CSS or CATEGORY_JS.
    * @param nsIScriptError aScriptError
    *        The error message to report.
    * @return void
    */
-  reportPageError: function HS_reportPageError(aScriptError)
+  reportPageError: function HS_reportPageError(aCategory, aScriptError)
   {
-    if (!aScriptError.outerWindowID) {
-      return;
-    }
-
-    let category;
-
-    switch (aScriptError.category) {
-      // We ignore chrome-originating errors as we only care about content.
-      case "XPConnect JavaScript":
-      case "component javascript":
-      case "chrome javascript":
-      case "chrome registration":
-      case "XBL":
-      case "XBL Prototype Handler":
-      case "XBL Content Sink":
-      case "xbl javascript":
-        return;
-
-      case "CSS Parser":
-      case "CSS Loader":
-        category = CATEGORY_CSS;
-        break;
-
-      default:
-        category = CATEGORY_JS;
-        break;
+    if (aCategory != CATEGORY_CSS && aCategory != CATEGORY_JS) {
+      throw Components.Exception("Unsupported category (must be one of CSS " +
+                                 "or JS)", Cr.NS_ERROR_INVALID_ARG,
+                                 Components.stack.caller);
     }
 
     // Warnings and legacy strict errors become warnings; other types become
@@ -2292,14 +2242,12 @@ HUD_SERVICE.prototype =
         let chromeDocument = outputNode.ownerDocument;
 
         let node = ConsoleUtils.createMessageNode(chromeDocument,
-                                                  category,
+                                                  aCategory,
                                                   severity,
                                                   aScriptError.errorMessage,
                                                   hudId,
                                                   aScriptError.sourceName,
-                                                  aScriptError.lineNumber,
-                                                  null, null,
-                                                  aScriptError.timeStamp);
+                                                  aScriptError.lineNumber);
 
         ConsoleUtils.outputMessageNode(node, hudId);
       }
@@ -2947,7 +2895,7 @@ HUD_SERVICE.prototype =
     if (!hudNode) {
       // get nBox object and call new HUD
       let config = { parentNode: nBox,
-                     contentWindow: aContentWindow.top
+                     contentWindow: aContentWindow
                    };
 
       hud = new HeadsUpDisplay(config);
@@ -2960,8 +2908,6 @@ HUD_SERVICE.prototype =
 
       _browser.webProgress.addProgressListener(hud.progressListener,
         Ci.nsIWebProgress.NOTIFY_STATE_ALL);
-
-      hud.displayCachedConsoleMessages();
     }
     else {
       hud = this.hudReferences[hudId];
@@ -3631,58 +3577,6 @@ HeadsUpDisplay.prototype = {
   },
 
   /**
-   * Display cached messages that may have been collected before the UI is
-   * displayed.
-   *
-   * @returns void
-   */
-  displayCachedConsoleMessages: function HUD_displayCachedConsoleMessages()
-  {
-    let innerWindowId = HUDService.getInnerWindowId(this.contentWindow);
-
-    let messages = gConsoleStorage.getEvents(innerWindowId);
-
-    let errors = {};
-    Services.console.getMessageArray(errors, {});
-
-    // Filter the errors to find only those we should display.
-    let filteredErrors = (errors.value || []).filter(function(aError) {
-      return aError instanceof Ci.nsIScriptError &&
-             aError.innerWindowID == innerWindowId;
-    }, this);
-
-    messages.push.apply(messages, filteredErrors);
-    messages.sort(function(a, b) { return a.timeStamp - b.timeStamp; });
-
-    // Turn off scrolling for the moment.
-    ConsoleUtils.scroll = false;
-    this.outputNode.hidden = true;
-
-    // Display all messages.
-    messages.forEach(function(aMessage) {
-      if (aMessage instanceof Ci.nsIScriptError) {
-        HUDService.reportPageError(aMessage);
-      }
-      else {
-        // In this case the cached message is a console message generated
-        // by the ConsoleAPI, not an nsIScriptError
-        HUDService.logConsoleAPIMessage(this.hudId, aMessage);
-      }
-    }, this);
-
-    this.outputNode.hidden = false;
-    ConsoleUtils.scroll = true;
-
-    // Scroll to bottom.
-    let numChildren = this.outputNode.childNodes.length;
-    if (numChildren && this.outputNode.clientHeight) {
-      // We also check the clientHeight to force a reflow, otherwise
-      // ensureIndexIsVisible() does not work after outputNode.hidden = false.
-      this.outputNode.ensureIndexIsVisible(numChildren - 1);
-    }
-  },
-
-  /**
    * Re-attaches a console when the contentWindow is recreated
    *
    * @param nsIDOMWindow aContentWindow
@@ -4114,7 +4008,7 @@ HeadsUpDisplay.prototype = {
     function HUD_clearButton_onCommand() {
       let hud = HUDService.getHudReferenceById(hudId);
       if (hud.jsterm) {
-        hud.jsterm.clearOutput(true);
+        hud.jsterm.clearOutput();
       }
       if (hud.gcliterm) {
         hud.gcliterm.clearOutput();
@@ -4632,7 +4526,7 @@ function JSTermHelper(aJSTerm)
   aJSTerm.sandbox.clear = function JSTH_clear()
   {
     aJSTerm.helperEvaluated = true;
-    aJSTerm.clearOutput(true);
+    aJSTerm.clearOutput();
   };
 
   /**
@@ -5224,14 +5118,7 @@ JSTerm.prototype = {
     return type.toLowerCase();
   },
 
-  /**
-   * Clear the Web Console output.
-   *
-   * @param boolean aClearStorage
-   *        True if you want to clear the console messages storage associated to
-   *        this Web Console.
-   */
-  clearOutput: function JST_clearOutput(aClearStorage)
+  clearOutput: function JST_clearOutput()
   {
     let hud = HUDService.getHudReferenceById(this.hudId);
     hud.cssNodes = {};
@@ -5249,11 +5136,6 @@ JSTerm.prototype = {
 
     hud.HUDBox.lastTimestamp = 0;
     hud.groupDepth = 0;
-
-    if (aClearStorage) {
-      let windowId = HUDService.getInnerWindowId(hud.contentWindow);
-      gConsoleStorage.clearEvents(windowId);
-    }
   },
 
   /**
@@ -5784,11 +5666,6 @@ FirefoxApplicationHooks.prototype = {
  */
 
 ConsoleUtils = {
-  /**
-   * Flag to turn on and off scrolling.
-   */
-  scroll: true,
-
   supString: function ConsoleUtils_supString(aString)
   {
     let str = Cc["@mozilla.org/supports-string;1"].
@@ -5832,10 +5709,6 @@ ConsoleUtils = {
    * @returns void
    */
   scrollToVisible: function ConsoleUtils_scrollToVisible(aNode) {
-    if (!this.scroll) {
-      return;
-    }
-
     // Find the enclosing richlistbox node.
     let richListBoxNode = aNode.parentNode;
     while (richListBoxNode.tagName != "richlistbox") {
@@ -5873,9 +5746,6 @@ ConsoleUtils = {
    *        a string, then the clipboard text must be supplied.
    * @param number aLevel [optional]
    *        The level of the console API message.
-   * @param number aTimeStamp [optional]
-   *        The timestamp to use for this message node. If omitted, the current
-   *        date and time is used.
    * @return nsIDOMNode
    *         The message node: a XUL richlistitem ready to be inserted into
    *         the Web Console output node.
@@ -5883,8 +5753,7 @@ ConsoleUtils = {
   createMessageNode:
   function ConsoleUtils_createMessageNode(aDocument, aCategory, aSeverity,
                                           aBody, aHUDId, aSourceURL,
-                                          aSourceLine, aClipboardText, aLevel,
-                                          aTimeStamp) {
+                                          aSourceLine, aClipboardText, aLevel) {
     if (typeof aBody != "string" && aClipboardText == null && aBody.innerText) {
       aClipboardText = aBody.innerText;
     }
@@ -5944,7 +5813,7 @@ ConsoleUtils = {
     // Create the timestamp.
     let timestampNode = aDocument.createElementNS(XUL_NS, "label");
     timestampNode.classList.add("webconsole-timestamp");
-    let timestamp = aTimeStamp || ConsoleUtils.timestamp();
+    let timestamp = ConsoleUtils.timestamp();
     let timestampString = ConsoleUtils.timestampString(timestamp);
     timestampNode.setAttribute("value", timestampString);
 
@@ -6650,22 +6519,48 @@ HUDConsoleObserver = {
   init: function HCO_init()
   {
     Services.console.registerListener(this);
-    Services.obs.addObserver(this, "quit-application-granted", false);
+    Services.obs.addObserver(this, "xpcom-shutdown", false);
   },
 
   uninit: function HCO_uninit()
   {
     Services.console.unregisterListener(this);
-    Services.obs.removeObserver(this, "quit-application-granted");
+    Services.obs.removeObserver(this, "xpcom-shutdown");
   },
 
   observe: function HCO_observe(aSubject, aTopic, aData)
   {
-    if (aTopic == "quit-application-granted") {
+    if (aTopic == "xpcom-shutdown") {
       this.uninit();
+      return;
     }
-    else if (aSubject instanceof Ci.nsIScriptError) {
-      HUDService.reportPageError(aSubject);
+
+    if (!(aSubject instanceof Ci.nsIScriptError) ||
+        !aSubject.outerWindowID) {
+      return;
+    }
+
+    switch (aSubject.category) {
+      // We ignore chrome-originating errors as we only
+      // care about content.
+      case "XPConnect JavaScript":
+      case "component javascript":
+      case "chrome javascript":
+      case "chrome registration":
+      case "XBL":
+      case "XBL Prototype Handler":
+      case "XBL Content Sink":
+      case "xbl javascript":
+        return;
+
+      case "CSS Parser":
+      case "CSS Loader":
+        HUDService.reportPageError(CATEGORY_CSS, aSubject);
+        return;
+
+      default:
+        HUDService.reportPageError(CATEGORY_JS, aSubject);
+        return;
     }
   }
 };
@@ -6780,14 +6675,21 @@ function appName()
   throw new Error("appName: UNSUPPORTED APPLICATION UUID");
 }
 
-XPCOMUtils.defineLazyGetter(this, "HUDService", function () {
-  try {
-    return new HUD_SERVICE();
-  }
-  catch (ex) {
-    Cu.reportError(ex);
-  }
-});
+///////////////////////////////////////////////////////////////////////////
+// HUDService (exported symbol)
+///////////////////////////////////////////////////////////////////////////
+
+try {
+  // start the HUDService
+  // This is in a try block because we want to kill everything if
+  // *any* of this fails
+  var HUDService = new HUD_SERVICE();
+}
+catch (ex) {
+  Cu.reportError("HUDService failed initialization.\n" + ex);
+  // TODO: kill anything that may have started up
+  // see bug 568665
+}
 
 ///////////////////////////////////////////////////////////////////////////
 // GcliTerm
@@ -6830,20 +6732,6 @@ function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode, aConso
   this.show = this.show.bind(this);
   this.hide = this.hide.bind(this);
 
-  // Allow GCLI:Inputter to decide how and when to open a scratchpad window
-  let scratchpad = {
-    shouldActivate: function Scratchpad_shouldActivate(aEvent) {
-      return aEvent.shiftKey &&
-          aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN;
-    },
-    activate: function Scratchpad_activate(aValue) {
-      aValue = aValue.replace(/^\s*{\s*/, '');
-      ScratchpadManager.openScratchpad({ text: aValue });
-      return true;
-    },
-    linkText: stringBundle.GetStringFromName('scratchpad.linkText')
-  };
-
   this.opts = {
     environment: { hudId: this.hudId },
     chromeDocument: this.document,
@@ -6857,7 +6745,6 @@ function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode, aConso
     inputBackgroundElement: this.inputStack,
     hintElement: this.hintNode,
     consoleWrap: aConsoleWrap,
-    scratchpad: scratchpad,
     gcliTerm: this
   };
 
