@@ -284,7 +284,8 @@ nsWindow::Destroy(void)
     if (IsTopLevel())
         gTopLevelWindows.RemoveElement(this);
 
-    SetParent(nsnull);
+    if (mParent)
+        mParent->mChildren.RemoveElement(this);
 
     nsBaseWidget::OnDestroy();
 

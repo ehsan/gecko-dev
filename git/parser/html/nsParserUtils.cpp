@@ -180,8 +180,6 @@ nsParserUtils::ParseFragment(const nsAString& aFragment,
   document = do_QueryInterface(domDocument);
   NS_ENSURE_TRUE(document, NS_ERROR_NOT_AVAILABLE);
 
-  nsAutoScriptBlockerSuppressNodeRemoved autoBlocker;
-
   // stop scripts
   nsRefPtr<nsScriptLoader> loader;
   bool scripts_enabled = false;

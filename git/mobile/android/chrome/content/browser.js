@@ -1435,8 +1435,16 @@ var NativeWindow = {
 
 
 var UserAgent = {
+  DESKTOP_UA: null,
+
   init: function ua_init() {
     Services.obs.addObserver(this, "http-on-modify-request", false);
+
+    // See https://developer.mozilla.org/en/Gecko_user_agent_string_reference
+    this.DESKTOP_UA = Cc["@mozilla.org/network/protocol;1?name=http"]
+                        .getService(Ci.nsIHttpProtocolHandler).userAgent
+                        .replace("Android; Mobile", "X11; Linux i686")
+                        .replace(/Gecko\/[0-9\.]+/, "Gecko/20100101");
   },
 
   uninit: function ua_uninit() {
@@ -1474,10 +1482,7 @@ var UserAgent = {
     let channelWindow = this.getWindowForRequest(channel);
     if (BrowserApp.getBrowserForWindow(channelWindow)) {
       if (channel.URI.host.indexOf("youtube") != -1) {
-        let ua = Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler).userAgent;
-#expand let version = "__MOZ_APP_VERSION__";
-        ua += " Fennec/" + version;
-        channel.setRequestHeader("User-Agent", ua, false);
+        channel.setRequestHeader("User-Agent", this.DESKTOP_UA, false);
       }
     }
   }
@@ -2758,29 +2763,6 @@ var BrowserEventHandler = {
     sendMessageToJava({ gecko: { type: "Browser:ZoomToPageWidth"} });
   },
 
-  _isRectZoomedIn: function(aRect, aViewport) {
-    // This function checks to see if the area of the rect visible in the
-    // viewport (i.e. the "overlapArea" variable below) is approximately
-    // the max area of the rect we can show. It also checks that the rect
-    // is actually on-screen by testing the left and right edges of the rect.
-    // In effect, this tells us whether or not zooming in to this rect
-    // will significantly change what the user is seeing.
-    const minDifference = -20;
-    const maxDifference = 20;
-
-    let vRect = new Rect(aViewport.cssX, aViewport.cssY, aViewport.cssWidth, aViewport.cssHeight);
-    let overlap = vRect.intersect(aRect);
-    let overlapArea = overlap.width * overlap.height;
-    let availHeight = Math.min(aRect.width * vRect.height / vRect.width, aRect.height);
-    let showing = overlapArea / (aRect.width * availHeight);
-    let dw = (aRect.width - vRect.width);
-    let dx = (aRect.x - vRect.x);
-
-    return (showing > 0.9 &&
-            dx > minDifference && dx < maxDifference &&
-            dw > minDifference && dw < maxDifference);
-  },
-
   onDoubleTap: function(aData) {
     let data = JSON.parse(aData);
 
@@ -2801,41 +2783,39 @@ var BrowserEventHandler = {
       this._zoomOut();
     } else {
       const margin = 15;
+      const minDifference = -20;
+      const maxDifference = 20;
       let rect = ElementTouchHelper.getBoundingContentRect(element);
 
       let viewport = BrowserApp.selectedTab.getViewport();
+      let vRect = new Rect(viewport.cssX, viewport.cssY, viewport.cssWidth, viewport.cssHeight);
       let bRect = new Rect(Math.max(viewport.cssPageLeft, rect.x - margin),
                            rect.y,
-                           rect.w + 2 * margin,
+                           rect.w + 2*margin,
                            rect.h);
 
       // constrict the rect to the screen's right edge
       bRect.width = Math.min(bRect.width, viewport.cssPageRight - bRect.x);
 
-      // if the rect is already taking up most of the visible area and is stretching the
-      // width of the page, then we want to zoom out instead.
-      if (this._isRectZoomedIn(bRect, viewport)) {
-        this._zoomOut();
-        return;
+      let overlap = vRect.intersect(bRect);
+      let overlapArea = overlap.width*overlap.height;
+      // we want to know if the area of the element showing is near the max we can show
+      // on the screen at any time and if its already stretching the width of the screen
+      let availHeight = Math.min(bRect.width*vRect.height/vRect.width, bRect.height);
+      let showing = overlapArea/(bRect.width*availHeight);
+      let dw = (bRect.width - vRect.width);
+      let dx = (bRect.x - vRect.x);
+
+      if (showing > 0.9 &&
+          dx > minDifference && dx < maxDifference &&
+          dw > minDifference && dw < maxDifference) {
+            this._zoomOut();
+            return;
       }
 
       rect.type = "Browser:ZoomToRect";
-      rect.x = bRect.x;
-      rect.y = bRect.y;
-      rect.w = bRect.width;
-      rect.h = Math.min(bRect.width * viewport.cssHeight / viewport.cssWidth, bRect.height);
-
-      // if the block we're zooming to is really tall, and the user double-tapped
-      // more than a screenful of height from the top of it, then adjust the y-coordinate
-      // so that we center the actual point the user double-tapped upon. this prevents
-      // flying to the top of a page when double-tapping to zoom in (bug 761721).
-      // the 1.2 multiplier is just a little fuzz to compensate for bRect including horizontal
-      // margins but not vertical ones.
-      let cssTapY = viewport.cssY + data.y;
-      if ((bRect.height > rect.h) && (cssTapY > rect.y + (rect.h * 1.2))) {
-        rect.y = cssTapY - (rect.h / 2);
-      }
-
+      rect.x = bRect.x; rect.y = bRect.y;
+      rect.w = bRect.width; rect.h = availHeight;
       sendMessageToJava({ gecko: rect });
     }
   },

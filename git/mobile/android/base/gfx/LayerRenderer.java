@@ -76,7 +76,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * The layer renderer implements the rendering logic for a layer view.
  */
-public class LayerRenderer {
+public class LayerRenderer implements GLSurfaceView.Renderer {
     private static final String LOGTAG = "GeckoLayerRenderer";
     private static final String PROFTAG = "GeckoLayerRendererProf";
 
@@ -123,6 +123,9 @@ public class LayerRenderer {
     private int mTextureHandle;
     private int mSampleHandle;
     private int mTMatrixHandle;
+
+    private int mSurfaceWidth;
+    private int mSurfaceHeight;
 
     // column-major matrix applied to each vertex to shift the viewport from
     // one ranging from (-1, -1),(1,1) to (0,0),(1,1) and to scale all sizes by
@@ -214,7 +217,7 @@ public class LayerRenderer {
         mCoordBuffer = byteBuffer.asFloatBuffer();
     }
 
-    void onSurfaceCreated(GL10 gl, EGLConfig config) {
+    public void onSurfaceCreated(GL10 gl, EGLConfig config) {
         checkMonitoringEnabled();
         createDefaultProgram();
         activateDefaultProgram();
@@ -290,6 +293,23 @@ public class LayerRenderer {
         }
     }
 
+    /**
+     * Called whenever a new frame is about to be drawn.
+     */
+    public void onDrawFrame(GL10 gl) {
+	/* This code is causing crashes when the surface changes. (bug 738188)
+	 * I'm not sure if it actually works, so I'm disabling it now to avoid the crash.
+        Frame frame = createFrame(mView.getController().getViewportMetrics());
+        synchronized (mView.getController()) {
+            frame.beginDrawing();
+            frame.drawBackground();
+            frame.drawRootLayer();
+            frame.drawForeground();
+            frame.endDrawing();
+        }
+	*/
+    }
+
     private void printCheckerboardStats() {
         Log.d(PROFTAG, "Frames rendered over last 1000ms: " + mCompleteFramesRendered + "/" + mFramesRendered);
         mFramesRendered = 0;
@@ -325,8 +345,28 @@ public class LayerRenderer {
     }
 
     private RenderContext createContext(RectF viewport, RectF pageRect, float zoomFactor) {
-        return new RenderContext(viewport, pageRect, zoomFactor, mPositionHandle, mTextureHandle,
+        return new RenderContext(viewport, pageRect, new IntSize(mSurfaceWidth, mSurfaceHeight), zoomFactor, mPositionHandle, mTextureHandle,
                                  mCoordBuffer);
+    }
+
+    public void resizeView(final int width, final int height) {
+        mSurfaceWidth = width;
+        mSurfaceHeight = height;
+
+        // updating the state in the view/controller/client should be
+        // done on the main UI thread, not the GL renderer thread
+        mView.post(new Runnable() {
+            public void run() {
+                mView.setViewportSize(new IntSize(width, height));
+            }
+        });
+
+        /* TODO: Throw away tile images? */
+    }
+
+    @Override
+    public void onSurfaceChanged(GL10 gl, final int width, final int height) {
+        resizeView(width, height);
     }
 
     private void updateDroppedFrames(long frameStartTime) {
