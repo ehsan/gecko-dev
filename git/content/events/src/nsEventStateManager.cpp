@@ -5129,8 +5129,7 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
         return NS_OK;
       }
 
-      nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(window);
-      if (pusher.Push(target)) {
+      if (pusher.Push(window)) {
         nsEventDispatcher::Dispatch(window, gLastFocusedPresContextWeak, &event,
                                     nsnull, &status);
 

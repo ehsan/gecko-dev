@@ -77,6 +77,7 @@ public:
   nsresult RemoveProperty(nsCSSProperty aProperty);
 
   nsresult GetValue(nsCSSProperty aProperty, nsAString& aValue) const;
+  nsresult GetValue(const nsAString& aProperty, nsAString& aValue) const;
 
   PRBool HasImportantData() const { return mImportantData != nsnull; }
   PRBool GetValueIsImportant(nsCSSProperty aProperty) const;

@@ -5,8 +5,13 @@
 //\\// INCLUDE
 //#include "StdAfx.h"
 
+// netscape
+#ifndef _NPAPI_H_
 #include "npapi.h"
-#include "npfunctions.h"
+#endif
+#ifndef _NPUPP_H_
+#include "npupp.h"
+#endif
 
 //\\// DEFINE
 #ifdef WIN32

@@ -58,7 +58,7 @@ EXPORTS		= \
 
 SDK_HEADERS	 = \
 		npapi.h \
-		npfunctions.h \
+		npupp.h \
 		nptypes.h \
 		npruntime.h \
 		$(NULL)

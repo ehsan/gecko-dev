@@ -49,7 +49,7 @@ let (x = 2)
   var x;
 }
 actual = x + '';
-reportCompare(expect, actual, summary + ': 1');
+reportCompare(expect, actual, summary);
 
 //-----------------------------------------------------------------------------
 test();
@@ -64,7 +64,7 @@ function test()
   expect = undefined + '';
   actual = '';
   (function () { let (x = 2) { var x; } actual = x + ''; })(); 
-  reportCompare(expect, actual, summary + ': 2');
+  reportCompare(expect, actual, summary);
 
   exitFunc ('test');
 }

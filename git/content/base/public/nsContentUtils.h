@@ -105,7 +105,6 @@ class nsIUGenCategory;
 class nsIWidget;
 class nsIDragSession;
 class nsPIDOMWindow;
-class nsPIDOMEventTarget;
 #ifdef MOZ_XTF
 class nsIXTFService;
 #endif
@@ -1338,11 +1337,7 @@ public:
 
                                              
   static nsIInterfaceRequestor* GetSameOriginChecker();
-
-  static nsIThreadJSContextStack* ThreadJSContextStack()
-  {
-    return sThreadJSContextStack;
-  }
+                                           
 private:
 
   static PRBool InitializeEventTable();
@@ -1439,11 +1434,12 @@ public:
   ~nsCxPusher(); // Calls Pop();
 
   // Returns PR_FALSE if something erroneous happened.
-  PRBool Push(nsPIDOMEventTarget *aCurrentTarget);
+  PRBool Push(nsISupports *aCurrentTarget);
   PRBool Push(JSContext *cx);
   void Pop();
 
 private:
+  nsCOMPtr<nsIJSContextStack> mStack;
   nsCOMPtr<nsIScriptContext> mScx;
   PRBool mScriptIsRunning;
 };

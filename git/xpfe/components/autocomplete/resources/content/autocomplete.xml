@@ -598,7 +598,6 @@
         <body><![CDATA[
           var str = this.currentSearchString;
           if (!str) {
-            this.clearResults(false);
             this.closeResultPopup();
             return;
           }
