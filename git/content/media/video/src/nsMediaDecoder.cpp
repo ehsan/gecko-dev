@@ -72,7 +72,7 @@ nsMediaDecoder::nsMediaDecoder() :
   mDataTime(),
   mVideoUpdateLock(nsnull),
   mFramerate(0.0),
-  mAspectRatio(0.0),
+  mAspectRatio(1.0),
   mSizeChanged(PR_FALSE),
   mShuttingDown(PR_FALSE),
   mStopping(PR_FALSE)
