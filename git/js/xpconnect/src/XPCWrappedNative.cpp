@@ -1402,6 +1402,43 @@ XPCWrappedNative::SystemIsBeingShutDown()
 
 /***************************************************************************/
 
+// If we have to transplant an object across compartments, we need to be
+// careful if the underlying object implements nsWrapperCache and is preserving
+// the wrapper.
+//
+// The class brackets a pair of Unpreserve/Preserve calls in the given scope.
+//
+// This class _must_ live on the stack, in part so that mPreservedWrapper is
+// visible to the stack scanner. The caller wants the wrapper to be preserved,
+// so we don't want it to get accidentally GCed.
+class AutoWrapperChanger NS_STACK_CLASS {
+public:
+    AutoWrapperChanger() : mCache(nullptr)
+                         , mCOMObj(nullptr)
+                         , mPreservedWrapper(nullptr)
+    {}
+
+    void init(nsISupports* aCOMObj, nsWrapperCache* aWrapperCache) {
+        mCOMObj = aCOMObj;
+        mCache = aWrapperCache;
+        if (mCache->PreservingWrapper()) {
+            mPreservedWrapper = mCache->GetWrapper();
+            MOZ_ASSERT(mPreservedWrapper);
+            nsContentUtils::ReleaseWrapper(mCOMObj, mCache);
+        }
+    }
+
+    ~AutoWrapperChanger() {
+        if (mPreservedWrapper)
+            nsContentUtils::PreserveWrapper(mCOMObj, mCache);
+    }
+
+private:
+    nsWrapperCache* mCache;
+    nsISupports* mCOMObj;
+    JSObject* mPreservedWrapper;
+};
+
 // Dynamically ensure that two objects don't end up with the same private.
 class AutoClonePrivateGuard NS_STACK_CLASS {
 public:
@@ -1441,10 +1478,16 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
     nsresult rv;
 
     nsRefPtr<XPCWrappedNative> wrapper;
+    AutoWrapperChanger wrapperChanger;
     JSObject *flat;
     nsWrapperCache* cache = nullptr;
     CallQueryInterface(aCOMObj, &cache);
     if (cache) {
+
+        // There's a wrapper cache. Make sure we keep it sane no matter what
+        // happens.
+        wrapperChanger.init(aCOMObj, cache);
+
         flat = cache->GetWrapper();
         if (flat && !IS_SLIM_WRAPPER_OBJECT(flat)) {
             wrapper = static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(flat));
@@ -1628,12 +1671,8 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
             }
 
             wrapper->mFlatJSObject = flat;
-            if (cache) {
-                bool preserving = cache->PreservingWrapper();
-                cache->SetPreservingWrapper(false);
+            if (cache)
                 cache->SetWrapper(flat);
-                cache->SetPreservingWrapper(preserving);
-            }
             if (!JS_CopyPropertiesFrom(ccx, flat, propertyHolder))
                 MOZ_CRASH();
         } else {

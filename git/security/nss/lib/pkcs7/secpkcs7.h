@@ -129,7 +129,7 @@ extern PRBool SEC_PKCS7VerifySignature(SEC_PKCS7ContentInfo *cinfo,
  */
 extern PRBool SEC_PKCS7VerifyDetachedSignature(SEC_PKCS7ContentInfo *cinfo,
 					       SECCertUsage certusage,
-					       const SECItem *detached_digest,
+					       SECItem *detached_digest,
 					       HASH_HashType digest_type,
 					       PRBool keepcerts);
 

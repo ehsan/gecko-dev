@@ -184,25 +184,12 @@ public class AnnouncementsService extends IntentService implements Announcements
   }
 
   protected void setLastFetch(final long fetch) {
-    this.getSharedPreferences().edit().putLong(AnnouncementsConstants.PREF_LAST_FETCH_LOCAL_TIME, fetch).commit();
-  }
-
-  public long getLastFetch() {
-    return this.getSharedPreferences().getLong(AnnouncementsConstants.PREF_LAST_FETCH_LOCAL_TIME, 0L);
-  }
-
-  protected String setLastDate(final String fetch) {
-    if (fetch == null) {
-      this.getSharedPreferences().edit().remove(AnnouncementsConstants.PREF_LAST_FETCH_SERVER_DATE).commit();
-      return null;
-    }
-    this.getSharedPreferences().edit().putString(AnnouncementsConstants.PREF_LAST_FETCH_SERVER_DATE, fetch).commit();
-    return fetch;
+    this.getSharedPreferences().edit().putLong(AnnouncementsConstants.PREF_LAST_FETCH, fetch).commit();
   }
 
   @Override
-  public String getLastDate() {
-    return this.getSharedPreferences().getString(AnnouncementsConstants.PREF_LAST_FETCH_SERVER_DATE, null);
+  public long getLastFetch() {
+    return getSharedPreferences().getLong(AnnouncementsConstants.PREF_LAST_FETCH, 0L);
   }
 
   /**
@@ -248,23 +235,16 @@ public class AnnouncementsService extends IntentService implements Announcements
     return AnnouncementsConstants.ANNOUNCE_USER_AGENT;
   }
 
-  protected void persistTimes(long fetched, String date) {
-    setLastFetch(fetched);
-    if (date != null) {
-      setLastDate(date);
-    }
-  }
-
   @Override
-  public void onNoNewAnnouncements(long fetched, String date) {
+  public void onNoNewAnnouncements(long fetched) {
     Logger.info(LOG_TAG, "No new announcements to display.");
-    persistTimes(fetched, date);
+    setLastFetch(fetched);
   }
 
   @Override
-  public void onNewAnnouncements(List<Announcement> announcements, long fetched, String date) {
+  public void onNewAnnouncements(List<Announcement> announcements, long fetched) {
     Logger.info(LOG_TAG, "Processing announcements: " + announcements.size());
-    persistTimes(fetched, date);
+    setLastFetch(fetched);
     processAnnouncements(announcements);
   }
 

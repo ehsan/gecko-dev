@@ -104,7 +104,6 @@
 #include "nsContentUtils.h"
 #include "nsIPrincipal.h"
 #include "nsDeviceStorage.h"
-#include "AudioChannelService.h"
 
 using namespace base;
 using namespace mozilla::docshell;
@@ -435,17 +434,6 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
     }
 
     child->Send__delete__(child, reports);
-    return true;
-}
-
-bool
-ContentChild::RecvAudioChannelNotify()
-{
-    nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetAudioChannelService();
-    if (service) {
-        service->Notify();
-    }
     return true;
 }
 

@@ -112,9 +112,6 @@ public:
     RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child);
 
     virtual bool
-    RecvAudioChannelNotify();
-
-    virtual bool
     RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
                                 const bool& aMinimizeMemoryUsage,
                                 const bool& aDumpChildProcesses);

@@ -247,10 +247,8 @@ SCOPED_TEMPLATE(ScopedDeleteArray, ScopedDeleteArrayTraits)
  *   } // file is closed with PR_Close here
  */
 #define MOZ_TYPE_SPECIFIC_SCOPED_POINTER_TEMPLATE(name, Type, Deleter) \
-template <> inline void TypeSpecificDelete(Type * value) { Deleter(value); } \
+inline void TypeSpecificDelete(Type * value) { Deleter(value); } \
 typedef ::mozilla::TypeSpecificScopedPointer<Type> name;
-
-template <typename T> void TypeSpecificDelete(T * value);
 
 template <typename T>
 struct TypeSpecificScopedPointerTraits

@@ -790,8 +790,7 @@ this.GECKO_ICC_SERVICES = {
     SDN: 18,
     DATA_DOWNLOAD_SMS_PP: 26,
     CBMIR: 30,
-    BDN: 31,
-    SPDI: 56
+    BDN: 31
   },
   usim: {
     FDN: 2,

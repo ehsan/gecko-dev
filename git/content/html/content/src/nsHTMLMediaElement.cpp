@@ -65,8 +65,6 @@
 #include "nsDOMMediaStream.h"
 #include "nsIScriptError.h"
 
-#include "AudioChannelService.h"
-
 #include "nsCSSParser.h"
 #include "nsIMediaList.h"
 
@@ -113,8 +111,6 @@ static PRLogModuleInfo* gMediaElementEventsLog;
 #include "nsChannelPolicy.h"
 
 #include "mozilla/Preferences.h"
-
-#include "nsIPermissionManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -448,7 +444,6 @@ NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Autoplay, autoplay)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Loop, loop)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, DefaultMuted, muted)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLMediaElement, Preload, preload, NULL)
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLMediaElement, MozAudioChannelType, mozaudiochannel, "normal")
 
 NS_IMETHODIMP
 nsHTMLMediaElement::GetMozSrcObject(JSContext* aCtx, jsval *aParams)
@@ -1517,9 +1512,14 @@ NS_IMETHODIMP nsHTMLMediaElement::GetMuted(bool *aMuted)
   return NS_OK;
 }
 
-void nsHTMLMediaElement::SetMutedInternal(bool aMuted)
+NS_IMETHODIMP nsHTMLMediaElement::SetMuted(bool aMuted)
 {
-  float effectiveVolume = aMuted || mChannelMuted ? 0.0f : float(mVolume);
+  if (aMuted == mMuted)
+    return NS_OK;
+
+  mMuted = aMuted;
+
+  float effectiveVolume = mMuted ? 0.0f : float(mVolume);
   if (mDecoder) {
     mDecoder->SetVolume(effectiveVolume);
   } else if (mAudioStream) {
@@ -1527,15 +1527,6 @@ void nsHTMLMediaElement::SetMutedInternal(bool aMuted)
   } else if (mSrcStream) {
     GetSrcMediaStream()->SetAudioOutputVolume(this, effectiveVolume);
   }
-}
-
-NS_IMETHODIMP nsHTMLMediaElement::SetMuted(bool aMuted)
-{
-  if (aMuted == mMuted)
-    return NS_OK;
-
-  mMuted = aMuted;
-  SetMutedInternal(aMuted);
 
   DispatchAsyncEvent(NS_LITERAL_STRING("volumechange"));
 
@@ -1729,9 +1720,7 @@ nsHTMLMediaElement::nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mCORSMode(CORS_NONE),
     mHasAudio(false),
     mDownloadSuspendedByCache(false),
-    mAudioChannelType(AUDIO_CHANNEL_NORMAL),
-    mChannelMuted(false),
-    mPlayingThroughTheAudioChannel(false)
+    mAudioChannelType(AUDIO_CHANNEL_NORMAL)
 {
 #ifdef PR_LOGGING
   if (!gMediaElementLog) {
@@ -1865,9 +1854,9 @@ NS_IMETHODIMP nsHTMLMediaElement::Play()
 }
 
 bool nsHTMLMediaElement::ParseAttribute(int32_t aNamespaceID,
-                                        nsIAtom* aAttribute,
-                                        const nsAString& aValue,
-                                        nsAttrValue& aResult)
+                                          nsIAtom* aAttribute,
+                                          const nsAString& aValue,
+                                          nsAttrValue& aResult)
 {
   // Mappings from 'preload' attribute strings to an enumeration.
   static const nsAttrValue::EnumTable kPreloadTable[] = {
@@ -1875,17 +1864,6 @@ bool nsHTMLMediaElement::ParseAttribute(int32_t aNamespaceID,
     { "none",     nsHTMLMediaElement::PRELOAD_ATTR_NONE },
     { "metadata", nsHTMLMediaElement::PRELOAD_ATTR_METADATA },
     { "auto",     nsHTMLMediaElement::PRELOAD_ATTR_AUTO },
-    { 0 }
-  };
-
-  // Mappings from 'mozaudiochannel' attribute strings to an enumeration.
-  static const nsAttrValue::EnumTable kMozAudioChannelAttributeTable[] = {
-    { "normal",             AUDIO_CHANNEL_NORMAL },
-    { "content",            AUDIO_CHANNEL_CONTENT },
-    { "notification",       AUDIO_CHANNEL_NOTIFICATION },
-    { "alarm",              AUDIO_CHANNEL_ALARM },
-    { "telephony",          AUDIO_CHANNEL_TELEPHONY },
-    { "publicnotification", AUDIO_CHANNEL_PUBLICNOTIFICATION },
     { 0 }
   };
 
@@ -1900,50 +1878,10 @@ bool nsHTMLMediaElement::ParseAttribute(int32_t aNamespaceID,
     if (aAttribute == nsGkAtoms::preload) {
       return aResult.ParseEnumValue(aValue, kPreloadTable, false);
     }
-
-    if (aAttribute == nsGkAtoms::mozaudiochannel) {
-      bool parsed = aResult.ParseEnumValue(aValue, kMozAudioChannelAttributeTable, false,
-                                           &kMozAudioChannelAttributeTable[0]);
-      if (!parsed) {
-        return false;
-      }
-
-      AudioChannelType audioChannelType = static_cast<AudioChannelType>(aResult.GetEnumValue());
-
-      if (audioChannelType != mAudioChannelType &&
-          !mDecoder &&
-          CheckAudioChannelPermissions(aValue)) {
-        mAudioChannelType = audioChannelType;
-      }
-
-      return true;
-    }
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
-}
-
-bool nsHTMLMediaElement::CheckAudioChannelPermissions(const nsAString& aString)
-{
-#ifdef MOZ_B2G
-  // Only normal channel doesn't need permission.
-  if (!aString.EqualsASCII("normal")) {
-    nsCOMPtr<nsIPermissionManager> permissionManager =
-      do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-    if (!permissionManager) {
-      return false;
-    }
-
-    uint32_t perm = nsIPermissionManager::UNKNOWN_ACTION;
-    permissionManager->TestExactPermissionFromPrincipal(NodePrincipal(),
-      nsCString(NS_LITERAL_CSTRING("audio-channel-") + NS_ConvertUTF16toUTF8(aString)).get(), &perm);
-    if (perm != nsIPermissionManager::ALLOW_ACTION) {
-      return false;
-    }
-  }
-#endif
-  return true;
 }
 
 void nsHTMLMediaElement::DoneCreatingElement()
@@ -3201,8 +3139,6 @@ void nsHTMLMediaElement::ChangeReadyState(nsMediaReadyState aState)
   nsMediaReadyState oldState = mReadyState;
   mReadyState = aState;
 
-  UpdateAudioChannelPlayingState();
-
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY ||
       oldState == mReadyState) {
     return;
@@ -3447,10 +3383,6 @@ void nsHTMLMediaElement::NotifyOwnerDocumentActivityChanged()
     }
   }
 
-  if (mPlayingThroughTheAudioChannel) {
-    UpdateChannelMuteState();
-  }
-
   AddRemoveSelfReference();
 }
 
@@ -3489,8 +3421,6 @@ void nsHTMLMediaElement::AddRemoveSelfReference()
       NS_DispatchToMainThread(event);
     }
   }
-
-  UpdateAudioChannelPlayingState();
 }
 
 void nsHTMLMediaElement::DoRemoveSelfReference()
@@ -3768,74 +3698,67 @@ void nsHTMLMediaElement::GetMimeType(nsCString& aMimeType)
   aMimeType = mMimeType;
 }
 
-nsresult nsHTMLMediaElement::UpdateChannelMuteState()
-{
-  // Only on B2G we mute the nsHTMLMediaElement following the rules of
-  // AudioChannelService.
-#ifdef MOZ_B2G
-  bool hidden = false;
-  nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
-  if (!domDoc) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsresult rv = domDoc->GetHidden(&hidden);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  bool mute = false;
-
-  nsRefPtr<AudioChannelService> audioChannelService = AudioChannelService::GetAudioChannelService();
-  if (audioChannelService) {
-    mute = audioChannelService->GetMuted(mAudioChannelType, hidden);
-  }
-
-  // We have to mute this channel:
-  if (mute && !mChannelMuted) {
-    mChannelMuted = true;
-    DispatchAsyncEvent(NS_LITERAL_STRING("mozinterruptbegin"));
-  } else if (!mute && mChannelMuted) {
-    mChannelMuted = false;
-    DispatchAsyncEvent(NS_LITERAL_STRING("mozinterruptend"));
-  }
-
-  SetMutedInternal(mMuted);
-#endif
-
-  return NS_OK;
-}
-
-void nsHTMLMediaElement::UpdateAudioChannelPlayingState()
-{
-  // The nsHTMLMediaElement is registered to the AudioChannelService only on B2G.
-#ifdef MOZ_B2G
-  bool playingThroughTheAudioChannel =
-     (mReadyState >= nsIDOMHTMLMediaElement::HAVE_FUTURE_DATA &&
-      IsPotentiallyPlaying());
-  if (playingThroughTheAudioChannel != mPlayingThroughTheAudioChannel) {
-    mPlayingThroughTheAudioChannel = playingThroughTheAudioChannel;
-
-    nsRefPtr<AudioChannelService> audioChannelService = AudioChannelService::GetAudioChannelService();
-    if (!audioChannelService) {
-      return;
-    }
-
-    if (mPlayingThroughTheAudioChannel) {
-      audioChannelService->RegisterMediaElement(this, mAudioChannelType);
-    } else {
-      audioChannelService->UnregisterMediaElement(this);
-    }
-  }
-#endif
-}
-
-nsresult nsHTMLMediaElement::NotifyAudioChannelStateChanged()
-{
-  return UpdateChannelMuteState();
-}
-
 void nsHTMLMediaElement::NotifyAudioAvailableListener()
 {
   if (mDecoder) {
     mDecoder->NotifyAudioAvailableListener();
   }
+}
+
+NS_IMETHODIMP
+nsHTMLMediaElement::GetMozAudioChannelType(nsAString& aString)
+{
+  switch (mAudioChannelType) {
+    case AUDIO_CHANNEL_NORMAL:
+      aString.AssignLiteral("normal");
+      break;
+    case AUDIO_CHANNEL_CONTENT:
+      aString.AssignLiteral("content");
+      break;
+    case AUDIO_CHANNEL_NOTIFICATION:
+      aString.AssignLiteral("notification");
+      break;
+    case AUDIO_CHANNEL_ALARM:
+      aString.AssignLiteral("alarm");
+      break;
+    case AUDIO_CHANNEL_TELEPHONY:
+      aString.AssignLiteral("telephony");
+      break;
+    case AUDIO_CHANNEL_PUBLICNOTIFICATION:
+      aString.AssignLiteral("publicnotification");
+      break;
+    default:
+      break;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLMediaElement::SetMozAudioChannelType(const nsAString& aString)
+{
+  AudioChannelType tmpType;
+
+  if (aString.EqualsASCII("normal")) {
+    tmpType = AUDIO_CHANNEL_NORMAL;
+  } else if (aString.EqualsASCII("content")) {
+    tmpType = AUDIO_CHANNEL_CONTENT;
+  } else if (aString.EqualsASCII("notification")) {
+    tmpType = AUDIO_CHANNEL_NOTIFICATION;
+  } else if (aString.EqualsASCII("alarm")) {
+    tmpType = AUDIO_CHANNEL_ALARM;
+  } else if (aString.EqualsASCII("telephony")) {
+    tmpType = AUDIO_CHANNEL_TELEPHONY;
+  } else if (aString.EqualsASCII("publicnotification")) {
+    tmpType = AUDIO_CHANNEL_PUBLICNOTIFICATION;
+  } else {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (tmpType != mAudioChannelType && mDecoder) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mAudioChannelType = tmpType;
+  return NS_OK;
 }

@@ -704,7 +704,7 @@ Sprinter::Sprinter(JSContext *cx)
 #ifdef DEBUG
     initialized(false),
 #endif
-    base(NULL), size(0), offset(0), reportedOOM(false)
+    base(NULL), size(0), offset(0)
 { }
 
 Sprinter::~Sprinter()
@@ -900,19 +900,6 @@ Sprinter::getOffsetOf(const char *string) const
     return string - base;
 }
 
-void
-Sprinter::reportOutOfMemory() {
-    if (reportedOOM)
-        return;
-    js_ReportOutOfMemory(context);
-    reportedOOM = true;
-}
-
-bool
-Sprinter::hadOutOfMemory() const {
-    return reportedOOM;
-}
-
 ptrdiff_t
 js::Sprint(Sprinter *sp, const char *format, ...)
 {
@@ -924,7 +911,7 @@ js::Sprint(Sprinter *sp, const char *format, ...)
     bp = JS_vsmprintf(format, ap);      /* XXX vsaprintf */
     va_end(ap);
     if (!bp) {
-        sp->reportOutOfMemory();
+        JS_ReportOutOfMemory(sp->context);
         return -1;
     }
     offset = sp->put(bp);
@@ -1211,7 +1198,7 @@ js_printf(JSPrinter *jp, const char *format, ...)
         format = NULL;
     }
     if (!bp) {
-        jp->sprinter.reportOutOfMemory();
+        JS_ReportOutOfMemory(jp->sprinter.context);
         va_end(ap);
         return -1;
     }
@@ -1266,7 +1253,7 @@ UpdateDecompiledText(SprintStack *ss, jsbytecode *pc, ptrdiff_t todo)
 
         char *ntext = ss->printer->pool.newArrayUninitialized<char>(len);
         if (!ntext) {
-            ss->sprinter.reportOutOfMemory();
+            js_ReportOutOfMemory(ss->sprinter.context);
             return false;
         }
 
@@ -1286,7 +1273,7 @@ SprintDupeStr(SprintStack *ss, const char *str)
     if (nstr) {
         js_memcpy((char *) nstr, str, len);
     } else {
-        ss->sprinter.reportOutOfMemory();
+        js_ReportOutOfMemory(ss->sprinter.context);
         nstr = "";
     }
 
@@ -1312,7 +1299,7 @@ SprintOpcode(SprintStack *ss, const char *str, jsbytecode *pc,
              jsbytecode *parentpc, ptrdiff_t startOffset)
 {
     if (startOffset < 0) {
-        JS_ASSERT(ss->sprinter.hadOutOfMemory());
+        JS_ASSERT(ss->sprinter.context->isExceptionPending());
         return;
     }
     ptrdiff_t offset = ss->sprinter.getOffset();
@@ -1452,7 +1439,7 @@ PushOff(SprintStack *ss, ptrdiff_t off, JSOp op, jsbytecode *pc = NULL)
     top = ss->top;
     JS_ASSERT(top < StackDepth(ss->printer->script));
     if (top >= StackDepth(ss->printer->script)) {
-        ss->sprinter.reportOutOfMemory();
+        JS_ReportOutOfMemory(ss->sprinter.context);
         return JS_FALSE;
     }
 
@@ -1509,9 +1496,6 @@ PopOffPrec(SprintStack *ss, uint8_t prec, jsbytecode **ppc = NULL)
         ss->offsets[top] = off - 2;
         ss->sprinter.setOffset(off - 2);
         off = Sprint(&ss->sprinter, "(%s)", ss->sprinter.stringAt(off));
-        /* If allocation failed, return any safe string. */
-        if (off < 0)
-            off = 0;
         if (ss->printer->decompiledOpcodes && pc)
             ss->printer->decompiled(pc).parenthesized = true;
     } else {
@@ -1616,7 +1600,7 @@ SprintDoubleValue(Sprinter *sp, jsval v, JSOp *opp)
         ToCStringBuf cbuf;
         s = NumberToCString(sp->context, &cbuf, d);
         if (!s) {
-            sp->reportOutOfMemory();
+            JS_ReportOutOfMemory(sp->context);
             return -1;
         }
         JS_ASSERT(strcmp(s, "Infinity") &&
@@ -5422,7 +5406,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, int nb)
             }
         }
 
-        if (ss->sprinter.hadOutOfMemory()) {
+        if (cx->isExceptionPending()) {
             /* OOMs while printing to a string do not immediately return. */
             return NULL;
         }

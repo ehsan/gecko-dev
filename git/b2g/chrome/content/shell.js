@@ -403,10 +403,6 @@ var shell = {
           content.removeEventListener('load', shell_homeLoaded);
           shell.isHomeLoaded = true;
 
-#ifdef MOZ_WIDGET_GONK
-          libcutils.property_set('sys.boot_completed', '1');
-#endif
-
           Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
 
           if ('pendingChromeEvents' in shell) {
@@ -920,15 +916,6 @@ window.addEventListener('ContentStart', function update_onContentStart() {
       state: aData
     });
 }, "headphones-status-changed", false);
-})();
-
-(function audioChannelChangedTracker() {
-  Services.obs.addObserver(function(aSubject, aTopic, aData) {
-    shell.sendChromeEvent({
-      type: 'audio-channel-changed',
-      channel: aData
-    });
-}, "audio-channel-changed", false);
 })();
 
 (function recordingStatusTracker() {

@@ -6,7 +6,6 @@
 #ifndef TABMESSAGE_UTILS_H
 #define TABMESSAGE_UTILS_H
 
-#include "AudioChannelCommon.h"
 #include "ipc/IPCMessageUtils.h"
 #include "nsIDOMEvent.h"
 #include "nsCOMPtr.h"
@@ -56,13 +55,6 @@ struct ParamTraits<mozilla::dom::RemoteDOMEvent>
   {
   }
 };
-
-template <>
-struct ParamTraits<mozilla::dom::AudioChannelType>
-  : public EnumSerializer<mozilla::dom::AudioChannelType,
-                          mozilla::dom::AUDIO_CHANNEL_NORMAL,
-                          mozilla::dom::AUDIO_CHANNEL_LAST>
-{ };
 
 }
 
