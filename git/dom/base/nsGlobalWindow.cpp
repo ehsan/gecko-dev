@@ -4,13 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsGlobalWindow.h"
+
 #include <algorithm>
 
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 // Local Includes
-#include "nsGlobalWindow.h"
 #include "Navigator.h"
 #include "nsScreen.h"
 #include "nsHistory.h"
@@ -1546,7 +1547,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
   NS_INTERFACE_MAP_ENTRY(mozilla::dom::EventTarget)
   NS_INTERFACE_MAP_ENTRY(nsPIDOMWindow)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMStorageIndexedDB)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowPerformance)
@@ -8962,10 +8962,6 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
   NS_ADDREF(*aLocalStorage = mLocalStorage);
   return NS_OK;
 }
-
-//*****************************************************************************
-// nsGlobalWindow::nsIDOMStorageIndexedDB
-//*****************************************************************************
 
 NS_IMETHODIMP
 nsGlobalWindow::GetIndexedDB(nsISupports** _retval)
