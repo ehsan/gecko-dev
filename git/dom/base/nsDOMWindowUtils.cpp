@@ -1220,7 +1220,8 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
 
   uint32_t locationFlag = (aAdditionalFlags &
     (KEY_FLAG_LOCATION_STANDARD | KEY_FLAG_LOCATION_LEFT |
-     KEY_FLAG_LOCATION_RIGHT | KEY_FLAG_LOCATION_NUMPAD));
+     KEY_FLAG_LOCATION_RIGHT | KEY_FLAG_LOCATION_NUMPAD |
+     KEY_FLAG_LOCATION_MOBILE | KEY_FLAG_LOCATION_JOYSTICK));
   switch (locationFlag) {
     case KEY_FLAG_LOCATION_STANDARD:
       event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD;
@@ -1233,6 +1234,12 @@ nsDOMWindowUtils::SendKeyEvent(const nsAString& aType,
       break;
     case KEY_FLAG_LOCATION_NUMPAD:
       event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_NUMPAD;
+      break;
+    case KEY_FLAG_LOCATION_MOBILE:
+      event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
+      break;
+    case KEY_FLAG_LOCATION_JOYSTICK:
+      event.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_JOYSTICK;
       break;
     default:
       if (locationFlag != 0) {

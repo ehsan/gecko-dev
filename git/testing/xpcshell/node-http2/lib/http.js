@@ -121,7 +121,7 @@
 //
 // [1]: http://nodejs.org/api/https.html
 // [2]: http://nodejs.org/api/http.html
-// [3]: http://tools.ietf.org/html/draft-ietf-httpbis-http2-16#section-8.1.2.4
+// [3]: http://tools.ietf.org/html/draft-ietf-httpbis-http2-14#section-8.1.3.2
 // [expect-continue]: https://github.com/http2/http2-spec/issues/18
 // [connect]: https://github.com/http2/http2-spec/issues/230
 
@@ -246,7 +246,7 @@ function IncomingMessage(stream) {
 }
 IncomingMessage.prototype = Object.create(PassThrough.prototype, { constructor: { value: IncomingMessage } });
 
-// [Request Header Fields](http://tools.ietf.org/html/draft-ietf-httpbis-http2-16#section-8.1.2.3)
+// [Request Header Fields](http://tools.ietf.org/html/draft-ietf-httpbis-http2-14#section-8.1.3.1)
 // * `headers` argument: HTTP/2.0 request and response header fields carry information as a series
 //   of key-value pairs. This includes the target URI for the request, the status code for the
 //   response, as well as HTTP header fields.
@@ -602,7 +602,7 @@ function IncomingRequest(stream) {
 }
 IncomingRequest.prototype = Object.create(IncomingMessage.prototype, { constructor: { value: IncomingRequest } });
 
-// [Request Header Fields](http://tools.ietf.org/html/draft-ietf-httpbis-http2-16#section-8.1.2.3)
+// [Request Header Fields](http://tools.ietf.org/html/draft-ietf-httpbis-http2-14#section-8.1.3.1)
 // * `headers` argument: HTTP/2.0 request and response header fields carry information as a series
 //   of key-value pairs. This includes the target URI for the request, the status code for the
 //   response, as well as HTTP header fields.
@@ -753,8 +753,7 @@ function requestRaw(options, callback) {
   if (typeof options === "string") {
     options = url.parse(options);
   }
-  options.plain = true;
-  if (options.protocol && options.protocol !== "http:") {
+  if ((options.protocol && options.protocol !== "http:") || !options.plain) {
     throw new Error('This interface only supports http-schemed URLs');
   }
   return (options.agent || exports.globalAgent).request(options, callback);
@@ -764,8 +763,7 @@ function requestTLS(options, callback) {
   if (typeof options === "string") {
     options = url.parse(options);
   }
-  options.plain = false;
-  if (options.protocol && options.protocol !== "https:") {
+  if ((options.protocol && options.protocol !== "https:") || options.plain) {
     throw new Error('This interface only supports https-schemed URLs');
   }
   return (options.agent || exports.globalAgent).request(options, callback);
@@ -775,8 +773,7 @@ function getRaw(options, callback) {
   if (typeof options === "string") {
     options = url.parse(options);
   }
-  options.plain = true;
-  if (options.protocol && options.protocol !== "http:") {
+  if ((options.protocol && options.protocol !== "http:") || !options.plain) {
     throw new Error('This interface only supports http-schemed URLs');
   }
   return (options.agent || exports.globalAgent).get(options, callback);
@@ -786,8 +783,7 @@ function getTLS(options, callback) {
   if (typeof options === "string") {
     options = url.parse(options);
   }
-  options.plain = false;
-  if (options.protocol && options.protocol !== "https:") {
+  if ((options.protocol && options.protocol !== "https:") || options.plain) {
     throw new Error('This interface only supports https-schemed URLs');
   }
   return (options.agent || exports.globalAgent).get(options, callback);
@@ -867,7 +863,7 @@ Agent.prototype.request = function request(options, callback) {
     request._start(endpoint.createStream(), options);
   }
 
-  // * HTTP/2 over TLS negotiated using NPN or ALPN, or fallback to HTTPS1
+  // * HTTP/2 over TLS negotiated using NPN or ALPN
   else {
     var started = false;
     options.ALPNProtocols = supportedProtocols;
@@ -880,7 +876,7 @@ Agent.prototype.request = function request(options, callback) {
     httpsRequest.on('socket', function(socket) {
       var negotiatedProtocol = socket.alpnProtocol || socket.npnProtocol;
       if (negotiatedProtocol != null) { // null in >=0.11.0, undefined in <0.11.0
-        negotiated();
+        negotiated()
       } else {
         socket.on('secureConnect', negotiated);
       }
@@ -898,12 +894,11 @@ Agent.prototype.request = function request(options, callback) {
         endpoint.pipe(endpoint.socket).pipe(endpoint);
       }
       if (started) {
-        // ** In the meantime, an other connection was made to the same host...
         if (endpoint) {
-          // *** and it turned out to be HTTP2 and the request was multiplexed on that one, so we should close this one
           endpoint.close();
+        } else {
+          httpsRequest.abort();
         }
-        // *** otherwise, the fallback to HTTPS1 is already done.
       } else {
         if (endpoint) {
           self._log.info({ e: endpoint, server: options.host + ':' + options.port },
@@ -1084,7 +1079,7 @@ function IncomingResponse(stream) {
 }
 IncomingResponse.prototype = Object.create(IncomingMessage.prototype, { constructor: { value: IncomingResponse } });
 
-// [Response Header Fields](http://tools.ietf.org/html/draft-ietf-httpbis-http2-16#section-8.1.2.4)
+// [Response Header Fields](http://tools.ietf.org/html/draft-ietf-httpbis-http2-14#section-8.1.3.2)
 // * `headers` argument: HTTP/2.0 request and response header fields carry information as a series
 //   of key-value pairs. This includes the target URI for the request, the status code for the
 //   response, as well as HTTP header fields.

@@ -1128,19 +1128,9 @@ FeedWriter.prototype = {
                getInterface(Ci.nsIWebNavigation).
                QueryInterface(Ci.nsIDocShell).currentDocumentChannel;
 
-    var nullPrincipal = Cc["@mozilla.org/nullprincipal;1"].
-                        createInstance(Ci.nsIPrincipal);
-
     var resolvedURI = Cc["@mozilla.org/network/io-service;1"].
                       getService(Ci.nsIIOService).
-                      newChannel2("about:feeds",
-                                  null,
-                                  null,
-                                  null, // aLoadingNode
-                                  nullPrincipal,
-                                  null, // aTriggeringPrincipal
-                                  Ci.nsILoadInfo.SEC_NORMAL,
-                                  Ci.nsIContentPolicy.TYPE_OTHER).URI;
+                      newChannel("about:feeds", null, null).URI;
 
     if (resolvedURI.equals(chan.URI))
       return chan.originalURI;

@@ -2921,22 +2921,10 @@ nsBlockFrame::AttributeChanged(int32_t         aNameSpaceID,
 }
 
 static inline bool
-IsNonAutoNonZeroBSize(const nsStyleCoord& aCoord)
+IsNonAutoNonZeroHeight(const nsStyleCoord& aCoord)
 {
-  nsStyleUnit unit = aCoord.GetUnit();
-  if (unit == eStyleUnit_Auto ||
-      // The enumerated values were originally aimed at inline-size
-      // (or width, as it was before logicalization). For now, let them
-      // return false here, so we treat them like 'auto' pending a
-      // real implementation. (See bug 1126420.)
-      //
-      // FIXME (bug 567039, bug 527285)
-      // This isn't correct for the 'fill' value, which should more
-      // likely (but not necessarily, depending on the available space)
-      // be returning true.
-      unit == eStyleUnit_Enumerated) {
+  if (aCoord.GetUnit() == eStyleUnit_Auto)
     return false;
-  }
   if (aCoord.IsCoordPercentCalcUnit()) {
     // If we evaluate the length/percent/calc at a percentage basis of
     // both nscoord_MAX and 0, and it's zero both ways, then it's a zero
@@ -2963,13 +2951,13 @@ nsBlockFrame::IsSelfEmpty()
   bool vertical = GetWritingMode().IsVertical();
 
   if (vertical) {
-    if (IsNonAutoNonZeroBSize(position->mMinWidth) ||
-        IsNonAutoNonZeroBSize(position->mWidth)) {
+    if (IsNonAutoNonZeroHeight(position->mMinWidth) ||
+        IsNonAutoNonZeroHeight(position->mWidth)) {
       return false;
     }
   } else {
-    if (IsNonAutoNonZeroBSize(position->mMinHeight) ||
-        IsNonAutoNonZeroBSize(position->mHeight)) {
+    if (IsNonAutoNonZeroHeight(position->mMinHeight) ||
+        IsNonAutoNonZeroHeight(position->mHeight)) {
       return false;
     }
   }
