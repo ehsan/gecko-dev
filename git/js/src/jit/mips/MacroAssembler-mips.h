@@ -37,12 +37,6 @@ enum JumpKind
     ShortJump = 1
 };
 
-enum DelaySlotFill
-{
-    DontFillDelaySlot = 0,
-    FillDelaySlot = 1
-};
-
 struct ImmTag : public Imm32
 {
     ImmTag(JSValueTag mask)
@@ -239,7 +233,7 @@ class MacroAssemblerMIPS : public Assembler
     }
 
     void ma_b(Label *l, JumpKind jumpKind = LongJump);
-    void ma_bal(Label *l, DelaySlotFill delaySlotFill = FillDelaySlot);
+    void ma_bal(Label *l, JumpKind jumpKind = LongJump);
 
     // fp instructions
     void ma_lis(FloatRegister dest, float value);
@@ -983,7 +977,6 @@ public:
     // non-function. Returns offset to be passed to markSafepointAt().
     bool buildFakeExitFrame(Register scratch, uint32_t *offset);
 
-    void callWithExitFrame(Label *target);
     void callWithExitFrame(JitCode *target);
     void callWithExitFrame(JitCode *target, Register dynStack);
 

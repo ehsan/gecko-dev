@@ -1107,20 +1107,12 @@ static void SetGradient(const nsCSSValue& aValue, nsPresContext* aPresContext,
       NS_NOTREACHED("unexpected unit for gradient stop location");
     }
 
-    stop.mIsInterpolationHint = valueStop.mIsInterpolationHint;
-
     // inherit is not a valid color for stops, so we pass in a dummy
     // parent color
     NS_ASSERTION(valueStop.mColor.GetUnit() != eCSSUnit_Inherit,
                  "inherit is not a valid color for gradient stops");
-    if (!valueStop.mIsInterpolationHint) {
-      SetColor(valueStop.mColor, NS_RGB(0, 0, 0), aPresContext,
-              aContext, stop.mColor, aCanStoreInRuleTree);
-    } else {
-      // Always initialize to the same color so we don't need to worry
-      // about comparisons.
-      stop.mColor = NS_RGB(0, 0, 0);
-    }
+    SetColor(valueStop.mColor, NS_RGB(0, 0, 0), aPresContext,
+             aContext, stop.mColor, aCanStoreInRuleTree);
 
     aResult.mStops.AppendElement(stop);
   }

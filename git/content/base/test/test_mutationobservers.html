@@ -101,7 +101,8 @@ function runTest() {
     e = ex;
   }
   ok(e, "Should have thrown an exception");
-  is(e.name, "TypeError", "Should have thrown TypeError");
+  is(e.name, "SyntaxError", "Should have thrown SyntaxError");
+  is(e.code, DOMException.SYNTAX_ERR, "Should have thrown DOMException.SYNTAX_ERR");
 
   e = null;
   try {
@@ -109,7 +110,9 @@ function runTest() {
   } catch (ex) {
     e = ex;
   }
-  ok(!e, "Shouldn't have thrown an exception");
+  ok(e, "Should have thrown an exception");
+  is(e.name, "SyntaxError", "Should have thrown SyntaxError");
+  is(e.code, DOMException.SYNTAX_ERR, "Should have thrown DOMException.SYNTAX_ERR");
 
   e = null;
   try {
@@ -117,7 +120,9 @@ function runTest() {
   } catch (ex) {
     e = ex;
   }
-  ok(!e, "Shouldn't have thrown an exception");
+  ok(e, "Should have thrown an exception");
+  is(e.name, "SyntaxError", "Should have thrown SyntaxError");
+  is(e.code, DOMException.SYNTAX_ERR, "Should have thrown DOMException.SYNTAX_ERR");
 
   e = null;
   try {
@@ -125,7 +130,9 @@ function runTest() {
   } catch (ex) {
     e = ex;
   }
-  ok(!e, "Shouldn't have thrown an exception");
+  ok(e, "Should have thrown an exception");
+  is(e.name, "SyntaxError", "Should have thrown SyntaxError");
+  is(e.code, DOMException.SYNTAX_ERR, "Should have thrown DOMException.SYNTAX_ERR");
 
   e = null;
   try {
@@ -133,7 +140,7 @@ function runTest() {
   } catch (ex) {
     e = ex;
   }
-  ok(e, "Should have thrown an exception");
+  ok(e, "Should have thrown an exception");  
 
   m = new M(function(records, observer) {
       is(observer, m, "2nd parameter should be the mutation observer");

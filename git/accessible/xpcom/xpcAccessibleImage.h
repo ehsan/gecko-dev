@@ -18,8 +18,7 @@ class xpcAccessibleImage : public xpcAccessibleGeneric,
                            public nsIAccessibleImage
 {
 public:
-  explicit xpcAccessibleImage(Accessible* aIntl) :
-    xpcAccessibleGeneric(aIntl) { }
+  xpcAccessibleImage(Accessible* aIntl) : xpcAccessibleGeneric(aIntl) { }
 
   NS_DECL_ISUPPORTS_INHERITED
 

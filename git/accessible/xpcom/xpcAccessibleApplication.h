@@ -21,8 +21,7 @@ class xpcAccessibleApplication : public xpcAccessibleGeneric,
                                  public nsIAccessibleApplication
 {
 public:
-  explicit xpcAccessibleApplication(Accessible* aIntl) :
-    xpcAccessibleGeneric(aIntl) { }
+  xpcAccessibleApplication(Accessible* aIntl) : xpcAccessibleGeneric(aIntl) { }
 
   NS_DECL_ISUPPORTS_INHERITED
 

@@ -276,16 +276,15 @@ let emulator = (function() {
                                 callback) {
     container.oncallschanged = function(event) {
       log("Received 'callschanged' event for the " + containerName);
+      if (event.call) {
+        let index = expectedCalls.indexOf(event.call);
+        ok(index != -1);
+        expectedCalls.splice(index, 1);
 
-      ok(event.call);
-
-      let index = expectedCalls.indexOf(event.call);
-      ok(index != -1);
-      expectedCalls.splice(index, 1);
-
-      if (expectedCalls.length === 0) {
-        container.oncallschanged = null;
-        callback();
+        if (expectedCalls.length === 0) {
+          container.oncallschanged = null;
+          callback();
+        }
       }
     };
   }

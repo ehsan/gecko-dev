@@ -175,8 +175,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
     bool modICommon(MMod *mir, Register lhs, Register rhs, Register output, LSnapshot *snapshot,
                     Label &done);
 
-    void memoryBarrier(int barrier);
-
   public:
     CodeGeneratorARM(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);
 
@@ -207,8 +205,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
     bool visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
 
     bool visitForkJoinGetSlice(LForkJoinGetSlice *ins);
-
-    bool visitMemoryBarrier(LMemoryBarrier *ins);
 
     bool generateInvalidateEpilogue();
 

@@ -1414,15 +1414,10 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult,
     }
 
     for (uint32_t i = 0 ;;) {
-      bool isInterpolationHint = gradient->mStops[i].mIsInterpolationHint;
-      if (!isInterpolationHint) {
-        gradient->mStops[i].mColor.AppendToString(aProperty, aResult,
-                                                  aSerialization);
-      }
+      gradient->mStops[i].mColor.AppendToString(aProperty, aResult,
+                                                aSerialization);
       if (gradient->mStops[i].mLocation.GetUnit() != eCSSUnit_None) {
-        if (!isInterpolationHint) {
-          aResult.Append(' ');
-        }
+        aResult.Append(' ');
         gradient->mStops[i].mLocation.AppendToString(aProperty, aResult,
                                                      aSerialization);
       }
@@ -2356,16 +2351,14 @@ css::ImageValue::~ImageValue()
 
 nsCSSValueGradientStop::nsCSSValueGradientStop()
   : mLocation(eCSSUnit_None),
-    mColor(eCSSUnit_Null),
-    mIsInterpolationHint(false)
+    mColor(eCSSUnit_Null)
 {
   MOZ_COUNT_CTOR(nsCSSValueGradientStop);
 }
 
 nsCSSValueGradientStop::nsCSSValueGradientStop(const nsCSSValueGradientStop& aOther)
   : mLocation(aOther.mLocation),
-    mColor(aOther.mColor),
-    mIsInterpolationHint(aOther.mIsInterpolationHint)
+    mColor(aOther.mColor)
 {
   MOZ_COUNT_CTOR(nsCSSValueGradientStop);
 }

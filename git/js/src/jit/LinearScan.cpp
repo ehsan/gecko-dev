@@ -211,7 +211,7 @@ LinearScanAllocator::allocateRegisters()
  *
  * The algorithm is based on the one published in "Linear Scan Register
  * Allocation on SSA Form" by C. Wimmer et al., for which the full citation
- * appears in LiveRangeAllocator.cpp.
+ * appears above.
  */
 bool
 LinearScanAllocator::resolveControlFlow()

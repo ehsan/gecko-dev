@@ -118,7 +118,7 @@ protected:
 class DummyAccessible : public AccessibleWrap
 {
 public:
-  explicit DummyAccessible(DocAccessible* aDocument = nullptr) :
+  DummyAccessible(DocAccessible* aDocument = nullptr) :
     AccessibleWrap(nullptr, aDocument) { }
 
   virtual uint64_t NativeState() MOZ_OVERRIDE MOZ_FINAL;

@@ -1036,7 +1036,7 @@ nsEventStatus AsyncPanZoomController::ReceiveInputEvent(const InputData& aEvent)
       block->GetOverscrollHandoffChain()->CancelAnimations();
     }
 
-    if (mFrameMetrics.GetMayHaveTouchListeners() || mFrameMetrics.GetMayHaveTouchCaret()) {
+    if (mFrameMetrics.mMayHaveTouchListeners || mFrameMetrics.GetMayHaveTouchCaret()) {
       // Content may intercept the touch events and prevent-default them. So we schedule
       // a timeout to give content time to do that.
       ScheduleContentResponseTimeout();
@@ -2676,7 +2676,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
   mLastContentPaintMetrics = aLayerMetrics;
   UpdateTransformScale();
 
-  mFrameMetrics.SetMayHaveTouchListeners(aLayerMetrics.GetMayHaveTouchListeners());
+  mFrameMetrics.mMayHaveTouchListeners = aLayerMetrics.mMayHaveTouchListeners;
   mFrameMetrics.SetMayHaveTouchCaret(aLayerMetrics.GetMayHaveTouchCaret());
   mFrameMetrics.SetScrollParentId(aLayerMetrics.GetScrollParentId());
   APZC_LOG_FM(aLayerMetrics, "%p got a NotifyLayersUpdated with aIsFirstPaint=%d", this, aIsFirstPaint);

@@ -101,7 +101,7 @@ private:
   class ProxyEntry : public PLDHashEntryHdr
   {
   public:
-    explicit ProxyEntry(const void*) : mProxy(nullptr) {}
+    ProxyEntry(const void*) : mProxy(nullptr) {}
     ProxyEntry(ProxyEntry&& aOther) :
       mProxy(aOther.mProxy) { aOther.mProxy = nullptr; }
     ~ProxyEntry() { delete mProxy; }

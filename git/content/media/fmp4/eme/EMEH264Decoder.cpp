@@ -156,16 +156,15 @@ EMEH264Decoder::Decoded(GMPVideoi420Frame* aDecodedFrame)
   b.mPlanes[2].mOffset = 0;
   b.mPlanes[2].mSkip = 0;
 
-  gfx::IntRect pictureRegion(0, 0, width, height);
   VideoData *v = VideoData::Create(mVideoInfo,
-                                   mImageContainer,
-                                   mLastStreamOffset,
-                                   aDecodedFrame->Timestamp(),
-                                   aDecodedFrame->Duration(),
-                                   b,
-                                   false,
-                                   -1,
-                                   pictureRegion);
+                                    mImageContainer,
+                                    mLastStreamOffset,
+                                    aDecodedFrame->Timestamp(),
+                                    aDecodedFrame->Duration(),
+                                    b,
+                                    false,
+                                    -1,
+                                    ToIntRect(mPictureRegion));
   aDecodedFrame->Destroy();
   mCallback->Output(v);
 }
@@ -262,6 +261,7 @@ EMEH264Decoder::GmpInit()
 
   mVideoInfo.mDisplay = nsIntSize(mConfig.display_width, mConfig.display_height);
   mVideoInfo.mHasVideo = true;
+  mPictureRegion = nsIntRect(0, 0, mConfig.display_width, mConfig.display_height);
 
   return NS_OK;
 }

@@ -116,14 +116,6 @@ public:
     if (!doc)
       return;
 
-    // Destroy the frames for mBoundElement.
-    nsIContent* destroyedFramesFor = nullptr;
-    nsIPresShell* shell = doc->GetShell();
-    if (shell) {
-      shell->DestroyFramesFor(mBoundElement, &destroyedFramesFor);
-    }
-    MOZ_ASSERT(!mBoundElement->GetPrimaryFrame());
-
     // Get the binding.
     bool ready = false;
     nsXBLService::GetInstance()->BindingReady(mBoundElement, mBindingURI, &ready);
@@ -139,7 +131,7 @@ public:
     // has a primary frame and whether it's in the undisplayed map
     // before sending a ContentInserted notification, or bad things
     // will happen.
-    MOZ_ASSERT(shell == doc->GetShell());
+    nsIPresShell *shell = doc->GetShell();
     if (shell) {
       nsIFrame* childFrame = mBoundElement->GetPrimaryFrame();
       if (!childFrame) {
@@ -148,7 +140,7 @@ public:
           shell->FrameManager()->GetUndisplayedContent(mBoundElement);
 
         if (!sc) {
-          shell->CreateFramesFor(destroyedFramesFor);
+          shell->RecreateFramesFor(mBoundElement);
         }
       }
     }
