@@ -2084,7 +2084,7 @@ CSSParserImpl::ParseMozDocumentRule(RuleAppendFunc aAppendFunc, void* aData)
            (mToken.mIdent.LowerCaseEqualsLiteral("url-prefix") ||
             mToken.mIdent.LowerCaseEqualsLiteral("domain") ||
             mToken.mIdent.LowerCaseEqualsLiteral("regexp"))))) {
-      REPORT_UNEXPECTED_TOKEN(PEMozDocRuleBadFunc2);
+      REPORT_UNEXPECTED_TOKEN(PEMozDocRuleBadFunc);
       UngetToken();
       delete urls;
       return false;

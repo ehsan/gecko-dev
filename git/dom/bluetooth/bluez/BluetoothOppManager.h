@@ -115,8 +115,7 @@ private:
    *         false if the received length exceeds/not reaches the expected
    *         length.
    */
-  bool ComposePacket(uint8_t aOpCode,
-                     mozilla::ipc::UnixSocketRawData* aMessage);
+  bool ComposePacket(uint8_t aOpCode, UnixSocketRawData* aMessage);
 
   /**
    * OBEX session status.

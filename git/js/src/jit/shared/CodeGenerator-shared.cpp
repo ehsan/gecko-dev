@@ -115,7 +115,6 @@ CodeGeneratorShared::addOutOfLineCode(OutOfLineCode *code)
         code->setSource(oolIns->script(), oolIns->pc());
     else
         code->setSource(current ? current->mir()->info().script() : nullptr, lastPC_);
-    JS_ASSERT_IF(code->script(), code->script()->containsPC(code->pc()));
     return outOfLineCode_.append(code);
 }
 

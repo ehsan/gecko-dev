@@ -17,6 +17,7 @@
 #include "base/message_loop.h"
 
 #include "mozilla/Monitor.h"
+#include "mozilla/Util.h"
 #include "mozilla/FileUtils.h"
 #include "nsString.h"
 #include "nsTArray.h"

@@ -25,7 +25,7 @@
 
  */
 
-#include "mozilla/ArrayUtils.h"
+#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsIContent.h"

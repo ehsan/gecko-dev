@@ -12,6 +12,7 @@
 
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Constants.h"
+#include "mozilla/Util.h"
 
 #include "2D.h"
 #include "Tools.h"

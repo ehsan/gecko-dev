@@ -5,7 +5,7 @@
 
 #include "nsUserInfo.h"
 
-#include "mozilla/ArrayUtils.h" // ArrayLength
+#include "mozilla/Util.h" // ArrayLength
 #include "nsString.h"
 #include "windows.h"
 #include "nsCRT.h"

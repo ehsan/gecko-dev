@@ -9,6 +9,7 @@
 #include <algorithm>
 
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Util.h"
 
 // Local Includes
 #include "Navigator.h"
@@ -11287,47 +11288,41 @@ uint32_t sNestingLevel;
 nsGlobalWindow*
 nsGlobalWindow::InnerForSetTimeoutOrInterval(ErrorResult& aError)
 {
-  nsGlobalWindow* currentInner;
-  nsGlobalWindow* forwardTo;
-  if (IsInnerWindow()) {
-    nsGlobalWindow* outer = GetOuterWindowInternal();
-    currentInner = outer ? outer->GetCurrentInnerWindowInternal() : this;
+  // This needs to forward to the inner window, but since the current
+  // inner may not be the inner in the calling scope, we need to treat
+  // this specially here as we don't want timeouts registered in a
+  // dying inner window to get registered and run on the current inner
+  // window. To get this right, we need to forward this call to the
+  // inner window that's calling window.setTimeout().
 
-    forwardTo = this;
-  } else {
-    currentInner = GetCurrentInnerWindowInternal();
-
-    // This needs to forward to the inner window, but since the current
-    // inner may not be the inner in the calling scope, we need to treat
-    // this specially here as we don't want timeouts registered in a
-    // dying inner window to get registered and run on the current inner
-    // window. To get this right, we need to forward this call to the
-    // inner window that's calling window.setTimeout().
-
-    forwardTo = CallerInnerWindow();
-    if (!forwardTo) {
-      aError.Throw(NS_ERROR_NOT_AVAILABLE);
-      return nullptr;
-    }
-
-    // If the caller and the callee share the same outer window, forward to the
-    // caller inner. Else, we forward to the current inner (e.g. someone is
-    // calling setTimeout() on a reference to some other window).
-    if (forwardTo->GetOuterWindow() != this || !forwardTo->IsInnerWindow()) {
-      if (!currentInner) {
-        NS_WARNING("No inner window available!");
-        aError.Throw(NS_ERROR_NOT_INITIALIZED);
-        return nullptr;
-      }
-
-      return currentInner;
-    }
+  if (!IsOuterWindow()) {
+    return this;
   }
 
-  // If forwardTo is not the window with an active document then we want the
-  // call to setTimeout/Interval to be a noop, so return null but don't set an
-  // error.
-  return forwardTo->HasActiveDocument() ? currentInner : nullptr;
+  nsGlobalWindow* callerInner = CallerInnerWindow();
+  if (!callerInner) {
+    aError.Throw(NS_ERROR_NOT_AVAILABLE);
+    return nullptr;
+  }
+
+  // If the caller and the callee share the same outer window,
+  // forward to the caller inner. Else, we forward to the current
+  // inner (e.g. someone is calling setTimeout() on a reference to
+  // some other window).
+
+  if (callerInner->GetOuterWindow() == this &&
+      callerInner->IsInnerWindow()) {
+    return callerInner;
+  }
+
+  nsGlobalWindow* currentInner = GetCurrentInnerWindowInternal();
+  if (!currentInner) {
+    NS_WARNING("No inner window available!");
+    aError.Throw(NS_ERROR_NOT_INITIALIZED);
+    return nullptr;
+  }
+
+  return currentInner;
 }
 
 int32_t
@@ -11387,7 +11382,8 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
                                      int32_t interval,
                                      bool aIsInterval, int32_t *aReturn)
 {
-  MOZ_ASSERT(IsInnerWindow());
+  FORWARD_TO_INNER(SetTimeoutOrInterval, (aHandler, interval, aIsInterval, aReturn),
+                   NS_ERROR_NOT_INITIALIZED);
 
   // If we don't have a document (we could have been unloaded since
   // the call to setTimeout was made), do nothing.
@@ -11570,8 +11566,8 @@ nsGlobalWindow::SetTimeoutOrInterval(Function& aFunction, int32_t aTimeout,
                                      bool aIsInterval, ErrorResult& aError)
 {
   nsGlobalWindow* inner = InnerForSetTimeoutOrInterval(aError);
-  if (!inner) {
-    return -1;
+  if (aError.Failed()) {
+    return 0;
   }
 
   if (inner != this) {
@@ -11596,8 +11592,8 @@ nsGlobalWindow::SetTimeoutOrInterval(JSContext* aCx, const nsAString& aHandler,
                                      ErrorResult& aError)
 {
   nsGlobalWindow* inner = InnerForSetTimeoutOrInterval(aError);
-  if (!inner) {
-    return -1;
+  if (aError.Failed()) {
+    return 0;
   }
 
   if (inner != this) {
