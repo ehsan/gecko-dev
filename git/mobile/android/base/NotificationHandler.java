@@ -33,7 +33,6 @@ public class NotificationHandler {
      * one download is in progress.
      */
     private Notification mForegroundNotification;
-    private int mForegroundNotificationId;
 
     public NotificationHandler(Context context) {
         mContext = context;
@@ -169,26 +168,23 @@ public class NotificationHandler {
     }
 
     protected void setForegroundNotification(int id, Notification notification) {
-        mForegroundNotificationId = id;
         mForegroundNotification = notification;
     }
 
-    private void updateForegroundNotification(int oldId, Notification oldNotification) {
-        if (mForegroundNotificationId == oldId) {
+    private void updateForegroundNotification(int id, Notification oldNotification) {
+        if (mForegroundNotification == oldNotification) {
             // If we're removing the notification associated with the
             // foreground, we need to pick another active notification to act
             // as the foreground notification.
             Notification foregroundNotification = null;
-            int foregroundId = 0;
-            for (final Integer id : mNotifications.keySet()) {
-                final Notification notification = mNotifications.get(id);
+            for (final Notification notification : mNotifications.values()) {
                 if (isOngoing(notification)) {
                     foregroundNotification = notification;
-                    foregroundId = id;
                     break;
                 }
             }
-            setForegroundNotification(foregroundId, foregroundNotification);
+
+            setForegroundNotification(id, foregroundNotification);
         }
     }
 }

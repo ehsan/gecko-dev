@@ -99,10 +99,10 @@ CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
 }
 
 TemporaryRef<BufferTextureClient>
-CanvasClient2D::CreateBufferTextureClient(gfx::SurfaceFormat aFormat, TextureFlags aFlags)
+CanvasClient2D::CreateBufferTextureClient(gfx::SurfaceFormat aFormat)
 {
   return CompositableClient::CreateBufferTextureClient(aFormat,
-                                                       mTextureInfo.mTextureFlags | aFlags);
+                                                       mTextureInfo.mTextureFlags);
 }
 
 void

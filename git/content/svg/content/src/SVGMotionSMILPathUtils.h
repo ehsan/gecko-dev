@@ -17,7 +17,7 @@
 #include "nsSMILParserUtils.h"
 #include "nsTArray.h"
 
-class gfxPath;
+class gfxFlattenedPath;
 class nsAString;
 class nsSVGElement;
 
@@ -25,7 +25,7 @@ namespace mozilla {
 
 class SVGMotionSMILPathUtils {
 public:
-  // Class to assist in generating a gfxPath, based on
+  // Class to assist in generating a gfxFlattenedPath, based on
   // coordinates in the <animateMotion> from/by/to/values attributes.
   class PathGenerator {
   public:
@@ -50,7 +50,7 @@ public:
     // Accessor to let clients check if we've received any commands yet.
     inline bool HaveReceivedCommands() { return mHaveReceivedCommands; }
     // Accessor to get the finalized path
-    already_AddRefed<gfxPath> GetResultingPath();
+    already_AddRefed<gfxFlattenedPath> GetResultingPath();
 
   protected:
     // Helper methods
@@ -64,7 +64,7 @@ public:
   };
 
   // Class to assist in passing each subcomponent of a |values| attribute to
-  // a PathGenerator, for generating a corresponding gfxPath.
+  // a PathGenerator, for generating a corresponding gfxFlattenedPath.
   class MotionValueParser : public nsSMILParserUtils::GenericValueParser
   {
   public:

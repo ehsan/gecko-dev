@@ -100,7 +100,7 @@ CacheEntry::~CacheEntry()
   MOZ_COUNT_DTOR(CacheEntry);
 }
 
-#ifdef PR_LOG
+#ifdef MOZ_LOGGING
 
 char const * CacheEntry::StateString(uint32_t aState)
 {

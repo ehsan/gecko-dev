@@ -2038,7 +2038,7 @@ js_InitIntlClass(JSContext *cx, HandleObject obj)
             return nullptr;
     }
 
-    global->markStandardClassInitializedNoProto(&IntlClass);
+    MarkStandardClassInitializedNoProto(global, &IntlClass);
 
     return Intl;
 }
@@ -2052,6 +2052,6 @@ GlobalObject::initIntlObject(JSContext *cx, Handle<GlobalObject*> global)
     if (!Intl)
         return false;
 
-    global->setConstructor(JSProto_Intl, ObjectValue(*Intl));
+    global->setReservedSlot(JSProto_Intl, ObjectValue(*Intl));
     return true;
 }

@@ -3192,7 +3192,7 @@ NewArray(ExclusiveContext *cxArg, uint32_t length,
     if (allocateCapacity && !EnsureNewArrayElements(cxArg, arr, length))
         return nullptr;
 
-    probes::CreateObject(cxArg, arr);
+    Probes::createObject(cxArg, arr);
     return arr;
 }
 

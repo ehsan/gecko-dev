@@ -1143,7 +1143,7 @@ SourceScripts.prototype = {
     if (item) {
       DebuggerView.Sources.callMethod("checkItem", item.target, !isBlackBoxed);
     }
-    DebuggerView.maybeShowBlackBoxMessage();
+    DebuggerView.Sources.maybeShowBlackBoxMessage();
   },
 
   /**
@@ -1153,27 +1153,17 @@ SourceScripts.prototype = {
    *        The source form.
    * @param bool aBlackBoxFlag
    *        True to black box the source, false to un-black box it.
-   * @returns Promise
-   *          A promize that resolves to [aSource, isBlackBoxed] or rejects to
-   *          [aSource, error].
    */
   blackBox: function(aSource, aBlackBoxFlag) {
     const sourceClient = this.activeThread.source(aSource);
-    const deferred = promise.defer();
-
-    sourceClient[aBlackBoxFlag ? "blackBox" : "unblackBox"](aPacket => {
-      const { error, message } = aPacket;
+    sourceClient[aBlackBoxFlag ? "blackBox" : "unblackBox"](({ error, message }) => {
       if (error) {
         let msg = "Couldn't toggle black boxing for " + aSource.url + ": " + message;
         dumpn(msg);
         Cu.reportError(msg);
-        deferred.reject([aSource, msg]);
-      } else {
-        deferred.resolve([aSource, sourceClient.isBlackBoxed]);
+        return;
       }
     });
-
-    return deferred.promise;
   },
 
   /**

@@ -114,16 +114,6 @@ void RemoteSourceStreamInfo::DetachMedia_m()
   mMediaStream = nullptr;
 }
 
-already_AddRefed<PeerConnectionImpl>
-PeerConnectionImpl::Constructor(const dom::GlobalObject& aGlobal, ErrorResult& rv)
-{
-  nsRefPtr<PeerConnectionImpl> pc = new PeerConnectionImpl(&aGlobal);
-
-  CSFLogDebug(logTag, "Created PeerConnection: %p", pc.get());
-
-  return pc.forget();
-}
-
 PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 {
   PeerConnectionImpl *pc = new PeerConnectionImpl();

@@ -122,7 +122,7 @@ ControlProfilers(bool toState)
 {
     bool ok = true;
 
-    if (! probes::ProfilingActive && toState) {
+    if (! Probes::ProfilingActive && toState) {
 #ifdef __APPLE__
 #if defined(MOZ_SHARK) || defined(MOZ_INSTRUMENTS)
         const char* profiler;
@@ -145,7 +145,7 @@ ControlProfilers(bool toState)
             ok = false;
         }
 #endif
-    } else if (probes::ProfilingActive && ! toState) {
+    } else if (Probes::ProfilingActive && ! toState) {
 #ifdef __APPLE__
 #ifdef MOZ_SHARK
         Shark::Stop();
@@ -162,7 +162,7 @@ ControlProfilers(bool toState)
 #endif
     }
 
-    probes::ProfilingActive = toState;
+    Probes::ProfilingActive = toState;
 
     return ok;
 }

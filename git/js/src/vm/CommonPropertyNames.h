@@ -27,6 +27,7 @@
     macro(caller, caller, "caller") \
     macro(callFunction, callFunction, "callFunction") \
     macro(caseFirst, caseFirst, "caseFirst") \
+    macro(classPrototype, classPrototype, "prototype") \
     macro(Collator, Collator, "Collator") \
     macro(CollatorCompareGet, CollatorCompareGet, "Intl_Collator_compare_get") \
     macro(columnNumber, columnNumber, "columnNumber") \
@@ -123,7 +124,6 @@
     macro(preventExtensions, preventExtensions, "preventExtensions") \
     macro(propertyIsEnumerable, propertyIsEnumerable, "propertyIsEnumerable") \
     macro(proto, proto, "__proto__") \
-    macro(prototype, prototype, "prototype") \
     macro(return, return_, "return") \
     macro(sensitivity, sensitivity, "sensitivity") \
     macro(set, set, "set") \
