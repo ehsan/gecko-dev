@@ -77,13 +77,6 @@
 #undef JSVAL_IS_BOOLEAN
 #define JSVAL_IS_BOOLEAN(x) JS_STATIC_ASSERT(0) 
 
-/* Use a fake tag to represent boxed values, borrowing from the integer tag
-   range since we only use JSVAL_INT to indicate integers. */
-#define JSVAL_BOXED 3
-
-/* Map to translate a type tag into a printable representation. */
-static const char typeChar[] = "OIDVS?B?";
-
 /* Number of iterations of a loop where we start tracing.  That is, we don't
    start tracing until the beginning of the HOTLOOP-th iteration. */
 #define HOTLOOP 2
@@ -828,7 +821,6 @@ TypeMap::captureGlobalTypes(JSContext* cx, SlotList& slots)
         uint8 type = getCoercedType(*vp);
         if ((type == JSVAL_INT) && oracle.isGlobalSlotUndemotable(cx->fp->script, gslots[n]))
             type = JSVAL_DOUBLE;
-        JS_ASSERT(type != JSVAL_BOXED);
         *m++ = type;
     );
 }
@@ -848,12 +840,6 @@ TypeMap::captureStackTypes(JSContext* cx, unsigned callDepth)
         }
         *m++ = type;
     );
-    /* If we are capturing the stack state on a JSOP_RESUME instruction, the value on top of
-       the stack is a boxed value. */
-    if (*cx->fp->regs->pc == JSOP_RESUME) {
-        JS_ASSERT(m > map);
-        m[-1] = JSVAL_BOXED;
-    }
 }
 
 /* Compare this type map to another one and see whether they match. */
@@ -1150,7 +1136,6 @@ ValueToNative(JSContext* cx, jsval v, uint8 type, double* slot)
         debug_only_v(printf("string<%p> ", *(JSString**)slot);)
         return true;
       default:
-        /* Note: we should never see JSVAL_BOXED in an entry type map. */
         JS_ASSERT(type == JSVAL_OBJECT);
         if (v == JSVAL_VOID) {
             *(JSObject**)slot = NULL;
@@ -1262,10 +1247,6 @@ NativeToValue(JSContext* cx, jsval& v, uint8 type, double* slot)
       case JSVAL_STRING:
         v = STRING_TO_JSVAL(*(JSString**)slot);
         debug_only_v(printf("string<%p> ", *(JSString**)slot);)
-        break;
-      case JSVAL_BOXED:
-        v = *(jsval*)slot;
-        debug_only_v(printf("box<%lx> ", v));
         break;
       default:
         JS_ASSERT(type == JSVAL_OBJECT);
@@ -1398,7 +1379,7 @@ TraceRecorder::import(LIns* base, ptrdiff_t offset, jsval* p, uint8& t,
         ins = lir->insLoadi(base, offset);
         ins = lir->ins1(LIR_i2f, ins);
     } else {
-        JS_ASSERT(t == JSVAL_BOXED || isNumber(*p) == (t == JSVAL_DOUBLE));
+        JS_ASSERT(isNumber(*p) == (t == JSVAL_DOUBLE));
         if (t == JSVAL_DOUBLE) {
             ins = lir->insLoad(LIR_ldq, base, offset);
         } else if (t == JSVAL_BOOLEAN) {
@@ -1777,8 +1758,8 @@ TraceRecorder::checkType(jsval& v, uint8 t, bool& unstable)
     /* for non-number types we expect a precise match of the type */
 #ifdef DEBUG
     if (JSVAL_TAG(v) != t) {
-        debug_only_v(printf("Type mismatch: val %c, map %c ", typeChar[JSVAL_TAG(v)],
-                            typeChar[t]););
+        debug_only_v(printf("Type mismatch: val %c, map %c ", "OID?S?B"[JSVAL_TAG(v)],
+                            "OID?S?B"[t]););
     }
 #endif
     return JSVAL_TAG(v) == t;
@@ -3117,11 +3098,15 @@ TraceRecorder::ifop()
         guard(JSVAL_IS_NULL(v), lir->ins_eq0(v_ins), BRANCH_EXIT);
     } else if (isNumber(v)) {
         jsdouble d = asNumber(v);
-        jsdpun u;
-        u.d = 0;
-        guard(d == 0 || JSDOUBLE_IS_NaN(d),
-              lir->ins2(LIR_feq, v_ins, lir->insImmq(u.u64)),
-              BRANCH_EXIT);
+        if (JSDOUBLE_IS_NaN(d)) {
+            guard(false, lir->ins2(LIR_feq, v_ins, v_ins), BRANCH_EXIT);
+        } else {
+            jsdpun u;
+            u.d = 0;
+            guard(d == 0,
+                  lir->ins2(LIR_feq, v_ins, lir->insImmq(u.u64)),
+                  BRANCH_EXIT);
+        }
     } else if (JSVAL_IS_STRING(v)) {
         guard(JSSTRING_LENGTH(JSVAL_TO_STRING(v)) == 0,
               lir->ins_eq0(lir->ins2(LIR_piand,
