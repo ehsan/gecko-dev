@@ -57,8 +57,7 @@ function make_fake_appdir() {
 function cleanup_fake_appdir() {
   let dirSvc = Cc["@mozilla.org/file/directory_service;1"]
                .getService(Ci.nsIProperties);
-  dirSvc.QueryInterface(Ci.nsIDirectoryService)
-        .unregisterProvider(_provider);
+  dirSvc.unregisterProvider(_provider);
   // undefine our value so future calls get the real value
   try {
     dirSvc.undefine("UAppData");

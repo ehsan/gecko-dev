@@ -791,9 +791,9 @@ pref("browser.sessionstore.interval", 15000);
 pref("browser.sessionstore.postdata", 0);
 // on which sites to save text data, POSTDATA and cookies
 // 0 = everywhere, 1 = unencrypted sites, 2 = nowhere
-pref("browser.sessionstore.privacy_level", 0);
+pref("browser.sessionstore.privacy_level", 1);
 // the same as browser.sessionstore.privacy_level, but for saving deferred session data
-pref("browser.sessionstore.privacy_level_deferred", 0);
+pref("browser.sessionstore.privacy_level_deferred", 2);
 // how many tabs can be reopened (per window)
 pref("browser.sessionstore.max_tabs_undo", 10);
 // how many windows can be reopened (per session) - on non-OS X platforms this
@@ -961,7 +961,7 @@ pref("browser.taskbar.lists.frequent.enabled", true);
 pref("browser.taskbar.lists.recent.enabled", false);
 pref("browser.taskbar.lists.maxListItemCount", 7);
 pref("browser.taskbar.lists.tasks.enabled", true);
-pref("browser.taskbar.lists.refreshInSeconds", 120);
+pref("browser.taskbar.lists.refreshInSeconds", 30);
 #endif
 #endif
 
@@ -1050,5 +1050,3 @@ pref("devtools.inspector.enabled", false);
 // preference is a string so that localizers can alter it.
 pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.properties");
 
-// Whether the Panorama should animate going in/out of tabs
-pref("browser.panorama.animate_zoom", true);

@@ -657,15 +657,15 @@ Narcissus.parser = (function() {
             },
 
             setCondition: function(n, e) {
-                n.children[0] = e;
+                n[0] = e;
             },
 
             setThenPart: function(n, n2) {
-                n.children[1] = n2;
+                n[1] = n2;
             },
 
             setElsePart: function(n, n2) {
-                n.children[2] = n2;
+                n[2] = n2;
             },
 
             finish: function(n) {
@@ -906,12 +906,11 @@ Narcissus.parser = (function() {
         // Nodes use a tokenizer for debugging (getSource, filename getter).
         this.tokenizer = t;
 
-        this.children = [];
         for (var i = 2; i < arguments.length; i++)
             this.push(arguments[i]);
     }
 
-    var Np = Node.prototype = {};
+    var Np = Node.prototype = new Array;
     Np.constructor = Node;
     Np.toSource = Object.prototype.toSource;
 
@@ -924,7 +923,7 @@ Narcissus.parser = (function() {
             if (this.end < kid.end)
                 this.end = kid.end;
         }
-        return this.children.push(kid);
+        return Array.prototype.push.call(this, kid);
     }
 
     Node.indentLevel = 0;
@@ -958,11 +957,6 @@ Narcissus.parser = (function() {
     definitions.defineGetter(Np, "filename",
                  function() {
                      return this.tokenizer.filename;
-                 });
-
-    definitions.defineGetter(Np, "length",
-                 function() {
-                     throw new Error("Node.prototype.length is gone; use n.children.length instead");
                  });
 
     definitions.defineProperty(String.prototype, "repeat",
@@ -1033,7 +1027,7 @@ Narcissus.parser = (function() {
      * Parses a Statement.
      */
     function Statement(t, x) {
-        var i, label, n, n2, c, ss, tt = t.get(true);
+        var i, label, n, n2, ss, tt = t.get(true);
         var builder = x.builder, b, b2, b3;
 
         // Cases for statements ending in a right curly return early, avoiding the
@@ -1147,19 +1141,17 @@ Narcissus.parser = (function() {
                 b.rebuildForIn(n);
                 b.setObject(n, Expression(t, x));
                 if (n2.type === VAR || n2.type === LET) {
-                    c = n2.children;
-
                     // Destructuring turns one decl into multiples, so either
                     // there must be only one destructuring or only one
                     // decl.
-                    if (c.length !== 1 && n2.destructurings.length !== 1) {
+                    if (n2.length !== 1 && n2.destructurings.length !== 1) {
                         throw new SyntaxError("Invalid for..in left-hand side",
                                               t.filename, n2.lineno);
                     }
                     if (n2.destructurings.length > 0) {
                         b.setIterator(n, n2.destructurings[0], n2, forBlock);
                     } else {
-                        b.setIterator(n, c[0], n2, forBlock);
+                        b.setIterator(n, n2[0], n2, forBlock);
                     }
                 } else {
                     if (n2.type === ARRAY_INIT || n2.type === OBJECT_INIT) {
@@ -1189,9 +1181,8 @@ Narcissus.parser = (function() {
             if (forBlock) {
                 builder.BLOCK.finish(forBlock);
                 x.stmtStack.pop();
-                c = forBlock.children;
-                for (var i = 0, j = c.length; i < j; i++) {
-                    n.body.unshift(c[i]);
+                for (var i = 0, j = forBlock.length; i < j; i++) {
+                    n.body.unshift(forBlock[i]);
                 }
             }
             return n;
@@ -1735,14 +1726,13 @@ Narcissus.parser = (function() {
             return;
 
         var lhss = {};
-        var nn, n2, idx, sub, cc, c = n.children;
-        for (var i = 0, j = c.length; i < j; i++) {
-            if (!(nn = c[i]))
+        var nn, n2, idx, sub;
+        for (var i = 0, j = n.length; i < j; i++) {
+            if (!(nn = n[i]))
                 continue;
             if (nn.type === PROPERTY_INIT) {
-                cc = nn.children;
-                sub = cc[1];
-                idx = cc[0].value;
+                sub = nn[1];
+                idx = nn[0].value;
             } else if (n.type === OBJECT_INIT) {
                 // Do we have destructuring shorthand {foo, bar}?
                 sub = nn;
@@ -1901,7 +1891,7 @@ Narcissus.parser = (function() {
             b.addOperand(n2, n);
             n = n2;
             do {
-                n2 = n.children[n.children.length-1];
+                n2 = n[n.length-1];
                 if (n2.type === YIELD && !n2.parenthesized)
                     throw t.newSyntaxError("Yield expression must be parenthesized");
                 b.addOperand(n, AssignExpression(t, x));
@@ -2243,7 +2233,7 @@ Narcissus.parser = (function() {
                 throw t.newSyntaxError("Yield " + err);
             if (t.match(FOR)) {
                 n2 = GeneratorExpression(t, x, n2);
-                if (n.children.length > 1 || t.peek(true) === COMMA)
+                if (n.length > 1 || t.peek(true) === COMMA)
                     throw t.newSyntaxError("Generator " + err);
             }
             b.addOperand(n, n2);
@@ -2284,9 +2274,9 @@ Narcissus.parser = (function() {
 
             // If we matched exactly one element and got a FOR, we have an
             // array comprehension.
-            if (n.children.length === 1 && t.match(FOR)) {
+            if (n.length === 1 && t.match(FOR)) {
                 n2 = bArrayComp.build(t);
-                bArrayComp.setExpression(n2, n.children[0]);
+                bArrayComp.setExpression(n2, n[0]);
                 bArrayComp.setTail(n2, comprehensionTail(t, x));
                 n = n2;
             }
@@ -2389,6 +2379,9 @@ Narcissus.parser = (function() {
         parse: parse,
         Node: Node,
         DefaultBuilder: DefaultBuilder,
+        get SSABuilder() {
+            throw new Error("SSA builder not yet supported");
+        },
         bindSubBuilders: bindSubBuilders,
         DECLARED_FORM: DECLARED_FORM,
         EXPRESSED_FORM: EXPRESSED_FORM,

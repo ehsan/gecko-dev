@@ -114,14 +114,6 @@ public:
   virtual ShadowableLayer* AsShadowableLayer() { return nsnull; }
 
   /**
-   * Implementations return true here if they *must* retain their
-   * layer contents.  This is true of shadowable layers with shadows,
-   * because there's no target on which to composite directly in the
-   * layer-publishing child process.
-   */
-  virtual bool MustRetainContent() { return false; }
-
-  /**
    * Layers will get this call when their layer manager is destroyed, this
    * indicates they should clear resources they don't really need after their
    * LayerManager ceases to exist.
@@ -135,17 +127,7 @@ ToData(Layer* aLayer)
   return static_cast<BasicImplData*>(aLayer->ImplData());
 }
 
-template<class Container>
-static void ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer);
-template<class Container>
-static void ContainerRemoveChild(Layer* aChild, Container* aContainer);
-
 class BasicContainerLayer : public ContainerLayer, BasicImplData {
-  template<class Container>
-  friend void ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer);
-  template<class Container>
-  friend void ContainerRemoveChild(Layer* aChild, Container* aContainer);
-
 public:
   BasicContainerLayer(BasicLayerManager* aManager) :
     ContainerLayer(aManager, static_cast<BasicImplData*>(this))
@@ -160,21 +142,12 @@ public:
                  "Can only set properties in construction phase");
     ContainerLayer::SetVisibleRegion(aRegion);
   }
-  virtual void InsertAfter(Layer* aChild, Layer* aAfter)
-  {
-    NS_ASSERTION(BasicManager()->InConstruction(),
-                 "Can only set properties in construction phase");
-    ContainerInsertAfter(aChild, aAfter, this);
-  }
-
-  virtual void RemoveChild(Layer* aChild)
-  { 
-    NS_ASSERTION(BasicManager()->InConstruction(),
-                 "Can only set properties in construction phase");
-    ContainerRemoveChild(aChild, this);
-  }
+  virtual void InsertAfter(Layer* aChild, Layer* aAfter);
+  virtual void RemoveChild(Layer* aChild);
 
 protected:
+  void RemoveChildInternal(Layer* aChild);
+
   BasicLayerManager* BasicManager()
   {
     return static_cast<BasicLayerManager*>(mManager);
@@ -184,36 +157,37 @@ protected:
 BasicContainerLayer::~BasicContainerLayer()
 {
   while (mFirstChild) {
-    ContainerRemoveChild(mFirstChild, this);
+    RemoveChildInternal(mFirstChild);
   }
 
   MOZ_COUNT_DTOR(BasicContainerLayer);
 }
 
-template<class Container>
-static void
-ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer)
+void
+BasicContainerLayer::InsertAfter(Layer* aChild, Layer* aAfter)
 {
-  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
+  NS_ASSERTION(BasicManager()->InConstruction(),
+               "Can only set properties in construction phase");
+  NS_ASSERTION(aChild->Manager() == Manager(),
                "Child has wrong manager");
   NS_ASSERTION(!aChild->GetParent(),
                "aChild already in the tree");
   NS_ASSERTION(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
                "aChild already has siblings?");
   NS_ASSERTION(!aAfter ||
-               (aAfter->Manager() == aContainer->Manager() &&
-                aAfter->GetParent() == aContainer),
+               (aAfter->Manager() == Manager() &&
+                aAfter->GetParent() == this),
                "aAfter is not our child");
 
   NS_ADDREF(aChild);
 
-  aChild->SetParent(aContainer);
+  aChild->SetParent(this);
   if (!aAfter) {
-    aChild->SetNextSibling(aContainer->mFirstChild);
-    if (aContainer->mFirstChild) {
-      aContainer->mFirstChild->SetPrevSibling(aChild);
+    aChild->SetNextSibling(mFirstChild);
+    if (mFirstChild) {
+      mFirstChild->SetPrevSibling(aChild);
     }
-    aContainer->mFirstChild = aChild;
+    mFirstChild = aChild;
     return;
   }
 
@@ -226,13 +200,20 @@ ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer)
   aAfter->SetNextSibling(aChild);
 }
 
-template<class Container>
-static void
-ContainerRemoveChild(Layer* aChild, Container* aContainer)
+void
+BasicContainerLayer::RemoveChild(Layer* aChild)
 {
-  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
+  NS_ASSERTION(BasicManager()->InConstruction(),
+               "Can only set properties in construction phase");
+  RemoveChildInternal(aChild);
+}
+
+void
+BasicContainerLayer::RemoveChildInternal(Layer* aChild)
+{
+  NS_ASSERTION(aChild->Manager() == Manager(),
                "Child has wrong manager");
-  NS_ASSERTION(aChild->GetParent() == aContainer,
+  NS_ASSERTION(aChild->GetParent() == this,
                "aChild not our child");
 
   Layer* prev = aChild->GetPrevSibling();
@@ -240,7 +221,7 @@ ContainerRemoveChild(Layer* aChild, Container* aContainer)
   if (prev) {
     prev->SetNextSibling(next);
   } else {
-    aContainer->mFirstChild = next;
+    mFirstChild = next;
   }
   if (next) {
     next->SetPrevSibling(prev);
@@ -458,8 +439,7 @@ BasicThebesLayer::Paint(gfxContext* aContext,
 
   if (!BasicManager()->IsRetained() ||
       (aOpacity == 1.0 && !canUseOpaqueSurface &&
-       !ShouldRetainTransparentSurface(mContentFlags, targetSurface) &&
-       !MustRetainContent())) {
+       !ShouldRetainTransparentSurface(mContentFlags, targetSurface))) {
     mValidRegion.SetEmpty();
     mBuffer.Clear();
 
@@ -687,13 +667,7 @@ public:
   virtual void Paint(gfxContext* aContext,
                      LayerManager::DrawThebesLayerCallback aCallback,
                      void* aCallbackData,
-                     float aOpacity)
-  {
-    PaintColorTo(mColor, mOpacity, aContext);
-  }
-
-  static void PaintColorTo(gfxRGBA aColor, float aOpacity,
-                           gfxContext* aContext);
+                     float aOpacity);
 
 protected:
   BasicLayerManager* BasicManager()
@@ -702,11 +676,13 @@ protected:
   }
 };
 
-/*static*/ void
-BasicColorLayer::PaintColorTo(gfxRGBA aColor, float aOpacity,
-                              gfxContext* aContext)
+void
+BasicColorLayer::Paint(gfxContext* aContext,
+                       LayerManager::DrawThebesLayerCallback aCallback,
+                       void* aCallbackData,
+                       float aOpacity)
 {
-  aContext->SetColor(aColor);
+  aContext->SetColor(mColor);
   aContext->Paint(aOpacity);
 }
 
@@ -1121,8 +1097,8 @@ BasicLayerManager::SetRoot(Layer* aLayer)
 static PRBool
 NeedsState(Layer* aLayer)
 {
-  return aLayer->GetEffectiveClipRect() != nsnull ||
-         !aLayer->GetEffectiveTransform().IsIdentity();
+  return aLayer->GetClipRect() != nsnull ||
+         !aLayer->GetTransform().IsIdentity();
 }
 
 static inline int
@@ -1149,24 +1125,25 @@ BasicLayerManager::PaintLayer(Layer* aLayer,
  if (needsSaveRestore) {
     mTarget->Save();
 
-    if (const nsIntRect* r = aLayer->GetEffectiveClipRect()) {
+    if (aLayer->GetClipRect()) {
+      const nsIntRect& r = *aLayer->GetClipRect();
       mTarget->NewPath();
-      mTarget->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
+      mTarget->Rectangle(gfxRect(r.x, r.y, r.width, r.height), PR_TRUE);
       mTarget->Clip();
     }
 
     gfxMatrix transform;
     // XXX we need to add some kind of 3D transform support, possibly
     // using pixman?
-    NS_ASSERTION(aLayer->GetEffectiveTransform().Is2D(),
+    NS_ASSERTION(aLayer->GetTransform().Is2D(),
                  "Only 2D transforms supported currently");
-    aLayer->GetEffectiveTransform().Is2D(&transform);
+    aLayer->GetTransform().Is2D(&transform);
     mTarget->Multiply(transform);
 
     if (needsGroup && children > 1) {
       // If we need to call PushGroup, we should clip to the smallest possible
       // area first to minimize the size of the temporary surface.
-      ClipToContain(mTarget, aLayer->GetEffectiveVisibleRegion().GetBounds());
+      ClipToContain(mTarget, aLayer->GetVisibleRegion().GetBounds());
 
       gfxASurface::gfxContentType type = aLayer->CanUseOpaqueSurface()
           ? gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA;
@@ -1411,7 +1388,6 @@ public:
 
   virtual Layer* AsLayer() { return this; }
   virtual ShadowableLayer* AsShadowableLayer() { return this; }
-  virtual bool MustRetainContent() { return HasShadow(); }
 
   virtual PRBool SupportsSurfaceDescriptor() const { return PR_TRUE; }
 
@@ -1976,32 +1952,6 @@ BasicShadowThebesLayer::Paint(gfxContext* aContext,
   mFrontBuffer.DrawTo(this, isOpaqueContent, target, aOpacity);
 }
 
-class BasicShadowContainerLayer : public ShadowContainerLayer, BasicImplData {
-  template<class Container>
-  friend void ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer);
-  template<class Container>
-  friend void ContainerRemoveChild(Layer* aChild, Container* aContainer);
-
-public:
-  BasicShadowContainerLayer(BasicShadowLayerManager* aLayerManager) :
-    ShadowContainerLayer(aLayerManager, static_cast<BasicImplData*>(this))
-  {
-    MOZ_COUNT_CTOR(BasicShadowContainerLayer);
-  }
-  virtual ~BasicShadowContainerLayer()
-  {
-    while (mFirstChild) {
-      ContainerRemoveChild(mFirstChild, this);
-    }
-
-    MOZ_COUNT_DTOR(BasicShadowContainerLayer);
-  }
-
-  virtual void InsertAfter(Layer* aChild, Layer* aAfter)
-  { ContainerInsertAfter(aChild, aAfter, this); }
-  virtual void RemoveChild(Layer* aChild)
-  { ContainerRemoveChild(aChild, this); }
-};
 
 class BasicShadowImageLayer : public ShadowImageLayer, BasicImplData {
 public:
@@ -2081,29 +2031,6 @@ BasicShadowImageLayer::Paint(gfxContext* aContext,
   pat->SetFilter(mFilter);
   BasicImageLayer::PaintContext(pat, mSize, aOpacity, aContext);
 }
-
-class BasicShadowColorLayer : public ShadowColorLayer,
-                              BasicImplData
-{
-public:
-  BasicShadowColorLayer(BasicShadowLayerManager* aLayerManager) :
-    ShadowColorLayer(aLayerManager, static_cast<BasicImplData*>(this))
-  {
-    MOZ_COUNT_CTOR(BasicShadowColorLayer);
-  }
-  virtual ~BasicShadowColorLayer()
-  {
-    MOZ_COUNT_DTOR(BasicShadowColorLayer);
-  }
-
-  virtual void Paint(gfxContext* aContext,
-                     LayerManager::DrawThebesLayerCallback aCallback,
-                     void* aCallbackData,
-                     float aOpacity)
-  {
-    BasicColorLayer::PaintColorTo(mColor, aOpacity, aContext);
-  }
-};
 
 class BasicShadowCanvasLayer : public ShadowCanvasLayer,
                                BasicImplData
@@ -2282,27 +2209,11 @@ BasicShadowLayerManager::CreateShadowThebesLayer()
   return layer.forget();
 }
 
-already_AddRefed<ShadowContainerLayer>
-BasicShadowLayerManager::CreateShadowContainerLayer()
-{
-  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  nsRefPtr<ShadowContainerLayer> layer = new BasicShadowContainerLayer(this);
-  return layer.forget();
-}
-
 already_AddRefed<ShadowImageLayer>
 BasicShadowLayerManager::CreateShadowImageLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
   nsRefPtr<ShadowImageLayer> layer = new BasicShadowImageLayer(this);
-  return layer.forget();
-}
-
-already_AddRefed<ShadowColorLayer>
-BasicShadowLayerManager::CreateShadowColorLayer()
-{
-  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  nsRefPtr<ShadowColorLayer> layer = new BasicShadowColorLayer(this);
   return layer.forget();
 }
 

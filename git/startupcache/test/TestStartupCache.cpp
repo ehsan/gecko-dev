@@ -127,7 +127,6 @@ TestStartupWriteRead() {
   outbuf = outbufPtr;
   NS_ENSURE_STR_MATCH(buf, outbuf, "pre-write read");
 
-  rv = sc->ResetStartupWriteTimer();
   rv = WaitForStartupTimer();
   NS_ENSURE_SUCCESS(rv, rv);
   

@@ -590,7 +590,7 @@ class FrameState
      * Fully stores a FrameEntry into two arbitrary registers. tempReg may be
      * used as a temporary.
      */
-    void loadTo(FrameEntry *fe, RegisterID typeReg, RegisterID dataReg, RegisterID tempReg);
+    void storeTo(FrameEntry *fe, RegisterID dataReg, RegisterID typeReg, RegisterID tempReg);
 
     /*
      * Stores the top stack slot back to a slot.
@@ -655,54 +655,43 @@ class FrameState
     inline void forgetType(FrameEntry *fe);
 
     /*
-     * Discards a FrameEntry, tricking the FS into thinking it's synced.
-     */
-    void discardFe(FrameEntry *fe);
-
-    /*
-     * Helper function. Tests if a slot's type is null. Condition must
+     * Helper function. Tests if a slot's type is null. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testNull(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is undefined. Condition must
-     * be Equal or NotEqual.
-     */
-    inline Jump testUndefined(Assembler::Condition cond, FrameEntry *fe);
-
-    /*
-     * Helper function. Tests if a slot's type is an integer. Condition must
+     * Helper function. Tests if a slot's type is an integer. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testInt32(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a double. Condition must
+     * Helper function. Tests if a slot's type is a double. Condition should
      * be Equal or Not Equal.
      */
     inline Jump testDouble(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a boolean. Condition must
+     * Helper function. Tests if a slot's type is a boolean. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testBoolean(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a string. Condition must
+     * Helper function. Tests if a slot's type is a string. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testString(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is a non-funobj. Condition must
+     * Helper function. Tests if a slot's type is a non-funobj. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testObject(Assembler::Condition cond, FrameEntry *fe);
 
     /*
-     * Helper function. Tests if a slot's type is primitive. Condition must
+     * Helper function. Tests if a slot's type is primitve. Condition should
      * be Equal or NotEqual.
      */
     inline Jump testPrimitive(Assembler::Condition cond, FrameEntry *fe);

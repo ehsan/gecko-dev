@@ -53,7 +53,7 @@
 #endif
 
 #include "jsprvtd.h"
-#include "jsarena.h"
+#include "jsarena.h" /* Added by JSIFY */
 #include "jsclist.h"
 #include "jslong.h"
 #include "jsatom.h"
@@ -64,7 +64,6 @@
 #include "jsgcchunk.h"
 #include "jshashtable.h"
 #include "jsinterp.h"
-#include "jsmath.h"
 #include "jsobj.h"
 #include "jspropertycache.h"
 #include "jspropertytree.h"
@@ -245,7 +244,7 @@ namespace mjit {
 
     struct ThreadData
     {
-        JSC::ExecutableAllocator *execAlloc;
+        JSC::ExecutableAllocator *execPool;
 
         // Trampolines for JIT code.
         Trampolines trampolines;
@@ -542,8 +541,9 @@ class InvokeArgsGuard : public CallArgs
     JSStackFrame     *prevInvokeFrame;
 #endif
   public:
-    InvokeArgsGuard() : cx(NULL), seg(NULL) {}
-    ~InvokeArgsGuard();
+    inline InvokeArgsGuard() : cx(NULL), seg(NULL) {}
+    inline InvokeArgsGuard(JSContext *cx, Value *vp, uintN argc);
+    inline ~InvokeArgsGuard();
     bool pushed() const { return cx != NULL; }
 };
 
@@ -565,9 +565,8 @@ class InvokeFrameGuard
     JSFrameRegs      *prevRegs_;
   public:
     InvokeFrameGuard() : cx_(NULL) {}
-    ~InvokeFrameGuard() { if (pushed()) pop(); }
+    JS_REQUIRES_STACK ~InvokeFrameGuard();
     bool pushed() const { return cx_ != NULL; }
-    void pop();
     JSStackFrame *fp() const { return regs_.fp; }
 };
 
@@ -1189,16 +1188,6 @@ struct JSThreadData {
 
     js::ConservativeGCThreadData conservativeGC;
 
-  private:
-    js::MathCache       *mathCache;
-
-    js::MathCache *allocMathCache(JSContext *cx);
-  public:
-
-    js::MathCache *getMathCache(JSContext *cx) {
-        return mathCache ? mathCache : allocMathCache(cx);
-    }
-
     bool init();
     void finish();
     void mark(JSTracer *trc);
@@ -1295,12 +1284,6 @@ typedef struct JSPropertyTreeEntry {
 typedef void
 (* JSActivityCallback)(void *arg, JSBool active);
 
-namespace js {
-
-typedef js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> WrapperVector;
-
-}
-
 struct JSRuntime {
     /* Default compartment. */
     JSCompartment       *defaultCompartment;
@@ -1309,7 +1292,7 @@ struct JSRuntime {
 #endif
 
     /* List of compartments (protected by the GC lock). */
-    js::WrapperVector compartments;
+    js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> compartments;
 
     /* Runtime state, synchronized by the stateChange/gcLock condvar/lock. */
     JSRuntimeState      state;
@@ -1526,6 +1509,16 @@ struct JSRuntime {
     const char          *decimalSeparator;
     const char          *numGrouping;
 
+    /*
+     * Weak references to lazily-created, well-known XML singletons.
+     *
+     * NB: Singleton objects must be carefully disconnected from the rest of
+     * the object graph usually associated with a JSContext's global object,
+     * including the set of standard class objects.  See jsxml.c for details.
+     */
+    JSObject            *anynameObject;
+    JSObject            *functionNamespaceObject;
+
 #ifdef JS_THREADSAFE
     /* Number of threads with active requests and unhandled interrupts. */
     volatile int32      interruptCounter;
@@ -1681,7 +1674,6 @@ struct JSRuntime {
 #endif
 
     JSWrapObjectCallback wrapObjectCallback;
-    JSPreWrapCallback    preWrapObjectCallback;
 
     JSC::ExecutableAllocator *regExpAllocator;
 
@@ -2012,14 +2004,9 @@ struct JSContext
     friend class js::StackSpace;
     friend bool js::Interpret(JSContext *, JSStackFrame *, uintN, uintN);
 
-    void resetCompartment();
-
     /* 'regs' must only be changed by calling this function. */
     void setCurrentRegs(JSFrameRegs *regs) {
-        JS_ASSERT_IF(regs, regs->fp);
         this->regs = regs;
-        if (!regs)
-            resetCompartment();
     }
 
     /* Temporary arena pool used while compiling and decompiling. */

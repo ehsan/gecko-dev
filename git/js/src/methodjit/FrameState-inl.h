@@ -491,13 +491,12 @@ FrameState::syncType(const FrameEntry *fe, Address to, Assembler &masm) const
                  fe->isCopied() && addressOf(fe).offset != to.offset);
     JS_ASSERT(fe->type.inRegister() || fe->type.isConstant());
 
-    /* Store a double's type bits, even though !isTypeKnown(). */
-    if (fe->isConstant())
-        masm.storeTypeTag(ImmTag(fe->getKnownTag()), to);
-    else if (fe->isTypeKnown())
+    if (fe->type.isConstant()) {
+        JS_ASSERT(fe->isTypeKnown());
         masm.storeTypeTag(ImmType(fe->getKnownType()), to);
-    else
+    } else {
         masm.storeTypeTag(fe->type.reg(), to);
+    }
 }
 
 inline void
@@ -508,10 +507,18 @@ FrameState::syncData(const FrameEntry *fe, Address to, Assembler &masm) const
                  !fe->data.synced());
     JS_ASSERT(fe->data.inRegister() || fe->data.isConstant());
 
-    if (fe->data.isConstant())
-        masm.storePayload(ImmPayload(fe->getPayload()), to);
-    else
+    if (fe->data.isConstant()) {
+        if (!fe->type.synced())
+            masm.storeValue(fe->getValue(), to);
+        else
+#if defined JS_NUNBOX32
+            masm.storePayload(Imm32(fe->getPayload32()), to);
+#elif defined JS_PUNBOX64
+            masm.storePayload(Imm64(fe->getPayload64()), to);
+#endif
+    } else {
         masm.storePayload(fe->data.reg(), to);
+    }
 }
 
 inline void
@@ -565,15 +572,6 @@ FrameState::testNull(Assembler::Condition cond, FrameEntry *fe)
     if (shouldAvoidTypeRemat(fe))
         return masm.testNull(cond, addressOf(fe));
     return masm.testNull(cond, tempRegForType(fe));
-}
-
-inline JSC::MacroAssembler::Jump
-FrameState::testUndefined(Assembler::Condition cond, FrameEntry *fe)
-{
-    JS_ASSERT(cond == Assembler::Equal || cond == Assembler::NotEqual);
-    if (shouldAvoidTypeRemat(fe))
-        return masm.testUndefined(cond, addressOf(fe));
-    return masm.testUndefined(cond, tempRegForType(fe));
 }
 
 inline JSC::MacroAssembler::Jump
@@ -852,12 +850,18 @@ FrameState::loadDouble(FrameEntry *fe, FPRegisterID fpReg, Assembler &masm) cons
         return;
     }
 
-    if (!fe->data.synced())
-        syncData(fe, addressOf(fe), masm);
-    if (!fe->type.synced())
-        syncType(fe, addressOf(fe), masm);
+    Address address = addressOf(fe);
+    do {
+        if (!fe->data.synced()) {
+            syncData(fe, address, masm);
+            if (fe->isConstant())
+                break;
+        }
+        if (!fe->type.synced())
+            syncType(fe, address, masm);
+    } while (0);
 
-    masm.loadDouble(addressOf(fe), fpReg);
+    masm.loadDouble(address, fpReg);
 }
 
 inline bool
@@ -866,8 +870,8 @@ FrameState::isClosedVar(uint32 slot)
     return closedVars[slot];
 }
 
-} /* namespace mjit */
-} /* namespace js */
+} /* namspace mjit */
+} /* namspace js */
 
 #endif /* include */
 

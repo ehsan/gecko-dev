@@ -111,12 +111,7 @@ UpdateCompartmentStats(JSCompartment *comp, unsigned thingKind, uint32 nlivearen
 }
 
 static const char *const GC_ARENA_NAMES[] = {
-    "object_0",
-    "object_2",
-    "object_4",
-    "object_8",
-    "object_12",
-    "object_16",
+    "object",
     "function",
 #if JS_HAS_XML_SUPPORT
     "xml",
@@ -134,34 +129,12 @@ static const char *const GC_ARENA_NAMES[] = {
 };
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(GC_ARENA_NAMES) == FINALIZE_LIMIT);
 
-template <typename T>
-static inline void
-GetSizeAndThings(size_t &thingSize, size_t &thingsPerArena)
-{
-    thingSize = sizeof(T);
-    thingsPerArena = Arena<T>::ThingsPerArena;
-}
-
 void GetSizeAndThingsPerArena(int thingKind, size_t &thingSize, size_t &thingsPerArena)
 {
     switch (thingKind) {
-        case FINALIZE_OBJECT0:
-            GetSizeAndThings<JSObject>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT2:
-            GetSizeAndThings<JSObject_Slots2>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT4:
-            GetSizeAndThings<JSObject_Slots4>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT8:
-            GetSizeAndThings<JSObject_Slots8>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT12:
-            GetSizeAndThings<JSObject_Slots12>(thingSize, thingsPerArena);
-            break;
-        case FINALIZE_OBJECT16:
-            GetSizeAndThings<JSObject_Slots16>(thingSize, thingsPerArena);
+        case FINALIZE_OBJECT:
+            thingSize = sizeof(JSObject);
+            thingsPerArena = Arena<JSObject>::ThingsPerArena;
             break;
         case FINALIZE_STRING:
         case FINALIZE_EXTERNAL_STRING0:
@@ -172,17 +145,21 @@ void GetSizeAndThingsPerArena(int thingKind, size_t &thingSize, size_t &thingsPe
         case FINALIZE_EXTERNAL_STRING5:
         case FINALIZE_EXTERNAL_STRING6:
         case FINALIZE_EXTERNAL_STRING7:
-            GetSizeAndThings<JSString>(thingSize, thingsPerArena);
+            thingSize = sizeof(JSString);
+             thingsPerArena = Arena<JSString>::ThingsPerArena;
             break;
         case FINALIZE_SHORT_STRING:
-            GetSizeAndThings<JSShortString>(thingSize, thingsPerArena);
+            thingSize = sizeof(JSShortString);
+            thingsPerArena = Arena<JSShortString>::ThingsPerArena;
             break;
         case FINALIZE_FUNCTION:
-            GetSizeAndThings<JSFunction>(thingSize, thingsPerArena);
+            thingSize = sizeof(JSFunction);
+            thingsPerArena = Arena<JSFunction>::ThingsPerArena;
             break;
 #if JS_HAS_XML_SUPPORT
         case FINALIZE_XML:
-            GetSizeAndThings<JSXML>(thingSize, thingsPerArena);
+            thingSize = sizeof(JSXML);
+            thingsPerArena = Arena<JSXML>::ThingsPerArena;
             break;
 #endif
         default:
@@ -394,7 +371,7 @@ GCTimer::finish(bool lastGC) {
                 gcFile = fopen("gcTimer.dat", "a");
 
                 fprintf(gcFile, "     AppTime,  Total,   Mark,  Sweep, FinObj,");
-                fprintf(gcFile, " FinStr,  Destroy,  newChunks, destroyChunks\n");
+                fprintf(gcFile, " FinStr,  Destroy,  newChunks, destoyChunks\n");
             }
             JS_ASSERT(gcFile);
             fprintf(gcFile, "%12.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f,  %7.1f, ",

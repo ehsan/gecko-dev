@@ -349,12 +349,11 @@ _TEST_FILES2 = \
 		test_classList.html \
 		test_bug514487.html \
 		test_range_bounds.html \
-		test_mozfiledataurl.html \
-		file_mozfiledataurl_audio.ogg \
-		file_mozfiledataurl_img.jpg \
-		file_mozfiledataurl_inner.html \
-		file_mozfiledataurl_doc.html \
-		file_mozfiledataurl_text.txt \
+		test_bug543870.html \
+		file_bug543870_img.jpg \
+		file_bug543870_inner.html \
+		file_bug543870_doc.html \
+		file_bug543870_text.txt \
 		test_bug475156.html \
 		bug475156.sjs \
 		test_bug544642.html \
@@ -423,13 +422,6 @@ _TEST_FILES2 = \
 		file_x-frame-options_page.sjs \
 		test_createHTMLDocument.html \
 		test_bug578096.html \
-		test_bug598877.html \
-		test_bug600466.html \
-		test_bug600468.html \
-		test_bug600471.html \
-		test_bug601803.html \
-		file_bug601803a.html \
-		file_bug601803b.html \
 		$(NULL)
 
 # This test fails on the Mac for some reason

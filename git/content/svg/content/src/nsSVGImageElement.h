@@ -101,7 +101,6 @@ protected:
   virtual LengthAttributesInfo GetLengthInfo();
   virtual nsSVGPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
-  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];

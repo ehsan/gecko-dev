@@ -41,7 +41,7 @@
  * SSA builder and optimizations.
  */
 
-Narcissus.parser.SSABuilder = (function() {
+(function() {
 
     const parser = Narcissus.parser;
     const definitions = Narcissus.definitions;
@@ -717,7 +717,7 @@ Narcissus.parser.SSABuilder = (function() {
             if (allDashes) {
                 return null;
             }
-            rhs.children.reverse();
+            rhs.reverse();
 
             e = new Node(ft, ASSIGN);
             e.push(lhs);
@@ -732,21 +732,20 @@ Narcissus.parser.SSABuilder = (function() {
                 continue;
             }
 
-            rhs = e2.children[1];
+            rhs = e2[1];
 
             // Optimize away phis that are only one branch, but we still need
             // to propagate them!
             if (branches == 1) {
-                rhs = rhs.children[0];
+                rhs = rhs[0];
             } else {
                 // Push a phi use for each operand so the phis can be filled
                 // in during exec.
-                var rhsc = rhs.children;
-                for (var i = 0, j = rhsc.length; i < j; i++) {
-                    if (rhsc[i].type == INTERVENED) {
+                for (var i = 0, j = rhs.length; i < j; i++) {
+                    if (rhs[i].type == INTERVENED) {
                         rhs.intervened = true;
                     }
-                    rhsc[i].pushPhiUse(rhs);
+                    rhs[i].pushPhiUse(rhs);
                 }
                 e.push(e2);
             }
@@ -754,7 +753,7 @@ Narcissus.parser.SSABuilder = (function() {
             propagate(x, rhs);
         }
 
-        return e.children.length > 0 ? e : null;
+        return e.length > 0 ? e : null;
     }
 
     SSAJoin.prototype = {
@@ -905,10 +904,9 @@ Narcissus.parser.SSABuilder = (function() {
                         uu = u[i];
                         // Phi nodes might have stale branches.
                         if (uu.type == PHI) {
-                            var uuc = uu.children;
-                            for (var k = 0, l = uuc.length; k < l; k++) {
-                                if (uuc[k] === old.def) {
-                                    uuc[k] = rhs;
+                            for (var k = 0, l = uu.length; k < l; k++) {
+                                if (uu[k] === old.def) {
+                                    uu[k] = rhs;
                                     rhs.pushPhiUse(uu);
                                 }
                             }
@@ -1281,7 +1279,7 @@ Narcissus.parser.SSABuilder = (function() {
                             // do.
                             var bComma = this.COMMA;
 
-                            e2.push(n.setup.children[0]);
+                            e2.push(n.setup[0]);
                             n.setup = e2;
 
                             var comma = bComma.build(t);
@@ -1320,7 +1318,7 @@ Narcissus.parser.SSABuilder = (function() {
                 this.join = breakJoin.parent;
                 // Add update to the top if we were a for-in
                 if (n.type == FOR_IN) {
-                    n.body.children.unshift(n.update);
+                    n.body.unshift(n.update);
                     n.update = null;
                     n.type = FOR;
                 }
@@ -1975,7 +1973,7 @@ Narcissus.parser.SSABuilder = (function() {
 
         ASSIGN: {
             addOperand: function(n, n2) {
-                if (n.children.length === 0) {
+                if (n.length == 0) {
                     this.binds.inRHS++;
                 }
 
@@ -1983,16 +1981,15 @@ Narcissus.parser.SSABuilder = (function() {
             },
 
             finish: function(n) {
-                if (n.children.length === 0) {
+                if (n.length == 0) {
                     return;
                 }
 
                 var join = this.join;
                 var binds = this.binds;
                 var fb = binds.nearestFunction;
-                var nc = n.children;
-                var lhs = nc[0];
-                var init = nc[1];
+                var lhs = n[0];
+                var init = n[1];
                 var upvars = init.upvars || new Upvars;
 
                 if (--binds.inRHS > 0) {
@@ -2004,7 +2001,7 @@ Narcissus.parser.SSABuilder = (function() {
                     var t = n.tokenizer;
                     // Rebuild as COMMA.
                     n.type = COMMA;
-                    n.children = [];
+                    n.length = 0;
                     desugarDestructuringAssign(this, n, lhs, init);
                     return;
                 }
@@ -2056,11 +2053,12 @@ Narcissus.parser.SSABuilder = (function() {
                         // Transform op= into a normal assignment only if the
                         // lhs is an identifier we _know_ to be from a var.
                         var nt = n.tokenizer;
+                        var lhs = n[0];
                         var n2 = mkRawIdentifier(nt, name, null, true);
                         this.PRIMARY.finish(n2);
                         var o = n.assignOp;
                         n.assignOp = undefined;
-                        n.children = [];
+                        n.length = 0;
                         n.push(lhs);
                         n.push(new Node(nt, o, n2, init));
                         n2.setForward(c.def);
@@ -2068,17 +2066,17 @@ Narcissus.parser.SSABuilder = (function() {
                     }
 
                     // Clear the forward pointer and upvars on lefthand side.
-                    if (lhs.forward) {
-                        lhs.forward = null;
-                        lhs.upvars = null;
+                    if (n[0].forward) {
+                        n[0].forward = null;
+                        n[0].upvars = null;
                     }
                     // Set local to help decomp to do value numbering.
-                    lhs.local = c.type;
+                    n[0].local = c.type;
 
                     // Get the rightmost expression in case of compound
                     // assignment.
                     while (init.type == ASSIGN)
-                        init = init.children[1];
+                        init = init[1];
 
                     if (join) {
                         // If the name is not a local let, we need a phi.
@@ -2126,21 +2124,21 @@ Narcissus.parser.SSABuilder = (function() {
             },
 
             setCondition: function(n, e) {
-                n.children[0] = e;
+                n[0] = e;
                 n.rhsUnionUpvars(e);
                 this.join = new SSAJoin(this.join, this.binds, false);
             },
 
             setThenPart: function(n, n2) {
                 var join = this.join;
-                n.children[1] = n2;
+                n[1] = n2;
                 n.rhsUnionUpvars(n2);
                 join.finishBranch();
                 join.restore(this.binds);
             },
 
             setElsePart: function(n, n2) {
-                n.children[2] = n2;
+                n[2] = n2;
                 n.rhsUnionUpvars(n2);
             },
 
@@ -2160,7 +2158,7 @@ Narcissus.parser.SSABuilder = (function() {
             },
 
             addOperand: function(n, n2) {
-                if (n.children.length == 0) {
+                if (n.length == 0) {
                     // Short circuiting means the right hand expression needs
                     // to be parsed in a new context.
                     var join = this.join = new SSAJoin(this.join, this.binds, false);
@@ -2188,7 +2186,7 @@ Narcissus.parser.SSABuilder = (function() {
             },
 
             addOperand: function(n, n2) {
-                if (n.children.length == 0) {
+                if (n.length == 0) {
                     // Short circuiting means the right hand expression needs
                     // to be parsed in a new context.
                     var join = this.join = new SSAJoin(this.join, this.binds, false);
@@ -2215,9 +2213,7 @@ Narcissus.parser.SSABuilder = (function() {
 
                 var join = this.join;
                 var binds = this.binds;
-                var nc = n.children;
-                var lhs = nc[0];
-                if (!(lhs.type == IDENTIFIER && binds.hasCurrent(lhs.value)))
+                if (!(n[0].type == IDENTIFIER && binds.hasCurrent(n[0].value)))
                     return;
 
                 //
@@ -2234,7 +2230,7 @@ Narcissus.parser.SSABuilder = (function() {
                 // effect, so we do not duplicate side effects in an unsafe
                 // fashion.
                 //
-                var name = lhs.value;
+                var name = n[0].value;
                 var c = binds.current(name);
                 // Don't transform vars inside of withs
                 if (binds.isWith && c.type == VAR)
@@ -2259,7 +2255,7 @@ Narcissus.parser.SSABuilder = (function() {
                 if (n.postfix) {
                     n.parenthesized = true;
                     n.type = COMMA;
-                    n.children = [];
+                    n.length = 0;
                     n.push(mkAssignSimple(this, t, ptmp,
                                           mkIdentifier(this, t, name)));
                 }
@@ -2274,11 +2270,9 @@ Narcissus.parser.SSABuilder = (function() {
                     n.push(mkIdentifier(this, t, ptmp));
                 } else {
                     n.type = ASSIGN;
-                    n.children = [];
-
-                    var assignc = assign.children;
-                    n.push(assignc[0]);
-                    n.push(assignc[1]);
+                    n.length = 0;
+                    n.push(assign[0]);
+                    n.push(assign[1]);
                 }
             }
         },
@@ -2302,13 +2296,12 @@ Narcissus.parser.SSABuilder = (function() {
                 var join = this.join;
                 var binds = this.binds;
                 var fb = binds.nearestFunction;
-                var nc = n.children;
 
                 if (--binds.inRHS > 0) {
                     if (unionOnRight) {
-                        n.upvars = nc[1].upvars;
+                        n.upvars = n[1].upvars;
                     } else {
-                        n.upvars = nc[0].upvars;
+                        n.upvars = n[0].upvars;
                     }
                 }
 
@@ -2364,9 +2357,8 @@ Narcissus.parser.SSABuilder = (function() {
                 // local ones, so blast away context.
                 //
                 var inners = this.binds.inners;
-                var call = nc[0];
-                var base = baseOfCall(call);
-                var target = targetOfCall(call, IDENTIFIER);
+                var base = baseOfCall(n[0]);
+                var target = targetOfCall(n[0], IDENTIFIER);
 
                 if (target == "eval") {
                     escapeEval(join, binds);
@@ -2462,7 +2454,7 @@ Narcissus.parser.SSABuilder = (function() {
                 var unionOnRight = n.type == CALL || n.type == NEW_WITH_ARGS ||
                                    n.type == INDEX;
                 if (unionOnRight) {
-                    escapeVars(join, binds, nc[1].upvars || new Upvars);
+                    escapeVars(join, binds, n[1].upvars || new Upvars);
                 }
             }
         },
@@ -2589,7 +2581,7 @@ Narcissus.parser.SSABuilder = (function() {
             },
 
             finish: function(n) {
-                n.rhsUnionUpvars(n.children[1]);
+                n.rhsUnionUpvars(n[1]);
             }
         },
 
@@ -2845,9 +2837,9 @@ Narcissus.parser.SSABuilder = (function() {
     function baseOfCall(n) {
         switch (n.type) {
           case DOT:
-            return baseOfCall(n.children[0]);
+            return baseOfCall(n[0]);
           case INDEX:
-            return baseOfCall(n.children[0]);
+            return baseOfCall(n[0]);
           default:
             return n;
         }
@@ -2858,9 +2850,9 @@ Narcissus.parser.SSABuilder = (function() {
           case ident:
             return n.value;
           case DOT:
-            return targetOfCall(n.children[1], IDENTIFIER);
+            return targetOfCall(n[1], IDENTIFIER);
           case INDEX:
-            return targetOfCall(n.children[1], STRING);
+            return targetOfCall(n[1], STRING);
           default:
             return null;
         }
@@ -2956,9 +2948,9 @@ Narcissus.parser.SSABuilder = (function() {
                           builder.genDestructuringSym(),
                           e, false);
         builder.binds.block.push(decl);
-        var declc = decl.children[0];
-        declc[0].setForward(e);
-        go(n.destructuredNames, declc[0]);
+        decl[0].setForward(e);
+
+        go(n.destructuredNames, decl[0]);
     }
 
     function desugarDestructuringInit(builder, n, e) {
@@ -2992,9 +2984,8 @@ Narcissus.parser.SSABuilder = (function() {
             var dtmp = builder.genDestructuringSym();
             var decl = mkDecl(builder, "LET", t, dtmp, e, false);
             block.push(decl);
-            var declc = decl.children[0];
-            declc[0].setForward(e);
-            go(ddecls, declc[0]);
+            decl[0].setForward(e);
+            go(ddecls, decl[0]);
         } else {
             // This only happens when we have destructuring for a catch var,
             // in which case that catch var already has let-scoping, so we
@@ -3148,6 +3139,6 @@ Narcissus.parser.SSABuilder = (function() {
         this.phiUses.push(p);
     };
 
-    return SSABuilder;
+    parser.SSABuilder = SSABuilder;
 
 }());

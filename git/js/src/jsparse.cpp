@@ -56,8 +56,8 @@
 #include <math.h>
 #include "jstypes.h"
 #include "jsstdint.h"
-#include "jsarena.h"
-#include "jsutil.h"
+#include "jsarena.h" /* Added by JSIFY */
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
@@ -3162,9 +3162,6 @@ Parser::functionDef(JSAtom *funAtom, FunctionType type, uintN lambda)
 
     if (!LeaveFunction(pn, &funtc, funAtom, lambda))
         return NULL;
-
-    if (funtc.inStrictMode())
-        fun->flags |= JSFUN_PRIMITIVE_THIS;
 
     /* If the surrounding function is not strict code, reset the lexer. */
     if (!outertc->inStrictMode())
