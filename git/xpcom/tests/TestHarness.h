@@ -220,8 +220,8 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     already_AddRefed<nsIFile> GetProfileDirectory()
     {
       if (mProfD) {
-        nsCOMPtr<nsIFile> copy = mProfD;
-        return copy.forget();
+        NS_ADDREF(mProfD);
+        return mProfD.get();
       }
 
       // Create a unique temporary folder to use for this test.

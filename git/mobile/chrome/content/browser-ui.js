@@ -475,6 +475,12 @@ var BrowserUI = {
       DownloadsView.init();
       ConsoleView.init();
 
+      if (Services.prefs.getBoolPref("browser.tabs.remote")) {
+          // Pre-start the content process
+          Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime)
+                                           .ensureContentProcess();
+      }
+
 #ifdef MOZ_SERVICES_SYNC
       // Init the sync system
       WeaveGlue.init();
@@ -490,8 +496,6 @@ var BrowserUI = {
       FindHelperUI.init();
       FullScreenVideo.init();
       NewTabPopup.init();
-      WebappsUI.init();
-      CapturePickerUI.init();
 
       // If some add-ons were disabled during during an application update, alert user
       let addonIDs = AddonManager.getStartupChanges("disabled");
@@ -713,10 +717,9 @@ var BrowserUI = {
 
     let engine = Services.search.getEngineByName(aName);
     let submission = engine.getSubmission(searchValue, null);
+    Browser.selectedBrowser.userTypedValue = submission.uri.spec;
     Browser.loadURI(submission.uri.spec, { postData: submission.postData });
 
-    // loadURI may open a new tab, so get the selectedBrowser afterward.
-    Browser.selectedBrowser.userTypedValue = submission.uri.spec;
     this._titleChanged(Browser.selectedBrowser);
   },
 
@@ -1228,6 +1231,20 @@ var BrowserUI = {
           // to make the sure the dialog stacking is correct.
           AwesomeScreen.activePanel = RemoteTabsList;
           WeaveGlue.open();
+        } else if (!Weave.Service.isLoggedIn && !Services.prefs.getBoolPref("browser.sync.enabled")) {
+          // unchecked the relative command button
+          document.getElementById("remotetabs-button").removeAttribute("checked");
+
+          BrowserUI.showPanel("prefs-container");
+          let prefsBox = document.getElementById("prefs-list");
+          let syncArea = document.getElementById("prefs-sync");
+          if (prefsBox && syncArea) {
+            let prefsBoxY = prefsBox.firstChild.boxObject.screenY;
+            let syncAreaY = syncArea.boxObject.screenY;
+            setTimeout(function() {
+              prefsBox.scrollBoxObject.scrollTo(0, syncAreaY - prefsBoxY);
+            }, 0);
+          }
         } else {
           AwesomeScreen.activePanel = RemoteTabsList;
         }

@@ -504,8 +504,8 @@ nsDummyJavaPluginOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
 NS_IMETHODIMP
 nsDummyJavaPluginOwner::GetInstance(nsNPAPIPluginInstance **aInstance)
 {
+  NS_IF_ADDREF(mInstance);
   *aInstance = mInstance;
-  NS_IF_ADDREF(*aInstance);
 
   return NS_OK;
 }
@@ -793,8 +793,8 @@ NS_NewOuterWindowProxy(JSContext *cx, JSObject *parent)
     return nsnull;
   }
 
-  JSObject *obj = js::Wrapper::New(cx, parent, parent->getProto(), parent,
-                                   &nsOuterWindowProxy::singleton);
+  JSObject *obj = JSWrapper::New(cx, parent, parent->getProto(), parent,
+                                 &nsOuterWindowProxy::singleton);
   NS_ASSERTION(obj->getClass()->ext.innerObject, "bad class");
   return obj;
 }
@@ -8159,11 +8159,6 @@ nsGlobalWindow::GetGlobalStorage(nsIDOMStorageList ** aGlobalStorage)
 {
   NS_ENSURE_ARG_POINTER(aGlobalStorage);
 
-  nsCOMPtr<nsIDocument> document = do_QueryInterface(GetExtantDocument());
-  if (document) {
-    document->WarnOnceAbout(nsIDocument::eGlobalStorage);
-  }
-
   if (!Preferences::GetBool(kStorageEnabled)) {
     *aGlobalStorage = nsnull;
     return NS_OK;
@@ -8968,8 +8963,6 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
       return rv;
     }
 
-    nsRefPtr<nsTimeout> copy = timeout;
-
     rv = timeout->mTimer->InitWithFuncCallback(TimerCallback, timeout,
                                                realInterval,
                                                nsITimer::TYPE_ONE_SHOT);
@@ -8978,7 +8971,7 @@ nsGlobalWindow::SetTimeoutOrInterval(nsIScriptTimeoutHandler *aHandler,
     }
 
     // The timeout is now also held in the timer's closure.
-    copy.forget();
+    timeout->AddRef();
   } else {
     // If we are frozen, however, then we instead simply set
     // timeout->mTimeRemaining to be the "time remaining" in the timeout (i.e.,

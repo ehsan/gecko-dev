@@ -61,7 +61,6 @@
 #include "nsIFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsITextControlFrame.h"
-#include "nsMenuPopupFrame.h"
 
 using namespace mozilla::a11y;
 
@@ -73,8 +72,6 @@ nsXULButtonAccessible::
   nsXULButtonAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
   nsAccessibleWrap(aContent, aShell)
 {
-  if (ContainsMenu())
-    mFlags |= eMenuButtonAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,42 +162,6 @@ nsXULButtonAccessible::NativeState()
     state |= states::DEFAULT;
 
   return state;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULButtonAccessible: Widgets
-
-bool
-nsXULButtonAccessible::IsWidget() const
-{
-  return true;
-}
-
-bool
-nsXULButtonAccessible::IsActiveWidget() const
-{
-  return FocusMgr()->HasDOMFocus(mContent);
-}
-
-bool
-nsXULButtonAccessible::AreItemsOperable() const
-{
-  if (IsMenuButton()) {
-    nsAccessible* menuPopup = mChildren.SafeElementAt(0, nsnull);
-    if (menuPopup) {
-      nsMenuPopupFrame* menuPopupFrame = do_QueryFrame(menuPopup->GetFrame());
-      return menuPopupFrame->IsOpen();
-    }
-  }
-  return false; // no items
-}
-
-nsAccessible*
-nsXULButtonAccessible::ContainerWidget() const
-{
-  if (IsMenuButton() && mParent && mParent->IsAutoComplete())
-    return mParent;
-  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -503,19 +464,19 @@ nsXULRadioButtonAccessible::
 {
 }
 
+/** We are Focusable and can be Checked and focused */
 PRUint64
 nsXULRadioButtonAccessible::NativeState()
 {
   PRUint64 state = nsFormControlAccessible::NativeState();
-  state |= states::CHECKABLE;
 
-  if (!(state & states::UNAVAILABLE))
-    state |= states::FOCUSABLE;
+  state |= states::CHECKABLE;
+  
+  PRBool selected = PR_FALSE;   // Radio buttons can be selected
 
   nsCOMPtr<nsIDOMXULSelectControlItemElement> radioButton =
     do_QueryInterface(mContent);
   if (radioButton) {
-    PRBool selected = PR_FALSE;   // Radio buttons can be selected
     radioButton->GetSelected(&selected);
     if (selected) {
       state |= states::CHECKED;
@@ -531,15 +492,6 @@ nsXULRadioButtonAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
 {
   nsAccUtils::GetPositionAndSizeForXULSelectControlItem(mContent, aPosInSet,
                                                         aSetSize);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsXULRadioButtonAccessible: Widgets
-
-nsAccessible*
-nsXULRadioButtonAccessible::ContainerWidget() const
-{
-  return mParent;
 }
 
 
@@ -577,28 +529,7 @@ nsXULRadioGroupAccessible::NativeState()
   return nsAccessible::NativeState() & ~(states::FOCUSABLE | states::FOCUSED);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsXULRadioGroupAccessible: Widgets
-
-bool
-nsXULRadioGroupAccessible::IsWidget() const
-{
-  return true;
-}
-
-bool
-nsXULRadioGroupAccessible::IsActiveWidget() const
-{
-  return FocusMgr()->HasDOMFocus(mContent);
-}
-
-bool
-nsXULRadioGroupAccessible::AreItemsOperable() const
-{
-  return true;
-}
-
-
+                      
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULStatusBarAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -787,6 +718,9 @@ nsXULTextFieldAccessible::NativeState()
     return state;
 
   state |= tempAccessible->NativeState();
+
+  if (gLastFocusedNode == mContent)
+    state |= states::FOCUSED;
 
   nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mContent));
   if (menuList) {

@@ -115,12 +115,7 @@ window.addEventListener("unload", shutdown, false);
 var gPendingInitializations = 1;
 __defineGetter__("gIsInitializing", function() gPendingInitializations > 0);
 
-function initialize(event) {
-  // XXXbz this listener gets _all_ load events for all nodes in the
-  // document... but relies on not being called "too early".
-  if (event.target instanceof XMLStylesheetProcessingInstruction) {
-    return;
-  }
+function initialize() {
   document.removeEventListener("load", initialize, true);
   gViewController.initialize();
   gCategories.initialize();
@@ -287,7 +282,7 @@ var FakeHistory = {
 
   pushState: function(aState) {
     this.pos++;
-    this.states.splice(this.pos, this.states.length);
+    this.states.splice(this.pos);
     this.states.push(aState);
   },
 
@@ -299,7 +294,7 @@ var FakeHistory = {
     if (this.pos == 0)
       throw new Error("Cannot popState from this view");
 
-    this.states.splice(this.pos, this.states.length);
+    this.states.splice(this.pos);
     this.pos--;
 
     gViewController.updateState(this.states[this.pos]);

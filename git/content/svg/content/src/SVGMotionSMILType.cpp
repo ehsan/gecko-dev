@@ -40,6 +40,7 @@
 #include "SVGMotionSMILType.h"
 #include "nsSMILValue.h"
 #include "nsDebug.h"
+#include "nsSVGTransform.h"
 #include "nsSVGAngle.h"
 #include "nsIDOMSVGAngle.h"
 #include "nsSVGPathElement.h"

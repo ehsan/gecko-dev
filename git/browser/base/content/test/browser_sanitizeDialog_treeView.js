@@ -542,12 +542,8 @@ function waitForAsyncUpdates(aCallback, aScope, aArguments)
   let args = aArguments || [];
   let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
                               .DBConnection;
-  let begin = db.createAsyncStatement("BEGIN EXCLUSIVE");
-  begin.executeAsync();
-  begin.finalize();
-
-  let commit = db.createAsyncStatement("COMMIT");
-  commit.executeAsync({
+  db.createAsyncStatement("BEGIN EXCLUSIVE").executeAsync();
+  db.createAsyncStatement("COMMIT").executeAsync({
     handleResult: function() {},
     handleError: function() {},
     handleCompletion: function(aReason)
@@ -555,7 +551,6 @@ function waitForAsyncUpdates(aCallback, aScope, aArguments)
       aCallback.apply(scope, args);
     }
   });
-  commit.finalize();
 }
 
 /**

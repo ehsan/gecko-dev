@@ -419,9 +419,8 @@ function ShowPrefs()
 
   // Process about:config?filter=<string>
   var textbox = document.getElementById("textbox");
-  // About URIs don't support query params, so do this manually
-  var loc = document.location.href;
-  var matches = /[?&]filter\=([^&]+)/i.exec(loc);
+  var uri = document.documentURIObject;
+  var matches = /[?&]filter\=([^&]+)/i.exec(uri.path);
   if (matches)
     textbox.value = decodeURIComponent(matches[1]);
 

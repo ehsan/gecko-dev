@@ -77,6 +77,7 @@
 #include "jsversion.h"
 
 #include "jsinferinlines.h"
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsregexpinlines.h"
 #include "jsautooplen.h"        // generated headers last
@@ -351,7 +352,7 @@ str_enumerate(JSContext *cx, JSObject *obj)
         if (!str1)
             return false;
         if (!obj->defineElement(cx, i, StringValue(str1),
-                                JS_PropertyStub, JS_StrictPropertyStub,
+                                PropertyStub, StrictPropertyStub,
                                 STRING_ELEMENT_ATTRS)) {
             return false;
         }
@@ -387,13 +388,13 @@ Class js::StringClass = {
     js_String_str,
     JSCLASS_HAS_RESERVED_SLOTS(StringObject::RESERVED_SLOTS) |
     JSCLASS_NEW_RESOLVE | JSCLASS_HAS_CACHED_PROTO(JSProto_String),
-    JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     str_enumerate,
     (JSResolveOp)str_resolve,
-    JS_ConvertStub
+    ConvertStub
 };
 
 /*
@@ -456,12 +457,9 @@ str_quote(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 str_toSource(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
     JSString *str;
-    bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, &str, &ok))
-        return ok;
+    if (!GetPrimitiveThis(cx, vp, &str))
+        return false;
 
     str = js_QuoteString(cx, str, '"');
     if (!str)
@@ -495,7 +493,7 @@ str_toSource(JSContext *cx, uintN argc, Value *vp)
         cx->free_(t);
         return false;
     }
-    args.rval().setString(str);
+    vp->setString(str);
     return true;
 }
 
@@ -504,14 +502,10 @@ str_toSource(JSContext *cx, uintN argc, Value *vp)
 JSBool
 js_str_toString(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
     JSString *str;
-    bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, &str, &ok))
-        return ok;
-
-    args.rval().setString(str);
+    if (!GetPrimitiveThis(cx, vp, &str))
+        return false;
+    vp->setString(str);
     return true;
 }
 
@@ -630,7 +624,7 @@ str_toLocaleLowerCase(JSContext *cx, uintN argc, Value *vp)
         JSString *str = ThisToStringForStringProto(cx, vp);
         if (!str)
             return false;
-        return cx->localeCallbacks->localeToLowerCase(cx, str, vp);
+        return cx->localeCallbacks->localeToLowerCase(cx, str, Jsvalify(vp));
     }
 
     return str_toLowerCase(cx, 0, vp);
@@ -681,7 +675,7 @@ str_toLocaleUpperCase(JSContext *cx, uintN argc, Value *vp)
         JSString *str = ThisToStringForStringProto(cx, vp);
         if (!str)
             return false;
-        return cx->localeCallbacks->localeToUpperCase(cx, str, vp);
+        return cx->localeCallbacks->localeToUpperCase(cx, str, Jsvalify(vp));
     }
 
     return str_toUpperCase(cx, 0, vp);
@@ -702,7 +696,7 @@ str_localeCompare(JSContext *cx, uintN argc, Value *vp)
             return false;
         if (cx->localeCallbacks && cx->localeCallbacks->localeCompare) {
             vp[2].setString(thatStr);
-            return cx->localeCallbacks->localeCompare(cx, str, thatStr, vp);
+            return cx->localeCallbacks->localeCompare(cx, str, thatStr, Jsvalify(vp));
         }
         int32 result;
         if (!CompareStrings(cx, str, thatStr, &result))
@@ -2093,7 +2087,7 @@ str_replace_flat_lambda(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata
     args.calleev().setObject(*rdata.lambda);
     args.thisv().setUndefined();
 
-    Value *sp = args.array();
+    Value *sp = args.argv();
     sp[0].setString(matchStr);
     sp[1].setInt32(fm.match());
     sp[2].setString(rdata.str);

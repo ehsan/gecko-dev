@@ -189,10 +189,10 @@ typedef void *GLeglImageOES;
     (_array).AppendElement(_k);                 \
 } while (0)
 
-static EGLSurface
+EGLSurface
 CreateSurfaceForWindow(nsIWidget *aWidget, EGLConfig config);
-static bool
-CreateConfig(EGLConfig* aConfig);
+EGLConfig
+CreateConfig();
 #ifdef MOZ_X11
 
 #ifdef MOZ_EGL_XRENDER_COMPOSITE
@@ -798,8 +798,7 @@ public:
         // still expensive.
 #ifndef MOZ_WIDGET_QT
         if (!mSurface) {
-            EGLConfig config;
-            CreateConfig(&config);
+            EGLConfig config = CreateConfig();
             mSurface = CreateSurfaceForWindow(NULL, config);
             aForce = PR_TRUE;
         }
@@ -824,8 +823,7 @@ public:
     virtual PRBool
     RenewSurface() {
         ReleaseSurface();
-        EGLConfig config;
-        CreateConfig(&config);
+        EGLConfig config = CreateConfig();
         mSurface = CreateSurfaceForWindow(NULL, config);
 
         return sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
@@ -1176,11 +1174,11 @@ public:
                     ContentType aContentType,
                     GLContext* aContext)
         : TextureImage(aSize, aWrapMode, aContentType)
+        , mTexture(aTexture)
         , mGLContext(aContext)
         , mUpdateFormat(gfxASurface::ImageFormatUnknown)
         , mSurface(nsnull)
         , mConfig(nsnull)
-        , mTexture(aTexture)
         , mImageKHR(nsnull)
         , mTextureState(Created)
         , mBound(PR_FALSE)
@@ -1554,8 +1552,10 @@ public:
 
     virtual already_AddRefed<gfxASurface> GetBackingSurface()
     {
-        nsRefPtr<gfxASurface> copy = mBackingSurface;
-        return copy.forget();
+        if (mBackingSurface) {
+            NS_ADDREF(mBackingSurface);
+        }
+        return mBackingSurface.get();
     }
 
     virtual PRBool CreateEGLSurface(gfxASurface* aSurface)
@@ -1706,7 +1706,7 @@ GLContextEGL::TileGenFunc(const nsIntSize& aSize,
   return teximage.forget();
 }
 
-inline static ContextFormat
+static ContextFormat
 DepthToGLFormat(int aDepth)
 {
     switch (aDepth) {
@@ -1764,85 +1764,64 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
 
 #else
 
-static const EGLint kEGLConfigAttribsRGB16[] = {
-    LOCAL_EGL_SURFACE_TYPE,    LOCAL_EGL_WINDOW_BIT,
-    LOCAL_EGL_RENDERABLE_TYPE, LOCAL_EGL_OPENGL_ES2_BIT,
-    LOCAL_EGL_RED_SIZE,        5,
-    LOCAL_EGL_GREEN_SIZE,      6,
-    LOCAL_EGL_BLUE_SIZE,       5,
-    LOCAL_EGL_ALPHA_SIZE,      0,
-    LOCAL_EGL_NONE
-};
-
-
-static const EGLint kEGLConfigAttribsRGBA32[] = {
-    LOCAL_EGL_SURFACE_TYPE,    LOCAL_EGL_WINDOW_BIT,
-    LOCAL_EGL_RENDERABLE_TYPE, LOCAL_EGL_OPENGL_ES2_BIT,
-    LOCAL_EGL_RED_SIZE,        8,
-    LOCAL_EGL_GREEN_SIZE,      8,
-    LOCAL_EGL_BLUE_SIZE,       8,
-    LOCAL_EGL_ALPHA_SIZE,      8,
-    LOCAL_EGL_NONE
-};
-
-// Return true if a suitable EGLConfig was found and pass it out
-// through aConfig.  Return false otherwise.
-//
-// NB: It's entirely legal for the returned EGLConfig to be valid yet
-// have the value null.
-static bool
-CreateConfig(EGLConfig* aConfig)
+EGLConfig
+CreateConfig()
 {
-    struct EGLAttribs {
-        gfxASurface::gfxImageFormat mFormat;
-        const EGLint* mAttribs;
-    } attribsToTry[] = {
+    EGLConfig  config;
+    EGLint attribs[] = {
+        LOCAL_EGL_SURFACE_TYPE,    LOCAL_EGL_WINDOW_BIT,
+        LOCAL_EGL_RENDERABLE_TYPE, LOCAL_EGL_OPENGL_ES2_BIT,
+
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-        // Prefer r5g6b5 for potential savings in memory bandwidth.
-        // This needs to be reevaluated for newer devices.
-        { gfxASurface::ImageFormatRGB16_565, kEGLConfigAttribsRGB16 },
+        LOCAL_EGL_RED_SIZE,        5,
+        LOCAL_EGL_GREEN_SIZE,      6,
+        LOCAL_EGL_BLUE_SIZE,       5,
+        LOCAL_EGL_ALPHA_SIZE,      0,
+#else
+        LOCAL_EGL_RED_SIZE,        8,
+        LOCAL_EGL_GREEN_SIZE,      8,
+        LOCAL_EGL_BLUE_SIZE,       8,
+        LOCAL_EGL_ALPHA_SIZE,      8,
 #endif
-        { gfxASurface::ImageFormatARGB32, kEGLConfigAttribsRGBA32 },
+
+        LOCAL_EGL_NONE
     };
 
     EGLConfig configs[64];
-    for (unsigned i = 0; i < NS_ARRAY_LENGTH(attribsToTry); ++i) {
-        const EGLAttribs& attribs = attribsToTry[i];
-        EGLint ncfg = NS_ARRAY_LENGTH(configs);
-
-        if (!sEGLLibrary.fChooseConfig(EGL_DISPLAY(), attribs.mAttribs,
-                                       configs, ncfg, &ncfg) ||
-            ncfg < 1)
-        {
-            continue;
-        }
-
-        for (int j = 0; j < ncfg; ++j) {
-            EGLConfig config = configs[j];
-            EGLint r, g, b, a;
-
-            if (sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
-                                             LOCAL_EGL_RED_SIZE, &r) &&
-                sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
-                                             LOCAL_EGL_GREEN_SIZE, &g) &&
-                sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
-                                             LOCAL_EGL_BLUE_SIZE, &b) &&
-                sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), config,
-                                             LOCAL_EGL_ALPHA_SIZE, &a) &&
-                ((gfxASurface::ImageFormatRGB16_565 == attribs.mFormat &&
-                  r == 5 && g == 6 && b == 5) ||
-                 (gfxASurface::ImageFormatARGB32 == attribs.mFormat &&
-                  r == 8 && g == 8 && b == 8 && a == 8)))
-            {
-                *aConfig = config;
-                return true;
-            }
-        }
+    EGLint ncfg = 64;
+    if (!sEGLLibrary.fChooseConfig(EGL_DISPLAY(), attribs, configs, ncfg, &ncfg) ||
+        ncfg < 1)
+    {
+        return nsnull;
     }
-    return false;
+
+    config = 0;
+
+    for (int i = 0; i < ncfg; ++i) {
+        EGLint r, g, b, a;
+
+        sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), configs[i], LOCAL_EGL_RED_SIZE, &r);
+        sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), configs[i], LOCAL_EGL_GREEN_SIZE, &g);
+        sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), configs[i], LOCAL_EGL_BLUE_SIZE, &b);
+        sEGLLibrary.fGetConfigAttrib(EGL_DISPLAY(), configs[i], LOCAL_EGL_ALPHA_SIZE, &a);
+
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+        if (r == 5 && g == 6 && b == 5) {
+            config = configs[i];
+            break;
+        }
+#else
+        if (r == 8 && g == 8 && b == 8 && a == 8) {
+            config = configs[i];
+            break;
+        }
+#endif
+    }
+
+    return config;
 }
 
-static EGLSurface
+EGLSurface
 CreateSurfaceForWindow(nsIWidget *aWidget, EGLConfig config)
 {
     EGLSurface surface;
@@ -1889,7 +1868,9 @@ GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
         return nsnull;
     }
 
-    if (!CreateConfig(&config)) {
+    config = CreateConfig();
+
+    if (!config) {
         printf_stderr("Failed to create EGL config!\n");
         return nsnull;
     }
@@ -2256,6 +2237,24 @@ GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
 #else
     return nsnull;
 #endif
+}
+
+static ContextFormat
+ContentTypeToGLFormat(gfxASurface::gfxContentType aCType)
+{
+    switch (aCType) {
+        case gfxASurface::CONTENT_COLOR_ALPHA:
+            return ContextFormat::BasicRGBA32;
+        case gfxASurface::CONTENT_COLOR:
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+            return ContextFormat::BasicRGB16_565;
+#else
+            return ContextFormat::BasicRGB24;
+#endif
+        default:
+            break;
+    }
+    return ContextFormat::BasicRGBA32;
 }
 
 already_AddRefed<GLContext>

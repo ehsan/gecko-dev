@@ -167,12 +167,13 @@ nsSVGSwitchElement::FindActiveChild() const
   const nsAdoptingString& acceptLangs =
     Preferences::GetLocalizedString("intl.accept_languages");
 
+  PRUint32 count = GetChildCount();
+
   if (allowReorder && !acceptLangs.IsEmpty()) {
     PRInt32 bestLanguagePreferenceRank = -1;
     nsIContent *bestChild = nsnull;
-    for (nsIContent* child = nsINode::GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    for (PRUint32 i = 0; i < count; i++) {
+      nsIContent *child = GetChildAt(i);
       if (nsSVGFeatures::PassesConditionalProcessingTests(
             child, nsSVGFeatures::kIgnoreSystemLanguage)) {
         nsAutoString value;
@@ -203,9 +204,8 @@ nsSVGSwitchElement::FindActiveChild() const
     return bestChild;
   }
 
-  for (nsIContent* child = nsINode::GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  for (PRUint32 i = 0; i < count; i++) {
+    nsIContent *child = GetChildAt(i);
     if (nsSVGFeatures::PassesConditionalProcessingTests(child, &acceptLangs)) {
       return child;
     }

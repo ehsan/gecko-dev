@@ -139,8 +139,7 @@ public:
 
   virtual bool EndEmptyTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT);
+                              void* aCallbackData);
 
   virtual void SetRoot(Layer* aLayer) { mRoot = aLayer; }
 
@@ -500,9 +499,7 @@ private:
         , fps(0)
         , initialized(false)
         , fcount(0)
-      {
-        last = TimeStamp::Now();
-      }
+      {}
       void DrawFPS(GLContext*, CopyProgram*);
   } mFPS;
 

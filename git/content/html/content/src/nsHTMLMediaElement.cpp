@@ -603,10 +603,13 @@ NS_IMETHODIMP nsHTMLMediaElement::Load()
 
 static PRBool HasSourceChildren(nsIContent *aElement)
 {
-  for (nsIContent* child = aElement->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    if (child->IsHTML(nsGkAtoms::source))
+  PRUint32 count = aElement->GetChildCount();
+  for (PRUint32 i = 0; i < count; ++i) {
+    nsIContent* child = aElement->GetChildAt(i);
+    NS_ASSERTION(child, "GetChildCount lied!");
+    if (child &&
+        child->Tag() == nsGkAtoms::source &&
+        child->IsHTML())
     {
       return PR_TRUE;
     }
@@ -2525,7 +2528,9 @@ nsIContent* nsHTMLMediaElement::GetNextSource()
     nsIContent* child = GetChildAt(startOffset);
 
     // If child is a <source> element, it is the next candidate.
-    if (child && child->IsHTML(nsGkAtoms::source))
+    if (child &&
+        child->Tag() == nsGkAtoms::source &&
+        child->IsHTML())
     {
       mSourceLoadCandidate = child;
       return child;

@@ -173,12 +173,6 @@ XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
   }
 });
 
-XPCOMUtils.defineLazyGetter(this, "InspectorUI", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/inspector.jsm", tmp);
-  return new tmp.InspectorUI(window);
-});
-
 let gInitialPages = [
   "about:blank",
   "about:privatebrowsing",
@@ -186,6 +180,7 @@ let gInitialPages = [
 ];
 
 #include browser-fullZoom.js
+#include inspector.js
 #include browser-places.js
 #include browser-tabPreviews.js
 #include browser-tabview.js
@@ -1681,7 +1676,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   TabView.init();
 
   // Enable Inspector?
-  let enabled = gPrefService.getBoolPref("devtools.inspector.enabled");
+  let enabled = gPrefService.getBoolPref(InspectorUI.prefEnabledName);
   if (enabled) {
     document.getElementById("menu_pageinspect").hidden = false;
     document.getElementById("Tools:Inspect").removeAttribute("disabled");
@@ -1729,9 +1724,6 @@ function BrowserShutdown() {
   // load completes). In that case, there's nothing to do here.
   if (!gStartupRan)
     return;
-
-  if (!__lookupGetter__("InspectorUI"))
-    InspectorUI.destroy();
 
   // First clean up services initialized in BrowserStartup (or those whose
   // uninit methods don't depend on the services having been initialized).
@@ -4683,7 +4675,7 @@ var LinkTargetDisplay = {
      return this.DELAY_SHOW = Services.prefs.getIntPref("browser.overlink-delay");
   },
 
-  DELAY_HIDE: 250,
+  DELAY_HIDE: 150,
   _timer: 0,
 
   get _isVisible () XULBrowserWindow.statusTextField.label != "",

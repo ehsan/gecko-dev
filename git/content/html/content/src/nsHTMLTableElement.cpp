@@ -410,11 +410,12 @@ nsHTMLTableElement::SetCaption(nsIDOMHTMLTableCaptionElement* aValue)
 already_AddRefed<nsIDOMHTMLTableSectionElement>
 nsHTMLTableElement::GetSection(nsIAtom *aTag)
 {
+  PRUint32 childCount = GetChildCount();
+
   nsCOMPtr<nsIDOMHTMLTableSectionElement> section;
 
-  for (nsIContent* child = nsINode::GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  for (PRUint32 i = 0; i < childCount; ++i) {
+    nsIContent *child = GetChildAt(i);
 
     section = do_QueryInterface(child);
 
@@ -766,9 +767,9 @@ nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
     nsCOMPtr<nsIDOMNode> rowGroup;
 
     PRInt32 namespaceID = mNodeInfo->NamespaceID();
-    for (nsIContent* child = nsINode::GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    PRUint32 childCount = GetChildCount();
+    for (PRUint32 i = 0; i < childCount; ++i) {
+      nsIContent* child = GetChildAt(i);
       nsINodeInfo *childInfo = child->NodeInfo();
       nsIAtom *localName = childInfo->NameAtom();
       if (childInfo->NamespaceID() == namespaceID &&
@@ -1016,6 +1017,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     }
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Margin)) {
+    const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
     // align; Check for enumerated type (it may be another type if
     // illegal)
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);

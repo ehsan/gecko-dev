@@ -1407,10 +1407,9 @@ ifndef NO_DIST_INSTALL
 $(FINAL_TARGET)/$(PREF_DIR):
 	$(NSINSTALL) -D $@
 
-libs:: $(FINAL_TARGET)/$(PREF_DIR)
-libs:: $(PREF_JS_EXPORTS)
+libs:: $(FINAL_TARGET)/$(PREF_DIR) $(PREF_JS_EXPORTS)
 	$(EXIT_ON_ERROR)  \
-	for i in $^; do \
+	for i in $(PREF_JS_EXPORTS); do \
 	  dest=$(FINAL_TARGET)/$(PREF_DIR)/`basename $$i`; \
 	  $(RM) -f $$dest; \
 	  $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $$i > $$dest; \
@@ -1653,27 +1652,26 @@ ifneq ($(DIST_FILES),)
 $(DIST)/bin:
 	$(NSINSTALL) -D $@
 
-libs:: $(DIST)/bin
-libs:: $(DIST_FILES)
+libs:: $(DIST_FILES) $(DIST)/bin
 	@$(EXIT_ON_ERROR) \
-	for f in $^; do \
+	for f in $(DIST_FILES); do \
 	  dest=$(FINAL_TARGET)/`basename $$f`; \
 	  $(RM) -f $$dest; \
 	  $(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
 	    $(XULAPP_DEFINES) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) \
-	    $$f > $$dest; \
+	    $(srcdir)/$$f > $$dest; \
 	done
 endif
 
 ifneq ($(DIST_CHROME_FILES),)
 libs:: $(DIST_CHROME_FILES)
 	@$(EXIT_ON_ERROR) \
-	for f in $^; do \
+	for f in $(DIST_CHROME_FILES); do \
 	  dest=$(FINAL_TARGET)/chrome/`basename $$f`; \
 	  $(RM) -f $$dest; \
 	  $(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
 	    $(XULAPP_DEFINES) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) \
-	    $$f > $$dest; \
+	    $(srcdir)/$$f > $$dest; \
 	done
 endif
 

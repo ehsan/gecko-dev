@@ -223,6 +223,7 @@ void DEBUG_CheckWrapperThreadSafety(const XPCWrappedNative* wrapper);
 
 /***************************************************************************/
 // data declarations...
+extern const char* XPC_ARG_FORMATTER_FORMAT_STRINGS[]; // format strings
 extern const char XPC_CONTEXT_STACK_CONTRACTID[];
 extern const char XPC_RUNTIME_CONTRACTID[];
 extern const char XPC_EXCEPTION_CONTRACTID[];
@@ -724,9 +725,6 @@ public:
         IDX_ITERATOR                ,
         IDX_EXPOSEDPROPS            ,
         IDX_SCRIPTONLY              ,
-        IDX_BASEURIOBJECT           ,
-        IDX_NODEPRINCIPAL           ,
-        IDX_DOCUMENTURIOBJECT       ,
         IDX_TOTAL_COUNT // just a count of the above
     };
 
@@ -1390,35 +1388,21 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
 // Macros to initialize Object or Function like XPC_WN classes
 #define XPC_WN_WithCall_ObjectOps                                             \
     {                                                                         \
-        nsnull, /* lookupGeneric */                                           \
         nsnull, /* lookupProperty */                                          \
         nsnull, /* lookupElement */                                           \
-        nsnull, /* lookupSpecial */                                           \
-        nsnull, /* defineGeneric */                                           \
         nsnull, /* defineProperty */                                          \
         nsnull, /* defineElement */                                           \
-        nsnull, /* defineSpecial */                                           \
-        nsnull, /* getGeneric    */                                           \
         nsnull, /* getProperty    */                                          \
         nsnull, /* getElement    */                                           \
-        nsnull, /* getSpecial    */                                           \
-        nsnull, /* setGeneric    */                                           \
         nsnull, /* setProperty    */                                          \
         nsnull, /* setElement    */                                           \
-        nsnull, /* setSpecial    */                                           \
-        nsnull, /* getGenericAttributes  */                                   \
         nsnull, /* getAttributes  */                                          \
         nsnull, /* getElementAttributes  */                                   \
-        nsnull, /* getSpecialAttributes  */                                   \
-        nsnull, /* setGenericAttributes  */                                   \
         nsnull, /* setAttributes  */                                          \
         nsnull, /* setElementAttributes  */                                   \
-        nsnull, /* setSpecialAttributes  */                                   \
-        nsnull, /* deleteGeneric */                                           \
         nsnull, /* deleteProperty */                                          \
         nsnull, /* deleteElement */                                           \
-        nsnull, /* deleteSpecial */                                           \
-        XPC_WN_JSOp_Enumerate,                                                \
+        js::Valueify(XPC_WN_JSOp_Enumerate),                                  \
         XPC_WN_JSOp_TypeOf_Function,                                          \
         nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
@@ -1427,35 +1411,21 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
 
 #define XPC_WN_NoCall_ObjectOps                                               \
     {                                                                         \
-        nsnull, /* lookupGeneric */                                           \
         nsnull, /* lookupProperty */                                          \
         nsnull, /* lookupElement */                                           \
-        nsnull, /* lookupSpecial */                                           \
-        nsnull, /* defineGeneric */                                           \
         nsnull, /* defineProperty */                                          \
         nsnull, /* defineElement */                                           \
-        nsnull, /* defineSpecial */                                           \
-        nsnull, /* getGeneric    */                                           \
         nsnull, /* getProperty    */                                          \
         nsnull, /* getElement    */                                           \
-        nsnull, /* getSpecial    */                                           \
-        nsnull, /* setGeneric    */                                           \
         nsnull, /* setProperty    */                                          \
         nsnull, /* setElement    */                                           \
-        nsnull, /* setSpecial    */                                           \
-        nsnull, /* getGenericAttributes  */                                   \
         nsnull, /* getAttributes  */                                          \
         nsnull, /* getElementAttributes  */                                   \
-        nsnull, /* getSpecialAttributes  */                                   \
-        nsnull, /* setGenericAttributes  */                                   \
         nsnull, /* setAttributes  */                                          \
         nsnull, /* setElementAttributes  */                                   \
-        nsnull, /* setSpecialAttributes  */                                   \
-        nsnull, /* deleteGeneric */                                           \
         nsnull, /* deleteProperty */                                          \
         nsnull, /* deleteElement */                                           \
-        nsnull, /* deleteSpecial */                                           \
-        XPC_WN_JSOp_Enumerate,                                                \
+        js::Valueify(XPC_WN_JSOp_Enumerate),                                  \
         XPC_WN_JSOp_TypeOf_Object,                                            \
         nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
@@ -2024,7 +1994,7 @@ public:
     PRUint32                        GetInterfacesBitmap() const
         {return mJSClass.interfacesBitmap;}
     JSClass*                        GetJSClass()
-        {return Jsvalify(&mJSClass.base);}
+        {return js::Jsvalify(&mJSClass.base);}
     JSClass*                        GetSlimJSClass()
         {if(mCanBeSlim) return GetJSClass(); return nsnull;}
 
@@ -3301,7 +3271,8 @@ public:
 
     static JSBool JSArray2Native(XPCCallContext& ccx, void** d, jsval s,
                                  JSUint32 count, JSUint32 capacity,
-                                 const nsXPTType& type, const nsID* iid,
+                                 const nsXPTType& type,
+                                 JSBool useAllocator, const nsID* iid,
                                  uintN* pErr);
 
     static JSBool NativeStringWithSize2JS(JSContext* cx,
@@ -3312,7 +3283,9 @@ public:
 
     static JSBool JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
                                           JSUint32 count, JSUint32 capacity,
-                                          const nsXPTType& type, uintN* pErr);
+                                          const nsXPTType& type,
+                                          JSBool useAllocator,
+                                          uintN* pErr);
 
     static nsresult JSValToXPCException(XPCCallContext& ccx,
                                         jsval s,
@@ -3360,6 +3333,11 @@ public:
 private:
     XPCStringConvert();         // not implemented
 };
+
+extern JSBool
+XPC_JSArgumentFormatter(JSContext *cx, const char *format,
+                        JSBool fromJS, jsval **vpp, va_list *app);
+
 
 /***************************************************************************/
 // code for throwing exceptions into JS

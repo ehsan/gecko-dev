@@ -51,7 +51,6 @@ struct nsCaptureParams {
   PRUint32 width;
   PRUint32 height;
   PRUint32 bpp;
-  PRUint32 camera;
 };
 
 class nsDeviceCaptureProvider : public nsISupports

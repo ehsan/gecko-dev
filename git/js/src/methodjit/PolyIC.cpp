@@ -538,7 +538,7 @@ class SetPropCompiler : public PICStubCompiler
 
         Class *clasp = obj->getClass();
 
-        if (clasp->setProperty != JS_StrictPropertyStub)
+        if (clasp->setProperty != StrictPropertyStub)
             return disable("set property hook");
         if (clasp->ops.lookupProperty)
             return disable("ops lookup property hook");
@@ -583,7 +583,7 @@ class SetPropCompiler : public PICStubCompiler
             if (!obj->isExtensible())
                 return disable("not extensible");
 
-            if (clasp->addProperty != JS_PropertyStub)
+            if (clasp->addProperty != PropertyStub)
                 return disable("add property hook");
             if (clasp->ops.defineProperty)
                 return disable("ops define property hook");
@@ -1167,8 +1167,10 @@ class GetPropCompiler : public PICStubCompiler
         JS_ASSERT(pic.canCallHook);
         PropertyOp getter = shape->getterOp();
 
-        masm.storePtr(ImmPtr((void *) REJOIN_NATIVE_GETTER),
-                      FrameAddress(offsetof(VMFrame, stubRejoin)));
+        if (cx->typeInferenceEnabled()) {
+            masm.storePtr(ImmPtr((void *) REJOIN_NATIVE_GETTER),
+                          FrameAddress(offsetof(VMFrame, stubRejoin)));
+        }
 
         Registers tempRegs = Registers::tempCallRegMask();
         if (tempRegs.hasReg(Registers::ClobberInCall))
@@ -1755,7 +1757,7 @@ class ScopeNameCompiler : public PICStubCompiler
         // If the property was found, but we decided not to cache it, then
         // take a slow path and do a full property fetch.
         if (!getprop.shape) {
-            if (!obj->getGeneric(cx, ATOM_TO_JSID(atom), vp))
+            if (!obj->getProperty(cx, ATOM_TO_JSID(atom), vp))
                 return false;
             if (thisvp)
                 return ComputeImplicitThis(cx, obj, *vp, thisvp);
@@ -1995,7 +1997,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
     }
 
     Value v;
-    if (!obj->getGeneric(f.cx, ATOM_TO_JSID(atom), &v))
+    if (!obj->getProperty(f.cx, ATOM_TO_JSID(atom), &v))
         THROW();
 
     f.regs.sp[-1] = v;
@@ -2747,7 +2749,7 @@ GetElementIC::attachArguments(JSContext *cx, JSObject *obj, const Value &v, jsid
 
     disable(cx, "generated arguments stub");
 
-    if (!obj->getGeneric(cx, id, vp))
+    if (!obj->getProperty(cx, id, vp))
         return Lookup_Error;
 
     return Lookup_Cacheable;
@@ -2830,7 +2832,7 @@ GetElementIC::attachTypedArray(JSContext *cx, JSObject *obj, const Value &v, jsi
     disable(cx, "generated typed array stub");
 
     // Fetch the value as expected of Lookup_Cacheable for GetElement.
-    if (!obj->getGeneric(cx, id, vp))
+    if (!obj->getProperty(cx, id, vp))
         return Lookup_Error;
 
     return Lookup_Cacheable;
@@ -2967,7 +2969,7 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
         }
     }
 
-    if (!obj->getGeneric(cx, id, &f.regs.sp[-2]))
+    if (!obj->getProperty(cx, id, &f.regs.sp[-2]))
         THROW();
 }
 

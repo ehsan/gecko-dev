@@ -59,21 +59,12 @@ var TabsPopup = {
   },
 
   hide: function hide() {
-    this._hidePortraitMenu();
-
-    if (!Util.isPortrait()) {
-      Elements.urlbarState.removeAttribute("tablet_sidebar");
-      ViewableAreaObserver.update();
-    }
+    this.box.hidden = true;
+    BrowserUI.popPopup(this);
+    window.removeEventListener("resize", this.resizeHandler, false);
   },
 
   show: function show() {
-    if (!Util.isPortrait()) {
-      Elements.urlbarState.setAttribute("tablet_sidebar", "true");
-      ViewableAreaObserver.update();
-      return;
-    }
-
     while(this.list.firstChild)
       this.list.removeChild(this.list.firstChild);
 
@@ -97,13 +88,6 @@ var TabsPopup = {
           let iconURI = gFaviconService.getFaviconImageForPage(pageURI);
           icon = iconURI.spec;
         } catch(ex) { }
-      } else {
-        if (caption == "about:blank")
-          caption = browser.currentURI.spec;
-        if (!icon) {
-          let iconURI = gFaviconService.getFaviconImageForPage(browser.currentURI);
-          icon = iconURI.spec;
-        }
       }
       item.setAttribute("img", icon);
       item.setAttribute("label", caption);
@@ -117,31 +101,19 @@ var TabsPopup = {
     this.box.anchorTo(this.button, "after_end");
     BrowserUI.pushPopup(this, [this.box, this.button]);
 
-    window.addEventListener("resize", function resizeHandler(aEvent) {
-      if (aEvent.target != window)
-        return;
-      if (!Util.isPortrait())
-        TabsPopup._hidePortraitMenu();
-    }, false);
+    window.addEventListener("resize", this.resizeHandler.bind(this), false);
   },
 
   toggle: function toggle() {
-    if (this.visible)
-      this.hide();
-    else
+    if (this.box.hidden)
       this.show();
+    else
+      this.hide();
   },
 
-  get visible() {
-    return Util.isPortrait() ? !this.box.hidden : Elements.urlbarState.hasAttribute("tablet_sidebar");
-  },
-
-  _hidePortraitMenu: function _hidePortraitMenu() {
-    if (!this.box.hidden) {
-      this.box.hidden = true;
-      BrowserUI.popPopup(this);
-      window.removeEventListener("resize", resizeHandler, false);
-    }
+  resizeHandler: function(aEvent) {
+    if (!Util.isPortrait())
+      this.hide();
   },
 
   closeTab: function(aTab) {

@@ -355,29 +355,29 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
   }
 
   VorbisPCMValue** pcm = 0;
-  PRInt32 frames = 0;
+  PRInt32 samples = 0;
   PRUint32 channels = mVorbisState->mInfo.channels;
-  ogg_int64_t endFrame = aPacket->granulepos;
-  while ((frames = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
-    mVorbisState->ValidateVorbisPacketSamples(aPacket, frames);
-    nsAutoArrayPtr<AudioDataValue> buffer(new AudioDataValue[frames * channels]);
+  ogg_int64_t endSample = aPacket->granulepos;
+  while ((samples = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
+    mVorbisState->ValidateVorbisPacketSamples(aPacket, samples);
+    nsAutoArrayPtr<AudioDataValue> buffer(new AudioDataValue[samples * channels]);
     for (PRUint32 j = 0; j < channels; ++j) {
       VorbisPCMValue* channel = pcm[j];
-      for (PRUint32 i = 0; i < PRUint32(frames); ++i) {
+      for (PRUint32 i = 0; i < PRUint32(samples); ++i) {
         buffer[i*channels + j] = MOZ_CONVERT_VORBIS_SAMPLE(channel[i]);
       }
     }
 
-    PRInt64 duration = mVorbisState->Time((PRInt64)frames);
-    PRInt64 startTime = mVorbisState->Time(endFrame - frames);
+    PRInt64 duration = mVorbisState->Time((PRInt64)samples);
+    PRInt64 startTime = mVorbisState->Time(endSample - samples);
     mAudioQueue.Push(new AudioData(mPageOffset,
                                    startTime,
                                    duration,
-                                   frames,
+                                   samples,
                                    buffer.forget(),
                                    channels));
-    endFrame -= frames;
-    if (vorbis_synthesis_read(&mVorbisState->mDsp, frames) != 0) {
+    endSample -= samples;
+    if (vorbis_synthesis_read(&mVorbisState->mDsp, samples) != 0) {
       return NS_ERROR_FAILURE;
     }
   }

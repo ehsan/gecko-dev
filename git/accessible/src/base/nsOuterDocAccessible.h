@@ -67,6 +67,7 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
+  virtual PRUint64 NativeState();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
   virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                      EWhichChildAtPoint aWhichChild);

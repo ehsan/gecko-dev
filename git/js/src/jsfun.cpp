@@ -112,7 +112,8 @@ js_GetArgsValue(JSContext *cx, StackFrame *fp, Value *vp)
     JSObject *argsobj;
     if (fp->hasOverriddenArgs()) {
         JS_ASSERT(fp->hasCallObj());
-        return fp->callObj().getProperty(cx, cx->runtime->atomState.argumentsAtom, vp);
+        jsid id = ATOM_TO_JSID(cx->runtime->atomState.argumentsAtom);
+        return fp->callObj().getProperty(cx, id, vp);
     }
     argsobj = js_GetArgsObject(cx, fp);
     if (!argsobj)
@@ -129,8 +130,9 @@ js_GetArgsProperty(JSContext *cx, StackFrame *fp, jsid id, Value *vp)
     if (fp->hasOverriddenArgs()) {
         JS_ASSERT(fp->hasCallObj());
 
+        jsid argumentsid = ATOM_TO_JSID(cx->runtime->atomState.argumentsAtom);
         Value v;
-        if (!fp->callObj().getProperty(cx, cx->runtime->atomState.argumentsAtom, &v))
+        if (!fp->callObj().getProperty(cx, argumentsid, &v))
             return false;
 
         JSObject *obj;
@@ -141,7 +143,7 @@ js_GetArgsProperty(JSContext *cx, StackFrame *fp, jsid id, Value *vp)
         } else {
             obj = &v.toObject();
         }
-        return obj->getGeneric(cx, id, vp);
+        return obj->getProperty(cx, id, vp);
     }
 
     vp->setUndefined();
@@ -152,7 +154,7 @@ js_GetArgsProperty(JSContext *cx, StackFrame *fp, jsid id, Value *vp)
             if (argsobj) {
                 const Value &v = argsobj->element(arg);
                 if (v.isMagic(JS_ARGS_HOLE))
-                    return argsobj->getGeneric(cx, id, vp);
+                    return argsobj->getProperty(cx, id, vp);
                 if (fp->functionScript()->strictModeCode) {
                     *vp = v;
                     return true;
@@ -173,12 +175,12 @@ js_GetArgsProperty(JSContext *cx, StackFrame *fp, jsid id, Value *vp)
              * undefined in *vp.
              */
             if (argsobj)
-                return argsobj->getGeneric(cx, id, vp);
+                return argsobj->getProperty(cx, id, vp);
         }
     } else if (JSID_IS_ATOM(id, cx->runtime->atomState.lengthAtom)) {
         ArgumentsObject *argsobj = fp->maybeArgsObj();
         if (argsobj && argsobj->hasOverriddenLength())
-            return argsobj->getGeneric(cx, id, vp);
+            return argsobj->getProperty(cx, id, vp);
         vp->setInt32(fp->numActualArgs());
     }
     return true;
@@ -696,20 +698,20 @@ Class js::NormalArgumentsObjectClass = {
     JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_RESERVED_SLOTS(NormalArgumentsObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
-    JS_PropertyStub,         /* addProperty */
+    PropertyStub,         /* addProperty */
     args_delProperty,
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     args_enumerate,
     reinterpret_cast<JSResolveOp>(args_resolve),
-    JS_ConvertStub,
-    args_finalize,           /* finalize   */
-    NULL,                    /* reserved0   */
-    NULL,                    /* checkAccess */
-    NULL,                    /* call        */
-    NULL,                    /* construct   */
-    NULL,                    /* xdrObject   */
-    NULL,                    /* hasInstance */
+    ConvertStub,
+    args_finalize,        /* finalize   */
+    NULL,                 /* reserved0   */
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* construct   */
+    NULL,                 /* xdrObject   */
+    NULL,                 /* hasInstance */
     args_trace
 };
 
@@ -723,20 +725,20 @@ Class js::StrictArgumentsObjectClass = {
     JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_RESERVED_SLOTS(StrictArgumentsObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
-    JS_PropertyStub,         /* addProperty */
+    PropertyStub,         /* addProperty */
     args_delProperty,
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     strictargs_enumerate,
     reinterpret_cast<JSResolveOp>(strictargs_resolve),
-    JS_ConvertStub,
-    args_finalize,           /* finalize   */
-    NULL,                    /* reserved0   */
-    NULL,                    /* checkAccess */
-    NULL,                    /* call        */
-    NULL,                    /* construct   */
-    NULL,                    /* xdrObject   */
-    NULL,                    /* hasInstance */
+    ConvertStub,
+    args_finalize,        /* finalize   */
+    NULL,                 /* reserved0   */
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* construct   */
+    NULL,                 /* xdrObject   */
+    NULL,                 /* hasInstance */
     args_trace
 };
 
@@ -747,13 +749,13 @@ Class js::StrictArgumentsObjectClass = {
 Class js::DeclEnvClass = {
     js_Object_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
-    JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
+    EnumerateStub,
+    ResolveStub,
+    ConvertStub
 };
 
 static inline JSObject *
@@ -1153,20 +1155,20 @@ JS_PUBLIC_DATA(Class) js::CallClass = {
     JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(CallObject::RESERVED_SLOTS) |
     JSCLASS_NEW_RESOLVE | JSCLASS_IS_ANONYMOUS,
-    JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
     (JSResolveOp)call_resolve,
-    NULL,                    /* convert: Leave it NULL so we notice if calls ever escape */
-    NULL,                    /* finalize */
-    NULL,                    /* reserved0   */
-    NULL,                    /* checkAccess */
-    NULL,                    /* call        */
-    NULL,                    /* construct   */
-    NULL,                    /* xdrObject   */
-    NULL,                    /* hasInstance */
+    NULL,                 /* convert: Leave it NULL so we notice if calls ever escape */
+    NULL,                 /* finalize */
+    NULL,                 /* reserved0   */
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* construct   */
+    NULL,                 /* xdrObject   */
+    NULL,                 /* hasInstance */
     call_trace
 };
 
@@ -1449,10 +1451,10 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, JSObject *obj)
      * and writable.
      */
     if (!obj->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
-                             ObjectValue(*proto), JS_PropertyStub, JS_StrictPropertyStub,
+                             ObjectValue(*proto), PropertyStub, StrictPropertyStub,
                              JSPROP_PERMANENT) ||
         !proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
-                               ObjectValue(*obj), JS_PropertyStub, JS_StrictPropertyStub, 0))
+                               ObjectValue(*obj), PropertyStub, StrictPropertyStub, 0))
     {
        return NULL;
     }
@@ -1501,7 +1503,7 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
         else
             v.setString(fun->atom ? fun->atom : cx->runtime->emptyString);
         
-        if (!DefineNativeProperty(cx, obj, id, v, JS_PropertyStub, JS_StrictPropertyStub,
+        if (!DefineNativeProperty(cx, obj, id, v, PropertyStub, StrictPropertyStub,
                                   JSPROP_PERMANENT | JSPROP_READONLY, 0, 0)) {
             return false;
         }
@@ -1526,7 +1528,7 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                 attrs |= JSPROP_GETTER | JSPROP_SETTER;
             } else {
                 getter = fun_getProperty;
-                setter = JS_StrictPropertyStub;
+                setter = StrictPropertyStub;
             }
 
             if (!DefineNativeProperty(cx, obj, id, UndefinedValue(), getter, setter,
@@ -1632,8 +1634,9 @@ fun_hasInstance(JSContext *cx, JSObject *obj, const Value *v, JSBool *bp)
         obj = obj->getBoundFunctionTarget();
     }
 
+    jsid id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
     Value pval;
-    if (!obj->getProperty(cx, cx->runtime->atomState.classPrototypeAtom, &pval))
+    if (!obj->getProperty(cx, id, &pval))
         return JS_FALSE;
 
     if (pval.isPrimitive()) {
@@ -1695,18 +1698,18 @@ JS_PUBLIC_DATA(Class) js::FunctionClass = {
     JSCLASS_HAS_RESERVED_SLOTS(JSFunction::CLASS_RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Function) |
     JSCLASS_CONCURRENT_FINALIZER,
-    JS_PropertyStub,         /* addProperty */
-    JS_PropertyStub,         /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
+    PropertyStub,         /* addProperty */
+    PropertyStub,         /* delProperty */
+    PropertyStub,         /* getProperty */
+    StrictPropertyStub,   /* setProperty */
     fun_enumerate,
     (JSResolveOp)fun_resolve,
-    JS_ConvertStub,
+    ConvertStub,
     fun_finalize,
-    NULL,                    /* reserved0   */
-    NULL,                    /* checkAccess */
-    NULL,                    /* call        */
-    NULL,                    /* construct   */
+    NULL,                 /* reserved0   */
+    NULL,                 /* checkAccess */
+    NULL,                 /* call        */
+    NULL,                 /* construct   */
     NULL,
     fun_hasInstance,
     fun_trace
@@ -1717,7 +1720,7 @@ fun_toStringHelper(JSContext *cx, JSObject *obj, uintN indent)
 {
     if (!obj->isFunction()) {
         if (obj->isFunctionProxy())
-            return Proxy::fun_toString(cx, obj, indent);
+            return JSProxy::fun_toString(cx, obj, indent);
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_INCOMPATIBLE_PROTO,
                              js_Function_str, js_toString_str,
@@ -1801,7 +1804,7 @@ js_fun_call(JSContext *cx, uintN argc, Value *vp)
     Value fval = vp[1];
 
     if (!js_IsCallable(fval)) {
-        ReportIncompatibleMethod(cx, CallReceiverFromVp(vp), &FunctionClass);
+        ReportIncompatibleMethod(cx, vp, &FunctionClass);
         return false;
     }
 
@@ -1824,7 +1827,7 @@ js_fun_call(JSContext *cx, uintN argc, Value *vp)
     /* Push fval, thisv, and the args. */
     args.calleev() = fval;
     args.thisv() = thisv;
-    memcpy(args.array(), argv, argc * sizeof *argv);
+    memcpy(args.argv(), argv, argc * sizeof *argv);
 
     bool ok = Invoke(cx, args);
     *vp = args.rval();
@@ -1838,7 +1841,7 @@ js_fun_apply(JSContext *cx, uintN argc, Value *vp)
     /* Step 1. */
     Value fval = vp[1];
     if (!js_IsCallable(fval)) {
-        ReportIncompatibleMethod(cx, CallReceiverFromVp(vp), &FunctionClass);
+        ReportIncompatibleMethod(cx, vp, &FunctionClass);
         return false;
     }
 
@@ -1878,7 +1881,7 @@ js_fun_apply(JSContext *cx, uintN argc, Value *vp)
     args.thisv() = vp[2];
 
     /* Steps 7-8. */
-    if (!GetElements(cx, aobj, length, args.array()))
+    if (!GetElements(cx, aobj, length, args.argv()))
         return false;
 
     /* Step 9. */
@@ -1993,7 +1996,7 @@ CallOrConstructBoundFunction(JSContext *cx, uintN argc, Value *vp)
     /* 15.3.4.5.1, 15.3.4.5.2 step 4. */
     for (uintN i = 0; i < argslen; i++)
         args[i] = obj->getBoundFunctionArgument(i);
-    memcpy(args.array() + argslen, vp + 2, argc * sizeof(Value));
+    memcpy(args.argv() + argslen, vp + 2, argc * sizeof(Value));
 
     /* 15.3.4.5.1, 15.3.4.5.2 step 5. */
     args.calleev().setObject(*target);
@@ -2038,25 +2041,23 @@ fun_isGenerator(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 fun_bind(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
     /* Step 1. */
-    Value &thisv = args.thisv();
+    Value &thisv = vp[1];
 
     /* Step 2. */
     if (!js_IsCallable(thisv)) {
-        ReportIncompatibleMethod(cx, args, &FunctionClass);
+        ReportIncompatibleMethod(cx, vp, &FunctionClass);
         return false;
     }
 
     JSObject *target = &thisv.toObject();
 
     /* Step 3. */
-    Value *boundArgs = NULL;
+    Value *args = NULL;
     uintN argslen = 0;
-    if (args.length() > 1) {
-        boundArgs = args.array() + 1;
-        argslen = args.length() - 1;
+    if (argc > 1) {
+        args = vp + 3;
+        argslen = argc - 1;
     }
 
     /* Steps 15-16. */
@@ -2078,15 +2079,15 @@ fun_bind(JSContext *cx, uintN argc, Value *vp)
         return false;
 
     /* Steps 7-9. */
-    Value thisArg = args.length() >= 1 ? args[0] : UndefinedValue();
-    if (!funobj->initBoundFunction(cx, thisArg, boundArgs, argslen))
+    Value thisArg = argc >= 1 ? vp[2] : UndefinedValue();
+    if (!funobj->initBoundFunction(cx, thisArg, args, argslen))
         return false;
 
     /* Steps 17, 19-21 are handled by fun_resolve. */
     /* Step 18 is the default for new functions. */
 
     /* Step 22. */
-    args.rval().setObject(*funobj);
+    vp->setObject(*funobj);
     return true;
 }
 
@@ -2123,10 +2124,10 @@ JSFunctionSpec function_methods[] = {
 JSBool
 Function(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
+    CallArgs call = CallArgsFromVp(argc, vp);
 
     /* Block this call if security callbacks forbid it. */
-    GlobalObject *global = args.callee().getGlobal();
+    GlobalObject *global = call.callee().getGlobal();
     if (!global->isRuntimeCodeGenEnabled(cx)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CSP_BLOCKED_FUNCTION);
         return false;
@@ -2136,7 +2137,8 @@ Function(JSContext *cx, uintN argc, Value *vp)
     uintN lineno;
     const char *filename = CurrentScriptFileAndLine(cx, &lineno);
 
-    uintN n = args.length() ? args.length() - 1 : 0;
+    Value *argv = call.argv();
+    uintN n = argc ? argc - 1 : 0;
     if (n > 0) {
         /*
          * Collect the function-argument arguments into one string, separated
@@ -2151,10 +2153,10 @@ Function(JSContext *cx, uintN argc, Value *vp)
         size_t args_length = 0;
         for (uintN i = 0; i < n; i++) {
             /* Collect the lengths for all the function-argument arguments. */
-            JSString *arg = js_ValueToString(cx, args[i]);
+            JSString *arg = js_ValueToString(cx, argv[i]);
             if (!arg)
                 return false;
-            args[i].setString(arg);
+            argv[i].setString(arg);
 
             /*
              * Check for overflow.  The < test works because the maximum
@@ -2194,7 +2196,7 @@ Function(JSContext *cx, uintN argc, Value *vp)
          * Concatenate the arguments into the new string, separated by commas.
          */
         for (uintN i = 0; i < n; i++) {
-            JSString *arg = args[i].toString();
+            JSString *arg = argv[i].toString();
             size_t arg_length = arg->length();
             const jschar *arg_chars = arg->getChars(cx);
             if (!arg_chars)
@@ -2263,8 +2265,8 @@ Function(JSContext *cx, uintN argc, Value *vp)
     const jschar *chars;
     size_t length;
 
-    if (args.length()) {
-        JSString *str = js_ValueToString(cx, args[args.length() - 1]);
+    if (argc) {
+        JSString *str = js_ValueToString(cx, argv[argc - 1]);
         if (!str)
             return false;
         strAnchor.set(str);
@@ -2286,11 +2288,11 @@ Function(JSContext *cx, uintN argc, Value *vp)
     if (!fun)
         return false;
 
-    JSPrincipals *principals = PrincipalsForCompiledCode(args, cx);
+    JSPrincipals *principals = PrincipalsForCompiledCode(call, cx);
     bool ok = Compiler::compileFunctionBody(cx, fun, principals, &bindings,
                                             chars, length, filename, lineno,
                                             cx->findVersion());
-    args.rval().setObject(*fun);
+    call.rval().setObject(*fun);
     return ok;
 }
 
@@ -2359,7 +2361,7 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, uintN nargs,
 #ifdef JS_TRACER
             JSNativeTraceInfo *trcinfo =
                 JS_FUNC_TO_DATA_PTR(JSNativeTraceInfo *, native);
-            fun->u.n.native = (Native) trcinfo->native;
+            fun->u.n.native = (js::Native) trcinfo->native;
             fun->u.n.trcinfo = trcinfo;
 #else
             fun->u.n.trcinfo = NULL;
@@ -2527,8 +2529,8 @@ js_DefineFunction(JSContext *cx, JSObject *obj, jsid id, Native native,
          * for more on this.
          */
         attrs &= ~JSFUN_STUB_GSOPS;
-        gop = JS_PropertyStub;
-        sop = JS_StrictPropertyStub;
+        gop = PropertyStub;
+        sop = StrictPropertyStub;
     } else {
         gop = NULL;
         sop = NULL;

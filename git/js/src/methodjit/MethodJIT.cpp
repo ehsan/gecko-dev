@@ -1085,17 +1085,6 @@ static inline void Destroy(T &t)
     t.~T();
 }
 
-void
-mjit::JITScript::purgeNativeCallStubs()
-{
-    for (unsigned i = 0; i < nativeCallStubs.length(); i++) {
-        JSC::ExecutablePool *pool = nativeCallStubs[i].pool;
-        if (pool)
-            pool->release();
-    }
-    nativeCallStubs.clear();
-}
-
 mjit::JITScript::~JITScript()
 {
     code.release();
@@ -1126,7 +1115,11 @@ mjit::JITScript::~JITScript()
         (*pExecPool)->release();
     }
 
-    purgeNativeCallStubs();
+    for (unsigned i = 0; i < nativeCallStubs.length(); i++) {
+        JSC::ExecutablePool *pool = nativeCallStubs[i].pool;
+        if (pool)
+            pool->release();
+    }
 
     ic::CallICInfo *callICs_ = callICs();
     for (uint32 i = 0; i < nCallICs; i++) {

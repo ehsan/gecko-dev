@@ -165,8 +165,6 @@ private:
  */
 #ifdef DEBUG_ACCDOCMGR
 
-#include "nsTraceRefcntImpl.h"
-
 // Enable these to log accessible document loading, creation or destruction.
 #define DEBUG_ACCDOCMGR_DOCLOAD
 #define DEBUG_ACCDOCMGR_DOCCREATE
@@ -407,10 +405,6 @@ private:
 #define NS_LOG_ACCDOC_TEXT(aMsg)                                               \
   printf("  " aMsg "\n");
 
-#define NS_LOG_ACCDOC_STACK                                                    \
-  printf("  stack: \n");                                                       \
-  nsTraceRefcntImpl::WalkTheStack(stdout);
-
 // Accessible document loading macros.
 #ifdef DEBUG_ACCDOCMGR_DOCLOAD
 
@@ -521,10 +515,7 @@ private:
   NS_LOG_ACCDOC_ACCADDRESS(aName, aAcc)
 
 #define NS_LOG_ACCDOCCREATE_TEXT(aMsg)                                         \
-  NS_LOG_ACCDOC_TEXT(aMsg)
-
-#define NS_LOG_ACCDOCCREATE_STACK                                              \
-  NS_LOG_ACCDOC_STACK
+    NS_LOG_ACCDOC_TEXT(aMsg)
 
 #endif // DEBUG_ACCDOCMGR_DOCCREATE
 
@@ -568,7 +559,6 @@ private:
 #define NS_LOG_ACCDOCCREATE(aMsg, aDocument)
 #define NS_LOG_ACCDOCCREATE_ACCADDRESS(aName, aAcc)
 #define NS_LOG_ACCDOCCREATE_TEXT(aMsg)
-#define NS_LOG_ACCDOCCREATE_STACK
 #endif
 
 #ifndef DEBUG_ACCDOCMGR_DOCDESTROY

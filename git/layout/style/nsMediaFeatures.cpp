@@ -194,15 +194,6 @@ GetDeviceOrientation(nsPresContext* aPresContext, const nsMediaFeature*,
     return NS_OK;
 }
 
-static nsresult
-GetIsResourceDocument(nsPresContext* aPresContext, const nsMediaFeature*,
-                      nsCSSValue& aResult)
-{
-  nsIDocument* doc = aPresContext->Document();
-  aResult.SetIntValue(doc && doc->IsResourceDoc() ? 1 : 0, eCSSUnit_Integer);
-  return NS_OK;
-}
-
 // Helper for two features below
 static nsresult
 MakeArray(const nsSize& aSize, nsCSSValue& aResult)
@@ -468,13 +459,6 @@ nsMediaFeatures::features[] = {
         nsMediaFeature::eEnumerated,
         { kOrientationKeywords },
         GetDeviceOrientation
-    },
-    {
-        &nsGkAtoms::_moz_is_resource_document,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { nsnull },
-        GetIsResourceDocument
     },
     {
         &nsGkAtoms::_moz_scrollbar_start_backward,

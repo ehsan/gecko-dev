@@ -135,9 +135,9 @@ JSObject::setAttributes(JSContext *cx, jsid id, uintN *attrsp)
 }
 
 inline JSBool
-JSObject::getGeneric(JSContext *cx, JSObject *receiver, jsid id, js::Value *vp)
+JSObject::getProperty(JSContext *cx, JSObject *receiver, jsid id, js::Value *vp)
 {
-    js::GenericIdOp op = getOps()->getGeneric;
+    js::PropertyIdOp op = getOps()->getProperty;
     if (op) {
         if (!op(cx, this, receiver, id, vp))
             return false;
@@ -149,21 +149,9 @@ JSObject::getGeneric(JSContext *cx, JSObject *receiver, jsid id, js::Value *vp)
 }
 
 inline JSBool
-JSObject::getProperty(JSContext *cx, JSObject *receiver, js::PropertyName *name, js::Value *vp)
+JSObject::getProperty(JSContext *cx, jsid id, js::Value *vp)
 {
-    return getGeneric(cx, receiver, ATOM_TO_JSID(name), vp);
-}
-
-inline JSBool
-JSObject::getGeneric(JSContext *cx, jsid id, js::Value *vp)
-{
-    return getGeneric(cx, this, id, vp);
-}
-
-inline JSBool
-JSObject::getProperty(JSContext *cx, js::PropertyName *name, js::Value *vp)
-{
-    return getGeneric(cx, ATOM_TO_JSID(name), vp);
+    return getProperty(cx, this, id, vp);
 }
 
 inline JSBool
@@ -647,7 +635,7 @@ JSObject::setFlatClosureUpvars(js::Value *upvars)
 {
     JS_ASSERT(isFunction());
     JS_ASSERT(getFunctionPrivate()->isFlatClosure());
-    setFixedSlot(JSSLOT_FLAT_CLOSURE_UPVARS, js::PrivateValue(upvars));
+    setFixedSlot(JSSLOT_FLAT_CLOSURE_UPVARS, PrivateValue(upvars));
 }
 
 inline bool
@@ -688,7 +676,7 @@ inline jsval
 JSObject::getNamePrefixVal() const
 {
     JS_ASSERT(isNamespace() || isQName());
-    return getSlot(JSSLOT_NAME_PREFIX);
+    return js::Jsvalify(getSlot(JSSLOT_NAME_PREFIX));
 }
 
 inline void
@@ -717,7 +705,7 @@ inline jsval
 JSObject::getNameURIVal() const
 {
     JS_ASSERT(isNamespace() || isQName());
-    return getSlot(JSSLOT_NAME_URI);
+    return js::Jsvalify(getSlot(JSSLOT_NAME_URI));
 }
 
 inline void
@@ -731,14 +719,14 @@ inline jsval
 JSObject::getNamespaceDeclared() const
 {
     JS_ASSERT(isNamespace());
-    return getSlot(JSSLOT_NAMESPACE_DECLARED);
+    return js::Jsvalify(getSlot(JSSLOT_NAMESPACE_DECLARED));
 }
 
 inline void
 JSObject::setNamespaceDeclared(jsval decl)
 {
     JS_ASSERT(isNamespace());
-    setSlot(JSSLOT_NAMESPACE_DECLARED, decl);
+    setSlot(JSSLOT_NAMESPACE_DECLARED, js::Valueify(decl));
 }
 
 inline JSAtom *
@@ -753,7 +741,7 @@ inline jsval
 JSObject::getQNameLocalNameVal() const
 {
     JS_ASSERT(isQName());
-    return getSlot(JSSLOT_QNAME_LOCAL_NAME);
+    return js::Jsvalify(getSlot(JSSLOT_QNAME_LOCAL_NAME));
 }
 
 inline void
@@ -876,7 +864,7 @@ JSObject::init(JSContext *cx, js::Class *aclasp, js::types::TypeObject *type,
         slots = fixedSlots();
         flags |= PACKED_ARRAY;
     } else {
-        js::ClearValueRange(fixedSlots(), capacity, denseArray);
+        ClearValueRange(fixedSlots(), capacity, denseArray);
     }
 
     newType = NULL;
@@ -1116,7 +1104,7 @@ JSObject::getElement(JSContext *cx, JSObject *receiver, uint32 index, js::Value 
     jsid id;
     if (!js::IndexToId(cx, index, &id))
         return false;
-    return getGeneric(cx, receiver, id, vp);
+    return getProperty(cx, receiver, id, vp);
 }
 
 inline JSBool
@@ -1125,7 +1113,7 @@ JSObject::getElement(JSContext *cx, uint32 index, js::Value *vp)
     jsid id;
     if (!js::IndexToId(cx, index, &id))
         return false;
-    return getGeneric(cx, id, vp);
+    return getProperty(cx, id, vp);
 }
 
 inline JSBool
@@ -1135,12 +1123,6 @@ JSObject::deleteElement(JSContext *cx, uint32 index, js::Value *rval, JSBool str
     if (!js::IndexToId(cx, index, &id))
         return false;
     return deleteProperty(cx, id, rval, strict);
-}
-
-inline JSBool
-JSObject::getSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp)
-{
-    return getGeneric(cx, SPECIALID_TO_JSID(sid), vp);
 }
 
 static inline bool
@@ -1682,87 +1664,6 @@ PropDesc::checkSetter(JSContext *cx)
         return false;
     }
     return true;
-}
-
-namespace detail {
-
-template<typename T> class PrimitiveBehavior { };
-
-template<>
-class PrimitiveBehavior<JSString *> {
-  public:
-    static inline bool isType(const Value &v) { return v.isString(); }
-    static inline JSString *extract(const Value &v) { return v.toString(); }
-    static inline Class *getClass() { return &StringClass; }
-};
-
-template<>
-class PrimitiveBehavior<bool> {
-  public:
-    static inline bool isType(const Value &v) { return v.isBoolean(); }
-    static inline bool extract(const Value &v) { return v.toBoolean(); }
-    static inline Class *getClass() { return &BooleanClass; }
-};
-
-template<>
-class PrimitiveBehavior<double> {
-  public:
-    static inline bool isType(const Value &v) { return v.isNumber(); }
-    static inline double extract(const Value &v) { return v.toNumber(); }
-    static inline Class *getClass() { return &NumberClass; }
-};
-
-} /* namespace detail */
-
-inline JSObject *
-NonGenericMethodGuard(JSContext *cx, CallArgs args, Class *clasp, bool *ok)
-{
-    const Value &thisv = args.thisv();
-    if (thisv.isObject()) {
-        JSObject &obj = thisv.toObject();
-        if (obj.getClass() == clasp) {
-            *ok = true;  /* quell gcc overwarning */
-            return &obj;
-        }
-    }
-
-    *ok = HandleNonGenericMethodClassMismatch(cx, args, clasp);
-    return NULL;
-}
-
-template <typename T>
-inline bool
-BoxedPrimitiveMethodGuard(JSContext *cx, CallArgs args, T *v, bool *ok)
-{
-    typedef detail::PrimitiveBehavior<T> Behavior;
-
-    const Value &thisv = args.thisv();
-    if (Behavior::isType(thisv)) {
-        *v = Behavior::extract(thisv);
-        return true;
-    }
-
-    if (!NonGenericMethodGuard(cx, args, Behavior::getClass(), ok))
-        return false;
-
-    *v = Behavior::extract(thisv.toObject().getPrimitiveThis());
-    return true;
-}
-
-inline bool
-ObjectClassIs(JSObject &obj, ESClassValue classValue, JSContext *cx)
-{
-    if (JS_UNLIKELY(obj.isProxy()))
-        return obj.getProxyHandler()->classPropertyIs(cx, &obj, classValue);
-
-    switch (classValue) {
-      case ESClass_Array: return obj.isArray();
-      case ESClass_Number: return obj.isNumber();
-      case ESClass_String: return obj.isString();
-      case ESClass_Boolean: return obj.isBoolean();
-    }
-    JS_NOT_REACHED("bad classValue");
-    return false;
 }
 
 } /* namespace js */

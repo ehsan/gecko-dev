@@ -86,6 +86,7 @@ public:
   virtual PRUint64 NativeState();
   virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                      EWhichChildAtPoint aWhichChild);
+  virtual nsAccessible* FocusedChild();
 
   virtual nsAccessible* GetChildAt(PRUint32 aIndex);
   virtual PRInt32 GetChildCount();
@@ -100,14 +101,6 @@ public:
   virtual bool RemoveItemFromSelection(PRUint32 aIndex);
   virtual bool SelectAll();
   virtual bool UnselectAll();
-
-  // Widgets
-  virtual bool IsWidget() const;
-  virtual bool IsActiveWidget() const;
-  virtual bool AreItemsOperable() const;
-  virtual nsAccessible* CurrentItem();
-
-  virtual nsAccessible* ContainerWidget() const;
 
   // nsXULTreeAccessible
 
@@ -215,9 +208,6 @@ public:
 
   // ActionAccessible
   virtual PRUint8 ActionCount();
-
-  // Widgets
-  virtual nsAccessible* ContainerWidget() const;
 
   // nsXULTreeItemAccessibleBase
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_XULTREEITEMBASEACCESSIBLE_IMPL_CID)

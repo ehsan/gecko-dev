@@ -58,7 +58,7 @@ struct nsCSSValuePair;
 struct nsCSSValueTriplet;
 struct nsCSSValuePairList;
 struct nsCSSRect;
-class gfx3DMatrix;
+struct gfxMatrix;
 
 namespace mozilla {
 namespace dom {
@@ -233,12 +233,12 @@ public:
     * Interpolates between 2 matrices by decomposing them.
     *
     * @param aMatrix1   First matrix, using CSS pixel units.
+    * @param aCoeff1    Interpolation value in the range [0.0, 1.0]
     * @param aMatrix2   Second matrix, using CSS pixel units.
-    * @param aProgress  Interpolation value in the range [0.0, 1.0]
+    * @param aCoeff2    Interpolation value in the range [0.0, 1.0]
     */
-   static gfx3DMatrix InterpolateTransformMatrix(const gfx3DMatrix &aMatrix1,
-                                                 const gfx3DMatrix &aMatrix2, 
-                                                 double aProgress);
+   static gfxMatrix InterpolateTransformMatrix(const gfxMatrix &aMatrix1, double aCoeff1,
+                                               const gfxMatrix &aMatrix2, double aCoeff2);
 
   /**
    * The types and values for the values that we extract and animate.

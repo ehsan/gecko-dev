@@ -97,7 +97,11 @@ public:
 
   virtual PRBool GetEchoPasswordImpl()
   {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+    return PR_TRUE;
+#else
     return PR_FALSE;
+#endif
   }
 
 protected:

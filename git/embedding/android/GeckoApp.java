@@ -294,13 +294,9 @@ abstract public class GeckoApp
                     if (mLibLoadThread != null)
                         mLibLoadThread.join();
                 } catch (InterruptedException ie) {}
-
-                // Show the URL we are about to load, if the intent has one
-                if (Intent.ACTION_VIEW.equals(i.getAction())) {
-                    surfaceView.mSplashURL = i.getDataString();
-                }
+                surfaceView.mSplashStatusMsg =
+                    getResources().getString(R.string.splash_screen_loading);
                 surfaceView.drawSplashScreen();
-
                 // unpack files in the components directory
                 try {
                     unpackComponents();
@@ -417,7 +413,11 @@ abstract public class GeckoApp
                 Configuration config = res.getConfiguration();
                 config.locale = locale;
                 res.updateConfiguration(config, res.getDisplayMetrics());
+
+
             }});
+        surfaceView.mSplashStatusMsg =
+            getResources().getString(R.string.splash_screen_loading);
         mLibLoadThread.start();
     }
 
@@ -595,6 +595,10 @@ abstract public class GeckoApp
 
         componentsDir.mkdir();
         componentsDir.setLastModified(applicationPackage.lastModified());
+
+        surfaceView.mSplashStatusMsg =
+                    getResources().getString(R.string.splash_firstrun);
+        surfaceView.drawSplashScreen();
 
         GeckoAppShell.killAnyZombies();
 

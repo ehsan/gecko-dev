@@ -351,12 +351,6 @@ public:
                                            const nsIntRegion& aRegionToDraw,
                                            const nsIntRegion& aRegionToInvalidate,
                                            void* aCallbackData);
-
-  enum EndTransactionFlags {
-    END_DEFAULT = 0,
-    END_NO_IMMEDIATE_REDRAW = 1 << 0  // Do not perform the drawing phase
-  };
-
   /**
    * Finish the construction phase of the transaction, perform the
    * drawing phase, and end the transaction.
@@ -365,8 +359,7 @@ public:
    * where it is known that the visible region is empty.
    */
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
-                              void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT) = 0;
+                              void* aCallbackData) = 0;
 
   PRBool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; } 
 

@@ -7,9 +7,9 @@
 #include "tests.h"
 #include "jswrapper.h"
 
-struct OuterWrapper : js::Wrapper
+struct OuterWrapper : JSWrapper
 {
-    OuterWrapper() : Wrapper(0) {}
+    OuterWrapper() : JSWrapper(0) {}
 
     virtual bool isOuterWindow() {
         return true;
@@ -44,13 +44,13 @@ PreWrap(JSContext *cx, JSObject *scope, JSObject *obj, uintN flags)
 static JSObject *
 Wrap(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent, uintN flags)
 {
-    return js::Wrapper::New(cx, obj, proto, parent, &js::CrossCompartmentWrapper::singleton);
+    return JSWrapper::New(cx, obj, proto, parent, &JSCrossCompartmentWrapper::singleton);
 }
 
 BEGIN_TEST(testBug604087)
 {
-    JSObject *outerObj = js::Wrapper::New(cx, global, global->getProto(), global,
-                                          &OuterWrapper::singleton);
+    JSObject *outerObj = JSWrapper::New(cx, global, global->getProto(), global,
+                                        &OuterWrapper::singleton);
     JSObject *compartment2 = JS_NewCompartmentAndGlobalObject(cx, getGlobalClass(), NULL);
     JSObject *compartment3 = JS_NewCompartmentAndGlobalObject(cx, getGlobalClass(), NULL);
     JSObject *compartment4 = JS_NewCompartmentAndGlobalObject(cx, getGlobalClass(), NULL);
@@ -72,8 +72,8 @@ BEGIN_TEST(testBug604087)
     {
         JSAutoEnterCompartment ac;
         CHECK(ac.enter(cx, compartment2));
-        next = js::Wrapper::New(cx, compartment2, compartment2->getProto(), compartment2,
-                                &OuterWrapper::singleton);
+        next = JSWrapper::New(cx, compartment2, compartment2->getProto(), compartment2,
+                              &OuterWrapper::singleton);
         CHECK(next);
     }
 

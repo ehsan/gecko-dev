@@ -1561,16 +1561,14 @@ ApplyDoubleBuffering(Layer* aLayer, const nsIntRect& aVisibleRect)
 
 void
 BasicLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
-                                  void* aCallbackData,
-                                  EndTransactionFlags aFlags)
+                                  void* aCallbackData)
 {
-  EndTransactionInternal(aCallback, aCallbackData, aFlags);
+  EndTransactionInternal(aCallback, aCallbackData);
 }
 
 bool
 BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
-                                          void* aCallbackData,
-                                          EndTransactionFlags aFlags)
+                                          void* aCallbackData)
 {
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
@@ -1584,7 +1582,7 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 
   mTransactionIncomplete = false;
 
-  if (mTarget && mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
+  if (mTarget && mRoot) {
     nsIntRect clipRect;
     if (HasShadowManager()) {
       // If this has a shadow manager, the clip extents of mTarget are meaningless.
@@ -2691,7 +2689,7 @@ public:
 
 protected:
   virtual already_AddRefed<gfxASurface>
-  CreateBuffer(ContentType, const nsIntSize&, PRUint32)
+  CreateBuffer(ContentType aType, const nsIntSize& aSize)
   {
     NS_RUNTIMEABORT("ShadowThebesLayer can't paint content");
     return nsnull;
@@ -3262,10 +3260,9 @@ BasicShadowLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 
 void
 BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
-                                        void* aCallbackData,
-                                        EndTransactionFlags aFlags)
+                                        void* aCallbackData)
 {
-  BasicLayerManager::EndTransaction(aCallback, aCallbackData, aFlags);
+  BasicLayerManager::EndTransaction(aCallback, aCallbackData);
   ForwardTransaction();
 }
 

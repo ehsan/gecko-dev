@@ -58,7 +58,7 @@ public:
   virtual ~nsXBLDocumentInfo();
 
   already_AddRefed<nsIDocument> GetDocument()
-    { nsCOMPtr<nsIDocument> copy = mDocument; return copy.forget(); }
+    { NS_ADDREF(mDocument); return mDocument.get(); }
 
   PRBool GetScriptAccess() { return mScriptAccess; }
 

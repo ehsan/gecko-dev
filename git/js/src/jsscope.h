@@ -332,7 +332,7 @@ struct Shape : public js::gc::Cell
 
   protected:
     union {
-        PropertyOp      rawGetter;      /* getter and setter hooks or objects */
+        js::PropertyOp  rawGetter;      /* getter and setter hooks or objects */
         JSObject        *getterObj;     /* user-defined callable "get" object or
                                            null if shape->hasGetterValue(); or
                                            joined function object if METHOD flag
@@ -341,7 +341,7 @@ struct Shape : public js::gc::Cell
     };
 
     union {
-        StrictPropertyOp rawSetter;     /* getter is JSObject* and setter is 0
+        js::StrictPropertyOp  rawSetter;/* getter is JSObject* and setter is 0
                                            if shape->isMethod() */
         JSObject        *setterObj;     /* user-defined callable "set" object or
                                            null if shape->hasSetterValue() */
@@ -511,7 +511,7 @@ struct Shape : public js::gc::Cell
         UNUSED_BITS     = 0x38
     };
 
-    Shape(jsid id, PropertyOp getter, StrictPropertyOp setter, uint32 slot, uintN attrs,
+    Shape(jsid id, js::PropertyOp getter, js::StrictPropertyOp setter, uint32 slot, uintN attrs,
           uintN flags, intN shortid, uint32 shape = INVALID_SHAPE, uint32 slotSpan = 0);
 
     /* Used by EmptyShape (see jsscopeinlines.h). */
@@ -540,39 +540,39 @@ struct Shape : public js::gc::Cell
 
     JSObject &methodObject() const { JS_ASSERT(isMethod()); return *getterObj; }
 
-    PropertyOp getter() const { return rawGetter; }
+    js::PropertyOp getter() const { return rawGetter; }
     bool hasDefaultGetter() const  { return !rawGetter; }
-    PropertyOp getterOp() const { JS_ASSERT(!hasGetterValue()); return rawGetter; }
+    js::PropertyOp getterOp() const { JS_ASSERT(!hasGetterValue()); return rawGetter; }
     JSObject *getterObject() const { JS_ASSERT(hasGetterValue()); return getterObj; }
 
     // Per ES5, decode null getterObj as the undefined value, which encodes as null.
-    Value getterValue() const {
+    js::Value getterValue() const {
         JS_ASSERT(hasGetterValue());
         return getterObj ? js::ObjectValue(*getterObj) : js::UndefinedValue();
     }
 
-    Value getterOrUndefined() const {
+    js::Value getterOrUndefined() const {
         return hasGetterValue() && getterObj ? js::ObjectValue(*getterObj) : js::UndefinedValue();
     }
 
-    StrictPropertyOp setter() const { return rawSetter; }
+    js::StrictPropertyOp setter() const { return rawSetter; }
     bool hasDefaultSetter() const  { return !rawSetter; }
-    StrictPropertyOp setterOp() const { JS_ASSERT(!hasSetterValue()); return rawSetter; }
+    js::StrictPropertyOp setterOp() const { JS_ASSERT(!hasSetterValue()); return rawSetter; }
     JSObject *setterObject() const { JS_ASSERT(hasSetterValue()); return setterObj; }
 
     // Per ES5, decode null setterObj as the undefined value, which encodes as null.
-    Value setterValue() const {
+    js::Value setterValue() const {
         JS_ASSERT(hasSetterValue());
         return setterObj ? js::ObjectValue(*setterObj) : js::UndefinedValue();
     }
 
-    Value setterOrUndefined() const {
+    js::Value setterOrUndefined() const {
         return hasSetterValue() && setterObj ? js::ObjectValue(*setterObj) : js::UndefinedValue();
     }
 
     inline JSDHashNumber hash() const;
     inline bool matches(const js::Shape *p) const;
-    inline bool matchesParamsAfterId(PropertyOp agetter, StrictPropertyOp asetter,
+    inline bool matchesParamsAfterId(js::PropertyOp agetter, js::StrictPropertyOp asetter,
                                      uint32 aslot, uintN aattrs, uintN aflags,
                                      intN ashortid) const;
 
@@ -603,7 +603,7 @@ struct Shape : public js::gc::Cell
     }
 
     /*
-     * For ES5 compatibility, we allow properties with PropertyOp-flavored
+     * For ES5 compatibility, we allow properties with JSPropertyOp-flavored
      * setters to be shadowed when set. The "own" property thereby created in
      * the directly referenced object will have the same getter and setter as
      * the prototype property. See bug 552432.

@@ -215,8 +215,8 @@ XPCWrappedNativeProto::GetNewOrUsed(XPCCallContext& ccx,
     NS_ASSERTION(ClassInfo, "bad param");
 
     AutoMarkingWrappedNativeProtoPtr proto(ccx);
-    ClassInfo2WrappedNativeProtoMap* map = nsnull;
-    XPCLock* lock = nsnull;
+    ClassInfo2WrappedNativeProtoMap* map;
+    XPCLock* lock;
     JSBool shared;
 
     JSUint32 ciFlags;

@@ -346,7 +346,6 @@ class nsHashKey;
 #define NS_COMPOSITION_EVENT_START    2200
 #define NS_COMPOSITION_START          (NS_COMPOSITION_EVENT_START)
 #define NS_COMPOSITION_END            (NS_COMPOSITION_EVENT_START + 1)
-#define NS_COMPOSITION_UPDATE         (NS_COMPOSITION_EVENT_START + 2)
 
 // text events
 #define NS_TEXT_START                 2400
@@ -1175,7 +1174,7 @@ public:
   PRBool            isChar;
 };
 
-class nsCompositionEvent : public nsGUIEvent
+class nsCompositionEvent : public nsInputEvent
 {
 private:
   friend class mozilla::dom::PBrowserParent;
@@ -1190,15 +1189,9 @@ public:
 
 public:
   nsCompositionEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsGUIEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
+    : nsInputEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
   {
-    // XXX compositionstart is cancelable in draft of DOM3 Events.
-    //     However, it doesn't make sense for us, we cannot cancel composition
-    //     when we send compositionstart event.
-    flags |= NS_EVENT_FLAG_CANT_CANCEL;
   }
-
-  nsString data;
 };
 
 /* Mouse Scroll Events: Line Scrolling, Pixel Scrolling and Common Event Flows
@@ -1727,8 +1720,7 @@ enum nsDragDropEventStatus {
 #define NS_IS_IME_EVENT(evnt) \
        (((evnt)->message == NS_TEXT_TEXT) ||  \
         ((evnt)->message == NS_COMPOSITION_START) ||  \
-        ((evnt)->message == NS_COMPOSITION_END) || \
-        ((evnt)->message == NS_COMPOSITION_UPDATE))
+        ((evnt)->message == NS_COMPOSITION_END))
 
 #define NS_IS_ACTIVATION_EVENT(evnt) \
        (((evnt)->message == NS_ACTIVATE) || \

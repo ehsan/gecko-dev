@@ -498,10 +498,11 @@ nsXHTMLContentSerializer::AfterElementStart(nsIContent * aContent,
     // If there are, they will be modified to use the correct charset.
     // If there aren't, we'll insert one here.
     PRBool hasMeta = PR_FALSE;
-    for (nsIContent* child = aContent->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
-      if (child->IsHTML(nsGkAtoms::meta) &&
+    PRUint32 i, childCount = aContent->GetChildCount();
+    for (i = 0; i < childCount; ++i) {
+      nsIContent* child = aContent->GetChildAt(i);
+      if (child->IsHTML() &&
+          child->Tag() == nsGkAtoms::meta &&
           child->HasAttr(kNameSpaceID_None, nsGkAtoms::content)) {
         nsAutoString header;
         child->GetAttr(kNameSpaceID_None, nsGkAtoms::httpEquiv, header);
@@ -1018,10 +1019,12 @@ nsXHTMLContentSerializer::IsFirstChildOfOL(nsIContent* aElement)
 PRBool
 nsXHTMLContentSerializer::HasNoChildren(nsIContent * aContent) {
 
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-       
+  PRUint32 i, childCount = aContent->GetChildCount();
+
+  for (i = 0; i < childCount; ++i) {
+
+    nsIContent* child = aContent->GetChildAt(i);
+
     if (!child->IsNodeOfType(nsINode::eTEXT))
       return PR_FALSE;
 
