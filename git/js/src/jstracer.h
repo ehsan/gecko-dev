@@ -66,11 +66,12 @@
  * Tracker is used to keep track of values being manipulated by the interpreter
  * during trace recording.
  */
+template <typename T>
 class Tracker {
     struct Page {
         struct Page*    next;
         jsuword         base;
-        nanojit::LIns*  map[1];
+        T               map[1];
     };
     struct Page* pagelist;
 
@@ -81,8 +82,8 @@ public:
     Tracker();
     ~Tracker();
 
-    nanojit::LIns*  get(const void* v) const;
-    void            set(const void* v, nanojit::LIns* ins);
+    T               get(const void* v) const;
+    void            set(const void* v, T ins);
     void            clear();
 };
 
@@ -108,7 +109,7 @@ extern struct nanojit::CallInfo builtins[];
 class TraceRecorder {
     JSContext*              cx;
     JSStackFrame*           global;
-    Tracker                 tracker;
+    Tracker<nanojit::LIns*> tracker;
     char*                   entryTypeMap;
     struct JSStackFrame*    entryFrame;
     struct JSFrameRegs      entryRegs;
