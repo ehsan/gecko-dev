@@ -109,7 +109,6 @@ public:
     return mChromeEventHandler;
   }
 
-  // Outer windows only.
   virtual void SetChromeEventHandler(mozilla::dom::EventTarget* aChromeEventHandler) = 0;
 
   mozilla::dom::EventTarget* GetParentTarget()
