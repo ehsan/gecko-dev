@@ -11,15 +11,9 @@
 #ifndef FILTER_X86_H
 #define FILTER_X86_H
 
-#include "vpx_ports/mem.h"
-
 /* x86 assembly specific copy of vp8/common/filter.c:vp8_bilinear_filters with
  * duplicated values */
-
-/* duplicated 4x */
-extern DECLARE_ALIGNED(16, const short, vp8_bilinear_filters_x86_4[8][8]);
-
-/* duplicated 8x */
-extern DECLARE_ALIGNED(16, const short, vp8_bilinear_filters_x86_8[8][16]);
+extern const short vp8_bilinear_filters_x86_4[8][8];  /* duplicated 4x */
+extern const short vp8_bilinear_filters_x86_8[8][16]; /* duplicated 8x */
 
 #endif /* FILTER_X86_H */

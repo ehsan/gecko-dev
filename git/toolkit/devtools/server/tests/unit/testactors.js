@@ -105,7 +105,16 @@ TestTabActor.prototype = {
 
   /* Support for DebuggerServer.addTabActor. */
   _createExtraActors: CommonCreateExtraActors,
-  _appendExtraActors: CommonAppendExtraActors
+  _appendExtraActors: CommonAppendExtraActors,
+
+  // Hooks for use by TestTabActors.
+  addToParentPool: function(aActor) {
+    this.conn.addActor(aActor);
+  },
+
+  removeFromParentPool: function(aActor) {
+    this.conn.removeActor(aActor);
+  }
 };
 
 TestTabActor.prototype.requestTypes = {

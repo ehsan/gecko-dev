@@ -18,7 +18,7 @@ sym(vpx_reset_mmx_state):
     ret
 
 
-%if LIBVPX_YASM_WIN64
+%ifidn __OUTPUT_FORMAT__,x64
 global sym(vpx_winx64_fldcw) PRIVATE
 sym(vpx_winx64_fldcw):
     sub   rsp, 8

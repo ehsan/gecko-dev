@@ -47,6 +47,7 @@ private:
   CertVerifier(missing_cert_download_config ac, crl_download_config cdc,
                ocsp_download_config odc, ocsp_strict_config osc,
                any_revo_fresh_config arfc,
+               const char *firstNetworkRevocationMethod,
                ocsp_get_config ogc);
   ~CertVerifier();
 
@@ -55,6 +56,7 @@ private:
   const bool mOCSPDownloadEnabled;
   const bool mOCSPStrict;
   const bool mRequireRevocationInfo;
+  const bool mCRLFirst;
   const bool mOCSPGETEnabled;
   friend class ::nsNSSComponent;
 };

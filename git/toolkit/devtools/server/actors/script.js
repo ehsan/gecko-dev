@@ -403,7 +403,9 @@ EventLoop.prototype = {
  *
  * @param aHooks object
  *        An object with preNest and postNest methods for calling when entering
- *        and exiting a nested event loop.
+ *        and exiting a nested event loop, addToParentPool and
+ *        removeFromParentPool methods for handling the lifetime of actors that
+ *        will outlive the thread, like breakpoints.
  * @param aGlobal object [optional]
  *        An optional (for content debugging only) reference to the content
  *        window.
@@ -1366,7 +1368,7 @@ ThreadActor.prototype = {
         line: aLocation.line,
         column: aLocation.column
       });
-      this.threadLifetimePool.addActor(actor);
+      this._hooks.addToParentPool(actor);
     }
 
     // Find all scripts matching the given location
@@ -3566,7 +3568,7 @@ BreakpointActor.prototype = {
   onDelete: function (aRequest) {
     // Remove from the breakpoint store.
     this.threadActor.breakpointStore.removeBreakpoint(this.location);
-    this.threadActor.threadLifetimePool.removeActor(this);
+    this.threadActor._hooks.removeFromParentPool(this);
     // Remove the actual breakpoint from the associated scripts.
     this.removeScripts();
     return { from: this.actorID };
@@ -3816,7 +3818,9 @@ Object.defineProperty(Debugger.Frame.prototype, "line", {
  *
  * @param aHooks object
  *        An object with preNest and postNest methods for calling when entering
- *        and exiting a nested event loop.
+ *        and exiting a nested event loop and also addToParentPool and
+ *        removeFromParentPool methods for handling the lifetime of actors that
+ *        will outlive the thread, like breakpoints.
  */
 function ChromeDebuggerActor(aConnection, aHooks)
 {

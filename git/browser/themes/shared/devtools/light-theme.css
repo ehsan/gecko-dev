@@ -51,8 +51,7 @@
   background: #EFEFEF;
 }
 
-.theme-bg-contrast,
-.variable-or-property[changed] { /* contrast bg color to attract attention on a container */
+.theme-bg-contrast { /* contrast bg color to attract attention on a container */
   background: #a18650;
 }
 
@@ -73,9 +72,7 @@
 .theme-comment,
 .cm-s-mozilla .cm-meta,
 .cm-s-mozilla .cm-hr,
-.cm-s-mozilla .cm-comment,
-.variable-or-property .token-undefined,
-.variable-or-property .token-null { /* grey */
+.cm-s-mozilla .cm-comment { /* grey */
   color: hsl(90,2%,46%);
 }
 
@@ -90,9 +87,7 @@
 }
 
 .theme-fg-color1,
-.cm-s-mozilla .cm-number,
-.variable-or-property .token-number,
-.variable-or-property[return] > .title > .name { /* green */
+.cm-s-mozilla .cm-number { /* green */
   color: hsl(72,100%,27%);
 }
 
@@ -101,18 +96,14 @@
 .cm-s-mozilla .cm-builtin,
 .cm-s-mozilla .cm-def,
 .cm-s-mozilla .cm-property,
-.cm-s-mozilla .cm-qualifier,
-.variables-view-variable > .title > .name,
-.variable-or-property[scope] > .title > .name { /* blue */
+.cm-s-mozilla .cm-qualifier { /* blue */
   color: hsl(208,56%,40%);
 }
 
 .theme-fg-color3,
 .cm-s-mozilla .cm-variable,
 .cm-s-mozilla .cm-tag,
-.cm-s-mozilla .cm-header,
-.variables-view-property > .title > .name,
-.variable-or-property[safe-getter] > .title > .name { /* dark blue */
+.cm-s-mozilla .cm-header { /* dark blue */
   color: hsl(208,81%,21%)
 }
 
@@ -128,17 +119,14 @@
 
 .theme-fg-color6,
 .cm-s-mozilla .cm-string,
-.cm-s-mozilla .cm-string-2,
-.variable-or-property .token-string { /* Orange */
+.cm-s-mozilla .cm-string-2 { /* Orange */
   color: hsl(24,85%,39%);
 }
 
 .theme-fg-color7,
 .cm-s-mozilla .cm-atom,
 .cm-s-mozilla .cm-quote,
-.cm-s-mozilla .cm-error,
-.variable-or-property .token-boolean,
-.variable-or-property[exception] > .title > .name { /* Red */
+.cm-s-mozilla .cm-error { /* Red */
   color: #bf5656;
 }
 
@@ -157,12 +145,6 @@
 .computedview-colorswatch,
 .markupview-colorswatch {
   box-shadow: 0 0 0 1px #EFEFEF;
-}
-
-.variables-view-scope:focus > .title,
-.variable-or-property:focus > .title {
-  background:  hsl(208,56%,40%); /* fg-color2 */
-  color: white;
 }
 
 /* CodeMirror specific styles.

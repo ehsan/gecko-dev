@@ -325,7 +325,6 @@ public class GeckoAppShell
         sLayerView = lv;
     }
 
-    @RobocopTarget
     public static LayerView getLayerView() {
         return sLayerView;
     }
@@ -393,7 +392,6 @@ public class GeckoAppShell
         } catch (NoSuchElementException e) {}
     }
 
-    @RobocopTarget
     public static void sendEventToGecko(GeckoEvent e) {
         if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
             notifyGeckoOfEvent(e);
@@ -2292,7 +2290,6 @@ public class GeckoAppShell
      * any added listeners will not be invoked on the event currently being processed, but
      * will be invoked on future events of that type.
      */
-    @RobocopTarget
     public static void registerEventListener(String event, GeckoEventListener listener) {
         sEventDispatcher.registerEventListener(event, listener);
     }
@@ -2308,7 +2305,6 @@ public class GeckoAppShell
      * any removed listeners will still be invoked on the event currently being processed, but
      * will not be invoked on future events of that type.
      */
-    @RobocopTarget
     public static void unregisterEventListener(String event, GeckoEventListener listener) {
         sEventDispatcher.unregisterEventListener(event, listener);
     }

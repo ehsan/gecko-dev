@@ -236,13 +236,7 @@ Editor.prototype = {
 
       cm.on("focus", () => this.emit("focus"));
       cm.on("scroll", () => this.emit("scroll"));
-      cm.on("change", () => {
-        this.emit("change");
-        if (!this._lastDirty) {
-          this._lastDirty = true;
-          this.emit("dirty-change");
-        }
-      });
+      cm.on("change", () => this.emit("change"));
       cm.on("cursorActivity", (cm) => this.emit("cursorActivity"));
 
       cm.on("gutterClick", (cm, line, gutter, ev) => {
@@ -620,8 +614,6 @@ Editor.prototype = {
   setClean: function () {
     let cm = editors.get(this);
     this.version = cm.changeGeneration();
-    this._lastDirty = false;
-    this.emit("dirty-change");
     return this.version;
   },
 
