@@ -1,5 +1,7 @@
 const EXPORTED_SYMBOLS = ['PasswordEngine'];
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 const Cu = Components.utils;
 
 Cu.import("resource://weave/util.js");
@@ -28,8 +30,8 @@ function _hashLoginInfo(aLogin) {
   return Utils.sha1(loginKey);
 }
 
-function PasswordEngine() {
-  this._init();
+function PasswordEngine(pbeId) {
+  this._init(pbeId);
 }
 PasswordEngine.prototype = {
   get name() { return "passwords"; },
@@ -61,7 +63,8 @@ PasswordSyncCore.prototype = {
   __loginManager : null,
   get _loginManager() {
     if (!this.__loginManager)
-      this.__loginManager = Utils.getLoginManager();
+      this.__loginManager = Cc["@mozilla.org/login-manager;1"].
+                            getService(Ci.nsILoginManager);
     return this.__loginManager;
   },
 
@@ -97,16 +100,20 @@ PasswordStore.prototype = {
   __loginManager : null,
   get _loginManager() {
     if (!this.__loginManager)
-      this.__loginManager = Utils.getLoginManager();
+      this.__loginManager = Cc["@mozilla.org/login-manager;1"].
+                            getService(Ci.nsILoginManager);
     return this.__loginManager;
   },
 
   __nsLoginInfo : null,
   get _nsLoginInfo() {
     if (!this.__nsLoginInfo)
-      this.__nsLoginInfo = Utils.makeNewLoginInfo();
+      this.__nsLoginInfo = new Components.Constructor(
+            "@mozilla.org/login-manager/loginInfo;1",
+            Ci.nsILoginInfo, "init");
     return this.__nsLoginInfo;
   },
+
 
   _createCommand: function PasswordStore__createCommand(command) {
     this._log.info("PasswordStore got createCommand: " + command );
