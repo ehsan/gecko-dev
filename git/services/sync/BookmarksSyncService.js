@@ -880,13 +880,9 @@ BookmarksSyncService.prototype = {
   // 3.1) Apply local delta with server changes ("D")
   // 3.2) Append server delta to the delta file and upload ("C")
 
-  _doSync: function BSS__doSync(onComplete) {
+  _doSync: function BSS__doSync() {
     let cont = yield;
-    let synced = false;
-
     try {
-      this._os.notifyObservers(null, "bookmarks-sync:start", "");
-
       if (!this._dav.lock.async(this._dav, cont))
         return;
       let locked = yield;
@@ -900,7 +896,7 @@ BookmarksSyncService.prototype = {
 
       // 1) Fetch server deltas
       if (!this._getServerData.async(this, cont))
-        return;
+        return
       let server = yield;
 
       var localJson = this._getBookmarks();
@@ -927,7 +923,6 @@ BookmarksSyncService.prototype = {
       if (server.updates.length == 0 && localUpdates.length == 0) {
         this._snapshotVersion = server.maxVersion;
         this._log.info("Sync complete (1): no changes needed on client or server");
-        synced = true;
         return;
       }
 	  
@@ -935,7 +930,7 @@ BookmarksSyncService.prototype = {
 
       this._log.info("Reconciling client/server updates");
       if (!this._reconcile.async(this, cont, localUpdates, server.updates))
-        return;
+        return
       let ret = yield;
 
       // FIXME: Need to come up with a closing protocol for generators
@@ -971,7 +966,6 @@ BookmarksSyncService.prototype = {
         this._snapshot = localJson;
         this._snapshotVersion = server.maxVersion;
         this._saveSnapshot();
-        synced = true;
         return;
       }
 
@@ -1046,19 +1040,15 @@ BookmarksSyncService.prototype = {
         }
       }
       this._log.info("Sync complete");
-      synced = true;
-
     } finally {
-      if (this._dav.unlock.async(this._dav, cont)) {
-        let unlocked = yield;
-        if (unlocked)
-          this._log.info("Lock released");
-        else
-          this._log.error("Could not unlock DAV collection");
-      }
       this._os.notifyObservers(null, "bookmarks-sync:end", "");
-      if (onComplete)
-        generatorDone(this, onComplete, synced);
+      if (!this._dav.unlock.async(this._dav, cont))
+        return;
+      let unlocked = yield;
+      if (unlocked)
+        this._log.info("Lock released");
+      else
+        this._log.error("Could not unlock DAV collection");
     }
   },
 
@@ -1296,67 +1286,6 @@ BookmarksSyncService.prototype = {
     }
   },
 
-  _resetServer: function BSS__resetServer(onComplete) {
-    let cont = yield;
-    let done = false;
-
-    try {
-      this._os.notifyObservers(null, "bookmarks-sync:reset-server:start", "");
-
-      if (!this._dav.lock.async(this._dav, cont))
-        return;
-      let locked = yield;
-
-      if (locked)
-        this._log.info("Lock acquired");
-      else {
-        this._log.warn("Could not acquire lock, aborting sync");
-        return;
-      }
-
-      this._dav.DELETE("bookmarks-status.json", cont);
-      let statusResp = yield;
-      this._dav.DELETE("bookmarks-snapshot.json", cont);
-      let snapshotResp = yield;
-      this._dav.DELETE("bookmarks-deltas.json", cont);
-      let deltasResp = yield;
-
-      if (statusResp.target.status < 200 || statusResp.target.status >= 300 ||
-          snapshotResp.target.status < 200 || snapshotResp.target.status >= 300 ||
-          deltasResp.target.status < 200 || deltasResp.target.status >= 300) {
-        this._log.error("Could delete server data, response codes " +
-                        statusResp.target.status + ", " +
-                        snapshotResp.target.status + ", " +
-                        deltasResp.target.status);
-        return;
-      }
-
-      this._log.info("Server files deleted, starting sync");
-      this._os.notifyObservers(null, "bookmarks-sync:start", "");
-      if (!this._doSync.async(this, cont))
-        return;
-      done = yield;
-        
-    } finally {
-      if (this._dav.unlock.async(this._dav, cont)) {
-        let unlocked = yield;
-        if (unlocked)
-          this._log.info("Lock released");
-        else
-          this._log.error("Could not unlock DAV collection");
-      }
-
-      if (done)
-        this._info("Server reset completed successfully");
-      else
-        this._info("Server reset failed: could not sync bookmarks");
-
-      this._os.notifyObservers(null, "bookmarks-sync:reset-server:end", "");
-      if (onComplete)
-        generatorDone(this, onComplete, done)
-    }
-  },
-
   // XPCOM registration
   classDescription: "Bookmarks Sync Service",
   contractID: "@mozilla.org/places/sync-service;1",
@@ -1371,18 +1300,6 @@ BookmarksSyncService.prototype = {
 
   observe: function BSS__observe(subject, topic, data) {
     switch (topic) {
-    case "browser.places.sync.enabled":
-      switch (data) {
-      case false:
-        this._log.info("Disabling automagic bookmarks sync");
-        this._disableSchedule();
-        break;
-      case true:
-        this._log.info("Enabling automagic bookmarks sync");
-        this._enableSchedule();
-        break;
-      }
-      break;
     case "browser.places.sync.schedule":
       switch (data) {
       case 0:
@@ -1407,8 +1324,8 @@ BookmarksSyncService.prototype = {
 
   sync: function BSS_sync() {
     this._log.info("Beginning sync");
-    if (!this._doSync.async(this))
-      this._os.notifyObservers(null, "bookmarks-sync:end", false);
+    this._os.notifyObservers(null, "bookmarks-sync:start", "");
+    this._doSync.async(this);
   },
 
   login: function BSS_login() {
@@ -1427,11 +1344,6 @@ BookmarksSyncService.prototype = {
   resetLock: function BSS_resetLock() {
     this._log.info("Resetting lock");
     this._dav.forceUnlock.async(this._dav, bind2(this, this._onResetLock));
-  },
-
-  resetServer: function BSS_resetServer() {
-    this._log.info("Resetting server data");
-    this._resetServer.async(this);
   }
 };
 
@@ -1642,17 +1554,6 @@ DAVCollection.prototype = {
       headers['If'] = "<" + this._bashURL + "> (<" + this._token + ">)";
     let request = this._makeRequest("PUT", path, onComplete, headers);
     request.send(data);
-  },
-
-  DELETE: function DC_DELETE(path, onComplete, headers) {
-    if (!headers)
-      headers = {'Content-type': 'text/plain'};
-    if (this._auth)
-      headers['Authorization'] = this._auth;
-    if (this._token)
-      headers['If'] = "<" + this._bashURL + "> (<" + this._token + ">)";
-    let request = this._makeRequest("DELETE", path, onComplete, headers);
-    request.send(null);
   },
 
   // Login / Logout
