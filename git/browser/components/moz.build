@@ -22,10 +22,6 @@ PARALLEL_DIRS += [
     'migration',
 ]
 
-if CONFIG['MOZ_SAFE_BROWSING']:
-    PARALLEL_DIRS += ['safebrowsing']
-
-TEST_DIRS += ['test']
 DIRS += ['build']
 
 XPIDL_SOURCES += [
@@ -48,4 +44,11 @@ EXTRA_PP_COMPONENTS += [
 EXTRA_JS_MODULES += [
     'distribution.js',
 ]
+
+BROWSER_CHROME_MANIFESTS += [
+    'test/browser.ini'
+]
+
+if CONFIG['MOZ_SAFE_BROWSING']:
+    BROWSER_CHROME_MANIFESTS += ['safebrowsing/content/test/browser.ini']
 
