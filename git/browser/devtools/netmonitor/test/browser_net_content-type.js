@@ -166,8 +166,7 @@ function test() {
             let jsonScope = tabpanel.querySelectorAll(".variables-view-scope")[0];
 
             is(jsonScope.querySelector(".name").getAttribute("value"),
-              L10N.getStr("jsonScopeName"),
-              "The json scope doesn't have the correct title.");
+              "JSON", "The json scope doesn't have the correct title.");
 
             is(jsonScope.querySelectorAll(".variables-view-property .name")[0].getAttribute("value"),
               "greeting", "The first json property name was incorrect.");

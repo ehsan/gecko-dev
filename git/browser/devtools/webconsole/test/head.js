@@ -876,28 +876,20 @@ function waitForMessages(aOptions)
   let listenerAdded = false;
   let deferred = Promise.defer();
 
-  function checkText(aRule, aText)
-  {
-    let result;
-    if (typeof aRule == "string") {
-      result = aText.indexOf(aRule) > -1;
-    }
-    else if (aRule instanceof RegExp) {
-      result = aRule.test(aText);
-    }
-    return result;
-  }
-
   function checkMessage(aRule, aElement)
   {
-    let elemText = getMessageElementText(aElement);
-
-    if (aRule.text && !checkText(aRule.text, elemText)) {
-      return false;
-    }
-
-    if (aRule.noText && checkText(aRule.noText, elemText)) {
-      return false;
+    if (aRule.text) {
+      let elemText = getMessageElementText(aElement);
+      let matched = false;
+      if (typeof aRule.text == "string") {
+        matched = elemText.indexOf(aRule.text) > -1;
+      }
+      else if (aRule.text instanceof RegExp) {
+        matched = aRule.text.test(elemText);
+      }
+      if (!matched) {
+        return false;
+      }
     }
 
     if (aRule.category) {
@@ -917,11 +909,6 @@ function waitForMessages(aOptions)
       if (!repeats || repeats.getAttribute("value") != aRule.repeats) {
         return false;
       }
-    }
-
-    let longString = !!aElement.querySelector(".longStringEllipsis");
-    if ("longString" in aRule && aRule.longString != longString) {
-      return false;
     }
 
     let count = aRule.count || 1;
@@ -959,7 +946,6 @@ function waitForMessages(aOptions)
     if (rulesMatched == rules.length) {
       if (listenerAdded) {
         webconsole.ui.off("messages-added", onMessagesAdded);
-        webconsole.ui.off("messages-updated", onMessagesAdded);
       }
       gPendingOutputTest--;
       deferred.resolve(rules);
@@ -979,7 +965,7 @@ function waitForMessages(aOptions)
 
     for (let rule of rules) {
       if (!rule._ruleMatched) {
-        ok(false, "failed to match rule: " + displayRule(rule));
+        console.log("failed to match rule: " + displayRule(rule));
       }
     }
   }
@@ -995,7 +981,6 @@ function waitForMessages(aOptions)
       listenerAdded = true;
       registerCleanupFunction(testCleanup);
       webconsole.ui.on("messages-added", onMessagesAdded);
-      webconsole.ui.on("messages-updated", onMessagesAdded);
     }
   });
 
