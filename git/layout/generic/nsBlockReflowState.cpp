@@ -386,7 +386,8 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
     while (fc) {
       nsIFrame* floatFrame = fc->mFloat;
       if (aDeltaY != 0) {
-        floatFrame->MovePositionBy(nsPoint(0, aDeltaY));
+        nsPoint p = floatFrame->GetPosition();
+        floatFrame->SetPosition(nsPoint(p.x, p.y + aDeltaY));
         nsContainerFrame::PositionFrameView(floatFrame);
         nsContainerFrame::PositionChildViews(floatFrame);
       }

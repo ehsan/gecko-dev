@@ -716,7 +716,7 @@ ReportGhostWindowsEnumerator(nsUint64HashKey* aIDHashKey, void* aClosure)
     nsIMemoryReporter::KIND_OTHER,
     nsIMemoryReporter::UNITS_COUNT,
     /* amount = */ 1,
-    /* description = */ NS_LITERAL_CSTRING("A ghost window."),
+    /* desc = */ EmptyCString(),
     data->closure);
 
   if (NS_FAILED(rv) && NS_SUCCEEDED(data->rv)) {

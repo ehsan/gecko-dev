@@ -283,7 +283,6 @@ class CodeGeneratorShared : public LInstructionVisitor
     //      an invalidation marker.
     void ensureOsiSpace();
 
-    OutOfLineCode *oolTruncateDouble(const FloatRegister &src, const Register &dest);
     bool emitTruncateDouble(const FloatRegister &src, const Register &dest);
 
     void emitPreBarrier(Register base, const LAllocation *index, MIRType type);

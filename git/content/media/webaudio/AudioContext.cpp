@@ -63,16 +63,11 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
   // Actually play audio
   mDestination->Stream()->AddAudioOutput(&gWebAudioOutputKey);
   nsDOMEventTargetHelper::BindToOwner(aWindow);
-  aWindow->AddAudioContext(this);
   SetIsDOMBinding();
 }
 
 AudioContext::~AudioContext()
 {
-  nsPIDOMWindow* window = GetOwner();
-  if (window) {
-    window->RemoveAudioContext(this);
-  }
 }
 
 JSObject*
@@ -96,6 +91,7 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
   }
 
   nsRefPtr<AudioContext> object = new AudioContext(window, false);
+  window->AddAudioContext(object);
   return object.forget();
 }
 
@@ -127,6 +123,7 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
                                                    aNumberOfChannels,
                                                    aLength,
                                                    aSampleRate);
+  window->AddAudioContext(object);
   return object.forget();
 }
 
@@ -521,9 +518,24 @@ GetHashtableElements(nsTHashtable<nsPtrHashKey<T> >& aHashtable, nsTArray<T*>& a
 }
 
 void
+AudioContext::ShutdownDecoder()
+{
+  mDecoder.Shutdown();
+}
+
+void
 AudioContext::Shutdown()
 {
   Suspend();
+
+  // We need to hold the AudioContext object alive here to make sure that
+  // it doesn't get destroyed before our decoder shutdown runnable has had
+  // a chance to run.
+  nsCOMPtr<nsIRunnable> threadShutdownEvent =
+    NS_NewRunnableMethod(this, &AudioContext::ShutdownDecoder);
+  if (threadShutdownEvent) {
+    NS_DispatchToCurrentThread(threadShutdownEvent);
+  }
 
   // Stop all audio buffer source nodes, to make sure that they release
   // their self-references.
@@ -555,7 +567,7 @@ AudioContext::Shutdown()
 
   // For offline contexts, we can destroy the MediaStreamGraph at this point.
   if (mIsOffline) {
-    mDestination->OfflineShutdown();
+    mDestination->DestroyGraph();
   }
 }
 

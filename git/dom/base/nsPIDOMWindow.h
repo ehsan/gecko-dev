@@ -612,7 +612,6 @@ public:
                  const nsAString& aOptions, nsIDOMWindow **_retval) = 0;
 
   void AddAudioContext(mozilla::dom::AudioContext* aAudioContext);
-  void RemoveAudioContext(mozilla::dom::AudioContext* aAudioContext);
   void MuteAudioContexts();
   void UnmuteAudioContexts();
 
@@ -709,7 +708,7 @@ protected:
   nsCOMPtr<nsIContent> mFocusedNode;
 
   // The AudioContexts created for the current document, if any.
-  nsTArray<mozilla::dom::AudioContext*> mAudioContexts; // Weak
+  nsTArray<nsRefPtr<mozilla::dom::AudioContext> > mAudioContexts;
 
   // A unique (as long as our 64-bit counter doesn't roll over) id for
   // this window.

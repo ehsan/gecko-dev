@@ -42,8 +42,6 @@
 #include "AccessibleRole.h"
 #include "AccessibleStates.h"
 #include "oleacc.h"
-#include "nsIAccessibleTypes.h"
-#include "nsIPersistentProperties2.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;

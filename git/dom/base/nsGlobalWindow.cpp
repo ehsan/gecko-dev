@@ -1387,11 +1387,6 @@ nsGlobalWindow::CleanUp()
 
   CleanupCachedXBLHandlers(this);
 
-  for (uint32_t i = 0; i < mAudioContexts.Length(); ++i) {
-    mAudioContexts[i]->Shutdown();
-  }
-  mAudioContexts.Clear();
-
   if (mIdleTimer) {
     mIdleTimer->Cancel();
     mIdleTimer = nullptr;
@@ -1656,6 +1651,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParentTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFrameElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFocusedNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAudioContexts)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMenubar)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mToolbar)
@@ -1710,6 +1706,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mParentTarget)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFrameElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFocusedNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAudioContexts)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mMenubar)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mToolbar)
@@ -3259,12 +3256,6 @@ nsPIDOMWindow::AddAudioContext(AudioContext* aAudioContext)
   if (docShell && !docShell->GetAllowMedia() && !aAudioContext->IsOffline()) {
     aAudioContext->Mute();
   }
-}
-
-void
-nsPIDOMWindow::RemoveAudioContext(AudioContext* aAudioContext)
-{
-  mAudioContexts.RemoveElement(aAudioContext);
 }
 
 void
