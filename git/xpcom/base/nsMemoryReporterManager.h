@@ -12,6 +12,8 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 
+using mozilla::Mutex;
+
 class nsITimer;
 
 namespace mozilla {
@@ -37,8 +39,8 @@ public:
     return static_cast<nsMemoryReporterManager*>(imgr.get());
   }
 
-  typedef nsTHashtable<nsRefPtrHashKey<nsIMemoryReporter> > StrongReportersTable;
-  typedef nsTHashtable<nsPtrHashKey<nsIMemoryReporter> > WeakReportersTable;
+  typedef nsTHashtable<nsISupportsHashKey>         StrongReportersTable;
+  typedef nsTHashtable<nsPtrHashKey<nsISupports> > WeakReportersTable;
 
   void IncrementNumChildProcesses();
   void DecrementNumChildProcesses();
@@ -117,12 +119,11 @@ public:
   void HandleChildReports(
     const uint32_t& generation,
     const InfallibleTArray<mozilla::dom::MemoryReport>& aChildReports);
-  nsresult FinishReporting();
+  void FinishReporting();
 
   // Functions that (a) implement distinguished amounts, and (b) are outside of
   // this module.
-  struct AmountFns
-  {
+  struct AmountFns {
     mozilla::InfallibleAmountFn mJSMainRuntimeGCHeap;
     mozilla::InfallibleAmountFn mJSMainRuntimeTemporaryPeak;
     mozilla::InfallibleAmountFn mJSMainRuntimeCompartmentsSystem;
@@ -142,29 +143,22 @@ public:
   AmountFns mAmountFns;
 
   // Functions that measure per-tab memory consumption.
-  struct SizeOfTabFns
-  {
+  struct SizeOfTabFns {
     mozilla::JSSizeOfTabFn    mJS;
     mozilla::NonJSSizeOfTabFn mNonJS;
 
-    SizeOfTabFns()
-    {
-      mozilla::PodZero(this);
-    }
+    SizeOfTabFns() { mozilla::PodZero(this); }
   };
   SizeOfTabFns mSizeOfTabFns;
 
 private:
   nsresult RegisterReporterHelper(nsIMemoryReporter* aReporter,
                                   bool aForce, bool aStrongRef);
-  nsresult StartGettingReports();
 
   static void TimeoutCallback(nsITimer* aTimer, void* aData);
-  // Note: this timeout needs to be long enough to allow for the
-  // possibility of DMD reports and/or running on a low-end phone.
-  static const uint32_t kTimeoutLengthMS = 50000;
+  static const uint32_t kTimeoutLengthMS = 5000;
 
-  mozilla::Mutex mMutex;
+  Mutex mMutex;
   bool mIsRegistrationBlocked;
 
   StrongReportersTable* mStrongReporters;
@@ -177,38 +171,31 @@ private:
   uint32_t mNumChildProcesses;
   uint32_t mNextGeneration;
 
-  struct GetReportsState
-  {
+  struct GetReportsState {
     uint32_t                             mGeneration;
     nsCOMPtr<nsITimer>                   mTimer;
     uint32_t                             mNumChildProcesses;
     uint32_t                             mNumChildProcessesCompleted;
-    bool                                 mParentDone;
     nsCOMPtr<nsIHandleReportCallback>    mHandleReport;
     nsCOMPtr<nsISupports>                mHandleReportData;
     nsCOMPtr<nsIFinishReportingCallback> mFinishReporting;
     nsCOMPtr<nsISupports>                mFinishReportingData;
-    nsString                             mDMDDumpIdent;
 
     GetReportsState(uint32_t aGeneration, nsITimer* aTimer,
                     uint32_t aNumChildProcesses,
                     nsIHandleReportCallback* aHandleReport,
                     nsISupports* aHandleReportData,
                     nsIFinishReportingCallback* aFinishReporting,
-                    nsISupports* aFinishReportingData,
-                    const nsAString &aDMDDumpIdent)
-      : mGeneration(aGeneration)
-      , mTimer(aTimer)
-      , mNumChildProcesses(aNumChildProcesses)
-      , mNumChildProcessesCompleted(0)
-      , mParentDone(false)
-      , mHandleReport(aHandleReport)
-      , mHandleReportData(aHandleReportData)
-      , mFinishReporting(aFinishReporting)
-      , mFinishReportingData(aFinishReportingData)
-      , mDMDDumpIdent(aDMDDumpIdent)
-    {
-    }
+                    nsISupports* aFinishReportingData)
+      : mGeneration(aGeneration),
+        mTimer(aTimer),
+        mNumChildProcesses(aNumChildProcesses),
+        mNumChildProcessesCompleted(0),
+        mHandleReport(aHandleReport),
+        mHandleReportData(aHandleReportData),
+        mFinishReporting(aFinishReporting),
+        mFinishReportingData(aFinishReportingData)
+    {}
   };
 
   // When this is non-null, a request is in flight.  Note: We use manual

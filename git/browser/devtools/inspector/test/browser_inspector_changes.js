@@ -21,8 +21,7 @@ function test() {
     let ruleview = inspector.sidebar.getWindowForTab("ruleview").ruleview.view;
     let inlineStyles = ruleview._elementStyle.rules[0];
 
-    for (let key in inlineStyles.textProps) {
-      let prop = inlineStyles.textProps[key];
+    for each (let prop in inlineStyles.textProps) {
       if (prop.name == aName) {
         return prop;
       }
@@ -33,8 +32,7 @@ function test() {
   function runInspectorTests(aInspector)
   {
     inspector = aInspector;
-
-    waitForView("computedview", () => {
+    inspector.sidebar.once("computedview-ready", () => {
       info("Computed View ready");
       inspector.sidebar.select("computedview");
 
@@ -152,5 +150,5 @@ function test() {
     waitForFocus(createDocument, content);
   }, true);
 
-  content.location = "data:text/html;charset=utf-8,browser_inspector_changes.js";
+  content.location = "data:text/html,basic tests for inspector";
 }

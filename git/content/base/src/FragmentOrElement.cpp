@@ -17,8 +17,6 @@
 
 #include "mozilla/dom/FragmentOrElement.h"
 
-#include "mozilla/AsyncEventDispatcher.h"
-#include "mozilla/EventListenerManager.h"
 #include "mozilla/dom/Attr.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIAtom.h"
@@ -27,6 +25,7 @@
 #include "nsIDocumentEncoder.h"
 #include "nsIDOMNodeList.h"
 #include "nsIContentIterator.h"
+#include "nsEventListenerManager.h"
 #include "nsFocusManager.h"
 #include "nsILinkHandler.h"
 #include "nsIScriptGlobalObject.h"
@@ -45,7 +44,7 @@
 #include "nsIServiceManager.h"
 #include "nsIDOMCSSStyleDeclaration.h"
 #include "nsDOMCSSAttrDeclaration.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsContentList.h"
 #include "nsDOMTokenList.h"
 #include "nsXBLPrototypeBinding.h"
@@ -53,8 +52,8 @@
 #include "nsDOMString.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDOMMutationEvent.h"
-#include "mozilla/InternalMutationEvent.h"
 #include "mozilla/MouseEvents.h"
+#include "mozilla/MutationEvent.h"
 #include "nsNodeUtils.h"
 #include "nsDocument.h"
 #include "nsAttrValueOrString.h"
@@ -100,6 +99,7 @@
 #include "ChildIterator.h"
 #include "mozilla/css/StyleRule.h" /* For nsCSSSelectorList */
 #include "nsRuleProcessorData.h"
+#include "nsAsyncDOMEvent.h"
 #include "nsTextNode.h"
 #include "mozilla/dom/NodeListBinding.h"
 #include "mozilla/dom/UndoManager.h"
@@ -559,12 +559,6 @@ FragmentOrElement::nsDOMSlots::Traverse(nsCycleCollectionTraversalCallback &cb, 
 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mClassList");
   cb.NoteXPCOMChild(mClassList.get());
-
-  if (mCustomElementData) {
-    for (uint32_t i = 0; i < mCustomElementData->mCallbackQueue.Length(); i++) {
-      mCustomElementData->mCallbackQueue[i]->Traverse(cb);
-    }
-  }
 }
 
 void
@@ -584,7 +578,6 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
   mContainingShadow = nullptr;
   mChildrenList = nullptr;
   mUndoManager = nullptr;
-  mCustomElementData = nullptr;
   mClassList = nullptr;
 }
 
@@ -612,12 +605,7 @@ FragmentOrElement::nsDOMSlots::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) c
   return n;
 }
 
-FragmentOrElement::FragmentOrElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
-  : nsIContent(aNodeInfo)
-{
-}
-
-FragmentOrElement::FragmentOrElement(already_AddRefed<nsINodeInfo>&& aNodeInfo)
+FragmentOrElement::FragmentOrElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsIContent(aNodeInfo)
 {
 }
@@ -706,9 +694,7 @@ nsIContent::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   // inside chrome access only content.
   bool isAnonForEvents = IsRootOfChromeAccessOnlySubtree();
   if ((aVisitor.mEvent->message == NS_MOUSE_ENTER_SYNTH ||
-       aVisitor.mEvent->message == NS_MOUSE_EXIT_SYNTH ||
-       aVisitor.mEvent->message == NS_POINTER_OVER ||
-       aVisitor.mEvent->message == NS_POINTER_OUT) &&
+       aVisitor.mEvent->message == NS_MOUSE_EXIT_SYNTH) &&
       // Check if we should stop event propagation when event has just been
       // dispatched or when we're about to propagate from
       // chrome access only subtree.
@@ -1018,24 +1004,6 @@ FragmentOrElement::SetXBLInsertionParent(nsIContent* aContent)
   slots->mXBLInsertionParent = aContent;
 }
 
-CustomElementData*
-FragmentOrElement::GetCustomElementData() const
-{
-  nsDOMSlots *slots = GetExistingDOMSlots();
-  if (slots) {
-    return slots->mCustomElementData;
-  }
-  return nullptr;
-}
-
-void
-FragmentOrElement::SetCustomElementData(CustomElementData* aData)
-{
-  nsDOMSlots *slots = DOMSlots();
-  MOZ_ASSERT(!slots->mCustomElementData, "Custom element data may not be changed once set.");
-  slots->mCustomElementData = aData;
-}
-
 nsresult
 FragmentOrElement::InsertChildAt(nsIContent* aKid,
                                 uint32_t aIndex,
@@ -1116,7 +1084,7 @@ FragmentOrElement::FireNodeInserted(nsIDocument* aDoc,
       mutation.mRelatedNode = do_QueryInterface(aParent);
 
       mozAutoSubtreeModified subtree(aDoc, aParent);
-      (new AsyncEventDispatcher(childContent, mutation))->RunDOMEventWhenSafe();
+      (new nsAsyncDOMEvent(childContent, mutation))->RunDOMEventWhenSafe();
     }
   }
 }
@@ -1317,7 +1285,7 @@ FragmentOrElement::MarkNodeChildren(nsINode* aNode)
     JS::ExposeObjectToActiveJS(o);
   }
 
-  EventListenerManager* elm = aNode->GetExistingListenerManager();
+  nsEventListenerManager* elm = aNode->GetExistingListenerManager();
   if (elm) {
     elm->MarkForCC();
   }

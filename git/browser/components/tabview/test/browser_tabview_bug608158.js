@@ -3,26 +3,34 @@
 
 function test() {
   waitForExplicitFinish();
-  newWindowWithTabView(onTabViewWindowLoaded);
+
+  window.addEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  TabView.toggle();
 }
 
-function onTabViewWindowLoaded(win) {
-  let contentWindow = win.TabView.getContentWindow();
+function onTabViewWindowLoaded() {
+  window.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
+
+  let contentWindow = document.getElementById("tab-view").contentWindow;
 
   is(contentWindow.GroupItems.groupItems.length, 1, 
      "There is one group item on startup");
-  is(win.gBrowser.tabs.length, 1, "There is one tab on startup");
+  is(gBrowser.tabs.length, 1, "There is one tab on startup");
   let groupItem = contentWindow.GroupItems.groupItems[0];
 
   hideGroupItem(groupItem, function () {
-    hideTabView(() => {
+    let onTabViewHidden = function() {
+      window.removeEventListener("tabviewhidden", onTabViewHidden, false);
       is(contentWindow.GroupItems.groupItems.length, 1, 
          "There is still one group item");
       isnot(groupItem, contentWindow.GroupItems.groupItems[0], 
             "The initial group item is not the same as the final group item");
-      is(win.gBrowser.tabs.length, 1, "There is only one tab");
-      ok(!win.TabView.isVisible(), "Tab View is hidden");
-      promiseWindowClosed(win).then(finish);
-    }, win);
+      is(gBrowser.tabs.length, 1, "There is only one tab");
+      ok(!TabView.isVisible(), "Tab View is hidden");
+      finish();
+    };
+    window.addEventListener("tabviewhidden", onTabViewHidden, false);
+
+    TabView.hide();
   });
 }

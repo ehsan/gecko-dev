@@ -99,8 +99,6 @@ public:
 
 protected:
 
-  void InitFields();
-
   // nsTextEditRules implementation methods
   nsresult WillInsertText(  EditAction aAction,
                             mozilla::Selection* aSelection,

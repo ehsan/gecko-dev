@@ -26,7 +26,7 @@
 #define HRTFPanner_h
 
 #include "FFTConvolver.h"
-#include "DelayBuffer.h"
+#include "DelayProcessor.h"
 
 namespace mozilla {
 struct AudioChunk;
@@ -43,8 +43,8 @@ public:
     HRTFPanner(float sampleRate, mozilla::TemporaryRef<HRTFDatabaseLoader> databaseLoader);
     ~HRTFPanner();
 
-    // chunk durations must be 128
-    void pan(double azimuth, double elevation, const AudioChunk* inputBus, AudioChunk* outputBus);
+    // framesToProcess must be a power of 2 and greater than 128
+    void pan(double azimuth, double elevation, const AudioChunk* inputBus, AudioChunk* outputBus, mozilla::TrackTicks framesToProcess);
     void reset();
 
     size_t fftSize() const { return m_convolverL1.fftSize(); }
@@ -99,7 +99,8 @@ private:
     FFTConvolver m_convolverL2;
     FFTConvolver m_convolverR2;
 
-    mozilla::DelayBuffer m_delayLine;
+    mozilla::DelayProcessor m_delayLineL;
+    mozilla::DelayProcessor m_delayLineR;
 
     AudioFloatArray m_tempL1;
     AudioFloatArray m_tempR1;

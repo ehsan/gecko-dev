@@ -13,7 +13,7 @@
 callback DecodeSuccessCallback = void (AudioBuffer decodedData);
 callback DecodeErrorCallback = void ();
 
-[Constructor]
+[Constructor, PrefControlled]
 interface AudioContext : EventTarget {
 
     readonly attribute AudioDestinationNode destination;
@@ -78,6 +78,7 @@ interface AudioContext : EventTarget {
  * The origin of this IDL file is
  * https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html#AlternateNames
  */
+[PrefControlled]
 partial interface AudioContext {
     [NewObject, Throws]
     AudioBuffer? createBuffer(ArrayBuffer buffer, boolean mixToMono);

@@ -42,8 +42,9 @@ nsCommandParams::~nsCommandParams()
 nsresult
 nsCommandParams::Init()
 {
-  PL_DHashTableInit(&mValuesHash, &sHashOps, (void *)this, sizeof(HashEntry), 4);
-
+  if (!PL_DHashTableInit(&mValuesHash, &sHashOps, (void *)this, sizeof(HashEntry), 4))
+    return NS_ERROR_FAILURE;
+    
   return NS_OK;
 }
 

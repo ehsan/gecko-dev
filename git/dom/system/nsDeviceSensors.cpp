@@ -392,7 +392,7 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
   nsCOMPtr<nsIDOMEvent> event;
   domdoc->CreateEvent(NS_LITERAL_STRING("DeviceMotionEvent"), getter_AddRefs(event));
 
-  DeviceMotionEvent* me = static_cast<DeviceMotionEvent*>(event.get());
+  nsDOMDeviceMotionEvent* me = static_cast<nsDOMDeviceMotionEvent*>(event.get());
 
   ErrorResult rv;
   me->InitDeviceMotionEvent(NS_LITERAL_STRING("devicemotion"),

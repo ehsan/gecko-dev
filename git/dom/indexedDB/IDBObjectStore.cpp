@@ -24,7 +24,7 @@
 #include "nsContentUtils.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMFile.h"
-#include "mozilla/dom/DOMStringList.h"
+#include "nsDOMLists.h"
 #include "nsEventDispatcher.h"
 #include "nsJSUtils.h"
 #include "nsServiceManagerUtils.h"
@@ -39,6 +39,7 @@
 #include "IDBKeyRange.h"
 #include "IDBTransaction.h"
 #include "DatabaseInfo.h"
+#include "DictionaryHelpers.h"
 #include "KeyPath.h"
 #include "ProfilerHelpers.h"
 #include "ReportInternalError.h"
@@ -779,11 +780,19 @@ public:
     nsRefPtr<IDBFileHandle> fileHandle = IDBFileHandle::Create(aDatabase,
       aData.name, aData.type, fileInfo.forget());
 
+    JS::Rooted<JS::Value> wrappedFileHandle(aCx);
     JS::Rooted<JSObject*> global(aCx, JS::CurrentGlobalOrNull(aCx));
-    if (!global) {
+    nsresult rv =
+      nsContentUtils::WrapNative(aCx, global,
+                                 static_cast<nsIDOMFileHandle*>(fileHandle),
+                                 &NS_GET_IID(nsIDOMFileHandle),
+                                 &wrappedFileHandle);
+    if (NS_FAILED(rv)) {
+      NS_WARNING("Failed to wrap native!");
       return nullptr;
     }
-    return fileHandle->WrapObject(aCx, global);
+
+    return JSVAL_TO_OBJECT(wrappedFileHandle);
   }
 
   static JSObject* CreateAndWrapBlobOrFile(JSContext* aCx,
@@ -1898,7 +1907,7 @@ IDBObjectStore::GetAddInfo(JSContext* aCx,
 
 already_AddRefed<IDBRequest>
 IDBObjectStore::AddOrPut(JSContext* aCx, JS::Handle<JS::Value> aValue,
-                         JS::Handle<JS::Value> aKey,
+                         const Optional<JS::Handle<JS::Value> >& aKey,
                          bool aOverwrite, ErrorResult& aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -1913,12 +1922,15 @@ IDBObjectStore::AddOrPut(JSContext* aCx, JS::Handle<JS::Value> aValue,
     return nullptr;
   }
 
+  JS::Rooted<JS::Value> keyval(aCx, aKey.WasPassed() ? aKey.Value()
+                                                     : JSVAL_VOID);
+
   StructuredCloneWriteInfo cloneWriteInfo;
   Key key;
   nsTArray<IndexUpdateInfo> updateInfo;
 
   JS::Rooted<JS::Value> value(aCx, aValue);
-  aRv = GetAddInfo(aCx, value, aKey, cloneWriteInfo, key, updateInfo);
+  aRv = GetAddInfo(aCx, value, keyval, cloneWriteInfo, key, updateInfo);
   if (aRv.Failed()) {
     return nullptr;
   }
@@ -2636,19 +2648,27 @@ IDBObjectStore::GetKeyPath(JSContext* aCx, ErrorResult& aRv)
   return mCachedKeyPath;
 }
 
-already_AddRefed<DOMStringList>
+already_AddRefed<nsIDOMDOMStringList>
 IDBObjectStore::GetIndexNames(ErrorResult& aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsRefPtr<DOMStringList> list(new DOMStringList());
+  nsRefPtr<nsDOMStringList> list(new nsDOMStringList());
 
-  nsTArray<nsString>& names = list->StringArray();
+  nsAutoTArray<nsString, 10> names;
   uint32_t count = mInfo->indexes.Length();
   names.SetCapacity(count);
 
   for (uint32_t index = 0; index < count; index++) {
     names.InsertElementSorted(mInfo->indexes[index].name);
+  }
+
+  for (uint32_t index = 0; index < count; index++) {
+    if (!list->Add(names[index])) {
+      IDB_WARNING("Failed to add element!");
+      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      return nullptr;
+    }
   }
 
   return list.forget();
@@ -2680,7 +2700,7 @@ IDBObjectStore::Get(JSContext* aCx, JS::Handle<JS::Value> aKey,
 
 already_AddRefed<IDBRequest>
 IDBObjectStore::GetAll(JSContext* aCx,
-                       JS::Handle<JS::Value> aKey,
+                       const Optional<JS::Handle<JS::Value> >& aKey,
                        const Optional<uint32_t>& aLimit, ErrorResult& aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -2691,8 +2711,10 @@ IDBObjectStore::GetAll(JSContext* aCx,
   }
 
   nsRefPtr<IDBKeyRange> keyRange;
-  aRv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
-  ENSURE_SUCCESS(aRv, nullptr);
+  if (aKey.WasPassed()) {
+    aRv = IDBKeyRange::FromJSVal(aCx, aKey.Value(), getter_AddRefs(keyRange));
+    ENSURE_SUCCESS(aRv, nullptr);
+  }
 
   uint32_t limit = UINT32_MAX;
   if (aLimit.WasPassed() && aLimit.Value() != 0) {
@@ -2733,7 +2755,7 @@ IDBObjectStore::Delete(JSContext* aCx, JS::Handle<JS::Value> aKey,
 
 already_AddRefed<IDBRequest>
 IDBObjectStore::OpenCursor(JSContext* aCx,
-                           JS::Handle<JS::Value> aRange,
+                           const Optional<JS::Handle<JS::Value> >& aRange,
                            IDBCursorDirection aDirection, ErrorResult& aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -2744,8 +2766,10 @@ IDBObjectStore::OpenCursor(JSContext* aCx,
   }
 
   nsRefPtr<IDBKeyRange> keyRange;
-  aRv = IDBKeyRange::FromJSVal(aCx, aRange, getter_AddRefs(keyRange));
-  ENSURE_SUCCESS(aRv, nullptr);
+  if (aRange.WasPassed()) {
+    aRv = IDBKeyRange::FromJSVal(aCx, aRange.Value(), getter_AddRefs(keyRange));
+    ENSURE_SUCCESS(aRv, nullptr);
+  }
 
   IDBCursor::Direction direction = IDBCursor::ConvertDirection(aDirection);
   size_t argDirection = static_cast<size_t>(direction);
@@ -2917,7 +2941,7 @@ IDBObjectStore::DeleteIndex(const nsAString& aName, ErrorResult& aRv)
 
 already_AddRefed<IDBRequest>
 IDBObjectStore::Count(JSContext* aCx,
-                      JS::Handle<JS::Value> aKey,
+                      const Optional<JS::Handle<JS::Value> >& aKey,
                       ErrorResult& aRv)
 {
   if (!mTransaction->IsOpen()) {
@@ -2926,15 +2950,17 @@ IDBObjectStore::Count(JSContext* aCx,
   }
 
   nsRefPtr<IDBKeyRange> keyRange;
-  aRv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
-  ENSURE_SUCCESS(aRv, nullptr);
+  if (aKey.WasPassed()) {
+    aRv = IDBKeyRange::FromJSVal(aCx, aKey.Value(), getter_AddRefs(keyRange));
+    ENSURE_SUCCESS(aRv, nullptr);
+  }
 
   return CountInternal(keyRange, aRv);
 }
 
 already_AddRefed<IDBRequest>
 IDBObjectStore::GetAllKeys(JSContext* aCx,
-                           JS::Handle<JS::Value> aKey,
+                           const Optional<JS::Handle<JS::Value>>& aKey,
                            const Optional<uint32_t>& aLimit, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -2945,8 +2971,10 @@ IDBObjectStore::GetAllKeys(JSContext* aCx,
   }
 
   nsRefPtr<IDBKeyRange> keyRange;
-  aRv = IDBKeyRange::FromJSVal(aCx, aKey, getter_AddRefs(keyRange));
-  ENSURE_SUCCESS(aRv, nullptr);
+  if (aKey.WasPassed()) {
+    aRv = IDBKeyRange::FromJSVal(aCx, aKey.Value(), getter_AddRefs(keyRange));
+    ENSURE_SUCCESS(aRv, nullptr);
+  }
 
   uint32_t limit = UINT32_MAX;
   if (aLimit.WasPassed() && aLimit.Value() != 0) {
@@ -2958,7 +2986,7 @@ IDBObjectStore::GetAllKeys(JSContext* aCx,
 
 already_AddRefed<IDBRequest>
 IDBObjectStore::OpenKeyCursor(JSContext* aCx,
-                              JS::Handle<JS::Value> aRange,
+                              const Optional<JS::Handle<JS::Value>>& aRange,
                               IDBCursorDirection aDirection, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -2969,8 +2997,10 @@ IDBObjectStore::OpenKeyCursor(JSContext* aCx,
   }
 
   nsRefPtr<IDBKeyRange> keyRange;
-  aRv = IDBKeyRange::FromJSVal(aCx, aRange, getter_AddRefs(keyRange));
-  ENSURE_SUCCESS(aRv, nullptr);
+  if (aRange.WasPassed()) {
+    aRv = IDBKeyRange::FromJSVal(aCx, aRange.Value(), getter_AddRefs(keyRange));
+    ENSURE_SUCCESS(aRv, nullptr);
+  }
 
   IDBCursor::Direction direction = IDBCursor::ConvertDirection(aDirection);
 
@@ -3181,36 +3211,28 @@ AddHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 
   mKey.BindToStatement(stmt, NS_LITERAL_CSTRING("key_value"));
 
-
   // Compress the bytes before adding into the database.
   const char* uncompressed =
     reinterpret_cast<const char*>(mCloneWriteInfo.mCloneBuffer.data());
   size_t uncompressedLength = mCloneWriteInfo.mCloneBuffer.nbytes();
 
-  // We don't have a smart pointer class that calls moz_free, so we need to
-  // manage | compressed | manually.
-  {
-    size_t compressedLength = snappy::MaxCompressedLength(uncompressedLength);
-    // moz_malloc is equivalent to NS_Alloc, which we use because mozStorage
-    // expects to be able to free the adopted pointer with NS_Free.
-    char* compressed = (char*)moz_malloc(compressedLength);
-    NS_ENSURE_TRUE(compressed, NS_ERROR_OUT_OF_MEMORY);
+  static const fallible_t fallible = fallible_t();
+  size_t compressedLength = snappy::MaxCompressedLength(uncompressedLength);
+  // This will hold our compressed data until the end of the method. The
+  // BindBlobByName function will copy it.
+  nsAutoArrayPtr<char> compressed(new (fallible) char[compressedLength]);
+  NS_ENSURE_TRUE(compressed, NS_ERROR_OUT_OF_MEMORY);
 
-    snappy::RawCompress(uncompressed, uncompressedLength, compressed,
-                        &compressedLength);
+  snappy::RawCompress(uncompressed, uncompressedLength, compressed.get(),
+                      &compressedLength);
 
-    uint8_t* dataBuffer = reinterpret_cast<uint8_t*>(compressed);
-    size_t dataBufferLength = compressedLength;
+  const uint8_t* dataBuffer =
+    reinterpret_cast<const uint8_t*>(compressed.get());
+  size_t dataBufferLength = compressedLength;
 
-    // If this call succeeds, | compressed | is now owned by the statement, and
-    // we are no longer responsible for it.
-    rv = stmt->BindAdoptedBlobByName(NS_LITERAL_CSTRING("data"), dataBuffer,
-                                     dataBufferLength);
-    if (NS_FAILED(rv)) {
-      moz_free(compressed);
-    }
-    IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-  }
+  rv = stmt->BindBlobByName(NS_LITERAL_CSTRING("data"), dataBuffer,
+                            dataBufferLength);
+  IDB_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   // Handle blobs
   uint32_t length = mCloneWriteInfo.mFiles.Length();
@@ -4909,7 +4931,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
   nsTArray<Key> keys;
   mKeys.SwapElements(keys);
 
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0));
+  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, 0, nullptr));
   if (!array) {
     IDB_WARNING("Failed to make array!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;

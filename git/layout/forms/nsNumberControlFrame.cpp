@@ -14,7 +14,7 @@
 #include "nsFormControlFrame.h"
 #include "nsGkAtoms.h"
 #include "nsINodeInfo.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsThemeConstants.h"
 #include "mozilla/BasicEvents.h"
 #include "nsContentUtils.h"
@@ -96,7 +96,7 @@ nsNumberControlFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
   return result;
 }
 
-nsresult
+NS_IMETHODIMP
 nsNumberControlFrame::Reflow(nsPresContext* aPresContext,
                              nsHTMLReflowMetrics& aDesiredSize,
                              const nsHTMLReflowState& aReflowState,
@@ -133,7 +133,7 @@ nsNumberControlFrame::Reflow(nsPresContext* aPresContext,
   } else {
     NS_ASSERTION(outerWrapperFrame == mFrames.FirstChild(), "huh?");
 
-    nsHTMLReflowMetrics wrappersDesiredSize(aReflowState);
+    nsHTMLReflowMetrics wrappersDesiredSize(aReflowState.GetWritingMode());
 
     nsHTMLReflowState wrapperReflowState(aPresContext, aReflowState,
                                          outerWrapperFrame,
@@ -219,7 +219,7 @@ nsNumberControlFrame::SyncDisabledState()
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsNumberControlFrame::AttributeChanged(int32_t  aNameSpaceID,
                                        nsIAtom* aAttribute,
                                        int32_t  aModType)

@@ -93,10 +93,10 @@ public:
     // Last bit 1 = Don't copy, Last bit 0 = Copy.
     if (copy) {
       setStackAddress(reinterpret_cast<void*>(
-                        reinterpret_cast<uintptr_t>(sparg) & ~NoCopyBit));
+                        reinterpret_cast<uintptr_t>(sparg) & ~0x1));
     } else {
       setStackAddress(reinterpret_cast<void*>(
-                        reinterpret_cast<uintptr_t>(sparg) | NoCopyBit));
+                        reinterpret_cast<uintptr_t>(sparg) | 0x1));
     }
   }
 };
@@ -111,8 +111,7 @@ class ProfilerMarker {
   friend class ProfilerLinkedList<ProfilerMarker>;
 public:
   ProfilerMarker(const char* aMarkerName,
-         ProfilerMarkerPayload* aPayload = nullptr,
-         float aTime = 0);
+         ProfilerMarkerPayload* aPayload = nullptr);
 
   ~ProfilerMarker();
 
@@ -129,13 +128,10 @@ public:
     return mGenID + 2 <= aGenID;
   }
 
-  float GetTime();
-
 private:
   char* mMarkerName;
   ProfilerMarkerPayload* mPayload;
   ProfilerMarker* mNext;
-  float mTime;
   int mGenID;
 };
 
@@ -292,9 +288,6 @@ private:
   volatile bool       mSignalLock;
 };
 
-// Stub eventMarker function for js-engine event generation.
-void ProfilerJSEventMarker(const char *event);
-
 // the PseudoStack members are read by signal
 // handlers, so the mutation of them needs to be signal-safe.
 struct PseudoStack
@@ -327,9 +320,9 @@ public:
     return mPendingUWTBuffers.getLinkedUWTBuffers();
   }
 
-  void addMarker(const char *aMarkerStr, ProfilerMarkerPayload *aPayload, float aTime)
+  void addMarker(const char *aMarkerStr, ProfilerMarkerPayload *aPayload)
   {
-    ProfilerMarker* marker = new ProfilerMarker(aMarkerStr, aPayload, aTime);
+    ProfilerMarker* marker = new ProfilerMarker(aMarkerStr, aPayload);
     mPendingMarkers.addMarker(marker);
   }
 
@@ -389,8 +382,7 @@ public:
       return;
     }
 
-    static_assert(sizeof(mStack[0]) == sizeof(js::ProfileEntry),
-                  "mStack must be binary compatible with js::ProfileEntry.");
+    JS_STATIC_ASSERT(sizeof(mStack[0]) == sizeof(js::ProfileEntry));
     js::SetRuntimeProfilingStack(runtime,
                                  (js::ProfileEntry*) mStack,
                                  (uint32_t*) &mStackPointer,
@@ -401,7 +393,6 @@ public:
   void enableJSSampling() {
     if (mRuntime) {
       js::EnableRuntimeProfilingStack(mRuntime, true);
-      js::RegisterRuntimeProfilingEventMarker(mRuntime, &ProfilerJSEventMarker);
       mStartJSSampling = false;
     } else {
       mStartJSSampling = true;

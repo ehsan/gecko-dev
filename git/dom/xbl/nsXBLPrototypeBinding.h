@@ -9,6 +9,7 @@
 #include "nsClassHashtable.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
+#include "nsHashtable.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsInterfaceHashtable.h"
 #include "nsWeakReference.h"
@@ -21,9 +22,10 @@
 class nsIAtom;
 class nsIContent;
 class nsIDocument;
-class nsXBLAttributeEntry;
-class nsXBLBinding;
+class nsSupportsHashtable;
 class nsXBLProtoImplField;
+class nsXBLBinding;
+class nsCSSStyleSheet;
 
 // *********************************************************************/
 // The XBLPrototypeBinding class
@@ -31,7 +33,7 @@ class nsXBLProtoImplField;
 // Instances of this class are owned by the nsXBLDocumentInfo object returned
 // by XBLDocumentInfo().  Consumers who want to refcount things should refcount
 // that.
-class nsXBLPrototypeBinding MOZ_FINAL
+class nsXBLPrototypeBinding
 {
 public:
   nsIContent* GetBindingElement() const { return mBinding; }
@@ -96,7 +98,7 @@ public:
                      bool* aNew);
 
   nsresult ConstructInterfaceTable(const nsAString& aImpls);
-
+  
   void SetImplementation(nsXBLProtoImpl* aImpl) { mImplementation = aImpl; }
   nsXBLProtoImpl* GetImplementation() { return mImplementation; }
   nsresult InstallImplementation(nsXBLBinding* aBinding);
@@ -111,13 +113,13 @@ public:
 
   nsXBLDocumentInfo* XBLDocumentInfo() const { return mXBLDocInfoWeak; }
   bool IsChrome() { return mXBLDocInfoWeak->IsChrome(); }
-
+  
   void SetInitialAttributes(nsIContent* aBoundElement, nsIContent* aAnonymousContent);
 
   nsIStyleRuleProcessor* GetRuleProcessor();
   nsXBLPrototypeResources::sheet_array_type* GetOrCreateStyleSheets();
   nsXBLPrototypeResources::sheet_array_type* GetStyleSheets();
-
+  
   bool HasStyleSheets() {
     return mResources && mResources->mStyleSheetList.Length() > 0;
   }
@@ -145,14 +147,8 @@ public:
     return &mKeyHandlers;
   }
 
-private:
-  nsresult Read(nsIObjectInputStream* aStream,
-                nsXBLDocumentInfo* aDocInfo,
-                nsIDocument* aDocument,
-                uint8_t aFlags);
-
   /**
-   * Read a new binding from the stream aStream into the xbl document aDocument.
+   * Read this binding from the stream aStream into the xbl document aDocument.
    * aDocInfo should be the xbl document info for the binding document.
    * aFlags can contain XBLBinding_Serialize_InheritStyle to indicate that
    * mInheritStyle flag should be set, and XBLBinding_Serialize_IsFirstBinding
@@ -160,11 +156,10 @@ private:
    * XBLBinding_Serialize_ChromeOnlyContent indicates that
    * nsXBLPrototypeBinding::mChromeOnlyContent should be true.
    */
-public:
-  static nsresult ReadNewBinding(nsIObjectInputStream* aStream,
-                                 nsXBLDocumentInfo* aDocInfo,
-                                 nsIDocument* aDocument,
-                                 uint8_t aFlags);
+  nsresult Read(nsIObjectInputStream* aStream,
+                nsXBLDocumentInfo* aDocInfo,
+                nsIDocument* aDocument,
+                uint8_t aFlags);
 
   /**
    * Write this binding to the stream.
@@ -215,7 +210,7 @@ public:
 
   /**
    * Read or write a namespace id from or to aStream. If the namespace matches
-   * one of the built-in ones defined in nsNameSpaceManager.h, it will be written as
+   * one of the built-in ones defined in nsINameSpaceManager.h, it will be written as
    * a single byte with that value. Otherwise, XBLBinding_Serialize_CustomNamespace is
    * written out, followed by a string written with writeWStringZ.
    */
@@ -252,9 +247,6 @@ public:
                              nsIContent* aTemplChild);
 
   bool ChromeOnlyContent() { return mChromeOnlyContent; }
-
-  typedef nsClassHashtable<nsISupportsHashKey, nsXBLAttributeEntry> InnerAttributeTable;
-
 protected:
   // Ensure that mAttributeTable has been created.
   void EnsureAttributeTable();
@@ -283,15 +275,14 @@ protected:
   bool mCheckedBaseProto;
   bool mKeyHandlersRegistered;
   bool mChromeOnlyContent;
-
+ 
   nsXBLPrototypeResources* mResources; // If we have any resources, this will be non-null.
-
+                                      
   nsXBLDocumentInfo* mXBLDocInfoWeak; // A pointer back to our doc info.  Weak, since it owns us.
 
-  // A table for attribute containers. Namespace IDs are used as
-  // keys in the table. Containers are InnerAttributeTables.
-  // This table is used to efficiently handle attribute changes.
-  nsAutoPtr<nsClassHashtable<nsUint32HashKey, InnerAttributeTable>> mAttributeTable;
+  nsObjectHashtable* mAttributeTable; // A table for attribute containers. Namespace IDs are used as
+                                      // keys in the table. Containers are nsObjectHashtables.
+                                      // This table is used to efficiently handle attribute changes.
 
   class IIDHashKey : public PLDHashEntryHdr
   {

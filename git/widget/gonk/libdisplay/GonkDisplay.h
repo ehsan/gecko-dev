@@ -20,10 +20,6 @@
 
 namespace mozilla {
 
-namespace layers {
-class Layer;
-}
-
 typedef void * EGLDisplay;
 typedef void * EGLSurface;
 
@@ -49,18 +45,7 @@ public:
 
     virtual void UpdateFBSurface(EGLDisplay dpy, EGLSurface sur) = 0;
 
-    /**
-     * Set FramebufferSurface ReleaseFence's file descriptor.
-     * ReleaseFence will be signaled after the HWC has finished reading
-     * from a buffer.
-     */
     virtual void SetFBReleaseFd(int fd) = 0;
-
-    /**
-     * Get FramebufferSurface AcquireFence's file descriptor
-     * AcquireFence will be signaled when a buffer's content is available.
-     */
-    virtual int GetPrevFBAcquireFd() = 0;
 
     float xdpi;
     uint32_t surfaceformat;

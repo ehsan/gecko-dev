@@ -36,9 +36,7 @@ public:
     ePluginState_MaxValue = 3,
   };
 
-  nsPluginTag(nsPluginInfo* aPluginInfo,
-              int64_t aLastModifiedTime,
-              bool fromExtension);
+  nsPluginTag(nsPluginInfo* aPluginInfo);
   nsPluginTag(const char* aName,
               const char* aDescription,
               const char* aFileName,
@@ -48,8 +46,7 @@ public:
               const char* const* aMimeDescriptions,
               const char* const* aExtensions,
               int32_t aVariants,
-              int64_t aLastModifiedTime,
-              bool fromExtension,
+              int64_t aLastModifiedTime = 0,
               bool aArgsAreUTF8 = false);
   virtual ~nsPluginTag();
 
@@ -71,8 +68,6 @@ public:
 
   bool HasSameNameAndMimes(const nsPluginTag *aPluginTag) const;
   nsCString GetNiceFileName();
-
-  bool IsFromExtension() const;
 
   nsRefPtr<nsPluginTag> mNext;
   nsCString     mName; // UTF-8
@@ -97,7 +92,6 @@ private:
   nsCString     mNiceFileName; // UTF-8
   uint16_t      mCachedBlocklistState;
   bool          mCachedBlocklistStateValid;
-  bool          mIsFromExtension;
 
   void InitMime(const char* const* aMimeTypes,
                 const char* const* aMimeDescriptions,

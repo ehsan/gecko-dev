@@ -4,22 +4,27 @@
 
 package org.mozilla.gecko.preferences;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.favicons.Favicons;
-import org.mozilla.gecko.favicons.decoders.FaviconDecoder;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.FaviconView;
-
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.text.SpannableString;
 import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
+
+import java.util.Iterator;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import org.mozilla.gecko.favicons.decoders.FaviconDecoder;
+import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
+import org.mozilla.gecko.favicons.Favicons;
+import org.mozilla.gecko.R;
+import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.widget.FaviconView;
 
 /**
  * Represents an element in the list of search engines on the preferences menu.
@@ -65,9 +70,10 @@ public class SearchEnginePreference extends CustomListPreference {
      * Returns the strings to be displayed in the dialog.
      */
     @Override
-    protected String[] createDialogItems() {
+    protected String[] getDialogStrings() {
+        Resources res = getContext().getResources();
         return new String[] { LABEL_SET_AS_DEFAULT,
-                              LABEL_REMOVE };
+                              res.getString(R.string.pref_dialog_remove) };
     }
 
     @Override
@@ -133,13 +139,13 @@ public class SearchEnginePreference extends CustomListPreference {
             if (mFaviconView != null) {
                 desiredWidth = mFaviconView.getWidth();
             } else {
-                // largestFaviconSize is initialized when Favicons is attached to a
+                // sLargestFaviconSize is initialized when Favicons is attached to a
                 // context, which occurs during GeckoApp.onCreate. That might not
                 // ever happen (leaving it at 0), so we fall back.
-                if (Favicons.largestFaviconSize == 0) {
+                if (Favicons.sLargestFaviconSize == 0) {
                     desiredWidth = 128;
                 } else {
-                    desiredWidth = Favicons.largestFaviconSize;
+                    desiredWidth = Favicons.sLargestFaviconSize;
                 }
             }
 

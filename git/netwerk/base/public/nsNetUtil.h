@@ -98,23 +98,23 @@
 inline already_AddRefed<nsIIOService>
 do_GetIOService(nsresult* error = 0)
 {
-    nsCOMPtr<nsIIOService> io = mozilla::services::GetIOService();
+    already_AddRefed<nsIIOService> ret = mozilla::services::GetIOService();
     if (error)
-        *error = io ? NS_OK : NS_ERROR_FAILURE;
-    return io.forget();
+        *error = ret.get() ? NS_OK : NS_ERROR_FAILURE;
+    return ret;
 }
 
 inline already_AddRefed<nsINetUtil>
 do_GetNetUtil(nsresult *error = 0) 
 {
     nsCOMPtr<nsIIOService> io = mozilla::services::GetIOService();
-    nsCOMPtr<nsINetUtil> util;
+    already_AddRefed<nsINetUtil> ret = nullptr;
     if (io)
-        util = do_QueryInterface(io);
+        CallQueryInterface(io, &ret.mRawPtr);
 
     if (error)
-        *error = !!util ? NS_OK : NS_ERROR_FAILURE;
-    return util.forget();
+        *error = ret.get() ? NS_OK : NS_ERROR_FAILURE;
+    return ret;
 }
 #else
 // Helper, to simplify getting the I/O service.
@@ -1460,26 +1460,6 @@ NS_ShouldCheckAppCache(nsIURI *aURI, bool usePrivateBrowsing)
     nsresult rv = offlineService->OfflineAppAllowedForURI(aURI,
                                                           nullptr,
                                                           &allowed);
-    return NS_SUCCEEDED(rv) && allowed;
-}
-
-inline bool
-NS_ShouldCheckAppCache(nsIPrincipal * aPrincipal, bool usePrivateBrowsing)
-{
-    if (usePrivateBrowsing) {
-        return false;
-    }
-
-    nsCOMPtr<nsIOfflineCacheUpdateService> offlineService =
-        do_GetService("@mozilla.org/offlinecacheupdate-service;1");
-    if (!offlineService) {
-        return false;
-    }
-
-    bool allowed;
-    nsresult rv = offlineService->OfflineAppAllowed(aPrincipal,
-                                                    nullptr,
-                                                    &allowed);
     return NS_SUCCEEDED(rv) && allowed;
 }
 

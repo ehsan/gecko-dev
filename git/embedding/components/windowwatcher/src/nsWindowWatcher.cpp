@@ -41,7 +41,6 @@
 #include "nsIWindowCreator.h"
 #include "nsIWindowCreator2.h"
 #include "nsIXPConnect.h"
-#include "nsIXULRuntime.h"
 #include "nsPIDOMWindow.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIContentViewer.h"
@@ -835,24 +834,17 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     }
   }
 
-  // We rely on CalculateChromeFlags to decide whether remote (out-of-process)
-  // tabs should be used.
-  bool isRemoteWindow =
-    !!(chromeFlags & nsIWebBrowserChrome::CHROME_REMOTE_WINDOW);
-
   if (isNewToplevelWindow) {
     nsCOMPtr<nsIDocShellTreeItem> childRoot;
     newDocShellItem->GetRootTreeItem(getter_AddRefs(childRoot));
     nsCOMPtr<nsILoadContext> childContext = do_QueryInterface(childRoot);
     if (childContext) {
       childContext->SetPrivateBrowsing(isPrivateBrowsingWindow);
-      childContext->SetRemoteTabs(isRemoteWindow);
     }
   } else if (windowIsNew) {
     nsCOMPtr<nsILoadContext> childContext = do_QueryInterface(newDocShellItem);
     if (childContext) {
       childContext->SetPrivateBrowsing(isPrivateBrowsingWindow);
-      childContext->SetRemoteTabs(isRemoteWindow);
     }
   }
 
@@ -956,11 +948,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     // we're opening a modal content window (the helper classes are
     // no-ops if given no window), for chrome dialogs we don't want to
     // do any of that (it's done elsewhere for us).
-    // Make sure we maintain the state on an outer window, because
-    // that's where it lives; inner windows assert if you try to
-    // maintain the state on them.
-    nsAutoWindowStateHelper windowStateHelper(
-      parentWindow ? parentWindow->GetOuterWindow() : nullptr);
+    nsAutoWindowStateHelper windowStateHelper(aParent);
 
     if (!windowStateHelper.DefaultEnabled()) {
       // Default to cancel not opening the modal window.
@@ -1438,19 +1426,6 @@ uint32_t nsWindowWatcher::CalculateChromeFlags(nsIDOMWindow *aParent,
       nsIWebBrowserChrome::CHROME_PRIVATE_WINDOW : 0;
     chromeFlags |= WinHasOption(aFeatures, "non-private", 0, &presenceFlag) ?
       nsIWebBrowserChrome::CHROME_NON_PRIVATE_WINDOW : 0;
-  }
-
-  // Determine whether the window should have remote tabs.
-  if (isCallerChrome) {
-    bool remote;
-    if (Preferences::GetBool("browser.tabs.remote.autostart")) {
-      remote = !WinHasOption(aFeatures, "non-remote", 0, &presenceFlag);
-    } else {
-      remote = WinHasOption(aFeatures, "remote", 0, &presenceFlag);
-    }
-    if (remote) {
-      chromeFlags |= nsIWebBrowserChrome::CHROME_REMOTE_WINDOW;
-    }
   }
 
   nsresult rv;

@@ -9,12 +9,12 @@
 #include <stdint.h>                     // for uint32_t
 #include "ClientLayerManager.h"         // for ClientLayerManager, etc
 #include "Layers.h"                     // for Layer, ContainerLayer, etc
-#include "gfxPrefs.h"                   // for gfxPrefs
+#include "gfxPlatform.h"                // for gfxPlatform
 #include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
 #include "nsISupportsUtils.h"           // for NS_ADDREF, NS_RELEASE
 #include "nsRegion.h"                   // for nsIntRegion
 #include "nsTArray.h"                   // for nsAutoTArray
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 namespace mozilla {
 namespace layers {
@@ -58,7 +58,7 @@ public:
             GetEffectiveTransform().Is2D(&transform) &&
             !gfx::ThebesMatrix(transform).HasNonIntegerTranslation()) {
           SetSupportsComponentAlphaChildren(
-            gfxPrefs::ComponentAlphaEnabled());
+            gfxPlatform::ComponentAlphaEnabled());
         }
       }
     } else {
@@ -71,17 +71,11 @@ public:
     SortChildrenBy3DZOrder(children);
 
     for (uint32_t i = 0; i < children.Length(); i++) {
-      Layer* child = children.ElementAt(i);
-      if (child->GetEffectiveVisibleRegion().IsEmpty()) {
+      if (children.ElementAt(i)->GetEffectiveVisibleRegion().IsEmpty()) {
         continue;
       }
 
-      ToClientLayer(child)->RenderLayer();
-
-      if (!ClientManager()->GetRepeatTransaction() &&
-          !child->GetInvalidRegion().IsEmpty()) {
-        child->Mutated();
-      }
+      ToClientLayer(children.ElementAt(i))->RenderLayer();
     }
   }
 
@@ -91,51 +85,33 @@ public:
                  "Can only set properties in construction phase");
     ContainerLayer::SetVisibleRegion(aRegion);
   }
-  virtual bool InsertAfter(Layer* aChild, Layer* aAfter) MOZ_OVERRIDE
+  virtual void InsertAfter(Layer* aChild, Layer* aAfter) MOZ_OVERRIDE
   {
-    if(!ClientManager()->InConstruction()) {
-      NS_ERROR("Can only set properties in construction phase");
-      return false;
-    }
-
-    if (!ContainerLayer::InsertAfter(aChild, aAfter)) {
-      return false;
-    }
-
+    NS_ASSERTION(ClientManager()->InConstruction(),
+                 "Can only set properties in construction phase");
     ClientManager()->AsShadowForwarder()->InsertAfter(ClientManager()->Hold(this),
                                                       ClientManager()->Hold(aChild),
                                                       aAfter ? ClientManager()->Hold(aAfter) : nullptr);
-    return true;
+    ContainerLayer::InsertAfter(aChild, aAfter);
   }
 
-  virtual bool RemoveChild(Layer* aChild) MOZ_OVERRIDE
-  {
-    if (!ClientManager()->InConstruction()) {
-      NS_ERROR("Can only set properties in construction phase");
-      return false;
-    }
-    // hold on to aChild before we remove it!
-    ShadowableLayer *heldChild = ClientManager()->Hold(aChild);
-    if (!ContainerLayer::RemoveChild(aChild)) {
-      return false;
-    }
-    ClientManager()->AsShadowForwarder()->RemoveChild(ClientManager()->Hold(this), heldChild);
-    return true;
+  virtual void RemoveChild(Layer* aChild) MOZ_OVERRIDE
+  { 
+    NS_ASSERTION(ClientManager()->InConstruction(),
+                 "Can only set properties in construction phase");
+    ClientManager()->AsShadowForwarder()->RemoveChild(ClientManager()->Hold(this),
+                                                      ClientManager()->Hold(aChild));
+    ContainerLayer::RemoveChild(aChild);
   }
 
-  virtual bool RepositionChild(Layer* aChild, Layer* aAfter) MOZ_OVERRIDE
+  virtual void RepositionChild(Layer* aChild, Layer* aAfter) MOZ_OVERRIDE
   {
-    if (!ClientManager()->InConstruction()) {
-      NS_ERROR("Can only set properties in construction phase");
-      return false;
-    }
-    if (!ContainerLayer::RepositionChild(aChild, aAfter)) {
-      return false;
-    }
+    NS_ASSERTION(ClientManager()->InConstruction(),
+                 "Can only set properties in construction phase");
     ClientManager()->AsShadowForwarder()->RepositionChild(ClientManager()->Hold(this),
                                                           ClientManager()->Hold(aChild),
                                                           aAfter ? ClientManager()->Hold(aAfter) : nullptr);
-    return true;
+    ContainerLayer::RepositionChild(aChild, aAfter);
   }
 
   virtual Layer* AsLayer() { return this; }

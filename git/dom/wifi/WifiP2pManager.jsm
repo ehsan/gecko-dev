@@ -92,7 +92,8 @@ const DEFAULT_P2P_DEVICE_TYPE = "10-0050F204-5"; // For wpa_supplicant.
 
 const GO_NETWORK_INTERFACE = {
   ip:         "192.168.2.1",
-  maskLength: 24,
+  netmask:    "255.255.255.0", // Should be consistent with |maskLenth|.
+  maskLength: 24,              // Should be consistent with |netmask|.
   broadcast:  "192.168.2.255",
   gateway:    "192.168.2.1",
   dns1:       "0.0.0.0",
@@ -493,7 +494,7 @@ function P2pStateMachine(aP2pCommand, aNetUtil) {
     type: Ci.nsINetworkInterface.NETWORK_TYPE_WIFI_P2P,
     name: P2P_INTERFACE_NAME,
     ip: null,
-    prefixLength: 0,
+    netmask: null,
     broadcast: null,
     dns1: null,
     dns2: null,
@@ -1379,7 +1380,7 @@ function P2pStateMachine(aP2pCommand, aNetUtil) {
         // Update p2p network interface.
         _p2pNetworkInterface.state = Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED;
         _p2pNetworkInterface.ip = GO_NETWORK_INTERFACE.ip;
-        _p2pNetworkInterface.prefixLength = GO_NETWORK_INTERFACE.maskLength;
+        _p2pNetworkInterface.netmask = GO_NETWORK_INTERFACE.netmask;
         _p2pNetworkInterface.gateway = GO_NETWORK_INTERFACE.ip;
         handleP2pNetworkInterfaceStateChanged();
 
@@ -1407,11 +1408,9 @@ function P2pStateMachine(aP2pCommand, aNetUtil) {
       debug("DHCP request success: " + JSON.stringify(dhcpData.info));
 
       // Update p2p network interface.
-      let maskLength =
-        netHelpers.getMaskLength(netHelpers.stringToIP(dhcpData.info.mask_str));
       _p2pNetworkInterface.state = Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED;
       _p2pNetworkInterface.ip = dhcpData.info.ipaddr_str;
-      _p2pNetworkInterface.prefixLength = maskLength;
+      _p2pNetworkInterface.netmask = dhcpData.info.mask_str;
       _p2pNetworkInterface.broadcast = dhcpData.info.broadcast_str;
       _p2pNetworkInterface.dns1 = dhcpData.info.dns1_str;
       _p2pNetworkInterface.dns2 = dhcpData.info.dns2_str;
@@ -1428,7 +1427,7 @@ function P2pStateMachine(aP2pCommand, aNetUtil) {
   function resetP2pNetworkInterface() {
     _p2pNetworkInterface.state = Ci.nsINetworkInterface.NETWORK_STATE_DISCONNECTED;
     _p2pNetworkInterface.ip = null;
-    _p2pNetworkInterface.prefixLength = 0;
+    _p2pNetworkInterface.netmask = null;
     _p2pNetworkInterface.broadcast = null;
     _p2pNetworkInterface.dns1 = null;
     _p2pNetworkInterface.dns2 = null;

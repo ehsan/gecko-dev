@@ -16,13 +16,11 @@ namespace dom {
 GetUserMediaRequest::GetUserMediaRequest(
     nsPIDOMWindow* aInnerWindow,
     const nsAString& aCallID,
-    const MediaStreamConstraintsInternal& aConstraints,
-    bool aIsSecure)
+    const MediaStreamConstraintsInternal& aConstraints)
   : mInnerWindowID(aInnerWindow->WindowID())
   , mOuterWindowID(aInnerWindow->GetOuterWindow()->WindowID())
   , mCallID(aCallID)
   , mConstraints(aConstraints)
-  , mIsSecure(aIsSecure)
 {
   SetIsDOMBinding();
 }
@@ -59,11 +57,6 @@ uint64_t GetUserMediaRequest::WindowID()
 uint64_t GetUserMediaRequest::InnerWindowID()
 {
   return mInnerWindowID;
-}
-
-bool GetUserMediaRequest::IsSecure()
-{
-  return mIsSecure;
 }
 
 void

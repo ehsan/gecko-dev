@@ -13,6 +13,8 @@ function test() {
     workerURL: "http://example.com/browser/toolkit/components/social/test/browser/worker_social.js"
   };
 
+  ensureSocialEnabled();
+
   SocialService.addProvider(manifest, function (p) {
     provider = p;
     runTests(tests, undefined, undefined, function () {

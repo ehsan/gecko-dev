@@ -395,7 +395,7 @@ NS_IMETHODIMP
 nsTransactionManager::PeekUndoStack(nsITransaction **aTransaction)
 {
   MOZ_ASSERT(aTransaction);
-  *aTransaction = PeekUndoStack().take();
+  *aTransaction = PeekUndoStack().get();
   return NS_OK;
 }
 
@@ -415,7 +415,7 @@ NS_IMETHODIMP
 nsTransactionManager::PeekRedoStack(nsITransaction** aTransaction)
 {
   MOZ_ASSERT(aTransaction);
-  *aTransaction = PeekRedoStack().take();
+  *aTransaction = PeekRedoStack().get();
   return NS_OK;
 }
 

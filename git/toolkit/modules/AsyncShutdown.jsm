@@ -5,6 +5,11 @@
 /**
  * Managing safe shutdown of asynchronous services.
  *
+ *     THIS API IS EXPERIMENTAL AND SUBJECT TO CHANGE WITHOUT PRIOR NOTICE
+ *        IF YOUR CODE USES IT, IT MAY HAVE STOPPED WORKING ALREADY
+ *                          YOU HAVE BEEN WARNED
+ *
+ *
  * Firefox shutdown is composed of phases that take place
  * sequentially. Typically, each shutdown phase removes some
  * capabilities from the application. For instance, at the end of
@@ -103,40 +108,6 @@ function err(msg, error = null) {
   return log(msg, "ERROR: ", error);
 }
 
-// Utility function designed to get the current state of execution
-// of a blocker.
-// We are a little paranoid here to ensure that in case of evaluation
-// error we do not block the AsyncShutdown.
-function safeGetState(state) {
-  if (!state) {
-    return "(none)";
-  }
-  let data, string;
-  try {
-    // Evaluate state(), normalize the result into something that we can
-    // safely stringify or upload.
-    string = JSON.stringify(state());
-    data = JSON.parse(string);
-    // Simplify the rest of the code by ensuring that we can simply
-    // concatenate the result to a message.
-    if (data && typeof data == "object") {
-      data.toString = function() {
-        return string;
-      };
-    }
-    return data;
-  } catch (ex) {
-    if (string) {
-      return string;
-    }
-    try {
-      return "Error getting state: " + ex + " at " + ex.stack;
-    } catch (ex2) {
-      return "Error getting state but could not display error";
-    }
-  }
-}
-
 /**
  * Countdown for a given duration, skipping beats if the computer is too busy,
  * sleeping or otherwise unavailable.
@@ -215,10 +186,6 @@ function getPhase(topic) {
      * resulting promise is either resolved or rejected. If
      * |condition| is not a function but another value |v|, it behaves
      * as if it were a function returning |v|.
-     * @param {function*} state Optionally, a function returning
-     * information about the current state of the blocker as an
-     * object. Used for providing more details when logging errors or
-     * crashing.
      *
      * Examples:
      * AsyncShutdown.profileBeforeChange.addBlocker("Module: just a promise",
@@ -242,14 +209,11 @@ function getPhase(topic) {
      * });
      *
      */
-    addBlocker: function(name, condition, state = null) {
+    addBlocker: function(name, condition) {
       if (typeof name != "string") {
         throw new TypeError("Expected a human-readable name as first argument");
       }
-      if (state && typeof state != "function") {
-        throw new TypeError("Expected nothing or a function as third argument");
-      }
-      spinner.addBlocker({name: name, condition: condition, state: state});
+      spinner.addBlocker({name: name, condition: condition});
     }
   });
   gPhases.set(topic, phase);
@@ -310,7 +274,7 @@ Spinner.prototype = {
     // are not satisfied yet.
     let allMonitors = [];
 
-    for (let {condition, name, state} of conditions) {
+    for (let {condition, name} of conditions) {
       // Gather all completion conditions
 
       try {
@@ -339,15 +303,13 @@ Spinner.prototype = {
           let msg = "A phase completion condition is" +
             " taking too long to complete." +
             " Condition: " + monitor.name +
-            " Phase: " + topic +
-            " State: " + safeGetState(state);
+            " Phase: " + topic;
           warn(msg);
         }, DELAY_WARNING_MS, Ci.nsITimer.TYPE_ONE_SHOT);
 
         let monitor = {
           isFrozen: true,
-          name: name,
-          state: state
+          name: name
         };
         condition = condition.then(function onSuccess() {
             timer.cancel(); // As a side-effect, this prevents |timer| from
@@ -358,8 +320,7 @@ Spinner.prototype = {
             let msg = "A completion condition encountered an error" +
                 " while we were spinning the event loop." +
                 " Condition: " + name +
-                " Phase: " + topic +
-                " State: " + safeGetState(state);
+                " Phase: " + topic;
             warn(msg, error);
             monitor.isFrozen = false;
         });
@@ -370,8 +331,7 @@ Spinner.prototype = {
           let msg = "A completion condition encountered an error" +
                 " while we were initializing the phase." +
                 " Condition: " + name +
-                " Phase: " + topic +
-                " State: " + safeGetState(state);
+                " Phase: " + topic;
           warn(msg, error);
       }
 
@@ -402,10 +362,9 @@ Spinner.prototype = {
       function onTimeout() {
         // Report the problem as best as we can, then crash.
         let frozen = [];
-        let states = [];
-        for (let {name, isFrozen, state} of allMonitors) {
+        for (let {name, isFrozen} of allMonitors) {
           if (isFrozen) {
-            frozen.push({name: name, state: safeGetState(state)});
+            frozen.push(name);
           }
         }
 
@@ -413,7 +372,7 @@ Spinner.prototype = {
               " within a reasonable amount of time. Causing a crash to" +
               " ensure that we do not leave the user with an unresponsive" +
               " process draining resources." +
-              " Conditions: " + JSON.stringify(frozen) +
+              " Conditions: " + frozen.join(", ") +
               " Phase: " + topic;
         err(msg);
         if (gCrashReporter && gCrashReporter.enabled) {

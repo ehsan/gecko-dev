@@ -14,8 +14,18 @@
 
 #include "mozilla/PluginLibrary.h"
 
+/*
+ * Use this macro before each exported function
+ * (between the return address and the function
+ * itself), to ensure that the function has the
+ * right calling conventions on OS/2.
+ */
+#define NP_CALLBACK NP_LOADDS
+
 #if defined(XP_WIN)
 #define NS_NPAPIPLUGIN_CALLBACK(_type, _name) _type (__stdcall * _name)
+#elif defined(XP_OS2)
+#define NS_NPAPIPLUGIN_CALLBACK(_type, _name) _type (_System * _name)
 #else
 #define NS_NPAPIPLUGIN_CALLBACK(_type, _name) _type (* _name)
 #endif
@@ -70,8 +80,7 @@ namespace mozilla {
 namespace plugins {
 namespace parent {
 
-static_assert(sizeof(NPIdentifier) == sizeof(jsid),
-              "NPIdentifier must be binary compatible with jsid.");
+JS_STATIC_ASSERT(sizeof(NPIdentifier) == sizeof(jsid));
 
 inline jsid
 NPIdentifierToJSId(NPIdentifier id)
@@ -134,103 +143,103 @@ NPStringIdentifierIsPermanent(NPP npp, NPIdentifier id)
 
 #define NPIdentifier_VOID (JSIdToNPIdentifier(JSID_VOID))
 
-NPObject*
+NPObject* NP_CALLBACK
 _getwindowobject(NPP npp);
 
-NPObject*
+NPObject* NP_CALLBACK
 _getpluginelement(NPP npp);
 
-NPIdentifier
+NPIdentifier NP_CALLBACK
 _getstringidentifier(const NPUTF8* name);
 
-void
+void NP_CALLBACK
 _getstringidentifiers(const NPUTF8** names, int32_t nameCount,
                       NPIdentifier *identifiers);
 
-bool
+bool NP_CALLBACK
 _identifierisstring(NPIdentifier identifiers);
 
-NPIdentifier
+NPIdentifier NP_CALLBACK
 _getintidentifier(int32_t intid);
 
-NPUTF8*
+NPUTF8* NP_CALLBACK
 _utf8fromidentifier(NPIdentifier identifier);
 
-int32_t
+int32_t NP_CALLBACK
 _intfromidentifier(NPIdentifier identifier);
 
-NPObject*
+NPObject* NP_CALLBACK
 _createobject(NPP npp, NPClass* aClass);
 
-NPObject*
+NPObject* NP_CALLBACK
 _retainobject(NPObject* npobj);
 
-void
+void NP_CALLBACK
 _releaseobject(NPObject* npobj);
 
-bool
+bool NP_CALLBACK
 _invoke(NPP npp, NPObject* npobj, NPIdentifier method, const NPVariant *args,
         uint32_t argCount, NPVariant *result);
 
-bool
+bool NP_CALLBACK
 _invokeDefault(NPP npp, NPObject* npobj, const NPVariant *args,
                uint32_t argCount, NPVariant *result);
 
-bool
+bool NP_CALLBACK
 _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result);
 
-bool
+bool NP_CALLBACK
 _getproperty(NPP npp, NPObject* npobj, NPIdentifier property,
              NPVariant *result);
 
-bool
+bool NP_CALLBACK
 _setproperty(NPP npp, NPObject* npobj, NPIdentifier property,
              const NPVariant *value);
 
-bool
+bool NP_CALLBACK
 _removeproperty(NPP npp, NPObject* npobj, NPIdentifier property);
 
-bool
+bool NP_CALLBACK
 _hasproperty(NPP npp, NPObject* npobj, NPIdentifier propertyName);
 
-bool
+bool NP_CALLBACK
 _hasmethod(NPP npp, NPObject* npobj, NPIdentifier methodName);
 
-bool
+bool NP_CALLBACK
 _enumerate(NPP npp, NPObject *npobj, NPIdentifier **identifier,
            uint32_t *count);
 
-bool
+bool NP_CALLBACK
 _construct(NPP npp, NPObject* npobj, const NPVariant *args,
            uint32_t argCount, NPVariant *result);
 
-void
+void NP_CALLBACK
 _releasevariantvalue(NPVariant *variant);
 
-void
+void NP_CALLBACK
 _setexception(NPObject* npobj, const NPUTF8 *message);
 
-void
+void NP_CALLBACK
 _pushpopupsenabledstate(NPP npp, NPBool enabled);
 
-void
+void NP_CALLBACK
 _poppopupsenabledstate(NPP npp);
 
 typedef void(*PluginThreadCallback)(void *);
 
-void
+void NP_CALLBACK
 _pluginthreadasynccall(NPP instance, PluginThreadCallback func,
                        void *userData);
 
-NPError
+NPError NP_CALLBACK
 _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
                 char **value, uint32_t *len);
 
-NPError
+NPError NP_CALLBACK
 _setvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
                 const char *value, uint32_t len);
 
-NPError
+NPError NP_CALLBACK
 _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
                        int32_t port, const char *scheme, const char *realm,
                        char **username, uint32_t *ulen, char **password,
@@ -238,95 +247,95 @@ _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
 
 typedef void(*PluginTimerFunc)(NPP npp, uint32_t timerID);
 
-uint32_t
+uint32_t NP_CALLBACK
 _scheduletimer(NPP instance, uint32_t interval, NPBool repeat, PluginTimerFunc timerFunc);
 
-void
+void NP_CALLBACK
 _unscheduletimer(NPP instance, uint32_t timerID);
 
-NPError
+NPError NP_CALLBACK
 _popupcontextmenu(NPP instance, NPMenu* menu);
 
-NPError
+NPError NP_CALLBACK
 _initasyncsurface(NPP instance, NPSize *size, NPImageFormat format, void *initData, NPAsyncSurface *surface);
 
-NPError
+NPError NP_CALLBACK
 _finalizeasyncsurface(NPP instance, NPAsyncSurface *surface);
 
-void
+void NP_CALLBACK
 _setcurrentasyncsurface(NPP instance, NPAsyncSurface *surface, NPRect *changed);
 
-NPBool
+NPBool NP_CALLBACK
 _convertpoint(NPP instance, double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace);
 
-NPError
+NPError NP_CALLBACK
 _requestread(NPStream *pstream, NPByteRange *rangeList);
 
-NPError
+NPError NP_CALLBACK
 _geturlnotify(NPP npp, const char* relativeURL, const char* target,
               void* notifyData);
 
-NPError
+NPError NP_CALLBACK
 _getvalue(NPP npp, NPNVariable variable, void *r_value);
 
-NPError
+NPError NP_CALLBACK
 _setvalue(NPP npp, NPPVariable variable, void *r_value);
 
-NPError
+NPError NP_CALLBACK
 _geturl(NPP npp, const char* relativeURL, const char* target);
 
-NPError
+NPError NP_CALLBACK
 _posturlnotify(NPP npp, const char* relativeURL, const char *target,
                uint32_t len, const char *buf, NPBool file, void* notifyData);
 
-NPError
+NPError NP_CALLBACK
 _posturl(NPP npp, const char* relativeURL, const char *target, uint32_t len,
             const char *buf, NPBool file);
 
-NPError
+NPError NP_CALLBACK
 _newstream(NPP npp, NPMIMEType type, const char* window, NPStream** pstream);
 
-int32_t
+int32_t NP_CALLBACK
 _write(NPP npp, NPStream *pstream, int32_t len, void *buffer);
 
-NPError
+NPError NP_CALLBACK
 _destroystream(NPP npp, NPStream *pstream, NPError reason);
 
-void
+void NP_CALLBACK
 _status(NPP npp, const char *message);
 
-void
+void NP_CALLBACK
 _memfree (void *ptr);
 
-uint32_t
+uint32_t NP_CALLBACK
 _memflush(uint32_t size);
 
-void
+void NP_CALLBACK
 _reloadplugins(NPBool reloadPages);
 
-void
+void NP_CALLBACK
 _invalidaterect(NPP npp, NPRect *invalidRect);
 
-void
+void NP_CALLBACK
 _invalidateregion(NPP npp, NPRegion invalidRegion);
 
-void
+void NP_CALLBACK
 _forceredraw(NPP npp);
 
-const char*
+const char* NP_CALLBACK
 _useragent(NPP npp);
 
-void*
+void* NP_CALLBACK
 _memalloc (uint32_t size);
 
 // Deprecated entry points for the old Java plugin.
-void* /* OJI type: JRIEnv* */
+void* NP_CALLBACK /* OJI type: JRIEnv* */
 _getJavaEnv();
 
-void* /* OJI type: jref */
+void* NP_CALLBACK /* OJI type: jref */
 _getJavaPeer(NPP npp);
 
-void
+void NP_CALLBACK
 _urlredirectresponse(NPP instance, void* notifyData, NPBool allow);
 
 } /* namespace parent */

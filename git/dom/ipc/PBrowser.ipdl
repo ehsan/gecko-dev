@@ -6,18 +6,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include protocol PBlob;
-include protocol PColorPicker;
 include protocol PContent;
+include protocol PContentDialog;
 include protocol PDocumentRenderer;
 include protocol PContentPermissionRequest;
-include protocol PFilePicker;
 include protocol PRenderFrame;
 include protocol POfflineCacheUpdate;
 include protocol PIndexedDB;
 include DOMTypes;
 include JavaScriptTypes;
 include URIParams;
-include PContentPermission;
 
 
 using class IPC::Principal from "mozilla/dom/PermissionMessageUtils.h";
@@ -47,7 +45,7 @@ using class mozilla::WidgetTouchEvent from "ipc/nsGUIEventIPC.h";
 using struct mozilla::dom::RemoteDOMEvent from "mozilla/dom/TabMessageUtils.h";
 using mozilla::dom::ScreenOrientation from "mozilla/dom/ScreenOrientation.h";
 using struct mozilla::layers::TextureFactoryIdentifier from "mozilla/layers/CompositorTypes.h";
-using mozilla::CSSPoint from "Units.h";
+using mozilla::CSSIntPoint from "Units.h";
 using mozilla::CSSToScreenScale from "Units.h";
 
 namespace mozilla {
@@ -57,10 +55,9 @@ intr protocol PBrowser
 {
     manager PContent;
 
-    manages PColorPicker;
+    manages PContentDialog;
     manages PDocumentRenderer;
     manages PContentPermissionRequest;
-    manages PFilePicker;
     manages PRenderFrame;
     manages POfflineCacheUpdate;
     manages PIndexedDB;
@@ -128,13 +125,11 @@ parent:
      *  offset       Starting offset of the change
      *  end          Ending offset of the range deleted
      *  newEnd       New ending offset after insertion
-     *  causedByComposition true if the change is caused by composition
      *
      *  for insertion, offset == end
      *  for deletion, offset == newEnd
      */
-    NotifyIMETextChange(uint32_t offset, uint32_t end, uint32_t newEnd,
-                        bool causedByComposition);
+    NotifyIMETextChange(uint32_t offset, uint32_t end, uint32_t newEnd);
 
     /**
      * Notifies chrome that there is a IME compostion rect updated
@@ -152,10 +147,8 @@ parent:
      *  seqno        Current seqno value on the content side
      *  anchor       Offset where the selection started
      *  focus        Offset where the caret is
-     *  causedByComposition true if the change is caused by composition
      */
-    NotifyIMESelection(uint32_t seqno, uint32_t anchor, uint32_t focus,
-                       bool causedByComposition);
+    NotifyIMESelection(uint32_t seqno, uint32_t anchor, uint32_t focus);
 
     /**
      * Notifies chrome to refresh its text cache 
@@ -226,17 +219,13 @@ parent:
     HideTooltip();
 
     /**
-     * Create an asynchronous color picker on the parent side,
-     * but don't open it yet.
-     */
-    PColorPicker(nsString title, nsString initialColor);
-
-    /**
      * Initiates an asynchronous request for permission for the
      * provided principal.
      *
-     * @param aRequests
-     *   The array of permissions to request.
+     * @param aType
+     *   The type of permission to request.
+     * @param aAccess
+     *   Access type. "read" for example.
      * @param aPrincipal
      *   The principal of the request.
      *
@@ -244,9 +233,10 @@ parent:
      *       principals that can live in the content process should
      *       provided.
      */
-    PContentPermissionRequest(PermissionRequest[] aRequests, Principal aPrincipal);
+    PContentPermissionRequest(nsCString aType, nsCString aAccess, Principal principal);
 
-    PFilePicker(nsString aTitle, int16_t aMode);
+    PContentDialog(uint32_t aType, nsCString aName, nsCString aFeatures,
+                   int32_t[] aIntParams, nsString[] aStringParams);
 
     /**
      * Create a layout frame (encapsulating a remote layer tree) for
@@ -352,35 +342,28 @@ child:
 
     UpdateDimensions(nsRect rect, nsIntSize size, ScreenOrientation orientation) compress;
 
-    UpdateFrame(FrameMetrics frame);
-
-    /**
-     * Acknowledge the receipt of a scroll offset update from the content
-     * process. This is used to manage concurrent scroll updates from many
-     * sources.
-     */
-    AcknowledgeScrollUpdate(ViewID aScrollId, uint32_t aScrollGeneration);
+    UpdateFrame(FrameMetrics frame) compress;
 
     /**
      * Requests handling of a double tap. |point| is in CSS pixels, relative to
      * the scroll offset. This message is expected to round-trip back to
      * ZoomToRect() with a rect indicating where we should zoom to.
      */
-    HandleDoubleTap(CSSPoint point, ScrollableLayerGuid aGuid);
+    HandleDoubleTap(CSSIntPoint point);
 
     /**
      * Requests handling of a single tap. |point| is in CSS pixels, relative to
      * the scroll offset. This message is expected to send a "mousedown" and
      * "mouseup" series of events at this point.
      */
-    HandleSingleTap(CSSPoint point, ScrollableLayerGuid aGuid);
+    HandleSingleTap(CSSIntPoint point);
 
     /**
      * Requests handling of a long tap. |point| is in CSS pixels, relative to
      * the scroll offset. This message is expected to send a "contextmenu"
      * events at this point.
      */
-    HandleLongTap(CSSPoint point, ScrollableLayerGuid aGuid);
+    HandleLongTap(CSSIntPoint point);
 
     /**
      * Requests handling of releasing a long tap. |aPoint| is in CSS pixels,
@@ -389,7 +372,7 @@ child:
      * this message is expected to generate a "mousedown" and "mouseup"
      * series of events
      */
-    HandleLongTapUp(CSSPoint point, ScrollableLayerGuid aGuid);
+    HandleLongTapUp(CSSIntPoint point);
 
     /**
      * Notifies the child that the parent has begun or finished transforming
@@ -478,11 +461,6 @@ child:
      * to the parent.
      */
     SetUpdateHitRegion(bool aEnabled);
-
-    /**
-     * Tell the child to update its docShell's active state.
-     */
-    SetIsDocShellActive(bool aIsActive);
 
 /*
  * FIXME: write protocol!

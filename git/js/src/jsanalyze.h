@@ -60,6 +60,7 @@ class ScriptAnalysis
 
     /* --------- Bytecode analysis --------- */
 
+    bool localsAliasStack_:1;
     bool canTrackVars:1;
     bool argumentsContentsObserved_:1;
 
@@ -78,6 +79,12 @@ class ScriptAnalysis
 
     MOZ_WARN_UNUSED_RESULT
     bool analyzeBytecode(JSContext *cx);
+
+    /*
+     * True if there are any LOCAL opcodes aliasing values on the stack (above
+     * script_->nfixed).
+     */
+    bool localsAliasStack() { return localsAliasStack_; }
 
     bool isReachable(const jsbytecode *pc) { return maybeCode(pc); }
 
@@ -113,7 +120,8 @@ class ScriptAnalysis
     inline bool trackUseChain(const SSAValue &v);
 
     /*
-     * Get the use chain for an SSA value.
+     * Get the use chain for an SSA value. May be invalid for some opcodes in
+     * scripts where localsAliasStack(). You have been warned!
      */
     inline SSAUseChain *& useChain(const SSAValue &v);
 

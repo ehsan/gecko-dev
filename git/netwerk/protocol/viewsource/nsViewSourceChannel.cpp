@@ -71,8 +71,7 @@ nsViewSourceChannel::Init(nsIURI* uri)
 }
 
 nsresult
-nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc,
-                                nsIURI* aBaseURI)
+nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc)
 {
 
     nsresult rv;
@@ -92,10 +91,7 @@ nsViewSourceChannel::InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc,
     NS_ENSURE_SUCCESS(rv, rv);
     mOriginalURI = aURI;
     mIsSrcdocChannel = true;
-    nsCOMPtr<nsIInputStreamChannel> isc = do_QueryInterface(mChannel);
-    MOZ_ASSERT(isc);
-    isc->SetBaseURI(aBaseURI);
-
+    
     mChannel->SetOriginalURI(mOriginalURI);
     mHttpChannel = do_QueryInterface(mChannel);
     mHttpChannelInternal = do_QueryInterface(mChannel);
@@ -500,27 +496,6 @@ nsViewSourceChannel::GetIsSrcdocChannel(bool* aIsSrcdocChannel)
 {
     *aIsSrcdocChannel = mIsSrcdocChannel;
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::GetBaseURI(nsIURI** aBaseURI)
-{
-  if (mIsSrcdocChannel) {
-    nsCOMPtr<nsIInputStreamChannel> isc = do_QueryInterface(mChannel);
-    if (isc) {
-      return isc->GetBaseURI(aBaseURI);
-    }
-  }
-  *aBaseURI = mBaseURI;
-  NS_IF_ADDREF(*aBaseURI);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsViewSourceChannel::SetBaseURI(nsIURI* aBaseURI)
-{
-  mBaseURI = aBaseURI;
-  return NS_OK;
 }
 
 // nsIRequestObserver methods

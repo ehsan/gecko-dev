@@ -24,7 +24,6 @@
 #include "gfxImageSurface.h"            // for gfxImageSurface
 #include "gfxMatrix.h"                  // for gfxMatrix
 #include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxPrefs.h"                   // for gfxPrefs
 #include "gfxPoint.h"                   // for gfxIntSize, gfxPoint
 #include "gfxRect.h"                    // for gfxRect
 #include "gfxUtils.h"                   // for gfxUtils
@@ -46,6 +45,7 @@
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion, etc
 #include "nsTArray.h"                   // for nsAutoTArray
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #define PIXMAN_DONT_DEFINE_STDINT
 #include "pixman.h"                     // for pixman_f_transform, etc
 
@@ -415,7 +415,7 @@ MarkLayersHidden(Layer* aLayer, const nsIntRect& aClipRect,
   }
 
   BasicImplData* data = ToData(aLayer);
-  data->SetOperator(CompositionOp::OP_OVER);
+  data->SetOperator(gfxContext::OPERATOR_OVER);
   data->SetClipToVisibleRegion(false);
   data->SetDrawAtomically(false);
 
@@ -500,13 +500,13 @@ ApplyDoubleBuffering(Layer* aLayer, const nsIntRect& aVisibleRect)
   // using OPERATOR_SOURCE to ensure that alpha values in a transparent window
   // are cleared. This can also be faster than OPERATOR_OVER.
   if (!container) {
-    data->SetOperator(CompositionOp::OP_SOURCE);
+    data->SetOperator(gfxContext::OPERATOR_SOURCE);
     data->SetDrawAtomically(true);
   } else {
     if (container->UseIntermediateSurface() ||
         !container->ChildrenPartitionVisibleRegion(newVisibleRect)) {
       // We need to double-buffer this container.
-      data->SetOperator(CompositionOp::OP_SOURCE);
+      data->SetOperator(gfxContext::OPERATOR_SOURCE);
       container->ForceIntermediateSurface();
     } else {
       // Tell the children to clip to their visible regions so our assumption
@@ -543,7 +543,7 @@ static uint16_t sFrameCount = 0;
 void
 BasicLayerManager::RenderDebugOverlay()
 {
-  if (!gfxPrefs::DrawFrameCounter()) {
+  if (!gfxPlatform::DrawFrameCounter()) {
     return;
   }
 
@@ -625,16 +625,6 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
     }
 
     PaintLayer(mTarget, mRoot, aCallback, aCallbackData, nullptr);
-    if (!mRegionToClear.IsEmpty()) {
-      AutoSetOperator op(mTarget, gfxContext::OPERATOR_CLEAR);
-      nsIntRegionRectIterator iter(mRegionToClear);
-      const nsIntRect *r;
-      while ((r = iter.Next())) {
-        mTarget->NewPath();
-        mTarget->Rectangle(gfxRect(r->x, r->y, r->width, r->height));
-        mTarget->Fill();
-      }
-    }
     if (mWidget) {
       FlashWidgetUpdateArea(mTarget);
     }
@@ -674,7 +664,7 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 void
 BasicLayerManager::FlashWidgetUpdateArea(gfxContext *aContext)
 {
-  if (gfxPrefs::WidgetUpdateFlashing()) {
+  if (gfxPlatform::GetPlatform()->WidgetUpdateFlashing()) {
     float r = float(rand()) / RAND_MAX;
     float g = float(rand()) / RAND_MAX;
     float b = float(rand()) / RAND_MAX;
@@ -834,7 +824,7 @@ BasicLayerManager::PaintSelfOrChildren(PaintLayerContext& aPaintContext,
           aPaintContext.mCallback, aPaintContext.mCallbackData,
           aPaintContext.mReadback);
     } else {
-      data->DeprecatedPaint(aGroupTarget, aPaintContext.mLayer->GetMaskLayer());
+      data->Paint(aGroupTarget, aPaintContext.mLayer->GetMaskLayer());
     }
   } else {
     ReadbackProcessor readback;
@@ -871,10 +861,8 @@ BasicLayerManager::FlushGroup(PaintLayerContext& aPaintContext, bool aNeedsClipT
       gfxUtils::ClipToRegion(aPaintContext.mTarget,
                              aPaintContext.mLayer->GetEffectiveVisibleRegion());
     }
-
-    CompositionOp op = GetEffectiveOperator(aPaintContext.mLayer);
-    AutoSetOperator setOperator(aPaintContext.mTarget, ThebesOp(op));
-
+    BasicContainerLayer* container = static_cast<BasicContainerLayer*>(aPaintContext.mLayer);
+    AutoSetOperator setOperator(aPaintContext.mTarget, container->GetOperator());
     PaintWithMask(aPaintContext.mTarget, aPaintContext.mLayer->GetEffectiveOpacity(),
                   aPaintContext.mLayer->GetMaskLayer());
   }
@@ -908,7 +896,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
   bool needsClipToVisibleRegion =
     data->GetClipToVisibleRegion() && !aLayer->AsThebesLayer();
   NS_ASSERTION(needsGroup || !aLayer->GetFirstChild() ||
-               container->GetOperator() == CompositionOp::OP_OVER,
+               container->GetOperator() == gfxContext::OPERATOR_OVER,
                "non-OVER operator should have forced UseIntermediateSurface");
   NS_ASSERTION(!aLayer->GetFirstChild() || !aLayer->GetMaskLayer() ||
                container->UseIntermediateSurface(),

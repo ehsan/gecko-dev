@@ -139,7 +139,7 @@ class Wait(object):
 
         raise errors.TimeoutException(
             "Timed out after %s seconds%s" %
-            (round((self.clock.now - start), 1), message if message else ""),
+            ((self.clock.now - start), message if message else ''),
             cause=last_exc)
 
 def until_pred(clock, end):

@@ -28,6 +28,7 @@ ArchiveReader::Constructor(const GlobalObject& aGlobal,
                            ErrorResult& aError)
 {
   MOZ_ASSERT(aBlob);
+  MOZ_ASSERT(PrefEnabled());
 
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aGlobal.GetAsSupports());
   if (!window) {
@@ -68,6 +69,12 @@ ArchiveReader::~ArchiveReader()
 ArchiveReader::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return ArchiveReaderBinding::Wrap(aCx, aScope, this);
+}
+
+/* static */ bool
+ArchiveReader::PrefEnabled()
+{
+  return Preferences::GetBool("dom.archivereader.enabled", true);
 }
 
 nsresult

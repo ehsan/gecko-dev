@@ -109,8 +109,10 @@ MediaEngineWebRTCAudioSource::Allocate(const MediaEnginePrefs &aPrefs)
 {
   if (mState == kReleased) {
     if (mInitDone) {
-      ScopedCustomReleasePtr<webrtc::VoEHardware> ptrVoEHw(webrtc::VoEHardware::GetInterface(mVoiceEngine));
-      if (!ptrVoEHw || ptrVoEHw->SetRecordingDevice(mCapIndex)) {
+      webrtc::VoEHardware* ptrVoEHw = webrtc::VoEHardware::GetInterface(mVoiceEngine);
+      int res = ptrVoEHw->SetRecordingDevice(mCapIndex);
+      ptrVoEHw->Release();
+      if (res) {
         return NS_ERROR_FAILURE;
       }
       mState = kAllocated;
@@ -276,8 +278,9 @@ MediaEngineWebRTCAudioSource::Init()
   }
 
   // Check for availability.
-  ScopedCustomReleasePtr<webrtc::VoEHardware> ptrVoEHw(webrtc::VoEHardware::GetInterface(mVoiceEngine));
-  if (!ptrVoEHw || ptrVoEHw->SetRecordingDevice(mCapIndex)) {
+  webrtc::VoEHardware* ptrVoEHw = webrtc::VoEHardware::GetInterface(mVoiceEngine);
+  if (ptrVoEHw->SetRecordingDevice(mCapIndex)) {
+    ptrVoEHw->Release();
     return;
   }
 
@@ -286,18 +289,19 @@ MediaEngineWebRTCAudioSource::Init()
   // check here.
   bool avail = false;
   ptrVoEHw->GetRecordingDeviceStatus(avail);
+  ptrVoEHw->Release();
   if (!avail) {
     return;
   }
 #endif // MOZ_B2G
-
   // Set "codec" to PCM, 32kHz on 1 channel
-  ScopedCustomReleasePtr<webrtc::VoECodec> ptrVoECodec(webrtc::VoECodec::GetInterface(mVoiceEngine));
+  webrtc::VoECodec* ptrVoECodec;
+  webrtc::CodecInst codec;
+  ptrVoECodec = webrtc::VoECodec::GetInterface(mVoiceEngine);
   if (!ptrVoECodec) {
     return;
   }
 
-  webrtc::CodecInst codec;
   strcpy(codec.plname, ENCODING);
   codec.channels = CHANNELS;
   codec.rate = SAMPLE_RATE;
@@ -305,9 +309,11 @@ MediaEngineWebRTCAudioSource::Init()
   codec.pacsize = SAMPLE_LENGTH;
   codec.pltype = 0; // Default payload type
 
-  if (!ptrVoECodec->SetSendCodec(mChannel, codec)) {
-    mInitDone = true;
+  if (ptrVoECodec->SetSendCodec(mChannel, codec)) {
+    return;
   }
+
+  mInitDone = true;
 }
 
 void
@@ -346,10 +352,8 @@ MediaEngineWebRTCAudioSource::Shutdown()
     delete mNullTransport;
   }
 
-  mVoEProcessing = nullptr;
-  mVoENetwork = nullptr;
-  mVoERender = nullptr;
-  mVoEBase = nullptr;
+  mVoERender->Release();
+  mVoEBase->Release();
 
   mState = kReleased;
   mInitDone = false;

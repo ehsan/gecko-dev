@@ -414,7 +414,7 @@
       cur_offset = idx->offsets[0] - 1;
 
       /* sanity check */
-      if ( cur_offset != 0 )
+      if ( cur_offset >= idx->data_size )
       {
         FT_TRACE0(( "cff_index_get_pointers:"
                     " invalid first offset value %d set to zero\n",
@@ -432,11 +432,11 @@
         FT_ULong  next_offset = idx->offsets[n] - 1;
 
 
-        /* two sanity checks for invalid offset tables */
-        if ( next_offset < cur_offset )
+        /* empty slot + two sanity checks for invalid offset tables */
+        if ( next_offset == 0                                    ||
+             next_offset < cur_offset                            ||
+             ( next_offset >= idx->data_size && n < idx->count ) )
           next_offset = cur_offset;
-        else if ( next_offset > idx->data_size )
-          next_offset = idx->data_size;
 
         if ( !pool )
           t[n] = org_bytes + next_offset;

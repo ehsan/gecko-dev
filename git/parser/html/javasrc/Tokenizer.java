@@ -497,11 +497,11 @@ public class Tokenizer implements Locator {
 
     private boolean html4ModeCompatibleWithXhtml1Schemata;
 
+    private final boolean newAttributesEachTime;
+
     private int mappingLangToXmlLang;
 
     // ]NOCPP]
-
-    private final boolean newAttributesEachTime;
 
     private boolean shouldSuspend;
 
@@ -554,12 +554,8 @@ public class Tokenizer implements Locator {
         this.doctypeName = null;
         this.publicIdentifier = null;
         this.systemIdentifier = null;
-        // [NOCPP[
         this.attributes = null;
-        // ]NOCPP]
-        // CPPONLY: this.attributes = tokenHandler.HasBuilder() ? new HtmlAttributes(mappingLangToXmlLang) : null;
-        // CPPONLY: this.newAttributesEachTime = !tokenHandler.HasBuilder();
-        // CPPONLY: this.viewingXmlSource = viewingXmlSource;
+    // CPPONLY: this.viewingXmlSource = viewingXmlSource;
     }
 
     public void setInterner(Interner interner) {
@@ -1100,6 +1096,21 @@ public class Tokenizer implements Locator {
         errorHandler.warning(spe);
     }
 
+    /**
+     * 
+     */
+    private void resetAttributes() {
+        // [NOCPP[
+        if (newAttributesEachTime) {
+            // ]NOCPP]
+            attributes = null;
+            // [NOCPP[
+        } else {
+            attributes.clear(mappingLangToXmlLang);
+        }
+        // ]NOCPP]
+    }
+
     private void strBufToElementNameString() {
         // if (strBufOffset != -1) {
         // return ElementName.elementNameByBuffer(buf, strBufOffset, strBufLen);
@@ -1125,26 +1136,17 @@ public class Tokenizer implements Locator {
             // CPPONLY: if (!viewingXmlSource) {
             tokenHandler.endTag(tagName);
             // CPPONLY: }
-            // CPPONLY: if (newAttributesEachTime) {
-            // CPPONLY:   Portability.delete(attributes);
-            // CPPONLY:   attributes = null;
-            // CPPONLY: }
+            Portability.delete(attributes);
         } else {
             // CPPONLY: if (viewingXmlSource) {
-            // CPPONLY:   assert newAttributesEachTime;
-            // CPPONLY:   Portability.delete(attributes);
-            // CPPONLY:   attributes = null;
+            // CPPONLY: Portability.delete(attributes);
             // CPPONLY: } else {
             tokenHandler.startTag(tagName, attrs, selfClosing);
             // CPPONLY: }
         }
         tagName.release();
         tagName = null;
-        if (newAttributesEachTime) {
-            attributes = null;
-        } else {
-            attributes.clear(mappingLangToXmlLang);
-        }
+        resetAttributes();
         /*
          * The token handler may have called setStateAndEndTagExpectation
          * and changed stateSave since the start of this method.
@@ -6596,10 +6598,9 @@ public class Tokenizer implements Locator {
         }
         tokenHandler.endTokenization();
         if (attributes != null) {
-            // [NOCPP[
+            attributes.clear(mappingLangToXmlLang);
+            Portability.delete(attributes);
             attributes = null;
-            // ]NOCPP]
-            // CPPONLY: attributes.clear(mappingLangToXmlLang);
         }
     }
 
@@ -6679,12 +6680,16 @@ public class Tokenizer implements Locator {
             attributeName.release();
             attributeName = null;
         }
+        // [NOCPP[
         if (newAttributesEachTime) {
+            // ]NOCPP]
             if (attributes != null) {
                 Portability.delete(attributes);
                 attributes = null;
             }
+            // [NOCPP[
         }
+        // ]NOCPP]
     }
 
     public void loadState(Tokenizer other) throws SAXException {
@@ -7000,8 +7005,6 @@ public class Tokenizer implements Locator {
     
     void destructor() {
         // The translator will write refcount tracing stuff here
-        Portability.delete(attributes);
-        attributes = null;
     }
     
     // [NOCPP[

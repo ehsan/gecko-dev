@@ -10,7 +10,7 @@
 #include "nsXBLService.h"
 #include "nsXBLWindowKeyHandler.h"
 #include "nsIInputStream.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsHashtable.h"
 #include "nsIURI.h"
 #include "nsIDOMElement.h"
@@ -45,16 +45,16 @@
 #include "nsIScriptSecurityManager.h"
 #include "nsIScriptError.h"
 #include "nsXBLSerialize.h"
+#include "nsDOMEvent.h"
+#include "nsEventListenerManager.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPrototypeCache.h"
 #endif
 #include "nsIDOMEventListener.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/EventListenerManager.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Event.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -287,7 +287,7 @@ nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
 
   // Get the binding document; note that we don't hold onto it in this object
   // to avoid creating a cycle
-  Event* event = aEvent->InternalDOMEvent();
+  nsDOMEvent* event = aEvent->InternalDOMEvent();
   EventTarget* target = event->GetCurrentTarget();
   nsCOMPtr<nsIDocument> bindingDocument = do_QueryInterface(target);
   NS_ASSERTION(bindingDocument, "Event not targeted at document?!");
@@ -562,7 +562,7 @@ nsXBLService::AttachGlobalKeyHandler(EventTarget* aTarget)
       piTarget = doc; // We're a XUL keyset. Attach to our document.
   }
 
-  EventListenerManager* manager = piTarget->GetOrCreateListenerManager();
+  nsEventListenerManager* manager = piTarget->GetOrCreateListenerManager();
 
   if (!piTarget || !manager)
     return NS_ERROR_FAILURE;
@@ -579,15 +579,14 @@ nsXBLService::AttachGlobalKeyHandler(EventTarget* aTarget)
 
   // listen to these events
   manager->AddEventListenerByType(handler, NS_LITERAL_STRING("keydown"),
-                                  TrustedEventsAtSystemGroupBubble());
+                                  dom::TrustedEventsAtSystemGroupBubble());
   manager->AddEventListenerByType(handler, NS_LITERAL_STRING("keyup"),
-                                  TrustedEventsAtSystemGroupBubble());
+                                  dom::TrustedEventsAtSystemGroupBubble());
   manager->AddEventListenerByType(handler, NS_LITERAL_STRING("keypress"),
-                                  TrustedEventsAtSystemGroupBubble());
+                                  dom::TrustedEventsAtSystemGroupBubble());
 
   if (contentNode)
-    return contentNode->SetProperty(nsGkAtoms::listener,
-                                    handler.forget().take(),
+    return contentNode->SetProperty(nsGkAtoms::listener, handler.forget().get(),
                                     nsPropertyTable::SupportsDtorFunc, true);
 
   // The reference to the handler will be maintained by the event target,
@@ -613,7 +612,7 @@ nsXBLService::DetachGlobalKeyHandler(EventTarget* aTarget)
   if (doc)
     piTarget = do_QueryInterface(doc);
 
-  EventListenerManager* manager = piTarget->GetOrCreateListenerManager();
+  nsEventListenerManager* manager = piTarget->GetOrCreateListenerManager();
 
   if (!piTarget || !manager)
     return NS_ERROR_FAILURE;
@@ -624,11 +623,11 @@ nsXBLService::DetachGlobalKeyHandler(EventTarget* aTarget)
     return NS_ERROR_FAILURE;
 
   manager->RemoveEventListenerByType(handler, NS_LITERAL_STRING("keydown"),
-                                     TrustedEventsAtSystemGroupBubble());
+                                     dom::TrustedEventsAtSystemGroupBubble());
   manager->RemoveEventListenerByType(handler, NS_LITERAL_STRING("keyup"),
-                                     TrustedEventsAtSystemGroupBubble());
+                                     dom::TrustedEventsAtSystemGroupBubble());
   manager->RemoveEventListenerByType(handler, NS_LITERAL_STRING("keypress"),
-                                     TrustedEventsAtSystemGroupBubble());
+                                     dom::TrustedEventsAtSystemGroupBubble());
 
   contentNode->DeleteProperty(nsGkAtoms::listener);
 

@@ -140,19 +140,16 @@ let RemoteTabViewer = {
         list.removeItemAt(i);
     }
 
-    let seenURLs = new Set();
-    let localURLs = engine.getOpenURLs();
-
     for (let [guid, client] in Iterator(engine.getAllClients())) {
       // Create the client node, but don't add it in-case we don't show any tabs
       let appendClient = true;
-
+      let seenURLs = {};
       client.tabs.forEach(function({title, urlHistory, icon}) {
         let url = urlHistory[0];
-        if (!url || localURLs.has(url) || seenURLs.has(url)) {
+        if (engine.locallyOpenTabMatchesURL(url) || url in seenURLs)
           return;
-        }
-        seenURLs.add(url);
+
+        seenURLs[url] = null;
 
         if (appendClient) {
           let attrs = {

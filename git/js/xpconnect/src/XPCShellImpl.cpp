@@ -51,7 +51,6 @@
 #endif
 
 #ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #endif
 
@@ -69,7 +68,7 @@ public:
     ~XPCShellDirProvider() { }
 
     // The platform resource folder
-    void SetGREDir(nsIFile *greDir);
+    bool SetGREDir(const char *dir);
     void ClearGREDir() { mGREDir = nullptr; }
     // The application resource folder
     void SetAppDir(nsIFile *appFile);
@@ -121,19 +120,22 @@ GetLocationProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleV
     //XXX: your platform should really implement this
     return false;
 #else
-    JS::AutoFilename filename;
-    if (JS::DescribeScriptedCaller(cx, &filename) && filename.get()) {
+    JS::RootedScript script(cx);
+    JS_DescribeScriptedCaller(cx, &script, nullptr);
+    const char *filename = JS_GetScriptFilename(cx, script);
+
+    if (filename) {
         nsresult rv;
         nsCOMPtr<nsIXPConnect> xpc =
             do_GetService(kXPConnectServiceContractID, &rv);
 
 #if defined(XP_WIN)
         // convert from the system codepage to UTF-16
-        int bufferSize = MultiByteToWideChar(CP_ACP, 0, filename.get(),
+        int bufferSize = MultiByteToWideChar(CP_ACP, 0, filename,
                                              -1, nullptr, 0);
         nsAutoString filenameString;
         filenameString.SetLength(bufferSize);
-        MultiByteToWideChar(CP_ACP, 0, filename.get(),
+        MultiByteToWideChar(CP_ACP, 0, filename,
                             -1, (LPWSTR)filenameString.BeginWriting(),
                             filenameString.Length());
         // remove the null terminator
@@ -150,7 +152,7 @@ GetLocationProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleV
             start++;
         }
 #elif defined(XP_UNIX)
-        NS_ConvertUTF8toUTF16 filenameString(filename.get());
+        NS_ConvertUTF8toUTF16 filenameString(filename);
 #endif
 
         nsCOMPtr<nsIFile> location;
@@ -338,7 +340,8 @@ Load(JSContext *cx, unsigned argc, jsval *vp)
         }
         JS::CompileOptions options(cx);
         options.setUTF8(true)
-               .setFileAndLine(filename.ptr(), 1);
+               .setFileAndLine(filename.ptr(), 1)
+               .setPrincipals(gJSPrincipals);
         JS::RootedObject rootedObj(cx, obj);
         JSScript *script = JS::Compile(cx, rootedObj, options, file);
         fclose(file);
@@ -376,7 +379,7 @@ static bool
 Quit(JSContext *cx, unsigned argc, jsval *vp)
 {
     gExitCode = 0;
-    JS_ConvertArguments(cx, JS::CallArgsFromVp(argc, vp),"/ i", &gExitCode);
+    JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp),"/ i", &gExitCode);
 
     gQuitting = true;
 //    exit(0);
@@ -649,22 +652,21 @@ File(JSContext *cx, unsigned argc, Value *vp)
   return true;
 }
 
-static Value sScriptedInterruptCallback = UndefinedValue();
+static Value sScriptedOperationCallback = UndefinedValue();
 
 static bool
-XPCShellInterruptCallback(JSContext *cx)
+XPCShellOperationCallback(JSContext *cx)
 {
-    // If no interrupt callback was set by script, no-op.
-    if (sScriptedInterruptCallback.isUndefined())
+    // If no operation callback was set by script, no-op.
+    if (sScriptedOperationCallback.isUndefined())
         return true;
 
-    JSAutoCompartment ac(cx, &sScriptedInterruptCallback.toObject());
+    JSAutoCompartment ac(cx, &sScriptedOperationCallback.toObject());
     RootedValue rv(cx);
-    RootedValue callback(cx, sScriptedInterruptCallback);
-    if (!JS_CallFunctionValue(cx, JS::NullPtr(), callback, JS::HandleValueArray::empty(), &rv) ||
-        !rv.isBoolean())
+    if (!JS_CallFunctionValue(cx, nullptr, sScriptedOperationCallback,
+                              0, nullptr, rv.address()) || !rv.isBoolean())
     {
-        NS_WARNING("Scripted interrupt callback failed! Terminating script.");
+        NS_WARNING("Scripted operation callback failed! Terminating script.");
         JS_ClearPendingException(cx);
         return false;
     }
@@ -673,7 +675,7 @@ XPCShellInterruptCallback(JSContext *cx)
 }
 
 static bool
-SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
+SetOperationCallback(JSContext *cx, unsigned argc, jsval *vp)
 {
     // Sanity-check args.
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
@@ -682,9 +684,9 @@ SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    // Allow callers to remove the interrupt callback by passing undefined.
+    // Allow callers to remove the operation callback by passing undefined.
     if (args[0].isUndefined()) {
-        sScriptedInterruptCallback = UndefinedValue();
+        sScriptedOperationCallback = UndefinedValue();
         return true;
     }
 
@@ -694,7 +696,7 @@ SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    sScriptedInterruptCallback = args[0];
+    sScriptedOperationCallback = args[0];
 
     return true;
 }
@@ -733,7 +735,7 @@ static const JSFunctionSpec glob_functions[] = {
     JS_FS("btoa",            Btoa,           1,0),
     JS_FS("Blob",            Blob,           2,JSFUN_CONSTRUCTOR),
     JS_FS("File",            File,           2,JSFUN_CONSTRUCTOR),
-    JS_FS("setInterruptCallback", SetInterruptCallback, 1,0),
+    JS_FS("setOperationCallback", SetOperationCallback, 1,0),
     JS_FS("simulateActivityCallback", SimulateActivityCallback, 1,0),
     JS_FS_END
 };
@@ -742,7 +744,7 @@ static bool
 env_setProperty(JSContext *cx, HandleObject obj, HandleId id, bool strict, MutableHandleValue vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
-#if !defined SOLARIS
+#if !defined XP_OS2 && !defined SOLARIS
     JSString *valstr;
     JS::Rooted<JSString*> idstr(cx);
     int rv;
@@ -788,7 +790,7 @@ env_setProperty(JSContext *cx, HandleObject obj, HandleId id, bool strict, Mutab
         return false;
     }
     vp.set(STRING_TO_JSVAL(valstr));
-#endif /* !defined SOLARIS */
+#endif /* !defined XP_OS2 && !defined SOLARIS */
     return true;
 }
 
@@ -923,7 +925,8 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
 
         JS::CompileOptions options(cx);
         options.setUTF8(true)
-               .setFileAndLine(filename, 1);
+               .setFileAndLine(filename, 1)
+               .setPrincipals(gJSPrincipals);
         script = JS::Compile(cx, obj, options, file);
         if (script && !compileOnly)
             (void)JS_ExecuteScript(cx, obj, script, result.address());
@@ -959,7 +962,8 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
         /* Clear any pending exception from previous failed compiles.  */
         JS_ClearPendingException(cx);
         JS::CompileOptions options(cx);
-        options.setFileAndLine("typein", startline);
+        options.setFileAndLine("typein", startline)
+               .setPrincipals(gJSPrincipals);
         script = JS_CompileScript(cx, obj, buffer, strlen(buffer), options);
         if (script) {
             JSErrorReporter older;
@@ -1036,11 +1040,11 @@ ProcessArgsForCompartment(JSContext *cx, char **argv, int argc)
             ContextOptionsRef(cx).toggleExtraWarnings();
             break;
         case 'I':
-            RuntimeOptionsRef(cx).toggleIon()
+            ContextOptionsRef(cx).toggleIon()
                                  .toggleAsmJS();
             break;
         case 'n':
-            RuntimeOptionsRef(cx).toggleTypeInference();
+            ContextOptionsRef(cx).toggleTypeInference();
             break;
         }
     }
@@ -1089,7 +1093,7 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
      * Create arguments early and define it to root it, so it's safe from any
      * GC calls nested below, and so it is available to -f <file> arguments.
      */
-    argsObj = JS_NewArrayObject(cx, 0);
+    argsObj = JS_NewArrayObject(cx, 0, nullptr);
     if (!argsObj)
         return 1;
     if (!JS_DefineProperty(cx, obj, "arguments", OBJECT_TO_JSVAL(argsObj),
@@ -1155,8 +1159,9 @@ ProcessArgs(JSContext *cx, JS::Handle<JSObject*> obj, char **argv, int argc, XPC
                 return usage();
             }
 
-            JS_EvaluateScript(cx, obj, argv[i], strlen(argv[i]), "-e", 1,
-                              rval.address());
+            JS_EvaluateScriptForPrincipals(cx, obj, gJSPrincipals, argv[i],
+                                           strlen(argv[i]), "-e", 1,
+                                           rval.address());
 
             isInteractive = false;
             break;
@@ -1261,8 +1266,8 @@ NS_IMETHODIMP
 nsXPCFunctionThisTranslator::TranslateThis(nsISupports *aInitialThis,
                                            nsISupports **_retval)
 {
-    nsCOMPtr<nsISupports> temp = aInitialThis;
-    temp.forget(_retval);
+    NS_IF_ADDREF(aInitialThis);
+    *_retval = aInitialThis;
     return NS_OK;
 }
 
@@ -1278,7 +1283,7 @@ XPCShellErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
         gExitCode = EXITCODE_RUNTIME_ERROR;
 
     // Delegate to the system error reporter for heavy lifting.
-    xpc::SystemErrorReporter(cx, message, rep);
+    xpc::SystemErrorReporterExternal(cx, message, rep);
 }
 
 static bool
@@ -1359,32 +1364,16 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
 
     dirprovider.SetAppFile(appFile);
 
-    nsCOMPtr<nsIFile> greDir;
     if (argc > 1 && !strcmp(argv[1], "-g")) {
         if (argc < 3)
             return usage();
 
-        rv = XRE_GetFileFromPath(argv[2], getter_AddRefs(greDir));
-        if (NS_FAILED(rv)) {
-            printf("Couldn't use given GRE dir.\n");
+        if (!dirprovider.SetGREDir(argv[2])) {
+            printf("SetGREDir failed.\n");
             return 1;
         }
-
-        dirprovider.SetGREDir(greDir);
-
         argc -= 2;
         argv += 2;
-    } else {
-        nsAutoString workingDir;
-        if (!GetCurrentWorkingDirectory(workingDir)) {
-            printf("GetCurrentWorkingDirectory failed.\n");
-            return 1;
-        }
-        rv = NS_NewLocalFile(workingDir, true, getter_AddRefs(greDir));
-        if (NS_FAILED(rv)) {
-            printf("NS_NewLocalFile failed.\n");
-            return 1;
-        }
     }
 
     if (argc > 1 && !strcmp(argv[1], "-a")) {
@@ -1422,15 +1411,10 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
     }
 
 #ifdef MOZ_CRASHREPORTER
-    const char *val = getenv("MOZ_CRASHREPORTER");
-    if (val && *val) {
-        rv = CrashReporter::SetExceptionHandler(greDir, true);
-        if (NS_FAILED(rv)) {
-            printf("CrashReporter::SetExceptionHandler failed!\n");
-            return 1;
-        }
-        MOZ_ASSERT(CrashReporter::GetEnabled());
-    }
+    // This is needed during startup and also shutdown, so keep it out
+    // of the nested scope.
+    // Special exception: will remain usable after NS_ShutdownXPCOM
+    nsCOMPtr<nsICrashReporter> crashReporter;
 #endif
 
     {
@@ -1458,6 +1442,14 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
             return 1;
         }
 
+#ifdef MOZ_CRASHREPORTER
+        const char *val = getenv("MOZ_CRASHREPORTER");
+        crashReporter = do_GetService("@mozilla.org/toolkit/crash-reporter;1");
+        if (val && *val) {
+            crashReporter->SetEnabled(true);
+        }
+#endif
+
         nsCOMPtr<nsIJSRuntimeService> rtsvc = do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
         // get the JSRuntime from the runtime svc
         if (!rtsvc) {
@@ -1472,16 +1464,19 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
 
         rtsvc->RegisterContextCallback(ContextCallback);
 
-        // Override the default XPConnect interrupt callback. We could store the
+        // Override the default XPConnect operation callback. We could store the
         // old one and restore it before shutting down, but there's not really a
         // reason to bother.
-        JS_SetInterruptCallback(rt, XPCShellInterruptCallback);
+        JS_SetOperationCallback(rt, XPCShellOperationCallback);
 
         cx = JS_NewContext(rt, 8192);
         if (!cx) {
             printf("JS_NewContext failed!\n");
             return 1;
         }
+
+        // Ion not enabled yet here because of bug 931861.
+        JS::ContextOptionsRef(cx).setBaseline(true);
 
         argc--;
         argv++;
@@ -1587,9 +1582,9 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
             JS_DefineProperty(cx, glob, "__LOCATION__", JSVAL_VOID,
                               GetLocationProperty, nullptr, 0);
 
-            JS_AddValueRoot(cx, &sScriptedInterruptCallback);
+            JS_AddValueRoot(cx, &sScriptedOperationCallback);
             result = ProcessArgs(cx, glob, argv, argc, &dirprovider);
-            JS_RemoveValueRoot(cx, &sScriptedInterruptCallback);
+            JS_RemoveValueRoot(cx, &sScriptedOperationCallback);
 
             JS_DropPrincipals(rt, gJSPrincipals);
             JS_SetAllNonReservedSlotsToUndefined(cx, glob);
@@ -1623,8 +1618,10 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
 
 #ifdef MOZ_CRASHREPORTER
     // Shut down the crashreporter service to prevent leaking some strings it holds.
-    if (CrashReporter::GetEnabled())
-        CrashReporter::UnsetExceptionHandler();
+    if (crashReporter) {
+        crashReporter->SetEnabled(false);
+        crashReporter = nullptr;
+    }
 #endif
 
     NS_LogTerm();
@@ -1632,10 +1629,11 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
     return result;
 }
 
-void
-XPCShellDirProvider::SetGREDir(nsIFile* greDir)
+bool
+XPCShellDirProvider::SetGREDir(const char *dir)
 {
-    mGREDir = greDir;
+    nsresult rv = XRE_GetFileFromPath(dir, getter_AddRefs(mGREDir));
+    return NS_SUCCEEDED(rv);
 }
 
 void
@@ -1689,7 +1687,7 @@ XPCShellDirProvider::GetFile(const char *prop, bool *persistent,
             NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("defaults"))) ||
             NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("pref"))))
             return NS_ERROR_FAILURE;
-        file.forget(result);
+        NS_ADDREF(*result = file);
         return NS_OK;
     }
 

@@ -281,21 +281,9 @@ public:
    */
   virtual nsIAtom* OriginOfLastScroll() = 0;
   /**
-   * Returns the current generation counter for the scroll. This counter
-   * increments every time the scroll position is set.
+   * Clears the "origin of last scroll" property stored in this frame.
    */
-  virtual uint32_t CurrentScrollGeneration() = 0;
-  /**
-   * Clears the "origin of last scroll" property stored in this frame, if
-   * the generation counter passed in matches the current scroll generation
-   * counter.
-   */
-  virtual void ResetOriginIfScrollAtGeneration(uint32_t aGeneration) = 0;
-  /**
-   * Determine whether it is desirable to be able to asynchronously scroll this
-   * scroll frame.
-   */
-  virtual bool WantAsyncScroll() const = 0;
+  virtual void ResetOriginOfLastScroll() = 0;
 };
 
 #endif

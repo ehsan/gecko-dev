@@ -91,8 +91,6 @@ private:
   void SetIsFake(bool aIsFake);
   void SetState(int32_t aState);
   static void FormatVolumeIOThread(const nsCString& aVolume);
-  static void MountVolumeIOThread(const nsCString& aVolume);
-  static void UnmountVolumeIOThread(const nsCString& aVolume);
 
   nsString mName;
   nsString mMountPoint;

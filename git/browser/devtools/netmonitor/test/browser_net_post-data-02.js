@@ -3,7 +3,7 @@
 
 /**
  * Tests if the POST requests display the correct information in the UI,
- * for raw payloads with attached content-type headers.
+ * even for raw payloads without attached content-type headers.
  */
 
 function test() {
@@ -55,7 +55,6 @@ function test() {
           "baz", "The second query param name was incorrect.");
         is(postScope.querySelectorAll(".variables-view-variable .value")[1].getAttribute("value"),
           "\"123\"", "The second query param value was incorrect.");
-
         teardown(aMonitor).then(finish);
       });
     });

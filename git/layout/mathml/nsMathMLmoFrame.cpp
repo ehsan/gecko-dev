@@ -33,8 +33,6 @@ nsMathMLmoFrame::~nsMathMLmoFrame()
 static const char16_t kInvisibleComma = char16_t(0x200B); // a.k.a. ZERO WIDTH SPACE
 static const char16_t kApplyFunction  = char16_t(0x2061);
 static const char16_t kInvisibleTimes = char16_t(0x2062);
-static const char16_t kInvisibleSeparator = char16_t(0x2063);
-static const char16_t kInvisiblePlus = char16_t(0x2064);
 
 eMathMLFrameType
 nsMathMLmoFrame::GetMathMLFrameType()
@@ -125,8 +123,6 @@ nsMathMLmoFrame::ProcessTextData()
   if ((length == 1) && 
       (ch == kInvisibleComma || 
        ch == kApplyFunction  || 
-       ch == kInvisibleSeparator ||
-       ch == kInvisiblePlus ||
        ch == kInvisibleTimes)) {
     mFlags |= NS_MATHML_OPERATOR_INVISIBLE;
   }
@@ -924,7 +920,7 @@ nsMathMLmoFrame::TransmitAutomaticData()
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmoFrame::SetInitialChildList(ChildListID     aListID,
                                      nsFrameList&    aChildList)
 {
@@ -937,7 +933,7 @@ nsMathMLmoFrame::SetInitialChildList(ChildListID     aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmoFrame::Reflow(nsPresContext*          aPresContext,
                         nsHTMLReflowMetrics&     aDesiredSize,
                         const nsHTMLReflowState& aReflowState,
@@ -1025,7 +1021,7 @@ nsMathMLmoFrame::GetIntrinsicWidthMetrics(nsRenderingContext *aRenderingContext,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmoFrame::AttributeChanged(int32_t         aNameSpaceID,
                                   nsIAtom*        aAttribute,
                                   int32_t         aModType)

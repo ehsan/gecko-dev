@@ -109,9 +109,6 @@ MobileMessageCallback::NotifyError(int32_t aError, bool aAsync)
     case nsIMobileMessageCallback::NON_ACTIVE_SIM_CARD_ERROR:
       errorStr = NS_LITERAL_STRING("NonActiveSimCardError");
       break;
-    case nsIMobileMessageCallback::STORAGE_FULL_ERROR:
-      errorStr = NS_LITERAL_STRING("StorageFullError");
-      break;
     default: // SUCCESS_NO_ERROR is handled above.
       MOZ_CRASH("Should never get here!");
   }
@@ -170,7 +167,7 @@ MobileMessageCallback::NotifyMessageDeleted(bool *aDeleted, uint32_t aSize)
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   JS::Rooted<JSObject*> deleteArrayObj(cx,
-                                       JS_NewArrayObject(cx, aSize));
+                                       JS_NewArrayObject(cx, aSize, nullptr));
   for (uint32_t i = 0; i < aSize; i++) {
     JS_SetElement(cx, deleteArrayObj, i, aDeleted[i]);
   }

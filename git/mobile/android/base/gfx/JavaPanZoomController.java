@@ -11,7 +11,7 @@ import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.EventDispatcher;
+import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
@@ -1354,11 +1354,10 @@ class JavaPanZoomController
 
     @Override
     public boolean onSingleTapUp(MotionEvent motionEvent) {
-        // When double-tapping is allowed, we have to wait to see if this is
-        // going to be a double-tap.
+        // When zooming is enabled, we wait to see if there's a double-tap.
         // However, if mMediumPress is true then we know there will be no
         // double-tap so we treat this as a click.
-        if (mMediumPress || !mTarget.getZoomConstraints().getAllowDoubleTapZoom()) {
+        if (mMediumPress || !mTarget.getZoomConstraints().getAllowZoom()) {
             sendPointToGecko("Gesture:SingleTap", motionEvent);
         }
         // return false because we still want to get the ACTION_UP event that triggers this
@@ -1368,7 +1367,7 @@ class JavaPanZoomController
     @Override
     public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
         // When zooming is disabled, we handle this in onSingleTapUp.
-        if (mTarget.getZoomConstraints().getAllowDoubleTapZoom()) {
+        if (mTarget.getZoomConstraints().getAllowZoom()) {
             sendPointToGecko("Gesture:SingleTap", motionEvent);
         }
         return true;
@@ -1376,7 +1375,7 @@ class JavaPanZoomController
 
     @Override
     public boolean onDoubleTap(MotionEvent motionEvent) {
-        if (mTarget.getZoomConstraints().getAllowDoubleTapZoom()) {
+        if (mTarget.getZoomConstraints().getAllowZoom()) {
             sendPointToGecko("Gesture:DoubleTap", motionEvent);
         }
         return true;

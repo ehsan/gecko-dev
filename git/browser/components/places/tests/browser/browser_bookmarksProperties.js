@@ -173,8 +173,6 @@ gTests.push({
   },
 
   selectNode: function(tree) {
-    tree.selectItems([PlacesUtils.unfiledBookmarksFolderId]);
-    PlacesUtils.asContainer(tree.selectedNode).containerOpen = true;
     tree.selectItems([this._itemId]);
     is(tree.selectedNode.itemId, this._itemId, "Bookmark has been selected");
   },
@@ -331,8 +329,6 @@ gTests.push({
   },
 
   selectNode: function(tree) {
-    tree.selectItems([PlacesUtils.unfiledBookmarksFolderId]);
-    PlacesUtils.asContainer(tree.selectedNode).containerOpen = true;
     tree.selectItems([this._itemId]);
     is(tree.selectedNode.itemId, this._itemId, "Bookmark has been selected");
   },

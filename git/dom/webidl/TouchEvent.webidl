@@ -6,7 +6,7 @@
 
 interface WindowProxy;
 
-[Func="mozilla::dom::TouchEvent::PrefEnabled"]
+[PrefControlled]
 interface TouchEvent : UIEvent {
   readonly attribute TouchList touches;
   readonly attribute TouchList targetTouches;

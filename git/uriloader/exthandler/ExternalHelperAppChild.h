@@ -8,10 +8,7 @@
 #define mozilla_dom_ExternalHelperAppChild_h
 
 #include "mozilla/dom/PExternalHelperAppChild.h"
-#include "nsExternalHelperAppService.h"
 #include "nsIStreamListener.h"
-
-class nsIDivertableChannel;
 
 namespace mozilla {
 namespace dom {
@@ -29,13 +26,11 @@ public:
 
     // Give the listener a real nsExternalAppHandler to complete processing on
     // the child.
-    void SetHandler(nsExternalAppHandler *handler) { mHandler = handler; }
+    void SetHandler(nsIStreamListener *handler) { mHandler = handler; }
 
     virtual bool RecvCancel(const nsresult& aStatus) MOZ_OVERRIDE;
 private:
-    nsresult DivertToParent(nsIDivertableChannel *divertable, nsIRequest *request);
-
-    nsRefPtr<nsExternalAppHandler> mHandler;
+    nsCOMPtr<nsIStreamListener> mHandler;
     nsresult mStatus;
 };
 

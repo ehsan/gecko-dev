@@ -7,7 +7,6 @@ const prefs = require("sdk/preferences/service");
 const { Loader } = require('sdk/test/loader');
 const { resolveURI } = require('toolkit/loader');
 const { rootURI } = require("@loader/options");
-const { usingJSON } = require('sdk/l10n/json/core');
 
 const PREF_MATCH_OS_LOCALE  = "intl.locale.matchOS";
 const PREF_SELECTED_LOCALE  = "general.useragent.locale";
@@ -68,7 +67,7 @@ exports.testExactMatching = createTest("fr-FR", function(assert, loader, done) {
                    "Value with placeholder");
   assert.equal(_("Placeholder %s", "works"), "Placeholder works",
                    "Key without value but with placeholder");
-  assert.equal(_("Placeholders %2s %1s %s.", "working", "are", "correctly"),
+  assert.equal(_("Placeholders %2s %1s %s.", "working", "are", "correctly"), 
                    "Placeholders are working correctly.",
                    "Multiple placeholders");
 
@@ -167,10 +166,6 @@ exports.testEnUsLocaleName = createTest("en-US", function(assert, loader, done) 
 
   done();
 });
-
-exports.testUsingJSON = function(assert) {
-  assert.equal(usingJSON, true, 'using json');
-}
 
 exports.testShortLocaleName = createTest("eo", function(assert, loader, done) {
   let _ = loader.require("sdk/l10n").get;

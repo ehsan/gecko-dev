@@ -8,12 +8,15 @@
 /*
  * Double hashing, a la Knuth 6.
  */
-#include "mozilla/fallible.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Types.h"
 #include "nscore.h"
 
-#if defined(__GNUC__) && defined(__i386__)
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#if defined(__GNUC__) && defined(__i386__) && !defined(XP_OS2)
 #define PL_DHASH_FASTCALL __attribute__ ((regparm (3),stdcall))
 #elif defined(XP_WIN)
 #define PL_DHASH_FASTCALL __fastcall
@@ -400,22 +403,11 @@ PL_DHashTableDestroy(PLDHashTable *table);
  * Initialize table with ops, data, entrySize, and capacity.  Capacity is a
  * guess for the smallest table size at which the table will usually be less
  * than 75% loaded (the table will grow or shrink as needed; capacity serves
- * only to avoid inevitable early growth from PL_DHASH_MIN_SIZE).  This will
- * crash if it can't allocate enough memory, or if entrySize or capacity are
- * too large.
- */
-NS_COM_GLUE void
-PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops, void *data,
-                  uint32_t entrySize, uint32_t capacity);
-
-/*
- * Initialize table. This is the same as PL_DHashTableInit, except that it
- * returns a boolean indicating success, rather than crashing on failure.
+ * only to avoid inevitable early growth from PL_DHASH_MIN_SIZE).
  */
 NS_COM_GLUE bool
 PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops, void *data,
-                  uint32_t entrySize, uint32_t capacity,
-                  const mozilla::fallible_t& ) MOZ_WARN_UNUSED_RESULT;
+                  uint32_t entrySize, uint32_t capacity);
 
 /*
  * Finalize table's data, free its entry storage using table->ops->freeTable,
@@ -581,6 +573,10 @@ PL_DHashMarkTableImmutable(PLDHashTable *table);
 
 NS_COM_GLUE void
 PL_DHashTableDumpMeter(PLDHashTable *table, PLDHashEnumerator dump, FILE *fp);
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* pldhash_h___ */

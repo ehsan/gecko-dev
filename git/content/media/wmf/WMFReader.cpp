@@ -24,9 +24,7 @@
 
 #include "MediaDecoder.h"
 #include "VideoUtils.h"
-#include "gfx2DGlue.h"
 
-using namespace mozilla::gfx;
 using mozilla::layers::Image;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
@@ -78,6 +76,28 @@ WMFReader::~WMFReader()
   DebugOnly<HRESULT> hr = wmf::MFShutdown();
   NS_ASSERTION(SUCCEEDED(hr), "MFShutdown failed");
   MOZ_COUNT_DTOR(WMFReader);
+}
+
+void
+WMFReader::OnDecodeThreadStart()
+{
+  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+
+  // XXX WebAudio will call this on the main thread so CoInit will definitely
+  // fail. You cannot change the concurrency model once already set.
+  // The main thread will continue to be STA, which seems to work, but MSDN
+  // recommends that MTA be used.
+  mCOMInitialized = SUCCEEDED(CoInitializeEx(0, COINIT_MULTITHREADED));
+  NS_ENSURE_TRUE_VOID(mCOMInitialized);
+}
+
+void
+WMFReader::OnDecodeThreadFinish()
+{
+  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  if (mCOMInitialized) {
+    CoUninitialize();
+  }
 }
 
 bool
@@ -294,7 +314,7 @@ WMFReader::ConfigureVideoFrameGeometry(IMFMediaType* aMediaType)
   nsIntSize frameSize = nsIntSize(width, height);
   nsIntSize displaySize = nsIntSize(pictureRegion.width, pictureRegion.height);
   ScaleDisplayByAspectRatio(displaySize, float(aspectNum) / float(aspectDenom));
-  if (!IsValidVideoRegion(frameSize, pictureRegion, displaySize)) {
+  if (!VideoInfo::ValidateVideoRegion(frameSize, pictureRegion, displaySize)) {
     // Video track's frame sizes will overflow. Ignore the video track.
     return E_FAIL;
   }
@@ -710,7 +730,7 @@ WMFReader::CreateBasicVideoFrame(IMFSample* aSample,
                                    b,
                                    false,
                                    -1,
-                                   ToIntRect(mPictureRegion));
+                                   mPictureRegion);
   if (twoDBuffer) {
     twoDBuffer->Unlock2D();
   } else {
@@ -753,7 +773,7 @@ WMFReader::CreateD3DVideoFrame(IMFSample* aSample,
                                             image.forget(),
                                             false,
                                             -1,
-                                            ToIntRect(mPictureRegion));
+                                            mPictureRegion);
 
   NS_ENSURE_TRUE(v, E_FAIL);
   *aOutVideoData = v;

@@ -46,7 +46,7 @@
 #include "mozilla/Mutex.h"
 #include "SpecialSystemDirectory.h"
 
-#include "nsTraceRefcnt.h"
+#include "nsTraceRefcntImpl.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
@@ -592,7 +592,7 @@ struct PRFilePrivate {
 
 // copied from nsprpub/pr/src/{io/prfile.c | md/windows/w95io.c} : 
 // PR_Open and _PR_MD_OPEN
-nsresult
+static nsresult
 OpenFile(const nsAFlatString &name, int osflags, int mode,
          PRFileDesc **fd)
 {
@@ -1021,7 +1021,7 @@ nsLocalFile::ResolveShortcut()
     if (mResolvedPath.Length() != MAX_PATH)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    wchar_t *resolvedPath = wwc(mResolvedPath.BeginWriting());
+    char16_t *resolvedPath = mResolvedPath.BeginWriting();
 
     // resolve this shortcut
     nsresult rv = gResolver->Resolve(mWorkingPath.get(), resolvedPath);
@@ -1256,7 +1256,7 @@ nsLocalFile::Create(uint32_t type, uint32_t attributes)
     // Skip the first 'X:\' for the first form, and skip the first full
     // '\\machine\volume\' segment for the second form.
 
-    wchar_t* path = wwc(mResolvedPath.BeginWriting());
+    char16_t* path = mResolvedPath.BeginWriting();
 
     if (path[0] == L'\\' && path[1] == L'\\')
     {
@@ -1635,6 +1635,8 @@ nsLocalFile::GetVersionInfoField(const char* aField, nsAString& _retval)
 
     rv = NS_ERROR_FAILURE;
 
+    // Cast away const-ness here because WinAPI functions don't understand it, 
+    // the path is used for [in] parameters only however so it's safe. 
     const WCHAR *path = mFollowSymlinks ? mResolvedPath.get() : mWorkingPath.get();
 
     DWORD dummy;
@@ -1781,12 +1783,12 @@ IsRemoteFilePath(LPCWSTR path, bool &remote)
 
 nsresult
 nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
-                            const nsAString &newName, uint32_t options)
+                            const nsAString &newName, 
+                            bool followSymlinks, bool move,
+                            bool skipNtfsAclReset)
 {
-    nsresult rv = NS_OK;
+    nsresult rv;
     nsAutoString filePath;
-
-    bool move = options & (Move | Rename);
 
     // get the path that we are going to copy to.
     // Since windows does not know how to auto
@@ -1809,7 +1811,7 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
     }
 
 
-    if (options & FollowSymlinks)
+    if (followSymlinks)
     {
         rv = sourceFile->GetTarget(filePath);
         if (filePath.IsEmpty())
@@ -1855,9 +1857,6 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
         // as this could be an SMBV2 mapped drive.
         if (!copyOK && GetLastError() == ERROR_NOT_SAME_DEVICE)
         {
-            if (options & Rename) {
-                return NS_ERROR_FILE_ACCESS_DENIED;
-            }
             copyOK = CopyFileExW(filePath.get(), destPath.get(), nullptr,
                                  nullptr, nullptr, dwCopyFlags);
 
@@ -1868,7 +1867,7 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
 
     if (!copyOK)  // CopyFileEx and MoveFileEx return zero at failure.
         rv = ConvertWinError(GetLastError());
-    else if (move && !(options & SkipNtfsAclReset))
+    else if (move && !skipNtfsAclReset)
     {
         // Set security permissions to inherit from parent.
         // Note: propagates to all children: slow for big file trees
@@ -1890,16 +1889,13 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
 }
 
 nsresult
-nsLocalFile::CopyMove(nsIFile *aParentDir, const nsAString &newName, uint32_t options)
+nsLocalFile::CopyMove(nsIFile *aParentDir, const nsAString &newName, bool followSymlinks, bool move)
 {
-    bool move = options & (Move | Rename);
-    bool followSymlinks = options & FollowSymlinks;
-
     nsCOMPtr<nsIFile> newParentDir = aParentDir;
     // check to see if this exists, otherwise return an error.
     // we will check this by resolving.  If the user wants us
     // to follow links, then we are talking about the target,
-    // hence we can use the |FollowSymlinks| option.
+    // hence we can use the |followSymlinks| parameter.
     nsresult rv  = ResolveAndStat();
     if (NS_FAILED(rv))
         return rv;
@@ -1951,7 +1947,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsAString &newName, uint32_t op
                     if (NS_FAILED(rv))
                         return rv;
 
-                    return CopyMove(realDest, newName, options);
+                    return CopyMove(realDest, newName, followSymlinks, move);
                 }
             }
             else
@@ -1972,10 +1968,8 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsAString &newName, uint32_t op
     if (move || !isDir || (isSymlink && !followSymlinks))
     {
         // Copy/Move single file, or move a directory
-        if (!aParentDir) {
-            options |= SkipNtfsAclReset;
-        }
-        rv = CopySingleFile(this, newParentDir, newName, options);
+        rv = CopySingleFile(this, newParentDir, newName, followSymlinks, move,
+                            !aParentDir);
         done = NS_SUCCEEDED(rv);
         // If we are moving a directory and that fails, fallback on directory
         // enumeration.  See bug 231300 for details.
@@ -2143,72 +2137,21 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsAString &newName, uint32_t op
 NS_IMETHODIMP
 nsLocalFile::CopyTo(nsIFile *newParentDir, const nsAString &newName)
 {
-    return CopyMove(newParentDir, newName, 0);
+    return CopyMove(newParentDir, newName, false, false);
 }
 
 NS_IMETHODIMP
 nsLocalFile::CopyToFollowingLinks(nsIFile *newParentDir, const nsAString &newName)
 {
-    return CopyMove(newParentDir, newName, FollowSymlinks);
+    return CopyMove(newParentDir, newName, true, false);
 }
 
 NS_IMETHODIMP
 nsLocalFile::MoveTo(nsIFile *newParentDir, const nsAString &newName)
 {
-    return CopyMove(newParentDir, newName, Move);
+    return CopyMove(newParentDir, newName, false, true);
 }
 
-NS_IMETHODIMP
-nsLocalFile::RenameTo(nsIFile *newParentDir, const nsAString & newName)
-{
-  nsCOMPtr<nsIFile> targetParentDir = newParentDir;
-  // check to see if this exists, otherwise return an error.
-  // we will check this by resolving.  If the user wants us
-  // to follow links, then we are talking about the target,
-  // hence we can use the |followSymlinks| parameter.
-  nsresult rv = ResolveAndStat();
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  if (!targetParentDir) {
-    // no parent was specified.  We must rename.
-    if (newName.IsEmpty()) {
-      return NS_ERROR_INVALID_ARG;
-    }
-    rv = GetParent(getter_AddRefs(targetParentDir));
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-  }
-
-  if (!targetParentDir) {
-    return NS_ERROR_FILE_DESTINATION_NOT_DIR;
-  }
-
-  // make sure it exists and is a directory.  Create it if not there.
-  bool exists;
-  targetParentDir->Exists(&exists);
-  if (!exists) {
-    rv = targetParentDir->Create(DIRECTORY_TYPE, 0644);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-  } else {
-    bool isDir;
-    targetParentDir->IsDirectory(&isDir);
-    if (!isDir) {
-      return NS_ERROR_FILE_DESTINATION_NOT_DIR;
-    }
-  }
-
-  uint32_t options = Rename;
-  if (!newParentDir) {
-    options |= SkipNtfsAclReset;
-  }
-  // Move single file, or move a directory
-  return CopySingleFile(this, targetParentDir, newName, options);
-}
 
 NS_IMETHODIMP
 nsLocalFile::Load(PRLibrary * *_retval)
@@ -2226,7 +2169,7 @@ nsLocalFile::Load(PRLibrary * *_retval)
         return NS_ERROR_FILE_IS_DIRECTORY;
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcnt::SetActivityIsLegal(false);
+    nsTraceRefcntImpl::SetActivityIsLegal(false);
 #endif
 
     PRLibSpec libSpec;
@@ -2235,7 +2178,7 @@ nsLocalFile::Load(PRLibrary * *_retval)
     *_retval =  PR_LoadLibraryWithFlags(libSpec, 0);
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcnt::SetActivityIsLegal(true);
+    nsTraceRefcntImpl::SetActivityIsLegal(true);
 #endif
 
     if (*_retval)
@@ -2400,11 +2343,11 @@ nsLocalFile::SetLastModifiedTimeOfLink(PRTime aLastModifiedTime)
 }
 
 nsresult
-nsLocalFile::SetModDate(PRTime aLastModifiedTime, const wchar_t *filePath)
+nsLocalFile::SetModDate(PRTime aLastModifiedTime, const char16_t *filePath)
 {
     // The FILE_FLAG_BACKUP_SEMANTICS is required in order to change the
     // modification time for directories.
-    HANDLE file = ::CreateFileW(filePath,          // pointer to name of the file
+    HANDLE file = ::CreateFileW(char16ptr_t(filePath), // pointer to name of the file
                                 GENERIC_WRITE,     // access (write) mode
                                 0,                 // share mode
                                 nullptr,           // pointer to security attributes
@@ -3503,7 +3446,7 @@ nsresult nsDriveEnumerator::Init()
     /* The string is null terminated */
     if (!mDrives.SetLength(length+1, fallible_t()))
         return NS_ERROR_OUT_OF_MEMORY;
-    if (!GetLogicalDriveStringsW(length, wwc(mDrives.BeginWriting())))
+    if (!GetLogicalDriveStringsW(length, mDrives.BeginWriting()))
         return NS_ERROR_FAILURE;
     mDrives.BeginReading(mStartOfCurrentDrive);
     mDrives.EndReading(mEndOfDrivesString);

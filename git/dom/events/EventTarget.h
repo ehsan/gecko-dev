@@ -10,17 +10,16 @@
 #include "nsWrapperCache.h"
 #include "nsIAtom.h"
 
+class nsDOMEvent;
 class nsIDOMWindow;
 class nsIDOMEventListener;
 
 namespace mozilla {
 
 class ErrorResult;
-class EventListenerManager;
 
 namespace dom {
 
-class Event;
 class EventListener;
 class EventHandlerNonNull;
 template <class T> struct Nullable;
@@ -49,7 +48,7 @@ public:
                                    EventListener* aCallback,
                                    bool aCapture,
                                    ErrorResult& aRv);
-  bool DispatchEvent(Event& aEvent, ErrorResult& aRv);
+  bool DispatchEvent(nsDOMEvent& aEvent, ErrorResult& aRv);
 
   // Note, this takes the type in onfoo form!
   EventHandlerNonNull* GetEventHandler(const nsAString& aType)
@@ -74,13 +73,13 @@ public:
   /**
    * Get the event listener manager, creating it if it does not already exist.
    */
-  virtual EventListenerManager* GetOrCreateListenerManager() = 0;
+  virtual nsEventListenerManager* GetOrCreateListenerManager() = 0;
 
   /**
    * Get the event listener manager, returning null if it does not already
    * exist.
    */
-  virtual EventListenerManager* GetExistingListenerManager() const = 0;
+  virtual nsEventListenerManager* GetExistingListenerManager() const = 0;
 
 protected:
   EventHandlerNonNull* GetEventHandler(nsIAtom* aType,

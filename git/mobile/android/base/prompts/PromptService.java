@@ -5,24 +5,27 @@
 
 package org.mozilla.gecko.prompts;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.GeckoEvent;
+import org.mozilla.gecko.util.GeckoEventResponder;
 import org.mozilla.gecko.util.ThreadUtils;
 
-import android.content.Context;
-import android.util.Log;
+import org.json.JSONObject;
 
-public class PromptService implements GeckoEventListener {
+import android.content.Context;
+
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+public class PromptService implements GeckoEventResponder {
     private static final String LOGTAG = "GeckoPromptService";
 
+    private final ConcurrentLinkedQueue<String> mPromptQueue;
     private final Context mContext;
 
     public PromptService(Context context) {
         GeckoAppShell.getEventDispatcher().registerEventListener("Prompt:Show", this);
         GeckoAppShell.getEventDispatcher().registerEventListener("Prompt:ShowTop", this);
+        mPromptQueue = new ConcurrentLinkedQueue<String>();
         mContext = context;
     }
 
@@ -31,15 +34,19 @@ public class PromptService implements GeckoEventListener {
         GeckoAppShell.getEventDispatcher().unregisterEventListener("Prompt:ShowTop", this);
     }
 
-    public void show(final String aTitle, final String aText, final PromptListItem[] aMenuList,
-                     final int aChoiceMode, final Prompt.PromptCallback callback) {
+    public void show(final String aTitle, final String aText, final Prompt.PromptListItem[] aMenuList,
+                     final boolean aMultipleSelection, final Prompt.PromptCallback callback) {
         // The dialog must be created on the UI thread.
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
                 Prompt p;
-                p = new Prompt(mContext, callback);
-                p.show(aTitle, aText, aMenuList, aChoiceMode);
+                if (callback != null) {
+                    p = new Prompt(mContext, callback);
+                } else {
+                    p = new Prompt(mContext, mPromptQueue);
+                }
+                p.show(aTitle, aText, aMenuList, aMultipleSelection);
             }
         });
     }
@@ -51,18 +58,35 @@ public class PromptService implements GeckoEventListener {
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
+                boolean isAsync = message.optBoolean("async");
                 Prompt p;
-                p = new Prompt(mContext, new Prompt.PromptCallback() {
-                    public void onPromptFinished(String jsonResult) {
-                        try {
-                            EventDispatcher.sendResponse(message, new JSONObject(jsonResult));
-                        } catch(JSONException ex) {
-                            Log.i(LOGTAG, "Error building json response", ex);
+                if (isAsync) {
+                    p = new Prompt(mContext, new Prompt.PromptCallback() {
+                        public void onPromptFinished(String jsonResult) {
+                            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Prompt:Reply", jsonResult));
                         }
-                    }
-                });
+                    });
+                } else {
+                    p = new Prompt(mContext, mPromptQueue);
+                }
                 p.show(message);
             }
         });
+    }
+
+    // GeckoEventResponder implementation
+    @Override
+    public String getResponse(final JSONObject origMessage) {
+        if (origMessage.optBoolean("async")) {
+            return "";
+        }
+
+        // we only handle one kind of message in handleMessage, and this is the
+        // response we provide for that message
+        String result;
+        while (null == (result = mPromptQueue.poll())) {
+            GeckoAppShell.processNextNativeEvent(true);
+        }
+        return result;
     }
 }

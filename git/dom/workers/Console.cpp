@@ -292,7 +292,7 @@ private:
     JS::Rooted<JS::Value> stackValue(cx);
     {
       JS::Rooted<JSObject*> stackObj(cx,
-        JS_NewArrayObject(cx, mStackData.Length()));
+        JS_NewArrayObject(cx, mStackData.Length(), nullptr));
       if (!stackObj) {
         return;
       }
@@ -321,13 +321,18 @@ private:
       stackValue = JS::ObjectValue(*stackObj);
     }
 
-    JS::AutoValueArray<3> args(cx);
-    args[0].set(methodValue);
-    args[1].set(argumentsValue);
-    args[2].set(stackValue);
+    JS::AutoValueVector argv(cx);
+    if (!argv.resize(3)) {
+      return;
+    }
+
+    argv[0] = methodValue;
+    argv[1] = argumentsValue;
+    argv[2] = stackValue;
 
     JS::Rooted<JS::Value> ret(cx);
-    JS_CallFunctionName(cx, consoleObj, "queueCall", args, &ret);
+    JS_CallFunctionName(cx, consoleObj, "queueCall", argv.length(),
+                        argv.begin(), ret.address());
   }
 
   WorkerConsole* mConsole;
@@ -341,10 +346,10 @@ private:
   nsTArray<nsString> mStrings;
 };
 
-class TeardownConsoleRunnable : public nsRunnable
+class TeardownRunnable : public nsRunnable
 {
 public:
-  TeardownConsoleRunnable(ConsoleProxy* aProxy)
+  TeardownRunnable(ConsoleProxy* aProxy)
     : mProxy(aProxy)
   {
   }
@@ -392,8 +397,7 @@ WorkerConsole::~WorkerConsole()
   MOZ_COUNT_DTOR(WorkerConsole);
 
   if (mProxy) {
-    nsRefPtr<TeardownConsoleRunnable> runnable =
-      new TeardownConsoleRunnable(mProxy);
+    nsRefPtr<TeardownRunnable> runnable = new TeardownRunnable(mProxy);
     mProxy = nullptr;
 
     if (NS_FAILED(NS_DispatchToMainThread(runnable))) {
@@ -448,7 +452,8 @@ WorkerConsole::Method(JSContext* aCx, const char* aMethodName,
     stack.swap(caller);
   }
 
-  JS::Rooted<JSObject*> arguments(aCx, JS_NewArrayObject(aCx, aData.Length()));
+  JS::Rooted<JSObject*> arguments(aCx,
+    JS_NewArrayObject(aCx, aData.Length(), nullptr));
   if (!arguments) {
     return;
   }
@@ -487,18 +492,17 @@ void
 WorkerConsole::Trace(JSContext* aCx)
 {
   Sequence<JS::Value> data;
-  SequenceRooter<JS::Value> rooter(aCx, &data);
   Method(aCx, "trace", data, DEFAULT_MAX_STACKTRACE_DEPTH);
 }
 
 void
-WorkerConsole::Dir(JSContext* aCx, JS::Handle<JS::Value> aValue)
+WorkerConsole::Dir(JSContext* aCx,
+                   const Optional<JS::Handle<JS::Value>>& aValue)
 {
   Sequence<JS::Value> data;
-  SequenceRooter<JS::Value> rooter(aCx, &data);
 
-  if (!aValue.isUndefined()) {
-    data.AppendElement(aValue);
+  if (aValue.WasPassed()) {
+    data.AppendElement(aValue.Value());
   }
 
   Method(aCx, "dir", data, 1);
@@ -509,13 +513,13 @@ METHOD(GroupCollapsed, "groupCollapsed")
 METHOD(GroupEnd, "groupEnd")
 
 void
-WorkerConsole::Time(JSContext* aCx, JS::Handle<JS::Value> aTimer)
+WorkerConsole::Time(JSContext* aCx,
+                    const Optional<JS::Handle<JS::Value>>& aTimer)
 {
   Sequence<JS::Value> data;
-  SequenceRooter<JS::Value> rooter(aCx, &data);
 
-  if (!aTimer.isUndefined()) {
-    data.AppendElement(aTimer);
+  if (aTimer.WasPassed()) {
+    data.AppendElement(aTimer.Value());
   }
 
   Method(aCx, "time", data, 1);
@@ -523,13 +527,12 @@ WorkerConsole::Time(JSContext* aCx, JS::Handle<JS::Value> aTimer)
 
 void
 WorkerConsole::TimeEnd(JSContext* aCx,
-                       JS::Handle<JS::Value> aTimer)
+                       const Optional<JS::Handle<JS::Value>>& aTimer)
 {
   Sequence<JS::Value> data;
-  SequenceRooter<JS::Value> rooter(aCx, &data);
 
-  if (!aTimer.isUndefined()) {
-    data.AppendElement(aTimer);
+  if (aTimer.WasPassed()) {
+    data.AppendElement(aTimer.Value());
   }
 
   Method(aCx, "timeEnd", data, 1);

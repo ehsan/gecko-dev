@@ -151,13 +151,10 @@ public:
     bool mReportCSPViolations;
     bool mXHRParamsAllowed;
     bool mPrincipalIsSystem;
-    bool mIsInPrivilegedApp;
-    bool mIsInCertifiedApp;
 
     LoadInfo()
     : mEvalAllowed(false), mReportCSPViolations(false),
-      mXHRParamsAllowed(false), mPrincipalIsSystem(false),
-      mIsInPrivilegedApp(false), mIsInCertifiedApp(false)
+      mXHRParamsAllowed(false), mPrincipalIsSystem(false)
     { }
 
     void
@@ -189,8 +186,6 @@ public:
       mReportCSPViolations = aOther.mReportCSPViolations;
       mXHRParamsAllowed = aOther.mXHRParamsAllowed;
       mPrincipalIsSystem = aOther.mPrincipalIsSystem;
-      mIsInPrivilegedApp = aOther.mIsInPrivilegedApp;
-      mIsInCertifiedApp = aOther.mIsInCertifiedApp;
     }
   };
 
@@ -241,7 +236,6 @@ private:
   bool mIsChromeWorker;
   bool mMainThreadObjectsForgotten;
   WorkerType mWorkerType;
-  TimeStamp mCreationTimeStamp;
 
 protected:
   // The worker is owned by its thread, which is represented here.  This is set
@@ -390,10 +384,8 @@ public:
   GetInnerWindowId();
 
   void
-  UpdateRuntimeAndContextOptions(JSContext* aCx,
-                                 const JS::RuntimeOptions& aRuntimeOptions,
-                                 const JS::ContextOptions& aContentCxOptions,
-                                 const JS::ContextOptions& aChromeCxOptions);
+  UpdateJSContextOptions(JSContext* aCx, const JS::ContextOptions& aChromeOptions,
+                         const JS::ContextOptions& aContentOptions);
 
   void
   UpdatePreference(JSContext* aCx, WorkerPreference aPref, bool aValue);
@@ -509,11 +501,6 @@ public:
     return mLoadInfo.mResolvedScriptURI;
   }
 
-  TimeStamp CreationTimeStamp() const
-  {
-    return mCreationTimeStamp;
-  }
-
   nsIPrincipal*
   GetPrincipal() const
   {
@@ -537,18 +524,6 @@ public:
   UsesSystemPrincipal() const
   {
     return mLoadInfo.mPrincipalIsSystem;
-  }
-
-  bool
-  IsInPrivilegedApp() const
-  {
-    return mLoadInfo.mIsInPrivilegedApp;
-  }
-
-  bool
-  IsInCertifiedApp() const
-  {
-    return mLoadInfo.mIsInCertifiedApp;
   }
 
   already_AddRefed<nsIChannel>
@@ -812,7 +787,7 @@ public:
   DoRunLoop(JSContext* aCx);
 
   bool
-  InterruptCallback(JSContext* aCx);
+  OperationCallback(JSContext* aCx);
 
   nsresult
   IsOnCurrentThread(bool* aIsOnCurrentThread);
@@ -914,11 +889,8 @@ public:
   }
 
   void
-  UpdateRuntimeAndContextOptionsInternal(
-                                    JSContext* aCx,
-                                    const JS::RuntimeOptions& aRuntimeOptions,
-                                    const JS::ContextOptions& aContentCxOptions,
-                                    const JS::ContextOptions& aChromeCxOptions);
+  UpdateJSContextOptionsInternal(JSContext* aCx, const JS::ContextOptions& aContentOptions,
+                                 const JS::ContextOptions& aChromeOptions);
 
   void
   UpdatePreferenceInternal(JSContext* aCx, WorkerPreference aPref, bool aValue);

@@ -5,7 +5,11 @@
 
 include $(topsrcdir)/config/rules.mk
 
-CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
+CXXFLAGS += \
+        -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright \
+        -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright/openmax \
+        -I$(ANDROID_SOURCE)/frameworks/av/include/media/stagefright \
+        -I$(ANDROID_SOURCE)/frameworks/native/include/media/openmax \
+        $(NULL)
 
-PremultiplyTables.h: $(srcdir)/genTables.py
-	$(PYTHON) $(srcdir)/genTables.py
+CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)

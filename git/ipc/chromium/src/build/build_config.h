@@ -15,12 +15,9 @@
 #define BUILD_BUILD_CONFIG_H_
 
 // A set of macros to use for platform detection.
-#if defined(ANDROID)
-#define OS_ANDROID 1
-#define OS_LINUX 1
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 #define OS_MACOSX 1
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(ANDROID)
 #define OS_LINUX 1
 #elif defined(__DragonFly__)
 #define OS_DRAGONFLY 1

@@ -17,6 +17,8 @@
 #include "nsIEventTarget.h"
 #include "nsIRunnable.h"
 
+#include "nsDOMEvent.h"
+
 class mozIStorageConnection;
 
 BEGIN_INDEXEDDB_NAMESPACE

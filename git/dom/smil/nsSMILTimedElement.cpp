@@ -92,9 +92,8 @@ namespace
 
     NS_IMETHOD Run()
     {
-      InternalUIEvent event(true, mMsg);
+      InternalUIEvent event(true, mMsg, mDetail);
       event.eventStructType = NS_SMIL_TIME_EVENT;
-      event.detail = mDetail;
 
       nsPresContext* context = nullptr;
       nsIDocument* doc = mTarget->GetCurrentDoc();

@@ -45,8 +45,7 @@ let WebProgressListener = {
       isTopLevel: aWebProgress.isTopLevel,
       isLoadingDocument: aWebProgress.isLoadingDocument,
       requestURI: this._requestSpec(aRequest),
-      loadType: aWebProgress.loadType,
-      documentContentType: content.document && content.document.contentType
+      loadType: aWebProgress.loadType
     };
   },
 
@@ -244,21 +243,11 @@ addEventListener("ImageContentLoaded", function (aEvent) {
   }
 }, false);
 
-let DocumentObserver = {
-  init: function() {
-    Services.obs.addObserver(this, "document-element-inserted", false);
-    addEventListener("unload", () => {
-      Services.obs.removeObserver(this, "document-element-inserted");
-    });
-  },
-
-  observe: function(aSubject, aTopic, aData) {
-    if (aSubject == content.document) {
-      sendAsyncMessage("DocumentInserted", {synthetic: aSubject.mozSyntheticDocument});
-    }
-  },
-};
-DocumentObserver.init();
+Services.obs.addObserver(function (aSubject, aTopic, aData) {
+  if (aSubject == content.document) {
+    sendAsyncMessage("DocumentInserted", {synthetic: aSubject.mozSyntheticDocument});
+  }
+}, "document-element-inserted", false);
 
 function _getMarkupViewer() {
   return docShell.contentViewer.QueryInterface(Ci.nsIMarkupDocumentViewer);
@@ -282,11 +271,8 @@ addEventListener("TextZoomChange", function (aEvent) {
 
 RemoteAddonsChild.init(this);
 
-addMessageListener("NetworkPrioritizer:AdjustPriority", (msg) => {
-  let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
-  let loadGroup = webNav.QueryInterface(Ci.nsIDocumentLoader)
-                        .loadGroup.QueryInterface(Ci.nsISupportsPriority);
-  loadGroup.adjustPriority(msg.data.adjustment);
+addMessageListener("History:UseGlobalHistory", function (aMessage) {
+  docShell.useGlobalHistory = aMessage.data.enabled;
 });
 
 let AutoCompletePopup = {
@@ -348,8 +334,6 @@ let AutoCompletePopup = {
   }
 }
 
-let [initData] = sendSyncMessage("Browser:Init");
-docShell.useGlobalHistory = initData.useGlobalHistory;
-if (initData.initPopup) {
+addMessageListener("FormAutoComplete:InitPopup", function (aMessage) {
   setTimeout(function() AutoCompletePopup.init(), 0);
-}
+});

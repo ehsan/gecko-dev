@@ -14,7 +14,7 @@
 #include "MediaDecoderReader.h"
 #include "OggCodecState.h"
 #include "OggDecoder.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include "VideoUtils.h"
 #include <algorithm>
 
@@ -276,7 +276,7 @@ bool TheoraState::Init() {
   // maximum, or zero sized.
   nsIntSize frame(mInfo.frame_width, mInfo.frame_height);
   nsIntRect picture(mInfo.pic_x, mInfo.pic_y, mInfo.pic_width, mInfo.pic_height);
-  if (!IsValidVideoRegion(frame, picture, frame)) {
+  if (!VideoInfo::ValidateVideoRegion(frame, picture, frame)) {
     return mActive = false;
   }
 

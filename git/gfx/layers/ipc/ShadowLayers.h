@@ -28,7 +28,7 @@ class gfxASurface;
 namespace mozilla {
 namespace layers {
 
-class ClientTiledLayerBuffer;
+class BasicTiledLayerBuffer;
 class CanvasClient;
 class CanvasLayerComposite;
 class CanvasSurface;
@@ -255,10 +255,14 @@ public:
                ShadowableLayer* aMaskLayer);
 
   /**
-   * See CompositableForwarder::UseTiledLayerBuffer
+   * Notify the compositor that a tiled layer buffer has changed
+   * that needs to be synced to the shadow retained copy. The tiled
+   * layer buffer will operate directly on the shadow retained buffer
+   * and is free to choose it's own internal representation (double buffering,
+   * copy on write, tiling).
    */
-  virtual void UseTiledLayerBuffer(CompositableClient* aCompositable,
-                                   const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE;
+  virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
+                                       const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE;
 
   /**
    * Notify the compositor that a compositable will be updated asynchronously
@@ -274,9 +278,6 @@ public:
   virtual void UpdateTexture(CompositableClient* aCompositable,
                              TextureIdentifier aTextureId,
                              SurfaceDescriptor* aDescriptor) MOZ_OVERRIDE;
-
-  virtual void RemoveTextureFromCompositable(CompositableClient* aCompositable,
-                                             TextureClient* aTexture) MOZ_OVERRIDE;
 
   virtual void RemoveTexture(TextureClient* aTexture) MOZ_OVERRIDE;
 
@@ -320,19 +321,13 @@ public:
    */
   virtual void UseTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) MOZ_OVERRIDE;
-  virtual void UseComponentAlphaTextures(CompositableClient* aCompositable,
-                                         TextureClient* aClientOnBlack,
-                                         TextureClient* aClientOnWhite) MOZ_OVERRIDE;
 
   /**
    * End the current transaction and forward it to LayerManagerComposite.
    * |aReplies| are directions from the LayerManagerComposite to the
    * caller of EndTransaction().
    */
-  bool EndTransaction(InfallibleTArray<EditReply>* aReplies,
-                      const nsIntRegion& aRegionToClear,
-                      bool aScheduleComposite,
-                      bool* aSent);
+  bool EndTransaction(InfallibleTArray<EditReply>* aReplies, bool aScheduleComposite, bool* aSent);
 
   /**
    * Set an actor through which layer updates will be pushed.
@@ -390,7 +385,6 @@ public:
   virtual void DeallocShmem(mozilla::ipc::Shmem& aShmem) MOZ_OVERRIDE;
 
   virtual bool IPCOpen() const MOZ_OVERRIDE;
-  virtual bool IsSameProcess() const MOZ_OVERRIDE;
 
   /**
    * Construct a shadow of |aLayer| on the "other side", at the

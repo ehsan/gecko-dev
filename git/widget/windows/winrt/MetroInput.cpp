@@ -76,23 +76,18 @@ namespace {
     uint32_t pointerId;
     Foundation::Rect contactRect;
     float pressure;
-    float tiltX;
-    float tiltY;
 
     aPoint->get_Properties(props.GetAddressOf());
     aPoint->get_Position(&position);
     aPoint->get_PointerId(&pointerId);
     props->get_ContactRect(&contactRect);
     props->get_Pressure(&pressure);
-    props->get_XTilt(&tiltX);
-    props->get_YTilt(&tiltY);
 
     nsIntPoint touchPoint = MetroUtils::LogToPhys(position);
     nsIntPoint touchRadius;
     touchRadius.x = WinUtils::LogToPhys(contactRect.Width) / 2;
     touchRadius.y = WinUtils::LogToPhys(contactRect.Height) / 2;
-    Touch* touch =
-           new Touch(pointerId,
+    return new Touch(pointerId,
                      touchPoint,
                      // Rotation radius and angle.
                      // W3C touch events v1 do not use these.
@@ -114,9 +109,6 @@ namespace {
                      // draft says that the value should be 0.0 if no value
                      // known.
                      pressure);
-    touch->tiltX = tiltX;
-    touch->tiltY = tiltY;
-    return touch;
   }
 
   /**
@@ -232,8 +224,6 @@ namespace {
                aData->mRadius,
                aData->mRotationAngle,
                aData->mForce);
-    copy->tiltX = aData->tiltX;
-    copy->tiltY = aData->tiltY;
     touches->AppendElement(copy);
     aData->mChanged = false;
     return PL_DHASH_NEXT;
@@ -365,7 +355,9 @@ MetroInput::OnEdgeGestureStarted(UI::Input::IEdgeGesture* sender,
 #endif
   WidgetSimpleGestureEvent geckoEvent(true,
                                       NS_SIMPLE_GESTURE_EDGE_STARTED,
-                                      mWidget.Get());
+                                      mWidget.Get(),
+                                      0,
+                                      0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
@@ -394,7 +386,9 @@ MetroInput::OnEdgeGestureCanceled(UI::Input::IEdgeGesture* sender,
 #endif
   WidgetSimpleGestureEvent geckoEvent(true,
                                       NS_SIMPLE_GESTURE_EDGE_CANCELED,
-                                      mWidget.Get());
+                                      mWidget.Get(),
+                                      0,
+                                      0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
@@ -422,7 +416,9 @@ MetroInput::OnEdgeGestureCompleted(UI::Input::IEdgeGesture* sender,
 #endif
   WidgetSimpleGestureEvent geckoEvent(true,
                                       NS_SIMPLE_GESTURE_EDGE_COMPLETED,
-                                      mWidget.Get());
+                                      mWidget.Get(),
+                                      0,
+                                      0.0);
   mModifierKeyState.Update();
   mModifierKeyState.InitInputEvent(geckoEvent);
   geckoEvent.time = ::GetMessageTime();
@@ -799,8 +795,6 @@ MetroInput::InitGeckoMouseEventFromPointerPoint(
   uint64_t timestamp;
   float pressure;
   boolean canBeDoubleTap;
-  float tiltX;
-  float tiltY;
 
   aPointerPoint->get_Position(&position);
   aPointerPoint->get_Timestamp(&timestamp);
@@ -808,9 +802,6 @@ MetroInput::InitGeckoMouseEventFromPointerPoint(
   device->get_PointerDeviceType(&deviceType);
   aPointerPoint->get_Properties(props.GetAddressOf());
   props->get_Pressure(&pressure);
-  props->get_XTilt(&tiltX);
-  props->get_YTilt(&tiltY);
-
   mGestureRecognizer->CanBeDoubleTap(aPointerPoint, &canBeDoubleTap);
 
   TransformRefPoint(position, aEvent->refPoint);
@@ -821,8 +812,6 @@ MetroInput::InitGeckoMouseEventFromPointerPoint(
     aEvent->clickCount = 2;
   }
   aEvent->pressure = pressure;
-  aEvent->tiltX = tiltX;
-  aEvent->tiltY = tiltY;
   aEvent->buttons = ButtonsForPointerPoint(aPointerPoint);
 
   MozInputSourceFromDeviceType(deviceType, aEvent->inputSource);
@@ -949,7 +938,7 @@ MetroInput::OnManipulationCompleted(
   if (isHorizontalSwipe) {
     WidgetSimpleGestureEvent* swipeEvent =
       new WidgetSimpleGestureEvent(true, NS_SIMPLE_GESTURE_SWIPE,
-                                   mWidget.Get());
+                                   mWidget.Get(), 0, 0.0);
     swipeEvent->direction = delta.Translation.X > 0
                          ? nsIDOMSimpleGestureEvent::DIRECTION_RIGHT
                          : nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
@@ -962,7 +951,7 @@ MetroInput::OnManipulationCompleted(
   if (isVerticalSwipe) {
     WidgetSimpleGestureEvent* swipeEvent =
       new WidgetSimpleGestureEvent(true, NS_SIMPLE_GESTURE_SWIPE,
-                                   mWidget.Get());
+                                   mWidget.Get(), 0, 0.0);
     swipeEvent->direction = delta.Translation.Y > 0
                          ? nsIDOMSimpleGestureEvent::DIRECTION_DOWN
                          : nsIDOMSimpleGestureEvent::DIRECTION_UP;
@@ -1228,7 +1217,7 @@ MetroInput::HandleFirstTouchStartEvent(WidgetTouchEvent* aEvent)
 
   WidgetTouchEvent transformedEvent(*aEvent);
   DUMP_TOUCH_IDS("APZC(1)", aEvent);
-  mWidget->ApzReceiveInputEvent(&transformedEvent, &mTargetAPZCGuid);
+  mWidget->ApzReceiveInputEvent(aEvent, &mTargetAPZCGuid, &transformedEvent);
 
   if (gTouchActionPropertyEnabled) {
     nsTArray<TouchBehaviorFlags> touchBehaviors;
@@ -1281,7 +1270,7 @@ MetroInput::HandleFirstTouchMoveEvent(WidgetTouchEvent* aEvent)
 
   WidgetTouchEvent transformedEvent(*aEvent);
   DUMP_TOUCH_IDS("APZC(2)", aEvent);
-  apzcStatus = mWidget->ApzReceiveInputEvent(&transformedEvent, &mTargetAPZCGuid);
+  apzcStatus = mWidget->ApzReceiveInputEvent(aEvent, &mTargetAPZCGuid, &transformedEvent);
 
   // We need to dispatch here only touch event, not pointer one.
   // That's because according to the spec pointer events doesn't imply pointermove event

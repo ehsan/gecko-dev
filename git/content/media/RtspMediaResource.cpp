@@ -69,17 +69,6 @@ public:
     MOZ_COUNT_DTOR(RtspTrackBuffer);
     mRingBuffer = nullptr;
   };
-
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const {
-    // including this
-    size_t size = aMallocSizeOf(this);
-
-    // excluding this
-    size += mRingBuffer.SizeOfExcludingThis(aMallocSizeOf);
-
-    return size;
-  }
-
   void Start() {
     MonitorAutoLock monitor(mMonitor);
     mIsStarted = true;
@@ -378,23 +367,6 @@ RtspMediaResource::~RtspMediaResource()
     // Kill its reference to us since we're going away
     mListener->Revoke();
   }
-}
-
-size_t
-RtspMediaResource::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
-{
-  size_t size = BaseMediaResource::SizeOfExcludingThis(aMallocSizeOf);
-  size += mTrackBuffer.SizeOfExcludingThis(aMallocSizeOf);
-
-  // Include the size of each track buffer.
-  for (size_t i = 0; i < mTrackBuffer.Length(); i++) {
-    size += mTrackBuffer[i]->SizeOfIncludingThis(aMallocSizeOf);
-  }
-
-  // Could add in the future:
-  // - mMediaStreamController
-
-  return size;
 }
 
 NS_IMPL_ISUPPORTS2(RtspMediaResource::Listener,

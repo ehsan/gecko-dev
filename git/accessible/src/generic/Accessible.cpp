@@ -919,26 +919,7 @@ void
 Accessible::GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame)
 {
   nsIFrame* frame = GetFrame();
-  if (frame && mContent) {
-    nsRect* hitRegionRect = static_cast<nsRect*>(mContent->GetProperty(nsGkAtoms::hitregion));
-
-    if (hitRegionRect) {
-      // This is for canvas fallback content
-      // Find a canvas frame the found hit region is relative to.
-      nsIFrame* canvasFrame = frame->GetParent();
-      while (canvasFrame && (canvasFrame->GetType() != nsGkAtoms::HTMLCanvasFrame))
-        canvasFrame = canvasFrame->GetParent();
-
-      // make the canvas the bounding frame
-      if (canvasFrame) {
-        *aBoundingFrame = canvasFrame;
-
-        aTotalBounds = *hitRegionRect;
-
-        return;
-      }
-    }
-
+  if (frame) {
     *aBoundingFrame = nsLayoutUtils::GetContainingBlockForClientRect(frame);
     aTotalBounds = nsLayoutUtils::
       GetAllInFlowRectsUnion(frame, *aBoundingFrame,
@@ -1679,7 +1660,7 @@ Accessible::MinValue() const
 double
 Accessible::Step() const
 {
-  return UnspecifiedNaN<double>(); // no mimimum increment (step) in ARIA.
+  return UnspecifiedNaN(); // no mimimum increment (step) in ARIA.
 }
 
 double
@@ -3079,19 +3060,53 @@ Accessible::GetSiblingAtOffset(int32_t aOffset, nsresult* aError) const
   return child;
 }
 
+Accessible* 
+Accessible::GetFirstAvailableAccessible(nsINode *aStartNode) const
+{
+  Accessible* accessible = mDoc->GetAccessible(aStartNode);
+  if (accessible)
+    return accessible;
+
+  nsCOMPtr<nsIDocument> doc = aStartNode->OwnerDoc();
+
+  nsCOMPtr<nsINode> currentNode = aStartNode;
+  ErrorResult rv;
+  nsRefPtr<dom::TreeWalker> walker =
+    doc->CreateTreeWalker(*GetNode(),
+                          nsIDOMNodeFilter::SHOW_ELEMENT | nsIDOMNodeFilter::SHOW_TEXT,
+                          nullptr, rv);
+  NS_ENSURE_TRUE(walker, nullptr);
+
+  walker->SetCurrentNode(*currentNode, rv);
+  if (rv.Failed())
+    return nullptr;
+
+  while (true) {
+    currentNode = walker->NextNode(rv);
+    if (!currentNode || rv.Failed())
+      return nullptr;
+
+    Accessible* accessible = mDoc->GetAccessible(currentNode);
+    if (accessible)
+      return accessible;
+  }
+
+  return nullptr;
+}
+
 double
 Accessible::AttrNumericValue(nsIAtom* aAttr) const
 {
   if (!mRoleMapEntry || mRoleMapEntry->valueRule == eNoValue)
-    return UnspecifiedNaN<double>();
+    return UnspecifiedNaN();
 
   nsAutoString attrValue;
   if (!mContent->GetAttr(kNameSpaceID_None, aAttr, attrValue))
-    return UnspecifiedNaN<double>();
+    return UnspecifiedNaN();
 
   nsresult error = NS_OK;
   double value = attrValue.ToDouble(&error);
-  return NS_FAILED(error) ? UnspecifiedNaN<double>() : value;
+  return NS_FAILED(error) ? UnspecifiedNaN() : value;
 }
 
 uint32_t

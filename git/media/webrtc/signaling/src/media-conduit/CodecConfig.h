@@ -11,8 +11,6 @@
 
 namespace mozilla {
 
-class LoadManager;
-
 /**
  * Minimalistic Audio Codec Config Params
  */
@@ -28,22 +26,18 @@ struct AudioCodecConfig
   int mPacSize;
   int mChannels;
   int mRate;
-  LoadManager* mLoadManager;
 
   /* Default constructor is not provided since as a consumer, we
    * can't decide the default configuration for the codec
    */
   explicit AudioCodecConfig(int type, std::string name,
                             int freq,int pacSize,
-                            int channels, int rate,
-                            LoadManager* load_manager = nullptr)
-                                                   : mType(type),
+                            int channels, int rate): mType(type),
                                                      mName(name),
                                                      mFreq(freq),
                                                      mPacSize(pacSize),
                                                      mChannels(channels),
-                                                     mRate(rate),
-                                                     mLoadManager(load_manager)
+                                                     mRate(rate)
 
   {
   }
@@ -65,18 +59,14 @@ struct VideoCodecConfig
   uint32_t mRtcpFbTypes;
   unsigned int mMaxFrameSize;
   unsigned int mMaxFrameRate;
-  LoadManager* mLoadManager;
 
   VideoCodecConfig(int type,
                    std::string name,
-                   int rtcpFbTypes,
-                   LoadManager* load_manager = nullptr) :
-                                     mType(type),
+                   int rtcpFbTypes): mType(type),
                                      mName(name),
                                      mRtcpFbTypes(rtcpFbTypes),
                                      mMaxFrameSize(0),
-                                     mMaxFrameRate(0),
-                                     mLoadManager(load_manager)
+                                     mMaxFrameRate(0)
   {
   }
 
@@ -84,14 +74,11 @@ struct VideoCodecConfig
                    std::string name,
                    int rtcpFbTypes,
                    unsigned int max_fs,
-                   unsigned int max_fr,
-                   LoadManager* load_manager = nullptr) :
-                                         mType(type),
+                   unsigned int max_fr): mType(type),
                                          mName(name),
                                          mRtcpFbTypes(rtcpFbTypes),
                                          mMaxFrameSize(max_fs),
-                                         mMaxFrameRate(max_fr),
-                                         mLoadManager(load_manager)
+                                         mMaxFrameRate(max_fr)
   {
   }
 

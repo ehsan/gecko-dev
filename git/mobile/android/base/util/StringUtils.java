@@ -9,9 +9,6 @@ import android.net.Uri;
 import android.text.TextUtils;
 
 public class StringUtils {
-
-    private static final String FILTER_URL_PREFIX = "filter://";
-
     /*
      * This method tries to guess if the given string could be a search query or URL,
      * and returns a previous result if there is ambiguity
@@ -137,21 +134,5 @@ public class StringUtils {
         }
 
         return null;
-    }
-
-    public static boolean isFilterUrl(String url) {
-        if (TextUtils.isEmpty(url)) {
-            return false;
-        }
-
-        return url.startsWith(FILTER_URL_PREFIX);
-    }
-
-    public static String getFilterFromUrl(String url) {
-        if (TextUtils.isEmpty(url)) {
-            return null;
-        }
-
-        return url.substring(FILTER_URL_PREFIX.length());
     }
 }

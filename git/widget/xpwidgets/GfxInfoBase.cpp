@@ -344,7 +344,7 @@ BlacklistNodeGetChildByName(nsIDOMElement *element,
   if (NS_FAILED(nodelist->Item(0, getter_AddRefs(node))) || !node)
     return false;
 
-  node.forget(firstchild);
+  *firstchild = node.forget().get();
   return true;
 }
 

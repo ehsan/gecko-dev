@@ -12,13 +12,8 @@ EXPORTS += [
 ]
 
 if CONFIG['MOZ_WEBRTC']:
-    EXPORTS += ['LoadManager.h',
-                'LoadManagerFactory.h',
-                'LoadMonitor.h',
-                'MediaEngineWebRTC.h']
+    EXPORTS += ['LoadMonitor.h', 'MediaEngineWebRTC.h']
     UNIFIED_SOURCES += [
-        'LoadManager.cpp',
-        'LoadManagerFactory.cpp',
         'LoadMonitor.cpp',
         'MediaEngineTabVideoSource.cpp',
         'MediaEngineWebRTCAudio.cpp',
@@ -31,7 +26,6 @@ if CONFIG['MOZ_WEBRTC']:
     LOCAL_INCLUDES += [
         '/dom/base',
         '/dom/camera',
-        '/media/libyuv/include',
         '/media/webrtc/signaling/src/common',
         '/media/webrtc/signaling/src/common/browser_logging',
         '/media/webrtc/trunk',

@@ -17,9 +17,7 @@ namespace Telemetry {
 class ThreadHangStats;
 };
 
-// Disabled for Beta/Release builds because of bug 965392.
-// Disabled for debug builds because of bug 979069.
-#if !defined(RELEASE_BUILD) && !defined(DEBUG)
+#ifndef RELEASE_BUILD
 // Undefine to disable background hang monitor
 #define MOZ_ENABLE_BACKGROUND_HANG_MONITOR
 #endif

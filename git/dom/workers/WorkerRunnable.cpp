@@ -351,7 +351,7 @@ WorkerSyncRunnable::WorkerSyncRunnable(WorkerPrivate* aWorkerPrivate,
 
 WorkerSyncRunnable::WorkerSyncRunnable(
                                WorkerPrivate* aWorkerPrivate,
-                               already_AddRefed<nsIEventTarget>&& aSyncLoopTarget)
+                               already_AddRefed<nsIEventTarget> aSyncLoopTarget)
 : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount),
   mSyncLoopTarget(aSyncLoopTarget)
 {
@@ -386,9 +386,9 @@ MainThreadWorkerSyncRunnable::PostDispatch(JSContext* aCx,
 
 StopSyncLoopRunnable::StopSyncLoopRunnable(
                                WorkerPrivate* aWorkerPrivate,
-                               already_AddRefed<nsIEventTarget>&& aSyncLoopTarget,
+                               already_AddRefed<nsIEventTarget> aSyncLoopTarget,
                                bool aResult)
-: WorkerSyncRunnable(aWorkerPrivate, Move(aSyncLoopTarget)), mResult(aResult)
+: WorkerSyncRunnable(aWorkerPrivate, aSyncLoopTarget), mResult(aResult)
 {
 #ifdef DEBUG
   mWorkerPrivate->AssertValidSyncLoop(mSyncLoopTarget);
@@ -399,12 +399,9 @@ NS_IMETHODIMP
 StopSyncLoopRunnable::Cancel()
 {
   nsresult rv = Run();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Run() failed");
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsresult rv2 = WorkerSyncRunnable::Cancel();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv2), "Cancel() failed");
-
-  return NS_FAILED(rv) ? rv : rv2;
+  return NS_OK;
 }
 
 bool

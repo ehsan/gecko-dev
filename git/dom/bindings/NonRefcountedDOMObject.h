@@ -7,7 +7,7 @@
 #ifndef mozilla_dom_NonRefcountedDOMObject_h__
 #define mozilla_dom_NonRefcountedDOMObject_h__
 
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 
 namespace mozilla {
 namespace dom {

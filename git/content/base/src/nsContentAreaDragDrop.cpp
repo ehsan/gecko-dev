@@ -49,13 +49,13 @@
 #include "nsIMIMEService.h"
 #include "imgIContainer.h"
 #include "imgIRequest.h"
-#include "mozilla/dom/DataTransfer.h"
+#include "nsDOMDataTransfer.h"
 #include "nsIMIMEInfo.h"
 #include "nsRange.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLAreaElement.h"
 
-using namespace mozilla::dom;
+using mozilla::dom::HTMLAreaElement;
 
 class MOZ_STACK_CLASS DragDataProducer
 {
@@ -64,18 +64,18 @@ public:
                    nsIContent* aTarget,
                    nsIContent* aSelectionTargetNode,
                    bool aIsAltKeyPressed);
-  nsresult Produce(DataTransfer* aDataTransfer,
+  nsresult Produce(nsDOMDataTransfer* aDataTransfer,
                    bool* aCanDrag,
                    nsISelection** aSelection,
                    nsIContent** aDragNode);
 
 private:
-  void AddString(DataTransfer* aDataTransfer,
+  void AddString(nsDOMDataTransfer* aDataTransfer,
                  const nsAString& aFlavor,
                  const nsAString& aData,
                  nsIPrincipal* aPrincipal);
   nsresult AddStringsToDataTransfer(nsIContent* aDragNode,
-                                    DataTransfer* aDataTransfer);
+                                    nsDOMDataTransfer* aDataTransfer);
   static nsresult GetDraggableSelectionData(nsISelection* inSelection,
                                             nsIContent* inRealTargetNode,
                                             nsIContent **outImageOrLinkNode,
@@ -112,7 +112,7 @@ nsContentAreaDragDrop::GetDragData(nsPIDOMWindow* aWindow,
                                    nsIContent* aTarget,
                                    nsIContent* aSelectionTargetNode,
                                    bool aIsAltKeyPressed,
-                                   DataTransfer* aDataTransfer,
+                                   nsDOMDataTransfer* aDataTransfer,
                                    bool* aCanDrag,
                                    nsISelection** aSelection,
                                    nsIContent** aDragNode)
@@ -354,7 +354,7 @@ DragDataProducer::GetNodeString(nsIContent* inNode,
 }
 
 nsresult
-DragDataProducer::Produce(DataTransfer* aDataTransfer,
+DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
                           bool* aCanDrag,
                           nsISelection** aSelection,
                           nsIContent** aDragNode)
@@ -664,30 +664,21 @@ DragDataProducer::Produce(DataTransfer* aDataTransfer,
     }
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsISupports> supports;
     nsCOMPtr<nsISupportsString> data;
     uint32_t dataSize;
-    rv = transferable->GetTransferData(kHTMLMime, getter_AddRefs(supports),
-                                       &dataSize);
-    data = do_QueryInterface(supports);
+    rv = transferable->GetTransferData(kHTMLMime, getter_AddRefs(data), &dataSize);
     if (NS_SUCCEEDED(rv)) {
       data->GetData(mHtmlString);
     }
-    rv = transferable->GetTransferData(kHTMLContext, getter_AddRefs(supports),
-                                       &dataSize);
-    data = do_QueryInterface(supports);
+    rv = transferable->GetTransferData(kHTMLContext, getter_AddRefs(data), &dataSize);
     if (NS_SUCCEEDED(rv)) {
       data->GetData(mContextString);
     }
-    rv = transferable->GetTransferData(kHTMLInfo, getter_AddRefs(supports),
-                                       &dataSize);
-    data = do_QueryInterface(supports);
+    rv = transferable->GetTransferData(kHTMLInfo, getter_AddRefs(data), &dataSize);
     if (NS_SUCCEEDED(rv)) {
       data->GetData(mInfoString);
     }
-    rv = transferable->GetTransferData(kUnicodeMime, getter_AddRefs(supports),
-                                       &dataSize);
-    data = do_QueryInterface(supports);
+    rv = transferable->GetTransferData(kUnicodeMime, getter_AddRefs(data), &dataSize);
     NS_ENSURE_SUCCESS(rv, rv); // require plain text at a minimum
     data->GetData(mTitleString);
   }
@@ -712,7 +703,7 @@ DragDataProducer::Produce(DataTransfer* aDataTransfer,
 }
 
 void
-DragDataProducer::AddString(DataTransfer* aDataTransfer,
+DragDataProducer::AddString(nsDOMDataTransfer* aDataTransfer,
                             const nsAString& aFlavor,
                             const nsAString& aData,
                             nsIPrincipal* aPrincipal)
@@ -726,7 +717,7 @@ DragDataProducer::AddString(DataTransfer* aDataTransfer,
 
 nsresult
 DragDataProducer::AddStringsToDataTransfer(nsIContent* aDragNode,
-                                           DataTransfer* aDataTransfer)
+                                           nsDOMDataTransfer* aDataTransfer)
 {
   NS_ASSERTION(aDragNode, "adding strings for null node");
 

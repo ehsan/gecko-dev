@@ -389,7 +389,7 @@ function checkCount(count, msg, then) {
 var index = 0;
 
 function next() {
-  info("Step " + index);
+  ok(true, "Begin!");
   if (index >= steps.length) {
     ok(false, "Shouldn't get here!");
     return;
@@ -402,17 +402,15 @@ function next() {
   }
 }
 
-SimpleTest.waitForExplicitFinish();
-
 function start_tests() {
   // Skip tests on Android < 4.0 due to test failures on tbpl (see bugs 897924 & 888891)
   let androidVersion = SpecialPowers.Cc['@mozilla.org/system-info;1']
                                     .getService(SpecialPowers.Ci.nsIPropertyBag2)
                                     .getProperty('version');
   if (!isAndroid || androidVersion >= 14) {
-    next();
+    SimpleTest.waitForExplicitFinish();
+    addLoadEvent(next);
   } else {
     ok(true, "Skip tests on Android < 4.0 (bugs 897924 & 888891");
-    SimpleTest.finish();
   }
 }

@@ -5,10 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 if CONFIG['MOZ_BUILD_APP'] != 'mobile':
-    DIRS += ['browser']
-
-    BROWSER_CHROME_MANIFESTS += ['xpinstall/browser.ini']
-    MOCHITEST_MANIFESTS += ['mochitest/mochitest.ini']
+    DIRS += ['xpinstall', 'browser', 'mochitest']
 
 XPCSHELL_TESTS_MANIFESTS += [
     'xpcshell/xpcshell-unpack.ini',

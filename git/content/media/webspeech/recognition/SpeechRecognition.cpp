@@ -696,7 +696,7 @@ SpeechRecognition::SetServiceURI(const nsAString& aArg, ErrorResult& aRv)
 void
 SpeechRecognition::Start(ErrorResult& aRv)
 {
-  if (mCurrentState != STATE_IDLE) {
+  if (!mCurrentState == STATE_IDLE) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -801,7 +801,7 @@ SpeechRecognition::FillSamplesBuffer(const int16_t* aSamples,
 uint32_t
 SpeechRecognition::SplitSamplesBuffer(const int16_t* aSamplesBuffer,
                                       uint32_t aSampleCount,
-                                      nsTArray<nsRefPtr<SharedBuffer>>& aResult)
+                                      nsTArray<already_AddRefed<SharedBuffer> >& aResult)
 {
   uint32_t chunkStart = 0;
 
@@ -812,7 +812,7 @@ SpeechRecognition::SplitSamplesBuffer(const int16_t* aSamplesBuffer,
     memcpy(chunk->Data(), aSamplesBuffer + chunkStart,
            mAudioSamplesPerChunk * sizeof(int16_t));
 
-    aResult.AppendElement(chunk);
+    aResult.AppendElement(chunk.forget());
     chunkStart += mAudioSamplesPerChunk;
   }
 
@@ -820,16 +820,16 @@ SpeechRecognition::SplitSamplesBuffer(const int16_t* aSamplesBuffer,
 }
 
 AudioSegment*
-SpeechRecognition::CreateAudioSegment(nsTArray<nsRefPtr<SharedBuffer>>& aChunks)
+SpeechRecognition::CreateAudioSegment(nsTArray<already_AddRefed<SharedBuffer> >& aChunks)
 {
   AudioSegment* segment = new AudioSegment();
   for (uint32_t i = 0; i < aChunks.Length(); ++i) {
-    nsRefPtr<SharedBuffer> buffer = aChunks[i];
-    const int16_t* chunkData = static_cast<const int16_t*>(buffer->Data());
+    const int16_t* chunkData =
+      static_cast<const int16_t*>(aChunks[i].get()->Data());
 
     nsAutoTArray<const int16_t*, 1> channels;
     channels.AppendElement(chunkData);
-    segment->AppendFrames(buffer.forget(), channels, mAudioSamplesPerChunk);
+    segment->AppendFrames(aChunks[i], channels, mAudioSamplesPerChunk);
   }
 
   return segment;
@@ -854,15 +854,14 @@ SpeechRecognition::FeedAudioData(already_AddRefed<SharedBuffer> aSamples,
 
   uint32_t samplesIndex = 0;
   const int16_t* samples = static_cast<int16_t*>(refSamples->Data());
-  nsAutoTArray<nsRefPtr<SharedBuffer>, 5> chunksToSend;
+  nsAutoTArray<already_AddRefed<SharedBuffer>, 5> chunksToSend;
 
   // fill up our buffer and make a chunk out of it, if possible
   if (mBufferedSamples > 0) {
     samplesIndex += FillSamplesBuffer(samples, aDuration);
 
     if (mBufferedSamples == mAudioSamplesPerChunk) {
-      chunksToSend.AppendElement(mAudioSamplesBuffer);
-      mAudioSamplesBuffer = nullptr;
+      chunksToSend.AppendElement(mAudioSamplesBuffer.forget());
       mBufferedSamples = 0;
     }
   }

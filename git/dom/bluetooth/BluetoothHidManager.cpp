@@ -43,15 +43,9 @@ BluetoothHidManager::Observe(nsISupports* aSubject,
 }
 
 BluetoothHidManager::BluetoothHidManager()
+  : mConnected(false)
+  , mController(nullptr)
 {
-  Reset();
-}
-
-void
-BluetoothHidManager::Reset()
-{
-  mConnected = false;
-  mController = nullptr;
 }
 
 bool
@@ -119,12 +113,12 @@ BluetoothHidManager::Connect(const nsAString& aDeviceAddress,
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 
   if (mConnected) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
     return;
   }
 
@@ -133,7 +127,7 @@ BluetoothHidManager::Connect(const nsAString& aDeviceAddress,
 
   if (NS_FAILED(bs->SendInputMessage(aDeviceAddress,
                                      NS_LITERAL_STRING("Connect")))) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 }
@@ -146,14 +140,14 @@ BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     }
     return;
   }
 
   if (!mConnected) {
     if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
     }
     return;
   }
@@ -165,7 +159,7 @@ BluetoothHidManager::Disconnect(BluetoothProfileController* aController)
 
   if (NS_FAILED(bs->SendInputMessage(mDeviceAddress,
                                      NS_LITERAL_STRING("Disconnect")))) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 }
@@ -182,7 +176,7 @@ BluetoothHidManager::OnConnect(const nsAString& aErrorStr)
   NS_ENSURE_TRUE_VOID(mController);
 
   nsRefPtr<BluetoothProfileController> controller = mController.forget();
-  controller->NotifyCompletion(aErrorStr);
+  controller->OnConnect(aErrorStr);
 }
 
 void
@@ -197,7 +191,7 @@ BluetoothHidManager::OnDisconnect(const nsAString& aErrorStr)
   NS_ENSURE_TRUE_VOID(mController);
 
   nsRefPtr<BluetoothProfileController> controller = mController.forget();
-  controller->NotifyCompletion(aErrorStr);
+  controller->OnDisconnect(aErrorStr);
 }
 
 bool

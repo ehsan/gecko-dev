@@ -420,10 +420,5 @@ int VideoSender::StopDebugRecording() {
   return VCM_OK;
 }
 
-void VideoSender::SetCPULoadState(CPULoadState state) {
-  CriticalSectionScoped cs(_sendCritSect);
-  _mediaOpt.SetCPULoadState(state);
-}
-
 }  // namespace vcm
 }  // namespace webrtc

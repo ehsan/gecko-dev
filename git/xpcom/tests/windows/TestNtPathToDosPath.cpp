@@ -10,8 +10,6 @@
 #include <winnetwk.h>
 
 #include "mozilla/FileUtilsWin.h"
-#include "mozilla/DebugOnly.h"
-#include "nsCRTGlue.h"
 
 class DriveMapping
 {
@@ -37,8 +35,8 @@ private:
 };
 
 DriveMapping::DriveMapping(const nsAString& aRemoteUNCPath)
-  : mDriveLetter(0)
-  , mRemoteUNCPath(aRemoteUNCPath)
+  : mRemoteUNCPath(aRemoteUNCPath)
+  , mDriveLetter(0)
 {
 }
 
@@ -58,7 +56,7 @@ DriveMapping::DoMapping()
   NETRESOURCEW netRes = {0};
   netRes.dwType = RESOURCETYPE_DISK;
   netRes.lpLocalName = drvTemplate;
-  netRes.lpRemoteName = reinterpret_cast<wchar_t*>(mRemoteUNCPath.BeginWriting());
+  netRes.lpRemoteName = mRemoteUNCPath.BeginWriting();
   wchar_t driveLetter = L'D';
   DWORD result = NO_ERROR;
   do {
@@ -88,7 +86,7 @@ void
 DriveMapping::Disconnect(wchar_t aDriveLetter)
 {
   wchar_t drvTemplate[] = {aDriveLetter, L':', L'\0'};
-  mozilla::DebugOnly<DWORD> result = WNetCancelConnection2W(drvTemplate, 0, TRUE);
+  DWORD result = WNetCancelConnection2W(drvTemplate, 0, TRUE);
   MOZ_ASSERT(result == NO_ERROR);
 }
 
@@ -106,7 +104,7 @@ DriveToNtPath(const wchar_t aDriveLetter, nsAString& aNtPath)
   aNtPath.SetLength(MAX_PATH);
   DWORD pathLen;
   while (true) {
-    pathLen = QueryDosDeviceW(drvTpl, reinterpret_cast<wchar_t*>(aNtPath.BeginWriting()), aNtPath.Length());
+    pathLen = QueryDosDeviceW(drvTpl, aNtPath.BeginWriting(), aNtPath.Length());
     if (pathLen || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
       break;
     }
@@ -117,7 +115,7 @@ DriveToNtPath(const wchar_t aDriveLetter, nsAString& aNtPath)
   }
   // aNtPath contains embedded NULLs, so we need to figure out the real length
   // via wcslen.
-  aNtPath.SetLength(NS_strlen(aNtPath.BeginReading()));
+  aNtPath.SetLength(wcslen(aNtPath.BeginReading()));
   return true;
 }
 
@@ -193,7 +191,7 @@ int main(int argc, char* argv[])
       fail("Querying network drive");
       return 1;
     }
-    networkPath += MOZ_UTF16("\\");
+    networkPath += L"\\";
     if (!TestNtPathToDosPath(networkPath.get(), expected)) {
       fail("Mapped UNC path");
       result = 1;
@@ -210,7 +208,7 @@ int main(int argc, char* argv[])
       fail("Querying second network drive");
       return 1;
     }
-    networkPath += MOZ_UTF16("\\");
+    networkPath += L"\\";
     if (!TestNtPathToDosPath(networkPath.get(), expected)) {
       fail("Re-mapped UNC path");
       result = 1;

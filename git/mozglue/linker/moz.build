@@ -24,5 +24,3 @@ HOST_PROGRAM = 'szip'
 FINAL_LIBRARY = 'mozglue'
 
 DEFINES['IMPL_MFBT'] = True
-
-DISABLE_STL_WRAPPING = True

@@ -8,7 +8,7 @@
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
 #include "nsStyleContext.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h" 
 #include "nsIBoxObject.h"
 #include "nsTreeBoxObject.h"
 #include "nsIDOMElement.h"
@@ -66,8 +66,7 @@ public:
 #endif
 
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState,
-                       nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   NS_DISPLAY_DECL_NAME("XULTreeColSplitterTarget", TYPE_XUL_TREE_COL_SPLITTER_TARGET)
 };
 
@@ -128,7 +127,7 @@ nsTreeColFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
     nsDisplayXULTreeColSplitterTarget(aBuilder, this));
 }
 
-nsresult
+NS_IMETHODIMP
 nsTreeColFrame::AttributeChanged(int32_t aNameSpaceID,
                                  nsIAtom* aAttribute,
                                  int32_t aModType)

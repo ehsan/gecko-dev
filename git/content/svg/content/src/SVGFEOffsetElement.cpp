@@ -6,6 +6,7 @@
 #include "mozilla/dom/SVGFEOffsetElement.h"
 #include "mozilla/dom/SVGFEOffsetElementBinding.h"
 #include "nsSVGFilterInstance.h"
+#include "gfxContext.h"
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(FEOffset)
 
@@ -59,6 +60,15 @@ SVGFEOffsetElement::Dy()
   return mNumberAttributes[DY].ToDOMAnimatedNumber(this);
 }
 
+nsIntPoint
+SVGFEOffsetElement::GetOffset(const nsSVGFilterInstance& aInstance)
+{
+  return nsIntPoint(int32_t(aInstance.GetPrimitiveNumber(
+                              SVGContentUtils::X, &mNumberAttributes[DX])),
+                    int32_t(aInstance.GetPrimitiveNumber(
+                              SVGContentUtils::Y, &mNumberAttributes[DY])));
+}
+
 FilterPrimitiveDescription
 SVGFEOffsetElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                                             const IntRect& aFilterSubregion,
@@ -66,11 +76,8 @@ SVGFEOffsetElement::GetPrimitiveDescription(nsSVGFilterInstance* aInstance,
                                             nsTArray<RefPtr<SourceSurface>>& aInputImages)
 {
   FilterPrimitiveDescription descr(FilterPrimitiveDescription::eOffset);
-  IntPoint offset(int32_t(aInstance->GetPrimitiveNumber(
-                            SVGContentUtils::X, &mNumberAttributes[DX])),
-                  int32_t(aInstance->GetPrimitiveNumber(
-                            SVGContentUtils::Y, &mNumberAttributes[DY])));
-  descr.Attributes().Set(eOffsetOffset, offset);
+  nsIntPoint offset = GetOffset(*aInstance);
+  descr.Attributes().Set(eOffsetOffset, IntPoint(offset.x, offset.y));
   return descr;
 }
 

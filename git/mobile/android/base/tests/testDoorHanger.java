@@ -77,12 +77,14 @@ public class testDoorHanger extends BaseTest {
 
 
         boolean offlineAllowedByDefault = true;
-        // Save offline-allow-by-default preferences first
-        final String[] prefNames = { "offline-apps.allow_by_default" };
-        final int ourRequestId = 0x7357;
-        final Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
-        mActions.sendPreferencesGetEvent(ourRequestId, prefNames);
         try {
+            // Save offline-allow-by-default preferences first
+            final String[] prefNames = { "offline-apps.allow_by_default" };
+            final int ourRequestId = 0x7357;
+
+            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
+            mActions.sendPreferencesGetEvent(ourRequestId, prefNames);
+
             JSONObject data = null;
             int requestId = -1;
 
@@ -104,7 +106,7 @@ public class testDoorHanger extends BaseTest {
             jsonPref.put("name", "offline-apps.allow_by_default");
             jsonPref.put("type", "bool");
             jsonPref.put("value", false);
-            setPreferenceAndWaitForChange(jsonPref);
+            mActions.sendGeckoEvent("Preferences:Set", jsonPref.toString());
         } catch (JSONException e) {
             mAsserter.ok(false, "exception getting preference", e.toString());
         }
@@ -132,9 +134,9 @@ public class testDoorHanger extends BaseTest {
             // Revert offline setting
             JSONObject jsonPref = new JSONObject();
             jsonPref.put("name", "offline-apps.allow_by_default");
-            jsonPref.put("type", "bool");
+            jsonPref.put("type", "boolean");
             jsonPref.put("value", offlineAllowedByDefault);
-            setPreferenceAndWaitForChange(jsonPref);
+            mActions.sendGeckoEvent("Preferences:Set", jsonPref.toString());
         } catch (JSONException e) {
             mAsserter.ok(false, "exception setting preference", e.toString());
         }

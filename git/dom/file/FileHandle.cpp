@@ -8,12 +8,10 @@
 
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsNetUtil.h"
 
 #include "nsIDOMFile.h"
 #include "nsIFileStorage.h"
 
-#include "File.h"
 #include "FileRequest.h"
 #include "FileService.h"
 #include "LockedFile.h"
@@ -37,12 +35,12 @@ public:
     mFileHandle(aFileHandle)
   { }
 
-  virtual nsresult
+  nsresult
   GetSuccessResult(JSContext* aCx,
                    JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
 
-  virtual void
-  ReleaseObjects() MOZ_OVERRIDE
+  void
+  ReleaseObjects()
   {
     mFileHandle = nullptr;
 
@@ -59,73 +57,51 @@ NS_IMPL_CYCLE_COLLECTION_INHERITED_1(FileHandle, nsDOMEventTargetHelper,
                                      mFileStorage)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(FileHandle)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMFileHandle)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(FileHandle, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(FileHandle, nsDOMEventTargetHelper)
 
-// static
-already_AddRefed<FileHandle>
-FileHandle::Create(nsPIDOMWindow* aWindow,
-                   nsIFileStorage* aFileStorage,
-                   nsIFile* aFile)
+NS_IMPL_EVENT_HANDLER(FileHandle, abort)
+NS_IMPL_EVENT_HANDLER(FileHandle, error)
+
+NS_IMETHODIMP
+FileHandle::GetDOMName(nsAString& aName)
 {
-  MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
-
-  nsRefPtr<FileHandle> newFileHandle = new FileHandle(aWindow);
-
-  newFileHandle->mFileStorage = aFileStorage;
-  nsresult rv = aFile->GetLeafName(newFileHandle->mName);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return nullptr;
-  }
-
-  newFileHandle->mFile = aFile;
-  newFileHandle->mFileName = newFileHandle->mName;
-
-  return newFileHandle.forget();
+  aName = mName;
+  return NS_OK;
 }
 
-// virtual
-already_AddRefed<nsISupports>
-FileHandle::CreateStream(nsIFile* aFile, bool aReadOnly)
+NS_IMETHODIMP
+FileHandle::GetDOMType(nsAString& aType)
 {
-  nsresult rv;
+  aType = mType;
+  return NS_OK;
+}
 
-  if (aReadOnly) {
-    nsCOMPtr<nsIInputStream> stream;
-    rv = NS_NewLocalFileInputStream(getter_AddRefs(stream), aFile, -1, -1,
-                                    nsIFileInputStream::DEFER_OPEN);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return nullptr;
+NS_IMETHODIMP
+FileHandle::Open(const nsAString& aMode,
+                 uint8_t aOptionalArgCount,
+                 nsIDOMLockedFile** _retval)
+{
+  FileMode mode;
+  if (aOptionalArgCount) {
+    if (aMode.EqualsLiteral("readwrite")) {
+      mode = FileMode::Readwrite;
+    } else if (aMode.EqualsLiteral("readonly")) {
+      mode = FileMode::Readonly;
+    } else {
+      return NS_ERROR_TYPE_ERR;
     }
-    return stream.forget();
+  } else {
+    mode = FileMode::Readonly;
   }
 
-  nsCOMPtr<nsIFileStream> stream;
-  rv = NS_NewLocalFileStream(getter_AddRefs(stream), aFile, -1, -1,
-                             nsIFileStream::DEFER_OPEN);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return nullptr;
-  }
-  return stream.forget();
-}
-
-// virtual
-already_AddRefed<nsIDOMFile>
-FileHandle::CreateFileObject(LockedFile* aLockedFile, uint32_t aFileSize)
-{
-  nsCOMPtr<nsIDOMFile> file =
-    new File(mName, mType, aFileSize, mFile, aLockedFile);
-
-  return file.forget();
-}
-
-// virtual
-JSObject*
-FileHandle::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return FileHandleBinding::Wrap(aCx, aScope, this);
+  ErrorResult rv;
+  nsCOMPtr<nsIDOMLockedFile> lockedFile = Open(mode, rv);
+  lockedFile.forget(_retval);
+  return rv.ErrorCode();
 }
 
 already_AddRefed<nsIDOMLockedFile>
@@ -147,6 +123,15 @@ FileHandle::Open(FileMode aMode, ErrorResult& aError)
   return lockedFile.forget();
 }
 
+NS_IMETHODIMP
+FileHandle::GetFile(nsIDOMDOMRequest** _retval)
+{
+  ErrorResult rv;
+  nsRefPtr<DOMRequest> request = GetFile(rv);
+  request.forget(_retval);
+  return rv.ErrorCode();
+}
+
 already_AddRefed<DOMRequest>
 FileHandle::GetFile(ErrorResult& aError)
 {
@@ -165,7 +150,7 @@ FileHandle::GetFile(ErrorResult& aError)
   }
 
   nsRefPtr<FileRequest> request =
-    FileRequest::Create(GetOwner(), lockedFile, /* aWrapAsDOMRequest */ true);
+    FileRequest::Create(GetOwner(), lockedFile, false);
 
   nsRefPtr<MetadataParameters> params = new MetadataParameters(true, false);
 
@@ -181,6 +166,18 @@ FileHandle::GetFile(ErrorResult& aError)
   return request.forget();
 }
 
+NS_IMETHODIMP_(int64_t)
+FileHandle::GetFileId()
+{
+  return -1;
+}
+
+NS_IMETHODIMP_(mozilla::dom::indexedDB::FileInfo*)
+FileHandle::GetFileInfo()
+{
+  return nullptr;
+}
+
 nsresult
 GetFileHelper::GetSuccessResult(JSContext* aCx,
                                 JS::MutableHandle<JS::Value> aVal)
@@ -194,4 +191,11 @@ GetFileHelper::GetSuccessResult(JSContext* aCx,
                                &NS_GET_IID(nsIDOMFile), aVal);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
   return NS_OK;
+}
+
+/* virtual */
+JSObject*
+FileHandle::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+{
+  return FileHandleBinding::Wrap(aCx, aScope, this);
 }

@@ -41,6 +41,8 @@
 #include "nsLocalFileWin.h"
 #elif defined(XP_UNIX)
 #include "nsLocalFileUnix.h"
+#elif defined(XP_OS2)
+#include "nsLocalFileOS2.h"
 #else
 #error NOT_IMPLEMENTED
 #endif

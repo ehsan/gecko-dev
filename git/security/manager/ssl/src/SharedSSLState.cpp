@@ -27,8 +27,8 @@ using mozilla::unused;
 
 namespace {
 
-static Atomic<bool> sCertOverrideSvcExists(false);
-static Atomic<bool> sCertDBExists(false);
+static Atomic<int32_t> sCertOverrideSvcExists(0);
+static Atomic<int32_t> sCertDBExists(0);
 
 class MainThreadClearer : public SyncRunnableBase
 {
@@ -40,9 +40,9 @@ public:
     // is in progress. We want to avoid this, since they do not handle the situation well,
     // hence the flags to avoid instantiating the services if they don't already exist.
 
-    bool certOverrideSvcExists = sCertOverrideSvcExists.exchange(false);
+    bool certOverrideSvcExists = (bool)sCertOverrideSvcExists.exchange(0);
     if (certOverrideSvcExists) {
-      sCertOverrideSvcExists = true;
+      sCertOverrideSvcExists = 1;
       nsCOMPtr<nsICertOverrideService> icos = do_GetService(NS_CERTOVERRIDE_CONTRACTID);
       if (icos) {
         icos->ClearValidityOverride(
@@ -51,9 +51,9 @@ public:
       }
     }
 
-    bool certDBExists = sCertDBExists.exchange(false);
+    bool certDBExists = (bool)sCertDBExists.exchange(0);
     if (certDBExists) {
-      sCertDBExists = true;
+      sCertDBExists = 1;
       nsCOMPtr<nsIX509CertDB> certdb = do_GetService(NS_X509CERTDB_CONTRACTID);
       if (certdb) {
         nsCOMPtr<nsIRecentBadCerts> badCerts;
@@ -206,13 +206,13 @@ SharedSSLState::GlobalCleanup()
 /*static*/ void
 SharedSSLState::NoteCertOverrideServiceInstantiated()
 {
-  sCertOverrideSvcExists = true;
+  sCertOverrideSvcExists = 1;
 }
 
 /*static*/ void
 SharedSSLState::NoteCertDBServiceInstantiated()
 {
-  sCertDBExists = true;
+  sCertDBExists = 1;
 }
 
 void

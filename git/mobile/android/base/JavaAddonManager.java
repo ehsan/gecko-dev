@@ -5,7 +5,9 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.gecko.util.GeckoEventResponder;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -138,7 +140,7 @@ class JavaAddonManager implements GeckoEventListener {
         }
     }
 
-    private static class CallbackWrapper implements GeckoEventListener {
+    private static class CallbackWrapper implements GeckoEventResponder {
         private final Handler.Callback mDelegate;
         private Bundle mBundle;
 
@@ -182,14 +184,16 @@ class JavaAddonManager implements GeckoEventListener {
                 Message msg = new Message();
                 msg.setData(mBundle);
                 mDelegate.handleMessage(msg);
-
-                JSONObject obj = new JSONObject();
-                obj.put("response", mBundle.getString("response"));
-                EventDispatcher.sendResponse(json, obj);
-                mBundle = null;
             } catch (Exception e) {
                 Log.e(LOGTAG, "Caught exception thrown from wrapped addon message handler", e);
             }
+        }
+
+        @Override
+        public String getResponse(JSONObject origMessage) {
+            String response = mBundle.getString("response");
+            mBundle = null;
+            return response;
         }
     }
 }

@@ -29,7 +29,6 @@ class GLContextEGL : public GLContext
                     EGLSurface surface);
 
 public:
-    MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(GLContextEGL)
     GLContextEGL(const SurfaceCaps& caps,
                  GLContext* shareContext,
                  bool isOffscreen,
@@ -39,7 +38,7 @@ public:
 
     ~GLContextEGL();
 
-    virtual GLContextType GetContextType() const MOZ_OVERRIDE { return GLContextType::EGL; }
+    virtual GLContextType GetContextType() MOZ_OVERRIDE { return GLContextType::EGL; }
 
     static GLContextEGL* Cast(GLContext* gl) {
         MOZ_ASSERT(gl->GetContextType() == GLContextType::EGL);
@@ -48,7 +47,7 @@ public:
 
     bool Init();
 
-    virtual bool IsDoubleBuffered() const MOZ_OVERRIDE {
+    bool IsDoubleBuffered() {
         return mIsDoubleBuffered;
     }
 
@@ -56,31 +55,35 @@ public:
         mIsDoubleBuffered = aIsDB;
     }
 
-    virtual bool SupportsRobustness() const MOZ_OVERRIDE {
+    bool SupportsRobustness()
+    {
         return sEGLLibrary.HasRobustness();
     }
 
-    virtual bool IsANGLE() const MOZ_OVERRIDE {
+    virtual bool IsANGLE()
+    {
         return sEGLLibrary.IsANGLE();
     }
 
-    virtual bool BindTexImage() MOZ_OVERRIDE;
+    bool BindTexImage();
 
-    virtual bool ReleaseTexImage() MOZ_OVERRIDE;
+    bool ReleaseTexImage();
 
     void SetEGLSurfaceOverride(EGLSurface surf);
 
-    virtual bool MakeCurrentImpl(bool aForce) MOZ_OVERRIDE;
+    bool MakeCurrentImpl(bool aForce = false);
 
-    virtual bool IsCurrent() MOZ_OVERRIDE;
+    virtual bool IsCurrent();
 
-    virtual bool RenewSurface() MOZ_OVERRIDE;
+    virtual bool
+    RenewSurface();
 
-    virtual void ReleaseSurface() MOZ_OVERRIDE;
+    virtual void
+    ReleaseSurface();
 
-    virtual bool SetupLookupFunction() MOZ_OVERRIDE;
+    bool SetupLookupFunction();
 
-    virtual bool SwapBuffers() MOZ_OVERRIDE;
+    bool SwapBuffers();
 
     // hold a reference to the given surface
     // for the lifetime of this context.
@@ -92,6 +95,7 @@ public:
 
     bool BindTex2DOffscreen(GLContext *aOffscreen);
     void UnbindTex2DOffscreen(GLContext *aOffscreen);
+    bool ResizeOffscreen(const gfx::IntSize& aNewSize);
     void BindOffscreenFramebuffer();
 
     static already_AddRefed<GLContextEGL>

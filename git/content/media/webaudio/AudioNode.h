@@ -10,6 +10,7 @@
 #include "nsDOMEventTargetHelper.h"
 #include "mozilla/dom/AudioNodeBinding.h"
 #include "nsCycleCollectionParticipant.h"
+#include "EnableWebAudioCheck.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "AudioContext.h"
@@ -81,7 +82,8 @@ private:
  * still alive, and will still be alive when it receives a message from the
  * engine.
  */
-class AudioNode : public nsDOMEventTargetHelper
+class AudioNode : public nsDOMEventTargetHelper,
+                  public EnableWebAudioCheck
 {
 protected:
   // You can only use refcounting to delete this object

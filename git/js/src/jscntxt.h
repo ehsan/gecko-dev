@@ -276,13 +276,14 @@ struct ThreadSafeContext : ContextFriendFields,
     }
 
     // Accessors for immutable runtime data.
-    JSAtomState &names() { return *runtime_->commonNames; }
-    StaticStrings &staticStrings() { return *runtime_->staticStrings; }
-    AtomSet &permanentAtoms() { return *runtime_->permanentAtoms; }
+    JSAtomState &names() { return runtime_->atomState; }
+    StaticStrings &staticStrings() { return runtime_->staticStrings; }
     const JS::AsmJSCacheOps &asmJSCacheOps() { return runtime_->asmJSCacheOps; }
     PropertyName *emptyString() { return runtime_->emptyString; }
     FreeOp *defaultFreeOp() { return runtime_->defaultFreeOp(); }
     bool useHelperThreads() { return runtime_->useHelperThreads(); }
+    unsigned cpuCount() { return runtime_->cpuCount(); }
+    size_t workerThreadCount() { return runtime_->workerThreadCount(); }
     void *runtimeAddressForJit() { return runtime_; }
     void *stackLimitAddress(StackKind kind) { return &runtime_->mainThread.nativeStackLimit[kind]; }
     void *stackLimitAddressForJitCode(StackKind kind);
@@ -389,6 +390,15 @@ class ExclusiveContext : public ThreadSafeContext
         return runtime_->scriptDataTable();
     }
 
+#ifdef JS_THREADSAFE
+    // Since JSRuntime::workerThreadState is necessarily initialized from the
+    // main thread before the first worker thread can access it, there is no
+    // possibility for a race read/writing it.
+    WorkerThreadState *workerThreadState() {
+        return runtime_->workerThreadState;
+    }
+#endif
+
     // Methods specific to any WorkerThread for the context.
     frontend::CompileError &addPendingCompileError();
     void addPendingOverRecursed();
@@ -412,7 +422,6 @@ struct JSContext : public js::ExclusiveContext,
     js::PerThreadData &mainThread() const { return runtime()->mainThread; }
 
     friend class js::ExclusiveContext;
-    friend class JS::AutoSaveExceptionState;
 
   private:
     /* Exception state -- the exception member is a GC root by definition. */
@@ -519,7 +528,7 @@ struct JSContext : public js::ExclusiveContext,
     js::StackFrame *interpreterFrame() const {
         return mainThread().activation()->asInterpreter()->current();
     }
-    js::InterpreterRegs &interpreterRegs() const {
+    js::FrameRegs &interpreterRegs() const {
         return mainThread().activation()->asInterpreter()->regs();
     }
 
@@ -556,6 +565,16 @@ struct JSContext : public js::ExclusiveContext,
     JSGenerator *innermostGenerator() const { return innermostGenerator_; }
     void enterGenerator(JSGenerator *gen);
     void leaveGenerator(JSGenerator *gen);
+
+    void *onOutOfMemory(void *p, size_t nbytes) {
+        return runtime()->onOutOfMemory(p, nbytes, this);
+    }
+    void updateMallocCounter(size_t nbytes) {
+        runtime()->updateMallocCounter(zone(), nbytes);
+    }
+    void reportAllocationOverflow() {
+        js_ReportAllocationOverflow(this);
+    }
 
     bool isExceptionPending() {
         return throwing;
@@ -818,36 +837,29 @@ js_strdup(js::ExclusiveContext *cx, const char *s);
 # define JS_ASSERT_REQUEST_DEPTH(cx)  ((void) 0)
 #endif
 
-namespace js {
-
 /*
- * Invoke the interrupt callback and return false if the current execution
+ * Invoke the operation callback and return false if the current execution
  * is to be terminated.
  */
-bool
-InvokeInterruptCallback(JSContext *cx);
+extern bool
+js_InvokeOperationCallback(JSContext *cx);
 
-bool
-HandleExecutionInterrupt(JSContext *cx);
+extern bool
+js_HandleExecutionInterrupt(JSContext *cx);
 
 /*
- * Process any pending interrupt requests. Long-running inner loops in C++ must
- * call this periodically to make sure they are interruptible --- that is, to
- * make sure they do not prevent the slow script dialog from appearing.
- *
- * This can run a full GC or call the interrupt callback, which could do
- * anything. In the browser, it displays the slow script dialog.
- *
- * If this returns true, the caller can continue; if false, the caller must
- * break out of its loop. This happens if, for example, the user clicks "Stop
- * script" on the slow script dialog; treat it as an uncatchable error.
+ * If the operation callback flag was set, call the operation callback.
+ * This macro can run the full GC. Return true if it is OK to continue and
+ * false otherwise.
  */
-inline bool
-CheckForInterrupt(JSContext *cx)
+static MOZ_ALWAYS_INLINE bool
+JS_CHECK_OPERATION_LIMIT(JSContext *cx)
 {
     JS_ASSERT_REQUEST_DEPTH(cx);
-    return !cx->runtime()->interrupt || InvokeInterruptCallback(cx);
+    return !cx->runtime()->interrupt || js_InvokeOperationCallback(cx);
 }
+
+namespace js {
 
 /************************************************************************/
 
@@ -890,6 +902,43 @@ class AutoShapeVector : public AutoVectorRooter<Shape *>
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
+class AutoValueArray : public AutoGCRooter
+{
+    Value *start_;
+    unsigned length_;
+    SkipRoot skip;
+
+  public:
+    AutoValueArray(JSContext *cx, Value *start, unsigned length
+                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, VALARRAY), start_(start), length_(length), skip(cx, start, length)
+    {
+        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    Value *start() { return start_; }
+    unsigned length() const { return length_; }
+
+    MutableHandleValue handleAt(unsigned i) {
+        JS_ASSERT(i < length_);
+        return MutableHandleValue::fromMarkedLocation(&start_[i]);
+    }
+    HandleValue handleAt(unsigned i) const {
+        JS_ASSERT(i < length_);
+        return HandleValue::fromMarkedLocation(&start_[i]);
+    }
+    MutableHandleValue operator[](unsigned i) {
+        JS_ASSERT(i < length_);
+        return MutableHandleValue::fromMarkedLocation(&start_[i]);
+    }
+    HandleValue operator[](unsigned i) const {
+        JS_ASSERT(i < length_);
+        return HandleValue::fromMarkedLocation(&start_[i]);
+    }
+
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
 class AutoObjectObjectHashMap : public AutoHashMapRooter<JSObject *, JSObject *>
 {
   public:
@@ -926,62 +975,6 @@ class AutoObjectHashSet : public AutoHashSetRooter<JSObject *>
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
-/* AutoArrayRooter roots an external array of Values. */
-class AutoArrayRooter : private AutoGCRooter
-{
-  public:
-    AutoArrayRooter(JSContext *cx, size_t len, Value *vec
-                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, len), array(vec), skip(cx, array, len)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        JS_ASSERT(tag_ >= 0);
-    }
-
-    void changeLength(size_t newLength) {
-        tag_ = ptrdiff_t(newLength);
-        JS_ASSERT(tag_ >= 0);
-    }
-
-    void changeArray(Value *newArray, size_t newLength) {
-        changeLength(newLength);
-        array = newArray;
-    }
-
-    Value *start() {
-        return array;
-    }
-
-    size_t length() {
-        JS_ASSERT(tag_ >= 0);
-        return size_t(tag_);
-    }
-
-    MutableHandleValue handleAt(size_t i) {
-        JS_ASSERT(i < size_t(tag_));
-        return MutableHandleValue::fromMarkedLocation(&array[i]);
-    }
-    HandleValue handleAt(size_t i) const {
-        JS_ASSERT(i < size_t(tag_));
-        return HandleValue::fromMarkedLocation(&array[i]);
-    }
-    MutableHandleValue operator[](size_t i) {
-        JS_ASSERT(i < size_t(tag_));
-        return MutableHandleValue::fromMarkedLocation(&array[i]);
-    }
-    HandleValue operator[](size_t i) const {
-        JS_ASSERT(i < size_t(tag_));
-        return HandleValue::fromMarkedLocation(&array[i]);
-    }
-
-    friend void AutoGCRooter::trace(JSTracer *trc);
-
-  private:
-    Value *array;
-    js::SkipRoot skip;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -1038,12 +1031,6 @@ bool intrinsic_IsPackedArray(JSContext *cx, unsigned argc, Value *vp);
 
 bool intrinsic_ShouldForceSequential(JSContext *cx, unsigned argc, Value *vp);
 bool intrinsic_NewParallelArray(JSContext *cx, unsigned argc, Value *vp);
-bool intrinsic_ForkJoinGetSlice(JSContext *cx, unsigned argc, Value *vp);
-bool intrinsic_InParallelSection(JSContext *cx, unsigned argc, Value *vp);
-
-bool intrinsic_ObjectIsTransparentTypedObject(JSContext *cx, unsigned argc, Value *vp);
-bool intrinsic_ObjectIsOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp);
-bool intrinsic_ObjectIsTypeDescr(JSContext *cx, unsigned argc, Value *vp);
 
 class AutoLockForExclusiveAccess
 {
@@ -1053,7 +1040,7 @@ class AutoLockForExclusiveAccess
     void init(JSRuntime *rt) {
         runtime = rt;
         if (runtime->numExclusiveThreads) {
-            runtime->assertCanLock(ExclusiveAccessLock);
+            runtime->assertCanLock(JSRuntime::ExclusiveAccessLock);
             PR_Lock(runtime->exclusiveAccessLock);
 #ifdef DEBUG
             runtime->exclusiveAccessOwner = PR_GetCurrentThread();
@@ -1099,9 +1086,6 @@ class AutoLockForExclusiveAccess
 
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
-
-void
-CrashAtUnhandlableOOM(const char *reason);
 
 } /* namespace js */
 

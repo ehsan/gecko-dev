@@ -110,20 +110,23 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(XPCVariant)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 // static
-already_AddRefed<XPCVariant>
-XPCVariant::newVariant(JSContext* cx, jsval aJSVal)
+XPCVariant* XPCVariant::newVariant(JSContext* cx, jsval aJSVal)
 {
-    nsRefPtr<XPCVariant> variant;
+    XPCVariant* variant;
 
     if (!JSVAL_IS_TRACEABLE(aJSVal))
         variant = new XPCVariant(cx, aJSVal);
     else
         variant = new XPCTraceableVariant(cx, aJSVal);
 
-    if (!variant->InitializeData(cx))
+    if (!variant)
         return nullptr;
+    NS_ADDREF(variant);
 
-    return variant.forget();
+    if (!variant->InitializeData(cx))
+        NS_RELEASE(variant);     // Also sets variant to nullptr.
+
+    return variant;
 }
 
 // Helper class to give us a namespace for the table based code below.
@@ -641,7 +644,7 @@ VARIANT_DONE:
         }
         case nsIDataType::VTYPE_EMPTY_ARRAY:
         {
-            JSObject* array = JS_NewArrayObject(cx, 0);
+            JSObject* array = JS_NewArrayObject(cx, 0, nullptr);
             if (!array)
                 return false;
             pJSVal.setObject(*array);

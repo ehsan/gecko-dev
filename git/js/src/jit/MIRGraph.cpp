@@ -25,7 +25,7 @@ MIRGenerator::MIRGenerator(CompileCompartment *compartment, const JitCompileOpti
     alloc_(alloc),
     graph_(graph),
     error_(false),
-    cancelBuild_(false),
+    cancelBuild_(0),
     maxAsmJSStackArgBytes_(0),
     performsAsmJSCall_(false),
     asmJSHeapAccesses_(*alloc),
@@ -211,19 +211,9 @@ MBasicBlock::NewWithResumePoint(MIRGraph &graph, CompileInfo &info,
 
 MBasicBlock *
 MBasicBlock::NewPendingLoopHeader(MIRGraph &graph, CompileInfo &info,
-                                  MBasicBlock *pred, jsbytecode *entryPc,
-                                  unsigned stackPhiCount)
+                                  MBasicBlock *pred, jsbytecode *entryPc)
 {
-    JS_ASSERT(entryPc != nullptr);
-
-    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, entryPc, PENDING_LOOP_HEADER);
-    if (!block->init())
-        return nullptr;
-
-    if (!block->inherit(graph.alloc(), nullptr, pred, 0, stackPhiCount))
-        return nullptr;
-
-    return block;
+    return MBasicBlock::New(graph, nullptr, info, pred, entryPc, PENDING_LOOP_HEADER);
 }
 
 MBasicBlock *
@@ -346,7 +336,7 @@ MBasicBlock::copySlots(MBasicBlock *from)
 
 bool
 MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred,
-                     uint32_t popped, unsigned stackPhiCount)
+                     uint32_t popped)
 {
     if (pred) {
         stackPosition_ = pred->stackPosition_;
@@ -377,29 +367,7 @@ MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlo
             return false;
 
         if (kind_ == PENDING_LOOP_HEADER) {
-            size_t i = 0;
-            for (i = 0; i < info().firstStackSlot(); i++) {
-                MPhi *phi = MPhi::New(alloc, i);
-                if (!phi->addInputSlow(pred->getSlot(i)))
-                    return false;
-                addPhi(phi);
-                setSlot(i, phi);
-                entryResumePoint()->setOperand(i, phi);
-            }
-
-            JS_ASSERT(stackPhiCount <= stackDepth());
-            JS_ASSERT(info().firstStackSlot() <= stackDepth() - stackPhiCount);
-
-            // Avoid creating new phis for stack values that aren't part of the
-            // loop.  Note that for loop headers that can OSR, all values on the
-            // stack are part of the loop.
-            for (; i < stackDepth() - stackPhiCount; i++) {
-                MDefinition *val = pred->getSlot(i);
-                setSlot(i, val);
-                entryResumePoint()->setOperand(i, val);
-            }
-
-            for (; i < stackDepth(); i++) {
+            for (size_t i = 0; i < stackDepth(); i++) {
                 MPhi *phi = MPhi::New(alloc, i);
                 if (!phi->addInputSlow(pred->getSlot(i)))
                     return false;

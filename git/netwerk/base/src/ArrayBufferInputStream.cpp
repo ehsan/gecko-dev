@@ -50,10 +50,7 @@ ArrayBufferInputStream::SetData(JS::Handle<JS::Value> aBuffer,
   uint32_t buflen = JS_GetArrayBufferByteLength(arrayBuffer);
   mOffset = std::min(buflen, aByteOffset);
   mBufferLength = std::min(buflen - mOffset, aLength);
-  mBuffer = JS_GetStableArrayBufferData(aCx, arrayBuffer);
-  if (!mBuffer) {
-      return NS_ERROR_FAILURE;
-  }
+  mBuffer = JS_GetArrayBufferData(arrayBuffer);
   return NS_OK;
 }
 
@@ -92,17 +89,6 @@ ArrayBufferInputStream::ReadSegments(nsWriteSegmentFun writer, void *closure,
   }
 
   uint32_t remaining = mBufferLength - mPos;
-  if (!mArrayBuffer.isUndefined()) {
-    JSObject* buf = &mArrayBuffer.toObject();
-    uint32_t byteLength = JS_GetArrayBufferByteLength(buf);
-    if (byteLength == 0 && remaining != 0) {
-      mClosed = true;
-      return NS_BASE_STREAM_CLOSED;
-    }
-  } else {
-    MOZ_ASSERT(remaining == 0, "stream inited incorrectly");
-  }
-
   if (!remaining) {
     *result = 0;
     return NS_OK;

@@ -496,10 +496,6 @@ DOMStorageCache::SetItem(const DOMStorage* aStorage, const nsAString& aKey,
   data.mKeys.Put(aKey, aValue);
 
   if (Persist(aStorage)) {
-    if (!sDatabase) {
-      return NS_ERROR_NOT_INITIALIZED;
-    }
-
     if (DOMStringIsNull(aOld)) {
       return sDatabase->AsyncAddItem(this, aKey, aValue);
     }
@@ -535,10 +531,6 @@ DOMStorageCache::RemoveItem(const DOMStorage* aStorage, const nsAString& aKey,
   data.mKeys.Remove(aKey);
 
   if (Persist(aStorage)) {
-    if (!sDatabase) {
-      return NS_ERROR_NOT_INITIALIZED;
-    }
-
     return sDatabase->AsyncRemoveItem(this, aKey);
   }
 
@@ -575,10 +567,6 @@ DOMStorageCache::Clear(const DOMStorage* aStorage)
   }
 
   if (Persist(aStorage) && (refresh || hadData)) {
-    if (!sDatabase) {
-      return NS_ERROR_NOT_INITIALIZED;
-    }
-
     return sDatabase->AsyncClear(this);
   }
 

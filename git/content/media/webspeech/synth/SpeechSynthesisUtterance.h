@@ -12,6 +12,7 @@
 #include "nsString.h"
 #include "js/TypeDecls.h"
 
+#include "EnableSpeechSynthesisCheck.h"
 #include "nsSpeechTask.h"
 
 namespace mozilla {
@@ -21,7 +22,8 @@ class SpeechSynthesisVoice;
 class SpeechSynthesis;
 class nsSynthVoiceRegistry;
 
-class SpeechSynthesisUtterance MOZ_FINAL : public nsDOMEventTargetHelper
+class SpeechSynthesisUtterance MOZ_FINAL : public nsDOMEventTargetHelper,
+                                           public EnableSpeechSynthesisCheck
 {
   friend class SpeechSynthesis;
   friend class nsSpeechTask;

@@ -10,6 +10,7 @@
 #include "SVGGraphicsElement.h"
 
 struct gfxMatrix;
+template <class E> class nsTArray;
 
 struct nsSVGMark {
   enum Type {
@@ -39,7 +40,7 @@ protected:
   typedef mozilla::gfx::PathBuilder PathBuilder;
 
 public:
-  nsSVGPathGeometryElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
+  nsSVGPathGeometryElement(already_AddRefed<nsINodeInfo> aNodeInfo);
 
   virtual bool AttributeDefinesGeometry(const nsIAtom *aName);
 

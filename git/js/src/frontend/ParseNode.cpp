@@ -170,7 +170,6 @@ PushNodeChildren(ParseNode *pn, NodeStack *stack)
         stack->pushUnlessNull(pn->pn_kid3);
         break;
       case PN_BINARY:
-      case PN_BINARY_OBJ:
         if (pn->pn_left != pn->pn_right)
             stack->pushUnlessNull(pn->pn_left);
         stack->pushUnlessNull(pn->pn_right);
@@ -327,6 +326,8 @@ Definition::kindString(Kind kind)
 namespace js {
 namespace frontend {
 
+#if JS_HAS_DESTRUCTURING
+
 /*
  * This function assumes the cloned tree is for use in the same statement and
  * binding context as the original tree.
@@ -383,15 +384,6 @@ Parser<FullParseHandler>::cloneParseTree(ParseNode *opn)
         pn->pn_iflags = opn->pn_iflags;
         break;
 
-      case PN_BINARY_OBJ:
-        NULLCHECK(pn->pn_left = cloneParseTree(opn->pn_left));
-        if (opn->pn_right != opn->pn_left)
-            NULLCHECK(pn->pn_right = cloneParseTree(opn->pn_right));
-        else
-            pn->pn_right = pn->pn_left;
-        pn->pn_binary_obj = opn->pn_binary_obj;
-        break;
-
       case PN_UNARY:
         NULLCHECK(pn->pn_kid = cloneParseTree(opn->pn_kid));
         break;
@@ -431,6 +423,8 @@ Parser<FullParseHandler>::cloneParseTree(ParseNode *opn)
     return pn;
 }
 
+#endif /* JS_HAS_DESTRUCTURING */
+
 /*
  * Used by Parser::forStatement and comprehensionTail to clone the TARGET in
  *   for (var/const/let TARGET in EXPR)
@@ -453,6 +447,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
     pn->setDefn(opn->isDefn());
     pn->setUsed(opn->isUsed());
 
+#if JS_HAS_DESTRUCTURING
     if (opn->isArity(PN_LIST)) {
         JS_ASSERT(opn->isKind(PNK_ARRAY) || opn->isKind(PNK_OBJECT));
         pn->makeEmpty();
@@ -484,6 +479,7 @@ Parser<FullParseHandler>::cloneLeftHandSide(ParseNode *opn)
         pn->pn_xflags = opn->pn_xflags;
         return pn;
     }
+#endif
 
     JS_ASSERT(opn->isArity(PN_NAME));
     JS_ASSERT(opn->isKind(PNK_NAME));
@@ -558,9 +554,6 @@ ParseNode::dump(int indent)
       case PN_BINARY:
         ((BinaryNode *) this)->dump(indent);
         break;
-      case PN_BINARY_OBJ:
-        ((BinaryObjNode *) this)->dump(indent);
-        break;
       case PN_TERNARY:
         ((TernaryNode *) this)->dump(indent);
         break;
@@ -621,18 +614,6 @@ UnaryNode::dump(int indent)
 
 void
 BinaryNode::dump(int indent)
-{
-    const char *name = parseNodeNames[getKind()];
-    fprintf(stderr, "(%s ", name);
-    indent += strlen(name) + 2;
-    DumpParseTree(pn_left, indent);
-    IndentNewLine(indent);
-    DumpParseTree(pn_right, indent);
-    fprintf(stderr, ")");
-}
-
-void
-BinaryObjNode::dump(int indent)
 {
     const char *name = parseNodeNames[getKind()];
     fprintf(stderr, "(%s ", name);

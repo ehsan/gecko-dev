@@ -50,8 +50,7 @@ nsInProcessTabChildGlobal::DoSendBlockingMessage(JSContext* aCx,
   return true;
 }
 
-class nsAsyncMessageToParent : public nsSameProcessAsyncMessageBase,
-                               public nsRunnable
+class nsAsyncMessageToParent : public nsRunnable
 {
 public:
   nsAsyncMessageToParent(JSContext* aCx,
@@ -60,9 +59,27 @@ public:
                          const StructuredCloneData& aData,
                          JS::Handle<JSObject *> aCpows,
                          nsIPrincipal* aPrincipal)
-    : nsSameProcessAsyncMessageBase(aCx, aMessage, aData, aCpows, aPrincipal),
-      mTabChild(aTabChild), mRun(false)
+    : mRuntime(js::GetRuntime(aCx)),
+      mTabChild(aTabChild),
+      mMessage(aMessage),
+      mCpows(aCpows),
+      mPrincipal(aPrincipal),
+      mRun(false)
   {
+    if (aData.mDataLength && !mData.copy(aData.mData, aData.mDataLength)) {
+      NS_RUNTIMEABORT("OOM");
+    }
+    if (mCpows && !js_AddObjectRoot(mRuntime, &mCpows)) {
+      NS_RUNTIMEABORT("OOM");
+    }
+    mClosure = aData.mClosure;
+  }
+
+  ~nsAsyncMessageToParent()
+  {
+    if (mCpows) {
+        JS_RemoveObjectRootRT(mRuntime, &mCpows);
+    }
   }
 
   NS_IMETHOD Run()
@@ -73,10 +90,27 @@ public:
 
     mRun = true;
     mTabChild->mASyncMessages.RemoveElement(this);
-    ReceiveMessage(mTabChild->mOwner, mTabChild->mChromeMessageManager);
+    if (mTabChild->mChromeMessageManager) {
+      StructuredCloneData data;
+      data.mData = mData.data();
+      data.mDataLength = mData.nbytes();
+      data.mClosure = mClosure;
+
+      SameProcessCpowHolder cpows(mRuntime, JS::Handle<JSObject *>::fromMarkedLocation(&mCpows));
+
+      nsRefPtr<nsFrameMessageManager> mm = mTabChild->mChromeMessageManager;
+      mm->ReceiveMessage(mTabChild->mOwner, mMessage, false, &data, &cpows,
+                         mPrincipal, nullptr);
+    }
     return NS_OK;
   }
+  JSRuntime* mRuntime;
   nsRefPtr<nsInProcessTabChildGlobal> mTabChild;
+  nsString mMessage;
+  JSAutoStructuredCloneBuffer mData;
+  StructuredCloneClosure mClosure;
+  JSObject* mCpows;
+  nsCOMPtr<nsIPrincipal> mPrincipal;
   // True if this runnable has already been called. This can happen if DoSendSyncMessage
   // is called while waiting for an asynchronous message send.
   bool mRun;

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,31 +23,38 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testTooltip.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testTooltip.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var assert = require('../testharness/assert');
-// var helpers = require('./helpers');
+'use strict';
+
+// var assert = require('test/assert');
+// var helpers = require('gclitest/helpers');
+// var mockCommands = require('gclitest/mockCommands');
+
+exports.setup = function(options) {
+  mockCommands.setup();
+};
+
+exports.shutdown = function(options) {
+  mockCommands.shutdown();
+};
 
 exports.testActivate = function(options) {
   if (!options.display) {
     assert.log('No display. Skipping activate tests');
     return;
+  }
+
+  if (options.isJsdom) {
+    assert.log('Reduced checks due to JSDom.textContent');
   }
 
   return helpers.audit(options, [
@@ -150,3 +158,5 @@ exports.testActivate = function(options) {
     }
   ]);
 };
+
+// });

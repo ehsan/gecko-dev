@@ -22,9 +22,9 @@ class JSObject;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaSourceLog;
-#define MSE_DEBUG(...) PR_LOG(gMediaSourceLog, PR_LOG_DEBUG, (__VA_ARGS__))
+#define LOG(type, msg) PR_LOG(gMediaSourceLog, type, msg)
 #else
-#define MSE_DEBUG(...)
+#define LOG(type, msg)
 #endif
 
 namespace mozilla {
@@ -104,14 +104,6 @@ SourceBufferList::Remove(double aStart, double aEnd, ErrorResult& aRv)
 }
 
 void
-SourceBufferList::Evict(double aStart, double aEnd)
-{
-  for (uint32_t i = 0; i < mSourceBuffers.Length(); ++i) {
-    mSourceBuffers[i]->Evict(aStart, aEnd);
-  }
-}
-
-void
 SourceBufferList::Ended()
 {
   for (uint32_t i = 0; i < mSourceBuffers.Length(); ++i) {
@@ -122,14 +114,14 @@ SourceBufferList::Ended()
 void
 SourceBufferList::DispatchSimpleEvent(const char* aName)
 {
-  MSE_DEBUG("%p Dispatching event %s to SourceBufferList", this, aName);
+  LOG(PR_LOG_DEBUG, ("%p Dispatching event %s to SourceBufferList", this, aName));
   DispatchTrustedEvent(NS_ConvertUTF8toUTF16(aName));
 }
 
 void
 SourceBufferList::QueueAsyncSimpleEvent(const char* aName)
 {
-  MSE_DEBUG("%p Queuing event %s to SourceBufferList", this, aName);
+  LOG(PR_LOG_DEBUG, ("%p Queuing event %s to SourceBufferList", this, aName));
   nsCOMPtr<nsIRunnable> event = new AsyncEventRunner<SourceBufferList>(this, aName);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }

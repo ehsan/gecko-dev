@@ -1247,9 +1247,7 @@ nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
     mDocumentURI = aDocumentURI;
 
     if (aCustomProfileDir) {
-        rv = cacheService->BuildGroupIDForApp(aManifestURI,
-                                              aAppID, aInBrowser,
-                                              mGroupID);
+        rv = GetCacheKey(aManifestURI, mGroupID);
         NS_ENSURE_SUCCESS(rv, rv);
 
         // Create only a new offline application cache in the custom profile

@@ -96,10 +96,10 @@ hashEnumerate(PLDHashTable* table, PLDHashEntryHdr* hdr, uint32_t i, void *arg)
 {
     _HashEnumerateArgs* thunk = (_HashEnumerateArgs*)arg;
     HTEntry* entry = static_cast<HTEntry*>(hdr);
-
+    
     if (thunk->fn(entry->key, entry->value, thunk->arg))
         return PL_DHASH_NEXT;
-    return PL_DHASH_STOP;
+    return PL_DHASH_STOP;           
 }
 
 //
@@ -118,20 +118,21 @@ nsHashKey::Write(nsIObjectOutputStream* aStream) const
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsHashtable::nsHashtable(uint32_t aInitSize, bool aThreadSafe)
+nsHashtable::nsHashtable(uint32_t aInitSize, bool threadSafe)
   : mLock(nullptr), mEnumerating(false)
 {
     MOZ_COUNT_CTOR(nsHashtable);
 
     bool result = PL_DHashTableInit(&mHashtable, &hashtableOps, nullptr,
-                                    sizeof(HTEntry), aInitSize, fallible_t());
+                                      sizeof(HTEntry), aInitSize);
+    
     NS_ASSERTION(result, "Hashtable failed to initialize");
 
     // make sure we detect this later
     if (!result)
         mHashtable.ops = nullptr;
-
-    if (aThreadSafe) {
+    
+    if (threadSafe) {
         mLock = PR_NewLock();
         if (mLock == nullptr) {
             // Cannot create a lock. If running on a multiprocessing system
@@ -140,6 +141,7 @@ nsHashtable::nsHashtable(uint32_t aInitSize, bool aThreadSafe)
         }
     }
 }
+
 
 nsHashtable::~nsHashtable() {
     MOZ_COUNT_DTOR(nsHashtable);
@@ -156,12 +158,12 @@ bool nsHashtable::Exists(nsHashKey *aKey)
         if (mLock) PR_Unlock(mLock);
         return false;
     }
-
+    
     PLDHashEntryHdr *entry =
         PL_DHashTableOperate(&mHashtable, aKey, PL_DHASH_LOOKUP);
-
+    
     bool exists = PL_DHASH_ENTRY_IS_BUSY(entry);
-
+    
     if (mLock) PR_Unlock(mLock);
 
     return exists;
@@ -172,16 +174,16 @@ void *nsHashtable::Put(nsHashKey *aKey, void *aData)
     void *res =  nullptr;
 
     if (!mHashtable.ops) return nullptr;
-
+    
     if (mLock) PR_Lock(mLock);
 
     // shouldn't be adding an item during enumeration
     PR_ASSERT(!mEnumerating);
-
+    
     HTEntry* entry =
         static_cast<HTEntry*>
                    (PL_DHashTableOperate(&mHashtable, aKey, PL_DHASH_ADD));
-
+    
     if (entry) {                // don't return early, or you'll be locked!
         if (entry->key) {
             // existing entry, need to boot the old value
@@ -202,14 +204,14 @@ void *nsHashtable::Put(nsHashKey *aKey, void *aData)
 void *nsHashtable::Get(nsHashKey *aKey)
 {
     if (!mHashtable.ops) return nullptr;
-
+    
     if (mLock) PR_Lock(mLock);
 
     HTEntry* entry =
         static_cast<HTEntry*>
                    (PL_DHashTableOperate(&mHashtable, aKey, PL_DHASH_LOOKUP));
     void *ret = PL_DHASH_ENTRY_IS_BUSY(entry) ? entry->value : nullptr;
-
+    
     if (mLock) PR_Unlock(mLock);
 
     return ret;
@@ -218,7 +220,7 @@ void *nsHashtable::Get(nsHashKey *aKey)
 void *nsHashtable::Remove(nsHashKey *aKey)
 {
     if (!mHashtable.ops) return nullptr;
-
+    
     if (mLock) PR_Lock(mLock);
 
     // shouldn't be adding an item during enumeration
@@ -231,7 +233,7 @@ void *nsHashtable::Remove(nsHashKey *aKey)
         static_cast<HTEntry*>
                    (PL_DHashTableOperate(&mHashtable, aKey, PL_DHASH_LOOKUP));
     void *res;
-
+    
     if (PL_DHASH_ENTRY_IS_FREE(entry)) {
         // value wasn't in the table anyway
         res = nullptr;
@@ -254,7 +256,7 @@ hashEnumerateShare(PLDHashTable *table, PLDHashEntryHdr *hdr,
 {
     nsHashtable *newHashtable = (nsHashtable *)arg;
     HTEntry * entry = static_cast<HTEntry*>(hdr);
-
+    
     newHashtable->Put(entry->key, entry->value);
     return PL_DHASH_NEXT;
 }
@@ -262,7 +264,7 @@ hashEnumerateShare(PLDHashTable *table, PLDHashEntryHdr *hdr,
 nsHashtable * nsHashtable::Clone()
 {
     if (!mHashtable.ops) return nullptr;
-
+    
     bool threadSafe = (mLock != nullptr);
     nsHashtable *newHashTable = new nsHashtable(mHashtable.entryCount, threadSafe);
 
@@ -273,7 +275,7 @@ nsHashtable * nsHashtable::Clone()
 void nsHashtable::Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure)
 {
     if (!mHashtable.ops) return;
-
+    
     bool wasEnumerating = mEnumerating;
     mEnumerating = true;
     _HashEnumerateArgs thunk;
@@ -303,7 +305,7 @@ void nsHashtable::Reset() {
 void nsHashtable::Reset(nsHashtableEnumFunc destroyFunc, void* aClosure)
 {
     if (!mHashtable.ops) return;
-
+    
     _HashEnumerateArgs thunk, *thunkp;
     if (!destroyFunc) {
         thunkp = nullptr;
@@ -342,8 +344,7 @@ nsHashtable::nsHashtable(nsIObjectInputStream* aStream,
             if (NS_SUCCEEDED(rv)) {
                 bool status =
                     PL_DHashTableInit(&mHashtable, &hashtableOps,
-                                      nullptr, sizeof(HTEntry), count,
-                                      fallible_t());
+                                      nullptr, sizeof(HTEntry), count);
                 if (!status) {
                     mHashtable.ops = nullptr;
                     rv = NS_ERROR_OUT_OF_MEMORY;
@@ -431,7 +432,7 @@ nsISupportsKey::Write(nsIObjectOutputStream* aStream) const
 }
 
 // Copy Constructor
-// We need to free mStr if the object is passed with mOwnership as OWN. As the
+// We need to free mStr if the object is passed with mOwnership as OWN. As the 
 // destructor here is freeing mStr in that case, mStr is NOT getting leaked here.
 
 nsCStringKey::nsCStringKey(const nsCStringKey& aKey)
@@ -558,7 +559,7 @@ nsCStringKey::Write(nsIObjectOutputStream* aStream) const
 ////////////////////////////////////////////////////////////////////////////////
 
 // Copy Constructor
-// We need to free mStr if the object is passed with mOwnership as OWN. As the
+// We need to free mStr if the object is passed with mOwnership as OWN. As the 
 // destructor here is freeing mStr in that case, mStr is NOT getting leaked here.
 
 nsStringKey::nsStringKey(const nsStringKey& aKey)
@@ -707,7 +708,7 @@ nsObjectHashtable::CopyElement(PLDHashTable* table,
 {
     nsObjectHashtable *newHashtable = (nsObjectHashtable *)arg;
     HTEntry *entry = static_cast<HTEntry*>(hdr);
-
+    
     void* newElement =
         newHashtable->mCloneElementFun(entry->key, entry->value,
                                        newHashtable->mCloneElementClosure);
@@ -721,7 +722,7 @@ nsHashtable*
 nsObjectHashtable::Clone()
 {
     if (!mHashtable.ops) return nullptr;
-
+    
     bool threadSafe = false;
     if (mLock)
         threadSafe = true;
@@ -748,3 +749,96 @@ nsObjectHashtable::RemoveAndDelete(nsHashKey *aKey)
         return !!(*mDestroyElementFun)(aKey, value, mDestroyElementClosure);
     return false;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// nsSupportsHashtable: an nsHashtable where the elements are nsISupports*
+
+bool
+nsSupportsHashtable::ReleaseElement(nsHashKey *aKey, void *aData, void* aClosure)
+{
+    nsISupports* element = static_cast<nsISupports*>(aData);
+    NS_IF_RELEASE(element);
+    return true;
+}
+
+nsSupportsHashtable::~nsSupportsHashtable()
+{
+    Enumerate(ReleaseElement, nullptr);
+}
+
+// Return true if we overwrote something
+
+bool
+nsSupportsHashtable::Put(nsHashKey *aKey, nsISupports* aData, nsISupports **value)
+{
+    NS_IF_ADDREF(aData);
+    void *prev = nsHashtable::Put(aKey, aData);
+    nsISupports *old = reinterpret_cast<nsISupports *>(prev);
+    if (value)  // pass own the ownership to the caller
+        *value = old;
+    else        // the caller doesn't care, we do
+        NS_IF_RELEASE(old);
+    return prev != nullptr;
+}
+
+nsISupports *
+nsSupportsHashtable::Get(nsHashKey *aKey)
+{
+    void* data = nsHashtable::Get(aKey);
+    if (!data)
+        return nullptr;
+    nsISupports* element = reinterpret_cast<nsISupports*>(data);
+    NS_IF_ADDREF(element);
+    return element;
+}
+
+// Return true if we found something (useful for checks)
+
+bool
+nsSupportsHashtable::Remove(nsHashKey *aKey, nsISupports **value)
+{
+    void* data = nsHashtable::Remove(aKey);
+    nsISupports* element = static_cast<nsISupports*>(data);
+    if (value)            // caller wants it
+        *value = element;
+    else                  // caller doesn't care, we do
+        NS_IF_RELEASE(element);
+    return data != nullptr;
+}
+
+PLDHashOperator
+nsSupportsHashtable::EnumerateCopy(PLDHashTable*,
+                                   PLDHashEntryHdr* hdr,
+                                   uint32_t i, void *arg)
+{
+    nsHashtable *newHashtable = (nsHashtable *)arg;
+    HTEntry* entry = static_cast<HTEntry*>(hdr);
+    
+    nsISupports* element = static_cast<nsISupports*>(entry->value);
+    NS_IF_ADDREF(element);
+    newHashtable->Put(entry->key, entry->value);
+    return PL_DHASH_NEXT;
+}
+
+nsHashtable*
+nsSupportsHashtable::Clone()
+{
+    if (!mHashtable.ops) return nullptr;
+    
+    bool threadSafe = (mLock != nullptr);
+    nsSupportsHashtable* newHashTable =
+        new nsSupportsHashtable(mHashtable.entryCount, threadSafe);
+
+    PL_DHashTableEnumerate(&mHashtable, EnumerateCopy, newHashTable);
+    return newHashTable;
+}
+
+void
+nsSupportsHashtable::Reset()
+{
+    Enumerate(ReleaseElement, nullptr);
+    nsHashtable::Reset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

@@ -24,11 +24,7 @@ class XBLChildrenElement : public nsXMLElement
 public:
   friend class mozilla::dom::ExplicitChildIterator;
   friend class nsAnonymousContentList;
-  XBLChildrenElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
-    : nsXMLElement(aNodeInfo)
-  {
-  }
-  XBLChildrenElement(already_AddRefed<nsINodeInfo>&& aNodeInfo)
+  XBLChildrenElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsXMLElement(aNodeInfo)
   {
   }

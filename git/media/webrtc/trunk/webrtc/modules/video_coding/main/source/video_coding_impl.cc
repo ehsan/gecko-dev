@@ -302,10 +302,6 @@ class VideoCodingModuleImpl : public VideoCodingModule {
     return receiver_->SetMinReceiverDelay(desired_delay_ms);
   }
 
-  virtual void SetCPULoadState(CPULoadState state) OVERRIDE {
-    return sender_->SetCPULoadState(state);
-  }
-
   virtual int32_t SetReceiveChannelParameters(uint32_t rtt) OVERRIDE {
     return receiver_->SetReceiveChannelParameters(rtt);
   }

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <QGuiApplication>
+#include <QApplication>
 #include <QMimeData>
 #include <QString>
 #include <QStringList>
@@ -11,9 +11,7 @@
 #include <QImageWriter>
 #include <QBuffer>
 
-#include "gfxPlatform.h"
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/gfx/2D.h"
 
 #include "nsClipboard.h"
 #include "nsISupportsPrimitives.h"
@@ -28,7 +26,6 @@
 #include "gfxImageSurface.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 NS_IMPL_ISUPPORTS1(nsClipboard, nsIClipboard)
 
@@ -56,14 +53,14 @@ nsClipboard::~nsClipboard()
 }
 
 static inline QImage::Format
-_moz2dformat_to_qformat(SurfaceFormat aFormat)
+_gfximage_to_qformat(gfxImageFormat aFormat)
 {
     switch (aFormat) {
-    case SurfaceFormat::B8G8R8A8:
+    case gfxImageFormat::ARGB32:
         return QImage::Format_ARGB32_Premultiplied;
-    case SurfaceFormat::B8G8R8X8:
+    case gfxImageFormat::RGB24:
         return QImage::Format_ARGB32;
-    case SurfaceFormat::R5G6B5:
+    case gfxImageFormat::RGB16_565:
         return QImage::Format_RGB16;
     default:
         return QImage::Format_Invalid;
@@ -93,7 +90,7 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
         return NS_ERROR_FAILURE;
     }
 
-    QClipboard *cb = QGuiApplication::clipboard();
+    QClipboard *cb = QApplication::clipboard();
     QMimeData *mimeData = new QMimeData;
 
     uint32_t flavorCount = 0;
@@ -128,7 +125,7 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
 
                 nsAutoString utf16string;
                 wideString->GetData(utf16string);
-                QString str = QString::fromUtf16((const ushort*)utf16string.get());
+                QString str = QString::fromUtf16(utf16string.get());
 
                 // Add text to the mimeData
                 mimeData->setText(str);
@@ -145,7 +142,7 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
 
                 nsAutoString utf16string;
                 wideString->GetData(utf16string);
-                QString str = QString::fromUtf16((const ushort*)utf16string.get());
+                QString str = QString::fromUtf16(utf16string.get());
 
                 // Add html to the mimeData
                 mimeData->setHtml(str);
@@ -179,34 +176,21 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
                 if (!image)  // Not getting an image for an image mime type!?
                    continue;
 
-                nsRefPtr<gfxASurface> thebesSurface =
+                nsRefPtr<gfxASurface> surface =
                   image->GetFrame(imgIContainer::FRAME_CURRENT,
                                   imgIContainer::FLAG_SYNC_DECODE);
-                if (!thebesSurface)
-                  continue;
-
-                RefPtr<SourceSurface> surface =
-                  gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(nullptr,
-                                                                         thebesSurface);
                 if (!surface)
                   continue;
 
-                RefPtr<DataSourceSurface> dataSurface =
-                  surface->GetDataSurface();
-                if (!dataSurface)
+                nsRefPtr<gfxImageSurface> frame(surface->GetAsReadableARGB32ImageSurface());
+                if (!frame)
                   continue;
 
-                DataSourceSurface::MappedSurface map;
-                if (!dataSurface->Map(DataSourceSurface::MapType::READ, &map))
-                  continue;
-
-                QImage qImage(map.mData,
-                              dataSurface->GetSize().width,
-                              dataSurface->GetSize().height,
-                              map.mStride,
-                              _moz2dformat_to_qformat(dataSurface->GetFormat()));
-
-                dataSurface->Unmap();
+                QImage qImage(frame->Data(),
+                              frame->Width(),
+                              frame->Height(),
+                              frame->Stride(),
+                              _gfximage_to_qformat(frame->Format()));
 
                 // Add image to the mimeData
                 mimeData->setImageData(qImage);
@@ -269,7 +253,7 @@ nsClipboard::GetNativeClipboardData(nsITransferable *aTransferable,
         return NS_ERROR_FAILURE;
     }
 
-    QClipboard *cb = QGuiApplication::clipboard();
+    QClipboard *cb = QApplication::clipboard();
     const QMimeData *mimeData = cb->mimeData(clipboardMode);
 
     // Walk through flavors and see which flavor matches the one being pasted
@@ -421,7 +405,7 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, uint32_t aLength,
         return NS_OK;
 
     // Which kind of data in the clipboard
-    QClipboard *cb = QGuiApplication::clipboard();
+    QClipboard *cb = QApplication::clipboard();
     const QMimeData *mimeData = cb->mimeData();
     const char *flavor=nullptr;
     QStringList formats = mimeData->formats();
@@ -560,7 +544,7 @@ nsClipboard::SupportsSelectionClipboard(bool *_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
 
-    QClipboard *cb = QGuiApplication::clipboard();
+    QClipboard *cb = QApplication::clipboard();
     if (cb->supportsSelection())
     {
         *_retval = true; // we support the selection clipboard 
@@ -571,13 +555,4 @@ nsClipboard::SupportsSelectionClipboard(bool *_retval)
     }
 
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsClipboard::SupportsFindClipboard(bool* _retval)
-{
-  NS_ENSURE_ARG_POINTER(_retval);
-
-  *_retval = false;
-  return NS_OK;
 }

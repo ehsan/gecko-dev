@@ -195,7 +195,7 @@ MobileMessageManager::Send(JS::Handle<JS::Value> aNumber,
   rv = smsService->GetSmsDefaultServiceId(&serviceId);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aArgc == 1) {
+  if (aArgc == 3) {
     JS::Rooted<JS::Value> param(aCx, aSendParams);
     RootedDictionary<SmsSendParameters> sendParams(aCx);
     if (!sendParams.Init(aCx, param)) {
@@ -241,7 +241,7 @@ MobileMessageManager::Send(JS::Handle<JS::Value> aNumber,
   }
 
   JS::Rooted<JSObject*> obj(aCx);
-  obj = JS_NewArrayObject(aCx, requests);
+  obj = JS_NewArrayObject(aCx, requests.length(), requests.begin());
   if (!obj) {
     return NS_ERROR_FAILURE;
   }
@@ -265,7 +265,7 @@ MobileMessageManager::SendMMS(JS::Handle<JS::Value> aParams,
   nsresult rv = mmsService->GetMmsDefaultServiceId(&serviceId);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aArgc == 1) {
+  if (aArgc == 2) {
     JS::Rooted<JS::Value> param(aCx, aSendParams);
     RootedDictionary<MmsSendParameters> sendParams(aCx);
     if (!sendParams.Init(aCx, param)) {
@@ -350,7 +350,7 @@ MobileMessageManager::Delete(JS::Handle<JS::Value> aParam, JSContext* aCx,
     // Int32[], SmsMessage[], or MmsMessage[]
     JS::Rooted<JSObject*> ids(aCx, &aParam.toObject());
 
-    MOZ_ALWAYS_TRUE(JS_GetArrayLength(aCx, ids, &size));
+    JS_ALWAYS_TRUE(JS_GetArrayLength(aCx, ids, &size));
     nsAutoArrayPtr<int32_t> idAutoArray(new int32_t[size]);
 
     JS::Rooted<JS::Value> idJsValue(aCx);

@@ -16,6 +16,6 @@ interface VideoPlaybackQuality {
   readonly attribute unsigned long totalVideoFrames;
   readonly attribute unsigned long droppedVideoFrames;
   readonly attribute unsigned long corruptedVideoFrames;
-// At Risk: readonly attribute double totalFrameDelay;
+  readonly attribute double totalFrameDelay;
 };
 

@@ -25,6 +25,7 @@ CreateTextureHostBasic(const SurfaceDescriptor& aDesc,
     return result;
   }
 #endif
+
   return CreateBackendIndependentTextureHost(aDesc, aDeallocator, aFlags);
 }
 

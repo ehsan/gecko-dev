@@ -32,7 +32,7 @@ class Shmem;
 
 namespace layers {
 
-class ClientTiledLayerBuffer;
+class BasicTiledLayerBuffer;
 class ImageClient;
 class ImageContainer;
 class ImageBridgeParent;
@@ -271,17 +271,11 @@ public:
    */
   virtual void UseTexture(CompositableClient* aCompositable,
                           TextureClient* aClient) MOZ_OVERRIDE;
-  virtual void UseComponentAlphaTextures(CompositableClient* aCompositable,
-                                         TextureClient* aClientOnBlack,
-                                         TextureClient* aClientOnWhite) MOZ_OVERRIDE;
-
-  virtual void RemoveTextureFromCompositable(CompositableClient* aCompositable,
-                                             TextureClient* aTexture) MOZ_OVERRIDE;
 
   virtual void RemoveTexture(TextureClient* aTexture) MOZ_OVERRIDE;
 
-  virtual void UseTiledLayerBuffer(CompositableClient* aCompositable,
-                                   const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE
+  virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
+                                       const SurfaceDescriptorTiles& aTileLayerDescriptor) MOZ_OVERRIDE
   {
     NS_RUNTIMEABORT("should not be called");
   }
@@ -380,8 +374,6 @@ public:
 
   virtual PTextureChild* CreateTexture(const SurfaceDescriptor& aSharedData,
                                        TextureFlags aFlags) MOZ_OVERRIDE;
-
-  virtual bool IsSameProcess() const MOZ_OVERRIDE;
 
 protected:
   ImageBridgeChild();

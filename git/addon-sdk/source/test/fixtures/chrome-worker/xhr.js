@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 'use strict';
 
-let xhr = new XMLHttpRequest();
+let xhr = XMLHttpRequest();
 xhr.open("GET", "data:text/plain,ok", true);
 xhr.onload = function () {
   postMessage(xhr.responseText);

@@ -61,11 +61,11 @@
 #include "nsPresContext.h"
 #include "nsViewManager.h"
 #include "nsView.h"
+#include "nsEventListenerManager.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIConstraintValidation.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/EventListenerManager.h"
-#include "mozilla/dom/Event.h" // for nsIDOMEvent::InternalDOMEvent()
+#include "nsDOMEvent.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -866,12 +866,12 @@ nsDocShellTreeOwner::AddChromeListeners()
   nsCOMPtr<EventTarget> target;
   GetDOMEventTarget(mWebBrowser, getter_AddRefs(target));
 
-  EventListenerManager* elmP = target->GetOrCreateListenerManager();
+  nsEventListenerManager* elmP = target->GetOrCreateListenerManager();
   if (elmP) {
     elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                 TrustedEventsAtSystemGroupBubble());
+                                 dom::TrustedEventsAtSystemGroupBubble());
     elmP->AddEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                 TrustedEventsAtSystemGroupBubble());
+                                 dom::TrustedEventsAtSystemGroupBubble());
   }
 
   return rv;
@@ -896,13 +896,13 @@ nsDocShellTreeOwner::RemoveChromeListeners()
   if (!piTarget)
     return NS_OK;
 
-  EventListenerManager* elmP = piTarget->GetOrCreateListenerManager();
+  nsEventListenerManager* elmP = piTarget->GetOrCreateListenerManager();
   if (elmP)
   {
     elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                    TrustedEventsAtSystemGroupBubble());
+                                    dom::TrustedEventsAtSystemGroupBubble());
     elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                    TrustedEventsAtSystemGroupBubble());
+                                    dom::TrustedEventsAtSystemGroupBubble());
   }
 
   return NS_OK;

@@ -14,7 +14,6 @@
 #include "MediaDecoderStateMachine.h"
 #include "ImageContainer.h"
 #include "AbstractMediaDecoder.h"
-#include "gfx2DGlue.h"
 
 namespace mozilla {
 
@@ -74,7 +73,7 @@ nsresult MediaPluginReader::ReadMetadata(MediaInfo* aInfo,
     // that our video frame creation code doesn't overflow.
     nsIntSize displaySize(width, height);
     nsIntSize frameSize(width, height);
-    if (!IsValidVideoRegion(frameSize, pictureRect, displaySize)) {
+    if (!VideoInfo::ValidateVideoRegion(frameSize, pictureRect, displaySize)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -144,7 +143,9 @@ bool MediaPluginReader::DecodeVideoFrame(bool &aKeyframeSkip,
       if (mLastVideoFrame) {
         int64_t durationUs;
         mPlugin->GetDuration(mPlugin, &durationUs);
-        durationUs = std::max<int64_t>(durationUs - mLastVideoFrame->mTime, 0);
+        if (durationUs < mLastVideoFrame->mTime) {
+          durationUs = 0;
+        }
         mVideoQueue.Push(VideoData::ShallowCopyUpdateDuration(mLastVideoFrame,
                                                               durationUs));
         mLastVideoFrame = nullptr;
@@ -171,7 +172,7 @@ bool MediaPluginReader::DecodeVideoFrame(bool &aKeyframeSkip,
 
     currentImage = bufferCallback.GetImage();
     int64_t pos = mDecoder->GetResource()->Tell();
-    IntRect picture = ToIntRect(mPicture);
+    nsIntRect picture = mPicture;
 
     nsAutoPtr<VideoData> v;
     if (currentImage) {
@@ -293,36 +294,40 @@ bool MediaPluginReader::DecodeAudioData()
   int64_t pos = mDecoder->GetResource()->Tell();
 
   // Read next frame
-  MPAPI::AudioFrame source;
-  if (!mPlugin->ReadAudio(mPlugin, &source, mAudioSeekTimeUs)) {
+  MPAPI::AudioFrame frame;
+  if (!mPlugin->ReadAudio(mPlugin, &frame, mAudioSeekTimeUs)) {
     return false;
   }
   mAudioSeekTimeUs = -1;
 
   // Ignore empty buffers which stagefright media read will sporadically return
-  if (source.mSize == 0)
+  if (frame.mSize == 0)
     return true;
 
-  uint32_t frames = source.mSize / (source.mAudioChannels *
-                                    sizeof(AudioDataValue));
+  nsAutoArrayPtr<AudioDataValue> buffer(new AudioDataValue[frame.mSize/2] );
+  memcpy(buffer.get(), frame.mData, frame.mSize);
 
-  typedef AudioCompactor::NativeCopy MPCopy;
-  return mAudioCompactor.Push(pos,
-                              source.mTimeUs,
-                              source.mAudioSampleRate,
-                              frames,
-                              source.mAudioChannels,
-                              MPCopy(static_cast<uint8_t *>(source.mData),
-                                     source.mSize,
-                                     source.mAudioChannels));
+  uint32_t frames = frame.mSize / (2 * frame.mAudioChannels);
+  CheckedInt64 duration = FramesToUsecs(frames, frame.mAudioSampleRate);
+  if (!duration.isValid()) {
+    return false;
+  }
+
+  mAudioQueue.Push(new AudioData(pos,
+                                 frame.mTimeUs,
+                                 duration.value(),
+                                 frames,
+                                 buffer.forget(),
+                                 frame.mAudioChannels));
+  return true;
 }
 
 nsresult MediaPluginReader::Seek(int64_t aTarget, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
-  mVideoQueue.Reset();
-  mAudioQueue.Reset();
+  mVideoQueue.Erase();
+  mAudioQueue.Erase();
 
   mAudioSeekTimeUs = mVideoSeekTimeUs = aTarget;
 

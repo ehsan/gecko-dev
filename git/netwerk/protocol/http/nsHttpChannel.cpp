@@ -63,7 +63,6 @@
 #include "nsISiteSecurityService.h"
 #include "nsCRT.h"
 #include "CacheObserver.h"
-#include "mozilla/Telemetry.h"
 
 namespace mozilla { namespace net {
 
@@ -147,16 +146,7 @@ WillRedirect(const nsHttpResponseHead * response)
 class AutoRedirectVetoNotifier
 {
 public:
-    AutoRedirectVetoNotifier(nsHttpChannel* channel) : mChannel(channel)
-    {
-      if (mChannel->mHasAutoRedirectVetoNotifier) {
-        MOZ_CRASH("Nested AutoRedirectVetoNotifier on the stack");
-        mChannel = nullptr;
-        return;
-      }
-
-      mChannel->mHasAutoRedirectVetoNotifier = true;
-    }
+    AutoRedirectVetoNotifier(nsHttpChannel* channel) : mChannel(channel) {}
     ~AutoRedirectVetoNotifier() {ReportRedirectResult(false);}
     void RedirectSucceeded() {ReportRedirectResult(true);}
 
@@ -178,14 +168,12 @@ AutoRedirectVetoNotifier::ReportRedirectResult(bool succeeded)
                                   NS_GET_IID(nsIRedirectResultListener),
                                   getter_AddRefs(vetoHook));
 
+#ifdef MOZ_VISUAL_EVENT_TRACER
     nsHttpChannel* channel = mChannel;
+#endif
     mChannel = nullptr;
-
     if (vetoHook)
         vetoHook->OnRedirectResult(succeeded);
-
-    // Drop after the notification
-    channel->mHasAutoRedirectVetoNotifier = false;
 
     MOZ_EVENT_TRACER_DONE(channel, "net::http::redirect-callbacks");
 }
@@ -218,9 +206,7 @@ nsHttpChannel::nsHttpChannel()
     , mHasQueryString(0)
     , mConcurentCacheAccess(0)
     , mIsPartialRequest(0)
-    , mHasAutoRedirectVetoNotifier(0)
     , mDidReval(false)
-    , mForcePending(false)
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
     mChannelCreationTime = PR_Now();
@@ -816,8 +802,6 @@ CallTypeSniffers(void *aClosure, const uint8_t *aData, uint32_t aCount)
 nsresult
 nsHttpChannel::CallOnStartRequest()
 {
-    nsresult rv;
-
     mTracingEnabled = false;
 
     // Allow consumers to override our content type
@@ -858,7 +842,7 @@ nsHttpChannel::CallOnStartRequest()
             // neither does applying the conversion from the URILoader
 
             nsCOMPtr<nsIStreamConverterService> serv;
-            rv = gHttpHandler->
+            nsresult rv = gHttpHandler->
                 GetStreamConverterService(getter_AddRefs(serv));
             // If we failed, we just fall through to the "normal" case
             if (NS_SUCCEEDED(rv)) {
@@ -881,19 +865,15 @@ nsHttpChannel::CallOnStartRequest()
     if (mResponseHead && mCacheEntry) {
         // If we have a cache entry, set its predicted size to ContentLength to
         // avoid caching an entry that will exceed the max size limit.
-        rv = mCacheEntry->SetPredictedDataSize(
+        nsresult rv = mCacheEntry->SetPredictedDataSize(
             mResponseHead->ContentLength());
-        if (NS_ERROR_FILE_TOO_BIG == rv) {
-          mCacheEntry = nullptr;
-          LOG(("  entry too big, throwing away"));
-        } else {
-          NS_ENSURE_SUCCESS(rv, rv);
-        }
+        NS_ENSURE_SUCCESS(rv, rv);
     }
 
     LOG(("  calling mListener->OnStartRequest\n"));
+    nsresult rv;
     if (mListener) {
-        rv = mListener->OnStartRequest(this, mListenerContext);
+        nsresult rv = mListener->OnStartRequest(this, mListenerContext);
         if (NS_FAILED(rv))
             return rv;
     } else {
@@ -2832,6 +2812,7 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
         LOG(("Validating based on MustValidate() returning TRUE\n"));
         doValidation = true;
     }
+
     else if (MustValidateBasedOnQueryUrl()) {
         LOG(("Validating based on RFC 2616 section 13.9 "
              "(query-url w/o explicit expiration-time)\n"));
@@ -2942,37 +2923,21 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
             (mRequestHead.Method() == nsHttp::Get ||
              mRequestHead.Method() == nsHttp::Head) &&
              !mCustomConditionalRequest) {
-
-            if (mConcurentCacheAccess) {
-                // In case of concurrent read and also validation request we
-                // must wait for the current writer to close the output stream
-                // first.  Otherwise, when the writer's job would have been interrupted
-                // before all the data were downloaded, we'd have to do a range request
-                // which would be a second request in line during this channel's
-                // life-time.  nsHttpChannel is not designed to do that, so rather
-                // turn off concurrent read and wait for entry's completion.
-                // Then only re-validation or range-re-validation request will go out.
-                mConcurentCacheAccess = 0;
-                // This will cause that OnCacheEntryCheck is called again with the same
-                // entry after the writer is done.
-                wantCompleteEntry = true;
-            } else {
-                const char *val;
-                // Add If-Modified-Since header if a Last-Modified was given
-                // and we are allowed to do this (see bugs 510359 and 269303)
-                if (canAddImsHeader) {
-                    val = mCachedResponseHead->PeekHeader(nsHttp::Last_Modified);
-                    if (val)
-                        mRequestHead.SetHeader(nsHttp::If_Modified_Since,
-                                               nsDependentCString(val));
-                }
-                // Add If-None-Match header if an ETag was given in the response
-                val = mCachedResponseHead->PeekHeader(nsHttp::ETag);
+            const char *val;
+            // Add If-Modified-Since header if a Last-Modified was given
+            // and we are allowed to do this (see bugs 510359 and 269303)
+            if (canAddImsHeader) {
+                val = mCachedResponseHead->PeekHeader(nsHttp::Last_Modified);
                 if (val)
-                    mRequestHead.SetHeader(nsHttp::If_None_Match,
+                    mRequestHead.SetHeader(nsHttp::If_Modified_Since,
                                            nsDependentCString(val));
-                mDidReval = true;
             }
+            // Add If-None-Match header if an ETag was given in the response
+            val = mCachedResponseHead->PeekHeader(nsHttp::ETag);
+            if (val)
+                mRequestHead.SetHeader(nsHttp::If_None_Match,
+                                       nsDependentCString(val));
+            mDidReval = true;
         }
     }
 
@@ -3675,28 +3640,22 @@ nsHttpChannel::InitCacheEntry()
     LOG(("nsHttpChannel::InitCacheEntry [this=%p entry=%p]\n",
         this, mCacheEntry.get()));
 
-    bool recreate = !mCacheEntryIsWriteOnly;
-    bool dontPersist = mLoadFlags & INHIBIT_PERSISTENT_CACHING;
-
-    if (!recreate && dontPersist) {
-        // If the current entry is persistent but we inhibit peristence
-        // then force recreation of the entry as memory/only.
-        rv = mCacheEntry->GetPersistent(&recreate);
-        if (NS_FAILED(rv))
-            return rv;
-    }
-
-    if (recreate) {
+    if (!mCacheEntryIsWriteOnly) {
         LOG(("  we have a ready entry, but reading it again from the server -> recreating cache entry\n"));
         nsCOMPtr<nsICacheEntry> currentEntry;
         currentEntry.swap(mCacheEntry);
-        rv = currentEntry->Recreate(dontPersist, getter_AddRefs(mCacheEntry));
+        rv = currentEntry->Recreate(getter_AddRefs(mCacheEntry));
         if (NS_FAILED(rv)) {
           LOG(("  recreation failed, the response will not be cached"));
           return NS_OK;
         }
 
         mCacheEntryIsWriteOnly = true;
+    }
+
+    if (mLoadFlags & INHIBIT_PERSISTENT_CACHING) {
+        rv = mCacheEntry->SetPersistToDisk(false);
+        if (NS_FAILED(rv)) return rv;
     }
 
     // Set the expiration time for this cache entry
@@ -5754,13 +5713,6 @@ nsHttpChannel::DoAuthRetry(nsAHttpConnection *conn)
     // get rid of the old response headers
     mResponseHead = nullptr;
 
-    // rewind the upload stream
-    if (mUploadStream) {
-        nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mUploadStream);
-        if (seekable)
-            seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
-    }
-
     // set sticky connection flag and disable pipelining.
     mCaps |=  NS_HTTP_STICKY_CONNECTION;
     mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
@@ -5772,6 +5724,13 @@ nsHttpChannel::DoAuthRetry(nsAHttpConnection *conn)
     // transfer ownership of connection to transaction
     if (conn)
         mTransaction->SetConnection(conn);
+
+    // rewind the upload stream
+    if (mUploadStream) {
+        nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mUploadStream);
+        if (seekable)
+            seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
+    }
 
     rv = gHttpHandler->InitiateTransaction(mTransaction, mPriority);
     if (NS_FAILED(rv)) return rv;
@@ -6199,24 +6158,6 @@ nsHttpChannel::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
         UpdateAggregateCallbacks();
     }
     return rv;
-}
-
-void
-nsHttpChannel::ForcePending(bool aForcePending)
-{
-    // Set true here so IsPending will return true.
-    // Required for callback diversion from child back to parent. In such cases
-    // OnStopRequest can be called in the parent before callbacks are diverted
-    // back from the child to the listener in the parent.
-    mForcePending = aForcePending;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::IsPending(bool *aIsPending)
-{
-    NS_ENSURE_ARG_POINTER(aIsPending);
-    *aIsPending = mIsPending || mForcePending;
-    return NS_OK;
 }
 
 } } // namespace mozilla::net

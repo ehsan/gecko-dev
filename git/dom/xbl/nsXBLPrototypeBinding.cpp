@@ -8,7 +8,7 @@
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
 #include "nsIInputStream.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
 #include "nsIChannel.h"
@@ -100,6 +100,7 @@ nsXBLPrototypeBinding::nsXBLPrototypeBinding()
   mKeyHandlersRegistered(false),
   mChromeOnlyContent(false),
   mResources(nullptr),
+  mAttributeTable(nullptr),
   mBaseNameSpaceID(kNameSpaceID_None)
 {
   MOZ_COUNT_CTOR(nsXBLPrototypeBinding);
@@ -180,6 +181,7 @@ nsXBLPrototypeBinding::Initialize()
 nsXBLPrototypeBinding::~nsXBLPrototypeBinding(void)
 {
   delete mResources;
+  delete mAttributeTable;
   delete mImplementation;
   MOZ_COUNT_DTOR(nsXBLPrototypeBinding);
 }
@@ -323,12 +325,14 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
 {
   if (!mAttributeTable)
     return;
-
-  InnerAttributeTable *attributesNS = mAttributeTable->Get(aNameSpaceID);
+  nsPRUint32Key nskey(aNameSpaceID);
+  nsObjectHashtable *attributesNS = static_cast<nsObjectHashtable*>(mAttributeTable->Get(&nskey));
   if (!attributesNS)
     return;
 
-  nsXBLAttributeEntry* xblAttr = attributesNS->Get(aAttribute);
+  nsISupportsKey key(aAttribute);
+  nsXBLAttributeEntry* xblAttr = static_cast<nsXBLAttributeEntry*>
+                                            (attributesNS->Get(&key));
   if (!xblAttr)
     return;
 
@@ -352,7 +356,7 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
       else {
         bool attrPresent = true;
         nsAutoString value;
-        // Check to see if the src attribute is xbl:text.  If so, then we need to obtain the
+        // Check to see if the src attribute is xbl:text.  If so, then we need to obtain the 
         // children of the real element and get the text nodes' values.
         if (aAttribute == nsGkAtoms::text && aNameSpaceID == kNameSpaceID_XBL) {
           nsContentUtils::GetNodeTextContent(aChangedElement, false, value);
@@ -362,7 +366,7 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
           stripVal.StripWhitespace();
           if (stripVal.IsEmpty()) 
             attrPresent = false;
-        }
+        }    
         else {
           attrPresent = aChangedElement->GetAttr(aNameSpaceID, aAttribute, value);
         }
@@ -443,7 +447,7 @@ nsXBLPrototypeBinding::GetImmediateChild(nsIAtom* aTag)
 
   return nullptr;
 }
-
+ 
 nsresult
 nsXBLPrototypeBinding::InitClass(const nsCString& aClassName,
                                  JSContext * aContext,
@@ -496,12 +500,12 @@ struct nsXBLAttrChangeData
 };
 
 // XXXbz this duplicates lots of AttributeChanged
-static PLDHashOperator
-SetAttrs(nsISupports* aKey, nsXBLAttributeEntry* aEntry, void* aClosure)
+bool SetAttrs(nsHashKey* aKey, void* aData, void* aClosure)
 {
+  nsXBLAttributeEntry* entry = static_cast<nsXBLAttributeEntry*>(aData);
   nsXBLAttrChangeData* changeData = static_cast<nsXBLAttrChangeData*>(aClosure);
 
-  nsIAtom* src = aEntry->GetSrcAttribute();
+  nsIAtom* src = entry->GetSrcAttribute();
   int32_t srcNs = changeData->mSrcNamespace;
   nsAutoString value;
   bool attrPresent = true;
@@ -525,7 +529,7 @@ SetAttrs(nsISupports* aKey, nsXBLAttributeEntry* aEntry, void* aClosure)
     nsIContent* content =
       changeData->mProto->GetImmediateChild(nsGkAtoms::content);
 
-    nsXBLAttributeEntry* curr = aEntry;
+    nsXBLAttributeEntry* curr = entry;
     while (curr) {
       nsIAtom* dst = curr->GetDstAttribute();
       int32_t dstNs = curr->GetDstNameSpace();
@@ -556,20 +560,21 @@ SetAttrs(nsISupports* aKey, nsXBLAttributeEntry* aEntry, void* aClosure)
     }
   }
 
-  return PL_DHASH_NEXT;
+  return true;
 }
 
-static PLDHashOperator
-SetAttrsNS(const uint32_t &aNamespace,
-           nsXBLPrototypeBinding::InnerAttributeTable* aXBLAttributes,
-           void* aClosure)
+bool SetAttrsNS(nsHashKey* aKey, void* aData, void* aClosure)
 {
-  if (aXBLAttributes && aClosure) {
-    nsXBLAttrChangeData* changeData = static_cast<nsXBLAttrChangeData*>(aClosure);
-    changeData->mSrcNamespace = aNamespace;
-    aXBLAttributes->EnumerateRead(SetAttrs, aClosure);
+  if (aData && aClosure) {
+    nsPRUint32Key * key = static_cast<nsPRUint32Key*>(aKey);
+    nsObjectHashtable* xblAttributes =
+      static_cast<nsObjectHashtable*>(aData);
+    nsXBLAttrChangeData * changeData = static_cast<nsXBLAttrChangeData *>
+                                                  (aClosure);
+    changeData->mSrcNamespace = key->GetValue();
+    xblAttributes->Enumerate(SetAttrs, (void*)changeData);
   }
-  return PL_DHASH_NEXT;
+  return true;
 }
 
 void
@@ -577,7 +582,7 @@ nsXBLPrototypeBinding::SetInitialAttributes(nsIContent* aBoundElement, nsIConten
 {
   if (mAttributeTable) {
     nsXBLAttrChangeData data(this, aBoundElement, aAnonymousContent);
-    mAttributeTable->EnumerateRead(SetAttrsNS, &data);
+    mAttributeTable->Enumerate(SetAttrsNS, (void*)&data);
   }
 }
 
@@ -587,7 +592,7 @@ nsXBLPrototypeBinding::GetRuleProcessor()
   if (mResources) {
     return mResources->mRuleProcessor;
   }
-
+  
   return nullptr;
 }
 
@@ -611,11 +616,27 @@ nsXBLPrototypeBinding::GetStyleSheets()
   return nullptr;
 }
 
+static bool
+DeleteAttributeEntry(nsHashKey* aKey, void* aData, void* aClosure)
+{
+  delete static_cast<nsXBLAttributeEntry*>(aData);
+  return true;
+}
+
+static bool
+DeleteAttributeTable(nsHashKey* aKey, void* aData, void* aClosure)
+{
+  delete static_cast<nsObjectHashtable*>(aData);
+  return true;
+}
+
 void
 nsXBLPrototypeBinding::EnsureAttributeTable()
 {
   if (!mAttributeTable) {
-    mAttributeTable = new nsClassHashtable<nsUint32HashKey, InnerAttributeTable>(4);
+    mAttributeTable = new nsObjectHashtable(nullptr, nullptr,
+                                            DeleteAttributeTable,
+                                            nullptr, 4);
   }
 }
 
@@ -624,18 +645,24 @@ nsXBLPrototypeBinding::AddToAttributeTable(int32_t aSourceNamespaceID, nsIAtom* 
                                            int32_t aDestNamespaceID, nsIAtom* aDestTag,
                                            nsIContent* aContent)
 {
-    InnerAttributeTable* attributesNS = mAttributeTable->Get(aSourceNamespaceID);
+    nsPRUint32Key nskey(aSourceNamespaceID);
+    nsObjectHashtable* attributesNS =
+      static_cast<nsObjectHashtable*>(mAttributeTable->Get(&nskey));
     if (!attributesNS) {
-      attributesNS = new InnerAttributeTable(4);
-      mAttributeTable->Put(aSourceNamespaceID, attributesNS);
+      attributesNS = new nsObjectHashtable(nullptr, nullptr,
+                                           DeleteAttributeEntry,
+                                           nullptr, 4);
+      mAttributeTable->Put(&nskey, attributesNS);
     }
 
     nsXBLAttributeEntry* xblAttr =
       new nsXBLAttributeEntry(aSourceTag, aDestTag, aDestNamespaceID, aContent);
 
-    nsXBLAttributeEntry* entry = attributesNS->Get(aSourceTag);
+    nsISupportsKey key(aSourceTag);
+    nsXBLAttributeEntry* entry = static_cast<nsXBLAttributeEntry*>
+                                            (attributesNS->Get(&key));
     if (!entry) {
-      attributesNS->Put(aSourceTag, xblAttr);
+      attributesNS->Put(&key, xblAttr);
     } else {
       while (entry->GetNext())
         entry = entry->GetNext();
@@ -1039,23 +1066,6 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
   return NS_OK;
 }
 
-// static
-nsresult
-nsXBLPrototypeBinding::ReadNewBinding(nsIObjectInputStream* aStream,
-                                      nsXBLDocumentInfo* aDocInfo,
-                                      nsIDocument* aDocument,
-                                      uint8_t aFlags)
-{
-  // If the Read() succeeds, |binding| will end up being owned by aDocInfo's
-  // binding table. Otherwise, we must manually delete it.
-  nsXBLPrototypeBinding* binding = new nsXBLPrototypeBinding();
-  nsresult rv = binding->Read(aStream, aDocInfo, aDocument, aFlags);
-  if (NS_FAILED(rv)) {
-    delete binding;
-  }
-  return rv;
-}
-
 static PLDHashOperator
 WriteInterfaceID(const nsIID& aKey, nsIContent* aData, void* aClosure)
 {
@@ -1411,41 +1421,44 @@ struct WriteAttributeData
   { }
 };
 
-static PLDHashOperator
-WriteAttribute(nsISupports* aKey, nsXBLAttributeEntry* aEntry, void* aClosure)
+static
+bool
+WriteAttribute(nsHashKey *aKey, void *aData, void* aClosure)
 {
   WriteAttributeData* data = static_cast<WriteAttributeData *>(aClosure);
   nsIObjectOutputStream* stream = data->stream;
   const int32_t srcNamespace = data->srcNamespace;
 
+  nsXBLAttributeEntry* entry = static_cast<nsXBLAttributeEntry *>(aData);
   do {
-    if (aEntry->GetElement() == data->content) {
+    if (entry->GetElement() == data->content) {
       data->binding->WriteNamespace(stream, srcNamespace);
-      stream->WriteWStringZ(nsDependentAtomString(aEntry->GetSrcAttribute()).get());
-      data->binding->WriteNamespace(stream, aEntry->GetDstNameSpace());
-      stream->WriteWStringZ(nsDependentAtomString(aEntry->GetDstAttribute()).get());
+      stream->WriteWStringZ(nsDependentAtomString(entry->GetSrcAttribute()).get());
+      data->binding->WriteNamespace(stream, entry->GetDstNameSpace());
+      stream->WriteWStringZ(nsDependentAtomString(entry->GetDstAttribute()).get());
     }
 
-    aEntry = aEntry->GetNext();
-  } while (aEntry);
+    entry = entry->GetNext();
+  } while (entry);
 
-  return PL_DHASH_NEXT;
+  return kHashEnumerateNext;
 }
 
 // WriteAttributeNS is the callback to enumerate over the attribute
 // forwarding entries. Since these are stored in a hash of hashes,
 // we need to iterate over the inner hashes, calling WriteAttribute
 // to do the actual work.
-static PLDHashOperator
-WriteAttributeNS(const uint32_t &aNamespace,
-                 nsXBLPrototypeBinding::InnerAttributeTable* aXBLAttributes,
-                 void* aClosure)
+static
+bool
+WriteAttributeNS(nsHashKey *aKey, void *aData, void* aClosure)
 {
   WriteAttributeData* data = static_cast<WriteAttributeData *>(aClosure);
-  data->srcNamespace = aNamespace;
-  aXBLAttributes->EnumerateRead(WriteAttribute, data);
+  data->srcNamespace = static_cast<nsPRUint32Key *>(aKey)->GetValue();
 
-  return PL_DHASH_NEXT;
+  nsObjectHashtable* attributes = static_cast<nsObjectHashtable*>(aData);
+  attributes->Enumerate(WriteAttribute, data);
+
+  return kHashEnumerateNext;
 }
 
 nsresult
@@ -1529,7 +1542,7 @@ nsXBLPrototypeBinding::WriteContentNode(nsIObjectOutputStream* aStream,
   // Write out the attribute fowarding information
   if (mAttributeTable) {
     WriteAttributeData data(this, aStream, aNode);
-    mAttributeTable->EnumerateRead(WriteAttributeNS, &data);
+    mAttributeTable->Enumerate(WriteAttributeNS, &data);
   }
   rv = aStream->Write8(XBLBinding_Serialize_NoMoreAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1559,7 +1572,7 @@ nsXBLPrototypeBinding::ReadNamespace(nsIObjectInputStream* aStream,
     nsAutoString namesp;
     rv = aStream->ReadString(namesp);
     NS_ENSURE_SUCCESS(rv, rv);
-
+  
     nsContentUtils::NameSpaceManager()->RegisterNameSpace(namesp, aNameSpaceID);
   }
   else {
@@ -1587,7 +1600,7 @@ nsXBLPrototypeBinding::WriteNamespace(nsIObjectOutputStream* aStream,
   else {
     rv = aStream->Write8(XBLBinding_Serialize_CustomNamespace);
     NS_ENSURE_SUCCESS(rv, rv);
-
+  
     nsAutoString namesp;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNameSpaceID, namesp);
     aStream->WriteWStringZ(namesp.get());
@@ -1641,7 +1654,7 @@ nsXBLPrototypeBinding::ResolveBaseBinding()
   bool hasDisplay = !display.IsEmpty();
 
   nsAutoString value(extends);
-
+       
   // Now slice 'em up to see what we've got.
   nsAutoString prefix;
   int32_t offset;

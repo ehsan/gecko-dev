@@ -33,7 +33,7 @@ interface VTTCue : EventTarget {
   attribute double endTime;
   attribute boolean pauseOnExit;
   [Pref="media.webvtt.regions.enabled"]
-  attribute VTTRegion? region;
+  attribute DOMString regionId;
   attribute DirectionSetting vertical;
   attribute boolean snapToLines;
   attribute (long or AutoKeyword) line;

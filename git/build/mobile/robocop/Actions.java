@@ -3,6 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko;
+import java.util.List;
+import java.util.ArrayList;
+
 import android.database.Cursor;
 
 public interface Actions {

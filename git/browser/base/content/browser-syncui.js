@@ -14,7 +14,6 @@ let gSyncUI = {
          "weave:service:login:finish",
          "weave:service:logout:finish",
          "weave:service:start-over",
-         "weave:service:start-over:finish",
          "weave:ui:login:error",
          "weave:ui:sync:error",
          "weave:ui:sync:finish",
@@ -107,31 +106,14 @@ let gSyncUI = {
     try {
       firstSync = Services.prefs.getCharPref("services.sync.firstSync");
     } catch (e) { }
-
     return Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
            firstSync == "notReady";
   },
 
-  _loginFailed: function () {
-    return Weave.Status.login == Weave.LOGIN_FAILED_LOGIN_REJECTED;
-  },
-
   updateUI: function SUI_updateUI() {
     let needsSetup = this._needsSetup();
-    let loginFailed = this._loginFailed();
-
-    // Start off with a clean slate
-    document.getElementById("sync-reauth-state").hidden = true;
-    document.getElementById("sync-setup-state").hidden = true;
-    document.getElementById("sync-syncnow-state").hidden = true;
-
-    if (loginFailed) {
-      document.getElementById("sync-reauth-state").hidden = false;
-    } else if (needsSetup) {
-      document.getElementById("sync-setup-state").hidden = false;
-    } else {
-      document.getElementById("sync-syncnow-state").hidden = false;
-    }
+    document.getElementById("sync-setup-state").hidden = !needsSetup;
+    document.getElementById("sync-syncnow-state").hidden = needsSetup;
 
     if (!gBrowser)
       return;
@@ -370,9 +352,6 @@ let gSyncUI = {
     openPreferences("paneSync");
   },
 
-  openSignInAgainPage: function () {
-    switchToTabHavingURI("about:accounts?action=reauth", true);
-  },
 
   // Helpers
   _updateLastSyncTime: function SUI__updateLastSyncTime() {
@@ -543,9 +522,6 @@ let gSyncUI = {
         break;
       case "weave:service:start-over":
         this.onStartOver();
-        break;
-      case "weave:service:start-over:finish":
-        this.updateUI();
         break;
       case "weave:service:ready":
         this.initUI();

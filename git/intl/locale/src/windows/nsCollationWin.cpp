@@ -7,6 +7,7 @@
 #include "nsCollationWin.h"
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
+#include "nsLocaleCID.h"
 #include "nsILocaleService.h"
 #include "nsIPlatformCharset.h"
 #include "nsWin32Locale.h"

@@ -62,7 +62,6 @@ private:
   nsCOMPtr<nsIStructuredCloneContainer> mStateData;
   bool                     mIsSrcdocEntry;
   nsString                 mSrcdocData;
-  nsCOMPtr<nsIURI>         mBaseURI;
 };
 
 #endif /* nsSHEntry_h */

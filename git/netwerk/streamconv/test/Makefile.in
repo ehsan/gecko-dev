@@ -10,3 +10,11 @@ LIBS		= \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk
+
+ifeq ($(OS_ARCH),WINNT)
+ifdef GNU_CXX
+LDFLAGS		+= -mconsole
+else
+LDFLAGS		+= -SUBSYSTEM:CONSOLE
+endif
+endif # WINNT

@@ -3,9 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <windows.h>
-#include <wtsapi32.h>
 #include "uachelper.h"
 #include "updatelogging.h"
+
+typedef BOOL (WINAPI *LPWTSQueryUserToken)(ULONG, PHANDLE);
 
 // See the MSDN documentation with title: Privilege Constants
 // At the time of this writing, this documentation is located at: 
@@ -66,8 +67,8 @@ UACHelper::OpenUserToken(DWORD sessionID)
 {
   HMODULE module = LoadLibraryW(L"wtsapi32.dll");
   HANDLE token = nullptr;
-  decltype(WTSQueryUserToken)* wtsQueryUserToken = 
-    (decltype(WTSQueryUserToken)*) GetProcAddress(module, "WTSQueryUserToken");
+  LPWTSQueryUserToken wtsQueryUserToken = 
+    (LPWTSQueryUserToken)GetProcAddress(module, "WTSQueryUserToken");
   if (wtsQueryUserToken) {
     wtsQueryUserToken(sessionID, &token);
   }
@@ -194,29 +195,4 @@ UACHelper::DisablePrivileges(HANDLE token)
 
   return DisableUnneededPrivileges(token, UACHelper::PrivsToDisable, 
                                    PrivsToDisableSize);
-}
-
-/**
- * Check if the current user can elevate.
- *
- * @return true if the user can elevate.
- *         false otherwise.
- */
-bool
-UACHelper::CanUserElevate()
-{
-  HANDLE token;
-  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
-    return false;
-  }
-
-  TOKEN_ELEVATION_TYPE elevationType;
-  DWORD len;
-  bool canElevate = GetTokenInformation(token, TokenElevationType,
-                                        &elevationType,
-                                        sizeof(elevationType), &len) &&
-                    (elevationType == TokenElevationTypeLimited);
-  CloseHandle(token);
-
-  return canElevate;
 }

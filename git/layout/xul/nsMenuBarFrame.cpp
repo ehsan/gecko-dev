@@ -10,7 +10,7 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsCSSRendering.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIDocument.h"
 #include "nsGkAtoms.h"
 #include "nsMenuFrame.h"
@@ -291,7 +291,7 @@ public:
   {
   }
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (!pm)

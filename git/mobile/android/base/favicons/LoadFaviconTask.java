@@ -22,7 +22,7 @@ import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
 import org.mozilla.gecko.util.GeckoJarReader;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
-import static org.mozilla.gecko.favicons.Favicons.context;
+import static org.mozilla.gecko.favicons.Favicons.sContext;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,21 +53,21 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
     // by the server.
     private static final int DEFAULT_FAVICON_BUFFER_SIZE = 25000;
 
-    private static AtomicInteger nextFaviconLoadId = new AtomicInteger(0);
-    private int id;
-    private String pageUrl;
-    private String faviconURL;
-    private OnFaviconLoadedListener listener;
-    private int flags;
+    private static AtomicInteger mNextFaviconLoadId = new AtomicInteger(0);
+    private int mId;
+    private String mPageUrl;
+    private String mFaviconUrl;
+    private OnFaviconLoadedListener mListener;
+    private int mFlags;
 
-    private final boolean onlyFromLocal;
+    private final boolean mOnlyFromLocal;
 
     // Assuming square favicons, judging by width only is acceptable.
-    protected int targetWidth;
-    private LinkedList<LoadFaviconTask> chainees;
-    private boolean isChaining;
+    protected int mTargetWidth;
+    private LinkedList<LoadFaviconTask> mChainees;
+    private boolean mIsChaining;
 
-    static AndroidHttpClient httpClient = AndroidHttpClient.newInstance(GeckoAppShell.getGeckoInterface().getDefaultUAString());
+    static AndroidHttpClient sHttpClient = AndroidHttpClient.newInstance(GeckoAppShell.getGeckoInterface().getDefaultUAString());
 
     public LoadFaviconTask(Handler backgroundThreadHandler,
                            String pageUrl, String faviconUrl, int flags,
@@ -76,37 +76,33 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
     }
     public LoadFaviconTask(Handler backgroundThreadHandler,
                            String pageUrl, String faviconUrl, int flags,
-                           OnFaviconLoadedListener listener, int targetWidth, boolean onlyFromLocal) {
+                           OnFaviconLoadedListener aListener, int targetSize, boolean fromLocal) {
         super(backgroundThreadHandler);
 
-        id = nextFaviconLoadId.incrementAndGet();
+        mId = mNextFaviconLoadId.incrementAndGet();
 
-        this.pageUrl = pageUrl;
-        this.faviconURL = faviconUrl;
-        this.listener = listener;
-        this.flags = flags;
-        this.targetWidth = targetWidth;
-        this.onlyFromLocal = onlyFromLocal;
+        mPageUrl = pageUrl;
+        mFaviconUrl = faviconUrl;
+        mListener = aListener;
+        mFlags = flags;
+        mTargetWidth = targetSize;
+        mOnlyFromLocal = fromLocal;
     }
 
     // Runs in background thread
     private LoadFaviconResult loadFaviconFromDb() {
-        ContentResolver resolver = context.getContentResolver();
-        return BrowserDB.getFaviconForFaviconUrl(resolver, faviconURL);
+        ContentResolver resolver = sContext.getContentResolver();
+        return BrowserDB.getFaviconForFaviconUrl(resolver, mFaviconUrl);
     }
 
     // Runs in background thread
     private void saveFaviconToDb(final byte[] encodedFavicon) {
-        if (encodedFavicon == null) {
+        if ((mFlags & FLAG_PERSIST) == 0) {
             return;
         }
 
-        if ((flags & FLAG_PERSIST) == 0) {
-            return;
-        }
-
-        ContentResolver resolver = context.getContentResolver();
-        BrowserDB.updateFaviconForUrl(resolver, pageUrl, encodedFavicon, faviconURL);
+        ContentResolver resolver = sContext.getContentResolver();
+        BrowserDB.updateFaviconForUrl(resolver, mPageUrl, encodedFavicon, mFaviconUrl);
     }
 
     /**
@@ -125,7 +121,7 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
         }
 
         HttpGet request = new HttpGet(faviconURI);
-        HttpResponse response = httpClient.execute(request);
+        HttpResponse response = sHttpClient.execute(request);
         if (response == null) {
             return null;
         }
@@ -176,7 +172,7 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
         if (uri.startsWith("jar:jar:")) {
             Log.d(LOGTAG, "Fetching favicon from JAR.");
             try {
-                return GeckoJarReader.getBitmap(context.getResources(), uri);
+                return GeckoJarReader.getBitmap(sContext.getResources(), uri);
             } catch (Exception e) {
                 // Just about anything could happen here.
                 Log.w(LOGTAG, "Error fetching favicon from JAR.", e);
@@ -291,27 +287,27 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
 
         // Handle the case of malformed favicon URL.
         // If favicon is empty, fall back to the stored one.
-        if (TextUtils.isEmpty(faviconURL)) {
+        if (TextUtils.isEmpty(mFaviconUrl)) {
             // Try to get the favicon URL from the memory cache.
-            storedFaviconUrl = Favicons.getFaviconURLForPageURLFromCache(pageUrl);
+            storedFaviconUrl = Favicons.getFaviconURLForPageURLFromCache(mPageUrl);
 
             // If that failed, try to get the URL from the database.
             if (storedFaviconUrl == null) {
-                storedFaviconUrl = Favicons.getFaviconURLForPageURL(pageUrl);
+                storedFaviconUrl = Favicons.getFaviconURLForPageURL(mPageUrl);
                 if (storedFaviconUrl != null) {
                     // If that succeeded, cache the URL loaded from the database in memory.
-                    Favicons.putFaviconURLForPageURLInCache(pageUrl, storedFaviconUrl);
+                    Favicons.putFaviconURLForPageURLInCache(mPageUrl, storedFaviconUrl);
                 }
             }
 
             // If we found a faviconURL - use it.
             if (storedFaviconUrl != null) {
-                faviconURL = storedFaviconUrl;
+                mFaviconUrl = storedFaviconUrl;
             } else {
                 // If we don't have a stored one, fall back to the default.
-                faviconURL = Favicons.guessDefaultFaviconURL(pageUrl);
+                mFaviconUrl = Favicons.guessDefaultFaviconURL(mPageUrl);
 
-                if (TextUtils.isEmpty(faviconURL)) {
+                if (TextUtils.isEmpty(mFaviconUrl)) {
                     return null;
                 }
                 isUsingDefaultURL = true;
@@ -320,7 +316,7 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
 
         // Check if favicon has failed - if so, give up. We need this check because, sometimes, we
         // didn't know the real Favicon URL until we asked the database.
-        if (Favicons.isFailedFavicon(faviconURL)) {
+        if (Favicons.isFailedFavicon(mFaviconUrl)) {
             return null;
         }
 
@@ -333,10 +329,10 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
         // If there is, just join the queue and wait for it to finish. If not, we carry on.
         synchronized(loadsInFlight) {
             // Another load of the current Favicon is already underway
-            LoadFaviconTask existingTask = loadsInFlight.get(faviconURL);
+            LoadFaviconTask existingTask = loadsInFlight.get(mFaviconUrl);
             if (existingTask != null && !existingTask.isCancelled()) {
                 existingTask.chainTasks(this);
-                isChaining = true;
+                mIsChaining = true;
 
                 // If we are chaining, we want to keep the first task started to do this job as the one
                 // in the hashmap so subsequent tasks will add themselves to its chaining list.
@@ -345,7 +341,7 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
 
             // We do not want to update the hashmap if the task has chained - other tasks need to
             // chain onto the same parent task.
-            loadsInFlight.put(faviconURL, this);
+            loadsInFlight.put(mFaviconUrl, this);
         }
 
         if (isCancelled()) {
@@ -358,20 +354,20 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
             return pushToCacheAndGetResult(loadedBitmaps);
         }
 
-        if (onlyFromLocal || isCancelled()) {
+        if (mOnlyFromLocal || isCancelled()) {
             return null;
         }
 
         // Let's see if it's in a JAR.
-        image = fetchJARFavicon(faviconURL);
+        image = fetchJARFavicon(mFaviconUrl);
         if (imageIsValid(image)) {
             // We don't want to put this into the DB.
-            Favicons.putFaviconInMemCache(faviconURL, image);
+            Favicons.putFaviconInMemCache(mFaviconUrl, image);
             return image;
         }
 
         try {
-            loadedBitmaps = downloadFavicon(new URI(faviconURL));
+            loadedBitmaps = downloadFavicon(new URI(mFaviconUrl));
         } catch (URISyntaxException e) {
             Log.e(LOGTAG, "The provided favicon URL is not valid");
             return null;
@@ -380,15 +376,12 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
         }
 
         if (loadedBitmaps != null) {
-            // Fetching bytes to store can fail. saveFaviconToDb will
-            // do the right thing, but we still choose to cache the
-            // downloaded icon in memory.
             saveFaviconToDb(loadedBitmaps.getBytesForDatabaseStorage());
             return pushToCacheAndGetResult(loadedBitmaps);
         }
 
         if (isUsingDefaultURL) {
-            Favicons.putFaviconInFailedCache(faviconURL);
+            Favicons.putFaviconInFailedCache(mFaviconUrl);
             return null;
         }
 
@@ -397,16 +390,16 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
         }
 
         // If we're not already trying the default URL, try it now.
-        final String guessed = Favicons.guessDefaultFaviconURL(pageUrl);
+        final String guessed = Favicons.guessDefaultFaviconURL(mPageUrl);
         if (guessed == null) {
-            Favicons.putFaviconInFailedCache(faviconURL);
+            Favicons.putFaviconInFailedCache(mFaviconUrl);
             return null;
         }
 
         image = fetchJARFavicon(guessed);
         if (imageIsValid(image)) {
             // We don't want to put this into the DB.
-            Favicons.putFaviconInMemCache(faviconURL, image);
+            Favicons.putFaviconInMemCache(mFaviconUrl, image);
             return image;
         }
 
@@ -435,8 +428,8 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
      *         we are under extreme memory pressure and find ourselves dropping the cache immediately.
      */
     private Bitmap pushToCacheAndGetResult(LoadFaviconResult loadedBitmaps) {
-        Favicons.putFaviconsInMemCache(faviconURL, loadedBitmaps.getBitmaps());
-        Bitmap result = Favicons.getSizedFaviconFromCache(faviconURL, targetWidth);
+        Favicons.putFaviconsInMemCache(mFaviconUrl, loadedBitmaps.getBitmaps());
+        Bitmap result = Favicons.getSizedFaviconFromCache(mFaviconUrl, mTargetWidth);
         return result;
     }
 
@@ -448,7 +441,7 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
 
     @Override
     protected void onPostExecute(Bitmap image) {
-        if (isChaining) {
+        if (mIsChaining) {
             return;
         }
 
@@ -457,10 +450,10 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
 
         synchronized (loadsInFlight) {
             // Prevent any other tasks from chaining on this one.
-            loadsInFlight.remove(faviconURL);
+            loadsInFlight.remove(mFaviconUrl);
         }
 
-        // Since any update to chainees is done while holding the loadsInFlight lock, once we reach
+        // Since any update to mChainees is done while holding the loadsInFlight lock, once we reach
         // this point no further updates to that list can possibly take place (As far as other tasks
         // are concerned, there is no longer a task to chain from. The above block will have waited
         // for any tasks that were adding themselves to the list before reaching this point.)
@@ -470,8 +463,8 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
         // actually happens outside of the strange situations unit tests create.
 
         // Share the result with all chained tasks.
-        if (chainees != null) {
-            for (LoadFaviconTask t : chainees) {
+        if (mChainees != null) {
+            for (LoadFaviconTask t : mChainees) {
                 // In the case that we just decoded multiple favicons, either we're passing the right
                 // image now, or the call into the cache in processResult will fetch the right one.
                 t.processResult(image);
@@ -480,35 +473,35 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
     }
 
     private void processResult(Bitmap image) {
-        Favicons.removeLoadTask(id);
+        Favicons.removeLoadTask(mId);
         Bitmap scaled = image;
 
         // Notify listeners, scaling if required.
-        if (targetWidth != -1 && image != null &&  image.getWidth() != targetWidth) {
-            scaled = Favicons.getSizedFaviconFromCache(faviconURL, targetWidth);
+        if (mTargetWidth != -1 && image != null &&  image.getWidth() != mTargetWidth) {
+            scaled = Favicons.getSizedFaviconFromCache(mFaviconUrl, mTargetWidth);
         }
 
-        Favicons.dispatchResult(pageUrl, faviconURL, scaled, listener);
+        Favicons.dispatchResult(mPageUrl, mFaviconUrl, scaled, mListener);
     }
 
     @Override
     protected void onCancelled() {
-        Favicons.removeLoadTask(id);
+        Favicons.removeLoadTask(mId);
 
         synchronized(loadsInFlight) {
             // Only remove from the hashmap if the task there is the one that's being canceled.
             // Cancellation of a task that would have chained is not interesting to the hashmap.
-            final LoadFaviconTask primary = loadsInFlight.get(faviconURL);
+            final LoadFaviconTask primary = loadsInFlight.get(mFaviconUrl);
             if (primary == this) {
-                loadsInFlight.remove(faviconURL);
+                loadsInFlight.remove(mFaviconUrl);
                 return;
             }
             if (primary == null) {
                 // This shouldn't happen.
                 return;
             }
-            if (primary.chainees != null) {
-              primary.chainees.remove(this);
+            if (primary.mChainees != null) {
+              primary.mChainees.remove(this);
             }
         }
 
@@ -525,15 +518,15 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
      * @param aChainee LoadFaviconTask
      */
     private void chainTasks(LoadFaviconTask aChainee) {
-        if (chainees == null) {
-            chainees = new LinkedList<LoadFaviconTask>();
+        if (mChainees == null) {
+            mChainees = new LinkedList<LoadFaviconTask>();
         }
 
-        chainees.add(aChainee);
+        mChainees.add(aChainee);
     }
 
     int getId() {
-        return id;
+        return mId;
     }
 
     static void closeHTTPClient() {
@@ -541,8 +534,8 @@ public class LoadFaviconTask extends UiAsyncTask<Void, Void, Bitmap> {
         // the connection pool, which typically involves closing a connection --
         // which counts as network activity.
         if (ThreadUtils.isOnBackgroundThread()) {
-            if (httpClient != null) {
-                httpClient.close();
+            if (sHttpClient != null) {
+                sHttpClient.close();
             }
             return;
         }

@@ -18,3 +18,10 @@ interface nsIDOMStyleSheetChangeEvent : nsIDOMEvent
                                             in nsIDOMCSSStyleSheet aStyleSheet,
                                             in boolean aDocumentSheet);
 };
+
+dictionary StyleSheetChangeEventInit : EventInit
+{
+  nsIDOMCSSStyleSheet stylesheet;
+  boolean documentSheet;
+};
+

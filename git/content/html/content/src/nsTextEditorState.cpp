@@ -28,7 +28,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMEventListener.h"
 #include "nsIEditorObserver.h"
-#include "nsIWidget.h"
+#include "nsINativeKeyBindings.h"
 #include "nsIDocumentEncoder.h"
 #include "nsISelectionPrivate.h"
 #include "nsPIDOMWindow.h"
@@ -36,7 +36,7 @@
 #include "nsIEditor.h"
 #include "nsTextEditRules.h"
 #include "mozilla/Selection.h"
-#include "mozilla/EventListenerManager.h"
+#include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 #include "nsTextNode.h"
@@ -48,6 +48,9 @@ using namespace mozilla;
 using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kTextEditorCID, NS_TEXTEDITOR_CID);
+
+static nsINativeKeyBindings *sNativeInputBindings = nullptr;
+static nsINativeKeyBindings *sNativeTextAreaBindings = nullptr;
 
 class MOZ_STACK_CLASS ValueSetter
 {
@@ -676,6 +679,8 @@ protected:
 
   nsresult  UpdateTextInputCommands(const nsAString& commandsToUpdate);
 
+  NS_HIDDEN_(nsINativeKeyBindings*) GetKeyBindings();
+
 protected:
 
   nsIFrame* mFrame;
@@ -793,7 +798,7 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
 // END nsIDOMSelectionListener
 
 static void
-DoCommandCallback(Command aCommand, void* aData)
+DoCommandCallback(const char *aCommand, void *aData)
 {
   nsTextControlFrame *frame = static_cast<nsTextControlFrame*>(aData);
   nsIContent *content = frame->GetContent();
@@ -816,19 +821,17 @@ DoCommandCallback(Command aCommand, void* aData)
     return;
   }
 
-  const char* commandStr = WidgetKeyboardEvent::GetCommandStr(aCommand);
-
   nsCOMPtr<nsIController> controller;
-  controllers->GetControllerForCommand(commandStr, getter_AddRefs(controller));
+  controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
   if (!controller) {
     return;
   }
 
   bool commandEnabled;
-  nsresult rv = controller->IsCommandEnabled(commandStr, &commandEnabled);
+  nsresult rv = controller->IsCommandEnabled(aCommand, &commandEnabled);
   NS_ENSURE_SUCCESS_VOID(rv);
   if (commandEnabled) {
-    controller->DoCommand(commandStr);
+    controller->DoCommand(aCommand);
   }
 }
 
@@ -855,25 +858,27 @@ nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (keyEvent->message != NS_KEY_PRESS) {
-    return NS_OK;
+  nsINativeKeyBindings *bindings = GetKeyBindings();
+  if (bindings) {
+    bool handled = false;
+    switch (keyEvent->message) {
+      case NS_KEY_DOWN:
+        handled = bindings->KeyDown(*keyEvent, DoCommandCallback, mFrame);
+        break;
+      case NS_KEY_UP:
+        handled = bindings->KeyUp(*keyEvent, DoCommandCallback, mFrame);
+        break;
+      case NS_KEY_PRESS:
+        handled = bindings->KeyPress(*keyEvent, DoCommandCallback, mFrame);
+        break;
+      default:
+        MOZ_CRASH("Unknown key message");
+    }
+    if (handled) {
+      aEvent->PreventDefault();
+    }
   }
 
-  nsIWidget::NativeKeyBindingsType nativeKeyBindingsType =
-    mTxtCtrlElement->IsTextArea() ?
-      nsIWidget::NativeKeyBindingsForMultiLineEditor :
-      nsIWidget::NativeKeyBindingsForSingleLineEditor;
-  nsIWidget* widget = keyEvent->widget;
-  // If the event is created by chrome script, the widget is nullptr.
-  if (!widget) {
-    widget = mFrame->GetNearestWidget();
-    NS_ENSURE_TRUE(widget, NS_OK);
-  }
-                                         
-  if (widget->ExecuteNativeKeyBinding(nativeKeyBindingsType,
-                                      *keyEvent, DoCommandCallback, mFrame)) {
-    aEvent->PreventDefault();
-  }
   return NS_OK;
 }
 
@@ -940,6 +945,37 @@ nsTextInputListener::UpdateTextInputCommands(const nsAString& commandsToUpdate)
   NS_ENSURE_TRUE(domWindow, NS_ERROR_FAILURE);
 
   return domWindow->UpdateCommands(commandsToUpdate);
+}
+
+nsINativeKeyBindings*
+nsTextInputListener::GetKeyBindings()
+{
+  if (mTxtCtrlElement->IsTextArea()) {
+    static bool sNoTextAreaBindings = false;
+
+    if (!sNativeTextAreaBindings && !sNoTextAreaBindings) {
+      CallGetService(NS_NATIVEKEYBINDINGS_CONTRACTID_PREFIX "textarea",
+                     &sNativeTextAreaBindings);
+
+      if (!sNativeTextAreaBindings) {
+        sNoTextAreaBindings = true;
+      }
+    }
+
+    return sNativeTextAreaBindings;
+  }
+
+  static bool sNoInputBindings = false;
+  if (!sNativeInputBindings && !sNoInputBindings) {
+    CallGetService(NS_NATIVEKEYBINDINGS_CONTRACTID_PREFIX "input",
+                   &sNativeInputBindings);
+
+    if (!sNativeInputBindings) {
+      sNoInputBindings = true;
+    }
+  }
+
+  return sNativeInputBindings;
 }
 
 // END nsTextInputListener
@@ -1525,17 +1561,17 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
     mTextListener->SetFrame(nullptr);
 
     nsCOMPtr<EventTarget> target = do_QueryInterface(mTextCtrlElement);
-    EventListenerManager* manager = target->GetExistingListenerManager();
+    nsEventListenerManager* manager = target->GetExistingListenerManager();
     if (manager) {
       manager->RemoveEventListenerByType(mTextListener,
         NS_LITERAL_STRING("keydown"),
-        TrustedEventsAtSystemGroupBubble());
+        dom::TrustedEventsAtSystemGroupBubble());
       manager->RemoveEventListenerByType(mTextListener,
         NS_LITERAL_STRING("keypress"),
-        TrustedEventsAtSystemGroupBubble());
+        dom::TrustedEventsAtSystemGroupBubble());
       manager->RemoveEventListenerByType(mTextListener,
         NS_LITERAL_STRING("keyup"),
-        TrustedEventsAtSystemGroupBubble());
+        dom::TrustedEventsAtSystemGroupBubble());
     }
 
     NS_RELEASE(mTextListener);
@@ -1930,20 +1966,27 @@ nsTextEditorState::InitializeKeyboardEventListeners()
 {
   //register key listeners
   nsCOMPtr<EventTarget> target = do_QueryInterface(mTextCtrlElement);
-  EventListenerManager* manager = target->GetOrCreateListenerManager();
+  nsEventListenerManager* manager = target->GetOrCreateListenerManager();
   if (manager) {
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keydown"),
-                                    TrustedEventsAtSystemGroupBubble());
+                                    dom::TrustedEventsAtSystemGroupBubble());
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keypress"),
-                                    TrustedEventsAtSystemGroupBubble());
+                                    dom::TrustedEventsAtSystemGroupBubble());
     manager->AddEventListenerByType(mTextListener,
                                     NS_LITERAL_STRING("keyup"),
-                                    TrustedEventsAtSystemGroupBubble());
+                                    dom::TrustedEventsAtSystemGroupBubble());
   }
 
   mSelCon->SetScrollableFrame(do_QueryFrame(mBoundFrame->GetFirstPrincipalChild()));
+}
+
+/* static */ void
+nsTextEditorState::ShutDown()
+{
+  NS_IF_RELEASE(sNativeTextAreaBindings);
+  NS_IF_RELEASE(sNativeInputBindings);
 }
 
 void

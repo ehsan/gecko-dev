@@ -28,6 +28,7 @@
 #include "nsIDocument.h"
 #include "nsBindingManager.h"
 #include "nsIDOMNodeList.h"
+#include "nsINameSpaceManager.h"
 #include "nsIObserverService.h"
 #include "nsIRDFCompositeDataSource.h"
 #include "nsIRDFInferDataSource.h"
@@ -37,7 +38,6 @@
 #include "nsIXULBuilderListener.h"
 #include "nsIRDFRemoteDataSource.h"
 #include "nsIRDFService.h"
-#include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIServiceManager.h"
 #include "nsISimpleEnumerator.h"
@@ -45,7 +45,6 @@
 #include "nsIURL.h"
 #include "nsIXPConnect.h"
 #include "nsContentCID.h"
-#include "nsNameSpaceManager.h"
 #include "nsRDFCID.h"
 #include "nsXULContentUtils.h"
 #include "nsString.h"
@@ -2119,7 +2118,7 @@ nsXULTemplateBuilder::DetermineRDFQueryRef(nsIContent* aQueryElement, nsIAtom** 
         content->GetAttr(kNameSpaceID_None, nsGkAtoms::tag, tag);
 
         if (!tag.IsEmpty())
-            *aTag = NS_NewAtom(tag).take();
+            *aTag = NS_NewAtom(tag).get();
     }
 }
 

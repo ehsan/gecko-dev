@@ -168,12 +168,6 @@ AlarmsManager.prototype = {
       return null;
     }
 
-    // SystemPrincipal documents do not have any origin.
-    // Reject them for now.
-    if (!principal.URI) {
-      return null;
-    }
-
     this._cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"]
                    .getService(Ci.nsISyncMessageSender);
 

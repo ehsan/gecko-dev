@@ -171,10 +171,10 @@ ElementTransitions::CanPerformOnCompositorThread(CanAnimateFlags aFlags) const
   bool existsProperty = false;
   for (uint32_t i = 0, i_end = mPropertyTransitions.Length(); i < i_end; ++i) {
     const ElementPropertyTransition& pt = mPropertyTransitions[i];
-    if (!pt.IsRunningAt(now)) {
+    if (pt.IsRemovedSentinel()) {
       continue;
     }
-
+    
     existsProperty = true;
 
     if (!css::CommonElementAnimationData::CanAnimatePropertyOnCompositor(mElement,
@@ -835,23 +835,21 @@ struct TransitionEventInfo {
 
   TransitionEventInfo(nsIContent *aElement, nsCSSProperty aProperty,
                       TimeDuration aDuration, const nsAString& aPseudoElement)
-    : mElement(aElement)
-    , mEvent(true, NS_TRANSITION_END)
+    : mElement(aElement),
+      mEvent(true, NS_TRANSITION_END,
+             NS_ConvertUTF8toUTF16(nsCSSProps::GetStringValue(aProperty)),
+             aDuration.ToSeconds(), aPseudoElement)
   {
-    // XXX Looks like nobody initialize WidgetEvent::time
-    mEvent.propertyName =
-      NS_ConvertUTF8toUTF16(nsCSSProps::GetStringValue(aProperty));
-    mEvent.elapsedTime = aDuration.ToSeconds();
-    mEvent.pseudoElement = aPseudoElement;
   }
 
   // InternalTransitionEvent doesn't support copy-construction, so we need
   // to ourselves in order to work with nsTArray
   TransitionEventInfo(const TransitionEventInfo &aOther)
-    : mElement(aOther.mElement)
-    , mEvent(true, NS_TRANSITION_END)
+    : mElement(aOther.mElement),
+      mEvent(true, NS_TRANSITION_END,
+             aOther.mEvent.propertyName, aOther.mEvent.elapsedTime,
+             aOther.mEvent.pseudoElement)
   {
-    mEvent.AssignTransitionEventData(aOther.mEvent, false);
   }
 };
 

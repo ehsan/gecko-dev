@@ -70,7 +70,7 @@ JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt)
 {
     JS_ASSERT(rt->hasContexts());
-    return rt->commonNames->anonymous;
+    return rt->atomState.anonymous;
 }
 
 JS_FRIEND_API(void)
@@ -391,12 +391,6 @@ JS_FRIEND_API(JSObject *)
 js::GetGlobalForObjectCrossCompartment(JSObject *obj)
 {
     return &obj->global();
-}
-
-JS_FRIEND_API(void)
-js::SetPendingExceptionCrossContext(JSContext *cx, JS::HandleValue v)
-{
-    cx->setPendingException(v);
 }
 
 JS_FRIEND_API(void)
@@ -936,18 +930,11 @@ JS::DisableIncrementalGC(JSRuntime *rt)
     rt->gcIncrementalEnabled = false;
 }
 
-JS::AutoDisableGenerationalGC::AutoDisableGenerationalGC(JSRuntime *rt)
-  : runtime(rt)
-#if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
-  , restartVerifier(rt->gcVerifyPostData)
-#endif
+extern JS_FRIEND_API(void)
+JS::DisableGenerationalGC(JSRuntime *rt)
 {
 #ifdef JSGC_GENERATIONAL
     if (IsGenerationalGCEnabled(rt)) {
-#ifdef JS_GC_ZEAL
-        if (restartVerifier)
-            gc::EndVerifyPostBarriers(rt);
-#endif
         MinorGC(rt, JS::gcreason::API);
         rt->gcNursery.disable();
         rt->gcStoreBuffer.disable();
@@ -956,18 +943,15 @@ JS::AutoDisableGenerationalGC::AutoDisableGenerationalGC(JSRuntime *rt)
     ++rt->gcGenerationalDisabled;
 }
 
-JS::AutoDisableGenerationalGC::~AutoDisableGenerationalGC()
+extern JS_FRIEND_API(void)
+JS::EnableGenerationalGC(JSRuntime *rt)
 {
-    JS_ASSERT(runtime->gcGenerationalDisabled > 0);
-    --runtime->gcGenerationalDisabled;
+    JS_ASSERT(rt->gcGenerationalDisabled > 0);
+    --rt->gcGenerationalDisabled;
 #ifdef JSGC_GENERATIONAL
-    if (runtime->gcGenerationalDisabled == 0) {
-        runtime->gcNursery.enable();
-        runtime->gcStoreBuffer.enable();
-#ifdef JS_GC_ZEAL
-        if (restartVerifier)
-            gc::StartVerifyPostBarriers(runtime);
-#endif
+    if (IsGenerationalGCEnabled(rt)) {
+        rt->gcNursery.enable();
+        rt->gcStoreBuffer.enable();
     }
 #endif
 }
@@ -1155,14 +1139,6 @@ js::SetDefaultJSContextCallback(JSRuntime *rt, DefaultJSContextCallback cb)
 {
     rt->defaultJSContextCallback = cb;
 }
-
-#ifdef DEBUG
-JS_FRIEND_API(void)
-js::Debug_SetActiveJSContext(JSRuntime *rt, JSContext *cx)
-{
-    rt->activeContext = cx;
-}
-#endif
 
 JS_FRIEND_API(void)
 js::SetCTypesActivityCallback(JSRuntime *rt, CTypesActivityCallback cb)

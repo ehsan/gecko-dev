@@ -320,8 +320,9 @@
     /* parse sub-headers */
     for ( n = 0; n <= max_subs; n++ )
     {
-      FT_UInt  first_code, code_count, offset;
-      FT_Int   delta;
+      FT_UInt   first_code, code_count, offset;
+      FT_Int    delta;
+      FT_Byte*  ids;
 
 
       first_code = TT_NEXT_USHORT( p );
@@ -343,9 +344,6 @@
       /* check offset */
       if ( offset != 0 )
       {
-        FT_Byte*  ids;
-
-
         ids = p - 2 + offset;
         if ( ids < glyph_ids || ids + code_count*2 > table + length )
           FT_INVALID_OFFSET;
@@ -3210,6 +3208,7 @@
   {
     FT_Byte    *p  = tt_cmap14_find_variant( cmap->data + 6,
                                              variantSelector );
+    FT_UInt32  *ret;
     FT_Int      i;
     FT_ULong    defOff;
     FT_ULong    nondefOff;
@@ -3242,8 +3241,6 @@
       FT_UInt32  nuni;
       FT_Byte*   dp;
       FT_UInt    di, ni, k;
-
-      FT_UInt32  *ret;
 
 
       p  = cmap->data + nondefOff;

@@ -29,7 +29,6 @@
 #ifndef assembler_wtf_SegmentedVector_h
 #define assembler_wtf_SegmentedVector_h
 
-#include "js/Utility.h"
 #include "js/Vector.h"
 
 namespace WTF {
@@ -150,7 +149,7 @@ namespace WTF {
             }
 
             if (!segmentExistsFor(m_size - 1))
-                m_segments.append(js_new<Segment>());
+                m_segments.append(new Segment);
             //segmentFor(m_size - 1)->uncheckedAppend(value);
             segmentFor(m_size - 1)->append(value);
         }
@@ -204,7 +203,7 @@ namespace WTF {
             // not created by new.
             //for (size_t i = 1; i < m_segments.size(); i++)
             for (size_t i = 1; i < m_segments.length(); i++)
-                js_delete<Segment>(m_segments[i]);
+                delete m_segments[i];
         }
 
         bool segmentExistsFor(size_t index)
@@ -248,7 +247,7 @@ namespace WTF {
         {
             ASSERT(segmentIndex <= m_segments.size());
             if (segmentIndex == m_segments.size())
-                m_segments.append(js_new<Segment>());
+                m_segments.append(new Segment);
             m_segments[segmentIndex]->grow(size);
         }
 

@@ -15,8 +15,7 @@ enum SpeechRecognitionErrorCode {
   "language-not-supported"
 };
 
-[Pref="media.webspeech.recognition.enable",
- Constructor(DOMString type, optional SpeechRecognitionErrorInit eventInitDict)]
+[Constructor(DOMString type, optional SpeechRecognitionErrorInit eventInitDict)]
 interface SpeechRecognitionError : Event
 {
   readonly attribute SpeechRecognitionErrorCode error;

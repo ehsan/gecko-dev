@@ -171,12 +171,6 @@ class MochitestOptions(optparse.OptionParser):
           "help": "run browser chrome Mochitests",
           "default": False,
         }],
-        [["--subsuite"],
-        { "action": "store",
-          "dest": "subsuite",
-          "help": "subsuite of tests to run",
-          "default": "",
-        }],
         [["--webapprt-content"],
         { "action": "store_true",
           "dest": "webapprtContent",
@@ -389,14 +383,6 @@ class MochitestOptions(optparse.OptionParser):
            "help": "Produce a DMD dump after each test in the directory specified "
                   "by --dump-output-directory."
         }],
-        [["--slowscript"],
-         { "action": "store_true",
-           "default": False,
-           "dest": "slowscript",
-           "help": "Do not set the JS_DISABLE_SLOW_SCRIPT_SIGNALS env variable; "
-                   "when not set, recoverable but misleading SIGSEGV instances "
-                   "may occur in Ion/Odin JIT code."
-        }],
     ]
 
     def __init__(self, **kwargs):
@@ -409,8 +395,6 @@ class MochitestOptions(optparse.OptionParser):
 
     def verifyOptions(self, options, mochitest):
         """ verify correct options and cleanup paths """
-
-        mozinfo.update({"e10s": options.e10s}) # for test manifest parsing.
 
         if options.app is None:
             if build_obj is not None:

@@ -53,8 +53,8 @@
 
 #include "mozilla/CheckedInt.h"
 
-#if defined(DEBUG) || defined(PR_LOGGING)
-GFX2D_API PRLogModuleInfo *
+#ifdef PR_LOGGING
+PRLogModuleInfo *
 GetGFX2DLog()
 {
   static PRLogModuleInfo *sLog;
@@ -156,7 +156,7 @@ namespace mozilla {
 namespace gfx {
 
 // XXX - Need to define an API to set this.
-GFX2D_API int sGfxLogLevel = LOG_DEBUG;
+int sGfxLogLevel = LOG_DEBUG;
 
 #ifdef WIN32
 ID3D10Device1 *Factory::mD3D10Device;
@@ -338,7 +338,6 @@ Factory::CreateDrawTargetForData(BackendType aBackend,
       newTarget = new DrawTargetSkia();
       newTarget->Init(aData, aSize, aStride, aFormat);
       retVal = newTarget;
-      break;
     }
 #endif
 #ifdef XP_MACOSX
@@ -586,22 +585,30 @@ Factory::D2DCleanup()
 
 #ifdef USE_SKIA_GPU
 TemporaryRef<DrawTarget>
-Factory::CreateDrawTargetSkiaWithGrContext(GrContext* aGrContext,
-                                           const IntSize &aSize,
-                                           SurfaceFormat aFormat)
+Factory::CreateDrawTargetSkiaWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLContext,
+                                                           GrGLInterface* aGrGLInterface,
+                                                           const IntSize &aSize,
+                                                           SurfaceFormat aFormat)
 {
-  RefPtr<DrawTarget> newTarget = new DrawTargetSkia();
-  if (!newTarget->InitWithGrContext(aGrContext, aSize, aFormat)) {
-    return nullptr;
-  }
+  DrawTargetSkia* newDrawTargetSkia = new DrawTargetSkia();
+  newDrawTargetSkia->InitWithGLContextAndGrGLInterface(aGLContext, aGrGLInterface, aSize, aFormat);
+  RefPtr<DrawTarget> newTarget = newDrawTargetSkia;
   return newTarget;
 }
 
+void
+Factory::SetGlobalSkiaCacheLimits(int aCount, int aSizeInBytes)
+{
+    DrawTargetSkia::SetGlobalCacheLimits(aCount, aSizeInBytes);
+}
 #endif // USE_SKIA_GPU
 
 void
 Factory::PurgeAllCaches()
 {
+#ifdef USE_SKIA_GPU
+  DrawTargetSkia::PurgeAllCaches();
+#endif
 }
 
 #ifdef USE_SKIA_FREETYPE
@@ -633,6 +640,18 @@ Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSiz
     RefPtr<DrawTarget> recordDT = new DrawTargetRecording(mRecorder, retVal, true);
     return recordDT;
   }
+#endif
+  return retVal;
+}
+
+TemporaryRef<SourceSurface>
+Factory::CreateSourceSurfaceForCairoSurface(cairo_surface_t* aSurface,
+                                            SurfaceFormat aFormat)
+{
+  RefPtr<SourceSurface> retVal;
+
+#ifdef USE_CAIRO
+  retVal = DrawTargetCairo::CreateSourceSurfaceForCairoSurface(aSurface, aFormat);
 #endif
   return retVal;
 }

@@ -16,6 +16,9 @@
 class imgIContainer;
 class imgRequestProxy;
 
+#define BULLET_FRAME_IMAGE_LOADING NS_FRAME_STATE_BIT(63)
+#define BULLET_FRAME_HAS_FONT_INFLATION NS_FRAME_STATE_BIT(62)
+
 class nsBulletFrame;
 
 class nsBulletListener : public imgINotificationObserver
@@ -40,10 +43,6 @@ private:
 class nsBulletFrame : public nsFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
-#ifdef DEBUG
-  NS_DECL_QUERYFRAME_TARGET(nsBulletFrame)
-  NS_DECL_QUERYFRAME
-#endif
 
   nsBulletFrame(nsStyleContext* aContext)
     : nsFrame(aContext)
@@ -61,14 +60,14 @@ public:
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
   // nsIHTMLReflow
-  virtual nsresult Reflow(nsPresContext* aPresContext,
-                          nsHTMLReflowMetrics& aMetrics,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus& aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext* aPresContext,
+                    nsHTMLReflowMetrics& aMetrics,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus& aStatus) MOZ_OVERRIDE;
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 

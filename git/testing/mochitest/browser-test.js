@@ -65,9 +65,6 @@ function testOnLoad() {
     messageManager.loadFrameScript(listener, true);
     messageManager.addMessageListener("chromeEvent", messageHandler);
   }
-  if (gConfig.e10s) {
-    e10s_init();
-  }
 }
 
 function Tester(aTests, aDumper, aCallback) {
@@ -452,12 +449,10 @@ Tester.prototype = {
         }
 
         // Schedule GC and CC runs before finishing in order to detect
-        // DOM windows leaked by our tests or the tested code. Note that we
-        // use a shrinking GC so that the JS engine will discard JIT code and
-        // JIT caches more aggressively.
+        // DOM windows leaked by our tests or the tested code.
 
         let checkForLeakedGlobalWindows = aCallback => {
-          Cu.schedulePreciseShrinkingGC(() => {
+          Cu.schedulePreciseGC(() => {
             let analyzer = new CCAnalyzer();
             analyzer.run(() => {
               let results = [];

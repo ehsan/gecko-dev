@@ -5,13 +5,10 @@ import tempfile
 
 # stub file paths
 files = [('foo.txt',),
-         ('foo', 'bar.txt',),
-         ('foo', 'bar', 'fleem.txt',),
-         ('foobar', 'fleem.txt',),
-         ('bar.txt',),
-         ('nested_tree', 'bar', 'fleem.txt',),
-         ('readonly.txt',),
-         ]
+         ('foo', 'bar.txt'),
+         ('foo', 'bar', 'fleem.txt'),
+         ('foobar', 'fleem.txt'),
+         ('bar.txt')]
 
 
 def create_stub():

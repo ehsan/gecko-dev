@@ -117,30 +117,22 @@ TelephonyIPCProvider::UnregisterListener(nsITelephonyListener *aListener)
   return NS_OK;
 }
 
-nsresult
-TelephonyIPCProvider::SendRequest(nsITelephonyListener *aListener,
-                                  nsITelephonyCallback *aCallback,
-                                  const IPCTelephonyRequest& aRequest)
+NS_IMETHODIMP
+TelephonyIPCProvider::EnumerateCalls(nsITelephonyListener *aListener)
 {
   // Life time of newly allocated TelephonyRequestChild instance is managed by
   // IPDL itself.
-  TelephonyRequestChild* actor = new TelephonyRequestChild(aListener, aCallback);
-  mPTelephonyChild->SendPTelephonyRequestConstructor(actor, aRequest);
+  TelephonyRequestChild* actor = new TelephonyRequestChild(aListener);
+  mPTelephonyChild->SendPTelephonyRequestConstructor(actor);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TelephonyIPCProvider::EnumerateCalls(nsITelephonyListener *aListener)
-{
-  return SendRequest(aListener, nullptr, EnumerateCallsRequest());
-}
-
-NS_IMETHODIMP
 TelephonyIPCProvider::Dial(uint32_t aClientId, const nsAString& aNumber,
-                           bool aIsEmergency, nsITelephonyCallback *aCallback)
+                           bool aIsEmergency)
 {
-  return SendRequest(nullptr, aCallback,
-                     DialRequest(aClientId, nsString(aNumber), aIsEmergency));
+  mPTelephonyChild->SendDialCall(aClientId, nsString(aNumber), aIsEmergency);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -258,14 +250,12 @@ TelephonyIPCProvider::CallStateChanged(uint32_t aClientId,
                                        bool aIsActive,
                                        bool aIsOutgoing,
                                        bool aIsEmergency,
-                                       bool aIsConference,
-                                       bool aIsSwitchable,
-                                       bool aIsMergeable)
+                                       bool aIsConference)
 {
   for (uint32_t i = 0; i < mListeners.Length(); i++) {
     mListeners[i]->CallStateChanged(aClientId, aCallIndex, aCallState, aNumber,
                                     aIsActive, aIsOutgoing, aIsEmergency,
-                                    aIsConference, aIsSwitchable, aIsMergeable);
+                                    aIsConference);
   }
   return NS_OK;
 }
@@ -293,9 +283,7 @@ TelephonyIPCProvider::EnumerateCallState(uint32_t aClientId,
                                          bool aIsActive,
                                          bool aIsOutgoing,
                                          bool aIsEmergency,
-                                         bool aIsConference,
-                                         bool aIsSwitchable,
-                                         bool aIsMergeable)
+                                         bool aIsConference)
 {
   MOZ_CRASH("Not a EnumerateCalls request!");
 }

@@ -21,6 +21,7 @@ enum OscillatorType {
   "custom"
 };
 
+[PrefControlled]
 interface OscillatorNode : AudioNode {
 
     [SetterThrows]
@@ -30,9 +31,9 @@ interface OscillatorNode : AudioNode {
     readonly attribute AudioParam detune; // in Cents
 
     [Throws]
-    void start(optional double when = 0);
+    void start(double when);
     [Throws]
-    void stop(optional double when = 0);
+    void stop(double when);
     void setPeriodicWave(PeriodicWave periodicWave);
 
     attribute EventHandler onended;

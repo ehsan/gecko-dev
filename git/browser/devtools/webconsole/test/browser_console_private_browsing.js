@@ -11,8 +11,7 @@ function test()
   const TEST_URI = "data:text/html;charset=utf8,<p>hello world! bug 874061" +
                    "<button onclick='console.log(\"foobar bug 874061\");" +
                    "fooBazBaz.yummy()'>click</button>";
-  let ConsoleAPIStorage = Cc["@mozilla.org/consoleAPI-storage;1"]
-                            .getService(Ci.nsIConsoleAPIStorage);
+  let ConsoleAPIStorage = Cu.import("resource://gre/modules/ConsoleAPIStorage.jsm", {}).ConsoleAPIStorage;
   let privateWindow, privateBrowser, privateTab, privateContent;
   let hud, expectedMessages, nonPrivateMessage;
 

@@ -20,18 +20,7 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(URL)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(URL)
-  if (tmp->mSearchParams) {
-    tmp->mSearchParams->RemoveObserver(tmp);
-    NS_IMPL_CYCLE_COLLECTION_UNLINK(mSearchParams)
-  }
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(URL)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSearchParams)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_1(URL, mSearchParams)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(URL)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(URL)
@@ -231,8 +220,11 @@ URL::SetHref(const nsAString& aHref, ErrorResult& aRv)
     return;
   }
 
-  mURI = uri;
-  UpdateURLSearchParams();
+  aRv = mURI->SetSpec(href);
+
+  if (mSearchParams) {
+    mSearchParams->Invalidate();
+  }
 }
 
 void
@@ -312,7 +304,7 @@ URL::SetHost(const nsAString& aHost)
 void
 URL::URLSearchParamsUpdated()
 {
-  MOZ_ASSERT(mSearchParams);
+  MOZ_ASSERT(mSearchParams && mSearchParams->IsValid());
 
   nsAutoString search;
   mSearchParams->Serialize(search);
@@ -320,11 +312,9 @@ URL::URLSearchParamsUpdated()
 }
 
 void
-URL::UpdateURLSearchParams()
+URL::URLSearchParamsNeedsUpdates()
 {
-  if (!mSearchParams) {
-    return;
-  }
+  MOZ_ASSERT(mSearchParams);
 
   nsAutoCString search;
   nsCOMPtr<nsIURL> url(do_QueryInterface(mURI));
@@ -335,7 +325,7 @@ URL::UpdateURLSearchParams()
     }
   }
 
-  mSearchParams->ParseInput(search, this);
+  mSearchParams->ParseInput(search);
 }
 
 void
@@ -436,7 +426,10 @@ void
 URL::SetSearch(const nsAString& aSearch)
 {
   SetSearchInternal(aSearch);
-  UpdateURLSearchParams();
+
+  if (mSearchParams) {
+    mSearchParams->Invalidate();
+  }
 }
 
 void
@@ -465,13 +458,15 @@ URL::SetSearchParams(URLSearchParams* aSearchParams)
     return;
   }
 
-  if (mSearchParams) {
-    mSearchParams->RemoveObserver(this);
-  }
+  if (!aSearchParams->HasURLAssociated()) {
+    MOZ_ASSERT(aSearchParams->IsValid());
 
-  // the observer will be cleared using the cycle collector.
-  mSearchParams = aSearchParams;
-  mSearchParams->AddObserver(this);
+    mSearchParams = aSearchParams;
+    mSearchParams->SetObserver(this);
+  } else {
+    CreateSearchParamsIfNeeded();
+    mSearchParams->CopyFromURLSearchParams(*aSearchParams);
+  }
 
   nsAutoString search;
   mSearchParams->Serialize(search);
@@ -511,8 +506,8 @@ URL::CreateSearchParamsIfNeeded()
 {
   if (!mSearchParams) {
     mSearchParams = new URLSearchParams();
-    mSearchParams->AddObserver(this);
-    UpdateURLSearchParams();
+    mSearchParams->SetObserver(this);
+    mSearchParams->Invalidate();
   }
 }
 

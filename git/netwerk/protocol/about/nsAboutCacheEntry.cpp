@@ -138,7 +138,7 @@ nsAboutCacheEntry::GetContentStream(nsIURI *uri, nsIInputStream **result)
     rv = OpenCacheEntry(uri);
     if (NS_FAILED(rv)) return rv;
 
-    inputStream.forget(result);
+    *result = inputStream.forget().get();
     return NS_OK;
 }
 

@@ -35,6 +35,12 @@ const IS_WIN = true;
 const IS_WIN = false;
 #endif
 
+#ifdef XP_OS2
+const IS_OS2 = true;
+#else
+const IS_OS2 = false;
+#endif
+
 #ifdef XP_MACOSX
 const IS_MACOSX = true;
 #ifdef MOZ_SHARK
@@ -2207,7 +2213,7 @@ function setupUpdaterTest(aMarFile, aUpdatedDirExists, aToBeDeletedDirExists) {
 
       // Skip these tests on Windows and OS/2 since their
       // implementaions of chmod doesn't really set permissions.
-      if (!IS_WIN && aTestFile.originalPerms) {
+      if (!IS_WIN && !IS_OS2 && aTestFile.originalPerms) {
         testFile.permissions = aTestFile.originalPerms;
         // Store the actual permissions on the file for reference later after
         // setting the permissions.
@@ -2410,7 +2416,7 @@ function checkFilesAfterUpdateSuccess() {
 
       // Skip these tests on Windows and OS/2 since their
       // implementaions of chmod doesn't really set permissions.
-      if (!IS_WIN && aTestFile.comparePerms) {
+      if (!IS_WIN && !IS_OS2 && aTestFile.comparePerms) {
         // Check if the permssions as set in the complete mar file are correct.
         let logPerms = "testing file permissions - ";
         if (aTestFile.originalPerms) {
@@ -2502,7 +2508,7 @@ function checkFilesAfterUpdateFailure(aGetDirectory) {
 
       // Skip these tests on Windows and OS/2 since their
       // implementaions of chmod doesn't really set permissions.
-      if (!IS_WIN && aTestFile.comparePerms) {
+      if (!IS_WIN && !IS_OS2 && aTestFile.comparePerms) {
         // Check the original permssions are retained on the file.
         let logPerms = "testing file permissions - ";
         if (aTestFile.originalPerms) {

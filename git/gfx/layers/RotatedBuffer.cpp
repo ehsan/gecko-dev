@@ -12,7 +12,6 @@
 #include "GeckoProfiler.h"              // for PROFILER_LABEL
 #include "Layers.h"                     // for ThebesLayer, Layer, etc
 #include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxPrefs.h"                   // for gfxPrefs
 #include "gfxUtils.h"                   // for gfxUtils
 #include "mozilla/ArrayUtils.h"         // for ArrayLength
 #include "mozilla/gfx/BasePoint.h"      // for BasePoint
@@ -460,7 +459,7 @@ RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
           !aLayer->Manager()->IsCompositingCheap() ||
           !aLayer->AsShadowableLayer() ||
           !aLayer->AsShadowableLayer()->HasShadow() ||
-          !gfxPrefs::ComponentAlphaEnabled()) {
+          !gfxPlatform::ComponentAlphaEnabled()) {
         mode = SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA;
       } else {
         result.mContentType = gfxContentType::COLOR;

@@ -10,6 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
+[PrefControlled]
 interface AudioBuffer {
 
     readonly attribute float sampleRate;

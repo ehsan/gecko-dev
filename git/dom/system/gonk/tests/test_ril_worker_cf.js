@@ -16,8 +16,7 @@ function toaFromString(number) {
       // Do nothing
     }
   });
-  let context = worker.ContextPool._contexts[0];
-  return context.RIL._toaFromString(number);
+  return worker.RIL._toaFromString(number);
 }
 
 add_test(function test_toaFromString_empty() {
@@ -74,15 +73,14 @@ function _getWorker() {
 add_test(function test_setCallForward_unconditional() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
-  context.RIL.setCallForward = function fakeSetCallForward(options) {
-    context.RIL[REQUEST_SET_CALL_FORWARD](0, {
+  worker.RIL.setCallForward = function fakeSetCallForward(options) {
+    worker.RIL[REQUEST_SET_CALL_FORWARD](0, {
       rilRequestError: ERROR_SUCCESS
     });
   };
 
-  context.RIL.setCallForward({
+  worker.RIL.setCallForward({
     action: Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_REGISTRATION,
     reason: Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_UNCONDITIONAL,
     serviceClass: ICC_SERVICE_CLASS_VOICE,
@@ -101,24 +99,23 @@ add_test(function test_setCallForward_unconditional() {
 add_test(function test_queryCallForwardStatus_unconditional() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
-  context.RIL.setCallForward = function fakeSetCallForward(options) {
-    context.RIL[REQUEST_SET_CALL_FORWARD](0, {
+  worker.RIL.setCallForward = function fakeSetCallForward(options) {
+    worker.RIL[REQUEST_SET_CALL_FORWARD](0, {
       rilRequestError: ERROR_SUCCESS
     });
   };
 
-  context.Buf.readInt32 = function fakeReadUint32() {
-    return context.Buf.int32Array.pop();
+  worker.Buf.readInt32 = function fakeReadUint32() {
+    return worker.Buf.int32Array.pop();
   };
 
-  context.Buf.readString = function fakeReadString() {
+  worker.Buf.readString = function fakeReadString() {
     return "+34666222333";
   };
 
-  context.RIL.queryCallForwardStatus = function fakeQueryCallForward(options) {
-    context.Buf.int32Array = [
+  worker.RIL.queryCallForwardStatus = function fakeQueryCallForward(options) {
+    worker.Buf.int32Array = [
       0,   // rules.timeSeconds
       145, // rules.toa
       49,  // rules.serviceClass
@@ -126,12 +123,12 @@ add_test(function test_queryCallForwardStatus_unconditional() {
       1,   // rules.active
       1    // rulesLength
     ];
-    context.RIL[REQUEST_QUERY_CALL_FORWARD_STATUS](1, {
+    worker.RIL[REQUEST_QUERY_CALL_FORWARD_STATUS](1, {
       rilRequestError: ERROR_SUCCESS
     });
   };
 
-  context.RIL.queryCallForwardStatus({
+  worker.RIL.queryCallForwardStatus({
     action: Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_QUERY_STATUS,
     reason: Ci.nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_UNCONDITIONAL,
     serviceClass: ICC_SERVICE_CLASS_VOICE,

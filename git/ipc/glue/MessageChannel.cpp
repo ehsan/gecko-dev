@@ -12,7 +12,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Move.h"
 #include "nsDebug.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 
 // Undo the damage done by mozzconf.h
 #undef compress
@@ -204,8 +204,7 @@ MessageChannel::MessageChannel(MessageListener *aListener)
     mDispatchingSyncMessage(false),
     mDispatchingUrgentMessageCount(0),
     mRemoteStackDepthGuess(false),
-    mSawInterruptOutMsg(false),
-    mAbortOnError(false)
+    mSawInterruptOutMsg(false)
 {
     MOZ_COUNT_CTOR(ipc::MessageChannel);
 
@@ -218,7 +217,7 @@ MessageChannel::MessageChannel(MessageListener *aListener)
                                                  &MessageChannel::OnMaybeDequeueOne));
 
 #ifdef OS_WIN
-    mEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    mEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
     NS_ASSERTION(mEvent, "CreateEvent failed! Nothing is going to work!");
 #endif
 }
@@ -429,10 +428,8 @@ MessageChannel::MaybeInterceptSpecialIOMessage(const Message& aMsg)
         // :TODO: Sort out Close() on this side racing with Close() on the
         // other side
         mChannelState = ChannelClosing;
-        if (LoggingEnabled()) {
-            printf("NOTE: %s process received `Goodbye', closing down\n",
-                   (mSide == ChildSide) ? "child" : "parent");
-        }
+        printf("NOTE: %s process received `Goodbye', closing down\n",
+               (mSide == ChildSide) ? "child" : "parent");
         return true;
     }
     return false;
@@ -1518,9 +1515,6 @@ MessageChannel::OnChannelErrorFromLink()
         NotifyWorkerThread();
 
     if (ChannelClosing != mChannelState) {
-        if (mAbortOnError) {
-            NS_RUNTIMEABORT("Aborting on channel error.");
-        }
         mChannelState = ChannelError;
         mMonitor->Notify();
     }
@@ -1651,19 +1645,13 @@ MessageChannel::Close()
             return;
         }
 
-        if (ChannelOpening == mChannelState) {
-            // Mimic CloseWithError().
-            SynchronouslyClose();
-            mChannelState = ChannelError;
-            PostErrorNotifyTask();
-            return;
-        }
-
         if (ChannelConnected != mChannelState) {
             // XXX be strict about this until there's a compelling reason
             // to relax
             NS_RUNTIMEABORT("Close() called on closed channel!");
         }
+
+        AssertWorkerThread();
 
         // notify the other side that we're about to close our socket
         mLink->SendMessage(new GoodbyeMessage());
@@ -1743,3 +1731,4 @@ MessageChannel::DumpInterruptStack(const char* const pfx) const
 
 } // ipc
 } // mozilla
+

@@ -59,7 +59,5 @@ let WebrtcIndicator = {
       streamData.browser.focus();
     }
     browserWindow.focus();
-    PopupNotifications.getNotification("webRTC-sharingDevices",
-                                       streamData.browser).reshow();
   }
 }

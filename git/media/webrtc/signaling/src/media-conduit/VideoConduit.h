@@ -8,7 +8,6 @@
 #include "mozilla/Attributes.h"
 
 #include "MediaConduitInterface.h"
-#include "MediaEngineWrapper.h"
 
 // Video Engine Includes
 #include "webrtc/common_types.h"
@@ -186,7 +185,13 @@ public:
                       mVideoEngine(nullptr),
                       mTransport(nullptr),
                       mRenderer(nullptr),
+                      mPtrViEBase(nullptr),
+                      mPtrViECapture(nullptr),
+                      mPtrViECodec(nullptr),
+                      mPtrViENetwork(nullptr),
+                      mPtrViERender(nullptr),
                       mPtrExtCapture(nullptr),
+                      mPtrRTP(nullptr),
                       mEngineTransmitting(false),
                       mEngineReceiving(false),
                       mChannel(-1),
@@ -205,16 +210,11 @@ public:
   webrtc::VideoEngine* GetVideoEngine() { return mVideoEngine; }
   bool GetLocalSSRC(unsigned int* ssrc);
   bool GetRemoteSSRC(unsigned int* ssrc);
-  bool GetAVStats(int32_t* jitterBufferDelayMs,
-                  int32_t* playoutBufferDelayMs,
-                  int32_t* avSyncOffsetMs);
-  bool GetRTPStats(unsigned int* jitterMs, unsigned int* cumulativeLost);
+  bool GetRTPJitter(unsigned int* jitterMs);
   bool GetRTCPReceiverReport(DOMHighResTimeStamp* timestamp,
-                             uint32_t* jitterMs,
-                             uint32_t* packetsReceived,
-                             uint64_t* bytesReceived,
-                             uint32_t* cumulativeLost,
-                             int32_t* rttMs);
+                             unsigned int* jitterMs,
+                             unsigned int* packetsReceived,
+                             uint64_t* bytesReceived);
   bool GetRTCPSenderReport(DOMHighResTimeStamp* timestamp,
                            unsigned int* packetsSent,
                            uint64_t* bytesSent);
@@ -259,14 +259,13 @@ private:
   mozilla::RefPtr<TransportInterface> mTransport;
   mozilla::RefPtr<VideoRenderer> mRenderer;
 
-  ScopedCustomReleasePtr<webrtc::ViEBase> mPtrViEBase;
-  ScopedCustomReleasePtr<webrtc::ViECapture> mPtrViECapture;
-  ScopedCustomReleasePtr<webrtc::ViECodec> mPtrViECodec;
-  ScopedCustomReleasePtr<webrtc::ViENetwork> mPtrViENetwork;
-  ScopedCustomReleasePtr<webrtc::ViERender> mPtrViERender;
-  ScopedCustomReleasePtr<webrtc::ViERTP_RTCP> mPtrRTP;
-
-  webrtc::ViEExternalCapture* mPtrExtCapture; // shared
+  webrtc::ViEBase* mPtrViEBase;
+  webrtc::ViECapture* mPtrViECapture;
+  webrtc::ViECodec* mPtrViECodec;
+  webrtc::ViENetwork* mPtrViENetwork;
+  webrtc::ViERender* mPtrViERender;
+  webrtc::ViEExternalCapture*  mPtrExtCapture; // shared
+  webrtc::ViERTP_RTCP* mPtrRTP;
 
   // Engine state we are concerned with.
   bool mEngineTransmitting; //If true ==> Transmit Sub-system is up and running

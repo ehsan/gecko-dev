@@ -105,7 +105,6 @@ public:
   class DataConnectionListener : public SupportsWeakPtr<DataConnectionListener>
   {
   public:
-    MOZ_DECLARE_REFCOUNTED_TYPENAME(DataChannelConnection::DataConnectionListener)
     virtual ~DataConnectionListener() {}
 
     // Called when a the connection is open
@@ -192,8 +191,6 @@ public:
 
   void ReadBlob(already_AddRefed<DataChannelConnection> aThis, uint16_t aStream, nsIInputStream* aBlob);
 
-  void GetStreamIds(std::vector<uint16_t>* aStreamList);
-
 protected:
   friend class DataChannelOnMessageAvailable;
   // Avoid cycles with PeerConnectionImpl
@@ -225,7 +222,7 @@ private:
 
   void DeliverQueuedData(uint16_t stream);
 
-  already_AddRefed<DataChannel> OpenFinish(already_AddRefed<DataChannel>&& aChannel);
+  already_AddRefed<DataChannel> OpenFinish(already_AddRefed<DataChannel> channel) NS_WARN_UNUSED_RESULT;
 
   void StartDefer();
   bool SendDeferredMessages();

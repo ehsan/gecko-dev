@@ -115,7 +115,8 @@ GetParamsFromSendMmsMessageRequest(JSContext* aCx,
 
   // attachments
   JS::Rooted<JSObject*> attachmentArray(aCx, JS_NewArrayObject(aCx,
-                                                               aRequest.attachments().Length()));
+                                                               aRequest.attachments().Length(),
+                                                               nullptr));
   for (uint32_t i = 0; i < aRequest.attachments().Length(); i++) {
     JS::Rooted<JSObject*> obj(aCx,
       MmsAttachmentDataToJSObject(aCx, aRequest.attachments().ElementAt(i)));

@@ -54,9 +54,11 @@ var SettingsCharm = {
 
     // Feedback
     this.addEntry({
-        label: Strings.browser.GetStringFromName("feedbackCharm"),
+        // feedbackLabel is a temporary measure to expose this string
+        // from the baseMenuOverlay.dtd
+        label: Elements.feedbackLabel.value,
         onselected: function() {
-          let url = Services.urlFormatter.formatURLPref("app.support.inputURL");
+          let url = Elements.feedbackLabel.getAttribute("href");
           BrowserUI.addAndShowTab(url, Browser.selectedTab);
         }
     });

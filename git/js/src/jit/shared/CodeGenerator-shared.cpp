@@ -131,14 +131,14 @@ ToStackIndex(LAllocation *a)
 }
 
 bool
-CodeGeneratorShared::encodeAllocations(LSnapshot *snapshot, MResumePoint *resumePoint,
-                                       uint32_t *startIndex)
+CodeGeneratorShared::encodeSlots(LSnapshot *snapshot, MResumePoint *resumePoint,
+                                 uint32_t *startIndex)
 {
     IonSpew(IonSpew_Codegen, "Encoding %u of resume point %p's operands starting from %u",
             resumePoint->numOperands(), (void *) resumePoint, *startIndex);
-    for (uint32_t allocno = 0, e = resumePoint->numOperands(); allocno < e; allocno++) {
-        uint32_t i = allocno + *startIndex;
-        MDefinition *mir = resumePoint->getOperand(allocno);
+    for (uint32_t slotno = 0, e = resumePoint->numOperands(); slotno < e; slotno++) {
+        uint32_t i = slotno + *startIndex;
+        MDefinition *mir = resumePoint->getOperand(slotno);
 
         if (mir->isBox())
             mir = mir->toBox()->getOperand(0);
@@ -147,14 +147,12 @@ CodeGeneratorShared::encodeAllocations(LSnapshot *snapshot, MResumePoint *resume
                        ? MIRType_Undefined
                        : mir->type();
 
-        RValueAllocation alloc;
-
         switch (type) {
           case MIRType_Undefined:
-            alloc = RValueAllocation::Undefined();
+            snapshots_.addUndefinedSlot();
             break;
           case MIRType_Null:
-            alloc = RValueAllocation::Null();
+            snapshots_.addNullSlot();
             break;
           case MIRType_Int32:
           case MIRType_String:
@@ -167,29 +165,29 @@ CodeGeneratorShared::encodeAllocations(LSnapshot *snapshot, MResumePoint *resume
             JSValueType valueType = ValueTypeFromMIRType(type);
             if (payload->isMemory()) {
                 if (type == MIRType_Float32)
-                    alloc = RValueAllocation::Float32(ToStackIndex(payload));
+                    snapshots_.addFloat32Slot(ToStackIndex(payload));
                 else
-                    alloc = RValueAllocation::Typed(valueType, ToStackIndex(payload));
+                    snapshots_.addSlot(valueType, ToStackIndex(payload));
             } else if (payload->isGeneralReg()) {
-                alloc = RValueAllocation::Typed(valueType, ToRegister(payload));
+                snapshots_.addSlot(valueType, ToRegister(payload));
             } else if (payload->isFloatReg()) {
                 FloatRegister reg = ToFloatRegister(payload);
                 if (type == MIRType_Float32)
-                    alloc = RValueAllocation::Float32(reg);
+                    snapshots_.addFloat32Slot(reg);
                 else
-                    alloc = RValueAllocation::Double(reg);
+                    snapshots_.addSlot(reg);
             } else {
                 MConstant *constant = mir->toConstant();
                 const Value &v = constant->value();
 
                 // Don't bother with the constant pool for smallish integers.
                 if (v.isInt32() && v.toInt32() >= -32 && v.toInt32() <= 32) {
-                    alloc = RValueAllocation::Int32(v.toInt32());
+                    snapshots_.addInt32Slot(v.toInt32());
                 } else {
                     uint32_t index;
                     if (!graph.addConstantToPool(constant->value(), &index))
                         return false;
-                    alloc = RValueAllocation::ConstantPool(index);
+                    snapshots_.addConstantPoolSlot(index);
                 }
             }
             break;
@@ -199,7 +197,7 @@ CodeGeneratorShared::encodeAllocations(LSnapshot *snapshot, MResumePoint *resume
             uint32_t index;
             if (!graph.addConstantToPool(MagicValue(JS_OPTIMIZED_ARGUMENTS), &index))
                 return false;
-            alloc = RValueAllocation::ConstantPool(index);
+            snapshots_.addConstantPoolSlot(index);
             break;
           }
           default:
@@ -210,26 +208,24 @@ CodeGeneratorShared::encodeAllocations(LSnapshot *snapshot, MResumePoint *resume
             LAllocation *type = snapshot->typeOfSlot(i);
             if (type->isRegister()) {
                 if (payload->isRegister())
-                    alloc = RValueAllocation::Untyped(ToRegister(type), ToRegister(payload));
+                    snapshots_.addSlot(ToRegister(type), ToRegister(payload));
                 else
-                    alloc = RValueAllocation::Untyped(ToRegister(type), ToStackIndex(payload));
+                    snapshots_.addSlot(ToRegister(type), ToStackIndex(payload));
             } else {
                 if (payload->isRegister())
-                    alloc = RValueAllocation::Untyped(ToStackIndex(type), ToRegister(payload));
+                    snapshots_.addSlot(ToStackIndex(type), ToRegister(payload));
                 else
-                    alloc = RValueAllocation::Untyped(ToStackIndex(type), ToStackIndex(payload));
+                    snapshots_.addSlot(ToStackIndex(type), ToStackIndex(payload));
             }
 #elif JS_PUNBOX64
             if (payload->isRegister())
-                alloc = RValueAllocation::Untyped(ToRegister(payload));
+                snapshots_.addSlot(ToRegister(payload));
             else
-                alloc = RValueAllocation::Untyped(ToStackIndex(payload));
+                snapshots_.addSlot(ToStackIndex(payload));
 #endif
             break;
           }
-        }
-
-        snapshots_.add(alloc);
+      }
     }
 
     *startIndex += resumePoint->numOperands();
@@ -331,7 +327,7 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
         snapshots_.trackFrame(pcOpcode, mirOpcode, mirId, lirOpcode, lirId);
 #endif
 
-        if (!encodeAllocations(snapshot, mir, &startIndex))
+        if (!encodeSlots(snapshot, mir, &startIndex))
             return false;
         snapshots_.endFrame();
     }
@@ -954,7 +950,7 @@ CodeGeneratorShared::labelForBackedgeWithImplicitCheck(MBasicBlock *mir)
             } else {
                 // The interrupt check should be the first instruction in the
                 // loop header other than the initial label and move groups.
-                JS_ASSERT(iter->isInterruptCheck() || iter->isInterruptCheckPar());
+                JS_ASSERT(iter->isInterruptCheck() || iter->isCheckInterruptPar());
                 return nullptr;
             }
         }

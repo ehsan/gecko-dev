@@ -56,7 +56,7 @@ nsMathMLmsqrtFrame::InheritAutomaticData(nsIFrame* aParent)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmsqrtFrame::AttributeChanged(int32_t         aNameSpaceID,
                                      nsIAtom*        aAttribute,
                                      int32_t         aModType)

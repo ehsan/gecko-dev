@@ -672,10 +672,10 @@ public:
    * Ensures that aSignalRunnable will be dispatched to aSignalThread
    * when we don't have enough buffered data in the track (which could be
    * immediately). Will dispatch the runnable immediately if the track
-   * does not exist. No op if a runnable is already present for this track.
+   * does not exist.
    */
   void DispatchWhenNotEnoughBuffered(TrackID aID,
-      nsIEventTarget* aSignalThread, nsIRunnable* aSignalRunnable);
+      nsIThread* aSignalThread, nsIRunnable* aSignalRunnable);
   /**
    * Indicate that a track has ended. Do not do any more API calls
    * affecting this track.
@@ -728,13 +728,13 @@ public:
   friend class MediaStreamGraphImpl;
 
   struct ThreadAndRunnable {
-    void Init(nsIEventTarget* aTarget, nsIRunnable* aRunnable)
+    void Init(nsIThread* aThread, nsIRunnable* aRunnable)
     {
-      mTarget = aTarget;
+      mThread = aThread;
       mRunnable = aRunnable;
     }
 
-    nsCOMPtr<nsIEventTarget> mTarget;
+    nsCOMPtr<nsIThread> mThread;
     nsCOMPtr<nsIRunnable> mRunnable;
   };
   enum TrackCommands {
@@ -906,7 +906,7 @@ protected:
 /**
  * This stream processes zero or more input streams in parallel to produce
  * its output. The details of how the output is produced are handled by
- * subclasses overriding the ProcessInput method.
+ * subclasses overriding the ProduceOutput method.
  */
 class ProcessedMediaStream : public MediaStream {
 public:
@@ -962,7 +962,7 @@ public:
    * This will be called on streams that have finished. Most stream types should
    * just return immediately if IsFinishedOnGraphThread(), but some may wish to
    * update internal state (see AudioNodeStream).
-   * ProcessInput is allowed to call FinishOnGraphThread only if ALLOW_FINISH
+   * ProduceOutput is allowed to call FinishOnGraphThread only if ALLOW_FINISH
    * is in aFlags. (This flag will be set when aTo >= mStateComputedTime, i.e.
    * when we've producing the last block of data we need to produce.) Otherwise
    * we can get into a situation where we've determined the stream should not
@@ -972,7 +972,7 @@ public:
   enum {
     ALLOW_FINISH = 0x01
   };
-  virtual void ProcessInput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags) = 0;
+  virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags) = 0;
   void SetAutofinishImpl(bool aAutofinish) { mAutofinish = aAutofinish; }
 
   /**
@@ -1065,7 +1065,7 @@ public:
    * Dispatches a runnable that will run on the main thread after all
    * main-thread stream state has been next updated.
    * Should only be called during MediaStreamListener callbacks or during
-   * ProcessedMediaStream::ProcessInput().
+   * ProcessedMediaStream::ProduceOutput().
    */
   void DispatchToMainThreadAfterStreamStateUpdate(already_AddRefed<nsIRunnable> aRunnable)
   {

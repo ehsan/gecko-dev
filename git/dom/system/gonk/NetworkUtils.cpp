@@ -20,14 +20,9 @@
 #include <limits>
 #include "mozilla/dom/network/NetUtils.h"
 
-#include <sys/types.h>  // struct addrinfo
-#include <sys/socket.h> // getaddrinfo(), freeaddrinfo()
-#include <netdb.h>
-#include <arpa/inet.h>  // inet_ntop()
-
 #define _DEBUG 0
 
-#define WARN(args...)   __android_log_print(ANDROID_LOG_WARN,  "NetworkUtils", ## args)
+#define WARN(args...)   __android_log_print(ANDROID_LOG_WARN,  "NetworlUtils", ## args)
 #define ERROR(args...)  __android_log_print(ANDROID_LOG_ERROR,  "NetworkUtils", ## args)
 
 #if _DEBUG
@@ -70,7 +65,7 @@ static const uint32_t NETD_COMMAND_UNSOLICITED  = 600;
 static const uint32_t NETD_COMMAND_INTERFACE_CHANGE     = 600;
 static const uint32_t NETD_COMMAND_BANDWIDTH_CONTROLLER = 601;
 
-static const char* INTERFACE_DELIMIT = ",";
+static const char* INTERFACE_DELIMIT = "\0";
 static const char* USB_CONFIG_DELIMIT = ",";
 static const char* NETD_MESSAGE_DELIMIT = " ";
 
@@ -210,39 +205,18 @@ CommandFunc NetworkUtils::sNetworkInterfaceSetAlarmChain[] = {
   NetworkUtils::networkInterfaceAlarmSuccess
 };
 
-CommandFunc NetworkUtils::sSetDnsChain[] = {
-  NetworkUtils::setDefaultInterface,
-  NetworkUtils::setInterfaceDns
-};
-
 /**
- * Helper function to get the mask from given prefix length.
+ * Helper function to get the bit length from given mask.
  */
-static uint32_t makeMask(const uint32_t prefixLength)
+static uint32_t getMaskLength(const uint32_t mask)
 {
-  uint32_t mask = 0;
-  for (uint32_t i = 0; i < prefixLength; ++i) {
-    mask |= (0x80000000 >> i);
+  uint32_t netmask = ntohl(mask);
+  uint32_t len = 0;
+  while (netmask & 0x80000000) {
+    len++;
+    netmask = netmask << 1;
   }
-  return ntohl(mask);
-}
-
-/**
- * Helper function to get the network part of an ip from prefix.
- * param ip must be in network byte order.
- */
-static char* getNetworkAddr(const uint32_t ip, const uint32_t prefix)
-{
-  uint32_t mask = 0, subnet = 0;
-
-  mask = ~mask << (32 - prefix);
-  mask = htonl(mask);
-  subnet = ip & mask;
-
-  struct in_addr addr;
-  addr.s_addr = subnet;
-
-  return inet_ntoa(addr);
+  return len;
 }
 
 /**
@@ -253,15 +227,6 @@ static void split(char* str, const char* sep, nsTArray<nsCString>& result)
   char *s = strtok(str, sep);
   while (s != nullptr) {
     result.AppendElement(s);
-    s = strtok(nullptr, sep);
-  }
-}
-
-static void split(char* str, const char* sep, nsTArray<nsString>& result)
-{
-  char *s = strtok(str, sep);
-  while (s != nullptr) {
-    result.AppendElement(NS_ConvertUTF8toUTF16(s));
     s = strtok(nullptr, sep);
   }
 }
@@ -306,23 +271,6 @@ static void getIFProperties(const char* ifname, IFProperties& prop)
   property_get(key, prop.dns1, "");
   snprintf(key, PROPERTY_KEY_MAX - 1, "net.%s.dns2", ifname);
   property_get(key, prop.dns2, "");
-}
-
-static int getIpType(const char *aIp) {
-  struct addrinfo hint, *ip_info = NULL;
-
-  memset(&hint, 0, sizeof(hint));
-  hint.ai_family = AF_UNSPEC;
-  hint.ai_flags = AI_NUMERICHOST;
-
-  if (getaddrinfo(aIp, NULL, &hint, &ip_info)) {
-    return AF_UNSPEC;
-  }
-
-  int type = ip_info->ai_family;
-  freeaddrinfo(ip_info);
-
-  return type;
 }
 
 static void postMessage(NetworkResultOptions& aResult)
@@ -481,28 +429,13 @@ void NetworkUtils::stopAccessPointDriver(CommandChain* aChain,
  *     argv[3] - SSID
  *     argv[4] - Security
  *     argv[5] - Key
- *
- * Command format for sdk version >= 18
- *   Arguments:
- *      argv[2] - wlan interface
- *      argv[3] - SSID
- *      argv[4] - Broadcast/Hidden
- *      argv[5] - Channel
- *      argv[6] - Security
- *      argv[7] - Key
  */
 void NetworkUtils::setAccessPoint(CommandChain* aChain,
                                   CommandCallback aCallback,
                                   NetworkResultOptions& aResult)
 {
   char command[MAX_COMMAND_SIZE];
-  if (SDK_VERSION >= 19) {
-    snprintf(command, MAX_COMMAND_SIZE - 1, "softap set %s \"%s\" broadcast 6 %s \"%s\"",
-                     GET_CHAR(mIfname),
-                     GET_CHAR(mSsid),
-                     GET_CHAR(mSecurity),
-                     GET_CHAR(mKey));
-  } else if (SDK_VERSION >= 16) {
+  if (SDK_VERSION >= 16) {
     snprintf(command, MAX_COMMAND_SIZE - 1, "softap set %s \"%s\" %s \"%s\"",
                      GET_CHAR(mIfname),
                      GET_CHAR(mSsid),
@@ -781,20 +714,7 @@ void NetworkUtils::enableNat(CommandChain* aChain,
                              NetworkResultOptions& aResult)
 {
   char command[MAX_COMMAND_SIZE];
-
-  if (!GET_FIELD(mIp).IsEmpty() && !GET_FIELD(mPrefix).IsEmpty()) {
-    uint32_t prefix = atoi(GET_CHAR(mPrefix));
-    uint32_t ip = inet_addr(GET_CHAR(mIp));
-    char* networkAddr = getNetworkAddr(ip, prefix);
-
-    // address/prefix will only take effect when secondary routing table exists.
-    snprintf(command, MAX_COMMAND_SIZE - 1, "nat enable %s %s 1 %s/%s",
-      GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname), networkAddr,
-      GET_CHAR(mPrefix));
-  } else {
-    snprintf(command, MAX_COMMAND_SIZE - 1, "nat enable %s %s 0",
-      GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
-  }
+  snprintf(command, MAX_COMMAND_SIZE - 1, "nat enable %s %s 0", GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
 
   doCommand(command, aChain, aCallback);
 }
@@ -804,39 +724,7 @@ void NetworkUtils::disableNat(CommandChain* aChain,
                               NetworkResultOptions& aResult)
 {
   char command[MAX_COMMAND_SIZE];
-
-  if (!GET_FIELD(mIp).IsEmpty() && !GET_FIELD(mPrefix).IsEmpty()) {
-    uint32_t prefix = atoi(GET_CHAR(mPrefix));
-    uint32_t ip = inet_addr(GET_CHAR(mIp));
-    char* networkAddr = getNetworkAddr(ip, prefix);
-
-    snprintf(command, MAX_COMMAND_SIZE - 1, "nat disable %s %s 1 %s/%s",
-      GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname), networkAddr,
-      GET_CHAR(mPrefix));
-  } else {
-    snprintf(command, MAX_COMMAND_SIZE - 1, "nat disable %s %s 0",
-      GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
-  }
-
-  doCommand(command, aChain, aCallback);
-}
-
-void NetworkUtils::setDefaultInterface(CommandChain* aChain,
-                                       CommandCallback aCallback,
-                                       NetworkResultOptions& aResult)
-{
-  char command[MAX_COMMAND_SIZE];
-  snprintf(command, MAX_COMMAND_SIZE - 1, "resolver setdefaultif %s", GET_CHAR(mIfname));
-
-  doCommand(command, aChain, aCallback);
-}
-
-void NetworkUtils::setInterfaceDns(CommandChain* aChain,
-                                   CommandCallback aCallback,
-                                   NetworkResultOptions& aResult)
-{
-  char command[MAX_COMMAND_SIZE];
-  snprintf(command, MAX_COMMAND_SIZE - 1, "resolver setifdns %s %s %s %s", GET_CHAR(mIfname), GET_CHAR(mDomain), GET_CHAR(mDns1_str), GET_CHAR(mDns2_str));
+  snprintf(command, MAX_COMMAND_SIZE - 1, "nat disable %s %s 0", GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
 
   doCommand(command, aChain, aCallback);
 }
@@ -971,11 +859,6 @@ void NetworkUtils::wifiOperationModeSuccess(CommandChain* aChain,
   postMessage(aChain->getParams(), aResult);
 }
 
-void NetworkUtils::setDnsFail(NetworkParams& aOptions, NetworkResultOptions& aResult)
-{
-  postMessage(aOptions, aResult);
-}
-
 #undef ASSIGN_FIELD
 #undef ASSIGN_FIELD_VALUE
 
@@ -996,7 +879,6 @@ NetworkUtils::~NetworkUtils()
 }
 
 #define GET_CHAR(prop) NS_ConvertUTF16toUTF8(aOptions.prop).get()
-#define GET_FIELD(prop) aOptions.prop
 
 void NetworkUtils::ExecuteCommand(NetworkParams aOptions)
 {
@@ -1016,10 +898,6 @@ void NetworkUtils::ExecuteCommand(NetworkParams aOptions)
     removeHostRoute(aOptions);
   } else if (aOptions.mCmd.EqualsLiteral("removeHostRoutes")) {
     removeHostRoutes(aOptions);
-  } else if (aOptions.mCmd.EqualsLiteral("addSecondaryRoute")) {
-    addSecondaryRoute(aOptions);
-  } else if (aOptions.mCmd.EqualsLiteral("removeSecondaryRoute")) {
-    removeSecondaryRoute(aOptions);
   } else if (aOptions.mCmd.EqualsLiteral("getNetworkInterfaceStats")) {
     getNetworkInterfaceStats(aOptions);
   } else if (aOptions.mCmd.EqualsLiteral("setNetworkInterfaceAlarm")) {
@@ -1105,6 +983,7 @@ void NetworkUtils::onNetdMessage(NetdCommand* aCommand)
     NetworkResultOptions result;
     result.mResultCode = code;
     result.mResultReason = NS_ConvertUTF8toUTF16(buf);
+    join(gReason, INTERFACE_DELIMIT, BUF_SIZE, buf);
     (*gCurrentCommand.callback)(gCurrentCommand.chain, isError(code), result);
     gReason.Clear();
   }
@@ -1162,11 +1041,6 @@ bool NetworkUtils::setDNS(NetworkParams& aOptions)
   snprintf(num, PROPERTY_VALUE_MAX - 1, "%d", atoi(dnschange) + 1);
   property_set("net.dnschange", num);
 
-  // DNS needs to be set through netd since JellyBean (4.3).
-  if (SDK_VERSION >= 18) {
-    RUN_CHAIN(aOptions, sSetDnsChain, setDnsFail)
-  }
-
   return true;
 }
 
@@ -1175,40 +1049,18 @@ bool NetworkUtils::setDNS(NetworkParams& aOptions)
  */
 bool NetworkUtils::setDefaultRouteAndDNS(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoIfname(aOptions.mIfname);
-  char gateway[128];
-
-  if (aOptions.mGateway_str.IsEmpty()) {
-    char key[PROPERTY_KEY_MAX];
-    snprintf(key, sizeof key - 1, "net.%s.gw", autoIfname.get());
-    property_get(key, gateway, "");
-  } else {
-    MOZ_ASSERT(strlen(GET_CHAR(mGateway_str)) < sizeof gateway);
-    strncpy(gateway, GET_CHAR(mGateway_str), sizeof(gateway) - 1);
-  }
-
-  int type = getIpType(gateway);
-  if (type != AF_INET && type != AF_INET6) {
-    return false;
-  }
-
-  if (type == AF_INET6) {
-    if (!aOptions.mOldIfname.IsEmpty()) {
-      mNetUtils->do_ifc_remove_route(GET_CHAR(mOldIfname), "::", 0, NULL);
-    }
-
-    mNetUtils->do_ifc_add_route(autoIfname.get(), "::", 0, gateway);
-
-    setDNS(aOptions);
-    return true;
-  }
-
-  /* type == AF_INET */
   if (!aOptions.mOldIfname.IsEmpty()) {
     mNetUtils->do_ifc_remove_default_route(GET_CHAR(mOldIfname));
   }
 
-  mNetUtils->do_ifc_set_default_route(autoIfname.get(), inet_addr(gateway));
+  IFProperties ifprops;
+  getIFProperties(GET_CHAR(mIfname), ifprops);
+
+  if (aOptions.mGateway_str.IsEmpty()) {
+    mNetUtils->do_ifc_set_default_route(GET_CHAR(mIfname), inet_addr(ifprops.gateway));
+  } else {
+    mNetUtils->do_ifc_set_default_route(GET_CHAR(mIfname), inet_addr(GET_CHAR(mGateway_str)));
+  }
 
   setDNS(aOptions);
   return true;
@@ -1219,17 +1071,7 @@ bool NetworkUtils::setDefaultRouteAndDNS(NetworkParams& aOptions)
  */
 bool NetworkUtils::removeDefaultRoute(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoGateway(aOptions.mGateway);
-
-  int type = getIpType(autoGateway.get());
-  if (type != AF_INET && type != AF_INET6) {
-    return false;
-  }
-
-  mNetUtils->do_ifc_remove_route(GET_CHAR(mIfname),
-                                 type == AF_INET ? "0.0.0.0" : "::",
-                                 0, autoGateway.get());
-
+  mNetUtils->do_ifc_remove_default_route(GET_CHAR(mIfname));
   return true;
 }
 
@@ -1238,22 +1080,9 @@ bool NetworkUtils::removeDefaultRoute(NetworkParams& aOptions)
  */
 bool NetworkUtils::addHostRoute(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoIfname(aOptions.mIfname);
-  NS_ConvertUTF16toUTF8 autoGateway(aOptions.mGateway);
-  int type, prefix;
-
   uint32_t length = aOptions.mHostnames.Length();
   for (uint32_t i = 0; i < length; i++) {
-    NS_ConvertUTF16toUTF8 autoHostname(aOptions.mHostnames[i]);
-
-    type = getIpType(autoHostname.get());
-    if (type != AF_INET && type != AF_INET6) {
-      continue;
-    }
-
-    prefix = type == AF_INET ? 32 : 128;
-    mNetUtils->do_ifc_add_route(autoIfname.get(), autoHostname.get(), prefix,
-                                autoGateway.get());
+    mNetUtils->do_ifc_add_route(GET_CHAR(mIfname), GET_CHAR(mHostnames[i]), 32, GET_CHAR(mGateway));
   }
   return true;
 }
@@ -1263,22 +1092,9 @@ bool NetworkUtils::addHostRoute(NetworkParams& aOptions)
  */
 bool NetworkUtils::removeHostRoute(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoIfname(aOptions.mIfname);
-  NS_ConvertUTF16toUTF8 autoGateway(aOptions.mGateway);
-  int type, prefix;
-
   uint32_t length = aOptions.mHostnames.Length();
   for (uint32_t i = 0; i < length; i++) {
-    NS_ConvertUTF16toUTF8 autoHostname(aOptions.mHostnames[i]);
-
-    type = getIpType(autoHostname.get());
-    if (type != AF_INET && type != AF_INET6) {
-      continue;
-    }
-
-    prefix = type == AF_INET ? 32 : 128;
-    mNetUtils->do_ifc_remove_route(autoIfname.get(), autoHostname.get(), prefix,
-                                   autoGateway.get());
+    mNetUtils->do_ifc_remove_route(GET_CHAR(mIfname), GET_CHAR(mHostnames[i]), 32, GET_CHAR(mGateway));
   }
   return true;
 }
@@ -1294,85 +1110,17 @@ bool NetworkUtils::removeHostRoutes(NetworkParams& aOptions)
 
 bool NetworkUtils::removeNetworkRoute(NetworkParams& aOptions)
 {
-  NS_ConvertUTF16toUTF8 autoIfname(aOptions.mIfname);
-  NS_ConvertUTF16toUTF8 autoIp(aOptions.mIp);
-
-  int type = getIpType(autoIp.get());
-  if (type != AF_INET && type != AF_INET6) {
-    return false;
-  }
-
-  uint32_t prefixLength = GET_FIELD(mPrefixLength);
-
-  if (type == AF_INET6) {
-    // Calculate subnet.
-    struct in6_addr in6;
-    if (inet_pton(AF_INET6, autoIp.get(), &in6) != 1) {
-      return false;
-    }
-
-    uint32_t p, i, p1, mask;
-    p = prefixLength;
-    i = 0;
-    while (i < 4) {
-      p1 = p > 32 ? 32 : p;
-      p -= p1;
-      mask = p1 ? ~0x0 << (32 - p1) : 0;
-      in6.s6_addr32[i++] &= htonl(mask);
-    }
-
-    char subnetStr[INET6_ADDRSTRLEN];
-    if (!inet_ntop(AF_INET6, &in6, subnetStr, sizeof subnetStr)) {
-      return false;
-    }
-
-    // Remove default route.
-    mNetUtils->do_ifc_remove_route(autoIfname.get(), "::", 0, NULL);
-
-    // Remove subnet route.
-    mNetUtils->do_ifc_remove_route(autoIfname.get(), subnetStr, prefixLength, NULL);
-    return true;
-  }
-
-  /* type == AF_INET */
-  uint32_t ip = inet_addr(autoIp.get());
-  uint32_t netmask = makeMask(prefixLength);
+  uint32_t ip = inet_addr(GET_CHAR(mIp));
+  uint32_t netmask = inet_addr(GET_CHAR(mNetmask));
   uint32_t subnet = ip & netmask;
+  uint32_t prefixLength = getMaskLength(netmask);
   const char* gateway = "0.0.0.0";
   struct in_addr addr;
   addr.s_addr = subnet;
   const char* dst = inet_ntoa(addr);
 
-  mNetUtils->do_ifc_remove_default_route(autoIfname.get());
-  mNetUtils->do_ifc_remove_route(autoIfname.get(), dst, prefixLength, gateway);
-  return true;
-}
-
-bool NetworkUtils::addSecondaryRoute(NetworkParams& aOptions)
-{
-  char command[MAX_COMMAND_SIZE];
-  snprintf(command, MAX_COMMAND_SIZE - 1,
-           "interface route add %s secondary %s %s %s",
-           GET_CHAR(mIfname),
-           GET_CHAR(mIp),
-           GET_CHAR(mPrefix),
-           GET_CHAR(mGateway));
-
-  doCommand(command, nullptr, nullptr);
-  return true;
-}
-
-bool NetworkUtils::removeSecondaryRoute(NetworkParams& aOptions)
-{
-  char command[MAX_COMMAND_SIZE];
-  snprintf(command, MAX_COMMAND_SIZE - 1,
-           "interface route remove %s secondary %s %s %s",
-           GET_CHAR(mIfname),
-           GET_CHAR(mIp),
-           GET_CHAR(mPrefix),
-           GET_CHAR(mGateway));
-
-  doCommand(command, nullptr, nullptr);
+  mNetUtils->do_ifc_remove_default_route(GET_CHAR(mIfname));
+  mNetUtils->do_ifc_remove_route(GET_CHAR(mIfname), dst, prefixLength, gateway);
   return true;
 }
 
@@ -1651,4 +1399,3 @@ void NetworkUtils::dumpParams(NetworkParams& aOptions, const char* aType)
 }
 
 #undef GET_CHAR
-#undef GET_FIELD

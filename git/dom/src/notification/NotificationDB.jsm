@@ -155,7 +155,6 @@ let NotificationDB = {
         this.queueTask("getall", message.data, function(notifications) {
           returnMessage("Notification:GetAll:Return:OK", {
             requestID: message.data.requestID,
-            origin: message.data.origin,
             notifications: notifications
           });
         });

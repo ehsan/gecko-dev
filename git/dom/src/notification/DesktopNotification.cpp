@@ -15,7 +15,6 @@
 #include "PCOMContentPermissionRequestChild.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsServiceManagerUtils.h"
-#include "PermissionMessageUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -49,12 +48,10 @@ public:
   {
   }
 
-  virtual bool Recv__delete__(const bool& aAllow,
-                              const InfallibleTArray<PermissionChoice>& choices) MOZ_OVERRIDE
+  virtual bool Recv__delete__(const bool& aAllow) MOZ_OVERRIDE
   {
-    MOZ_ASSERT(choices.IsEmpty(), "DesktopNotification doesn't support permission choice");
     if (aAllow) {
-      (void) Allow(JS::UndefinedHandleValue);
+      (void) Allow();
     } else {
      (void) Cancel();
     }
@@ -180,14 +177,9 @@ DesktopNotification::Init()
     // Corresponding release occurs in DeallocPContentPermissionRequest.
     nsRefPtr<DesktopNotificationRequest> copy = request;
 
-    nsTArray<PermissionRequest> permArray;
-    nsTArray<nsString> emptyOptions;
-    permArray.AppendElement(PermissionRequest(
-                            NS_LITERAL_CSTRING("desktop-notification"),
-                            NS_LITERAL_CSTRING("unused"),
-                            emptyOptions));
-    child->SendPContentPermissionRequestConstructor(copy.forget().take(),
-                                                    permArray,
+    child->SendPContentPermissionRequestConstructor(copy.forget().get(),
+                                                    NS_LITERAL_CSTRING("desktop-notification"),
+                                                    NS_LITERAL_CSTRING("unused"),
                                                     IPC::Principal(mPrincipal));
 
     request->Sendprompt();
@@ -351,22 +343,25 @@ DesktopNotificationRequest::Cancel()
 }
 
 NS_IMETHODIMP
-DesktopNotificationRequest::Allow(JS::HandleValue aChoices)
+DesktopNotificationRequest::Allow()
 {
-  MOZ_ASSERT(aChoices.isUndefined());
   nsresult rv = mDesktopNotification->SetAllow(true);
   mDesktopNotification = nullptr;
   return rv;
 }
 
 NS_IMETHODIMP
-DesktopNotificationRequest::GetTypes(nsIArray** aTypes)
+DesktopNotificationRequest::GetType(nsACString & aType)
 {
-  nsTArray<nsString> emptyOptions;
-  return CreatePermissionArray(NS_LITERAL_CSTRING("desktop-notification"),
-                               NS_LITERAL_CSTRING("unused"),
-                               emptyOptions,
-                               aTypes);
+  aType = "desktop-notification";
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+DesktopNotificationRequest::GetAccess(nsACString & aAccess)
+{
+  aAccess = "unused";
+  return NS_OK;
 }
 
 } // namespace dom

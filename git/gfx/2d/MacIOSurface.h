@@ -62,7 +62,6 @@ CGContextType GetContextType(CGContextRef ref);
 
 class MacIOSurface : public mozilla::RefCounted<MacIOSurface> {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(MacIOSurface)
   typedef mozilla::gfx::SourceSurface SourceSurface;
 
   static mozilla::TemporaryRef<MacIOSurface> CreateIOSurface(int aWidth, int aHeight,
@@ -75,7 +74,7 @@ public:
 
   MacIOSurface(const void *aIOSurfacePtr, double aContentsScaleFactor = 1.0, bool aHasAlpha = true)
     : mIOSurfacePtr(aIOSurfacePtr), mContentsScaleFactor(aContentsScaleFactor), mHasAlpha(aHasAlpha) {}
-  virtual ~MacIOSurface();
+  ~MacIOSurface();
   IOSurfaceID GetIOSurfaceID();
   void *GetBaseAddress();
   // GetWidth() and GetHeight() return values in "display pixels".  A
@@ -112,7 +111,6 @@ private:
 
 class MacIOSurfaceLib: public MacIOSurface {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(MacIOSurfaceLib)
   static void                        *sIOSurfaceFramework;
   static void                        *sOpenGLFramework;
   static void                        *sCoreGraphicsFramework;

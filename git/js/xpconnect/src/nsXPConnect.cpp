@@ -159,6 +159,25 @@ nsXPConnect::ReleaseXPConnectSingleton()
     if (xpc) {
         nsThread::SetMainThreadObserver(nullptr);
 
+#ifdef DEBUG
+        // force a dump of the JavaScript gc heap if JS is still alive
+        // if requested through XPC_SHUTDOWN_HEAP_DUMP environment variable
+        {
+            const char* dumpName = getenv("XPC_SHUTDOWN_HEAP_DUMP");
+            if (dumpName) {
+                FILE* dumpFile = (*dumpName == '\0' ||
+                                  strcmp(dumpName, "stdout") == 0)
+                                 ? stdout
+                                 : fopen(dumpName, "w");
+                if (dumpFile) {
+                    JS_DumpHeap(xpc->GetRuntime()->Runtime(), dumpFile, nullptr,
+                                JSTRACE_OBJECT, nullptr, static_cast<size_t>(-1), nullptr);
+                    if (dumpFile != stdout)
+                        fclose(dumpFile);
+                }
+            }
+        }
+#endif
         nsrefcnt cnt;
         NS_RELEASE2(xpc, cnt);
     }
@@ -185,7 +204,7 @@ nsXPConnect::IsISupportsDescendant(nsIInterfaceInfo* info)
 void
 xpc::SystemErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
 {
-    // It would be nice to assert !DescribeScriptedCaller here, to be sure
+    // It would be nice to assert !JS_DescribeScriptedCaller here, to be sure
     // that there isn't any script running that could catch the exception. But
     // the JS engine invokes the error reporter directly if someone reports an
     // ErrorReport that it doesn't know how to turn into an exception. Arguably
@@ -231,6 +250,13 @@ xpc::SystemErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
                 message ? message : "<no message>");
     }
 
+}
+
+NS_EXPORT_(void)
+xpc::SystemErrorReporterExternal(JSContext *cx, const char *message,
+                                 JSErrorReport *rep)
+{
+    return SystemErrorReporter(cx, message, rep);
 }
 
 
@@ -354,12 +380,56 @@ TraceXPCGlobal(JSTracer *trc, JSObject *obj)
         mozilla::dom::TraceProtoAndIfaceCache(trc, obj);
 }
 
+#ifdef DEBUG
+#include "mozilla/Preferences.h"
+#include "nsIXULRuntime.h"
+static void
+CheckTypeInference(JSContext *cx, const JSClass *clasp, nsIPrincipal *principal)
+{
+    // Check that the global class isn't whitelisted.
+    if (strcmp(clasp->name, "Sandbox") ||
+        strcmp(clasp->name, "nsXBLPrototypeScript compilation scope") ||
+        strcmp(clasp->name, "nsXULPrototypeScript compilation scope"))
+        return;
+
+    // Check that the pref is on.
+    if (!mozilla::Preferences::GetBool("javascript.options.typeinference"))
+        return;
+
+    // Check that we're not chrome.
+    bool isSystem;
+    nsIScriptSecurityManager* ssm;
+    ssm = XPCWrapper::GetSecurityManager();
+    if (NS_FAILED(ssm->IsSystemPrincipal(principal, &isSystem)) || !isSystem)
+        return;
+
+    // Check that safe mode isn't on.
+    bool safeMode;
+    nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
+    if (!xr) {
+        NS_WARNING("Couldn't get XUL runtime!");
+        return;
+    }
+    if (NS_FAILED(xr->GetInSafeMode(&safeMode)) || safeMode)
+        return;
+
+    // Finally, do the damn assert.
+    MOZ_ASSERT(ContextOptionsRef(cx).typeInference());
+}
+#else
+#define CheckTypeInference(cx, clasp, principal) {}
+#endif
+
 namespace xpc {
 
 JSObject*
 CreateGlobalObject(JSContext *cx, const JSClass *clasp, nsIPrincipal *principal,
                    JS::CompartmentOptions& aOptions)
 {
+    // Make sure that Type Inference is enabled for everything non-chrome.
+    // Sandboxes and compilation scopes are exceptions. See bug 744034.
+    CheckTypeInference(cx, clasp, principal);
+
     MOZ_ASSERT(NS_IsMainThread(), "using a principal off the main thread?");
     MOZ_ASSERT(principal);
 
@@ -369,7 +439,6 @@ CreateGlobalObject(JSContext *cx, const JSClass *clasp, nsIPrincipal *principal,
     if (!global)
         return nullptr;
     JSAutoCompartment ac(cx, global);
-
     // The constructor automatically attaches the scope to the compartment private
     // of |global|.
     (void) new XPCWrappedNativeScope(cx, global);
@@ -421,7 +490,6 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     nsresult rv =
         XPCWrappedNative::WrapNewGlobal(helper, aPrincipal,
                                         aFlags & nsIXPConnect::INIT_JS_STANDARD_CLASSES,
-                                        !(aFlags & nsIXPConnect::DONT_FIRE_ONNEWGLOBALHOOK),
                                         aOptions, getter_AddRefs(wrappedGlobal));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -498,7 +566,7 @@ nsXPConnect::WrapNative(JSContext * aJSContext,
     RootedObject aScope(aJSContext, aScopeArg);
     RootedValue v(aJSContext);
     return NativeInterface2JSObject(aScope, aCOMObj, nullptr, &aIID,
-                                    true, &v, aHolder);
+                                    false, &v, aHolder);
 }
 
 /* void wrapNativeToJSVal (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsISupports aCOMObj, in nsIIDPtr aIID, out jsval aVal, out nsIXPConnectJSObjectHolder aHolder); */
@@ -550,8 +618,7 @@ nsXPConnect::JSValToVariant(JSContext *cx,
 {
     NS_PRECONDITION(aResult, "bad param");
 
-    nsRefPtr<XPCVariant> variant = XPCVariant::newVariant(cx, aJSVal);
-    variant.forget(aResult);
+    *aResult = XPCVariant::newVariant(cx, aJSVal);
     NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
 
     return NS_OK;
@@ -592,14 +659,14 @@ nsXPConnect::GetWrappedNativeOfJSObject(JSContext * aJSContext,
 
     RootedObject aJSObj(aJSContext, aJSObjArg);
     aJSObj = js::CheckedUnwrap(aJSObj, /* stopAtOuter = */ false);
-    if (!aJSObj || !IS_WN_REFLECTOR(aJSObj)) {
-        *_retval = nullptr;
-        return NS_ERROR_FAILURE;
+    if (aJSObj && IS_WN_REFLECTOR(aJSObj)) {
+        NS_IF_ADDREF(*_retval = XPCWrappedNative::Get(aJSObj));
+        return NS_OK;
     }
 
-    nsRefPtr<XPCWrappedNative> temp = XPCWrappedNative::Get(aJSObj);
-    temp.forget(_retval);
-    return NS_OK;
+    // else...
+    *_retval = nullptr;
+    return NS_ERROR_FAILURE;
 }
 
 /* nsISupports getNativeOfWrapper(in JSContextPtr aJSContext, in JSObjectPtr  aJSObj); */
@@ -1006,8 +1073,7 @@ nsXPConnect::JSToVariant(JSContext* ctx, HandleValue value, nsIVariant** _retval
     NS_PRECONDITION(ctx, "bad param");
     NS_PRECONDITION(_retval, "bad param");
 
-    nsRefPtr<XPCVariant> variant = XPCVariant::newVariant(ctx, value);
-    variant.forget(_retval);
+    *_retval = XPCVariant::newVariant(ctx, value);
     if (!(*_retval))
         return NS_ERROR_FAILURE;
 
@@ -1171,7 +1237,7 @@ nsXPConnect::CheckForDebugMode(JSRuntime *rt)
 #endif //#ifdef MOZ_JSDEBUGGER
 
 
-void
+NS_EXPORT_(void)
 xpc_ActivateDebugMode()
 {
     XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
@@ -1260,7 +1326,7 @@ nsXPConnect::HoldObject(JSContext *aJSContext, JSObject *aObjectArg,
 
 namespace xpc {
 
-bool
+NS_EXPORT_(bool)
 Base64Encode(JSContext *cx, HandleValue val, MutableHandleValue out)
 {
     MOZ_ASSERT(cx);
@@ -1286,7 +1352,7 @@ Base64Encode(JSContext *cx, HandleValue val, MutableHandleValue out)
     return true;
 }
 
-bool
+NS_EXPORT_(bool)
 Base64Decode(JSContext *cx, HandleValue val, MutableHandleValue out)
 {
     MOZ_ASSERT(cx);
@@ -1423,22 +1489,18 @@ ReadScriptOrFunction(nsIObjectInputStream *stream, JSContext *cx,
     nsJSPrincipals* principal = nullptr;
     nsCOMPtr<nsIPrincipal> readPrincipal;
     if (flags & HAS_PRINCIPALS_FLAG) {
-        nsCOMPtr<nsISupports> supports;
-        rv = stream->ReadObject(true, getter_AddRefs(supports));
+        rv = stream->ReadObject(true, getter_AddRefs(readPrincipal));
         if (NS_FAILED(rv))
             return rv;
-        readPrincipal = do_QueryInterface(supports);
         principal = nsJSPrincipals::get(readPrincipal);
     }
 
     nsJSPrincipals* originPrincipal = nullptr;
     nsCOMPtr<nsIPrincipal> readOriginPrincipal;
     if (flags & HAS_ORIGIN_PRINCIPALS_FLAG) {
-        nsCOMPtr<nsISupports> supports;
-        rv = stream->ReadObject(true, getter_AddRefs(supports));
+        rv = stream->ReadObject(true, getter_AddRefs(readOriginPrincipal));
         if (NS_FAILED(rv))
             return rv;
-        readOriginPrincipal = do_QueryInterface(supports);
         originPrincipal = nsJSPrincipals::get(readOriginPrincipal);
     }
 

@@ -18,7 +18,6 @@ EXPORTS.mozilla = [
     'Attributes.h',
     'BloomFilter.h',
     'Casting.h',
-    'ChaosMode.h',
     'Char16.h',
     'CheckedInt.h',
     'Compiler.h',
@@ -46,7 +45,6 @@ EXPORTS.mozilla = [
     'Poison.h',
     'Range.h',
     'RangedPtr.h',
-    'RefCountType.h',
     'ReentrancyGuard.h',
     'RefPtr.h',
     'RollingMean.h',
@@ -61,11 +59,6 @@ EXPORTS.mozilla = [
     'Vector.h',
     'WeakPtr.h',
 ]
-
-if CONFIG['OS_ARCH'] == 'WINNT':
-    EXPORTS.mozilla += [
-        'WindowsVersion.h',
-    ]
 
 UNIFIED_SOURCES = [
     'double-conversion/bignum-dtoa.cc',
@@ -90,5 +83,3 @@ SOURCES += [
     'Compression.cpp',
     'decimal/Decimal.cpp',
 ]
-
-DISABLE_STL_WRAPPING = True

@@ -257,16 +257,6 @@ BluetoothServiceChildProcess::SendFile(
 }
 
 void
-BluetoothServiceChildProcess::SendFile(
-  const nsAString& aDeviceAddress,
-  nsIDOMBlob* aBlobChild,
-  BluetoothReplyRunnable* aRunnable)
-{
-  // Parent-process-only method
-  MOZ_CRASH("This should never be called!");
-}
-
-void
 BluetoothServiceChildProcess::StopSendingFile(
   const nsAString& aDeviceAddress,
   BluetoothReplyRunnable* aRunnable)
@@ -385,6 +375,12 @@ BluetoothServiceChildProcess::StartInternal()
 
 nsresult
 BluetoothServiceChildProcess::StopInternal()
+{
+  MOZ_CRASH("This should never be called!");
+}
+
+bool
+BluetoothServiceChildProcess::IsEnabledInternal()
 {
   MOZ_CRASH("This should never be called!");
 }

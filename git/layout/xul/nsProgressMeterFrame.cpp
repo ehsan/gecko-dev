@@ -15,7 +15,7 @@
 #include "nsIContent.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsCOMPtr.h"
 #include "nsBoxLayoutState.h"
 #include "nsIReflowCallback.h"
@@ -82,7 +82,7 @@ class nsAsyncProgressMeterInit MOZ_FINAL : public nsIReflowCallback
 public:
   nsAsyncProgressMeterInit(nsIFrame* aFrame) : mWeakFrame(aFrame) {}
 
-  virtual bool ReflowFinished() MOZ_OVERRIDE
+  virtual bool ReflowFinished()
   {
     bool shouldFlush = false;
     nsIFrame* frame = mWeakFrame.GetFrame();
@@ -95,7 +95,7 @@ public:
     return shouldFlush;
   }
 
-  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE
+  virtual void ReflowCallbackCanceled()
   {
     delete this;
   }
@@ -116,7 +116,7 @@ nsProgressMeterFrame::DoLayout(nsBoxLayoutState& aState)
   return nsBoxFrame::DoLayout(aState);
 }
 
-nsresult
+NS_IMETHODIMP
 nsProgressMeterFrame::AttributeChanged(int32_t aNameSpaceID,
                                        nsIAtom* aAttribute,
                                        int32_t aModType)
@@ -176,7 +176,7 @@ nsProgressMeterFrame::AttributeChanged(int32_t aNameSpaceID,
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsProgressMeterFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("ProgressMeter"), aResult);

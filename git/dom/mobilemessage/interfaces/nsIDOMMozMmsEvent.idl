@@ -16,3 +16,8 @@ interface nsIDOMMozMmsEvent : nsIDOMEvent
                                   in boolean aCancelable,
                                   in nsIDOMMozMmsMessage aMessage);
 };
+
+dictionary MozMmsEventInit : EventInit
+{
+  nsIDOMMozMmsMessage message;
+};

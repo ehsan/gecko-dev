@@ -15,7 +15,7 @@
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/LayersTypes.h"  // for LayersBackend
 #include "mozilla/layers/PCompositableChild.h"  // for PCompositableChild
-#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "gfxASurface.h"                // for gfxContentType
 
 namespace mozilla {
@@ -72,8 +72,7 @@ class TextureClientData;
 class CompositableClient : public AtomicRefCounted<CompositableClient>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(CompositableClient)
-  CompositableClient(CompositableForwarder* aForwarder, TextureFlags aFlags = 0);
+  CompositableClient(CompositableForwarder* aForwarder);
 
   virtual ~CompositableClient();
 
@@ -85,7 +84,7 @@ public:
   CreateDeprecatedTextureClient(DeprecatedTextureClientType aDeprecatedTextureClientType,
                                 gfxContentType aContentType = gfxContentType::SENTINEL);
 
-  TemporaryRef<BufferTextureClient>
+  virtual TemporaryRef<BufferTextureClient>
   CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
                             TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT);
 
@@ -93,8 +92,7 @@ public:
   // always be non-null.
   TemporaryRef<TextureClient>
   CreateTextureClientForDrawing(gfx::SurfaceFormat aFormat,
-                                TextureFlags aTextureFlags,
-                                const gfx::IntSize& aSizeHint);
+                                TextureFlags aTextureFlags);
 
   virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
                                       const SurfaceDescriptor& aDescriptor)
@@ -144,18 +142,9 @@ public:
    */
   virtual void OnDetach() {}
 
-  /**
-   * Clear any resources that are not immediately necessary. This may be called
-   * in low-memory conditions.
-   */
-  virtual void ClearCachedResources() {}
-
 protected:
   CompositableChild* mCompositableChild;
   CompositableForwarder* mForwarder;
-  // Some layers may want to enforce some flags to all their textures
-  // (like disallowing tiling)
-  TextureFlags mTextureFlags;
 
   friend class CompositableChild;
 };

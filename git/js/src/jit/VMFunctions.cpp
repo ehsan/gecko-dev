@@ -109,14 +109,14 @@ bool
 CheckOverRecursed(JSContext *cx)
 {
     // IonMonkey's stackLimit is equal to nativeStackLimit by default. When we
-    // request an interrupt, we set the jitStackLimit to nullptr, which causes
-    // the stack limit check to fail.
+    // want to trigger an operation callback, we set the ionStackLimit to nullptr,
+    // which causes the stack limit check to fail.
     //
     // There are two states we're concerned about here:
     //   (1) The interrupt bit is set, and we need to fire the interrupt callback.
     //   (2) The stack limit has been exceeded, and we need to throw an error.
     //
-    // Note that we can reach here if jitStackLimit is MAXADDR, but interrupt
+    // Note that we can reach here if ionStackLimit is MAXADDR, but interrupt
     // has not yet been set to 1. That's okay; it will be set to 1 very shortly,
     // and in the interim we might just fire a few useless calls to
     // CheckOverRecursed.
@@ -226,7 +226,7 @@ InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue v
 
     MOZ_ASSERT(name != cx->names().proto,
                "__proto__ should have been handled by JSOP_MUTATEPROTO");
-    return DefineNativeProperty(cx, obj, id, rval, nullptr, nullptr, JSPROP_ENUMERATE, 0, 0);
+    return DefineNativeProperty(cx, obj, id, rval, nullptr, nullptr, JSPROP_ENUMERATE, 0, 0, 0);
 }
 
 template<bool Equal>
@@ -369,15 +369,14 @@ ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 
     AutoDetectInvalidation adi(cx, rval.address());
 
-    JS::AutoValueArray<2> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*obj);
-    if (!js::array_pop(cx, 0, argv.begin()))
+    Value argv[] = { UndefinedValue(), ObjectValue(*obj) };
+    AutoValueArray ava(cx, argv, 2);
+    if (!js::array_pop(cx, 0, ava.start()))
         return false;
 
     // If the result is |undefined|, the array was probably empty and we
     // have to monitor the return value.
-    rval.set(argv[0]);
+    rval.set(ava[0]);
     if (rval.isUndefined())
         types::TypeScript::Monitor(cx, rval);
     return true;
@@ -388,14 +387,12 @@ ArrayPushDense(JSContext *cx, HandleObject obj, HandleValue v, uint32_t *length)
 {
     JS_ASSERT(obj->is<ArrayObject>());
 
-    JS::AutoValueArray<3> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*obj);
-    argv[2].set(v);
-    if (!js::array_push(cx, 1, argv.begin()))
+    Value argv[] = { UndefinedValue(), ObjectValue(*obj), v };
+    AutoValueArray ava(cx, argv, 3);
+    if (!js::array_push(cx, 1, ava.start()))
         return false;
 
-    *length = argv[0].toInt32();
+    *length = ava[0].toInt32();
     return true;
 }
 
@@ -406,15 +403,14 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 
     AutoDetectInvalidation adi(cx, rval.address());
 
-    JS::AutoValueArray<2> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*obj);
-    if (!js::array_shift(cx, 0, argv.begin()))
+    Value argv[] = { UndefinedValue(), ObjectValue(*obj) };
+    AutoValueArray ava(cx, argv, 2);
+    if (!js::array_shift(cx, 0, ava.start()))
         return false;
 
     // If the result is |undefined|, the array was probably empty and we
     // have to monitor the return value.
-    rval.set(argv[0]);
+    rval.set(ava[0]);
     if (rval.isUndefined())
         types::TypeScript::Monitor(cx, rval);
     return true;
@@ -434,13 +430,11 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
         return arrRes;
     }
 
-    JS::AutoValueArray<3> argv(cx);
-    argv[0].setUndefined();
-    argv[1].setObject(*arr1);
-    argv[2].setObject(*arr2);
-    if (!js::array_concat(cx, 1, argv.begin()))
+    Value argv[] = { UndefinedValue(), ObjectValue(*arr1), ObjectValue(*arr2) };
+    AutoValueArray ava(cx, argv, 3);
+    if (!js::array_concat(cx, 1, ava.start()))
         return nullptr;
-    return &argv[0].toObject();
+    return &ava[0].toObject();
 }
 
 bool
@@ -459,7 +453,7 @@ StringFromCharCode(JSContext *cx, int32_t code)
     jschar c = jschar(code);
 
     if (StaticStrings::hasUnit(c))
-        return cx->staticStrings().getUnit(c);
+        return cx->runtime()->staticStrings.getUnit(c);
 
     return js_NewStringCopyN<CanGC>(cx, &c, 1);
 }
@@ -506,7 +500,7 @@ InterruptCheck(JSContext *cx)
     cx->runtime()->jitRuntime()->patchIonBackedges(cx->runtime(),
                                                    JitRuntime::BackedgeLoopHeader);
 
-    return CheckForInterrupt(cx);
+    return !!js_HandleExecutionInterrupt(cx);
 }
 
 HeapSlot *
@@ -741,7 +735,7 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool ok)
 {
     // Unwind scope chain to stack depth 0.
     ScopeIter si(frame, pc, cx);
-    UnwindScope(cx, si, frame->script()->main());
+    UnwindScope(cx, si, 0);
 
     // If ScriptDebugEpilogue returns |true| we have to return the frame's
     // return value. If it returns |false|, the debugger threw an exception.
@@ -930,23 +924,10 @@ PopBlockScope(JSContext *cx, BaselineFrame *frame)
 bool
 DebugLeaveBlock(JSContext *cx, BaselineFrame *frame, jsbytecode *pc)
 {
-    JS_ASSERT(frame->script()->baselineScript()->debugMode());
+    JS_ASSERT(cx->compartment()->debugMode());
 
     DebugScopes::onPopBlock(cx, frame, pc);
 
-    return true;
-}
-
-bool
-EnterWith(JSContext *cx, BaselineFrame *frame, HandleValue val, Handle<StaticWithObject *> templ)
-{
-    return EnterWithOperation(cx, frame, val, templ);
-}
-
-bool
-LeaveWith(JSContext *cx, BaselineFrame *frame)
-{
-    frame->popWith(cx);
     return true;
 }
 
@@ -956,15 +937,10 @@ InitBaselineFrameForOsr(BaselineFrame *frame, StackFrame *interpFrame, uint32_t 
     return frame->initForOsr(interpFrame, numStackValues);
 }
 
-JSObject *
-CreateDerivedTypedObj(JSContext *cx, HandleObject descr,
-                      HandleObject owner, int32_t offset)
+JSObject *CreateDerivedTypedObj(JSContext *cx, HandleObject type,
+                                HandleObject owner, int32_t offset)
 {
-    JS_ASSERT(descr->is<SizedTypeDescr>());
-    JS_ASSERT(owner->is<TypedObject>());
-    Rooted<SizedTypeDescr*> descr1(cx, &descr->as<SizedTypeDescr>());
-    Rooted<TypedObject*> owner1(cx, &owner->as<TypedObject>());
-    return TypedObject::createDerived(cx, descr1, owner1, offset);
+    return TypedObject::createDerived(cx, type, owner, offset);
 }
 
 JSString *
@@ -1041,12 +1017,6 @@ AssertValidObjectPtr(JSContext *cx, JSObject *obj)
 void
 AssertValidStringPtr(JSContext *cx, JSString *str)
 {
-    // We can't closely inspect strings from another runtime.
-    if (str->runtimeFromAnyThread() != cx->runtime()) {
-        JS_ASSERT(str->isPermanentAtom());
-        return;
-    }
-
     if (str->isAtom())
         JS_ASSERT(cx->runtime()->isAtomsZone(str->tenuredZone()));
     else

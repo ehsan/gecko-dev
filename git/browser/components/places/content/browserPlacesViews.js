@@ -320,17 +320,21 @@ PlacesViewBase.prototype = {
             element.setAttribute("hostContainer", "true");
         }
         else if (itemId != -1) {
-          PlacesUtils.livemarks.getLivemark({ id: itemId })
-            .then(aLivemark => {
-              element.setAttribute("livemark", "true");
+          PlacesUtils.livemarks.getLivemark(
+            { id: itemId },
+            function (aStatus, aLivemark) {
+              if (Components.isSuccessCode(aStatus)) {
+                element.setAttribute("livemark", "true");
 #ifdef XP_MACOSX
-              // OS X native menubar doesn't track list-style-images since
-              // it doesn't have a frame (bug 733415).  Thus enforce updating.
-              element.setAttribute("image", "");
-              element.removeAttribute("image");
+                // OS X native menubar doesn't track list-style-images since
+                // it doesn't have a frame (bug 733415).  Thus enforce updating.
+                element.setAttribute("image", "");
+                element.removeAttribute("image");
 #endif
-              this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
-            }, () => undefined);
+                this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
+              }
+            }.bind(this)
+          );
         }
 
         let popup = document.createElement("menupopup");
@@ -514,12 +518,16 @@ PlacesViewBase.prototype = {
 #endif
       }
 
-      PlacesUtils.livemarks.getLivemark({ id: aPlacesNode.itemId })
-        .then(aLivemark => {
-          // Controller will use this to build the meta data for the node.
-          this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
-          this.invalidateContainer(aPlacesNode);
-        }, () => undefined);
+      PlacesUtils.livemarks.getLivemark(
+        { id: aPlacesNode.itemId },
+        function (aStatus, aLivemark) {
+          if (Components.isSuccessCode(aStatus)) {
+            // Controller will use this to build the meta data for the node.
+            this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
+            this.invalidateContainer(aPlacesNode);
+          }
+        }.bind(this)
+      );
     }
   },
 
@@ -648,23 +656,26 @@ PlacesViewBase.prototype = {
           return;
         }
 
-        PlacesUtils.livemarks.getLivemark({ id: aPlacesNode.itemId })
-          .then(aLivemark => {
-            let shouldInvalidate =
-              !this.controller.hasCachedLivemarkInfo(aPlacesNode);
-            this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
-            if (aNewState == Ci.nsINavHistoryContainerResultNode.STATE_OPENED) {
-              aLivemark.registerForUpdates(aPlacesNode, this);
-              // Prioritize the current livemark.
-              aLivemark.reload();
-              PlacesUtils.livemarks.reloadLivemarks();
-              if (shouldInvalidate)
-                this.invalidateContainer(aPlacesNode);
+        PlacesUtils.livemarks.getLivemark({ id: aPlacesNode.itemId },
+          function (aStatus, aLivemark) {
+            if (Components.isSuccessCode(aStatus)) {
+              let shouldInvalidate =
+                !this.controller.hasCachedLivemarkInfo(aPlacesNode);
+              this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
+              if (aNewState == Ci.nsINavHistoryContainerResultNode.STATE_OPENED) {
+                aLivemark.registerForUpdates(aPlacesNode, this);
+                // Prioritize the current livemark.
+                aLivemark.reload();
+                PlacesUtils.livemarks.reloadLivemarks();
+                if (shouldInvalidate)
+                  this.invalidateContainer(aPlacesNode);
+              }
+              else {
+                aLivemark.unregisterForUpdates(aPlacesNode);
+              }
             }
-            else {
-              aLivemark.unregisterForUpdates(aPlacesNode);
-            }
-          }, () => undefined);
+          }.bind(this)
+        );
       }
     }
   },
@@ -676,10 +687,10 @@ PlacesViewBase.prototype = {
     if (aPopup._startMarker.nextSibling == aPopup._endMarker)
       this._setLivemarkStatusMenuItem(aPopup, Ci.mozILivemark.STATUS_LOADING);
 
-    PlacesUtils.livemarks.getLivemark({ id: aPopup._placesNode.itemId })
-      .then(aLivemark => {
+    PlacesUtils.livemarks.getLivemark({ id: aPopup._placesNode.itemId },
+      function (aStatus, aLivemark) {
         let placesNode = aPopup._placesNode;
-        if (!placesNode.containerOpen)
+        if (!Components.isSuccessCode(aStatus) || !placesNode.containerOpen)
           return;
 
         if (aLivemark.status != Ci.mozILivemark.STATUS_LOADING)
@@ -696,7 +707,8 @@ PlacesViewBase.prototype = {
           else
             this._getDOMNodeForPlacesNode(child).removeAttribute("visited");
         }
-      }, Components.utils.reportError);
+      }.bind(this)
+    );
   },
 
   invalidateContainer: function PVB_invalidateContainer(aPlacesNode) {
@@ -1021,11 +1033,15 @@ PlacesToolbar.prototype = {
             button.setAttribute("tagContainer", "true");
         }
         else if (PlacesUtils.nodeIsFolder(aChild)) {
-          PlacesUtils.livemarks.getLivemark({ id: aChild.itemId })
-            .then(aLivemark => {
-              button.setAttribute("livemark", "true");
-              this.controller.cacheLivemarkInfo(aChild, aLivemark);
-            }, () => undefined);
+          PlacesUtils.livemarks.getLivemark(
+            { id: aChild.itemId },
+            function (aStatus, aLivemark) {
+              if (Components.isSuccessCode(aStatus)) {
+                button.setAttribute("livemark", "true");
+                this.controller.cacheLivemarkInfo(aChild, aLivemark);
+              }
+            }.bind(this)
+          );
         }
 
         let popup = document.createElement("menupopup");
@@ -1277,11 +1293,15 @@ PlacesToolbar.prototype = {
       if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
         elt.setAttribute("livemark", true);
 
-        PlacesUtils.livemarks.getLivemark({ id: aPlacesNode.itemId })
-          .then(aLivemark => {
-            this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
-            this.invalidateContainer(aPlacesNode);
-          }, Components.utils.reportError);
+        PlacesUtils.livemarks.getLivemark(
+          { id: aPlacesNode.itemId },
+          function (aStatus, aLivemark) {
+            if (Components.isSuccessCode(aStatus)) {
+              this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
+              this.invalidateContainer(aPlacesNode);
+            }
+          }.bind(this)
+        );
       }
     }
     else {
@@ -1844,11 +1864,15 @@ PlacesPanelMenuView.prototype = {
             button.setAttribute("tagContainer", "true");
         }
         else if (PlacesUtils.nodeIsFolder(aChild)) {
-          PlacesUtils.livemarks.getLivemark({ id: aChild.itemId })
-            .then(aLivemark => {
-              button.setAttribute("livemark", "true");
-              this.controller.cacheLivemarkInfo(aChild, aLivemark);
-            }, () => undefined);
+          PlacesUtils.livemarks.getLivemark(
+            { id: aChild.itemId },
+            function (aStatus, aLivemark) {
+              if (Components.isSuccessCode(aStatus)) {
+                button.setAttribute("livemark", "true");
+                this.controller.cacheLivemarkInfo(aChild, aLivemark);
+              }
+            }.bind(this)
+          );
         }
       }
       else if (PlacesUtils.nodeIsURI(aChild)) {
@@ -1912,11 +1936,15 @@ PlacesPanelMenuView.prototype = {
     if (aAnno == PlacesUtils.LMANNO_FEEDURI) {
       elt.setAttribute("livemark", true);
 
-      PlacesUtils.livemarks.getLivemark({ id: aPlacesNode.itemId })
-        .then(aLivemark => {
-          this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
-          this.invalidateContainer(aPlacesNode);
-        }, Components.utils.reportError);
+      PlacesUtils.livemarks.getLivemark(
+        { id: aPlacesNode.itemId },
+        function (aStatus, aLivemark) {
+          if (Components.isSuccessCode(aStatus)) {
+            this.controller.cacheLivemarkInfo(aPlacesNode, aLivemark);
+            this.invalidateContainer(aPlacesNode);
+          }
+        }.bind(this)
+      );
     }
   },
 

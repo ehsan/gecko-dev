@@ -4,10 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDOMOfflineResourceList.h"
-#include "nsIDOMEvent.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsError.h"
-#include "mozilla/dom/DOMStringList.h"
+#include "nsDOMLists.h"
 #include "nsIPrefetchService.h"
 #include "nsCPrefetchService.h"
 #include "nsNetUtil.h"
@@ -182,35 +181,32 @@ nsDOMOfflineResourceList::Disconnect()
 // nsDOMOfflineResourceList::nsIDOMOfflineResourceList
 //
 
-already_AddRefed<DOMStringList>
-nsDOMOfflineResourceList::GetMozItems(ErrorResult& aRv)
+NS_IMETHODIMP
+nsDOMOfflineResourceList::GetMozItems(nsIDOMDOMStringList **aItems)
 {
-  if (IS_CHILD_PROCESS()) {
-    aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-    return nullptr;
-  }
+  if (IS_CHILD_PROCESS()) 
+    return NS_ERROR_NOT_IMPLEMENTED;
 
-  nsRefPtr<DOMStringList> items = new DOMStringList();
+  *aItems = nullptr;
+
+  nsRefPtr<nsDOMStringList> items = new nsDOMStringList();
 
   // If we are not associated with an application cache, return an
   // empty list.
   nsCOMPtr<nsIApplicationCache> appCache = GetDocumentAppCache();
   if (!appCache) {
-    return items.forget();
+    NS_ADDREF(*aItems = items);
+    return NS_OK;
   }
 
-  aRv = Init();
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  nsresult rv = Init();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t length;
   char **keys;
-  aRv = appCache->GatherEntries(nsIApplicationCache::ITEM_DYNAMIC,
-                                &length, &keys);
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  rv = appCache->GatherEntries(nsIApplicationCache::ITEM_DYNAMIC,
+                               &length, &keys);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   for (uint32_t i = 0; i < length; i++) {
     items->Add(NS_ConvertUTF8toUTF16(keys[i]));
@@ -218,16 +214,8 @@ nsDOMOfflineResourceList::GetMozItems(ErrorResult& aRv)
 
   NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(length, keys);
 
-  return items.forget();
-}
-
-NS_IMETHODIMP
-nsDOMOfflineResourceList::GetMozItems(nsISupports** aItems)
-{
-  ErrorResult rv;
-  nsRefPtr<DOMStringList> items = GetMozItems(rv);
-  items.forget(aItems);
-  return rv.ErrorCode();
+  NS_ADDREF(*aItems = items);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,27 +23,22 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testCanon.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testCanon.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var assert = require('../testharness/assert');
-// var helpers = require('./helpers');
-var Canon = require('gcli/commands/commands').Canon;
+'use strict';
+
+// var helpers = require('gclitest/helpers');
+var canon = require('gcli/canon');
+// var assert = require('test/assert');
+var Canon = canon.Canon;
 
 var startCount;
 var events;
@@ -52,7 +48,7 @@ var canonChange = function(ev) {
 };
 
 exports.setup = function(options) {
-  startCount = options.requisition.canon.getCommands().length;
+  startCount = canon.getCommands().length;
   events = 0;
 };
 
@@ -62,8 +58,6 @@ exports.shutdown = function(options) {
 };
 
 exports.testAddRemove1 = function(options) {
-  var canon = options.requisition.canon;
-
   return helpers.audit(options, [
     {
       name: 'testadd add',
@@ -149,8 +143,6 @@ exports.testAddRemove1 = function(options) {
 };
 
 exports.testAddRemove2 = function(options) {
-  var canon = options.requisition.canon;
-
   canon.addCommand({
     name: 'testadd',
     exec: function() {
@@ -191,8 +183,6 @@ exports.testAddRemove2 = function(options) {
 };
 
 exports.testAddRemove3 = function(options) {
-  var canon = options.requisition.canon;
-
   canon.removeCommand({ name: 'nonexistant' });
   assert.is(canon.getCommands().length,
             startCount,
@@ -209,7 +199,6 @@ exports.testAddRemove3 = function(options) {
 };
 
 exports.testAltCanon = function(options) {
-  var canon = options.requisition.canon;
   var altCanon = new Canon();
 
   var tss = {
@@ -228,11 +217,11 @@ exports.testAltCanon = function(options) {
 
   var commandSpecs = altCanon.getCommandSpecs();
   assert.is(JSON.stringify(commandSpecs),
-            '[{"item":"command","name":"tss","params":[' +
-              '{"name":"str","type":"string"},' +
-              '{"name":"num","type":"number"},' +
-              '{"name":"opt","type":{"name":"selection","data":["1","2","3"]}}' +
-            '],"isParent":false}]',
+            '{"tss":{"name":"tss","description":"(No description)","params":[' +
+              '{"name":"str","type":"string","description":"(No description)"},' +
+              '{"name":"num","type":"number","description":"(No description)"},' +
+              '{"name":"opt","type":{"name":"selection","data":["1","2","3"]},"description":"(No description)"}'+
+            '],"isParent":false}}',
             'JSON.stringify(commandSpecs)');
 
   var remoter = function(args, context) {
@@ -242,7 +231,7 @@ exports.testAltCanon = function(options) {
     return cmd.exec(args, context);
   };
 
-  canon.addProxyCommands(commandSpecs, remoter, 'proxy', 'test');
+  canon.addProxyCommands('proxy', commandSpecs, remoter, 'test');
 
   var parent = canon.getCommand('proxy');
   assert.is(parent.name, 'proxy', 'Parent command called proxy');
@@ -278,3 +267,6 @@ exports.testAltCanon = function(options) {
     }
   ]);
 };
+
+
+// });

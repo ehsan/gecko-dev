@@ -36,6 +36,3 @@ LIBRARY_NAME = 'xpcomsample'
 # IS_COMPONENT indicates that this makefile builds a component shared library.
 IS_COMPONENT = True
 
-RESOURCE_FILES.samples += [
-    'xpconnect-sample.html',
-]

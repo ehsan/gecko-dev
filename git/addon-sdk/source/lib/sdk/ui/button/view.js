@@ -13,7 +13,9 @@ module.metadata = {
 const { Cu } = require('chrome');
 const { on, off, emit } = require('../../event/core');
 
-const { data } = require('sdk/self');
+const { id: addonID, data } = require('sdk/self');
+const buttonPrefix =
+  'button--' + addonID.toLowerCase().replace(/[^a-z0-9-_]/g, '');
 
 const { isObject } = require('../../lang/type');
 
@@ -25,6 +27,9 @@ const { AREA_PANEL, AREA_NAVBAR } = CustomizableUI;
 const { events: viewEvents } = require('./view/events');
 
 const XUL_NS = 'http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul';
+
+const toWidgetID = id => buttonPrefix + '-' + id;
+const toButtonID = id => id.substr(buttonPrefix.length + 1);
 
 const views = new Map();
 const customizedWindows = new WeakMap();
@@ -42,14 +47,14 @@ const buttonListener = {
     customizedWindows.delete(window);
 
     for (let [id, ] of views) {
-      let placement = CustomizableUI.getPlacementOfWidget(id);
+      let placement = CustomizableUI.getPlacementOfWidget(toWidgetID(id));
 
       if (placement)
         emit(viewEvents, 'data', { type: 'update', target: id, window: window });
     }
   },
   onWidgetAfterDOMChange: (node, nextNode, container) => {
-    let { id } = node;
+    let id = toButtonID(node.id);
     let view = views.get(id);
     let window = node.ownerDocument.defaultView;
 
@@ -68,11 +73,11 @@ require('../../system/unload').when( _ =>
 function getNode(id, window) {
   return !views.has(id) || ignoreWindow(window)
     ? null
-    : CustomizableUI.getWidget(id).forWindow(window).node
+    : CustomizableUI.getWidget(toWidgetID(id)).forWindow(window).node
 };
 
 function isInToolbar(id) {
-  let placement = CustomizableUI.getPlacementOfWidget(id);
+  let placement = CustomizableUI.getPlacementOfWidget(toWidgetID(id));
 
   return placement && CustomizableUI.getAreaType(placement.area) === 'toolbar';
 }
@@ -108,11 +113,6 @@ function getImage(icon, isInToolbar, pixelRatio) {
   return image;
 }
 
-function nodeFor(id, window=getMostRecentBrowserWindow()) {
-  return customizedWindows.has(window) ? null : getNode(id, window);
-};
-exports.nodeFor = nodeFor;
-
 function create(options) {
   let { id, label, icon, type } = options;
 
@@ -120,7 +120,7 @@ function create(options) {
     throw new Error('The ID "' + id + '" seems already used.');
 
   CustomizableUI.createWidget({
-    id: id,
+    id: toWidgetID(id),
     type: 'custom',
     removable: true,
     defaultArea: AREA_NAVBAR,
@@ -131,7 +131,7 @@ function create(options) {
 
       let node = document.createElementNS(XUL_NS, 'toolbarbutton');
 
-      let image = getImage(icon, true, window.devicePixelRatio);
+      let image = getImage(icon, false, window.devicePixelRatio);
 
       if (ignoreWindow(window))
         node.style.display = 'none';
@@ -171,7 +171,7 @@ function dispose(id) {
   if (!views.has(id)) return;
 
   views.delete(id);
-  CustomizableUI.destroyWidget(id);
+  CustomizableUI.destroyWidget(toWidgetID(id));
 }
 exports.dispose = dispose;
 
@@ -188,7 +188,7 @@ function setIcon(id, window, icon) {
 exports.setIcon = setIcon;
 
 function setLabel(id, window, label) {
-  let node = nodeFor(id, window);
+  let node = customizedWindows.has(window) ? null : getNode(id, window);
 
   if (node) {
     node.setAttribute('label', label);
@@ -198,7 +198,7 @@ function setLabel(id, window, label) {
 exports.setLabel = setLabel;
 
 function setDisabled(id, window, disabled) {
-  let node = nodeFor(id, window);
+  let node = customizedWindows.has(window) ? null : getNode(id, window);
 
   if (node)
     node.disabled = disabled;
@@ -206,7 +206,7 @@ function setDisabled(id, window, disabled) {
 exports.setDisabled = setDisabled;
 
 function setChecked(id, window, checked) {
-  let node = nodeFor(id, window);
+  let node = customizedWindows.has(window) ? null : getNode(id, window);
 
   if (node)
     node.checked = checked;
@@ -214,7 +214,8 @@ function setChecked(id, window, checked) {
 exports.setChecked = setChecked;
 
 function click(id) {
-  let node = nodeFor(id);
+  let window = getMostRecentBrowserWindow();
+  let node = customizedWindows.has(window) ? null : getNode(id, window);
 
   if (node)
     node.click();

@@ -68,7 +68,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=566160
 /** Test for Bug 566160 **/
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.waitForFocus(runTests);
+addLoadEvent(function() {
+  setTimeout(runTests, 0);
+});
 
 var gTestResults = {
   frame1: "data:text/html,?foo=foo",

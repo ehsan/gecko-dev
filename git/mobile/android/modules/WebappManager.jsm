@@ -23,21 +23,22 @@ Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Notifications", "resource://gre/modules/Notifications.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava", "resource://gre/modules/Messaging.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "Strings", function() {
   return Services.strings.createBundle("chrome://browser/locale/webapp.properties");
 });
 
-function debug(aMessage) {
+function log(message) {
   // We use *dump* instead of Services.console.logStringMessage so the messages
   // have the INFO level of severity instead of the ERROR level.  And we don't
   // append a newline character to the end of the message because *dump* spills
   // into the Android native logging system, which strips newlines from messages
   // and breaks messages into lines automatically at display time (i.e. logcat).
-#ifdef DEBUG
-  dump(aMessage);
-#endif
+  dump(message);
+}
+
+function sendMessageToJava(aMessage) {
+  return Services.androidBridge.handleGeckoMessage(JSON.stringify(aMessage));
 }
 
 this.WebappManager = {
@@ -79,7 +80,7 @@ this.WebappManager = {
     } catch(ex) {
       aMessage.error = ex;
       aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
-      debug("error downloading APK: " + ex);
+      log("error downloading APK: " + ex);
       return;
     }
 
@@ -91,7 +92,7 @@ this.WebappManager = {
   }).bind(this)); },
 
   _downloadApk: function(aManifestUrl) {
-    debug("_downloadApk for " + aManifestUrl);
+    log("_downloadApk for " + aManifestUrl);
     let deferred = Promise.defer();
 
     // Get the endpoint URL and convert it to an nsIURI/nsIURL object.
@@ -105,7 +106,7 @@ this.WebappManager = {
     };
     generatorUrl.query =
       [p + "=" + encodeURIComponent(params[p]) for (p in params)].join("&");
-    debug("downloading APK from " + generatorUrl.spec);
+    log("downloading APK from " + generatorUrl.spec);
 
     let file = Cc["@mozilla.org/download-manager;1"].
                getService(Ci.nsIDownloadManager).
@@ -113,7 +114,7 @@ this.WebappManager = {
                clone();
     file.append(aManifestUrl.replace(/[^a-zA-Z0-9]/gi, "") + ".apk");
     file.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
-    debug("downloading APK to " + file.path);
+    log("downloading APK to " + file.path);
 
     let worker = new ChromeWorker("resource://gre/modules/WebappManagerWorker.js");
     worker.onmessage = function(event) {
@@ -124,7 +125,7 @@ this.WebappManager = {
       if (type == "success") {
         deferred.resolve(file.path);
       } else { // type == "failure"
-        debug("error downloading APK: " + message);
+        log("error downloading APK: " + message);
         deferred.reject(message);
       }
     }
@@ -146,7 +147,7 @@ this.WebappManager = {
     // when we trigger the native install dialog and doesn't re-init itself
     // afterward (TODO: file bug about this behavior).
     if ("appcache_path" in aData.app.manifest) {
-      debug("deleting appcache_path from manifest: " + aData.app.manifest.appcache_path);
+      log("deleting appcache_path from manifest: " + aData.app.manifest.appcache_path);
       delete aData.app.manifest.appcache_path;
     }
 
@@ -167,7 +168,7 @@ this.WebappManager = {
   },
 
   launch: function({ manifestURL, origin }) {
-    debug("launchWebapp: " + manifestURL);
+    log("launchWebapp: " + manifestURL);
 
     sendMessageToJava({
       type: "Webapps:Open",
@@ -177,7 +178,7 @@ this.WebappManager = {
   },
 
   uninstall: function(aData) {
-    debug("uninstall: " + aData.manifestURL);
+    log("uninstall: " + aData.manifestURL);
 
     if (this._testing) {
       // We don't have to do anything, as the registry does all the work.
@@ -188,7 +189,7 @@ this.WebappManager = {
   },
 
   autoInstall: function(aData) {
-    let oldApp = DOMApplicationRegistry.getAppByManifestURL(aData.manifestURL);
+    let oldApp = DOMApplicationRegistry.getAppByManifestURL(aData.manifestUrl);
     if (oldApp) {
       // If the app is already installed, update the existing installation.
       this._autoUpdate(aData, oldApp);
@@ -198,11 +199,11 @@ this.WebappManager = {
     let mm = {
       sendAsyncMessage: function (aMessageName, aData) {
         // TODO hook this back to Java to report errors.
-        debug("sendAsyncMessage " + aMessageName + ": " + JSON.stringify(aData));
+        log("sendAsyncMessage " + aMessageName + ": " + JSON.stringify(aData));
       }
     };
 
-    let origin = Services.io.newURI(aData.manifestURL, null, null).prePath;
+    let origin = Services.io.newURI(aData.manifestUrl, null, null).prePath;
 
     let message = aData.request || {
       app: {
@@ -221,7 +222,7 @@ this.WebappManager = {
     // The manifest url may be subtly different between the
     // time the APK was built and the APK being installed.
     // Thus, we should take the APK as the source of truth.
-    message.app.manifestURL = aData.manifestURL;
+    message.app.manifestURL = aData.manifestUrl;
     message.app.manifest = aData.manifest;
     message.app.apkPackageName = aData.apkPackageName;
     message.profilePath = aData.profilePath;
@@ -243,7 +244,7 @@ this.WebappManager = {
   },
 
   _autoUpdate: function(aData, aOldApp) { return Task.spawn((function*() {
-    debug("_autoUpdate app of type " + aData.type);
+    log("_autoUpdate app of type " + aData.type);
 
     if (aOldApp.apkPackageName != aData.apkPackageName) {
       // This happens when the app was installed as a shortcut via the old
@@ -251,6 +252,15 @@ this.WebappManager = {
       debug("update apkPackageName from " + aOldApp.apkPackageName + " to " + aData.apkPackageName);
       aOldApp.apkPackageName = aData.apkPackageName;
     }
+
+    // The data object has a manifestUrl property for the manifest URL,
+    // but updateHostedApp expects it to be called manifestURL, and we pass
+    // the data object to it, so we need to change the name.
+    // TODO: rename this to manifestURL upstream, so the data object always has
+    // a consistent name for the property (even if we name it differently
+    // internally).
+    aData.manifestURL = aData.manifestUrl;
+    delete aData.manifestUrl;
 
     if (aData.type == "hosted") {
       let oldManifest = yield DOMApplicationRegistry.getManifestFor(aData.manifestURL);
@@ -263,13 +273,13 @@ this.WebappManager = {
   _checkingForUpdates: false,
 
   checkForUpdates: function(userInitiated) { return Task.spawn((function*() {
-    debug("checkForUpdates");
+    log("checkForUpdates");
 
     // Don't start checking for updates if we're already doing so.
     // TODO: Consider cancelling the old one and starting a new one anyway
     // if the user requested this one.
     if (this._checkingForUpdates) {
-      debug("already checking for updates");
+      log("already checking for updates");
       return;
     }
     this._checkingForUpdates = true;
@@ -281,9 +291,10 @@ this.WebappManager = {
       }
 
       // Map APK names to APK versions.
-      let apkNameToVersion = yield this._getAPKVersions(installedApps.map(app =>
-        app.apkPackageName).filter(apkPackageName => !!apkPackageName)
-      );
+      let apkNameToVersion = JSON.parse(sendMessageToJava({
+        type: "Webapps:GetApkVersions",
+        packageNames: installedApps.map(app => app.apkPackageName).filter(apkPackageName => !!apkPackageName)
+      }));
 
       // Map manifest URLs to APK versions, which is what the service needs
       // in order to tell us which apps are outdated; and also map them to app
@@ -316,7 +327,7 @@ this.WebappManager = {
         title: PluralForm.get(outdatedApps.length, Strings.GetStringFromName("downloadUpdateTitle")).
                replace("#1", outdatedApps.length),
         message: Strings.formatStringFromName("downloadUpdateMessage", [names], 1),
-        icon: "drawable://alert_app",
+        icon: "drawable://alert_download",
       }).dismissed;
 
       if (accepted) {
@@ -331,17 +342,6 @@ this.WebappManager = {
       this._checkingForUpdates = false;
     }
   }).bind(this)); },
-
-  _getAPKVersions: function(packageNames) {
-    let deferred = Promise.defer();
-
-    sendMessageToJava({
-      type: "Webapps:GetApkVersions",
-      packageNames: packageNames 
-    }, data => deferred.resolve(JSON.parse(data).versions));
-
-    return deferred.promise;
-  },
 
   _getInstalledApps: function() {
     let deferred = Promise.defer();
@@ -474,7 +474,7 @@ this.WebappManager = {
         try {
           yield OS.file.remove(apk.filePath);
         } catch(ex) {
-          debug("error removing " + apk.filePath + " for cancelled update: " + ex);
+          log("error removing " + apk.filePath + " for cancelled update: " + ex);
         }
       }
     }
@@ -520,14 +520,14 @@ this.WebappManager = {
       for (let id in DOMApplicationRegistry.webapps) {
         let app = DOMApplicationRegistry.webapps[id];
         if (aData.apkPackageNames.indexOf(app.apkPackageName) > -1) {
-          debug("attempting to uninstall " + app.name);
+          log("attempting to uninstall " + app.name);
           DOMApplicationRegistry.uninstall(
             app.manifestURL,
             function() {
-              debug("success uninstalling " + app.name);
+              log("success uninstalling " + app.name);
             },
             function(error) {
-              debug("error uninstalling " + app.name + ": " + error);
+              log("error uninstalling " + app.name + ": " + error);
             }
           );
         }
@@ -556,7 +556,7 @@ this.WebappManager = {
     if (aPrefs.length > 0) {
       let array = new TextEncoder().encode(JSON.stringify(aPrefs));
       OS.File.writeAtomic(aFile.path, array, { tmpPath: aFile.path + ".tmp" }).then(null, function onError(reason) {
-        debug("Error writing default prefs: " + reason);
+        log("Error writing default prefs: " + reason);
       });
     }
   },

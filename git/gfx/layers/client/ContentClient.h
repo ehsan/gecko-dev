@@ -109,7 +109,6 @@ public:
   // call before and after painting into this content client
   virtual void BeginPaint() {}
   virtual void EndPaint() {}
-
 };
 
 /**
@@ -206,12 +205,7 @@ public:
   typedef RotatedContentBuffer::PaintState PaintState;
   typedef RotatedContentBuffer::ContentType ContentType;
 
-  virtual void Clear()
-  {
-    RotatedContentBuffer::Clear();
-    mTextureClient = nullptr;
-    mTextureClientOnWhite = nullptr;
-  }
+  virtual void Clear() { RotatedContentBuffer::Clear(); }
 
   virtual PaintState BeginPaintBuffer(ThebesLayer* aLayer,
                                       uint32_t aFlags) MOZ_OVERRIDE
@@ -428,13 +422,6 @@ public:
     mTextureInfo.mCompositableType = COMPOSITABLE_CONTENT_DOUBLE;
   }
   virtual ~ContentClientDoubleBuffered() {}
-
-  virtual void Clear() MOZ_OVERRIDE
-  {
-    ContentClientRemoteBuffer::Clear();
-    mFrontClient = nullptr;
-    mFrontClientOnWhite = nullptr;
-  }
 
   virtual void SwapBuffers(const nsIntRegion& aFrontUpdatedRegion) MOZ_OVERRIDE;
 

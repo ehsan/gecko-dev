@@ -13,7 +13,7 @@
 #include "nsIMutationObserver.h"
 #include "nsIDocument.h"
 #include "nsIDOMUserDataHandler.h"
-#include "mozilla/EventListenerManager.h"
+#include "nsEventListenerManager.h"
 #include "nsIXPConnect.h"
 #include "pldhash.h"
 #include "nsIDOMAttr.h"
@@ -34,7 +34,6 @@
 #include "mozilla/dom/HTMLTemplateElement.h"
 #include "mozilla/dom/ShadowRoot.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 using mozilla::AutoJSContext;
 
@@ -237,7 +236,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
       aNode->HasFlag(NODE_HAS_LISTENERMANAGER)) {
 #ifdef DEBUG
     if (nsContentUtils::IsInitialized()) {
-      EventListenerManager* manager =
+      nsEventListenerManager* manager =
         nsContentUtils::GetExistingListenerManagerForNode(aNode);
       if (!manager) {
         NS_ERROR("Huh, our bit says we have a listener manager list, "
@@ -489,7 +488,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
 
       nsPIDOMWindow* window = newDoc->GetInnerWindow();
       if (window) {
-        EventListenerManager* elm = aNode->GetExistingListenerManager();
+        nsEventListenerManager* elm = aNode->GetExistingListenerManager();
         if (elm) {
           window->SetMutationListeners(elm->MutationListenerBits());
           if (elm->MayHavePaintEventListener()) {
@@ -503,9 +502,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
           }
           if (elm->MayHaveMouseEnterLeaveEventListener()) {
             window->SetHasMouseEnterLeaveEventListeners();
-          }
-          if (elm->MayHavePointerEnterLeaveEventListener()) {
-            window->SetHasPointerEnterLeaveEventListeners();
           }
         }
       }

@@ -246,7 +246,7 @@ function test() {
                test_existingSHEnd_noClear, test_existingSHMiddle_noClear,
                test_getBrowserState_lotsOfTabsOpening,
                test_getBrowserState_userTypedValue, test_userTypedClearLoadURI];
-  let originalState = JSON.parse(ss.getBrowserState());
+  let originalState = ss.getBrowserState();
   let state = {
     windows: [{
       tabs: [{ entries: [{ url: "about:blank" }] }]
@@ -256,7 +256,8 @@ function test() {
     if (tests.length) {
       waitForBrowserState(state, tests.shift());
     } else {
-      waitForBrowserState(originalState, finish);
+      ss.setBrowserState(originalState);
+      executeSoon(finish);
     }
   }
 

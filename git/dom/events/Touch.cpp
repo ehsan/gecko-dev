@@ -7,14 +7,14 @@
 
 #include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/TouchBinding.h"
-#include "mozilla/dom/TouchEvent.h"
 #include "nsContentUtils.h"
+#include "nsDOMTouchEvent.h"
 #include "nsIContent.h"
 
 namespace mozilla {
 namespace dom {
 
-Touch::Touch(EventTarget* aTarget,
+Touch::Touch(mozilla::dom::EventTarget* aTarget,
              int32_t aIdentifier,
              int32_t aPageX,
              int32_t aPageY,
@@ -71,11 +71,10 @@ Touch::~Touch()
 {
 }
 
-// static
-bool
-Touch::PrefEnabled(JSContext* aCx, JSObject* aGlobal)
+ /* static */ bool
+Touch::PrefEnabled()
 {
-  return TouchEvent::PrefEnabled(aCx, aGlobal);
+  return nsDOMTouchEvent::PrefEnabled();
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(Touch, mTarget)
@@ -106,19 +105,19 @@ Touch::InitializePoints(nsPresContext* aPresContext, WidgetEvent* aEvent)
   if (mPointsInitialized) {
     return;
   }
-  mClientPoint = Event::GetClientCoords(
+  mClientPoint = nsDOMEvent::GetClientCoords(
     aPresContext, aEvent, LayoutDeviceIntPoint::FromUntyped(mRefPoint),
     mClientPoint);
-  mPagePoint = Event::GetPageCoords(
+  mPagePoint = nsDOMEvent::GetPageCoords(
     aPresContext, aEvent, LayoutDeviceIntPoint::FromUntyped(mRefPoint),
     mClientPoint);
-  mScreenPoint = Event::GetScreenCoords(aPresContext, aEvent,
+  mScreenPoint = nsDOMEvent::GetScreenCoords(aPresContext, aEvent,
     LayoutDeviceIntPoint::FromUntyped(mRefPoint));
   mPointsInitialized = true;
 }
 
 void
-Touch::SetTarget(EventTarget* aTarget)
+Touch::SetTarget(mozilla::dom::EventTarget* aTarget)
 {
   mTarget = aTarget;
 }
@@ -133,7 +132,7 @@ Touch::Equals(Touch* aTouch)
          mRadius.y == aTouch->RadiusY();
 }
 
-JSObject*
+/* virtual */ JSObject*
 Touch::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return TouchBinding::Wrap(aCx, aScope, this);

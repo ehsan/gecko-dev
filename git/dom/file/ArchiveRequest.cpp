@@ -174,7 +174,7 @@ ArchiveRequest::GetFilenamesResult(JSContext* aCx,
                                    JS::Value* aValue,
                                    nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList)
 {
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, aFileList.Length()));
+  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, aFileList.Length(), nullptr));
   nsresult rv;
 
   if (!array) {
@@ -232,7 +232,7 @@ ArchiveRequest::GetFilesResult(JSContext* aCx,
                                JS::MutableHandle<JS::Value> aValue,
                                nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList)
 {
-  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, aFileList.Length()));
+  JS::Rooted<JSObject*> array(aCx, JS_NewArrayObject(aCx, aFileList.Length(), nullptr));
   if (!array) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

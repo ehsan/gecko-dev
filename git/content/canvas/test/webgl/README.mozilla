@@ -13,8 +13,7 @@ upstream and should not be modified without corresponding upstream fixes and/or 
 patch file in this directory. The exceptions (the Mozilla-specific files) are:
  * README.mozilla (this file)
  * failing_tests_*.txt
- * moz.build
- * writemanifest.py
+ * Makefile.in
  * *.patch files, if any
 
 How to do an update:
@@ -26,5 +25,4 @@ How to do an update:
     determines with tests to run, as some tests are only enabled in some not-yet-released
     version.
  4. reapply local patches.
- 5. update this readme and the .patch files.
- 6. run writemanifest.py to update test manifest.
+ 5. update this readme and the .patch files

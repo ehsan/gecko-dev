@@ -25,7 +25,7 @@ gfxGDIShaper::ShapeText(gfxContext      *aContext,
     AutoSelectFont selectFont(dc, static_cast<gfxGDIFont*>(mFont)->GetHFONT());
 
     uint32_t length = aLength;
-    AutoFallibleTArray<WORD,500> glyphArray;
+    nsAutoTArray<WORD,500> glyphArray;
     if (!glyphArray.SetLength(length)) {
         return false;
     }
@@ -43,7 +43,7 @@ gfxGDIShaper::ShapeText(gfxContext      *aContext,
     }
  
     SIZE size;
-    AutoFallibleTArray<int,500> partialWidthArray;
+    nsAutoTArray<int,500> partialWidthArray;
     if (!partialWidthArray.SetLength(length)) {
         return false;
     }

@@ -5,7 +5,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 EXPORTS += [
-    'nsFilterInstance.h',
     'nsSVGEffects.h',
     'nsSVGFilterInstance.h',
     'nsSVGForeignObjectFrame.h',
@@ -15,7 +14,6 @@ EXPORTS += [
 ]
 
 UNIFIED_SOURCES += [
-    'nsFilterInstance.cpp',
     'nsSVGAFrame.cpp',
     'nsSVGClipPathFrame.cpp',
     'nsSVGContainerFrame.cpp',
@@ -58,9 +56,5 @@ LOCAL_INCLUDES += [
     '../generic',
     '../style',
     '../xul',
-]
-
-RESOURCE_FILES += [
-    'svg.css',
 ]
 

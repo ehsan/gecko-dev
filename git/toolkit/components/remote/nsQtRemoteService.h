@@ -21,16 +21,17 @@ public:
   NS_DECL_NSIREMOTESERVICE  
 
   nsQtRemoteService();
-  virtual ~nsQtRemoteService() { };
 
 private:
+  ~nsQtRemoteService() { };
+
   virtual void SetDesktopStartupIDOrTimestamp(const nsACString& aDesktopStartupID,
                                               uint32_t aTimestamp);
 
   void PropertyNotifyEvent(XEvent *evt);
   friend class MozQRemoteEventHandlerWidget;
 
-  QWindow *mServerWindow;
+  QWidget *mServerWindow;
 };
 
 #endif // __nsQtRemoteService_h__

@@ -6,7 +6,7 @@
 
 #include "FileRequest.h"
 
-#include "mozilla/dom/FileRequestBinding.h"
+#include "DOMFileRequest.h"
 #include "nsCxPusher.h"
 #include "nsEventDispatcher.h"
 #include "nsError.h"
@@ -18,7 +18,7 @@
 USING_FILE_NAMESPACE
 
 FileRequest::FileRequest(nsPIDOMWindow* aWindow)
-  : DOMRequest(aWindow), mWrapAsDOMRequest(false)
+  : DOMRequest(aWindow)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -30,14 +30,19 @@ FileRequest::~FileRequest()
 
 // static
 already_AddRefed<FileRequest>
-FileRequest::Create(nsPIDOMWindow* aOwner, LockedFile* aLockedFile,
-                    bool aWrapAsDOMRequest)
+FileRequest::Create(nsPIDOMWindow* aOwner,
+                    LockedFile* aLockedFile,
+                    bool aIsFileRequest)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsRefPtr<FileRequest> request = new FileRequest(aOwner);
+  nsRefPtr<FileRequest> request;
+  if (aIsFileRequest) {
+    request = new DOMFileRequest(aOwner);
+  } else {
+    request = new FileRequest(aOwner);
+  }
   request->mLockedFile = aLockedFile;
-  request->mWrapAsDOMRequest = aWrapAsDOMRequest;
 
   return request.forget();
 }
@@ -102,23 +107,6 @@ NS_INTERFACE_MAP_END_INHERITING(DOMRequest)
 
 NS_IMPL_ADDREF_INHERITED(FileRequest, DOMRequest)
 NS_IMPL_RELEASE_INHERITED(FileRequest, DOMRequest)
-
-// virtual
-JSObject*
-FileRequest::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  if (mWrapAsDOMRequest) {
-    return DOMRequest::WrapObject(aCx, aScope);
-  }
-  return FileRequestBinding::Wrap(aCx, aScope, this);
-}
-
-nsIDOMLockedFile*
-FileRequest::GetLockedFile() const
-{
-  MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
-  return mLockedFile;
-}
 
 void
 FileRequest::FireProgressEvent(uint64_t aLoaded, uint64_t aTotal)

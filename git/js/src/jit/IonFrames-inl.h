@@ -56,8 +56,7 @@ IonFrameIterator::isFakeExitFrame() const
 {
     bool res = (prevType() == IonFrame_Unwound_Rectifier ||
                 prevType() == IonFrame_Unwound_OptimizedJS ||
-                prevType() == IonFrame_Unwound_BaselineStub ||
-                (prevType() == IonFrame_Entry && type() == IonFrame_Exit));
+                prevType() == IonFrame_Unwound_BaselineStub);
     JS_ASSERT_IF(res, type() == IonFrame_Exit || type() == IonFrame_BaselineJS);
     return res;
 }

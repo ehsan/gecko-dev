@@ -14,6 +14,7 @@ const COLLAPSE_ATTRIBUTE_LENGTH = 120;
 const COLLAPSE_DATA_URL_REGEX = /^data.+base64/;
 const COLLAPSE_DATA_URL_LENGTH = 60;
 const CONTAINER_FLASHING_DURATION = 500;
+const IMAGE_PREVIEW_MAX_DIM = 400;
 const NEW_SELECTION_HIGHLIGHTER_TIMER = 1000;
 
 const {UndoStack} = require("devtools/shared/undo");
@@ -22,7 +23,7 @@ const {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 const {HTMLEditor} = require("devtools/markupview/html-editor");
 const promise = require("sdk/core/promise");
 const {Tooltip} = require("devtools/shared/widgets/Tooltip");
-const EventEmitter = require("devtools/toolkit/event-emitter");
+const EventEmitter = require("devtools/shared/event-emitter");
 
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource://gre/modules/devtools/Templater.jsm");
@@ -110,7 +111,7 @@ MarkupView.prototype = {
   _initTooltips: function() {
     this.tooltip = new Tooltip(this._inspector.panelDoc);
     this.tooltip.startTogglingOnHover(this._elt,
-      this._isImagePreviewTarget.bind(this));
+      this._buildTooltipContent.bind(this));
   },
 
   _initHighlighter: function() {
@@ -165,7 +166,7 @@ MarkupView.prototype = {
   },
 
   _onMouseLeave: function() {
-    this._hideBoxModel(true);
+    this._hideBoxModel();
     if (this._hoveredNode) {
       this._containers.get(this._hoveredNode).hovered = false;
     }
@@ -176,8 +177,8 @@ MarkupView.prototype = {
     this._inspector.toolbox.highlighterUtils.highlightNodeFront(nodeFront, options);
   },
 
-  _hideBoxModel: function(forceHide) {
-    return this._inspector.toolbox.highlighterUtils.unhighlight(forceHide);
+  _hideBoxModel: function() {
+    this._inspector.toolbox.highlighterUtils.unhighlight();
   },
 
   _briefBoxModelTimer: null,
@@ -232,15 +233,7 @@ MarkupView.prototype = {
     updateChildren(documentElement);
   },
 
-  /**
-   * Executed when the mouse hovers over a target in the markup-view and is used
-   * to decide whether this target should be used to display an image preview
-   * tooltip.
-   * Delegates the actual decision to the corresponding MarkupContainer instance
-   * if one is found.
-   * @return the promise returned by MarkupContainer._isImagePreviewTarget
-   */
-  _isImagePreviewTarget: function(target) {
+  _buildTooltipContent: function(target) {
     // From the target passed here, let's find the parent MarkupContainer
     // and ask it if the tooltip should be shown
     let parent = target, container;
@@ -255,7 +248,7 @@ MarkupView.prototype = {
     if (container) {
       // With the newly found container, delegate the tooltip content creation
       // and decision to show or not the tooltip
-      return container._isImagePreviewTarget(target, this.tooltip);
+      return container._buildTooltipContent(target, this.tooltip);
     }
   },
 
@@ -289,7 +282,9 @@ MarkupView.prototype = {
     let done = this._inspector.updating("markup-view");
     if (selection.isNode()) {
       if (this._shouldNewSelectionBeHighlighted()) {
-        this._brieflyShowBoxModel(selection.nodeFront, {});
+        this._brieflyShowBoxModel(selection.nodeFront, {
+          scrollIntoView: true
+        });
       }
 
       this.showNode(selection.nodeFront, true).then(() => {
@@ -1050,13 +1045,9 @@ MarkupView.prototype = {
    * Tear down the markup panel.
    */
   destroy: function() {
-    if (this._destroyer) {
-      return this._destroyer;
-    }
-
     // Note that if the toolbox is closed, this will work fine, but will fail
     // in case the browser is closed and will trigger a noSuchActor message.
-    this._destroyer = this._hideBoxModel();
+    this._hideBoxModel();
 
     this._hoveredNode = null;
     this._inspector.toolbox.off("picker-node-hovered", this._onToolboxPickerHover);
@@ -1110,8 +1101,6 @@ MarkupView.prototype = {
 
     this.tooltip.destroy();
     this.tooltip = null;
-
-    return this._destroyer;
   },
 
   /**
@@ -1277,13 +1266,6 @@ MarkupContainer.prototype = {
     }
   },
 
-  /**
-   * If the node is an image or canvas (@see isPreviewable), then get the
-   * image data uri from the server so that it can then later be previewed in
-   * a tooltip if needed.
-   * Stores a promise in this.tooltipData.data that resolves when the data has
-   * been retrieved
-   */
   _prepareImagePreview: function() {
     if (this.isPreviewable()) {
       // Get the image data for later so that when the user actually hovers over
@@ -1295,50 +1277,39 @@ MarkupContainer.prototype = {
         data: def.promise
       };
 
-      let maxDim = Services.prefs.getIntPref("devtools.inspector.imagePreviewTooltipSize");
-      this.node.getImageData(maxDim).then(data => {
-        data.data.string().then(str => {
-          let res = {data: str, size: data.size};
-          // Resolving the data promise and, to always keep tooltipData.data
-          // as a promise, create a new one that resolves immediately
-          def.resolve(res);
-          this.tooltipData.data = promise.resolve(res);
-        });
-      }, () => {
-        this.tooltipData.data = promise.reject();
+      this.node.getImageData(IMAGE_PREVIEW_MAX_DIM).then(data => {
+        if (data) {
+          data.data.string().then(str => {
+            let res = {data: str, size: data.size};
+            // Resolving the data promise and, to always keep tooltipData.data
+            // as a promise, create a new one that resolves immediately
+            def.resolve(res);
+            this.tooltipData.data = promise.resolve(res);
+          });
+        }
       });
     }
-  },
-
-  /**
-   * Executed by MarkupView._isImagePreviewTarget which is itself called when the
-   * mouse hovers over a target in the markup-view.
-   * Checks if the target is indeed something we want to have an image tooltip
-   * preview over and, if so, inserts content into the tooltip.
-   * @return a promise that resolves when the content has been inserted or
-   * rejects if no preview is required. This promise is then used by Tooltip.js
-   * to decide if/when to show the tooltip
-   */
-  _isImagePreviewTarget: function(target, tooltip) {
-    if (!this.tooltipData || this.tooltipData.target !== target) {
-      return promise.reject();
-    }
-
-    return this.tooltipData.data.then(({data, size}) => {
-      tooltip.setImageContent(data, size);
-    }, () => {
-      tooltip.setBrokenImageContent();
-    });
   },
 
   copyImageDataUri: function() {
     // We need to send again a request to gettooltipData even if one was sent for
     // the tooltip, because we want the full-size image
     this.node.getImageData().then(data => {
-      data.data.string().then(str => {
-        clipboardHelper.copyString(str, this.markup.doc);
-      });
+      if (data) {
+        data.data.string().then(str => {
+          clipboardHelper.copyString(str, this.markup.doc);
+        });
+      }
     });
+  },
+
+  _buildTooltipContent: function(target, tooltip) {
+    if (this.tooltipData && target === this.tooltipData.target) {
+      this.tooltipData.data.then(({data, size}) => {
+        tooltip.setImageContent(data, size);
+      });
+      return true;
+    }
   },
 
   /**
@@ -1574,6 +1545,8 @@ MarkupContainer.prototype = {
 
     // Remove event listeners
     this.elt.removeEventListener("dblclick", this._onToggle, false);
+    this.elt.removeEventListener("mouseover", this._onMouseOver, false);
+    this.elt.removeEventListener("mouseout", this._onMouseOut, false);
     this.elt.removeEventListener("mousedown", this._onMouseDown, false);
     this.expander.removeEventListener("click", this._onToggle, false);
 

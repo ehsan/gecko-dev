@@ -20,13 +20,6 @@ class ContainerLayer;
 class Layer;
 class LayerManager;
 
-class CanvasLayerComposite;
-class ColorLayerComposite;
-class ContainerLayerComposite;
-class ImageLayerComposite;
-class RefLayerComposite;
-class ThebesLayerComposite;
-
 class ShadowLayerParent : public PLayerParent
 {
 public:
@@ -38,13 +31,7 @@ public:
   void Destroy();
 
   Layer* AsLayer() const { return mLayer; }
-
-  ContainerLayerComposite* AsContainerLayerComposite() const;
-  CanvasLayerComposite* AsCanvasLayerComposite() const;
-  ColorLayerComposite* AsColorLayerComposite() const;
-  ImageLayerComposite* AsImageLayerComposite() const;
-  RefLayerComposite* AsRefLayerComposite() const;
-  ThebesLayerComposite* AsThebesLayerComposite() const;
+  ContainerLayer* AsContainer() const;
 
 private:
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

@@ -7,48 +7,57 @@
 /**
  * Tab actor for documents living in a child process.
  *
- * Depends on TabActor, defined in webbrowser.js.
+ * Depends on BrowserTabActor, defined in webbrowser.js actor.
  */
 
 /**
  * Creates a tab actor for handling requests to the single tab, like
- * attaching and detaching. ContentActor respects the actor factories
+ * attaching and detaching. ContentAppActor respects the actor factories
  * registered with DebuggerServer.addTabActor.
  *
  * @param connection DebuggerServerConnection
  *        The conection to the client.
- * @param chromeGlobal
- *        The content script global holding |content| and |docShell| properties for a tab.
+ * @param browser browser
+ *        The browser instance that contains this tab.
  */
-function ContentActor(connection, chromeGlobal)
+function ContentAppActor(connection, browser)
 {
-  TabActor.call(this, connection, chromeGlobal);
-  this._chromeGlobal = chromeGlobal;
-  this.traits.reconfigure = false;
+  BrowserTabActor.call(this, connection, browser);
 }
 
-ContentActor.prototype = Object.create(TabActor.prototype);
+ContentAppActor.prototype = Object.create(BrowserTabActor.prototype);
 
-ContentActor.prototype.constructor = ContentActor;
+ContentAppActor.prototype.constructor = ContentAppActor;
 
-Object.defineProperty(ContentActor.prototype, "docShell", {
+Object.defineProperty(ContentAppActor.prototype, "title", {
   get: function() {
-    return this._chromeGlobal.docShell;
+    return this.browser.title;
   },
   enumerable: true,
   configurable: false
 });
 
-ContentActor.prototype.exit = function() {
-  TabActor.prototype.exit.call(this);
-  this._chromeGlobal = null;
-};
+Object.defineProperty(ContentAppActor.prototype, "url", {
+  get: function() {
+    return this.browser.document.documentURI;
+  },
+  enumerable: true,
+  configurable: false
+});
+
+Object.defineProperty(ContentAppActor.prototype, "window", {
+  get: function() {
+    return this.browser;
+  },
+  enumerable: true,
+  configurable: false
+});
 
 // Override grip just to rename this._tabActorPool to this._tabActorPool2
 // in order to prevent it to be cleaned on detach.
-// We have to keep tab actors alive as we keep the ContentActor
+// We have to keep tab actors alive as we keep the ContentAppActor
 // alive after detach and reuse it for multiple debug sessions.
-ContentActor.prototype.grip = function () {
+ContentAppActor.prototype.grip = function () {
   let response = {
     'actor': this.actorID,
     'title': this.title,

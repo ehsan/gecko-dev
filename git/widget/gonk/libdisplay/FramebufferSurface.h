@@ -51,9 +51,8 @@ public:
     // when finished with it.
     status_t setReleaseFenceFd(int fenceFd);
 
-    virtual int GetPrevFBAcquireFd();
-
     buffer_handle_t lastHandle;
+    int lastFenceFD;
 private:
     virtual ~FramebufferSurface() { }; // this class cannot be overloaded
 
@@ -76,8 +75,6 @@ private:
     // mCurrentBuffer is the current buffer or NULL to indicate that there is
     // no current buffer.
     sp<GraphicBuffer> mCurrentBuffer;
-
-    android::sp<android::Fence> mPrevFBAcquireFence;
 };
 
 // ---------------------------------------------------------------------------

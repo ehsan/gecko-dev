@@ -61,7 +61,7 @@
         '../trunk/webrtc/voice_engine/include',
         '../trunk/webrtc/modules/interface',
         '../trunk/webrtc/peerconnection',
-        '../../libyuv/include',
+        '../trunk/third_party/libyuv/include/',
         '../../../netwerk/srtp/src/include',
         '../../../netwerk/srtp/src/crypto/include',
         '../../../ipc/chromium/src',
@@ -155,8 +155,6 @@
         # Media pipeline
         './src/mediapipeline/MediaPipeline.h',
         './src/mediapipeline/MediaPipeline.cpp',
-        './src/mediapipeline/MediaPipelineFilter.h',
-        './src/mediapipeline/MediaPipelineFilter.cpp',
         './src/mediapipeline/SrtpFlow.h',
         './src/mediapipeline/SrtpFlow.cpp',
       ],
@@ -194,10 +192,6 @@
         ['build_for_test==0', {
           'defines' : [
             'MOZILLA_INTERNAL_API'
-          ],
-          'sources': [
-            './src/peerconnection/WebrtcGlobalInformation.cpp',
-            './src/peerconnection/WebrtcGlobalInformation.h',
           ],
         }],
         ['build_for_test!=0', {
@@ -564,7 +558,6 @@
         './src/sipcc/cpr/include/cpr_time.h',
         './src/sipcc/cpr/include/cpr_timers.h',
         './src/sipcc/cpr/include/cpr_types.h',
-        './src/sipcc/cpr/common/cpr_ipc.c',
         './src/sipcc/cpr/common/cpr_string.c',
         # INCLUDE
         './src/sipcc/include/cc_blf.h',
@@ -666,6 +659,7 @@
             # CPR
             './src/sipcc/cpr/android/cpr_android_errno.c',
             './src/sipcc/cpr/android/cpr_android_init.c',
+            './src/sipcc/cpr/android/cpr_android_ipc.c',
             './src/sipcc/cpr/android/cpr_android_socket.c',
             './src/sipcc/cpr/android/cpr_android_stdio.c',
             './src/sipcc/cpr/android/cpr_android_string.c',
@@ -677,6 +671,7 @@
             './src/sipcc/cpr/android/cpr_android_assert.h',
             './src/sipcc/cpr/android/cpr_android_errno.h',
             './src/sipcc/cpr/android/cpr_android_in.h',
+            './src/sipcc/cpr/android/cpr_darwin_ipc.h',
             './src/sipcc/cpr/android/cpr_android_private.h',
             './src/sipcc/cpr/android/cpr_android_rand.h',
             './src/sipcc/cpr/android/cpr_android_socket.h',
@@ -700,6 +695,7 @@
             # CPR
             './src/sipcc/cpr/linux/cpr_linux_errno.c',
             './src/sipcc/cpr/linux/cpr_linux_init.c',
+            './src/sipcc/cpr/linux/cpr_linux_ipc.c',
             './src/sipcc/cpr/linux/cpr_linux_socket.c',
             './src/sipcc/cpr/linux/cpr_linux_stdio.c',
             './src/sipcc/cpr/linux/cpr_linux_string.c',
@@ -711,6 +707,7 @@
             './src/sipcc/cpr/linux/cpr_linux_assert.h',
             './src/sipcc/cpr/linux/cpr_linux_errno.h',
             './src/sipcc/cpr/linux/cpr_linux_in.h',
+            './src/sipcc/cpr/linux/cpr_linux_ipc.h',
             './src/sipcc/cpr/linux/cpr_linux_private.h',
             './src/sipcc/cpr/linux/cpr_linux_rand.h',
             './src/sipcc/cpr/linux/cpr_linux_socket.h',
@@ -748,6 +745,8 @@
             './src/sipcc/cpr/win32/cpr_win_errno.h',
             './src/sipcc/cpr/win32/cpr_win_in.h',
             './src/sipcc/cpr/win32/cpr_win_init.c',
+            './src/sipcc/cpr/win32/cpr_win_ipc.c',
+            './src/sipcc/cpr/win32/cpr_win_ipc.h',
             './src/sipcc/cpr/win32/cpr_win_locks.c',
             './src/sipcc/cpr/win32/cpr_win_locks.h',
             './src/sipcc/cpr/win32/cpr_win_rand.c',
@@ -802,6 +801,8 @@
             './src/sipcc/cpr/darwin/cpr_darwin_errno.h',
             './src/sipcc/cpr/darwin/cpr_darwin_in.h',
             './src/sipcc/cpr/darwin/cpr_darwin_init.c',
+            './src/sipcc/cpr/darwin/cpr_darwin_ipc.c',
+            './src/sipcc/cpr/darwin/cpr_darwin_ipc.h',
             './src/sipcc/cpr/darwin/cpr_darwin_private.h',
             './src/sipcc/cpr/darwin/cpr_darwin_rand.h',
             './src/sipcc/cpr/darwin/cpr_darwin_socket.c',

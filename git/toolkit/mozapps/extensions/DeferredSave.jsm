@@ -19,68 +19,6 @@ this.EXPORTED_SYMBOLS = ["DeferredSave"];
 // If delay parameter is not provided, default is 50 milliseconds.
 const DEFAULT_SAVE_DELAY_MS = 50;
 
-Cu.import("resource://gre/modules/Log.jsm");
-//Configure a logger at the parent 'DeferredSave' level to format
-//messages for all the modules under DeferredSave.*
-const DEFERREDSAVE_PARENT_LOGGER_ID = "DeferredSave";
-let parentLogger = Log.repository.getLogger(DEFERREDSAVE_PARENT_LOGGER_ID);
-parentLogger.level = Log.Level.Warn;
-let formatter = new Log.BasicFormatter();
-//Set parent logger (and its children) to append to
-//the Javascript section of the Browser Console
-parentLogger.addAppender(new Log.ConsoleAppender(formatter));
-//Set parent logger (and its children) to
-//also append to standard out
-parentLogger.addAppender(new Log.DumpAppender(formatter));
-
-//Provide the ability to enable/disable logging
-//messages at runtime.
-//If the "extensions.logging.enabled" preference is
-//missing or 'false', messages at the WARNING and higher
-//severity should be logged to the JS console and standard error.
-//If "extensions.logging.enabled" is set to 'true', messages
-//at DEBUG and higher should go to JS console and standard error.
-Cu.import("resource://gre/modules/Services.jsm");
-
-const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
-const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
-
-/**
-* Preference listener which listens for a change in the
-* "extensions.logging.enabled" preference and changes the logging level of the
-* parent 'addons' level logger accordingly.
-*/
-var PrefObserver = {
- init: function PrefObserver_init() {
-   Services.prefs.addObserver(PREF_LOGGING_ENABLED, this, false);
-   Services.obs.addObserver(this, "xpcom-shutdown", false);
-   this.observe(null, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID, PREF_LOGGING_ENABLED);
- },
-
- observe: function PrefObserver_observe(aSubject, aTopic, aData) {
-   if (aTopic == "xpcom-shutdown") {
-     Services.prefs.removeObserver(PREF_LOGGING_ENABLED, this);
-     Services.obs.removeObserver(this, "xpcom-shutdown");
-   }
-   else if (aTopic == NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) {
-     let debugLogEnabled = false;
-     try {
-       debugLogEnabled = Services.prefs.getBoolPref(PREF_LOGGING_ENABLED);
-     }
-     catch (e) {
-     }
-     if (debugLogEnabled) {
-       parentLogger.level = Log.Level.Debug;
-     }
-     else {
-       parentLogger.level = Log.Level.Warn;
-     }
-   }
- }
-};
-
-PrefObserver.init();
-
 /**
  * A module to manage deferred, asynchronous writing of data files
  * to disk. Writing is deferred by waiting for a specified delay after
@@ -104,11 +42,10 @@ PrefObserver.init();
  *        begins writing the data to disk. Default 50 milliseconds.
  */
 this.DeferredSave = function (aPath, aDataProvider, aDelay) {
-  // Create a new logger (child of 'DeferredSave' logger)
-  // for use by this particular instance of DeferredSave object
+  // Set up loggers for this instance of DeferredSave
   let leafName = OS.Path.basename(aPath);
-  let logger_id = DEFERREDSAVE_PARENT_LOGGER_ID + "." + leafName;
-  this.logger = Log.repository.getLogger(logger_id);
+  Cu.import("resource://gre/modules/AddonLogging.jsm");
+  LogManager.getLogger("DeferredSave/" + leafName, this);
 
   // @type {Deferred|null}, null when no data needs to be written
   // @resolves with the result of OS.File.writeAtomic when all writes complete
@@ -168,7 +105,7 @@ this.DeferredSave.prototype = {
       return;
     }
 
-      this.logger.debug("Starting timer");
+    this.LOG("Starting timer");
     if (!this._timer)
       this._timer = MakeTimer();
     this._timer.initWithCallback(() => this._deferredSave(),
@@ -181,10 +118,10 @@ this.DeferredSave.prototype = {
    *         the promise is resolved with the number of bytes written.
    */
   saveChanges: function() {
-      this.logger.debug("Save changes");
+    this.LOG("Save changes");
     if (!this._pending) {
       if (this.writeInProgress) {
-          this.logger.debug("Data changed while write in progress");
+        this.LOG("Data changed while write in progress");
         this.overlappedSaves++;
       }
       this._pending = Promise.defer();
@@ -208,7 +145,7 @@ this.DeferredSave.prototype = {
       toSave = this._dataProvider();
     }
     catch(e) {
-        this.logger.error("Deferred save dataProvider failed", e);
+      this.ERROR("Deferred save dataProvider failed", e);
       writing.then(null, error => {})
         .then(count => {
           pending.reject(e);
@@ -218,7 +155,7 @@ this.DeferredSave.prototype = {
 
     writing.then(null, error => {return 0;})
     .then(count => {
-        this.logger.debug("Starting write");
+      this.LOG("Starting write");
       this.totalSaves++;
       this.writeInProgress = true;
 
@@ -227,13 +164,13 @@ this.DeferredSave.prototype = {
         result => {
           this._lastError = null;
           this.writeInProgress = false;
-              this.logger.debug("Write succeeded");
+          this.LOG("Write succeeded");
           pending.resolve(result);
         },
         error => {
           this._lastError = error;
           this.writeInProgress = false;
-              this.logger.warn("Write failed", error);
+          this.WARN("Write failed", error);
           pending.reject(error);
         });
     });
@@ -261,7 +198,7 @@ this.DeferredSave.prototype = {
     // immediately (_deferredSave queues the write for after the most
     // recent write completes, if it hasn't already)
     if (this._pending) {
-        this.logger.debug("Flush called while data is dirty");
+      this.LOG("Flush called while data is dirty");
       if (this._timer) {
         this._timer.cancel();
         this._timer = null;
@@ -271,4 +208,4 @@ this.DeferredSave.prototype = {
 
     return this._writing;
   }
-};
+}

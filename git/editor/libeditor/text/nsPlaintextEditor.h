@@ -26,6 +26,7 @@ class nsIDOMNode;
 class nsIDocumentEncoder;
 class nsIEditRules;
 class nsIOutputStream;
+class nsIPrivateTextRangeList;
 class nsISelection;
 class nsISelectionController;
 class nsITransferable;
@@ -121,8 +122,9 @@ public:
 
   virtual already_AddRefed<mozilla::dom::EventTarget> GetDOMEventTarget();
 
-  virtual nsresult BeginIMEComposition(mozilla::WidgetCompositionEvent* aEvent);
-  virtual nsresult UpdateIMEComposition(nsIDOMEvent* aTextEvent) MOZ_OVERRIDE;
+  virtual nsresult BeginIMEComposition();
+  virtual nsresult UpdateIMEComposition(const nsAString &aCompositionString,
+                                        nsIPrivateTextRangeList *aTextRange);
 
   virtual already_AddRefed<nsIContent> GetInputEventTargetContent();
 
@@ -134,7 +136,7 @@ public:
                         int32_t aDestOffset,
                         bool aDoDeleteSelection);
 
-  virtual nsresult InsertFromDataTransfer(mozilla::dom::DataTransfer *aDataTransfer,
+  virtual nsresult InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
                                           int32_t aIndex,
                                           nsIDOMDocument *aSourceDoc,
                                           nsIDOMNode *aDestinationNode,

@@ -94,7 +94,12 @@ user_sctp_timer_iterate(void *arg)
 		}
 		SCTP_TIMERQ_UNLOCK();
 	}
-	return (NULL);
+#if defined (__Userspace_os_Windows)
+	ExitThread(0);
+#else
+	pthread_exit(NULL);
+#endif
+	return NULL;
 }
 
 void

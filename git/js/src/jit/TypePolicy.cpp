@@ -235,16 +235,15 @@ ComparePolicy::adjustInputs(TempAllocator &alloc, MInstruction *def)
                 (compare->compareType() == MCompare::Compare_Int32MaybeCoerceLHS && i == 0) ||
                 (compare->compareType() == MCompare::Compare_Int32MaybeCoerceRHS && i == 1))
             {
-                convert = MacroAssembler::IntConversion_NumbersOrBoolsOnly;
+                convert = MacroAssembler::IntConversion_Any;
             }
             if (convert == MacroAssembler::IntConversion_NumbersOnly) {
                 if (in->type() != MIRType_Int32 && in->type() != MIRType_Value)
                     in = boxAt(alloc, def, in);
             } else {
-                MOZ_ASSERT(convert == MacroAssembler::IntConversion_NumbersOrBoolsOnly);
-                if (in->type() != MIRType_Int32 &&
-                    in->type() != MIRType_Boolean &&
-                    in->type() != MIRType_Value)
+                if (in->type() == MIRType_Undefined ||
+                    in->type() == MIRType_String ||
+                    in->type() == MIRType_Object)
                 {
                     in = boxAt(alloc, def, in);
                 }
@@ -734,22 +733,22 @@ StoreTypedArrayPolicy::adjustValueInput(TempAllocator &alloc, MInstruction *ins,
               value->type() == MIRType_Value);
 
     switch (arrayType) {
-      case ScalarTypeDescr::TYPE_INT8:
-      case ScalarTypeDescr::TYPE_UINT8:
-      case ScalarTypeDescr::TYPE_INT16:
-      case ScalarTypeDescr::TYPE_UINT16:
-      case ScalarTypeDescr::TYPE_INT32:
-      case ScalarTypeDescr::TYPE_UINT32:
+      case ScalarTypeRepresentation::TYPE_INT8:
+      case ScalarTypeRepresentation::TYPE_UINT8:
+      case ScalarTypeRepresentation::TYPE_INT16:
+      case ScalarTypeRepresentation::TYPE_UINT16:
+      case ScalarTypeRepresentation::TYPE_INT32:
+      case ScalarTypeRepresentation::TYPE_UINT32:
         if (value->type() != MIRType_Int32) {
             value = MTruncateToInt32::New(alloc, value);
             ins->block()->insertBefore(ins, value->toInstruction());
         }
         break;
-      case ScalarTypeDescr::TYPE_UINT8_CLAMPED:
+      case ScalarTypeRepresentation::TYPE_UINT8_CLAMPED:
         // IonBuilder should have inserted ClampToUint8.
         JS_ASSERT(value->type() == MIRType_Int32);
         break;
-      case ScalarTypeDescr::TYPE_FLOAT32:
+      case ScalarTypeRepresentation::TYPE_FLOAT32:
         if (LIRGenerator::allowFloat32Optimizations()) {
             if (value->type() != MIRType_Float32) {
                 value = MToFloat32::New(alloc, value);
@@ -759,7 +758,7 @@ StoreTypedArrayPolicy::adjustValueInput(TempAllocator &alloc, MInstruction *ins,
         }
         // Fallthrough: if the LIRGenerator cannot directly store Float32, it will expect the
         // stored value to be a double.
-      case ScalarTypeDescr::TYPE_FLOAT64:
+      case ScalarTypeRepresentation::TYPE_FLOAT64:
         if (value->type() != MIRType_Double) {
             value = MToDouble::New(alloc, value);
             ins->block()->insertBefore(ins, value->toInstruction());
@@ -820,37 +819,6 @@ ClampPolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
           ins->replaceOperand(0, boxAt(alloc, ins, in));
         break;
     }
-
-    return true;
-}
-
-bool
-FilterTypeSetPolicy::adjustInputs(TempAllocator &alloc, MInstruction *ins)
-{
-    MOZ_ASSERT(ins->numOperands() == 1);
-
-    // Do nothing if already same type.
-    if (ins->type() == ins->getOperand(0)->type())
-        return true;
-
-    // Box input if ouput type is MIRType_Value
-    if (ins->type() == MIRType_Value) {
-        ins->replaceOperand(0, boxAt(alloc, ins, ins->getOperand(0)));
-        return true;
-    }
-
-    // For simplicity just mark output type as MIRType_Value if input type
-    // is MIRType_Value. It should be possible to unbox, but we need to
-    // add extra code for Undefined/Null.
-    if (ins->getOperand(0)->type() == MIRType_Value) {
-        ins->setResultType(MIRType_Value);
-        return true;
-    }
-
-    // In all other cases we will definitely bail, since types don't
-    // correspond. Just box and mark output as MIRType_Value.
-    ins->replaceOperand(0, boxAt(alloc, ins, ins->getOperand(0)));
-    ins->setResultType(MIRType_Value);
 
     return true;
 }

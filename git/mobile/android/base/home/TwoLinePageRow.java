@@ -5,14 +5,13 @@
 
 package org.mozilla.gecko.home;
 
-import java.lang.ref.WeakReference;
-
+import android.util.Log;
+import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.favicons.Favicons;
 import org.mozilla.gecko.favicons.OnFaviconLoadedListener;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.FaviconView;
@@ -22,21 +21,11 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.text.TextUtils;
 import android.util.AttributeSet;
-import android.view.Gravity;
-import android.view.LayoutInflater;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 
-public class TwoLinePageRow extends LinearLayout
+import java.lang.ref.WeakReference;
+
+public class TwoLinePageRow extends TwoLineRow
                             implements Tabs.OnTabsChangedListener {
-
-    private static final int NO_ICON = 0;
-
-    private final TextView mTitle;
-    private final TextView mUrl;
-
-    private int mSwitchToTabIconId;
-    private int mPageTypeIconId;
 
     private final FaviconView mFavicon;
 
@@ -81,14 +70,6 @@ public class TwoLinePageRow extends LinearLayout
     public TwoLinePageRow(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        setGravity(Gravity.CENTER_VERTICAL);
-
-        LayoutInflater.from(context).inflate(R.layout.two_line_page_row, this);
-        mTitle = (TextView) findViewById(R.id.title);
-        mUrl = (TextView) findViewById(R.id.url);
-
-        mSwitchToTabIconId = NO_ICON;
-        mPageTypeIconId = NO_ICON;
         mShowIcons = true;
 
         mFavicon = (FaviconView) findViewById(R.id.icon);
@@ -118,36 +99,6 @@ public class TwoLinePageRow extends LinearLayout
         }
     }
 
-    private void setTitle(String text) {
-        mTitle.setText(text);
-    }
-
-    private void setUrl(String text) {
-        mUrl.setText(text);
-    }
-
-    private void setUrl(int stringId) {
-        mUrl.setText(stringId);
-    }
-
-    private void setSwitchToTabIcon(int iconId) {
-        if (mSwitchToTabIconId == iconId) {
-            return;
-        }
-
-        mSwitchToTabIconId = iconId;
-        mUrl.setCompoundDrawablesWithIntrinsicBounds(mSwitchToTabIconId, 0, mPageTypeIconId, 0);
-    }
-
-    private void setPageTypeIcon(int iconId) {
-        if (mPageTypeIconId == iconId) {
-            return;
-        }
-
-        mPageTypeIconId = iconId;
-        mUrl.setCompoundDrawablesWithIntrinsicBounds(mSwitchToTabIconId, 0, mPageTypeIconId, 0);
-    }
-
     /**
      * Stores the page URL, so that we can use it to replace "Switch to tab" if the open
      * tab changes or is closed.
@@ -166,11 +117,11 @@ public class TwoLinePageRow extends LinearLayout
         boolean isPrivate = Tabs.getInstance().getSelectedTab().isPrivate();
         Tab tab = Tabs.getInstance().getFirstTabForUrl(mPageUrl, isPrivate);
         if (!mShowIcons || tab == null) {
-            setUrl(mPageUrl);
-            setSwitchToTabIcon(NO_ICON);
+            setSecondaryText(mPageUrl);
+            setSecondaryIcon(NO_ICON);
         } else {
-            setUrl(R.string.switch_to_tab);
-            setSwitchToTabIcon(R.drawable.ic_url_bar_tab);
+            setSecondaryText(R.string.switch_to_tab);
+            setSecondaryIcon(R.drawable.ic_url_bar_tab);
         }
     }
 
@@ -178,6 +129,7 @@ public class TwoLinePageRow extends LinearLayout
         mShowIcons = showIcons;
     }
 
+    @Override
     public void updateFromCursor(Cursor cursor) {
         if (cursor == null) {
             return;
@@ -205,20 +157,20 @@ public class TwoLinePageRow extends LinearLayout
                 // The bookmark id will be 0 (null in database) when the url
                 // is not a bookmark.
                 if (bookmarkId == 0) {
-                    setPageTypeIcon(NO_ICON);
+                    setPrimaryIcon(NO_ICON);
                 } else if (display == Combined.DISPLAY_READER) {
-                    setPageTypeIcon(R.drawable.ic_url_bar_reader);
+                    setPrimaryIcon(R.drawable.ic_url_bar_reader);
                 } else {
-                    setPageTypeIcon(R.drawable.ic_url_bar_star);
+                    setPrimaryIcon(R.drawable.ic_url_bar_star);
                 }
             } else {
-                setPageTypeIcon(NO_ICON);
+                setPrimaryIcon(NO_ICON);
             }
         }
 
         // Use the URL instead of an empty title for consistency with the normal URL
         // bar view - this is the equivalent of getDisplayTitle() in Tab.java
-        setTitle(TextUtils.isEmpty(title) ? url : title);
+        setPrimaryText(TextUtils.isEmpty(title) ? url : title);
 
         // No point updating the below things if URL has not changed. Prevents evil Favicon flicker.
         if (url.equals(mPageUrl)) {

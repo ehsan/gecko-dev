@@ -146,11 +146,11 @@ public:
   already_AddRefed<TestInterface> Test2(const GlobalObject&,
                                         JSContext*,
                                         const DictForConstructor&,
-                                        JS::Handle<JS::Value>,
+                                        JS::Value,
                                         JS::Handle<JSObject*>,
                                         JS::Handle<JSObject*>,
                                         const Sequence<Dict>&,
-                                        JS::Handle<JS::Value>,
+                                        const Optional<JS::Handle<JS::Value> >&,
                                         const Optional<JS::Handle<JSObject*> >&,
                                         const Optional<JS::Handle<JSObject*> >&,
                                         ErrorResult&);
@@ -285,7 +285,6 @@ public:
   already_AddRefed<TestInterface> NonNullSelf();
   void SetNonNullSelf(TestInterface&);
   already_AddRefed<TestInterface> GetNullableSelf();
-  already_AddRefed<TestInterface> CachedSelf();
   void SetNullableSelf(TestInterface*);
   void PassOptionalSelf(const Optional<TestInterface*> &);
   void PassOptionalNonNullSelf(const Optional<NonNull<TestInterface> >&);
@@ -466,7 +465,7 @@ public:
   // Any types
   void PassAny(JSContext*, JS::Handle<JS::Value>);
   void PassVariadicAny(JSContext*, const Sequence<JS::Value>&);
-  void PassOptionalAny(JSContext*, JS::Handle<JS::Value>);
+  void PassOptionalAny(JSContext*, const Optional<JS::Handle<JS::Value> >&);
   void PassAnyDefaultNull(JSContext*, JS::Handle<JS::Value>);
   void PassSequenceOfAny(JSContext*, const Sequence<JS::Value>&);
   void PassNullableSequenceOfAny(JSContext*, const Nullable<Sequence<JS::Value> >&);
@@ -525,7 +524,6 @@ public:
   void PassUnion12(const EventInitOrLong& arg);
   void PassUnion13(JSContext*, const ObjectOrLongOrNull& arg);
   void PassUnion14(JSContext*, const ObjectOrLongOrNull& arg);
-  void PassUnionWithCallback(const EventHandlerNonNullOrNullOrLong& arg);
 #endif
   void PassNullableUnion(JSContext*, const Nullable<ObjectOrLong>&);
   void PassOptionalUnion(JSContext*, const Optional<ObjectOrLong>&);
@@ -568,7 +566,6 @@ public:
   void PassNullableUnionWithDefaultValue12(const Nullable<UnrestrictedFloatOrString>& arg);
 
   void PassSequenceOfUnions(const Sequence<OwningCanvasPatternOrCanvasGradient>&);
-  void PassSequenceOfUnions2(JSContext*, const Sequence<OwningObjectOrLong>&);
   void PassVariadicUnion(const Sequence<OwningCanvasPatternOrCanvasGradient>&);
 
   void PassSequenceOfNullableUnions(const Sequence<Nullable<OwningCanvasPatternOrCanvasGradient>>&);
@@ -606,14 +603,6 @@ public:
 
   // Dictionary tests
   void PassDictionary(JSContext*, const Dict&);
-  void GetReadonlyDictionary(JSContext*, Dict&);
-  void GetReadonlyNullableDictionary(JSContext*, Nullable<Dict>&);
-  void GetWritableDictionary(JSContext*, Dict&);
-  void SetWritableDictionary(JSContext*, const Dict&);
-  void GetReadonlyFrozenDictionary(JSContext*, Dict&);
-  void GetReadonlyFrozenNullableDictionary(JSContext*, Nullable<Dict>&);
-  void GetWritableFrozenDictionary(JSContext*, Dict&);
-  void SetWritableFrozenDictionary(JSContext*, const Dict&);
   void ReceiveDictionary(JSContext*, Dict&);
   void ReceiveNullableDictionary(JSContext*, Nullable<Dict>&);
   void PassOtherDictionary(const GrandparentDict&);
@@ -700,11 +689,6 @@ public:
   void Prefable17();
   void Prefable18();
   void Prefable19();
-  void Prefable20();
-  void Prefable21();
-  void Prefable22();
-  void Prefable23();
-  void Prefable24();
 
   // Miscellania
   int32_t AttrWithLenientThis();
@@ -970,7 +954,6 @@ public:
   uint32_t Item(uint32_t&);
   uint32_t Item(uint32_t, bool&) MOZ_DELETE;
   uint32_t Length();
-  void LegacyCall(JS::Handle<JS::Value>);
 };
 
 class TestNamedGetterInterface : public nsISupports,

@@ -10,8 +10,6 @@
 #include "js/OldDebugAPI.h"
 #include "jsapi-tests/tests.h"
 
-using namespace js;
-
 static int callCounts[2] = {0, 0};
 
 static void *
@@ -226,9 +224,10 @@ bool testIndirectEval(JS::HandleObject scope, const char *code)
         JSAutoCompartment ae(cx, scope);
         JSString *codestr = JS_NewStringCopyZ(cx, code);
         CHECK(codestr);
-        JS::RootedValue arg(cx, JS::StringValue(codestr));
+        jsval argv[1] = { STRING_TO_JSVAL(codestr) };
+        JS::AutoArrayRooter rooter(cx, 1, argv);
         JS::RootedValue v(cx);
-        CHECK(JS_CallFunctionName(cx, scope, "eval", arg, &v));
+        CHECK(JS_CallFunctionName(cx, scope, "eval", 1, argv, v.address()));
     }
 
     JS::RootedValue hitsv(cx);
@@ -255,13 +254,13 @@ BEGIN_TEST(testDebugger_singleStepThrow)
     static bool
     setStepMode(JSContext *cx, unsigned argc, jsval *vp)
     {
-        CallArgs args = CallArgsFromVp(argc, vp);
+        JS::RootedScript script(cx);
+        JS_DescribeScriptedCaller(cx, &script, nullptr);
+        JS_ASSERT(script);
 
-        NonBuiltinScriptFrameIter iter(cx);
-        if (!JS_SetSingleStepMode(cx, iter.script(), true))
+        if (!JS_SetSingleStepMode(cx, script, true))
             return false;
-
-        args.rval().set(UndefinedValue());
+        JS_SET_RVAL(cx, vp, JSVAL_VOID);
         return true;
     }
 

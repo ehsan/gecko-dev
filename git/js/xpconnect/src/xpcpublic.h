@@ -102,15 +102,6 @@ IsReflector(JSObject *obj);
 
 bool
 IsXrayWrapper(JSObject *obj);
-
-// If this function was created for a given XrayWrapper, returns the global of
-// the Xrayed object. Otherwise, returns the global of the function.
-//
-// To emphasize the obvious: the return value here is not necessarily same-
-// compartment with the argument.
-JSObject *
-XrayAwareCalleeGlobal(JSObject *fun);
-
 } /* namespace xpc */
 
 namespace JS {
@@ -182,7 +173,7 @@ xpc_UnmarkSkippableJSHolders();
 
 // No JS can be on the stack when this is called. Probably only useful from
 // xpcshell.
-void
+NS_EXPORT_(void)
 xpc_ActivateDebugMode();
 
 // readable string conversions, static methods and members only
@@ -243,18 +234,6 @@ public:
     static void FreeZoneCache(JS::Zone *zone);
     static void ClearZoneCache(JS::Zone *zone);
 
-    static MOZ_ALWAYS_INLINE bool IsLiteral(JSString *str)
-    {
-        return JS_IsExternalString(str) &&
-               JS_GetExternalStringFinalizer(str) == &sLiteralFinalizer;
-    }
-
-    static MOZ_ALWAYS_INLINE bool IsDOMString(JSString *str)
-    {
-        return JS_IsExternalString(str) &&
-               JS_GetExternalStringFinalizer(str) == &sDOMStringFinalizer;
-    }
-
 private:
     static const JSStringFinalizer sLiteralFinalizer, sDOMStringFinalizer;
 
@@ -268,8 +247,8 @@ private:
 namespace xpc {
 
 // If these functions return false, then an exception will be set on cx.
-bool Base64Encode(JSContext *cx, JS::HandleValue val, JS::MutableHandleValue out);
-bool Base64Decode(JSContext *cx, JS::HandleValue val, JS::MutableHandleValue out);
+NS_EXPORT_(bool) Base64Encode(JSContext *cx, JS::HandleValue val, JS::MutableHandleValue out);
+NS_EXPORT_(bool) Base64Decode(JSContext *cx, JS::HandleValue val, JS::MutableHandleValue out);
 
 /**
  * Convert an nsString to jsval, returning true on success.
@@ -436,7 +415,15 @@ WindowGlobalOrNull(JSObject *aObj);
 void
 SystemErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep);
 
-void
+// We have a separate version that's exported with external linkage for use by
+// xpcshell, since external linkage on windows changes the signature to make it
+// incompatible with the JSErrorReporter type, causing JS_SetErrorReporter calls
+// to fail to compile.
+NS_EXPORT_(void)
+SystemErrorReporterExternal(JSContext *cx, const char *message,
+                            JSErrorReport *rep);
+
+NS_EXPORT_(void)
 SimulateActivityCallback(bool aActive);
 
 void

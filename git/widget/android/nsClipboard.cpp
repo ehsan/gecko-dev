@@ -43,7 +43,14 @@ nsClipboard::SetData(nsITransferable *aTransferable,
   nsAutoString buffer;
   supportsString->GetData(buffer);
 
-  Clipboard::SetClipboardText(buffer);
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+   Clipboard::SetClipboardText(buffer);
+  } else {
+    bool isPrivateData = false;
+    aTransferable->GetIsPrivateData(&isPrivateData);
+    ContentChild::GetSingleton()->SendSetClipboardText(buffer, isPrivateData,
+                                                       aWhichClipboard);
+  }
 
   return NS_OK;
 }
@@ -55,10 +62,14 @@ nsClipboard::GetData(nsITransferable *aTransferable, int32_t aWhichClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
 
   nsAutoString buffer;
-  if (!AndroidBridge::Bridge())
-    return NS_ERROR_NOT_IMPLEMENTED;
-  if (!AndroidBridge::Bridge()->GetClipboardText(buffer))
-    return NS_ERROR_UNEXPECTED;
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (!AndroidBridge::Bridge())
+      return NS_ERROR_NOT_IMPLEMENTED;
+    if (!AndroidBridge::Bridge()->GetClipboardText(buffer))
+      return NS_ERROR_UNEXPECTED;
+  } else {
+    ContentChild::GetSingleton()->SendGetClipboardText(aWhichClipboard, &buffer);
+  }
 
   nsresult rv;
   nsCOMPtr<nsISupportsString> dataWrapper =
@@ -85,7 +96,11 @@ nsClipboard::EmptyClipboard(int32_t aWhichClipboard)
 {
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
-  Clipboard::ClearText();
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    Clipboard::ClearText();
+  } else {
+    ContentChild::GetSingleton()->SendEmptyClipboard();
+  }
 
   return NS_OK;
 }
@@ -98,7 +113,11 @@ nsClipboard::HasDataMatchingFlavors(const char **aFlavorList,
   *aHasText = false;
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
-  *aHasText = Clipboard::HasText();
+  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    *aHasText = Clipboard::HasText();
+  } else {
+    ContentChild::GetSingleton()->SendClipboardHasText(aHasText);
+  }
   return NS_OK;
 }
 
@@ -109,9 +128,3 @@ nsClipboard::SupportsSelectionClipboard(bool *aIsSupported)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsClipboard::SupportsFindClipboard(bool* _retval)
-{
-  *_retval = false;
-  return NS_OK;
-}

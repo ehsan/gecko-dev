@@ -29,7 +29,7 @@ namespace layers {
 class ImageDataSerializerBase
 {
 public:
-  bool IsValid() const { return mIsValid; }
+  bool IsValid() const;
 
   uint8_t* GetData();
   uint32_t GetStride() const;
@@ -39,22 +39,11 @@ public:
   TemporaryRef<gfxImageSurface> GetAsThebesSurface();
   TemporaryRef<gfx::DrawTarget> GetAsDrawTarget();
 
-  static uint32_t ComputeMinBufferSize(gfx::IntSize aSize,
-                                       gfx::SurfaceFormat aFormat);
-
 protected:
 
-  ImageDataSerializerBase(uint8_t* aData, size_t aDataSize)
-    : mData(aData)
-    , mDataSize(aDataSize)
-    , mIsValid(false)
-  {}
-
-  void Validate();
-
+  ImageDataSerializerBase(uint8_t* aData)
+  : mData(aData) {}
   uint8_t* mData;
-  size_t mDataSize;
-  bool mIsValid;
 };
 
 /**
@@ -67,14 +56,11 @@ protected:
 class MOZ_STACK_CLASS ImageDataSerializer : public ImageDataSerializerBase
 {
 public:
-  ImageDataSerializer(uint8_t* aData, size_t aDataSize)
-    : ImageDataSerializerBase(aData, aDataSize)
-  {
-    // a serializer needs to be usable before correct buffer info has been written to it
-    mIsValid = !!mData;
-  }
+  ImageDataSerializer(uint8_t* aData) : ImageDataSerializerBase(aData) {}
   void InitializeBufferInfo(gfx::IntSize aSize,
                             gfx::SurfaceFormat aFormat);
+  static uint32_t ComputeMinBufferSize(gfx::IntSize aSize,
+                                       gfx::SurfaceFormat aFormat);
 };
 
 /**
@@ -84,11 +70,7 @@ public:
 class MOZ_STACK_CLASS ImageDataDeserializer : public ImageDataSerializerBase
 {
 public:
-  ImageDataDeserializer(uint8_t* aData, size_t aDataSize)
-    : ImageDataSerializerBase(aData, aDataSize)
-  {
-    Validate();
-  }
+  ImageDataDeserializer(uint8_t* aData) : ImageDataSerializerBase(aData) {}
 };
 
 } // namespace layers

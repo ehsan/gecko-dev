@@ -27,7 +27,6 @@
 #include "nsLayoutUtils.h"
 #include "Layers.h"
 #include "gfxPlatform.h"
-#include "gfxPrefs.h"
 #include "nsIDocument.h"
 
 /**
@@ -485,7 +484,7 @@ void nsViewManager::FlushDirtyRegionToWidget(nsView* aView)
 
   // If we draw the frame counter we need to make sure we invalidate the area
   // for it to make it on screen
-  if (gfxPrefs::DrawFrameCounter()) {
+  if (gfxPlatform::DrawFrameCounter()) {
     nsRect counterBounds = gfxPlatform::FrameCounterBounds().ToAppUnits(AppUnitsPerDevPixel());
     r = r.Or(r, counterBounds);
   }

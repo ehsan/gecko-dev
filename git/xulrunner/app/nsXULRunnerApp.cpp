@@ -78,7 +78,7 @@ static bool IsArg(const char* arg, const char* s)
     return !strcasecmp(arg, s);
   }
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
   if (*arg == '/')
     return !strcasecmp(++arg, s);
 #endif

@@ -20,6 +20,7 @@ import org.mozilla.gecko.background.fxa.FxAccountClient20;
 import org.mozilla.gecko.background.fxa.FxAccountClient20.LoginResponse;
 import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
 import org.mozilla.gecko.background.fxa.PasswordStretcher;
+import org.mozilla.gecko.background.fxa.QuickPasswordStretcher;
 import org.mozilla.gecko.fxa.FxAccountConstants;
 import org.mozilla.gecko.fxa.activities.FxAccountSetupTask.FxAccountCreateAccountTask;
 
@@ -205,7 +206,7 @@ public class FxAccountCreateAccountActivity extends FxAccountAbstractSetupActivi
 
   public void createAccount(String email, String password, Map<String, Boolean> engines) {
     String serverURI = FxAccountConstants.DEFAULT_AUTH_SERVER_ENDPOINT;
-    PasswordStretcher passwordStretcher = makePasswordStretcher(password);
+    PasswordStretcher passwordStretcher = new QuickPasswordStretcher(password);
     // This delegate creates a new Android account on success, opens the
     // appropriate "success!" activity, and finishes this activity.
     RequestDelegate<LoginResponse> delegate = new AddAccountDelegate(email, passwordStretcher, serverURI, engines) {

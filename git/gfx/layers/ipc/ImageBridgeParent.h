@@ -42,8 +42,6 @@ public:
   ImageBridgeParent(MessageLoop* aLoop, Transport* aTransport);
   ~ImageBridgeParent();
 
-  virtual LayersBackend GetCompositorBackendType() const MOZ_OVERRIDE;
-
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   static PImageBridgeParent*
@@ -95,8 +93,6 @@ public:
   {
     PImageBridgeParent::DeallocShmem(aShmem);
   }
-
-  virtual bool IsSameProcess() const MOZ_OVERRIDE;
 
   // Overriden from IToplevelProtocol
   IToplevelProtocol*

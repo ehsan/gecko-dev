@@ -44,7 +44,7 @@ nsFieldSetFrame::GetType() const
 }
 
 #ifdef DEBUG
-nsresult
+NS_IMETHODIMP
 nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
                                      nsFrameList&   aChildList)
 {
@@ -106,10 +106,9 @@ public:
 #endif
 
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState,
-                       nsTArray<nsIFrame*> *aOutFrames) MOZ_OVERRIDE;
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+                     nsRenderingContext* aCtx);
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
                                          nsRegion *aInvalidRegion) MOZ_OVERRIDE;
@@ -339,7 +338,7 @@ nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
   return result;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
                         nsHTMLReflowMetrics&     aDesiredSize,
                         const nsHTMLReflowState& aReflowState,
@@ -405,7 +404,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     legendReflowState.construct(aPresContext, aReflowState, legend, availSize);
   }
   if (reflowLegend) {
-    nsHTMLReflowMetrics legendDesiredSize(aReflowState);
+    nsHTMLReflowMetrics legendDesiredSize(aReflowState.GetWritingMode());
 
     ReflowChild(legend, aPresContext, legendDesiredSize, legendReflowState.ref(),
                 0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
@@ -470,7 +469,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
         std::max(0, aReflowState.ComputedMaxHeight() - mLegendSpace);
     }
 
-    nsHTMLReflowMetrics kidDesiredSize(kidReflowState,
+    nsHTMLReflowMetrics kidDesiredSize(kidReflowState.GetWritingMode(),
                                        aDesiredSize.mFlags);
     // Reflow the frame
     NS_ASSERTION(kidReflowState.ComputedPhysicalMargin() == nsMargin(0,0,0,0),
@@ -557,7 +556,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsFieldSetFrame::AppendFrames(ChildListID    aListID,
                               nsFrameList&   aFrameList)
 {
@@ -565,7 +564,7 @@ nsFieldSetFrame::AppendFrames(ChildListID    aListID,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsresult
+NS_IMETHODIMP
 nsFieldSetFrame::InsertFrames(ChildListID    aListID,
                               nsIFrame*      aPrevFrame,
                               nsFrameList&   aFrameList)
@@ -574,7 +573,7 @@ nsFieldSetFrame::InsertFrames(ChildListID    aListID,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsresult
+NS_IMETHODIMP
 nsFieldSetFrame::RemoveFrame(ChildListID    aListID,
                              nsIFrame*      aOldFrame)
 {

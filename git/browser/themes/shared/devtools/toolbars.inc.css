@@ -4,11 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 %endif
 %filter substitution
-%define smallSeparatorDark linear-gradient(transparent 15%, #5a6169 15%, #5a6169 85%, transparent 85%)
-%define smallSeparatorLight linear-gradient(transparent 15%, #aaa 15%, #aaa 85%, transparent 85%)
-%define solidSeparatorDark linear-gradient(#2d5b7d, #2d5b7d)
-%define solidSeparatorLight linear-gradient(#aaa, #aaa)
-
+%define smallSeparator linear-gradient(transparent 15%, #5a6169 15%, #5a6169 85%, transparent 85%)
+%define solidSeparator linear-gradient(#2d5b7d, #2d5b7d)
 
 .devtools-toolbar {
   -moz-appearance: none;
@@ -387,69 +384,62 @@
 
 .devtools-sidebar-tabs > tabs > tab {
   background-color: transparent;
-}
-
-.theme-dark .devtools-sidebar-tabs > tabs > tab {
-  background-image: linear-gradient(transparent, transparent), @smallSeparatorDark@;
+  background-image: linear-gradient(transparent, transparent), @smallSeparator@;
 }
 
 .theme-dark .devtools-sidebar-tabs > tabs > tab:hover {
-  background-image: linear-gradient(hsla(206,37%,4%,.2), hsla(206,37%,4%,.2)), @smallSeparatorDark@;
+  background-image: linear-gradient(hsla(206,37%,4%,.2), hsla(206,37%,4%,.2)), @smallSeparator@;
 }
 
 .theme-dark .devtools-sidebar-tabs > tabs > tab:hover:active {
-  background-image: linear-gradient(hsla(206,37%,4%,.4), hsla(206,37%,4%,.4)), @smallSeparatorDark@;
+  background-image: linear-gradient(hsla(206,37%,4%,.4), hsla(206,37%,4%,.4)), @smallSeparator@;
 }
 
 .theme-dark .devtools-sidebar-tabs > tabs > tab[selected] + tab {
-  background-image: linear-gradient(transparent, transparent), @solidSeparatorDark@;
+  background-image: linear-gradient(transparent, transparent), @solidSeparator@;
 }
 
 .theme-dark .devtools-sidebar-tabs > tabs > tab[selected] + tab:hover {
-  background-image: linear-gradient(hsla(206,37%,4%,.2), hsla(206,37%,4%,.2)), @solidSeparatorDark@;
+  background-image: linear-gradient(hsla(206,37%,4%,.2), hsla(206,37%,4%,.2)), @solidSeparator@;
 }
 
 .theme-dark .devtools-sidebar-tabs > tabs > tab[selected] + tab:hover:active {
-  background-image: linear-gradient(hsla(206,37%,4%,.4), hsla(206,37%,4%,.4)), @solidSeparatorDark@;
+  background-image: linear-gradient(hsla(206,37%,4%,.4), hsla(206,37%,4%,.4)), @solidSeparator@;
 }
 
 .theme-dark .devtools-sidebar-tabs > tabs > tab[selected] {
   color: #f5f7fa;
-  background-image: linear-gradient(#1d4f73, #1d4f73), @solidSeparatorDark@;
+  background-image: linear-gradient(#1d4f73, #1d4f73), @solidSeparator@;
 }
 
 .theme-dark .devtools-sidebar-tabs > tabs > tab[selected]:hover {
-  background-image: linear-gradient(#274f64, #274f64), @solidSeparatorDark@;
+  background-image: linear-gradient(#274f64, #274f64), @solidSeparator@;
 }
 
 .theme-dark .devtools-sidebar-tabs > tabs > tab[selected]:hover:active {
-  background-image: linear-gradient(#1f3e4f, #1f3e4f), @solidSeparatorDark@;
-}
-
-.theme-light .devtools-sidebar-tabs > tabs > tab {
-  background-image: linear-gradient(transparent, transparent), @smallSeparatorLight@;
+  background-image: linear-gradient(#1f3e4f, #1f3e4f), @solidSeparator@;
 }
 
 .theme-light .devtools-sidebar-tabs > tabs > tab:hover {
-  background-image: linear-gradient(#ddd, #ddd), @smallSeparatorLight@;
+  background-image: linear-gradient(#ddd, #ddd), @smallSeparator@;
 }
 
 .theme-light .devtools-sidebar-tabs > tabs > tab:hover:active {
-  background-image: linear-gradient(#ddd, #ddd), @smallSeparatorLight@;
+  background-image: linear-gradient(#ddd, #ddd), @smallSeparator@;
 }
 
 .theme-light .devtools-sidebar-tabs > tabs > tab[selected] + tab {
-  background-image: linear-gradient(transparent, transparent), @solidSeparatorLight@;
+  background-image: linear-gradient(transparent, transparent), @solidSeparator@;
 }
 
 .theme-light .devtools-sidebar-tabs > tabs > tab[selected] + tab:hover {
-  background-image: linear-gradient(#ddd, #ddd), @solidSeparatorLight@;
+  background-image: linear-gradient(#ddd, #ddd), @solidSeparator@;
 }
 
 .theme-light .devtools-sidebar-tabs > tabs > tab[selected],
 .theme-light .devtools-sidebar-tabs > tabs > tab[selected]:hover:active {
   color: #f5f7fa;
-  background-image: linear-gradient(#4c9ed9, #4c9ed9), @solidSeparatorLight@;
+  background-image: linear-gradient(#4c9ed9, #4c9ed9), @solidSeparator@;
 }
 
 /* Toolbox - moved from toolbox.css.

@@ -28,7 +28,7 @@
 #include "nsFrameSetFrame.h"
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsIScrollable.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsDisplayList.h"
 #include "nsIScrollableFrame.h"
 #include "nsIObjectLoadingContent.h"
@@ -373,31 +373,18 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   nsRect dirty;
   bool haveDisplayPort = false;
-  bool ignoreViewportScrolling = false;
-  nsIFrame* savedIgnoreScrollFrame = nullptr;
   if (subdocRootFrame) {
-    // get the dirty rect relative to the root frame of the subdoc
-    dirty = aDirtyRect + GetOffsetToCrossDoc(subdocRootFrame);
-    // and convert into the appunits of the subdoc
-    dirty = dirty.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
-
-    if (nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame()) {
-      // for root content documents we want the base to be the composition bounds
-      nsRect displayportBase = presContext->IsRootContentDocument() ?
-          nsRect(nsPoint(0,0), nsLayoutUtils::CalculateCompositionSizeForFrame(rootScrollFrame)) :
-          dirty;
-      nsRect displayPort;
-      if (nsLayoutUtils::GetOrMaybeCreateDisplayPort(
-            *aBuilder, rootScrollFrame, displayportBase, &displayPort)) {
-        haveDisplayPort = true;
-        dirty = displayPort;
-      }
-
-      ignoreViewportScrolling = presShell->IgnoringViewportScrolling();
-      if (ignoreViewportScrolling) {
-        savedIgnoreScrollFrame = aBuilder->GetIgnoreScrollFrame();
-        aBuilder->SetIgnoreScrollFrame(rootScrollFrame);
-      }
+    nsIDocument* doc = subdocRootFrame->PresContext()->Document();
+    nsIContent* root = doc ? doc->GetRootElement() : nullptr;
+    nsRect displayPort;
+    if (root && nsLayoutUtils::GetDisplayPort(root, &displayPort)) {
+      haveDisplayPort = true;
+      dirty = displayPort;
+    } else {
+      // get the dirty rect relative to the root frame of the subdoc
+      dirty = aDirtyRect + GetOffsetToCrossDoc(subdocRootFrame);
+      // and convert into the appunits of the subdoc
+      dirty = dirty.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
     }
 
     aBuilder->EnterPresShell(subdocRootFrame, dirty);
@@ -415,13 +402,6 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   bool needsOwnLayer = constructResolutionItem || constructZoomItem ||
     haveDisplayPort ||
     presContext->IsRootContentDocument() || (sf && sf->IsScrollingActive());
-
-  // Don't let in fixed pos propagate down to child documents. This makes
-  // it a little less effective but doesn't regress an important case of a
-  // child document being in a fixed pos element where we would do no occlusion
-  // at all if we let it propagate down.
-  nsDisplayListBuilder::AutoInFixedPosSetter
-    buildingInFixedPos(aBuilder, false);
 
   nsDisplayList childItems;
 
@@ -472,50 +452,33 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   // Generate a resolution and/or zoom item if needed. If one or both of those is
-  // created, we don't need to create a separate nsDisplaySubDocument.
+  // created, we don't need to create a separate nsDisplayOwnLayer.
 
-  uint32_t flags = nsDisplayOwnLayer::GENERATE_SUBDOC_INVALIDATIONS;
-  // If ignoreViewportScrolling is true then the top most layer we create here
-  // is going to become the scrollable layer for the root scroll frame, so we
-  // want to add nsDisplayOwnLayer::GENERATE_SCROLLABLE_LAYER to whatever layer
-  // becomes the topmost. We do this below.
-  if (constructZoomItem) {
-    uint32_t zoomFlags = flags;
-    if (ignoreViewportScrolling && !constructResolutionItem) {
-      zoomFlags |= nsDisplayOwnLayer::GENERATE_SCROLLABLE_LAYER;
-    }
-    nsDisplayZoom* zoomItem =
-      new (aBuilder) nsDisplayZoom(aBuilder, subdocRootFrame, &childItems,
-                                   subdocAPD, parentAPD, zoomFlags);
-    childItems.AppendToTop(zoomItem);
-    needsOwnLayer = false;
-  }
-  // Wrap the zoom item in the resolution item if we have both because we want the
-  // resolution scale applied on top of the app units per dev pixel conversion.
-  if (ignoreViewportScrolling) {
-    flags |= nsDisplayOwnLayer::GENERATE_SCROLLABLE_LAYER;
-  }
   if (constructResolutionItem) {
     nsDisplayResolution* resolutionItem =
       new (aBuilder) nsDisplayResolution(aBuilder, subdocRootFrame, &childItems,
-                                         flags);
+                                         nsDisplayOwnLayer::GENERATE_SUBDOC_INVALIDATIONS);
     childItems.AppendToTop(resolutionItem);
+    needsOwnLayer = false;
+  }
+  if (constructZoomItem) {
+    nsDisplayZoom* zoomItem =
+      new (aBuilder) nsDisplayZoom(aBuilder, subdocRootFrame, &childItems,
+                                   subdocAPD, parentAPD,
+                                   nsDisplayOwnLayer::GENERATE_SUBDOC_INVALIDATIONS);
+    childItems.AppendToTop(zoomItem);
     needsOwnLayer = false;
   }
   if (needsOwnLayer) {
     // We always want top level content documents to be in their own layer.
-    nsDisplaySubDocument* layerItem = new (aBuilder) nsDisplaySubDocument(
+    nsDisplayOwnLayer* layerItem = new (aBuilder) nsDisplayOwnLayer(
       aBuilder, subdocRootFrame ? subdocRootFrame : this,
-      &childItems, flags);
+      &childItems, nsDisplayOwnLayer::GENERATE_SUBDOC_INVALIDATIONS);
     childItems.AppendToTop(layerItem);
   }
 
   if (subdocRootFrame) {
     aBuilder->LeavePresShell(subdocRootFrame, dirty);
-
-    if (ignoreViewportScrolling) {
-      aBuilder->SetIgnoreScrollFrame(savedIgnoreScrollFrame);
-    }
   }
 
   if (aBuilder->IsForImageVisibility()) {
@@ -582,7 +545,7 @@ nsSubDocumentFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
   }
 }
 
-nsresult nsSubDocumentFrame::GetFrameName(nsAString& aResult) const
+NS_IMETHODIMP nsSubDocumentFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("FrameOuter"), aResult);
 }
@@ -682,7 +645,7 @@ nsSubDocumentFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                   aMargin, aBorder, aPadding, aFlags);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -770,7 +733,7 @@ nsSubDocumentFrame::ReflowCallbackCanceled()
   mPostedReflowCallback = false;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSubDocumentFrame::AttributeChanged(int32_t aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      int32_t aModType)

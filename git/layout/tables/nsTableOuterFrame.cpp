@@ -125,7 +125,7 @@ nsTableCaptionFrame::AccessibleType()
 #endif
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsTableCaptionFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Caption"), aResult);
@@ -188,7 +188,7 @@ nsTableOuterFrame::GetChildLists(nsTArray<ChildList>* aLists) const
   mCaptionFrames.AppendIfNonempty(aLists, kCaptionList);
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsTableOuterFrame::SetInitialChildList(ChildListID     aListID,
                                        nsFrameList&    aChildList)
 {
@@ -208,7 +208,7 @@ nsTableOuterFrame::SetInitialChildList(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableOuterFrame::AppendFrames(ChildListID     aListID,
                                 nsFrameList&    aFrameList)
 {
@@ -237,7 +237,7 @@ nsTableOuterFrame::AppendFrames(ChildListID     aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableOuterFrame::InsertFrames(ChildListID     aListID,
                                 nsIFrame*       aPrevFrame,
                                 nsFrameList&    aFrameList)
@@ -263,7 +263,7 @@ nsTableOuterFrame::InsertFrames(ChildListID     aListID,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableOuterFrame::RemoveFrame(ChildListID     aListID,
                                nsIFrame*       aOldFrame)
 {
@@ -879,7 +879,7 @@ nsTableOuterFrame::UpdateReflowMetrics(uint8_t              aCaptionSide,
   }
 }
 
-nsresult nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
+NS_METHOD nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
                                     nsHTMLReflowMetrics&     aDesiredSize,
                                     const nsHTMLReflowState& aOuterRS,
                                     nsReflowStatus&          aStatus)
@@ -897,7 +897,7 @@ nsresult nsTableOuterFrame::Reflow(nsPresContext*           aPresContext,
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     // Set up our kids.  They're already present, on an overflow list, 
     // or there are none so we'll create them now
-    MoveOverflowToChildList();
+    MoveOverflowToChildList(aPresContext);
   }
 
   // Use longs to get more-aligned space.
@@ -1104,7 +1104,7 @@ NS_NewTableOuterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsTableOuterFrame)
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsTableOuterFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("TableOuter"), aResult);

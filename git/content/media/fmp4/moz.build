@@ -54,17 +54,15 @@ UNIFIED_SOURCES += [
 if CONFIG['MOZ_WMF']:
   EXPORTS += [
       'wmf/MFTDecoder.h',
-      'wmf/WMFAudioOutputSource.h',
+      'wmf/WMFAudioDecoder.h',
       'wmf/WMFDecoderModule.h',
-      'wmf/WMFMediaDataDecoder.h',
-      'wmf/WMFVideoOutputSource.h',
+      'wmf/WMFVideoDecoder.h',
   ]
   UNIFIED_SOURCES += [
       'wmf/MFTDecoder.cpp',
-      'wmf/WMFAudioOutputSource.cpp',
+      'wmf/WMFAudioDecoder.cpp',
       'wmf/WMFDecoderModule.cpp',
-      'wmf/WMFMediaDataDecoder.cpp',
-      'wmf/WMFVideoOutputSource.cpp',
+      'wmf/WMFVideoDecoder.cpp',
   ]
 
 FINAL_LIBRARY = 'gklayout'

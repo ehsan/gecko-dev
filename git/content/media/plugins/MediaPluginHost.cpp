@@ -20,7 +20,9 @@
 
 #include "MPAPI.h"
 
+#if defined(ANDROID) && !defined(MOZ_WIDGET_GONK)
 #include "nsIPropertyBag2.h"
+#endif
 
 #if defined(ANDROID) || defined(MOZ_WIDGET_GONK)
 #include "android/log.h"
@@ -92,7 +94,7 @@ static PluginHost sPluginHost = {
   nullptr,
   nullptr,
   GetIntPref,
-  GetSystemInfoString
+  GetSystemInfoString,
 };
 
 // Return true if Omx decoding is supported on the device. This checks the

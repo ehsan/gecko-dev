@@ -9,7 +9,7 @@
 #include "nsAccessibilityService.h"
 #include "DocAccessible.h"
 
-#include "mozilla/dom/Element.h"
+#include "nsINodeList.h"
 
 using namespace mozilla::a11y;
 
@@ -39,9 +39,9 @@ struct WalkState
 ////////////////////////////////////////////////////////////////////////////////
 
 TreeWalker::
-  TreeWalker(Accessible* aContext, nsIContent* aContent, uint32_t aFlags) :
+  TreeWalker(Accessible* aContext, nsIContent* aContent, bool aWalkCache) :
   mDoc(aContext->Document()), mContext(aContext),
-  mFlags(aFlags), mState(nullptr)
+  mWalkCache(aWalkCache), mState(nullptr)
 {
   NS_ASSERTION(aContent, "No node for the accessible tree walker!");
 
@@ -86,8 +86,7 @@ TreeWalker::NextChildInternal(bool aNoWalkUp)
     mState->childIdx++;
 
     bool isSubtreeHidden = false;
-    Accessible* accessible = mFlags & eWalkCache ?
-      mDoc->GetAccessible(childNode) :
+    Accessible* accessible = mWalkCache ? mDoc->GetAccessible(childNode) :
       GetAccService()->GetOrCreateAccessible(childNode, mContext,
                                              &isSubtreeHidden);
 
@@ -96,7 +95,9 @@ TreeWalker::NextChildInternal(bool aNoWalkUp)
 
     // Walk down into subtree to find accessibles.
     if (!isSubtreeHidden) {
-      PushState(childNode);
+      if (!PushState(childNode))
+        break;
+
       accessible = NextChildInternal(true);
       if (accessible)
         return accessible;
@@ -104,42 +105,9 @@ TreeWalker::NextChildInternal(bool aNoWalkUp)
   }
 
   // No more children, get back to the parent.
-  nsIContent* anchorNode = mState->content;
   PopState();
-  if (aNoWalkUp)
-    return nullptr;
 
-  if (mState)
-    return NextChildInternal(false);
-
-  // If we traversed the whole subtree of the anchor node. Move to next node
-  // relative anchor node within the context subtree if possible.
-  if (mFlags != eWalkContextTree)
-    return nullptr;
-
-  while (anchorNode != mContext->GetNode()) {
-    nsINode* parentNode = anchorNode->GetFlattenedTreeParent();
-    if (!parentNode || !parentNode->IsElement())
-      return nullptr;
-
-    PushState(parentNode->AsElement());
-    mState->childList = mState->content->GetChildren(mChildFilter);
-    length = 0;
-    if (mState->childList)
-      mState->childList->GetLength(&length);
-
-    while (mState->childIdx < length) {
-      nsIContent* childNode = mState->childList->Item(mState->childIdx);
-      mState->childIdx++;
-      if (childNode == anchorNode)
-        return NextChildInternal(false);
-    }
-    PopState();
-
-    anchorNode = parentNode->AsElement();
-  }
-
-  return nullptr;
+  return aNoWalkUp ? nullptr : NextChildInternal(false);
 }
 
 void
@@ -150,10 +118,15 @@ TreeWalker::PopState()
   mState = prevToLastState;
 }
 
-void
+bool
 TreeWalker::PushState(nsIContent* aContent)
 {
   WalkState* nextToLastState = new WalkState(aContent);
+  if (!nextToLastState)
+    return false;
+
   nextToLastState->prevState = mState;
   mState = nextToLastState;
+
+  return true;
 }

@@ -283,28 +283,23 @@ private:
 
 struct Closure
 {
-  Closure(nsCycleCollectionNoteRootCallback* aCb)
-    : mCycleCollectionEnabled(true), mCb(aCb)
-  {
-  }
-
-  bool mCycleCollectionEnabled;
-  nsCycleCollectionNoteRootCallback* mCb;
+  bool cycleCollectionEnabled;
+  nsCycleCollectionNoteRootCallback *cb;
 };
 
 static void
-CheckParticipatesInCycleCollection(void* aThing, const char* aName, void* aClosure)
+CheckParticipatesInCycleCollection(void *aThing, const char *name, void *aClosure)
 {
-  Closure* closure = static_cast<Closure*>(aClosure);
+  Closure *closure = static_cast<Closure*>(aClosure);
 
-  if (closure->mCycleCollectionEnabled) {
+  if (closure->cycleCollectionEnabled) {
     return;
   }
 
   if (AddToCCKind(js::GCThingTraceKind(aThing)) &&
       xpc_IsGrayGCThing(aThing))
   {
-    closure->mCycleCollectionEnabled = true;
+    closure->cycleCollectionEnabled = true;
   }
 }
 
@@ -313,17 +308,10 @@ NoteJSHolder(void *holder, nsScriptObjectTracer *&tracer, void *arg)
 {
   Closure *closure = static_cast<Closure*>(arg);
 
-  bool noteRoot;
-  if (MOZ_UNLIKELY(closure->mCb->WantAllTraces())) {
-    noteRoot = true;
-  } else {
-    closure->mCycleCollectionEnabled = false;
-    tracer->Trace(holder, TraceCallbackFunc(CheckParticipatesInCycleCollection), closure);
-    noteRoot = closure->mCycleCollectionEnabled;
-  }
-
-  if (noteRoot) {
-    closure->mCb->NoteNativeRoot(holder, tracer);
+  closure->cycleCollectionEnabled = false;
+  tracer->Trace(holder, TraceCallbackFunc(CheckParticipatesInCycleCollection), closure);
+  if (closure->cycleCollectionEnabled) {
+    closure->cb->NoteNativeRoot(holder, tracer);
   }
 
   return PL_DHASH_NEXT;
@@ -448,8 +436,7 @@ NoteJSChildGrayWrapperShim(void* aData, void* aThing)
 // CycleCollectedJSRuntime. It should never be used directly.
 static const JSZoneParticipant sJSZoneCycleCollectorGlobal;
 
-CycleCollectedJSRuntime::CycleCollectedJSRuntime(JSRuntime* aParentRuntime,
-                                                 uint32_t aMaxbytes,
+CycleCollectedJSRuntime::CycleCollectedJSRuntime(uint32_t aMaxbytes,
                                                  JSUseHelperThreads aUseHelperThreads)
   : mGCThingCycleCollectorGlobal(sGCThingCycleCollectorGlobal),
     mJSZoneCycleCollectorGlobal(sJSZoneCycleCollectorGlobal),
@@ -458,7 +445,7 @@ CycleCollectedJSRuntime::CycleCollectedJSRuntime(JSRuntime* aParentRuntime,
 {
   mozilla::dom::InitScriptSettings();
 
-  mJSRuntime = JS_NewRuntime(aMaxbytes, aUseHelperThreads, aParentRuntime);
+  mJSRuntime = JS_NewRuntime(aMaxbytes, aUseHelperThreads);
   if (!mJSRuntime) {
     MOZ_CRASH();
   }
@@ -561,8 +548,7 @@ CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, void* aThing,
       "BaseShape",
       "TypeObject",
     };
-    static_assert(MOZ_ARRAY_LENGTH(trace_types) == JSTRACE_LAST + 1,
-                  "JSTRACE_LAST enum must match trace_types count.");
+    JS_STATIC_ASSERT(MOZ_ARRAY_LENGTH(trace_types) == JSTRACE_LAST + 1);
     JS_snprintf(name, sizeof(name), "JS %s", trace_types[aTraceKind]);
   }
 
@@ -703,7 +689,7 @@ CycleCollectedJSRuntime::TraverseNativeRoots(nsCycleCollectionNoteRootCallback& 
   // would hurt to do this after the JS holders.
   TraverseAdditionalNativeRoots(aCb);
 
-  Closure closure(&aCb);
+  Closure closure = { true, &aCb };
   mJSHolders.Enumerate(NoteJSHolder, &closure);
 }
 
@@ -759,9 +745,6 @@ struct JsGcTracer : public TraceCallbacks
   virtual void Trace(JS::Heap<JSObject *> *p, const char *name, void *closure) const MOZ_OVERRIDE {
     JS_CallHeapObjectTracer(static_cast<JSTracer*>(closure), p, name);
   }
-  virtual void Trace(JS::TenuredHeap<JSObject *> *p, const char *name, void *closure) const MOZ_OVERRIDE {
-    JS_CallTenuredObjectTracer(static_cast<JSTracer*>(closure), p, name);
-  }
   virtual void Trace(JS::Heap<JSString *> *p, const char *name, void *closure) const MOZ_OVERRIDE {
     JS_CallHeapStringTracer(static_cast<JSTracer*>(closure), p, name);
   }
@@ -810,11 +793,6 @@ struct ClearJSHolder : TraceCallbacks
   }
 
   virtual void Trace(JS::Heap<JSObject*>* aPtr, const char*, void*) const MOZ_OVERRIDE
-  {
-    *aPtr = nullptr;
-  }
-
-  virtual void Trace(JS::TenuredHeap<JSObject*>* aPtr, const char*, void*) const MOZ_OVERRIDE
   {
     *aPtr = nullptr;
   }
@@ -897,6 +875,16 @@ CycleCollectedJSRuntime::ZoneParticipant()
 nsresult
 CycleCollectedJSRuntime::TraverseRoots(nsCycleCollectionNoteRootCallback &aCb)
 {
+  static bool gcHasRun = false;
+  if (!gcHasRun) {
+    uint32_t gcNumber = JS_GetGCParameter(mJSRuntime, JSGC_NUMBER);
+    if (!gcNumber) {
+      // Cannot cycle collect if GC has not run first!
+      MOZ_CRASH();
+    }
+    gcHasRun = true;
+  }
+
   TraverseNativeRoots(aCb);
 
   NoteWeakMapsTracer trc(mJSRuntime, TraceWeakMapping, aCb);

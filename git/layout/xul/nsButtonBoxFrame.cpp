@@ -8,7 +8,7 @@
 #include "nsIDOMNodeList.h"
 #include "nsIDOMXULButtonElement.h"
 #include "nsGkAtoms.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsEventStateManager.h"
@@ -45,7 +45,7 @@ nsButtonBoxFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
   nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
 }
 
-nsresult
+NS_IMETHODIMP
 nsButtonBoxFrame::HandleEvent(nsPresContext* aPresContext, 
                               WidgetGUIEvent* aEvent,
                               nsEventStatus* aEventStatus)

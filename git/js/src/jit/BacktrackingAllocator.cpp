@@ -479,7 +479,7 @@ BacktrackingAllocator::processInterval(LiveInterval *interval)
     bool canAllocate = setIntervalRequirement(interval);
 
     bool fixed;
-    LiveInterval *conflict = nullptr;
+    LiveInterval *conflict;
     for (size_t attempt = 0;; attempt++) {
         if (canAllocate) {
             bool success = false;
@@ -520,7 +520,7 @@ BacktrackingAllocator::processInterval(LiveInterval *interval)
 
         if (canAllocate && fixed)
             return splitAcrossCalls(interval);
-        return chooseIntervalSplit(interval, conflict);
+        return chooseIntervalSplit(interval);
     }
 }
 
@@ -583,13 +583,8 @@ BacktrackingAllocator::setIntervalRequirement(LiveInterval *interval)
 
     // Set a hint if another interval in the same group is in a register.
     if (VirtualRegisterGroup *group = reg->group()) {
-        if (group->allocation.isRegister()) {
-            if (IonSpewEnabled(IonSpew_RegAlloc)) {
-                IonSpew(IonSpew_RegAlloc, "Hint %s, used by group allocation",
-                        group->allocation.toString());
-            }
+        if (group->allocation.isRegister())
             interval->setHint(Requirement(group->allocation));
-        }
     }
 
     if (interval->index() == 0) {
@@ -599,10 +594,6 @@ BacktrackingAllocator::setIntervalRequirement(LiveInterval *interval)
         LDefinition::Policy policy = reg->def()->policy();
         if (policy == LDefinition::PRESET) {
             // Preset policies get a FIXED requirement.
-            if (IonSpewEnabled(IonSpew_RegAlloc)) {
-                IonSpew(IonSpew_RegAlloc, "Requirement %s, preset by definition",
-                        reg->def()->output()->toString());
-            }
             interval->setRequirement(Requirement(*reg->def()->output()));
         } else if (reg->ins()->isPhi()) {
             // Phis don't have any requirements, but they should prefer their
@@ -621,11 +612,6 @@ BacktrackingAllocator::setIntervalRequirement(LiveInterval *interval)
         LUse::Policy policy = iter->use->policy();
         if (policy == LUse::FIXED) {
             AnyRegister required = GetFixedRegister(reg->def(), iter->use);
-
-            if (IonSpewEnabled(IonSpew_RegAlloc)) {
-                IonSpew(IonSpew_RegAlloc, "Requirement %s, due to use at %u",
-                        required.name(), iter->pos.pos());
-            }
 
             // If there are multiple fixed registers which the interval is
             // required to use, fail. The interval will need to be split before
@@ -1529,11 +1515,10 @@ BacktrackingAllocator::trySplitAcrossHotcode(LiveInterval *interval, bool *succe
 }
 
 bool
-BacktrackingAllocator::trySplitAfterLastRegisterUse(LiveInterval *interval, LiveInterval *conflict, bool *success)
+BacktrackingAllocator::trySplitAfterLastRegisterUse(LiveInterval *interval, bool *success)
 {
     // If this interval's later uses do not require it to be in a register,
-    // split it after the last use which does require a register. If conflict
-    // is specified, only consider register uses before the conflict starts.
+    // split it after the last use which does require a register.
 
     CodePosition lastRegisterFrom, lastRegisterTo, lastUse;
 
@@ -1548,11 +1533,9 @@ BacktrackingAllocator::trySplitAfterLastRegisterUse(LiveInterval *interval, Live
         JS_ASSERT(iter->pos >= lastUse);
         lastUse = inputOf(ins);
 
-        if (!conflict || outputOf(ins) < conflict->start()) {
-            if (isRegisterUse(use, ins, /* considerCopy = */ true)) {
-                lastRegisterFrom = inputOf(ins);
-                lastRegisterTo = iter->pos.next();
-            }
+        if (isRegisterUse(use, ins, /* considerCopy = */ true)) {
+            lastRegisterFrom = inputOf(ins);
+            lastRegisterTo = iter->pos.next();
         }
     }
 
@@ -1798,7 +1781,7 @@ BacktrackingAllocator::splitAcrossCalls(LiveInterval *interval)
 }
 
 bool
-BacktrackingAllocator::chooseIntervalSplit(LiveInterval *interval, LiveInterval *conflict)
+BacktrackingAllocator::chooseIntervalSplit(LiveInterval *interval)
 {
     bool success = false;
 
@@ -1807,7 +1790,7 @@ BacktrackingAllocator::chooseIntervalSplit(LiveInterval *interval, LiveInterval 
     if (success)
         return true;
 
-    if (!trySplitAfterLastRegisterUse(interval, conflict, &success))
+    if (!trySplitAfterLastRegisterUse(interval, &success))
         return false;
     if (success)
         return true;

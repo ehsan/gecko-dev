@@ -37,14 +37,6 @@ CallObject::setAliasedVar(JSContext *cx, AliasedFormalIter fi, PropertyName *nam
         types::AddTypePropertyId(cx, this, NameToId(name), v);
 }
 
-inline void
-CallObject::setAliasedVarFromArguments(JSContext *cx, const Value &argsValue, jsid id, const Value &v)
-{
-    setSlot(argsValue.magicUint32(), v);
-    if (hasSingletonType())
-        types::AddTypePropertyId(cx, this, id, v);
-}
-
 template <AllowGC allowGC>
 inline bool
 StaticScopeIter<allowGC>::done() const
@@ -56,15 +48,15 @@ template <AllowGC allowGC>
 inline void
 StaticScopeIter<allowGC>::operator++(int)
 {
-    if (obj->template is<NestedScopeObject>()) {
-        obj = obj->template as<NestedScopeObject>().enclosingScopeForStaticScopeIter();
+    if (obj->template is<StaticBlockObject>()) {
+        obj = obj->template as<StaticBlockObject>().enclosingStaticScope();
     } else if (onNamedLambda || !obj->template as<JSFunction>().isNamedLambda()) {
         onNamedLambda = false;
         obj = obj->template as<JSFunction>().nonLazyScript()->enclosingStaticScope();
     } else {
         onNamedLambda = true;
     }
-    JS_ASSERT_IF(obj, obj->template is<NestedScopeObject>() || obj->template is<JSFunction>());
+    JS_ASSERT_IF(obj, obj->template is<StaticBlockObject>() || obj->template is<JSFunction>());
     JS_ASSERT_IF(onNamedLambda, obj->template is<JSFunction>());
 }
 
@@ -74,8 +66,7 @@ StaticScopeIter<allowGC>::hasDynamicScopeObject() const
 {
     return obj->template is<StaticBlockObject>()
            ? obj->template as<StaticBlockObject>().needsClone()
-           : (obj->template is<StaticWithObject>() ||
-              obj->template as<JSFunction>().isHeavyweight());
+           : obj->template as<JSFunction>().isHeavyweight();
 }
 
 template <AllowGC allowGC>
@@ -95,9 +86,7 @@ StaticScopeIter<allowGC>::type() const
 {
     if (onNamedLambda)
         return NAMED_LAMBDA;
-    return obj->template is<StaticBlockObject>()
-           ? BLOCK
-           : (obj->template is<StaticWithObject>() ? WITH : FUNCTION);
+    return obj->template is<StaticBlockObject>() ? BLOCK : FUNCTION;
 }
 
 template <AllowGC allowGC>
@@ -106,14 +95,6 @@ StaticScopeIter<allowGC>::block() const
 {
     JS_ASSERT(type() == BLOCK);
     return obj->template as<StaticBlockObject>();
-}
-
-template <AllowGC allowGC>
-inline StaticWithObject &
-StaticScopeIter<allowGC>::staticWith() const
-{
-    JS_ASSERT(type() == WITH);
-    return obj->template as<StaticWithObject>();
 }
 
 template <AllowGC allowGC>

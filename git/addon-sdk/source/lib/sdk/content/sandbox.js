@@ -10,15 +10,20 @@ module.metadata = {
 const { Class } = require('../core/heritage');
 const { EventTarget } = require('../event/target');
 const { on, off, emit } = require('../event/core');
-const { requiresAddonGlobal } = require('./utils');
+const {
+  requiresAddonGlobal,
+  attach, detach, destroy
+} = require('./utils');
 const { delay: async } = require('../lang/functional');
 const { Ci, Cu, Cc } = require('chrome');
 const timer = require('../timers');
 const { URL } = require('../url');
 const { sandbox, evaluate, load } = require('../loader/sandbox');
 const { merge } = require('../util/object');
+const xulApp = require('../system/xul-app');
+const USE_JS_PROXIES = !xulApp.versionInRange(xulApp.platformVersion,
+                                              '17.0a2', '*');
 const { getTabForContentWindow } = require('../tabs/utils');
-const { getInnerId } = require('../window/utils');
 
 // WeakMap of sandboxes so we can access private values
 const sandboxes = new WeakMap();
@@ -29,41 +34,31 @@ const sandboxes = new WeakMap();
 */
 let prefix = module.uri.split('sandbox.js')[0];
 const CONTENT_WORKER_URL = prefix + 'content-worker.js';
-const metadata = require('@loader/options').metadata;
 
 // Fetch additional list of domains to authorize access to for each content
 // script. It is stored in manifest `metadata` field which contains
 // package.json data. This list is originaly defined by authors in
 // `permissions` attribute of their package.json addon file.
-const permissions = (metadata && metadata['permissions']) || {};
+const permissions = require('@loader/options').metadata['permissions'] || {};
 const EXPANDED_PRINCIPALS = permissions['cross-domain-content'] || [];
-
-const waiveSecurityMembrane = !!permissions['unsafe-content-script'];
-
-const nsIScriptSecurityManager = Ci.nsIScriptSecurityManager;
-const secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].
-  getService(Ci.nsIScriptSecurityManager);
 
 const JS_VERSION = '1.8';
 
 const WorkerSandbox = Class({
-  implements: [ EventTarget ],
 
+  implements: [
+    EventTarget
+  ],
+  
   /**
    * Emit a message to the worker content sandbox
    */
-  emit: function emit(type, ...args) {
-    // JSON.stringify is buggy with cross-sandbox values,
-    // it may return "{}" on functions. Use a replacer to match them correctly.
-    let replacer = (k, v) =>
-      typeof(v) === "function"
-        ? (type === "console" ? Function.toString.call(v) : void(0))
-        : v;
-
+  emit: function emit(...args) {
     // Ensure having an asynchronous behavior
-    async(() =>
-      emitToContent(this, JSON.stringify([type, ...args], replacer))
-    );
+    let self = this;
+    async(function () {
+      emitToContent(self, JSON.stringify(args, replacer));
+    });
   },
 
   /**
@@ -102,10 +97,8 @@ const WorkerSandbox = Class({
     this.emit = this.emit.bind(this);
     this.emitSync = this.emitSync.bind(this);
 
-    // Use expanded principal for content-script if the content is a
-    // regular web content for better isolation.
-    // (This behavior can be turned off for now with the unsafe-content-script
-    // flag to give addon developers time for making the necessary changes)
+    // Eventually use expanded principal sandbox feature, if some are given.
+    //
     // But prevent it when the Worker isn't used for a content script but for
     // injecting `addon` object into a Panel, Widget, ... scope.
     // That's because:
@@ -118,17 +111,12 @@ const WorkerSandbox = Class({
     // domain principal.
     let principals = window;
     let wantGlobalProperties = [];
-    let isSystemPrincipal = secMan.isSystemPrincipal(
-      window.document.nodePrincipal);
-    if (!isSystemPrincipal && !requiresAddonGlobal(worker)) {
-      if (EXPANDED_PRINCIPALS.length > 0) {
-        // We have to replace XHR constructor of the content document
-        // with a custom cross origin one, automagically added by platform code:
-        delete proto.XMLHttpRequest;
-        wantGlobalProperties.push('XMLHttpRequest');
-      }
-      if (!waiveSecurityMembrane)
-        principals = EXPANDED_PRINCIPALS.concat(window);
+    if (EXPANDED_PRINCIPALS.length > 0 && !requiresAddonGlobal(worker)) {
+      principals = EXPANDED_PRINCIPALS.concat(window);
+      // We have to replace XHR constructor of the content document
+      // with a custom cross origin one, automagically added by platform code:
+      delete proto.XMLHttpRequest;
+      wantGlobalProperties.push('XMLHttpRequest');
     }
 
     // Instantiate trusted code in another Sandbox in order to prevent content
@@ -142,15 +130,11 @@ const WorkerSandbox = Class({
       sandboxPrototype: proto,
       wantXrays: true,
       wantGlobalProperties: wantGlobalProperties,
-      wantExportHelpers: true,
       sameZoneAs: window,
-      metadata: {
-        SDKContentScript: true,
-        'inner-window-id': getInnerId(window)
-      }
+      metadata: { SDKContentScript: true }
     });
     model.sandbox = content;
-
+    
     // We have to ensure that window.top and window.parent are the exact same
     // object than window object, i.e. the sandbox global object. But not
     // always, in case of iframes, top and parent are another window object.
@@ -215,7 +199,11 @@ const WorkerSandbox = Class({
     if (!getTabForContentWindow(window)) {
       let win = getUnsafeWindow(window);
 
-      // export our chrome console to content window, as described here:
+      // export our chrome console to content window, using the same approach
+      // of `ConsoleAPI`:
+      // http://mxr.mozilla.org/mozilla-central/source/dom/base/ConsoleAPI.js#150
+      //
+      // and described here:
       // https://developer.mozilla.org/en-US/docs/Components.utils.createObjectIn
       let con = Cu.createObjectIn(win);
 
@@ -265,10 +253,8 @@ const WorkerSandbox = Class({
       );
     }
   },
-  destroy: function destroy(reason) {
-    if (typeof reason != 'string')
-      reason = '';
-    this.emitSync('event', 'detach', reason);
+  destroy: function destroy() {
+    this.emitSync('detach');
     let model = modelFor(this);
     model.sandbox = null
     model.worker = null;
@@ -372,6 +358,14 @@ function onContentEvent (workerSandbox, args) {
 
 function modelFor (workerSandbox) {
   return sandboxes.get(workerSandbox);
+}
+
+/**
+ * JSON.stringify is buggy with cross-sandbox values,
+ * it may return '{}' on functions. Use a replacer to match them correctly.
+ */
+function replacer (k, v) {
+  return typeof v === 'function' ? undefined : v;
 }
 
 function getUnsafeWindow (win) {

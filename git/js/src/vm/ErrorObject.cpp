@@ -138,9 +138,9 @@ js::ErrorObject::getOrCreateErrorReport(JSContext *cx)
     RootedString message(cx, getMessage());
     if (!message)
         message = cx->runtime()->emptyString;
-    if (!message->ensureFlat(cx))
+    if (!message->ensureStable(cx))
         return nullptr;
-    report.ucmessage = message->asFlat().chars();
+    report.ucmessage = message->asStable().chars().get();
 
     // Cache and return.
     JSErrorReport *copy = CopyErrorReport(cx, &report);

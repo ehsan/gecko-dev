@@ -8,7 +8,6 @@
 #include "CompositableTransactionParent.h"
 #include "CompositableHost.h"           // for CompositableParent, etc
 #include "CompositorParent.h"           // for CompositorParent
-#include "GLContext.h"                  // for GLContext
 #include "Layers.h"                     // for Layer
 #include "RenderTrace.h"                // for RenderTraceInvalidateEnd, etc
 #include "TiledLayerBuffer.h"           // for TiledLayerComposer
@@ -20,7 +19,6 @@
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
 #include "mozilla/layers/LayersTypes.h"  // for MOZ_LAYERS_LOG
 #include "mozilla/layers/TextureHost.h"  // for TextureHost
-#include "mozilla/layers/TextureHostOGL.h"  // for TextureHostOGL
 #include "mozilla/layers/ThebesLayerComposite.h"
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsDebug.h"                    // for NS_WARNING, NS_ASSERTION
@@ -29,7 +27,7 @@
 namespace mozilla {
 namespace layers {
 
-class ClientTiledLayerBuffer;
+class BasicTiledLayerBuffer;
 class Compositor;
 
 template<typename T>
@@ -100,13 +98,7 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       MOZ_LAYERS_LOG(("[ParentSide] Created double buffer"));
       const OpDestroyThebesBuffer& op = aEdit.get_OpDestroyThebesBuffer();
       CompositableParent* compositableParent = static_cast<CompositableParent*>(op.compositableParent());
-      CompositableHost* compositableHost = compositableParent->GetCompositableHost();
-      if (compositableHost->GetType() != BUFFER_CONTENT &&
-          compositableHost->GetType() != BUFFER_CONTENT_DIRECT)
-      {
-        return false;
-      }
-      DeprecatedContentHostBase* content = static_cast<DeprecatedContentHostBase*>(compositableHost);
+      DeprecatedContentHostBase* content = static_cast<DeprecatedContentHostBase*>(compositableParent->GetCompositableHost());
       content->DestroyTextures();
 
       break;
@@ -161,8 +153,6 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
         RenderTraceInvalidateEnd(layer, "FF00FF");
       }
 
-      // return texure data to client if necessary
-      ReturnTextureDataIfNecessary(compositable, replyv, op.compositableParent());
       break;
     }
     case CompositableOperation::TOpPaintTextureRegion: {
@@ -172,30 +162,22 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       CompositableParent* compositableParent = static_cast<CompositableParent*>(op.compositableParent());
       CompositableHost* compositable =
         compositableParent->GetCompositableHost();
-      Layer* layer = compositable->GetLayer();
-      if (!layer || layer->GetType() != Layer::TYPE_THEBES) {
-        return false;
-      }
-      ThebesLayerComposite* thebes = static_cast<ThebesLayerComposite*>(layer);
+      ThebesLayerComposite* thebes =
+        static_cast<ThebesLayerComposite*>(compositable->GetLayer());
 
       const ThebesBufferData& bufferData = op.bufferData();
 
       RenderTraceInvalidateStart(thebes, "FF00FF", op.updatedRegion().GetBounds());
 
       nsIntRegion frontUpdatedRegion;
-      if (!compositable->UpdateThebes(bufferData,
-                                      op.updatedRegion(),
-                                      thebes->GetValidRegion(),
-                                      &frontUpdatedRegion))
-      {
-        return false;
-      }
+      compositable->UpdateThebes(bufferData,
+                                 op.updatedRegion(),
+                                 thebes->GetValidRegion(),
+                                 &frontUpdatedRegion);
       replyv.push_back(
         OpContentBufferSwap(compositableParent, nullptr, frontUpdatedRegion));
 
       RenderTraceInvalidateEnd(thebes, "FF00FF");
-      // return texure data to client if necessary
-      ReturnTextureDataIfNecessary(compositable, replyv, op.compositableParent());
       break;
     }
     case CompositableOperation::TOpPaintTextureIncremental: {
@@ -224,9 +206,9 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       compositable->SetPictureRect(op.picture());
       break;
     }
-    case CompositableOperation::TOpUseTiledLayerBuffer: {
+    case CompositableOperation::TOpPaintTiledLayerBuffer: {
       MOZ_LAYERS_LOG(("[ParentSide] Paint TiledLayerBuffer"));
-      const OpUseTiledLayerBuffer& op = aEdit.get_OpUseTiledLayerBuffer();
+      const OpPaintTiledLayerBuffer& op = aEdit.get_OpPaintTiledLayerBuffer();
       CompositableParent* compositableParent = static_cast<CompositableParent*>(op.compositableParent());
       CompositableHost* compositable =
         compositableParent->GetCompositableHost();
@@ -235,18 +217,7 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       NS_ASSERTION(tileComposer, "compositable is not a tile composer");
 
       const SurfaceDescriptorTiles& tileDesc = op.tileLayerDescriptor();
-      tileComposer->UseTiledLayerBuffer(this, tileDesc);
-      break;
-    }
-    case CompositableOperation::TOpRemoveTexture: {
-      const OpRemoveTexture& op = aEdit.get_OpRemoveTexture();
-      CompositableHost* compositable = AsCompositable(op);
-      RefPtr<TextureHost> tex = TextureHost::AsTextureHost(op.textureParent());
-
-      MOZ_ASSERT(tex.get());
-      compositable->RemoveTextureHost(tex);
-      // return texure data to client if necessary
-      ReturnTextureDataIfNecessary(compositable, replyv, op.compositableParent());
+      tileComposer->PaintedTiledLayerBuffer(this, tileDesc);
       break;
     }
     case CompositableOperation::TOpUseTexture: {
@@ -259,30 +230,7 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
 
       if (IsAsync()) {
         ScheduleComposition(op);
-        // Async layer updates don't trigger invalidation, manually tell the layer
-        // that its content have changed.
-        if (compositable->GetLayer()) {
-          compositable->GetLayer()->SetInvalidRectToVisibleRegion();
-        }
       }
-      // return texure data to client if necessary
-      ReturnTextureDataIfNecessary(compositable, replyv, op.compositableParent());
-      break;
-    }
-    case CompositableOperation::TOpUseComponentAlphaTextures: {
-      const OpUseComponentAlphaTextures& op = aEdit.get_OpUseComponentAlphaTextures();
-      CompositableHost* compositable = AsCompositable(op);
-      RefPtr<TextureHost> texOnBlack = TextureHost::AsTextureHost(op.textureOnBlackParent());
-      RefPtr<TextureHost> texOnWhite = TextureHost::AsTextureHost(op.textureOnWhiteParent());
-
-      MOZ_ASSERT(texOnBlack && texOnWhite);
-      compositable->UseComponentAlphaTextures(texOnBlack, texOnWhite);
-
-      if (IsAsync()) {
-        ScheduleComposition(op);
-      }
-      // return texure data to client if necessary
-      ReturnTextureDataIfNecessary(compositable, replyv, op.compositableParent());
       break;
     }
     case CompositableOperation::TOpUpdateTexture: {
@@ -293,6 +241,7 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       texture->Updated(op.region().type() == MaybeRegion::TnsIntRegion
                        ? &op.region().get_nsIntRegion()
                        : nullptr); // no region means invalidate the entire surface
+
       break;
     }
 
@@ -302,59 +251,6 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
   }
 
   return true;
-}
-
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-void
-CompositableParentManager::ReturnTextureDataIfNecessary(CompositableHost* aCompositable,
-                                                        EditReplyVector& replyv,
-                                                        PCompositableParent* aParent)
-{
-  if (!aCompositable || !aCompositable->GetCompositableBackendSpecificData()) {
-    return;
-  }
-
-  const std::vector< RefPtr<TextureHost> > textureList =
-        aCompositable->GetCompositableBackendSpecificData()->GetPendingReleaseFenceTextureList();
-  // Return pending Texture data
-  for (size_t i = 0; i < textureList.size(); i++) {
-    // File descriptor number is limited to 4 per IPC message.
-    // See Bug 986253
-    if (mPrevFenceHandles.size() >= 4) {
-      break;
-    }
-    TextureHostOGL* hostOGL = textureList[i]->AsHostOGL();
-    PTextureParent* actor = textureList[i]->GetIPDLActor();
-    if (!hostOGL || !actor) {
-      continue;
-    }
-    android::sp<android::Fence> fence = hostOGL->GetAndResetReleaseFence();
-    if (fence.get() && fence->isValid()) {
-      FenceHandle handle = FenceHandle(fence);
-      replyv.push_back(ReturnReleaseFence(aParent, nullptr, actor, nullptr, handle));
-      // Hold fence handle to prevent fence's file descriptor is closed before IPC happens.
-      mPrevFenceHandles.push_back(handle);
-    }
-  }
-  aCompositable->GetCompositableBackendSpecificData()->ClearPendingReleaseFenceTextureList();
-}
-#else
-void
-CompositableParentManager::ReturnTextureDataIfNecessary(CompositableHost* aCompositable,
-                                                       EditReplyVector& replyv,
-                                                       PCompositableParent* aParent)
-{
-  if (!aCompositable || !aCompositable->GetCompositableBackendSpecificData()) {
-    return;
-  }
-  aCompositable->GetCompositableBackendSpecificData()->ClearPendingReleaseFenceTextureList();
-}
-#endif
-
-void
-CompositableParentManager::ClearPrevFenceHandles()
-{
-  mPrevFenceHandles.clear();
 }
 
 } // namespace

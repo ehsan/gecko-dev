@@ -8,6 +8,7 @@
 
 interface nsIPersistentProperties;
 interface nsIDOMCSSPrimitiveValue;
+interface nsIDOMDOMStringList;
 interface nsIDOMNode;
 interface nsIAccessibleDocument;
 interface nsIAccessibleRelation;

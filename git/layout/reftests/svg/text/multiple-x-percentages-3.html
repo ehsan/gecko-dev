@@ -22,4 +22,5 @@ function doTest() {
 }
 
 window.addEventListener("MozReftestInvalidate", doTest, false);
+setTimeout(doTest, 4000); // fallback for running outside reftest
 </script>

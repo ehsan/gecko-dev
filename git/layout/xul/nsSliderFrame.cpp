@@ -15,11 +15,12 @@
 #include "nsPresContext.h"
 #include "nsIContent.h"
 #include "nsCOMPtr.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsHTMLParts.h"
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
+#include "nsEventListenerManager.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsScrollbarButtonFrame.h"
 #include "nsISliderListener.h"
@@ -91,7 +92,7 @@ nsSliderFrame::Init(nsIContent*      aContent,
   mCurPos = GetCurrentPosition(aContent);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSliderFrame::RemoveFrame(ChildListID     aListID,
                            nsIFrame*       aOldFrame)
 {
@@ -102,7 +103,7 @@ nsSliderFrame::RemoveFrame(ChildListID     aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSliderFrame::InsertFrames(ChildListID     aListID,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
@@ -115,7 +116,7 @@ nsSliderFrame::InsertFrames(ChildListID     aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSliderFrame::AppendFrames(ChildListID     aListID,
                             nsFrameList&    aFrameList)
 {
@@ -216,7 +217,7 @@ public:
   bool mDragBeginning;
 };
 
-nsresult
+NS_IMETHODIMP
 nsSliderFrame::AttributeChanged(int32_t aNameSpaceID,
                                 nsIAtom* aAttribute,
                                 int32_t aModType)
@@ -409,7 +410,7 @@ nsSliderFrame::DoLayout(nsBoxLayoutState& aState)
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsSliderFrame::HandleEvent(nsPresContext* aPresContext,
                            WidgetGUIEvent* aEvent,
                            nsEventStatus* aEventStatus)
@@ -664,11 +665,6 @@ nsSliderFrame::CurrentPositionChanged()
   else
      newThumbRect.y = clientRect.y + NSToCoordRound(pos * mRatio);
 
-#ifdef MOZ_WIDGET_GONK
-  // avoid putting the scroll thumb at subpixel positions which cause needless invalidations
-  nscoord appUnitsPerPixel = PresContext()->AppUnitsPerDevPixel();
-  newThumbRect = newThumbRect.ToNearestPixels(appUnitsPerPixel).ToAppUnits(appUnitsPerPixel);
-#endif
   // set the rect
   thumbFrame->SetRect(newThumbRect);
 
@@ -796,7 +792,7 @@ nsSliderFrame::GetType() const
   return nsGkAtoms::sliderFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSliderFrame::SetInitialChildList(ChildListID     aListID,
                                    nsFrameList&    aChildList)
 {

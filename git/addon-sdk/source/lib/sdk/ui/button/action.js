@@ -26,7 +26,6 @@ const { merge } = require('../../util/object');
 const { Disposable } = require('../../core/disposable');
 const { on, off, emit, setListeners } = require('../../event/core');
 const { EventTarget } = require('../../event/target');
-const { getNodeView } = require('../../view/core');
 
 const view = require('./view');
 const { buttonContract, stateContract } = require('./contract');
@@ -38,14 +37,7 @@ const events = require('../../event/utils');
 
 const { getActiveTab } = require('../../tabs/utils');
 
-const { id: addonID } = require('../../self');
-const { identify } = require('../id');
-
 const buttons = new Map();
-
-const toWidgetId = id =>
-  ('action-button--' + addonID.toLowerCase()+ '-' + id).
-    replace(/[^a-z0-9_-]/g, '');
 
 const ActionButton = Class({
   extends: EventTarget,
@@ -59,40 +51,31 @@ const ActionButton = Class({
       disabled: false
     }, buttonContract(options));
 
-    let id = toWidgetId(options.id);
-
     register(this, state);
 
     // Setup listeners.
     setListeners(this, options);
 
-    buttons.set(id, this);
+    buttons.set(options.id, this);
 
-    view.create(merge({}, state, { id: id }));
+    view.create(state);
   },
 
   dispose: function dispose() {
-    let id = toWidgetId(this.id);
-    buttons.delete(id);
+    buttons.delete(this.id);
 
     off(this);
 
-    view.dispose(id);
+    view.dispose(this.id);
 
     unregister(this);
   },
 
   get id() this.state().id,
 
-  click: function click() { view.click(toWidgetId(this.id)) }
+  click: function click() { view.click(this.id) }
 });
 exports.ActionButton = ActionButton;
-
-identify.define(ActionButton, ({id}) => toWidgetId(id));
-
-getNodeView.define(ActionButton, button =>
-  view.nodeFor(toWidgetId(button.id))
-);
 
 let actionButtonStateEvents = events.filter(stateEvents,
   e => e.target instanceof ActionButton);
@@ -115,7 +98,7 @@ on(updateEvents, 'data', ({target: id, window}) => {
 });
 
 on(actionButtonStateEvents, 'data', ({target, window, state}) => {
-  let id = toWidgetId(target.id);
+  let { id } = target;
   view.setIcon(id, window, state.icon);
   view.setLabel(id, window, state.label);
   view.setDisabled(id, window, state.disabled);

@@ -23,7 +23,6 @@ FilePicker.prototype = {
   _filePath: null,
   _promptActive: false,
   _filterIndex: 0,
-  _addToRecentDocs: false,
 
   init: function(aParent, aTitle, aMode) {
     this._domWin = aParent;
@@ -151,11 +150,11 @@ FilePicker.prototype = {
   },
 
   get addToRecentDocs() {
-    return this._addToRecentDocs;
+    throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   set addToRecentDocs(val) {
-    this._addToRecentDocs = val;
+    throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   get mode() {
@@ -197,18 +196,8 @@ FilePicker.prototype = {
   _sendMessage: function() {
     let msg = {
       type: "FilePicker:Show",
-      guid: this.guid,
+      guid: this.guid
     };
-
-    // Knowing the window lets us destroy any temp files when the tab is closed
-    // Other consumers of the file picker may have to either wait for Android
-    // to clean up the temp dir (not guaranteed) or clean up after themselves.
-    let win = Services.wm.getMostRecentWindow('navigator:browser');
-    let tab = win.BrowserApp.getTabForWindow(this._domWin.top)
-    if (tab) {
-      msg.tabId = tab.id;
-    }
-
     if (!this._extensionsFilter && !this._mimeTypeFilter) {
       // If neither filters is set show anything we can.
       msg.mode = "mimeType";

@@ -16,6 +16,9 @@ function fakeSessionSvc() {
       }],
       attributes: {
         image: "image"
+      },
+      extData: {
+        weaveLastUsed: 1
       }
     });
   }
@@ -30,7 +33,7 @@ function fakeSessionSvc() {
 
 function run_test() {
 
-  _("test getOpenURLs");
+  _("test locallyOpenTabMatchesURL");
   let engine = new TabEngine(Service);
 
   // 3 tabs
@@ -39,11 +42,10 @@ function run_test() {
   let matches;
 
   _("  test matching works (true)");
-  let openurlsset = engine.getOpenURLs();
-  matches = openurlsset.has("http://foo.com");
+  matches = engine.locallyOpenTabMatchesURL("http://foo.com");
   do_check_true(matches);
 
   _("  test matching works (false)");
-  matches = openurlsset.has("http://barfoo.com");
+  matches = engine.locallyOpenTabMatchesURL("http://barfoo.com");
   do_check_false(matches);
 }

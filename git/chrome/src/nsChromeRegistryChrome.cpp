@@ -119,14 +119,15 @@ nsChromeRegistryChrome::Init()
   mSelectedLocale = NS_LITERAL_CSTRING("en-US");
   mSelectedSkin = NS_LITERAL_CSTRING("classic/1.0");
 
-  PL_DHashTableInit(&mPackagesHash, &kTableOps,
-                    nullptr, sizeof(PackageEntry), 16);
+  if (!PL_DHashTableInit(&mPackagesHash, &kTableOps,
+                         nullptr, sizeof(PackageEntry), 16))
+    return NS_ERROR_FAILURE;
 
   bool safeMode = false;
   nsCOMPtr<nsIXULRuntime> xulrun (do_GetService(XULAPPINFO_SERVICE_CONTRACTID));
   if (xulrun)
     xulrun->GetInSafeMode(&safeMode);
-
+  
   nsCOMPtr<nsIPrefService> prefserv (do_GetService(NS_PREFSERVICE_CONTRACTID));
   nsCOMPtr<nsIPrefBranch> prefs;
 

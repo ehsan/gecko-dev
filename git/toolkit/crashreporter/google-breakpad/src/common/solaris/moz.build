@@ -23,8 +23,3 @@ HOST_SOURCES += [
 ]
 
 FINAL_LIBRARY = 'xulapp_s'
-
-LOCAL_INCLUDES += [
-    '../..',
-]
-

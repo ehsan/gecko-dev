@@ -15,8 +15,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/StaticPtr.h"
-#include "nsIMemoryReporter.h"
-#include "gfx2DGlue.h"
 #include "gfxASurface.h"
 #include "gfxPattern.h"  // Workaround for flaw in bug 921753 part 2.
 #include "gfxDrawable.h"
@@ -32,7 +30,7 @@
 
 using std::max;
 using std::min;
-using namespace mozilla::gfx;
+using mozilla::gfx::DrawTarget;
 
 namespace mozilla {
 namespace image {
@@ -60,7 +58,7 @@ static StaticRefPtr<SurfaceCacheImpl> sInstance;
  */
 typedef size_t Cost;
 
-static Cost ComputeCost(const IntSize& aSize)
+static Cost ComputeCost(const nsIntSize aSize)
 {
   return aSize.width * aSize.height * 4;  // width * height * 4 bytes (32bpp)
 }
@@ -113,9 +111,8 @@ private:
 class CachedSurface : public RefCounted<CachedSurface>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(CachedSurface)
   CachedSurface(DrawTarget*       aTarget,
-                const IntSize     aTargetSize,
+                const nsIntSize   aTargetSize,
                 const Cost        aCost,
                 const ImageKey    aImageKey,
                 const SurfaceKey& aSurfaceKey)
@@ -131,8 +128,7 @@ public:
 
   already_AddRefed<gfxDrawable> Drawable() const
   {
-    nsRefPtr<gfxDrawable> drawable =
-      new gfxSurfaceDrawable(mTarget, ThebesIntSize(mTargetSize));
+    nsRefPtr<gfxDrawable> drawable = new gfxSurfaceDrawable(mTarget, mTargetSize);
     return drawable.forget();
   }
 
@@ -144,7 +140,7 @@ public:
 private:
   nsExpirationState       mExpirationState;
   nsRefPtr<DrawTarget>    mTarget;
-  const IntSize           mTargetSize;
+  const nsIntSize         mTargetSize;
   const Cost              mCost;
   const ImageKey          mImageKey;
   const SurfaceKey        mSurfaceKey;
@@ -159,7 +155,6 @@ private:
 class ImageSurfaceCache : public RefCounted<ImageSurfaceCache>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(ImageSurfaceCache)
   typedef nsRefPtrHashtable<nsGenericHashKey<SurfaceKey>, CachedSurface> SurfaceTable;
 
   bool IsEmpty() const { return mSurfaces.Count() == 0; }
@@ -234,12 +229,12 @@ public:
   }
 
   void Insert(DrawTarget*       aTarget,
-              IntSize           aTargetSize,
+              nsIntSize         aTargetSize,
               const Cost        aCost,
               const ImageKey    aImageKey,
               const SurfaceKey& aSurfaceKey)
   {
-    MOZ_ASSERT(!Lookup(aImageKey, aSurfaceKey).take(),
+    MOZ_ASSERT(!Lookup(aImageKey, aSurfaceKey).get(),
                "Inserting a duplicate drawable into the SurfaceCache");
 
     // If this is bigger than the maximum cache size, refuse to cache it.
@@ -507,12 +502,11 @@ SurfaceCache::Insert(DrawTarget*       aTarget,
   MOZ_ASSERT(NS_IsMainThread());
 
   Cost cost = ComputeCost(aSurfaceKey.Size());
-  return sInstance->Insert(aTarget, aSurfaceKey.Size(), cost, aImageKey,
-                           aSurfaceKey);
+  return sInstance->Insert(aTarget, aSurfaceKey.Size(), cost, aImageKey, aSurfaceKey);
 }
 
 /* static */ bool
-SurfaceCache::CanHold(const IntSize& aSize)
+SurfaceCache::CanHold(const nsIntSize& aSize)
 {
   MOZ_ASSERT(sInstance, "Should be initialized");
   MOZ_ASSERT(NS_IsMainThread());
@@ -528,15 +522,6 @@ SurfaceCache::Discard(Image* aImageKey)
   MOZ_ASSERT(NS_IsMainThread());
 
   return sInstance->Discard(aImageKey);
-}
-
-/* static */ void
-SurfaceCache::DiscardAll()
-{
-  MOZ_ASSERT(sInstance, "Should be initialized");
-  MOZ_ASSERT(NS_IsMainThread());
-
-  return sInstance->DiscardAll();
 }
 
 } // namespace image

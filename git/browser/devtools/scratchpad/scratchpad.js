@@ -131,99 +131,6 @@ var Scratchpad = {
   },
 
   /**
-   * Add the event listeners for popupshowing events.
-   */
-  _setupPopupShowingListeners: function SP_setupPopupShowing() {
-    let elementIDs = ['sp-menu_editpopup', 'scratchpad-text-popup'];
-
-    for (let elementID of elementIDs) {
-      let elem = document.getElementById(elementID);
-      if (elem) {
-        elem.addEventListener("popupshowing", function () {
-          goUpdateGlobalEditMenuItems();
-          let commands = ['cmd_undo', 'cmd_redo', 'cmd_delete', 'cmd_findAgain'];
-          commands.forEach(goUpdateCommand);
-        });
-      }
-    }
-  },
-
-  /**
-   * Add the event event listeners for command events.
-   */
-  _setupCommandListeners: function SP_setupCommands() {
-    let commands = {
-      "cmd_gotoLine": () => {
-        goDoCommand('cmd_gotoLine');
-      },
-      "sp-cmd-newWindow": () => {
-        Scratchpad.openScratchpad();
-      },
-      "sp-cmd-openFile": () => {
-        Scratchpad.openFile();
-      },
-      "sp-cmd-clearRecentFiles": () => {
-        Scratchpad.clearRecentFiles();
-      },
-      "sp-cmd-save": () => {
-        Scratchpad.saveFile();
-      },
-      "sp-cmd-saveas": () => {
-        Scratchpad.saveFileAs();
-      },
-      "sp-cmd-revert": () => {
-        Scratchpad.promptRevert();
-      },
-      "sp-cmd-close": () => {
-        Scratchpad.close();
-      },
-      "sp-cmd-run": () => {
-        Scratchpad.run();
-      },
-      "sp-cmd-inspect": () => {
-        Scratchpad.inspect();
-      },
-      "sp-cmd-display": () => {
-        Scratchpad.display();
-      },
-      "sp-cmd-pprint": () => {
-        Scratchpad.prettyPrint();
-      },
-      "sp-cmd-contentContext": () => {
-        Scratchpad.setContentContext();
-      },
-      "sp-cmd-browserContext": () => {
-        Scratchpad.setBrowserContext();
-      },
-      "sp-cmd-reloadAndRun": () => {
-        Scratchpad.reloadAndRun();
-      },
-      "sp-cmd-evalFunction": () => {
-        Scratchpad.evalTopLevelFunction();
-      },
-      "sp-cmd-errorConsole": () => {
-        Scratchpad.openErrorConsole();
-      },
-      "sp-cmd-webConsole": () => {
-        Scratchpad.openWebConsole();
-      },
-      "sp-cmd-documentationLink": () => {
-        Scratchpad.openDocumentationPage();
-      },
-      "sp-cmd-hideSidebar": () => {
-        Scratchpad.sidebar.hide();
-      }
-    }
-
-    for (let command in commands) {
-      let elem = document.getElementById(command);
-      if (elem) {
-        elem.addEventListener("command", commands[command]);
-      }
-    }
-  },
-
-  /**
    * The script execution context. This tells Scratchpad in which context the
    * script shall execute.
    *
@@ -939,10 +846,10 @@ var Scratchpad = {
 
         // Assemble the best possible stack we can given the properties we have.
         let stack;
-        if (typeof error.stack == "string" && error.stack) {
+        if (typeof error.stack == "string") {
           stack = error.stack;
         }
-        else if (typeof error.fileName == "string") {
+        else if (typeof error.fileName == "number") {
           stack = "@" + error.fileName;
           if (typeof error.lineNumber == "number") {
             stack += ":" + error.lineNumber;
@@ -1261,7 +1168,7 @@ var Scratchpad = {
           menuitem.setAttribute("disabled", true);
         }
 
-        menuitem.addEventListener("command", Scratchpad.openFile.bind(Scratchpad, i));
+        menuitem.setAttribute("oncommand", "Scratchpad.openFile(" + i + ");");
         recentFilesPopup.appendChild(menuitem);
       }
 
@@ -1606,8 +1513,6 @@ var Scratchpad = {
       PreferenceObserver.init();
       CloseObserver.init();
     }).then(null, (err) => console.log(err.message));
-    this._setupCommandListeners();
-    this._setupPopupShowingListeners();
   },
 
   /**

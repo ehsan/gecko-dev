@@ -48,9 +48,8 @@ SharedMemory::SharedMemory()
   : mAllocSize(0)
   , mMappedSize(0)
 {
-  MOZ_COUNT_CTOR(SharedMemory);
-  static Atomic<bool> registered;
-  if (registered.compareExchange(false, true)) {
+  static Atomic<uint32_t> registered;
+  if (registered.compareExchange(0, 1)) {
     RegisterStrongMemoryReporter(new ShmemReporter());
   }
 }

@@ -20,7 +20,6 @@
 
 #include "gfxPlatform.h"
 #include "gfx2DGlue.h"
-#include "gfxPrefs.h"
 
 #define DEBUG_GRALLOC
 #ifdef DEBUG_GRALLOC
@@ -34,6 +33,9 @@ using namespace mozilla::gfx;
 using namespace gl;
 using namespace layers;
 using namespace android;
+
+static bool sForceReadPixelsToFence = false;
+
 
 SurfaceFactory_Gralloc::SurfaceFactory_Gralloc(GLContext* prodGL,
                                                const SurfaceCaps& caps,
@@ -56,6 +58,14 @@ SharedSurface_Gralloc::Create(GLContext* prodGL,
                               bool hasAlpha,
                               ISurfaceAllocator* allocator)
 {
+    static bool runOnce = true;
+    if (runOnce) {
+        sForceReadPixelsToFence = false;
+        mozilla::Preferences::AddBoolVarCache(&sForceReadPixelsToFence,
+                                              "gfx.gralloc.fence-with-readpixels");
+        runOnce = false;
+    }
+
     GLLibraryEGL* egl = &sEGLLibrary;
     MOZ_ASSERT(egl);
 
@@ -70,7 +80,7 @@ SharedSurface_Gralloc::Create(GLContext* prodGL,
     gfxImageFormat format
       = gfxPlatform::GetPlatform()->OptimalFormatForContent(type);
 
-    RefPtr<GrallocTextureClientOGL> grallocTC =
+    GrallocTextureClientOGL* grallocTC =
       new GrallocTextureClientOGL(
           allocator,
           gfx::ImageFormatToSurfaceFormat(format),
@@ -92,6 +102,7 @@ SharedSurface_Gralloc::Create(GLContext* prodGL,
                                        LOCAL_EGL_NATIVE_BUFFER_ANDROID,
                                        clientBuffer, attrs);
     if (!image) {
+        grallocTC->DropTextureData()->DeallocateSharedData(allocator);
         return nullptr;
     }
 
@@ -130,7 +141,7 @@ SharedSurface_Gralloc::~SharedSurface_Gralloc()
     DEBUG_PRINT("[SharedSurface_Gralloc %p] destroyed\n", this);
 
     mGL->MakeCurrent();
-    mGL->fDeleteTextures(1, &mProdTex);
+    mGL->fDeleteTextures(1, (GLuint*)&mProdTex);
 }
 
 void
@@ -139,7 +150,7 @@ SharedSurface_Gralloc::Fence()
     // We should be able to rely on genlock write locks/read locks.
     // But they're broken on some configs, and even a glFinish doesn't
     // work.  glReadPixels seems to, though.
-    if (gfxPrefs::GrallocFenceWithReadPixels()) {
+    if (sForceReadPixelsToFence) {
         mGL->MakeCurrent();
         // read a 1x1 pixel
         unsigned char pixels[4];
@@ -152,3 +163,14 @@ SharedSurface_Gralloc::WaitSync()
 {
     return true;
 }
+
+void
+SharedSurface_Gralloc::LockProdImpl()
+{
+}
+
+void
+SharedSurface_Gralloc::UnlockProdImpl()
+{
+}
+

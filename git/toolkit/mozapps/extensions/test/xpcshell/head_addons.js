@@ -18,16 +18,11 @@ const PREF_GETADDONS_BYIDS_PERFORMANCE   = "extensions.getAddons.getWithPerforma
 // Forcibly end the test if it runs longer than 15 minutes
 const TIMEOUT_MS = 900000;
 
-Components.utils.import("resource://gre/modules/addons/AddonRepository.jsm");
+Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
-Components.utils.import("resource://gre/modules/Promise.jsm");
-Components.utils.import("resource://gre/modules/Task.jsm");
-Components.utils.import("resource://gre/modules/osfile.jsm");
-
-Services.prefs.setBoolPref("toolkit.osfile.log", true);
 
 // We need some internal bits of AddonManager
 let AMscope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
@@ -399,25 +394,6 @@ function startupManager(aAppChanged) {
 }
 
 /**
- * Helper to spin the event loop until a promise resolves or rejects
- */
-function loopUntilPromise(aPromise) {
-  let done = false;
-  aPromise.then(
-    () => done = true,
-    err => {
-      do_report_unexpected_exception(err);
-      done = true;
-    });
-
-  let thr = Services.tm.mainThread;
-
-  while (!done) {
-    thr.processNextEvent(true);
-  }
-}
-
-/**
  * Restarts the add-on manager as if the host application was restarted.
  *
  * @param  aNewVersion
@@ -426,58 +402,50 @@ function loopUntilPromise(aPromise) {
  *         the application version has changed.
  */
 function restartManager(aNewVersion) {
-  loopUntilPromise(promiseRestartManager(aNewVersion));
-}
-
-function promiseRestartManager(aNewVersion) {
-  return promiseShutdownManager()
-    .then(null, err => do_report_unexpected_exception(err))
-    .then(() => {
-      if (aNewVersion) {
-        gAppInfo.version = aNewVersion;
-        startupManager(true);
-      }
-      else {
-        startupManager(false);
-      }
-    });
+  shutdownManager();
+  if (aNewVersion) {
+    gAppInfo.version = aNewVersion;
+    startupManager(true);
+  }
+  else {
+    startupManager(false);
+  }
 }
 
 function shutdownManager() {
-  loopUntilPromise(promiseShutdownManager());
-}
+  if (!gInternalManager)
+    return;
 
-function promiseShutdownManager() {
-  if (!gInternalManager) {
-    return Promise.resolve(false);
+  let shutdownDone = false;
+
+  Services.obs.notifyObservers(null, "quit-application-granted", null);
+  MockAsyncShutdown.hook().then(
+    () => shutdownDone = true,
+    err => shutdownDone = true);
+
+  let thr = Services.tm.mainThread;
+
+  // Wait until we observe the shutdown notifications
+  while (!shutdownDone) {
+    thr.processNextEvent(true);
   }
 
-  let hookErr = null;
-  Services.obs.notifyObservers(null, "quit-application-granted", null);
-  return MockAsyncShutdown.hook()
-    .then(null, err => hookErr = err)
-    .then( () => {
-      gInternalManager = null;
+  gInternalManager = null;
 
-      // Load the add-ons list as it was after application shutdown
-      loadAddonsList();
+  // Load the add-ons list as it was after application shutdown
+  loadAddonsList();
 
-      // Clear any crash report annotations
-      gAppInfo.annotations = {};
+  // Clear any crash report annotations
+  gAppInfo.annotations = {};
 
-      // Force the XPIProvider provider to reload to better
-      // simulate real-world usage.
-      let XPIscope = Components.utils.import("resource://gre/modules/addons/XPIProvider.jsm");
-      // This would be cleaner if I could get it as the rejection reason from
-      // the AddonManagerInternal.shutdown() promise
-      gXPISaveError = XPIscope.XPIProvider._shutdownError;
-      do_print("gXPISaveError set to: " + gXPISaveError);
-      AddonManagerPrivate.unregisterProvider(XPIscope.XPIProvider);
-      Components.utils.unload("resource://gre/modules/addons/XPIProvider.jsm");
-      if (hookErr) {
-        throw hookErr;
-      }
-    });
+  // Force the XPIProvider provider to reload to better
+  // simulate real-world usage.
+  let XPIscope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
+  // This would be cleaner if I could get it as the rejection reason from
+  // the AddonManagerInternal.shutdown() promise
+  gXPISaveError = XPIscope.XPIProvider._shutdownError;
+  AddonManagerPrivate.unregisterProvider(XPIscope.XPIProvider);
+  Components.utils.unload("resource://gre/modules/XPIProvider.jsm");
 }
 
 function loadAddonsList() {
@@ -723,8 +691,6 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
  *
  * @param aExt   a file pointing to either the packed extension or its unpacked directory.
  * @param aTime  the time to which we set the lastModifiedTime of the extension
- *
- * @deprecated Please use promiseSetExtensionModifiedTime instead
  */
 function setExtensionModifiedTime(aExt, aTime) {
   aExt.lastModifiedTime = aTime;
@@ -735,25 +701,6 @@ function setExtensionModifiedTime(aExt, aTime) {
       setExtensionModifiedTime(entries.nextFile, aTime);
     entries.close();
   }
-}
-function promiseSetExtensionModifiedTime(aPath, aTime) {
-  return Task.spawn(function* () {
-    yield OS.File.setDates(aPath, aTime, aTime);
-    let entries, iterator;
-    try {
-      let iterator = new OS.File.DirectoryIterator(aPath);
-      entries = yield iterator.nextBatch();
-    } catch (ex if ex instanceof OS.File.Error) {
-      return;
-    } finally {
-      if (iterator) {
-        iterator.close();
-      }
-    }
-    for (let entry of entries) {
-      yield promiseSetExtensionModifiedTime(entry.path, aTime);
-    }
-  });
 }
 
 /**
@@ -1135,11 +1082,7 @@ function completeAllInstalls(aInstalls, aCallback) {
 function installAllFiles(aFiles, aCallback, aIgnoreIncompatible) {
   let count = aFiles.length;
   let installs = [];
-  function callback() {
-    if (aCallback) {
-      aCallback();
-    }
-  }
+
   aFiles.forEach(function(aFile) {
     AddonManager.getInstallForFile(aFile, function(aInstall) {
       if (!aInstall)
@@ -1150,16 +1093,9 @@ function installAllFiles(aFiles, aCallback, aIgnoreIncompatible) {
         installs.push(aInstall);
 
       if (--count == 0)
-        completeAllInstalls(installs, callback);
+        completeAllInstalls(installs, aCallback);
     });
   });
-}
-
-function promiseInstallAllFiles(aFiles, aIgnoreIncompatible) {
-  let deferred = Promise.defer();
-  installAllFiles(aFiles, deferred.resolve, aIgnoreIncompatible);
-  return deferred.promise;
-
 }
 
 if ("nsIWindowsRegKey" in AM_Ci) {
@@ -1536,18 +1472,4 @@ function callback_soon(aFunction) {
       aFunction.apply(null, args);
     }, aFunction.name ? "delayed callback " + aFunction.name : "delayed callback");
   }
-}
-
-/**
- * A promise-based variant of AddonManager.getAddonsByIDs.
- *
- * @param {array} list As the first argument of AddonManager.getAddonsByIDs
- * @return {promise}
- * @resolve {array} The list of add-ons sent by AddonManaget.getAddonsByIDs to
- * its callback.
- */
-function promiseAddonsByIDs(list) {
-  let deferred = Promise.defer();
-  AddonManager.getAddonsByIDs(list, deferred.resolve);
-  return deferred.promise;
 }

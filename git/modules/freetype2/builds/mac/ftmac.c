@@ -1392,6 +1392,7 @@ typedef short ResourceIndex;
     if ( !pathname )
       return FT_THROW( Invalid_Argument );
 
+    error  = FT_Err_Ok;
     *aface = NULL;
 
     /* try resourcefork based font: LWFN, FFIL */

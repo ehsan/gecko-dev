@@ -230,7 +230,7 @@ class DispatchResizeToControls : public nsRunnable
 public:
   DispatchResizeToControls(nsIContent* aContent)
     : mContent(aContent) {}
-  NS_IMETHOD Run() MOZ_OVERRIDE {
+  NS_IMETHOD Run() {
     nsContentUtils::DispatchTrustedEvent(mContent->OwnerDoc(), mContent,
                                          NS_LITERAL_STRING("resizevideocontrols"),
                                          false, false);
@@ -239,7 +239,7 @@ public:
   nsCOMPtr<nsIContent> mContent;
 };
 
-nsresult
+NS_IMETHODIMP
 nsVideoFrame::Reflow(nsPresContext*           aPresContext,
                      nsHTMLReflowMetrics&     aMetrics,
                      const nsHTMLReflowState& aReflowState,
@@ -272,7 +272,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
     if (child->GetContent() == mPosterImage) {
       // Reflow the poster frame.
       nsImageFrame* imageFrame = static_cast<nsImageFrame*>(child);
-      nsHTMLReflowMetrics kidDesiredSize(aReflowState);
+      nsHTMLReflowMetrics kidDesiredSize(aReflowState.GetWritingMode());
       nsSize availableSize = nsSize(aReflowState.AvailableWidth(),
                                     aReflowState.AvailableHeight());
       nsHTMLReflowState kidReflowState(aPresContext,
@@ -325,7 +325,7 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
       }
     } else if (child->GetContent() == mCaptionDiv) {
       // Reflow to caption div
-      nsHTMLReflowMetrics kidDesiredSize(aReflowState);
+      nsHTMLReflowMetrics kidDesiredSize(aReflowState.GetWritingMode());
       nsSize availableSize = nsSize(aReflowState.AvailableWidth(),
                                     aReflowState.AvailableHeight());
       nsHTMLReflowState kidReflowState(aPresContext,
@@ -383,7 +383,7 @@ public:
   // away completely (e.g. because of a decoder error). The problem would
   // be especially acute if we have off-main-thread rendering.
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   {
     *aSnap = true;
     nsIFrame* f = Frame();
@@ -392,14 +392,14 @@ public:
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager,
-                                             const ContainerLayerParameters& aContainerParameters) MOZ_OVERRIDE
+                                             const ContainerLayerParameters& aContainerParameters)
   {
     return static_cast<nsVideoFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this, aContainerParameters);
   }
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
-                                   const ContainerLayerParameters& aParameters) MOZ_OVERRIDE
+                                   const ContainerLayerParameters& aParameters)
   {
     if (aManager->IsCompositingCheap()) {
       // Since ImageLayers don't require additional memory of the
@@ -469,7 +469,7 @@ nsVideoFrame::AccessibleType()
 #endif
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsVideoFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("HTMLVideo"), aResult);
@@ -604,7 +604,7 @@ nsVideoFrame::UpdatePosterSource(bool aNotify)
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsVideoFrame::AttributeChanged(int32_t aNameSpaceID,
                                nsIAtom* aAttribute,
                                int32_t aModType)

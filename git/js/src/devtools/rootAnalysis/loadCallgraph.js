@@ -174,7 +174,7 @@ function loadCallgraph(file)
 
     // Recursively find all callers and add them to the set of gcFunctions.
     while (worklist.length) {
-        name = worklist.shift();
+        name = worklist.pop();
         assert(name in gcFunctions);
         if (!(name in callerGraph))
             continue;

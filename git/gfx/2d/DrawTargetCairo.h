@@ -20,7 +20,6 @@ class SourceSurfaceCairo;
 class GradientStopsCairo : public GradientStops
 {
   public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(GradientStopsCairo)
     GradientStopsCairo(GradientStop* aStops, uint32_t aNumStops,
                        ExtendMode aExtendMode)
      : mExtendMode(aExtendMode)
@@ -52,7 +51,6 @@ class GradientStopsCairo : public GradientStops
 class DrawTargetCairo : public DrawTarget
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DrawTargetCairo)
   friend class BorrowedCairoContext;
 
   DrawTargetCairo();
@@ -168,6 +166,10 @@ public:
   void PrepareForDrawing(cairo_t* aContext, const Path* aPath = nullptr);
 
   static cairo_surface_t *GetDummySurface();
+
+  static TemporaryRef<SourceSurface>
+      CreateSourceSurfaceForCairoSurface(cairo_surface_t* aSurface,
+                                         SurfaceFormat aFormat);
 
 private: // methods
   // Init cairo surface without doing a cairo_surface_reference() call.

@@ -10,7 +10,7 @@
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
 #include "nsContainerFrame.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsFrameManager.h"
 #include "nsIDOMNode.h"
@@ -85,7 +85,7 @@ nsBox::ListBox(nsAutoString& aResult)
     }
 }
 
-nsresult
+NS_IMETHODIMP
 nsBox::DumpBox(FILE* aFile)
 {
   nsAutoString s;
@@ -202,7 +202,7 @@ nsBox::Shutdown()
   NS_IF_RELEASE(gTheme);
 }
 
-nsresult
+NS_IMETHODIMP
 nsBox::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild)
 {
   return NS_OK;
@@ -284,7 +284,7 @@ nsBox::GetLayoutFlags(uint32_t& aFlags)
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsIFrame::GetBorderAndPadding(nsMargin& aBorderAndPadding)
 {
   aBorderAndPadding.SizeTo(0, 0, 0, 0);
@@ -302,7 +302,7 @@ nsIFrame::GetBorderAndPadding(nsMargin& aBorderAndPadding)
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsBox::GetBorder(nsMargin& aMargin)
 {
   aMargin.SizeTo(0,0,0,0);
@@ -328,7 +328,7 @@ nsBox::GetBorder(nsMargin& aMargin)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsBox::GetPadding(nsMargin& aMargin)
 {
   const nsStyleDisplay *disp = StyleDisplay();
@@ -358,7 +358,7 @@ nsBox::GetPadding(nsMargin& aMargin)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsBox::GetMargin(nsMargin& aMargin)
 {
   aMargin.SizeTo(0,0,0,0);
@@ -962,7 +962,7 @@ nsBox::GetDebugBoxAt( const nsPoint& aPoint,
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsBox::GetDebug(bool& aDebug)
 {
   aDebug = false;

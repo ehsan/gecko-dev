@@ -34,20 +34,20 @@ public:
 
   virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   SetInitialChildList(ChildListID     aListID,
                       nsFrameList&    aChildList) MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   AppendFrames(ChildListID            aListID,
                nsFrameList&           aChildList) MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   InsertFrames(ChildListID            aListID,
                nsIFrame*              aPrevFrame,
                nsFrameList&           aChildList) MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,

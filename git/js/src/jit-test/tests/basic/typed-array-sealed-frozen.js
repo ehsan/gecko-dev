@@ -1,6 +1,8 @@
 // Any copyright is dedicated to the Public Domain.
 // http://creativecommons.org/licenses/publicdomain/
 
+// Typed arrays are always sealed.
+
 load(libdir + "asserts.js")
 
 const constructors = [
@@ -18,8 +20,8 @@ const constructors = [
 for (constructor of constructors) {
   print("testing non-empty " + constructor.name);
   let a = new constructor(10);
-  assertEq(Object.isExtensible(a), true);
-  assertEq(Object.isSealed(a), false);
+  assertEq(Object.isExtensible(a), false);
+  assertEq(Object.isSealed(a), true);
   assertEq(Object.isFrozen(a), false);
 
   // Should not throw.
@@ -34,9 +36,9 @@ print();
 for (constructor of constructors) {
   print("testing zero-length " + constructor.name);
   let a = new constructor(0);
-  assertEq(Object.isExtensible(a), true);
-  assertEq(Object.isSealed(a), false);
-  assertEq(Object.isFrozen(a), false);
+  assertEq(Object.isExtensible(a), false);
+  assertEq(Object.isSealed(a), true);
+  assertEq(Object.isFrozen(a), true);
 
   // Should not throw.
   Object.seal(a);
@@ -49,37 +51,3 @@ for (constructor of constructors) {
 let a = new Uint8Array(1 << 24);
 Object.isSealed(a);
 Object.isFrozen(a);
-
-for (constructor of constructors) {
-  print("testing extensibility " + constructor.name);
-  let a = new constructor(10);
-
-  // New named properties should show up on typed arrays.
-  a.foo = "twelve";
-  assertEq(a.foo, "twelve");
-
-  // New indexed properties should not show up on typed arrays.
-  a[20] = "twelve";
-  assertEq(a[20], undefined);
-
-  // Watch for especially large indexed properties.
-  a[-10 >>> 0] = "twelve";
-  assertEq(a[-10 >>> 0], undefined);
-
-  // Watch for really large indexed properties too.
-  a[Math.pow(2, 53)] = "twelve";
-  assertEq(a[Math.pow(2, 53)], undefined);
-
-  // Don't define old properties.
-  Object.defineProperty(a, 5, {value: 3});
-  assertEq(a[5], 0);
-
-  // Don't define new properties.
-  Object.defineProperty(a, 20, {value: 3});
-  assertEq(a[20], undefined);
-
-  // Don't delete indexed properties.
-  a[3] = 3;
-  delete a[3];
-  assertEq(a[3], 3);
-}

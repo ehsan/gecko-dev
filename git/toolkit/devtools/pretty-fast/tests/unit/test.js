@@ -6,7 +6,6 @@
 var prettyFast = this.prettyFast || require("./pretty-fast");
 
 var testCases = [
-
   {
     name: "Simple function",
     input: "function foo() { bar(); }",
@@ -180,7 +179,7 @@ var testCases = [
   {
     name: "String with quote",
     input: "var foo = \"'\";\n",
-    output: "var foo = '\\'';\n"
+    output: "var foo = '\'';\n"
   },
 
   {
@@ -432,19 +431,6 @@ var testCases = [
     output: "new F()\n"
   },
 
-  {
-    name: "Getter and setter literals",
-    input: "var obj={get foo(){return this._foo},set foo(v){this._foo=v}}",
-    output: "var obj = {\n" +
-            "  get foo() {\n" +
-            "    return this._foo\n" +
-            "  },\n" +
-            "  set foo(v) {\n" +
-            "    this._foo = v\n" +
-            "  }\n" +
-            "}\n"
-  },
-
 ];
 
 var sourceMap = this.sourceMap || require("source-map");
@@ -482,7 +468,6 @@ function run_test() {
 // Only run the tests if this is node and we are running this file
 // directly. (Firefox's test runner will import this test file, and then call
 // run_test itself.)
-if (typeof require == "function" && typeof module == "object"
-    && require.main === module) {
+if (typeof exports == "object") {
   run_test();
 }

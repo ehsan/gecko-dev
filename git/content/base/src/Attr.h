@@ -20,7 +20,6 @@
 #include "nsINodeInfo.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsStubMutationObserver.h"
-#include "nsIDocument.h"
 
 namespace mozilla {
 namespace dom {
@@ -32,7 +31,7 @@ class Attr MOZ_FINAL : public nsIAttribute,
 {
 public:
   Attr(nsDOMAttributeMap* aAttrMap,
-       already_AddRefed<nsINodeInfo>&& aNodeInfo,
+       already_AddRefed<nsINodeInfo> aNodeInfo,
        const nsAString& aValue,
        bool aNsAware);
   virtual ~Attr() {}

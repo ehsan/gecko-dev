@@ -57,7 +57,7 @@ using namespace js::gc;
 using namespace js::types;
 
 using mozilla::DebugOnly;
-using mozilla::NumberEqualsInt32;
+using mozilla::DoubleEqualsInt32;
 using mozilla::PodCopy;
 using JS::ForOfIterator;
 
@@ -72,7 +72,7 @@ static MOZ_NEVER_INLINE bool
 #else
 static bool
 #endif
-ToBooleanOp(const InterpreterRegs &regs)
+ToBooleanOp(const FrameRegs &regs)
 {
     return ToBoolean(regs.stackHandleAt(-1));
 }
@@ -83,7 +83,7 @@ static MOZ_NEVER_INLINE bool
 #else
 static bool
 #endif
-LooseEqualityOp(JSContext *cx, InterpreterRegs &regs)
+LooseEqualityOp(JSContext *cx, FrameRegs &regs)
 {
     HandleValue rval = regs.stackHandleAt(-1);
     HandleValue lval = regs.stackHandleAt(-2);
@@ -423,13 +423,6 @@ js::RunScript(JSContext *cx, RunState &state)
     return Interpret(cx, state);
 }
 
-struct AutoGCIfNeeded
-{
-    JSContext *cx_;
-    AutoGCIfNeeded(JSContext *cx) : cx_(cx) {}
-    ~AutoGCIfNeeded() { js::gc::GCIfNeeded(cx_); }
-};
-
 /*
  * Find a function reference and its 'this' value implicit first parameter
  * under argc arguments on cx's stack, and call the function.  Push missing
@@ -444,9 +437,6 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
 
     /* We should never enter a new script while cx->iterValue is live. */
     JS_ASSERT(cx->iterValue.isMagic(JS_NO_ITER_VALUE));
-
-    /* Perform GC if necessary on exit from the function. */
-    AutoGCIfNeeded gcIfNeeded(cx);
 
     /* MaybeConstruct is a subset of InitialFrameFlags */
     InitialFrameFlags initial = (InitialFrameFlags) construct;
@@ -483,8 +473,8 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
 
     // Check to see if useNewType flag should be set for this frame.
     if (construct && cx->typeInferenceEnabled()) {
-        FrameIter iter(cx);
-        if (!iter.done() && iter.hasScript()) {
+        ScriptFrameIter iter(cx);
+        if (!iter.done()) {
             JSScript *script = iter.script();
             jsbytecode *pc = iter.pc();
             if (UseNewType(cx, script, pc))
@@ -499,7 +489,7 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
 }
 
 bool
-js::Invoke(JSContext *cx, const Value &thisv, const Value &fval, unsigned argc, const Value *argv,
+js::Invoke(JSContext *cx, const Value &thisv, const Value &fval, unsigned argc, Value *argv,
            MutableHandleValue rval)
 {
     InvokeArgs args(cx);
@@ -555,10 +545,9 @@ js::InvokeConstructor(JSContext *cx, CallArgs args)
             return ok;
         }
 
-        if (!fun->isInterpretedConstructor()) {
-            RootedValue orig(cx, ObjectValue(*fun->originalFunction()));
-            return ReportIsNotFunction(cx, orig, args.length() + 1, CONSTRUCT);
-        }
+        if (!fun->isInterpretedConstructor())
+            return ReportIsNotFunction(cx, args.calleev(), args.length() + 1, CONSTRUCT);
+
         if (!Invoke(cx, args, CONSTRUCT))
             return false;
 
@@ -842,11 +831,9 @@ js::TypeOfValue(const Value &v)
  * Enter the new with scope using an object at sp[-1] and associate the depth
  * of the with block with sp + stackIndex.
  */
-bool
-js::EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val,
-                       HandleObject staticWith)
+static bool
+EnterWith(JSContext *cx, AbstractFramePtr frame, HandleValue val, uint32_t stackDepth)
 {
-    JS_ASSERT(staticWith->is<StaticWithObject>());
     RootedObject obj(cx);
     if (val.isObject()) {
         obj = &val.toObject();
@@ -857,7 +844,7 @@ js::EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val,
     }
 
     RootedObject scopeChain(cx, frame.scopeChain());
-    DynamicWithObject *withobj = DynamicWithObject::create(cx, obj, scopeChain, staticWith);
+    WithObject *withobj = WithObject::create(cx, obj, scopeChain, stackDepth);
     if (!withobj)
         return false;
 
@@ -865,25 +852,23 @@ js::EnterWithOperation(JSContext *cx, AbstractFramePtr frame, HandleValue val,
     return true;
 }
 
-// Unwind scope chain and iterator to match the static scope corresponding to
-// the given bytecode position.
+/* Unwind block and scope chains to match the given depth. */
 void
-js::UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc)
+js::UnwindScope(JSContext *cx, ScopeIter &si, uint32_t stackDepth)
 {
-    if (si.done())
-        return;
-
-    Rooted<NestedScopeObject *> staticScope(cx, si.frame().script()->getStaticScope(pc));
-
-    for (; si.staticScope() != staticScope; ++si) {
+    for (; !si.done(); ++si) {
         switch (si.type()) {
           case ScopeIter::Block:
+            if (si.staticBlock().stackDepth() < stackDepth)
+                return;
             if (cx->compartment()->debugMode())
                 DebugScopes::onPopBlock(cx, si);
             if (si.staticBlock().needsClone())
                 si.frame().popBlock(cx);
             break;
           case ScopeIter::With:
+            if (si.scope().as<WithObject>().stackDepth() < stackDepth)
+                return;
             si.frame().popWith(cx);
             break;
           case ScopeIter::Call:
@@ -894,21 +879,21 @@ js::UnwindScope(JSContext *cx, ScopeIter &si, jsbytecode *pc)
 }
 
 static void
-ForcedReturn(JSContext *cx, ScopeIter &si, InterpreterRegs &regs)
+ForcedReturn(JSContext *cx, ScopeIter &si, FrameRegs &regs)
 {
-    UnwindScope(cx, si, regs.fp()->script()->main());
+    UnwindScope(cx, si, 0);
     regs.setToEndOfScript();
 }
 
 static void
-ForcedReturn(JSContext *cx, InterpreterRegs &regs)
+ForcedReturn(JSContext *cx, FrameRegs &regs)
 {
     ScopeIter si(regs.fp(), regs.pc, cx);
     ForcedReturn(cx, si, regs);
 }
 
 void
-js::UnwindForUncatchableException(JSContext *cx, const InterpreterRegs &regs)
+js::UnwindForUncatchableException(JSContext *cx, const FrameRegs &regs)
 {
     /* c.f. the regular (catchable) TryNoteIter loop in HandleError. */
     for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
@@ -920,7 +905,7 @@ js::UnwindForUncatchableException(JSContext *cx, const InterpreterRegs &regs)
     }
 }
 
-TryNoteIter::TryNoteIter(JSContext *cx, const InterpreterRegs &regs)
+TryNoteIter::TryNoteIter(JSContext *cx, const FrameRegs &regs)
   : regs(regs),
     script(cx, regs.fp()->script()),
     pcOffset(regs.pc - script->main())
@@ -988,7 +973,7 @@ enum HandleErrorContinuation
 };
 
 static HandleErrorContinuation
-HandleError(JSContext *cx, InterpreterRegs &regs)
+HandleError(JSContext *cx, FrameRegs &regs)
 {
     JS_ASSERT(regs.fp()->script()->containsPC(regs.pc));
 
@@ -1021,7 +1006,7 @@ HandleError(JSContext *cx, InterpreterRegs &regs)
         for (TryNoteIter tni(cx, regs); !tni.done(); ++tni) {
             JSTryNote *tn = *tni;
 
-            UnwindScope(cx, si, regs.fp()->script()->main() + tn->start);
+            UnwindScope(cx, si, tn->stackDepth);
 
             /*
              * Set pc to the first bytecode after the the try note to point
@@ -1204,13 +1189,13 @@ ComputeImplicitThis(JSContext *cx, HandleObject obj, MutableHandleValue vp)
 }
 
 static MOZ_ALWAYS_INLINE bool
-AddOperation(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, MutableHandleValue res)
+AddOperation(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res)
 {
     if (lhs.isInt32() && rhs.isInt32()) {
         int32_t l = lhs.toInt32(), r = rhs.toInt32();
         int32_t t;
         if (MOZ_LIKELY(SafeAdd(l, r, &t))) {
-            res.setInt32(t);
+            res->setInt32(t);
             return true;
         }
     }
@@ -1247,55 +1232,55 @@ AddOperation(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Muta
             if (!str)
                 return false;
         }
-        res.setString(str);
+        res->setString(str);
     } else {
         double l, r;
         if (!ToNumber(cx, lhs, &l) || !ToNumber(cx, rhs, &r))
             return false;
-        res.setNumber(l + r);
+        res->setNumber(l + r);
     }
 
     return true;
 }
 
 static MOZ_ALWAYS_INLINE bool
-SubOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, MutableHandleValue res)
+SubOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
 {
     double d1, d2;
     if (!ToNumber(cx, lhs, &d1) || !ToNumber(cx, rhs, &d2))
         return false;
-    res.setNumber(d1 - d2);
+    res->setNumber(d1 - d2);
     return true;
 }
 
 static MOZ_ALWAYS_INLINE bool
-MulOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, MutableHandleValue res)
+MulOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
 {
     double d1, d2;
     if (!ToNumber(cx, lhs, &d1) || !ToNumber(cx, rhs, &d2))
         return false;
-    res.setNumber(d1 * d2);
+    res->setNumber(d1 * d2);
     return true;
 }
 
 static MOZ_ALWAYS_INLINE bool
-DivOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, MutableHandleValue res)
+DivOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
 {
     double d1, d2;
     if (!ToNumber(cx, lhs, &d1) || !ToNumber(cx, rhs, &d2))
         return false;
-    res.setNumber(NumberDiv(d1, d2));
+    res->setNumber(NumberDiv(d1, d2));
     return true;
 }
 
 static MOZ_ALWAYS_INLINE bool
-ModOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, MutableHandleValue res)
+ModOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *res)
 {
     int32_t l, r;
     if (lhs.isInt32() && rhs.isInt32() &&
         (l = lhs.toInt32()) >= 0 && (r = rhs.toInt32()) > 0) {
         int32_t mod = l % r;
-        res.setInt32(mod);
+        res->setInt32(mod);
         return true;
     }
 
@@ -1303,7 +1288,7 @@ ModOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, MutableHandleValue
     if (!ToNumber(cx, lhs, &d1) || !ToNumber(cx, rhs, &d2))
         return false;
 
-    res.setNumber(NumberMod(d1, d2));
+    res->setNumber(NumberMod(d1, d2));
     return true;
 }
 
@@ -1417,7 +1402,7 @@ Interpret(JSContext *cx, RunState &state)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if (!CheckForInterrupt(cx))                                           \
+        if (cx->runtime()->interrupt && !js_HandleExecutionInterrupt(cx))     \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -1742,16 +1727,24 @@ END_CASE(JSOP_POP)
 CASE(JSOP_POPN)
     JS_ASSERT(GET_UINT16(REGS.pc) <= REGS.stackDepth());
     REGS.sp -= GET_UINT16(REGS.pc);
+#ifdef DEBUG
+    if (StaticBlockObject *block = script->getBlockScope(REGS.pc + JSOP_POPN_LENGTH))
+        JS_ASSERT(REGS.stackDepth() >= block->stackDepth() + block->slotCount());
+#endif
 END_CASE(JSOP_POPN)
 
-CASE(JSOP_DUPAT)
+CASE(JSOP_POPNV)
 {
-    JS_ASSERT(GET_UINT24(REGS.pc) < REGS.stackDepth());
-    unsigned i = GET_UINT24(REGS.pc);
-    const Value &rref = REGS.sp[-int(i + 1)];
-    PUSH_COPY(rref);
+    JS_ASSERT(GET_UINT16(REGS.pc) < REGS.stackDepth());
+    Value val = REGS.sp[-1];
+    REGS.sp -= GET_UINT16(REGS.pc);
+    REGS.sp[-1] = val;
+#ifdef DEBUG
+    if (StaticBlockObject *block = script->getBlockScope(REGS.pc + JSOP_POPNV_LENGTH))
+        JS_ASSERT(REGS.stackDepth() >= block->stackDepth() + block->slotCount());
+#endif
 }
-END_CASE(JSOP_DUPAT)
+END_CASE(JSOP_POPNV)
 
 CASE(JSOP_SETRVAL)
     POP_RETURN_VALUE();
@@ -1760,18 +1753,28 @@ END_CASE(JSOP_SETRVAL)
 CASE(JSOP_ENTERWITH)
 {
     RootedValue &val = rootValue0;
-    RootedObject &staticWith = rootObject0;
     val = REGS.sp[-1];
-    REGS.sp--;
-    staticWith = script->getObject(REGS.pc);
 
-    if (!EnterWithOperation(cx, REGS.fp(), val, staticWith))
+    if (!EnterWith(cx, REGS.fp(), val, REGS.stackDepth() - 1))
         goto error;
+
+    /*
+     * We must ensure that different "with" blocks have different stack depth
+     * associated with them. This allows the try handler search to properly
+     * recover the scope chain. Thus we must keep the stack at least at the
+     * current level.
+     *
+     * We set sp[-1] to the current "with" object to help asserting the
+     * enter/leave balance in [leavewith].
+     */
+    REGS.sp[-1].setObject(*REGS.fp()->scopeChain());
 }
 END_CASE(JSOP_ENTERWITH)
 
 CASE(JSOP_LEAVEWITH)
+    JS_ASSERT(REGS.sp[-1].toObject() == *REGS.fp()->scopeChain());
     REGS.fp()->popWith(cx);
+    REGS.sp--;
 END_CASE(JSOP_LEAVEWITH)
 
 CASE(JSOP_RETURN)
@@ -2199,8 +2202,7 @@ CASE(JSOP_URSH)
 {
     HandleValue lval = REGS.stackHandleAt(-2);
     HandleValue rval = REGS.stackHandleAt(-1);
-    MutableHandleValue res = REGS.stackHandleAt(-2);
-    if (!UrshOperation(cx, lval, rval, res))
+    if (!UrshOperation(cx, lval, rval, &REGS.sp[-2]))
         goto error;
     REGS.sp--;
 }
@@ -2210,8 +2212,7 @@ CASE(JSOP_ADD)
 {
     MutableHandleValue lval = REGS.stackHandleAt(-2);
     MutableHandleValue rval = REGS.stackHandleAt(-1);
-    MutableHandleValue res = REGS.stackHandleAt(-2);
-    if (!AddOperation(cx, lval, rval, res))
+    if (!AddOperation(cx, lval, rval, &REGS.sp[-2]))
         goto error;
     REGS.sp--;
 }
@@ -2222,8 +2223,7 @@ CASE(JSOP_SUB)
     RootedValue &lval = rootValue0, &rval = rootValue1;
     lval = REGS.sp[-2];
     rval = REGS.sp[-1];
-    MutableHandleValue res = REGS.stackHandleAt(-2);
-    if (!SubOperation(cx, lval, rval, res))
+    if (!SubOperation(cx, lval, rval, &REGS.sp[-2]))
         goto error;
     REGS.sp--;
 }
@@ -2234,8 +2234,7 @@ CASE(JSOP_MUL)
     RootedValue &lval = rootValue0, &rval = rootValue1;
     lval = REGS.sp[-2];
     rval = REGS.sp[-1];
-    MutableHandleValue res = REGS.stackHandleAt(-2);
-    if (!MulOperation(cx, lval, rval, res))
+    if (!MulOperation(cx, lval, rval, &REGS.sp[-2]))
         goto error;
     REGS.sp--;
 }
@@ -2246,8 +2245,7 @@ CASE(JSOP_DIV)
     RootedValue &lval = rootValue0, &rval = rootValue1;
     lval = REGS.sp[-2];
     rval = REGS.sp[-1];
-    MutableHandleValue res = REGS.stackHandleAt(-2);
-    if (!DivOperation(cx, lval, rval, res))
+    if (!DivOperation(cx, lval, rval, &REGS.sp[-2]))
         goto error;
     REGS.sp--;
 }
@@ -2258,8 +2256,7 @@ CASE(JSOP_MOD)
     RootedValue &lval = rootValue0, &rval = rootValue1;
     lval = REGS.sp[-2];
     rval = REGS.sp[-1];
-    MutableHandleValue res = REGS.stackHandleAt(-2);
-    if (!ModOperation(cx, lval, rval, res))
+    if (!ModOperation(cx, lval, rval, &REGS.sp[-2]))
         goto error;
     REGS.sp--;
 }
@@ -2840,8 +2837,8 @@ CASE(JSOP_TABLESWITCH)
     if (rref.isInt32()) {
         i = rref.toInt32();
     } else {
-        /* Use mozilla::NumberEqualsInt32 to treat -0 (double) as 0. */
-        if (!rref.isDouble() || !NumberEqualsInt32(rref.toDouble(), &i))
+        /* Use mozilla::DoubleEqualsInt32 to treat -0 (double) as 0. */
+        if (!rref.isDouble() || !DoubleEqualsInt32(rref.toDouble(), &i))
             ADVANCE_AND_DISPATCH(len);
     }
 
@@ -3156,7 +3153,7 @@ CASE(JSOP_INITPROP)
     RootedId &id = rootId0;
     id = NameToId(name);
 
-    if (!DefineNativeProperty(cx, obj, id, rval, nullptr, nullptr, JSPROP_ENUMERATE, 0, 0))
+    if (!DefineNativeProperty(cx, obj, id, rval, nullptr, nullptr, JSPROP_ENUMERATE, 0, 0, 0))
         goto error;
 
     REGS.sp--;
@@ -3358,6 +3355,9 @@ CASE(JSOP_PUSHBLOCKSCOPE)
     StaticBlockObject &blockObj = script->getObject(REGS.pc)->as<StaticBlockObject>();
 
     JS_ASSERT(blockObj.needsClone());
+    // FIXME: "Aliased" slots don't need to be on the stack.
+    JS_ASSERT(REGS.stackDepth() >= blockObj.stackDepth() + blockObj.slotCount());
+
     // Clone block and push on scope chain.
     if (!REGS.fp()->pushBlock(cx, blockObj))
         goto error;
@@ -3369,10 +3369,11 @@ CASE(JSOP_POPBLOCKSCOPE)
 #ifdef DEBUG
     // Pop block from scope chain.
     JS_ASSERT(*(REGS.pc - JSOP_DEBUGLEAVEBLOCK_LENGTH) == JSOP_DEBUGLEAVEBLOCK);
-    NestedScopeObject *scope = script->getStaticScope(REGS.pc - JSOP_DEBUGLEAVEBLOCK_LENGTH);
-    JS_ASSERT(scope && scope->is<StaticBlockObject>());
-    StaticBlockObject &blockObj = scope->as<StaticBlockObject>();
-    JS_ASSERT(blockObj.needsClone());
+    StaticBlockObject *blockObj = script->getBlockScope(REGS.pc - JSOP_DEBUGLEAVEBLOCK_LENGTH);
+    JS_ASSERT(blockObj && blockObj->needsClone());
+
+    // FIXME: "Aliased" slots don't need to be on the stack.
+    JS_ASSERT(REGS.stackDepth() >= blockObj->stackDepth() + blockObj->slotCount());
 #endif
 
     // Pop block from scope chain.
@@ -3382,8 +3383,7 @@ END_CASE(JSOP_POPBLOCKSCOPE)
 
 CASE(JSOP_DEBUGLEAVEBLOCK)
 {
-    JS_ASSERT(script->getStaticScope(REGS.pc));
-    JS_ASSERT(script->getStaticScope(REGS.pc)->is<StaticBlockObject>());
+    JS_ASSERT(script->getBlockScope(REGS.pc));
 
     // FIXME: This opcode should not be necessary.  The debugger shouldn't need
     // help from bytecode to do its job.  See bug 927782.
@@ -3720,8 +3720,11 @@ js::GetAndClearException(JSContext *cx, MutableHandleValue res)
     if (!status)
         return false;
 
-    // Allow interrupting deeply nested exception handling.
-    return CheckForInterrupt(cx);
+    // Check the interrupt flag to allow interrupting deeply nested exception
+    // handling.
+    if (cx->runtime()->interrupt)
+        return js_HandleExecutionInterrupt(cx);
+    return true;
 }
 
 template <bool strict>
@@ -3823,37 +3826,37 @@ js::InitElementArray(JSContext *cx, jsbytecode *pc, HandleObject obj, uint32_t i
 }
 
 bool
-js::AddValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, MutableHandleValue res)
+js::AddValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res)
 {
     return AddOperation(cx, lhs, rhs, res);
 }
 
 bool
-js::SubValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, MutableHandleValue res)
+js::SubValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res)
 {
     return SubOperation(cx, lhs, rhs, res);
 }
 
 bool
-js::MulValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, MutableHandleValue res)
+js::MulValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res)
 {
     return MulOperation(cx, lhs, rhs, res);
 }
 
 bool
-js::DivValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, MutableHandleValue res)
+js::DivValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res)
 {
     return DivOperation(cx, lhs, rhs, res);
 }
 
 bool
-js::ModValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, MutableHandleValue res)
+js::ModValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res)
 {
     return ModOperation(cx, lhs, rhs, res);
 }
 
 bool
-js::UrshValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, MutableHandleValue res)
+js::UrshValues(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Value *res)
 {
     return UrshOperation(cx, lhs, rhs, res);
 }

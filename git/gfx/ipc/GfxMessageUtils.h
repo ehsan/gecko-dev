@@ -464,10 +464,10 @@ struct ParamTraits< mozilla::gfx::IntPointTyped<T> >
   }
 };
 
-template<class T>
-struct ParamTraits< mozilla::gfx::SizeTyped<T> >
+template<>
+struct ParamTraits<mozilla::gfx::Size>
 {
-  typedef mozilla::gfx::SizeTyped<T> paramType;
+  typedef mozilla::gfx::Size paramType;
 
   static void Write(Message* msg, const paramType& param)
   {
@@ -608,11 +608,8 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mViewport);
     WriteParam(aMsg, aParam.mScrollOffset);
     WriteParam(aMsg, aParam.mDisplayPort);
-    WriteParam(aMsg, aParam.mDisplayPortMargins);
-    WriteParam(aMsg, aParam.mUseDisplayPortMargins);
     WriteParam(aMsg, aParam.mCriticalDisplayPort);
     WriteParam(aMsg, aParam.mCompositionBounds);
-    WriteParam(aMsg, aParam.mRootCompositionSize);
     WriteParam(aMsg, aParam.mScrollId);
     WriteParam(aMsg, aParam.mResolution);
     WriteParam(aMsg, aParam.mCumulativeResolution);
@@ -623,9 +620,8 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mIsRoot);
     WriteParam(aMsg, aParam.mHasScrollgrab);
     WriteParam(aMsg, aParam.mUpdateScrollOffset);
-    WriteParam(aMsg, aParam.mScrollGeneration);
-    WriteParam(aMsg, aParam.mContentDescription);
-    WriteParam(aMsg, aParam.mTransformScale);
+    WriteParam(aMsg, aParam.mDisableScrollingX);
+    WriteParam(aMsg, aParam.mDisableScrollingY);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -634,11 +630,8 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mViewport) &&
             ReadParam(aMsg, aIter, &aResult->mScrollOffset) &&
             ReadParam(aMsg, aIter, &aResult->mDisplayPort) &&
-            ReadParam(aMsg, aIter, &aResult->mDisplayPortMargins) &&
-            ReadParam(aMsg, aIter, &aResult->mUseDisplayPortMargins) &&
             ReadParam(aMsg, aIter, &aResult->mCriticalDisplayPort) &&
             ReadParam(aMsg, aIter, &aResult->mCompositionBounds) &&
-            ReadParam(aMsg, aIter, &aResult->mRootCompositionSize) &&
             ReadParam(aMsg, aIter, &aResult->mScrollId) &&
             ReadParam(aMsg, aIter, &aResult->mResolution) &&
             ReadParam(aMsg, aIter, &aResult->mCumulativeResolution) &&
@@ -649,9 +642,8 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mIsRoot) &&
             ReadParam(aMsg, aIter, &aResult->mHasScrollgrab) &&
             ReadParam(aMsg, aIter, &aResult->mUpdateScrollOffset) &&
-            ReadParam(aMsg, aIter, &aResult->mScrollGeneration) &&
-            ReadParam(aMsg, aIter, &aResult->mContentDescription) &&
-            ReadParam(aMsg, aIter, &aResult->mTransformScale));
+            ReadParam(aMsg, aIter, &aResult->mDisableScrollingX) &&
+            ReadParam(aMsg, aIter, &aResult->mDisableScrollingY));
   }
 };
 
@@ -739,7 +731,6 @@ struct ParamTraits<mozilla::layers::ZoomConstraints>
   static void Write(Message* aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, aParam.mAllowZoom);
-    WriteParam(aMsg, aParam.mAllowDoubleTapZoom);
     WriteParam(aMsg, aParam.mMinZoom);
     WriteParam(aMsg, aParam.mMaxZoom);
   }
@@ -747,7 +738,6 @@ struct ParamTraits<mozilla::layers::ZoomConstraints>
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
     return (ReadParam(aMsg, aIter, &aResult->mAllowZoom) &&
-            ReadParam(aMsg, aIter, &aResult->mAllowDoubleTapZoom) &&
             ReadParam(aMsg, aIter, &aResult->mMinZoom) &&
             ReadParam(aMsg, aIter, &aResult->mMaxZoom));
   }

@@ -29,15 +29,14 @@ function _getWorker() {
 add_test(function test_setCallWaiting_success() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
-  context.RIL.setCallWaiting = function fakeSetCallWaiting(options) {
-    context.RIL[REQUEST_SET_CALL_WAITING](0, {
+  worker.RIL.setCallWaiting = function fakeSetCallWaiting(options) {
+    worker.RIL[REQUEST_SET_CALL_WAITING](0, {
       rilRequestError: ERROR_SUCCESS
     });
   };
 
-  context.RIL.setCallWaiting({
+  worker.RIL.setCallWaiting({
     enabled: true
   });
 
@@ -52,15 +51,14 @@ add_test(function test_setCallWaiting_success() {
 add_test(function test_setCallWaiting_generic_failure() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
-  context.RIL.setCallWaiting = function fakeSetCallWaiting(options) {
-    context.RIL[REQUEST_SET_CALL_WAITING](0, {
+  worker.RIL.setCallWaiting = function fakeSetCallWaiting(options) {
+    worker.RIL[REQUEST_SET_CALL_WAITING](0, {
       rilRequestError: ERROR_GENERIC_FAILURE
     });
   };
 
-  context.RIL.setCallWaiting({
+  worker.RIL.setCallWaiting({
     enabled: true
   });
 
@@ -75,24 +73,23 @@ add_test(function test_setCallWaiting_generic_failure() {
 add_test(function test_queryCallWaiting_success_enabled_true() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
-  context.Buf.readInt32 = function fakeReadUint32() {
-    return context.Buf.int32Array.pop();
+  worker.Buf.readInt32 = function fakeReadUint32() {
+    return worker.Buf.int32Array.pop();
   };
 
-  context.RIL.queryCallWaiting = function fakeQueryCallWaiting(options) {
-    context.Buf.int32Array = [
+  worker.RIL.queryCallWaiting = function fakeQueryCallWaiting(options) {
+    worker.Buf.int32Array = [
       1,  // serviceClass
       1,  // enabled
       1   // length
     ];
-    context.RIL[REQUEST_QUERY_CALL_WAITING](1, {
+    worker.RIL[REQUEST_QUERY_CALL_WAITING](1, {
       rilRequestError: ERROR_SUCCESS
     });
   };
 
-  context.RIL.queryCallWaiting({});
+  worker.RIL.queryCallWaiting({});
 
   let postedMessage = workerHelper.postedMessage;
 
@@ -106,24 +103,23 @@ add_test(function test_queryCallWaiting_success_enabled_true() {
 add_test(function test_queryCallWaiting_success_enabled_false() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
-  context.Buf.readInt32 = function fakeReadUint32() {
-    return context.Buf.int32Array.pop();
+  worker.Buf.readInt32 = function fakeReadUint32() {
+    return worker.Buf.int32Array.pop();
   };
 
-  context.RIL.queryCallWaiting = function fakeQueryCallWaiting(options) {
-    context.Buf.int32Array = [
+  worker.RIL.queryCallWaiting = function fakeQueryCallWaiting(options) {
+    worker.Buf.int32Array = [
       1,  // serviceClass
       0,  // enabled
       1   // length
     ];
-    context.RIL[REQUEST_QUERY_CALL_WAITING](1, {
+    worker.RIL[REQUEST_QUERY_CALL_WAITING](1, {
       rilRequestError: ERROR_SUCCESS
     });
   };
 
-  context.RIL.queryCallWaiting({});
+  worker.RIL.queryCallWaiting({});
 
   let postedMessage = workerHelper.postedMessage;
 

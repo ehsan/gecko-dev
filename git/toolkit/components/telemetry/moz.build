@@ -4,7 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']
+TEST_DIRS += ['tests']
 
 XPIDL_SOURCES += [
     'nsITelemetry.idl',
@@ -29,7 +29,6 @@ EXTRA_COMPONENTS += [
 
 EXTRA_JS_MODULES += [
     'TelemetryFile.jsm',
-    'TelemetryLog.jsm',
     'TelemetryStopwatch.jsm',
     'ThirdPartyCookieProbe.jsm',
 ]
@@ -53,9 +52,3 @@ GENERATED_FILES = [
 
 if CONFIG['MOZILLA_OFFICIAL']:
     DEFINES['MOZILLA_OFFICIAL'] = True
-
-LOCAL_INCLUDES += [
-    '/xpcom/build',
-    '/xpcom/threads',
-]
-

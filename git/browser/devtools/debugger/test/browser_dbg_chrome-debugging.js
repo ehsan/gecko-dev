@@ -12,12 +12,6 @@ let gAttached = promise.defer();
 let gNewGlobal = promise.defer()
 let gNewChromeSource = promise.defer()
 
-let { DevToolsLoader } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-let loader = new DevToolsLoader();
-loader.invisibleToDebugger = true;
-loader.main("devtools/server/main");
-let DebuggerServer = loader.DebuggerServer;
-
 function test() {
   if (!DebuggerServer.initialized) {
     DebuggerServer.init(() => true);
@@ -95,7 +89,4 @@ registerCleanupFunction(function() {
   gAttached = null;
   gNewGlobal = null;
   gNewChromeSource = null;
-
-  loader = null;
-  DebuggerServer = null;
 });

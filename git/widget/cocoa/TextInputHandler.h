@@ -1067,18 +1067,21 @@ private:
   uint32_t GetRangeCount(NSAttributedString *aString);
 
   /**
-   * CreateTextRangeArray() returns text ranges for clauses and/or caret.
+   * SetTextRangeList() appends text ranges to aTextRangeList.
    *
+   * @param aTextRangeList        When SetTextRangeList() returns, this will
+   *                              be set to the NSUnderlineStyleAttributeName
+   *                              ranges in aAttrString.  Note that if you pass
+   *                              in a large enough auto-range instance for most
+   *                              cases (e.g., nsAutoTArray<TextRange, 4>),
+   *                              it prevents memory fragmentation.
    * @param aAttrString           An NSAttributedString instance which indicates
    *                              current composition string.
    * @param aSelectedRange        Current selected range (or caret position).
-   * @return                      The result is set to the
-   *                              NSUnderlineStyleAttributeName ranges in
-   *                              aAttrString.
    */
-  already_AddRefed<mozilla::TextRangeArray>
-    CreateTextRangeArray(NSAttributedString *aAttrString,
-                         NSRange& aSelectedRange);
+  void SetTextRangeList(nsTArray<TextRange>& aTextRangeList,
+                        NSAttributedString *aAttrString,
+                        NSRange& aSelectedRange);
 
   /**
    * InitCompositionEvent() initializes aCompositionEvent.

@@ -8,7 +8,7 @@
 
 #include "nscore.h"
 #include "nsDebug.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 
 class nsAString;
 

@@ -965,7 +965,8 @@ class IDLInterface(IDLObjectWithScope):
                     raise WebIDLError("[Global] must take no arguments",
                                       [attr.location])
                 self._isOnGlobalProtoChain = True
-            elif (identifier == "NeedNewResolve" or
+            elif (identifier == "PrefControlled" or
+                  identifier == "NeedNewResolve" or
                   identifier == "OverrideBuiltins" or
                   identifier == "ChromeOnly"):
                 # Known extended attributes that do not take values
@@ -976,7 +977,6 @@ class IDLInterface(IDLObjectWithScope):
                   identifier == "JSImplementation" or
                   identifier == "HeaderFile" or
                   identifier == "NavigatorProperty" or
-                  identifier == "AvailableIn" or
                   identifier == "Func"):
                 # Known extended attributes that take a string value
                 if not attr.hasValue():
@@ -2531,24 +2531,7 @@ class IDLNullValue(IDLObject):
 
     def _getDependentObjects(self):
         return set()
-
-class IDLUndefinedValue(IDLObject):
-    def __init__(self, location):
-        IDLObject.__init__(self, location)
-        self.type = None
-        self.value = None
-
-    def coerceToType(self, type, location):
-        if not type.isAny():
-            raise WebIDLError("Cannot coerce undefined value to type %s." % type,
-                              [location])
-
-        undefinedValue = IDLUndefinedValue(self.location)
-        undefinedValue.type = type
-        return undefinedValue
-
-    def _getDependentObjects(self):
-        return set()
+  
 
 class IDLInterfaceMember(IDLObjectWithIdentifier):
 
@@ -2673,7 +2656,7 @@ class IDLAttribute(IDLInterfaceMember):
             assert not isinstance(t.name, IDLUnresolvedIdentifier)
             self.type = t
 
-        if self.type.isDictionary() and not self.getExtendedAttribute("Cached"):
+        if self.type.isDictionary():
             raise WebIDLError("An attribute cannot be of a dictionary type",
                               [self.location])
         if self.type.isSequence() and not self.getExtendedAttribute("Cached"):
@@ -2710,11 +2693,7 @@ class IDLAttribute(IDLInterfaceMember):
                               "slots must be constant or pure, since the "
                               "getter won't always be called.",
                               [self.location])
-        if self.getExtendedAttribute("Frozen"):
-            if not self.type.isSequence() and not self.type.isDictionary():
-                raise WebIDLError("[Frozen] is only allowed on sequence-valued "
-                                  "and dictionary-valued attributes",
-                                  [self.location])
+        pass
 
     def handleExtendedAttribute(self, attr):
         identifier = attr.identifier()
@@ -2820,6 +2799,10 @@ class IDLAttribute(IDLInterfaceMember):
                 raise WebIDLError("[LenientThis] is not allowed in combination "
                                   "with [%s]" % identifier,
                                   [attr.location, self.location])
+        elif identifier == "Frozen":
+            if not self.type.isSequence():
+                raise WebIDLError("[Frozen] is only allowed on sequence-valued "
+                                  "attributes", [attr.location, self.location])
         elif (identifier == "Pref" or
               identifier == "SetterThrows" or
               identifier == "Pure" or
@@ -2829,8 +2812,6 @@ class IDLAttribute(IDLInterfaceMember):
               identifier == "SameObject" or
               identifier == "Constant" or
               identifier == "Func" or
-              identifier == "Frozen" or
-              identifier == "AvailableIn" or
               identifier == "NewObject"):
             # Known attributes that we don't need to do anything with here
             pass
@@ -2926,14 +2907,6 @@ class IDLArgument(IDLObjectWithIdentifier):
             # Default optional dictionaries to null, for simplicity,
             # so the codegen doesn't have to special-case this.
             self.defaultValue = IDLNullValue(self.location)
-        elif self.type.isAny():
-            assert (self.defaultValue is None or
-                    isinstance(self.defaultValue, IDLNullValue))
-            # optional 'any' values always have a default value
-            if self.optional and not self.defaultValue and not self.variadic:
-                # Set the default value to undefined, for simplicity, so the
-                # codegen doesn't have to special-case this.
-                self.defaultValue = IDLUndefinedValue(self.location)
 
         # Now do the coercing thing; this needs to happen after the
         # above creation of a default value.
@@ -3389,7 +3362,6 @@ class IDLMethod(IDLInterfaceMember, IDLScope):
               identifier == "ChromeOnly" or
               identifier == "Pref" or
               identifier == "Func" or
-              identifier == "AvailableIn" or
               identifier == "Pure" or
               identifier == "CrossOriginCallable" or
               identifier == "WebGLHandlesContextLoss"):
@@ -4312,10 +4284,6 @@ class Parser(Tokenizer):
         if not optional and defaultValue:
             raise WebIDLError("Mandatory arguments can't have a default value.",
                               [self.getLocation(p, 6)])
-
-        # We can't test t.isAny() here and give it a default value as needed,
-        # since at this point t is not a fully resolved type yet (e.g. it might
-        # be a typedef).  We'll handle the 'any' case in IDLArgument.complete.
 
         if variadic:
             if optional:

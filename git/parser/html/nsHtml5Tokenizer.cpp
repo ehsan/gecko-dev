@@ -98,8 +98,7 @@ nsHtml5Tokenizer::nsHtml5Tokenizer(nsHtml5TreeBuilder* tokenHandler, bool viewin
     doctypeName(nullptr),
     publicIdentifier(nullptr),
     systemIdentifier(nullptr),
-    attributes(tokenHandler->HasBuilder() ? new nsHtml5HtmlAttributes(0) : nullptr),
-    newAttributesEachTime(!tokenHandler->HasBuilder()),
+    attributes(nullptr),
     viewingXmlSource(viewingXmlSource)
 {
   MOZ_COUNT_CTOR(nsHtml5Tokenizer);
@@ -285,6 +284,12 @@ nsHtml5Tokenizer::flushChars(char16_t* buf, int32_t pos)
 }
 
 void 
+nsHtml5Tokenizer::resetAttributes()
+{
+  attributes = nullptr;
+}
+
+void 
 nsHtml5Tokenizer::strBufToElementNameString()
 {
   tagName = nsHtml5ElementName::elementNameByBuffer(strBuf, 0, strBufLen, interner);
@@ -302,26 +307,17 @@ nsHtml5Tokenizer::emitCurrentTagToken(bool selfClosing, int32_t pos)
     if (!viewingXmlSource) {
       tokenHandler->endTag(tagName);
     }
-    if (newAttributesEachTime) {
-      delete attributes;
-      attributes = nullptr;
-    }
+    delete attributes;
   } else {
     if (viewingXmlSource) {
-      MOZ_ASSERT(newAttributesEachTime);
       delete attributes;
-      attributes = nullptr;
     } else {
       tokenHandler->startTag(tagName, attrs, selfClosing);
     }
   }
   tagName->release();
   tagName = nullptr;
-  if (newAttributesEachTime) {
-    attributes = nullptr;
-  } else {
-    attributes->clear(0);
-  }
+  resetAttributes();
   return stateSave;
 }
 
@@ -3938,6 +3934,8 @@ nsHtml5Tokenizer::end()
   tokenHandler->endTokenization();
   if (attributes) {
     attributes->clear(0);
+    delete attributes;
+    attributes = nullptr;
   }
 }
 
@@ -3983,11 +3981,9 @@ nsHtml5Tokenizer::resetToDataState()
     attributeName->release();
     attributeName = nullptr;
   }
-  if (newAttributesEachTime) {
-    if (attributes) {
-      delete attributes;
-      attributes = nullptr;
-    }
+  if (attributes) {
+    delete attributes;
+    attributes = nullptr;
   }
 }
 
@@ -4084,8 +4080,6 @@ nsHtml5Tokenizer::setEncodingDeclarationHandler(nsHtml5StreamParser* encodingDec
 nsHtml5Tokenizer::~nsHtml5Tokenizer()
 {
   MOZ_COUNT_DTOR(nsHtml5Tokenizer);
-  delete attributes;
-  attributes = nullptr;
 }
 
 void

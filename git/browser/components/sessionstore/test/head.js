@@ -164,9 +164,6 @@ function waitForBrowserState(aState, aSetStateCallback) {
   listening = true;
   gBrowser.tabContainer.addEventListener("SSTabRestored", onSSTabRestored, true);
 
-  // Ensure setBrowserState() doesn't remove the initial tab.
-  gBrowser.selectedTab = gBrowser.tabs[0];
-
   // Finally, call setBrowserState
   ss.setBrowserState(JSON.stringify(aState));
 }
@@ -530,7 +527,6 @@ let TestRunner = {
    */
   finish: function () {
     closeAllButPrimaryWindow();
-    gBrowser.selectedTab = gBrowser.tabs[0];
     waitForBrowserState(this.backupState, finish);
   }
 };

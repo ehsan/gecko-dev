@@ -26,7 +26,7 @@
 #endif
 
 // Heartbeat timer duration used while waiting for an incoming request.
-#define HEARTBEAT_MSEC 250
+#define HEARTBEAT_MSEC 1000
 // Total number of heartbeats we wait before giving up and shutting down.
 #define REQUEST_WAIT_TIMEOUT 30
 // Pulled from desktop browser's shell
@@ -37,8 +37,6 @@ static const WCHAR* kDefaultMetroBrowserIDPathKey = L"FirefoxURL";
 static const WCHAR* kMetroRestartCmdLine = L"--metro-restart";
 static const WCHAR* kMetroUpdateCmdLine = L"--metro-update";
 static const WCHAR* kDesktopRestartCmdLine = L"--desktop-restart";
-static const WCHAR* kNsisLaunchCmdLine = L"--launchmetro";
-static const WCHAR* kExplorerLaunchCmdLine = L"-Embedding";
 
 static bool GetDefaultBrowserPath(CStringW& aPathBuffer);
 
@@ -101,10 +99,6 @@ public:
     mRequestMet(false),
     mDelayedLaunchType(NONE),
     mVerb(L"open")
-  {
-  }
-
-  ~CExecuteCommandVerb()
   {
   }
 
@@ -390,18 +384,11 @@ public:
 
     return !selfPath.CompareNoCase(browserPath);
   }
-
-  /*
-   * Helper for nsis installer when it wants to launch the
-   * default metro browser.
-   */
-  void CommandLineMetroLaunch()
+private:
+  ~CExecuteCommandVerb()
   {
-    mTargetIsDefaultBrowser = true;
-    LaunchMetroBrowser();
   }
 
-private:
   void LaunchDesktopBrowser();
   bool LaunchMetroBrowser();
   bool SetTargetPath(IShellItem* aItem);
@@ -686,6 +673,27 @@ CExecuteCommandVerb::HeartBeat()
   }
 }
 
+static bool
+PrepareActivationManager(CComPtr<IApplicationActivationManager> &activateMgr)
+{
+  HRESULT hr = activateMgr.CoCreateInstance(CLSID_ApplicationActivationManager,
+                                            nullptr, CLSCTX_LOCAL_SERVER);
+  if (FAILED(hr)) {
+    Log(L"CoCreateInstance failed, launching on desktop.");
+    return false;
+  }
+
+  // Hand off focus rights to the out-of-process activation server. Without
+  // this the metro interface won't launch.
+  hr = CoAllowSetForegroundWindow(activateMgr, nullptr);
+  if (FAILED(hr)) {
+    Log(L"CoAllowSetForegroundWindow result %X", hr);
+    return false;
+  }
+
+  return true;
+}
+
 bool
 CExecuteCommandVerb::TestForUpdateLock()
 {
@@ -707,23 +715,13 @@ CExecuteCommandVerb::TestForUpdateLock()
 bool
 CExecuteCommandVerb::LaunchMetroBrowser()
 {
-  HRESULT hr;
-
+  // Launch in metro
   CComPtr<IApplicationActivationManager> activateMgr;
-  hr = activateMgr.CoCreateInstance(CLSID_ApplicationActivationManager,
-                                    nullptr, CLSCTX_LOCAL_SERVER);
-  if (FAILED(hr)) {
-    Log(L"CoCreateInstance failed, launching on desktop.");
+  if (!PrepareActivationManager(activateMgr)) {
     return false;
   }
 
-  // Hand off focus rights to the out-of-process activation server. This will
-  // fail if we don't have the rights to begin with. Log but don't bail.
-  hr = CoAllowSetForegroundWindow(activateMgr, nullptr);
-  if (FAILED(hr)) {
-    Log(L"CoAllowSetForegroundWindow result %X", hr);
-  }
-
+  HRESULT hr;
   WCHAR appModelID[256];
   if (!GetDefaultBrowserAppModelID(appModelID)) {
     Log(L"GetDefaultBrowserAppModelID failed.");
@@ -766,11 +764,6 @@ IFACEMETHODIMP CExecuteCommandVerb::Execute()
     SetRequestMet();
     return E_FAIL;
   }
-
-  if (!IsDX10Available()) {
-    Log(L"Can't launch in metro due to missing hardware acceleration features.");
-    mRequestType = DESKTOP_RESTART;
-  } 
 
   // Deal with metro restart for an update - launch desktop with a command
   // that tells it to run updater then launch the metro browser.
@@ -888,21 +881,7 @@ int APIENTRY wWinMain(HINSTANCE, HINSTANCE, PWSTR pszCmdLine, int)
 #if defined(SHOW_CONSOLE)
   SetupConsole();
 #endif
-
-  // nsis installer uses this as a helper to launch metro
-  if (pszCmdLine && StrStrI(pszCmdLine, kNsisLaunchCmdLine))
-  {
-    CoInitialize(nullptr);
-    CExecuteCommandVerb *pHandler = new CExecuteCommandVerb();
-    if (!pHandler)
-      return E_OUTOFMEMORY;
-    pHandler->CommandLineMetroLaunch();
-    delete pHandler;
-    CoUninitialize();
-    return 0;
-  }
-
-  if (!wcslen(pszCmdLine) || StrStrI(pszCmdLine, kExplorerLaunchCmdLine))
+  if (!wcslen(pszCmdLine) || StrStrI(pszCmdLine, L"-Embedding"))
   {
       CoInitialize(nullptr);
 

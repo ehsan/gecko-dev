@@ -20,8 +20,8 @@ namespace dom {
 SVGZoomEvent::SVGZoomEvent(EventTarget* aOwner,
                            nsPresContext* aPresContext,
                            WidgetGUIEvent* aEvent)
-  : UIEvent(aOwner, aPresContext,
-            aEvent ? aEvent : new WidgetGUIEvent(false, NS_SVG_ZOOM, 0))
+  : nsDOMUIEvent(aOwner, aPresContext,
+                 aEvent ? aEvent : new WidgetGUIEvent(false, NS_SVG_ZOOM, 0))
   , mPreviousScale(0)
   , mNewScale(0)
 {

@@ -9,7 +9,6 @@
 #include "VideoUtils.h"
 #include "prsystem.h"
 #include "WebMWriter.h"
-#include "libyuv.h"
 
 namespace mozilla {
 
@@ -24,8 +23,6 @@ PRLogModuleInfo* gVP8TrackEncoderLog;
 
 #define DEFAULT_BITRATE 2500 // in kbit/s
 #define DEFAULT_ENCODE_FRAMERATE 30
-
-using namespace mozilla::layers;
 
 VP8TrackEncoder::VP8TrackEncoder()
   : VideoTrackEncoder()
@@ -56,11 +53,9 @@ VP8TrackEncoder::~VP8TrackEncoder()
 }
 
 nsresult
-VP8TrackEncoder::Init(int32_t aWidth, int32_t aHeight, int32_t aDisplayWidth,
-                      int32_t aDisplayHeight,TrackRate aTrackRate)
+VP8TrackEncoder::Init(int32_t aWidth, int32_t aHeight, TrackRate aTrackRate)
 {
-  if (aWidth < 1 || aHeight < 1 || aDisplayWidth < 1 || aDisplayHeight < 1
-      || aTrackRate <= 0) {
+  if (aWidth < 1 || aHeight < 1 || aTrackRate <= 0) {
     return NS_ERROR_FAILURE;
   }
 
@@ -71,8 +66,6 @@ VP8TrackEncoder::Init(int32_t aWidth, int32_t aHeight, int32_t aDisplayWidth,
   mEncodedFrameDuration = mTrackRate / mEncodedFrameRate;
   mFrameWidth = aWidth;
   mFrameHeight = aHeight;
-  mDisplayWidth = aDisplayWidth;
-  mDisplayHeight = aDisplayHeight;
 
   // Encoder configuration structure.
   vpx_codec_enc_cfg_t config;
@@ -160,8 +153,6 @@ VP8TrackEncoder::GetMetadata()
   nsRefPtr<VP8Metadata> meta = new VP8Metadata();
   meta->mWidth = mFrameWidth;
   meta->mHeight = mFrameHeight;
-  meta->mDisplayWidth = mDisplayWidth;
-  meta->mDisplayHeight = mDisplayHeight;
   meta->mEncodedFrameRate = mEncodedFrameRate;
 
   return meta.forget();
@@ -171,7 +162,7 @@ nsresult
 VP8TrackEncoder::GetEncodedPartitions(EncodedFrameContainer& aData)
 {
   vpx_codec_iter_t iter = nullptr;
-  EncodedFrame::FrameType frameType = EncodedFrame::VP8_P_FRAME;
+  EncodedFrame::FrameType frameType = EncodedFrame::P_FRAME;
   nsTArray<uint8_t> frameData;
   nsresult rv;
   const vpx_codec_cx_pkt_t *pkt = nullptr;
@@ -190,7 +181,7 @@ VP8TrackEncoder::GetEncodedPartitions(EncodedFrameContainer& aData)
     // End of frame
     if ((pkt->data.frame.flags & VPX_FRAME_IS_FRAGMENT) == 0) {
       if (pkt->data.frame.flags & VPX_FRAME_IS_KEY) {
-        frameType = EncodedFrame::VP8_I_FRAME;
+        frameType = EncodedFrame::I_FRAME;
       }
       break;
     }
@@ -229,15 +220,15 @@ void VP8TrackEncoder::PrepareMutedFrame()
     CreateMutedFrame(&mMuteFrame);
   }
 
-  uint32_t yPlaneSize = mFrameWidth * mFrameHeight;
+  uint32_t yPlanSize = mFrameWidth * mFrameHeight;
   uint32_t halfWidth = (mFrameWidth + 1) / 2;
   uint32_t halfHeight = (mFrameHeight + 1) / 2;
-  uint32_t uvPlaneSize = halfWidth * halfHeight;
+  uint32_t uvPlanSize = halfWidth * halfHeight;
 
-  MOZ_ASSERT(mMuteFrame.Length() >= (yPlaneSize + uvPlaneSize * 2));
+  MOZ_ASSERT(mMuteFrame.Length() >= (yPlanSize + uvPlanSize));
   uint8_t *y = mMuteFrame.Elements();
-  uint8_t *cb = mMuteFrame.Elements() + yPlaneSize;
-  uint8_t *cr = mMuteFrame.Elements() + yPlaneSize + uvPlaneSize;
+  uint8_t *cb = mMuteFrame.Elements() + yPlanSize;
+  uint8_t *cr = mMuteFrame.Elements() + yPlanSize + uvPlanSize;
 
   mVPXImageWrapper->planes[PLANE_Y] = y;
   mVPXImageWrapper->planes[PLANE_U] = cb;
@@ -247,37 +238,15 @@ void VP8TrackEncoder::PrepareMutedFrame()
   mVPXImageWrapper->stride[VPX_PLANE_V] = halfWidth;
 }
 
-static bool isYUV420(const PlanarYCbCrImage::Data *aData)
-{
-  if (aData->mYSize == aData->mCbCrSize * 2) {
-    return true;
-  }
-  return false;
-}
-
-static bool isYUV422(const PlanarYCbCrImage::Data *aData)
-{
-  if ((aData->mYSize.width == aData->mCbCrSize.width * 2) &&
-      (aData->mYSize.height == aData->mCbCrSize.height)) {
-    return true;
-  }
-  return false;
-}
-
-static bool isYUV444(const PlanarYCbCrImage::Data *aData)
-{
-  if (aData->mYSize == aData->mCbCrSize) {
-    return true;
-  }
-  return false;
-}
-
 nsresult VP8TrackEncoder::PrepareRawFrame(VideoChunk &aChunk)
 {
-  if (aChunk.mFrame.GetForceBlack() || aChunk.IsNull()) {
+  if (aChunk.mFrame.GetForceBlack()) {
     PrepareMutedFrame();
   } else {
-    Image* img = aChunk.mFrame.GetImage();
+    layers::Image* img = aChunk.mFrame.GetImage();
+    if (NS_WARN_IF(!img)) {
+      return NS_ERROR_NULL_POINTER;
+    }
     ImageFormat format = img->GetFormat();
     if (format != ImageFormat::PLANAR_YCBCR) {
       VP8LOG("Unsupported video format\n");
@@ -285,79 +254,19 @@ nsresult VP8TrackEncoder::PrepareRawFrame(VideoChunk &aChunk)
     }
 
     // Cast away constness b/c some of the accessors are non-const
-    PlanarYCbCrImage* yuv =
-    const_cast<PlanarYCbCrImage *>(static_cast<const PlanarYCbCrImage *>(img));
+    layers::PlanarYCbCrImage* yuv =
+    const_cast<layers::PlanarYCbCrImage *>(static_cast<const layers::PlanarYCbCrImage *>(img));
     // Big-time assumption here that this is all contiguous data coming
     // from getUserMedia or other sources.
     MOZ_ASSERT(yuv);
-    const PlanarYCbCrImage::Data *data = yuv->GetData();
+    const layers::PlanarYCbCrImage::Data *data = yuv->GetData();
 
-    if (isYUV420(data) && !data->mCbSkip) { // 420 planar
-      mVPXImageWrapper->planes[PLANE_Y] = data->mYChannel;
-      mVPXImageWrapper->planes[PLANE_U] = data->mCbChannel;
-      mVPXImageWrapper->planes[PLANE_V] = data->mCrChannel;
-      mVPXImageWrapper->stride[VPX_PLANE_Y] = data->mYStride;
-      mVPXImageWrapper->stride[VPX_PLANE_U] = data->mCbCrStride;
-      mVPXImageWrapper->stride[VPX_PLANE_V] = data->mCbCrStride;
-    } else {
-      uint32_t yPlaneSize = mFrameWidth * mFrameHeight;
-      uint32_t halfWidth = (mFrameWidth + 1) / 2;
-      uint32_t halfHeight = (mFrameHeight + 1) / 2;
-      uint32_t uvPlaneSize = halfWidth * halfHeight;
-      if (mI420Frame.IsEmpty()) {
-        mI420Frame.SetLength(yPlaneSize + uvPlaneSize * 2);
-      }
-
-      MOZ_ASSERT(mI420Frame.Length() >= (yPlaneSize + uvPlaneSize * 2));
-      uint8_t *y = mI420Frame.Elements();
-      uint8_t *cb = mI420Frame.Elements() + yPlaneSize;
-      uint8_t *cr = mI420Frame.Elements() + yPlaneSize + uvPlaneSize;
-
-      if (isYUV420(data) && data->mCbSkip) {
-        // If mCbSkip is set, we assume it's nv12 or nv21.
-        if (data->mCbChannel < data->mCrChannel) { // nv12
-          libyuv::NV12ToI420(data->mYChannel, data->mYStride,
-                             data->mCbChannel, data->mCbCrStride,
-                             y, mFrameWidth,
-                             cb, halfWidth,
-                             cr, halfWidth,
-                             mFrameWidth, mFrameHeight);
-        } else { // nv21
-          libyuv::NV21ToI420(data->mYChannel, data->mYStride,
-                             data->mCrChannel, data->mCbCrStride,
-                             y, mFrameWidth,
-                             cb, halfWidth,
-                             cr, halfWidth,
-                             mFrameWidth, mFrameHeight);
-        }
-      } else if (isYUV444(data) && !data->mCbSkip) {
-        libyuv::I444ToI420(data->mYChannel, data->mYStride,
-                           data->mCbChannel, data->mCbCrStride,
-                           data->mCrChannel, data->mCbCrStride,
-                           y, mFrameWidth,
-                           cb, halfWidth,
-                           cr, halfWidth,
-                           mFrameWidth, mFrameHeight);
-      } else if (isYUV422(data) && !data->mCbSkip) {
-        libyuv::I422ToI420(data->mYChannel, data->mYStride,
-                           data->mCbChannel, data->mCbCrStride,
-                           data->mCrChannel, data->mCbCrStride,
-                           y, mFrameWidth,
-                           cb, halfWidth,
-                           cr, halfWidth,
-                           mFrameWidth, mFrameHeight);
-      } else {
-        VP8LOG("Unsupported planar format\n");
-        return NS_ERROR_NOT_IMPLEMENTED;
-      }
-
-      mVPXImageWrapper->planes[PLANE_Y] = y;
-      mVPXImageWrapper->planes[PLANE_U] = cb;
-      mVPXImageWrapper->planes[PLANE_V] = cr;
-      mVPXImageWrapper->stride[VPX_PLANE_Y] = mFrameWidth;
-      mVPXImageWrapper->stride[VPX_PLANE_U] = halfWidth;
-      mVPXImageWrapper->stride[VPX_PLANE_V] = halfWidth;
-    }
+    mVPXImageWrapper->planes[PLANE_Y] = data->mYChannel;
+    mVPXImageWrapper->planes[PLANE_U] = data->mCbChannel;
+    mVPXImageWrapper->planes[PLANE_V] = data->mCrChannel;
+    mVPXImageWrapper->stride[VPX_PLANE_Y] = data->mYStride;
+    mVPXImageWrapper->stride[VPX_PLANE_U] = data->mCbCrStride;
+    mVPXImageWrapper->stride[VPX_PLANE_V] = data->mCbCrStride;
   }
   return NS_OK;
 }

@@ -55,6 +55,8 @@ struct ICONENTRY {
   uint32_t ieFileOffset;
 };
 
+typedef HRESULT (WINAPI*SHGetStockIconInfoPtr) (SHSTOCKICONID siid, UINT uFlags, SHSTOCKICONINFO *psii);
+
 // Match stock icons with names
 static SHSTOCKICONID GetStockIconIDForName(const nsACString &aStockName)
 {
@@ -347,8 +349,8 @@ nsresult nsIconChannel::GetStockHIcon(nsIMozIconURI *aIconURI, HICON *hIcon)
 
   // We can only do this on Vista or above
   HMODULE hShellDLL = ::LoadLibraryW(L"shell32.dll");
-  decltype(SHGetStockIconInfo)* pSHGetStockIconInfo =
-    (decltype(SHGetStockIconInfo)*) ::GetProcAddress(hShellDLL, "SHGetStockIconInfo");
+  SHGetStockIconInfoPtr pSHGetStockIconInfo =
+    (SHGetStockIconInfoPtr) ::GetProcAddress(hShellDLL, "SHGetStockIconInfo");
 
   if (pSHGetStockIconInfo)
   {

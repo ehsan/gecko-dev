@@ -15,7 +15,6 @@
 
 namespace sandbox {
   class BrokerServices;
-  class TargetPolicy;
 }
 
 namespace mozilla {
@@ -24,14 +23,12 @@ class SANDBOX_EXPORT SandboxBroker
 {
 public:
   SandboxBroker();
-  bool AllowPipe(const wchar_t *aPath);
   bool LaunchApp(const wchar_t *aPath, const wchar_t *aArguments,
                  void **aProcessHandle);
   virtual ~SandboxBroker();
 
 private:
   static sandbox::BrokerServices *sBrokerService;
-  sandbox::TargetPolicy *mPolicy;
 };
 
 } // mozilla

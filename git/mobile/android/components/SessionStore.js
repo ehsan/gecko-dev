@@ -17,10 +17,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
 
 XPCOMUtils.defineLazyModuleGetter(this, "Task", "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava", "resource://gre/modules/Messaging.jsm");
 
 function dump(a) {
-  Services.console.logStringMessage(a);
+  Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(a);
 }
 
 // -----------------------------------------------------------------------
@@ -62,6 +61,11 @@ SessionStore.prototype = {
   _clearDisk: function ss_clearDisk() {
     OS.File.remove(this._sessionFile.path);
     OS.File.remove(this._sessionFileBackup.path);
+  },
+
+  _sendMessageToJava: function (aMsg) {
+    let data = Services.androidBridge.handleGeckoMessage(JSON.stringify(aMsg));
+    return JSON.parse(data);
   },
 
   observe: function ss_observe(aSubject, aTopic, aData) {
@@ -128,7 +132,7 @@ SessionStore.prototype = {
               }
 
               // Let Java know we're done restoring tabs so tabs added after this can be animated
-              sendMessageToJava({
+              this._sendMessageToJava({
                 type: "Session:RestoreEnd"
               });
             }.bind(this)
@@ -411,7 +415,7 @@ SessionStore.prototype = {
 
     // If we have private data, send it to Java; otherwise, send null to
     // indicate that there is no private data
-    sendMessageToJava({
+    this._sendMessageToJava({
       type: "PrivateBrowsing:Data",
       session: (privateData.windows[0].tabs.length > 0) ? JSON.stringify(privateData) : null
     });

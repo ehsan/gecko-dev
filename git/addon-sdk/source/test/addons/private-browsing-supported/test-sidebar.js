@@ -39,8 +39,8 @@ exports.testSideBarIsInNewPrivateWindows = function(assert, done) {
       assert.ok(!window.document.getElementById(makeID(testName)), 'sidebar id DNE');
       assert.ok(!startWindow.document.getElementById(makeID(testName)), 'sidebar id DNE');
 
-      return close(window);
-  }).then(done).then(null, assert.fail);
+      close(window).then(done, assert.fail);
+  })
 }
 
 // Disabled in order to land other fixes, see bug 910647 for further details.
@@ -143,8 +143,9 @@ exports.testDestroyEdgeCaseBugWithPrivateWindow = function(assert, done) {
 
       sidebar.show();
       assert.pass('showing the sidebar');
-    }).then(null, assert.fail);
-  }).then(null, assert.fail);
+
+    });
+  });
 }
 
 exports.testShowInPrivateWindow = function(assert, done) {
@@ -189,12 +190,12 @@ exports.testShowInPrivateWindow = function(assert, done) {
                      null,
                      'the menuitem on the old window dne');
 
-        close(window).then(done).then(null, assert.fail);
+        close(window).then(done);
       },
       function bad() {
         assert.fail('a successful show should not happen here..');
       });
-  }).then(null, assert.fail);
+  }, assert.fail);
 }
 
 // If the module doesn't support the app we're being run in, require() will

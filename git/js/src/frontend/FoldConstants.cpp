@@ -28,68 +28,45 @@ using mozilla::NegativeInfinity;
 using mozilla::PositiveInfinity;
 using JS::GenericNaN;
 
-static bool
-ContainsVarOrConst(ExclusiveContext *cx, ParseNode *pn, ParseNode **resultp)
+static ParseNode *
+ContainsVarOrConst(ParseNode *pn)
 {
-    JS_CHECK_RECURSION(cx, return false);
-
-    if (!pn) {
-        *resultp = nullptr;
-        return true;
-    }
-    if (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST)) {
-        *resultp = pn;
-        return true;
-    }
+    if (!pn)
+        return nullptr;
+    if (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST))
+        return pn;
     switch (pn->getArity()) {
       case PN_LIST:
         for (ParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
-            if (!ContainsVarOrConst(cx, pn2, resultp))
-                return false;
-            if (*resultp)
-                return true;
+            if (ParseNode *pnt = ContainsVarOrConst(pn2))
+                return pnt;
         }
         break;
-
       case PN_TERNARY:
-        if (!ContainsVarOrConst(cx, pn->pn_kid1, resultp))
-            return false;
-        if (*resultp)
-            return true;
-        if (!ContainsVarOrConst(cx, pn->pn_kid2, resultp))
-            return false;
-        if (*resultp)
-            return true;
-        return ContainsVarOrConst(cx, pn->pn_kid3, resultp);
-
+        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_kid1))
+            return pnt;
+        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_kid2))
+            return pnt;
+        return ContainsVarOrConst(pn->pn_kid3);
       case PN_BINARY:
-      case PN_BINARY_OBJ:
-        // Limit recursion if pn is a binary expression, which can't contain a
-        // var statement.
-        if (!pn->isOp(JSOP_NOP)) {
-            *resultp = nullptr;
-            return true;
-        }
-        if (!ContainsVarOrConst(cx, pn->pn_left, resultp))
-            return false;
-        if (*resultp)
-            return true;
-        return ContainsVarOrConst(cx, pn->pn_right, resultp);
-
+        /*
+         * Limit recursion if pn is a binary expression, which can't contain a
+         * var statement.
+         */
+        if (!pn->isOp(JSOP_NOP))
+            return nullptr;
+        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_left))
+            return pnt;
+        return ContainsVarOrConst(pn->pn_right);
       case PN_UNARY:
-        if (!pn->isOp(JSOP_NOP)) {
-            *resultp = nullptr;
-            return true;
-        }
-        return ContainsVarOrConst(cx, pn->pn_kid, resultp);
-
+        if (!pn->isOp(JSOP_NOP))
+            return nullptr;
+        return ContainsVarOrConst(pn->pn_kid);
       case PN_NAME:
-        return ContainsVarOrConst(cx, pn->maybeExpr(), resultp);
-
+        return ContainsVarOrConst(pn->maybeExpr());
       default:;
     }
-    *resultp = nullptr;
-    return true;
+    return nullptr;
 }
 
 /*
@@ -181,9 +158,9 @@ FoldBinaryNumeric(ExclusiveContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
             if (d == 0 || IsNaN(d))
                 d = GenericNaN();
             else if (IsNegative(d) != IsNegative(d2))
-                d = NegativeInfinity<double>();
+                d = NegativeInfinity();
             else
-                d = PositiveInfinity<double>();
+                d = PositiveInfinity();
         } else {
             d /= d2;
         }
@@ -350,7 +327,6 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
         break;
 
       case PN_BINARY:
-      case PN_BINARY_OBJ:
         if (pn->isKind(PNK_OR) || pn->isKind(PNK_AND)) {
             // Propagate Condition context through logical connectives.
             SyntacticContext kidsc = SyntacticContext::Other;
@@ -431,17 +407,8 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
 
     switch (pn->getKind()) {
       case PNK_IF:
-        {
-            ParseNode *decl;
-            if (!ContainsVarOrConst(cx, pn2, &decl))
-                return false;
-            if (decl)
-                break;
-            if (!ContainsVarOrConst(cx, pn3, &decl))
-                return false;
-            if (decl)
-                break;
-        }
+        if (ContainsVarOrConst(pn2) || ContainsVarOrConst(pn3))
+            break;
         /* FALL THROUGH */
 
       case PNK_CONDITIONAL:
@@ -610,7 +577,6 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
             // ("s" + x + 1 + 2 === "s" + x + "12").
             //
             bool isStringConcat = false;
-            RootedString foldedStr(cx);
 
             // (number + string) is definitely concatenation, but only at the
             // front of the list: (x + 1 + "2" !== x + "12") when x is a
@@ -630,11 +596,13 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                         return false;
                     if (pn2->isKind(PNK_NUMBER) && !FoldType(cx, pn2, PNK_STRING))
                         return false;
-                    if (!foldedStr)
-                        foldedStr = pn1->pn_atom;
+                    RootedString left(cx, pn1->pn_atom);
                     RootedString right(cx, pn2->pn_atom);
-                    foldedStr = ConcatStrings<CanGC>(cx, foldedStr, right);
-                    if (!foldedStr)
+                    RootedString str(cx, ConcatStrings<CanGC>(cx, left, right));
+                    if (!str)
+                        return false;
+                    pn1->pn_atom = AtomizeString(cx, str);
+                    if (!pn1->pn_atom)
                         return false;
                     pn1->pn_next = pn2->pn_next;
                     handler.freeTree(pn2);
@@ -642,23 +610,9 @@ Fold(ExclusiveContext *cx, ParseNode **pnp,
                     pn->pn_count--;
                     folded = true;
                 } else {
-                    if (foldedStr) {
-                        // Convert the rope of folded strings into an Atom.
-                        pn1->pn_atom = AtomizeString(cx, foldedStr);
-                        if (!pn1->pn_atom)
-                            return false;
-                        foldedStr = nullptr;
-                    }
                     pn1 = pn2;
                     pn2 = pn2->pn_next;
                 }
-            }
-
-            if (foldedStr) {
-                // Convert the rope of folded strings into an Atom.
-                pn1->pn_atom = AtomizeString(cx, foldedStr);
-                if (!pn1->pn_atom)
-                    return false;
             }
 
             if (folded) {

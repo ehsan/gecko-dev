@@ -16,18 +16,18 @@
 #include "nsIBoxObject.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
+#include "nsEventListenerManager.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIScrollableFrame.h"
 #include "nsEventStateManager.h"
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
-#include "mozilla/dom/TouchEvent.h"
-#include "mozilla/EventListenerManager.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TouchEvents.h"
 #include "nsView.h"
 #include "nsGkAtoms.h"
+#include "nsDOMTouchEvent.h"
 
 #include "nsComponentManagerUtils.h"
 
@@ -45,7 +45,7 @@ bool
 nsCoreUtils::HasClickListener(nsIContent *aContent)
 {
   NS_ENSURE_TRUE(aContent, false);
-  EventListenerManager* listenerManager =
+  nsEventListenerManager* listenerManager =
     aContent->GetExistingListenerManager();
 
   return listenerManager &&
@@ -141,7 +141,7 @@ nsCoreUtils::DispatchTouchEvent(uint32_t aEventType, int32_t aX, int32_t aY,
                                 nsIContent* aContent, nsIFrame* aFrame,
                                 nsIPresShell* aPresShell, nsIWidget* aRootWidget)
 {
-  if (!dom::TouchEvent::PrefEnabled())
+  if (!nsDOMTouchEvent::PrefEnabled())
     return;
 
   WidgetTouchEvent event(true, aEventType, aRootWidget);
@@ -149,8 +149,9 @@ nsCoreUtils::DispatchTouchEvent(uint32_t aEventType, int32_t aX, int32_t aY,
   event.time = PR_IntervalNow();
 
   // XXX: Touch has an identifier of -1 to hint that it is synthesized.
-  nsRefPtr<dom::Touch> t = new dom::Touch(-1, nsIntPoint(aX, aY),
-                                          nsIntPoint(1, 1), 0.0f, 1.0f);
+  nsRefPtr<mozilla::dom::Touch> t =
+    new mozilla::dom::Touch(-1, nsIntPoint(aX, aY),
+                            nsIntPoint(1, 1), 0.0f, 1.0f);
   t->SetTarget(aContent);
   event.touches.AppendElement(t);
   nsEventStatus status = nsEventStatus_eIgnore;
@@ -648,3 +649,38 @@ nsCoreUtils::IsWhitespaceString(const nsSubstring& aString)
 
   return iterBegin == iterEnd;
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+// nsAccessibleDOMStringList
+////////////////////////////////////////////////////////////////////////////////
+
+NS_IMPL_ISUPPORTS1(nsAccessibleDOMStringList, nsIDOMDOMStringList)
+
+NS_IMETHODIMP
+nsAccessibleDOMStringList::Item(uint32_t aIndex, nsAString& aResult)
+{
+  if (aIndex >= mNames.Length())
+    SetDOMStringToNull(aResult);
+  else
+    aResult = mNames.ElementAt(aIndex);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessibleDOMStringList::GetLength(uint32_t* aLength)
+{
+  *aLength = mNames.Length();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessibleDOMStringList::Contains(const nsAString& aString, bool* aResult)
+{
+  *aResult = mNames.Contains(aString);
+
+  return NS_OK;
+}
+

@@ -143,7 +143,6 @@ class nsDocShell : public nsDocLoader,
     friend class nsDSURIContentListener;
 
 public:
-    MOZ_DECLARE_REFCOUNTED_TYPENAME(nsDocShell)
     // Object Management
     nsDocShell();
 
@@ -214,8 +213,6 @@ public:
     NS_IMETHOD GetUsePrivateBrowsing(bool*);
     NS_IMETHOD SetUsePrivateBrowsing(bool);
     NS_IMETHOD SetPrivateBrowsing(bool);
-    NS_IMETHOD GetUseRemoteTabs(bool*);
-    NS_IMETHOD SetRemoteTabs(bool);
 
     // Restores a cached presentation from history (mLSHE).
     // This method swaps out the content viewer and simulates loads for
@@ -290,8 +287,7 @@ protected:
                                bool aIsNewWindowTarget,
                                bool aBypassClassifier,
                                bool aForceAllowCookies,
-                               const nsAString &aSrcdoc,
-                               nsIURI * baseURI);
+                               const nsAString &aSrcdoc);
     NS_IMETHOD AddHeadersToChannel(nsIInputStream * aHeadersData, 
                                   nsIChannel * aChannel);
     virtual nsresult DoChannelLoad(nsIChannel * aChannel,
@@ -833,7 +829,6 @@ protected:
     bool                       mIsAppTab;
     bool                       mUseGlobalHistory;
     bool                       mInPrivateBrowsing;
-    bool                       mUseRemoteTabs;
     bool                       mDeviceSizeIsPageSize;
 
     // Because scriptability depends on the mAllowJavascript values of our
@@ -900,7 +895,6 @@ private:
     nsCOMPtr<nsIPrincipal> mParentCharsetPrincipal;
     nsTObserverArray<nsWeakPtr> mPrivacyObservers;
     nsTObserverArray<nsWeakPtr> mReflowObservers;
-    nsTObserverArray<nsWeakPtr> mScrollObservers;
     nsCString         mOriginalUriString;
 
     // Separate function to do the actual name (i.e. not _top, _self etc.)

@@ -32,9 +32,10 @@ class nsDOMMutationRecord : public nsISupports,
                             public nsWrapperCache
 {
 public:
-  nsDOMMutationRecord(nsIAtom* aType, nsISupports* aOwner)
+  nsDOMMutationRecord(const nsAString& aType, nsISupports* aOwner)
   : mType(aType), mOwner(aOwner)
   {
+    mAttrName.SetIsVoid(PR_TRUE);
     mAttrNamespace.SetIsVoid(PR_TRUE);
     mPrevValue.SetIsVoid(PR_TRUE);
     SetIsDOMBinding();
@@ -55,9 +56,9 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMMutationRecord)
 
-  void GetType(mozilla::dom::DOMString& aRetVal) const
+  void GetType(nsString& aRetVal) const
   {
-    aRetVal.SetOwnedAtom(mType, mozilla::dom::DOMString::eNullNotExpected);
+    aRetVal = mType;
   }
 
   nsINode* GetTarget() const
@@ -79,32 +80,30 @@ public:
     return mNextSibling;
   }
 
-  void GetAttributeName(mozilla::dom::DOMString& aRetVal) const
+  void GetAttributeName(nsString& aRetVal) const
   {
-    aRetVal.SetOwnedAtom(mAttrName, mozilla::dom::DOMString::eTreatNullAsNull);
+    aRetVal = mAttrName;
   }
 
-  void GetAttributeNamespace(mozilla::dom::DOMString& aRetVal) const
+  void GetAttributeNamespace(nsString& aRetVal) const
   {
-    aRetVal.SetOwnedString(mAttrNamespace);
+    aRetVal = mAttrNamespace;
   }
 
-  void GetOldValue(mozilla::dom::DOMString& aRetVal) const
+  void GetOldValue(nsString& aRetVal) const
   {
-    aRetVal.SetOwnedString(mPrevValue);
+    aRetVal = mPrevValue;
   }
 
   nsCOMPtr<nsINode>             mTarget;
-  nsCOMPtr<nsIAtom>             mType;
-  nsCOMPtr<nsIAtom>             mAttrName;
+  nsString                      mType;
+  nsString                      mAttrName;
   nsString                      mAttrNamespace;
   nsString                      mPrevValue;
   nsRefPtr<nsSimpleContentList> mAddedNodes;
   nsRefPtr<nsSimpleContentList> mRemovedNodes;
   nsCOMPtr<nsINode>             mPreviousSibling;
   nsCOMPtr<nsINode>             mNextSibling;
-
-  nsRefPtr<nsDOMMutationRecord> mNext;
   nsCOMPtr<nsISupports>         mOwner;
 };
  
@@ -343,10 +342,9 @@ class nsDOMMutationObserver : public nsISupports,
                               public nsWrapperCache
 {
 public:
-  nsDOMMutationObserver(already_AddRefed<nsPIDOMWindow>&& aOwner,
+  nsDOMMutationObserver(already_AddRefed<nsPIDOMWindow> aOwner,
                         mozilla::dom::MutationCallback& aCb)
-  : mOwner(aOwner), mLastPendingMutation(nullptr), mPendingMutationCount(0),
-    mCallback(&aCb), mWaitingForRun(false), mId(++sCount)
+  : mOwner(aOwner), mCallback(&aCb), mWaitingForRun(false), mId(++sCount)
   {
     SetIsDOMBinding();
   }
@@ -385,29 +383,6 @@ public:
 
   mozilla::dom::MutationCallback* MutationCallback() { return mCallback; }
 
-  void AppendMutationRecord(already_AddRefed<nsDOMMutationRecord> aRecord)
-  {
-    nsRefPtr<nsDOMMutationRecord> record = aRecord;
-    MOZ_ASSERT(record);
-    if (!mLastPendingMutation) {
-      MOZ_ASSERT(!mFirstPendingMutation);
-      mFirstPendingMutation = record.forget();
-      mLastPendingMutation = mFirstPendingMutation;
-    } else {
-      MOZ_ASSERT(mFirstPendingMutation);
-      mLastPendingMutation->mNext = record.forget();
-      mLastPendingMutation = mLastPendingMutation->mNext;
-    }
-    ++mPendingMutationCount;
-  }
-
-  void ClearPendingRecords()
-  {
-    mFirstPendingMutation = nullptr;
-    mLastPendingMutation = nullptr;
-    mPendingMutationCount = 0;
-  }
-
   // static methods
   static void HandleMutations()
   {
@@ -433,7 +408,7 @@ protected:
   void ScheduleForRun();
   void RescheduleForRun();
 
-  nsDOMMutationRecord* CurrentRecord(nsIAtom* aType);
+  nsDOMMutationRecord* CurrentRecord(const nsAString& aType);
   bool HasCurrentRecord(const nsAString& aType);
 
   bool Suppressed()
@@ -458,10 +433,7 @@ protected:
   nsAutoTArray<nsDOMMutationRecord*, 4>              mCurrentMutations;
   // MutationRecords which will be handed to the callback at the end of
   // the microtask.
-  nsRefPtr<nsDOMMutationRecord>                      mFirstPendingMutation;
-  nsDOMMutationRecord*                               mLastPendingMutation;
-  uint32_t                                           mPendingMutationCount;
-
+  nsTArray<nsRefPtr<nsDOMMutationRecord> >           mPendingMutations;
   nsRefPtr<mozilla::dom::MutationCallback>           mCallback;
 
   bool                                               mWaitingForRun;
@@ -469,11 +441,11 @@ protected:
   uint64_t                                           mId;
 
   static uint64_t                                    sCount;
-  static nsAutoTArray<nsRefPtr<nsDOMMutationObserver>, 4>* sScheduledMutationObservers;
+  static nsTArray<nsRefPtr<nsDOMMutationObserver> >* sScheduledMutationObservers;
   static nsDOMMutationObserver*                      sCurrentObserver;
 
   static uint32_t                                    sMutationLevel;
-  static nsAutoTArray<nsAutoTArray<nsRefPtr<nsDOMMutationObserver>, 4>, 4>*
+  static nsAutoTArray<nsTArray<nsRefPtr<nsDOMMutationObserver> >, 4>*
                                                      sCurrentlyHandlingObservers;
 };
 

@@ -7,19 +7,12 @@
 // HttpLog.h should generally be included first
 #include "HttpLog.h"
 
-// Log on level :5, instead of default :4.
-#undef LOG
-#define LOG(args) LOG5(args)
-#undef LOG_ENABLED
-#define LOG_ENABLED() LOG5_ENABLED()
-
 #include "nsHttpConnection.h"
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsHttpHandler.h"
 #include "nsIOService.h"
 #include "nsISocketTransport.h"
-#include "nsSocketTransportService2.h"
 #include "nsISSLSocketControl.h"
 #include "sslt.h"
 #include "nsStringStream.h"
@@ -30,7 +23,6 @@
 #include "nsISupportsPriority.h"
 #include "nsHttpPipeline.h"
 #include <algorithm>
-#include "mozilla/ChaosMode.h"
 
 #ifdef DEBUG
 // defined by the socket transport service while active
@@ -55,6 +47,8 @@ nsHttpConnection::nsHttpConnection()
     , mMaxBytesRead(0)
     , mTotalBytesRead(0)
     , mTotalBytesWritten(0)
+    , mUnreportedBytesRead(0)
+    , mUnreportedBytesWritten(0)
     , mKeepAlive(true) // assume to keep-alive by default
     , mKeepAliveMask(true)
     , mDontReuse(false)
@@ -77,7 +71,6 @@ nsHttpConnection::nsHttpConnection()
     , mLastHttpResponseVersion(NS_HTTP_VERSION_1_1)
     , mTransactionCaps(0)
     , mResponseTimeoutEnabled(false)
-    , mTCPKeepaliveConfig(kTCPKeepaliveDisabled)
 {
     LOG(("Creating nsHttpConnection @%x\n", this));
 }
@@ -86,6 +79,7 @@ nsHttpConnection::~nsHttpConnection()
 {
     LOG(("Destroying nsHttpConnection @%x\n", this));
 
+    ReportDataUsage(false);
     if (!mEverUsedSpdy) {
         LOG(("nsHttpConnection %p performed %d HTTP/1.x transactions\n",
              this, mHttp1xTransactionCount));
@@ -229,13 +223,6 @@ nsHttpConnection::StartSpdy(uint8_t spdyVersion)
         }
     }
 
-    // Disable TCP Keepalives - use SPDY ping instead.
-    rv = DisableTCPKeepalives();
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        LOG(("nsHttpConnection::StartSpdy [%p] DisableTCPKeepalives failed "
-             "rv[0x%x]", this, rv));
-    }
-
     mSupportsPipelining = false; // dont use http/1 pipelines with spdy
     mTransaction = mSpdySession;
     mIdleTimeout = gHttpHandler->SpdyTimeout();
@@ -308,6 +295,8 @@ npnComplete:
 nsresult
 nsHttpConnection::Activate(nsAHttpTransaction *trans, uint32_t caps, int32_t pri)
 {
+    nsresult rv;
+
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
     LOG(("nsHttpConnection::Activate [this=%p trans=%x caps=%x]\n",
          this, trans, caps));
@@ -344,7 +333,6 @@ nsHttpConnection::Activate(nsAHttpTransaction *trans, uint32_t caps, int32_t pri
 
     // need to handle HTTP CONNECT tunnels if this is the first time if
     // we are tunneling through a proxy
-    nsresult rv = NS_OK;
     if (mConnInfo->UsingConnect() && !mCompletedProxyConnect) {
         rv = SetupProxyConnect();
         if (NS_FAILED(rv))
@@ -358,15 +346,8 @@ nsHttpConnection::Activate(nsAHttpTransaction *trans, uint32_t caps, int32_t pri
     // The overflow state is not needed between activations
     mInputOverflow = nullptr;
 
-    mResponseTimeoutEnabled = mTransaction->ResponseTimeout() > 0 &&
+    mResponseTimeoutEnabled = mHttpHandler->ResponseTimeout() > 0 &&
                               mTransaction->ResponseTimeoutEnabled();
-
-    rv = StartShortLivedTCPKeepalives();
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        LOG(("nsHttpConnection::Activate [%p] "
-             "StartShortLivedTCPKeepalives failed rv[0x%x]",
-             this, rv));
-    }
 
     rv = OnOutputStreamReady(mSocketOut);
 
@@ -468,12 +449,6 @@ nsHttpConnection::Close(nsresult reason)
     LOG(("nsHttpConnection::Close [this=%p reason=%x]\n", this, reason));
 
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
-
-    // Ensure TCP keepalive timer is stopped.
-    if (mTCPKeepaliveTransitionTimer) {
-        mTCPKeepaliveTransitionTimer->Cancel();
-        mTCPKeepaliveTransitionTimer = nullptr;
-    }
 
     if (NS_FAILED(reason)) {
         if (mIdleMonitoring)
@@ -954,21 +929,6 @@ nsHttpConnection::TakeTransport(nsISocketTransport  **aTransport,
     if (mInputOverflow)
         mSocketIn = mInputOverflow.forget();
 
-    // Change TCP Keepalive frequency to long-lived if currently short-lived.
-    if (mTCPKeepaliveConfig == kTCPKeepaliveShortLivedConfig) {
-        if (mTCPKeepaliveTransitionTimer) {
-            mTCPKeepaliveTransitionTimer->Cancel();
-            mTCPKeepaliveTransitionTimer = nullptr;
-        }
-        nsresult rv = StartLongLivedTCPKeepalives();
-        LOG(("nsHttpConnection::TakeTransport [%p] calling "
-             "StartLongLivedTCPKeepalives", this));
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-            LOG(("nsHttpConnection::TakeTransport [%p] "
-                 "StartLongLivedTCPKeepalives failed rv[0x%x]", this, rv));
-        }
-    }
-
     NS_IF_ADDREF(*aTransport = mSocketTransport);
     NS_IF_ADDREF(*aInputStream = mSocketIn);
     NS_IF_ADDREF(*aOutputStream = mSocketOut);
@@ -997,14 +957,14 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
     }
 
     uint32_t nextTickAfter = UINT32_MAX;
+
     // Timeout if the response is taking too long to arrive.
     if (mResponseTimeoutEnabled) {
         PRIntervalTime initialResponseDelta = now - mLastWriteTime;
-
-        if (initialResponseDelta > mTransaction->ResponseTimeout()) {
+        if (initialResponseDelta > gHttpHandler->ResponseTimeout()) {
             LOG(("canceling transaction: no response for %ums: timeout is %dms\n",
                  PR_IntervalToMilliseconds(initialResponseDelta),
-                 PR_IntervalToMilliseconds(mTransaction->ResponseTimeout())));
+                 PR_IntervalToMilliseconds(gHttpHandler->ResponseTimeout())));
 
             mResponseTimeoutEnabled = false;
 
@@ -1012,8 +972,8 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
             CloseTransaction(mTransaction, NS_ERROR_NET_TIMEOUT);
             return UINT32_MAX;
         }
-        nextTickAfter = PR_IntervalToSeconds(mTransaction->ResponseTimeout()) -
-                        PR_IntervalToSeconds(initialResponseDelta);
+        nextTickAfter = PR_IntervalToSeconds(gHttpHandler->ResponseTimeout()) -
+            PR_IntervalToSeconds(initialResponseDelta);
         nextTickAfter = std::max(nextTickAfter, 1U);
     }
 
@@ -1078,31 +1038,6 @@ nsHttpConnection::ReadTimeoutTick(PRIntervalTime now)
     // This will also close the connection
     CloseTransaction(mTransaction, NS_ERROR_NET_TIMEOUT);
     return UINT32_MAX;
-}
-
-void
-nsHttpConnection::UpdateTCPKeepalive(nsITimer *aTimer, void *aClosure)
-{
-    MOZ_ASSERT(aTimer);
-    MOZ_ASSERT(aClosure);
-
-    nsHttpConnection *self = static_cast<nsHttpConnection*>(aClosure);
-
-    if (NS_WARN_IF(self->mUsingSpdyVersion)) {
-        return;
-    }
-
-    // Do not reduce keepalive probe frequency for idle connections.
-    if (self->mIdleMonitoring) {
-        return;
-    }
-
-    nsresult rv = self->StartLongLivedTCPKeepalives();
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        LOG(("nsHttpConnection::UpdateTCPKeepalive [%p] "
-             "StartLongLivedTCPKeepalives failed rv[0x%x]",
-             self, rv));
-    }
 }
 
 void
@@ -1274,6 +1209,8 @@ nsHttpConnection::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
         mCallbacks = nullptr;
     }
 
+    ReportDataUsage(false);
+
     if (NS_FAILED(reason))
         Close(reason);
 
@@ -1316,8 +1253,11 @@ nsHttpConnection::OnReadSegment(const char *buf,
     else {
         mLastWriteTime = PR_IntervalNow();
         mSocketOutCondition = NS_OK; // reset condition
-        if (!mProxyConnectInProgress)
+        if (!mProxyConnectInProgress) {
             mTotalBytesWritten += *countRead;
+            mUnreportedBytesWritten += *countRead;
+            ReportDataUsage(true);
+        }
     }
 
     return mSocketOutCondition;
@@ -1433,11 +1373,6 @@ nsHttpConnection::OnWriteSegment(char *buf,
         return NS_ERROR_FAILURE; // stop iterating
     }
 
-    if (ChaosMode::isActive() && ChaosMode::randomUint32LessThan(2)) {
-        // read 1...count bytes
-        count = ChaosMode::randomUint32LessThan(count) + 1;
-    }
-
     nsresult rv = mSocketIn->Read(buf, count, countWritten);
     if (NS_FAILED(rv))
         mSocketInCondition = rv;
@@ -1543,6 +1478,8 @@ nsHttpConnection::OnSocketReadable()
         else {
             mCurrentBytesRead += n;
             mTotalBytesRead += n;
+            mUnreportedBytesRead += n;
+            ReportDataUsage(true);
             if (NS_FAILED(mSocketInCondition)) {
                 // continue waiting for the socket if necessary...
                 if (mSocketInCondition == NS_BASE_STREAM_WOULD_BLOCK)
@@ -1607,146 +1544,25 @@ nsHttpConnection::SetupProxyConnect()
     return NS_NewCStringInputStream(getter_AddRefs(mProxyConnectStream), buf);
 }
 
-nsresult
-nsHttpConnection::StartShortLivedTCPKeepalives()
+void
+nsHttpConnection::ReportDataUsage(bool allowDefer)
 {
-    if (mUsingSpdyVersion) {
-        return NS_OK;
-    }
-    MOZ_ASSERT(mSocketTransport);
-    if (!mSocketTransport) {
-        return NS_ERROR_NOT_INITIALIZED;
+    static const uint64_t kDeferThreshold = 128000;
+
+    if (!mUnreportedBytesRead && !mUnreportedBytesWritten)
+        return;
+
+    if (!gHttpHandler->IsTelemetryEnabled())
+        return;
+
+    if (allowDefer &&
+        (mUnreportedBytesRead + mUnreportedBytesWritten) < kDeferThreshold) {
+        return;
     }
 
-    nsresult rv = NS_OK;
-    int32_t idleTimeS = -1;
-    int32_t retryIntervalS = -1;
-    if (gHttpHandler->TCPKeepaliveEnabledForShortLivedConns()) {
-        // Set the idle time.
-        idleTimeS = gHttpHandler->GetTCPKeepaliveShortLivedIdleTime();
-        LOG(("nsHttpConnection::StartShortLivedTCPKeepalives[%p] "
-             "idle time[%ds].", this, idleTimeS));
-
-        retryIntervalS =
-            std::max<int32_t>((int32_t)PR_IntervalToSeconds(mRtt), 1);
-        rv = mSocketTransport->SetKeepaliveVals(idleTimeS, retryIntervalS);
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-            return rv;
-        }
-        rv = mSocketTransport->SetKeepaliveEnabled(true);
-        mTCPKeepaliveConfig = kTCPKeepaliveShortLivedConfig;
-    } else {
-        rv = mSocketTransport->SetKeepaliveEnabled(false);
-        mTCPKeepaliveConfig = kTCPKeepaliveDisabled;
-    }
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return rv;
-    }
-
-    // Start a timer to move to long-lived keepalive config.
-    if(!mTCPKeepaliveTransitionTimer) {
-        mTCPKeepaliveTransitionTimer =
-            do_CreateInstance("@mozilla.org/timer;1");
-    }
-
-    if (mTCPKeepaliveTransitionTimer) {
-        int32_t time = gHttpHandler->GetTCPKeepaliveShortLivedTime();
-
-        // Adjust |time| to ensure a full set of keepalive probes can be sent
-        // at the end of the short-lived phase.
-        if (gHttpHandler->TCPKeepaliveEnabledForShortLivedConns()) {
-            if (NS_WARN_IF(!gSocketTransportService)) {
-                return NS_ERROR_NOT_INITIALIZED;
-            }
-            int32_t probeCount = -1;
-            rv = gSocketTransportService->GetKeepaliveProbeCount(&probeCount);
-            if (NS_WARN_IF(NS_FAILED(rv))) {
-                return rv;
-            }
-            if (NS_WARN_IF(probeCount <= 0)) {
-                return NS_ERROR_UNEXPECTED;
-            }
-            // Add time for final keepalive probes, and 2 seconds for a buffer.
-            time += ((probeCount) * retryIntervalS) - (time % idleTimeS) + 2;
-        }
-        mTCPKeepaliveTransitionTimer->InitWithFuncCallback(
-                                          nsHttpConnection::UpdateTCPKeepalive,
-                                          this,
-                                          (uint32_t)time*1000,
-                                          nsITimer::TYPE_ONE_SHOT);
-    } else {
-        NS_WARNING("nsHttpConnection::StartShortLivedTCPKeepalives failed to "
-                   "create timer.");
-    }
-
-    return NS_OK;
-}
-
-nsresult
-nsHttpConnection::StartLongLivedTCPKeepalives()
-{
-    MOZ_ASSERT(!mUsingSpdyVersion, "Don't use TCP Keepalive with SPDY!");
-    if (NS_WARN_IF(mUsingSpdyVersion)) {
-        return NS_OK;
-    }
-    MOZ_ASSERT(mSocketTransport);
-    if (!mSocketTransport) {
-        return NS_ERROR_NOT_INITIALIZED;
-    }
-
-    nsresult rv = NS_OK;
-    if (gHttpHandler->TCPKeepaliveEnabledForLongLivedConns()) {
-        // Increase the idle time.
-        int32_t idleTimeS = gHttpHandler->GetTCPKeepaliveLongLivedIdleTime();
-        LOG(("nsHttpConnection::StartLongLivedTCPKeepalives[%p] idle time[%ds]",
-             this, idleTimeS));
-
-        int32_t retryIntervalS =
-            std::max<int32_t>((int32_t)PR_IntervalToSeconds(mRtt), 1);
-        rv = mSocketTransport->SetKeepaliveVals(idleTimeS, retryIntervalS);
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-            return rv;
-        }
-
-        // Ensure keepalive is enabled, if current status is disabled.
-        if (mTCPKeepaliveConfig == kTCPKeepaliveDisabled) {
-            rv = mSocketTransport->SetKeepaliveEnabled(true);
-            if (NS_WARN_IF(NS_FAILED(rv))) {
-                return rv;
-            }
-        }
-        mTCPKeepaliveConfig = kTCPKeepaliveLongLivedConfig;
-    } else {
-        rv = mSocketTransport->SetKeepaliveEnabled(false);
-        mTCPKeepaliveConfig = kTCPKeepaliveDisabled;
-    }
-
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-        return rv;
-    }
-    return NS_OK;
-}
-
-nsresult
-nsHttpConnection::DisableTCPKeepalives()
-{
-    MOZ_ASSERT(mSocketTransport);
-    if (!mSocketTransport) {
-        return NS_ERROR_NOT_INITIALIZED;
-    }
-    LOG(("nsHttpConnection::DisableTCPKeepalives [%p]", this));
-    if (mTCPKeepaliveConfig != kTCPKeepaliveDisabled) {
-        nsresult rv = mSocketTransport->SetKeepaliveEnabled(false);
-        if (NS_WARN_IF(NS_FAILED(rv))) {
-            return rv;
-        }
-        mTCPKeepaliveConfig = kTCPKeepaliveDisabled;
-    }
-    if (mTCPKeepaliveTransitionTimer) {
-        mTCPKeepaliveTransitionTimer->Cancel();
-        mTCPKeepaliveTransitionTimer = nullptr;
-    }
-    return NS_OK;
+    gHttpHandler->UpdateDataUsage(mCallbacks,
+                                  mUnreportedBytesRead, mUnreportedBytesWritten);
+    mUnreportedBytesRead = mUnreportedBytesWritten = 0;
 }
 
 //-----------------------------------------------------------------------------

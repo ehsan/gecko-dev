@@ -149,7 +149,7 @@
 
 EVENT(abort,
       NS_IMAGE_ABORT,
-      EventNameType_All,
+      (EventNameType_HTMLXUL | EventNameType_SVGSVG),
       NS_EVENT)
 EVENT(canplay,
       NS_CANPLAY,
@@ -433,7 +433,7 @@ FORWARDED_EVENT(blur,
                 NS_FOCUS_EVENT)
 ERROR_EVENT(error,
             NS_LOAD_ERROR,
-            EventNameType_All,
+            (EventNameType_HTMLXUL | EventNameType_SVGSVG),
             NS_EVENT)
 FORWARDED_EVENT(focus,
                 NS_FOCUS_CONTENT,
@@ -659,7 +659,7 @@ NON_IDL_EVENT(speakerforcedchange,
 NON_IDL_EVENT(text,
               NS_TEXT_TEXT,
               EventNameType_XUL,
-              NS_TEXT_EVENT)
+              NS_EVENT)
 NON_IDL_EVENT(compositionstart,
               NS_COMPOSITION_START,
               EventNameType_XUL,
@@ -732,6 +732,14 @@ NON_IDL_EVENT(SVGLoad,
               NS_EVENT)
 NON_IDL_EVENT(SVGUnload,
               NS_SVG_UNLOAD,
+              EventNameType_None,
+              NS_EVENT)
+NON_IDL_EVENT(SVGAbort,
+              NS_SVG_ABORT,
+              EventNameType_None,
+              NS_EVENT)
+NON_IDL_EVENT(SVGError,
+              NS_SVG_ERROR,
               EventNameType_None,
               NS_EVENT)
 NON_IDL_EVENT(SVGResize,

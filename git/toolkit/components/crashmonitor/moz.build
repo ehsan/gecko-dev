@@ -12,5 +12,8 @@ EXTRA_JS_MODULES = [
 
 EXTRA_COMPONENTS += [
     'crashmonitor.manifest',
+]
+
+EXTRA_PP_COMPONENTS += [
     'nsCrashMonitor.js',
 ]

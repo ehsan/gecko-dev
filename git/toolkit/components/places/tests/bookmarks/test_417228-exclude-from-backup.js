@@ -107,35 +107,57 @@ var test = {
 }
 
 function run_test() {
-  run_next_test();
-}
+  do_test_pending();
 
-add_task(function() {
+  do_check_eq(typeof PlacesUtils, "object");
+
   // make json file
-  let jsonFile = OS.Path.join(OS.Constants.Path.profileDir, "bookmarks.json");
+  var jsonFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+  jsonFile.append("bookmarks.json");
+  if (jsonFile.exists())
+    jsonFile.remove(false);
+  jsonFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, 0600);
+  if (!jsonFile.exists())
+    do_throw("couldn't create file: bookmarks.exported.json");
 
   // populate db
   test.populate();
 
-  yield BookmarkJSONUtils.exportToFile(jsonFile);
+  Task.spawn(function() {
+    try {
+      yield BookmarkJSONUtils.exportToFile(jsonFile);
+    } catch(ex) {
+      do_throw("couldn't export to file: " + ex);
+    }
 
-  // restore json file
-  yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+    // restore json file
+    try {
+      yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+    } catch(ex) {
+      do_throw("couldn't import the exported file: " + ex);
+    }
 
-  // validate without removing all bookmarks
-  // restore do not remove backup exclude entries
-  test.validate(false);
+    // validate without removing all bookmarks
+    // restore do not remove backup exclude entries
+    test.validate(false);
 
-  // cleanup
-  remove_all_bookmarks();
-  // manually remove the excluded root
-  PlacesUtils.bookmarks.removeItem(test._excludeRootId);
-  // restore json file
-  yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+    // cleanup
+    remove_all_bookmarks();
+    // manually remove the excluded root
+    PlacesUtils.bookmarks.removeItem(test._excludeRootId);
+    // restore json file
+    try {
+      yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+    } catch(ex) {
+      do_throw("couldn't import the exported file: " + ex);
+    }
 
-  // validate after a complete bookmarks cleanup
-  test.validate(true);
+    // validate after a complete bookmarks cleanup
+    test.validate(true);
 
-  // clean up
-  yield OS.File.remove(jsonFile);
-});
+    // clean up
+    jsonFile.remove(false);
+
+    do_test_finished();
+  });
+}

@@ -26,7 +26,6 @@ class SourceSurfaceSkia;
 class DrawTargetSkia : public DrawTarget
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DrawTargetSkia)
   DrawTargetSkia();
   virtual ~DrawTargetSkia();
 
@@ -100,15 +99,23 @@ public:
   virtual TemporaryRef<GradientStops> CreateGradientStops(GradientStop *aStops, uint32_t aNumStops, ExtendMode aExtendMode = ExtendMode::CLAMP) const;
   virtual TemporaryRef<FilterNode> CreateFilter(FilterType aType);
   virtual void SetTransform(const Matrix &aTransform);
-  virtual void *GetNativeSurface(NativeSurfaceType aType);
 
   bool Init(const IntSize &aSize, SurfaceFormat aFormat);
   void Init(unsigned char* aData, const IntSize &aSize, int32_t aStride, SurfaceFormat aFormat);
 
 #ifdef USE_SKIA_GPU
-  bool InitWithGrContext(GrContext* aGrContext,
-                         const IntSize &aSize,
-                         SurfaceFormat aFormat) MOZ_OVERRIDE;
+  virtual GenericRefCountedBase* GetGLContext() const MOZ_OVERRIDE { return mGLContext; }
+  void InitWithGLContextAndGrGLInterface(GenericRefCountedBase* aGLContext,
+                                         GrGLInterface* aGrGLInterface,
+                                         const IntSize &aSize,
+                                         SurfaceFormat aFormat) MOZ_OVERRIDE;
+
+  void SetCacheLimits(int aCount, int aSizeInBytes);
+  void PurgeCaches();
+
+  static void SetGlobalCacheLimits(int aCount, int aSizeInBytes);
+  static void RebalanceCacheLimits();
+  static void PurgeAllCaches();
 #endif
 
   operator std::string() const {
@@ -126,8 +133,18 @@ private:
   SkRect SkRectCoveringWholeSurface() const;
 
 #ifdef USE_SKIA_GPU
+  /*
+   * These members have inter-dependencies, but do not keep each other alive, so
+   * destruction order is very important here: mGrContext uses mGrGLInterface, and
+   * through it, uses mGLContext, so it is important that they be declared in the
+   * present order.
+   */
+  RefPtr<GenericRefCountedBase> mGLContext;
+  SkRefPtr<GrGLInterface> mGrGLInterface;
   SkRefPtr<GrContext> mGrContext;
-  uint32_t mTexture;
+
+  static int sTextureCacheCount;
+  static int sTextureCacheSizeInBytes;
 #endif
 
   IntSize mSize;

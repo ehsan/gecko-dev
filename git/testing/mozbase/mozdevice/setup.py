@@ -4,14 +4,9 @@
 
 from setuptools import setup
 
-PACKAGE_NAME = 'mozdevice'
-PACKAGE_VERSION = '0.33'
+PACKAGE_VERSION = '0.29'
 
-deps = ['mozfile >= 1.0',
-        'mozlog',
-       ]
-
-setup(name=PACKAGE_NAME,
+setup(name='mozdevice',
       version=PACKAGE_VERSION,
       description="Mozilla-authored device management",
       long_description="see http://mozbase.readthedocs.org/",
@@ -24,7 +19,7 @@ setup(name=PACKAGE_NAME,
       packages=['mozdevice'],
       include_package_data=True,
       zip_safe=False,
-      install_requires=deps,
+      install_requires=['mozlog'],
       entry_points="""
       # -*- Entry points: -*-
       [console_scripts]

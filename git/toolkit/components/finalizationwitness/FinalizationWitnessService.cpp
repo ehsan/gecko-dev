@@ -204,7 +204,7 @@ FinalizationWitnessService::Make(const char* aTopic,
 
   // Transfer ownership of the addrefed |event| to |objResult|.
   JS_SetReservedSlot(objResult, WITNESS_SLOT_EVENT,
-                     JS::PrivateValue(event.forget().take()));
+                     JS::PrivateValue(event.forget().get()));
 
   aRetval.setObject(*objResult);
   return NS_OK;

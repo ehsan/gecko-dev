@@ -160,23 +160,20 @@ TokenStream::SourceCoords::add(uint32_t lineNum, uint32_t lineStartOffset)
     }
 }
 
-MOZ_ALWAYS_INLINE bool
+MOZ_ALWAYS_INLINE void
 TokenStream::SourceCoords::fill(const TokenStream::SourceCoords &other)
 {
     JS_ASSERT(lineStartOffsets_.back() == MAX_PTR);
     JS_ASSERT(other.lineStartOffsets_.back() == MAX_PTR);
 
     if (lineStartOffsets_.length() >= other.lineStartOffsets_.length())
-        return true;
+        return;
 
     uint32_t sentinelIndex = lineStartOffsets_.length() - 1;
     lineStartOffsets_[sentinelIndex] = other.lineStartOffsets_[sentinelIndex];
 
-    for (size_t i = sentinelIndex + 1; i < other.lineStartOffsets_.length(); i++) {
-        if (!lineStartOffsets_.append(other.lineStartOffsets_[i]))
-            return false;
-    }
-    return true;
+    for (size_t i = sentinelIndex + 1; i < other.lineStartOffsets_.length(); i++)
+        (void)lineStartOffsets_.append(other.lineStartOffsets_[i]);
 }
 
 MOZ_ALWAYS_INLINE uint32_t
@@ -280,12 +277,14 @@ TokenStream::TokenStream(ExclusiveContext *cx, const ReadOnlyCompileOptions &opt
     sourceMapURL_(nullptr),
     tokenbuf(cx),
     cx(cx),
-    originPrincipals(options.originPrincipals(cx)),
+    originPrincipals(options.originPrincipals()),
     strictModeGetter(smg),
     tokenSkip(cx, &tokens),
     linebaseSkip(cx, &linebase),
     prevLinebaseSkip(cx, &prevLinebase)
 {
+    JS_ASSERT_IF(options.principals(), options.originPrincipals());
+
     // The caller must ensure that a reference is held on the supplied principals
     // throughout compilation.
     JS_ASSERT_IF(originPrincipals, originPrincipals->refcount > 0);
@@ -543,13 +542,11 @@ TokenStream::seek(const Position &pos)
         tokens[(cursor + 1 + i) & ntokensMask] = pos.lookaheadTokens[i];
 }
 
-bool
+void
 TokenStream::seek(const Position &pos, const TokenStream &other)
 {
-    if (!srcCoords.fill(other.srcCoords))
-        return false;
+    srcCoords.fill(other.srcCoords);
     seek(pos);
-    return true;
 }
 
 bool

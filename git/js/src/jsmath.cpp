@@ -35,10 +35,9 @@
 using namespace js;
 
 using mozilla::Abs;
-using mozilla::NumberEqualsInt32;
-using mozilla::NumberIsInt32;
+using mozilla::DoubleEqualsInt32;
+using mozilla::DoubleIsInt32;
 using mozilla::ExponentComponent;
-using mozilla::FloatingPoint;
 using mozilla::IsFinite;
 using mozilla::IsInfinite;
 using mozilla::IsNaN;
@@ -46,8 +45,31 @@ using mozilla::IsNegative;
 using mozilla::IsNegativeZero;
 using mozilla::PositiveInfinity;
 using mozilla::NegativeInfinity;
+using mozilla::SpecificNaN;
 using JS::ToNumber;
 using JS::GenericNaN;
+
+#ifndef M_E
+#define M_E             2.7182818284590452354
+#endif
+#ifndef M_LOG2E
+#define M_LOG2E         1.4426950408889634074
+#endif
+#ifndef M_LOG10E
+#define M_LOG10E        0.43429448190325182765
+#endif
+#ifndef M_LN2
+#define M_LN2           0.69314718055994530942
+#endif
+#ifndef M_LN10
+#define M_LN10          2.30258509299404568402
+#endif
+#ifndef M_SQRT2
+#define M_SQRT2         1.41421356237309504880
+#endif
+#ifndef M_SQRT1_2
+#define M_SQRT1_2       0.70710678118654752440
+#endif
 
 static const JSConstDoubleSpec math_constants[] = {
     {M_E,       "E",            0, {0,0,0}},
@@ -347,9 +369,9 @@ js::math_cos(JSContext *cx, unsigned argc, Value *vp)
 #ifdef _WIN32
 #define EXP_IF_OUT_OF_RANGE(x)                  \
     if (!IsNaN(x)) {                            \
-        if (x == PositiveInfinity<double>())    \
-            return PositiveInfinity<double>();  \
-        if (x == NegativeInfinity<double>())    \
+        if (x == PositiveInfinity())            \
+            return PositiveInfinity();          \
+        if (x == NegativeInfinity())            \
             return 0.0;                         \
     }
 #else
@@ -516,7 +538,7 @@ js_math_max(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    double maxval = NegativeInfinity<double>();
+    double maxval = NegativeInfinity();
     for (unsigned i = 0; i < args.length(); i++) {
         double x;
         if (!ToNumber(cx, args[i], &x))
@@ -534,7 +556,7 @@ js_math_min(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    double minval = PositiveInfinity<double>();
+    double minval = PositiveInfinity();
     for (unsigned i = 0; i < args.length(); i++) {
         double x;
         if (!ToNumber(cx, args[i], &x))
@@ -594,7 +616,7 @@ js::ecmaPow(double x, double y)
      * check for NaN since a comparison with NaN is always false.
      */
     int32_t yi;
-    if (NumberEqualsInt32(y, &yi))
+    if (DoubleEqualsInt32(y, &yi))
         return powi(x, yi);
 
     /*
@@ -745,29 +767,15 @@ js_math_random(JSContext *cx, unsigned argc, Value *vp)
 double
 js::math_round_impl(double x)
 {
-    int32_t ignored;
-    if (NumberIsInt32(x, &ignored))
-        return x;
+    int32_t i;
+    if (DoubleIsInt32(x, &i))
+        return double(i);
 
     /* Some numbers are so big that adding 0.5 would give the wrong number. */
-    if (ExponentComponent(x) >= int_fast16_t(FloatingPoint<double>::ExponentShift))
+    if (ExponentComponent(x) >= 52)
         return x;
 
     return js_copysign(floor(x + 0.5), x);
-}
-
-float
-js::math_roundf_impl(float x)
-{
-    int32_t ignored;
-    if (NumberIsInt32(x, &ignored))
-        return x;
-
-    /* Some numbers are so big that adding 0.5 would give the wrong number. */
-    if (ExponentComponent(x) >= int_fast16_t(FloatingPoint<float>::ExponentShift))
-        return x;
-
-    return js_copysign(floorf(x + 0.5f), x);
 }
 
 bool /* ES5 15.8.2.15. */
@@ -1269,7 +1277,7 @@ js::ecmaHypot(double x, double y)
      * is NaN, not Infinity.
      */
     if (mozilla::IsInfinite(x) || mozilla::IsInfinite(y)) {
-        return mozilla::PositiveInfinity<double>();
+        return mozilla::PositiveInfinity();
     }
 #endif
     return hypot(x, y);
@@ -1318,7 +1326,7 @@ js::math_hypot(JSContext *cx, unsigned argc, Value *vp)
         }
     }
 
-    double result = isInfinite ? PositiveInfinity<double>() :
+    double result = isInfinite ? PositiveInfinity() :
                     isNaN ? GenericNaN() :
                     scale * sqrt(sumsq);
     args.rval().setNumber(result);

@@ -16,9 +16,9 @@
 #include "nsString.h"
 
 class nsIRequest;
-class PendingDBLookup;
+class nsIUrlClassifierDBService;
+class nsIScriptSecurityManager;
 class PendingLookup;
-class PRLogModuleInfo;
 
 class ApplicationReputationService MOZ_FINAL :
   public nsIApplicationReputationService {
@@ -30,16 +30,15 @@ public:
   static ApplicationReputationService* GetSingleton();
 
 private:
-  friend class PendingLookup;
-  friend class PendingDBLookup;
   /**
    * Global singleton object for holding this factory service.
    */
   static ApplicationReputationService* gApplicationReputationService;
   /**
-   * NSPR_LOG_MODULES=ApplicationReputation:5
+   * Keeps track of services used to query the local database of URLs.
    */
-  static PRLogModuleInfo* prlog;
+  nsCOMPtr<nsIUrlClassifierDBService> mDBService;
+  nsCOMPtr<nsIScriptSecurityManager> mSecurityManager;
   /**
    * This is a singleton, so disallow construction.
    */

@@ -27,8 +27,6 @@ class TelephonyCall MOZ_FINAL : public nsDOMEventTargetHelper
   nsString mState;
   bool mEmergency;
   nsRefPtr<DOMError> mError;
-  bool mSwitchable;
-  bool mMergeable;
 
   uint32_t mCallIndex;
   uint16_t mCallState;
@@ -77,18 +75,6 @@ public:
     return mEmergency;
   }
 
-  bool
-  Switchable() const
-  {
-    return mSwitchable;
-  }
-
-  bool
-  Mergeable() const
-  {
-    return mMergeable;
-  }
-
   already_AddRefed<DOMError>
   GetError() const;
 
@@ -124,8 +110,7 @@ public:
   Create(Telephony* aTelephony, uint32_t aServiceId,
          const nsAString& aNumber, uint16_t aCallState,
          uint32_t aCallIndex = telephony::kOutgoingPlaceholderCallIndex,
-         bool aEmergency = false, bool aIsConference = false,
-         bool aSwitchable = true, bool aMergeable = true);
+         bool aEmergency = false, bool aIsConference = false);
 
   void
   ChangeState(uint16_t aCallState)
@@ -169,16 +154,6 @@ public:
   UpdateSecondNumber(const nsAString& aNumber)
   {
     mSecondNumber = aNumber;
-  }
-
-  void
-  UpdateSwitchable(bool aSwitchable) {
-    mSwitchable = aSwitchable;
-  }
-
-  void
-  UpdateMergeable(bool aMergeable) {
-    mMergeable = aMergeable;
   }
 
   void

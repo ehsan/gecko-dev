@@ -697,14 +697,16 @@ IDBCursor::GetValue(JSContext* aCx, ErrorResult& aRv)
 
 void
 IDBCursor::Continue(JSContext* aCx,
-                    JS::Handle<JS::Value> aKey,
+                    const Optional<JS::Handle<JS::Value> >& aKey,
                     ErrorResult &aRv)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   Key key;
-  aRv = key.SetFromJSVal(aCx, aKey);
-  ENSURE_SUCCESS_VOID(aRv);
+  if (aKey.WasPassed()) {
+    aRv = key.SetFromJSVal(aCx, aKey.Value());
+    ENSURE_SUCCESS_VOID(aRv);
+  }
 
   if (!key.IsUnset()) {
     switch (mDirection) {
@@ -807,7 +809,9 @@ IDBCursor::Update(JSContext* aCx, JS::Handle<JS::Value> aValue,
       return nullptr;
     }
 
-    request = mObjectStore->Put(aCx, aValue, JS::UndefinedHandleValue, aRv);
+    JS::Rooted<JS::Value> value(aCx, aValue);
+    Optional<JS::Handle<JS::Value> > keyValue(aCx);
+    request = mObjectStore->Put(aCx, value, keyValue, aRv);
     if (aRv.Failed()) {
       return nullptr;
     }
@@ -817,7 +821,9 @@ IDBCursor::Update(JSContext* aCx, JS::Handle<JS::Value> aValue,
     aRv = objectKey.ToJSVal(aCx, &keyVal);
     ENSURE_SUCCESS(aRv, nullptr);
 
-    request = mObjectStore->Put(aCx, aValue, keyVal, aRv);
+    JS::Rooted<JS::Value> value(aCx, aValue);
+    Optional<JS::Handle<JS::Value> > keyValue(aCx, keyVal);
+    request = mObjectStore->Put(aCx, value, keyValue, aRv);
     if (aRv.Failed()) {
       return nullptr;
     }

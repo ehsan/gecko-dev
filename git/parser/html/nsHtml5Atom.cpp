@@ -4,7 +4,6 @@
 
 #include "nsHtml5Atom.h"
 #include "nsAutoPtr.h"
-#include "mozilla/unused.h"
 
 nsHtml5Atom::nsHtml5Atom(const nsAString& aString)
 {
@@ -25,7 +24,7 @@ nsHtml5Atom::nsHtml5Atom(const nsAString& aString)
   NS_ASSERTION(Equals(aString), "correct data");
 
   // Take ownership of buffer
-  mozilla::unused << buf.forget();
+  buf.forget();
 }
 
 nsHtml5Atom::~nsHtml5Atom()

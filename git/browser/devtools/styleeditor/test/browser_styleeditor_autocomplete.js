@@ -77,14 +77,16 @@ function test()
 {
   waitForExplicitFinish();
 
-  addTabAndOpenStyleEditors(1, testEditorAdded);
+  addTabAndOpenStyleEditor(function(panel) {
+    panel.UI.on("editor-added", testEditorAdded);
+  });
 
   content.location = TESTCASE_URI;
 }
 
-function testEditorAdded(panel) {
+function testEditorAdded(aEvent, aEditor) {
   info("Editor added, getting the source editor and starting tests");
-  panel.UI.editors[0].getSourceEditor().then(editor => {
+  aEditor.getSourceEditor().then(editor => {
     info("source editor found, starting tests.");
     gEditor = editor.sourceEditor;
     gPopup = gEditor.getAutocompletionPopup();
@@ -167,14 +169,16 @@ function testAutocompletionDisabled() {
   info("Starting test to check if autocompletion is disabled correctly.")
   Services.prefs.setBoolPref(AUTOCOMPLETION_PREF, false);
 
-  addTabAndOpenStyleEditors(1, testEditorAddedDisabled);
+  addTabAndOpenStyleEditor(function(panel) {
+    panel.UI.on("editor-added", testEditorAddedDisabled);
+  });
 
   content.location = TESTCASE_URI;
 }
 
-function testEditorAddedDisabled(panel) {
+function testEditorAddedDisabled(aEvent, aEditor) {
   info("Editor added, getting the source editor and starting tests");
-  panel.UI.editors[0].getSourceEditor().then(editor => {
+  aEditor.getSourceEditor().then(editor => {
     ok(!editor.sourceEditor.getAutocompletionPopup,
        "Autocompletion popup does not exist");
     cleanup();

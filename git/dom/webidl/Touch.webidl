@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Func="mozilla::dom::Touch::PrefEnabled"]
+[PrefControlled]
 interface Touch {
   readonly    attribute long        identifier;
   readonly    attribute EventTarget target;

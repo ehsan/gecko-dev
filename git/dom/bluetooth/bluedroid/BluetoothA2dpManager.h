@@ -15,6 +15,8 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothA2dpManager : public BluetoothProfileManagerBase
 {
 public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
   BT_DECL_PROFILE_MGR_BASE
   virtual void GetName(nsACString& aName)
   {
@@ -58,7 +60,6 @@ public:
   uint64_t GetTotalMediaNumber();
   void GetTitle(nsAString& aTitle);
   void GetArtist(nsAString& aArtist);
-
 private:
   class SinkPropertyChangedHandler;
   BluetoothA2dpManager();

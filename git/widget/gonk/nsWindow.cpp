@@ -69,6 +69,7 @@ static nsIntRect sVirtualBounds;
 
 static nsRefPtr<GLContext> sGLContext;
 static nsTArray<nsWindow *> sTopWindows;
+static nsWindow *gWindowToRedraw = nullptr;
 static nsWindow *gFocusedWindow = nullptr;
 static bool sFramebufferOpen;
 static bool sUsingOMTC;
@@ -185,24 +186,20 @@ nsWindow::DoDraw(void)
         return;
     }
 
-    if (sTopWindows.IsEmpty()) {
+    if (!gWindowToRedraw) {
         LOG("  no window to draw, bailing");
         return;
     }
 
-    nsWindow *targetWindow = (nsWindow *)sTopWindows[0];
-    while (targetWindow->GetLastChild())
-        targetWindow = (nsWindow *)targetWindow->GetLastChild();
+    nsIntRegion region = gWindowToRedraw->mDirtyRegion;
+    gWindowToRedraw->mDirtyRegion.SetEmpty();
 
-    nsIntRegion region = sTopWindows[0]->mDirtyRegion;
-    sTopWindows[0]->mDirtyRegion.SetEmpty();
-
-    nsIWidgetListener* listener = targetWindow->GetWidgetListener();
+    nsIWidgetListener* listener = gWindowToRedraw->GetWidgetListener();
     if (listener) {
-        listener->WillPaintWindow(targetWindow);
+        listener->WillPaintWindow(gWindowToRedraw);
     }
 
-    LayerManager* lm = targetWindow->GetLayerManager();
+    LayerManager* lm = gWindowToRedraw->GetLayerManager();
     if (mozilla::layers::LayersBackend::LAYERS_CLIENT == lm->GetBackendType()) {
       // No need to do anything, the compositor will handle drawing
     } else if (mozilla::layers::LayersBackend::LAYERS_BASIC == lm->GetBackendType()) {
@@ -221,12 +218,12 @@ nsWindow::DoDraw(void)
 
             // No double-buffering needed.
             AutoLayerManagerSetup setupLayerManager(
-                targetWindow, ctx, mozilla::layers::BufferMode::BUFFER_NONE,
+                gWindowToRedraw, ctx, mozilla::layers::BufferMode::BUFFER_NONE,
                 ScreenRotation(EffectiveScreenRotation()));
 
-            listener = targetWindow->GetWidgetListener();
+            listener = gWindowToRedraw->GetWidgetListener();
             if (listener) {
-                listener->PaintWindow(targetWindow, region);
+                listener->PaintWindow(gWindowToRedraw, region);
             }
         }
 
@@ -238,7 +235,7 @@ nsWindow::DoDraw(void)
         NS_RUNTIMEABORT("Unexpected layer manager type");
     }
 
-    listener = targetWindow->GetWidgetListener();
+    listener = gWindowToRedraw->GetWidgetListener();
     if (listener) {
         listener->DidPaintWindow();
     }
@@ -285,10 +282,11 @@ nsWindow::Create(nsIWidget *aParent,
 
     mBounds = aRect;
 
-    mParent = (nsWindow *)aParent;
+    nsWindow *parent = (nsWindow *)aNativeParent;
+    mParent = parent;
     mVisible = false;
 
-    if (!aParent) {
+    if (!aNativeParent) {
         mBounds = sVirtualBounds;
     }
 
@@ -306,6 +304,8 @@ nsWindow::Destroy(void)
 {
     mOnDestroyCalled = true;
     sTopWindows.RemoveElement(this);
+    if (this == gWindowToRedraw)
+        gWindowToRedraw = nullptr;
     if (this == gFocusedWindow)
         gFocusedWindow = nullptr;
     nsBaseWidget::OnDestroy();
@@ -382,8 +382,8 @@ nsWindow::Resize(double aX,
     if (mWidgetListener)
         mWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
 
-    if (aRepaint)
-        Invalidate(sVirtualBounds);
+    if (aRepaint && gWindowToRedraw)
+        gWindowToRedraw->Invalidate(sVirtualBounds);
 
     return NS_OK;
 }
@@ -419,13 +419,14 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>&)
 NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect)
 {
-    nsWindow *top = mParent;
-    while (top && top->mParent)
-        top = top->mParent;
-    if (top != sTopWindows[0] && this != sTopWindows[0])
+    nsWindow *parent = mParent;
+    while (parent && parent != sTopWindows[0])
+        parent = parent->mParent;
+    if (parent != sTopWindows[0])
         return NS_OK;
 
     mDirtyRegion.Or(mDirtyRegion, aRect);
+    gWindowToRedraw = this;
     gDrawRequest = true;
     mozilla::NotifyEvent();
     return NS_OK;
@@ -453,6 +454,8 @@ nsWindow::GetNativeData(uint32_t aDataType)
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
         return GetGonkDisplay()->GetNativeWindow();
+    case NS_NATIVE_WIDGET:
+        return this;
     }
     return nullptr;
 }
@@ -765,12 +768,12 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
         sVirtualBounds = gScreenBounds;
     }
 
-    nsAppShell::NotifyScreenRotation();
-
     for (unsigned int i = 0; i < sTopWindows.Length(); i++)
         sTopWindows[i]->Resize(sVirtualBounds.width,
                                sVirtualBounds.height,
-                               true);
+                               !i);
+
+    nsAppShell::NotifyScreenRotation();
 
     return NS_OK;
 }

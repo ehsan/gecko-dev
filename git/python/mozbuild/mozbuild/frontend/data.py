@@ -81,8 +81,6 @@ class SandboxDerived(TreeMetadata):
         self.srcdir = sandbox['SRCDIR']
         self.objdir = sandbox['OBJDIR']
 
-        self.config = sandbox.config
-
 
 class DirectoryTraversal(SandboxDerived):
     """Describes how directory traversal for building should work.
@@ -185,11 +183,10 @@ class Defines(SandboxDerived):
     def get_defines(self):
         for define, value in self.defines.iteritems():
             if value is True:
-                yield('-D%s' % define)
-            elif value is False:
-                yield('-U%s' % define)
+                defstr = define
             else:
-                yield('-D%s=%s' % (define, shell_quote(value)))
+                defstr = '%s=%s' % (define, shell_quote(value))
+            yield('-D%s' % defstr)
 
 class Exports(SandboxDerived):
     """Sandbox container object for EXPORTS, which is a HierarchicalStringList.
@@ -204,24 +201,6 @@ class Exports(SandboxDerived):
         SandboxDerived.__init__(self, sandbox)
         self.exports = exports
         self.dist_install = dist_install
-
-class Resources(SandboxDerived):
-    """Sandbox container object for RESOURCE_FILES, which is a HierarchicalStringList,
-    with an extra ``.preprocess`` property on each entry.
-
-    The local defines plus anything in ACDEFINES are stored in ``defines`` as a
-    dictionary, for any files that need preprocessing.
-    """
-    __slots__ = ('resources', 'defines')
-
-    def __init__(self, sandbox, resources, defines=None):
-        SandboxDerived.__init__(self, sandbox)
-        self.resources = resources
-        defs = {}
-        defs.update(sandbox.config.defines)
-        if defines:
-            defs.update(defines)
-        self.defines = defs
 
 
 class IPDLFile(SandboxDerived):
@@ -392,9 +371,7 @@ class TestManifest(SandboxDerived):
         'flavor',
 
         # Maps source filename to destination filename. The destination
-        # path is relative from the tests root directory. Values are 2-tuples
-        # of (destpath, is_test_file) where the 2nd item is True if this
-        # item represents a test file (versus a support file).
+        # path is relative from the tests root directory.
         'installs',
 
         # A list of pattern matching installs to perform. Entries are
@@ -423,9 +400,6 @@ class TestManifest(SandboxDerived):
         # The relative path of the parsed manifest within the srcdir.
         'manifest_relpath',
 
-        # The relative path of the parsed manifest within the objdir.
-        'manifest_obj_relpath',
-
         # If this manifest is a duplicate of another one, this is the
         # manifestparser.TestManifest of the other one.
         'dupe_manifest',
@@ -441,7 +415,6 @@ class TestManifest(SandboxDerived):
         self.flavor = flavor
         self.install_prefix = install_prefix
         self.manifest_relpath = relpath
-        self.manifest_obj_relpath = relpath
         self.dupe_manifest = dupe_manifest
         self.installs = {}
         self.pattern_installs = []
@@ -472,21 +445,6 @@ class GeneratedInclude(SandboxDerived):
         SandboxDerived.__init__(self, sandbox)
 
         self.path = path
-
-
-class PerSourceFlag(SandboxDerived):
-    """Describes compiler flags specified for individual source files."""
-
-    __slots__ = (
-        'file_name',
-        'flags',
-    )
-
-    def __init__(self, sandbox, file_name, flags):
-        SandboxDerived.__init__(self, sandbox)
-
-        self.file_name = file_name
-        self.flags = flags
 
 
 class JARManifest(SandboxDerived):
@@ -579,66 +537,3 @@ class InstallationTarget(SandboxDerived):
         return FinalTargetValue(dict(
             XPI_NAME=self.xpiname,
             DIST_SUBDIR=self.subdir)) == self.target
-
-
-class ClassPathEntry(object):
-    """Represents a classpathentry in an Android Eclipse project."""
-
-    __slots__ = (
-        'dstdir',
-        'srcdir',
-        'path',
-        'exclude_patterns',
-        'ignore_warnings',
-    )
-
-    def __init__(self):
-        self.dstdir = None
-        self.srcdir = None
-        self.path = None
-        self.exclude_patterns = []
-        self.ignore_warnings = False
-
-
-class AndroidEclipseProjectData(object):
-    """Represents an Android Eclipse project."""
-
-    __slots__ = (
-        'name',
-        'package_name',
-        'is_library',
-        'res',
-        'assets',
-        'libs',
-        'manifest',
-        'recursive_make_targets',
-        'extra_jars',
-        'included_projects',
-        'referenced_projects',
-        '_classpathentries',
-        'filtered_resources',
-    )
-
-    def __init__(self, name):
-        self.name = name
-        self.is_library = False
-        self.manifest = None
-        self.res = None
-        self.assets = None
-        self.libs = []
-        self.recursive_make_targets = []
-        self.extra_jars = []
-        self.included_projects = []
-        self.referenced_projects = []
-        self._classpathentries = []
-        self.filtered_resources = []
-
-    def add_classpathentry(self, path, srcdir, dstdir, exclude_patterns=[], ignore_warnings=False):
-        cpe = ClassPathEntry()
-        cpe.srcdir = srcdir
-        cpe.dstdir = dstdir
-        cpe.path = path
-        cpe.exclude_patterns = list(exclude_patterns)
-        cpe.ignore_warnings = ignore_warnings
-        self._classpathentries.append(cpe)
-        return cpe

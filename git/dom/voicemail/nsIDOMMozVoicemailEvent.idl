@@ -21,3 +21,8 @@ interface nsIDOMMozVoicemailEvent : nsIDOMEvent
                                         in boolean aCancelable,
                                         in nsIDOMMozVoicemailStatus aStatus);
 };
+
+dictionary MozVoicemailEventInit : EventInit
+{
+  nsIDOMMozVoicemailStatus status;
+};

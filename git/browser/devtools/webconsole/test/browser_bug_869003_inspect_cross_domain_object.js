@@ -44,15 +44,10 @@ function consoleOpened(hud)
 
 function onConsoleMessage(aResults)
 {
-  let msg = [...aResults[0].matched][0];
-  ok(msg, "message element");
-
-  let body = msg.querySelector(".body");
-  ok(body, "message body");
-
   let clickable = aResults[0].clickableElements[0];
   ok(clickable, "clickable object found");
-  ok(body.textContent.contains('{ hello: "world!",'), "message text check");
+  isnot(clickable.textContent.indexOf('{hello: "world!",'), -1,
+        "message text check");
 
   gJSTerm.once("variablesview-fetched", onObjFetch);
 

@@ -6,7 +6,10 @@
 
 #include <dbus/dbus.h>
 #include "base/message_loop.h"
+#include "mozilla/Monitor.h"
 #include "nsThreadUtils.h"
+#include "DBusThread.h"
+#include "DBusUtils.h"
 #include "RawDBusConnection.h"
 
 #ifdef CHROMIUM_LOG
@@ -23,193 +26,102 @@
 /* TODO: Remove BlueZ constant */
 #define BLUEZ_DBUS_BASE_IFC "org.bluez"
 
+using namespace mozilla::ipc;
+
+//
+// Runnables
+//
+
 namespace mozilla {
 namespace ipc {
 
-//
-// DBusWatcher
-//
-
-class DBusWatcher : public MessageLoopForIO::Watcher
+class DBusConnectionSendTaskBase : public Task
 {
 public:
-  DBusWatcher(RawDBusConnection* aConnection, DBusWatch* aWatch)
+  virtual ~DBusConnectionSendTaskBase()
+  { }
+
+protected:
+  DBusConnectionSendTaskBase(DBusConnection* aConnection,
+                             DBusMessage* aMessage)
   : mConnection(aConnection),
-    mWatch(aWatch)
+    mMessage(aMessage)
   {
     MOZ_ASSERT(mConnection);
-    MOZ_ASSERT(mWatch);
+    MOZ_ASSERT(mMessage);
   }
 
-  ~DBusWatcher()
-  { }
-
-  void StartWatching();
-  void StopWatching();
-
-  static void        FreeFunction(void* aData);
-  static dbus_bool_t AddWatchFunction(DBusWatch* aWatch, void* aData);
-  static void        RemoveWatchFunction(DBusWatch* aWatch, void* aData);
-  static void        ToggleWatchFunction(DBusWatch* aWatch, void* aData);
-
-  RawDBusConnection* GetConnection();
-
-private:
-  void OnFileCanReadWithoutBlocking(int aFd);
-  void OnFileCanWriteWithoutBlocking(int aFd);
-
-  // Read watcher for libevent. Only to be accessed on IO Thread.
-  MessageLoopForIO::FileDescriptorWatcher mReadWatcher;
-
-  // Write watcher for libevent. Only to be accessed on IO Thread.
-  MessageLoopForIO::FileDescriptorWatcher mWriteWatcher;
-
-  // DBus structures
-  RawDBusConnection* mConnection;
-  DBusWatch* mWatch;
+  DBusConnection*   mConnection;
+  DBusMessageRefPtr mMessage;
 };
 
-RawDBusConnection*
-DBusWatcher::GetConnection()
-{
-  return mConnection;
-}
-
-void DBusWatcher::StartWatching()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-  MOZ_ASSERT(mWatch);
-
-  int fd = dbus_watch_get_unix_fd(mWatch);
-
-  MessageLoopForIO* ioLoop = MessageLoopForIO::current();
-
-  unsigned int flags = dbus_watch_get_flags(mWatch);
-
-  if (flags & DBUS_WATCH_READABLE) {
-    ioLoop->WatchFileDescriptor(fd, true, MessageLoopForIO::WATCH_READ,
-                                &mReadWatcher, this);
-  }
-  if (flags & DBUS_WATCH_WRITABLE) {
-    ioLoop->WatchFileDescriptor(fd, true, MessageLoopForIO::WATCH_WRITE,
-                                &mWriteWatcher, this);
-  }
-}
-
-void DBusWatcher::StopWatching()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  unsigned int flags = dbus_watch_get_flags(mWatch);
-
-  if (flags & DBUS_WATCH_READABLE) {
-    mReadWatcher.StopWatchingFileDescriptor();
-  }
-  if (flags & DBUS_WATCH_WRITABLE) {
-    mWriteWatcher.StopWatchingFileDescriptor();
-  }
-}
-
-// DBus utility functions, used as function pointers in DBus setup
-
-void
-DBusWatcher::FreeFunction(void* aData)
-{
-  delete static_cast<DBusWatcher*>(aData);
-}
-
-dbus_bool_t
-DBusWatcher::AddWatchFunction(DBusWatch* aWatch, void* aData)
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  RawDBusConnection* connection = static_cast<RawDBusConnection*>(aData);
-
-  DBusWatcher* dbusWatcher = new DBusWatcher(connection, aWatch);
-  dbus_watch_set_data(aWatch, dbusWatcher, DBusWatcher::FreeFunction);
-
-  if (dbus_watch_get_enabled(aWatch)) {
-    dbusWatcher->StartWatching();
-  }
-
-  return TRUE;
-}
-
-void
-DBusWatcher::RemoveWatchFunction(DBusWatch* aWatch, void* aData)
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  DBusWatcher* dbusWatcher =
-    static_cast<DBusWatcher*>(dbus_watch_get_data(aWatch));
-  dbusWatcher->StopWatching();
-}
-
-void
-DBusWatcher::ToggleWatchFunction(DBusWatch* aWatch, void* aData)
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  DBusWatcher* dbusWatcher =
-    static_cast<DBusWatcher*>(dbus_watch_get_data(aWatch));
-
-  if (dbus_watch_get_enabled(aWatch)) {
-    dbusWatcher->StartWatching();
-  } else {
-    dbusWatcher->StopWatching();
-  }
-}
-
-// I/O-loop callbacks
-
-void
-DBusWatcher::OnFileCanReadWithoutBlocking(int aFd)
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  dbus_watch_handle(mWatch, DBUS_WATCH_READABLE);
-
-  DBusDispatchStatus dbusDispatchStatus;
-  do {
-    dbusDispatchStatus =
-      dbus_connection_dispatch(mConnection->GetConnection());
-  } while (dbusDispatchStatus == DBUS_DISPATCH_DATA_REMAINS);
-}
-
-void
-DBusWatcher::OnFileCanWriteWithoutBlocking(int aFd)
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-
-  dbus_watch_handle(mWatch, DBUS_WATCH_WRITABLE);
-}
-
 //
-// Notification
+// Sends a message and returns the message's serial number to the
+// disaptching thread. Only run it in DBus thread.
 //
-
-class Notification
+class DBusConnectionSendTask : public DBusConnectionSendTaskBase
 {
 public:
-  Notification(DBusReplyCallback aCallback, void* aData)
-  : mCallback(aCallback),
-    mData(aData)
+  DBusConnectionSendTask(DBusConnection* aConnection,
+                         DBusMessage* aMessage)
+  : DBusConnectionSendTaskBase(aConnection, aMessage)
   { }
 
-  // Callback function for DBus replies. Only run it on I/O thread.
-  //
-  static void Handle(DBusPendingCall* aCall, void* aData)
+  virtual ~DBusConnectionSendTask()
+  { }
+
+  void Run() MOZ_OVERRIDE
   {
-    MOZ_ASSERT(!NS_IsMainThread());
     MOZ_ASSERT(MessageLoop::current());
 
-    nsAutoPtr<Notification> ntfn(static_cast<Notification*>(aData));
+    dbus_bool_t success = dbus_connection_send(mConnection,
+                                               mMessage,
+                                               nullptr);
+    NS_ENSURE_TRUE_VOID(success == TRUE);
+  }
+};
 
-    // The reply can be non-null if the timeout has been reached.
+//
+// Sends a message and executes a callback function for the reply. Only
+// run it in DBus thread.
+//
+class DBusConnectionSendWithReplyTask : public DBusConnectionSendTaskBase
+{
+private:
+  class NotifyData
+  {
+  public:
+    NotifyData(DBusReplyCallback aCallback, void* aData)
+    : mCallback(aCallback),
+      mData(aData)
+    { }
+
+    void RunNotifyCallback(DBusMessage* aMessage)
+    {
+      if (mCallback) {
+        mCallback(aMessage, mData);
+      }
+    }
+
+  private:
+    DBusReplyCallback mCallback;
+    void*             mData;
+  };
+
+  // Callback function for DBus replies. Only run it in DBus thread.
+  //
+  static void Notify(DBusPendingCall* aCall, void* aData)
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+
+    nsAutoPtr<NotifyData> data(static_cast<NotifyData*>(aData));
+
+    // The reply can be non-null if the timeout
+    // has been reached.
     DBusMessage* reply = dbus_pending_call_steal_reply(aCall);
 
     if (reply) {
-      ntfn->RunCallback(reply);
+      data->RunNotifyCallback(reply);
       dbus_message_unref(reply);
     }
 
@@ -217,17 +129,52 @@ public:
     dbus_pending_call_unref(aCall);
   }
 
-private:
-  void RunCallback(DBusMessage* aMessage)
-  {
-    if (mCallback) {
-      mCallback(aMessage, mData);
-    }
-  }
+public:
+  DBusConnectionSendWithReplyTask(DBusConnection* aConnection,
+                                  DBusMessage* aMessage,
+                                  int aTimeout,
+                                  DBusReplyCallback aCallback,
+                                  void* aData)
+  : DBusConnectionSendTaskBase(aConnection, aMessage),
+    mCallback(aCallback),
+    mData(aData),
+    mTimeout(aTimeout)
+  { }
 
+  virtual ~DBusConnectionSendWithReplyTask()
+  { }
+
+  void Run() MOZ_OVERRIDE
+  {
+    MOZ_ASSERT(MessageLoop::current());
+
+    // Freed at end of Notify
+    nsAutoPtr<NotifyData> data(new NotifyData(mCallback, mData));
+    NS_ENSURE_TRUE_VOID(data);
+
+    DBusPendingCall* call;
+
+    dbus_bool_t success = dbus_connection_send_with_reply(mConnection,
+                                                          mMessage,
+                                                          &call,
+                                                          mTimeout);
+    NS_ENSURE_TRUE_VOID(success == TRUE);
+
+    success = dbus_pending_call_set_notify(call, Notify, data, nullptr);
+    NS_ENSURE_TRUE_VOID(success == TRUE);
+
+    data.forget();
+    dbus_message_unref(mMessage);
+  };
+
+private:
   DBusReplyCallback mCallback;
   void*             mData;
+  int               mTimeout;
 };
+
+}
+}
 
 //
 // RawDBusConnection
@@ -261,22 +208,6 @@ nsresult RawDBusConnection::EstablishDBusConnection()
   return NS_OK;
 }
 
-bool RawDBusConnection::Watch()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-  MOZ_ASSERT(MessageLoop::current());
-
-  dbus_bool_t success =
-    dbus_connection_set_watch_functions(mConnection,
-                                        DBusWatcher::AddWatchFunction,
-                                        DBusWatcher::RemoveWatchFunction,
-                                        DBusWatcher::ToggleWatchFunction,
-                                        this, nullptr);
-  NS_ENSURE_TRUE(success == TRUE, false);
-
-  return true;
-}
-
 void RawDBusConnection::ScopedDBusConnectionPtrTraits::release(DBusConnection* ptr)
 {
   if (ptr) {
@@ -287,17 +218,19 @@ void RawDBusConnection::ScopedDBusConnectionPtrTraits::release(DBusConnection* p
 
 bool RawDBusConnection::Send(DBusMessage* aMessage)
 {
-  MOZ_ASSERT(aMessage);
-  MOZ_ASSERT(!NS_IsMainThread());
-  MOZ_ASSERT(MessageLoop::current());
+  DBusConnectionSendTask* t =
+    new DBusConnectionSendTask(mConnection, aMessage);
+  MOZ_ASSERT(t);
 
-  dbus_bool_t success = dbus_connection_send(mConnection,
-                                             aMessage,
-                                             nullptr);
-  if (success != TRUE) {
-    dbus_message_unref(aMessage);
+  nsresult rv = DispatchToDBusThread(t);
+
+  if (NS_FAILED(rv)) {
+    if (aMessage) {
+      dbus_message_unref(aMessage);
+    }
     return false;
   }
+
   return true;
 }
 
@@ -306,27 +239,19 @@ bool RawDBusConnection::SendWithReply(DBusReplyCallback aCallback,
                                       int aTimeout,
                                       DBusMessage* aMessage)
 {
-  MOZ_ASSERT(aMessage);
-  MOZ_ASSERT(!NS_IsMainThread());
-  MOZ_ASSERT(MessageLoop::current());
+  DBusConnectionSendWithReplyTask* t =
+    new DBusConnectionSendWithReplyTask(mConnection, aMessage, aTimeout,
+                                        aCallback, aData);
+  MOZ_ASSERT(t);
 
-  nsAutoPtr<Notification> ntfn(new Notification(aCallback, aData));
-  NS_ENSURE_TRUE(ntfn, false);
+  nsresult rv = DispatchToDBusThread(t);
 
-  DBusPendingCall* call;
-
-  dbus_bool_t success = dbus_connection_send_with_reply(mConnection,
-                                                        aMessage,
-                                                        &call,
-                                                        aTimeout);
-  NS_ENSURE_TRUE(success == TRUE, false);
-
-  success = dbus_pending_call_set_notify(call, Notification::Handle,
-                                         ntfn, nullptr);
-  NS_ENSURE_TRUE(success == TRUE, false);
-
-  ntfn.forget();
-  dbus_message_unref(aMessage);
+  if (NS_FAILED(rv)) {
+    if (aMessage) {
+      dbus_message_unref(aMessage);
+    }
+    return false;
+  }
 
   return true;
 }
@@ -340,7 +265,6 @@ bool RawDBusConnection::SendWithReply(DBusReplyCallback aCallback,
                                       int aFirstArgType,
                                       ...)
 {
-  MOZ_ASSERT(!NS_IsMainThread());
   va_list args;
 
   va_start(args, aFirstArgType);
@@ -376,7 +300,4 @@ DBusMessage* RawDBusConnection::BuildDBusMessage(const char* aPath,
   }
 
   return msg;
-}
-
-}
 }

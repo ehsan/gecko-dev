@@ -18,7 +18,7 @@
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIDocumentEncoder.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsTextFragment.h"
 #include "nsString.h"
 #include "prprf.h"

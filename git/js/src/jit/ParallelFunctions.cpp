@@ -82,26 +82,26 @@ jit::ParallelWriteGuard(ForkJoinContext *cx, JSObject *object)
 
     JS_ASSERT(ForkJoinContext::current() == cx);
 
-    if (object->is<TypedObject>()) {
-        TypedObject &typedObj = object->as<TypedObject>();
+    if (IsTypedDatum(*object)) {
+        TypedDatum &datum = AsTypedDatum(*object);
 
-        // Note: check target region based on `typedObj`, not the owner.
-        // This is because `typedObj` may point to some subregion of the
+        // Note: check target region based on `datum`, not the owner.
+        // This is because `datum` may point to some subregion of the
         // owner and we only care if that *subregion* is within the
         // target region, not the entire owner.
-        if (IsInTargetRegion(cx, &typedObj))
+        if (IsInTargetRegion(cx, &datum))
             return true;
 
         // Also check whether owner is thread-local.
-        ArrayBufferObject &owner = typedObj.owner();
-        return cx->isThreadLocal(&owner);
+        TypedDatum *owner = datum.owner();
+        return owner && cx->isThreadLocal(owner);
     }
 
     // For other kinds of writable objects, must be thread-local.
     return cx->isThreadLocal(object);
 }
 
-// Check that |object| (which must be a typed typedObj) maps
+// Check that |object| (which must be a typed datum) maps
 // to memory in the target region.
 //
 // For efficiency, we assume that all handles which the user has
@@ -110,10 +110,10 @@ jit::ParallelWriteGuard(ForkJoinContext *cx, JSObject *object)
 // it. This invariant is maintained by the PJS APIs, where the target
 // region and handles are always elements of the same output array.
 bool
-jit::IsInTargetRegion(ForkJoinContext *cx, TypedObject *typedObj)
+jit::IsInTargetRegion(ForkJoinContext *cx, TypedDatum *datum)
 {
-    JS_ASSERT(typedObj->is<TypedObject>()); // in case JIT supplies something bogus
-    uint8_t *typedMem = typedObj->typedMem();
+    JS_ASSERT(IsTypedDatum(*datum)); // in case JIT supplies something bogus
+    uint8_t *typedMem = datum->typedMem();
     return (typedMem >= cx->targetRegionStart &&
             typedMem <  cx->targetRegionEnd);
 }
@@ -181,10 +181,10 @@ jit::CheckOverRecursedPar(ForkJoinContext *cx)
     JS_ASSERT(ForkJoinContext::current() == cx);
     int stackDummy_;
 
-    // When an interrupt is requested, the main thread stack limit is
+    // When an interrupt is triggered, the main thread stack limit is
     // overwritten with a sentinel value that brings us here.
     // Therefore, we must check whether this is really a stack overrun
-    // and, if not, check whether an interrupt was requested.
+    // and, if not, check whether an interrupt is needed.
     //
     // When not on the main thread, we don't overwrite the stack
     // limit, but we do still call into this routine if the interrupt
@@ -201,18 +201,18 @@ jit::CheckOverRecursedPar(ForkJoinContext *cx)
     if (cx->isMainThread())
         realStackLimit = GetNativeStackLimit(cx);
     else
-        realStackLimit = cx->perThreadData->jitStackLimit;
+        realStackLimit = cx->perThreadData->ionStackLimit;
 
     if (!JS_CHECK_STACK_SIZE(realStackLimit, &stackDummy_)) {
         cx->bailoutRecord->setCause(ParallelBailoutOverRecursed);
         return false;
     }
 
-    return InterruptCheckPar(cx);
+    return CheckInterruptPar(cx);
 }
 
 bool
-jit::InterruptCheckPar(ForkJoinContext *cx)
+jit::CheckInterruptPar(ForkJoinContext *cx)
 {
     JS_ASSERT(ForkJoinContext::current() == cx);
     bool result = cx->check();
@@ -541,7 +541,7 @@ jit::BitRshPar(ForkJoinContext *cx, HandleValue lhs, HandleValue rhs, int32_t *o
 
 bool
 jit::UrshValuesPar(ForkJoinContext *cx, HandleValue lhs, HandleValue rhs,
-                   MutableHandleValue out)
+                   Value *out)
 {
     uint32_t left;
     int32_t right;
@@ -550,7 +550,7 @@ jit::UrshValuesPar(ForkJoinContext *cx, HandleValue lhs, HandleValue rhs,
     if (!NonObjectToUint32(cx, lhs, &left) || !NonObjectToInt32(cx, rhs, &right))
         return false;
     left >>= right & 31;
-    out.setNumber(uint32_t(left));
+    out->setNumber(uint32_t(left));
     return true;
 }
 

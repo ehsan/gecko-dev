@@ -24,9 +24,7 @@ function test_constructor(dom_proto, shouldthrow) {
     } catch (e) {
         threw = true;
     }
-    // XSLTProcessor is still on the old bindings.
-    if (dom_proto != 'XSLTProcessor')
-      ok(threw, "Calling |" + dom_proto + "()| should always throw");
+    is(threw, shouldthrow, "Calling |" + dom_proto + "()| should" + (shouldthrow ? " " : " not ") + "throw");
 
     threw = false;
     try {

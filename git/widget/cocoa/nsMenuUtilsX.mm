@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/Event.h"
 #include "nsMenuUtilsX.h"
 #include "nsMenuBarX.h"
 #include "nsMenuX.h"
@@ -12,6 +11,7 @@
 #include "nsObjCExceptions.h"
 #include "nsCocoaUtils.h"
 #include "nsCocoaWindow.h"
+#include "nsDOMEvent.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
@@ -27,7 +27,7 @@ void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
   nsIDocument* doc = aTargetContent->OwnerDoc();
   if (doc) {
     ErrorResult rv;
-    nsRefPtr<dom::Event> event =
+    nsRefPtr<nsDOMEvent> event =
       doc->CreateEvent(NS_LITERAL_STRING("xulcommandevent"), rv);
     nsCOMPtr<nsIDOMXULCommandEvent> command = do_QueryObject(event);
 

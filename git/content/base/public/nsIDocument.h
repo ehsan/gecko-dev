@@ -19,7 +19,6 @@
 #include "nsPIDOMWindow.h"               // for use in inline functions
 #include "nsPropertyTable.h"             // for member
 #include "nsTHashtable.h"                // for member
-#include "nsWeakReference.h"
 #include "mozilla/dom/DocumentBinding.h"
 #include "mozilla/WeakPtr.h"
 #include "Units.h"
@@ -33,6 +32,7 @@ class nsCSSStyleSheet;
 class nsIDocShell;
 class nsDocShell;
 class nsDOMNavigationTiming;
+class nsDOMTouchList;
 class nsEventStates;
 class nsFrameLoader;
 class nsHTMLCSSStyleSheet;
@@ -80,6 +80,7 @@ class nsWindowSizes;
 class nsSmallVoidArray;
 class nsDOMCaretPosition;
 class nsViewportInfo;
+class nsDOMEvent;
 class nsIGlobalObject;
 class nsCSSSelectorList;
 
@@ -95,25 +96,20 @@ namespace dom {
 class Attr;
 class CDATASection;
 class Comment;
-struct CustomElementDefinition;
 class DocumentFragment;
 class DocumentType;
 class DOMImplementation;
-class DOMStringList;
 class Element;
 struct ElementRegistrationOptions;
-class Event;
 class EventTarget;
 class FrameRequestCallback;
 class HTMLBodyElement;
-struct LifecycleCallbackArgs;
 class Link;
 class GlobalObject;
 class NodeFilter;
 class NodeIterator;
 class ProcessingInstruction;
 class Touch;
-class TouchList;
 class TreeWalker;
 class UndoManager;
 class XPathEvaluator;
@@ -126,8 +122,8 @@ typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x94629cb0, 0xfe8a, 0x4627, \
-  { 0x8e, 0x59, 0xab, 0x1a, 0xaf, 0xdc, 0x99, 0x56 } }
+{ 0x56a350f4, 0xc286, 0x440c, \
+  { 0x85, 0xb1, 0xb6, 0x55, 0x77, 0xeb, 0x63, 0xfd } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -2001,36 +1997,10 @@ public:
   {
     return GetRootElement();
   }
-
-  enum ElementCallbackType {
-    eCreated,
-    eAttached,
-    eDetached,
-    eAttributeChanged
-  };
-
-  /**
-   * Registers an unresolved custom element that is a candidate for
-   * upgrade when the definition is registered via registerElement.
-   * |aTypeName| is the name of the custom element type, if it is not
-   * provided, then element name is used. |aTypeName| should be provided
-   * when registering a custom element that extends an existing
-   * element. e.g. <button is="x-button">.
-   */
-  virtual nsresult RegisterUnresolvedElement(Element* aElement,
-                                             nsIAtom* aTypeName = nullptr) = 0;
-  virtual void EnqueueLifecycleCallback(ElementCallbackType aType,
-                                        Element* aCustomElement,
-                                        mozilla::dom::LifecycleCallbackArgs* aArgs = nullptr,
-                                        mozilla::dom::CustomElementDefinition* aDefinition = nullptr) = 0;
-  virtual void SwizzleCustomElement(Element* aElement,
-                                    const nsAString& aTypeExtension,
-                                    uint32_t aNamespaceID,
-                                    mozilla::ErrorResult& rv) = 0;
   virtual JSObject*
-    RegisterElement(JSContext* aCx, const nsAString& aName,
-                    const mozilla::dom::ElementRegistrationOptions& aOptions,
-                    mozilla::ErrorResult& rv) = 0;
+  Register(JSContext* aCx, const nsAString& aName,
+           const mozilla::dom::ElementRegistrationOptions& aOptions,
+           mozilla::ErrorResult& rv) = 0;
   already_AddRefed<nsContentList>
   GetElementsByTagName(const nsAString& aTagName)
   {
@@ -2038,8 +2008,7 @@ public:
   }
   already_AddRefed<nsContentList>
     GetElementsByTagNameNS(const nsAString& aNamespaceURI,
-                           const nsAString& aLocalName,
-                           mozilla::ErrorResult& aResult);
+                           const nsAString& aLocalName);
   already_AddRefed<nsContentList>
     GetElementsByClassName(const nsAString& aClasses);
   // GetElementById defined above
@@ -2048,13 +2017,6 @@ public:
   already_AddRefed<Element> CreateElementNS(const nsAString& aNamespaceURI,
                                             const nsAString& aQualifiedName,
                                             mozilla::ErrorResult& rv);
-  virtual already_AddRefed<Element> CreateElement(const nsAString& aTagName,
-                                                  const nsAString& aTypeExtension,
-                                                  mozilla::ErrorResult& rv) = 0;
-  virtual already_AddRefed<Element> CreateElementNS(const nsAString& aNamespaceURI,
-                                                    const nsAString& aQualifiedName,
-                                                    const nsAString& aTypeExtension,
-                                                    mozilla::ErrorResult& rv) = 0;
   already_AddRefed<mozilla::dom::DocumentFragment>
     CreateDocumentFragment() const;
   already_AddRefed<nsTextNode> CreateTextNode(const nsAString& aData) const;
@@ -2066,8 +2028,8 @@ public:
   already_AddRefed<nsINode>
     ImportNode(nsINode& aNode, bool aDeep, mozilla::ErrorResult& rv) const;
   nsINode* AdoptNode(nsINode& aNode, mozilla::ErrorResult& rv);
-  already_AddRefed<mozilla::dom::Event>
-    CreateEvent(const nsAString& aEventType, mozilla::ErrorResult& rv) const;
+  already_AddRefed<nsDOMEvent> CreateEvent(const nsAString& aEventType,
+                                           mozilla::ErrorResult& rv) const;
   already_AddRefed<nsRange> CreateRange(mozilla::ErrorResult& rv);
   already_AddRefed<mozilla::dom::NodeIterator>
     CreateNodeIterator(nsINode& aRoot, uint32_t aWhatToShow,
@@ -2161,7 +2123,7 @@ public:
   virtual void SetSelectedStyleSheetSet(const nsAString& aSheetSet) = 0;
   virtual void GetLastStyleSheetSet(nsString& aSheetSet) = 0;
   void GetPreferredStyleSheetSet(nsAString& aSheetSet);
-  virtual mozilla::dom::DOMStringList* StyleSheetSets() = 0;
+  virtual nsIDOMDOMStringList* StyleSheetSets() = 0;
   virtual void EnableStyleSheetsForSet(const nsAString& aSheetSet) = 0;
   Element* ElementFromPoint(float aX, float aY);
 
@@ -2201,11 +2163,11 @@ public:
                 int32_t aScreenX, int32_t aScreenY, int32_t aClientX,
                 int32_t aClientY, int32_t aRadiusX, int32_t aRadiusY,
                 float aRotationAngle, float aForce);
-  already_AddRefed<mozilla::dom::TouchList> CreateTouchList();
-  already_AddRefed<mozilla::dom::TouchList>
+  already_AddRefed<nsDOMTouchList> CreateTouchList();
+  already_AddRefed<nsDOMTouchList>
     CreateTouchList(mozilla::dom::Touch& aTouch,
                     const mozilla::dom::Sequence<mozilla::dom::OwningNonNull<mozilla::dom::Touch> >& aTouches);
-  already_AddRefed<mozilla::dom::TouchList>
+  already_AddRefed<nsDOMTouchList>
     CreateTouchList(const mozilla::dom::Sequence<mozilla::dom::OwningNonNull<mozilla::dom::Touch> >& aTouches);
 
   void SetStyleSheetChangeEventsEnabled(bool aValue)

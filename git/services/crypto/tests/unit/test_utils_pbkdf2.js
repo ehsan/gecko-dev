@@ -91,6 +91,8 @@ add_task(function test_pbkdf2_hmac_sha1() {
   for (let v of vectors) {
     do_check_eq(v.DK, b2h(pbkdf2(v.P, v.S, v.c, v.dkLen)));
   }
+
+  run_next_test();
 });
 
 // I can't find any normative ietf test vectors for pbkdf2 hmac-sha256.
@@ -154,6 +156,8 @@ add_task(function test_pbkdf2_hmac_sha256() {
     do_check_eq(v.DK,
         b2h(pbkdf2(v.P, v.S, v.c, v.dkLen, Ci.nsICryptoHMAC.SHA256, 32)));
   }
+
+  run_next_test();
 });
 
 // turn formatted test vectors into normal hex strings

@@ -426,7 +426,7 @@ protected:
 private:
     static void CopyWOFFMetadata(const uint8_t* aFontData,
                                  uint32_t aLength,
-                                 FallibleTArray<uint8_t>* aMetadata,
+                                 nsTArray<uint8_t>* aMetadata,
                                  uint32_t* aMetaOrigLen);
 };
 

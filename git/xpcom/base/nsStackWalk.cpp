@@ -23,12 +23,6 @@ struct CriticalAddress {
 };
 static CriticalAddress gCriticalAddress;
 
-// for _Unwind_Backtrace from libcxxrt or libunwind
-// cxxabi.h from libcxxrt implicitly includes unwind.h first
-#if defined(HAVE__UNWIND_BACKTRACE) && !defined(_GNU_SOURCE)
-#define _GNU_SOURCE
-#endif
-
 #if defined(HAVE_DLOPEN) || defined(XP_MACOSX)
 #include <dlfcn.h>
 #endif
@@ -1228,6 +1222,9 @@ NS_StackWalk(NS_WalkStackCallback aCallback, uint32_t aSkipFrames,
 #elif defined(HAVE__UNWIND_BACKTRACE)
 
 // libgcc_s.so symbols _Unwind_Backtrace@@GCC_3.3 and _Unwind_GetIP@@GCC_3.0
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <unwind.h>
 
 struct unwind_info {
@@ -1343,11 +1340,11 @@ NS_FormatCodeAddressDetails(void *aPC, const nsCodeAddressDetails *aDetails,
   if (!aDetails->library[0]) {
     snprintf(aBuffer, aBufferSize, "UNKNOWN %p\n", aPC);
   } else if (!aDetails->function[0]) {
-    snprintf(aBuffer, aBufferSize, "UNKNOWN [%s +0x%08" PRIXPTR "]\n",
+    snprintf(aBuffer, aBufferSize, "UNKNOWN [%s +0x%08" PRIxPTR "]\n",
                                    aDetails->library, aDetails->loffset);
   } else {
-    snprintf(aBuffer, aBufferSize, "%s+0x%08" PRIXPTR
-                                   " [%s +0x%08" PRIXPTR "]\n",
+    snprintf(aBuffer, aBufferSize, "%s+0x%08" PRIxPTR
+                                   " [%s +0x%08" PRIxPTR "]\n",
                                    aDetails->function, aDetails->foffset,
                                    aDetails->library, aDetails->loffset);
   }

@@ -6,9 +6,9 @@
 #include "mozilla/dom/HTMLInputElement.h"
 
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/dom/Date.h"
+#include "nsAsyncDOMEvent.h"
 #include "nsAttrValueInlines.h"
 
 #include "nsIDOMHTMLInputElement.h"
@@ -62,9 +62,10 @@
 
 #include "nsIDOMMutationEvent.h"
 #include "mozilla/ContentEvents.h"
-#include "mozilla/InternalMutationEvent.h"
+#include "mozilla/MutationEvent.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
+#include "nsEventListenerManager.h"
 
 #include "nsRuleData.h"
 #include <algorithm>
@@ -398,7 +399,7 @@ public:
       // Note that we leave the trailing "/" on the path.
       domFile->SetPath(Substring(path, 0, uint32_t(length)));
     }
-    *aResult = domFile.forget().downcast<nsIDOMFile>().take();
+    *aResult = static_cast<nsIDOMFile*>(domFile.forget().get());
     LookupAndCacheNext();
     return NS_OK;
   }
@@ -513,7 +514,7 @@ public:
     , mInput(aInput)
     , mTopDir(aTopDir)
     , mFileListLength(0)
-    , mCanceled(false)
+    , mCanceled(0)
   {}
 
   NS_IMETHOD Run() {
@@ -578,7 +579,7 @@ public:
     // Clear mInput to make sure that it can't lose its last strong ref off the
     // main thread (which may happen if our dtor runs off the main thread)!
     mInput = nullptr;
-    mCanceled = true;
+    mCanceled = 1; // true
   }
 
   uint32_t GetFileListLength() const
@@ -606,7 +607,8 @@ private:
   // this atomic member to make the access thread safe:
   mozilla::Atomic<uint32_t> mFileListLength;
 
-  mozilla::Atomic<bool> mCanceled;
+  // We'd prefer this member to be bool, but we don't support Atomic<bool>.
+  mozilla::Atomic<uint32_t> mCanceled;
 };
 
 
@@ -1023,12 +1025,6 @@ UploadLastDir::FetchDirectoryAndDisplayPicker(nsIDocument* aDoc,
   nsCOMPtr<nsIContentPrefCallback2> prefCallback = 
     new UploadLastDir::ContentPrefCallback(aFilePicker, aFpCallback);
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    // FIXME (bug 949666): Run this code in the parent process.
-    prefCallback->HandleCompletion(nsIContentPrefCallback2::COMPLETE_ERROR);
-    return NS_OK;
-  }
-
   // Attempt to get the CPS, if it's not present we'll fallback to use the Desktop folder
   nsCOMPtr<nsIContentPrefService2> contentPrefService =
     do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
@@ -1050,11 +1046,6 @@ UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aDir)
 {
   NS_PRECONDITION(aDoc, "aDoc is null");
   if (!aDir) {
-    return NS_OK;
-  }
-
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    // FIXME (bug 949666): Run this code in the parent process.
     return NS_OK;
   }
 
@@ -1108,7 +1099,7 @@ static nsresult FireEventForAccessibility(nsIDOMHTMLInputElement* aTarget,
 // construction, destruction
 //
 
-HTMLInputElement::HTMLInputElement(already_AddRefed<nsINodeInfo>& aNodeInfo,
+HTMLInputElement::HTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                                    FromParser aFromParser)
   : nsGenericHTMLFormElementWithState(aNodeInfo)
   , mType(kInputDefaultType->value)
@@ -1244,8 +1235,9 @@ HTMLInputElement::Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const
 {
   *aResult = nullptr;
 
-  already_AddRefed<nsINodeInfo> ni = nsCOMPtr<nsINodeInfo>(aNodeInfo).forget();
-  nsRefPtr<HTMLInputElement> it = new HTMLInputElement(ni, NOT_FROM_PARSER);
+  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
+  nsRefPtr<HTMLInputElement> it =
+    new HTMLInputElement(ni.forget(), NOT_FROM_PARSER);
 
   nsresult rv = const_cast<HTMLInputElement*>(this)->CopyInnerTo(it);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -3576,9 +3568,9 @@ HTMLInputElement::CancelRangeThumbDrag(bool aIsForUserEvent)
     if (frame) {
       frame->UpdateForValueChange();
     }
-    nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-      new AsyncEventDispatcher(this, NS_LITERAL_STRING("input"), true, false);
-    asyncDispatcher->RunDOMEventWhenSafe();
+    nsRefPtr<nsAsyncDOMEvent> event =
+      new nsAsyncDOMEvent(this, NS_LITERAL_STRING("input"), true, false);
+    event->RunDOMEventWhenSafe();
   }
 }
 
@@ -3805,11 +3797,8 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
     if (mouseEvent && mouseEvent->IsLeftClickEvent() &&
         !ShouldPreventDOMActivateDispatch(aVisitor.mEvent->originalTarget)) {
-      // XXX Activating actually occurs even if it's caused by untrusted event.
-      //     Therefore, shouldn't this be always trusted event?
       InternalUIEvent actEvent(aVisitor.mEvent->mFlags.mIsTrusted,
-                               NS_UI_ACTIVATE);
-      actEvent.detail = 1;
+                               NS_UI_ACTIVATE, 1);
 
       nsCOMPtr<nsIPresShell> shell = aVisitor.mPresContext->GetPresShell();
       if (shell) {
@@ -3915,7 +3904,7 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       // the editor's handling of up/down keypress events. For that reason we
       // just ignore aVisitor.mEventStatus here and go ahead and handle the
       // event to increase/decrease the value of the number control.
-      if (!aVisitor.mEvent->mFlags.mDefaultPreventedByContent && IsMutable()) {
+      if (!aVisitor.mEvent->mFlags.mDefaultPreventedByContent) {
         StepNumberControlForUserEvent(keyEvent->keyCode == NS_VK_UP ? 1 : -1);
         aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
       }
@@ -4041,7 +4030,8 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
            */
 
           if (aVisitor.mEvent->message == NS_KEY_PRESS &&
-              keyEvent->keyCode == NS_VK_RETURN &&
+              (keyEvent->keyCode == NS_VK_RETURN ||
+               keyEvent->keyCode == NS_VK_ENTER) &&
                (IsSingleLineTextControl(false, mType) ||
                 mType == NS_FORM_INPUT_NUMBER ||
                 IsExperimentalMobileType(mType))) {
@@ -4140,8 +4130,7 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
               nsNumberControlFrame* numberControlFrame =
                 do_QueryFrame(GetPrimaryFrame());
               if (numberControlFrame) {
-                if (aVisitor.mEvent->message == NS_MOUSE_BUTTON_DOWN && 
-                    IsMutable()) {
+                if (aVisitor.mEvent->message == NS_MOUSE_BUTTON_DOWN) {
                   switch (numberControlFrame->GetSpinButtonForPointerEvent(
                             aVisitor.mEvent->AsMouseEvent())) {
                   case nsNumberControlFrame::eSpinButtonUp:
@@ -5078,10 +5067,6 @@ HTMLInputElement::SetSelectionRange(int32_t aSelectionStart,
       aRv = textControlFrame->SetSelectionRange(aSelectionStart, aSelectionEnd, dir);
       if (!aRv.Failed()) {
         aRv = textControlFrame->ScrollSelectionIntoView();
-        nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-          new AsyncEventDispatcher(this, NS_LITERAL_STRING("select"),
-                                   true, false);
-        asyncDispatcher->PostDOMEvent();
       }
     }
   }
@@ -5207,6 +5192,11 @@ HTMLInputElement::SetRangeText(const nsAString& aReplacement, uint32_t aStart,
 
   Optional<nsAString> direction;
   SetSelectionRange(aSelectionStart, aSelectionEnd, direction, aRv);
+  if (!aRv.Failed()) {
+    nsRefPtr<nsAsyncDOMEvent> event =
+      new nsAsyncDOMEvent(this, NS_LITERAL_STRING("select"), true, false);
+    event->PostDOMEvent();
+  }
 }
 
 int32_t
@@ -6116,7 +6106,7 @@ HTMLInputElement::GetValueMode() const
 bool
 HTMLInputElement::IsMutable() const
 {
-  return !IsDisabled() &&
+  return !IsDisabled() && GetCurrentDoc() &&
          !(DoesReadOnlyApply() &&
            HasAttr(kNameSpaceID_None, nsGkAtoms::readonly));
 }
@@ -6960,12 +6950,17 @@ HTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
 
   uint32_t atPos;
   nsAutoCString value;
-  // This call also checks whether aValue contains a correctly-placed '@' sign.
   if (!PunycodeEncodeEmailAddress(aValue, value, &atPos)) {
     return false;
   }
 
   uint32_t length = value.Length();
+
+  // Email addresses must contain a '@', but can't begin or end with it.
+  if (atPos == (uint32_t)kNotFound || atPos == 0 || atPos == length - 1) {
+    return false;
+  }
+
   uint32_t i = 0;
 
   // Parsing the username.

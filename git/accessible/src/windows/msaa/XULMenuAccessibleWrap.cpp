@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "XULMenuAccessibleWrap.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 
 using namespace mozilla::a11y;
 

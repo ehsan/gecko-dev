@@ -142,10 +142,6 @@ elif not CONFIG['MOZ_NATIVE_LIBEVENT']:
         'src/third_party/libevent/strlcpy.c',
     ]
     DEFINES['HAVE_CONFIG_H'] = True
-    LOCAL_INCLUDES += [
-        'src/third_party/libevent',
-        'src/third_party/libevent/include',
-    ]
 
 if os_posix:
     SOURCES += [
@@ -207,7 +203,6 @@ if os_macosx:
         UNIFIED_SOURCES += [
             'src/third_party/libevent/kqueue.c',
         ]
-        LOCAL_INCLUDES += ['src/third_party/libevent/mac']
 
 if os_linux:
     SOURCES += [
@@ -226,7 +221,7 @@ if os_linux:
             'src/base/message_pump_qt.cc',
         ]
         GENERATED_SOURCES += [
-            'moc_message_pump_qt.cc',
+            'src/base/moc_message_pump_qt.cc',
         ]
     if not CONFIG['MOZ_NATIVE_LIBEVENT']:
         if CONFIG['OS_TARGET'] != 'Android':
@@ -236,10 +231,6 @@ if os_linux:
         SOURCES += [
             'src/third_party/libevent/epoll.c',
         ]
-        if CONFIG['OS_TARGET'] == 'Android':
-            LOCAL_INCLUDES += ['src/third_party/libevent/android']
-        else:
-            LOCAL_INCLUDES += ['src/third_party/libevent/linux']
 
 if os_bsd:
     SOURCES += [
@@ -263,13 +254,12 @@ if os_bsd:
             'src/base/message_pump_qt.cc',
         ]
         GENERATED_SOURCES += [
-            'moc_message_pump_qt.cc',
+            'src/base/moc_message_pump_qt.cc',
         ]
     if not CONFIG['MOZ_NATIVE_LIBEVENT']:
         SOURCES += [
             'src/third_party/libevent/kqueue.c',
         ]
-        LOCAL_INCLUDES += ['src/third_party/libevent/bsd']
 
 if CONFIG['_MSC_VER']:
     SOURCES += [

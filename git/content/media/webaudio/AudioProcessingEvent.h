@@ -7,14 +7,15 @@
 #ifndef AudioProcessingEvent_h_
 #define AudioProcessingEvent_h_
 
+#include "nsDOMEvent.h"
 #include "AudioBuffer.h"
 #include "ScriptProcessorNode.h"
-#include "mozilla/dom/Event.h"
 
 namespace mozilla {
 namespace dom {
 
-class AudioProcessingEvent : public Event
+class AudioProcessingEvent : public nsDOMEvent,
+                             public EnableWebAudioCheck
 {
 public:
   AudioProcessingEvent(ScriptProcessorNode* aOwner,
@@ -22,8 +23,8 @@ public:
                        WidgetEvent* aEvent);
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_FORWARD_TO_EVENT
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioProcessingEvent, Event)
+  NS_FORWARD_TO_NSDOMEVENT
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioProcessingEvent, nsDOMEvent)
 
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
@@ -43,18 +44,18 @@ public:
     return mPlaybackTime;
   }
 
-  AudioBuffer* GetInputBuffer(ErrorResult& aRv)
+  AudioBuffer* InputBuffer()
   {
     if (!mInputBuffer) {
-      mInputBuffer = LazilyCreateBuffer(mNumberOfInputChannels, aRv);
+      LazilyCreateBuffer(mInputBuffer, mNumberOfInputChannels);
     }
     return mInputBuffer;
   }
 
-  AudioBuffer* GetOutputBuffer(ErrorResult& aRv)
+  AudioBuffer* OutputBuffer()
   {
     if (!mOutputBuffer) {
-      mOutputBuffer = LazilyCreateBuffer(mNode->NumberOfOutputChannels(), aRv);
+      LazilyCreateBuffer(mOutputBuffer, mNode->NumberOfOutputChannels());
     }
     return mOutputBuffer;
   }
@@ -65,8 +66,8 @@ public:
   }
 
 private:
-  already_AddRefed<AudioBuffer>
-  LazilyCreateBuffer(uint32_t aNumberOfChannels, ErrorResult& rv);
+  void LazilyCreateBuffer(nsRefPtr<AudioBuffer>& aBuffer,
+                          uint32_t aNumberOfChannels);
 
 private:
   double mPlaybackTime;

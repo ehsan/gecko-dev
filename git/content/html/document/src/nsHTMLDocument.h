@@ -20,6 +20,7 @@
 
 #include "nsICommandManager.h"
 #include "mozilla/dom/HTMLSharedElement.h"
+#include "nsDOMEvent.h"
 
 class nsIEditor;
 class nsIParser;
@@ -85,8 +86,6 @@ public:
   virtual NS_HIDDEN_(nsContentList*) GetFormControls();
  
   // nsIDOMDocument interface
-  using nsDocument::CreateElement;
-  using nsDocument::CreateElementNS;
   NS_FORWARD_NSIDOMDOCUMENT(nsDocument::)
 
   // And explicitly import the things from nsDocument that we just shadowed
@@ -103,7 +102,14 @@ public:
   // nsIDOMHTMLDocument interface
   NS_DECL_NSIDOMHTMLDOCUMENT
 
-  mozilla::dom::HTMLAllCollection* All();
+  /**
+   * Returns the result of document.all[aID] which can either be a node
+   * or a nodelist depending on if there are multiple nodes with the same
+   * id.
+   */
+  nsISupports *GetDocumentAllResult(const nsAString& aID,
+                                    nsWrapperCache **aCache,
+                                    nsresult *aResult);
   JSObject* GetAll(JSContext* aCx, mozilla::ErrorResult& aRv);
 
   nsISupports* ResolveName(const nsAString& aName, nsWrapperCache **aCache);
@@ -307,7 +313,6 @@ protected:
                                 nsACString& aCharset);
   void TryParentCharset(nsIDocShell*  aDocShell,
                         int32_t& charsetSource, nsACString& aCharset);
-  void TryTLD(int32_t& aCharsetSource, nsACString& aCharset);
   static void TryFallback(int32_t& aCharsetSource, nsACString& aCharset);
 
   // Override so we can munge the charset on our wyciwyg channel as needed.

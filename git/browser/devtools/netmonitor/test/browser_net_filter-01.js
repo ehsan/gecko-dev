@@ -24,95 +24,51 @@ function test() {
       is(NetMonitorView.detailsPaneHidden, false,
         "The details pane should not be hidden after toggle button was pressed.");
 
-      // First test with single filters...
-      testFilterButtons(aMonitor, "all");
+      testButtons("all");
       testContents([1, 1, 1, 1, 1, 1, 1, 1])
         .then(() => {
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-html-button"));
-          testFilterButtons(aMonitor, "html");
+          testButtons("html");
           return testContents([1, 0, 0, 0, 0, 0, 0, 0]);
         })
         .then(() => {
-          // Reset filters
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-css-button"));
-          testFilterButtons(aMonitor, "css");
+          testButtons("css");
           return testContents([0, 1, 0, 0, 0, 0, 0, 0]);
         })
         .then(() => {
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-js-button"));
-          testFilterButtons(aMonitor, "js");
+          testButtons("js");
           return testContents([0, 0, 1, 0, 0, 0, 0, 0]);
         })
         .then(() => {
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-xhr-button"));
-          testFilterButtons(aMonitor, "xhr");
+          testButtons("xhr");
           return testContents([1, 1, 1, 1, 1, 1, 1, 1]);
         })
         .then(() => {
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-fonts-button"));
-          testFilterButtons(aMonitor, "fonts");
+          testButtons("fonts");
           return testContents([0, 0, 0, 1, 0, 0, 0, 0]);
         })
         .then(() => {
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-images-button"));
-          testFilterButtons(aMonitor, "images");
+          testButtons("images");
           return testContents([0, 0, 0, 0, 1, 0, 0, 0]);
         })
         .then(() => {
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-media-button"));
-          testFilterButtons(aMonitor, "media");
+          testButtons("media");
           return testContents([0, 0, 0, 0, 0, 1, 1, 0]);
         })
         .then(() => {
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-flash-button"));
-          testFilterButtons(aMonitor, "flash");
+          testButtons("flash");
           return testContents([0, 0, 0, 0, 0, 0, 0, 1]);
         })
         .then(() => {
           EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
-          testFilterButtons(aMonitor, "all");
-          return testContents([1, 1, 1, 1, 1, 1, 1, 1]);
-        })
-        // ...then combine multiple filters together.
-        .then(() => {
-          // Enable filtering for html and css; should show request of both type.
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-html-button"));
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-css-button"));
-          testFilterButtonsCustom(aMonitor, [0, 1, 1, 0, 0, 0, 0, 0, 0, 0]);
-          return testContents([1, 1, 0, 0, 0, 0, 0, 0]);
-        })
-        .then(() => {
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-flash-button"));
-          testFilterButtonsCustom(aMonitor, [0, 1, 1, 0, 0, 0, 0, 0, 1, 0]);
-          return testContents([1, 1, 0, 0, 0, 0, 0, 1]);
-        })
-        .then(() => {
-          // Disable some filters. Only one left active.
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-css-button"));
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-flash-button"));
-          testFilterButtons(aMonitor, "html");
-          return testContents([1, 0, 0, 0, 0, 0, 0, 0]);
-        })
-        .then(() => {
-          // Disable last active filter. Should toggle to all.
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-html-button"));
-          testFilterButtons(aMonitor, "all");
-          return testContents([1, 1, 1, 1, 1, 1, 1, 1]);
-        })
-        .then(() => {
-          // Enable few filters and click on all. Only "all" should be checked.
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-html-button"));
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-css-button"));
-          testFilterButtonsCustom(aMonitor, [0, 1, 1, 0, 0, 0, 0, 0, 0]);
-          EventUtils.sendMouseEvent({ type: "click" }, $("#requests-menu-filter-all-button"));
-          testFilterButtons(aMonitor, "all");
+          testButtons("all");
           return testContents([1, 1, 1, 1, 1, 1, 1, 1]);
         })
         .then(() => {
@@ -120,6 +76,22 @@ function test() {
         })
         .then(finish);
     });
+
+    function testButtons(aFilterType) {
+      let doc = aMonitor.panelWin.document;
+      let target = doc.querySelector("#requests-menu-filter-" + aFilterType + "-button");
+      let buttons = doc.querySelectorAll(".requests-menu-footer-button");
+
+      for (let button of buttons) {
+        if (button != target) {
+          is(button.hasAttribute("checked"), false,
+            "The " + button.id + " button should not have a 'checked' attribute.");
+        } else {
+          is(button.hasAttribute("checked"), true,
+            "The " + button.id + " button should have a 'checked' attribute.");
+        }
+      }
+    }
 
     function testContents(aVisibility) {
       isnot(RequestsMenu.selectedItem, null,

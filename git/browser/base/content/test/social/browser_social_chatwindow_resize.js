@@ -25,16 +25,15 @@ function test() {
   };
 
   runSocialTestWithProvider(manifest, function (finishcb) {
-    SocialSidebar.show();
-    let port = SocialSidebar.provider.getWorkerPort();
+    let port = Social.provider.getWorkerPort();
     ok(port, "provider has a port");
     port.postMessage({topic: "test-init"});
     // we require a logged in user for chats, wait for that
     waitForCondition(function() {
       let sbrowser = document.getElementById("social-sidebar-browser");
-      return SocialSidebar.provider &&
-             SocialSidebar.provider.profile &&
-             SocialSidebar.provider.profile.displayName &&
+      return Social.provider &&
+             Social.provider.profile &&
+             Social.provider.profile.displayName &&
              sbrowser.docShellIsActive;
     }, function() {
       // executeSoon to let the browser UI observers run first

@@ -515,9 +515,7 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
       if (!isEnabled) {
         // Engine has been disabled; update meta/global with engine removal for upload.
         session.removeEngineFromMetaGlobal(name);
-        session.config.declinedEngineNames.add(name);
       } else {
-        session.config.declinedEngineNames.remove(name);
         // Add engine with new syncID to meta/global for upload.
         String newSyncID = Utils.generateGuid();
         session.recordForMetaGlobalUpdate(name, new EngineSettings(newSyncID, this.getStorageVersion()));

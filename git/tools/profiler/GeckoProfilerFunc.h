@@ -35,10 +35,6 @@ void mozilla_sampler_start(int aEntries, double aInterval,
 
 void mozilla_sampler_stop();
 
-bool mozilla_sampler_is_paused();
-void mozilla_sampler_pause();
-void mozilla_sampler_resume();
-
 ProfilerBacktrace* mozilla_sampler_get_backtrace();
 void mozilla_sampler_free_backtrace(ProfilerBacktrace* aBacktrace);
 

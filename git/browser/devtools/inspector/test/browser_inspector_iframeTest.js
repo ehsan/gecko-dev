@@ -31,7 +31,6 @@ function createDocument() {
       div2 = iframe2.contentDocument.createElement('div');
       div2.textContent = 'nested div';
       iframe2.contentDocument.body.appendChild(div2);
-
       // Open the inspector, start the picker mode, and start the tests
       openInspector(aInspector => {
         inspector = aInspector;
@@ -48,7 +47,9 @@ function createDocument() {
 }
 
 function moveMouseOver(aElement, cb) {
-  inspector.toolbox.once("picker-node-hovered", cb);
+  inspector.toolbox.once("picker-node-hovered", () => {
+    executeSoon(cb);
+  });
   EventUtils.synthesizeMouseAtCenter(aElement, {type: "mousemove"},
     aElement.ownerDocument.defaultView);
 }
@@ -59,14 +60,15 @@ function runTests() {
 
 function testDiv1Highlighter() {
   moveMouseOver(div1, () => {
-    is(getHighlitNode(), div1, "highlighter matches selection of div1");
+    getHighlighterOutline().setAttribute("disable-transitions", "true");
+    is(getHighlitNode(), div1, "highlighter matches selection");
     testDiv2Highlighter();
   });
 }
 
 function testDiv2Highlighter() {
   moveMouseOver(div2, () => {
-    is(getHighlitNode(), div2, "highlighter matches selection of div2");
+    is(getHighlitNode(), div2, "highlighter matches selection");
     selectRoot();
   });
 }

@@ -10,8 +10,8 @@
 #include "BasicLayers.h"                // for BasicLayerManager
 #include "Layers.h"                     // for Layer, ContainerLayer
 #include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR
 #include "nsISupportsUtils.h"           // for NS_ADDREF, NS_RELEASE
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR
 struct nsIntRect;
 
 namespace mozilla {
@@ -34,31 +34,25 @@ public:
                  "Can only set properties in construction phase");
     ContainerLayer::SetVisibleRegion(aRegion);
   }
-  virtual bool InsertAfter(Layer* aChild, Layer* aAfter)
+  virtual void InsertAfter(Layer* aChild, Layer* aAfter)
   {
-    if (!BasicManager()->InConstruction()) {
-      NS_ERROR("Can only set properties in construction phase");
-      return false;
-    }
-    return ContainerLayer::InsertAfter(aChild, aAfter);
+    NS_ASSERTION(BasicManager()->InConstruction(),
+                 "Can only set properties in construction phase");
+    ContainerLayer::InsertAfter(aChild, aAfter);
   }
 
-  virtual bool RemoveChild(Layer* aChild)
+  virtual void RemoveChild(Layer* aChild)
   { 
-    if (!BasicManager()->InConstruction()) {
-      NS_ERROR("Can only set properties in construction phase");
-      return false;
-    }
-    return ContainerLayer::RemoveChild(aChild);
+    NS_ASSERTION(BasicManager()->InConstruction(),
+                 "Can only set properties in construction phase");
+    ContainerLayer::RemoveChild(aChild);
   }
 
-  virtual bool RepositionChild(Layer* aChild, Layer* aAfter)
+  virtual void RepositionChild(Layer* aChild, Layer* aAfter)
   {
-    if (!BasicManager()->InConstruction()) {
-      NS_ERROR("Can only set properties in construction phase");
-      return false;
-    }
-    return ContainerLayer::RepositionChild(aChild, aAfter);
+    NS_ASSERTION(BasicManager()->InConstruction(),
+                 "Can only set properties in construction phase");
+    ContainerLayer::RepositionChild(aChild, aAfter);
   }
 
   virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface);

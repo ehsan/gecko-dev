@@ -40,8 +40,6 @@ __FBSDID("$FreeBSD: head/sys/netinet/sctp_crc32.c 235828 2012-05-23 11:26:28Z tu
 #include <netinet/sctp_crc32.h>
 #include <netinet/sctp_pcb.h>
 
-
-#if !defined(SCTP_WITH_NO_CSUM)
 #if defined(__FreeBSD__) && __FreeBSD_version >= 800000
 #else
 /**
@@ -710,6 +708,8 @@ calculate_crc32c(uint32_t crc32c,
 }
 #endif /* FreeBSD < 80000 || other OS */
 
+#if !defined(SCTP_WITH_NO_CSUM)
+
 static uint32_t
 sctp_finalize_crc32c(uint32_t crc32c)
 {
@@ -785,7 +785,6 @@ sctp_calculate_cksum(struct mbuf *m, uint32_t offset)
 #endif				/* !defined(SCTP_WITH_NO_CSUM) */
 
 
-#if defined(__FreeBSD__)
 void
 sctp_delayed_cksum(struct mbuf *m, uint32_t offset)
 {
@@ -814,5 +813,4 @@ sctp_delayed_cksum(struct mbuf *m, uint32_t offset)
 	*(uint32_t *) (m->m_data + offset) = checksum;
 #endif
 }
-#endif
 

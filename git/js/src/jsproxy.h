@@ -139,21 +139,12 @@ class JS_FRIEND_API(BaseProxyHandler)
      * The |act| parameter to enter() specifies the action being performed.
      * If |bp| is false, the trap suggests that the caller throw (though it
      * may still decide to squelch the error).
-     *
-     * We make these OR-able so that assertEnteredPolicy can pass a union of them.
-     * For example, get{,Own}PropertyDescriptor is invoked by both calls to ::get()
-     * and ::set() (since we need to look up the accessor), so its
-     * assertEnteredPolicy would pass GET | SET.
      */
-    typedef uint32_t Action;
-    enum {
-        NONE      = 0x00,
-        GET       = 0x01,
-        SET       = 0x02,
-        CALL      = 0x04,
-        ENUMERATE = 0x08
+    enum Action {
+        GET,
+        SET,
+        CALL
     };
-
     virtual bool enter(JSContext *cx, HandleObject wrapper, HandleId id, Action act,
                        bool *bp);
 
@@ -471,7 +462,7 @@ class JS_FRIEND_API(AutoEnterPolicy)
     {
         allow = handler->hasSecurityPolicy() ? handler->enter(cx, wrapper, id, act, &rv)
                                              : true;
-        recordEnter(cx, wrapper, id, act);
+        recordEnter(cx, wrapper, id);
         // We want to throw an exception if all of the following are true:
         // * The policy disallowed access.
         // * The policy set rv to false, indicating that we should throw.
@@ -490,7 +481,6 @@ class JS_FRIEND_API(AutoEnterPolicy)
     AutoEnterPolicy()
 #ifdef JS_DEBUG
         : context(nullptr)
-        , enteredAction(BaseProxyHandler::NONE)
 #endif
         {};
     void reportErrorIfExceptionIsNotPending(JSContext *cx, jsid id);
@@ -501,18 +491,16 @@ class JS_FRIEND_API(AutoEnterPolicy)
     JSContext *context;
     mozilla::Maybe<HandleObject> enteredProxy;
     mozilla::Maybe<HandleId> enteredId;
-    Action                   enteredAction;
-
     // NB: We explicitly don't track the entered action here, because sometimes
     // SET traps do an implicit GET during their implementation, leading to
     // spurious assertions.
     AutoEnterPolicy *prev;
-    void recordEnter(JSContext *cx, HandleObject proxy, HandleId id, Action act);
+    void recordEnter(JSContext *cx, HandleObject proxy, HandleId id);
     void recordLeave();
 
-    friend JS_FRIEND_API(void) assertEnteredPolicy(JSContext *cx, JSObject *proxy, jsid id, Action act);
+    friend JS_FRIEND_API(void) assertEnteredPolicy(JSContext *cx, JSObject *proxy, jsid id);
 #else
-    inline void recordEnter(JSContext *cx, JSObject *proxy, jsid id, Action act) {}
+    inline void recordEnter(JSContext *cx, JSObject *proxy, jsid id) {}
     inline void recordLeave() {}
 #endif
 
@@ -521,30 +509,16 @@ class JS_FRIEND_API(AutoEnterPolicy)
 #ifdef JS_DEBUG
 class JS_FRIEND_API(AutoWaivePolicy) : public AutoEnterPolicy {
 public:
-    AutoWaivePolicy(JSContext *cx, HandleObject proxy, HandleId id,
-                    BaseProxyHandler::Action act)
+    AutoWaivePolicy(JSContext *cx, HandleObject proxy, HandleId id)
     {
         allow = true;
-        recordEnter(cx, proxy, id, act);
+        recordEnter(cx, proxy, id);
     }
 };
 #else
 class JS_FRIEND_API(AutoWaivePolicy) {
-  public:
-    AutoWaivePolicy(JSContext *cx, HandleObject proxy, HandleId id,
-                    BaseProxyHandler::Action act)
-    {}
+    public: AutoWaivePolicy(JSContext *cx, HandleObject proxy, HandleId id) {};
 };
-#endif
-
-#ifdef JS_DEBUG
-extern JS_FRIEND_API(void)
-assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id,
-                    BaseProxyHandler::Action act);
-#else
-inline void assertEnteredPolicy(JSContext *cx, JSObject *obj, jsid id,
-                                BaseProxyHandler::Action act)
-{};
 #endif
 
 } /* namespace js */

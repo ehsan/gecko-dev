@@ -9,7 +9,6 @@
 #include "BasicLayers.h"                // for BasicLayerManager
 #include "gfxContext.h"                 // for gfxContext, etc
 #include "gfxRect.h"                    // for gfxRect
-#include "gfx2DGlue.h"
 #include "mozilla/mozalloc.h"           // for operator new
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
@@ -17,6 +16,7 @@
 #include "nsISupportsImpl.h"            // for Layer::AddRef, etc
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 using namespace mozilla::gfx;
 
@@ -43,34 +43,13 @@ public:
     ColorLayer::SetVisibleRegion(aRegion);
   }
 
-  virtual void Paint(DrawTarget* aTarget, SourceSurface* aMaskSurface)
+  virtual void Paint(gfxContext* aContext, Layer* aMaskLayer)
   {
-    if (IsHidden()) {
+    if (IsHidden())
       return;
-    }
-
-    CompositionOp op = GetEffectiveOperator(this);
-
-    DrawOptions opts = DrawOptions();
-    opts.mCompositionOp = op;
-    ColorPattern pattern(ToColor(mColor));
-    aTarget->MaskSurface(pattern,
-                         aMaskSurface,
-                         ToIntRect(GetBounds()).TopLeft(),
-                         opts);
-  }
-
-  virtual void DeprecatedPaint(gfxContext* aContext, Layer* aMaskLayer)
-  {
-    if (IsHidden()) {
-      return;
-    }
     gfxContextAutoSaveRestore contextSR(aContext);
-    gfxContext::GraphicsOperator mixBlendMode = DeprecatedGetEffectiveMixBlendMode();
-    AutoSetOperator setOptimizedOperator(aContext,
-                                         mixBlendMode != gfxContext::OPERATOR_OVER ?
-                                           mixBlendMode :
-                                           DeprecatedGetOperator());
+    gfxContext::GraphicsOperator mixBlendMode = GetEffectiveMixBlendMode();
+    AutoSetOperator setOptimizedOperator(aContext, mixBlendMode != gfxContext::OPERATOR_OVER ? mixBlendMode : GetOperator());
 
     aContext->SetColor(mColor);
 

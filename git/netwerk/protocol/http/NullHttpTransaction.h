@@ -34,13 +34,8 @@ public:
 
   nsHttpConnectionInfo *ConnectionInfo() { return mConnectionInfo; }
 
-  // Overload of nsAHttpTransaction methods
-  bool IsNullTransaction() MOZ_OVERRIDE MOZ_FINAL { return true; }
-  bool ResponseTimeoutEnabled() const MOZ_OVERRIDE MOZ_FINAL {return true; }
-  PRIntervalTime ResponseTimeout() MOZ_OVERRIDE MOZ_FINAL
-  {
-    return PR_SecondsToInterval(15);
-  }
+  // An overload of nsAHttpTransaction::IsNullTransaction()
+  bool IsNullTransaction() { return true; }
 
 private:
 

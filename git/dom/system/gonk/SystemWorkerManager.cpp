@@ -51,6 +51,7 @@ using namespace mozilla::system;
 namespace {
 
 NS_DEFINE_CID(kWifiWorkerCID, NS_WIFIWORKER_CID);
+NS_DEFINE_CID(kNetworkServiceCID, NS_INETWORKSERVICE_IID);
 
 // Doesn't carry a reference, we're owned by services.
 SystemWorkerManager *gInstance = nullptr;
@@ -241,7 +242,7 @@ SystemWorkerManager::RegisterNfcWorker(JS::Handle<JS::Value> aWorker,
 nsresult
 SystemWorkerManager::InitNetd(JSContext *cx)
 {
-  nsCOMPtr<nsIWorkerHolder> worker = do_GetService("@mozilla.org/network/service;1");
+  nsCOMPtr<nsIWorkerHolder> worker = do_GetService(kNetworkServiceCID);
   NS_ENSURE_TRUE(worker, NS_ERROR_FAILURE);
   mNetdWorker = worker;
   return NS_OK;

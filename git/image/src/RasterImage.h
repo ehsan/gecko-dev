@@ -144,7 +144,6 @@ class RasterImage : public ImageResource
 #endif
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(RasterImage)
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIPROPERTIES
   NS_DECL_IMGICONTAINER
@@ -276,16 +275,6 @@ public:
   nsIntSize GetRequestedResolution() {
     return mRequestedResolution;
   }
-  /* Provide a hint for the requested dimension of the resulting image. */
-  void SetRequestedSampleSize(int requestedSampleSize) {
-    mRequestedSampleSize = requestedSampleSize;
-  }
-
-  int GetRequestedSampleSize() {
-    return mRequestedSampleSize;
-  }
-
-
 
  nsCString GetURIString() {
     nsCString spec;
@@ -545,7 +534,7 @@ private:
   nsresult FinishedSomeDecoding(eShutdownIntent intent = eShutdownIntent_Done,
                                 DecodeRequest* request = nullptr);
 
-  bool DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
+  void DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
                                     gfxContext *aContext,
                                     GraphicsFilter aFilter,
                                     const gfxMatrix &aUserSpaceToImageSpace,
@@ -590,7 +579,7 @@ private:
 
   nsresult DoImageDataComplete();
 
-  bool ApplyDecodeFlags(uint32_t aNewFlags, uint32_t aWhichFrame);
+  bool ApplyDecodeFlags(uint32_t aNewFlags);
 
   already_AddRefed<layers::Image> GetCurrentImage();
   void UpdateImageContainer();
@@ -653,14 +642,8 @@ private: // data
   // If the image contains multiple resolutions, a hint as to which one should be used
   nsIntSize                  mRequestedResolution;
 
-  // A hint for image decoder that directly scale the image to smaller buffer
-  int                        mRequestedSampleSize;
-
   // Cached value for GetImageContainer.
   nsRefPtr<mozilla::layers::ImageContainer> mImageContainer;
-
-  // If not cached in mImageContainer, this might have our image container
-  WeakPtr<mozilla::layers::ImageContainer> mImageContainerCache;
 
 #ifdef DEBUG
   uint32_t                       mFramesNotified;
@@ -729,8 +712,8 @@ private: // data
   bool     IsDecodeFinished();
   TimeStamp mDrawStartTime;
 
-  inline bool CanQualityScale(const gfxSize& scale);
-  inline bool CanScale(GraphicsFilter aFilter, gfxSize aScale, uint32_t aFlags);
+  inline bool CanQualityScale(const gfx::Size& scale);
+  inline bool CanScale(GraphicsFilter aFilter, gfx::Size aScale, uint32_t aFlags);
 
   struct ScaleResult
   {
@@ -738,7 +721,7 @@ private: // data
      : status(SCALE_INVALID)
     {}
 
-    gfxSize scale;
+    gfx::Size scale;
     nsAutoPtr<imgFrame> frame;
     ScaleStatus status;
   };

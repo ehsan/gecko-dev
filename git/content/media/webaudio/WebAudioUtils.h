@@ -25,22 +25,17 @@ namespace dom {
 
 class AudioParamTimeline;
 
-namespace WebAudioUtils {
-  // 32 is the minimum required by the spec for createBuffer() and
-  // createScriptProcessor() and matches what is used by Blink.  The limit
-  // protects against large memory allocations.
-  const uint32_t MaxChannelCount = 32;
-  // AudioContext::CreateBuffer() "must support sample-rates in at least the
-  // range 22050 to 96000."
-  const uint32_t MinSampleRate = 8000;
-  const uint32_t MaxSampleRate = 192000;
+struct WebAudioUtils {
+  // This is an arbitrary large number used to protect against OOMs.
+  // We can adjust it later if needed.
+  static const uint32_t MaxChannelCount = 32;
 
-  inline bool FuzzyEqual(float v1, float v2)
+  static bool FuzzyEqual(float v1, float v2)
   {
     using namespace std;
     return fabsf(v1 - v2) < 1e-7f;
   }
-  inline bool FuzzyEqual(double v1, double v2)
+  static bool FuzzyEqual(double v1, double v2)
   {
     using namespace std;
     return fabs(v1 - v2) < 1e-7;
@@ -50,10 +45,19 @@ namespace WebAudioUtils {
    * Computes an exponential smoothing rate for a time based variable
    * over aDuration seconds.
    */
-  inline double ComputeSmoothingRate(double aDuration, double aSampleRate)
+  static double ComputeSmoothingRate(double aDuration, double aSampleRate)
   {
     return 1.0 - std::exp(-1.0 / (aDuration * aSampleRate));
   }
+
+  /**
+   * Convert a time in second relative to the destination stream to
+   * TrackTicks relative to the source stream.
+   */
+  static TrackTicks
+  ConvertDestinationStreamTimeToSourceStreamTime(double aTime,
+                                                 AudioNodeStream* aSource,
+                                                 MediaStream* aDestination);
 
   /**
    * Converts AudioParamTimeline floating point time values to tick values
@@ -64,15 +68,15 @@ namespace WebAudioUtils {
    * received.  This means that such engines need to be aware of their source
    * and destination streams as well.
    */
-  void ConvertAudioParamToTicks(AudioParamTimeline& aParam,
-                                AudioNodeStream* aSource,
-                                AudioNodeStream* aDest);
+  static void ConvertAudioParamToTicks(AudioParamTimeline& aParam,
+                                       AudioNodeStream* aSource,
+                                       AudioNodeStream* aDest);
 
   /**
    * Converts a linear value to decibels.  Returns aMinDecibels if the linear
    * value is 0.
    */
-  inline float ConvertLinearToDecibels(float aLinearValue, float aMinDecibels)
+  static float ConvertLinearToDecibels(float aLinearValue, float aMinDecibels)
   {
     return aLinearValue ? 20.0f * std::log10(aLinearValue) : aMinDecibels;
   }
@@ -80,7 +84,7 @@ namespace WebAudioUtils {
   /**
    * Converts a decibel value to a linear value.
    */
-  inline float ConvertDecibelsToLinear(float aDecibels)
+  static float ConvertDecibelsToLinear(float aDecibels)
   {
     return std::pow(10.0f, 0.05f * aDecibels);
   }
@@ -88,27 +92,35 @@ namespace WebAudioUtils {
   /**
    * Converts a decibel to a linear value.
    */
-  inline float ConvertDecibelToLinear(float aDecibel)
+  static float ConvertDecibelToLinear(float aDecibel)
   {
     return std::pow(10.0f, 0.05f * aDecibel);
   }
 
-  inline void FixNaN(double& aDouble)
+  static void FixNaN(double& aDouble)
   {
     if (IsNaN(aDouble) || IsInfinite(aDouble)) {
       aDouble = 0.0;
     }
   }
 
-  inline double DiscreteTimeConstantForSampleRate(double timeConstant, double sampleRate)
+  static double DiscreteTimeConstantForSampleRate(double timeConstant, double sampleRate)
   {
     return 1.0 - std::exp(-1.0 / (sampleRate * timeConstant));
   }
 
-  inline bool IsTimeValid(double aTime)
+  static bool IsTimeValid(double aTime)
   {
     return aTime >= 0 &&  aTime <= (MEDIA_TIME_MAX >> MEDIA_TIME_FRAC_BITS);
   }
+
+  /**
+   * Convert a stream position into the time coordinate of the destination
+   * stream.
+   */
+  static double StreamPositionToDestinationTime(TrackTicks aSourcePosition,
+                                                AudioNodeStream* aSource,
+                                                AudioNodeStream* aDestination);
 
   /**
    * Converts a floating point value to an integral type in a safe and
@@ -173,7 +185,7 @@ namespace WebAudioUtils {
    * it sees a NaN.
    */
   template <typename IntType, typename FloatType>
-  IntType TruncateFloatToInt(FloatType f)
+  static IntType TruncateFloatToInt(FloatType f)
   {
     using namespace std;
 
@@ -204,20 +216,20 @@ namespace WebAudioUtils {
     return IntType(f);
   }
 
-  void Shutdown();
+  static void Shutdown();
 
-  int
+  static int
   SpeexResamplerProcess(SpeexResamplerState* aResampler,
                         uint32_t aChannel,
                         const float* aIn, uint32_t* aInLen,
                         float* aOut, uint32_t* aOutLen);
 
-  int
+  static int
   SpeexResamplerProcess(SpeexResamplerState* aResampler,
                         uint32_t aChannel,
                         const int16_t* aIn, uint32_t* aInLen,
                         float* aOut, uint32_t* aOutLen);
-}
+};
 
 }
 }

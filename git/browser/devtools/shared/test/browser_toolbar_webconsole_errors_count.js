@@ -193,11 +193,10 @@ function test() {
   function testEnd() {
     document.getElementById("developer-toolbar-closebutton").doCommand();
     let target1 = TargetFactory.forTab(tab1);
-    gDevTools.closeToolbox(target1).then(() => {
-      gBrowser.removeTab(tab1);
-      gBrowser.removeTab(tab2);
-      finish();
-    });
+    gDevTools.closeToolbox(target1);
+    gBrowser.removeTab(tab1);
+    gBrowser.removeTab(tab2);
+    finish();
   }
 
   // Utility functions

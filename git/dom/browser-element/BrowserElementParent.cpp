@@ -239,11 +239,12 @@ BrowserElementParent::OpenWindowInProcess(nsIDOMWindow* aOpenerWindow,
   nsCOMPtr<nsIDOMWindow> topWindow;
   aOpenerWindow->GetScriptableTop(getter_AddRefs(topWindow));
 
-  nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(topWindow);
+  nsCOMPtr<nsIDOMElement> openerFrameDOMElement;
+  topWindow->GetFrameElement(getter_AddRefs(openerFrameDOMElement));
+  NS_ENSURE_TRUE(openerFrameDOMElement, BrowserElementParent::OPEN_WINDOW_IGNORED);
 
-  nsCOMPtr<Element> openerFrameElement = win->GetFrameElementInternal();
-  NS_ENSURE_TRUE(openerFrameElement, BrowserElementParent::OPEN_WINDOW_IGNORED);
-
+  nsCOMPtr<Element> openerFrameElement =
+    do_QueryInterface(openerFrameDOMElement);
 
   nsRefPtr<HTMLIFrameElement> popupFrameElement =
     CreateIframe(openerFrameElement, aName, /* aRemote = */ false);

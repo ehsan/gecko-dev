@@ -61,8 +61,6 @@ class RefLayerComposite;
 class SurfaceDescriptor;
 class ThebesLayerComposite;
 class TiledLayerComposer;
-class TextRenderer;
-struct FPSState;
 
 class LayerManagerComposite : public LayerManager
 {
@@ -226,10 +224,6 @@ public:
   void SetDebugOverlayWantsNextFrame(bool aVal)
   { mDebugOverlayWantsNextFrame = aVal; }
 
-  void NotifyShadowTreeTransaction();
-
-  TextRenderer* GetTextRenderer() { return mTextRenderer; }
-
 private:
   /** Region we're clipping our current drawing to. */
   nsIntRegion mClippingRegion;
@@ -262,23 +256,14 @@ private:
   void WorldTransformRect(nsIntRect& aRect);
 
   RefPtr<Compositor> mCompositor;
-  nsAutoPtr<LayerProperties> mClonedLayerTreeProperties;
-
-  /** 
-   * Context target, nullptr when drawing directly to our swap chain.
-   */
-  RefPtr<gfx::DrawTarget> mTarget;
 
   gfx::Matrix mWorldMatrix;
-  nsIntRegion mInvalidRegion;
-  nsAutoPtr<FPSState> mFPS;
 
   bool mInTransaction;
   bool mIsCompositorReady;
+  nsIntRegion mInvalidRegion;
+  nsAutoPtr<LayerProperties> mClonedLayerTreeProperties;
   bool mDebugOverlayWantsNextFrame;
-
-  RefPtr<TextRenderer> mTextRenderer;
-  bool mGeometryChanged;
 };
 
 /**
@@ -320,11 +305,9 @@ public:
 
   virtual void RenderLayer(const nsIntRect& aClipRect) = 0;
 
-  virtual bool SetCompositableHost(CompositableHost*)
+  virtual void SetCompositableHost(CompositableHost* aHost)
   {
-    // We must handle this gracefully, see bug 967824
-    NS_WARNING("called SetCompositableHost for a layer type not accepting a compositable");
-    return false;
+    MOZ_ASSERT(false, "called SetCompositableHost for a layer without a compositable host");
   }
   virtual CompositableHost* GetCompositableHost() = 0;
 
@@ -374,9 +357,9 @@ public:
     mLayerComposited = value;
   }
 
-  void SetClearRect(const nsIntRect& aRect)
+  void SetClearFB(bool value)
   {
-    mClearRect = aRect;
+    mClearFB = value;
   }
 
   // These getters can be used anytime.
@@ -386,7 +369,7 @@ public:
   const gfx::Matrix4x4& GetShadowTransform() { return mShadowTransform; }
   bool GetShadowTransformSetByAnimation() { return mShadowTransformSetByAnimation; }
   bool HasLayerBeenComposited() { return mLayerComposited; }
-  nsIntRect GetClearRect() { return mClearRect; }
+  bool GetClearFB() { return mClearFB; }
 
 protected:
   gfx::Matrix4x4 mShadowTransform;
@@ -399,7 +382,7 @@ protected:
   bool mShadowTransformSetByAnimation;
   bool mDestroyed;
   bool mLayerComposited;
-  nsIntRect mClearRect;
+  bool mClearFB;
 };
 
 

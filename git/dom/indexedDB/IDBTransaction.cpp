@@ -14,7 +14,7 @@
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/storage.h"
 #include "nsDOMClassInfoID.h"
-#include "mozilla/dom/DOMStringList.h"
+#include "nsDOMLists.h"
 #include "nsEventDispatcher.h"
 #include "nsPIDOMWindow.h"
 #include "nsProxyRelease.h"
@@ -671,18 +671,32 @@ IDBTransaction::GetError(ErrorResult& aRv)
   return mError;
 }
 
-already_AddRefed<DOMStringList>
+already_AddRefed<nsIDOMDOMStringList>
 IDBTransaction::GetObjectStoreNames(ErrorResult& aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsRefPtr<DOMStringList> list(new DOMStringList());
+  nsRefPtr<nsDOMStringList> list(new nsDOMStringList());
+
+  nsAutoTArray<nsString, 10> stackArray;
+  nsTArray<nsString>* arrayOfNames;
 
   if (mMode == IDBTransaction::VERSION_CHANGE) {
-    mDatabaseInfo->GetObjectStoreNames(list->StringArray());
+    mDatabaseInfo->GetObjectStoreNames(stackArray);
+
+    arrayOfNames = &stackArray;
   }
   else {
-    list->StringArray() = mObjectStoreNames;
+    arrayOfNames = &mObjectStoreNames;
+  }
+
+  uint32_t count = arrayOfNames->Length();
+  for (uint32_t index = 0; index < count; index++) {
+    if (!list->Add(arrayOfNames->ElementAt(index))) {
+      IDB_WARNING("Failed to add element!");
+      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+      return nullptr;
+    }
   }
 
   return list.forget();

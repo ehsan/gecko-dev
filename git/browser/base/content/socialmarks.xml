@@ -311,8 +311,7 @@
             if (link.rel.indexOf("icon") < 0)
               return;
 
-            let ContentLinkHandler = Cu.import("resource:///modules/ContentLinkHandler.jsm", {}).ContentLinkHandler;
-            let uri = ContentLinkHandler.getLinkIconURI(link);
+            let uri = DOMLinkHandler.getLinkIconURI(link);
             if (!uri)
               return;
 

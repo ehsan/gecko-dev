@@ -23,7 +23,7 @@
 
 #include "prlog.h"
 
-#ifdef PR_LOGGING
+#ifdef MOZ_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 

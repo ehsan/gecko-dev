@@ -196,8 +196,8 @@
 
        // Special case: these functions are used by the
        // finalizer
-       libc.declareLazy(SysFile, "_CloseHandle",
-                        "CloseHandle", ctypes.winapi_abi,
+       SharedAll.declareLazy(SysFile, "_CloseHandle", libc,
+                      "CloseHandle", ctypes.winapi_abi,
                         /*return */ctypes.bool,
                         /*handle*/ ctypes.voidptr_t);
 
@@ -209,8 +209,8 @@
          }
        };
 
-       libc.declareLazy(SysFile, "_FindClose",
-                        "FindClose", ctypes.winapi_abi,
+       SharedAll.declareLazy(SysFile, "_FindClose", libc,
+                      "FindClose", ctypes.winapi_abi,
                         /*return */ctypes.bool,
                         /*handle*/ ctypes.voidptr_t);
 
@@ -224,20 +224,20 @@
 
        // Declare libc functions as functions of |OS.Win.File|
 
-       libc.declareLazyFFI(SysFile, "CopyFile",
+       declareLazyFFI(SysFile, "CopyFile", libc,
          "CopyFileW", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*sourcePath*/ Type.path,
                     /*destPath*/   Type.path,
                     /*bailIfExist*/Type.bool);
 
-       libc.declareLazyFFI(SysFile, "CreateDirectory",
+       declareLazyFFI(SysFile, "CreateDirectory", libc,
          "CreateDirectoryW", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*name*/   Type.jschar.in_ptr,
                     /*security*/Type.SECURITY_ATTRIBUTES.in_ptr);
 
-       libc.declareLazyFFI(SysFile, "CreateFile",
+       declareLazyFFI(SysFile, "CreateFile", libc,
          "CreateFileW", ctypes.winapi_abi,
                     /*return*/  Type.file_HANDLE,
                     /*name*/    Type.path,
@@ -248,36 +248,36 @@
                     /*flags*/   Type.DWORD,
                     /*template*/Type.HANDLE);
 
-       libc.declareLazyFFI(SysFile, "DeleteFile",
+       declareLazyFFI(SysFile, "DeleteFile", libc,
          "DeleteFileW", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*path*/   Type.path);
 
-       libc.declareLazyFFI(SysFile, "FileTimeToSystemTime",
+       declareLazyFFI(SysFile, "FileTimeToSystemTime", libc,
          "FileTimeToSystemTime", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*filetime*/Type.FILETIME.in_ptr,
                     /*systime*/ Type.SystemTime.out_ptr);
 
-       libc.declareLazyFFI(SysFile, "SystemTimeToFileTime",
+       declareLazyFFI(SysFile, "SystemTimeToFileTime", libc,
          "SystemTimeToFileTime", ctypes.winapi_abi,
                     /*return*/   Type.zero_or_nothing,
                     /*systime*/  Type.SystemTime.in_ptr,
                     /*filetime*/ Type.FILETIME.out_ptr);
 
-       libc.declareLazyFFI(SysFile, "FindFirstFile",
+       declareLazyFFI(SysFile, "FindFirstFile", libc,
          "FindFirstFileW", ctypes.winapi_abi,
                     /*return*/ Type.find_HANDLE,
                     /*pattern*/Type.path,
                     /*data*/   Type.FindData.out_ptr);
 
-       libc.declareLazyFFI(SysFile, "FindNextFile",
+       declareLazyFFI(SysFile, "FindNextFile", libc,
          "FindNextFileW", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*prev*/   Type.find_HANDLE,
                     /*data*/   Type.FindData.out_ptr);
 
-       libc.declareLazyFFI(SysFile, "FormatMessage",
+       declareLazyFFI(SysFile, "FormatMessage", libc,
          "FormatMessageW", ctypes.winapi_abi,
                     /*return*/ Type.DWORD,
                     /*flags*/  Type.DWORD,
@@ -289,28 +289,20 @@
                     /*Arguments*/Type.void_t.in_ptr
                    );
 
-       libc.declareLazyFFI(SysFile, "GetCurrentDirectory",
+       declareLazyFFI(SysFile, "GetCurrentDirectory", libc,
          "GetCurrentDirectoryW", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_DWORD,
                     /*length*/ Type.DWORD,
                     /*buf*/    Type.out_path
                    );
 
-       libc.declareLazyFFI(SysFile, "GetDiskFreeSpaceEx",
-         "GetDiskFreeSpaceExW", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*directoryName*/ Type.path,
-                    /*freeBytesForUser*/ Type.uint64_t.out_ptr,
-                    /*totalBytesForUser*/ Type.uint64_t.out_ptr,
-                    /*freeTotalBytesOnDrive*/ Type.uint64_t.out_ptr);
-
-       libc.declareLazyFFI(SysFile, "GetFileInformationByHandle",
+       declareLazyFFI(SysFile, "GetFileInformationByHandle", libc,
          "GetFileInformationByHandle", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*handle*/ Type.HANDLE,
                     /*info*/   Type.FILE_INFORMATION.out_ptr);
 
-       libc.declareLazyFFI(SysFile, "MoveFileEx",
+       declareLazyFFI(SysFile, "MoveFileEx", libc,
          "MoveFileExW", ctypes.winapi_abi,
                     /*return*/   Type.zero_or_nothing,
                     /*sourcePath*/ Type.path,
@@ -318,7 +310,7 @@
                     /*flags*/    Type.DWORD
                    );
 
-       libc.declareLazyFFI(SysFile, "ReadFile",
+       declareLazyFFI(SysFile, "ReadFile", libc,
          "ReadFile", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*file*/   Type.HANDLE,
@@ -328,23 +320,23 @@
                     /*overlapped*/Type.void_t.inout_ptr // FIXME: Implement?
          );
 
-       libc.declareLazyFFI(SysFile, "RemoveDirectory",
+       declareLazyFFI(SysFile, "RemoveDirectory", libc,
          "RemoveDirectoryW", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*path*/   Type.path);
 
-       libc.declareLazyFFI(SysFile, "SetCurrentDirectory",
+       declareLazyFFI(SysFile, "SetCurrentDirectory", libc,
          "SetCurrentDirectoryW", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*path*/   Type.path
                    );
 
-       libc.declareLazyFFI(SysFile, "SetEndOfFile",
+       declareLazyFFI(SysFile, "SetEndOfFile", libc,
          "SetEndOfFile", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*file*/   Type.HANDLE);
 
-       libc.declareLazyFFI(SysFile, "SetFilePointer",
+       declareLazyFFI(SysFile, "SetFilePointer", libc,
          "SetFilePointer", ctypes.winapi_abi,
                     /*return*/ Type.negative_or_DWORD,
                     /*file*/   Type.HANDLE,
@@ -352,7 +344,7 @@
                     /*disthi*/ Type.long.in_ptr,
                     /*method*/ Type.DWORD);
 
-       libc.declareLazyFFI(SysFile, "SetFileTime",
+       declareLazyFFI(SysFile, "SetFileTime", libc,
          "SetFileTime",  ctypes.winapi_abi,
                     /*return*/   Type.zero_or_nothing,
                     /*file*/     Type.HANDLE,
@@ -361,7 +353,7 @@
                     /*write*/    Type.FILETIME.in_ptr);
 
 
-       libc.declareLazyFFI(SysFile, "WriteFile",
+       declareLazyFFI(SysFile, "WriteFile", libc,
          "WriteFile", ctypes.winapi_abi,
                     /*return*/ Type.zero_or_nothing,
                     /*file*/   Type.HANDLE,
@@ -371,17 +363,17 @@
                     /*overlapped*/Type.void_t.inout_ptr // FIXME: Implement?
          );
 
-        libc.declareLazyFFI(SysFile, "FlushFileBuffers",
+        declareLazyFFI(SysFile, "FlushFileBuffers", libc,
           "FlushFileBuffers", ctypes.winapi_abi,
                      /*return*/ Type.zero_or_nothing,
                      /*file*/   Type.HANDLE);
 
-        libc.declareLazyFFI(SysFile, "GetFileAttributes",
+        declareLazyFFI(SysFile, "GetFileAttributes", libc,
           "GetFileAttributesW", ctypes.winapi_abi,
                      /*return*/   Type.DWORD,
                      /*fileName*/ Type.path);
 
-        libc.declareLazyFFI(SysFile, "SetFileAttributes",
+        declareLazyFFI(SysFile, "SetFileAttributes", libc,
           "SetFileAttributesW", ctypes.winapi_abi,
                      /*return*/         Type.zero_or_nothing,
                      /*fileName*/       Type.path,
@@ -410,7 +402,7 @@
                      /*dacl*/         Type.PACL,
                      /*sacl*/         Type.PACL);
 
-        libc.declareLazyFFI(SysFile, "LocalFree",
+        declareLazyFFI(SysFile, "LocalFree", libc,
           "LocalFree", ctypes.winapi_abi,
                      /*return*/       Type.HLOCAL,
                      /*mem*/          Type.HLOCAL);

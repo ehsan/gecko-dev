@@ -383,8 +383,8 @@ inDOMUtils::SelectorMatchesElement(nsIDOMElement* aElement,
 NS_IMETHODIMP
 inDOMUtils::IsInheritedProperty(const nsAString &aPropertyName, bool *_retval)
 {
-  nsCSSProperty prop =
-    nsCSSProps::LookupProperty(aPropertyName, nsCSSProps::eIgnoreEnabledState);
+  nsCSSProperty prop = nsCSSProps::LookupProperty(aPropertyName,
+                                                  nsCSSProps::eAny);
   if (prop == eCSSProperty_UNKNOWN) {
     *_retval = false;
     return NS_OK;
@@ -488,8 +488,7 @@ static void GetKeywordsForProperty(const nsCSSProperty aProperty,
     // Shorthand props have no keywords.
     return;
   }
-  const nsCSSProps::KTableValue *keywordTable =
-    nsCSSProps::kKeywordTableTable[aProperty];
+  const int32_t *keywordTable = nsCSSProps::kKeywordTableTable[aProperty];
   if (keywordTable && keywordTable != nsCSSProps::kBoxPropSourceKTable) {
     size_t i = 0;
     while (nsCSSKeyword(keywordTable[i]) != eCSSKeyword_UNKNOWN) {
@@ -565,7 +564,7 @@ inDOMUtils::GetCSSValuesForProperty(const nsAString& aProperty,
                                     char16_t*** aValues)
 {
   nsCSSProperty propertyID = nsCSSProps::LookupProperty(aProperty,
-                                                        nsCSSProps::eEnabledForAllContent);
+                                                        nsCSSProps::eEnabled);
   if (propertyID == eCSSProperty_UNKNOWN) {
     return NS_ERROR_FAILURE;
   }

@@ -121,11 +121,6 @@ public:
            BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
-  SendFile(const nsAString& aDeviceAddress,
-           nsIDOMBlob* aBlob,
-           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
   StopSendingFile(const nsAString& aDeviceAddress,
                   BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
@@ -206,6 +201,10 @@ private:
   // This method should never be called.
   virtual nsresult
   StopInternal() MOZ_OVERRIDE;
+
+  // This method should never be called.
+  virtual bool
+  IsEnabledInternal() MOZ_OVERRIDE;
 
   bool
   IsSignalRegistered(const nsAString& aNodeName) {

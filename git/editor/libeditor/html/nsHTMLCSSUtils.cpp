@@ -565,7 +565,7 @@ nsHTMLCSSUtils::GetCSSInlinePropertyBase(nsINode* aNode, nsIAtom* aProperty,
   }
   nsCSSProperty prop =
     nsCSSProps::LookupProperty(nsDependentAtomString(aProperty),
-                               nsCSSProps::eEnabledForAllContent);
+                               nsCSSProps::eEnabled);
   MOZ_ASSERT(prop != eCSSProperty_UNKNOWN);
   rule->GetDeclaration()->GetValue(prop, aValue);
 
@@ -704,7 +704,7 @@ nsHTMLCSSUtils::ParseLength(const nsAString & aString, float * aValue, nsIAtom *
     i++;
   }
   *aValue = value * sign;
-  *aUnit = NS_NewAtom(StringTail(aString, j-i)).take();
+  *aUnit = NS_NewAtom(StringTail(aString, j-i)).get();
 }
 
 void

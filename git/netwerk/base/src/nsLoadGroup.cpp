@@ -1168,8 +1168,12 @@ nsresult nsLoadGroup::Init()
         RequestHashInitEntry
     };
 
-    PL_DHashTableInit(&mRequests, &hash_table_ops, nullptr,
-                      sizeof(RequestMapEntry), 16);
+    if (!PL_DHashTableInit(&mRequests, &hash_table_ops, nullptr,
+                           sizeof(RequestMapEntry), 16)) {
+        mRequests.ops = nullptr;
+
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     mConnectionInfo = new nsLoadGroupConnectionInfo();
 

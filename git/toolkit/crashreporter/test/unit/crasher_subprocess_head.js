@@ -12,9 +12,6 @@ let crashReporter =
   Components.classes["@mozilla.org/toolkit/crash-reporter;1"]
     .getService(Components.interfaces.nsICrashReporter);
 
-// We need to call this or crash events go in an undefined location.
-crashReporter.UpdateCrashEventsDir();
-
 // Setting the minidump path is not allowed in content processes
 let processType = Components.classes["@mozilla.org/xre/runtime;1"].
       getService(Components.interfaces.nsIXULRuntime).processType;

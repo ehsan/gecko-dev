@@ -89,14 +89,14 @@ public class FaviconDecoder {
         LoadFaviconResult result;
         if (isDecodableByAndroid(buffer, offset)) {
             result = new LoadFaviconResult();
-            result.offset = offset;
-            result.length = length;
-            result.isICO = false;
+            result.mOffset = offset;
+            result.mLength = length;
+            result.mIsICO = false;
 
             // We assume here that decodeByteArray doesn't hold on to the entire supplied
             // buffer -- worst case, each of our buffers will be twice the necessary size.
-            result.bitmapsDecoded = new SingleBitmapIterator(BitmapUtils.decodeByteArray(buffer, offset, length));
-            result.faviconBytes = buffer;
+            result.mBitmapsDecoded = new SingleBitmapIterator(BitmapUtils.decodeByteArray(buffer, offset, length));
+            result.mFaviconBytes = buffer;
 
             return result;
         }
@@ -193,10 +193,10 @@ public class FaviconDecoder {
      * Iterator to hold a single bitmap.
      */
     static class SingleBitmapIterator implements Iterator<Bitmap> {
-        private Bitmap bitmap;
+        private Bitmap mBitmap;
 
         public SingleBitmapIterator(Bitmap b) {
-            bitmap = b;
+            mBitmap = b;
         }
 
         /**
@@ -207,22 +207,22 @@ public class FaviconDecoder {
          * @return The bitmap carried by this SingleBitmapIterator.
          */
         public Bitmap peek() {
-            return bitmap;
+            return mBitmap;
         }
 
         @Override
         public boolean hasNext() {
-            return bitmap != null;
+            return mBitmap != null;
         }
 
         @Override
         public Bitmap next() {
-            if (bitmap == null) {
+            if (mBitmap == null) {
                 throw new NoSuchElementException("Element already returned from SingleBitmapIterator.");
             }
 
-            Bitmap ret = bitmap;
-            bitmap = null;
+            Bitmap ret = mBitmap;
+            mBitmap = null;
             return ret;
         }
 

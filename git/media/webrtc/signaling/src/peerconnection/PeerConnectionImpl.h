@@ -14,7 +14,6 @@
 #include "prlock.h"
 #include "mozilla/RefPtr.h"
 #include "nsWeakPtr.h"
-#include "nsAutoPtr.h"
 #include "nsIWeakReferenceUtils.h" // for the definition of nsWeakPtr
 #include "IPeerConnection.h"
 #include "sigslot.h"
@@ -27,7 +26,6 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/PeerConnectionImplEnumsBinding.h"
 #include "StreamBuffer.h"
-#include "LoadManagerFactory.h"
 
 #ifdef MOZILLA_INTERNAL_API
 #include "mozilla/TimeStamp.h"
@@ -35,7 +33,6 @@
 #include "VideoUtils.h"
 #include "VideoSegment.h"
 #include "nsNSSShutDown.h"
-#include "mozilla/dom/RTCStatsReportBinding.h"
 #endif
 
 namespace test {
@@ -134,7 +131,7 @@ public:
   bool addTurnServer(const std::string& addr, uint16_t port,
                      const std::string& username,
                      const std::string& pwd,
-                     const char* transport)
+                     const std::string& transport)
   {
     // TODO(ekr@rtfm.com): Need support for SASLprep for
     // username and password. Bug # ???
@@ -156,27 +153,6 @@ private:
   std::vector<NrIceStunServer> mStunServers;
   std::vector<NrIceTurnServer> mTurnServers;
 };
-
-#ifdef MOZILLA_INTERNAL_API
-// Not an inner class so we can forward declare.
-class RTCStatsQuery {
-  public:
-    explicit RTCStatsQuery(bool internalStats);
-    ~RTCStatsQuery();
-
-    mozilla::dom::RTCStatsReportInternal report;
-    std::string error;
-
-  private:
-    friend class PeerConnectionImpl;
-    std::string pcName;
-    bool internalStats;
-    nsTArray<mozilla::RefPtr<mozilla::MediaPipeline>> pipelines;
-    mozilla::RefPtr<NrIceCtx> iceCtx;
-    nsTArray<mozilla::RefPtr<NrIceMediaStream>> streams;
-    DOMHighResTimeStamp now;
-};
-#endif // MOZILLA_INTERNAL_API
 
 // Enter an API call and check that the state is OK,
 // the PC isn't closed, etc.
@@ -242,10 +218,6 @@ public:
   const nsRefPtr<PeerConnectionMedia>& media() const {
     PC_AUTO_ENTER_API_CALL_NO_CHECK();
     return mMedia;
-  }
-
-  mozilla::LoadManager* load_manager()  {
-    return mLoadManager;
   }
 
   // Handle system to allow weak references to be passed through C code
@@ -341,9 +313,16 @@ public:
   }
 
   NS_IMETHODIMP_TO_ERRORRESULT(GetStats, ErrorResult &rv,
-                               mozilla::dom::MediaStreamTrack *aSelector)
+                               mozilla::dom::MediaStreamTrack *aSelector,
+                               bool internalStats)
   {
-    rv = GetStats(aSelector);
+    rv = GetStats(aSelector, internalStats);
+  }
+
+  NS_IMETHODIMP_TO_ERRORRESULT(GetLogging, ErrorResult &rv,
+                               const nsAString& pattern)
+  {
+    rv = GetLogging(pattern);
   }
 
   NS_IMETHODIMP AddIceCandidate(const char* aCandidate, const char* aMid,
@@ -511,17 +490,9 @@ public:
   // Sets the RTC Signaling State
   void SetSignalingState_m(mozilla::dom::PCImplSignalingState aSignalingState);
 
-  bool IsClosed() const;
-
 #ifdef MOZILLA_INTERNAL_API
   // initialize telemetry for when calls start
   void startCallTelem();
-
-  nsresult BuildStatsQuery_m(
-      mozilla::dom::MediaStreamTrack *aSelector,
-      RTCStatsQuery *query);
-
-  static nsresult ExecuteStatsQuery_s(RTCStatsQuery *query);
 #endif
 
 private:
@@ -573,15 +544,51 @@ private:
 
 
 #ifdef MOZILLA_INTERNAL_API
-  static void GetStatsForPCObserver_s(
+  // TODO(bcampen@mozilla.com): Once the dust settles on this stuff, it
+  // probably makes sense to make these static in PeerConnectionImpl.cpp
+  // (ie; stop exporting them)
+
+  // Fills in an RTCStatsReportInternal. Must be run on STS.
+  static void GetStats_s(
       const std::string& pcHandle,
-      nsAutoPtr<RTCStatsQuery> query);
+      const std::string& pcName,
+      nsCOMPtr<nsIThread> callbackThread,
+      bool internalStats,
+      const std::vector<mozilla::RefPtr<mozilla::MediaPipeline>> &pipelines,
+      const mozilla::RefPtr<NrIceCtx> &iceCtx,
+      const std::vector<mozilla::RefPtr<NrIceMediaStream>> &streams,
+      DOMHighResTimeStamp now);
+
+  static nsresult GetStatsImpl_s(
+      bool internalStats,
+      const std::vector<mozilla::RefPtr<mozilla::MediaPipeline>> &pipelines,
+      const mozilla::RefPtr<NrIceCtx> &iceCtx,
+      const std::vector<mozilla::RefPtr<NrIceMediaStream>> &streams,
+      DOMHighResTimeStamp now,
+      mozilla::dom::RTCStatsReportInternal *report);
+
+  static void FillStatsReport_s(
+      NrIceMediaStream& stream,
+      bool internalStats,
+      DOMHighResTimeStamp now,
+      mozilla::dom::RTCStatsReportInternal* stats);
 
   // Sends an RTCStatsReport to JS. Must run on main thread.
-  static void DeliverStatsReportToPCObserver_m(
+  static void OnStatsReport_m(
       const std::string& pcHandle,
       nsresult result,
-      nsAutoPtr<RTCStatsQuery> query);
+      const std::vector<mozilla::RefPtr<mozilla::MediaPipeline>> &pipelines,
+      nsAutoPtr<mozilla::dom::RTCStatsReportInternal> report);
+
+  // Fetches logs matching pattern from RLogRingBuffer. Must be run on STS.
+  static void GetLogging_s(const std::string& pcHandle,
+                           nsCOMPtr<nsIThread> callbackThread,
+                           const std::string& pattern);
+
+  // Sends logging to JS. Must run on main thread.
+  static void OnGetLogging_m(const std::string& pcHandle,
+                             const std::string& pattern,
+                             nsAutoPtr<std::deque<std::string>> logging);
 #endif
 
   // Timecard used to measure processing time. This should be the first class
@@ -626,9 +633,6 @@ private:
 
   // The target to run stuff on
   nsCOMPtr<nsIEventTarget> mSTSThread;
-
-  // CPU Load adaptation stuff
-  mozilla::LoadManager* mLoadManager;
 
 #ifdef MOZILLA_INTERNAL_API
   // DataConnection that's used to get all the DataChannels

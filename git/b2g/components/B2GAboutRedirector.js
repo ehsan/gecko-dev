@@ -21,7 +21,7 @@ function netErrorURL() {
 
 let modules = {
   certerror: {
-    uri: "chrome://b2g/content/aboutCertError.xhtml",
+    uri: "chrome://browser/content/aboutCertError.xhtml",
     privileged: false,
     hide: true
   },

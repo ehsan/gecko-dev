@@ -60,7 +60,6 @@ class MessageListener
     public mozilla::SupportsWeakPtr<MessageListener>
 {
   public:
-    MOZ_DECLARE_REFCOUNTED_TYPENAME(MessageListener)
     typedef IPC::Message Message;
 
     virtual ~MessageListener() { }

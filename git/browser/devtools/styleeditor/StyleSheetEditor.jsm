@@ -13,7 +13,7 @@ const Cu = Components.utils;
 
 const require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
 const Editor  = require("devtools/sourceeditor/editor");
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+const promise = require("sdk/core/promise");
 const {CssLogic} = require("devtools/styleinspector/css-logic");
 const AutoCompleter = require("devtools/sourceeditor/autocomplete");
 
@@ -21,7 +21,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
-Cu.import("resource://gre/modules/devtools/event-emitter.js");
+Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 Cu.import("resource:///modules/devtools/StyleEditorUtil.jsm");
 
 const LOAD_ERROR = "error-load";
@@ -246,9 +246,6 @@ StyleSheetEditor.prototype = {
    * Create source editor and load state into it.
    * @param  {DOMElement} inputElement
    *         Element to load source editor in
-   *
-   * @return {Promise}
-   *         Promise that will resolve when the style editor is loaded.
    */
   load: function(inputElement) {
     this._inputElement = inputElement;
@@ -264,9 +261,7 @@ StyleSheetEditor.prototype = {
     };
     let sourceEditor = new Editor(config);
 
-    sourceEditor.on("dirty-change", this._onPropertyChange);
-
-    return sourceEditor.appendTo(inputElement).then(() => {
+    sourceEditor.appendTo(inputElement).then(() => {
       if (Services.prefs.getBoolPref(AUTOCOMPLETION_PREF)) {
         sourceEditor.extend(AutoCompleter);
         sourceEditor.setupAutoCompletion(this.walker);
@@ -294,6 +289,8 @@ StyleSheetEditor.prototype = {
 
       this.emit("source-editor-load");
     });
+
+    sourceEditor.on("dirty-change", this._onPropertyChange);
   },
 
   /**
@@ -500,10 +497,6 @@ StyleSheetEditor.prototype = {
   markLinkedFileBroken: function(error) {
     this.linkedCSSFileError = error || true;
     this.emit("linked-css-file-error");
-
-    error += " querying " + this.linkedCSSFile +
-             " original source location: " + this.savedFile.path
-    Cu.reportError(error);
   },
 
   /**
@@ -599,9 +592,9 @@ function prettifyCSS(text)
 
     if (shouldIndent) {
       let la = text[i+1]; // one-character lookahead
-      if (!/\n/.test(la) || /^\s+$/.test(text.substring(i+1, text.length))) {
-        // following character should be a new line, but isn't,
-        // or it's whitespace at the end of the file
+      if (!/\s/.test(la)) {
+        // following character should be a new line (or whitespace) but it isn't
+        // force indentation then
         parts.push(indent + text.substring(partStart, i + 1));
         if (c == "}") {
           parts.push(""); // for extra line separator
@@ -623,20 +616,10 @@ function prettifyCSS(text)
  * Find a path on disk for a file given it's hosted uri, the uri of the
  * original resource that generated it (e.g. Sass file), and the location of the
  * local file for that source.
- *
- * @param {nsIURI} uri
- *        The uri of the resource
- * @param {nsIURI} origUri
- *        The uri of the original source for the resource
- * @param {nsIFile} file
- *        The local file for the resource on disk
- *
- * @return {string}
- *         The path of original file on disk
  */
 function findLinkedFilePath(uri, origUri, file) {
-  let { origBranch, branch } = findUnsharedBranches(origUri, uri);
-  let project = findProjectPath(file, origBranch);
+  let project = findProjectPath(origUri, file);
+  let branch = findUnsharedBranch(origUri, uri);
 
   let parts = project.concat(branch);
   let path = OS.Path.join.apply(this, parts);
@@ -645,58 +628,57 @@ function findLinkedFilePath(uri, origUri, file) {
 }
 
 /**
- * Find the path of a project given a file in the project and its branch
- * off the root. e.g.:
- * /Users/moz/proj/src/a.css" and "src/a.css"
- * would yield ["Users", "moz", "proj"]
+ * Find the path of a project given a file in the project and the uri
+ * of that resource. e.g.:
+ * "http://localhost/src/a.css" and "/Users/moz/proj/src/a.css"
+ * would yeild ["Users", "moz", "proj"]
  *
+ * @param {nsIURI} uri
+ *        uri of hosted resource
  * @param {nsIFile} file
  *        file for that resource on disk
- * @param {array} branch
- *        path parts for branch to chop off file path.
  * @return {array}
  *        array of path parts
  */
-function findProjectPath(file, branch) {
+function findProjectPath(uri, file) {
+  let uri = OS.Path.split(uri.path).components;
   let path = OS.Path.split(file.path).components;
 
-  for (let i = 2; i <= branch.length; i++) {
-    // work backwards until we find a differing directory name
-    if (path[path.length - i] != branch[branch.length - i]) {
-      return path.slice(0, path.length - i + 1);
-    }
-  }
+  // don't care about differing leaf names
+  uri.pop();
+  path.pop();
 
-  // if we don't find a differing directory, just chop off the branch
-  return path.slice(0, path.length - branch.length);
+  let dir = path.pop();
+  while(dir) {
+    let serverDir = uri.pop();
+    if (serverDir != dir) {
+      return path.concat([dir]);
+    }
+    dir = path.pop();
+  }
+  return [];
 }
 
 /**
- * Find the parts of a uri past the root it shares with another uri. e.g:
+ * Find the part of a uri past the root it shares with another uri. e.g:
  * "http://localhost/built/a.scss" and "http://localhost/src/a.css"
- * would yield ["built", "a.scss"] and ["src", "a.css"]
+ * would yeild ["built", "a.scss"];
  *
  * @param {nsIURI} origUri
- *        uri to find unshared branch of. Usually is uri for original source.
- * @param {nsIURI} uri
+ *        uri to find unshared branch of
+ * @param {nsIURI} origUri
  *        uri to compare against to get a shared root
- * @return {object}
- *         object with 'branch' and 'origBranch' array of path parts for branch
+ * @return {array}
+ *         array of path parts for branch
  */
-function findUnsharedBranches(origUri, uri) {
+function findUnsharedBranch(origUri, uri) {
   origUri = OS.Path.split(origUri.path).components;
   uri = OS.Path.split(uri.path).components;
 
-  for (let i = 0; i < uri.length - 1; i++) {
+  for (var i = 0; i < uri.length - 1; i++) {
     if (uri[i] != origUri[i]) {
-      return {
-        branch: uri.slice(i),
-        origBranch: origUri.slice(i)
-      };
+      return uri.slice(i);
     }
   }
-  return {
-    branch: uri,
-    origBranch: origUri
-  };
+  return uri;
 }

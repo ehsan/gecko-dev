@@ -370,10 +370,8 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   else if (aType == SharedMemory::TYPE_SYSV)
     segment = CreateSegment(segmentSize, SharedMemorySysV::NULLHandle());
 #endif
-  else {
-    NS_ERROR("unknown shmem type");
-    return nullptr;
-  }
+  else
+    NS_RUNTIMEABORT("unknown shmem type");
 
   if (!segment)
     return 0;
@@ -408,10 +406,8 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
                     id_t* aId,
                     bool aProtect)
 {
-  if (SHMEM_CREATED_MESSAGE_TYPE != aDescriptor.type()) {
-    NS_ERROR("expected 'shmem created' message");
-    return nullptr;
-  }
+  if (SHMEM_CREATED_MESSAGE_TYPE != aDescriptor.type())
+    NS_RUNTIMEABORT("expected 'shmem created' message");
 
   void* iter = 0;
   SharedMemory::SharedMemoryType type;
@@ -429,10 +425,8 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
     if (!ShmemCreated::ReadHandle(&aDescriptor, &iter, &handle))
       return 0;
 
-    if (!SharedMemoryBasic::IsHandleValid(handle)) {
-      NS_ERROR("trying to open invalid handle");
-      return nullptr;
-    }
+    if (!SharedMemoryBasic::IsHandleValid(handle))
+      NS_RUNTIMEABORT("trying to open invalid handle");
     segment = CreateSegment(segmentSize, handle);
   }
 #ifdef MOZ_HAVE_SHAREDMEMORYSYSV
@@ -441,31 +435,21 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
     if (!ShmemCreated::ReadHandle(&aDescriptor, &iter, &handle))
       return 0;
 
-    if (!SharedMemorySysV::IsHandleValid(handle)) {
-      NS_ERROR("trying to open invalid handle");
-      return nullptr;
-    }
+    if (!SharedMemorySysV::IsHandleValid(handle))
+      NS_RUNTIMEABORT("trying to open invalid handle");
     segment = CreateSegment(segmentSize, handle);
   }
 #endif
   else {
-    NS_ERROR("unknown shmem type");
-    return nullptr;
+    NS_RUNTIMEABORT("unknown shmem type");
   }
 
   if (!segment)
     return 0;
 
-  Header* header = GetHeader(segment);
-
-  if (size != header->mSize) {
-    NS_ERROR("Wrong size for this Shmem!");
-    delete segment;
-    return nullptr;
-  }
-
   // The caller of this function may not know whether the segment is
   // unsafe or not
+  Header* header = GetHeader(segment);
   if (!header->mUnsafe && aProtect)
     Protect(segment);
 
@@ -516,9 +500,9 @@ Shmem::Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
     segment = CreateSegment(SharedMemory::PageAlignedSize(aNBytes + sizeof(uint32_t)),
                             SharedMemorySysV::NULLHandle());
 #endif
-  else {
-    return nullptr;
-  }
+  else
+    // Unhandled!!
+    NS_ABORT();
 
   if (!segment)
     return 0;
@@ -535,9 +519,8 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
                     id_t* aId,
                     bool /*unused*/)
 {
-  if (SHMEM_CREATED_MESSAGE_TYPE != aDescriptor.type()) {
-    return nullptr;
-  }
+  if (SHMEM_CREATED_MESSAGE_TYPE != aDescriptor.type())
+    NS_RUNTIMEABORT("expected 'shmem created' message");
 
   SharedMemory::SharedMemoryType type;
   void* iter = 0;
@@ -553,9 +536,8 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
     if (!ShmemCreated::ReadHandle(&aDescriptor, &iter, &handle))
       return 0;
 
-    if (!SharedMemoryBasic::IsHandleValid(handle)) {
-      return nullptr;
-    }
+    if (!SharedMemoryBasic::IsHandleValid(handle))
+      NS_RUNTIMEABORT("trying to open invalid handle");
 
     segment = CreateSegment(segmentSize, handle);
   }
@@ -565,24 +547,21 @@ Shmem::OpenExisting(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
     if (!ShmemCreated::ReadHandle(&aDescriptor, &iter, &handle))
       return 0;
 
-    if (!SharedMemorySysV::IsHandleValid(handle)) {
-      return nullptr;
-    }
+    if (!SharedMemorySysV::IsHandleValid(handle))
+      NS_RUNTIMEABORT("trying to open invalid handle");
     segment = CreateSegment(segmentSize, handle);
   }
 #endif
   else {
-    return nullptr;
+    NS_RUNTIMEABORT("unknown shmem type");
   }
 
   if (!segment)
     return 0;
 
-  // this is the only validity check done in non-DEBUG builds
-  if (size != static_cast<size_t>(*PtrToSize(segment))) {
-    delete segment;
-    return nullptr;
-  }
+  // this is the only validity check done OPT builds
+  if (size != static_cast<size_t>(*PtrToSize(segment)))
+    NS_RUNTIMEABORT("Alloc() segment size disagrees with OpenExisting()'s");
 
   return segment;
 }
@@ -603,15 +582,13 @@ Shmem::GetSysVID() const
 #ifdef MOZ_HAVE_SHAREDMEMORYSYSV
   AssertInvariants();
 
-  if (mSegment->Type() != SharedMemory::TYPE_SYSV) {
-    NS_ERROR("Can't call GetSysVID() on a non-SysV Shmem!");
-    return -1;
-  }
+  if (mSegment->Type() != SharedMemory::TYPE_SYSV)
+    NS_RUNTIMEABORT("Can't call GetSysVID() on a non-SysV Shmem!");
 
   SharedMemorySysV* seg = static_cast<SharedMemorySysV*>(mSegment);
   return seg->GetHandle();
 #else
-  NS_ERROR("Can't call GetSysVID() with no support for SysV shared memory!");
+  NS_RUNTIMEABORT("Can't call GetSysVID() with no support for SysV shared memory!");
   return -1;                    // not reached
 #endif
 }
@@ -638,8 +615,7 @@ Shmem::ShareTo(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   }
 #endif
   else {
-    NS_ABORT_IF_FALSE(false, "unknown shmem type (here?!)");
-    return nullptr;
+    NS_RUNTIMEABORT("unknown shmem type (here?!)");
   }
 
   return 0;

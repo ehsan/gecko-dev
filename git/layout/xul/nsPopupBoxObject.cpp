@@ -10,7 +10,7 @@
 #include "nsFrameManager.h"
 #include "nsIContent.h"
 #include "nsIDOMElement.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsMenuPopupFrame.h"
 #include "nsView.h"

@@ -3,8 +3,6 @@ function test()
   const kPrefName_AutoScroll = "general.autoScroll";
   Services.prefs.setBoolPref(kPrefName_AutoScroll, true);
 
-  gBrowser.selectedTab = gBrowser.addTab();
-
   const kNoKeyEvents   = 0;
   const kKeyDownEvent  = 1;
   const kKeyPressEvent = 2;
@@ -97,11 +95,11 @@ function test()
     sendChar("A");
     sendKey("DOWN");
     sendKey("RETURN");
-    sendKey("RETURN");
+    sendKey("ENTER");
     sendKey("HOME");
     sendKey("END");
     sendKey("TAB");
-    sendKey("RETURN");
+    sendKey("ENTER");
 
     // Finish autoscrolling by ESC key.  Note that only keydown and keypress
     // events are eaten because keyup event is fired *after* the autoscrolling
@@ -122,6 +120,7 @@ function test()
       Services.prefs.clearUserPref(kPrefName_AutoScroll);
 
     // cleaning-up
+    gBrowser.addTab().linkedBrowser.stop();
     gBrowser.removeCurrentTab();
 
     finish();

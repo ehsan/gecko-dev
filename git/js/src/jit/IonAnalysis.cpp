@@ -1647,31 +1647,42 @@ TryEliminateTypeBarrierFromTest(MTypeBarrier *barrier, bool filtersNull, bool fi
         input = inputUnbox->input();
     }
 
-    MDefinition *subject = nullptr;
-    bool removeUndefined;
-    bool removeNull;
-    test->filtersUndefinedOrNull(direction == TRUE_BRANCH, &subject, &removeUndefined, &removeNull);
+    if (test->getOperand(0) == input && direction == TRUE_BRANCH) {
+        *eliminated = true;
+        if (inputUnbox)
+            inputUnbox->makeInfallible();
+        barrier->replaceAllUsesWith(barrier->input());
+        return;
+    }
 
-    // The Test doesn't filter undefined nor null.
-    if (!subject)
+    if (!test->getOperand(0)->isCompare())
         return;
 
-    // Make sure the subject equals the input to the TypeBarrier.
-    if (subject != input)
+    MCompare *compare = test->getOperand(0)->toCompare();
+    MCompare::CompareType compareType = compare->compareType();
+
+    if (compareType != MCompare::Compare_Undefined && compareType != MCompare::Compare_Null)
+        return;
+    if (compare->getOperand(0) != input)
         return;
 
-    // When the TypeBarrier filters undefined, the test must at least also do,
-    // this, before the TypeBarrier can get removed.
-    if (!removeUndefined && filtersUndefined)
+    JSOp op = compare->jsop();
+    JS_ASSERT(op == JSOP_EQ || op == JSOP_STRICTEQ ||
+              op == JSOP_NE || op == JSOP_STRICTNE);
+
+    if ((direction == TRUE_BRANCH) != (op == JSOP_NE || op == JSOP_STRICTNE))
         return;
 
-    // When the TypeBarrier filters null, the test must at least also do,
-    // this, before the TypeBarrier can get removed.
-    if (!removeNull && filtersNull)
-        return;
+    // A test 'if (x.f != null)' or 'if (x.f != undefined)' filters both null
+    // and undefined. If strict equality is used, only the specified rhs is
+    // tested for.
+    if (op == JSOP_STRICTEQ || op == JSOP_STRICTNE) {
+        if (compareType == MCompare::Compare_Undefined && !filtersUndefined)
+            return;
+        if (compareType == MCompare::Compare_Null && !filtersNull)
+            return;
+    }
 
-    // Eliminate the TypeBarrier. The possible TypeBarrier unboxing is kept,
-    // but made infallible.
     *eliminated = true;
     if (inputUnbox)
         inputUnbox->makeInfallible();
@@ -2039,8 +2050,9 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
         }
 
         DebugOnly<unsigned> slotSpan = baseobj->slotSpan();
-        if (!DefineNativeProperty(cx, baseobj, id, UndefinedHandleValue, nullptr, nullptr,
-                                  JSPROP_ENUMERATE, 0))
+        RootedValue value(cx, UndefinedValue());
+        if (!DefineNativeProperty(cx, baseobj, id, value, nullptr, nullptr,
+                                  JSPROP_ENUMERATE, 0, 0))
         {
             return false;
         }
@@ -2054,8 +2066,7 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
              block = rp->block(), rp = block->callerResumePoint())
         {
             JSScript *script = rp->block()->info().script();
-            if (!types::AddClearDefiniteFunctionUsesInScript(cx, type, script, block->info().script()))
-                return true;
+            types::AddClearDefiniteFunctionUsesInScript(cx, type, script, block->info().script());
             if (!callerResumePoints.append(rp))
                 return false;
         }
@@ -2137,11 +2148,8 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
     if (!script)
         return false;
 
-    if (!jit::IsIonEnabled(cx) || !jit::IsBaselineEnabled(cx) ||
-        !script->compileAndGo() || !script->canBaselineCompile())
-    {
+    if (!script->compileAndGo() || !script->canBaselineCompile())
         return true;
-    }
 
     static const uint32_t MAX_SCRIPT_SIZE = 2000;
     if (script->length() > MAX_SCRIPT_SIZE)

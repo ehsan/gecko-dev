@@ -34,16 +34,6 @@ nsTableRowGroupFrame::~nsTableRowGroupFrame()
 {
 }
 
-void
-nsTableRowGroupFrame::DestroyFrom(nsIFrame* aDestructRoot)
-{
-  if (GetStateBits() & NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN) {
-    nsTableFrame::UnregisterPositionedTablePart(this, aDestructRoot);
-  }
-
-  nsContainerFrame::DestroyFrom(aDestructRoot);
-}
-
 NS_QUERYFRAME_HEAD(nsTableRowGroupFrame)
   NS_QUERYFRAME_ENTRY(nsTableRowGroupFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
@@ -151,7 +141,7 @@ public:
                                          const nsDisplayItemGeometry* aGeometry,
                                          nsRegion *aInvalidRegion) MOZ_OVERRIDE;
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+                     nsRenderingContext* aCtx);
 
   NS_DISPLAY_DECL_NAME("TableRowGroupBackground", TYPE_TABLE_ROW_GROUP_BACKGROUND)
 };
@@ -254,14 +244,14 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 int
-nsTableRowGroupFrame::GetLogicalSkipSides(const nsHTMLReflowState* aReflowState) const
+nsTableRowGroupFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
 {
   int skip = 0;
   if (nullptr != GetPrevInFlow()) {
-    skip |= LOGICAL_SIDE_B_START;
+    skip |= 1 << NS_SIDE_TOP;
   }
   if (nullptr != GetNextInFlow()) {
-    skip |= LOGICAL_SIDE_B_END;
+    skip |= 1 << NS_SIDE_BOTTOM;
   }
   return skip;
 }
@@ -372,7 +362,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
 
       // XXXldb We used to only pass aDesiredSize.mFlags through for the
       // incremental reflow codepath.
-      nsHTMLReflowMetrics desiredSize(aReflowState.reflowState,
+      nsHTMLReflowMetrics desiredSize(aReflowState.reflowState.GetWritingMode(),
                                       aDesiredSize.mFlags);
       desiredSize.Width() = desiredSize.Height() = 0;
   
@@ -891,7 +881,7 @@ nsTableRowGroupFrame::CreateContinuingRowFrame(nsPresContext& aPresContext,
   mFrames.InsertFrame(nullptr, &aRowFrame, *aContRowFrame);
 
   // Push the continuing row frame and the frames that follow
-  PushChildren(*aContRowFrame, &aRowFrame);
+  PushChildren(&aPresContext, *aContRowFrame, &aRowFrame);
 }
 
 // Reflow the cells with rowspan > 1 which originate between aFirstRow
@@ -1086,7 +1076,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
                                          
         InitChildReflowState(*aPresContext, borderCollapse, rowReflowState);
         rowReflowState.mFlags.mIsTopOfPage = isTopOfPage; // set top of page
-        nsHTMLReflowMetrics rowMetrics(aReflowState);
+        nsHTMLReflowMetrics rowMetrics(aReflowState.GetWritingMode());
 
         // Get the old size before we reflow.
         nsRect oldRowRect = rowFrame->GetRect();
@@ -1253,7 +1243,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
       if (NS_FRAME_IS_NOT_COMPLETE(aStatus) && !contRow) {
         nsTableRowFrame* nextRow = lastRowThisPage->GetNextRow();
         if (nextRow) {
-          PushChildren(nextRow, lastRowThisPage);
+          PushChildren(aPresContext, nextRow, lastRowThisPage);
         }
       }
       break;
@@ -1264,7 +1254,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
       // see if there is a page break after the row
       nsTableRowFrame* nextRow = rowFrame->GetNextRow();
       if (nextRow && nsTableFrame::PageBreakAfter(rowFrame, nextRow)) {
-        PushChildren(nextRow, rowFrame);
+        PushChildren(aPresContext, nextRow, rowFrame);
         aStatus = NS_FRAME_NOT_COMPLETE;
         break;
       }
@@ -1280,7 +1270,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
   * This method stacks rows vertically according to HTML 4.0 rules.
   * Rows are responsible for layout of their children.
   */
-nsresult
+NS_METHOD
 nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
                              nsHTMLReflowMetrics&     aDesiredSize,
                              const nsHTMLReflowState& aReflowState,
@@ -1307,7 +1297,7 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   }
 
   // Check for an overflow list
-  MoveOverflowToChildList();
+  MoveOverflowToChildList(aPresContext);
 
   // Reflow the existing frames. 
   bool splitDueToPageBreak = false;
@@ -1383,7 +1373,7 @@ nsTableRowGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableRowGroupFrame::AppendFrames(ChildListID     aListID,
                                    nsFrameList&    aFrameList)
 {
@@ -1421,7 +1411,7 @@ nsTableRowGroupFrame::AppendFrames(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableRowGroupFrame::InsertFrames(ChildListID     aListID,
                                    nsIFrame*       aPrevFrame,
                                    nsFrameList&    aFrameList)
@@ -1471,7 +1461,7 @@ nsTableRowGroupFrame::InsertFrames(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableRowGroupFrame::RemoveFrame(ChildListID     aListID,
                                   nsIFrame*       aOldFrame)
 {
@@ -1595,7 +1585,7 @@ NS_NewTableRowGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsTableRowGroupFrame)
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsTableRowGroupFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("TableRowGroup"), aResult);

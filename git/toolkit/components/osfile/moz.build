@@ -8,25 +8,9 @@ DIRS += [
     'modules',
 ]
 
-MOCHITEST_CHROME_MANIFESTS += ['tests/mochi/chrome.ini']
-XPCSHELL_TESTS_MANIFESTS += ['tests/xpcshell/xpcshell.ini']
-
-SOURCES += [
-    'NativeOSFileInternals.cpp',
-]
-
-XPIDL_MODULE = 'toolkit_osfile'
-
-XPIDL_SOURCES += [
-    'nsINativeOSFileInternals.idl',
-]
-
-EXPORTS.mozilla += [
-    'NativeOSFileInternals.h',
-]
+TEST_DIRS += ['tests']
 
 EXTRA_PP_JS_MODULES += [
     'osfile.jsm',
 ]
 
-FINAL_LIBRARY = 'toolkitcomps'

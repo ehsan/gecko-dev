@@ -5,15 +5,8 @@
 
 package org.mozilla.gecko.gfx;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.lang.reflect.Field;
-import java.net.MalformedURLException;
-import java.net.URL;
-
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.util.GeckoJarReader;
 import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.util.GeckoJarReader;
 import org.mozilla.gecko.util.UiAsyncTask;
 
 import android.content.Context;
@@ -22,12 +15,22 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
-import android.text.TextUtils;
+import android.os.AsyncTask;
 import android.util.Base64;
 import android.util.Log;
+import android.text.TextUtils;
+
+import org.mozilla.gecko.R;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.NoSuchFieldException;
+import java.net.MalformedURLException;
+import java.net.URL;
 
 public final class BitmapUtils {
     private static final String LOGTAG = "GeckoBitmapUtils";
@@ -38,36 +41,15 @@ public final class BitmapUtils {
         public void onBitmapFound(Drawable d);
     }
 
-    private static void runOnBitmapFoundOnUiThread(final BitmapLoader loader, final Drawable d) {
-        if (ThreadUtils.isOnUiThread()) {
-            loader.onBitmapFound(d);
-            return;
-        }
-
-        ThreadUtils.postToUiThread(new Runnable() {
-            @Override
-            public void run() {
-                loader.onBitmapFound(d);
-            }
-        });
-    }
-
-    /**
-     * Attempts to find a drawable associated with a given string, using its URI scheme to determine
-     * how to load the drawable. The BitmapLoader's `onBitmapFound` method is always called, and
-     * will be called with `null` if no drawable is found.
-     *
-     * The BitmapLoader `onBitmapFound` method always runs on the UI thread.
-     */
     public static void getDrawable(final Context context, final String data, final BitmapLoader loader) {
         if (TextUtils.isEmpty(data)) {
-            runOnBitmapFoundOnUiThread(loader, null);
+            loader.onBitmapFound(null);
             return;
         }
 
         if (data.startsWith("data")) {
-            final BitmapDrawable d = new BitmapDrawable(context.getResources(), getBitmapFromDataURI(data));
-            runOnBitmapFoundOnUiThread(loader, d);
+            BitmapDrawable d = new BitmapDrawable(context.getResources(), getBitmapFromDataURI(data));
+            loader.onBitmapFound(d);
             return;
         }
 
@@ -85,8 +67,8 @@ public final class BitmapUtils {
                             return GeckoJarReader.getBitmapDrawable(context.getResources(), Uri.decode(data));
                         }
 
-                        final URL url = new URL(data);
-                        final InputStream is = (InputStream) url.getContent();
+                        URL url = new URL(data);
+                        InputStream is = (InputStream) url.getContent();
                         try {
                             return Drawable.createFromStream(is, "src");
                         } finally {
@@ -106,29 +88,29 @@ public final class BitmapUtils {
             return;
         }
 
-        if (data.startsWith("-moz-icon://")) {
-            final Uri imageUri = Uri.parse(data);
-            final String ssp = imageUri.getSchemeSpecificPart();
-            final String resource = ssp.substring(ssp.lastIndexOf('/') + 1);
+        if(data.startsWith("-moz-icon://")) {
+            Uri imageUri = Uri.parse(data);
+            String resource = imageUri.getSchemeSpecificPart();
+            resource = resource.substring(resource.lastIndexOf('/') + 1);
 
             try {
-                final Drawable d = context.getPackageManager().getApplicationIcon(resource);
-                runOnBitmapFoundOnUiThread(loader, d);
+                Drawable d = context.getPackageManager().getApplicationIcon(resource);
+                loader.onBitmapFound(d);
             } catch(Exception ex) { }
 
             return;
         }
 
-        if (data.startsWith("drawable://")) {
-            final Uri imageUri = Uri.parse(data);
-            final int id = getResource(imageUri, R.drawable.ic_status_logo);
-            final Drawable d = context.getResources().getDrawable(id);
+        if(data.startsWith("drawable://")) {
+            Uri imageUri = Uri.parse(data);
+            int id = getResource(imageUri, R.drawable.ic_status_logo);
+            Drawable d = context.getResources().getDrawable(id);
 
-            runOnBitmapFoundOnUiThread(loader, d);
+            loader.onBitmapFound(d);
             return;
         }
 
-        runOnBitmapFoundOnUiThread(loader, null);
+        loader.onBitmapFound(null);
     }
 
     public static Bitmap decodeByteArray(byte[] bytes) {

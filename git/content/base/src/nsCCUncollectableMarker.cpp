@@ -21,18 +21,17 @@
 #include "nsIXULWindow.h"
 #include "nsIAppShellService.h"
 #include "nsAppShellCID.h"
+#include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
 #include "nsJSEnvironment.h"
 #include "nsInProcessTabChildGlobal.h"
 #include "nsFrameLoader.h"
-#include "mozilla/EventListenerManager.h"
 #include "mozilla/dom/Element.h"
 #include "xpcpublic.h"
 #include "nsObserverService.h"
 #include "nsFocusManager.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 static bool sInited = 0;
@@ -146,7 +145,7 @@ MarkMessageManagers()
           continue;
         }
         static_cast<nsInProcessTabChildGlobal*>(et)->MarkForCC();
-        EventListenerManager* elm = et->GetExistingListenerManager();
+        nsEventListenerManager* elm = et->GetExistingListenerManager();
         if (elm) {
           elm->MarkForCC();
         }
@@ -190,7 +189,7 @@ MarkContentViewer(nsIContentViewer* aViewer, bool aCleanupJS,
       doc->GetMarkedCCGeneration() != nsCCUncollectableMarker::sGeneration) {
     doc->MarkUncollectableForCCGeneration(nsCCUncollectableMarker::sGeneration);
     if (aCleanupJS) {
-      EventListenerManager* elm = doc->GetExistingListenerManager();
+      nsEventListenerManager* elm = doc->GetExistingListenerManager();
       if (elm) {
         elm->MarkForCC();
       }

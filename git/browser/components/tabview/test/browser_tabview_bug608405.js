@@ -40,7 +40,7 @@ function test() {
       is(targetGroup.getChildren().length, 2, 'target group has now two children');
 
       // cleanup and finish
-      targetGroup.getChild(0).close();
+      tabItem.close();
       hideTabView(finishTest);
     });
   }

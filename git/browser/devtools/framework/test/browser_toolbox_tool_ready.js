@@ -3,10 +3,6 @@
 
 function test() {
   addTab().then(function(data) {
-    data.target.makeRemote().then(performChecks.bind(null, data));
-  }).then(null, console.error);
-
-  function performChecks(data) {
     let toolIds = gDevTools.getToolDefinitionArray()
                     .filter(def => def.isTargetSupported(data.target))
                     .map(def => def.id);
@@ -36,5 +32,5 @@ function test() {
     };
 
     open(0);
-  }
+  }).then(null, console.error);
 }

@@ -12,7 +12,6 @@
 namespace mozilla {
 namespace dom {
 
-class Console;
 class Function;
 
 } // namespace dom
@@ -21,13 +20,14 @@ class Function;
 BEGIN_WORKERS_NAMESPACE
 
 class WorkerPrivate;
+class WorkerConsole;
 class WorkerLocation;
 class WorkerNavigator;
 
 class WorkerGlobalScope : public nsDOMEventTargetHelper,
                           public nsIGlobalObject
 {
-  nsRefPtr<Console> mConsole;
+  nsRefPtr<WorkerConsole> mConsole;
   nsRefPtr<WorkerLocation> mLocation;
   nsRefPtr<WorkerNavigator> mNavigator;
 
@@ -60,8 +60,8 @@ public:
     return nsRefPtr<WorkerGlobalScope>(this).forget();
   }
 
-  already_AddRefed<Console>
-  GetConsole();
+  WorkerConsole*
+  Console();
 
   already_AddRefed<WorkerLocation>
   Location();

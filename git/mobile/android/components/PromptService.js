@@ -139,22 +139,6 @@ InternalPrompt.prototype = {
     return aPrompt;
   },
 
-  addTextbox: function(prompt, value, autofocus, hint) {
-    prompt.addTextbox({
-      value: (value !== null) ? value : "",
-      autofocus: autofocus,
-      hint: hint
-    });
-  },
-
-  addPassword: function(prompt, value, autofocus, hint) {
-    prompt.addPassword({
-      value: (value !== null) ? value : "",
-      autofocus: autofocus,
-      hint: hint
-    });
-  },
-
   /* Shows a native prompt, and then spins the event loop for this thread while we wait
    * for a response
    */
@@ -234,7 +218,7 @@ InternalPrompt.prototype = {
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
   },
 
   confirm: function confirm(aTitle, aText) {
@@ -250,7 +234,7 @@ InternalPrompt.prototype = {
     let data = this.showPrompt(p);
     let ok = data.button == 0;
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
     return ok;
   },
 
@@ -297,20 +281,23 @@ InternalPrompt.prototype = {
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
     return data.button;
   },
 
   nsIPrompt_prompt: function nsIPrompt_prompt(aTitle, aText, aValue, aCheckMsg, aCheckState) {
     let p = this._getPrompt(aTitle, aText, null, aCheckMsg, aCheckState);
     p.setHint("prompt");
-    this.addTextbox(p, aValue.value, true);
+    p.addTextbox({
+      value: aValue.value,
+      autofocus: true
+    });
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
     if (ok)
       aValue.value = data.textbox0;
     return ok;
@@ -319,13 +306,17 @@ InternalPrompt.prototype = {
   nsIPrompt_promptPassword: function nsIPrompt_promptPassword(
       aTitle, aText, aPassword, aCheckMsg, aCheckState) {
     let p = this._getPrompt(aTitle, aText, null);
-    this.addPassword(p, aPassword.value, true, PromptUtils.getLocaleString("password", "passwdmgr"));
+    p.addPassword({
+      value: aPassword.value || "",
+      autofocus: true,
+      hint: PromptUtils.getLocaleString("password", "passwdmgr")
+    });
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
+      aCheckState.value = data.checkbox0 == "true";
     if (ok)
       aPassword.value = data.password0;
     return ok;
@@ -334,15 +325,20 @@ InternalPrompt.prototype = {
   nsIPrompt_promptUsernameAndPassword: function nsIPrompt_promptUsernameAndPassword(
       aTitle, aText, aUsername, aPassword, aCheckMsg, aCheckState) {
     let p = this._getPrompt(aTitle, aText, null);
-    this.addTextbox(p, aUsername.value, true, PromptUtils.getLocaleString("username", "passwdmgr"));
-    this.addPassword(p, aPassword.value, false, PromptUtils.getLocaleString("password", "passwdmgr"));
+    p.addTextbox({
+      value: aUsername.value,
+      autofocus: true,
+      hint: PromptUtils.getLocaleString("username", "passwdmgr")
+    }).addPassword({
+      value: aPassword.value,
+      hint: PromptUtils.getLocaleString("password", "passwdmgr")
+    });
     this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
     if (aCheckState && data.button > -1)
-      aCheckState.value = data.checkbox0;
-
+      aCheckState.value = data.checkbox0 == "true";
     if (ok) {
       aUsername.value = data.textbox0;
       aPassword.value = data.password0;
@@ -807,6 +803,11 @@ let PromptUtils = {
         hostname += ":" + port;
     }
     return hostname;
+  },
+
+  sendMessageToJava: function(aMsg) {
+    let data = Services.androidBridge.handleGeckoMessage(JSON.stringify(aMsg));
+    return JSON.parse(data);
   },
 
   fireDialogEvent: function(aDomWin, aEventName) {

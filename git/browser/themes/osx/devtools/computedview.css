@@ -22,7 +22,7 @@
 /* From content */
 
 * {
-  box-sizing: border-box;
+  -moz-box-sizing: border-box;
 }
 
 :root {
@@ -59,8 +59,7 @@ body {
 }
 
 .property-name {
-  /* -12px is so the expander triangle isn't pushed up above the property */
-  width: calc(100% - 12px);
+  width: 50%;
   overflow-x: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -68,7 +67,8 @@ body {
 }
 
 .property-value {
-  width: 100%;
+  width: 50%;
+  max-width: 100%;
   overflow-x: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -93,8 +93,7 @@ body {
     width: 200px;
   }
   .property-value {
-    /* -212px is accounting for the 200px property-name and the 12px triangle */
-    width: calc(100% - 212px);
+    width: auto;
   }
 }
 

@@ -150,8 +150,11 @@ public class ToolbarDisplayLayout extends GeckoLinearLayout
         mPrivateDomainColor = new ForegroundColorSpan(res.getColor(R.color.url_bar_domaintext_private));
 
         mFavicon = (ImageButton) findViewById(R.id.favicon);
-        if (Build.VERSION.SDK_INT >= 16) {
-            mFavicon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        if (Build.VERSION.SDK_INT >= 11) {
+            if (Build.VERSION.SDK_INT >= 16) {
+                mFavicon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            }
+            mFavicon.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         }
         mFaviconSize = Math.round(res.getDimension(R.dimen.browser_toolbar_favicon_size));
 
@@ -444,13 +447,13 @@ public class ToolbarDisplayLayout extends GeckoLinearLayout
 
         mSiteSecurityVisible = visible;
 
-        mTitle.clearAnimation();
-        mSiteSecurity.clearAnimation();
-
         if (flags.contains(UpdateFlags.DISABLE_ANIMATIONS)) {
             mSiteSecurity.setVisibility(visible ? View.VISIBLE : View.GONE);
             return;
         }
+
+        mTitle.clearAnimation();
+        mSiteSecurity.clearAnimation();
 
         // If any of these animations were cancelled as a result of the
         // clearAnimation() calls above, we need to reset them.

@@ -123,7 +123,8 @@
     // Remove
     function() { testStoreRemove(gId).then(function(what) {
                    runTest(); }, cbError); },
-    function() { testStoreGet(gId, undefined); },
+    function() { testStoreGet(gId).catch(function() {
+                   runTest(); }); },
 
     // Remove - wrong ID
     function() { testStoreRemove(gId).then(function(what) {

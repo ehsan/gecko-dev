@@ -21,7 +21,7 @@
 
 using namespace js;
 
-using mozilla::NumberEqualsInt32;
+using mozilla::DoubleEqualsInt32;
 using mozilla::Forward;
 using mozilla::IsNaN;
 using mozilla::Move;
@@ -784,7 +784,7 @@ HashableValue::setValue(JSContext *cx, HandleValue v)
     } else if (v.isDouble()) {
         double d = v.toDouble();
         int32_t i;
-        if (NumberEqualsInt32(d, &i)) {
+        if (DoubleEqualsInt32(d, &i)) {
             // Normalize int32_t-valued doubles to int32_t for faster hashing and testing.
             value = Int32Value(i);
         } else if (IsNaN(d)) {
@@ -971,11 +971,10 @@ MapIteratorObject::next_impl(JSContext *cx, CallArgs args)
             break;
 
           case MapObject::Entries: {
-            JS::AutoValueArray<2> pair(cx);
-            pair[0].set(range->front().key.get());
-            pair[1].set(range->front().value);
+            Value pair[2] = { range->front().key.get(), range->front().value };
+            AutoValueArray root(cx, pair, ArrayLength(pair));
 
-            JSObject *pairobj = NewDenseCopiedArray(cx, pair.length(), pair.begin());
+            JSObject *pairobj = NewDenseCopiedArray(cx, ArrayLength(pair), pair);
             if (!pairobj)
                 return false;
             value.setObject(*pairobj);
@@ -1048,11 +1047,11 @@ InitClass(JSContext *cx, Handle<GlobalObject*> global, const Class *clasp, JSPro
         return nullptr;
     proto->setPrivate(nullptr);
 
-    Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, construct, ClassName(key, cx), 0));
+    Rooted<JSFunction*> ctor(cx, global->createConstructor(cx, construct, ClassName(key, cx), 1));
     if (!ctor ||
         !LinkConstructorAndPrototype(cx, ctor, proto) ||
         !DefinePropertiesAndBrand(cx, proto, properties, methods) ||
-        !GlobalObject::initBuiltinConstructor(cx, global, key, ctor, proto))
+        !DefineConstructorAndPrototype(cx, global, key, ctor, proto))
     {
         return nullptr;
     }
@@ -1562,11 +1561,10 @@ SetIteratorObject::next_impl(JSContext *cx, CallArgs args)
             break;
 
           case SetObject::Entries: {
-            JS::AutoValueArray<2> pair(cx);
-            pair[0].set(range->front().get());
-            pair[1].set(range->front().get());
+            Value pair[2] = { range->front().get(), range->front().get() };
+            AutoValueArray root(cx, pair, 2);
 
-            JSObject *pairObj = NewDenseCopiedArray(cx, 2, pair.begin());
+            JSObject *pairObj = NewDenseCopiedArray(cx, 2, pair);
             if (!pairObj)
               return false;
             value.setObject(*pairObj);

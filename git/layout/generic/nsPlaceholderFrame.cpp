@@ -26,12 +26,6 @@ NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
 
 NS_IMPL_FRAMEARENA_HELPERS(nsPlaceholderFrame)
 
-#ifdef DEBUG
-NS_QUERYFRAME_HEAD(nsPlaceholderFrame)
-  NS_QUERYFRAME_ENTRY(nsPlaceholderFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsFrame)
-#endif
-
 /* virtual */ nsSize
 nsPlaceholderFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
 {
@@ -98,7 +92,7 @@ nsPlaceholderFrame::AddInlinePrefWidth(nsRenderingContext* aRenderingContext,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsPlaceholderFrame::Reflow(nsPresContext*           aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -109,7 +103,7 @@ nsPlaceholderFrame::Reflow(nsPresContext*           aPresContext,
   // If this is our first reflow, and our out-of-flow has already received its
   // first reflow (before us), complain.
   // XXXdholbert This "look for a previous continuation or IB-split sibling"
-  // code could use nsLayoutUtils::GetPrevContinuationOrIBSplitSibling(), if
+  // code could use nsLayoutUtils::GetPrevContinuationOrSpecialSibling(), if
   // we ever add a function like that. (We currently have a "Next" version.)
   if ((GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
       !(mOutOfFlowFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
@@ -122,7 +116,7 @@ nsPlaceholderFrame::Reflow(nsPresContext*           aPresContext,
     nsIFrame* ancestor = this;
     while ((ancestor = ancestor->GetParent())) {
       if (ancestor->GetPrevContinuation() ||
-          ancestor->Properties().Get(IBSplitPrevSibling())) {
+          ancestor->Properties().Get(IBSplitSpecialPrevSibling())) {
         isInContinuationOrIBSplit = true;
         break;
       }
@@ -236,7 +230,7 @@ nsPlaceholderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 #endif // DEBUG || (MOZ_REFLOW_PERF_DSP && MOZ_REFLOW_PERF)
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsPlaceholderFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Placeholder"), aResult);

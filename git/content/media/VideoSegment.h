@@ -22,7 +22,7 @@ class VideoFrame {
 public:
   typedef mozilla::layers::Image Image;
 
-  VideoFrame(already_AddRefed<Image>& aImage, const gfxIntSize& aIntrinsicSize);
+  VideoFrame(already_AddRefed<Image> aImage, const gfxIntSize& aIntrinsicSize);
   VideoFrame();
   ~VideoFrame();
 
@@ -84,13 +84,12 @@ struct VideoChunk {
 class VideoSegment : public MediaSegmentBase<VideoSegment, VideoChunk> {
 public:
   typedef mozilla::layers::Image Image;
-  typedef mozilla::gfx::IntSize IntSize;
 
   VideoSegment();
   ~VideoSegment();
 
-  void AppendFrame(already_AddRefed<Image>&& aImage, TrackTicks aDuration,
-                   const IntSize& aIntrinsicSize);
+  void AppendFrame(already_AddRefed<Image> aImage, TrackTicks aDuration,
+                   const gfxIntSize& aIntrinsicSize);
   const VideoFrame* GetFrameAt(TrackTicks aOffset, TrackTicks* aStart = nullptr)
   {
     VideoChunk* c = FindChunkContaining(aOffset, aStart);

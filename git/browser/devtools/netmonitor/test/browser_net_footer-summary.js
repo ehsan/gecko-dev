@@ -7,7 +7,6 @@
  */
 
 function test() {
-  requestLongerTimeout(2);
   let { PluralForm } = Cu.import("resource://gre/modules/PluralForm.jsm", {});
 
   initNetMonitor(FILTERING_URL).then(([aTab, aDebuggee, aMonitor]) => {

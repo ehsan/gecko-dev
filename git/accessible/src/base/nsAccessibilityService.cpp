@@ -64,7 +64,6 @@
 #include "nsXBLPrototypeBinding.h"
 #include "nsXBLBinding.h"
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/dom/DOMStringList.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "nsDeckFrame.h"
@@ -88,7 +87,6 @@
 
 using namespace mozilla;
 using namespace mozilla::a11y;
-using namespace mozilla::dom;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Statics
@@ -577,9 +575,10 @@ nsAccessibilityService::GetStringRole(uint32_t aRole, nsAString& aString)
 
 NS_IMETHODIMP
 nsAccessibilityService::GetStringStates(uint32_t aState, uint32_t aExtraState,
-                                        nsISupports **aStringStates)
+                                        nsIDOMDOMStringList **aStringStates)
 {
-  nsRefPtr<DOMStringList> stringStates = new DOMStringList();
+  nsAccessibleDOMStringList* stringStates = new nsAccessibleDOMStringList();
+  NS_ENSURE_TRUE(stringStates, NS_ERROR_OUT_OF_MEMORY);
 
   uint64_t state = nsAccUtils::To64State(aState, aExtraState);
 
@@ -682,10 +681,12 @@ nsAccessibilityService::GetStringStates(uint32_t aState, uint32_t aExtraState,
     stringStates->Add(NS_LITERAL_STRING("expandable"));
 
   //unknown states
-  if (!stringStates->Length())
+  uint32_t stringStatesLength = 0;
+  stringStates->GetLength(&stringStatesLength);
+  if (!stringStatesLength)
     stringStates->Add(NS_LITERAL_STRING("unknown"));
 
-  stringStates.forget(aStringStates);
+  NS_ADDREF(*aStringStates = stringStates);
   return NS_OK;
 }
 

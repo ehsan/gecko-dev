@@ -36,12 +36,14 @@ function test()
 
     // Make sure the body element is selected initially.
     node = doc.querySelector("body");
-    is(inspector.selection.node, node, "Body should be selected initially.");
-    node = doc.querySelector("h1")
-    inspector.once("inspector-updated", highlightHeaderNode);
-    let bc = inspector.breadcrumbs;
-    bc.nodeHierarchy[bc.currentIndex].button.focus();
-    EventUtils.synthesizeKey("VK_RIGHT", {});
+    inspector.once("inspector-updated", () => {
+      is(inspector.selection.node, node, "Body should be selected initially.");
+      node = doc.querySelector("h1")
+      inspector.once("inspector-updated", highlightHeaderNode);
+      let bc = inspector.breadcrumbs;
+      bc.nodeHierarchy[bc.currentIndex].button.focus();
+      EventUtils.synthesizeKey("VK_RIGHT", { });
+    });
   }
 
   function highlightHeaderNode()

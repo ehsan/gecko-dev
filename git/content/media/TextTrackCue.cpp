@@ -5,20 +5,18 @@
 
 #include "mozilla/dom/HTMLTrackElement.h"
 #include "mozilla/dom/TextTrackCue.h"
-#include "mozilla/dom/TextTrackRegion.h"
 #include "nsComponentManagerUtils.h"
 #include "mozilla/ClearOnShutdown.h"
 
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_5(TextTrackCue,
+NS_IMPL_CYCLE_COLLECTION_INHERITED_4(TextTrackCue,
                                      nsDOMEventTargetHelper,
                                      mDocument,
                                      mTrack,
                                      mTrackElement,
-                                     mDisplayState,
-                                     mRegion)
+                                     mDisplayState)
 
 NS_IMPL_ADDREF_INHERITED(TextTrackCue, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(TextTrackCue, nsDOMEventTargetHelper)
@@ -146,23 +144,6 @@ JSObject*
 TextTrackCue::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
   return VTTCueBinding::Wrap(aCx, aScope, this);
-}
-
-TextTrackRegion*
-TextTrackCue::GetRegion()
-{
-  return mRegion;
-}
-
-void
-TextTrackCue::SetRegion(TextTrackRegion* aRegion)
-{
-  if (mRegion == aRegion) {
-    return;
-  }
-  mRegion = aRegion;
-  mReset = true;
-  CueChanged();
 }
 
 void

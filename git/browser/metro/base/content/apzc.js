@@ -147,7 +147,6 @@ var APZCObserver = {
                       .getInterface(Ci.nsIDOMWindowUtils);
     cwu.setDisplayPortForElement(portX, portY,
                                  portWidth, portHeight,
-                                 Browser.selectedBrowser.contentDocument.documentElement,
-                                 0);
+                                 Browser.selectedBrowser.contentDocument.documentElement);
   }
 };

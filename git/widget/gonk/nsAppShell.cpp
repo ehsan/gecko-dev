@@ -15,9 +15,7 @@
  * limitations under the License.
  */
 
-#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
-#endif
 
 #include <dirent.h>
 #include <errno.h>
@@ -240,9 +238,6 @@ sendTouchEvent(UserInputData& data, bool* captured)
     case AMOTION_EVENT_ACTION_CANCEL:
         msg = NS_TOUCH_CANCEL;
         break;
-    default:
-        msg = NS_EVENT_NULL;
-        break;
     }
 
     WidgetTouchEvent event(true, msg, nullptr);
@@ -317,7 +312,7 @@ KeyEventDispatcher::KeyEventDispatcher(const UserInputData& aData,
 {
     // XXX Printable key's keyCode value should be computed with actual
     //     input character.
-    mDOMKeyCode = (mData.key.keyCode < (ssize_t)ArrayLength(kKeyMapping)) ?
+    mDOMKeyCode = (mData.key.keyCode < ArrayLength(kKeyMapping)) ?
         kKeyMapping[mData.key.keyCode] : 0;
     mDOMKeyNameIndex = GetKeyNameIndex(mData.key.keyCode);
 
@@ -437,7 +432,7 @@ updateHeadphoneSwitch()
         break;
     case AKEY_STATE_DOWN:
         event.status() = sMicrophoneState == AKEY_STATE_DOWN ?
-            hal::SWITCH_STATE_HEADSET : hal::SWITCH_STATE_HEADPHONE;
+            hal::SWITCH_STATE_HEADPHONE : hal::SWITCH_STATE_HEADSET;
         break;
     default:
         return;
@@ -692,14 +687,8 @@ GeckoInputDispatcher::dispatchOnce()
         case AMOTION_EVENT_ACTION_UP:
             msg = NS_MOUSE_BUTTON_UP;
             break;
-        default:
-            msg = NS_EVENT_NULL;
-            break;
         }
-        if (msg != NS_EVENT_NULL) {
-            sendMouseEvent(msg, data, 
-                           status != nsEventStatus_eConsumeNoDefault);
-        }
+        sendMouseEvent(msg, data, status != nsEventStatus_eConsumeNoDefault);
         break;
     }
     case UserInputData::KEY_DATA: {

@@ -1,77 +1,79 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 package org.mozilla.gecko.tests;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.util.ArrayList;
+import com.jayway.android.robotium.solo.Condition;
+import com.jayway.android.robotium.solo.Solo;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.Driver;
-import org.mozilla.gecko.Element;
-import org.mozilla.gecko.FennecNativeActions;
-import org.mozilla.gecko.FennecNativeDriver;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoThread;
+import org.mozilla.gecko.*;
 import org.mozilla.gecko.GeckoThread.LaunchState;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.RobocopUtils;
-import org.mozilla.gecko.Tabs;
 
 import android.app.Activity;
+import android.app.Instrumentation;
+import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.ContentUris;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.AssetManager;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Build;
 import android.os.SystemClock;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.app.FragmentManager;
+import android.text.InputType;
 import android.text.TextUtils;
+import android.test.ActivityInstrumentationTestCase2;
 import android.util.DisplayMetrics;
-import android.view.View;
 import android.view.inputmethod.InputMethodManager;
+import android.view.KeyEvent;
+import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListAdapter;
+import android.widget.ListView;
 import android.widget.TextView;
 
-import com.jayway.android.robotium.solo.Condition;
-import com.jayway.android.robotium.solo.Solo;
+import java.io.File;
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  *  A convenient base class suitable for most Robocop tests.
  */
-@SuppressWarnings("unchecked")
-abstract class BaseTest extends BaseRobocopTest {
+abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
+    public static final int TEST_MOCHITEST = 0;
+    public static final int TEST_TALOS = 1;
+
+    private static final String TARGET_PACKAGE_ID = "org.mozilla.gecko";
     private static final String LAUNCH_ACTIVITY_FULL_CLASSNAME = TestConstants.ANDROID_PACKAGE_NAME + ".App";
     private static final int VERIFY_URL_TIMEOUT = 2000;
+    private static final int MAX_LIST_ATTEMPTS = 3;
     private static final int MAX_WAIT_ENABLED_TEXT_MS = 10000;
     private static final int MAX_WAIT_HOME_PAGER_HIDDEN_MS = 15000;
     public static final int MAX_WAIT_MS = 4500;
     public static final int LONG_PRESS_TIME = 6000;
     private static final int GECKO_READY_WAIT_MS = 180000;
-    public static final int MAX_WAIT_BLOCK_FOR_EVENT_DATA_MS = 90000;
+
+    // IDs for UI views
+    private static final String BROWSER_TOOLBAR_ID = "browser_toolbar";
+    protected static final String URL_EDIT_TEXT_ID = "url_edit_text";
+    protected static final String URL_BAR_TITLE_ID = "url_bar_title";
 
     private static Class<Activity> mLauncherActivityClass;
     private Activity mActivity;
-    private int mPreferenceRequestID = 0;
     protected Solo mSolo;
     protected Driver mDriver;
+    protected Assert mAsserter;
     protected Actions mActions;
     protected String mBaseUrl;
     protected String mRawBaseUrl;
+    private String mLogFile;
     protected String mProfile;
     public Device mDevice;
     protected DatabaseHelper mDatabaseHelper;
@@ -89,6 +91,16 @@ abstract class BaseTest extends BaseRobocopTest {
         }
     }
 
+    protected void blockForGeckoDelayedStartup() {
+        try {
+            Actions.EventExpecter geckoReadyExpector = mActions.expectGeckoEvent("Gecko:DelayedStartup");
+            geckoReadyExpector.blockForEvent();
+            geckoReadyExpector.unregisterListener();
+        } catch (Exception e) {
+            mAsserter.dumpLog("Exception in blockForGeckoDelayedStartup", e);
+        }
+    }
+
     static {
         try {
             mLauncherActivityClass = (Class<Activity>)Class.forName(LAUNCH_ACTIVITY_FULL_CLASSNAME);
@@ -101,17 +113,30 @@ abstract class BaseTest extends BaseRobocopTest {
         super(TARGET_PACKAGE_ID, mLauncherActivityClass);
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    protected abstract int getTestType();
 
+    @Override
+    protected void setUp() throws Exception {
+        // Load config file from root path (setup by python script)
+        String rootPath = FennecInstrumentationTestRunner.getFennecArguments().getString("deviceroot");
+        String configFile = FennecNativeDriver.getFile(rootPath + "/robotium.config");
+        HashMap config = FennecNativeDriver.convertTextToTable(configFile);
+        mLogFile = (String)config.get("logfile");
+        mBaseUrl = ((String)config.get("host")).replaceAll("(/$)", "");
+        mRawBaseUrl = ((String)config.get("rawhost")).replaceAll("(/$)", "");
+        // Initialize the asserter
+        if (getTestType() == TEST_TALOS) {
+            mAsserter = new FennecTalosAssert();
+        } else {
+            mAsserter = new FennecMochitestAssert();
+        }
+        mAsserter.setLogFile(mLogFile);
+        mAsserter.setTestName(this.getClass().getName());
         // Create the intent to be used with all the important arguments.
-        mBaseUrl = ((String) mConfig.get("host")).replaceAll("(/$)", "");
-        mRawBaseUrl = ((String) mConfig.get("rawhost")).replaceAll("(/$)", "");
         Intent i = new Intent(Intent.ACTION_MAIN);
-        mProfile = (String) mConfig.get("profile");
+        mProfile = (String)config.get("profile");
         i.putExtra("args", "-no-remote -profile " + mProfile);
-        String envString = (String) mConfig.get("envvars");
+        String envString = (String)config.get("envvars");
         if (envString != "") {
             String[] envStrings = envString.split(",");
             for (int iter = 0; iter < envStrings.length; iter++) {
@@ -123,7 +148,7 @@ abstract class BaseTest extends BaseRobocopTest {
         mActivity = getActivity();
         // Set up Robotium.solo and Driver objects
         mSolo = new Solo(getInstrumentation(), mActivity);
-        mDriver = new FennecNativeDriver(mActivity, mSolo, mRootPath);
+        mDriver = new FennecNativeDriver(mActivity, mSolo, rootPath);
         mActions = new FennecNativeActions(mActivity, mSolo, getInstrumentation(), mAsserter);
         mDevice = new Device();
         mDatabaseHelper = new DatabaseHelper(mActivity, mAsserter);
@@ -171,7 +196,7 @@ abstract class BaseTest extends BaseRobocopTest {
      */
     protected final void focusUrlBar() {
         // Click on the browser toolbar to enter editing mode
-        final View toolbarView = mSolo.getView(R.id.browser_toolbar);
+        final View toolbarView = mSolo.getView(BROWSER_TOOLBAR_ID);
         mSolo.clickOnView(toolbarView);
 
         // Wait for highlighed text to gain focus
@@ -192,7 +217,7 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     protected final void enterUrl(String url) {
-        final EditText urlEditView = (EditText) mSolo.getView(R.id.url_edit_text);
+        final EditText urlEditView = (EditText) mSolo.getView(URL_EDIT_TEXT_ID);
 
         focusUrlBar();
 
@@ -246,7 +271,7 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     public final void verifyUrl(String url) {
-        final EditText urlEditText = (EditText) mSolo.getView(R.id.url_edit_text);
+        final EditText urlEditText = (EditText) mSolo.getView(URL_EDIT_TEXT_ID);
         String urlBarText = null;
         if (urlEditText != null) {
             // wait for a short time for the expected text, in case there is a delay
@@ -317,6 +342,7 @@ abstract class BaseTest extends BaseRobocopTest {
         public boolean test();
     }
 
+    @SuppressWarnings({"unchecked", "non-varargs"})
     public void SqliteCompare(String dbName, String sqlCommand, ContentValues[] cvs) {
         File profile = new File(mProfile);
         String dbPath = new File(profile, dbName).getPath();
@@ -325,6 +351,27 @@ abstract class BaseTest extends BaseRobocopTest {
         SqliteCompare(c, cvs);
     }
 
+    private boolean CursorMatches(Cursor c, String[] columns, ContentValues cv) {
+        for (int i = 0; i < columns.length; i++) {
+            String column = columns[i];
+            if (cv.containsKey(column)) {
+                mAsserter.info("Comparing", "Column values for: " + column);
+                Object value = cv.get(column);
+                if (value == null) {
+                    if (!c.isNull(i)) {
+                        return false;
+                    }
+                } else {
+                    if (c.isNull(i) || !value.toString().equals(c.getString(i))) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    @SuppressWarnings({"unchecked", "non-varargs"})
     public void SqliteCompare(Cursor c, ContentValues[] cvs) {
         mAsserter.is(c.getCount(), cvs.length, "List is correct length");
         if (c.moveToFirst()) {
@@ -336,7 +383,7 @@ abstract class BaseTest extends BaseRobocopTest {
                     }
                 }
                 mAsserter.is(found, true, "Password was found");
-            } while (c.moveToNext());
+            } while(c.moveToNext());
         }
     }
 
@@ -467,7 +514,7 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     public final void verifyPageTitle(String title) {
-        final TextView urlBarTitle = (TextView) mSolo.getView(R.id.url_bar_title);
+        final TextView urlBarTitle = (TextView) mSolo.getView(URL_BAR_TITLE_ID);
         String pageTitle = null;
         if (urlBarTitle != null) {
             // Wait for the title to make sure it has been displayed in case the view
@@ -479,7 +526,8 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     public final void verifyTabCount(int expectedTabCount) {
-        Element tabCount = mDriver.findElement(getActivity(), R.id.tabs_counter);
+        Activity activity = getActivity();
+        Element tabCount = mDriver.findElement(activity, "tabs_counter");
         String tabCountText = tabCount.getText();
         int tabCountInt = Integer.parseInt(tabCountText);
         mAsserter.is(tabCountInt, expectedTabCount, "The correct number of tabs are opened");
@@ -507,12 +555,12 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     public void addTab() {
-        mSolo.clickOnView(mSolo.getView(R.id.tabs));
+        mSolo.clickOnView(mSolo.getView("tabs"));
         // wait for addTab to appear (this is usually immediate)
         boolean success = waitForCondition(new Condition() {
             @Override
             public boolean isSatisfied() {
-                View addTabView = mSolo.getView(R.id.add_tab);
+                View addTabView = mSolo.getView("add_tab");
                 if (addTabView == null) {
                     return false;
                 }
@@ -520,7 +568,8 @@ abstract class BaseTest extends BaseRobocopTest {
             }
         }, MAX_WAIT_MS);
         mAsserter.ok(success, "waiting for add tab view", "add tab view available");
-        mSolo.clickOnView(mSolo.getView(R.id.add_tab));
+        final View addTabView = mSolo.getView("add_tab");
+        mSolo.clickOnView(mSolo.getView("add_tab"));
     }
 
     public void addTab(String url) {
@@ -536,9 +585,11 @@ abstract class BaseTest extends BaseRobocopTest {
      * @return List view in the tabs tray
      */
     private final AdapterView<ListAdapter> getTabsList() {
-        Element tabs = mDriver.findElement(getActivity(), R.id.tabs);
+        Element tabs = mDriver.findElement(getActivity(), "tabs");
         tabs.click();
-        return (AdapterView<ListAdapter>) getActivity().findViewById(R.id.normal_tabs);
+        Element listElem = mDriver.findElement(getActivity(), "normal_tabs");
+        int listId = listElem.getId();
+        return (AdapterView<ListAdapter>) getActivity().findViewById(listId);
     }
 
     /**
@@ -599,7 +650,8 @@ abstract class BaseTest extends BaseRobocopTest {
      * @param index Index of tab to close
      */
     public void closeTabAt(final int index) {
-        View closeButton = getTabViewAt(index).findViewById(R.id.close);
+        Element close = mDriver.findElement(getActivity(), "close");
+        View closeButton = getTabViewAt(index).findViewById(close.getId());
 
         mSolo.clickOnView(closeButton);
     }
@@ -708,7 +760,7 @@ abstract class BaseTest extends BaseRobocopTest {
             Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
 
             if (devType.equals("tablet")) {
-                Element backBtn = mDriver.findElement(getActivity(), R.id.back);
+                Element backBtn = mDriver.findElement(getActivity(), "back");
                 backBtn.click();
             } else {
                 mActions.sendSpecialKey(Actions.SpecialKey.BACK);
@@ -722,13 +774,13 @@ abstract class BaseTest extends BaseRobocopTest {
             Actions.EventExpecter pageShowExpecter = mActions.expectGeckoEvent("Content:PageShow");
 
             if (devType.equals("tablet")) {
-                Element fwdBtn = mDriver.findElement(getActivity(), R.id.forward);
+                Element fwdBtn = mDriver.findElement(getActivity(), "forward");
                 fwdBtn.click();
             } else {
                 mActions.sendSpecialKey(Actions.SpecialKey.MENU);
                 waitForText("^New Tab$");
                 if (!osVersion.equals("2.x")) {
-                    Element fwdBtn = mDriver.findElement(getActivity(), R.id.forward);
+                    Element fwdBtn = mDriver.findElement(getActivity(), "forward");
                     fwdBtn.click();
                 } else {
                     mSolo.clickOnText("^Forward$");
@@ -742,13 +794,13 @@ abstract class BaseTest extends BaseRobocopTest {
 
         public void reload() {
             if (devType.equals("tablet")) {
-                Element reloadBtn = mDriver.findElement(getActivity(), R.id.reload);
+                Element reloadBtn = mDriver.findElement(getActivity(), "reload");
                 reloadBtn.click();
             } else {
                 mActions.sendSpecialKey(Actions.SpecialKey.MENU);
                 waitForText("^New Tab$");
                 if (!osVersion.equals("2.x")) {
-                    Element reloadBtn = mDriver.findElement(getActivity(), R.id.reload);
+                    Element reloadBtn = mDriver.findElement(getActivity(), "reload");
                     reloadBtn.click();
                 } else {
                     mSolo.clickOnText("^Reload$");
@@ -766,7 +818,7 @@ abstract class BaseTest extends BaseRobocopTest {
                 // This is the Android 2.x so the button has text
                 mSolo.clickOnText("^Bookmark$");
             } else {
-                Element bookmarkBtn = mDriver.findElement(getActivity(), R.id.bookmark);
+                Element bookmarkBtn = mDriver.findElement(getActivity(), "bookmark");
                 if (bookmarkBtn != null) {
                     // We are on Android 4.x so the button is an image button
                     bookmarkBtn.click();
@@ -841,87 +893,5 @@ abstract class BaseTest extends BaseRobocopTest {
         }
 
         return null;
-    }
-
-    /**
-     * Abstract class for running small test cases within a BaseTest.
-     */
-    abstract class TestCase implements Runnable {
-        /**
-         * Implement tests here. setUp and tearDown for the test case
-         * should be handled by the parent test. This is so we can avoid the
-         * overhead of starting Gecko and creating profiles.
-         */
-        protected abstract void test() throws Exception;
-
-        @Override
-        public void run() {
-            try {
-                test();
-            } catch (Exception e) {
-                mAsserter.ok(false,
-                             "Test " + this.getClass().getName() + " threw exception: " + e,
-                             "");
-            }
-        }
-    }
-
-    /**
-     * Set the preference and wait for it to change before proceeding with the test.
-     */
-    public void setPreferenceAndWaitForChange(final JSONObject jsonPref) {
-        mActions.sendGeckoEvent("Preferences:Set", jsonPref.toString());
-
-        // Get the preference name from the json and store it in an array. This array 
-        // will be used later while fetching the preference data.
-        String[] prefNames = new String[1];
-        try {
-            prefNames[0] = jsonPref.getString("name");
-        } catch (JSONException e) {
-            mAsserter.ok(false, "Exception in setPreferenceAndWaitForChange", getStackTraceString(e));
-        }
-
-        // Wait for confirmation of the pref change before proceeding with the test.
-        final int ourRequestID = mPreferenceRequestID--;
-        final Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
-        mActions.sendPreferencesGetEvent(ourRequestID, prefNames);
-
-        // Wait until we get the correct "Preferences:Data" event
-        waitForCondition(new Condition() {
-            final long endTime = SystemClock.elapsedRealtime() + MAX_WAIT_BLOCK_FOR_EVENT_DATA_MS;
-
-            @Override
-            public boolean isSatisfied() {
-                try {
-                    long timeout = endTime - SystemClock.elapsedRealtime();
-                    if (timeout < 0) {
-                        timeout = 0;
-                    }
-
-                    JSONObject data = new JSONObject(eventExpecter.blockForEventDataWithTimeout(timeout));
-                    int requestID = data.getInt("requestId");
-                    if (requestID != ourRequestID) {
-                        return false;
-                    }
-
-                    JSONArray preferences = data.getJSONArray("preferences");
-                    mAsserter.is(preferences.length(), 1, "Expecting preference array to have one element");
-                    JSONObject prefs = (JSONObject) preferences.get(0);
-                    mAsserter.is(prefs.getString("name"), jsonPref.getString("name"),
-                            "Expecting returned preference name to be the same as the set name");
-                    mAsserter.is(prefs.getString("type"), jsonPref.getString("type"),
-                            "Expecting returned preference type to be the same as the set type");
-                    mAsserter.is(prefs.get("value"), jsonPref.get("value"),
-                            "Expecting returned preference value to be the same as the set value");
-                    return true;
-                } catch(JSONException e) {
-                    mAsserter.ok(false, "Exception in setPreferenceAndWaitForChange", getStackTraceString(e));
-                    // Please the java compiler
-                    return false;
-                }
-            }
-        }, MAX_WAIT_BLOCK_FOR_EVENT_DATA_MS);
-
-        eventExpecter.unregisterListener();
     }
 }

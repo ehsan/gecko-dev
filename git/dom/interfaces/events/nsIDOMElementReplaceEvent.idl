@@ -17,3 +17,8 @@ interface nsIDOMElementReplaceEvent : nsIDOMEvent
                                in boolean canCancelArg,
                                in nsIDOMElement upgrade);
 };
+
+dictionary ElementReplaceEventInit : EventInit
+{
+  nsIDOMElement upgrade;
+};

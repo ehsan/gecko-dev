@@ -23,6 +23,11 @@ BEGIN_FILE_NAMESPACE
 class ArchiveRequest : public mozilla::dom::DOMRequest
 {
 public:
+  static bool PrefEnabled()
+  {
+    return ArchiveReader::PrefEnabled();
+  }
+
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 

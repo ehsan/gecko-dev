@@ -328,7 +328,7 @@ nsListControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsListControlFrame::Reflow(nsPresContext*           aPresContext, 
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState, 
@@ -848,7 +848,7 @@ nsListControlFrame::CaptureMouseEvents(bool aGrabMouseEvents)
 }
 
 //---------------------------------------------------------
-nsresult 
+NS_IMETHODIMP 
 nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
                                 WidgetGUIEvent* aEvent,
                                 nsEventStatus* aEventStatus)
@@ -897,7 +897,7 @@ nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
 
 
 //---------------------------------------------------------
-nsresult
+NS_IMETHODIMP
 nsListControlFrame::SetInitialChildList(ChildListID    aListID,
                                         nsFrameList&   aChildList)
 {
@@ -1436,7 +1436,7 @@ nsListControlFrame::AboutToRollup()
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsListControlFrame::DidReflow(nsPresContext*           aPresContext,
                               const nsHTMLReflowState* aReflowState,
                               nsDidReflowStatus        aStatus)
@@ -1472,7 +1472,7 @@ nsListControlFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsListControlFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("ListControl"), aResult);
@@ -1506,7 +1506,7 @@ nsListControlFrame::IsLeftButton(nsIDOMEvent* aMouseEvent)
   // only allow selection with the left button
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
   if (mouseEvent) {
-    int16_t whichButton;
+    uint16_t whichButton;
     if (NS_SUCCEEDED(mouseEvent->GetButton(&whichButton))) {
       return whichButton != 0?false:true;
     }
@@ -2135,11 +2135,12 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
       break;
     case NS_VK_RETURN:
       if (IsInDropDownMode()) {
-        if (mComboboxFrame->IsDroppedDown()) {
-          // If the select element is a dropdown style, Enter key should be
-          // consumed while the dropdown is open for security.
-          aKeyEvent->PreventDefault();
+        // If the select element is a dropdown style, Enter key should be
+        // consumed everytime since Enter key may be pressed accidentally after
+        // the dropdown is closed by Enter key press.
+        aKeyEvent->PreventDefault();
 
+        if (mComboboxFrame->IsDroppedDown()) {
           nsWeakFrame weakFrame(this);
           ComboboxFinish(mEndSelectionIndex);
           if (!weakFrame.IsAlive()) {
@@ -2200,7 +2201,7 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
                                 0, -1);
       break;
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
     case NS_VK_F4:
       if (!isControlOrMeta) {
         DropDownToggleKey(aKeyEvent);

@@ -314,7 +314,7 @@ void ARTSPConnection::onConnect(const sp<AMessage> &msg) {
         mState = CONNECTED;
         mNextCSeq = 1;
 
-        postReceiveResponseEvent();
+        postReceiveReponseEvent();
     }
 
     reply->post();
@@ -416,7 +416,7 @@ void ARTSPConnection::onCompleteConnection(const sp<AMessage> &msg) {
         mState = CONNECTED;
         mNextCSeq = 1;
 
-        postReceiveResponseEvent();
+        postReceiveReponseEvent();
     }
 
     reply->post();
@@ -511,7 +511,7 @@ void ARTSPConnection::onReceiveResponse() {
     if (res == 1) {
         MakeSocketBlocking(mSocket, true);
 
-        bool success = receiveRTSPResponse();
+        bool success = receiveRTSPReponse();
 
         MakeSocketBlocking(mSocket, false);
 
@@ -522,7 +522,7 @@ void ARTSPConnection::onReceiveResponse() {
         }
     }
 
-    postReceiveResponseEvent();
+    postReceiveReponseEvent();
 }
 
 void ARTSPConnection::flushPendingRequests() {
@@ -536,7 +536,7 @@ void ARTSPConnection::flushPendingRequests() {
     mPendingRequests.clear();
 }
 
-void ARTSPConnection::postReceiveResponseEvent() {
+void ARTSPConnection::postReceiveReponseEvent() {
     if (mReceiveResponseEventPending) {
         return;
     }
@@ -621,7 +621,7 @@ static bool IsRTSPVersion(const AString &s) {
     return s == "RTSP/1.0";
 }
 
-bool ARTSPConnection::receiveRTSPResponse() {
+bool ARTSPConnection::receiveRTSPReponse() {
     AString statusLine;
 
     if (!receiveLine(&statusLine)) {

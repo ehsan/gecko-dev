@@ -27,8 +27,7 @@
 <!-- we're using html here so we get anonymous scrollbars on the browser element -->
 <html:html id="startui-page"
            xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-           xmlns:html="http://www.w3.org/1999/xhtml"
-           dir="&locale.dir;">
+           xmlns:html="http://www.w3.org/1999/xhtml">
 
   <html:body id="startui-body" class="meta"
              onload="StartUI.init();" onunload="StartUI.uninit();">
@@ -67,7 +66,7 @@
         <html:div class="meta-section-title narrow-title" onclick="StartUI.onNarrowTitleClick('start-bookmarks')">
           &narrowBookmarksHeader.label;
         </html:div>
-        <richgrid id="start-bookmarks-grid" observes="bcast_windowState" set-name="bookmarks" seltype="multiple" fade="true" flex="1" minSlots="3">
+        <richgrid id="start-bookmarks-grid" observes="bcast_windowState" set-name="bookmarks" seltype="multiple" fade="true" flex="1" minSlots="2">
           <richgriditem/>
           <richgriditem/>
         </richgrid>

@@ -27,8 +27,6 @@ const TEST_PERMS = {
   "indexedDB": PERM_UNKNOWN,
   "popup": PERM_DENY,
   "fullscreen" : PERM_UNKNOWN,
-  "camera": PERM_UNKNOWN,
-  "microphone": PERM_UNKNOWN
 };
 
 const NO_GLOBAL_ALLOW = [
@@ -38,7 +36,7 @@ const NO_GLOBAL_ALLOW = [
 ];
 
 // number of managed permissions in the interface
-const TEST_PERMS_COUNT = 8;
+const TEST_PERMS_COUNT = 6;
 
 function test() {
   waitForExplicitFinish();
@@ -166,7 +164,7 @@ var tests = [
   function test_all_sites_permission() {
     // apply the old default of allowing all cookies
     Services.prefs.setIntPref("network.cookie.cookieBehavior", 0);
-
+  
     // there should be no user-set pref for cookie behavior
     is(Services.prefs.getIntPref("network.cookie.cookieBehavior"), PERM_UNKNOWN,
        "network.cookie.cookieBehavior is expected default");
@@ -191,12 +189,12 @@ var tests = [
     // make sure "Manage All Passwords..." button opens the correct dialog
     addWindowListener("chrome://passwordmgr/content/passwordManager.xul", runNextTest);
     gBrowser.contentDocument.getElementById("passwords-manage-all-button").doCommand();
-
+    
   },
 
   function test_manage_all_cookies() {
     // make sure "Manage All Cookies..." button opens the correct dialog
-    addWindowListener("chrome://browser/content/preferences/cookies.xul", runNextTest);
+    addWindowListener("chrome://browser/content/preferences/cookies.xul", runNextTest);    
     gBrowser.contentDocument.getElementById("cookies-manage-all-button").doCommand();
   },
 

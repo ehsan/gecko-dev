@@ -10,14 +10,13 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsHTMLParts.h"
 #include "nsIFormControl.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIListControlFrame.h"
 #include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
 #include "nsContentList.h"
 #include "nsView.h"
 #include "nsViewManager.h"
-#include "nsIDOMEventListener.h"
 #include "nsIDOMNode.h"
 #include "nsISelectControlFrame.h"
 #include "nsContentUtils.h"
@@ -32,14 +31,13 @@
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 #include "nsITheme.h"
+#include "nsAsyncDOMEvent.h"
 #include "nsRenderingContext.h"
 #include "mozilla/Likely.h"
 #include <algorithm>
 #include "nsTextNode.h"
-#include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/MouseEvents.h"
-#include "mozilla/unused.h"
 
 using namespace mozilla;
 
@@ -77,7 +75,7 @@ class nsComboButtonListener : public nsIDOMEventListener
 public:
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD HandleEvent(nsIDOMEvent*) MOZ_OVERRIDE
+  NS_IMETHOD HandleEvent(nsIDOMEvent*)
   {
     mComboBox->ShowDropDown(!mComboBox->IsDroppedDown());
     return NS_OK;
@@ -100,7 +98,7 @@ NS_IMPL_ISUPPORTS1(nsComboButtonListener,
 nsComboboxControlFrame* nsComboboxControlFrame::sFocused = nullptr;
 
 nsIFrame*
-NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, nsFrameState aStateFlags)
+NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, uint32_t aStateFlags)
 {
   nsComboboxControlFrame* it = new (aPresShell) nsComboboxControlFrame(aContext);
 
@@ -373,14 +371,14 @@ public:
     MOZ_COUNT_DTOR(nsResizeDropdownAtFinalPosition);
   }
 
-  virtual bool ReflowFinished() MOZ_OVERRIDE
+  virtual bool ReflowFinished()
   {
     Run();
     NS_RELEASE_THIS();
     return false;
   }
 
-  virtual void ReflowCallbackCanceled() MOZ_OVERRIDE
+  virtual void ReflowCallbackCanceled()
   {
     NS_RELEASE_THIS();
   }
@@ -441,7 +439,7 @@ nsComboboxControlFrame::ReflowDropdown(nsPresContext*  aPresContext,
     flags = 0;
   }
   nsRect rect = mDropdownFrame->GetRect();
-  nsHTMLReflowMetrics desiredSize(aReflowState);
+  nsHTMLReflowMetrics desiredSize(aReflowState.GetWritingMode());
   nsReflowStatus ignoredStatus;
   nsresult rv = ReflowChild(mDropdownFrame, aPresContext, desiredSize,
                             kidReflowState, rect.x, rect.y, flags,
@@ -758,7 +756,7 @@ nsComboboxControlFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return prefWidth;
 }
 
-nsresult
+NS_IMETHODIMP
 nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
                                nsHTMLReflowMetrics&     aDesiredSize,
                                const nsHTMLReflowState& aReflowState,
@@ -805,7 +803,7 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
   if (NS_SUCCEEDED(aPresContext->PresShell()->PostReflowCallback(resize))) {
     // The reflow callback queue doesn't AddRef so we keep it alive until
     // it's released in its ReflowFinished / ReflowCallbackCanceled.
-    unused << resize.forget();
+    resize.forget();
   }
 
   // Get the width of the vertical scrollbar.  That will be the width of the
@@ -831,25 +829,41 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
                                     aStatus);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // The button should occupy the same space as a scrollbar
+  // Now set the correct width and height on our button.  The width we need to
+  // set always, the height only if we had an auto height.
   nsRect buttonRect = mButtonFrame->GetRect();
+  // If we have a non-intrinsic computed height, our kids should have sized
+  // themselves properly on their own.
+  if (aReflowState.ComputedHeight() == NS_INTRINSICSIZE) {
+    // The display frame is going to be the right height and width at this
+    // point. Use its height as the button height.
+    nsRect displayRect = mDisplayFrame->GetRect();
+    buttonRect.height = displayRect.height;
+    buttonRect.y = displayRect.y;
+  }
+#ifdef DEBUG
+  else {
+    nscoord buttonHeight = mButtonFrame->GetSize().height;
+    nscoord displayHeight = mDisplayFrame->GetSize().height;
+
+    // The button and display area should be equal heights, unless the computed
+    // height on the combobox is too small to fit their borders and padding.
+    NS_ASSERTION(buttonHeight == displayHeight ||
+                 (aReflowState.ComputedHeight() < buttonHeight &&
+                  buttonHeight ==
+                    mButtonFrame->GetUsedBorderAndPadding().TopBottom()) ||
+                 (aReflowState.ComputedHeight() < displayHeight &&
+                  displayHeight ==
+                    mDisplayFrame->GetUsedBorderAndPadding().TopBottom()),
+                 "Different heights?");
+  }
+#endif
 
   if (StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-    buttonRect.x = aReflowState.ComputedPhysicalBorderPadding().left -
-                   aReflowState.ComputedPhysicalPadding().left;
-  }
-  else {
-    buttonRect.x = aReflowState.ComputedPhysicalBorderPadding().LeftRight() +
-                   mDisplayWidth -
-                   (aReflowState.ComputedPhysicalBorderPadding().right -
-                    aReflowState.ComputedPhysicalPadding().right);
+    // Make sure the right edge of the button frame stays where it is now
+    buttonRect.x -= buttonWidth - buttonRect.width;
   }
   buttonRect.width = buttonWidth;
-
-  buttonRect.y = this->GetUsedBorder().top;
-  buttonRect.height = mDisplayFrame->GetRect().height +
-                      this->GetUsedPadding().TopBottom();
-
   mButtonFrame->SetRect(buttonRect);
 
   if (!NS_INLINE_IS_BREAK_BEFORE(aStatus) &&
@@ -870,7 +884,7 @@ nsComboboxControlFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsComboboxControlFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("ComboboxControl"), aResult);
@@ -1083,7 +1097,7 @@ nsComboboxControlFrame::OnSetSelectedIndex(int32_t aOldIndex, int32_t aNewIndex)
 // End nsISelectControlFrame
 //----------------------------------------------------------------------
 
-nsresult
+NS_IMETHODIMP
 nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
                                     WidgetGUIEvent* aEvent,
                                     nsEventStatus* aEventStatus)
@@ -1204,18 +1218,18 @@ public:
 
   // Need this so that line layout knows that this block's width
   // depends on the available width.
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsBlockFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplacedContainsBlock));
   }
 
-  virtual nsresult Reflow(nsPresContext*           aPresContext,
-                          nsHTMLReflowMetrics&     aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext*           aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -1233,7 +1247,7 @@ nsComboboxDisplayFrame::GetType() const
   return nsGkAtoms::comboboxDisplayFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsComboboxDisplayFrame::Reflow(nsPresContext*           aPresContext,
                                nsHTMLReflowMetrics&     aDesiredSize,
                                const nsHTMLReflowState& aReflowState,
@@ -1354,7 +1368,7 @@ nsComboboxControlFrame::GetChildLists(nsTArray<ChildList>* aLists) const
   mPopupFrames.AppendIfNonempty(aLists, kSelectPopupList);
 }
 
-nsresult
+NS_IMETHODIMP
 nsComboboxControlFrame::SetInitialChildList(ChildListID     aListID,
                                             nsFrameList&    aChildList)
 {
@@ -1435,7 +1449,7 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE;
+                     nsRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("ComboboxFocus", TYPE_COMBOBOX_FOCUS)
 };
 
@@ -1552,8 +1566,8 @@ void nsComboboxControlFrame::FireValueChangeEvent()
 {
   // Fire ValueChange event to indicate data value of combo box has changed
   nsContentUtils::AddScriptRunner(
-    new AsyncEventDispatcher(mContent, NS_LITERAL_STRING("ValueChange"), true,
-                             false));
+    new nsAsyncDOMEvent(mContent, NS_LITERAL_STRING("ValueChange"), true,
+                        false));
 }
 
 void

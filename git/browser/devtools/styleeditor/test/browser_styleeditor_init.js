@@ -10,13 +10,16 @@ function test()
 {
   waitForExplicitFinish();
 
-  addTabAndCheckOnStyleEditorAdded(panel => gUI = panel.UI, testEditorAdded);
+  addTabAndOpenStyleEditor(function(panel) {
+    gUI = panel.UI;
+    gUI.on("editor-added", testEditorAdded);
+  });
 
   content.location = TESTCASE_URI;
 }
 
 let gEditorAddedCount = 0;
-function testEditorAdded(aEditor)
+function testEditorAdded(aEvent, aEditor)
 {
   if (aEditor.styleSheet.styleSheetIndex == 0) {
     gEditorAddedCount++;

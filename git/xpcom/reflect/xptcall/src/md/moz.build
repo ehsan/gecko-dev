@@ -6,7 +6,9 @@
 
 arch = CONFIG['OS_ARCH']
 
-if arch == 'WINNT':
+if arch == 'OS2':
+    DIRS += ['os2']
+elif arch == 'WINNT':
     DIRS += ['win32']
 else:
     DIRS += ['unix']

@@ -22,6 +22,7 @@ namespace net {
 // will be created internally by RtspMediaResource."
 
 class RtspChannel : public nsBaseChannel
+                  , public nsIStreamListener
 {
 public:
   NS_DECL_ISUPPORTS

@@ -113,7 +113,7 @@ nsMemoryImpl::FlushMemory(const char16_t* aReason, bool aImmediate)
         }
     }
 
-    bool lastVal = sIsFlushing.exchange(true);
+    int32_t lastVal = sIsFlushing.exchange(1);
     if (lastVal)
         return NS_OK;
 
@@ -154,21 +154,19 @@ nsMemoryImpl::RunFlushers(const char16_t* aReason)
           nsCOMPtr<nsIObserver> observer;
           bool loop = true;
 
-          while (NS_SUCCEEDED(e->HasMoreElements(&loop)) && loop)
+          while (NS_SUCCEEDED(e->HasMoreElements(&loop)) && loop) 
           {
-              nsCOMPtr<nsISupports> supports;
-              e->GetNext(getter_AddRefs(supports));
+              e->GetNext(getter_AddRefs(observer));
 
-              if (!supports)
+              if (!observer)
                   continue;
 
-              observer = do_QueryInterface(supports);
               observer->Observe(observer, "memory-pressure", aReason);
           }
         }
     }
 
-    sIsFlushing = false;
+    sIsFlushing = 0;
     return NS_OK;
 }
 
@@ -184,7 +182,7 @@ nsMemoryImpl::FlushEvent::Run()
     return NS_OK;
 }
 
-mozilla::Atomic<bool>
+mozilla::Atomic<int32_t>
 nsMemoryImpl::sIsFlushing;
 
 PRIntervalTime

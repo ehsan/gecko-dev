@@ -389,30 +389,22 @@ enum StmtType {
 // work with both types.
 
 struct StmtInfoBase {
-    // Statement type (StmtType).
-    uint16_t        type;
+    uint16_t        type;           /* statement type */
 
-    // True if type is STMT_BLOCK, STMT_TRY, STMT_SWITCH, or STMT_FINALLY and
-    // the block contains at least one let-declaration, or if type is
-    // STMT_CATCH.
+    /*
+     * True if type is STMT_BLOCK, STMT_TRY, STMT_SWITCH, or
+     * STMT_FINALLY and the block contains at least one let-declaration.
+     */
     bool isBlockScope:1;
 
-    // True if isBlockScope or type == STMT_WITH.
-    bool isNestedScope:1;
-
-    // for (let ...) induced block scope
+    /* for (let ...) induced block scope */
     bool isForLetBlock:1;
 
-    // Block label.
-    RootedAtom      label;
-
-    // Compile-time scope chain node for this scope.  Only set if
-    // isNestedScope.
-    Rooted<NestedScopeObject *> staticScope;
+    RootedAtom      label;          /* name of LABEL */
+    Rooted<StaticBlockObject *> blockObj; /* block scope object */
 
     StmtInfoBase(ExclusiveContext *cx)
-        : isBlockScope(false), isNestedScope(false), isForLetBlock(false),
-          label(cx), staticScope(cx)
+        : isBlockScope(false), isForLetBlock(false), label(cx), blockObj(cx)
     {}
 
     bool maybeScope() const {
@@ -420,13 +412,7 @@ struct StmtInfoBase {
     }
 
     bool linksScope() const {
-        return isNestedScope;
-    }
-
-    StaticBlockObject& staticBlock() const {
-        JS_ASSERT(isNestedScope);
-        JS_ASSERT(isBlockScope);
-        return staticScope->as<StaticBlockObject>();
+        return (STMT_WITH <= type && type <= STMT_CATCH) || isBlockScope;
     }
 
     bool isLoop() const {
@@ -445,10 +431,9 @@ PushStatement(ContextT *ct, typename ContextT::StmtInfo *stmt, StmtType type)
 {
     stmt->type = type;
     stmt->isBlockScope = false;
-    stmt->isNestedScope = false;
     stmt->isForLetBlock = false;
     stmt->label = nullptr;
-    stmt->staticScope = nullptr;
+    stmt->blockObj = nullptr;
     stmt->down = ct->topStmt;
     ct->topStmt = stmt;
     if (stmt->linksScope()) {
@@ -461,13 +446,13 @@ PushStatement(ContextT *ct, typename ContextT::StmtInfo *stmt, StmtType type)
 
 template <class ContextT>
 void
-FinishPushNestedScope(ContextT *ct, typename ContextT::StmtInfo *stmt, NestedScopeObject &staticScope)
+FinishPushBlockScope(ContextT *ct, typename ContextT::StmtInfo *stmt, StaticBlockObject &blockObj)
 {
-    stmt->isNestedScope = true;
+    stmt->isBlockScope = true;
     stmt->downScope = ct->topScopeStmt;
     ct->topScopeStmt = stmt;
-    ct->staticScope = &staticScope;
-    stmt->staticScope = &staticScope;
+    ct->blockChain = &blockObj;
+    stmt->blockObj = &blockObj;
 }
 
 // Pop pc->topStmt. If the top StmtInfoPC struct is not stack-allocated, it
@@ -481,10 +466,8 @@ FinishPopStatement(ContextT *ct)
     ct->topStmt = stmt->down;
     if (stmt->linksScope()) {
         ct->topScopeStmt = stmt->downScope;
-        if (stmt->isNestedScope) {
-            JS_ASSERT(stmt->staticScope);
-            ct->staticScope = stmt->staticScope->enclosingNestedScope();
-        }
+        if (stmt->isBlockScope)
+            ct->blockChain = stmt->blockObj->enclosingBlock();
     }
 }
 

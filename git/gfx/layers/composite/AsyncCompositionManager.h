@@ -17,6 +17,7 @@
 #include "mozilla/layers/LayersMessages.h"  // for TargetConfig
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsISupportsImpl.h"            // for LayerManager::AddRef, etc
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 namespace mozilla {
 namespace layers {
@@ -65,7 +66,6 @@ class AsyncCompositionManager MOZ_FINAL : public RefCounted<AsyncCompositionMana
 {
   friend class AutoResolveRefLayers;
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(AsyncCompositionManager)
   AsyncCompositionManager(LayerManagerComposite* aManager)
     : mLayerManager(aManager)
     , mIsFirstPaint(false)
@@ -124,10 +124,10 @@ private:
   bool ApplyAsyncContentTransformToTree(TimeStamp aCurrentFrame, Layer* aLayer,
                                         bool* aWantNextFrame);
   /**
-   * Update the shadow transform for aLayer assuming that is a scrollbar,
+   * Update the shadow trasnform for aLayer assuming that is a scrollbar,
    * so that it stays in sync with the content that is being scrolled by APZ.
    */
-  void ApplyAsyncTransformToScrollbar(TimeStamp aCurrentFrame, ContainerLayer* aLayer);
+  void ApplyAsyncTransformToScrollbar(ContainerLayer* aLayer);
 
   void SetFirstPaintViewport(const LayerIntPoint& aOffset,
                              const CSSToLayerScale& aZoom,
@@ -201,18 +201,10 @@ private:
 class MOZ_STACK_CLASS AutoResolveRefLayers {
 public:
   AutoResolveRefLayers(AsyncCompositionManager* aManager) : mManager(aManager)
-  {
-    if (mManager) {
-      mManager->ResolveRefLayers();
-    }
-  }
+  { mManager->ResolveRefLayers(); }
 
   ~AutoResolveRefLayers()
-  {
-    if (mManager) {
-      mManager->DetachRefLayers();
-    }
-  }
+  { mManager->DetachRefLayers(); }
 
 private:
   AsyncCompositionManager* mManager;

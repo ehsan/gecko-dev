@@ -166,7 +166,7 @@ private:
   mozilla::Mutex mFileMutex;
 
   static bool sIsMainProcess;
-  static mozilla::Atomic<bool> sLowDiskSpaceMode;
+  static mozilla::Atomic<int32_t> sLowDiskSpaceMode;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -12,7 +12,7 @@
 #include <windows.h>
 
 #include "base/basictypes.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 
 namespace mozilla {
 namespace ipc {

@@ -5,7 +5,8 @@
 
 #include "nsIStringEnumerator.h"
 #include "nsStringFwd.h"
-#include "nsTArrayForwardDeclare.h"
+
+template<class T> class nsTArray;
 
 // nsIStringEnumerator/nsIUTF8StringEnumerator implementations
 //

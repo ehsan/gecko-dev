@@ -11,14 +11,28 @@
 namespace mozilla {
 
 nsresult
-AVCSampleEntry::Generate(uint32_t* aBoxSize)
+VisualSampleEntry::Generate(uint32_t* aBoxSize)
 {
+  // both fields occupy 16 bits defined in 14496-2 6.2.3.
+  width = mMeta.mVidMeta->Width;
+  height = mMeta.mVidMeta->Height;
+
   uint32_t avc_box_size = 0;
   nsresult rv;
   rv = avcConfigBox->Generate(&avc_box_size);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  size += avc_box_size;
+  size += avc_box_size +
+          sizeof(reserved) +
+          sizeof(width) +
+          sizeof(height) +
+          sizeof(horizresolution) +
+          sizeof(vertresolution) +
+          sizeof(reserved2) +
+          sizeof(frame_count) +
+          sizeof(compressorName) +
+          sizeof(depth) +
+          sizeof(pre_defined);
 
   *aBoxSize = size;
 
@@ -26,28 +40,47 @@ AVCSampleEntry::Generate(uint32_t* aBoxSize)
 }
 
 nsresult
-AVCSampleEntry::Write()
+VisualSampleEntry::Write()
 {
   BoxSizeChecker checker(mControl, size);
-  nsresult rv;
-  rv = VisualSampleEntry::Write();
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = avcConfigBox->Write();
+  SampleEntryBox::Write();
+
+  mControl->Write(reserved, sizeof(reserved));
+  mControl->Write(width);
+  mControl->Write(height);
+  mControl->Write(horizresolution);
+  mControl->Write(vertresolution);
+  mControl->Write(reserved2);
+  mControl->Write(frame_count);
+  mControl->Write(compressorName, sizeof(compressorName));
+  mControl->Write(depth);
+  mControl->Write(pre_defined);
+  nsresult rv = avcConfigBox->Write();
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }
 
-AVCSampleEntry::AVCSampleEntry(ISOControl* aControl)
-  : VisualSampleEntry(NS_LITERAL_CSTRING("avc1"), aControl)
+VisualSampleEntry::VisualSampleEntry(ISOControl* aControl)
+  : SampleEntryBox(NS_LITERAL_CSTRING("avc1"), Video_Track, aControl)
+  , width(0)
+  , height(0)
+  , horizresolution(resolution_72_dpi)
+  , vertresolution(resolution_72_dpi)
+  , reserved2(0)
+  , frame_count(1)
+  , depth(video_depth)
+  , pre_defined(-1)
 {
+  memset(reserved, 0 , sizeof(reserved));
+  memset(compressorName, 0 , sizeof(compressorName));
   avcConfigBox = new AVCConfigurationBox(aControl);
-  MOZ_COUNT_CTOR(AVCSampleEntry);
+  MOZ_COUNT_CTOR(VisualSampleEntry);
 }
 
-AVCSampleEntry::~AVCSampleEntry()
+VisualSampleEntry::~VisualSampleEntry()
 {
-  MOZ_COUNT_DTOR(AVCSampleEntry);
+  MOZ_COUNT_DTOR(VisualSampleEntry);
 }
 
 AVCConfigurationBox::AVCConfigurationBox(ISOControl* aControl)

@@ -13,10 +13,7 @@ elif CONFIG['OS_ARCH'] == 'WINNT':
     EXPORT_LIBRARY = True
     FORCE_STATIC_LIB = True
 
-    DIRS += [
-        'win/src/sandboxbroker',
-        'win/src/sandboxtarget',
-    ]
+    DIRS += ['win/src/sandboxbroker']
 
     SOURCES += [
         'chromium/base/at_exit.cc',
@@ -121,12 +118,5 @@ elif CONFIG['OS_ARCH'] == 'WINNT':
     ]
 
     for var in ('UNICODE', '_UNICODE', 'NS_NO_XPCOM', 'SANDBOX_EXPORTS',
-                'NOMINMAX', '_CRT_RAND_S', 'CHROMIUM_SANDBOX_BUILD'):
+                'NOMINMAX', '_CRT_RAND_S'):
         DEFINES[var] = True
-
-    LOCAL_INCLUDES += ['/security/sandbox/chromium/base/shim']
-    LOCAL_INCLUDES += ['/security/sandbox/chromium']
-    LOCAL_INCLUDES += ['/security']
-    LOCAL_INCLUDES += ['/nsprpub']
-
-    DISABLE_STL_WRAPPING = True

@@ -14,7 +14,7 @@
 }(this, function () {
   "use strict";
 
-  var acorn = this.acorn || require("acorn/acorn");
+  var acorn = this.acorn || require("acorn");
   var sourceMap = this.sourceMap || require("source-map");
   var SourceNode = sourceMap.SourceNode;
 
@@ -194,7 +194,7 @@
    * tokens.
    *
    * @param Object token
-   *        The current token.
+   *        The token we want to determine if it is an array literal.
    * @param Object lastToken
    *        The last token we added to the pretty printed results.
    *
@@ -215,30 +215,6 @@
       return false;
     }
     return true;
-  }
-
-  /**
-   * Determine if we have encountered a getter or setter.
-   *
-   * @param Object token
-   *        The current token. If this is a getter or setter, it would be the
-   *        property name.
-   * @param Object lastToken
-   *        The last token we added to the pretty printed results. If this is a
-   *        getter or setter, it would be the `get` or `set` keyword
-   *        respectively.
-   * @param Array stack
-   *        The stack of open parens/curlies/brackets/etc.
-   *
-   * @returns Boolean
-   *          True if this is a getter or setter.
-   */
-  function isGetterOrSetter(token, lastToken, stack) {
-    return stack[stack.length - 1] == "{"
-      && lastToken
-      && lastToken.type.type == "name"
-      && (lastToken.value == "get" || lastToken.value == "set")
-      && token.type.type == "name";
   }
 
   /**
@@ -383,13 +359,12 @@
     var ttk = token.type.keyword;
     var ttt = token.type.type;
     var newlineAdded = addedNewline;
-    var ltt = lastToken ? lastToken.type.type : null;
 
     // Handle whitespace and newlines after "}" here instead of in
     // `isLineDelimiter` because it is only a line delimiter some of the
     // time. For example, we don't want to put "else if" on a new line after
     // the first if's block.
-    if (lastToken && ltt == "}") {
+    if (lastToken && lastToken.type.type == "}") {
       if (ttk == "while" && stack[stack.length - 1] == "do") {
         write(" ",
               lastToken.startLoc.line,
@@ -412,19 +387,13 @@
       }
     }
 
-    if (isGetterOrSetter(token, lastToken, stack)) {
-      write(" ",
-            lastToken.startLoc.line,
-            lastToken.startLoc.column);
-    }
-
     if (ttt == ":" && stack[stack.length - 1] == "?") {
       write(" ",
             lastToken.startLoc.line,
             lastToken.startLoc.column);
     }
 
-    if (lastToken && ltt != "}" && ttk == "else") {
+    if (lastToken && lastToken.type.type != "}" && ttk == "else") {
       write(" ",
             lastToken.startLoc.line,
             lastToken.startLoc.column);
@@ -495,13 +464,6 @@
   }
 
   /**
-   * Make sure that we put "\'" into the single-quoted output instead of raw single quotes.
-   */
-  function sanitizeSingleQuotes(str) {
-    return str.replace(/\'/g, "\\'");
-  }
-
-  /**
    * Add the given token to the pretty printed results.
    *
    * @param Object token
@@ -513,7 +475,7 @@
    */
   function addToken(token, write, options) {
     if (token.type.type == "string") {
-      write("'" + sanitizeSingleQuotes(sanitizeNewlines(token.value)) + "'",
+      write("'" + sanitizeNewlines(token.value) + "'",
             token.startLoc.line,
             token.startLoc.column);
     } else {

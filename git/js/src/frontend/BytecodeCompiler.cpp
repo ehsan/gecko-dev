@@ -164,20 +164,6 @@ frontend::MaybeCallSourceHandler(JSContext *cx, const ReadOnlyCompileOptions &op
     }
 }
 
-ScriptSourceObject *
-frontend::CreateScriptSourceObject(ExclusiveContext *cx, const ReadOnlyCompileOptions &options)
-{
-    ScriptSource *ss = cx->new_<ScriptSource>();
-    if (!ss)
-        return nullptr;
-    ScriptSourceHolder ssHolder(ss);
-
-    if (!ss->initFromOptions(cx, options))
-        return nullptr;
-
-    return ScriptSourceObject::create(cx, ss, options);
-}
-
 JSScript *
 frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject scopeChain,
                         HandleScript evalCaller,
@@ -211,12 +197,15 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     if (!CheckLength(cx, length))
         return nullptr;
     JS_ASSERT_IF(staticLevel != 0, options.sourcePolicy != CompileOptions::LAZY_SOURCE);
-
-    RootedScriptSource sourceObject(cx, CreateScriptSourceObject(cx, options));
-    if (!sourceObject)
+    ScriptSource *ss = cx->new_<ScriptSource>(options.originPrincipals());
+    if (!ss)
+        return nullptr;
+    if (options.filename() && !ss->setFilename(cx, options.filename()))
         return nullptr;
 
-    ScriptSource *ss = sourceObject->source();
+    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss, options));
+    if (!sourceObject)
+        return nullptr;
 
     SourceCompressionTask mysct(cx);
     SourceCompressionTask *sct = extraSct ? extraSct : &mysct;
@@ -257,6 +246,12 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     if (!script)
         return nullptr;
 
+    // Global/eval script bindings are always empty (all names are added to the
+    // scope dynamically via JSOP_DEFFUN/VAR).
+    InternalHandle<Bindings*> bindings(script, &script->bindings);
+    if (!Bindings::initWithTemporaryStorage(cx, bindings, 0, 0, nullptr))
+        return nullptr;
+
     // We can specialize a bit for the given scope chain if that scope chain is the global object.
     JSObject *globalScope =
         scopeChain && scopeChain == &scopeChain->global() ? (JSObject*) scopeChain : nullptr;
@@ -276,8 +271,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     Maybe<ParseContext<FullParseHandler> > pc;
 
     pc.construct(&parser, (GenericParseContext *) nullptr, (ParseNode *) nullptr, &globalsc,
-                 (Directives *) nullptr, staticLevel, /* bodyid = */ 0,
-                 /* blockScopeDepth = */ 0);
+                 (Directives *) nullptr, staticLevel, /* bodyid = */ 0);
     if (!pc.ref().init(parser.tokenStream))
         return nullptr;
 
@@ -344,12 +338,10 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
 
                 pc.destroy();
                 pc.construct(&parser, (GenericParseContext *) nullptr, (ParseNode *) nullptr,
-                             &globalsc, (Directives *) nullptr, staticLevel, /* bodyid = */ 0,
-                             script->bindings.numBlockScoped());
+                             &globalsc, (Directives *) nullptr, staticLevel, /* bodyid = */ 0);
                 if (!pc.ref().init(parser.tokenStream))
                     return nullptr;
                 JS_ASSERT(parser.pc == pc.addr());
-
                 pn = parser.statement();
             }
             if (!pn) {
@@ -357,11 +349,6 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
                 return nullptr;
             }
         }
-
-        // Accumulate the maximum block scope depth, so that EmitTree can assert
-        // when emitting JSOP_GETLOCAL that the local is indeed within the fixed
-        // part of the stack frame.
-        script->bindings.updateNumBlockScoped(pc.ref().blockScopeDepth);
 
         if (canHaveDirectives) {
             if (!parser.maybeParseDirective(/* stmtList = */ nullptr, pn, &canHaveDirectives))
@@ -405,15 +392,6 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     if (Emit1(cx, &bce, JSOP_RETRVAL) < 0)
         return nullptr;
 
-    // Global/eval script bindings are always empty (all names are added to the
-    // scope dynamically via JSOP_DEFFUN/VAR).  They may have block-scoped
-    // locals, however, which are allocated to the fixed part of the stack
-    // frame.
-    InternalHandle<Bindings*> bindings(script, &script->bindings);
-    if (!Bindings::initWithTemporaryStorage(cx, bindings, 0, 0, nullptr,
-                                            pc.ref().blockScopeDepth))
-        return nullptr;
-
     if (!JSScript::fullyInitFromEmitter(cx, script, &bce))
         return nullptr;
 
@@ -431,7 +409,8 @@ frontend::CompileLazyFunction(JSContext *cx, Handle<LazyScript*> lazy, const jsc
     JS_ASSERT(cx->compartment() == lazy->functionNonDelazifying()->compartment());
 
     CompileOptions options(cx, lazy->version());
-    options.setOriginPrincipals(lazy->originPrincipals())
+    options.setPrincipals(cx->compartment()->principals)
+           .setOriginPrincipals(lazy->originPrincipals())
            .setFileAndLine(lazy->source()->filename(), lazy->lineno())
            .setColumn(lazy->column())
            .setCompileAndGo(true)
@@ -513,12 +492,14 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
 
     if (!CheckLength(cx, length))
         return false;
-
-    RootedScriptSource sourceObject(cx, CreateScriptSourceObject(cx, options));
+    ScriptSource *ss = cx->new_<ScriptSource>(options.originPrincipals());
+    if (!ss)
+        return false;
+    if (options.filename() && !ss->setFilename(cx, options.filename()))
+        return false;
+    RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss, options));
     if (!sourceObject)
-        return nullptr;
-    ScriptSource *ss = sourceObject->source();
-
+        return false;
     SourceCompressionTask sct(cx);
     JS_ASSERT(options.sourcePolicy != CompileOptions::LAZY_SOURCE);
     if (options.sourcePolicy == CompileOptions::SAVE_SOURCE) {
@@ -600,7 +581,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
         /*
          * The reason for checking fun->environment() below is that certain
          * consumers of JS::CompileFunction, namely
-         * EventListenerManager::CompileEventHandlerInternal, passes in a
+         * nsEventListenerManager::CompileEventHandlerInternal, passes in a
          * nullptr environment. This compiled function is never used, but
          * instead is cloned immediately onto the right scope chain.
          */

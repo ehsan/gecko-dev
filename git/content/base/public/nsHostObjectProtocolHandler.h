@@ -54,9 +54,6 @@ public:
   static void RemoveDataEntry(const nsACString& aUri);
   static nsIPrincipal* GetDataEntryPrincipal(const nsACString& aUri);
   static void Traverse(const nsACString& aUri, nsCycleCollectionTraversalCallback& aCallback);
-
-private:
-  static void Init(void);
 };
 
 class nsBlobProtocolHandler : public nsHostObjectProtocolHandler

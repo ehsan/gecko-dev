@@ -340,18 +340,7 @@ def run_test_remote(test, device, prefix, options):
     # the same buffer to both.
     return TestOutput(test, cmd, out, out, returncode, None, False)
 
-def check_output(out, err, rc, timed_out, test):
-    if timed_out:
-        # The shell sometimes hangs on shutdown on Windows 7 and Windows
-        # Server 2008. See bug 970063 comment 7 for a description of the
-        # problem. Until bug 956899 is fixed, ignore timeouts on these
-        # platforms (versions 6.0 and 6.1).
-        if sys.platform == 'win32':
-            ver = sys.getwindowsversion()
-            if ver.major == 6 and ver.minor <= 1:
-                return True
-        return False
-
+def check_output(out, err, rc, test):
     if test.expect_error:
         # The shell exits with code 3 on uncaught exceptions.
         # Sometimes 0 is returned on Windows for unknown reasons.
@@ -382,11 +371,8 @@ def check_output(out, err, rc, timed_out, test):
 
 def print_tinderbox(ok, res):
     # Output test failures in a TBPL parsable format, eg:
-    # TEST-RESULT | filename.js | Failure description (code N, args "--foobar")
-    #
-    # Example:
-    # TEST-PASS | foo/bar/baz.js | (code 0, args "--ion-eager")
-    # TEST-UNEXPECTED-FAIL | foo/bar/baz.js | TypeError: or something (code -9, args "--no-ion")
+    # TEST-PASS | /foo/bar/baz.js | --ion-eager
+    # TEST-UNEXPECTED-FAIL | /foo/bar/baz.js | --no-ion: Assertion failure: ...
     # INFO exit-status     : 3
     # INFO timed-out       : False
     # INFO stdout          > foo
@@ -394,20 +380,18 @@ def print_tinderbox(ok, res):
     # INFO stdout          > baz
     # INFO stderr         2> TypeError: or something
     # TEST-UNEXPECTED-FAIL | jit_test.py: Test execution interrupted by user
-    result = "TEST-PASS" if ok else "TEST-UNEXPECTED-FAIL"
-    message = "Success" if ok else res.describe_failure()
+    label = "TEST-PASS" if ok else "TEST-UNEXPECTED-FAIL"
     jitflags = " ".join(res.test.jitflags)
-    print("{} | {} | {} (code {}, args \"{}\")".format(
-          result, res.test.relpath_top, message, res.rc, jitflags))
-
-    # For failed tests, print as much information as we have, to aid debugging.
+    print("%s | %s | %s" % (label, res.test.relpath_top, jitflags))
     if ok:
         return
+
+    # For failed tests, print as much information as we have, to aid debugging.
     print("INFO exit-status     : {}".format(res.rc))
     print("INFO timed-out       : {}".format(res.timed_out))
-    for line in res.out.splitlines():
+    for line in res.out.split('\n'):
         print("INFO stdout          > " + line.strip())
-    for line in res.err.splitlines():
+    for line in res.err.split('\n'):
         print("INFO stderr         2> " + line.strip())
 
 def wrap_parallel_run_test(test, prefix, resultQueue, options):
@@ -432,11 +416,10 @@ def run_tests_parallel(tests, prefix, options):
 
     # This queue will contain the return value of the function
     # processing the test results.
-    total_tests = len(tests) * options.repeat
     result_process_return_queue = queue_manager.Queue()
     result_process = Process(target=process_test_results_parallel,
                              args=(async_test_result_queue, result_process_return_queue,
-                                   notify_queue, total_tests, options))
+                                   notify_queue, len(tests), options))
     result_process.start()
 
     # Ensure that a SIGTERM is handled the same way as SIGINT
@@ -458,16 +441,15 @@ def run_tests_parallel(tests, prefix, options):
     try:
         testcnt = 0
         # Initially start as many jobs as allowed to run parallel
-        for i in range(min(options.max_jobs,total_tests)):
+        for i in range(min(options.max_jobs,len(tests))):
             notify_queue.put(True)
 
         # For every item in the notify queue, start one new worker.
         # Every completed worker adds a new item to this queue.
         while notify_queue.get():
-            if (testcnt < total_tests):
+            if (testcnt < len(tests)):
                 # Start one new worker
-                test = tests[testcnt % len(tests)]
-                worker_process = Process(target=wrap_parallel_run_test, args=(test, prefix, async_test_result_queue, options))
+                worker_process = Process(target=wrap_parallel_run_test, args=(tests[testcnt], prefix, async_test_result_queue, options))
                 worker_processes.append(worker_process)
                 worker_process.start()
                 testcnt += 1
@@ -593,7 +575,7 @@ def process_test_results(results, num_tests, options):
             if res.test.valgrind:
                 sys.stdout.write(res.err)
 
-            ok = check_output(res.out, res.err, res.rc, res.timed_out, res.test)
+            ok = check_output(res.out, res.err, res.rc, res.test)
             doing = 'after %s' % res.test.relpath_tests
             if not ok:
                 failures.append(res)
@@ -622,19 +604,17 @@ def process_test_results(results, num_tests, options):
     return print_test_summary(num_tests, failures, complete, doing, options)
 
 def get_serial_results(tests, prefix, options):
-    for i in xrange(0, options.repeat):
-        for test in tests:
-            yield run_test(test, prefix, options)
+    for test in tests:
+        yield run_test(test, prefix, options)
 
 def run_tests(tests, prefix, options):
     gen = get_serial_results(tests, prefix, options)
-    ok = process_test_results(gen, len(tests) * options.repeat, options)
+    ok = process_test_results(gen, len(tests), options)
     return ok
 
 def get_remote_results(tests, device, prefix, options):
-    for i in xrange(0, options.repeat):
-        for test in tests:
-            yield run_test_remote(test, device, prefix, options)
+    for test in tests:
+        yield run_test_remote(test, device, prefix, options)
 
 def push_libs(options, device):
     # This saves considerable time in pushing unnecessary libraries
@@ -688,7 +668,7 @@ def run_tests_remote(tests, prefix, options):
 
     # Run all tests.
     gen = get_remote_results(tests, dm, prefix, options)
-    ok = process_test_results(gen, len(tests) * options.repeat, options)
+    ok = process_test_results(gen, len(tests), options)
     return ok
 
 def parse_jitflags(options):

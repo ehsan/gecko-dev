@@ -41,14 +41,14 @@ NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGContainerFrame)
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGDisplayContainerFrame)
 
-nsresult
+NS_IMETHODIMP
 nsSVGContainerFrame::AppendFrames(ChildListID  aListID,
                                   nsFrameList& aFrameList)
 {
   return InsertFrames(aListID, mFrames.LastChild(), aFrameList);  
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGContainerFrame::InsertFrames(ChildListID aListID,
                                   nsIFrame* aPrevFrame,
                                   nsFrameList& aFrameList)
@@ -62,7 +62,7 @@ nsSVGContainerFrame::InsertFrames(ChildListID aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGContainerFrame::RemoveFrame(ChildListID aListID,
                                  nsIFrame* aOldFrame)
 {
@@ -146,7 +146,6 @@ nsSVGDisplayContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                              const nsRect&           aDirtyRect,
                                              const nsDisplayListSet& aLists)
 {
-  // mContent could be a XUL element so check for an SVG element before casting
   if (mContent->IsSVG() &&
       !static_cast<const nsSVGElement*>(mContent)->HasValidDimensions()) {
     return;
@@ -154,7 +153,7 @@ nsSVGDisplayContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   return BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, aLists);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::InsertFrames(ChildListID aListID,
                                          nsIFrame* aPrevFrame,
                                          nsFrameList& aFrameList)
@@ -198,7 +197,7 @@ nsSVGDisplayContainerFrame::InsertFrames(ChildListID aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::RemoveFrame(ChildListID aListID,
                                         nsIFrame* aOldFrame)
 {
@@ -234,7 +233,6 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfx::Matrix *aOwnTransform,
                        HasChildrenOnlyTransform(aFromParentTransform);
   }
 
-  // mContent could be a XUL element so check for an SVG element before casting
   if (mContent->IsSVG()) {
     nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
     nsSVGAnimatedTransformList* transformList =
@@ -254,7 +252,7 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfx::Matrix *aOwnTransform,
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods
 
-nsresult
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
                                      const nsIntRect *aDirtyRect,
                                      nsIFrame* aTransformRoot)
@@ -277,7 +275,7 @@ nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
   return NS_OK;
 }
 
-nsIFrame*
+NS_IMETHODIMP_(nsIFrame*)
 nsSVGDisplayContainerFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
@@ -287,7 +285,7 @@ nsSVGDisplayContainerFrame::GetFrameForPoint(const nsPoint &aPoint)
   return nsSVGUtils::HitTestChildren(this, aPoint);
 }
 
-nsRect
+NS_IMETHODIMP_(nsRect)
 nsSVGDisplayContainerFrame::GetCoveredRegion()
 {
   return nsSVGUtils::GetCoveredRegion(mFrames);
@@ -401,13 +399,10 @@ nsSVGDisplayContainerFrame::GetBBoxContribution(
 
   nsIFrame* kid = mFrames.FirstChild();
   while (kid) {
-    nsIContent *content = kid->GetContent();
     nsISVGChildFrame* svgKid = do_QueryFrame(kid);
-    // content could be a XUL element so check for an SVG element before casting
-    if (svgKid && (!content->IsSVG() ||
-                   static_cast<const nsSVGElement*>(content)->HasValidDimensions())) {
-
+    if (svgKid) {
       gfxMatrix transform = gfx::ThebesMatrix(aToBBoxUserspace);
+      nsIContent *content = kid->GetContent();
       if (content->IsSVG()) {
         transform = static_cast<nsSVGElement*>(content)->
                       PrependLocalTransformsTo(transform);

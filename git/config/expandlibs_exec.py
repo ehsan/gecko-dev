@@ -348,8 +348,7 @@ def main():
         return
     ensureParentDir(options.depend)
     mk = Makefile()
-    deps = [dep for dep in deps if os.path.isfile(dep) and dep != options.target
-            and os.path.abspath(dep) != os.path.abspath(options.depend)]
+    deps = [dep for dep in deps if os.path.isfile(dep) and dep != options.target]
     no_dynamic_lib = [dep for dep in deps if not isDynamicLib(dep)]
     mk.create_rule([options.target]).add_dependencies(no_dynamic_lib)
     if len(deps) != len(no_dynamic_lib):

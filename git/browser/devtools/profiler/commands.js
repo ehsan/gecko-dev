@@ -5,7 +5,7 @@
 const { Cu } = require("chrome");
 module.exports = [];
 
-var gcli = require('gcli/index');
+Cu.import("resource://gre/modules/devtools/gcli.jsm");
 
 loader.lazyGetter(this, "gDevTools",
   () => Cu.import("resource:///modules/devtools/gDevTools.jsm", {}).gDevTools);

@@ -67,8 +67,7 @@ FMRadioParent::AllocPFMRadioRequestParent(const FMRadioRequestArgs& aArgs)
       MOZ_CRASH();
   }
 
-  // Balanced in DeallocPFMRadioRequestParent
-  return requestParent.forget().take();
+  return requestParent.forget().get();
 }
 
 bool

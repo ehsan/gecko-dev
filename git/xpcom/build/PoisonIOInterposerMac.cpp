@@ -17,7 +17,7 @@
 #include "mozilla/Telemetry.h"
 #include "nsPrintfCString.h"
 #include "nsStackWalk.h"
-#include "nsTraceRefcnt.h"
+#include "nsTraceRefcntImpl.h"
 #include "plstr.h"
 #include "prio.h"
 

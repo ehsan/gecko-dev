@@ -191,11 +191,6 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     static bool allowFloat32Optimizations() {
        return false;
     }
-
-    // Whether we can inline ForkJoinGetSlice.
-    static bool allowInlineForkJoinGetSlice() {
-        return false;
-    }
 };
 
 } // namespace jit

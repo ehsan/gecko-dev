@@ -47,3 +47,11 @@ interface nsIDOMPopupBlockedEvent : nsIDOMEvent
                              in DOMString popupWindowName,
                              in DOMString popupWindowFeatures);
 };
+
+dictionary PopupBlockedEventInit : EventInit
+{
+  nsIDOMWindow requestingWindow;
+  nsIURI popupWindowURI;
+  DOMString popupWindowFeatures;
+  DOMString popupWindowName;
+};

@@ -12,8 +12,7 @@
 using namespace mozilla::dom;
 
 /* static */ bool
-InterAppComm::EnabledForScope(JSContext* /* unused */,
-			      JS::Handle<JSObject*> /* unused */)
+InterAppComm::EnabledForScope(JSContext* /* unused */, JS::Handle<JSObject*> aObj)
 {
   // Disable the constructors if they're disabled by the preference for sure.
   if (!Preferences::GetBool("dom.inter-app-communication-api.enabled", false)) {
@@ -22,5 +21,5 @@ InterAppComm::EnabledForScope(JSContext* /* unused */,
 
   // Only expose the constructors to the chrome codes for Gecko internal uses.
   // The content pages shouldn't be aware of the constructors.
-  return nsContentUtils::ThreadsafeIsCallerChrome();
+  return xpc::AccessCheck::isChrome(aObj);
 }

@@ -196,15 +196,11 @@
       # Python version.
       'python_ver%': '2.6',
 
-      # Set ARM version (for libyuv)
-      'arm_version%': 6,
-
       # Set ARM-v7 compilation flags
       'armv7%': 0,
 
       # Set Neon compilation flags (only meaningful if armv7==1).
       'arm_neon%': 1,
-      'arm_neon_optional%': 0,
 
       # The system root for cross-compiles. Default: none.
       'sysroot%': '',
@@ -626,10 +622,8 @@
     'fastbuild%': '<(fastbuild)',
     'dcheck_always_on%': '<(dcheck_always_on)',
     'python_ver%': '<(python_ver)',
-    'arm_version%': '<(arm_version)',
     'armv7%': '<(armv7)',
     'arm_neon%': '<(arm_neon)',
-    'arm_neon_optional%': '<(arm_neon_optional)',
     'sysroot%': '<(sysroot)',
     'system_libdir%': '<(system_libdir)',
     'component%': '<(component)',
@@ -924,7 +918,7 @@
     'directx_sdk_default_path': '<(DEPTH)/third_party/directxsdk/files',
 
     'conditions': [
-      ['"<!(<(PYTHON) <(DEPTH)/build/dir_exists.py <(windows_sdk_default_path))"=="True"', {
+      ['OS=="win" and "<!(<(PYTHON) <(DEPTH)/build/dir_exists.py <(windows_sdk_default_path))"=="True"', {
         'windows_sdk_path%': '<(windows_sdk_default_path)',
       }, {
         'windows_sdk_path%': 'C:/Program Files (x86)/Windows Kits/8.0',

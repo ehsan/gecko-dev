@@ -37,8 +37,7 @@ this.createStackMessage = function createStackMessage(error, fnName, pythonFile,
   let trace, msg;
   if (typeof(error) == "object" && 'name' in error && 'stack' in error) {
     let stack = error.stack.split("\n");
-    let match = stack[0].match(/:(\d+):\d+$/);
-    let line = match ? parseInt(match[1]) : 0;
+    let line = stack[0].substr(stack[0].lastIndexOf(':') + 1);
     msg = error.name + ('message' in error ? ": " + error.message : "");
     trace = python_stack +
                 "\ninline javascript, line " + line +

@@ -51,6 +51,7 @@
 #include "nsPresContext.h"
 #include "nsContentUtils.h"
 #include "nsWebShellWindow.h" // get rid of this one, too...
+#include "nsDOMEvent.h"
 #include "nsGlobalWindow.h"
 
 #include "prenv.h"
@@ -58,7 +59,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/BarProps.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/Event.h"
 #include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
@@ -230,8 +230,7 @@ NS_IMETHODIMP nsXULWindow::SetZLevel(uint32_t aLevel)
     nsCOMPtr<nsIDocument> doc = cv->GetDocument();
     if (doc) {
       ErrorResult rv;
-      nsRefPtr<dom::Event> event =
-        doc->CreateEvent(NS_LITERAL_STRING("Events"),rv);
+      nsRefPtr<nsDOMEvent> event = doc->CreateEvent(NS_LITERAL_STRING("Events"),rv);
       if (event) {
         event->InitEvent(NS_LITERAL_STRING("windowZLevel"), true, false);
 
@@ -443,7 +442,7 @@ NS_IMETHODIMP nsXULWindow::Destroy()
   if (mWindow)
     mWindow->Show(false);
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
   // We need to explicitly set the focus on Windows, but 
   // only if the parent is visible.
   nsCOMPtr<nsIBaseWindow> parent(do_QueryReferent(mParentWindow));

@@ -65,6 +65,11 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'nsPluginNativeWindowWin.cpp',
         'nsPluginsDirWin.cpp',
     ]
+elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
+    UNIFIED_SOURCES += [
+        'nsPluginNativeWindowOS2.cpp',
+        'nsPluginsDirOS2.cpp',
+    ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     UNIFIED_SOURCES += [
         'nsPluginNativeWindow.cpp',
@@ -74,10 +79,10 @@ else:
     UNIFIED_SOURCES += [
         'nsPluginsDirUnix.cpp',
     ]
-    if CONFIG['MOZ_ENABLE_GTK']:
+    if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk2':
         # This file cannot be built in unified mode because of name clashes in X11 headers.
         SOURCES += [
-            'nsPluginNativeWindowGtk.cpp',
+            'nsPluginNativeWindowGtk2.cpp',
         ]
     elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
         UNIFIED_SOURCES += [

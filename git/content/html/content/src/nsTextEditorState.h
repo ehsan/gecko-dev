@@ -120,7 +120,6 @@ class RestoreSelectionState;
 
 class nsTextEditorState : public mozilla::SupportsWeakPtr<nsTextEditorState> {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(nsTextEditorState)
   explicit nsTextEditorState(nsITextControlElement* aOwningElement);
   ~nsTextEditorState();
 
@@ -187,6 +186,9 @@ public:
    * @returns false if attr not defined
    */
   bool GetMaxLength(int32_t* aMaxLength);
+
+  /* called to free up native keybinding services */
+  static NS_HIDDEN_(void) ShutDown();
 
   void ClearValueCache() { mCachedValue.Truncate(); }
 

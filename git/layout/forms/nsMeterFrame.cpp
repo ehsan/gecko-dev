@@ -8,7 +8,7 @@
 #include "nsIContent.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsNodeInfoManager.h"
@@ -91,7 +91,7 @@ NS_QUERYFRAME_HEAD(nsMeterFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 
-nsresult nsMeterFrame::Reflow(nsPresContext*           aPresContext,
+NS_IMETHODIMP nsMeterFrame::Reflow(nsPresContext*           aPresContext,
                                    nsHTMLReflowMetrics&     aDesiredSize,
                                    const nsHTMLReflowState& aReflowState,
                                    nsReflowStatus&          aStatus)
@@ -179,14 +179,14 @@ nsMeterFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
   xoffset += reflowState.ComputedPhysicalMargin().left;
   yoffset += reflowState.ComputedPhysicalMargin().top;
 
-  nsHTMLReflowMetrics barDesiredSize(reflowState);
+  nsHTMLReflowMetrics barDesiredSize(reflowState.GetWritingMode());
   ReflowChild(aBarFrame, aPresContext, barDesiredSize, reflowState, xoffset,
               yoffset, 0, aStatus);
   FinishReflowChild(aBarFrame, aPresContext, barDesiredSize, &reflowState,
                     xoffset, yoffset, 0);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMeterFrame::AttributeChanged(int32_t  aNameSpaceID,
                                nsIAtom* aAttribute,
                                int32_t  aModType)

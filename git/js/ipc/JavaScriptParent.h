@@ -59,12 +59,9 @@ class JavaScriptParent
     bool objectClassIs(JSContext *cx, JS::HandleObject obj, js::ESClassValue classValue);
     const char* className(JSContext *cx, JS::HandleObject proxy);
 
-    virtual void ActorDestroy(ActorDestroyReason why);
-
     void decref();
     void incref();
-
-    bool active() { return !inactive_; }
+    void destroyFromContent();
 
     void drop(JSObject *obj);
 
@@ -77,8 +74,8 @@ class JavaScriptParent
      * Check that |obj| is a DOM wrapper whose prototype chain contains
      * |prototypeID| at depth |depth|.
      */
-    static bool DOMInstanceOf(JSContext *cx, JSObject *obj, int prototypeID, int depth, bool *bp);
-    bool domInstanceOf(JSContext *cx, JSObject *obj, int prototypeID, int depth, bool *bp);
+    static bool DOMInstanceOf(JSObject *obj, int prototypeID, int depth, bool *bp);
+    bool domInstanceOf(JSObject *obj, int prototypeID, int depth, bool *bp);
 
     mozilla::ipc::IProtocol*
     CloneProtocol(Channel* aChannel, ProtocolCloneContext* aCtx) MOZ_OVERRIDE;

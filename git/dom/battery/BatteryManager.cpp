@@ -8,6 +8,7 @@
 #include "BatteryManager.h"
 #include "nsIDOMClassInfo.h"
 #include "Constants.h"
+#include "nsDOMEvent.h"
 #include "mozilla/Preferences.h"
 #include "nsDOMEventTargetHelper.h"
 #include "mozilla/dom/BatteryManagerBinding.h"

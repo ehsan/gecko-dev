@@ -97,7 +97,7 @@ WGLLibrary::EnsureInitialized()
 {
     if (mInitialized)
         return true;
-
+    
     mozilla::ScopedGfxFeatureReporter reporter("WGL");
 
     std::string libGLFilename = "Opengl32.dll";
@@ -320,25 +320,22 @@ GLContextWGL::MakeCurrentImpl(bool aForce)
 }
 
 bool
-GLContextWGL::IsCurrent()
-{
+GLContextWGL::IsCurrent() {
     return sWGLLib.fGetCurrentContext() == mContext;
 }
 
 void
-GLContextWGL::SetIsDoubleBuffered(bool aIsDB)
-{
+GLContextWGL::SetIsDoubleBuffered(bool aIsDB) {
     mIsDoubleBuffered = aIsDB;
 }
 
 bool
-GLContextWGL::IsDoubleBuffered() const
-{
+GLContextWGL::IsDoubleBuffered() {
     return mIsDoubleBuffered;
 }
 
 bool
-GLContextWGL::SupportsRobustness() const
+GLContextWGL::SupportsRobustness()
 {
     return sWGLLib.HasRobustness();
 }
@@ -379,7 +376,7 @@ GetMaxSize(HDC hDC, int format, gfxIntSize& size)
 }
 
 static bool
-IsValidSizeForFormat(HDC hDC, int format,
+IsValidSizeForFormat(HDC hDC, int format, 
                      const gfxIntSize& requested)
 {
     gfxIntSize max;
@@ -392,6 +389,12 @@ IsValidSizeForFormat(HDC hDC, int format,
         return false;
 
     return true;
+}
+
+bool
+GLContextWGL::ResizeOffscreen(const gfx::IntSize& aNewSize)
+{
+    return ResizeScreenBuffer(aNewSize);
 }
 
 static GLContextWGL *
@@ -408,8 +411,8 @@ GLContextProviderWGL::CreateForWindow(nsIWidget *aWidget)
     }
 
     /**
-       * We need to make sure we call SetPixelFormat -after- calling
-       * EnsureInitialized, otherwise it can load/unload the dll and
+       * We need to make sure we call SetPixelFormat -after- calling 
+       * EnsureInitialized, otherwise it can load/unload the dll and 
        * wglCreateContext will fail.
        */
 
@@ -561,13 +564,13 @@ CreateWindowOffscreenContext()
     if (!shareContext) {
         return nullptr;
     }
-
+    
     HDC dc;
     HWND win = sWGLLib.CreateDummyWindow(&dc);
     if (!win) {
         return nullptr;
     }
-
+    
     HGLRC context = sWGLLib.fCreateContext(dc);
     if (sWGLLib.HasRobustness()) {
         int attribs[] = {

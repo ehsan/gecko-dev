@@ -10,11 +10,9 @@
 #include "nsAccessibilityService.h"
 #include "nsIAccessibleTypes.h"
 #include "DocAccessible.h"
-#include "HTMLListAccessible.h"
 #include "Role.h"
 #include "States.h"
 #include "TextAttrs.h"
-#include "TextRange.h"
 #include "TreeWalker.h"
 
 #include "nsCaret.h"
@@ -233,14 +231,20 @@ HyperTextAccessible::TextSubstring(int32_t aStartOffset, int32_t aEndOffset,
   endChild->AppendTextTo(aText, 0, endOffset - endChildOffset);
 }
 
-int32_t
-HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
-                                      bool aIsEndOffset) const
+Accessible*
+HyperTextAccessible::DOMPointToHypertextOffset(nsINode* aNode,
+                                               int32_t aNodeOffset,
+                                               int32_t* aHyperTextOffset,
+                                               bool aIsEndOffset) const
 {
-  if (!aNode)
-    return 0;
+  if (!aHyperTextOffset)
+    return nullptr;
+  *aHyperTextOffset = 0;
 
-  uint32_t offset = 0;
+  if (!aNode)
+    return nullptr;
+
+  uint32_t addTextOffset = 0;
   nsINode* findNode = nullptr;
 
   if (aNodeOffset == -1) {
@@ -250,11 +254,10 @@ HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
     // For text nodes, aNodeOffset comes in as a character offset
     // Text offset will be added at the end, if we find the offset in this hypertext
     // We want the "skipped" offset into the text (rendered text without the extra whitespace)
-    nsIFrame* frame = aNode->AsContent()->GetPrimaryFrame();
-    NS_ENSURE_TRUE(frame, 0);
-
-    nsresult rv = ContentToRenderedOffset(frame, aNodeOffset, &offset);
-    NS_ENSURE_SUCCESS(rv, 0);
+    nsIFrame *frame = aNode->AsContent()->GetPrimaryFrame();
+    NS_ENSURE_TRUE(frame, nullptr);
+    nsresult rv = ContentToRenderedOffset(frame, aNodeOffset, &addTextOffset);
+    NS_ENSURE_SUCCESS(rv, nullptr);
     // Get the child node and 
     findNode = aNode;
 
@@ -273,7 +276,8 @@ HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
         if (aNode == GetNode()) {
           // Case #1: this accessible has no children and thus has empty text,
           // we can only be at hypertext offset 0.
-          return 0;
+          *aHyperTextOffset = 0;
+          return nullptr;
         }
 
         // Case #2: there are no children, we're at this node.
@@ -291,7 +295,7 @@ HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
 
   // Get accessible for this findNode, or if that node isn't accessible, use the
   // accessible for the next DOM node which has one (based on forward depth first search)
-  Accessible* descendant = nullptr;
+  Accessible* descendantAcc = nullptr;
   if (findNode) {
     nsCOMPtr<nsIContent> findContent(do_QueryInterface(findNode));
     if (findContent && findContent->IsHTML() &&
@@ -301,34 +305,20 @@ HyperTextAccessible::DOMPointToOffset(nsINode* aNode, int32_t aNodeOffset,
                                  nsGkAtoms::_true,
                                  eIgnoreCase)) {
       // This <br> is the hacky "bogus node" used when there is no text in a control
-      return 0;
+      *aHyperTextOffset = 0;
+      return nullptr;
     }
-
-    descendant = mDoc->GetAccessible(findNode);
-    if (!descendant && findNode->IsContent()) {
-      Accessible* container = mDoc->GetContainerAccessible(findNode);
-      if (container) {
-        TreeWalker walker(container, findNode->AsContent(),
-                          TreeWalker::eWalkContextTree);
-        descendant = walker.NextChild();
-      }
-    }
+    descendantAcc = GetFirstAvailableAccessible(findNode);
   }
 
-  return TransformOffset(descendant, offset, aIsEndOffset);
-}
-
-int32_t
-HyperTextAccessible::TransformOffset(Accessible* aDescendant,
-                                     int32_t aOffset, bool aIsEndOffset) const
-{
-  // From the descendant, go up and get the immediate child of this hypertext.
-  int32_t offset = aOffset;
-  Accessible* descendant = aDescendant;
-  while (descendant) {
-    Accessible* parent = descendant->Parent();
-    if (parent == this)
-      return GetChildOffset(descendant) + offset;
+  // From the descendant, go up and get the immediate child of this hypertext
+  Accessible* childAccAtOffset = nullptr;
+  while (descendantAcc) {
+    Accessible* parentAcc = descendantAcc->Parent();
+    if (parentAcc == this) {
+      childAccAtOffset = descendantAcc;
+      break;
+    }
 
     // This offset no longer applies because the passed-in text object is not
     // a child of the hypertext. This happens when there are nested hypertexts,
@@ -338,16 +328,42 @@ HyperTextAccessible::TransformOffset(Accessible* aDescendant,
     // is not at 0 offset then the returned offset should be after an embedded
     // character the original point belongs to.
     if (aIsEndOffset)
-      offset = (offset > 0 || descendant->IndexInParent() > 0) ? 1 : 0;
+      addTextOffset = (addTextOffset > 0 || descendantAcc->IndexInParent() > 0) ? 1 : 0;
     else
-      offset = 0;
+      addTextOffset = 0;
 
-    descendant = parent;
+    descendantAcc = parentAcc;
   }
 
-  // If the given a11y point cannot be mapped into offset relative this hypertext
-  // offset then return length as fallback value.
-  return CharacterCount();
+  // Loop through, adding offsets until we reach childAccessible
+  // If childAccessible is null we will end up adding up the entire length of
+  // the hypertext, which is good -- it just means our offset node
+  // came after the last accessible child's node
+  uint32_t childCount = ChildCount();
+
+  uint32_t childIdx = 0;
+  Accessible* childAcc = nullptr;
+  for (; childIdx < childCount; childIdx++) {
+    childAcc = mChildren[childIdx];
+    if (childAcc == childAccAtOffset)
+      break;
+
+    *aHyperTextOffset += nsAccUtils::TextLength(childAcc);
+  }
+
+  if (childIdx < childCount) {
+    *aHyperTextOffset += addTextOffset;
+    NS_ASSERTION(childAcc == childAccAtOffset,
+                 "These should be equal whenever we exit loop and childAcc != nullptr");
+
+    if (childIdx < childCount - 1 ||
+        addTextOffset < nsAccUtils::TextLength(childAccAtOffset)) {
+      // If not at end of last text node, we will return the accessible we were in
+      return childAccAtOffset;
+    }
+  }
+
+  return nullptr;
 }
 
 bool
@@ -436,31 +452,6 @@ HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
       return -1;
 
     child = text->GetChildAt(childIdx);
-
-    // HTML list items may need special processing because PeekOffset doesn't
-    // work with list bullets.
-    if (text->IsHTMLListItem()) {
-      HTMLLIAccessible* li = text->AsHTMLListItem();
-      if (child == li->Bullet()) {
-        // It works only when the bullet is one single char.
-        if (aDirection == eDirPrevious)
-          return text != this ? TransformOffset(text, 0, false) : 0;
-
-        if (aAmount == eSelectEndLine || aAmount == eSelectLine) {
-          if (text != this)
-            return TransformOffset(text, 1, true);
-
-          // Ask a text leaf next (if not empty) to the bullet for an offset
-          // since list item may be multiline.
-          return aOffset + 1 < CharacterCount() ?
-            FindOffset(aOffset + 1, aDirection, aAmount, aWordMovementType) : 1;
-        }
-
-        // Case of word and char boundaries.
-        return text != this ? TransformOffset(text, 1, true) : 1;
-      }
-    }
-
     innerOffset -= text->GetChildOffset(childIdx);
 
     text = child->AsHyperText();
@@ -499,21 +490,18 @@ HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
   if (!pos.mResultContent)
     return -1;
 
-  // Turn the resulting DOM point into an offset.
-  int32_t hyperTextOffset = DOMPointToOffset(pos.mResultContent,
-                                             pos.mContentOffset,
-                                             aDirection == eDirNext);
+  // Turn the resulting node and offset into a hyperTextOffset
+  // If finalAccessible is nullptr, then DOMPointToHypertextOffset() searched
+  // through the hypertext children without finding the node/offset position.
+  int32_t hyperTextOffset = 0;
+  Accessible* finalAccessible =
+    DOMPointToHypertextOffset(pos.mResultContent, pos.mContentOffset,
+                              &hyperTextOffset, aDirection == eDirNext);
 
-  if (aDirection == eDirPrevious) {
-    // If we reached the end during search, this means we didn't find the DOM point
-    // and we're actually at the start of the paragraph
-    if (hyperTextOffset == CharacterCount())
-      return 0;
-
-    // PeekOffset stops right before bullet so return 0 to workaround it.
-    if (IsHTMLListItem() && aAmount == eSelectBeginLine && hyperTextOffset == 1)
-      return 0;
-  }
+  // If we reached the end during search, this means we didn't find the DOM point
+  // and we're actually at the start of the paragraph
+  if (!finalAccessible && aDirection == eDirPrevious)
+    return 0;
 
   return hyperTextOffset;
 }
@@ -1116,13 +1104,16 @@ HyperTextAccessible::SetSelectionRange(int32_t aStartPos, int32_t aEndPos)
   if (isFocusable)
     TakeFocus();
 
+  // Set the selection
+  SetSelectionBoundsAt(0, aStartPos, aEndPos);
+
+  // If range 0 was successfully set, clear any additional selection 
+  // ranges remaining from previous selection
   Selection* domSel = DOMSelection();
   NS_ENSURE_STATE(domSel);
 
-  // Set up the selection.
   for (int32_t idx = domSel->GetRangeCount() - 1; idx > 0; idx--)
     domSel->RemoveRange(domSel->GetRangeAt(idx));
-  SetSelectionBoundsAt(0, aStartPos, aEndPos);
 
   // When selection is done, move the focus to the selection if accessible is
   // not focusable. That happens when selection is set within hypertext
@@ -1181,7 +1172,9 @@ HyperTextAccessible::CaretOffset() const
       return -1;
   }
 
-  return DOMPointToOffset(focusNode, focusOffset);
+  int32_t caretOffset = -1;
+  DOMPointToHypertextOffset(focusNode, focusOffset, &caretOffset);
+  return caretOffset;
 }
 
 int32_t
@@ -1299,6 +1292,13 @@ HyperTextAccessible::GetCaretRect(nsIWidget** aWidget)
   return caretRect;
 }
 
+already_AddRefed<nsFrameSelection>
+HyperTextAccessible::FrameSelection() const
+{
+  nsIFrame* frame = GetFrame();
+  return frame ? frame->GetFrameSelection() : nullptr;
+}
+
 void
 HyperTextAccessible::GetSelectionDOMRanges(int16_t aType,
                                            nsTArray<nsRange*>* aRanges)
@@ -1383,8 +1383,13 @@ HyperTextAccessible::SelectionBoundsAt(int32_t aSelectionNum,
     endOffset = tempOffset;
   }
 
-  *aStartOffset = DOMPointToOffset(startNode, startOffset);
-  *aEndOffset = DOMPointToOffset(endNode, endOffset, true);
+  Accessible* startAccessible =
+    DOMPointToHypertextOffset(startNode, startOffset, aStartOffset);
+  if (!startAccessible) {
+    *aStartOffset = 0; // Could not find start point within this hypertext, so starts before
+  }
+
+  DOMPointToHypertextOffset(endNode, endOffset, aEndOffset, true);
   return true;
 }
 
@@ -1502,33 +1507,6 @@ HyperTextAccessible::ScrollSubstringToPoint(int32_t aStartOffset,
     }
     frame = parentFrame;
   }
-}
-
-void
-HyperTextAccessible::EnclosingRange(a11y::TextRange& aRange) const
-{
-}
-
-void
-HyperTextAccessible::SelectionRanges(nsTArray<a11y::TextRange>* aRanges) const
-{
-}
-
-void
-HyperTextAccessible::VisibleRanges(nsTArray<a11y::TextRange>* aRanges) const
-{
-}
-
-void
-HyperTextAccessible::RangeByChild(Accessible* aChild,
-                                  a11y::TextRange& aRange) const
-{
-}
-
-void
-HyperTextAccessible::RangeAtPoint(int32_t aX, int32_t aY,
-                                  a11y::TextRange& aRange) const
-{
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1799,6 +1777,33 @@ HyperTextAccessible::GetDOMPointByFrameOffset(nsIFrame* aFrame, int32_t aOffset,
 
 // HyperTextAccessible
 nsresult
+HyperTextAccessible::RangeBoundToHypertextOffset(nsRange* aRange,
+                                                 bool aIsStartBound,
+                                                 bool aIsStartHTOffset,
+                                                 int32_t* aHTOffset)
+{
+  nsINode* node = nullptr;
+  int32_t nodeOffset = 0;
+
+  if (aIsStartBound) {
+    node = aRange->GetStartParent();
+    nodeOffset = aRange->StartOffset();
+  } else {
+    node = aRange->GetEndParent();
+    nodeOffset = aRange->EndOffset();
+  }
+
+  Accessible* startAcc =
+    DOMPointToHypertextOffset(node, nodeOffset, aHTOffset);
+
+  if (aIsStartHTOffset && !startAcc)
+    *aHTOffset = 0;
+
+  return NS_OK;
+}
+
+// HyperTextAccessible
+nsresult
 HyperTextAccessible::GetSpellTextAttribute(nsINode* aNode,
                                            int32_t aNodeOffset,
                                            int32_t* aHTStartOffset,
@@ -1818,6 +1823,7 @@ HyperTextAccessible::GetSpellTextAttribute(nsINode* aNode,
     return NS_OK;
 
   int32_t startHTOffset = 0, endHTOffset = 0;
+  nsresult rv = NS_OK;
   for (int32_t idx = 0; idx < rangeCount; idx++) {
     nsRange* range = domSel->GetRangeAt(idx);
     if (range->Collapsed())
@@ -1838,9 +1844,11 @@ HyperTextAccessible::GetSpellTextAttribute(nsINode* aNode,
     int32_t startOffset = range->StartOffset();
     if (nsContentUtils::ComparePoints(startNode, startOffset, aNode,
                                       aNodeOffset) <= 0) {
-      startHTOffset = DOMPointToOffset(startNode, startOffset);
+      rv = RangeBoundToHypertextOffset(range, true, true, &startHTOffset);
+      NS_ENSURE_SUCCESS(rv, rv);
 
-      endHTOffset = DOMPointToOffset(endNode, endOffset);
+      rv = RangeBoundToHypertextOffset(range, false, false, &endHTOffset);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       if (startHTOffset > *aHTStartOffset)
         *aHTStartOffset = startHTOffset;
@@ -1857,12 +1865,13 @@ HyperTextAccessible::GetSpellTextAttribute(nsINode* aNode,
     }
 
     // This range came after the point.
-    endHTOffset = DOMPointToOffset(startNode, startOffset);
+    rv = RangeBoundToHypertextOffset(range, true, false, &endHTOffset);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (idx > 0) {
-      nsRange* prevRange = domSel->GetRangeAt(idx - 1);
-      startHTOffset = DOMPointToOffset(prevRange->GetEndParent(),
-                                       prevRange->EndOffset());
+      rv = RangeBoundToHypertextOffset(domSel->GetRangeAt(idx - 1), false,
+                                       true, &startHTOffset);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
 
     if (startHTOffset > *aHTStartOffset)
@@ -1878,9 +1887,9 @@ HyperTextAccessible::GetSpellTextAttribute(nsINode* aNode,
   // the point is not in a range, that we do not need to compute an end offset,
   // and that we should use the end offset of the last range to compute the
   // start offset of the text attribute range.
-  nsRange* prevRange = domSel->GetRangeAt(rangeCount - 1);
-  startHTOffset = DOMPointToOffset(prevRange->GetEndParent(),
-                                   prevRange->EndOffset());
+  rv = RangeBoundToHypertextOffset(domSel->GetRangeAt(rangeCount - 1), false,
+                                   true, &startHTOffset);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (startHTOffset > *aHTStartOffset)
     *aHTStartOffset = startHTOffset;

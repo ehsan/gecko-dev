@@ -118,24 +118,13 @@ var SelectionHandler = {
       return;
     }
 
-    // Only use selectAtPoint for editable content and avoid that for inputs,
-    // as we can expand caret to selection manually more precisely. We can use
-    // selectAtPoint for inputs too though, but only once bug 881938 is fully
-    // resolved.
-    if(Util.isEditableContent(this._targetElement)) {
-      // Similar to _onSelectionStart - we need to create initial selection
-      // but without the initialization bits.
-      let framePoint = this._clientPointToFramePoint({ xPos: aX, yPos: aY });
-      if (!this._domWinUtils.selectAtPoint(framePoint.xPos, framePoint.yPos,
-                                           Ci.nsIDOMWindowUtils.SELECT_CHARACTER)) {
-        this._onFail("failed to set selection at point");
-        return;
-      }
-    } else if (this._targetElement.selectionStart == 0 || aMarker == "end") {
-      // Expand caret forward or backward depending on direction
-      this._targetElement.selectionEnd++;
-    } else {
-      this._targetElement.selectionStart--;
+    // Similar to _onSelectionStart - we need to create initial selection
+    // but without the initialization bits.
+    let framePoint = this._clientPointToFramePoint({ xPos: aX, yPos: aY });
+    if (!this._domWinUtils.selectAtPoint(framePoint.xPos, framePoint.yPos,
+                                         Ci.nsIDOMWindowUtils.SELECT_CHARACTER)) {
+      this._onFail("failed to set selection at point");
+      return;
     }
 
     // We bail if things get out of sync here implying we missed a message.
@@ -189,7 +178,14 @@ var SelectionHandler = {
       return;
     }
 
-    this._handleSelectionPoint(aMsg, false);
+    // Update selection in the doc
+    let pos = null;
+    if (aMsg.change == "start") {
+      pos = aMsg.start;
+    } else {
+      pos = aMsg.end;
+    }
+    this._handleSelectionPoint(aMsg.change, pos, false);
   },
 
   /*
@@ -206,7 +202,15 @@ var SelectionHandler = {
       return;
     }
 
-    this._handleSelectionPoint(aMsg, true);
+    // Update selection in the doc
+    let pos = null;
+    if (aMsg.change == "start") {
+      pos = aMsg.start;
+    } else {
+      pos = aMsg.end;
+    }
+
+    this._handleSelectionPoint(aMsg.change, pos, true);
     this._selectionMoveActive = false;
     
     // _handleSelectionPoint may set a scroll timer, so this must

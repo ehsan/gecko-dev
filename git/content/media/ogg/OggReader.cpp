@@ -24,9 +24,6 @@ extern "C" {
 #include "VorbisUtils.h"
 #include "MediaMetadataManager.h"
 #include "nsISeekableStream.h"
-#include "gfx2DGlue.h"
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 
@@ -291,7 +288,7 @@ nsresult OggReader::ReadMetadata(MediaInfo* aInfo,
 
     nsIntSize frameSize(mTheoraState->mInfo.frame_width,
                         mTheoraState->mInfo.frame_height);
-    if (IsValidVideoRegion(frameSize, picture, displaySize)) {
+    if (VideoInfo::ValidateVideoRegion(frameSize, picture, displaySize)) {
       // Video track's frame sizes will not overflow. Activate the video track.
       mInfo.mVideo.mHasVideo = true;
       mInfo.mVideo.mDisplay = displaySize;
@@ -768,7 +765,7 @@ nsresult OggReader::DecodeTheora(ogg_packet* aPacket, int64_t aTimeThreshold)
                                      b,
                                      isKeyframe,
                                      aPacket->granulepos,
-                                     ToIntRect(mPicture));
+                                     mPicture);
     if (!v) {
       // There may be other reasons for this error, but for
       // simplicity just assume the worst case: out of memory.
@@ -1090,8 +1087,8 @@ nsresult OggReader::GetSeekRanges(nsTArray<SeekRange>& aRanges)
     if (startTime != -1 &&
         ((endTime = RangeEndTime(endOffset)) != -1))
     {
-      NS_WARN_IF_FALSE(startTime < endTime,
-                       "Start time must be before end time");
+      NS_ASSERTION(startTime < endTime,
+                   "Start time must be before end time");
       aRanges.AppendElement(SeekRange(startOffset,
                                       endOffset,
                                       startTime,

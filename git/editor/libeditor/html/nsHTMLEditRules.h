@@ -17,6 +17,7 @@
 #include "nsSelectionState.h"
 #include "nsTArray.h"
 #include "nsTextEditRules.h"
+#include "nsTraceRefcnt.h"
 #include "nscore.h"
 
 class nsHTMLEditor;
@@ -123,8 +124,6 @@ protected:
     kBeforeBlock,
     kBlockEnd
   };
-
-  void InitFields();
 
   // nsHTMLEditRules implementation methods
   nsresult WillInsert(nsISelection *aSelection, bool *aCancel);

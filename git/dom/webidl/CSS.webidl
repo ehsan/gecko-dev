@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Pref="layout.css.supports-rule.enabled"]
+[PrefControlled]
 interface CSS {
   [Throws, Pref="layout.css.supports-rule.enabled"]
   static boolean supports(DOMString property, DOMString value);

@@ -1,15 +1,16 @@
-// Error().stack (ScriptFrameIter) should see through JS_SaveFrameChain.
-function gamma() {
+// Error().stack (ScriptFrameIter) should not see through JS_SaveFrameChain.
+function h() {
     stack = Error().stack;
 }
-function beta() {
-    evaluate("gamma()", {saveFrameChain: true});
+function g() {
+    evaluate("h()", {saveFrameChain: true});
 }
-function alpha() {
-    beta();
+function f() {
+    g();
 }
-alpha();
-
-assertEq(/alpha/.test(stack), true);
-assertEq(/beta/.test(stack), true);
-assertEq(/gamma/.test(stack), true);
+f();
+var lines = stack.split("\n");
+assertEq(lines.length, 3);
+assertEq(lines[0].startsWith("h@"), true);
+assertEq(lines[1].startsWith("@@evaluate"), true);
+assertEq(lines[2], "");

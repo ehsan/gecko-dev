@@ -115,7 +115,6 @@ namespace mozilla {
 
 class OSXNotificationInfo : public RefCounted<OSXNotificationInfo> {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(OSXNotificationInfo)
   OSXNotificationInfo(NSString *name, nsIObserver *observer,
                       const nsAString & alertCookie);
   ~OSXNotificationInfo();

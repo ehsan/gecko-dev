@@ -13,14 +13,13 @@ function test() {
     iconURL: "https://example.com/browser/browser/base/content/test/general/moz.png"
   };
   runSocialTestWithProvider(manifest, function (finishcb) {
-    SocialSidebar.show();
     runSocialTests(tests, undefined, undefined, finishcb);
   });
 }
 
 var tests = {
   testSidebarMessage: function(next) {
-    let port = SocialSidebar.provider.getWorkerPort();
+    let port = Social.provider.getWorkerPort();
     ok(port, "provider has a port");
     port.postMessage({topic: "test-init"});
     port.onmessage = function (e) {
@@ -36,14 +35,14 @@ var tests = {
     };
   },
   testIsVisible: function(next) {
-    let port = SocialSidebar.provider.getWorkerPort();
+    let port = Social.provider.getWorkerPort();
     port.postMessage({topic: "test-init"});
     port.onmessage = function (e) {
       let topic = e.data.topic;
       switch (topic) {
         case "got-isVisible-response":
           is(e.data.result, true, "Sidebar should be visible by default");
-          SocialSidebar.toggleSidebar();
+          Social.toggleSidebar();
           port.close();
           next();
       }
@@ -51,13 +50,14 @@ var tests = {
     port.postMessage({topic: "test-isVisible"});
   },
   testIsNotVisible: function(next) {
-    let port = SocialSidebar.provider.getWorkerPort();
+    let port = Social.provider.getWorkerPort();
     port.postMessage({topic: "test-init"});
     port.onmessage = function (e) {
       let topic = e.data.topic;
       switch (topic) {
         case "got-isVisible-response":
           is(e.data.result, false, "Sidebar should be hidden");
+          Services.prefs.clearUserPref("social.sidebar.open");
           port.close();
           next();
       }

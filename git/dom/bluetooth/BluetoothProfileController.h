@@ -8,9 +8,8 @@
 #define mozilla_dom_bluetooth_bluetoothprofilecontroller_h__
 
 #include "BluetoothUuid.h"
-#include "mozilla/RefPtr.h"
 #include "nsAutoPtr.h"
-#include "nsITimer.h"
+#include "mozilla/RefPtr.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -60,7 +59,6 @@ typedef void (*BluetoothProfileControllerCallback)();
 class BluetoothProfileController : public RefCounted<BluetoothProfileController>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(BluetoothProfileController)
   /**
    * @param aConnect:       If it's a connect request, the value should be set
    *                        to true. For disconnect request, set it to false.
@@ -89,23 +87,19 @@ public:
    * The controller starts connecting/disconnecting profiles one by one
    * according to the order in array mProfiles.
    */
-  void StartSession();
+  void Start();
 
   /**
-   * The original DOM request would be fired in this function.
+   * It is invoked after a profile has tried to establish the connection.
+   * An error string is returned when it fails.
    */
-  void EndSession();
+  void OnConnect(const nsAString& aErrorStr);
 
   /**
-   * It would be invoked after connect/disconnect operation is completed.
-   * An error string would be returned when it fails.
+   * It is invoked after a profile has tried to drop the connection.
+   * An error string is returned when it fails.
    */
-  void NotifyCompletion(const nsAString& aErrorStr);
-
-  /**
-   * It is invoked after a profile has reached timeout, reset mProfiles.
-   */
-  void GiveupAndContinue();
+  void OnDisconnect(const nsAString& aErrorStr);
 
 private:
   // Setup data member mProfiles
@@ -126,7 +120,6 @@ private:
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
   BluetoothProfileControllerCallback mCallback;
 
-  bool mCurrentProfileFinished;
   bool mSuccess;
   int8_t mProfilesIndex;
   nsTArray<BluetoothProfileManagerBase*> mProfiles;
@@ -136,9 +129,6 @@ private:
     uint32_t cod;
     BluetoothServiceClass service;
   } mTarget;
-
-  nsCOMPtr<nsITimer> mTimer;
-  nsCOMPtr<nsITimerCallback> mCheckProfileStatusCallback;
 };
 
 END_BLUETOOTH_NAMESPACE

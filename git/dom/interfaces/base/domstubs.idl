@@ -28,6 +28,7 @@ interface nsIDOMNode;
 interface nsIDOMNodeList;
 interface nsIDOMProcessingInstruction;
 interface nsIDOMText;
+interface nsIDOMDOMStringList;
 interface nsIDOMClientRect;
 interface nsIDOMClientRectList;
 

@@ -13,7 +13,7 @@ SimpleTest.waitForExplicitFinish();
 SimpleTest.waitForFocus(function() {
   document.querySelector("div").focus();
   document.execCommand("stylewithcss", false, true);
-  sendKey("RETURN");
+  sendKey("ENTER");
   sendChar("x");
   is(document.querySelector("div").innerHTML, "x<br>",
      "No <font> tag should be generated");

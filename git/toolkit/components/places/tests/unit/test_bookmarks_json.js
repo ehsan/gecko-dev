@@ -75,15 +75,15 @@ let test_bookmarks = {
 let bookmarksExportedFile;
 
 add_task(function test_import_bookmarks() {
-  let bookmarksFile = OS.Path.join(do_get_cwd().path, "bookmarks.json");
+  bookmarksFile = do_get_file("bookmarks.json");
 
   yield BookmarkJSONUtils.importFromFile(bookmarksFile, true);
   yield testImportedBookmarks();
 });
 
 add_task(function test_export_bookmarks() {
-  bookmarksExportedFile = OS.Path.join(OS.Constants.Path.profileDir,
-                                       "bookmarks.exported.json");
+  bookmarksExportedFile = gProfD;
+  bookmarksExportedFile.append("bookmarks.exported.json");
   yield BookmarkJSONUtils.exportToFile(bookmarksExportedFile);
 });
 
@@ -192,9 +192,13 @@ function checkItem(aExpected, aNode) {
           do_check_eq((yield PlacesUtils.getCharsetForURI(testURI)), aExpected.charset);
           break;
         case "feedUrl":
-          let livemark = yield PlacesUtils.livemarks.getLivemark({ id: id });
-          do_check_eq(livemark.siteURI.spec, aExpected.url);
-          do_check_eq(livemark.feedURI.spec, aExpected.feedUrl);
+          yield PlacesUtils.livemarks.getLivemark(
+            { id: id },
+            (aStatus, aLivemark) => {
+              do_check_true(Components.isSuccessCode(aStatus));
+              do_check_eq(aLivemark.siteURI.spec, aExpected.url);
+              do_check_eq(aLivemark.feedURI.spec, aExpected.feedUrl);
+            });
           break;
         case "children":
           let folder = aNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);

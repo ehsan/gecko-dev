@@ -11,6 +11,7 @@
 #include "mozilla/dom/MozOtaStatusEvent.h"
 #include "mozilla/dom/USSDReceivedEvent.h"
 #include "mozilla/Preferences.h"
+#include "nsDOMEvent.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMDOMRequest.h"
 #include "nsIPermissionManager.h"

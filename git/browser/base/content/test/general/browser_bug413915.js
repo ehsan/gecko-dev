@@ -1,6 +1,3 @@
-XPCOMUtils.defineLazyModuleGetter(this, "Feeds",
-  "resource:///modules/Feeds.jsm");
-
 function test() {
   var exampleUri = makeURI("http://example.com/");
   var secman = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
@@ -8,7 +5,7 @@ function test() {
 
   function testIsFeed(aTitle, aHref, aType, aKnown) {
     var link = { title: aTitle, href: aHref, type: aType };
-    return Feeds.isValidFeed(link, principal, aKnown);
+    return isValidFeed(link, principal, aKnown);
   }
 
   var href = "http://example.com/feed/";

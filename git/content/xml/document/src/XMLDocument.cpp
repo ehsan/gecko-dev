@@ -20,6 +20,7 @@
 #include "nsIBaseWindow.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocumentType.h"
+#include "nsINameSpaceManager.h"
 #include "nsCOMPtr.h"
 #include "nsXPIDLString.h"
 #include "nsIHttpChannel.h"
@@ -33,7 +34,7 @@
 #include "mozilla/dom/Attr.h"
 #include "nsCExternalHandlerService.h"
 #include "nsMimeTypes.h"
-#include "mozilla/EventListenerManager.h"
+#include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsJSUtils.h"
@@ -399,7 +400,7 @@ XMLDocument::Load(const nsAString& aUrl, ErrorResult& aRv)
   // be loaded.  Note that we need to hold a strong ref to |principal|
   // here, because ResetToURI will null out our node principal before
   // setting the new one.
-  nsRefPtr<EventListenerManager> elm(mListenerManager);
+  nsRefPtr<nsEventListenerManager> elm(mListenerManager);
   mListenerManager = nullptr;
 
   // When we are called from JS we can find the load group for the page,

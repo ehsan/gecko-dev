@@ -334,7 +334,8 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
         return NS_ERROR_FAILURE;
     }
 
-    nsRefPtr<nsXPCWrappedJSClass> clasp = nsXPCWrappedJSClass::GetNewOrUsed(cx, aIID);
+    nsRefPtr<nsXPCWrappedJSClass> clasp;
+    nsXPCWrappedJSClass::GetNewOrUsed(cx, aIID, getter_AddRefs(clasp));
     if (!clasp)
         return NS_ERROR_FAILURE;
 
@@ -354,7 +355,9 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
         // Make a new root wrapper, because there is no existing
         // root wrapper, and the wrapper we are trying to make isn't
         // a root.
-        nsRefPtr<nsXPCWrappedJSClass> rootClasp = nsXPCWrappedJSClass::GetNewOrUsed(cx, NS_GET_IID(nsISupports));
+        nsRefPtr<nsXPCWrappedJSClass> rootClasp;
+        nsXPCWrappedJSClass::GetNewOrUsed(cx, NS_GET_IID(nsISupports),
+                                          getter_AddRefs(rootClasp));
         if (!rootClasp)
             return NS_ERROR_FAILURE;
 
@@ -450,7 +453,7 @@ nsXPCWrappedJS::Unlink()
     if (mOuter) {
         XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
         if (rt->GCIsRunning()) {
-            nsContentUtils::DeferredFinalize(mOuter.forget().take());
+            nsContentUtils::DeferredFinalize(mOuter.forget().get());
         } else {
             mOuter = nullptr;
         }
@@ -488,7 +491,7 @@ nsXPCWrappedJS::FindInherited(REFNSIID aIID)
 }
 
 NS_IMETHODIMP
-nsXPCWrappedJS::GetInterfaceInfo(nsIInterfaceInfo** infoResult)
+nsXPCWrappedJS::GetInterfaceInfo(nsIInterfaceInfo** info)
 {
     MOZ_ASSERT(GetClass(), "wrapper without class");
     MOZ_ASSERT(GetClass()->GetInterfaceInfo(), "wrapper class without interface");
@@ -496,10 +499,9 @@ nsXPCWrappedJS::GetInterfaceInfo(nsIInterfaceInfo** infoResult)
     // Since failing to get this info will crash some platforms(!), we keep
     // mClass valid at shutdown time.
 
-    nsCOMPtr<nsIInterfaceInfo> info = GetClass()->GetInterfaceInfo();
-    if (!info)
+    if (!(*info = GetClass()->GetInterfaceInfo()))
         return NS_ERROR_UNEXPECTED;
-    info.forget(infoResult);
+    NS_ADDREF(*info);
     return NS_OK;
 }
 

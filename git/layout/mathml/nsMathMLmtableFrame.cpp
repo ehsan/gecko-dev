@@ -7,7 +7,7 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsRenderingContext.h"
 #include "nsCSSRendering.h"
 
@@ -434,7 +434,7 @@ nsMathMLmtableOuterFrame::~nsMathMLmtableOuterFrame()
 {
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmtableOuterFrame::AttributeChanged(int32_t  aNameSpaceID,
                                            nsIAtom* aAttribute,
                                            int32_t  aModType)
@@ -545,7 +545,7 @@ nsMathMLmtableOuterFrame::GetRowFrameAt(nsPresContext* aPresContext,
   return nullptr;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmtableOuterFrame::Reflow(nsPresContext*          aPresContext,
                                  nsHTMLReflowMetrics&     aDesiredSize,
                                  const nsHTMLReflowState& aReflowState,
@@ -663,7 +663,7 @@ nsMathMLmtableFrame::~nsMathMLmtableFrame()
 {
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmtableFrame::SetInitialChildList(ChildListID  aListID,
                                          nsFrameList& aChildList)
 {
@@ -700,7 +700,7 @@ nsMathMLmtrFrame::~nsMathMLmtrFrame()
 {
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmtrFrame::AttributeChanged(int32_t  aNameSpaceID,
                                    nsIAtom* aAttribute,
                                    int32_t  aModType)
@@ -785,7 +785,7 @@ nsMathMLmtdFrame::GetColSpan()
   return colspan;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmtdFrame::AttributeChanged(int32_t  aNameSpaceID,
                                    nsIAtom* aAttribute,
                                    int32_t  aModType)
@@ -888,7 +888,7 @@ nsMathMLmtdInnerFrame::~nsMathMLmtdInnerFrame()
   mUniqueStyleText->Destroy(PresContext());
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmtdInnerFrame::Reflow(nsPresContext*          aPresContext,
                               nsHTMLReflowMetrics&     aDesiredSize,
                               const nsHTMLReflowState& aReflowState,

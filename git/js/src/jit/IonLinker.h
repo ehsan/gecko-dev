@@ -44,9 +44,6 @@ class Linker
         if (bytesNeeded >= MAX_BUFFER_SIZE)
             return fail(cx);
 
-        // ExecutableAllocator requires bytesNeeded to be word-size aligned.
-        bytesNeeded = AlignBytes(bytesNeeded, sizeof(void *));
-
         uint8_t *result = (uint8_t *)execAlloc->alloc(bytesNeeded, &pool, kind);
         if (!result)
             return fail(cx);
@@ -57,8 +54,8 @@ class Linker
         // Bump the code up to a nice alignment.
         codeStart = (uint8_t *)AlignBytes((uintptr_t)codeStart, CodeAlignment);
         uint32_t headerSize = codeStart - result;
-        JitCode *code = JitCode::New<allowGC>(cx, codeStart, bytesNeeded - headerSize,
-                                              headerSize, pool, kind);
+        JitCode *code = JitCode::New<allowGC>(cx, codeStart,
+                                              bytesNeeded - headerSize, pool);
         if (!code)
             return nullptr;
         if (masm.oom())
@@ -81,7 +78,7 @@ class Linker
 
     template <AllowGC allowGC>
     JitCode *newCode(JSContext *cx, JSC::CodeKind kind) {
-        return newCode<allowGC>(cx, cx->runtime()->jitRuntime()->execAlloc(), kind);
+        return newCode<allowGC>(cx, cx->compartment()->jitCompartment()->execAlloc(), kind);
     }
 
     JitCode *newCodeForIonScript(JSContext *cx) {
@@ -89,9 +86,9 @@ class Linker
         // ARM does not yet use implicit interrupt checks, see bug 864220.
         return newCode<CanGC>(cx, JSC::ION_CODE);
 #else
-        // The caller must lock the runtime against interrupt requests, as the
-        // thread requesting an interrupt may use the executable allocator below.
-        JS_ASSERT(cx->runtime()->currentThreadOwnsInterruptLock());
+        // The caller must lock the runtime against operation callback triggers,
+        // as the triggering thread may use the executable allocator below.
+        JS_ASSERT(cx->runtime()->currentThreadOwnsOperationCallbackLock());
 
         JSC::ExecutableAllocator *alloc = cx->runtime()->jitRuntime()->getIonAlloc(cx);
         if (!alloc)

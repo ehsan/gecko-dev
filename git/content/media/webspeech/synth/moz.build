@@ -16,6 +16,7 @@ if CONFIG['MOZ_WEBSPEECH']:
     ]
 
     EXPORTS.mozilla.dom += [
+        'EnableSpeechSynthesisCheck.h',
         'ipc/SpeechSynthesisChild.h',
         'ipc/SpeechSynthesisParent.h',
         'nsSpeechTask.h',
@@ -26,6 +27,7 @@ if CONFIG['MOZ_WEBSPEECH']:
     ]
 
     UNIFIED_SOURCES += [
+        'EnableSpeechSynthesisCheck.cpp',
         'ipc/SpeechSynthesisChild.cpp',
         'ipc/SpeechSynthesisParent.cpp',
         'nsSpeechTask.cpp',

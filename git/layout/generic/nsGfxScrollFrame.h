@@ -35,6 +35,12 @@ class ScrollbarActivity;
 }
 }
 
+// When set, the next scroll operation on the scrollframe will invalidate its
+// entire contents. Useful for text-overflow.
+// This bit is cleared after each time the scrollframe is scrolled. Whoever
+// needs to set it should set it again on each paint.
+#define NS_SCROLLFRAME_INVALIDATE_CONTENTS_ON_SCROLL NS_FRAME_STATE_BIT(20)
+
 namespace mozilla {
 
 class ScrollFrameHelper : public nsIReflowCallback {
@@ -302,13 +308,7 @@ public:
   void HandleScrollbarStyleSwitching();
 
   nsIAtom* OriginOfLastScroll() const { return mOriginOfLastScroll; }
-  uint32_t CurrentScrollGeneration() const { return mScrollGeneration; }
-  void ResetOriginIfScrollAtGeneration(uint32_t aGeneration) {
-    if (aGeneration == mScrollGeneration) {
-      mOriginOfLastScroll = nullptr;
-    }
-  }
-  bool WantAsyncScroll() const;
+  void ResetOriginOfLastScroll() { mOriginOfLastScroll = nullptr; }
 
   // owning references to the nsIAnonymousContentCreator-built content
   nsCOMPtr<nsIContent> mHScrollbarContent;
@@ -329,7 +329,6 @@ public:
   nsRefPtr<ScrollbarActivity> mScrollbarActivity;
   nsTArray<nsIScrollPositionListener*> mListeners;
   nsIAtom* mOriginOfLastScroll;
-  uint32_t mScrollGeneration;
   nsRect mScrollPort;
   // Where we're currently scrolling to, if we're scrolling asynchronously.
   // If we're not in the middle of an asynchronous scroll then this is
@@ -446,8 +445,8 @@ public:
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
-  virtual nsresult SetInitialChildList(ChildListID     aListID,
-                                       nsFrameList&    aChildList) MOZ_OVERRIDE;
+  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -477,13 +476,13 @@ public:
 
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nsresult GetPadding(nsMargin& aPadding) MOZ_OVERRIDE;
+  NS_IMETHOD GetPadding(nsMargin& aPadding) MOZ_OVERRIDE;
   virtual bool IsCollapsed() MOZ_OVERRIDE;
   
-  virtual nsresult Reflow(nsPresContext*           aPresContext,
-                          nsHTMLReflowMetrics&     aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
   virtual bool UpdateOverflow() MOZ_OVERRIDE {
     return mHelper.UpdateOverflow();
@@ -491,17 +490,17 @@ public:
 
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
-  virtual nsresult AppendFrames(ChildListID     aListID,
-                                nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult InsertFrames(ChildListID     aListID,
-                                nsIFrame*       aPrevFrame,
-                                nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
+                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
+                          nsIFrame*       aPrevFrame,
+                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
 
-  virtual nsresult RemoveFrame(ChildListID     aListID,
-                               nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+                         nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
   virtual nsIScrollableFrame* GetScrollTargetFrame() MOZ_OVERRIDE {
     return this;
@@ -537,7 +536,7 @@ public:
   virtual nsIFrame* GetScrolledFrame() const MOZ_OVERRIDE {
     return mHelper.GetScrolledFrame();
   }
-  virtual mozilla::ScrollbarStyles GetScrollbarStyles() const MOZ_OVERRIDE {
+  virtual mozilla::ScrollbarStyles GetScrollbarStyles() const {
     return mHelper.GetScrollbarStylesFromFrame();
   }
   virtual uint32_t GetScrollbarVisibility() const MOZ_OVERRIDE {
@@ -656,14 +655,8 @@ public:
   virtual nsIAtom* OriginOfLastScroll() MOZ_OVERRIDE {
     return mHelper.OriginOfLastScroll();
   }
-  virtual uint32_t CurrentScrollGeneration() MOZ_OVERRIDE {
-    return mHelper.CurrentScrollGeneration();
-  }
-  virtual void ResetOriginIfScrollAtGeneration(uint32_t aGeneration) MOZ_OVERRIDE {
-    mHelper.ResetOriginIfScrollAtGeneration(aGeneration);
-  }
-  virtual bool WantAsyncScroll() const MOZ_OVERRIDE {
-    return mHelper.WantAsyncScroll();
+  virtual void ResetOriginOfLastScroll() MOZ_OVERRIDE {
+    mHelper.ResetOriginOfLastScroll();
   }
 
   // nsIStatefulFrame
@@ -686,7 +679,7 @@ public:
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
   
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
 #ifdef ACCESSIBILITY
@@ -746,8 +739,8 @@ public:
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
-  virtual nsresult SetInitialChildList(ChildListID     aListID,
-                                       nsFrameList&    aChildList) MOZ_OVERRIDE;
+  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+                                 nsFrameList&    aChildList) MOZ_OVERRIDE;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -766,16 +759,16 @@ public:
 
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
-  virtual nsresult AppendFrames(ChildListID     aListID,
-                                nsFrameList&    aFrameList) MOZ_OVERRIDE;
-  virtual nsresult InsertFrames(ChildListID     aListID,
-                                nsIFrame*       aPrevFrame,
-                                nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  NS_IMETHOD AppendFrames(ChildListID     aListID,
+                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+  NS_IMETHOD InsertFrames(ChildListID     aListID,
+                          nsIFrame*       aPrevFrame,
+                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
-  virtual nsresult RemoveFrame(ChildListID     aListID,
-                               nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+                         nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
   virtual nsIScrollableFrame* GetScrollTargetFrame() MOZ_OVERRIDE {
     return this;
@@ -806,7 +799,7 @@ public:
   virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
 
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nsresult GetPadding(nsMargin& aPadding) MOZ_OVERRIDE;
+  NS_IMETHOD GetPadding(nsMargin& aPadding) MOZ_OVERRIDE;
 
   virtual bool GetBorderRadii(nscoord aRadii[8]) const MOZ_OVERRIDE {
     return mHelper.GetBorderRadii(aRadii);
@@ -847,7 +840,7 @@ public:
   virtual nsIFrame* GetScrolledFrame() const MOZ_OVERRIDE {
     return mHelper.GetScrolledFrame();
   }
-  virtual mozilla::ScrollbarStyles GetScrollbarStyles() const MOZ_OVERRIDE {
+  virtual mozilla::ScrollbarStyles GetScrollbarStyles() const {
     return mHelper.GetScrollbarStylesFromFrame();
   }
   virtual uint32_t GetScrollbarVisibility() const MOZ_OVERRIDE {
@@ -963,14 +956,8 @@ public:
   virtual nsIAtom* OriginOfLastScroll() MOZ_OVERRIDE {
     return mHelper.OriginOfLastScroll();
   }
-  virtual uint32_t CurrentScrollGeneration() MOZ_OVERRIDE {
-    return mHelper.CurrentScrollGeneration();
-  }
-  virtual void ResetOriginIfScrollAtGeneration(uint32_t aGeneration) MOZ_OVERRIDE {
-    mHelper.ResetOriginIfScrollAtGeneration(aGeneration);
-  }
-  virtual bool WantAsyncScroll() const MOZ_OVERRIDE {
-    return mHelper.WantAsyncScroll();
+  virtual void ResetOriginOfLastScroll() MOZ_OVERRIDE {
+    mHelper.ResetOriginOfLastScroll();
   }
 
   // nsIStatefulFrame
@@ -1001,7 +988,7 @@ public:
   }
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
 protected:

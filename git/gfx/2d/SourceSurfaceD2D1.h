@@ -20,7 +20,6 @@ class DrawTargetD2D1;
 class SourceSurfaceD2D1 : public SourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(SourceSurfaceD2D1)
   SourceSurfaceD2D1(ID2D1Image* aImage, ID2D1DeviceContext *aDC,
                     SurfaceFormat aFormat, const IntSize &aSize,
                     DrawTargetD2D1 *aDT = nullptr);
@@ -63,7 +62,6 @@ private:
 class DataSourceSurfaceD2D1 : public DataSourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceD2D1)
   DataSourceSurfaceD2D1(ID2D1Bitmap1 *aMappableBitmap, SurfaceFormat aFormat);
   ~DataSourceSurfaceD2D1();
 

@@ -51,83 +51,70 @@ struct YCbCrBufferInfo
   StereoMode mStereoMode;
 };
 
-static YCbCrBufferInfo* GetYCbCrBufferInfo(uint8_t* aData, size_t aDataSize)
+static YCbCrBufferInfo* GetYCbCrBufferInfo(uint8_t* aData)
 {
-  return aDataSize >= sizeof(YCbCrBufferInfo)
-         ? reinterpret_cast<YCbCrBufferInfo*>(aData)
-         : nullptr;
+  return reinterpret_cast<YCbCrBufferInfo*>(aData);
 }
 
-void YCbCrImageDataDeserializerBase::Validate()
+bool YCbCrImageDataDeserializerBase::IsValid()
 {
-  mIsValid = false;
-  if (!mData) {
-    return;
+  if (mData == nullptr) {
+    return false;
   }
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
-  if (!info) {
-    return;
-  }
-  size_t requiredSize = ComputeMinBufferSize(
-                          IntSize(info->mYWidth, info->mYHeight),
-                          info->mYStride,
-                          IntSize(info->mCbCrWidth, info->mCbCrHeight),
-                          info->mCbCrStride);
-  mIsValid = requiredSize <= mDataSize;
-
+  return true;
 }
 
 uint8_t* YCbCrImageDataDeserializerBase::GetYData()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return reinterpret_cast<uint8_t*>(info) + info->mYOffset;
 }
 
 uint8_t* YCbCrImageDataDeserializerBase::GetCbData()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return reinterpret_cast<uint8_t*>(info) + info->mCbOffset;
 }
 
 uint8_t* YCbCrImageDataDeserializerBase::GetCrData()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return reinterpret_cast<uint8_t*>(info) + info->mCrOffset;
 }
 
 uint8_t* YCbCrImageDataDeserializerBase::GetData()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return (reinterpret_cast<uint8_t*>(info)) + MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
 }
 
 uint32_t YCbCrImageDataDeserializerBase::GetYStride()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return info->mYStride;
 }
 
 uint32_t YCbCrImageDataDeserializerBase::GetCbCrStride()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return info->mCbCrStride;
 }
 
 gfx::IntSize YCbCrImageDataDeserializerBase::GetYSize()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return gfx::IntSize(info->mYWidth, info->mYHeight);
 }
 
 gfx::IntSize YCbCrImageDataDeserializerBase::GetCbCrSize()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return gfx::IntSize(info->mCbCrWidth, info->mCbCrHeight);
 }
 
 StereoMode YCbCrImageDataDeserializerBase::GetStereoMode()
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   return info->mStereoMode;
 }
 
@@ -139,22 +126,15 @@ static size_t ComputeOffset(uint32_t aHeight, uint32_t aStride)
 
 // Minimum required shmem size in bytes
 size_t
-YCbCrImageDataDeserializerBase::ComputeMinBufferSize(const gfx::IntSize& aYSize,
-                                                   uint32_t aYStride,
-                                                   const gfx::IntSize& aCbCrSize,
-                                                   uint32_t aCbCrStride)
+YCbCrImageDataSerializer::ComputeMinBufferSize(const gfx::IntSize& aYSize,
+                                               const gfx::IntSize& aCbCrSize)
 {
-  return ComputeOffset(aYSize.height, aYStride)
-         + 2 * ComputeOffset(aCbCrSize.height, aCbCrStride)
-         + MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
-}
+  uint32_t yStride = aYSize.width;
+  uint32_t CbCrStride = aCbCrSize.width;
 
-// Minimum required shmem size in bytes
-size_t
-YCbCrImageDataDeserializerBase::ComputeMinBufferSize(const gfx::IntSize& aYSize,
-                                                   const gfx::IntSize& aCbCrSize)
-{
-  return ComputeMinBufferSize(aYSize, aYSize.width, aCbCrSize, aCbCrSize.width);
+  return ComputeOffset(aYSize.height, yStride)
+         + 2 * ComputeOffset(aCbCrSize.height, CbCrStride)
+         + MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
 }
 
 // Offset in bytes
@@ -165,7 +145,7 @@ static size_t ComputeOffset(uint32_t aSize)
 
 // Minimum required shmem size in bytes
 size_t
-YCbCrImageDataDeserializerBase::ComputeMinBufferSize(uint32_t aSize)
+YCbCrImageDataSerializer::ComputeMinBufferSize(uint32_t aSize)
 {
   return ComputeOffset(aSize) + MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
 }
@@ -180,8 +160,7 @@ YCbCrImageDataSerializer::InitializeBufferInfo(uint32_t aYOffset,
                                                const gfx::IntSize& aCbCrSize,
                                                StereoMode aStereoMode)
 {
-  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData, mDataSize);
-  MOZ_ASSERT(info); // OK to assert here, this method is client-side-only
+  YCbCrBufferInfo* info = GetYCbCrBufferInfo(mData);
   uint32_t info_size = MOZ_ALIGN_WORD(sizeof(YCbCrBufferInfo));
   info->mYOffset = info_size + aYOffset;
   info->mCbOffset = info_size + aCbOffset;
@@ -193,7 +172,6 @@ YCbCrImageDataSerializer::InitializeBufferInfo(uint32_t aYOffset,
   info->mCbCrWidth = aCbCrSize.width;
   info->mCbCrHeight = aCbCrSize.height;
   info->mStereoMode = aStereoMode;
-  Validate();
 }
 
 void
@@ -275,7 +253,7 @@ TemporaryRef<DataSourceSurface>
 YCbCrImageDataDeserializer::ToDataSourceSurface()
 {
   RefPtr<DataSourceSurface> result =
-    Factory::CreateDataSourceSurface(GetYSize(), gfx::SurfaceFormat::B8G8R8X8);
+    Factory::CreateDataSourceSurface(GetYSize(), gfx::SurfaceFormat::R8G8B8X8);
 
   DataSourceSurface::MappedSurface map;
   result->Map(DataSourceSurface::MapType::WRITE, &map);

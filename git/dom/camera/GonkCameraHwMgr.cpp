@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012-2014 Mozilla Foundation
+ * Copyright (C) 2012 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,13 @@
  * limitations under the License.
  */
 
-#include "GonkCameraHwMgr.h"
-#include "TestGonkCameraHardware.h"
-
 #include <binder/IPCThreadState.h>
 #include <sys/system_properties.h>
 
 #include "base/basictypes.h"
 #include "nsDebug.h"
-#include "mozilla/Preferences.h"
 #include "GonkCameraControl.h"
+#include "GonkCameraHwMgr.h"
 #include "GonkNativeWindow.h"
 #include "CameraCommon.h"
 
@@ -31,15 +28,40 @@ using namespace mozilla;
 using namespace mozilla::layers;
 using namespace android;
 
+#if GIHM_TIMING_RECEIVEFRAME
+#define INCLUDE_TIME_H                  1
+#endif
+#if GIHM_TIMING_OVERALL
+#define INCLUDE_TIME_H                  1
+#endif
+
+#if INCLUDE_TIME_H
+#include <time.h>
+
+static __inline void timespecSubtract(struct timespec* a, struct timespec* b)
+{
+  // a = b - a
+  if (b->tv_nsec < a->tv_nsec) {
+    b->tv_nsec += 1000000000;
+    b->tv_sec -= 1;
+  }
+  a->tv_nsec = b->tv_nsec - a->tv_nsec;
+  a->tv_sec = b->tv_sec - a->tv_sec;
+}
+#endif
+
 GonkCameraHardware::GonkCameraHardware(mozilla::nsGonkCameraControl* aTarget, uint32_t aCameraId, const sp<Camera>& aCamera)
   : mCameraId(aCameraId)
   , mClosing(false)
+  , mMonitor("GonkCameraHardware.Monitor")
   , mNumFrames(0)
   , mCamera(aCamera)
   , mTarget(aTarget)
+  , mInitialized(false)
   , mSensorOrientation(0)
 {
-  DOM_CAMERA_LOGT("%s:%d : this=%p (aTarget=%p)\n", __func__, __LINE__, (void*)this, (void*)aTarget);
+  DOM_CAMERA_LOGT( "%s:%d : this=%p (aTarget=%p)\n", __func__, __LINE__, (void*)this, (void*)aTarget );
+  Init();
 }
 
 void
@@ -53,7 +75,7 @@ GonkCameraHardware::OnNewFrame()
     DOM_CAMERA_LOGW("received null frame");
     return;
   }
-  OnNewPreviewFrame(mTarget, buffer);
+  ReceiveFrame(mTarget, buffer);
 }
 
 // Android data callback
@@ -71,9 +93,9 @@ GonkCameraHardware::postData(int32_t aMsgType, const sp<IMemory>& aDataPtr, came
 
     case CAMERA_MSG_COMPRESSED_IMAGE:
       if (aDataPtr != nullptr) {
-        OnTakePictureComplete(mTarget, static_cast<uint8_t*>(aDataPtr->pointer()), aDataPtr->size());
+        ReceiveImage(mTarget, (uint8_t*)aDataPtr->pointer(), aDataPtr->size());
       } else {
-        OnTakePictureError(mTarget);
+        ReceiveImageError(mTarget);
       }
       break;
 
@@ -87,21 +109,25 @@ GonkCameraHardware::postData(int32_t aMsgType, const sp<IMemory>& aDataPtr, came
 void
 GonkCameraHardware::notify(int32_t aMsgType, int32_t ext1, int32_t ext2)
 {
+  bool bSuccess;
   if (mClosing) {
     return;
   }
 
   switch (aMsgType) {
     case CAMERA_MSG_FOCUS:
-      OnAutoFocusComplete(mTarget, !!ext1);
+      if (ext1) {
+        DOM_CAMERA_LOGI("Autofocus complete");
+        bSuccess = true;
+      } else {
+        DOM_CAMERA_LOGW("Autofocus failed");
+        bSuccess = false;
+      }
+      AutoFocusComplete(mTarget, bSuccess);
       break;
 
     case CAMERA_MSG_SHUTTER:
       OnShutter(mTarget);
-      break;
-
-    case CAMERA_MSG_ERROR:
-      OnError(mTarget, CameraControlListener::kErrorServiceFailed, ext1, ext2);
       break;
 
     default:
@@ -127,7 +153,7 @@ GonkCameraHardware::postDataTimestamp(nsecs_t aTimestamp, int32_t aMsgType, cons
   }
 }
 
-nsresult
+void
 GonkCameraHardware::Init()
 {
   DOM_CAMERA_LOGT("%s: this=%p\n", __func__, (void* )this);
@@ -136,7 +162,7 @@ GonkCameraHardware::Init()
   int rv = Camera::getCameraInfo(mCameraId, &info);
   if (rv != 0) {
     DOM_CAMERA_LOGE("%s: failed to get CameraInfo mCameraId %d\n", __func__, mCameraId);
-    return NS_ERROR_FAILURE;
+    return;
    }
 
   mRawSensorOrientation = info.orientation;
@@ -163,20 +189,12 @@ GonkCameraHardware::Init()
   mNativeWindow = new GonkNativeWindow();
   mNativeWindow->setNewFrameCallback(this);
   mCamera->setListener(this);
-
-#if defined(MOZ_WIDGET_GONK)
-
-#if ANDROID_VERSION >= 19
-  mCamera->setPreviewTarget(mNativeWindow->getBufferQueue());
-#elif (ANDROID_VERSION == 17) || (ANDROID_VERSION == 18)
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
   mCamera->setPreviewTexture(mNativeWindow->getBufferQueue());
 #else
   mCamera->setPreviewTexture(mNativeWindow);
 #endif
-
-#endif
-
-  return NS_OK;
+  mInitialized = true;
 }
 
 sp<GonkCameraHardware>
@@ -188,33 +206,18 @@ GonkCameraHardware::Connect(mozilla::nsGonkCameraControl* aTarget, uint32_t aCam
   sp<Camera> camera = Camera::connect(aCameraId);
 #endif
 
+
   if (camera.get() == nullptr) {
     return nullptr;
   }
-
-  const nsAdoptingCString& test =
-    mozilla::Preferences::GetCString("camera.control.test.enabled");
-  sp<GonkCameraHardware> cameraHardware;
-  if (test.EqualsASCII("hardware")) {
-    NS_WARNING("Using test Gonk hardware layer");
-    cameraHardware = new TestGonkCameraHardware(aTarget, aCameraId, camera);
-  } else {
-    cameraHardware = new GonkCameraHardware(aTarget, aCameraId, camera);
-  }
-
-  nsresult rv = cameraHardware->Init();
-  if (NS_FAILED(rv)) {
-    DOM_CAMERA_LOGE("Failed to initialize camera hardware (0x%X)\n", rv);
-    return nullptr;
-  }
-
+  sp<GonkCameraHardware> cameraHardware = new GonkCameraHardware(aTarget, aCameraId, camera);
   return cameraHardware;
-}
+ }
 
 void
 GonkCameraHardware::Close()
 {
-  DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, (void*)this);
+  DOM_CAMERA_LOGT( "%s:%d : this=%p\n", __func__, __LINE__, (void*)this );
 
   mClosing = true;
   mCamera->stopPreview();
@@ -231,7 +234,7 @@ GonkCameraHardware::Close()
 
 GonkCameraHardware::~GonkCameraHardware()
 {
-  DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, (void*)this);
+  DOM_CAMERA_LOGT( "%s:%d : this=%p\n", __func__, __LINE__, (void*)this );
   mCamera.clear();
   mNativeWindow.clear();
 
@@ -273,11 +276,11 @@ GonkCameraHardware::AutoFocus()
   return mCamera->autoFocus();
 }
 
-int
+void
 GonkCameraHardware::CancelAutoFocus()
 {
   DOM_CAMERA_LOGI("%s\n", __func__);
-  return mCamera->cancelAutoFocus();
+  mCamera->cancelAutoFocus();
 }
 
 int
@@ -293,24 +296,10 @@ GonkCameraHardware::CancelTakePicture()
 }
 
 int
-GonkCameraHardware::PushParameters(const GonkCameraParameters& aParams)
-{
-  const String8 s = aParams.Flatten();
-  return mCamera->setParameters(s);
-}
-
-int
 GonkCameraHardware::PushParameters(const CameraParameters& aParams)
 {
   String8 s = aParams.flatten();
   return mCamera->setParameters(s);
-}
-
-nsresult
-GonkCameraHardware::PullParameters(GonkCameraParameters& aParams)
-{
-  const String8 s = mCamera->getParameters();
-  return aParams.Unflatten(s);
 }
 
 void
@@ -331,7 +320,7 @@ void
 GonkCameraHardware::StopPreview()
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-  mCamera->stopPreview();
+  return mCamera->stopPreview();
 }
 
 int

@@ -8,13 +8,15 @@
 #include "prefapi.h"
 #include "prefapi_private_data.h"
 #include "prefread.h"
-#include "MainThreadUtils.h"
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
 
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "plarena.h"
 
+#ifdef XP_OS2
+  #include <sys/types.h>
+#endif
 #ifdef _WIN32
   #include "windows.h"
 #endif /* _WIN32 */
@@ -30,6 +32,11 @@
 #include "nsString.h"
 #include "nsPrintfCString.h"
 #include "prlink.h"
+
+#ifdef XP_OS2
+#define INCL_DOS
+#include <os2.h>
+#endif
 
 using namespace mozilla;
 
@@ -150,8 +157,8 @@ nsresult PREF_Init()
 {
     if (!gHashTable.ops) {
         if (!PL_DHashTableInit(&gHashTable, &pref_HashTableOps, nullptr,
-                               sizeof(PrefHashEntry), PREF_HASHTABLE_INITIAL_SIZE,
-                               fallible_t())) {
+                               sizeof(PrefHashEntry),
+                               PREF_HASHTABLE_INITIAL_SIZE)) {
             gHashTable.ops = nullptr;
             return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -576,10 +583,6 @@ pref_DeleteItem(PLDHashTable *table, PLDHashEntryHdr *heh, uint32_t i, void *arg
 nsresult
 PREF_DeleteBranch(const char *branch_name)
 {
-#ifndef MOZ_B2G
-    MOZ_ASSERT(NS_IsMainThread());
-#endif
-
     int len = (int)strlen(branch_name);
 
     if (!gHashTable.ops)
@@ -647,10 +650,6 @@ pref_ClearUserPref(PLDHashTable *table, PLDHashEntryHdr *he, uint32_t,
 nsresult
 PREF_ClearAllUserPrefs()
 {
-#ifndef MOZ_B2G
-    MOZ_ASSERT(NS_IsMainThread());
-#endif
-
     if (!gHashTable.ops)
         return NS_ERROR_NOT_INITIALIZED;
 
@@ -725,10 +724,6 @@ static void pref_SetValue(PrefValue* oldValue, PrefValue newValue, PrefType type
 
 PrefHashEntry* pref_HashTableLookup(const void *key)
 {
-#ifndef MOZ_B2G
-    MOZ_ASSERT(NS_IsMainThread());
-#endif
-
     PrefHashEntry* result =
         static_cast<PrefHashEntry*>(PL_DHashTableOperate(&gHashTable, key, PL_DHASH_LOOKUP));
 
@@ -740,10 +735,6 @@ PrefHashEntry* pref_HashTableLookup(const void *key)
 
 nsresult pref_HashPref(const char *key, PrefValue value, PrefType type, uint32_t flags)
 {
-#ifndef MOZ_B2G
-    MOZ_ASSERT(NS_IsMainThread());
-#endif
-
     if (!gHashTable.ops)
         return NS_ERROR_OUT_OF_MEMORY;
 

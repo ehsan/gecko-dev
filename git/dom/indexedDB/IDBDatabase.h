@@ -53,7 +53,6 @@ class IDBDatabase : public IDBWrapperCache,
 {
   friend class AsyncConnectionHelper;
   friend class IndexedDatabaseManager;
-  friend class IndexedDBDatabaseParent;
   friend class IndexedDBDatabaseChild;
 
 public:
@@ -190,7 +189,7 @@ public:
   uint64_t
   Version() const;
 
-  already_AddRefed<mozilla::dom::DOMStringList>
+  already_AddRefed<nsIDOMDOMStringList>
   GetObjectStoreNames(ErrorResult& aRv) const;
 
   already_AddRefed<IDBObjectStore>
@@ -235,7 +234,6 @@ private:
   ~IDBDatabase();
 
   void OnUnlink();
-  void InvalidateInternal(bool aIsDead);
 
   // The factory must be kept alive when IndexedDB is used in multiple
   // processes. If it dies then the entire actor tree will be destroyed with it

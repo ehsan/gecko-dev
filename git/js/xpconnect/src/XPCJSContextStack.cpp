@@ -38,10 +38,8 @@ XPCJSContextStack::Pop()
     JSContext *cx = mStack[idx].cx;
 
     mStack.RemoveElementAt(idx);
-    if (idx == 0) {
-        js::Debug_SetActiveJSContext(mRuntime->Runtime(), nullptr);
+    if (idx == 0)
         return cx;
-    }
 
     --idx; // Advance to new top of the stack
 
@@ -52,14 +50,12 @@ XPCJSContextStack::Pop()
         JS_RestoreFrameChain(e.cx);
         e.savedFrameChain = false;
     }
-    js::Debug_SetActiveJSContext(mRuntime->Runtime(), e.cx);
     return cx;
 }
 
 bool
 XPCJSContextStack::Push(JSContext *cx)
 {
-    js::Debug_SetActiveJSContext(mRuntime->Runtime(), cx);
     if (mStack.Length() == 0) {
         mStack.AppendElement(cx);
         return true;
@@ -180,7 +176,7 @@ XPCJSContextStack::InitSafeJSContext()
     // Note: make sure to set the private before calling
     // InitClasses
     nsRefPtr<SandboxPrivate> sp = new SandboxPrivate(principal, glob);
-    JS_SetPrivate(glob, sp.forget().take());
+    JS_SetPrivate(glob, sp.forget().get());
 
     // After this point either glob is null and the
     // nsIScriptObjectPrincipal ownership is either handled by the

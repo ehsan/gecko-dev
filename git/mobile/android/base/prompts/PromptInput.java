@@ -5,27 +5,29 @@
 
 package org.mozilla.gecko.prompts;
 
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
-
-import org.json.JSONObject;
+import org.mozilla.gecko.util.GeckoEventResponder;
+import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.widget.AllCapsTextView;
 import org.mozilla.gecko.widget.DateTimePicker;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import android.content.Context;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.os.Build;
+import android.text.format.DateFormat;
 import android.text.Html;
 import android.text.InputType;
 import android.text.TextUtils;
-import android.text.format.DateFormat;
 import android.util.Log;
+import android.view.inputmethod.InputMethodManager;
 import android.view.View;
 import android.view.ViewGroup.LayoutParams;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.ArrayAdapter;
 import android.widget.CheckBox;
+import android.widget.CheckedTextView;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -33,22 +35,19 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.TimePicker;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
+
 public class PromptInput {
     protected final String mLabel;
     protected final String mType;
     protected final String mId;
     protected final String mValue;
-    protected OnChangeListener mListener;
     protected View mView;
     public static final String LOGTAG = "GeckoPromptInput";
-
-    public interface OnChangeListener {
-        public void onChange(PromptInput input);
-    }
-
-    public void setListener(OnChangeListener listener) {
-        mListener = listener;
-    }
 
     public static class EditInput extends PromptInput {
         protected final String mHint;
@@ -86,10 +85,9 @@ public class PromptInput {
             return mView;
         }
 
-        @Override
-        public Object getValue() {
+        public String getValue() {
             EditText edit = (EditText)mView;
-            return edit.getText();
+            return edit.getText().toString();
         }
     }
 
@@ -122,10 +120,9 @@ public class PromptInput {
             return input;
         }
 
-        @Override
-        public Object getValue() {
+        public String getValue() {
             EditText edit = (EditText)mView;
-            return edit.getText();
+            return edit.getText().toString();
         }
     }
 
@@ -147,10 +144,9 @@ public class PromptInput {
             return mView;
         }
 
-        @Override
-        public Object getValue() {
+        public String getValue() {
             CheckBox checkbox = (CheckBox)mView;
-            return checkbox.isChecked() ? Boolean.TRUE : Boolean.FALSE;
+            return checkbox.isChecked() ? "true" : "false";
         }
     }
 
@@ -226,8 +222,7 @@ public class PromptInput {
             return new SimpleDateFormat(dateFormat).format(calendar.getTime());
         }
 
-        @Override
-        public Object getValue() {
+        public String getValue() {
             if (Build.VERSION.SDK_INT < 11 && mType.equals("date")) {
                 // We can't use the custom DateTimePicker with a sdk older than 11.
                 // Fallback on the native DatePicker.
@@ -307,9 +302,8 @@ public class PromptInput {
             return spinner;
         }
 
-        @Override
-        public Object getValue() {
-            return new Integer(spinner.getSelectedItemPosition());
+        public String getValue() {
+            return Integer.toString(spinner.getSelectedItemPosition());
         }
     }
 
@@ -325,6 +319,10 @@ public class PromptInput {
             view.setText(Html.fromHtml(mLabel));
             mView = view;
             return mView;
+        }
+
+        public String getValue() {
+            return "";
         }
     }
 
@@ -354,8 +352,6 @@ public class PromptInput {
             return new IconGridInput(obj);
         } else if (ColorPickerInput.INPUT_TYPE.equals(type)) {
             return new ColorPickerInput(obj);
-        } else if (TabInput.INPUT_TYPE.equals(type)) {
-            return new TabInput(obj);
         } else {
             for (String dtType : DateTimeInput.INPUT_TYPES) {
                 if (dtType.equals(type)) {
@@ -374,8 +370,8 @@ public class PromptInput {
         return mId;
     }
 
-    public Object getValue() {
-        return null;
+    public String getValue() {
+        return "";
     }
 
     public boolean getScrollable() {
@@ -383,12 +379,6 @@ public class PromptInput {
     }
 
     public boolean canApplyInputStyle() {
-        return true;
-    }
-
-    protected void notifyListeners(String val) {
-        if (mListener != null) {
-            mListener.onChange(this);
-        }
+	return true;
     }
 }

@@ -1,8 +1,7 @@
 /*-
  * Copyright (c) 2001-2007, by Cisco Systems, Inc. All rights reserved.
  * Copyright (c) 2008-2012, by Randall Stewart. All rights reserved.
- * Copyright (c) 2008-2013, by Michael Tuexen. All rights reserved.
- * Copyright (c) 2013,      by Lally Singh. All rights reserved.
+ * Copyright (c) 2008-2012, by Michael Tuexen. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -31,84 +30,26 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <netinet/sctp_sha1.h>
-
-#if defined(SCTP_USE_NSS_SHA1)
-/* A SHA-1 Digest is 160 bits, or 20 bytes */
-#define SHA_DIGEST_LENGTH (20)
-
-void
-sctp_sha1_init(struct sctp_sha1_context *ctx)
-{
-	ctx->pk11_ctx = PK11_CreateDigestContext(SEC_OID_SHA1);
-	PK11_DigestBegin(ctx->pk11_ctx);
-}
-
-void
-sctp_sha1_update(struct sctp_sha1_context *ctx, const unsigned char *ptr, unsigned int siz)
-{
-	PK11_DigestOp(ctx->pk11_ctx, ptr, siz);
-}
-
-void
-sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
-{
-	unsigned int output_len = 0;
-
-	PK11_DigestFinal(ctx->pk11_ctx, digest, &output_len, SHA_DIGEST_LENGTH);
-	PK11_DestroyContext(ctx->pk11_ctx, PR_TRUE);
-}
-
-#elif defined(SCTP_USE_OPENSSL_SHA1)
-
-void
-sctp_sha1_init(struct sctp_sha1_context *ctx)
-{
-	SHA1_Init(&ctx->sha_ctx);
-}
-
-void
-sctp_sha1_update(struct sctp_sha1_context *ctx, const unsigned char *ptr, unsigned int siz)
-{
-	SHA1_Update(&ctx->sha_ctx, ptr, (unsigned long)siz);
-}
-
-void
-sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
-{
-	SHA1_Final(digest, &ctx->sha_ctx);
-}
-
-#else
-
-#include <string.h>
-#if defined(__Userspace_os_Windows)
-#include <winsock2.h>
-#elif !defined(__Windows__)
-#include <arpa/inet.h>
+#ifdef __FreeBSD__
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD$");
 #endif
 
-#define F1(B,C,D) (((B & C) | ((~B) & D)))	/* 0  <= t <= 19 */
-#define F2(B,C,D) (B ^ C ^ D)	/* 20 <= t <= 39 */
-#define F3(B,C,D) ((B & C) | (B & D) | (C & D))	/* 40 <= t <= 59 */
-#define F4(B,C,D) (B ^ C ^ D)	/* 600 <= t <= 79 */
-
-/* circular shift */
-#define CSHIFT(A,B) ((B << A) | (B >> (32-A)))
-
-#define K1 0x5a827999		/* 0  <= t <= 19 */
-#define K2 0x6ed9eba1		/* 20 <= t <= 39 */
-#define K3 0x8f1bbcdc		/* 40 <= t <= 59 */
-#define K4 0xca62c1d6		/* 60 <= t <= 79 */
-
-#define H0INIT 0x67452301
-#define H1INIT 0xefcdab89
-#define H2INIT 0x98badcfe
-#define H3INIT 0x10325476
-#define H4INIT 0xc3d2e1f0
-
+#include <netinet/sctp_sha1.h>
+#if !defined(__Userspace_os_Windows)
+#include <sys/param.h>
+#if !defined(__Windows__)
+#include <arpa/inet.h>
+#endif
+#else
+#include <winsock2.h>
+#endif
+#if !defined(__Userspace__)
+#include <sys/systm.h>
+#endif
+#include <string.h>
 void
-sctp_sha1_init(struct sctp_sha1_context *ctx)
+SHA1_Init(struct sha1_context *ctx)
 {
 	/* Init the SHA-1 context structure */
 	ctx->A = 0;
@@ -128,7 +69,7 @@ sctp_sha1_init(struct sctp_sha1_context *ctx)
 }
 
 static void
-sctp_sha1_process_a_block(struct sctp_sha1_context *ctx, unsigned int *block)
+sha1_process_a_block(struct sha1_context *ctx, unsigned int *block)
 {
 	int i;
 
@@ -192,10 +133,11 @@ sctp_sha1_process_a_block(struct sctp_sha1_context *ctx, unsigned int *block)
 	ctx->H4 = (ctx->H4) + (ctx->E);
 }
 
+
 void
-sctp_sha1_update(struct sctp_sha1_context *ctx, const unsigned char *ptr, unsigned int siz)
+SHA1_Update(struct sha1_context *ctx, const unsigned char *ptr, int siz)
 {
-	unsigned int number_left, left_to_fill;
+	int number_left, left_to_fill;
 
 	number_left = siz;
 	while (number_left > 0) {
@@ -212,7 +154,7 @@ sctp_sha1_update(struct sctp_sha1_context *ctx, const unsigned char *ptr, unsign
 			/* block is now full, process it */
 			memcpy(&ctx->sha_block[ctx->how_many_in_block],
 			    ptr, left_to_fill);
-			sctp_sha1_process_a_block(ctx,
+			sha1_process_a_block(ctx,
 			    (unsigned int *)ctx->sha_block);
 			number_left -= left_to_fill;
 			ctx->running_total += left_to_fill;
@@ -223,7 +165,7 @@ sctp_sha1_update(struct sctp_sha1_context *ctx, const unsigned char *ptr, unsign
 }
 
 void
-sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
+SHA1_Final(unsigned char *digest, struct sha1_context *ctx)
 {
 	/*
 	 * if any left in block fill with padding and process. Then transfer
@@ -249,7 +191,7 @@ sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
 		left_to_fill = sizeof(ctx->sha_block) - ctx->how_many_in_block;
 		if (left_to_fill == 0) {
 			/* Should not really happen but I am paranoid */
-			sctp_sha1_process_a_block(ctx,
+			sha1_process_a_block(ctx,
 			    (unsigned int *)ctx->sha_block);
 			/* init last block, a bit different than the rest */
 			ctx->sha_block[0] = '\x80';
@@ -258,7 +200,7 @@ sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
 			}
 		} else if (left_to_fill == 1) {
 			ctx->sha_block[ctx->how_many_in_block] = '\x80';
-			sctp_sha1_process_a_block(ctx,
+			sha1_process_a_block(ctx,
 			    (unsigned int *)ctx->sha_block);
 			/* init last block */
 			memset(ctx->sha_block, 0, sizeof(ctx->sha_block));
@@ -269,7 +211,7 @@ sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
 			    i++) {
 				ctx->sha_block[i] = 0x0;
 			}
-			sctp_sha1_process_a_block(ctx,
+			sha1_process_a_block(ctx,
 			    (unsigned int *)ctx->sha_block);
 			/* init last block */
 			memset(ctx->sha_block, 0, sizeof(ctx->sha_block));
@@ -278,7 +220,7 @@ sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
 		ctx->running_total *= 8;
 		ptr = (unsigned int *)&ctx->sha_block[60];
 		*ptr = htonl(ctx->running_total);
-		sctp_sha1_process_a_block(ctx, (unsigned int *)ctx->sha_block);
+		sha1_process_a_block(ctx, (unsigned int *)ctx->sha_block);
 	} else {
 		/*
 		 * easy case, we just pad this message to size - end with 0
@@ -296,7 +238,7 @@ sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
 		ctx->running_total *= 8;
 		ptr = (unsigned int *)&ctx->sha_block[60];
 		*ptr = htonl(ctx->running_total);
-		sctp_sha1_process_a_block(ctx, (unsigned int *)ctx->sha_block);
+		sha1_process_a_block(ctx, (unsigned int *)ctx->sha_block);
 	}
 	/* transfer the digest back to the user */
 	digest[3] = (ctx->H0 & 0xff);
@@ -324,5 +266,3 @@ sctp_sha1_final(unsigned char *digest, struct sctp_sha1_context *ctx)
 	digest[17] = ((ctx->H4 >> 16) & 0xff);
 	digest[16] = ((ctx->H4 >> 24) & 0xff);
 }
-
-#endif

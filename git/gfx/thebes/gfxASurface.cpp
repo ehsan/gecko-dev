@@ -10,9 +10,8 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include "mozilla/gfx/2D.h"
-#include "gfx2DGlue.h"
 
 #include "gfxASurface.h"
 #include "gfxContext.h"
@@ -155,7 +154,7 @@ gfxASurface::SetSurfaceWrapper(cairo_surface_t *csurf, gfxASurface *asurf)
 }
 
 already_AddRefed<gfxASurface>
-gfxASurface::Wrap (cairo_surface_t *csurf, const gfxIntSize& aSize)
+gfxASurface::Wrap (cairo_surface_t *csurf)
 {
     nsRefPtr<gfxASurface> result;
 
@@ -190,7 +189,7 @@ gfxASurface::Wrap (cairo_surface_t *csurf, const gfxIntSize& aSize)
 #endif
 #ifdef CAIRO_HAS_QUARTZ_SURFACE
     else if (stype == CAIRO_SURFACE_TYPE_QUARTZ) {
-        result = new gfxQuartzSurface(csurf, aSize);
+        result = new gfxQuartzSurface(csurf);
     }
     else if (stype == CAIRO_SURFACE_TYPE_QUARTZ_IMAGE) {
         result = new gfxQuartzImageSurface(csurf);
@@ -202,7 +201,7 @@ gfxASurface::Wrap (cairo_surface_t *csurf, const gfxIntSize& aSize)
     }
 #endif
     else {
-        result = new gfxUnknownSurface(csurf, aSize);
+        result = new gfxUnknownSurface(csurf);
     }
 
     // fprintf(stderr, "New wrapper for %p -> %p\n", csurf, result);
@@ -337,7 +336,7 @@ gfxASurface::CreateSimilarSurface(gfxContentType aContent,
         return nullptr;
     }
 
-    nsRefPtr<gfxASurface> result = Wrap(surface, aSize);
+    nsRefPtr<gfxASurface> result = Wrap(surface);
     cairo_surface_destroy(surface);
     return result.forget();
 }

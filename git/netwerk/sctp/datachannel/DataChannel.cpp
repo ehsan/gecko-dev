@@ -35,7 +35,6 @@
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "mozilla/Services.h"
-#include "nsProxyRelease.h"
 #include "nsThread.h"
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
@@ -44,6 +43,7 @@
 #ifdef MOZ_PEERCONNECTION
 #include "mtransport/runnable_utils.h"
 #endif
+#include "nsProxyRelease.h"
 
 #define DATACHANNEL_LOG(args) LOG(args)
 #include "DataChannel.h"
@@ -221,7 +221,8 @@ DataChannelConnection::~DataChannelConnection()
     ASSERT_WEBRTC(NS_IsMainThread());
     if (mTransportFlow) {
       ASSERT_WEBRTC(mSTS);
-      NS_ProxyRelease(mSTS, mTransportFlow);
+      RUN_ON_THREAD(mSTS, WrapRunnableNM(ReleaseTransportFlow, mTransportFlow.forget()),
+                    NS_DISPATCH_NORMAL);
     }
 
     if (mInternalIOThread) {
@@ -1991,7 +1992,7 @@ DataChannelConnection::Open(const nsACString& label, const nsACString& protocol,
 
 // Separate routine so we can also call it to finish up from pending opens
 already_AddRefed<DataChannel>
-DataChannelConnection::OpenFinish(already_AddRefed<DataChannel>&& aChannel)
+DataChannelConnection::OpenFinish(already_AddRefed<DataChannel> aChannel)
 {
   nsRefPtr<DataChannel> channel(aChannel); // takes the reference passed in
   // Normally 1 reference if called from ::Open(), or 2 if called from
@@ -2345,7 +2346,7 @@ DataChannelConnection::ReadBlob(already_AddRefed<DataChannelConnection> aThis,
       NS_FAILED(NS_ReadInputStreamToString(aBlob, temp, len))) {
     // Bug 966602:  Doesn't return an error to the caller via onerror.
     // We must release DataChannelConnection on MainThread to avoid issues (bug 876167)
-    NS_ProxyRelease(mainThread, aThis.take());
+    NS_ProxyRelease(mainThread, aThis.get());
     return;
   }
   aBlob->Close();
@@ -2353,17 +2354,6 @@ DataChannelConnection::ReadBlob(already_AddRefed<DataChannelConnection> aThis,
                                &DataChannelConnection::SendBinaryMsg,
                                aStream, temp),
                 NS_DISPATCH_NORMAL);
-}
-
-void
-DataChannelConnection::GetStreamIds(std::vector<uint16_t>* aStreamList)
-{
-  ASSERT_WEBRTC(NS_IsMainThread());
-  for (uint32_t i = 0; i < mStreams.Length(); ++i) {
-    if (mStreams[i]) {
-      aStreamList->push_back(mStreams[i]->mStream);
-    }
-  }
 }
 
 int32_t

@@ -21,7 +21,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGGenericContainerFrame)
 //----------------------------------------------------------------------
 // nsIFrame methods
 
-nsresult
+NS_IMETHODIMP
 nsSVGGenericContainerFrame::AttributeChanged(int32_t         aNameSpaceID,
                                              nsIAtom*        aAttribute,
                                              int32_t         aModType)

@@ -42,7 +42,7 @@ nsLeafFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
   return nsSize(GetIntrinsicWidth(), GetIntrinsicHeight());
 }
 
-nsresult
+NS_IMETHODIMP
 nsLeafFrame::Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aMetrics,
                     const nsHTMLReflowState& aReflowState,
@@ -61,7 +61,7 @@ nsLeafFrame::Reflow(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsLeafFrame::DoReflow(nsPresContext* aPresContext,
                       nsHTMLReflowMetrics& aMetrics,
                       const nsHTMLReflowState& aReflowState,

@@ -28,23 +28,23 @@ public class ToolbarComponent extends BaseComponent {
     }
 
     public ToolbarComponent assertIsEditing() {
-        fAssertTrue("The toolbar is in the editing state", isEditing());
+        assertTrue("The toolbar is in the editing state", isEditing());
         return this;
     }
 
     public ToolbarComponent assertIsNotEditing() {
-        fAssertFalse("The toolbar is not in the editing state", isEditing());
+        assertFalse("The toolbar is not in the editing state", isEditing());
         return this;
     }
 
     public ToolbarComponent assertTitle(final String expected) {
-        fAssertEquals("The Toolbar title is " + expected, expected, getTitle());
+        assertEquals("The Toolbar title is " + expected, expected, getTitle());
         return this;
     }
 
     public ToolbarComponent assertUrl(final String expected) {
         assertIsEditing();
-        fAssertEquals("The Toolbar url is " + expected, expected, getUrlEditText().getText());
+        assertEquals("The Toolbar url is " + expected, expected, getUrlEditText().getText());
         return this;
     }
 
@@ -132,7 +132,13 @@ public class ToolbarComponent extends BaseComponent {
         WaitHelper.waitForPageLoad(new Runnable() {
             @Override
             public void run() {
-                mSolo.clickOnView(getGoButton());
+                if (InputMethods.shouldDisableUrlBarUpdate(mActivity)) {
+                    // Bug 945521 workaround: Some IMEs do not allow the go button
+                    // to be displayed in the toolbar so we hit enter instead.
+                    mSolo.sendKey(Solo.ENTER);
+                } else {
+                    mSolo.clickOnView(getGoButton());
+                }
             }
         });
         waitForNotEditing();
@@ -158,12 +164,12 @@ public class ToolbarComponent extends BaseComponent {
     }
 
     public ToolbarComponent enterUrl(final String url) {
-        fAssertNotNull("url is not null", url);
+        assertNotNull("url is not null", url);
 
         assertIsEditing();
 
         final EditText urlEditText = getUrlEditText();
-        fAssertTrue("The UrlEditText is the input method target",
+        assertTrue("The UrlEditText is the input method target",
                 urlEditText.isInputMethodTarget());
 
         mSolo.clearEditText(urlEditText);
@@ -183,9 +189,9 @@ public class ToolbarComponent extends BaseComponent {
     }
 
     private ToolbarComponent pressButton(final View view, final String buttonName) {
-        fAssertNotNull("The " + buttonName + " button View is not null", view);
-        fAssertTrue("The " + buttonName + " button is enabled", view.isEnabled());
-        fAssertEquals("The " + buttonName + " button is visible",
+        assertNotNull("The " + buttonName + " button View is not null", view);
+        assertTrue("The " + buttonName + " button is enabled", view.isEnabled());
+        assertEquals("The " + buttonName + " button is visible",
                 View.VISIBLE, view.getVisibility());
         assertIsNotEditing();
 

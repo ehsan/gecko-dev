@@ -12,8 +12,6 @@
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
 #include "mozilla/Services.h"
-#include "mozilla/ChaosMode.h"
-#include "mozilla/ArrayUtils.h"
 
 #include <math.h>
 
@@ -22,12 +20,11 @@ using namespace mozilla;
 NS_IMPL_ISUPPORTS2(TimerThread, nsIRunnable, nsIObserver)
 
 TimerThread::TimerThread() :
-  mInitInProgress(false),
+  mInitInProgress(0),
   mInitialized(false),
   mMonitor("TimerThread.mMonitor"),
   mShutdown(false),
   mWaiting(false),
-  mNotified(false),
   mSleeping(false)
 {
 }
@@ -87,7 +84,7 @@ nsresult TimerThread::Init()
     return NS_OK;
   }
 
-  if (mInitInProgress.exchange(true) == false) {
+  if (mInitInProgress.exchange(1) == 0) {
     // We hold on to mThread to keep the thread alive.
     nsresult rv = NS_NewThread(getter_AddRefs(mThread), this);
     if (NS_FAILED(rv)) {
@@ -136,10 +133,8 @@ nsresult TimerThread::Shutdown()
     mShutdown = true;
 
     // notify the cond var so that Run() can return
-    if (mWaiting) {
-      mNotified = true;
+    if (mWaiting)
       mMonitor.Notify();
-    }
 
     // Need to copy content of mTimers array to a local array
     // because call to timers' ReleaseCallback() (and release its self)
@@ -204,21 +199,14 @@ NS_IMETHODIMP TimerThread::Run()
   // Half of the amount of microseconds needed to get positive PRIntervalTime.
   // We use this to decide how to round our wait times later
   int32_t halfMicrosecondsIntervalResolution = high >> 1;
-  bool forceRunNextTimer = false;
 
   while (!mShutdown) {
     // Have to use PRIntervalTime here, since PR_WaitCondVar takes it
     PRIntervalTime waitFor;
-    bool forceRunThisTimer = forceRunNextTimer;
-    forceRunNextTimer = false;
 
     if (mSleeping) {
       // Sleep for 0.1 seconds while not firing timers.
-      uint32_t milliseconds = 100;
-      if (ChaosMode::isActive()) {
-        milliseconds = ChaosMode::randomUint32LessThan(200);
-      }
-      waitFor = PR_MillisecondsToInterval(milliseconds);
+      waitFor = PR_MillisecondsToInterval(100);
     } else {
       waitFor = PR_INTERVAL_NO_TIMEOUT;
       TimeStamp now = TimeStamp::Now();
@@ -227,7 +215,7 @@ NS_IMETHODIMP TimerThread::Run()
       if (!mTimers.IsEmpty()) {
         timer = mTimers[0];
 
-        if (now >= timer->mTimeout || forceRunThisTimer) {
+        if (now >= timer->mTimeout) {
     next:
           // NB: AddRef before the Release under RemoveTimerInternal to avoid
           // mRefCnt passing through zero, in case all other refs than the one
@@ -256,7 +244,7 @@ NS_IMETHODIMP TimerThread::Run()
             if (NS_FAILED(timer->PostTimerEvent())) {
               nsrefcnt rc;
               NS_RELEASE2(timer, rc);
-
+            
               // The nsITimer interface requires that its users keep a reference
               // to the timers they use while those timers are initialized but
               // have not yet fired.  If this ever happens, it is a bug in the
@@ -295,22 +283,8 @@ NS_IMETHODIMP TimerThread::Run()
         // before, to do the optimal rounding (i.e., of how to decide what
         // interval is so small we should not wait at all).
         double microseconds = (timeout - now).ToMilliseconds()*1000;
-
-        if (ChaosMode::isActive()) {
-          // The mean value of sFractions must be 1 to ensure that
-          // the average of a long sequence of timeouts converges to the
-          // actual sum of their times.
-          static const float sFractions[] = {
-            0.0f, 0.25f, 0.5f, 0.75f, 1.0f, 1.75f, 2.75f
-          };
-          microseconds *= sFractions[ChaosMode::randomUint32LessThan(ArrayLength(sFractions))];
-          forceRunNextTimer = true;
-        }
-
-        if (microseconds < halfMicrosecondsIntervalResolution) {
-          forceRunNextTimer = false;
+        if (microseconds < halfMicrosecondsIntervalResolution)
           goto next; // round down; execute event now
-        }
         waitFor = PR_MicrosecondsToInterval(static_cast<uint32_t>(microseconds)); // Floor is accurate enough.
         if (waitFor == 0)
           waitFor = 1; // round up, wait the minimum time we can wait
@@ -329,11 +303,7 @@ NS_IMETHODIMP TimerThread::Run()
     }
 
     mWaiting = true;
-    mNotified = false;
     mMonitor.Wait(waitFor);
-    if (mNotified) {
-      forceRunNextTimer = false;
-    }
     mWaiting = false;
   }
 
@@ -350,10 +320,8 @@ nsresult TimerThread::AddTimer(nsTimerImpl *aTimer)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Awaken the timer thread.
-  if (mWaiting && i == 0) {
-    mNotified = true;
+  if (mWaiting && i == 0)
     mMonitor.Notify();
-  }
 
   return NS_OK;
 }
@@ -371,10 +339,8 @@ nsresult TimerThread::TimerDelayChanged(nsTimerImpl *aTimer)
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Awaken the timer thread.
-  if (mWaiting && i == 0) {
-    mNotified = true;
+  if (mWaiting && i == 0)
     mMonitor.Notify();
-  }
 
   return NS_OK;
 }
@@ -394,10 +360,8 @@ nsresult TimerThread::RemoveTimer(nsTimerImpl *aTimer)
     return NS_ERROR_NOT_AVAILABLE;
 
   // Awaken the timer thread.
-  if (mWaiting) {
-    mNotified = true;
+  if (mWaiting)
     mMonitor.Notify();
-  }
 
   return NS_OK;
 }

@@ -190,11 +190,10 @@ function pduToParcelData(cdmaPduHelper, pdu) {
 add_test(function test_processCdmaSmsStatusReport() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
   function test_StatusReport(errorClass, msgStatus) {
     let msgId = 0;
-    let sentSmsMap = context.RIL._pendingSentSmsMap;
+    let sentSmsMap = worker.RIL._pendingSentSmsMap;
 
     sentSmsMap[msgId] = {};
 
@@ -227,7 +226,7 @@ add_test(function test_processCdmaSmsStatusReport() {
       msgStatus:        msgStatus
     };
 
-    context.RIL._processCdmaSmsStatusReport(message);
+    worker.RIL._processCdmaSmsStatusReport(message);
 
     let postedMessage = workerHelper.postedMessage;
 
@@ -264,9 +263,8 @@ add_test(function test_processCdmaSmsStatusReport() {
 add_test(function test_processCdmaSmsWapPush() {
   let workerHelper = _getWorker(),
       worker = workerHelper.worker,
-      context = worker.ContextPool._contexts[0],
-      bitBufferHelper = context.BitBufferHelper,
-      cdmaPduHelper = context.CdmaPDUHelper;
+      bitBufferHelper = worker.BitBufferHelper,
+      cdmaPduHelper = worker.CdmaPDUHelper;
 
   function test_CdmaSmsWapPdu(wdpData, reversed) {
     let orig_address = "0987654321",
@@ -295,7 +293,7 @@ add_test(function test_processCdmaSmsWapPush() {
                                             data:     hexStringToBytes(hexString) })
       };
 
-      worker.onRILMessage(0, newSmsParcel(cdmaPduHelper, pdu));
+      worker.onRILMessage(newSmsParcel(cdmaPduHelper, pdu));
     }
 
     let postedMessage = workerHelper.postedMessage;
@@ -307,11 +305,18 @@ add_test(function test_processCdmaSmsWapPush() {
     do_check_eq(orig_address, postedMessage.sender);
     do_check_eq(0x23F0, postedMessage.header.originatorPort);
     do_check_eq(0x0B84, postedMessage.header.destinationPort);
-    do_check_eq(fullDataHexString, bytesToHexString(postedMessage.data));
+    do_check_eq(fullDataHexString, bytesToHexString(postedMessage.fullData));
   }
 
   // Verify Single WAP PDU
   test_CdmaSmsWapPdu(["000102030405060708090A0B0C0D0E0F"]);
+
+  // Verify Concatenated WAP PDUs
+  test_CdmaSmsWapPdu(["000102030405060708090A0B0C0D0E0F", "0F0E0D0C0B0A09080706050403020100"]);
+
+  // Verify Concatenated WAP PDUs received in reversed order.
+  // Note: the port information is only available in 1st segment in CDMA WAP Push.
+  test_CdmaSmsWapPdu(["000102030405060708090A0B0C0D0E0F", "0F0E0D0C0B0A09080706050403020100"], true);
 
   run_next_test();
 });

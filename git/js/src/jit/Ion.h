@@ -159,8 +159,8 @@ void StopAllOffThreadCompilations(JSCompartment *comp);
 static inline bool
 IsIonEnabled(JSContext *cx)
 {
-    return cx->runtime()->options().ion() &&
-        cx->runtime()->options().baseline() &&
+    return cx->compartment()->options().ion(cx) &&
+        cx->compartment()->options().baseline(cx) &&
         cx->typeInferenceEnabled();
 }
 
@@ -181,12 +181,12 @@ TooManyArguments(unsigned nargs)
 void ForbidCompilation(JSContext *cx, JSScript *script);
 void ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode);
 
-void PurgeCaches(JSScript *script);
+void PurgeCaches(JSScript *script, JS::Zone *zone);
 size_t SizeOfIonData(JSScript *script, mozilla::MallocSizeOf mallocSizeOf);
 void DestroyIonScripts(FreeOp *fop, JSScript *script);
 void TraceIonScripts(JSTracer* trc, JSScript *script);
 
-void RequestInterruptForIonCode(JSRuntime *rt, JSRuntime::InterruptMode mode);
+void TriggerOperationCallbackForIonCode(JSRuntime *rt, JSRuntime::OperationCallbackTrigger trigger);
 
 } // namespace jit
 } // namespace js

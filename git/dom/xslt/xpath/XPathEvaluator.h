@@ -37,10 +37,10 @@ public:
 
     // WebIDL API
     JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope);
-    nsIDocument* GetParentObject()
+    already_AddRefed<nsIDocument> GetParentObject()
     {
         nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
-        return doc;
+        return doc.forget();
     }
     static already_AddRefed<XPathEvaluator>
         Constructor(const GlobalObject& aGlobal, ErrorResult& rv);

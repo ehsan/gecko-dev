@@ -82,7 +82,8 @@ ImageClient::CreateImageClient(CompositableType aCompositableHostType,
 ImageClientSingle::ImageClientSingle(CompositableForwarder* aFwd,
                                      TextureFlags aFlags,
                                      CompositableType aType)
-  : ImageClient(aFwd, aFlags, aType)
+  : ImageClient(aFwd, aType)
+  , mTextureFlags(aFlags)
 {
 }
 
@@ -102,7 +103,7 @@ void
 ImageClientSingle::FlushAllImages(bool aExceptFront)
 {
   if (!aExceptFront && mFrontBuffer) {
-    GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+    GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
     mFrontBuffer = nullptr;
   }
 }
@@ -111,11 +112,11 @@ void
 ImageClientBuffered::FlushAllImages(bool aExceptFront)
 {
   if (!aExceptFront && mFrontBuffer) {
-    GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+    GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
     mFrontBuffer = nullptr;
   }
   if (mBackBuffer) {
-    GetForwarder()->RemoveTextureFromCompositable(this, mBackBuffer);
+    GetForwarder()->AddForceRemovingTexture(mBackBuffer);
     mBackBuffer = nullptr;
   }
 }
@@ -124,16 +125,7 @@ bool
 ImageClientSingle::UpdateImage(ImageContainer* aContainer,
                                uint32_t aContentFlags)
 {
-  bool isSwapped = false;
-  return UpdateImageInternal(aContainer, aContentFlags, &isSwapped);
-}
-
-bool
-ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
-                                       uint32_t aContentFlags, bool* aIsSwapped)
-{
   AutoLockImage autoLock(aContainer);
-  *aIsSwapped = false;
 
   Image *image = autoLock.GetImage();
   if (!image) {
@@ -144,13 +136,18 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
     return true;
   }
 
-  if (image->AsSharedImage() && image->AsSharedImage()->GetTextureClient(this)) {
+  if (image->AsSharedImage() && image->AsSharedImage()->GetTextureClient()) {
     // fast path: no need to allocate and/or copy image data
-    RefPtr<TextureClient> texture = image->AsSharedImage()->GetTextureClient(this);
+    RefPtr<TextureClient> texture = image->AsSharedImage()->GetTextureClient();
 
+    if (texture->IsSharedWithCompositor()) {
+      // XXX - temporary fix for bug 911941
+      // This will be changed with bug 912907
+      return false;
+    }
 
     if (mFrontBuffer) {
-      GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+      GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
     }
     mFrontBuffer = texture;
     if (!AddTextureClient(texture)) {
@@ -167,7 +164,7 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
     }
 
     if (mFrontBuffer && mFrontBuffer->IsImmutable()) {
-      GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+      GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 
@@ -210,7 +207,7 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
     gfx::IntSize size = gfx::IntSize(image->GetSize().width, image->GetSize().height);
 
     if (mFrontBuffer) {
-      GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+      GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 
@@ -224,23 +221,23 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
 
     GetForwarder()->UseTexture(this, mFrontBuffer);
   } else {
-    RefPtr<gfx::SourceSurface> surface = image->GetAsSourceSurface();
+    nsRefPtr<gfxASurface> surface = image->DeprecatedGetAsSurface();
     MOZ_ASSERT(surface);
 
-    gfx::IntSize size = image->GetSize();
+    gfx::IntSize size = gfx::IntSize(image->GetSize().width, image->GetSize().height);
 
     if (mFrontBuffer &&
         (mFrontBuffer->IsImmutable() || mFrontBuffer->GetSize() != size)) {
-      GetForwarder()->RemoveTextureFromCompositable(this, mFrontBuffer);
+      GetForwarder()->AddForceRemovingTexture(mFrontBuffer);
       mFrontBuffer = nullptr;
     }
 
     bool bufferCreated = false;
     if (!mFrontBuffer) {
       gfxImageFormat format
-        = gfxPlatform::GetPlatform()->OptimalFormatForContent(gfx::ContentForFormat(surface->GetFormat()));
+        = gfxPlatform::GetPlatform()->OptimalFormatForContent(surface->GetContentType());
       mFrontBuffer = CreateTextureClientForDrawing(gfx::ImageFormatToSurfaceFormat(format),
-                                                   mTextureFlags, size);
+                                                   mTextureFlags);
       MOZ_ASSERT(mFrontBuffer->AsTextureClientDrawTarget());
       if (!mFrontBuffer->AsTextureClientDrawTarget()->AllocateForSurface(size)) {
         mFrontBuffer = nullptr;
@@ -257,8 +254,9 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
     {
       // We must not keep a reference to the DrawTarget after it has been unlocked.
       RefPtr<DrawTarget> dt = mFrontBuffer->AsTextureClientDrawTarget()->GetAsDrawTarget();
-      MOZ_ASSERT(surface.get());
-      dt->CopySurface(surface, IntRect(IntPoint(), surface->GetSize()), IntPoint());
+      RefPtr<SourceSurface> source = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(dt, surface);
+      MOZ_ASSERT(source.get());
+      dt->CopySurface(source, IntRect(IntPoint(), source->GetSize()), IntPoint());
     }
 
     mFrontBuffer->Unlock();
@@ -278,7 +276,6 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
 
   mLastPaintedImageSerial = image->GetSerial();
   aContainer->NotifyPaintedImage(image);
-  *aIsSwapped = true;
   return true;
 }
 
@@ -289,17 +286,7 @@ ImageClientBuffered::UpdateImage(ImageContainer* aContainer,
   RefPtr<TextureClient> temp = mFrontBuffer;
   mFrontBuffer = mBackBuffer;
   mBackBuffer = temp;
-
-  bool isSwapped = false;
-  bool ret = ImageClientSingle::UpdateImageInternal(aContainer, aContentFlags, &isSwapped);
-
-  if (!isSwapped) {
-    // If buffer swap did not happen at Host side, swap back the buffers.
-    RefPtr<TextureClient> temp = mFrontBuffer;
-    mFrontBuffer = mBackBuffer;
-    mBackBuffer = temp;
-  }
-  return ret;
+  return ImageClientSingle::UpdateImage(aContainer, aContentFlags);
 }
 
 bool
@@ -307,6 +294,12 @@ ImageClientSingle::AddTextureClient(TextureClient* aTexture)
 {
   MOZ_ASSERT((mTextureFlags & aTexture->GetFlags()) == mTextureFlags);
   return CompositableClient::AddTextureClient(aTexture);
+}
+
+TemporaryRef<BufferTextureClient>
+ImageClientSingle::CreateBufferTextureClient(gfx::SurfaceFormat aFormat, TextureFlags aFlags)
+{
+  return CompositableClient::CreateBufferTextureClient(aFormat, mTextureFlags | aFlags);
 }
 
 void
@@ -322,9 +315,8 @@ ImageClientBuffered::OnDetach()
   mBackBuffer = nullptr;
 }
 
-ImageClient::ImageClient(CompositableForwarder* aFwd, TextureFlags aFlags,
-                         CompositableType aType)
-: CompositableClient(aFwd, aFlags)
+ImageClient::ImageClient(CompositableForwarder* aFwd, CompositableType aType)
+: CompositableClient(aFwd)
 , mType(aType)
 , mLastPaintedImageSerial(0)
 {}
@@ -343,7 +335,7 @@ ImageClient::UpdatePictureRect(nsIntRect aRect)
 DeprecatedImageClientSingle::DeprecatedImageClientSingle(CompositableForwarder* aFwd,
                                                          TextureFlags aFlags,
                                                          CompositableType aType)
-  : ImageClient(aFwd, aFlags, aType)
+  : ImageClient(aFwd, aType)
   , mTextureInfo(aType)
 {
   mTextureInfo.mTextureFlags = aFlags;
@@ -476,7 +468,7 @@ DeprecatedImageClientSingle::Updated()
 
 ImageClientBridge::ImageClientBridge(CompositableForwarder* aFwd,
                                      TextureFlags aFlags)
-: ImageClient(aFwd, aFlags, BUFFER_BRIDGE)
+: ImageClient(aFwd, BUFFER_BRIDGE)
 , mAsyncContainerID(0)
 , mLayer(nullptr)
 {

@@ -16,7 +16,7 @@ function test() {
     waitForFocus(startTest, content);
   }, true);
 
-  content.location = "data:text/html;charset=utf-8,<html><style>" +
+  content.location = "data:text/html,<html><style>" +
     "div {" +
     "  width: 500px;" +
     "  height: 10px;" +
@@ -49,12 +49,12 @@ function test() {
 
     instance.setSize(500, 500);
 
-    openRuleView().then(onInspectorUIOpen);
+    openRuleView(onInspectorUIOpen);
   }
 
-  function onInspectorUIOpen(args) {
-    inspector = args.inspector;
-    ruleView = args.view;
+  function onInspectorUIOpen(aInspector, aRuleView) {
+    inspector = aInspector;
+    ruleView = aRuleView;
     ok(inspector, "Got inspector instance");
 
     let div = content.document.getElementsByTagName("div")[0];

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,35 +23,26 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testJs.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testJs.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var assert = require('../testharness/assert');
-// var helpers = require('./helpers');
+'use strict';
+
+// var assert = require('test/assert');
+// var helpers = require('gclitest/helpers');
 var javascript = require('gcli/types/javascript');
+var canon = require('gcli/canon');
 
 var tempWindow;
 
 exports.setup = function(options) {
-  if (options.isNoDom) {
-    return;
-  }
-
   tempWindow = javascript.getGlobalObject();
   Object.defineProperty(options.window, 'donteval', {
     get: function() {
@@ -64,24 +56,17 @@ exports.setup = function(options) {
 };
 
 exports.shutdown = function(options) {
-  if (options.isNoDom) {
-    return;
-  }
-
   javascript.setGlobalObject(tempWindow);
   tempWindow = undefined;
   delete options.window.donteval;
 };
 
-function jsTestAllowed(options) {
-  return options.isRemote || options.isNoDom ||
-         options.requisition.canon.getCommand('{') == null;
-}
-
 exports.testBasic = function(options) {
   return helpers.audit(options, [
     {
-      skipRemainingIf: jsTestAllowed,
+      skipRemainingIf: function commandJsMissing() {
+        return canon.getCommand('{') == null;
+      },
       setup:    '{',
       check: {
         input:  '{',
@@ -97,7 +82,8 @@ exports.testBasic = function(options) {
           javascript: {
             value: undefined,
             arg: '{',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           }
         }
       }
@@ -118,7 +104,8 @@ exports.testBasic = function(options) {
           javascript: {
             value: undefined,
             arg: '{ ',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           }
         }
       }
@@ -139,7 +126,8 @@ exports.testBasic = function(options) {
           javascript: {
             value: 'w',
             arg: '{ w',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           }
         }
       }
@@ -160,7 +148,8 @@ exports.testBasic = function(options) {
           javascript: {
             value: 'windo',
             arg: '{ windo',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           }
         }
       }
@@ -203,7 +192,8 @@ exports.testBasic = function(options) {
           javascript: {
             value: 'window.do',
             arg: '{ window.do',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           }
         }
       }
@@ -236,7 +226,9 @@ exports.testBasic = function(options) {
 exports.testDocument = function(options) {
   return helpers.audit(options, [
     {
-      skipRemainingIf: jsTestAllowed,
+      skipRemainingIf: function commandJsMissing() {
+        return canon.getCommand('{') == null;
+      },
       setup:    '{ docu',
       check: {
         input:  '{ docu',
@@ -252,7 +244,8 @@ exports.testDocument = function(options) {
           javascript: {
             value: 'docu',
             arg: '{ docu',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           }
         }
       }
@@ -295,12 +288,14 @@ exports.testDocument = function(options) {
           javascript: {
             value: 'document.titl',
             arg: '{ document.titl',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           }
         }
       }
     },
     {
+      skipIf: options.isJsdom,
       setup: '{ document.titl<TAB>',
       check: {
         input:  '{ document.title ',
@@ -348,14 +343,16 @@ exports.testDocument = function(options) {
 };
 
 exports.testDonteval = function(options) {
-  if (!options.isNoDom) {
-    // nodom causes an eval here, maybe that's node/v8?
+  if (!options.isJsdom) {
+    // jsdom causes an eval here, maybe that's node/v8?
     assert.ok('donteval' in options.window, 'donteval exists');
   }
 
   return helpers.audit(options, [
     {
-      skipRemainingIf: jsTestAllowed,
+      skipRemainingIf: function commandJsMissing() {
+        return canon.getCommand('{') == null;
+      },
       setup:    '{ don',
       check: {
         input:  '{ don',
@@ -371,7 +368,8 @@ exports.testDonteval = function(options) {
           javascript: {
             value: 'don',
             arg: '{ don',
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           }
         }
       }
@@ -473,120 +471,5 @@ exports.testDonteval = function(options) {
   ]);
 };
 
-exports.testExec = function(options) {
-  return helpers.audit(options, [
-    {
-      skipRemainingIf: jsTestAllowed,
-      setup:    '{ 1+1',
-      check: {
-        input:  '{ 1+1',
-        hints:       '',
-        markup: 'VVVVV',
-        cursor: 5,
-        current: 'javascript',
-        status: 'VALID',
-        options: [ ],
-        message: '',
-        predictions: [ ],
-        unassigned: [ ],
-        args: {
-          javascript: {
-            value: '1+1',
-            arg: '{ 1+1',
-            status: 'VALID',
-            message: ''
-          }
-        }
-      },
-      exec: {
-        output: '2',
-        type: 'number',
-        error: false
-      }
-    },
-    {
-      setup:    '{ 1+1 }',
-      check: {
-        input:  '{ 1+1 }',
-        hints:         '',
-        markup: 'VVVVVVV',
-        cursor: 7,
-        current: 'javascript',
-        status: 'VALID',
-        options: [ ],
-        message: '',
-        predictions: [ ],
-        unassigned: [ ],
-        args: {
-          javascript: {
-            value: '1+1',
-            arg: '{ 1+1 }',
-            status: 'VALID',
-            message: ''
-          }
-        }
-      },
-      exec: {
-        output: '2',
-        type: 'number',
-        error: false
-      }
-    },
-    {
-      setup:    '{ "hello"',
-      check: {
-        input:  '{ "hello"',
-        hints:           '',
-        markup: 'VVVVVVVVV',
-        cursor: 9,
-        current: 'javascript',
-        status: 'VALID',
-        options: [ ],
-        message: '',
-        predictions: [ ],
-        unassigned: [ ],
-        args: {
-          javascript: {
-            value: '"hello"',
-            arg: '{ "hello"',
-            status: 'VALID',
-            message: ''
-          }
-        }
-      },
-      exec: {
-        output: 'hello',
-        type: 'string',
-        error: false
-      }
-    },
-    {
-      setup:    '{ "hello" + 1',
-      check: {
-        input:  '{ "hello" + 1',
-        hints:               '',
-        markup: 'VVVVVVVVVVVVV',
-        cursor: 13,
-        current: 'javascript',
-        status: 'VALID',
-        options: [ ],
-        message: '',
-        predictions: [ ],
-        unassigned: [ ],
-        args: {
-          javascript: {
-            value: '"hello" + 1',
-            arg: '{ "hello" + 1',
-            status: 'VALID',
-            message: ''
-          }
-        }
-      },
-      exec: {
-        output: 'hello1',
-        type: 'string',
-        error: false
-      }
-    }
-  ]);
-};
+
+// });

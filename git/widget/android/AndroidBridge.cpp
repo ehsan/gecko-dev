@@ -42,6 +42,8 @@ using namespace mozilla;
 using namespace mozilla::widget::android;
 using namespace mozilla::gfx;
 
+NS_IMPL_ISUPPORTS0(nsFilePickerCallback)
+
 StaticRefPtr<AndroidBridge> AndroidBridge::sBridge;
 static unsigned sJavaEnvThreadIndex = 0;
 static jobject sGlobalContext = nullptr;
@@ -482,6 +484,41 @@ AndroidBridge::GetScreenDepth()
         return DEFAULT_DEPTH;
 
     return sDepth;
+}
+
+void
+AndroidBridge::ShowFilePickerForExtensions(nsAString& aFilePath, const nsAString& aExtensions)
+{
+    JNIEnv *env = GetJNIEnv();
+
+    AutoLocalJNIFrame jniFrame(env, 1);
+    jstring jstr = GeckoAppShell::ShowFilePickerForExtensionsWrapper(aExtensions);
+    if (jstr == nullptr) {
+        return;
+    }
+
+    aFilePath.Assign(nsJNIString(jstr, env));
+}
+
+void
+AndroidBridge::ShowFilePickerForMimeType(nsAString& aFilePath, const nsAString& aMimeType)
+{
+    JNIEnv *env = GetJNIEnv();
+
+    AutoLocalJNIFrame jniFrame(env, 1);
+    jstring jstr = GeckoAppShell::ShowFilePickerForMimeTypeWrapper(aMimeType);
+    if (jstr == nullptr) {
+        return;
+    }
+
+    aFilePath.Assign(nsJNIString(jstr, env));
+}
+
+void
+AndroidBridge::ShowFilePickerAsync(const nsAString& aMimeType, nsFilePickerCallback* callback)
+{
+    callback->AddRef();
+    GeckoAppShell::ShowFilePickerAsyncWrapper(aMimeType, (int64_t) callback);
 }
 
 void
@@ -962,14 +999,21 @@ AndroidBridge::GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInf
 }
 
 void
-AndroidBridge::HandleGeckoMessage(const nsAString &aMessage)
+AndroidBridge::HandleGeckoMessage(const nsAString &aMessage, nsAString &aRet)
 {
     ALOG_BRIDGE("%s", __PRETTY_FUNCTION__);
 
     JNIEnv *env = GetJNIEnv();
 
     AutoLocalJNIFrame jniFrame(env, 1);
-    GeckoAppShell::HandleGeckoMessageWrapper(aMessage);
+    jstring returnMessage = GeckoAppShell::HandleGeckoMessageWrapper(aMessage);
+
+    if (!returnMessage)
+        return;
+
+    nsJNIString jniStr(returnMessage, env);
+    aRet.Assign(jniStr);
+    ALOG_BRIDGE("leaving %s", __PRETTY_FUNCTION__);
 }
 
 nsresult
@@ -1490,9 +1534,9 @@ nsAndroidBridge::~nsAndroidBridge()
 }
 
 /* void handleGeckoEvent (in AString message); */
-NS_IMETHODIMP nsAndroidBridge::HandleGeckoMessage(const nsAString & message)
+NS_IMETHODIMP nsAndroidBridge::HandleGeckoMessage(const nsAString & message, nsAString &aRet)
 {
-    AndroidBridge::Bridge()->HandleGeckoMessage(message);
+    AndroidBridge::Bridge()->HandleGeckoMessage(message, aRet);
     return NS_OK;
 }
 
@@ -1835,7 +1879,7 @@ AndroidBridge::IsContentDocumentDisplayed()
 }
 
 bool
-AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, ParentLayerRect& aCompositionBounds, CSSToParentLayerScale& aZoom)
+AndroidBridge::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const LayerRect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, ScreenRect& aCompositionBounds, CSSToScreenScale& aZoom)
 {
     GeckoLayerClient *client = mLayerClient;
     if (!client) {
@@ -1880,51 +1924,39 @@ AndroidBridge::RequestContentRepaint(const mozilla::layers::FrameMetrics& aFrame
 {
     ALOG_BRIDGE("AndroidBridge::RequestContentRepaint");
 
-    // FIXME implement this
+    CSSToScreenScale resolution = aFrameMetrics.mZoom;
+    ScreenRect dp = (aFrameMetrics.mDisplayPort + aFrameMetrics.mScrollOffset) * resolution;
+
+    mNativePanZoomController->RequestContentRepaintWrapper(dp.x, dp.y, dp.width, dp.height, resolution.scale);
 }
 
 void
-AndroidBridge::AcknowledgeScrollUpdate(const mozilla::layers::FrameMetrics::ViewID& aScrollId,
-                                       const uint32_t& aScrollGeneration)
+AndroidBridge::HandleDoubleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
 {
-    // FIXME implement this
-}
-
-void
-AndroidBridge::HandleDoubleTap(const CSSPoint& aPoint,
-                               int32_t aModifiers,
-                               const mozilla::layers::ScrollableLayerGuid& aGuid)
-{
-    nsCString data = nsPrintfCString("{ \"x\": %f, \"y\": %f }", aPoint.x, aPoint.y);
+    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
     nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:DoubleTap"), data));
 }
 
 void
-AndroidBridge::HandleSingleTap(const CSSPoint& aPoint,
-                               int32_t aModifiers,
-                               const mozilla::layers::ScrollableLayerGuid& aGuid)
+AndroidBridge::HandleSingleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
 {
     // TODO Send the modifier data to Gecko for use in mouse events.
-    nsCString data = nsPrintfCString("{ \"x\": %f, \"y\": %f }", aPoint.x, aPoint.y);
+    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
     nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:SingleTap"), data));
 }
 
 void
-AndroidBridge::HandleLongTap(const CSSPoint& aPoint,
-                             int32_t aModifiers,
-                             const mozilla::layers::ScrollableLayerGuid& aGuid)
+AndroidBridge::HandleLongTap(const CSSIntPoint& aPoint, int32_t aModifiers)
 {
-    nsCString data = nsPrintfCString("{ \"x\": %f, \"y\": %f }", aPoint.x, aPoint.y);
+    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
     nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:LongPress"), data));
 }
 
 void
-AndroidBridge::HandleLongTapUp(const CSSPoint& aPoint,
-                               int32_t aModifiers,
-                               const mozilla::layers::ScrollableLayerGuid& aGuid)
+AndroidBridge::HandleLongTapUp(const CSSIntPoint& aPoint, int32_t aModifiers)
 {
 }
 

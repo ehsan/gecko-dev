@@ -8,8 +8,7 @@
 
 #include "nsIStreamConverterService.h"
 
-#include "nsTArrayForwardDeclare.h"
-
+template<class T> class nsTArray;
 class nsObjectHashtable;
 class nsCString;
 

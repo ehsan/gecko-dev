@@ -7,7 +7,6 @@
 #define WEBGLRENDERBUFFER_H_
 
 #include "WebGLObjectModel.h"
-#include "WebGLFramebufferAttachable.h"
 
 #include "nsWrapperCache.h"
 
@@ -21,7 +20,6 @@ class WebGLRenderbuffer MOZ_FINAL
     , public LinkedListElement<WebGLRenderbuffer>
     , public WebGLRectangleObject
     , public WebGLContextBoundObject
-    , public WebGLFramebufferAttachable
 {
 public:
     WebGLRenderbuffer(WebGLContext *context);

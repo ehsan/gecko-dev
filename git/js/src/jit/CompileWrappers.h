@@ -34,8 +34,8 @@ class CompileRuntime
     // &mainThread.ionTop
     const void *addressOfIonTop();
 
-    // rt->mainThread.jitStackLimit;
-    const void *addressOfJitStackLimit();
+    // rt->mainThread.ionStackLimit;
+    const void *addressOfIonStackLimit();
 
     // &mainThread.ionJSContext
     const void *addressOfJSContext();
@@ -51,12 +51,6 @@ class CompileRuntime
 #endif
 
     const void *addressOfInterrupt();
-
-#ifdef JS_THREADSAFE
-    const void *addressOfInterruptPar();
-#endif
-
-    const void *addressOfThreadPool();
 
     const JitRuntime *jitRuntime();
 

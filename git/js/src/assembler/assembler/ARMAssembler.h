@@ -906,11 +906,6 @@ namespace JSC {
             return m_buffer.uncheckedSize();
         }
 
-        size_t allocSize() const
-        {
-            return m_buffer.allocSize();
-        }
-
         void ensureSpace(int insnSpace, int constSpace)
         {
             m_buffer.ensureSpace(insnSpace, constSpace);

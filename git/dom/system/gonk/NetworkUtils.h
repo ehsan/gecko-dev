@@ -30,7 +30,6 @@ public:
   NetworkParams(const NetworkParams& aOther) {
     mIp = aOther.mIp;
     mCmd = aOther.mCmd;
-    mDomain = aOther.mDomain;
     mDns1_str = aOther.mDns1_str;
     mDns2_str = aOther.mDns2_str;
     mGateway = aOther.mGateway;
@@ -38,7 +37,7 @@ public:
     mHostnames = aOther.mHostnames;
     mId = aOther.mId;
     mIfname = aOther.mIfname;
-    mPrefixLength = aOther.mPrefixLength;
+    mNetmask = aOther.mNetmask;
     mOldIfname = aOther.mOldIfname;
     mMode = aOther.mMode;
     mReport = aOther.mReport;
@@ -76,12 +75,12 @@ public:
 
   NetworkParams(const NetworkCommandOptions& aOther) {
 
-#define COPY_SEQUENCE_FIELD(prop, type)                                                      \
+#define COPY_SEQUENCE_FIELD(prop)                                                            \
     if (aOther.prop.WasPassed()) {                                                           \
-      mozilla::dom::Sequence<type > const & currentValue = aOther.prop.InternalValue();      \
+      mozilla::dom::Sequence<nsString > const & currentValue = aOther.prop.InternalValue();  \
       uint32_t length = currentValue.Length();                                               \
       for (uint32_t idx = 0; idx < length; idx++) {                                          \
-        prop.AppendElement(currentValue[idx]);                                               \
+        mHostnames.AppendElement(currentValue[idx]);                                         \
       }                                                                                      \
     }
 
@@ -107,15 +106,14 @@ public:
 
     COPY_FIELD(mId)
     COPY_FIELD(mCmd)
-    COPY_OPT_STRING_FIELD(mDomain, EmptyString())
     COPY_OPT_STRING_FIELD(mDns1_str, EmptyString())
     COPY_OPT_STRING_FIELD(mDns2_str, EmptyString())
     COPY_OPT_STRING_FIELD(mGateway, EmptyString())
     COPY_OPT_STRING_FIELD(mGateway_str, EmptyString())
-    COPY_SEQUENCE_FIELD(mHostnames, nsString)
+    COPY_SEQUENCE_FIELD(mHostnames)
     COPY_OPT_STRING_FIELD(mIfname, EmptyString())
     COPY_OPT_STRING_FIELD(mIp, EmptyString())
-    COPY_OPT_FIELD(mPrefixLength, 0)
+    COPY_OPT_STRING_FIELD(mNetmask, EmptyString())
     COPY_OPT_STRING_FIELD(mOldIfname, EmptyString())
     COPY_OPT_STRING_FIELD(mMode, EmptyString())
     COPY_OPT_FIELD(mReport, false)
@@ -130,7 +128,7 @@ public:
     COPY_OPT_STRING_FIELD(mKey, EmptyString())
     COPY_OPT_STRING_FIELD(mPrefix, EmptyString())
     COPY_OPT_STRING_FIELD(mLink, EmptyString())
-    COPY_SEQUENCE_FIELD(mInterfaceList, nsString)
+    COPY_SEQUENCE_FIELD(mInterfaceList)
     COPY_OPT_STRING_FIELD(mWifiStartIp, EmptyString())
     COPY_OPT_STRING_FIELD(mWifiEndIp, EmptyString())
     COPY_OPT_STRING_FIELD(mUsbStartIp, EmptyString())
@@ -158,7 +156,6 @@ public:
 
   int32_t mId;
   nsString mCmd;
-  nsString mDomain;
   nsString mDns1_str;
   nsString mDns2_str;
   nsString mGateway;
@@ -166,7 +163,7 @@ public:
   nsTArray<nsString> mHostnames;
   nsString mIfname;
   nsString mIp;
-  uint32_t mPrefixLength;
+  nsString mNetmask;
   nsString mOldIfname;
   nsString mMode;
   bool mReport;
@@ -181,7 +178,7 @@ public:
   nsString mKey;
   nsString mPrefix;
   nsString mLink;
-  nsTArray<nsString> mInterfaceList;
+  nsTArray<nsCString> mInterfaceList;
   nsString mWifiStartIp;
   nsString mWifiEndIp;
   nsString mUsbStartIp;
@@ -271,8 +268,6 @@ private:
   bool removeHostRoute(NetworkParams& aOptions);
   bool removeHostRoutes(NetworkParams& aOptions);
   bool removeNetworkRoute(NetworkParams& aOptions);
-  bool addSecondaryRoute(NetworkParams& aOptions);
-  bool removeSecondaryRoute(NetworkParams& aOptions);
   bool getNetworkInterfaceStats(NetworkParams& aOptions);
   bool setNetworkInterfaceAlarm(NetworkParams& aOptions);
   bool enableNetworkInterfaceAlarm(NetworkParams& aOptions);
@@ -302,7 +297,6 @@ private:
   static CommandFunc sNetworkInterfaceEnableAlarmChain[];
   static CommandFunc sNetworkInterfaceDisableAlarmChain[];
   static CommandFunc sNetworkInterfaceSetAlarmChain[];
-  static CommandFunc sSetDnsChain[];
 
   /**
    * Individual netd command stored in command chain.
@@ -335,8 +329,6 @@ private:
   static void setDnsForwarders(PARAMS);
   static void enableNat(PARAMS);
   static void disableNat(PARAMS);
-  static void setDefaultInterface(PARAMS);
-  static void setInterfaceDns(PARAMS);
   static void wifiTetheringSuccess(PARAMS);
   static void usbTetheringSuccess(PARAMS);
   static void networkInterfaceStatsSuccess(PARAMS);
@@ -357,7 +349,6 @@ private:
   static void setDhcpServerFail(PARAMS);
   static void networkInterfaceStatsFail(PARAMS);
   static void networkInterfaceAlarmFail(PARAMS);
-  static void setDnsFail(PARAMS);
 #undef PARAMS
 
   /**

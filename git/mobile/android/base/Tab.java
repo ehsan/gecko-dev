@@ -5,28 +5,30 @@
 
 package org.mozilla.gecko;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
+import org.mozilla.gecko.SiteIdentity.SecurityMode;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.util.ThreadUtils;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import android.content.ContentResolver;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Tab {
     private static final String LOGTAG = "GeckoTab";
@@ -68,7 +70,6 @@ public class Tab {
     private ErrorType mErrorType = ErrorType.NONE;
     private static final int MAX_HISTORY_LIST_SIZE = 50;
     private volatile int mLoadProgress;
-    private String mMostRecentHomePanel;
 
     public static final int STATE_DELAYED = 0;
     public static final int STATE_LOADING = 1;
@@ -125,8 +126,6 @@ public class Tab {
         // when the LayerView is created. Shortly after, this background color
         // will be used before the tab's content is shown.
         mBackgroundColor = DEFAULT_BACKGROUND_COLOR;
-
-        updateBookmark();
     }
 
     private ContentResolver getContentResolver() {
@@ -186,14 +185,6 @@ public class Tab {
 
     public BitmapDrawable getThumbnail() {
         return mThumbnail;
-    }
-
-    public String getMostRecentHomePanel() {
-        return mMostRecentHomePanel;
-    }
-
-    public void setMostRecentHomePanel(String panelId) {
-        mMostRecentHomePanel = panelId;
     }
 
     public Bitmap getThumbnailBitmap(int width, int height) {
@@ -275,6 +266,7 @@ public class Tab {
     public synchronized void updateURL(String url) {
         if (url != null && url.length() > 0) {
             mUrl = url;
+            updateBookmark();
         }
     }
 
@@ -420,21 +412,18 @@ public class Tab {
     }
 
     void updateBookmark() {
-        if (getURL() == null) {
-            return;
-        }
-
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
                 final String url = getURL();
-                if (url == null) {
+                if (url == null)
                     return;
+
+                if (url.equals(getURL())) {
+                    mBookmark = BrowserDB.isBookmark(getContentResolver(), url);
+                    mReadingListItem = BrowserDB.isReadingListItem(getContentResolver(), url);
                 }
 
-                final int flags = BrowserDB.getItemFlags(getContentResolver(), url);
-                mBookmark = (flags & Bookmarks.FLAG_BOOKMARK) > 0;
-                mReadingListItem = (flags & Bookmarks.FLAG_READING) > 0;
                 Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.MENU_UPDATED);
             }
         });
@@ -625,23 +614,18 @@ public class Tab {
     void handleLocationChange(JSONObject message) throws JSONException {
         final String uri = message.getString("uri");
         final String oldUrl = getURL();
-        final boolean sameDocument = message.getBoolean("sameDocument");
         mEnteringReaderMode = ReaderModeUtils.isEnteringReaderMode(oldUrl, uri);
 
-        if (!TextUtils.equals(oldUrl, uri)) {
-            updateURL(uri);
-            updateBookmark();
-            if (!sameDocument) {
-                // We can unconditionally clear the favicon and title here: we
-                // already filtered both cases in which this was a (pseudo-)
-                // spurious location change, so we're definitely loading a new
-                // page.
-                clearFavicon();
-                updateTitle(null);
-            }
+        if (TextUtils.equals(oldUrl, uri)) {
+            Log.d(LOGTAG, "Ignoring location change event: URIs are the same.");
+            return;
         }
 
-        if (sameDocument) {
+        updateURL(uri);
+        updateUserSearch(message.getString("userSearch"));
+
+        mBaseDomain = message.optString("baseDomain");
+        if (message.getBoolean("sameDocument")) {
             // We can get a location change event for the same document with an anchor tag
             // Notify listeners so that buttons like back or forward will update themselves
             Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.LOCATION_CHANGE, oldUrl);
@@ -649,11 +633,16 @@ public class Tab {
         }
 
         setContentType(message.getString("contentType"));
-        updateUserSearch(message.getString("userSearch"));
-        mBaseDomain = message.optString("baseDomain");
+
+        // We can unconditionally clear the favicon here: we already
+        // short-circuited for both cases in which this was a (pseudo-)
+        // spurious location change, so we're definitely loading a new page.
+        // The same applies to all of the other fields we're wiping out.
+        clearFavicon();
 
         setHasFeeds(false);
         setHasOpenSearch(false);
+        updateTitle(null);
         updateIdentityData(null);
         setReaderEnabled(false);
         setZoomConstraints(new ZoomConstraints(true));
@@ -667,8 +656,7 @@ public class Tab {
 
     private static boolean shouldShowProgress(final String url) {
         return AboutPages.isAboutHome(url) ||
-               AboutPages.isAboutReader(url) ||
-               AboutPages.isAboutPrivateBrowsing(url);
+               AboutPages.isAboutReader(url);
     }
 
     void handleDocumentStart(boolean showProgress, String url) {
@@ -701,18 +689,12 @@ public class Tab {
     }
 
     protected void saveThumbnailToDB() {
-        final BitmapDrawable thumbnail = mThumbnail;
-        if (thumbnail == null) {
-            return;
-        }
-
         try {
             String url = getURL();
-            if (url == null) {
+            if (url == null)
                 return;
-            }
 
-            BrowserDB.updateThumbnailForUrl(getContentResolver(), url, thumbnail);
+            BrowserDB.updateThumbnailForUrl(getContentResolver(), url, mThumbnail);
         } catch (Exception e) {
             // ignore
         }

@@ -131,9 +131,8 @@ FragmentBuffer::GetFirstFragmentSampleSize()
   return size;
 }
 
-ISOControl::ISOControl(uint32_t aMuxingType)
-  : mMuxingType(aMuxingType)
-  , mAudioFragmentBuffer(nullptr)
+ISOControl::ISOControl()
+  : mAudioFragmentBuffer(nullptr)
   , mVideoFragmentBuffer(nullptr)
   , mFragNum(0)
   , mOutputSize(0)
@@ -256,6 +255,7 @@ ISOControl::GetBufs(nsTArray<nsTArray<uint8_t>>* aOutputBufs)
   uint32_t len = mOutBuffers.Length();
   for (uint32_t i = 0; i < len; i++) {
     mOutBuffers[i].SwapElements(*aOutputBufs->AppendElement());
+    mOutputSize += mOutBuffers[i].Length();
   }
   return FlushBuf();
 }
@@ -264,6 +264,7 @@ nsresult
 ISOControl::FlushBuf()
 {
   mOutBuffers.SetLength(1);
+  mLastWrittenBoxPos = 0;
   return NS_OK;
 }
 
@@ -276,8 +277,6 @@ ISOControl::WriteAVData(nsTArray<uint8_t>& aArray)
   if (!len) {
     return 0;
   }
-
-  mOutputSize += len;
 
   // The last element already has data, allocated a new element for pointer
   // swapping.
@@ -315,7 +314,6 @@ uint32_t
 ISOControl::Write(uint8_t* aBuf, uint32_t aSize)
 {
   mOutBuffers.LastElement().AppendElements(aBuf, aSize);
-  mOutputSize += aSize;
   return aSize;
 }
 
@@ -385,7 +383,7 @@ ISOControl::GenerateMoof(uint32_t aTrackType)
 
   nsresult rv;
   uint32_t size;
-  uint64_t first_sample_offset = mOutputSize;
+  uint64_t first_sample_offset = mOutputSize + mLastWrittenBoxPos;
   nsAutoPtr<MovieFragmentBox> moof_box(new MovieFragmentBox(aTrackType, this));
   nsAutoPtr<MediaDataBox> mdat_box(new MediaDataBox(aTrackType, this));
 

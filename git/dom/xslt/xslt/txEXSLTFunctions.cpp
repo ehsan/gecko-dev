@@ -24,7 +24,6 @@
 #include "txMozillaXMLOutput.h"
 #include "nsTextNode.h"
 #include "mozilla/dom/DocumentFragment.h"
-#include "prtime.h" 
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -568,20 +567,20 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
 
             if (nodes->isEmpty()) {
                 return aContext->recycler()->
-                    getNumberResult(UnspecifiedNaN<double>(), aResult);
+                    getNumberResult(UnspecifiedNaN(), aResult);
             }
 
             bool findMax = mType == MAX;
 
-            double res = findMax ? mozilla::NegativeInfinity<double>() :
-                                   mozilla::PositiveInfinity<double>();
+            double res = findMax ? mozilla::NegativeInfinity() :
+                                   mozilla::PositiveInfinity();
             int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), str);
                 double val = txDouble::toDouble(str);
                 if (mozilla::IsNaN(val)) {
-                    res = UnspecifiedNaN<double>();
+                    res = UnspecifiedNaN();
                     break;
                 }
 
@@ -611,8 +610,8 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             NS_ENSURE_SUCCESS(rv, rv);
 
             bool findMax = mType == HIGHEST;
-            double res = findMax ? mozilla::NegativeInfinity<double>() :
-                                   mozilla::PositiveInfinity<double>();
+            double res = findMax ? mozilla::NegativeInfinity() :
+                                   mozilla::PositiveInfinity();
             int32_t i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;

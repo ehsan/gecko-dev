@@ -21,8 +21,10 @@ namespace hal_impl {
 static nsCOMPtr<nsITimer> sUpdateTimer;
 
 /* Power Event API is Vista or later */
-static decltype(RegisterPowerSettingNotification)* sRegisterPowerSettingNotification = nullptr;
-static decltype(UnregisterPowerSettingNotification)* sUnregisterPowerSettingNotification = nullptr;
+typedef HPOWERNOTIFY (WINAPI *REGISTERPOWERSETTINGNOTIFICATION) (HANDLE, LPCGUID, DWORD);
+typedef BOOL (WINAPI *UNREGISTERPOWERSETTINGNOTIFICATION) (HPOWERNOTIFY);
+static REGISTERPOWERSETTINGNOTIFICATION sRegisterPowerSettingNotification = nullptr;
+static UNREGISTERPOWERSETTINGNOTIFICATION sUnregisterPowerSettingNotification = nullptr;
 static HPOWERNOTIFY sPowerHandle = nullptr;
 static HPOWERNOTIFY sCapacityHandle = nullptr;
 static HWND sHWnd = nullptr;
@@ -68,10 +70,10 @@ EnableBatteryNotifications()
     // Use this API if available.
     HMODULE hUser32 = GetModuleHandleW(L"USER32.DLL");
     if (!sRegisterPowerSettingNotification)
-      sRegisterPowerSettingNotification = (decltype(RegisterPowerSettingNotification)*)
+      sRegisterPowerSettingNotification = (REGISTERPOWERSETTINGNOTIFICATION)
         GetProcAddress(hUser32, "RegisterPowerSettingNotification");
     if (!sUnregisterPowerSettingNotification)
-      sUnregisterPowerSettingNotification = (decltype(UnregisterPowerSettingNotification)*)
+      sUnregisterPowerSettingNotification = (UNREGISTERPOWERSETTINGNOTIFICATION)
         GetProcAddress(hUser32, "UnregisterPowerSettingNotification");
 
     if (!sRegisterPowerSettingNotification ||

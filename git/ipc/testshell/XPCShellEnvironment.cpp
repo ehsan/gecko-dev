@@ -164,7 +164,8 @@ Load(JSContext *cx,
         Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
         JS::CompileOptions options(cx);
         options.setUTF8(true)
-               .setFileAndLine(filename.ptr(), 1);
+               .setFileAndLine(filename.ptr(), 1)
+               .setPrincipals(Environment(global)->GetPrincipal());
         JS::RootedObject rootedObj(cx, obj);
         JSScript *script = JS::Compile(cx, rootedObj, options, file);
         fclose(file);
@@ -332,7 +333,8 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
 
         JS::CompileOptions options(cx);
         options.setUTF8(true)
-               .setFileAndLine(filename, 1);
+               .setFileAndLine(filename, 1)
+               .setPrincipals(env->GetPrincipal());
         JSScript* script = JS::Compile(cx, obj, options, file);
         if (script)
             (void)JS_ExecuteScript(cx, obj, script, result.address());
@@ -369,7 +371,8 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
         /* Clear any pending exception from previous failed compiles.  */
         JS_ClearPendingException(cx);
         JS::CompileOptions options(cx);
-        options.setFileAndLine("typein", startline);
+        options.setFileAndLine("typein", startline)
+               .setPrincipals(env->GetPrincipal());
         script = JS_CompileScript(cx, obj, buffer, strlen(buffer), options);
         if (script) {
             JSErrorReporter older;
@@ -577,7 +580,8 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
   JSAutoCompartment ac(cx, global);
 
   JS::CompileOptions options(cx);
-  options.setFileAndLine("typein", 0);
+  options.setFileAndLine("typein", 0)
+         .setPrincipals(GetPrincipal());
   JSScript* script = JS_CompileUCScript(cx, global, aString.get(),
                                         aString.Length(), options);
   if (!script) {

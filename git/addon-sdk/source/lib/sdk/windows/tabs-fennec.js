@@ -77,9 +77,6 @@ const Tabs = Class({
     if (options.onReady)
       tab.on('ready', options.onReady);
 
-    if (options.onLoad)
-      tab.on('load', options.onLoad);
-
     if (options.onPageShow)
       tab.on('pageshow', options.onPageShow);
 
@@ -139,7 +136,7 @@ function onTabOpen(event) {
 
   tab.on('pageshow', function(_tab, persisted)
     emit(gTabs, 'pageshow', tab, persisted));
-
+  
   emit(tab, 'open', tab);
   emit(gTabs, 'open', tab);
 }

@@ -23,7 +23,5 @@ else ifneq (,$(strip $(source_repo)))
   DEFINES += -DSOURCE_GIT_COMMIT='$(source_repo)'
 endif
 
-ifndef BUILD_HOSTNAME
-  BUILD_HOSTNAME = $(shell hostname -s || hostname)
-endif
+BUILD_HOSTNAME = $(shell hostname -s || hostname)
 DEFINES += -DBUILD_HOSTNAME='$(BUILD_HOSTNAME)'

@@ -20,13 +20,10 @@
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
 #include "mozilla/layers/PLayerChild.h"  // for PLayerChild
 #include "mozilla/layers/LayerTransactionChild.h"
-#include "mozilla/layers/TextureClientPool.h" // for TextureClientPool
-#include "mozilla/layers/SimpleTextureClientPool.h" // for SimpleTextureClientPool
 #include "nsAString.h"
 #include "nsIWidget.h"                  // for nsIWidget
 #include "nsTArray.h"                   // for AutoInfallibleTArray
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
-#include "TiledLayerBuffer.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
 #endif
@@ -188,9 +185,6 @@ ClientLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
   GetRoot()->ComputeEffectiveTransforms(Matrix4x4());
 
   root->RenderLayer();
-  if (!mRepeatTransaction && !GetRoot()->GetInvalidRegion().IsEmpty()) {
-    GetRoot()->Mutated();
-  }
   
   mThebesLayerCallback = nullptr;
   mThebesLayerCallbackData = nullptr;
@@ -224,10 +218,6 @@ ClientLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
     mIsRepeatTransaction = false;
   } else {
     MakeSnapshotIfRequired();
-  }
-
-  for (size_t i = 0; i < mTexturePools.Length(); i++) {
-    mTexturePools[i]->ReturnDeferredClients();
   }
 }
 
@@ -266,8 +256,8 @@ ClientLayerManager::GetRemoteRenderer()
 void
 ClientLayerManager::Composite()
 {
-  if (LayerTransactionChild* manager = mForwarder->GetShadowManager()) {
-    manager->SendForceComposite();
+  if (CompositorChild* remoteRenderer = GetRemoteRenderer()) {
+    remoteRenderer->SendForceComposite();
   }
 }
 
@@ -352,7 +342,7 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
   // forward this transaction's changeset to our LayerManagerComposite
   bool sent;
   AutoInfallibleTArray<EditReply, 10> replies;
-  if (HasShadowManager() && mForwarder->EndTransaction(&replies, mRegionToClear, aScheduleComposite, &sent)) {
+  if (HasShadowManager() && mForwarder->EndTransaction(&replies, aScheduleComposite, &sent)) {
     for (nsTArray<EditReply>::size_type i = 0; i < replies.Length(); ++i) {
       const EditReply& reply = replies[i];
 
@@ -385,20 +375,6 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
           ->SetDescriptorFromReply(ots.textureId(), ots.image());
         break;
       }
-      case EditReply::TReturnReleaseFence: {
-        const ReturnReleaseFence& rep = reply.get_ReturnReleaseFence();
-        FenceHandle fence = rep.fence();
-        PTextureChild* child = rep.textureChild();
-
-        if (!fence.IsValid() || !child) {
-          break;
-        }
-        RefPtr<TextureClient> texture = TextureClient::AsTextureClient(child);
-        if (texture) {
-          texture->SetReleaseFenceHandle(fence);
-        }
-        break;
-      }
 
       default:
         NS_RUNTIMEABORT("not reached");
@@ -412,7 +388,7 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
     NS_WARNING("failed to forward Layers transaction");
   }
 
-  mForwarder->RemoveTexturesIfNecessary();
+  mForwarder->ForceRemoveTexturesIfNecessary();
   mPhase = PHASE_NONE;
 
   // this may result in Layers being deleted, which results in
@@ -447,38 +423,6 @@ ClientLayerManager::SetIsFirstPaint()
   mForwarder->SetIsFirstPaint();
 }
 
-TextureClientPool*
-ClientLayerManager::GetTexturePool(SurfaceFormat aFormat)
-{
-  for (size_t i = 0; i < mTexturePools.Length(); i++) {
-    if (mTexturePools[i]->GetFormat() == aFormat) {
-      return mTexturePools[i];
-    }
-  }
-
-  mTexturePools.AppendElement(
-      new TextureClientPool(aFormat, IntSize(TILEDLAYERBUFFER_TILE_SIZE,
-                                             TILEDLAYERBUFFER_TILE_SIZE),
-                            mForwarder));
-
-  return mTexturePools.LastElement();
-}
-
-SimpleTextureClientPool*
-ClientLayerManager::GetSimpleTileTexturePool(SurfaceFormat aFormat)
-{
-  int index = (int) aFormat;
-  mSimpleTilePools.EnsureLengthAtLeast(index+1);
-
-  if (mSimpleTilePools[index].get() == nullptr) {
-    mSimpleTilePools[index] = new SimpleTextureClientPool(aFormat, IntSize(TILEDLAYERBUFFER_TILE_SIZE,
-                                                                           TILEDLAYERBUFFER_TILE_SIZE),
-                                                          mForwarder);
-  }
-
-  return mSimpleTilePools[index];
-}
-
 void
 ClientLayerManager::ClearCachedResources(Layer* aSubtree)
 {
@@ -490,9 +434,6 @@ ClientLayerManager::ClearCachedResources(Layer* aSubtree)
     ClearLayer(aSubtree);
   } else if (mRoot) {
     ClearLayer(mRoot);
-  }
-  for (size_t i = 0; i < mTexturePools.Length(); i++) {
-    mTexturePools[i]->Clear();
   }
 }
 
@@ -521,8 +462,8 @@ ClientLayerManager::GetBackendName(nsAString& aName)
 
 bool
 ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
-                                              ParentLayerRect& aCompositionBounds,
-                                              CSSToParentLayerScale& aZoom,
+                                              ScreenRect& aCompositionBounds,
+                                              CSSToScreenScale& aZoom,
                                               bool aDrawingCritical)
 {
   aZoom.scale = 1.0;
@@ -537,7 +478,7 @@ ClientLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
     const CSSRect& metricsDisplayPort =
       (aDrawingCritical && !metrics.mCriticalDisplayPort.IsEmpty()) ?
         metrics.mCriticalDisplayPort : metrics.mDisplayPort;
-    LayerRect displayPort = (metricsDisplayPort + metrics.GetScrollOffset()) * paintScale;
+    LayerRect displayPort = (metricsDisplayPort + metrics.mScrollOffset) * paintScale;
 
     return AndroidBridge::Bridge()->ProgressiveUpdateCallback(
       aHasPendingNewThebesContent, displayPort, paintScale.scale, aDrawingCritical,

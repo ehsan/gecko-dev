@@ -78,6 +78,10 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
     *sharedBuffer = nullptr;
 
     uint32_t length = readable.Length();
+    if (length == 0) {
+        vp.set(JS_GetEmptyStringValue(cx));
+        return true;
+    }
 
     if (readable.IsLiteral()) {
         JSString *str = JS_NewExternalString(cx,

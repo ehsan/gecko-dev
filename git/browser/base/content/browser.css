@@ -4,7 +4,6 @@
 
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 @namespace html url("http://www.w3.org/1999/xhtml");
-@namespace svg url("http://www.w3.org/2000/svg");
 
 #main-window:not([chromehidden~="toolbar"]) {
 %ifdef XP_MACOSX
@@ -887,7 +886,7 @@ chatbox:-moz-full-screen-ancestor  {
   max-width: none !important;
   min-height: 0 !important;
   max-height: none !important;
-  box-sizing: border-box !important;
+  -moz-box-sizing: border-box !important; 
 }
 
 /* hide chat chrome when chat is fullscreen */
@@ -936,8 +935,8 @@ chatbox:-moz-full-screen-ancestor > .chat-titlebar {
 #browser-bottombox,
 #content-deck {
   transition-property: margin-left, margin-right;
-  transition-duration: 200ms;
-  transition-timing-function: linear;
+  transition-duration: 150ms;
+  transition-timing-function: ease-out;
 }
 
 #tab-view-deck[fastcustomizeanimation] #navigator-toolbox,

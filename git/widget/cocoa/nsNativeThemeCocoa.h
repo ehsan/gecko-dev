@@ -92,8 +92,7 @@ protected:
   void DrawSearchField(CGContextRef cgContext, const HIRect& inBoxRect,
                        nsIFrame* aFrame, nsEventStates inState);
   void DrawPushButton(CGContextRef cgContext, const HIRect& inBoxRect,
-                      nsEventStates inState, uint8_t aWidgetType,
-                      nsIFrame* aFrame);
+                      nsEventStates inState, nsIFrame* aFrame);
   void DrawButton(CGContextRef context, ThemeButtonKind inKind,
                   const HIRect& inBoxRect, bool inIsDefault, 
                   ThemeButtonValue inValue, ThemeButtonAdornment inAdornment,
@@ -125,7 +124,6 @@ protected:
   nsIFrame* GetParentScrollbarFrame(nsIFrame *aFrame);
 
 private:
-  NSButtonCell* mHelpButtonCell;
   NSButtonCell* mPushButtonCell;
   NSButtonCell* mRadioButtonCell;
   NSButtonCell* mCheckboxCell;

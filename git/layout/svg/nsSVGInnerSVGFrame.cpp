@@ -57,7 +57,7 @@ nsSVGInnerSVGFrame::GetType() const
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods
 
-nsresult
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
                              const nsIntRect *aDirtyRect,
                              nsIFrame* aTransformRoot)
@@ -162,7 +162,7 @@ nsSVGInnerSVGFrame::NotifySVGChanged(uint32_t aFlags)
   nsSVGInnerSVGFrameBase::NotifySVGChanged(aFlags);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      int32_t  aModType)
@@ -225,7 +225,7 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
   return NS_OK;
 }
 
-nsIFrame*
+NS_IMETHODIMP_(nsIFrame*)
 nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||

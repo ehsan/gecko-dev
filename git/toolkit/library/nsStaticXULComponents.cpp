@@ -31,6 +31,8 @@
 #  define WIDGET_MODULES MODULE(nsWidgetModule)
 #elif defined(XP_MACOSX)
 #  define WIDGET_MODULES MODULE(nsWidgetMacModule)
+#elif defined(XP_OS2)
+#  define WIDGET_MODULES MODULE(nsWidgetOS2Module)
 #elif defined(MOZ_WIDGET_GTK)
 #  define WIDGET_MODULES MODULE(nsWidgetGtk2Module)
 #elif defined(MOZ_WIDGET_QT)
@@ -41,12 +43,6 @@
 #  define WIDGET_MODULES MODULE(nsWidgetGonkModule)
 #else
 #  error Unknown widget module.
-#endif
-
-#ifndef MOZ_B2G
-#define CONTENT_PROCESS_WIDGET_MODULES MODULE(nsContentProcessWidgetModule)
-#else
-#define CONTENT_PROCESS_WIDGET_MODULES
 #endif
 
 #ifdef ICON_DECODER
@@ -203,7 +199,6 @@
     MODULE(nsGfxModule)                      \
     PROFILER_MODULE                          \
     WIDGET_MODULES                           \
-    CONTENT_PROCESS_WIDGET_MODULES           \
     ICON_MODULE                              \
     MODULE(nsPluginModule)                   \
     MODULE(nsLayoutModule)                   \

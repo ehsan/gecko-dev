@@ -80,7 +80,7 @@ NS_IMETHODIMP TreeWalker::GetFilter(nsIDOMNodeFilter * *aFilter)
 {
     NS_ENSURE_ARG_POINTER(aFilter);
 
-    *aFilter = mFilter.ToXPCOMCallback().take();
+    *aFilter = mFilter.ToXPCOMCallback().get();
 
     return NS_OK;
 }

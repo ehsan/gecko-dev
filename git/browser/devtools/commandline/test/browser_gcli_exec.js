@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,50 +23,58 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testExec.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testExec.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var assert = require('../testharness/assert');
-// var helpers = require('./helpers');
+'use strict';
+
 var nodetype = require('gcli/types/node');
+var canon = require('gcli/canon');
+// var assert = require('test/assert');
+// var mockCommands = require('gclitest/mockCommands');
+// var helpers = require('gclitest/helpers');
+
+
+exports.setup = function(options) {
+  mockCommands.setup();
+};
+
+exports.shutdown = function(options) {
+  mockCommands.shutdown();
+};
 
 var mockBody = {
   style: {}
 };
 
-var mockEmptyNodeList = {
-  length: 0,
-  item: function() { return null; }
-};
-
-var mockRootNodeList = {
-  length: 1,
-  item: function(i) { return mockBody; }
-};
-
 var mockDoc = {
   querySelectorAll: function(css) {
-    return (css === ':root') ? mockRootNodeList : mockEmptyNodeList;
+    if (css === ':root') {
+      return {
+        length: 1,
+        item: function(i) {
+          return mockBody;
+        }
+      };
+    }
+    else {
+      return {
+        length: 0,
+        item: function() { return null; }
+      };
+    }
   }
 };
 
 exports.testParamGroup = function(options) {
-  var tsg = options.requisition.canon.getCommand('tsg');
+  var tsg = canon.getCommand('tsg');
 
   assert.is(tsg.params[0].groupName, null, 'tsg param 0 group null');
   assert.is(tsg.params[1].groupName, 'First', 'tsg param 1 group First');
@@ -77,6 +86,7 @@ exports.testParamGroup = function(options) {
 exports.testWithHelpers = function(options) {
   return helpers.audit(options, [
     {
+      skipIf: options.isJsdom,
       setup:    'tss',
       check: {
         input:  'tss',
@@ -85,13 +95,15 @@ exports.testWithHelpers = function(options) {
         cursor: 3,
         current: '__command',
         status: 'VALID',
+        predictions: [ ],
         unassigned: [ ],
         args: {
           command: { name: 'tss' },
         }
       },
       exec: {
-        output: /^Exec: tss/,
+        output: 'Exec: tss',
+        completed: true,
       }
     },
     {
@@ -108,12 +120,13 @@ exports.testWithHelpers = function(options) {
         args: {
           command: { name: 'tsv' },
           optionType: {
-            value: 'string',
+            value: mockCommands.option1,
             arg: ' option1',
             status: 'VALID',
             message: ''
           },
           optionValue: {
+            value: '10',
             arg: ' 10',
             status: 'VALID',
             message: ''
@@ -121,7 +134,8 @@ exports.testWithHelpers = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsv optionType=string, optionValue=10'
+        output: 'Exec: tsv optionType=[object Object], optionValue=10',
+        completed: true
       }
     },
     {
@@ -138,12 +152,13 @@ exports.testWithHelpers = function(options) {
         args: {
           command: { name: 'tsv' },
           optionType: {
-            value: 'number',
+            value: mockCommands.option2,
             arg: ' option2',
             status: 'VALID',
             message: ''
           },
           optionValue: {
+            value: 10,
             arg: ' 10',
             status: 'VALID',
             message: ''
@@ -151,29 +166,8 @@ exports.testWithHelpers = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsv optionType=number, optionValue=10'
-      }
-    },
-    // Delegated remote types can't transfer value types so we only test for
-    // the value of optionValue when we're local
-    {
-      skipIf: options.isRemote,
-      setup: 'tsv option1 10',
-      check: {
-        args: { optionValue: { value: '10' } }
-      },
-      exec: {
-        output: 'Exec: tsv optionType=string, optionValue=10'
-      }
-    },
-    {
-      skipIf: options.isRemote,
-      setup: 'tsv option2 10',
-      check: {
-        args: { optionValue: { value: 10 } }
-      },
-      exec: {
-        output: 'Exec: tsv optionType=number, optionValue=10'
+        output: 'Exec: tsv optionType=[object Object], optionValue=10',
+        completed: true
       }
     }
   ]);
@@ -203,7 +197,8 @@ exports.testExecText = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsr text=fred'
+        output: 'Exec: tsr text=fred',
+        completed: true,
       }
     },
     {
@@ -228,7 +223,8 @@ exports.testExecText = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsr text=fred bloggs'
+        output: 'Exec: tsr text=fred bloggs',
+        completed: true,
       }
     },
     {
@@ -253,7 +249,8 @@ exports.testExecText = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsr text=fred bloggs'
+        output: 'Exec: tsr text=fred bloggs',
+        completed: true,
       }
     },
     {
@@ -278,7 +275,8 @@ exports.testExecText = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsr text=fred bloggs'
+        output: 'Exec: tsr text=fred bloggs',
+        completed: true,
       }
     }
   ]);
@@ -308,7 +306,8 @@ exports.testExecBoolean = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsb toggle=false'
+        output: 'Exec: tsb toggle=false',
+        completed: true,
       }
     },
     {
@@ -334,7 +333,8 @@ exports.testExecBoolean = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsb toggle=true'
+        output: 'Exec: tsb toggle=true',
+        completed: true,
       }
     }
   ]);
@@ -355,11 +355,12 @@ exports.testExecNumber = function(options) {
         unassigned: [ ],
         args: {
           command: { name: 'tsu' },
-          num: { value: 10, arg: ' 10', status: 'VALID', message: '' }
+          num: { value: 10, arg: ' 10', status: 'VALID', message: '' },
         }
       },
       exec: {
-        output: 'Exec: tsu num=10'
+        output: 'Exec: tsu num=10',
+        completed: true,
       }
     },
     {
@@ -375,11 +376,12 @@ exports.testExecNumber = function(options) {
         unassigned: [ ],
         args: {
           command: { name: 'tsu' },
-          num: { value: 10, arg: ' --num 10', status: 'VALID', message: '' }
+          num: { value: 10, arg: ' --num 10', status: 'VALID', message: '' },
         }
       },
       exec: {
-        output: 'Exec: tsu num=10'
+        output: 'Exec: tsu num=10',
+        completed: true,
       }
     }
   ]);
@@ -411,7 +413,8 @@ exports.testExecScript = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsj javascript=1 + 1'
+        output: 'Exec: tsj javascript=1 + 1',
+        completed: true,
       }
     }
   ]);
@@ -423,7 +426,6 @@ exports.testExecNode = function(options) {
 
   return helpers.audit(options, [
     {
-      skipIf: options.isRemote, // No DOM on server
       setup:    'tse :root',
       check: {
         input:  'tse :root',
@@ -436,28 +438,14 @@ exports.testExecNode = function(options) {
         unassigned: [ ],
         args: {
           command: { name: 'tse' },
-          node: {
-            value: mockBody,
-            arg: ' :root',
-            status: 'VALID',
-            message: ''
-          },
-          nodes: {
-            value: mockEmptyNodeList,
-            arg: '',
-            status: 'VALID',
-            message: ''
-          },
-          nodes2: {
-            value: mockEmptyNodeList,
-            arg: '',
-            status: 'VALID',
-            message: ''
-          }
+          node: { value: mockBody, arg: ' :root', status: 'VALID', message: '' },
+          nodes: { arg: '', status: 'VALID', message: '' },
+          nodes2: { arg: '', status: 'VALID', message: '' },
         }
       },
       exec: {
-        output: /^Exec: tse/
+        output: 'Exec: tse node=[object Object], nodes=[object Object], nodes2=[object Object]',
+        completed: true,
       },
       post: function() {
         nodetype.setDocument(origDoc);
@@ -481,11 +469,12 @@ exports.testExecSubCommand = function(options) {
         unassigned: [ ],
         args: {
           command: { name: 'tsn dif' },
-          text: { value: 'fred', arg: ' fred', status: 'VALID', message: '' }
+          text: { value: 'fred', arg: ' fred', status: 'VALID', message: '' },
         }
       },
       exec: {
-        output: 'Exec: tsnDif text=fred'
+        output: 'Exec: tsnDif text=fred',
+        completed: true,
       }
     },
     {
@@ -505,7 +494,8 @@ exports.testExecSubCommand = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsnExten text=fred'
+        output: 'Exec: tsnExten text=fred',
+        completed: true,
       }
     },
     {
@@ -525,7 +515,8 @@ exports.testExecSubCommand = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsnExtend text=fred'
+        output: 'Exec: tsnExtend text=fred',
+        completed: true,
       }
     }
   ]);
@@ -552,7 +543,8 @@ exports.testExecArray = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tselarr num=1, arr='
+        output: 'Exec: tselarr num=1, arr=',
+        completed: true,
       }
     },
     {
@@ -573,7 +565,8 @@ exports.testExecArray = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tselarr num=1, arr=a'
+        output: 'Exec: tselarr num=1, arr=a',
+        completed: true,
       }
     },
     {
@@ -594,7 +587,8 @@ exports.testExecArray = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tselarr num=1, arr=a,b'
+        output: 'Exec: tselarr num=1, arr=a,b',
+        completed: true,
       }
     }
   ]);
@@ -621,7 +615,8 @@ exports.testExecMultiple = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsm abc=a, txt=10, num=10'
+        output: 'Exec: tsm abc=a, txt=10, num=10',
+        completed: true,
       }
     }
   ]);
@@ -651,9 +646,12 @@ exports.testExecDefaults = function(options) {
         }
       },
       exec: {
-        output: 'Exec: tsg solo=aaa, txt1=null, bool=false, txt2=d, num=42'
+        output: 'Exec: tsg solo=aaa, txt1=null, bool=false, txt2=d, num=42',
+        completed: true,
       }
     }
   ]);
 
 };
+
+// });

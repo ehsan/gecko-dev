@@ -11,10 +11,3 @@ SOURCES += [
 ]
 include('/ipc/chromium/chromium-config.mozbuild')
 
-LOCAL_INCLUDES += [
-    '/toolkit/xre',
-    '/xpcom/base',
-]
-
-if CONFIG['_MSC_VER']:
-    WIN32_EXE_LDFLAGS += ['-ENTRY:wmainCRTStartup']

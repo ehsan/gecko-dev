@@ -99,7 +99,7 @@ struct InlineBackgroundData
       nscoord curOffset = aFrame->GetOffsetTo(mBlockFrame).x;
 
       // No need to use our GetPrevContinuation/GetNextContinuation methods
-      // here, since ib-split siblings are certainly not on the same line.
+      // here, since ib special siblings are certainly not on the same line.
 
       nsIFrame* inlineFrame = aFrame->GetPrevContinuation();
       // If the continuation is fluid we know inlineFrame is not on the same line.
@@ -200,16 +200,15 @@ protected:
   nsIFrame* GetPrevContinuation(nsIFrame* aFrame)
   {
     nsIFrame* prevCont = aFrame->GetPrevContinuation();
-    if (!prevCont &&
-        (aFrame->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT)) {
+    if (!prevCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
       nsIFrame* block = static_cast<nsIFrame*>
-        (aFrame->Properties().Get(nsIFrame::IBSplitPrevSibling()));
+        (aFrame->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
       if (block) {
         // The {ib} properties are only stored on first continuations
         NS_ASSERTION(!block->GetPrevContinuation(),
-                     "Incorrect value for IBSplitPrevSibling");
+                     "Incorrect value for IBSplitSpecialPrevSibling");
         prevCont = static_cast<nsIFrame*>
-          (block->Properties().Get(nsIFrame::IBSplitPrevSibling()));
+          (block->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
         NS_ASSERTION(prevCont, "How did that happen?");
       }
     }
@@ -219,15 +218,14 @@ protected:
   nsIFrame* GetNextContinuation(nsIFrame* aFrame)
   {
     nsIFrame* nextCont = aFrame->GetNextContinuation();
-    if (!nextCont &&
-        (aFrame->GetStateBits() & NS_FRAME_PART_OF_IBSPLIT)) {
+    if (!nextCont && (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL)) {
       // The {ib} properties are only stored on first continuations
       aFrame = aFrame->FirstContinuation();
       nsIFrame* block = static_cast<nsIFrame*>
-        (aFrame->Properties().Get(nsIFrame::IBSplitSibling()));
+        (aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
       if (block) {
         nextCont = static_cast<nsIFrame*>
-          (block->Properties().Get(nsIFrame::IBSplitSibling()));
+          (block->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
         NS_ASSERTION(nextCont, "How did that happen?");
       }
     }
@@ -575,8 +573,10 @@ GetOutlineInnerRect(nsIFrame* aFrame)
     (aFrame->Properties().Get(nsIFrame::OutlineInnerRectProperty()));
   if (savedOutlineInnerRect)
     return *savedOutlineInnerRect;
-  NS_NOTREACHED("we should have saved a frame property");
-  return nsRect(nsPoint(0, 0), aFrame->GetSize());
+  // FIXME (bug 599652): We probably want something narrower than either
+  // overflow rect here, but for now use the visual overflow in order to
+  // be consistent with ComputeOutlineAndEffectsRect in nsFrame.cpp.
+  return aFrame->GetVisualOverflowRect();
 }
 
 void
@@ -606,18 +606,38 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   nscolor bgColor =
     bgContext->GetVisitedDependentColor(eCSSProperty_background_color);
 
-  nsRect innerRect;
-  if (
-#ifdef MOZ_XUL
-      aStyleContext->GetPseudoType() == nsCSSPseudoElements::ePseudo_XULTree
-#else
-      false
-#endif
-     ) {
-    innerRect = aBorderArea;
+  // When the outline property is set on :-moz-anonymous-block or
+  // :-moz-anonyomus-positioned-block pseudo-elements, it inherited that
+  // outline from the inline that was broken because it contained a
+  // block.  In that case, we don't want a really wide outline if the
+  // block inside the inline is narrow, so union the actual contents of
+  // the anonymous blocks.
+  nsIFrame *frameForArea = aForFrame;
+  do {
+    nsIAtom *pseudoType = frameForArea->StyleContext()->GetPseudo();
+    if (pseudoType != nsCSSAnonBoxes::mozAnonymousBlock &&
+        pseudoType != nsCSSAnonBoxes::mozAnonymousPositionedBlock)
+      break;
+    // If we're done, we really want it and all its later siblings.
+    frameForArea = frameForArea->GetFirstPrincipalChild();
+    NS_ASSERTION(frameForArea, "anonymous block with no children?");
+  } while (frameForArea);
+  nsRect innerRect; // relative to aBorderArea.TopLeft()
+  if (frameForArea == aForFrame) {
+    innerRect = GetOutlineInnerRect(aForFrame);
   } else {
-    innerRect = GetOutlineInnerRect(aForFrame) + aBorderArea.TopLeft();
+    for (; frameForArea; frameForArea = frameForArea->GetNextSibling()) {
+      // The outline has already been included in aForFrame's overflow
+      // area, but not in those of its descendants, so we have to
+      // include it.  Otherwise we'll end up drawing the outline inside
+      // the border.
+      nsRect r(GetOutlineInnerRect(frameForArea) +
+               frameForArea->GetOffsetTo(aForFrame));
+      innerRect.UnionRect(innerRect, r);
+    }
   }
+
+  innerRect += aBorderArea.TopLeft();
   nscoord offset = ourOutline->mOutlineOffset;
   innerRect.Inflate(offset, offset);
   // If the dirty rect is completely inside the border area (e.g., only the
@@ -3104,10 +3124,7 @@ DrawBorderImage(nsPresContext*       aPresContext,
         value = 0;
         break;
     }
-    // NSToCoordRoundWithClamp rounds towards infinity, but that's OK
-    // because we expect value to be non-negative.
-    MOZ_ASSERT(value >= 0);
-    border.Side(s) = NSToCoordRoundWithClamp(value);
+    border.Side(s) = NS_lround(value);
     MOZ_ASSERT(border.Side(s) >= 0);
   }
 
@@ -4711,9 +4728,9 @@ nsImageRenderer::DrawBorderImageComponent(nsPresContext*       aPresContext,
                               presContext->CSSPixelsToDevPixels(aSrc.y),
                               presContext->CSSPixelsToDevPixels(aSrc.width),
                               presContext->CSSPixelsToDevPixels(aSrc.height));
-    RefPtr<DrawTarget> srcSlice = gfxPlatform::GetPlatform()->
-      CreateOffscreenContentDrawTarget(IntSize(srcRect.width, srcRect.height),
-                             SurfaceFormat::B8G8R8A8);
+    nsRefPtr<gfxASurface> srcSlice = gfxPlatform::GetPlatform()->
+      CreateOffscreenSurface(gfxIntSize(srcRect.width, srcRect.height),
+                             gfxContentType::COLOR_ALPHA);
     nsRefPtr<gfxContext> ctx = new gfxContext(srcSlice);
 
     // grab the entire source

@@ -58,11 +58,10 @@
       * to open a file, use function |OS.File.open|.
       *
       * @param fd A OS-specific file descriptor.
-      * @param {string} path File path of the file handle, used for error-reporting.
       * @constructor
       */
-     let File = function File(fd, path) {
-       exports.OS.Shared.AbstractFile.call(this, fd, path);
+     let File = function File(fd) {
+       exports.OS.Shared.AbstractFile.call(this, fd);
        this._closeResult = null;
      };
      File.prototype = Object.create(exports.OS.Shared.AbstractFile.prototype);
@@ -89,7 +88,7 @@
            fd.forget();
          }
          if (result == -1) {
-           this._closeResult = new File.Error("close", ctypes.winLastError, this._path);
+           this._closeResult = new File.Error("close");
          }
        }
        if (this._closeResult) {
@@ -116,8 +115,7 @@
      File.prototype._read = function _read(buffer, nbytes, options) {
        // |gBytesReadPtr| is a pointer to |gBytesRead|.
        throw_on_zero("read",
-         WinFile.ReadFile(this.fd, buffer, nbytes, gBytesReadPtr, null),
-         this._path
+         WinFile.ReadFile(this.fd, buffer, nbytes, gBytesReadPtr, null)
        );
        return gBytesRead.value;
      };
@@ -143,8 +141,7 @@
        }
        // |gBytesWrittenPtr| is a pointer to |gBytesWritten|.
        throw_on_zero("write",
-         WinFile.WriteFile(this.fd, buffer, nbytes, gBytesWrittenPtr, null),
-         this._path
+         WinFile.WriteFile(this.fd, buffer, nbytes, gBytesWrittenPtr, null)
        );
        return gBytesWritten.value;
      };
@@ -177,8 +174,7 @@
          whence = Const.FILE_BEGIN;
        }
        return throw_on_negative("setPosition",
-         WinFile.SetFilePointer(this.fd, pos, null, whence),
-         this._path);
+         WinFile.SetFilePointer(this.fd, pos, null, whence));
      };
 
      /**
@@ -188,9 +184,8 @@
       */
      File.prototype.stat = function stat() {
        throw_on_zero("stat",
-         WinFile.GetFileInformationByHandle(this.fd, gFileInfoPtr),
-         this._path);
-       return new File.Info(gFileInfo, this._path);
+         WinFile.GetFileInformationByHandle(this.fd, gFileInfoPtr));
+       return new File.Info(gFileInfo);
      };
 
      /**
@@ -209,14 +204,12 @@
       * @throws {OS.File.Error} In case of I/O error.
       */
      File.prototype.setDates = function setDates(accessDate, modificationDate) {
-       accessDate = Date_to_FILETIME("File.prototype.setDates", accessDate, this._path);
+       accessDate = Date_to_FILETIME("File.prototype.setDates", accessDate);
        modificationDate = Date_to_FILETIME("File.prototype.setDates",
-                                           modificationDate,
-                                           this._path);
+                                           modificationDate);
        throw_on_zero("setDates",
                      WinFile.SetFileTime(this.fd, null, accessDate.address(),
-                                         modificationDate.address()),
-                     this._path);
+                                         modificationDate.address()));
      };
 
      /**
@@ -231,7 +224,7 @@
       * @throws {OS.File.Error} In case of I/O error.
       */
      File.prototype.flush = function flush() {
-       throw_on_zero("flush", WinFile.FlushFileBuffers(this.fd), this._path);
+       throw_on_zero("flush", WinFile.FlushFileBuffers(this.fd));
      };
 
      // The default sharing mode for opening files: files are not
@@ -347,7 +340,7 @@
        }
 
        let file = error_or_file(WinFile.CreateFile(path,
-         access, share, security, disposition, flags, template), path);
+         access, share, security, disposition, flags, template));
 
        file._appendMode = !!mode.append;
 
@@ -357,8 +350,7 @@
        // Now, perform manual truncation
        file.setPosition(0, File.POS_START);
        throw_on_zero("open",
-         WinFile.SetEndOfFile(file.fd),
-         path);
+         WinFile.SetEndOfFile(file.fd));
        return file;
      };
 
@@ -410,7 +402,7 @@
          }
        }
 
-       throw new File.Error("remove", ctypes.winLastError, path);
+       throw new File.Error("remove");
      };
 
      /**
@@ -428,7 +420,7 @@
              ctypes.winLastError == Const.ERROR_FILE_NOT_FOUND) {
            return;
          }
-         throw new File.Error("removeEmptyDir", ctypes.winLastError, path);
+         throw new File.Error("removeEmptyDir");
        }
      };
 
@@ -455,7 +447,7 @@
        }
 
        if (("ignoreExisting" in options) && !options.ignoreExisting) {
-         throw new File.Error("makeDir", ctypes.winLastError, path);
+         throw new File.Error("makeDir");
        }
 
        if (ctypes.winLastError == Const.ERROR_ALREADY_EXISTS) {
@@ -477,7 +469,7 @@
          return;
        }
 
-       throw new File.Error("makeDir", ctypes.winLastError, path);
+       throw new File.Error("makeDir");
      };
 
      /**
@@ -505,8 +497,7 @@
      */
      File.copy = function copy(sourcePath, destPath, options = {}) {
        throw_on_zero("copy",
-         WinFile.CopyFile(sourcePath, destPath, options.noOverwrite || false),
-         sourcePath
+         WinFile.CopyFile(sourcePath, destPath, options.noOverwrite || false)
        );
      };
 
@@ -545,8 +536,7 @@
          flags = flags | Const.MOVEFILE_REPLACE_EXISTING;
        }
        throw_on_zero("move",
-         WinFile.MoveFileEx(sourcePath, destPath, flags),
-         sourcePath
+         WinFile.MoveFileEx(sourcePath, destPath, flags)
        );
 
        // Inherit NTFS permissions from the destination directory
@@ -582,26 +572,6 @@
      };
 
      /**
-      * Gets the number of bytes available on disk to the current user.
-      *
-      * @param {string} sourcePath Platform-specific path to a directory on 
-      * the disk to query for free available bytes.
-      *
-      * @return {number} The number of bytes available for the current user.
-      * @throws {OS.File.Error} In case of any error.
-      */
-     File.getAvailableFreeSpace = function Win_getAvailableFreeSpace(sourcePath) {
-       let freeBytesAvailableToUser = new Type.uint64_t.implementation(0);
-       let freeBytesAvailableToUserPtr = freeBytesAvailableToUser.address();
-
-       throw_on_zero("getAvailableFreeSpace",
-         WinFile.GetDiskFreeSpaceEx(sourcePath, freeBytesAvailableToUserPtr, null, null)
-       );
-
-       return freeBytesAvailableToUser.value;
-     };
-
-     /**
       * A global value used to receive data during time conversions.
       */
      let gSystemTime = new Type.SystemTime.implementation();
@@ -610,14 +580,13 @@
      /**
       * Utility function: convert a FILETIME to a JavaScript Date.
       */
-     let FILETIME_to_Date = function FILETIME_to_Date(fileTime, path) {
+     let FILETIME_to_Date = function FILETIME_to_Date(fileTime) {
        if (fileTime == null) {
          throw new TypeError("Expecting a non-null filetime");
        }
        throw_on_zero("FILETIME_to_Date",
                      WinFile.FileTimeToSystemTime(fileTime.address(),
-                                                  gSystemTimePtr),
-                     path);
+                                                  gSystemTimePtr));
        // Windows counts hours, minutes, seconds from UTC,
        // JS counts from local time, so we need to go through UTC.
        let utc = Date.UTC(gSystemTime.wYear,
@@ -637,7 +606,7 @@
       * then the current date will be used. If numeric, assumed to be the date
       * in milliseconds since epoch.
       */
-     let Date_to_FILETIME = function Date_to_FILETIME(fn, date, path) {
+     let Date_to_FILETIME = function Date_to_FILETIME(fn, date) {
        if (typeof date === "number") {
          date = new Date(date);
        } else if (!date) {
@@ -657,8 +626,7 @@
        let result = new OS.Shared.Type.FILETIME.implementation();
        throw_on_zero("Date_to_FILETIME",
                      WinFile.SystemTimeToFileTime(gSystemTimePtr,
-                                                  result.address()),
-                     path);
+                                                  result.address()));
        return result;
      };
 
@@ -705,7 +673,7 @@
            this._closed = true;
            this._exists = false;
          } else {
-           throw new File.Error("DirectoryIterator", error, this._path);
+           throw new File.Error("DirectoryIterator", error);
          }
        } else {
          this._closed = false;
@@ -724,7 +692,7 @@
      File.DirectoryIterator.prototype._next = function _next() {
        // Bailout if the directory does not exist
        if (!this._exists) {
-         throw File.Error.noSuchFile("DirectoryIterator.prototype.next", this._path);
+         throw File.Error.noSuchFile("DirectoryIterator.prototype.next");
        }
        // Bailout if the iterator is closed.
        if (this._closed) {
@@ -745,7 +713,7 @@
          if (error == Const.ERROR_NO_MORE_FILES) {
             return null;
          } else {
-            throw new File.Error("iter (FindNextFile)", error, this._path);
+            throw new File.Error("iter (FindNextFile)", error);
          }
        }
      },
@@ -783,8 +751,7 @@
          // We might not have a handle if the iterator is closed
          // before being used.
          throw_on_zero("FindClose",
-           WinFile.FindClose(this._handle),
-           this._path);
+           WinFile.FindClose(this._handle));
          this._handle = null;
        }
      };
@@ -808,9 +775,9 @@
        let isDir = !!(win_entry.dwFileAttributes & Const.FILE_ATTRIBUTE_DIRECTORY);
        let isSymLink = !!(win_entry.dwFileAttributes & Const.FILE_ATTRIBUTE_REPARSE_POINT);
 
-       let winCreationDate = FILETIME_to_Date(win_entry.ftCreationTime, this._path);
-       let winLastWriteDate = FILETIME_to_Date(win_entry.ftLastWriteTime, this._path);
-       let winLastAccessDate = FILETIME_to_Date(win_entry.ftLastAccessTime, this._path);
+       let winCreationDate = FILETIME_to_Date(win_entry.ftCreationTime);
+       let winLastWriteDate = FILETIME_to_Date(win_entry.ftLastWriteTime);
+       let winLastAccessDate = FILETIME_to_Date(win_entry.ftLastAccessTime);
 
        let name = win_entry.cFileName.readString();
        if (!name) {
@@ -860,19 +827,20 @@
       *
       * @constructor
       */
-     File.Info = function Info(stat, path) {
+     File.Info = function Info(stat) {
        let isDir = !!(stat.dwFileAttributes & Const.FILE_ATTRIBUTE_DIRECTORY);
        let isSymLink = !!(stat.dwFileAttributes & Const.FILE_ATTRIBUTE_REPARSE_POINT);
-
-       let winBirthDate = FILETIME_to_Date(stat.ftCreationTime, this._path);
-       let lastAccessDate = FILETIME_to_Date(stat.ftLastAccessTime, this._path);
-       let lastWriteDate = FILETIME_to_Date(stat.ftLastWriteTime, this._path);
+       
+       let winBirthDate = FILETIME_to_Date(stat.ftCreationTime);
+       let lastAccessDate = FILETIME_to_Date(stat.ftLastAccessTime);
+       let lastWriteDate = FILETIME_to_Date(stat.ftLastWriteTime);
 
        let value = ctypes.UInt64.join(stat.nFileSizeHigh, stat.nFileSizeLow);
        let size = Type.uint64_t.importFromC(value);
 
-       SysAll.AbstractInfo.call(this, path, isDir, isSymLink, size,
-         winBirthDate, lastAccessDate, lastWriteDate);
+       SysAll.AbstractInfo.call(this, isDir, isSymLink, size,
+         winBirthDate, lastAccessDate,
+         lastWriteDate);
      };
      File.Info.prototype = Object.create(SysAll.AbstractInfo.prototype);
 
@@ -1016,8 +984,7 @@
       */
      File.setCurrentDirectory = function setCurrentDirectory(path) {
        throw_on_zero("setCurrentDirectory",
-         WinFile.SetCurrentDirectory(path),
-         path);
+         WinFile.SetCurrentDirectory(path));
      };
 
      /**
@@ -1034,68 +1001,27 @@
      );
 
      // Utility functions, used for error-handling
-
-     /**
-      * Turn the result of |open| into an Error or a File
-      * @param {number} maybe The result of the |open| operation that may
-      * represent either an error or a success. If -1, this function raises
-      * an error holding ctypes.winLastError, otherwise it returns the opened file.
-      * @param {string=} path The path of the file.
-      */
-     function error_or_file(maybe, path) {
+     function error_or_file(maybe) {
        if (maybe == Const.INVALID_HANDLE_VALUE) {
-         throw new File.Error("open", ctypes.winLastError, path);
+         throw new File.Error("open");
        }
-       return new File(maybe, path);
+       return new File(maybe);
      }
-
-     /**
-      * Utility function to sort errors represented as "0" from successes.
-      *
-      * @param {string=} operation The name of the operation. If unspecified,
-      * the name of the caller function.
-      * @param {number} result The result of the operation that may
-      * represent either an error or a success. If 0, this function raises
-      * an error holding ctypes.winLastError, otherwise it returns |result|.
-      * @param {string=} path The path of the file.
-      */
-     function throw_on_zero(operation, result, path) {
+     function throw_on_zero(operation, result) {
        if (result == 0) {
-         throw new File.Error(operation, ctypes.winLastError, path);
+         throw new File.Error(operation);
        }
        return result;
      }
-
-     /**
-      * Utility function to sort errors represented as "-1" from successes.
-      *
-      * @param {string=} operation The name of the operation. If unspecified,
-      * the name of the caller function.
-      * @param {number} result The result of the operation that may
-      * represent either an error or a success. If -1, this function raises
-      * an error holding ctypes.winLastError, otherwise it returns |result|.
-      * @param {string=} path The path of the file.
-      */
-     function throw_on_negative(operation, result, path) {
+     function throw_on_negative(operation, result) {
        if (result < 0) {
-         throw new File.Error(operation, ctypes.winLastError, path);
+         throw new File.Error(operation);
        }
        return result;
      }
-
-     /**
-      * Utility function to sort errors represented as |null| from successes.
-      *
-      * @param {string=} operation The name of the operation. If unspecified,
-      * the name of the caller function.
-      * @param {pointer} result The result of the operation that may
-      * represent either an error or a success. If |null|, this function raises
-      * an error holding ctypes.winLastError, otherwise it returns |result|.
-      * @param {string=} path The path of the file.
-      */
-     function throw_on_null(operation, result, path) {
+     function throw_on_null(operation, result) {
        if (result == null || (result.isNull && result.isNull())) {
-         throw new File.Error(operation, ctypes.winLastError, path);
+         throw new File.Error(operation);
        }
        return result;
      }

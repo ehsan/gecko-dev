@@ -7,7 +7,7 @@
  * The ElementManager manages DOM references and interactions with elements.
  * According to the WebDriver spec (http://code.google.com/p/selenium/wiki/JsonWireProtocol), the
  * server sends the client an element reference, and maintains the map of reference to element.
- * The client uses this reference when querying/interacting with the element, and the
+ * The client uses this reference when querying/interacting with the element, and the 
  * server uses maps this reference to the actual element when it executes the command.
  */
 
@@ -90,7 +90,7 @@ ElementManager.prototype = {
     this.seenItems[id] = Components.utils.getWeakReference(element);
     return id;
   },
-
+  
   /**
    * Retrieve element from its unique ID
    *
@@ -124,42 +124,32 @@ ElementManager.prototype = {
     }
     return el;
   },
-
+  
   /**
-   * Convert values to primitives that can be transported over the
-   * Marionette protocol.
-   *
-   * This function implements the marshaling algorithm defined in the
-   * WebDriver specification:
-   *
-   *     https://dvcs.w3.org/hg/webdriver/raw-file/tip/webdriver-spec.html#synchronous-javascript-execution
-   *
+   * Convert values to primitives that can be transported over the Marionette
+   * JSON protocol.
+   * 
    * @param object val
-   *        object to be marshaled
+   *        object to be wrapped
    *
    * @return object
-   *         Returns a JSON primitive or Object
+   *        Returns a JSON primitive or Object
    */
   wrapValue: function EM_wrapValue(val) {
-    let result = null;
-
-    switch (typeof(val)) {
+    let result;
+    switch(typeof(val)) {
       case "undefined":
         result = null;
         break;
-
       case "string":
       case "number":
       case "boolean":
         result = val;
         break;
-
       case "object":
-        let type = Object.prototype.toString.call(val);
-        if (type == "[object Array]" ||
-            type == "[object NodeList]") {
+        if (Object.prototype.toString.call(val) == '[object Array]') {
           result = [];
-          for (let i = 0; i < val.length; ++i) {
+          for (let i in val) {
             result.push(this.wrapValue(val[i]));
           }
         }
@@ -177,10 +167,9 @@ ElementManager.prototype = {
         }
         break;
     }
-
     return result;
   },
-
+  
   /**
    * Convert any ELEMENT references in 'args' to the actual elements
    *
@@ -227,11 +216,11 @@ ElementManager.prototype = {
     }
     return converted;
   },
-
+  
   /*
    * Execute* helpers
    */
-
+  
   /**
    * Return an object with any namedArgs applied to it. Used
    * to let clients use given names when refering to arguments
@@ -256,7 +245,7 @@ ElementManager.prototype = {
     });
     return namedArgs;
   },
-
+  
   /**
    * Find an element or elements starting at the document root or
    * given node, using the given search strategy. Search
@@ -323,7 +312,7 @@ ElementManager.prototype = {
 
   /**
    * Find a value by XPATH
-   *
+   * 
    * @param nsIDOMElement root
    *        Document root
    * @param string value
@@ -341,7 +330,7 @@ ElementManager.prototype = {
 
   /**
    * Find values by XPATH
-   *
+   * 
    * @param nsIDOMElement root
    *        Document root
    * @param string value
@@ -363,10 +352,10 @@ ElementManager.prototype = {
     }
     return elements;
   },
-
+  
   /**
    * Helper method to find. Finds one element using find's criteria
-   *
+   * 
    * @param string using
    *        String identifying which search method to use
    * @param string value
@@ -384,12 +373,12 @@ ElementManager.prototype = {
     switch (using) {
       case ID:
         element = startNode.getElementById ?
-                  startNode.getElementById(value) :
+                  startNode.getElementById(value) : 
                   this.findByXPath(rootNode, './/*[@id="' + value + '"]', startNode);
         break;
       case NAME:
         element = startNode.getElementsByName ?
-                  startNode.getElementsByName(value)[0] :
+                  startNode.getElementsByName(value)[0] : 
                   this.findByXPath(rootNode, './/*[@name="' + value + '"]', startNode);
         break;
       case CLASS_NAME:
@@ -426,7 +415,7 @@ ElementManager.prototype = {
 
   /**
    * Helper method to find. Finds all element using find's criteria
-   *
+   * 
    * @param string using
    *        String identifying which search method to use
    * @param string value
@@ -449,7 +438,7 @@ ElementManager.prototype = {
         break;
       case NAME:
         elements = startNode.getElementsByName ?
-                   startNode.getElementsByName(value) :
+                   startNode.getElementsByName(value) : 
                    this.findByXPathAll(rootNode, './/*[@name="' + value + '"]', startNode);
         break;
       case CLASS_NAME:

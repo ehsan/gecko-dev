@@ -12,7 +12,6 @@
 #include "mozilla/layers/GrallocTextureClient.h"
 #include "gfx2DGlue.h"
 #include "gfxImageSurface.h"
-#include "YCbCrUtils.h"                 // for YCbCr conversions
 
 #include <OMX_IVCommon.h>
 #include <ColorConverter.h>
@@ -93,9 +92,6 @@ GrallocImage::SetData(const Data& aData)
                                        GraphicBuffer::USAGE_SW_WRITE_OFTEN |
                                        GraphicBuffer::USAGE_HW_TEXTURE,
                                        &desc);
-    if (desc.type() == SurfaceDescriptor::T__None) {
-      return;
-    }
     mBufferAllocated = true;
     mGraphicBufferLocked = new GraphicBufferLocked(desc);
   }
@@ -256,20 +252,14 @@ GrallocImage::DeprecatedGetAsSurface()
                             width, height);
 
     return imageSurface.forget();
-  } else if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
+  }
+  else if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
     uint32_t uvOffset = height * width;
     ConvertYVU420SPToRGB565(buffer, width,
                             buffer + uvOffset, width,
                             imageSurface->Data(),
                             width, height);
 
-    return imageSurface.forget();
-  } else if (format == HAL_PIXEL_FORMAT_YV12) {
-    gfx::ConvertYCbCrToRGB(mData,
-                           gfx::ImageFormatToSurfaceFormat(imageSurface->Format()),
-                           mSize,
-                           imageSurface->Data(),
-                           imageSurface->Stride());
     return imageSurface.forget();
   }
 
@@ -354,8 +344,7 @@ GrallocImage::GetAsSourceSurface()
     surface->Unmap();
     return surface;
   }
-
-  if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
+  else if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
     uint32_t uvOffset = height * width;
     ConvertYVU420SPToRGB565(buffer, width,
                             buffer + uvOffset, width,
@@ -366,22 +355,11 @@ GrallocImage::GetAsSourceSurface()
     return surface;
   }
 
-  if (format == HAL_PIXEL_FORMAT_YV12) {
-    gfx::ConvertYCbCrToRGB(mData,
-                           surface->GetFormat(),
-                           mSize,
-                           surface->GetData(),
-                           surface->Stride());
-    surface->Unmap();
-    return surface;
-  }
-
   android::ColorConverter colorConverter((OMX_COLOR_FORMATTYPE)omxFormat,
                                          OMX_COLOR_Format16bitRGB565);
 
   if (!colorConverter.isValid()) {
     NS_WARNING("Invalid color conversion");
-    surface->Unmap();
     return nullptr;
   }
 
@@ -402,7 +380,7 @@ GrallocImage::GetAsSourceSurface()
 
 
 TextureClient*
-GrallocImage::GetTextureClient(CompositableClient* aClient)
+GrallocImage::GetTextureClient()
 {
   if (!mTextureClient) {
     const SurfaceDescriptor& sd = GetSurfaceDescriptor();

@@ -34,16 +34,14 @@ interface TextTrack : EventTarget {
 
   readonly attribute TextTrackCueList? cues;
   readonly attribute TextTrackCueList? activeCues;
+  readonly attribute VTTRegionList? regions;
 
   void addCue(VTTCue cue);
   [Throws]
   void removeCue(VTTCue cue);
 
            attribute EventHandler oncuechange;
-};
-
-// Mozilla Extensions
-partial interface TextTrack {
-  [ChromeOnly]
-  readonly attribute TextTrackList? textTrackList;
+  [Throws]
+  void removeRegion(VTTRegion region);
+  void addRegion(VTTRegion region);
 };

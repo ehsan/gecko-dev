@@ -17,13 +17,11 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/ContentEvents.h"
-#include "mozilla/dom/ErrorEventBinding.h"
 #include "mozilla/dom/quota/OriginOrPatternString.h"
 #include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/dom/quota/Utilities.h"
 #include "mozilla/dom/TabContext.h"
 #include "mozilla/Services.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/storage.h"
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
@@ -109,8 +107,8 @@ namespace {
 
 mozilla::StaticRefPtr<IndexedDatabaseManager> gDBManager;
 
-mozilla::Atomic<bool> gInitialized(false);
-mozilla::Atomic<bool> gClosed(false);
+mozilla::Atomic<int32_t> gInitialized(0);
+mozilla::Atomic<int32_t> gClosed(0);
 
 class AsyncDeleteFileRunnable MOZ_FINAL : public nsIRunnable
 {
@@ -193,7 +191,7 @@ IndexedDatabaseManager::~IndexedDatabaseManager()
 }
 
 bool IndexedDatabaseManager::sIsMainProcess = false;
-mozilla::Atomic<bool> IndexedDatabaseManager::sLowDiskSpaceMode(false);
+mozilla::Atomic<int32_t> IndexedDatabaseManager::sLowDiskSpaceMode(0);
 
 // static
 IndexedDatabaseManager*
@@ -209,14 +207,14 @@ IndexedDatabaseManager::GetOrCreate()
   if (!gDBManager) {
     sIsMainProcess = XRE_GetProcessType() == GeckoProcessType_Default;
 
-    if (sIsMainProcess && Preferences::GetBool("disk_space_watcher.enabled", false)) {
+    if (sIsMainProcess) {
       // See if we're starting up in low disk space conditions.
       nsCOMPtr<nsIDiskSpaceWatcher> watcher =
         do_GetService(DISKSPACEWATCHER_CONTRACTID);
       if (watcher) {
         bool isDiskFull;
         if (NS_SUCCEEDED(watcher->GetIsDiskFull(&isDiskFull))) {
-          sLowDiskSpaceMode = isDiskFull;
+          sLowDiskSpaceMode = isDiskFull ? 1 : 0;
         }
         else {
           NS_WARNING("GetIsDiskFull failed!");
@@ -232,7 +230,7 @@ IndexedDatabaseManager::GetOrCreate()
     nsresult rv = instance->Init();
     NS_ENSURE_SUCCESS(rv, nullptr);
 
-    if (gInitialized.exchange(true)) {
+    if (gInitialized.exchange(1)) {
       NS_ERROR("Initialized more than once?!");
     }
 
@@ -296,7 +294,7 @@ IndexedDatabaseManager::Destroy()
 {
   // Setting the closed flag prevents the service from being recreated.
   // Don't set it though if there's no real instance created.
-  if (gInitialized && gClosed.exchange(true)) {
+  if (!!gInitialized && gClosed.exchange(1)) {
     NS_ERROR("Shutdown more than once?!");
   }
 
@@ -342,18 +340,19 @@ IndexedDatabaseManager::FireWindowOnError(nsPIDOMWindow* aOwner,
     error->GetName(errorName);
   }
 
-  ErrorEventInit init;
-  request->FillScriptErrorEvent(init);
+  mozilla::InternalScriptErrorEvent event(true, NS_LOAD_ERROR);
+  request->FillScriptErrorEvent(&event);
+  NS_ABORT_IF_FALSE(event.fileName,
+                    "FillScriptErrorEvent should give us a non-null string "
+                    "for our error's fileName");
 
-  init.mMessage = errorName;
-  init.mCancelable = true;
-  init.mBubbles = true;
+  event.errorMsg = errorName.get();
 
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aOwner));
   NS_ASSERTION(sgo, "How can this happen?!");
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  if (NS_FAILED(sgo->HandleScriptError(init, &status))) {
+  if (NS_FAILED(sgo->HandleScriptError(&event, &status))) {
     NS_WARNING("Failed to dispatch script error event");
     status = nsEventStatus_eIgnore;
   }
@@ -369,8 +368,8 @@ IndexedDatabaseManager::FireWindowOnError(nsPIDOMWindow* aOwner,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (NS_FAILED(scriptError->InitWithWindowID(errorName,
-                                              init.mFilename,
-                                              EmptyString(), init.mLineno,
+                                              nsDependentString(event.fileName),
+                                              EmptyString(), event.lineNr,
                                               0, 0,
                                               "IndexedDB",
                                               aOwner->WindowID()))) {
@@ -451,7 +450,7 @@ IndexedDatabaseManager::DefineIndexedDB(JSContext* aCx,
 bool
 IndexedDatabaseManager::IsClosed()
 {
-  return gClosed;
+  return !!gClosed;
 }
 
 #ifdef DEBUG
@@ -473,7 +472,7 @@ IndexedDatabaseManager::InLowDiskSpaceMode()
   NS_ASSERTION(gDBManager,
                "InLowDiskSpaceMode() called before indexedDB has been "
                "initialized!");
-  return sLowDiskSpaceMode;
+  return !!sLowDiskSpaceMode;
 }
 #endif
 
@@ -687,10 +686,10 @@ IndexedDatabaseManager::Observe(nsISupports* aSubject, const char* aTopic,
     const nsDependentString data(aData);
 
     if (data.EqualsLiteral(LOW_DISK_SPACE_DATA_FULL)) {
-      sLowDiskSpaceMode = true;
+      sLowDiskSpaceMode = 1;
     }
     else if (data.EqualsLiteral(LOW_DISK_SPACE_DATA_FREE)) {
-      sLowDiskSpaceMode = false;
+      sLowDiskSpaceMode = 0;
     }
     else {
       NS_NOTREACHED("Unknown data value!");

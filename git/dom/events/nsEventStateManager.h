@@ -24,39 +24,17 @@ class nsIDocument;
 class nsIDocShell;
 class nsIDocShellTreeItem;
 class imgIContainer;
-class EnterLeaveDispatcher;
+class nsDOMDataTransfer;
+class MouseEnterLeaveDispatcher;
 class nsIMarkupDocumentViewer;
 class nsIScrollableFrame;
 class nsITimer;
 
 namespace mozilla {
 namespace dom {
-class DataTransfer;
 class TabParent;
 }
 }
-
-class OverOutElementsWrapper MOZ_FINAL : public nsISupports
-{
-public:
-  OverOutElementsWrapper() : mLastOverFrame(nullptr) {}
-  ~OverOutElementsWrapper() {}
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(OverOutElementsWrapper)
-
-  nsWeakFrame mLastOverFrame;
-
-  nsCOMPtr<nsIContent> mLastOverElement;
-
-  // The last element on which we fired a over event, or null if
-  // the last over event we fired has finished processing.
-  nsCOMPtr<nsIContent> mFirstOverEventElement;
-
-  // The last element on which we fired a out event, or null if
-  // the last out event we fired has finished processing.
-  nsCOMPtr<nsIContent> mFirstOutEventElement;
-};
 
 /*
  * Event listener manager
@@ -219,13 +197,13 @@ public:
   // Holds the point in screen coords that a mouse event was dispatched to,
   // before we went into pointer lock mode. This is constantly updated while
   // the pointer is not locked, but we don't update it while the pointer is
-  // locked. This is used by dom::Event::GetScreenCoords() to make mouse
+  // locked. This is used by nsDOMEvent::GetScreenCoords() to make mouse
   // events' screen coord appear frozen at the last mouse position while
   // the pointer is locked.
   static nsIntPoint sLastScreenPoint;
 
   // Holds the point in client coords of the last mouse event. Used by
-  // dom::Event::GetClientCoords() to make mouse events' client coords appear
+  // nsDOMEvent::GetClientCoords() to make mouse events' client coords appear
   // frozen at the last mouse position while the pointer is locked.
   static mozilla::CSSIntPoint sLastClientPoint;
 
@@ -234,7 +212,7 @@ public:
   static nsWeakPtr sPointerLockedDoc;
 
 protected:
-  friend class EnterLeaveDispatcher;
+  friend class MouseEnterLeaveDispatcher;
 
   /**
    * Prefs class capsules preference management.
@@ -272,14 +250,14 @@ protected:
                     nsIFrame* aTargetFrame,
                     nsEventStatus* aStatus);
   /**
-   * Turn a GUI mouse/pointer event into a mouse/pointer event targeted at the specified
+   * Turn a GUI mouse event into a mouse event targeted at the specified
    * content.  This returns the primary frame for the content (or null
    * if it goes away during the event).
    */
-  nsIFrame* DispatchMouseOrPointerEvent(mozilla::WidgetMouseEvent* aMouseEvent,
-                                        uint32_t aMessage,
-                                        nsIContent* aTargetContent,
-                                        nsIContent* aRelatedContent);
+  nsIFrame* DispatchMouseEvent(mozilla::WidgetMouseEvent* aMouseEvent,
+                               uint32_t aMessage,
+                               nsIContent* aTargetContent,
+                               nsIContent* aRelatedContent);
   /**
    * Synthesize DOM and frame mouseover and mouseout events from this
    * MOUSE_MOVE or MOUSE_EXIT event.
@@ -304,14 +282,6 @@ protected:
                       nsIContent* aMovingInto);
   void GenerateDragDropEnterExit(nsPresContext* aPresContext,
                                  mozilla::WidgetDragEvent* aDragEvent);
-
-  /**
-   * Return mMouseEnterLeaveHelper or relevant mPointersEnterLeaveHelper elements wrapper.
-   * If mPointersEnterLeaveHelper does not contain wrapper for pointerId it create new one
-   */
-  OverOutElementsWrapper*
-  GetWrapperByEventID(mozilla::WidgetMouseEvent* aMouseEvent);
-
   /**
    * Fire the dragenter and dragexit/dragleave events when the mouse moves to a
    * new target.
@@ -737,9 +707,9 @@ protected:
    * aSelection - [out] set to the selection to be dragged
    * aTargetNode - [out] the draggable node, or null if there isn't one
    */
-  void DetermineDragTarget(nsPIDOMWindow* aWindow,
+  void DetermineDragTarget(nsPresContext* aPresContext,
                            nsIContent* aSelectionTarget,
-                           mozilla::dom::DataTransfer* aDataTransfer,
+                           nsDOMDataTransfer* aDataTransfer,
                            nsISelection** aSelection,
                            nsIContent** aTargetNode);
 
@@ -755,7 +725,7 @@ protected:
    */
   bool DoDefaultDragStart(nsPresContext* aPresContext,
                           mozilla::WidgetDragEvent* aDragEvent,
-                          mozilla::dom::DataTransfer* aDataTransfer,
+                          nsDOMDataTransfer* aDataTransfer,
                           nsIContent* aDragTarget,
                           nsISelection* aSelection);
 
@@ -794,9 +764,6 @@ private:
                                   nsIContent* aStopBefore,
                                   nsEventStates aState,
                                   bool aAddState);
-  static PLDHashOperator ResetLastOverForContent(const uint32_t& aIdx,
-                                                 nsRefPtr<OverOutElementsWrapper>& aChunk,
-                                                 void* aClosure);
 
   int32_t     mLockCursor;
 
@@ -814,6 +781,8 @@ private:
 
   nsWeakFrame mCurrentTarget;
   nsCOMPtr<nsIContent> mCurrentTargetContent;
+  nsWeakFrame mLastMouseOverFrame;
+  nsCOMPtr<nsIContent> mLastMouseOverElement;
   static nsWeakFrame sLastDragOverFrame;
 
   // Stores the refPoint (the offset from the widget's origin in device
@@ -844,6 +813,14 @@ private:
   static nsCOMPtr<nsIContent> sDragOverContent;
   nsCOMPtr<nsIContent> mURLTargetContent;
 
+  // The last element on which we fired a mouseover event, or null if
+  // the last mouseover event we fired has finished processing.
+  nsCOMPtr<nsIContent> mFirstMouseOverEventElement;
+
+  // The last element on which we fired a mouseout event, or null if
+  // the last mouseout event we fired has finished processing.
+  nsCOMPtr<nsIContent> mFirstMouseOutEventElement;
+
   nsPresContext* mPresContext;      // Not refcnted
   nsCOMPtr<nsIDocument> mDocument;   // Doesn't necessarily need to be owner
 
@@ -855,9 +832,6 @@ private:
 
   // Time at which we began handling user input.
   static TimeStamp sHandlingInputStart;
-
-  nsRefPtr<OverOutElementsWrapper> mMouseEnterLeaveHelper;
-  nsRefPtrHashtable<nsUint32HashKey, OverOutElementsWrapper> mPointersEnterLeaveHelper;
 
 public:
   static nsresult UpdateUserActivityTimer(void);

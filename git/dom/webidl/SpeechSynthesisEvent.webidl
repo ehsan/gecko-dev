@@ -10,9 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Constructor(DOMString type, optional SpeechSynthesisEventInit eventInitDict),
- HeaderFile="GeneratedEventClasses.h",
- Pref="media.webspeech.synth.enabled"]
+[Constructor(DOMString type, optional SpeechSynthesisEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface SpeechSynthesisEvent : Event
 {
   readonly attribute unsigned long charIndex;

@@ -46,8 +46,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     MBasicBlock(MIRGraph &graph, CompileInfo &info, jsbytecode *pc, Kind kind);
     bool init();
     void copySlots(MBasicBlock *from);
-    bool inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred,
-                 uint32_t popped, unsigned stackPhiCount = 0);
+    bool inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlock *pred, uint32_t popped);
     bool inheritResumePoint(MBasicBlock *pred);
     void assertUsesAreNotWithin(MUseIterator use, MUseIterator end);
 
@@ -76,8 +75,7 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
                                            MBasicBlock *pred, jsbytecode *entryPc,
                                            MResumePoint *resumePoint);
     static MBasicBlock *NewPendingLoopHeader(MIRGraph &graph, CompileInfo &info,
-                                             MBasicBlock *pred, jsbytecode *entryPc,
-                                             unsigned loopStateSlots);
+                                             MBasicBlock *pred, jsbytecode *entryPc);
     static MBasicBlock *NewSplitEdge(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred);
     static MBasicBlock *NewAbortPar(MIRGraph &graph, CompileInfo &info,
                                     MBasicBlock *pred, jsbytecode *entryPc,

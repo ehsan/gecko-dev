@@ -48,7 +48,7 @@ CreateTransport(ProcessHandle aProcOne, ProcessHandle /*unused*/,
 
   aOne->mPipeName = aTwo->mPipeName = id;
   aOne->mServerPipe = serverDup;
-  aTwo->mServerPipe = INVALID_HANDLE_VALUE;
+  aTwo->mServerPipe = 0;
   return true;
 }
 

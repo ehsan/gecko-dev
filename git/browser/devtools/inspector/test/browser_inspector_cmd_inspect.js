@@ -17,9 +17,7 @@ function test() {
           markup: 'VVVVVVV',
           status: 'ERROR',
           args: {
-            selector: {
-              message: 'Value required for \'selector\'.'
-            },
+            selector: { message: '' },
           }
         },
       },

@@ -28,7 +28,7 @@ holder_set(JSContext *cx, JS::HandleObject holder, JS::HandleId id, bool strict,
 
 namespace XrayUtils {
 
-bool IsXPCWNHolderClass(const JSClass *clasp);
+extern const JSClass HolderClass;
 
 bool CloneExpandoChain(JSContext *cx, JSObject *src, JSObject *dst);
 
@@ -114,27 +114,6 @@ class XrayWrapper : public Base {
     static XrayWrapper singleton;
 
   private:
-    template <bool HasPrototype>
-    typename mozilla::EnableIf<HasPrototype, bool>::Type
-        getPrototypeOfHelper(JSContext *cx, JS::HandleObject wrapper,
-                             JS::HandleObject target, JS::MutableHandleObject protop)
-    {
-        return Traits::singleton.getPrototypeOf(cx, wrapper, target, protop);
-    }
-    template <bool HasPrototype>
-    typename mozilla::EnableIf<!HasPrototype, bool>::Type
-        getPrototypeOfHelper(JSContext *cx, JS::HandleObject wrapper,
-                             JS::HandleObject target, JS::MutableHandleObject protop)
-    {
-        return Base::getPrototypeOf(cx, wrapper, protop);
-    }
-    bool getPrototypeOfHelper(JSContext *cx, JS::HandleObject wrapper,
-                              JS::HandleObject target, JS::MutableHandleObject protop)
-    {
-        return getPrototypeOfHelper<Traits::HasPrototype>(cx, wrapper, target,
-                                                          protop);
-    }
-
     bool enumerate(JSContext *cx, JS::Handle<JSObject*> wrapper, unsigned flags,
                    JS::AutoIdVector &props);
 };

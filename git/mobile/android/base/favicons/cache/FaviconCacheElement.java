@@ -12,49 +12,49 @@ import android.graphics.Bitmap;
  */
 public class FaviconCacheElement implements Comparable<FaviconCacheElement> {
     // Was this Favicon computed via scaling another primary Favicon, or is this a primary Favicon?
-    final boolean isPrimary;
+    final boolean mIsPrimary;
 
     // The Favicon bitmap.
-    Bitmap faviconPayload;
+    Bitmap mFaviconPayload;
 
-    // If set, faviconPayload is absent. Since the underlying ICO may contain multiple primary
+    // If set, mFaviconPayload is absent. Since the underlying ICO may contain multiple primary
     // payloads, primary payloads are never truly deleted from the cache, but instead have their
     // payload deleted and this flag set on their FaviconCacheElement. That way, the cache always
     // has a record of the existence of a primary payload, even if it is no longer in the cache.
     // This means that when a request comes in that will be best served using a primary that is in
     // the database but no longer cached, we know that it exists and can go get it (Useful when ICO
     // support is added).
-    volatile boolean invalidated;
+    volatile boolean mInvalidated;
 
-    final int imageSize;
+    final int mImageSize;
 
     // Used for LRU pruning.
-    final FaviconsForURL backpointer;
+    final FaviconsForURL mBackpointer;
 
-    public FaviconCacheElement(Bitmap payload, boolean primary, int size, FaviconsForURL backpointer) {
-        this.faviconPayload = payload;
-        this.isPrimary = primary;
-        this.imageSize = size;
-        this.backpointer = backpointer;
+    public FaviconCacheElement(Bitmap payload, boolean isPrimary, int imageSize, FaviconsForURL backpointer) {
+        mFaviconPayload = payload;
+        mIsPrimary = isPrimary;
+        mImageSize = imageSize;
+        mBackpointer = backpointer;
     }
 
-    public FaviconCacheElement(Bitmap faviconPayload, boolean isPrimary, FaviconsForURL backpointer) {
-        this.faviconPayload = faviconPayload;
-        this.isPrimary = isPrimary;
-        this.backpointer = backpointer;
+    public FaviconCacheElement(Bitmap payload, boolean isPrimary, FaviconsForURL backpointer) {
+        mFaviconPayload = payload;
+        mIsPrimary = isPrimary;
+        mBackpointer = backpointer;
 
-        if (faviconPayload != null) {
-            imageSize = faviconPayload.getWidth();
+        if (payload != null) {
+            mImageSize = payload.getWidth();
         } else {
-            imageSize = 0;
+            mImageSize = 0;
         }
     }
 
     public int sizeOf() {
-        if (invalidated) {
+        if (mInvalidated) {
             return 0;
         }
-        return faviconPayload.getRowBytes() * faviconPayload.getHeight();
+        return mFaviconPayload.getRowBytes() * mFaviconPayload.getHeight();
     }
 
     /**
@@ -68,20 +68,20 @@ public class FaviconCacheElement implements Comparable<FaviconCacheElement> {
      */
     @Override
     public int compareTo(FaviconCacheElement another) {
-        if (invalidated && !another.invalidated) {
+        if (mInvalidated && !another.mInvalidated) {
             return -1;
         }
 
-        if (!invalidated && another.invalidated) {
+        if (!mInvalidated && another.mInvalidated) {
             return 1;
         }
 
-        if (invalidated) {
+        if (mInvalidated) {
             return 0;
         }
 
-        final int w1 = imageSize;
-        final int w2 = another.imageSize;
+        final int w1 = mImageSize;
+        final int w2 = another.mImageSize;
         if (w1 > w2) {
             return 1;
         } else if (w2 > w1) {
@@ -96,20 +96,20 @@ public class FaviconCacheElement implements Comparable<FaviconCacheElement> {
      * If primary, drop the payload and set invalid. If secondary, just unlink from parent node.
      */
     public void onEvictedFromCache() {
-        if (isPrimary) {
+        if (mIsPrimary) {
             // So we keep a record of which primaries exist in the database for this URL, we
             // don't actually delete the entry for primaries. Instead, we delete their payload
             // and flag them as invalid. This way, we can later figure out that what a request
             // really want is one of the primaries that have been dropped from the cache, and we
             // can go get it.
-            invalidated = true;
-            faviconPayload = null;
+            mInvalidated = true;
+            mFaviconPayload = null;
         } else {
             // Secondaries don't matter - just delete them.
-            if (backpointer == null) {
+            if (mBackpointer == null) {
                 return;
             }
-            backpointer.favicons.remove(this);
+            mBackpointer.mFavicons.remove(this);
         }
     }
 }

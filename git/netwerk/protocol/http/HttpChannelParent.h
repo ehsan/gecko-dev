@@ -8,7 +8,6 @@
 #ifndef mozilla_net_HttpChannelParent_h
 #define mozilla_net_HttpChannelParent_h
 
-#include "ADivertableParentChannel.h"
 #include "nsHttp.h"
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/net/PHttpChannelParent.h"
@@ -35,7 +34,6 @@ class HttpChannelParent : public PHttpChannelParent
                         , public nsIParentRedirectingChannel
                         , public nsIProgressEventSink
                         , public nsIInterfaceRequestor
-                        , public ADivertableParentChannel
 {
 public:
   NS_DECL_ISUPPORTS
@@ -52,19 +50,6 @@ public:
   virtual ~HttpChannelParent();
 
   bool Init(const HttpChannelCreationArgs& aOpenArgs);
-
-  // ADivertableParentChannel functions.
-  void DivertTo(nsIStreamListener *aListener) MOZ_OVERRIDE;
-  nsresult SuspendForDiversion() MOZ_OVERRIDE;
-
-  // Calls OnStartRequest for "DivertTo" listener, then notifies child channel
-  // that it should divert OnDataAvailable and OnStopRequest calls to this
-  // parent channel.
-  void StartDiversion();
-
-  // Handles calling OnStart/Stop if there are errors during diversion.
-  // Called asynchronously from FailDiversion.
-  void NotifyDiversionFailed(nsresult aErrorCode, bool aSkipResume = true);
 
 protected:
   // used to connect redirected-to channel in parent with just created
@@ -104,24 +89,15 @@ protected:
                                                    const int32_t& no) MOZ_OVERRIDE;
   virtual bool RecvDocumentChannelCleanup() MOZ_OVERRIDE;
   virtual bool RecvMarkOfflineCacheEntryAsForeign() MOZ_OVERRIDE;
-  virtual bool RecvDivertOnDataAvailable(const nsCString& data,
-                                         const uint64_t& offset,
-                                         const uint32_t& count) MOZ_OVERRIDE;
-  virtual bool RecvDivertOnStopRequest(const nsresult& statusCode) MOZ_OVERRIDE;
-  virtual bool RecvDivertComplete() MOZ_OVERRIDE;
+
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
-  // Supporting function for ADivertableParentChannel.
-  nsresult ResumeForDiversion();
-
-  // Asynchronously calls NotifyDiversionFailed.
-  void FailDiversion(nsresult aErrorCode, bool aSkipResume = true);
-
+protected:
   friend class HttpChannelParentListener;
   nsRefPtr<mozilla::dom::TabParent> mTabParent;
 
 private:
-  nsRefPtr<nsHttpChannel>       mChannel;
+  nsCOMPtr<nsIChannel>                    mChannel;
   nsCOMPtr<nsICacheEntry>       mCacheEntry;
   nsCOMPtr<nsIAssociatedContentSecurity>  mAssociatedContentSecurity;
   bool mIPCClosed;                // PHttpChannel actor has been Closed()
@@ -145,19 +121,6 @@ private:
 
   nsCOMPtr<nsILoadContext> mLoadContext;
   nsRefPtr<nsHttpHandler>  mHttpHandler;
-
-  nsRefPtr<HttpChannelParentListener> mParentListener;
-  // Set to the canceled status value if the main channel was canceled.
-  nsresult mStatus;
-  // Once set, no OnStart/OnData/OnStop calls should be accepted; conversely, it
-  // must be set when RecvDivertOnData/~DivertOnStop/~DivertComplete are
-  // received from the child channel.
-  bool mDivertingFromChild;
-
-  // Set if OnStart|StopRequest was called during a diversion from the child.
-  bool mDivertedOnStartRequest;
-
-  bool mSuspendedForDiversion;
 };
 
 } // namespace net

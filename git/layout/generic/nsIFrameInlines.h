@@ -15,7 +15,7 @@ nsIFrame::IsFlexItem() const
 {
   return mParent &&
     mParent->GetType() == nsGkAtoms::flexContainerFrame &&
-    !(GetStateBits() & NS_FRAME_OUT_OF_FLOW);
+    !IsAbsolutelyPositioned();
 }
 
 bool

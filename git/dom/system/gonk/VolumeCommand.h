@@ -35,7 +35,6 @@ class VolumeCommand;
 class VolumeResponseCallback : public RefCounted<VolumeResponseCallback>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(VolumeResponseCallback)
   VolumeResponseCallback()
     : mResponseCode(0), mPending(false) {}
 
@@ -109,7 +108,6 @@ private:
 class VolumeCommand : public RefCounted<VolumeCommand>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(VolumeCommand)
   VolumeCommand(VolumeResponseCallback* aCallback)
     : mBytesConsumed(0),
       mCallback(aCallback)

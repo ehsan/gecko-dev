@@ -14,15 +14,12 @@
 #include "nsCOMPtr.h"
 
 class nsBaseContentList;
-class nsDisplayRangeFocusRing;
 
 class nsRangeFrame : public nsContainerFrame,
                      public nsIAnonymousContentCreator
 {
   friend nsIFrame*
   NS_NewRangeFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-
-  friend class nsDisplayRangeFocusRing;
 
   nsRangeFrame(nsStyleContext* aContext);
   virtual ~nsRangeFrame();
@@ -45,13 +42,13 @@ public:
                         const nsRect&           aDirtyRect,
                         const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  virtual nsresult Reflow(nsPresContext*           aPresContext,
-                          nsHTMLReflowMetrics&     aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext*           aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
+  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
     return MakeFrameName(NS_LITERAL_STRING("Range"), aResult);
   }
 #endif
@@ -67,9 +64,9 @@ public:
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         uint32_t aFilter) MOZ_OVERRIDE;
 
-  virtual nsresult AttributeChanged(int32_t  aNameSpaceID,
-                                    nsIAtom* aAttribute,
-                                    int32_t  aModType) MOZ_OVERRIDE;
+  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
+                              nsIAtom* aAttribute,
+                              int32_t  aModType) MOZ_OVERRIDE;
 
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
@@ -86,10 +83,6 @@ public:
     return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
-
-  nsStyleContext* GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
-  void SetAdditionalStyleContext(int32_t aIndex,
-                                 nsStyleContext* aStyleContext) MOZ_OVERRIDE;
 
   /**
    * Returns true if the slider's thumb moves horizontally, or else false if it
@@ -169,11 +162,6 @@ private:
    * @see nsRangeFrame::CreateAnonymousContent
    */
   nsCOMPtr<Element> mThumbDiv;
-
-  /**
-   * Cached style context for -moz-focus-outer CSS pseudo-element style.
-   */
-  nsRefPtr<nsStyleContext> mOuterFocusStyle;
 };
 
 #endif

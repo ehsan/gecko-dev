@@ -10,7 +10,10 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 // For adding observers.
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Messaging.jsm");
+
+function sendMessageToJava(message) {
+  return Services.androidBridge.handleGeckoMessage(JSON.stringify(message));
+}
 
 let _callbackId = 1;
 

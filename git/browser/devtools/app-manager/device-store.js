@@ -31,10 +31,9 @@ module.exports = DeviceStore = function(connection) {
   this._connection = connection;
   this._connection.once(Connection.Events.DESTROYED, this.destroy);
   this._connection.on(Connection.Events.STATUS_CHANGED, this._onStatusChanged);
-  this._onTabListChanged = this._onTabListChanged.bind(this);
   this._onStatusChanged();
   return this;
-};
+}
 
 DeviceStore.prototype = {
   destroy: function() {
@@ -52,40 +51,19 @@ DeviceStore.prototype = {
   _resetStore: function() {
     this.object.description = {};
     this.object.permissions = [];
-    this.object.tabs = [];
   },
 
   _onStatusChanged: function() {
     if (this._connection.status == Connection.Status.CONNECTED) {
-      // Watch for changes to remote browser tabs
-      this._connection.client.addListener("tabListChanged",
-                                          this._onTabListChanged);
       this._listTabs();
     } else {
-      if (this._connection.client) {
-        this._connection.client.removeListener("tabListChanged",
-                                               this._onTabListChanged);
-      }
       this._resetStore();
     }
   },
 
-  _onTabListChanged: function() {
-    this._listTabs();
-  },
-
   _listTabs: function() {
-    if (!this._connection) {
-      return;
-    }
     this._connection.client.listTabs((resp) => {
-      if (resp.error) {
-        this._connection.disconnect();
-        return;
-      }
       this._deviceFront = getDeviceFront(this._connection.client, resp);
-      // Save remote browser's tabs
-      this.object.tabs = resp.tabs;
       this._feedStore();
     });
   },
@@ -118,5 +96,5 @@ DeviceStore.prototype = {
       }
       this.object.permissions = permissionsArray;
     });
-  }
-};
+  },
+}

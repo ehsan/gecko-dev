@@ -42,7 +42,7 @@ public:
     static ScreenConfiguration GetConfiguration();
 };
 
-class nsScreenManagerGonk MOZ_FINAL : public nsIScreenManager
+class nsScreenManagerGonk : public nsIScreenManager
 {
 public:
     nsScreenManagerGonk();

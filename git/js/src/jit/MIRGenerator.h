@@ -84,7 +84,7 @@ class MIRGenerator
         return cancelBuild_;
     }
     void cancel() {
-        cancelBuild_ = true;
+        cancelBuild_ = 1;
     }
 
     bool compilingAsmJS() const {
@@ -147,7 +147,7 @@ class MIRGenerator
     uint32_t nslots_;
     MIRGraph *graph_;
     bool error_;
-    mozilla::Atomic<bool, mozilla::Relaxed> cancelBuild_;
+    mozilla::Atomic<uint32_t, mozilla::Relaxed> cancelBuild_;
 
     uint32_t maxAsmJSStackArgBytes_;
     bool performsAsmJSCall_;

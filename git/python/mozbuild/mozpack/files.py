@@ -4,7 +4,6 @@
 
 import errno
 import os
-import platform
 import re
 import shutil
 import stat
@@ -28,7 +27,6 @@ from mozpack.errors import (
 from mozpack.mozjar import JarReader
 import mozpack.path
 from collections import OrderedDict
-from tempfile import mkstemp
 
 
 class Dest(object):
@@ -166,13 +164,6 @@ class BaseFile(object):
         assert self.path is not None
         return open(self.path, 'rb')
 
-    @property
-    def mode(self):
-        '''
-        Return the file's unix mode, or None if it has no meaning.
-        '''
-        return None
-
 
 class File(BaseFile):
     '''
@@ -181,15 +172,6 @@ class File(BaseFile):
     def __init__(self, path):
         self.path = path
 
-    @property
-    def mode(self):
-        '''
-        Return the file's unix mode, as returned by os.stat().st_mode.
-        '''
-        if platform.system() == 'Windows':
-            return None
-        assert self.path is not None
-        return os.stat(self.path).st_mode
 
 class ExecutableFile(File):
     '''
@@ -197,11 +179,6 @@ class ExecutableFile(File):
     (see mozpack.executables.is_executable documentation).
     '''
     def copy(self, dest, skip_if_older=True):
-        real_dest = dest
-        if not isinstance(dest, basestring):
-            fd, dest = mkstemp()
-            os.close(fd)
-            os.remove(dest)
         assert isinstance(dest, basestring)
         # If File.copy didn't actually copy because dest is newer, check the
         # file sizes. If dest is smaller, it means it is already stripped and
@@ -217,12 +194,6 @@ class ExecutableFile(File):
         except ErrorMessage:
             os.remove(dest)
             raise
-
-        if real_dest != dest:
-            f = File(dest)
-            ret = f.copy(real_dest, skip_if_older)
-            os.remove(dest)
-            return ret
         return True
 
 

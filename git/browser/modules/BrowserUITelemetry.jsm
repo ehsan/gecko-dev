@@ -17,8 +17,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
   "resource:///modules/RecentWindow.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CustomizableUI",
   "resource:///modules/CustomizableUI.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "UITour",
-  "resource:///modules/UITour.jsm");
 XPCOMUtils.defineLazyGetter(this, "Timer", function() {
   let timer = {};
   Cu.import("resource://gre/modules/Timer.jsm", timer);
@@ -79,7 +77,7 @@ XPCOMUtils.defineLazyGetter(this, "DEFAULT_AREA_PLACEMENTS", function() {
     result["PanelUI-contents"].push("characterencoding-button");
   }
 
-  if (Services.metro && Services.metro.supported) {
+  if (Services.sysinfo.getProperty("hasWindowsTouchInterface")) {
     result["PanelUI-contents"].push("switch-to-metro-button");
   }
 
@@ -172,11 +170,6 @@ this.BrowserUITelemetry = {
   init: function() {
     UITelemetry.addSimpleMeasureFunction("toolbars",
                                          this.getToolbarMeasures.bind(this));
-    // Ensure that UITour.jsm remains lazy-loaded, yet always registers its
-    // simple measure function with UITelemetry.
-    UITelemetry.addSimpleMeasureFunction("UITour",
-                                         () => UITour.getTelemetry());
-
     Services.obs.addObserver(this, "sessionstore-windows-restored", false);
     Services.obs.addObserver(this, "browser-delayed-startup-finished", false);
     CustomizableUI.addListener(this);

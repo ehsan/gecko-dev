@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+TEST_DIRS += ['test']
+
 JS_MODULES_PATH = 'modules/devtools/sourceeditor'
 
 EXTRA_JS_MODULES += [
@@ -14,4 +16,3 @@ EXTRA_JS_MODULES += [
     'editor.js'
 ]
 
-BROWSER_CHROME_MANIFESTS += ['test/browser.ini']

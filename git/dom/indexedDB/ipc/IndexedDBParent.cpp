@@ -567,7 +567,7 @@ IndexedDBDatabaseParent::ActorDestroy(ActorDestroyReason aWhy)
 {
   if (mDatabase) {
     mDatabase->SetActor(static_cast<IndexedDBDatabaseParent*>(nullptr));
-    mDatabase->InvalidateInternal(/* aIsDead */ true);
+    mDatabase->Invalidate();
   }
 }
 
@@ -1500,8 +1500,7 @@ IndexedDBObjectStoreRequestParent::ConvertBlobActors(
 
     for (uint32_t index = 0; index < length; index++) {
       BlobParent* actor = static_cast<BlobParent*>(aActors[index]);
-      nsCOMPtr<nsIDOMBlob> blob = actor->GetBlob();
-      aBlobs.AppendElement(blob);
+      aBlobs.AppendElement(actor->GetBlob());
     }
   }
 }

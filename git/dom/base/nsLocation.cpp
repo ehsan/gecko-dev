@@ -546,7 +546,6 @@ nsLocation::GetOrigin(nsAString& aOrigin)
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetURI(getter_AddRefs(uri), true);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(uri, NS_OK);
 
   nsAutoString origin;
   rv = nsContentUtils::GetUTFOrigin(uri, origin);
@@ -896,7 +895,7 @@ nsLocation::GetSourceBaseURL(JSContext* cx, nsIURI** sourceURL)
   NS_ENSURE_TRUE(window, NS_ERROR_UNEXPECTED);
   nsIDocument* doc = window->GetDoc();
   NS_ENSURE_TRUE(doc, NS_OK);
-  *sourceURL = doc->GetBaseURI().take();
+  *sourceURL = doc->GetBaseURI().get();
   return NS_OK;
 }
 
@@ -909,7 +908,7 @@ nsLocation::CallerSubsumes()
     return false;
   nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(outer);
   bool subsumes = false;
-  nsresult rv = nsContentUtils::GetSubjectPrincipal()->SubsumesConsideringDomain(sop->GetPrincipal(), &subsumes);
+  nsresult rv = nsContentUtils::GetSubjectPrincipal()->Subsumes(sop->GetPrincipal(), &subsumes);
   NS_ENSURE_SUCCESS(rv, false);
   return subsumes;
 }

@@ -29,23 +29,22 @@ function _getWorker() {
 add_test(function test_queryCLIP_provisioned() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
-  context.Buf.readInt32 = function fakeReadUint32() {
-    return context.Buf.int32Array.pop();
+  worker.Buf.readInt32 = function fakeReadUint32() {
+    return worker.Buf.int32Array.pop();
   };
 
-  context.RIL.queryCLIP = function fakeQueryCLIP(options) {
-    context.Buf.int32Array = [
+  worker.RIL.queryCLIP = function fakeQueryCLIP(options) {
+    worker.Buf.int32Array = [
       1,  // CLIP provisioned.
       1   // Length.
     ];
-    context.RIL[REQUEST_QUERY_CLIP](1, {
+    worker.RIL[REQUEST_QUERY_CLIP](1, {
       rilRequestError: ERROR_SUCCESS
     });
   };
 
-  context.RIL.queryCLIP({});
+  worker.RIL.queryCLIP({});
 
   let postedMessage = workerHelper.postedMessage;
 
@@ -58,23 +57,22 @@ add_test(function test_queryCLIP_provisioned() {
 add_test(function test_getCLIP_error_generic_failure_invalid_length() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
-  context.Buf.readInt32 = function fakeReadUint32() {
-    return context.Buf.int32Array.pop();
+  worker.Buf.readInt32 = function fakeReadUint32() {
+    return worker.Buf.int32Array.pop();
   };
 
-  context.RIL.queryCLIP = function fakeQueryCLIP(options) {
-    context.Buf.int32Array = [
+  worker.RIL.queryCLIP = function fakeQueryCLIP(options) {
+    worker.Buf.int32Array = [
       1,  // CLIP provisioned.
       0   // Length.
     ];
-    context.RIL[REQUEST_QUERY_CLIP](1, {
+    worker.RIL[REQUEST_QUERY_CLIP](1, {
       rilRequestError: ERROR_SUCCESS
     });
   };
 
-  context.RIL.queryCLIP({});
+  worker.RIL.queryCLIP({});
 
   let postedMessage = workerHelper.postedMessage;
 

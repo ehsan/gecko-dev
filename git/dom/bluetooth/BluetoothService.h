@@ -12,10 +12,9 @@
 #include "mozilla/dom/ipc/Blob.h"
 #include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
-#include "nsIDOMFile.h"
 #include "nsIObserver.h"
+#include "nsIThread.h"
 #include "nsTObserverArray.h"
-#include "nsThreadUtils.h"
 
 namespace mozilla {
 namespace ipc {
@@ -35,6 +34,9 @@ typedef mozilla::ObserverList<BluetoothSignal> BluetoothSignalObserverList;
 class BluetoothService : public nsIObserver
                        , public BluetoothSignalObserver
 {
+  class ToggleBtAck;
+  friend class ToggleBtAck;
+
   class ToggleBtTask;
   friend class ToggleBtTask;
 
@@ -42,17 +44,6 @@ class BluetoothService : public nsIObserver
   friend class StartupTask;
 
 public:
-  class ToggleBtAck : public nsRunnable
-  {
-  public:
-    ToggleBtAck(bool aEnabled);
-    NS_IMETHOD Run();
-
-  private:
-    bool mEnabled;
-  };
-  friend class ToggleBtAck;
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
@@ -239,11 +230,6 @@ public:
            BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual void
-  SendFile(const nsAString& aDeviceAddress,
-           nsIDOMBlob* aBlob,
-           BluetoothReplyRunnable* aRunnable) = 0;
-
-  virtual void
   StopSendingFile(const nsAString& aDeviceAddress,
                   BluetoothReplyRunnable* aRunnable) = 0;
 
@@ -333,12 +319,6 @@ protected:
   Cleanup();
 
   nsresult
-  StartBluetooth(bool aIsStartup);
-
-  nsresult
-  StopBluetooth(bool aIsStartup);
-
-  nsresult
   StartStopBluetooth(bool aStart, bool aIsStartup);
 
   /**
@@ -358,6 +338,15 @@ protected:
    */
   virtual nsresult
   StopInternal() = 0;
+
+  /**
+   * Platform specific startup functions go here. Usually deals with member
+   * variables, so not static. Guaranteed to be called outside of main thread.
+   *
+   * @return true if Bluetooth is enabled, false otherwise
+   */
+  virtual bool
+  IsEnabledInternal() = 0;
 
   /**
    * Called when XPCOM first creates this service.
@@ -399,6 +388,14 @@ protected:
   bool mEnabled;
 
 private:
+  /**
+   * Due to the fact that the startup and shutdown of the Bluetooth system
+   * can take an indefinite amount of time, a command thread is created
+   * that can run blocking calls. The thread is not intended for regular
+   * Bluetooth operations though.
+   */
+  nsCOMPtr<nsIThread> mBluetoothThread;
+
   bool mAdapterAddedReceived;
 };
 

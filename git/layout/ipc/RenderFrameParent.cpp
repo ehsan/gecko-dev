@@ -422,8 +422,8 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
       // The default scale is 1, so no need to propagate scale down.
       ViewConfig config;
       config.mScrollOffset = nsPoint(
-        NSIntPixelsToAppUnits(metrics.GetScrollOffset().x, auPerCSSPixel) * aXScale,
-        NSIntPixelsToAppUnits(metrics.GetScrollOffset().y, auPerCSSPixel) * aYScale);
+        NSIntPixelsToAppUnits(metrics.mScrollOffset.x, auPerCSSPixel) * aXScale,
+        NSIntPixelsToAppUnits(metrics.mScrollOffset.y, auPerCSSPixel) * aYScale);
       view = new nsContentView(aFrameLoader, scrollId, metrics.mIsRoot, config);
       view->mParentScaleX = aAccConfigXScale;
       view->mParentScaleY = aAccConfigYScale;
@@ -521,27 +521,8 @@ public:
                         aFrameMetrics));
   }
 
-  virtual void AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
-                                       const uint32_t& aScrollGeneration) MOZ_OVERRIDE
-  {
-    if (MessageLoop::current() != mUILoop) {
-      // We have to send this message from the "UI thread" (main
-      // thread).
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::AcknowledgeScrollUpdate,
-                          aScrollId, aScrollGeneration));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->AcknowledgeScrollUpdate(aScrollId, aScrollGeneration);
-    }
-  }
-
-  virtual void HandleDoubleTap(const CSSPoint& aPoint,
-                               int32_t aModifiers,
-                               const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE
+  virtual void HandleDoubleTap(const CSSIntPoint& aPoint,
+                               int32_t aModifiers) MOZ_OVERRIDE
   {
     if (MessageLoop::current() != mUILoop) {
       // We have to send this message from the "UI thread" (main
@@ -549,18 +530,17 @@ public:
       mUILoop->PostTask(
         FROM_HERE,
         NewRunnableMethod(this, &RemoteContentController::HandleDoubleTap,
-                          aPoint, aModifiers, aGuid));
+                          aPoint, aModifiers));
       return;
     }
     if (mRenderFrame) {
       TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleDoubleTap(aPoint, aModifiers, aGuid);
+      browser->HandleDoubleTap(aPoint, aModifiers);
     }
   }
 
-  virtual void HandleSingleTap(const CSSPoint& aPoint,
-                               int32_t aModifiers,
-                               const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE
+  virtual void HandleSingleTap(const CSSIntPoint& aPoint,
+                               int32_t aModifiers) MOZ_OVERRIDE
   {
     if (MessageLoop::current() != mUILoop) {
       // We have to send this message from the "UI thread" (main
@@ -568,18 +548,17 @@ public:
       mUILoop->PostTask(
         FROM_HERE,
         NewRunnableMethod(this, &RemoteContentController::HandleSingleTap,
-                          aPoint, aModifiers, aGuid));
+                          aPoint, aModifiers));
       return;
     }
     if (mRenderFrame) {
       TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleSingleTap(aPoint, aModifiers, aGuid);
+      browser->HandleSingleTap(aPoint, aModifiers);
     }
   }
 
-  virtual void HandleLongTap(const CSSPoint& aPoint,
-                             int32_t aModifiers,
-                             const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE
+  virtual void HandleLongTap(const CSSIntPoint& aPoint,
+                             int32_t aModifiers) MOZ_OVERRIDE
   {
     if (MessageLoop::current() != mUILoop) {
       // We have to send this message from the "UI thread" (main
@@ -587,18 +566,17 @@ public:
       mUILoop->PostTask(
         FROM_HERE,
         NewRunnableMethod(this, &RemoteContentController::HandleLongTap,
-                          aPoint, aModifiers, aGuid));
+                          aPoint, aModifiers));
       return;
     }
     if (mRenderFrame) {
       TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleLongTap(aPoint, aModifiers, aGuid);
+      browser->HandleLongTap(aPoint, aModifiers);
     }
   }
 
-  virtual void HandleLongTapUp(const CSSPoint& aPoint,
-                               int32_t aModifiers,
-                               const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE
+  virtual void HandleLongTapUp(const CSSIntPoint& aPoint,
+                             int32_t aModifiers) MOZ_OVERRIDE
   {
     if (MessageLoop::current() != mUILoop) {
       // We have to send this message from the "UI thread" (main
@@ -606,12 +584,12 @@ public:
       mUILoop->PostTask(
         FROM_HERE,
         NewRunnableMethod(this, &RemoteContentController::HandleLongTapUp,
-                          aPoint, aModifiers, aGuid));
+                          aPoint, aModifiers));
       return;
     }
     if (mRenderFrame) {
       TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleLongTapUp(aPoint, aModifiers, aGuid);
+      browser->HandleLongTapUp(aPoint, aModifiers);
     }
   }
 
@@ -943,11 +921,12 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
 }
 
 void
-RenderFrameParent::NotifyInputEvent(WidgetInputEvent& aEvent,
-                                    ScrollableLayerGuid* aOutTargetGuid)
+RenderFrameParent::NotifyInputEvent(const WidgetInputEvent& aEvent,
+                                    ScrollableLayerGuid* aOutTargetGuid,
+                                    WidgetInputEvent* aOutEvent)
 {
   if (GetApzcTreeManager()) {
-    GetApzcTreeManager()->ReceiveInputEvent(aEvent, aOutTargetGuid);
+    GetApzcTreeManager()->ReceiveInputEvent(aEvent, aOutTargetGuid, aOutEvent);
   }
 }
 
@@ -1132,11 +1111,6 @@ void
 RenderFrameParent::ContentReceivedTouch(const ScrollableLayerGuid& aGuid,
                                         bool aPreventDefault)
 {
-  if (aGuid.mLayersId != mLayersId) {
-    // Guard against bad data from hijacked child processes
-    NS_ERROR("Unexpected layers id in ContentReceivedTouch; dropping message...");
-    return;
-  }
   if (GetApzcTreeManager()) {
     GetApzcTreeManager()->ContentReceivedTouch(aGuid, aPreventDefault);
   }

@@ -82,7 +82,7 @@ nsCanvasFrame::SetHasFocus(bool aHasFocus)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::SetInitialChildList(ChildListID     aListID,
                                    nsFrameList&    aChildList)
 {
@@ -92,7 +92,7 @@ nsCanvasFrame::SetInitialChildList(ChildListID     aListID,
   return nsContainerFrame::SetInitialChildList(aListID, aChildList);
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::AppendFrames(ChildListID     aListID,
                             nsFrameList&    aFrameList)
 {
@@ -125,7 +125,7 @@ nsCanvasFrame::AppendFrames(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::InsertFrames(ChildListID     aListID,
                             nsIFrame*       aPrevFrame,
                             nsFrameList&    aFrameList)
@@ -139,7 +139,7 @@ nsCanvasFrame::InsertFrames(ChildListID     aListID,
   return AppendFrames(aListID, aFrameList);
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::RemoveFrame(ChildListID     aListID,
                            nsIFrame*       aOldFrame)
 {
@@ -266,8 +266,7 @@ nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
 
   if (surf) {
     BlitSurface(dest, destRect, surf);
-    frame->Properties().Set(nsIFrame::CachedBackgroundImage(),
-                            surf.forget().take());
+    frame->Properties().Set(nsIFrame::CachedBackgroundImage(), surf.forget().get());
   }
   if (dt) {
     BlitSurface(dest->GetDrawTarget(), destRect, dt);
@@ -302,8 +301,7 @@ public:
     MOZ_COUNT_DTOR(nsDisplayCanvasFocus);
   }
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
-                           bool* aSnap) MOZ_OVERRIDE
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   {
     *aSnap = false;
     // This is an overestimate, but that's not a problem.
@@ -312,7 +310,7 @@ public:
   }
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) MOZ_OVERRIDE
+                     nsRenderingContext* aCtx)
   {
     nsCanvasFrame* frame = static_cast<nsCanvasFrame*>(mFrame);
     frame->PaintFocus(*aCtx, ToReferenceFrame());
@@ -452,7 +450,7 @@ nsCanvasFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
                       nsHTMLReflowMetrics&     aDesiredSize,
                       const nsHTMLReflowState& aReflowState,
@@ -473,7 +471,8 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
     if (overflow) {
       NS_ASSERTION(overflow->OnlyChild(),
                    "must have doc root as canvas frame's only child");
-      nsContainerFrame::ReparentFrameViewList(*overflow, prevCanvasFrame, this);
+      nsContainerFrame::ReparentFrameViewList(aPresContext, *overflow,
+                                              prevCanvasFrame, this);
       // Prepend overflow to the our child list. There may already be
       // children placeholders for fixed-pos elements, which don't get
       // reflowed but must not be lost until the canvas frame is destroyed.
@@ -493,7 +492,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
   // don't need to be reflowed. The normal child is always comes before
   // the fixed-pos placeholders, because we insert it at the start
   // of the child list, above.
-  nsHTMLReflowMetrics kidDesiredSize(aReflowState);
+  nsHTMLReflowMetrics kidDesiredSize(aReflowState.GetWritingMode());
   if (mFrames.IsEmpty()) {
     // We have no child frame, so return an empty size
     aDesiredSize.Width() = aDesiredSize.Height() = 0;
@@ -532,7 +531,7 @@ nsCanvasFrame::Reflow(nsPresContext*           aPresContext,
       if (!nextFrame) {
         nextFrame = aPresContext->PresShell()->FrameConstructor()->
           CreateContinuingFrame(aPresContext, kidFrame, this);
-        SetOverflowFrames(nsFrameList(nextFrame, nextFrame));
+        SetOverflowFrames(aPresContext, nsFrameList(nextFrame, nextFrame));
         // Root overflow containers will be normal children of
         // the canvas frame, but that's ok because there
         // aren't any other frames we need to isolate them from
@@ -593,7 +592,7 @@ nsCanvasFrame::GetType() const
   return nsGkAtoms::canvasFrame;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsCanvasFrame::GetContentForEvent(WidgetEvent* aEvent,
                                   nsIContent** aContent)
 {
@@ -612,7 +611,7 @@ nsCanvasFrame::GetContentForEvent(WidgetEvent* aEvent,
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsCanvasFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Canvas"), aResult);

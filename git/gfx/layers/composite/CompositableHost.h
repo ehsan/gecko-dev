@@ -19,7 +19,6 @@
 #include "mozilla/layers/CompositorTypes.h"  // for TextureInfo, etc
 #include "mozilla/layers/LayersTypes.h"  // for LayerRenderState, etc
 #include "mozilla/layers/PCompositableParent.h"
-#include "mozilla/layers/TextureHost.h" // for TextureHost
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsRegion.h"                   // for nsIntRegion
@@ -47,6 +46,7 @@ struct TiledLayerProperties
 
 class Layer;
 class DeprecatedTextureHost;
+class TextureHost;
 class SurfaceDescriptor;
 class Compositor;
 class ISurfaceAllocator;
@@ -60,7 +60,6 @@ struct EffectChain;
 class CompositableBackendSpecificData : public RefCounted<CompositableBackendSpecificData>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(CompositableBackendSpecificData)
   CompositableBackendSpecificData()
   {
     MOZ_COUNT_CTOR(CompositableBackendSpecificData);
@@ -70,45 +69,7 @@ public:
     MOZ_COUNT_DTOR(CompositableBackendSpecificData);
   }
   virtual void SetCompositor(Compositor* aCompositor) {}
-  virtual void ClearData()
-  {
-    mCurrentReleaseFenceTexture = nullptr;
-    ClearPendingReleaseFenceTextureList();
-  }
-
-  /**
-   * Store a texture currently used for Composition.
-   * This function is called when the texutre might receive ReleaseFence
-   * as a result of Composition.
-   */
-  void SetCurrentReleaseFenceTexture(TextureHost* aTexture)
-  {
-    if (mCurrentReleaseFenceTexture) {
-      mPendingReleaseFenceTextures.push_back(mCurrentReleaseFenceTexture);
-    }
-    mCurrentReleaseFenceTexture = aTexture;
-  }
-
-  virtual std::vector< RefPtr<TextureHost> >& GetPendingReleaseFenceTextureList()
-  {
-    return mPendingReleaseFenceTextures;
-  }
-
-  virtual void ClearPendingReleaseFenceTextureList()
-  {
-    return mPendingReleaseFenceTextures.clear();
-  }
-protected:
-  /**
-   * Store a TextureHost currently used for Composition
-   * and it might receive ReleaseFence for the texutre.
-   */
-  RefPtr<TextureHost> mCurrentReleaseFenceTexture;
-  /**
-   * Store TextureHosts that might have ReleaseFence to be delivered
-   * to TextureClient by CompositableHost.
-   */
-  std::vector< RefPtr<TextureHost> > mPendingReleaseFenceTextures;
+  virtual void ClearData() {}
 };
 
 /**
@@ -128,7 +89,6 @@ protected:
 class CompositableHost : public RefCounted<CompositableHost>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(CompositableHost)
   CompositableHost(const TextureInfo& aTextureInfo);
 
   virtual ~CompositableHost();
@@ -170,13 +130,12 @@ public:
    * aUpdated is the region which should be updated
    * aUpdatedRegionBack is the region in aNewBackResult which has been updated
    */
-  virtual bool UpdateThebes(const ThebesBufferData& aData,
+  virtual void UpdateThebes(const ThebesBufferData& aData,
                             const nsIntRegion& aUpdated,
                             const nsIntRegion& aOldValidRegionBack,
                             nsIntRegion* aUpdatedRegionBack)
   {
-    NS_ERROR("should be implemented or not used");
-    return false;
+    MOZ_ASSERT(false, "should be implemented or not used");
   }
 
   /**
@@ -306,6 +265,7 @@ public:
         aLayer == mLayer ||
         aFlags & FORCE_DETACH) {
       SetLayer(nullptr);
+      SetCompositor(nullptr);
       mAttached = false;
       mKeepAttached = false;
       if (mBackendData) {
@@ -328,10 +288,6 @@ public:
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix) { }
 
   virtual void UseTextureHost(TextureHost* aTexture);
-  virtual void UseComponentAlphaTextures(TextureHost* aTextureOnBlack,
-                                         TextureHost* aTextureOnWhite);
-
-  virtual void RemoveTextureHost(TextureHost* aTexture);
 
 protected:
   TextureInfo mTextureInfo;

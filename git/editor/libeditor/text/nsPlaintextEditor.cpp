@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "TextComposition.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
@@ -37,9 +36,10 @@
 #include "nsIDOMNodeList.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIEditorIMESupport.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsINode.h"
 #include "nsIPresShell.h"
+#include "nsIPrivateTextRange.h"
 #include "nsISelection.h"
 #include "nsISelectionController.h"
 #include "nsISelectionPrivate.h"
@@ -79,10 +79,7 @@ nsPlaintextEditor::nsPlaintextEditor()
 , mCaretStyle(0)
 #endif
 {
-  // check the "single line editor newline handling"
-  // and "caret behaviour in selection" prefs
-  GetDefaultEditorPrefs(mNewlineHandling, mCaretStyle);
-}
+} 
 
 nsPlaintextEditor::~nsPlaintextEditor()
 {
@@ -126,6 +123,7 @@ NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc,
   nsresult res = NS_OK, rulesRes = NS_OK;
   if (mRules) {
     mRules->DetachEditor();
+    mRules = nullptr;
   }
   
   if (1)
@@ -136,6 +134,10 @@ NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc,
     // Init the base editor
     res = nsEditor::Init(aDoc, aRoot, aSelCon, aFlags);
   }
+
+  // check the "single line editor newline handling"
+  // and "caret behaviour in selection" prefs
+  GetDefaultEditorPrefs(mNewlineHandling, mCaretStyle);
 
   NS_ENSURE_SUCCESS(rulesRes, rulesRes);
   return res;
@@ -314,10 +316,9 @@ nsPlaintextEditor::UpdateMetaCharset(nsIDOMDocument* aDocument,
 
 NS_IMETHODIMP nsPlaintextEditor::InitRules()
 {
-  if (!mRules) {
-    // instantiate the rules for this text editor
-    mRules = new nsTextEditRules();
-  }
+  MOZ_ASSERT(!mRules);
+  // instantiate the rules for this text editor
+  mRules = new nsTextEditRules();
   return mRules->Init(this);
 }
 
@@ -385,6 +386,7 @@ nsPlaintextEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
       return TypedText(NS_LITERAL_STRING("\t"), eTypedText);
     }
     case nsIDOMKeyEvent::DOM_VK_RETURN:
+    case nsIDOMKeyEvent::DOM_VK_ENTER:
       if (IsSingleLineEditor() || nativeKeyEvent->IsControl() ||
           nativeKeyEvent->IsAlt() || nativeKeyEvent->IsMeta() ||
           nativeKeyEvent->IsOS()) {
@@ -693,7 +695,8 @@ NS_IMETHODIMP nsPlaintextEditor::InsertText(const nsAString &aStringToInsert)
   nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
 
   EditAction opID = EditAction::insertText;
-  if (mComposition) {
+  if (mInIMEMode) 
+  {
     opID = EditAction::insertIMEText;
   }
   nsAutoPlaceHolderBatch batch(this, nullptr); 
@@ -808,9 +811,9 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
 }
 
 nsresult
-nsPlaintextEditor::BeginIMEComposition(WidgetCompositionEvent* aEvent)
+nsPlaintextEditor::BeginIMEComposition()
 {
-  NS_ENSURE_TRUE(!mComposition, NS_OK);
+  NS_ENSURE_TRUE(!mInIMEMode, NS_OK);
 
   if (IsPasswordEditor()) {
     NS_ENSURE_TRUE(mRules, NS_ERROR_NULL_POINTER);
@@ -822,19 +825,14 @@ nsPlaintextEditor::BeginIMEComposition(WidgetCompositionEvent* aEvent)
     textEditRules->ResetIMETextPWBuf();
   }
 
-  return nsEditor::BeginIMEComposition(aEvent);
+  return nsEditor::BeginIMEComposition();
 }
 
 nsresult
-nsPlaintextEditor::UpdateIMEComposition(nsIDOMEvent* aDOMTextEvent)
+nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
+                                        nsIPrivateTextRangeList* aTextRangeList)
 {
-  NS_ABORT_IF_FALSE(aDOMTextEvent, "aDOMTextEvent must not be nullptr");
-
-  WidgetTextEvent* widgetTextEvent =
-    aDOMTextEvent->GetInternalNSEvent()->AsTextEvent();
-  NS_ENSURE_TRUE(widgetTextEvent, NS_ERROR_INVALID_ARG);
-
-  EnsureComposition(widgetTextEvent);
+  NS_ABORT_IF_FALSE(aTextRangeList, "aTextRangeList must not be nullptr");
 
   nsCOMPtr<nsIPresShell> ps = GetPresShell();
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
@@ -845,13 +843,19 @@ nsPlaintextEditor::UpdateIMEComposition(nsIDOMEvent* aDOMTextEvent)
 
   nsRefPtr<nsCaret> caretP = ps->GetCaret();
 
-  {
-    TextComposition::TextEventHandlingMarker
-      textEventHandlingMarker(mComposition, widgetTextEvent);
+  // Update information of clauses in the new composition string.
+  // This will be refered by followed methods.
+  mIMETextRangeList = aTextRangeList;
 
+  // We set mIsIMEComposing properly.
+  SetIsIMEComposing();
+
+  {
     nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
 
-    rv = InsertText(widgetTextEvent->theText);
+    rv = InsertText(aCompositionString);
+
+    mIMEBufferLength = aCompositionString.Length();
 
     if (caretP) {
       caretP->SetCaretDOMSelection(selection);
@@ -862,7 +866,7 @@ nsPlaintextEditor::UpdateIMEComposition(nsIDOMEvent* aDOMTextEvent)
   // Note that if committed, we don't need to notify it since it will be
   // notified at followed compositionend event.
   // NOTE: We must notify after the auto batch will be gone.
-  if (IsIMEComposing()) {
+  if (mIsIMEComposing) {
     NotifyEditorObservers();
   }
 

@@ -138,9 +138,7 @@ FinishCreate(XPCWrappedNativeScope* Scope,
 // case the logic and do some things in a different order.
 nsresult
 XPCWrappedNative::WrapNewGlobal(xpcObjectHelper &nativeHelper,
-                                nsIPrincipal *principal,
-                                bool initStandardClasses,
-                                bool fireOnNewGlobalHook,
+                                nsIPrincipal *principal, bool initStandardClasses,
                                 JS::CompartmentOptions& aOptions,
                                 XPCWrappedNative **wrappedGlobal)
 {
@@ -268,8 +266,7 @@ XPCWrappedNative::WrapNewGlobal(xpcObjectHelper &nativeHelper,
                                wrapper, wrappedGlobal);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (fireOnNewGlobalHook)
-        JS_FireOnNewGlobalObject(cx, global);
+    JS_FireOnNewGlobalObject(cx, global);
     return NS_OK;
 }
 
@@ -313,7 +310,7 @@ XPCWrappedNative::GetNewOrUsed(xpcObjectHelper& helper,
             MOZ_ASSERT(NS_FAILED(rv), "returning NS_OK on failure");
             return rv;
         }
-        wrapper.forget(resultWrapper);
+        *resultWrapper = wrapper.forget().get();
         return NS_OK;
     }
 
@@ -400,7 +397,7 @@ XPCWrappedNative::GetNewOrUsed(xpcObjectHelper& helper,
                 MOZ_ASSERT(NS_FAILED(rv), "returning NS_OK on failure");
                 return rv;
             }
-            wrapper.forget(resultWrapper);
+            *resultWrapper = wrapper.forget().get();
             return NS_OK;
         }
     } else {
@@ -520,7 +517,7 @@ FinishCreate(XPCWrappedNativeScope* Scope,
     }
 
     DEBUG_CheckClassInfoClaims(wrapper);
-    wrapper.forget(resultWrapper);
+    *resultWrapper = wrapper.forget().get();
     return NS_OK;
 }
 
@@ -573,7 +570,7 @@ XPCWrappedNative::GetUsedOnly(nsISupports* Object,
 }
 
 // This ctor is used if this object will have a proto.
-XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports>&& aIdentity,
+XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
                                    XPCWrappedNativeProto* aProto)
     : mMaybeProto(aProto),
       mSet(aProto->GetSet()),
@@ -581,7 +578,7 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports>&& aIdentity,
 {
     MOZ_ASSERT(NS_IsMainThread());
 
-    mIdentity = aIdentity.take();
+    mIdentity = aIdentity.get();
     mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
 
     MOZ_ASSERT(mMaybeProto, "bad ctor param");
@@ -589,7 +586,7 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports>&& aIdentity,
 }
 
 // This ctor is used if this object will NOT have a proto.
-XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports>&& aIdentity,
+XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
                                    XPCWrappedNativeScope* aScope,
                                    XPCNativeSet* aSet)
 
@@ -599,7 +596,7 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports>&& aIdentity,
 {
     MOZ_ASSERT(NS_IsMainThread());
 
-    mIdentity = aIdentity.take();
+    mIdentity = aIdentity.get();
     mFlatJSObject.setFlags(FLAT_JS_OBJECT_VALID);
 
     MOZ_ASSERT(aScope, "bad ctor param");
@@ -845,6 +842,10 @@ bool
 XPCWrappedNative::FinishInit()
 {
     AutoJSContext cx;
+
+    // For all WNs, we want to make sure that the expando chain slot starts out
+    // as null.
+    JS_SetReservedSlot(mFlatJSObject, WN_XRAYEXPANDOCHAIN_SLOT, JSVAL_NULL);
 
     // This reference will be released when mFlatJSObject is finalized.
     // Since this reference will push the refcount to 2 it will also root
@@ -1172,6 +1173,7 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCWrappedNativeScope* aOldScope,
 
             // Expandos from other compartments are attached to the target JS object.
             // Copy them over, and let the old ones die a natural death.
+            SetWNExpandoChain(newobj, nullptr);
             if (!XrayUtils::CloneExpandoChain(cx, newobj, flat))
                 return NS_ERROR_FAILURE;
 
@@ -1523,16 +1525,17 @@ XPCWrappedNative::InitTearOff(XPCWrappedNativeTearOff* aTearOff,
         // when asked for nsIPropertyBag. It need not actually *implement*
         // nsIPropertyBag - xpconnect will do that work.
 
-        if (iid->Equals(NS_GET_IID(nsIPropertyBag)) && jso) {
-            nsRefPtr<nsXPCWrappedJSClass> clasp = nsXPCWrappedJSClass::GetNewOrUsed(cx, *iid);
-            if (clasp) {
-                RootedObject answer(cx, clasp->CallQueryInterfaceOnJSObject(cx, jso, *iid));
-
-                if (!answer) {
-                    NS_RELEASE(obj);
-                    aTearOff->SetInterface(nullptr);
-                    return NS_ERROR_NO_INTERFACE;
-                }
+        nsXPCWrappedJSClass* clazz;
+        if (iid->Equals(NS_GET_IID(nsIPropertyBag)) && jso &&
+            NS_SUCCEEDED(nsXPCWrappedJSClass::GetNewOrUsed(cx,*iid,&clazz))&&
+            clazz) {
+            RootedObject answer(cx,
+                                clazz->CallQueryInterfaceOnJSObject(cx, jso, *iid));
+            NS_RELEASE(clazz);
+            if (!answer) {
+                NS_RELEASE(obj);
+                aTearOff->SetInterface(nullptr);
+                return NS_ERROR_NO_INTERFACE;
             }
         }
     }
@@ -2309,15 +2312,11 @@ CallMethodHelper::CleanupParam(nsXPTCMiniVariant& param, nsXPTType& type)
             break;
         case nsXPTType::T_ASTRING:
         case nsXPTType::T_DOMSTRING:
-            nsXPConnect::GetRuntimeInstance()->DeleteShortLivedString((nsString*)param.val.p);
+            nsXPConnect::GetRuntimeInstance()->DeleteString((nsAString*)param.val.p);
             break;
         case nsXPTType::T_UTF8STRING:
         case nsXPTType::T_CSTRING:
-            {
-                nsCString* rs = (nsCString*)param.val.p;
-                if (rs != &EmptyCString() && rs != &NullCString())
-                    delete rs;
-            }
+            delete (nsCString*) param.val.p;
             break;
         default:
             MOZ_ASSERT(!type.IsArithmetic(), "Cleanup requested on unexpected type.");
@@ -2365,10 +2364,10 @@ CallMethodHelper::HandleDipperParam(nsXPTCVariant* dp,
                type_tag == nsXPTType::T_CSTRING,
                "Unexpected dipper type!");
 
-    // ASTRING and DOMSTRING are very similar, and both use nsString.
+    // ASTRING and DOMSTRING are very similar, and both use nsAutoString.
     // UTF8_STRING and CSTRING are also quite similar, and both use nsCString.
     if (type_tag == nsXPTType::T_ASTRING || type_tag == nsXPTType::T_DOMSTRING)
-        dp->val.p = nsXPConnect::GetRuntimeInstance()->NewShortLivedString();
+        dp->val.p = new nsAutoString();
     else
         dp->val.p = new nsCString();
 
@@ -2408,8 +2407,8 @@ NS_IMETHODIMP XPCWrappedNative::GetNative(nsISupports * *aNative)
 {
     // No need to QI here, we already have the correct nsISupports
     // vtable.
-    nsCOMPtr<nsISupports> rval = mIdentity;
-    rval.forget(aNative);
+    *aNative = mIdentity;
+    NS_ADDREF(*aNative);
     return NS_OK;
 }
 
@@ -2450,8 +2449,9 @@ NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithMember(HandleId name,
     XPCNativeMember*  member;
 
     if (GetSet()->FindMember(name, &member, &iface) && iface) {
-        nsCOMPtr<nsIInterfaceInfo> temp = iface->GetInterfaceInfo();
-        temp.forget(_retval);
+        nsIInterfaceInfo* temp = iface->GetInterfaceInfo();
+        NS_IF_ADDREF(temp);
+        *_retval = temp;
     } else
         *_retval = nullptr;
     return NS_OK;
@@ -2463,8 +2463,9 @@ NS_IMETHODIMP XPCWrappedNative::FindInterfaceWithName(HandleId name,
 {
     XPCNativeInterface* iface = GetSet()->FindNamedInterface(name);
     if (iface) {
-        nsCOMPtr<nsIInterfaceInfo> temp = iface->GetInterfaceInfo();
-        temp.forget(_retval);
+        nsIInterfaceInfo* temp = iface->GetInterfaceInfo();
+        NS_IF_ADDREF(temp);
+        *_retval = temp;
     } else
         *_retval = nullptr;
     return NS_OK;

@@ -202,10 +202,10 @@ public:
     }
   }
 
-  virtual void ProcessBlock(AudioNodeStream* aStream,
-                            const AudioChunk& aInput,
-                            AudioChunk* aOutput,
-                            bool* aFinished)
+  virtual void ProduceAudioBlock(AudioNodeStream* aStream,
+                                 const AudioChunk& aInput,
+                                 AudioChunk* aOutput,
+                                 bool* aFinished)
   {
     uint32_t channelCount = aInput.mChannelData.Length();
     if (!mCurve.Length() || !channelCount) {
@@ -287,14 +287,10 @@ WaveShaperNode::SetCurve(const Nullable<Float32Array>& aCurve)
 {
   nsTArray<float> curve;
   if (!aCurve.IsNull()) {
-    const Float32Array& floats = aCurve.Value();
+    mCurve = aCurve.Value().Obj();
 
-    mCurve = floats.Obj();
-
-    floats.ComputeLengthAndData();
-
-    curve.SetLength(floats.Length());
-    PodCopy(curve.Elements(), floats.Data(), floats.Length());
+    curve.SetLength(aCurve.Value().Length());
+    PodCopy(curve.Elements(), aCurve.Value().Data(), aCurve.Value().Length());
   } else {
     mCurve = nullptr;
   }

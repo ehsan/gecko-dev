@@ -75,16 +75,15 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'SharedSurfaceANGLE.cpp',
     ]
 if CONFIG['MOZ_ENABLE_SKIA_GPU']:
-    EXPORTS += ['SkiaGLGlue.h']
+    EXPORTS += ['GLContextSkia.h']
     UNIFIED_SOURCES += [
-        'SkiaGLGlue.cpp',
+        'GLContextSkia.cpp',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     UNIFIED_SOURCES += ['SharedSurfaceGralloc.cpp']
     EXPORTS += ['SharedSurfaceGralloc.h']
     LOCAL_INCLUDES += ['/widget/gonk']
-    CXXFLAGS += ['-I%s/%s' % (CONFIG['ANDROID_SOURCE'], 'hardware/libhardware/include')]
 
 if gl_provider == 'CGL':
     # These files include Mac headers that are unfriendly to unified builds

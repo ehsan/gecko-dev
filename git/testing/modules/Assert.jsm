@@ -56,26 +56,10 @@ function truncate(text, newLength = kTruncateLength) {
   }
 }
 
-function getMessage(error, prefix = "") {
-  let actual, expected;
-  // Wrap calls to JSON.stringify in try...catch blocks, as they may throw. If
-  // so, fall back to toString().
-  try {
-    actual = JSON.stringify(error.actual, replacer);
-  } catch (ex) {
-    actual = Object.prototype.toString.call(error.actual);
-  }
-  try {
-    expected = JSON.stringify(error.expected, replacer);
-  } catch (ex) {
-    expected = Object.prototype.toString.call(error.expected);
-  }
-  let message = prefix;
-  if (error.operator) {
-    message += (prefix ? " - " : "") + truncate(actual) + " " + error.operator +
-               " " + truncate(expected);
-  }
-  return message;
+function getMessage(error) {
+  return truncate(JSON.stringify(error.actual, replacer)) + " " +
+         (error.operator ? error.operator + " " : "") +
+         truncate(JSON.stringify(error.expected, replacer));
 }
 
 /**
@@ -99,7 +83,7 @@ Assert.AssertionError = function(options) {
   this.actual = options.actual;
   this.expected = options.expected;
   this.operator = options.operator;
-  this.message = getMessage(this, options.message);
+  this.message = options.message || getMessage(this);
   // The part of the stack that comes from this module is not interesting.
   let stack = Components.stack;
   do {

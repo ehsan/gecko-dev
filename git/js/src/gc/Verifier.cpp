@@ -368,8 +368,6 @@ typedef HashMap<void *, VerifyNode *, DefaultHasher<void *>, SystemAllocPolicy> 
  */
 struct VerifyPreTracer : JSTracer
 {
-    JS::AutoDisableGenerationalGC noggc;
-
     /* The gcNumber when the verification began. */
     uint64_t number;
 
@@ -383,10 +381,13 @@ struct VerifyPreTracer : JSTracer
     char *term;
     NodeMap nodemap;
 
-    VerifyPreTracer(JSRuntime *rt) : noggc(rt), root(nullptr) {}
+    VerifyPreTracer(JSRuntime *rt) : root(nullptr) {
+        JS::DisableGenerationalGC(rt);
+    }
 
     ~VerifyPreTracer() {
         js_free(root);
+        JS::EnableGenerationalGC(runtime);
     }
 };
 
@@ -579,10 +580,6 @@ static void
 AssertMarkedOrAllocated(const EdgeValue &edge)
 {
     if (!edge.thing || IsMarkedOrAllocated(static_cast<Cell *>(edge.thing)))
-        return;
-
-    // Permanent atoms aren't marked during graph traversal.
-    if (edge.kind == JSTRACE_STRING && static_cast<JSString *>(edge.thing)->isPermanentAtom())
         return;
 
     char msgbuf[1024];
@@ -882,3 +879,12 @@ js::gc::FinishVerifier(JSRuntime *rt)
 }
 
 #endif /* JS_GC_ZEAL */
+
+void
+js::gc::CrashAtUnhandlableOOM(const char *reason)
+{
+    char msgbuf[1024];
+    JS_snprintf(msgbuf, sizeof(msgbuf), "[unhandlable oom] %s", reason);
+    MOZ_ReportAssertionFailure(msgbuf, __FILE__, __LINE__);
+    MOZ_CRASH();
+}

@@ -5,14 +5,12 @@
 
 #include "ClientThebesLayer.h"
 #include "ClientTiledThebesLayer.h"     // for ClientTiledThebesLayer
-#include "SimpleTiledContentClient.h"
 #include <stdint.h>                     // for uint32_t
 #include "GeckoProfiler.h"              // for PROFILER_LABEL
 #include "client/ClientLayerManager.h"  // for ClientLayerManager, etc
 #include "gfxASurface.h"                // for gfxASurface, etc
 #include "gfxContext.h"                 // for gfxContext
 #include "gfxRect.h"                    // for gfxRect
-#include "gfxPrefs.h"                   // for gfxPrefs
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/gfx/2D.h"             // for DrawTarget
 #include "mozilla/gfx/Matrix.h"         // for Matrix
@@ -135,8 +133,8 @@ ClientThebesLayer::PaintBuffer(gfxContext* aContext,
     ClientManager()->SetTransactionIncomplete();
     return;
   }
-  ClientManager()->GetThebesLayerCallback()(this,
-                                            aContext,
+  ClientManager()->GetThebesLayerCallback()(this, 
+                                            aContext, 
                                             aExtendedRegionToDraw,
                                             aClip,
                                             aRegionToInvalidate,
@@ -173,21 +171,11 @@ ClientLayerManager::CreateThebesLayerWithHint(ThebesLayerCreationHint aHint)
 #ifdef MOZ_B2G
       aHint == SCROLLABLE &&
 #endif
-      gfxPrefs::LayersTilesEnabled() &&
-      (AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL ||
-       AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_D3D9 ||
-       AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_D3D11)) {
-    if (gfxPrefs::LayersUseSimpleTiles()) {
-      nsRefPtr<SimpleClientTiledThebesLayer> layer =
-        new SimpleClientTiledThebesLayer(this);
-      CREATE_SHADOW(Thebes);
-      return layer.forget();
-    } else {
-      nsRefPtr<ClientTiledThebesLayer> layer =
-        new ClientTiledThebesLayer(this);
-      CREATE_SHADOW(Thebes);
-      return layer.forget();
-    }
+      gfxPlatform::GetPrefLayersEnableTiles() && AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL) {
+    nsRefPtr<ClientTiledThebesLayer> layer =
+      new ClientTiledThebesLayer(this);
+    CREATE_SHADOW(Thebes);
+    return layer.forget();
   } else
   {
     nsRefPtr<ClientThebesLayer> layer =

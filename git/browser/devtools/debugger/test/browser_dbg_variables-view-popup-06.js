@@ -9,7 +9,6 @@
 const TAB_URL = EXAMPLE_URL + "doc_frame-parameters.html";
 
 function test() {
-  requestLongerTimeout(2);
   Task.spawn(function() {
     let [tab, debuggee, panel] = yield initDebugger(TAB_URL);
     let win = panel.panelWin;

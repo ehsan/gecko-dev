@@ -5,13 +5,12 @@
 
 #include "nsCocoaWindow.h"
 
-#include "NativeKeyBindings.h"
-#include "TextInputHandler.h"
 #include "nsObjCExceptions.h"
 #include "nsCOMPtr.h"
 #include "nsWidgetsCID.h"
 #include "nsIRollupListener.h"
 #include "nsChildView.h"
+#include "TextInputHandler.h"
 #include "nsWindowMap.h"
 #include "nsAppShell.h"
 #include "nsIAppShellService.h"
@@ -1727,7 +1726,8 @@ nsCocoaWindow::ReportMoveEvent()
   UpdateBounds();
 
   // Dispatch the move event to Gecko
-  NotifyWindowMoved(mBounds.x, mBounds.y);
+  if (mWidgetListener)
+    mWidgetListener->WindowMoved(this, mBounds.x, mBounds.y);
 
   mInReportMoveEvent = false;
 
@@ -2094,10 +2094,40 @@ void nsCocoaWindow::SetPopupWindowLevel()
   }
 }
 
-NS_IMETHODIMP
-nsCocoaWindow::NotifyIME(const IMENotification& aIMENotification)
+bool nsCocoaWindow::IsChildInFailingLeftClickThrough(NSView *aChild)
 {
-  switch (aIMENotification.mMessage) {
+  if ([aChild isKindOfClass:[ChildView class]]) {
+    ChildView* childView = (ChildView*) aChild;
+    if ([childView isInFailingLeftClickThrough])
+      return true;
+  }
+  NSArray* subviews = [aChild subviews];
+  if (subviews) {
+    NSUInteger count = [subviews count];
+    for (NSUInteger i = 0; i < count; ++i) {
+      NSView* aView = (NSView*) [subviews objectAtIndex:i];
+      if (IsChildInFailingLeftClickThrough(aView))
+        return true;
+    }
+  }
+  return false;
+}
+
+// Don't focus a plugin if we're in a left click-through that will
+// fail (see [ChildView isInFailingLeftClickThrough]).  Called from
+// [ChildView shouldFocusPlugin].
+bool nsCocoaWindow::ShouldFocusPlugin()
+{
+  if (!mWindow || IsChildInFailingLeftClickThrough([mWindow contentView]))
+    return false;
+
+  return true;
+}
+
+NS_IMETHODIMP
+nsCocoaWindow::NotifyIME(NotificationToIME aNotification)
+{
+  switch (aNotification) {
     case NOTIFY_IME_OF_FOCUS:
       if (mInputContext.IsPasswordEditor()) {
         TextInputHandler::EnableSecureEventInput();
@@ -2133,17 +2163,6 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
-
-NS_IMETHODIMP_(bool)
-nsCocoaWindow::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
-                                       const WidgetKeyboardEvent& aEvent,
-                                       DoCommandCallback aCallback,
-                                       void* aCallbackData)
-{
-  NativeKeyBindings* keyBindings = NativeKeyBindings::GetInstance(aType);
-  return keyBindings->Execute(aEvent, aCallback, aCallbackData);
-}
-
 
 @implementation WindowDelegate
 

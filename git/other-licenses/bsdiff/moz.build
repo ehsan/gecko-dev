@@ -9,8 +9,3 @@ HOST_SOURCES += [
 ]
 
 HOST_PROGRAM = 'mbsdiff'
-
-LOCAL_INCLUDES += [
-    '/toolkit/mozapps/update/updater',
-]
-

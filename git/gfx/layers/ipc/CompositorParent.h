@@ -88,12 +88,11 @@ public:
   virtual bool RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
                                 SurfaceDescriptor* aOutSnapshot) MOZ_OVERRIDE;
   virtual bool RecvFlushRendering() MOZ_OVERRIDE;
+  virtual bool RecvForceComposite() MOZ_OVERRIDE;
 
   virtual bool RecvNotifyRegionInvalidated(const nsIntRegion& aRegion) MOZ_OVERRIDE;
   virtual bool RecvStartFrameTimeRecording(const int32_t& aBufferSize, uint32_t* aOutStartIndex) MOZ_OVERRIDE;
   virtual bool RecvStopFrameTimeRecording(const uint32_t& aStartIndex, InfallibleTArray<float>* intervals) MOZ_OVERRIDE;
-  virtual bool RecvSetTestSampleTime(const TimeStamp& aTime) MOZ_OVERRIDE;
-  virtual bool RecvLeaveTestMode() MOZ_OVERRIDE;
 
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
@@ -101,8 +100,6 @@ public:
                                    const TargetConfig& aTargetConfig,
                                    bool aIsFirstPaint,
                                    bool aScheduleComposite) MOZ_OVERRIDE;
-  virtual void ForceComposite(LayerTransactionParent* aLayerTree) MOZ_OVERRIDE;
-  virtual AsyncCompositionManager* GetCompositionManager(LayerTransactionParent* aLayerTree) MOZ_OVERRIDE { return mCompositionManager; }
   /**
    * This forces the is-first-paint flag to true. This is intended to
    * be called by the widget code when it loses its viewport information
@@ -225,10 +222,18 @@ public:
   float ComputeRenderIntegrity();
 
   /**
+   * Tell all CompositorParents to update their last refresh to aTime and sample
+   * animations at this time stamp.  If aIsTesting is true, the
+   * CompositorParents will become "paused" and continue sampling animations at
+   * this time stamp until this function is called again with aIsTesting set to
+   * false.
+   */
+  static void SetTimeAndSampleAnimations(TimeStamp aTime, bool aIsTesting);
+
+  /**
    * Returns true if the calling thread is the compositor thread.
    */
   static bool IsInCompositorThread();
-
 protected:
   virtual PLayerTransactionParent*
     AllocPLayerTransactionParent(const nsTArray<LayersBackend>& aBackendHints,
@@ -238,8 +243,8 @@ protected:
   virtual bool DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers) MOZ_OVERRIDE;
   virtual void ScheduleTask(CancelableTask*, int);
   void Composite();
-  void CompositeToTarget(gfx::DrawTarget* aTarget);
-  void ForceComposeToTarget(gfx::DrawTarget* aTarget);
+  void CompositeInTransaction();
+  virtual void ComposeToTarget(gfx::DrawTarget* aTarget);
 
   void SetEGLSurfaceSize(int width, int height);
 
@@ -249,7 +254,6 @@ private:
   void ResumeComposition();
   void ResumeCompositionAndResize(int width, int height);
   void ForceComposition();
-  void CancelCurrentCompositeTask();
 
   inline static PlatformThreadId CompositorThreadID();
 
@@ -307,7 +311,7 @@ private:
   TimeStamp mTestTime;
   bool mIsTesting;
 #ifdef COMPOSITOR_PERFORMANCE_WARNING
-  TimeStamp mExpectedComposeStartTime;
+  TimeStamp mExpectedComposeTime;
 #endif
 
   bool mPaused;

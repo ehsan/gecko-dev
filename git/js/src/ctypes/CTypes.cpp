@@ -13,7 +13,7 @@
 #include <math.h>
 #include <stdint.h>
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_OS2)
 #include <float.h>
 #endif
 
@@ -31,12 +31,10 @@
 #include <windows.h>
 #endif
 
-#include "jscntxt.h"
-#include "jsfun.h"
 #include "jsnum.h"
 #include "jsprf.h"
 
-#include "builtin/TypedObject.h"
+#include "builtin/TypeRepresentation.h"
 #include "ctypes/Library.h"
 
 using namespace std;
@@ -1447,7 +1445,7 @@ struct ConvertImpl<uint64_t, double> {
 // round-trip. In fact, on some platforms, including SPARC, there are pairs of
 // values, a uint64_t and a double, such that neither value is exactly
 // representable in the other type, but they cast to each other.
-#if defined(SPARC) || defined(__powerpc__)
+#ifdef SPARC
 // Simulate x86 overflow behavior
 template<>
 struct ConvertImpl<uint64_t, double> {
@@ -2185,29 +2183,29 @@ bool CanConvertTypedArrayItemTo(JSObject *baseType, JSObject *valObj, JSContext 
   }
   TypeCode elementTypeCode;
   switch (JS_GetArrayBufferViewType(valObj)) {
-  case ScalarTypeDescr::TYPE_INT8:
+  case ScalarTypeRepresentation::TYPE_INT8:
     elementTypeCode = TYPE_int8_t;
     break;
-  case ScalarTypeDescr::TYPE_UINT8:
-  case ScalarTypeDescr::TYPE_UINT8_CLAMPED:
+  case ScalarTypeRepresentation::TYPE_UINT8:
+  case ScalarTypeRepresentation::TYPE_UINT8_CLAMPED:
     elementTypeCode = TYPE_uint8_t;
     break;
-  case ScalarTypeDescr::TYPE_INT16:
+  case ScalarTypeRepresentation::TYPE_INT16:
     elementTypeCode = TYPE_int16_t;
     break;
-  case ScalarTypeDescr::TYPE_UINT16:
+  case ScalarTypeRepresentation::TYPE_UINT16:
     elementTypeCode = TYPE_uint16_t;
     break;
-  case ScalarTypeDescr::TYPE_INT32:
+  case ScalarTypeRepresentation::TYPE_INT32:
     elementTypeCode = TYPE_int32_t;
     break;
-  case ScalarTypeDescr::TYPE_UINT32:
+  case ScalarTypeRepresentation::TYPE_UINT32:
     elementTypeCode = TYPE_uint32_t;
     break;
-  case ScalarTypeDescr::TYPE_FLOAT32:
+  case ScalarTypeRepresentation::TYPE_FLOAT32:
     elementTypeCode = TYPE_float32_t;
     break;
-  case ScalarTypeDescr::TYPE_FLOAT64:
+  case ScalarTypeRepresentation::TYPE_FLOAT64:
     elementTypeCode = TYPE_float64_t;
     break;
   default:
@@ -2414,10 +2412,7 @@ ImplicitConvert(JSContext* cx,
       // Convert ArrayBuffer to pointer without any copy.
       // Just as with C arrays, we make no effort to
       // keep the ArrayBuffer alive.
-      void* p = JS_GetStableArrayBufferData(cx, valObj);
-      if (!p)
-          return false;
-      *static_cast<void**>(buffer) = p;
+      *static_cast<void**>(buffer) = JS_GetArrayBufferData(valObj);
       break;
     } if (!JSVAL_IS_PRIMITIVE(val) && JS_IsTypedArrayObject(valObj)) {
       if(!CanConvertTypedArrayItemTo(baseType, valObj, cx)) {
@@ -4825,7 +4820,10 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
         return false;
 
       RootedObject fieldType(cx, nullptr);
-      Rooted<JSFlatString*> name(cx, ExtractStructField(cx, item, fieldType.address()));
+      JSFlatString* flat = ExtractStructField(cx, item, fieldType.address());
+      if (!flat)
+        return false;
+      Rooted<JSStableString*> name(cx, flat->ensureStable(cx));
       if (!name)
         return false;
       fieldRoots[i] = JS::ObjectValue(*fieldType);
@@ -4839,7 +4837,7 @@ StructType::DefineInternal(JSContext* cx, JSObject* typeObj_, JSObject* fieldsOb
 
       // Add the field to the StructType's 'prototype' property.
       if (!JS_DefineUCProperty(cx, prototype,
-             name->chars(), name->length(), JSVAL_VOID,
+             name->chars().get(), name->length(), JSVAL_VOID,
              StructType::FieldGetter, StructType::FieldSetter,
              JSPROP_SHARED | JSPROP_ENUMERATE | JSPROP_PERMANENT))
         return false;
@@ -5141,7 +5139,7 @@ StructType::BuildFieldsArray(JSContext* cx, JSObject* obj)
       return nullptr;
   }
 
-  RootedObject fieldsProp(cx, JS_NewArrayObject(cx, fieldsVec));
+  RootedObject fieldsProp(cx, JS_NewArrayObject(cx, len, fieldsVec.begin()));
   if (!fieldsProp)
     return nullptr;
 
@@ -5949,7 +5947,7 @@ FunctionType::ArgTypesGetter(JSContext* cx, JS::CallArgs args)
       for (size_t i = 0; i < len; ++i)
         vec[i] = JS::ObjectValue(*fninfo->mArgTypes[i]);
 
-      argTypes = JS_NewArrayObject(cx, vec);
+      argTypes = JS_NewArrayObject(cx, len, vec.begin());
       if (!argTypes)
         return false;
   }
@@ -6137,12 +6135,12 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
 
   RootedObject typeObj(cx, cinfo->typeObj);
   RootedObject thisObj(cx, cinfo->thisObj);
-  RootedValue jsfnVal(cx, ObjectValue(*cinfo->jsfnObj));
+  RootedObject jsfnObj(cx, cinfo->jsfnObj);
 
   JS_AbortIfWrongThread(JS_GetRuntime(cx));
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, cinfo->jsfnObj);
+  JSAutoCompartment ac(cx, jsfnObj);
 
   // Assert that our CIFs agree.
   FunctionInfo* fninfo = FunctionType::GetFunctionInfo(typeObj);
@@ -6190,7 +6188,8 @@ CClosure::ClosureStub(ffi_cif* cif, void* result, void** args, void* userData)
   // Call the JS function. 'thisObj' may be nullptr, in which case the JS
   // engine will find an appropriate object to use.
   RootedValue rval(cx);
-  bool success = JS_CallFunctionValue(cx, thisObj, jsfnVal, argv, &rval);
+  bool success = JS_CallFunctionValue(cx, thisObj, OBJECT_TO_JSVAL(jsfnObj),
+                                        cif->nargs, argv.begin(), rval.address());
 
   // Convert the result. Note that we pass 'isArgument = false', such that
   // ImplicitConvert will *not* autoconvert a JS string into a pointer-to-char

@@ -9,27 +9,24 @@ function test() {
   initNetMonitor(SIMPLE_URL).then(([aTab, aDebuggee, aMonitor]) => {
     info("Starting test... ");
 
-    let { document, L10N, Chart } = aMonitor.panelWin;
+    let { document, Chart } = aMonitor.panelWin;
     let container = document.createElement("box");
 
     let chart = Chart.PieTable(document, {
       title: "Table title",
       data: [{
         size: 1,
-        label: 11.1
+        label: "11.1foo"
       }, {
         size: 2,
-        label: 12.2
+        label: "12.2bar"
       }, {
         size: 3,
-        label: 13.3
+        label: "13.3baz"
       }],
-      strings: {
-        label2: (value, index) => value + ["foo", "bar", "baz"][index]
-      },
       totals: {
-        size: value => "Hello " + L10N.numberWithDecimals(value, 2),
-        label: value => "World " + L10N.numberWithDecimals(value, 2)
+        size: "Hello %S",
+        label: "World %S"
       }
     });
 

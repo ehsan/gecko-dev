@@ -26,7 +26,10 @@ const observers = require('../system/events');
 const { Cortex } = require('./cortex');
 const { sandbox, evaluate, load } = require("../loader/sandbox");
 const { merge } = require('../util/object');
-const { getInnerId } = require("../window/utils");
+const xulApp = require("../system/xul-app");
+const { getInnerId } = require("../window/utils")
+const USE_JS_PROXIES = !xulApp.versionInRange(xulApp.platformVersion,
+                                              "17.0a2", "*");
 const { getTabForWindow } = require('../tabs/helpers');
 const { getTabForContentWindow } = require('../tabs/utils');
 
@@ -157,10 +160,7 @@ const WorkerSandbox = EventEmitter.compose({
       wantXrays: true,
       wantGlobalProperties: wantGlobalProperties,
       sameZoneAs: window,
-      metadata: {
-        SDKContentScript: true,
-        'inner-window-id': getInnerId(window)
-      }
+      metadata: { SDKContentScript: true }
     });
     // We have to ensure that window.top and window.parent are the exact same
     // object than window object, i.e. the sandbox global object. But not
@@ -278,7 +278,11 @@ const WorkerSandbox = EventEmitter.compose({
     if (!getTabForContentWindow(window)) {
       let win = window.wrappedJSObject ? window.wrappedJSObject : window;
 
-      // export our chrome console to content window as described here:
+      // export our chrome console to content window, using the same approach
+      // of `ConsoleAPI`:
+      // http://mxr.mozilla.org/mozilla-central/source/dom/base/ConsoleAPI.js#150
+      //
+      // and described here:
       // https://developer.mozilla.org/en-US/docs/Components.utils.createObjectIn
       let con = Cu.createObjectIn(win);
 

@@ -16,7 +16,6 @@ namespace gl {
 class GLContextWGL : public GLContext
 {
 public:
-    MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(GLContextWGL)
     // From Window: (possibly for offscreen!)
     GLContextWGL(const SurfaceCaps& caps,
                  GLContext* sharedContext,
@@ -36,7 +35,7 @@ public:
 
     ~GLContextWGL();
 
-    virtual GLContextType GetContextType() const MOZ_OVERRIDE { return GLContextType::WGL; }
+    virtual GLContextType GetContextType() MOZ_OVERRIDE { return GLContextType::WGL; }
 
     static GLContextWGL* Cast(GLContext* gl) {
         MOZ_ASSERT(gl->GetContextType() == GLContextType::WGL);
@@ -45,19 +44,21 @@ public:
 
     bool Init();
 
-    virtual bool MakeCurrentImpl(bool aForce) MOZ_OVERRIDE;
+    bool MakeCurrentImpl(bool aForce = false);
 
-    virtual bool IsCurrent() MOZ_OVERRIDE;
+    virtual bool IsCurrent();
 
     void SetIsDoubleBuffered(bool aIsDB);
 
-    virtual bool IsDoubleBuffered() const MOZ_OVERRIDE;
+    virtual bool IsDoubleBuffered();
 
-    virtual bool SupportsRobustness() const MOZ_OVERRIDE;
+    bool SupportsRobustness();
 
-    virtual bool SwapBuffers() MOZ_OVERRIDE;
+    virtual bool SwapBuffers();
 
-    virtual bool SetupLookupFunction() MOZ_OVERRIDE;
+    bool SetupLookupFunction();
+
+    bool ResizeOffscreen(const gfx::IntSize& aNewSize);
 
     HGLRC Context() { return mContext; }
 

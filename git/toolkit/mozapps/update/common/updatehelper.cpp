@@ -22,7 +22,6 @@
 #include <stdio.h>
 #include "shlobj.h"
 #include "updatehelper.h"
-#include "uachelper.h"
 #include "pathhash.h"
 #include "mozilla/Scoped.h"
 
@@ -724,20 +723,16 @@ GetDWORDValue(HKEY key, LPCWSTR valueName, DWORD &retValue)
 
 /**
  * Determines if the the system's elevation type allows
- * unprmopted elevation.
+ * unprmopted elevation.  This may not 100% reflect reality since
+ * a reboot is necessary to change the UAC level.
  *
  * @param isUnpromptedElevation Out parameter which specifies if unprompted
  *                              elevation is allowed.
- * @return TRUE if the user can actually elevate and the value was obtained
- *         successfully.
+ * @return TRUE if the value was obtained successfully.
 */
 BOOL
 IsUnpromptedElevation(BOOL &isUnpromptedElevation)
 {
-  if (!UACHelper::CanUserElevate()) {
-    return FALSE;
-  }
-
   LPCWSTR UACBaseRegKey =
     L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System";
   HKEY baseKey;
@@ -748,12 +743,13 @@ IsUnpromptedElevation(BOOL &isUnpromptedElevation)
     return FALSE;
   }
 
-  DWORD consent, secureDesktop;
-  BOOL success = GetDWORDValue(baseKey, L"ConsentPromptBehaviorAdmin",
-                               consent);
+  DWORD enabled, consent, secureDesktop;
+  BOOL success = GetDWORDValue(baseKey, L"EnableLUA", enabled);
+  success = success &&
+            GetDWORDValue(baseKey, L"ConsentPromptBehaviorAdmin", consent);
   success = success &&
             GetDWORDValue(baseKey, L"PromptOnSecureDesktop", secureDesktop);
-  isUnpromptedElevation = !consent && !secureDesktop;
+  isUnpromptedElevation = enabled && !consent && !secureDesktop;
 
   RegCloseKey(baseKey);
   return success;

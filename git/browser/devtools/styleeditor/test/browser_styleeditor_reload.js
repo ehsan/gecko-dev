@@ -15,10 +15,18 @@ function test()
 {
   waitForExplicitFinish();
 
-  addTabAndOpenStyleEditors(2, function(panel) {
+  addTabAndOpenStyleEditor(function(panel) {
     gContentWin = gBrowser.selectedTab.linkedBrowser.contentWindow.wrappedJSObject;
     gUI = panel.UI;
-    gUI.editors[0].getSourceEditor().then(runTests);
+
+    let count = 0;
+    gUI.on("editor-added", function editorAdded(event, editor) {
+      if (++count == 2) {
+        info("all editors added to UI");
+        gUI.off("editor-added", editorAdded);
+        gUI.editors[0].getSourceEditor().then(runTests);
+      }
+    })
   });
 
   content.location = TESTCASE_URI;

@@ -34,8 +34,8 @@
 #include "nsIContent.h"
 #include "nsIContentFilter.h"
 #include "nsIDOMComment.h"
-#include "mozilla/dom/DOMStringList.h"
-#include "mozilla/dom/DataTransfer.h"
+#include "nsIDOMDOMStringList.h"
+#include "nsIDOMDataTransfer.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIDOMElement.h"
@@ -57,7 +57,7 @@
 #include "nsIFile.h"
 #include "nsIInputStream.h"
 #include "nsIMIMEService.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsINode.h"
 #include "nsIParserUtils.h"
 #include "nsIPlaintextEditor.h"
@@ -1231,25 +1231,24 @@ GetStringFromDataTransfer(nsIDOMDataTransfer *aDataTransfer, const nsAString& aT
     variant->GetAsAString(aOutputString);
 }
 
-nsresult nsHTMLEditor::InsertFromDataTransfer(DataTransfer *aDataTransfer,
+nsresult nsHTMLEditor::InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
                                               int32_t aIndex,
                                               nsIDOMDocument *aSourceDoc,
                                               nsIDOMNode *aDestinationNode,
                                               int32_t aDestOffset,
                                               bool aDoDeleteSelection)
 {
-  ErrorResult rv;
-  nsRefPtr<DOMStringList> types = aDataTransfer->MozTypesAt(aIndex, rv);
-  if (rv.Failed()) {
-    return rv.ErrorCode();
-  }
+  nsCOMPtr<nsIDOMDOMStringList> types;
+  aDataTransfer->MozTypesAt(aIndex, getter_AddRefs(types));
 
-  bool hasPrivateHTMLFlavor = types->Contains(NS_LITERAL_STRING(kHTMLContext));
+  bool hasPrivateHTMLFlavor;
+  types->Contains(NS_LITERAL_STRING(kHTMLContext), &hasPrivateHTMLFlavor);
 
   bool isText = IsPlaintextEditor();
   bool isSafe = IsSafeToInsertData(aSourceDoc);
 
-  uint32_t length = types->Length();
+  uint32_t length;
+  types->GetLength(&length);
   for (uint32_t t = 0; t < length; t++) {
     nsAutoString type;
     types->Item(t, type);

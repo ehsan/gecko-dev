@@ -52,6 +52,7 @@
 #include "nsIDocument.h"
 #include "nsStubDocumentObserver.h"
 #include "nsIHTMLDocument.h"
+#include "nsINameSpaceManager.h"
 #include "nsIDOMHTMLMapElement.h"
 #include "nsICookieService.h"
 #include "nsTArray.h"
@@ -59,7 +60,6 @@
 #include "nsIPrincipal.h"
 #include "nsTextFragment.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsNameSpaceManager.h"
 
 #include "nsIParserService.h"
 
@@ -87,11 +87,11 @@ using namespace mozilla::dom;
 //----------------------------------------------------------------------
 
 typedef nsGenericHTMLElement*
-  (*contentCreatorCallback)(already_AddRefed<nsINodeInfo>&&,
+  (*contentCreatorCallback)(already_AddRefed<nsINodeInfo>,
                             FromParser aFromParser);
 
 nsGenericHTMLElement*
-NS_NewHTMLNOTUSEDElement(already_AddRefed<nsINodeInfo>&& aNodeInfo,
+NS_NewHTMLNOTUSEDElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                          FromParser aFromParser)
 {
   NS_NOTREACHED("The element ctor should never be called");
@@ -242,7 +242,7 @@ public:
 };
 
 nsresult
-NS_NewHTMLElement(Element** aResult, already_AddRefed<nsINodeInfo>&& aNodeInfo,
+NS_NewHTMLElement(Element** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
                   FromParser aFromParser)
 {
   *aResult = nullptr;
@@ -257,38 +257,15 @@ NS_NewHTMLElement(Element** aResult, already_AddRefed<nsINodeInfo>&& aNodeInfo,
 
   NS_ASSERTION(nodeInfo->NamespaceEquals(kNameSpaceID_XHTML), 
                "Trying to HTML elements that don't have the XHTML namespace");
-
-  // Per the Custom Element specification, unknown tags that are valid custom
-  // element names should be HTMLElement instead of HTMLUnknownElement.
-  int32_t tag = parserService->HTMLCaseSensitiveAtomTagToId(name);
-  if (tag == eHTMLTag_userdefined &&
-      nsContentUtils::IsCustomElementName(name)) {
-    nsIDocument* doc = nodeInfo->GetDocument();
-
-    NS_IF_ADDREF(*aResult = NS_NewHTMLElement(nodeInfo.forget(), aFromParser));
-    if (!*aResult) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    // Element may be unresolved at this point.
-    doc->RegisterUnresolvedElement(*aResult);
-
-    // Try to enqueue a created callback. The custom element data will be set
-    // and created callback will be enqueued if the custom element type
-    // has already been registered.
-    doc->EnqueueLifecycleCallback(nsIDocument::eCreated, *aResult);
-
-    return NS_OK;
-  }
-
-  *aResult = CreateHTMLElement(tag,
-                               nodeInfo.forget(), aFromParser).take();
+  
+  *aResult = CreateHTMLElement(parserService->
+                                 HTMLCaseSensitiveAtomTagToId(name),
+                               nodeInfo.forget(), aFromParser).get();
   return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 already_AddRefed<nsGenericHTMLElement>
-CreateHTMLElement(uint32_t aNodeType,
-                  already_AddRefed<nsINodeInfo>&& aNodeInfo,
+CreateHTMLElement(uint32_t aNodeType, already_AddRefed<nsINodeInfo> aNodeInfo,
                   FromParser aFromParser)
 {
   NS_ASSERTION(aNodeType <= NS_HTML_TAG_MAX ||
@@ -300,7 +277,7 @@ CreateHTMLElement(uint32_t aNodeType,
   NS_ASSERTION(cb != NS_NewHTMLNOTUSEDElement,
                "Don't know how to construct tag element!");
 
-  nsRefPtr<nsGenericHTMLElement> result = cb(Move(aNodeInfo), aFromParser);
+  nsRefPtr<nsGenericHTMLElement> result = cb(aNodeInfo, aFromParser);
 
   return result.forget();
 }

@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Pref="media.webspeech.synth.enabled"]
+[PrefControlled]
 interface SpeechSynthesis {
   readonly attribute boolean pending;
   readonly attribute boolean speaking;

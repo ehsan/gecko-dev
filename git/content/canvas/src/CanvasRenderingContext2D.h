@@ -19,7 +19,6 @@
 #include "mozilla/dom/CanvasGradient.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/CanvasPattern.h"
-#include "mozilla/dom/TypedArray.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/2D.h"
 #include "gfx2DGlue.h"
@@ -32,7 +31,6 @@ class nsXULElement;
 namespace mozilla {
 namespace gfx {
 class SourceSurface;
-class SurfaceStream;
 }
 
 namespace dom {
@@ -187,9 +185,6 @@ public:
                   mozilla::ErrorResult& error);
   TextMetrics*
     MeasureText(const nsAString& rawText, mozilla::ErrorResult& error);
-
-  void AddHitRegion(const HitRegionOptions& options, mozilla::ErrorResult& error);
-  void RemoveHitRegion(const nsAString& id);
 
   void DrawImage(const HTMLImageOrCanvasOrVideoElement& image,
                  double dx, double dy, mozilla::ErrorResult& error)
@@ -409,7 +404,6 @@ public:
   { EnsureTarget(); return mTarget->Snapshot(); }
 
   NS_IMETHOD SetIsOpaque(bool isOpaque) MOZ_OVERRIDE;
-  bool GetIsOpaque() MOZ_OVERRIDE { return mOpaque; }
   NS_IMETHOD Reset() MOZ_OVERRIDE;
   already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                                                CanvasLayer *aOldLayer,
@@ -480,7 +474,7 @@ protected:
                              JSObject** aRetval);
 
   nsresult PutImageData_explicit(int32_t x, int32_t y, uint32_t w, uint32_t h,
-                                 dom::Uint8ClampedArray* aArray,
+                                 unsigned char *aData, uint32_t aDataLen,
                                  bool hasDirtyRect, int32_t dirtyX, int32_t dirtyY,
                                  int32_t dirtyWidth, int32_t dirtyHeight);
 
@@ -599,6 +593,7 @@ protected:
     return CurrentState().font;
   }
 
+#if USE_SKIA_GPU
   static std::vector<CanvasRenderingContext2D*>& DemotableContexts();
   static void DemoteOldestContextIfNecessary();
 
@@ -607,6 +602,7 @@ protected:
 
   // Do not use GL
   bool mForceSoftware;
+#endif
 
   // Member vars
   int32_t mWidth, mHeight;
@@ -632,8 +628,6 @@ protected:
   // accessing it. In the event of an error it will be equal to
   // sErrorTarget.
   mozilla::RefPtr<mozilla::gfx::DrawTarget> mTarget;
-
-  RefPtr<gfx::SurfaceStream> mStream;
 
   /**
     * Flag to avoid duplicate calls to InvalidateFrame. Set to true whenever
@@ -686,29 +680,6 @@ protected:
     */
   uint32_t mInvalidateCount;
   static const uint32_t kCanvasMaxInvalidateCount = 100;
-
-  /**
-    * State information for hit regions
-    */
-
-  struct RegionInfo : public nsStringHashKey
-  {
-    RegionInfo(const nsAString& aKey) :
-      nsStringHashKey(&aKey)
-    {
-    }
-    RegionInfo(const nsAString *aKey) :
-      nsStringHashKey(aKey)
-    {
-    }
-
-    nsRefPtr<Element> mElement;
-  };
-
-#ifdef ACCESSIBILITY
-  static PLDHashOperator RemoveHitRegionProperty(RegionInfo* aEntry, void* aData);
-#endif
-  nsTHashtable<RegionInfo> mHitRegionsOptions;
 
   /**
     * Returns true if a shadow should be drawn along with a

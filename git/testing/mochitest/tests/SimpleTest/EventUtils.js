@@ -7,7 +7,6 @@
  *  sendKey
  *  synthesizeMouse
  *  synthesizeMouseAtCenter
- *  synthesizePointer
  *  synthesizeWheel
  *  synthesizeKey
  *  synthesizeNativeKey
@@ -227,12 +226,6 @@ function synthesizeTouch(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
   synthesizeTouchAtPoint(rect.left + aOffsetX, rect.top + aOffsetY,
        aEvent, aWindow);
 }
-function synthesizePointer(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
-{
-  var rect = aTarget.getBoundingClientRect();
-  return synthesizePointerAtPoint(rect.left + aOffsetX, rect.top + aOffsetY,
-       aEvent, aWindow);
-}
 
 /*
  * Synthesize a mouse event at a particular point in aWindow.
@@ -293,34 +286,6 @@ function synthesizeTouchAtPoint(left, top, aEvent, aWindow)
     }
   }
 }
-function synthesizePointerAtPoint(left, top, aEvent, aWindow)
-{
-  var utils = _getDOMWindowUtils(aWindow);
-  var defaultPrevented = false;
-
-  if (utils) {
-    var button = aEvent.button || 0;
-    var clickCount = aEvent.clickCount || 1;
-    var modifiers = _parseModifiers(aEvent);
-    var pressure = ("pressure" in aEvent) ? aEvent.pressure : 0;
-    var inputSource = ("inputSource" in aEvent) ? aEvent.inputSource : 0;
-    var synthesized = ("isSynthesized" in aEvent) ? aEvent.isSynthesized : true;
-
-    if (("type" in aEvent) && aEvent.type) {
-      defaultPrevented = utils.sendPointerEvent(aEvent.type, left, top, button,
-                                                clickCount, modifiers, false,
-                                                pressure, inputSource,
-                                                synthesized);
-    }
-    else {
-      utils.sendPointerEvent("pointerdown", left, top, button, clickCount, modifiers, false, pressure, inputSource);
-      utils.sendPointerEvent("pointerup", left, top, button, clickCount, modifiers, false, pressure, inputSource);
-    }
-  }
-
-  return defaultPrevented;
-}
-
 // Call synthesizeMouse with coordinates at the center of aTarget.
 function synthesizeMouseAtCenter(aTarget, aEvent, aWindow)
 {
@@ -537,7 +502,7 @@ function isKeypressFiredKey(aDOMKeyCode)
  * actual keypress by the user, typically the focused element.
  *
  * aKey should be either a character or a keycode starting with VK_ such as
- * VK_RETURN.
+ * VK_ENTER.
  *
  * aEvent is an object which may contain the properties:
  *   shiftKey, ctrlKey, altKey, metaKey, accessKey, type, location
@@ -946,21 +911,8 @@ function synthesizeText(aEvent, aWindow)
   compositionString.setString(aEvent.composition.string);
   if (aEvent.composition.clauses[0].length) {
     for (var i = 0; i < aEvent.composition.clauses.length; i++) {
-      switch (aEvent.composition.clauses[i].attr) {
-        case compositionString.ATTR_RAWINPUT:
-        case compositionString.ATTR_SELECTEDRAWTEXT:
-        case compositionString.ATTR_CONVERTEDTEXT:
-        case compositionString.ATTR_SELECTEDCONVERTEDTEXT:
-          compositionString.appendClause(aEvent.composition.clauses[i].length,
-                                         aEvent.composition.clauses[i].attr);
-          break;
-        case 0:
-          // Ignore dummy clause for the argument.
-          break;
-        default:
-          throw new Error("invalid clause attribute specified");
-          break;
-      }
+      compositionString.appendClause(aEvent.composition.clauses[i].length,
+                                     aEvent.composition.clauses[i].attr);
     }
   }
 

@@ -7,7 +7,7 @@
 
 #include "nsXULLabelFrame.h"
 #include "nsHTMLParts.h"
-#include "nsNameSpaceManager.h"
+#include "nsINameSpaceManager.h"
 #include "nsEventStateManager.h"
 
 nsIFrame*
@@ -80,7 +80,7 @@ nsXULLabelFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsBlockFrame::DestroyFrom(aDestructRoot);
 } 
 
-nsresult
+NS_IMETHODIMP
 nsXULLabelFrame::AttributeChanged(int32_t aNameSpaceID,
                                   nsIAtom* aAttribute,
                                   int32_t aModType)
@@ -106,7 +106,7 @@ nsXULLabelFrame::GetType() const
 // Diagnostics
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsXULLabelFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("XULLabel"), aResult);

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,113 +23,69 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testKeyboard3.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testKeyboard3.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var helpers = require('./helpers');
+'use strict';
 
-exports.testDecr = function(options) {
+var javascript = require('gcli/types/javascript');
+// var helpers = require('gclitest/helpers');
+// var mockCommands = require('gclitest/mockCommands');
+var canon = require('gcli/canon');
+
+var tempWindow;
+
+exports.setup = function(options) {
+  mockCommands.setup();
+
+  tempWindow = javascript.getGlobalObject();
+  javascript.setGlobalObject(options.window);
+};
+
+exports.shutdown = function(options) {
+  javascript.setGlobalObject(tempWindow);
+  tempWindow = undefined;
+
+  mockCommands.shutdown();
+};
+
+exports.testScript = function(options) {
   return helpers.audit(options, [
-    /*
-    // See notes at top of testIncr in testKeyboard2.js
     {
-      setup: 'tsu -70<DOWN>',
-      check: { input: 'tsu -5' }
+      skipIf: function commandJsMissing() {
+        return canon.getCommand('{') == null;
+      },
+      setup: '{ wind<TAB>',
+      check: { input: '{ window' }
     },
     {
-      setup: 'tsu -7<DOWN>',
-      check: { input: 'tsu -5' }
-    },
-    {
-      setup: 'tsu -6<DOWN>',
-      check: { input: 'tsu -5' }
-    },
-    */
-    {
-      setup: 'tsu -5<DOWN>',
-      check: { input: 'tsu -5' }
-    },
-    {
-      setup: 'tsu -4<DOWN>',
-      check: { input: 'tsu -5' }
-    },
-    {
-      setup: 'tsu -3<DOWN>',
-      check: { input: 'tsu -5' }
-    },
-    {
-      setup: 'tsu -2<DOWN>',
-      check: { input: 'tsu -3' }
-    },
-    {
-      setup: 'tsu -1<DOWN>',
-      check: { input: 'tsu -3' }
-    },
-    {
-      setup: 'tsu 0<DOWN>',
-      check: { input: 'tsu -3' }
-    },
-    {
-      setup: 'tsu 1<DOWN>',
-      check: { input: 'tsu 0' }
-    },
-    {
-      setup: 'tsu 2<DOWN>',
-      check: { input: 'tsu 0' }
-    },
-    {
-      setup: 'tsu 3<DOWN>',
-      check: { input: 'tsu 0' }
-    },
-    {
-      setup: 'tsu 4<DOWN>',
-      check: { input: 'tsu 3' }
-    },
-    {
-      setup: 'tsu 5<DOWN>',
-      check: { input: 'tsu 3' }
-    },
-    {
-      setup: 'tsu 6<DOWN>',
-      check: { input: 'tsu 3' }
-    },
-    {
-      setup: 'tsu 7<DOWN>',
-      check: { input: 'tsu 6' }
-    },
-    {
-      setup: 'tsu 8<DOWN>',
-      check: { input: 'tsu 6' }
-    },
-    {
-      setup: 'tsu 9<DOWN>',
-      check: { input: 'tsu 6' }
-    },
-    {
-      setup: 'tsu 10<DOWN>',
-      check: { input: 'tsu 9' }
+      skipIf: function commandJsMissing() {
+        return canon.getCommand('{') == null;
+      },
+      setup: '{ window.docum<TAB>',
+      check: { input: '{ window.document' }
     }
-    /*
-    // See notes at top of testIncr
-    {
-      setup: 'tsu 100<DOWN>',
-      check: { input: 'tsu 9' }
-    }
-    */
   ]);
 };
+
+exports.testJsdom = function(options) {
+  return helpers.audit(options, [
+    {
+      skipIf: function jsDomOrCommandJsMissing() {
+        return options.isJsdom || canon.getCommand('{') == null;
+      },
+      setup: '{ window.document.titl<TAB>',
+      check: { input: '{ window.document.title ' }
+    }
+  ]);
+};
+
+
+// });

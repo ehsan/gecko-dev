@@ -1722,11 +1722,6 @@ print_stack(FILE *ofp, callsite *site)
     }
 }
 
-static const char *allocation_format =
-  (sizeof(void*) == 4) ? "\t0x%08zX\n" :
-  (sizeof(void*) == 8) ? "\t0x%016zX\n" :
-  "UNEXPECTED sizeof(void*)";
-
 static int
 allocation_enumerator(PLHashEntry *he, int i, void *arg)
 {
@@ -1734,17 +1729,17 @@ allocation_enumerator(PLHashEntry *he, int i, void *arg)
     FILE *ofp = (FILE*) arg;
     callsite *site = (callsite*) he->value;
 
-    size_t *p, *end;
+    unsigned long *p, *end;
 
     fprintf(ofp, "%p <%s> (%lu)\n",
             he->key,
             nsGetTypeName(he->key),
             (unsigned long) alloc->size);
 
-    for (p   = (size_t*) he->key,
-         end = (size_t*) ((char*)he->key + alloc->size);
+    for (p   = (unsigned long*) he->key,
+         end = (unsigned long*) ((char*)he->key + alloc->size);
          p < end; ++p) {
-        fprintf(ofp, allocation_format, *p);
+        fprintf(ofp, "\t0x%08lX\n", *p);
     }
 
     print_stack(ofp, site);

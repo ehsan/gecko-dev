@@ -30,6 +30,7 @@ DECL_CLASS(nsILocalFile);
 DECL_CLASS(nsIDirectoryServiceProvider);
 DECL_CLASS(nsIMemory);
 DECL_CLASS(nsIDebug);
+DECL_CLASS(nsITraceRefcnt);
 
 #ifdef __cplusplus
 namespace mozilla {
@@ -410,5 +411,8 @@ NS_CycleCollectorSuspect3(void *n, nsCycleCollectionParticipant *p,
 
 XPCOM_API(nsresult)
 NS_GetDebug(nsIDebug* *result);
+
+XPCOM_API(nsresult)
+NS_GetTraceRefcnt(nsITraceRefcnt* *result);
 
 #endif

@@ -46,12 +46,6 @@ BluetoothA2dpManager::Observe(nsISupports* aSubject,
 
 BluetoothA2dpManager::BluetoothA2dpManager()
 {
-  Reset();
-}
-
-void
-BluetoothA2dpManager::Reset()
-{
   ResetA2dp();
   ResetAvrcp();
 }
@@ -159,12 +153,12 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
 
   BluetoothService* bs = BluetoothService::Get();
   if (!bs || sInShutdown) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 
   if (mA2dpConnected) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_ALREADY_CONNECTED));
     return;
   }
 
@@ -173,7 +167,7 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress,
 
   if (NS_FAILED(bs->SendSinkMessage(aDeviceAddress,
                                     NS_LITERAL_STRING("Connect")))) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnConnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 }
@@ -184,14 +178,14 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     }
     return;
   }
 
   if (!mA2dpConnected) {
     if (aController) {
-      aController->NotifyCompletion(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
+      aController->OnDisconnect(NS_LITERAL_STRING(ERR_ALREADY_DISCONNECTED));
     }
     return;
   }
@@ -203,7 +197,7 @@ BluetoothA2dpManager::Disconnect(BluetoothProfileController* aController)
 
   if (NS_FAILED(bs->SendSinkMessage(mDeviceAddress,
                                     NS_LITERAL_STRING("Disconnect")))) {
-    aController->NotifyCompletion(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    aController->OnDisconnect(NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
   }
 }
@@ -220,7 +214,7 @@ BluetoothA2dpManager::OnConnect(const nsAString& aErrorStr)
   NS_ENSURE_TRUE_VOID(mController);
 
   nsRefPtr<BluetoothProfileController> controller = mController.forget();
-  controller->NotifyCompletion(aErrorStr);
+  controller->OnConnect(aErrorStr);
 }
 
 void
@@ -235,9 +229,7 @@ BluetoothA2dpManager::OnDisconnect(const nsAString& aErrorStr)
   NS_ENSURE_TRUE_VOID(mController);
 
   nsRefPtr<BluetoothProfileController> controller = mController.forget();
-  controller->NotifyCompletion(aErrorStr);
-
-  Reset();
+  controller->OnDisconnect(aErrorStr);
 }
 
 /* HandleSinkPropertyChanged update sink state in A2dp
@@ -312,7 +304,7 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
       if (prevState == SinkState::SINK_PLAYING) {
         break;
       }
-
+      
       // case 3: Successfully connected
       MOZ_ASSERT(prevState == SinkState::SINK_CONNECTING);
 

@@ -11,7 +11,6 @@ public:
   static HANDLE OpenUserToken(DWORD sessionID);
   static HANDLE OpenLinkedToken(HANDLE token);
   static BOOL DisablePrivileges(HANDLE token);
-  static bool CanUserElevate();
 
 private:
   static BOOL SetPrivilege(HANDLE token, LPCTSTR privs, BOOL enable);

@@ -20,13 +20,12 @@
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsAString.h"
 #include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
 #include "nsMathUtils.h"                // for NS_lround
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsRect.h"                     // for nsIntRect
 #include "nsSize.h"                     // for nsIntSize
 #include "nsString.h"                   // for nsAutoCString
-#include "TextRenderer.h"
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "GeckoProfiler.h"
 
 namespace mozilla {
@@ -50,21 +49,10 @@ ThebesLayerComposite::~ThebesLayerComposite()
   CleanupResources();
 }
 
-bool
+void
 ThebesLayerComposite::SetCompositableHost(CompositableHost* aHost)
 {
-  switch (aHost->GetType()) {
-    case BUFFER_CONTENT:
-    case BUFFER_CONTENT_DIRECT:
-    case BUFFER_CONTENT_INC:
-    case BUFFER_TILED:
-    case COMPOSITABLE_CONTENT_SINGLE:
-    case COMPOSITABLE_CONTENT_DOUBLE:
-      mBuffer = static_cast<ContentHost*>(aHost);
-      return true;
-    default:
-      return false;
-  }
+  mBuffer = static_cast<ContentHost*>(aHost);
 }
 
 void
@@ -91,10 +79,7 @@ ThebesLayerComposite::GetLayer()
 TiledLayerComposer*
 ThebesLayerComposite::GetTiledLayerComposer()
 {
-  if (!mBuffer) {
-    return nullptr;
-  }
-  MOZ_ASSERT(mBuffer->IsAttached());
+  MOZ_ASSERT(mBuffer && mBuffer->IsAttached());
   return mBuffer->AsTiledLayerComposer();
 }
 
@@ -130,7 +115,7 @@ ThebesLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   }
 #endif
 
-  EffectChain effectChain(this);
+  EffectChain effectChain;
   LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(mMaskLayer, effectChain);
 
   nsIntRegion visibleRegion = GetEffectiveVisibleRegion();
@@ -186,7 +171,7 @@ ThebesLayerComposite::GetEffectiveResolution()
   for (ContainerLayer* parent = GetParent(); parent; parent = parent->GetParent()) {
     const FrameMetrics& metrics = parent->GetFrameMetrics();
     if (metrics.mScrollId != FrameMetrics::NULL_SCROLL_ID) {
-      return metrics.GetZoom();
+      return metrics.mZoom;
     }
   }
 

@@ -12,7 +12,7 @@
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
 #include "gfxQuartzSurface.h"
-#include "gfxPrefs.h"
+#include "gfxPlatform.h"
 #include "gfxFailure.h"
 #include "prenv.h"
 #include "mozilla/Preferences.h"
@@ -78,7 +78,7 @@ private:
     bool mInitialized;
     PRLibrary *mOGLLibrary;
     NSOpenGLPixelFormat *mPixelFormat;
-};
+}; 
 
 CGLLibrary sCGLLibrary;
 
@@ -139,7 +139,7 @@ GLContextCGL::MakeCurrentImpl(bool aForce)
         // If swapInt is 1, then glSwapBuffers will block and wait for a vblank signal.
         // When we're iterating as fast as possible, however, we want a non-blocking
         // glSwapBuffers, which will happen when swapInt==0.
-        GLint swapInt = gfxPrefs::LayoutFrameRate() == 0 ? 0 : 1;
+        GLint swapInt = gfxPlatform::GetPrefLayoutFrameRate() == 0 ? 0 : 1;
         [mContext setValues:&swapInt forParameter:NSOpenGLCPSwapInterval];
     }
     return true;
@@ -151,10 +151,7 @@ GLContextCGL::IsCurrent() {
 }
 
 GLenum
-GLContextCGL::GetPreferredARGB32Format() const
-{
-    return LOCAL_GL_BGRA;
-}
+GLContextCGL::GetPreferredARGB32Format() { return LOCAL_GL_BGRA; }
 
 bool
 GLContextCGL::SetupLookupFunction()
@@ -163,13 +160,13 @@ GLContextCGL::SetupLookupFunction()
 }
 
 bool
-GLContextCGL::IsDoubleBuffered() const
+GLContextCGL::IsDoubleBuffered()
 {
   return gUseDoubleBufferedWindows;
 }
 
 bool
-GLContextCGL::SupportsRobustness() const
+GLContextCGL::SupportsRobustness()
 {
     return false;
 }
@@ -182,6 +179,12 @@ GLContextCGL::SwapBuffers()
   return true;
 }
 
+
+bool
+GLContextCGL::ResizeOffscreen(const gfx::IntSize& aNewSize)
+{
+    return ResizeScreenBuffer(aNewSize);
+}
 
 static GLContextCGL *
 GetGlobalContextCGL()
@@ -280,7 +283,7 @@ GLContextProviderCGL::GetGlobalContext()
         if (!gGlobalContext || !static_cast<GLContextCGL*>(gGlobalContext.get())->Init()) {
             NS_WARNING("Couldn't init gGlobalContext.");
             gGlobalContext = nullptr;
-            return nullptr;
+            return nullptr; 
         }
     }
 

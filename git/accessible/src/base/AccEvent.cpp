@@ -12,7 +12,6 @@
 #include "States.h"
 
 #include "nsEventStateManager.h"
-#include "mozilla/Selection.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -127,21 +126,12 @@ AccShowEvent::
 ////////////////////////////////////////////////////////////////////////////////
 
 AccTextSelChangeEvent::AccTextSelChangeEvent(HyperTextAccessible* aTarget,
-                                             Selection* aSelection,
-                                             int32_t aReason) :
+                                             nsISelection* aSelection) :
   AccEvent(nsIAccessibleEvent::EVENT_TEXT_SELECTION_CHANGED, aTarget,
            eAutoDetect, eCoalesceTextSelChange),
-  mSel(aSelection), mReason(aReason) {}
+  mSel(aSelection) {}
 
 AccTextSelChangeEvent::~AccTextSelChangeEvent() { }
-
-bool
-AccTextSelChangeEvent::IsCaretMoveOnly() const
-{
-  return mSel->GetRangeCount() == 1 && mSel->IsCollapsed() &&
-    ((mReason & (nsISelectionListener::COLLAPSETOSTART_REASON |
-                 nsISelectionListener::COLLAPSETOEND_REASON)) == 0);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // AccSelChangeEvent

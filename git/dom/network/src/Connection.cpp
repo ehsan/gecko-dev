@@ -9,6 +9,7 @@
 #include "mozilla/dom/MozConnectionBinding.h"
 #include "nsIDOMClassInfo.h"
 #include "mozilla/Preferences.h"
+#include "nsDOMEvent.h"
 #include "Constants.h"
 
 /**

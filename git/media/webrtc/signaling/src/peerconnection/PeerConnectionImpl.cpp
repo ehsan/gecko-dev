@@ -50,7 +50,6 @@
 #include "nsDOMDataChannel.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/PublicSSL.h"
 #include "nsXULAppAPI.h"
 #include "nsContentUtils.h"
@@ -148,16 +147,6 @@ PRLogModuleInfo *signalingLogInfo() {
 
 namespace sipcc {
 
-#ifdef MOZILLA_INTERNAL_API
-RTCStatsQuery::RTCStatsQuery(bool internal) : internalStats(internal) {
-}
-
-RTCStatsQuery::~RTCStatsQuery() {
-  MOZ_ASSERT(NS_IsMainThread());
-}
-
-#endif
-
 // Getting exceptions back down from PCObserver is generally not harmful.
 namespace {
 class JSErrorResult : public ErrorResult
@@ -216,7 +205,7 @@ public:
         mCode(static_cast<PeerConnectionImpl::Error>(aInfo->getStatusCode())),
         mReason(aInfo->getStatus()),
         mSdpStr(),
-        mCandidateStr(),
+	mCandidateStr(),
         mCallState(aInfo->getCallState()),
         mFsmState(aInfo->getFsmState()),
         mStateStr(aInfo->callStateToString(mCallState)),
@@ -227,9 +216,9 @@ public:
       mRemoteStream = mPC->media()->GetRemoteStream(streams->media_stream_id);
       MOZ_ASSERT(mRemoteStream);
     } else if (mCallState == FOUNDICECANDIDATE) {
-        mCandidateStr = aInfo->getCandidate();
+	mCandidateStr = aInfo->getCandidate();
     } else if ((mCallState == CREATEOFFERSUCCESS) ||
-               (mCallState == CREATEANSWERSUCCESS)) {
+	       (mCallState == CREATEANSWERSUCCESS)) {
         mSdpStr = aInfo->getSDP();
     }
   }
@@ -479,7 +468,6 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
   , mWindow(nullptr)
   , mIdentity(nullptr)
   , mSTSThread(nullptr)
-  , mLoadManager(nullptr)
   , mMedia(nullptr)
   , mNumAudioStreams(0)
   , mNumVideoStreams(0)
@@ -526,10 +514,6 @@ PeerConnectionImpl::~PeerConnectionImpl()
       destructorSafeDestroyNSSReference();
       shutdown(calledFromObject);
     }
-  }
-  if (mLoadManager) {
-      mozilla::LoadManagerDestroy(mLoadManager);
-      mLoadManager = nullptr;
   }
 #endif
 
@@ -676,7 +660,7 @@ PeerConnectionImpl::ConvertRTCConfiguration(const RTCConfiguration& aSrc,
       NS_ConvertUTF16toUTF8 username(server.mUsername);
 
 #ifdef MOZ_WIDGET_GONK
-      if (transport == kNrIceTransportTcp)
+      if (transport.get() == kNrIceTransportTcp)
           continue;
 #endif
       if (!aDst->addTurnServer(host.get(), port,
@@ -744,26 +728,22 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
   char temp[128];
 
 #ifdef MOZILLA_INTERNAL_API
-  nsAutoCString locationCStr;
-  nsIDOMLocation* location;
-  res = mWindow->GetLocation(&location);
+  nsIDOMLocation* location = nullptr;
+  mWindow->GetLocation(&location);
+  MOZ_ASSERT(location);
+  nsString locationAStr;
+  location->ToString(locationAStr);
+  location->Release();
 
-  if (location && NS_SUCCEEDED(res)) {
-    nsAutoString locationAStr;
-    location->ToString(locationAStr);
-    location->Release();
-
-    CopyUTF16toUTF8(locationAStr, locationCStr);
-  }
-
-  PR_snprintf(
-      temp,
-      sizeof(temp),
-      "%llu (id=%llu url=%s)",
-      static_cast<unsigned long long>(timestamp),
-      static_cast<unsigned long long>(mWindow ? mWindow->WindowID() : 0),
-      locationCStr.get() ? locationCStr.get() : "NULL");
-
+  nsCString locationCStr;
+  CopyUTF16toUTF8(locationAStr, locationCStr);
+  MOZ_ASSERT(mWindow);
+  PR_snprintf(temp,
+              sizeof(temp),
+              "%llu (id=%u url=%s)",
+              (unsigned long long)timestamp,
+              (unsigned)mWindow->WindowID(),
+              locationCStr.get() ? locationCStr.get() : "NULL");
 #else
   PR_snprintf(temp, sizeof(temp), "%llu", (unsigned long long)timestamp);
 #endif // MOZILLA_INTERNAL_API
@@ -854,12 +834,6 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
     return res;
   }
 
-#ifdef MOZILLA_INTERNAL_API
-  if (mozilla::Preferences::GetBool("media.navigator.load_adapt", false)) {
-    mLoadManager = mozilla::LoadManagerBuild();
-  }
-#endif
-
   return NS_OK;
 }
 
@@ -943,7 +917,7 @@ PeerConnectionImpl::CreateFakeMediaStream(uint32_t aHint, nsIDOMMediaStream** aR
     }
   }
 
-  stream.forget(aRetval);
+  *aRetval = stream.forget().get();
   return NS_OK;
 }
 
@@ -1167,21 +1141,14 @@ void
 PeerConnectionImpl::NotifyDataChannel(already_AddRefed<DataChannel> aChannel)
 {
   PC_AUTO_ENTER_API_CALL_NO_CHECK();
+  MOZ_ASSERT(aChannel.get());
 
-  // XXXkhuey this is completely fucked up.  We can't use nsRefPtr<DataChannel>
-  // here because DataChannel's AddRef/Release are non-virtual and not visible
-  // if !MOZILLA_INTERNAL_API, but this function leaks the DataChannel if
-  // !MOZILLA_INTERNAL_API because it never transfers the ref to
-  // NS_NewDOMDataChannel.
-  DataChannel* channel = aChannel.take();
-  MOZ_ASSERT(channel);
-
-  CSFLogDebug(logTag, "%s: channel: %p", __FUNCTION__, channel);
+  CSFLogDebug(logTag, "%s: channel: %p", __FUNCTION__, aChannel.get());
 
 #ifdef MOZILLA_INTERNAL_API
   nsCOMPtr<nsIDOMDataChannel> domchannel;
-  nsresult rv = NS_NewDOMDataChannel(already_AddRefed<DataChannel>(channel),
-                                     mWindow, getter_AddRefs(domchannel));
+  nsresult rv = NS_NewDOMDataChannel(aChannel, mWindow,
+                                     getter_AddRefs(domchannel));
   NS_ENSURE_SUCCESS_VOID(rv);
 
   nsRefPtr<PeerConnectionObserver> pco = do_QueryObjectReferent(mPCObserver);
@@ -1311,19 +1278,19 @@ public:
 // Specialized helper - push map[key] if specified or all map values onto array
 
 static void
-PushBackSelect(nsTArray<RefPtr<MediaPipeline>>& aDst,
+PushBackSelect(std::vector<RefPtr<MediaPipeline>>& aDst,
                const std::map<TrackID, RefPtr<mozilla::MediaPipeline>> & aSrc,
                TrackID aKey = 0) {
   auto begin = aKey ? aSrc.find(aKey) : aSrc.begin(), it = begin;
   for (auto end = (aKey && begin != aSrc.end())? ++begin : aSrc.end();
        it != end; ++it) {
-    aDst.AppendElement(it->second);
+    aDst.push_back(it->second);
   }
 }
 #endif
 
 NS_IMETHODIMP
-PeerConnectionImpl::GetStats(MediaStreamTrack *aSelector) {
+PeerConnectionImpl::GetStats(MediaStreamTrack *aSelector, bool internalStats) {
   PC_AUTO_ENTER_API_CALL(true);
 
 #ifdef MOZILLA_INTERNAL_API
@@ -1332,17 +1299,69 @@ PeerConnectionImpl::GetStats(MediaStreamTrack *aSelector) {
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsAutoPtr<RTCStatsQuery> query(new RTCStatsQuery(false));
+  // Gather up pipelines from mMedia and dispatch them to STS for inspection
 
-  nsresult rv = BuildStatsQuery_m(aSelector, query.get());
+  std::vector<RefPtr<MediaPipeline>> pipelines;
+  TrackID trackId = aSelector ? aSelector->GetTrackID() : 0;
 
+  for (int i = 0, len = mMedia->LocalStreamsLength(); i < len; i++) {
+    PushBackSelect(pipelines, mMedia->GetLocalStream(i)->GetPipelines(), trackId);
+  }
+  for (int i = 0, len = mMedia->RemoteStreamsLength(); i < len; i++) {
+    PushBackSelect(pipelines, mMedia->GetRemoteStream(i)->GetPipelines(), trackId);
+  }
+
+  // From the list of MediaPipelines, determine the set of NrIceMediaStreams
+  // we are interested in.
+  std::vector<RefPtr<NrIceMediaStream> > streams;
+  RefPtr<NrIceCtx> iceCtx(mMedia->ice_ctx());
+  for (auto p = pipelines.begin(); p != pipelines.end(); ++p) {
+    size_t level = p->get()->level();
+    // TODO(bcampen@mozilla.com): I may need to revisit this for bundle.
+    // (Bug 786234)
+    RefPtr<NrIceMediaStream> temp(mMedia->ice_media_stream(level-1));
+    if (temp.get()) {
+      streams.push_back(temp);
+    } else {
+       CSFLogError(logTag, "Failed to get NrIceMediaStream for level %u "
+                           "in %s:  %s",
+                           uint32_t(level), __FUNCTION__, mHandle.c_str());
+       MOZ_CRASH();
+    }
+  }
+
+  DOMHighResTimeStamp now;
+  nsresult rv = GetTimeSinceEpoch(&now);
   NS_ENSURE_SUCCESS(rv, rv);
 
   RUN_ON_THREAD(mSTSThread,
-                WrapRunnableNM(&PeerConnectionImpl::GetStatsForPCObserver_s,
+                WrapRunnableNM(&PeerConnectionImpl::GetStats_s,
                                mHandle,
-                               query),
+                               mName,
+                               mThread,
+                               internalStats,
+                               pipelines,
+                               iceCtx,
+                               streams,
+                               now),
                 NS_DISPATCH_NORMAL);
+#endif
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+PeerConnectionImpl::GetLogging(const nsAString& aPattern) {
+  PC_AUTO_ENTER_API_CALL_NO_CHECK();
+
+#ifdef MOZILLA_INTERNAL_API
+  std::string pattern(NS_ConvertUTF16toUTF8(aPattern).get());
+  RUN_ON_THREAD(mSTSThread,
+                WrapRunnableNM(&PeerConnectionImpl::GetLogging_s,
+                               mHandle,
+                               mThread,
+                               pattern),
+                NS_DISPATCH_NORMAL);
+
 #endif
   return NS_OK;
 }
@@ -1584,14 +1603,10 @@ PeerConnectionImpl::CheckApiState(bool assert_ice_ready) const
   MOZ_ASSERT(mTrickle || !assert_ice_ready ||
              (mIceGatheringState == PCImplIceGatheringState::Complete));
 
-  if (mReadyState == PCImplReadyState::Closed) {
-    CSFLogError(logTag, "%s: called API while closed", __FUNCTION__);
+  if (mReadyState == PCImplReadyState::Closed)
     return NS_ERROR_FAILURE;
-  }
-  if (!mMedia) {
-    CSFLogError(logTag, "%s: called API with disposed mMedia", __FUNCTION__);
+  if (!mMedia)
     return NS_ERROR_FAILURE;
-  }
   return NS_OK;
 }
 
@@ -1649,7 +1664,7 @@ PeerConnectionImpl::ShutdownMedia()
 
   // Forget the reference so that we can transfer it to
   // SelfDestruct().
-  mMedia.forget().take()->SelfDestruct();
+  mMedia.forget().get()->SelfDestruct();
 }
 
 #ifdef MOZILLA_INTERNAL_API
@@ -1766,12 +1781,6 @@ PeerConnectionImpl::SetSignalingState_m(PCImplSignalingState aSignalingState)
   JSErrorResult rv;
   pco->OnStateChange(PCObserverStateType::SignalingState, rv);
   MOZ_ASSERT(!rv.Failed());
-}
-
-bool
-PeerConnectionImpl::IsClosed() const
-{
-  return !mMedia;
 }
 
 PeerConnectionWrapper::PeerConnectionWrapper(const std::string& handle)
@@ -1949,103 +1958,137 @@ PeerConnectionImpl::IceGatheringStateChange_m(PCImplIceGatheringState aState)
 
 #ifdef MOZILLA_INTERNAL_API
 nsresult
-PeerConnectionImpl::BuildStatsQuery_m(
-    mozilla::dom::MediaStreamTrack *aSelector,
-    RTCStatsQuery *query) {
+PeerConnectionImpl::GetStatsImpl_s(
+    bool internalStats,
+    const std::vector<RefPtr<MediaPipeline>>& pipelines,
+    const RefPtr<NrIceCtx>& iceCtx,
+    const std::vector<RefPtr<NrIceMediaStream>>& streams,
+    DOMHighResTimeStamp now,
+    RTCStatsReportInternal* report) {
 
-  if (IsClosed()) {
-    return NS_OK;
-  }
+  ASSERT_ON_THREAD(iceCtx->thread());
 
-  if (!mMedia->ice_ctx() || !mThread) {
-    CSFLogError(logTag, "Could not build stats query, critical components of "
-                        "PeerConnectionImpl not set.");
-    return NS_ERROR_UNEXPECTED;
-  }
+  // Gather stats from pipelines provided (can't touch mMedia + stream on STS)
 
-  nsresult rv = GetTimeSinceEpoch(&(query->now));
+  for (auto it = pipelines.begin(); it != pipelines.end(); ++it) {
+    const MediaPipeline& mp = **it;
+    nsString idstr = (mp.Conduit()->type() == MediaSessionConduit::AUDIO) ?
+        NS_LITERAL_STRING("audio_") : NS_LITERAL_STRING("video_");
+    idstr.AppendInt(mp.trackid());
 
-  if (NS_FAILED(rv)) {
-    CSFLogError(logTag, "Could not build stats query, could not get timestamp");
-    return rv;
-  }
-
-  // We do not use the pcHandle here, since that's risky to expose to content.
-  query->report = RTCStatsReportInternalConstruct(
-      NS_ConvertASCIItoUTF16(mName.c_str()),
-      query->now);
-
-  // Gather up pipelines from mMedia so they may be inspected on STS
-  TrackID trackId = aSelector ? aSelector->GetTrackID() : 0;
-
-  for (int i = 0, len = mMedia->LocalStreamsLength(); i < len; i++) {
-    PushBackSelect(query->pipelines,
-                   mMedia->GetLocalStream(i)->GetPipelines(),
-                   trackId);
-  }
-
-  for (int i = 0, len = mMedia->RemoteStreamsLength(); i < len; i++) {
-    PushBackSelect(query->pipelines,
-                   mMedia->GetRemoteStream(i)->GetPipelines(),
-                   trackId);
-  }
-
-  query->iceCtx = mMedia->ice_ctx();
-
-  // From the list of MediaPipelines, determine the set of NrIceMediaStreams
-  // we are interested in.
-  std::set<size_t> streamsGrabbed;
-  for (size_t p = 0; p < query->pipelines.Length(); ++p) {
-
-    size_t level = query->pipelines[p]->level();
-    MOZ_ASSERT(level);
-
-    // Don't grab the same stream twice, since that causes duplication
-    // of the ICE stats.
-    if (streamsGrabbed.count(level)) {
-      continue;
-    }
-
-    streamsGrabbed.insert(level);
-    // TODO(bcampen@mozilla.com): I may need to revisit this for bundle.
-    // (Bug 786234)
-    RefPtr<NrIceMediaStream> temp(mMedia->ice_media_stream(level - 1));
-    if (temp) {
-      query->streams.AppendElement(temp);
-    } else {
-       CSFLogError(logTag, "Failed to get NrIceMediaStream for level %zu "
-                           "in %s:  %s",
-                           static_cast<size_t>(level),
-                           __FUNCTION__,
-                           mHandle.c_str());
-       MOZ_CRASH();
-    }
-  }
-
-  // If the selector is null, we want to get ICE stats for the DataChannel
-  if (!aSelector && mDataConnection) {
-    std::vector<uint16_t> streamIds;
-    mDataConnection->GetStreamIds(&streamIds);
-
-    for (auto s = streamIds.begin(); s!= streamIds.end(); ++s) {
-      MOZ_ASSERT(*s);
-
-      if (streamsGrabbed.count(*s) || *s == INVALID_STREAM) {
-        continue;
+    switch (mp.direction()) {
+      case MediaPipeline::TRANSMIT: {
+        nsString localId = NS_LITERAL_STRING("outbound_rtp_") + idstr;
+        nsString remoteId;
+        nsString ssrc;
+        unsigned int ssrcval;
+        if (mp.Conduit()->GetLocalSSRC(&ssrcval)) {
+          ssrc.AppendInt(ssrcval);
+        }
+        {
+          // First, fill in remote stat with rtcp receiver data, if present.
+          // ReceiverReports have less information than SenderReports,
+          // so fill in what we can.
+          DOMHighResTimeStamp timestamp;
+          uint32_t jitterMs;
+          uint32_t packetsReceived;
+          uint64_t bytesReceived;
+          if (mp.Conduit()->GetRTCPReceiverReport(&timestamp, &jitterMs,
+                                                  &packetsReceived,
+                                                  &bytesReceived)) {
+            remoteId = NS_LITERAL_STRING("outbound_rtcp_") + idstr;
+            RTCInboundRTPStreamStats s;
+            s.mTimestamp.Construct(timestamp);
+            s.mId.Construct(remoteId);
+            s.mType.Construct(RTCStatsType::Inboundrtp);
+            if (ssrc.Length()) {
+              s.mSsrc.Construct(ssrc);
+            }
+            s.mJitter.Construct(double(jitterMs)/1000);
+            s.mRemoteId.Construct(localId);
+            s.mIsRemote = true;
+            s.mPacketsReceived.Construct(packetsReceived);
+            s.mBytesReceived.Construct(bytesReceived);
+            report->mInboundRTPStreamStats.Value().AppendElement(s);
+          }
+        }
+        // Then, fill in local side (with cross-link to remote only if present)
+        {
+          RTCOutboundRTPStreamStats s;
+          s.mTimestamp.Construct(now);
+          s.mId.Construct(localId);
+          s.mType.Construct(RTCStatsType::Outboundrtp);
+          if (ssrc.Length()) {
+            s.mSsrc.Construct(ssrc);
+          }
+          s.mRemoteId.Construct(remoteId);
+          s.mIsRemote = false;
+          s.mPacketsSent.Construct(mp.rtp_packets_sent());
+          s.mBytesSent.Construct(mp.rtp_bytes_sent());
+          report->mOutboundRTPStreamStats.Value().AppendElement(s);
+        }
+        break;
       }
-
-      streamsGrabbed.insert(*s);
-
-      RefPtr<NrIceMediaStream> temp(mMedia->ice_media_stream(*s - 1));
-
-      // This will be null if DataChannel is not in use
-      RefPtr<TransportFlow> flow(mMedia->GetTransportFlow(*s, false));
-      if (temp && flow) {
-        query->streams.AppendElement(temp);
+      case MediaPipeline::RECEIVE: {
+        nsString localId = NS_LITERAL_STRING("inbound_rtp_") + idstr;
+        nsString remoteId;
+        nsString ssrc;
+        unsigned int ssrcval;
+        if (mp.Conduit()->GetRemoteSSRC(&ssrcval)) {
+          ssrc.AppendInt(ssrcval);
+        }
+        {
+          // First, fill in remote stat with rtcp sender data, if present.
+          DOMHighResTimeStamp timestamp;
+          uint32_t packetsSent;
+          uint64_t bytesSent;
+          if (mp.Conduit()->GetRTCPSenderReport(&timestamp,
+                                                &packetsSent, &bytesSent)) {
+            remoteId = NS_LITERAL_STRING("inbound_rtcp_") + idstr;
+            RTCOutboundRTPStreamStats s;
+            s.mTimestamp.Construct(timestamp);
+            s.mId.Construct(remoteId);
+            s.mType.Construct(RTCStatsType::Outboundrtp);
+            if (ssrc.Length()) {
+              s.mSsrc.Construct(ssrc);
+            }
+            s.mRemoteId.Construct(localId);
+            s.mIsRemote = true;
+            s.mPacketsSent.Construct(packetsSent);
+            s.mBytesSent.Construct(bytesSent);
+            report->mOutboundRTPStreamStats.Value().AppendElement(s);
+          }
+        }
+        // Then, fill in local side (with cross-link to remote only if present)
+        RTCInboundRTPStreamStats s;
+        s.mTimestamp.Construct(now);
+        s.mId.Construct(localId);
+        s.mType.Construct(RTCStatsType::Inboundrtp);
+        if (ssrc.Length()) {
+          s.mSsrc.Construct(ssrc);
+        }
+        unsigned int jitterMs;
+        if (mp.Conduit()->GetRTPJitter(&jitterMs)) {
+          s.mJitter.Construct(double(jitterMs)/1000);
+        }
+        if (remoteId.Length()) {
+          s.mRemoteId.Construct(remoteId);
+        }
+        s.mIsRemote = false;
+        s.mPacketsReceived.Construct(mp.rtp_packets_received());
+        s.mBytesReceived.Construct(mp.rtp_bytes_received());
+        report->mInboundRTPStreamStats.Value().AppendElement(s);
+        break;
       }
     }
   }
-  return rv;
+
+  // Gather stats from ICE
+  for (auto s = streams.begin(); s != streams.end(); ++s) {
+    FillStatsReport_s(**s, internalStats, now, report);
+  }
+
+  return NS_OK;
 }
 
 static void ToRTCIceCandidateStats(
@@ -2068,17 +2111,11 @@ static void ToRTCIceCandidateStats(
     cand.mIpAddress.Construct(
         NS_ConvertASCIItoUTF16(c->cand_addr.host.c_str()));
     cand.mPortNumber.Construct(c->cand_addr.port);
-    cand.mTransport.Construct(
-        NS_ConvertASCIItoUTF16(c->cand_addr.transport.c_str()));
-    if (candidateType == RTCStatsType::Localcandidate) {
-      cand.mMozLocalTransport.Construct(
-          NS_ConvertASCIItoUTF16(c->local_addr.transport.c_str()));
-    }
     report->mIceCandidateStats.Value().AppendElement(cand);
   }
 }
 
-static void RecordIceStats_s(
+void PeerConnectionImpl::FillStatsReport_s(
     NrIceMediaStream& mediaStream,
     bool internalStats,
     DOMHighResTimeStamp now,
@@ -2134,185 +2171,45 @@ static void RecordIceStats_s(
   }
 }
 
-nsresult
-PeerConnectionImpl::ExecuteStatsQuery_s(RTCStatsQuery *query) {
-
-  ASSERT_ON_THREAD(query->iceCtx->thread());
-
-  // NrIceCtx must be destroyed on STS, so it is not safe to dispatch it back
-  // to main.
-  RefPtr<NrIceCtx> iceCtxTmp(query->iceCtx);
-  query->iceCtx = nullptr;
-
-  // Gather stats from pipelines provided (can't touch mMedia + stream on STS)
-
-  for (size_t p = 0; p < query->pipelines.Length(); ++p) {
-    const MediaPipeline& mp = *query->pipelines[p];
-    bool isAudio = (mp.Conduit()->type() == MediaSessionConduit::AUDIO);
-    nsString idstr = isAudio ?
-        NS_LITERAL_STRING("audio_") : NS_LITERAL_STRING("video_");
-    idstr.AppendInt(mp.trackid());
-
-    switch (mp.direction()) {
-      case MediaPipeline::TRANSMIT: {
-        nsString localId = NS_LITERAL_STRING("outbound_rtp_") + idstr;
-        nsString remoteId;
-        nsString ssrc;
-        unsigned int ssrcval;
-        if (mp.Conduit()->GetLocalSSRC(&ssrcval)) {
-          ssrc.AppendInt(ssrcval);
-        }
-        {
-          // First, fill in remote stat with rtcp receiver data, if present.
-          // ReceiverReports have less information than SenderReports,
-          // so fill in what we can.
-          DOMHighResTimeStamp timestamp;
-          uint32_t jitterMs;
-          uint32_t packetsReceived;
-          uint64_t bytesReceived;
-          uint32_t packetsLost;
-          int32_t rtt;
-          if (mp.Conduit()->GetRTCPReceiverReport(&timestamp, &jitterMs,
-                                                  &packetsReceived,
-                                                  &bytesReceived,
-                                                  &packetsLost,
-                                                  &rtt)) {
-            remoteId = NS_LITERAL_STRING("outbound_rtcp_") + idstr;
-            RTCInboundRTPStreamStats s;
-            s.mTimestamp.Construct(timestamp);
-            s.mId.Construct(remoteId);
-            s.mType.Construct(RTCStatsType::Inboundrtp);
-            if (ssrc.Length()) {
-              s.mSsrc.Construct(ssrc);
-            }
-            s.mJitter.Construct(double(jitterMs)/1000);
-            s.mRemoteId.Construct(localId);
-            s.mIsRemote = true;
-            s.mPacketsReceived.Construct(packetsReceived);
-            s.mBytesReceived.Construct(bytesReceived);
-            s.mPacketsLost.Construct(packetsLost);
-            s.mMozRtt.Construct(rtt);
-            query->report.mInboundRTPStreamStats.Value().AppendElement(s);
-          }
-        }
-        // Then, fill in local side (with cross-link to remote only if present)
-        {
-          RTCOutboundRTPStreamStats s;
-          s.mTimestamp.Construct(query->now);
-          s.mId.Construct(localId);
-          s.mType.Construct(RTCStatsType::Outboundrtp);
-          if (ssrc.Length()) {
-            s.mSsrc.Construct(ssrc);
-          }
-          s.mRemoteId.Construct(remoteId);
-          s.mIsRemote = false;
-          s.mPacketsSent.Construct(mp.rtp_packets_sent());
-          s.mBytesSent.Construct(mp.rtp_bytes_sent());
-          query->report.mOutboundRTPStreamStats.Value().AppendElement(s);
-        }
-        break;
-      }
-      case MediaPipeline::RECEIVE: {
-        nsString localId = NS_LITERAL_STRING("inbound_rtp_") + idstr;
-        nsString remoteId;
-        nsString ssrc;
-        unsigned int ssrcval;
-        if (mp.Conduit()->GetRemoteSSRC(&ssrcval)) {
-          ssrc.AppendInt(ssrcval);
-        }
-        {
-          // First, fill in remote stat with rtcp sender data, if present.
-          DOMHighResTimeStamp timestamp;
-          uint32_t packetsSent;
-          uint64_t bytesSent;
-          if (mp.Conduit()->GetRTCPSenderReport(&timestamp,
-                                                &packetsSent, &bytesSent)) {
-            remoteId = NS_LITERAL_STRING("inbound_rtcp_") + idstr;
-            RTCOutboundRTPStreamStats s;
-            s.mTimestamp.Construct(timestamp);
-            s.mId.Construct(remoteId);
-            s.mType.Construct(RTCStatsType::Outboundrtp);
-            if (ssrc.Length()) {
-              s.mSsrc.Construct(ssrc);
-            }
-            s.mRemoteId.Construct(localId);
-            s.mIsRemote = true;
-            s.mPacketsSent.Construct(packetsSent);
-            s.mBytesSent.Construct(bytesSent);
-            query->report.mOutboundRTPStreamStats.Value().AppendElement(s);
-          }
-        }
-        // Then, fill in local side (with cross-link to remote only if present)
-        RTCInboundRTPStreamStats s;
-        s.mTimestamp.Construct(query->now);
-        s.mId.Construct(localId);
-        s.mType.Construct(RTCStatsType::Inboundrtp);
-        if (ssrc.Length()) {
-          s.mSsrc.Construct(ssrc);
-        }
-        unsigned int jitterMs, packetsLost;
-        if (mp.Conduit()->GetRTPStats(&jitterMs, &packetsLost)) {
-          s.mJitter.Construct(double(jitterMs)/1000);
-          s.mPacketsLost.Construct(packetsLost);
-        }
-        if (remoteId.Length()) {
-          s.mRemoteId.Construct(remoteId);
-        }
-        s.mIsRemote = false;
-        s.mPacketsReceived.Construct(mp.rtp_packets_received());
-        s.mBytesReceived.Construct(mp.rtp_bytes_received());
-
-        if (query->internalStats && isAudio) {
-          int32_t jitterBufferDelay;
-          int32_t playoutBufferDelay;
-          int32_t avSyncDelta;
-          if (mp.Conduit()->GetAVStats(&jitterBufferDelay,
-                                       &playoutBufferDelay,
-                                       &avSyncDelta)) {
-            s.mMozJitterBufferDelay.Construct(jitterBufferDelay);
-            s.mMozAvSyncDelay.Construct(avSyncDelta);
-          }
-        }
-        query->report.mInboundRTPStreamStats.Value().AppendElement(s);
-        break;
-      }
-    }
-  }
-
-  // Gather stats from ICE
-  for (size_t s = 0; s != query->streams.Length(); ++s) {
-    RecordIceStats_s(*query->streams[s],
-                     query->internalStats,
-                     query->now,
-                     &(query->report));
-  }
-
-  return NS_OK;
-}
-
-void PeerConnectionImpl::GetStatsForPCObserver_s(
+void PeerConnectionImpl::GetStats_s(
     const std::string& pcHandle, // The Runnable holds the memory
-    nsAutoPtr<RTCStatsQuery> query) {
+    const std::string& pcName, // The Runnable holds the memory
+    nsCOMPtr<nsIThread> callbackThread,
+    bool internalStats,
+    const std::vector<RefPtr<MediaPipeline>>& pipelines,
+    const RefPtr<NrIceCtx>& iceCtx,
+    const std::vector<RefPtr<NrIceMediaStream>>& streams,
+    DOMHighResTimeStamp now) {
 
-  MOZ_ASSERT(query);
-  MOZ_ASSERT(query->iceCtx);
-  ASSERT_ON_THREAD(query->iceCtx->thread());
+  ASSERT_ON_THREAD(iceCtx->thread());
 
-  nsresult rv = PeerConnectionImpl::ExecuteStatsQuery_s(query.get());
+  // We do not use the pcHandle here, since that's risky to expose to content.
+  nsAutoPtr<RTCStatsReportInternal> report(
+      new RTCStatsReportInternalConstruct(
+          NS_ConvertASCIItoUTF16(pcName.c_str()),
+          now));
 
-  NS_DispatchToMainThread(
-      WrapRunnableNM(
-          &PeerConnectionImpl::DeliverStatsReportToPCObserver_m,
-          pcHandle,
-          rv,
-          query),
-      NS_DISPATCH_NORMAL);
+  nsresult rv = GetStatsImpl_s(internalStats,
+                               pipelines,
+                               iceCtx,
+                               streams,
+                               now,
+                               report);
+
+  RUN_ON_THREAD(callbackThread,
+                WrapRunnableNM(&PeerConnectionImpl::OnStatsReport_m,
+                               pcHandle,
+                               rv,
+                               pipelines, // return for release on main thread
+                               report),
+                NS_DISPATCH_NORMAL);
 }
 
-void PeerConnectionImpl::DeliverStatsReportToPCObserver_m(
+void PeerConnectionImpl::OnStatsReport_m(
     const std::string& pcHandle,
     nsresult result,
-    nsAutoPtr<RTCStatsQuery> query) {
+    const std::vector<RefPtr<MediaPipeline>>& pipelines, //returned for release
+    nsAutoPtr<RTCStatsReportInternal> report) {
 
   // Is the PeerConnectionImpl still around?
   PeerConnectionWrapper pcw(pcHandle);
@@ -2322,7 +2219,7 @@ void PeerConnectionImpl::DeliverStatsReportToPCObserver_m(
     if (pco) {
       JSErrorResult rv;
       if (NS_SUCCEEDED(result)) {
-        pco->OnGetStatsSuccess(query->report, rv);
+        pco->OnGetStatsSuccess(*report, rv);
       } else {
         pco->OnGetStatsError(kInternalError,
             ObString("Failed to fetch statistics"),
@@ -2336,6 +2233,49 @@ void PeerConnectionImpl::DeliverStatsReportToPCObserver_m(
   }
 }
 
+void PeerConnectionImpl::GetLogging_s(const std::string& pcHandle,
+                                      nsCOMPtr<nsIThread> callbackThread,
+                                      const std::string& pattern) {
+  RLogRingBuffer* logs = RLogRingBuffer::GetInstance();
+  nsAutoPtr<std::deque<std::string>> result(new std::deque<std::string>);
+  logs->Filter(pattern, 0, result);
+  RUN_ON_THREAD(callbackThread,
+                WrapRunnableNM(&PeerConnectionImpl::OnGetLogging_m,
+                               pcHandle,
+                               pattern,
+                               result),
+                NS_DISPATCH_NORMAL);
+}
+
+void PeerConnectionImpl::OnGetLogging_m(
+    const std::string& pcHandle,
+    const std::string& pattern,
+    nsAutoPtr<std::deque<std::string>> logging) {
+
+  // Is the PeerConnectionImpl still around?
+  PeerConnectionWrapper pcw(pcHandle);
+  if (pcw.impl()) {
+    nsRefPtr<PeerConnectionObserver> pco =
+        do_QueryObjectReferent(pcw.impl()->mPCObserver);
+    if (pco) {
+      JSErrorResult rv;
+      if (!logging->empty()) {
+        Sequence<nsString> nsLogs;
+        for (auto l = logging->begin(); l != logging->end(); ++l) {
+          nsLogs.AppendElement(ObString(l->c_str()));
+        }
+        pco->OnGetLoggingSuccess(nsLogs, rv);
+      } else {
+        pco->OnGetLoggingError(kInternalError,
+            ObString(("No logging matching pattern " + pattern).c_str()), rv);
+      }
+
+      if (rv.Failed()) {
+        CSFLogError(logTag, "Error firing stats observer callback");
+      }
+    }
+  }
+}
 #endif
 
 void

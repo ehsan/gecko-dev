@@ -56,7 +56,7 @@
       <menuitem id="context-copylink"
                 label="&copyLinkCmd.label;"
                 accesskey="&copyLinkCmd.accesskey;"
-                oncommand="gContextMenu.copyLink();"/>
+                oncommand="goDoCommand('cmd_copyLink');"/>
       <menuseparator id="context-sep-copylink"/>
       <menuitem id="context-media-play"
                 label="&mediaPlay.label;"
@@ -293,7 +293,7 @@
                 accesskey="&keywordfield.accesskey;"
                 oncommand="AddKeywordForSearchField();"/>
       <menuitem id="context-searchselect"
-                oncommand="BrowserSearch.loadSearchFromContext(this.searchTerms);"/>
+                oncommand="BrowserSearch.loadSearchFromContext(getBrowserSelection());"/>
       <menuitem id="context-shareselect"
                 label="&shareSelectCmd.label;"
                 accesskey="&shareSelectCmd.accesskey;"

@@ -88,9 +88,6 @@ BrowserCLH.prototype = {
       if (!uri)
         return;
 
-      // Let's get a head start on opening the network connection to the URI we are about to load
-      Services.io.QueryInterface(Ci.nsISpeculativeConnect).speculativeConnect(uri, null);
-
       let browserWin = Services.wm.getMostRecentWindow("navigator:browser");
       if (browserWin) {
         if (!pinned) {

@@ -99,18 +99,6 @@ class CommonTestCase(unittest.TestCase):
             result.addSuccess(self)
 
     def run(self, result=None):
-        # Bug 967566 suggests refactoring run, which would hopefully
-        # mean getting rid of this inner function, which only sits
-        # here to reduce code duplication:
-        def expected_failure(result, exc_info):
-            addExpectedFailure = getattr(result, "addExpectedFailure", None)
-            if addExpectedFailure is not None:
-                addExpectedFailure(self, exc_info)
-            else:
-                warnings.warn("TestResult has no addExpectedFailure method, "
-                              "reporting as passes", RuntimeWarning)
-                result.addSuccess(self)
-
         self.start_time = time.time()
         orig_result = result
         if result is None:
@@ -136,19 +124,11 @@ class CommonTestCase(unittest.TestCase):
         try:
             success = False
             try:
-                if self.expected == "fail":
-                    try:
-                        self.setUp()
-                    except Exception:
-                        raise _ExpectedFailure(sys.exc_info())
-                else:
-                    self.setUp()
+                self.setUp()
             except SkipTest as e:
                 self._addSkip(result, str(e))
             except KeyboardInterrupt:
                 raise
-            except _ExpectedFailure as e:
-                expected_failure(result, e.exc_info)
             except:
                 result.addError(self, sys.exc_info())
             else:
@@ -156,7 +136,7 @@ class CommonTestCase(unittest.TestCase):
                     if self.expected == 'fail':
                         try:
                             testMethod()
-                        except:
+                        except Exception:
                             raise _ExpectedFailure(sys.exc_info())
                         raise _UnexpectedSuccess
                     else:
@@ -165,8 +145,16 @@ class CommonTestCase(unittest.TestCase):
                     result.addFailure(self, sys.exc_info())
                 except KeyboardInterrupt:
                     raise
+                except self.failureException:
+                    result.addFailure(self, sys.exc_info())
                 except _ExpectedFailure as e:
-                    expected_failure(result, e.exc_info)
+                    addExpectedFailure = getattr(result, 'addExpectedFailure', None)
+                    if addExpectedFailure is not None:
+                        addExpectedFailure(self, e.exc_info)
+                    else:
+                        warnings.warn("TestResult has no addExpectedFailure method, reporting as passes",
+                                      RuntimeWarning)
+                        result.addSuccess(self)
                 except _UnexpectedSuccess:
                     addUnexpectedSuccess = getattr(result, 'addUnexpectedSuccess', None)
                     if addUnexpectedSuccess is not None:
@@ -182,17 +170,9 @@ class CommonTestCase(unittest.TestCase):
                 else:
                     success = True
                 try:
-                    if self.expected == "fail":
-                        try:
-                            self.tearDown()
-                        except:
-                            raise _ExpectedFailure(sys.exc_info())
-                    else:
-                        self.tearDown()
+                    self.tearDown()
                 except KeyboardInterrupt:
                     raise
-                except _ExpectedFailure as e:
-                    expected_failure(result, e.exc_info)
                 except:
                     result.addError(self, sys.exc_info())
                     success = False
@@ -273,7 +253,7 @@ permissions.forEach(function (perm) {
             self.marionette.timeouts(self.marionette.TIMEOUT_PAGE, 30000)
 
     def tearDown(self):
-        pass
+        pass  # bug 874599
 
     def cleanTest(self):
         self._deleteSession()
@@ -289,7 +269,7 @@ permissions.forEach(function (perm) {
                     self.loglines = [['Error getting log: %s' % inst]]
                 try:
                     self.marionette.delete_session()
-                except (socket.error, MarionetteException, IOError):
+                except (socket.error, MarionetteException):
                     # Gecko has crashed?
                     self.marionette.session = None
                     try:
@@ -335,7 +315,6 @@ class MarionetteTestCase(CommonTestCase):
                                        (self.filepath.replace('\\', '\\\\'), self.methodName))
 
     def tearDown(self):
-        self.marionette.check_for_crash()
         self.marionette.set_context("content")
         self.marionette.execute_script("log('TEST-END: %s:%s')" %
                                        (self.filepath.replace('\\', '\\\\'), self.methodName))
@@ -419,14 +398,7 @@ class MarionetteJSTestCase(CommonTestCase):
 
         if self.oop:
             print 'running oop'
-            frame = None
-            try:
-                frame = self.marionette.find_element(
-                    'css selector',
-                    'iframe[src*="app://test-container.gaiamobile.org/index.html"]'
-                )
-            except NoSuchElementException:
-                result = self.marionette.execute_async_script("""
+            result = self.marionette.execute_async_script("""
 let setReq = navigator.mozSettings.createLock().set({'lockscreen.enabled': false});
 setReq.onsuccess = function() {
     let appsReq = navigator.mozApps.mgmt.getAll();
@@ -452,14 +424,14 @@ setReq.onsuccess = function() {
 setReq.onerror = function() {
     marionetteScriptFinished(false);
 }""", script_timeout=60000)
-                self.assertTrue(result)
+            self.assertTrue(result)
 
-                frame = self.marionette.find_element(
+            self.marionette.switch_to_frame(
+                self.marionette.find_element(
                     'css selector',
                     'iframe[src*="app://test-container.gaiamobile.org/index.html"]'
-                )
+                ))
 
-            self.marionette.switch_to_frame(frame)
             main_process = self.marionette.execute_script("""
                 return SpecialPowers.isMainProcess();
                 """)
@@ -515,9 +487,6 @@ setReq.onerror = function() {
             else:
                 self.loglines = self.marionette.get_logs()
                 raise
-
-        if self.oop:
-            self.marionette.switch_to_frame()
 
         self.marionette.execute_script("log('TEST-END: %s');" % self.jsFile.replace('\\', '\\\\'))
         self.marionette.test_name = None

@@ -43,7 +43,7 @@ ArgumentsObject::MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj,
     if (frame.fun()->isHeavyweight() && script->argsObjAliasesFormals()) {
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(frame.callObj()));
         for (AliasedFormalIter fi(script); fi; fi++)
-            data->args[fi.frameIndex()] = JS::MagicValueUint32(fi.scopeSlot());
+            data->args[fi.frameIndex()] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
     }
 }
 
@@ -58,7 +58,7 @@ ArgumentsObject::MaybeForwardToCallObject(jit::IonJSFrameLayout *frame, HandleOb
         JS_ASSERT(callObj && callObj->is<CallObject>());
         obj->initFixedSlot(MAYBE_CALL_SLOT, ObjectValue(*callObj.get()));
         for (AliasedFormalIter fi(script); fi; fi++)
-            data->args[fi.frameIndex()] = JS::MagicValueUint32(fi.scopeSlot());
+            data->args[fi.frameIndex()] = MagicValue(JS_FORWARD_TO_CALL_OBJECT);
     }
 }
 #endif
@@ -134,8 +134,13 @@ struct CopyScriptFrameIterArgs
     { }
 
     void copyArgs(JSContext *cx, HeapValue *dstBase, unsigned totalArgs) const {
+        if (!iter_.isJit()) {
+            CopyStackFrameArguments(iter_.abstractFramePtr(), dstBase, totalArgs);
+            return;
+        }
+
         /* Copy actual arguments. */
-        iter_.unaliasedForEachActual(cx, CopyToHeap(dstBase));
+        iter_.ionForEachCanonicalActualArg(cx, CopyToHeap(dstBase));
 
         /* Define formals which are not part of the actuals. */
         unsigned numActuals = iter_.numActualArgs();
@@ -383,7 +388,8 @@ args_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             return true;
     }
 
-    if (!baseops::DefineGeneric(cx, argsobj, id, UndefinedHandleValue, ArgGetter, ArgSetter, attrs))
+    RootedValue undef(cx, UndefinedValue());
+    if (!baseops::DefineGeneric(cx, argsobj, id, undef, ArgGetter, ArgSetter, attrs))
         return false;
 
     objp.set(argsobj);
@@ -505,7 +511,8 @@ strictargs_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
         setter = CastAsStrictPropertyOp(argsobj->global().getThrowTypeError());
     }
 
-    if (!baseops::DefineGeneric(cx, argsobj, id, UndefinedHandleValue, getter, setter, attrs))
+    RootedValue undef(cx, UndefinedValue());
+    if (!baseops::DefineGeneric(cx, argsobj, id, undef, getter, setter, attrs))
         return false;
 
     objp.set(argsobj);
@@ -587,7 +594,13 @@ const Class NormalArgumentsObject::class_ = {
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
-    ArgumentsObject::trace
+    ArgumentsObject::trace,
+    {
+        nullptr,    /* outerObject */
+        nullptr,    /* innerObject */
+        nullptr,    /* iteratorObject  */
+        false,      /* isWrappedNative */
+    }
 };
 
 /*
@@ -611,5 +624,11 @@ const Class StrictArgumentsObject::class_ = {
     nullptr,                 /* call        */
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
-    ArgumentsObject::trace
+    ArgumentsObject::trace,
+    {
+        nullptr,    /* outerObject */
+        nullptr,    /* innerObject */
+        nullptr,    /* iteratorObject  */
+        false,      /* isWrappedNative */
+    }
 };

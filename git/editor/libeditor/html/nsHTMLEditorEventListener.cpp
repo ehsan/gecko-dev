@@ -91,7 +91,7 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
   // Detect only "context menu" click
   //XXX This should be easier to do!
   // But eDOMEvents_contextmenu and NS_CONTEXTMENU is not exposed in any event interface :-(
-  int16_t buttonNumber;
+  uint16_t buttonNumber;
   nsresult res = mouseEvent->GetButton(&buttonNumber);
   NS_ENSURE_SUCCESS(res, res);
 
@@ -204,7 +204,9 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
     //   for all context clicks
     if (element || isContextClick)
     {
+    #ifndef XP_OS2
       mouseEvent->PreventDefault();
+    #endif
       return NS_OK;
     }
   }

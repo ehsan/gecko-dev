@@ -48,7 +48,7 @@ function test() {
             // this function to return first.
             executeSoon(() => aDebuggee.firstCall());
 
-            return waitForSourceAndCaretAndScopes(aPanel, ".html", 1).then(() => {
+            return waitForSourceAndCaretAndScopes(aPanel, ".html", 17).then(() => {
               gPanel = aPanel;
               gDebugger = gPanel.panelWin;
               gThreadClient = gPanel.panelWin.gThreadClient;
@@ -58,7 +58,7 @@ function test() {
         },
         post: function() {
           ok(gThreadClient, "Debugger client exists.");
-          is(gLineNumber, 1, "gLineNumber is correct.");
+          is(gLineNumber, 14, "gLineNumber is correct.");
         },
       },
       {
@@ -74,11 +74,12 @@ function test() {
           message: '',
           args: {
             file: { value: TAB_URL, message: '' },
-            line: { value: 1 }
+            line: { value: 14 }
           }
         },
         exec: {
-          output: 'Added breakpoint'
+          output: 'Added breakpoint',
+          completed: false
         }
       },
       {
@@ -93,7 +94,8 @@ function test() {
           }
         },
         exec: {
-          output: 'Added breakpoint'
+          output: 'Added breakpoint',
+          completed: false
         }
       },
       {
@@ -107,8 +109,8 @@ function test() {
         exec: {
           output: [
             /Source/, /Remove/,
-            /doc_cmd-break\.html:1/,
-            /doc_cmd-break\.html:1/
+            /doc_cmd-break\.html:14/,
+            /doc_cmd-break\.html:17/
           ]
         }
       },
@@ -121,33 +123,34 @@ function test() {
         }
       },
       {
-        setup: 'break del 1',
+        setup: 'break del 14',
         check: {
-          input:  'break del 1',
-          hints:              ' -> doc_cmd-break.html:1',
-          markup: 'VVVVVVVVVVI',
+          input:  'break del 14',
+          hints:              ' -> doc_cmd-break.html:14',
+          markup: 'VVVVVVVVVVII',
           status: 'ERROR',
           args: {
             breakpoint: {
               status: 'INCOMPLETE',
-              message: 'Value required for \'breakpoint\'.'
+              message: ''
             }
           }
         }
       },
       {
-        setup: 'break del doc_cmd-break.html:1',
+        setup: 'break del doc_cmd-break.html:14',
         check: {
-          input:  'break del doc_cmd-break.html:1',
+          input:  'break del doc_cmd-break.html:14',
           hints:                                 '',
-          markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVV',
+          markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV',
           status: 'VALID',
           args: {
-            breakpoint: { arg: ' doc_cmd-break.html:1' },
+            breakpoint: { arg: ' doc_cmd-break.html:14' },
           }
         },
         exec: {
-          output: 'Breakpoint removed'
+          output: 'Breakpoint removed',
+          completed: false
         }
       },
       {
@@ -177,7 +180,8 @@ function test() {
           }
         },
         exec: {
-          output: 'Breakpoint removed'
+          output: 'Breakpoint removed',
+          completed: false
         }
       },
       {

@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-'use strict';
+// define(function(require, exports, module) {
+
 // <INJECTED SOURCE:START>
 
 // THIS FILE IS GENERATED FROM SOURCE IN THE GCLI PROJECT
@@ -22,32 +23,38 @@
 
 var exports = {};
 
-var TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testDate.js</p>";
+const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testDate.js</p>";
 
 function test() {
-  return Task.spawn(function() {
-    let options = yield helpers.openTab(TEST_URI);
-    yield helpers.openToolbar(options);
-    gcli.addItems(mockCommands.items);
-
-    yield helpers.runTests(options, exports);
-
-    gcli.removeItems(mockCommands.items);
-    yield helpers.closeToolbar(options);
-    yield helpers.closeTab(options);
-  }).then(finish, helpers.handleError);
+  helpers.addTabWithToolbar(TEST_URI, function(options) {
+    return helpers.runTests(options, exports);
+  }).then(finish);
 }
 
 // <INJECTED SOURCE:END>
 
-// var assert = require('../testharness/assert');
-// var helpers = require('./helpers');
+'use strict';
 
-var Status = require('gcli/types/types').Status;
+// var assert = require('test/assert');
+
+var types = require('gcli/types');
+var Argument = require('gcli/argument').Argument;
+var Status = require('gcli/types').Status;
+
+// var helpers = require('gclitest/helpers');
+// var mockCommands = require('gclitest/mockCommands');
+
+exports.setup = function(options) {
+  mockCommands.setup();
+};
+
+exports.shutdown = function(options) {
+  mockCommands.shutdown();
+};
 
 exports.testParse = function(options) {
-  var date = options.requisition.types.createType('date');
-  return date.parseString('now').then(function(conversion) {
+  var date = types.createType('date');
+  return date.parse(new Argument('now')).then(function(conversion) {
     // Date comparison - these 2 dates may not be the same, but how close is
     // close enough? If this test takes more than 30secs to run the it will
     // probably time out, so we'll assume that these 2 values must be within
@@ -62,7 +69,6 @@ exports.testParse = function(options) {
 exports.testMaxMin = function(options) {
   var max = new Date();
   var min = new Date();
-  var types = options.requisition.types;
   var date = types.createType({ name: 'date', max: max, min: min });
   assert.is(date.getMax(), max, 'max setup');
 
@@ -71,8 +77,8 @@ exports.testMaxMin = function(options) {
 };
 
 exports.testIncrement = function(options) {
-  var date = options.requisition.types.createType('date');
-  return date.parseString('now').then(function(conversion) {
+  var date = types.createType('date');
+  return date.parse(new Argument('now')).then(function(conversion) {
     var plusOne = date.increment(conversion.value);
     var minusOne = date.decrement(plusOne);
 
@@ -126,6 +132,7 @@ exports.testInput = function(options) {
       },
       exec: {
         output: [ /^Exec: tsdate/, /2001/, /1980/ ],
+        completed: true,
         type: 'string',
         error: false
       }
@@ -172,6 +179,7 @@ exports.testInput = function(options) {
       },
       exec: {
         output: [ /^Exec: tsdate/, /2001/, /1980/ ],
+        completed: true,
         type: 'string',
         error: false
       }
@@ -213,6 +221,7 @@ exports.testInput = function(options) {
       },
       exec: {
         output: [ /^Exec: tsdate/, new Date().getFullYear() ],
+        completed: true,
         type: 'string',
         error: false
       }
@@ -253,6 +262,7 @@ exports.testInput = function(options) {
       },
       exec: {
         output: [ /^Exec: tsdate/, new Date().getFullYear() ],
+        completed: true,
         type: 'string',
         error: false
       }
@@ -263,8 +273,6 @@ exports.testInput = function(options) {
 exports.testIncrDecr = function(options) {
   return helpers.audit(options, [
     {
-      // createRequisitionAutomator doesn't fake UP/DOWN well enough
-      skipRemainingIf: options.isNoDom,
       setup:    'tsdate 2001-01-01<UP>',
       check: {
         input:  'tsdate 2001-01-02',
@@ -290,7 +298,8 @@ exports.testIncrDecr = function(options) {
           },
           d2: {
             value: undefined,
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           },
         }
       }
@@ -322,7 +331,8 @@ exports.testIncrDecr = function(options) {
           },
           d2: {
             value: undefined,
-            status: 'INCOMPLETE'
+            status: 'INCOMPLETE',
+            message: ''
           },
         }
       }
@@ -371,3 +381,6 @@ exports.testIncrDecr = function(options) {
     }
   ]);
 };
+
+
+// });

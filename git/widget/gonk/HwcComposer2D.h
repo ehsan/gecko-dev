@@ -23,9 +23,6 @@
 #include <list>
 
 #include <hardware/hwcomposer.h>
-#if ANDROID_VERSION >= 17
-#include <ui/Fence.h>
-#endif
 
 namespace mozilla {
 
@@ -37,7 +34,7 @@ class Layer;
 //Holds a dynamically allocated vector of rectangles
 //used to decribe the complex visible region of a layer
 typedef std::vector<hwc_rect_t> RectVector;
-#if ANDROID_VERSION >= 17
+#if ANDROID_VERSION >= 18
 typedef hwc_composer_device_1_t HwcDevice;
 typedef hwc_display_contents_1_t HwcList;
 typedef hwc_layer_1_t HwcLayer;
@@ -61,8 +58,7 @@ public:
     // Returns TRUE if the container has been succesfully rendered
     // Returns FALSE if the container cannot be fully rendered
     // by this composer so nothing was rendered at all
-    bool TryRender(layers::Layer* aRoot, const gfx::Matrix& aGLWorldTransform,
-                   bool aGeometryChanged) MOZ_OVERRIDE;
+    bool TryRender(layers::Layer* aRoot, const gfx::Matrix& aGLWorldTransform) MOZ_OVERRIDE;
 
     bool Render(EGLDisplay dpy, EGLSurface sur);
 
@@ -74,8 +70,6 @@ private:
     bool ReallocLayerList();
     bool PrepareLayerList(layers::Layer* aContainer, const nsIntRect& aClip,
           const gfxMatrix& aParentTransform, const gfxMatrix& aGLWorldTransform);
-    void setCrop(HwcLayer* layer, hwc_rect_t srcCrop);
-    void setHwcGeometry(bool aGeometryChanged);
 
     HwcDevice*              mHwc;
     HwcList*                mList;
@@ -88,10 +82,8 @@ private:
     //Holds all the dynamically allocated RectVectors needed
     //to render the current frame
     std::list<RectVector>   mVisibleRegions;
-#if ANDROID_VERSION >= 17
-    android::sp<android::Fence> mPrevRetireFence;
-    android::sp<android::Fence> mPrevDisplayFence;
-#endif
+    nsTArray<int>           mPrevReleaseFds;
+    int                     mPrevRetireFence;
     nsTArray<layers::LayerComposite*> mHwcLayerMap;
     bool                    mPrepared;
 };

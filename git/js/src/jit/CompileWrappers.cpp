@@ -34,15 +34,15 @@ CompileRuntime::addressOfIonTop()
 }
 
 const void *
-CompileRuntime::addressOfJitStackLimit()
+CompileRuntime::addressOfIonStackLimit()
 {
-    return &runtime()->mainThread.jitStackLimit;
+    return &runtime()->mainThread.ionStackLimit;
 }
 
 const void *
 CompileRuntime::addressOfJSContext()
 {
-    return &runtime()->mainThread.jitJSContext;
+    return &runtime()->mainThread.ionJSContext;
 }
 
 const void *
@@ -69,20 +69,6 @@ const void *
 CompileRuntime::addressOfInterrupt()
 {
     return &runtime()->interrupt;
-}
-
-#ifdef JS_THREADSAFE
-const void *
-CompileRuntime::addressOfInterruptPar()
-{
-    return &runtime()->interruptPar;
-}
-#endif
-
-const void *
-CompileRuntime::addressOfThreadPool()
-{
-    return &runtime()->threadPool;
 }
 
 const JitRuntime *
@@ -118,13 +104,13 @@ CompileRuntime::hadOutOfMemory()
 const JSAtomState &
 CompileRuntime::names()
 {
-    return *runtime()->commonNames;
+    return runtime()->atomState;
 }
 
 const StaticStrings &
 CompileRuntime::staticStrings()
 {
-    return *runtime()->staticStrings;
+    return runtime()->staticStrings;
 }
 
 const Value &

@@ -12,9 +12,10 @@
 #include "mozilla/mozalloc.h"           // for operator delete, etc
 #include "gfxASurface.h"                // for gfxContentType
 #ifdef XP_WIN
-#include "gfxWindowsPlatform.h"         // for gfxWindowsPlatform
-#include "mozilla/layers/TextureD3D11.h"
 #include "mozilla/layers/TextureD3D9.h"
+#include "mozilla/layers/TextureD3D11.h"
+#include "gfxWindowsPlatform.h"
+#include "gfx2DGlue.h"
 #endif
 
 using namespace mozilla::gfx;
@@ -22,14 +23,13 @@ using namespace mozilla::gfx;
 namespace mozilla {
 namespace layers {
 
-CompositableClient::CompositableClient(CompositableForwarder* aForwarder,
-                                       TextureFlags aTextureFlags)
+CompositableClient::CompositableClient(CompositableForwarder* aForwarder)
 : mCompositableChild(nullptr)
 , mForwarder(aForwarder)
-, mTextureFlags(aTextureFlags)
 {
   MOZ_COUNT_CTOR(CompositableClient);
 }
+
 
 CompositableClient::~CompositableClient()
 {
@@ -102,16 +102,26 @@ CompositableClient::CreateDeprecatedTextureClient(DeprecatedTextureClientType aD
 
   switch (aDeprecatedTextureClientType) {
   case TEXTURE_SHARED_GL:
+    if (parentBackend == LayersBackend::LAYERS_OPENGL) {
+      result = new DeprecatedTextureClientSharedOGL(GetForwarder(), GetTextureInfo());
+    }
+     break;
   case TEXTURE_SHARED_GL_EXTERNAL:
+    if (parentBackend == LayersBackend::LAYERS_OPENGL) {
+      result = new DeprecatedTextureClientSharedOGLExternal(GetForwarder(), GetTextureInfo());
+    }
+    break;
   case TEXTURE_STREAM_GL:
-    MOZ_CRASH("Unsupported. this should not be reached");
+    if (parentBackend == LayersBackend::LAYERS_OPENGL) {
+      result = new DeprecatedTextureClientStreamOGL(GetForwarder(), GetTextureInfo());
+    }
+    break;
   case TEXTURE_YCBCR:
-    if (parentBackend == LayersBackend::LAYERS_D3D9 ||
+    if (parentBackend == LayersBackend::LAYERS_OPENGL ||
+        parentBackend == LayersBackend::LAYERS_D3D9 ||
         parentBackend == LayersBackend::LAYERS_D3D11 ||
         parentBackend == LayersBackend::LAYERS_BASIC) {
       result = new DeprecatedTextureClientShmemYCbCr(GetForwarder(), GetTextureInfo());
-    } else {
-      MOZ_CRASH("Unsupported. this should not be reached");
     }
     break;
   case TEXTURE_CONTENT:
@@ -121,7 +131,7 @@ CompositableClient::CreateDeprecatedTextureClient(DeprecatedTextureClientType aD
       break;
     }
     if (parentBackend == LayersBackend::LAYERS_D3D9 &&
-        GetForwarder()->IsSameProcess()) {
+        !GetForwarder()->ForwardsToDifferentProcess()) {
       // We can't use a d3d9 texture for an RGBA surface because we cannot get a DC for
       // for a gfxWindowsSurface.
       // We have to wait for the compositor thread to create a d3d9 device before we
@@ -171,18 +181,55 @@ TemporaryRef<BufferTextureClient>
 CompositableClient::CreateBufferTextureClient(SurfaceFormat aFormat,
                                               TextureFlags aTextureFlags)
 {
-  return TextureClient::CreateBufferTextureClient(GetForwarder(), aFormat,
-                                                  aTextureFlags | mTextureFlags);
+// XXX - Once bug 908196 is fixed, we can use gralloc textures here which will
+// improve performances of videos using SharedPlanarYCbCrImage on b2g.
+//#ifdef MOZ_WIDGET_GONK
+//  {
+//    RefPtr<BufferTextureClient> result = new GrallocTextureClientOGL(this,
+//                                                                     aFormat,
+//                                                                     aTextureFlags);
+//    return result.forget();
+//  }
+//#endif
+  if (gfxPlatform::GetPlatform()->PreferMemoryOverShmem()) {
+    RefPtr<BufferTextureClient> result = new MemoryTextureClient(this, aFormat, aTextureFlags);
+    return result.forget();
+  }
+  RefPtr<BufferTextureClient> result = new ShmemTextureClient(this, aFormat, aTextureFlags);
+  return result.forget();
 }
 
 TemporaryRef<TextureClient>
 CompositableClient::CreateTextureClientForDrawing(SurfaceFormat aFormat,
-                                                  TextureFlags aTextureFlags,
-                                                  const IntSize& aSizeHint)
+                                                  TextureFlags aTextureFlags)
 {
-  return TextureClient::CreateTextureClientForDrawing(GetForwarder(), aFormat,
-                                                      aTextureFlags | mTextureFlags,
-                                                      aSizeHint);
+  RefPtr<TextureClient> result;
+
+#ifdef XP_WIN
+  LayersBackend parentBackend = GetForwarder()->GetCompositorBackendType();
+  if (parentBackend == LayersBackend::LAYERS_D3D11 && gfxWindowsPlatform::GetPlatform()->GetD2DDevice() &&
+      !(aTextureFlags & TEXTURE_ALLOC_FALLBACK)) {
+    result = new TextureClientD3D11(aFormat, aTextureFlags);
+  }
+  if (parentBackend == LayersBackend::LAYERS_D3D9 &&
+      !GetForwarder()->ForwardsToDifferentProcess() &&
+      !(aTextureFlags & TEXTURE_ALLOC_FALLBACK)) {
+    // non-DIB textures don't work with alpha, see notes in TextureD3D9.
+    if (ContentForFormat(aFormat) != gfxContentType::COLOR) {
+      result = new DIBTextureClientD3D9(aFormat, aTextureFlags);
+    } else {
+      result = new CairoTextureClientD3D9(aFormat, aTextureFlags);
+    }
+  }
+#endif
+  // Can't do any better than a buffer texture client.
+  if (!result) {
+    result = CreateBufferTextureClient(aFormat, aTextureFlags);
+  }
+
+  MOZ_ASSERT(!result || result->AsTextureClientDrawTarget(),
+             "Not a TextureClientDrawTarget?");
+  return result;
 }
 
 bool

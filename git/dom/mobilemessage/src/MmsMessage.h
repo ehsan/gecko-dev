@@ -9,8 +9,8 @@
 #include "nsIDOMMozMmsMessage.h"
 #include "nsString.h"
 #include "mozilla/dom/mobilemessage/Types.h"
-#include "mozilla/dom/MozMmsMessageBinding.h"
 #include "mozilla/Attributes.h"
+#include "DictionaryHelpers.h"
 
 namespace mozilla {
 namespace dom {
@@ -27,25 +27,11 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMOZMMSMESSAGE
 
-  // If this is changed, change the WebIDL dictionary as well.
-  struct Attachment MOZ_FINAL
-  {
-    nsCOMPtr<nsIDOMBlob> content;
-    nsString id;
-    nsString location;
-
-    explicit Attachment(const MmsAttachment& aAttachment) :
-      content(aAttachment.mContent),
-      id(aAttachment.mId),
-      location(aAttachment.mLocation)
-    {}
-  };
-
   MmsMessage(int32_t                               aId,
              uint64_t                              aThreadId,
              const nsAString&                      aIccId,
              mobilemessage::DeliveryState          aDelivery,
-             const nsTArray<MmsDeliveryInfo>&      aDeliveryInfo,
+             const nsTArray<idl::MmsDeliveryInfo>& aDeliveryInfo,
              const nsAString&                      aSender,
              const nsTArray<nsString>&             aReceivers,
              uint64_t                              aTimestamp,
@@ -53,7 +39,7 @@ public:
              bool                                  aRead,
              const nsAString&                      aSubject,
              const nsAString&                      aSmil,
-             const nsTArray<Attachment>&           aAttachments,
+             const nsTArray<idl::MmsAttachment>&   aAttachments,
              uint64_t                              aExpiryDate,
              bool                                  aReadReportRequested);
 
@@ -86,7 +72,7 @@ private:
   uint64_t                       mThreadId;
   nsString                       mIccId;
   mobilemessage::DeliveryState   mDelivery;
-  nsTArray<MmsDeliveryInfo>      mDeliveryInfo;
+  nsTArray<idl::MmsDeliveryInfo> mDeliveryInfo;
   nsString                       mSender;
   nsTArray<nsString>             mReceivers;
   uint64_t                       mTimestamp;
@@ -94,7 +80,7 @@ private:
   bool                           mRead;
   nsString                       mSubject;
   nsString                       mSmil;
-  nsTArray<Attachment>           mAttachments;
+  nsTArray<idl::MmsAttachment>   mAttachments;
   uint64_t                       mExpiryDate;
   bool                           mReadReportRequested;
 };

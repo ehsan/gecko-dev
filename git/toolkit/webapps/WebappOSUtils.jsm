@@ -9,7 +9,6 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/osfile.jsm");
 
 this.EXPORTED_SYMBOLS = ["WebappOSUtils"];
 

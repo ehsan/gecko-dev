@@ -8,10 +8,9 @@
 #include "nsIWindowDataSource.h"
 #include "nsIObserver.h"
 
-#include "nsHashKeys.h"
 #include "nsIRDFService.h"
 #include "nsIRDFContainer.h"
-#include "nsInterfaceHashtable.h"
+#include "nsHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 
 // {C744CA3D-840B-460a-8D70-7CE63C51C958}
@@ -30,7 +29,7 @@ class nsWindowDataSource : public nsIRDFDataSource,
     virtual ~nsWindowDataSource();
 
     nsresult Init();
-
+    
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsWindowDataSource,
                                              nsIRDFDataSource)
@@ -42,11 +41,11 @@ class nsWindowDataSource : public nsIRDFDataSource,
  private:
 
     // mapping of window -> RDF resource
-    nsInterfaceHashtable<nsPtrHashKey<nsIXULWindow>, nsIRDFResource> mWindowResources;
+    nsSupportsHashtable mWindowResources;
 
     static uint32_t windowCount;
     static uint32_t gRefCnt;
-
+    
     nsCOMPtr<nsIRDFDataSource> mInner;
     nsCOMPtr<nsIRDFContainer> mContainer;
 
@@ -55,3 +54,5 @@ class nsWindowDataSource : public nsIRDFDataSource,
     static nsIRDFResource* kNC_WindowRoot;
     static nsIRDFService* gRDFService;
 };
+
+             

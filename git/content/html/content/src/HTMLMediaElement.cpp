@@ -78,8 +78,6 @@
 #include "mozilla/dom/power/PowerManagerService.h"
 #include "mozilla/dom/WakeLock.h"
 
-#include "mozilla/dom/TextTrack.h"
-
 #include "ImageContainer.h"
 #include "nsRange.h"
 #include <algorithm>
@@ -108,6 +106,9 @@ using mozilla::net::nsMediaFragmentURIParser;
 
 namespace mozilla {
 namespace dom {
+
+// Number of milliseconds between timeupdate events as defined by spec
+#define TIMEUPDATE_MS 250
 
 // Used by AudioChannel for suppresssing the volume to this ratio.
 #define FADED_VOLUME_RATIO 0.25
@@ -616,7 +617,7 @@ void HTMLMediaElement::AbortExistingLoads()
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING ||
       mNetworkState == nsIDOMHTMLMediaElement::NETWORK_IDLE)
   {
-    DispatchAsyncEvent(NS_LITERAL_STRING("abort"));
+    DispatchEvent(NS_LITERAL_STRING("abort"));
   }
 
   mError = nullptr;
@@ -647,7 +648,7 @@ void HTMLMediaElement::AbortExistingLoads()
       // change will be reflected in the controls.
       FireTimeUpdate(false);
     }
-    DispatchAsyncEvent(NS_LITERAL_STRING("emptied"));
+    DispatchEvent(NS_LITERAL_STRING("emptied"));
   }
 
   // We may have changed mPaused, mAutoplaying, mNetworkState and other
@@ -1732,14 +1733,6 @@ void HTMLMediaElement::SetVolumeInternal()
   float effectiveVolume = mMuted ? 0.0f :
     mAudioChannelFaded ? float(mVolume) * FADED_VOLUME_RATIO : float(mVolume);
 
-  if (mAudioChannelAgent) {
-    float volume;
-    nsresult rv = mAudioChannelAgent->GetWindowVolume(&volume);
-    if (NS_SUCCEEDED(rv)) {
-      effectiveVolume *= volume;
-    }
-  }
-
   if (mDecoder) {
     mDecoder->SetVolume(effectiveVolume);
   } else if (mAudioStream) {
@@ -1830,7 +1823,7 @@ HTMLMediaElement::MozCaptureStream(ErrorResult& aRv)
 NS_IMETHODIMP HTMLMediaElement::MozCaptureStream(nsIDOMMediaStream** aStream)
 {
   ErrorResult rv;
-  *aStream = MozCaptureStream(rv).take();
+  *aStream = MozCaptureStream(rv).get();
   return rv.ErrorCode();
 }
 
@@ -1849,7 +1842,7 @@ HTMLMediaElement::MozCaptureStreamUntilEnded(ErrorResult& aRv)
 NS_IMETHODIMP HTMLMediaElement::MozCaptureStreamUntilEnded(nsIDOMMediaStream** aStream)
 {
   ErrorResult rv;
-  *aStream = MozCaptureStreamUntilEnded(rv).take();
+  *aStream = MozCaptureStreamUntilEnded(rv).get();
   return rv.ErrorCode();
 }
 
@@ -1962,7 +1955,7 @@ HTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
   return nullptr;
 }
 
-HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
+HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mSrcStreamListener(nullptr),
     mCurrentLoadID(0),
@@ -3371,8 +3364,7 @@ void HTMLMediaElement::NotifyDecoderPrincipalChanged()
 
   bool subsumes;
   mDecoder->UpdateSameOriginStatus(
-    !principal ||
-    (NS_SUCCEEDED(NodePrincipal()->Subsumes(principal, &subsumes)) && subsumes));
+    NS_SUCCEEDED(NodePrincipal()->Subsumes(principal, &subsumes)) && subsumes);
 
   for (uint32_t i = 0; i < mOutputStreams.Length(); ++i) {
     OutputMediaStream* ms = &mOutputStreams[i];
@@ -3419,7 +3411,6 @@ void HTMLMediaElement::NotifyOwnerDocumentActivityChanged()
   nsIDocument* ownerDoc = OwnerDoc();
 
   if (mDecoder) {
-    mDecoder->SetElementVisibility(!ownerDoc->Hidden());
     mDecoder->SetDormantIfNecessary(ownerDoc->Hidden());
   }
 
@@ -3892,11 +3883,9 @@ void HTMLMediaElement::UpdateAudioChannelPlayingState()
       nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
       // Use a weak ref so the audio channel agent can't leak |this|.
       if (AUDIO_CHANNEL_NORMAL == mAudioChannelType && video) {
-        mAudioChannelAgent->InitWithVideo(OwnerDoc()->GetWindow(),
-                                          mAudioChannelType, this, true);
+        mAudioChannelAgent->InitWithVideo(mAudioChannelType, this, true);
       } else {
-        mAudioChannelAgent->InitWithWeakCallback(OwnerDoc()->GetWindow(),
-                                                 mAudioChannelType, this);
+        mAudioChannelAgent->InitWithWeakCallback(mAudioChannelType, this);
       }
       mAudioChannelAgent->SetVisibilityState(!OwnerDoc()->Hidden());
     }
@@ -3934,12 +3923,6 @@ NS_IMETHODIMP HTMLMediaElement::CanPlayChanged(int32_t canPlay)
   return NS_OK;
 }
 
-NS_IMETHODIMP HTMLMediaElement::WindowVolumeChanged()
-{
-  SetVolumeInternal();
-  return NS_OK;
-}
-
 /* readonly attribute TextTrackList textTracks; */
 TextTrackList*
 HTMLMediaElement::TextTracks()
@@ -3952,9 +3935,7 @@ HTMLMediaElement::AddTextTrack(TextTrackKind aKind,
                                const nsAString& aLabel,
                                const nsAString& aLanguage)
 {
-  return
-    GetOrCreateTextTrackManager()->AddTextTrack(aKind, aLabel, aLanguage,
-                                                TextTrackSource::AddTextTrack);
+  return GetOrCreateTextTrackManager()->AddTextTrack(aKind, aLabel, aLanguage);
 }
 
 void

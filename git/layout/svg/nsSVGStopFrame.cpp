@@ -40,24 +40,24 @@ public:
                         const nsRect&           aDirtyRect,
                         const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
 
-  virtual nsresult AttributeChanged(int32_t         aNameSpaceID,
-                                    nsIAtom*        aAttribute,
-                                    int32_t         aModType) MOZ_OVERRIDE;
+  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
+                              nsIAtom*        aAttribute,
+                              int32_t         aModType);
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::svgStopFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsSVGStopFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGStop"), aResult);
   }
@@ -90,7 +90,7 @@ nsSVGStopFrame::GetType() const
   return nsGkAtoms::svgStopFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGStopFrame::AttributeChanged(int32_t         aNameSpaceID,
                                  nsIAtom*        aAttribute,
                                  int32_t         aModType)

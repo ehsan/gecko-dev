@@ -342,9 +342,6 @@ public:
   // 'Read' for argument and return details.
   nsresult ReadAt(int64_t aOffset, char* aBuffer,
                   uint32_t aCount, uint32_t* aBytes);
-
-  size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const;
-
 private:
   friend class MediaCache;
 
@@ -387,8 +384,6 @@ private:
 #else
     void Verify() {}
 #endif
-
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
   private:
     struct Entry : public nsUint32HashKey {
@@ -504,9 +499,7 @@ private:
   // mChannelOffset%BLOCK_SIZE bytes have been filled in with good data,
   // the rest are garbage.
   // Use int64_t so that the data is well-aligned.
-  // Heap allocate this buffer since the exact power-of-2 will cause allocation
-  // slop when combined with the rest of the object members.
-  nsAutoArrayPtr<int64_t> mPartialBlockBuffer;
+  int64_t           mPartialBlockBuffer[BLOCK_SIZE/sizeof(int64_t)];
 };
 
 } // namespace mozilla

@@ -57,33 +57,32 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsISVGChildFrame interface:
-  virtual nsresult PaintSVG(nsRenderingContext *aContext,
-                            const nsIntRect *aDirtyRect,
-                            nsIFrame* aTransformRoot) MOZ_OVERRIDE;
-  virtual nsIFrame* GetFrameForPoint(const nsPoint &aPoint) MOZ_OVERRIDE;
-  virtual void ReflowSVG() MOZ_OVERRIDE;
+  NS_IMETHOD PaintSVG(nsRenderingContext *aContext, const nsIntRect *aDirtyRect,
+                      nsIFrame* aTransformRoot) MOZ_OVERRIDE;
+  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
+  virtual void ReflowSVG();
 
   // nsSVGPathGeometryFrame methods:
   virtual uint16_t GetHitTestFlags() MOZ_OVERRIDE;
 
   // nsIFrame interface:
-  virtual nsresult  AttributeChanged(int32_t         aNameSpaceID,
-                                     nsIAtom*        aAttribute,
-                                     int32_t         aModType) MOZ_OVERRIDE;
+  NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
+                               nsIAtom*        aAttribute,
+                               int32_t         aModType);
   virtual void Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::svgImageFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGImage"), aResult);
   }
@@ -180,7 +179,7 @@ nsSVGImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-nsresult
+NS_IMETHODIMP
 nsSVGImageFrame::AttributeChanged(int32_t         aNameSpaceID,
                                   nsIAtom*        aAttribute,
                                   int32_t         aModType)
@@ -295,7 +294,7 @@ nsSVGImageFrame::TransformContextForPainting(gfxContext* aGfxContext,
 
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods:
-nsresult
+NS_IMETHODIMP
 nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
                           const nsIntRect *aDirtyRect,
                           nsIFrame* aTransformRoot)
@@ -410,7 +409,7 @@ nsSVGImageFrame::PaintSVG(nsRenderingContext *aContext,
   return rv;
 }
 
-nsIFrame*
+NS_IMETHODIMP_(nsIFrame*)
 nsSVGImageFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
   // Special case for raster images -- we only want to accept points that fall

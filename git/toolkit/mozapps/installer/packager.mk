@@ -10,7 +10,7 @@ ifndef MOZ_PKG_FORMAT
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 MOZ_PKG_FORMAT  = DMG
 else
-ifeq (,$(filter-out WINNT, $(OS_ARCH)))
+ifeq (,$(filter-out OS2 WINNT, $(OS_ARCH)))
 MOZ_PKG_FORMAT  = ZIP
 else
 ifeq (,$(filter-out SunOS, $(OS_ARCH)))
@@ -133,7 +133,7 @@ JSSHELL_BINS += \
 endif # Darwin
 endif # WINNT
 endif # MOZ_STATIC_JS
-MAKE_JSSHELL  = $(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/dozip.py $(PKG_JSSHELL) $(abspath $(JSSHELL_BINS))
+MAKE_JSSHELL  = $(ZIP) -9j $(PKG_JSSHELL) $(JSSHELL_BINS)
 endif # LIBXUL_SDK
 
 _ABS_DIST = $(abspath $(DIST))
@@ -348,6 +348,16 @@ UPLOAD_EXTRA_FILES += gecko-unsigned-unaligned.apk
 
 DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
 
+ifeq ($(CPU_ARCH),x86)
+ABI_DIR = x86
+else
+ifdef MOZ_THUMB2
+ABI_DIR = armeabi-v7a
+else
+ABI_DIR = armeabi
+endif
+endif
+
 GECKO_APP_AP_PATH = $(abspath $(DEPTH)/mobile/android/base)
 
 ifdef ENABLE_TESTS
@@ -380,23 +390,18 @@ INNER_ROBOCOP_PACKAGE= \
 
 BACKGROUND_TESTS_PATH = $(abspath $(_ABS_DIST)/../mobile/android/tests/background/junit3)
 INNER_BACKGROUND_TESTS_PACKAGE= \
-  $(call RELEASE_SIGN_ANDROID_APK,$(BACKGROUND_TESTS_PATH)/background-junit3-debug-unsigned-unaligned.apk,$(_ABS_DIST)/background-junit3.apk)
-
-BROWSER_TESTS_PATH = $(abspath $(_ABS_DIST)/../mobile/android/tests/browser/junit3)
-INNER_BROWSER_TESTS_PACKAGE= \
-  $(call RELEASE_SIGN_ANDROID_APK,$(BROWSER_TESTS_PATH)/browser-junit3-debug-unsigned-unaligned.apk,$(_ABS_DIST)/browser-junit3.apk)
+  $(call RELEASE_SIGN_ANDROID_APK,$(BACKGROUND_TESTS_PATH)/background-debug-unsigned-unaligned.apk,$(_ABS_DIST)/background.apk)
 endif
 else
 INNER_ROBOCOP_PACKAGE=echo 'Testing is disabled - No Android Robocop for you'
-INNER_BACKGROUND_TESTS_PACKAGE=echo 'Testing is disabled - No Android Background JUnit 3 tests for you'
-INNER_BROWSER_TESTS_PACKAGE=echo 'Testing is disabled - No Android Browser JUnit 3tests for you'
+INNER_BACKGROUND_TESTS_PACKAGE=echo 'Testing is disabled - No Android Background tests for you'
 endif
 
 # Create geckoview_library/geckoview_{assets,library}.zip for third-party GeckoView consumers.
 ifdef NIGHTLY_BUILD
 ifndef MOZ_DISABLE_GECKOVIEW
 INNER_MAKE_GECKOVIEW_LIBRARY= \
-  $(MAKE) -C ../mobile/android/geckoview_library package
+  $(MAKE) -C ../mobile/android/geckoview_library package ABI_DIR=$(ABI_DIR)
 else
 INNER_MAKE_GECKOVIEW_LIBRARY=echo 'GeckoView library packaging is disabled'
 endif
@@ -465,8 +470,8 @@ INNER_MAKE_PACKAGE	= \
     diff $(GECKO_APP_AP_PATH)/R.txt $(GECKO_APP_AP_PATH)/gecko-nodeps/R.txt >/dev/null || \
     (echo "*** Error: The R.txt that was built and the R.txt that is being packaged are not the same. Rebuild mobile/android/base and re-package." && exit 1)) && \
   ( cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && \
-    mkdir -p lib/$(ANDROID_CPU_ARCH) && \
-    mv libmozglue.so $(MOZ_CHILD_PROCESS_NAME) lib/$(ANDROID_CPU_ARCH) && \
+    mkdir -p lib/$(ABI_DIR) && \
+    mv libmozglue.so $(MOZ_CHILD_PROCESS_NAME) lib/$(ABI_DIR) && \
     unzip -o $(_ABS_DIST)/gecko.ap_ && \
     rm $(_ABS_DIST)/gecko.ap_ && \
     $(ZIP) $(if $(MOZ_ENABLE_SZIP),-0 )$(_ABS_DIST)/gecko.ap_ $(ASSET_SO_LIBRARIES) && \
@@ -482,7 +487,6 @@ INNER_MAKE_PACKAGE	= \
   $(ZIPALIGN) -f -v 4 $(_ABS_DIST)/gecko.apk $(PACKAGE) && \
   $(INNER_ROBOCOP_PACKAGE) && \
   $(INNER_BACKGROUND_TESTS_PACKAGE) && \
-  $(INNER_BROWSER_TESTS_PACKAGE) && \
   $(INNER_MAKE_GECKOVIEW_LIBRARY)
 
 # Language repacks root the resources contained in assets/omni.ja
@@ -495,9 +499,9 @@ INNER_UNMAKE_PACKAGE	= \
   mkdir $(MOZ_PKG_DIR) && \
   ( cd $(MOZ_PKG_DIR) && \
     $(UNZIP) $(UNPACKAGE) && \
-    mv lib/$(ANDROID_CPU_ARCH)/libmozglue.so . && \
-    mv lib/$(ANDROID_CPU_ARCH)/*plugin-container* $(MOZ_CHILD_PROCESS_NAME) && \
-    rm -rf lib/$(ANDROID_CPU_ARCH) && \
+    mv lib/$(ABI_DIR)/libmozglue.so . && \
+    mv lib/$(ABI_DIR)/*plugin-container* $(MOZ_CHILD_PROCESS_NAME) && \
+    rm -rf lib/$(ABI_DIR) \
     rm -rf res \
     $(if $(filter-out ./,$(OMNIJAR_DIR)), \
       && mv $(OMNIJAR_DIR)$(OMNIJAR_NAME) $(OMNIJAR_NAME)) )

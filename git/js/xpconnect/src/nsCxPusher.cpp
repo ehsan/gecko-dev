@@ -15,6 +15,9 @@
 using mozilla::dom::EventTarget;
 using mozilla::DebugOnly;
 
+NS_EXPORT
+nsCxPusher::~nsCxPusher() {}
+
 bool
 nsCxPusher::Push(EventTarget *aCurrentTarget)
 {
@@ -75,7 +78,7 @@ nsCxPusher::RePush(EventTarget *aCurrentTarget)
   return Push(aCurrentTarget);
 }
 
-void
+NS_EXPORT_(void)
 nsCxPusher::Push(JSContext *cx)
 {
   mPusher.construct(cx);
@@ -89,7 +92,7 @@ nsCxPusher::PushNull()
   mPusher.construct(static_cast<JSContext*>(nullptr), /* aAllowNull = */ true);
 }
 
-void
+NS_EXPORT_(void)
 nsCxPusher::Pop()
 {
   if (!mPusher.empty())
@@ -112,7 +115,6 @@ AutoCxPusher::AutoCxPusher(JSContext* cx, bool allowNull)
   if (!stack->Push(cx)) {
     MOZ_CRASH();
   }
-  mStackDepthAfterPush = stack->Count();
 
 #ifdef DEBUG
   mPushedContext = cx;
@@ -132,6 +134,7 @@ AutoCxPusher::AutoCxPusher(JSContext* cx, bool allowNull)
   }
 }
 
+NS_EXPORT
 AutoCxPusher::~AutoCxPusher()
 {
   // GC when we pop a script entry point. This is a useful heuristic that helps
@@ -158,14 +161,6 @@ AutoCxPusher::~AutoCxPusher()
   MOZ_ASSERT(mPushedContext == nsXPConnect::XPConnect()->GetCurrentJSContext());
   XPCJSRuntime::Get()->GetJSContextStack()->Pop();
   mScx = nullptr;
-}
-
-bool
-AutoCxPusher::IsStackTop()
-{
-  uint32_t currentDepth = XPCJSRuntime::Get()->GetJSContextStack()->Count();
-  MOZ_ASSERT(currentDepth >= mStackDepthAfterPush);
-  return currentDepth == mStackDepthAfterPush;
 }
 
 AutoJSContext::AutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_IN_IMPL)

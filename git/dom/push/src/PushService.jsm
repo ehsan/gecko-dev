@@ -369,11 +369,6 @@ this.PushService = {
           return;
         }
 
-        // Only remove push registrations for apps.
-        if (data.browserOnly) {
-          return;
-        }
-
         let appsService = Cc["@mozilla.org/AppsService;1"]
                             .getService(Ci.nsIAppsService);
         let manifestURL = appsService.getManifestURLByLocalId(data.appId);
@@ -1296,7 +1291,8 @@ this.PushService = {
     this._retryFailCount = 0;
 
     // Openning an available UDP port.
-    this._listenForUDPWakeup();
+    // _listenForUDPWakeup will return the opened port number
+    this._udpPort = this._listenForUDPWakeup();
 
     let data = {
       messageType: "hello",
@@ -1310,7 +1306,7 @@ this.PushService = {
       // Hostport is apparently a thing.
       data["wakeup_hostport"] = {
         ip: networkState.ip,
-        port: this._udpServer && this._udpServer.port
+        port: this._udpPort
       };
 
       data["mobilenetwork"] = {
@@ -1443,7 +1439,7 @@ this.PushService = {
                         .createInstance(Ci.nsIUDPSocket);
     this._udpServer.init(-1, false);
     this._udpServer.asyncListen(this);
-    debug("listenForUDPWakeup listening on " + this._udpServer.port);
+    debug("listenForUDPWakeup listening on " + this._udpPort);
 
     return this._udpServer.port;
   },
@@ -1453,7 +1449,7 @@ this.PushService = {
    * reconnect the WebSocket and get the actual data.
    */
   onPacketReceived: function(aServ, aMessage) {
-    debug("Recv UDP datagram on port: " + this._udpServer.port);
+    debug("Recv UDP datagram on port: " + this._udpPort);
     this._beginWSSetup();
   },
 
@@ -1465,7 +1461,7 @@ this.PushService = {
    */
   onStopListening: function(aServ, aStatus) {
     debug("UDP Server socket was shutdown. Status: " + aStatus);
-    this._udpServer = undefined;
+    this._udpPort = undefined;
     this._beginWSSetup();
   },
 

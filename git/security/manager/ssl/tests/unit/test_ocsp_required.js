@@ -49,12 +49,16 @@ function add_tests_in_mode(useInsanity)
   });
 
   add_connection_test("ocsp-stapling-none.example.com",
-                      getXPCOMStatusFromNSS(SEC_ERROR_OCSP_BAD_SIGNATURE));
+                      getXPCOMStatusFromNSS(SEC_ERROR_OCSP_INVALID_SIGNING_CERT));
+  // bug 964493 - using a cached OCSP response with a bad signature would cause
+  // the verification library to return a failure error code without calling
+  // PORT_SetError with the specific error, violating the expectations
+  // of the error handling code.
   add_connection_test("ocsp-stapling-none.example.com",
-                      getXPCOMStatusFromNSS(SEC_ERROR_OCSP_BAD_SIGNATURE));
+                      getXPCOMStatusFromNSS(SEC_ERROR_OCSP_INVALID_SIGNING_CERT));
   add_test(function () {
-    // TODO(bug 977865): insanity::pkix keeps requesting responses from
-    // failing responders
+    // XXX(bug 915932): special case for insanity::pkix due to the temporary
+    // lack of an OCSP cache.
     do_check_eq(gOCSPRequestCount, useInsanity ? 2 : 1);
     gOCSPRequestCount = 0;
     run_next_test();

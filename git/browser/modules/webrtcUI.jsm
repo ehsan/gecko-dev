@@ -66,14 +66,13 @@ function getBrowserForWindow(aContentWindow) {
 
 function handleRequest(aSubject, aTopic, aData) {
   let constraints = aSubject.getConstraints();
-  let secure = aSubject.isSecure;
   let contentWindow = Services.wm.getOuterWindowWithId(aSubject.windowID);
 
   contentWindow.navigator.mozGetUserMediaDevices(
     constraints,
     function (devices) {
       prompt(contentWindow, aSubject.callID, constraints.audio,
-             constraints.video || constraints.picture, devices, secure);
+             constraints.video || constraints.picture, devices);
     },
     function (error) {
       // bug 827146 -- In the future, the UI should catch NO_DEVICES_FOUND
@@ -92,7 +91,7 @@ function denyRequest(aCallID, aError) {
   Services.obs.notifyObservers(msg, "getUserMedia:response:deny", aCallID);
 }
 
-function prompt(aContentWindow, aCallID, aAudioRequested, aVideoRequested, aDevices, aSecure) {
+function prompt(aContentWindow, aCallID, aAudioRequested, aVideoRequested, aDevices) {
   let audioDevices = [];
   let videoDevices = [];
   for (let device of aDevices) {
@@ -121,13 +120,13 @@ function prompt(aContentWindow, aCallID, aAudioRequested, aVideoRequested, aDevi
     return;
   }
 
-  let uri = aContentWindow.document.documentURIObject;
+  let host = aContentWindow.document.documentURIObject.host;
   let browser = getBrowserForWindow(aContentWindow);
   let chromeDoc = browser.ownerDocument;
   let chromeWin = chromeDoc.defaultView;
   let stringBundle = chromeWin.gNavigatorBundle;
   let message = stringBundle.getFormattedString("getUserMedia.share" + requestType + ".message",
-                                                [ uri.host ]);
+                                                [ host ]);
 
   let mainAction = {
     label: PluralForm.get(requestType == "CameraAndMicrophone" ? 2 : 1,
@@ -139,45 +138,23 @@ function prompt(aContentWindow, aCallID, aAudioRequested, aVideoRequested, aDevi
     callback: function() {}
   };
 
-  let secondaryActions = [
-    {
-      label: stringBundle.getString("getUserMedia.denyRequest.label"),
-      accessKey: stringBundle.getString("getUserMedia.denyRequest.accesskey"),
-      callback: function () {
-        denyRequest(aCallID);
-      }
-    },
-    {
-      label: stringBundle.getString("getUserMedia.never.label"),
-      accessKey: stringBundle.getString("getUserMedia.never.accesskey"),
-      callback: function () {
-        denyRequest(aCallID);
-        // Let someone save "Never" for http sites so that they can be stopped from
-        // bothering you with doorhangers.
-        let perms = Services.perms;
-        if (audioDevices.length)
-          perms.add(uri, "microphone", perms.DENY_ACTION);
-        if (videoDevices.length)
-          perms.add(uri, "camera", perms.DENY_ACTION);
-      }
+  let secondaryActions = [{
+    label: stringBundle.getString("getUserMedia.denyRequest.label"),
+    accessKey: stringBundle.getString("getUserMedia.denyRequest.accesskey"),
+    callback: function () {
+      denyRequest(aCallID);
     }
-  ];
+  }];
 
   let options = {
     eventCallback: function(aTopic, aNewBrowser) {
       if (aTopic == "swapping")
         return true;
 
-      let chromeDoc = this.browser.ownerDocument;
-
-      if (aTopic == "shown") {
-        let PopupNotifications = chromeDoc.defaultView.PopupNotifications;
-        let popupId = requestType == "Microphone" ? "Microphone" : "Devices";
-        PopupNotifications.panel.firstChild.setAttribute("popupid", "webRTC-share" + popupId);
-      }
-
       if (aTopic != "showing")
         return false;
+
+      let chromeDoc = this.browser.ownerDocument;
 
       function listDevices(menupopup, devices) {
         while (menupopup.lastChild)
@@ -214,17 +191,14 @@ function prompt(aContentWindow, aCallID, aAudioRequested, aVideoRequested, aDevi
       this.mainAction.callback = function() {
         let allowedDevices = Cc["@mozilla.org/supports-array;1"]
                                .createInstance(Ci.nsISupportsArray);
-        let perms = Services.perms;
         if (videoDevices.length) {
           let videoDeviceIndex = chromeDoc.getElementById("webRTC-selectCamera-menulist").value;
-          let allowCamera = videoDeviceIndex != "-1";
-          if (allowCamera)
+          if (videoDeviceIndex != "-1")
             allowedDevices.AppendElement(videoDevices[videoDeviceIndex]);
         }
         if (audioDevices.length) {
           let audioDeviceIndex = chromeDoc.getElementById("webRTC-selectMicrophone-menulist").value;
-          let allowMic = audioDeviceIndex != "-1";
-          if (allowMic)
+          if (audioDeviceIndex != "-1")
             allowedDevices.AppendElement(audioDevices[audioDeviceIndex]);
         }
 
@@ -239,10 +213,9 @@ function prompt(aContentWindow, aCallID, aAudioRequested, aVideoRequested, aDevi
     }
   };
 
-  let anchorId = requestType == "Microphone" ? "webRTC-shareMicrophone-notification-icon"
-                                             : "webRTC-shareDevices-notification-icon";
   chromeWin.PopupNotifications.show(browser, "webRTC-shareDevices", message,
-                                    anchorId, mainAction, secondaryActions, options);
+                                    "webRTC-shareDevices-notification-icon", mainAction,
+                                    secondaryActions, options);
 }
 
 function updateIndicators() {
@@ -279,7 +252,6 @@ function showBrowserSpecificIndicator(aBrowser) {
 
   let message = stringBundle.getString("getUserMedia.sharing" + captureState + ".message2");
 
-  let uri = aBrowser.contentWindow.document.documentURIObject;
   let windowId = aBrowser.contentWindow
                          .QueryInterface(Ci.nsIInterfaceRequestor)
                          .getInterface(Ci.nsIDOMWindowUtils)
@@ -294,33 +266,17 @@ function showBrowserSpecificIndicator(aBrowser) {
     label: stringBundle.getString("getUserMedia.stopSharing.label"),
     accessKey: stringBundle.getString("getUserMedia.stopSharing.accesskey"),
     callback: function () {
-      let perms = Services.perms;
-      if (hasVideo.value &&
-          perms.testExactPermission(uri, "camera") == perms.ALLOW_ACTION)
-        perms.remove(uri.host, "camera");
-      if (hasAudio.value &&
-          perms.testExactPermission(uri, "microphone") == perms.ALLOW_ACTION)
-        perms.remove(uri.host, "microphone");
-
       Services.obs.notifyObservers(null, "getUserMedia:revoke", windowId);
     }
   }];
   let options = {
     hideNotNow: true,
     dismissed: true,
-    eventCallback: function(aTopic) {
-      if (aTopic == "shown") {
-        let PopupNotifications = this.browser.ownerDocument.defaultView.PopupNotifications;
-        let popupId = captureState == "Microphone" ? "Microphone" : "Devices";
-        PopupNotifications.panel.firstChild.setAttribute("popupid", "webRTC-sharing" + popupId);
-      }
-      return aTopic == "swapping";
-    }
+    eventCallback: function(aTopic) aTopic == "swapping"
   };
-  let anchorId = captureState == "Microphone" ? "webRTC-sharingMicrophone-notification-icon"
-                                              : "webRTC-sharingDevices-notification-icon";
   chromeWin.PopupNotifications.show(aBrowser, "webRTC-sharingDevices", message,
-                                    anchorId, mainAction, secondaryActions, options);
+                                    "webRTC-sharingDevices-notification-icon", mainAction,
+                                    secondaryActions, options);
 }
 
 function removeBrowserSpecificIndicator(aSubject, aTopic, aData) {

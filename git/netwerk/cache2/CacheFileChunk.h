@@ -73,18 +73,18 @@ public:
 
   void     InitNew(CacheFileChunkListener *aCallback);
   nsresult Read(CacheFileHandle *aHandle, uint32_t aLen,
-                CacheHash::Hash16_t aHash,
+                CacheHashUtils::Hash16_t aHash,
                 CacheFileChunkListener *aCallback);
   nsresult Write(CacheFileHandle *aHandle, CacheFileChunkListener *aCallback);
   void     WaitForUpdate(CacheFileChunkListener *aCallback);
   nsresult CancelWait(CacheFileChunkListener *aCallback);
   nsresult NotifyUpdateListeners();
 
-  uint32_t            Index();
-  CacheHash::Hash16_t Hash();
-  uint32_t            DataSize();
-  void                UpdateDataSize(uint32_t aOffset, uint32_t aLen,
-                                     bool aEOF);
+  uint32_t                 Index();
+  CacheHashUtils::Hash16_t Hash();
+  uint32_t                 DataSize();
+  void                     UpdateDataSize(uint32_t aOffset, uint32_t aLen,
+                                          bool aEOF);
 
   NS_IMETHOD OnFileOpened(CacheFileHandle *aHandle, nsresult aResult);
   NS_IMETHOD OnDataWritten(CacheFileHandle *aHandle, const char *aBuf,
@@ -92,19 +92,14 @@ public:
   NS_IMETHOD OnDataRead(CacheFileHandle *aHandle, char *aBuf, nsresult aResult);
   NS_IMETHOD OnFileDoomed(CacheFileHandle *aHandle, nsresult aResult);
   NS_IMETHOD OnEOFSet(CacheFileHandle *aHandle, nsresult aResult);
-  NS_IMETHOD OnFileRenamed(CacheFileHandle *aHandle, nsresult aResult);
 
-  bool   IsReady() const;
-  bool   IsDirty() const;
+  bool   IsReady();
+  bool   IsDirty();
 
-  char *       BufForWriting() const;
-  const char * BufForReading() const;
+  char *       BufForWriting();
+  const char * BufForReading();
   void         EnsureBufSize(uint32_t aBufSize);
-  uint32_t     MemorySize() const { return mRWBufSize + mBufSize; }
-
-  // Memory reporting
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+  uint32_t     MemorySize() { return mRWBufSize + mBufSize; }
 
 private:
   friend class CacheFileInputStream;
@@ -130,9 +125,9 @@ private:
   char    *mBuf;
   uint32_t mBufSize;
 
-  char               *mRWBuf;
-  uint32_t            mRWBufSize;
-  CacheHash::Hash16_t mReadHash;
+  char                    *mRWBuf;
+  uint32_t                 mRWBufSize;
+  CacheHashUtils::Hash16_t mReadHash;
 
   nsRefPtr<CacheFile>              mFile; // is null if chunk is cached to
                                           // prevent reference cycles

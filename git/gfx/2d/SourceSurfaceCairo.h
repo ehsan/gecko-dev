@@ -16,7 +16,6 @@ class DrawTargetCairo;
 class SourceSurfaceCairo : public SourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(SourceSurfaceCairo)
   // Create a SourceSurfaceCairo. The surface will not be copied, but simply
   // referenced.
   // If aDrawTarget is non-nullptr, it is assumed that this is a snapshot source
@@ -48,7 +47,6 @@ private: // data
 class DataSourceSurfaceCairo : public DataSourceSurface
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCairo)
   DataSourceSurfaceCairo(cairo_surface_t* imageSurf);
   virtual ~DataSourceSurfaceCairo();
   virtual unsigned char *GetData();

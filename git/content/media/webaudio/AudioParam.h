@@ -10,6 +10,7 @@
 #include "AudioParamTimeline.h"
 #include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
+#include "EnableWebAudioCheck.h"
 #include "nsAutoPtr.h"
 #include "AudioNode.h"
 #include "mozilla/dom/TypedArray.h"
@@ -21,6 +22,7 @@ namespace mozilla {
 namespace dom {
 
 class AudioParam MOZ_FINAL : public nsWrapperCache,
+                             public EnableWebAudioCheck,
                              public AudioParamTimeline
 {
 public:
@@ -56,7 +58,6 @@ public:
       aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
       return;
     }
-    aValues.ComputeLengthAndData();
     AudioParamTimeline::SetValueCurveAtTime(aValues.Data(), aValues.Length(),
                                             DOMTimeToStreamTime(aStartTime), aDuration, aRv);
     mCallback(mNode);

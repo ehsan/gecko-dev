@@ -10,7 +10,6 @@
 #include "mozilla/HashFunctions.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/unused.h"
 
 #include "nsAtomTable.h"
 #include "nsStaticAtom.h"
@@ -345,7 +344,7 @@ AtomImpl::AtomImpl(const nsAString& aString, uint32_t aHash)
   NS_ASSERTION(Equals(aString), "correct data");
 
   // Take ownership of buffer
-  mozilla::unused << buf.forget();
+  buf.forget();
 }
 
 AtomImpl::AtomImpl(nsStringBuffer* aStringBuffer, uint32_t aLength,
@@ -507,9 +506,11 @@ NS_SizeOfAtomTablesIncludingThis(MallocSizeOf aMallocSizeOf) {
 static inline void
 EnsureTableExists()
 {
-  if (!gAtomTable.ops) {
-    PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
-                      sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_SIZE);
+  if (!gAtomTable.ops &&
+      !PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
+                         sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_SIZE)) {
+    // Initialization failed.
+    NS_ABORT_OOM(ATOM_HASHTABLE_INITIAL_SIZE * sizeof(AtomTableEntry));
   }
 }
 

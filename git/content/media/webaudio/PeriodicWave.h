@@ -10,6 +10,7 @@
 #include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
+#include "EnableWebAudioCheck.h"
 #include "AudioContext.h"
 #include "AudioNodeEngine.h"
 #include "nsAutoPtr.h"
@@ -18,7 +19,8 @@ namespace mozilla {
 
 namespace dom {
 
-class PeriodicWave MOZ_FINAL : public nsWrapperCache
+class PeriodicWave MOZ_FINAL : public nsWrapperCache,
+                               public EnableWebAudioCheck
 {
 public:
   PeriodicWave(AudioContext* aContext,

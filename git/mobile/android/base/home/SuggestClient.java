@@ -26,7 +26,7 @@ import java.util.ArrayList;
 /**
  * Use network-based search suggestions.
  */
-public class SuggestClient {
+class SuggestClient {
     private static final String LOGTAG = "GeckoSuggestClient";
     private static final String USER_AGENT = GeckoAppShell.getGeckoInterface().getDefaultUAString();
 
@@ -39,7 +39,7 @@ public class SuggestClient {
     // the maximum number of suggestions to return
     private final int mMaxResults;
 
-    // used by robocop for testing
+    // used by robocop for testing; referenced via reflection
     private boolean mCheckNetwork;
 
     // used to make suggestions appear instantly after opt-in

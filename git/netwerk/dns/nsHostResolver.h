@@ -173,8 +173,8 @@ public:
      * creates an addref'd instance of a nsHostResolver object.
      */
     static nsresult Create(uint32_t         maxCacheEntries,  // zero disables cache
-                           uint32_t         maxCacheLifetime, // seconds
-                           uint32_t         lifetimeGracePeriod, // seconds
+                           uint32_t         maxCacheLifetime, // minutes
+                           uint32_t         lifetimeGracePeriod, // minutes
                            nsHostResolver **resolver);
     
     /**
@@ -239,7 +239,7 @@ public:
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 
 private:
-    nsHostResolver(uint32_t maxCacheEntries = 50, uint32_t maxCacheLifetime = 60,
+    nsHostResolver(uint32_t maxCacheEntries = 50, uint32_t maxCacheLifetime = 1,
                    uint32_t lifetimeGracePeriod = 0);
    ~nsHostResolver();
 
@@ -272,8 +272,8 @@ private:
     };
 
     uint32_t      mMaxCacheEntries;
-    mozilla::TimeDuration mMaxCacheLifetime; // granularity seconds
-    mozilla::TimeDuration mGracePeriod; // granularity seconds
+    mozilla::TimeDuration mMaxCacheLifetime;
+    uint32_t      mGracePeriod;
     mutable Mutex mLock;    // mutable so SizeOfIncludingThis can be const
     CondVar       mIdleThreadCV;
     uint32_t      mNumIdleThreads;

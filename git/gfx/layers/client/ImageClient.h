@@ -67,8 +67,7 @@ public:
   virtual void FlushAllImages(bool aExceptFront) {}
 
 protected:
-  ImageClient(CompositableForwarder* aFwd, TextureFlags aFlags,
-              CompositableType aType);
+  ImageClient(CompositableForwarder* aFwd, CompositableType aType);
 
   CompositableType mType;
   int32_t mLastPaintedImageSerial;
@@ -91,6 +90,10 @@ public:
 
   virtual bool AddTextureClient(TextureClient* aTexture) MOZ_OVERRIDE;
 
+  virtual TemporaryRef<BufferTextureClient>
+  CreateBufferTextureClient(gfx::SurfaceFormat aFormat,
+                            TextureFlags aFlags = TEXTURE_FLAGS_DEFAULT) MOZ_OVERRIDE;
+
   virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE;
 
   virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) MOZ_OVERRIDE;
@@ -98,10 +101,10 @@ public:
   virtual void FlushAllImages(bool aExceptFront) MOZ_OVERRIDE;
 
 protected:
-  virtual bool UpdateImageInternal(ImageContainer* aContainer, uint32_t aContentFlags, bool* aIsSwapped);
-
-protected:
   RefPtr<TextureClient> mFrontBuffer;
+  // Some layers may want to enforce some flags to all their textures
+  // (like disallowing tiling)
+  TextureFlags mTextureFlags;
 };
 
 /**

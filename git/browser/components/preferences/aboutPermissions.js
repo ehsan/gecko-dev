@@ -38,7 +38,7 @@ let gVisitStmt = gPlacesDatabase.createAsyncStatement(
  * Permission types that should be tested with testExactPermission, as opposed
  * to testPermission. This is based on what consumers use to test these permissions.
  */
-let TEST_EXACT_PERM_TYPES = ["geo", "camera", "microphone"];
+let TEST_EXACT_PERM_TYPES = ["geo"];
 
 /**
  * Site object represents a single site, uniquely identified by a host.
@@ -330,11 +330,8 @@ let PermissionDefaults = {
   set fullscreen(aValue) {
     let value = (aValue != this.DENY);
     Services.prefs.setBoolPref("full-screen-api.enabled", value);
-  },
-
-  get camera() this.UNKNOWN,
-  get microphone() this.UNKNOWN
-};
+  }
+}
 
 /**
  * AboutPermissions manages the about:permissions page.
@@ -342,7 +339,7 @@ let PermissionDefaults = {
 let AboutPermissions = {
   /**
    * Number of sites to return from the places database.
-   */
+   */  
   PLACES_SITES_LIMIT: 50,
 
   /**
@@ -372,18 +369,17 @@ let AboutPermissions = {
    *
    * Potential future additions: "sts/use", "sts/subd"
    */
-  _supportedPermissions: ["password", "cookie", "geo", "indexedDB", "popup",
-                          "fullscreen", "camera", "microphone"],
+  _supportedPermissions: ["password", "cookie", "geo", "indexedDB", "popup", "fullscreen"],
 
   /**
    * Permissions that don't have a global "Allow" option.
    */
-  _noGlobalAllow: ["geo", "indexedDB", "fullscreen", "camera", "microphone"],
+  _noGlobalAllow: ["geo", "indexedDB", "fullscreen"],
 
   /**
    * Permissions that don't have a global "Deny" option.
    */
-  _noGlobalDeny: ["camera", "microphone"],
+  _noGlobalDeny: [],
 
   _stringBundle: Services.strings.
                  createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
@@ -411,7 +407,7 @@ let AboutPermissions = {
     Services.obs.addObserver(this, "passwordmgr-storage-changed", false);
     Services.obs.addObserver(this, "cookie-changed", false);
     Services.obs.addObserver(this, "browser:purge-domain-data", false);
-
+    
     this._observersInitialized = true;
     Services.obs.notifyObservers(null, "browser-permissions-preinit", null);
   },
@@ -546,7 +542,7 @@ let AboutPermissions = {
         let uri = NetUtil.newURI(aLogin.hostname);
         this.addHost(uri.host);
       } catch (e) {
-        // newURI will throw for add-ons logins stored in chrome:// URIs
+        // newURI will throw for add-ons logins stored in chrome:// URIs 
       }
       itemCnt++;
     }, this);
@@ -561,7 +557,7 @@ let AboutPermissions = {
         let uri = NetUtil.newURI(aHostname);
         this.addHost(uri.host);
       } catch (e) {
-        // newURI will throw for add-ons logins stored in chrome:// URIs
+        // newURI will throw for add-ons logins stored in chrome:// URIs 
       }
       itemCnt++;
     }, this);
@@ -782,7 +778,7 @@ let AboutPermissions = {
       let visitLabel = PluralForm.get(aCount, visitForm)
                                   .replace("#1", aCount);
       document.getElementById("site-visit-count").value = visitLabel;
-    });
+    });  
   },
 
   updatePasswordsCount: function() {

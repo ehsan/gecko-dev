@@ -62,8 +62,6 @@ Volume::Volume(const nsCSubstring& aName)
     mCanBeShared(true),
     mIsSharing(false),
     mFormatRequested(false),
-    mMountRequested(false),
-    mUnmountRequested(false),
     mIsFormatting(false)
 {
   DBG("Volume %s: created", NameStr());
@@ -154,24 +152,6 @@ Volume::SetFormatRequested(bool aFormatRequested)
 }
 
 void
-Volume::SetMountRequested(bool aMountRequested)
-{
-  mMountRequested = aMountRequested;
-
-  LOG("SetMountRequested for volume %s to %d CanBeMounted = %d",
-      NameStr(), (int)mMountRequested, (int)CanBeMounted());
-}
-
-void
-Volume::SetUnmountRequested(bool aUnmountRequested)
-{
-  mUnmountRequested = aUnmountRequested;
-
-  LOG("SetUnmountRequested for volume %s to %d CanBeMounted = %d",
-      NameStr(), (int)mUnmountRequested, (int)CanBeMounted());
-}
-
-void
 Volume::SetState(Volume::STATE aNewState)
 {
   MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
@@ -197,12 +177,9 @@ Volume::SetState(Volume::STATE aNewState)
        // Cover the startup case where we don't get insertion/removal events
        mMediaPresent = false;
        mIsSharing = false;
-       mUnmountRequested = false;
-       mMountRequested = false;
        break;
 
      case nsIVolume::STATE_MOUNTED:
-       mMountRequested = false;
        mIsFormatting = false;
        mIsSharing = false;
        break;
@@ -221,8 +198,6 @@ Volume::SetState(Volume::STATE aNewState)
        mIsSharing = true;
        break;
 
-     case nsIVolume::STATE_IDLE:
-       break;
      default:
        break;
   }

@@ -60,6 +60,7 @@ public:
   void RunAfterPreallocatedProcessReady(nsIRunnable* aRunnable);
 
 private:
+  void OnNuwaForkTimeout();
   void NuwaFork();
 
   // initialization off the critical path of app startup.
@@ -68,6 +69,7 @@ private:
   // The array containing the preallocated processes. 4 as the inline storage size
   // should be enough so we don't need to grow the nsAutoTArray.
   nsAutoTArray<nsRefPtr<ContentParent>, 4> mSpareProcesses;
+  nsTArray<CancelableTask*> mNuwaForkWaitTasks;
 
   nsTArray<nsCOMPtr<nsIRunnable> > mDelayedContentParentRequests;
 
@@ -307,7 +309,12 @@ PreallocatedProcessManagerImpl::PublishSpareProcess(ContentParent* aContent)
       do_GetService("@mozilla.org/parentprocessmessagemanager;1");
     nsresult rv = ppmm->BroadcastAsyncMessage(
       NS_LITERAL_STRING("TEST-ONLY:nuwa-add-new-process"),
-      JS::NullHandleValue, JS::NullHandleValue, cx, 1);
+      JSVAL_NULL, JSVAL_NULL, cx, 1);
+  }
+
+  if (!mNuwaForkWaitTasks.IsEmpty()) {
+    mNuwaForkWaitTasks.ElementAt(0)->Cancel();
+    mNuwaForkWaitTasks.RemoveElementAt(0);
   }
 
   mSpareProcesses.AppendElement(aContent);
@@ -355,7 +362,7 @@ PreallocatedProcessManagerImpl::OnNuwaReady()
       do_GetService("@mozilla.org/parentprocessmessagemanager;1");
     nsresult rv = ppmm->BroadcastAsyncMessage(
       NS_LITERAL_STRING("TEST-ONLY:nuwa-ready"),
-      JS::NullHandleValue, JS::NullHandleValue, cx, 1);
+      JSVAL_NULL, JSVAL_NULL, cx, 1);
   }
   NuwaFork();
 }
@@ -368,8 +375,27 @@ PreallocatedProcessManagerImpl::PreallocatedProcessReady()
 
 
 void
+PreallocatedProcessManagerImpl::OnNuwaForkTimeout()
+{
+  if (!mNuwaForkWaitTasks.IsEmpty()) {
+    mNuwaForkWaitTasks.RemoveElementAt(0);
+  }
+
+  // We haven't RecvAddNewProcess() after NuwaFork(). Maybe the main
+  // thread of the Nuwa process is in deadlock.
+  MOZ_ASSERT(false, "Can't fork from the nuwa process.");
+}
+
+void
 PreallocatedProcessManagerImpl::NuwaFork()
 {
+  CancelableTask* nuwaForkTimeoutTask = NewRunnableMethod(
+    this, &PreallocatedProcessManagerImpl::OnNuwaForkTimeout);
+  mNuwaForkWaitTasks.AppendElement(nuwaForkTimeoutTask);
+
+  MessageLoop::current()->PostDelayedTask(FROM_HERE,
+                                          nuwaForkTimeoutTask,
+                                          NUWA_FORK_WAIT_DURATION_MS);
   mPreallocatedAppProcess->SendNuwaFork();
 }
 #endif

@@ -212,12 +212,4 @@ protected:
 } // namespace a11y
 } // namespace mozilla
 
-#ifdef XP_WIN
-// Undo the windows.h damage
-#undef GetMessage
-#undef CreateEvent
-#undef GetClassName
-#undef GetBinaryType
-#endif
-
 #endif

@@ -16,7 +16,6 @@
 #include "nsAlgorithm.h"
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/ChaosMode.h"
 
 #ifdef PL_DHASHMETER
 # define METER(x)       x
@@ -174,7 +173,7 @@ PL_NewDHashTable(const PLDHashTableOps *ops, void *data, uint32_t entrySize,
     PLDHashTable *table = (PLDHashTable *) malloc(sizeof *table);
     if (!table)
         return nullptr;
-    if (!PL_DHashTableInit(table, ops, data, entrySize, capacity, fallible_t())) {
+    if (!PL_DHashTableInit(table, ops, data, entrySize, capacity)) {
         free(table);
         return nullptr;
     }
@@ -189,9 +188,8 @@ PL_DHashTableDestroy(PLDHashTable *table)
 }
 
 bool
-PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops,
-                  void *data, uint32_t entrySize, uint32_t capacity,
-                  const fallible_t& )
+PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops, void *data,
+                  uint32_t entrySize, uint32_t capacity)
 {
 #ifdef DEBUG
     if (entrySize > 16 * sizeof(void *)) {
@@ -232,22 +230,6 @@ PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops,
 #endif
 
     return true;
-}
-
-void
-PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops, void *data,
-                  uint32_t entrySize, uint32_t capacity)
-{
-    if (!PL_DHashTableInit(table, ops, data, entrySize, capacity, fallible_t())) {
-        if (capacity > PL_DHASH_MAX_SIZE) {
-            MOZ_CRASH();
-        }
-        uint32_t nbytes;
-        if (!SizeOfEntryStore(capacity, entrySize, &nbytes)) {
-            MOZ_CRASH();
-        }
-        NS_ABORT_OOM(nbytes);
-    }
 }
 
 /*
@@ -641,22 +623,10 @@ PL_DHashTableEnumerate(PLDHashTable *table, PLDHashEnumerator etor, void *arg)
     char *entryAddr = table->entryStore;
     uint32_t entrySize = table->entrySize;
     uint32_t capacity = PL_DHASH_TABLE_SIZE(table);
-    uint32_t tableSize = capacity * entrySize;
-    char *entryLimit = entryAddr + tableSize;
+    char *entryLimit = entryAddr + capacity * entrySize;
     uint32_t i = 0;
     bool didRemove = false;
-
-    if (ChaosMode::isActive()) {
-        // Start iterating at a random point in the hashtable. It would be
-        // even more chaotic to iterate in fully random order, but that's a lot
-        // more work.
-        entryAddr += ChaosMode::randomUint32LessThan(capacity) * entrySize;
-        if (entryAddr >= entryLimit) {
-            entryAddr -= tableSize;
-        }
-    }
-
-    for (uint32_t e = 0; e < capacity; ++e) {
+    while (entryAddr < entryLimit) {
         PLDHashEntryHdr *entry = (PLDHashEntryHdr *)entryAddr;
         if (ENTRY_IS_LIVE(entry)) {
             PLDHashOperator op = etor(table, entry, i++, arg);
@@ -669,9 +639,6 @@ PL_DHashTableEnumerate(PLDHashTable *table, PLDHashEnumerator etor, void *arg)
                 break;
         }
         entryAddr += entrySize;
-        if (entryAddr >= entryLimit) {
-            entryAddr -= tableSize;
-        }
     }
 
     MOZ_ASSERT(!didRemove || table->recursionLevel == 1);

@@ -56,7 +56,6 @@ class HTMLReportingTestRunnerMixin(object):
                 result=result.result,
                 test_name=result.name,
                 test_class=result.test_class,
-                duration=round(result.duration, 1),
                 debug=result.debug,
                 output='\n'.join(result.output))
 
@@ -194,7 +193,6 @@ class HTMLReportingTestResultMixin(object):
         test.debug = None
         if result_actual is not 'PASS':
             test.debug = self.gather_debug()
-        return result_expected, result_actual, output, context
 
     def gather_debug(self):
         debug = {}

@@ -95,7 +95,6 @@ SetStrokeOptions(CGContextRef cg, const StrokeOptions &aStrokeOptions)
 class DrawTargetCG : public DrawTarget
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DrawTargetCG)
   friend class BorrowedCGContext;
   DrawTargetCG();
   virtual ~DrawTargetCG();

@@ -23,13 +23,11 @@
 #include "vpx/vp8cx.h"
 #include "vpx/vpx_encoder.h"
 
-#ifdef __MINGW32__
+#if defined(__MINGW32__) && !defined(MINGW_HAS_SECURE_API)
 #define strtok_r strtok_s
-#ifndef MINGW_HAS_SECURE_API
 // proto from /usr/x86_64-w64-mingw32/include/sec_api/string_s.h
 _CRTIMP char *__cdecl strtok_s(char *str, const char *delim, char **context);
-#endif  /* MINGW_HAS_SECURE_API */
-#endif  /* __MINGW32__ */
+#endif
 
 #ifdef _MSC_VER
 #define strdup _strdup

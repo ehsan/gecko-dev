@@ -151,6 +151,11 @@ GetLengthProperty(const Value &lval, MutableHandleValue vp)
                 return true;
             }
         }
+
+        if (obj->is<TypedArrayObject>()) {
+            vp.setInt32(obj->as<TypedArrayObject>().length());
+            return true;
+        }
     }
 
     return false;
@@ -178,8 +183,8 @@ FetchName(JSContext *cx, HandleObject obj, HandleObject obj2, HandlePropertyName
             return false;
     } else {
         Rooted<JSObject*> normalized(cx, obj);
-        if (normalized->is<DynamicWithObject>() && !shape->hasDefaultGetter())
-            normalized = &normalized->as<DynamicWithObject>().object();
+        if (normalized->getClass() == &WithObject::class_ && !shape->hasDefaultGetter())
+            normalized = &normalized->as<WithObject>().object();
         if (shape->isDataDescriptor() && shape->hasDefaultGetter()) {
             /* Fast path for Object instance properties. */
             JS_ASSERT(shape->hasSlot());
@@ -253,7 +258,8 @@ DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn
 
     /* Steps 8c, 8d. */
     if (!prop || (obj2 != varobj && varobj->is<GlobalObject>())) {
-        if (!JSObject::defineProperty(cx, varobj, dn, UndefinedHandleValue, JS_PropertyStub,
+        RootedValue value(cx, UndefinedValue());
+        if (!JSObject::defineProperty(cx, varobj, dn, value, JS_PropertyStub,
                                       JS_StrictPropertyStub, attrs)) {
             return false;
         }
@@ -345,6 +351,19 @@ GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *objArg, bool wasObje
             break;
         }
 
+        if (ValueMightBeSpecial(rref)) {
+            RootedObject obj(cx, objArg);
+            Rooted<SpecialId> special(cx);
+            res.set(rref);
+            if (ValueIsSpecial(obj, res, &special, cx)) {
+                if (!JSObject::getSpecial(cx, obj, obj, special, res))
+                    return false;
+                objArg = obj;
+                break;
+            }
+            objArg = obj;
+        }
+
         JSAtom *name = ToAtom<NoGC>(cx, rref);
         if (name) {
             if (name->isIndex(&index)) {
@@ -421,7 +440,7 @@ GetElementOperation(JSContext *cx, JSOp op, MutableHandleValue lref, HandleValue
     if (lref.isString() && IsDefinitelyIndex(rref, &index)) {
         JSString *str = lref.toString();
         if (index < str->length()) {
-            str = cx->staticStrings().getUnitStringForElement(cx, str, index);
+            str = cx->runtime()->staticStrings.getUnitStringForElement(cx, str, index);
             if (!str)
                 return false;
             res.setString(str);
@@ -440,14 +459,14 @@ static MOZ_ALWAYS_INLINE JSString *
 TypeOfOperation(const Value &v, JSRuntime *rt)
 {
     JSType type = js::TypeOfValue(v);
-    return TypeName(type, *rt->commonNames);
+    return TypeName(type, rt->atomState);
 }
 
 static inline JSString *
 TypeOfObjectOperation(JSObject *obj, JSRuntime *rt)
 {
     JSType type = js::TypeOfObject(obj);
-    return TypeName(type, *rt->commonNames);
+    return TypeName(type, rt->atomState);
 }
 
 static MOZ_ALWAYS_INLINE bool
@@ -604,14 +623,14 @@ BitRsh(JSContext *cx, HandleValue lhs, HandleValue rhs, int *out)
 }
 
 static MOZ_ALWAYS_INLINE bool
-UrshOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, MutableHandleValue out)
+UrshOperation(JSContext *cx, HandleValue lhs, HandleValue rhs, Value *out)
 {
     uint32_t left;
     int32_t  right;
     if (!ToUint32(cx, lhs, &left) || !ToInt32(cx, rhs, &right))
         return false;
     left >>= right & 31;
-    out.setNumber(uint32_t(left));
+    out->setNumber(uint32_t(left));
     return true;
 }
 
@@ -641,6 +660,7 @@ class FastInvokeGuard
 #ifdef JS_ION
     // Constructing an IonContext is pretty expensive due to the TLS access,
     // so only do this if we have to.
+    mozilla::Maybe<jit::IonContext> ictx_;
     bool useIon_;
 #endif
 
@@ -677,6 +697,8 @@ class FastInvokeGuard
                 if (!script_)
                     return false;
             }
+            if (ictx_.empty())
+                ictx_.construct(cx, (js::jit::TempAllocator *)nullptr);
             JS_ASSERT(fun_->nonLazyScript() == script_);
 
             jit::MethodStatus status = jit::CanEnterUsingFastInvoke(cx, script_, args_.length());

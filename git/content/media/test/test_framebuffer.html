@@ -16,7 +16,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=490705
 <script class="testbody" type="text/javascript">
 var testFile = "bug495794.ogg";
 var testFileDuration = 0.30;
-var testFileChannelCount = 6;
+var testFileChannelCount = 2;
 var testFileSampleRate = 48000;
 var testFileFrameBufferLength = testFileChannelCount * 1024;
 
@@ -29,7 +29,7 @@ function audioAvailable(event) {
   var buffer = event.frameBuffer;
 
   if ( (typeof event.time !== "number") ||
-      (Math.abs(event.time - currentSampleOffset / testFileSampleRate / testFileChannelCount) > testFileDuration) ) {
+      (Math.abs(event.time - currentSampleOffset / testFileSampleRate / testFileChannelCount) > 0.01) ) {
     isTimePropertyValid = false;
   }
 
@@ -96,12 +96,7 @@ function initTest() {
 }
 
 window.addEventListener("load", function(e) {
-  if (SpecialPowers.getBoolPref("media.audio_data.enabled")) {
-    initTest();
-  } else {
-    ok(true, "old audio data api behind a pref");
-    SimpleTest.finish();
-  }
+  SpecialPowers.pushPrefEnv({"set": [["media.audio_data.enabled", true]]}, initTest);
 }, false);
 
 SimpleTest.waitForExplicitFinish();

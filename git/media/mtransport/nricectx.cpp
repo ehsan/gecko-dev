@@ -91,9 +91,6 @@ namespace mozilla {
 
 MOZ_MTLOG_MODULE("mtransport")
 
-const char kNrIceTransportUdp[] = "udp";
-const char kNrIceTransportTcp[] = "tcp";
-
 static bool initialized = false;
 
 // Implement NSPR-based crypto algorithms
@@ -189,7 +186,7 @@ static nr_ice_crypto_vtbl nr_ice_crypto_nss_vtbl = {
 
 
 nsresult NrIceStunServer::ToNicerStunStruct(nr_ice_stun_server *server,
-                                            const std::string &transport) const {
+                                            std::string transport) const {
   int r;
   int transport_int;
 
