@@ -1029,11 +1029,6 @@ static const char *
 FormatValue(JSContext *cx, const Value &vArg, JSAutoByteString &bytes)
 {
     RootedValue v(cx, vArg);
-
-    mozilla::Maybe<AutoCompartment> ac;
-    if (v.isObject())
-        ac.construct(cx, &v.toObject());
-
     JSString *str = ToString<CanGC>(cx, v);
     if (!str)
         return nullptr;
@@ -1064,6 +1059,16 @@ FormatFrame(JSContext *cx, const NonBuiltinScriptFrameIter &iter, char *buf, int
     if (fun)
         funname = fun->atom();
 
+    RootedObject callObj(cx);
+    AutoPropertyDescArray callProps(cx);
+
+    if (!iter.isJit() && (showArgs || showLocals)) {
+        JSAbstractFramePtr frame(Jsvalify(iter.abstractFramePtr()));
+        callObj = frame.callObject(cx);
+        if (callObj)
+            callProps.fetch(callObj);
+    }
+
     RootedValue thisVal(cx);
     AutoPropertyDescArray thisProps(cx);
     if (iter.computeThis(cx)) {
@@ -1084,61 +1089,74 @@ FormatFrame(JSContext *cx, const NonBuiltinScriptFrameIter &iter, char *buf, int
     if (!buf)
         return buf;
 
-    if (showArgs && iter.hasArgs()) {
-        BindingVector bindings(cx);
-        if (fun && fun->isInterpreted()) {
-            if (!FillBindingVector(script, &bindings))
-                return buf;
-        }
-
-
-        bool first = true;
-        for (unsigned i = 0; i < iter.numActualArgs(); i++) {
-            RootedValue arg(cx);
-            if (i < iter.numFormalArgs() && script->formalIsAliased(i)) {
-                for (AliasedFormalIter fi(script); ; fi++) {
-                    if (fi.frameIndex() == i) {
-                        arg = iter.callObj().aliasedVar(fi);
-                        break;
-                    }
-                }
-            } else if (script->argsObjAliasesFormals() && iter.hasArgsObj()) {
-                arg = iter.argsObj().arg(i);
-            } else {
-                arg = iter.unaliasedActual(i, DONT_CHECK_ALIASING);
-            }
-
-            JSAutoByteString valueBytes;
-            const char *value = FormatValue(cx, arg, valueBytes);
-
+    // print the function arguments
+    if (showArgs && callObj) {
+        uint32_t namedArgCount = 0;
+        for (uint32_t i = 0; i < callProps->length; i++) {
+            JSPropertyDesc* desc = &callProps->array[i];
             JSAutoByteString nameBytes;
             const char *name = nullptr;
+            bool hasName = JSVAL_IS_STRING(desc->id);
+            if (hasName)
+                name = FormatValue(cx, desc->id, nameBytes);
+            JSAutoByteString valueBytes;
+            const char *value = FormatValue(cx, desc->value, valueBytes);
 
-            if (i < bindings.length()) {
-                name = nameBytes.encodeLatin1(cx, bindings[i].name());
-                if (!buf)
-                    return NULL;
-            }
-
-            if (value) {
+            if (value && (name || !hasName)) {
                 buf = JS_sprintf_append(buf, "%s%s%s%s%s%s",
-                                        !first ? ", " : "",
+                                        namedArgCount ? ", " : "",
                                         name ? name :"",
                                         name ? " = " : "",
-                                        arg.isString() ? "\"" : "",
+                                        desc->value.isString() ? "\"" : "",
                                         value ? value : "?unknown?",
-                                        arg.isString() ? "\"" : "");
+                                        desc->value.isString() ? "\"" : "");
                 if (!buf)
                     return buf;
-
-                first = false;
             } else {
-                buf = JS_sprintf_append(buf, "    <Failed to get argument while inspecting stack frame>\n");
-                if (!buf)
-                    return buf;
+                buf = JS_sprintf_append(buf, "    <Failed to get named argument while inspecting stack frame>\n");
                 cx->clearPendingException();
 
             }
+            namedArgCount++;
+        }
+
+        // print any unnamed trailing args (found in 'arguments' object)
+        RootedValue val(cx);
+        if (JS_GetProperty(cx, callObj, "arguments", &val) && val.isObject()) {
+            uint32_t argCount;
+            RootedObject argsObj(cx, &val.toObject());
+            if (JS_GetProperty(cx, argsObj, "length", &val) &&
+                ToUint32(cx, val, &argCount) &&
+                argCount > namedArgCount)
+            {
+                for (uint32_t k = namedArgCount; k < argCount; k++) {
+                    char number[8];
+                    JS_snprintf(number, 8, "%d", (int) k);
+
+                    JSAutoByteString valueBytes;
+                    const char *value = nullptr;
+                    if (JS_GetProperty(cx, argsObj, number, &val) &&
+                        (value = FormatValue(cx, val, valueBytes)))
+                    {
+                        buf = JS_sprintf_append(buf, "%s%s%s%s",
+                                                k ? ", " : "",
+                                                val.isString() ? "\"" : "",
+                                                value ? value : "?unknown?",
+                                                val.isString() ? "\"" : "");
+                        if (!buf)
+                            return buf;
+                    } else {
+                        buf = JS_sprintf_append(buf, "    <Failed to get argument while inspecting stack frame>\n");
+                        cx->clearPendingException();
+                    }
+                }
+            } else {
+                buf = JS_sprintf_append(buf, "    <Failed to get 'length' while inspecting stack frame>\n");
+                cx->clearPendingException();
+            }
+        } else {
+            buf = JS_sprintf_append(buf, "    <Failed to get 'arguments' while inspecting stack frame>\n");
+            cx->clearPendingException();
         }
     }
 
@@ -1150,9 +1168,29 @@ FormatFrame(JSContext *cx, const NonBuiltinScriptFrameIter &iter, char *buf, int
     if (!buf)
         return buf;
 
+    // print local variables
+    if (showLocals && callProps->array) {
+        for (uint32_t i = 0; i < callProps->length; i++) {
+            JSPropertyDesc* desc = &callProps->array[i];
+            JSAutoByteString nameBytes;
+            JSAutoByteString valueBytes;
+            const char *name = FormatValue(cx, desc->id, nameBytes);
+            const char *value = FormatValue(cx, desc->value, valueBytes);
 
-    // Note: Right now we don't dump the local variables anymore, because
-    // that is hard to support across all the JITs etc.
+            if (name && value) {
+                buf = JS_sprintf_append(buf, "    %s = %s%s%s\n",
+                                        name,
+                                        desc->value.isString() ? "\"" : "",
+                                        value,
+                                        desc->value.isString() ? "\"" : "");
+                if (!buf)
+                    return buf;
+            } else {
+                buf = JS_sprintf_append(buf, "    <Failed to get local while inspecting stack frame>\n");
+                cx->clearPendingException();
+            }
+        }
+    }
 
     // print the value of 'this'
     if (showLocals) {

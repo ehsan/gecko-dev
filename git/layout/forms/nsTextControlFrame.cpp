@@ -1241,6 +1241,12 @@ nsTextControlFrame::SetInitialChildList(ChildListID     aListID,
   return rv;
 }
 
+bool
+nsTextControlFrame::IsScrollable() const
+{
+  return !IsSingleLineTextControl();
+}
+
 void
 nsTextControlFrame::SetValueChanged(bool aValueChanged)
 {

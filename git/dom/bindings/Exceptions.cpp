@@ -80,7 +80,7 @@ ThrowExceptionObject(JSContext* aCx, Exception* aException)
   // thread.
   if (NS_IsMainThread() && !IsCallerChrome() &&
       aException->StealJSVal(thrown.address())) {
-    if (!JS_WrapValue(aCx, &thrown)) {
+    if (!JS_WrapValue(aCx, thrown.address())) {
       return false;
     }
     JS_SetPendingException(aCx, thrown);

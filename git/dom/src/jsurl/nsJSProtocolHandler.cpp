@@ -329,7 +329,7 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
 
     // If we took the sandbox path above, v might be in the sandbox
     // compartment.
-    if (!JS_WrapValue(cx, &v)) {
+    if (!JS_WrapValue(cx, v.address())) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
 

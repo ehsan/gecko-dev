@@ -622,8 +622,7 @@ protected:
   // but false "found" means we didn't have a subframe at that index.
   bool GetSubframeWindow(JSContext *cx, JS::Handle<JSObject*> proxy,
                          JS::Handle<jsid> id,
-                         JS::MutableHandle<JS::Value> vp,
-                         bool &found);
+                         JS::Value *vp, bool &found);
 
   // Returns a non-null window only if id is an index and we have a
   // window at that index.
@@ -709,7 +708,7 @@ nsOuterWindowProxy::getOwnPropertyDescriptor(JSContext* cx,
                                              unsigned flags)
 {
   bool found;
-  if (!GetSubframeWindow(cx, proxy, id, desc.value(), found)) {
+  if (!GetSubframeWindow(cx, proxy, id, desc.value().address(), found)) {
     return false;
   }
   if (found) {
@@ -830,7 +829,7 @@ nsOuterWindowProxy::get(JSContext *cx, JS::Handle<JSObject*> proxy,
   }
 
   bool found;
-  if (!GetSubframeWindow(cx, proxy, id, vp, found)) {
+  if (!GetSubframeWindow(cx, proxy, id, vp.address(), found)) {
     return false;
   }
   if (found) {
@@ -881,8 +880,7 @@ nsOuterWindowProxy::iterate(JSContext *cx, JS::Handle<JSObject*> proxy,
 bool
 nsOuterWindowProxy::GetSubframeWindow(JSContext *cx,
                                       JS::Handle<JSObject*> proxy,
-                                      JS::Handle<jsid> id,
-                                      JS::MutableHandle<JS::Value> vp,
+                                      JS::Handle<jsid> id, JS::Value* vp,
                                       bool& found)
 {
   nsCOMPtr<nsIDOMWindow> frame = GetSubframeWindow(cx, proxy, id);
@@ -902,8 +900,7 @@ nsOuterWindowProxy::GetSubframeWindow(JSContext *cx,
   if (MOZ_UNLIKELY(!obj)) {
     return xpc::Throw(cx, NS_ERROR_FAILURE);
   }
-
-  vp.setObject(*obj);
+  *vp = JS::ObjectValue(*obj);
   return JS_WrapValue(cx, vp);
 }
 

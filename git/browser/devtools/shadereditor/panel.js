@@ -33,7 +33,6 @@ ShaderEditorPanel.prototype = {
 
     return targetPromise
       .then(() => {
-        this.panelWin.gToolbox = this._toolbox;
         this.panelWin.gTarget = this.target;
         this.panelWin.gFront = new WebGLFront(this.target.client, this.target.form);
         return this.panelWin.startupShaderEditor();

@@ -954,7 +954,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         JS::Rooted<JSObject*> thisObject(ctx, thisValue.toObjectOrNull());
 
         JSAutoCompartment tac(ctx, thisObject);
-        if (!JS_WrapValue(ctx, &argv)) {
+        if (!JS_WrapValue(ctx, argv.address())) {
           return NS_ERROR_UNEXPECTED;
         }
 

@@ -48,13 +48,12 @@ nsStructuredCloneContainer::InitFromJSVal(const JS::Value & aData,
   // Make sure that we serialize in the right context.
   MOZ_ASSERT(aCx == nsContentUtils::GetCurrentJSContext());
   JS::Rooted<JS::Value> jsData(aCx, aData);
-  bool success = JS_WrapValue(aCx, &jsData);
-  NS_ENSURE_STATE(success);
+  JS_WrapValue(aCx, jsData.address());
 
   uint64_t* jsBytes = nullptr;
-  success = JS_WriteStructuredClone(aCx, jsData, &jsBytes, &mSize,
-                                    nullptr, nullptr,
-                                    JS::UndefinedHandleValue);
+  bool success = JS_WriteStructuredClone(aCx, jsData, &jsBytes, &mSize,
+                                         nullptr, nullptr,
+                                         JS::UndefinedHandleValue);
   NS_ENSURE_STATE(success);
   NS_ENSURE_STATE(jsBytes);
 
