@@ -199,7 +199,7 @@ public:
   {
     aRv = GetBuildID(aBuildID);
   }
-  power::PowerManager* GetMozPower(ErrorResult& aRv);
+  nsIDOMMozPowerManager* GetMozPower(ErrorResult& aRv);
   bool JavaEnabled(ErrorResult& aRv);
   bool TaintEnabled()
   {

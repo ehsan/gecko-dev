@@ -4,9 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef GFXTEXTURESREPORTER_H_
-#define GFXTEXTURESREPORTER_H_
-
 #include "nsIMemoryReporter.h"
 #include "GLTypes.h"
 
@@ -49,5 +46,3 @@ private:
 
 }
 }
-
-#endif // GFXTEXTURESREPORTER_H_

@@ -399,12 +399,6 @@ VARIABLES = {
         These will be parsed and converted to .cpp and .h files.
         """),
 
-    'GENERATED_EVENTS_WEBIDL_FILES': (StrictOrderingOnAppendList, list, [],
-        """WebIDL source files for generated events.
-
-        These will be parsed and converted to .cpp and .h files.
-        """),
-
     'TEST_WEBIDL_FILES': (StrictOrderingOnAppendList, list, [],
          """Test WebIDL source files.
 

@@ -15,7 +15,7 @@ class Makefile(object):
     '''
 
     def __init__(self):
-        self._statements = []
+        self._rules = []
 
     def create_rule(self, targets=[]):
         '''
@@ -23,15 +23,8 @@ class Makefile(object):
         Returns the corresponding Rule instance.
         '''
         rule = Rule(targets)
-        self._statements.append(rule)
+        self._rules.append(rule)
         return rule
-
-    def add_statement(self, statement):
-        '''
-        Add a raw statement in the makefile. Meant to be used for
-        simple variable assignments.
-        '''
-        self._statements.append(statement)
 
     def dump(self, fh, removal_guard=True):
         '''
@@ -41,15 +34,12 @@ class Makefile(object):
         '''
         all_deps = set()
         all_targets = set()
-        for statement in self._statements:
-            if isinstance(statement, Rule):
-                statement.dump(fh)
-                all_deps.update(statement.dependencies())
-                all_targets.update(statement.targets())
-            else:
-                fh.write('%s\n' % statement)
+        for rule in self._rules:
+            rule.dump(fh)
+            all_deps.update(rule.dependencies())
+            all_targets.update(rule.targets())
         if removal_guard:
-            guard = Rule(sorted(all_deps - all_targets))
+            guard = Rule(all_deps - all_targets)
             guard.dump(fh)
 
 
@@ -61,23 +51,21 @@ class Rule(object):
                    ...
     '''
     def __init__(self, targets=[]):
-        self._targets = []
-        self._dependencies = []
+        self._targets = set()
+        self._dependencies = set()
         self._commands = []
         self.add_targets(targets)
 
     def add_targets(self, targets):
         '''Add additional targets to the rule.'''
         assert isinstance(targets, Iterable) and not isinstance(targets, StringTypes)
-        self._targets.extend(t.replace(os.sep, '/') for t in targets
-                             if not t in self._targets)
+        self._targets.update(t.replace(os.sep, '/') for t in targets)
         return self
 
     def add_dependencies(self, deps):
         '''Add dependencies to the rule.'''
         assert isinstance(deps, Iterable) and not isinstance(deps, StringTypes)
-        self._dependencies.extend(d.replace(os.sep, '/') for d in deps
-                                  if not d in self._dependencies)
+        self._dependencies.update(d.replace(os.sep, '/') for d in deps)
         return self
 
     def add_commands(self, commands):
@@ -106,9 +94,9 @@ class Rule(object):
         '''
         if not self._targets:
             return
-        fh.write('%s:' % ' '.join(self._targets))
+        fh.write('%s:' % ' '.join(sorted(self._targets)))
         if self._dependencies:
-            fh.write(' %s' % ' '.join(self._dependencies))
+            fh.write(' %s' % ' '.join(sorted(self._dependencies)))
         fh.write('\n')
         for cmd in self._commands:
             fh.write('\t%s\n' % cmd)
