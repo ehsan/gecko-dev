@@ -458,35 +458,33 @@
         for (i = 0; i < node.childNodes.length; i++) {
           let child = node.childNodes[i];
           if (child.localName) {
-            arr.push("<" + child.localName);
+            str += "<" + child.localName;
 
             // serialize attribute list
             for (let j = 0; j < child.attributes.length; j++) {
               let attr = child.attributes[j];
               let quote = (attr.value.indexOf('"') == -1 ? '"' : "'");
-              arr.push(" " + attr.name + '=' + quote + attr.value + quote);
+              str += " " + attr.name + '=' + quote + attr.value + quote;
             }
 
             if (child.localName in voidElems) {
               // if this is a self-closing element, end it here
-              arr.push("/>");
+              str += "/>";
             } else {
               // otherwise, add its children
-              arr.push(">");
+              str += ">";
               getHTML(child);
-              arr.push("</" + child.localName + ">");
+              str += "</" + child.localName + ">";
             }
           } else {
-            arr.push(child.textContent);
+            str += child.textContent;
           }
         }
       }
 
-      // Using Array.join() avoids the overhead from lazy string concatenation.
-      // See http://blog.cdleary.com/2012/01/string-representation-in-spidermonkey/#ropes
-      let arr = [];
+      let str = "";
       getHTML(this);
-      return arr.join("");
+      return str;
     },
 
     set innerHTML(html) {
@@ -514,23 +512,15 @@
     },
 
     get textContent() {
+      let text = "";
       function getText(node) {
-        let nodes = node.childNodes;
-        for (let i = 0; i < nodes.length; i++) {
-          let child = nodes[i];
-          if (child.nodeType == 3) {
-            text.push(child.textContent);
-          } else {
-            getText(child);
-          }
+        let length = node.childNodes.length;
+        for (let i = 0; i < length; i++) {
+          text += node.childNodes[i].textContent;
         }
       }
-
-      // Using Array.join() avoids the overhead from lazy string concatenation.
-      // See http://blog.cdleary.com/2012/01/string-representation-in-spidermonkey/#ropes
-      let text = [];
       getText(this);
-      return text.join("");
+      return text;
     },
 
     getAttribute: function (name) {

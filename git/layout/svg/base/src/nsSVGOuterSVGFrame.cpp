@@ -678,9 +678,7 @@ nsSVGOuterSVGFrame::NotifyViewportOrTransformChanged(PRUint32 aFlags)
 
     if (haveNonFulLZoomTransformChange &&
         !(mState & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      PRUint32 flags = (mState & NS_FRAME_IN_REFLOW) ?
-                         nsSVGSVGElement::eDuringReflow : 0;
-      content->ChildrenOnlyTransformChanged(flags);
+      content->ChildrenOnlyTransformChanged();
     }
   }
 
