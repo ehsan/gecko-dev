@@ -66,9 +66,6 @@
 #include "nsStyleSet.h"
 #include "nsCSSStyleSheet.h" // XXX for UA sheet loading hack, can this go away please?
 #include "nsIDOMCSSStyleSheet.h"  // for Pref-related rule management (bugs 22963,20760,31816)
-#ifdef MOZ_CSS_ANIMATIONS
-#include "nsAnimationManager.h"
-#endif
 #include "nsINameSpaceManager.h"  // for Pref-related rule management (bugs 22963,20760,31816)
 #include "nsIServiceManager.h"
 #include "nsFrame.h"
@@ -846,7 +843,8 @@ public:
 
   //nsIViewObserver interface
 
-  NS_IMETHOD Paint(nsIView* aViewToPaint,
+  NS_IMETHOD Paint(nsIView* aDisplayRoot,
+                   nsIView* aViewToPaint,
                    nsIWidget* aWidget,
                    const nsRegion& aDirtyRegion,
                    const nsIntRegion& aIntDirtyRegion,
@@ -4792,14 +4790,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       mFrameConstructor->ProcessPendingRestyles();
     }
 
-#ifdef MOZ_CSS_ANIMATIONS
-    // Dispatch any 'animationstart' events those (or earlier) restyles
-    // queued up.
-    if (!mIsDestroying) {
-      mPresContext->AnimationManager()->DispatchEvents();
-    }
-#endif
-
     // Process whatever XBL constructors those restyles queued up.  This
     // ensures that onload doesn't fire too early and that we won't do extra
     // reflows after those constructors run.
@@ -4807,13 +4797,12 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       mDocument->BindingManager()->ProcessAttachedQueue();
     }
 
-    // Now those constructors or events might have posted restyle
-    // events.  At the same time, we still need up-to-date style data.
-    // In particular, reflow depends on style being completely up to
-    // date.  If it's not, then style context reparenting, which can
-    // happen during reflow, might suddenly pick up the new rules and
-    // we'll end up with frames whose style doesn't match the frame
-    // type.
+    // Now those constructors might have posted restyle events.  At the same
+    // time, we still need up-to-date style data.  In particular, reflow
+    // depends on style being completely up to date.  If it's not, then style
+    // context reparenting, which can happen during reflow, might suddenly pick
+    // up the new rules and we'll end up with frames whose style doesn't match
+    // the frame type.
     if (!mIsDestroying) {
       nsAutoScriptBlocker scriptBlocker;
       mFrameConstructor->CreateNeededFrames();
@@ -5117,9 +5106,6 @@ nsIPresShell::ReconstructStyleDataInternal()
 
   if (mPresContext) {
     mPresContext->RebuildUserFontSet();
-#ifdef MOZ_CSS_ANIMATIONS
-    mPresContext->AnimationManager()->KeyframesListIsDirty();
-#endif
   }
 
   Element* root = mDocument->GetRootElement();
@@ -5891,6 +5877,9 @@ nscolor PresShell::ComputeBackstopColor(nsIView* aDisplayRoot)
 }
 
 struct PaintParams {
+  nsIFrame* mFrame;
+  nsPoint mOffsetToWidget;
+  const nsRegion* mDirtyRegion;
   nscolor mBackgroundColor;
 };
 
@@ -5968,16 +5957,33 @@ static void DrawThebesLayer(ThebesLayer* aLayer,
                             void* aCallbackData)
 {
   PaintParams* params = static_cast<PaintParams*>(aCallbackData);
-  aContext->NewPath();
-  aContext->SetColor(gfxRGBA(params->mBackgroundColor));
-  nsIntRect dirtyRect = aRegionToDraw.GetBounds();
-  aContext->Rectangle(
-    gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
-  aContext->Fill();
+  nsIFrame* frame = params->mFrame;
+  if (frame) {
+    // We're drawing into a child window.
+    nsIDeviceContext* devCtx = frame->PresContext()->DeviceContext();
+    nsCOMPtr<nsIRenderingContext> rc;
+    nsresult rv = devCtx->CreateRenderingContextInstance(*getter_AddRefs(rc));
+    if (NS_SUCCEEDED(rv)) {
+      rc->Init(devCtx, aContext);
+      nsIRenderingContext::AutoPushTranslation
+        push(rc, params->mOffsetToWidget.x, params->mOffsetToWidget.y);
+      nsLayoutUtils::PaintFrame(rc, frame, *params->mDirtyRegion,
+                                params->mBackgroundColor,
+                                nsLayoutUtils::PAINT_WIDGET_LAYERS);
+    }
+  } else {
+    aContext->NewPath();
+    aContext->SetColor(gfxRGBA(params->mBackgroundColor));
+    nsIntRect dirtyRect = aRegionToDraw.GetBounds();
+    aContext->Rectangle(
+      gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
+    aContext->Fill();
+  }
 }
 
 NS_IMETHODIMP
-PresShell::Paint(nsIView*           aViewToPaint,
+PresShell::Paint(nsIView*           aDisplayRoot,
+                 nsIView*           aViewToPaint,
                  nsIWidget*         aWidgetToPaint,
                  const nsRegion&    aDirtyRegion,
                  const nsIntRegion& aIntDirtyRegion,
@@ -5996,6 +6002,7 @@ PresShell::Paint(nsIView*           aViewToPaint,
 #endif
 
   NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
+  NS_ASSERTION(aDisplayRoot, "null view");
   NS_ASSERTION(aViewToPaint, "null view");
   NS_ASSERTION(aWidgetToPaint, "Can't paint without a widget");
 
@@ -6003,7 +6010,7 @@ PresShell::Paint(nsIView*           aViewToPaint,
   AUTO_LAYOUT_PHASE_ENTRY_POINT(presContext, Paint);
 
   nsIFrame* frame = aPaintDefaultBackground
-      ? nsnull : static_cast<nsIFrame*>(aViewToPaint->GetClientData());
+      ? nsnull : static_cast<nsIFrame*>(aDisplayRoot->GetClientData());
 
   bool isRetainingManager;
   LayerManager* layerManager =
@@ -6034,9 +6041,9 @@ PresShell::Paint(nsIView*           aViewToPaint,
     frame->ClearPresShellsFromLastPaint();
   }
 
-  nscolor bgcolor = ComputeBackstopColor(aViewToPaint);
+  nscolor bgcolor = ComputeBackstopColor(aDisplayRoot);
 
-  if (frame) {
+  if (frame && aViewToPaint == aDisplayRoot) {
     // Defer invalidates that are triggered during painting, and discard
     // invalidates of areas that are already being repainted.
     // The layer system can trigger invalidates during painting
@@ -6056,15 +6063,30 @@ PresShell::Paint(nsIView*           aViewToPaint,
     return NS_OK;
   }
 
+  if (frame) {
+    // Defer invalidates that are triggered during painting, and discard
+    // invalidates of areas that are already being repainted.
+    frame->BeginDeferringInvalidatesForDisplayRoot(aDirtyRegion);
+  }
+
   nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
   if (root) {
     root->SetVisibleRegion(aIntDirtyRegion);
     layerManager->SetRoot(root);
   }
-  bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
-  PaintParams params = { bgcolor };
+  if (!frame) {
+    bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
+  }
+  PaintParams params =
+    { frame,
+      aDisplayRoot->GetOffsetToWidget(aWidgetToPaint),
+      &aDirtyRegion,
+      bgcolor };
   layerManager->EndTransaction(DrawThebesLayer, &params);
 
+  if (frame) {
+    frame->EndDeferringInvalidatesForDisplayRoot();
+  }
   presContext->NotifyDidPaintForSubtree();
   return NS_OK;
 }

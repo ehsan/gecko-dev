@@ -363,8 +363,10 @@ js_FinishAtomState(JSRuntime *rt)
         return;
     }
 
-    for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront())
-        AtomEntryToKey(r.front())->finalize(rt);
+    for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
+        JSString *str = AtomEntryToKey(r.front());
+        js_FinalizeStringRT(rt, str);
+    }
 
 #ifdef JS_THREADSAFE
     js_FinishLock(&state->lock);

@@ -2906,8 +2906,7 @@ nsWindow::MakeFullScreen(PRBool aFullScreen)
   UpdateNonClientMargins();
 
   PRBool visible = mIsVisible;
-  if (mOldSizeMode == nsSizeMode_Normal)
-    Show(PR_FALSE);
+  Show(PR_FALSE);
   
   // Will call hide chrome, reposition window. Note this will
   // also cache dimensions for restoration, so it should only

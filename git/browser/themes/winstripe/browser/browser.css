@@ -1760,11 +1760,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .tabs-newtab-button {
-  width: 28px;
-}
-
-#TabsToolbar > #new-tab-button {
-  width: 26px;
+  width: 30px;
 }
 
 .tabs-newtab-button:hover:active,
