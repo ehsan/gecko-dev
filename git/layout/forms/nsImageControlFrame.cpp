@@ -38,14 +38,14 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  virtual nsresult Reflow(nsPresContext*           aPresContext,
-                          nsHTMLReflowMetrics&     aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus);
+  NS_IMETHOD Reflow(nsPresContext*          aPresContext,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus);
 
-  virtual nsresult HandleEvent(nsPresContext* aPresContext,
-                               WidgetGUIEvent* aEvent,
-                               nsEventStatus* aEventStatus);
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
+                         WidgetGUIEvent* aEvent,
+                         nsEventStatus* aEventStatus);
 
   virtual nsIAtom* GetType() const;
 
@@ -54,13 +54,13 @@ public:
 #endif
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult GetFrameName(nsAString& aResult) const {
+  NS_IMETHOD GetFrameName(nsAString& aResult) const {
     return MakeFrameName(NS_LITERAL_STRING("ImageControl"), aResult);
   }
 #endif
 
-  virtual nsresult GetCursor(const nsPoint&    aPoint,
-                             nsIFrame::Cursor& aCursor);
+  NS_IMETHOD GetCursor(const nsPoint&    aPoint,
+                       nsIFrame::Cursor& aCursor);
   // nsIFormContromFrame
   virtual void SetFocus(bool aOn, bool aRepaint);
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
@@ -132,7 +132,7 @@ nsImageControlFrame::GetType() const
   return nsGkAtoms::imageControlFrame; 
 }
 
-nsresult
+NS_METHOD
 nsImageControlFrame::Reflow(nsPresContext*         aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -146,7 +146,7 @@ nsImageControlFrame::Reflow(nsPresContext*         aPresContext,
   return nsImageControlFrameSuper::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
 }
 
-nsresult 
+NS_METHOD 
 nsImageControlFrame::HandleEvent(nsPresContext* aPresContext,
                                  WidgetGUIEvent* aEvent,
                                  nsEventStatus* aEventStatus)
@@ -191,7 +191,7 @@ nsImageControlFrame::SetFocus(bool aOn, bool aRepaint)
 {
 }
 
-nsresult
+NS_IMETHODIMP
 nsImageControlFrame::GetCursor(const nsPoint&    aPoint,
                                nsIFrame::Cursor& aCursor)
 {

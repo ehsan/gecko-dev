@@ -38,7 +38,7 @@ NS_NewScrollbarButtonFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsScrollbarButtonFrame)
 
-nsresult
+NS_IMETHODIMP
 nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext,
                                     WidgetGUIEvent* aEvent,
                                     nsEventStatus* aEventStatus)

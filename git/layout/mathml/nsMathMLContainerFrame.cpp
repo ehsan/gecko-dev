@@ -735,7 +735,7 @@ nsMathMLContainerFrame::ChildListChanged(int32_t aModType)
   return ReLayoutChildren(frame);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLContainerFrame::AppendFrames(ChildListID     aListID,
                                      nsFrameList&    aFrameList)
 {
@@ -746,7 +746,7 @@ nsMathMLContainerFrame::AppendFrames(ChildListID     aListID,
   return ChildListChanged(nsIDOMMutationEvent::ADDITION);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLContainerFrame::InsertFrames(ChildListID     aListID,
                                      nsIFrame*       aPrevFrame,
                                      nsFrameList&    aFrameList)
@@ -759,7 +759,7 @@ nsMathMLContainerFrame::InsertFrames(ChildListID     aListID,
   return ChildListChanged(nsIDOMMutationEvent::ADDITION);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLContainerFrame::RemoveFrame(ChildListID     aListID,
                                     nsIFrame*       aOldFrame)
 {
@@ -771,7 +771,7 @@ nsMathMLContainerFrame::RemoveFrame(ChildListID     aListID,
   return ChildListChanged(nsIDOMMutationEvent::REMOVAL);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLContainerFrame::AttributeChanged(int32_t         aNameSpaceID,
                                          nsIAtom*        aAttribute,
                                          int32_t         aModType)
@@ -881,7 +881,7 @@ nsMathMLContainerFrame::ReflowChild(nsIFrame*                aChildFrame,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLContainerFrame::Reflow(nsPresContext*           aPresContext,
                                nsHTMLReflowMetrics&     aDesiredSize,
                                const nsHTMLReflowState& aReflowState,

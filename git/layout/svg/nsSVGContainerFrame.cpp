@@ -41,14 +41,14 @@ NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGContainerFrame)
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGDisplayContainerFrame)
 
-nsresult
+NS_IMETHODIMP
 nsSVGContainerFrame::AppendFrames(ChildListID  aListID,
                                   nsFrameList& aFrameList)
 {
   return InsertFrames(aListID, mFrames.LastChild(), aFrameList);  
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGContainerFrame::InsertFrames(ChildListID aListID,
                                   nsIFrame* aPrevFrame,
                                   nsFrameList& aFrameList)
@@ -62,7 +62,7 @@ nsSVGContainerFrame::InsertFrames(ChildListID aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGContainerFrame::RemoveFrame(ChildListID aListID,
                                  nsIFrame* aOldFrame)
 {
@@ -153,7 +153,7 @@ nsSVGDisplayContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   return BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, aLists);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::InsertFrames(ChildListID aListID,
                                          nsIFrame* aPrevFrame,
                                          nsFrameList& aFrameList)
@@ -197,7 +197,7 @@ nsSVGDisplayContainerFrame::InsertFrames(ChildListID aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::RemoveFrame(ChildListID aListID,
                                         nsIFrame* aOldFrame)
 {

@@ -49,7 +49,7 @@ nsResizerFrame::nsResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContex
 {
 }
 
-nsresult
+NS_IMETHODIMP
 nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
                             WidgetGUIEvent* aEvent,
                             nsEventStatus* aEventStatus)

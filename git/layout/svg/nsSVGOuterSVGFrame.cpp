@@ -305,7 +305,7 @@ nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                             aMargin, aBorder, aPadding);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -452,7 +452,7 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGOuterSVGFrame::DidReflow(nsPresContext*   aPresContext,
                               const nsHTMLReflowState*  aReflowState,
                               nsDidReflowStatus aStatus)
@@ -628,7 +628,7 @@ DependsOnIntrinsicSize(const nsIFrame* aEmbeddingFrame)
          !height.ConvertsToLength();
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGOuterSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      int32_t  aModType)

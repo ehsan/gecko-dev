@@ -40,7 +40,7 @@ nsMathMLmfencedFrame::InheritAutomaticData(nsIFrame* aParent)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmfencedFrame::SetInitialChildList(ChildListID     aListID,
                                           nsFrameList&    aChildList)
 {
@@ -59,7 +59,7 @@ nsMathMLmfencedFrame::SetInitialChildList(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmfencedFrame::AttributeChanged(int32_t         aNameSpaceID,
                                        nsIAtom*        aAttribute,
                                        int32_t         aModType)
@@ -189,7 +189,7 @@ nsMathMLmfencedFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
                              nsHTMLReflowMetrics&     aDesiredSize,
                              const nsHTMLReflowState& aReflowState,

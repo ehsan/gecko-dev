@@ -328,7 +328,7 @@ nsListControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsListControlFrame::Reflow(nsPresContext*           aPresContext, 
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState, 
@@ -848,7 +848,7 @@ nsListControlFrame::CaptureMouseEvents(bool aGrabMouseEvents)
 }
 
 //---------------------------------------------------------
-nsresult 
+NS_IMETHODIMP 
 nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
                                 WidgetGUIEvent* aEvent,
                                 nsEventStatus* aEventStatus)
@@ -897,7 +897,7 @@ nsListControlFrame::HandleEvent(nsPresContext* aPresContext,
 
 
 //---------------------------------------------------------
-nsresult
+NS_IMETHODIMP
 nsListControlFrame::SetInitialChildList(ChildListID    aListID,
                                         nsFrameList&   aChildList)
 {
@@ -1436,7 +1436,7 @@ nsListControlFrame::AboutToRollup()
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsListControlFrame::DidReflow(nsPresContext*           aPresContext,
                               const nsHTMLReflowState* aReflowState,
                               nsDidReflowStatus        aStatus)
@@ -1472,7 +1472,7 @@ nsListControlFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsListControlFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("ListControl"), aResult);

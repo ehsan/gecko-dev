@@ -23,10 +23,10 @@ public:
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists);
 
-  virtual nsresult Reflow(nsPresContext*           aCX,
-                          nsHTMLReflowMetrics&     aDesiredSize,
-                          const nsHTMLReflowState& aReflowState,
-                          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD Reflow(nsPresContext*          aCX,
+                    nsHTMLReflowMetrics&     aDesiredSize,
+                    const nsHTMLReflowState& aReflowState,
+                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
   nscoord HeightOfARow() const { return mHeightOfARow; }
   

@@ -112,7 +112,7 @@ nsSVGPathGeometryFrame::Init(nsIContent* aContent,
   nsSVGPathGeometryFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSVGPathGeometryFrame::AttributeChanged(int32_t         aNameSpaceID,
                                          nsIAtom*        aAttribute,
                                          int32_t         aModType)

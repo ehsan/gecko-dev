@@ -44,7 +44,7 @@ NS_QUERYFRAME_HEAD(nsInlineFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsInlineFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Inline"), aResult);
@@ -289,7 +289,7 @@ ReparentChildListStyle(nsPresContext* aPresContext,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsInlineFrame::Reflow(nsPresContext*          aPresContext,
                       nsHTMLReflowMetrics&     aMetrics,
                       const nsHTMLReflowState& aReflowState,
@@ -989,7 +989,7 @@ nsFirstLineFrame::Init(nsIContent* aContent, nsIFrame* aParent,
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsFirstLineFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("Line"), aResult);
@@ -1016,7 +1016,7 @@ nsFirstLineFrame::PullOneFrame(nsPresContext* aPresContext, InlineReflowState& i
   return frame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
                          nsHTMLReflowMetrics& aMetrics,
                          const nsHTMLReflowState& aReflowState,

@@ -114,7 +114,7 @@ nsHTMLScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLScrollFrame::SetInitialChildList(ChildListID  aListID,
                                        nsFrameList& aChildList)
 {
@@ -124,7 +124,7 @@ nsHTMLScrollFrame::SetInitialChildList(ChildListID  aListID,
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsHTMLScrollFrame::AppendFrames(ChildListID  aListID,
                                 nsFrameList& aFrameList)
 {
@@ -134,7 +134,7 @@ nsHTMLScrollFrame::AppendFrames(ChildListID  aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLScrollFrame::InsertFrames(ChildListID aListID,
                                 nsIFrame* aPrevFrame,
                                 nsFrameList& aFrameList)
@@ -147,7 +147,7 @@ nsHTMLScrollFrame::InsertFrames(ChildListID aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLScrollFrame::RemoveFrame(ChildListID aListID,
                                nsIFrame* aOldFrame)
 {
@@ -700,7 +700,7 @@ nsHTMLScrollFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return NSCoordSaturatingAdd(result, GetIntrinsicVScrollbarWidth(aRenderingContext));
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLScrollFrame::GetPadding(nsMargin& aMargin)
 {
   // Our padding hangs out on the inside of the scrollframe, but XUL doesn't
@@ -738,7 +738,7 @@ GetBrowserRoot(nsIContent* aContent)
   return nullptr;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
                           nsHTMLReflowMetrics&     aDesiredSize,
                           const nsHTMLReflowState& aReflowState,
@@ -867,7 +867,7 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsHTMLScrollFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("HTMLScroll"), aResult);
@@ -1034,7 +1034,7 @@ nsXULScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
   nsBoxFrame::DestroyFrom(aDestructRoot);
 }
 
-nsresult
+NS_IMETHODIMP
 nsXULScrollFrame::SetInitialChildList(ChildListID     aListID,
                                       nsFrameList&    aChildList)
 {
@@ -1044,7 +1044,7 @@ nsXULScrollFrame::SetInitialChildList(ChildListID     aListID,
 }
 
 
-nsresult
+NS_IMETHODIMP
 nsXULScrollFrame::AppendFrames(ChildListID     aListID,
                                nsFrameList&    aFrameList)
 {
@@ -1053,7 +1053,7 @@ nsXULScrollFrame::AppendFrames(ChildListID     aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsXULScrollFrame::InsertFrames(ChildListID     aListID,
                                nsIFrame*       aPrevFrame,
                                nsFrameList&    aFrameList)
@@ -1063,7 +1063,7 @@ nsXULScrollFrame::InsertFrames(ChildListID     aListID,
   return rv;
 }
 
-nsresult
+NS_IMETHODIMP
 nsXULScrollFrame::RemoveFrame(ChildListID     aListID,
                               nsIFrame*       aOldFrame)
 {
@@ -1078,7 +1078,7 @@ nsXULScrollFrame::GetSplittableType() const
   return NS_FRAME_NOT_SPLITTABLE;
 }
 
-nsresult
+NS_IMETHODIMP
 nsXULScrollFrame::GetPadding(nsMargin& aMargin)
 {
   aMargin.SizeTo(0,0,0,0);
@@ -1191,7 +1191,7 @@ nsXULScrollFrame::GetMaxSize(nsBoxLayoutState& aState)
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsXULScrollFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("XULScroll"), aResult);

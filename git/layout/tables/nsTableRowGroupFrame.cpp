@@ -1270,7 +1270,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
   * This method stacks rows vertically according to HTML 4.0 rules.
   * Rows are responsible for layout of their children.
   */
-nsresult
+NS_METHOD
 nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
                              nsHTMLReflowMetrics&     aDesiredSize,
                              const nsHTMLReflowState& aReflowState,
@@ -1373,7 +1373,7 @@ nsTableRowGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableRowGroupFrame::AppendFrames(ChildListID     aListID,
                                    nsFrameList&    aFrameList)
 {
@@ -1411,7 +1411,7 @@ nsTableRowGroupFrame::AppendFrames(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableRowGroupFrame::InsertFrames(ChildListID     aListID,
                                    nsIFrame*       aPrevFrame,
                                    nsFrameList&    aFrameList)
@@ -1461,7 +1461,7 @@ nsTableRowGroupFrame::InsertFrames(ChildListID     aListID,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTableRowGroupFrame::RemoveFrame(ChildListID     aListID,
                                   nsIFrame*       aOldFrame)
 {
@@ -1585,7 +1585,7 @@ NS_NewTableRowGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsTableRowGroupFrame)
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsTableRowGroupFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("TableRowGroup"), aResult);

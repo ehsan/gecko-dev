@@ -2,8 +2,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#ifndef nsSimplePageSequenceFrame_h___
-#define nsSimplePageSequenceFrame_h___
+#ifndef nsSimplePageSequence_h___
+#define nsSimplePageSequence_h___
 
 #include "mozilla/Attributes.h"
 #include "nsIPageSequenceFrame.h"
@@ -64,10 +64,10 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFrame
-  virtual nsresult  Reflow(nsPresContext*      aPresContext,
-                           nsHTMLReflowMetrics& aDesiredSize,
-                           const nsHTMLReflowState& aMaxSize,
-                           nsReflowStatus&      aStatus) MOZ_OVERRIDE;
+  NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
+                     nsHTMLReflowMetrics& aDesiredSize,
+                     const nsHTMLReflowState& aMaxSize,
+                     nsReflowStatus&      aStatus) MOZ_OVERRIDE;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
@@ -109,7 +109,7 @@ public:
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
 #ifdef DEBUG_FRAME_DUMP
-  virtual nsresult  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif
 
 protected:
@@ -163,5 +163,5 @@ protected:
   bool mCurrentCanvasListSetup;
 };
 
-#endif /* nsSimplePageSequenceFrame_h___ */
+#endif /* nsSimplePageSequence_h___ */
 

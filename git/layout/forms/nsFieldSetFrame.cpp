@@ -44,7 +44,7 @@ nsFieldSetFrame::GetType() const
 }
 
 #ifdef DEBUG
-nsresult
+NS_IMETHODIMP
 nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
                                      nsFrameList&   aChildList)
 {
@@ -338,7 +338,7 @@ nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
   return result;
 }
 
-nsresult 
+NS_IMETHODIMP 
 nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
                         nsHTMLReflowMetrics&     aDesiredSize,
                         const nsHTMLReflowState& aReflowState,
@@ -556,7 +556,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsFieldSetFrame::AppendFrames(ChildListID    aListID,
                               nsFrameList&   aFrameList)
 {
@@ -564,7 +564,7 @@ nsFieldSetFrame::AppendFrames(ChildListID    aListID,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsresult
+NS_IMETHODIMP
 nsFieldSetFrame::InsertFrames(ChildListID    aListID,
                               nsIFrame*      aPrevFrame,
                               nsFrameList&   aFrameList)
@@ -573,7 +573,7 @@ nsFieldSetFrame::InsertFrames(ChildListID    aListID,
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsresult
+NS_IMETHODIMP
 nsFieldSetFrame::RemoveFrame(ChildListID    aListID,
                              nsIFrame*      aOldFrame)
 {

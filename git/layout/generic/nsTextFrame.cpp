@@ -4192,7 +4192,7 @@ nsTextFrame::~nsTextFrame()
 {
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextFrame::GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor)
 {
@@ -4364,7 +4364,7 @@ nsTextFrame::ClearTextRun(nsTextFrame* aStartContinuation,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
 {
   mContent->DeleteProperty(nsGkAtoms::newline);
@@ -6354,7 +6354,7 @@ nsTextFrame::SetSelectedRange(uint32_t aStart, uint32_t aEnd, bool aSelected,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextFrame::GetPointFromOffset(int32_t inOffset,
                                 nsPoint* outPoint)
 {
@@ -6418,7 +6418,7 @@ nsTextFrame::GetPointFromOffset(int32_t inOffset,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextFrame::GetChildFrameContainingOffset(int32_t   aContentOffset,
                                            bool      aHint,
                                            int32_t*  aOutOffset,
@@ -6799,7 +6799,7 @@ nsTextFrame::PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKey
 
  // TODO this needs to be deCOMtaminated with the interface fixed in
 // nsIFrame.h, but we won't do that until the old textframe is gone.
-nsresult
+NS_IMETHODIMP
 nsTextFrame::CheckVisibility(nsPresContext* aContext, int32_t aStartIndex,
     int32_t aEndIndex, bool aRecurse, bool *aFinished, bool *aRetval)
 {
@@ -6822,7 +6822,7 @@ nsTextFrame::CheckVisibility(nsPresContext* aContext, int32_t aStartIndex,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextFrame::GetOffsets(int32_t &start, int32_t &end) const
 {
   start = GetContentOffset();
@@ -7574,7 +7574,7 @@ struct NewlineProperty {
   }
 };
 
-nsresult
+NS_IMETHODIMP
 nsTextFrame::Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aMetrics,
                     const nsHTMLReflowState& aReflowState,
@@ -8450,7 +8450,7 @@ nsTextFrame::ToCString(nsCString& aBuf, int32_t* aTotalContentLength) const
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsTextFrame::GetFrameName(nsAString& aResult) const
 {
   MakeFrameName(NS_LITERAL_STRING("Text"), aResult);
@@ -8483,7 +8483,7 @@ nsTextFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
 #endif
 
 #ifdef DEBUG
-nsFrameState
+NS_IMETHODIMP_(nsFrameState)
 nsTextFrame::GetDebugStateBits() const
 {
   // mask out our emptystate flags; those are just caches

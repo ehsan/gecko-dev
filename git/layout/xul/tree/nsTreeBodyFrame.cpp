@@ -2522,7 +2522,7 @@ nsTreeBodyFrame::CalcHorzWidth(const ScrollParts& aParts)
   return width;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTreeBodyFrame::GetCursor(const nsPoint& aPoint,
                            nsIFrame::Cursor& aCursor)
 {
@@ -2563,7 +2563,7 @@ static uint32_t GetDropEffect(WidgetGUIEvent* aEvent)
   return action;
 }
 
-nsresult
+NS_IMETHODIMP
 nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
                              WidgetGUIEvent* aEvent,
                              nsEventStatus* aEventStatus)

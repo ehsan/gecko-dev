@@ -672,7 +672,7 @@ nsMathMLmencloseFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
   return gap;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMathMLmencloseFrame::AttributeChanged(int32_t         aNameSpaceID,
                                         nsIAtom*        aAttribute,
                                         int32_t         aModType)

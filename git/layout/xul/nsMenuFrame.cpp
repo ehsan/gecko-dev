@@ -327,7 +327,7 @@ nsMenuFrame::SetPopupFrame(nsFrameList& aFrameList)
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsMenuFrame::SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList)
 {
@@ -389,7 +389,7 @@ nsMenuFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
   WrapListsInRedirector(aBuilder, set, aLists);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
                          WidgetGUIEvent* aEvent,
                          nsEventStatus* aEventStatus)
@@ -645,7 +645,7 @@ nsMenuFrame::SelectMenu(bool aActivateFlag)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMenuFrame::AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
                               int32_t aModType)
@@ -753,7 +753,7 @@ nsMenuFrame::DoLayout(nsBoxLayoutState& aState)
 }
 
 #ifdef DEBUG_LAYOUT
-nsresult
+NS_IMETHODIMP
 nsMenuFrame::SetDebug(nsBoxLayoutState& aState, bool aDebug)
 {
   // see if our state matches the given debug state
@@ -1284,7 +1284,7 @@ nsMenuFrame::PassMenuCommandEventToPopupManager()
   mDelayedMenuCommandEvent = nullptr;
 }
 
-nsresult
+NS_IMETHODIMP
 nsMenuFrame::RemoveFrame(ChildListID     aListID,
                          nsIFrame*       aOldFrame)
 {
@@ -1301,7 +1301,7 @@ nsMenuFrame::RemoveFrame(ChildListID     aListID,
   return nsBoxFrame::RemoveFrame(aListID, aOldFrame);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMenuFrame::InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList)
@@ -1330,7 +1330,7 @@ nsMenuFrame::InsertFrames(ChildListID     aListID,
   return nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
 }
 
-nsresult
+NS_IMETHODIMP
 nsMenuFrame::AppendFrames(ChildListID     aListID,
                           nsFrameList&    aFrameList)
 {

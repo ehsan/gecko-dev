@@ -259,7 +259,7 @@ nsFileControlFrame::SyncDisabledState()
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsFileControlFrame::AttributeChanged(int32_t  aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      int32_t  aModType)
@@ -286,7 +286,7 @@ nsFileControlFrame::ContentStatesChanged(nsEventStates aStates)
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsFileControlFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("FileControl"), aResult);

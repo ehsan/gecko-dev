@@ -1375,7 +1375,7 @@ nsFlexContainerFrame::GetType() const
 }
 
 #ifdef DEBUG_FRAME_DUMP
-nsresult
+NS_IMETHODIMP
 nsFlexContainerFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("FlexContainer"), aResult);
@@ -2694,7 +2694,7 @@ FlexLine::PositionItemsInCrossAxis(nscoord aLineStartPosition,
   }
 }
 
-nsresult
+NS_IMETHODIMP
 nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
                              nsHTMLReflowMetrics&     aDesiredSize,
                              const nsHTMLReflowState& aReflowState,

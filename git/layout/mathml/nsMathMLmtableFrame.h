@@ -28,13 +28,13 @@ public:
 
   // overloaded nsTableOuterFrame methods
 
-  virtual nsresult
+  NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
          nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   AttributeChanged(int32_t  aNameSpaceID,
                    nsIAtom* aAttribute,
                    int32_t  aModType) MOZ_OVERRIDE;
@@ -67,11 +67,11 @@ public:
 
   // Overloaded nsTableFrame methods
 
-  virtual nsresult
+  NS_IMETHOD
   SetInitialChildList(ChildListID  aListID,
                       nsFrameList& aChildList) MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   AppendFrames(ChildListID  aListID,
                nsFrameList& aFrameList) MOZ_OVERRIDE
   {
@@ -80,7 +80,7 @@ public:
     return rv;
   }
 
-  virtual nsresult
+  NS_IMETHOD
   InsertFrames(ChildListID aListID,
                nsIFrame* aPrevFrame,
                nsFrameList& aFrameList) MOZ_OVERRIDE
@@ -90,7 +90,7 @@ public:
     return rv;
   }
 
-  virtual nsresult
+  NS_IMETHOD
   RemoveFrame(ChildListID aListID,
               nsIFrame* aOldFrame) MOZ_OVERRIDE
   {
@@ -125,12 +125,12 @@ public:
 
   // overloaded nsTableRowFrame methods
 
-  virtual nsresult
+  NS_IMETHOD
   AttributeChanged(int32_t  aNameSpaceID,
                    nsIAtom* aAttribute,
                    int32_t  aModType) MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   AppendFrames(ChildListID  aListID,
                nsFrameList& aFrameList) MOZ_OVERRIDE
   {
@@ -139,7 +139,7 @@ public:
     return rv;
   }
 
-  virtual nsresult
+  NS_IMETHOD
   InsertFrames(ChildListID aListID,
                nsIFrame* aPrevFrame,
                nsFrameList& aFrameList) MOZ_OVERRIDE
@@ -149,7 +149,7 @@ public:
     return rv;
   }
 
-  virtual nsresult
+  NS_IMETHOD
   RemoveFrame(ChildListID aListID,
               nsIFrame* aOldFrame) MOZ_OVERRIDE
   {
@@ -189,7 +189,7 @@ public:
 
   // overloaded nsTableCellFrame methods
 
-  virtual nsresult
+  NS_IMETHOD
   AttributeChanged(int32_t  aNameSpaceID,
                    nsIAtom* aAttribute,
                    int32_t  aModType) MOZ_OVERRIDE;
@@ -234,7 +234,7 @@ public:
     return NS_OK;
   }
 
-  virtual nsresult
+  NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,

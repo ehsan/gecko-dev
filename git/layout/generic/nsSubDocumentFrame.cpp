@@ -545,7 +545,7 @@ nsSubDocumentFrame::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
   }
 }
 
-nsresult nsSubDocumentFrame::GetFrameName(nsAString& aResult) const
+NS_IMETHODIMP nsSubDocumentFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("FrameOuter"), aResult);
 }
@@ -645,7 +645,7 @@ nsSubDocumentFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                   aMargin, aBorder, aPadding, aFlags);
 }
 
-nsresult
+NS_IMETHODIMP
 nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
@@ -733,7 +733,7 @@ nsSubDocumentFrame::ReflowCallbackCanceled()
   mPostedReflowCallback = false;
 }
 
-nsresult
+NS_IMETHODIMP
 nsSubDocumentFrame::AttributeChanged(int32_t aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      int32_t aModType)

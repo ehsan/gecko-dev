@@ -57,7 +57,7 @@ nsDeckFrame::GetType() const
   return nsGkAtoms::deckFrame;
 }
 
-nsresult
+NS_IMETHODIMP
 nsDeckFrame::AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
                               int32_t         aModType)

@@ -419,14 +419,7 @@ class MarionetteJSTestCase(CommonTestCase):
 
         if self.oop:
             print 'running oop'
-            frame = None
-            try:
-                frame = self.marionette.find_element(
-                    'css selector',
-                    'iframe[src*="app://test-container.gaiamobile.org/index.html"]'
-                )
-            except NoSuchElementException:
-                result = self.marionette.execute_async_script("""
+            result = self.marionette.execute_async_script("""
 let setReq = navigator.mozSettings.createLock().set({'lockscreen.enabled': false});
 setReq.onsuccess = function() {
     let appsReq = navigator.mozApps.mgmt.getAll();
@@ -452,14 +445,14 @@ setReq.onsuccess = function() {
 setReq.onerror = function() {
     marionetteScriptFinished(false);
 }""", script_timeout=60000)
-                self.assertTrue(result)
+            self.assertTrue(result)
 
-                frame = self.marionette.find_element(
+            self.marionette.switch_to_frame(
+                self.marionette.find_element(
                     'css selector',
                     'iframe[src*="app://test-container.gaiamobile.org/index.html"]'
-                )
+                ))
 
-            self.marionette.switch_to_frame(frame)
             main_process = self.marionette.execute_script("""
                 return SpecialPowers.isMainProcess();
                 """)
@@ -515,9 +508,6 @@ setReq.onerror = function() {
             else:
                 self.loglines = self.marionette.get_logs()
                 raise
-
-        if self.oop:
-            self.marionette.switch_to_frame()
 
         self.marionette.execute_script("log('TEST-END: %s');" % self.jsFile.replace('\\', '\\\\'))
         self.marionette.test_name = None
