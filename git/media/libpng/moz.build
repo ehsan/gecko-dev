@@ -24,11 +24,17 @@ UNIFIED_SOURCES += [
     'pngtrans.c',
     'pngwio.c',
     'pngwrite.c',
+    'pngwtran.c',
     'pngwutil.c',
 ]
 
 if CONFIG['MOZ_PNG_ARM_NEON']:
-    UNIFIED_SOURCES += [
+    DIRS += [
+        'arm',
+    ]
+
+if CONFIG['MOZ_PNG_ARM_NEON']:
+    SOURCES += [
         'arm/arm_init.c'
     ]
 

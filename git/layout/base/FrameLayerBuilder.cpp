@@ -1420,17 +1420,8 @@ ContainerState::CreateOrRecycleThebesLayer(const nsIFrame* aAnimatedGeometryRoot
     // assume the caller of InvalidateThebesLayerContents has ensured
     // the area is invalidated in the widget.
   } else {
-    // Check whether the layer will be scrollable. This is used as a hint to
-    // influence whether tiled layers are used or not.
-    bool canScroll = false;
-    nsIFrame* animatedGeometryRootParent = aAnimatedGeometryRoot->GetParent();
-    if (animatedGeometryRootParent &&
-        animatedGeometryRootParent->GetType() == nsGkAtoms::scrollFrame) {
-      canScroll = true;
-    }
     // Create a new thebes layer
-    layer = mManager->CreateThebesLayerWithHint(canScroll ? LayerManager::SCROLLABLE :
-                                                            LayerManager::NONE);
+    layer = mManager->CreateThebesLayer();
     if (!layer)
       return nullptr;
     // Mark this layer as being used for Thebes-painting display items

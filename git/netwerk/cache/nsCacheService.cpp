@@ -1075,7 +1075,8 @@ NS_IMPL_ISUPPORTS_INHERITED2(nsCacheService, MemoryMultiReporter,
                              nsICacheService, nsICacheServiceInternal)
 
 nsCacheService::nsCacheService()
-    : mObserver(nullptr),
+    : MemoryMultiReporter("cache-service"),
+      mObserver(nullptr),
       mLock("nsCacheService.mLock"),
       mCondVar(mLock, "nsCacheService.mCondVar"),
       mTimeStampLock("nsCacheService.mTimeStampLock"),

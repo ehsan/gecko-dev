@@ -157,7 +157,7 @@ class MoveResolver
   private:
     struct PendingMove
       : public Move,
-        public OldTempObject,
+        public TempObject,
         public InlineListNode<PendingMove>
     {
         PendingMove()

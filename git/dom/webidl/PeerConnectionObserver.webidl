@@ -49,5 +49,8 @@ interface PeerConnectionObserver
   /* Helper function to access supported constraints defined in webidl. Needs to
    * be in a separate webidl object we hold, so putting it here was convenient.
    */
-  MediaConstraintSet getSupportedConstraints(optional MediaConstraintSet constraints);
+// TODO: Bug 863949
+//  MediaConstraintSet getSupportedConstraints(optional
+  object getSupportedConstraints(optional
+      MediaConstraintSet constraints);
 };

@@ -1456,7 +1456,6 @@ GetBlockChainAtPC(JSContext *cx, JSScript *script, jsbytecode *pc)
     return blockChain;
 }
 
-namespace {
 /*
  * The expression decompiler is invoked by error handling code to produce a
  * string representation of the erroring expression. As it's only a debugging
@@ -1765,8 +1764,6 @@ ExpressionDecompiler::getOutput(char **res)
     (*res)[len] = 0;
     return true;
 }
-
-}  // anonymous namespace
 
 static bool
 FindStartPC(JSContext *cx, ScriptFrameIter &iter, int spindex, int skipStackHits, Value v,

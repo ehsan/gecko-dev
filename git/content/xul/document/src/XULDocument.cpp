@@ -217,9 +217,6 @@ XULDocument::~XULDocument()
     // In case we failed somewhere early on and the forward observer
     // decls never got resolved.
     mForwardReferences.Clear();
-    // Likewise for any references we have to IDs where we might
-    // look for persisted data:
-    mPersistenceIds.Clear();
 
     // Destroy our broadcaster map.
     if (mBroadcasterMap) {
@@ -2183,11 +2180,6 @@ XULDocument::ApplyPersistentAttributes()
     ApplyPersistentAttributesInternal();
     mApplyingPersistedAttrs = false;
 
-    // After we've applied persistence once, we should only reapply
-    // it to nodes created by overlays
-    mRestrictPersistence = true;
-    mPersistenceIds.Clear();
-
     return NS_OK;
 }
 
@@ -2230,9 +2222,6 @@ XULDocument::ApplyPersistentAttributesInternal()
         nsXULContentUtils::MakeElementID(this, nsDependentCString(uri), id);
 
         if (id.IsEmpty())
-            continue;
-
-        if (mRestrictPersistence && !mPersistenceIds.Contains(id))
             continue;
 
         // This will clear the array if there are no elements.
@@ -2986,15 +2975,6 @@ XULDocument::ResumeWalk()
                     // ...and append it to the content model.
                     rv = element->AppendChildTo(child, false);
                     if (NS_FAILED(rv)) return rv;
-
-                    // If we're only restoring persisted things on
-                    // some elements, store the ID here to do that.
-                    if (mRestrictPersistence) {
-                        nsIAtom* id = child->GetID();
-                        if (id) {
-                            mPersistenceIds.PutEntry(nsDependentAtomString(id));
-                        }
-                    }
 
                     // do pre-order document-level hookup, but only if
                     // we're in the master document. For an overlay,

@@ -542,8 +542,6 @@ nsSocketTransportService::SetOffline(bool offline)
     else if (mOffline && !offline) {
         mOffline = false;
     }
-    if (mThreadEvent)
-        PR_SetPollableEvent(mThreadEvent);
 
     return NS_OK;
 }

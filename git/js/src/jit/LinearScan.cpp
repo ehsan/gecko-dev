@@ -381,13 +381,13 @@ LinearScanAllocator::reifyAllocations()
                 spillFrom = from->getAllocation();
             } else {
                 if (def->policy() == LDefinition::MUST_REUSE_INPUT) {
-                    LAllocation *inputAlloc = reg->ins()->getOperand(def->getReusedInput());
-                    LAllocation *origAlloc = LAllocation::New(alloc(), *inputAlloc);
+                    LAllocation *alloc = reg->ins()->getOperand(def->getReusedInput());
+                    LAllocation *origAlloc = LAllocation::New(*alloc);
 
-                    JS_ASSERT(!inputAlloc->isUse());
+                    JS_ASSERT(!alloc->isUse());
 
-                    *inputAlloc = *interval->getAllocation();
-                    if (!moveInputAlloc(inputOf(reg->ins()), origAlloc, inputAlloc))
+                    *alloc = *interval->getAllocation();
+                    if (!moveInputAlloc(inputOf(reg->ins()), origAlloc, alloc))
                         return false;
                 }
 

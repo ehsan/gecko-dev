@@ -192,25 +192,16 @@ StickyScrollContainer::ComputeStickyLimits(nsIFrame* aFrame, nsRect* aStick,
   nsRect rect =
     nsLayoutUtils::GetAllInFlowRectsUnion(aFrame, aFrame->GetParent());
 
-  // Containing block limits for the position of aFrame relative to its parent.
-  // The margin box of the sticky element stays within the content box of the
-  // contaning-block element.
+  // Containing block limits
   if (cbFrame != scrolledFrame) {
-    *aContain = nsLayoutUtils::
-      GetAllInFlowRectsUnion(cbFrame, aFrame->GetParent(),
-                             nsLayoutUtils::RECTS_USE_CONTENT_BOX);
-    nsRect marginRect = nsLayoutUtils::
-      GetAllInFlowRectsUnion(aFrame, aFrame->GetParent(),
-                             nsLayoutUtils::RECTS_USE_MARGIN_BOX);
-
-    // Deflate aContain by the difference between the union of aFrame's
-    // continuations' margin boxes and the union of their border boxes, so that
-    // by keeping aFrame within aContain, we keep the union of the margin boxes
-    // within the containing block's content box.
-    aContain->Deflate(marginRect - rect);
-
-    // Deflate aContain by the border-box size, to form a constraint on the
-    // upper-left corner of aFrame and continuations.
+    *aContain = nsLayoutUtils::GetAllInFlowRectsUnion(cbFrame, cbFrame);
+    aContain->MoveBy(-aFrame->GetParent()->GetOffsetTo(cbFrame));
+    // FIXME (Bug 920688): GetUsedBorderAndPadding / GetUsedMargin
+    // consider skip-sides, which doesn't quite mesh with the use of
+    // GetAllInFlowRectsUnion here.  This probably needs to do that
+    // computation *inside* the accumuation function over the in-flows.
+    aContain->Deflate(cbFrame->GetUsedBorderAndPadding());
+    aContain->Deflate(aFrame->GetUsedMargin());
     aContain->Deflate(nsMargin(0, rect.width, rect.height, 0));
   }
 
@@ -255,9 +246,7 @@ StickyScrollContainer::ComputeStickyLimits(nsIFrame* aFrame, nsRect* aStick,
 
   // These limits are for the bounding box of aFrame's continuations. Convert
   // to limits for aFrame itself.
-  nsPoint frameOffset = aFrame->GetPosition() - rect.TopLeft();
-  aStick->MoveBy(frameOffset);
-  aContain->MoveBy(frameOffset);
+  aStick->MoveBy(aFrame->GetPosition() - rect.TopLeft());
 }
 
 nsPoint

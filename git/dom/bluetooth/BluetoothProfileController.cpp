@@ -139,27 +139,19 @@ BluetoothProfileController::SetupProfiles(bool aAssignServiceClass)
   bool hasAudio = HAS_AUDIO(mTarget.cod);
   bool hasRendering = HAS_RENDERING(mTarget.cod);
   bool isPeripheral = IS_PERIPHERAL(mTarget.cod);
-  bool isRemoteControl = IS_REMOTE_CONTROL(mTarget.cod);
-  bool isKeyboard = IS_KEYBOARD(mTarget.cod);
-  bool isPointingDevice = IS_POINTING_DEVICE(mTarget.cod);
 
   NS_ENSURE_TRUE_VOID(hasAudio || hasRendering || isPeripheral);
 
-  // Audio bit should be set if remote device supports HFP/HSP.
+  /**
+   * Connect to HFP/HSP first. Then, connect A2DP if Rendering bit is set.
+   */
   if (hasAudio) {
     AddProfile(BluetoothHfpManager::Get());
   }
-
-  // Rendering bit should be set if remote device supports A2DP.
-  // A device which supports AVRCP should claim that it's a peripheral and it's
-  // a remote control.
-  if (hasRendering || (isPeripheral && isRemoteControl)) {
+  if (hasRendering) {
     AddProfile(BluetoothA2dpManager::Get());
   }
-
-  // A device which supports HID should claim that it's a peripheral and it's
-  // either a keyboard, a pointing device, or both.
-  if (isPeripheral && (isKeyboard || isPointingDevice)) {
+  if (isPeripheral) {
     AddProfile(BluetoothHidManager::Get());
   }
 }

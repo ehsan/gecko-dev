@@ -132,20 +132,23 @@ DrawTargetSkia::SetGlobalCacheLimits(int aCount, int aSizeInBytes)
 }
 
 void
-DrawTargetSkia::PurgeCaches()
+DrawTargetSkia::PurgeCache()
 {
   if (mGrContext) {
-    mGrContext->freeGpuResources();
+    mGrContext->purgeCache();
   }
 }
 
 /* static */ void
-DrawTargetSkia::PurgeAllCaches()
+DrawTargetSkia::PurgeTextureCaches()
 {
   std::vector<DrawTargetSkia*>& targets = GLDrawTargets();
   uint32_t targetCount = targets.size();
+  if (targetCount == 0)
+    return;
+
   for (uint32_t i = 0; i < targetCount; i++) {
-    targets[i]->PurgeCaches();
+    targets[i]->PurgeCache();
   }
 }
 

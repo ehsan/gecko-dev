@@ -20,9 +20,7 @@
 #include "AudioManager.h"
 
 #include "nsIObserverService.h"
-#ifdef MOZ_B2G_RIL
 #include "nsIRadioInterfaceLayer.h"
-#endif
 #include "nsISettingsService.h"
 #include "nsPrintfCString.h"
 
@@ -372,12 +370,9 @@ public:
   }
 };
 
-AudioManager::AudioManager()
-  : mPhoneState(PHONE_STATE_CURRENT)
-  , mObserver(new HeadphoneSwitchObserver())
-#ifdef MOZ_B2G_RIL
-  , mMuteCallToRIL(false)
-#endif
+AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
+                 mObserver(new HeadphoneSwitchObserver()),
+                 mMuteCallToRIL(false)
 {
   RegisterSwitchObserver(SWITCH_HEADPHONES, mObserver);
 
@@ -428,13 +423,11 @@ AudioManager::AudioManager()
     NS_WARNING("Failed to add mozsettings-changed observer!");
   }
 
-#ifdef MOZ_B2G_RIL
   char value[PROPERTY_VALUE_MAX];
   property_get("ro.moz.mute.call.to_ril", value, "false");
   if (!strcmp(value, "true")) {
     mMuteCallToRIL = true;
   }
-#endif
 }
 
 AudioManager::~AudioManager() {
@@ -459,13 +452,11 @@ AudioManager::~AudioManager() {
 NS_IMETHODIMP
 AudioManager::GetMicrophoneMuted(bool* aMicrophoneMuted)
 {
-#ifdef MOZ_B2G_RIL
   if (mMuteCallToRIL) {
     // Simply return cached mIsMicMuted if mute call go via RIL.
     *aMicrophoneMuted = mIsMicMuted;
     return NS_OK;
   }
-#endif
 
   if (AudioSystem::isMicrophoneMuted(aMicrophoneMuted)) {
     return NS_ERROR_FAILURE;
@@ -477,7 +468,6 @@ NS_IMETHODIMP
 AudioManager::SetMicrophoneMuted(bool aMicrophoneMuted)
 {
   if (!AudioSystem::muteMicrophone(aMicrophoneMuted)) {
-#ifdef MOZ_B2G_RIL
     if (mMuteCallToRIL) {
       // Extra mute request to RIL for specific platform.
       nsCOMPtr<nsIRadioInterfaceLayer> ril = do_GetService("@mozilla.org/ril;1");
@@ -485,7 +475,6 @@ AudioManager::SetMicrophoneMuted(bool aMicrophoneMuted)
       ril->SetMicrophoneMuted(aMicrophoneMuted);
       mIsMicMuted = aMicrophoneMuted;
     }
-#endif
     return NS_OK;
   }
   return NS_ERROR_FAILURE;

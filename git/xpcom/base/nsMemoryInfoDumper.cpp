@@ -6,7 +6,7 @@
 
 #include "mozilla/nsMemoryInfoDumper.h"
 
-#if defined(XP_LINUX) || defined(__FreeBSD__)
+#ifdef XP_LINUX
 #include "mozilla/Preferences.h"
 #endif
 #include "mozilla/unused.h"
@@ -31,7 +31,7 @@
 #include <unistd.h>
 #endif
 
-#if defined(XP_LINUX) || defined(__FreeBSD__)
+#ifdef XP_LINUX
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -110,7 +110,7 @@ private:
 
 } // anonymous namespace
 
-#if defined(XP_LINUX) || defined(__FreeBSD__) // {
+#ifdef XP_LINUX // {
 namespace {
 
 /*
@@ -552,7 +552,7 @@ nsMemoryInfoDumper::~nsMemoryInfoDumper()
 /* static */ void
 nsMemoryInfoDumper::Initialize()
 {
-#if defined(XP_LINUX) || defined(__FreeBSD__)
+#ifdef XP_LINUX
   SignalPipeWatcher::Create();
   FifoWatcher::MaybeCreate();
 #endif
