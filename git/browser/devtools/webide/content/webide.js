@@ -395,6 +395,7 @@ let UI = {
     if (this.toolboxPromise) {
       this.toolboxPromise.then(toolbox => {
         toolbox.destroy();
+        document.querySelector("#action-button-debug").removeAttribute("active");
         this.toolboxPromise = null;
       }, this.console.error);
     }
@@ -435,7 +436,6 @@ let UI = {
 
     let splitter = document.querySelector(".devtools-horizontal-splitter");
     splitter.setAttribute("hidden", "true");
-    document.querySelector("#action-button-debug").removeAttribute("active");
   },
 
   console: {

@@ -353,13 +353,8 @@ public abstract class GeckoApp
     }
 
     @Override
-    public boolean onMenuItemClick(MenuItem item) {
+    public boolean onMenuItemSelected(MenuItem item) {
         return onOptionsItemSelected(item);
-    }
-
-    @Override
-    public boolean onMenuItemLongClick(MenuItem item) {
-        return false;
     }
 
     @Override

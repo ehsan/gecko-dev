@@ -26,7 +26,7 @@
   min-height: 18px;
 }
 
-toolbar[brighttext] #downloads-button:not([attention]) > #downloads-indicator-anchor > #downloads-indicator-icon {
+#downloads-indicator-icon:-moz-lwtheme-brighttext {
   background: -moz-image-rect(url("chrome://browser/skin/Toolbar-inverted.png"),
                               0, 198, 18, 180) center no-repeat;
 }
@@ -64,7 +64,8 @@ toolbar[brighttext] #downloads-button:not([attention]) > #downloads-indicator-an
   background-size: 12px;
 }
 
-toolbar[brighttext] #downloads-button:not([counter]):not([attention]) > #downloads-indicator-anchor > #downloads-button-progress-area > #downloads-indicator-counter {
+#downloads-button:not([counter]) > #downloads-indicator-anchor >
+#downloads-button-progress-area > #downloads-indicator-counter:-moz-lwtheme-brighttext {
   background-image: -moz-image-rect(url("chrome://browser/skin/Toolbar-inverted.png"), 0, 198, 18, 180);
 }
 
@@ -129,7 +130,7 @@ toolbar[brighttext] #downloads-button:not([counter]):not([attention]) > #downloa
   text-align: center;
 }
 
-toolbar[brighttext] #downloads-indicator-counter {
+#downloads-indicator-counter:-moz-lwtheme-brighttext {
   color: white;
   text-shadow: 0 0 1px rgba(0,0,0,.7),
                0 1px 1.5px rgba(0,0,0,.5);
