@@ -1,6 +1,6 @@
 /******************************************************************************
 ** This file is an amalgamation of many separate C source files from SQLite
-** version 3.8.7.2.  By combining all the individual C code files into this 
+** version 3.8.7.4.  By combining all the individual C code files into this 
 ** single large file, the entire code can be compiled as a single translation
 ** unit.  This allows many compilers to do optimizations that would not be
 ** possible if the files were compiled separately.  Performance improvements
@@ -231,9 +231,9 @@ extern "C" {
 ** [sqlite3_libversion_number()], [sqlite3_sourceid()],
 ** [sqlite_version()] and [sqlite_source_id()].
 */
-#define SQLITE_VERSION        "3.8.7.2"
+#define SQLITE_VERSION        "3.8.7.4"
 #define SQLITE_VERSION_NUMBER 3008007
-#define SQLITE_SOURCE_ID      "2014-11-18 20:57:56 2ab564bf9655b7c7b97ab85cafc8a48329b27f93"
+#define SQLITE_SOURCE_ID      "2014-12-09 01:34:36 f66f7a17b78ba617acde90fc810107f34f1a1f2e"
 
 /*
 ** CAPI3REF: Run-Time Library Version Numbers
@@ -11537,7 +11537,7 @@ struct Expr {
 /*
 ** The following are the meanings of bits in the Expr.flags field.
 */
-#define EP_FromJoin  0x000001 /* Originated in ON or USING clause of a join */
+#define EP_FromJoin  0x000001 /* Originates in ON/USING clause of outer join */
 #define EP_Agg       0x000002 /* Contains one or more aggregate functions */
 #define EP_Resolved  0x000004 /* IDs have been resolved to COLUMNs */
 #define EP_Error     0x000008 /* Expression contains one or more errors */
@@ -11557,6 +11557,7 @@ struct Expr {
 #define EP_NoReduce  0x020000 /* Cannot EXPRDUP_REDUCE this Expr */
 #define EP_Unlikely  0x040000 /* unlikely() or likelihood() function */
 #define EP_Constant  0x080000 /* Node is a constant */
+#define EP_CanBeNull 0x100000 /* Can be null despite NOT NULL constraint */
 
 /*
 ** These macros can be used to test, set, or clear bits in the 
@@ -79504,6 +79505,10 @@ static int lookupName(
       if( pMatch ){
         pExpr->iTable = pMatch->iCursor;
         pExpr->pTab = pMatch->pTab;
+        assert( (pMatch->jointype & JT_RIGHT)==0 ); /* RIGHT JOIN not (yet) supported */
+        if( (pMatch->jointype & JT_LEFT)!=0 ){
+          ExprSetProperty(pExpr, EP_CanBeNull);
+        }
         pSchema = pExpr->pTab->pSchema;
       }
     } /* if( pSrcList ) */
@@ -82040,7 +82045,8 @@ SQLITE_PRIVATE int sqlite3ExprCanBeNull(const Expr *p){
       return 0;
     case TK_COLUMN:
       assert( p->pTab!=0 );
-      return p->iColumn>=0 && p->pTab->aCol[p->iColumn].notNull==0;
+      return ExprHasProperty(p, EP_CanBeNull) ||
+             (p->iColumn>=0 && p->pTab->aCol[p->iColumn].notNull==0);
     default:
       return 1;
   }
@@ -87415,7 +87421,7 @@ static void initAvgEq(Index *pIdx){
       i64 nSum100 = 0;          /* Number of terms contributing to sumEq */
       i64 nDist100;             /* Number of distinct values in index */
 
-      if( pIdx->aiRowEst==0 || pIdx->aiRowEst[iCol+1]==0 ){
+      if( !pIdx->aiRowEst || iCol>=pIdx->nKeyCol || pIdx->aiRowEst[iCol+1]==0 ){
         nRow = pFinal->anLt[iCol];
         nDist100 = (i64)100 * pFinal->anDLt[iCol];
         nSample--;
@@ -125888,6 +125894,16 @@ SQLITE_PRIVATE void sqlite3LeaveMutexAndCloseZombie(sqlite3 *db){
   for(j=0; j<db->nDb; j++){
     struct Db *pDb = &db->aDb[j];
     if( pDb->pBt ){
+      if( pDb->pSchema ){
+        /* Must clear the KeyInfo cache.  See ticket [e4a18565a36884b00edf] */
+        sqlite3BtreeEnter(pDb->pBt);
+        for(i=sqliteHashFirst(&pDb->pSchema->idxHash); i; i=sqliteHashNext(i)){
+          Index *pIdx = sqliteHashData(i);
+          sqlite3KeyInfoUnref(pIdx->pKeyInfo);
+          pIdx->pKeyInfo = 0;
+        }
+        sqlite3BtreeLeave(pDb->pBt);
+      }
       sqlite3BtreeClose(pDb->pBt);
       pDb->pBt = 0;
       if( j!=1 ){
@@ -127535,7 +127551,9 @@ static int openDatabase(
     sqlite3Error(db, rc);
     goto opendb_out;
   }
+  sqlite3BtreeEnter(db->aDb[0].pBt);
   db->aDb[0].pSchema = sqlite3SchemaGet(db, db->aDb[0].pBt);
+  sqlite3BtreeLeave(db->aDb[0].pBt);
   db->aDb[1].pSchema = sqlite3SchemaGet(db, 0);
 
   /* The default safety_level for the main database is 'full'; for the temp
