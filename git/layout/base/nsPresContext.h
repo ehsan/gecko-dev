@@ -213,13 +213,9 @@ public:
 
   nsIPresShell* GetPresShell() const { return mShell; }
 
-  /**
-   * Return the presentation context for the root of the view manager
-   * hierarchy that contains this presentation context, or nsnull if it can't
-   * be found (e.g. it's detached).
-   */
-  nsRootPresContext* GetRootPresContext();
-  virtual PRBool IsRoot() { return PR_FALSE; }
+  // Find the prescontext for the root of the view manager hierarchy that contains
+  // this prescontext.
+  nsRootPresContext* RootPresContext();
 
   nsIDocument* Document() const
   {
@@ -1178,8 +1174,6 @@ public:
    * have been updated.
    */
   void DidApplyPluginGeometryUpdates();
-
-  virtual PRBool IsRoot() { return PR_TRUE; }
 
 private:
   nsTHashtable<nsPtrHashKey<nsObjectFrame> > mRegisteredPlugins;

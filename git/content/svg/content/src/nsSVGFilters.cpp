@@ -302,37 +302,24 @@ nsSVGFE::GetLengthInfo()
                               NS_ARRAY_LENGTH(sLengthInfo));
 }
 
-inline static void DidAnimateAttr(nsSVGFE *aFilterPrimitive)
+void
+nsSVGFE::DidAnimateLength(PRUint8 aAttrEnum)
 {
   // nsSVGLeafFrame doesn't implement AttributeChanged.
-  nsIFrame* frame = aFilterPrimitive->GetPrimaryFrame();
+  nsIFrame* frame = GetPrimaryFrame();
   if (frame) {
     nsSVGEffects::InvalidateRenderingObservers(frame);
   }
 }
 
 void
-nsSVGFE::DidAnimateLength(PRUint8 aAttrEnum)
-{
-  DidAnimateAttr(this);
-}
-
-void
 nsSVGFE::DidAnimateNumber(PRUint8 aAttrEnum)
 {
-  DidAnimateAttr(this);
-}
-
-void
-nsSVGFE::DidAnimateEnum(PRUint8 aAttrEnum)
-{
-  DidAnimateAttr(this);
-}
-
-void
-nsSVGFE::DidAnimateBoolean(PRUint8 aAttrEnum)
-{
-  DidAnimateAttr(this);
+  // nsSVGLeafFrame doesn't implement AttributeChanged.
+  nsIFrame* frame = GetPrimaryFrame();
+  if (frame) {
+    nsSVGEffects::InvalidateRenderingObservers(frame);
+  }
 }
 
 //---------------------Gaussian Blur------------------------
@@ -940,7 +927,7 @@ nsSVGFEBlendElement::Filter(nsSVGFilterInstance* aInstance,
   PRUint8* targetData = aTarget->mImage->Data();
   PRUint32 stride = aTarget->mImage->Stride();
 
-  PRUint16 mode = mEnumAttributes[MODE].GetAnimValue(this);
+  PRUint16 mode = mEnumAttributes[MODE].GetAnimValue();
 
   for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
     for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
@@ -1173,7 +1160,7 @@ nsSVGFEColorMatrixElement::Filter(nsSVGFilterInstance *instance,
   PRUint8* targetData = aTarget->mImage->Data();
   PRUint32 stride = aTarget->mImage->Stride();
 
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
 
   nsCOMPtr<nsIDOMSVGNumberList> list;
   mValues->GetAnimVal(getter_AddRefs(list));
@@ -1508,7 +1495,7 @@ nsSVGFECompositeElement::Filter(nsSVGFilterInstance *instance,
                                 const Image* aTarget,
                                 const nsIntRect& rect)
 {
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
 
   // Cairo does not support arithmetic operator
   if (op == nsSVGFECompositeElement::SVG_OPERATOR_ARITHMETIC) {
@@ -1581,7 +1568,7 @@ nsIntRect
 nsSVGFECompositeElement::ComputeTargetBBox(const nsTArray<nsIntRect>& aSourceBBoxes,
         const nsSVGFilterInstance& aInstance)
 {
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
 
   if (op == nsSVGFECompositeElement::SVG_OPERATOR_ARITHMETIC) {
     // "arithmetic" operator can produce non-zero alpha values even where
@@ -1941,7 +1928,7 @@ NS_IMETHODIMP nsSVGComponentTransferFunctionElement::GetOffset(nsIDOMSVGAnimated
 void
 nsSVGComponentTransferFunctionElement::GenerateLookupTable(PRUint8 *aTable)
 {
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
 
   float slope, intercept, amplitude, exponent, offset;
   GetAnimatedNumberValues(&slope, &intercept, &amplitude, 
@@ -3198,8 +3185,8 @@ nsSVGFETurbulenceElement::Filter(nsSVGFilterInstance *instance,
 
   float fX, fY, seed;
   PRInt32 octaves = mIntegerAttributes[OCTAVES].GetAnimValue();
-  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue(this);
-  PRUint16 stitch = mEnumAttributes[STITCHTILES].GetAnimValue(this);
+  PRUint16 type = mEnumAttributes[TYPE].GetAnimValue();
+  PRUint16 stitch = mEnumAttributes[STITCHTILES].GetAnimValue();
 
   GetAnimatedNumberValues(&fX, &fY, &seed, nsnull);
 
@@ -3696,7 +3683,7 @@ nsSVGFEMorphologyElement::Filter(nsSVGFilterInstance *instance,
   PRUint32 stride = aTarget->mImage->Stride();
   PRUint32 xExt[4], yExt[4];  // X, Y indices of RGBA extrema
   PRUint8 extrema[4];         // RGBA magnitude of extrema
-  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue(this);
+  PRUint16 op = mEnumAttributes[OPERATOR].GetAnimValue();
 
   /* Scan the kernel for each pixel to determine max/min RGBA values.  Note that
    * as we advance in the x direction, each kernel overlaps the previous kernel.
@@ -3832,7 +3819,7 @@ public:
 
 protected:
   virtual PRBool OperatesOnPremultipledAlpha() {
-    return !mBooleanAttributes[PRESERVEALPHA].GetAnimValue(this);
+    return !mBooleanAttributes[PRESERVEALPHA].GetAnimValue();
   }
 
   virtual NumberAttributesInfo GetNumberInfo();
@@ -4195,8 +4182,8 @@ nsSVGFEConvolveMatrixElement::Filter(nsSVGFilterInstance *instance,
   if (!info.mTarget)
     return NS_ERROR_FAILURE;
 
-  PRUint16 edgeMode = mEnumAttributes[EDGEMODE].GetAnimValue(this);
-  PRBool preserveAlpha = mBooleanAttributes[PRESERVEALPHA].GetAnimValue(this);
+  PRUint16 edgeMode = mEnumAttributes[EDGEMODE].GetAnimValue();
+  PRBool preserveAlpha = mBooleanAttributes[PRESERVEALPHA].GetAnimValue();
 
   float bias = 0;
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::bias)) {
@@ -5744,8 +5731,8 @@ nsSVGFEDisplacementMapElement::Filter(nsSVGFilterInstance *instance,
                              GFX_ARGB32_OFFSET_G,
                              GFX_ARGB32_OFFSET_B,
                              GFX_ARGB32_OFFSET_A };
-  PRUint16 xChannel = channelMap[mEnumAttributes[CHANNEL_X].GetAnimValue(this)];
-  PRUint16 yChannel = channelMap[mEnumAttributes[CHANNEL_Y].GetAnimValue(this)];
+  PRUint16 xChannel = channelMap[mEnumAttributes[CHANNEL_X].GetAnimValue()];
+  PRUint16 yChannel = channelMap[mEnumAttributes[CHANNEL_Y].GetAnimValue()];
 
   double scaleOver255 = scale / 255.0;
   double scaleAdjustment = 0.5 - 0.5 * scale;

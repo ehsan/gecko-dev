@@ -92,9 +92,8 @@ typedef struct InstanceData {
   bool hasWidget;
   bool npnNewStream;
   bool throwOnNextInvoke;
-  uint32_t timerID[2];
-  bool timerTestResult;
-  bool asyncCallbackResult;
+  uint32_t timerID1;
+  uint32_t timerID2;
   int32_t winX;
   int32_t winY;
   int32_t lastMouseX;
@@ -103,15 +102,12 @@ typedef struct InstanceData {
   int32_t paintCount;
   int32_t writeCount;
   int32_t writeReadyCount;
-  int32_t asyncTestPhase;
   TestFunction testFunction;
   TestFunction functionToFail;
   NPError failureCode;
   PostMode postMode;
   std::string testUrl;
   std::string frame;
-  std::string timerTestScriptCallback;
-  std::string asyncTestScriptCallback;
   std::ostringstream err;
   uint16_t streamMode;
   int32_t streamChunkSize;

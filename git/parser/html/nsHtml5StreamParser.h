@@ -53,7 +53,6 @@
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5Speculation.h"
 #include "nsITimer.h"
-#include "nsICharsetDetector.h"
 
 class nsHtml5Parser;
 
@@ -457,11 +456,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * The document wrapped by the speculative loader.
      */
     nsCOMPtr<nsIDocument>         mDocument;
-
-    /**
-     * The chardet instance if chardet is enabled.
-     */
-    nsCOMPtr<nsICharsetDetector>  mChardet;
 
     /**
      * Timer for flushing tree ops once in a while when not speculating.

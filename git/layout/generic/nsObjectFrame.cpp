@@ -340,7 +340,7 @@ public:
   nsresult Init(nsPresContext* aPresContext, nsObjectFrame* aFrame,
                 nsIContent* aContent);
 
-  void* GetPluginPortFromWidget();
+  void* GetPluginPort();
   void ReleasePluginPort(void* pluginPort);
 
   void SetPluginHost(nsIPluginHost* aHost);
@@ -578,7 +578,7 @@ NS_IMETHODIMP nsObjectFrame::GetAccessible(nsIAccessible** aAccessible)
 #ifdef XP_WIN
 NS_IMETHODIMP nsObjectFrame::GetPluginPort(HWND *aPort)
 {
-  *aPort = (HWND) mInstanceOwner->GetPluginPortFromWidget();
+  *aPort = (HWND) mInstanceOwner->GetPluginPort();
   return NS_OK;
 }
 #endif
@@ -614,6 +614,8 @@ nsObjectFrame::DestroyFrom(nsIFrame* aDestructRoot)
   NS_ASSERTION(!mPreventInstantiation ||
                (mContent && mContent->GetCurrentDoc()->GetDisplayDocument()),
                "about to crash due to bug 136927");
+
+  PresContext()->RootPresContext()->UnregisterPluginForGeometryUpdates(this);
 
   // we need to finish with the plugin before native window is destroyed
   // doing this in the destructor is too late.
@@ -693,9 +695,6 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
   viewMan->MoveViewTo(view, origin.x, origin.y);
 
   if (!aViewOnly && !mWidget && usewidgets) {
-    nsRootPresContext* rpc = PresContext()->GetRootPresContext();
-    if (!rpc)
-      return NS_ERROR_FAILURE;
     mInnerView = viewMan->CreateView(GetContentRect() - GetPosition(), view);
     if (!mInnerView) {
       NS_ERROR("Could not create inner view");
@@ -708,6 +707,7 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
     if (NS_FAILED(rv))
       return rv;
 
+    nsRootPresContext* rpc = PresContext()->RootPresContext();
     // XXX this breaks plugins in popups ... do we care?
     nsIWidget* parentWidget =
       rpc->PresShell()->FrameManager()->GetRootFrame()->GetWindow();
@@ -1025,7 +1025,7 @@ nsObjectFrame::CallSetWindow()
   window->y = origin.y;
 
   // refresh the plugin port as well
-  window->window = mInstanceOwner->GetPluginPortFromWidget();
+  window->window = mInstanceOwner->GetPluginPort();
 
   // this will call pi->SetWindow and take care of window subclassing
   // if needed, see bug 132759.
@@ -1191,18 +1191,16 @@ nsObjectFrame::ComputeWidgetGeometry(const nsRegion& aRegion,
   if (!mWidget)
     return;
 
-  nsPresContext* presContext = PresContext();
-  nsRootPresContext* rootPC = presContext->GetRootPresContext();
-  if (!rootPC)
-    return;
-
-  nsIWidget::Configuration* configuration = aConfigurations->AppendElement();
+  nsIWidget::Configuration* configuration =
+    aConfigurations->AppendElement();
   if (!configuration)
     return;
   configuration->mChild = mWidget;
 
+  nsPresContext* presContext = PresContext();
   PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
-  nsIFrame* rootFrame = rootPC->PresShell()->FrameManager()->GetRootFrame();
+  nsIFrame* rootFrame =
+    presContext->RootPresContext()->PresShell()->FrameManager()->GetRootFrame();
   nsRect bounds = GetContentRect() + GetParent()->GetOffsetTo(rootFrame);
   configuration->mBounds = bounds.ToNearestPixels(appUnitsPerDevPixel);
 
@@ -1586,14 +1584,13 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
         nativeDrawing.EndNativeDrawing();
         return;
       }
-#ifndef NP_NO_CARBON
-      if (mInstanceOwner->GetEventModel() == NPEventModelCarbon &&
-          !mInstanceOwner->SetPluginPortAndDetectChange()) {
+      if (!mInstanceOwner->SetPluginPortAndDetectChange()) {
         NS_WARNING("null plugin port during PaintPlugin");
         nativeDrawing.EndNativeDrawing();
         return;
       }
-
+      
+#ifndef NP_NO_CARBON
       // In the Carbon event model...
       // If gfxQuartzNativeDrawing hands out a CGContext different from the
       // one set by SetPluginPortAndDetectChange(), we need to pass it to the
@@ -1937,19 +1934,6 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
   return nsObjectFrameSuper::HandleEvent(aPresContext, anEvent, anEventStatus);
 }
 
-#ifdef XP_MACOSX
-// Needed to make the routing of mouse events while dragging conform to
-// standard OS X practice, and to the Cocoa NPAPI spec.  See bug 525078.
-NS_IMETHODIMP
-nsObjectFrame::HandlePress(nsPresContext* aPresContext,
-                           nsGUIEvent*    anEvent,
-                           nsEventStatus* anEventStatus)
-{
-  nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
-  return nsObjectFrameSuper::HandlePress(aPresContext, anEvent, anEventStatus);
-}
-#endif
-
 nsresult
 nsObjectFrame::GetPluginInstance(nsIPluginInstance*& aPluginInstance)
 {
@@ -2254,12 +2238,6 @@ nsObjectFrame::StopPluginInternal(PRBool aDelayedStop)
 {
   if (!mInstanceOwner) {
     return;
-  }
-
-  if (mWidget) {
-    nsRootPresContext* rootPC = PresContext()->GetRootPresContext();
-    NS_ASSERTION(rootPC, "unable to unregister the plugin frame");
-    rootPC->UnregisterPluginForGeometryUpdates(this);
   }
 
   // Transfer the reference to the instance owner onto the stack so
@@ -3492,22 +3470,22 @@ void* nsPluginInstanceOwner::GetPluginPortCopy()
 }
   
 // Currently (on OS X in Cocoa widgets) any changes made as a result of
-// calling GetPluginPortFromWidget() are immediately reflected in the NPWindow
+// calling GetPluginPort() are immediately reflected in the NPWindow
 // structure that has been passed to the plugin via SetWindow().  This is
 // because calls to nsChildView::GetNativeData(NS_NATIVE_PLUGIN_PORT_CG)
 // always return a pointer to the same internal (private) object, but may
-// make changes inside that object.  All calls to GetPluginPortFromWidget() made while
+// make changes inside that object.  All calls to GetPluginPort() made while
 // the plugin is active (i.e. excluding those made at our initialization)
 // need to take this into account.  The easiest way to do so is to replace
 // them with calls to SetPluginPortAndDetectChange().  This method keeps track
-// of when calls to GetPluginPortFromWidget() result in changes, and sets a flag to make
+// of when calls to GetPluginPort() result in changes, and sets a flag to make
 // sure SetWindow() gets called the next time through FixUpPluginWindow(), so
 // that the plugin is notified of these changes.
 void* nsPluginInstanceOwner::SetPluginPortAndDetectChange()
 {
   if (!mPluginWindow)
     return nsnull;
-  void* pluginPort = GetPluginPortFromWidget();
+  void* pluginPort = GetPluginPort();
   if (!pluginPort)
     return nsnull;
   mPluginWindow->window = pluginPort;
@@ -4286,16 +4264,6 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           }
           break;
         case NS_MOUSE_MOVE:
-          {
-            // Ignore mouse-moved events that happen as part of a dragging
-            // operation that started over another frame.  See bug 525078.
-            nsCOMPtr<nsFrameSelection> frameselection = mObjectFrame->GetFrameSelection();
-            if (frameselection->GetMouseDownState() &&
-                (nsIPresShell::GetCapturingContent() != mObjectFrame->GetContent())) {
-              pluginWidget->EndDrawPlugin();
-              return nsEventStatus_eIgnore;
-            }
-          }
 #ifndef NP_NO_CARBON
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = osEvt;
@@ -4320,34 +4288,15 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           }
           break;
         case NS_MOUSE_BUTTON_UP:
-          // If we're in a dragging operation that started over another frame,
-          // either ignore the mouse-up event (in the Carbon Event Model) or
-          // convert it into a mouse-entered event (in the Cocoa Event Model).
-          // See bug 525078.
-          if ((static_cast<const nsMouseEvent&>(anEvent).button == nsMouseEvent::eLeftButton) &&
-              (nsIPresShell::GetCapturingContent() != mObjectFrame->GetContent())) {
 #ifndef NP_NO_CARBON
-            if (eventModel == NPEventModelCarbon) {
-              pluginWidget->EndDrawPlugin();
-              return nsEventStatus_eIgnore;
-            } else
+          if (eventModel == NPEventModelCarbon) {
+            synthCarbonEvent.what = mouseUp;
+          } else
 #endif
-            {
-              synthCocoaEvent.type = NPCocoaEventMouseEntered;
-              synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
-              synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-            }
-          } else {
-#ifndef NP_NO_CARBON
-            if (eventModel == NPEventModelCarbon) {
-              synthCarbonEvent.what = mouseUp;
-            } else
-#endif
-            {
-              synthCocoaEvent.type = NPCocoaEventMouseUp;
-              synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
-              synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
-            }
+          {
+            synthCocoaEvent.type = NPCocoaEventMouseUp;
+            synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
+            synthCocoaEvent.data.mouse.pluginY = static_cast<double>(ptPx.y);
           }
           break;
         default:
@@ -5113,10 +5062,6 @@ nsPluginInstanceOwner::NativeImageDraw(NPRect* invalidRect)
   if (absPosHeight == 0 || absPosWidth == 0)
     return;
 
-  // Making X or DOM method calls can cause our frame to go
-  // away, which might kill us...
-  nsCOMPtr<nsIPluginInstanceOwner> kungFuDeathGrip(this);
-
   PRBool sizeChanged = (mPluginSize.width != absPosWidth ||
                         mPluginSize.height != absPosHeight);
 
@@ -5541,7 +5486,7 @@ nsresult nsPluginInstanceOwner::Init(nsPresContext* aPresContext,
   return NS_OK; 
 }
 
-void* nsPluginInstanceOwner::GetPluginPortFromWidget()
+void* nsPluginInstanceOwner::GetPluginPort()
 {
 //!!! Port must be released for windowless plugins on Windows, because it is HDC !!!
 
@@ -5626,7 +5571,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
           // mPluginWindow->type is used in |GetPluginPort| so it must
           // be initialized first
           mPluginWindow->type = NPWindowTypeWindow;
-          mPluginWindow->window = GetPluginPortFromWidget();
+          mPluginWindow->window = GetPluginPort();
 
 #ifdef MAC_CARBON_PLUGINS
           // start the idle timer.
@@ -5656,7 +5601,6 @@ void nsPluginInstanceOwner::SetPluginHost(nsIPluginHost* aHost)
 #if defined(MOZ_PLATFORM_HILDON) && defined(MOZ_WIDGET_GTK2)
 PRBool nsPluginInstanceOwner::UpdateVisibility(PRBool aVisible)
 {
-  // NOTE: Death grip must be held by caller.
   if (!mInstance)
     return PR_TRUE;
 
@@ -5682,7 +5626,6 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     return nsnull;
 
   NPDrawingModel drawingModel = GetDrawingModel();
-  NPEventModel eventModel = GetEventModel();
 
   nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
   if (!pluginWidget)
@@ -5697,10 +5640,8 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     pluginPort = SetPluginPortAndDetectChange();
   }
 
-#ifdef MAC_CARBON_PLUGINS
-  if (eventModel == NPEventModelCarbon && !pluginPort)
+  if (!pluginPort)
     return nsnull;
-#endif
 
   nsIntPoint pluginOrigin;
   nsIntRect widgetClip;
@@ -5728,7 +5669,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
 
     nsRect windowRect;
 #ifndef NP_NO_CARBON
-    if (eventModel == NPEventModelCarbon)
+    if (GetEventModel() == NPEventModelCarbon)
       NS_NPAPI_CarbonWindowFrame(static_cast<WindowRef>(static_cast<NP_CGContext*>(pluginPort)->window), windowRect);
     else
 #endif
@@ -5755,6 +5696,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
   if (!mWidgetVisible || inPaintState == ePluginPaintDisable) {
     mPluginWindow->clipRect.bottom = mPluginWindow->clipRect.top;
     mPluginWindow->clipRect.right  = mPluginWindow->clipRect.left;
+    // pluginPort = nsnull; // don't uncomment this
   }
   else if (inPaintState == ePluginPaintEnable)
   {
@@ -5792,10 +5734,8 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     return ::GetWindowFromPort(static_cast<NP_Port*>(pluginPort)->port);
 #endif
 
-#ifdef MAC_CARBON_PLUGINS
-  if (drawingModel == NPDrawingModelCoreGraphics && eventModel == NPEventModelCarbon)
+  if (drawingModel == NPDrawingModelCoreGraphics)
     return static_cast<NP_CGContext*>(pluginPort)->window;
-#endif
 
   return nsnull;
 }
@@ -5826,10 +5766,6 @@ nsPluginInstanceOwner::SetAbsoluteScreenPosition(nsIDOMElement* element,
   if (!element || !position || !clip)
     return NS_ERROR_FAILURE;
   
-  // Making X or DOM method calls can cause our frame to go
-  // away, which might kill us...
-  nsCOMPtr<nsIPluginInstanceOwner> kungFuDeathGrip(this);
-
   if (!mBlitWindow) {
     mBlitWindow = GDK_WINDOW_XWINDOW(GetClosestWindow(element));
     if (!mBlitWindow)

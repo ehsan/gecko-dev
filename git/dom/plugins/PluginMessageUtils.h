@@ -662,4 +662,5 @@ struct ParamTraits<NPNURLVariable>
 #  error Unsupported platform
 #endif
 
+
 #endif /* DOM_PLUGINS_PLUGINMESSAGEUTILS_H */

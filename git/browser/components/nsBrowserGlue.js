@@ -1074,37 +1074,37 @@ BrowserGlue.prototype = {
   // this returns the most recent non-popup browser window
   getMostRecentBrowserWindow: function BG_getMostRecentBrowserWindow() {
     var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-             getService(Ci.nsIWindowMediator);
-
-    function isFullBrowserWindow(win) {
-      return !win.closed &&
-             !win.document.documentElement.getAttribute("chromehidden");
-    }
+             getService(Components.interfaces.nsIWindowMediator);
 
 #ifdef BROKEN_WM_Z_ORDER
-    var win = wm.getMostRecentWindow("navigator:browser");
+    var win = wm.getMostRecentWindow("navigator:browser", true);
 
     // if we're lucky, this isn't a popup, and we can just return this
-    if (win && !isFullBrowserWindow(win)) {
+    if (win && win.document.documentElement.getAttribute("chromehidden")) {
       win = null;
-      let windowList = wm.getEnumerator("navigator:browser");
+      var windowList = wm.getEnumerator("navigator:browser", true);
       // this is oldest to newest, so this gets a bit ugly
       while (windowList.hasMoreElements()) {
-        let nextWin = windowList.getNext();
-        if (isFullBrowserWindow(nextWin))
+        var nextWin = windowList.getNext();
+        if (!nextWin.document.documentElement.getAttribute("chromehidden"))
           win = nextWin;
       }
     }
-    return win;
 #else
     var windowList = wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
-    while (windowList.hasMoreElements()) {
-      let win = windowList.getNext();
-      if (isFullBrowserWindow(win))
-        return win;
+    if (!windowList.hasMoreElements())
+      return null;
+
+    var win = windowList.getNext();
+    while (win.document.documentElement.getAttribute("chromehidden")) {
+      if (!windowList.hasMoreElements())
+        return null;
+
+      win = windowList.getNext();
     }
-    return null;
 #endif
+
+    return win;
   },
 
 
