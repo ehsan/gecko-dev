@@ -77,7 +77,7 @@ class StringBuffer
     bool append(const jschar *chars, size_t len);
     bool append(const jschar *begin, const jschar *end);
     bool append(JSString *str);
-    bool append(JSLinearString *str);
+    bool append(JSAtom *atom);
     bool appendN(const jschar c, size_t n);
     bool appendInflated(const char *cstr, size_t len);
 
@@ -173,14 +173,19 @@ StringBuffer::append(JSString *str)
     JSLinearString *linear = str->ensureLinear(context());
     if (!linear)
         return false;
-    return append(linear);
+    size_t strLen = linear->length();
+    if (!checkLength(cb.length() + strLen))
+        return false;
+    return cb.append(linear->chars(), strLen);
 }
 
 inline bool
-StringBuffer::append(JSLinearString *str)
+StringBuffer::append(JSAtom *atom)
 {
-    JS::Anchor<JSString *> anch(str);
-    return cb.append(str->chars(), str->length());
+    size_t strLen = atom->length();
+    if (!checkLength(cb.length() + strLen))
+        return false;
+    return cb.append(atom->chars(), strLen);
 }
 
 inline bool

@@ -62,7 +62,11 @@ class nsDOMCSSAttributeDeclaration : public nsDOMCSSDeclaration,
 {
 public:
   typedef mozilla::dom::Element Element;
-  nsDOMCSSAttributeDeclaration(Element* aContent, bool aIsSMILOverride);
+  nsDOMCSSAttributeDeclaration(Element* aContent
+#ifdef MOZ_SMIL
+                               , bool aIsSMILOverride
+#endif // MOZ_SMIL
+                               );
   ~nsDOMCSSAttributeDeclaration();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -83,11 +87,13 @@ protected:
 
   nsRefPtr<Element> mElement;
 
+#ifdef MOZ_SMIL
   /* If true, this indicates that this nsDOMCSSAttributeDeclaration
    * should interact with mContent's SMIL override style rule (rather
    * than the inline style rule).
    */
   const bool mIsSMILOverride;
+#endif // MOZ_SMIL
 };
 
 #endif /* nsDOMCSSAttributeDeclaration_h */

@@ -21,7 +21,6 @@
 #
 # Contributor(s):
 #   Dave Townsend <dtownsend@oxymoronical.com>
-#   Blair McBride <bmcbride@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,7 +48,6 @@ var EXPORTED_SYMBOLS = [];
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/AddonRepository.jsm");
-Components.utils.import("resource://gre/modules/ChromeManifestParser.jsm");
 Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
@@ -124,7 +122,7 @@ const TOOLKIT_ID                      = "toolkit@mozilla.org";
 
 const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
-const DB_SCHEMA                       = 8;
+const DB_SCHEMA                       = 6;
 const REQ_VERSION                     = 2;
 
 #ifdef MOZ_COMPATIBILITY_NIGHTLY
@@ -148,8 +146,7 @@ const DB_METADATA        = ["installDate", "updateDate", "size", "sourceURI",
                             "releaseNotesURI", "applyBackgroundUpdates"];
 const DB_BOOL_METADATA   = ["visible", "active", "userDisabled", "appDisabled",
                             "pendingUninstall", "bootstrap", "skinnable",
-                            "softDisabled", "foreignInstall",
-                            "hasBinaryComponents", "strictCompatibility"];
+                            "softDisabled", "foreignInstall"];
 
 const BOOTSTRAP_REASONS = {
   APP_STARTUP     : 1,
@@ -707,10 +704,9 @@ function loadManifestFromRDF(aUri, aStream) {
       throw new Error("No version in install manifest");
   }
 
-  // Only read the bootstrap and strictCompatibility properties for extensions.
+  // Only read the bootstrapped property for extensions
   if (addon.type == "extension") {
     addon.bootstrap = getRDFProperty(ds, root, "bootstrap") == "true";
-    addon.strictCompatibility = getRDFProperty(ds, root, "strictCompatibility") == "true";
     if (addon.optionsType &&
         addon.optionsType != AddonManager.OPTIONS_TYPE_DIALOG &&
         addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE &&
@@ -728,7 +724,6 @@ function loadManifestFromRDF(aUri, aStream) {
     addon.optionsURL = null;
     addon.optionsType = null;
     addon.aboutURL = null;
-    addon.strictCompatibility = true;
 
     if (addon.type == "theme") {
       if (!addon.internalName)
@@ -855,13 +850,6 @@ function loadManifestFromDir(aDir) {
     let addon = loadManifestFromRDF(Services.io.newFileURI(file), bis);
     addon._sourceBundle = aDir.clone().QueryInterface(Ci.nsILocalFile);
     addon.size = getFileSize(aDir);
-
-    file = aDir.clone();
-    file.append("chrome.manifest");
-    let chromeManifest = ChromeManifestParser.parseSync(Services.io.newFileURI(file));
-    addon.hasBinaryComponents = ChromeManifestParser.hasType(chromeManifest,
-                                                             "binary-component");
-
     return addon;
   }
   finally {
@@ -893,16 +881,6 @@ function loadManifestFromZipReader(aZipReader) {
     let entries = aZipReader.findEntries(null);
     while (entries.hasMore())
       addon.size += aZipReader.getEntry(entries.getNext()).realSize;
-
-    // Binary components can only be loaded from unpacked addons.
-    if (addon.unpack) {
-      uri = buildJarURI(aZipReader.file, "chrome.manifest");
-      let chromeManifest = ChromeManifestParser.parseSync(uri);
-      addon.hasBinaryComponents = ChromeManifestParser.hasType(chromeManifest,
-                                                               "binary-component");
-    } else {
-      addon.hasBinaryComponents = false;
-    }
 
     return addon;
   }
@@ -3902,7 +3880,7 @@ const FIELDS_ADDON = "internal_id, id, location, version, type, internalName, " 
                      "userDisabled, appDisabled, pendingUninstall, descriptor, " +
                      "installDate, updateDate, applyBackgroundUpdates, bootstrap, " +
                      "skinnable, size, sourceURI, releaseNotesURI, softDisabled, " +
-                     "foreignInstall, hasBinaryComponents, strictCompatibility";
+                     "foreignInstall";
 
 /**
  * A helper function to log an SQL error.
@@ -4048,8 +4026,7 @@ var XPIDatabase = {
                             ":descriptor, :installDate, :updateDate, " +
                             ":applyBackgroundUpdates, :bootstrap, :skinnable, " +
                             ":size, :sourceURI, :releaseNotesURI, :softDisabled, " +
-                            ":foreignInstall, :hasBinaryComponents, " +
-                            ":strictCompatibility)",
+                            ":foreignInstall)",
     addAddonMetadata_addon_locale: "INSERT INTO addon_locale VALUES " +
                                    "(:internal_id, :name, :locale)",
     addAddonMetadata_locale: "INSERT INTO locale (name, description, creator, " +
@@ -4583,8 +4560,6 @@ var XPIDatabase = {
                                   "size INTEGER, sourceURI TEXT, " +
                                   "releaseNotesURI TEXT, softDisabled INTEGER, " +
                                   "foreignInstall INTEGER, " +
-                                  "hasBinaryComponents INTEGER, " +
-                                  "strictCompatibility INTEGER, " +
                                   "UNIQUE (id, location)");
       this.connection.createTable("targetApplication",
                                   "addon_internal_id INTEGER, " +
@@ -6933,13 +6908,6 @@ AddonInternal.prototype = {
     if (!app)
       return false;
 
-    // Only extensions can be compatible by default; themes always use strict
-    // compatibility checking.
-    if (this.type == "extension" && !AddonManager.strictCompatibility &&
-        !this.strictCompatibility && !this.hasBinaryComponents) {
-      return true;
-    }
-
     if (!aAppVersion)
       aAppVersion = Services.appinfo.version;
     if (!aPlatformVersion)
@@ -7155,8 +7123,7 @@ function AddonWrapper(aAddon) {
 
   ["id", "version", "type", "isCompatible", "isPlatformCompatible",
    "providesUpdatesSecurely", "blocklistState", "blocklistURL", "appDisabled",
-   "softDisabled", "skinnable", "size", "foreignInstall", "hasBinaryComponents",
-   "strictCompatibility"].forEach(function(aProp) {
+   "softDisabled", "skinnable", "size", "foreignInstall"].forEach(function(aProp) {
      this.__defineGetter__(aProp, function() aAddon[aProp]);
   }, this);
 

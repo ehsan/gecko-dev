@@ -34,14 +34,13 @@ function setupHTMLPanel()
 {
   Services.obs.removeObserver(setupHTMLPanel, InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
   Services.obs.addObserver(runEditorTests, InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY, false);
-  InspectorUI.toolShow(InspectorUI.treePanel.registrationObject);
+  InspectorUI.treePanel.open();
 }
 
 function runEditorTests()
 {
   Services.obs.removeObserver(runEditorTests, InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY);
   InspectorUI.stopInspecting();
-  InspectorUI.inspectNode(doc.body, true);
 
   // setup generator for async test steps
   editorTestSteps = doEditorTestSteps();
@@ -53,14 +52,6 @@ function runEditorTests()
 
   // start the tests
   doNextStep();
-}
-
-function highlighterTrap()
-{
-  // bug 696107
-  Services.obs.removeObserver(highlighterTrap, InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
-  ok(false, "Highlighter moved. Shouldn't be here!");
-  finishUp();
 }
 
 function doEditorTestSteps()
@@ -87,9 +78,6 @@ function doEditorTestSteps()
 
   // Step 2: validate editing session, enter new attribute value into editor, and save input
   ok(InspectorUI.treePanel.editingContext, "Step 2: editor session started");
-  let selection = InspectorUI.selection;
-
-  ok(selection, "Selection is: " + selection);
 
   let editorVisible = editor.classList.contains("editing");
   ok(editorVisible, "editor popup visible");
@@ -115,13 +103,8 @@ function doEditorTestSteps()
   editorInput.value = "Hello World";
   editorInput.focus();
 
-  Services.obs.addObserver(highlighterTrap,
-      InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING, false);
-
-  // hit <enter> to save the textbox value
+  // hit <enter> to save the inputted value
   executeSoon(function() {
-    // Extra key to test that keyboard handlers have been removed. bug 696107.
-    EventUtils.synthesizeKey("VK_LEFT", {}, attrValNode_id.ownerDocument.defaultView);
     EventUtils.synthesizeKey("VK_RETURN", {}, attrValNode_id.ownerDocument.defaultView);
   });
 
@@ -129,8 +112,6 @@ function doEditorTestSteps()
   yield;
   yield; // End of Step 2
 
-  // remove this from previous step
-  Services.obs.removeObserver(highlighterTrap, InspectorUI.INSPECTOR_NOTIFICATIONS.HIGHLIGHTING);
 
   // Step 3: validate that the previous editing session saved correctly, then open editor on `class` attribute value
   ok(!treePanel.editingContext, "Step 3: editor session ended");
@@ -229,14 +210,16 @@ function doEditorTestSteps()
   is(attrValNode_id.innerHTML, "Hello World", "attribute-value node in HTML panel *not* updated");
 
   // End of Step 8
-  executeSoon(finishUp);
-}
 
-function finishUp() {
   // end of all steps, so clean up
   Services.obs.removeObserver(doNextStep, InspectorUI.INSPECTOR_NOTIFICATIONS.EDITOR_OPENED, false);
   Services.obs.removeObserver(doNextStep, InspectorUI.INSPECTOR_NOTIFICATIONS.EDITOR_CLOSED, false);
   Services.obs.removeObserver(doNextStep, InspectorUI.INSPECTOR_NOTIFICATIONS.EDITOR_SAVED, false);
+
+  executeSoon(finishUp);
+}
+
+function finishUp() {
   doc = div = null;
   InspectorUI.closeInspectorUI();
   gBrowser.removeCurrentTab();

@@ -85,12 +85,6 @@ XPCOMUtils.defineLazyGetter(this, "StyleInspector", function () {
   return obj.StyleInspector;
 });
 
-XPCOMUtils.defineLazyGetter(this, "CssRuleView", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/devtools/CssRuleView.jsm", tmp);
-  return tmp.CssRuleView;
-});
-
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
   var obj = {};
   Cu.import("resource://gre/modules/NetUtil.jsm", obj);
@@ -198,9 +192,7 @@ const LEVELS = {
   dir: SEVERITY_LOG,
   group: SEVERITY_LOG,
   groupCollapsed: SEVERITY_LOG,
-  groupEnd: SEVERITY_LOG,
-  time: SEVERITY_LOG,
-  timeEnd: SEVERITY_LOG
+  groupEnd: SEVERITY_LOG
 };
 
 // The lowest HTTP response code (inclusive) that is considered an error.
@@ -2095,30 +2087,6 @@ HUD_SERVICE.prototype =
           hud.groupDepth--;
         }
         return;
-
-      case "time":
-        if (!args) {
-          return;
-        }
-        if (args.error) {
-          Cu.reportError(this.getStr(args.error));
-          return;
-        }
-        body = this.getFormatStr("timerStarted", [args.name]);
-        clipboardText = body;
-        sourceURL = aMessage.filename;
-        sourceLine = aMessage.lineNumber;
-        break;
-
-      case "timeEnd":
-        if (!args) {
-          return;
-        }
-        body = this.getFormatStr("timeEnd", [args.name, args.duration]);
-        clipboardText = body;
-        sourceURL = aMessage.filename;
-        sourceLine = aMessage.lineNumber;
-        break;
 
       default:
         Cu.reportError("Unknown Console API log level: " + level);
@@ -4632,52 +4600,6 @@ function JSTermHelper(aJSTerm)
     }
   };
 
-  aJSTerm.sandbox.inspectrules = function JSTH_inspectrules(aNode)
-  {
-    aJSTerm.helperEvaluated = true;
-    let doc = aJSTerm.parentNode.ownerDocument;
-    let win = doc.defaultView;
-    let panel = createElement(doc, "panel", {
-      label: "CSS Rules",
-      titlebar: "normal",
-      noautofocus: "true",
-      noautohide: "true",
-      close: "true",
-      width: 350,
-      height: (win.screen.height / 2)
-    });
-
-    let iframe = createAndAppendElement(panel, "iframe", {
-      src: "chrome://browser/content/devtools/cssruleview.xul",
-      flex: "1",
-    });
-
-    panel.addEventListener("load", function onLoad() {
-      panel.removeEventListener("load", onLoad, true);
-      let doc = iframe.contentDocument;
-      let view = new CssRuleView(doc);
-      doc.documentElement.appendChild(view.element);
-      view.highlight(aNode);
-    }, true);
-
-    let parent = doc.getElementById("mainPopupSet");
-    parent.appendChild(panel);
-
-    panel.addEventListener("popuphidden", function onHide() {
-      panel.removeEventListener("popuphidden", onHide);
-      parent.removeChild(panel);
-    });
-
-    let footer = createElement(doc, "hbox", { align: "end" });
-    createAndAppendElement(footer, "spacer", { flex: 1});
-    createAndAppendElement(footer, "resizer", { dir: "bottomend" });
-    panel.appendChild(footer);
-
-    let anchor = win.gBrowser.selectedBrowser;
-    panel.openPopup(anchor, "end_before", 0, 0, false, false);
-
-  }
-
   /**
    * Prints aObject to the output.
    *
@@ -7013,7 +6935,7 @@ function GcliTerm(aContentWindow, aHudId, aDocument, aConsole, aHintNode)
     chromeDocument: this.document,
     contentDocument: aContentWindow.document,
     jsEnvironment: {
-      globalObject: unwrap(aContentWindow),
+      globalObject: aContentWindow,
       evalFunction: this.evalInSandbox.bind(this)
     },
     inputElement: this.inputNode,

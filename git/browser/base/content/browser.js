@@ -2675,10 +2675,6 @@ function BrowserOnAboutPageLoad(document) {
              getService(Components.interfaces.nsISessionStore);
     if (!ss.canRestoreLastSession)
       document.getElementById("sessionRestoreContainer").hidden = true;
-    // Sync-related links
-    if (Services.prefs.prefHasUserValue("services.sync.username")) {
-      document.getElementById("setupSyncLink").hidden = true;
-    }
   }
 }
 
@@ -2687,9 +2683,7 @@ function BrowserOnAboutPageLoad(document) {
  */
 function BrowserOnClick(event) {
     // Don't trust synthetic events
-    if (!event.isTrusted ||
-        (event.target.localName != "button" &&
-         event.target.className != "sync-link"))
+    if (!event.isTrusted || event.target.localName != "button")
       return;
 
     var ot = event.originalTarget;
@@ -2818,16 +2812,6 @@ function BrowserOnClick(event) {
         if (ss.canRestoreLastSession)
           ss.restoreLastSession();
         errorDoc.getElementById("sessionRestoreContainer").hidden = true;
-      }
-      else if (ot == errorDoc.getElementById("pairDeviceLink")) {
-        if (Services.prefs.prefHasUserValue("services.sync.username")) {
-          gSyncUI.openAddDevice();
-        } else {
-          gSyncUI.openSetup("pair");
-        }
-      }
-      else if (ot == errorDoc.getElementById("setupSyncLink")) {
-        gSyncUI.openSetup(null);
       }
     }
 }
@@ -3908,50 +3892,11 @@ var FullScreen = {
     }
   },
 
-  exitDomFullScreen : function(e) {
-    document.mozCancelFullScreen();
-  },
-
   enterDomFullScreen : function(event) {
     if (!document.mozFullScreen) {
       return;
     }
-
-    // We receive "mozfullscreenchange" events for each subdocument which
-    // is an ancestor of the document containing the element which requested
-    // full-screen. Only add listeners and show warning etc when the event we
-    // receive is targeted at the chrome document, i.e. only once every time
-    // we enter DOM full-screen mode.
-    let targetDoc = event.target.ownerDocument ? event.target.ownerDocument : event.target;
-    if (targetDoc != document) {
-      // However, if we receive a "mozfullscreenchange" event for a document
-      // which is not a subdocument of the currently selected tab, we know that
-      // we've switched tabs since the request to enter full-screen was made,
-      // so we should exit full-screen since the "full-screen document" isn't
-      // acutally visible.
-      if (targetDoc.defaultView.top != gBrowser.contentWindow) {
-        document.mozCancelFullScreen();
-      }
-      return;
-    }
-
-    let focusManger = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
-    if (focusManger.activeWindow != window) {
-      // The top-level window has lost focus since the request to enter
-      // full-screen was made. Cancel full-screen.
-      document.mozCancelFullScreen();
-      return;
-    }
-
     this.showWarning(true);
-
-    // Exit DOM full-screen mode upon open, close, or change tab.
-    gBrowser.tabContainer.addEventListener("TabOpen", this.exitDomFullScreen);
-    gBrowser.tabContainer.addEventListener("TabClose", this.exitDomFullScreen);
-    gBrowser.tabContainer.addEventListener("TabSelect", this.exitDomFullScreen);
-
-    // Exit DOM full-screen mode when the browser window loses focus (ALT+TAB, etc).
-    window.addEventListener("deactivate", this.exitDomFullScreen, true);
 
     // Cancel any "hide the toolbar" animation which is in progress, and make
     // the toolbar hide immediately.
@@ -3985,10 +3930,6 @@ var FullScreen = {
         fullScrToggler.removeEventListener("dragenter", this._expandCallback, false);
       }
       this.cancelWarning();
-      gBrowser.tabContainer.removeEventListener("TabOpen", this.exitDomFullScreen);
-      gBrowser.tabContainer.removeEventListener("TabClose", this.exitDomFullScreen);
-      gBrowser.tabContainer.removeEventListener("TabSelect", this.exitDomFullScreen);
-      window.removeEventListener("deactivate", this.exitDomFullScreen, true);
     }
   },
 
@@ -8212,7 +8153,7 @@ let DownloadMonitorPanel = {
     let maxTime = -Infinity;
     let dls = gDownloadMgr.activeDownloads;
     while (dls.hasMoreElements()) {
-      let dl = dls.getNext();
+      let dl = dls.getNext().QueryInterface(Ci.nsIDownload);
       if (dl.state == gDownloadMgr.DOWNLOAD_DOWNLOADING) {
         // Figure out if this download takes longer
         if (dl.speed > 0 && dl.size > 0)
@@ -8959,15 +8900,13 @@ var Scratchpad = {
   prefEnabledName: "devtools.scratchpad.enabled",
 
   openScratchpad: function SP_openScratchpad() {
-    return this.ScratchpadManager.openScratchpad();
-  }
-};
+    const SCRATCHPAD_WINDOW_URL = "chrome://browser/content/scratchpad.xul";
+    const SCRATCHPAD_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";
 
-XPCOMUtils.defineLazyGetter(Scratchpad, "ScratchpadManager", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/devtools/scratchpad-manager.jsm", tmp);
-  return tmp.ScratchpadManager;
-});
+    return Services.ww.openWindow(null, SCRATCHPAD_WINDOW_URL, "_blank",
+                                  SCRATCHPAD_WINDOW_FEATURES, null);
+  },
+};
 
 
 XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {

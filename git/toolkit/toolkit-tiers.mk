@@ -117,7 +117,9 @@ tier_platform_dirs += \
 		$(NULL)
 endif
 
+ifdef MOZ_RDF
 tier_platform_dirs += rdf
+endif
 
 ifdef MOZ_JSDEBUGGER
 tier_platform_dirs += js/jsd

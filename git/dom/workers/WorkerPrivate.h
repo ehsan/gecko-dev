@@ -271,9 +271,7 @@ public:
   void
   TraceInstance(JSTracer* aTrc)
   {
-    // This should only happen on the parent thread but we can't assert that
-    // because it can also happen on the cycle collector thread when this is a
-    // top-level worker.
+    AssertIsOnParentThread();
     events::EventTarget::TraceInstance(aTrc);
   }
 
@@ -377,7 +375,7 @@ public:
     return mBaseURI;
   }
 
-  void
+  nsresult
   SetBaseURI(nsIURI* aBaseURI);
 
   nsIURI*

@@ -140,9 +140,9 @@ NS_MEMORY_REPORTER_IMPLEMENT(
 // DirectWrite is not available on all platforms, we need to use the function
 // pointer.
 typedef HRESULT (WINAPI*DWriteCreateFactoryFunc)(
-  DWRITE_FACTORY_TYPE factoryType,
-  REFIID iid,
-  IUnknown **factory
+  __in   DWRITE_FACTORY_TYPE factoryType,
+  __in   REFIID iid,
+  __out  IUnknown **factory
 );
 #endif
 
@@ -472,17 +472,6 @@ gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
     NS_IF_ADDREF(surf);
 
     return surf;
-}
-
-RefPtr<DrawTarget>
-gfxWindowsPlatform::CreateOffscreenDrawTarget(const IntSize& aSize, SurfaceFormat aFormat)
-{
-#ifdef CAIRO_HAS_D2D_SURFACE
-  if (mRenderMode == RENDER_DIRECT2D) {
-      return Factory::CreateDrawTarget(BACKEND_DIRECT2D, aSize, aFormat); 
-  }
-#endif
-  return NULL;
 }
 
 RefPtr<ScaledFont>

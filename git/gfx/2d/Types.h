@@ -68,15 +68,13 @@ enum SurfaceType
   SURFACE_D2D1_BITMAP, /* Surface wrapping a ID2D1Bitmap */
   SURFACE_D2D1_DRAWTARGET, /* Surface made from a D2D draw target */
   SURFACE_CAIRO, /* Surface wrapping a cairo surface */
-  SURFACE_COREGRAPHICS_IMAGE, /* Surface wrapping a CoreGraphics Image */
-  SURFACE_SKIA /* Surface wrapping a Skia bitmap */
+  SURFACE_COREGRAPHICS_IMAGE /* Surface wrapping a CoreGraphics Image */
 };
 
 enum SurfaceFormat
 {
   FORMAT_B8G8R8A8,
   FORMAT_B8G8R8X8,
-  FORMAT_R5G6B5,
   FORMAT_A8
 };
 
@@ -84,15 +82,12 @@ enum BackendType
 {
   BACKEND_DIRECT2D,
   BACKEND_COREGRAPHICS,
-  BACKEND_CAIRO,
-  BACKEND_SKIA
+  BACKEND_CAIRO
 };
 
 enum FontType
 {
-  FONT_DWRITE,
-  FONT_MAC,
-  FONT_SKIA
+  FONT_DWRITE
 };
 
 enum NativeSurfaceType
@@ -102,9 +97,7 @@ enum NativeSurfaceType
 
 enum NativeFontType
 {
-  NATIVE_FONT_DWRITE_FONT_FACE,
-  NATIVE_FONT_MAC_FONT_FACE,
-  NATIVE_FONT_SKIA_FONT_FACE
+  NATIVE_FONT_DWRITE_FONT_FACE
 };
 
 enum CompositionOp { OP_OVER, OP_ADD, OP_ATOP, OP_OUT, OP_IN, OP_SOURCE, OP_DEST_IN, OP_DEST_OUT, OP_DEST_OVER, OP_DEST_ATOP, OP_XOR, OP_COUNT };
@@ -146,10 +139,6 @@ public:
 
 struct GradientStop
 {
-  bool operator<(const GradientStop& aOther) const {
-    return offset < aOther.offset;
-  }
-
   Float offset;
   Color color;
 };

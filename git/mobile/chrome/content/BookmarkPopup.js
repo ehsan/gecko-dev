@@ -47,13 +47,6 @@ var BookmarkPopup = {
     this.hide();
 
     let browser = getBrowser();
-    let itemId = PlacesUtils.getMostRecentBookmarkForURI(browser.currentURI);
-    let title = "";
-    if (itemId == -1)
-      title = browser.contentTitle;
-    else
-      title = PlacesUtils.bookmarks.getItemTitle(itemId);
-
-    Util.createShortcut(title, browser.currentURI.spec, browser.mIconURL, "bookmark");
+    Util.createShortcut(browser.contentTitle, browser.currentURI.spec, browser.mIconURL, "bookmark");
   }
 };

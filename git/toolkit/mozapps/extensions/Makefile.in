@@ -71,7 +71,6 @@ EXTRA_PP_JS_MODULES = \
   $(NULL)
 
 EXTRA_JS_MODULES = \
-  ChromeManifestParser.jsm \
   LightweightThemeManager.jsm \
   SpellCheckDictionaryBootstrap.js \
   $(NULL)

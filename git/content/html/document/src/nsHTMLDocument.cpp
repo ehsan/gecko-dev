@@ -141,7 +141,6 @@
 #include "prprf.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Preferences.h"
-#include "nsMimeTypes.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -161,9 +160,6 @@ const PRInt32 kForward  = 0;
 const PRInt32 kBackward = 1;
 
 //#define DEBUG_charset
-
-#define NS_USE_NEW_VIEW_SOURCE 1
-#define NS_USE_NEW_PLAIN_TEXT 1
 
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
@@ -580,8 +576,7 @@ nsHTMLDocument::StartAutodetection(nsIDocShell *aDocShell, nsACString& aCharset,
   if (mIsRegularHTML && 
       nsHtml5Module::sEnabled && 
       aCommand && 
-      (!nsCRT::strcmp(aCommand, "view") ||
-       !nsCRT::strcmp(aCommand, "view-source"))) {
+      !nsCRT::strcmp(aCommand, "view")) {
     return; // the HTML5 parser uses chardet directly
   }
   nsCOMPtr <nsIParserFilter> cdetflt;
@@ -654,31 +649,16 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
                                   bool aReset,
                                   nsIContentSink* aSink)
 {
-  nsCAutoString contentType;
-  aChannel->GetContentType(contentType);
-
-  bool viewSource = aCommand && !nsCRT::strcmp(aCommand, "view-source") &&
-    NS_USE_NEW_VIEW_SOURCE;
-  bool plainText = (contentType.EqualsLiteral(TEXT_PLAIN) ||
-    contentType.EqualsLiteral(TEXT_CSS) ||
-    contentType.EqualsLiteral(APPLICATION_JAVASCRIPT) ||
-    contentType.EqualsLiteral(APPLICATION_XJAVASCRIPT) ||
-    contentType.EqualsLiteral(TEXT_ECMASCRIPT) ||
-    contentType.EqualsLiteral(APPLICATION_ECMASCRIPT) ||
-    contentType.EqualsLiteral(TEXT_JAVASCRIPT));
-  bool loadAsHtml5 = nsHtml5Module::sEnabled || viewSource || plainText;
-  if (!NS_USE_NEW_PLAIN_TEXT && !viewSource) {
-    plainText = false;
-  }
-
-  NS_ASSERTION(!(plainText && aSink),
-               "Someone tries to load plain text into a custom sink.");
-
+  bool loadAsHtml5 = nsHtml5Module::sEnabled;
   if (aSink) {
     loadAsHtml5 = false;
   }
 
-  if (contentType.Equals("application/xhtml+xml") && !viewSource) {
+  nsCAutoString contentType;
+  aChannel->GetContentType(contentType);
+
+  if (contentType.Equals("application/xhtml+xml") &&
+      (!aCommand || nsCRT::strcmp(aCommand, "view-source") != 0)) {
     // We're parsing XHTML as XML, remember that.
 
     mIsRegularHTML = false;
@@ -692,14 +672,15 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 #endif
   
-  if (loadAsHtml5 && !viewSource &&
-      (!(contentType.EqualsLiteral("text/html") || plainText) &&
-      aCommand && !nsCRT::strcmp(aCommand, "view"))) {
+  if (loadAsHtml5 && 
+      !(contentType.EqualsLiteral("text/html") && 
+        aCommand && 
+        !nsCRT::strcmp(aCommand, "view"))) {
     loadAsHtml5 = false;
   }
   
   // TODO: Proper about:blank treatment is bug 543435
-  if (loadAsHtml5 && !viewSource) {
+  if (loadAsHtml5) {
     // mDocumentURI hasn't been set, yet, so get the URI from the channel
     nsCOMPtr<nsIURI> uri;
     aChannel->GetOriginalURI(getter_AddRefs(uri));
@@ -747,13 +728,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   if (needsParser) {
     if (loadAsHtml5) {
       mParser = nsHtml5Module::NewHtml5Parser();
-      if (plainText) {
-        mParser->MarkAsNotScriptCreated("plain-text");
-      } else if (viewSource && !contentType.EqualsLiteral("text/html")) {
-        mParser->MarkAsNotScriptCreated("view-source-xml");
-      } else {
-        mParser->MarkAsNotScriptCreated(aCommand);
-      }
+      mParser->MarkAsNotScriptCreated();
     } else {
       mParser = do_CreateInstance(kCParserCID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);

@@ -827,13 +827,8 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
   window->width = intBounds.width;
   window->height = intBounds.height;
 
-  // Calling SetWindow might destroy this frame. We need to use the instance
-  // owner to clean up so hold a ref.
-  nsRefPtr<nsPluginInstanceOwner> instanceOwnerRef(mInstanceOwner);
-
-  // This will call pi->SetWindow and take care of window subclassing
-  // if needed, see bug 132759. Calling SetWindow can destroy this frame
-  // so check for that before doing anything else with this frame's memory.
+  // this will call pi->SetWindow and take care of window subclassing
+  // if needed, see bug 132759.
   if (mInstanceOwner->UseAsyncRendering()) {
     rv = pi->AsyncSetWindow(window);
   }
@@ -841,8 +836,7 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
     rv = window->CallSetWindow(pi);
   }
 
-  instanceOwnerRef->ReleasePluginPort(window->window);
-
+  mInstanceOwner->ReleasePluginPort(window->window);
   return rv;
 }
 

@@ -73,25 +73,19 @@ public:
 
   void EndImageFrame();
 
-  // Check if PNG is valid ICO (32bpp RGBA)
-  // http://blogs.msdn.com/b/oldnewthing/archive/2010/10/22/10079192.aspx
-  bool IsValidICO() const
+  // Checks if the info header contains valid information
+  bool HasValidInfo() const 
   {
-    png_uint_32
-        png_width,  // Unused
-        png_height; // Unused
+    return mInfo && mInfo->valid;
+  }
 
-    int png_bit_depth,
-        png_color_type;
-
-    if (png_get_IHDR(mPNG, mInfo, &png_width, &png_height, &png_bit_depth,
-                     &png_color_type, NULL, NULL, NULL)) {
-
-      return (png_color_type == PNG_COLOR_TYPE_RGB_ALPHA &&
-              png_bit_depth == 8);
-    } else {
-      return false;
+  // Obtain the pixel depth if available or 0 otherwise
+  PRInt32 GetPixelDepth() const
+  {
+    if (!mInfo) {
+      return 0;
     }
+    return mInfo->pixel_depth;
   }
 
 public:

@@ -74,12 +74,6 @@ using mozilla::dom::StorageChild;
 #include "mozilla/Preferences.h"
 #include "nsThreadUtils.h"
 
-// calls FlushAndDeleteTemporaryTables(false)
-#define NS_DOMSTORAGE_FLUSH_TIMER_TOPIC "domstorage-flush-timer"
-
-// calls FlushAndDeleteTemporaryTables(true)
-#define NS_DOMSTORAGE_FLUSH_FORCE_TOPIC "domstorage-flush-force"
-
 using namespace mozilla;
 
 static const PRUint32 ASK_BEFORE_ACCEPT = 1;
@@ -296,7 +290,7 @@ nsDOMStorageManager::Initialize()
   // Used for temporary table flushing
   os->AddObserver(gStorageManager, "profile-before-change", false);
   os->AddObserver(gStorageManager, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
-  os->AddObserver(gStorageManager, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, false);
+  os->AddObserver(gStorageManager, NS_DOMSTORAGE_FLUSH_TIMER_OBSERVER, false);
 
   return NS_OK;
 }
@@ -446,7 +440,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
   } else if (!strcmp(aTopic, "timer-callback")) {
     nsCOMPtr<nsIObserverService> obsserv = mozilla::services::GetObserverService();
     if (obsserv)
-      obsserv->NotifyObservers(nsnull, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, nsnull);
+      obsserv->NotifyObservers(nsnull, NS_DOMSTORAGE_FLUSH_TIMER_OBSERVER, nsnull);
   } else if (!strcmp(aTopic, "browser:purge-domain-data")) {
     // Convert the domain name to the ACE format
     nsCAutoString aceDomain;
@@ -481,17 +475,10 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
       NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                        "DOMStorage: temporary table commit failed");
     }
-  } else if (!strcmp(aTopic, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC)) {
+  } else if (!strcmp(aTopic, NS_DOMSTORAGE_FLUSH_TIMER_OBSERVER)) {
     if (DOMStorageImpl::gStorageDB) {
       DebugOnly<nsresult> rv =
         DOMStorageImpl::gStorageDB->FlushAndDeleteTemporaryTables(false);
-      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
-                       "DOMStorage: temporary table commit failed");
-    }
-  } else if (!strcmp(aTopic, NS_DOMSTORAGE_FLUSH_FORCE_TOPIC)) {
-    if (DOMStorageImpl::gStorageDB) {
-      DebugOnly<nsresult> rv =
-        DOMStorageImpl::gStorageDB->FlushAndDeleteTemporaryTables(true);
       NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                        "DOMStorage: temporary table commit failed");
     }

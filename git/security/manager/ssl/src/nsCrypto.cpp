@@ -73,6 +73,7 @@
 #include "nsIGenKeypairInfoDlg.h"
 #include "nsIDOMCryptoDialogs.h"
 #include "nsIFormSigningDialog.h"
+#include "nsIProxyObjectManager.h"
 #include "nsIJSContextStack.h"
 #include "jsapi.h"
 #include "jsdbgapi.h"
@@ -2059,12 +2060,27 @@ nsP12Runnable::~nsP12Runnable()
 }
 
 
+//Quick helper function to alert users.
+void
+alertUser(const PRUnichar *message)
+{
+  nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
+  nsCOMPtr<nsIPrompt> prompter;
+  if (wwatch)
+    wwatch->GetNewPrompter(0, getter_AddRefs(prompter));
+
+  if (prompter) {
+    nsPSMUITracker tracker;
+    if (!tracker.isUIForbidden()) {
+      prompter->Alert(0, message);
+    }
+  }
+}
+
 //Implementation that backs cert(s) into a PKCS12 file
 NS_IMETHODIMP
 nsP12Runnable::Run()
 {
-  NS_ASSERTION(NS_IsMainThread(), "nsP12Runnable dispatched to the wrong thread");
-
   nsNSSShutDownPreventionLock locker;
   NS_ASSERTION(mCertArr, "certArr is NULL while trying to back up");
 
@@ -2087,7 +2103,7 @@ nsP12Runnable::Run()
   nssComponent->GetPIPNSSBundleString("ForcedBackup3", temp);
 
   final.Append(temp.get());
-  nsNSSComponent::ShowAlertWithConstructedString(final);
+  alertUser(final.get());
 
   nsCOMPtr<nsIFilePicker> filePicker = 
                         do_CreateInstance("@mozilla.org/filepicker;1", &rv);
@@ -2594,6 +2610,17 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
     return NS_OK;
   }
 
+  nsCOMPtr<nsIFormSigningDialog> proxied_fsd;
+  nsresult rv = NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                                     NS_GET_IID(nsIFormSigningDialog), 
+                                     fsd, NS_PROXY_SYNC,
+                                     getter_AddRefs(proxied_fsd));
+  if (NS_FAILED(rv)) {
+    aResult.Append(internalError);
+
+    return NS_OK;
+  }
+
   nsCOMPtr<nsIDocument> document;
   GetDocumentFromContext(cx, getter_AddRefs(document));
   if (!document) {
@@ -2609,8 +2636,6 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
 
     return NS_OK;
   }
-
-  nsresult rv;
 
   nsCString host;
   rv = uri->GetHost(host);
@@ -2687,11 +2712,11 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
     // Throw up the form signing confirmation dialog and get back the index
     // of the selected cert.
     PRInt32 selectedIndex = -1;
-    rv = fsd->ConfirmSignText(uiContext, utf16Host, aStringToSign,
-                              const_cast<const PRUnichar**>(certNicknameList.get()),
-                              const_cast<const PRUnichar**>(certDetailsList),
-                              certsToUse, &selectedIndex, password,
-                              &canceled);
+    rv = proxied_fsd->ConfirmSignText(uiContext, utf16Host, aStringToSign,
+                                      const_cast<const PRUnichar**>(certNicknameList.get()),
+                                      const_cast<const PRUnichar**>(certDetailsList),
+                                      certsToUse, &selectedIndex, password,
+                                      &canceled);
     if (NS_FAILED(rv) || canceled) {
       break; // out of tryAgain loop
     }
@@ -2905,8 +2930,10 @@ confirm_user(const PRUnichar *message)
 {
   PRInt32 buttonPressed = 1; // If the user exits by clicking the close box, assume No (button 1)
 
+  nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
   nsCOMPtr<nsIPrompt> prompter;
-  (void) nsNSSComponent::GetNewPrompter(getter_AddRefs(prompter));
+  if (wwatch)
+    wwatch->GetNewPrompter(0, getter_AddRefs(prompter));
 
   if (prompter) {
     nsPSMUITracker tracker;

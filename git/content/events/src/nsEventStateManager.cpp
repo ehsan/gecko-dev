@@ -2096,7 +2096,6 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       if (!targetContent)
         return;
 
-      sLastDragOverFrame = nsnull;
       nsCOMPtr<nsIWidget> widget = mCurrentTarget->GetNearestWidget();
 
       // get the widget from the target frame
@@ -3423,7 +3422,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
                                            targetContent, &status);
         }
       }
-      sLastDragOverFrame = nsnull;
       ClearGlobalActiveContent(this);
       break;
     }
@@ -4447,22 +4445,12 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
   return nsnull;
 }
 
-static Element*
-GetParentElement(Element* aElement)
-{
-  nsIContent* p = aElement->GetParent();
-  return (p && p->IsElement()) ? p->AsElement() : nsnull;
-}
-
 /* static */
 void
-nsEventStateManager::SetFullScreenState(Element* aElement, bool aIsFullScreen)
+nsEventStateManager::SetFullScreenState(Element* aElement,
+                                        bool aIsFullScreen)
 {
   DoStateChange(aElement, NS_EVENT_STATE_FULL_SCREEN, aIsFullScreen);
-  Element* ancestor = aElement;
-  while ((ancestor = GetParentElement(ancestor))) {
-    DoStateChange(ancestor, NS_EVENT_STATE_FULL_SCREEN_ANCESTOR, aIsFullScreen);
-  }
 }
 
 /* static */

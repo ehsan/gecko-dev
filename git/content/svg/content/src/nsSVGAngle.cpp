@@ -43,8 +43,10 @@
 #include "nsSVGMarkerElement.h"
 #include "nsMathUtils.h"
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGOrientSMILType.h"
+#endif // MOZ_SMIL
 
 using namespace mozilla;
 
@@ -262,9 +264,11 @@ nsSVGAngle::SetBaseValueInSpecifiedUnits(float aValue,
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
   aSVGElement->DidChangeAngle(mAttrEnum, true);
 }
 
@@ -297,9 +301,11 @@ nsSVGAngle::NewValueSpecifiedUnits(PRUint16 unitType,
     mAnimVal = mBaseVal;
     mAnimValUnit = mBaseValUnit;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
   if (aSVGElement) {
     aSVGElement->DidChangeAngle(mAttrEnum, true);
   }
@@ -349,9 +355,11 @@ nsSVGAngle::SetBaseValueString(const nsAString &aValueAsString,
     mAnimVal = mBaseVal;
     mAnimValUnit = mBaseValUnit;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
 
   // We don't need to call DidChange* here - we're only called by
   // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
@@ -378,9 +386,11 @@ nsSVGAngle::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
   if (aSVGElement) {
     aSVGElement->DidChangeAngle(mAttrEnum, true);
   }
@@ -418,6 +428,7 @@ NS_NewDOMSVGAngle(nsIDOMSVGAngle** aResult)
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 nsSVGAngle::ToSMILAttr(nsSVGElement *aSVGElement)
 {
@@ -493,3 +504,4 @@ nsSVGAngle::SMILOrient::SetAnimValue(const nsSMILValue& aValue)
   }
   return NS_OK;
 }
+#endif // MOZ_SMIL

@@ -97,9 +97,11 @@ NS_INTERFACE_MAP_END
 nsIDOMSVGTransform*
 DOMSVGTransformList::GetItemWithoutAddRef(PRUint32 aIndex)
 {
+#ifdef MOZ_SMIL
   if (IsAnimValList()) {
     Element()->FlushAnimations();
   }
+#endif
   if (aIndex < Length()) {
     EnsureItemAt(aIndex);
     return mItems[aIndex];
@@ -161,9 +163,11 @@ DOMSVGTransformList::InternalList()
 NS_IMETHODIMP
 DOMSVGTransformList::GetNumberOfItems(PRUint32 *aNumberOfItems)
 {
+#ifdef MOZ_SMIL
   if (IsAnimValList()) {
     Element()->FlushAnimations();
   }
+#endif
   *aNumberOfItems = Length();
   return NS_OK;
 }
@@ -192,9 +196,11 @@ DOMSVGTransformList::Clear()
     mItems.Clear();
     InternalList().Clear();
     Element()->DidChangeTransformList(true);
+#ifdef MOZ_SMIL
     if (mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
   }
   return NS_OK;
 }
@@ -286,9 +292,11 @@ DOMSVGTransformList::InsertItemBefore(nsIDOMSVGTransform *newItem,
   UpdateListIndicesFromIndex(mItems, index + 1);
 
   Element()->DidChangeTransformList(true);
+#ifdef MOZ_SMIL
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
+#endif
   *_retval = domItem.forget().get();
   return NS_OK;
 }
@@ -330,9 +338,11 @@ DOMSVGTransformList::ReplaceItem(nsIDOMSVGTransform *newItem,
   domItem->InsertingIntoList(this, index, IsAnimValList());
 
   Element()->DidChangeTransformList(true);
+#ifdef MOZ_SMIL
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
+#endif
   NS_ADDREF(*_retval = domItem.get());
   return NS_OK;
 }
@@ -369,9 +379,11 @@ DOMSVGTransformList::RemoveItem(PRUint32 index, nsIDOMSVGTransform **_retval)
   UpdateListIndicesFromIndex(mItems, index);
 
   Element()->DidChangeTransformList(true);
+#ifdef MOZ_SMIL
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
+#endif
   return NS_OK;
 }
 

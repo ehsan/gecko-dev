@@ -55,6 +55,8 @@
 #include "nsIServiceManager.h"
 #include "nsIPercentHeightObserver.h"
 #include "nsLayoutUtils.h"
+#include "nsPlaceholderFrame.h"
+#include "nsFrameManager.h"
 #include "mozilla/Preferences.h"
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
@@ -849,7 +851,7 @@ static bool AreAllEarlierInFlowFramesEmpty(nsIFrame* aFrame,
 // cbrs->frame is the actual containing block
 void
 nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
-                                            nsIFrame*         aPlaceholderFrame,
+                                            nsPlaceholderFrame* aPlaceholderFrame,
                                             nsIFrame*         aContainingBlock,
                                             nscoord           aBlockLeftContentEdge,
                                             nscoord           aBlockContentWidth,
@@ -932,17 +934,12 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
     nsLayoutUtils::GetAsBlock(aContainingBlock->GetContentInsertionFrame());
   if (blockFrame) {
     nscoord blockYOffset = blockFrame->GetOffsetTo(aContainingBlock).y;
-    bool isValid;
-    nsBlockInFlowLineIterator iter(blockFrame, aPlaceholderFrame, &isValid);
-    if (!isValid) {
+    const nsLineBox* lineBox = aPlaceholderFrame->GetCachedLineBox();
+    if (!lineBox) {
       // Give up.  We're probably dealing with somebody using
       // position:absolute inside native-anonymous content anyway.
       aHypotheticalBox.mTop = placeholderOffset.y;
     } else {
-      NS_ASSERTION(iter.GetContainer() == blockFrame,
-                   "Found placeholder in wrong block!");
-      nsBlockFrame::line_iterator lineBox = iter.GetLine();
-
       // How we determine the hypothetical box depends on whether the element
       // would have been inline-level or block-level
       if (mStyleDisplay->IsOriginalDisplayInlineOutside()) {
@@ -956,10 +953,10 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
         // have been just before this line.
         // XXXbz the line box is not fully reflowed yet if our
         // containing block is relatively positioned...
-        if (lineBox != iter.End()) {
+        bool allEmpty = true;
+        if (!lineBox->IsValidCachedIsEmpty() || !lineBox->CachedIsEmpty()) {
           nsIFrame * firstFrame = lineBox->mFirstChild;
           bool found = false;
-          bool allEmpty = true;
           while (firstFrame) { // See bug 223064
             allEmpty = AreAllEarlierInFlowFramesEmpty(firstFrame,
               aPlaceholderFrame, &found);
@@ -968,20 +965,17 @@ nsHTMLReflowState::CalculateHypotheticalBox(nsPresContext*    aPresContext,
             firstFrame = firstFrame->GetNextSibling();
           }
           NS_ASSERTION(firstFrame, "Couldn't find placeholder!");
+        }
 
-          if (allEmpty) {
-            // The top of the hypothetical box is the top of the line
-            // containing the placeholder, since there is nothing in the
-            // line before our placeholder except empty frames.
-            aHypotheticalBox.mTop = lineBox->mBounds.y + blockYOffset;
-          } else {
-            // The top of the hypothetical box is just below the line
-            // containing the placeholder.
-            aHypotheticalBox.mTop = lineBox->mBounds.YMost() + blockYOffset;
-          }
+        if (allEmpty) {
+          // The top of the hypothetical box is the top of the line
+          // containing the placeholder, since there is nothing in the
+          // line before our placeholder except empty frames.
+          aHypotheticalBox.mTop = lineBox->mBounds.y + blockYOffset;
         } else {
-          // Just use the placeholder's y-offset wrt the containing block
-          aHypotheticalBox.mTop = placeholderOffset.y;
+          // The top of the hypothetical box is just below the line
+          // containing the placeholder.
+          aHypotheticalBox.mTop = lineBox->mBounds.YMost() + blockYOffset;
         }
       }
     }
@@ -1107,9 +1101,10 @@ nsHTMLReflowState::InitAbsoluteConstraints(nsPresContext* aPresContext,
                "Why are we here?");
 
   // Get the placeholder frame
-  nsIFrame*     placeholderFrame;
+  nsPlaceholderFrame*     placeholderFrame;
 
-  placeholderFrame = aPresContext->PresShell()->GetPlaceholderFrameFor(frame);
+  placeholderFrame =
+    aPresContext->PresShell()->FrameManager()->GetPlaceholderFrameFor(frame);
   NS_ASSERTION(nsnull != placeholderFrame, "no placeholder frame");
 
   // If both 'left' and 'right' are 'auto' or both 'top' and 'bottom' are
@@ -1513,7 +1508,6 @@ CalcQuirkContainingBlockHeight(const nsHTMLReflowState* aCBReflowState)
     }
     // if we got to the html frame (a block child of the canvas) ...
     else if (nsGkAtoms::blockFrame == frameType &&
-             rs->parentReflowState &&
              nsGkAtoms::canvasFrame ==
                rs->parentReflowState->frame->GetType()) {
       // ... then subtract out margin/border/padding for the BODY element

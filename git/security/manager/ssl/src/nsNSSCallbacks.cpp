@@ -54,6 +54,7 @@
 #include "nsIServiceManager.h"
 #include "nsReadableUtils.h"
 #include "nsIPrompt.h"
+#include "nsProxiedService.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsProtectedAuthThread.h"
@@ -67,7 +68,6 @@
 #include "nsIWindowWatcher.h"
 #include "nsIPrompt.h"
 #include "nsProxyRelease.h"
-#include "PSMRunnable.h"
 #include "nsIConsoleService.h"
 
 #include "ssl.h"
@@ -78,7 +78,6 @@
 #include "sslerr.h"
 
 using namespace mozilla;
-using namespace mozilla::psm;
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
@@ -673,11 +672,6 @@ void nsHTTPListener::send_done_signal()
 static char*
 ShowProtectedAuthPrompt(PK11SlotInfo* slot, nsIInterfaceRequestor *ir)
 {
-  if (!NS_IsMainThread()) {
-    NS_ERROR("ShowProtectedAuthPrompt called off the main thread");
-    return nsnull;
-  }
-
   char* protAuthRetVal = nsnull;
 
   // Get protected auth dialogs
@@ -730,31 +724,15 @@ ShowProtectedAuthPrompt(PK11SlotInfo* slot, nsIInterfaceRequestor *ir)
 
   return protAuthRetVal;
 }
-
-class PK11PasswordPromptRunnable : public SyncRunnableBase
-{
-public:
-  PK11PasswordPromptRunnable(PK11SlotInfo* slot, 
-                             nsIInterfaceRequestor* ir)
-    : mResult(nsnull),
-      mSlot(slot),
-      mIR(ir)
-  {
-  }
-  char * mResult; // out
-  virtual void RunOnTargetThread();
-private:
-  PK11SlotInfo* const mSlot; // in
-  nsIInterfaceRequestor* const mIR; // in
-};
-
-void PK11PasswordPromptRunnable::RunOnTargetThread()
-{
+  
+char* PR_CALLBACK
+PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg) {
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
   PRUnichar *password = nsnull;
   bool value = false;
-  nsCOMPtr<nsIPrompt> prompt;
+  nsIInterfaceRequestor *ir = static_cast<nsIInterfaceRequestor*>(arg);
+  nsCOMPtr<nsIPrompt> proxyPrompt;
 
   /* TODO: Retry should generate a different dialog message */
 /*
@@ -762,40 +740,68 @@ void PK11PasswordPromptRunnable::RunOnTargetThread()
     return nsnull;
 */
 
-  if (!mIR)
+  if (!ir)
   {
-    nsNSSComponent::GetNewPrompter(getter_AddRefs(prompt));
+    nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
+    if (!wwatch)
+      return nsnull;
+
+    nsCOMPtr<nsIPrompt> prompter;
+    wwatch->GetNewPrompter(0, getter_AddRefs(prompter));
+    if (!prompter)
+      return nsnull;
+
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIPrompt),
+                         prompter, NS_PROXY_SYNC,
+                         getter_AddRefs(proxyPrompt));
+    if (!proxyPrompt)
+      return nsnull;
   }
   else
   {
-    prompt = do_GetInterface(mIR);
-    NS_ASSERTION(prompt != nsnull, "callbacks does not implement nsIPrompt");
+    // The interface requestor object may not be safe, so
+    // proxy the call to get the nsIPrompt.
+  
+    nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIInterfaceRequestor),
+                         ir,
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(proxiedCallbacks));
+  
+    // Get the desired interface
+    nsCOMPtr<nsIPrompt> prompt(do_GetInterface(proxiedCallbacks));
+    if (!prompt) {
+      NS_ASSERTION(false, "callbacks does not implement nsIPrompt");
+      return nsnull;
+    }
+  
+    // Finally, get a proxy for the nsIPrompt
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIPrompt),
+                         prompt,
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(proxyPrompt));
   }
 
-  if (!prompt)
-    return;
-
-  if (PK11_ProtectedAuthenticationPath(mSlot)) {
-    mResult = ShowProtectedAuthPrompt(mSlot, mIR);
-    return;
-  }
+  if (PK11_ProtectedAuthenticationPath(slot))
+    return ShowProtectedAuthPrompt(slot, ir);
 
   nsAutoString promptString;
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
 
   if (NS_FAILED(rv))
-    return; 
+    return nsnull; 
 
-  const PRUnichar* formatStrings[1] = { 
-    ToNewUnicode(NS_ConvertUTF8toUTF16(PK11_GetTokenName(mSlot)))
-  };
+  const PRUnichar* formatStrings[1] = { ToNewUnicode(NS_ConvertUTF8toUTF16(PK11_GetTokenName(slot))) };
   rv = nssComponent->PIPBundleFormatStringFromName("CertPassPrompt",
                                       formatStrings, 1,
                                       promptString);
   nsMemory::Free(const_cast<PRUnichar*>(formatStrings[0]));
 
   if (NS_FAILED(rv))
-    return;
+    return nsnull;
 
   {
     nsPSMUITracker tracker;
@@ -806,29 +812,18 @@ void PK11PasswordPromptRunnable::RunOnTargetThread()
       // Although the exact value is ignored, we must not pass invalid
       // bool values through XPConnect.
       bool checkState = false;
-      rv = prompt->PromptPassword(nsnull, promptString.get(),
-                                  &password, nsnull, &checkState, &value);
+      rv = proxyPrompt->PromptPassword(nsnull, promptString.get(),
+                                       &password, nsnull, &checkState, &value);
     }
   }
   
   if (NS_SUCCEEDED(rv) && value) {
-    mResult = ToNewUTF8String(nsDependentString(password));
+    char* str = ToNewUTF8String(nsDependentString(password));
     NS_Free(password);
+    return str;
   }
-}
 
-char* PR_CALLBACK
-PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg)
-{
-  nsRefPtr<PK11PasswordPromptRunnable> runnable = 
-    new PK11PasswordPromptRunnable(slot,
-                                   static_cast<nsIInterfaceRequestor*>(arg));
-  if (NS_IsMainThread()) {
-    runnable->RunOnTargetThread();
-  } else {
-    runnable->DispatchToMainThreadAndWait();
-  }
-  return runnable->mResult;
+  return nsnull;
 }
 
 void PR_CALLBACK HandshakeCallback(PRFileDesc* fd, void* client_data) {

@@ -52,6 +52,8 @@
 #include "nsIChannel.h"
 #include "nsNSSCertificate.h"
 #include "nsIX509CertValidity.h"
+#include "nsIProxyObjectManager.h"
+#include "nsProxiedService.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsIClientAuthDialogs.h"
@@ -79,6 +81,7 @@
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsISecureBrowserUI.h"
+#include "nsProxyRelease.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIArray.h"
@@ -342,52 +345,94 @@ nsNSSSocketInfo::SetNotificationCallbacks(nsIInterfaceRequestor* aCallbacks)
   return NS_OK;
 }
 
-static void
-getSecureBrowserUI(nsIInterfaceRequestor * callbacks,
-                   nsISecureBrowserUI ** result)
+nsresult
+nsNSSSocketInfo::EnsureDocShellDependentStuffKnown()
 {
-  NS_ASSERTION(result != nsnull, "result parameter to getSecureBrowserUI is null");
-  *result = nsnull;
+  if (mDocShellDependentStuffKnown)
+    return NS_OK;
 
-  NS_ASSERTION(NS_IsMainThread(),
-               "getSecureBrowserUI called off the main thread");
+  if (!mCallbacks || nsSSLThread::stoppedOrStopping())
+    return NS_ERROR_FAILURE;
 
-  if (!callbacks)
-    return;
+  mDocShellDependentStuffKnown = true;
 
-  nsCOMPtr<nsISecureBrowserUI> secureUI = do_GetInterface(callbacks);
-  if (secureUI) {
-    secureUI.forget(result);
-    return;
+  nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
+  NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                       NS_GET_IID(nsIInterfaceRequestor),
+                       static_cast<nsIInterfaceRequestor*>(mCallbacks),
+                       NS_PROXY_SYNC,
+                       getter_AddRefs(proxiedCallbacks));
+
+  // Are we running within a context that wants external SSL error reporting?
+  // We'll look at the presence of a security UI object inside docshell.
+  // If the docshell wants the lock icon, you'll get the ssl error pages, too.
+  // This is helpful to distinguish from all other contexts, like mail windows,
+  // or any other SSL connections running in the background.
+  // We must query it now and remember, because fatal SSL errors will come 
+  // with a socket close, and the socket transport might detach the callbacks 
+  // instance prior to our error reporting.
+
+  nsISecureBrowserUI* secureUI = nsnull;
+  CallGetInterface(proxiedCallbacks.get(), &secureUI);
+
+  nsCOMPtr<nsIDocShell> docshell;
+
+  nsCOMPtr<nsIDocShellTreeItem> item(do_GetInterface(proxiedCallbacks));
+  if (item)
+  {
+    nsCOMPtr<nsIDocShellTreeItem> proxiedItem;
+    nsCOMPtr<nsIDocShellTreeItem> rootItem;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIDocShellTreeItem),
+                         item.get(),
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(proxiedItem));
+
+    proxiedItem->GetSameTypeRootTreeItem(getter_AddRefs(rootItem));
+    docshell = do_QueryInterface(rootItem);
+    NS_ASSERTION(docshell, "rootItem do_QI is null");
   }
 
-  nsCOMPtr<nsIDocShellTreeItem> item = do_GetInterface(callbacks);
-  if (item) {
-    nsCOMPtr<nsIDocShellTreeItem> rootItem;
-    (void) item->GetSameTypeRootTreeItem(getter_AddRefs(rootItem));
-      
-    nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(rootItem);
-    if (docShell) {
-      (void) docShell->GetSecurityUI(result);
+  if (docshell && !secureUI)
+  {
+    nsCOMPtr<nsIDocShell> proxiedDocShell;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIDocShell),
+                         docshell.get(),
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(proxiedDocShell));
+    if (proxiedDocShell)
+      proxiedDocShell->GetSecurityUI(&secureUI);
+  }
+
+  if (secureUI)
+  {
+    nsCOMPtr<nsIThread> mainThread(do_GetMainThread());
+    NS_ProxyRelease(mainThread, secureUI, false);
+    mExternalErrorReporting = true;
+
+    // If this socket is associated to a docshell, let's try to remember
+    // the currently used cert. If this socket gets a notification from NSS
+    // having the same raw socket, we can keep the PSM wrapper object
+    // and all the data it has cached (like verification results).
+    nsCOMPtr<nsISSLStatusProvider> statprov = do_QueryInterface(secureUI);
+    if (statprov) {
+      nsCOMPtr<nsISSLStatus> sslstat;
+      statprov->GetSSLStatus(getter_AddRefs(sslstat));
+      if (sslstat) {
+        sslstat->GetServerCert(getter_AddRefs(mPreviousCert));
+      }
     }
   }
+
+  return NS_OK;
 }
 
-// Are we running within a context that wants external SSL error reporting?
-// We'll look at the presence of a security UI object inside docshell.
-// If the docshell wants the lock icon, you'll get the ssl error pages, too.
-// This is helpful to distinguish from all other contexts, like mail windows,
-// or any other SSL connections running in the background.
 bool
 nsNSSSocketInfo::GetExternalErrorReporting()
 {
-  NS_ASSERTION(NS_IsMainThread(),
-               "nsNSSSocketInfo::GetExternalErrorReporting called off the "
-               "main thread.");
-
-  nsCOMPtr<nsISecureBrowserUI> secureUI;
-  getSecureBrowserUI(mCallbacks, getter_AddRefs(secureUI));
-  return secureUI != nsnull;
+  nsresult rv = EnsureDocShellDependentStuffKnown();
+  return NS_SUCCEEDED(rv) && mExternalErrorReporting;
 }
 
 NS_IMETHODIMP
@@ -492,11 +537,6 @@ nsNSSSocketInfo::SetErrorMessage(const PRUnichar* aText) {
 /* void getInterface (in nsIIDRef uuid, [iid_is (uuid), retval] out nsQIResult result); */
 NS_IMETHODIMP nsNSSSocketInfo::GetInterface(const nsIID & uuid, void * *result)
 {
-  if (!NS_IsMainThread()) {
-    NS_ERROR("nsNSSSocketInfo::GetInterface called off the main thread");
-    return NS_ERROR_NOT_SAME_THREAD;
-  }
-
   nsresult rv;
   if (!mCallbacks) {
     nsCOMPtr<nsIInterfaceRequestor> ir = new PipUIContext();
@@ -508,7 +548,14 @@ NS_IMETHODIMP nsNSSSocketInfo::GetInterface(const nsIID & uuid, void * *result)
     if (nsSSLThread::stoppedOrStopping())
       return NS_ERROR_FAILURE;
 
-    rv = mCallbacks->GetInterface(uuid, result);
+    nsCOMPtr<nsIInterfaceRequestor> proxiedCallbacks;
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsIInterfaceRequestor),
+                         mCallbacks,
+                         NS_PROXY_SYNC,
+                         getter_AddRefs(proxiedCallbacks));
+
+    rv = proxiedCallbacks->GetInterface(uuid, result);
   }
   return rv;
 }
@@ -795,47 +842,16 @@ nsresult nsNSSSocketInfo::SetFileDescPtr(PRFileDesc* aFilePtr)
   return NS_OK;
 }
 
-class PreviousCertRunnable : public SyncRunnableBase
+nsresult nsNSSSocketInfo::GetPreviousCert(nsIX509Cert** _result)
 {
-public:
-  PreviousCertRunnable(nsIInterfaceRequestor * callbacks)
-    : mCallbacks(callbacks)
-  {
-  }
+  NS_ENSURE_ARG_POINTER(_result);
+  nsresult rv = EnsureDocShellDependentStuffKnown();
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  virtual void RunOnTargetThread()
-  {
-    nsCOMPtr<nsISecureBrowserUI> secureUI;
-    getSecureBrowserUI(mCallbacks, getter_AddRefs(secureUI));
-    nsCOMPtr<nsISSLStatusProvider> statusProvider = do_QueryInterface(secureUI);
-    if (statusProvider) {
-      nsCOMPtr<nsISSLStatus> status;
-      (void) statusProvider->GetSSLStatus(getter_AddRefs(status));
-      if (status) {
-        (void) status->GetServerCert(getter_AddRefs(mPreviousCert));
-      }
-    }
-  }
+  *_result = mPreviousCert;
+  NS_IF_ADDREF(*_result);
 
-  nsCOMPtr<nsIX509Cert> mPreviousCert; // out
-private:
-  nsCOMPtr<nsIInterfaceRequestor> mCallbacks; // in
-};
-
-void nsNSSSocketInfo::GetPreviousCert(nsIX509Cert** _result)
-{
-  NS_ASSERTION(_result, "_result parameter to GetPreviousCert is null");
-  *_result = nsnull;
-
-  if (NS_IsMainThread()) {
-    NS_ERROR("nsNSSSocketInfo::GetPreviousCert called on the main thread");
-    return;
-  }
-
-  nsRefPtr<PreviousCertRunnable> runnable = new PreviousCertRunnable(mCallbacks);
-  nsresult rv = runnable->DispatchToMainThreadAndWait();
-  NS_ASSERTION(NS_SUCCEEDED(rv), "runnable->DispatchToMainThreadAndWait() failed");
-  runnable->mPreviousCert.forget(_result);
+  return NS_OK;
 }
 
 nsresult nsNSSSocketInfo::GetSSLStatus(nsISSLStatus** _result)

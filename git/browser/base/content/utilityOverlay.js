@@ -199,8 +199,6 @@ function openLinkIn(url, where, params) {
   var aRelatedToCurrent     = params.relatedToCurrent;
   var aInBackground         = params.inBackground;
   var aDisallowInheritPrincipal = params.disallowInheritPrincipal;
-  // Currently, this parameter works only for where=="tab" or "current"
-  var aIsUTF8               = params.isUTF8;
 
   if (where == "save") {
     saveURL(url, null, null, true, null, aReferrerURI);
@@ -274,8 +272,6 @@ function openLinkIn(url, where, params) {
       flags |= Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
     if (aDisallowInheritPrincipal)
       flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-    if (aIsUTF8)
-      flags |= Ci.nsIWebNavigation.LOAD_FLAGS_URI_IS_UTF8;
     w.gBrowser.loadURIWithFlags(url, flags, aReferrerURI, null, aPostData);
     break;
   case "tabshifted":
@@ -289,8 +285,7 @@ function openLinkIn(url, where, params) {
                        postData: aPostData,
                        inBackground: loadInBackground,
                        allowThirdPartyFixup: aAllowThirdPartyFixup,
-                       relatedToCurrent: aRelatedToCurrent,
-                       isUTF8: aIsUTF8});
+                       relatedToCurrent: aRelatedToCurrent});
     break;
   }
 

@@ -38,7 +38,7 @@
 
 #include "nsPluginArray.h"
 #include "nsMimeTypeArray.h"
-#include "Navigator.h"
+#include "nsGlobalWindow.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMNavigator.h"
 #include "nsIDOMMimeType.h"
@@ -50,10 +50,7 @@
 #include "nsContentUtils.h"
 #include "nsPluginHost.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
-nsPluginArray::nsPluginArray(Navigator* navigator,
+nsPluginArray::nsPluginArray(nsNavigator* navigator,
                              nsIDocShell *aDocShell)
 {
   nsresult rv;

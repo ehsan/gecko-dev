@@ -51,6 +51,7 @@ extern "C" {
 extern "C" {
 #include "pk11pqg.h"
 }
+#include "nsProxiedService.h"
 #include "nsKeygenHandler.h"
 #include "nsVoidArray.h"
 #include "nsIServiceManager.h"

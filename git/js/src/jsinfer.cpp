@@ -3389,8 +3389,6 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_LOOKUPSWITCH:
       case JSOP_LOOKUPSWITCHX:
       case JSOP_TRY:
-      case JSOP_LABEL:
-      case JSOP_LABELX:
         break;
 
         /* Bytecodes pushing values of known type. */
@@ -6108,11 +6106,7 @@ TypeScript::destroy()
 inline size_t
 TypeSet::dynamicSize()
 {
-    /*
-     * This memory is allocated within the temp pool (but accounted for
-     * elsewhere) so we can't use a JSUsableSizeFun to measure it.  We must do
-     * it analytically.
-     */
+    /* Get the amount of memory allocated from the analysis pool for this set. */
     uint32 count = baseObjectCount();
     if (count >= 2)
         return HashSetCapacity(count) * sizeof(TypeObject *);
@@ -6122,11 +6116,6 @@ TypeSet::dynamicSize()
 inline size_t
 TypeObject::dynamicSize()
 {
-    /*
-     * This memory is allocated within the temp pool (but accounted for
-     * elsewhere) so we can't use a JSUsableSizeFun to measure it.  We must do
-     * it analytically.
-     */
     size_t bytes = 0;
 
     uint32 count = basePropertyCount();
@@ -6144,40 +6133,26 @@ TypeObject::dynamicSize()
 }
 
 static void
-GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSUsableSizeFun usf)
+GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats)
 {
-    TypeScript *typeScript = script->types;
-    if (!typeScript)
+    if (!script->types)
         return;
 
-    size_t usable;
-
-    /* If TI is disabled, a single TypeScript is still present. */
     if (!script->compartment()->types.inferenceEnabled) {
-        usable = usf(typeScript);
-        stats->scripts += usable ? usable : sizeof(TypeScript);
+        stats->scripts += sizeof(TypeScript);
         return;
     }
 
-    usable = usf(typeScript->nesting);
-    stats->scripts += usable ? usable : sizeof(TypeScriptNesting);
-
     unsigned count = TypeScript::NumTypeSets(script);
-    usable = usf(typeScript);
-    stats->scripts += usable ? usable : sizeof(TypeScript) + count * sizeof(TypeSet);
+    stats->scripts += sizeof(TypeScript) + count * sizeof(TypeSet);
 
-    TypeResult *result = typeScript->dynamicList;
+    TypeResult *result = script->types->dynamicList;
     while (result) {
-        usable = usf(result);
-        stats->scripts += usable ? usable : sizeof(TypeResult);
+        stats->scripts += sizeof(TypeResult);
         result = result->next;
     }
 
-    /*
-     * This counts memory that is in the temp pool but gets attributed
-     * elsewhere.  See JS_GetTypeInferenceMemoryStats for more details.
-     */
-    TypeSet *typeArray = typeScript->typeArray();
+    TypeSet *typeArray = script->types->typeArray();
     for (unsigned i = 0; i < count; i++) {
         size_t bytes = typeArray[i].dynamicSize();
         stats->scripts += bytes;
@@ -6187,54 +6162,44 @@ GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSUsable
 
 JS_FRIEND_API(void)
 JS_GetTypeInferenceMemoryStats(JSContext *cx, JSCompartment *compartment,
-                               TypeInferenceMemoryStats *stats, JSUsableSizeFun usf)
+                               TypeInferenceMemoryStats *stats)
 {
     /*
      * Note: not all data in the pool is temporary, and some will survive GCs
-     * by being copied to the replacement pool. This memory will be counted
-     * elsewhere and deducted from the amount of temporary data.
+     * by being copied to the replacement pool. This memory will be counted too
+     * and deducted from the amount of temporary data.
      */
-    stats->temporary += compartment->typeLifoAlloc.sizeOf(usf, /* countMe = */false);
+    stats->temporary += compartment->typeLifoAlloc.used();
 
     /* Pending arrays are cleared on GC along with the analysis pool. */
-    size_t usable = usf(compartment->types.pendingArray);
-    stats->temporary +=
-        usable ? usable
-               : sizeof(TypeCompartment::PendingWork) * compartment->types.pendingCapacity;
-
-    /* TypeCompartment::pendingRecompiles is non-NULL only while inference code is running. */
-    JS_ASSERT(!compartment->types.pendingRecompiles);
+    stats->temporary += sizeof(TypeCompartment::PendingWork) * compartment->types.pendingCapacity;
 
     for (gc::CellIter i(cx, compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next())
-        GetScriptMemoryStats(i.get<JSScript>(), stats, usf);
+        GetScriptMemoryStats(i.get<JSScript>(), stats);
 
     if (compartment->types.allocationSiteTable)
-        stats->tables += compartment->types.allocationSiteTable->sizeOf(usf, /* countMe = */true);
+        stats->tables += compartment->types.allocationSiteTable->allocatedSize();
 
     if (compartment->types.arrayTypeTable)
-        stats->tables += compartment->types.arrayTypeTable->sizeOf(usf, /* countMe = */true);
+        stats->tables += compartment->types.arrayTypeTable->allocatedSize();
 
     if (compartment->types.objectTypeTable) {
-        stats->tables += compartment->types.objectTypeTable->sizeOf(usf, /* countMe = */true);
+        stats->tables += compartment->types.objectTypeTable->allocatedSize();
 
         for (ObjectTypeTable::Enum e(*compartment->types.objectTypeTable);
              !e.empty();
-             e.popFront())
-        {
+             e.popFront()) {
             const ObjectTableKey &key = e.front().key;
-            const ObjectTableEntry &value = e.front().value;
-
-            /* key.ids and values.types have the same length. */
-            usable = usf(key.ids) + usf(value.types);
-            stats->tables += usable ? usable : key.nslots * (sizeof(jsid) + sizeof(Type));
+            stats->tables += key.nslots * (sizeof(jsid) + sizeof(Type));
         }
     }
 }
 
 JS_FRIEND_API(void)
-JS_GetTypeInferenceObjectStats(void *object_, TypeInferenceMemoryStats *stats, JSUsableSizeFun usf)
+JS_GetTypeInferenceObjectStats(void *object_, TypeInferenceMemoryStats *stats)
 {
     TypeObject *object = (TypeObject *) object_;
+    stats->objects += sizeof(TypeObject);
 
     if (object->singleton) {
         /*
@@ -6247,30 +6212,18 @@ JS_GetTypeInferenceObjectStats(void *object_, TypeInferenceMemoryStats *stats, J
     }
 
     if (object->newScript) {
-        /* The initializerList is tacked onto the end of the TypeNewScript. */
-        size_t usable = usf(object->newScript);
-        if (usable) {
-            stats->objects += usable;
-        } else {
-            stats->objects += sizeof(TypeNewScript);
-            for (TypeNewScript::Initializer *init = object->newScript->initializerList; ; init++) {
-                stats->objects += sizeof(TypeNewScript::Initializer);
-                if (init->kind == TypeNewScript::Initializer::DONE)
-                    break;
-            }
+        size_t length = 0;
+        for (TypeNewScript::Initializer *init = object->newScript->initializerList;; init++) {
+            length++;
+            if (init->kind == TypeNewScript::Initializer::DONE)
+                break;
         }
+        stats->objects += sizeof(TypeNewScript) + (length * sizeof(TypeNewScript::Initializer));
     }
 
-    if (object->emptyShapes) {
-        size_t usable = usf(object->emptyShapes);
-        stats->emptyShapes +=
-            usable ? usable : sizeof(EmptyShape*) * gc::FINALIZE_FUNCTION_AND_OBJECT_LAST;
-    }
+    if (object->emptyShapes)
+        stats->emptyShapes += sizeof(EmptyShape*) * gc::FINALIZE_FUNCTION_AND_OBJECT_LAST;
 
-    /*
-     * This counts memory that is in the temp pool but gets attributed
-     * elsewhere.  See JS_GetTypeInferenceMemoryStats for more details.
-     */
     size_t bytes = object->dynamicSize();
     stats->objects += bytes;
     stats->temporary -= bytes;

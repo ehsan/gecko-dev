@@ -59,12 +59,12 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource:///modules/PropertyPanel.jsm");
 Cu.import("resource:///modules/source-editor.jsm");
-Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
-
 
 const SCRATCHPAD_CONTEXT_CONTENT = 1;
 const SCRATCHPAD_CONTEXT_BROWSER = 2;
+const SCRATCHPAD_WINDOW_URL = "chrome://browser/content/scratchpad.xul";
 const SCRATCHPAD_L10N = "chrome://browser/locale/devtools/scratchpad.properties";
+const SCRATCHPAD_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";
 const DEVTOOLS_CHROME_ENABLED = "devtools.chrome.enabled";
 
 /**
@@ -130,55 +130,6 @@ var Scratchpad = {
   setText: function SP_setText(aText, aStart, aEnd)
   {
     this.editor.setText(aText, aStart, aEnd);
-  },
-
-  /**
-   * Set the filename in the scratchpad UI and object
-   *
-   * @param string aFilename
-   *        The new filename
-   */
-  setFilename: function SP_setFilename(aFilename)
-  {
-    document.title = this.filename = aFilename;
-  },
-
-  /**
-   * Get the current state of the scratchpad. Called by the
-   * Scratchpad Manager for session storing.
-   *
-   * @return object
-   *        An object with 3 properties: filename, text, and
-   *        executionContext.
-   */
-  getState: function SP_getState()
-  {
-    return {
-      filename: this.filename,
-      text: this.getText(),
-      executionContext: this.executionContext
-    };
-  },
-
-  /**
-   * Set the filename and execution context using the given state. Called
-   * when scratchpad is being restored from a previous session.
-   *
-   * @param object aState
-   *        An object with filename and executionContext properties.
-   */
-  setState: function SP_getState(aState)
-  {
-    if (aState.filename) {
-      this.setFilename(aState.filename);
-    }
-
-    if (aState.executionContext == SCRATCHPAD_CONTEXT_BROWSER) {
-      this.setBrowserContext();
-    }
-    else {
-      this.setContentContext();
-    }
   },
 
   /**
@@ -313,7 +264,7 @@ var Scratchpad = {
    */
   evalInContentSandbox: function SP_evalInContentSandbox(aString)
   {
-    let error, result;
+    let result;
     try {
       result = Cu.evalInSandbox(aString, this.contentSandbox, "1.8",
                                 "Scratchpad", 1);
@@ -332,11 +283,9 @@ var Scratchpad = {
                                    this.getInnerWindowId(contentWindow));
 
       Services.console.logMessage(scriptError);
-
-      error = true;
     }
 
-    return [error, result];
+    return result;
   },
 
   /**
@@ -349,7 +298,7 @@ var Scratchpad = {
    */
   evalInChromeSandbox: function SP_evalInChromeSandbox(aString)
   {
-    let error, result;
+    let result;
     try {
       result = Cu.evalInSandbox(aString, this.chromeSandbox, "1.8",
                                 "Scratchpad", 1);
@@ -358,11 +307,9 @@ var Scratchpad = {
       Cu.reportError(ex);
       Cu.reportError(ex.stack);
       this.openErrorConsole();
-
-      error = true;
     }
 
-    return [error, result];
+    return result;
   },
 
   /**
@@ -388,9 +335,9 @@ var Scratchpad = {
   run: function SP_run()
   {
     let selection = this.selectedText || this.getText();
-    let [error, result] = this.evalForContext(selection);
+    let result = this.evalForContext(selection);
     this.deselect();
-    return [selection, error, result];
+    return [selection, result];
   },
 
   /**
@@ -400,9 +347,9 @@ var Scratchpad = {
    */
   inspect: function SP_inspect()
   {
-    let [selection, error, result] = this.run();
+    let [selection, result] = this.run();
 
-    if (!error) {
+    if (result) {
       this.openPropertyPanel(selection, result);
     }
   },
@@ -420,12 +367,12 @@ var Scratchpad = {
                          selection.end : // after selected text
                          this.editor.getCharCount(); // after text end
 
-    let [selectedText, error, result] = this.run();
-    if (error) {
+    let [selectedText, result] = this.run();
+    if (!result) {
       return;
     }
 
-    let newComment = "/*\n" + result + "\n*/";
+    let newComment = "/*\n" + result.toString() + "\n*/";
 
     this.setText(newComment, insertionPoint, insertionPoint);
 
@@ -463,11 +410,14 @@ var Scratchpad = {
         accesskey: this.strings.
                    GetStringFromName("propertyPanel.updateButton.accesskey"),
         oncommand: function () {
-          let [error, result] = self.evalForContext(aEvalString);
+          try {
+            let result = self.evalForContext(aEvalString);
 
-          if (!error) {
-            propPanel.treeView.data = result;
+            if (result !== undefined) {
+              propPanel.treeView.data = result;
+            }
           }
+          catch (ex) { }
         }
       });
     }
@@ -492,7 +442,8 @@ var Scratchpad = {
    */
   openScratchpad: function SP_openScratchpad()
   {
-    ScratchpadManager.openScratchpad();
+    Services.ww.openWindow(null, SCRATCHPAD_WINDOW_URL, "_blank",
+                           SCRATCHPAD_WINDOW_FEATURES, null);
   },
 
   /**
@@ -590,7 +541,7 @@ var Scratchpad = {
             Ci.nsIFilePicker.modeOpen);
     fp.defaultString = "";
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
-      this.setFilename(fp.file.path);
+      document.title = this.filename = fp.file.path;
       this.importFromFile(fp.file);
     }
   },
@@ -729,20 +680,12 @@ var Scratchpad = {
       errorConsoleCommand.removeAttribute("disabled");
     }
 
-    let initialText = this.strings.GetStringFromName("scratchpadIntro");
-    if ("arguments" in window &&
-         window.arguments[0] instanceof Ci.nsIDialogParamBlock) {
-      let state = JSON.parse(window.arguments[0].GetString(0));
-      this.setState(state);
-      initialText = state.text;
-    }
-
     this.editor = new SourceEditor();
 
     let config = {
       mode: SourceEditor.MODES.JAVASCRIPT,
       showLineNumbers: true,
-      placeholderText: initialText
+      placeholderText: this.strings.GetStringFromName("scratchpadIntro"),
     };
 
     let editorPlaceholder = document.getElementById("scratchpad-editor");
@@ -798,8 +741,6 @@ var Scratchpad = {
    */
   onEditPopupShowing: function SP_onEditPopupShowing()
   {
-    goUpdateGlobalEditMenuItems();
-
     let undo = document.getElementById("sp-cmd-undo");
     undo.setAttribute("disabled", !this.editor.canUndo());
 

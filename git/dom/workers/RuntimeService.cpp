@@ -56,7 +56,7 @@
 #include "mozilla/Preferences.h"
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
-#include <Navigator.h>
+#include "nsGlobalWindow.h"
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"

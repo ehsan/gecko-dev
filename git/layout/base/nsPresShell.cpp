@@ -149,7 +149,9 @@
 #ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
 #endif
+#ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
+#endif
 
 #include "nsRefreshDriver.h"
 
@@ -200,7 +202,6 @@
 #include "mozilla/Telemetry.h"
 
 #include "Layers.h"
-#include "nsPLDOMEvent.h"
 
 #ifdef NS_FUNCTION_TIMER
 #define NS_TIME_FUNCTION_DECLARE_DOCURL                \
@@ -1122,10 +1123,12 @@ PresShell::Init(nsIDocument* aDocument,
     }
 #endif
 
+#ifdef MOZ_SMIL
   if (mDocument->HasAnimationController()) {
     nsSMILAnimationController* animCtrl = mDocument->GetAnimationController();
     animCtrl->NotifyRefreshDriverCreated(GetPresContext()->RefreshDriver());
   }
+#endif // MOZ_SMIL
 
   // Get our activeness from the docShell.
   QueryIsActive();
@@ -1250,9 +1253,11 @@ PresShell::Destroy()
     NS_ASSERTION(mDocument->GetShell() == this, "Wrong shell?");
     mDocument->DeleteShell();
 
+#ifdef MOZ_SMIL
     if (mDocument->HasAnimationController()) {
       mDocument->GetAnimationController()->NotifyRefreshDriverDestroying(rd);
     }
+#endif // MOZ_SMIL
   }
 
   // Revoke any pending events.  We need to do this and cancel pending reflows
@@ -3650,40 +3655,21 @@ PresShell::DispatchSynthMouseMove(nsGUIEvent *aEvent,
 NS_IMETHODIMP_(void)
 PresShell::ClearMouseCapture(nsIView* aView)
 {
-  if (gCaptureInfo.mContent) {
-    if (aView) {
-      // if a view was specified, ensure that the captured content is within
-      // this view.
-      nsIFrame* frame = gCaptureInfo.mContent->GetPrimaryFrame();
-      if (frame) {
-        nsIView* view = frame->GetClosestView();
-        // if there is no view, capturing won't be handled any more, so
-        // just release the capture.
-        if (view) {
-          do {
-            if (view == aView) {
-              NS_RELEASE(gCaptureInfo.mContent);
-              // the view containing the captured content likely disappeared so
-              // disable capture for now.
-              gCaptureInfo.mAllowed = false;
-              break;
-            }
-
-            view = view->GetParent();
-          } while (view);
-          // return if the view wasn't found
-          return;
-        }
-      }
-    }
-
-    NS_RELEASE(gCaptureInfo.mContent);
+  if (!aView) {
+    nsIPresShell::ClearMouseCapture(static_cast<nsIFrame*>(nsnull));
+    return;
   }
 
-  // disable mouse capture until the next mousedown as a dialog has opened
-  // or a drag has started. Otherwise, someone could start capture during
-  // the modal dialog or drag.
-  gCaptureInfo.mAllowed = false;
+  nsIFrame* frame = nsnull;
+  nsIView* view = aView;
+  while (!frame && view) {
+    frame = static_cast<nsIFrame*>(view->GetClientData());
+    view = view->GetParent();
+  }
+
+  if (frame) {
+    nsIPresShell::ClearMouseCapture(frame);
+  }
 }
 
 void
@@ -4038,10 +4024,12 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       // reflow).
       mPresContext->FlushUserFontSet();
 
+#ifdef MOZ_SMIL
       // Flush any requested SMIL samples.
       if (mDocument->HasAnimationController()) {
         mDocument->GetAnimationController()->FlushResampleRequests();
       }
+#endif // MOZ_SMIL
 
       nsAutoScriptBlocker scriptBlocker;
       mFrameConstructor->CreateNeededFrames();
@@ -6294,32 +6282,23 @@ IsFullScreenAndRestrictedKeyEvent(nsIContent* aTarget, const nsEvent* aEvent)
     return false;
   }
 
-  // We're in full-screen mode. We whitelist key codes, and we will
-  // show a warning when keys not in this list are pressed.
-  const nsKeyEvent* keyEvent = static_cast<const nsKeyEvent*>(aEvent);
-  int key = keyEvent->keyCode ? keyEvent->keyCode : keyEvent->charCode;
-  switch (key) {
-    case NS_VK_TAB:
-    case NS_VK_SPACE:
-    case NS_VK_PAGE_UP:
-    case NS_VK_PAGE_DOWN:
-    case NS_VK_END:
-    case NS_VK_HOME:
-    case NS_VK_LEFT:
-    case NS_VK_UP:
-    case NS_VK_RIGHT:
-    case NS_VK_DOWN:
-    case NS_VK_SHIFT:
-    case NS_VK_CONTROL:
-    case NS_VK_ALT:
-    case NS_VK_META:
-      // Unrestricted key code.
-      return false;
-    default:
-      // Otherwise, fullscreen is enabled, key input is restricted, and the key
-      // code is not an allowed key code.
-      return true;
+  // Key input is restricted. Determine if the key event has a restricted
+  // key code. Non-restricted codes are:
+  //   DOM_VK_CANCEL to DOM_VK_CAPS_LOCK, inclusive
+  //   DOM_VK_SPACE to DOM_VK_DELETE, inclusive
+  //   DOM_VK_SEMICOLON to DOM_VK_EQUALS, inclusive
+  //   DOM_VK_MULTIPLY to DOM_VK_META, inclusive
+  int key = static_cast<const nsKeyEvent*>(aEvent)->keyCode;
+  if ((key >= NS_VK_CANCEL && key <= NS_VK_CAPS_LOCK) ||
+      (key >= NS_VK_SPACE && key <= NS_VK_DELETE) ||
+      (key >= NS_VK_SEMICOLON && key <= NS_VK_EQUALS) ||
+      (key >= NS_VK_MULTIPLY && key <= NS_VK_META)) {
+    return false;
   }
+
+  // Otherwise, fullscreen is enabled, key input is restricted, and the key
+  // code is not an allowed key code.
+  return true;
 }
 
 nsresult
@@ -6365,38 +6344,17 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
       switch (aEvent->message) {
       case NS_KEY_PRESS:
       case NS_KEY_DOWN:
-      case NS_KEY_UP: {
-        nsIDocument *doc = mCurrentEventContent ?
-                           mCurrentEventContent->OwnerDoc() : nsnull;
-        if (doc &&
-            doc->IsFullScreenDoc() &&
-            static_cast<const nsKeyEvent*>(aEvent)->keyCode == NS_VK_ESCAPE) {
-          // Prevent default action on ESC key press when exiting
-          // DOM full-screen mode. This prevents the browser ESC key
-          // handler from stopping all loads in the document, which
-          // would cause <video> loads to stop.
-          aEvent->flags |= (NS_EVENT_FLAG_NO_DEFAULT |
-                            NS_EVENT_FLAG_ONLY_CHROME_DISPATCH);
-
-          if (aEvent->message == NS_KEY_UP) {
-           // ESC key released while in DOM full-screen mode.
-           // Exit full-screen mode.
-           NS_DispatchToCurrentThread(
-             NS_NewRunnableMethod(mCurrentEventContent->OwnerDoc(),
-                                  &nsIDocument::CancelFullScreen));
-          }
-        } else if (IsFullScreenAndRestrictedKeyEvent(mCurrentEventContent, aEvent)) {
-          // Restricted key press while in DOM full-screen mode. Dispatch
-          // an event to chrome so it knows to show a warning message
-          // informing the user how to exit full-screen.
-          nsRefPtr<nsPLDOMEvent> e =
-            new nsPLDOMEvent(doc, NS_LITERAL_STRING("MozShowFullScreenWarning"),
-                             true, true);
-          e->PostDOMEvent();
+      case NS_KEY_UP:
+        if (IsFullScreenAndRestrictedKeyEvent(mCurrentEventContent, aEvent) &&
+            aEvent->message == NS_KEY_DOWN) {
+          // We're in DOM full-screen mode, and a key with a restricted key
+          // code has been pressed. Exit full-screen mode.
+          NS_DispatchToCurrentThread(
+            NS_NewRunnableMethod(mCurrentEventContent->OwnerDoc(),
+                                 &nsIDocument::CancelFullScreen));
         }
         // Else not full-screen mode or key code is unrestricted, fall
         // through to normal handling.
-      }
       case NS_MOUSE_BUTTON_DOWN:
       case NS_MOUSE_BUTTON_UP:
         isHandlingUserInput = true;

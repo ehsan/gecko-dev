@@ -60,7 +60,6 @@
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/Preferences.h"
 
 #if defined(MOZ_SYDNEYAUDIO)
 #include "nsAudioStream.h"
@@ -69,6 +68,7 @@
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
+#include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
@@ -233,7 +233,6 @@ ContentChild* ContentChild::sSingleton;
 ContentChild::ContentChild()
 #ifdef ANDROID
  : mScreenSize(0, 0)
- , mID(PRUint64(-1))
 #endif
 {
 }
@@ -639,14 +638,24 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 bool
 ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
 {
-    Preferences::SetPreference(&aPref);
+    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
+    if (!prefs)
+        return false;
+
+    prefs->SetPreference(&aPref);
+
     return true;
 }
 
 bool
 ContentChild::RecvClearUserPreference(const nsCString& aPrefName)
 {
-    Preferences::ClearContentPref(aPrefName.get());
+    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
+    if (!prefs)
+        return false;
+
+    prefs->ClearContentPref(aPrefName);
+
     return true;
 }
 
@@ -801,16 +810,6 @@ ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID)
 {
     mAppInfo.version.Assign(version);
     mAppInfo.buildID.Assign(buildID);
-    return true;
-}
-
-bool
-ContentChild::RecvSetID(const PRUint64 &id)
-{
-    if (mID != PRUint64(-1)) {
-        NS_WARNING("Setting content child's ID twice?");
-    }
-    mID = id;
     return true;
 }
 

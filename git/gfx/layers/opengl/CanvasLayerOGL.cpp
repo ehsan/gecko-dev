@@ -45,7 +45,6 @@
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
 #include "GLContextProvider.h"
-#include "gfxPlatform.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsSurface.h"
@@ -92,10 +91,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
 
   mOGLManager->MakeCurrent();
 
-  if (aData.mDrawTarget) {
-    mDrawTarget = aData.mDrawTarget;
-    mNeedsYFlip = false;
-  } else if (aData.mSurface) {
+  if (aData.mSurface) {
     mCanvasSurface = aData.mSurface;
     mNeedsYFlip = false;
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
@@ -137,7 +133,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
     MakeTexture();
     // This should only ever occur with 2d canvas, WebGL can't already have a texture
     // of this size can it?
-    NS_ABORT_IF_FALSE(mCanvasSurface || mDrawTarget, 
+    NS_ABORT_IF_FALSE(mCanvasSurface, 
                       "Invalid texture size when WebGL surface already exists at that size?");
   }
 }
@@ -188,11 +184,7 @@ CanvasLayerOGL::UpdateSurface()
     }
   } else {
     nsRefPtr<gfxASurface> updatedAreaSurface;
-    if (mDrawTarget) {
-      // TODO: This is suboptimal - We should have direct handling for the surface types instead of
-      // going via a gfxASurface.
-      updatedAreaSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
-    } else if (mCanvasSurface) {
+    if (mCanvasSurface) {
       updatedAreaSurface = mCanvasSurface;
     } else if (mCanvasGLContext) {
       nsRefPtr<gfxImageSurface> updatedAreaImageSurface =

@@ -218,8 +218,8 @@ TemporaryRef<DrawTarget>
 LayerManager::CreateDrawTarget(const IntSize &aSize,
                                SurfaceFormat aFormat)
 {
-  return gfxPlatform::GetPlatform()->
-    CreateOffscreenDrawTarget(aSize, aFormat);
+  // Right now this doesn't work on the general layer manager.
+  return NULL;
 }
 
 #ifdef DEBUG

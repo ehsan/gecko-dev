@@ -87,8 +87,6 @@ abstract public class GeckoApp
     public Handler mMainHandler;
     private IntentFilter mConnectivityFilter;
     private BroadcastReceiver mConnectivityReceiver;
-    private IntentFilter mBatteryFilter;
-    private BroadcastReceiver mBatteryReceiver;
 
     enum LaunchState {PreLaunch, Launching, WaitForDebugger,
                       Launched, GeckoRunning, GeckoExiting};
@@ -399,6 +397,9 @@ abstract public class GeckoApp
                                                            0,
                                                            0));
 
+        // Some phones (eg. nexus S) need at least a 8x16 preview size
+        mainLayout.addView(cameraView, new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
+
         setContentView(mainLayout,
                        new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT,
                                                   ViewGroup.LayoutParams.FILL_PARENT));
@@ -406,10 +407,6 @@ abstract public class GeckoApp
         mConnectivityFilter = new IntentFilter();
         mConnectivityFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
         mConnectivityReceiver = new GeckoConnectivityReceiver();
-
-        mBatteryFilter = new IntentFilter();
-        mBatteryFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
-        mBatteryReceiver = new GeckoBatteryManager();
 
         if (!checkAndSetLaunchState(LaunchState.PreLaunch,
                                     LaunchState.Launching))
@@ -430,15 +427,6 @@ abstract public class GeckoApp
                 res.updateConfiguration(config, res.getDisplayMetrics());
             }});
         mLibLoadThread.start();
-    }
-
-    public void enableCameraView() {
-        // Some phones (eg. nexus S) need at least a 8x16 preview size
-        mainLayout.addView(cameraView, new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
-    }
-
-    public void disableCameraView() {
-        mainLayout.removeView(cameraView);
     }
 
     @Override
@@ -503,7 +491,6 @@ abstract public class GeckoApp
         super.onPause();
 
         unregisterReceiver(mConnectivityReceiver);
-        unregisterReceiver(mBatteryReceiver);
     }
 
     @Override
@@ -522,7 +509,6 @@ abstract public class GeckoApp
             onNewIntent(getIntent());
 
         registerReceiver(mConnectivityReceiver, mConnectivityFilter);
-        registerReceiver(mBatteryReceiver, mBatteryFilter);
     }
 
     @Override
@@ -539,6 +525,7 @@ abstract public class GeckoApp
         // Instead, what we should do here is save prefs, session,
         // etc., and generally mark the profile as 'clean', and then
         // dirty it again if we get an onResume.
+
 
         GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_STOPPING));
         super.onStop();

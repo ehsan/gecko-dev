@@ -1824,7 +1824,7 @@ nsParser::EndEvaluatingParserInsertedScript()
 }
 
 void
-nsParser::MarkAsNotScriptCreated(const char* aCommand)
+nsParser::MarkAsNotScriptCreated()
 {
 }
 

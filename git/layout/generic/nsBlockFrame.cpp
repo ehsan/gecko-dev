@@ -6122,6 +6122,7 @@ DisplayLine(nsDisplayListBuilder* aBuilder, const nsRect& aLineArea,
 
   nsDisplayListCollection collection;
   nsresult rv;
+  nsDisplayList aboveTextDecorations;
 
   // Block-level child backgrounds go on the blockBorderBackgrounds list ...
   // Inline-level child backgrounds go on the regular child content list.
@@ -6136,6 +6137,8 @@ DisplayLine(nsDisplayListBuilder* aBuilder, const nsRect& aLineArea,
     kid = kid->GetNextSibling();
   }
   
+  collection.Content()->AppendToTop(&aboveTextDecorations);
+
   if (lineMayHaveTextOverflow) {
     aTextOverflow->ProcessLine(collection, aLine.get());
   }

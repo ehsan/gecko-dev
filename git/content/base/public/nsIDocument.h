@@ -61,7 +61,9 @@
 #include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
 #include "nsPIDOMWindow.h"
+#ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
+#endif // MOZ_SMIL
 #include "nsIScriptGlobalObject.h"
 #include "nsIDocumentEncoder.h"
 #include "nsIAnimationFrameListener.h"
@@ -124,8 +126,8 @@ class Element;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0xc3e40e8e, 0x8b91, 0x424c, \
-  { 0xbe, 0x9c, 0x9c, 0xc1, 0x76, 0xa7, 0xf7, 0x24 } }
+{ 0x3d24831e, 0x2a2b, 0x42f4, \
+  { 0x9d, 0x98, 0x17, 0x60, 0x18, 0xab, 0x6e, 0xfb } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -735,24 +737,36 @@ public:
   virtual void RemoveFromNameTable(Element* aElement, nsIAtom* aName) = 0;
 
   /**
-   * Returns the element which either requested DOM full-screen mode, or
-   * contains the element which requested DOM full-screen mode if the
-   * requestee is in a subdocument. Note this element must be *in*
-   * this document.
+   * Resets the current full-screen element to nsnull.
+   */
+  virtual void ResetFullScreenElement() = 0;
+
+  /**
+   * Returns the element which either is the full-screen element, or
+   * contains the full-screen element if a child of this document contains
+   * the fullscreen element.
    */
   virtual Element* GetFullScreenElement() = 0;
 
   /**
-   * Asynchronously requests that the document make aElement the full-screen
-   * element, and move into full-screen mode.
+   * Requests that the document make aElement the full-screen element,
+   * and move into full-screen mode.
    */
-  virtual void AsyncRequestFullScreen(Element* aElement) = 0;
+  virtual void RequestFullScreen(Element* aElement) = 0;
 
   /**
    * Requests that the document, and all documents in its hierarchy exit
    * from DOM full-screen mode.
    */
   virtual void CancelFullScreen() = 0;
+
+  /**
+   * Updates the full-screen status on this document, setting the full-screen
+   * mode to aIsFullScreen. This doesn't affect the window's full-screen mode,
+   * this updates the document's internal state which determines whether the
+   * document reports as being in full-screen mode.
+   */
+  virtual void UpdateFullScreenStatus(bool aIsFullScreen) = 0;
 
   /**
    * Returns true if this document is in full-screen mode.
@@ -1324,6 +1338,7 @@ public:
   void EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
                                   void* aData);
 
+#ifdef MOZ_SMIL
   // Indicates whether mAnimationController has been (lazily) initialized.
   // If this returns true, we're promising that GetAnimationController()
   // will have a non-null return value.
@@ -1333,6 +1348,7 @@ public:
   // initialization, if this document supports animation and if
   // mAnimationController isn't yet initialized.
   virtual nsSMILAnimationController* GetAnimationController() = 0;
+#endif // MOZ_SMIL
 
   // Makes the images on this document capable of having their animation
   // active or suspended. An Image will animate as long as at least one of its
@@ -1495,13 +1511,6 @@ public:
   virtual Element* GetElementById(const nsAString& aElementId) = 0;
 
   /**
-   * This method returns _all_ the elements in this document which
-   * have id aElementId, if there are any.  Otherwise it returns null.
-   * The entries of the nsSmallVoidArray are Element*
-   */
-  virtual const nsSmallVoidArray* GetAllElementsForId(const nsAString& aElementId) const = 0;
-
-  /**
    * Lookup an image element using its associated ID, which is usually provided
    * by |-moz-element()|. Similar to GetElementById, with the difference that
    * elements set using mozSetImageElement have higher priority.
@@ -1645,8 +1654,10 @@ protected:
   // themselves when they go away.
   nsAutoPtr<nsTHashtable<nsPtrHashKey<nsIContent> > > mFreezableElements;
 
+#ifdef MOZ_SMIL
   // SMIL Animation Controller, lazily-initialized in GetAnimationController
   nsRefPtr<nsSMILAnimationController> mAnimationController;
+#endif // MOZ_SMIL
 
   // Table of element properties for this document.
   nsPropertyTable mPropertyTable;
@@ -1872,15 +1883,6 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   bool aLoadedAsData,
                   nsIScriptGlobalObject* aEventObject,
                   bool aSVGDocument);
-
-// This is used only for xbl documents created from the startup cache.
-// Non-cached documents are created in the same manner as xml documents.
-nsresult
-NS_NewXBLDocument(nsIDOMDocument** aInstancePtrResult,
-                  nsIURI* aDocumentURI,
-                  nsIURI* aBaseURI,
-                  nsIPrincipal* aPrincipal);
-
 nsresult
 NS_NewPluginDocument(nsIDocument** aInstancePtrResult);
 

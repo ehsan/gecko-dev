@@ -56,6 +56,7 @@
 #include "nsICollation.h"
 #include "nsIStringBundle.h"
 #include "nsITimer.h"
+#include "nsICharsetResolver.h"
 #include "nsMaybeWeakPtr.h"
 #include "nsCategoryCache.h"
 #include "nsNetCID.h"
@@ -110,6 +111,7 @@ class nsNavHistory : public nsSupportsWeakReference
                    , public nsIObserver
                    , public nsIBrowserHistory
                    , public nsIDownloadHistory
+                   , public nsICharsetResolver
                    , public nsPIPlacesDatabase
                    , public nsPIPlacesHistoryListenersNotifier
                    , public mozIStorageVacuumParticipant
@@ -498,6 +500,8 @@ protected:
    * Decays frecency and inputhistory values.  Runs on idle-daily.
    */
   nsresult DecayFrecency();
+
+  NS_DECL_NSICHARSETRESOLVER
 
   nsresult CalculateFrecency(PRInt64 aPageID, PRInt32 aTyped, PRInt32 aVisitCount, nsCAutoString &aURL, PRInt32 *aFrecency);
   nsresult CalculateFrecencyInternal(PRInt64 aPageID, PRInt32 aTyped, PRInt32 aVisitCount, bool aIsBookmarked, PRInt32 *aFrecency);

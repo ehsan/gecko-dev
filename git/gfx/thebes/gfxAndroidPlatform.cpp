@@ -37,7 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "gfxAndroidPlatform.h"
-#include "mozilla/gfx/2D.h"
 
 #include "gfxFT2FontList.h"
 #include "gfxImageSurface.h"
@@ -46,8 +45,6 @@
 
 #include "ft2build.h"
 #include FT_FREETYPE_H
-using namespace mozilla;
-using namespace mozilla::gfx;
 
 static FT_Library gPlatformFTLibrary = NULL;
 
@@ -181,17 +178,5 @@ gfxAndroidPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aProxyEntry,
                                                                      aFontData,
                                                                      aLength);
-}
-
-RefPtr<ScaledFont>
-gfxAndroidPlatform::GetScaledFontForFont(gfxFont *aFont)
-{
-    NativeFont nativeFont;
-    nativeFont.mType = NATIVE_FONT_SKIA_FONT_FACE;
-    nativeFont.mFont = aFont;
-    RefPtr<ScaledFont> scaledFont =
-      Factory::CreateScaledFontForNativeFont(nativeFont, aFont->GetAdjustedSize());
-
-    return scaledFont;
 }
 

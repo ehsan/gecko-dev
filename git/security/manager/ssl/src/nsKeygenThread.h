@@ -46,14 +46,14 @@
 #include "nsIKeygenThread.h"
 #include "nsCOMPtr.h"
 
-class nsIRunnable;
+class nsIObserver;
 
 class nsKeygenThread : public nsIKeygenThread
 {
 private:
   mozilla::Mutex mutex;
   
-  nsCOMPtr<nsIRunnable> mNotifyObserver;
+  nsCOMPtr<nsIObserver> observer;
 
   bool iAmRunning;
   bool keygenReady;

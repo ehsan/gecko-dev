@@ -53,8 +53,6 @@
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 
-#include "mozilla/Telemetry.h"
-
 /******************************************************************************
  *  nsDiskCacheMap
  *****************************************************************************/
@@ -166,15 +164,6 @@ nsDiskCacheMap::Open(nsILocalFile *  cacheDirectory)
     rv = FlushHeader();
     if (NS_FAILED(rv))  goto error_exit;
     
-    {
-        // extra scope so the compiler doesn't barf on the above gotos jumping
-        // past this declaration down here
-        PRUint32 overhead = moz_malloc_usable_size(mRecordArray);
-        overhead = overhead ? overhead : mHeader.mRecordCount * sizeof(nsDiskCacheRecord);
-        mozilla::Telemetry::Accumulate(mozilla::Telemetry::HTTP_DISK_CACHE_OVERHEAD,
-                overhead);
-    }
-
     return NS_OK;
     
 error_exit:

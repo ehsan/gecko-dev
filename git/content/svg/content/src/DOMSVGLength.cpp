@@ -111,9 +111,11 @@ DOMSVGLength::DOMSVGLength()
 NS_IMETHODIMP
 DOMSVGLength::GetUnitType(PRUint16* aUnit)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
     Element()->FlushAnimations(); // May make HasOwner() == false
   }
+#endif
   *aUnit = HasOwner() ? InternalItem().GetUnit() : mUnit;
   return NS_OK;
 }
@@ -121,9 +123,11 @@ DOMSVGLength::GetUnitType(PRUint16* aUnit)
 NS_IMETHODIMP
 DOMSVGLength::GetValue(float* aValue)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
     Element()->FlushAnimations(); // May make HasOwner() == false
   }
+#endif
   if (HasOwner()) {
     *aValue = InternalItem().GetValueInUserUnits(Element(), Axis());
     if (NS_finite(*aValue)) {
@@ -158,9 +162,11 @@ DOMSVGLength::SetValue(float aUserUnitValue)
   if (HasOwner()) {
     if (InternalItem().SetFromUserUnitValue(aUserUnitValue, Element(), Axis())) {
       Element()->DidChangeLengthList(mAttrEnum, true);
+#ifdef MOZ_SMIL
       if (mList->mAList->IsAnimating()) {
         Element()->AnimationNeedsResample();
       }
+#endif
       return NS_OK;
     }
   } else if (mUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER ||
@@ -176,9 +182,11 @@ DOMSVGLength::SetValue(float aUserUnitValue)
 NS_IMETHODIMP
 DOMSVGLength::GetValueInSpecifiedUnits(float* aValue)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
     Element()->FlushAnimations(); // May make HasOwner() == false
   }
+#endif
   *aValue = HasOwner() ? InternalItem().GetValueInCurrentUnits() : mValue;
   return NS_OK;
 }
@@ -197,9 +205,11 @@ DOMSVGLength::SetValueInSpecifiedUnits(float aValue)
   if (HasOwner()) {
     InternalItem().SetValueInCurrentUnits(aValue);
     Element()->DidChangeLengthList(mAttrEnum, true);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
   mValue = aValue;
@@ -220,9 +230,11 @@ DOMSVGLength::SetValueAsString(const nsAString& aValue)
   if (HasOwner()) {
     InternalItem() = value;
     Element()->DidChangeLengthList(mAttrEnum, true);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
   mValue = value.GetValueInCurrentUnits();
@@ -233,9 +245,11 @@ DOMSVGLength::SetValueAsString(const nsAString& aValue)
 NS_IMETHODIMP
 DOMSVGLength::GetValueAsString(nsAString& aValue)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
     Element()->FlushAnimations(); // May make HasOwner() == false
   }
+#endif
   if (HasOwner()) {
     InternalItem().GetValueAsString(aValue);
     return NS_OK;
@@ -261,9 +275,11 @@ DOMSVGLength::NewValueSpecifiedUnits(PRUint16 aUnit, float aValue)
   if (HasOwner()) {
     InternalItem().SetValueAndUnit(aValue, PRUint8(aUnit));
     Element()->DidChangeLengthList(mAttrEnum, true);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
   mUnit = PRUint8(aUnit);

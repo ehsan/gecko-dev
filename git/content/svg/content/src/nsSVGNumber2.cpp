@@ -40,8 +40,10 @@
 #include "prdtoa.h"
 #include "nsMathUtils.h"
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "nsSMILFloatType.h"
+#endif // MOZ_SMIL
 
 class DOMSVGNumber : public nsIDOMSVGNumber
 {
@@ -130,9 +132,11 @@ nsSVGNumber2::SetBaseValueString(const nsAString &aValueAsString,
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
 
   // We don't need to call DidChange* here - we're only called by
   // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
@@ -156,9 +160,11 @@ nsSVGNumber2::SetBaseValue(float aValue,
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
   aSVGElement->DidChangeNumber(mAttrEnum, true);
 }
 
@@ -182,6 +188,7 @@ nsSVGNumber2::ToDOMAnimatedNumber(nsIDOMSVGAnimatedNumber **aResult,
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 nsSVGNumber2::ToSMILAttr(nsSVGElement *aSVGElement)
 {
@@ -238,3 +245,4 @@ nsSVGNumber2::SMILNumber::SetAnimValue(const nsSMILValue& aValue)
   }
   return NS_OK;
 }
+#endif // MOZ_SMIL

@@ -148,8 +148,6 @@ class NS_NO_VTABLE nsINSSComponent : public nsISupports {
  public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_INSSCOMPONENT_IID)
 
-  NS_IMETHOD ShowAlertFromStringBundle(const char * messageID) = 0;
-
   NS_IMETHOD GetPIPNSSBundleString(const char *name,
                                    nsAString &outString) = 0;
   NS_IMETHOD PIPBundleFormatStringFromName(const char *name,
@@ -264,10 +262,6 @@ public:
 
   NS_METHOD Init();
 
-  static nsresult GetNewPrompter(nsIPrompt ** result);
-  static nsresult ShowAlertWithConstructedString(const nsString & message);
-  NS_IMETHOD ShowAlertFromStringBundle(const char * messageID);
-
   NS_IMETHOD GetPIPNSSBundleString(const char *name,
                                    nsAString &outString);
   NS_IMETHOD PIPBundleFormatStringFromName(const char *name,
@@ -309,6 +303,14 @@ private:
   void TryCFM2MachOMigration(nsIFile *cfmPath, nsIFile *machoPath);
 #endif
   
+  enum AlertIdentifier {
+    ai_nss_init_problem, 
+    ai_sockets_still_active, 
+    ai_crypto_ui_active,
+    ai_incomplete_logout
+  };
+  
+  void ShowAlert(AlertIdentifier ai);
   void InstallLoadableRoots();
   void UnloadLoadableRoots();
   void LaunchSmartCardThreads();

@@ -90,7 +90,7 @@ nsHtml5Parser::nsHtml5Parser()
   , mLastBuffer(mFirstBuffer)
   , mExecutor(new nsHtml5TreeOpExecutor())
   , mTreeBuilder(new nsHtml5TreeBuilder(mExecutor, nsnull))
-  , mTokenizer(new nsHtml5Tokenizer(mTreeBuilder, false))
+  , mTokenizer(new nsHtml5Tokenizer(mTreeBuilder))
   , mRootContextLineNumber(1)
 {
   mAtomTable.Init(); // we aren't checking for OOM anyway...
@@ -128,8 +128,7 @@ nsHtml5Parser::GetCommand(nsCString& aCommand)
 NS_IMETHODIMP_(void)
 nsHtml5Parser::SetCommand(const char* aCommand)
 {
-  NS_ASSERTION(!strcmp(aCommand, "view") || !strcmp(aCommand, "view-source"),
-      "Parser command was not view");
+  NS_ASSERTION(!strcmp(aCommand, "view"), "Parser command was not view");
 }
 
 NS_IMETHODIMP_(void)
@@ -239,7 +238,7 @@ nsHtml5Parser::Parse(nsIURI* aURL, // legacy parameter; ignored
 NS_IMETHODIMP
 nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
                      void* aKey,
-                     const nsACString& aContentType,
+                     const nsACString& aContentType, // ignored
                      bool aLastCall,
                      nsDTDMode aMode) // ignored
 {
@@ -270,10 +269,6 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     mTreeBuilder->setScriptingEnabled(mExecutor->IsScriptEnabled());
     mTokenizer->start();
     mExecutor->Start();
-    if (!aContentType.EqualsLiteral("text/html")) {
-      mTreeBuilder->StartPlainText();
-      mTokenizer->StartPlainText();
-    }
     /*
      * If you move the following line, be very careful not to cause 
      * WillBuildModel to be called before the document has had its 
@@ -292,14 +287,11 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     NS_ASSERTION(!mStreamParser,
                  "Had stream parser but got document.close().");
     mDocumentClosed = true;
-    if (!mBlocked && !mInDocumentWrite) {
+    if (!mBlocked) {
       ParseUntilBlocked();
     }
     return NS_OK;
   }
-
-  // If we got this far, we are dealing with a document.write or
-  // document.writeln call--not document.close().
 
   NS_ASSERTION(IsInsertionPointDefined(),
                "Doc.write reached parser with undefined insertion point.");
@@ -307,96 +299,12 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
   NS_ASSERTION(!(mStreamParser && !aKey),
                "Got a null key in a non-script-created parser");
 
-  // XXX is this optimization bogus?
   if (aSourceBuffer.IsEmpty()) {
     return NS_OK;
   }
 
-  // This guard is here to prevent document.close from tokenizing synchronously
-  // while a document.write (that wrote the script that called document.close!)
-  // is still on the call stack.
   mozilla::AutoRestore<bool> guard(mInDocumentWrite);
   mInDocumentWrite = true;
-
-  // The script is identified by aKey. If there's nothing in the buffer
-  // chain for that key, we'll insert at the head of the queue.
-  // When the script leaves something in the queue, a zero-length
-  // key-holder "buffer" is inserted in the queue. If the same script
-  // leaves something in the chain again, it will be inserted immediately
-  // before the old key holder belonging to the same script.
-  //
-  // We don't do the actual data insertion yet in the hope that the data gets
-  // tokenized and there no data or less data to copy to the heap after
-  // tokenization. Also, this way, we avoid inserting one empty data buffer
-  // per document.write, which matters for performance when the parser isn't
-  // blocked and a badly-authored script calls document.write() once per
-  // input character. (As seen in a benchmark!)
-  //
-  // The insertion into the input stream happens conceptually before anything
-  // gets tokenized. To make sure multi-level document.write works right,
-  // it's necessary to establish the location of our parser key up front
-  // in case this is the first write with this key.
-  //
-  // In a document.open() case, the first write level has a null key, so that
-  // case is handled separately, because normal buffers containing data
-  // have null keys.
-
-  // These don't need to be owning references, because they always point to
-  // the buffer queue and buffers can't be removed from the buffer queue
-  // before document.write() returns. The buffer queue clean-up happens the
-  // next time ParseUntilBlocked() is called.
-  // However, they are made owning just in case the reasoning above is flawed
-  // and a flaw would lead to worse problems with plain pointers. If this
-  // turns out to be a perf problem, it's worthwhile to consider making
-  // prevSearchbuf a plain pointer again.
-  nsRefPtr<nsHtml5OwningUTF16Buffer> prevSearchBuf;
-  nsRefPtr<nsHtml5OwningUTF16Buffer> firstLevelMarker;
-
-  if (aKey) {
-    if (mFirstBuffer == mLastBuffer) {
-      nsHtml5OwningUTF16Buffer* keyHolder = new nsHtml5OwningUTF16Buffer(aKey);
-      keyHolder->next = mLastBuffer;
-      mFirstBuffer = keyHolder;
-    } else if (mFirstBuffer->key != aKey) {
-      prevSearchBuf = mFirstBuffer;
-      for (;;) {
-        if (prevSearchBuf->next == mLastBuffer) {
-          // key was not found
-          nsHtml5OwningUTF16Buffer* keyHolder =
-            new nsHtml5OwningUTF16Buffer(aKey);
-          keyHolder->next = mFirstBuffer;
-          mFirstBuffer = keyHolder;
-          prevSearchBuf = nsnull;
-          break;
-        }
-        if (prevSearchBuf->next->key == aKey) {
-          // found a key holder
-          break;
-        }
-        prevSearchBuf = prevSearchBuf->next;
-      }
-    } // else mFirstBuffer is the keyholder
-
-    // prevSearchBuf is the previous buffer before the keyholder or null if
-    // there isn't one.
-  } else {
-    // We have a first-level write in the document.open() case. We insert
-    // before mLastBuffer. We need to put a marker there, because otherwise
-    // additional document.writes from nested event loops would insert in the
-    // wrong place. Sigh.
-    firstLevelMarker = new nsHtml5OwningUTF16Buffer((void*)nsnull);
-    if (mFirstBuffer == mLastBuffer) {
-      firstLevelMarker->next = mLastBuffer;
-      mFirstBuffer = firstLevelMarker;
-    } else {
-      prevSearchBuf = mFirstBuffer;
-      while (prevSearchBuf->next != mLastBuffer) {
-        prevSearchBuf = prevSearchBuf->next;
-      }
-      firstLevelMarker->next = mLastBuffer;
-      prevSearchBuf->next = firstLevelMarker;
-    }
-  }
 
   nsHtml5DependentUTF16Buffer stackBuffer(aSourceBuffer);
 
@@ -447,35 +355,60 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     }
   }
 
-  if (heapBuffer) {
-    // We have something to insert before the keyholder holding in the non-null
-    // aKey case and we have something to swap into firstLevelMarker in the
-    // null aKey case.
-    if (aKey) {
-      NS_ASSERTION(mFirstBuffer != mLastBuffer,
-        "Where's the keyholder?");
-      // the key holder is still somewhere further down the list from
-      // prevSearchBuf (which may be null)
-      if (mFirstBuffer->key == aKey) {
-        NS_ASSERTION(!prevSearchBuf,
-          "Non-null prevSearchBuf when mFirstBuffer is the key holder?");
-        heapBuffer->next = mFirstBuffer;
+  // The buffer is inserted to the stream here in case it won't be parsed
+  // to completion.
+  // The script is identified by aKey. If there's nothing in the buffer
+  // chain for that key, we'll insert at the head of the queue.
+  // When the script leaves something in the queue, a zero-length
+  // key-holder "buffer" is inserted in the queue. If the same script
+  // leaves something in the chain again, it will be inserted immediately
+  // before the old key holder belonging to the same script.
+  nsHtml5OwningUTF16Buffer* prevSearchBuf = nsnull;
+  nsHtml5OwningUTF16Buffer* searchBuf = mFirstBuffer;
+
+  // after document.open, the first level of document.write has null key
+  if (aKey) {
+    while (searchBuf != mLastBuffer) {
+      if (searchBuf->key == aKey) {
+        // found a key holder
+        // now insert the new buffer between the previous buffer
+        // and the key holder if we have a buffer left.
+        if (heapBuffer) {
+          heapBuffer->next = searchBuf;
+          if (prevSearchBuf) {
+            prevSearchBuf->next = heapBuffer;
+          } else {
+            mFirstBuffer = heapBuffer;
+          }
+        }
+        break;
+      }
+      prevSearchBuf = searchBuf;
+      searchBuf = searchBuf->next;
+    }
+    if (searchBuf == mLastBuffer) {
+      // key was not found
+      nsHtml5OwningUTF16Buffer* keyHolder = new nsHtml5OwningUTF16Buffer(aKey);
+      keyHolder->next = mFirstBuffer;
+      if (heapBuffer) {
+        heapBuffer->next = keyHolder;
         mFirstBuffer = heapBuffer;
       } else {
-        if (!prevSearchBuf) {
-          prevSearchBuf = mFirstBuffer;
-        }
-        // We created a key holder earlier, so we will find it without walking
-        // past the end of the list.
-        while (prevSearchBuf->next->key != aKey) {
-          prevSearchBuf = prevSearchBuf->next;
-        }
-        heapBuffer->next = prevSearchBuf->next;
-        prevSearchBuf->next = heapBuffer;
+        mFirstBuffer = keyHolder;
       }
+    }
+  } else if (heapBuffer) {
+    // we have a first level document.write after document.open()
+    // insert immediately before mLastBuffer
+    while (searchBuf != mLastBuffer) {
+      prevSearchBuf = searchBuf;
+      searchBuf = searchBuf->next;
+    }
+    heapBuffer->next = mLastBuffer;
+    if (prevSearchBuf) {
+      prevSearchBuf->next = heapBuffer;
     } else {
-      NS_ASSERTION(firstLevelMarker, "How come we don't have a marker.");
-      firstLevelMarker->Swap(heapBuffer);
+      mFirstBuffer = heapBuffer;
     }
   }
 
@@ -498,7 +431,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
         mDocWriteSpeculativeTreeBuilder->setScriptingEnabled(
             mTreeBuilder->isScriptingEnabled());
         mDocWriteSpeculativeTokenizer =
-            new nsHtml5Tokenizer(mDocWriteSpeculativeTreeBuilder, false);
+            new nsHtml5Tokenizer(mDocWriteSpeculativeTreeBuilder);
         mDocWriteSpeculativeTokenizer->setInterner(&mAtomTable);
         mDocWriteSpeculativeTokenizer->start();
       }
@@ -703,24 +636,10 @@ nsHtml5Parser::EndEvaluatingParserInsertedScript()
 }
 
 void
-nsHtml5Parser::MarkAsNotScriptCreated(const char* aCommand)
+nsHtml5Parser::MarkAsNotScriptCreated()
 {
   NS_PRECONDITION(!mStreamParser, "Must not call this twice.");
-  eParserMode mode = NORMAL;
-  if (!nsCRT::strcmp(aCommand, "view-source")) {
-    mode = VIEW_SOURCE_HTML;
-  } else if (!nsCRT::strcmp(aCommand, "view-source-xml")) {
-    mode = VIEW_SOURCE_XML;
-  } else if (!nsCRT::strcmp(aCommand, "plain-text")) {
-    mode = PLAIN_TEXT;
-  }
-#ifdef DEBUG
-  else {
-    NS_ASSERTION(!nsCRT::strcmp(aCommand, "view"),
-        "Unsupported parser command!");
-  }
-#endif
-  mStreamParser = new nsHtml5StreamParser(mExecutor, this, mode);
+  mStreamParser = new nsHtml5StreamParser(mExecutor, this);
 }
 
 bool
@@ -738,12 +657,14 @@ nsHtml5Parser::ParseUntilBlocked()
   NS_PRECONDITION(!mExecutor->IsFragmentMode(),
                   "ParseUntilBlocked called in fragment mode.");
 
-  if (mBlocked || mExecutor->IsComplete() || mExecutor->IsBroken()) {
+  if (mBlocked ||
+      mExecutor->IsComplete() ||
+      mExecutor->IsBroken() ||
+      mInDocumentWrite) {
     return;
   }
+
   NS_ASSERTION(mExecutor->HasStarted(), "Bad life cycle.");
-  NS_ASSERTION(!mInDocumentWrite,
-    "ParseUntilBlocked entered while in doc.write!");
 
   mDocWriteSpeculatorActive = false;
 

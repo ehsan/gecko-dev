@@ -2442,7 +2442,6 @@ mjit::Compiler::generateMethod()
             prepareStubCall(Uses(1));
             INLINE_STUBCALL(stubs::Throw, REJOIN_NONE);
             frame.pop();
-            fallthrough = false;
           END_CASE(JSOP_THROW)
 
           BEGIN_CASE(JSOP_IN)
@@ -2504,12 +2503,6 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_CONDSWITCH)
             /* No-op for the decompiler. */
           END_CASE(JSOP_CONDSWITCH)
-
-          BEGIN_CASE(JSOP_LABEL)
-          END_CASE(JSOP_LABEL)
-
-          BEGIN_CASE(JSOP_LABELX)
-          END_CASE(JSOP_LABELX)
 
           BEGIN_CASE(JSOP_DEFFUN)
           {
@@ -2631,6 +2624,23 @@ mjit::Compiler::generateMethod()
           }
           END_CASE(JSOP_CALLFCSLOT)
 
+          BEGIN_CASE(JSOP_ARGSUB)
+          {
+            prepareStubCall(Uses(0));
+            masm.move(Imm32(GET_ARGNO(PC)), Registers::ArgReg1);
+            INLINE_STUBCALL(stubs::ArgSub, REJOIN_FALLTHROUGH);
+            pushSyncedEntry(0);
+          }
+          END_CASE(JSOP_ARGSUB)
+
+          BEGIN_CASE(JSOP_ARGCNT)
+          {
+            prepareStubCall(Uses(0));
+            INLINE_STUBCALL(stubs::ArgCnt, REJOIN_FALLTHROUGH);
+            pushSyncedEntry(0);
+          }
+          END_CASE(JSOP_ARGCNT)
+
           BEGIN_CASE(JSOP_DEFLOCALFUN)
           {
             uint32 slot = GET_SLOTNO(PC);
@@ -2648,7 +2658,6 @@ mjit::Compiler::generateMethod()
 
           BEGIN_CASE(JSOP_RETRVAL)
             emitReturn(NULL);
-            fallthrough = false;
           END_CASE(JSOP_RETRVAL)
 
           BEGIN_CASE(JSOP_GETGNAME)
@@ -6517,7 +6526,6 @@ mjit::Compiler::jsop_regexp()
     RegExpStatics *res = globalObj ? globalObj->getRegExpStatics() : NULL;
 
     if (!globalObj ||
-        obj->getGlobal() != globalObj ||
         !cx->typeInferenceEnabled() ||
         analysis->localsAliasStack() ||
         types::TypeSet::HasObjectFlags(cx, globalObj->getType(cx),

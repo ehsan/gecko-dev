@@ -82,7 +82,7 @@ function runInspectorTests()
   salutation = doc.getElementById("salutation");
   InspectorUI.inspectNode(salutation);
 
-  let button = document.getElementById("highlighter-closebutton");
+  let button = document.getElementById("highlighter-close-button");
   button.click();
 }
 

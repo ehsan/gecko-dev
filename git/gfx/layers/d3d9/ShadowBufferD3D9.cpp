@@ -53,15 +53,10 @@ ShadowBufferD3D9::Upload(gfxASurface* aUpdate,
   gfxIntSize size = aUpdate->GetSize();
 
   if (GetSize() != nsIntSize(size.width, size.height)) {
-    HRESULT hr = mLayer->device()->CreateTexture(size.width, size.height, 1,
-                                                 D3DUSAGE_DYNAMIC,
-                                                 D3DFMT_A8R8G8B8,
-                                                 D3DPOOL_DEFAULT, getter_AddRefs(mTexture), NULL);
-    if (FAILED(hr)) {
-      mLayer->ReportFailure(NS_LITERAL_CSTRING("ShadowBufferD3D9::Upload(): Failed to create texture"),
-                            hr);
-      return;
-    }
+    mLayer->device()->CreateTexture(size.width, size.height, 1,
+                          D3DUSAGE_DYNAMIC,
+                          D3DFMT_A8R8G8B8,
+                          D3DPOOL_DEFAULT, getter_AddRefs(mTexture), NULL);
 
     mTextureRect = aVisibleRect;
   }

@@ -372,6 +372,7 @@
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsIDOMSVGAnimatedString.h"
 #include "nsIDOMSVGAnimPresAspRatio.h"
+#ifdef MOZ_SMIL
 #include "nsIDOMSVGAnimateElement.h"
 #include "nsIDOMSVGAnimateTransformElement.h"
 #include "nsIDOMSVGAnimateMotionElement.h"
@@ -380,6 +381,7 @@
 #include "nsIDOMSVGAnimationElement.h"
 #include "nsIDOMElementTimeControl.h"
 #include "nsIDOMTimeEvent.h"
+#endif // MOZ_SMIL
 #include "nsIDOMSVGAnimTransformList.h"
 #include "nsIDOMSVGCircleElement.h"
 #include "nsIDOMSVGClipPathElement.h"
@@ -468,11 +470,6 @@
 
 #include "nsIDOMDesktopNotification.h"
 #include "nsIDOMNavigatorDesktopNotification.h"
-#include "nsIDOMNavigatorGeolocation.h"
-#include "Navigator.h"
-
-#include "nsPluginArray.h"
-#include "nsMimeTypeArray.h"
 
 // Simple gestures include
 #include "nsIDOMSimpleGestureEvent.h"
@@ -508,9 +505,6 @@
 
 #include "nsWrapperCacheInlines.h"
 #include "dombindings.h"
-
-#include "nsIDOMBatteryManager.h"
-#include "BatteryManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1030,6 +1024,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGAltGlyphElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
+#ifdef MOZ_SMIL
   NS_DEFINE_CLASSINFO_DATA(SVGAnimateElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGAnimateTransformElement, nsElementSH,
@@ -1042,6 +1037,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TimeEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+#endif // MOZ_SMIL
   NS_DEFINE_CLASSINFO_DATA(SVGCircleElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGClipPathElement, nsElementSH,
@@ -1384,10 +1380,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(GeoPositionError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-  NS_DEFINE_CLASSINFO_DATA(BatteryManager, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
+  
   NS_DEFINE_CLASSINFO_DATA(CSSFontFaceRule, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CSSFontFaceStyleDecl, nsCSSStyleDeclSH,
@@ -2285,10 +2278,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigator)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorGeolocation)
     DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMNavigatorDesktopNotification,
-                                        Navigator::HasDesktopNotificationSupport())
+                                        nsNavigator::HasDesktopNotificationSupport())
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMClientInformation)
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMNavigatorBattery,
-                                        battery::BatteryManager::HasSupport())
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Plugin, nsIDOMPlugin)
@@ -3059,6 +3050,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
+#ifdef MOZ_SMIL
   DOM_CLASSINFO_MAP_BEGIN(SVGAnimateElement, nsIDOMSVGAnimateElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimationElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimateElement)
@@ -3099,6 +3091,7 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMTimeEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
+#endif // MOZ_SMIL
 
   DOM_CLASSINFO_MAP_BEGIN(SVGCircleElement, nsIDOMSVGCircleElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGCircleElement)
@@ -3864,11 +3857,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(GeoPositionError, nsIDOMGeoPositionError)
      DOM_CLASSINFO_MAP_ENTRY(nsIDOMGeoPositionError)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(BatteryManager, nsIDOMBatteryManager)
-     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBatteryManager)
-     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(CSSFontFaceRule, nsIDOMCSSFontFaceRule)
@@ -7143,7 +7131,7 @@ nsNavigatorSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
     return NS_OK;
   }
 
-  Navigator *nav = static_cast<Navigator*>(safeNav.get());
+  nsNavigator *nav = (nsNavigator *)safeNav.get();
   nsIDocShell *ds = nav->GetDocShell();
   if (!ds) {
     NS_WARNING("Refusing to create a navigator in the wrong scope");

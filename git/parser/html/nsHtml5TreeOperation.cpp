@@ -65,9 +65,6 @@
 #include "nsEscape.h"
 #include "mozilla/dom/Element.h"
 #include "nsHtml5SVGLoadDispatcher.h"
-#include "nsIURI.h"
-#include "nsIProtocolHandler.h"
-#include "nsNetUtil.h"
 
 namespace dom = mozilla::dom;
 
@@ -128,10 +125,8 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
     case eTreeOpAppendText:
     case eTreeOpAppendComment:
     case eTreeOpAppendCommentToDocument:
-    case eTreeOpAddViewSourceHref:
       delete[] mTwo.unicharPtr;
       break;
-    case eTreeOpSetDocumentCharset:
     case eTreeOpNeedsCharsetSwitchTo:
       delete[] mOne.charPtr;
       break;
@@ -372,7 +367,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpCreateElementNetwork:
     case eTreeOpCreateElementNotNetwork: {
       nsIContent** target = mOne.node;
-      PRInt32 ns = mFour.integer;
+      PRInt32 ns = mInt;
       nsCOMPtr<nsIAtom> name = Reget(mTwo.atom);
       nsHtml5HtmlAttributes* attributes = mThree.attributes;
       
@@ -501,7 +496,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpAppendText: {
       nsIContent* parent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      PRUint32 length = mFour.integer;
+      PRUint32 length = mInt;
       return AppendText(buffer, length, parent, aBuilder);
     }
     case eTreeOpAppendIsindexPrompt: {
@@ -523,7 +518,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpFosterParentText: {
       nsIContent* stackParent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      PRUint32 length = mFour.integer;
+      PRUint32 length = mInt;
       nsIContent* table = *mThree.node;
       
       nsIContent* foster = table->GetParent();
@@ -561,7 +556,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpAppendComment: {
       nsIContent* parent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      PRInt32 length = mFour.integer;
+      PRInt32 length = mInt;
       
       nsCOMPtr<nsIContent> comment;
       NS_NewCommentNode(getter_AddRefs(comment), aBuilder->GetNodeInfoManager());
@@ -573,7 +568,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpAppendCommentToDocument: {
       PRUnichar* buffer = mTwo.unicharPtr;
-      PRInt32 length = mFour.integer;
+      PRInt32 length = mInt;
       
       nsCOMPtr<nsIContent> comment;
       NS_NewCommentNode(getter_AddRefs(comment), aBuilder->GetNodeInfoManager());
@@ -613,7 +608,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* node = *(mOne.node);
       nsAHtml5TreeBuilderState* snapshot = mTwo.state;
       if (snapshot) {
-        aBuilder->InitializeDocWriteParserState(snapshot, mFour.integer);
+        aBuilder->InitializeDocWriteParserState(snapshot, mInt);
       }
       *aScriptElement = node;
       return rv;
@@ -637,16 +632,9 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       aBuilder->FlushPendingAppendNotifications();
       return rv;
     }
-    case eTreeOpSetDocumentCharset: {
-      char* str = mOne.charPtr;
-      PRInt32 charsetSource = mFour.integer;
-      nsDependentCString dependentString(str);
-      aBuilder->SetDocumentCharsetAndSource(dependentString, charsetSource);
-      return rv;
-    }
     case eTreeOpNeedsCharsetSwitchTo: {
       char* str = mOne.charPtr;
-      PRInt32 charsetSource = mFour.integer;
+      PRInt32 charsetSource = mInt;
       aBuilder->NeedsCharsetSwitchTo(str, charsetSource);
       return rv;    
     }
@@ -692,14 +680,14 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* node = *(mOne.node);
       nsCOMPtr<nsIStyleSheetLinkingElement> ssle = do_QueryInterface(node);
       NS_ASSERTION(ssle, "Node didn't QI to style.");
-      ssle->SetLineNumber(mFour.integer);
+      ssle->SetLineNumber(mInt);
       return rv;
     }
     case eTreeOpSetScriptLineNumberAndFreeze: {
       nsIContent* node = *(mOne.node);
       nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(node);
       NS_ASSERTION(sele, "Node didn't QI to script.");
-      sele->SetScriptLineNumber(mFour.integer);
+      sele->SetScriptLineNumber(mInt);
       sele->FreezeUriAsyncDefer();
       return rv;
     }
@@ -708,132 +696,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsCOMPtr<nsIRunnable> event = new nsHtml5SVGLoadDispatcher(node);
       if (NS_FAILED(NS_DispatchToMainThread(event))) {
         NS_WARNING("failed to dispatch svg load dispatcher");
-      }
-      return rv;
-    }
-    case eTreeOpAddClass: {
-      nsIContent* node = *(mOne.node);
-      PRUnichar* str = mTwo.unicharPtr;
-      nsDependentString depStr(str);
-      // See viewsource.css for the possible classes
-      nsAutoString klass;
-      node->GetAttr(kNameSpaceID_None, nsGkAtoms::_class, klass);
-      if (!klass.IsEmpty()) {
-        klass.Append(' ');
-        klass.Append(depStr);
-        node->SetAttr(kNameSpaceID_None, nsGkAtoms::_class, klass, true);
-      } else {
-        node->SetAttr(kNameSpaceID_None, nsGkAtoms::_class, depStr, true);
-      }
-      return rv;
-    }
-    case eTreeOpAddLineNumberId: {
-      nsIContent* node = *(mOne.node);
-      PRInt32 lineNumber = mFour.integer;
-      nsAutoString val(NS_LITERAL_STRING("line"));
-      val.AppendInt(lineNumber);
-      node->SetAttr(kNameSpaceID_None, nsGkAtoms::id, val, true);
-      return rv;
-    }
-    case eTreeOpAddViewSourceHref: {
-      nsIContent* node = *mOne.node;
-      PRUnichar* buffer = mTwo.unicharPtr;
-      PRInt32 length = mFour.integer;
-
-      nsDependentString relative(buffer, length);
-
-      nsIDocument* doc = aBuilder->GetDocument();
-
-      const nsCString& charset = doc->GetDocumentCharacterSet();
-      nsCOMPtr<nsIURI> uri;
-      rv = NS_NewURI(getter_AddRefs(uri),
-                     relative,
-                     charset.get(),
-                     aBuilder->GetViewSourceBaseURI());
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      // Reuse the fix for bug 467852
-      // URLs that execute script (e.g. "javascript:" URLs) should just be
-      // ignored.  There's nothing reasonable we can do with them, and allowing
-      // them to execute in the context of the view-source window presents a
-      // security risk.  Just return the empty string in this case.
-      bool openingExecutesScript = false;
-      rv = NS_URIChainHasFlags(uri,
-                               nsIProtocolHandler::URI_OPENING_EXECUTES_SCRIPT,
-                               &openingExecutesScript);
-      if (NS_FAILED(rv) || openingExecutesScript) {
-        return NS_OK;
-      }
-
-      nsCAutoString viewSourceUrl;
-
-      // URLs that return data (e.g. "http:" URLs) should be prefixed with
-      // "view-source:".  URLs that don't return data should just be returned
-      // undecorated.
-      bool doesNotReturnData = false;
-      rv = NS_URIChainHasFlags(uri,
-                               nsIProtocolHandler::URI_DOES_NOT_RETURN_DATA,
-                               &doesNotReturnData);
-      NS_ENSURE_SUCCESS(rv, NS_OK);
-      if (!doesNotReturnData) {
-        viewSourceUrl.AssignLiteral("view-source:");
-      }
-
-      nsCAutoString spec;
-      uri->GetSpec(spec);
-
-      viewSourceUrl.Append(spec);
-
-      nsAutoString utf16;
-      CopyUTF8toUTF16(viewSourceUrl, utf16);
-
-      node->SetAttr(kNameSpaceID_None, nsGkAtoms::href, utf16, true);
-      return rv;
-    }
-    case eTreeOpAddError: {
-      nsIContent* node = *(mOne.node);
-      char* msgId = mTwo.charPtr;
-      nsCOMPtr<nsIAtom> atom = Reget(mThree.atom);
-      nsCOMPtr<nsIAtom> otherAtom = Reget(mFour.atom);
-      // See viewsource.css for the possible classes in addition to "error".
-      nsAutoString klass;
-      node->GetAttr(kNameSpaceID_None, nsGkAtoms::_class, klass);
-      if (!klass.IsEmpty()) {
-        klass.Append(NS_LITERAL_STRING(" error"));
-        node->SetAttr(kNameSpaceID_None, nsGkAtoms::_class, klass, true);
-      } else {
-        node->SetAttr(kNameSpaceID_None,
-                      nsGkAtoms::_class,
-                      NS_LITERAL_STRING("error"),
-                      true);
-      }
-
-      nsXPIDLString message;
-      if (otherAtom) {
-        const PRUnichar* params[] = { atom->GetUTF16String(),
-                                      otherAtom->GetUTF16String() };
-        rv = nsContentUtils::FormatLocalizedString(
-          nsContentUtils::eHTMLPARSER_PROPERTIES, msgId, params, 2, message);
-        NS_ENSURE_SUCCESS(rv, rv);
-      } else if (atom) {
-        const PRUnichar* params[] = { atom->GetUTF16String() };
-        rv = nsContentUtils::FormatLocalizedString(
-          nsContentUtils::eHTMLPARSER_PROPERTIES, msgId, params, 1, message);
-        NS_ENSURE_SUCCESS(rv, rv);
-      } else {
-        rv = nsContentUtils::GetLocalizedString(
-          nsContentUtils::eHTMLPARSER_PROPERTIES, msgId, message);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      nsAutoString title;
-      node->GetAttr(kNameSpaceID_None, nsGkAtoms::title, title);
-      if (!title.IsEmpty()) {
-        title.Append('\n');
-        title.Append(message);
-        node->SetAttr(kNameSpaceID_None, nsGkAtoms::title, title, true);
-      } else {
-        node->SetAttr(kNameSpaceID_None, nsGkAtoms::title, message, true);
       }
       return rv;
     }

@@ -41,9 +41,8 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsString.h"
-#include "nsDOMError.h"
-
 #include "nsISMILAttr.h"
+#include "nsDOMError.h"
 
 class nsSVGStylableElement;
 
@@ -67,8 +66,10 @@ public:
 
   nsresult ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
                                nsSVGStylableElement *aSVGElement);
+#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGStylableElement *aSVGElement);
+#endif // MOZ_SMIL
 
 private:
 
@@ -93,6 +94,7 @@ public:
 
     NS_IMETHOD GetAnimVal(nsAString& aResult);
   };
+#ifdef MOZ_SMIL
   struct SMILString : public nsISMILAttr
   {
   public:
@@ -114,5 +116,6 @@ public:
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
 #endif //__NS_SVGCLASS_H__

@@ -643,7 +643,6 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
     block->RemoveStateBits(NS_BLOCK_NEEDS_BIDI_RESOLUTION);
     nsBlockInFlowLineIterator lineIter(block, block->begin_lines(), false);
     bpd.mPrevFrame = nsnull;
-    bpd.GetSubParagraph()->mPrevFrame = nsnull;
     TraverseFrames(aBlockFrame, &lineIter, block->GetFirstPrincipalChild(), &bpd);
   }
 
@@ -904,7 +903,8 @@ void
 nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
                                 nsBlockInFlowLineIterator* aLineIter,
                                 nsIFrame*                  aCurrentFrame,
-                                BidiParagraphData*         aBpd)
+                                BidiParagraphData*         aBpd,
+                                BidiParagraphData*         aContainingParagraph)
 {
   if (!aCurrentFrame)
     return;
@@ -933,6 +933,10 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
       if (realFrame->GetType() == nsGkAtoms::letterFrame) {
         frame = realFrame;
       }
+    }
+
+    if (aContainingParagraph && isFirstFrame) {
+      aBpd->Reset(aCurrentFrame, aContainingParagraph);
     }
 
     PRUnichar ch = 0;
@@ -1106,18 +1110,8 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
         if (text->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_ISOLATE) {
           // css "unicode-bidi: isolate" and html5 bdi: 
           //  resolve the element as a separate paragraph
-          BidiParagraphData* subParagraph = aBpd->GetSubParagraph();
-          if (!frame->GetPrevContinuation()) {
-            subParagraph->Reset(kid, aBpd);
-          }
-          TraverseFrames(aBlockFrame, aLineIter, kid, subParagraph);
-          if (!frame->GetNextContinuation()) {
-            ResolveParagraph(aBlockFrame, subParagraph);
-          }
-
-          // Treat the element as a neutral character within its containing
-          //  paragraph.
-          aBpd->AppendControlChar(kObjectSubstitute);
+          TraverseFrames(aBlockFrame, aLineIter, kid,
+                         aBpd->GetSubParagraph(), aBpd);
         } else {
           TraverseFrames(aBlockFrame, aLineIter, kid, aBpd);
         }
@@ -1130,6 +1124,13 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
         // Add a dummy frame pointer representing a bidi control code after the
         // last frame of an element specifying embedding or override
         aBpd->PopBidiControl();
+      }
+      if (aContainingParagraph) {
+        ResolveParagraph(aBlockFrame, aBpd);
+
+        // Treat an element with unicode-bidi: isolate as a neutral character
+        // within its containing paragraph
+        aContainingParagraph->AppendControlChar(kObjectSubstitute);
       }
     }
     childFrame = nextSibling;

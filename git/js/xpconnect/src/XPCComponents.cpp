@@ -56,9 +56,7 @@
 #include "nsJSUtils.h"
 #include "mozJSComponentLoader.h"
 #include "nsContentUtils.h"
-#include "jsgc.h"
 
-using namespace js;
 /***************************************************************************/
 // stuff used by all
 
@@ -3066,7 +3064,7 @@ NS_IMPL_ISUPPORTS0(Identity)
 
 nsresult
 xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSObject *proto,
-                        bool wantXrays, const nsACString &sandboxName, nsISupports *identityPtr)
+                        bool wantXrays, const nsACString &sandboxName)
 {
     // Create the sandbox global object
     nsresult rv;
@@ -3103,13 +3101,8 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSOb
     JSCompartment *compartment;
     JSObject *sandbox;
 
-    nsRefPtr<Identity> identity;
-    if (!identityPtr) {
-      identity = new Identity();
-      identityPtr = identity;
-    }
-
-    rv = xpc_CreateGlobalObject(cx, &SandboxClass, principal, identityPtr,
+    nsRefPtr<Identity> identity = new Identity();
+    rv = xpc_CreateGlobalObject(cx, &SandboxClass, principal, identity,
                                 wantXrays, &sandbox, &compartment);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3219,7 +3212,6 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
     nsCOMPtr<nsIScriptObjectPrincipal> sop;
     nsCOMPtr<nsIPrincipal> principal;
     nsISupports *prinOrSop = nsnull;
-    nsISupports *identity = nsnull;
     if (JSVAL_IS_STRING(argv[0])) {
         JSString *codebaseStr = JSVAL_TO_STRING(argv[0]);
         size_t codebaseLength;
@@ -3324,30 +3316,9 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
 
             sandboxName.Adopt(tmp, strlen(tmp));
         }
-
-        // see Bug 677294:
-        if (!JS_HasProperty(cx, optionsObject, "sameGroupAs", &found))
-            return NS_ERROR_INVALID_ARG;
-
-        if (found) {
-            if (!JS_GetProperty(cx, optionsObject, "sameGroupAs", &option) ||
-                JSVAL_IS_PRIMITIVE(option)) {
-                    return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
-            }
-
-            void* privateValue =
-                JS_GetCompartmentPrivate(cx,GetObjectCompartment(JSVAL_TO_OBJECT(option)));
-            xpc::CompartmentPrivate *compartmentPrivate =
-                static_cast<xpc::CompartmentPrivate*>(privateValue);
-
-            if (!compartmentPrivate || !compartmentPrivate->key)
-                return ThrowAndFail(NS_ERROR_INVALID_ARG, cx, _retval);
-
-            identity = compartmentPrivate->key->GetPtr();
-        }
     }
 
-    rv = xpc_CreateSandboxObject(cx, vp, prinOrSop, proto, wantXrays, sandboxName, identity);
+    rv = xpc_CreateSandboxObject(cx, vp, prinOrSop, proto, wantXrays, sandboxName);
 
     if (NS_FAILED(rv)) {
         return ThrowAndFail(rv, cx, _retval);
@@ -3519,8 +3490,6 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                   const char *filename, PRInt32 lineNo,
                   JSVersion jsVersion, bool returnStringOnly, jsval *rval)
 {
-    JS_AbortIfWrongThread(JS_GetRuntime(cx));
-
 #ifdef DEBUG
     // NB: The "unsafe" unwrap here is OK because we must be called from chrome.
     {

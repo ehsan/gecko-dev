@@ -197,25 +197,6 @@ struct ThreadData {
     static const size_t TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 1 << 12;
     LifoAlloc           tempLifoAlloc;
 
-  private:
-    js::RegExpPrivateCache       *repCache;
-
-    js::RegExpPrivateCache *createRegExpPrivateCache(JSRuntime *rt);
-
-  public:
-    js::RegExpPrivateCache *getRegExpPrivateCache() { return repCache; }
-
-    /* N.B. caller is responsible for reporting OOM. */
-    js::RegExpPrivateCache *getOrCreateRegExpPrivateCache(JSRuntime *rt) {
-        if (repCache)
-            return repCache;
-
-        return createRegExpPrivateCache(rt);
-    }
-
-    /* Called at the end of the global GC sweep phase to deallocate repCache memory. */
-    void purgeRegExpPrivateCache(JSRuntime *rt);
-
     /*
      * The GSN cache is per thread since even multi-cx-per-thread embeddings
      * do not interleave js_GetSrcNote calls.
@@ -366,8 +347,7 @@ typedef js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> CompartmentVector;
 
 }
 
-struct JSRuntime
-{
+struct JSRuntime {
     /* Default compartment. */
     JSCompartment       *atomsCompartment;
 #ifdef JS_THREADSAFE
@@ -379,20 +359,6 @@ struct JSRuntime
 
     /* Runtime state, synchronized by the stateChange/gcLock condvar/lock. */
     JSRuntimeState      state;
-
-    /* See comment for JS_AbortIfWrongThread in jsapi.h. */
-#ifdef JS_THREADSAFE
-  public:
-    void clearOwnerThread();
-    void setOwnerThread();
-    JS_FRIEND_API(bool) onOwnerThread() const;
-  private:
-    void                *ownerThread_;
-  public:
-#else
-  public:
-    bool onOwnerThread() const { return true; }
-#endif
 
     /* Context create/destroy callback. */
     JSContextCallback   cxCallback;
@@ -457,8 +423,6 @@ struct JSRuntime
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
     uint32              gcEmptyArenaPoolLifespan;
-    /* We access this without the GC lock, however a race will not affect correctness */
-    volatile uint32     gcNumFreeArenas;
     uint32              gcNumber;
     js::GCMarker        *gcMarkingTracer;
     bool                gcChunkAllocationSinceLastGC;
@@ -545,7 +509,6 @@ struct JSRuntime
 #endif
 
     JSGCCallback        gcCallback;
-    JSGCFinishedCallback gcFinishedCallback;
 
   private:
     /*
@@ -1128,7 +1091,6 @@ struct JSContext
     bool hasStrictOption() const { return hasRunOption(JSOPTION_STRICT); }
     bool hasWErrorOption() const { return hasRunOption(JSOPTION_WERROR); }
     bool hasAtLineOption() const { return hasRunOption(JSOPTION_ATLINE); }
-    bool hasJITHardeningOption() const { return !hasRunOption(JSOPTION_SOFTEN); }
 
     js::LifoAlloc &tempLifoAlloc() { return JS_THREAD_DATA(this)->tempLifoAlloc; }
     inline js::LifoAlloc &typeLifoAlloc();
@@ -1236,8 +1198,6 @@ struct JSContext
      */
     js::GCHelperThread *gcBackgroundFree;
 #endif
-
-    js::ThreadData *threadData() { return JS_THREAD_DATA(this); }
 
     inline void* malloc_(size_t bytes) {
         return runtime->malloc_(bytes, this);
@@ -1360,11 +1320,11 @@ class AutoCheckRequestDepth {
 # define CHECK_REQUEST(cx)                                                    \
     JS_ASSERT((cx)->thread());                                                \
     JS_ASSERT((cx)->thread()->data.requestDepth || (cx)->thread() == (cx)->runtime->gcThread); \
-    JS_ASSERT(cx->runtime->onOwnerThread());                                  \
     AutoCheckRequestDepth _autoCheckRequestDepth(cx);
 
 #else
 # define CHECK_REQUEST(cx)          ((void) 0)
+# define CHECK_REQUEST_THREAD(cx)   ((void) 0)
 #endif
 
 struct AutoResolving {
@@ -1914,9 +1874,6 @@ js_FinishThreads(JSRuntime *rt);
 
 extern void
 js_PurgeThreads(JSContext *cx);
-
-extern void
-js_PurgeThreads_PostGlobalSweep(JSContext *cx);
 
 namespace js {
 

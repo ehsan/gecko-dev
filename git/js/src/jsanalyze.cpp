@@ -550,6 +550,8 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_LAMBDA_FC:
           case JSOP_GETFCSLOT:
           case JSOP_CALLFCSLOT:
+          case JSOP_ARGSUB:
+          case JSOP_ARGCNT:
           case JSOP_DEBUGGER:
           case JSOP_FUNCALL:
           case JSOP_FUNAPPLY:
@@ -568,6 +570,18 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             unsigned newStackDepth = stackDepth;
 
             switch (op) {
+              case JSOP_OR:
+              case JSOP_AND:
+              case JSOP_ORX:
+              case JSOP_ANDX:
+                /*
+                 * OR/AND instructions push the operation result when branching.
+                 * We accounted for this in GetDefCount, so subtract the pushed value
+                 * for the fallthrough case.
+                 */
+                stackDepth--;
+                break;
+
               case JSOP_CASE:
               case JSOP_CASEX:
                 /* Case instructions do not push the lvalue back when branching. */

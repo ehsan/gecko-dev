@@ -1775,16 +1775,6 @@ if test "$GNU_CXX"; then
     _DEFINES_CXXFLAGS='-DMOZILLA_CLIENT -include $(DEPTH)/js-confdefs.h'
     _USE_CPP_INCLUDE_FLAG=1
 
-    # Recent clang and gcc support C++11 deleted functions without warnings if
-    # compiling with -std=c++0x or -std=gnu++0x (or c++11 or gnu++11 in very new
-    # versions).  We can't use -std=c++0x yet, so gcc's support must remain
-    # unused.  But clang's warning can be disabled, so when compiling with clang
-    # we use it to opt out of the warning, enabling (macro-encapsulated) use of
-    # deleted function syntax.
-    if test "$CLANG_CXX"; then
-        _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wno-c++0x-extensions"
-    fi
-
     AC_CACHE_CHECK(whether the compiler supports -Wno-invalid-offsetof,
                    ac_has_wno_invalid_offsetof,
         [
@@ -2715,6 +2705,7 @@ dnl Configure JIT support
 
 case "$target" in
 i?86-*)
+    ENABLE_TRACEJIT=1
     NANOJIT_ARCH=i386
     ENABLE_METHODJIT=1
     ENABLE_MONOIC=1
@@ -2724,6 +2715,7 @@ i?86-*)
     AC_DEFINE(JS_NUNBOX32)
     ;;
 x86_64*-*)
+    ENABLE_TRACEJIT=1
     NANOJIT_ARCH=X64
     ENABLE_METHODJIT=1
     ENABLE_MONOIC=1
@@ -2733,6 +2725,7 @@ x86_64*-*)
     AC_DEFINE(JS_PUNBOX64)
     ;;
 arm*-*)
+    ENABLE_TRACEJIT=1
     NANOJIT_ARCH=ARM
     ENABLE_METHODJIT=1
     ENABLE_MONOIC=1
@@ -2742,6 +2735,7 @@ arm*-*)
     AC_DEFINE(JS_NUNBOX32)
     ;;
 sparc*-*)
+    ENABLE_TRACEJIT=1
     NANOJIT_ARCH=Sparc
     ENABLE_METHODJIT=1
     ENABLE_MONOIC=1
@@ -2764,10 +2758,9 @@ MOZ_ARG_DISABLE_BOOL(polyic,
 [  --disable-polyic      Disable use of PICs by JIT compiler],
   ENABLE_POLYIC= )
 
-MOZ_ARG_ENABLE_BOOL(tracejit,
-[  --enable-tracejit      Enable tracing JIT support],
-  ENABLE_TRACEJIT=1,
-  ENABLE_TRACEJIT= )
+MOZ_ARG_DISABLE_BOOL(tracejit,
+[  --disable-tracejit      Disable tracing JIT support],
+  ENABLE_TRACEJIT=)
 
 MOZ_ARG_ENABLE_BOOL(methodjit-spew,
 [  --enable-methodjit-spew      Enable method JIT spew support],

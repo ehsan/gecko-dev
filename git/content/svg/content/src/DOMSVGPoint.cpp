@@ -81,9 +81,11 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 DOMSVGPoint::GetX(float* aX)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
     Element()->FlushAnimations(); // May make HasOwner() == false
   }
+#endif
   *aX = HasOwner() ? InternalItem().mX : mPt.mX;
   return NS_OK;
 }
@@ -100,9 +102,11 @@ DOMSVGPoint::SetX(float aX)
   if (HasOwner()) {
     InternalItem().mX = aX;
     Element()->DidChangePointList(true);
+#ifdef MOZ_SMIL
     if (mList->AttrIsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
   mPt.mX = aX;
@@ -112,9 +116,11 @@ DOMSVGPoint::SetX(float aX)
 NS_IMETHODIMP
 DOMSVGPoint::GetY(float* aY)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
     Element()->FlushAnimations(); // May make HasOwner() == false
   }
+#endif
   *aY = HasOwner() ? InternalItem().mY : mPt.mY;
   return NS_OK;
 }
@@ -131,9 +137,11 @@ DOMSVGPoint::SetY(float aY)
   if (HasOwner()) {
     InternalItem().mY = aY;
     Element()->DidChangePointList(true);
+#ifdef MOZ_SMIL
     if (mList->AttrIsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
   mPt.mY = aY;

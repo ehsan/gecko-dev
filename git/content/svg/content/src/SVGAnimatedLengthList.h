@@ -41,7 +41,9 @@
 
 class nsSVGElement;
 
+#ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
+#endif // MOZ_SMIL
 
 namespace mozilla {
 
@@ -98,9 +100,11 @@ public:
     return !!mAnimVal;
   }
 
+#ifdef MOZ_SMIL
   /// Callers own the returned nsISMILAttr
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement, PRUint8 aAttrEnum,
                           PRUint8 aAxis, bool aCanZeroPadList);
+#endif // MOZ_SMIL
 
 private:
 
@@ -112,6 +116,7 @@ private:
   SVGLengthList mBaseVal;
   nsAutoPtr<SVGLengthList> mAnimVal;
 
+#ifdef MOZ_SMIL
   struct SMILAnimatedLengthList : public nsISMILAttr
   {
   public:
@@ -145,6 +150,7 @@ private:
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
 
 } // namespace mozilla

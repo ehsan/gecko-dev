@@ -1862,15 +1862,14 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   if (aBuilder->IsBackgroundOnly())
     return NS_OK;
 
-  nsIFrame* child = aChild;
-  if (child->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
+  if (aChild->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
     return NS_OK;
 
   // true if this is a real or pseudo stacking context
   bool pseudoStackingContext =
     (aFlags & DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT) != 0;
   if ((aFlags & DISPLAY_CHILD_INLINE) &&
-      !child->IsFrameOfType(eLineParticipant)) {
+      !aChild->IsFrameOfType(eLineParticipant)) {
     // child is a non-inline frame in an inline context, i.e.,
     // it acts like inline-block or inline-table. Therefore it is a
     // pseudo-stacking-context.
@@ -1878,28 +1877,24 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   }
 
   // dirty rect in child-relative coordinates
-  nsRect dirty = aDirtyRect - child->GetOffsetTo(this);
+  nsRect dirty = aDirtyRect - aChild->GetOffsetTo(this);
 
-  nsIAtom* childType = child->GetType();
+  nsIAtom* childType = aChild->GetType();
   if (childType == nsGkAtoms::placeholderFrame) {
-    nsPlaceholderFrame* placeholder = static_cast<nsPlaceholderFrame*>(child);
-    child = placeholder->GetOutOfFlowFrame();
-    NS_ASSERTION(child, "No out of flow frame?");
-    // If 'child' is a pushed float then it's owned by a block that's not an
-    // ancestor of the placeholder, and it will be painted by that block and
-    // should not be painted through the placeholder.
-    if (!child || nsLayoutUtils::IsPopup(child) ||
-        (child->GetStateBits() & NS_FRAME_IS_PUSHED_FLOAT))
+    nsPlaceholderFrame* placeholder = static_cast<nsPlaceholderFrame*>(aChild);
+    aChild = placeholder->GetOutOfFlowFrame();
+    NS_ASSERTION(aChild, "No out of flow frame?");
+    if (!aChild || nsLayoutUtils::IsPopup(aChild))
       return NS_OK;
     // Make sure that any attempt to use childType below is disappointed. We
     // could call GetType again but since we don't currently need it, let's
     // avoid the virtual call.
     childType = nsnull;
     // Recheck NS_FRAME_TOO_DEEP_IN_FRAME_TREE
-    if (child->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
+    if (aChild->GetStateBits() & NS_FRAME_TOO_DEEP_IN_FRAME_TREE)
       return NS_OK;
     nsRect* savedDirty = static_cast<nsRect*>
-      (child->Properties().Get(nsDisplayListBuilder::OutOfFlowDirtyRectProperty()));
+      (aChild->Properties().Get(nsDisplayListBuilder::OutOfFlowDirtyRectProperty()));
     if (savedDirty) {
       dirty = *savedDirty;
     } else {
@@ -1912,30 +1907,30 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   }
 
   // Mark the display list items for absolutely positioned children
-  child->MarkAbsoluteFramesForDisplayList(aBuilder, dirty);
+  aChild->MarkAbsoluteFramesForDisplayList(aBuilder, dirty);
 
   if (childType != nsGkAtoms::placeholderFrame &&
       aBuilder->GetSelectedFramesOnly() &&
-      child->IsLeaf() &&
-      !(child->GetStateBits() & NS_FRAME_SELECTED_CONTENT)) {
+      aChild->IsLeaf() &&
+      !(aChild->GetStateBits() & NS_FRAME_SELECTED_CONTENT)) {
     return NS_OK;
   }
 
   if (aBuilder->GetIncludeAllOutOfFlows() &&
-      (child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-    dirty = child->GetVisualOverflowRect();
-  } else if (!(child->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
-    // No need to descend into child to catch placeholders for visible
+      (aChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
+    dirty = aChild->GetVisualOverflowRect();
+  } else if (!(aChild->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
+    // No need to descend into aChild to catch placeholders for visible
     // positioned stuff. So see if we can short-circuit frame traversal here.
 
-    // We can stop if child's frame subtree's intersection with the
+    // We can stop if aChild's frame subtree's intersection with the
     // dirty area is empty.
     // If the child is a scrollframe that we want to ignore, then we need
     // to descend into it because its scrolled child may intersect the dirty
     // area even if the scrollframe itself doesn't.
-    if (child != aBuilder->GetIgnoreScrollFrame()) {
+    if (aChild != aBuilder->GetIgnoreScrollFrame()) {
       nsRect childDirty;
-      if (!childDirty.IntersectRect(dirty, child->GetVisualOverflowRect()))
+      if (!childDirty.IntersectRect(dirty, aChild->GetVisualOverflowRect()))
         return NS_OK;
       // Usually we could set dirty to childDirty now but there's no
       // benefit, and it can be confusing. It can especially confuse
@@ -1956,10 +1951,10 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
 
   // Child is composited if it's transformed, partially transparent, or has
   // SVG effects.
-  const nsStyleDisplay* disp = child->GetStyleDisplay();
+  const nsStyleDisplay* disp = aChild->GetStyleDisplay();
   bool isVisuallyAtomic = disp->mOpacity != 1.0f
-    || child->IsTransformed()
-    || nsSVGIntegrationUtils::UsingEffectsForFrame(child);
+    || aChild->IsTransformed()
+    || nsSVGIntegrationUtils::UsingEffectsForFrame(aChild);
 
   bool isPositioned = disp->IsPositioned();
   if (isVisuallyAtomic || isPositioned || disp->IsFloating() ||
@@ -1971,9 +1966,9 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   nsRect overflowClip;
   nscoord overflowClipRadii[8];
   bool applyOverflowClip =
-    ApplyOverflowClipping(aBuilder, child, disp, &overflowClip);
+    ApplyOverflowClipping(aBuilder, aChild, disp, &overflowClip);
   if (applyOverflowClip) {
-    child->GetPaddingBoxBorderRadii(overflowClipRadii);
+    aChild->GetPaddingBoxBorderRadii(overflowClipRadii);
   }
   // Don't use overflowClip to restrict the dirty rect, since some of the
   // descendants may not be clipped by it. Even if we end up with unnecessary
@@ -1989,34 +1984,34 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     // Not a pseudo or real stacking context. Do the simple thing and
     // return early.
     if (applyOverflowClip) {
-      rv = BuildDisplayListWithOverflowClip(aBuilder, child, dirty, aLists,
+      rv = BuildDisplayListWithOverflowClip(aBuilder, aChild, dirty, aLists,
                                             overflowClip, overflowClipRadii);
     } else {
-      rv = child->BuildDisplayList(aBuilder, dirty, aLists);
+      rv = aChild->BuildDisplayList(aBuilder, dirty, aLists);
       if (NS_SUCCEEDED(rv)) {
-        rv = aBuilder->DisplayCaret(child, dirty, aLists.Content());
+        rv = aBuilder->DisplayCaret(aChild, dirty, aLists.Content());
       }
     }
 #ifdef NS_DEBUG
-    DisplayDebugBorders(aBuilder, child, aLists);
+    DisplayDebugBorders(aBuilder, aChild, aLists);
 #endif
     return rv;
   }
   
   nsDisplayList list;
   nsDisplayList extraPositionedDescendants;
-  const nsStylePosition* pos = child->GetStylePosition();
+  const nsStylePosition* pos = aChild->GetStylePosition();
   if ((isPositioned && pos->mZIndex.GetUnit() == eStyleUnit_Integer) ||
       isVisuallyAtomic || (aFlags & DISPLAY_CHILD_FORCE_STACKING_CONTEXT)) {
     // True stacking context
-    rv = child->BuildDisplayListForStackingContext(aBuilder, dirty, &list);
+    rv = aChild->BuildDisplayListForStackingContext(aBuilder, dirty, &list);
     if (NS_SUCCEEDED(rv)) {
-      rv = aBuilder->DisplayCaret(child, dirty, &list);
+      rv = aBuilder->DisplayCaret(aChild, dirty, &list);
     }
   } else {
     nsRect clipRect;
     bool applyAbsPosClipping =
-        ApplyAbsPosClipping(aBuilder, disp, child, &clipRect);
+        ApplyAbsPosClipping(aBuilder, disp, aChild, &clipRect);
     // A pseudo-stacking context (e.g., a positioned element with z-index auto).
     // We allow positioned descendants of the child to escape to our parent
     // stacking context's positioned descendant list, because they might be
@@ -2025,26 +2020,26 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     nsRect clippedDirtyRect = dirty;
     if (applyAbsPosClipping) {
       // clipRect is in builder-reference-frame coordinates,
-      // dirty/clippedDirtyRect are in child coordinates
+      // dirty/clippedDirtyRect are in aChild coordinates
       clippedDirtyRect.IntersectRect(clippedDirtyRect,
-                                     clipRect - aBuilder->ToReferenceFrame(child));
+                                     clipRect - aBuilder->ToReferenceFrame(aChild));
     }
     
     if (applyOverflowClip) {
-      rv = BuildDisplayListWithOverflowClip(aBuilder, child, clippedDirtyRect,
+      rv = BuildDisplayListWithOverflowClip(aBuilder, aChild, clippedDirtyRect,
                                             pseudoStack, overflowClip,
                                             overflowClipRadii);
     } else {
-      rv = child->BuildDisplayList(aBuilder, clippedDirtyRect, pseudoStack);
+      rv = aChild->BuildDisplayList(aBuilder, clippedDirtyRect, pseudoStack);
       if (NS_SUCCEEDED(rv)) {
-        rv = aBuilder->DisplayCaret(child, dirty, pseudoStack.Content());
+        rv = aBuilder->DisplayCaret(aChild, dirty, pseudoStack.Content());
       }
     }
     
     if (NS_SUCCEEDED(rv)) {
       if (applyAbsPosClipping) {
         nsAbsPosClipWrapper wrapper(clipRect);
-        rv = wrapper.WrapListsInPlace(aBuilder, child, pseudoStack);
+        rv = wrapper.WrapListsInPlace(aBuilder, aChild, pseudoStack);
       }
     }
     list.AppendToTop(pseudoStack.BorderBackground());
@@ -2054,7 +2049,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     list.AppendToTop(pseudoStack.Outlines());
     extraPositionedDescendants.AppendToTop(pseudoStack.PositionedDescendants());
 #ifdef NS_DEBUG
-    DisplayDebugBorders(aBuilder, child, aLists);
+    DisplayDebugBorders(aBuilder, aChild, aLists);
 #endif
   }
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2064,11 +2059,11 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     // Genuine stacking contexts, and positioned pseudo-stacking-contexts,
     // go in this level.
     rv = aLists.PositionedDescendants()->AppendNewToTop(new (aBuilder)
-        nsDisplayWrapList(aBuilder, child, &list));
+        nsDisplayWrapList(aBuilder, aChild, &list));
     NS_ENSURE_SUCCESS(rv, rv);
   } else if (disp->IsFloating()) {
     rv = aLists.Floats()->AppendNewToTop(new (aBuilder)
-        nsDisplayWrapList(aBuilder, child, &list));
+        nsDisplayWrapList(aBuilder, aChild, &list));
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     aLists.Content()->AppendToTop(&list);

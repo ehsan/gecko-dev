@@ -52,9 +52,8 @@ function SI_toggleDefaultStyles()
   Services.obs.removeObserver(SI_toggleDefaultStyles, "StyleInspector-populated", false);
 
   info("clearing \"only user styles\" checkbox");
-
   let iframe = stylePanel.iframe;
-  let checkbox = iframe.contentDocument.querySelector(".onlyuserstyles");
+  let checkbox = iframe.contentDocument.querySelector(".userStyles");
   Services.obs.addObserver(SI_AddFilterText, "StyleInspector-populated", false);
   EventUtils.synthesizeMouse(checkbox, 5, 5, {}, iframe.contentWindow);
 }
@@ -65,6 +64,7 @@ function SI_AddFilterText()
 
   let iframe = stylePanel.iframe;
   let searchbar = iframe.contentDocument.querySelector(".searchfield");
+
   Services.obs.addObserver(SI_checkFilter, "StyleInspector-populated", false);
   info("setting filter text to \"color\"");
   searchbar.focus();

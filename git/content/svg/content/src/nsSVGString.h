@@ -70,8 +70,10 @@ public:
 
   nsresult ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
                                nsSVGElement *aSVGElement);
+#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement *aSVGElement);
+#endif // MOZ_SMIL
 
 private:
 
@@ -98,11 +100,14 @@ public:
 
     NS_IMETHOD GetAnimVal(nsAString & aResult)
     { 
+#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
+#endif
       mVal->GetAnimValue(aResult, mSVGElement); return NS_OK;
     }
 
   };
+#ifdef MOZ_SMIL
   struct SMILString : public nsISMILAttr
   {
   public:
@@ -124,5 +129,6 @@ public:
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
 #endif //__NS_SVGSTRING_H__

@@ -345,9 +345,11 @@ DOMSVGTransform::NotifyElementOfChange()
 {
   if (HasOwner()) {
     Element()->DidChangeTransformList(true);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif // MOZ_SMIL
   }
 }
 

@@ -863,8 +863,18 @@ bool
 nsHttpChannel::ShouldSSLProxyResponseContinue(PRUint32 httpStatus)
 {
     // When SSL connect has failed, allow proxy reply to continue only if it's
-    // a 407 (proxy authentication required) response
-    return (httpStatus == 407);
+    // an auth request, or a redirect of a non-POST top-level document load.
+    switch (httpStatus) {
+    case 407:
+        return true;
+    case 300: case 301: case 302: case 303: case 307:
+      {
+        return ( (mLoadFlags & nsIChannel::LOAD_DOCUMENT_URI) &&
+                 mURI == mDocumentURI &&
+                 mRequestHead.Method() != nsHttp::Post);
+      }
+    }
+    return false;
 }
 
 /**
@@ -1851,9 +1861,6 @@ nsHttpChannel::ProcessNotModified()
     mResponseHead = mCachedResponseHead;
 
     rv = UpdateExpirationTime();
-    if (NS_FAILED(rv)) return rv;
-
-    rv = AddCacheEntryHeaders(mCacheEntry);
     if (NS_FAILED(rv)) return rv;
 
     // notify observers interested in looking at a reponse that has been

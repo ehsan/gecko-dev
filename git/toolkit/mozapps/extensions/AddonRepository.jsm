@@ -61,9 +61,6 @@ const PREF_GETADDONS_BROWSESEARCHRESULTS = "extensions.getAddons.search.browseUR
 const PREF_GETADDONS_GETSEARCHRESULTS    = "extensions.getAddons.search.url";
 
 const PREF_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
-
-const BRANCH_REGEXP                   = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
-
 #ifdef MOZ_COMPATIBILITY_NIGHTLY
 const PREF_CHECK_COMPATIBILITY = PREF_CHECK_COMPATIBILITY_BASE +
                                  ".nightly";
@@ -1293,10 +1290,10 @@ var AddonDatabase = {
   // false if there was an unrecoverable error openning the database
   databaseOk: true,
   // A cache of statements that are used and need to be finalized on shutdown
-  asyncStatementsCache: {},
+  statementCache: {},
 
-  // The queries used by the database
-  queries: {
+  // The statements used by the database
+  statements: {
     getAllAddons: "SELECT internal_id, id, type, name, version, " +
                   "creator, creatorURL, description, fullDescription, " +
                   "developerComments, eula, iconURL, homepageURL, supportURL, " +
@@ -1448,9 +1445,9 @@ var AddonDatabase = {
 
     this.initialized = false;
 
-    for each (let stmt in this.asyncStatementsCache)
+    for each (let stmt in this.statementCache)
       stmt.finalize();
-    this.asyncStatementsCache = {};
+    this.statementCache = {};
 
     if (this.connection.transactionInProgress) {
       ERROR("Outstanding transaction, rolling back.");
@@ -1488,21 +1485,20 @@ var AddonDatabase = {
   },
 
   /**
-   * Gets a cached async statement or creates a new statement if it doesn't
-   * already exist.
+   * Gets a cached statement or creates a new statement if it doesn't already
+   * exist.
    *
    * @param  aKey
    *         A unique key to reference the statement
-   * @return a mozIStorageAsyncStatement for the SQL corresponding to the
-   *         unique key
+   * @return a mozIStorageStatement for the SQL corresponding to the unique key
    */
-  getAsyncStatement: function AD_getAsyncStatement(aKey) {
-    if (aKey in this.asyncStatementsCache)
-      return this.asyncStatementsCache[aKey];
+  getStatement: function AD_getStatement(aKey) {
+    if (aKey in this.statementCache)
+      return this.statementCache[aKey];
 
-    let sql = this.queries[aKey];
+    let sql = this.statements[aKey];
     try {
-      return this.asyncStatementsCache[aKey] = this.connection.createAsyncStatement(sql);
+      return this.statementCache[aKey] = this.connection.createStatement(sql);
     } catch (e) {
       ERROR("Error creating statement " + aKey + " (" + sql + ")");
       throw e;
@@ -1522,7 +1518,7 @@ var AddonDatabase = {
 
     // Retrieve all data from the addon table
     function getAllAddons() {
-      self.getAsyncStatement("getAllAddons").executeAsync({
+      self.getStatement("getAllAddons").executeAsync({
         handleResult: function(aResults) {
           let row = null;
           while (row = aResults.getNextRow()) {
@@ -1547,7 +1543,7 @@ var AddonDatabase = {
 
     // Retrieve all data from the developer table
     function getAllDevelopers() {
-      self.getAsyncStatement("getAllDevelopers").executeAsync({
+      self.getStatement("getAllDevelopers").executeAsync({
         handleResult: function(aResults) {
           let row = null;
           while (row = aResults.getNextRow()) {
@@ -1581,7 +1577,7 @@ var AddonDatabase = {
 
     // Retrieve all data from the screenshot table
     function getAllScreenshots() {
-      self.getAsyncStatement("getAllScreenshots").executeAsync({
+      self.getStatement("getAllScreenshots").executeAsync({
         handleResult: function(aResults) {
           let row = null;
           while (row = aResults.getNextRow()) {
@@ -1632,7 +1628,7 @@ var AddonDatabase = {
     let self = this;
 
     // Completely empty the database
-    let stmts = [this.getAsyncStatement("emptyAddon")];
+    let stmts = [this.getStatement("emptyAddon")];
 
     this.connection.executeAsync(stmts, stmts.length, {
       handleResult: function() {},
@@ -1698,7 +1694,7 @@ var AddonDatabase = {
         if (!aArray || aArray.length == 0)
           return;
 
-        let stmt = self.getAsyncStatement(aStatementKey);
+        let stmt = self.getStatement(aStatementKey);
         let params = stmt.newBindingParamsArray();
         aArray.forEach(function(aElement, aIndex) {
           aAddParams(params, internal_id, aElement, aIndex);
@@ -1765,7 +1761,7 @@ var AddonDatabase = {
    * @return The asynchronous mozIStorageStatement
    */
   _makeAddonStatement: function AD__makeAddonStatement(aAddon) {
-    let stmt = this.getAsyncStatement("insertAddon");
+    let stmt = this.getStatement("insertAddon");
     let params = stmt.params;
 
     PROP_SINGLE.forEach(function(aProperty) {
