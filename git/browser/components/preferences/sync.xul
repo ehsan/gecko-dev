@@ -186,7 +186,7 @@
         </vbox>
 
         <vbox id="noFxaAccount">
-          <label>&welcome.description;</label>
+          <label value="&welcome.description;"/>
           <label class="text-link"
                  onclick="gSyncPane.signUp(); return false;"
                  value="&welcome.createAccount.label;"/>

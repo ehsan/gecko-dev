@@ -632,11 +632,7 @@ BrowserGlue.prototype = {
     // Offer to reset a user's profile if it hasn't been used for 60 days.
     const OFFER_PROFILE_RESET_INTERVAL_MS = 60 * 24 * 60 * 60 * 1000;
     let lastUse = Services.appinfo.replacedLockTime;
-    let disableResetPrompt = false;
-    try {
-      disableResetPrompt = Services.prefs.getBoolPref("browser.disableResetPrompt");
-    } catch(e) {}
-    if (!disableResetPrompt && lastUse &&
+    if (lastUse &&
         Date.now() - lastUse >= OFFER_PROFILE_RESET_INTERVAL_MS) {
       this._resetUnusedProfileNotification();
     }

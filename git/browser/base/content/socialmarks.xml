@@ -220,11 +220,10 @@
         }
         if (aResetOnClose) {
           let evName = inMenuPanel ? "ViewHiding": "popuphidden";
-          let _hidden = () => {
+          panel.addEventListener(evName, function _hidden() {
             panel.removeEventListener(evName, _hidden);
             this.update();
-          };
-          panel.addEventListener(evName, _hidden, false);
+          }.bind(this), false);
         }
          ]]></body>
        </method>
@@ -283,13 +282,12 @@
           if (!this.inMenuPanel)
             sizeSocialPanelToContent(this.panel, this.content);
         } else {
-          let panelBrowserOnload = (e) => {
+          this.content.addEventListener("load", function panelBrowserOnload(e) {
             this.content.removeEventListener("load", panelBrowserOnload, true);
             this.dispatchPanelEvent("socialFrameShow");
             if (!this.inMenuPanel)
               sizeSocialPanelToContent(this.panel, this.content);
-          };
-          this.content.addEventListener("load", panelBrowserOnload, true);
+          }.bind(this), true);
         }
         ]]></body>
       </method>

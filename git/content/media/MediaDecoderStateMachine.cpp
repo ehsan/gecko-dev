@@ -2386,16 +2386,9 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
         int64_t clockTime = std::max(mEndTime, std::max(videoTime, GetAudioClock()));
         UpdatePlaybackPosition(clockTime);
 
-        {
-          // Wait for the state change is completed in the main thread,
-          // otherwise we might see |mDecoder->GetState() == MediaDecoder::PLAY_STATE_PLAYING|
-          // in next loop and send |MediaDecoder::PlaybackEnded| again to trigger 'ended'
-          // event twice in the media element.
-          ReentrantMonitorAutoExit exitMon(mDecoder->GetReentrantMonitor());
-          nsCOMPtr<nsIRunnable> event =
-            NS_NewRunnableMethod(mDecoder, &MediaDecoder::PlaybackEnded);
-          NS_DispatchToMainThread(event, NS_DISPATCH_SYNC);
-        }
+        nsCOMPtr<nsIRunnable> event =
+          NS_NewRunnableMethod(mDecoder, &MediaDecoder::PlaybackEnded);
+        NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
       }
       return NS_OK;
     }
@@ -2884,12 +2877,6 @@ nsresult MediaDecoderStateMachine::ScheduleStateMachine(int64_t aUsecs) {
     // We're not currently running this state machine on the state machine
     // thread, but something has already dispatched an event to run it again,
     // so just exit; it's going to run real soon.
-    return NS_OK;
-  }
-
-  // Since there is already a pending task that will run immediately,
-  // we don't need to schedule a timer task.
-  if (mRunAgain) {
     return NS_OK;
   }
 
