@@ -642,6 +642,7 @@ JSRuntime::JSRuntime()
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&contextList);
     JS_INIT_CLIST(&trapList);
+    JS_INIT_CLIST(&watchPointList);
 }
 
 bool
