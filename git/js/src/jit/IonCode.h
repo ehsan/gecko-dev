@@ -601,11 +601,6 @@ struct IonScript
 
     static const uint32_t MAX_PARALLEL_AGE = 5;
 
-    enum ShouldIncreaseAge {
-        IncreaseAge = true,
-        KeepAge = false
-    };
-
     void resetParallelAge() {
         MOZ_ASSERT(isParallelEntryScript());
         parallelAge_ = 0;
@@ -613,9 +608,9 @@ struct IonScript
     uint32_t parallelAge() const {
         return parallelAge_;
     }
-    uint32_t shouldPreserveParallelCode(ShouldIncreaseAge increaseAge = KeepAge) {
+    uint32_t increaseParallelAge() {
         MOZ_ASSERT(isParallelEntryScript());
-        return (increaseAge ? ++parallelAge_ : parallelAge_) < MAX_PARALLEL_AGE;
+        return ++parallelAge_;
     }
 
     static void writeBarrierPre(Zone *zone, IonScript *ionScript);
