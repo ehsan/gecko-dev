@@ -146,7 +146,9 @@ public:
     aWorkerPrivate->AssertIsOnWorkerThread();
     NS_ASSERTION(!aIsWorkerScript || aLoadInfos.Length() == 1, "Bad args!");
 
-    mLoadInfos.SwapElements(aLoadInfos);
+    if (!mLoadInfos.SwapElements(aLoadInfos)) {
+      NS_ERROR("This should never fail!");
+    }
   }
 
   NS_IMETHOD

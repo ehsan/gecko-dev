@@ -59,7 +59,6 @@
 #include "nsIXULTemplateBuilder.h"
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
-#include "nsDOMEvent.h"
 #include "nsRDFCID.h"
 #include "nsStyleConsts.h"
 #include "nsXPIDLString.h"
@@ -503,7 +502,7 @@ nsXULElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName, bool* aDefer)
     if ((!root || root == this) && !mNodeInfo->Equals(nsGkAtoms::overlay) &&
         (window = doc->GetInnerWindow()) && window->IsInnerWindow()) {
 
-        nsCOMPtr<EventTarget> piTarget = do_QueryInterface(window);
+        nsCOMPtr<nsIDOMEventTarget> piTarget = do_QueryInterface(window);
 
         *aDefer = false;
         return piTarget->GetListenerManager(true);
@@ -1182,15 +1181,15 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                 // handling.
                 nsCOMPtr<nsIDOMEvent> domEvent = aVisitor.mDOMEvent;
                 while (domEvent) {
-                    nsDOMEvent* event = domEvent->InternalDOMEvent();
-                    NS_ENSURE_STATE(!SameCOMIdentity(event->GetOriginalTarget(),
-                                                     commandContent));
+                    nsCOMPtr<nsIDOMEventTarget> oTarget;
+                    domEvent->GetOriginalTarget(getter_AddRefs(oTarget));
+                    NS_ENSURE_STATE(!SameCOMIdentity(oTarget, commandContent));
                     nsCOMPtr<nsIDOMXULCommandEvent> commandEvent =
                         do_QueryInterface(domEvent);
                     if (commandEvent) {
                         commandEvent->GetSourceEvent(getter_AddRefs(domEvent));
                     } else {
-                        domEvent = nullptr;
+                        domEvent = NULL;
                     }
                 }
 

@@ -37,7 +37,7 @@ private:
    * Internal Send() method used to send one message.
    */
   nsresult Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
-                const nsAString& aMessage, JS::Value* aRequest);
+                const nsAString& aMessage, jsval* aRequest);
 
   /**
    * Internal Delete() method used to delete a message.

@@ -6,6 +6,7 @@
 
 #include "nsEventDispatcher.h"
 #include "nsDOMEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsPresContext.h"
 #include "nsEventListenerManager.h"
 #include "nsContentUtils.h"
@@ -19,10 +20,8 @@
 #include "nsDOMStorage.h"
 #include "GeckoProfiler.h"
 #include "GeneratedEvents.h"
-#include "mozilla/dom/EventTarget.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 #define NS_TARGET_CHAIN_FORCE_CONTENT_DISPATCH  (1 << 0)
 #define NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT (1 << 1)
@@ -32,7 +31,7 @@ using namespace mozilla::dom;
 class nsEventTargetChainItem
 {
 private:
-  nsEventTargetChainItem(EventTarget* aTarget,
+  nsEventTargetChainItem(nsIDOMEventTarget* aTarget,
                          nsEventTargetChainItem* aChild = nullptr);
 
   // This is the ETCI recycle pool, which is used to avoid some malloc/free
@@ -42,7 +41,7 @@ private:
   static const uint32_t kMaxNumRecycledEtcis = 128;
 
 public:
-  static nsEventTargetChainItem* Create(EventTarget* aTarget,
+  static nsEventTargetChainItem* Create(nsIDOMEventTarget* aTarget,
                                         nsEventTargetChainItem* aChild = nullptr)
   {
     // Allocate from the ETCI recycle pool if possible.
@@ -98,12 +97,12 @@ public:
     return !!(mTarget);
   }
 
-  EventTarget* GetNewTarget()
+  nsIDOMEventTarget* GetNewTarget()
   {
     return mNewTarget;
   }
 
-  void SetNewTarget(EventTarget* aNewTarget)
+  void SetNewTarget(nsIDOMEventTarget* aNewTarget)
   {
     mNewTarget = aNewTarget;
   }
@@ -150,7 +149,7 @@ public:
     return !!(mFlags & NS_TARGET_CHAIN_MAY_HAVE_MANAGER);
   }
   
-  EventTarget* CurrentTarget()
+  nsIDOMEventTarget* CurrentTarget()
   {
     return mTarget;
   }
@@ -221,7 +220,7 @@ public:
     sMaxEtciCount = 0;
   }
 
-  nsCOMPtr<EventTarget>             mTarget;
+  nsCOMPtr<nsIDOMEventTarget>       mTarget;
   nsEventTargetChainItem*           mChild;
   union {
     nsEventTargetChainItem*         mParent;
@@ -232,7 +231,7 @@ public:
   uint16_t                          mItemFlags;
   nsCOMPtr<nsISupports>             mItemData;
   // Event retargeting must happen whenever mNewTarget is non-null.
-  nsCOMPtr<EventTarget>             mNewTarget;
+  nsCOMPtr<nsIDOMEventTarget>       mNewTarget;
   // Cache mTarget's event listener manager.
   nsRefPtr<nsEventListenerManager>  mManager;
 
@@ -243,7 +242,7 @@ public:
 nsEventTargetChainItem* nsEventTargetChainItem::sEtciRecyclePool = nullptr;
 uint32_t nsEventTargetChainItem::sNumRecycledEtcis = 0;
 
-nsEventTargetChainItem::nsEventTargetChainItem(EventTarget* aTarget,
+nsEventTargetChainItem::nsEventTargetChainItem(nsIDOMEventTarget* aTarget,
                                                nsEventTargetChainItem* aChild)
 : mTarget(aTarget), mChild(aChild), mParent(nullptr), mFlags(0), mItemFlags(0)
 {
@@ -286,7 +285,7 @@ nsEventTargetChainItem::HandleEventTargetChain(
 {
   uint32_t createdELMs = nsEventListenerManager::sCreatedCount;
   // Save the target so that it can be restored later.
-  nsCOMPtr<EventTarget> firstTarget = aVisitor.mEvent->target;
+  nsCOMPtr<nsIDOMEventTarget> firstTarget = aVisitor.mEvent->target;
 
   // Capture
   nsEventTargetChainItem* item = this;
@@ -306,7 +305,7 @@ nsEventTargetChainItem::HandleEventTargetChain(
       // item is at anonymous boundary. Need to retarget for the child items.
       nsEventTargetChainItem* nextTarget = item->mChild;
       while (nextTarget) {
-        EventTarget* newTarget = nextTarget->GetNewTarget();
+        nsIDOMEventTarget* newTarget = nextTarget->GetNewTarget();
         if (newTarget) {
           aVisitor.mEvent->target = newTarget;
           break;
@@ -336,7 +335,7 @@ nsEventTargetChainItem::HandleEventTargetChain(
   aVisitor.mEvent->mFlags.mInCapturePhase = false;
   item = item->mParent;
   while (item) {
-    EventTarget* newTarget = item->GetNewTarget();
+    nsIDOMEventTarget* newTarget = item->GetNewTarget();
     if (newTarget) {
       // Item is at anonymous boundary. Need to retarget for the current item
       // and for parent items.
@@ -407,7 +406,7 @@ EventTargetChainItemForChromeTarget(nsINode* aNode,
     return nullptr;
   }
   nsPIDOMWindow* win = aNode->OwnerDoc()->GetInnerWindow();
-  EventTarget* piTarget = win ? win->GetParentTarget() : nullptr;
+  nsIDOMEventTarget* piTarget = win ? win->GetParentTarget() : nullptr;
   NS_ENSURE_TRUE(piTarget, nullptr);
 
   nsEventTargetChainItem* etci =
@@ -428,7 +427,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                             nsIDOMEvent* aDOMEvent,
                             nsEventStatus* aEventStatus,
                             nsDispatchingCallback* aCallback,
-                            nsCOMArray<EventTarget>* aTargets)
+                            nsCOMArray<nsIDOMEventTarget>* aTargets)
 {
   PROFILER_LABEL("nsEventDispatcher", "Dispatch");
   NS_ASSERTION(aEvent, "Trying to dispatch without nsEvent!");
@@ -442,14 +441,14 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   NS_ENSURE_TRUE(aEvent->message || !aDOMEvent || aTargets,
                  NS_ERROR_DOM_INVALID_STATE_ERR);
 
-  nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTarget);
 
   bool retargeted = false;
 
   if (aEvent->mFlags.mRetargetToNonNativeAnonymous) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(target);
     if (content && content->IsInNativeAnonymousSubtree()) {
-      nsCOMPtr<EventTarget> newTarget =
+      nsCOMPtr<nsIDOMEventTarget> newTarget =
         do_QueryInterface(content->FindFirstNonChromeOnlyAccessContent());
       NS_ENSURE_STATE(newTarget);
 
@@ -473,9 +472,9 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     if (!nsContentUtils::IsChromeDoc(doc)) {
       nsPIDOMWindow* win = doc ? doc->GetInnerWindow() : nullptr;
       // If we can't dispatch the event to chrome, do nothing.
-      EventTarget* piTarget = win ? win->GetParentTarget() : nullptr;
+      nsIDOMEventTarget* piTarget = win ? win->GetParentTarget() : nullptr;
       NS_ENSURE_TRUE(piTarget, NS_OK);
-
+      
       // Set the target to be the original dispatch target,
       aEvent->target = target;
       // but use chrome event handler or TabChildGlobal for event target chain.
@@ -567,11 +566,11 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   if (preVisitor.mCanHandle) {
     // At least the original target can handle the event.
     // Setting the retarget to the |target| simplifies retargeting code.
-    nsCOMPtr<EventTarget> t = do_QueryInterface(aEvent->target);
+    nsCOMPtr<nsIDOMEventTarget> t = aEvent->target;
     targetEtci->SetNewTarget(t);
     nsEventTargetChainItem* topEtci = targetEtci;
     while (preVisitor.mParentTarget) {
-      EventTarget* parentTarget = preVisitor.mParentTarget;
+      nsIDOMEventTarget* parentTarget = preVisitor.mParentTarget;
       nsEventTargetChainItem* parentEtci =
         nsEventTargetChainItem::Create(preVisitor.mParentTarget, topEtci);
       if (!parentEtci) {

@@ -29,7 +29,6 @@
 #include "nsIScriptContext.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMDataTransfer)
   if (tmp->mFiles) {
@@ -490,7 +489,7 @@ nsDOMDataTransfer::MozGetDataAt(const nsAString& aFormat,
         nsCOMPtr<nsISupports> data;
         formatitem.mData->GetAsISupports(getter_AddRefs(data));
         // Make sure the code that is calling us is same-origin with the data.
-        nsCOMPtr<EventTarget> pt = do_QueryInterface(data);
+        nsCOMPtr<nsIDOMEventTarget> pt = do_QueryInterface(data);
         if (pt) {
           nsresult rv = NS_OK;
           nsIScriptContext* c = pt->GetContextForEventHandlers(&rv);

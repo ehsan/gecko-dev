@@ -2427,12 +2427,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
     // have any potentially expensive invalid rect management for us.
     if (!mWaitingForPaint) {
       mWaitingForPaint = YES;
-      // Use NSRunLoopCommonModes instead of the default NSDefaultRunLoopMode
-      // so that the timer also fires while a native menu is open.
-      [self performSelector:@selector(drawUsingOpenGLCallback)
-                 withObject:nil
-                 afterDelay:0
-                    inModes:[NSArray arrayWithObject:NSRunLoopCommonModes]];
+      [self performSelector:@selector(drawUsingOpenGLCallback) withObject:nil afterDelay:0];
     }
   } else {
     [super setNeedsDisplayInRect:aRect];

@@ -8,7 +8,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/PodOperations.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,8 +28,6 @@
 #endif
 
 using namespace js;
-
-using mozilla::PodArrayZero;
 
 #if USE_ZLIB
 static void *

@@ -443,34 +443,6 @@ GfxInfo::Init()
     }
   }
 
-  mHasDriverVersionMismatch = false;
-  if (mAdapterVendorID == GfxDriverInfo::GetDeviceVendor(VendorIntel)) {
-    // we've had big crashers (bugs 590373 and 595364) apparently correlated
-    // with bad Intel driver installations where the DriverVersion reported
-    // by the registry was not the version of the DLL.
-    bool is64bitApp = sizeof(void*) == 8;
-    const PRUnichar *dllFileName = is64bitApp
-                                 ? L"igd10umd64.dll"
-                                 : L"igd10umd32.dll",
-                    *dllFileName2 = is64bitApp
-                                 ? L"igd10iumd64.dll"
-                                 : L"igd10iumd32.dll";
-    nsString dllVersion, dllVersion2;
-    gfxWindowsPlatform::GetDLLVersion((PRUnichar*)dllFileName, dllVersion);
-    gfxWindowsPlatform::GetDLLVersion((PRUnichar*)dllFileName2, dllVersion2);
-
-    uint64_t dllNumericVersion = 0, dllNumericVersion2 = 0, driverNumericVersion = 0;
-    ParseDriverVersion(dllVersion, &dllNumericVersion);
-    ParseDriverVersion(dllVersion2, &dllNumericVersion2);
-    ParseDriverVersion(mDriverVersion, &driverNumericVersion);
-
-    // if GetDLLVersion fails, it gives "0.0.0.0"
-    // so if GetDLLVersion failed, we get dllNumericVersion = 0
-    // so this test implicitly handles the case where GetDLLVersion failed
-    if (dllNumericVersion != driverNumericVersion && dllNumericVersion2 != driverNumericVersion)
-      mHasDriverVersionMismatch = true;
-  }
-
   const char *spoofedDriverVersionString = PR_GetEnv("MOZ_GFX_SPOOF_DRIVER_VERSION");
   if (spoofedDriverVersionString) {
     mDriverVersion.AssignASCII(spoofedDriverVersionString);
@@ -479,6 +451,29 @@ GfxInfo::Init()
   const char *spoofedVendor = PR_GetEnv("MOZ_GFX_SPOOF_VENDOR_ID");
   if (spoofedVendor) {
     mAdapterVendorID.AssignASCII(spoofedVendor);
+  }
+
+  mHasDriverVersionMismatch = false;
+  if (mAdapterVendorID == GfxDriverInfo::GetDeviceVendor(VendorIntel)) {
+    // we've had big crashers (bugs 590373 and 595364) apparently correlated
+    // with bad Intel driver installations where the DriverVersion reported
+    // by the registry was not the version of the DLL.
+    bool is64bitApp = sizeof(void*) == 8;
+    const PRUnichar *dllFileName = is64bitApp
+                                 ? L"igd10umd64.dll"
+                                 : L"igd10umd32.dll";
+    nsString dllVersion;
+    gfxWindowsPlatform::GetDLLVersion((PRUnichar*)dllFileName, dllVersion);
+
+    uint64_t dllNumericVersion = 0, driverNumericVersion = 0;
+    ParseDriverVersion(dllVersion, &dllNumericVersion);
+    ParseDriverVersion(mDriverVersion, &driverNumericVersion);
+
+    // if GetDLLVersion fails, it gives "0.0.0.0"
+    // so if GetDLLVersion failed, we get dllNumericVersion = 0
+    // so this test implicitly handles the case where GetDLLVersion failed
+    if (dllNumericVersion != driverNumericVersion)
+      mHasDriverVersionMismatch = true;
   }
 
   const char *spoofedDevice = PR_GetEnv("MOZ_GFX_SPOOF_DEVICE_ID");

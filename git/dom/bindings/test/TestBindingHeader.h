@@ -338,7 +338,6 @@ public:
   void ReceiveNullableAnySequence(JSContext*, Nullable<nsTArray<JS::Value> >);
 
   void PassSequenceOfSequences(const Sequence< Sequence<int32_t> >&);
-  void ReceiveSequenceOfSequences(nsTArray< nsTArray<int32_t> >&);
 
   // Typed array types
   void PassArrayBuffer(ArrayBuffer&);

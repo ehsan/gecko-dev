@@ -39,8 +39,6 @@
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 
-#include "BackstagePass.h"
-
 #include "TestShellChild.h"
 #include "TestShellParent.h"
 
@@ -1037,16 +1035,15 @@ XPCShellEnvironment::Init()
 
     AutoContextPusher pusher(this);
 
-    nsRefPtr<BackstagePass> backstagePass;
-    rv = NS_NewBackstagePass(getter_AddRefs(backstagePass));
+    nsCOMPtr<nsIXPCScriptable> backstagePass;
+    rv = rtsvc->GetBackstagePass(getter_AddRefs(backstagePass));
     if (NS_FAILED(rv)) {
-        NS_ERROR("Failed to create backstage pass!");
+        NS_ERROR("Failed to get backstage pass from rtsvc!");
         return false;
     }
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = xpc->InitClassesWithNewWrappedGlobal(cx,
-                                              static_cast<nsIGlobalObject *>(backstagePass),
+    rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
                                               principal, 0,
                                               JS::SystemZone,
                                               getter_AddRefs(holder));
@@ -1062,7 +1059,6 @@ XPCShellEnvironment::Init()
         return false;
     }
 
-    backstagePass->SetGlobalObject(globalObj);
 
     {
         JSAutoRequest ar(cx);

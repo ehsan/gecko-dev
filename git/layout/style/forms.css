@@ -417,17 +417,16 @@ input[type="file"] {
   cursor: default;
   -moz-binding: none;
 
-  border: none;
-  background-color: transparent;
-
-  /* TODO: check why. */
   padding: 0 !important;
+  border-style: none !important;
 }
 
 input[type="file"] > xul|label {
   width: 12em;
   -moz-padding-start: 5px;
 
+  border-color: inherit;
+  background-color: inherit;
   color: inherit;
   font-size: inherit;
   letter-spacing: inherit;
@@ -726,7 +725,7 @@ meter {
 }
 
 input[type=range] {
-  -moz-appearance: range;
+  -moz-appearance: none;
   display: inline-block;
   width: 12em;
   height: 1.3em;

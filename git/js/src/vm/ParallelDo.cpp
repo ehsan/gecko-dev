@@ -5,17 +5,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/PodOperations.h"
+#include "vm/ParallelDo.h"
 
 #include "jsapi.h"
 #include "jsobj.h"
 #include "jsarray.h"
 
-#include "vm/ForkJoin.h"
-#include "vm/GlobalObject.h"
-#include "vm/ParallelDo.h"
 #include "vm/String.h"
+#include "vm/GlobalObject.h"
 #include "vm/ThreadPool.h"
+#include "vm/ForkJoin.h"
 
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
@@ -36,8 +35,6 @@
 using namespace js;
 using namespace js::parallel;
 using namespace js::ion;
-
-using mozilla::PodArrayZero;
 
 //
 // Debug spew
@@ -408,7 +405,7 @@ class ParallelIonInvoke
 
     bool invoke(JSContext *cx) {
         RootedValue result(cx);
-        enter_(jitcode_, argc_ + 1, argv_ + 1, NULL, calleeToken_, NULL, 0, result.address());
+        enter_(jitcode_, argc_ + 1, argv_ + 1, NULL, calleeToken_, result.address());
         return !result.isMagic();
     }
 };

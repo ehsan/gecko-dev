@@ -418,9 +418,10 @@ FetchNameNoGC(JSObject *pobj, Shape *shape, MutableHandleValue vp)
 }
 
 inline bool
-GetIntrinsicOperation(JSContext *cx, jsbytecode *pc, MutableHandleValue vp)
+GetIntrinsicOperation(JSContext *cx, JSScript *script, jsbytecode *pc, MutableHandleValue vp)
 {
-    RootedPropertyName name(cx, cx->stack.currentScript()->getName(pc));
+    JSOp op = JSOp(*pc);
+    RootedPropertyName name(cx, GetNameFromBytecode(cx, script, pc, op));
     return cx->global()->getIntrinsicValue(cx, name, vp);
 }
 
@@ -536,14 +537,6 @@ DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn
     }
 
     return true;
-}
-
-inline bool
-SetConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName name, HandleValue rval)
-{
-    return JSObject::defineProperty(cx, varobj, name, rval,
-                                    JS_PropertyStub, JS_StrictPropertyStub,
-                                    JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 inline void

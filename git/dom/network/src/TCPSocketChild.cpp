@@ -19,7 +19,7 @@ namespace IPC {
 bool
 DeserializeUint8Array(JSRawObject aObj,
                       const InfallibleTArray<uint8_t>& aBuffer,
-                      JS::Value* aVal)
+                      jsval* aVal)
 {
   JSContext* cx = nsContentUtils::GetSafeJSContext();
   JSAutoRequest ar(cx);
@@ -135,7 +135,7 @@ TCPSocketChild::RecvCallback(const nsString& aType,
     const SendableData& data = aData.get_SendableData();
 
     if (data.type() == SendableData::TArrayOfuint8_t) {
-      JS::Value val;
+      jsval val;
       IPC::DeserializeUint8Array(mSocketObj, data.get_ArrayOfuint8_t(), &val);
       rv = mSocket->CallListenerArrayBuffer(aType, val);
 

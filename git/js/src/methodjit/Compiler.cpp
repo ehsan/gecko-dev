@@ -25,7 +25,6 @@
 #include "InlineFrameAssembler.h"
 #include "jscompartment.h"
 #include "jsopcodeinlines.h"
-#include "jsworkers.h"
 
 #include "builtin/RegExp.h"
 #include "vm/RegExpStatics.h"
@@ -35,7 +34,6 @@
 #include "jstypedarrayinlines.h"
 #include "vm/RegExpObject-inl.h"
 
-#include "ion/BaselineJIT.h"
 #include "ion/Ion.h"
 
 #if JS_TRACE_LOGGING
@@ -967,7 +965,7 @@ IonGetsFirstChance(JSContext *cx, JSScript *script, jsbytecode *pc, CompileReque
     // let JM take over until the PC is reached. Don't do this until the script
     // reaches a high use count, as if we do this prematurely we may get stuck
     // in JM code.
-    if (OffThreadCompilationEnabled(cx) && script->hasIonScript() &&
+    if (ion::js_IonOptions.parallelCompilation && script->hasIonScript() &&
         pc && script->ionScript()->osrPc() && script->ionScript()->osrPc() != pc &&
         script->getUseCount() >= ion::js_IonOptions.usesBeforeCompile * 2)
     {
@@ -992,11 +990,6 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
   checkOutput:
     if (!cx->methodJitEnabled)
         return Compile_Abort;
-
-#ifdef JS_ION
-    if (ion::IsBaselineEnabled(cx))
-        return Compile_Abort;
-#endif
 
     /*
      * If SPS (profiling) is enabled, then the emitted instrumentation has to be
@@ -4071,7 +4064,7 @@ mjit::Compiler::ionCompileHelper()
 #endif
 
     stubcc.linkExitDirect(trigger.inlineJump,
-                          OffThreadCompilationEnabled(cx)
+                          ion::js_IonOptions.parallelCompilation
                           ? secondTest
                           : trigger.stubLabel);
 

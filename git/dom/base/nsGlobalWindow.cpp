@@ -229,10 +229,6 @@
 #include "nsPISocketTransportService.h"
 #include "mozilla/dom/AudioContext.h"
 
-#ifdef MOZ_WEBSPEECH
-#include "mozilla/dom/SpeechSynthesis.h"
-#endif
-
 // Apple system headers seem to have a check() macro.  <sigh>
 #ifdef check
 #undef check
@@ -1323,10 +1319,6 @@ nsGlobalWindow::CleanUp(bool aIgnoreModalDialog)
 
   mPerformance = nullptr;
 
-#ifdef MOZ_WEBSPEECH
-  mSpeechSynthesis = nullptr;
-#endif
-
   ClearControllers();
 
   mOpener = nullptr;             // Forces Release
@@ -1492,9 +1484,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
 #ifdef MOZ_B2G
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowB2G)
 #endif // MOZ_B2G
-#ifdef MOZ_WEBSPEECH
-  NS_INTERFACE_MAP_ENTRY(nsISpeechSynthesisGetter)
-#endif // MOZ_B2G
   NS_INTERFACE_MAP_ENTRY(nsIDOMJSWindow)
   if (aIID.Equals(NS_GET_IID(nsIDOMWindowInternal))) {
     foundInterface = static_cast<nsIDOMWindowInternal*>(this);
@@ -1506,7 +1495,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
                                       "nsIDOMWindowInternalWarning");
     }
   } else
-  NS_INTERFACE_MAP_ENTRY(nsIGlobalObject)
   NS_INTERFACE_MAP_ENTRY(nsIScriptGlobalObject)
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
@@ -1587,10 +1575,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPerformance)
 
-#ifdef MOZ_WEBSPEECH
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSpeechSynthesis)
-#endif
-
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInnerWindowHolder)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOuterWindow)
 
@@ -1630,10 +1614,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mArgumentsLast)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPerformance)
-
-#ifdef MOZ_WEBSPEECH
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSpeechSynthesis)
-#endif
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mInnerWindowHolder)
   if (tmp->mOuterWindow) {
@@ -2590,7 +2570,7 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       mChromeEventHandler = piWindow->GetChromeEventHandler();
     }
     else {
-      mChromeEventHandler = NS_NewWindowRoot(this);
+      NS_NewWindowRoot(this, getter_AddRefs(mChromeEventHandler));
     }
   }
 
@@ -2711,7 +2691,7 @@ nsGlobalWindow::SetOpenerWindow(nsIDOMWindow* aOpener,
 }
 
 static
-already_AddRefed<EventTarget>
+already_AddRefed<nsIDOMEventTarget>
 TryGetTabChildGlobalAsEventTarget(nsISupports *aFrom)
 {
   nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(aFrom);
@@ -2724,8 +2704,9 @@ TryGetTabChildGlobalAsEventTarget(nsISupports *aFrom)
     return NULL;
   }
 
-  nsCOMPtr<EventTarget> target = frameLoader->GetTabChildGlobalAsEventTarget();
-  return target.forget();
+  nsCOMPtr<nsIDOMEventTarget> eventTarget =
+    frameLoader->GetTabChildGlobalAsEventTarget();
+  return eventTarget.forget();
 }
 
 void
@@ -2737,7 +2718,7 @@ nsGlobalWindow::UpdateParentTarget()
   // handler itself.
 
   nsCOMPtr<nsIDOMElement> frameElement = GetFrameElementInternal();
-  nsCOMPtr<EventTarget> eventTarget =
+  nsCOMPtr<nsIDOMEventTarget> eventTarget =
     TryGetTabChildGlobalAsEventTarget(frameElement);
 
   if (!eventTarget) {
@@ -3305,35 +3286,6 @@ nsPIDOMWindow::CreatePerformanceObjectIfNeeded()
     mPerformance = new nsPerformance(this, timing, timedChannel);
   }
 }
-
-// nsISpeechSynthesisGetter
-
-#ifdef MOZ_WEBSPEECH
-NS_IMETHODIMP
-nsGlobalWindow::GetSpeechSynthesis(nsISupports** aSpeechSynthesis)
-{
-  FORWARD_TO_INNER(GetSpeechSynthesis, (aSpeechSynthesis), NS_ERROR_NOT_INITIALIZED);
-
-  NS_IF_ADDREF(*aSpeechSynthesis = nsPIDOMWindow::GetSpeechSynthesisInternal());
-  return NS_OK;
-}
-
-SpeechSynthesis*
-nsPIDOMWindow::GetSpeechSynthesisInternal()
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  if (!SpeechSynthesis::PrefEnabled()) {
-    return nullptr;
-  }
-
-  if (!mSpeechSynthesis) {
-    mSpeechSynthesis = new SpeechSynthesis(this);
-  }
-
-  return mSpeechSynthesis;
-}
-#endif
 
 /**
  * GetScriptableParent is called when script reads window.parent.
@@ -8253,7 +8205,7 @@ nsGlobalWindow::DisableGamepadUpdates()
 }
 
 void
-nsGlobalWindow::SetChromeEventHandler(EventTarget* aChromeEventHandler)
+nsGlobalWindow::SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler)
 {
   SetChromeEventHandlerInternal(aChromeEventHandler);
   if (IsOuterWindow()) {
@@ -11272,21 +11224,21 @@ nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 
 #ifdef MOZ_GAMEPAD
 void
-nsGlobalWindow::AddGamepad(uint32_t aIndex, nsDOMGamepad* aGamepad)
+nsGlobalWindow::AddGamepad(PRUint32 aIndex, nsDOMGamepad* aGamepad)
 {
   FORWARD_TO_INNER_VOID(AddGamepad, (aIndex, aGamepad));
   mGamepads.Put(aIndex, aGamepad);
 }
 
 void
-nsGlobalWindow::RemoveGamepad(uint32_t aIndex)
+nsGlobalWindow::RemoveGamepad(PRUint32 aIndex)
 {
   FORWARD_TO_INNER_VOID(RemoveGamepad, (aIndex));
   mGamepads.Remove(aIndex);
 }
 
 already_AddRefed<nsDOMGamepad>
-nsGlobalWindow::GetGamepad(uint32_t aIndex)
+nsGlobalWindow::GetGamepad(PRUint32 aIndex)
 {
   FORWARD_TO_INNER(GetGamepad, (aIndex), nullptr);
   nsRefPtr<nsDOMGamepad> gamepad;
@@ -11313,7 +11265,7 @@ nsGlobalWindow::HasSeenGamepadInput()
 
 // static
 PLDHashOperator
-nsGlobalWindow::EnumGamepadsForSync(const uint32_t& aKey, nsDOMGamepad* aData, void* userArg)
+nsGlobalWindow::EnumGamepadsForSync(const PRUint32& aKey, nsDOMGamepad* aData, void* userArg)
 {
   nsRefPtr<GamepadService> gamepadsvc(GamepadService::GetService());
   gamepadsvc->SyncGamepadState(aKey, aData);

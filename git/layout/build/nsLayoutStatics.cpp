@@ -60,7 +60,6 @@
 #include "nsMathMLOperators.h"
 #include "Navigator.h"
 #include "nsDOMStorageBaseDB.h"
-#include "DisplayItemClip.h"
 
 #include "AudioChannelService.h"
 
@@ -75,10 +74,6 @@
 
 #include "nsHTMLEditor.h"
 #include "nsTextServicesDocument.h"
-
-#ifdef MOZ_WEBSPEECH
-#include "nsSynthVoiceRegistry.h"
-#endif
 
 #ifdef MOZ_MEDIA_PLUGINS
 #include "MediaPluginHost.h"
@@ -363,10 +358,6 @@ nsLayoutStatics::Shutdown()
   nsVolumeService::Shutdown();
 #endif
 
-#ifdef MOZ_WEBSPEECH
-  nsSynthVoiceRegistry::Shutdown();
-#endif
-
   nsCORSListenerProxy::Shutdown();
 
   nsIPresShell::ReleaseStatics();
@@ -392,8 +383,6 @@ nsLayoutStatics::Shutdown()
   ContentParent::ShutDown();
 
   nsRefreshDriver::Shutdown();
-
-  DisplayItemClip::Shutdown();
 
   nsDocument::XPCOMShutdown();
 }

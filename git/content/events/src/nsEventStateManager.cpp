@@ -1666,7 +1666,8 @@ nsEventStateManager::HandleCrossProcessEvent(nsEvent *aEvent,
       if (!touch || !touch->mChanged) {
         continue;
       }
-      nsCOMPtr<EventTarget> targetPtr = touch->GetTarget();
+      nsCOMPtr<nsIDOMEventTarget> targetPtr;
+      touch->GetTarget(getter_AddRefs(targetPtr));
       if (!targetPtr) {
         continue;
       }

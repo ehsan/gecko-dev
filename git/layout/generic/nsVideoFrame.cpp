@@ -417,11 +417,10 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
-  DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
-    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
+  nsDisplayList replacedContent;
 
   if (HasVideoElement() && !ShouldDisplayPoster()) {
-    aLists.Content()->AppendNewToTop(
+    replacedContent.AppendNewToTop(
       new (aBuilder) nsDisplayVideo(aBuilder, this));
   }
 
@@ -434,13 +433,15 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (child->GetContent() != mPosterImage || ShouldDisplayPoster()) {
       child->BuildDisplayListForStackingContext(aBuilder,
                                                 aDirtyRect - child->GetOffsetTo(this),
-                                                aLists.Content());
+                                                &replacedContent);
     } else if (child->GetType() == nsGkAtoms::boxFrame) {
       child->BuildDisplayListForStackingContext(aBuilder,
                                                 aDirtyRect - child->GetOffsetTo(this),
-                                                aLists.Content());
+                                                &replacedContent);
     }
   }
+
+  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 }
 
 nsIAtom*

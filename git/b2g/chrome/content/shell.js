@@ -922,7 +922,7 @@ let IndexedDBPromptHelper = {
 
   uninit:
   function IndexedDBPromptHelper_uninit() {
-    Services.obs.removeObserver(this, this._quotaPrompt);
+    Services.obs.removeObserver(this, this._quotaPrompt, false);
   },
 
   observe:

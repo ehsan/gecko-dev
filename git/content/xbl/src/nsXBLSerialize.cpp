@@ -22,11 +22,10 @@ XBL_SerializeFunction(nsIScriptContext* aContext,
 nsresult
 XBL_DeserializeFunction(nsIScriptContext* aContext,
                         nsIObjectInputStream* aStream,
-                        JS::MutableHandle<JSObject*> aFunctionObjectp)
+                        JSObject** aFunctionObjectp)
 {
   AutoPushJSContext cx(aContext->GetNativeContext());
-  nsresult rv = nsContentUtils::XPConnect()->ReadFunction(aStream, cx,
-                                                          aFunctionObjectp.address());
+  nsresult rv = nsContentUtils::XPConnect()->ReadFunction(aStream, cx, aFunctionObjectp);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Mark the script as XBL.
@@ -35,7 +34,7 @@ XBL_DeserializeFunction(nsIScriptContext* aContext,
   // code, but that would involve profile compat issues between different builds.
   // Given that we know this code is XBL, just flag it as such.
   JSAutoRequest ar(cx);
-  JSFunction* fun = JS_ValueToFunction(cx, JS::ObjectValue(*aFunctionObjectp));
+  JSFunction* fun = JS_ValueToFunction(cx, JS::ObjectValue(**aFunctionObjectp));
   NS_ENSURE_TRUE(fun, NS_ERROR_UNEXPECTED);
   JS_SetScriptUserBit(JS_GetFunctionScript(cx, fun), true);
   return NS_OK;

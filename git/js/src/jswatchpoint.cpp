@@ -8,7 +8,6 @@
 #include "jswatchpoint.h"
 
 #include "gc/Marking.h"
-#include "gc/StoreBuffer.h"
 
 #include "jsobjinlines.h"
 
@@ -49,15 +48,6 @@ WatchpointMap::init()
 {
     return map.init();
 }
-
-#ifdef JSGC_GENERATIONAL
-void
-Mark(JSTracer *trc, WatchKey *key, const char *name)
-{
-    MarkId(trc, &key->id, "WatchKey id");
-    MarkObject(trc, &key->object, "WatchKey id");
-}
-#endif
 
 static void
 WatchpointWriteBarrierPost(JSRuntime *rt, WatchpointMap::Map *map, const WatchKey &key,

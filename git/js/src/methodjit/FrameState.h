@@ -8,8 +8,6 @@
 #if !defined jsjaeger_framestate_h__ && defined JS_METHODJIT
 #define jsjaeger_framestate_h__
 
-#include "mozilla/PodOperations.h"
-
 #include "jsanalyze.h"
 #include "jsapi.h"
 #include "methodjit/MachineRegs.h"
@@ -701,7 +699,7 @@ class FrameState
         JSObject *initObject;
         types::StackTypeSet *types;
         JSAtom *name;
-        void reset() { mozilla::PodZero(this); }
+        void reset() { PodZero(this); }
     };
     StackEntryExtra& extra(const FrameEntry *fe) {
         JS_ASSERT(fe >= a->args && fe < a->sp);
@@ -1044,7 +1042,7 @@ class FrameState
     /* State for the active stack frame. */
 
     struct ActiveFrame {
-        ActiveFrame() { mozilla::PodZero(this); }
+        ActiveFrame() { PodZero(this); }
 
         ActiveFrame *parent;
 

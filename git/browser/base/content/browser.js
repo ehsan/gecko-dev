@@ -6147,9 +6147,9 @@ var IndexedDBPromptHelper = {
 
   uninit:
   function IndexedDBPromptHelper_uninit() {
-    Services.obs.removeObserver(this, this._permissionsPrompt);
-    Services.obs.removeObserver(this, this._quotaPrompt);
-    Services.obs.removeObserver(this, this._quotaCancel);
+    Services.obs.removeObserver(this, this._permissionsPrompt, false);
+    Services.obs.removeObserver(this, this._quotaPrompt, false);
+    Services.obs.removeObserver(this, this._quotaCancel, false);
   },
 
   observe:
@@ -6344,9 +6344,8 @@ function warnAboutClosingWindow() {
       return false;
   }
 
-  if (nonPopupPresent) {
-    return isPBWindow || gBrowser.warnAboutClosingTabs(true);
-  }
+  if (!isPBWindow && nonPopupPresent)
+    return gBrowser.warnAboutClosingTabs(true);
 
   let os = Services.obs;
 

@@ -11,7 +11,8 @@ using namespace mozilla::dom;
 NS_IMPL_ISUPPORTS1(AudioChannelAgent, nsIAudioChannelAgent)
 
 AudioChannelAgent::AudioChannelAgent()
-  : mAudioChannelType(AUDIO_AGENT_CHANNEL_ERROR)
+  : mCallback(nullptr)
+  , mAudioChannelType(AUDIO_AGENT_CHANNEL_ERROR)
   , mIsRegToService(false)
   , mVisible(true)
 {
@@ -31,25 +32,8 @@ NS_IMETHODIMP AudioChannelAgent::GetAudioChannelType(int32_t *aAudioChannelType)
   return NS_OK;
 }
 
-/* boolean init (in long channelType, in nsIAudioChannelAgentCallback callback); */
+/* boolean init (in long channelType); */
 NS_IMETHODIMP AudioChannelAgent::Init(int32_t channelType, nsIAudioChannelAgentCallback *callback)
-{
-  return InitInternal(channelType, callback, /* useWeakRef = */ false);
-}
-
-/* boolean initWithWeakCallback (in long channelType,
- *                               in nsIAudioChannelAgentCallback callback); */
-NS_IMETHODIMP
-AudioChannelAgent::InitWithWeakCallback(int32_t channelType,
-                                        nsIAudioChannelAgentCallback *callback)
-{
-  return InitInternal(channelType, callback, /* useWeakRef = */ true);
-}
-
-nsresult
-AudioChannelAgent::InitInternal(int32_t aChannelType,
-                                nsIAudioChannelAgentCallback *aCallback,
-                                bool aUseWeakRef)
 {
   // We syncd the enum of channel type between nsIAudioChannelAgent.idl and
   // AudioChannelCommon.h the same.
@@ -70,19 +54,13 @@ AudioChannelAgent::InitInternal(int32_t aChannelType,
                     "Enum of channel on nsIAudioChannelAgent.idl should be the same with AudioChannelCommon.h");
 
   if (mAudioChannelType != AUDIO_AGENT_CHANNEL_ERROR ||
-      aChannelType > AUDIO_AGENT_CHANNEL_PUBLICNOTIFICATION ||
-      aChannelType < AUDIO_AGENT_CHANNEL_NORMAL) {
+      channelType > AUDIO_AGENT_CHANNEL_PUBLICNOTIFICATION ||
+      channelType < AUDIO_AGENT_CHANNEL_NORMAL) {
     return NS_ERROR_FAILURE;
   }
 
-  mAudioChannelType = aChannelType;
-
-  if (aUseWeakRef) {
-    mWeakCallback = do_GetWeakReference(aCallback);
-  } else {
-    mCallback = aCallback;
-  }
-
+  mAudioChannelType = channelType;
+  mCallback = callback;
   return NS_OK;
 }
 
@@ -121,31 +99,19 @@ NS_IMETHODIMP AudioChannelAgent::SetVisibilityState(bool visible)
 {
   bool oldVisibility = mVisible;
 
-  nsCOMPtr<nsIAudioChannelAgentCallback> callback = GetCallback();
-
   mVisible = visible;
-  if (mIsRegToService && oldVisibility != mVisible && callback) {
+  if (mIsRegToService && oldVisibility != mVisible && mCallback != nullptr) {
     AudioChannelService *service = AudioChannelService::GetAudioChannelService();
-    callback->CanPlayChanged(!service->GetMuted(this, !mVisible));
+    mCallback->CanPlayChanged(!service->GetMuted(this, !mVisible));
   }
   return NS_OK;
 }
 
 void AudioChannelAgent::NotifyAudioChannelStateChanged()
 {
-  nsCOMPtr<nsIAudioChannelAgentCallback> callback = GetCallback();
-  if (callback) {
+  if (mCallback != nullptr) {
     AudioChannelService *service = AudioChannelService::GetAudioChannelService();
-    callback->CanPlayChanged(!service->GetMuted(this, !mVisible));
+    mCallback->CanPlayChanged(!service->GetMuted(this, !mVisible));
   }
 }
 
-already_AddRefed<nsIAudioChannelAgentCallback>
-AudioChannelAgent::GetCallback()
-{
-  nsCOMPtr<nsIAudioChannelAgentCallback> callback = mCallback;
-  if (!callback) {
-    callback = do_QueryReferent(mWeakCallback);
-  }
-  return callback.forget();
-}

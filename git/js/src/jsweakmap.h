@@ -50,7 +50,7 @@ class WeakMapBase {
             // many keys as possible have been marked, and add ourselves to the list of
             // known-live WeakMaps to be scanned in the iterative marking phase, by
             // markAllIteratively.
-            JS_ASSERT(tracer->eagerlyTraceWeakMaps == DoNotTraceWeakMaps);
+            JS_ASSERT(!tracer->eagerlyTraceWeakMaps);
 
             // Add ourselves to the list if we are not already in the list. We can already
             // be in the list if the weak map is marked more than once due delayed marking.
@@ -63,12 +63,8 @@ class WeakMapBase {
             // nicely as needed by the true ephemeral marking algorithm --- custom tracers
             // such as the cycle collector must use their own means for cycle detection.
             // So here we do a conservative approximation: pretend all keys are live.
-            if (tracer->eagerlyTraceWeakMaps == DoNotTraceWeakMaps)
-                return;
-
-            nonMarkingTraceValues(tracer);
-            if (tracer->eagerlyTraceWeakMaps == TraceWeakMapKeysValues)
-                nonMarkingTraceKeys(tracer);
+            if (tracer->eagerlyTraceWeakMaps)
+                nonMarkingTrace(tracer);
         }
     }
 
@@ -104,8 +100,7 @@ class WeakMapBase {
   protected:
     // Instance member functions called by the above. Instantiations of WeakMap override
     // these with definitions appropriate for their Key and Value types.
-    virtual void nonMarkingTraceKeys(JSTracer *tracer) = 0;
-    virtual void nonMarkingTraceValues(JSTracer *tracer) = 0;
+    virtual void nonMarkingTrace(JSTracer *tracer) = 0;
     virtual bool markIteratively(JSTracer *tracer) = 0;
     virtual void sweep() = 0;
     virtual void traceMappings(WeakMapTracer *tracer) = 0;
@@ -146,16 +141,7 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
         return true;
     }
 
-    void nonMarkingTraceKeys(JSTracer *trc) {
-        for (Enum e(*this); !e.empty(); e.popFront()) {
-            Key key(e.front().key);
-            gc::Mark(trc, &key, "WeakMap Key");
-            if (key != e.front().key)
-                e.rekeyFront(key, key);
-        }
-    }
-
-    void nonMarkingTraceValues(JSTracer *trc) {
+    void nonMarkingTrace(JSTracer *trc) {
         for (Range r = Base::all(); !r.empty(); r.popFront())
             gc::Mark(trc, &r.front().value, "WeakMap entry");
     }
@@ -204,8 +190,6 @@ class WeakMap : public HashMap<Key, Value, HashPolicy, RuntimeAllocPolicy>, publ
             Key k(e.front().key);
             if (gc::IsAboutToBeFinalized(&k))
                 e.removeFront();
-            else if (k != e.front().key)
-                e.rekeyFront(k, k);
         }
         /*
          * Once we've swept, all remaining edges should stay within the

@@ -124,7 +124,7 @@ public:
 
   void SetCachedPosition(nsIDOMGeoPosition* aPosition);
   nsIDOMGeoPosition* GetCachedPosition();
-  bool IsBetterPosition(nsIDOMGeoPosition *aSomewhere);
+  PRBool IsBetterPosition(nsIDOMGeoPosition *aSomewhere);
 
   // Find and startup a geolocation device (gps, nmea, etc.)
   nsresult StartDevice(nsIPrincipal* aPrincipal, bool aRequestPrivate);

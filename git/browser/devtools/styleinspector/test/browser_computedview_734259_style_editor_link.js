@@ -51,7 +51,7 @@ function selectNode(aInspector)
 
 function testInlineStyle()
 {
-  Services.obs.removeObserver(testInlineStyle, "StyleInspector-populated");
+  Services.obs.removeObserver(testInlineStyle, "StyleInspector-populated", false);
 
   info("expanding property");
   expandProperty(0, function propertyExpanded() {

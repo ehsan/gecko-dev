@@ -66,7 +66,6 @@
 #include "nsIScriptError.h"
 #include "nsHostObjectProtocolHandler.h"
 #include "MediaMetadataManager.h"
-#include "mozilla/dom/EnableWebAudioCheck.h"
 
 #include "AudioChannelService.h"
 
@@ -441,7 +440,7 @@ NS_IMPL_BOOL_ATTR(HTMLMediaElement, Controls, controls)
 NS_IMPL_BOOL_ATTR(HTMLMediaElement, Autoplay, autoplay)
 NS_IMPL_BOOL_ATTR(HTMLMediaElement, Loop, loop)
 NS_IMPL_BOOL_ATTR(HTMLMediaElement, DefaultMuted, muted)
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(HTMLMediaElement, Preload, preload, nullptr)
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(HTMLMediaElement, Preload, preload, NULL)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(HTMLMediaElement, MozAudioChannelType, mozaudiochannel, "normal")
 
 already_AddRefed<DOMMediaStream>
@@ -888,9 +887,9 @@ void HTMLMediaElement::LoadFromSourceChildren()
     if (child->GetAttr(kNameSpaceID_None, nsGkAtoms::media, media) && !media.IsEmpty()) {
       nsCSSParser cssParser;
       nsRefPtr<nsMediaList> mediaList(new nsMediaList());
-      cssParser.ParseMediaList(media, nullptr, 0, mediaList, false);
+      cssParser.ParseMediaList(media, NULL, 0, mediaList, false);
       nsIPresShell* presShell = OwnerDoc()->GetShell();
-      if (presShell && !mediaList->Matches(presShell->GetPresContext(), nullptr)) {
+      if (presShell && !mediaList->Matches(presShell->GetPresContext(), NULL)) {
         DispatchAsyncSourceError(child);
         const PRUnichar* params[] = { media.get(), src.get() };
         ReportLoadError("MediaLoadSourceMediaNotMatched", params, ArrayLength(params));
@@ -1573,7 +1572,7 @@ HTMLMediaElement::BuildObjectFromTags(nsCStringHashKey::KeyType aKey,
   }
   JS::Value value = STRING_TO_JSVAL(string);
   if (!JS_DefineProperty(args->cx, args->tags, aKey.Data(), value,
-                         nullptr, nullptr, JSPROP_ENUMERATE)) {
+                         NULL, NULL, JSPROP_ENUMERATE)) {
     NS_WARNING("Failed to set metadata property");
     args->error = true;
     return PL_DHASH_STOP;
@@ -1590,7 +1589,7 @@ HTMLMediaElement::MozGetMetadata(JSContext* cx, ErrorResult& aRv)
     return nullptr;
   }
 
-  JSObject* tags = JS_NewObject(cx, nullptr, nullptr, nullptr);
+  JSObject* tags = JS_NewObject(cx, NULL, NULL, NULL);
   if (!tags) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -2089,7 +2088,7 @@ HTMLMediaElement::WakeLockBoolWrapper& HTMLMediaElement::WakeLockBoolWrapper::op
     pmService->NewWakeLock(NS_LITERAL_STRING("Playing_media"), mOuter->OwnerDoc()->GetWindow(), getter_AddRefs(mWakeLock));
   } else if (mWakeLock && val) {
     mWakeLock->Unlock();
-    mWakeLock = nullptr;
+    mWakeLock = NULL;
   }
   mValue = val;
   return *this;
@@ -3073,8 +3072,8 @@ nsresult HTMLMediaElement::DispatchAudioAvailableEvent(float* aFrameBuffer,
   nsAutoArrayPtr<float> frameBuffer(aFrameBuffer);
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
-  nsRefPtr<HTMLMediaElement> kungFuDeathGrip = this;
-  NS_ENSURE_TRUE(domDoc, NS_ERROR_INVALID_ARG);
+  nsCOMPtr<nsIDOMEventTarget> target(do_QueryObject(this));
+  NS_ENSURE_TRUE(domDoc && target, NS_ERROR_INVALID_ARG);
 
   nsCOMPtr<nsIDOMEvent> event;
   nsresult rv = domDoc->CreateEvent(NS_LITERAL_STRING("MozAudioAvailableEvent"),
@@ -3088,7 +3087,7 @@ nsresult HTMLMediaElement::DispatchAudioAvailableEvent(float* aFrameBuffer,
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
-  return DispatchEvent(event, &dummy);
+  return target->DispatchEvent(event, &dummy);
 }
 
 nsresult HTMLMediaElement::DispatchEvent(const nsAString& aName)
@@ -3424,7 +3423,7 @@ HTMLMediaElement::CopyInnerTo(Element* aDest)
       if (frame && frame->GetType() == nsGkAtoms::HTMLVideoFrame &&
           static_cast<nsVideoFrame*>(frame)->ShouldDisplayPoster()) {
         nsIContent* content = static_cast<nsVideoFrame*>(frame)->GetPosterImage();
-        element = content ? content->AsElement() : nullptr;
+        element = content ? content->AsElement() : NULL;
       } else {
         element = const_cast<HTMLMediaElement*>(this);
       }
@@ -3537,9 +3536,6 @@ NS_IMETHODIMP HTMLMediaElement::GetMozFragmentEnd(double* aTime)
 
 void HTMLMediaElement::NotifyAudioAvailableListener()
 {
-  if (dom::EnableWebAudioCheck::PrefEnabled()) {
-    OwnerDoc()->WarnOnceAbout(nsIDocument::eMozAudioData);
-  }
   if (mDecoder) {
     mDecoder->NotifyAudioAvailableListener();
   }
@@ -3687,8 +3683,7 @@ void HTMLMediaElement::UpdateAudioChannelPlayingState()
       if (!mAudioChannelAgent) {
         return;
       }
-      // Use a weak ref so the audio channel agent can't leak |this|.
-      mAudioChannelAgent->InitWithWeakCallback(mAudioChannelType, this);
+      mAudioChannelAgent->Init(mAudioChannelType, this);
 
       nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(OwnerDoc());
       if (domDoc) {

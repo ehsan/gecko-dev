@@ -2,24 +2,9 @@
 
 "use strict";
 
-var ignoreIndirectCalls = {
-    "mallocSizeOf" : true,
-    "aMallocSizeOf" : true,
-    "_malloc_message" : true,
-    "__conv" : true,
-    "__convf" : true,
-    "prerrortable.c:callback_newtable" : true,
-};
-
 function indirectCallCannotGC(caller, name)
 {
-    if (name in ignoreIndirectCalls)
-        return true;
-
-    if (name == "mapper" && caller == "ptio.c:pt_MapError")
-        return true;
-
-    if (name == "params" && caller == "PR_ExplodeTime")
+    if (name == "mallocSizeOf")
         return true;
 
     // hook called during script finalization which cannot GC.
@@ -34,29 +19,25 @@ function indirectCallCannotGC(caller, name)
 }
 
 // classes to ignore indirect calls on.
-var ignoreClasses = {
-    "JSTracer" : true,
-    "JSStringFinalizer" : true,
-    "SprintfStateStr" : true,
-    "JSLocaleCallbacks" : true,
-    "JSC::ExecutableAllocator" : true,
-    "PRIOMethods": true,
-    "XPCOMFunctions" : true, // I'm a little unsure of this one
-    "_MD_IOVector" : true,
-    "PRIOMethods" : true,
-};
+var ignoreClasses = [
+    "JSTracer",
+    "JSStringFinalizer",
+    "SprintfStateStr",
+    "JSLocaleCallbacks",
+    "JSC::ExecutableAllocator",
+    "_MD_IOVector",
+    "PRIOMethods"
+];
 
-var ignoreCallees = {
-    "js::Class.trace" : true,
-    "js::Class.finalize" : true,
-    "JSRuntime.destroyPrincipals" : true,
-};
-
-function fieldCallCannotGC(csu, fullfield)
+function fieldCallCannotGC(csu, field)
 {
-    if (csu in ignoreClasses)
+    for (var i = 0; i < ignoreClasses.length; i++) {
+        if (csu == ignoreClasses[i])
+            return true;
+    }
+    if (csu == "js::Class" && (field == "trace" || field == "finalize"))
         return true;
-    if (fullfield in ignoreCallees)
+    if (csu == "JSRuntime" && field == "destroyPrincipals")
         return true;
     return false;
 }
@@ -113,13 +94,6 @@ function ignoreGCFunction(fun)
 
 function isRootedTypeName(name)
 {
-    if (name == "mozilla::ErrorResult")
-        return true;
-    return false;
-}
-
-function isRootedPointerTypeName(name)
-{
     if (name.startsWith('struct '))
         name = name.substr(7);
     if (name.startsWith('class '))
@@ -130,9 +104,6 @@ function isRootedPointerTypeName(name)
         name = name.substr(4);
     if (name.startsWith('JS::'))
         name = name.substr(4);
-
-    if (name.startsWith('MaybeRooted<'))
-        return /\(js::AllowGC\)1u>::RootType/.test(name);
 
     return name.startsWith('Rooted');
 }

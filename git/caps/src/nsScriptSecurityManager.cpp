@@ -2513,8 +2513,8 @@ void
 nsScriptSecurityManager::Shutdown()
 {
     if (sRuntime) {
-        JS_SetSecurityCallbacks(sRuntime, nullptr);
-        JS_SetTrustedPrincipals(sRuntime, nullptr);
+        JS_SetSecurityCallbacks(sRuntime, NULL);
+        JS_SetTrustedPrincipals(sRuntime, NULL);
         sRuntime = nullptr;
     }
     sEnabledID = JSID_VOID;

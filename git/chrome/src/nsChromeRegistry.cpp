@@ -131,7 +131,7 @@ nsChromeRegistry::GetService()
     nsCOMPtr<nsIChromeRegistry> reg(
         do_GetService(NS_CHROMEREGISTRY_CONTRACTID));
     if (!gChromeRegistry)
-      return nullptr;
+      return NULL;
   }
   NS_ADDREF(gChromeRegistry);
   return gChromeRegistry;
@@ -643,7 +643,7 @@ nsChromeRegistry::GetSingleton()
     cr = new nsChromeRegistryChrome();
 
   if (NS_FAILED(cr->Init()))
-    return nullptr;
+    return NULL;
 
   return cr.forget();
 }

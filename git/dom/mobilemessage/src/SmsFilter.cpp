@@ -51,7 +51,7 @@ SmsFilter::NewSmsFilter(nsISupports** aSmsFilter)
 }
 
 NS_IMETHODIMP
-SmsFilter::GetStartDate(JSContext* aCx, JS::Value* aStartDate)
+SmsFilter::GetStartDate(JSContext* aCx, jsval* aStartDate)
 {
   if (mData.startDate() == 0) {
     *aStartDate = JSVAL_NULL;
@@ -65,7 +65,7 @@ SmsFilter::GetStartDate(JSContext* aCx, JS::Value* aStartDate)
 }
 
 NS_IMETHODIMP
-SmsFilter::SetStartDate(JSContext* aCx, const JS::Value& aStartDate)
+SmsFilter::SetStartDate(JSContext* aCx, const jsval& aStartDate)
 {
   if (aStartDate == JSVAL_NULL) {
     mData.startDate() = 0;
@@ -86,7 +86,7 @@ SmsFilter::SetStartDate(JSContext* aCx, const JS::Value& aStartDate)
 }
 
 NS_IMETHODIMP
-SmsFilter::GetEndDate(JSContext* aCx, JS::Value* aEndDate)
+SmsFilter::GetEndDate(JSContext* aCx, jsval* aEndDate)
 {
   if (mData.endDate() == 0) {
     *aEndDate = JSVAL_NULL;
@@ -100,7 +100,7 @@ SmsFilter::GetEndDate(JSContext* aCx, JS::Value* aEndDate)
 }
 
 NS_IMETHODIMP
-SmsFilter::SetEndDate(JSContext* aCx, const JS::Value& aEndDate)
+SmsFilter::SetEndDate(JSContext* aCx, const jsval& aEndDate)
 {
   if (aEndDate == JSVAL_NULL) {
     mData.endDate() = 0;
@@ -121,7 +121,7 @@ SmsFilter::SetEndDate(JSContext* aCx, const JS::Value& aEndDate)
 }
 
 NS_IMETHODIMP
-SmsFilter::GetNumbers(JSContext* aCx, JS::Value* aNumbers)
+SmsFilter::GetNumbers(JSContext* aCx, jsval* aNumbers)
 {
   uint32_t length = mData.numbers().Length();
 
@@ -130,7 +130,7 @@ SmsFilter::GetNumbers(JSContext* aCx, JS::Value* aNumbers)
     return NS_OK;
   }
 
-  JS::Value* numbers = new JS::Value[length];
+  jsval* numbers = new jsval[length];
 
   for (uint32_t i=0; i<length; ++i) {
     numbers[i].setString(JS_NewUCStringCopyN(aCx, mData.numbers()[i].get(),
@@ -144,7 +144,7 @@ SmsFilter::GetNumbers(JSContext* aCx, JS::Value* aNumbers)
 }
 
 NS_IMETHODIMP
-SmsFilter::SetNumbers(JSContext* aCx, const JS::Value& aNumbers)
+SmsFilter::SetNumbers(JSContext* aCx, const jsval& aNumbers)
 {
   if (aNumbers == JSVAL_NULL) {
     mData.numbers().Clear();
@@ -166,7 +166,7 @@ SmsFilter::SetNumbers(JSContext* aCx, const JS::Value& aNumbers)
   nsTArray<nsString> numbers;
 
   for (uint32_t i=0; i<size; ++i) {
-    JS::Value jsNumber;
+    jsval jsNumber;
     if (!JS_GetElement(aCx, &obj, i, &jsNumber)) {
       return NS_ERROR_INVALID_ARG;
     }
@@ -230,7 +230,7 @@ SmsFilter::SetDelivery(const nsAString& aDelivery)
 }
 
 NS_IMETHODIMP
-SmsFilter::GetRead(JSContext* aCx, JS::Value* aRead)
+SmsFilter::GetRead(JSContext* aCx, jsval* aRead)
 {
   if (mData.read() == eReadState_Unknown) {
     *aRead = JSVAL_VOID;
@@ -243,7 +243,7 @@ SmsFilter::GetRead(JSContext* aCx, JS::Value* aRead)
 }
 
 NS_IMETHODIMP
-SmsFilter::SetRead(JSContext* aCx, const JS::Value& aRead)
+SmsFilter::SetRead(JSContext* aCx, const jsval& aRead)
 {
   if (aRead == JSVAL_VOID) {
     mData.read() = eReadState_Unknown;

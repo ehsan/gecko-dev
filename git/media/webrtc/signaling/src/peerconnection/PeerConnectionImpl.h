@@ -170,6 +170,7 @@ public:
   // Implementation of the only observer we need
   virtual void onCallEvent(
     ccapi_call_event_e aCallEvent,
+    CSF::CC_CallPtr aCall,
     CSF::CC_CallInfoPtr aInfo
   );
 

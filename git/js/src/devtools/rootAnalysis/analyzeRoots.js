@@ -194,8 +194,8 @@ function edgeCanGC(edge)
     if (callee.Exp[0].Kind == "Fld") {
         var field = callee.Exp[0].Field;
         var csuName = field.FieldCSU.Type.Name;
-        var fullFieldName = csuName + "." + field.Name[0];
-        return fieldCallCannotGC(csuName, fullFieldName) ? null : fullFieldName;
+        var fieldName = field.Name[0];
+        return fieldCallCannotGC(csuName, fieldName) ? null : csuName + "." + fieldName;
     }
     assert(callee.Exp[0].Kind == "Var");
     var calleeName = callee.Exp[0].Variable.Name[0];
@@ -501,14 +501,14 @@ for (let nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
     var data = xdb.read_entry(name);
     functionBodies = JSON.parse(data.readString());
     let filename = functionBodies[0].Location[0].CacheString;
-    let match = /(.*)\bjs\/src\//.exec(filename);
+    let match = /(.*\/)js\/src\//.exec(filename);
     if (match) {
         sourceRoot = match[1];
         printErr("sourceRoot = " + sourceRoot);
         break;
     }
 }
-assert(typeof(sourceRoot) == "string");
+assert(sourceRoot);
 
 for (var nameIndex = start; nameIndex <= end; nameIndex++) {
     var name = xdb.read_key(nameIndex);

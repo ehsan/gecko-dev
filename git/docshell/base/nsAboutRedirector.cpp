@@ -15,7 +15,9 @@ NS_IMPL_ISUPPORTS1(nsAboutRedirector, nsIAboutModule)
 struct RedirEntry {
     const char* id;
     const char* url;
-    uint32_t flags;
+    uint32_t flags;  // See nsIAboutModule.  The URI_SAFE_FOR_UNTRUSTED_CONTENT
+                     // flag does double duty here -- if it's not set, we don't
+                     // drop chrome privileges.
 };
 
 /*
@@ -96,6 +98,18 @@ nsAboutRedirector::NewChannel(nsIURI *aURI, nsIChannel **result)
                 return rv;
 
             tempChannel->SetOriginalURI(aURI);
+
+            // Keep the page from getting unnecessary privileges unless it needs them
+            if (kRedirMap[i].flags &
+                nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT)
+            {
+                // Setting the owner to null means that we'll go through the normal
+                // path in GetChannelPrincipal and create a codebase principal based
+                // on the channel's originalURI
+                rv = tempChannel->SetOwner(nullptr);
+                if (NS_FAILED(rv))
+                    return rv;
+            }
 
             NS_ADDREF(*result = tempChannel);
             return rv;

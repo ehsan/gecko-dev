@@ -424,10 +424,9 @@ protected:
 
 protected:
   template<class Allocator>
-  typename Alloc::ResultTypeProxy
-  SwapArrayElements(nsTArray_base<Allocator>& other,
-                    size_type elemSize,
-                    size_t elemAlign);
+  bool SwapArrayElements(nsTArray_base<Allocator>& other,
+                           size_type elemSize,
+                           size_t elemAlign);
 
   // This is an RAII class used in SwapArrayElements.
   class IsAutoArrayRestorer {
@@ -1158,10 +1157,8 @@ public:
   // This method causes the elements contained in this array and the given
   // array to be swapped.
   template<class Allocator>
-  typename Alloc::ResultType
-  SwapElements(nsTArray_Impl<E, Allocator>& other) {
-    return Alloc::Result(this->SwapArrayElements(other, sizeof(elem_type),
-                                                 MOZ_ALIGNOF(elem_type)));
+  bool SwapElements(nsTArray_Impl<E, Allocator>& other) {
+    return this->SwapArrayElements(other, sizeof(elem_type), MOZ_ALIGNOF(elem_type));
   }
 
   //

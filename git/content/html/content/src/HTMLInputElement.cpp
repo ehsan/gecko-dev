@@ -1085,9 +1085,7 @@ HTMLInputElement::GetWidth(uint32_t* aWidth)
 NS_IMETHODIMP
 HTMLInputElement::SetWidth(uint32_t aWidth)
 {
-  ErrorResult rv;
-  SetWidth(aWidth, rv);
-  return rv.ErrorCode();
+  return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aWidth);
 }
 
 NS_IMETHODIMP

@@ -4,8 +4,13 @@ vbox {
 
 .file {
   display: inline;
+  -moz-appearance: none;
+  padding: 0;
+  border: 2px inset ThreeDFace;
+  border-style: none;
 
-  /* Copy of input properties that apply of forms.css below this */
+  background-color: -moz-Field;
+
   color: -moz-FieldText;
   font: -moz-field;
   text-rendering: optimizeLegibility;
@@ -14,45 +19,31 @@ vbox {
   text-transform: none;
   word-spacing: normal;
   letter-spacing: normal;
+  cursor: text;
   text-indent: 0;
   -moz-user-select: text;
   text-shadow: none;
-
-  /* Copy of the type=file part of forms.css below this */
-  -moz-appearance: none;
-  white-space: nowrap;
-  cursor: default;
-  -moz-binding: none;
-
-  border: none;
-  background-color: none;
-
-  padding: 0 !important;
 }
 
 .file > label {
   display: inline-block;
-
-  /* Copy from forms.css below this */
   width: 12em;
   -moz-padding-start: 5px;
 
+  border-color: inherit;
+  background-color: inherit;
   color: inherit;
   font-size: inherit;
   letter-spacing: inherit;
-
-  direction: ltr !important;
 }
 
-.file[dir='rtl'] > label {
-  /* Copy from forms.css below this */
-  -moz-padding-start: 0px;
-  padding-right: 5px;
+.file > label.rtl {
   text-align: right;
+  -moz-padding-start: 0px;
+  padding-right: 1px;
 }
 
 .file > button {
-  /* Copy from forms.css below this */
   height: inherit;
   font-size: inherit;
   letter-spacing: inherit;

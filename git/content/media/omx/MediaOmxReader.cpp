@@ -52,9 +52,7 @@ nsresult MediaOmxReader::ReadMetadata(VideoInfo* aInfo,
 
   if (!mOmxDecoder.get()) {
     mOmxDecoder = new OmxDecoder(mDecoder->GetResource(), mDecoder);
-    if (!mOmxDecoder->Init()) {
-      return NS_ERROR_FAILURE;
-    }
+    mOmxDecoder->Init();
   }
 
   // Set the total duration (the max of the audio and video track).

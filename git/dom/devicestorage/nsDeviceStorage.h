@@ -130,14 +130,9 @@ private:
 };
 
 //helpers
-JS::Value
-StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString);
-
-JS::Value
-nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile);
-
-JS::Value
-InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID);
+jsval StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString);
+jsval nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile);
+jsval InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID);
 
 #ifdef MOZ_WIDGET_GONK
 nsresult GetSDCardStatus(nsAString& aPath, nsAString& aState);

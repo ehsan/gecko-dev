@@ -447,10 +447,15 @@ InstanceOfPolicy::adjustInputs(MInstruction *def)
 }
 
 bool
-StoreTypedArrayPolicy::adjustValueInput(MInstruction *ins, int arrayType,
-                                        MDefinition *value, int valueOperand)
+StoreTypedArrayPolicy::adjustInputs(MInstruction *ins)
 {
-    MDefinition *curValue = value;
+    MStoreTypedArrayElement *store = ins->toStoreTypedArrayElement();
+    JS_ASSERT(store->elements()->type() == MIRType_Elements);
+    JS_ASSERT(store->index()->type() == MIRType_Int32);
+
+    int arrayType = store->arrayType();
+    MDefinition *value = store->value();
+
     // First, ensure the value is int32, boolean, double or Value.
     // The conversion is based on TypedArrayTemplate::setElementTail.
     switch (value->type()) {
@@ -478,10 +483,8 @@ StoreTypedArrayPolicy::adjustValueInput(MInstruction *ins, int arrayType,
         break;
     }
 
-    if (value != curValue) {
-        ins->replaceOperand(valueOperand, value);
-        curValue = value;
-    }
+    if (value != store->value())
+        ins->replaceOperand(2, value);
 
     JS_ASSERT(value->type() == MIRType_Int32 ||
               value->type() == MIRType_Boolean ||
@@ -516,32 +519,9 @@ StoreTypedArrayPolicy::adjustValueInput(MInstruction *ins, int arrayType,
         break;
     }
 
-    if (value != curValue) {
-        ins->replaceOperand(valueOperand, value);
-        curValue = value;
-    }
+    if (value != store->value())
+        ins->replaceOperand(2, value);
     return true;
-}
-
-bool
-StoreTypedArrayPolicy::adjustInputs(MInstruction *ins)
-{
-    MStoreTypedArrayElement *store = ins->toStoreTypedArrayElement();
-    JS_ASSERT(store->elements()->type() == MIRType_Elements);
-    JS_ASSERT(store->index()->type() == MIRType_Int32);
-
-    return adjustValueInput(ins, store->arrayType(), store->value(), 2);
-}
-
-bool
-StoreTypedArrayHolePolicy::adjustInputs(MInstruction *ins)
-{
-    MStoreTypedArrayElementHole *store = ins->toStoreTypedArrayElementHole();
-    JS_ASSERT(store->elements()->type() == MIRType_Elements);
-    JS_ASSERT(store->index()->type() == MIRType_Int32);
-    JS_ASSERT(store->length()->type() == MIRType_Int32);
-
-    return adjustValueInput(ins, store->arrayType(), store->value(), 3);
 }
 
 bool

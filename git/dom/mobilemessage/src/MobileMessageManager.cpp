@@ -115,7 +115,7 @@ MobileMessageManager::GetSegmentInfoForText(const nsAString& aText,
 
 nsresult
 MobileMessageManager::Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
-                           const nsAString& aMessage, JS::Value* aRequest)
+                           const nsAString& aMessage, jsval* aRequest)
 {
   nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
   if (!smsService) {
@@ -142,7 +142,7 @@ MobileMessageManager::Send(JSContext* aCx, JSObject* aGlobal, JSString* aNumber,
 }
 
 NS_IMETHODIMP
-MobileMessageManager::Send(const JS::Value& aNumber, const nsAString& aMessage, JS::Value* aReturn)
+MobileMessageManager::Send(const jsval& aNumber, const nsAString& aMessage, jsval* aReturn)
 {
   nsresult rv;
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
@@ -171,10 +171,10 @@ MobileMessageManager::Send(const JS::Value& aNumber, const nsAString& aMessage, 
   uint32_t size;
   JS_ALWAYS_TRUE(JS_GetArrayLength(cx, &numbers, &size));
 
-  JS::Value* requests = new JS::Value[size];
+  jsval* requests = new jsval[size];
 
   for (uint32_t i=0; i<size; ++i) {
-    JS::Value number;
+    jsval number;
     if (!JS_GetElement(cx, &numbers, i, &number)) {
       return NS_ERROR_INVALID_ARG;
     }
@@ -237,7 +237,7 @@ MobileMessageManager::Delete(int32_t aId, nsIDOMDOMRequest** aRequest)
 }
 
 NS_IMETHODIMP
-MobileMessageManager::Delete(const JS::Value& aParam, nsIDOMDOMRequest** aRequest)
+MobileMessageManager::Delete(const jsval& aParam, nsIDOMDOMRequest** aRequest)
 {
   if (aParam.isInt32()) {
     return Delete(aParam.toInt32(), aRequest);

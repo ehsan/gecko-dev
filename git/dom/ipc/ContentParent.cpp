@@ -116,10 +116,6 @@ using namespace mozilla::system;
 
 #include "Crypto.h"
 
-#ifdef MOZ_WEBSPEECH
-#include "mozilla/dom/SpeechSynthesisParent.h"
-#endif
-
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
 static const char* sClipboardTextFlavors[] = { kUnicodeMime };
 
@@ -374,7 +370,7 @@ ContentParent::JoinAllSubprocesses()
     sCanLaunchSubprocesses = false;
 }
 
-/*static*/ already_AddRefed<ContentParent>
+/*static*/ ContentParent*
 ContentParent::GetNewOrUsed(bool aForBrowserElement)
 {
     if (!gNonAppContentParents)
@@ -386,9 +382,9 @@ ContentParent::GetNewOrUsed(bool aForBrowserElement)
 
     if (gNonAppContentParents->Length() >= uint32_t(maxContentProcesses)) {
         uint32_t idx = rand() % gNonAppContentParents->Length();
-        nsRefPtr<ContentParent> p = (*gNonAppContentParents)[idx];
+        ContentParent* p = (*gNonAppContentParents)[idx];
         NS_ASSERTION(p->IsAlive(), "Non-alive contentparent in gNonAppContentParents?");
-        return p.forget();
+        return p;
     }
 
     nsRefPtr<ContentParent> p =
@@ -398,7 +394,7 @@ ContentParent::GetNewOrUsed(bool aForBrowserElement)
                           PROCESS_PRIORITY_FOREGROUND);
     p->Init();
     gNonAppContentParents->AppendElement(p);
-    return p.forget();
+    return p;
 }
 
 namespace {
@@ -466,7 +462,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
     }
 
     if (aContext.IsBrowserElement() || !aContext.HasOwnApp()) {
-        if (nsRefPtr<ContentParent> cp = GetNewOrUsed(aContext.IsBrowserElement())) {
+        if (ContentParent* cp = GetNewOrUsed(aContext.IsBrowserElement())) {
             nsRefPtr<TabParent> tp(new TabParent(aContext));
             tp->SetOwnerElement(aFrameElement);
             PBrowserParent* browser = cp->SendPBrowserConstructor(
@@ -2018,37 +2014,6 @@ ContentParent::RecvPBluetoothConstructor(PBluetoothParent* aActor)
     return static_cast<BluetoothParent*>(aActor)->InitWithService(btService);
 #else
     MOZ_NOT_REACHED("No support for bluetooth on this platform!");
-    return false;
-#endif
-}
-
-PSpeechSynthesisParent*
-ContentParent::AllocPSpeechSynthesis()
-{
-#ifdef MOZ_WEBSPEECH
-    return new mozilla::dom::SpeechSynthesisParent();
-#else
-    return nullptr;
-#endif
-}
-
-bool
-ContentParent::DeallocPSpeechSynthesis(PSpeechSynthesisParent* aActor)
-{
-#ifdef MOZ_WEBSPEECH
-    delete aActor;
-    return true;
-#else
-    return false;
-#endif
-}
-
-bool
-ContentParent::RecvPSpeechSynthesisConstructor(PSpeechSynthesisParent* aActor)
-{
-#ifdef MOZ_WEBSPEECH
-    return true;
-#else
     return false;
 #endif
 }

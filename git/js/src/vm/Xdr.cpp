@@ -70,10 +70,27 @@ XDRState<mode>::codeChars(jschar *chars, size_t nchars)
         uint8_t *ptr = buf.write(nbytes);
         if (!ptr)
             return false;
-        mozilla::NativeEndian::copyAndSwapToLittleEndian(ptr, chars, nchars);
+#ifdef IS_LITTLE_ENDIAN
+        memcpy(ptr, chars, nbytes);
+#else
+        for (size_t i = 0; i != nchars; i++) {
+            uint16_t tmp = NormalizeByteOrder16(chars[i]);
+            memcpy(ptr, &tmp, sizeof tmp);
+            ptr += sizeof tmp;
+        }
+#endif
     } else {
         const uint8_t *ptr = buf.read(nbytes);
-        mozilla::NativeEndian::copyAndSwapFromLittleEndian(chars, ptr, nchars);
+#ifdef IS_LITTLE_ENDIAN
+        memcpy(chars, ptr, nbytes);
+#else
+        for (size_t i = 0; i != nchars; i++) {
+            uint16_t tmp;
+            memcpy(&tmp, ptr, sizeof tmp);
+            chars[i] = NormalizeByteOrder16(tmp);
+            ptr += sizeof tmp;
+        }
+#endif
     }
     return true;
 }

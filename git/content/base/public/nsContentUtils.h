@@ -120,7 +120,6 @@ class Selection;
 namespace dom {
 class DocumentFragment;
 class Element;
-class EventTarget;
 } // namespace dom
 
 namespace layers {
@@ -1357,11 +1356,6 @@ public:
   static bool IsSystemPrincipal(nsIPrincipal* aPrincipal);
 
   /**
-   * Gets the system principal from the security manager.
-   */
-  static nsIPrincipal* GetSystemPrincipal();
-
-  /**
    * *aResourcePrincipal is a principal describing who may access the contents
    * of a resource. The resource can only be consumed by a principal that
    * subsumes *aResourcePrincipal. MAKE SURE THAT NOTHING EVER ACTS WITH THE
@@ -2259,10 +2253,10 @@ public:
   ~nsCxPusher(); // Calls Pop();
 
   // Returns false if something erroneous happened.
-  bool Push(mozilla::dom::EventTarget *aCurrentTarget);
+  bool Push(nsIDOMEventTarget *aCurrentTarget);
   // If nothing has been pushed to stack, this works like Push.
   // Otherwise if context will change, Pop and Push will be called.
-  bool RePush(mozilla::dom::EventTarget *aCurrentTarget);
+  bool RePush(nsIDOMEventTarget *aCurrentTarget);
   // If a null JSContext is passed to Push(), that will cause no
   // push to happen and false to be returned.
   void Push(JSContext *cx);

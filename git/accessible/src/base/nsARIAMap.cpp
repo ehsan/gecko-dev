@@ -113,7 +113,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eTableCell,
     kNoReqStates,
     eARIASelectable,
-    eARIAReadonlyOrEditableIfDefined
+    eARIAReadonly
   },
   { // combobox
     &nsGkAtoms::combobox,
@@ -453,7 +453,7 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eTableCell,
     kNoReqStates,
     eARIASelectable,
-    eARIAReadonlyOrEditableIfDefined
+    eARIAReadonly
   },
   { // scrollbar
     &nsGkAtoms::scrollbar,

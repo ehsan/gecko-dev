@@ -215,7 +215,7 @@ nsIContent::HasIndependentSelection()
 dom::Element*
 nsIContent::GetEditingHost()
 {
-  // If this isn't editable, return nullptr.
+  // If this isn't editable, return NULL.
   NS_ENSURE_TRUE(IsEditableInternal(), nullptr);
 
   nsIDocument* doc = GetCurrentDoc();
@@ -340,7 +340,7 @@ nsIContent::GetBaseURI() const
 static inline JSObject*
 GetJSObjectChild(nsWrapperCache* aCache)
 {
-  return aCache->PreservingWrapper() ? aCache->GetWrapperPreserveColor() : nullptr;
+  return aCache->PreservingWrapper() ? aCache->GetWrapperPreserveColor() : NULL;
 }
 
 static bool

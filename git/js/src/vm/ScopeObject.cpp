@@ -5,8 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/PodOperations.h"
-
 #include "jscompartment.h"
 #include "jsiter.h"
 
@@ -22,8 +20,6 @@
 
 using namespace js;
 using namespace js::types;
-
-using mozilla::PodZero;
 
 typedef Rooted<ArgumentsObject *> RootedArgumentsObject;
 
@@ -230,7 +226,7 @@ CallObject::createForFunction(JSContext *cx, AbstractFramePtr frame)
     assertSameCompartment(cx, frame);
 
     RootedObject scopeChain(cx, frame.scopeChain());
-    RootedFunction callee(cx, frame.callee());
+    RootedFunction callee(cx, &frame.callee());
 
     CallObject *callobj = createForFunction(cx, scopeChain, callee);
     if (!callobj)
@@ -1922,7 +1918,7 @@ DebugScopes::updateLiveScopes(JSContext *cx)
          * Debug-mode currently disables Ion compilation in the compartment of
          * the debuggee.
          */
-        if (i.isIonOptimizedJS())
+        if (i.isIon())
             continue;
 
         AbstractFramePtr frame = i.abstractFramePtr();

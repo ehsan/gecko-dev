@@ -351,25 +351,20 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       nsDisplayBoxShadowOuter(aBuilder, this));
   }
 
-  // Clip height only
-  nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
-  clipRect.width = GetVisualOverflowRect().XMost();
-
+  // Our background is inherited to the text input, and we don't really want to
+  // paint it or out padding and borders (which we never have anyway, per
+  // styles in forms.css) -- doing it just makes us look ugly in some cases and
+  // has no effect in others.
   nsDisplayListCollection tempList;
-  {
-    DisplayListClipState::AutoSaveRestore clipState(aBuilder);
-    clipState.ClipContainingBlockDescendants(clipRect, nullptr);
-
-    // Our background is inherited to the text input, and we don't really want to
-    // paint it or out padding and borders (which we never have anyway, per
-    // styles in forms.css) -- doing it just makes us look ugly in some cases and
-    // has no effect in others.
-    nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
-  }
+  nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
 
   tempList.BorderBackground()->DeleteAll();
 
-  tempList.MoveTo(aLists);
+  // Clip height only
+  nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
+  clipRect.width = GetVisualOverflowRect().XMost();
+  nscoord radii[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  OverflowClip(aBuilder, tempList, aLists, clipRect, radii);
 
   // Disabled file controls don't pass mouse events to their children, so we
   // put an invisible item in the display list above the children

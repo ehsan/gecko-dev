@@ -1525,9 +1525,9 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
     "JS_ObjectToInnerObject should never return null with non-null input.");
 
   // Root obj and the rval (below).
-  JS::Value vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
+  jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
   JS::AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
-  JS::Value *rval = &vec[1];
+  jsval *rval = &vec[1];
 
   if (result) {
     // Initialize the out param to void

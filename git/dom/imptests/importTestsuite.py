@@ -93,7 +93,7 @@ def printMozbuildFile(dest, directories):
     path = dest + ".mozbuild"
     with open(path, 'w') as fh:
         normalized = [makePath(dest, d) for d in directories]
-        result = writeBuildFiles.substMozbuild("importTestsuite.py",
+        result = writeBuildFiles.substMozbuild("importTestSuites.py",
             normalized)
         fh.write(result)
 

@@ -34,7 +34,6 @@
 #include "nsEventStateManager.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 static nsINativeKeyBindings *sNativeEditorBindings = nullptr;
 
@@ -541,12 +540,12 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
       }
     }
 
-    nsCOMPtr<EventTarget> piTarget;
+    nsCOMPtr<nsIDOMEventTarget> piTarget;
     nsCOMPtr<nsIDOMElement> element = GetElement();
     if (element) {
       piTarget = do_QueryInterface(commandElt);
     } else {
-      piTarget = do_QueryInterface(mTarget);
+      piTarget = mTarget;
     }
 
     rv = currHandler->ExecuteHandler(piTarget, aKeyEvent);

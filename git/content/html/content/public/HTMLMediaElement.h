@@ -518,7 +518,7 @@ protected:
 
   class WakeLockBoolWrapper {
   public:
-    WakeLockBoolWrapper(bool val = false) : mValue(val), mOuter(nullptr), mWakeLock(nullptr) {}
+    WakeLockBoolWrapper(bool val = false) : mValue(val), mOuter(NULL), mWakeLock(NULL) {}
     void SetOuter(HTMLMediaElement* outer) { mOuter = outer; }
     operator bool() const { return mValue; }
     WakeLockBoolWrapper& operator=(bool val);

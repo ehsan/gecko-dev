@@ -16,7 +16,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
 #include <windows.h>
-#include <ws2spi.h>
+#include <Ws2spi.h>
 
 namespace mozilla {
 namespace crashreporter {

@@ -5,7 +5,6 @@
 #ifndef nsStreamUtils_h__
 #define nsStreamUtils_h__
 
-#include "nsCOMPtr.h"
 #include "nsStringFwd.h"
 #include "nsIInputStream.h"
 
@@ -24,8 +23,9 @@ class nsIEventTarget;
  * This function is designed to be used to implement AsyncWait when the
  * aTarget parameter is non-null.
  */
-extern already_AddRefed<nsIInputStreamCallback>
-NS_NewInputStreamReadyEvent(nsIInputStreamCallback  *aNotify,
+extern nsresult
+NS_NewInputStreamReadyEvent(nsIInputStreamCallback **aEvent,
+                            nsIInputStreamCallback  *aNotify,
                             nsIEventTarget          *aTarget);
 
 /**
@@ -38,8 +38,9 @@ NS_NewInputStreamReadyEvent(nsIInputStreamCallback  *aNotify,
  * This function is designed to be used to implement AsyncWait when the
  * aTarget parameter is non-null.
  */
-extern already_AddRefed<nsIOutputStreamCallback>
-NS_NewOutputStreamReadyEvent(nsIOutputStreamCallback  *aNotify,
+extern nsresult
+NS_NewOutputStreamReadyEvent(nsIOutputStreamCallback **aEvent,
+                             nsIOutputStreamCallback  *aNotify,
                              nsIEventTarget           *aTarget);
 
 /* ------------------------------------------------------------------------- */

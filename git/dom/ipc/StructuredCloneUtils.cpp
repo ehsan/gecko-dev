@@ -57,7 +57,7 @@ Read(JSContext* aCx, JSStructuredCloneReader* aReader, uint32_t aTag,
     }
 #endif
 
-    JS::Value wrappedFile;
+    jsval wrappedFile;
     nsresult rv =
       nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), file,
                                   &NS_GET_IID(nsIDOMFile), &wrappedFile);
@@ -89,7 +89,7 @@ Read(JSContext* aCx, JSStructuredCloneReader* aReader, uint32_t aTag,
     }
 #endif
 
-    JS::Value wrappedBlob;
+    jsval wrappedBlob;
     nsresult rv =
       nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx), blob,
                                   &NS_GET_IID(nsIDOMBlob), &wrappedBlob);

@@ -8,6 +8,8 @@ let Cc = Components.classes;
 
 dump("### FormHelper.js loaded\n");
 
+const kPrefFormHelperEnabled = "formhelper.enabled";
+
 let HTMLTextAreaElement = Ci.nsIDOMHTMLTextAreaElement;
 let HTMLInputElement = Ci.nsIDOMHTMLInputElement;
 let HTMLSelectElement = Ci.nsIDOMHTMLSelectElement;
@@ -26,15 +28,18 @@ let XULMenuListElement = Ci.nsIDOMXULMenuListElement;
  */
 function FormAssistant() {
   addMessageListener("FormAssist:Closed", this);
+  addMessageListener("FormAssist:Previous", this);
+  addMessageListener("FormAssist:Next", this);
   addMessageListener("FormAssist:ChoiceSelect", this);
   addMessageListener("FormAssist:ChoiceChange", this);
   addMessageListener("FormAssist:AutoComplete", this);
-  addMessageListener("FormAssist:Update", this);
+  addMessageListener("Content:SetWindowSize", this);
 
   /* Listen text events in order to update the autocomplete suggestions as soon
    * a key is entered on device
    */
   addEventListener("text", this, false);
+
   addEventListener("keypress", this, true);
   addEventListener("keyup", this, false);
   addEventListener("focus", this, true);
@@ -42,6 +47,9 @@ function FormAssistant() {
   addEventListener("pageshow", this, false);
   addEventListener("pagehide", this, false);
   addEventListener("submit", this, false);
+
+  this._enabled = Services.prefs.prefHasUserValue(kPrefFormHelperEnabled) ?
+                    Services.prefs.getBoolPref(kPrefFormHelperEnabled) : false;
 };
 
 FormAssistant.prototype = {
@@ -87,6 +95,9 @@ FormAssistant.prototype = {
   },
 
   open: function formHelperOpen(aElement, aEvent) {
+    this._enabled = Services.prefs.prefHasUserValue(kPrefFormHelperEnabled) ?
+                    Services.prefs.getBoolPref(kPrefFormHelperEnabled) : false;
+
     // If the click is on an option element we want to check if the parent
     // is a valid target.
     if (aElement instanceof HTMLOptionElement &&
@@ -124,7 +135,8 @@ FormAssistant.prototype = {
     }
 
     // We only work with choice lists or elements with autocomplete suggestions
-    if (!this._isSelectElement(aElement) &&
+    if (!this._enabled &&
+        !this._isSelectElement(aElement) &&
         !this._isAutocomplete(aElement)) {
       return this.close();
     }
@@ -148,7 +160,8 @@ FormAssistant.prototype = {
     if (this._debugEvents) Util.dumpLn(aMessage.name);
 
     let currentElement = this.currentElement;
-    if ((!this._isAutocomplete(currentElement) &&
+    if ((!this._enabled &&
+         !this._isAutocomplete(currentElement) &&
          !getWrapperForElement(currentElement)) ||
         !currentElement) {
       return;
@@ -157,6 +170,12 @@ FormAssistant.prototype = {
     let json = aMessage.json;
 
     switch (aMessage.name) {
+      case "Content:SetWindowSize":
+        // If the CSS viewport change just show the current element to the new
+        // position
+        sendAsyncMessage("FormAssist:Resize", this._getJSON());
+        break;
+
       case "FormAssist:ChoiceSelect": {
         this._selectWrapper = getWrapperForElement(currentElement);
         this._selectWrapper.select(json.index, json.selected);
@@ -202,11 +221,20 @@ FormAssistant.prototype = {
         currentElement.blur();
         this._open = false;
         break;
-
-      case "FormAssist:Update":
-        sendAsyncMessage("FormAssist:Show", this._getJSON());
-        break;
     }
+  },
+
+  _hasKeyListener: function _hasKeyListener(aElement) {
+    let els = this._els;
+    let listeners = els.getListenerInfoFor(aElement, {});
+    for (let i = 0; i < listeners.length; i++) {
+      let listener = listeners[i];
+      if (["keyup", "keydown", "keypress"].indexOf(listener.type) != -1
+          && !listener.inSystemEventGroup) {
+        return true;
+      }
+    }
+    return false;
   },
 
   handleEvent: function formHelperHandleEvent(aEvent) {
@@ -281,6 +309,9 @@ FormAssistant.prototype = {
         break;
 
       case "text":
+        if (this._isValidatable(aEvent.target))
+          sendAsyncMessage("FormAssist:ValidationMessage", this._getJSON());
+
         if (this._isAutocomplete(aEvent.target))
           sendAsyncMessage("FormAssist:AutoComplete", this._getJSON());
         break;
@@ -290,6 +321,10 @@ FormAssistant.prototype = {
         // used by the form assistant
         if (!currentElement)
           return;
+
+        if (this._isValidatable(aEvent.target)) {
+          sendAsyncMessage("FormAssist:ValidationMessage", this._getJSON());
+        }
 
         if (this._isAutocomplete(aEvent.target)) {
           sendAsyncMessage("FormAssist:AutoComplete", this._getJSON());
@@ -310,8 +345,6 @@ FormAssistant.prototype = {
   },
 
   _isEditable: function formHelperIsEditable(aElement) {
-    if (!aElement)
-      return false;
     let canEdit = false;
 
     if (aElement.isContentEditable || aElement.designMode == "on") {
@@ -346,6 +379,14 @@ FormAssistant.prototype = {
     }
 
     return aElement;
+  },
+
+  _isValidatable: function(aElement) {
+    return this.invalidSubmit &&
+           (aElement instanceof HTMLInputElement ||
+            aElement instanceof HTMLTextAreaElement ||
+            aElement instanceof HTMLSelectElement ||
+            aElement instanceof HTMLButtonElement);
   },
 
   _isAutocomplete: function formHelperIsAutocomplete(aElement) {
@@ -487,8 +528,7 @@ FormAssistant.prototype = {
 
   _getLabels: function formHelperGetLabels() {
     let associatedLabels = [];
-    if (!this.currentElement)
-      return associatedLabels;
+
     let element = this.currentElement;
     let labels = element.ownerDocument.getElementsByTagName("label");
     for (let i=0; i<labels.length; i++) {
@@ -520,11 +560,14 @@ FormAssistant.prototype = {
         type: (element.getAttribute("type") || "").toLowerCase(),
         choices: choices,
         isAutocomplete: this._isAutocomplete(element),
+        validationMessage: this.invalidSubmit ? element.validationMessage : null,
         list: this._getListSuggestions(element),
         rect: this._getRect(),
         caretRect: this._getCaretRect(),
         editable: editable
       },
+      hasPrevious: false,
+      hasNext: false
     };
   },
 

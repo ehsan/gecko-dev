@@ -64,7 +64,7 @@ TextLeafAccessibleWrap::get_domText(
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aDomText = nullptr;
+  *aDomText = NULL;
 
   if (IsDefunct())
     return E_FAIL;
@@ -246,7 +246,7 @@ TextLeafAccessibleWrap::get_fontFamily(
 {
   A11Y_TRYBLOCK_BEGIN
 
-  *aFontFamily = nullptr;
+  *aFontFamily = NULL;
 
   nsIFrame* frame = GetFrame();
   if (!frame) {

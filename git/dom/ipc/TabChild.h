@@ -80,10 +80,10 @@ public:
   NS_FORWARD_SAFE_NSIMESSAGELISTENERMANAGER(mMessageManager)
   NS_FORWARD_SAFE_NSIMESSAGESENDER(mMessageManager)
   NS_IMETHOD SendSyncMessage(const nsAString& aMessageName,
-                             const JS::Value& aObject,
+                             const jsval& aObject,
                              JSContext* aCx,
                              uint8_t aArgc,
-                             JS::Value* aRetval)
+                             jsval* aRetval)
   {
     return mMessageManager
       ? mMessageManager->SendSyncMessage(aMessageName, aObject, aCx, aArgc, aRetval)

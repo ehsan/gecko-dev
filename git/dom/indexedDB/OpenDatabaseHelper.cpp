@@ -1497,7 +1497,9 @@ public:
     NS_ASSERTION(aRequestingDatabase, "Null pointer!");
     NS_ASSERTION(aRequest, "Null pointer!");
 
-    mWaitingDatabases.SwapElements(aWaitingDatabases);
+    if (!mWaitingDatabases.SwapElements(aWaitingDatabases)) {
+      NS_ERROR("This should never fail!");
+    }
   }
 
   NS_IMETHOD Run()

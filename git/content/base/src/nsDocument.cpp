@@ -140,8 +140,6 @@
 #include "nsIPrompt.h"
 #include "nsIPropertyBag2.h"
 #include "nsIDOMPageTransitionEvent.h"
-#include "nsIDOMStyleSheetAddedEvent.h"
-#include "nsIDOMStyleSheetRemovedEvent.h"
 #include "nsJSUtils.h"
 #include "nsFrameLoader.h"
 #include "nsEscape.h"
@@ -180,9 +178,7 @@
 #include "mozilla/dom/HTMLElementBinding.h"
 #include "nsXULAppAPI.h"
 #include "nsDOMTouchEvent.h"
-#include "mozilla/dom/Touch.h"
 #include "DictionaryHelpers.h"
-#include "GeneratedEvents.h"
 
 #include "mozilla/Preferences.h"
 
@@ -3662,53 +3658,6 @@ nsDocument::AddStyleSheetToStyleSets(nsIStyleSheet* aSheet)
   }
 }
 
-#define DO_STYLESHEET_NOTIFICATION(createFunc, initMethod, concreteInterface, type) \
-  do {                                                                  \
-    nsCOMPtr<nsIDOMEvent> event;                                        \
-    nsresult rv = createFunc(getter_AddRefs(event), this,               \
-                             mPresShell ?                               \
-                             mPresShell->GetPresContext() : nullptr,    \
-                             nullptr);                                  \
-    if (NS_FAILED(rv)) {                                                \
-      return;                                                           \
-    }                                                                   \
-    nsCOMPtr<nsIDOMCSSStyleSheet> cssSheet(do_QueryInterface(aSheet));  \
-    if (!cssSheet) {                                                    \
-      return;                                                           \
-    }                                                                   \
-    nsCOMPtr<concreteInterface> ssEvent(do_QueryInterface(event));      \
-    MOZ_ASSERT(ssEvent);                                                \
-    ssEvent->initMethod(NS_LITERAL_STRING(type), true, true,            \
-                        cssSheet, aDocumentSheet);                      \
-    event->SetTrusted(true);                                            \
-    event->SetTarget(this);                                             \
-    nsRefPtr<nsAsyncDOMEvent> asyncEvent = new nsAsyncDOMEvent(this, event); \
-    asyncEvent->mDispatchChromeOnly = true;                             \
-    asyncEvent->PostDOMEvent();                                         \
-  } while (0);
-
-void
-nsDocument::NotifyStyleSheetAdded(nsIStyleSheet* aSheet, bool aDocumentSheet)
-{
-  NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetAdded, (this, aSheet, aDocumentSheet));
-  DO_STYLESHEET_NOTIFICATION(NS_NewDOMStyleSheetAddedEvent,
-                             InitStyleSheetAddedEvent,
-                             nsIDOMStyleSheetAddedEvent,
-                             "StyleSheetAdded");
-}
-
-void
-nsDocument::NotifyStyleSheetRemoved(nsIStyleSheet* aSheet, bool aDocumentSheet)
-{
-  NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetRemoved, (this, aSheet, aDocumentSheet));
-  DO_STYLESHEET_NOTIFICATION(NS_NewDOMStyleSheetRemovedEvent,
-                             InitStyleSheetRemovedEvent,
-                             nsIDOMStyleSheetRemovedEvent,
-                             "StyleSheetRemoved");
-}
-
-#undef DO_STYLESHEET_NOTIFICATION
-
 void
 nsDocument::AddStyleSheet(nsIStyleSheet* aSheet)
 {
@@ -3720,7 +3669,7 @@ nsDocument::AddStyleSheet(nsIStyleSheet* aSheet)
     AddStyleSheetToStyleSets(aSheet);
   }
 
-  NotifyStyleSheetAdded(aSheet, true);
+  NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetAdded, (this, aSheet, true));
 }
 
 void
@@ -3748,7 +3697,7 @@ nsDocument::RemoveStyleSheet(nsIStyleSheet* aSheet)
       RemoveStyleSheetFromStyleSets(aSheet);
     }
 
-    NotifyStyleSheetRemoved(aSheet, true);
+    NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetRemoved, (this, aSheet, true));
   }
 
   aSheet->SetOwningDocument(nullptr);
@@ -3784,7 +3733,7 @@ nsDocument::UpdateStyleSheets(nsCOMArray<nsIStyleSheet>& aOldSheets,
         AddStyleSheetToStyleSets(newSheet);
       }
 
-      NotifyStyleSheetAdded(newSheet, true);
+      NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetAdded, (this, newSheet, true));
     }
   }
 
@@ -3803,7 +3752,7 @@ nsDocument::InsertStyleSheetAt(nsIStyleSheet* aSheet, int32_t aIndex)
     AddStyleSheetToStyleSets(aSheet);
   }
 
-  NotifyStyleSheetAdded(aSheet, true);
+  NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetAdded, (this, aSheet, true));
 }
 
 
@@ -3861,7 +3810,7 @@ nsDocument::AddCatalogStyleSheet(nsCSSStyleSheet* aSheet)
     }
   }
 
-  NotifyStyleSheetAdded(aSheet, false);
+  NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetAdded, (this, aSheet, false));
 }
 
 void
@@ -3956,7 +3905,7 @@ nsDocument::LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetUR
 
   // Passing false, so documet.styleSheets.length will not be affected by
   // these additional sheets.
-  NotifyStyleSheetAdded(sheet, false);
+  NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetAdded, (this, sheet, false));
   EndUpdate(UPDATE_STYLE);
 
   return NS_OK;
@@ -3986,7 +3935,7 @@ nsDocument::RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheet
 
     // Passing false, so documet.styleSheets.length will not be affected by
     // these additional sheets.
-    NotifyStyleSheetRemoved(sheetRef, false);
+    NS_DOCUMENT_NOTIFY_OBSERVERS(StyleSheetRemoved, (this, sheetRef, false));
     EndUpdate(UPDATE_STYLE);
 
     sheetRef->SetOwningDocument(nullptr);
@@ -4021,20 +3970,11 @@ nsDocument::GetScriptGlobalObject() const
    return mScriptGlobalObject;
 }
 
-nsIGlobalObject*
+nsIScriptGlobalObject*
 nsDocument::GetScopeObject() const
 {
-  nsCOMPtr<nsIGlobalObject> scope(do_QueryReferent(mScopeObject));
+  nsCOMPtr<nsIScriptGlobalObject> scope(do_QueryReferent(mScopeObject));
   return scope;
-}
-
-void
-nsDocument::SetScopeObject(nsIGlobalObject* aGlobal)
-{
-  mScopeObject = do_GetWeakReference(aGlobal);
-  if (aGlobal) {
-    mHasHadScriptHandlingObject = true;
-  }
 }
 
 static void
@@ -4099,11 +4039,12 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
   mScriptGlobalObject = aScriptGlobalObject;
 
   if (aScriptGlobalObject) {
+    mScriptObject = nullptr;
     mHasHadScriptHandlingObject = true;
-    mHasHadDefaultView = true;
     // Go back to using the docshell for the layout history state
     mLayoutHistoryState = nullptr;
     mScopeObject = do_GetWeakReference(aScriptGlobalObject);
+
 #ifdef DEBUG
     if (!mWillReparent) {
       // We really shouldn't have a wrapper here but if we do we need to make sure
@@ -4151,14 +4092,11 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
 nsIScriptGlobalObject*
 nsDocument::GetScriptHandlingObjectInternal() const
 {
-  MOZ_ASSERT(!mScriptGlobalObject,
-             "Do not call this when mScriptGlobalObject is set!");
-  if (mHasHadDefaultView) {
-    return nullptr;
-  }
+  NS_ASSERTION(!mScriptGlobalObject,
+               "Do not call this when mScriptGlobalObject is set!");
 
   nsCOMPtr<nsIScriptGlobalObject> scriptHandlingObject =
-    do_QueryReferent(mScopeObject);
+    do_QueryReferent(mScriptObject);
   nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(scriptHandlingObject);
   if (win) {
     NS_ASSERTION(win->IsInnerWindow(), "Should have inner window here!");
@@ -4178,17 +4116,16 @@ nsDocument::SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject)
                "Wrong script object!");
   nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aScriptObject);
   NS_ASSERTION(!win || win->IsInnerWindow(), "Should have inner window here!");
+  mScopeObject = mScriptObject = do_GetWeakReference(aScriptObject);
   if (aScriptObject) {
-    mScopeObject = do_GetWeakReference(aScriptObject);
     mHasHadScriptHandlingObject = true;
-    mHasHadDefaultView = false;
   }
 }
 
 nsPIDOMWindow *
 nsDocument::GetWindowInternal() const
 {
-  MOZ_ASSERT(!mWindow, "This should not be called when mWindow is not null!");
+  NS_ASSERTION(!mWindow, "This should not be called when mWindow is not null!");
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 
@@ -4202,8 +4139,8 @@ nsDocument::GetWindowInternal() const
 nsPIDOMWindow *
 nsDocument::GetInnerWindowInternal()
 {
-  MOZ_ASSERT(mRemovedFromDocShell,
-             "This document should have been removed from docshell!");
+  NS_ASSERTION(mRemovedFromDocShell,
+               "This document should have been removed from docshell!");
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 
@@ -4461,10 +4398,11 @@ nsDocument::DispatchContentLoadedEvents()
   // target_frame is the [i]frame element that will be used as the
   // target for the event. It's the [i]frame whose content is done
   // loading.
-  nsCOMPtr<EventTarget> target_frame;
+  nsCOMPtr<nsIDOMEventTarget> target_frame;
 
   if (mParentDocument) {
-    target_frame = mParentDocument->FindContentForSubDocument(this);
+    target_frame =
+      do_QueryInterface(mParentDocument->FindContentForSubDocument(this));
   }
 
   if (target_frame) {
@@ -4647,8 +4585,7 @@ nsDocument::GetImplementation(ErrorResult& rv)
       rv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    mDOMImplementation = new DOMImplementation(this,
-      scriptObject ? scriptObject : GetScopeObject(), uri, uri);
+    mDOMImplementation = new DOMImplementation(this, scriptObject, uri, uri);
   }
 
   return mDOMImplementation;
@@ -5051,7 +4988,7 @@ nsDocument::Register(JSContext* aCx, const nsAString& aName,
     return nullptr;
   }
 
-  nsIGlobalObject* sgo = GetScopeObject();
+  nsIScriptGlobalObject* sgo = GetScopeObject();
   if (!sgo) {
     rv.Throw(NS_ERROR_UNEXPECTED);
     return nullptr;
@@ -5068,7 +5005,7 @@ nsDocument::Register(JSContext* aCx, const nsAString& aName,
 
   JSObject* protoObject;
   if (!aOptions.mPrototype) {
-    protoObject = JS_NewObject(aCx, nullptr, htmlProto, nullptr);
+    protoObject = JS_NewObject(aCx, NULL, htmlProto, NULL);
     if (!protoObject) {
       rv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
@@ -6526,8 +6463,7 @@ GetContextAndScope(nsIDocument* aOldDocument, nsIDocument* aNewDocument,
   JSObject* newScope = aNewDocument->GetWrapper();
   JSObject* global;
   if (!newScope) {
-    nsIGlobalObject *newSGO = aNewDocument->GetScopeObject();
-
+    nsIScriptGlobalObject *newSGO = aNewDocument->GetScopeObject();
     if (!newSGO || !(global = newSGO->GetGlobalJSObject())) {
       return NS_OK;
     }
@@ -6941,7 +6877,7 @@ nsDocument::GetListenerManager(bool aCreateIfNotFound)
 {
   if (!mListenerManager && aCreateIfNotFound) {
     mListenerManager =
-      new nsEventListenerManager(static_cast<EventTarget*>(this));
+      new nsEventListenerManager(static_cast<nsIDOMEventTarget*>(this));
     SetFlags(NODE_HAS_LISTENERMANAGER);
   }
 
@@ -7656,7 +7592,7 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
   }
 
   // Check our event listener manager for unload/beforeunload listeners.
-  nsCOMPtr<EventTarget> piTarget = do_QueryInterface(mScriptGlobalObject);
+  nsCOMPtr<nsIDOMEventTarget> piTarget = do_QueryInterface(mScriptGlobalObject);
   if (piTarget) {
     nsEventListenerManager* manager =
       piTarget->GetListenerManager(false);
@@ -7990,7 +7926,7 @@ nsDocument::GetContentInThisDocument(nsIFrame* aFrame) const
 }
 
 void
-nsDocument::DispatchPageTransition(EventTarget* aDispatchTarget,
+nsDocument::DispatchPageTransition(nsIDOMEventTarget* aDispatchTarget,
                                    const nsAString& aType,
                                    bool aPersisted)
 {
@@ -8019,7 +7955,7 @@ NotifyPageShow(nsIDocument* aDocument, void* aData)
 
 void
 nsDocument::OnPageShow(bool aPersisted,
-                       EventTarget* aDispatchStartTarget)
+                       nsIDOMEventTarget* aDispatchStartTarget)
 {
   mVisible = true;
 
@@ -8059,7 +7995,7 @@ nsDocument::OnPageShow(bool aPersisted,
 
   UpdateVisibilityState();
 
-  nsCOMPtr<EventTarget> target = aDispatchStartTarget;
+  nsCOMPtr<nsIDOMEventTarget> target = aDispatchStartTarget;
   if (!target) {
     target = do_QueryInterface(GetWindow());
   }
@@ -8076,7 +8012,7 @@ NotifyPageHide(nsIDocument* aDocument, void* aData)
 
 void
 nsDocument::OnPageHide(bool aPersisted,
-                       EventTarget* aDispatchStartTarget)
+                       nsIDOMEventTarget* aDispatchStartTarget)
 {
   // Send out notifications that our <link> elements are detached,
   // but only if this is not a full unload.
@@ -8113,7 +8049,7 @@ nsDocument::OnPageHide(bool aPersisted,
   MozExitPointerLock();
 
   // Now send out a PageHide event.
-  nsCOMPtr<EventTarget> target = aDispatchStartTarget;
+  nsCOMPtr<nsIDOMEventTarget> target = aDispatchStartTarget;
   if (!target) {
     target = do_QueryInterface(GetWindow());
   }
@@ -8319,11 +8255,8 @@ nsDocument::CloneDocHelper(nsDocument* clone) const
   nsIScriptGlobalObject* scriptObject =
     GetScriptHandlingObject(hasHadScriptObject);
   NS_ENSURE_STATE(scriptObject || !hasHadScriptObject);
-  if (scriptObject) {
-    clone->SetScriptHandlingObject(scriptObject);
-  } else {
-    clone->SetScopeObject(GetScopeObject());
-  }
+  clone->SetScriptHandlingObject(scriptObject);
+
   // Make the clone a data document
   clone->SetLoadedAsData(true);
 
@@ -9271,15 +9204,15 @@ nsIDocument::CreateTouch(nsIDOMWindow* aView,
                          float aRotationAngle,
                          float aForce)
 {
-  nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
-  nsCOMPtr<nsIDOMTouch> touch = new Touch(target,
-                                          aIdentifier,
-                                          aPageX, aPageY,
-                                          aScreenX, aScreenY,
-                                          aClientX, aClientY,
-                                          aRadiusX, aRadiusY,
-                                          aRotationAngle,
-                                          aForce);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTarget);
+  nsCOMPtr<nsIDOMTouch> touch = new nsDOMTouch(target,
+                                               aIdentifier,
+                                               aPageX, aPageY,
+                                               aScreenX, aScreenY,
+                                               aClientX, aClientY,
+                                               aRadiusX, aRadiusY,
+                                               aRotationAngle,
+                                               aForce);
   return touch.forget();
 }
 
@@ -11201,7 +11134,7 @@ nsDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
     0;
 
   aWindowSizes->mDOMOther +=
-    mStyledLinks.SizeOfExcludingThis(nullptr, aWindowSizes->mMallocSizeOf);
+    mStyledLinks.SizeOfExcludingThis(NULL, aWindowSizes->mMallocSizeOf);
 
   aWindowSizes->mDOMOther +=
     mIdentifierMap.SizeOfExcludingThis(nsIdentifierMapEntry::SizeOfExcludingThis,

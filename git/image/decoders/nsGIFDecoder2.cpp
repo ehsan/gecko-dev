@@ -1035,8 +1035,8 @@ nsGIFDecoder2::WriteInternal(const char *aBuffer, uint32_t aCount)
       break;
 
     case gif_done:
-      MOZ_ASSERT(!IsSizeDecode(), "Size decodes shouldn't reach gif_done");
-      FinishInternal();
+      PostDecodeDone(mGIFStruct.loop_count - 1);
+      mGIFOpen = false;
       goto done;
 
     case gif_error:

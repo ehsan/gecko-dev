@@ -25,7 +25,7 @@ class nsDOMEvent;
 class nsDOMEventTargetHelper : public mozilla::dom::EventTarget
 {
 public:
-  nsDOMEventTargetHelper() : mParentObject(nullptr), mOwnerWindow(nullptr), mHasOrHasHadOwnerWindow(false) {}
+  nsDOMEventTargetHelper() : mOwner(nullptr), mHasOrHasHadOwner(false) {}
   virtual ~nsDOMEventTargetHelper();
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(nsDOMEventTargetHelper)
@@ -36,24 +36,25 @@ public:
 
   void GetParentObject(nsIScriptGlobalObject **aParentObject)
   {
-    if (mParentObject) {
-      CallQueryInterface(mParentObject, aParentObject);
-    } else {
+    if (mOwner) {
+      CallQueryInterface(mOwner, aParentObject);
+    }
+    else {
       *aParentObject = nullptr;
     }
   }
 
   static nsDOMEventTargetHelper* FromSupports(nsISupports* aSupports)
   {
-    mozilla::dom::EventTarget* target =
-      static_cast<mozilla::dom::EventTarget*>(aSupports);
+    nsIDOMEventTarget* target =
+      static_cast<nsIDOMEventTarget*>(aSupports);
 #ifdef DEBUG
     {
-      nsCOMPtr<mozilla::dom::EventTarget> target_qi =
+      nsCOMPtr<nsIDOMEventTarget> target_qi =
         do_QueryInterface(aSupports);
 
       // If this assertion fires the QI implementation for the object in
-      // question doesn't use the EventTarget pointer as the
+      // question doesn't use the nsIDOMEventTarget pointer as the
       // nsISupports pointer. That must be fixed, or we'll crash...
       NS_ASSERTION(target_qi == target, "Uh, fix QI!");
     }
@@ -89,24 +90,22 @@ public:
 
   nsresult CheckInnerWindowCorrectness()
   {
-    NS_ENSURE_STATE(!mHasOrHasHadOwnerWindow || mOwnerWindow);
-    if (mOwnerWindow) {
-      NS_ASSERTION(mOwnerWindow->IsInnerWindow(), "Should have inner window here!\n");
-      nsPIDOMWindow* outer = mOwnerWindow->GetOuterWindow();
-      if (!outer || outer->GetCurrentInnerWindow() != mOwnerWindow) {
+    NS_ENSURE_STATE(!mHasOrHasHadOwner || mOwner);
+    if (mOwner) {
+      NS_ASSERTION(mOwner->IsInnerWindow(), "Should have inner window here!\n");
+      nsPIDOMWindow* outer = mOwner->GetOuterWindow();
+      if (!outer || outer->GetCurrentInnerWindow() != mOwner) {
         return NS_ERROR_FAILURE;
       }
     }
     return NS_OK;
   }
 
-  nsPIDOMWindow* GetOwner() const { return mOwnerWindow; }
-  void BindToOwner(nsIGlobalObject* aOwner);
   void BindToOwner(nsPIDOMWindow* aOwner);
   void BindToOwner(nsDOMEventTargetHelper* aOther);
   virtual void DisconnectFromOwner();                   
-  nsIGlobalObject* GetParentObject() const { return mParentObject; }
-  bool HasOrHasHadOwner() { return mHasOrHasHadOwnerWindow; }
+  nsPIDOMWindow* GetOwner() const { return mOwner; }
+  bool HasOrHasHadOwner() { return mHasOrHasHadOwner; }
 protected:
   nsRefPtr<nsEventListenerManager> mListenerManager;
   // Dispatch a trusted, non-cancellable and non-bubbling event to |this|.
@@ -114,12 +113,9 @@ protected:
   // Make |event| trusted and dispatch |aEvent| to |this|.
   nsresult DispatchTrustedEvent(nsIDOMEvent* aEvent);
 private:
-  // Inner window or sandbox.
-  nsIGlobalObject*           mParentObject;
-  // mParentObject pre QI-ed and cached
-  // (it is needed for off main thread access)
-  nsPIDOMWindow*             mOwnerWindow;
-  bool                       mHasOrHasHadOwnerWindow;
+  // These may be null (native callers or xpcshell).
+  nsPIDOMWindow*             mOwner; // Inner window.
+  bool                       mHasOrHasHadOwner;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMEventTargetHelper,

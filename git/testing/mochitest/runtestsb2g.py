@@ -59,9 +59,7 @@ loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserver.js", 
 let specialPowersObserver = new specialpowers.SpecialPowersObserver();
 specialPowersObserver.init();
 
-let fl = container.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader;
-fl.activateRemoteFrame();
-let mm = fl.messageManager;
+let mm = container.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader.messageManager;
 mm.addMessageListener("SPPrefService", specialPowersObserver);
 mm.addMessageListener("SPProcessCrashService", specialPowersObserver);
 mm.addMessageListener("SPPingService", specialPowersObserver);

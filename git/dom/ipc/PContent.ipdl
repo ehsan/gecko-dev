@@ -17,7 +17,6 @@ include protocol PIndexedDB;
 include protocol PMemoryReportRequest;
 include protocol PNecko;
 include protocol PSms;
-include protocol PSpeechSynthesis;
 include protocol PStorage;
 include protocol PTestShell;
 include DOMTypes;
@@ -261,7 +260,6 @@ rpc protocol PContent
     manages PMemoryReportRequest;
     manages PNecko;
     manages PSms;
-    manages PSpeechSynthesis;
     manages PStorage;
     manages PTestShell;
 
@@ -398,8 +396,6 @@ parent:
     PNecko();
 
     PSms();
-
-    PSpeechSynthesis();
     
     PStorage(StorageConstructData data);
 

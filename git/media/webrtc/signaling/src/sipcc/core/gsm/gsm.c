@@ -27,7 +27,6 @@
 #include "kpmlmap.h"
 #include "subapi.h"
 #include "platform_api.h"
-#include "thread_monitor.h"
 
 static void sub_process_feature_msg(uint32_t cmd, void *msg);
 static void sub_process_feature_notify(ccsip_sub_not_data_t *msg, callid_t call_id,
@@ -351,7 +350,6 @@ GSMTask (void *arg)
                 gsm_reset();
                 break;
             case THREAD_UNLOAD:
-                thread_ended(THREADMON_GSM);
                 destroy_gsm_thread();
                 break;
 

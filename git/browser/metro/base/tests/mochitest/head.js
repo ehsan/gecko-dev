@@ -50,48 +50,6 @@ function checkContextUIMenuItemVisibility(aVisibleList)
   is(errors, 0, "context menu item list visibility");
 }
 
-/*
- * showNotification - displays a test notification with the current
- * browser and waits for the noticiation to be fully displayed.
- *
- * Usage: yield showNotification();
- */
-function showNotification()
-{
-  return Task.spawn(function() {
-    try {
-      let strings = Strings.browser;
-      var buttons = [
-        {
-          isDefault: false,
-          label: strings.GetStringFromName("popupButtonAllowOnce2"),
-          accessKey: "",
-          callback: function() { }
-        },
-        {
-          label: strings.GetStringFromName("popupButtonAlwaysAllow3"),
-          accessKey: "",
-          callback: function() { }
-        },
-        {
-          label: strings.GetStringFromName("popupButtonNeverWarn3"),
-          accessKey: "",
-          callback: function() { }
-        }
-      ];
-      let notificationBox = Browser.getNotificationBox();
-      const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
-      notificationBox.appendNotification("test notification", "popup-blocked",
-                                          "chrome://browser/skin/images/infobar-popup.png",
-                                          priority, buttons);
-      yield waitForEvent(notificationBox, "transitionend");
-      return;
-    } catch (ex) {
-      throw new Task.Result(ex);
-    }
-  });
-}
-
 /*=============================================================================
   Asynchronous Metro ui helpers
 =============================================================================*/
@@ -409,30 +367,9 @@ function synthesizeNativeMouseMUp(aElement, aOffsetX, aOffsetY) {
 }
 
 /*
- * sendContextMenuClick - simulates a press-hold touch input event. Event
- * is delivered to the main window of the application through the top-level
- * widget.
- *
- * @param aX, aY logical coordinates of the event.
+ * sendContextMenuClick - simulates a press-hold touch input event.
  */
-function sendContextMenuClick(aX, aY) {
-  let mediator = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                            .getService(Components.interfaces.nsIWindowMediator);
-  let mainwin = mediator.getMostRecentWindow("navigator:browser");
-  let utils = mainwin.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                      .getInterface(Components.interfaces.nsIDOMWindowUtils);
-  utils.sendMouseEvent("contextmenu", aX, aY, 2, 1, 0, true,
-                        1, Ci.nsIDOMMouseEvent.MOZ_SOURCE_TOUCH);
-}
-
-/*
- * sendContextMenuClickToWindow - simulates a press-hold touch input event.
- *
- * @param aWindow window used to retrieve dom window utils, and the
- * target window for the event.
- * @param aX, aY logical coordinates of the event relative to aWindow.
- */
-function sendContextMenuClickToWindow(aWindow, aX, aY) {
+function sendContextMenuClick(aWindow, aX, aY) {
   let utils = aWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
 

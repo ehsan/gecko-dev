@@ -42,7 +42,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(SmsRequest,
                                                 nsDOMEventTargetHelper)
-  tmp->mResult = JSVAL_VOID;
+  if (tmp->mResultRooted) {
+    tmp->UnrootResult();
+  }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCursor)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mError)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -88,6 +90,7 @@ SmsRequest::Create(SmsRequestParent* aRequestParent)
 
 SmsRequest::SmsRequest(SmsManager* aManager)
   : mResult(JSVAL_VOID)
+  , mResultRooted(false)
   , mDone(false)
   , mParentAlive(false)
   , mParent(nullptr)
@@ -97,6 +100,7 @@ SmsRequest::SmsRequest(SmsManager* aManager)
 
 SmsRequest::SmsRequest(MobileMessageManager* aManager)
   : mResult(JSVAL_VOID)
+  , mResultRooted(false)
   , mDone(false)
   , mParentAlive(false)
   , mParent(nullptr)
@@ -106,6 +110,7 @@ SmsRequest::SmsRequest(MobileMessageManager* aManager)
 
 SmsRequest::SmsRequest(SmsRequestParent* aRequestParent)
   : mResult(JSVAL_VOID)
+  , mResultRooted(false)
   , mDone(false)
   , mParentAlive(true)
   , mParent(aRequestParent)
@@ -115,8 +120,9 @@ SmsRequest::SmsRequest(SmsRequestParent* aRequestParent)
 
 SmsRequest::~SmsRequest()
 {
-  mResult = JSVAL_VOID;
-  NS_DROP_JS_OBJECTS(this, SmsRequest);
+  if (mResultRooted) {
+    UnrootResult();
+  }
 }
 
 void
@@ -126,8 +132,29 @@ SmsRequest::Reset()
   NS_ASSERTION(mResult != JSVAL_VOID, "mResult should be set if we try to reset!");
   NS_ASSERTION(!mError, "There should be no error if we try to reset!");
 
+  if (mResultRooted) {
+    UnrootResult();
+  }
+
   mResult = JSVAL_VOID;
   mDone = false;
+}
+
+void
+SmsRequest::RootResult()
+{
+  NS_ASSERTION(!mResultRooted, "Don't call RootResult() if already rooted!");
+  NS_HOLD_JS_OBJECTS(this, SmsRequest);
+  mResultRooted = true;
+}
+
+void
+SmsRequest::UnrootResult()
+{
+  NS_ASSERTION(mResultRooted, "Don't call UnrotResult() if not rooted!");
+  mResult = JSVAL_VOID;
+  NS_DROP_JS_OBJECTS(this, SmsRequest);
+  mResultRooted = false;
 }
 
 void
@@ -158,7 +185,7 @@ SmsRequest::SetSuccess(nsIDOMMozSmsCursor* aCursor)
 }
 
 void
-SmsRequest::SetSuccess(const JS::Value& aResult)
+SmsRequest::SetSuccess(const jsval& aResult)
 {
   NS_PRECONDITION(!mDone, "mDone shouldn't have been set to true already!");
   NS_PRECONDITION(!mError, "mError shouldn't have been set!");
@@ -191,10 +218,10 @@ SmsRequest::SetSuccessInternal(nsISupports* aObject)
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, global);
 
-  NS_HOLD_JS_OBJECTS(this, SmsRequest);
+  RootResult();
 
   if (NS_FAILED(nsContentUtils::WrapNative(cx, global, aObject, &mResult))) {
-    mResult = JSVAL_VOID;
+    UnrootResult();
     SetError(nsIMobileMessageCallback::INTERNAL_ERROR);
     return false;
   }
@@ -258,7 +285,7 @@ SmsRequest::GetError(nsIDOMDOMError** aError)
 }
 
 NS_IMETHODIMP
-SmsRequest::GetResult(JS::Value* aResult)
+SmsRequest::GetResult(jsval* aResult)
 {
   if (!mDone) {
     NS_ASSERTION(mResult == JSVAL_VOID,
@@ -476,7 +503,7 @@ SmsRequest::NotifyMarkMessageReadFailed(int32_t aError)
 }
 
 NS_IMETHODIMP
-SmsRequest::NotifyThreadList(const JS::Value& aThreadList, JSContext* aCx)
+SmsRequest::NotifyThreadList(const jsval& aThreadList, JSContext* aCx)
 {
   MOZ_ASSERT(aThreadList.isObject());
 
@@ -494,7 +521,7 @@ SmsRequest::NotifyThreadList(const JS::Value& aThreadList, JSContext* aCx)
       ipcItems.SetCapacity(length);
 
       for (uint32_t i = 0; i < length; i++) {
-        JS::Value arrayEntry;
+        jsval arrayEntry;
         ok = JS_GetElement(aCx, array, i, &arrayEntry);
         NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
@@ -505,7 +532,6 @@ SmsRequest::NotifyThreadList(const JS::Value& aThreadList, JSContext* aCx)
         NS_ENSURE_SUCCESS(rv, rv);
 
         ThreadListItem* ipcItem = ipcItems.AppendElement();
-        ipcItem->id() = item.id;
         ipcItem->senderOrReceiver() = item.senderOrReceiver;
         ipcItem->timestamp() = item.timestamp;
         ipcItem->body() = item.body;
@@ -561,32 +587,27 @@ SmsRequest::NotifyThreadList(const InfallibleTArray<ThreadListItem>& aItems)
   for (uint32_t i = 0; i < aItems.Length(); i++) {
     const ThreadListItem& source = aItems[i];
 
-    jsval id = JS_NumberValue(double(source.id()));
-
     nsString temp = source.senderOrReceiver();
 
-    JS::Value senderOrReceiver;
+    jsval senderOrReceiver;
     ok = xpc::StringToJsval(cx, temp, &senderOrReceiver);
     NS_ENSURE_TRUE_VOID(ok);
 
     JSObject* timestampObj = JS_NewDateObjectMsec(cx, source.timestamp());
     NS_ENSURE_TRUE_VOID(timestampObj);
 
-    JS::Value timestamp = OBJECT_TO_JSVAL(timestampObj);
+    jsval timestamp = OBJECT_TO_JSVAL(timestampObj);
 
     temp = source.body();
 
-    JS::Value body;
+    jsval body;
     ok = xpc::StringToJsval(cx, temp, &body);
     NS_ENSURE_TRUE_VOID(ok);
 
-    JS::Value unreadCount = JS_NumberValue(double(source.unreadCount()));
+    jsval unreadCount = JS_NumberValue(double(source.unreadCount()));
 
     JSObject* elementObj = JS_NewObject(cx, nullptr, nullptr, nullptr);
     NS_ENSURE_TRUE_VOID(elementObj);
-
-    ok = JS_SetProperty(cx, elementObj, "id", &id);
-    NS_ENSURE_TRUE_VOID(ok);
 
     ok = JS_SetProperty(cx, elementObj, "senderOrReceiver", &senderOrReceiver);
     NS_ENSURE_TRUE_VOID(ok);
@@ -600,7 +621,7 @@ SmsRequest::NotifyThreadList(const InfallibleTArray<ThreadListItem>& aItems)
     ok = JS_SetProperty(cx, elementObj, "unreadCount", &unreadCount);
     NS_ENSURE_TRUE_VOID(ok);
 
-    JS::Value element = OBJECT_TO_JSVAL(elementObj);
+    jsval element = OBJECT_TO_JSVAL(elementObj);
 
     ok = JS_SetElement(cx, array, i, &element);
     NS_ENSURE_TRUE_VOID(ok);

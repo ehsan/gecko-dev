@@ -5,9 +5,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* JavaScript iterators. */
-
-#include "mozilla/PodOperations.h"
+/*
+ * JavaScript iterators.
+ */
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
@@ -47,10 +47,6 @@ using namespace js;
 using namespace js::gc;
 
 using mozilla::ArrayLength;
-#ifdef JS_MORE_DETERMINISTIC
-using mozilla::PodCopy;
-#endif
-using mozilla::PodZero;
 
 typedef Rooted<PropertyIteratorObject*> RootedPropertyIteratorObject;
 

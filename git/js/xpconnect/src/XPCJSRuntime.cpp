@@ -296,14 +296,6 @@ EnableUniversalXPConnect(JSContext *cx)
     return nsXPCComponents::AttachComponentsObject(ccx, scope);
 }
 
-JSObject *
-GetJunkScope()
-{
-    XPCJSRuntime *self = nsXPConnect::GetRuntimeInstance();
-    NS_ENSURE_TRUE(self, nullptr);
-    return self->GetJunkScope();
-}
-
 }
 
 static void
@@ -1596,11 +1588,10 @@ namespace xpc {
 
 static nsresult
 ReportZoneStats(const JS::ZoneStats &zStats,
-                const xpc::ZoneStatsExtras &extras,
+                const nsACString &pathPrefix,
                 nsIMemoryMultiReporterCallback *cb,
                 nsISupports *closure, size_t *gcTotalOut = NULL)
 {
-    const nsAutoCString& pathPrefix = extras.pathPrefix;
     size_t gcTotal = 0, gcHeapSundries = 0, otherSundries = 0;
 
     ZCREPORT_GC_BYTES(pathPrefix + NS_LITERAL_CSTRING("gc-heap/arena-admin"),
@@ -1711,13 +1702,12 @@ ReportZoneStats(const JS::ZoneStats &zStats,
 
 static nsresult
 ReportCompartmentStats(const JS::CompartmentStats &cStats,
-                       const xpc::CompartmentStatsExtras &extras,
+                       const nsACString &cJSPathPrefix,
+                       const nsACString &cDOMPathPrefix,
                        nsIMemoryMultiReporterCallback *cb,
                        nsISupports *closure, size_t *gcTotalOut = NULL)
 {
     size_t gcTotal = 0, gcHeapSundries = 0, otherSundries = 0;
-    const nsACString& cJSPathPrefix = extras.jsPathPrefix;
-    const nsACString& cDOMPathPrefix = extras.domPathPrefix;
 
     ZCREPORT_GC_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("gc-heap/objects/ordinary"),
                       cStats.gcHeapObjectsOrdinary,
@@ -1859,19 +1849,6 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
                    "Memory used by the JaegerMonkey JIT for compilation data: "
                    "JITScripts, native maps, and inline cache structs.");
 
-    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline-data"),
-                   cStats.baselineData,
-                   "Memory used by the Baseline JIT for compilation data: "
-                   "BaselineScripts.");
-
-    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline-fallback-stubs"),
-                   cStats.baselineFallbackStubs,
-                   "Memory used by Baseline fallback IC stubs (excluding code).");
-
-    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline-optimized-stubs"),
-                   cStats.baselineOptimizedStubs,
-                   "Memory used by Baseline optimized IC stubs (excluding code).");
-
     ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("ion-data"),
                    cStats.ionData,
                    "Memory used by the IonMonkey JIT for compilation data: "
@@ -1958,17 +1935,18 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
 
     for (size_t i = 0; i < rtStats.zoneStatsVector.length(); i++) {
         JS::ZoneStats zStats = rtStats.zoneStatsVector[i];
-        const xpc::ZoneStatsExtras *extras =
-          static_cast<const xpc::ZoneStatsExtras*>(zStats.extra);
-        rv = ReportZoneStats(zStats, *extras, cb, closure, &gcTotal);
+        nsCString path(static_cast<char *>(zStats.extra1));
+
+        rv = ReportZoneStats(zStats, path, cb, closure, &gcTotal);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
     for (size_t i = 0; i < rtStats.compartmentStatsVector.length(); i++) {
         JS::CompartmentStats cStats = rtStats.compartmentStatsVector[i];
-        const xpc::CompartmentStatsExtras *extras =
-            static_cast<const xpc::CompartmentStatsExtras*>(cStats.extra);
-        rv = ReportCompartmentStats(cStats, *extras, cb, closure, &gcTotal);
+        nsCString cJSPathPrefix(static_cast<char *>(cStats.extra1));
+        nsCString cDOMPathPrefix(static_cast<char *>(cStats.extra2));
+
+        rv = ReportCompartmentStats(cStats, cJSPathPrefix, cDOMPathPrefix, cb, closure, &gcTotal);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -2223,12 +2201,13 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
     {}
 
     ~XPCJSRuntimeStats() {
-        for (size_t i = 0; i != compartmentStatsVector.length(); ++i)
-            delete static_cast<xpc::CompartmentStatsExtras*>(compartmentStatsVector[i].extra);
-
+        for (size_t i = 0; i != compartmentStatsVector.length(); ++i) {
+            free(compartmentStatsVector[i].extra1);
+            free(compartmentStatsVector[i].extra2);
+        }
 
         for (size_t i = 0; i != zoneStatsVector.length(); ++i)
-            delete static_cast<xpc::ZoneStatsExtras*>(zoneStatsVector[i].extra);
+            free(zoneStatsVector[i].extra1);
     }
 
     virtual void initExtraZoneStats(JS::Zone *zone, JS::ZoneStats *zStats) MOZ_OVERRIDE {
@@ -2236,8 +2215,7 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
         nsXPConnect *xpc = nsXPConnect::GetXPConnect();
         JSContext *cx = xpc->GetSafeJSContext();
         JSCompartment *comp = js::GetAnyCompartmentInZone(zone);
-        xpc::ZoneStatsExtras *extras = new xpc::ZoneStatsExtras;
-        extras->pathPrefix.AssignLiteral("explicit/js-non-window/zones/");
+        nsCString pathPrefix("explicit/js-non-window/zones/");
         if (JSObject *global = JS_GetGlobalForCompartmentOrNull(cx, comp)) {
             // Need to enter the compartment, otherwise GetNativeOfWrapper()
             // might crash.
@@ -2246,21 +2224,20 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
             if (nsCOMPtr<nsPIDOMWindow> piwindow = do_QueryInterface(native)) {
                 // The global is a |window| object.  Use the path prefix that
                 // we should have already created for it.
-                if (mTopWindowPaths->Get(piwindow->WindowID(),
-                                         &extras->pathPrefix))
-                    extras->pathPrefix.AppendLiteral("/js-");
+                if (mTopWindowPaths->Get(piwindow->WindowID(), &pathPrefix))
+                    pathPrefix.AppendLiteral("/js-");
             }
         }
 
-        extras->pathPrefix += nsPrintfCString("zone(%p)/", (void *)zone);
+        pathPrefix += nsPrintfCString("zone(%p)/", (void *)zone);
 
-        zStats->extra = extras;
+        zStats->extra1 = strdup(pathPrefix.get());
     }
 
     virtual void initExtraCompartmentStats(JSCompartment *c,
                                            JS::CompartmentStats *cstats) MOZ_OVERRIDE
     {
-        xpc::CompartmentStatsExtras *extras = new xpc::CompartmentStatsExtras;
+        nsAutoCString cJSPathPrefix, cDOMPathPrefix;
         nsCString cName;
         GetCompartmentName(c, cName, true);
 
@@ -2276,43 +2253,42 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
             if (nsCOMPtr<nsPIDOMWindow> piwindow = do_QueryInterface(native)) {
                 // The global is a |window| object.  Use the path prefix that
                 // we should have already created for it.
-                if (mWindowPaths->Get(piwindow->WindowID(),
-                                      &extras->jsPathPrefix)) {
-                    extras->domPathPrefix.Assign(extras->jsPathPrefix);
-                    extras->domPathPrefix.AppendLiteral("/dom/");
-                    extras->jsPathPrefix.AppendLiteral("/js-");
+                if (mWindowPaths->Get(piwindow->WindowID(), &cJSPathPrefix)) {
+                    cDOMPathPrefix.Assign(cJSPathPrefix);
+                    cDOMPathPrefix.AppendLiteral("/dom/");
+                    cJSPathPrefix.AppendLiteral("/js-");
                     needZone = false;
                 } else {
-                    extras->jsPathPrefix.AssignLiteral("explicit/js-non-window/zones/");
-                    extras->domPathPrefix.AssignLiteral("explicit/dom/unknown-window-global?!/");
+                    cJSPathPrefix.AssignLiteral("explicit/js-non-window/zones/");
+                    cDOMPathPrefix.AssignLiteral("explicit/dom/unknown-window-global?!/");
                 }
             } else {
-                extras->jsPathPrefix.AssignLiteral("explicit/js-non-window/zones/");
-                extras->domPathPrefix.AssignLiteral("explicit/dom/non-window-global?!/");
+                cJSPathPrefix.AssignLiteral("explicit/js-non-window/zones/");
+                cDOMPathPrefix.AssignLiteral("explicit/dom/non-window-global?!/");
             }
         } else {
-            extras->jsPathPrefix.AssignLiteral("explicit/js-non-window/zones/");
-            extras->domPathPrefix.AssignLiteral("explicit/dom/no-global?!/");
+            cJSPathPrefix.AssignLiteral("explicit/js-non-window/zones/");
+            cDOMPathPrefix.AssignLiteral("explicit/dom/no-global?!/");
         }
 
         if (needZone)
-            extras->jsPathPrefix += nsPrintfCString("zone(%p)/", (void *)js::GetCompartmentZone(c));
+            cJSPathPrefix += nsPrintfCString("zone(%p)/", (void *)js::GetCompartmentZone(c));
 
-        extras->jsPathPrefix += NS_LITERAL_CSTRING("compartment(") + cName + NS_LITERAL_CSTRING(")/");
+        cJSPathPrefix += NS_LITERAL_CSTRING("compartment(") + cName + NS_LITERAL_CSTRING(")/");
 
-        // extras->jsPathPrefix is used for almost all the compartment-specific
-        // reports. At this point it has the form
-        // "<something>compartment(<cname>)/".
+        // cJSPathPrefix is used for almost all the compartment-specific
+        // reports.  At this point it has the form
+        // "<something>/compartment/(<cname>)/".
         //
-        // extras->domPathPrefix is used for DOM orphan nodes, which are
-        // counted by the JS multi-reporter but reported as part of the
-        // DOM measurements. At this point it has the form "<something>/dom/"
-        // if this compartment belongs to an nsGlobalWindow, and
-        // "explicit/dom/<something>?!/" otherwise (in which case it shouldn't
-        // be used, because non-nsGlobalWindow compartments shouldn't have
-        // orphan DOM nodes).
+        // cDOMPathPrefix is used for DOM orphan nodes, which are counted by
+        // the JS multi-reporter but reported as part of the DOM measurements.
+        // At this point it has the form "<something>/dom/" if this compartment
+        // belongs to an nsGlobalWindow, and "explicit/dom/?!/" otherwise (in
+        // which case it shouldn't be used, because non-nsGlobalWindow
+        // compartments shouldn't have orphan DOM nodes).
 
-        cstats->extra = extras;
+        cstats->extra1 = strdup(cJSPathPrefix.get());
+        cstats->extra2 = strdup(cDOMPathPrefix.get());
     }
 };
 
@@ -2350,15 +2326,13 @@ JSMemoryMultiReporter::CollectReports(WindowPaths *windowPaths,
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Report the sums of the compartment numbers.
-    xpc::CompartmentStatsExtras cExtrasTotal;
-    cExtrasTotal.jsPathPrefix.AssignLiteral("js-main-runtime/compartments/");
-    cExtrasTotal.domPathPrefix.AssignLiteral("window-objects/dom/");
-    rv = ReportCompartmentStats(rtStats.cTotals, cExtrasTotal, cb, closure);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    xpc::ZoneStatsExtras zExtrasTotal;
-    zExtrasTotal.pathPrefix.AssignLiteral("js-main-runtime/zones/");
-    rv = ReportZoneStats(rtStats.zTotals, zExtrasTotal, cb, closure);
+    rv = ReportCompartmentStats(rtStats.cTotals,
+                                NS_LITERAL_CSTRING("js-main-runtime/compartments/"),
+                                NS_LITERAL_CSTRING("window-objects/dom/"),
+                                cb, closure);
+    rv = ReportZoneStats(rtStats.zTotals,
+                         NS_LITERAL_CSTRING("js-main-runtime/zones/"),
+                         cb, closure);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Report the sum of the runtime/ numbers.
@@ -2664,8 +2638,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mWatchdogThread(nullptr),
    mWatchdogHibernating(false),
    mLastActiveTime(-1),
-   mExceptionManagerNotAvailable(false),
-   mJunkScope(nullptr)
+   mExceptionManagerNotAvailable(false)
 #ifdef DEBUG
    , mObjectToUnlink(nullptr)
 #endif
@@ -3013,37 +2986,4 @@ XPCJSRuntime::RemoveGCCallback(JSGCCallback cb)
     if (!found) {
         NS_ERROR("Removing a callback which was never added.");
     }
-}
-
-JSObject *
-XPCJSRuntime::GetJunkScope()
-{
-    if (!mJunkScope) {
-        JS::Value v;
-        SafeAutoJSContext cx;
-        SandboxOptions options;
-        options.sandboxName.AssignASCII("XPConnect Junk Compartment");
-        JSAutoRequest ac(cx);
-        nsresult rv = xpc_CreateSandboxObject(cx, &v,
-                                              nsContentUtils::GetSystemPrincipal(),
-                                              options);
-
-        NS_ENSURE_SUCCESS(rv, nullptr);
-
-        mJunkScope = js::UnwrapObject(&v.toObject());
-        JS_AddNamedObjectRoot(cx, &mJunkScope, "XPConnect Junk Compartment");
-    }
-    return mJunkScope;
-}
-
-void
-XPCJSRuntime::DeleteJunkScope()
-{
-    if(!mJunkScope)
-        return;
-
-    JSContext *cx = mJSContextStack->GetSafeJSContext();
-    JSAutoRequest ac(cx);
-    JS_RemoveObjectRoot(cx, &mJunkScope);
-    mJunkScope = nullptr;
 }

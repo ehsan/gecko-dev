@@ -199,7 +199,7 @@ abstract public class BrowserApp extends GeckoApp
             case PAGE_SHOW:
                 loadFavicon(tab);
                 break;
-            case LINK_FAVICON:
+            case LINK_ADDED:
                 // If tab is not loading and the favicon is updated, we
                 // want to load the image straight away. If tab is still
                 // loading, we only load the favicon once the page's content
@@ -452,11 +452,7 @@ abstract public class BrowserApp extends GeckoApp
                 // put the focus on the layerview and carry on
                 LayerView layerView = mLayerView;
                 if (layerView != null && !layerView.hasFocus() && GamepadUtils.isPanningControl(event)) {
-                    if (Boolean.FALSE.equals(mAboutHomeShowing)) {
-                        layerView.requestFocus();
-                    } else {
-                        mAboutHomeContent.requestFocus();
-                    }
+                    layerView.requestFocus();
                 }
                 return false;
             }

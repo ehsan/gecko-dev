@@ -254,7 +254,7 @@ IdToInt32(JSContext* cx, jsid id)
 {
   JSAutoRequest ar(cx);
 
-  JS::Value idval;
+  jsval idval;
   double array_index;
   int32_t i;
   if (!::JS_IdToValue(cx, id, &idval) ||

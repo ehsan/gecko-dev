@@ -645,7 +645,7 @@ var FormSubmitObserver = {
         Services.obs.addObserver(this, "formsubmit", false);
         break;
       case "Browser:TabClose":
-        Services.obs.removeObserver(this, "formsubmit");
+        Services.obs.removeObserver(this, "formsubmit", false);
         break;
     }
   },

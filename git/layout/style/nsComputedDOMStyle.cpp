@@ -375,26 +375,6 @@ nsComputedDOMStyle::GetStyleContextForElementNoFlush(Element* aElement,
   return sc.forget();
 }
 
-nsMargin
-nsComputedDOMStyle::GetAdjustedValuesForBoxSizing()
-{
-  // We want the width/height of whatever parts 'width' or 'height' controls,
-  // which can be different depending on the value of the 'box-sizing' property.
-  const nsStylePosition* stylePos = StylePosition();
-
-  nsMargin adjustment;
-  switch(stylePos->mBoxSizing) {
-    case NS_STYLE_BOX_SIZING_BORDER:
-      adjustment += mInnerFrame->GetUsedBorder();
-      // fall through
-
-    case NS_STYLE_BOX_SIZING_PADDING:
-      adjustment += mInnerFrame->GetUsedPadding();
-  }
-
-  return adjustment;
-}
-
 /* static */
 nsIPresShell*
 nsComputedDOMStyle::GetPresShellForContent(nsIContent* aContent)
@@ -3345,9 +3325,8 @@ nsComputedDOMStyle::DoGetHeight()
 
   if (calcHeight) {
     AssertFlushedPendingReflows();
-    nsMargin adjustedValues = GetAdjustedValuesForBoxSizing();
-    val->SetAppUnits(mInnerFrame->GetContentRect().height +
-      adjustedValues.TopBottom());
+
+    val->SetAppUnits(mInnerFrame->GetContentRect().height);
   } else {
     const nsStylePosition *positionData = StylePosition();
 
@@ -3386,9 +3365,8 @@ nsComputedDOMStyle::DoGetWidth()
 
   if (calcWidth) {
     AssertFlushedPendingReflows();
-    nsMargin adjustedValues = GetAdjustedValuesForBoxSizing();
-    val->SetAppUnits(mInnerFrame->GetContentRect().width +
-      adjustedValues.LeftRight());
+
+    val->SetAppUnits(mInnerFrame->GetContentRect().width);
   } else {
     const nsStylePosition *positionData = StylePosition();
 

@@ -182,11 +182,11 @@ public:
   }
   uint32_t Hspace()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::hspace, 0);
+    return GetHTMLUnsignedIntAttr(nsGkAtoms::hspace, 0);
   }
   void SetHspace(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::hspace, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::hspace, aValue, aRv);
   }
   void GetStandby(DOMString& aValue)
   {
@@ -198,11 +198,11 @@ public:
   }
   uint32_t Vspace()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::vspace, 0);
+    return GetHTMLUnsignedIntAttr(nsGkAtoms::vspace, 0);
   }
   void SetVspace(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::vspace, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::vspace, aValue, aRv);
   }
   // XPCOM GetCodebase is ok; note that it's a URI attribute
   void SetCodeBase(const nsAString& aValue, ErrorResult& aRv)

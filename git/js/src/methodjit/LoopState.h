@@ -8,8 +8,6 @@
 #if !defined jsjaeger_loopstate_h__ && defined JS_METHODJIT
 #define jsjaeger_loopstate_h__
 
-#include "mozilla/PodOperations.h"
-
 #include "jsanalyze.h"
 #include "methodjit/Compiler.h"
 
@@ -179,7 +177,7 @@ class LoopState : public MacroAssemblerTypedefs
                 jsid id;
             } property;
         } u;
-        InvariantEntry() { mozilla::PodZero(this); }
+        InvariantEntry() { PodZero(this); }
         bool isBoundsCheck() const {
             return kind == DENSE_ARRAY_BOUNDS_CHECK || kind == TYPED_ARRAY_BOUNDS_CHECK;
         }

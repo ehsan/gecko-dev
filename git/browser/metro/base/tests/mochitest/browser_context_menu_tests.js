@@ -319,48 +319,6 @@ gTests.push({
   }
 });
 
-gTests.push({
-  desc: "checks for context menu positioning when browser shifts",
-  run: function test() {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
-    info(chromeRoot + "browser_context_menu_tests_02.html");
-    yield addTab(chromeRoot + "browser_context_menu_tests_02.html");
-
-    purgeEventQueue();
-    emptyClipboard();
-
-    let browserwin = Browser.selectedTab.browser.contentWindow;
-
-    yield hideContextUI();
-
-    ////////////////////////////////////////////////////////////
-    // test for proper context menu positioning when the browser
-    // is offset by a notification box.
-
-    yield showNotification();
-
-    // select some text
-    let span = browserwin.document.getElementById("text4");
-    browserwin.getSelection().selectAllChildren(span);
-
-    // invoke selection context menu
-    let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClick(225, 310);
-    yield promise;
-    ok(promise && !(promise instanceof Error), "promise error");
-
-    // should be visible and at a specific position
-    ok(ContextMenuUI._menuPopup._visible, "is visible");
-    is(ContextMenuUI._panel.left, 97.5, "left");
-    is(ContextMenuUI._panel.top, 227, "top");
-
-    ContextMenuUI._menuPopup.hide();
-
-    Browser.closeTab(Browser.selectedTab);
-  }
-});
-
 // Image context menu tests
 gTests.push({
   desc: "image context menu",
@@ -376,7 +334,7 @@ gTests.push({
 
     yield hideContextUI();
 
-    // If we don't do this, sometimes the first sendContextMenuClickToWindow
+    // If we don't do this, sometimes the first sendContextMenuClick
     // will trigger the app bar.
     yield waitForImageLoad(win, "image01");
 
@@ -385,7 +343,7 @@ gTests.push({
 
     // image01 - 1x1x100x100
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToWindow(win, 10, 10);
+    sendContextMenuClick(win, 10, 10);
     yield promise;
     ok(promise && !(promise instanceof Error), "promise error");
 
@@ -435,7 +393,7 @@ gTests.push({
     // Copy image
 
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToWindow(win, 20, 20);
+    sendContextMenuClick(win, 20, 20);
     yield promise;
     ok(promise && !(promise instanceof Error), "promise error");
     ok(ContextMenuUI._menuPopup._visible, "is visible");
@@ -458,7 +416,7 @@ gTests.push({
     // Copy image location
 
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToWindow(win, 30, 30);
+    sendContextMenuClick(win, 30, 30);
     yield promise;
     ok(promise && !(promise instanceof Error), "promise error");
     ok(ContextMenuUI._menuPopup._visible, "is visible");
@@ -492,7 +450,7 @@ gTests.push({
     // Open image in new tab
 
     promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToWindow(win, 40, 40);
+    sendContextMenuClick(win, 40, 40);
     yield promise;
     ok(promise && !(promise instanceof Error), "promise error");
     ok(ContextMenuUI._menuPopup._visible, "is visible");
@@ -512,6 +470,7 @@ gTests.push({
 
     let imagetab = Browser.getTabFromChrome(event.originalTarget);
     ok(imagetab != null, "tab created");
+    ok(imagetab.browser.currentURI.spec == "chrome://mochitests/content/metro/res/image01.png", "tab location");
 
     Browser.closeTab(imagetab);
   }
@@ -545,7 +504,7 @@ gTests.push({
     // should be visible
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 290, 300, 160, 175);
+    checkContextMenuPositionRange(ContextMenuUI._panel, 560, 570, 175, 190);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -562,7 +521,7 @@ gTests.push({
     // should be visible
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 290, 300, 85, 90);
+    checkContextMenuPositionRange(ContextMenuUI._panel, 560, 570, 95, 110);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -579,7 +538,7 @@ gTests.push({
     // should be visible
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 640, 650, 540, 555);
+    checkContextMenuPositionRange(ContextMenuUI._panel, 910, 925, 540, 555);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -596,7 +555,7 @@ gTests.push({
     // should be visible
     ok(ContextMenuUI._menuPopup._visible, "is visible");
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 640, 650, 340, 355);
+    checkContextMenuPositionRange(ContextMenuUI._panel, 910, 925, 340, 355);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();
@@ -616,7 +575,7 @@ gTests.push({
     info(ContextMenuUI._panel.left);
     info(ContextMenuUI._panel.top);
 
-    checkContextMenuPositionRange(ContextMenuUI._panel, 290, 300, 75, 85);
+    checkContextMenuPositionRange(ContextMenuUI._panel, 560, 570, 110, 125);
 
     promise = waitForEvent(document, "popuphidden");
     ContextMenuUI.hide();

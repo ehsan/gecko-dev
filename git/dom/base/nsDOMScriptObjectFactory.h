@@ -22,6 +22,7 @@
 #include "nsIObserver.h"
 #include "nsIExceptionService.h"
 #include "nsIScriptRuntime.h"
+#include "nsIScriptGlobalObject.h" // for misplaced NS_STID_ macros.
 #include "mozilla/Attributes.h"
 
 class nsDOMScriptObjectFactory MOZ_FINAL : public nsIDOMScriptObjectFactory,

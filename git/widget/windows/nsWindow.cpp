@@ -118,7 +118,7 @@
 #include "WinUtils.h"
 #include "WidgetUtils.h"
 #include "nsIWidgetListener.h"
-#include "mozilla/dom/Touch.h"
+#include "nsDOMTouchEvent.h"
 
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
@@ -164,10 +164,9 @@
 #include "mozilla/HangMonitor.h"
 #include "WinIMEHandler.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-using namespace mozilla::layers;
 using namespace mozilla::widget;
+using namespace mozilla::layers;
+using namespace mozilla;
 
 /**************************************************************
  **************************************************************
@@ -6333,16 +6332,16 @@ bool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
       touchPoint.y = TOUCH_COORD_TO_PIXEL(pInputs[i].y);
       touchPoint.ScreenToClient(mWnd);
       nsCOMPtr<nsIDOMTouch> touch =
-        new Touch(pInputs[i].dwID,
-                  touchPoint,
-                  /* radius, if known */
-                  pInputs[i].dwFlags & TOUCHINPUTMASKF_CONTACTAREA ?
-                    nsIntPoint(
-                      TOUCH_COORD_TO_PIXEL(pInputs[i].cxContact) / 2,
-                      TOUCH_COORD_TO_PIXEL(pInputs[i].cyContact) / 2) :
-                    nsIntPoint(1,1),
-                  /* rotation angle and force */
-                  0.0f, 0.0f);
+        new nsDOMTouch(pInputs[i].dwID,
+                       touchPoint,
+                       /* radius, if known */
+                       pInputs[i].dwFlags & TOUCHINPUTMASKF_CONTACTAREA ?
+                         nsIntPoint(
+                           TOUCH_COORD_TO_PIXEL(pInputs[i].cxContact) / 2,
+                           TOUCH_COORD_TO_PIXEL(pInputs[i].cyContact) / 2) :
+                         nsIntPoint(1,1),
+                       /* rotation angle and force */
+                       0.0f, 0.0f);
 
       // Append to the appropriate event
       if (msg == NS_TOUCH_START || msg == NS_TOUCH_MOVE) {

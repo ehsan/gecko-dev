@@ -769,7 +769,9 @@ public:
   {
     aData.steal(&mData, &mDataByteCount);
 
-    mClonedObjects.SwapElements(aClonedObjects);
+    if (!mClonedObjects.SwapElements(aClonedObjects)) {
+      NS_ERROR("This should never fail!");
+    }
   }
 
   bool
@@ -1412,11 +1414,12 @@ public:
   ~WorkerJSRuntimeStats()
   {
     for (size_t i = 0; i != zoneStatsVector.length(); i++) {
-      delete static_cast<xpc::ZoneStatsExtras*>(zoneStatsVector[i].extra);
+      free(zoneStatsVector[i].extra1);
     }
 
     for (size_t i = 0; i != compartmentStatsVector.length(); i++) {
-      delete static_cast<xpc::CompartmentStatsExtras*>(compartmentStatsVector[i].extra);
+      free(compartmentStatsVector[i].extra1);
+      // No need to free |extra2| because it's a static string.
     }
   }
 
@@ -1425,14 +1428,14 @@ public:
                      JS::ZoneStats* aZoneStats)
                      MOZ_OVERRIDE
   {
-    MOZ_ASSERT(!aZoneStats->extra);
+    MOZ_ASSERT(!aZoneStats->extra1);
 
     // ReportJSRuntimeExplicitTreeStats expects that
-    // aZoneStats->extra is a xpc::ZoneStatsExtras pointer.
-    xpc::ZoneStatsExtras* extras = new xpc::ZoneStatsExtras;
-    extras->pathPrefix = mRtPath;
-    extras->pathPrefix += nsPrintfCString("zone(%p)/", (void *)aZone);
-    aZoneStats->extra = extras;
+    // aZoneStats->extra1 is a char pointer.
+
+    nsAutoCString pathPrefix(mRtPath);
+    pathPrefix += nsPrintfCString("zone(%p)/", (void *)aZone);
+    aZoneStats->extra1 = strdup(pathPrefix.get());
   }
 
   virtual void
@@ -1440,25 +1443,25 @@ public:
                             JS::CompartmentStats* aCompartmentStats)
                             MOZ_OVERRIDE
   {
-    MOZ_ASSERT(!aCompartmentStats->extra);
+    MOZ_ASSERT(!aCompartmentStats->extra1);
+    MOZ_ASSERT(!aCompartmentStats->extra2);
 
     // ReportJSRuntimeExplicitTreeStats expects that
-    // aCompartmentStats->extra is a xpc::CompartmentStatsExtras pointer.
-    xpc::CompartmentStatsExtras* extras = new xpc::CompartmentStatsExtras;
+    // aCompartmentStats->{extra1,extra2} are char pointers.
 
-    // This is the |jsPathPrefix|.  Each worker has exactly two compartments:
+    // This is the |cJSPathPrefix|.  Each worker has exactly two compartments:
     // one for atoms, and one for everything else.
-    extras->jsPathPrefix.Assign(mRtPath);
-    extras->jsPathPrefix += nsPrintfCString("zone(%p)/",
-                                            (void *)js::GetCompartmentZone(aCompartment));
-    extras->jsPathPrefix += js::IsAtomsCompartment(aCompartment)
-                            ? NS_LITERAL_CSTRING("compartment(web-worker-atoms)/")
-                            : NS_LITERAL_CSTRING("compartment(web-worker)/");
+    nsAutoCString cJSPathPrefix(mRtPath);
+    cJSPathPrefix += nsPrintfCString("zone(%p)/",
+                                     (void *)js::GetCompartmentZone(aCompartment));
+    cJSPathPrefix += js::IsAtomsCompartment(aCompartment)
+                   ? NS_LITERAL_CSTRING("compartment(web-worker-atoms)/")
+                   : NS_LITERAL_CSTRING("compartment(web-worker)/");
+    aCompartmentStats->extra1 = strdup(cJSPathPrefix.get());
 
     // This should never be used when reporting with workers (hence the "?!").
-    extras->domPathPrefix.AssignLiteral("explicit/workers/?!/");
-
-    aCompartmentStats->extra = extras;
+    static const char bogusMemoryReporterPath[] = "explicit/workers/?!/";
+    aCompartmentStats->extra2 = const_cast<char*>(bogusMemoryReporterPath);
   }
 };
 

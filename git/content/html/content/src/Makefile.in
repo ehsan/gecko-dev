@@ -12,6 +12,10 @@ include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	= gkconhtmlcon_s
 LIBXUL_LIBRARY	= 1
+ifndef _MSC_VER
+FAIL_ON_WARNINGS = 1
+endif # !_MSC_VER
+
 
 EXPORTS		= \
 		HTMLPropertiesCollection.h \
@@ -59,7 +63,6 @@ EXPORTS_mozilla/dom = \
 		HTMLPreElement.h \
 		HTMLProgressElement.h \
 		HTMLScriptElement.h \
-		HTMLSelectElement.h \
 		HTMLSharedElement.h \
 		HTMLSharedListElement.h \
 		HTMLSharedObjectElement.h \
@@ -129,7 +132,7 @@ CPPSRCS		= \
 		HTMLPreElement.cpp \
 		HTMLProgressElement.cpp \
 		HTMLScriptElement.cpp \
-		HTMLSelectElement.cpp \
+		nsHTMLSelectElement.cpp \
 		HTMLSharedElement.cpp \
 		HTMLSharedListElement.cpp \
 		HTMLSpanElement.cpp \

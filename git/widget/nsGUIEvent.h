@@ -20,6 +20,7 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMWheelEvent.h"
 #include "nsIDOMDataTransfer.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMTouchEvent.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
@@ -29,7 +30,6 @@
 #include "nsIVariant.h"
 #include "nsStyleConsts.h"
 #include "nsAutoPtr.h"
-#include "mozilla/dom/EventTarget.h"
 
 namespace mozilla {
 namespace dom {
@@ -673,9 +673,9 @@ public:
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;
   // Event targets, needed by DOM Events
-  nsCOMPtr<mozilla::dom::EventTarget> target;
-  nsCOMPtr<mozilla::dom::EventTarget> currentTarget;
-  nsCOMPtr<mozilla::dom::EventTarget> originalTarget;
+  nsCOMPtr<nsIDOMEventTarget> target;
+  nsCOMPtr<nsIDOMEventTarget> currentTarget;
+  nsCOMPtr<nsIDOMEventTarget> originalTarget;
 };
 
 /**

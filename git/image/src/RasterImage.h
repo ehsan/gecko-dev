@@ -222,6 +222,8 @@ public:
                        uint32_t* imageLength,
                        imgFrame** aFrame);
 
+  void FrameUpdated(uint32_t aFrameNum, nsIntRect& aUpdatedRect);
+
   /* notification that the entire image has been decoded */
   nsresult DecodingComplete();
 
@@ -525,12 +527,7 @@ private:
 
   private: /* members */
 
-    // mThreadPoolMutex protects both mThreadPool and mShuttingDown. For all
-    // RasterImages R, R::mDecodingMutex must be acquired before
-    // mThreadPoolMutex if both are acquired; the other order may cause deadlock.
-    mozilla::Mutex          mThreadPoolMutex;
     nsCOMPtr<nsIThreadPool> mThreadPool;
-    bool                    mShuttingDown;
   };
 
   class DecodeDoneWorker : public nsRunnable
@@ -734,10 +731,7 @@ private: // data
   // IMPORTANT: if you use mFrames in a method, call EnsureImageIsDecoded() first
   // to ensure that the frames actually exist (they may have been discarded to save
   // memory, or we may be decoding on draw).
-  nsTArray<imgFrame*>        mFrames;
-
-  // The last frame we decoded for multipart images.
-  imgFrame*                  mMultipartDecodedFrame;
+  nsTArray<imgFrame *>       mFrames;
 
   nsCOMPtr<nsIProperties>    mProperties;
 

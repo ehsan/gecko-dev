@@ -17,7 +17,6 @@
 #include "nsXBLPrototypeBinding.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "xpcpublic.h"
-#include "WrapperFactory.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -127,7 +126,7 @@ ValueHasISupportsPrivate(const JS::Value &v)
 static JSBool
 InstallXBLField(JSContext* cx,
                 JS::Handle<JSObject*> callee, JS::Handle<JSObject*> thisObj,
-                JS::MutableHandle<jsid> idp, bool* installed)
+                jsid* idp, bool* installed)
 {
   *installed = false;
 
@@ -175,11 +174,11 @@ InstallXBLField(JSContext* cx,
     JS::Rooted<JSObject*> xblProto(cx);
     xblProto = &js::GetFunctionNativeReserved(callee, XBLPROTO_SLOT).toObject();
 
-    JS::Rooted<JS::Value> name(cx, js::GetFunctionNativeReserved(callee, FIELD_SLOT));
+    JS::Value name = js::GetFunctionNativeReserved(callee, FIELD_SLOT);
     JSFlatString* fieldStr = JS_ASSERT_STRING_IS_FLAT(name.toString());
     fieldName.init(fieldStr);
 
-    MOZ_ALWAYS_TRUE(JS_ValueToId(cx, name, idp.address()));
+    MOZ_ALWAYS_TRUE(JS_ValueToId(cx, name, idp));
 
     // If a separate XBL scope is being used, the callee is not same-compartment
     // with the xbl prototype, and the object is a cross-compartment wrapper.
@@ -232,7 +231,7 @@ FieldGetterImpl(JSContext *cx, JS::CallArgs args)
   bool installed = false;
   JS::Rooted<JSObject*> callee(cx, js::UnwrapObject(&args.calleev().toObject()));
   JS::Rooted<jsid> id(cx);
-  if (!InstallXBLField(cx, callee, thisObj, &id, &installed)) {
+  if (!InstallXBLField(cx, callee, thisObj, id.address(), &installed)) {
     return false;
   }
 
@@ -252,36 +251,8 @@ FieldGetterImpl(JSContext *cx, JS::CallArgs args)
 static JSBool
 FieldGetter(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  // FieldGetter generally lives in the XBL scope, and is defined as a cross-
-  // compartment wrapper on the in-content XBL prototype object. When content
-  // accesses the field for the first time, it ends up invoking the wrapped
-  // FieldGetter on the prototype, which enters the XBL scope, landing us here.
-  // We then use the nativeCall machinery to re-enter the content compartment
-  // (unwrapping |this|), define the field on the in-content |this|, and return
-  // the value of the field to the caller.
-  //
-  // There's one hitch, though. When code in the XBL scope accesses a field on
-  // the content object, we waive the usual Xray vision granted to XBL scopes
-  // in order to do the access, because there isn't really anything else sane to
-  // do. In this sequence of events, the chrome caller invokes a get() for the
-  // field on the Xrayed element. XrayWrapper::get bounces to BaseProxyHandler::get,
-  // Which invokes XrayWrapper::getPropertyDescriptor. This detects the field
-  // access, creates a waived version of the wrapper, and does a lookup for the
-  // property on the waived wrapper. This would normally result in the resulting
-  // getter being transitively waived, which would cause said getter to properly
-  // waive Xray on its return value when it is eventually invoked (by the XBL
-  // scope) further down in BaseProxyHandler::get. However, this getter is
-  // FieldGetter, which actually lives in the XBL scope, meaning that we end up
-  // stripping all the wrappers off, effectively losing track of the fact that
-  // we meant to be waiving Xray here.
-  //
-  // Since fields are already doing this special Xray waiving stuff, the simplest
-  // solution seems to be to waive Xray on the |this| object before invoking
-  // CallNonGenericMethod. This means that the nativeCall trap of WaiveXrayWrapper
-  // will properly waive the result on the way back. Whew.
   JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-  return xpc::WrapperFactory::WaiveXrayAndWrap(cx, args.mutableThisv().address()) &&
-         JS::CallNonGenericMethod<ValueHasISupportsPrivate, FieldGetterImpl>
+  return JS::CallNonGenericMethod<ValueHasISupportsPrivate, FieldGetterImpl>
                                  (cx, args);
 }
 
@@ -301,7 +272,7 @@ FieldSetterImpl(JSContext *cx, JS::CallArgs args)
   bool installed = false;
   JS::Rooted<JSObject*> callee(cx, js::UnwrapObject(&args.calleev().toObject()));
   JS::Rooted<jsid> id(cx);
-  if (!InstallXBLField(cx, callee, thisObj, &id, &installed)) {
+  if (!InstallXBLField(cx, callee, thisObj, id.address(), &installed)) {
     return false;
   }
 
@@ -320,23 +291,17 @@ static JSBool
 FieldSetter(JSContext *cx, unsigned argc, JS::Value *vp)
 {
   JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-  // It's probably not actually necessary to waive Xray here given that
-  // FieldSetter doesn't return everything, but it's good to maintain
-  // consistency with FieldGetter. See the comment there for more details on
-  // why we do this.
-  return xpc::WrapperFactory::WaiveXrayAndWrap(cx, args.mutableThisv().address()) &&
-         JS::CallNonGenericMethod<ValueHasISupportsPrivate, FieldSetterImpl>
+  return JS::CallNonGenericMethod<ValueHasISupportsPrivate, FieldSetterImpl>
                                  (cx, args);
 }
 
 nsresult
 nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
-                                      JS::Handle<JSObject*> aTargetClassObject)
+                                      JSObject* aTargetClassObject)
 {
   MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
-  JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
-  JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
-  NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
+  JSObject* globalObject = JS_GetGlobalForObject(aCx, aTargetClassObject);
+  JSObject* scopeObject = xpc::GetXBLScope(aCx, globalObject);
 
   // Don't install it if the field is empty; see also InstallField which also must
   // implement the not-empty requirement.
@@ -348,9 +313,9 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   // object, when invoked.
 
   // Get the field name as an id.
-  JS::Rooted<jsid> id(aCx);
+  jsid id;
   JS::TwoByteChars chars(mName, NS_strlen(mName));
-  if (!JS_CharsToId(aCx, chars, id.address()))
+  if (!JS_CharsToId(aCx, chars, &id))
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Properties/Methods have historically taken precendence over fields. We
@@ -367,13 +332,13 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
 
   // First, enter the XBL scope, and compile the functions there.
   JSAutoCompartment ac(aCx, scopeObject);
-  JS::Rooted<JS::Value> wrappedClassObj(aCx, JS::ObjectValue(*aTargetClassObject));
-  if (!JS_WrapValue(aCx, wrappedClassObj.address()) || !JS_WrapId(aCx, id.address()))
+  JS::Value wrappedClassObj = JS::ObjectValue(*aTargetClassObject);
+  if (!JS_WrapValue(aCx, &wrappedClassObj) || !JS_WrapId(aCx, &id))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  JS::Rooted<JSObject*> get(aCx,
+  JSObject *get =
     JS_GetFunctionObject(js::NewFunctionByIdWithReserved(aCx, FieldGetter,
-                                                         0, 0, scopeObject, id)));
+                                                         0, 0, scopeObject, id));
   if (!get) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -381,9 +346,9 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   js::SetFunctionNativeReserved(get, FIELD_SLOT,
                                 JS::StringValue(JSID_TO_STRING(id)));
 
-  JS::Rooted<JSObject*> set(aCx,
+  JSObject *set =
     JS_GetFunctionObject(js::NewFunctionByIdWithReserved(aCx, FieldSetter,
-                                                          1, 0, scopeObject, id)));
+                                                          1, 0, scopeObject, id));
   if (!set) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -394,15 +359,15 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   // Now, re-enter the class object's scope, wrap the getters/setters, and define
   // them there.
   JSAutoCompartment ac2(aCx, aTargetClassObject);
-  if (!JS_WrapObject(aCx, get.address()) || !JS_WrapObject(aCx, set.address()) ||
-      !JS_WrapId(aCx, id.address()))
+  if (!JS_WrapObject(aCx, &get) || !JS_WrapObject(aCx, &set) ||
+      !JS_WrapId(aCx, &id))
   {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
   if (!::JS_DefinePropertyById(aCx, aTargetClassObject, id, JS::UndefinedValue(),
-                               JS_DATA_TO_FUNC_PTR(JSPropertyOp, get.get()),
-                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, set.get()),
+                               JS_DATA_TO_FUNC_PTR(JSPropertyOp, get),
+                               JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, set),
                                AccessorAttributes())) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -412,7 +377,7 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
 
 nsresult
 nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
-                                  JS::Handle<JSObject*> aBoundNode,
+                                  JSObject* aBoundNode,
                                   nsIURI* aBindingDocURI,
                                   bool* aDidInstall) const
 {
@@ -435,11 +400,11 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 
   nsAutoCString uriSpec;
   aBindingDocURI->GetSpec(uriSpec);
-
+  
   AutoPushJSContext cx(aContext->GetNativeContext());
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
                "Shouldn't get here when an exception is pending!");
-
+  
   // compile the literal string
   nsCOMPtr<nsIScriptContext> context = aContext;
 
@@ -447,15 +412,14 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 
   // First, enter the xbl scope, wrap the node, and use that as the scope for
   // the evaluation.
-  JS::Rooted<JSObject*> scopeObject(cx, xpc::GetXBLScope(cx, aBoundNode));
-  NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
+  JSObject* scopeObject = xpc::GetXBLScope(cx, aBoundNode);
   JSAutoCompartment ac(cx, scopeObject);
+  JS::Value result = JSVAL_NULL;
 
-  JS::Rooted<JSObject*> wrappedNode(cx, aBoundNode);
-  if (!JS_WrapObject(cx, wrappedNode.address()))
+  JSObject* wrappedNode = aBoundNode;
+  if (!JS_WrapObject(cx, &wrappedNode))
       return NS_ERROR_OUT_OF_MEMORY;
 
-  JS::Rooted<JS::Value> result(cx);
   JS::CompileOptions options(cx);
   options.setFileAndLine(uriSpec.get(), mLineNumber)
          .setVersion(JSVERSION_LATEST)
@@ -464,7 +428,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                                                  mFieldTextLength),
                                *wrappedNode, options,
                                /* aCoerceToString = */ false,
-                               result.address());
+                               &result);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -474,7 +438,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   // the bound node.
   JSAutoCompartment ac2(cx, aBoundNode);
   nsDependentString name(mName);
-  if (!JS_WrapValue(cx, result.address()) ||
+  if (!JS_WrapValue(cx, &result) ||
       !::JS_DefineUCProperty(cx, aBoundNode,
                              reinterpret_cast<const jschar*>(mName), 
                              name.Length(), result, nullptr, nullptr,

@@ -13,12 +13,12 @@
 #include "nsIDOMLocation.h"
 #include "nsIDOMXULCommandDispatcher.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "nsIURI.h"
-#include "mozilla/dom/EventTarget.h"
 
 #include "js/RootingAPI.h"
 
@@ -54,7 +54,6 @@ class nsPIWindowRoot;
 namespace mozilla {
 namespace dom {
 class AudioContext;
-class SpeechSynthesis;
 }
 }
 
@@ -105,14 +104,14 @@ public:
     return mIsBackground;
   }
 
-  mozilla::dom::EventTarget* GetChromeEventHandler() const
+  nsIDOMEventTarget* GetChromeEventHandler() const
   {
     return mChromeEventHandler;
   }
 
-  virtual void SetChromeEventHandler(mozilla::dom::EventTarget* aChromeEventHandler) = 0;
+  virtual void SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler) = 0;
 
-  mozilla::dom::EventTarget* GetParentTarget()
+  nsIDOMEventTarget* GetParentTarget()
   {
     if (!mParentTarget) {
       UpdateParentTarget();
@@ -652,10 +651,6 @@ public:
   static bool HasPerformanceSupport();
   nsPerformance* GetPerformance();
 
-#ifdef MOZ_WEBSPEECH
-  mozilla::dom::SpeechSynthesis* GetSpeechSynthesisInternal();
-#endif
-
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
   // be null if and only if the created window itself is an outer
@@ -665,7 +660,7 @@ protected:
 
   ~nsPIDOMWindow();
 
-  void SetChromeEventHandlerInternal(mozilla::dom::EventTarget* aChromeEventHandler) {
+  void SetChromeEventHandlerInternal(nsIDOMEventTarget* aChromeEventHandler) {
     mChromeEventHandler = aChromeEventHandler;
     // mParentTarget will be set when the next event is dispatched.
     mParentTarget = nullptr;
@@ -679,14 +674,14 @@ protected:
   // These two variables are special in that they're set to the same
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
-  nsCOMPtr<mozilla::dom::EventTarget> mChromeEventHandler; // strong
+  nsCOMPtr<nsIDOMEventTarget> mChromeEventHandler; // strong
   nsCOMPtr<nsIDOMDocument> mDocument; // strong
   nsCOMPtr<nsIDocument> mDoc; // strong, for fast access
   // Cache the URI when mDoc is cleared.
   nsCOMPtr<nsIURI> mDocumentURI; // strong
   nsCOMPtr<nsIURI> mDocBaseURI; // strong
 
-  nsCOMPtr<mozilla::dom::EventTarget> mParentTarget; // strong
+  nsCOMPtr<nsIDOMEventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
   nsCOMPtr<nsIDOMElement> mFrameElement;
@@ -694,11 +689,6 @@ protected:
 
   // mPerformance is only used on inner windows.
   nsRefPtr<nsPerformance>       mPerformance;
-
-#ifdef MOZ_WEBSPEECH
-  // mSpeechSynthesis is only used on inner windows.
-  nsRefPtr<mozilla::dom::SpeechSynthesis>     mSpeechSynthesis;
-#endif
 
   uint32_t               mModalStateDepth;
 

@@ -979,6 +979,7 @@ IDBObjectStore::UpdateIndexes(IDBTransaction* aTransaction,
                               int64_t aObjectDataId,
                               const nsTArray<IndexUpdateInfo>& aUpdateInfoArray)
 {
+  nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv;
 
   NS_ASSERTION(aObjectDataId != INT64_MIN, "Bad objectData id!");
@@ -986,49 +987,41 @@ IDBObjectStore::UpdateIndexes(IDBTransaction* aTransaction,
   NS_NAMED_LITERAL_CSTRING(objectDataId, "object_data_id");
 
   if (aOverwrite) {
-    nsCOMPtr<mozIStorageStatement> deleteStmt =
-      aTransaction->GetCachedStatement(
-        "DELETE FROM unique_index_data "
-        "WHERE object_data_id = :object_data_id; "
-        "DELETE FROM index_data "
-        "WHERE object_data_id = :object_data_id");
-    NS_ENSURE_TRUE(deleteStmt, NS_ERROR_FAILURE);
+    stmt = aTransaction->GetCachedStatement(
+      "DELETE FROM unique_index_data "
+      "WHERE object_data_id = :object_data_id; "
+      "DELETE FROM index_data "
+      "WHERE object_data_id = :object_data_id");
+    NS_ENSURE_TRUE(stmt, NS_ERROR_FAILURE);
 
-    mozStorageStatementScoper scoper(deleteStmt);
+    mozStorageStatementScoper scoper(stmt);
 
-    rv = deleteStmt->BindInt64ByName(objectDataId, aObjectDataId);
+    rv = stmt->BindInt64ByName(objectDataId, aObjectDataId);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = deleteStmt->Execute();
+    rv = stmt->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
   }
-
-  // Avoid lots of hash lookups for objectStores with lots of indexes by lazily
-  // holding the necessary statements on the stack outside the loop.
-  nsCOMPtr<mozIStorageStatement> insertUniqueStmt;
-  nsCOMPtr<mozIStorageStatement> insertStmt;
 
   uint32_t infoCount = aUpdateInfoArray.Length();
   for (uint32_t i = 0; i < infoCount; i++) {
     const IndexUpdateInfo& updateInfo = aUpdateInfoArray[i];
 
-    nsCOMPtr<mozIStorageStatement>& stmt =
-      updateInfo.indexUnique ? insertUniqueStmt : insertStmt;
+    // Insert new values.
 
-    if (!stmt) {
-      stmt = updateInfo.indexUnique ?
-        aTransaction->GetCachedStatement(
-          "INSERT INTO unique_index_data "
-            "(index_id, object_data_id, object_data_key, value) "
-          "VALUES (:index_id, :object_data_id, :object_data_key, :value)") :
-        aTransaction->GetCachedStatement(
-          "INSERT OR IGNORE INTO index_data ("
-            "index_id, object_data_id, object_data_key, value) "
-          "VALUES (:index_id, :object_data_id, :object_data_key, :value)");
-    }
+    stmt = updateInfo.indexUnique ?
+      aTransaction->GetCachedStatement(
+        "INSERT INTO unique_index_data "
+          "(index_id, object_data_id, object_data_key, value) "
+        "VALUES (:index_id, :object_data_id, :object_data_key, :value)") :
+      aTransaction->GetCachedStatement(
+        "INSERT OR IGNORE INTO index_data ("
+          "index_id, object_data_id, object_data_key, value) "
+        "VALUES (:index_id, :object_data_id, :object_data_key, :value)");
+
     NS_ENSURE_TRUE(stmt, NS_ERROR_FAILURE);
 
-    mozStorageStatementScoper scoper(stmt);
+    mozStorageStatementScoper scoper4(stmt);
 
     rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"),
                                updateInfo.indexId);

@@ -23,7 +23,6 @@
 #include "frontend/BytecodeEmitter.h"
 #include "gc/Marking.h"
 #include "methodjit/Retcon.h"
-#include "ion/BaselineJIT.h"
 #include "js/Vector.h"
 
 #include "gc/FindSCCs-inl.h"
@@ -243,11 +242,6 @@ BreakpointSite::recompile(FreeOp *fop)
         mjit::Recompiler::clearStackReferences(fop, script);
         mjit::ReleaseScriptCode(fop, script);
     }
-#endif
-
-#ifdef JS_ION
-    if (script->hasBaselineScript())
-        script->baseline->toggleDebugTraps(script, pc);
 #endif
 }
 
@@ -554,7 +548,7 @@ Debugger::slowPathOnLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool frame
 
             RootedValue completion(cx);
             if (!dbg->newCompletionValue(cx, status, value, &completion)) {
-                status = dbg->handleUncaughtException(ac, false);
+                status = dbg->handleUncaughtException(ac, NULL, false);
                 break;
             }
 
@@ -1007,7 +1001,7 @@ Debugger::fireNewScript(JSContext *cx, HandleScript script)
 
     JSObject *dsobj = wrapScript(cx, script);
     if (!dsobj) {
-        handleUncaughtException(ac, false);
+        handleUncaughtException(ac, NULL, false);
         return;
     }
 
@@ -1015,7 +1009,7 @@ Debugger::fireNewScript(JSContext *cx, HandleScript script)
     argv[0].setObject(*dsobj);
     Value rv;
     if (!Invoke(cx, ObjectValue(*object), ObjectValue(*hook), 1, argv, &rv))
-        handleUncaughtException(ac, true);
+        handleUncaughtException(ac, NULL, true);
 }
 
 JSTrapStatus
@@ -1306,7 +1300,7 @@ Debugger::fireNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global, Muta
     AutoArrayRooter argvRooter(cx, ArrayLength(argv), argv);
     argv[0].setObject(*global);
     if (!wrapDebuggeeValue(cx, argvRooter.handleAt(0)))
-        return handleUncaughtException(ac, false);
+        return handleUncaughtException(ac, NULL, false);
 
     RootedValue rv(cx);
     bool ok = Invoke(cx, ObjectValue(*object), ObjectValue(*hook), 1, argv, rv.address());
@@ -1993,11 +1987,11 @@ Debugger::getNewestFrame(JSContext *cx, unsigned argc, Value *vp)
          * Debug-mode currently disables Ion compilation in the compartment of
          * the debuggee.
          */
-        if (i.isIonOptimizedJS())
+        if (i.isIon())
             continue;
         if (dbg->observesFrame(i.abstractFramePtr())) {
             ScriptFrameIter iter(i.seg()->cx(), StackIter::GO_THROUGH_SAVED);
-            while (iter.isIonOptimizedJS() || iter.abstractFramePtr() != i.abstractFramePtr())
+            while (iter.isIon() || iter.abstractFramePtr() != i.abstractFramePtr())
                 ++iter;
             return dbg->getScriptFrame(cx, iter, args.rval());
         }
@@ -3284,37 +3278,6 @@ Debugger::observesScript(JSScript *script) const
     return observesGlobal(&script->global()) && !script->selfHosted;
 }
 
-/* static */ bool
-Debugger::handleBaselineOsr(JSContext *cx, StackFrame *from, ion::BaselineFrame *to)
-{
-    ScriptFrameIter iter(cx);
-    JS_ASSERT(iter.abstractFramePtr() == to);
-
-    for (FrameRange r(from); !r.empty(); r.popFront()) {
-        RootedObject frameobj(cx, r.frontFrame());
-        Debugger *dbg = r.frontDebugger();
-        JS_ASSERT(dbg == Debugger::fromChildJSObject(frameobj));
-
-        // Update frame object's StackIter::data pointer.
-        DebuggerFrame_freeStackIterData(cx->runtime->defaultFreeOp(), frameobj);
-        StackIter::Data *data = iter.copyData();
-        if (!data)
-            return false;
-        frameobj->setPrivate(data);
-
-        // Add the frame object with |to| as key.
-        if (!dbg->frames.putNew(to, frameobj)) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
-
-        // Remove the old entry.
-        r.removeFrontFrame();
-    }
-
-    return true;
-}
-
 static JSBool
 DebuggerScript_setBreakpoint(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -3592,7 +3555,7 @@ DebuggerFrame_getOlder(JSContext *cx, unsigned argc, Value *vp)
     Debugger *dbg = Debugger::fromChildJSObject(thisobj);
 
     for (++iter; !iter.done(); ++iter) {
-        if (iter.isIonOptimizedJS())
+        if (iter.isIon())
             continue;
         if (dbg->observesFrame(iter.abstractFramePtr()))
             return dbg->getScriptFrame(cx, iter, args.rval());

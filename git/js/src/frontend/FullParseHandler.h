@@ -8,8 +8,6 @@
 #ifndef FullParseHandler_h__
 #define FullParseHandler_h__
 
-#include "mozilla/PodOperations.h"
-
 #include "ParseNode.h"
 #include "SharedContext.h"
 
@@ -31,7 +29,7 @@ class FullParseHandler
         ParseNode *node = allocParseNode(sizeof(ParseNode));
         if (!node)
             return NULL;
-        mozilla::PodAssign(node, &other);
+        PodAssign(node, &other);
         return node;
     }
 

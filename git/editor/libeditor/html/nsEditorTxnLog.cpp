@@ -307,7 +307,7 @@ nsEditorTxnLog::WriteTransaction(nsITransaction *aTransaction)
   if (txn) {
     txn->GetTxnDescription(str);
     if (str.IsEmpty())
-      str.AssignLiteral("<nullptr>");
+      str.AssignLiteral("<NULL>");
   }
 
   return Write(NS_LossyConvertUTF16toASCII(str).get());

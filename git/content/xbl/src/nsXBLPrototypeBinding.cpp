@@ -726,12 +726,15 @@ nsXBLPrototypeBinding::GetImmediateChild(nsIAtom* aTag)
  
 nsresult
 nsXBLPrototypeBinding::InitClass(const nsCString& aClassName,
-                                 JSContext * aContext,
-                                 JS::Handle<JSObject*> aGlobal,
-                                 JS::Handle<JSObject*> aScriptObject,
-                                 JS::MutableHandle<JSObject*> aClassObject,
+                                 JSContext * aContext, JSObject * aGlobal,
+                                 JSObject * aScriptObject,
+                                 JSObject** aClassObject,
                                  bool* aNew)
 {
+  NS_ENSURE_ARG_POINTER(aClassObject); 
+
+  *aClassObject = nullptr;
+
   return nsXBLBinding::DoInitJSClass(aContext, aGlobal, aScriptObject,
                                      aClassName, this, aClassObject, aNew);
 }
@@ -1025,7 +1028,7 @@ nsXBLPrototypeBinding::ConstructAttributeTable(nsIContent* aElement)
       // so that we don't have to convert from Unicode to ASCII and then back
 
       char* token = nsCRT::strtok( str, ", ", &newStr );
-      while( token != nullptr ) {
+      while( token != NULL ) {
         // Build an atom out of this attribute.
         nsCOMPtr<nsIAtom> atom;
         int32_t atomNsID = kNameSpaceID_None;
@@ -1134,7 +1137,7 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
       // so that we don't have to convert from Unicode to ASCII and then back
 
       char* token = nsCRT::strtok( str, "| ", &newStr );
-      while( token != nullptr ) {
+      while( token != NULL ) {
         nsAutoString tok;
         tok.AssignWithConversion(token);
 
@@ -1215,7 +1218,7 @@ nsXBLPrototypeBinding::ConstructInterfaceTable(const nsAString& aImpls)
     // so that we don't have to convert from Unicode to ASCII and then back
 
     char* token = nsCRT::strtok( str, ", ", &newStr );
-    while( token != nullptr ) {
+    while( token != NULL ) {
       // get the InterfaceInfo for the name
       nsCOMPtr<nsIInterfaceInfo> iinfo;
       infoManager->GetInfoForName(token, getter_AddRefs(iinfo));

@@ -60,9 +60,9 @@ function loadCallgraph(file)
 	    } else if (match = /^F (\d+) CLASS (.*?) FIELD (.*)/.exec(line)) {
             var caller = functionNames[match[1]];
             var csu = match[2];
-            var fullfield = csu + "." + match[3];
-            if (!fieldCallCannotGC(csu, fullfield) && !suppressed)
-		        addGCFunction(caller, "FieldCall: " + fullfield);
+            var field = match[3];
+            if (!fieldCallCannotGC(csu, field) && !suppressed)
+		        addGCFunction(caller, "FieldCall: " + csu + "." + field);
 	    } else if (match = /^D (\d+) (\d+)/.exec(line)) {
             var caller = functionNames[match[1]];
             var callee = functionNames[match[2]];

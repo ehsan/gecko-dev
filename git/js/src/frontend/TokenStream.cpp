@@ -18,9 +18,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/PodOperations.h"
-
 #include "jstypes.h"
 #include "jsutil.h"
 #include "jsprf.h"
@@ -45,10 +42,6 @@
 using namespace js;
 using namespace js::frontend;
 using namespace js::unicode;
-
-using mozilla::PodAssign;
-using mozilla::PodCopy;
-using mozilla::PodZero;
 
 static const KeywordInfo keywords[] = {
 #define KEYWORD_INFO(keyword, name, type, op, version) \

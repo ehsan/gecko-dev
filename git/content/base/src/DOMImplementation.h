@@ -29,7 +29,7 @@ class DOMImplementation MOZ_FINAL : public nsIDOMDOMImplementation
 {
 public:
   DOMImplementation(nsIDocument* aOwner,
-                    nsIGlobalObject* aScriptObject,
+                    nsIScriptGlobalObject* aScriptObject,
                     nsIURI* aDocumentURI,
                     nsIURI* aBaseURI)
     : mOwner(aOwner)

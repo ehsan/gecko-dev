@@ -141,16 +141,9 @@ public class TopSitesView extends GridView {
 
     public void onDestroy() {
         if (mTopSitesAdapter != null) {
-            setAdapter(null);
-            final Cursor cursor = mTopSitesAdapter.getCursor();
-
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
-                public void run() {
-                if (cursor != null && !cursor.isClosed())
-                    cursor.close();
-                }
-            });
+            Cursor cursor = mTopSitesAdapter.getCursor();
+            if (cursor != null && !cursor.isClosed())
+                cursor.close();
         }
     }
 
@@ -193,9 +186,12 @@ public class TopSitesView extends GridView {
 
     public void loadTopSites() {
         final ContentResolver resolver = mContext.getContentResolver();
-
+        Cursor old = null;
+        if (mTopSitesAdapter != null) {
+            old = mTopSitesAdapter.getCursor();
+        }
         // Swap in the new cursor.
-        final Cursor oldCursor = (mTopSitesAdapter != null) ? mTopSitesAdapter.getCursor() : null;
+        final Cursor oldCursor = old;
         final Cursor newCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
 
         post(new Runnable() {
@@ -318,15 +314,15 @@ public class TopSitesView extends GridView {
         if (urls.size() == 0)
             return;
 
-        (new UiAsyncTask<Void, Void, Map<String, Bitmap> >(ThreadUtils.getBackgroundHandler()) {
+        (new UiAsyncTask<Void, Void, Cursor>(ThreadUtils.getBackgroundHandler()) {
             @Override
-            public Map<String, Bitmap> doInBackground(Void... params) {
-                return getThumbnailsFromCursor(BrowserDB.getThumbnailsForUrls(cr, urls));
+            public Cursor doInBackground(Void... params) {
+                return BrowserDB.getThumbnailsForUrls(cr, urls);
             }
 
             @Override
-            public void onPostExecute(Map<String, Bitmap> thumbnails) {
-                updateTopSitesThumbnails(thumbnails);
+            public void onPostExecute(Cursor c) {
+                updateTopSitesThumbnails(getThumbnailsFromCursor(c));
             }
         }).execute();
     }
@@ -342,6 +338,13 @@ public class TopSitesView extends GridView {
 
     public void setLoadCompleteCallback(AboutHomeContent.VoidCallback callback) {
         mLoadCompleteCallback = callback;
+    }
+
+    public void refresh() {
+        if (mTopSitesAdapter != null)
+            mTopSitesAdapter.notifyDataSetChanged();
+
+        setAdapter(mTopSitesAdapter);
     }
 
     private class TopSitesViewHolder {

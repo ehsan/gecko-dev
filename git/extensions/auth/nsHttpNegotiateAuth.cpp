@@ -237,7 +237,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
         //
         // Decode the response that followed the "Negotiate" token
         //
-        if (PL_Base64Decode(challenge, len, (char *) inToken) == nullptr) {
+        if (PL_Base64Decode(challenge, len, (char *) inToken) == NULL) {
             free(inToken);
             return(NS_ERROR_UNEXPECTED);
         }

@@ -187,7 +187,7 @@ bool
 HTMLButtonElement::IsDisabledForEvents(uint32_t aMessage)
 {
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(false);
-  nsIFrame* formFrame = nullptr;
+  nsIFrame* formFrame = NULL;
   if (formControlFrame) {
     formFrame = do_QueryFrame(formControlFrame);
   }

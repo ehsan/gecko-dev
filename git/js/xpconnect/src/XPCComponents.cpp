@@ -2837,10 +2837,13 @@ nsXPCComponents_Utils::ReportError(const JS::Value &error, JSContext *cx)
 #include "nsNetUtil.h"
 const char kScriptSecurityManagerContractID[] = NS_SCRIPTSECURITYMANAGER_CONTRACTID;
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(SandboxPrivate,
-                              nsIScriptObjectPrincipal,
-                              nsIGlobalObject,
-                              nsISupportsWeakReference)
+NS_IMPL_THREADSAFE_ISUPPORTS1(PrincipalHolder, nsIScriptObjectPrincipal)
+
+nsIPrincipal *
+PrincipalHolder::GetPrincipal()
+{
+    return mHoldee;
+}
 
 static JSBool
 SandboxDump(JSContext *cx, unsigned argc, jsval *vp)
@@ -2952,17 +2955,13 @@ CreateXMLHttpRequest(JSContext *cx, unsigned argc, jsval *vp)
     if (!subjectPrincipal)
         return false;
 
-    JSObject *global = JS_GetGlobalForScopeChain(cx);
-    MOZ_ASSERT(global);
-
-    nsIScriptObjectPrincipal *sop =
-        static_cast<nsIScriptObjectPrincipal *>(xpc_GetJSPrivate(global));
-    nsCOMPtr<nsIGlobalObject> iglobal = do_QueryInterface(sop);
-
     nsCOMPtr<nsIXMLHttpRequest> xhr = new nsXMLHttpRequest();
-    nsresult rv = xhr->Init(subjectPrincipal, nullptr, iglobal, nullptr);
+    nsresult rv = xhr->Init(subjectPrincipal, NULL, NULL, NULL);
     if (NS_FAILED(rv))
         return false;
+
+    JSObject *global = JS_GetGlobalForScopeChain(cx);
+    MOZ_ASSERT(global);
 
     rv = nsContentUtils::WrapNative(cx, global, xhr, vp);
     if (NS_FAILED(rv))
@@ -2988,9 +2987,7 @@ static void
 sandbox_finalize(JSFreeOp *fop, JSObject *obj)
 {
     nsIScriptObjectPrincipal *sop =
-        static_cast<nsIScriptObjectPrincipal *>(xpc_GetJSPrivate(obj));
-    MOZ_ASSERT(sop);
-    static_cast<SandboxPrivate *>(sop)->ForgetGlobalObject();
+        (nsIScriptObjectPrincipal *)xpc_GetJSPrivate(obj);
     NS_IF_RELEASE(sop);
     DestroyProtoAndIfaceCache(obj);
 }
@@ -3058,7 +3055,7 @@ xpc::IsSandboxPrototypeProxy(JSObject *obj)
 
 bool
 xpc::SandboxCallableProxyHandler::call(JSContext *cx, JS::Handle<JSObject*> proxy,
-                                       const JS::CallArgs &args)
+                                       unsigned argc, Value *vp)
 {
     // We forward the call to our underlying callable.
 
@@ -3102,13 +3099,14 @@ xpc::SandboxCallableProxyHandler::call(JSContext *cx, JS::Handle<JSObject*> prox
     // if the sandboxPrototype is an Xray Wrapper, which lets us appropriately
     // remap |this|.
     JS::Value thisVal =
-      WrapperFactory::IsXrayWrapper(sandboxProxy) ? args.computeThis(cx) : args.thisv();
+      WrapperFactory::IsXrayWrapper(sandboxProxy) ? JS_THIS(cx, vp)
+                                                  : JS_THIS_VALUE(cx, vp);
     if (thisVal == ObjectValue(*sandboxGlobal)) {
         thisVal = ObjectValue(*js::GetProxyTargetObject(sandboxProxy));
     }
 
-    return JS::Call(cx, thisVal, js::GetProxyPrivate(proxy), args.length(), args.array(),
-                    args.rval().address());
+    return JS::Call(cx, thisVal, js::GetProxyPrivate(proxy), argc,
+                    JS_ARGV(cx, vp), vp);
 }
 
 xpc::SandboxCallableProxyHandler xpc::sandboxCallableProxyHandler;
@@ -3288,12 +3286,12 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
     if (NS_FAILED(rv))
         return NS_ERROR_XPC_UNEXPECTED;
 
-    nsCOMPtr<nsIPrincipal> principal = do_QueryInterface(prinOrSop);
-    if (!principal) {
-        nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(prinOrSop);
-        if (sop) {
-            principal = sop->GetPrincipal();
-        } else {
+    nsCOMPtr<nsIScriptObjectPrincipal> sop(do_QueryInterface(prinOrSop));
+
+    if (!sop) {
+        nsCOMPtr<nsIPrincipal> principal(do_QueryInterface(prinOrSop));
+
+        if (!principal) {
             principal = do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
             NS_ASSERTION(NS_FAILED(rv) || principal,
                          "Bad return from do_CreateInstance");
@@ -3306,8 +3304,14 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
                 return rv;
             }
         }
-        MOZ_ASSERT(principal);
+
+        sop = new PrincipalHolder(principal);
+        if (!sop)
+            return NS_ERROR_OUT_OF_MEMORY;
     }
+
+    nsIPrincipal *principal = sop->GetPrincipal();
+
     JSObject *sandbox;
 
     JS::ZoneSpecifier zoneSpec = options.sameZoneAs
@@ -3365,11 +3369,8 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
                 return NS_ERROR_XPC_UNEXPECTED;
         }
 
-        nsCOMPtr<nsIScriptObjectPrincipal> sbp =
-            new SandboxPrivate(principal, sandbox);
-
-        // Pass on ownership of sbp to |sandbox|.
-        JS_SetPrivate(sandbox, sbp.forget().get());
+        // Pass on ownership of sop to |sandbox|.
+        JS_SetPrivate(sandbox, sop.forget().get());
 
         XPCCallContext ccx(NATIVE_CALLER, cx);
         if (!ccx.IsValid())

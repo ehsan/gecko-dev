@@ -317,10 +317,7 @@ public:
   nsCSSSelectorList* Selector() { return mSelector; }
 
   uint32_t GetLineNumber() const { return mLineNumber; }
-  uint32_t GetColumnNumber() const { return mColumnNumber; }
-  void SetLineNumberAndColumnNumber(uint32_t aLineNumber,
-                                    uint32_t aColumnNumber)
-  { mLineNumber = aLineNumber; mColumnNumber = aColumnNumber; }
+  void SetLineNumber(uint32_t aLineNumber) { mLineNumber = aLineNumber; }
 
   Declaration* GetDeclaration() const { return mDeclaration; }
 
@@ -376,8 +373,7 @@ private:
   ImportantRule*          mImportantRule; // initialized by RuleMatched
   DOMCSSStyleRule*        mDOMRule;
   // Keep the same type so that MSVC packs them.
-  uint32_t                mLineNumber;
-  uint32_t                mColumnNumber : 31;
+  uint32_t                mLineNumber : 31;
   uint32_t                mWasMatched : 1;
 
 private:

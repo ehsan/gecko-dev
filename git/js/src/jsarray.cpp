@@ -2725,7 +2725,7 @@ JSObject * JS_FASTCALL
 js::NewDenseEmptyArray(JSContext *cx, RawObject proto /* = NULL */,
                        NewObjectKind newKind /* = GenericObject */)
 {
-    return NewArray<false>(cx, 0, proto, newKind);
+    return NewArray<false>(cx, 0, proto);
 }
 
 JSObject * JS_FASTCALL
@@ -2739,7 +2739,7 @@ JSObject * JS_FASTCALL
 js::NewDenseUnallocatedArray(JSContext *cx, uint32_t length, RawObject proto /* = NULL */,
                              NewObjectKind newKind /* = GenericObject */)
 {
-    return NewArray<false>(cx, length, proto, newKind);
+    return NewArray<false>(cx, length, proto);
 }
 
 #ifdef JS_METHODJIT

@@ -228,8 +228,7 @@ MobileConnection::GetCardLock(const nsAString& aLockType, nsIDOMDOMRequest** aDo
 }
 
 NS_IMETHODIMP
-MobileConnection::UnlockCardLock(const JS::Value& aInfo,
-                                 nsIDOMDOMRequest** aDomRequest)
+MobileConnection::UnlockCardLock(const jsval& aInfo, nsIDOMDOMRequest** aDomRequest)
 {
   *aDomRequest = nullptr;
 
@@ -241,8 +240,7 @@ MobileConnection::UnlockCardLock(const JS::Value& aInfo,
 }
 
 NS_IMETHODIMP
-MobileConnection::SetCardLock(const JS::Value& aInfo,
-                              nsIDOMDOMRequest** aDomRequest)
+MobileConnection::SetCardLock(const jsval& aInfo, nsIDOMDOMRequest** aDomRequest)
 {
   *aDomRequest = nullptr;
 

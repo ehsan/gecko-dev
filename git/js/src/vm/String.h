@@ -10,7 +10,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/GuardObjects.h"
-#include "mozilla/PodOperations.h"
 
 #include "jsapi.h"
 #include "jsatom.h"
@@ -775,9 +774,9 @@ class StaticStrings
     JSAtom *length2StaticTable[NUM_SMALL_CHARS * NUM_SMALL_CHARS];
 
     void clear() {
-        mozilla::PodArrayZero(unitStaticTable);
-        mozilla::PodArrayZero(length2StaticTable);
-        mozilla::PodArrayZero(intStaticTable);
+        PodArrayZero(unitStaticTable);
+        PodArrayZero(length2StaticTable);
+        PodArrayZero(intStaticTable);
     }
 
   public:

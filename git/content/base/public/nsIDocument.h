@@ -48,6 +48,7 @@ class nsIDOMDocument;
 class nsIDOMDocumentFragment;
 class nsIDOMDocumentType;
 class nsIDOMElement;
+class nsIDOMEventTarget;
 class nsIDOMNodeList;
 class nsIDOMTouch;
 class nsIDOMTouchList;
@@ -76,7 +77,6 @@ class nsSmallVoidArray;
 class nsDOMCaretPosition;
 class nsViewportInfo;
 class nsDOMEvent;
-class nsIGlobalObject;
 
 namespace mozilla {
 class ErrorResult;
@@ -94,7 +94,6 @@ class DocumentType;
 class DOMImplementation;
 class Element;
 struct ElementRegistrationOptions;
-class EventTarget;
 class GlobalObject;
 class HTMLBodyElement;
 class Link;
@@ -111,8 +110,8 @@ typedef CallbackObjectHolder<NodeFilter, nsIDOMNodeFilter> NodeFilterHolder;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x8f33bc23, 0x5625, 0x448a, \
-  { 0xb3, 0x38, 0xfe, 0x88, 0x16, 0xe, 0xb3, 0xdb } }
+{ 0x699e0649, 0x55f2, 0x47f1, \
+ { 0x93, 0x38, 0xcd, 0x67, 0xf3, 0x2b, 0x04, 0xe9 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -807,8 +806,7 @@ public:
    * document is truly gone. Use this object when you're trying to find a
    * content wrapper in XPConnect.
    */
-  virtual nsIGlobalObject* GetScopeObject() const = 0;
-  virtual void SetScopeObject(nsIGlobalObject* aGlobal) = 0;
+  virtual nsIScriptGlobalObject* GetScopeObject() const = 0;
 
   /**
    * Return the window containing the document (the outer window).
@@ -1264,7 +1262,7 @@ public:
    * document won't be altered.
    */
   virtual void OnPageShow(bool aPersisted,
-                          mozilla::dom::EventTarget* aDispatchStartTarget) = 0;
+                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
 
   /**
    * Notification that the page has been hidden, for documents which are loaded
@@ -1279,8 +1277,8 @@ public:
    * document won't be altered.
    */
   virtual void OnPageHide(bool aPersisted,
-                          mozilla::dom::EventTarget* aDispatchStartTarget) = 0;
-
+                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
+  
   /*
    * We record the set of links in the document that are relevant to
    * style.
@@ -1910,7 +1908,7 @@ public:
   }
 
   // WebIDL API
-  nsIGlobalObject* GetParentObject() const
+  nsIScriptGlobalObject* GetParentObject() const
   {
     return GetScopeObject();
   }
@@ -2314,8 +2312,6 @@ protected:
   // document was created entirely in memory
   bool mHaveInputEncoding;
 
-  bool mHasHadDefaultView;
-
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
   // *inner* window object.
@@ -2515,7 +2511,7 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   nsIURI* aBaseURI,
                   nsIPrincipal* aPrincipal,
                   bool aLoadedAsData,
-                  nsIGlobalObject* aEventObject,
+                  nsIScriptGlobalObject* aEventObject,
                   DocumentFlavor aFlavor);
 
 // This is used only for xbl documents created from the startup cache.

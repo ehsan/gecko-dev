@@ -628,7 +628,7 @@ nsEventListenerManager::SetEventHandler(nsIAtom *aName,
 
     // We want to allow compiling an event handler even in an unloaded
     // document, so use GetScopeObject here, not GetScriptHandlingObject.
-    global = do_QueryInterface(doc->GetScopeObject());
+    global = doc->GetScopeObject();
   } else {
     nsCOMPtr<nsPIDOMWindow> win = GetTargetAsInnerWindow();
     if (win) {
@@ -910,7 +910,7 @@ nsresult
 nsEventListenerManager::HandleEventSubType(nsListenerStruct* aListenerStruct,
                                            nsIDOMEventListener* aListener,
                                            nsIDOMEvent* aDOMEvent,
-                                           EventTarget* aCurrentTarget,
+                                           nsIDOMEventTarget* aCurrentTarget,
                                            nsCxPusher* aPusher)
 {
   nsresult result = NS_OK;
@@ -944,7 +944,7 @@ void
 nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
                                             nsEvent* aEvent,
                                             nsIDOMEvent** aDOMEvent,
-                                            EventTarget* aCurrentTarget,
+                                            nsIDOMEventTarget* aCurrentTarget,
                                             nsEventStatus* aEventStatus,
                                             nsCxPusher* aPusher)
 {
@@ -1147,7 +1147,7 @@ nsEventListenerManager::HasListeners()
 nsresult
 nsEventListenerManager::GetListenerInfo(nsCOMArray<nsIEventListenerInfo>* aList)
 {
-  nsCOMPtr<EventTarget> target = do_QueryInterface(mTarget);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mTarget);
   NS_ENSURE_STATE(target);
   aList->Clear();
   uint32_t count = mListeners.Length();

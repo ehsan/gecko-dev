@@ -811,8 +811,7 @@ nsDOMDeviceStorage::SetRootDirectoryForType(const nsAString& aType, const nsAStr
   mStorageType = aType;
 }
 
-JS::Value
-InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID)
+jsval InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID)
 {
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aWindow);
   if (!sgo) {
@@ -829,7 +828,7 @@ InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID
     return JSVAL_NULL;
   }
 
-  JS::Value someJsVal;
+  jsval someJsVal;
   nsresult rv = nsContentUtils::WrapNative(cx,
                                            JS_GetGlobalObject(cx),
                                            aObject,
@@ -842,8 +841,7 @@ InterfaceToJsval(nsPIDOMWindow* aWindow, nsISupports* aObject, const nsIID* aIID
   return someJsVal;
 }
 
-JS::Value
-nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile)
+jsval nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aWindow, "Null Window");
@@ -862,7 +860,7 @@ nsIFileToJsval(nsPIDOMWindow* aWindow, DeviceStorageFile* aFile)
   return InterfaceToJsval(aWindow, blob, &NS_GET_IID(nsIDOMBlob));
 }
 
-JS::Value StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString)
+jsval StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aWindow, "Null Window");
@@ -884,7 +882,7 @@ JS::Value StringToJsval(nsPIDOMWindow* aWindow, nsAString& aString)
 
   JSAutoRequest ar(cx);
 
-  JS::Value result = JSVAL_NULL;
+  jsval result = JSVAL_NULL;
   if (!xpc::StringToJsval(cx, aString, &result)) {
     return JSVAL_NULL;
   }
@@ -1047,7 +1045,7 @@ ContinueCursorEvent::Run()
   nsRefPtr<DeviceStorageFile> file = GetNextFile();
 
   nsDOMDeviceStorageCursor* cursor = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
-  JS::Value val = nsIFileToJsval(cursor->GetOwner(), file);
+  jsval val = nsIFileToJsval(cursor->GetOwner(), file);
 
   if (file) {
     cursor->mOkToCallContinue = true;
@@ -1272,7 +1270,7 @@ public:
     }
 #endif
 
-    JS::Value result = StringToJsval(mRequest->GetOwner(), state);
+    jsval result = StringToJsval(mRequest->GetOwner(), state);
     mRequest->FireSuccess(result);
     mRequest = nullptr;
     return NS_OK;
@@ -1310,7 +1308,7 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-    JS::Value result = JSVAL_NULL;
+    jsval result = JSVAL_NULL;
     nsPIDOMWindow* window = mRequest->GetOwner();
 
     if (mFile) {
