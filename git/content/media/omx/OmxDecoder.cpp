@@ -62,8 +62,8 @@ private:
 };
 
 // When loading an MP3 stream from a file, we need to parse the file's
-// content to find its duration. Reading files of 100 MiB or more can
-// delay the player app noticably, so the file is read and decoded in
+// content to find its duration. Reading files of 100 Mib or more can
+// delay the player app noticably, so the file os read and decoded in
 // smaller chunks.
 //
 // We first read on the decode thread, but parsing must be done on the
@@ -79,9 +79,7 @@ private:
 class OmxDecoderNotifyDataArrivedRunnable : public nsRunnable
 {
 public:
-  OmxDecoderNotifyDataArrivedRunnable(android::OmxDecoder* aOmxDecoder,
-                                      const char* aBuffer, uint64_t aLength,
-                                      int64_t aOffset, uint64_t aFullLength)
+  OmxDecoderNotifyDataArrivedRunnable(android::OmxDecoder* aOmxDecoder, const char* aBuffer, uint64_t aLength, int64_t aOffset, uint64_t aFullLength)
   : mOmxDecoder(aOmxDecoder),
     mBuffer(aBuffer),
     mLength(aLength),
@@ -98,7 +96,24 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
 
-    NotifyDataArrived();
+    const char* buffer = mBuffer.get();
+
+    while (mLength) {
+      uint32_t length = std::min<uint64_t>(mLength, UINT32_MAX);
+      mOmxDecoder->NotifyDataArrived(mBuffer.get(), mLength, mOffset);
+
+      buffer  += length;
+      mLength -= length;
+      mOffset += length;
+    }
+
+    if (mOffset < mFullLength) {
+      // We cannot read data in the main thread because it
+      // might block for too long. Instead we post an IO task
+      // to the IO thread if there is more data available.
+      XRE_GetIOMessageLoop()->PostTask(FROM_HERE, new OmxDecoderProcessCachedDataTask(mOmxDecoder.get(), mOffset));
+    }
+
     Completed();
 
     return NS_OK;
@@ -115,32 +130,6 @@ public:
   }
 
 private:
-  void NotifyDataArrived()
-  {
-    const char* buffer = mBuffer.get();
-
-    while (mLength) {
-      uint32_t length = std::min<uint64_t>(mLength, UINT32_MAX);
-      bool success = mOmxDecoder->NotifyDataArrived(buffer, mLength,
-                                                    mOffset);
-      if (!success) {
-        return;
-      }
-
-      buffer  += length;
-      mLength -= length;
-      mOffset += length;
-    }
-
-    if (mOffset < mFullLength) {
-      // We cannot read data in the main thread because it
-      // might block for too long. Instead we post an IO task
-      // to the IO thread if there is more data available.
-      XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-          new OmxDecoderProcessCachedDataTask(mOmxDecoder.get(), mOffset));
-    }
-  }
-
   // Call this function at the end of Run() to notify waiting
   // threads.
   void Completed()
@@ -411,7 +400,7 @@ bool OmxDecoder::TryLoad() {
     const char* audioMime;
     sp<MetaData> meta = mAudioTrack->getFormat();
 
-    if (mIsMp3) {
+    if (meta->findCString(kKeyMIMEType, &audioMime) && !strcasecmp(audioMime, AUDIO_MP3)) {
       // Feed MP3 parser with cached data. Local files will be fully
       // cached already, network streams will update with sucessive
       // calls to NotifyDataArrived.
@@ -639,15 +628,10 @@ bool OmxDecoder::SetAudioFormat() {
   return true;
 }
 
-void OmxDecoder::ReleaseDecoder()
+void OmxDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset)
 {
-  mDecoder = nullptr;
-}
-
-bool OmxDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset)
-{
-  if (!mAudioTrack.get() || !mIsMp3 || !mMP3FrameParser.IsMP3() || !mDecoder) {
-    return false;
+  if (!mAudioTrack.get() || !mIsMp3 || !mMP3FrameParser.IsMP3()) {
+    return;
   }
 
   mMP3FrameParser.Parse(aBuffer, aLength, aOffset);
@@ -661,8 +645,6 @@ bool OmxDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mDecoder->UpdateEstimatedMediaDuration(mDurationUs);
   }
-
-  return true;
 }
 
 void OmxDecoder::ReleaseVideoBuffer() {

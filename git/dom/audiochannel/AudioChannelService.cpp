@@ -74,7 +74,7 @@ NS_IMPL_ISUPPORTS2(AudioChannelService, nsIObserver, nsITimerCallback)
 AudioChannelService::AudioChannelService()
 : mCurrentHigherChannel(AUDIO_CHANNEL_LAST)
 , mCurrentVisibleHigherChannel(AUDIO_CHANNEL_LAST)
-, mPlayableHiddenContentChildID(CONTENT_PROCESS_ID_UNKNOWN)
+, mActiveContentChildIDsFrozen(false)
 , mDisabled(false)
 , mDefChannelChildID(CONTENT_PROCESS_ID_UNKNOWN)
 {
@@ -135,18 +135,6 @@ AudioChannelService::RegisterType(AudioChannelType aType, uint64_t aChildID, boo
 
     if (aWithVideo) {
       mWithVideoChildIDs.AppendElement(aChildID);
-    }
-
-    // One hidden content channel can be playable only when there is no any
-    // content channel in the foreground.
-    if (type == AUDIO_CHANNEL_INT_CONTENT_HIDDEN &&
-        mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty()) {
-      mPlayableHiddenContentChildID = aChildID;
-    }
-    // No hidden content channel can be playable if there is an content channel
-    // in foreground.
-    else if (type == AUDIO_CHANNEL_INT_CONTENT) {
-      mPlayableHiddenContentChildID = CONTENT_PROCESS_ID_UNKNOWN;
     }
 
     // In order to avoid race conditions, it's safer to notify any existing
@@ -214,12 +202,13 @@ AudioChannelService::UnregisterTypeInternal(AudioChannelType aType,
   // In order to avoid race conditions, it's safer to notify any existing
   // agent any time a new one is registered.
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
-    // No hidden content channel is playable if the original playable hidden
-    // process does not need to play audio from background anymore.
+    // We only remove ChildID when it is in the foreground.
+    // If in the background, we kept ChildID for allowing it to play next song.
     if (aType == AUDIO_CHANNEL_CONTENT &&
-        mPlayableHiddenContentChildID == aChildID &&
-        !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN].Contains(aChildID)) {
-      mPlayableHiddenContentChildID = CONTENT_PROCESS_ID_UNKNOWN;
+        mActiveContentChildIDs.Contains(aChildID) &&
+        !aElementHidden &&
+        !mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].Contains(aChildID)) {
+      mActiveContentChildIDs.RemoveElement(aChildID);
     }
 
     if (aWithVideo) {
@@ -246,19 +235,6 @@ AudioChannelService::UpdateChannelType(AudioChannelType aType,
     mChannelCounters[newType].AppendElement(aChildID);
     MOZ_ASSERT(mChannelCounters[oldType].Contains(aChildID));
     mChannelCounters[oldType].RemoveElement(aChildID);
-  }
-
-  // The last content channel which goes from foreground to background can also
-  // be playable.
-  if (oldType == AUDIO_CHANNEL_INT_CONTENT &&
-      newType == AUDIO_CHANNEL_INT_CONTENT_HIDDEN &&
-      mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty()) {
-    mPlayableHiddenContentChildID = aChildID;
-  }
-  // No hidden content channel can be playable if there is an content channel
-  // in foreground.
-  else if (newType == AUDIO_CHANNEL_INT_CONTENT) {
-    mPlayableHiddenContentChildID = CONTENT_PROCESS_ID_UNKNOWN;
   }
 }
 
@@ -289,6 +265,43 @@ AudioChannelService::GetStateInternal(AudioChannelType aType, uint64_t aChildID,
   AudioChannelInternalType newType = GetInternalType(aType, aElementHidden);
   AudioChannelInternalType oldType = GetInternalType(aType, aElementWasHidden);
 
+  // If the audio content channel is visible, let's remember this ChildID.
+  if (newType == AUDIO_CHANNEL_INT_CONTENT &&
+      oldType == AUDIO_CHANNEL_INT_CONTENT_HIDDEN) {
+
+    if (mActiveContentChildIDsFrozen) {
+      mActiveContentChildIDsFrozen = false;
+      mActiveContentChildIDs.Clear();
+    }
+
+    if (!mActiveContentChildIDs.Contains(aChildID)) {
+      mActiveContentChildIDs.AppendElement(aChildID);
+    }
+  }
+  else if (newType == AUDIO_CHANNEL_INT_CONTENT_HIDDEN &&
+           oldType == AUDIO_CHANNEL_INT_CONTENT &&
+           !mActiveContentChildIDsFrozen) {
+    // If nothing is visible, the list has to been frozen.
+    // Or if there is still any one with other ChildID in foreground then
+    // it should be removed from list and left other ChildIDs in the foreground
+    // to keep playing. Finally only last one childID which go to background
+    // will be in list.
+    if (mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty()) {
+      mActiveContentChildIDsFrozen = true;
+    } else if (!mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].Contains(aChildID)) {
+      MOZ_ASSERT(mActiveContentChildIDs.Contains(aChildID));
+      mActiveContentChildIDs.RemoveElement(aChildID);
+    }
+  }
+  else if (newType == AUDIO_CHANNEL_INT_NORMAL &&
+           oldType == AUDIO_CHANNEL_INT_NORMAL_HIDDEN &&
+           mWithVideoChildIDs.Contains(aChildID)) {
+    if (mActiveContentChildIDsFrozen) {
+      mActiveContentChildIDsFrozen = false;
+      mActiveContentChildIDs.Clear();
+    }
+  }
+
   if (newType != oldType &&
       (aType == AUDIO_CHANNEL_CONTENT ||
        (aType == AUDIO_CHANNEL_NORMAL &&
@@ -309,16 +322,7 @@ AudioChannelService::GetStateInternal(AudioChannelType aType, uint64_t aChildID,
   // We are not visible, maybe we have to mute.
   if (newType == AUDIO_CHANNEL_INT_NORMAL_HIDDEN ||
       (newType == AUDIO_CHANNEL_INT_CONTENT_HIDDEN &&
-       // One process can have multiple content channels; and during the
-       // transition from foreground to background, its content channels will be
-       // updated with correct visibility status one by one. All its content
-       // channels should remain playable until all of their visibility statuses
-       // have been updated as hidden. After all its content channels have been
-       // updated properly as hidden, mPlayableHiddenContentChildID is used to
-       // check whether this background process is playable or not.
-       !(mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].Contains(aChildID) ||
-         (mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].IsEmpty() &&
-          mPlayableHiddenContentChildID == aChildID)))) {
+       !mActiveContentChildIDs.Contains(aChildID))) {
     return AUDIO_CHANNEL_STATE_MUTED;
   }
 
@@ -489,8 +493,12 @@ AudioChannelService::SendAudioChannelChangedNotification(uint64_t aChildID)
       higher = AUDIO_CHANNEL_NOTIFICATION;
     }
 
-    // Check whether there is any playable hidden content channel or not.
-    else if (mPlayableHiddenContentChildID != CONTENT_PROCESS_ID_UNKNOWN) {
+    // There is only one Child can play content channel in the background.
+    // And need to check whether there is any content channels under playing
+    // now.
+    else if (!mActiveContentChildIDs.IsEmpty() &&
+             mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN].Contains(
+             mActiveContentChildIDs[0])) {
       higher = AUDIO_CHANNEL_CONTENT;
     }
   }
@@ -633,12 +641,9 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const PR
         }
       }
 
-      // No hidden content channel is playable if the original playable hidden
-      // process shuts down.
-      if (mPlayableHiddenContentChildID == childID) {
-        mPlayableHiddenContentChildID = CONTENT_PROCESS_ID_UNKNOWN;
+      while ((index = mActiveContentChildIDs.IndexOf(childID)) != -1) {
+        mActiveContentChildIDs.RemoveElementAt(index);
       }
-
       while ((index = mWithVideoChildIDs.IndexOf(childID)) != -1) {
         mWithVideoChildIDs.RemoveElementAt(index);
       }
@@ -703,13 +708,8 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const PR
       audioManager->SetAudioChannelVolume(AUDIO_CHANNEL_ALARM, index);
     } else if (keyStr.EqualsLiteral("audio.volume.telephony")) {
       audioManager->SetAudioChannelVolume(AUDIO_CHANNEL_TELEPHONY, index);
-    } else if (!keyStr.EqualsLiteral("audio.volume.bt_sco")) {
-      // bt_sco is not a valid audio channel so we manipulate it in
-      // AudioManager.cpp. And the others should not be used.
-      // We didn't use MOZ_ASSUME_UNREACHABLE here because any web content who
-      // has permission of mozSettings can set any names then it can be easy to
-      // crash the B2G.
-      NS_WARNING("unexpected audio channel for volume control");
+    } else {
+      MOZ_ASSUME_UNREACHABLE("unexpected audio channel for volume control");
     }
   }
 #endif
