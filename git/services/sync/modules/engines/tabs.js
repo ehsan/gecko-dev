@@ -2,12 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["TabEngine", "TabSetRecord"];
+this.EXPORTED_SYMBOLS = ['TabEngine', 'TabSetRecord'];
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
-const TABS_TTL = 604800;           // 7 days.
-const TAB_ENTRIES_LIMIT = 25;      // How many URLs to include in tab history.
+const TABS_TTL = 604800; // 7 days
 
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -26,7 +27,7 @@ this.TabSetRecord = function TabSetRecord(collection, id) {
 TabSetRecord.prototype = {
   __proto__: CryptoWrapper.prototype,
   _logName: "Sync.Record.Tabs",
-  ttl: TABS_TTL,
+  ttl: TABS_TTL
 };
 
 Utils.deferGetSet(TabSetRecord, "cleartext", ["clientName", "tabs"]);
@@ -35,7 +36,7 @@ Utils.deferGetSet(TabSetRecord, "cleartext", ["clientName", "tabs"]);
 this.TabEngine = function TabEngine(service) {
   SyncEngine.call(this, "Tabs", service);
 
-  // Reset the client on every startup so that we fetch recent tabs.
+  // Reset the client on every startup so that we fetch recent tabs
   this._resetClient();
 }
 TabEngine.prototype = {
@@ -46,7 +47,7 @@ TabEngine.prototype = {
 
   syncPriority: 3,
 
-  getChangedIDs: function () {
+  getChangedIDs: function getChangedIDs() {
     // No need for a proper timestamp (no conflict resolution needed).
     let changedIDs = {};
     if (this._tracker.modified)
@@ -54,22 +55,22 @@ TabEngine.prototype = {
     return changedIDs;
   },
 
-  // API for use by Sync UI code to give user choices of tabs to open.
-  getAllClients: function () {
+  // API for use by Weave UI code to give user choices of tabs to open:
+  getAllClients: function TabEngine_getAllClients() {
     return this._store._remoteClients;
   },
 
-  getClientById: function (id) {
+  getClientById: function TabEngine_getClientById(id) {
     return this._store._remoteClients[id];
   },
 
-  _resetClient: function () {
+  _resetClient: function TabEngine__resetClient() {
     SyncEngine.prototype._resetClient.call(this);
     this._store.wipe();
     this._tracker.modified = true;
   },
 
-  removeClientData: function () {
+  removeClientData: function removeClientData() {
     let url = this.engineURL + "/" + this.service.clientsEngine.localID;
     this.service.resource(url).delete();
   },
@@ -93,7 +94,7 @@ function TabStore(name, engine) {
 TabStore.prototype = {
   __proto__: Store.prototype,
 
-  itemExists: function (id) {
+  itemExists: function TabStore_itemExists(id) {
     return id == this.engine.service.clientsEngine.localID;
   },
 
@@ -130,40 +131,23 @@ TabStore.prototype = {
           continue;
         }
 
-        let acceptable = !filter ? (url) => url :
-                                   (url) => url && !filteredUrls.test(url);
+        // Until we store full or partial history, just grab the current entry.
+        // index is 1 based, so make sure we adjust.
+        let entry = tabState.entries[tabState.index - 1];
 
-        let entries = tabState.entries;
-        let index = tabState.index;
-        let current = entries[index - 1];
-
-        // We ignore the tab completely if the current entry url is
-        // not acceptable (we need something accurate to open).
-        if (!acceptable(current.url)) {
+        // Filter out some urls if necessary. SessionStore can return empty
+        // tabs in some cases - easiest thing is to just ignore them for now.
+        if (!entry.url || filter && filteredUrls.test(entry.url)) {
           continue;
         }
 
-        // The element at `index` is the current page. Previous URLs were
-        // previously visited URLs; subsequent URLs are in the 'forward' stack,
-        // which we can't represent in Sync, so we truncate here.
-        let candidates = (entries.length == index) ?
-                         entries :
-                         entries.slice(0, index);
-
-        let urls = candidates.map((entry) => entry.url)
-                             .filter(acceptable)
-                             .reverse();                       // Because Sync puts current at index 0, and history after.
-
-        // Truncate if necessary.
-        if (urls.length > TAB_ENTRIES_LIMIT) {
-          urls.length = TAB_ENTRIES_LIMIT;
-        }
-
+        // I think it's also possible that attributes[.image] might not be set
+        // so handle that as well.
         allTabs.push({
-          title: current.title || "",
-          urlHistory: urls,
+          title: entry.title || "",
+          urlHistory: [entry.url],
           icon: tabState.attributes && tabState.attributes.image || "",
-          lastUsed: Math.floor((tabState.lastAccessed || 0) / 1000),
+          lastUsed: Math.floor((tabState.lastAccessed || 0) / 1000)
         });
       }
     }
@@ -171,7 +155,7 @@ TabStore.prototype = {
     return allTabs;
   },
 
-  createRecord: function (id, collection) {
+  createRecord: function createRecord(id, collection) {
     let record = new TabSetRecord(collection, id);
     record.clientName = this.engine.service.clientsEngine.localName;
 
@@ -204,7 +188,7 @@ TabStore.prototype = {
     return record;
   },
 
-  getAllIDs: function () {
+  getAllIDs: function TabStore_getAllIds() {
     // Don't report any tabs if all windows are in private browsing for
     // first syncs.
     let ids = {};
@@ -230,38 +214,31 @@ TabStore.prototype = {
     return ids;
   },
 
-  wipe: function () {
+  wipe: function TabStore_wipe() {
     this._remoteClients = {};
   },
 
-  create: function (record) {
+  create: function TabStore_create(record) {
     this._log.debug("Adding remote tabs from " + record.clientName);
     this._remoteClients[record.id] = record.cleartext;
 
-    // Lose some precision, but that's good enough (seconds).
+    // Lose some precision, but that's good enough (seconds)
     let roundModify = Math.floor(record.modified / 1000);
     let notifyState = Svc.Prefs.get("notifyTabState");
-
-    // If there's no existing pref, save this first modified time.
-    if (notifyState == null) {
+    // If there's no existing pref, save this first modified time
+    if (notifyState == null)
       Svc.Prefs.set("notifyTabState", roundModify);
+    // Don't change notifyState if it's already 0 (don't notify)
+    else if (notifyState == 0)
       return;
-    }
-
-    // Don't change notifyState if it's already 0 (don't notify).
-    if (notifyState == 0) {
-      return;
-    }
-
-    // We must have gotten a new tab that isn't the same as last time.
-    if (notifyState != roundModify) {
+    // We must have gotten a new tab that isn't the same as last time
+    else if (notifyState != roundModify)
       Svc.Prefs.set("notifyTabState", 0);
-    }
   },
 
-  update: function (record) {
+  update: function update(record) {
     this._log.trace("Ignoring tab updates as local ones win");
-  },
+  }
 };
 
 
@@ -270,7 +247,7 @@ function TabTracker(name, engine) {
   Svc.Obs.add("weave:engine:start-tracking", this);
   Svc.Obs.add("weave:engine:stop-tracking", this);
 
-  // Make sure "this" pointer is always set correctly for event listeners.
+  // Make sure "this" pointer is always set correctly for event listeners
   this.onTab = Utils.bind2(this, this.onTab);
   this._unregisterListeners = Utils.bind2(this, this._unregisterListeners);
 }
@@ -279,17 +256,16 @@ TabTracker.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
 
-  loadChangedIDs: function () {
+  loadChangedIDs: function loadChangedIDs() {
     // Don't read changed IDs from disk at start up.
   },
 
-  clearChangedIDs: function () {
+  clearChangedIDs: function clearChangedIDs() {
     this.modified = false;
   },
 
   _topics: ["pageshow", "TabOpen", "TabClose", "TabSelect"],
-
-  _registerListenersForWindow: function (window) {
+  _registerListenersForWindow: function registerListenersFW(window) {
     this._log.trace("Registering tab listeners in window");
     for each (let topic in this._topics) {
       window.addEventListener(topic, this.onTab, false);
@@ -297,11 +273,11 @@ TabTracker.prototype = {
     window.addEventListener("unload", this._unregisterListeners, false);
   },
 
-  _unregisterListeners: function (event) {
+  _unregisterListeners: function unregisterListeners(event) {
     this._unregisterListenersForWindow(event.target);
   },
 
-  _unregisterListenersForWindow: function (window) {
+  _unregisterListenersForWindow: function unregisterListenersFW(window) {
     this._log.trace("Removing tab listeners in window");
     window.removeEventListener("unload", this._unregisterListeners, false);
     for each (let topic in this._topics) {
@@ -342,7 +318,7 @@ TabTracker.prototype = {
     }
   },
 
-  onTab: function (event) {
+  onTab: function onTab(event) {
     if (event.originalTarget.linkedBrowser) {
       let browser = event.originalTarget.linkedBrowser;
       if (PrivateBrowsingUtils.isBrowserPrivate(browser) &&
@@ -358,8 +334,7 @@ TabTracker.prototype = {
     // For page shows, bump the score 10% of the time, emulating a partial
     // score. We don't want to sync too frequently. For all other page
     // events, always bump the score.
-    if (event.type != "pageshow" || Math.random() < .1) {
+    if (event.type != "pageshow" || Math.random() < .1)
       this.score += SCORE_INCREMENT_SMALL;
-    }
   },
-};
+}
