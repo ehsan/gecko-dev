@@ -7,7 +7,6 @@
 #include "nsNSSComponent.h"
 #include "nsNSSIOLayer.h"
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/Telemetry.h"
 
 #include "prlog.h"
@@ -425,7 +424,7 @@ void nsNSSSocketInfo::GetPreviousCert(nsIX509Cert** _result)
 
 #ifndef NSS_NO_LIBPKIX
   RefPtr<PreviousCertRunnable> runnable(new PreviousCertRunnable(mCallbacks));
-  DebugOnly<nsresult> rv = runnable->DispatchToMainThreadAndWait();
+  nsresult rv = runnable->DispatchToMainThreadAndWait();
   NS_ASSERTION(NS_SUCCEEDED(rv), "runnable->DispatchToMainThreadAndWait() failed");
   runnable->mPreviousCert.forget(_result);
 #endif
@@ -471,8 +470,7 @@ nsNSSSocketInfo::SetCertVerificationResult(PRErrorCode errorCode,
   }
 
   if (mPlaintextBytesRead && !errorCode) {
-    Telemetry::Accumulate(Telemetry::SSL_BYTES_BEFORE_CERT_CALLBACK,
-                          SafeCast<uint32_t>(mPlaintextBytesRead));
+    Telemetry::Accumulate(Telemetry::SSL_BYTES_BEFORE_CERT_CALLBACK, mPlaintextBytesRead);
   }
 
   mCertVerificationState = after_cert_verification;
@@ -2554,11 +2552,6 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS,
     return NS_ERROR_FAILURE;
   }
   infoObject->SetTLSEnabled(enabled);
-
-  enabled = infoObject->SharedState().IsOCSPStaplingEnabled();
-  if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_OCSP_STAPLING, enabled)) {
-    return NS_ERROR_FAILURE;
-  }
 
   if (SECSuccess != SSL_OptionSet(fd, SSL_HANDSHAKE_AS_CLIENT, true)) {
     return NS_ERROR_FAILURE;

@@ -251,10 +251,10 @@ private:
     const uint32_t mLoadFlags;
     const bool mCacheForOfflineUse;
     const bool mFallbackChannel;
-    const nsCString mClientID;
+    const InfallableCopyCString mClientID;
     const nsCacheStoragePolicy mStoragePolicy;
     const bool mUsingPrivateBrowsing;
-    const nsCString mCacheKey;
+    const InfallableCopyCString mCacheKey;
     const nsCacheAccessMode mAccessToRequest;
     const bool mNoWait;
     const bool mUsingSSL;

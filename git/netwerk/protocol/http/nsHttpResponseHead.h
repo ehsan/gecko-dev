@@ -121,10 +121,10 @@ private:
     nsHttpHeaderArray mHeaders;
     nsHttpVersion     mVersion;
     uint16_t          mStatus;
-    nsCString         mStatusText;
+    mozilla::net::InfallableCopyCString mStatusText;
     int64_t           mContentLength;
-    nsCString         mContentType;
-    nsCString         mContentCharset;
+    mozilla::net::InfallableCopyCString mContentType;
+    mozilla::net::InfallableCopyCString mContentCharset;
     bool              mCacheControlNoStore;
     bool              mCacheControlNoCache;
     bool              mPragmaNoCache;

@@ -717,10 +717,7 @@ MacroAssembler::performOsr()
     bind(&isFunction);
     {
         // Function - create the callee token, then get the script.
-
-        // Skip the or-ing of CalleeToken_Function into calleeToken since it is zero.
-        JS_ASSERT(CalleeToken_Function == 0);
-
+        orPtr(Imm32(CalleeToken_Function), calleeToken);
         loadPtr(Address(script, JSFunction::offsetOfNativeOrScript()), script);
     }
 

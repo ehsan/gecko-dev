@@ -12,6 +12,7 @@
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
 #include "nsIDocumentLoaderFactory.h"
+#include "nsIDOMSVGAnimatedLength.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIHttpChannel.h"
 #include "nsIObserverService.h"
@@ -85,12 +86,14 @@ SVGDocumentWrapper::GetWidthOrHeight(Dimension aDimension,
   NS_ENSURE_TRUE(domAnimLength, false);
 
   // Get the animated value from the object
-  nsRefPtr<nsIDOMSVGLength> domLength = domAnimLength->AnimVal();
+  nsRefPtr<nsIDOMSVGLength> domLength;
+  nsresult rv = domAnimLength->GetAnimVal(getter_AddRefs(domLength));
+  NS_ENSURE_SUCCESS(rv, false);
   NS_ENSURE_TRUE(domLength, false);
 
   // Check if it's a percent value (and fail if so)
   uint16_t unitType;
-  nsresult rv = domLength->GetUnitType(&unitType);
+  rv = domLength->GetUnitType(&unitType);
   NS_ENSURE_SUCCESS(rv, false);
   if (unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
     return false;

@@ -7,6 +7,7 @@
 #include "nsISVGPoint.h"
 #include "nsSVGTextContainerFrame.h"
 #include "nsSVGTextFrame2.h"
+#include "nsIDOMSVGAnimatedLength.h"
 #include "mozilla/dom/SVGIRect.h"
 #include "nsIDOMSVGAnimatedEnum.h"
 

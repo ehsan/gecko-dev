@@ -11,6 +11,7 @@
 #include "nsCoord.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsError.h"
+#include "nsIDOMSVGAnimatedLength.h"
 #include "nsIDOMSVGLength.h"
 #include "nsISMILAttr.h"
 #include "nsMathUtils.h"
@@ -88,6 +89,9 @@ public:
   // useable, and represents the default base value of the attribute.
   bool IsExplicitlySet() const
     { return mIsAnimated || mIsBaseSet; }
+  
+  nsresult ToDOMAnimatedLength(nsIDOMSVGAnimatedLength **aResult,
+                               nsSVGElement* aSVGElement);
 
   already_AddRefed<mozilla::dom::SVGAnimatedLength>
   ToDOMAnimatedLength(nsSVGElement* aSVGElement);

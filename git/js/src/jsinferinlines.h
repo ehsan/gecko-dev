@@ -703,7 +703,7 @@ UseNewTypeForClone(JSFunction *fun)
         return true;
 
     if (fun->isArrow())
-        return false;
+        return true;
 
     if (fun->hasSingletonType())
         return false;

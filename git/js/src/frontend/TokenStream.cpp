@@ -284,6 +284,7 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     originPrincipals(JSScript::normalizeOriginPrincipals(options.principals,
                                                          options.originPrincipals)),
     strictModeGetter(smg),
+    lastFunctionKeyword(keepAtoms),
     tokenSkip(cx, &tokens),
     linebaseSkip(cx, &linebase),
     prevLinebaseSkip(cx, &prevLinebase)
@@ -573,7 +574,15 @@ void
 TokenStream::seek(const Position &pos, const TokenStream &other)
 {
     srcCoords.fill(other.srcCoords);
+    lastFunctionKeyword = other.lastFunctionKeyword;
     seek(pos);
+}
+
+void
+TokenStream::positionAfterLastFunctionKeyword(Position &pos)
+{
+    JS_ASSERT(lastFunctionKeyword.buf > userbuf.base());
+    PodAssign(&pos, &lastFunctionKeyword);
 }
 
 bool
@@ -1163,8 +1172,11 @@ TokenStream::getTokenInternal()
             tt = TOK_NAME;
             if (!checkForKeyword(chars, length, &tt, &tp->t_op))
                 goto error;
-            if (tt != TOK_NAME)
+            if (tt != TOK_NAME) {
+                if (tt == TOK_FUNCTION)
+                    tell(&lastFunctionKeyword);
                 goto out;
+            }
         }
 
         /*

@@ -468,13 +468,11 @@ class MochiRemote(Mochitest):
             # pullFile will fail -- continue silently.
             pass
 
-    def printDeviceInfo(self, printLogcat=False):
+    def printDeviceInfo(self):
         try:
-            if printLogcat:
-                logcat = self._dm.getLogcat(filterOutRegexps=fennecLogcatFilters)
-                print ''.join(logcat)
-            print "Device info: %s" % self._dm.getInfo()
-            print "Test root: %s" % self._dm.getDeviceRoot()
+            logcat = self._dm.getLogcat(filterOutRegexps=fennecLogcatFilters)
+            print ''.join(logcat)
+            print self._dm.getInfo()
         except devicemanager.DMError:
             print "WARNING: Error getting device information"
 
@@ -549,7 +547,7 @@ def main():
     auto.setRemoteLog(options.remoteLogFile)
     auto.setServerInfo(options.webServer, options.httpPort, options.sslPort)
 
-    mochitest.printDeviceInfo()
+    print dm.getInfo()
 
     procName = options.app.split('/')[-1]
     if (dm.processExist(procName)):
@@ -635,7 +633,7 @@ def main():
                     print "ERROR: runTests() exited with code %s" % result
                 log_result = mochitest.addLogData()
                 if result != 0 or log_result != 0:
-                    mochitest.printDeviceInfo(printLogcat=True)
+                    mochitest.printDeviceInfo()
                     mochitest.printScreenshot()
                 # Ensure earlier failures aren't overwritten by success on this run
                 if retVal is None or retVal == 0:
@@ -688,7 +686,7 @@ def main():
                 pass
             retVal = 1
 
-    mochitest.printDeviceInfo(printLogcat=True)
+    mochitest.printDeviceInfo()
 
     sys.exit(retVal)
 

@@ -229,9 +229,11 @@ void
 MDefinition::printOpcode(FILE *fp)
 {
     PrintOpcodeName(fp, op());
+    fprintf(fp, " ");
     for (size_t j = 0; j < numOperands(); j++) {
-        fprintf(fp, " ");
         getOperand(j)->printName(fp);
+        if (j != numOperands() - 1)
+            fprintf(fp, " ");
     }
 }
 
@@ -440,21 +442,6 @@ MConstant::printOpcode(FILE *fp)
         JS_NOT_REACHED("unexpected type");
         break;
     }
-}
-
-void
-MControlInstruction::printOpcode(FILE *fp)
-{
-    MDefinition::printOpcode(fp);
-    for (size_t j = 0; j < numSuccessors(); j++)
-        fprintf(fp, " block%d", getSuccessor(j)->id());
-}
-
-void
-MCompare::printOpcode(FILE *fp)
-{
-    MDefinition::printOpcode(fp);
-    fprintf(fp, " %s", js_CodeName[jsop()]);
 }
 
 void

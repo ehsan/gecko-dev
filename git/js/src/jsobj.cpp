@@ -1250,12 +1250,8 @@ NewObject(JSContext *cx, Class *clasp, types::TypeObject *type_, JSObject *paren
 
     RootedTypeObject type(cx, type_);
 
-    JSObject *metadata = NULL;
-    if (!NewObjectMetadata(cx, &metadata))
-        return NULL;
-
     RootedShape shape(cx, EmptyShape::getInitialShape(cx, clasp, TaggedProto(type->proto),
-                                                      parent, metadata, kind));
+                                                      parent, NewObjectMetadata(cx), kind));
     if (!shape)
         return NULL;
 
@@ -1552,9 +1548,7 @@ js::CreateThisForFunctionWithProto(JSContext *cx, HandleObject callee, JSObject 
     }
 
     if (res && cx->typeInferenceEnabled()) {
-        JSScript *script = callee->as<JSFunction>().getOrCreateScript(cx);
-        if (!script)
-            return NULL;
+        JSScript *script = callee->as<JSFunction>().nonLazyScript();
         TypeScript::SetThis(cx, script, types::Type::ObjectType(res));
     }
 
