@@ -504,8 +504,6 @@ nsContextMenu.prototype = {
     if (gContextMenuContentData) {
       this.isRemote = true;
       aNode = gContextMenuContentData.event.target;
-      aRangeParent = gContextMenuContentData.event.rangeParent;
-      aRangeOffset = gContextMenuContentData.event.rangeOffset;
     } else {
       this.isRemote = false;
     }

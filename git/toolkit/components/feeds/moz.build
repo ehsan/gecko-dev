@@ -25,7 +25,3 @@ EXTRA_COMPONENTS += [
     'FeedProcessor.js',
     'FeedProcessor.manifest',
 ]
-
-XPCSHELL_TESTS_MANIFESTS += [
-    'test/xpcshell.ini'
-]

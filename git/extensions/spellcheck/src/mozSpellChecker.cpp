@@ -128,12 +128,7 @@ mozSpellChecker::CheckWord(const nsAString &aWord, bool *aIsMisspelled, nsTArray
 
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     nsString wordwrapped = nsString(aWord);
-    bool rv;
-    if (aSuggestions) {
-      rv = mEngine->CallCheckAndSuggest(wordwrapped, aIsMisspelled, aSuggestions);
-    } else {
-      rv = mEngine->CallCheck(wordwrapped, aIsMisspelled);
-    }
+    bool rv = mEngine->SendCheckForMisspelling(wordwrapped, aIsMisspelled);
     return rv ? NS_OK : NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -364,7 +359,7 @@ mozSpellChecker::SetCurrentDictionary(const nsAString &aDictionary)
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     nsString wrappedDict = nsString(aDictionary);
     bool isSuccess;
-    mEngine->CallSetDictionary(wrappedDict, &isSuccess);
+    mEngine->SendSetDictionary(wrappedDict, &isSuccess);
     return isSuccess ? NS_OK : NS_ERROR_NOT_AVAILABLE;
   }
 

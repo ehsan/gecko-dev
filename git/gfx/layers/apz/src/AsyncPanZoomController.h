@@ -38,6 +38,7 @@ namespace layers {
 struct ScrollableLayerGuid;
 class CompositorParent;
 class GestureEventListener;
+class ContainerLayer;
 class PCompositorParent;
 struct ViewTransform;
 class AsyncPanZoomAnimation;

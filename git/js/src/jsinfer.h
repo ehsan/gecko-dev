@@ -436,21 +436,24 @@ enum MOZ_ENUM_TYPE(uint32_t) {
     /* Whether this type object is associated with some allocation site. */
     OBJECT_FLAG_FROM_ALLOCATION_SITE  = 0x1,
 
+    /* If set, addendum information should not be installed on this object. */
+    OBJECT_FLAG_ADDENDUM_CLEARED      = 0x2,
+
     /*
      * If set, the object's prototype might be in the nursery and can't be
      * used during Ion compilation (which may be occurring off thread).
      */
-    OBJECT_FLAG_NURSERY_PROTO         = 0x2,
+    OBJECT_FLAG_NURSERY_PROTO         = 0x4,
 
     /*
      * Whether we have ensured all type sets in the compartment contain
      * ANYOBJECT instead of this object.
      */
-    OBJECT_FLAG_SETS_MARKED_UNKNOWN   = 0x4,
+    OBJECT_FLAG_SETS_MARKED_UNKNOWN   = 0x8,
 
     /* Mask/shift for the number of properties in propertySet */
-    OBJECT_FLAG_PROPERTY_COUNT_MASK   = 0xfff8,
-    OBJECT_FLAG_PROPERTY_COUNT_SHIFT  = 3,
+    OBJECT_FLAG_PROPERTY_COUNT_MASK   = 0xfff0,
+    OBJECT_FLAG_PROPERTY_COUNT_SHIFT  = 4,
     OBJECT_FLAG_PROPERTY_COUNT_LIMIT  =
         OBJECT_FLAG_PROPERTY_COUNT_MASK >> OBJECT_FLAG_PROPERTY_COUNT_SHIFT,
 
@@ -821,6 +824,32 @@ struct Property
     static jsid getKey(Property *p) { return p->id; }
 };
 
+struct TypeNewScript;
+
+struct TypeObjectAddendum
+{
+    enum Kind {
+        NewScript
+    };
+
+    explicit TypeObjectAddendum(Kind kind);
+
+    const Kind kind;
+
+    bool isNewScript() {
+        return kind == NewScript;
+    }
+
+    TypeNewScript *asNewScript() {
+        JS_ASSERT(isNewScript());
+        return (TypeNewScript*) this;
+    }
+
+    static inline void writeBarrierPre(TypeObjectAddendum *type);
+
+    static void writeBarrierPost(TypeObjectAddendum *newScript, void *addr) {}
+};
+
 /*
  * Information attached to a TypeObject if it is always constructed using 'new'
  * on a particular script. This is used to manage state related to the definite
@@ -831,8 +860,10 @@ struct Property
  * remove the definite property information and repair the JS stack if the
  * constraints are violated.
  */
-struct TypeNewScript
+struct TypeNewScript : public TypeObjectAddendum
 {
+    TypeNewScript();
+
     HeapPtrFunction fun;
 
     /*
@@ -868,7 +899,6 @@ struct TypeNewScript
     Initializer *initializerList;
 
     static inline void writeBarrierPre(TypeNewScript *newScript);
-    static void writeBarrierPost(TypeNewScript *newScript, void *addr) {}
 };
 
 /*
@@ -952,12 +982,16 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
     TypeObjectFlags flags_;
 
     /*
-     * If specified, holds information about properties which are definitely
-     * added to objects of this type after being constructed by a particular
-     * script.
+     * This field allows various special classes of objects to attach
+     * additional information to a type object:
+     *
+     * - `TypeNewScript`: If addendum is a `TypeNewScript`, it
+     *   indicates that objects of this type have always been
+     *   constructed using 'new' on the specified script, which adds
+     *   some number of properties to the object in a definite order
+     *   before the object escapes.
      */
-    HeapPtrTypeNewScript newScript_;
-
+    HeapPtrTypeObjectAddendum addendum;
   public:
 
     TypeObjectFlags flags() const {
@@ -972,11 +1006,15 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
         flags_ &= ~flags;
     }
 
-    TypeNewScript *newScript() {
-        return newScript_;
+    bool hasNewScript() const {
+        return addendum && addendum->isNewScript();
     }
 
-    void setNewScript(TypeNewScript *newScript);
+    TypeNewScript *newScript() {
+        return addendum->asNewScript();
+    }
+
+    void setAddendum(TypeObjectAddendum *addendum);
 
   private:
     /*
@@ -1056,7 +1094,7 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
         // this bit reliably.
         if (unknownProperties())
             return false;
-        return (flags() & OBJECT_FLAG_FROM_ALLOCATION_SITE) || newScript();
+        return (flags() & OBJECT_FLAG_FROM_ALLOCATION_SITE) || hasNewScript();
     }
 
     void setShouldPreTenure(ExclusiveContext *cx) {
@@ -1089,8 +1127,9 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
     void markStateChange(ExclusiveContext *cx);
     void setFlags(ExclusiveContext *cx, TypeObjectFlags flags);
     void markUnknown(ExclusiveContext *cx);
-    void maybeClearNewScriptOnOOM();
-    void clearNewScript(ExclusiveContext *cx);
+    void maybeClearNewScriptAddendumOnOOM();
+    void clearAddendum(ExclusiveContext *cx);
+    void clearNewScriptAddendum(ExclusiveContext *cx);
     bool isPropertyNonData(jsid id);
     bool isPropertyNonWritable(jsid id);
 
@@ -1565,7 +1604,7 @@ struct TypeZone
     JS::Zone *zone() const { return zone_; }
 
     void sweep(FreeOp *fop, bool releaseTypes, bool *oom);
-    void clearAllNewScriptsOnOOM();
+    void clearAllNewScriptAddendumsOnOOM();
 
     /* Mark a script as needing recompilation once inference has finished. */
     void addPendingRecompile(JSContext *cx, const RecompileInfo &info);

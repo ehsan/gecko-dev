@@ -18,7 +18,6 @@
 #include "frontend/BytecodeCompiler.h"
 #include "gc/Marking.h"
 #include "jit/BaselineJIT.h"
-#include "js/GCAPI.h"
 #include "js/Vector.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/DebuggerMemory.h"
@@ -1427,13 +1426,10 @@ Debugger::slowPathOnNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global
     AutoObjectVector watchers(cx);
     for (JSCList *link = JS_LIST_HEAD(&cx->runtime()->onNewGlobalObjectWatchers);
          link != &cx->runtime()->onNewGlobalObjectWatchers;
-         link = JS_NEXT_LINK(link))
-    {
+         link = JS_NEXT_LINK(link)) {
         Debugger *dbg = fromOnNewGlobalObjectWatchersLink(link);
         JS_ASSERT(dbg->observesNewGlobalObject());
-        JSObject *obj = dbg->object;
-        JS::ExposeObjectToActiveJS(obj);
-        if (!watchers.append(obj))
+        if (!watchers.append(dbg->object))
             return;
     }
 
@@ -2678,10 +2674,6 @@ class Debugger::ScriptQuery {
             return false;
         }
 
-        /* We cannot touch the gray bits while isHeapBusy, so do this now. */
-        for (JSScript **i = vector->begin(); i != vector->end(); ++i)
-            JS::ExposeScriptToActiveJS(*i);
-
         /*
          * For most queries, we just accumulate results in 'vector' as we find
          * them. But if this is an 'innermost' query, then we've accumulated the
@@ -2691,9 +2683,7 @@ class Debugger::ScriptQuery {
         if (innermost) {
             for (CompartmentToScriptMap::Range r = innermostForCompartment.all();
                  !r.empty();
-                 r.popFront())
-            {
-                JS::ExposeScriptToActiveJS(r.front().value());
+                 r.popFront()) {
                 if (!v->append(r.front().value())) {
                     js_ReportOutOfMemory(cx);
                     return false;

@@ -49,7 +49,13 @@ using namespace mozilla;
 using mozilla::dom::ContentParent;
 using mozilla::dom::PContentParent;
 
-// We use a "best-fit" algorithm for matching locales and themes.
+static PLDHashOperator
+RemoveAll(PLDHashTable *table, PLDHashEntryHdr *entry, uint32_t number, void *arg)
+{
+  return (PLDHashOperator) (PL_DHASH_NEXT | PL_DHASH_REMOVE);
+}
+
+// We use a "best-fit" algorithm for matching locales and themes. 
 // 1) the exact selected locale/theme
 // 2) (locales only) same language, different country
 //    e.g. en-GB is the selected locale, only en-US is available
@@ -76,7 +82,7 @@ LanguagesMatch(const nsACString& a, const nsACString& b)
   while (*as == *bs) {
     if (*as == '-')
       return true;
-
+ 
     ++as; ++bs;
 
     // reached the end
@@ -99,10 +105,13 @@ nsChromeRegistryChrome::nsChromeRegistryChrome()
   : mProfileLoaded(false)
   , mDynamicRegistration(true)
 {
+  mPackagesHash.ops = nullptr;
 }
 
 nsChromeRegistryChrome::~nsChromeRegistryChrome()
 {
+  if (mPackagesHash.ops)
+    PL_DHashTableFinish(&mPackagesHash);
 }
 
 nsresult
@@ -114,6 +123,8 @@ nsChromeRegistryChrome::Init()
 
   mSelectedLocale = NS_LITERAL_CSTRING("en-US");
   mSelectedSkin = NS_LITERAL_CSTRING("classic/1.0");
+
+  PL_DHashTableInit(&mPackagesHash, &kTableOps, nullptr, sizeof(PackageEntry));
 
   bool safeMode = false;
   nsCOMPtr<nsIXULRuntime> xulrun (do_GetService(XULAPPINFO_SERVICE_CONTRACTID));
@@ -188,8 +199,12 @@ nsChromeRegistryChrome::GetLocalesForPackage(const nsACString& aPackage,
   if (!a)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  PackageEntry* entry;
-  if (mPackagesHash.Get(realpackage, &entry)) {
+  PackageEntry* entry =
+      static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
+                                                      & realpackage,
+                                                      PL_DHASH_LOOKUP));
+
+  if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
     entry->locales.EnumerateToArray(a);
   }
 
@@ -233,7 +248,7 @@ nsChromeRegistryChrome::IsLocaleRTL(const nsACString& package, bool *aResult)
   nsCOMPtr<nsIPrefBranch> prefBranch (do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (!prefBranch)
     return NS_OK;
-
+  
   nsXPIDLCString dir;
   prefBranch->GetCharPref(prefString.get(), getter_Copies(dir));
   if (dir.IsEmpty()) {
@@ -255,8 +270,12 @@ nsChromeRegistryChrome::GetSelectedLocale(const nsACString& aPackage,
   nsresult rv = OverrideLocalePackage(aPackage, realpackage);
   if (NS_FAILED(rv))
     return rv;
-  PackageEntry* entry;
-  if (!mPackagesHash.Get(realpackage, &entry))
+  PackageEntry* entry =
+      static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
+                                                      & realpackage,
+                                                      PL_DHASH_LOOKUP));
+
+  if (PL_DHASH_ENTRY_IS_FREE(entry))
     return NS_ERROR_FILE_NOT_FOUND;
 
   aLocale = entry->locales.GetSelected(mSelectedLocale, nsProviderArray::LOCALE);
@@ -369,7 +388,7 @@ nsChromeRegistryChrome::Observe(nsISupports *aSubject, const char *aTopic,
 NS_IMETHODIMP
 nsChromeRegistryChrome::CheckForNewChrome()
 {
-  mPackagesHash.Clear();
+  PL_DHashTableEnumerate(&mPackagesHash, RemoveAll, nullptr);
   mOverlayHash.Clear();
   mStyleHash.Clear();
   mOverrideTable.Clear();
@@ -425,7 +444,7 @@ EnumerateOverride(nsIURI* aURIKey,
 
   SerializeURI(aURIKey, chromeURI);
   SerializeURI(aURI, overrideURI);
-
+        
   OverrideMapping override = {
     chromeURI, overrideURI
   };
@@ -451,7 +470,7 @@ nsChromeRegistryChrome::SendRegisteredChrome(
   EnumerationArgs args = {
     packages, mSelectedLocale, mSelectedSkin
   };
-  mPackagesHash.EnumerateRead(CollectPackages, &args);
+  PL_DHashTableEnumerate(&mPackagesHash, CollectPackages, &args);
 
   nsCOMPtr<nsIIOService> io (do_GetIOService());
   NS_ENSURE_TRUE_VOID(io);
@@ -487,8 +506,7 @@ nsChromeRegistryChrome::SendRegisteredChrome(
 }
 
 /* static */ void
-nsChromeRegistryChrome::ChromePackageFromPackageEntry(const nsACString& aPackageName,
-                                                      PackageEntry* aPackage,
+nsChromeRegistryChrome::ChromePackageFromPackageEntry(PackageEntry* aPackage,
                                                       ChromePackage* aChromePackage,
                                                       const nsCString& aSelectedLocale,
                                                       const nsCString& aSelectedSkin)
@@ -499,22 +517,24 @@ nsChromeRegistryChrome::ChromePackageFromPackageEntry(const nsACString& aPackage
                aChromePackage->localeBaseURI);
   SerializeURI(aPackage->skins.GetBase(aSelectedSkin, nsProviderArray::ANY),
                aChromePackage->skinBaseURI);
-  aChromePackage->package = aPackageName;
+  aChromePackage->package = aPackage->package;
   aChromePackage->flags = aPackage->flags;
 }
 
 PLDHashOperator
-nsChromeRegistryChrome::CollectPackages(const nsACString &aKey,
-                                        PackageEntry *package,
-                                        void *arg)
+nsChromeRegistryChrome::CollectPackages(PLDHashTable *table,
+                                  PLDHashEntryHdr *entry,
+                                  uint32_t number,
+                                  void *arg)
 {
   EnumerationArgs* args = static_cast<EnumerationArgs*>(arg);
+  PackageEntry* package = static_cast<PackageEntry*>(entry);
 
   ChromePackage chromePackage;
-  ChromePackageFromPackageEntry(aKey, package, &chromePackage,
+  ChromePackageFromPackageEntry(package, &chromePackage,
                                 args->selectedLocale, args->selectedSkin);
   args->packages.AppendElement(chromePackage);
-  return PL_DHASH_NEXT;
+  return (PLDHashOperator)PL_DHASH_NEXT;
 }
 
 static bool
@@ -532,8 +552,12 @@ nsChromeRegistryChrome::GetBaseURIFromPackage(const nsCString& aPackage,
                                               const nsCString& aProvider,
                                               const nsCString& aPath)
 {
-  PackageEntry* entry;
-  if (!mPackagesHash.Get(aPackage, &entry)) {
+  PackageEntry* entry =
+      static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
+                                                      &aPackage,
+                                                      PL_DHASH_LOOKUP));
+
+  if (PL_DHASH_ENTRY_IS_FREE(entry)) {
     if (!mInitialized)
       return nullptr;
 
@@ -559,13 +583,61 @@ nsresult
 nsChromeRegistryChrome::GetFlagsFromPackage(const nsCString& aPackage,
                                             uint32_t* aFlags)
 {
-  PackageEntry* entry;
-  if (!mPackagesHash.Get(aPackage, &entry))
+  PackageEntry* entry =
+      static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
+                                                      & (nsACString&) aPackage,
+                                                      PL_DHASH_LOOKUP));
+  if (PL_DHASH_ENTRY_IS_FREE(entry))
     return NS_ERROR_FILE_NOT_FOUND;
 
   *aFlags = entry->flags;
   return NS_OK;
 }
+
+PLHashNumber
+nsChromeRegistryChrome::HashKey(PLDHashTable *table, const void *key)
+{
+  const nsACString& str = *reinterpret_cast<const nsACString*>(key);
+  return HashString(str);
+}
+
+bool
+nsChromeRegistryChrome::MatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
+                           const void *key)
+{
+  const nsACString& str = *reinterpret_cast<const nsACString*>(key);
+  const PackageEntry* pentry = static_cast<const PackageEntry*>(entry);
+  return str.Equals(pentry->package);
+}
+
+void
+nsChromeRegistryChrome::ClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
+{
+  PackageEntry* pentry = static_cast<PackageEntry*>(entry);
+  pentry->~PackageEntry();
+}
+
+bool
+nsChromeRegistryChrome::InitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
+                            const void *key)
+{
+  const nsACString& str = *reinterpret_cast<const nsACString*>(key);
+
+  new (entry) PackageEntry(str);
+  return true;
+}
+
+const PLDHashTableOps
+nsChromeRegistryChrome::kTableOps = {
+  PL_DHashAllocTable,
+  PL_DHashFreeTable,
+  HashKey,
+  MatchKey,
+  PL_DHashMoveEntryStub,
+  ClearEntry,
+  PL_DHashFinalizeStub,
+  InitEntry
+};
 
 nsChromeRegistryChrome::ProviderEntry*
 nsChromeRegistryChrome::nsProviderArray::GetProvider(const nsACString& aPreferred, MatchType aType)
@@ -782,8 +854,13 @@ nsChromeRegistryChrome::ManifestContent(ManifestProcessingContext& cx, int linen
     return;
   }
 
-  nsDependentCString packageName(package);
-  PackageEntry* entry = mPackagesHash.LookupOrAdd(packageName);
+  PackageEntry* entry =
+    static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
+                                                    & (const nsACString&) nsDependentCString(package),
+                                                    PL_DHASH_ADD));
+  if (!entry)
+    return;
+
   entry->baseURI = resolved;
 
   if (platform)
@@ -793,8 +870,7 @@ nsChromeRegistryChrome::ManifestContent(ManifestProcessingContext& cx, int linen
 
   if (mDynamicRegistration) {
     ChromePackage chromePackage;
-    ChromePackageFromPackageEntry(packageName, entry, &chromePackage,
-                                  mSelectedLocale, mSelectedSkin);
+    ChromePackageFromPackageEntry(entry, &chromePackage, mSelectedLocale, mSelectedSkin);
     SendManifestEntry(chromePackage);
   }
 }
@@ -824,14 +900,18 @@ nsChromeRegistryChrome::ManifestLocale(ManifestProcessingContext& cx, int lineno
     return;
   }
 
-  nsDependentCString packageName(package);
-  PackageEntry* entry = mPackagesHash.LookupOrAdd(packageName);
+  PackageEntry* entry =
+    static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
+                                                    & (const nsACString&) nsDependentCString(package),
+                                                    PL_DHASH_ADD));
+  if (!entry)
+    return;
+
   entry->locales.SetBase(nsDependentCString(provider), resolved);
 
   if (mDynamicRegistration) {
     ChromePackage chromePackage;
-    ChromePackageFromPackageEntry(packageName, entry, &chromePackage,
-                                  mSelectedLocale, mSelectedSkin);
+    ChromePackageFromPackageEntry(entry, &chromePackage, mSelectedLocale, mSelectedSkin);
     SendManifestEntry(chromePackage);
   }
 }
@@ -861,14 +941,18 @@ nsChromeRegistryChrome::ManifestSkin(ManifestProcessingContext& cx, int lineno,
     return;
   }
 
-  nsDependentCString packageName(package);
-  PackageEntry* entry = mPackagesHash.LookupOrAdd(packageName);
+  PackageEntry* entry =
+    static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
+                                                    & (const nsACString&) nsDependentCString(package),
+                                                    PL_DHASH_ADD));
+  if (!entry)
+    return;
+
   entry->skins.SetBase(nsDependentCString(provider), resolved);
 
   if (mDynamicRegistration) {
     ChromePackage chromePackage;
-    ChromePackageFromPackageEntry(packageName, entry, &chromePackage,
-                                  mSelectedLocale, mSelectedSkin);
+    ChromePackageFromPackageEntry(entry, &chromePackage, mSelectedLocale, mSelectedSkin);
     SendManifestEntry(chromePackage);
   }
 }
@@ -979,7 +1063,7 @@ nsChromeRegistryChrome::ManifestResource(ManifestProcessingContext& cx, int line
   nsresult rv = io->GetProtocolHandler("resource", getter_AddRefs(ph));
   if (NS_FAILED(rv))
     return;
-
+  
   nsCOMPtr<nsIResProtocolHandler> rph = do_QueryInterface(ph);
 
   bool exists = false;
