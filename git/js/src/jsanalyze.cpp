@@ -342,7 +342,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
      * any safe point.
      */
     if (cx->compartment->debugMode())
-        usesReturnValue_ = true;
+        usesRval = true;
 
     isInlineable = true;
     if (script->nClosedArgs || script->nClosedVars || script->nfixed >= LOCAL_LIMIT ||
@@ -498,7 +498,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
           case JSOP_SETRVAL:
           case JSOP_POPV:
-            usesReturnValue_ = true;
+            usesRval = true;
             isInlineable = false;
             break;
 
@@ -510,7 +510,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_QNAMEPART:
           case JSOP_QNAMECONST:
             checkAliasedName(cx, pc);
-            usesScopeChain_ = true;
+            usesScope = true;
             isInlineable = false;
             break;
 
@@ -519,34 +519,20 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_DEFCONST:
           case JSOP_SETCONST:
             checkAliasedName(cx, pc);
-            extendsScope_ = true;
-            isInlineable = canTrackVars = false;
-            break;
-
-          case JSOP_EVAL:
-            extendsScope_ = true;
-            isInlineable = canTrackVars = false;
-            break;
+            /* FALLTHROUGH */
 
           case JSOP_ENTERWITH:
-            addsScopeObjects_ = true;
             isInlineable = canTrackVars = false;
-            break;
-
-          case JSOP_ENTERBLOCK:
-          case JSOP_LEAVEBLOCK:
-            addsScopeObjects_ = true;
-            isInlineable = false;
             break;
 
           case JSOP_THIS:
-            usesThisValue_ = true;
+            usesThis = true;
             break;
 
           case JSOP_CALL:
           case JSOP_NEW:
             /* Only consider potentially inlineable calls here. */
-            hasFunctionCalls_ = true;
+            hasCalls = true;
             break;
 
           case JSOP_TABLESWITCH:
@@ -731,6 +717,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
           /* Additional opcodes which can be compiled but which can't be inlined. */
           case JSOP_ARGUMENTS:
+          case JSOP_EVAL:
           case JSOP_THROW:
           case JSOP_EXCEPTION:
           case JSOP_DEFLOCALFUN:
@@ -742,6 +729,8 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_ARGSUB:
           case JSOP_ARGCNT:
           case JSOP_DEBUGGER:
+          case JSOP_ENTERBLOCK:
+          case JSOP_LEAVEBLOCK:
           case JSOP_FUNCALL:
           case JSOP_FUNAPPLY:
             isInlineable = false;

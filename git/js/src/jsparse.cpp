@@ -1132,6 +1132,9 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
 bool
 Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *script)
 {
+    if (!globalScope.defs.length())
+        return true;
+
     JSObject *globalObj = globalScope.globalObj;
 
     /* Define and update global properties. */
@@ -1184,29 +1187,18 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
      * object.
      */
     while (worklist.length()) {
-        JSScript *outer = worklist.back();
+        JSScript *inner = worklist.back();
         worklist.popBack();
 
-        if (JSScript::isValidOffset(outer->objectsOffset)) {
-            JSObjectArray *arr = outer->objects();
-
-            /*
-             * If this is an eval script, don't treat the saved caller function
-             * stored in the first object slot as an inner function.
-             */
-            size_t start = outer->savedCallerFun ? 1 : 0;
-
-            for (size_t i = start; i < arr->length; i++) {
+        if (JSScript::isValidOffset(inner->objectsOffset)) {
+            JSObjectArray *arr = inner->objects();
+            for (size_t i = 0; i < arr->length; i++) {
                 JSObject *obj = arr->vector[i];
                 if (!obj->isFunction())
                     continue;
                 JSFunction *fun = obj->getFunctionPrivate();
                 JS_ASSERT(fun->isInterpreted());
                 JSScript *inner = fun->script();
-                if (outer->isHeavyweightFunction) {
-                    outer->isOuterFunction = true;
-                    inner->isInnerFunction = true;
-                }
                 if (!JSScript::isValidOffset(inner->globalsOffset) &&
                     !JSScript::isValidOffset(inner->objectsOffset)) {
                     continue;
@@ -1216,10 +1208,10 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
             }
         }
 
-        if (!JSScript::isValidOffset(outer->globalsOffset))
+        if (!JSScript::isValidOffset(inner->globalsOffset))
             continue;
 
-        GlobalSlotArray *globalUses = outer->globals();
+        GlobalSlotArray *globalUses = inner->globals();
         uint32 nGlobalUses = globalUses->length;
         for (uint32 i = 0; i < nGlobalUses; i++) {
             uint32 index = globalUses->vector[i].slot;

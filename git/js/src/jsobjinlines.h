@@ -143,7 +143,7 @@ JSObject::getProperty(JSContext *cx, JSObject *receiver, jsid id, js::Value *vp)
     } else {
         if (!js_GetProperty(cx, this, receiver, id, vp))
             return false;
-        JS_ASSERT_IF(!hasSingletonType() && nativeContains(js_CheckForStringIndex(id)),
+        JS_ASSERT_IF(!hasSingletonType(),
                      js::types::TypeHasProperty(cx, type(), id, *vp));
     }
     return true;
@@ -404,17 +404,6 @@ JSObject::hasSlotsArray() const
     return slots && slots != fixedSlots();
 }
 
-inline bool
-JSObject::hasContiguousSlots(size_t start, size_t count) const
-{
-    /*
-     * Check that the range [start, start+count) is either all inline or all
-     * out of line.
-     */
-    JS_ASSERT(start + count <= numSlots());
-    return (start + count <= numFixedSlots()) || (start >= numFixedSlots());
-}
-
 inline size_t
 JSObject::structSize() const
 {
@@ -611,14 +600,6 @@ JSObject::setCallObjArg(uintN i, const js::Value &v)
     setSlot(JSObject::CALL_RESERVED_SLOTS + i, v);
 }
 
-inline js::Value *
-JSObject::callObjArgArray()
-{
-    js::DebugOnly<JSFunction*> fun = getCallObjCalleeFunction();
-    JS_ASSERT(hasContiguousSlots(JSObject::CALL_RESERVED_SLOTS, fun->nargs));
-    return getSlotAddress(JSObject::CALL_RESERVED_SLOTS);
-}
-
 inline const js::Value &
 JSObject::callObjVar(uintN i) const
 {
@@ -636,29 +617,6 @@ JSObject::setCallObjVar(uintN i, const js::Value &v)
     JS_ASSERT(i < fun->script()->bindings.countVars());
     setSlot(JSObject::CALL_RESERVED_SLOTS + fun->nargs + i, v);
 }
-
-inline js::Value *
-JSObject::callObjVarArray()
-{
-    JSFunction *fun = getCallObjCalleeFunction();
-    JS_ASSERT(hasContiguousSlots(JSObject::CALL_RESERVED_SLOTS + fun->nargs,
-                                 fun->script()->bindings.countVars()));
-    return getSlotAddress(JSObject::CALL_RESERVED_SLOTS + fun->nargs);
-}
-
-namespace js {
-
-/*
- * Any name atom for a function which will be added as a DeclEnv object to the
- * scope chain above call objects for fun.
- */
-static inline JSAtom *
-CallObjectLambdaName(JSFunction *fun)
-{
-    return (fun->flags & JSFUN_LAMBDA) ? fun->atom : NULL;
-}
-
-} /* namespace js */
 
 inline const js::Value &
 JSObject::getDateUTCTime() const
@@ -894,7 +852,7 @@ JSObject::getType(JSContext *cx)
 }
 
 inline js::types::TypeObject *
-JSObject::getNewType(JSContext *cx, JSFunction *fun, bool markUnknown)
+JSObject::getNewType(JSContext *cx, JSScript *script, bool markUnknown)
 {
     if (isDenseArray() && !makeDenseArraySlow(cx))
         return NULL;
@@ -910,12 +868,12 @@ JSObject::getNewType(JSContext *cx, JSFunction *fun, bool markUnknown)
          * Object.create is called with a prototype object that is also the
          * 'prototype' property of some scripted function.
          */
-        if (newType->newScript && newType->newScript->fun != fun)
+        if (newType->newScript && newType->newScript->script != script)
             newType->clearNewScript(cx);
         if (markUnknown && cx->typeInferenceEnabled() && !newType->unknownProperties())
             newType->markUnknown(cx);
     } else {
-        makeNewType(cx, fun, markUnknown);
+        makeNewType(cx, script, markUnknown);
     }
     return newType;
 }
