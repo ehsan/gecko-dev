@@ -88,7 +88,6 @@ class nsHtml5HtmlAttributes
     void adjustForMath();
     void adjustForSvg();
     nsHtml5HtmlAttributes* cloneAttributes(nsHtml5AtomTable* interner);
-    PRBool equalsAnother(nsHtml5HtmlAttributes* other);
     static void initializeStatics();
     static void releaseStatics();
 };

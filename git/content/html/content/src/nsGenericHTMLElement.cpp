@@ -746,8 +746,7 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 
     PRInt32 oldChildCount = GetChildCount();
     parser->ParseFragment(aInnerHTML, this, Tag(), GetNameSpaceID(),
-                          doc->GetCompatibilityMode() == eCompatibility_NavQuirks,
-                          PR_TRUE);
+                          doc->GetCompatibilityMode() == eCompatibility_NavQuirks);
     doc->SetFragmentParser(parser);
 
     // HTML5 parser has notified, but not fired mutation events.

@@ -63,8 +63,7 @@ public:
     : mLineNumber(0),
       mAlreadyStarted(PR_FALSE),
       mMalformed(PR_FALSE),
-      mDoneAddingChildren(aFromParser == mozilla::dom::NOT_FROM_PARSER ||
-                          aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT),
+      mDoneAddingChildren(PR_TRUE),
       mForceAsync(aFromParser == mozilla::dom::NOT_FROM_PARSER ||
                   aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT),
       mFrozen(PR_FALSE),

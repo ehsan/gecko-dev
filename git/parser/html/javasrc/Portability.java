@@ -159,10 +159,6 @@ public final class Portability {
         return literal.equals(string);
     }
 
-    public static boolean stringEqualsString(String one, String other) {
-        return one.equals(other);
-    }
-    
     public static void delete(Object o) {
         
     }

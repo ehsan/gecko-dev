@@ -126,11 +126,6 @@ public:
     return mCurrentScript;
   }
 
-  nsIScriptElement* GetCurrentParserInsertedScript()
-  {
-    return mCurrentParserInsertedScript;
-  }
-
   /**
    * Whether the loader is enabled or not.
    * When disabled, processing of new script elements is disabled. 
@@ -327,7 +322,6 @@ private:
   nsTArray<PreloadInfo> mPreloads;
 
   nsCOMPtr<nsIScriptElement> mCurrentScript;
-  nsCOMPtr<nsIScriptElement> mCurrentParserInsertedScript;
   // XXXbz do we want to cycle-collect these or something?  Not sure.
   nsTArray< nsRefPtr<nsScriptLoader> > mPendingChildLoaders;
   PRUint32 mBlockerCount;
