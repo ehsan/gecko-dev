@@ -50,8 +50,8 @@
 #include "jsscript.h"
 
 typedef struct JSFrameRegs {
-    js::Value       *sp;            /* stack pointer */
     jsbytecode      *pc;            /* program counter */
+    js::Value       *sp;            /* stack pointer */
 } JSFrameRegs;
 
 /* JS stack frame flags. */
@@ -87,7 +87,7 @@ struct JSStackFrame
 
     jsbytecode          *imacpc;        /* null or interpreter macro call pc */
     JSObject            *callobj;       /* lazily created Call object */
-    JSObject            *argsobj;       /* lazily created arguments object */
+    js::Value           argsval;       /* lazily created arguments object */
     JSScript            *script;        /* script being interpreted */
     JSFunction          *fun;           /* function being called or null */
     uintN               argc;           /* actual argument count */
@@ -100,12 +100,6 @@ struct JSStackFrame
     jsbytecode          *savedPC;       /* only valid if cx->fp != this */
 #ifdef DEBUG
     static jsbytecode *const sInvalidPC;
-#endif
-
-#if defined(JS_CPU_X86) || defined(JS_CPU_ARM)
-    void                *ncode;         /* jit return pc */
-    /* Guh. Align. */
-    void                *align_[3];
 #endif
 
     /*
@@ -144,7 +138,7 @@ struct JSStackFrame
      * also used in some other cases --- entering 'with' blocks, for
      * example.
      */
-    JSObject        *scopeChain;
+    js::Value       scopeChain;
     JSObject        *blockChain;
 
     uint32          flags;          /* frame flags -- see below */
@@ -162,8 +156,8 @@ struct JSStackFrame
          */
         if (callobj) {
             js_PutCallObject(cx, this);
-            JS_ASSERT(!argsobj);
-        } else if (argsobj) {
+            JS_ASSERT(argsval.isNull());
+        } else if (argsval.isNonFunObj()) {
             js_PutArgsObject(cx, this);
         }
     }
@@ -190,6 +184,25 @@ struct JSStackFrame
 
     JSObject *callee() {
         return argv ? &argv[-2].asObject() : NULL;
+    }
+
+    JSObject *argsObj() {
+        return argsval.asObjectOrNull();
+    }
+
+    void setArgsObj(JSObject *obj) {
+        if (obj)
+            argsval.setNonFunObj(*obj);
+        else
+            argsval.setNull();
+    }
+
+    JSObject *scopeChainObj() {
+        return scopeChain.asObjectOrNull();
+    }
+
+    void setScopeChainObj(JSObject *obj) {
+        scopeChain.setObjectOrNull(obj);
     }
 
     /*
@@ -362,9 +375,6 @@ InvokeConstructor(JSContext *cx, const InvokeArgsGuard &args, JSBool clampReturn
 extern JS_REQUIRES_STACK bool
 Interpret(JSContext *cx);
 
-extern JS_REQUIRES_STACK bool
-RunScript(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain);
-
 #define JSPROP_INITIALIZER 0x100   /* NB: Not a valid property attribute. */
 
 extern bool
@@ -442,6 +452,19 @@ js_EnterWith(JSContext *cx, jsint stackIndex);
 extern JS_REQUIRES_STACK void
 js_LeaveWith(JSContext *cx);
 
+extern JS_REQUIRES_STACK js::Class *
+js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
+
+/*
+ * Unwind block and scope chains to match the given depth. The function sets
+ * fp->sp on return to stackDepth.
+ */
+extern JS_REQUIRES_STACK JSBool
+js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind);
+
+extern JSBool
+js_OnUnknownMethod(JSContext *cx, js::Value *vp);
+
 /*
  * Find the results of incrementing or decrementing *vp. For pre-increments,
  * both *vp and *vp2 will contain the result on return. For post-increments,
@@ -468,19 +491,6 @@ extern void
 js_MeterSlotOpcode(JSOp op, uint32 slot);
 
 #endif /* JS_LONE_INTERPRET */
-
-extern JS_REQUIRES_STACK js::Class *
-js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
-
-/*
- * Unwind block and scope chains to match the given depth. The function sets
- * fp->sp on return to stackDepth.
- */
-extern JS_REQUIRES_STACK JSBool
-js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind);
-
-extern JSBool
-js_OnUnknownMethod(JSContext *cx, js::Value *vp);
 
 inline JSObject *
 JSStackFrame::getThisObject(JSContext *cx)

@@ -252,15 +252,15 @@ OPDEF(JSOP_DEFSHARP,  93, "defsharp",   NULL,         5,  0,  0,  0,  JOF_UINT16
 OPDEF(JSOP_USESHARP,  94, "usesharp",   NULL,         5,  0,  1,  0,  JOF_UINT16PAIR|JOF_SHARPSLOT)
 
 /* Fast inc/dec ops for args and locals. */
-OPDEF(JSOP_INCARG,    95, "incarg",     NULL,         3,  0,  1, 15,  JOF_QARG |JOF_NAME|JOF_INC|JOF_TMPSLOT2)
-OPDEF(JSOP_DECARG,    96, "decarg",     NULL,         3,  0,  1, 15,  JOF_QARG |JOF_NAME|JOF_DEC|JOF_TMPSLOT2)
-OPDEF(JSOP_ARGINC,    97, "arginc",     NULL,         3,  0,  1, 15,  JOF_QARG |JOF_NAME|JOF_INC|JOF_POST|JOF_TMPSLOT2)
-OPDEF(JSOP_ARGDEC,    98, "argdec",     NULL,         3,  0,  1, 15,  JOF_QARG |JOF_NAME|JOF_DEC|JOF_POST|JOF_TMPSLOT2)
+OPDEF(JSOP_INCARG,    95, "incarg",     NULL,         3,  0,  1, 15,  JOF_QARG |JOF_NAME|JOF_INC)
+OPDEF(JSOP_DECARG,    96, "decarg",     NULL,         3,  0,  1, 15,  JOF_QARG |JOF_NAME|JOF_DEC)
+OPDEF(JSOP_ARGINC,    97, "arginc",     NULL,         3,  0,  1, 15,  JOF_QARG |JOF_NAME|JOF_INC|JOF_POST)
+OPDEF(JSOP_ARGDEC,    98, "argdec",     NULL,         3,  0,  1, 15,  JOF_QARG |JOF_NAME|JOF_DEC|JOF_POST)
 
-OPDEF(JSOP_INCLOCAL,  99, "inclocal",   NULL,         3,  0,  1, 15,  JOF_LOCAL|JOF_NAME|JOF_INC|JOF_TMPSLOT2)
-OPDEF(JSOP_DECLOCAL,  100,"declocal",   NULL,         3,  0,  1, 15,  JOF_LOCAL|JOF_NAME|JOF_DEC|JOF_TMPSLOT2)
-OPDEF(JSOP_LOCALINC,  101,"localinc",   NULL,         3,  0,  1, 15,  JOF_LOCAL|JOF_NAME|JOF_INC|JOF_POST|JOF_TMPSLOT2)
-OPDEF(JSOP_LOCALDEC,  102,"localdec",   NULL,         3,  0,  1, 15,  JOF_LOCAL|JOF_NAME|JOF_DEC|JOF_POST|JOF_TMPSLOT2)
+OPDEF(JSOP_INCLOCAL,  99, "inclocal",   NULL,         3,  0,  1, 15,  JOF_LOCAL|JOF_NAME|JOF_INC)
+OPDEF(JSOP_DECLOCAL,  100,"declocal",   NULL,         3,  0,  1, 15,  JOF_LOCAL|JOF_NAME|JOF_DEC)
+OPDEF(JSOP_LOCALINC,  101,"localinc",   NULL,         3,  0,  1, 15,  JOF_LOCAL|JOF_NAME|JOF_INC|JOF_POST)
+OPDEF(JSOP_LOCALDEC,  102,"localdec",   NULL,         3,  0,  1, 15,  JOF_LOCAL|JOF_NAME|JOF_DEC|JOF_POST)
 
 OPDEF(JSOP_IMACOP,    103,"imacop",     NULL,         1,  0,  0,  0,  JOF_BYTE)
 
@@ -610,14 +610,3 @@ OPDEF(JSOP_SHARPINIT,     239,"sharpinit",     NULL,  3,  0,  0,  0,  JOF_UINT16
  * If the argument is an object, perform toString conversion (E-262-3 section 9.8).
  */
 OPDEF(JSOP_OBJTOSTR,      240,"objtostr",      NULL,  1,  1,  1,  0,  JOF_BYTE)
-
-/* Static binding for globals. */
-OPDEF(JSOP_GETGLOBAL,     241,"getglobal",     NULL,  3,  0,  1, 19,  JOF_GLOBAL|JOF_NAME)
-OPDEF(JSOP_SETGLOBAL,     242,"setglobal",     NULL,  3,  1,  1,  3,  JOF_GLOBAL|JOF_NAME|JOF_SET|JOF_DETECTING)
-OPDEF(JSOP_INCGLOBAL,     243,"incglobal",     NULL,  3,  0,  1, 15,  JOF_GLOBAL|JOF_NAME|JOF_INC|JOF_TMPSLOT2)
-OPDEF(JSOP_DECGLOBAL,     244,"decglobal",     NULL,  3,  0,  1, 15,  JOF_GLOBAL|JOF_NAME|JOF_DEC|JOF_TMPSLOT2)
-OPDEF(JSOP_GLOBALINC,     245,"globalinc",     NULL,  3,  0,  1, 15,  JOF_GLOBAL|JOF_NAME|JOF_INC|JOF_POST|JOF_TMPSLOT2)
-OPDEF(JSOP_GLOBALDEC,     246,"globaldec",     NULL,  3,  0,  1, 15,  JOF_GLOBAL|JOF_NAME|JOF_DEC|JOF_POST|JOF_TMPSLOT2)
-OPDEF(JSOP_CALLGLOBAL,    247,"callglobal",    NULL,  3,  0,  2, 19,  JOF_GLOBAL|JOF_NAME|JOF_CALLOP)
-OPDEF(JSOP_FORGLOBAL,     248,"forglobal",     NULL,  3,  1,  1, 19,  JOF_GLOBAL|JOF_NAME|JOF_FOR|JOF_TMPSLOT)
-

@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=79 ft=cpp:
+ * vim: set ts=8 sw=4 et tw=79 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -91,19 +91,6 @@ typedef struct JSConstArray {
     uint32          length;
 } JSConstArray;
 
-namespace js {
-
-struct GlobalSlotArray {
-    struct Entry {
-        uint32      atomIndex;  /* index into atom table */
-        uint32      slot;       /* global obj slot number */
-    };
-    Entry           *vector;
-    uint32          length;
-};
-
-} /* namespace js */
-
 #define CALLEE_UPVAR_SLOT               0xffff
 #define FREE_STATIC_LEVEL               0x3fff
 #define FREE_UPVAR_COOKIE               0xffffffff
@@ -116,17 +103,6 @@ struct GlobalSlotArray {
 
 #if defined DEBUG && defined JS_THREADSAFE
 # define CHECK_SCRIPT_OWNER 1
-#endif
-
-#ifdef JS_METHODJIT
-namespace JSC {
-    class ExecutablePool;
-}
-namespace js {
-    namespace mjit {
-        struct PICInfo;
-    }
-}
 #endif
 
 struct JSScript {
@@ -143,8 +119,6 @@ struct JSScript {
     uint8           regexpsOffset;  /* offset to the array of to-be-cloned
                                        regexps or 0 if none. */
     uint8           trynotesOffset; /* offset to the array of try notes or
-                                       0 if none */
-    uint8           globalsOffset;  /* offset to the array of global slots or
                                        0 if none */
     uint8           constOffset;    /* offset to the array of constants or
                                        0 if none */
@@ -168,28 +142,6 @@ struct JSScript {
 #ifdef CHECK_SCRIPT_OWNER
     JSThread        *owner;     /* for thread-safe life-cycle assertions */
 #endif
-#ifdef JS_METHODJIT
-    // Note: the other pointers in this group may be non-NULL only if 
-    // |execPool| is non-NULL.
-    void            *ncode;     /* native code compiled by the method JIT */
-    void            **nmap;     /* maps PCs to native code */
-    JSC::ExecutablePool *execPool;  /* pool that contains |ncode|; script owns the pool */
-    unsigned        npics;      /* Number of PICs in the array |pics| */
-    js::mjit::PICInfo *pics;      /* PICs in this script */
-# ifdef DEBUG
-    size_t          jitLength;  /* length of JIT'd code */
-
-    inline bool isValidJitCode(void *jcode) {
-        return (char*)jcode >= (char*)ncode &&
-               (char*)jcode < (char*)ncode + jitLength;
-    }
-# endif
-#endif
-#ifdef JS_TRACER
-    js::TraceTreeCache  *trees; /* trace tree info. */
-    uint32          tmGen;      /* generation number from the TraceMonitor */
-#endif
-    uint32          tracePoints; /* number of trace points in the script */
 
     /* Script notes are allocated right after the code. */
     jssrcnote *notes() { return (jssrcnote *)(code + length); }
@@ -214,11 +166,6 @@ struct JSScript {
         return (JSTryNoteArray *) ((uint8 *) this + trynotesOffset);
     }
 
-    js::GlobalSlotArray *globals() {
-        JS_ASSERT(globalsOffset != 0);
-        return (js::GlobalSlotArray *) ((uint8 *)this + globalsOffset);
-    }
-
     JSConstArray *consts() {
         JS_ASSERT(constOffset != 0);
         return (JSConstArray *) ((uint8 *) this + constOffset);
@@ -233,18 +180,6 @@ struct JSScript {
         JSObjectArray *arr = objects();
         JS_ASSERT(index < arr->length);
         return arr->vector[index];
-    }
-
-    uint32 getGlobalSlot(size_t index) {
-        js::GlobalSlotArray *arr = globals();
-        JS_ASSERT(index < arr->length);
-        return arr->vector[index].slot;
-    }
-
-    JSAtom *getGlobalAtom(size_t index) {
-        js::GlobalSlotArray *arr = globals();
-        JS_ASSERT(index < arr->length);
-        return getAtom(arr->vector[index].atomIndex);
     }
 
     inline JSFunction *getFunction(size_t index);
@@ -273,17 +208,6 @@ struct JSScript {
     static JSScript *emptyScript() {
         return const_cast<JSScript *>(&emptyScriptConst);
     }
-
-#ifdef JS_METHODJIT
-    /*
-     * Map the given PC to the corresponding native code address.
-     */
-    void *pcToNative(jsbytecode *pc) {
-        JS_ASSERT(nmap);
-        JS_ASSERT(nmap[pc - code]);
-        return nmap[pc - code];
-    }
-#endif
 
   private:
     /*
@@ -380,7 +304,7 @@ js_SweepScriptFilenames(JSRuntime *rt);
 extern JSScript *
 js_NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natoms,
              uint32 nobjects, uint32 nupvars, uint32 nregexps,
-             uint32 ntrynotes, uint32 nconsts, uint32 nglobals);
+             uint32 ntrynotes, uint32 nconsts);
 
 extern JSScript *
 js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg);

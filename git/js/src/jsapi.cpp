@@ -1645,7 +1645,7 @@ JS_GetGlobalForScopeChain(JSContext *cx)
     VOUCH_DOES_NOT_REQUIRE_STACK();
 
     if (cx->fp)
-        return cx->fp->scopeChain->getGlobal();
+        return cx->fp->scopeChainObj()->getGlobal();
 
     JSObject *scope = cx->globalObject;
     if (!scope) {
@@ -4003,7 +4003,7 @@ js_generic_fast_native_method_dispatcher(JSContext *cx, uintN argc, Value *vp)
     native =
 #ifdef JS_TRACER
              (fs->flags & JSFUN_TRCINFO)
-             ? JS_FUNC_TO_DATA_PTR(JSNativeTraceInfo *, fs->call)->native
+             ? (FastNative) JS_FUNC_TO_DATA_PTR(JSNativeTraceInfo *, fs->call)->native
              :
 #endif
                (FastNative) fs->call;
@@ -4629,13 +4629,12 @@ JS_PUBLIC_API(void)
 JS_TriggerOperationCallback(JSContext *cx)
 {
     /*
-     * Use JS_ATOMIC_SET_MASK in the hope that it will make sure the write
+     * Use JS_ATOMIC_SET in the hope that it will make sure the write
      * will become immediately visible to other processors polling
-     * cx->interruptFlag. Note that we only care about visibility here,
-     * not read/write ordering.
+     * cx->operationCallbackFlag. Note that we only care about
+     * visibility here, not read/write ordering.
      */
-    JS_ATOMIC_SET_MASK(const_cast<jsword*>(&cx->interruptFlags),
-                       JSContext::INTERRUPT_OPERATION_CALLBACK);
+    JS_ATOMIC_SET(&cx->operationCallbackFlag, 1);
 }
 
 JS_PUBLIC_API(void)

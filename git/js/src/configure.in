@@ -519,7 +519,8 @@ case "$target" in
         CFLAGS="$CFLAGS -TC -nologo"
         CXXFLAGS="$CXXFLAGS -TP -nologo"
         # MSVC warning C4345 warns of newly conformant behavior as of VS2003.
-        CXXFLAGS="$CXXFLAGS -wd4345"
+        # MSVC warning C4800 is ubiquitous, useless, and annoying.
+        CXXFLAGS="$CXXFLAGS -wd4345 -wd4800"
         AC_LANG_SAVE
         AC_LANG_C
         AC_TRY_COMPILE([#include <stdio.h>],
@@ -2583,55 +2584,24 @@ case "$target" in
 i?86-*)
     ENABLE_TRACEJIT=1
     NANOJIT_ARCH=i386
-    ENABLE_METHODJIT=1
-    AC_DEFINE(JS_CPU_X86)
-    AC_DEFINE(JS_32BIT)
     ;;
 x86_64*-*)
     ENABLE_TRACEJIT=1
     NANOJIT_ARCH=X64
-    ENABLE_METHODJIT=1
-    AC_DEFINE(JS_CPU_X64)
-    AC_DEFINE(JS_64BIT)
     ;;
 arm*-*)
     ENABLE_TRACEJIT=1
     NANOJIT_ARCH=ARM
-    ENABLE_METHODJIT=1
-    AC_DEFINE(JS_CPU_ARM)
-    AC_DEFINE(JS_32BIT)
     ;;
 sparc*-*)
     ENABLE_TRACEJIT=1
     NANOJIT_ARCH=Sparc
-    AC_DEFINE(JS_CPU_SPARC)
     ;;
 esac
-
-MOZ_ARG_DISABLE_BOOL(methodjit,
-[  --disable-methodjit           Disable method JIT support],
-  ENABLE_METHODJIT= )
 
 MOZ_ARG_DISABLE_BOOL(tracejit,
 [  --disable-tracejit      Disable tracing JIT support],
   ENABLE_TRACEJIT=)
-
-MOZ_ARG_ENABLE_BOOL(methodjit-spew,
-[  --enable-methodjit-spew      Enable method JIT spew support],
-  ENABLE_METHODJIT_SPEW=1,
-  ENABLE_METHODJIT_SPEW= )
-
-AC_SUBST(ENABLE_METHODJIT)
-
-if test "$ENABLE_METHODJIT"; then
-    AC_DEFINE(JS_METHODJIT)
-else
-    ENABLE_TRACEJIT= 
-fi
-
-if test "$ENABLE_METHODJIT_SPEW"; then
-    AC_DEFINE(JS_METHODJIT_SPEW)
-fi
 
 if test "$ENABLE_TRACEJIT"; then
 

@@ -76,8 +76,6 @@
 #include "jstracer.h"
 #include "jslibmath.h"
 #include "jsvector.h"
-#include "methodjit/MethodJIT.h"
-#include "methodjit/Logging.h"
 
 #include "jsatominlines.h"
 #include "jscntxtinlines.h"
@@ -117,8 +115,8 @@ js_GetScopeChain(JSContext *cx, JSStackFrame *fp)
         JS_ASSERT(!fp->fun ||
                   !(fp->fun->flags & JSFUN_HEAVYWEIGHT) ||
                   fp->callobj);
-        JS_ASSERT(fp->scopeChain);
-        return fp->scopeChain;
+        JS_ASSERT(fp->scopeChainObj());
+        return fp->scopeChainObj();
     }
 
     /* We don't handle cloning blocks on trace.  */
@@ -133,8 +131,8 @@ js_GetScopeChain(JSContext *cx, JSStackFrame *fp)
      */
     JSObject *limitBlock, *limitClone;
     if (fp->fun && !fp->callobj) {
-        JS_ASSERT_IF(fp->scopeChain->getClass() == &js_BlockClass,
-                     fp->scopeChain->getPrivate() != js_FloatingFrameIfGenerator(cx, fp));
+        JS_ASSERT_IF(fp->scopeChainObj()->getClass() == &js_BlockClass,
+                     fp->scopeChainObj()->getPrivate() != js_FloatingFrameIfGenerator(cx, fp));
         if (!js_GetCallObject(cx, fp))
             return NULL;
 
@@ -147,7 +145,7 @@ js_GetScopeChain(JSContext *cx, JSStackFrame *fp)
          * prototype should appear on blockChain; we'll clone blockChain up
          * to, but not including, that prototype.
          */
-        limitClone = fp->scopeChain;
+        limitClone = fp->scopeChainObj();
         while (limitClone->getClass() == &js_WithClass)
             limitClone = limitClone->getParent();
         JS_ASSERT(limitClone);
@@ -174,7 +172,7 @@ js_GetScopeChain(JSContext *cx, JSStackFrame *fp)
 
         /* If the innermost block has already been cloned, we are done. */
         if (limitBlock == sharedBlock)
-            return fp->scopeChain;
+            return fp->scopeChainObj();
     }
 
     /*
@@ -210,7 +208,7 @@ js_GetScopeChain(JSContext *cx, JSStackFrame *fp)
         newChild->setParent(NonFunObjTag(*clone));
         newChild = clone;
     }
-    newChild->setParent(NonFunObjTag(*fp->scopeChain));
+    newChild->setParent(fp->scopeChain);
 
 
     /*
@@ -223,8 +221,8 @@ js_GetScopeChain(JSContext *cx, JSStackFrame *fp)
                  sharedBlock);
 
     /* Place our newly cloned blocks at the head of the scope chain.  */
-    fp->scopeChain = innermostNewChild;
-    return fp->scopeChain;
+    fp->setScopeChainObj(innermostNewChild);
+    return innermostNewChild;
 }
 
 JSBool
@@ -323,7 +321,7 @@ Class js_NoSuchMethodClass = {
  * call by name, and args is an Array containing this invocation's actual
  * parameters.
  */
-JSBool
+JS_STATIC_INTERPRET JSBool
 js_OnUnknownMethod(JSContext *cx, Value *vp)
 {
     JS_ASSERT(!vp[1].isPrimitive());
@@ -414,52 +412,6 @@ class AutoPreserveEnumerators {
         cx->enumerators = enumerators;
     }
 };
-
-struct AutoInterpPreparer  {
-    JSContext *cx;
-    JSScript *script;
-
-    AutoInterpPreparer(JSContext *cx, JSScript *script)
-      : cx(cx), script(script)
-    {
-        if (script->staticLevel < JS_DISPLAY_SIZE) {
-            JSStackFrame **disp = &cx->display[script->staticLevel];
-            cx->fp->displaySave = *disp;
-            *disp = cx->fp;
-        }
-        cx->interpLevel++;
-    }
-
-    ~AutoInterpPreparer()
-    {
-        if (script->staticLevel < JS_DISPLAY_SIZE)
-            cx->display[script->staticLevel] = cx->fp->displaySave;
-        --cx->interpLevel;
-    }
-};
-
-JS_REQUIRES_STACK bool
-RunScript(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)
-{
-    JS_ASSERT(script);
-
-#ifdef JS_METHODJIT_SPEW
-    JMCheckLogging();
-#endif
-
-    AutoInterpPreparer prepareInterp(cx, script);
-
-#ifdef JS_METHODJIT
-    mjit::CompileStatus status = mjit::CanMethodJIT(cx, script, fun, scopeChain);
-    if (status == mjit::Compile_Error)
-        return JS_FALSE;
-
-    if (status == mjit::Compile_Okay)
-        return mjit::JaegerShot(cx);
-#endif
-
-    return Interpret(cx);
-}
 
 /*
  * Find a function reference and its 'this' object implicit first parameter
@@ -621,7 +573,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
     /* Initialize frame. */
     fp->thisv = vp[1];
     fp->callobj = NULL;
-    fp->argsobj = NULL;
+    fp->setArgsObj(NULL);
     fp->script = script;
     fp->fun = fun;
     fp->argc = argc;
@@ -631,7 +583,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
     else
         fp->rval.setUndefined();
     fp->annotation = NULL;
-    fp->scopeChain = NULL;
+    fp->setScopeChainObj(NULL);
     fp->blockChain = NULL;
     fp->imacpc = NULL;
     fp->flags = flags;
@@ -656,11 +608,11 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
             fp->scopeChain = down->scopeChain;
 
         /* Ensure that we have a scope chain. */
-        if (!fp->scopeChain)
-            fp->scopeChain = parent;
+        if (!fp->scopeChainObj())
+            fp->setScopeChainObj(parent);
     } else {
         /* Use parent scope so js_GetCallObject can find the right "Call". */
-        fp->scopeChain = parent;
+        fp->setScopeChainObj(parent);
         if (fun->isHeavyweight() && !js_GetCallObject(cx, fp))
             return false;
     }
@@ -691,7 +643,7 @@ Invoke(JSContext *cx, const InvokeArgsGuard &args, uintN flags)
     } else {
         JS_ASSERT(script);
         AutoPreserveEnumerators preserve(cx);
-        ok = RunScript(cx, script, fun, fp->scopeChain);
+        ok = Interpret(cx);
     }
 
     DTrace::exitJSFun(cx, fp, fun, fp->rval);
@@ -821,14 +773,14 @@ Execute(JSContext *cx, JSObject *const chain, JSScript *script,
     if (down) {
         /* Propagate arg state for eval and the debugger API. */
         fp->callobj = down->callobj;
-        fp->argsobj = down->argsobj;
+        fp->setArgsObj(down->argsObj());
         fp->fun = (script->staticLevel > 0) ? down->fun : NULL;
         fp->thisv = down->thisv;
         fp->flags = flags | (down->flags & JSFRAME_COMPUTED_THIS);
         fp->argc = down->argc;
         fp->argv = down->argv;
         fp->annotation = down->annotation;
-        fp->scopeChain = chain;
+        fp->setScopeChainObj(chain);
 
         /*
          * We want to call |down->varobj()|, but this requires knowing the
@@ -842,7 +794,7 @@ Execute(JSContext *cx, JSObject *const chain, JSScript *script,
                         : down->varobj(cx->containingCallStack(down));
     } else {
         fp->callobj = NULL;
-        fp->argsobj = NULL;
+        fp->setArgsObj(NULL);
         fp->fun = NULL;
         /* Ininitialize fp->thisv after pushExecuteFrame. */
         fp->flags = flags | JSFRAME_COMPUTED_THIS;
@@ -854,7 +806,7 @@ Execute(JSContext *cx, JSObject *const chain, JSScript *script,
         Innerize(cx, &innerizedChain);
         if (!innerizedChain)
             return false;
-        fp->scopeChain = innerizedChain;
+        fp->setScopeChainObj(innerizedChain);
 
         initialVarObj = (cx->options & JSOPTION_VAROBJFIX)
                         ? chain->getGlobal()
@@ -887,7 +839,7 @@ Execute(JSContext *cx, JSObject *const chain, JSScript *script,
         hookData = hook(cx, fp, JS_TRUE, 0, cx->debugHooks->executeHookData);
 
     AutoPreserveEnumerators preserve(cx);
-    JSBool ok = RunScript(cx, script, fp->fun, fp->scopeChain);
+    JSBool ok = Interpret(cx);
     if (result)
         *result = fp->rval;
 
@@ -1244,7 +1196,7 @@ js_EnterWith(JSContext *cx, jsint stackIndex)
     if (!withobj)
         return JS_FALSE;
 
-    fp->scopeChain = withobj;
+    fp->setScopeChainObj(withobj);
     return JS_TRUE;
 }
 
@@ -1253,11 +1205,11 @@ js_LeaveWith(JSContext *cx)
 {
     JSObject *withobj;
 
-    withobj = cx->fp->scopeChain;
+    withobj = cx->fp->scopeChainObj();
     JS_ASSERT(withobj->getClass() == &js_WithClass);
     JS_ASSERT(withobj->getPrivate() == js_FloatingFrameIfGenerator(cx, cx->fp));
     JS_ASSERT(OBJ_BLOCK_DEPTH(cx, withobj) >= 0);
-    cx->fp->scopeChain = withobj->getParent();
+    cx->fp->setScopeChainObj(withobj->getParent());
     withobj->setPrivate(NULL);
 }
 
@@ -1279,7 +1231,7 @@ js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth)
  * Unwind block and scope chains to match the given depth. The function sets
  * fp->sp on return to stackDepth.
  */
-JS_REQUIRES_STACK JSBool
+JS_STATIC_INTERPRET JS_REQUIRES_STACK JSBool
 js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind)
 {
     JSObject *obj;
@@ -1297,7 +1249,7 @@ js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind)
     fp->blockChain = obj;
 
     for (;;) {
-        obj = fp->scopeChain;
+        obj = fp->scopeChainObj();
         clasp = js_IsActiveWithOrBlock(cx, obj, stackDepth);
         if (!clasp)
             break;
@@ -2273,7 +2225,7 @@ Interpret(JSContext *cx)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if (cx->interruptFlags && !js_HandleExecutionInterrupt(cx))           \
+        if (!JS_CHECK_OPERATION_LIMIT(cx))                                    \
             goto error;                                                       \
     JS_END_MACRO
 
@@ -2318,6 +2270,13 @@ Interpret(JSContext *cx)
     JSVersion originalVersion = (JSVersion) cx->version;
     if (currentVersion != originalVersion)
         js_SetVersion(cx, currentVersion);
+
+    /* Update the static-link display. */
+    if (script->staticLevel < JS_DISPLAY_SIZE) {
+        JSStackFrame **disp = &cx->display[script->staticLevel];
+        fp->displaySave = *disp;
+        *disp = fp;
+    }
 
 #define CHECK_INTERRUPT_HANDLER()                                             \
     JS_BEGIN_MACRO                                                            \
@@ -2642,9 +2601,11 @@ Interpret(JSContext *cx)
 #endif
 
     JS_ASSERT_IF(!fp->isGenerator(), !fp->blockChain);
-    JS_ASSERT_IF(!fp->isGenerator(), !js_IsActiveWithOrBlock(cx, fp->scopeChain, 0));
+    JS_ASSERT_IF(!fp->isGenerator(), !js_IsActiveWithOrBlock(cx, fp->scopeChainObj(), 0));
 
     /* Undo the remaining effects committed on entry to Interpret. */
+    if (script->staticLevel < JS_DISPLAY_SIZE)
+        cx->display[script->staticLevel] = fp->displaySave;
     if (cx->version == currentVersion && currentVersion != originalVersion)
         js_SetVersion(cx, originalVersion);
     --cx->interpLevel;
