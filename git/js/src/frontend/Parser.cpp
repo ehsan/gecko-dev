@@ -514,8 +514,6 @@ Parser<ParseHandler>::Parser(ExclusiveContext *cx, LifoAlloc *alloc,
     sawDeprecatedDestructuringForIn(false),
     sawDeprecatedLegacyGenerator(false),
     sawDeprecatedExpressionClosure(false),
-    sawDeprecatedLetBlock(false),
-    sawDeprecatedLetExpression(false),
     handler(cx, *alloc, tokenStream, foldConstants, syntaxParser, lazyOuterFunction)
 {
     {
@@ -3649,7 +3647,7 @@ Parser<ParseHandler>::letBlock(LetContext letContext)
              * the return value of the expression.
              */
             needExprStmt = true;
-            letContext = LetExpression;
+            letContext = LetExpresion;
         }
     }
 
@@ -3659,15 +3657,10 @@ Parser<ParseHandler>::letBlock(LetContext letContext)
         if (!expr)
             return null();
         MUST_MATCH_TOKEN(TOK_RC, JSMSG_CURLY_AFTER_LET);
-        sawDeprecatedLetBlock = true;
     } else {
-        MOZ_ASSERT(letContext == LetExpression);
+        MOZ_ASSERT(letContext == LetExpresion);
         expr = assignExpr();
         if (!expr)
-            return null();
-
-        sawDeprecatedLetExpression = true;
-        if (!report(ParseWarning, pc->sc->strict, expr, JSMSG_DEPRECATED_LET_EXPRESSION))
             return null();
     }
     handler.setLexicalScopeBody(block, expr);
@@ -4345,7 +4338,7 @@ Parser<ParseHandler>::exportDeclaration()
         break;
 
       case TOK_NAME:
-        // Handle the form |export a| in the same way as |export let a|, by
+        // Handle the form |export a} in the same way as |export let a|, by
         // acting as if we've just seen the let keyword. Simply unget the token
         // and fall through.
         tokenStream.ungetToken();
@@ -4371,6 +4364,7 @@ Parser<SyntaxParseHandler>::exportDeclaration()
     JS_ALWAYS_FALSE(abortIfSyntaxParser());
     return SyntaxParseHandler::NodeFailure;
 }
+
 
 template <typename ParseHandler>
 typename ParseHandler::Node
@@ -4618,7 +4612,7 @@ Parser<FullParseHandler>::forStatement()
                 if (!tokenStream.peekToken(&tt))
                     return null();
                 if (tt == TOK_LP) {
-                    pn1 = letBlock(LetExpression);
+                    pn1 = letBlock(LetExpresion);
                 } else {
                     isForDecl = true;
                     blockObj = StaticBlockObject::create(context);
@@ -8086,7 +8080,7 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
         return objectLiteral();
 
       case TOK_LET:
-        return letBlock(LetExpression);
+        return letBlock(LetExpresion);
 
       case TOK_LP:
         return parenExprOrGeneratorComprehension();
@@ -8341,8 +8335,6 @@ Parser<ParseHandler>::accumulateTelemetry()
         DeprecatedDestructuringForIn = 1, // JS 1.7 only
         DeprecatedLegacyGenerator = 2,    // JS 1.7+
         DeprecatedExpressionClosure = 3,  // Added in JS 1.8, but not version-gated
-        DeprecatedLetBlock = 4,           // Added in JS 1.7, but not version-gated
-        DeprecatedLetExpression = 5,      // Added in JS 1.7, but not version-gated
     };
 
     // Hazard analysis can't tell that the telemetry callbacks don't GC.
@@ -8357,10 +8349,6 @@ Parser<ParseHandler>::accumulateTelemetry()
         (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLegacyGenerator);
     if (sawDeprecatedExpressionClosure)
         (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedExpressionClosure);
-    if (sawDeprecatedLetBlock)
-        (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLetBlock);
-    if (sawDeprecatedLetExpression)
-        (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLetExpression);
 }
 
 template class Parser<FullParseHandler>;

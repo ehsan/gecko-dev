@@ -38,7 +38,7 @@ const FILE_OLD_DATABASE               = "extensions.rdf";
 const FILE_XPI_ADDONS_LIST            = "extensions.ini";
 
 // The value for this is in Makefile.in
-#expand const DB_SCHEMA               = __MOZ_EXTENSIONS_DB_SCHEMA__;
+#expand const DB_SCHEMA                       = __MOZ_EXTENSIONS_DB_SCHEMA__;
 
 // The last version of DB_SCHEMA implemented in SQLITE
 const LAST_SQLITE_DB_SCHEMA           = 14;
@@ -46,6 +46,7 @@ const PREF_DB_SCHEMA                  = "extensions.databaseSchema";
 const PREF_PENDING_OPERATIONS         = "extensions.pendingOperations";
 const PREF_EM_ENABLED_ADDONS          = "extensions.enabledAddons";
 const PREF_EM_DSS_ENABLED             = "extensions.dss.enabled";
+
 
 // Properties that only exist in the database
 const DB_METADATA        = ["syncGUID",
@@ -210,6 +211,7 @@ function resultRows(aStatement) {
   }
 }
 
+
 /**
  * A helper function to log an SQL error.
  *
@@ -249,6 +251,7 @@ function stepStatement(aStatement) {
     throw e;
   }
 }
+
 
 /**
  * Copies properties from one object to another. If no target object is passed
@@ -540,14 +543,13 @@ this.XPIDatabase = {
         cstream = Components.classes["@mozilla.org/intl/converter-input-stream;1"].
                 createInstance(Components.interfaces.nsIConverterInputStream);
         cstream.init(fstream, "UTF-8", 0, 0);
-
-        let str = {};
-        let read = 0;
-        do {
-          read = cstream.readString(0xffffffff, str); // read as much as we can and put it in str.value
-          data += str.value;
-        } while (read != 0);
-
+        let (str = {}) {
+          let read = 0;
+          do {
+            read = cstream.readString(0xffffffff, str); // read as much as we can and put it in str.value
+            data += str.value;
+          } while (read != 0);
+        }
         readTimer.done();
         this.parseDB(data, aRebuildOnError);
       }

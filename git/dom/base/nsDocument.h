@@ -1146,8 +1146,7 @@ public:
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName) MOZ_OVERRIDE;
 
   virtual Element* GetFullScreenElement() MOZ_OVERRIDE;
-  virtual void AsyncRequestFullScreen(Element* aElement,
-                                      mozilla::dom::FullScreenOptions& aOptions) MOZ_OVERRIDE;
+  virtual void AsyncRequestFullScreen(Element* aElement) MOZ_OVERRIDE;
   virtual void RestorePreviousFullScreenState() MOZ_OVERRIDE;
   virtual bool IsFullscreenLeaf() MOZ_OVERRIDE;
   virtual bool IsFullScreenDoc() MOZ_OVERRIDE;
@@ -1198,7 +1197,6 @@ public:
   // need to send the notification with the origin of the document which
   // originally requested fullscreen, not *this* document's origin.
   void RequestFullScreen(Element* aElement,
-                         mozilla::dom::FullScreenOptions& aOptions,
                          bool aWasCallerChrome,
                          bool aNotifyOnOriginChange);
 

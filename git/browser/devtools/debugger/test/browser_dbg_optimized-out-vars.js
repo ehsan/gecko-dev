@@ -8,7 +8,7 @@ function test() {
     const TAB_URL = EXAMPLE_URL + "doc_closure-optimized-out.html";
     let gDebugger, sources;
 
-    let [tab,, panel] = yield initDebugger(TAB_URL);
+    let [, debuggee, panel] = yield initDebugger(TAB_URL);
     gDebugger = panel.panelWin;
     sources = gDebugger.DebuggerView.Sources;
 
@@ -18,7 +18,11 @@ function test() {
 
     // Spin the event loop before causing the debuggee to pause, to allow
     // this function to return first.
-    sendMouseClickToTab(tab, content.document.querySelector("button"));
+    executeSoon(() => {
+      EventUtils.sendMouseEvent({ type: "click" },
+        debuggee.document.querySelector("button"),
+        debuggee);
+    });
 
     yield waitForDebuggerEvents(panel, gDebugger.EVENTS.FETCHED_SCOPES);
     let gVars = gDebugger.DebuggerView.Variables;

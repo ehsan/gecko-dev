@@ -30,6 +30,7 @@
 
 
 #include "HashStore.h"
+#include "nsAutoPtr.h"
 #include "nsICryptoHash.h"
 #include "nsISeekableStream.h"
 #include "nsIStreamConverterService.h"

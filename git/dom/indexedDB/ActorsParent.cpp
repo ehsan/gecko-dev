@@ -5347,13 +5347,6 @@ public:
   void
   CloseOnOwningThread();
 
-  void
-  AssertInvalidatedOnMainThread() const
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    MOZ_ASSERT(mInvalidatedOnMainThread);
-  }
-
   NS_DECL_THREADSAFE_ISUPPORTS
 
 private:
@@ -9521,9 +9514,7 @@ QuotaClient::AbortTransactionsForStorage(nsIOfflineStorage* aStorage)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aStorage);
   MOZ_ASSERT(aStorage->GetClient() == this);
-
-  static_cast<DatabaseOfflineStorage*>(aStorage)->
-    AssertInvalidatedOnMainThread();
+  MOZ_ASSERT(aStorage->IsClosed());
 
   // Nothing to do here, calling DatabaseOfflineStorage::Close() should have
   // aborted any transactions already.
@@ -9917,6 +9908,8 @@ DatabaseOfflineStorage::InvalidateOnMainThread()
 
   nsCOMPtr<nsIEventTarget> owningThread = mOwningThread;
   MOZ_ASSERT(owningThread);
+
+  CloseOnMainThread();
 
   MOZ_ALWAYS_TRUE(NS_SUCCEEDED(owningThread->Dispatch(runnable,
                                                       NS_DISPATCH_NORMAL)));

@@ -8,7 +8,6 @@
 const TAB_URL = EXAMPLE_URL + "doc_event-listeners-01.html";
 
 let gClient;
-let gTab;
 
 function test() {
   if (!DebuggerServer.initialized) {
@@ -23,10 +22,7 @@ function test() {
       "Root actor should identify itself as a browser.");
 
     addTab(TAB_URL)
-      .then((aTab) => {
-        gTab = aTab;
-        return attachThreadActorForUrl(gClient, TAB_URL)
-      })
+      .then(() => attachThreadActorForUrl(gClient, TAB_URL))
       .then(pauseDebuggee)
       .then(testEventListeners)
       .then(closeConnection)
@@ -49,7 +45,13 @@ function pauseDebuggee(aThreadClient) {
     deferred.resolve(aThreadClient);
   });
 
-  sendMouseClickToTab(gTab, content.document.querySelector("button"));
+  // Spin the event loop before causing the debuggee to pause, to allow
+  // this function to return first.
+  executeSoon(() => {
+    EventUtils.sendMouseEvent({ type: "click" },
+      content.document.querySelector("button"),
+      content);
+  });
 
   return deferred.promise;
 }

@@ -31,8 +31,7 @@ class LIRGeneratorX86Shared : public LIRGeneratorShared
     bool lowerForALU(LInstructionHelper<1, 1, 0> *ins, MDefinition *mir, MDefinition *input);
     bool lowerForALU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs,
                      MDefinition *rhs);
-    template<size_t Temps>
-    bool lowerForFPU(LInstructionHelper<1, 2, Temps> *ins, MDefinition *mir, MDefinition *lhs,
+    bool lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs,
                      MDefinition *rhs);
     bool lowerForCompIx4(LSimdBinaryCompIx4 *ins, MSimdBinaryComp *mir,
                          MDefinition *lhs, MDefinition *rhs);

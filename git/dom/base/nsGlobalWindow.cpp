@@ -190,8 +190,6 @@
 #include "mozilla/dom/GamepadService.h"
 #endif
 
-#include "mozilla/dom/VRDevice.h"
-
 #include "nsRefreshDriver.h"
 
 #include "mozilla/dom/SelectionChangeEvent.h"
@@ -1136,8 +1134,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mCleanedUp(false),
     mDialogAbuseCount(0),
     mAreDialogsEnabled(true),
-    mCanSkipCCGeneration(0),
-    mVRDevicesInitialized(false)
+    mCanSkipCCGeneration(0)
 {
   nsLayoutStatics::AddRef();
 
@@ -1774,8 +1771,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGamepads)
 #endif
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVRDevices)
-
   // Traverse stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChromeEventHandler)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParentTarget)
@@ -1836,8 +1831,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
 #ifdef MOZ_GAMEPAD
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mGamepads)
 #endif
-
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mVRDevices)
 
   // Unlink stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mChromeEventHandler)
@@ -5930,7 +5923,7 @@ nsGlobalWindow::SetFullScreen(bool aFullScreen)
 }
 
 nsresult
-nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust, gfx::VRHMDInfo* aHMD)
+nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
 {
   MOZ_ASSERT(IsOuterWindow());
 
@@ -5952,7 +5945,7 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust, gfx:
   if (!window)
     return NS_ERROR_FAILURE;
   if (rootItem != mDocShell)
-    return window->SetFullScreenInternal(aFullScreen, aRequireTrust, aHMD);
+    return window->SetFullScreenInternal(aFullScreen, aRequireTrust);
 
   // make sure we don't try to set full screen on a non-chrome window,
   // which might happen in embedding world
@@ -5987,13 +5980,8 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust, gfx:
   // want the content to fill the entire client area of the emulator window.
   if (!Preferences::GetBool("full-screen-api.ignore-widgets", false)) {
     nsCOMPtr<nsIWidget> widget = GetMainWidget();
-    if (widget) {
-      nsCOMPtr<nsIScreen> screen;
-      if (aHMD) {
-        screen = aHMD->GetScreen();
-      }
-      widget->MakeFullScreen(aFullScreen, screen);
-    }
+    if (widget)
+      widget->MakeFullScreen(aFullScreen);
   }
 
   if (!mFullScreen) {
@@ -13428,26 +13416,7 @@ nsGlobalWindow::SyncGamepadState()
     mGamepads.EnumerateRead(EnumGamepadsForSync, nullptr);
   }
 }
-#endif // MOZ_GAMEPAD
-
-bool
-nsGlobalWindow::GetVRDevices(nsTArray<nsRefPtr<mozilla::dom::VRDevice>>& aDevices)
-{
-  FORWARD_TO_INNER(GetVRDevices, (aDevices), false);
-
-  if (!mVRDevicesInitialized) {
-    bool ok = mozilla::dom::VRDevice::CreateAllKnownVRDevices(ToSupports(this), mVRDevices);
-    if (!ok) {
-      mVRDevices.Clear();
-      return false;
-    }
-  }
-
-  mVRDevicesInitialized = true;
-  aDevices = mVRDevices;
-  return true;
-}
-
+#endif
 // nsGlobalChromeWindow implementation
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGlobalChromeWindow)

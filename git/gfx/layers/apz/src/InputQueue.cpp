@@ -227,8 +227,7 @@ void
 InputQueue::SetConfirmedTargetApzc(uint64_t aInputBlockId, const nsRefPtr<AsyncPanZoomController>& aTargetApzc) {
   AsyncPanZoomController::AssertOnControllerThread();
 
-  INPQ_LOG("got a target apzc; block=%" PRIu64 " guid=%s\n",
-    aInputBlockId, aTargetApzc ? Stringify(aTargetApzc->GetGuid()).c_str() : "");
+  INPQ_LOG("got a target apzc; block=%" PRIu64 "\n", aInputBlockId);
   bool success = false;
   for (size_t i = 0; i < mTouchBlockQueue.Length(); i++) {
     if (mTouchBlockQueue[i]->GetBlockId() == aInputBlockId) {

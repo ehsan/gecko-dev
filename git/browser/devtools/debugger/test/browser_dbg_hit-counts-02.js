@@ -8,15 +8,16 @@
 const TAB_URL = EXAMPLE_URL + "doc_same-line-functions.html";
 const CODE_URL = "code_same-line-functions.js";
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gEditor;
 
 function test() {
   Task.async(function* () {
     yield pushPrefs(["devtools.debugger.tracer", true]);
 
-    initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+    initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
       gTab = aTab;
+      gDebuggee = aDebuggee;
       gPanel = aPanel;
       gDebugger = gPanel.panelWin;
       gEditor = gDebugger.DebuggerView.editor;
@@ -45,7 +46,9 @@ function test() {
 }
 
 function clickButton() {
-  sendMouseClickToTab(gTab, content.document.querySelector("button"));
+  EventUtils.sendMouseEvent({ type: "click" },
+                            gDebuggee.document.querySelector("button"),
+                            gDebuggee);
 }
 
 function testHitCountsBeforeStopping() {
@@ -60,6 +63,7 @@ function testHitCountsAfterStopping() {
 
 registerCleanupFunction(function() {
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gEditor = null;

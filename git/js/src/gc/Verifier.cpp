@@ -189,8 +189,8 @@ gc::GCRuntime::startVerifyPreBarriers()
     if (!IsIncrementalGCSafe(rt))
         return;
 
-    for (auto chunk = allNonEmptyChunks(); !chunk.done(); chunk.next())
-        chunk->bitmap.clear();
+    for (GCChunkSet::Range r(chunkSet.all()); !r.empty(); r.popFront())
+        r.front()->bitmap.clear();
 
     number++;
 
@@ -503,10 +503,7 @@ js::gc::GCRuntime::endVerifyPostBarriers()
     if (!edges.init())
         goto oom;
     trc->edges = &edges;
-    {
-        gcstats::AutoPhase ap(stats, gcstats::PHASE_MINOR_GC);
-        storeBuffer.markAll(trc);
-    }
+    storeBuffer.markAll(trc);
 
     /* Walk the heap to find any edges not the the |edges| set. */
     trc->setTraceCallback(PostVerifierVisitEdge);

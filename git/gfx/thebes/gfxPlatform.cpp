@@ -16,7 +16,6 @@
 #include "gfxPlatform.h"
 #include "gfxPrefs.h"
 #include "gfxTextRun.h"
-#include "gfxVR.h"
 
 #ifdef XP_WIN
 #include <process.h>
@@ -387,10 +386,6 @@ gfxPlatform::gfxPlatform()
     InitBackendPrefs(canvasMask, BackendType::CAIRO,
                      contentMask, BackendType::CAIRO);
     mTotalSystemMemory = mozilla::hal::GetTotalSystemMemory();
-
-    // give ovr_Initialize a chance to be called very early on; we don't
-    // care if it succeeds or not
-    VRHMDManagerOculus::PlatformInit();
 }
 
 gfxPlatform*
@@ -681,9 +676,6 @@ gfxPlatform::~gfxPlatform()
 {
     mScreenReferenceSurface = nullptr;
     mScreenReferenceDrawTarget = nullptr;
-
-    // Clean up any VR stuff
-    VRHMDManagerOculus::Destroy();
 
     // The cairo folks think we should only clean up in debug builds,
     // but we're generally in the habit of trying to shut down as

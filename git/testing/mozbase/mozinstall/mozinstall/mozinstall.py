@@ -237,7 +237,7 @@ def _install_dmg(src, dest):
 
     """
     try:
-        proc = subprocess.Popen('hdiutil attach -nobrowse -noautoopen %s' % src,
+        proc = subprocess.Popen('hdiutil attach %s' % src,
                                 shell=True,
                                 stdout=subprocess.PIPE)
 

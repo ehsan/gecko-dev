@@ -71,7 +71,7 @@ class Nursery
     {}
     ~Nursery();
 
-    bool init(uint32_t maxNurseryBytes);
+    bool init(uint32_t numNurseryChunks);
 
     bool exists() const { return numNurseryChunks_ != 0; }
     size_t numChunks() const { return numNurseryChunks_; }
@@ -136,11 +136,6 @@ class Nursery
     void forwardBufferPointer(HeapSlot **pSlotsElems);
 
     static void forwardBufferPointer(JSTracer* trc, HeapSlot **pSlotsElems);
-
-    void maybeSetForwardingPointer(JSTracer *trc, void *oldData, void *newData, bool direct) {
-        if (IsMinorCollectionTracer(trc) && isInside(oldData))
-            setForwardingPointer(oldData, newData, direct);
-    }
 
     size_t sizeOfHeapCommitted() const {
         return numActiveChunks_ * gc::ChunkSize;
@@ -300,14 +295,12 @@ class Nursery
     MOZ_ALWAYS_INLINE void markSlots(gc::MinorCollectionTracer *trc, HeapSlot *vp, HeapSlot *end);
     MOZ_ALWAYS_INLINE void markSlot(gc::MinorCollectionTracer *trc, HeapSlot *slotp);
     void *moveToTenured(gc::MinorCollectionTracer *trc, JSObject *src);
-    size_t moveObjectToTenured(gc::MinorCollectionTracer *trc, JSObject *dst, JSObject *src,
-                               gc::AllocKind dstKind);
+    size_t moveObjectToTenured(JSObject *dst, JSObject *src, gc::AllocKind dstKind);
     size_t moveElementsToTenured(NativeObject *dst, NativeObject *src, gc::AllocKind dstKind);
     size_t moveSlotsToTenured(NativeObject *dst, NativeObject *src, gc::AllocKind dstKind);
+    void forwardTypedArrayPointers(TypedArrayObject *dst, TypedArrayObject *src);
 
     /* Handle relocation of slots/elements pointers stored in Ion frames. */
-    void setForwardingPointer(void *oldData, void *newData, bool direct);
-
     void setSlotsForwardingPointer(HeapSlot *oldSlots, HeapSlot *newSlots, uint32_t nslots);
     void setElementsForwardingPointer(ObjectElements *oldHeader, ObjectElements *newHeader,
                                       uint32_t nelems);

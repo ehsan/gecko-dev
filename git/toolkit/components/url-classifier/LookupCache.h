@@ -9,6 +9,7 @@
 #include "Entries.h"
 #include "nsString.h"
 #include "nsTArray.h"
+#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIFile.h"
 #include "nsIFileStreams.h"
@@ -98,7 +99,7 @@ public:
   // This will Clear() the passed arrays when done.
   nsresult Build(AddPrefixArray& aAddPrefixes,
                  AddCompleteArray& aAddCompletes);
-  nsresult GetPrefixes(FallibleTArray<uint32_t>& aAddPrefixes);
+  nsresult GetPrefixes(nsTArray<uint32_t>* aAddPrefixes);
   void ClearCompleteCache();
 
 #if DEBUG && defined(PR_LOGGING)

@@ -105,7 +105,6 @@ DIRS += [
     'xul',
     'resourcestats',
     'manifest',
-    'vr',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':

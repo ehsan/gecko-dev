@@ -714,16 +714,6 @@ public:
 
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
-  static void
-  AppendSidesShorthandToString(const nsCSSProperty aProperties[],
-                               const nsCSSValue* aValues[],
-                               nsAString& aString,
-                               Serialization aSerialization);
-  static void
-  AppendBasicShapeRadiusToString(const nsCSSProperty aProperties[],
-                                 const nsCSSValue* aValues[],
-                                 nsAString& aResult,
-                                 Serialization aValueSerialization);
 private:
   static const char16_t* GetBufferValue(nsStringBuffer* aBuffer) {
     return static_cast<char16_t*>(aBuffer->Data());
@@ -739,8 +729,6 @@ private:
            nsCSSKeyword aFunctionId,
            nsCSSProperty aProperty, nsAString& aResult,
            Serialization aValueSerialization) const;
-  void AppendInsetToString(nsCSSProperty aProperty, nsAString& aResult,
-                           Serialization aValueSerialization) const;
 protected:
   nsCSSUnit mUnit;
   union {
@@ -790,11 +778,6 @@ struct nsCSSValue::Array MOZ_FINAL {
   const nsCSSValue& Item(size_t aIndex) const { return (*this)[aIndex]; }
 
   size_t Count() const { return mCount; }
-
-  // callers depend on the items being contiguous
-  nsCSSValue* ItemStorage() {
-    return this->First();
-  }
 
   bool operator==(const Array& aOther) const
   {

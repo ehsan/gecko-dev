@@ -71,7 +71,7 @@ public:
 #ifdef MOZ_TASK_TRACER
       // Make wifi initialization events to be the source events of TaskTracer,
       // and originate the rest correlation tasks from here.
-      AutoSourceEvent taskTracerEvent(SourceEventType::Wifi);
+      AutoSourceEvent taskTracerEvent(SourceEventType::WIFI);
       AddLabel("%s %s", mInterface.get(), NS_ConvertUTF16toUTF8(event).get());
 #endif
       nsCOMPtr<nsIRunnable> runnable = new WifiEventDispatcher(event, mInterface);

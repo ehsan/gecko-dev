@@ -287,8 +287,8 @@ public class SiteIdentityPopup extends ArrowPopup {
         public void onButtonClick(DoorHanger dh, String tag) {
             try {
                 JSONObject data = new JSONObject();
-                data.put("allowContent", tag.equals("disable"));
-                data.put("contentType", (dh == mMixedContentNotification ? "mixed" : "tracking"));
+                String allowType = (dh == mMixedContentNotification ? "allowMixedContent" : "allowTrackingContent");
+                data.put(allowType, tag.equals("disable"));
 
                 GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", data.toString());
                 GeckoAppShell.sendEventToGecko(e);

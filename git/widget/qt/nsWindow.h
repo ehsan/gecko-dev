@@ -134,7 +134,7 @@ public:
     }
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
 
-    NS_IMETHOD MakeFullScreen(bool aFullScreen, nsIScreen* aTargetScreen = nullptr);
+    NS_IMETHOD MakeFullScreen(bool aFullScreen);
     virtual mozilla::layers::LayerManager*
         GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
                         LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,

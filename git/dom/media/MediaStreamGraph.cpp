@@ -1136,7 +1136,7 @@ MediaStreamGraphImpl::PlayVideo(MediaStream* aStream)
 
     nsCOMPtr<nsIRunnable> event =
       NS_NewRunnableMethod(output, &VideoFrameContainer::Invalidate);
-    DispatchToMainThreadAfterStreamStateUpdate(event.forget());
+    NS_DispatchToMainThread(event);
   }
   if (!aStream->mNotifiedFinished) {
     aStream->mLastPlayedVideoFrame = *frame;

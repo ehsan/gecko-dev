@@ -7758,13 +7758,6 @@ nsDocument::GetViewportInfo(const ScreenIntSize& aDisplaySize)
   CSSToScreenScale defaultScale = layoutDeviceScale
                                 * LayoutDeviceToScreenScale(1.0);
 
-  if (!Preferences::GetBool("dom.meta-viewport.enabled", false)) {
-    return nsViewportInfo(aDisplaySize,
-                          defaultScale,
-                          /*allowZoom*/ false,
-                          /*allowDoubleTapZoom*/ true);
-  }
-
   // In cases where the width of the CSS viewport is less than or equal to the width
   // of the display (i.e. width <= device-width) then we disable double-tap-to-zoom
   // behaviour. See bug 941995 for details.
@@ -10737,13 +10730,13 @@ nsIDocument::MozCancelFullScreen()
 // Element::UnbindFromTree().
 class nsSetWindowFullScreen : public nsRunnable {
 public:
-  nsSetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRHMDInfo* aHMD = nullptr)
-    : mDoc(aDoc), mValue(aValue), mHMD(aHMD) {}
+  nsSetWindowFullScreen(nsIDocument* aDoc, bool aValue)
+    : mDoc(aDoc), mValue(aValue) {}
 
   NS_IMETHOD Run()
   {
     if (mDoc->GetWindow()) {
-      mDoc->GetWindow()->SetFullScreenInternal(mValue, false, mHMD);
+      mDoc->GetWindow()->SetFullScreenInternal(mValue, false);
     }
     return NS_OK;
   }
@@ -10751,7 +10744,6 @@ public:
 private:
   nsCOMPtr<nsIDocument> mDoc;
   bool mValue;
-  nsRefPtr<gfx::VRHMDInfo> mHMD;
 };
 
 static nsIDocument*
@@ -10771,7 +10763,7 @@ GetFullscreenRootDocument(nsIDocument* aDoc)
 }
 
 static void
-SetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRHMDInfo *aVRHMD = nullptr)
+SetWindowFullScreen(nsIDocument* aDoc, bool aValue)
 {
   // Maintain list of fullscreen root documents.
   nsCOMPtr<nsIDocument> root = GetFullscreenRootDocument(aDoc);
@@ -10781,7 +10773,7 @@ SetWindowFullScreen(nsIDocument* aDoc, bool aValue, gfx::VRHMDInfo *aVRHMD = nul
     FullscreenRoots::Remove(root);
   }
   if (!nsContentUtils::IsFullscreenApiContentOnly()) {
-    nsContentUtils::AddScriptRunner(new nsSetWindowFullScreen(aDoc, aValue, aVRHMD));
+    nsContentUtils::AddScriptRunner(new nsSetWindowFullScreen(aDoc, aValue));
   }
 }
 
@@ -11101,13 +11093,12 @@ nsDocument::IsFullScreenDoc()
 class nsCallRequestFullScreen : public nsRunnable
 {
 public:
-  explicit nsCallRequestFullScreen(Element* aElement, FullScreenOptions& aOptions)
+  explicit nsCallRequestFullScreen(Element* aElement)
     : mElement(aElement),
       mDoc(aElement->OwnerDoc()),
       mWasCallerChrome(nsContentUtils::IsCallerChrome()),
       mHadRequestPending(static_cast<nsDocument*>(mDoc.get())->
-                         mAsyncFullscreenPending),
-      mOptions(aOptions)
+                           mAsyncFullscreenPending)
   {
     static_cast<nsDocument*>(mDoc.get())->
       mAsyncFullscreenPending = true;
@@ -11119,7 +11110,6 @@ public:
       mAsyncFullscreenPending = mHadRequestPending;
     nsDocument* doc = static_cast<nsDocument*>(mDoc.get());
     doc->RequestFullScreen(mElement,
-                           mOptions,
                            mWasCallerChrome,
                            /* aNotifyOnOriginChange */ true);
     return NS_OK;
@@ -11129,12 +11119,10 @@ public:
   nsCOMPtr<nsIDocument> mDoc;
   bool mWasCallerChrome;
   bool mHadRequestPending;
-  FullScreenOptions mOptions;
 };
 
 void
-nsDocument::AsyncRequestFullScreen(Element* aElement,
-                                   FullScreenOptions& aOptions)
+nsDocument::AsyncRequestFullScreen(Element* aElement)
 {
   NS_ASSERTION(aElement,
     "Must pass non-null element to nsDocument::AsyncRequestFullScreen");
@@ -11142,7 +11130,7 @@ nsDocument::AsyncRequestFullScreen(Element* aElement,
     return;
   }
   // Request full-screen asynchronously.
-  nsCOMPtr<nsIRunnable> event(new nsCallRequestFullScreen(aElement, aOptions));
+  nsCOMPtr<nsIRunnable> event(new nsCallRequestFullScreen(aElement));
   NS_DispatchToCurrentThread(event);
 }
 
@@ -11210,9 +11198,6 @@ nsDocument::CleanupFullscreenState()
     Element* top = FullScreenStackTop();
     NS_ASSERTION(top, "Should have a top when full-screen stack isn't empty");
     if (top) {
-      // Remove any VR state properties
-      top->DeleteProperty(nsGkAtoms::vr_state);
-
       EventStateManager::SetFullScreenState(top, false);
     }
     mFullScreenStack.Clear();
@@ -11249,12 +11234,8 @@ nsDocument::FullScreenStackPop()
     return;
   }
 
-  Element* top = FullScreenStackTop();
-
-  // Remove any VR state properties
-  top->DeleteProperty(nsGkAtoms::vr_state);
-
   // Remove styles from existing top element.
+  Element* top = FullScreenStackTop();
   EventStateManager::SetFullScreenState(top, false);
 
   // Remove top element. Note the remaining top element in the stack
@@ -11342,9 +11323,7 @@ nsresult nsDocument::RemoteFrameFullscreenChanged(nsIDOMElement* aFrameElement,
   // If the frame element is already the fullscreen element in this document,
   // this has no effect.
   nsCOMPtr<nsIContent> content(do_QueryInterface(aFrameElement));
-  FullScreenOptions opts;
   RequestFullScreen(content->AsElement(),
-                    opts,
                     /* aWasCallerChrome */ false,
                     /* aNotifyOnOriginChange */ false);
 
@@ -11370,17 +11349,8 @@ nsresult nsDocument::RemoteFrameFullscreenReverted()
   return NS_OK;
 }
 
-static void
-ReleaseHMDInfoRef(void *, nsIAtom*, void *aPropertyValue, void *)
-{
-  if (aPropertyValue) {
-    static_cast<gfx::VRHMDInfo*>(aPropertyValue)->Release();
-  }
-}
-
 void
 nsDocument::RequestFullScreen(Element* aElement,
-                              FullScreenOptions& aOptions,
                               bool aWasCallerChrome,
                               bool aNotifyOnOriginChange)
 {
@@ -11467,14 +11437,6 @@ nsDocument::RequestFullScreen(Element* aElement,
     do_QueryReferent(EventStateManager::sPointerLockedElement);
   if (pointerLockedElement) {
     UnlockPointer();
-  }
-
-  // Process options -- in this case, just HMD
-  if (aOptions.mVRHMDDevice) {
-    nsRefPtr<gfx::VRHMDInfo> hmdRef = aOptions.mVRHMDDevice;
-    aElement->SetProperty(nsGkAtoms::vr_state, hmdRef.forget().take(),
-                          ReleaseHMDInfoRef,
-                          true);
   }
 
   // Set the full-screen element. This sets the full-screen style on the
@@ -11581,7 +11543,7 @@ nsDocument::RequestFullScreen(Element* aElement,
   // modes. Also note that nsGlobalWindow::SetFullScreen() (which
   // SetWindowFullScreen() calls) proxies to the root window in its hierarchy,
   // and does not operate on the a per-nsIDOMWindow basis.
-  SetWindowFullScreen(this, true, aOptions.mVRHMDDevice);
+  SetWindowFullScreen(this, true);
 }
 
 NS_IMETHODIMP

@@ -6,8 +6,6 @@
 #include "DisplayItemClip.h"
 
 #include "gfxContext.h"
-#include "gfxUtils.h"
-#include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/PathHelpers.h"
 #include "nsPresContext.h"
 #include "nsCSSRendering.h"
@@ -120,34 +118,24 @@ DisplayItemClip::ApplyRoundedRectClipsTo(gfxContext* aContext,
 }
 
 void
-DisplayItemClip::FillIntersectionOfRoundedRectClips(gfxContext* aContext,
-                                                    const Color& aColor,
-                                                    int32_t aAppUnitsPerDevPixel,
-                                                    uint32_t aBegin,
-                                                    uint32_t aEnd) const
+DisplayItemClip::DrawRoundedRectsTo(gfxContext* aContext,
+                                    int32_t A2D,
+                                    uint32_t aBegin, uint32_t aEnd) const
 {
   DrawTarget& aDrawTarget = *aContext->GetDrawTarget();
 
   aEnd = std::min<uint32_t>(aEnd, mRoundedClipRects.Length());
 
-  if (aBegin >= aEnd) {
+  if (aEnd - aBegin == 0)
     return;
-  }
 
-  // Push clips for any rects that come BEFORE the rect at |aEnd - 1|, if any:
-  ApplyRoundedRectClipsTo(aContext, aAppUnitsPerDevPixel, aBegin, aEnd - 1);
-
-  // Now fill the rect at |aEnd - 1|:
-  RefPtr<Path> roundedRect = MakeRoundedRectPath(aDrawTarget,
-                                                 aAppUnitsPerDevPixel,
-                                                 mRoundedClipRects[aEnd - 1]);
-  ColorPattern color(ToDeviceColor(aColor));
-  aDrawTarget.Fill(roundedRect, color);
-
-  // Finally, pop any clips that we may have pushed:
-  for (uint32_t i = aBegin; i < aEnd - 1; ++i) {
-    aContext->PopClip();
-  }
+  // If there is just one rounded rect we can just fill it, if there are more then we
+  // must clip the rest to get the intersection of clips
+  ApplyRoundedRectClipsTo(aContext, A2D, aBegin, aEnd - 1);
+  RefPtr<Path> roundedRect =
+    MakeRoundedRectPath(aDrawTarget, A2D, mRoundedClipRects[aEnd - 1]);
+  aContext->SetPath(roundedRect);
+  aContext->Fill();
 }
 
 TemporaryRef<Path>

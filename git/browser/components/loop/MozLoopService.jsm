@@ -18,6 +18,8 @@ const LOOP_SESSION_TYPE = {
 // See LOG_LEVELS in Console.jsm. Common examples: "All", "Info", "Warn", & "Error".
 const PREF_LOG_LEVEL = "loop.debug.loglevel";
 
+const EMAIL_OR_PHONE_RE = /^(:?\S+@\S+|\+\d+)$/;
+
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
@@ -774,14 +776,7 @@ let MozLoopServiceInternal = {
   openChatWindow: function(conversationWindowData) {
     // So I guess the origin is the loop server!?
     let origin = this.loopServerUri;
-    // Try getting a window ID that can (re-)identify this conversation, or resort
-    // to a globally unique one as a last resort.
-    // XXX We can clean this up once rooms and direct contact calling are the only
-    //     two modes left.
-    let windowId = ("contact" in conversationWindowData) ?
-                   conversationWindowData.contact._guid || gLastWindowId++ :
-                   conversationWindowData.roomToken || conversationWindowData.callId ||
-                   gLastWindowId++;
+    let windowId = gLastWindowId++;
     // Store the id as a string, as that's what we use elsewhere.
     windowId = windowId.toString();
 
@@ -1428,12 +1423,9 @@ this.MozLoopService = {
    */
   openGettingStartedTour: Task.async(function(aSrc = null) {
     try {
-      let urlStr = Services.prefs.getCharPref("loop.gettingStarted.url");
-      let url = new URL(Services.urlFormatter.formatURL(urlStr));
+      let url = new URL(Services.prefs.getCharPref("loop.gettingStarted.url"));
       if (aSrc) {
-        url.searchParams.set("utm_source", "firefox-browser");
-        url.searchParams.set("utm_medium", "firefox-browser");
-        url.searchParams.set("utm_campaign", aSrc);
+        url.searchParams.set("source", aSrc);
       }
       let win = Services.wm.getMostRecentWindow("navigator:browser");
       win.switchToTabHavingURI(url, true, {replaceQueryString: true});

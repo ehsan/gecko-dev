@@ -6,7 +6,7 @@
  * WebProgress argument's DOMWindow property in onStateChange() (bug 771655).
  */
 
-let gTab, gPanel, gDebugger;
+let gTab, gDebuggee, gPanel, gDebugger;
 let gOldListener;
 
 const TAB_URL = EXAMPLE_URL + "doc_inline-script.html";
@@ -14,8 +14,9 @@ const TAB_URL = EXAMPLE_URL + "doc_inline-script.html";
 function test() {
   installListener();
 
-  initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
+  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPanel = aPanel;
     gDebugger = gPanel.panelWin;
 
@@ -36,7 +37,7 @@ function testPause() {
     resumeDebuggerThenCloseAndFinish(gPanel);
   });
 
-  callInTab(gTab, "runDebuggerStatement");
+  gDebuggee.runDebuggerStatement();
 }
 
 // This is taken almost verbatim from bug 771655.
@@ -79,6 +80,7 @@ registerCleanupFunction(function() {
   }
 
   gTab = null;
+  gDebuggee = null;
   gPanel = null;
   gDebugger = null;
   gOldListener = null;

@@ -33,7 +33,6 @@ class   nsIContent;
 class   ViewWrapper;
 class   nsIWidgetListener;
 class   nsIntRegion;
-class   nsIScreen;
 
 namespace mozilla {
 namespace dom {
@@ -1406,12 +1405,9 @@ class nsIWidget : public nsISupports {
 
     /**
      * Put the toplevel window into or out of fullscreen mode.
-     * If aTargetScreen is given, attempt to go fullscreen on that screen,
-     * if possible.  (If not, it behaves as if aTargetScreen is null.)
-     * If !aFullScreen, aTargetScreen is ignored.
-     * aTargetScreen support is currently only implemented on Windows.
+     *
      */
-    NS_IMETHOD MakeFullScreen(bool aFullScreen, nsIScreen* aTargetScreen = nullptr) = 0;
+    NS_IMETHOD MakeFullScreen(bool aFullScreen) = 0;
 
     /**
      * Invalidate a specified rect for a widget so that it will be repainted

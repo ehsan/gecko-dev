@@ -191,11 +191,6 @@ DrawTargetD2D1::DrawSurfaceWithShadow(SourceSurface *aSurface,
   Matrix mat;
   RefPtr<ID2D1Image> image = GetImageForSurface(aSurface, mat, ExtendMode::CLAMP);
 
-  if (!image) {
-    gfxWarning() << "Couldn't get image for surface.";
-    return;
-  }
-
   if (!mat.IsIdentity()) {
     gfxDebug() << *this << ": At this point complex partial uploads are not supported for Shadow surfaces.";
     return;
@@ -269,18 +264,11 @@ DrawTargetD2D1::MaskSurface(const Pattern &aSource,
                             Point aOffset,
                             const DrawOptions &aOptions)
 {
-  MarkChanged();
+  PrepareForDrawing(aOptions.mCompositionOp, aSource);
 
   RefPtr<ID2D1Bitmap> bitmap;
 
   RefPtr<ID2D1Image> image = GetImageForSurface(aMask, ExtendMode::CLAMP);
-
-  if (!image) {
-    gfxWarning() << "Failed to get image for surface.";
-    return;
-  }
-
-  PrepareForDrawing(aOptions.mCompositionOp, aSource);
 
   // FillOpacityMask only works if the antialias mode is MODE_ALIASED
   mDC->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -316,11 +304,6 @@ DrawTargetD2D1::CopySurface(SourceSurface *aSurface,
 
   Matrix mat;
   RefPtr<ID2D1Image> image = GetImageForSurface(aSurface, mat, ExtendMode::CLAMP);
-
-  if (!image) {
-    gfxWarning() << "Couldn't get image for surface.";
-    return;
-  }
 
   if (!mat.IsIdentity()) {
     gfxDebug() << *this << ": At this point complex partial uploads are not supported for CopySurface.";
@@ -1273,11 +1256,6 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
 
     RefPtr<ID2D1ImageBrush> imageBrush;
     RefPtr<ID2D1Image> image = GetImageForSurface(pat->mSurface, mat, pat->mExtendMode, !pat->mSamplingRect.IsEmpty() ? &pat->mSamplingRect : nullptr);
-
-    if (!image) {
-      return CreateTransparentBlackBrush();
-    }
-
     mDC->CreateImageBrush(image,
                           D2D1::ImageBrushProperties(samplingBounds,
                                                      D2DExtend(pat->mExtendMode),

@@ -27,7 +27,6 @@ using namespace js::gc;
 using namespace js::gcstats;
 
 using mozilla::PodArrayZero;
-using mozilla::PodZero;
 
 /* Except for the first and last, slices of less than 10ms are not reported. */
 static const int64_t SLICE_MIN_REPORT_TIME = 10 * PRMJ_USEC_PER_MSEC;
@@ -284,7 +283,6 @@ struct PhaseInfo
 static const Phase PHASE_NO_PARENT = PHASE_LIMIT;
 
 static const PhaseInfo phases[] = {
-    { PHASE_MUTATOR, "Mutator Running", PHASE_NO_PARENT },
     { PHASE_GC_BEGIN, "Begin Callback", PHASE_NO_PARENT },
     { PHASE_WAIT_BACKGROUND_THREAD, "Wait Background Thread", PHASE_NO_PARENT },
     { PHASE_MARK_DISCARD_CODE, "Mark Discard Code", PHASE_NO_PARENT },
@@ -328,7 +326,6 @@ static const PhaseInfo phases[] = {
         { PHASE_COMPACT_UPDATE, "Compact Update", PHASE_COMPACT, },
             { PHASE_COMPACT_UPDATE_CELLS, "Compact Update Cells", PHASE_COMPACT_UPDATE, },
     { PHASE_GC_END, "End Callback", PHASE_NO_PARENT },
-    { PHASE_MINOR_GC, "Minor GC", PHASE_NO_PARENT },
     { PHASE_LIMIT, nullptr, PHASE_NO_PARENT }
 };
 
@@ -388,7 +385,6 @@ Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
     ss.appendNumber("Total Zones", "%d", "", zoneStats.zoneCount);
     ss.appendNumber("Total Compartments", "%d", "", zoneStats.compartmentCount);
     ss.appendNumber("Minor GCs", "%d", "", counts[STAT_MINOR_GC]);
-    ss.appendNumber("Store Buffer Overflows", "%d", "", counts[STAT_STOREBUFFER_OVERFLOW]);
     ss.appendNumber("MMU (20ms)", "%d", "%", int(mmu20 * 100));
     ss.appendNumber("MMU (50ms)", "%d", "%", int(mmu50 * 100));
     ss.appendDecimal("SCC Sweep Total", "ms", t(sccTotal));
@@ -480,7 +476,6 @@ Statistics::formatDescription()
   Zones Collected: %d of %d\n\
   Compartments Collected: %d of %d\n\
   MinorGCs since last GC: %d\n\
-  Store Buffer Overflows: %d\n\
   MMU 20ms:%.1f%%; 50ms:%.1f%%\n\
   SCC Sweep Total (MaxPause): %.3fms (%.3fms)\n\
   HeapSize: %.3f MiB\n\
@@ -496,7 +491,6 @@ Statistics::formatDescription()
                 zoneStats.collectedZoneCount, zoneStats.zoneCount,
                 zoneStats.collectedCompartmentCount, zoneStats.compartmentCount,
                 counts[STAT_MINOR_GC],
-                counts[STAT_STOREBUFFER_OVERFLOW],
                 mmu20 * 100., mmu50 * 100.,
                 t(sccTotal), t(sccLongest),
                 double(preBytes) / 1024. / 1024.,
@@ -639,8 +633,6 @@ Statistics::Statistics(JSRuntime *rt)
     fullFormat(false),
     gcDepth(0),
     nonincrementalReason(nullptr),
-    timingMutator(false),
-    timedGCStart(0),
     preBytes(0),
     maxPauseInInterval(0),
     phaseNestingDepth(0),
@@ -648,8 +640,6 @@ Statistics::Statistics(JSRuntime *rt)
 {
     PodArrayZero(phaseTotals);
     PodArrayZero(counts);
-    PodArrayZero(phaseStartTimes);
-    PodArrayZero(phaseTimes);
 
     char *env = getenv("MOZ_GCTIMER");
     if (!env || strcmp(env, "none") == 0) {
@@ -733,6 +723,9 @@ Statistics::printStats()
 void
 Statistics::beginGC(JSGCInvocationKind kind)
 {
+    PodArrayZero(phaseStartTimes);
+    PodArrayZero(phaseTimes);
+
     slices.clearAndFree();
     sccTimes.clearAndFree();
     gckind = kind;
@@ -774,11 +767,6 @@ Statistics::endGC()
 
     if (fp)
         printStats();
-
-    // Clear the timers at the end of a GC because we accumulate time in
-    // between GCs for some (which come before PHASE_GC_BEGIN in the list.)
-    PodZero(&phaseStartTimes[PHASE_GC_BEGIN], PHASE_LIMIT - PHASE_GC_BEGIN);
-    PodZero(&phaseTimes[PHASE_GC_BEGIN], PHASE_LIMIT - PHASE_GC_BEGIN);
 }
 
 void
@@ -836,59 +824,19 @@ Statistics::endSlice()
 }
 
 void
-Statistics::startTimingMutator()
-{
-    MOZ_ASSERT(!timingMutator);
-
-    // Should only be called from outside of GC
-    MOZ_ASSERT(phaseNestingDepth == 0);
-
-    timingMutator = true;
-    timedGCTime = 0;
-    phaseStartTimes[PHASE_MUTATOR] = 0;
-    phaseTimes[PHASE_MUTATOR] = 0;
-    timedGCStart = 0;
-
-    beginPhase(PHASE_MUTATOR);
-}
-
-void
-Statistics::stopTimingMutator(double &mutator_ms, double &gc_ms)
-{
-    MOZ_ASSERT(timingMutator);
-
-    // Should only be called from outside of GC
-    MOZ_ASSERT(phaseNestingDepth == 1 && phaseNesting[0] == PHASE_MUTATOR);
-
-    endPhase(PHASE_MUTATOR);
-    mutator_ms = t(phaseTimes[PHASE_MUTATOR]);
-    gc_ms = t(timedGCTime);
-    timingMutator = false;
-}
-
-void
 Statistics::beginPhase(Phase phase)
 {
     /* Guard against re-entry */
     MOZ_ASSERT(!phaseStartTimes[phase]);
 
-    if (timingMutator) {
-        if (phaseNestingDepth == 1 && phaseNesting[0] == PHASE_MUTATOR) {
-            endPhase(PHASE_MUTATOR);
-            timedGCStart = PRMJ_Now();
-        }
-    }
-
 #ifdef DEBUG
     MOZ_ASSERT(phases[phase].index == phase);
     Phase parent = phaseNestingDepth ? phaseNesting[phaseNestingDepth - 1] : PHASE_NO_PARENT;
     MOZ_ASSERT(phaseNestingDepth < MAX_NESTING);
-    // Major and minor GCs can nest inside PHASE_GC_BEGIN/PHASE_GC_END.
-    MOZ_ASSERT_IF(gcDepth == 1 && phase != PHASE_MINOR_GC, phases[phase].parent == parent);
-#endif
-
+    MOZ_ASSERT_IF(gcDepth == 1, phases[phase].parent == parent);
     phaseNesting[phaseNestingDepth] = phase;
     phaseNestingDepth++;
+#endif
 
     phaseStartTimes[phase] = PRMJ_Now();
 }
@@ -898,19 +846,10 @@ Statistics::endPhase(Phase phase)
 {
     phaseNestingDepth--;
 
-    int64_t now = PRMJ_Now();
-    int64_t t = now - phaseStartTimes[phase];
-    if (!slices.empty())
-        slices.back().phaseTimes[phase] += t;
+    int64_t t = PRMJ_Now() - phaseStartTimes[phase];
+    slices.back().phaseTimes[phase] += t;
     phaseTimes[phase] += t;
     phaseStartTimes[phase] = 0;
-
-    if (timingMutator) {
-        if (phaseNestingDepth == 0 && phase != PHASE_MUTATOR) {
-            timedGCTime += now - timedGCStart;
-            beginPhase(PHASE_MUTATOR);
-        }
-    }
 }
 
 void

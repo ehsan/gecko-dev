@@ -15,7 +15,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/PathHelpers.h"
 
 #include "nsCOMPtr.h"
 #include "nsFrameList.h"
@@ -102,12 +101,6 @@ using namespace mozilla::dom;
 using namespace mozilla::gfx;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
-
-namespace mozilla {
-namespace gfx {
-class VRHMDInfo;
-}
-}
 
 // Struct containing cached metrics for box-wrapped frames.
 struct nsBoxLayoutMetrics
@@ -595,10 +588,6 @@ nsFrame::Init(nsIContent*       aContent,
     NS_ASSERTION(GetParent() ||
                  (GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER),
                  "root frame should always be a container");
-  }
-
-  if (aContent && aContent->GetProperty(nsGkAtoms::vr_state) != nullptr) {
-    AddStateBits(NS_FRAME_HAS_VR_CONTENT);
   }
 
   DidSetStyleContext(nullptr);
@@ -1464,8 +1453,6 @@ private:
 void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
                                       nsRenderingContext* aCtx)
 {
-  DrawTarget& aDrawTarget = *aCtx->GetDrawTarget();
-
   LookAndFeel::ColorID colorID;
   if (mSelectionValue == nsISelectionController::SELECTION_ON) {
     colorID = LookAndFeel::eColorID_TextSelectBackground;
@@ -1475,16 +1462,19 @@ void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
     colorID = LookAndFeel::eColorID_TextSelectBackgroundDisabled;
   }
 
-  Color c = Color::FromABGR(LookAndFeel::GetColor(colorID, NS_RGB(255, 255, 255)));
+  nscolor color = LookAndFeel::GetColor(colorID, NS_RGB(255, 255, 255));
+
+  gfxRGBA c(color);
   c.a = .5;
-  ColorPattern color(ToDeviceColor(c));
+
+  gfxContext *ctx = aCtx->ThebesContext();
+  ctx->SetColor(c);
 
   nsIntRect pxRect =
     mVisibleRect.ToOutsidePixels(mFrame->PresContext()->AppUnitsPerDevPixel());
-  Rect rect(pxRect.x, pxRect.y, pxRect.width, pxRect.height);
-  MaybeSnapToDevicePixels(rect, aDrawTarget);
-
-  aDrawTarget.FillRect(rect, color);
+  ctx->NewPath();
+  ctx->Rectangle(gfxRect(pxRect.x, pxRect.y, pxRect.width, pxRect.height), true);
+  ctx->Fill();
 }
 
 /********************************************************
@@ -2005,12 +1995,6 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
 
   nsDisplayListBuilder::AutoBuildingDisplayList
     buildingDisplayList(aBuilder, this, dirtyRect, true);
-
-  mozilla::gfx::VRHMDInfo* vrHMDInfo = nullptr;
-  if ((GetStateBits() & NS_FRAME_HAS_VR_CONTENT)) {
-    vrHMDInfo = static_cast<mozilla::gfx::VRHMDInfo*>(mContent->GetProperty(nsGkAtoms::vr_state));
-  }
-
   DisplayListClipState::AutoSaveRestore clipState(aBuilder);
 
   if (isTransformed || useOpacity || useBlendMode || usingSVGEffects || useStickyPosition) {
@@ -2169,13 +2153,6 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
       resultList.AppendNewToTop(
         new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList, dirtyRect));
     }
-  }
-
-  /* If we're doing VR rendering, then we need to wrap everything in a nsDisplayVR
-   */
-  if (vrHMDInfo && !resultList.IsEmpty()) {
-    resultList.AppendNewToTop(
-      new (aBuilder) nsDisplayVR(aBuilder, this, &resultList, vrHMDInfo));
   }
 
   /* If adding both a nsDisplayBlendContainer and a nsDisplayMixBlendMode to the
@@ -2348,8 +2325,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     // but the spec says it acts like the rest of these
     || disp->mChildPerspective.GetUnit() == eStyleUnit_Coord
     || disp->mMixBlendMode != NS_STYLE_BLEND_NORMAL
-    || nsSVGIntegrationUtils::UsingEffectsForFrame(child)
-    || (child->GetStateBits() & NS_FRAME_HAS_VR_CONTENT);
+    || nsSVGIntegrationUtils::UsingEffectsForFrame(child);
 
   bool isPositioned = disp->IsPositioned(child);
   bool isStackingContext =
@@ -3091,7 +3067,7 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
     nsPeekOffsetStruct pos(eSelectCharacter,
                            eDirNext,
                            aStartPos,
-                           nsPoint(0, 0),
+                           0,
                            aJumpLines,
                            true,  //limit on scrolled views
                            false,
@@ -3107,7 +3083,7 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
   nsPeekOffsetStruct startpos(aAmountBack,
                               eDirPrevious,
                               baseOffset,
-                              nsPoint(0, 0),
+                              0,
                               aJumpLines,
                               true,  //limit on scrolled views
                               false,
@@ -3119,7 +3095,7 @@ nsFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
   nsPeekOffsetStruct endpos(aAmountForward,
                             eDirNext,
                             aStartPos,
-                            nsPoint(0, 0),
+                            0,
                             aJumpLines,
                             true,  //limit on scrolled views
                             false,
@@ -6084,10 +6060,8 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
       nsPoint offset;
       nsView * view; //used for call of get offset from view
       aBlockFrame->GetOffsetFromView(offset,&view);
-      nsPoint newDesiredPos =
-        aPos->mDesiredPos - offset; //get desired position into blockframe coords
-      result = it->FindFrameAt(searchingLine, newDesiredPos, &resultFrame,
-                               &isBeforeFirstFrame, &isAfterLastFrame);
+      nscoord newDesiredX  = aPos->mDesiredX - offset.x;//get desired x into blockframe coordinates!
+      result = it->FindFrameAt(searchingLine, newDesiredX, &resultFrame, &isBeforeFirstFrame, &isAfterLastFrame);
       if(NS_FAILED(result))
         continue;
     }
@@ -6118,6 +6092,8 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
       nsIFrame *storeOldResultFrame = resultFrame;
       while ( !found ){
         nsPoint point;
+        point.x = aPos->mDesiredX;
+
         nsRect tempRect = resultFrame->GetRect();
         nsPoint offset;
         nsView * view; //used for call of get offset from view
@@ -6125,13 +6101,7 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
         if (!view) {
           return NS_ERROR_FAILURE;
         }
-        if (resultFrame->GetWritingMode().IsVertical()) {
-          point.y = aPos->mDesiredPos.y;
-          point.x = tempRect.width + offset.x;
-        } else {
-          point.y = tempRect.height + offset.y;
-          point.x = aPos->mDesiredPos.x;
-        }
+        point.y = tempRect.height + offset.y;
 
         //special check. if we allow non-text selection then we can allow a hit location to fall before a table.
         //otherwise there is no way to get and click signal to fall before a table (it being a line iterator itself)
@@ -6214,7 +6184,7 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
                                       );
       }
       while ( !found ){
-        nsPoint point = aPos->mDesiredPos;
+        nsPoint point(aPos->mDesiredX, 0);
         nsView* view;
         nsPoint offset;
         resultFrame->GetOffsetFromView(offset, &view);

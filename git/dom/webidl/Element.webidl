@@ -124,11 +124,9 @@ interface Element : Node {
    * Requests that this element be made the full-screen element, as per the DOM
    * full-screen api.
    *
-   * The fsOptions parameter is non-standard.
-   *
    * @see <https://wiki.mozilla.org/index.php?title=Gecko:FullScreenAPI>
    */
-  void mozRequestFullScreen(optional RequestFullscreenOptions fsOptions);
+  void mozRequestFullScreen();
 
   /**
    * Requests that this element be made the pointer-locked element, as per the DOM
@@ -237,10 +235,3 @@ Element implements NonDocumentTypeChildNode;
 Element implements ParentNode;
 Element implements Animatable;
 Element implements GeometryUtils;
-
-// non-standard: allows passing options to Element.requestFullScreen
-dictionary RequestFullscreenOptions {
-  // Which HMDVRDevice to go full screen on; also enables VR rendering.
-  // If null, normal fullscreen is entered.
-  HMDVRDevice? vrDisplay = null;
-};

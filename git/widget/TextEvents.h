@@ -18,7 +18,6 @@
 #include "nsRect.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
-#include "WritingModes.h"
 
 /******************************************************************************
  * virtual keycode values
@@ -456,8 +455,6 @@ public:
     bool mHasSelection;
     // true if DOM element under mouse belongs to widget
     bool mWidgetIsHit;
-    // mozilla::WritingMode value at the end (focus) of the selection
-    mozilla::WritingMode mWritingMode;
     // used by NS_QUERY_SELECTION_AS_TRANSFERABLE
     nsCOMPtr<nsITransferable> mTransferable;
   } mReply;
