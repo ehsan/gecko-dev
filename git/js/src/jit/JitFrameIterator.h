@@ -276,20 +276,15 @@ class RInstructionResults
     // bailed out.
     IonJSFrameLayout *fp_;
 
-    // Record if we tried and succeed at allocating and filling the vector of
-    // recover instruction results, if needed.  This flag is needed in order to
-    // avoid evaluating the recover instruction twice.
-    bool initialized_;
-
   public:
-    RInstructionResults(IonJSFrameLayout *fp);
+    RInstructionResults();
     RInstructionResults(RInstructionResults&& src);
 
     RInstructionResults& operator=(RInstructionResults&& rhs);
 
     ~RInstructionResults();
 
-    bool init(JSContext *cx, uint32_t numResults);
+    bool init(JSContext *cx, uint32_t numResults, IonJSFrameLayout *fp);
     bool isInitialized() const;
 
     IonJSFrameLayout *frame() const;

@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sts=2 sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -47,16 +46,16 @@
 
 using namespace mozilla;
 
-class UpdateDictionaryHolder {
+class UpdateDictionnaryHolder {
   private:
     nsEditorSpellCheck* mSpellCheck;
   public:
-    explicit UpdateDictionaryHolder(nsEditorSpellCheck* esc): mSpellCheck(esc) {
+    explicit UpdateDictionnaryHolder(nsEditorSpellCheck* esc): mSpellCheck(esc) {
       if (mSpellCheck) {
         mSpellCheck->BeginUpdateDictionary();
       }
     }
-    ~UpdateDictionaryHolder() {
+    ~UpdateDictionnaryHolder() {
       if (mSpellCheck) {
         mSpellCheck->EndUpdateDictionary();
       }
@@ -700,15 +699,23 @@ nsEditorSpellCheck::UpdateCurrentDictionary(nsIEditorSpellCheckCallback* aCallba
   }
   NS_ENSURE_TRUE(rootContent, NS_ERROR_FAILURE);
 
-  nsRefPtr<DictionaryFetcher> fetcher =
-    new DictionaryFetcher(this, aCallback, mDictionaryFetcherGroup);
+  DictionaryFetcher* fetcher = new DictionaryFetcher(this, aCallback,
+                                                     mDictionaryFetcherGroup);
   rootContent->GetLang(fetcher->mRootContentLang);
   nsCOMPtr<nsIDocument> doc = rootContent->GetCurrentDoc();
   NS_ENSURE_STATE(doc);
   doc->GetContentLanguage(fetcher->mRootDocContentLang);
 
-  rv = fetcher->Fetch(mEditor);
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    // Content prefs don't work in E10S (Bug 1027898) pretend that we
+    // didn't have any & trigger the asynchrous completion.
+    nsCOMPtr<nsIRunnable> runnable =
+      NS_NewRunnableMethodWithArg<uint16_t>(fetcher, &DictionaryFetcher::HandleCompletion, 0);
+    NS_DispatchToMainThread(runnable);
+  } else {
+    rv = fetcher->Fetch(mEditor);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   return NS_OK;
 }
@@ -716,13 +723,14 @@ nsEditorSpellCheck::UpdateCurrentDictionary(nsIEditorSpellCheckCallback* aCallba
 nsresult
 nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
 {
-  MOZ_ASSERT(aFetcher);
   nsRefPtr<nsEditorSpellCheck> kungFuDeathGrip = this;
+
+  nsresult rv = NS_OK;
 
   // Important: declare the holder after the callback caller so that the former
   // is destructed first so that it's not active when the callback is called.
   CallbackCaller callbackCaller(aFetcher->mCallback);
-  UpdateDictionaryHolder holder(this);
+  UpdateDictionnaryHolder holder(this);
 
   if (aFetcher->mGroup < mDictionaryFetcherGroup) {
     // SetCurrentDictionary was called after the fetch started.  Don't overwrite
@@ -734,9 +742,10 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
 
   // If we successfully fetched a dictionary from content prefs, do not go
   // further. Use this exact dictionary.
-  nsAutoString dictName(aFetcher->mDictionary);
+  nsAutoString dictName;
+  dictName.Assign(aFetcher->mDictionary);
   if (!dictName.IsEmpty()) {
-    if (NS_FAILED(SetCurrentDictionary(dictName))) {
+    if (NS_FAILED(SetCurrentDictionary(dictName))) { 
       // may be dictionary was uninstalled ?
       ClearCurrentDictionary(mEditor);
     }
@@ -764,8 +773,8 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
     dictName.Assign(preferedDict);
   }
 
-  nsresult rv = NS_OK;
-  if (dictName.IsEmpty()) {
+  if (dictName.IsEmpty())
+  {
     // Prefs didn't give us a dictionary name, so just get the current
     // locale and use that as the default dictionary name!
 

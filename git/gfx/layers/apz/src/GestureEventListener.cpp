@@ -55,7 +55,6 @@ GestureEventListener::GestureEventListener(AsyncPanZoomController* aAsyncPanZoom
     mSpanChange(0.0f),
     mPreviousSpan(0.0f),
     mLastTouchInput(MultiTouchInput::MULTITOUCH_START, 0, TimeStamp(), 0),
-    mLastTapInput(MultiTouchInput::MULTITOUCH_START, 0, TimeStamp(), 0),
     mLongTapTimeoutTask(nullptr),
     mMaxTapTimeoutTask(nullptr)
 {
@@ -169,7 +168,6 @@ nsEventStatus GestureEventListener::HandleInputTouchMultiStart()
     // Cancel wait for double tap
     CancelMaxTapTimeoutTask();
     SetState(GESTURE_MULTI_TOUCH_DOWN);
-    TriggerSingleTapConfirmedEvent();
     // Prevent APZC::OnTouchStart() from handling MULTITOUCH_START event
     rv = nsEventStatus_eConsumeNoDefault;
     break;
@@ -177,7 +175,6 @@ nsEventStatus GestureEventListener::HandleInputTouchMultiStart()
     // Cancel wait for single tap
     CancelMaxTapTimeoutTask();
     SetState(GESTURE_MULTI_TOUCH_DOWN);
-    TriggerSingleTapConfirmedEvent();
     // Prevent APZC::OnTouchStart() from handling MULTITOUCH_START event
     rv = nsEventStatus_eConsumeNoDefault;
     break;
@@ -444,10 +441,10 @@ void GestureEventListener::HandleInputTimeoutMaxTap()
 void GestureEventListener::TriggerSingleTapConfirmedEvent()
 {
   TapGestureInput tapEvent(TapGestureInput::TAPGESTURE_CONFIRMED,
-                           mLastTapInput.mTime,
-                           mLastTapInput.mTimeStamp,
-                           mLastTapInput.mTouches[0].mScreenPoint,
-                           mLastTapInput.modifiers);
+                           mLastTouchInput.mTime,
+                           mLastTouchInput.mTimeStamp,
+                           mLastTouchInput.mTouches[0].mScreenPoint,
+                           mLastTouchInput.modifiers);
   mAsyncPanZoomController->HandleGestureEvent(tapEvent);
 }
 
@@ -501,8 +498,6 @@ void GestureEventListener::CancelMaxTapTimeoutTask()
 
 void GestureEventListener::CreateMaxTapTimeoutTask()
 {
-  mLastTapInput = mLastTouchInput;
-
   mMaxTapTimeoutTask =
     NewRunnableMethod(this, &GestureEventListener::HandleInputTimeoutMaxTap);
 

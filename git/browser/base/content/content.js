@@ -8,8 +8,6 @@ let {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/ContentWebRTC.jsm");
-Cu.import("resource://gre/modules/InlineSpellChecker.jsm");
-Cu.import("resource://gre/modules/InlineSpellCheckerContent.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "E10SUtils",
   "resource:///modules/E10SUtils.jsm");
@@ -102,15 +100,7 @@ if (Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT) {
     }
 
     if (!defaultPrevented) {
-      let editFlags = SpellCheckHelper.isEditable(event.target, content);
-      let spellInfo;
-      if (editFlags &
-          (SpellCheckHelper.EDITABLE | SpellCheckHelper.CONTENTEDITABLE)) {
-        spellInfo =
-          InlineSpellCheckerContent.initContextMenu(event, editFlags, this);
-      }
-
-      sendSyncMessage("contextmenu", { editFlags, spellInfo }, { event });
+      sendSyncMessage("contextmenu", {}, { event: event });
     }
   }, false);
 } else {
