@@ -450,8 +450,8 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
         // use objectReg in the rest of this function.
         masm.loadPtr(Address(objectReg, JSObject::offsetOfType()), scratchReg);
         Address proto(scratchReg, offsetof(types::TypeObject, proto));
-        masm.branchPtr(Assembler::NotEqual, proto,
-                       ImmMaybeNurseryPtr(ion->method(), obj->getProto()), failures);
+        masm.branchNurseryPtr(Assembler::NotEqual, proto,
+                              ImmMaybeNurseryPtr(obj->getProto()), failures);
     }
 
     JSObject *pobj = IsCacheableDOMProxy(obj)
@@ -462,7 +462,7 @@ GeneratePrototypeGuards(JSContext *cx, IonScript *ion, MacroAssembler &masm, JSO
     while (pobj != holder) {
         if (pobj->hasUncacheableProto()) {
             JS_ASSERT(!pobj->hasSingletonType());
-            masm.movePtr(ImmMaybeNurseryPtr(ion->method(), pobj), scratchReg);
+            masm.moveNurseryPtr(ImmMaybeNurseryPtr(pobj), scratchReg);
             Address objType(scratchReg, JSObject::offsetOfType());
             masm.branchPtr(Assembler::NotEqual, objType, ImmGCPtr(pobj->type()), failures);
         }
@@ -768,7 +768,7 @@ GenerateReadSlot(JSContext *cx, IonScript *ion, MacroAssembler &masm,
         if (holder) {
             // Guard on the holder's shape.
             holderReg = scratchReg;
-            masm.movePtr(ImmMaybeNurseryPtr(ion->method(), holder), holderReg);
+            masm.moveNurseryPtr(ImmMaybeNurseryPtr(holder), holderReg);
             masm.branchPtr(Assembler::NotEqual,
                            Address(holderReg, JSObject::offsetOfShape()),
                            ImmGCPtr(holder->lastProperty()),
@@ -852,7 +852,7 @@ GenerateCallGetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
 
     // Guard on the holder's shape.
     Register holderReg = scratchReg;
-    masm.movePtr(ImmMaybeNurseryPtr(ion->method(), holder), holderReg);
+    masm.moveNurseryPtr(ImmMaybeNurseryPtr(holder), holderReg);
     masm.branchPtr(Assembler::NotEqual,
                    Address(holderReg, JSObject::offsetOfShape()),
                    ImmGCPtr(holder->lastProperty()),
@@ -936,7 +936,7 @@ GenerateCallGetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
 
         PropertyOp target = shape->getterOp();
         JS_ASSERT(target);
-        // JSPropertyOp: JSBool fn(JSContext *cx, JSHandleObject obj, JSHandleId id, MutableHandleValue vp)
+        // JSPropertyOp: JSBool fn(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 
         // Push args on stack first so we can take pointers to make handles.
         masm.Push(UndefinedValue());
@@ -1799,7 +1799,7 @@ SetPropertyIC::attachSetterCall(JSContext *cx, IonScript *ion,
         if (obj != holder)
             GeneratePrototypeGuards(cx, ion, masm, obj, holder, object(), scratchReg, &protoFailure);
 
-        masm.movePtr(ImmMaybeNurseryPtr(ion->method(), holder), scratchReg);
+        masm.moveNurseryPtr(ImmMaybeNurseryPtr(holder), scratchReg);
         masm.branchPtr(Assembler::NotEqual,
                        Address(scratchReg, JSObject::offsetOfShape()),
                        ImmGCPtr(holder->lastProperty()),
@@ -1845,8 +1845,8 @@ SetPropertyIC::attachSetterCall(JSContext *cx, IonScript *ion,
 
     StrictPropertyOp target = shape->setterOp();
     JS_ASSERT(target);
-    // JSStrictPropertyOp: JSBool fn(JSContext *cx, JSHandleObject obj,
-    //                               JSHandleId id, JSBool strict, MutableHandleValue vp);
+    // JSStrictPropertyOp: JSBool fn(JSContext *cx, HandleObject obj,
+    //                               HandleId id, JSBool strict, MutableHandleValue vp);
 
     // Push args on stack first so we can take pointers to make handles.
     if (value().constant())

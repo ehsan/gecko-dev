@@ -356,9 +356,9 @@ ArrayBufferObject::uninlineData(JSContext *maybecx)
 //                            |            \                             /
 //                      obj->elements       required to be page boundaries
 //
-JS_STATIC_ASSERT(sizeof(ObjectElements) < PageSize);
-JS_STATIC_ASSERT(AsmJSAllocationGranularity == PageSize);
-static const size_t AsmJSMappedSize = PageSize + AsmJSBufferProtectedSize;
+JS_STATIC_ASSERT(sizeof(ObjectElements) < AsmJSPageSize);
+JS_STATIC_ASSERT(AsmJSAllocationGranularity == AsmJSPageSize);
+static const size_t AsmJSMappedSize = AsmJSPageSize + AsmJSBufferProtectedSize;
 
 bool
 ArrayBufferObject::prepareForAsmJS(JSContext *cx, Handle<ArrayBufferObject*> buffer)
@@ -381,19 +381,19 @@ ArrayBufferObject::prepareForAsmJS(JSContext *cx, Handle<ArrayBufferObject*> buf
     // Enable access to the valid region.
     JS_ASSERT(buffer->byteLength() % AsmJSAllocationGranularity == 0);
 # ifdef XP_WIN
-    if (!VirtualAlloc(p, PageSize + buffer->byteLength(), MEM_COMMIT, PAGE_READWRITE)) {
+    if (!VirtualAlloc(p, AsmJSPageSize + buffer->byteLength(), MEM_COMMIT, PAGE_READWRITE)) {
         VirtualFree(p, 0, MEM_RELEASE);
         return false;
     }
 # else
-    if (mprotect(p, PageSize + buffer->byteLength(), PROT_READ | PROT_WRITE)) {
+    if (mprotect(p, AsmJSPageSize + buffer->byteLength(), PROT_READ | PROT_WRITE)) {
         munmap(p, AsmJSMappedSize);
         return false;
     }
 # endif
 
     // Copy over the current contents of the typed array.
-    uint8_t *data = reinterpret_cast<uint8_t*>(p) + PageSize;
+    uint8_t *data = reinterpret_cast<uint8_t*>(p) + AsmJSPageSize;
     memcpy(data, buffer->dataPointer(), buffer->byteLength());
 
     // Swap the new elements into the ArrayBufferObject.
@@ -415,8 +415,8 @@ ArrayBufferObject::releaseAsmJSArrayBuffer(FreeOp *fop, JSObject *obj)
     ArrayBufferObject &buffer = obj->as<ArrayBufferObject>();
     JS_ASSERT(buffer.isAsmJSArrayBuffer());
 
-    uint8_t *p = buffer.dataPointer() - PageSize ;
-    JS_ASSERT(uintptr_t(p) % PageSize == 0);
+    uint8_t *p = buffer.dataPointer() - AsmJSPageSize ;
+    JS_ASSERT(uintptr_t(p) % AsmJSPageSize == 0);
 # ifdef XP_WIN
     VirtualFree(p, 0, MEM_RELEASE);
 # else
@@ -1730,7 +1730,7 @@ class TypedArrayTemplate
             return NewBuiltinClassInstance(cx, fastClass(), SingletonObject);
 
         jsbytecode *pc;
-        RootedScript script(cx, cx->stack.currentScript(&pc));
+        RootedScript script(cx, cx->currentScript(&pc));
         NewObjectKind newKind = script
                                 ? UseNewTypeForInitializer(cx, script, pc, fastClass())
                                 : GenericObject;
@@ -2163,19 +2163,19 @@ class TypedArrayTemplate
                 if (!FindProto(cx, fastClass(), &proto))
                     return NULL;
 
-                InvokeArgsGuard ag;
-                if (!cx->stack.pushInvokeArgs(cx, 3, &ag))
+                InvokeArgs args(cx);
+                if (!args.init(3))
                     return NULL;
 
-                ag.setCallee(cx->compartment()->maybeGlobal()->createArrayFromBuffer<NativeType>());
-                ag.setThis(ObjectValue(*bufobj));
-                ag[0] = NumberValue(byteOffset);
-                ag[1] = Int32Value(lengthInt);
-                ag[2] = ObjectValue(*proto);
+                args.setCallee(cx->compartment()->maybeGlobal()->createArrayFromBuffer<NativeType>());
+                args.setThis(ObjectValue(*bufobj));
+                args[0] = NumberValue(byteOffset);
+                args[1] = Int32Value(lengthInt);
+                args[2] = ObjectValue(*proto);
 
-                if (!Invoke(cx, ag))
+                if (!Invoke(cx, args))
                     return NULL;
-                return &ag.rval().toObject();
+                return &args.rval().toObject();
             }
         }
 
@@ -2770,16 +2770,16 @@ DataViewObject::class_constructor(JSContext *cx, unsigned argc, Value *vp)
         if (!proto)
             return false;
 
-        InvokeArgsGuard ag;
-        if (!cx->stack.pushInvokeArgs(cx, args.length() + 1, &ag))
+        InvokeArgs args2(cx);
+        if (!args2.init(args.length() + 1))
             return false;
-        ag.setCallee(global->createDataViewForThis());
-        ag.setThis(ObjectValue(*bufobj));
-        PodCopy(ag.array(), args.array(), args.length());
-        ag[argc] = ObjectValue(*proto);
-        if (!Invoke(cx, ag))
+        args2.setCallee(global->createDataViewForThis());
+        args2.setThis(ObjectValue(*bufobj));
+        PodCopy(args2.array(), args.array(), args.length());
+        args2[argc] = ObjectValue(*proto);
+        if (!Invoke(cx, args2))
             return false;
-        args.rval().set(ag.rval());
+        args.rval().set(args2.rval());
         return true;
     }
 

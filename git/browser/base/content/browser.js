@@ -121,10 +121,10 @@ XPCOMUtils.defineLazyGetter(this, "DeveloperToolbar", function() {
   return new tmp.DeveloperToolbar(window, document.getElementById("developer-toolbar"));
 });
 
-XPCOMUtils.defineLazyGetter(this, "DebuggerUI", function() {
+XPCOMUtils.defineLazyGetter(this, "BrowserDebuggerProcess", function() {
   let tmp = {};
-  Cu.import("resource:///modules/devtools/DebuggerUI.jsm", tmp);
-  return new tmp.DebuggerUI(window);
+  Cu.import("resource:///modules/devtools/DebuggerProcess.jsm", tmp);
+  return tmp.BrowserDebuggerProcess;
 });
 
 XPCOMUtils.defineLazyModuleGetter(this, "Social",
@@ -826,6 +826,10 @@ var gBrowserInit = {
 
     // setup our MozApplicationManifest listener
     gBrowser.addEventListener("MozApplicationManifest",
+                              OfflineApps, false);
+    // listen for offline apps on social
+    let socialBrowser = document.getElementById("social-sidebar-browser");
+    socialBrowser.addEventListener("MozApplicationManifest",
                               OfflineApps, false);
 
     // setup simple gestures support
@@ -5458,6 +5462,14 @@ var OfflineApps = {
       if (browser.contentWindow == aContentWindow)
         return browser;
     }
+    // handle other browser/iframe elements that may need popupnotifications
+    let browser = aContentWindow
+                          .QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIWebNavigation)
+                          .QueryInterface(Ci.nsIDocShell)
+                          .chromeEventHandler;
+    if (browser.getAttribute("popupnotificationanchor"))
+      return browser;
     return null;
   },
 
@@ -5487,6 +5499,15 @@ var OfflineApps = {
     }
 
     var browsers = gBrowser.browsers;
+    for (let browser of browsers) {
+      uri = this._getManifestURI(browser.contentWindow);
+      if (uri && uri.equals(aCacheUpdate.manifestURI)) {
+        return browser;
+      }
+    }
+
+    // is this from a non-tab browser/iframe?
+    browsers = document.querySelectorAll("iframe[popupnotificationanchor] | browser[popupnotificationanchor]");
     for (let browser of browsers) {
       uri = this._getManifestURI(browser.contentWindow);
       if (uri && uri.equals(aCacheUpdate.manifestURI)) {

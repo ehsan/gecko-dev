@@ -1072,19 +1072,13 @@ pref("devtools.debugger.chrome-enabled", true);
 pref("devtools.debugger.chrome-debugging-host", "localhost");
 pref("devtools.debugger.chrome-debugging-port", 6080);
 pref("devtools.debugger.remote-host", "localhost");
-pref("devtools.debugger.remote-autoconnect", false);
-pref("devtools.debugger.remote-connection-retries", 3);
 pref("devtools.debugger.remote-timeout", 20000);
+pref("devtools.debugger.pause-on-exceptions", false);
 pref("devtools.debugger.source-maps-enabled", true);
 
 // The default Debugger UI settings
-pref("devtools.debugger.ui.win-x", 0);
-pref("devtools.debugger.ui.win-y", 0);
-pref("devtools.debugger.ui.win-width", 900);
-pref("devtools.debugger.ui.win-height", 400);
 pref("devtools.debugger.ui.panes-sources-width", 200);
 pref("devtools.debugger.ui.panes-instruments-width", 300);
-pref("devtools.debugger.ui.pause-on-exceptions", false);
 pref("devtools.debugger.ui.panes-visible-on-startup", false);
 pref("devtools.debugger.ui.variables-sorting-enabled", true);
 pref("devtools.debugger.ui.variables-only-enum-visible", false);
@@ -1192,7 +1186,7 @@ pref("browser.panorama.animate_zoom", true);
 // Defines the url to be used for new tabs.
 pref("browser.newtab.url", "about:newtab");
 // Activates preloading of the new tab url.
-pref("browser.newtab.preload", false);
+pref("browser.newtab.preload", true);
 
 // Toggles the content of 'about:newtab'. Shows the grid when enabled.
 pref("browser.newtabpage.enabled", true);
@@ -1272,6 +1266,9 @@ pref("media.webaudio.enabled", true);
 // If this turns true, Moz*Gesture events are not called stopPropagation()
 // before content.
 pref("dom.debug.propagate_gesture_events_through_content", false);
+
+// The request URL of the GeoLocation backend.
+pref("geo.wifi.uri", "https://www.googleapis.com/geolocation/v1/geolocate?key=%GOOGLE_API_KEY%");
 
 // CustomizableUI debug logging.
 pref("browser.uiCustomization.debug", false);
