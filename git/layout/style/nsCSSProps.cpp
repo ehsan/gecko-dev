@@ -84,16 +84,10 @@ static nsStaticCaseInsensitiveNameTable* gFontDescTable;
   nsCSSProps::gShorthandsContainingTable[eCSSProperty_COUNT_no_shorthands];
 /* static */ nsCSSProperty* nsCSSProps::gShorthandsContainingPool = nsnull;
 
-// Keep in sync with enum nsCSSFontDesc in nsCSSProperty.h.
 static const char* const kCSSRawFontDescs[] = {
-  "font-family",
-  "font-style",
-  "font-weight",
-  "font-stretch",
-  "src",
-  "unicode-range",
-  "-moz-font-feature-settings",
-  "-moz-font-language-override"
+#define CSS_FONT_DESC(name_, method_) #name_,
+#include "nsCSSFontDescList.h"
+#undef CSS_FONT_DESC
 };
 
 struct PropertyAndCount {
@@ -1201,6 +1195,17 @@ const PRInt32 nsCSSProps::kTextAlignKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kTextAlignLastKTable[] = {
+  eCSSKeyword_auto, NS_STYLE_TEXT_ALIGN_AUTO,
+  eCSSKeyword_left, NS_STYLE_TEXT_ALIGN_LEFT,
+  eCSSKeyword_right, NS_STYLE_TEXT_ALIGN_RIGHT,
+  eCSSKeyword_center, NS_STYLE_TEXT_ALIGN_CENTER,
+  eCSSKeyword_justify, NS_STYLE_TEXT_ALIGN_JUSTIFY,
+  eCSSKeyword_start, NS_STYLE_TEXT_ALIGN_DEFAULT,
+  eCSSKeyword_end, NS_STYLE_TEXT_ALIGN_END,
+  eCSSKeyword_UNKNOWN,-1
+};
+
 const PRInt32 nsCSSProps::kTextBlinkKTable[] = {
   eCSSKeyword_none, NS_STYLE_TEXT_BLINK_NONE,
   eCSSKeyword_blink, NS_STYLE_TEXT_BLINK_BLINK,
@@ -1465,6 +1470,12 @@ const PRInt32 nsCSSProps::kColorInterpolationKTable[] = {
   eCSSKeyword_auto, NS_STYLE_COLOR_INTERPOLATION_AUTO,
   eCSSKeyword_srgb, NS_STYLE_COLOR_INTERPOLATION_SRGB,
   eCSSKeyword_linearrgb, NS_STYLE_COLOR_INTERPOLATION_LINEARRGB,
+  eCSSKeyword_UNKNOWN, -1
+};
+
+const PRInt32 nsCSSProps::kColumnFillKTable[] = {
+  eCSSKeyword_auto, NS_STYLE_COLUMN_FILL_AUTO,
+  eCSSKeyword_balance, NS_STYLE_COLUMN_FILL_BALANCE,
   eCSSKeyword_UNKNOWN, -1
 };
 

@@ -491,6 +491,14 @@ var gCSSProperties = {
 		// negative and zero invalid per editor's draft
 		invalid_values: [ "-1", "0", "3px" ]
 	},
+	"-moz-column-fill": {
+		domProp: "MozColumnFill",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "balance" ],
+		other_values: [ "auto" ],
+		invalid_values: [ "2px", "dotted", "5em" ]
+	},
 	"-moz-column-gap": {
 		domProp: "MozColumnGap",
 		inherited: false,
@@ -2582,6 +2590,14 @@ var gCSSProperties = {
 		// don't know whether left and right are same as start
 		initial_values: [ "start" ],
 		other_values: [ "center", "justify", "end" ],
+		invalid_values: []
+	},
+	"-moz-text-align-last": {
+		domProp: "MozTextAlignLast",
+		inherited: true,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "auto" ],
+		other_values: [ "center", "justify", "start", "end", "left", "right" ],
 		invalid_values: []
 	},
 	"-moz-text-blink": {
