@@ -33,19 +33,12 @@
 
 #define LOG_TAG "HWComposer"
 
-/*
- * By default the debug message of hwcomposer (LOG_DEBUG level) are undefined,
- * but can be enabled by uncommenting HWC_DEBUG below.
- */
-//#define HWC_DEBUG
-
-#ifdef HWC_DEBUG
+#if (LOG_NDEBUG == 0)
 #define LOGD(args...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, ## args)
 #else
 #define LOGD(args...) ((void)0)
 #endif
 
-#define LOGI(args...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, ## args)
 #define LOGE(args...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, ## args)
 
 #define LAYER_COUNT_INCREMENTS 5
@@ -98,7 +91,7 @@ HwcComposer2D*
 HwcComposer2D::GetInstance()
 {
     if (!sInstance) {
-        LOGI("Creating new instance");
+        LOGD("Creating new instance");
         sInstance = new HwcComposer2D();
     }
     return sInstance;

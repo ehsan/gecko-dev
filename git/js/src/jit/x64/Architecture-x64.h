@@ -13,6 +13,7 @@ namespace js {
 namespace jit {
 
 static const ptrdiff_t STACK_SLOT_SIZE       = 8;
+static const uint32_t MAX_STACK_SLOTS          = 256;
 static const uint32_t DOUBLE_STACK_ALIGNMENT   = 1;
 
 // In bytes: slots needed for potential memory->memory move spills.
@@ -105,6 +106,8 @@ class Registers {
     // Registers returned from a JS -> C call.
     static const uint32_t CallMask =
         (1 << JSC::X86Registers::eax);
+
+    typedef JSC::MacroAssembler::RegisterID RegisterID;
 };
 
 // Smallest integer type that can hold a register bitmask.

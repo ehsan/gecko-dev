@@ -89,6 +89,7 @@
 
 #include "vm/Interpreter-inl.h"
 #include "vm/ObjectImpl-inl.h"
+#include "vm/Shape-inl.h"
 #include "vm/String-inl.h"
 
 using namespace js;
@@ -5468,6 +5469,14 @@ JS_FileEscapedString(FILE *fp, JSString *str, char quote)
 {
     JSLinearString *linearStr = str->ensureLinear(NULL);
     return linearStr && FileEscapedString(fp, linearStr, quote);
+}
+
+JS_PUBLIC_API(JSString *)
+JS_NewGrowableString(JSContext *cx, jschar *chars, size_t length)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    return js_NewString<CanGC>(cx, chars, length);
 }
 
 JS_PUBLIC_API(JSString *)

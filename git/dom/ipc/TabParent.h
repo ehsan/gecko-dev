@@ -309,7 +309,7 @@ protected:
     nsIntSize mDimensions;
     ScreenOrientation mOrientation;
     float mDPI;
-    CSSToLayoutDeviceScale mDefaultScale;
+    double mDefaultScale;
     bool mShown;
     bool mUpdatedDimensions;
 

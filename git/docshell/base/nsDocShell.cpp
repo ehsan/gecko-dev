@@ -5068,7 +5068,7 @@ NS_IMETHODIMP
 nsDocShell::GetUnscaledDevicePixelsPerCSSPixel(double *aScale)
 {
     if (mParentWidget) {
-        *aScale = mParentWidget->GetDefaultScale().scale;
+        *aScale = mParentWidget->GetDefaultScale();
         return NS_OK;
     }
 
