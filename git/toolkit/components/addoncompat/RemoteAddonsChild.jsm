@@ -287,7 +287,7 @@ AboutProtocolChannel.prototype = {
 function AboutProtocolInstance(contractID)
 {
   this._contractID = contractID;
-  this._uriFlags = undefined;
+  this._uriFlags = null;
 }
 
 AboutProtocolInstance.prototype = {

@@ -546,11 +546,7 @@ public abstract class BrowserToolbar extends ThemedRelativeLayout
 
     private void updateProgressVisibility() {
         final Tab selectedTab = Tabs.getInstance().getSelectedTab();
-        // The selected tab may be null if GeckoApp (and thus the
-        // selected tab) are not yet initialized (bug 1090287).
-        if (selectedTab != null) {
-            updateProgressVisibility(selectedTab, selectedTab.getLoadProgress());
-        }
+        updateProgressVisibility(selectedTab, selectedTab.getLoadProgress());
     }
 
     private void updateProgressVisibility(Tab selectedTab, int progress) {

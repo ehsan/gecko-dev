@@ -10963,10 +10963,8 @@ StkCommandParamsFactoryObject.prototype = {
       menu.defaultItem = ctlv.value.identifier - 1;
     }
 
-    if (cmdDetails.typeOfCommand == STK_CMD_SELECT_ITEM) {
-      // The 1st bit and 2nd bit determines the presentation type.
-      menu.presentationType = cmdDetails.commandQualifier & 0x03;
-    }
+    // The 1st bit and 2nd bit determines the presentation type.
+    menu.presentationType = cmdDetails.commandQualifier & 0x03;
 
     // Help information available.
     if (cmdDetails.commandQualifier & 0x80) {
