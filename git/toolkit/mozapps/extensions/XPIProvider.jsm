@@ -967,6 +967,7 @@ function flushJarCache(aJarFile) {
 
 function flushStartupCache() {
   // Init this, so it will get the notification.
+  Cc["@mozilla.org/xul/xul-prototype-cache;1"].getService(Ci.nsISupports);
   Services.obs.notifyObservers(null, "startupcache-invalidate", null);
 }
 

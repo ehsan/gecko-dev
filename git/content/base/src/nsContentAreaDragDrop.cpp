@@ -46,6 +46,7 @@
 
 // Interfaces needed to be included
 #include "nsCopySupport.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMUIEvent.h"
 #include "nsISelection.h"
 #include "nsIDOMNode.h"

@@ -542,8 +542,6 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     let $tabEl = this.$container;
     let $canvas = this.$canvas;
 
-    hideSearch();
-
     UI.setActive(this);
     TabItems._update(this.tab, {force: true});
 

@@ -437,7 +437,7 @@ gfxQtPlatform::CreateFontGroup(const nsAString &aFamilies,
 #ifdef MOZ_PANGO
     return new gfxPangoFontGroup(aFamilies, aStyle, aUserFontSet);
 #else
-    return new gfxFT2FontGroup(aFamilies, aStyle, aUserFontSet);
+    return new gfxFT2FontGroup(aFamilies, aStyle);
 #endif
 }
 

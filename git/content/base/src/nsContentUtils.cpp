@@ -141,6 +141,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsUnicharUtilCIID.h"
 #include "nsCompressedCharMap.h"
 #include "nsINativeKeyBindings.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsXULPopupManager.h"
@@ -4136,12 +4137,13 @@ nsContentUtils::DOMEventToNativeKeyEvent(nsIDOMKeyEvent* aKeyEvent,
                                          nsNativeKeyEvent* aNativeEvent,
                                          PRBool aGetCharCode)
 {
-  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aKeyEvent);
+  nsCOMPtr<nsIDOMNSUIEvent> uievent = do_QueryInterface(aKeyEvent);
   PRBool defaultPrevented;
-  nsevent->GetPreventDefault(&defaultPrevented);
+  uievent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented)
     return PR_FALSE;
 
+  nsCOMPtr<nsIDOMNSEvent> nsevent = do_QueryInterface(aKeyEvent);
   PRBool trusted = PR_FALSE;
   nsevent->GetIsTrusted(&trusted);
   if (!trusted)

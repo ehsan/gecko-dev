@@ -387,34 +387,35 @@ class nsTSubstring_CharT
 
       void AppendASCII( const char* data, size_type length = size_type(-1) )                     { ReplaceASCII(mLength, 0, data, length); }
 
+    // AppendPrintf truncates output to 31 ASCII characters
       void AppendPrintf( const char* format, ... );
       void AppendInt( PRInt32 aInteger )
-                 { AppendPrintf31( "%d", aInteger ); }
+                 { AppendPrintf( "%d", aInteger ); }
       void AppendInt( PRInt32 aInteger, int aRadix )
         {
           const char *fmt = aRadix == 10 ? "%d" : aRadix == 8 ? "%o" : "%x";
-          AppendPrintf31( fmt, aInteger );
+          AppendPrintf( fmt, aInteger );
         }
       void AppendInt( PRUint32 aInteger )
-                 { AppendPrintf31( "%u", aInteger ); }
+                 { AppendPrintf( "%u", aInteger ); }
       void AppendInt( PRUint32 aInteger, int aRadix )
         {
           const char *fmt = aRadix == 10 ? "%u" : aRadix == 8 ? "%o" : "%x";
-          AppendPrintf31( fmt, aInteger );
+          AppendPrintf( fmt, aInteger );
         }
       void AppendInt( PRInt64 aInteger )
-                 { AppendPrintf31( "%lld", aInteger ); }
+                 { AppendPrintf( "%lld", aInteger ); }
       void AppendInt( PRInt64 aInteger, int aRadix )
         {
           const char *fmt = aRadix == 10 ? "%lld" : aRadix == 8 ? "%llo" : "%llx";
-          AppendPrintf31( fmt, aInteger );
+          AppendPrintf( fmt, aInteger );
         }
       void AppendInt( PRUint64 aInteger )
-                 { AppendPrintf31( "%llu", aInteger ); }
+                 { AppendPrintf( "%llu", aInteger ); }
       void AppendInt( PRUint64 aInteger, int aRadix )
         {
           const char *fmt = aRadix == 10 ? "%llu" : aRadix == 8 ? "%llo" : "%llx";
-          AppendPrintf31( fmt, aInteger );
+          AppendPrintf( fmt, aInteger );
         }
 
       /**
@@ -426,8 +427,6 @@ class nsTSubstring_CharT
                       { DoAppendFloat(aFloat, 15); }
   private:
       void NS_FASTCALL DoAppendFloat( double aFloat, int digits );
-      // AppendPrintf31 truncates output to 31 ASCII characters
-      void AppendPrintf31( const char* format, ... );
   public:
 
     // AppendLiteral must ONLY be applied to an actual literal string.

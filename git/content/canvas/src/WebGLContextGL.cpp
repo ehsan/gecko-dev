@@ -62,7 +62,6 @@
 #endif
 
 #include "WebGLTexelConversions.h"
-#include "WebGLValidateStrings.h"
 
 using namespace mozilla;
 
@@ -183,8 +182,8 @@ WebGLContext::BindAttribLocation(nsIWebGLProgram *pobj, WebGLuint location, cons
     if (!GetGLName<WebGLProgram>("bindAttribLocation: program", pobj, &progname))
         return NS_OK;
 
-    if (!ValidateGLSLVariableName(name, "bindAttribLocation"))
-        return NS_OK;
+    if (name.IsEmpty())
+        return ErrorInvalidValue("BindAttribLocation: name can't be null or empty");
 
     if (!ValidateAttribIndex(location, "bindAttribLocation"))
         return NS_OK;
@@ -1840,7 +1839,7 @@ WebGLContext::GetAttribLocation(nsIWebGLProgram *pobj,
     if (!GetGLName<WebGLProgram>("getAttribLocation: program", pobj, &progname))
         return NS_OK;
 
-    if (!ValidateGLSLVariableName(name, "getAttribLocation"))
+    if (!ValidateGLSLIdentifier(name, "getAttribLocation"))
         return NS_OK; 
 
     MakeContextCurrent();
@@ -2665,7 +2664,7 @@ WebGLContext::GetUniformLocation(nsIWebGLProgram *pobj, const nsAString& name, n
     if (!GetConcreteObjectAndGLName("getUniformLocation: program", pobj, &prog, &progname))
         return NS_OK;
 
-    if (!ValidateGLSLVariableName(name, "getUniformLocation"))
+    if (!ValidateGLSLIdentifier(name, "getUniformLocation"))
         return NS_OK; 
 
     MakeContextCurrent();
@@ -3167,8 +3166,8 @@ WebGLContext::RenderbufferStorage(WebGLenum target, WebGLenum internalformat, We
     if (target != LOCAL_GL_RENDERBUFFER)
         return ErrorInvalidEnumInfo("renderbufferStorage: target", target);
 
-    if (width < 0 || height < 0)
-        return ErrorInvalidValue("renderbufferStorage: width and height must be >= 0");
+    if (width <= 0 || height <= 0)
+        return ErrorInvalidValue("renderbufferStorage: width and height must be > 0");
 
     if (!mBoundRenderbuffer || !mBoundRenderbuffer->GLName())
         return ErrorInvalidOperation("renderbufferStorage called on renderbuffer 0");
@@ -4132,10 +4131,7 @@ WebGLContext::ShaderSource(nsIWebGLShader *sobj, const nsAString& source)
     WebGLuint shadername;
     if (!GetConcreteObjectAndGLName("shaderSource: shader", sobj, &shader, &shadername))
         return NS_OK;
-
-    if (!ValidateGLSLString(source, "shaderSource"))
-        return NS_OK;
-
+    
     const nsPromiseFlatString& flatSource = PromiseFlatString(source);
 
     if (!NS_IsAscii(flatSource.get()))
