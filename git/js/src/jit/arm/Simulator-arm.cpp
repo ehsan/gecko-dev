@@ -402,8 +402,6 @@ class AutoLockSimulatorRuntime
     }
 };
 
-bool Simulator::ICacheCheckingEnabled = false;
-
 SimulatorRuntime *
 CreateSimulatorRuntime()
 {
@@ -415,10 +413,6 @@ CreateSimulatorRuntime()
         js_delete(srt);
         return nullptr;
     }
-
-    if (getenv("ARM_SIM_ICACHE_CHECKS"))
-        Simulator::ICacheCheckingEnabled = true;
-
     return srt;
 }
 
@@ -3795,6 +3789,8 @@ Simulator::decodeSpecialCondition(SimInstruction *instr)
         MOZ_CRASH();
     }
 }
+
+bool Simulator::ICacheCheckingEnabled = false;
 
 // Executes the current instruction.
 void

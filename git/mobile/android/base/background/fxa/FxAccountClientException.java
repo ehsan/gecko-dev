@@ -5,7 +5,6 @@
 package org.mozilla.gecko.background.fxa;
 
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.HTTPFailureException;
 import org.mozilla.gecko.sync.net.SyncStorageResponse;
 
@@ -35,20 +34,15 @@ public class FxAccountClientException extends Exception {
     public final String error;
     public final String message;
     public final String info;
-    public final ExtendedJSONObject body;
 
-    public FxAccountClientRemoteException(HttpResponse response, long httpStatusCode, long apiErrorNumber, String error, String message, String info, ExtendedJSONObject body) {
+    public FxAccountClientRemoteException(HttpResponse response, long httpStatusCode, long apiErrorNumber, String error, String message, String info) {
       super(new HTTPFailureException(new SyncStorageResponse(response)));
-      if (body == null) {
-        throw new IllegalArgumentException("body must not be null");
-      }
       this.response = response;
       this.httpStatusCode = httpStatusCode;
       this.apiErrorNumber = apiErrorNumber;
       this.error = error;
       this.message = message;
       this.info = info;
-      this.body = body;
     }
 
     @Override
@@ -61,10 +55,6 @@ public class FxAccountClientException extends Exception {
     }
 
     public boolean isAccountAlreadyExists() {
-      return apiErrorNumber == FxAccountRemoteError.ATTEMPT_TO_CREATE_AN_ACCOUNT_THAT_ALREADY_EXISTS;
-    }
-
-    public boolean isAccountDoesNotExist() {
       return apiErrorNumber == FxAccountRemoteError.ATTEMPT_TO_ACCESS_AN_ACCOUNT_THAT_DOES_NOT_EXIST;
     }
 
@@ -84,44 +74,35 @@ public class FxAccountClientException extends Exception {
           apiErrorNumber == FxAccountRemoteError.INCORRECT_API_VERSION_FOR_THIS_ACCOUNT;
     }
 
-    public boolean isTooManyRequests() {
-      return apiErrorNumber == FxAccountRemoteError.CLIENT_HAS_SENT_TOO_MANY_REQUESTS;
-    }
-
-    public boolean isServerUnavailable() {
-      return apiErrorNumber == FxAccountRemoteError.SERVICE_TEMPORARILY_UNAVAILABLE_DUE_TO_HIGH_LOAD;
-    }
-
-    public boolean isBadEmailCase() {
-      return apiErrorNumber == FxAccountRemoteError.INCORRECT_EMAIL_CASE;
-    }
-
     public int getErrorMessageStringResource() {
       if (isUpgradeRequired()) {
         return R.string.fxaccount_remote_error_UPGRADE_REQUIRED;
-      } else if (isAccountAlreadyExists()) {
+      }
+      switch ((int) apiErrorNumber) {
+      case FxAccountRemoteError.ATTEMPT_TO_CREATE_AN_ACCOUNT_THAT_ALREADY_EXISTS:
         return R.string.fxaccount_remote_error_ATTEMPT_TO_CREATE_AN_ACCOUNT_THAT_ALREADY_EXISTS;
-      } else if (isAccountDoesNotExist()) {
+      case FxAccountRemoteError.ATTEMPT_TO_ACCESS_AN_ACCOUNT_THAT_DOES_NOT_EXIST:
         return R.string.fxaccount_remote_error_ATTEMPT_TO_ACCESS_AN_ACCOUNT_THAT_DOES_NOT_EXIST;
-      } else if (isBadPassword()) {
+      case FxAccountRemoteError.INCORRECT_PASSWORD:
         return R.string.fxaccount_remote_error_INCORRECT_PASSWORD;
-      } else if (isUnverified()) {
+      case FxAccountRemoteError.ATTEMPT_TO_OPERATE_ON_AN_UNVERIFIED_ACCOUNT:
         return R.string.fxaccount_remote_error_ATTEMPT_TO_OPERATE_ON_AN_UNVERIFIED_ACCOUNT;
-      } else if (isTooManyRequests()) {
+      case FxAccountRemoteError.CLIENT_HAS_SENT_TOO_MANY_REQUESTS:
         return R.string.fxaccount_remote_error_CLIENT_HAS_SENT_TOO_MANY_REQUESTS;
-      } else if (isServerUnavailable()) {
+      case FxAccountRemoteError.SERVICE_TEMPORARILY_UNAVAILABLE_DUE_TO_HIGH_LOAD:
         return R.string.fxaccount_remote_error_SERVICE_TEMPORARILY_UNAVAILABLE_TO_DUE_HIGH_LOAD;
-      } else {
+      default:
         return R.string.fxaccount_remote_error_UNKNOWN_ERROR;
       }
     }
   }
 
+
   public static class FxAccountClientMalformedResponseException extends FxAccountClientRemoteException {
     private static final long serialVersionUID = 2209313149952001098L;
 
     public FxAccountClientMalformedResponseException(HttpResponse response) {
-      super(response, 0, FxAccountRemoteError.UNKNOWN_ERROR, "Response malformed", "Response malformed", "Response malformed", new ExtendedJSONObject());
+      super(response, 0, FxAccountRemoteError.UNKNOWN_ERROR, "Response malformed", "Response malformed", "Response malformed");
     }
   }
 }

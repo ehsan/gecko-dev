@@ -300,19 +300,6 @@ IsOlderVersion(nsIFile *versionFile, const char *appVersion)
   return false;
 }
 
-#if defined(XP_WIN) && defined(MOZ_METRO)
-static bool
-IsWindowsMetroUpdateRequest(int appArgc, char **appArgv)
-{
-  for (int index = 0; index < appArgc; index++) {
-    if (!strcmp(appArgv[index], "--metro-update")) {
-      return true;
-    }
-  }
-  return false;
-}
-#endif
-
 static bool
 CopyFileIntoUpdateDir(nsIFile *parentDir, const char *leafName, nsIFile *updateDir)
 {
@@ -548,8 +535,8 @@ SwitchToUpdatedApp(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   pid.AppendLiteral("/replace");
 
   int immersiveArgc = 0;
-#if defined(XP_WIN) && defined(MOZ_METRO)
-  if (IsWindowsMetroUpdateRequest(appArgc, appArgv)) {
+#ifdef XP_WIN
+  if (IsRunningInWindowsMetro()) {
     immersiveArgc = 1;
   }
 #endif
@@ -832,8 +819,8 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsIFile *statusFile,
   }
 
   int immersiveArgc = 0;
-#if defined(XP_WIN) && defined(MOZ_METRO)
-  if (IsWindowsMetroUpdateRequest(appArgc, appArgv)) {
+#ifdef XP_WIN
+  if (IsRunningInWindowsMetro()) {
     immersiveArgc = 1;
   }
 #endif

@@ -103,7 +103,7 @@ static void AllocateSolidColorFrame(layers::PlanarYCbCrData& aData,
   aData.mPicX = 0;
   aData.mPicY = 0;
   aData.mPicSize = IntSize(aWidth, aHeight);
-  aData.mStereoMode = StereoMode::MONO;
+  aData.mStereoMode = STEREO_MODE_MONO;
 }
 
 static void ReleaseFrame(layers::PlanarYCbCrData& aData)
@@ -207,7 +207,8 @@ MediaEngineDefaultVideoSource::Notify(nsITimer* aTimer)
   }
 
   // Allocate a single solid color image
-  nsRefPtr<layers::Image> image = mImageContainer->CreateImage(ImageFormat::PLANAR_YCBCR);
+  ImageFormat format = PLANAR_YCBCR;
+  nsRefPtr<layers::Image> image = mImageContainer->CreateImage(&format, 1);
   nsRefPtr<layers::PlanarYCbCrImage> ycbcr_image =
       static_cast<layers::PlanarYCbCrImage*>(image.get());
   layers::PlanarYCbCrData data;

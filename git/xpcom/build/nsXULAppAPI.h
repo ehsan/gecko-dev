@@ -14,7 +14,6 @@
 #include "nsXREAppData.h"
 #include "js/TypeDecls.h"
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
 
 /**
@@ -367,7 +366,10 @@ static const char* const kGeckoProcessTypeString[] = {
   "ipdlunittest"
 };
 
-static_assert(MOZ_ARRAY_LENGTH(kGeckoProcessTypeString) ==
+// Oddly, NS_ARRAY_LENGTH causes an internal compiler error with MSVC10, so
+// compute the length manually.
+static_assert(sizeof(kGeckoProcessTypeString) /
+              sizeof(kGeckoProcessTypeString[0]) ==
               GeckoProcessType_End,
               "Array length mismatch");
 

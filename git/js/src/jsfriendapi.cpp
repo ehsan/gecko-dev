@@ -541,7 +541,6 @@ JS_FRIEND_API(void)
 js::SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val)
 {
     JS_ASSERT(fun->as<JSFunction>().isNative());
-    MOZ_ASSERT_IF(val.isObject(), val.toObject().compartment() == fun->compartment());
     fun->as<JSFunction>().setExtendedSlot(which, val);
 }
 
@@ -586,6 +585,12 @@ void
 js::SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback)
 {
     rt->preserveWrapperCallback = callback;
+}
+
+JS_FRIEND_API(JSErrorReport*)
+js::ErrorFromException(Value val)
+{
+    return js_ErrorFromException(val);
 }
 
 /*

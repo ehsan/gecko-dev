@@ -258,7 +258,6 @@ BrowserElementParent.prototype = {
       "loadend": this._fireEventFromMsg,
       "titlechange": this._fireEventFromMsg,
       "iconchange": this._fireEventFromMsg,
-      "metachange": this._fireEventFromMsg,
       "close": this._fireEventFromMsg,
       "resize": this._fireEventFromMsg,
       "activitydone": this._fireEventFromMsg,

@@ -262,6 +262,21 @@ private:
   uint32_t mRecycledBufferSize;
 };
 
+/**
+ * Returns true if aFormat is in the given format array.
+ */
+static inline bool
+FormatInList(const ImageFormat* aFormats, uint32_t aNumFormats,
+             ImageFormat aFormat)
+{
+  for (uint32_t i = 0; i < aNumFormats; ++i) {
+    if (aFormats[i] == aFormat) {
+      return true;
+    }
+  }
+  return false;
+}
+
 class CompositionNotifySink
 {
 public:
@@ -294,7 +309,8 @@ protected:
   ImageFactory() {}
   virtual ~ImageFactory() {}
 
-  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat,
+  virtual already_AddRefed<Image> CreateImage(const ImageFormat* aFormats,
+                                              uint32_t aNumFormats,
                                               const gfx::IntSize &aScaleHint,
                                               BufferRecycleBin *aRecycleBin);
 
@@ -395,7 +411,8 @@ public:
    * Can be called on any thread. This method takes mReentrantMonitor
    * when accessing thread-shared state.
    */
-  already_AddRefed<Image> CreateImage(ImageFormat aFormat);
+  already_AddRefed<Image> CreateImage(const ImageFormat* aFormats,
+                                      uint32_t aNumFormats);
 
   /**
    * Set an Image as the current image to display. The Image must have
@@ -773,7 +790,7 @@ struct PlanarYCbCrData {
     : mYChannel(nullptr), mYStride(0), mYSize(0, 0), mYSkip(0)
     , mCbChannel(nullptr), mCrChannel(nullptr)
     , mCbCrStride(0), mCbCrSize(0, 0) , mCbSkip(0), mCrSkip(0)
-    , mPicX(0), mPicY(0), mPicSize(0, 0), mStereoMode(StereoMode::MONO)
+    , mPicX(0), mPicY(0), mPicSize(0, 0), mStereoMode(STEREO_MODE_MONO)
   {}
 };
 
@@ -941,7 +958,7 @@ public:
 
   gfx::IntSize GetSize() { return mSize; }
 
-  CairoImage() : Image(nullptr, ImageFormat::CAIRO_SURFACE) {}
+  CairoImage() : Image(nullptr, CAIRO_SURFACE) {}
 
   nsCountedRef<nsMainThreadSurfaceRef> mDeprecatedSurface;
   gfx::IntSize mSize;
@@ -953,7 +970,7 @@ public:
 
 class RemoteBitmapImage : public Image {
 public:
-  RemoteBitmapImage() : Image(nullptr, ImageFormat::REMOTE_IMAGE_BITMAP) {}
+  RemoteBitmapImage() : Image(nullptr, REMOTE_IMAGE_BITMAP) {}
 
   already_AddRefed<gfxASurface> DeprecatedGetAsSurface();
   TemporaryRef<gfx::SourceSurface> GetAsSourceSurface();

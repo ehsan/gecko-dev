@@ -104,8 +104,8 @@ FrameworkView::LaunchActivated(ComPtr<ILaunchActivatedEventArgs>& aArgs, bool aS
   int argc;
   unsigned int length;
   LPWSTR* argv = CommandLineToArgvW(data.GetRawBuffer(&length), &argc);
-  if (aStartup && argc == 2 && !wcsicmp(argv[0], L"-url")) {
-    mActivationURI = argv[1];
+  if (aStartup && argc == 3 && !wcsicmp(argv[1], L"-url")) {
+    mActivationURI = argv[2];
   } else {
     // Some other command line or this is not a startup.
     // If it is startup we process it later when XPCOM is initialilzed.
@@ -273,11 +273,7 @@ FrameworkView::PerformURILoad(HString& aURI)
   }
 
   nsAutoCString utf8data(NS_ConvertUTF16toUTF8(aURI.GetRawBuffer(&length)));
-
-  // NB: The first argument gets stripped by nsICommandLineRunner::Init,
-  //     so it doesn't matter what we pass as the first argument, but we
-  //     have to pass something.
-  const char *argv[] = { "", // This argument gets stripped
+  const char *argv[] = { "metrobrowser",
                          "-url",
                          utf8data.BeginReading() };
   nsresult rv = cmdLine->Init(ArrayLength(argv),
@@ -308,10 +304,7 @@ FrameworkView::PerformSearch(HString& aQuery)
   parameter.Append(NS_ConvertUTF16toUTF8(aQuery.GetRawBuffer(&length)));
   parameter.AppendLiteral("\"");
 
-  // NB: The first argument gets stripped by nsICommandLineRunner::Init,
-  //     so it doesn't matter what we pass as the first argument, but we
-  //     have to pass something.
-  const char *argv[] = { "", // This argument gets stripped
+  const char *argv[] = { "metrobrowser",
                          "-search",
                          parameter.BeginReading() };
   nsresult rv = cmdLine->Init(ArrayLength(argv),

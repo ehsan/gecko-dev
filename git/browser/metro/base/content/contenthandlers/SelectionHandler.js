@@ -300,16 +300,10 @@ var SelectionHandler = {
    * Called any time SelectionHelperUI would like us to
    * recalculate the selection bounds.
    */
-  _onSelectionUpdate: function _onSelectionUpdate(aMsg) {
+  _onSelectionUpdate: function _onSelectionUpdate() {
     if (!this._contentWindow) {
       this._onFail("_onSelectionUpdate was called without proper view set up");
       return;
-    }
-
-    if (aMsg && aMsg.isInitiatedByAPZC) {
-      let {offset: offset} = Content.getCurrentWindowAndOffset(
-        this._targetCoordinates.x, this._targetCoordinates.y);
-      this._contentOffset = offset;
     }
 
     // Update the position of our selection monocles
@@ -393,7 +387,6 @@ var SelectionHandler = {
     this._contentOffset = null;
     this._domWinUtils = null;
     this._targetIsEditable = false;
-    this._targetCoordinates = null;
     sendSyncMessage("Content:HandlerShutdown", {});
   },
 
@@ -416,11 +409,6 @@ var SelectionHandler = {
     this._contentOffset = offset;
     this._domWinUtils = utils;
     this._targetIsEditable = Util.isEditable(this._targetElement);
-    this._targetCoordinates = {
-      x: aX,
-      y: aY
-    };
-
     return true;
   },
 
@@ -545,7 +533,7 @@ var SelectionHandler = {
         break;
 
       case "Browser:SelectionUpdate":
-        this._onSelectionUpdate(json);
+        this._onSelectionUpdate();
         break;
 
       case "Browser:RepositionInfoRequest":

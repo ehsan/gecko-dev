@@ -686,9 +686,6 @@ protected:
       return mContentBackend;
     }
 
-    static mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
-      GetScaledFontForFontWithCairoSkia(mozilla::gfx::DrawTarget* aTarget, gfxFont* aFont);
-
     int8_t  mAllowDownloadableFonts;
     int8_t  mGraphiteShapingEnabled;
     int8_t  mOpenTypeSVGEnabled;

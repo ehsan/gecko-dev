@@ -54,9 +54,6 @@ public:
     // so that it also has access to the _INCOMING flag
     // TEXT_TRAILING_ARABICCHAR
     // TEXT_INCOMING_ARABICCHAR
-
-    // This is defined in gfxTextRunFactory to allow access in gfxFont.
-    // TEXT_USE_MATH_SCRIPT
   };
 
   // These constants are used in TransformText to represent context information

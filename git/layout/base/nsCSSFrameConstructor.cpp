@@ -3659,7 +3659,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
            (maybeAbsoluteContainingBlockDisplay->HasTransformStyle() &&
             cb->IsFrameOfType(nsIFrame::eSupportsCSSTransforms))) &&
           !cb->IsSVGText()) {
-        aState.PushAbsoluteContainingBlock(cb, cb, absoluteSaveState);
+        aState.PushAbsoluteContainingBlock(cb, primaryFrame, absoluteSaveState);
       }
     }
 
