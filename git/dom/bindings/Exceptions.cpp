@@ -307,6 +307,9 @@ public:
   NS_IMETHOD GetName(nsAString& aFunction) MOZ_OVERRIDE;
   NS_IMETHOD GetCaller(nsIStackFrame** aCaller) MOZ_OVERRIDE;
   NS_IMETHOD GetFormattedStack(nsAString& aStack) MOZ_OVERRIDE;
+  virtual bool CallerSubsumes(JSContext* aCx) MOZ_OVERRIDE;
+  NS_IMETHOD GetSanitized(JSContext* aCx,
+                          nsIStackFrame** aSanitized) MOZ_OVERRIDE;
 
 protected:
   virtual bool IsJSFrame() const MOZ_OVERRIDE {
@@ -388,68 +391,37 @@ NS_IMETHODIMP JSStackFrame::GetLanguageName(nsACString& aLanguageName)
   return NS_OK;
 }
 
-// Helper method to get the value of a stack property, if it's not already
-// cached.  This will make sure we skip the cache if the access is happening
-// over Xrays.
-//
-// @argument aStack the stack we're working with; must be non-null.
-// @argument aPropGetter the getter function to call.
-// @argument aIsCached whether we've cached this property's value before.
-//
-// @argument [out] aCanCache whether the value can get cached.
-// @argument [out] aUseCachedValue if true, just use the cached value.
-// @argument [out] aValue the value we got from the stack.
-template<typename ReturnType, typename GetterOutParamType>
-static void
-GetValueIfNotCached(JSContext* aCx, JSObject* aStack,
-                    JS::SavedFrameResult (*aPropGetter)(JSContext*,
-                                                        JS::Handle<JSObject*>,
-                                                        GetterOutParamType),
-                    bool aIsCached, bool* aCanCache, bool* aUseCachedValue,
-                    ReturnType aValue)
-{
-  MOZ_ASSERT(aStack);
-
-  JS::Rooted<JSObject*> stack(aCx, aStack);
-  // Allow caching if aCx and stack are same-compartment.  Otherwise take the
-  // slow path.
-  *aCanCache = js::GetContextCompartment(aCx) == js::GetObjectCompartment(stack);
-  if (*aCanCache && aIsCached) {
-    *aUseCachedValue = true;
-    return;
-  }
-
-  *aUseCachedValue = false;
-  JS::ExposeObjectToActiveJS(stack);
-
-  aPropGetter(aCx, stack, aValue);
-}
-
 /* readonly attribute AString filename; */
 NS_IMETHODIMP JSStackFrame::GetFilename(nsAString& aFilename)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
-  ThreadsafeAutoJSContext cx;
-  JS::Rooted<JSString*> filename(cx);
-  bool canCache = false, useCachedValue = false;
-  GetValueIfNotCached(cx, mStack, JS::GetSavedFrameSource, mFilenameInitialized,
-                      &canCache, &useCachedValue, &filename);
-  if (useCachedValue) {
-    return StackFrame::GetFilename(aFilename);
-  }
+  // We can get called after unlink; in that case we can't do much
+  // about producing a useful value.
+  if (!mFilenameInitialized && mStack) {
+    ThreadsafeAutoJSContext cx;
+    JS::Rooted<JSObject*> stack(cx, mStack);
+    JS::ExposeObjectToActiveJS(mStack);
+    JSAutoCompartment ac(cx, stack);
 
-  nsAutoJSString str;
-  if (!str.init(cx, filename)) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  aFilename = str;
+    JS::Rooted<JS::Value> filenameVal(cx);
+    if (!JS_GetProperty(cx, stack, "source", &filenameVal)) {
+      return NS_ERROR_UNEXPECTED;
+    }
 
-  if (canCache) {
+    if (filenameVal.isNull()) {
+      filenameVal = JS_GetEmptyStringValue(cx);
+    }
+    MOZ_ASSERT(filenameVal.isString());
+
+    nsAutoJSString str;
+    if (!str.init(cx, filenameVal.toString())) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
     mFilename = str;
     mFilenameInitialized = true;
   }
 
-  return NS_OK;
+  return StackFrame::GetFilename(aFilename);
 }
 
 NS_IMETHODIMP StackFrame::GetFilename(nsAString& aFilename)
@@ -467,34 +439,30 @@ NS_IMETHODIMP StackFrame::GetFilename(nsAString& aFilename)
 /* readonly attribute AString name; */
 NS_IMETHODIMP JSStackFrame::GetName(nsAString& aFunction)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
-  ThreadsafeAutoJSContext cx;
-  JS::Rooted<JSString*> name(cx);
-  bool canCache = false, useCachedValue = false;
-  GetValueIfNotCached(cx, mStack, JS::GetSavedFrameFunctionDisplayName,
-                      mFunnameInitialized, &canCache, &useCachedValue,
-                      &name);
-
-  if (useCachedValue) {
-    return StackFrame::GetName(aFunction);
-  }
-
-  if (name) {
-    nsAutoJSString str;
-    if (!str.init(cx, name)) {
-      return NS_ERROR_OUT_OF_MEMORY;
+  // We can get called after unlink; in that case we can't do much
+  // about producing a useful value.
+  if (!mFunnameInitialized && mStack) {
+    ThreadsafeAutoJSContext cx;
+    JS::Rooted<JSObject*> stack(cx, mStack);
+    JS::ExposeObjectToActiveJS(mStack);
+    JSAutoCompartment ac(cx, stack);
+    JS::Rooted<JS::Value> nameVal(cx);
+    // functionDisplayName can be null
+    if (!JS_GetProperty(cx, stack, "functionDisplayName", &nameVal) ||
+        (!nameVal.isString() && !nameVal.isNull())) {
+      return NS_ERROR_UNEXPECTED;
     }
-    aFunction = str;
-  } else {
-    aFunction.SetIsVoid(true);
-  }
-
-  if (canCache) {
-    mFunname = aFunction;
+    if (nameVal.isString()) {
+      nsAutoJSString str;
+      if (!str.init(cx, nameVal.toString())) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      mFunname = str;
+    }
     mFunnameInitialized = true;
   }
 
-  return NS_OK;
+  return StackFrame::GetName(aFunction);
 }
 
 NS_IMETHODIMP StackFrame::GetName(nsAString& aFunction)
@@ -513,25 +481,27 @@ NS_IMETHODIMP StackFrame::GetName(nsAString& aFunction)
 nsresult
 JSStackFrame::GetLineno(int32_t* aLineNo)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
-  ThreadsafeAutoJSContext cx;
-  uint32_t line;
-  bool canCache = false, useCachedValue = false;
-  GetValueIfNotCached(cx, mStack, JS::GetSavedFrameLine, mLinenoInitialized,
-                      &canCache, &useCachedValue, &line);
-
-  if (useCachedValue) {
-    return StackFrame::GetLineno(aLineNo);
-  }
-
-  *aLineNo = line;
-
-  if (canCache) {
-    mLineno = line;
+  // We can get called after unlink; in that case we can't do much
+  // about producing a useful value.
+  if (!mLinenoInitialized && mStack) {
+    ThreadsafeAutoJSContext cx;
+    JS::Rooted<JSObject*> stack(cx, mStack);
+    JS::ExposeObjectToActiveJS(mStack);
+    JSAutoCompartment ac(cx, stack);
+    JS::Rooted<JS::Value> lineVal(cx);
+    if (!JS_GetProperty(cx, stack, "line", &lineVal)) {
+      return NS_ERROR_UNEXPECTED;
+    }
+    if (lineVal.isNumber()) {
+      mLineno = lineVal.toNumber();
+    } else {
+      MOZ_ASSERT(lineVal.isNull());
+      mLineno = 0;
+    }
     mLinenoInitialized = true;
   }
 
-  return NS_OK;
+  return StackFrame::GetLineno(aLineNo);
 }
 
 /* readonly attribute int32_t lineNumber; */
@@ -544,25 +514,27 @@ NS_IMETHODIMP StackFrame::GetLineNumber(int32_t* aLineNumber)
 nsresult
 JSStackFrame::GetColNo(int32_t* aColNo)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
-  ThreadsafeAutoJSContext cx;
-  uint32_t col;
-  bool canCache = false, useCachedValue = false;
-  GetValueIfNotCached(cx, mStack, JS::GetSavedFrameColumn, mColNoInitialized,
-                      &canCache, &useCachedValue, &col);
-
-  if (useCachedValue) {
-    return StackFrame::GetColNo(aColNo);
-  }
-
-  *aColNo = col;
-
-  if (canCache) {
-    mColNo = col;
+  // We can get called after unlink; in that case we can't do much
+  // about producing a useful value.
+  if (!mColNoInitialized && mStack) {
+    ThreadsafeAutoJSContext cx;
+    JS::Rooted<JSObject*> stack(cx, mStack);
+    JS::ExposeObjectToActiveJS(mStack);
+    JSAutoCompartment ac(cx, stack);
+    JS::Rooted<JS::Value> colVal(cx);
+    if (!JS_GetProperty(cx, stack, "column", &colVal)) {
+      return NS_ERROR_UNEXPECTED;
+    }
+    if (colVal.isNumber()) {
+      mColNo = colVal.toNumber();
+    } else {
+      MOZ_ASSERT(colVal.isNull());
+      mColNo = 0;
+    }
     mColNoInitialized = true;
   }
 
-  return NS_OK;
+  return StackFrame::GetColNo(aColNo);
 }
 
 /* readonly attribute int32_t columnNumber; */
@@ -578,37 +550,63 @@ NS_IMETHODIMP StackFrame::GetSourceLine(nsACString& aSourceLine)
   return NS_OK;
 }
 
+/* [noscript] readonly attribute nsIStackFrame sanitized */
+NS_IMETHODIMP StackFrame::GetSanitized(JSContext*, nsIStackFrame** aSanitized)
+{
+  NS_ADDREF(*aSanitized = this);
+  return NS_OK;
+}
+
+/* [noscript] readonly attribute nsIStackFrame sanitized */
+NS_IMETHODIMP JSStackFrame::GetSanitized(JSContext* aCx, nsIStackFrame** aSanitized)
+{
+  // NB: Do _not_ enter the compartment of the SavedFrame object here, because
+  // we are checking against the caller's compartment's principals in
+  // GetFirstSubsumedSavedFrame.
+
+  JS::RootedObject savedFrame(aCx, mStack);
+  JS::ExposeObjectToActiveJS(mStack);
+
+  savedFrame = js::GetFirstSubsumedSavedFrame(aCx, savedFrame);
+  nsCOMPtr<nsIStackFrame> stackFrame;
+  if (savedFrame) {
+    stackFrame = new JSStackFrame(savedFrame);
+  } else {
+    stackFrame = new StackFrame();
+  }
+
+  stackFrame.forget(aSanitized);
+  return NS_OK;
+}
+
 /* readonly attribute nsIStackFrame caller; */
 NS_IMETHODIMP JSStackFrame::GetCaller(nsIStackFrame** aCaller)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
-  ThreadsafeAutoJSContext cx;
-  JS::Rooted<JSObject*> callerObj(cx);
-  bool canCache = false, useCachedValue = false;
-  GetValueIfNotCached(cx, mStack, JS::GetSavedFrameParent, mCallerInitialized,
-                      &canCache, &useCachedValue, &callerObj);
+  // We can get called after unlink; in that case we can't do much
+  // about producing a useful value.
+  if (!mCallerInitialized && mStack) {
+    ThreadsafeAutoJSContext cx;
+    JS::Rooted<JSObject*> stack(cx, mStack);
+    JS::ExposeObjectToActiveJS(mStack);
+    JSAutoCompartment ac(cx, stack);
+    JS::Rooted<JS::Value> callerVal(cx);
+    if (!JS_GetProperty(cx, stack, "parent", &callerVal) ||
+        !callerVal.isObjectOrNull()) {
+      return NS_ERROR_UNEXPECTED;
+    }
 
-  if (useCachedValue) {
-    return StackFrame::GetCaller(aCaller);
-  }
-
-  nsCOMPtr<nsIStackFrame> caller;
-  if (callerObj) {
-      caller = new JSStackFrame(callerObj);
-  } else {
-    // Do we really need this dummy frame?  If so, we should document why... I
-    // guess for symmetry with the "nothing on the stack" case, which returns
-    // a single dummy frame?
-    caller = new StackFrame();
-  }
-  caller.forget(aCaller);
-
-  if (canCache) {
-    mCaller = *aCaller;
+    if (callerVal.isObject()) {
+      JS::Rooted<JSObject*> caller(cx, &callerVal.toObject());
+      mCaller = new JSStackFrame(caller);
+    } else {
+      // Do we really need this dummy frame?  If so, we should document why... I
+      // guess for symmetry with the "nothing on the stack" case, which returns
+      // a single dummy frame?
+      mCaller = new StackFrame();
+    }
     mCallerInitialized = true;
   }
-
-  return NS_OK;
+  return StackFrame::GetCaller(aCaller);
 }
 
 NS_IMETHODIMP StackFrame::GetCaller(nsIStackFrame** aCaller)
@@ -619,42 +617,26 @@ NS_IMETHODIMP StackFrame::GetCaller(nsIStackFrame** aCaller)
 
 NS_IMETHODIMP JSStackFrame::GetFormattedStack(nsAString& aStack)
 {
-  NS_ENSURE_TRUE(mStack, NS_ERROR_NOT_AVAILABLE);
-  // Sadly we can't use GetValueIfNotCached here, because our getter
-  // returns bool, not JS::SavedFrameResult.  Maybe it's possible to
-  // make the templates more complicated to deal, but in the meantime
-  // let's just inline GetValueIfNotCached here.
-  ThreadsafeAutoJSContext cx;
-
-  // Allow caching if cx and stack are same-compartment.  Otherwise take the
-  // slow path.
-  bool canCache =
-    js::GetContextCompartment(cx) == js::GetObjectCompartment(mStack);
-  if (canCache && mFormattedStackInitialized) {
-    aStack = mFormattedStack;
-    return NS_OK;
-  }
-
-  JS::ExposeObjectToActiveJS(mStack);
-  JS::Rooted<JSObject*> stack(cx, mStack);
-
-  JS::Rooted<JSString*> formattedStack(cx);
-  if (!JS::StringifySavedFrameStack(cx, stack, &formattedStack)) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  nsAutoJSString str;
-  if (!str.init(cx, formattedStack)) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  aStack = str;
-
-  if (canCache) {
+  // We can get called after unlink; in that case we can't do much
+  // about producing a useful value.
+  if (!mFormattedStackInitialized && mStack) {
+    ThreadsafeAutoJSContext cx;
+    JS::Rooted<JS::Value> stack(cx, JS::ObjectValue(*mStack));
+    JS::ExposeObjectToActiveJS(mStack);
+    JSAutoCompartment ac(cx, mStack);
+    JS::Rooted<JSString*> formattedStack(cx, JS::ToString(cx, stack));
+    if (!formattedStack) {
+      return NS_ERROR_UNEXPECTED;
+    }
+    nsAutoJSString str;
+    if (!str.init(cx, formattedStack)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     mFormattedStack = str;
     mFormattedStackInitialized = true;
   }
 
+  aStack = mFormattedStack;
   return NS_OK;
 }
 
@@ -697,6 +679,37 @@ NS_IMETHODIMP StackFrame::ToString(nsACString& _retval)
                        NS_ConvertUTF16toUTF8(funname).get(),
                        lineno);
   return NS_OK;
+}
+
+/* virtual */ bool
+StackFrame::CallerSubsumes(JSContext* aCx)
+{
+  return true;
+}
+
+/* virtual */ bool
+JSStackFrame::CallerSubsumes(JSContext* aCx)
+{
+  if (!NS_IsMainThread()) {
+    return true;
+  }
+
+  if (!mStack) {
+    // No problem here, there's no data to leak.
+    return true;
+  }
+
+  nsIPrincipal* callerPrincipal = nsContentUtils::SubjectPrincipal();
+
+  JS::Rooted<JSObject*> unwrappedStack(aCx, js::CheckedUnwrap(mStack));
+  if (!unwrappedStack) {
+    // We can't leak data here either.
+    return true;
+  }
+
+  nsIPrincipal* stackPrincipal =
+    nsJSPrincipals::get(js::GetSavedFramePrincipals(unwrappedStack));
+  return callerPrincipal->SubsumesConsideringDomain(stackPrincipal);
 }
 
 /* static */ already_AddRefed<nsIStackFrame>

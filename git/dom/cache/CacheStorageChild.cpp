@@ -137,9 +137,7 @@ CacheStorageChild::RecvOpenResponse(const RequestId& aRequestId,
   // the feature won't try to shutdown the actor until after we create the
   // Cache DOM object in the listener's RecvOpenResponse() method.  This
   // is important because StartShutdown() expects a Cache object listener.
-  if (cacheChild) {
-    cacheChild->SetFeature(GetFeature());
-  }
+  cacheChild->SetFeature(GetFeature());
 
   listener->RecvOpenResponse(aRequestId, aRv, cacheChild);
   return true;

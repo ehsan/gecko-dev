@@ -1027,9 +1027,7 @@ public class BrowserApp extends GeckoApp
                 }
 
                 // Temporarily disable doorhanger notifications.
-                if (mDoorHangerPopup != null) {
-                    mDoorHangerPopup.disable();
-                }
+                mDoorHangerPopup.disable();
             }
         });
 
@@ -1052,9 +1050,7 @@ public class BrowserApp extends GeckoApp
                 hideHomePager();
 
                 // Re-enable doorhanger notifications. They may trigger on the selected tab above.
-                if (mDoorHangerPopup != null) {
-                    mDoorHangerPopup.enable();
-                }
+                mDoorHangerPopup.enable();
             }
         });
 

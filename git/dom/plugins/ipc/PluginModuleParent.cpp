@@ -1436,7 +1436,11 @@ PluginModuleParent::NPP_DestroyStream(NPP instance,
                                       NPStream* stream,
                                       NPReason reason)
 {
-    RESOLVE_AND_CALL(instance, NPP_DestroyStream(stream, reason));
+    PluginInstanceParent* i = PluginInstanceParent::Cast(instance);
+    if (!i)
+        return NPERR_GENERIC_ERROR;
+
+    return i->NPP_DestroyStream(stream, reason);
 }
 
 int32_t
