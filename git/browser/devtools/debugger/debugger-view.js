@@ -273,8 +273,6 @@ let DebuggerView = {
 
     DebuggerController.Breakpoints.destroy().then(() => {
       window.emit(EVENTS.EDITOR_UNLOADED, this.editor);
-      this.editor.destroy();
-      this.editor = null;
       aCallback();
     });
   },

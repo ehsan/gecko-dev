@@ -358,10 +358,21 @@ NfcContentHelper.prototype = {
   receiveMessage: function receiveMessage(message) {
     debug("Message received: " + JSON.stringify(message));
     let result = message.json;
+    let requester = this._requestMap[result.requestId];
+    if (!requester) {
+      debug("Response Invalid requestId=" + result.requestId);
+      return;
+    }
+    delete this._requestMap[result.requestId];
+
+    if (result.status !== NFC.GECKO_NFC_ERROR_SUCCESS) {
+      this.fireRequestError(atob(result.requestId), result.status);
+      return;
+    }
 
     switch (message.name) {
       case "NFC:ReadNDEFResponse":
-        this.handleReadNDEFResponse(result);
+        this.handleReadNDEFResponse(requester, result);
         break;
       case "NFC:GetDetailsNDEFResponse":
         this.handleGetDetailsNDEFResponse(result);
@@ -386,19 +397,7 @@ NfcContentHelper.prototype = {
     }
   },
 
-  handleReadNDEFResponse: function handleReadNDEFResponse(result) {
-    let requester = this._requestMap[result.requestId];
-    if (!requester) {
-      debug("Response Invalid requestId=" + result.requestId);
-      return;
-    }
-    delete this._requestMap[result.requestId];
-
-    if (result.status !== NFC.GECKO_NFC_ERROR_SUCCESS) {
-      this.fireRequestError(atob(result.requestId), result.status);
-      return;
-    }
-
+  handleReadNDEFResponse: function handleReadNDEFResponse(requester, result) {
     let requestId = atob(result.requestId);
     let ndefMsg = [];
     let records = result.records;
@@ -413,11 +412,6 @@ NfcContentHelper.prototype = {
   },
 
   handleGetDetailsNDEFResponse: function handleGetDetailsNDEFResponse(result) {
-    if (result.status !== NFC.GECKO_NFC_ERROR_SUCCESS) {
-      this.fireRequestError(atob(result.requestId), result.status);
-      return;
-    }
-
     let requestId = atob(result.requestId);
     let result = new GetDetailsNDEFResponse(result);
     this.fireRequestSuccess(requestId, result);

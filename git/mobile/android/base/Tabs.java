@@ -5,6 +5,8 @@
 
 package org.mozilla.gecko;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -526,14 +528,15 @@ public class Tabs implements GeckoEventListener {
         public void onTabChanged(Tab tab, TabEvents msg, Object data);
     }
 
-    private static final List<OnTabsChangedListener> TABS_CHANGED_LISTENERS = new CopyOnWriteArrayList<OnTabsChangedListener>();
+    private static List<OnTabsChangedListener> mTabsChangedListeners =
+        Collections.synchronizedList(new ArrayList<OnTabsChangedListener>());
 
     public static void registerOnTabsChangedListener(OnTabsChangedListener listener) {
-        TABS_CHANGED_LISTENERS.add(listener);
+        mTabsChangedListeners.add(listener);
     }
 
     public static void unregisterOnTabsChangedListener(OnTabsChangedListener listener) {
-        TABS_CHANGED_LISTENERS.remove(listener);
+        mTabsChangedListeners.remove(listener);
     }
 
     public enum TabEvents {
@@ -575,13 +578,15 @@ public class Tabs implements GeckoEventListener {
             public void run() {
                 onTabChanged(tab, msg, data);
 
-                if (TABS_CHANGED_LISTENERS.isEmpty()) {
-                    return;
-                }
+                synchronized (mTabsChangedListeners) {
+                    if (mTabsChangedListeners.isEmpty()) {
+                        return;
+                    }
 
-                Iterator<OnTabsChangedListener> items = TABS_CHANGED_LISTENERS.iterator();
-                while (items.hasNext()) {
-                    items.next().onTabChanged(tab, msg, data);
+                    Iterator<OnTabsChangedListener> items = mTabsChangedListeners.iterator();
+                    while (items.hasNext()) {
+                        items.next().onTabChanged(tab, msg, data);
+                    }
                 }
             }
         });
