@@ -19,17 +19,6 @@ namespace mozilla {
 namespace dom {
 
 class HTMLMediaElement;
-
-class CompareTextTracks {
-private:
-  HTMLMediaElement* mMediaElement;
-public:
-  CompareTextTracks(HTMLMediaElement* aMediaElement);
-  int32_t TrackChildPosition(TextTrack* aTrack) const;
-  bool Equals(TextTrack* aOne, TextTrack* aTwo) const;
-  bool LessThan(TextTrack* aOne, TextTrack* aTwo) const;
-};
-
 class TextTrack;
 class TextTrackCue;
 
@@ -45,8 +34,7 @@ public:
   TextTrackList* TextTracks() const;
   already_AddRefed<TextTrack> AddTextTrack(TextTrackKind aKind,
                                            const nsAString& aLabel,
-                                           const nsAString& aLanguage,
-                                           TextTrackSource aTextTrackSource);
+                                           const nsAString& aLanguage);
   void AddTextTrack(TextTrack* aTextTrack);
   void RemoveTextTrack(TextTrack* aTextTrack, bool aPendingListOnly);
   void DidSeek();

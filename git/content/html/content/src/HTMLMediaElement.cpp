@@ -78,8 +78,6 @@
 #include "mozilla/dom/power/PowerManagerService.h"
 #include "mozilla/dom/WakeLock.h"
 
-#include "mozilla/dom/TextTrack.h"
-
 #include "ImageContainer.h"
 #include "nsRange.h"
 #include <algorithm>
@@ -3949,11 +3947,9 @@ HTMLMediaElement::AddTextTrack(TextTrackKind aKind,
                                const nsAString& aLabel,
                                const nsAString& aLanguage)
 {
-  if (mTextTrackManager) {
-    return mTextTrackManager->AddTextTrack(aKind, aLabel, aLanguage,
-                                           TextTrackSource::AddTextTrack);
-  }
-  return nullptr;
+  return mTextTrackManager ? mTextTrackManager->AddTextTrack(aKind, aLabel,
+                                                             aLanguage)
+                           : nullptr;
 }
 
 void
