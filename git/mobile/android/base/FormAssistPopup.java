@@ -51,12 +51,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     private double mY;
     private double mW;
     private double mH;
-
-    private enum PopupType {
-        AUTOCOMPLETE,
-        VALIDATIONMESSAGE;
-    }
-    private PopupType mPopupType;
+    private boolean mIsAutoComplete = true;
 
     private static int sAutoCompleteMinWidth = 0;
     private static int sAutoCompleteRowHeight = 0;
@@ -213,8 +208,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
             return false;
         }
 
-        mPopupType = (isAutoComplete ?
-                      PopupType.AUTOCOMPLETE : PopupType.VALIDATIONMESSAGE);
+        mIsAutoComplete = isAutoComplete;
         return true;
     }
 
@@ -233,9 +227,9 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
 
         // Hide/show the appropriate popup contents
         if (mAutoCompleteList != null)
-            mAutoCompleteList.setVisibility((mPopupType == PopupType.AUTOCOMPLETE) ? VISIBLE : GONE);
+            mAutoCompleteList.setVisibility(mIsAutoComplete ? VISIBLE : GONE);
         if (mValidationMessage != null)
-            mValidationMessage.setVisibility((mPopupType == PopupType.AUTOCOMPLETE) ? GONE : VISIBLE);
+            mValidationMessage.setVisibility(mIsAutoComplete ? GONE : VISIBLE);
 
         if (sAutoCompleteMinWidth == 0) {
             Resources res = mContext.getResources();
@@ -261,7 +255,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
 
         // For autocomplete suggestions, if the input is smaller than the screen-width,
         // shrink the popup's width. Otherwise, keep it as FILL_PARENT.
-        if ((mPopupType == PopupType.AUTOCOMPLETE) && (left + width) < viewport.width) {
+        if (mIsAutoComplete && (left + width) < viewport.width) {
             popupWidth = left < 0 ? left + width : width;
 
             // Ensure the popup has a minimum width.
@@ -275,14 +269,14 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
         }
 
         int popupHeight;
-        if (mPopupType == PopupType.AUTOCOMPLETE)
+        if (mIsAutoComplete)
             popupHeight = sAutoCompleteRowHeight * mAutoCompleteList.getAdapter().getCount();
         else
             popupHeight = sValidationMessageHeight;
 
         int popupTop = top + height;
 
-        if (mPopupType == PopupType.VALIDATIONMESSAGE) {
+        if (!mIsAutoComplete) {
             mValidationMessageText.setLayoutParams(sValidationTextLayoutNormal);
             mValidationMessageArrow.setVisibility(VISIBLE);
             mValidationMessageArrowInverted.setVisibility(GONE);
@@ -305,7 +299,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
                     popupHeight = top;
                 }
 
-                if (mPopupType == PopupType.VALIDATIONMESSAGE) {
+                if (!mIsAutoComplete) {
                     mValidationMessageText.setLayoutParams(sValidationTextLayoutInverted);
                     mValidationMessageArrow.setVisibility(GONE);
                     mValidationMessageArrowInverted.setVisibility(VISIBLE);
