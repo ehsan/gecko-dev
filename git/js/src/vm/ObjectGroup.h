@@ -252,7 +252,7 @@ class ObjectGroup : public gc::TenuredCell
     }
 
     TypeNewScript *anyNewScript();
-    void detachNewScript(bool writeBarrier, ObjectGroup *replacement);
+    void detachNewScript(bool writeBarrier);
 
     ObjectGroupFlags flagsDontCheckGeneration() {
         return flags_;
@@ -480,7 +480,7 @@ class ObjectGroup : public gc::TenuredCell
     void setFlags(ExclusiveContext *cx, ObjectGroupFlags flags);
     void markUnknown(ExclusiveContext *cx);
     void maybeClearNewScriptOnOOM();
-    void clearNewScript(ExclusiveContext *cx, ObjectGroup *replacement = nullptr);
+    void clearNewScript(ExclusiveContext *cx);
     bool isPropertyNonData(jsid id);
     bool isPropertyNonWritable(jsid id);
 

@@ -401,8 +401,6 @@ public:
     nsCOMPtr<nsIXPConnectJSObjectHolder> ref = mGlobal;
     return ref.forget();
   }
-
-  void MarkScopesForCC();
 protected:
   friend class nsMessageManagerScriptCx;
   nsMessageManagerScriptExecutor() { MOZ_COUNT_CTOR(nsMessageManagerScriptExecutor); }

@@ -41,7 +41,6 @@ ProcessGlobal::Get()
 NS_IMETHODIMP_(bool)
 ProcessGlobal::MarkForCC()
 {
-  MarkScopesForCC();
   return mMessageManager ? mMessageManager->MarkForCC() : false;
 }
 

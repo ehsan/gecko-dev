@@ -6737,9 +6737,6 @@ class MCheckOverRecursed
     static MCheckOverRecursed *New(TempAllocator &alloc) {
         return new(alloc) MCheckOverRecursed();
     }
-    AliasSet getAliasSet() const MOZ_OVERRIDE {
-        return AliasSet::None();
-    }
 };
 
 // Check whether we need to fire the interrupt handler.
@@ -7828,10 +7825,9 @@ class MBoundsCheck
     // Range over which to perform the bounds check, may be modified by GVN.
     int32_t minimum_;
     int32_t maximum_;
-    bool fallible_;
 
     MBoundsCheck(MDefinition *index, MDefinition *length)
-      : MBinaryInstruction(index, length), minimum_(0), maximum_(0), fallible_(true)
+      : MBinaryInstruction(index, length), minimum_(0), maximum_(0)
     {
         setGuard();
         setMovable();
@@ -7879,10 +7875,6 @@ class MBoundsCheck
         return AliasSet::None();
     }
     void computeRange(TempAllocator &alloc) MOZ_OVERRIDE;
-    bool fallible() const {
-        return fallible_;
-    }
-    void collectRangeInfoPreTrunc() MOZ_OVERRIDE;
 
     ALLOW_CLONE(MBoundsCheck)
 };

@@ -13,7 +13,6 @@ task:
     maxRunTime: 14400
 
     command:
-      - with_workspace
       - build-phone.sh
 
   extra:

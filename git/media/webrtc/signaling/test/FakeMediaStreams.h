@@ -265,13 +265,7 @@ public:
   explicit Fake_DOMMediaStream(Fake_MediaStream *stream = nullptr)
     : mMediaStream(stream ? stream : new Fake_MediaStream())
     , mVideoTrack(new Fake_MediaStreamTrack(true, this))
-    , mAudioTrack(new Fake_MediaStreamTrack(false, this))
-    {
-      static size_t counter = 0;
-      std::ostringstream os;
-      os << counter++;
-      mID = os.str();
-    }
+    , mAudioTrack(new Fake_MediaStreamTrack(false, this)) {}
 
   NS_DECL_THREADSAFE_ISUPPORTS
 

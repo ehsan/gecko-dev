@@ -161,7 +161,6 @@ NS_IMETHODIMP
 nsXPCWrappedJS::AggregatedQueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
     MOZ_ASSERT(IsAggregatedToNative(), "bad AggregatedQueryInterface call");
-    *aInstancePtr = nullptr;
 
     if (!IsValid())
         return NS_ERROR_UNEXPECTED;
@@ -183,11 +182,9 @@ NS_IMETHODIMP
 nsXPCWrappedJS::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 {
     if (nullptr == aInstancePtr) {
-        NS_PRECONDITION(false, "null pointer");
+        NS_PRECONDITION(0, "null pointer");
         return NS_ERROR_NULL_POINTER;
     }
-
-    *aInstancePtr = nullptr;
 
     if ( aIID.Equals(NS_GET_IID(nsXPCOMCycleCollectionParticipant)) ) {
         *aInstancePtr = NS_CYCLE_COLLECTION_PARTICIPANT(nsXPCWrappedJS);
