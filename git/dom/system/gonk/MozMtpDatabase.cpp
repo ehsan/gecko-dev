@@ -283,12 +283,12 @@ MozMtpDatabase::getNumObjects(MtpStorageID aStorageID,
 MtpObjectFormatList*
 MozMtpDatabase::getSupportedPlaybackFormats()
 {
-  static const uint16_t init_data[] = {MTP_FORMAT_UNDEFINED, MTP_FORMAT_ASSOCIATION, MTP_FORMAT_PNG};
+  static const uint16_t init_data[] = {MTP_FORMAT_PNG};
 
   MtpObjectFormatList *list = new MtpObjectFormatList();
   list->appendArray(init_data, MOZ_ARRAY_LENGTH(init_data));
 
-  MTP_LOG("returning MTP_FORMAT_UNDEFINED, MTP_FORMAT_ASSOCIATION, MTP_FORMAT_PNG");
+  MTP_LOG("returning MTP_FORMAT_PNG");
   return list;
 }
 
@@ -300,21 +300,19 @@ MozMtpDatabase::getSupportedCaptureFormats()
 
   MtpObjectFormatList *list = new MtpObjectFormatList();
   list->appendArray(init_data, MOZ_ARRAY_LENGTH(init_data));
-  MTP_LOG("returning MTP_FORMAT_ASSOCIATION, MTP_FORMAT_PNG");
+  MTP_LOG("returning MTP_FORMAT_PNG");
   return list;
 }
 
 static const MtpObjectProperty sSupportedObjectProperties[] =
 {
   MTP_PROPERTY_STORAGE_ID,
+  MTP_PROPERTY_PARENT_OBJECT,
   MTP_PROPERTY_OBJECT_FORMAT,
-  MTP_PROPERTY_PROTECTION_STATUS,   // UINT16 - always 0
   MTP_PROPERTY_OBJECT_SIZE,
   MTP_PROPERTY_OBJECT_FILE_NAME,    // just the filename - no directory
-  MTP_PROPERTY_NAME,
+  MTP_PROPERTY_PROTECTION_STATUS,   // UINT16 - always 0
   MTP_PROPERTY_DATE_MODIFIED,
-  MTP_PROPERTY_PARENT_OBJECT,
-  MTP_PROPERTY_PERSISTENT_UID,
   MTP_PROPERTY_DATE_ADDED,
 };
 
@@ -360,15 +358,9 @@ MozMtpDatabase::getObjectPropertyValue(MtpObjectHandle aHandle,
   {
     case MTP_PROPERTY_STORAGE_ID:     aPacket.putUInt32(entry->mStorageID); break;
     case MTP_PROPERTY_PARENT_OBJECT:  aPacket.putUInt32(entry->mParent); break;
-    case MTP_PROPERTY_OBJECT_FORMAT:  aPacket.putUInt16(entry->mObjectFormat); break;
-    case MTP_PROPERTY_OBJECT_SIZE:    aPacket.putUInt64(entry->mObjectSize); break;
+    case MTP_PROPERTY_OBJECT_FORMAT:  aPacket.putUInt32(entry->mObjectFormat); break;
+    case MTP_PROPERTY_OBJECT_SIZE:    aPacket.putUInt32(entry->mObjectSize); break;
     case MTP_PROPERTY_DISPLAY_NAME:   aPacket.putString(entry->mDisplayName.get()); break;
-    case MTP_PROPERTY_PERSISTENT_UID:
-      // the same as aPacket.putUInt128
-      aPacket.putUInt64(entry->mHandle);
-      aPacket.putUInt64(entry->mStorageID);
-      break;
-    case MTP_PROPERTY_NAME:           aPacket.putString(entry->mDisplayName.get()); break;
 
     default:
       MTP_LOG("Invalid Property: 0x%08x", aProperty);
@@ -395,8 +387,6 @@ GetTypeOfObjectProp(MtpObjectProperty aProperty)
     {MTP_PROPERTY_DATE_MODIFIED,     MTP_TYPE_STR     },
     {MTP_PROPERTY_PARENT_OBJECT,     MTP_TYPE_UINT32  },
     {MTP_PROPERTY_DISPLAY_NAME,      MTP_TYPE_STR     },
-    {MTP_PROPERTY_NAME,              MTP_TYPE_STR     },
-    {MTP_PROPERTY_PERSISTENT_UID,    MTP_TYPE_UINT128 },
     {MTP_PROPERTY_DATE_ADDED,        MTP_TYPE_STR     },
   };
 
@@ -646,7 +636,7 @@ MozMtpDatabase::getObjectPropertyList(MtpObjectHandle aHandle,
   DbArray::size_type numEntries = result.Length();
   DbArray::index_type entryIdx;
 
-  aPacket.putUInt32(numObjectProperties * numEntries);
+  aPacket.putUInt32(numEntries);
   for (entryIdx = 0; entryIdx < numEntries; entryIdx++) {
     RefPtr<DbEntry> entry = result[entryIdx];
 
@@ -666,13 +656,6 @@ MozMtpDatabase::getObjectPropertyList(MtpObjectHandle aHandle,
           aPacket.putUInt32(entry->mParent);
           break;
 
-        case MTP_PROPERTY_PERSISTENT_UID:
-          aPacket.putUInt16(MTP_TYPE_UINT128);
-          // the same as aPacket.putUInt128
-          aPacket.putUInt64(entry->mHandle);
-          aPacket.putUInt64(entry->mStorageID);
-          break;
-
         case MTP_PROPERTY_OBJECT_FORMAT:
           aPacket.putUInt16(MTP_TYPE_UINT16);
           aPacket.putUInt16(entry->mObjectFormat);
@@ -684,7 +667,6 @@ MozMtpDatabase::getObjectPropertyList(MtpObjectHandle aHandle,
           break;
 
         case MTP_PROPERTY_OBJECT_FILE_NAME:
-        case MTP_PROPERTY_NAME:
           aPacket.putUInt16(MTP_TYPE_STR);
           aPacket.putString(entry->mObjectName.get());
           break;
@@ -747,20 +729,20 @@ MozMtpDatabase::getObjectInfo(MtpObjectHandle aHandle,
     aInfo.mCompressedSize = entry->mObjectSize;
   }
 
-  aInfo.mThumbFormat = MTP_FORMAT_UNDEFINED;
-  aInfo.mThumbCompressedSize = 0;
-  aInfo.mThumbPixWidth = 0;
-  aInfo.mThumbPixHeight  = 0;
-  aInfo.mImagePixWidth = 0;
-  aInfo.mImagePixHeight = 0;
-  aInfo.mImagePixDepth = 0;
+  aInfo.mThumbFormat = entry->mObjectFormat;
+  aInfo.mThumbCompressedSize = 20*20*4;
+  aInfo.mThumbPixWidth = 20;
+  aInfo.mThumbPixHeight  =20;
+  aInfo.mImagePixWidth = 20;
+  aInfo.mImagePixHeight = 20;
+  aInfo.mImagePixDepth = 4;
   aInfo.mParent = entry->mParent;
   aInfo.mAssociationType = 0;
   aInfo.mAssociationDesc = 0;
   aInfo.mSequenceNumber = 0;
   aInfo.mName = ::strdup(entry->mObjectName.get());
-  aInfo.mDateCreated = entry->mDateCreated;
-  aInfo.mDateModified = entry->mDateModified;
+  aInfo.mDateCreated = 0;
+  aInfo.mDateModified = 0;
   aInfo.mKeywords = ::strdup("fxos,touch");
 
   return MTP_RESPONSE_OK;
@@ -887,7 +869,6 @@ MozMtpDatabase::getObjectPropertyDesc(MtpObjectProperty aProperty,
       result = new MtpProperty(aProperty, MTP_TYPE_UINT64);
       break;
     case MTP_PROPERTY_DISPLAY_NAME:
-    case MTP_PROPERTY_NAME:
       result = new MtpProperty(aProperty, MTP_TYPE_STR);
       break;
     case MTP_PROPERTY_OBJECT_FILE_NAME:
@@ -897,9 +878,6 @@ MozMtpDatabase::getObjectPropertyDesc(MtpObjectProperty aProperty,
     case MTP_PROPERTY_DATE_ADDED:
       result = new MtpProperty(aProperty, MTP_TYPE_STR);
       result->setFormDateTime();
-      break;
-    case MTP_PROPERTY_PERSISTENT_UID:
-      result = new MtpProperty(aProperty, MTP_TYPE_UINT128);
       break;
     default:
       break;

@@ -132,35 +132,6 @@ GetAlgorithmName(JSContext* aCx, const OOS& aAlgorithm, nsString& aName)
     aName.Assign(alg.mName.Value());
   }
 
-  // Normalize algorithm names.
-  if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_AES_CBC)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_AES_CBC);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_AES_CTR)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_AES_CTR);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_AES_GCM)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_AES_GCM);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_AES_KW)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_AES_KW);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_SHA1)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_SHA1);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_SHA256)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_SHA256);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_SHA384)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_SHA384);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_SHA512)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_SHA512);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_HMAC)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_HMAC);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_PBKDF2)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_PBKDF2);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_RSAES_PKCS1)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_RSAES_PKCS1);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_RSASSA_PKCS1)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_RSASSA_PKCS1);
-  } else if (aName.EqualsIgnoreCase(WEBCRYPTO_ALG_RSA_OAEP)) {
-    aName.AssignLiteral(WEBCRYPTO_ALG_RSA_OAEP);
-  }
-
   return NS_OK;
 }
 
@@ -351,7 +322,7 @@ private:
   // Returns mResult as an ArrayBufferView, or an error
   virtual void Resolve() MOZ_OVERRIDE
   {
-    TypedArrayCreator<ArrayBuffer> ret(mResult);
+    TypedArrayCreator<Uint8Array> ret(mResult);
     mResultPromise->MaybeResolve(ret);
   }
 };
@@ -1016,7 +987,7 @@ private:
   {
     if (mSign) {
       // Return the computed MAC
-      TypedArrayCreator<ArrayBuffer> ret(mResult);
+      TypedArrayCreator<Uint8Array> ret(mResult);
       mResultPromise->MaybeResolve(ret);
     } else {
       // Compare the MAC to the provided signature
@@ -1145,7 +1116,7 @@ private:
   virtual void Resolve() MOZ_OVERRIDE
   {
     if (mSign) {
-      TypedArrayCreator<ArrayBuffer> ret(mSignature);
+      TypedArrayCreator<Uint8Array> ret(mSignature);
       mResultPromise->MaybeResolve(ret);
     } else {
       mResultPromise->MaybeResolve(mVerified);
@@ -1774,7 +1745,7 @@ private:
       return;
     }
 
-    TypedArrayCreator<ArrayBuffer> ret(mResult);
+    TypedArrayCreator<Uint8Array> ret(mResult);
     mResultPromise->MaybeResolve(ret);
   }
 };
@@ -1828,10 +1799,16 @@ public:
       }
 
       nsString hashName;
-      mEarlyRv = GetAlgorithmName(aCx, params.mHash.Value(), hashName);
-      if (NS_FAILED(mEarlyRv)) {
-        mEarlyRv = NS_ERROR_DOM_SYNTAX_ERR;
-        return;
+      if (params.mHash.Value().IsString()) {
+        hashName.Assign(params.mHash.Value().GetAsString());
+      } else {
+        Algorithm hashAlg;
+        mEarlyRv = Coerce(aCx, hashAlg, params.mHash.Value());
+        if (NS_FAILED(mEarlyRv) || !hashAlg.mName.WasPassed()) {
+          mEarlyRv = NS_ERROR_DOM_SYNTAX_ERR;
+          return;
+        }
+        hashName.Assign(hashAlg.mName.Value());
       }
 
       if (params.mLength.WasPassed()) {

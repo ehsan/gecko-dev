@@ -17,3 +17,5 @@ do_interfaces_gen: UIABridge.idl
 export:: do_interfaces_gen
 
 include $(topsrcdir)/config/rules.mk
+
+CXXFLAGS += $(MOZ_CAIRO_CFLAGS)

@@ -123,7 +123,7 @@ Navigator implements NavigatorBattery;
 [NoInterfaceObject]
 interface NavigatorDataStore {
     [Throws, NewObject, Func="Navigator::HasDataStoreSupport"]
-    Promise getDataStores(DOMString name, optional DOMString? owner = null);
+    Promise getDataStores(DOMString name);
 };
 Navigator implements NavigatorDataStore;
 

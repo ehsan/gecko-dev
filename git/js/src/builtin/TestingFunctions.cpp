@@ -1790,20 +1790,21 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    // We don't ToString non-objects given as 'start' or 'target', because this
-    // test is all about object identity, and ToString doesn't preserve that.
-    // Non-GCThing endpoints don't make much sense.
-    if (!args[0].isObject() && !args[0].isString() && !args[0].isSymbol()) {
+    // We don't ToString non-objects given as 'start' or 'target'. We can't
+    // see edges to non-string primitive values, and it doesn't make much
+    // sense to ask for paths to or from a freshly allocated string, so
+    // if a non-string primitive appears here it's probably a mistake.
+    if (!args[0].isObject() && !args[0].isString()) {
         js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
                                  JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
-                                 "not an object, string, or symbol", NULL);
+                                 "neither an object nor a string", NULL);
         return false;
     }
 
-    if (!args[1].isObject() && !args[1].isString() && !args[1].isSymbol()) {
+    if (!args[1].isObject() && !args[1].isString()) {
         js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
                                  JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
-                                 "not an object, string, or symbol", NULL);
+                                 "neither an object nor a string", NULL);
         return false;
     }
 
@@ -1836,13 +1837,10 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
     // Construct a JavaScript array describing the path from the start to the
     // target. Each element has the form:
     //
-    //   {
-    //     node: <object or string or symbol>,
-    //     edge: <string describing outgoing edge from node>
-    //   }
+    //   { node: <object or string>, edge: <string describing outgoing edge from node> }
     //
-    // or, if the node is some internal thing that isn't a proper JavaScript
-    // value:
+    // or, if the node is some internal thing, that isn't a proper
+    // JavaScript value:
     //
     //   { node: undefined, edge: <string> }
     size_t length = nodes.length();
@@ -1870,7 +1868,8 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
             return false;
         edgeName.release(); // edgeStr acquired ownership
 
-        if (!JS_DefineProperty(cx, obj, "edge", edgeStr, JSPROP_ENUMERATE, nullptr, nullptr))
+        if (!JS_DefineProperty(cx, obj, "edge", edgeStr,
+                               JSPROP_ENUMERATE, nullptr, nullptr))
             return false;
 
         result->setDenseElement(length - i - 1, ObjectValue(*obj));

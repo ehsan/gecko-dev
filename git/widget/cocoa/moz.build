@@ -127,4 +127,3 @@ RESOURCE_FILES.__setattr__('MainMenu.nib', [
     'resources/MainMenu.nib/keyedobjects.nib',
 ])
 
-CXXFLAGS += CONFIG['TK_CFLAGS']

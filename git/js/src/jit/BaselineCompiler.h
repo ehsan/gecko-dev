@@ -62,7 +62,6 @@ namespace jit {
     _(JSOP_DOUBLE)             \
     _(JSOP_STRING)             \
     _(JSOP_OBJECT)             \
-    _(JSOP_CALLSITEOBJ)        \
     _(JSOP_REGEXP)             \
     _(JSOP_LAMBDA)             \
     _(JSOP_LAMBDA_ARROW)       \

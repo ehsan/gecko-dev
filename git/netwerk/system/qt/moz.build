@@ -20,4 +20,3 @@ LOCAL_INCLUDES += [
     '../../base/src',
 ]
 
-CXXFLAGS += CONFIG['MOZ_QT_CFLAGS']

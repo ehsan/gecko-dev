@@ -47,8 +47,6 @@ private:
   virtual bool DeallocPGMPDecryptorChild(PGMPDecryptorChild* aActor) MOZ_OVERRIDE;
   virtual bool RecvPGMPDecryptorConstructor(PGMPDecryptorChild* aActor) MOZ_OVERRIDE;
 
-  virtual bool RecvCrashPluginNow() MOZ_OVERRIDE;
-
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
   virtual void ProcessingError(Result aWhat) MOZ_OVERRIDE;
 

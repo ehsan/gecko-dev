@@ -25,18 +25,18 @@ public:
   virtual nsresult Shutdown() MOZ_OVERRIDE;
 
   // Decode thread.
-  virtual already_AddRefed<MediaDataDecoder>
+  virtual MediaDataDecoder*
   CreateH264Decoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
-                    layers::LayersBackend aLayersBackend,
-                    layers::ImageContainer* aImageContainer,
+                    mozilla::layers::LayersBackend aLayersBackend,
+                    mozilla::layers::ImageContainer* aImageContainer,
                     MediaTaskQueue* aVideoTaskQueue,
                     MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
   // Decode thread.
-  virtual already_AddRefed<MediaDataDecoder>
-  CreateAACDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
-                   MediaTaskQueue* aAudioTaskQueue,
-                   MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
+  virtual MediaDataDecoder* CreateAACDecoder(
+    const mp4_demuxer::AudioDecoderConfig& aConfig,
+    MediaTaskQueue* aAudioTaskQueue,
+    MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
   static void Init();
 private:

@@ -44,7 +44,6 @@ private:
                                 const nsTArray<nsCString>& aTags);
 
   void UnloadPlugins();
-  void CrashPlugins();
 
   void LoadFromEnvironment();
   void ProcessPossiblePlugin(nsIFile* aDir);

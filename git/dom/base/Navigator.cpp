@@ -1466,7 +1466,6 @@ Navigator::GetBattery(ErrorResult& aRv)
 /* static */ already_AddRefed<Promise>
 Navigator::GetDataStores(nsPIDOMWindow* aWindow,
                          const nsAString& aName,
-                         const nsAString& aOwner,
                          ErrorResult& aRv)
 {
   if (!aWindow || !aWindow->GetDocShell()) {
@@ -1481,18 +1480,16 @@ Navigator::GetDataStores(nsPIDOMWindow* aWindow,
   }
 
   nsCOMPtr<nsISupports> promise;
-  aRv = service->GetDataStores(aWindow, aName, aOwner, getter_AddRefs(promise));
+  aRv = service->GetDataStores(aWindow, aName, getter_AddRefs(promise));
 
   nsRefPtr<Promise> p = static_cast<Promise*>(promise.get());
   return p.forget();
 }
 
 already_AddRefed<Promise>
-Navigator::GetDataStores(const nsAString& aName,
-                         const nsAString& aOwner,
-                         ErrorResult& aRv)
+Navigator::GetDataStores(const nsAString& aName, ErrorResult& aRv)
 {
-  return GetDataStores(mWindow, aName, aOwner, aRv);
+  return GetDataStores(mWindow, aName, aRv);
 }
 
 already_AddRefed<Promise>

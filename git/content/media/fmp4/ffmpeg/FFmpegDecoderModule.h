@@ -25,27 +25,23 @@ public:
 
   virtual nsresult Shutdown() MOZ_OVERRIDE { return NS_OK; }
 
-  virtual already_AddRefed<MediaDataDecoder>
-  CreateH264Decoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
-                    layers::LayersBackend aLayersBackend,
-                    layers::ImageContainer* aImageContainer,
-                    MediaTaskQueue* aVideoTaskQueue,
-                    MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE
+  virtual MediaDataDecoder* CreateH264Decoder(
+    const mp4_demuxer::VideoDecoderConfig& aConfig,
+    mozilla::layers::LayersBackend aLayersBackend,
+    mozilla::layers::ImageContainer* aImageContainer,
+    MediaTaskQueue* aVideoTaskQueue, MediaDataDecoderCallback* aCallback)
+    MOZ_OVERRIDE
   {
-    nsRefPtr<MediaDataDecoder> decoder =
-      new FFmpegH264Decoder<V>(aVideoTaskQueue, aCallback, aConfig,
-                               aImageContainer);
-    return decoder.forget();
+    return new FFmpegH264Decoder<V>(aVideoTaskQueue, aCallback, aConfig,
+                                    aImageContainer);
   }
 
-  virtual already_AddRefed<MediaDataDecoder>
-  CreateAACDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
-                   MediaTaskQueue* aAudioTaskQueue,
-                   MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE
+  virtual MediaDataDecoder* CreateAACDecoder(
+    const mp4_demuxer::AudioDecoderConfig& aConfig,
+    MediaTaskQueue* aAudioTaskQueue, MediaDataDecoderCallback* aCallback)
+    MOZ_OVERRIDE
   {
-    nsRefPtr<MediaDataDecoder> decoder =
-      new FFmpegAACDecoder<V>(aAudioTaskQueue, aCallback, aConfig);
-    return decoder.forget();
+    return new FFmpegAACDecoder<V>(aAudioTaskQueue, aCallback, aConfig);
   }
 };
 

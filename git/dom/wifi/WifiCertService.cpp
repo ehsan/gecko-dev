@@ -248,9 +248,6 @@ WifiCertService::Shutdown()
     mRequestThread->Shutdown();
     mRequestThread = nullptr;
   }
-
-  mListener = nullptr;
-
   return NS_OK;
 }
 

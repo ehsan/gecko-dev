@@ -114,9 +114,9 @@ nsClientAuthRememberService::RememberDecision(const nsACString & aHostName,
   {
     ReentrantMonitorAutoEnter lock(monitor);
     if (aClientCert) {
-      RefPtr<nsNSSCertificate> pipCert(new nsNSSCertificate(aClientCert));
+      nsNSSCertificate pipCert(aClientCert);
       char *dbkey = nullptr;
-      rv = pipCert->GetDbKey(&dbkey);
+      rv = pipCert.GetDbKey(&dbkey);
       if (NS_SUCCEEDED(rv) && dbkey) {
         AddEntryToList(aHostName, fpStr, 
                        nsDependentCString(dbkey));
