@@ -649,13 +649,29 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     @Override
-    protected void initializeChrome() {
-        super.initializeChrome();
+    protected void initializeChrome(String uri, boolean isExternalURL) {
+        super.initializeChrome(uri, isExternalURL);
 
         mBrowserToolbar.updateBackButton(false);
         mBrowserToolbar.updateForwardButton(false);
 
         mDoorHangerPopup.setAnchor(mBrowserToolbar.mFavicon);
+
+        if (isExternalURL || mRestoreMode != RESTORE_NONE) {
+            mAboutHomeStartupTimer.cancel();
+        }
+
+        if (!mIsRestoringActivity) {
+            if (!isExternalURL) {
+                // show about:home if we aren't restoring previous session
+                if (mRestoreMode == RESTORE_NONE) {
+                    Tab tab = Tabs.getInstance().loadUrl(ABOUT_HOME, Tabs.LOADURL_NEW_TAB);
+                }
+            } else {
+                int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED;
+                Tabs.getInstance().loadUrl(uri, flags);
+            }
+        }
 
         // Listen to margin changes to position the toolbar correctly
         if (isDynamicToolbarEnabled()) {
@@ -682,16 +698,6 @@ abstract public class BrowserApp extends GeckoApp
 
         GeckoAppShell.openUriExternal(url, "text/plain", "", "",
                                       Intent.ACTION_SEND, tab.getDisplayTitle());
-    }
-
-    @Override
-    protected void loadStartupTab(String url) {
-        // We aren't showing about:home, so cancel the telemetry timer
-        if (url != null || mRestoreMode != RESTORE_NONE) {
-            mAboutHomeStartupTimer.cancel();
-        }
-
-        super.loadStartupTab(url);
     }
 
     private void setToolbarMargin(int margin) {

@@ -16,14 +16,14 @@ function setup() {
   PanelUI.hide();
   BookmarksTestHelper.setup();
 
-  yield hideContextUI();
-
   if (StartUI.isStartPageVisible)
     return;
 
   yield addTab("about:start");
 
   yield waitForCondition(() => StartUI.isStartPageVisible);
+
+  yield hideContextUI();
 }
 
 function tearDown() {
@@ -149,14 +149,14 @@ gTests.push({
 
     let item = gStartView._getItemForBookmarkId(2);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
     ok(!unpinButton.hidden, "Unpin button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    unpinButton.click();
+    let promise = waitForEvent(Elements.appbar, "transitionend");
+    EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
     yield promise;
 
     item = gStartView._getItemForBookmarkId(2);
@@ -171,7 +171,7 @@ gTests.push({
     let item2 = gStartView._getItemForBookmarkId(5);
     let item3 = gStartView._getItemForBookmarkId(12);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -179,7 +179,7 @@ gTests.push({
 
     ok(!unpinButton.hidden, "Unpin button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
     yield promise;
 
@@ -206,7 +206,7 @@ gTests.push({
     let item = gStartView._getItemForBookmarkId(2);
     let initialLocation = gStartView._set.getIndexOfItem(item);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
@@ -223,7 +223,7 @@ gTests.push({
     ok(!restoreButton.hidden, "Restore button is visible.");
     ok(gStartView._set.itemCount === gStartView._limit, "Grid repopulated");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     EventUtils.synthesizeMouse(restoreButton, 10, 10, {}, window);
     yield promise;
 
@@ -235,7 +235,7 @@ gTests.push({
 
     let item = gStartView._getItemForBookmarkId(2);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
@@ -251,8 +251,8 @@ gTests.push({
     ok(BookmarksTestHelper._nodes[2], "Item not deleted yet");
     ok(!restoreButton.hidden, "Restore button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    Elements.contextappbar.dismiss();
+    let promise = waitForEvent(Elements.appbar, "transitionend");
+    Elements.appbar.dismiss();
     yield promise;
 
     item = gStartView._getItemForBookmarkId(2);
@@ -271,7 +271,7 @@ gTests.push({
     let initialLocation2 = gStartView._set.getIndexOfItem(item2);
     let initialLocation3 = gStartView._set.getIndexOfItem(item3);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -293,7 +293,7 @@ gTests.push({
     ok(!restoreButton.hidden, "Restore button is visible.");
     ok(gStartView._set.itemCount === gStartView._limit - 1, "Grid repopulated");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     EventUtils.synthesizeMouse(restoreButton, 10, 10, {}, window);
     yield promise;
 
@@ -313,7 +313,7 @@ gTests.push({
     let item2 = gStartView._getItemForBookmarkId(5);
     let item3 = gStartView._getItemForBookmarkId(12);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -334,8 +334,8 @@ gTests.push({
       "Items not deleted yet");
     ok(!restoreButton.hidden, "Restore button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    Elements.contextappbar.dismiss();
+    let promise = waitForEvent(Elements.appbar, "transitionend");
+    Elements.appbar.dismiss();
     yield promise;
 
     item1 = gStartView._getItemForBookmarkId(0);
@@ -363,15 +363,13 @@ gTests.push({
 
     let item = gPanelView._getItemForBookmarkId(2);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
-    yield waitForCondition(() => !unpinButton.hidden);
-
     ok(!unpinButton.hidden, "Unpin button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
     yield promise;
 
@@ -388,7 +386,7 @@ gTests.push({
     let item2 = gPanelView._getItemForBookmarkId(5);
     let item3 = gPanelView._getItemForBookmarkId(12);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -396,7 +394,7 @@ gTests.push({
 
     ok(!unpinButton.hidden, "Unpin button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     EventUtils.synthesizeMouse(unpinButton, 10, 10, {}, window);
     yield promise;
 
@@ -415,7 +413,7 @@ gTests.push({
 
     let item = gPanelView._getItemForBookmarkId(2);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
@@ -424,7 +422,7 @@ gTests.push({
 
     ok(!pinButton.hidden, "Pin button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     EventUtils.synthesizeMouse(pinButton, 10, 10, {}, window);
     yield promise;
 
@@ -441,7 +439,7 @@ gTests.push({
     let item2 = gPanelView._getItemForBookmarkId(5);
     let item3 = gPanelView._getItemForBookmarkId(12);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -452,7 +450,7 @@ gTests.push({
 
     ok(!pinButton.hidden, "pin button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     EventUtils.synthesizeMouse(pinButton, 10, 10, {}, window);
     yield promise;
 
@@ -483,7 +481,7 @@ gTests.push({
 
     let item = gPanelView._getItemForBookmarkId(2);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item, 10, 10);
     yield promise;
 
@@ -501,8 +499,8 @@ gTests.push({
     ok(BookmarksTestHelper._nodes[2], "Item exists");
     ok(!restoreButton.hidden, "Restore button is visible.");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    Elements.contextappbar.dismiss();
+    let promise = waitForEvent(Elements.appbar, "transitionend");
+    Elements.appbar.dismiss();
     yield promise;
 
     item = gPanelView._getItemForBookmarkId(2);
@@ -518,7 +516,7 @@ gTests.push({
     let item2 = gPanelView._getItemForBookmarkId(5);
     let item3 = gPanelView._getItemForBookmarkId(12);
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
+    let promise = waitForEvent(Elements.appbar, "transitionend");
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
     sendContextMenuClickToElement(window, item3, 10, 10);
@@ -543,8 +541,8 @@ gTests.push({
     ok(BookmarksTestHelper._nodes[0] && BookmarksTestHelper._nodes[5] && BookmarksTestHelper._nodes[12],
       "Items not deleted yet");
 
-    let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-    Elements.contextappbar.dismiss();
+    let promise = waitForEvent(Elements.appbar, "transitionend");
+    Elements.appbar.dismiss();
     yield promise;
 
     item1 = gPanelView._getItemForBookmarkId(0);

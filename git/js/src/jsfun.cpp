@@ -415,14 +415,12 @@ template bool
 js::XDRInterpretedFunction(XDRState<XDR_DECODE> *, HandleObject, HandleScript, MutableHandleObject);
 
 JSObject *
-js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun,
-                             NewObjectKind newKind /* = GenericObject */)
+js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction srcFun)
 {
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
     RootedFunction clone(cx, NewFunction(cx, NullPtr(), NULL, 0,
-                                         JSFunction::INTERPRETED, NullPtr(), NullPtr(),
-                                         JSFunction::FinalizeKind, newKind));
+                                         JSFunction::INTERPRETED, NullPtr(), NullPtr()));
     if (!clone)
         return NULL;
 
@@ -1495,8 +1493,7 @@ js::NewFunction(JSContext *cx, HandleObject funobjArg, Native native, unsigned n
 }
 
 JSFunction *
-js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, gc::AllocKind allocKind,
-                        NewObjectKind newKindArg /* = GenericObject */)
+js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, gc::AllocKind allocKind)
 {
     JS_ASSERT(parent);
     JS_ASSERT(!fun->isBoundFunction());
@@ -1504,7 +1501,7 @@ js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, 
     bool useSameScript = cx->compartment == fun->compartment() &&
                          !fun->hasSingletonType() &&
                          !types::UseNewTypeForClone(fun);
-    NewObjectKind newKind = useSameScript ? newKindArg : SingletonObject;
+    NewObjectKind newKind = useSameScript ? GenericObject : SingletonObject;
     JSObject *cloneobj = NewObjectWithClassProto(cx, &FunctionClass, NULL, SkipScopeParent(parent),
                                                  allocKind, newKind);
     if (!cloneobj)
@@ -1556,7 +1553,7 @@ js::CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent, 
      * (JS_CloneFunctionObject) which dynamically ensures that 'script' has
      * no enclosing lexical scope (only the global scope).
      */
-    if (cloneRoot->isInterpreted() && !CloneFunctionScript(cx, fun, cloneRoot, newKindArg))
+    if (cloneRoot->isInterpreted() && !CloneFunctionScript(cx, fun, cloneRoot))
         return NULL;
 
     return cloneRoot;

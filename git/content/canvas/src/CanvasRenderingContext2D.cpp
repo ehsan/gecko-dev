@@ -1199,9 +1199,10 @@ ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
 
 void
 CanvasRenderingContext2D::SetMozCurrentTransform(JSContext* cx,
-                                                 JS::Handle<JSObject*> currentTransform,
+                                                 JSObject& currentTransform_,
                                                  ErrorResult& error)
 {
+  JS::Rooted<JSObject*> currentTransform(cx, &currentTransform_);
   EnsureTarget();
   if (!IsTargetValid()) {
     error.Throw(NS_ERROR_FAILURE);
@@ -1223,9 +1224,10 @@ CanvasRenderingContext2D::GetMozCurrentTransform(JSContext* cx,
 
 void
 CanvasRenderingContext2D::SetMozCurrentTransformInverse(JSContext* cx,
-                                                        JS::Handle<JSObject*> currentTransform,
+                                                        JSObject& currentTransform_,
                                                         ErrorResult& error)
 {
+  JS::Rooted<JSObject*> currentTransform(cx, &currentTransform_);
   EnsureTarget();
   if (!IsTargetValid()) {
     error.Throw(NS_ERROR_FAILURE);

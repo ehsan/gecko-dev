@@ -156,23 +156,15 @@ function clearSelection(aTarget) {
 function hideContextUI()
 {
   purgeEventQueue();
-
-  return Task.spawn(function() {
-    if (ContextUI.isExpanded) {
-      let promise = waitForEvent(Elements.tray, "transitionend", null, Elements.tray);
-      if (ContextUI.dismiss())
-      {
-        info("ContextUI dismissed, waiting...");
-        yield promise;
-      }
+  if (ContextUI.isVisible) {
+    let promise = waitForEvent(Elements.tray, "transitionend", null, Elements.tray);
+    if (ContextUI.dismiss())
+    {
+      info("ContextUI dismissed, waiting...");
+      return promise;
     }
-
-    if (Elements.contextappbar.isShowing) {
-      let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-      Elements.contextappbar.dismiss();
-      yield promise;
-    }
-  });
+    return true;
+  }
 }
 
 function showNavBar()
@@ -261,10 +253,9 @@ function cleanUpOpenedTabs() {
 function waitForEvent(aSubject, aEventName, aTimeoutMs, aTarget) {
   let eventDeferred = Promise.defer();
   let timeoutMs = aTimeoutMs || kDefaultWait;
-  let stack = new Error().stack;
   let timerID = setTimeout(function wfe_canceller() {
     aSubject.removeEventListener(aEventName, onEvent);
-    eventDeferred.reject( new Error(aEventName+" event timeout at " + stack) );
+    eventDeferred.reject( new Error(aEventName+" event timeout") );
   }, timeoutMs);
 
   function onEvent(aEvent) {

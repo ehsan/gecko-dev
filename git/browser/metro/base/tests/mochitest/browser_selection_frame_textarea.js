@@ -64,7 +64,7 @@ gTests.push({
     gTextArea.selectionStart = gTextArea.selectionEnd = 0;
 
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(gWindow, gFrame, 195, 80);
+    sendContextMenuClick(275, 663);
     yield promise;
 
     checkContextUIMenuItemVisibility(["context-select",
@@ -83,8 +83,8 @@ gTests.push({
 
     is(getTrimmedSelection(gTextArea).toString(), "wondered", "selection test");
 
-    checkMonoclePositionRange("start", 260, 280, 675, 690);
-    checkMonoclePositionRange("end", 320, 340, 675, 690);
+    checkMonoclePositionRange("start", 260, 275, 675, 685);
+    checkMonoclePositionRange("end", 320, 335, 675, 685);
   },
 });
 
@@ -97,7 +97,7 @@ gTests.push({
     gTextArea.selectionStart = gTextArea.selectionEnd = 0;
 
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(gWindow, gFrame, 195, 80);
+    sendContextMenuClick(275, 663);
     yield promise;
 
     checkContextUIMenuItemVisibility(["context-select",
@@ -178,7 +178,7 @@ gTests.push({
     yield scrollPromise;
 
     let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(gWindow, gFrame, 195, 80);
+    sendContextMenuClick(275, 463);
     yield promise;
 
     checkContextUIMenuItemVisibility(["context-select",

@@ -80,7 +80,6 @@ fi
 
 # apply patches
 cd ${webvtt_dir}
-
-# patches go here
+patch -p3 < 868629.patch
 
 cd ${start_dir}

@@ -8,6 +8,22 @@
     </content>
 
     <implementation implements="nsIDOMEventListener">
+      <constructor>
+        <![CDATA[
+          window.addEventListener('MozContextUIShow', this);
+          window.addEventListener('MozContextUIDismiss', this);
+          window.addEventListener('MozAppbarDismiss', this);
+        ]]>
+      </constructor>
+
+      <destructor>
+        <![CDATA[
+          window.removeEventListener('MozContextUIShow', this);
+          window.removeEventListener('MozContextUIDismiss', this);
+          window.removeEventListener('MozAppbarDismiss', this);
+        ]]>
+      </destructor>
+
       <field name="sticky">false</field>
       <field name="_toolbar" readonly="true">document.getAnonymousElementByAttribute(this, "anonid", "toolbar");</field>
 
@@ -33,9 +49,6 @@
       <method name="dismiss">
         <body>
           <![CDATA[
-            if (!this.isShowing)
-              return;
-
             this._fire("MozAppbarDismissing");
             this.removeAttribute("visible");
           ]]>
@@ -45,9 +58,6 @@
       <method name="show">
         <body>
           <![CDATA[
-            if (this.isShowing)
-              return;
-
             this._fire("MozAppbarShowing");
             this.setAttribute("visible", "true");
           ]]>
@@ -61,6 +71,23 @@
               this.dismiss();
             } else {
               this.show();
+            }
+          ]]>
+        </body>
+      </method>
+
+      <method name="handleEvent">
+        <parameter name="aEvent"/>
+        <body>
+          <![CDATA[
+            switch (aEvent.type) {
+              case 'MozContextUIShow':
+                this.show();
+                break;
+              case 'MozAppbarDismiss':
+              case 'MozContextUIDismiss':
+                this.dismiss();
+                break;
             }
           ]]>
         </body>

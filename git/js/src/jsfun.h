@@ -390,8 +390,7 @@ class FunctionExtended : public JSFunction
 
 extern JSFunction *
 CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
-                    gc::AllocKind kind = JSFunction::FinalizeKind,
-                    NewObjectKind newKindArg = GenericObject);
+                    gc::AllocKind kind = JSFunction::FinalizeKind);
 
 } // namespace js
 
@@ -419,8 +418,7 @@ XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope,
                        HandleScript enclosingScript, MutableHandleObject objp);
 
 extern JSObject *
-CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction fun,
-                         NewObjectKind newKind = GenericObject);
+CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleFunction fun);
 
 /*
  * Report an error that call.thisv is not compatible with the specified class,

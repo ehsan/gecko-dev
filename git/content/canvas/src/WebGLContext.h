@@ -857,7 +857,6 @@ protected:
     bool mCanLoseContextInForeground;
     bool mShouldPresent;
     bool mIsScreenCleared;
-    bool mDisableFragHighP;
 
     template<typename WebGLObjectType>
     void DeleteWebGLObjectsArray(nsTArray<WebGLObjectType>& array);
