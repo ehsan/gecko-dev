@@ -43,11 +43,6 @@ class TapGestureInput;
   { \
     NS_ABORT_IF_FALSE(mInputType == enumID, "Invalid cast of InputData."); \
     return (const type&) *this; \
-  } \
-  type& As##type() \
-  { \
-    NS_ABORT_IF_FALSE(mInputType == enumID, "Invalid cast of InputData."); \
-    return (type&) *this; \
   }
 
 /** Base input data class. Should never be instantiated. */

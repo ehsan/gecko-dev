@@ -40,6 +40,7 @@ class HyperTextAccessible : public AccessibleWrap,
 {
 public:
   HyperTextAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  virtual ~HyperTextAccessible() { }
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -415,8 +416,6 @@ public:
   dom::Selection* DOMSelection() const;
 
 protected:
-  virtual ~HyperTextAccessible() { }
-
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
   virtual void CacheChildren() MOZ_OVERRIDE;

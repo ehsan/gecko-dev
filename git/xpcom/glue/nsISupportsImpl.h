@@ -959,7 +959,6 @@ public:                                                                       \
 #define NS_IMPL_ADDREF_INHERITED(Class, Super)                                \
 NS_IMETHODIMP_(MozExternalRefCountType) Class::AddRef(void)                   \
 {                                                                             \
-  MOZ_ASSERT_TYPE_OK_FOR_REFCOUNTING(Class)                                   \
   nsrefcnt r = Super::AddRef();                                               \
   NS_LOG_ADDREF(this, r, #Class, sizeof(*this));                              \
   return r;                                                                   \
@@ -980,7 +979,6 @@ NS_IMETHODIMP_(MozExternalRefCountType) Class::Release(void)                  \
 #define NS_IMPL_NONLOGGING_ADDREF_INHERITED(Class, Super)                     \
 NS_IMETHODIMP_(MozExternalRefCountType) Class::AddRef(void)                   \
 {                                                                             \
-  MOZ_ASSERT_TYPE_OK_FOR_REFCOUNTING(Class)                                   \
   return Super::AddRef();                                                     \
 }
 

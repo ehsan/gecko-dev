@@ -258,9 +258,6 @@ BiquadFilterNode::BiquadFilterNode(AudioContext* aContext)
   engine->SetSourceStream(static_cast<AudioNodeStream*> (mStream.get()));
 }
 
-BiquadFilterNode::~BiquadFilterNode()
-{
-}
 
 size_t
 BiquadFilterNode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const

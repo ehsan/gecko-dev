@@ -27,13 +27,11 @@ public:
     MOZ_COUNT_CTOR(CheckResponsivenessTask);
   }
 
-protected:
   ~CheckResponsivenessTask()
   {
     MOZ_COUNT_DTOR(CheckResponsivenessTask);
   }
 
-public:
   NS_IMETHOD Run()
   {
     MonitorAutoLock mon(mMonitor);

@@ -34,6 +34,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_PRINTSETTINGSGTK_IID)
 
   nsPrintSettingsGTK();
+  virtual ~nsPrintSettingsGTK();
 
   // We're overriding these methods because we want to read/write with GTK objects,
   // not local variables. This allows a simpler settings implementation between
@@ -119,8 +120,6 @@ public:
   NS_IMETHOD SetDuplex(int32_t aDuplex);
 
 protected:
-  virtual ~nsPrintSettingsGTK();
-
   nsPrintSettingsGTK(const nsPrintSettingsGTK& src);
   nsPrintSettingsGTK& operator=(const nsPrintSettingsGTK& rhs);
 

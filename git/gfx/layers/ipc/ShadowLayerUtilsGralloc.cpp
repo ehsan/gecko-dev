@@ -146,33 +146,31 @@ ParamTraits<MagicGrallocBufferHandle>::Read(const Message* aMsg,
 
   aResult->mRef.mOwner = owner;
   aResult->mRef.mKey = index;
-  if (sameProcess) {
+  if (sameProcess)
     aResult->mGraphicBuffer = SharedBufferManagerParent::GetGraphicBuffer(aResult->mRef);
-  } else {
+  else {
     aResult->mGraphicBuffer = SharedBufferManagerChild::GetSingleton()->GetGraphicBuffer(index);
-    MOZ_ASSERT(!aResult->mGraphicBuffer.get());
-
-    // Deserialize GraphicBuffer
+    if (index >= 0 && aResult->mGraphicBuffer == nullptr) {
+      //Only newly created GraphicBuffer should deserialize
 #if ANDROID_VERSION >= 19
-    sp<GraphicBuffer> buffer(new GraphicBuffer());
-    const void* datap = (const void*)data;
-    const int* fdsp = &fds[0];
-    if (NO_ERROR != buffer->unflatten(datap, nbytes, fdsp, nfds)) {
-      buffer = nullptr;
-    }
+      sp<GraphicBuffer> flattenable(new GraphicBuffer());
+      const void* datap = (const void*)data;
+      const int* fdsp = &fds[0];
+      if (NO_ERROR == flattenable->unflatten(datap, nbytes, fdsp, nfds)) {
+        aResult->mGraphicBuffer = flattenable;
+      }
 #else
-    sp<GraphicBuffer> buffer(new GraphicBuffer());
-    Flattenable *flattenable = buffer.get();
-    if (NO_ERROR != flattenable->unflatten(data, nbytes, fds, nfds)) {
-      buffer = nullptr;
-    }
+      sp<GraphicBuffer> buffer(new GraphicBuffer());
+      Flattenable *flattenable = buffer.get();
+
+      if (NO_ERROR == flattenable->unflatten(data, nbytes, fds, nfds)) {
+        aResult->mGraphicBuffer = buffer;
+      }
 #endif
-    if(buffer.get() && !aResult->mGraphicBuffer.get()) {
-      aResult->mGraphicBuffer = buffer;
     }
   }
 
-  if (!aResult->mGraphicBuffer.get()) {
+  if (aResult->mGraphicBuffer == nullptr) {
     printf_stderr("ParamTraits<MagicGrallocBufferHandle>::Read() failed to get gralloc buffer\n");
     return false;
   }

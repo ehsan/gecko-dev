@@ -47,9 +47,6 @@ public:
                      EventTarget* aRelatedTarget,
                      DataTransfer* aDataTransfer,
                      ErrorResult& aError);
-
-protected:
-  ~DragEvent() {}
 };
 
 } // namespace dom

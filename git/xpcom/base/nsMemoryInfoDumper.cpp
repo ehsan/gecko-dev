@@ -117,8 +117,6 @@ public:
   }
 
 private:
-  ~GCAndCCLogDumpRunnable() {}
-
   const nsString mIdentifier;
   const bool mDumpAllTraces;
   const bool mDumpChildProcesses;

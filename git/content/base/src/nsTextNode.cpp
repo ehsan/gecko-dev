@@ -45,6 +45,10 @@ public:
     NS_ASSERTION(mAttrName, "Must have attr name");
   }
 
+  virtual ~nsAttributeTextNode() {
+    NS_ASSERTION(!mGrandparent, "We were not unbound!");
+  }
+
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
@@ -75,10 +79,6 @@ public:
   }
 
 private:
-  virtual ~nsAttributeTextNode() {
-    NS_ASSERTION(!mGrandparent, "We were not unbound!");
-  }
-
   // Update our text to our parent's current attr value
   void UpdateText(bool aNotify);
 

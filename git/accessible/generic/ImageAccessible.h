@@ -44,8 +44,6 @@ public:
   virtual uint8_t ActionCount();
 
 protected:
-  virtual ~ImageAccessible();
-
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
 

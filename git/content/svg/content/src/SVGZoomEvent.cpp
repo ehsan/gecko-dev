@@ -80,9 +80,6 @@ SVGZoomEvent::SVGZoomEvent(EventTarget* aOwner,
   }
 }
 
-SVGZoomEvent::~SVGZoomEvent()
-{
-}
 
 } // namespace dom
 } // namespace mozilla

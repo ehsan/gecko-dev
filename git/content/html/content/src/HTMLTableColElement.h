@@ -19,6 +19,7 @@ public:
   {
     SetHasWeirdParserInsertionMode();
   }
+  virtual ~HTMLTableColElement();
 
   uint32_t Span() const
   {
@@ -80,8 +81,6 @@ public:
   virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
 protected:
-  virtual ~HTMLTableColElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
 private:

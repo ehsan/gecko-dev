@@ -1218,7 +1218,7 @@ EventStateManager::HandleCrossProcessEvent(WidgetEvent* aEvent,
     //
     // This loop is similar to the one used in
     // PresShell::DispatchTouchEvent().
-    const WidgetTouchEvent::TouchArray& touches =
+    const nsTArray< nsRefPtr<Touch> >& touches =
       aEvent->AsTouchEvent()->touches;
     for (uint32_t i = 0; i < touches.Length(); ++i) {
       Touch* touch = touches[i];

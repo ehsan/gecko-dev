@@ -14,7 +14,6 @@
 #include <errno.h>
 #include "mozilla/Assertions.h"
 #include "mozilla/Scoped.h"
-#include "mozilla/UniquePtr.h"
 #include "SeekableZStream.h"
 #include "Utils.h"
 #include "Logging.h"
@@ -467,7 +466,7 @@ bool GetSize(const char *str, size_t *out)
 
 int main(int argc, char* argv[])
 {
-  mozilla::UniquePtr<SzipAction> action;
+  mozilla::ScopedDeletePtr<SzipAction> action;
   char **firstArg;
   bool compress = true;
   size_t chunkSize = 0;
@@ -529,7 +528,7 @@ int main(int argc, char* argv[])
   }
 
   if (compress) {
-    action.reset(new SzipCompress(chunkSize, filter, dictSize));
+    action = new SzipCompress(chunkSize, filter, dictSize);
   } else {
     if (chunkSize) {
       ERROR("-c is incompatible with -d");
@@ -539,7 +538,7 @@ int main(int argc, char* argv[])
       ERROR("-D is incompatible with -d");
       return 1;
     }
-    action.reset(new SzipDecompress());
+    action = new SzipDecompress();
   }
 
   std::stringstream tmpOutStream;

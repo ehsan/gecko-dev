@@ -30,9 +30,6 @@ public:
   // Widgets
   virtual bool IsWidget() const;
   virtual Accessible* ContainerWidget() const;
-
-protected:
-  ~XULAlertAccessible();
 };
 
 } // namespace a11y

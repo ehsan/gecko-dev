@@ -20,6 +20,7 @@ class HTMLMenuElement MOZ_FINAL : public nsGenericHTMLElement,
 {
 public:
   HTMLMenuElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLMenuElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLMenuElement, menu)
 
@@ -71,8 +72,6 @@ public:
   // The XPCOM Build is OK for us
 
 protected:
-  virtual ~HTMLMenuElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
 

@@ -28,6 +28,8 @@ public:
     , mHash(new KeyAlgorithm(aGlobal, aHashName))
   {}
 
+  ~RsaHashedKeyAlgorithm() {}
+
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   KeyAlgorithm* Hash() const
@@ -40,8 +42,6 @@ public:
                               JSStructuredCloneReader* aReader);
 
 private:
-  ~RsaHashedKeyAlgorithm() {}
-
   nsRefPtr<KeyAlgorithm> mHash;
 };
 

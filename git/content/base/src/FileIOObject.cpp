@@ -53,9 +53,6 @@ FileIOObject::FileIOObject()
     mTotal(0), mTransferred(0)
 {}
 
-FileIOObject::~FileIOObject()
-{}
-
 void
 FileIOObject::StartProgressEventTimer()
 {

@@ -20,6 +20,7 @@ class HTMLContentElement MOZ_FINAL : public nsGenericHTMLElement
 {
 public:
   HTMLContentElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLContentElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -69,8 +70,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLContentElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
   /**

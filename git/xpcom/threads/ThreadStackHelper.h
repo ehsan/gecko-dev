@@ -84,11 +84,12 @@ public:
 #if defined(XP_LINUX)
 private:
   static int sInitialized;
-  static int sFillStackSignum;
+  static sem_t sSem;
+  static struct sigaction sOldSigAction;
+  static ThreadStackHelper* sCurrent;
 
-  static void FillStackHandler(int aSignal, siginfo_t* aInfo, void* aContext);
+  static void SigAction(int aSignal, siginfo_t* aInfo, void* aContext);
 
-  sem_t mSem;
   pid_t mThreadID;
 
 #elif defined(XP_WIN)

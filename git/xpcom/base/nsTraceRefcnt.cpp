@@ -716,19 +716,6 @@ HashNumber(const void* aKey)
 }
 
 static void
-maybeUnregisterAndCloseFile(FILE*& aFile)
-{
-  if (!aFile) {
-    return;
-  }
-
-  MozillaUnRegisterDebugFILE(aFile);
-  fclose(aFile);
-  aFile = nullptr;
-}
-
-
-static void
 InitTraceLog()
 {
   if (gInitialized) {
@@ -744,7 +731,7 @@ InitTraceLog()
     RecreateBloatView();
     if (!gBloatView) {
       NS_WARNING("out of memory");
-      maybeUnregisterAndCloseFile(gBloatLog);
+      gBloatLog = nullptr;
       gLogLeaksOnly = false;
     }
   }
@@ -1283,6 +1270,18 @@ NS_LogCOMPtrRelease(void* aCOMPtr, nsISupports* aObject)
 void
 nsTraceRefcnt::Startup()
 {
+}
+
+static void
+maybeUnregisterAndCloseFile(FILE*& aFile)
+{
+  if (!aFile) {
+    return;
+  }
+
+  MozillaUnRegisterDebugFILE(aFile);
+  fclose(aFile);
+  aFile = nullptr;
 }
 
 void

@@ -122,14 +122,13 @@ protected:
   {
   }
 
-  virtual ~nsXHREventTarget() {}
-
 public:
   typedef mozilla::dom::XMLHttpRequestResponseType
           XMLHttpRequestResponseType;
   typedef mozilla::ErrorResult
           ErrorResult;
 
+  virtual ~nsXHREventTarget() {}
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXHREventTarget,
                                            mozilla::DOMEventTargetHelper)
@@ -171,9 +170,6 @@ public:
   {
     return mListenerManager && mListenerManager->HasListeners();
   }
-
-private:
-  virtual ~nsXMLHttpRequestUpload() {}
 };
 
 class nsXMLHttpRequestXPCOMifier;
@@ -196,6 +192,7 @@ class nsXMLHttpRequest : public nsXHREventTarget,
 
 public:
   nsXMLHttpRequest();
+  virtual ~nsXMLHttpRequest();
 
   virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE
   {
@@ -335,8 +332,6 @@ public:
   nsXMLHttpRequestUpload* Upload();
 
 private:
-  virtual ~nsXMLHttpRequest();
-
   class RequestBody
   {
   public:

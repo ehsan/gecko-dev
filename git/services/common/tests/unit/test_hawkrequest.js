@@ -43,7 +43,7 @@ add_test(function test_intl_accept_language() {
     "fa-CG;ik",     // Congolese dialect of Farsei, defaulting to Inupiaq
   ];
 
-  function setLanguagePref(lang) {
+  function setLanguage(lang) {
     let acceptLanguage = Cc["@mozilla.org/supports-string;1"]
                            .createInstance(Ci.nsISupportsString);
     acceptLanguage.data = lang;
@@ -53,27 +53,20 @@ add_test(function test_intl_accept_language() {
 
   let hawk = new HAWKAuthenticatedRESTRequest("https://example.com");
 
-  Services.prefs.addObserver("intl.accept_languages", checkLanguagePref, false);
-  setLanguagePref(languages[testCount]);
+  Services.prefs.addObserver("intl.accept_languages", nextTest, false);
+  setLanguage(languages[testCount]);
 
-  function checkLanguagePref() {
-    var _done = false;
+  function nextTest() {
     CommonUtils.nextTick(function() {
-      // Ensure we're only called for the number of entries in languages[].
-      do_check_true(testCount < languages.length);
+      if (testCount < 2) {
+        do_check_eq(hawk._intl.accept_languages, languages[testCount]);
 
-      do_check_eq(hawk._intl.accept_languages, languages[testCount]);
-
-      testCount++;
-      if (testCount < languages.length) {
-        // Set next language in prefs; Pref service will call checkNextLanguage.
-        setLanguagePref(languages[testCount]);
+        testCount += 1;
+        setLanguage(languages[testCount]);
+        nextTest();
         return;
       }
-
-      // We've checked all the entries in languages[]. Cleanup and move on.
-      do_print("Checked " + testCount + " languages. Removing checkLanguagePref as pref observer.");
-      Services.prefs.removeObserver("intl.accept_languages", checkLanguagePref);
+      Services.prefs.removeObserver("intl.accept_languages", nextTest);
       run_next_test();
       return;
     });

@@ -109,7 +109,6 @@ assertEq("\u2029", eval("`\u2029`"));
 
 assertEq("a\nb", eval("`a\rb`"))
 assertEq("a\nb", eval("`a\r\nb`"))
-assertEq("a\n\nb", eval("`a\r\rb`"))
 
 
 // source character

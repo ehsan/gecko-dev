@@ -43,8 +43,6 @@ class SVGIFrameElement MOZ_FINAL : public SVGIFrameElementBase,
                    mozilla::dom::FromParser aFromParser);
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
-  ~SVGIFrameElement();
-
 public:
   // interface
   NS_DECL_ISUPPORTS_INHERITED

@@ -20,6 +20,7 @@ class HTMLMeterElement MOZ_FINAL : public nsGenericHTMLElement
 {
 public:
   HTMLMeterElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLMeterElement();
 
   virtual EventStates IntrinsicState() const MOZ_OVERRIDE;
 
@@ -73,8 +74,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLMeterElement();
-
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
 
 private:

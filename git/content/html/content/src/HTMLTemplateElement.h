@@ -18,6 +18,7 @@ class HTMLTemplateElement MOZ_FINAL : public nsGenericHTMLElement
 {
 public:
   HTMLTemplateElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  virtual ~HTMLTemplateElement();
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -33,8 +34,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLTemplateElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
   nsRefPtr<DocumentFragment> mContent;

@@ -26,6 +26,7 @@ public:
 
   HTMLMenuItemElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                       mozilla::dom::FromParser aFromParser);
+  virtual ~HTMLMenuItemElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLMenuItemElement, menuitem)
 
@@ -116,8 +117,6 @@ public:
   }
 
 protected:
-  virtual ~HTMLMenuItemElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
 

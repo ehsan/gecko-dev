@@ -12,6 +12,4 @@ DEFINES['GTK2_SYMBOLS'] = True
 
 LIBRARY_NAME = 'mozgtk'
 
-SONAME = 'mozgtk'
-
 FORCE_SHARED_LIB = True

@@ -62,10 +62,6 @@ XULTreeAccessible::
   }
 }
 
-XULTreeAccessible::~XULTreeAccessible()
-{
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // XULTreeAccessible: nsISupports and cycle collection implementation
 
@@ -707,10 +703,6 @@ XULTreeItemAccessibleBase::
   mStateFlags |= eSharedNode;
 }
 
-XULTreeItemAccessibleBase::~XULTreeItemAccessibleBase()
-{
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // XULTreeItemAccessibleBase: nsISupports implementation
 
@@ -1109,10 +1101,6 @@ XULTreeItemAccessible::
 {
   mColumn = nsCoreUtils::GetFirstSensibleColumn(mTree);
   GetCellName(mColumn, mCachedName);
-}
-
-XULTreeItemAccessible::~XULTreeItemAccessible()
-{
 }
 
 ////////////////////////////////////////////////////////////////////////////////

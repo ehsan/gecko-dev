@@ -121,10 +121,7 @@ public:
 
   static bool PrefEnabled(JSContext* aCx = nullptr,
                           JSObject* aGlobal = nullptr);
-
 protected:
-  ~TouchEvent() {}
-
   nsRefPtr<TouchList> mTouches;
   nsRefPtr<TouchList> mTargetTouches;
   nsRefPtr<TouchList> mChangedTouches;

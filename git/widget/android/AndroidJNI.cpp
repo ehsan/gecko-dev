@@ -876,7 +876,7 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_handleTouchEvent(JNIEnv* env,
     APZCTreeManager *controller = nsWindow::GetAPZCTreeManager();
     if (controller) {
         AndroidGeckoEvent* wrapper = AndroidGeckoEvent::MakeFromJavaObject(env, event);
-        MultiTouchInput input = wrapper->MakeMultiTouchInput(nsWindow::TopWindow());
+        const MultiTouchInput& input = wrapper->MakeMultiTouchInput(nsWindow::TopWindow());
         delete wrapper;
         if (input.mType >= 0) {
             controller->ReceiveInputEvent(input, nullptr);

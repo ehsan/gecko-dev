@@ -20,7 +20,6 @@ public:
   NS_DECL_NSIMENUBOXOBJECT
 
   nsMenuBoxObject();
-protected:
   virtual ~nsMenuBoxObject();
 };
 

@@ -20,6 +20,7 @@ class HTMLIFrameElement MOZ_FINAL : public nsGenericHTMLFrameElement
 public:
   HTMLIFrameElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
                     FromParser aFromParser = NOT_FROM_PARSER);
+  virtual ~HTMLIFrameElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLIFrameElement, iframe)
 
@@ -169,8 +170,6 @@ public:
   // nsGenericHTMLFrameElement::GetAppManifestURL is fine
 
 protected:
-  virtual ~HTMLIFrameElement();
-
   virtual void GetItemValueText(nsAString& text) MOZ_OVERRIDE;
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
 

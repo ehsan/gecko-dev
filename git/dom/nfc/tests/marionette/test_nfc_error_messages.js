@@ -4,7 +4,7 @@
 'use strict';
 
 /* globals log, is, ok, runTests, toggleNFC, runNextTest,
-   SpecialPowers, nfc, MozNDEFRecord, emulator */
+   SpecialPowers, nfc, enableRE0, MozNDEFRecord */
 
 const MARIONETTE_TIMEOUT = 60000;
 const MARIONETTE_HEAD_JS = 'head.js';
@@ -27,7 +27,7 @@ let sessionTokens = [];
 function testNfcNotEnabledError() {
   log('testNfcNotEnabledError');
   toggleNFC(true)
-  .then(() => emulator.activateRE(0))
+  .then(enableRE0)
   .then(registerAndFireOnpeerready)
   .then(() => toggleNFC(false))
   .then(() => sendNDEFExpectError(nfcPeers[0], 'NfcNotEnabledError'))
@@ -45,10 +45,11 @@ function testNfcNotEnabledError() {
 function testNfcBadSessionIdError() {
   log('testNfcBadSessionIdError');
   toggleNFC(true)
-  .then(() => emulator.activateRE(0))
+  .then(enableRE0)
   .then(registerAndFireOnpeerready)
-  .then(() => emulator.deactivate())
-  .then(() => emulator.activateRE(0))
+  .then(() => toggleNFC(false))
+  .then(() => toggleNFC(true))
+  .then(enableRE0)
   .then(registerAndFireOnpeerready)
   // we have 2 peers in nfcPeers array, peer0 has old/invalid session token
   .then(() => sendNDEFExpectError(nfcPeers[0], 'NfcBadSessionIdError'))
@@ -65,7 +66,7 @@ function testNfcBadSessionIdError() {
 function testNfcConnectError() {
   log('testNfcConnectError');
   toggleNFC(true)
-  .then(() => emulator.activateRE(0))
+  .then(enableRE0)
   .then(registerAndFireOnpeerready)
   .then(() => connectToNFCTagExpectError(sessionTokens[0],
                                          'NDEF',
@@ -83,10 +84,9 @@ function testNfcConnectError() {
 function testNoErrorInTechMsg() {
   log('testNoErrorInTechMsg');
   toggleNFC(true)
-  .then(() => emulator.activateRE(0))
+  .then(enableRE0)
   .then(setTechDiscoveredHandler)
   .then(setAndFireTechLostHandler)
-  .then(() => toggleNFC(false))
   .then(endTest)
   .catch(handleRejectedPromise);
 }
@@ -201,9 +201,8 @@ function setAndFireTechLostHandler() {
 
   window.navigator.mozSetMessageHandler('nfc-manager-tech-lost',
                                         techLostHandler);
-
-  // triggers tech-lost
-  emulator.deactivate();
+  // TODO should be refactored once Bug 1023079 lands
+  toggleNFC(false);
   return deferred.promise;
 }
 

@@ -26,6 +26,7 @@ public:
       mHandlingEvent(false)
   {
   }
+  virtual ~HTMLLabelElement();
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLLabelElement, label)
 
@@ -68,8 +69,6 @@ public:
 
   nsGenericHTMLElement* GetLabeledElement() const;
 protected:
-  virtual ~HTMLLabelElement();
-
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
   nsGenericHTMLElement* GetFirstLabelableDescendant() const;

@@ -586,10 +586,6 @@ XULListitemAccessible::
   mType = eXULListItemType;
 }
 
-XULListitemAccessible::~XULListitemAccessible()
-{
-}
-
 NS_IMPL_ISUPPORTS_INHERITED0(XULListitemAccessible, Accessible)
 
 Accessible*

@@ -23,8 +23,6 @@ class nsSVGPolyElement : public nsSVGPolyElementBase
 protected:
   nsSVGPolyElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
 
-  virtual ~nsSVGPolyElement();
-
 public:
   //interfaces
 

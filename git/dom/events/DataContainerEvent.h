@@ -46,9 +46,6 @@ public:
   void SetData(JSContext* aCx, const nsAString& aKey,
                JS::Handle<JS::Value> aVal, ErrorResult& aRv);
 
-protected:
-  ~DataContainerEvent() {}
-
 private:
   static PLDHashOperator
     TraverseEntry(const nsAString& aKey, nsIVariant* aDataItem, void* aUserArg);

@@ -63,9 +63,6 @@ public:
     return !!mOutputBuffer;
   }
 
-protected:
-  virtual ~AudioProcessingEvent();
-
 private:
   already_AddRefed<AudioBuffer>
   LazilyCreateBuffer(uint32_t aNumberOfChannels, ErrorResult& rv);

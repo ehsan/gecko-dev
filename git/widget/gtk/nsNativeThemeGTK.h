@@ -62,8 +62,6 @@ public:
                                              uint8_t aWidgetType);
 
   nsNativeThemeGTK();
-
-protected:
   virtual ~nsNativeThemeGTK();
 
 private:

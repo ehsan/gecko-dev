@@ -142,8 +142,6 @@ public:
 
   ID3D11Device* GetDevice() { return mDevice; }
 
-  ID3D11DeviceContext* GetDC() { return mContext; }
-
 private:
   // ensure mSize is up to date with respect to mWidget
   void EnsureSize();

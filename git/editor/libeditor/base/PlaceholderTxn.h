@@ -60,7 +60,6 @@ public:
   NS_IMETHOD RememberEndingSelection();
 
 protected:
-  virtual ~PlaceholderTxn();
 
   /** the presentation shell, which we'll need to get the selection */
   bool        mAbsorb;          // do we auto absorb any and all transaction?

@@ -49,10 +49,6 @@ SVGAnimationElement::SVGAnimationElement(already_AddRefed<mozilla::dom::NodeInfo
 {
 }
 
-SVGAnimationElement::~SVGAnimationElement()
-{
-}
-
 nsresult
 SVGAnimationElement::Init()
 {

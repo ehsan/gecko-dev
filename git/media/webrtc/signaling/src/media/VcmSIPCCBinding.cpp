@@ -385,7 +385,22 @@ extern "C" {
 #define CREATE_MT_MAP(a,b)        ((a << 16) | b)
 #define DYNAMIC_PAYLOAD_TYPE(x)    ((x >> 16) & 0xFFFF)
 
+#define    MAX_SPROP_LEN    32
+
 #define VCM_ERROR -1
+
+struct h264_video
+{
+    char       sprop_parameter_set[MAX_SPROP_LEN];
+    int        packetization_mode;
+    int        profile_level_id;
+    int        max_mbps;
+    int        max_fs;
+    int        max_cpb;
+    int        max_dpb;
+    int        max_br;
+    int        tias_bw;
+};
 
 /**
  *  start/stop ringing
@@ -2379,24 +2394,15 @@ static int vcmTxCreateAudioConduit(int level,
 static int vcmTxCreateVideoConduit(int level,
                                    const vcm_payload_info_t *payload,
                                    sipcc::PeerConnectionWrapper &pc,
-                                   const vcm_mediaAttrs_t *attrs,
                                    mozilla::RefPtr<mozilla::MediaSessionConduit> &conduit)
 {
   mozilla::VideoCodecConfig *config_raw;
-  struct VideoCodecConfigH264 *negotiated = nullptr;
-
-  if (attrs->video.opaque &&
-      (payload->codec_type == RTP_H264_P0 || payload->codec_type == RTP_H264_P1)) {
-    negotiated = static_cast<struct VideoCodecConfigH264 *>(attrs->video.opaque);
-  }
-
   config_raw = new mozilla::VideoCodecConfig(
     payload->remote_rtp_pt,
     ccsdpCodecName(payload->codec_type),
     payload->video.rtcp_fb_types,
     payload->video.max_fs,
-    payload->video.max_fr,
-    negotiated);
+    payload->video.max_fr);
 
   // Take possession of this pointer
   mozilla::ScopedDeletePtr<mozilla::VideoCodecConfig> config(config_raw);
@@ -2502,7 +2508,7 @@ static int vcmTxStartICE_m(cc_mcapid_t mcap_id,
     err = vcmTxCreateAudioConduit(level, payload, pc, attrs, conduit);
   } else if (CC_IS_VIDEO(mcap_id)) {
     mediaType = "video";
-    err = vcmTxCreateVideoConduit(level, payload, pc, attrs, conduit);
+    err = vcmTxCreateVideoConduit(level, payload, pc, conduit);
   } else {
     CSFLogError(logTag, "%s: mcap_id unrecognized", __FUNCTION__);
   }
@@ -2951,22 +2957,16 @@ void vcmFreeMediaPtr(void *ptr)
  * @return cc_boolean - true if attributes are accepted false otherwise
  */
 
-cc_boolean vcmCheckAttribs(cc_uint32_t media_type, void *sdp_p, int level,
-                           int remote_pt, void **rcapptr)
+cc_boolean vcmCheckAttribs(cc_uint32_t media_type, void *sdp_p, int level, void **rcapptr)
 {
     CSFLogDebug( logTag, "vcmCheckAttribs(): media=%d", media_type);
 
     cc_uint16_t     temp;
     const char      *ptr;
     uint32_t        t_uint;
-    struct VideoCodecConfigH264 *rcap;
+    struct h264_video *rcap;
 
     *rcapptr = nullptr;
-
-    int fmtp_inst = ccsdpAttrGetFmtpInst(sdp_p, level, remote_pt);
-    if (fmtp_inst < 0) {
-      return TRUE;
-    }
 
     switch (media_type)
     {
@@ -2976,26 +2976,26 @@ cc_boolean vcmCheckAttribs(cc_uint32_t media_type, void *sdp_p, int level,
     case RTP_H264_P0:
     case RTP_H264_P1:
 
-        rcap = (struct VideoCodecConfigH264 *) cpr_malloc( sizeof(struct VideoCodecConfigH264) );
+        rcap = (struct h264_video *) cpr_malloc( sizeof(struct h264_video) );
         if ( rcap == nullptr )
         {
             CSFLogDebug( logTag, "vcmCheckAttribs(): Malloc Failed for rcap");
             return FALSE;
         }
-        memset( rcap, 0, sizeof(struct VideoCodecConfigH264) );
+        memset( rcap, 0, sizeof(struct h264_video) );
 
-        if ( (ptr = ccsdpAttrGetFmtpParamSets(sdp_p, level, 0, fmtp_inst)) != nullptr )
+        if ( (ptr = ccsdpAttrGetFmtpParamSets(sdp_p, level, 0, 1)) != nullptr )
         {
-            memset(rcap->sprop_parameter_sets, 0, csf_countof(rcap->sprop_parameter_sets));
-            sstrncpy(rcap->sprop_parameter_sets, ptr, csf_countof(rcap->sprop_parameter_sets));
+            memset(rcap->sprop_parameter_set, 0, csf_countof(rcap->sprop_parameter_set));
+            sstrncpy(rcap->sprop_parameter_set, ptr, csf_countof(rcap->sprop_parameter_set));
         }
 
-        if ( ccsdpAttrGetFmtpPackMode(sdp_p, level, 0, fmtp_inst, &temp) == SDP_SUCCESS )
+        if ( ccsdpAttrGetFmtpPackMode(sdp_p, level, 0, 1, &temp) == SDP_SUCCESS )
         {
             rcap->packetization_mode = temp;
         }
 
-        if ( (ptr = ccsdpAttrGetFmtpProfileLevelId(sdp_p, level, 0, fmtp_inst)) != nullptr )
+        if ( (ptr = ccsdpAttrGetFmtpProfileLevelId(sdp_p, level, 0, 1)) != nullptr )
         {
 #ifdef _WIN32
             sscanf_s(ptr, "%x", &rcap->profile_level_id, sizeof(int*));
@@ -3004,32 +3004,32 @@ cc_boolean vcmCheckAttribs(cc_uint32_t media_type, void *sdp_p, int level,
 #endif
         }
 
-        if ( ccsdpAttrGetFmtpMaxMbps(sdp_p, level, 0, fmtp_inst, &t_uint) == SDP_SUCCESS )
+        if ( ccsdpAttrGetFmtpMaxMbps(sdp_p, level, 0, 1, &t_uint) == SDP_SUCCESS )
         {
             rcap->max_mbps = t_uint;
         }
 
-        if ( ccsdpAttrGetFmtpMaxFs(sdp_p, level, 0, fmtp_inst, &t_uint) == SDP_SUCCESS )
+        if ( ccsdpAttrGetFmtpMaxFs(sdp_p, level, 0, 1, &t_uint) == SDP_SUCCESS )
         {
             rcap->max_fs = t_uint;
         }
 
-        if ( ccsdpAttrGetFmtpMaxCpb(sdp_p, level, 0, fmtp_inst, &t_uint) == SDP_SUCCESS )
+        if ( ccsdpAttrGetFmtpMaxCpb(sdp_p, level, 0, 1, &t_uint) == SDP_SUCCESS )
         {
             rcap->max_cpb = t_uint;
         }
 
-        if ( ccsdpAttrGetFmtpMaxCpb(sdp_p, level, 0, fmtp_inst, &t_uint) == SDP_SUCCESS )
+        if ( ccsdpAttrGetFmtpMaxCpb(sdp_p, level, 0, 1, &t_uint) == SDP_SUCCESS )
         {
             rcap->max_dpb = t_uint;
         }
 
-        if ( ccsdpAttrGetFmtpMaxCpb(sdp_p, level, 0, fmtp_inst, &t_uint) == SDP_SUCCESS )
+        if ( ccsdpAttrGetFmtpMaxCpb(sdp_p, level, 0, 1, &t_uint) == SDP_SUCCESS )
         {
             rcap->max_br = t_uint;
         }
 
-        rcap->tias_bw = ccsdpGetBandwidthValue(sdp_p, level, fmtp_inst);
+        rcap->tias_bw = ccsdpGetBandwidthValue(sdp_p, level, 1);
         if ( rcap->tias_bw == 0 )
         {
             // received bandwidth of 0 reject this
@@ -3043,7 +3043,7 @@ cc_boolean vcmCheckAttribs(cc_uint32_t media_type, void *sdp_p, int level,
         }
 
         CSFLogDebug( logTag, "vcmCheckAttribs(): Negotiated media attrs\nsprop=%s\npack_mode=%d\nprofile_level_id=%X\nmbps=%d\nmax_fs=%d\nmax_cpb=%d\nmax_dpb=%d\nbr=%d bw=%d\n",
-            rcap->sprop_parameter_sets,
+            rcap->sprop_parameter_set,
             rcap->packetization_mode,
             rcap->profile_level_id,
             rcap->max_mbps,

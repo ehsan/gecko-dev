@@ -35,8 +35,6 @@ public:
   void GetData(OwningMozSmsMessageOrMozMmsMessage& aRetVal) const;
 
 private:
-  ~DOMMobileMessageError() {}
-
   nsCOMPtr<nsIDOMMozSmsMessage> mSms;
   nsCOMPtr<nsIDOMMozMmsMessage> mMms;
 };

@@ -132,6 +132,7 @@ private:
                        Element* aFrom, Element* aTo)
       : Notification(aTarget), mFrom(aFrom), mTo(aTo)
     {}
+    virtual ~ChangeNotification() {}
 
     NS_DECL_ISUPPORTS_INHERITED
     NS_IMETHOD Run() MOZ_OVERRIDE {
@@ -147,8 +148,6 @@ private:
       Notification::Clear(); mFrom = nullptr; mTo = nullptr;
     }
   protected:
-    virtual ~ChangeNotification() {}
-
     nsRefPtr<Element> mFrom;
     nsRefPtr<Element> mTo;
   };
