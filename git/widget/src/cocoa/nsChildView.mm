@@ -186,10 +186,6 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 
 - (BOOL)isRectObscuredBySubview:(NSRect)inRect;
 
-- (void)updateTrackingRect;
-- (void)removeTrackingRect;
-- (void)addTrackingRect;
-
 - (void)processPendingRedraws;
 
 - (PRBool)processKeyDownEvent:(NSEvent*)theEvent keyEquiv:(BOOL)isKeyEquiv;
@@ -1483,48 +1479,15 @@ nsresult nsChildView::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
   NSPoint screenPoint = NSMakePoint(aPoint.x, [[NSScreen mainScreen] frame].size.height - aPoint.y);
   NSPoint windowPoint = [[mView window] convertScreenToBase:screenPoint];
 
-  NSEvent* event = nil;
-  switch (aNativeMessage) {
-    case NSLeftMouseDown:
-    case NSLeftMouseUp:
-    case NSRightMouseDown:
-    case NSRightMouseUp:
-    case NSMouseMoved:
-    case NSLeftMouseDragged:
-    case NSRightMouseDragged:
-      event = [NSEvent mouseEventWithType:aNativeMessage
-                                 location:windowPoint
-                            modifierFlags:aModifierFlags
-                                timestamp:[NSDate timeIntervalSinceReferenceDate]
-                             windowNumber:[[mView window] windowNumber]
-                                  context:nil
-                              eventNumber:0
-                               clickCount:1
-                                 pressure:0.0];
-      break;
-    case NSMouseEntered:
-    case NSMouseExited:
-    case NSCursorUpdate:
-    {
-      NSTrackingRectTag trackingRect = 0;
-      if ([mView isKindOfClass:[ChildView class]]) {
-        trackingRect = [(ChildView*)mView trackingRect];
-      }
-      event = [NSEvent enterExitEventWithType:aNativeMessage
-                                     location:windowPoint
-                                modifierFlags:aModifierFlags
-                                    timestamp:[NSDate timeIntervalSinceReferenceDate]
-                                 windowNumber:[[mView window] windowNumber]
-                                      context:nil
-                                  eventNumber:0
-                               trackingNumber:trackingRect
-                                     userData:nil];
-    }
-      break;
-    default:
-      NS_WARNING("unhandled message");
-      break;
-  }
+  NSEvent* event = [NSEvent mouseEventWithType:aNativeMessage
+                                      location:windowPoint
+                                 modifierFlags:aModifierFlags
+                                     timestamp:[NSDate timeIntervalSinceReferenceDate]
+                                  windowNumber:[[mView window] windowNumber]
+                                       context:nil
+                                   eventNumber:0
+                                    clickCount:1
+                                      pressure:0.0];
 
   if (!event)
     return NS_ERROR_FAILURE;
@@ -2227,15 +2190,11 @@ NSEvent* gLastDragEvent = nil;
 
     mPluginTSMDoc = nil;
 
-    mTrackingRect = 0;
-    mMouseEnterState = eMouseEnterState_Unknown;
-
     mGestureState = eGestureState_None;
     mCumulativeMagnification = 0.0;
     mCumulativeRotation = 0.0;
 
     [self setFocusRingType:NSFocusRingTypeNone];
-    [self addTrackingRect];
   }
   
   // register for things we'll take from other applications
@@ -2363,20 +2322,6 @@ NSEvent* gLastDragEvent = nil;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void)setNeedsDisplayInRect:(NSRect)aRect
-{
-  [super setNeedsDisplayInRect:aRect];
-
-  if ([[self window] isKindOfClass:[ToolbarWindow class]]) {
-    ToolbarWindow* window = (ToolbarWindow*)[self window];
-    if ([window drawsContentsIntoWindowFrame]) {
-      // Tell it to mark the rect in the titlebar as dirty.
-      NSView* borderView = [[window contentView] superview];
-      [window setTitlebarNeedsDisplayInRect:[self convertRect:aRect toView:borderView]];
-    }
-  }
-}
-
 - (NSString*)description
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
@@ -2446,8 +2391,6 @@ NSEvent* gLastDragEvent = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  [self removeTrackingRect];
-
   if (!newWindow)
     HideChildPluginViews(self);
 
@@ -2458,8 +2401,6 @@ NSEvent* gLastDragEvent = nil;
 
 - (void)viewDidMoveToWindow
 {
-  [self addTrackingRect];
-
   if ([self window] && [self isPluginView] && mGeckoChild) {
     mGeckoChild->UpdatePluginPort();
   }
@@ -2542,38 +2483,31 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 // gecko to paint it
 - (void)drawRect:(NSRect)aRect
 {
-  CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
-  [self drawRect:aRect inContext:cgContext];
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // If we're a transparent window, and our contents have changed, we need
-  // to make sure the shadow is updated to the new contents.
-  [self maybeInvalidateShadow];
-}
-
-- (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext
-{
   PRBool isVisible;
   if (!mGeckoChild || NS_FAILED(mGeckoChild->IsVisible(isVisible)) ||
       !isVisible)
     return;
 
-#ifdef DEBUG_UPDATE
+  CGContextRef cgContext = (CGContextRef)[[NSGraphicsContext currentContext] graphicsPort];
+
   nsIntRect geckoBounds;
   mGeckoChild->GetBounds(geckoBounds);
 
+  NSRect bounds = [self bounds];
+  nsRefPtr<gfxQuartzSurface> targetSurface =
+    new gfxQuartzSurface(cgContext, gfxSize(bounds.size.width, bounds.size.height));
+
+#ifdef DEBUG_UPDATE
   fprintf (stderr, "---- Update[%p][%p] [%f %f %f %f] cgc: %p\n  gecko bounds: [%d %d %d %d]\n",
            self, mGeckoChild,
-           aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height, aContext,
+           aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height, cgContext,
            geckoBounds.x, geckoBounds.y, geckoBounds.width, geckoBounds.height);
 
-  CGAffineTransform xform = CGContextGetCTM(aContext);
+  CGAffineTransform xform = CGContextGetCTM(cgContext);
   fprintf (stderr, "  xform in: [%f %f %f %f %f %f]\n", xform.a, xform.b, xform.c, xform.d, xform.tx, xform.ty);
 #endif
-
-  // Create Cairo objects.
-  NSSize bufferSize = [self bounds].size;
-  nsRefPtr<gfxQuartzSurface> targetSurface =
-    new gfxQuartzSurface(aContext, gfxSize(bufferSize.width, bufferSize.height));
 
   nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
 
@@ -2581,24 +2515,34 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   mGeckoChild->GetDeviceContext()->CreateRenderingContextInstance(*getter_AddRefs(rc));
   rc->Init(mGeckoChild->GetDeviceContext(), targetContext);
 
-  // Build a region.
+  /* clip and build a region */
   nsCOMPtr<nsIRegion> rgn(do_CreateInstance(kRegionCID));
   if (!rgn)
     return;
   rgn->Init();
 
+  // bounding box of the dirty area
+  nsIntRect fullRect;
+  NSRectToGeckoRect(aRect, fullRect);
+
   const NSRect *rects;
   NSInteger count, i;
-  [[NSView focusView] getRectsBeingDrawn:&rects count:&count];
+  [self getRectsBeingDrawn:&rects count:&count];
   if (count < MAX_RECTS_IN_REGION) {
     for (i = 0; i < count; ++i) {
-      // Add the rect to the region.
-      const NSRect& r = [self convertRect:rects[i] fromView:[NSView focusView]];
+      const NSRect& r = rects[i];
+
+      // add to the region
       rgn->Union((PRInt32)r.origin.x, (PRInt32)r.origin.y, (PRInt32)r.size.width, (PRInt32)r.size.height);
+
+      // to the context for clipping
+      targetContext->Rectangle(gfxRect(r.origin.x, r.origin.y, r.size.width, r.size.height));
     }
   } else {
     rgn->Union(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height);
+    targetContext->Rectangle(gfxRect(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
   }
+  targetContext->Clip();
 
   // Subtract child view rectangles from the region
   NSArray* subviews = [self subviews];
@@ -2610,24 +2554,6 @@ static const PRInt32 sShadowInvalidationInterval = 100;
     rgn->Subtract(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
   }
 
-  // Set up the clip region.
-  nsRegionRectSet* rgnRects = nsnull;
-  rgn->GetRects(&rgnRects);
-  if (!rgnRects)
-    return;
-
-  for (PRUint32 i = 0; i < rgnRects->mNumRects; ++i) {
-    const nsRegionRect& rect = rgnRects->mRects[i];
-    targetContext->Rectangle(gfxRect(rect.x, rect.y, rect.width, rect.height));
-  }
-  rgn->FreeRects(rgnRects);
-  targetContext->Clip();
-
-  // bounding box of the dirty area
-  nsIntRect fullRect;
-  NSRectToGeckoRect(aRect, fullRect);
-
-  // Create the event and dispatch it.
   nsPaintEvent paintEvent(PR_TRUE, NS_PAINT, mGeckoChild);
   paintEvent.renderingContext = rc;
   paintEvent.rect = &fullRect;
@@ -2637,6 +2563,10 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   mGeckoChild->DispatchWindowEvent(paintEvent);
   if (!mGeckoChild)
     return;
+
+  // If we're a transparent window, and our contents have changed, we need
+  // to make sure the shadow is updated to the new contents.
+  [self maybeInvalidateShadow];
 
   paintEvent.renderingContext = nsnull;
   paintEvent.region = nsnull;
@@ -2653,17 +2583,19 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   fprintf (stderr, "---- update done ----\n");
 
 #if 0
-  CGContextSetRGBStrokeColor (aContext,
+  CGContextSetRGBStrokeColor (cgContext,
                             ((((unsigned long)self) & 0xff)) / 255.0,
                             ((((unsigned long)self) & 0xff00) >> 8) / 255.0,
                             ((((unsigned long)self) & 0xff0000) >> 16) / 255.0,
                             0.5);
 #endif 
-  CGContextSetRGBStrokeColor(aContext, 1, 0, 0, 0.8);
-  CGContextSetLineWidth(aContext, 4.0);
-  CGContextStrokeRect(aContext,
-                      CGRectMake(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
+  CGContextSetRGBStrokeColor (cgContext, 1, 0, 0, 0.8);
+  CGContextSetLineWidth (cgContext, 4.0);
+  CGContextStrokeRect (cgContext,
+                       CGRectMake(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
 #endif
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 // Allows us to turn off setting up the clip region
@@ -3004,63 +2936,6 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   mCumulativeRotation = 0.0;
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)updateTrackingRect
-{
-  [self removeTrackingRect];
-  [self addTrackingRect];
-}
-
-- (void)removeTrackingRect
-{
-  if (mTrackingRect) {
-    [self removeTrackingRect:mTrackingRect];
-    mTrackingRect = 0;
-  }
-}
-
-- (void)addTrackingRect
-{
-  if ([self window] && !NSIsEmptyRect([self bounds])) {
-    mMouseEnterState = eMouseEnterState_Unknown;
-    mTrackingRect = [self addTrackingRect:[self bounds] owner:self userData:NULL assumeInside:NO];
-  }
-}
-
-- (void)resetCursorRects
-{
-  [self updateTrackingRect];
-}
-
-- (void)setFrame:(NSRect)aFrame
-{
-  [super setFrame:aFrame];
-  [self updateTrackingRect];
-}
-
-- (void)setBounds:(NSRect)aBounds
-{
-  [super setBounds:aBounds];
-  [self updateTrackingRect];
-}
-
-- (void)mouseEntered:(NSEvent*)aEvent {
-  mMouseEnterState = eMouseEnterState_Inside;
-}
-
-- (void)mouseExited:(NSEvent*)aEvent {
-  mMouseEnterState = eMouseEnterState_Outside;
-}
-
-- (MouseEnterState)mouseEnterState
-{
-  return mMouseEnterState;
-}
-
-- (NSTrackingRectTag)trackingRect
-{
-  return mTrackingRect;
 }
 
 - (void)mouseDown:(NSEvent*)theEvent
@@ -6591,19 +6466,7 @@ ChildViewMouseTracker::ViewForEvent(NSEvent* aEvent)
   NSPoint windowEventLocation = nsCocoaUtils::EventLocationForWindow(aEvent, window);
   NSView* view = [[[window contentView] superview] hitTest:windowEventLocation];
   NS_ASSERTION(view, "How can the mouse be over a window but not over a view in that window?");
-
-  if (![view isKindOfClass:[ChildView class]])
-    return nil;
-
-  // Now we know the view that the mouse is over, assuming the front-most window
-  // is one of our own windows. However, there might be windows of other
-  // applications floating in front of us, for example the Dock or the
-  // Dashboard. If that's the case, then our view's tracking rect knows about it.
-  ChildView* childView = (ChildView*)view;
-  if ([childView mouseEnterState] == eMouseEnterState_Outside)
-    return nil;
-
-  return childView;
+  return [view isKindOfClass:[ChildView class]] ? (ChildView*)view : nil;
 }
 
 // Find the active window under the mouse. Returns nil if the mouse isn't over

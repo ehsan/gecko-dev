@@ -86,7 +86,6 @@
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGGeometryFrame.h"
 #include "nsComputedDOMStyle.h"
-#include "nsSVGPathGeometryFrame.h"
 
 gfxASurface *nsSVGUtils::mThebesComputationalSurface = nsnull;
 
@@ -1388,8 +1387,8 @@ nsSVGUtils::CanOptimizeOpacity(nsIFrame *aFrame)
       return PR_TRUE;
     if (type == nsGkAtoms::svgPathGeometryFrame) {
       const nsStyleSVG *style = aFrame->GetStyleSVG();
-      if (style->mFill.mType == eStyleSVGPaintType_None ||
-          !static_cast<nsSVGPathGeometryFrame*>(aFrame)->HasStroke())
+      if (style->mFill.mType == eStyleSVGPaintType_None &&
+          style->mStroke.mType == eStyleSVGPaintType_None)
         return PR_TRUE;
     }
   }

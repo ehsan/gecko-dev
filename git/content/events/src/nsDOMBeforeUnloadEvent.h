@@ -42,8 +42,8 @@
 #include "nsIDOMBeforeUnloadEvent.h"
 #include "nsDOMEvent.h"
 
-class nsDOMBeforeUnloadEvent : public nsDOMEvent,
-                               public nsIDOMBeforeUnloadEvent
+class nsDOMBeforeUnloadEvent : public nsIDOMBeforeUnloadEvent,
+                               public nsDOMEvent
 {
 public:
   nsDOMBeforeUnloadEvent(nsPresContext* aPresContext, nsEvent* aEvent)

@@ -1143,8 +1143,8 @@ CSS_PROP_BORDER(
     mBoxShadow,
     eCSSType_ValueList,
     kBoxShadowTypeKTable,
-    offsetof(nsStyleBorder, mBoxShadow),
-    eStyleAnimType_Shadow)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_POSITION(
     -moz-box-sizing,
     box_sizing,
@@ -2308,8 +2308,8 @@ CSS_PROP_TEXT(
     mTextShadow,
     eCSSType_ValueList,
     nsnull,
-    offsetof(nsStyleText, mTextShadow),
-    eStyleAnimType_Shadow)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_TEXT(
     text-transform,
     text_transform,
@@ -2942,8 +2942,8 @@ CSS_PROP_SVG(
     mStrokeDasharray,
     eCSSType_ValueList,
     nsnull,
-    CSS_PROP_NO_OFFSET, /* property stored in 2 separate members */
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_SVG(
     stroke-dashoffset,
     stroke_dashoffset,
