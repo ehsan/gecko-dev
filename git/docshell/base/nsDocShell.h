@@ -947,9 +947,6 @@ protected:
     // find it by walking up the docshell hierarchy.)
     uint32_t mOwnOrContainingAppId;
 
-    nsString mPaymentRequestId;
-
-    nsString GetInheritedPaymentRequestId();
 private:
     nsCString         mForcedCharset;
     nsCString         mParentCharset;

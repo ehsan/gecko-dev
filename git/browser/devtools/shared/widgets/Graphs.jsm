@@ -49,6 +49,7 @@ const GRAPH_STRIPE_PATTERN_LINE_SPACING = 4; // px
 // Line graph constants.
 
 const LINE_GRAPH_DAMPEN_VALUES = 0.85;
+const LINE_GRAPH_MIN_SQUARED_DISTANCE_BETWEEN_POINTS = 1; // px
 const LINE_GRAPH_TOOLTIP_SAFE_BOUNDS = 8; // px
 const LINE_GRAPH_MIN_MAX_TOOLTIP_DISTANCE = 14; // px
 
@@ -1232,6 +1233,12 @@ LineGraphWidget.prototype = Heritage.extend(AbstractCanvasGraph.prototype, {
   dampenValuesFactor: LINE_GRAPH_DAMPEN_VALUES,
 
   /**
+   * Points that are too close too each other in the graph will not be rendered.
+   * This scalar specifies the required minimum squared distance between points.
+   */
+  minSquaredDistanceBetweenPoints: LINE_GRAPH_MIN_SQUARED_DISTANCE_BETWEEN_POINTS,
+
+  /**
    * Specifies if min/max/avg tooltips have arrow handlers on their sides.
    */
   withTooltipArrows: true,
@@ -1259,6 +1266,11 @@ LineGraphWidget.prototype = Heritage.extend(AbstractCanvasGraph.prototype, {
       plottedData,
       plottedMinMaxSum
     } = yield CanvasGraphUtils._performTaskInWorker("plotTimestampsGraph", {
+      width: this._width,
+      height: this._height,
+      dataOffsetX: this.dataOffsetX,
+      dampenValuesFactor: this.dampenValuesFactor,
+      minSquaredDistanceBetweenPoints: this.minSquaredDistanceBetweenPoints,
       timestamps: timestamps,
       interval: interval
     });
@@ -1282,11 +1294,16 @@ LineGraphWidget.prototype = Heritage.extend(AbstractCanvasGraph.prototype, {
     let maxValue = Number.MIN_SAFE_INTEGER;
     let minValue = Number.MAX_SAFE_INTEGER;
     let avgValue = 0;
+    let forceDrawAllPoints = false;
 
     if (this._tempMinMaxSum) {
       maxValue = this._tempMinMaxSum.maxValue;
       minValue = this._tempMinMaxSum.minValue;
       avgValue = this._tempMinMaxSum.avgValue;
+      // If we use cached `minValue`, `maxValue`, `avgValue` then we can assume
+      // that we've already removed points that did not meet the
+      // `minSquaredDistanceBetweenPoints` requirement.
+      forceDrawAllPoints = true;
     } else {
       let sumValues = 0;
       for (let { delta, value } of this._data) {
@@ -1315,6 +1332,10 @@ LineGraphWidget.prototype = Heritage.extend(AbstractCanvasGraph.prototype, {
     ctx.lineWidth = this.strokeWidth * this._pixelRatio;
     ctx.beginPath();
 
+    let prevX = 0;
+    let prevY = 0;
+    let minSqDist = this.minSquaredDistanceBetweenPoints;
+
     for (let { delta, value } of this._data) {
       let currX = (delta - this.dataOffsetX) * dataScaleX;
       let currY = height - value * dataScaleY;
@@ -1324,7 +1345,11 @@ LineGraphWidget.prototype = Heritage.extend(AbstractCanvasGraph.prototype, {
         ctx.lineTo(-LINE_GRAPH_STROKE_WIDTH, currY);
       }
 
-      ctx.lineTo(currX, currY);
+      if (forceDrawAllPoints || distSquared(prevX, prevY, currX, currY) >= minSqDist) {
+        ctx.lineTo(currX, currY);
+        prevX = currX;
+        prevY = currY;
+      }
 
       if (delta == lastTick) {
         ctx.lineTo(width + LINE_GRAPH_STROKE_WIDTH, currY);
