@@ -76,6 +76,7 @@ const MATCH_ANYWHERE = Ci.mozIPlacesAutoComplete.MATCH_ANYWHERE;
 const MATCH_BOUNDARY_ANYWHERE = Ci.mozIPlacesAutoComplete.MATCH_BOUNDARY_ANYWHERE;
 const MATCH_BOUNDARY = Ci.mozIPlacesAutoComplete.MATCH_BOUNDARY;
 const MATCH_BEGINNING = Ci.mozIPlacesAutoComplete.MATCH_BEGINNING;
+const MATCH_BEGINNING_CASE_SENSITIVE = Ci.mozIPlacesAutoComplete.MATCH_BEGINNING_CASE_SENSITIVE;
 
 // AutoComplete index constants.  All AutoComplete queries will provide these
 // columns in this order.
@@ -1319,6 +1320,7 @@ urlInlineComplete.prototype = {
         + "SELECT host || '/' "
         + "FROM moz_hosts "
         + "WHERE host BETWEEN :search_string AND :search_string || X'FFFF' "
+        + "AND frecency <> 0 "
         + (this._autofillTyped ? "AND typed = 1 " : "")
         + "ORDER BY frecency DESC "
         + "LIMIT 1"
@@ -1389,6 +1391,15 @@ urlInlineComplete.prototype = {
       return;
     }
 
+    // Don't try to autofill if the search term includes any whitespace.
+    // This may confuse completeDefaultIndex cause the AUTOCOMPLETE_MATCH
+    // tokenizer ends up trimming the search string and returning a value
+    // that doesn't match it, or is even shorter.
+    if (/\s/.test(this._currentSearchString)) {
+      this._finishSearch();
+      return;
+    }
+
     // Do a synchronous search on the table of domains.
     let query = this._syncQuery;
     query.params.search_string = this._currentSearchString.toLowerCase();
@@ -1429,11 +1440,20 @@ urlInlineComplete.prototype = {
       return;
     }
 
+    // The URIs in the database are fixed up, so we can match on a lowercased
+    // host, but the path must be matched in a case sensitive way.
+    let pathIndex =
+      this._originalSearchString.indexOf("/", this._strippedPrefix.length);
+    this._currentSearchString = fixupSearchText(
+      this._originalSearchString.slice(0, pathIndex).toLowerCase() +
+      this._originalSearchString.slice(pathIndex)
+    );
+
     // Within the standard autocomplete query, we only search the beginning
     // of URLs for 1 result.
     let query = this._asyncQuery;
     let (params = query.params) {
-      params.matchBehavior = MATCH_BEGINNING;
+      params.matchBehavior = MATCH_BEGINNING_CASE_SENSITIVE;
       params.searchBehavior = Ci.mozIPlacesAutoComplete["BEHAVIOR_URL"];
       params.searchString = this._currentSearchString;
     }

@@ -97,7 +97,7 @@
 #include "nsIDocShell.h"
 #include "nsIBaseWindow.h"
 #include "nsILayoutHistoryState.h"
-#include "nsIParser.h"
+#include "nsCharsetSource.h"
 #include "nsGUIEvent.h"
 #include "nsHTMLReflowState.h"
 #include "nsIDOMHTMLAnchorElement.h"
@@ -504,6 +504,18 @@ public:
   }
 
   nsCOMPtr<nsIDocument> mTop;
+};
+
+class nsBeforeFirstPaintDispatcher : public nsRunnable
+{
+public:
+  nsBeforeFirstPaintDispatcher(nsIDocument* aDocument)
+  : mDocument(aDocument) {}
+
+  NS_IMETHOD Run();
+
+private:
+  nsCOMPtr<nsIDocument> mDocument;
 };
 
 class nsDocumentShownDispatcher : public nsRunnable
@@ -1197,6 +1209,7 @@ DocumentViewerImpl::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
                              (nsIPrompt::BUTTON_TITLE_IS_STRING * nsIPrompt::BUTTON_POS_0) |
                              (nsIPrompt::BUTTON_TITLE_IS_STRING * nsIPrompt::BUTTON_POS_1));
 
+      nsAutoSyncOperation sync(mDocument);
       rv = prompt->ConfirmEx(title, message, buttonFlags,
                              leaveLabel, stayLabel, nsnull, nsnull,
                              &dummy, &buttonPressed);
@@ -2047,8 +2060,13 @@ DocumentViewerImpl::Show(void)
     }
   }
 
-  // Notify observers that a new page has been shown. (But not right now;
-  // running JS at this time is not safe.)
+  // Notify observers that a new page is about to be drawn. Execute this
+  // as soon as it is safe to run JS, which is guaranteed to be before we
+  // go back to the event loop and actually draw the page.
+  nsContentUtils::AddScriptRunner(new nsBeforeFirstPaintDispatcher(mDocument));
+
+  // Notify observers that a new page has been shown. This will get run
+  // from the event loop after we actually draw the page.
   NS_DispatchToMainThread(new nsDocumentShownDispatcher(mDocument));
 
   return NS_OK;
@@ -2688,24 +2706,27 @@ DocumentViewerImpl::GetPrintable(bool *aPrintable)
 
 NS_IMETHODIMP DocumentViewerImpl::ScrollToNode(nsIDOMNode* aNode)
 {
-   NS_ENSURE_ARG(aNode);
-   NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_AVAILABLE);
-   nsCOMPtr<nsIPresShell> presShell;
-   NS_ENSURE_SUCCESS(GetPresShell(getter_AddRefs(presShell)), NS_ERROR_FAILURE);
+  NS_ENSURE_ARG(aNode);
+  NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_AVAILABLE);
+  nsCOMPtr<nsIPresShell> presShell;
+  NS_ENSURE_SUCCESS(GetPresShell(getter_AddRefs(presShell)), NS_ERROR_FAILURE);
 
-   // Get the nsIContent interface, because that's what we need to
-   // get the primary frame
+  // Get the nsIContent interface, because that's what we need to
+  // get the primary frame
 
-   nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
-   NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
+  NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
 
-   // Tell the PresShell to scroll to the primary frame of the content.
-   NS_ENSURE_SUCCESS(presShell->ScrollContentIntoView(content,
-                                                      NS_PRESSHELL_SCROLL_TOP,
-                                                      NS_PRESSHELL_SCROLL_ANYWHERE,
-                                                      nsIPresShell::SCROLL_OVERFLOW_HIDDEN),
-                     NS_ERROR_FAILURE);
-   return NS_OK;
+  // Tell the PresShell to scroll to the primary frame of the content.
+  NS_ENSURE_SUCCESS(
+    presShell->ScrollContentIntoView(content,
+                                     nsIPresShell::ScrollAxis(
+                                       nsIPresShell::SCROLL_TOP,
+                                       nsIPresShell::SCROLL_ALWAYS),
+                                     nsIPresShell::ScrollAxis(),
+                                     nsIPresShell::SCROLL_OVERFLOW_HIDDEN),
+    NS_ERROR_FAILURE);
+  return NS_OK;
 }
 
 void
@@ -4370,8 +4391,20 @@ DocumentViewerImpl::SetPrintPreviewPresentation(nsIViewManager* aViewManager,
   mPresShell = aPresShell;
 }
 
-// Fires the "document-shown" event so that interested parties (right now, the
+// Fires the "before-first-paint" event so that interested parties (right now, the
 // mobile browser) are aware of it.
+NS_IMETHODIMP
+nsBeforeFirstPaintDispatcher::Run()
+{
+  nsCOMPtr<nsIObserverService> observerService =
+    mozilla::services::GetObserverService();
+  if (observerService) {
+    observerService->NotifyObservers(mDocument, "before-first-paint", NULL);
+  }
+  return NS_OK;
+}
+
+// Fires the "document-shown" event so that interested parties are aware of it.
 NS_IMETHODIMP
 nsDocumentShownDispatcher::Run()
 {

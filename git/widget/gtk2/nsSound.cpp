@@ -106,7 +106,7 @@ struct ScopedCanberraFile {
 
     ~ScopedCanberraFile() {
         if (mFile) {
-            mFile->Remove(PR_FALSE);
+            mFile->Remove(false);
         }
     }
 
@@ -188,7 +188,7 @@ ca_finish_cb(ca_context *c,
 {
     nsILocalFile *file = reinterpret_cast<nsILocalFile *>(userdata);
     if (file) {
-        file->Remove(PR_FALSE);
+        file->Remove(false);
         NS_RELEASE(file);
     }
 }
@@ -293,7 +293,8 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
     ScopedCanberraFile canberraFile(tmpFile);
 
     mozilla::AutoFDClose fd;
-    rv = canberraFile->OpenNSPRFileDesc(PR_WRONLY, PR_IRUSR | PR_IWUSR, &fd);
+    rv = canberraFile->OpenNSPRFileDesc(PR_WRONLY, PR_IRUSR | PR_IWUSR,
+                                        &fd.rwget());
     if (NS_FAILED(rv)) {
         return rv;
     }

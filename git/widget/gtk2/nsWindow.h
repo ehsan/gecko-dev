@@ -95,6 +95,7 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 
 #endif /* MOZ_LOGGING */
 
+class nsDragService;
 #if defined(MOZ_X11) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)
 #  define MOZ_HAVE_SHMIMAGE
 
@@ -261,7 +262,6 @@ public:
                                                guint            aTime,
                                                gpointer         aData);
     void               OnDragLeave(void);
-    void               OnDragEnter(nscoord aX, nscoord aY);
 
 private:
     void               NativeResize(PRInt32 aWidth,
@@ -297,17 +297,16 @@ public:
 
     void               ThemeChanged(void);
 
-    void CheckNeedDragLeaveEnter(nsWindow* aInnerMostWidget,
-                                 nsIDragService* aDragService,
-                                 GdkDragContext *aDragContext,
-                                 nscoord aX, nscoord aY);
+    void CheckNeedDragLeave(nsWindow* aInnerMostWidget,
+                            nsIDragService* aDragService,
+                            GdkDragContext *aDragContext,
+                            nscoord aX, nscoord aY);
 
 #ifdef MOZ_X11
     Window             mOldFocusWindow;
 #endif /* MOZ_X11 */
 
     static guint32     sLastButtonPressTime;
-    static guint32     sLastButtonReleaseTime;
 
     NS_IMETHOD         BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
     NS_IMETHOD         BeginMoveDrag(nsMouseEvent* aEvent);
@@ -316,6 +315,15 @@ public:
     GdkWindow*         GetGdkWindow() { return mGdkWindow; }
     bool               IsDestroyed() { return mIsDestroyed; }
 
+    void               DispatchDragEvent(PRUint32 aMsg,
+                                         const nsIntPoint& aRefPoint,
+                                         guint aTime);
+    void               DispatchDragMotionEvents(nsDragService *aDragService,
+                                                const nsIntPoint& aPoint,
+                                                guint aTime);
+    gboolean           DispatchDragDropEvent(nsDragService *aDragService,
+                                             const nsIntPoint& aWindowPoint,
+                                             guint aTime);
     // If this dispatched the keydown event actually, this returns TRUE,
     // otherwise, FALSE.
     bool               DispatchKeyDownEvent(GdkEventKey *aEvent,
@@ -346,6 +354,13 @@ public:
     gfxASurface       *GetThebesSurface(cairo_t *cr);
 #endif
     NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
+
+    virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
+                                                PRUint32 aNativeMessage,
+                                                PRUint32 aModifierFlags);
+
+    virtual nsresult SynthesizeNativeMouseMove(nsIntPoint aPoint)
+    { return SynthesizeNativeMouseEvent(aPoint, GDK_MOTION_NOTIFY, 0); }
 
 protected:
     // Helper for SetParent and ReparentNativeWidget.
@@ -491,8 +506,6 @@ private:
     // leaving fullscreen
     nsSizeMode         mLastSizeMode;
 
-    static bool        sIsDraggingOutOf;
-    // drag in progress
     static bool DragInProgress(void);
 
     void         FireDragLeaveTimer       (void);

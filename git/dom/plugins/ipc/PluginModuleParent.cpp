@@ -41,8 +41,6 @@
 #elif XP_MACOSX
 #include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
 #endif
 #ifdef MOZ_WIDGET_QT
 #include <QtCore/QCoreApplication>
@@ -560,9 +558,11 @@ PluginModuleParent::RecvBackUpXResources(const FileDescriptor& aXSocketFd)
 #ifndef MOZ_X11
     NS_RUNTIMEABORT("This message only makes sense on X11 platforms");
 #else
-    NS_ABORT_IF_FALSE(0 > mPluginXSocketFdDup.mFd,
+    NS_ABORT_IF_FALSE(0 > mPluginXSocketFdDup.get(),
                       "Already backed up X resources??");
-    mPluginXSocketFdDup.mFd = aXSocketFd.fd;
+    int fd = aXSocketFd.fd; // Copy to discard |const| qualifier
+    mPluginXSocketFdDup.forget();
+    mPluginXSocketFdDup.reset(fd);
 #endif
     return true;
 }
@@ -1163,15 +1163,8 @@ PluginModuleParent::RecvGetNativeCursorsSupported(bool* supported)
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 #if defined(XP_MACOSX)
-    bool nativeCursorsSupported = false;
-    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (prefs) {
-      if (NS_FAILED(prefs->GetBoolPref("dom.ipc.plugins.nativeCursorSupport",
-          &nativeCursorsSupported))) {
-        nativeCursorsSupported = false;
-      }
-    }
-    *supported = nativeCursorsSupported;
+    *supported =
+      Preferences::GetBool("dom.ipc.plugins.nativeCursorSupport", false);
     return true;
 #else
     NS_NOTREACHED(

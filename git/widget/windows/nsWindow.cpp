@@ -3192,7 +3192,8 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
     if (eTransparencyTransparent == mTransparencyMode ||
         prefs.mDisableAcceleration ||
         windowRect.right - windowRect.left > MAX_ACCELERATED_DIMENSION ||
-        windowRect.bottom - windowRect.top > MAX_ACCELERATED_DIMENSION)
+        windowRect.bottom - windowRect.top > MAX_ACCELERATED_DIMENSION ||
+        mWindowType == eWindowType_popup)
       mUseAcceleratedRendering = false;
     else if (prefs.mAccelerateByDefault)
       mUseAcceleratedRendering = true;
@@ -5796,6 +5797,22 @@ nsWindow::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
   ::SendInput(1, &input, sizeof(INPUT));
 
   return NS_OK;
+}
+
+nsresult
+nsWindow::SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
+                                           PRUint32 aNativeMessage,
+                                           double aDeltaX,
+                                           double aDeltaY,
+                                           double aDeltaZ,
+                                           PRUint32 aModifierFlags,
+                                           PRUint32 aAdditionalFlags)
+{
+  return MouseScrollHandler::SynthesizeNativeMouseScrollEvent(
+           this, aPoint, aNativeMessage,
+           (aNativeMessage == WM_MOUSEWHEEL || aNativeMessage == WM_VSCROLL) ?
+             static_cast<PRInt32>(aDeltaY) : static_cast<PRInt32>(aDeltaX),
+           aModifierFlags, aAdditionalFlags);
 }
 
 /**************************************************************

@@ -12,12 +12,13 @@ import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
 import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
-import org.mozilla.gecko.sync.repositories.domain.PasswordRecord;
 
+import android.content.ContentProviderClient;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
+import android.os.RemoteException;
 
 public class RepoUtils {
 
@@ -51,6 +52,14 @@ public class RepoUtils {
 
     public Cursor safeQuery(String[] projection, String selection, String[] selectionArgs, String sortOrder) throws NullCursorException {
       return this.safeQuery(null, projection, selection, selectionArgs, sortOrder);
+    }
+
+    // For ContentProviderClient queries.
+    public Cursor safeQuery(ContentProviderClient client, String label, String[] projection,
+                            String selection, String[] selectionArgs, String sortOrder) throws NullCursorException, RemoteException {
+      long queryStart = android.os.SystemClock.uptimeMillis();
+      Cursor c = client.query(uri, projection, selection, selectionArgs, sortOrder);
+      return checkAndLogCursor(label, queryStart, c);
     }
 
     // For SQLiteOpenHelper queries.
@@ -161,30 +170,6 @@ public class RepoUtils {
     }
   }
 
-  public static PasswordRecord passwordFromMirrorCursor(Cursor cur) {
-    
-    String guid = getStringFromCursor(cur, BrowserContract.SyncColumns.GUID);
-    String collection = "passwords";
-    long lastModified = getLongFromCursor(cur, BrowserContract.SyncColumns.DATE_MODIFIED);
-    boolean deleted = getLongFromCursor(cur, BrowserContract.SyncColumns.IS_DELETED) == 1 ? true : false;
-    PasswordRecord rec = new PasswordRecord(guid, collection, lastModified, deleted);
-    rec.hostname = getStringFromCursor(cur, BrowserContract.Passwords.HOSTNAME);
-    rec.httpRealm = getStringFromCursor(cur, BrowserContract.Passwords.HTTP_REALM);
-    rec.formSubmitURL = getStringFromCursor(cur, BrowserContract.Passwords.FORM_SUBMIT_URL);
-    rec.usernameField = getStringFromCursor(cur, BrowserContract.Passwords.USERNAME_FIELD);
-    rec.passwordField = getStringFromCursor(cur, BrowserContract.Passwords.PASSWORD_FIELD);
-    rec.encType = getStringFromCursor(cur, BrowserContract.Passwords.ENC_TYPE);
-    
-    // TODO decryption of username/password here (Bug 711636)
-    rec.username = getStringFromCursor(cur, BrowserContract.Passwords.ENCRYPTED_USERNAME);
-    rec.password = getStringFromCursor(cur, BrowserContract.Passwords.ENCRYPTED_PASSWORD);
-    
-    rec.timeLastUsed = getLongFromCursor(cur, BrowserContract.Passwords.TIME_LAST_USED);
-    rec.timesUsed = getLongFromCursor(cur, BrowserContract.Passwords.TIMES_USED);
-    
-    return rec;
-  }
-  
   public static void queryTimeLogger(String methodCallingQuery, long queryStart, long queryEnd) {
     long elapsedTime = queryEnd - queryStart;
     Logger.debug(LOG_TAG, "Query timer: " + methodCallingQuery + " took " + elapsedTime + "ms.");
@@ -260,5 +245,19 @@ public class RepoUtils {
     } finally {
       cur.moveToPosition(originalPosition);
     }
+  }
+
+  public static String computeSQLInClause(int items, String field) {
+    StringBuilder builder = new StringBuilder(field);
+    builder.append(" IN (");
+    int i = 0;
+    for (; i < items - 1; ++i) {
+      builder.append("?, ");
+    }
+    if (i < items) {
+      builder.append("?");
+    }
+    builder.append(")");
+    return builder.toString();
   }
 }

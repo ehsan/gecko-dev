@@ -52,7 +52,7 @@ interface nsIURI;
 /**
  * This interface represents a content node that loads objects.
  */
-[scriptable, uuid(6D8914C7-0E22-4452-8962-11B69BBE84D7)]
+[scriptable, uuid(fd56fda8-d3c3-4368-8cf3-67dbc992aec9)]
 interface nsIObjectLoadingContent : nsISupports
 {
   const unsigned long TYPE_LOADING  = 0;
@@ -79,6 +79,14 @@ interface nsIObjectLoadingContent : nsISupports
    * TYPE_NULL will be returned.
    */
   unsigned long getContentTypeForMIMEType(in AUTF8String aMimeType);
+
+  /**
+  * Gets the base URI to be used for this object. This differs from
+  * nsIContent::GetBaseURI in that it takes codebase attributes into
+  * account. The MIME type is required as some plugins (java) calculate
+  * this differently.
+  */
+  nsIURI getObjectBaseURI(in ACString aMimeType);
 
   /**
    * Returns the plugin instance if it has already been instantiated. This
@@ -116,6 +124,12 @@ interface nsIObjectLoadingContent : nsISupports
    * click-to-play plugins feature.
    */
   void playPlugin();
+
+  /**
+   * This attribute will return true if the plugin has been activated
+   * and false if the plugin is still in the click-to-play state.
+   */
+  readonly attribute boolean activated;
 
   [noscript] void stopPluginInstance();
 

@@ -54,6 +54,7 @@
 #endif
 
 #include "GLDefs.h"
+#include "GLLibraryLoader.h"
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
@@ -67,13 +68,11 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 
-#if defined(MOZ_PLATFORM_MAEMO) || defined(ANDROID) || defined(MOZ_EGL_XRENDER_COMPOSITE)
-#define USE_GLES2 1
-#endif
-
 typedef char realGLboolean;
 
 #include "GLContextSymbols.h"
+
+#include "mozilla/mozalloc.h"
 
 namespace mozilla {
   namespace layers {
@@ -84,46 +83,6 @@ namespace mozilla {
 namespace gl {
 class GLContext;
 
-class LibrarySymbolLoader
-{
-public:
-    bool OpenLibrary(const char *library);
-
-    typedef PRFuncPtr (GLAPIENTRY * PlatformLookupFunction) (const char *);
-
-    enum {
-        MAX_SYMBOL_NAMES = 5,
-        MAX_SYMBOL_LENGTH = 128
-    };
-
-    typedef struct {
-        PRFuncPtr *symPointer;
-        const char *symNames[MAX_SYMBOL_NAMES];
-    } SymLoadStruct;
-
-    bool LoadSymbols(SymLoadStruct *firstStruct,
-                       bool tryplatform = false,
-                       const char *prefix = nsnull);
-
-    /*
-     * Static version of the functions in this class
-     */
-    static PRFuncPtr LookupSymbol(PRLibrary *lib,
-                                  const char *symname,
-                                  PlatformLookupFunction lookupFunction = nsnull);
-    static bool LoadSymbols(PRLibrary *lib,
-                              SymLoadStruct *firstStruct,
-                              PlatformLookupFunction lookupFunction = nsnull,
-                              const char *prefix = nsnull);
-protected:
-    LibrarySymbolLoader() {
-        mLibrary = nsnull;
-        mLookupFunc = nsnull;
-    }
-
-    PRLibrary *mLibrary;
-    PlatformLookupFunction mLookupFunc;
-};
 
 enum ShaderProgramType {
     RGBALayerProgramType,
@@ -221,6 +180,18 @@ public:
 
     virtual bool NextTile() {
         return false;
+    };
+
+    // Function prototype for a tile iteration callback. Returning false will
+    // cause iteration to be interrupted (i.e. the corresponding NextTile call
+    // will return false).
+    typedef bool (* TileIterationCallback)(TextureImage* aImage,
+                                           int aTileNumber,
+                                           void* aCallbackData);
+
+    // Sets a callback to be called every time NextTile is called.
+    virtual void SetIterationCallback(TileIterationCallback aCallback,
+                                      void* aCallbackData) {
     };
 
     virtual nsIntRect GetTileRect() {
@@ -351,6 +322,7 @@ protected:
         : mSize(aSize)
         , mWrapMode(aWrapMode)
         , mContentType(aContentType)
+        , mFilter(gfxPattern::FILTER_GOOD)
     {}
 
     nsIntSize mSize;
@@ -446,6 +418,8 @@ public:
     virtual PRUint32 GetTileCount();
     virtual void BeginTileIteration();
     virtual bool NextTile();
+    virtual void SetIterationCallback(TileIterationCallback aCallback,
+                                      void* aCallbackData);
     virtual nsIntRect GetTileRect();
     virtual GLuint GetTextureID() {
         return mImages[mCurrentImage]->GetTextureID();
@@ -456,6 +430,8 @@ public:
     virtual void ApplyFilter();
 protected:
     unsigned int mCurrentImage;
+    TileIterationCallback mIterationCallback;
+    void* mIterationCallbackData;
     nsTArray< nsRefPtr<TextureImage> > mImages;
     bool mInUpdate;
     nsIntSize mSize;
@@ -534,7 +510,7 @@ struct THEBES_API ContextFormat
 };
 
 class GLContext
-    : public LibrarySymbolLoader
+    : public GLLibraryLoader
 {
     NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GLContext)
 public:
@@ -553,11 +529,7 @@ public:
         mOffscreenFBOsDirty(false),
         mInitialized(false),
         mIsOffscreen(aIsOffscreen),
-#ifdef USE_GLES2
-        mIsGLES2(true),
-#else
         mIsGLES2(false),
-#endif
         mIsGlobalSharedContext(false),
         mHasRobustness(false),
         mContextLost(false),
@@ -577,12 +549,14 @@ public:
         mMaxTextureSize(0),
         mMaxCubeMapTextureSize(0),
         mMaxTextureImageSize(0),
-        mMaxRenderbufferSize(0)
+        mMaxRenderbufferSize(0),
+        mWorkAroundDriverBugs(true)
 #ifdef DEBUG
         , mGLError(LOCAL_GL_NO_ERROR)
 #endif
     {
         mUserData.Init();
+        mOwningThread = NS_GetCurrentThread();
     }
 
     virtual ~GLContext() {
@@ -597,6 +571,11 @@ public:
         }
 #endif
     }
+
+    enum ContextFlags {
+        ContextFlagsNone = 0x0,
+        ContextFlagsGlobal = 0x1
+    };
 
     enum GLContextType {
         ContextTypeUnknown,
@@ -664,6 +643,23 @@ public:
     bool IsGlobalSharedContext() { return mIsGlobalSharedContext; }
     void SetIsGlobalSharedContext(bool aIsOne) { mIsGlobalSharedContext = aIsOne; }
 
+    /**
+     * Returns true if the thread on which this context was created is the currently
+     * executing thread.
+     */
+    bool IsOwningThreadCurrent() { return NS_GetCurrentThread() == mOwningThread; }
+
+    void DispatchToOwningThread(nsIRunnable *event) {
+        // Before dispatching, we need to ensure we're not in the middle of
+        // shutting down. Dispatching runnables in the middle of shutdown
+        // (that is, when the main thread is no longer get-able) can cause them
+        // to leak. See Bug 741319, and Bug 744115.
+        nsCOMPtr<nsIThread> mainThread;
+        if (NS_SUCCEEDED(NS_GetMainThread(getter_AddRefs(mainThread)))) {
+            mOwningThread->Dispatch(event, NS_DISPATCH_NORMAL);
+        }
+    }
+
     const ContextFormat& CreationFormat() { return mCreationFormat; }
     const ContextFormat& ActualFormat() { return mActualFormat; }
 
@@ -712,11 +708,15 @@ public:
         VendorNVIDIA,
         VendorATI,
         VendorQualcomm,
+        VendorImagination,
         VendorOther
     };
 
     enum {
         RendererAdreno200,
+        RendererAdreno205,
+        RendererSGX530,
+        RendererSGX540,
         RendererOther
     };
 
@@ -729,6 +729,8 @@ public:
     }
 
     bool CanUploadSubTextures();
+    bool CanUploadNonPowerOfTwo();
+    bool WantsSmallTiles();
 
     /**
      * If this context wraps a double-buffered target, swap the back
@@ -1423,8 +1425,12 @@ public:
     struct RectTriangles {
         RectTriangles() { }
 
+        // Always pass texture coordinates upright. If you want to flip the
+        // texture coordinates emitted to the tex_coords array, set flip_y to
+        // true.
         void addRect(GLfloat x0, GLfloat y0, GLfloat x1, GLfloat y1,
-                     GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1);
+                     GLfloat tx0, GLfloat ty0, GLfloat tx1, GLfloat ty1,
+                     bool flip_y = false);
 
         /**
          * these return a float pointer to the start of each array respectively.
@@ -1455,7 +1461,8 @@ public:
      * Decompose drawing the possibly-wrapped aTexCoordRect rectangle
      * of a texture of aTexSize into one or more rectangles (represented
      * as 2 triangles) and associated tex coordinates, such that
-     * we don't have to use the REPEAT wrap mode.
+     * we don't have to use the REPEAT wrap mode. If aFlipY is true, the
+     * texture coordinates will be specified vertically flipped.
      *
      * The resulting triangle vertex coordinates will be in the space of
      * (0.0, 0.0) to (1.0, 1.0) -- transform the coordinates appropriately
@@ -1466,7 +1473,8 @@ public:
      */
     static void DecomposeIntoNoRepeatTriangles(const nsIntRect& aTexCoordRect,
                                                const nsIntSize& aTexSize,
-                                               RectTriangles& aRects);
+                                               RectTriangles& aRects,
+                                               bool aFlipY = false);
 
     /**
      * Known GL extensions that can be queried by
@@ -1505,6 +1513,7 @@ public:
         OES_rgb8_rgba8,
         ARB_robustness,
         EXT_robustness,
+        ARB_sync,
         Extensions_Max
     };
 
@@ -1512,12 +1521,13 @@ public:
         return mAvailableExtensions[aKnownExtension];
     }
 
-    // for unknown extensions
-    bool IsExtensionSupported(const char *extension);
+    void MarkExtensionUnsupported(GLExtensions aKnownExtension) {
+        mAvailableExtensions[aKnownExtension] = 0;
+    }
 
     // Shared code for GL extensions and GLX extensions.
     static bool ListHasExtension(const GLubyte *extensions,
-                                   const char *extension);
+                                 const char *extension);
 
     GLint GetMaxTextureSize() { return mMaxTextureSize; }
     GLint GetMaxTextureImageSize() { return mMaxTextureImageSize; }
@@ -1591,6 +1601,9 @@ protected:
     ContextFormat mCreationFormat;
     nsRefPtr<GLContext> mSharedContext;
 
+    // The thread on which this context was created.
+    nsCOMPtr<nsIThread> mOwningThread;
+
     GLContextSymbols mSymbols;
 
 #ifdef DEBUG
@@ -1657,9 +1670,11 @@ protected:
 public:
     void ClearSafely();
 
+    bool WorkAroundDriverBugs() const { return mWorkAroundDriverBugs; }
+
 protected:
 
-    nsDataHashtable<nsVoidPtrHashKey, void*> mUserData;
+    nsDataHashtable<nsPtrHashKey<void>, void*> mUserData;
 
     void SetIsGLES2(bool aIsGLES2) {
         NS_ASSERTION(!mInitialized, "SetIsGLES2 can only be called before initialization!");
@@ -1688,7 +1703,6 @@ protected:
         return biggerDimension <= maxAllowed;
     }
 
-protected:
     nsTArray<nsIntRect> mViewportStack;
     nsTArray<nsIntRect> mScissorStack;
 
@@ -1696,10 +1710,12 @@ protected:
     GLint mMaxCubeMapTextureSize;
     GLint mMaxTextureImageSize;
     GLint mMaxRenderbufferSize;
+    bool mWorkAroundDriverBugs;
 
     bool IsTextureSizeSafeToPassToDriver(GLenum target, GLsizei width, GLsizei height) const {
 #ifdef XP_MACOSX
-        if (mVendor == VendorIntel) {
+        if (mWorkAroundDriverBugs &&
+            mVendor == VendorIntel) {
             // see bug 737182 for 2D textures, bug 684822 for cube map textures.
             // some drivers handle incorrectly some large texture sizes that are below the
             // max texture size that they report. So we check ourselves against our own values
@@ -2016,7 +2032,8 @@ public:
         mSymbols.fBufferData(target, size, data, usage);
 
         // bug 744888
-        if (!data &&
+        if (WorkAroundDriverBugs() &&
+            !data &&
             Vendor() == VendorNVIDIA)
         {
             char c = 0;
@@ -2909,6 +2926,51 @@ public:
          GLenum ret = mHasRobustness ? mSymbols.fGetGraphicsResetStatus() : 0;
          AFTER_GL_CALL;
          return ret;
+     }
+
+     GLsync GLAPIENTRY fFenceSync(GLenum condition, GLbitfield flags) {
+         BEFORE_GL_CALL;
+         GLsync ret = mSymbols.fFenceSync(condition, flags);
+         AFTER_GL_CALL;
+         return ret;
+     }
+
+     realGLboolean GLAPIENTRY fIsSync(GLsync sync) {
+         BEFORE_GL_CALL;
+         realGLboolean ret = mSymbols.fIsSync(sync);
+         AFTER_GL_CALL;
+         return ret;
+     }
+
+     void GLAPIENTRY fDeleteSync(GLsync sync) {
+         BEFORE_GL_CALL;
+         mSymbols.fDeleteSync(sync);
+         AFTER_GL_CALL;
+     }
+
+     GLenum GLAPIENTRY fClientWaitSync(GLsync sync, GLbitfield flags, GLuint64 timeout) {
+         BEFORE_GL_CALL;
+         GLenum ret = mSymbols.fClientWaitSync(sync, flags, timeout);
+         AFTER_GL_CALL;
+         return ret;
+     }
+
+     void GLAPIENTRY fWaitSync(GLsync sync, GLbitfield flags, GLuint64 timeout) {
+         BEFORE_GL_CALL;
+         mSymbols.fWaitSync(sync, flags, timeout);
+         AFTER_GL_CALL;
+     }
+
+     void GLAPIENTRY fGetInteger64v(GLenum pname, GLint64 *params) {
+         BEFORE_GL_CALL;
+         mSymbols.fGetInteger64v(pname, params);
+         AFTER_GL_CALL;
+     }
+
+     void GLAPIENTRY fGetSynciv(GLsync sync, GLenum pname, GLsizei bufSize, GLsizei *length, GLint *values) {
+         BEFORE_GL_CALL;
+         mSymbols.fGetSynciv(sync, pname, bufSize, length, values);
+         AFTER_GL_CALL;
      }
 
 #ifdef DEBUG

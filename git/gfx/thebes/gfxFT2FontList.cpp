@@ -136,7 +136,7 @@ FT2FontEntry::CreateScaledFont(const gfxFontStyle *aStyle)
 
     // synthetic oblique by skewing via the font matrix
     bool needsOblique = !IsItalic() &&
-            (aStyle->style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE));
+            (aStyle->style & (NS_FONT_STYLE_ITALIC | NS_FONT_STYLE_OBLIQUE));
 
     if (needsOblique) {
         const double kSkewFactor = 0.25;
@@ -343,12 +343,11 @@ FT2FontEntry::CairoFontFace()
 nsresult
 FT2FontEntry::ReadCMAP()
 {
-    if (mCmapInitialized) {
+    if (mCharacterMap) {
         return NS_OK;
     }
 
-    // attempt this once, if errors occur leave a blank cmap
-    mCmapInitialized = true;
+    nsRefPtr<gfxCharacterMap> charmap = new gfxCharacterMap();
 
     AutoFallibleTArray<PRUint8,16384> buffer;
     nsresult rv = GetFontTable(TTAG_cmap, buffer);
@@ -357,11 +356,18 @@ FT2FontEntry::ReadCMAP()
         bool unicodeFont;
         bool symbolFont;
         rv = gfxFontUtils::ReadCMAP(buffer.Elements(), buffer.Length(),
-                                    mCharacterMap, mUVSOffset,
+                                    *charmap, mUVSOffset,
                                     unicodeFont, symbolFont);
     }
 
     mHasCmapTable = NS_SUCCEEDED(rv);
+    if (mHasCmapTable) {
+        gfxPlatformFontList *pfl = gfxPlatformFontList::PlatformFontList();
+        mCharacterMap = pfl->FindCharMap(charmap);
+    } else {
+        // if error occurred, initialize to null cmap
+        mCharacterMap = new gfxCharacterMap();
+    }
     return rv;
 }
 
@@ -387,6 +393,23 @@ FT2FontEntry::GetFontTable(PRUint32 aTableTag,
     NS_ENSURE_TRUE(status == 0, NS_ERROR_FAILURE);
 
     return NS_OK;
+}
+
+void
+FT2FontEntry::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                  FontListSizes*    aSizes) const
+{
+    gfxFontEntry::SizeOfExcludingThis(aMallocSizeOf, aSizes);
+    aSizes->mFontListSize +=
+        mFilename.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
+}
+
+void
+FT2FontEntry::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
+                                  FontListSizes*    aSizes) const
+{
+    aSizes->mFontListSize += aMallocSizeOf(this);
+    SizeOfExcludingThis(aMallocSizeOf, aSizes);
 }
 
 /*

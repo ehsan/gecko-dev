@@ -139,17 +139,17 @@ public:
 
   nsDOMTouchList(nsISupports *aParent) : mParent(aParent)
   {
-    SetIsProxy();
+    SetIsDOMBinding();
   }
   nsDOMTouchList(nsISupports *aParent,
                  nsTArray<nsCOMPtr<nsIDOMTouch> > &aTouches)
    : mPoints(aTouches),
      mParent(aParent)
   {
-    SetIsProxy();
+    SetIsDOMBinding();
   }
 
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
     return mozilla::dom::binding::TouchList::create(cx, scope, this,

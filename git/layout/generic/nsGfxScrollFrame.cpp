@@ -79,9 +79,11 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/StandardInteger.h"
 #include "FrameLayerBuilder.h"
 #include "nsSMILKeySpline.h"
 #include "nsSubDocumentFrame.h"
+#include "nsSVGOuterSVGFrame.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -123,6 +125,16 @@ nsHTMLScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
   mInner.Destroy();
   DestroyAbsoluteFrames(aDestructRoot);
   nsContainerFrame::DestroyFrom(aDestructRoot);
+}
+
+NS_IMETHODIMP
+nsHTMLScrollFrame::Init(nsIContent* aContent,
+                        nsIFrame*   aParent,
+                        nsIFrame*   aPrevInFlow)
+{
+  nsresult rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  mInner.Init();
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -606,6 +618,12 @@ nsHTMLScrollFrame::GuessVScrollbarNeeded(const ScrollReflowState& aState)
     return false;
 
   if (mInner.mIsRoot) {
+    nsIFrame *f = mInner.mScrolledFrame->GetFirstPrincipalChild();
+    if (f && f->GetType() == nsGkAtoms::svgOuterSVGFrame &&
+        static_cast<nsSVGOuterSVGFrame*>(f)->VerticalScrollbarNotNeeded()) {
+      // Common SVG case - avoid a bad guess.
+      return false;
+    }
     // Assume that there will be a scrollbar; it seems to me
     // that 'most pages' do have a scrollbar, and anyway, it's cheaper
     // to do an extra reflow for the pages that *don't* need a
@@ -1052,6 +1070,16 @@ nsXULScrollFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   mInner.Destroy();
   nsBoxFrame::DestroyFrom(aDestructRoot);
+}
+
+NS_IMETHODIMP
+nsXULScrollFrame::Init(nsIContent* aContent,
+                       nsIFrame*   aParent,
+                       nsIFrame*   aPrevInFlow)
+{
+  nsresult rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  mInner.Init();
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1596,6 +1624,14 @@ nsGfxScrollFrameInner::~nsGfxScrollFrameInner()
   }
 }
 
+void
+nsGfxScrollFrameInner::Init()
+{
+  if (mOuter->GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER) {
+    mOuter->AddStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT);
+  }
+}
+
 static nscoord
 Clamp(nscoord aLower, nscoord aVal, nscoord aUpper)
 {
@@ -2093,11 +2129,11 @@ public:
   }
 
 protected:
-  void SetCount(PRWord aCount) {
+  void SetCount(intptr_t aCount) {
     mProps.Set(nsIFrame::ScrollLayerCount(), reinterpret_cast<void*>(aCount));
   }
 
-  PRWord mCount;
+  intptr_t mCount;
   FrameProperties mProps;
   nsIFrame* mScrollFrame;
   nsIFrame* mScrolledFrame;
@@ -2159,24 +2195,30 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   dirtyRect.IntersectRect(aDirtyRect, mScrollPort);
 
   // Override the dirty rectangle if the displayport has been set.
+  nsRect displayPort;
   bool usingDisplayport =
-    nsLayoutUtils::GetDisplayPort(mOuter->GetContent(), &dirtyRect);
+    nsLayoutUtils::GetDisplayPort(mOuter->GetContent(), &displayPort) &&
+    !aBuilder->IsForEventDelivery();
+  if (usingDisplayport) {
+    dirtyRect = displayPort;
+  }
 
   nsDisplayListCollection set;
   rv = mOuter->BuildDisplayListForChild(aBuilder, mScrolledFrame, dirtyRect, set);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Since making new layers is expensive, only use nsDisplayScrollLayer
-  // if the area is scrollable.
+  // if the area is scrollable and there's a displayport (or we're the content
+  // process).
   nsRect scrollRange = GetScrollRange();
   ScrollbarStyles styles = GetScrollbarStylesFromFrame();
   mShouldBuildLayer =
-     (XRE_GetProcessType() == GeckoProcessType_Content &&
      (styles.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN ||
       styles.mVertical != NS_STYLE_OVERFLOW_HIDDEN) &&
-     (scrollRange.width > 0 ||
-      scrollRange.height > 0) &&
-     (!mIsRoot || !mOuter->PresContext()->IsRootContentDocument()));
+     (usingDisplayport ||
+      (XRE_GetProcessType() == GeckoProcessType_Content &&
+       (scrollRange.width > 0 || scrollRange.height > 0) &&
+       (!mIsRoot || !mOuter->PresContext()->IsRootContentDocument())));
 
   if (ShouldBuildLayer()) {
     // ScrollLayerWrapper must always be created because it initializes the

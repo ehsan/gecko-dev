@@ -62,8 +62,6 @@ import android.webkit.MimeTypeMap;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.provider.Settings;
-import android.view.accessibility.AccessibilityManager;
-import android.view.accessibility.AccessibilityEvent;
 
 import android.util.*;
 import android.net.Uri;
@@ -684,6 +682,10 @@ public class GeckoAppShell
                     }
                 }
             });
+    }
+
+    public static void enableLocationHighAccuracy(final boolean enable) {
+        // unsupported
     }
 
     /*
@@ -1438,12 +1440,6 @@ public class GeckoAppShell
         }
     }
 
-    public static boolean getAccessibilityEnabled() {
-        AccessibilityManager accessibilityManager =
-            (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-        return accessibilityManager.isEnabled();
-    }
-
     public static void addPluginView(final View view,
                                      final double x, final double y,
                                      final double w, final double h) {
@@ -1565,7 +1561,7 @@ public class GeckoAppShell
         Log.i("GeckoShell", "post to " + (mainThread ? "main " : "") + "java thread");
         getMainHandler().post(new GeckoRunnableCallback());
     }
-    
+
     public static android.hardware.Camera sCamera = null;
     
     static native void cameraCallbackBridge(byte[] data);
@@ -1842,5 +1838,31 @@ public class GeckoAppShell
     }
 
     // This is only used in Native Fennec.
-    public static void setPreventPanning(final boolean aPreventPanning) { }
+    public static void notifyDefaultPrevented(boolean defaultPrevented) { }
+
+    public static short getScreenOrientation() {
+        return GeckoScreenOrientationListener.getInstance().getScreenOrientation();
+    }
+
+    public static void enableScreenOrientationNotifications() {
+        GeckoScreenOrientationListener.getInstance().enableNotifications();
+    }
+
+    public static void disableScreenOrientationNotifications() {
+        GeckoScreenOrientationListener.getInstance().disableNotifications();
+    }
+
+    public static void lockScreenOrientation(int aOrientation) {
+        GeckoScreenOrientationListener.getInstance().lockScreenOrientation(aOrientation);
+    }
+
+    public static void unlockScreenOrientation() {
+        GeckoScreenOrientationListener.getInstance().unlockScreenOrientation();
+    }
+
+    static native void notifyFilePickerResult(String filePath, long id);
+
+    /* Stubbed out because this is called from AndroidBridge for Native Fennec */
+    public static void showFilePickerAsync(String aMimeType, long id) {
+    }
 }

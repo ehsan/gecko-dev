@@ -56,7 +56,7 @@ const TELEMETRY_INTERVAL = 60000;
 const TELEMETRY_DELAY = 60000;
 // about:memory values to turn into histograms
 const MEM_HISTOGRAMS = {
-  "js-gc-heap": "MEMORY_JS_GC_HEAP",
+  "js-main-runtime-gc-heap-committed": "MEMORY_JS_GC_HEAP_COMMITTED",
   "js-compartments-system": "MEMORY_JS_COMPARTMENTS_SYSTEM",
   "js-compartments-user": "MEMORY_JS_COMPARTMENTS_USER",
   "explicit": "MEMORY_EXPLICIT",
@@ -68,7 +68,8 @@ const MEM_HISTOGRAMS = {
   "page-faults-hard": "PAGE_FAULTS_HARD",
   "low-memory-events-virtual": "LOW_MEMORY_EVENTS_VIRTUAL",
   "low-memory-events-commit-space": "LOW_MEMORY_EVENTS_COMMIT_SPACE",
-  "low-memory-events-physical": "LOW_MEMORY_EVENTS_PHYSICAL"
+  "low-memory-events-physical": "LOW_MEMORY_EVENTS_PHYSICAL",
+  "ghost-windows": "GHOST_WINDOWS"
 };
 // Seconds of idle time before pinging.
 // On idle-daily a gather-telemetry notification is fired, during it probes can
@@ -459,6 +460,7 @@ TelemetryPing.prototype = {
       payloadObj.simpleMeasurements = getSimpleMeasurements();
       payloadObj.histograms = this.getHistograms(Telemetry.histogramSnapshots);
       payloadObj.slowSQL = Telemetry.slowSQL;
+      payloadObj.chromeHangs = Telemetry.chromeHangs;
       payloadObj.addonHistograms = this.getAddonHistograms();
     }
     if (Object.keys(this._slowSQLStartup.mainThread).length

@@ -86,6 +86,25 @@ js::UnwrapObject(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
     return wrapped;
 }
 
+JS_FRIEND_API(JSObject *)
+js::UnwrapObjectChecked(JSContext *cx, JSObject *obj)
+{
+    while (obj->isWrapper()) {
+        JSObject *wrapper = obj;
+        AbstractWrapper *handler = AbstractWrapper::wrapperHandler(obj);
+        bool rvOnFailure;
+        if (!handler->enter(cx, wrapper, JSID_VOID,
+                            Wrapper::PUNCTURE, &rvOnFailure))
+            return rvOnFailure ? obj : NULL;
+        obj = Wrapper::wrappedObject(obj);
+        JS_ASSERT(obj);
+        handler->leave(cx, wrapper);
+        if (obj->getClass()->ext.innerObject)
+            break;
+    }
+    return obj;
+}
+
 bool
 js::IsCrossCompartmentWrapper(const JSObject *wrapper)
 {
@@ -93,7 +112,13 @@ js::IsCrossCompartmentWrapper(const JSObject *wrapper)
            !!(Wrapper::wrapperHandler(wrapper)->flags() & Wrapper::CROSS_COMPARTMENT);
 }
 
-Wrapper::Wrapper(unsigned flags) : ProxyHandler(&sWrapperFamily), mFlags(flags)
+AbstractWrapper::AbstractWrapper(unsigned flags) :
+    ProxyHandler(&sWrapperFamily),
+    mFlags(flags)
+{
+}
+
+Wrapper::Wrapper(unsigned flags) : AbstractWrapper(flags)
 {
 }
 
@@ -115,8 +140,8 @@ Wrapper::~Wrapper()
 #define GET(action) CHECKED(action, GET)
 
 bool
-Wrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
-                               PropertyDescriptor *desc)
+AbstractWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
+                                       PropertyDescriptor *desc)
 {
     desc->obj = NULL; // default result if we refuse to perform this action
     CHECKED(JS_GetPropertyDescriptorById(cx, wrappedObject(wrapper), id, JSRESOLVE_QUALIFIED, desc),
@@ -139,8 +164,8 @@ GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, unsigned flags, 
 }
 
 bool
-Wrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
-                                  PropertyDescriptor *desc)
+AbstractWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, bool set,
+                                          PropertyDescriptor *desc)
 {
     desc->obj = NULL; // default result if we refuse to perform this action
     CHECKED(GetOwnPropertyDescriptor(cx, wrappedObject(wrapper), id, JSRESOLVE_QUALIFIED, desc),
@@ -148,14 +173,14 @@ Wrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id, boo
 }
 
 bool
-Wrapper::defineProperty(JSContext *cx, JSObject *wrapper, jsid id, PropertyDescriptor *desc)
+AbstractWrapper::defineProperty(JSContext *cx, JSObject *wrapper, jsid id, PropertyDescriptor *desc)
 {
     SET(JS_DefinePropertyById(cx, wrappedObject(wrapper), id, desc->value,
                               desc->getter, desc->setter, desc->attrs));
 }
 
 bool
-Wrapper::getOwnPropertyNames(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+AbstractWrapper::getOwnPropertyNames(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     // if we refuse to perform this action, props remains empty
     jsid id = JSID_VOID;
@@ -170,7 +195,7 @@ ValueToBoolean(Value *vp, bool *bp)
 }
 
 bool
-Wrapper::delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
+AbstractWrapper::delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
 {
     *bp = true; // default result if we refuse to perform this action
     Value v;
@@ -179,7 +204,7 @@ Wrapper::delete_(JSContext *cx, JSObject *wrapper, jsid id, bool *bp)
 }
 
 bool
-Wrapper::enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
+AbstractWrapper::enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 {
     // if we refuse to perform this action, props remains empty
     static jsid id = JSID_VOID;
@@ -187,7 +212,7 @@ Wrapper::enumerate(JSContext *cx, JSObject *wrapper, AutoIdVector &props)
 }
 
 bool
-Wrapper::fix(JSContext *cx, JSObject *wrapper, Value *vp)
+AbstractWrapper::fix(JSContext *cx, JSObject *wrapper, Value *vp)
 {
     vp->setUndefined();
     return true;
@@ -230,8 +255,7 @@ bool
 Wrapper::set(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id, bool strict,
                Value *vp)
 {
-    // FIXME (bug 596351): Need deal with strict mode.
-    SET(wrappedObject(wrapper)->setGeneric(cx, id, vp, false));
+    SET(wrappedObject(wrapper)->setGeneric(cx, id, vp, strict));
 }
 
 bool
@@ -247,7 +271,7 @@ Wrapper::iterate(JSContext *cx, JSObject *wrapper, unsigned flags, Value *vp)
 {
     vp->setUndefined(); // default result if we refuse to perform this action
     const jsid id = JSID_VOID;
-    GET(GetIterator(cx, wrappedObject(wrapper), flags, vp));
+    GET(GetIterator(cx, RootedVarObject(cx, wrappedObject(wrapper)), flags, vp));
 }
 
 bool
@@ -348,7 +372,7 @@ Wrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vp)
 bool
 Wrapper::iteratorNext(JSContext *cx, JSObject *wrapper, Value *vp)
 {
-    if (!js_IteratorMore(cx, wrappedObject(wrapper), vp))
+    if (!js_IteratorMore(cx, RootedVarObject(cx, wrappedObject(wrapper)), vp))
         return false;
 
     if (vp->toBoolean()) {
@@ -367,26 +391,27 @@ Wrapper::trace(JSTracer *trc, JSObject *wrapper)
 }
 
 JSObject *
-Wrapper::wrappedObject(const JSObject *wrapper)
+AbstractWrapper::wrappedObject(const JSObject *wrapper)
 {
     return GetProxyPrivate(wrapper).toObjectOrNull();
 }
 
-Wrapper *
-Wrapper::wrapperHandler(const JSObject *wrapper)
+AbstractWrapper *
+AbstractWrapper::wrapperHandler(const JSObject *wrapper)
 {
-    return static_cast<Wrapper *>(GetProxyHandler(wrapper));
+    JS_ASSERT(wrapper->isWrapper());
+    return static_cast<AbstractWrapper *>(GetProxyHandler(wrapper));
 }
 
 bool
-Wrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
+AbstractWrapper::enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp)
 {
     *bp = true;
     return true;
 }
 
 void
-Wrapper::leave(JSContext *cx, JSObject *wrapper)
+AbstractWrapper::leave(JSContext *cx, JSObject *wrapper)
 {
 }
 
@@ -674,8 +699,8 @@ Reify(JSContext *cx, JSCompartment *origin, Value *vp)
     AutoCloseIterator close(cx, iterObj);
 
     /* Wrap the iteratee. */
-    JSObject *obj = ni->obj;
-    if (!origin->wrap(cx, &obj))
+    RootedVarObject obj(cx, ni->obj);
+    if (!origin->wrap(cx, obj.address()))
         return false;
 
     /*

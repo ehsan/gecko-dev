@@ -92,6 +92,7 @@ nsContextMenu.prototype = {
     } catch (e) { }
     this.isTextSelected = this.isTextSelection();
     this.isContentSelected = this.isContentSelection();
+    this.onPlainTextLink = false;
 
     // Initialize (disable/remove) menu items.
     this.initItems();
@@ -132,7 +133,6 @@ nsContextMenu.prototype = {
 
     // Time to do some bad things and see if we've highlighted a URL that
     // isn't actually linked.
-    var onPlainTextLink = false;
     if (this.isTextSelected && !this.onLink) {
       // Ok, we have some text, let's figure out if it looks like a URL.
       let selection =  document.commandDispatcher.focusedWindow
@@ -190,14 +190,14 @@ nsContextMenu.prototype = {
       if (uri && uri.host) {
         this.linkURI = uri;
         this.linkURL = this.linkURI.spec;
-        onPlainTextLink = true;
+        this.onPlainTextLink = true;
       }
     }
 
-    var shouldShow = this.onSaveableLink || isMailtoInternal || onPlainTextLink;
+    var shouldShow = this.onSaveableLink || isMailtoInternal || this.onPlainTextLink;
     this.showItem("context-openlink", shouldShow);
     this.showItem("context-openlinkintab", shouldShow);
-    this.showItem("context-openlinkincurrent", onPlainTextLink);
+    this.showItem("context-openlinkincurrent", this.onPlainTextLink);
     this.showItem("context-sep-open", shouldShow);
   },
 
@@ -222,9 +222,9 @@ nsContextMenu.prototype = {
     this.showItem("context-savepage", shouldShow);
     this.showItem("context-sendpage", shouldShow);
 
-    // Save+Send link depends on whether we're in a link.
-    this.showItem("context-savelink", this.onSaveableLink);
-    this.showItem("context-sendlink", this.onSaveableLink);
+    // Save+Send link depends on whether we're in a link, or selected text matches valid URL pattern.
+    this.showItem("context-savelink", this.onSaveableLink || this.onPlainTextLink);
+    this.showItem("context-sendlink", this.onSaveableLink || this.onPlainTextLink);
 
     // Save image depends on having loaded its content, video and audio don't.
     this.showItem("context-saveimage", this.onLoadedImage || this.onCanvas);
@@ -267,7 +267,7 @@ nsContextMenu.prototype = {
     // Only enable Set as Desktop Background if we can get the shell service.
     var shell = getShellService();
     if (shell)
-      haveSetDesktopBackground = true;
+      haveSetDesktopBackground = shell.canSetDesktopBackground;
 #endif
     this.showItem("context-setDesktopBackground",
                   haveSetDesktopBackground && this.onLoadedImage);
@@ -310,7 +310,7 @@ nsContextMenu.prototype = {
     this.showItem("context-bookmarkpage",
                   !(this.isContentSelected || this.onTextInput || this.onLink ||
                     this.onImage || this.onVideo || this.onAudio));
-    this.showItem("context-bookmarklink", this.onLink && !this.onMailtoLink);
+    this.showItem("context-bookmarklink", (this.onLink && !this.onMailtoLink) || this.onPlainTextLink);
     this.showItem("context-searchselect", isTextSelected);
     this.showItem("context-keywordfield",
                   this.onTextInput && this.onKeywordField);
@@ -528,8 +528,16 @@ nsContextMenu.prototype = {
         this.onCanvas = true;
       }
       else if (this.target instanceof HTMLVideoElement) {
-        this.onVideo = true;
         this.mediaURL = this.target.currentSrc || this.target.src;
+        // Firefox always creates a HTMLVideoElement when loading an ogg file
+        // directly. If the media is actually audio, be smarter and provide a
+        // context menu with audio operations.
+        if (this.target.readyState >= this.target.HAVE_METADATA &&
+            (this.target.videoWidth == 0 || this.target.videoHeight == 0)) {
+          this.onAudio = true;
+        } else {
+          this.onVideo = true;
+        }
       }
       else if (this.target instanceof HTMLAudioElement) {
         this.onAudio = true;
@@ -1073,9 +1081,15 @@ nsContextMenu.prototype = {
   // Save URL of clicked-on link.
   saveLink: function() {
     var doc =  this.target.ownerDocument;
+    var linkText;
+    // If selected text is found to match valid URL pattern.
+    if (this.onPlainTextLink)
+      linkText = document.commandDispatcher.focusedWindow.getSelection().toString().trim();
+    else
+      linkText = this.linkText();
     urlSecurityCheck(this.linkURL, doc.nodePrincipal);
 
-    this.saveHelper(this.linkURL, this.linkText(), null, true, doc);
+    this.saveHelper(this.linkURL, linkText, null, true, doc);
   },
 
   sendLink: function() {
@@ -1390,8 +1404,14 @@ nsContextMenu.prototype = {
   },
 
   bookmarkLink: function CM_bookmarkLink() {
+    var linkText;
+    // If selected text is found to match valid URL pattern.
+    if (this.onPlainTextLink)
+      linkText = document.commandDispatcher.focusedWindow.getSelection().toString().trim();
+    else
+      linkText = this.linkText();
     window.top.PlacesCommandHook.bookmarkLink(PlacesUtils.bookmarksMenuFolderId, this.linkURL,
-                                              this.linkText());
+                                              linkText);
   },
 
   addBookmarkForFrame: function CM_addBookmarkForFrame() {

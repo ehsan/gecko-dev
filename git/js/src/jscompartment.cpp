@@ -73,6 +73,7 @@ JSCompartment::JSCompartment(JSRuntime *rt)
   : rt(rt),
     principals(NULL),
     needsBarrier_(false),
+    gcState(NoGCScheduled),
     gcBytes(0),
     gcTriggerBytes(0),
     hold(false),
@@ -90,7 +91,10 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     gcMallocBytes(0),
     debugModeBits(rt->debugMode ? DebugFromC : 0),
     mathCache(NULL),
-    watchpointMap(NULL)
+    watchpointMap(NULL),
+    scriptCountsMap(NULL),
+    sourceMapMap(NULL),
+    debugScriptMap(NULL)
 {
     PodArrayZero(evalCache);
     setGCMaxMallocBytes(rt->gcMaxMallocBytes * 0.9);
@@ -98,12 +102,21 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 
 JSCompartment::~JSCompartment()
 {
+    /*
+     * Even though all objects in the compartment are dead, we may have keep
+     * some filenames around because of gcKeepAtoms.
+     */
+    FreeScriptFilenames(this);
+
 #ifdef JS_METHODJIT
     Foreground::delete_(jaegerCompartment_);
 #endif
 
     Foreground::delete_(mathCache);
     Foreground::delete_(watchpointMap);
+    Foreground::delete_(scriptCountsMap);
+    Foreground::delete_(sourceMapMap);
+    Foreground::delete_(debugScriptMap);
 
 #ifdef DEBUG
     for (size_t i = 0; i < ArrayLength(evalCache); ++i)
@@ -414,7 +427,7 @@ JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
 void
 JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
 {
-    JS_ASSERT(trc->runtime->gcCurrentCompartment);
+    JS_ASSERT(!isCollecting());
 
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         Value tmp = e.front().key;
@@ -459,7 +472,7 @@ JSCompartment::markTypes(JSTracer *trc)
 }
 
 void
-JSCompartment::discardJitCode(JSContext *cx)
+JSCompartment::discardJitCode(FreeOp *fop)
 {
     /*
      * Kick all frames on the stack into the interpreter, and release all JIT
@@ -470,7 +483,7 @@ JSCompartment::discardJitCode(JSContext *cx)
 
     for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
-        mjit::ReleaseScriptCode(cx, script);
+        mjit::ReleaseScriptCode(fop, script);
 
         /*
          * Use counts for scripts are reset on GC. After discarding code we
@@ -483,7 +496,7 @@ JSCompartment::discardJitCode(JSContext *cx)
 }
 
 void
-JSCompartment::sweep(JSContext *cx, bool releaseTypes)
+JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
 {
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
@@ -500,21 +513,21 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
 
     regExps.sweep(rt);
 
-    sweepBaseShapeTable(cx);
-    sweepInitialShapeTable(cx);
-    sweepNewTypeObjectTable(cx, newTypeObjects);
-    sweepNewTypeObjectTable(cx, lazyTypeObjects);
+    sweepBaseShapeTable();
+    sweepInitialShapeTable();
+    sweepNewTypeObjectTable(newTypeObjects);
+    sweepNewTypeObjectTable(lazyTypeObjects);
 
     if (emptyTypeObject && IsAboutToBeFinalized(emptyTypeObject))
         emptyTypeObject = NULL;
 
     newObjectCache.reset();
 
-    sweepBreakpoints(cx);
+    sweepBreakpoints(fop);
 
     {
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_CODE);
-        discardJitCode(cx);
+        discardJitCode(fop);
     }
 
     if (!activeAnalysis) {
@@ -540,10 +553,12 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
          * enabled in the compartment.
          */
         if (types.inferenceEnabled) {
+            gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_DISCARD_TI);
+
             for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
                 JSScript *script = i.get<JSScript>();
                 if (script->types) {
-                    types::TypeScript::Sweep(cx, script);
+                    types::TypeScript::Sweep(fop, script);
 
                     if (releaseTypes) {
                         script->types->destroy();
@@ -554,11 +569,17 @@ JSCompartment::sweep(JSContext *cx, bool releaseTypes)
             }
         }
 
-        types.sweep(cx);
+        {
+            gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_SWEEP_TYPES);
+            types.sweep(fop);
+        }
 
-        for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
-            JSScript *script = i.get<JSScript>();
-            script->clearAnalysis();
+        {
+            gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_CLEAR_SCRIPT_ANALYSIS);
+            for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
+                JSScript *script = i.get<JSScript>();
+                script->clearAnalysis();
+            }
         }
     }
 
@@ -662,12 +683,12 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b)
     debugModeBits = (debugModeBits & ~unsigned(DebugFromC)) | (b ? DebugFromC : 0);
     JS_ASSERT(debugMode() == enabledAfter);
     if (enabledBefore != enabledAfter)
-        updateForDebugMode(cx);
+        updateForDebugMode(cx->runtime->defaultFreeOp());
     return true;
 }
 
 void
-JSCompartment::updateForDebugMode(JSContext *cx)
+JSCompartment::updateForDebugMode(FreeOp *fop)
 {
     for (ContextIter acx(rt); !acx.done(); acx.next()) {
         if (acx->compartment == this) 
@@ -689,7 +710,7 @@ JSCompartment::updateForDebugMode(JSContext *cx)
     for (gc::CellIter i(this, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->debugMode != enabled) {
-            mjit::ReleaseScriptCode(cx, script);
+            mjit::ReleaseScriptCode(fop, script);
             script->clearAnalysis();
             script->debugMode = enabled;
         }
@@ -707,12 +728,12 @@ JSCompartment::addDebuggee(JSContext *cx, js::GlobalObject *global)
     }
     debugModeBits |= DebugFromJS;
     if (!wasEnabled)
-        updateForDebugMode(cx);
+        updateForDebugMode(cx->runtime->defaultFreeOp());
     return true;
 }
 
 void
-JSCompartment::removeDebuggee(JSContext *cx,
+JSCompartment::removeDebuggee(FreeOp *fop,
                               js::GlobalObject *global,
                               js::GlobalObjectSet::Enum *debuggeesEnum)
 {
@@ -726,34 +747,34 @@ JSCompartment::removeDebuggee(JSContext *cx,
     if (debuggees.empty()) {
         debugModeBits &= ~DebugFromJS;
         if (wasEnabled && !debugMode())
-            updateForDebugMode(cx);
+            updateForDebugMode(fop);
     }
 }
 
 void
-JSCompartment::clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler)
+JSCompartment::clearBreakpointsIn(FreeOp *fop, js::Debugger *dbg, JSObject *handler)
 {
     for (gc::CellIter i(this, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->hasAnyBreakpointsOrStepMode())
-            script->clearBreakpointsIn(cx, dbg, handler);
+            script->clearBreakpointsIn(fop, dbg, handler);
     }
 }
 
 void
-JSCompartment::clearTraps(JSContext *cx)
+JSCompartment::clearTraps(FreeOp *fop)
 {
     for (gc::CellIter i(this, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
         JSScript *script = i.get<JSScript>();
         if (script->hasAnyBreakpointsOrStepMode())
-            script->clearTraps(cx);
+            script->clearTraps(fop);
     }
 }
 
 void
-JSCompartment::sweepBreakpoints(JSContext *cx)
+JSCompartment::sweepBreakpoints(FreeOp *fop)
 {
-    if (JS_CLIST_IS_EMPTY(&cx->runtime->debuggerList))
+    if (JS_CLIST_IS_EMPTY(&rt->debuggerList))
         return;
 
     for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {
@@ -771,7 +792,7 @@ JSCompartment::sweepBreakpoints(JSContext *cx)
             for (Breakpoint *bp = site->firstBreakpoint(); bp; bp = nextbp) {
                 nextbp = bp->nextInSite();
                 if (scriptGone || IsAboutToBeFinalized(bp->debugger->toJSObject()))
-                    bp->destroy(cx);
+                    bp->destroy(fop);
             }
         }
     }

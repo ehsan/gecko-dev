@@ -1330,11 +1330,11 @@ public:
 
   /**
    * Get a device context that can be used to get up-to-date device
-   * dimensions for the given docshell.  For some reason, this is more
+   * dimensions for the given window. For some reason, this is more
    * complicated than it ought to be in multi-monitor situations.
    */
   static nsDeviceContext*
-  GetDeviceContextForScreenInfo(nsIDocShell* aDocShell);
+  GetDeviceContextForScreenInfo(nsPIDOMWindow* aWindow);
 
   /**
    * Some frames with 'position: fixed' (nsStylePosition::mDisplay ==
@@ -1497,6 +1497,12 @@ public:
   static bool Are3DTransformsEnabled();
 
   /**
+   * Checks if we should forcibly use nearest pixel filtering for the
+   * background.
+   */
+  static bool UseBackgroundNearestFiltering();
+
+  /**
    * Unions the overflow areas of all non-popup children of aFrame with
    * aOverflowAreas.
    */
@@ -1554,6 +1560,14 @@ public:
                                       nscoord aMinFontSize);
 
   static bool FontSizeInflationEnabled(nsPresContext *aPresContext);
+
+  /**
+   * See comment above "font.size.inflation.lineThreshold" in
+   * modules/libpref/src/init/all.js .
+   */
+  static PRUint32 FontSizeInflationLineThreshold() {
+    return sFontSizeInflationLineThreshold;
+  }
 
   static void Initialize();
   static void Shutdown();
@@ -1633,6 +1647,9 @@ public:
   static void
   AssertTreeOnlyEmptyNextInFlows(nsIFrame *aSubtreeRoot);
 #endif
+
+private:
+  static PRUint32 sFontSizeInflationLineThreshold;
 };
 
 namespace mozilla {

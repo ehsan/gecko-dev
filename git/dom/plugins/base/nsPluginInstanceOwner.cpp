@@ -47,8 +47,12 @@
 #ifdef MOZ_WIDGET_QT
 #include <QWidget>
 #include <QKeyEvent>
-#ifdef MOZ_X11
+#if defined(MOZ_X11)
+#if defined(Q_WS_X11)
 #include <QX11Info>
+#else
+#include "gfxQtPlatform.h"
+#endif
 #endif
 #undef slots
 #endif
@@ -95,6 +99,7 @@ using mozilla::DefaultXDisplay;
 #include "nsIDOMDragEvent.h"
 #include "nsIScrollableFrame.h"
 #include "nsIImageLoadingContent.h"
+#include "nsIObjectLoadingContent.h"
 
 #include "nsContentCID.h"
 #include "nsWidgetsCID.h"
@@ -115,12 +120,10 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include <gdk/gdk.h>
 #include <gdk/gdkx.h>
 #include <gtk/gtk.h>
-#include "gfxXlibNativeRenderer.h"
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "ANPBase.h"
-#include "android_npapi.h"
 #include "AndroidBridge.h"
 #include "AndroidMediaLayer.h"
 using namespace mozilla::dom;
@@ -414,8 +417,13 @@ nsPluginInstanceOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
   // If we're going to null out mInstance after use, be sure to call
   // mInstance->InvalidateOwner() here, since it now won't be called
   // from our destructor.  This fixes bug 613376.
-  if (mInstance && !aInstance)
+  if (mInstance && !aInstance) {
     mInstance->InvalidateOwner();
+
+#ifdef MOZ_WIDGET_ANDROID
+    RemovePluginView();
+#endif
+  }
 
   mInstance = aInstance;
 
@@ -747,7 +755,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
   }
 
   return rv;
-#elif defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
+#elif (defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)) && defined(MOZ_X11)
   // X11 window managers want the toplevel window for WM_TRANSIENT_FOR.
   nsIWidget* win = mObjectFrame->GetNearestWidget();
   if (!win)
@@ -1220,6 +1228,31 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
     mNumCachedAttrs++;
   }
 
+  // Some plugins (java, bug 406541) don't canonicalize the 'codebase' attribute
+  // in a standard way - codebase="" results in / (domain root), but
+  // codebase="blah" results in ./blah; codebase="file:" results in "file:///".
+  // We canonicalize codebase here to ensure the codebase we run security checks
+  // against is the same codebase java uses.
+  // Note that GetObjectBaseURI mimics some of java's quirks for maximal
+  // compatibility.
+  const char* mime = nsnull;
+  bool addCodebase = false;
+  nsCAutoString codebaseSpec;
+  if (mInstance && NS_SUCCEEDED(mInstance->GetMIMEType(&mime)) && mime &&
+      strcmp(mime, "application/x-java-vm") == 0) {
+    addCodebase = true;
+    nsCOMPtr<nsIObjectLoadingContent> objlContent = do_QueryInterface(mContent);
+    nsCOMPtr<nsIURI> codebaseURI;
+    objlContent->GetObjectBaseURI(nsCString(mime), getter_AddRefs(codebaseURI));
+    nsresult rv = codebaseURI->GetSpec(codebaseSpec);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Make space if codebase isn't already set
+    if (!mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::codebase)) {
+      mNumCachedAttrs++;
+    }
+  }
+
   mCachedAttrParamNames  = (char**)NS_Alloc(sizeof(char*) * (mNumCachedAttrs + 1 + mNumCachedParams));
   NS_ENSURE_TRUE(mCachedAttrParamNames,  NS_ERROR_OUT_OF_MEMORY);
   mCachedAttrParamValues = (char**)NS_Alloc(sizeof(char*) * (mNumCachedAttrs + 1 + mNumCachedParams));
@@ -1273,9 +1306,19 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
         mNumCachedAttrs--;
         wmodeSet = true;
       }
+    } else if (addCodebase && 0 == PL_strcasecmp(mCachedAttrParamNames[nextAttrParamIndex], "codebase")) {
+      mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_ConvertUTF8toUTF16(codebaseSpec));
+      addCodebase = false;
     } else {
       mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(value);
     }
+    nextAttrParamIndex++;
+  }
+
+  // Pontentially add CODEBASE attribute
+  if (addCodebase) {
+    mCachedAttrParamNames [nextAttrParamIndex] = ToNewUTF8String(NS_LITERAL_STRING("codebase"));
+    mCachedAttrParamValues[nextAttrParamIndex] = ToNewUTF8String(NS_ConvertUTF8toUTF16(codebaseSpec));
     nextAttrParamIndex++;
   }
 
@@ -1763,24 +1806,14 @@ bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
 
 void nsPluginInstanceOwner::RemovePluginView()
 {
-  if (!mInstance || !mObjectFrame)
+  if (!mInstance)
     return;
 
   void* surface = mInstance->GetJavaSurface();
   if (!surface)
     return;
 
-  JNIEnv* env = GetJNIForThread();
-  if (!env)
-    return;
-
-  AndroidBridge::AutoLocalJNIFrame frame(env, 1);
-
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "removePluginView",
-                                            "(Landroid/view/View;)V");
-  env->CallStaticVoidMethod(cls, method, surface);
+  AndroidBridge::RemovePluginView(surface);
 }
 
 void nsPluginInstanceOwner::Invalidate() {
@@ -2390,7 +2423,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 #ifdef MOZ_WIDGET_GTK2
         Window root = GDK_ROOT_WINDOW();
 #elif defined(MOZ_WIDGET_QT)
-        Window root = QX11Info::appRootWindow();
+        Window root = RootWindowOfScreen(DefaultScreenOfDisplay(mozilla::DefaultXDisplay()));
 #else
         Window root = None; // Could XQueryTree, but this is not important.
 #endif
@@ -2506,8 +2539,13 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           event.time = anEvent.time;
 
           QWidget* qWidget = static_cast<QWidget*>(widget->GetNativeData(NS_NATIVE_WINDOW));
+
           if (qWidget)
+#if defined(Q_WS_X11)
             event.root = qWidget->x11Info().appRootWindow();
+#else
+            event.root = RootWindowOfScreen(DefaultScreenOfDisplay(gfxQtPlatform::GetXDisplay(qWidget)));
+#endif
 
           // deduce keycode from the information in the attached QKeyEvent
           const QKeyEvent* qtEvent = static_cast<const QKeyEvent*>(anEvent.pluginEvent);
@@ -2677,33 +2715,13 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
      {
        const nsKeyEvent& keyEvent = static_cast<const nsKeyEvent&>(anEvent);
        LOG("Firing NS_KEY_EVENT %d %d\n", keyEvent.keyCode, keyEvent.charCode);
-       
-       int modifiers = 0;
-       if (keyEvent.isShift)
-         modifiers |= kShift_ANPKeyModifier;
-       if (keyEvent.isAlt)
-         modifiers |= kAlt_ANPKeyModifier;
-
-       ANPEvent event;
-       event.inSize = sizeof(ANPEvent);
-       event.eventType = kKey_ANPEventType;
-       event.data.key.nativeCode = keyEvent.keyCode;
-       event.data.key.virtualCode = keyEvent.charCode;
-       event.data.key.modifiers = modifiers;
-       event.data.key.repeatCount = 0;
-       event.data.key.unichar = 0;
-       switch (anEvent.message)
-         {
-         case NS_KEY_DOWN:
-           event.data.key.action = kDown_ANPKeyAction;
-           mInstance->HandleEvent(&event, nsnull);
-           break;
-           
-         case NS_KEY_UP:
-           event.data.key.action = kUp_ANPKeyAction;
-           mInstance->HandleEvent(&event, nsnull);
-           break;
-         }
+       // pluginEvent is initialized by nsWindow::InitKeyEvent().
+       ANPEvent* pluginEvent = reinterpret_cast<ANPEvent*>(keyEvent.pluginEvent);
+       if (pluginEvent) {
+         MOZ_ASSERT(pluginEvent->inSize == sizeof(ANPEvent));
+         MOZ_ASSERT(pluginEvent->eventType == kKey_ANPEventType);
+         mInstance->HandleEvent(pluginEvent, nsnull);
+       }
      }
     }
     rv = nsEventStatus_eConsumeNoDefault;
@@ -2881,8 +2899,14 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
 
   PRInt32 model = mInstance->GetANPDrawingModel();
 
+  float xResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetXResolution();
+  float yResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetYResolution();
+
+  gfxRect scaledFrameRect = aFrameRect;
+  scaledFrameRect.Scale(xResolution, yResolution);
+
   if (model == kSurface_ANPDrawingModel) {
-    if (!AddPluginView(aFrameRect)) {
+    if (!AddPluginView(scaledFrameRect)) {
       Invalidate();
     }
     return;
@@ -2892,11 +2916,9 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
     if (!mLayer)
       mLayer = new AndroidMediaLayer();
 
-    // FIXME: this is gross
-    float zoomLevel = aFrameRect.width / (float)mPluginWindow->width;
-    mLayer->UpdatePosition(aFrameRect, zoomLevel);
+    mLayer->UpdatePosition(scaledFrameRect, xResolution);
 
-    SendSize((int)aFrameRect.width, (int)aFrameRect.height);
+    SendSize((int)scaledFrameRect.width, (int)scaledFrameRect.height);
     return;
   }
 
@@ -3018,11 +3040,10 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   Visual* visual = gdk_x11_visual_get_xvisual(gdkVisual);
   Screen* screen =
     gdk_x11_screen_get_xscreen(gdk_visual_get_screen(gdkVisual));
-#endif
-#ifdef MOZ_WIDGET_QT
-  Display* dpy = QX11Info().display();
-  Screen* screen = ScreenOfDisplay(dpy, QX11Info().screen());
-  Visual* visual = static_cast<Visual*>(QX11Info().visual());
+#else
+  Display* dpy = mozilla::DefaultXDisplay();
+  Screen* screen = DefaultScreenOfDisplay(dpy);
+  Visual* visual = DefaultVisualOfScreen(screen);
 #endif
   renderer.Draw(aContext, nsIntSize(window->width, window->height),
                 rendererFlags, screen, visual, nsnull);

@@ -52,7 +52,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
 
   private static final int     SHARED_PREFERENCES_MODE = 0;
   private static final int     BACKOFF_PAD_SECONDS = 5;
-  private static final int     MINIMUM_SYNC_INTERVAL_MILLISECONDS = 5 * 60 * 1000;   // 5 minutes.
+  public  static final int     MULTI_DEVICE_INTERVAL_MILLISECONDS = 5 * 60 * 1000;         // 5 minutes.
+  public  static final int     SINGLE_DEVICE_INTERVAL_MILLISECONDS = 24 * 60 * 60 * 1000;  // 24 hours.
 
   private final AccountManager mAccountManager;
   private final Context        mContext;
@@ -172,7 +173,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   public Object syncMonitor = new Object();
   private SyncResult syncResult;
 
-  private Account localAccount;
+  public Account localAccount;
 
   /**
    * Return the number of milliseconds until we're allowed to sync again,
@@ -298,7 +299,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
       Log.i(LOG_TAG, "Waiting on sync monitor.");
       try {
         syncMonitor.wait();
-        long next = System.currentTimeMillis() + MINIMUM_SYNC_INTERVAL_MILLISECONDS;
+        long next = System.currentTimeMillis() + getSyncInterval();
         Log.i(LOG_TAG, "Setting minimum next sync time to " + next);
         extendEarliestNextSync(next);
       } catch (InterruptedException e) {
@@ -309,6 +310,15 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
       }
     }
  }
+
+  public int getSyncInterval() {
+    int clientsCount = this.getClientsCount();
+    if (clientsCount <= 1) {
+      return SINGLE_DEVICE_INTERVAL_MILLISECONDS;
+    }
+
+    return MULTI_DEVICE_INTERVAL_MILLISECONDS;
+  }
 
 
   /**
@@ -411,9 +421,13 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     if (accountGUID == null) {
       Logger.info(LOG_TAG, "Account GUID was null. Creating a new one.");
       accountGUID = Utils.generateGuid();
-      mAccountManager.setUserData(localAccount, Constants.ACCOUNT_GUID, accountGUID);
+      setAccountGUID(mAccountManager, localAccount, accountGUID);
     }
     return accountGUID;
+  }
+
+  public static void setAccountGUID(AccountManager accountManager, Account account, String accountGUID) {
+    accountManager.setUserData(account, Constants.ACCOUNT_GUID, accountGUID);
   }
 
   @Override
@@ -421,9 +435,13 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     String clientName = mAccountManager.getUserData(localAccount, Constants.CLIENT_NAME);
     if (clientName == null) {
       clientName = GlobalConstants.PRODUCT_NAME + " on " + android.os.Build.MODEL;
-      mAccountManager.setUserData(localAccount, Constants.CLIENT_NAME, clientName);
+      setClientName(mAccountManager, localAccount, clientName);
     }
     return clientName;
+  }
+
+  public static void setClientName(AccountManager accountManager, Account account, String clientName) {
+    accountManager.setUserData(account, Constants.CLIENT_NAME, clientName);
   }
 
   @Override

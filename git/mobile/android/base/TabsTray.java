@@ -31,7 +31,7 @@ import android.widget.TextView;
 
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 
-public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
+public class TabsTray extends GeckoActivity implements Tabs.OnTabsChangedListener {
 
     private static int sPreferredHeight;
     private static int sMaxHeight;
@@ -99,9 +99,8 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
         sPreferredHeight = (int) (0.67 * metrics.heightPixels);
         sMaxHeight = (int) (sPreferredHeight + (0.33 * sListItemHeight));
 
-        Tabs tabs = Tabs.getInstance();
-        tabs.registerOnTabsChangedListener(this);
-        tabs.refreshThumbnails();
+        Tabs.registerOnTabsChangedListener(this);
+        Tabs.getInstance().refreshThumbnails();
         onTabChanged(null, null);
 
         // If Sync is set up, query the database for remote clients.
@@ -126,7 +125,7 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Tabs.getInstance().unregisterOnTabsChangedListener(this);
+        Tabs.unregisterOnTabsChangedListener(this);
     }
 
     public void onTabChanged(Tab tab, Tabs.TabEvents msg) {

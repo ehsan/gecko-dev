@@ -178,25 +178,9 @@ enum {
   // Set if the node has had :hover selectors matched against it
   NODE_HAS_RELEVANT_HOVER_RULES = 0x00080000U,
 
-  // Two bits for the script-type ID.  Not enough to represent all
-  // nsIProgrammingLanguage values, but we don't care.  In practice,
-  // we can represent the ones we want, and we can fail the others at
-  // runtime.
-  NODE_SCRIPT_TYPE_OFFSET =               20,
-
-  NODE_SCRIPT_TYPE_SIZE =                  2,
-
-  NODE_SCRIPT_TYPE_MASK =  (1 << NODE_SCRIPT_TYPE_SIZE) - 1,
-
   // Remaining bits are node type specific.
-  NODE_TYPE_SPECIFIC_BITS_OFFSET =
-    NODE_SCRIPT_TYPE_OFFSET + NODE_SCRIPT_TYPE_SIZE
+  NODE_TYPE_SPECIFIC_BITS_OFFSET =        20
 };
-
-PR_STATIC_ASSERT(PRUint32(nsIProgrammingLanguage::JAVASCRIPT) <=
-                   PRUint32(NODE_SCRIPT_TYPE_MASK));
-PR_STATIC_ASSERT(PRUint32(nsIProgrammingLanguage::PYTHON) <=
-                   PRUint32(NODE_SCRIPT_TYPE_MASK));
 
 // Useful inline function for getting a node given an nsIContent and an
 // nsIDocument.  Returns the first argument cast to nsINode if it is non-null,
@@ -291,8 +275,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xfcd3b0d1, 0x75db, 0x46c4, \
-  { 0xa1, 0xf5, 0x07, 0xc2, 0x09, 0xf8, 0x1f, 0x44 } }
+{ 0x772e7e52, 0xfadf, 0x4962, \
+  { 0x8d, 0x96, 0x58, 0xfe, 0x75, 0x68, 0xaf, 0xa8 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -345,6 +329,11 @@ public:
   friend class nsAttrAndChildArray;
 
 #ifdef MOZILLA_INTERNAL_API
+#ifdef _MSC_VER
+#pragma warning(push)
+// Disable annoying warning about 'this' in initializers.
+#pragma warning(disable:4355)
+#endif
   nsINode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : mNodeInfo(aNodeInfo),
     mParent(nsnull),
@@ -353,10 +342,14 @@ public:
     mNextSibling(nsnull),
     mPreviousSibling(nsnull),
     mFirstChild(nsnull),
+    mSubtreeRoot(this),
     mSlots(nsnull)
   {
   }
 
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 #endif
 
   virtual ~nsINode();
@@ -462,6 +455,12 @@ public:
   {
     return mNodeInfo->GetDocument();
   }
+
+  /**
+   * Return the "owner document" of this node as an nsINode*.  Implemented
+   * in nsIDocument.h.
+   */
+  nsINode *OwnerDocAsNode() const;
 
   /**
    * Returns true if the content has an ancestor that is a document.
@@ -572,12 +571,10 @@ public:
    * @param aNotify whether to notify the document (current document for
    *        nsIContent, and |this| for nsIDocument) that the remove has
    *        occurred
-   * @param aMutationEvent whether to fire a mutation event
    *
    * Note: If there is no child at aIndex, this method will simply do nothing.
    */
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, 
-                                 bool aNotify) = 0;
+  virtual void RemoveChildAt(PRUint32 aIndex, bool aNotify) = 0;
 
   /**
    * Get a property associated with this node.
@@ -759,6 +756,35 @@ public:
   nsINode* GetElementParent() const
   {
     return mParent && mParent->IsElement() ? mParent : nsnull;
+  }
+
+  /**
+   * Get the root of the subtree this node belongs to.  This never returns
+   * null.  It may return 'this' (e.g. for document nodes, and nodes that
+   * are the roots of disconnected subtrees).
+   */
+  nsINode* SubtreeRoot() const
+  {
+    // There are three cases of interest here.  nsINodes that are really:
+    // 1. nsIDocument nodes - Are always in the document.
+    // 2. nsIContent nodes - Are either in the document, or mSubtreeRoot
+    //    is updated in BindToTree/UnbindFromTree.
+    // 3. nsIAttribute nodes - Are never in the document, and mSubtreeRoot
+    //    is always 'this' (as set in nsINode's ctor).
+    nsINode* node = IsInDoc() ? OwnerDocAsNode() : mSubtreeRoot;
+    NS_ASSERTION(node, "Should always have a node here!");
+#ifdef DEBUG
+    {
+      const nsINode* slowNode = this;
+      const nsINode* iter = slowNode;
+      while ((iter = iter->GetNodeParent())) {
+        slowNode = iter;
+      }
+
+      NS_ASSERTION(slowNode == node, "These should always be in sync!");
+    }
+#endif
+    return node;
   }
 
   /**
@@ -1000,22 +1026,6 @@ public:
    * nsIDocument* to nsINode*.
    */
   nsIDocument* GetOwnerDocument() const;
-
-  /**
-   * The default script type (language) ID for this node.
-   * All nodes must support fetching the default script language.
-   */
-  virtual PRUint32 GetScriptTypeID() const
-  { return nsIProgrammingLanguage::JAVASCRIPT; }
-
-  /**
-   * Not all nodes support setting a new default language.
-   */
-  NS_IMETHOD SetScriptTypeID(PRUint32 aLang)
-  {
-    NS_NOTREACHED("SetScriptTypeID not implemented");
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
 
   nsresult Normalize();
 
@@ -1285,6 +1295,10 @@ private:
     NodeHasExplicitBaseURI,
     // Set if the element has some style states locked
     ElementHasLockedStyleStates,
+    // Set if element has pointer locked
+    ElementHasPointerLock,
+    // Set if the node may have DOMMutationObserver attached to it.
+    NodeMayHaveDOMMutationObserver,
     // Guard value
     BooleanFlagCount
   };
@@ -1341,8 +1355,14 @@ public:
   void SetIsPurpleRoot(bool aValue)
     { SetBoolFlag(NodeIsPurpleRoot, aValue); }
   bool IsPurpleRoot() const { return GetBoolFlag(NodeIsPurpleRoot); }
-
+  bool MayHaveDOMMutationObserver()
+    { return GetBoolFlag(NodeMayHaveDOMMutationObserver); }
+  void SetMayHaveDOMMutationObserver()
+    { SetBoolFlag(NodeMayHaveDOMMutationObserver, true); }
   bool HasListenerManager() { return HasFlag(NODE_HAS_LISTENERMANAGER); }
+  bool HasPointerLock() const { return GetBoolFlag(ElementHasPointerLock); }
+  void SetPointerLock() { SetBoolFlag(ElementHasPointerLock); }
+  void ClearPointerLock() { ClearBoolFlag(ElementHasPointerLock); }
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }
   void SetInDocument() { SetBoolFlag(IsInDocument); }
@@ -1363,9 +1383,33 @@ protected:
   bool HasLockedStyleStates() const
     { return GetBoolFlag(ElementHasLockedStyleStates); }
 
+    void SetSubtreeRootPointer(nsINode* aSubtreeRoot)
+  {
+    NS_ASSERTION(aSubtreeRoot, "aSubtreeRoot can never be null!");
+    NS_ASSERTION(!(IsNodeOfType(eCONTENT) && IsInDoc()), "Shouldn't be here!");
+    mSubtreeRoot = aSubtreeRoot;
+  }
+
+  void ClearSubtreeRootPointer()
+  {
+    mSubtreeRoot = nsnull;
+  }
+
 public:
   // Optimized way to get classinfo.
   virtual nsXPCClassInfo* GetClassInfo() = 0;
+
+  // Makes nsINode object to keep aObject alive.
+  void BindObject(nsISupports* aObject);
+  // After calling UnbindObject nsINode object doesn't keep
+  // aObject alive anymore.
+  void UnbindObject(nsISupports* aObject);
+
+  /**
+   * Returns the length of this node, as specified at
+   * <http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#concept-node-length>
+   */
+  PRUint32 Length() const;
 
 protected:
 
@@ -1451,8 +1495,8 @@ protected:
    * @param aChildArray The child array to work with.
    * @param aMutationEvent whether to fire a mutation event for this removal.
    */
-  nsresult doRemoveChildAt(PRUint32 aIndex, bool aNotify, nsIContent* aKid,
-                           nsAttrAndChildArray& aChildArray);
+  void doRemoveChildAt(PRUint32 aIndex, bool aNotify, nsIContent* aKid,
+                       nsAttrAndChildArray& aChildArray);
 
   /**
    * Most of the implementation of the nsINode InsertChildAt method.
@@ -1505,6 +1549,14 @@ protected:
   nsIContent* mNextSibling;
   nsIContent* mPreviousSibling;
   nsIContent* mFirstChild;
+
+  union {
+    // Pointer to our primary frame.  Might be null.
+    nsIFrame* mPrimaryFrame;
+
+    // Pointer to the root of our subtree.  Might be null.
+    nsINode* mSubtreeRoot;
+  };
 
   // Storage for more members that are usually not needed; allocated lazily.
   nsSlots* mSlots;

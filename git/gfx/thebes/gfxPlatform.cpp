@@ -57,13 +57,13 @@
 #include "gfxAndroidPlatform.h"
 #endif
 
-#include "gfxAtoms.h"
+#include "nsGkAtoms.h"
 #include "gfxPlatformFontList.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "gfxUserFontSet.h"
 #include "nsUnicodeProperties.h"
-#include "harfbuzz/hb-unicode.h"
+#include "harfbuzz/hb.h"
 #ifdef MOZ_GRAPHITE
 #include "gfxGraphiteShaper.h"
 #endif
@@ -265,8 +265,6 @@ gfxPlatform::Init()
     }
     gEverInitialized = true;
 
-    gfxAtoms::RegisterAtoms();
-
 #ifdef PR_LOGGING
     sFontlistLog = PR_NewLogModule("fontlist");;
     sFontInitLog = PR_NewLogModule("fontinit");;
@@ -337,6 +335,8 @@ gfxPlatform::Init()
 
     gPlatform->mFontPrefsObserver = new FontPrefsObserver();
     Preferences::AddStrongObservers(gPlatform->mFontPrefsObserver, kObservedPrefs);
+
+    gPlatform->mWorkAroundDriverBugs = Preferences::GetBool("gfx.work-around-driver-bugs", true);
 
     // Force registration of the gfx component, thus arranging for
     // ::Shutdown to be called.
@@ -649,6 +649,16 @@ gfxPlatform::CreateOffscreenDrawTarget(const IntSize& aSize, SurfaceFormat aForm
   }
 }
 
+RefPtr<DrawTarget>
+gfxPlatform::CreateDrawTargetForData(unsigned char* aData, const IntSize& aSize, int32_t aStride, SurfaceFormat aFormat)
+{
+  BackendType backend;
+  if (!SupportsAzure(backend)) {
+    return NULL;
+  }
+  return Factory::CreateDrawTargetForData(backend, aData, aSize, aStride, aFormat); 
+}
+
 nsresult
 gfxPlatform::GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
@@ -786,7 +796,7 @@ gfxPlatform::GetPrefFonts(nsIAtom *aLanguage, nsString& aFonts, bool aAppendUnic
 
     AppendGenericFontFromPref(aFonts, aLanguage, nsnull);
     if (aAppendUnicode)
-        AppendGenericFontFromPref(aFonts, gfxAtoms::x_unicode, nsnull);
+        AppendGenericFontFromPref(aFonts, nsGkAtoms::Unicode, nsnull);
 }
 
 bool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangArrayLen, PrefFontCallback aCallback,
