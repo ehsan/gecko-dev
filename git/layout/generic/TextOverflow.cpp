@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Mats Palmgren <matspal@gmail.com> (original author)
- *   Michael Ventnor <m.ventnor@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -205,14 +204,10 @@ public:
   }
 #endif
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
-    nsRect shadowRect =
-      nsLayoutUtils::GetTextShadowRectsUnion(mRect, mFrame);
-    return mRect.Union(shadowRect);
+    return mRect;
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx);
-  void PaintTextToContext(nsRenderingContext* aCtx,
-                          nsPoint aOffsetFromRect);
   NS_DISPLAY_DECL_NAME("TextOverflow", TYPE_TEXT_OVERFLOW)
 private:
   nsRect          mRect;   // in reference frame coordinates
@@ -220,43 +215,17 @@ private:
   nscoord         mAscent; // baseline for the marker text in mRect
 };
 
-static void
-PaintTextShadowCallback(nsRenderingContext* aCtx,
-                        nsPoint aShadowOffset,
-                        const nscolor& aShadowColor,
-                        void* aData)
-{
-  reinterpret_cast<nsDisplayTextOverflowMarker*>(aData)->
-           PaintTextToContext(aCtx, aShadowOffset);
-}
-
 void
 nsDisplayTextOverflowMarker::Paint(nsDisplayListBuilder* aBuilder,
                                    nsRenderingContext*   aCtx)
 {
-  nscolor foregroundColor = nsLayoutUtils::GetTextColor(mFrame);
-
-  // Paint the text-shadows for the overflow marker
-  nsLayoutUtils::PaintTextShadow(mFrame, aCtx, mRect, mVisibleRect,
-                                 foregroundColor, PaintTextShadowCallback,
-                                 (void*)this);
-
-  aCtx->SetColor(foregroundColor);
-  PaintTextToContext(aCtx, nsPoint(0, 0));
-}
-
-void
-nsDisplayTextOverflowMarker::PaintTextToContext(nsRenderingContext* aCtx,
-                                                nsPoint aOffsetFromRect)
-{
   nsStyleContext* sc = mFrame->GetStyleContext();
   nsLayoutUtils::SetFontFromStyle(aCtx, sc);
-
+  aCtx->SetColor(nsLayoutUtils::GetTextColor(mFrame));
   nsPoint baselinePt = mRect.TopLeft();
   baselinePt.y += mAscent;
-
-  nsLayoutUtils::DrawString(mFrame, aCtx, mString.get(),
-                            mString.Length(), baselinePt + aOffsetFromRect);
+  nsLayoutUtils::DrawString(mFrame, aCtx, mString.get(), mString.Length(),
+                            baselinePt);
 }
 
 /* static */ TextOverflow*

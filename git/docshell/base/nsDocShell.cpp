@@ -11468,21 +11468,17 @@ public:
   OnLinkClickEvent(nsDocShell* aHandler, nsIContent* aContent,
                    nsIURI* aURI,
                    const PRUnichar* aTargetSpec,
-                   nsIInputStream* aPostDataStream, 
-                   nsIInputStream* aHeadersDataStream,
-                   PRBool aIsTrusted);
+                   nsIInputStream* aPostDataStream = 0, 
+                   nsIInputStream* aHeadersDataStream = 0);
 
   NS_IMETHOD Run() {
     nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mHandler->mScriptGlobal));
     nsAutoPopupStatePusher popupStatePusher(window, mPopupState);
 
-    nsCxPusher pusher;
-    if (mIsTrusted || pusher.Push(mContent)) {
-      mHandler->OnLinkClickSync(mContent, mURI,
-                                mTargetSpec.get(), mPostDataStream,
-                                mHeadersDataStream,
-                                nsnull, nsnull);
-    }
+    mHandler->OnLinkClickSync(mContent, mURI,
+                              mTargetSpec.get(), mPostDataStream,
+                              mHeadersDataStream,
+                              nsnull, nsnull);
     return NS_OK;
   }
 
@@ -11494,7 +11490,6 @@ private:
   nsCOMPtr<nsIInputStream> mHeadersDataStream;
   nsCOMPtr<nsIContent>     mContent;
   PopupControlState        mPopupState;
-  PRBool                   mIsTrusted;
 };
 
 OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler,
@@ -11502,15 +11497,13 @@ OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler,
                                    nsIURI* aURI,
                                    const PRUnichar* aTargetSpec,
                                    nsIInputStream* aPostDataStream,
-                                   nsIInputStream* aHeadersDataStream,
-                                   PRBool aIsTrusted)
+                                   nsIInputStream* aHeadersDataStream)
   : mHandler(aHandler)
   , mURI(aURI)
   , mTargetSpec(aTargetSpec)
   , mPostDataStream(aPostDataStream)
   , mHeadersDataStream(aHeadersDataStream)
   , mContent(aContent)
-  , mIsTrusted(aIsTrusted)
 {
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mHandler->mScriptGlobal));
 
@@ -11524,8 +11517,7 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
                         nsIURI* aURI,
                         const PRUnichar* aTargetSpec,
                         nsIInputStream* aPostDataStream,
-                        nsIInputStream* aHeadersDataStream,
-                        PRBool aIsTrusted)
+                        nsIInputStream* aHeadersDataStream)
 {
   NS_ASSERTION(NS_IsMainThread(), "wrong thread");
 
@@ -11553,7 +11545,7 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
 
   nsCOMPtr<nsIRunnable> ev =
       new OnLinkClickEvent(this, aContent, aURI, target.get(),
-                           aPostDataStream, aHeadersDataStream, aIsTrusted);
+                           aPostDataStream, aHeadersDataStream);
   return NS_DispatchToCurrentThread(ev);
 }
 
