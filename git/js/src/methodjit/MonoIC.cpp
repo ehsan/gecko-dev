@@ -94,7 +94,7 @@ ic::GetGlobalName(VMFrame &f, uint32 index)
 
     /* Patch shape guard. */
     JSC::RepatchBuffer repatch(mic.entry.executableAddress(), 50);
-    repatch.repatch(mic.shape, shape);
+    repatch.repatch(mic.shape, reinterpret_cast<void*>(shape));
 
     /* Patch loads. */
     JS_ASSERT(slot >= JS_INITIAL_NSLOTS);
@@ -159,7 +159,7 @@ ic::SetGlobalName(VMFrame &f, uint32 index)
 
     /* Patch shape guard. */
     JSC::RepatchBuffer repatch(mic.entry.executableAddress(), 50);
-    repatch.repatch(mic.shape, shape);
+    repatch.repatch(mic.shape, reinterpret_cast<void*>(shape));
 
     /* Patch loads. */
     JS_ASSERT(slot >= JS_INITIAL_NSLOTS);
@@ -311,40 +311,4 @@ ic::CallFastNative(JSContext *cx, JSScript *script, MICInfo &mic, JSFunction *fu
 
 #endif /* JS_CPU_X86 */
 
-void
-ic::PurgeMICs(JSContext *cx, JSScript *script)
-{
-    /* MICs are purged during GC to handle changing shapes. */
-    JS_ASSERT(cx->runtime->gcRegenShapes);
-
-    uint32 nmics = script->numMICs();
-    for (uint32 i = 0; i < nmics; i++) {
-        ic::MICInfo &mic = script->mics[i];
-        switch (mic.kind) {
-          case ic::MICInfo::SET:
-          case ic::MICInfo::GET:
-          {
-            /* Patch shape guard. */
-            JSC::RepatchBuffer repatch(mic.entry.executableAddress(), 50);
-            repatch.repatch(mic.shape, int(JSObjectMap::INVALID_SHAPE));
-
-            /* 
-             * If the stub call was patched, leave it alone -- it probably will
-             * just be invalidated again.
-             */
-            break;
-          }
-          case ic::MICInfo::CALL:
-          case ic::MICInfo::EMPTYCALL:
-          case ic::MICInfo::TRACER:
-            /* Nothing to patch! */
-            break;
-          default:
-            JS_NOT_REACHED("Unknown MIC type during purge");
-            break;
-        }
-    }
-}
-
 #endif /* JS_MONOIC */
-
