@@ -15,7 +15,6 @@
 #include "GeckoProfiler.h"
 #include "ImageContainer.h"
 #include "gfx2DGlue.h"
-#include "gfxPrefs.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
@@ -1076,13 +1075,7 @@ gfxUtils::CopyAsDataURL(RefPtr<gfx::SourceSurface> aSourceSurface)
   gfxUtils::CopyAsDataURL(dt.get());
 }
 
-static bool sDumpPaintList = getenv("MOZ_DUMP_PAINT_LIST") != 0;
-
-/* static */ bool
-gfxUtils::DumpPaintList() {
-  return sDumpPaintList || gfxPrefs::LayoutDumpDisplayList();
-}
-
+bool gfxUtils::sDumpPaintList = getenv("MOZ_DUMP_PAINT_LIST") != 0;
 bool gfxUtils::sDumpPainting = getenv("MOZ_DUMP_PAINT") != 0;
 bool gfxUtils::sDumpPaintingToFile = getenv("MOZ_DUMP_PAINT_TO_FILE") != 0;
 FILE *gfxUtils::sDumpPaintFile = nullptr;

@@ -80,25 +80,6 @@ private:
   void operator=(const Context&); // delete
 };
 
-static der::Result
-HashBuf(const SECItem& item, /*out*/ uint8_t *hashBuf, size_t hashBufLen)
-{
-  if (hashBufLen != SHA1_LENGTH) {
-    PR_NOT_REACHED("invalid hash length");
-    return der::Fail(SEC_ERROR_INVALID_ARGS);
-  }
-  if (item.len >
-      static_cast<decltype(item.len)>(std::numeric_limits<int32_t>::max())) {
-    PR_NOT_REACHED("large OCSP responses should have already been rejected");
-    return der::Fail(SEC_ERROR_INVALID_ARGS);
-  }
-  if (PK11_HashBuf(SEC_OID_SHA1, hashBuf, item.data,
-                   static_cast<int32_t>(item.len)) != SECSuccess) {
-    return der::Fail(PR_GetError());
-  }
-  return der::Success;
-}
-
 // Verify that potentialSigner is a valid delegated OCSP response signing cert
 // according to RFC 6960 section 4.2.2.2.
 static Result
@@ -188,9 +169,9 @@ static inline der::Result CheckExtensionsForCriticality(der::Input&);
 static inline der::Result CertID(der::Input& input,
                                   const Context& context,
                                   /*out*/ bool& match);
-static der::Result MatchKeyHash(const SECItem& issuerKeyHash,
-                                const CERTCertificate& issuer,
-                                /*out*/ bool& match);
+static der::Result MatchIssuerKey(const SECItem& issuerKeyHash,
+                                   const CERTCertificate& issuer,
+                                   /*out*/ bool& match);
 
 // RFC 6960 section 4.2.2.2: The OCSP responder must either be the issuer of
 // the cert or it must be a delegated OCSP response signing cert directly
@@ -259,11 +240,12 @@ GetOCSPSignerCertificate(TrustDomain& trustDomain,
               != der::Success) {
           return nullptr;
         }
-        SECItem keyHash;
-        if (der::Skip(responderID, der::OCTET_STRING, keyHash) != der::Success) {
+        SECItem issuerKeyHash;
+        if (der::Skip(responderID, der::OCTET_STRING, issuerKeyHash) != der::Success) {
           return nullptr;
         }
-        if (MatchKeyHash(keyHash, *potentialSigner.get(), match) != der::Success) {
+        if (MatchIssuerKey(issuerKeyHash, *potentialSigner.get(), match)
+              != der::Success) {
           return nullptr;
         }
         break;
@@ -460,9 +442,7 @@ BasicResponse(der::Input& input, Context& context)
 
   CERTSignedData signedData;
 
-  if (input.GetSECItem(siBuffer, mark, signedData.data) != der::Success) {
-    return der::Failure;
-  }
+  input.GetSECItem(siBuffer, mark, signedData.data);
 
   if (der::Nested(input, der::SEQUENCE,
                   bind(der::AlgorithmIdentifier, _1,
@@ -523,9 +503,7 @@ BasicResponse(der::Input& input, Context& context)
         return der::Failure;
       }
 
-      if (input.GetSECItem(siBuffer, mark, certs[numCerts]) != der::Success) {
-        return der::Failure;
-      }
+      input.GetSECItem(siBuffer, mark, certs[numCerts]);
       ++numCerts;
     }
   }
@@ -796,7 +774,8 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
   // "The hash shall be calculated over the DER encoding of the
   // issuer's name field in the certificate being checked."
   uint8_t hashBuf[SHA1_LENGTH];
-  if (HashBuf(cert.derIssuer, hashBuf, sizeof(hashBuf)) != der::Success) {
+  if (PK11_HashBuf(SEC_OID_SHA1, hashBuf, cert.derIssuer.data,
+                   cert.derIssuer.len) != SECSuccess) {
     return der::Failure;
   }
   if (memcmp(hashBuf, issuerNameHash.data, issuerNameHash.len)) {
@@ -805,17 +784,17 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
     return der::Success;
   }
 
-  return MatchKeyHash(issuerKeyHash, issuerCert, match);
+  return MatchIssuerKey(issuerKeyHash, issuerCert, match);
 }
 
 // From http://tools.ietf.org/html/rfc6960#section-4.1.1:
 // "The hash shall be calculated over the value (excluding tag and length) of
 // the subject public key field in the issuer's certificate."
 static der::Result
-MatchKeyHash(const SECItem& keyHash, const CERTCertificate& cert,
-             /*out*/ bool& match)
+MatchIssuerKey(const SECItem& issuerKeyHash, const CERTCertificate& issuer,
+               /*out*/ bool& match)
 {
-  if (keyHash.len != SHA1_LENGTH)  {
+  if (issuerKeyHash.len != SHA1_LENGTH)  {
     return der::Fail(SEC_ERROR_OCSP_MALFORMED_RESPONSE);
   }
 
@@ -824,15 +803,15 @@ MatchKeyHash(const SECItem& keyHash, const CERTCertificate& cert,
   // Copy just the length and data pointer (nothing needs to be freed) of the
   // subject public key so we can convert the length from bits to bytes, which
   // is what the digest function expects.
-  SECItem spk = cert.subjectPublicKeyInfo.subjectPublicKey;
+  SECItem spk = issuer.subjectPublicKeyInfo.subjectPublicKey;
   DER_ConvertBitString(&spk);
 
   static uint8_t hashBuf[SHA1_LENGTH];
-  if (HashBuf(spk, hashBuf, sizeof(hashBuf)) != der::Success) {
+  if (PK11_HashBuf(SEC_OID_SHA1, hashBuf, spk.data, spk.len) != SECSuccess) {
     return der::Failure;
   }
 
-  match = !memcmp(hashBuf, keyHash.data, keyHash.len);
+  match = !memcmp(hashBuf, issuerKeyHash.data, issuerKeyHash.len);
   return der::Success;
 }
 
@@ -965,11 +944,11 @@ CreateEncodedOCSPRequest(PLArenaPool* arena,
   }
 
   uint8_t* d = encodedRequest->data;
-  *d++ = 0x30; *d++ = totalLen - 2u;  // OCSPRequest (SEQUENCE)
-  *d++ = 0x30; *d++ = totalLen - 4u;  //   tbsRequest (SEQUENCE)
-  *d++ = 0x30; *d++ = totalLen - 6u;  //     requestList (SEQUENCE OF)
-  *d++ = 0x30; *d++ = totalLen - 8u;  //       Request (SEQUENCE)
-  *d++ = 0x30; *d++ = totalLen - 10u; //         reqCert (CertID SEQUENCE)
+  *d++ = 0x30; *d++ = totalLen - 2;  // OCSPRequest (SEQUENCE)
+  *d++ = 0x30; *d++ = totalLen - 4;  //   tbsRequest (SEQUENCE)
+  *d++ = 0x30; *d++ = totalLen - 6;  //     requestList (SEQUENCE OF)
+  *d++ = 0x30; *d++ = totalLen - 8;  //       Request (SEQUENCE)
+  *d++ = 0x30; *d++ = totalLen - 10; //         reqCert (CertID SEQUENCE)
 
   // reqCert.hashAlgorithm
   for (size_t i = 0; i < PR_ARRAY_SIZE(hashAlgorithm); ++i) {
@@ -979,7 +958,8 @@ CreateEncodedOCSPRequest(PLArenaPool* arena,
   // reqCert.issuerNameHash (OCTET STRING)
   *d++ = 0x04;
   *d++ = hashLen;
-  if (HashBuf(issuerCert->derSubject, d, hashLen) != der::Success) {
+  if (PK11_HashBuf(SEC_OID_SHA1, d, issuerCert->derSubject.data,
+                   issuerCert->derSubject.len) != SECSuccess) {
     return nullptr;
   }
   d += hashLen;
@@ -989,7 +969,7 @@ CreateEncodedOCSPRequest(PLArenaPool* arena,
   *d++ = hashLen;
   SECItem key = issuerCert->subjectPublicKeyInfo.subjectPublicKey;
   DER_ConvertBitString(&key);
-  if (HashBuf(key, d, hashLen) != der::Success) {
+  if (PK11_HashBuf(SEC_OID_SHA1, d, key.data, key.len) != SECSuccess) {
     return nullptr;
   }
   d += hashLen;
