@@ -96,6 +96,7 @@ public:
   void SetPluginRefNum(short aRefNum);
 #endif
 
+#ifdef MOZ_IPC
   // The IPC mechanism notifies the nsNPAPIPlugin if the plugin
   // crashes and is no longer usable. pluginDumpID/browserDumpID are
   // the IDs of respective minidumps that were written, or empty if no
@@ -104,6 +105,7 @@ public:
                      const nsAString& browserDumpID);
   
   static PRBool RunPluginOOP(const nsPluginTag *aPluginTag);
+#endif
 
 protected:
 
@@ -381,15 +383,10 @@ OnPluginDestroy(NPP instance);
 void
 OnShutdown();
 
-/**
- * within a lexical scope, locks and unlocks the mutex used to
- * serialize modifications to plugin async callback state.
- */
-struct NS_STACK_CLASS AsyncCallbackAutoLock
-{
-  AsyncCallbackAutoLock();
-  ~AsyncCallbackAutoLock();
-};
+void
+EnterAsyncPluginThreadCallLock();
+void
+ExitAsyncPluginThreadCallLock();
 
 class NPPStack
 {

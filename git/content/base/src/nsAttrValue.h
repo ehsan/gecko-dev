@@ -55,17 +55,12 @@
 typedef PRUptrdiff PtrBits;
 class nsAString;
 class nsIAtom;
+class nsICSSStyleRule;
 class nsISVGValue;
 class nsIDocument;
 template<class E, class A> class nsTArray;
 template<class E, class A> class nsTPtrArray;
 struct nsTArrayDefaultAllocator;
-
-namespace mozilla {
-namespace css {
-class StyleRule;
-}
-}
 
 #define NS_ATTRVALUE_MAX_STRINGLENGTH_ATOM 12
 
@@ -104,7 +99,7 @@ public:
   nsAttrValue();
   nsAttrValue(const nsAttrValue& aOther);
   explicit nsAttrValue(const nsAString& aValue);
-  nsAttrValue(mozilla::css::StyleRule* aValue, const nsAString* aSerialized);
+  nsAttrValue(nsICSSStyleRule* aValue, const nsAString* aSerialized);
 #ifdef MOZ_SVG
   explicit nsAttrValue(nsISVGValue* aValue);
 #endif
@@ -130,7 +125,7 @@ public:
 #ifdef MOZ_SVG
     ,eSVGValue =    0x12
 #endif
-    ,eDoubleValue  = 0x13
+    ,eFloatValue  = 0x13
     ,eIntMarginValue = 0x14
   };
 
@@ -141,7 +136,7 @@ public:
   void SetTo(const nsAttrValue& aOther);
   void SetTo(const nsAString& aValue);
   void SetTo(PRInt16 aInt);
-  void SetTo(mozilla::css::StyleRule* aValue, const nsAString* aSerialized);
+  void SetTo(nsICSSStyleRule* aValue, const nsAString* aSerialized);
 #ifdef MOZ_SVG
   void SetTo(nsISVGValue* aValue);
 #endif
@@ -161,11 +156,11 @@ public:
   inline PRInt16 GetEnumValue() const;
   inline float GetPercentValue() const;
   inline AtomArray* GetAtomArrayValue() const;
-  inline mozilla::css::StyleRule* GetCSSStyleRuleValue() const;
+  inline nsICSSStyleRule* GetCSSStyleRuleValue() const;
 #ifdef MOZ_SVG
   inline nsISVGValue* GetSVGValue() const;
 #endif
-  inline double GetDoubleValue() const;
+  inline float GetFloatValue() const;
   PRBool GetIntMarginValue(nsIntMargin& aMargin) const;
 
   /**
@@ -297,12 +292,12 @@ public:
   PRBool ParseColor(const nsAString& aString);
 
   /**
-   * Parse a string value into a double-precision floating point value.
+   * Parse a string value into a float.
    *
    * @param aString the string to parse
    * @return whether the value could be parsed
    */
-  PRBool ParseDoubleValue(const nsAString& aString);
+  PRBool ParseFloatValue(const nsAString& aString);
 
   /**
    * Parse a lazy URI.  This just sets up the storage for the URI; it
@@ -341,12 +336,12 @@ private:
       nscolor mColor;
       PRUint32 mEnumValue;
       PRInt32 mPercent;
-      mozilla::css::StyleRule* mCSSStyleRule;
+      nsICSSStyleRule* mCSSStyleRule;
       AtomArray* mAtomArray;
 #ifdef MOZ_SVG
       nsISVGValue* mSVGValue;
 #endif
-      double mDoubleValue;
+      float mFloatValue;
       nsIntMargin* mIntMargin;
     };
   };
@@ -442,7 +437,7 @@ nsAttrValue::GetAtomArrayValue() const
   return GetMiscContainer()->mAtomArray;
 }
 
-inline mozilla::css::StyleRule*
+inline nsICSSStyleRule*
 nsAttrValue::GetCSSStyleRuleValue() const
 {
   NS_PRECONDITION(Type() == eCSSStyleRule, "wrong type");
@@ -458,11 +453,11 @@ nsAttrValue::GetSVGValue() const
 }
 #endif
 
-inline double
-nsAttrValue::GetDoubleValue() const
+inline float
+nsAttrValue::GetFloatValue() const
 {
-  NS_PRECONDITION(Type() == eDoubleValue, "wrong type");
-  return GetMiscContainer()->mDoubleValue;
+  NS_PRECONDITION(Type() == eFloatValue, "wrong type");
+  return GetMiscContainer()->mFloatValue;
 }
 
 inline PRBool

@@ -64,21 +64,6 @@ public:
                                    IUnknown ***aAccessibles, long *aCount);
 
   /**
-   * Start window emulation if presence of specific AT is detected.
-   */
-  static bool MaybeStartWindowEmulation();
-
-  /**
-   * Free resources used for window emulation.
-   */
-  static void ShutdownWindowEmulation();
-
-  /**
-   * Return true if window emulation is started.
-   */
-  static bool IsWindowEmulationStarted();
-
-  /**
    * Helper to register window class.
    */
   static void RegisterNativeWindow(LPCWSTR aWindowClass);
@@ -103,7 +88,7 @@ public:
   /**
    * Return true if window emulation is enabled.
    */
-  static bool IsWindowEmulationFor(LPCWSTR kModuleHandle);
+  static bool IsWindowEmulationEnabled(LPCWSTR kModuleHandle = 0);
 
   /**
    * Return true if the given document node is for tab document accessible.

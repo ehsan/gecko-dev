@@ -44,7 +44,8 @@
 #include "nsMemory.h"
 
 // define storage for all atoms
-#define CSS_PSEUDO_CLASS(_name, _value) static nsIAtom* sPseudoClass_##_name;
+#define CSS_PSEUDO_CLASS(_name, _value) \
+  nsICSSPseudoClass* nsCSSPseudoClasses::_name;
 #include "nsCSSPseudoClassList.h"
 #undef CSS_PSEUDO_CLASS
 
@@ -55,7 +56,7 @@
 
 static const nsStaticAtom CSSPseudoClasses_info[] = {
 #define CSS_PSEUDO_CLASS(name_, value_) \
-  NS_STATIC_ATOM(name_##_buffer, &sPseudoClass_##name_),
+  NS_STATIC_ATOM(name_##_buffer, (nsIAtom**)&nsCSSPseudoClasses::name_),
 #include "nsCSSPseudoClassList.h"
 #undef CSS_PSEUDO_CLASS
 };
@@ -67,29 +68,27 @@ void nsCSSPseudoClasses::AddRefAtoms()
 }
 
 PRBool
-nsCSSPseudoClasses::HasStringArg(Type aType)
+nsCSSPseudoClasses::HasStringArg(nsIAtom* aAtom)
 {
-  return aType == ePseudoClass_lang ||
-         aType == ePseudoClass_mozEmptyExceptChildrenWithLocalname ||
-         aType == ePseudoClass_mozSystemMetric ||
-         aType == ePseudoClass_mozLocaleDir;
+  return aAtom == nsCSSPseudoClasses::lang ||
+         aAtom == nsCSSPseudoClasses::mozEmptyExceptChildrenWithLocalname ||
+         aAtom == nsCSSPseudoClasses::mozSystemMetric ||
+         aAtom == nsCSSPseudoClasses::mozLocaleDir;
 }
 
 PRBool
-nsCSSPseudoClasses::HasNthPairArg(Type aType)
+nsCSSPseudoClasses::HasNthPairArg(nsIAtom* aAtom)
 {
-  return aType == ePseudoClass_nthChild ||
-         aType == ePseudoClass_nthLastChild ||
-         aType == ePseudoClass_nthOfType ||
-         aType == ePseudoClass_nthLastOfType;
+  return aAtom == nsCSSPseudoClasses::nthChild ||
+         aAtom == nsCSSPseudoClasses::nthLastChild ||
+         aAtom == nsCSSPseudoClasses::nthOfType ||
+         aAtom == nsCSSPseudoClasses::nthLastOfType;
 }
 
-void
-nsCSSPseudoClasses::PseudoTypeToString(Type aType, nsAString& aString)
+PRBool
+nsCSSPseudoClasses::HasSelectorListArg(nsIAtom* aAtom)
 {
-  NS_ABORT_IF_FALSE(aType < ePseudoClass_Count, "Unexpected type");
-  NS_ABORT_IF_FALSE(aType >= 0, "Very unexpected type");
-  (*CSSPseudoClasses_info[aType].mAtom)->ToString(aString);
+  return aAtom == nsCSSPseudoClasses::any;
 }
 
 nsCSSPseudoClasses::Type

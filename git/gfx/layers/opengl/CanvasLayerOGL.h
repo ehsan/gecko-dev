@@ -38,15 +38,13 @@
 #ifndef GFX_CANVASLAYEROGL_H
 #define GFX_CANVASLAYEROGL_H
 
-#include "mozilla/layers/PLayers.h"
-#include "mozilla/layers/ShadowLayers.h"
+#ifdef MOZ_IPC
+# include "mozilla/layers/PLayers.h"
+# include "mozilla/layers/ShadowLayers.h"
+#endif  // MOZ_IPC
 
 #include "LayerManagerOGL.h"
 #include "gfxASurface.h"
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-#include "GLXLibrary.h"
-#include "mozilla/X11Util.h"
-#endif
 
 namespace mozilla {
 namespace layers {
@@ -61,9 +59,6 @@ public:
       LayerOGL(aManager),
       mTexture(0),
       mDelayedUpdates(PR_FALSE)
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-      ,mPixmap(0)
-#endif
   { 
       mImplData = static_cast<LayerOGL*>(this);
   }
@@ -71,6 +66,7 @@ public:
 
   // CanvasLayer implementation
   virtual void Initialize(const Data& aData);
+  virtual void Updated(const nsIntRect& aRect);
 
   // LayerOGL implementation
   virtual void Destroy();
@@ -79,8 +75,6 @@ public:
                            const nsIntPoint& aOffset);
 
 protected:
-  void UpdateSurface();
-
   nsRefPtr<gfxASurface> mCanvasSurface;
   nsRefPtr<GLContext> mCanvasGLContext;
   gl::ShaderProgramType mLayerProgram;
@@ -88,14 +82,14 @@ protected:
   void MakeTexture();
   GLuint mTexture;
 
+  nsIntRect mUpdatedRect;
+
   PRPackedBool mDelayedUpdates;
   PRPackedBool mGLBufferIsPremultiplied;
   PRPackedBool mNeedsYFlip;
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  GLXPixmap mPixmap;
-#endif
 };
 
+#ifdef MOZ_IPC
 // NB: eventually we'll have separate shadow canvas2d and shadow
 // canvas3d layers, but currently they look the same from the
 // perspective of the compositor process
@@ -136,6 +130,7 @@ private:
 
 
 };
+#endif  // MOZ_IPC
 
 } /* layers */
 } /* mozilla */

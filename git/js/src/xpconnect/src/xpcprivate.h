@@ -81,6 +81,7 @@
 #include "nsIJSRuntimeService.h"
 #include "nsWeakReference.h"
 #include "nsCOMPtr.h"
+#include "nsAutoLock.h"
 #include "nsXPTCUtils.h"
 #include "xptinfo.h"
 #include "xpcforwards.h"
@@ -97,8 +98,6 @@
 #include "nsXPIDLString.h"
 #include "nsAutoJSValHolder.h"
 #include "mozilla/AutoRestore.h"
-#include "mozilla/Monitor.h"
-#include "mozilla/Mutex.h"
 #include "nsDataHashtable.h"
 
 #include "nsThreadUtils.h"
@@ -351,18 +350,26 @@ typedef nsDataHashtable<xpc::PtrAndPrincipalHashKey, JSCompartment *> XPCCompart
 #pragma warning(disable : 4355) // OK to pass "this" in member initializer
 #endif
 
-typedef mozilla::Monitor XPCLock;
+typedef PRMonitor XPCLock;
 
 static inline void xpc_Wait(XPCLock* lock) 
     {
         NS_ASSERTION(lock, "xpc_Wait called with null lock!");
-        lock->Wait();
+#ifdef DEBUG
+        PRStatus result = 
+#endif
+        PR_Wait(lock, PR_INTERVAL_NO_TIMEOUT);
+        NS_ASSERTION(PR_SUCCESS == result, "bad result from PR_Wait!");
     }
 
 static inline void xpc_NotifyAll(XPCLock* lock) 
     {
         NS_ASSERTION(lock, "xpc_NotifyAll called with null lock!");
-        lock->NotifyAll();
+#ifdef DEBUG
+        PRStatus result = 
+#endif    
+        PR_NotifyAll(lock);
+        NS_ASSERTION(PR_SUCCESS == result, "bad result from PR_NotifyAll!");
     }
 
 // This is a cloned subset of nsAutoMonitor. We want the use of a monitor -
@@ -375,27 +382,36 @@ static inline void xpc_NotifyAll(XPCLock* lock)
 // Note that xpconnect only makes *one* monitor and *mostly* holds it locked
 // only through very small critical sections.
 
-class NS_STACK_CLASS XPCAutoLock {
+class NS_STACK_CLASS XPCAutoLock : public nsAutoLockBase {
 public:
 
     static XPCLock* NewLock(const char* name)
-                        {return new mozilla::Monitor(name);}
+                        {return nsAutoMonitor::NewMonitor(name);}
     static void     DestroyLock(XPCLock* lock)
-                        {delete lock;}
+                        {nsAutoMonitor::DestroyMonitor(lock);}
 
     XPCAutoLock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
-        : mLock(lock)
+#ifdef DEBUG_jband
+        : nsAutoLockBase(lock ? (void*) lock : (void*) this, eAutoMonitor),
+#else
+        : nsAutoLockBase(lock, eAutoMonitor),
+#endif
+          mLock(lock)
     {
         MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if(mLock)
-            mLock->Enter();
+            PR_EnterMonitor(mLock);
     }
 
     ~XPCAutoLock()
     {
         if(mLock)
         {
-            mLock->Exit();
+#ifdef DEBUG
+            PRStatus status =
+#endif
+                PR_ExitMonitor(mLock);
+            NS_ASSERTION(status == PR_SUCCESS, "PR_ExitMonitor failed");
         }
     }
 
@@ -421,22 +437,27 @@ private:
 
 /************************************************/
 
-class NS_STACK_CLASS XPCAutoUnlock {
+class NS_STACK_CLASS XPCAutoUnlock : public nsAutoUnlockBase {
 public:
     XPCAutoUnlock(XPCLock* lock MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM)
-        : mLock(lock)
+        : nsAutoUnlockBase(lock),
+          mLock(lock)
     {
         MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
         if(mLock)
         {
-            mLock->Exit();
+#ifdef DEBUG
+            PRStatus status =
+#endif
+                PR_ExitMonitor(mLock);
+            NS_ASSERTION(status == PR_SUCCESS, "PR_ExitMonitor failed");
         }
     }
 
     ~XPCAutoUnlock()
     {
         if(mLock)
-            mLock->Enter();
+            PR_EnterMonitor(mLock);
     }
 
 private:
@@ -554,7 +575,7 @@ public:
     static JSBool Base64Decode(JSContext *cx, jsval val, jsval *out);
 
     // nsCycleCollectionParticipant
-    NS_IMETHOD Root(void *p);
+    NS_IMETHOD RootAndUnlinkJSObjects(void *p);
     NS_IMETHOD Unlink(void *p);
     NS_IMETHOD Unroot(void *p);
     NS_IMETHOD Traverse(void *p,
@@ -1431,6 +1452,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* deleteProperty */                                          \
         js::Valueify(XPC_WN_JSOp_Enumerate),                                  \
         XPC_WN_JSOp_TypeOf_Function,                                          \
+        nsnull, /* trace          */                                          \
         nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
         XPC_WN_JSOp_Clear                                                     \
@@ -1447,6 +1469,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* deleteProperty */                                          \
         js::Valueify(XPC_WN_JSOp_Enumerate),                                  \
         XPC_WN_JSOp_TypeOf_Object,                                            \
+        nsnull, /* trace          */                                          \
         nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
         XPC_WN_JSOp_Clear                                                     \
@@ -2445,17 +2468,17 @@ public:
     // collected then its mFlatJSObject will be cycle collected too and
     // finalization of the mFlatJSObject will unlink the js objects (see
     // XPC_WN_NoHelper_Finalize and FlatJSObjectFinalized).
-    // We also give XPCWrappedNative empty Root/Unroot methods, to avoid
-    // root/unrooting the JS objects from addrefing/releasing the
-    // XPCWrappedNative during unlinking, which would make the JS objects
-    // uncollectable to the JS GC.
+    // We also rely on NS_DECL_CYCLE_COLLECTION_CLASS_NO_UNLINK having empty
+    // Root/Unroot methods, to avoid root/unrooting the JS objects from
+    // addrefing/releasing the XPCWrappedNative during unlinking, which would
+    // make the JS objects uncollectable to the JS GC.
     class NS_CYCLE_COLLECTION_INNERCLASS
      : public nsXPCOMCycleCollectionParticipant
     {
       NS_DECL_CYCLE_COLLECTION_CLASS_BODY_NO_UNLINK(XPCWrappedNative,
                                                     XPCWrappedNative)
-      NS_IMETHOD Root(void *p) { return NS_OK; }
-      NS_IMETHOD Unlink(void *p);
+      NS_IMETHOD RootAndUnlinkJSObjects(void *p);
+      NS_IMETHOD Unlink(void *p) { return NS_OK; }
       NS_IMETHOD Unroot(void *p) { return NS_OK; }
     };
     NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
@@ -2963,7 +2986,13 @@ public:
     NS_DECL_NSISUPPORTSWEAKREFERENCE
     NS_DECL_NSIPROPERTYBAG
 
-    NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXPCWrappedJS, nsIXPConnectWrappedJS)
+    class NS_CYCLE_COLLECTION_INNERCLASS
+     : public nsXPCOMCycleCollectionParticipant
+    {
+      NS_IMETHOD RootAndUnlinkJSObjects(void *p);
+      NS_DECL_CYCLE_COLLECTION_CLASS_BODY(nsXPCWrappedJS, nsIXPConnectWrappedJS)
+    };
+    NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
     NS_DECL_CYCLE_COLLECTION_UNMARK_PURPLE_STUB(nsXPCWrappedJS)
 
     NS_IMETHOD CallMethod(PRUint16 methodIndex,
@@ -3646,8 +3675,6 @@ private:
 
 class XPCPerThreadData
 {
-    typedef mozilla::Mutex Mutex;
-
 public:
     // Get the instance of this object for the current thread
     static inline XPCPerThreadData* GetData(JSContext *cx)
@@ -3738,7 +3765,7 @@ public:
 
     PRBool IsValid() const {return mJSContextStack != nsnull;}
 
-    static Mutex* GetLock() {return gLock;}
+    static PRLock* GetLock() {return gLock;}
     // Must be called with the threads locked.
     static XPCPerThreadData* IterateThreads(XPCPerThreadData** iteratorp);
 
@@ -3784,7 +3811,7 @@ private:
 #endif
     PRThread*            mThread;
 
-    static Mutex*            gLock;
+    static PRLock*           gLock;
     static XPCPerThreadData* gThreads;
     static PRUintn           gTLSIndex;
 

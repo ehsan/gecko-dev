@@ -106,6 +106,7 @@ namespace nanojit {
 
     class Fragment;
     struct SideExit;
+    struct SwitchInfo;
 
     struct GuardRecord
     {
@@ -123,6 +124,7 @@ namespace nanojit {
         GuardRecord* guards;
         Fragment* from;
         Fragment* target;
+        SwitchInfo* switchInfo;
 
         void addGuard(GuardRecord* gr)
         {
@@ -136,7 +138,10 @@ namespace nanojit {
 
     #define isSPorFP(r)     ( (r)==SP || (r)==FP )
 
-    #if defined(NJ_VERBOSE)
+    #ifdef NJ_NO_VARIADIC_MACROS
+        static void asm_output(const char *f, ...) {}
+        #define gpn(r)                    regNames[(REGNUM(n))]
+    #elif defined(NJ_VERBOSE)
         inline char cvaltoa(unsigned char u) {
             return u<10 ? u+'0' : u+'a'-10;
         }
@@ -169,7 +174,7 @@ namespace nanojit {
         #define asm_output(...) do {                                            \
             if (_logc->lcbits & LC_Native) {                                    \
                 outline[0]='\0';                                                \
-                VMPI_sprintf(outline, "%p  ", (void*)_nIns);                    \
+                VMPI_sprintf(outline, "%p  ", _nIns);                           \
                 if (_logc->lcbits & LC_Bytes) {                                 \
                     appendHexVals(outline, (char*)_nIns, (char*)_nInsAfter);    \
                     padTo(outline, 3*15);                                       \

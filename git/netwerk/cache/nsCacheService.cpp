@@ -76,9 +76,9 @@
 
 #include "mozilla/FunctionTimer.h"
 
+#ifdef MOZ_IPC
 #include "mozilla/net/NeckoCommon.h"
-
-using namespace mozilla;
+#endif
 
 /******************************************************************************
  * nsCacheProfilePrefObserver
@@ -275,11 +275,12 @@ public:
     }
     NS_IMETHOD Run()
     {
-        nsCacheServiceAutoLock autoLock;
+        mozilla::MonitorAutoEnter
+            autoMonitor(nsCacheService::gService->mMonitor);
 #ifdef PR_LOGGING
         CACHE_LOG_DEBUG(("nsBlockOnCacheThreadEvent [%p]\n", this));
 #endif
-        nsCacheService::gService->mCondVar.Notify();
+        autoMonitor.Notify();
         return NS_OK;
     }
 };
@@ -808,8 +809,11 @@ nsCacheService::DispatchToCacheIOThread(nsIRunnable* event)
 nsresult
 nsCacheService::SyncWithCacheIOThread()
 {
-    gService->mLock.AssertCurrentThreadOwns();
+    NS_ASSERTION(gService->mLockedThread == PR_GetCurrentThread(),
+                 "not holding cache-lock");
     if (!gService->mCacheIOThread) return NS_ERROR_NOT_AVAILABLE;
+
+    mozilla::MonitorAutoEnter autoMonitor(gService->mMonitor);
 
     nsCOMPtr<nsIRunnable> event = new nsBlockOnCacheThreadEvent();
 
@@ -821,8 +825,10 @@ nsCacheService::SyncWithCacheIOThread()
         return NS_ERROR_UNEXPECTED;
     }
 
+    Unlock();
     // wait until notified, then return
-    rv = gService->mCondVar.Wait();
+    rv = autoMonitor.Wait();
+    Lock();
 
     return rv;
 }
@@ -979,8 +985,8 @@ nsCacheService *   nsCacheService::gService = nsnull;
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheService, nsICacheService)
 
 nsCacheService::nsCacheService()
-    : mLock("nsCacheService.mLock"),
-      mCondVar(mLock, "nsCacheService.mCondVar"),
+    : mLock(nsnull),
+      mMonitor("block-on-cache-monitor"),
       mInitialized(PR_FALSE),
       mEnableMemoryDevice(PR_TRUE),
       mEnableDiskDevice(PR_TRUE),
@@ -1001,6 +1007,13 @@ nsCacheService::nsCacheService()
 
     // create list of cache devices
     PR_INIT_CLIST(&mDoomedEntries);
+  
+    // allocate service lock
+    mLock = PR_NewLock();
+
+#if defined(DEBUG)
+    mLockedThread = nsnull;
+#endif
 }
 
 nsCacheService::~nsCacheService()
@@ -1008,6 +1021,7 @@ nsCacheService::~nsCacheService()
     if (mInitialized) // Shutdown hasn't been called yet.
         (void) Shutdown();
 
+    PR_DestroyLock(mLock);
     gService = nsnull;
 }
 
@@ -1021,9 +1035,14 @@ nsCacheService::Init()
     if (mInitialized)
         return NS_ERROR_ALREADY_INITIALIZED;
 
+#ifdef MOZ_IPC
     if (mozilla::net::IsNeckoChild()) {
         return NS_ERROR_UNEXPECTED;
     }
+#endif
+
+    if (mLock == nsnull)
+        return NS_ERROR_OUT_OF_MEMORY;
 
     CACHE_LOG_INIT();
 
@@ -1618,6 +1637,7 @@ nsCacheService::OpenCacheEntry(nsCacheSession *           session,
 
     nsCacheRequest * request = nsnull;
 
+    nsCacheServiceAutoLock lock;
     nsresult rv = gService->CreateRequest(session,
                                           key,
                                           accessRequested,
@@ -1633,15 +1653,17 @@ nsCacheService::OpenCacheEntry(nsCacheSession *           session,
     if (NS_IsMainThread() && listener && gService->mCacheIOThread) {
         nsCOMPtr<nsIRunnable> ev =
             new nsProcessRequestEvent(request);
-        rv = DispatchToCacheIOThread(ev);
+        if (ev) {
+            rv = gService->mCacheIOThread->Dispatch(ev, NS_DISPATCH_NORMAL);
+        } else {
+            rv = NS_ERROR_OUT_OF_MEMORY;
+        }
 
         // delete request if we didn't post the event
         if (NS_FAILED(rv))
             delete request;
     }
     else {
-
-        nsCacheServiceAutoLock lock;
         rv = gService->ProcessRequest(request, PR_TRUE, result);
 
         // delete requests that have completed
@@ -1827,7 +1849,6 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
         if (mDiskDevice) {
             // Bypass the cache if Content-Length says the entry will be too big
             if (predictedDataSize != -1 &&
-                entry->StoragePolicy() != nsICache::STORE_ON_DISK_AS_FILE &&
                 mDiskDevice->EntryIsTooBig(predictedDataSize)) {
                 nsresult rv = nsCacheService::DoomEntry(entry);
                 NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
@@ -2193,18 +2214,25 @@ nsCacheService::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
 void
 nsCacheService::Lock()
 {
-    gService->mLock.Lock();
+    PR_Lock(gService->mLock);
+
+#if defined(DEBUG)
+    gService->mLockedThread = PR_GetCurrentThread();
+#endif
 }
 
 void
 nsCacheService::Unlock()
 {
-    gService->mLock.AssertCurrentThreadOwns();
+    NS_ASSERTION(gService->mLockedThread == PR_GetCurrentThread(), "oops");
 
     nsTArray<nsISupports*> doomed;
     doomed.SwapElements(gService->mDoomedObjects);
 
-    gService->mLock.Unlock();
+#if defined(DEBUG)
+    gService->mLockedThread = nsnull;
+#endif
+    PR_Unlock(gService->mLock);
 
     for (PRUint32 i = 0; i < doomed.Length(); ++i)
         doomed[i]->Release();
@@ -2214,7 +2242,7 @@ void
 nsCacheService::ReleaseObject_Locked(nsISupports * obj,
                                      nsIEventTarget * target)
 {
-    gService->mLock.AssertCurrentThreadOwns();
+    NS_ASSERTION(gService->mLockedThread == PR_GetCurrentThread(), "oops");
 
     PRBool isCur;
     if (!target || (NS_SUCCEEDED(target->IsOnCurrentThread(&isCur)) && isCur)) {

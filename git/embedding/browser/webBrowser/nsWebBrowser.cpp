@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -48,6 +49,7 @@
 #include "nsIComponentManager.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOM3Document.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMElement.h"
@@ -1229,7 +1231,10 @@ NS_IMETHODIMP nsWebBrowser::Create()
     }
    mDocShellAsNav->SetSessionHistory(mInitInfo->sessionHistory);
 
-   if (XRE_GetProcessType() == GeckoProcessType_Default) {
+#ifdef MOZ_IPC
+   if (XRE_GetProcessType() == GeckoProcessType_Default)
+#endif
+   {
        // Hook up global history. Do not fail if we can't - just warn.
        rv = EnableGlobalHistory(mShouldEnableHistory);
        NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EnableGlobalHistory() failed");
@@ -1742,7 +1747,10 @@ nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 #if defined(DEBUG_smaug)
     nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(browser->mDocShell);
     nsAutoString documentURI;
-    domDocument->GetDocumentURI(documentURI);
+    if (domDocument) {
+      nsCOMPtr<nsIDOM3Document> d3 = do_QueryInterface(domDocument);
+      d3->GetDocumentURI(documentURI);
+    }
     printf("nsWebBrowser::NS_ACTIVATE %p %s\n", (void*)browser,
            NS_ConvertUTF16toUTF8(documentURI).get());
 #endif
@@ -1754,7 +1762,10 @@ nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 #if defined(DEBUG_smaug)
     nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(browser->mDocShell);
     nsAutoString documentURI;
-    domDocument->GetDocumentURI(documentURI);
+    if (domDocument) {
+      nsCOMPtr<nsIDOM3Document> d3 = do_QueryInterface(domDocument);
+      d3->GetDocumentURI(documentURI);
+    }
     printf("nsWebBrowser::NS_DEACTIVATE %p %s\n", (void*)browser,
            NS_ConvertUTF16toUTF8(documentURI).get());
 #endif

@@ -152,6 +152,8 @@ protected:
 
   PRUint64 mReadTotal;
   PRUint64 mReadTransferred;
+
+  nsRefPtr<nsDOMEventListenerWrapper> mOnLoadEndListener;
 };
 
 #endif

@@ -35,8 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "ContentChild.h"
 #include "ContentParent.h"
+#endif
 #include "jscntxt.h"
 #include "nsFrameMessageManager.h"
 #include "nsContentUtils.h"
@@ -101,8 +103,10 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameMessageManager)
                                      mChrome && !mIsProcessManager)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameMessageManager)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFrameMessageManager)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsFrameMessageManager,
+                                          nsIContentFrameMessageManager)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsFrameMessageManager,
+                                           nsIContentFrameMessageManager)
 
 NS_IMETHODIMP
 nsFrameMessageManager::AddMessageListener(const nsAString& aMessage,
@@ -623,7 +627,10 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
       JSObject* global = nsnull;
       mGlobal->GetJSObject(&global);
       if (global) {
-        JS_ExecuteScript(mCx, global, holder->mObject, nsnull);
+        jsval val;
+        JS_ExecuteScript(mCx, global,
+                         (JSScript*)JS_GetPrivate(mCx, holder->mObject),
+                         &val);
       }
     }
     JSContext* unused;
@@ -646,13 +653,20 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
   nsCOMPtr<nsIInputStream> input;
   channel->Open(getter_AddRefs(input));
   nsString dataString;
-  PRUint32 avail = 0;
-  if (input && NS_SUCCEEDED(input->Available(&avail)) && avail) {
-    nsCString buffer;
-    if (NS_FAILED(NS_ReadInputStreamToString(input, buffer, avail))) {
-      return;
+  if (input) {
+    const PRUint32 bufferSize = 8192;
+    char buffer[bufferSize];
+    nsCString data;
+    PRUint32 avail = 0;
+    input->Available(&avail);
+    PRUint32 read = 0;
+    if (avail) {
+      while (NS_SUCCEEDED(input->Read(buffer, bufferSize, &read)) && read) {
+        data.Append(buffer, read);
+        read = 0;
+      }
     }
-    nsScriptLoader::ConvertToUTF16(channel, (PRUint8*)buffer.get(), avail,
+    nsScriptLoader::ConvertToUTF16(channel, (PRUint8*)data.get(), data.Length(),
                                    EmptyString(), nsnull, dataString);
   }
 
@@ -668,19 +682,15 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
         JSPrincipals* jsprin = nsnull;
         mPrincipal->GetJSPrincipals(mCx, &jsprin);
         nsContentUtils::XPConnect()->FlagSystemFilenamePrefix(url.get(), PR_TRUE);
-
-        uint32 oldopts = JS_GetOptions(mCx);
-        JS_SetOptions(mCx, oldopts | JSOPTION_NO_SCRIPT_RVAL);
-
-        JSObject* scriptObj =
+        JSScript* script =
           JS_CompileUCScriptForPrincipals(mCx, nsnull, jsprin,
                                          (jschar*)dataString.get(),
                                           dataString.Length(),
                                           url.get(), 1);
 
-        JS_SetOptions(mCx, oldopts);
-
-        if (scriptObj) {
+        if (script) {
+          JSObject* scriptObj = JS_NewScriptObject(mCx, script);
+          JS_AddObjectRoot(mCx, &scriptObj);
           nsCAutoString scheme;
           uri->GetScheme(scheme);
           // We don't cache data: scripts!
@@ -692,7 +702,10 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
                                   "Cached message manager script");
             sCachedScripts->Put(aURL, holder);
           }
-          JS_ExecuteScript(mCx, global, scriptObj, nsnull);
+          jsval val;
+          JS_ExecuteScript(mCx, global,
+                           (JSScript*)JS_GetPrivate(mCx, scriptObj), &val);
+          JS_RemoveObjectRoot(mCx, &scriptObj);
         }
         //XXX Argh, JSPrincipals are manually refcounted!
         JSPRINCIPALS_DROP(mCx, jsprin);
@@ -718,6 +731,7 @@ NS_IMPL_ISUPPORTS1(nsScriptCacheCleaner, nsIObserver)
 nsFrameMessageManager* nsFrameMessageManager::sChildProcessManager = nsnull;
 nsFrameMessageManager* nsFrameMessageManager::sParentProcessManager = nsnull;
 
+#ifdef MOZ_IPC
 bool SendAsyncMessageToChildProcess(void* aCallbackData,
                                     const nsAString& aMessage,
                                     const nsAString& aJSON)
@@ -757,11 +771,14 @@ bool SendAsyncMessageToParentProcess(void* aCallbackData,
   return true;
 }
 
+#endif
+
 nsresult
 NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
 {
   NS_ASSERTION(!nsFrameMessageManager::sParentProcessManager,
                "Re-creating sParentProcessManager");
+#ifdef MOZ_IPC
   NS_ENSURE_TRUE(IsChromeProcess(), NS_ERROR_NOT_AVAILABLE);
   nsFrameMessageManager* mm = new nsFrameMessageManager(PR_TRUE,
                                                         nsnull,
@@ -775,6 +792,9 @@ NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
   NS_ENSURE_TRUE(mm, NS_ERROR_OUT_OF_MEMORY);
   nsFrameMessageManager::sParentProcessManager = mm;
   return CallQueryInterface(mm, aResult);
+#else
+  return NS_ERROR_NOT_AVAILABLE;
+#endif
 }
 
 
@@ -783,6 +803,7 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
 {
   NS_ASSERTION(!nsFrameMessageManager::sChildProcessManager,
                "Re-creating sChildProcessManager");
+#ifdef MOZ_IPC
   NS_ENSURE_TRUE(!IsChromeProcess(), NS_ERROR_NOT_AVAILABLE);
   nsFrameMessageManager* mm = new nsFrameMessageManager(PR_FALSE,
                                                         SendSyncMessageToParentProcess,
@@ -796,4 +817,7 @@ NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)
   NS_ENSURE_TRUE(mm, NS_ERROR_OUT_OF_MEMORY);
   nsFrameMessageManager::sChildProcessManager = mm;
   return CallQueryInterface(mm, aResult);
+#else
+  return NS_ERROR_NOT_AVAILABLE;
+#endif
 }

@@ -112,6 +112,11 @@ body {
   position: absolute;
 }
 
+.undo .close {
+  display: inline-block;
+  position: relative;
+}
+
 .info-item {
   position: absolute;
 }

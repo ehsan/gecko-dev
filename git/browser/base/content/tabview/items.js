@@ -23,7 +23,6 @@
  * Aza Raskin <aza@mozilla.com>
  * Michael Yoshitaka Erlewine <mitcho@mitcho.com>
  * Sean Dunn <seanedunn@yahoo.com>
- * Tim Taubert <tim.taubert@gmx.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -71,6 +70,15 @@ function Item() {
   // Variable: zIndex
   // The z-index for this item.
   this.zIndex = 0;
+
+  // Variable: debug
+  // When set to true, displays a rectangle on the screen that corresponds with bounds.
+  // May be used for additional debugging features in the future.
+  this.debug = false;
+
+  // Variable: $debug
+  // If <debug> is true, this will be the iQ object for the visible rectangle.
+  this.$debug = null;
 
   // Variable: container
   // The outermost DOM element that describes this item on screen.
@@ -145,16 +153,24 @@ Item.prototype = {
     this.container = container;
     this.$container = iQ(container);
 
+    if (this.debug) {
+      this.$debug = iQ('<div>')
+        .css({
+          border: '2px solid green',
+          zIndex: -10,
+          position: 'absolute'
+        })
+        .appendTo('body');
+    }
+
     iQ(this.container).data('item', this);
 
     // ___ drag
     this.dragOptions = {
       cancelClass: 'close stackExpander',
       start: function(e, ui) {
-        if (this.isAGroupItem) {
+        if (this.isAGroupItem)
           GroupItems.setActiveGroupItem(this);
-          this._unfreezeItemSize();
-        }
         // if we start dragging a tab within a group, start with dropSpace on.
         else if (this.parent != null)
           this.parent._dropSpaceActive = true;
@@ -492,6 +508,16 @@ Item.prototype = {
   },
 
   // ----------
+  // Function: _updateDebugBounds
+  // Called by a subclass when its bounds change, to update the debugging rectangles on screen.
+  // This functionality is enabled only by the debug property.
+  _updateDebugBounds: function Item__updateDebugBounds() {
+    if (this.$debug) {
+      this.$debug.css(this.bounds);
+    }
+  },
+
+  // ----------
   // Function: setTrenches
   // Sets up/moves the trenches for snapping to this item.
   setTrenches: function Item_setTrenches(rect) {
@@ -572,35 +598,6 @@ Item.prototype = {
       var droppables;
       var dropTarget;
 
-      // determine the best drop target based on the current mouse coordinates
-      let determineBestDropTarget = function (e, box) {
-        // drop events
-        var best = {
-          dropTarget: null,
-          score: 0
-        };
-
-        droppables.forEach(function(droppable) {
-          var intersection = box.intersection(droppable.bounds);
-          if (intersection && intersection.area() > best.score) {
-            var possibleDropTarget = droppable.item;
-            var accept = true;
-            if (possibleDropTarget != dropTarget) {
-              var dropOptions = possibleDropTarget.dropOptions;
-              if (dropOptions && typeof dropOptions.accept == "function")
-                accept = dropOptions.accept.apply(possibleDropTarget, [self]);
-            }
-
-            if (accept) {
-              best.dropTarget = possibleDropTarget;
-              best.score = intersection.area();
-            }
-          }
-        });
-
-        return best.dropTarget;
-      }
-
       // ___ mousemove
       var handleMouseMove = function(e) {
         // global drag tracking
@@ -627,9 +624,31 @@ Item.prototype = {
           if (typeof self.dragOptions.drag == "function")
             self.dragOptions.drag.apply(self, [e]);
 
-          let bestDropTarget = determineBestDropTarget(e, box);
+          // drop events
+          var best = {
+            dropTarget: null,
+            score: 0
+          };
 
-          if (bestDropTarget != dropTarget) {
+          droppables.forEach(function(droppable) {
+            var intersection = box.intersection(droppable.bounds);
+            if (intersection && intersection.area() > best.score) {
+              var possibleDropTarget = droppable.item;
+              var accept = true;
+              if (possibleDropTarget != dropTarget) {
+                var dropOptions = possibleDropTarget.dropOptions;
+                if (dropOptions && typeof dropOptions.accept == "function")
+                  accept = dropOptions.accept.apply(possibleDropTarget, [self]);
+              }
+
+              if (accept) {
+                best.dropTarget = possibleDropTarget;
+                best.score = intersection.area();
+              }
+            }
+          });
+
+          if (best.dropTarget != dropTarget) {
             var dropOptions;
             if (dropTarget) {
               dropOptions = dropTarget.dropOptions;
@@ -637,7 +656,7 @@ Item.prototype = {
                 dropOptions.out.apply(dropTarget, [e]);
             }
 
-            dropTarget = bestDropTarget;
+            dropTarget = best.dropTarget;
 
             if (dropTarget) {
               dropOptions = dropTarget.dropOptions;
@@ -691,10 +710,10 @@ Item.prototype = {
         }
 
         startMouse = new Point(e.pageX, e.pageY);
-        let bounds = self.getBounds();
-        startPos = bounds.position();
+        startPos = self.getBounds().position();
         startEvent = e;
         startSent = false;
+        dropTarget = null;
 
         droppables = [];
         iQ('.iq-droppable').each(function(elem) {
@@ -706,8 +725,6 @@ Item.prototype = {
             });
           }
         });
-
-        dropTarget = determineBestDropTarget(e, bounds);
 
         iQ(gWindow)
           .mousemove(handleMouseMove)
@@ -838,13 +855,6 @@ Item.prototype = {
 // Keeps track of all Items.
 let Items = {
   // ----------
-  // Function: toString
-  // Prints [Items] for debug use
-  toString: function Items_toString() {
-    return "[Items]";
-  },
-
-  // ----------
   // Variable: defaultGutter
   // How far apart Items should be from each other and from bounds
   defaultGutter: 15,
@@ -914,6 +924,7 @@ let Items = {
   //     width of children and the columns.
   //   count - overrides the item count for layout purposes;
   //     default: the actual item count
+  //   padding - pixels between each item
   //   columns - (int) a preset number of columns to use
   //   dropPos - a <Point> which should have a one-tab space left open, used
   //             when a tab is dragged over.

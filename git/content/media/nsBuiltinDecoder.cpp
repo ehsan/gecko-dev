@@ -739,7 +739,7 @@ void nsBuiltinDecoder::ChangeState(PlayState aState)
     /* No action needed */
     break;
   case PLAY_STATE_PLAYING:
-    mDecoderStateMachine->Play();
+    mDecoderStateMachine->Decode();
     break;
   case PLAY_STATE_SEEKING:
     mDecoderStateMachine->Seek(mRequestedSeekTime);

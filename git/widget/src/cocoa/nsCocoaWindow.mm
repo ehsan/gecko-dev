@@ -429,8 +429,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
     [mWindow setHasShadow:YES];
   }
 
-  [mWindow setBackgroundColor:[NSColor clearColor]];
-  [mWindow setOpaque:NO];
+  [mWindow setBackgroundColor:[NSColor whiteColor]];
   [mWindow setContentMinSize:NSMakeSize(60, 60)];
   [mWindow disableCursorRects];
 
@@ -931,15 +930,6 @@ nsCocoaWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
     mPopupContentView->ConfigureChildren(aConfigurations);
   }
   return NS_OK;
-}
-
-LayerManager*
-nsCocoaWindow::GetLayerManager(bool *aAllowRetaining)
-{
-  if (mPopupContentView) {
-    return mPopupContentView->GetLayerManager(aAllowRetaining);
-  }
-  return nsnull;
 }
 
 LayerManager*

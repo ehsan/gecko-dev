@@ -282,10 +282,6 @@ protected:
      * convert this to an ImageLayer.
      */
     nsDisplayImage* mImage;
-    /**
-     * Stores the clip that we need to apply to the image.
-     */
-    FrameLayerBuilder::Clip mImageClip;
   };
 
   /**
@@ -921,7 +917,7 @@ ContainerState::FindOpaqueBackgroundColorFor(PRInt32 aThebesLayerIndex)
 nsRefPtr<ImageContainer>
 ContainerState::ThebesLayerData::CanOptimizeImageLayer(LayerManager* aManager)
 {
-  if (!mImage || !mImageClip.mRoundedClipRects.IsEmpty()) {
+  if (!mImage) {
     return nsnull;
   }
 
@@ -946,19 +942,9 @@ ContainerState::PopThebesLayerData()
       nsRefPtr<ImageLayer> imageLayer = CreateOrRecycleImageLayer();
       imageLayer->SetContainer(imageContainer);
       data->mImage->ConfigureLayer(imageLayer);
-      NS_ASSERTION(data->mImageClip.mRoundedClipRects.IsEmpty(),
-                   "How did we get rounded clip rects here?");
-      if (data->mImageClip.mHaveClipRect) {
-        nsPresContext* presContext = mContainerFrame->PresContext();
-        nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
-        nsIntRect clip = data->mImageClip.mClipRect.ToNearestPixels(appUnitsPerDevPixel);
-        imageLayer->IntersectClipRect(
-          data->mImageClip.mClipRect.ToNearestPixels(appUnitsPerDevPixel));
-      }
       layer = imageLayer;
     } else {
       nsRefPtr<ColorLayer> colorLayer = CreateOrRecycleColorLayer();
-      colorLayer->SetIsFixedPosition(data->mLayer->GetIsFixedPosition());
       colorLayer->SetColor(data->mSolidColor);
 
       // Copy transform
@@ -1132,7 +1118,6 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
    */
   if (aItem->GetType() == nsDisplayItem::TYPE_IMAGE && mVisibleRegion.IsEmpty()) {
     mImage = static_cast<nsDisplayImage*>(aItem);
-    mImageClip = aClip;
   } else {
     mImage = nsnull;
   }
@@ -1309,9 +1294,6 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
     nsDisplayItem::LayerState layerState =
       item->GetLayerState(mBuilder, mManager);
 
-    nsIFrame* activeScrolledRoot =
-      nsLayoutUtils::GetActiveScrolledRootFor(item, mBuilder);
-
     // Assign the item to a layer
     if (layerState == LAYER_ACTIVE_FORCE ||
         layerState == LAYER_ACTIVE && (aClip.mRoundedClipRects.IsEmpty() ||
@@ -1335,9 +1317,6 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
         InvalidateForLayerChange(item, ownLayer);
         continue;
       }
-
-      ownLayer->SetIsFixedPosition(!nsLayoutUtils::ScrolledByViewportScrolling(
-                                      activeScrolledRoot, mBuilder));
 
       // Update that layer's clip and visible rects.
       NS_ASSERTION(ownLayer->Manager() == mManager, "Wrong manager");
@@ -1370,12 +1349,24 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       mNewChildLayers.AppendElement(ownLayer);
       mBuilder->LayerBuilder()->AddLayerDisplayItem(ownLayer, item);
     } else {
+      nsIFrame* f = item->GetUnderlyingFrame();
+      nsIFrame* activeScrolledRoot =
+        nsLayoutUtils::GetActiveScrolledRootFor(f, mBuilder->ReferenceFrame());
+      if (item->IsFixedAndCoveringViewport(mBuilder)) {
+        // Make its active scrolled root be the active scrolled root of
+        // the enclosing viewport, since it shouldn't be scrolled by scrolled
+        // frames in its document. InvalidateFixedBackgroundFramesFromList in
+        // nsGfxScrollFrame will not repaint this item when scrolling occurs.
+        nsIFrame* viewportFrame =
+          nsLayoutUtils::GetClosestFrameOfType(f, nsGkAtoms::viewportFrame);
+        NS_ASSERTION(viewportFrame, "no viewport???");
+        activeScrolledRoot =
+          nsLayoutUtils::GetActiveScrolledRootFor(viewportFrame, mBuilder->ReferenceFrame());
+      }
+
       nsRefPtr<ThebesLayer> thebesLayer =
         FindThebesLayerFor(item, itemVisibleRect, itemDrawRect, aClip,
                            activeScrolledRoot);
-
-      thebesLayer->SetIsFixedPosition(!nsLayoutUtils::ScrolledByViewportScrolling(
-                                         activeScrolledRoot, mBuilder));
 
       InvalidateForLayerChange(item, thebesLayer);
 
@@ -1433,7 +1424,7 @@ PRBool
 FrameLayerBuilder::NeedToInvalidateFixedDisplayItem(nsDisplayListBuilder* aBuilder,
                                                     nsDisplayItem* aItem)
 {
-  return !aItem->ShouldFixToViewport(aBuilder) ||
+  return !aItem->IsFixedAndCoveringViewport(aBuilder) ||
       !HasRetainedLayerFor(aItem->GetUnderlyingFrame(), aItem->GetPerFrameKey());
 }
 
@@ -1753,12 +1744,12 @@ FrameLayerBuilder::InvalidateAllLayers(LayerManager* aManager)
 }
 
 /* static */
-Layer*
-FrameLayerBuilder::GetDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
+PRBool
+FrameLayerBuilder::HasDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
 {
   void* propValue = aFrame->Properties().Get(DisplayItemDataProperty());
   if (!propValue)
-    return nsnull;
+    return PR_FALSE;
 
   nsTArray<DisplayItemData>* array =
     (reinterpret_cast<nsTArray<DisplayItemData>*>(&propValue));
@@ -1768,10 +1759,10 @@ FrameLayerBuilder::GetDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
       if (!layer->HasUserData(&gColorLayerUserData) &&
           !layer->HasUserData(&gImageLayerUserData) &&
           !layer->HasUserData(&gThebesDisplayItemLayerUserData))
-        return layer;
+        return PR_TRUE;
     }
   }
-  return nsnull;
+  return PR_FALSE;
 }
 
 /* static */ void

@@ -96,7 +96,9 @@ static const char* const gHTMLTypes[] = {
   APPLICATION_JAVASCRIPT,
   APPLICATION_ECMASCRIPT,
   APPLICATION_XJAVASCRIPT,
+#ifdef MOZ_VIEW_SOURCE
   VIEWSOURCE_CONTENT_TYPE,
+#endif
   APPLICATION_XHTML_XML,
   0
 };
@@ -191,6 +193,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
   nsCAutoString type;
 
   // Are we viewing source?
+#ifdef MOZ_VIEW_SOURCE
   nsCOMPtr<nsIViewSourceChannel> viewSourceChannel = do_QueryInterface(aChannel);
   if (viewSourceChannel)
   {
@@ -241,6 +244,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
     aChannel->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
     aContentType = TEXT_PLAIN;
   }
+#endif
   // Try html
   int typeIndex=0;
   while(gHTMLTypes[typeIndex]) {

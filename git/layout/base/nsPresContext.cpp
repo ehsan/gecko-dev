@@ -1071,10 +1071,12 @@ nsPresContext::UpdateCharSet(const nsAFlatCString& aCharSet)
     // this will be a language group (or script) code rather than a true language code
 
     // bug 39570: moved from nsLanguageAtomService::LookupCharSet()
+#if !defined(XP_BEOS) 
     if (mLanguage == nsGkAtoms::Unicode) {
       NS_RELEASE(mLanguage);
       NS_IF_ADDREF(mLanguage = mLangService->GetLocaleLanguage()); 
     }
+#endif
     GetFontPreferences();
   }
 #ifdef IBMBIDI
@@ -2436,8 +2438,9 @@ nsPresContext::IsRootContentDocument()
     return PR_FALSE;
   }
   // We may not have a root frame, so use views.
-  nsIView* view = PresShell()->GetViewManager()->GetRootView();
-  if (!view) {
+  nsIViewManager* vm = PresShell()->GetViewManager();
+  nsIView* view = nsnull;
+  if (NS_FAILED(vm->GetRootView(view)) || !view) {
     return PR_FALSE;
   }
   view = view->GetParent(); // anonymous inner view
@@ -2527,7 +2530,7 @@ PluginHideEnumerator(nsPtrHashKey<nsObjectFrame>* aEntry, void* userArg)
 
 static void
 RecoverPluginGeometry(nsDisplayListBuilder* aBuilder,
-    nsDisplayList* aList, PRBool aInTransform, PluginGeometryClosure* aClosure)
+    nsDisplayList* aList, PluginGeometryClosure* aClosure)
 {
   for (nsDisplayItem* i = aList->GetBottom(); i; i = i->GetAbove()) {
     switch (i->GetType()) {
@@ -2541,9 +2544,7 @@ RecoverPluginGeometry(nsDisplayListBuilder* aBuilder,
       // would be incorrect
       nsPtrHashKey<nsObjectFrame>* entry =
         aClosure->mAffectedPlugins.GetEntry(f);
-      // Windowed plugins in transforms are always ignored, we don't
-      // create configurations for them
-      if (entry && (!aInTransform || !f->GetWidget())) {
+      if (entry) {
         displayPlugin->GetWidgetConfiguration(aBuilder,
                                               aClosure->mOutputConfigurations);
         // we've dealt with this plugin now
@@ -2551,16 +2552,10 @@ RecoverPluginGeometry(nsDisplayListBuilder* aBuilder,
       }
       break;
     }
-    case nsDisplayItem::TYPE_TRANSFORM: {
-      nsDisplayList* sublist =
-          static_cast<nsDisplayTransform*>(i)->GetStoredList()->GetList();
-      RecoverPluginGeometry(aBuilder, sublist, PR_TRUE, aClosure);
-      break;
-    }
     default: {
       nsDisplayList* sublist = i->GetList();
       if (sublist) {
-        RecoverPluginGeometry(aBuilder, sublist, aInTransform, aClosure);
+        RecoverPluginGeometry(aBuilder, sublist, aClosure);
       }
       break;
     }
@@ -2626,7 +2621,7 @@ nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
     }
 #endif
 
-    RecoverPluginGeometry(&builder, &list, PR_FALSE, &closure);
+    RecoverPluginGeometry(&builder, &list, &closure);
     list.DeleteAll();
   }
 
@@ -2807,16 +2802,6 @@ nsRootPresContext::RootForgetUpdatePluginGeometryFrame(nsIFrame* aFrame)
   if (aFrame == mUpdatePluginGeometryForFrame) {
     mUpdatePluginGeometryForFrame->PresContext()->
       SetContainsUpdatePluginGeometryFrame(PR_FALSE);
-    mUpdatePluginGeometryForFrame = nsnull;
-  }
-}
-
-void
-nsRootPresContext::RootForgetUpdatePluginGeometryFrameForPresContext(
-  nsPresContext* aPresContext)
-{
-  if (aPresContext->GetContainsUpdatePluginGeometryFrame()) {
-    aPresContext->SetContainsUpdatePluginGeometryFrame(PR_FALSE);
     mUpdatePluginGeometryForFrame = nsnull;
   }
 }

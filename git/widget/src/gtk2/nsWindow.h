@@ -40,7 +40,9 @@
 #ifndef __nsWindow_h__
 #define __nsWindow_h__
 
-#include "mozilla/ipc/SharedMemorySysV.h"
+#ifdef MOZ_IPC
+#  include "mozilla/ipc/SharedMemorySysV.h"
+#endif
 
 #include "nsAutoPtr.h"
 
@@ -451,24 +453,6 @@ private:
      * accessible.
      */
     void                DispatchDeactivateEventAccessible();
-
-    /**
-     * Dispatch accessible window maximize event for the top level window
-     * accessible.
-     */
-    void                DispatchMaximizeEventAccessible();
-
-    /**
-     * Dispatch accessible window minize event for the top level window
-     * accessible.
-     */
-    void                DispatchMinimizeEventAccessible();
-
-    /**
-     * Dispatch accessible window restore event for the top level window
-     * accessible.
-     */
-    void                DispatchRestoreEventAccessible();
 #endif
 
     // The cursor cache

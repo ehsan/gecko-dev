@@ -75,19 +75,32 @@ static void notify_closed_marshal(GClosure* closure,
   NS_RELEASE(alert);
 }
 
-NS_IMPL_ISUPPORTS4(nsAlertsIconListener, imgIContainerObserver,
-                   imgIDecoderObserver, nsIObserver, nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS3(nsAlertsIconListener, imgIContainerObserver, imgIDecoderObserver, nsIObserver)
 
 nsAlertsIconListener::nsAlertsIconListener()
 : mLoadedFrame(PR_FALSE),
+  mHasQuit(PR_FALSE),
   mNotification(NULL)
 {
+  MOZ_COUNT_CTOR(nsAlertsIconListener);
+
+  nsCOMPtr<nsIObserverService> obsServ =
+      do_GetService("@mozilla.org/observer-service;1");
+  obsServ->AddObserver(this, "quit-application", PR_FALSE);
 }
 
 nsAlertsIconListener::~nsAlertsIconListener()
 {
+  MOZ_COUNT_DTOR(nsAlertsIconListener);
+
   if (mIconRequest)
     mIconRequest->CancelAndForgetObserver(NS_BINDING_ABORTED);
+
+  if (!mHasQuit) {
+    nsCOMPtr<nsIObserverService> obsServ =
+        do_GetService("@mozilla.org/observer-service;1");
+    obsServ->RemoveObserver(this, "quit-application");
+  }
 }
 
 NS_IMETHODIMP
@@ -294,6 +307,7 @@ nsAlertsIconListener::Observe(nsISupports *aSubject, const char *aTopic,
     g_signal_handler_disconnect(mNotification, mClosureHandler);
     g_object_unref(mNotification);
     mNotification = NULL;
+    mHasQuit = PR_TRUE;
     Release(); // equivalent to NS_RELEASE(this)
   }
   return NS_OK;
@@ -349,11 +363,6 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
 
   if (!gHasActions && aAlertTextClickable)
     return NS_ERROR_FAILURE; // No good, fallback to XUL
-
-  nsCOMPtr<nsIObserverService> obsServ =
-      do_GetService("@mozilla.org/observer-service;1");
-  if (obsServ)
-    obsServ->AddObserver(this, "quit-application", PR_TRUE);
 
   // Workaround for a libnotify bug - blank titles aren't dealt with
   // properly so we use a space

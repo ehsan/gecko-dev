@@ -10,7 +10,6 @@
 namespace ots {
 
 struct OpenTypeHHEA {
-  uint32_t version;
   int16_t ascent;
   int16_t descent;
   int16_t linegap;

@@ -109,16 +109,11 @@ public:
    */
   void SetWriteOnly();
 
-  /**
-   * Notify that some canvas content has changed and the window may
-   * need to be updated. aDamageRect is in canvas coordinates.
-   */
-  void InvalidateCanvasContent(const gfxRect* aDamageRect);
   /*
-   * Notify that we need to repaint the entire canvas, including updating of
-   * the layer tree.
+   * Ask the canvas frame to invalidate itself.  If damageRect is
+   * given, it is relative to the origin of the canvas frame in CSS pixels.
    */
-  void InvalidateCanvas();
+  void InvalidateFrame(const gfxRect* damageRect = nsnull);
 
   /*
    * Get the number of contexts in this canvas, and request a context at
@@ -162,14 +157,12 @@ public:
    * Helpers called by various users of Canvas
    */
 
-  already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
-                                               CanvasLayer *aOldLayer,
+  already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
                                                LayerManager *aManager);
 
-  // Call this whenever we need future changes to the canvas
-  // to trigger fresh invalidation requests. This needs to be called
-  // whenever we render the canvas contents to the screen, or whenever we
-  // take a snapshot of the canvas that needs to be "live" (e.g. -moz-element).
+  // Tell the Context that all the current rendering that it's
+  // invalidated has been displayed to the screen, so that it should
+  // start requesting invalidates again as needed.
   void MarkContextClean();
 
   virtual nsXPCClassInfo* GetClassInfo();

@@ -109,6 +109,8 @@ public:
   NS_METHOD SetAttribute(const nsAString& aName,
                          const nsAString& aValue);
   NS_METHOD GetTagName(nsAString& aTagName);
+  NS_METHOD GetElementsByTagName(const nsAString& aTagname,
+                                 nsIDOMNodeList** aReturn);
 
   // nsIDOMHTMLElement methods. Note that these are non-virtual
   // methods, implementations are expected to forward calls to these
@@ -527,14 +529,14 @@ protected:
    * Add/remove this element to the documents name cache
    */
   void AddToNameTable(nsIAtom* aName) {
-    NS_ASSERTION(HasName(), "Node doesn't have name?");
+    NS_ASSERTION(HasFlag(NODE_HAS_NAME), "Node lacking NODE_HAS_NAME flag");
     nsIDocument* doc = GetCurrentDoc();
     if (doc && !IsInAnonymousSubtree()) {
       doc->AddToNameTable(this, aName);
     }
   }
   void RemoveFromNameTable() {
-    if (HasName()) {
+    if (HasFlag(NODE_HAS_NAME)) {
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         doc->RemoveFromNameTable(this, GetParsedAttr(nsGkAtoms::name)->
@@ -684,26 +686,26 @@ protected:
   NS_HIDDEN_(nsresult) SetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aValue);
 
   /**
-   * Helper method for NS_IMPL_DOUBLE_ATTR macro.
-   * Gets the double-value of an attribute, returns specified default value
-   * if the attribute isn't set or isn't set to a double. Only works for
+   * Helper method for NS_IMPL_FLOAT_ATTR macro.
+   * Gets the float-value of an attribute, returns specified default value
+   * if the attribute isn't set or isn't set to a float. Only works for
    * attributes in null namespace.
    *
    * @param aAttr    name of attribute.
    * @param aDefault default-value to return if attribute isn't set.
    * @param aResult  result value [out]
    */
-  NS_HIDDEN_(nsresult) GetDoubleAttr(nsIAtom* aAttr, double aDefault, double* aValue);
+  NS_HIDDEN_(nsresult) GetFloatAttr(nsIAtom* aAttr, float aDefault, float* aValue);
 
   /**
-   * Helper method for NS_IMPL_DOUBLE_ATTR macro.
-   * Sets value of attribute to specified double. Only works for attributes
+   * Helper method for NS_IMPL_FLOAT_ATTR macro.
+   * Sets value of attribute to specified float. Only works for attributes
    * in null namespace.
    *
    * @param aAttr    name of attribute.
-   * @param aValue   Double value of attribute.
+   * @param aValue   Float value of attribute.
    */
-  NS_HIDDEN_(nsresult) SetDoubleAttr(nsIAtom* aAttr, double aValue);
+  NS_HIDDEN_(nsresult) SetFloatAttr(nsIAtom* aAttr, float aValue);
 
   /**
    * Helper for GetURIAttr and GetHrefURIForAnchors which returns an
@@ -791,7 +793,7 @@ protected:
     static const nsIContent::AttrValuesArray values[] =
       { &nsGkAtoms::_false, &nsGkAtoms::_true, &nsGkAtoms::_empty, nsnull };
 
-    if (!MayHaveContentEditableAttr())
+    if (!HasFlag(NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR))
       return eInherit;
 
     PRInt32 value = FindAttrValueIn(kNameSpaceID_None,
@@ -858,6 +860,16 @@ public:
   {
     return PR_TRUE;
   }
+  
+  virtual PRBool IsSubmitControl() const;
+
+          PRBool IsTextControl(PRBool aExcludePassword) const;
+
+          PRBool IsSingleLineTextControl(PRBool aExcludePassword) const;
+
+          PRBool IsLabelableControl() const;
+
+          PRBool IsSubmittableControl() const;
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -922,7 +934,17 @@ protected:
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAString* aValue, PRBool aNotify);
 
+  /**
+   * Returns if the element should react on autofocus attribute.
+   */
+  virtual PRBool AcceptAutofocus() const
+  {
+    return PR_FALSE;
+  }
+
   void UpdateEditableFormControlState();
+
+  PRBool IsSingleLineTextControlInternal(PRBool aExcludePassword, PRInt32 mType) const;
 
   /**
    * This method will update the form owner, using @form or looking to a parent.
@@ -1187,23 +1209,23 @@ protected:
   }
 
 /**
- * A macro to implement the getter and setter for a given double-precision
- * floating point valued content property. The method uses GetDoubleAttr and
- * SetDoubleAttr methods.
+ * A macro to implement the getter and setter for a given float
+ * valued content property. The method uses the generic GetAttr and
+ * SetAttr methods.
  */
-#define NS_IMPL_DOUBLE_ATTR(_class, _method, _atom)                    \
-  NS_IMPL_DOUBLE_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0.0)
+#define NS_IMPL_FLOAT_ATTR(_class, _method, _atom)                    \
+  NS_IMPL_FLOAT_ATTR_DEFAULT_VALUE(_class, _method, _atom, 0.0)
 
-#define NS_IMPL_DOUBLE_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default) \
+#define NS_IMPL_FLOAT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default)  \
   NS_IMETHODIMP                                                             \
-  _class::Get##_method(double* aValue)                                      \
+  _class::Get##_method(float* aValue)                                   \
   {                                                                         \
-    return GetDoubleAttr(nsGkAtoms::_atom, _default, aValue);               \
+    return GetFloatAttr(nsGkAtoms::_atom, _default, aValue);                \
   }                                                                         \
   NS_IMETHODIMP                                                             \
-  _class::Set##_method(double aValue)                                       \
+  _class::Set##_method(float aValue)                                    \
   {                                                                         \
-    return SetDoubleAttr(nsGkAtoms::_atom, aValue);                         \
+    return SetFloatAttr(nsGkAtoms::_atom, aValue);                          \
   }
 
 /**

@@ -57,9 +57,6 @@
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
 #include "nsIParserService.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 #define PREF_STRUCTS "converter.html2txt.structs"
 #define PREF_HEADER_STRATEGY "converter.html2txt.header_strategy"
@@ -384,8 +381,8 @@ nsPlainTextSerializer::AppendCDATASection(nsIContent* aCDATASection,
 }
 
 NS_IMETHODIMP
-nsPlainTextSerializer::AppendElementStart(Element* aElement,
-                                          Element* aOriginalElement,
+nsPlainTextSerializer::AppendElementStart(nsIContent *aElement,
+                                          nsIContent *aOriginalElement,
                                           nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
@@ -417,7 +414,7 @@ nsPlainTextSerializer::AppendElementStart(Element* aElement,
 } 
  
 NS_IMETHODIMP 
-nsPlainTextSerializer::AppendElementEnd(Element* aElement,
+nsPlainTextSerializer::AppendElementEnd(nsIContent *aElement,
                                         nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);

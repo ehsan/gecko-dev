@@ -80,18 +80,13 @@
 class nsIDocument;
 class nsString;
 class nsIDocShell;
+class nsICSSStyleRule;
 
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
 class nsIScriptGlobalObjectOwner;
 class nsXULPrototypeNode;
 typedef nsTArray<nsRefPtr<nsXULPrototypeNode> > nsPrototypeArray;
-
-namespace mozilla {
-namespace css {
-class StyleRule;
-}
-}
 
 static NS_DEFINE_CID(kCSSParserCID, NS_CSSPARSER_CID);
 
@@ -257,6 +252,7 @@ public:
 
     virtual ~nsXULPrototypeElement()
     {
+        UnlinkJSObjects();
         Unlink();
     }
 
@@ -285,6 +281,7 @@ public:
 
     nsresult SetAttrAt(PRUint32 aPos, const nsAString& aValue, nsIURI* aDocumentURI);
 
+    void UnlinkJSObjects();
     void Unlink();
 
     nsPrototypeArray         mChildren;
@@ -357,9 +354,7 @@ public:
     {
         NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
         if (!aObject) {
-            mScriptObject.mObject = nsnull;
-
-            return;
+          return;
         }
 
         nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,
@@ -545,7 +540,7 @@ public:
     virtual const nsAttrValue* DoGetClasses() const;
 
     NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
-    virtual mozilla::css::StyleRule* GetInlineStyleRule();
+    virtual nsICSSStyleRule* GetInlineStyleRule();
     virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                                 PRInt32 aModType) const;
     NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -619,7 +614,7 @@ protected:
     class nsXULSlots : public nsGenericElement::nsDOMSlots
     {
     public:
-       nsXULSlots();
+       nsXULSlots(PtrBits aFlags);
        virtual ~nsXULSlots();
 
        nsRefPtr<nsFrameLoader> mFrameLoader;

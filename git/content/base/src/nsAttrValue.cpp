@@ -44,7 +44,7 @@
 #include "nsAttrValue.h"
 #include "nsIAtom.h"
 #include "nsUnicharUtils.h"
-#include "mozilla/css/StyleRule.h"
+#include "nsICSSStyleRule.h"
 #include "mozilla/css/Declaration.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDocument.h"
@@ -80,7 +80,7 @@ nsAttrValue::nsAttrValue(const nsAString& aValue)
   SetTo(aValue);
 }
 
-nsAttrValue::nsAttrValue(css::StyleRule* aValue, const nsAString* aSerialized)
+nsAttrValue::nsAttrValue(nsICSSStyleRule* aValue, const nsAString* aSerialized)
     : mBits(0)
 {
   SetTo(aValue, aSerialized);
@@ -262,9 +262,9 @@ nsAttrValue::SetTo(const nsAttrValue& aOther)
       break;
     }
 #endif
-    case eDoubleValue:
+    case eFloatValue:
     {
-      cont->mDoubleValue = otherCont->mDoubleValue;
+      cont->mFloatValue = otherCont->mFloatValue;
       break;
     }
     case eIntMarginValue:
@@ -313,7 +313,7 @@ nsAttrValue::SetTo(PRInt16 aInt)
 }
 
 void
-nsAttrValue::SetTo(css::StyleRule* aValue, const nsAString* aSerialized)
+nsAttrValue::SetTo(nsICSSStyleRule* aValue, const nsAString* aSerialized)
 {
   if (EnsureEmptyMiscContainer()) {
     MiscContainer* cont = GetMiscContainer();
@@ -443,10 +443,10 @@ nsAttrValue::ToString(nsAString& aResult) const
       break;
     }
 #endif
-    case eDoubleValue:
+    case eFloatValue:
     {
       aResult.Truncate();
-      aResult.AppendFloat(GetDoubleValue());
+      aResult.AppendFloat(GetFloatValue());
       break;
     }
     default:
@@ -607,10 +607,10 @@ nsAttrValue::HashValue() const
       return NS_PTR_TO_INT32(cont->mSVGValue);
     }
 #endif
-    case eDoubleValue:
+    case eFloatValue:
     {
       // XXX this is crappy, but oh well
-      return cont->mDoubleValue;
+      return cont->mFloatValue;
     }
     case eIntMarginValue:
     {
@@ -706,9 +706,9 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
       return thisCont->mSVGValue == otherCont->mSVGValue;
     }
 #endif
-    case eDoubleValue:
+    case eFloatValue:
     {
-      return thisCont->mDoubleValue == otherCont->mDoubleValue;
+      return thisCont->mFloatValue == otherCont->mFloatValue;
     }
     case eIntMarginValue:
     {
@@ -1206,19 +1206,19 @@ nsAttrValue::ParseColor(const nsAString& aString)
   return PR_FALSE;
 }
 
-PRBool nsAttrValue::ParseDoubleValue(const nsAString& aString)
+PRBool nsAttrValue::ParseFloatValue(const nsAString& aString)
 {
   ResetIfSet();
 
   PRInt32 ec;
-  double val = PromiseFlatString(aString).ToDouble(&ec);
+  float val = PromiseFlatString(aString).ToFloat(&ec);
   if (NS_FAILED(ec)) {
     return PR_FALSE;
   }
   if (EnsureEmptyMiscContainer()) {
     MiscContainer* cont = GetMiscContainer();
-    cont->mDoubleValue = val;
-    cont->mType = eDoubleValue;
+    cont->mFloatValue = val;
+    cont->mType = eFloatValue;
     nsAutoString serializedFloat;
     serializedFloat.AppendFloat(val);
     SetMiscAtomOrString(serializedFloat.Equals(aString) ? nsnull : &aString);

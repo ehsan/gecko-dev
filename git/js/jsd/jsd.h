@@ -590,7 +590,7 @@ jsd_AddFullSourceText(JSDContext* jsdc,
 extern void
 jsd_DestroyAllSources(JSDContext* jsdc);
 
-extern char*
+extern const char*
 jsd_BuildNormalizedURL(const char* url_string);
 
 extern void

@@ -1298,11 +1298,16 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     // to our real callee.
     JSContext *context = GetContextFromObject(wrapper->GetJSObject());
     XPCCallContext ccx(NATIVE_CALLER, context);
-    if(!ccx.IsValid())
-        return retval;
-
-    xpcc = ccx.GetXPCContext();
-    cx = ccx.GetJSContext();
+    if(ccx.IsValid())
+    {
+        xpcc = ccx.GetXPCContext();
+        cx = ccx.GetJSContext();
+    }
+    else
+    {
+        xpcc = nsnull;
+        cx = nsnull;
+    }
 
     if(!cx || !xpcc || !IsReflectable(methodIndex))
         return NS_ERROR_FAILURE;

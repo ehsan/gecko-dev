@@ -37,7 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsAtomicRefcnt.h"
+#include "pratom.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsIServiceManager.h"
@@ -48,6 +48,8 @@
 #include "nsCRT.h"
 #include "nsComponentManagerUtils.h"
 
+#include "nsIPlatformCharset.h"
+
 static PRInt32          gInstanceCount = 0;
 
 /* Implementation file */
@@ -56,12 +58,12 @@ NS_IMPL_ISUPPORTS1(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
 nsScriptableUnicodeConverter::nsScriptableUnicodeConverter()
 : mIsInternal(PR_FALSE)
 {
-  PR_ATOMIC_INCREMENT(&gInstanceCount);
+  PR_AtomicIncrement(&gInstanceCount);
 }
 
 nsScriptableUnicodeConverter::~nsScriptableUnicodeConverter()
 {
-  PR_ATOMIC_DECREMENT(&gInstanceCount);
+  PR_AtomicDecrement(&gInstanceCount);
 }
 
 nsresult

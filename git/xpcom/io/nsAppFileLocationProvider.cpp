@@ -62,6 +62,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/param.h>
+#elif defined(XP_BEOS)
+#include <sys/param.h>
+#include <kernel/image.h>
+#include <storage/FindDirectory.h>
 #endif
 
 
@@ -358,6 +362,17 @@ NS_METHOD nsAppFileLocationProvider::GetProductDirectory(nsILocalFile **aLocalFi
 #elif defined(XP_UNIX)
     rv = NS_NewNativeLocalFile(nsDependentCString(PR_GetEnv("HOME")), PR_TRUE, getter_AddRefs(localDir));
     if (NS_FAILED(rv)) return rv;
+#elif defined(XP_BEOS)
+    char path[MAXPATHLEN];
+    find_directory(B_USER_SETTINGS_DIRECTORY, 0, 0, path, MAXPATHLEN);
+    // Need enough space to add the trailing backslash
+    int len = strlen(path);
+    if (len > MAXPATHLEN-2)
+        return NS_ERROR_FAILURE;
+    path[len]   = '/';
+    path[len+1] = '\0';
+    rv = NS_NewNativeLocalFile(nsDependentCString(path), PR_TRUE, getter_AddRefs(localDir));
+    if (NS_FAILED(rv)) return rv;
 #else
 #error dont_know_how_to_get_product_dir_on_your_platform
 #endif
@@ -486,7 +501,7 @@ NS_IMPL_ISUPPORTS1(nsAppDirectoryEnumerator, nsISimpleEnumerator)
 
 #if defined(XP_WIN) || defined(XP_OS2) /* Win32 and OS/2 */
 #define PATH_SEPARATOR ';'
-#else
+#else /*if defined(XP_UNIX) || defined(XP_BEOS)*/
 #define PATH_SEPARATOR ':'
 #endif
 

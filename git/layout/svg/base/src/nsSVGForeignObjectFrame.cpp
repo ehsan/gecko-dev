@@ -560,6 +560,10 @@ nsSVGForeignObjectFrame::MaybeReflowFromOuterSVGFrame()
 void
 nsSVGForeignObjectFrame::DoReflow()
 {
+#ifdef DEBUG
+  printf("**nsSVGForeignObjectFrame::DoReflow()\n");
+#endif
+
   NS_ASSERTION(!(nsSVGUtils::GetOuterSVGFrame(this)->
                              GetStateBits() & NS_FRAME_FIRST_REFLOW),
                "Calling InitialUpdate too early - must not call DoReflow!!!");

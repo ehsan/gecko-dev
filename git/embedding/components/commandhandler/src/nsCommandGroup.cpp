@@ -271,10 +271,7 @@ nsControllerCommandGroup::AddCommandToGroup(const char * aCommand, const char *a
   char* commandString = NS_strdup(aCommand); // we store allocated PRUnichar* in the array
   if (!commandString) return NS_ERROR_OUT_OF_MEMORY;
   
-#ifdef DEBUG
-  char** appended =
-#endif
-    commandList->AppendElement(commandString);
+  PRBool      appended = commandList->AppendElement(commandString) != nsnull;
   NS_ASSERTION(appended, "Append failed");
 
   return NS_OK;

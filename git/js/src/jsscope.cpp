@@ -157,10 +157,10 @@ PropertyTable::init(JSRuntime *rt, Shape *lastProp)
         sizeLog2 = MIN_SIZE_LOG2;
 
     /*
-     * Use rt->calloc_ for memory accounting and overpressure handling
+     * Use rt->calloc for memory accounting and overpressure handling
      * without OOM reporting. See PropertyTable::change.
      */
-    entries = (Shape **) rt->calloc_(JS_BIT(sizeLog2) * sizeof(Shape *));
+    entries = (Shape **) rt->calloc(JS_BIT(sizeLog2) * sizeof(Shape *));
     if (!entries) {
         METER(tableAllocFails);
         return false;
@@ -187,10 +187,10 @@ bool
 Shape::hashify(JSRuntime *rt)
 {
     JS_ASSERT(!hasTable());
-    PropertyTable *table = rt->new_<PropertyTable>(entryCount());
-    if (!table)
+    void* mem = rt->malloc(sizeof(PropertyTable));
+    if (!mem)
         return false;
-    setTable(table);
+    setTable(new(mem) PropertyTable(entryCount()));
     return getTable()->init(rt, this);
 }
 
@@ -200,6 +200,71 @@ Shape::hashify(JSRuntime *rt)
 #else
 # define LIVE_SCOPE_METER(cx,expr) /* nothing */
 #endif
+
+static inline bool
+InitField(JSCompartment *comp, EmptyShape *JSCompartment:: *field, Class *clasp)
+{
+    if (EmptyShape *emptyShape = EmptyShape::create(comp, clasp)) {
+        comp->*field = emptyShape;
+        return true;
+    }
+    return false;
+}
+
+/* static */
+bool
+Shape::initEmptyShapes(JSCompartment *comp)
+{
+    /*
+     * NewArguments allocates dslots to have enough room for the argc of the
+     * particular arguments object being created.
+     * never mutated, it's safe to pretend to have all the slots possible.
+     *
+     * Note how the fast paths in jsinterp.cpp for JSOP_LENGTH and JSOP_GETELEM
+     * bypass resolution of scope properties for length and element indices on
+     * arguments objects. This helps ensure that any arguments object needing
+     * its own mutable scope (with unique shape) is a rare event.
+     */
+    if (!InitField(comp, &JSCompartment::emptyArgumentsShape, &js_ArgumentsClass))
+        return false;
+
+    if (!InitField(comp, &JSCompartment::emptyBlockShape, &js_BlockClass))
+        return false;
+
+    /*
+     * Initialize the shared scope for all empty Call objects so gets for args
+     * and vars do not force the creation of a mutable scope for the particular
+     * call object being accessed.
+     */
+    if (!InitField(comp, &JSCompartment::emptyCallShape, &js_CallClass))
+        return false;
+
+    /* A DeclEnv object holds the name binding for a named function expression. */
+    if (!InitField(comp, &JSCompartment::emptyDeclEnvShape, &js_DeclEnvClass))
+        return false;
+
+    /* Non-escaping native enumerator objects share this empty scope. */
+    if (!InitField(comp, &JSCompartment::emptyEnumeratorShape, &js_IteratorClass))
+        return false;
+
+    /* Same drill for With objects. */
+    if (!InitField(comp, &JSCompartment::emptyWithShape, &js_WithClass))
+        return false;
+
+    return true;
+}
+
+/* static */
+void
+Shape::finishEmptyShapes(JSCompartment *comp)
+{
+    comp->emptyArgumentsShape = NULL;
+    comp->emptyBlockShape = NULL;
+    comp->emptyCallShape = NULL;
+    comp->emptyDeclEnvShape = NULL;
+    comp->emptyEnumeratorShape = NULL;
+    comp->emptyWithShape = NULL;
+}
 
 JS_STATIC_ASSERT(sizeof(JSHashNumber) == 4);
 JS_STATIC_ASSERT(sizeof(jsid) == JS_BYTES_PER_WORD);
@@ -323,14 +388,17 @@ PropertyTable::change(int log2Delta, JSContext *cx)
     JS_ASSERT(entries);
 
     /*
-     * Grow, shrink, or compress by changing this->entries.
+     * Grow, shrink, or compress by changing this->entries. Here, we prefer
+     * cx->runtime->calloc to js_calloc, which on OOM waits for a background
+     * thread to finish sweeping and retry, if appropriate. Avoid cx->calloc
+     * so our caller can be in charge of whether to JS_ReportOutOfMemory.
      */
     oldlog2 = JS_DHASH_BITS - hashShift;
     newlog2 = oldlog2 + log2Delta;
     oldsize = JS_BIT(oldlog2);
     newsize = JS_BIT(newlog2);
     nbytes = PROPERTY_TABLE_NBYTES(newsize);
-    newTable = (Shape **) cx->calloc_(nbytes);
+    newTable = (Shape **) cx->runtime->calloc(nbytes);
     if (!newTable) {
         METER(tableAllocFails);
         return false;
@@ -355,8 +423,12 @@ PropertyTable::change(int log2Delta, JSContext *cx)
         oldsize--;
     }
 
-    /* Finally, free the old entries storage. */
-    cx->free_(oldTable);
+    /*
+     * Finally, free the old entries storage. Note that cx->runtime->free just
+     * calls js_free. Use js_free here to match PropertyTable::~PropertyTable,
+     * which cannot have a cx or rt parameter.
+     */
+    js_free(oldTable);
     return true;
 }
 
@@ -529,13 +601,8 @@ Shape::newDictionaryList(JSContext *cx, Shape **listp)
     Shape *shape = *listp;
     Shape *list = shape;
 
-    /*
-     * We temporarily create the dictionary shapes using a root located on the
-     * stack. This way, the GC doesn't see any intermediate state until we
-     * switch listp at the end.
-     */
-    Shape *root = NULL;
-    Shape **childp = &root;
+    Shape **childp = listp;
+    *childp = NULL;
 
     while (shape) {
         JS_ASSERT_IF(!shape->frozen(), !shape->inDictionary());
@@ -552,21 +619,16 @@ Shape::newDictionaryList(JSContext *cx, Shape **listp)
         shape = shape->parent;
     }
 
-    *listp = root;
-    root->listp = listp;
-
-    JS_ASSERT(root->inDictionary());
-    root->hashify(cx->runtime);
-    return root;
+    list = *listp;
+    JS_ASSERT(list->inDictionary());
+    list->hashify(cx->runtime);
+    return list;
 }
 
 bool
 JSObject::toDictionaryMode(JSContext *cx)
 {
     JS_ASSERT(!inDictionaryMode());
-
-    /* We allocate the shapes from cx->compartment, so make sure it's right. */
-    JS_ASSERT(compartment() == cx->compartment);
     if (!Shape::newDictionaryList(cx, &lastProp))
         return false;
 
@@ -1223,13 +1285,6 @@ JSObject::removeProperty(JSContext *cx, jsid id)
         }
     }
 
-    /* Also, consider shrinking object slots if 25% or more are unused. */
-    if (hasSlotsArray()) {
-        JS_ASSERT(slotSpan() <= numSlots());
-        if ((slotSpan() + (slotSpan() >> 2)) < numSlots())
-            shrinkSlots(cx, slotSpan());
-    }
-
     CHECK_SHAPE_CONSISTENCY(this);
     LIVE_SCOPE_METER(cx, --cx->runtime->liveObjectProps);
     METER(removes);
@@ -1425,28 +1480,12 @@ PrintPropertyMethod(JSTracer *trc, char *buf, size_t bufsize)
 }
 #endif
 
-/*
- * A few notes on shape marking:
- *
- * We want to make sure that we regenerate the shape number exactly once per
- * shape-regenerating GC. Since delayed marking calls MarkChildren many times,
- * we handle regeneration in the PreMark stage.
- *
- * We also want to make sure to mark iteratively up the parent chain, not
- * recursively. So marking is split into markChildren and markChildrenNotParent.
- */
-
 void
-Shape::regenerate(JSTracer *trc) const
+Shape::trace(JSTracer *trc) const
 {
-    JSRuntime *rt = trc->context->runtime;
-    if (IS_GC_MARKING_TRACER(trc) && rt->gcRegenShapes)
-        shape = js_RegenerateShapeForGC(rt);
-}
+    if (IS_GC_MARKING_TRACER(trc))
+        mark();
 
-void
-Shape::markChildrenNotParent(JSTracer *trc) const
-{
     MarkId(trc, id, "id");
 
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
@@ -1463,22 +1502,5 @@ Shape::markChildrenNotParent(JSTracer *trc) const
     if (isMethod()) {
         JS_SET_TRACING_DETAILS(trc, PrintPropertyMethod, this, 0);
         Mark(trc, &methodObject());
-    }
-}
-
-void
-Shape::markChildren(JSTracer *trc) const
-{
-    markChildrenNotParent(trc);
-
-    for (Shape *shape = parent; shape; shape = shape->parent) {
-        if (IS_GC_MARKING_TRACER(trc)) {
-            GCMarker *gcmarker = static_cast<GCMarker *>(trc);
-            if (!shape->markIfUnmarked(gcmarker->getMarkColor()))
-                break;
-        }
-
-        shape->regenerate(trc);
-        shape->markChildrenNotParent(trc);
     }
 }

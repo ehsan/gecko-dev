@@ -176,9 +176,11 @@ public:
   void AddIdleTimeTarget(nsIPluginInstanceOwner* objectFrame, PRBool isVisible);
   void RemoveIdleTimeTarget(nsIPluginInstanceOwner* objectFrame);
 
+#ifdef MOZ_IPC
   void PluginCrashed(nsNPAPIPlugin* plugin,
                      const nsAString& pluginDumpID,
                      const nsAString& browserDumpID);
+#endif
 
   nsNPAPIPluginInstance *FindInstance(const char *mimetype);
   nsNPAPIPluginInstance *FindStoppedInstance(const char * url);
@@ -234,14 +236,18 @@ private:
   FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsChanged);
 
   nsresult
-  ScanPluginsDirectory(nsIFile *pluginsDir,
+  ScanPluginsDirectory(nsIFile * pluginsDir, 
+                       nsIComponentManager * compManager, 
                        PRBool aCreatePluginList,
-                       PRBool *aPluginsChanged);
-
+                       PRBool * aPluginsChanged,
+                       PRBool checkForUnwantedPlugins = PR_FALSE);
+                       
   nsresult
-  ScanPluginsDirectoryList(nsISimpleEnumerator *dirEnum,
+  ScanPluginsDirectoryList(nsISimpleEnumerator * dirEnum,
+                           nsIComponentManager * compManager, 
                            PRBool aCreatePluginList,
-                           PRBool *aPluginsChanged);
+                           PRBool * aPluginsChanged,
+                           PRBool checkForUnwantedPlugins = PR_FALSE);
 
   nsresult EnsurePluginLoaded(nsPluginTag* plugin);
 

@@ -81,7 +81,7 @@
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsCSSParser.h"
-#include "mozilla/css/ImportRule.h"
+#include "nsICSSImportRule.h"
 #include "nsThreadUtils.h"
 #include "nsGkAtoms.h"
 #include "nsDocShellCID.h"
@@ -93,6 +93,7 @@
 #include "nsIMediaList.h"
 #include "nsIDOMStyleSheet.h"
 #include "nsIDOMCSSStyleSheet.h"
+#include "nsIDOMCSSImportRule.h"
 #include "nsContentErrors.h"
 
 #include "nsIChannelPolicy.h"
@@ -564,16 +565,74 @@ static nsresult GetCharsetFromData(const unsigned char* aStyleSheetData,
     step = 1;
     pos = 0;
   }
+  // Check for a 4-byte encoding BOM before checking for a 2-byte one,
+  // since the latter can be a proper subset of the former.
+  else if (aStyleSheetData[0] == 0x00 &&
+           aStyleSheetData[1] == 0x00 &&
+           aStyleSheetData[2] == 0xFF &&
+           aStyleSheetData[3] == 0xFE) {
+    // 4-byte encoding BOM in 2143 order
+    NS_WARNING("Our unicode decoders aren't likely  to deal with this one");
+    step = 4;
+    pos = 6;
+    aCharset = "UTF-32";
+  }
+  else if (aStyleSheetData[0] == 0xFE &&
+           aStyleSheetData[1] == 0xFF &&
+           aStyleSheetData[2] == 0x00 &&
+           aStyleSheetData[3] == 0x00) {
+    // 4-byte encoding BOM in 3412 order
+    NS_WARNING("Our unicode decoders aren't likely  to deal with this one");
+    step = 4;
+    pos = 5;
+    aCharset = "UTF-32";
+  }
   else if (nsContentUtils::CheckForBOM(aStyleSheetData,
                                        aDataLength, aCharset, &bigEndian)) {
     if (aCharset.Equals("UTF-8")) {
       step = 1;
       pos = 3;
     }
+    else if (aCharset.Equals("UTF-32")) {
+      step = 4;
+      pos = bigEndian ? 7 : 4;
+    }
     else if (aCharset.Equals("UTF-16")) {
       step = 2;
       pos = bigEndian ? 3 : 2;
     }
+  }
+  else if (aStyleSheetData[0] == 0x00 &&
+           aStyleSheetData[1] == 0x00 &&
+           aStyleSheetData[2] == 0x00 &&
+           aStyleSheetData[3] == 0x40) {
+    // big-endian 4-byte encoding, no BOM
+    step = 4;
+    pos = 3;
+  }
+  else if (aStyleSheetData[0] == 0x40 &&
+           aStyleSheetData[1] == 0x00 &&
+           aStyleSheetData[2] == 0x00 &&
+           aStyleSheetData[3] == 0x00) {
+    // little-endian 4-byte encoding, no BOM
+    step = 4;
+    pos = 0;
+  }
+  else if (aStyleSheetData[0] == 0x00 &&
+           aStyleSheetData[1] == 0x00 &&
+           aStyleSheetData[2] == 0x40 &&
+           aStyleSheetData[3] == 0x00) {
+    // 4-byte encoding in 2143 order, no BOM
+    step = 4;
+    pos = 2;
+  }
+  else if (aStyleSheetData[0] == 0x00 &&
+           aStyleSheetData[1] == 0x40 &&
+           aStyleSheetData[2] == 0x00 &&
+           aStyleSheetData[3] == 0x00) {
+    // 4-byte encoding in 3412 order, no BOM
+    step = 4;
+    pos = 1;
   }
   else if (aStyleSheetData[0] == 0x00 &&
            aStyleSheetData[1] == 0x40 &&
@@ -1284,7 +1343,7 @@ Loader::InsertSheetInDoc(nsCSSStyleSheet* aSheet,
 nsresult
 Loader::InsertChildSheet(nsCSSStyleSheet* aSheet,
                          nsCSSStyleSheet* aParentSheet,
-                         ImportRule* aParentRule)
+                         nsICSSImportRule* aParentRule)
 {
   LOG(("css::Loader::InsertChildSheet"));
   NS_PRECONDITION(aSheet, "Nothing to insert");
@@ -1921,7 +1980,7 @@ nsresult
 Loader::LoadChildSheet(nsCSSStyleSheet* aParentSheet,
                        nsIURI* aURL, 
                        nsMediaList* aMedia,
-                       ImportRule* aParentRule)
+                       nsICSSImportRule* aParentRule)
 {
   LOG(("css::Loader::LoadChildSheet"));
   NS_PRECONDITION(aURL, "Must have a URI to load");

@@ -113,7 +113,7 @@ static bool
 ComputeAccurateDecimalInteger(JSContext *cx, const jschar *start, const jschar *end, jsdouble *dp)
 {
     size_t length = end - start;
-    char *cstr = static_cast<char *>(cx->malloc_(length + 1));
+    char *cstr = static_cast<char *>(cx->malloc(length + 1));
     if (!cstr)
         return false;
 
@@ -129,12 +129,12 @@ ComputeAccurateDecimalInteger(JSContext *cx, const jschar *start, const jschar *
     *dp = js_strtod_harder(JS_THREAD_DATA(cx)->dtoaState, cstr, &estr, &err);
     if (err == JS_DTOA_ENOMEM) {
         JS_ReportOutOfMemory(cx);
-        cx->free_(cstr);
+        cx->free(cstr);
         return false;
     }
     if (err == JS_DTOA_ERANGE && *dp == HUGE_VAL)
         *dp = js_PositiveInfinity;
-    cx->free_(cstr);
+    cx->free(cstr);
     return true;
 }
 
@@ -597,7 +597,7 @@ ToCStringBuf::ToCStringBuf() :dbuf(NULL)
 ToCStringBuf::~ToCStringBuf()
 {
     if (dbuf)
-        UnwantedForeground::free_(dbuf);
+        js_free(dbuf);
 }
 
 JSString * JS_FASTCALL
@@ -605,8 +605,8 @@ js_IntToString(JSContext *cx, int32 si)
 {
     uint32 ui;
     if (si >= 0) {
-        if (JSAtom::hasIntStatic(si))
-            return &JSAtom::intStatic(si);
+        if (si < INT_STRING_LIMIT)
+            return JSString::intString(si);
         ui = si;
     } else {
         ui = uint32(-si);
@@ -621,10 +621,10 @@ js_IntToString(JSContext *cx, int32 si)
     if (!str)
         return NULL;
 
-    /* +1, since MAX_LENGTH does not count the null char. */
-    JS_STATIC_ASSERT(JSShortString::MAX_LENGTH + 1 >= sizeof("-2147483648"));
+    /* +1, since MAX_SHORT_STRING_LENGTH does not count the null char. */
+    JS_STATIC_ASSERT(JSShortString::MAX_SHORT_STRING_LENGTH + 1 >= sizeof("-2147483648"));
 
-    jschar *end = str->inlineStorageBeforeInit() + JSShortString::MAX_SHORT_LENGTH;
+    jschar *end = str->getInlineStorageBeforeInit() + JSShortString::MAX_SHORT_STRING_LENGTH;
     jschar *cp = end;
     *cp = 0;
 
@@ -639,8 +639,9 @@ js_IntToString(JSContext *cx, int32 si)
 
     str->initAtOffsetInBuffer(cp, end - cp);
 
-    c->dtoaCache.cache(10, si, str);
-    return str;
+    JSString *ret = str->header();
+    c->dtoaCache.cache(10, si, ret);
+    return ret;
 }
 
 /* Returns a non-NULL pointer to inside cbuf.  */
@@ -793,7 +794,7 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
     }
     tmpGroup--;
 
-    buf = (char *)cx->malloc_(buflen + 1);
+    buf = (char *)cx->malloc(buflen + 1);
     if (!buf)
         return JS_FALSE;
 
@@ -829,12 +830,12 @@ num_toLocaleString(JSContext *cx, uintN argc, Value *vp)
 
     if (cx->localeCallbacks && cx->localeCallbacks->localeToUnicode) {
         JSBool ok = cx->localeCallbacks->localeToUnicode(cx, buf, Jsvalify(vp));
-        cx->free_(buf);
+        cx->free(buf);
         return ok;
     }
 
     str = js_NewStringCopyN(cx, buf, buflen);
-    cx->free_(buf);
+    cx->free(buf);
     if (!str)
         return JS_FALSE;
 
@@ -943,6 +944,7 @@ static JSFunctionSpec number_methods[] = {
     JS_TN(js_toString_str,       num_toString,          1, 0, &num_toString_trcinfo),
     JS_FN(js_toLocaleString_str, num_toLocaleString,    0, 0),
     JS_FN(js_valueOf_str,        js_num_valueOf,        0, 0),
+    JS_FN(js_toJSON_str,         js_num_valueOf,        0, 0),
     JS_FN("toFixed",             num_toFixed,           1, 0),
     JS_FN("toExponential",       num_toExponential,     1, 0),
     JS_FN("toPrecision",         num_toPrecision,       1, 0),
@@ -1054,9 +1056,9 @@ js_FinishRuntimeNumberState(JSContext *cx)
 {
     JSRuntime *rt = cx->runtime;
 
-    cx->free_((void *) rt->thousandsSeparator);
-    cx->free_((void *) rt->decimalSeparator);
-    cx->free_((void *) rt->numGrouping);
+    cx->free((void *) rt->thousandsSeparator);
+    cx->free((void *) rt->decimalSeparator);
+    cx->free((void *) rt->numGrouping);
     rt->thousandsSeparator = rt->decimalSeparator = rt->numGrouping = NULL;
 }
 
@@ -1153,6 +1155,7 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 {
     ToCStringBuf cbuf;
     char *numStr;
+    JSString *s;
 
     /*
      * Caller is responsible for error reporting. When called from trace,
@@ -1166,23 +1169,21 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 
     int32_t i;
     if (JSDOUBLE_IS_INT32(d, &i)) {
-        if (base == 10 && JSAtom::hasIntStatic(i))
-            return &JSAtom::intStatic(i);
+        if (base == 10 && jsuint(i) < INT_STRING_LIMIT)
+            return JSString::intString(i);
         if (jsuint(i) < jsuint(base)) {
             if (i < 10)
-                return &JSAtom::intStatic(i);
-            jschar c = 'a' + i - 10;
-            JS_ASSERT(JSAtom::hasUnitStatic(c));
-            return &JSAtom::unitStatic(c);
+                return JSString::intString(i);
+            return JSString::unitString(jschar('a' + i - 10));
         }
 
-        if (JSFlatString *str = c->dtoaCache.lookup(base, d))
+        if (JSString *str = c->dtoaCache.lookup(base, d))
             return str;
 
         numStr = IntToCString(&cbuf, i, base);
         JS_ASSERT(!cbuf.dbuf && numStr >= cbuf.sbuf && numStr < cbuf.sbuf + cbuf.sbufSize);
     } else {
-        if (JSFlatString *str = c->dtoaCache.lookup(base, d))
+        if (JSString *str = c->dtoaCache.lookup(base, d))
             return str;
 
         numStr = FracNumberToCString(cx, &cbuf, d, base);
@@ -1196,7 +1197,8 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
                      cbuf.dbuf && cbuf.dbuf == numStr);
     }
 
-    JSFixedString *s = js_NewStringCopyZ(cx, numStr);
+    s = js_NewStringCopyZ(cx, numStr);
+
     c->dtoaCache.cache(base, d, s);
     return s;
 }
@@ -1209,11 +1211,11 @@ js_NumberToString(JSContext *cx, jsdouble d)
 
 namespace js {
 
-JSFixedString *
+JSFlatString *
 NumberToString(JSContext *cx, jsdouble d)
 {
     if (JSString *str = js_NumberToStringWithBase(cx, d, 10))
-        return &str->asFixed();
+        return str->assertIsFlat();
     return NULL;
 }
 
@@ -1415,7 +1417,7 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
 
     /* Use cbuf to avoid malloc */
     if (length >= sizeof cbuf) {
-        cstr = (char *) cx->malloc_(length + 1);
+        cstr = (char *) cx->malloc(length + 1);
         if (!cstr)
            return JS_FALSE;
     } else {
@@ -1446,7 +1448,7 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
 
     i = estr - cstr;
     if (cstr != cbuf)
-        cx->free_(cstr);
+        cx->free(cstr);
     *ep = i ? s1 + i : s;
     *dp = d;
     return JS_TRUE;

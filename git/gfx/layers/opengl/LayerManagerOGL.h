@@ -42,7 +42,9 @@
 
 #include "Layers.h"
 
+#ifdef MOZ_IPC
 #include "mozilla/layers/ShadowLayers.h"
+#endif
 
 #ifdef XP_WIN
 #include <windows.h>
@@ -82,7 +84,11 @@ class ShadowColorLayer;
  * the main thread.
  */
 class THEBES_API LayerManagerOGL :
+#ifdef MOZ_IPC
     public ShadowLayerManager
+#else
+    public LayerManager
+#endif
 {
   typedef mozilla::gl::GLContext GLContext;
   typedef mozilla::gl::ShaderProgramType ProgramType;
@@ -376,7 +382,15 @@ public:
    * to a window of the given dimensions.
    */
   void SetupPipeline(int aWidth, int aHeight, WorldTransforPolicy aTransformPolicy);
-  
+
+  /**
+   * Returns true if the viewport has a Y axip flip transform applied, and all 
+   * drawing will be done upside-down.
+   */
+  bool IsDrawingFlipped() {
+    return mGLContext->IsDoubleBuffered() && !mTarget; 
+  }
+
   /**
    * Setup World transform matrix.
    * Transform will be ignored if it is not PreservesAxisAlignedRectangles

@@ -2138,17 +2138,11 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 
   if (!generatedUniqueKey) {
     // Either we didn't have a form control or we aren't in an HTML document so
-    // we can't figure out form info.  Append the tag name if it's an element
-    // to avoid restoring state for one type of element on another type.
-    if (aContent->IsElement()) {
-      KeyAppendString(nsDependentAtomString(aContent->Tag()), aKey);
-    }
-    else {
-      // Append a character that is not "d" or "f" to disambiguate from
-      // the case when we were a form control in an HTML document.
-      KeyAppendString(NS_LITERAL_CSTRING("o"), aKey);
-    }
-
+    // we can't figure out form info.  First append a character that is not "d"
+    // or "f" to disambiguate from the case when we were a form control in an
+    // HTML document.
+    KeyAppendString(NS_LITERAL_CSTRING("o"), aKey);
+    
     // Now start at aContent and append the indices of it and all its ancestors
     // in their containers.  That should at least pin down its position in the
     // DOM...
@@ -3539,6 +3533,24 @@ nsContentUtils::CheckForBOM(const unsigned char* aBuffer, PRUint32 aLength,
       aBuffer[1] == 0xBB &&
       aBuffer[2] == 0xBF) {
     aCharset = "UTF-8";
+  }
+  else if (aLength >= 4 &&
+           aBuffer[0] == 0x00 &&
+           aBuffer[1] == 0x00 &&
+           aBuffer[2] == 0xFE &&
+           aBuffer[3] == 0xFF) {
+    aCharset = "UTF-32";
+    if (bigEndian)
+      *bigEndian = PR_TRUE;
+  }
+  else if (aLength >= 4 &&
+           aBuffer[0] == 0xFF &&
+           aBuffer[1] == 0xFE &&
+           aBuffer[2] == 0x00 &&
+           aBuffer[3] == 0x00) {
+    aCharset = "UTF-32";
+    if (bigEndian)
+      *bigEndian = PR_FALSE;
   }
   else if (aLength >= 2 &&
            aBuffer[0] == 0xFE && aBuffer[1] == 0xFF) {
@@ -5492,7 +5504,7 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
     return NS_OK;
   }
 
-  JSObject *wrapper = xpc_FastGetCachedWrapper(cache, scope, vp);
+  JSObject *wrapper = xpc_GetCachedSlimWrapper(cache, scope, vp);
   if (wrapper) {
     return NS_OK;
   }
@@ -6374,16 +6386,16 @@ LayerManagerForDocumentInternal(nsIDocument *aDoc, bool aRequirePersistent,
   if (shell) {
     nsIViewManager* VM = shell->GetViewManager();
     if (VM) {
-      nsIView* rootView = VM->GetRootView();
-      if (rootView) {
+      nsIView* rootView = nsnull;
+      if (NS_SUCCEEDED(VM->GetRootView(rootView)) && rootView) {
         nsIView* displayRoot = GetDisplayRootFor(rootView);
         if (displayRoot) {
           nsIWidget* widget = displayRoot->GetNearestWidget(nsnull);
           if (widget) {
             nsRefPtr<LayerManager> manager =
-              widget->
-                GetLayerManager(aRequirePersistent ? nsIWidget::LAYER_MANAGER_PERSISTENT : 
-                                                     nsIWidget::LAYER_MANAGER_CURRENT,
+              static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget)->
+                GetLayerManager(aRequirePersistent ? nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_PERSISTENT : 
+                                                     nsIWidget_MOZILLA_2_0_BRANCH::LAYER_MANAGER_CURRENT,
                                 aAllowRetaining);
             return manager.forget();
           }

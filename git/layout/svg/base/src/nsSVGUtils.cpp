@@ -199,22 +199,28 @@ NS_SMILEnabled()
 }
 #endif // MOZ_SMIL
 
-nsSVGSVGElement*
-nsSVGUtils::GetOuterSVGElement(nsSVGElement *aSVGElement)
+Element*
+nsSVGUtils::GetParentElement(nsIContent *aContent)
 {
-  nsIContent *element = nsnull;
-  nsIContent *ancestor = aSVGElement->GetFlattenedTreeParent();
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the binding that gives us our anonymous parent.
+  // That's the binding manager for the document we actually belong to, which
+  // is our owner doc.
+  nsIDocument* ownerDoc = aContent->GetOwnerDoc();
+  nsBindingManager* bindingManager =
+    ownerDoc ? ownerDoc->BindingManager() : nsnull;
 
-  while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
-                     ancestor->Tag() != nsGkAtoms::foreignObject) {
-    element = ancestor;
-    ancestor = element->GetFlattenedTreeParent();
+  if (bindingManager) {
+    // if we have a binding manager -- do we have an anonymous parent?
+    nsIContent *result = bindingManager->GetInsertionParent(aContent);
+    if (result) {
+      return result->AsElement();
+    }
   }
 
-  if (element && element->Tag() == nsGkAtoms::svg) {
-    return static_cast<nsSVGSVGElement*>(element);
-  }
-  return nsnull;
+  // otherewise use the explicit one, whether it's null or not...
+  nsIContent* parent = aContent->GetParent();
+  return parent && parent->IsElement() ? parent->AsElement() : nsnull;
 }
 
 float
@@ -441,7 +447,7 @@ nsSVGUtils::EstablishesViewport(nsIContent *aContent)
 already_AddRefed<nsIDOMSVGElement>
 nsSVGUtils::GetNearestViewportElement(nsIContent *aContent)
 {
-  nsIContent *element = aContent->GetFlattenedTreeParent();
+  nsIContent *element = GetParentElement(aContent);
 
   while (element && element->GetNameSpaceID() == kNameSpaceID_SVG) {
     if (EstablishesViewport(element)) {
@@ -450,7 +456,25 @@ nsSVGUtils::GetNearestViewportElement(nsIContent *aContent)
       }
       return nsCOMPtr<nsIDOMSVGElement>(do_QueryInterface(element)).forget();
     }
-    element = element->GetFlattenedTreeParent();
+    element = GetParentElement(element);
+  }
+  return nsnull;
+}
+
+already_AddRefed<nsIDOMSVGElement>
+nsSVGUtils::GetFarthestViewportElement(nsIContent *aContent)
+{
+  nsIContent *element = nsnull;
+  nsIContent *ancestor = GetParentElement(aContent);
+
+  while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
+                     ancestor->Tag() != nsGkAtoms::foreignObject) {
+    element = ancestor;
+    ancestor = GetParentElement(element);
+  }
+
+  if (element && element->Tag() == nsGkAtoms::svg) {
+    return nsCOMPtr<nsIDOMSVGElement>(do_QueryInterface(element)).forget();
   }
   return nsnull;
 }
@@ -466,7 +490,7 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
 
   gfxMatrix matrix = aElement->PrependLocalTransformTo(gfxMatrix());
   nsSVGElement *element = aElement;
-  nsIContent *ancestor = aElement->GetFlattenedTreeParent();
+  nsIContent *ancestor = GetParentElement(aElement);
 
   while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
                      ancestor->Tag() != nsGkAtoms::foreignObject) {
@@ -484,7 +508,7 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
         return matrix;
       }
     }
-    ancestor = ancestor->GetFlattenedTreeParent();
+    ancestor = GetParentElement(ancestor);      
   }
   if (!aScreenCTM) {
     // didn't find a nearestViewportElement
@@ -1442,6 +1466,17 @@ nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
   gfxRect strokeExtents = aPathExtents;
   strokeExtents.Outset(dy, dx, dy, dx);
   return strokeExtents;
+}
+
+/* static */ PRBool
+nsSVGUtils::IsInnerSVG(nsIContent* aContent)
+{
+  if (!aContent->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
+    return PR_FALSE;
+  }
+  nsIContent *ancestor = GetParentElement(aContent);
+  return ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
+                     ancestor->Tag() != nsGkAtoms::foreignObject;
 }
 
 // ----------------------------------------------------------------------

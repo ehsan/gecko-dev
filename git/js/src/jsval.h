@@ -53,7 +53,7 @@ JS_BEGIN_EXTERN_C
  * Try to get jsvals 64-bit aligned. We could almost assert that all values are
  * aligned, but MSVC and GCC occasionally break alignment.
  */
-#if defined(__GNUC__) || defined(__xlc__) || defined(__xlC__)
+#ifdef __GNUC__
 # define JSVAL_ALIGNMENT        __attribute__((aligned (8)))
 #elif defined(_MSC_VER)
   /*
@@ -62,8 +62,6 @@ JS_BEGIN_EXTERN_C
    */
 # define JSVAL_ALIGNMENT
 #elif defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-# define JSVAL_ALIGNMENT
-#elif defined(__HP_cc) || defined(__HP_aCC)
 # define JSVAL_ALIGNMENT
 #endif
 
@@ -76,7 +74,7 @@ JS_BEGIN_EXTERN_C
  * nice symbolic type tags, however we can only do this when we can force the
  * underlying type of the enum to be the desired size.
  */
-#if defined(__cplusplus) && !defined(__SUNPRO_CC) && !defined(__xlC__)
+#if defined(__cplusplus) && !defined(__SUNPRO_CC)
 
 #if defined(_MSC_VER)
 # define JS_ENUM_HEADER(id, type)              enum id : type
@@ -267,13 +265,8 @@ typedef enum JSWhyMagic
     JS_GENERIC_MAGIC             /* for local use */
 } JSWhyMagic;
 
-#ifdef __cplusplus
-class                       JSString;
-class                       JSFlatString;
-#else
 typedef struct JSString     JSString;
 typedef struct JSFlatString JSFlatString;
-#endif
 typedef struct JSObject     JSObject;
 
 #if defined(IS_LITTLE_ENDIAN)
@@ -354,7 +347,6 @@ typedef union jsval_layout
             int32          i32;
             uint32         u32;
             JSWhyMagic     why;
-            jsuword        word;
         } payload;
     } s;
     double asDouble;

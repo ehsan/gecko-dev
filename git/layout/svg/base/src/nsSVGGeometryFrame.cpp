@@ -68,10 +68,8 @@ nsSVGGeometryFrame::GetPaintServer(const nsStyleSVGPaint *aPaint,
   if (aPaint->mType != eStyleSVGPaintType_Server)
     return nsnull;
 
-  nsIFrame *frame = mContent->IsNodeOfType(nsINode::eTEXT) ?
-                      GetParent() : this;
   nsSVGPaintingProperty *property =
-    nsSVGEffects::GetPaintingProperty(aPaint->mPaint.mPaintServer, frame, aType);
+    nsSVGEffects::GetPaintingProperty(aPaint->mPaint.mPaintServer, this, aType);
   if (!property)
     return nsnull;
   nsIFrame *result = property->GetReferencedFrame();

@@ -43,6 +43,10 @@
 #include "nsInterfaceHashtable.h"
 #include "mozilla/Mutex.h"
 
+#ifdef MOZ_USE_NATIVE_UCONV
+#include "nsINativeUConvService.h"
+#endif
+
 class nsCharsetConverterManager : public nsICharsetConverterManager
 {
   NS_DECL_ISUPPORTS
@@ -57,6 +61,10 @@ private:
 
   nsIStringBundle * mDataBundle;
   nsIStringBundle * mTitleBundle;
+
+#ifdef MOZ_USE_NATIVE_UCONV
+  nsCOMPtr<nsINativeUConvService> mNativeUC;
+#endif
 
   nsresult LoadExtensibleBundle(const char * aRegistryKey, 
       nsIStringBundle ** aResult);

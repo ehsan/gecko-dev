@@ -205,23 +205,23 @@ nsXULButtonAccessible::CacheChildren()
   if (!isMenu && !isMenuButton)
     return;
 
-  nsAccessible* menupopup = nsnull;
-  nsAccessible* button = nsnull;
+  nsRefPtr<nsAccessible> menupopupAccessible;
+  nsRefPtr<nsAccessible> buttonAccessible;
 
   nsAccTreeWalker walker(mWeakShell, mContent, PR_TRUE);
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild())) {
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild())) {
     PRUint32 role = child->Role();
 
     if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
-      // Get an accessible for menupopup or panel elements.
-      menupopup = child;
+      // Get an accessbile for menupopup or panel elements.
+      menupopupAccessible.swap(child);
 
     } else if (isMenuButton && role == nsIAccessibleRole::ROLE_PUSHBUTTON) {
       // Button type="menu-button" contains a real button. Get an accessible
-      // for it. Ignore dropmarker button which is placed as a last child.
-      button = child;
+      // for it. Ignore dropmarker button what is placed as a last child.
+      buttonAccessible.swap(child);
       break;
 
     } else {
@@ -230,12 +230,12 @@ nsXULButtonAccessible::CacheChildren()
     }
   }
 
-  if (!menupopup)
+  if (!menupopupAccessible)
     return;
 
-  AppendChild(menupopup);
-  if (button)
-    AppendChild(button);
+  AppendChild(menupopupAccessible);
+  if (buttonAccessible)
+    AppendChild(buttonAccessible);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -569,7 +569,7 @@ nsXULProgressMeterAccessible::GetMaximumValue(double *aMaximumValue)
   nsAutoString value;
   if (mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::max, value)) {
     PRInt32 result = NS_OK;
-    *aMaximumValue = value.ToDouble(&result);
+    *aMaximumValue = value.ToFloat(&result);
     return result;
   }
 
@@ -614,7 +614,7 @@ nsXULProgressMeterAccessible::GetCurrentValue(double *aCurrentValue)
     return NS_OK;
 
   PRInt32 error = NS_OK;
-  double value = attrValue.ToDouble(&error);
+  double value = attrValue.ToFloat(&error);
   if (NS_FAILED(error))
     return NS_OK; // Zero value because of wrong markup.
 
@@ -1045,8 +1045,8 @@ nsXULTextFieldAccessible::CacheChildren()
 
   nsAccTreeWalker walker(mWeakShell, inputContent, PR_FALSE);
 
-  nsAccessible* child = nsnull;
-  while ((child = walker.NextChild()) && AppendChild(child));
+  nsRefPtr<nsAccessible> child;
+  while ((child = walker.GetNextChild()) && AppendChild(child));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

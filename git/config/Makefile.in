@@ -104,7 +104,8 @@ HEADERS = \
 
 export:: $(TARGETS) $(HEADERS)
 	$(INSTALL) $(IFLAGS1) $(HEADERS) $(DIST)/include
-	-$(RM) $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)
+	-rm -f $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)
+	-rm -f $(DIST)/bin/chrome/chromelist.txt
 ifdef HOST_PROGRAM
 	$(INSTALL) $(HOST_PROGRAM) $(DIST)/bin
 endif
@@ -167,7 +168,7 @@ install::
 	$(SYSINSTALL) $(IFLAGS1) $(DEPTH)/mozilla-config.h $(DESTDIR)$(includedir)
 
 GARBAGE += \
-  $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES) buildid $(srcdir)/*.pyc *.pyc
+	$(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES) buildid $(srcdir)/*.pyc
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
@@ -190,7 +191,6 @@ PYUNITS := \
   unit-printprereleasesuffix.py \
   unit-JarMaker.py \
   unit-buildlist.py \
-  unit-expandlibs.py \
   $(NULL)
 
 check:: check-python-modules check-jar-mn

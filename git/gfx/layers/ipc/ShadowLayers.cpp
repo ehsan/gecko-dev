@@ -301,6 +301,7 @@ ShadowLayerForwarder::PaintedCanvas(ShadowableLayer* aCanvas,
                                     gfxSharedImageSurface* aNewFrontSurface)
 {
   mTxn->AddPaint(OpPaintCanvas(NULL, Shadow(aCanvas),
+                               nsIntRect(),
                                aNewFrontSurface->GetShmem()));
 }
 
@@ -344,7 +345,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
     common.useClipRect() = !!mutant->GetClipRect();
     common.clipRect() = (common.useClipRect() ?
                          *mutant->GetClipRect() : nsIntRect());
-    common.isFixedPosition() = mutant->GetIsFixedPosition();
     common.useTileSourceRect() = !!mutant->GetTileSourceRect();
     common.tileSourceRect() = (common.useTileSourceRect() ?
                                *mutant->GetTileSourceRect() : nsIntRect());

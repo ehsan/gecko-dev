@@ -124,17 +124,18 @@ SVGPathData::AppendSeg(PRUint32 aType, ...)
 float
 SVGPathData::GetPathLength() const
 {
+  float length = 0.0;
   SVGPathTraversalState state;
 
   PRUint32 i = 0;
   while (i < mData.Length()) {
-    SVGPathSegUtils::TraversePathSegment(&mData[i], state);
+    length += SVGPathSegUtils::GetLength(&mData[i], state);
     i += 1 + SVGPathSegUtils::ArgCountForType(mData[i]);
   }
 
   NS_ABORT_IF_FALSE(i == mData.Length(), "Very, very bad - mData corrupt");
 
-  return state.length;
+  return length;
 }
 
 #ifdef DEBUG
@@ -162,9 +163,7 @@ SVGPathData::GetSegmentLengths(nsTArray<double> *aLengths) const
 
   PRUint32 i = 0;
   while (i < mData.Length()) {
-    state.length = 0.0;
-    SVGPathSegUtils::TraversePathSegment(&mData[i], state);
-    if (!aLengths->AppendElement(state.length)) {
+    if (!aLengths->AppendElement(SVGPathSegUtils::GetLength(&mData[i], state))) {
       aLengths->Clear();
       return PR_FALSE;
     }
@@ -179,6 +178,7 @@ SVGPathData::GetSegmentLengths(nsTArray<double> *aLengths) const
 PRBool
 SVGPathData::GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aOutput) const
 {
+  double distRunningTotal = 0.0;
   SVGPathTraversalState state;
 
   aOutput->Clear();
@@ -186,7 +186,6 @@ SVGPathData::GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aOu
   PRUint32 i = 0;
   while (i < mData.Length()) {
     PRUint32 segType = SVGPathSegUtils::DecodeType(mData[i]);
-    SVGPathSegUtils::TraversePathSegment(&mData[i], state);
 
     // We skip all moveto commands except an initial moveto. See the text 'A
     // "move to" command does not count as an additional point when dividing up
@@ -200,7 +199,8 @@ SVGPathData::GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aOu
 
     if (i == 0 || (segType != nsIDOMSVGPathSeg::PATHSEG_MOVETO_ABS &&
                    segType != nsIDOMSVGPathSeg::PATHSEG_MOVETO_REL)) {
-      if (!aOutput->AppendElement(state.length)) {
+      distRunningTotal += SVGPathSegUtils::GetLength(&mData[i], state);
+      if (!aOutput->AppendElement(distRunningTotal)) {
         return PR_FALSE;
       }
     }
@@ -220,12 +220,13 @@ SVGPathData::GetPathSegAtLength(float aDistance) const
   // Return -1? Throwing would better help authors avoid tricky bugs (DOM
   // could do that if we return -1).
 
+  double distRunningTotal = 0.0;
   PRUint32 i = 0, segIndex = 0;
   SVGPathTraversalState state;
 
   while (i < mData.Length()) {
-    SVGPathSegUtils::TraversePathSegment(&mData[i], state);
-    if (state.length >= aDistance) {
+    distRunningTotal += SVGPathSegUtils::GetLength(&mData[i], state);
+    if (distRunningTotal >= aDistance) {
       return segIndex;
     }
     i += 1 + SVGPathSegUtils::ArgCountForType(mData[i]);

@@ -63,9 +63,8 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsEscape.h"
-#include "mozilla/dom/Element.h"
 
-using namespace mozilla::dom;
+//#define DEBUG_BenB
 
 static inline PRUnichar* escape(const nsString& source)
 {
@@ -242,8 +241,8 @@ mozSanitizingHTMLSerializer::AppendText(nsIContent* aText,
 }
 
 NS_IMETHODIMP 
-mozSanitizingHTMLSerializer::AppendElementStart(Element* aElement,
-                                                Element* aOriginalElement,
+mozSanitizingHTMLSerializer::AppendElementStart(nsIContent *aElement,
+                                                nsIContent *aOriginalElement,
                                                 nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
@@ -271,7 +270,7 @@ mozSanitizingHTMLSerializer::AppendElementStart(Element* aElement,
 } 
  
 NS_IMETHODIMP 
-mozSanitizingHTMLSerializer::AppendElementEnd(Element* aElement,
+mozSanitizingHTMLSerializer::AppendElementEnd(nsIContent *aElement,
                                               nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);

@@ -572,7 +572,7 @@ BasicTextureImage::BeginUpdate(nsIntRegion& aRegion)
     ImageFormat format =
         (GetContentType() == gfxASurface::CONTENT_COLOR) ?
         gfxASurface::ImageFormatRGB24 : gfxASurface::ImageFormatARGB32;
-    if (mTextureState != Valid)
+    if (!mTextureInited)
     {
         // if the texture hasn't been initialized yet, or something important
         // changed, we need to recreate our backing surface and force the
@@ -620,21 +620,13 @@ BasicTextureImage::EndUpdate()
         mGLContext->UploadSurfaceToTexture(mUpdateSurface,
                                            mUpdateRegion,
                                            mTexture,
-                                           mTextureState == Created,
+                                           !mTextureInited,
                                            mUpdateOffset,
                                            relative);
     FinishedSurfaceUpload();
 
     mUpdateSurface = nsnull;
-    mTextureState = Valid;
-}
-
-void
-BasicTextureImage::BindTexture(GLenum aTextureUnit)
-{
-    mGLContext->fActiveTexture(aTextureUnit);
-    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, Texture());
-    mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
+    mTextureInited = PR_TRUE;
 }
 
 already_AddRefed<gfxASurface>
@@ -660,7 +652,7 @@ BasicTextureImage::DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion)
 {
     nsIntRect bounds = aRegion.GetBounds();
     nsIntRegion region;
-    if (mTextureState != Valid) {
+    if (!mTextureInited) {
         bounds = nsIntRect(0, 0, mSize.width, mSize.height);
         region = nsIntRegion(bounds);
     } else {
@@ -671,10 +663,10 @@ BasicTextureImage::DirectUpdate(gfxASurface *aSurf, const nsIntRegion& aRegion)
         mGLContext->UploadSurfaceToTexture(aSurf,
                                            region,
                                            mTexture,
-                                           mTextureState == Created,
+                                           !mTextureInited,
                                            bounds.TopLeft(),
                                            PR_FALSE);
-    mTextureState = Valid;
+    mTextureInited = PR_TRUE;
     return true;
 }
 
@@ -695,7 +687,7 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
                             LOCAL_GL_UNSIGNED_BYTE,
                             NULL);
 
-    mTextureState = Allocated;
+    mTextureInited = PR_TRUE;
     mSize = aSize;
 }
 

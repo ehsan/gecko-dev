@@ -92,8 +92,7 @@ public:
     PRUint32 ExpirationTime()                     { return mExpirationTime; }
     void     SetExpirationTime( PRUint32 expires) { mExpirationTime = expires; }
 
-    PRUint32 Size()                               
-        { return mDataSize + mMetaData.Size() + (mKey ? mKey->Length() : 0); }
+    PRUint32 Size()                               { return mDataSize + mMetaData.Size(); }
 
     nsCacheDevice * CacheDevice()                            { return mCacheDevice; }
     void            SetCacheDevice( nsCacheDevice * device)  { mCacheDevice = device; }

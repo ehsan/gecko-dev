@@ -49,7 +49,6 @@ class nsIScrollableFrame;
 class nsIDOMEvent;
 class nsRegion;
 class nsDisplayListBuilder;
-class nsDisplayItem;
 class nsIFontMetrics;
 class nsClientRectList;
 
@@ -328,12 +327,6 @@ public:
    */
   static nsIFrame* GetActiveScrolledRootFor(nsIFrame* aFrame,
                                             nsIFrame* aStopAtAncestor);
-
-  static nsIFrame* GetActiveScrolledRootFor(nsDisplayItem* aItem,
-                                            nsDisplayListBuilder* aBuilder);
-
-  static PRBool ScrolledByViewportScrolling(nsIFrame* aActiveScrolledRoot,
-                                            nsDisplayListBuilder* aBuilder);
 
   /**
     * GetFrameFor returns the root frame for a view
@@ -880,7 +873,7 @@ public:
     return (aCoord.GetUnit() == eStyleUnit_Coord &&
             aCoord.GetCoordValue() == 0) ||
            (aCoord.GetUnit() == eStyleUnit_Percent &&
-            aCoord.GetPercentValue() == 0.0f) ||
+            aCoord.GetPercentValue() == 0.0) ||
            (aCoord.IsCalcUnit() &&
             // clamp negative calc() to 0
             nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) <= 0 &&
@@ -892,7 +885,7 @@ public:
     return (aCoord.GetUnit() == eStyleUnit_Coord &&
             aCoord.GetCoordValue() == 0) ||
            (aCoord.GetUnit() == eStyleUnit_Percent &&
-            aCoord.GetPercentValue() == 0.0f) ||
+            aCoord.GetPercentValue() == 0.0) ||
            (aCoord.IsCalcUnit() &&
             nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) == 0 &&
             nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) == 0);
@@ -1278,7 +1271,7 @@ public:
   };
 
   struct SurfaceFromElementResult {
-    SurfaceFromElementResult() : mIsWriteOnly(PR_TRUE), mIsStillLoading(PR_FALSE) {}
+    SurfaceFromElementResult() : mIsStillLoading(PR_FALSE) {}
 
     /* mSurface will contain the resulting surface, or will be NULL on error */
     nsRefPtr<gfxASurface> mSurface;
@@ -1286,13 +1279,11 @@ public:
     gfxIntSize mSize;
     /* The principal associated with the element whose surface was returned */
     nsCOMPtr<nsIPrincipal> mPrincipal;
-    /* The image request, if the element is an nsIImageLoadingContent */
-    nsCOMPtr<imgIRequest> mImageRequest;
     /* Whether the element was "write only", that is, the bits should not be exposed to content */
-    PRPackedBool mIsWriteOnly;
+    PRBool mIsWriteOnly;
     /* Whether the element was still loading.  Some consumers need to handle
        this case specially. */
-    PRPackedBool mIsStillLoading;
+    PRBool mIsStillLoading;
   };
 
   static SurfaceFromElementResult SurfaceFromElement(nsIDOMElement *aElement,

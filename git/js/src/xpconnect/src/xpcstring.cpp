@@ -90,7 +90,7 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
     JSAtom *atom;
     if (length == 0 && (atom = cx->runtime->atomState.emptyAtom))
     {
-        return STRING_TO_JSVAL(atom);
+        return ATOM_TO_JSVAL(atom);
     }
 
     nsStringBuffer *buf = nsStringBuffer::FromString(readable);

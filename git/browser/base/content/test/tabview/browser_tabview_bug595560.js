@@ -33,8 +33,8 @@ function testOne(contentWindow) {
   onSearchEnabledAndDisabled(contentWindow, function() {
     testTwo(contentWindow); 
   });
-  // press cmd/ctrl F
-  EventUtils.synthesizeKey("f", { accelKey: true });
+  // execute a find command (i.e. press cmd/ctrl F)
+  document.getElementById("cmd_find").doCommand();
 }
 
 function testTwo(contentWindow) {

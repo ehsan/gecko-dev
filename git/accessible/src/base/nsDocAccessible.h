@@ -443,7 +443,7 @@ protected:
    * Update the accessible tree for content insertion or removal.
    */
   void UpdateTree(nsAccessible* aContainer, nsIContent* aChildNode,
-                  bool aIsInsert);
+                  PRBool aIsInsert);
 
   /**
    * Helper for UpdateTree() method. Go down to DOM subtree and updates
@@ -455,7 +455,9 @@ protected:
     eAlertAccessible = 2
   };
 
-  PRUint32 UpdateTreeInternal(nsAccessible* aChild, bool aIsInsert);
+  PRUint32 UpdateTreeInternal(nsIContent* aStartNode,
+                              nsIContent* aEndNode,
+                              PRBool aIsInsert);
 
   /**
    * Create accessible tree.

@@ -47,6 +47,7 @@
 #include "nsIPipe.h"
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"
+#include "nsAutoLock.h"
 
 #ifdef DEBUG
 #include "prthread.h"
@@ -303,33 +304,6 @@ nsHttpPipeline::SetLastTransactionExpectedNoContent(PRBool val)
      mConnection->SetLastTransactionExpectedNoContent(val);
 }
 
-nsHttpConnection *
-nsHttpPipeline::TakeHttpConnection()
-{
-    if (mConnection)
-        return mConnection->TakeHttpConnection();
-    return nsnull;
-}
-
-void
-nsHttpPipeline::SetSSLConnectFailed()
-{
-    nsAHttpTransaction *trans = Request(0);
-
-    if (trans)
-        trans->SetSSLConnectFailed();
-}
-
-nsHttpRequestHead *
-nsHttpPipeline::RequestHead()
-{
-    nsAHttpTransaction *trans = Request(0);
-
-    if (trans)
-        return trans->RequestHead();
-    return nsnull;
-}
-
 //-----------------------------------------------------------------------------
 // nsHttpPipeline::nsAHttpConnection
 //-----------------------------------------------------------------------------
@@ -350,25 +324,20 @@ nsHttpPipeline::SetConnection(nsAHttpConnection *conn)
 }
 
 void
-nsHttpPipeline::GetSecurityCallbacks(nsIInterfaceRequestor **result,
-                                     nsIEventTarget        **target)
+nsHttpPipeline::GetSecurityCallbacks(nsIInterfaceRequestor **result)
 {
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     // return security callbacks from first request
     nsAHttpTransaction *trans = Request(0);
     if (trans)
-        trans->GetSecurityCallbacks(result, target);
-    else {
+        trans->GetSecurityCallbacks(result);
+    else
         *result = nsnull;
-        if (target)
-            *target = nsnull;
-    }
 }
 
 void
-nsHttpPipeline::OnTransportStatus(nsITransport* transport,
-                                  nsresult status, PRUint64 progress)
+nsHttpPipeline::OnTransportStatus(nsresult status, PRUint64 progress)
 {
     LOG(("nsHttpPipeline::OnStatus [this=%x status=%x progress=%llu]\n",
         this, status, progress));
@@ -378,10 +347,10 @@ nsHttpPipeline::OnTransportStatus(nsITransport* transport,
     nsAHttpTransaction *trans;
     switch (status) {
     case NS_NET_STATUS_RECEIVING_FROM:
-        // forward this only to the transaction currently recieving data
+        // forward this only to the transaction currently recieving data 
         trans = Response(0);
         if (trans)
-            trans->OnTransportStatus(transport, status, progress);
+            trans->OnTransportStatus(status, progress);
         break;
     default:
         // forward other notifications to all transactions
@@ -389,7 +358,7 @@ nsHttpPipeline::OnTransportStatus(nsITransport* transport,
         for (i=0; i<count; ++i) {
             trans = Request(i);
             if (trans)
-                trans->OnTransportStatus(transport, status, progress);
+                trans->OnTransportStatus(status, progress);
         }
         break;
     }

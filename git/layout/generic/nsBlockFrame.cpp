@@ -6076,7 +6076,6 @@ nsBlockFrame::PaintTextDecorationLine(gfxContext* aCtx,
                                       const nsPoint& aPt,
                                       nsLineBox* aLine,
                                       nscolor aColor, 
-                                      PRUint8 aStyle,
                                       gfxFloat aOffset, 
                                       gfxFloat aAscent, 
                                       gfxFloat aSize,
@@ -6097,7 +6096,7 @@ nsBlockFrame::PaintTextDecorationLine(gfxContext* aCtx,
     nsCSSRendering::PaintDecorationLine(
       aCtx, aColor, pt, size,
       PresContext()->AppUnitsToGfxUnits(aLine->GetAscent()),
-      aOffset, aDecoration, aStyle);
+      aOffset, aDecoration, nsCSSRendering::DECORATION_STYLE_SOLID);
   }
 }
 
@@ -6636,18 +6635,6 @@ nsBlockFrame::GetBulletText(nsAString& aText) const
   }
 }
 
-bool
-nsBlockFrame::HasBullet() const
-{
-  if (mBullet) {
-    const nsStyleList* styleList = GetStyleList();
-    return styleList->GetListStyleImage() ||
-      styleList->mListStyleType != NS_STYLE_LIST_STYLE_NONE;
-  }
-
-  return false;
-}
-
 // static
 PRBool
 nsBlockFrame::FrameStartsCounterScope(nsIFrame* aFrame)
@@ -6736,7 +6723,6 @@ nsBlockFrame::RenumberListsFor(nsPresContext* aPresContext,
 
   // if the frame is a placeholder, then get the out of flow frame
   nsIFrame* kid = nsPlaceholderFrame::GetRealFrameFor(aKid);
-  const nsStyleDisplay* display = kid->GetStyleDisplay();
 
   // drill down through any wrappers to the real frame
   kid = kid->GetContentInsertionFrame();
@@ -6750,6 +6736,7 @@ nsBlockFrame::RenumberListsFor(nsPresContext* aPresContext,
   // If the frame is a list-item and the frame implements our
   // block frame API then get its bullet and set the list item
   // ordinal.
+  const nsStyleDisplay* display = kid->GetStyleDisplay();
   if (NS_STYLE_DISPLAY_LIST_ITEM == display->mDisplay) {
     // Make certain that the frame is a block frame in case
     // something foreign has crept in.

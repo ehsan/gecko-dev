@@ -129,10 +129,7 @@ static ContentMap* sContentMap = NULL;
 static ContentMap& GetContentMap() {
   if (!sContentMap) {
     sContentMap = new ContentMap();
-#ifdef DEBUG
-    nsresult rv =
-#endif
-    sContentMap->Init();
+    nsresult rv = sContentMap->Init();
     NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Could not initialize map.");
   }
   return *sContentMap;
@@ -785,37 +782,6 @@ nsLayoutUtils::GetActiveScrolledRootFor(nsIFrame* aFrame,
   return f;
 }
 
-nsIFrame*
-nsLayoutUtils::GetActiveScrolledRootFor(nsDisplayItem* aItem,
-                                        nsDisplayListBuilder* aBuilder)
-{
-  nsIFrame* f = aItem->GetUnderlyingFrame();
-  if (!f) {
-    return nsnull;
-  }
-  if (aItem->ShouldFixToViewport(aBuilder)) {
-    // Make its active scrolled root be the active scrolled root of
-    // the enclosing viewport, since it shouldn't be scrolled by scrolled
-    // frames in its document. InvalidateFixedBackgroundFramesFromList in
-    // nsGfxScrollFrame will not repaint this item when scrolling occurs.
-    nsIFrame* viewportFrame =
-      nsLayoutUtils::GetClosestFrameOfType(f, nsGkAtoms::viewportFrame);
-    NS_ASSERTION(viewportFrame, "no viewport???");
-    return nsLayoutUtils::GetActiveScrolledRootFor(viewportFrame, aBuilder->ReferenceFrame());
-  } else {
-    return nsLayoutUtils::GetActiveScrolledRootFor(f, aBuilder->ReferenceFrame());
-  }
-}
-
-PRBool
-nsLayoutUtils::ScrolledByViewportScrolling(nsIFrame* aActiveScrolledRoot,
-                                           nsDisplayListBuilder* aBuilder)
-{
-  nsIFrame* rootScrollFrame =
-    aBuilder->ReferenceFrame()->PresContext()->GetPresShell()->GetRootScrollFrame();
-  return nsLayoutUtils::IsAncestorFrameCrossDoc(rootScrollFrame, aActiveScrolledRoot);
-}
-
 // static
 nsIScrollableFrame*
 nsLayoutUtils::GetNearestScrollableFrameForDirection(nsIFrame* aFrame,
@@ -1451,10 +1417,6 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
   nsDisplayListBuilder builder(aFrame, nsDisplayListBuilder::PAINTING,
 		                       !(aFlags & PAINT_HIDE_CARET));
-  if (usingDisplayPort) {
-    builder.SetHasDisplayPort();
-  }
-
   nsDisplayList list;
   if (aFlags & PAINT_IN_TRANSFORM) {
     builder.SetInTransform(PR_TRUE);
@@ -1622,12 +1584,13 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
       NS_WARNING("Flushing retained layers!");
       flags |= nsDisplayList::PAINT_FLUSH_LAYERS;
     } else if (!(aFlags & PAINT_DOCUMENT_RELATIVE)) {
-      nsIWidget *widget = aFrame->GetNearestWidget();
-      if (widget) {
+      nsIWidget_MOZILLA_2_0_BRANCH *widget2 =
+        static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(aFrame->GetNearestWidget());
+      if (widget2) {
         builder.SetFinalTransparentRegion(visibleRegion);
         // If we're finished building display list items for painting of the outermost
         // pres shell, notify the widget about any toolbars we've encountered.
-        widget->UpdateThemeGeometries(builder.GetThemeGeometries());
+        widget2->UpdateThemeGeometries(builder.GetThemeGeometries());
       }
     }
   }
@@ -1642,11 +1605,12 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if ((aFlags & PAINT_WIDGET_LAYERS) &&
       !willFlushRetainedLayers &&
       !(aFlags & PAINT_DOCUMENT_RELATIVE)) {
-    nsIWidget *widget = aFrame->GetNearestWidget();
-    if (widget) {
+    nsIWidget_MOZILLA_2_0_BRANCH *widget2 =
+      static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(aFrame->GetNearestWidget());
+    if (widget2) {
       PRInt32 pixelRatio = presContext->AppUnitsPerDevPixel();
       nsIntRegion visibleWindowRegion(visibleRegion.ToOutsidePixels(presContext->AppUnitsPerDevPixel()));
-      widget->UpdateTransparentRegion(visibleWindowRegion);
+      widget2->UpdateTransparentRegion(visibleWindowRegion);
     }
   }
 
@@ -3065,7 +3029,11 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
 GraphicsFilter
 nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+  GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
+#else
   GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
+#endif
 #ifdef MOZ_SVG
   nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
     nsCSSRendering::FindBackgroundStyleFrame(aForFrame) : aForFrame;
@@ -3793,15 +3761,13 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
         return result;
     }
 
-    // Ensure that any future changes to the canvas trigger proper invalidation,
-    // in case this is being used by -moz-element()
-    canvas->MarkContextClean();
-
     if (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA) {
       // we can modify this surface since we force a copy above when
       // when NO_PREMULTIPLY_ALPHA is set
       gfxUtils::UnpremultiplyImageSurface(static_cast<gfxImageSurface*>(surf.get()));
     }
+
+    nsCOMPtr<nsIPrincipal> principal = node->NodePrincipal();
 
     result.mSurface = surf;
     result.mSize = size;
@@ -3855,7 +3821,7 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
 
     result.mSurface = surf;
     result.mSize = size;
-    result.mPrincipal = principal.forget();
+    result.mPrincipal = principal;
     result.mIsWriteOnly = PR_FALSE;
 
     return result;
@@ -3960,13 +3926,13 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
 
   result.mSurface = gfxsurf;
   result.mSize = gfxIntSize(imgWidth, imgHeight);
-  result.mPrincipal = principal.forget();
+  result.mPrincipal = principal;
+
   // SVG images could have <foreignObject> and/or <image> elements that load
   // content from another domain.  For safety, they make the canvas write-only.
   // XXXdholbert We could probably be more permissive here if we check that our
   // helper SVG document has no elements that could load remote content.
   result.mIsWriteOnly = (imgContainer->GetType() == imgIContainer::TYPE_VECTOR);
-  result.mImageRequest = imgRequest.forget();
 
   return result;
 }

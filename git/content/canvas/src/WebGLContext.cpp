@@ -58,7 +58,6 @@
 #include "gfxUtils.h"
 
 #include "CanvasUtils.h"
-#include "nsDisplayList.h"
 
 #include "GLContextProvider.h"
 
@@ -248,9 +247,6 @@ WebGLContext::DestroyResourcesAndContext()
 void
 WebGLContext::Invalidate()
 {
-    if (mInvalidated)
-        return;
-
     if (!mCanvasElement)
         return;
 
@@ -258,8 +254,11 @@ WebGLContext::Invalidate()
     nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 #endif
 
+    if (mInvalidated)
+        return;
+
     mInvalidated = PR_TRUE;
-    HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
+    HTMLCanvasElement()->InvalidateFrame();
 }
 
 /* readonly attribute nsIDOMHTMLCanvasElement canvas; */
@@ -353,10 +352,6 @@ NS_IMETHODIMP
 WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 {
     ScopedGfxFeatureReporter reporter("WebGL");
-
-    if (mCanvasElement) {
-        HTMLCanvasElement()->InvalidateCanvas();
-    }
 
     if (mWidth == width && mHeight == height)
         return NS_OK;
@@ -624,27 +619,18 @@ WebGLContext::GetThebesSurface(gfxASurface **surface)
 
 static PRUint8 gWebGLLayerUserData;
 
-class WebGLContextUserData : public LayerUserData {
-public:
-    WebGLContextUserData(nsHTMLCanvasElement *aContent)
-    : mContent(aContent) {}
-  static void DidTransactionCallback(void* aData)
-  {
-    static_cast<WebGLContextUserData*>(aData)->mContent->MarkContextClean();
-  }
-
-private:
-  nsRefPtr<nsHTMLCanvasElement> mContent;
-};
-
 already_AddRefed<layers::CanvasLayer>
-WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
-                             CanvasLayer *aOldLayer,
+WebGLContext::GetCanvasLayer(CanvasLayer *aOldLayer,
                              LayerManager *aManager)
 {
     if (!mResetLayer && aOldLayer &&
         aOldLayer->HasUserData(&gWebGLLayerUserData)) {
         NS_ADDREF(aOldLayer);
+        if (mInvalidated) {
+            aOldLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
+            mInvalidated = PR_FALSE;
+            HTMLCanvasElement()->GetPrimaryCanvasFrame()->MarkLayersActive();
+        }
         return aOldLayer;
     }
 
@@ -653,25 +639,7 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
         NS_WARNING("CreateCanvasLayer returned null!");
         return nsnull;
     }
-    WebGLContextUserData *userData = nsnull;
-    if (aBuilder->IsPaintingToWindow()) {
-      // Make the layer tell us whenever a transaction finishes (including
-      // the current transaction), so we can clear our invalidation state and
-      // start invalidating again. We need to do this for the layer that is
-      // being painted to a window (there shouldn't be more than one at a time,
-      // and if there is, flushing the invalidation state more often than
-      // necessary is harmless).
-
-      // The layer will be destroyed when we tear down the presentation
-      // (at the latest), at which time this userData will be destroyed,
-      // releasing the reference to the element.
-      // The userData will receive DidTransactionCallbacks, which flush the
-      // the invalidation state to indicate that the canvas is up to date.
-      userData = new WebGLContextUserData(HTMLCanvasElement());
-      canvasLayer->SetDidTransactionCallback(
-              WebGLContextUserData::DidTransactionCallback, userData);
-    }
-    canvasLayer->SetUserData(&gWebGLLayerUserData, userData);
+    canvasLayer->SetUserData(&gWebGLLayerUserData, nsnull);
 
     CanvasLayer::Data data;
 
@@ -693,8 +661,9 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     canvasLayer->Initialize(data);
     PRUint32 flags = gl->CreationFormat().alpha == 0 ? Layer::CONTENT_OPAQUE : 0;
     canvasLayer->SetContentFlags(flags);
-    canvasLayer->Updated();
+    canvasLayer->Updated(nsIntRect(0, 0, mWidth, mHeight));
 
+    mInvalidated = PR_FALSE;
     mResetLayer = PR_FALSE;
 
     return canvasLayer.forget().get();
@@ -765,8 +734,8 @@ WebGLContext::MozGetUnderlyingParamString(PRUint32 pname, nsAString& retval)
 // XPCOM goop
 //
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(WebGLContext)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(WebGLContext)
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(WebGLContext, nsIDOMWebGLRenderingContext)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(WebGLContext, nsIDOMWebGLRenderingContext)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(WebGLContext)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(WebGLContext)
@@ -780,6 +749,7 @@ DOMCI_DATA(WebGLRenderingContext, WebGLContext)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(WebGLContext)
   NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMWebGLRenderingContext_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMWebGLRenderingContext)

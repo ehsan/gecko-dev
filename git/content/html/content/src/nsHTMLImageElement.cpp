@@ -369,6 +369,11 @@ nsHTMLImageElement::ParseAttribute(PRInt32 aNamespaceID,
     if (aAttribute == nsGkAtoms::align) {
       return ParseAlignValue(aValue, aResult);
     }
+    if (aAttribute == nsGkAtoms::src) {
+      static const char* kWhitespace = " \n\r\t\b";
+      aResult.SetTo(nsContentUtils::TrimCharsInSet(kWhitespace, aValue));
+      return PR_TRUE;
+    }
     if (ParseImageAttribute(aAttribute, aValue, aResult)) {
       return PR_TRUE;
     }

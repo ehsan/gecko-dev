@@ -119,7 +119,6 @@ int MOZ_XMLIsLetter(const char* ptr)
     if (!IS_NMSTRT_CHAR_MINBPC(ptr)) {
       return 0;
     }
-    /* fall through */
   case BT_NMSTRT:
   case BT_HEX:
     return 1;
@@ -135,7 +134,6 @@ int MOZ_XMLIsNCNameChar(const char* ptr)
     if (!IS_NAME_CHAR_MINBPC(ptr)) {
       return 0;
     }
-    /* fall through */
   case BT_NMSTRT:
   case BT_HEX:
   case BT_DIGIT:

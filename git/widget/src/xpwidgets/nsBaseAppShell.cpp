@@ -42,7 +42,9 @@
 #include "nsServiceManagerUtils.h"
 #include "mozilla/Services.h"
 
+#ifdef MOZ_IPC
 #include "base/message_loop.h"
+#endif
 
 // When processing the next thread event, the appshell may process native
 // events (if not in performance mode), which can result in suppressing the
@@ -54,10 +56,10 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsBaseAppShell, nsIAppShell, nsIThreadObserver,
 
 nsBaseAppShell::nsBaseAppShell()
   : mSuspendNativeCount(0)
-  , mEventloopNestingLevel(0)
   , mBlockedWait(nsnull)
   , mFavorPerf(0)
   , mNativeEventPending(0)
+  , mEventloopNestingLevel(0)
   , mStarvationDelay(0)
   , mSwitchTime(0)
   , mLastNativeEventTime(0)
@@ -95,7 +97,7 @@ nsBaseAppShell::Init()
 void
 nsBaseAppShell::NativeEventCallback()
 {
-  PRInt32 hasPending = PR_ATOMIC_SET(&mNativeEventPending, 0);
+  PRInt32 hasPending = PR_AtomicSet(&mNativeEventPending, 0);
   if (hasPending == 0)
     return;
 
@@ -186,7 +188,12 @@ nsBaseAppShell::Run(void)
 
   nsIThread *thread = NS_GetCurrentThread();
 
+#ifdef MOZ_IPC
   MessageLoop::current()->Run();
+#else
+  while (!mExiting)
+    NS_ProcessNextEvent(thread);
+#endif
 
   NS_ProcessPendingEvents(thread);
 
@@ -197,9 +204,11 @@ nsBaseAppShell::Run(void)
 NS_IMETHODIMP
 nsBaseAppShell::Exit(void)
 {
+#ifdef MOZ_IPC
   if (mRunning && !mExiting) {
     MessageLoop::current()->Quit();
   }
+#endif
   mExiting = PR_TRUE;
   return NS_OK;
 }
@@ -253,7 +262,7 @@ nsBaseAppShell::OnDispatchedEvent(nsIThreadInternal *thr)
   if (mBlockNativeEvent)
     return NS_OK;
 
-  PRInt32 lastVal = PR_ATOMIC_SET(&mNativeEventPending, 1);
+  PRInt32 lastVal = PR_AtomicSet(&mNativeEventPending, 1);
   if (lastVal == 1)
     return NS_OK;
 

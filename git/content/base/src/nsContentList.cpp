@@ -203,19 +203,23 @@ ContentListHashtableMatchEntry(PLDHashTable *table,
 {
   const ContentListHashEntry *e =
     static_cast<const ContentListHashEntry *>(entry);
-  const nsContentList* list = e->mContentList;
-  const nsContentListKey* ourKey = static_cast<const nsContentListKey *>(key);
+  const nsContentListKey* list1 = e->mContentList->GetKey();
+  const nsContentListKey* list2 = static_cast<const nsContentListKey *>(key);
 
-  return list->MatchesKey(*ourKey);
+  return list1->Equals(*list2);
 }
 
 already_AddRefed<nsContentList>
 NS_GetContentList(nsINode* aRootNode, 
                   PRInt32  aMatchNameSpaceId,
-                  const nsAString& aTagname)
+                  nsIAtom* aHTMLMatchAtom,
+                  nsIAtom* aXMLMatchAtom)
                   
 {
   NS_ASSERTION(aRootNode, "content list has to have a root");
+
+  if(!aXMLMatchAtom)
+    aXMLMatchAtom = aHTMLMatchAtom;
 
   nsContentList* list = nsnull;
 
@@ -245,14 +249,15 @@ NS_GetContentList(nsINode* aRootNode,
   ContentListHashEntry *entry = nsnull;
   // First we look in our hashtable.  Then we create a content list if needed
   if (gContentListHashTable.ops) {
-    nsContentListKey hashKey(aRootNode, aMatchNameSpaceId, aTagname);
+    nsContentListKey hashKey(aRootNode, aHTMLMatchAtom,
+                             aXMLMatchAtom, aMatchNameSpaceId);
     
     // A PL_DHASH_ADD is equivalent to a PL_DHASH_LOOKUP for cases
     // when the entry is already in the hashtable.
     entry = static_cast<ContentListHashEntry *>
                        (PL_DHashTableOperate(&gContentListHashTable,
-                                             &hashKey,
-                                             PL_DHASH_ADD));
+                                                &hashKey,
+                                                PL_DHASH_ADD));
     if (entry)
       list = entry->mContentList;
   }
@@ -260,17 +265,8 @@ NS_GetContentList(nsINode* aRootNode,
   if (!list) {
     // We need to create a ContentList and add it to our new entry, if
     // we have an entry
-    nsCOMPtr<nsIAtom> xmlAtom = do_GetAtom(aTagname);
-    nsCOMPtr<nsIAtom> htmlAtom;
-    if (aMatchNameSpaceId == kNameSpaceID_Unknown) {
-      nsAutoString lowercaseName;
-      nsContentUtils::ASCIIToLower(aTagname, lowercaseName);
-      htmlAtom = do_GetAtom(lowercaseName);
-    } else {
-      htmlAtom = xmlAtom;
-    }
     list = new nsContentList(aRootNode, aMatchNameSpaceId,
-                             htmlAtom, xmlAtom);
+                             aHTMLMatchAtom, aXMLMatchAtom);
     if (entry) {
       entry->mContentList = list;
     }
@@ -395,10 +391,7 @@ nsContentList::nsContentList(nsINode* aRootNode,
                              nsIAtom* aXMLMatchAtom,
                              PRBool aDeep)
   : nsBaseContentList(),
-    mRootNode(aRootNode),
-    mMatchNameSpaceId(aMatchNameSpaceId),
-    mHTMLMatchAtom(aHTMLMatchAtom),
-    mXMLMatchAtom(aXMLMatchAtom),
+    nsContentListKey(aRootNode, aHTMLMatchAtom, aXMLMatchAtom, aMatchNameSpaceId),
     mFunc(nsnull),
     mDestroyFunc(nsnull),
     mData(nsnull),
@@ -415,14 +408,6 @@ nsContentList::nsContentList(nsINode* aRootNode,
     mMatchAll = PR_FALSE;
   }
   mRootNode->AddMutationObserver(this);
-
-  // We only need to flush if we're in an non-HTML document, since the
-  // HTML5 parser doesn't need flushing.  Further, if we're not in a
-  // document at all right now (in the GetCurrentDoc() sense), we're
-  // not parser-created and don't need to be flushing stuff under us
-  // to get our kids right.
-  nsIDocument* doc = mRootNode->GetCurrentDoc();
-  mFlushesNeeded = doc && !doc->IsHTML();
 }
 
 nsContentList::nsContentList(nsINode* aRootNode,
@@ -434,28 +419,17 @@ nsContentList::nsContentList(nsINode* aRootNode,
                              PRInt32 aMatchNameSpaceId,
                              PRBool aFuncMayDependOnAttr)
   : nsBaseContentList(),
-    mRootNode(aRootNode),
-    mMatchNameSpaceId(aMatchNameSpaceId),
-    mHTMLMatchAtom(aMatchAtom),
-    mXMLMatchAtom(aMatchAtom),
+    nsContentListKey(aRootNode, aMatchAtom, aMatchAtom, aMatchNameSpaceId),
     mFunc(aFunc),
     mDestroyFunc(aDestroyFunc),
     mData(aData),
-    mState(LIST_DIRTY),
     mMatchAll(PR_FALSE),
+    mState(LIST_DIRTY),
     mDeep(aDeep),
     mFuncMayDependOnAttr(aFuncMayDependOnAttr)
 {
   NS_ASSERTION(mRootNode, "Must have root");
   mRootNode->AddMutationObserver(this);
-
-  // We only need to flush if we're in an non-HTML document, since the
-  // HTML5 parser doesn't need flushing.  Further, if we're not in a
-  // document at all right now (in the GetCurrentDoc() sense), we're
-  // not parser-created and don't need to be flushing stuff under us
-  // to get our kids right.
-  nsIDocument* doc = mRootNode->GetCurrentDoc();
-  mFlushesNeeded = doc && !doc->IsHTML();
 }
 
 nsContentList::~nsContentList()
@@ -501,7 +475,7 @@ nsContentList::Length(PRBool aDoFlush)
 nsIContent *
 nsContentList::Item(PRUint32 aIndex, PRBool aDoFlush)
 {
-  if (mRootNode && aDoFlush && mFlushesNeeded) {
+  if (mRootNode && aDoFlush) {
     // XXX sXBL/XBL2 issue
     nsIDocument* doc = mRootNode->GetCurrentDoc();
     if (doc) {
@@ -933,10 +907,8 @@ nsContentList::RemoveFromHashtable()
   if (!gContentListHashTable.ops)
     return;
 
-  nsDependentAtomString str(mXMLMatchAtom);
-  nsContentListKey key(mRootNode, mMatchNameSpaceId, str);
   PL_DHashTableOperate(&gContentListHashTable,
-                       &key,
+                       GetKey(),
                        PL_DHASH_REMOVE);
 
   if (gContentListHashTable.entryCount == 0) {
@@ -948,7 +920,7 @@ nsContentList::RemoveFromHashtable()
 void
 nsContentList::BringSelfUpToDate(PRBool aDoFlush)
 {
-  if (mRootNode && aDoFlush && mFlushesNeeded) {
+  if (mRootNode && aDoFlush) {
     // XXX sXBL/XBL2 issue
     nsIDocument* doc = mRootNode->GetCurrentDoc();
     if (doc) {

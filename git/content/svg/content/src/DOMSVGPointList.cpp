@@ -116,21 +116,6 @@ DOMSVGPointList::~DOMSVGPointList()
   sSVGPointListTearoffTable.RemoveTearoff(key);
 }
 
-nsIDOMSVGPoint*
-DOMSVGPointList::GetItemWithoutAddRef(PRUint32 aIndex)
-{
-#ifdef MOZ_SMIL
-  if (IsAnimValList()) {
-    Element()->FlushAnimations();
-  }
-#endif
-  if (aIndex < Length()) {
-    EnsureItemAt(aIndex);
-    return mItems[aIndex];
-  }
-  return nsnull;
-}
-
 void
 DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
 {
@@ -145,13 +130,6 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
     // It's safe to get out of sync with our internal list as long as we have
     // FEWER items than it does.
     newLength = DOMSVGPoint::MaxListIndex();
-  }
-
-  nsRefPtr<DOMSVGPointList> kungFuDeathGrip;
-  if (oldLength && !newLength) {
-    // RemovingFromList() might clear last reference to |this|.
-    // Retain a temporary reference to keep from dying before returning.
-    kungFuDeathGrip = this;
   }
 
   // If our length will decrease, notify the items that will be removed:
@@ -276,12 +254,18 @@ NS_IMETHODIMP
 DOMSVGPointList::GetItem(PRUint32 aIndex,
                          nsIDOMSVGPoint **_retval)
 {
-  *_retval = GetItemWithoutAddRef(aIndex);
-  if (!*_retval) {
-    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+#ifdef MOZ_SMIL
+  if (IsAnimValList()) {
+    Element()->FlushAnimations();
   }
-  NS_ADDREF(*_retval);
-  return NS_OK;
+#endif
+  if (aIndex < Length()) {
+    EnsureItemAt(aIndex);
+    NS_ADDREF(*_retval = mItems[aIndex]);
+    return NS_OK;
+  }
+  *_retval = nsnull;
+  return NS_ERROR_DOM_INDEX_SIZE_ERR;
 }
 
 NS_IMETHODIMP
@@ -427,12 +411,6 @@ DOMSVGPointList::AppendItem(nsIDOMSVGPoint *aNewItem,
   return InsertItemBefore(aNewItem, Length(), _retval);
 }
 
-NS_IMETHODIMP
-DOMSVGPointList::GetLength(PRUint32 *aNumberOfItems)
-{
-  return GetNumberOfItems(aNumberOfItems);
-}
-
 void
 DOMSVGPointList::EnsureItemAt(PRUint32 aIndex)
 {
@@ -477,9 +455,7 @@ DOMSVGPointList::MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex)
     return;
   }
 
-  // This needs to be a strong reference; otherwise, the RemovingFromList call
-  // below might drop the last reference to animVal before we're done with it.
-  nsRefPtr<DOMSVGPointList> animVal =
+  DOMSVGPointList *animVal =
     GetDOMWrapperIfExists(InternalAList().GetAnimValKey());
   if (!animVal) {
     // No animVal list wrapper

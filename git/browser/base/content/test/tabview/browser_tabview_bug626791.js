@@ -42,6 +42,33 @@ function test() {
     }
   }
 
+  let newWindowWithTabView = function (callback) {
+    win = window.openDialog(getBrowserURL(), "_blank", 
+                            "chrome,all,dialog=no,height=800,width=800");
+    let onLoad = function() {
+      win.removeEventListener("load", onLoad, false);
+
+      removeToolbarButton();
+      TabView.firstUseExperienced = false;
+      TabView.init();
+
+      let onShown = function() {
+        win.removeEventListener("tabviewshown", onShown, false);
+
+        cw = win.TabView.getContentWindow();
+        let groupItem = cw.GroupItems.groupItems[0];
+        groupItem.setSize(200, 200, true);
+        groupItem.setUserSize();
+
+        callback();
+      };
+
+      win.addEventListener("tabviewshown", onShown, false);
+      win.TabView.toggle();
+    }
+    win.addEventListener("load", onLoad, false);
+  }
+
   let testNameGroup = function () {
     prefix = 'name-group';
     assertToolbarButtonNotExists();
@@ -148,23 +175,10 @@ function test() {
       return;
     }
 
-    newWindowWithTabView(
-      function (newWin) {
-        cw = win.TabView.getContentWindow();
-        let groupItem = cw.GroupItems.groupItems[0];
-        groupItem.setSize(200, 200, true);
-        groupItem.setUserSize();
-
-        assertToolbarButtonNotExists();
-        test();
-      },
-      function(newWin) {
-        win = newWin;
-        removeToolbarButton();
-        TabView.firstUseExperienced = false;
-        TabView.init();
-      }
-    );
+    newWindowWithTabView(function () {
+      assertToolbarButtonNotExists();
+      test();
+    });
   }
 
   waitForExplicitFinish();

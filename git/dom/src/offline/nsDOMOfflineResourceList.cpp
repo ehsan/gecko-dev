@@ -57,9 +57,14 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIWebNavigation.h"
 
+#ifdef MOZ_IPC
 #include "nsXULAppAPI.h"
 #define IS_CHILD_PROCESS() \
     (GeckoProcessType_Default != XRE_GetProcessType())
+#else
+#define IS_CHILD_PROCESS() \
+    (false)
+#endif
 
 // Event names
 
@@ -139,10 +144,10 @@ nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aManifestURI,
   : mInitialized(PR_FALSE)
   , mManifestURI(aManifestURI)
   , mDocumentURI(aDocumentURI)
-  , mExposeCacheUpdateStatus(true)
-  , mStatus(nsIDOMOfflineResourceList::IDLE)
   , mCachedKeys(nsnull)
   , mCachedKeysCount(0)
+  , mExposeCacheUpdateStatus(true)
+  , mStatus(nsIDOMOfflineResourceList::IDLE)
 {
   mOwner = aWindow;
   mScriptContext = aScriptContext;

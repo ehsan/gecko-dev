@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsIContentSerializer_h
-#define nsIContentSerializer_h
+#ifndef _nsIContentSerializer_h__
+#define _nsIContentSerializer_h__
 
 #include "nsISupports.h"
 
@@ -44,11 +44,7 @@ class nsIContent;
 class nsIDocument;
 class nsAString;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
+/* starting interface:    nsIContentSerializer */
 
 #define NS_ICONTENTSERIALIZER_IID \
 { 0xb1ee32f2, 0xb8c4, 0x49b9, \
@@ -81,11 +77,11 @@ class nsIContentSerializer : public nsISupports {
   NS_IMETHOD AppendDoctype(nsIContent *aDoctype,
                            nsAString& aStr) = 0;
 
-  NS_IMETHOD AppendElementStart(mozilla::dom::Element* aElement,
-                                mozilla::dom::Element* aOriginalElement,
+  NS_IMETHOD AppendElementStart(nsIContent *aElement,
+                                nsIContent *aOriginalElement,
                                 nsAString& aStr) = 0;
 
-  NS_IMETHOD AppendElementEnd(mozilla::dom::Element* aElement,
+  NS_IMETHOD AppendElementEnd(nsIContent *aElement,
                               nsAString& aStr) = 0;
 
   NS_IMETHOD Flush(nsAString& aStr) = 0;
@@ -104,4 +100,4 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIContentSerializer, NS_ICONTENTSERIALIZER_IID)
 #define NS_CONTENTSERIALIZER_CONTRACTID_PREFIX \
 "@mozilla.org/layout/contentserializer;1?mimetype="
 
-#endif /* nsIContentSerializer_h */
+#endif /* __gen_nsIContentSerializer_h__ */

@@ -262,8 +262,10 @@ nsIOService::Init()
 
     gIOService = this;
 
+#ifdef MOZ_IPC
     // go into managed mode if we can, and chrome process
     if (XRE_GetProcessType() == GeckoProcessType_Default)
+#endif
         mNetworkLinkService = do_GetService(NS_NETWORK_LINK_SERVICE_CONTRACTID);
 
     if (!mNetworkLinkService)
@@ -452,27 +454,6 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
         }
 
 #ifdef MOZ_X11
-        // check to see whether GVFS can handle this URI scheme.  if it can
-        // create a nsIURI for the "scheme:", then we assume it has support for
-        // the requested protocol.  otherwise, we failover to using the default
-        // protocol handler.
-
-        rv = CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"moz-gio",
-                            result);
-        if (NS_SUCCEEDED(rv)) {
-            nsCAutoString spec(scheme);
-            spec.Append(':');
-
-            nsIURI *uri;
-            rv = (*result)->NewURI(spec, nsnull, nsnull, &uri);
-            if (NS_SUCCEEDED(rv)) {
-                NS_RELEASE(uri);
-                return rv;
-            }
-
-            NS_RELEASE(*result);
-        }
-
         // check to see whether GnomeVFS can handle this URI scheme.  if it can
         // create a nsIURI for the "scheme:", then we assume it has support for
         // the requested protocol.  otherwise, we failover to using the default
@@ -728,6 +709,7 @@ nsIOService::SetOffline(PRBool offline)
 
     NS_ASSERTION(observerService, "The observer service should not be null");
 
+#ifdef MOZ_IPC
     if (XRE_GetProcessType() == GeckoProcessType_Default) {
         if (observerService) {
             (void)observerService->NotifyObservers(nsnull,
@@ -736,6 +718,7 @@ nsIOService::SetOffline(PRBool offline)
                 NS_LITERAL_STRING("false").get());
         }
     }
+#endif
 
     while (mSetOfflineValue != mOffline) {
         offline = mSetOfflineValue;

@@ -137,11 +137,10 @@ static
 void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aData)
 {
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(TableBorder)) {
-    nsCSSValue* captionSide = aData->ValueForCaptionSide();
-    if (captionSide->GetUnit() == eCSSUnit_Null) {
+    if (aData->mTableData->mCaptionSide.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
       if (value && value->Type() == nsAttrValue::eEnum)
-        captionSide->SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
+        aData->mTableData->mCaptionSide.SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
     }
   }
 

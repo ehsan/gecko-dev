@@ -53,24 +53,12 @@
 #include "AccessCheck.h"
 #include "WrapperFactory.h"
 
-bool
-xpc_OkToHandOutWrapper(nsWrapperCache *cache)
-{
-    NS_ABORT_IF_FALSE(cache->GetWrapper(), "Must have wrapper");
-    NS_ABORT_IF_FALSE(cache->IsProxy() || IS_WN_WRAPPER(cache->GetWrapper()),
-                      "Must have proxy or XPCWrappedNative wrapper");
-    return
-        !cache->IsProxy() &&
-        !static_cast<XPCWrappedNative*>(xpc_GetJSPrivate(cache->GetWrapper()))->
-                    NeedsSOW();
-}
-
 /***************************************************************************/
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(XPCWrappedNative)
 
 NS_IMETHODIMP
-NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Unlink(void *p)
+NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::RootAndUnlinkJSObjects(void *p)
 {
     XPCWrappedNative *tmp = static_cast<XPCWrappedNative*>(p);
     tmp->ExpireWrapper();
@@ -135,7 +123,6 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
         // on our wiki at http://wiki.mozilla.org/XPConnect_object_wrapping 
 
         JSObject *obj = tmp->GetFlatJSObjectPreserveColor();
-        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFlatJSObject");
         cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, obj);
     }
 
@@ -148,7 +135,6 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
     rt->GetCompartmentMap().EnumerateRead(TraverseExpandoObjects, &closure);
 
     // XPCWrappedNative keeps its native object alive.
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mIdentity");
     cb.NoteXPCOMChild(tmp->GetIdentityObject());
 
     tmp->NoteTearoffs(cb);
@@ -173,7 +159,6 @@ XPCWrappedNative::NoteTearoffs(nsCycleCollectionTraversalCallback& cb)
             JSObject* jso = to->GetJSObject();
             if(!jso)
             {
-                NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "tearoff's mNative");
                 cb.NoteXPCOMChild(to->GetNative());
             }
         }

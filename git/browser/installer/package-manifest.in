@@ -51,10 +51,12 @@
 #else
 @BINPATH@/@DLL_PREFIX@xul@DLL_SUFFIX@
 #endif
+#ifdef MOZ_IPC
 #ifdef XP_MACOSX
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@.app/
 #else
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@
+#endif
 #endif
 #ifdef WINCE
 @BINPATH@/mozce_shunt.dll
@@ -82,6 +84,7 @@
 
 [browser]
 ; [Base Browser Files]
+@BINPATH@/jsloader/
 #ifndef XP_UNIX
 @BINPATH@/@MOZ_APP_NAME@.exe
 #else
@@ -239,6 +242,9 @@
 #endif
 @BINPATH@/components/txtsvc.xpt
 @BINPATH@/components/txmgr.xpt
+#ifdef MOZ_USE_NATIVE_UCONV
+@BINPATH@/components/ucnative.xpt
+#endif
 @BINPATH@/components/uconv.xpt
 @BINPATH@/components/unicharutil.xpt
 @BINPATH@/components/update.xpt

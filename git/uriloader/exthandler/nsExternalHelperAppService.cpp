@@ -46,9 +46,11 @@
 #define FORCE_PR_LOG
 #endif
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
 #include "mozilla/dom/ContentChild.h"
 #include "nsXULAppAPI.h"
+#endif
 
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
@@ -137,12 +139,14 @@
 
 #include "nsIPrivateBrowsingService.h"
 
+#ifdef MOZ_IPC
 #include "ContentChild.h"
 #include "nsXULAppAPI.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDocShellTreeItem.h"
 #include "ExternalHelperAppChild.h"
+#endif
 
 #ifdef ANDROID
 #include "AndroidBridge.h"
@@ -521,20 +525,7 @@ static nsDefaultMimeTypeEntry defaultMimeEntries [] =
   { APPLICATION_XPINSTALL, "xpi" },
   { "application/xhtml+xml", "xhtml" },
   { "application/xhtml+xml", "xht" },
-  { TEXT_PLAIN, "txt" },
-#ifdef MOZ_OGG
-  { VIDEO_OGG, "ogv" },
-  { VIDEO_OGG, "ogg" },
-  { APPLICATION_OGG, "ogg" },
-  { AUDIO_OGG, "oga" },
-#endif
-#ifdef MOZ_WEBM
-  { VIDEO_WEBM, "webm" },
-  { AUDIO_WEBM, "webm" },
-#endif
-#ifdef MOZ_RAW
-  { VIDEO_RAW, "yuv" }
-#endif
+  { TEXT_PLAIN, "txt" }
 };
 
 /**
@@ -600,10 +591,14 @@ static nsExtraMimeTypeEntry extraMimeEntries [] =
   { VIDEO_OGG, "ogg", "Ogg Video" },
   { APPLICATION_OGG, "ogg", "Ogg Video"},
   { AUDIO_OGG, "oga", "Ogg Audio" },
+#ifdef MOZ_WEBM
   { VIDEO_WEBM, "webm", "Web Media Video" },
   { AUDIO_WEBM, "webm", "Web Media Audio" },
+#endif
+#ifdef MOZ_RAW
   { VIDEO_RAW, "yuv", "Raw YUV Video" },
-  { AUDIO_WAV, "wav", "Waveform Audio" }
+#endif
+  { AUDIO_WAV, "wav", "Waveform Audio" },
 };
 
 #undef MAC_TYPE
@@ -702,6 +697,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
   if (channel)
     channel->GetURI(getter_AddRefs(uri));
 
+#ifdef MOZ_IPC
   PRInt64 contentLength = GetContentLengthAsInt64(aRequest);
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     // We need to get a hold of a ContentChild so that we can begin forwarding
@@ -746,6 +742,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
 
     return NS_OK;
   }
+#endif // MOZ_IPC
 
   if (channel) {
     // Check if we have a POST request, in which case we don't want to use
@@ -985,10 +982,12 @@ nsExternalHelperAppService::LoadURI(nsIURI *aURI,
 {
   NS_ENSURE_ARG_POINTER(aURI);
 
+#ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     mozilla::dom::ContentChild::GetSingleton()->SendLoadURIExternal(aURI);
     return NS_OK;
   }
+#endif
 
   nsCAutoString spec;
   aURI->GetSpec(spec);
@@ -1244,7 +1243,6 @@ nsExternalAppHandler::nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo,
 , mContentLength(-1)
 , mProgress(0)
 , mDataBuffer(nsnull)
-, mKeepRequestAlive(PR_FALSE)
 , mRequest(nsnull)
 {
 
@@ -1571,7 +1569,7 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
   mIsFileChannel = fileChan != nsnull;
 
   // Get content length
-  mContentLength = GetContentLengthAsInt64(request);
+  mContentLength.mValue = GetContentLengthAsInt64(request);
 
   nsCOMPtr<nsIPropertyBag2> props(do_QueryInterface(request, &rv));
   // Determine whether a new window was opened specifically for this request
@@ -1651,10 +1649,12 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     encChannel->SetApplyConversion( applyConversion );
   }
 
+#ifdef MOZ_IPC
   // At this point, the child process has done everything it can usefully do
   // for OnStartRequest.
   if (XRE_GetProcessType() == GeckoProcessType_Content)
      return NS_OK;
+#endif
 
   rv = SetUpTempFile(aChannel);
   if (NS_FAILED(rv)) {
@@ -1744,7 +1744,6 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     // do this first! make sure we don't try to take an action until the user tells us what they want to do
     // with it...
     mReceivedDispositionInfo = PR_FALSE; 
-    mKeepRequestAlive = PR_TRUE;
 
     // invoke the dialog!!!!! use mWindowContext as the window context parameter for the dialog request
     mDialog = do_CreateInstance( NS_HELPERAPPLAUNCHERDLG_CONTRACTID, &rv );
@@ -1897,7 +1896,10 @@ void nsExternalAppHandler::SendStatusChange(ErrorType type, nsresult rv, nsIRequ
                 mWebProgressListener->OnStatusChange(nsnull, (type == kReadError) ? aRequest : nsnull, rv, msgText);
               }
               else
-              if (XRE_GetProcessType() == GeckoProcessType_Default) {
+#ifdef MOZ_IPC
+              if (XRE_GetProcessType() == GeckoProcessType_Default)
+#endif
+              {
                 // We don't have a listener.  Simply show the alert ourselves.
                 nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mWindowContext));
                 nsXPIDLString title;
@@ -1992,10 +1994,7 @@ NS_IMETHODIMP nsExternalAppHandler::OnStopRequest(nsIRequest *request, nsISuppor
                                                   nsresult aStatus)
 {
   mStopRequestIssued = PR_TRUE;
-
-  if (!mKeepRequestAlive)
-    mRequest = nsnull;
-
+  mRequest = nsnull;
   // Cancel if the request did not complete successfully.
   if (!mCanceled && NS_FAILED(aStatus))
   {
@@ -2135,8 +2134,6 @@ nsresult nsExternalAppHandler::CreateProgressListener()
   // its observer). This cycle will be broken in Cancel, CloseProgressWindow or
   // OnStopRequest.
   SetWebProgressListener(tr);
-
-  mRequest = nsnull;
 
   return rv;
 }
@@ -2471,9 +2468,6 @@ NS_IMETHODIMP nsExternalAppHandler::Cancel(nsresult aReason)
   // Break our reference cycle with the helper app dialog (set up in
   // OnStartRequest)
   mDialog = nsnull;
-
-  mRequest = nsnull;
-
   // shutdown our stream to the temp file
   if (mOutStream)
   {

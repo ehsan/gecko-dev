@@ -85,8 +85,6 @@ public:
   static nsNSSCertificate* Create(CERTCertificate *cert = nsnull);
   static nsNSSCertificate* ConstructFromDER(char *certDER, int derLen);
 
-  // It is the responsibility of the caller of this method to free the returned
-  // string using PR_Free.
   static char* defaultServerNickname(CERTCertificate* cert);
 
 private:

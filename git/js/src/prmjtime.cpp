@@ -79,7 +79,7 @@
 
 #endif
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) || defined(XP_BEOS)
 
 #ifdef _SVID_GETTOD   /* Defined only on Solaris, see Solaris <sys/types.h> */
 extern int gettimeofday(struct timeval *tv);
@@ -326,7 +326,7 @@ PRMJ_Now(void)
     return s;
 }
 
-#elif defined(XP_UNIX)
+#elif defined(XP_UNIX) || defined(XP_BEOS)
 JSInt64
 PRMJ_Now(void)
 {
@@ -575,7 +575,7 @@ size_t
 PRMJ_FormatTime(char *buf, int buflen, const char *fmt, PRMJTime *prtm)
 {
     size_t result = 0;
-#if defined(XP_UNIX) || defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_UNIX) || defined(XP_WIN) || defined(XP_OS2) || defined(XP_BEOS)
     struct tm a;
     int fake_tm_year = 0;
 #ifdef NS_HAVE_INVALID_PARAMETER_HANDLER

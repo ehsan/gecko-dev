@@ -46,6 +46,7 @@
 #include "nsCOMArray.h"
 
 class nsICSSRule;
+class nsICSSStyleRule;
 class nsCSSStyleSheet;
 class nsIPrincipal;
 class nsIURI;
@@ -57,7 +58,6 @@ namespace mozilla {
 namespace css {
 class Declaration;
 class Loader;
-class StyleRule;
 }
 }
 
@@ -128,7 +128,7 @@ public:
                                nsIURI*           aDocURL,
                                nsIURI*           aBaseURL,
                                nsIPrincipal*     aNodePrincipal,
-                               mozilla::css::StyleRule** aResult);
+                               nsICSSStyleRule** aResult);
 
   // Parse the body of a declaration block.  Very similar to
   // ParseStyleAttribute, but used under different circumstances.

@@ -88,13 +88,8 @@ function urlSecurityCheck(aURL, aPrincipal, aFlags)
     else
       secMan.checkLoadURIStrWithPrincipal(aPrincipal, aURL, aFlags);
   } catch (e) {
-    let principalStr = "";
-    try {
-      principalStr = " from " + aPrincipal.URI.spec;
-    }
-    catch(e2) { }
-
-    throw "Load of " + aURL + principalStr + " denied.";
+    // XXXmano: dump the principal url here too
+    throw "Load of " + aURL + " denied.";
   }
 }
 

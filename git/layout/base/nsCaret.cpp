@@ -534,11 +534,7 @@ void nsCaret::PaintCaret(nsDisplayListBuilder *aBuilder,
 
   const nsRect drawCaretRect = mCaretRect + aOffset;
   PRInt32 contentOffset;
-
-#ifdef DEBUG
-  nsIFrame* frame =
-#endif
-    GetCaretFrame(&contentOffset);
+  nsIFrame* frame = GetCaretFrame(&contentOffset);
   NS_ASSERTION(frame == aForFrame, "We're referring different frame");
   nscolor foregroundColor = aForFrame->GetCaretColorAt(contentOffset);
 

@@ -4,10 +4,12 @@
 function test() {
   waitForExplicitFinish();
 
-  newWindowWithTabView(onTabViewWindowLoaded, null, 1000, 800);
+	newWindowWithTabView(onTabViewWindowLoaded);
 }
 
 function onTabViewWindowLoaded(win) {
+  win.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
+
   let contentWindow = win.document.getElementById("tab-view").contentWindow;
   let [originalTab] = win.gBrowser.visibleTabs;
 
@@ -47,7 +49,7 @@ function onTabViewWindowLoaded(win) {
     thirdGroup.container.parentNode.removeChild(thirdGroup.container);
     thirdGroup.close();
 
-    win.close();
+		win.close();
     ok(win.closed, "new window is closed");
     finish();
   }
@@ -162,3 +164,18 @@ function checkSnap(item, offsetX, offsetY, contentWindow, callback) {
   simulateDragDrop(item, offsetX, offsetY, contentWindow);
 }
 
+function newWindowWithTabView(callback) {
+  let charsetArg = "charset=" + window.content.document.characterSet;
+  let win = window.openDialog(getBrowserURL(), "_blank", "chrome,all,dialog=no,height=800,width=1000",
+                              "about:blank", charsetArg, null, null, true);
+  let onLoad = function() {
+    win.removeEventListener("load", onLoad, false);
+    let onShown = function() {
+      win.removeEventListener("tabviewshown", onShown, false);
+      callback(win);
+    };
+    win.addEventListener("tabviewshown", onShown, false);
+    win.TabView.toggle();
+  }
+  win.addEventListener("load", onLoad, false);
+}

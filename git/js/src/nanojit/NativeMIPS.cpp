@@ -1908,7 +1908,7 @@ namespace nanojit
     }
 
     void
-    Assembler::nInit()
+    Assembler::nInit(AvmCore*)
     {
         nHints[LIR_calli]  = rmask(V0);
 #if NJ_SOFTFLOAT_SUPPORTED

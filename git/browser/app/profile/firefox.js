@@ -48,6 +48,8 @@
 #endif
 #endif
 
+pref("general.startup.browser", true);
+
 pref("browser.chromeURL","chrome://browser/content/");
 pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindow.xul");
 
@@ -534,6 +536,11 @@ pref("mousewheel.withcontrolkey.action",3);
 pref("mousewheel.withcontrolkey.sysnumlines",false);
 pref("mousewheel.withcontrolkey.numlines",1);
 
+pref("profile.allow_automigration", false);   // setting to false bypasses automigration in the profile code
+
+// Customizable toolbar stuff
+pref("custtoolbar.personal_toolbar_folder", "");
+
 // pref to control the alert notification 
 pref("alerts.slideIncrement", 1);
 pref("alerts.slideIncrementTime", 10);
@@ -948,8 +955,10 @@ pref("dom.ipc.plugins.enabled.i386.flash player.plugin", true);
 pref("dom.ipc.plugins.enabled.i386.javaplugin2_npapi.plugin", true);
 // x86_64 ipc preferences
 pref("dom.ipc.plugins.enabled.x86_64", true);
-#else
+#elifdef MOZ_IPC
 pref("dom.ipc.plugins.enabled", true);
+#else
+pref("dom.ipc.plugins.enabled", false);
 #endif
 
 #ifdef XP_WIN

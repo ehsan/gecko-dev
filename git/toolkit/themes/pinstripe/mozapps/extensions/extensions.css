@@ -516,7 +516,6 @@
   color: #000;
   text-shadow: @loweredShadow@;
   -moz-box-align: end;
-  -moz-box-flex: 1;
 }
 
 .creator {

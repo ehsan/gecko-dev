@@ -297,7 +297,6 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetTransform(common.transform());
       layer->SetTileSourceRect(common.useTileSourceRect() ? &common.tileSourceRect() : NULL);
-      layer->SetIsFixedPosition(common.isFixedPosition());
 
       typedef SpecificLayerAttributes Specific;
       const SpecificLayerAttributes& specific = attrs.specific();
@@ -423,7 +422,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
         newFront.forget();
       }
 
-      canvas->Updated();
+      canvas->Updated(op.updated());
 
       replyv.push_back(OpBufferSwap(shadow, NULL,
                                     newBack->GetShmem()));

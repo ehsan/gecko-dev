@@ -139,14 +139,12 @@ NS_INTERFACE_MAP_END_INHERITING(nsEditor)
 
 
 NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc, 
-                                      nsIContent *aRoot,
-                                      nsISelectionController *aSelCon,
-                                      PRUint32 aFlags)
+                                 nsIPresShell   *aPresShell, nsIContent *aRoot, nsISelectionController *aSelCon, PRUint32 aFlags)
 {
   NS_TIME_FUNCTION;
 
-  NS_PRECONDITION(aDoc, "bad arg");
-  NS_ENSURE_TRUE(aDoc, NS_ERROR_NULL_POINTER);
+  NS_PRECONDITION(aDoc && aPresShell, "bad arg");
+  NS_ENSURE_TRUE(aDoc && aPresShell, NS_ERROR_NULL_POINTER);
   
   nsresult res = NS_OK, rulesRes = NS_OK;
   
@@ -156,7 +154,7 @@ NS_IMETHODIMP nsPlaintextEditor::Init(nsIDOMDocument *aDoc,
     nsAutoEditInitRulesTrigger rulesTrigger(this, rulesRes);
   
     // Init the base editor
-    res = nsEditor::Init(aDoc, aRoot, aSelCon, aFlags);
+    res = nsEditor::Init(aDoc, aPresShell, aRoot, aSelCon, aFlags);
   }
 
   // check the "single line editor newline handling"
@@ -673,8 +671,7 @@ nsPlaintextEditor::ExtendSelectionForDelete(nsISelection *aSelection,
       || (*aAction == ePrevious && bCollapsed)
       || *aAction == eToBeginningOfLine || *aAction == eToEndOfLine)
   {
-    nsCOMPtr<nsISelectionController> selCont;
-    GetSelectionController(getter_AddRefs(selCont));
+    nsCOMPtr<nsISelectionController> selCont (do_QueryReferent(mSelConWeak));
     NS_ENSURE_TRUE(selCont, NS_ERROR_NO_INTERFACE);
 
     switch (*aAction)
@@ -959,8 +956,7 @@ nsPlaintextEditor::UpdateIMEComposition(const nsAString& aCompositionString,
     return NS_ERROR_NULL_POINTER;
   }
 
-  nsCOMPtr<nsIPresShell> ps;
-  GetPresShell(getter_AddRefs(ps));
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   nsCOMPtr<nsISelection> selection;
@@ -1289,8 +1285,7 @@ nsPlaintextEditor::FireClipboardEvent(PRInt32 aType)
   if (aType == NS_PASTE)
     ForceCompositionEnd();
 
-  nsCOMPtr<nsIPresShell> presShell;
-  GetPresShell(getter_AddRefs(presShell));
+  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShellWeak);
   NS_ENSURE_TRUE(presShell, PR_FALSE);
 
   nsCOMPtr<nsISelection> selection;
@@ -1341,14 +1336,17 @@ nsPlaintextEditor::GetAndInitDocEncoder(const nsAString& aFormatType,
                                         const nsACString& aCharset,
                                         nsIDocumentEncoder** encoder)
 {
-  nsresult rv = NS_OK;
+  nsCOMPtr<nsIPresShell> presShell;
+  nsresult rv = GetPresShell(getter_AddRefs(presShell));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
   nsCAutoString formatType(NS_DOC_ENCODER_CONTRACTID_BASE);
   formatType.AppendWithConversion(aFormatType);
   nsCOMPtr<nsIDocumentEncoder> docEncoder (do_CreateInstance(formatType.get(), &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+  nsIDocument *doc = presShell->GetDocument();
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
   NS_ASSERTION(domDoc, "Need a document");
 
@@ -1530,9 +1528,12 @@ nsPlaintextEditor::InsertAsQuotation(const nsAString& aQuotedText,
   // Protect the edit rules object from dying
   nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
 
+  // We have the text.  Cite it appropriately:
+  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+
   // Let the citer quote it for us:
   nsString quotedStuff;
-  nsresult rv = nsInternetCiter::GetCiteString(aQuotedText, quotedStuff);
+  nsresult rv = citer->GetCiteString(aQuotedText, quotedStuff);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // It's best to put a blank line after the quoted text so that mails
@@ -1627,9 +1628,13 @@ nsPlaintextEditor::Rewrap(PRBool aRespectNewlines)
                           &isCollapsed, current);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(citer, NS_ERROR_UNEXPECTED);
+
   nsString wrapped;
   PRUint32 firstLineOffset = 0;   // XXX need to reset this if there is a selection
-  rv = nsInternetCiter::Rewrap(current, wrapCol, firstLineOffset, aRespectNewlines,
+  rv = citer->Rewrap(current, wrapCol, firstLineOffset, aRespectNewlines,
                      wrapped);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1652,8 +1657,11 @@ nsPlaintextEditor::StripCites()
                                    &isCollapsed, current);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  NS_ENSURE_TRUE(citer, NS_ERROR_UNEXPECTED);
+
   nsString stripped;
-  rv = nsInternetCiter::StripCites(current, stripped);
+  rv = citer->StripCites(current, stripped);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (isCollapsed)    // rewrap the whole document

@@ -2,7 +2,6 @@
 
 <head>
   <title>Text attributes tests</title>
-  <meta charset="utf-8" />
   <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
@@ -191,43 +190,43 @@
       testDefaultTextAttrs(ID, defAttrs);
 
       attrs = {"language": "ru"};
-      testTextAttrs(ID, 0, attrs, defAttrs, 0, 6);
+      testTextAttrs(ID, 0, attrs, defAttrs, 0, 12);
 
       attrs = {};
-      testTextAttrs(ID, 6, attrs, defAttrs, 6, 7);
+      testTextAttrs(ID, 12, attrs, defAttrs, 12, 13);
 
       tempElem = getNode(ID).firstChild.nextSibling.nextSibling.nextSibling;
       gComputedStyle = document.defaultView.getComputedStyle(tempElem, "");
       attrs = { "background-color": gComputedStyle.backgroundColor};
-      testTextAttrs(ID, 13, attrs, defAttrs, 7, 20);
+      testTextAttrs(ID, 13, attrs, defAttrs, 13, 26);
 
       attrs = {};
-      testTextAttrs(ID, 20, attrs, defAttrs, 20, 21);
+      testTextAttrs(ID, 26, attrs, defAttrs, 26, 27);
 
       attrs = {"language": "de"};
-      testTextAttrs(ID, 21, attrs, defAttrs, 21, 36);
+      testTextAttrs(ID, 27, attrs, defAttrs, 27, 42);
 
       attrs = {};
-      testTextAttrs(ID, 36, attrs, defAttrs, 36, 44);
+      testTextAttrs(ID, 42, attrs, defAttrs, 42, 50);
 
       attrs = {};
-      testTextAttrs(ID, 37, attrs, defAttrs, 36, 44);
+      testTextAttrs(ID, 43, attrs, defAttrs, 42, 50);
 
       tempElem = tempElem.nextSibling.nextSibling.nextSibling.nextSibling.firstChild.nextSibling;
       gComputedStyle = document.defaultView.getComputedStyle(tempElem, "");
       attrs = {"color": gComputedStyle.color};
-      testTextAttrs(ID, 44, attrs, defAttrs, 44, 51);
+      testTextAttrs(ID, 50, attrs, defAttrs, 50, 57);
 
       tempElem = tempElem.firstChild.nextSibling;
       gComputedStyle = document.defaultView.getComputedStyle(tempElem, "");
       attrs = {"font-weight": kBoldFontWeight,
                "color": gComputedStyle.color};
-      testTextAttrs(ID, 51, attrs, defAttrs, 51, 55);
+      testTextAttrs(ID, 57, attrs, defAttrs, 57, 61);
 
       tempElem = tempElem.parentNode;
       gComputedStyle = document.defaultView.getComputedStyle(tempElem, "");
       attrs = {"color": gComputedStyle.color};
-      testTextAttrs(ID, 55, attrs, defAttrs, 55, 62);
+      testTextAttrs(ID, 61, attrs, defAttrs, 61, 68);
 
       //////////////////////////////////////////////////////////////////////////
       // area9, different single style spans in styled paragraph

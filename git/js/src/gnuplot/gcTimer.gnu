@@ -7,7 +7,7 @@ set title "Title goes here!"
 set datafile missing "-"
 set noxtics
 set ytics nomirror
-set ylabel "msec"
+set ylabel "Cycles [1E6]"
 set y2tics nomirror
 set y2label "Chunk count"
 set key below

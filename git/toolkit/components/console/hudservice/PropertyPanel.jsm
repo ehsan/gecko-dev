@@ -95,12 +95,6 @@ function presentableValueFor(aObject)
         display: aObject
       };
 
-    case "Iterator":
-      return {
-        type: TYPE_OTHER,
-        display: "Iterator"
-      };
-
     case "Function":
       presentable = aObject.toString();
       return {
@@ -111,21 +105,7 @@ function presentableValueFor(aObject)
     default:
       presentable = aObject.toString();
       let m = /^\[object (\S+)\]/.exec(presentable);
-
-      if (typeof aObject == "object" && typeof aObject.next == "function" &&
-          m && m[1] == "Generator") {
-        return {
-          type: TYPE_OTHER,
-          display: m[1]
-        };
-      }
-
-      if (typeof aObject == "object" && typeof aObject.__iterator__ == "function") {
-        return {
-          type: TYPE_OTHER,
-          display: "Iterator"
-        };
-      }
+      let display;
 
       return {
         type: TYPE_OBJECT,

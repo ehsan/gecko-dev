@@ -95,9 +95,9 @@ new TestCase( SECTION,
 	      typeof new f(/abc/) );
 
 new TestCase( SECTION,
-	      "x = new f(/abc/); x.exec(\"hi\")",
+	      "x = new f(/abc/); x(\"hi\")",
 	      null,
-	      x.exec("hi") );
+	      x("hi") );
 
 
 // js> x()

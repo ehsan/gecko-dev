@@ -33,12 +33,8 @@ Tests of DOM Worker Threads XHR(Bug 450452 )
       case "load": {
         is(args.data, "A noisy noise annoys an oyster.");
         document.getElementById("content").textContent = args.data;
-      } break;
-      case "loadend": {
-        ok(true, "Should have got loadend.");
         SimpleTest.finish();
-        break;
-      }
+      } break;
       default: {
         ok(false, "Unexpected message");
         SimpleTest.finish();

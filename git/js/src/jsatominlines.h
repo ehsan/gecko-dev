@@ -43,26 +43,38 @@
 #include "jsatom.h"
 #include "jsnum.h"
 
+/*
+ * Convert v to an atomized string and wrap it as an id.
+ */
 inline bool
 js_ValueToAtom(JSContext *cx, const js::Value &v, JSAtom **atomp)
 {
-    if (!v.isString()) {
-        JSString *str = js_ValueToString(cx, v);
+    JSString *str;
+    JSAtom *atom;
+
+    /*
+     * Optimize for the common case where v is an already-atomized string. The
+     * comment in jsstr.h before JSString::flatSetAtomized explains why this is
+     * thread-safe. The extra rooting via lastAtom (which would otherwise be
+     * done in js_js_AtomizeString) ensures the caller that the resulting id at
+     * is least weakly rooted.
+     */
+    if (v.isString()) {
+        str = v.toString();
+        if (str->isAtomized()) {
+            *atomp = STRING_TO_ATOM(str);
+            return true;
+        }
+    } else {
+        str = js_ValueToString(cx, v);
         if (!str)
             return false;
-        JS::Anchor<JSString *> anchor(str);
-        *atomp = js_AtomizeString(cx, str, 0);
-        return !!*atomp;
     }
-
-    JSString *str = v.toString();
-    if (str->isAtom()) {
-        *atomp = &str->asAtom();
-        return true;
-    }
-
-    *atomp = js_AtomizeString(cx, str, 0);
-    return !!*atomp;
+    atom = js_AtomizeString(cx, str, 0);
+    if (!atom)
+        return false;
+    *atomp = atom;
+    return true;
 }
 
 inline bool
@@ -109,7 +121,7 @@ js_InternNonIntElementId(JSContext *cx, JSObject *obj, const js::Value &idval,
     JSAtom *atom;
     if (js_ValueToAtom(cx, idval, &atom)) {
         *idp = ATOM_TO_JSID(atom);
-        vp->setString(atom);
+        vp->setString(ATOM_TO_STRING(atom));
         return true;
     }
     return false;

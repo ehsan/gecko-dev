@@ -67,12 +67,14 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsLeafAccessible, nsAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsLeafAccessible: nsAccessible public
 
-nsAccessible*
+nsresult
 nsLeafAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                  EWhichChildAtPoint aWhichChild)
+                                  PRBool aDeepestChild,
+                                  nsIAccessible **aChild)
 {
   // Don't walk into leaf accessibles.
-  return this;
+  NS_ADDREF(*aChild = this);
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

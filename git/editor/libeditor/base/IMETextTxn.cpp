@@ -44,7 +44,6 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
 #include "nsComponentManagerUtils.h"
-#include "nsIEditor.h"
 
 // #define DEBUG_IMETXN
 
@@ -78,7 +77,7 @@ NS_IMETHODIMP IMETextTxn::Init(nsIDOMCharacterData     *aElement,
                                PRUint32                 aReplaceLength,
                                nsIPrivateTextRangeList *aTextRangeList,
                                const nsAString         &aStringToInsert,
-                               nsIEditor               *aEditor)
+                               nsWeakPtr                aSelConWeak)
 {
   NS_ASSERTION(aElement, "illegal value- null ptr- aElement");
   NS_ASSERTION(aTextRangeList, "illegal value- null ptr - aTextRangeList");
@@ -87,7 +86,7 @@ NS_IMETHODIMP IMETextTxn::Init(nsIDOMCharacterData     *aElement,
   mOffset = aOffset;
   mReplaceLength = aReplaceLength;
   mStringToInsert = aStringToInsert;
-  mEditor = aEditor;
+  mSelConWeak = aSelConWeak;
   mRangeList = do_QueryInterface(aTextRangeList);
   mFixed = PR_FALSE;
   return NS_OK;
@@ -100,8 +99,7 @@ NS_IMETHODIMP IMETextTxn::DoTransaction(void)
   printf("Do IME Text element = %p replace = %d len = %d\n", mElement.get(), mReplaceLength, mStringToInsert.Length());
 #endif
 
-  nsCOMPtr<nsISelectionController> selCon;
-  mEditor->GetSelectionController(getter_AddRefs(selCon));
+  nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
   NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
 
   // advance caret: This requires the presentation shell to get the selection.
@@ -124,8 +122,7 @@ NS_IMETHODIMP IMETextTxn::UndoTransaction(void)
   printf("Undo IME Text element = %p\n", mElement.get());
 #endif
 
-  nsCOMPtr<nsISelectionController> selCon;
-  mEditor->GetSelectionController(getter_AddRefs(selCon));
+  nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
   NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
 
   nsresult result = mElement->DeleteData(mOffset, mStringToInsert.Length());
@@ -266,8 +263,7 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
     //
     // run through the text range list, if any
     //
-    nsCOMPtr<nsISelectionController> selCon;
-    mEditor->GetSelectionController(getter_AddRefs(selCon));
+    nsCOMPtr<nsISelectionController> selCon = do_QueryReferent(mSelConWeak);
     NS_ENSURE_TRUE(selCon, NS_ERROR_NOT_INITIALIZED);
 
     PRUint16      textRangeListLength,selectionStart,selectionEnd,

@@ -81,9 +81,6 @@ source-package::
 upload::
 	@$(MAKE) -C browser/installer upload
 
-l10n-check::
-	@$(MAKE) -C browser/locales l10n-check
-
 ifdef ENABLE_TESTS
 # Implemented in testing/testsuite-targets.mk
 

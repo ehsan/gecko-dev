@@ -919,7 +919,7 @@ nsInlineFrame::GetBaseline() const
   if (NS_SUCCEEDED(nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm)))) {
     fm->GetMaxAscent(ascent);
   }
-  return NS_MIN(mRect.height, ascent + GetUsedBorderAndPadding().top);
+  return ascent + GetUsedBorderAndPadding().top;
 }
 
 #ifdef ACCESSIBILITY

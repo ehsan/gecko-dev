@@ -137,6 +137,11 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 
 protected:
+  virtual PRBool AcceptAutofocus() const
+  {
+    return PR_TRUE;
+  }
+
   PRUint8 mType;
   PRPackedBool mHandlingClick;
   PRPackedBool mDisabledChanged;
@@ -632,7 +637,7 @@ nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStateChanged(this, states);
+        doc->ContentStatesChanged(this, nsnull, states);
       }
     }
   }

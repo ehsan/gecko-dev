@@ -1010,21 +1010,20 @@ nsString::EqualsIgnoreCase( const char* aString, PRInt32 aCount ) const
     return result == 0;
   }
 
-
   /**
-   * nsTString::ToDouble
+   * nsTString::ToFloat
    */
 
-double
-nsCString::ToDouble(PRInt32* aErrorCode) const
+float
+nsCString::ToFloat(PRInt32* aErrorCode) const
   {
-    double res = 0.0;
+    float res = 0.0f;
     if (mLength > 0)
       {
         char *conv_stopped;
         const char *str = mData;
         // Use PR_strtod, not strtod, since we don't want locale involved.
-        res = PR_strtod(str, &conv_stopped);
+        res = (float)PR_strtod(str, &conv_stopped);
         if (conv_stopped == str+mLength)
           *aErrorCode = (PRInt32) NS_OK;
         else // Not all the string was scanned
@@ -1038,10 +1037,10 @@ nsCString::ToDouble(PRInt32* aErrorCode) const
     return res;
   }
 
-double
-nsString::ToDouble(PRInt32* aErrorCode) const
+float
+nsString::ToFloat(PRInt32* aErrorCode) const
   {
-    return NS_LossyConvertUTF16toASCII(*this).ToDouble(aErrorCode);
+    return NS_LossyConvertUTF16toASCII(*this).ToFloat(aErrorCode);
   }
 
 

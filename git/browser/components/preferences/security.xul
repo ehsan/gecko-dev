@@ -81,7 +81,8 @@
     <stringbundle id="bundlePreferences" src="chrome://browser/locale/preferences/preferences.properties"/>
 
     <!-- addons, forgery (phishing) UI -->
-    <groupbox id="addonsPhishingGroup">
+    <groupbox id="addonsPhishingGroup"
+              xmlns:aaa="http://www.w3.org/2005/07/aaa">
       <hbox id="addonInstallBox">
         <checkbox id="warnAddonInstall" flex="1"
                   label="&warnAddonInstall.label;"

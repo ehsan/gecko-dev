@@ -78,7 +78,6 @@ class NS_COM nsCaseInsensitiveCStringComparator
     : public nsCStringComparator
   {
     public:
-      nsCaseInsensitiveCStringComparator() {}
       typedef char char_type;
 
       virtual int operator()( const char_type*, const char_type*, PRUint32, PRUint32 ) const;

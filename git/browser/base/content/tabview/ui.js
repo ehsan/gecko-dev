@@ -132,21 +132,6 @@ let UI = {
   // windows is about to close.
   isDOMWindowClosing: false,
 
-  // Variable: _browserKeys
-  // Used to keep track of allowed browser keys.
-  _browserKeys: null,
-
-  // Variable: ignoreKeypressForSearch
-  // Used to prevent keypress being handled after quitting search mode.
-  ignoreKeypressForSearch: false,
-
-  // ----------
-  // Function: toString
-  // Prints [UI] for debug use
-  toString: function UI_toString() {
-    return "[UI]";
-  },
-
   // ----------
   // Function: init
   // Must be called after the object is created.
@@ -206,7 +191,7 @@ let UI = {
                        TabItems.tabWidth, TabItems.tabHeight);
             newTab._tabViewTabItem.setBounds(box, true);
             newTab._tabViewTabItem.pushAway(true);
-            UI.setActiveTab(newTab._tabViewTabItem);
+            GroupItems.setActiveOrphanTab(newTab._tabViewTabItem);
 
             TabItems.creatingNewOrphanTab = false;
             newTab._tabViewTabItem.zoomIn(true);
@@ -356,9 +341,9 @@ let UI = {
     GroupItems.setActiveGroupItem(groupItem);
   },
 
-  // ----------
   // Function: blurAll
   // Blurs any currently focused element
+  //
   blurAll: function UI_blurAll() {
     iQ(":focus").each(function(element) {
       element.blur();
@@ -380,6 +365,7 @@ let UI = {
   // ----------
   // Function: getActiveTab
   // Returns the currently active tab as a <TabItem>
+  //
   getActiveTab: function UI_getActiveTab() {
     return this._activeTab;
   },
@@ -412,13 +398,6 @@ let UI = {
 
       this._activeTab.makeActive();
     }
-  },
-
-  // ----------
-  // Function: getActiveOrphanTab
-  // Returns the currently active orphan tab as a <TabItem>
-  getActiveOrphanTab: function UI_getActiveOrphanTab() {
-    return (this._activeTab && !this._activeTab.parent) ? this._activeTab : null;
   },
 
   // ----------
@@ -482,7 +461,7 @@ let UI = {
     // closed all other tabs. (If the user is looking at an orphan tab, then
     // there is no active group for the purposes of this check.)
     let activeGroupItem = null;
-    if (!UI.getActiveOrphanTab()) {
+    if (!GroupItems.getActiveOrphanTab()) {
       activeGroupItem = GroupItems.getActiveGroupItem();
       if (activeGroupItem && activeGroupItem.closeIfEmpty())
         activeGroupItem = null;
@@ -755,16 +734,9 @@ let UI = {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      if (GroupItems.groupItems.length > 0) {
-        if (tab.pinned) {
-          if (gBrowser._numPinnedTabs > 1)
-            GroupItems.arrangeAppTab(tab);
-        } else {
-          let activeGroupItem = GroupItems.getActiveGroupItem();
-          if (activeGroupItem)
-            self.setReorderTabItemsOnShow(activeGroupItem);
-        }
-      }
+      let activeGroupItem = GroupItems.getActiveGroupItem();
+      if (activeGroupItem)
+        self.setReorderTabItemsOnShow(activeGroupItem);
     };
 
     // TabSelect
@@ -876,18 +848,22 @@ let UI = {
       // No tabItem; must be an app tab. Base the tab bar on the current group.
       // If no current group or orphan tab, figure it out based on what's
       // already in the tab bar.
-      if (!GroupItems.getActiveGroupItem() && !UI.getActiveOrphanTab()) {
+      if (!GroupItems.getActiveGroupItem() && !GroupItems.getActiveOrphanTab()) {
         for (let a = 0; a < gBrowser.tabs.length; a++) {
           let theTab = gBrowser.tabs[a]; 
           if (!theTab.pinned) {
             let tabItem = theTab._tabViewTabItem; 
-            GroupItems.setActiveGroupItem(tabItem.parent);
+            if (tabItem.parent) 
+              GroupItems.setActiveGroupItem(tabItem.parent);
+            else 
+              GroupItems.setActiveOrphanTab(tabItem); 
+              
             break;
           }
         }
       }
 
-      if (GroupItems.getActiveGroupItem() || UI.getActiveOrphanTab())
+      if (GroupItems.getActiveGroupItem() || GroupItems.getActiveOrphanTab())
         GroupItems._updateTabBar();
     }
   },
@@ -949,115 +925,32 @@ let UI = {
   },
 
   // ----------
-  // Function: _setupBrowserKeys
-  // Sets up the allowed browser keys using key elements.
-  _setupBrowserKeys: function UI__setupKeyWhiteList() {
-    let keys = {};
-
-    [
-#ifdef XP_UNIX
-      "quitApplication",
-#endif
-#ifdef XP_MACOSX
-      "preferencesCmdMac", "minimizeWindow",
-#endif
-      "newNavigator", "newNavigatorTab", "find"
-     ].forEach(function(key) {
-      let element = gWindow.document.getElementById("key_" + key);
-      keys[key] = element.getAttribute("key").toLocaleLowerCase().charCodeAt(0);
-    });
-
-    // for key combinations with shift key, the charCode of upper case letters 
-    // are different to the lower case ones so need to handle them differently.
-    ["closeWindow", "tabview", "undoCloseTab", "undoCloseWindow",
-     "privatebrowsing"].forEach(function(key) {
-      let element = gWindow.document.getElementById("key_" + key);
-      keys[key] = element.getAttribute("key").toLocaleUpperCase().charCodeAt(0);
-    });
-
-    delete this._browserKeys;
-    this._browserKeys = keys;
-  },
-
-  // ----------
   // Function: _setTabViewFrameKeyHandlers
   // Sets up the key handlers for navigating between tabs within the TabView UI.
   _setTabViewFrameKeyHandlers: function UI__setTabViewFrameKeyHandlers() {
-    let self = this;
-
-    this._setupBrowserKeys();
+    var self = this;
 
     iQ(window).keyup(function(event) {
-      if (!event.metaKey)
+      if (!event.metaKey) 
         Keys.meta = false;
     });
 
-    iQ(window).keypress(function(event) {
-      if (event.metaKey)
+    iQ(window).keydown(function(event) {
+      if (event.metaKey) 
         Keys.meta = true;
 
-      function processBrowserKeys(evt) {
-#ifdef XP_MACOSX
-        if (evt.metaKey) {
-#else
-        if (evt.ctrlKey) {
-#endif
-          let preventDefault = true;
-          if (evt.shiftKey) {
-            switch (evt.charCode) {
-              case self._browserKeys.privatebrowsing:
-              case self._browserKeys.undoCloseTab:
-              case self._browserKeys.undoCloseWindow:
-              case self._browserKeys.closeWindow:
-                preventDefault = false;
-                break;
-              case self._browserKeys.tabview:
-                self.exit();
-                break;
-            }
-          } else {
-            switch (evt.charCode) {
-              case self._browserKeys.find:
-                self.enableSearch();
-                break;
-              case self._browserKeys.newNavigator:
-              case self._browserKeys.newNavigatorTab:
-                preventDefault = false;
-                break;
-#ifdef XP_UNIX
-              case self._browserKeys.quitApplication:
-                preventDefault = false;
-                break;
-#endif
-#ifdef XP_MACOSX
-              case self._browserKeys.preferencesCmdMac:
-              case self._browserKeys.minimizeWindow:
-                preventDefault = false;
-                break;
-#endif
-            }
-          }
-          if (preventDefault) {
-            evt.stopPropagation();
-            evt.preventDefault();
-          }
-        }
-      }
-      if ((iQ(":focus").length > 0 && iQ(":focus")[0].nodeName == "INPUT") ||
-          isSearchEnabled() || self.ignoreKeypressForSearch) {
-        self.ignoreKeypressForSearch = false;
-        processBrowserKeys(event);
+      if ((iQ(":focus").length > 0 && iQ(":focus")[0].nodeName == "INPUT") || 
+          isSearchEnabled())
         return;
-      }
 
       function getClosestTabBy(norm) {
         if (!self.getActiveTab())
           return null;
-        let centers =
+        var centers =
           [[item.bounds.center(), item]
              for each(item in TabItems.getItems()) if (!item.parent || !item.parent.hidden)];
-        let myCenter = self.getActiveTab().bounds.center();
-        let matches = centers
+        var myCenter = self.getActiveTab().bounds.center();
+        var matches = centers
           .filter(function(item){return norm(item[0], myCenter)})
           .sort(function(a,b){
             return myCenter.distance(a[0]) - myCenter.distance(b[0]);
@@ -1067,9 +960,7 @@ let UI = {
         return null;
       }
 
-      let preventDefault = true;
-      let activeTab;
-      let norm = null;
+      var norm = null;
       switch (event.keyCode) {
         case KeyEvent.DOM_VK_RIGHT:
           norm = function(a, me){return a.x > me.x};
@@ -1092,54 +983,59 @@ let UI = {
             nextTab = nextTab.parent.getChild(0);
           self.setActiveTab(nextTab);
         }
-      } else {
-        switch(event.keyCode) {
-          case KeyEvent.DOM_VK_ESCAPE:
-            let activeGroupItem = GroupItems.getActiveGroupItem();
-            if (activeGroupItem && activeGroupItem.expanded)
-              activeGroupItem.collapse();
-            else
-              self.exit();
-            break;
-          case KeyEvent.DOM_VK_RETURN:
-          case KeyEvent.DOM_VK_ENTER:
-            activeTab = self.getActiveTab();
-            if (activeTab)
-              activeTab.zoomIn();
-            break;
-          case KeyEvent.DOM_VK_TAB:
-            // tab/shift + tab to go to the next tab.
-            activeTab = self.getActiveTab();
-            if (activeTab) {
-              let tabItems = (activeTab.parent ? activeTab.parent.getChildren() :
-                              [activeTab]);
-              let length = tabItems.length;
-              let currentIndex = tabItems.indexOf(activeTab);
+        event.stopPropagation();
+        event.preventDefault();
+      } else if (event.keyCode == KeyEvent.DOM_VK_ESCAPE) {
+        let activeGroupItem = GroupItems.getActiveGroupItem();
+        if (activeGroupItem && activeGroupItem.expanded)
+          activeGroupItem.collapse();
+        else 
+          self.exit();
 
-              if (length > 1) {
-                if (event.shiftKey) {
-                  if (currentIndex == 0)
-                    newIndex = (length - 1);
-                  else
-                    newIndex = (currentIndex - 1);
-                } else {
-                  if (currentIndex == (length - 1))
-                    newIndex = 0;
-                  else
-                    newIndex = (currentIndex + 1);
-                }
-                self.setActiveTab(tabItems[newIndex]);
-              }
+        event.stopPropagation();
+        event.preventDefault();
+      } else if (event.keyCode == KeyEvent.DOM_VK_RETURN ||
+                 event.keyCode == KeyEvent.DOM_VK_ENTER) {
+        let activeTab = self.getActiveTab();
+        if (activeTab)
+          activeTab.zoomIn();
+
+        event.stopPropagation();
+        event.preventDefault();
+      } else if (event.keyCode == KeyEvent.DOM_VK_TAB) {
+        // tab/shift + tab to go to the next tab.
+        var activeTab = self.getActiveTab();
+        if (activeTab) {
+          var tabItems = (activeTab.parent ? activeTab.parent.getChildren() :
+                          [activeTab]);
+          var length = tabItems.length;
+          var currentIndex = tabItems.indexOf(activeTab);
+
+          if (length > 1) {
+            if (event.shiftKey) {
+              if (currentIndex == 0)
+                newIndex = (length - 1);
+              else
+                newIndex = (currentIndex - 1);
+            } else {
+              if (currentIndex == (length - 1))
+                newIndex = 0;
+              else
+                newIndex = (currentIndex + 1);
             }
-            break;
-          default:
-            processBrowserKeys(event);
-            preventDefault = false;
+            self.setActiveTab(tabItems[newIndex]);
+          }
         }
-        if (preventDefault) {
-          event.stopPropagation();
-          event.preventDefault();
-        }
+        event.stopPropagation();
+        event.preventDefault();
+      } else if (event.keyCode == KeyEvent.DOM_VK_SLASH) {
+        // the / event handler for find bar is defined in the findbar.xml
+        // binding.  To keep things in its own module, we handle our slash here.
+        self.enableSearch(event);
+      } else if (event.keyCode == KeyEvent.DOM_VK_BACK_SPACE) {
+        // prevent navigating backward in the selected tab's history
+        event.stopPropagation();
+        event.preventDefault();
       }
     });
   },
@@ -1147,10 +1043,17 @@ let UI = {
   // ----------
   // Function: enableSearch
   // Enables the search feature.
-  enableSearch: function UI_enableSearch() {
+  // Parameters:
+  //   event - the event triggers this action.
+  enableSearch: function UI_enableSearch(event) {
     if (!isSearchEnabled()) {
       ensureSearchShown();
       SearchEventHandler.switchToInMode();
+      
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
     }
   },
 

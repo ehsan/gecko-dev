@@ -455,9 +455,9 @@ public:
   {
     return nsnull;
   }
-  virtual nsIDOMCSSStyleDeclaration* GetSMILOverrideStyle();
-  virtual mozilla::css::StyleRule* GetSMILOverrideStyleRule();
-  virtual nsresult SetSMILOverrideStyleRule(mozilla::css::StyleRule* aStyleRule,
+  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle);
+  virtual nsICSSStyleRule* GetSMILOverrideStyleRule();
+  virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
                                             PRBool aNotify);
 #endif // MOZ_SMIL
 
@@ -473,8 +473,8 @@ public:
 
   virtual const nsAttrValue* DoGetClasses() const;
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
-  virtual mozilla::css::StyleRule* GetInlineStyleRule();
-  NS_IMETHOD SetInlineStyleRule(mozilla::css::StyleRule* aStyleRule, PRBool aNotify);
+  virtual nsICSSStyleRule* GetInlineStyleRule();
+  NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify);
   NS_IMETHOD_(PRBool)
     IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
@@ -943,7 +943,7 @@ public:
   class nsDOMSlots : public nsINode::nsSlots
   {
   public:
-    nsDOMSlots();
+    nsDOMSlots(PtrBits aFlags);
     virtual ~nsDOMSlots();
 
     /**
@@ -961,7 +961,7 @@ public:
     /**
      * Holds any SMIL override style rules for this element.
      */
-    nsRefPtr<mozilla::css::StyleRule> mSMILOverrideStyleRule;
+    nsCOMPtr<nsICSSStyleRule> mSMILOverrideStyleRule;
 
     /**
      * An object implementing nsIDOMNamedNodeMap for this content (attributes)
@@ -1024,14 +1024,14 @@ protected:
    * Add/remove this element to the documents id cache
    */
   void AddToIdTable(nsIAtom* aId) {
-    NS_ASSERTION(HasID(), "Node doesn't have an ID?");
+    NS_ASSERTION(HasFlag(NODE_HAS_ID), "Node lacking NODE_HAS_ID flag");
     nsIDocument* doc = GetCurrentDoc();
     if (doc && (!IsInAnonymousSubtree() || doc->IsXUL())) {
       doc->AddToIdTable(this, aId);
     }
   }
   void RemoveFromIdTable() {
-    if (HasID()) {
+    if (HasFlag(NODE_HAS_ID)) {
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         nsIAtom* id = DoGetID();

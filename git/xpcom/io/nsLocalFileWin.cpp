@@ -79,21 +79,16 @@
 #include "prproces.h"
 #include "nsITimelineService.h"
 
-#include "mozilla/Mutex.h"
+#include "nsAutoLock.h"
 #include "SpecialSystemDirectory.h"
 
 #include "nsTraceRefcntImpl.h"
-
-using namespace mozilla;
 
 #define CHECK_mWorkingPath()                    \
     PR_BEGIN_MACRO                              \
         if (mWorkingPath.IsEmpty())             \
             return NS_ERROR_NOT_INITIALIZED;    \
     PR_END_MACRO
-
-// CopyFileEx only supports unbuffered I/O in Windows Vista and above
-#define COPY_FILE_NO_BUFFERING 0x00001000
 
 // _mbsstr isn't declared in w32api headers but it's there in the libs
 #ifdef __MINGW32__
@@ -161,20 +156,24 @@ public:
     nsresult Resolve(const WCHAR* in, WCHAR* out);
 
 private:
-    Mutex         mLock;
+    PRLock*       mLock;
     IPersistFile* mPersistFile;
     // Win 95 and 98 don't have IShellLinkW
     IShellLinkW*  mShellLink;
 };
 
-ShortcutResolver::ShortcutResolver() : mLock("ShortcutResolver.mLock")
+ShortcutResolver::ShortcutResolver()
 {
+    mLock = nsnull;
     mPersistFile = nsnull;
     mShellLink  = nsnull;
 }
 
 ShortcutResolver::~ShortcutResolver()
 {
+    if (mLock)
+        PR_DestroyLock(mLock);
+
     // Release the pointer to the IPersistFile interface.
     if (mPersistFile)
         mPersistFile->Release();
@@ -190,6 +189,10 @@ nsresult
 ShortcutResolver::Init()
 {
     CoInitialize(NULL);  // FIX: we should probably move somewhere higher up during startup
+
+    mLock = PR_NewLock();
+    if (!mLock)
+        return NS_ERROR_FAILURE;
 
     HRESULT hres; 
     hres = CoCreateInstance(CLSID_ShellLink,
@@ -214,7 +217,7 @@ ShortcutResolver::Init()
 nsresult
 ShortcutResolver::Resolve(const WCHAR* in, WCHAR* out)
 {
-    MutexAutoLock lock(mLock);
+    nsAutoLock lock(mLock);
 
     // see if we can Load the path.
     HRESULT hres = mPersistFile->Load(in, STGM_READ);
@@ -1453,29 +1456,18 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
     if (NS_FAILED(rv))
         return rv;
 
-    // Pass the flag COPY_FILE_NO_BUFFERING to CopyFileEx as we may be copying
-    // to a SMBV2 remote drive. Without this parameter subsequent append mode
-    // file writes can cause the resultant file to become corrupt. We only need to do 
-    // this if the major version of Windows is > 5(Only Windows Vista and above 
-    // can support SMBV2).
     int copyOK;
-    DWORD dwVersion = GetVersion();
-    DWORD dwMajorVersion = (DWORD)(LOBYTE(LOWORD(dwVersion)));
-    DWORD dwCopyFlags = 0;
-    
-    if (dwMajorVersion > 5)
-       dwCopyFlags = COPY_FILE_NO_BUFFERING;
-    
+
     if (!move)
-        copyOK = ::CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
+        copyOK = ::CopyFileW(filePath.get(), destPath.get(), PR_TRUE);
     else {
 #ifndef WINCE
         DWORD status;
         if (FileEncryptionStatusW(filePath.get(), &status)
             && status == FILE_IS_ENCRYPTED)
         {
-            dwCopyFlags |= COPY_FILE_ALLOW_DECRYPTED_DESTINATION;
-            copyOK = CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
+            copyOK = CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL,
+                                 COPY_FILE_ALLOW_DECRYPTED_DESTINATION);
 
             if (copyOK)
                 DeleteFileW(filePath.get());
@@ -1484,25 +1476,16 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
         {
             copyOK = ::MoveFileExW(filePath.get(), destPath.get(),
                                    MOVEFILE_REPLACE_EXISTING |
+                                   MOVEFILE_COPY_ALLOWED |
                                    MOVEFILE_WRITE_THROUGH);
-            
-            // Check if copying the source file to a different volume,
-            // as this could be an SMBV2 mapped drive.
-            if (!copyOK && GetLastError() == ERROR_NOT_SAME_DEVICE)
-            {
-                copyOK = CopyFileExW(filePath.get(), destPath.get(), NULL, NULL, NULL, dwCopyFlags);
-            
-                if (copyOK)
-                    DeleteFile(filePath.get());
-            }
         }
 #else
         DeleteFile(destPath.get());
         copyOK = :: MoveFileW(filePath.get(), destPath.get());
 #endif
-}
+    }
 
-    if (!copyOK)  // CopyFileEx and MoveFileEx return zero at failure.
+    if (!copyOK)  // CopyFile and MoveFileEx return zero at failure.
         rv = ConvertWinError(GetLastError());
 
 #ifndef WINCE

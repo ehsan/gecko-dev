@@ -49,6 +49,7 @@ DIRS            = standalone nomozalloc
 
 MODULE		= xpcom
 LIBRARY_NAME	= xpcomglue_s
+SUPPRESS_FAKELIB = 1
 DIST_INSTALL	= 1
 
 LOCAL_INCLUDES	= \
@@ -66,9 +67,11 @@ CPPSRCS		= \
 		GenericModule.cpp \
 		$(NULL)
 
+# TODO nsAutoLock.h should die soon
 SDK_HEADERS = \
 		nsArrayEnumerator.h \
 		nsArrayUtils.h \
+		nsAutoLock.h \
 		nsBaseHashtable.h \
 		nsCOMArray.h \
 		nsCOMPtr.h \
@@ -132,7 +135,6 @@ EXPORTS_mozilla = \
   Monitor.h \
   Mutex.h \
   SSE.h \
-  arm.h \
   unused.h \
   $(NULL)
 

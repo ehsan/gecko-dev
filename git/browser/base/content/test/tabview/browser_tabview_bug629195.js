@@ -7,14 +7,28 @@ let originalTab;
 
 function test() {
   waitForExplicitFinish();
+  setup();
+}
 
-  newWindowWithTabView(
-    function() {
+function setup() {
+  win = window.openDialog(getBrowserURL(), "_blank", 
+                          "chrome,all,dialog=no,height=800,width=800");
+
+  let onLoad = function() {
+    win.removeEventListener("load", onLoad, false);
+
+    originalTab = win.gBrowser.visibleTabs[0];
+    win.gBrowser.addTab();
+    win.gBrowser.pinTab(originalTab);
+
+    let onTabViewShown = function() {
+      win.removeEventListener("tabviewshown", onTabViewShown, false);
+
       ok(win.TabView.isVisible(), "Tab View is visible");
 
       contentWindow = win.document.getElementById("tab-view").contentWindow;
       is(contentWindow.GroupItems.groupItems.length, 1, "There is one group");
-      is(contentWindow.GroupItems.groupItems[0].getChildren().length, 1,
+      is(contentWindow.GroupItems.groupItems[0].getChildren().length, 1, 
          "The group has only one tab item");
 
       // show the undo close group button
@@ -25,14 +39,12 @@ function test() {
         group.removeSubscriber(group, "groupHidden");
         restore(group.id);
       });
-    },
-    function(newWin) {
-      win = newWin;
-      originalTab = win.gBrowser.visibleTabs[0];
-      win.gBrowser.addTab();
-      win.gBrowser.pinTab(originalTab);
-    }
-  );
+
+    };
+    win.addEventListener("tabviewshown", onTabViewShown, false);
+    win.TabView.toggle();
+  }
+  win.addEventListener("load", onLoad, false);
 }
 
 function restore(groupId) {

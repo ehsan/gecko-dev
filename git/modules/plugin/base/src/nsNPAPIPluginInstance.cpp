@@ -82,7 +82,6 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
     mTransparent(PR_FALSE),
     mCached(PR_FALSE),
     mWantsAllNetworkStreams(PR_FALSE),
-    mUsesDOMForCursor(PR_FALSE),
     mInPluginInitCall(PR_FALSE),
     mPlugin(plugin),
     mMIMEType(nsnull),
@@ -190,11 +189,10 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop()
 
   // Make sure we lock while we're writing to mRunning after we've
   // started as other threads might be checking that inside a lock.
-  {
-    AsyncCallbackAutoLock lock;
-    mRunning = DESTROYING;
-    mStopTime = TimeStamp::Now();
-  }
+  EnterAsyncPluginThreadCallLock();
+  mRunning = DESTROYING;
+  mStopTime = TimeStamp::Now();
+  ExitAsyncPluginThreadCallLock();
 
   OnPluginDestroy(&mNPP);
 
@@ -604,26 +602,19 @@ NS_IMETHODIMP nsNPAPIPluginInstance::GetValueFromPlugin(NPPVariable variable, vo
     return NS_OK;
   }
 #endif
-
   if (!mPlugin || !mPlugin->GetLibrary())
     return NS_ERROR_FAILURE;
 
   NPPluginFuncs* pluginFunctions = mPlugin->PluginFuncs();
 
   nsresult rv = NS_ERROR_FAILURE;
-
   if (pluginFunctions->getvalue && RUNNING == mRunning) {
     PluginDestructionGuard guard(this);
 
-    NPError pluginError = NPERR_GENERIC_ERROR;
-    NS_TRY_SAFE_CALL_RETURN(pluginError, (*pluginFunctions->getvalue)(&mNPP, variable, value), this);
+    NS_TRY_SAFE_CALL_RETURN(rv, (*pluginFunctions->getvalue)(&mNPP, variable, value), this);
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP GetValue called: this=%p, npp=%p, var=%d, value=%d, return=%d\n", 
-    this, &mNPP, variable, value, pluginError));
-
-    if (pluginError == NPERR_NO_ERROR) {
-      rv = NS_OK;
-    }
+    this, &mNPP, variable, value, rv));
   }
 
   return rv;
@@ -692,18 +683,6 @@ NPError nsNPAPIPluginInstance::SetWantsAllNetworkStreams(PRBool aWantsAllNetwork
 {
   mWantsAllNetworkStreams = aWantsAllNetworkStreams;
   return NPERR_NO_ERROR;
-}
-
-NPError nsNPAPIPluginInstance::SetUsesDOMForCursor(PRBool aUsesDOMForCursor)
-{
-  mUsesDOMForCursor = aUsesDOMForCursor;
-  return NPERR_NO_ERROR;
-}
-
-PRBool
-nsNPAPIPluginInstance::UsesDOMForCursor()
-{
-  return mUsesDOMForCursor;
 }
 
 #ifdef XP_MACOSX

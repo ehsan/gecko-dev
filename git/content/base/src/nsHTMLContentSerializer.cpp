@@ -71,10 +71,7 @@
 #include "nsIDocShell.h"
 #include "nsIEditorDocShell.h"
 #include "nsIEditor.h"
-#include "nsIHTMLEditor.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
+#include "nsIHTMLEditor_MOZILLA_2_0_BRANCH.h"
 
 static const PRInt32 kLongLineLen = 128;
 
@@ -108,7 +105,7 @@ IsInvisibleBreak(nsIContent *aNode, nsIAtom *aTag) {
         if (editorDocShell) {
           nsCOMPtr<nsIEditor> editor;
           editorDocShell->GetEditor(getter_AddRefs(editor));
-          nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(editor);
+          nsCOMPtr<nsIHTMLEditor_MOZILLA_2_0_BRANCH> htmlEditor = do_QueryInterface(editor);
           if (htmlEditor) {
             PRBool isVisible = PR_FALSE;
             nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aNode);
@@ -231,8 +228,8 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
 }
 
 NS_IMETHODIMP
-nsHTMLContentSerializer::AppendElementStart(Element* aElement,
-                                            Element* aOriginalElement,
+nsHTMLContentSerializer::AppendElementStart(nsIContent *aElement,
+                                            nsIContent *aOriginalElement,
                                             nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);
@@ -345,7 +342,7 @@ nsHTMLContentSerializer::AppendElementStart(Element* aElement,
 }
   
 NS_IMETHODIMP 
-nsHTMLContentSerializer::AppendElementEnd(Element* aElement,
+nsHTMLContentSerializer::AppendElementEnd(nsIContent *aElement,
                                           nsAString& aStr)
 {
   NS_ENSURE_ARG(aElement);

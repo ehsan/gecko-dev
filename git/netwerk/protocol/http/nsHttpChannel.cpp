@@ -45,7 +45,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef MOZ_IPC
 #include "base/basictypes.h"
+#endif 
 
 #include "nsHttpChannel.h"
 #include "nsHttpHandler.h"
@@ -62,6 +64,7 @@
 #include "prprf.h"
 #include "prnetdb.h"
 #include "nsEscape.h"
+#include "nsInt64.h"
 #include "nsStreamUtils.h"
 #include "nsIOService.h"
 #include "nsICacheService.h"
@@ -134,16 +137,13 @@ nsHttpChannel::nsHttpChannel()
     , mRequestTimeInitialized(PR_FALSE)
 {
     LOG(("Creating nsHttpChannel [this=%p]\n", this));
-    // Subfields of unions cannot be targeted in an initializer list
-    mSelfAddr.raw.family = PR_AF_UNSPEC;
-    mPeerAddr.raw.family = PR_AF_UNSPEC;
 }
 
 nsHttpChannel::~nsHttpChannel()
 {
     LOG(("Destroying nsHttpChannel [this=%p]\n", this));
 
-    if (mAuthProvider)
+    if (mAuthProvider) 
         mAuthProvider->Disconnect(NS_ERROR_ABORT);
 }
 
@@ -153,7 +153,7 @@ nsHttpChannel::Init(nsIURI *uri,
                     nsProxyInfo *proxyInfo)
 {
     nsresult rv = HttpBaseChannel::Init(uri, caps, proxyInfo);
-    if (NS_FAILED(rv))
+    if (NS_FAILED(rv)) 
         return rv;
 
     LOG(("nsHttpChannel::Init [this=%p]\n", this));
@@ -161,7 +161,7 @@ nsHttpChannel::Init(nsIURI *uri,
     mAuthProvider =
         do_CreateInstance("@mozilla.org/network/http-channel-auth-provider;1",
                           &rv);
-    if (NS_FAILED(rv))
+    if (NS_FAILED(rv)) 
         return rv;
     rv = mAuthProvider->Init(this);
 
@@ -384,9 +384,6 @@ nsHttpChannel::DoNotifyListener()
     // We have to make sure to drop the reference to the callbacks too
     mCallbacks = nsnull;
     mProgressSink = nsnull;
-
-    // We don't need this info anymore
-    CleanRedirectCacheChainIfNecessary();
 }
 
 void
@@ -1150,7 +1147,7 @@ nsHttpChannel::ProcessNormal()
     if (NS_SUCCEEDED(rv) && !succeeded) {
         PushRedirectAsyncFunc(&nsHttpChannel::ContinueProcessNormal);
         PRBool waitingForRedirectCallback;
-        (void)ProcessFallback(&waitingForRedirectCallback);
+        rv = ProcessFallback(&waitingForRedirectCallback);
         if (waitingForRedirectCallback) {
             // The transaction has been suspended by ProcessFallback.
             return NS_OK;
@@ -2501,20 +2498,20 @@ nsHttpChannel::CheckCache()
         // size of the cached content, then the cached response is partial...
         // either we need to issue a byte range request or we need to refetch
         // the entire document.
-        PRInt64 contentLength = mCachedResponseHead->ContentLength();
-        if (contentLength != PRInt64(-1)) {
+        nsInt64 contentLength = mCachedResponseHead->ContentLength();
+        if (contentLength != nsInt64(-1)) {
             PRUint32 size;
             rv = mCacheEntry->GetDataSize(&size);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (PRInt64(size) != contentLength) {
+            if (nsInt64(size) != contentLength) {
                 LOG(("Cached data size does not match the Content-Length header "
                      "[content-length=%lld size=%u]\n", PRInt64(contentLength), size));
 
                 PRBool hasContentEncoding =
                     mCachedResponseHead->PeekHeader(nsHttp::Content_Encoding)
                     != nsnull;
-                if ((PRInt64(size) < contentLength) &&
+                if ((nsInt64(size) < contentLength) &&
                      size > 0 &&
                      !hasContentEncoding &&
                      mCachedResponseHead->IsResumable() &&
@@ -2640,27 +2637,12 @@ nsHttpChannel::CheckCache()
             (buf.IsEmpty() && mRequestHead.PeekHeader(nsHttp::Authorization));
     }
 
-    // Bug #561276: We maintain a chain of cache-keys which returns cached
-    // 3xx-responses (redirects) in order to detect cycles. If a cycle is
-    // found, ignore the cached response and hit the net. Otherwise, use
-    // the cached response and add the cache-key to the chain. Note that
-    // a limited number of redirects (cached or not) is allowed and is
-    // enforced independently of this mechanism
-    if (!doValidation && isCachedRedirect) {
-        nsCAutoString cacheKey;
-        GenerateCacheKey(mPostID, cacheKey);
-
-        if (!mRedirectedCachekeys)
-            mRedirectedCachekeys = new nsTArray<nsCString>();
-        else if (mRedirectedCachekeys->Contains(cacheKey))
+    if (!doValidation) {
+        // Sites redirect back to the original URI after setting a session/tracking
+        // cookie. In such cases, force revalidation so that we hit the net and do not
+        // cycle thru cached responses.
+        if (isCachedRedirect && mRequestHead.PeekHeader(nsHttp::Cookie))
             doValidation = PR_TRUE;
-
-        LOG(("Redirection-chain %s key %s\n",
-             doValidation ? "contains" : "does not contain", cacheKey.get()));
-
-        // Append cacheKey if not in the chain already
-        if (!doValidation)
-            mRedirectedCachekeys->AppendElement(cacheKey);
     }
 
     mCachedContentIsValid = !doValidation;
@@ -2696,9 +2678,6 @@ nsHttpChannel::CheckCache()
                 mRequestHead.SetHeader(nsHttp::If_None_Match,
                                        nsDependentCString(val));
         }
-
-        // We don't need this info anymore
-        CleanRedirectCacheChainIfNecessary();
     }
 
     LOG(("nsHTTPChannel::CheckCache exit [this=%p doValidation=%d]\n", this, doValidation));
@@ -2834,7 +2813,7 @@ nsHttpChannel::ReadFromCache()
     if (NS_FAILED(rv)) return rv;
 
     rv = nsInputStreamPump::Create(getter_AddRefs(mCachePump),
-                                   stream, PRInt64(-1), PRInt64(-1), 0, 0,
+                                   stream, nsInt64(-1), nsInt64(-1), 0, 0,
                                    PR_TRUE);
     if (NS_FAILED(rv)) return rv;
 
@@ -3328,7 +3307,7 @@ nsHttpChannel::AsyncProcessRedirection(PRUint32 redirectType)
         if (!NS_SecurityCompareURIs(mURI, mRedirectURI, PR_FALSE)) {
             PushRedirectAsyncFunc(&nsHttpChannel::ContinueProcessRedirectionAfterFallback);
             PRBool waitingForRedirectCallback;
-            (void)ProcessFallback(&waitingForRedirectCallback);
+            rv = ProcessFallback(&waitingForRedirectCallback);
             if (waitingForRedirectCallback)
                 return NS_OK;
             PopRedirectAsyncFunc(&nsHttpChannel::ContinueProcessRedirectionAfterFallback);
@@ -3714,66 +3693,6 @@ nsHttpChannel::SetupFallbackChannel(const char *aFallbackKey)
     return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHttpChannel::GetRemoteAddress(nsACString & _result)
-{
-    if (mPeerAddr.raw.family == PR_AF_UNSPEC)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    _result.SetCapacity(64);
-    PR_NetAddrToString(&mPeerAddr, _result.BeginWriting(), 64);
-    _result.SetLength(strlen(_result.BeginReading()));
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::GetRemotePort(PRInt32 * _result)
-{
-    NS_ENSURE_ARG_POINTER(_result);
-
-    if (mPeerAddr.raw.family == PR_AF_INET) {
-        *_result = (PRInt32)PR_ntohs(mPeerAddr.inet.port);
-    }
-    else if (mPeerAddr.raw.family == PR_AF_INET6) {
-        *_result = (PRInt32)PR_ntohs(mPeerAddr.ipv6.port);
-    }
-    else
-        return NS_ERROR_NOT_AVAILABLE;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::GetLocalAddress(nsACString & _result)
-{
-    if (mSelfAddr.raw.family == PR_AF_UNSPEC)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    _result.SetCapacity(64);
-    PR_NetAddrToString(&mSelfAddr, _result.BeginWriting(), 64);
-    _result.SetLength(strlen(_result.BeginReading()));
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::GetLocalPort(PRInt32 * _result)
-{
-    NS_ENSURE_ARG_POINTER(_result);
-
-    if (mSelfAddr.raw.family == PR_AF_INET) {
-        *_result = (PRInt32)PR_ntohs(mSelfAddr.inet.port);
-    }
-    else if (mSelfAddr.raw.family == PR_AF_INET6) {
-        *_result = (PRInt32)PR_ntohs(mSelfAddr.ipv6.port);
-    }
-    else
-        return NS_ERROR_NOT_AVAILABLE;
-
-    return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // nsHttpChannel::nsISupportsPriority
 //-----------------------------------------------------------------------------
@@ -4024,9 +3943,6 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
     LOG(("nsHttpChannel::OnStopRequest [this=%p request=%p status=%x]\n",
         this, request, status));
 
-     // allow content to be cached if it was loaded successfully (bug #482935)
-     PRBool contentComplete = NS_SUCCEEDED(status);
-
     // honor the cancelation status even if the underlying transaction completed.
     if (mCanceled || NS_FAILED(mStatus))
         status = mStatus;
@@ -4119,16 +4035,13 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
     }
 
     if (mCacheEntry)
-        CloseCacheEntry(!contentComplete);
+        CloseCacheEntry(PR_TRUE);
 
     if (mOfflineCacheEntry)
         CloseOfflineCacheEntry();
 
     if (mLoadGroup)
         mLoadGroup->RemoveRequest(this, nsnull, status);
-
-    // We don't need this info anymore
-    CleanRedirectCacheChainIfNecessary();
 
     mCallbacks = nsnull;
     mProgressSink = nsnull;
@@ -4215,16 +4128,6 @@ nsHttpChannel::OnTransportStatus(nsITransport *trans, nsresult status,
     // cache the progress sink so we don't have to query for it each time.
     if (!mProgressSink)
         GetCallback(mProgressSink);
-
-    if (status == nsISocketTransport::STATUS_CONNECTED_TO ||
-        status == nsISocketTransport::STATUS_WAITING_FOR) {
-        nsCOMPtr<nsISocketTransport> socketTransport =
-            do_QueryInterface(trans);
-        if (socketTransport) {
-            socketTransport->GetSelfAddr(&mSelfAddr);
-            socketTransport->GetPeerAddr(&mPeerAddr);
-        }
-    }
 
     // block socket status event after Cancel or OnStopRequest has been called.
     if (mProgressSink && NS_SUCCEEDED(mStatus) && mIsPending && !(mLoadFlags & LOAD_BACKGROUND)) {

@@ -36,22 +36,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "gfxSharedImageSurface.h"
+#ifdef MOZ_IPC
+# include "gfxSharedImageSurface.h"
+#endif
 
 #include "ImageLayerOGL.h"
 #include "gfxImageSurface.h"
 #include "yuv_convert.h"
 #include "GLContextProvider.h"
 #include "MacIOSurfaceImageOGL.h"
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-# include "GLXLibrary.h"
-# include "mozilla/X11Util.h"
-#endif
 
 using namespace mozilla::gl;
 
 namespace mozilla {
 namespace layers {
+
+using mozilla::MutexAutoLock;
 
 /**
  * This is an event used to unref a GLContext on the main thread and
@@ -192,6 +192,7 @@ RecycleBin::GetTexture(TextureType aType, const gfxIntSize& aSize,
 ImageContainerOGL::ImageContainerOGL(LayerManagerOGL *aManager)
   : ImageContainer(aManager)
   , mRecycleBin(new RecycleBin())
+  , mActiveImageLock("mozilla.layers.ImageContainerOGL.mActiveImageLock")
 {
 }
 
@@ -233,11 +234,10 @@ ImageContainerOGL::SetCurrentImage(Image *aImage)
   nsRefPtr<Image> oldImage;
 
   {
-    MonitorAutoEnter mon(mMonitor);
+    MutexAutoLock lock(mActiveImageLock);
 
     oldImage = mActiveImage.forget();
     mActiveImage = aImage;
-    CurrentImageChanged();
   }
 
   // Make sure oldImage is released outside the lock, so it can take our
@@ -247,7 +247,7 @@ ImageContainerOGL::SetCurrentImage(Image *aImage)
 already_AddRefed<Image>
 ImageContainerOGL::GetCurrentImage()
 {
-  MonitorAutoEnter mon(mMonitor);
+  MutexAutoLock lock(mActiveImageLock);
 
   nsRefPtr<Image> retval = mActiveImage;
   return retval.forget();
@@ -256,7 +256,7 @@ ImageContainerOGL::GetCurrentImage()
 already_AddRefed<gfxASurface>
 ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
 {
-  MonitorAutoEnter mon(mMonitor);
+  MutexAutoLock lock(mActiveImageLock);
 
   if (!mActiveImage) {
     *aSize = gfxIntSize(0,0);
@@ -314,7 +314,7 @@ ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
 gfxIntSize
 ImageContainerOGL::GetCurrentSize()
 {
-  MonitorAutoEnter mon(mMonitor);
+  MutexAutoLock lock(mActiveImageLock);
   if (!mActiveImage) {
     return gfxIntSize(0,0);
   }
@@ -444,15 +444,6 @@ ImageLayerOGL::RenderLayer(int,
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, cairoImage->mTexture.GetTextureID());
 
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-    GLXPixmap pixmap;
-
-    if (cairoImage->mSurface) {
-        pixmap = sGLXLibrary.CreatePixmap(cairoImage->mSurface);
-        sGLXLibrary.BindTexImage(pixmap);
-    }
-#endif
-    
     ColorTextureLayerProgram *program = 
       mOGLManager->GetColorTextureLayerProgram(cairoImage->mLayerProgram);
 
@@ -468,13 +459,6 @@ ImageLayerOGL::RenderLayer(int,
     program->SetTextureUnit(0);
 
     mOGLManager->BindAndDrawQuad(program);
-
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-    if (cairoImage->mSurface) {
-        sGLXLibrary.ReleaseTexImage(pixmap);
-        sGLXLibrary.DestroyPixmap(pixmap);
-    }
-#endif
 #ifdef XP_MACOSX
   } else if (image->GetFormat() == Image::MAC_IO_SURFACE) {
      MacIOSurfaceImageOGL *ioImage =
@@ -518,7 +502,6 @@ ImageLayerOGL::RenderLayer(int,
      gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
 #endif
   }
-  GetContainer()->NotifyPaintedImage(image);
 }
 
 static void
@@ -745,10 +728,6 @@ CairoImageOGL::CairoImageOGL(LayerManagerOGL *aManager)
 void
 CairoImageOGL::SetData(const CairoImage::Data &aData)
 {
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  mSurface = nsnull;
-#endif
-
   if (!mTexture.IsAllocated())
     return;
 
@@ -756,28 +735,18 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   gl->MakeCurrent();
 
   GLuint tex = mTexture.GetTextureID();
+
   gl->fActiveTexture(LOCAL_GL_TEXTURE0);
+  InitTexture(gl, tex, LOCAL_GL_RGBA, aData.mSize);
   mSize = aData.mSize;
-
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-  if (sGLXLibrary.HasTextureFromPixmap()) {
-    mSurface = aData.mSurface;
-    if (mSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
-      mLayerProgram = gl::RGBALayerProgramType;
-    } else {
-      mLayerProgram = gl::RGBXLayerProgramType;
-    }
-    return;
-  }
-#endif
-
-  InitTexture(gl, tex, LOCAL_GL_RGBA, mSize);
 
   mLayerProgram =
     gl->UploadSurfaceToTexture(aData.mSurface,
                                nsIntRect(0,0, mSize.width, mSize.height),
                                tex);
 }
+
+#ifdef MOZ_IPC
 
 ShadowImageLayerOGL::ShadowImageLayerOGL(LayerManagerOGL* aManager)
   : ShadowImageLayer(aManager, nsnull)
@@ -868,6 +837,8 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
   mOGLManager->BindAndDrawQuad(program);
 }
+
+#endif  // MOZ_IPC
 
 
 } /* layers */

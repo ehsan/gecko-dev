@@ -87,7 +87,6 @@ XPIDLSRCS =					\
 	nsIDOMTransitionEvent.idl		\
 	nsIDOMPopStateEvent.idl			\
 	nsIDOMCloseEvent.idl			\
-	nsIDOMEventException.idl		\
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

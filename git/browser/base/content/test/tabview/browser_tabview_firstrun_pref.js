@@ -1,28 +1,21 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let prefsBranch = Cc["@mozilla.org/preferences-service;1"].
+var prefsBranch = Cc["@mozilla.org/preferences-service;1"].
                   getService(Ci.nsIPrefService).
                   getBranch("browser.panorama.");
-let originalPrefState;
 
 function test() {
   waitForExplicitFinish();
 
   ok(!TabView.isVisible(), "Main window TabView is hidden");
 
-  originalPrefState = experienced();
+  ok(experienced(), "should start as experienced");
 
   prefsBranch.setBoolPref("experienced_first_run", false);
   ok(!experienced(), "set to not experienced");
 
-  newWindowWithTabView(checkFirstRun, function() {
-    // open tabview doesn't count as first use experience so setting it manually
-    prefsBranch.setBoolPref("experienced_first_run", true);
-    ok(experienced(), "we're now experienced");
-
-    newWindowWithTabView(checkNotFirstRun, endGame);
-  });
+  newWindowWithTabView(checkFirstRun, part2);
 }
 
 function experienced() {
@@ -34,7 +27,7 @@ function checkFirstRun(win) {
   let contentWindow = win.document.getElementById("tab-view").contentWindow;
   
   // Welcome tab disabled by bug 626754. To be fixed via bug 626926.
-  is(win.gBrowser.tabs.length, 1, "There should be one tab");
+  todo_is(win.gBrowser.tabs.length, 2, "There should be two tabs");
   
   let groupItems = contentWindow.GroupItems.groupItems;
   is(groupItems.length, 1, "There should be one group");
@@ -42,9 +35,13 @@ function checkFirstRun(win) {
 
   let orphanTabCount = contentWindow.GroupItems.getOrphanedTabs().length;
   // Welcome tab disabled by bug 626754. To be fixed via bug 626926.
-  is(orphanTabCount, 0, "There should also be no orphaned tabs");
+  todo_is(orphanTabCount, 1, "There should also be an orphaned tab");
+  
+  ok(experienced(), "we're now experienced");
+}
 
-  ok(!experienced(), "we're not experienced");
+function part2() {
+  newWindowWithTabView(checkNotFirstRun, endGame);
 }
 
 function checkNotFirstRun(win) {
@@ -63,9 +60,6 @@ function checkNotFirstRun(win) {
 function endGame() {
   ok(!TabView.isVisible(), "Main window TabView is still hidden");
   ok(experienced(), "should finish as experienced");
-
-  prefsBranch.setBoolPref("experienced_first_run", originalPrefState);
-
   finish();
 }
 

@@ -190,7 +190,7 @@ TTYput(c)
 
 STATIC void
 TTYputs(p)
-    CONST CHAR	*p;
+    CHAR	*p;
 {
     while (*p)
 	TTYput(*p++);

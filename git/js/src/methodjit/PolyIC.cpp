@@ -560,7 +560,6 @@ class SetPropCompiler : public PICStubCompiler
              * populate the slot to satisfy the method invariant (in case we
              * hit an early return below).
              */
-            id = js_CheckForStringIndex(id);
             const Shape *shape =
                 obj->putProperty(cx, id, getter, clasp->setProperty,
                                  SHAPE_INVALID_SLOT, JSPROP_ENUMERATE, flags, 0);
@@ -1852,7 +1851,7 @@ ic::CallProp(VMFrame &f, ic::PICInfo *pic)
 
 #if JS_HAS_NO_SUCH_METHOD
     if (JS_UNLIKELY(rval.isUndefined()) && regs.sp[-1].isObject()) {
-        regs.sp[-2].setString(pic->atom);
+        regs.sp[-2].setString(ATOM_TO_STRING(pic->atom));
         if (!js_OnUnknownMethod(cx, regs.sp - 2))
             THROW();
     }
@@ -2132,11 +2131,11 @@ GetElementIC::attachGetProp(JSContext *cx, JSObject *obj, const Value &v, jsid i
 
     CodeLocationLabel cs = buffer.finalize();
 #if DEBUG
-    char *chars = js_DeflateString(cx, v.toString()->getChars(cx), v.toString()->length());
+    char *chars = js_DeflateString(cx, v.toString()->nonRopeChars(), v.toString()->length());
     JaegerSpew(JSpew_PICs, "generated %s stub at %p for atom 0x%x (\"%s\") shape 0x%x (%s: %d)\n",
                js_CodeName[op], cs.executableAddress(), id, chars, holder->shape(),
                cx->fp()->script()->filename, js_FramePCToLineNumber(cx, cx->fp()));
-    cx->free_(chars);
+    cx->free(chars);
 #endif
 
     // Update the inline guards, if needed.
@@ -2269,7 +2268,12 @@ GetElementIC::attachTypedArray(JSContext *cx, JSObject *obj, const Value &v, jsi
         LoadFromTypedArray(masm, tarray, addr, typeReg, objReg);
     }
 
-    Jump done = masm.jump();
+    Jump done1 = masm.jump();
+
+    outOfBounds.linkTo(masm.label(), &masm);
+    masm.loadValueAsComponents(UndefinedValue(), typeReg, objReg);
+
+    Jump done2 = masm.jump();
 
     PICLinker buffer(masm, *this);
     if (!buffer.init(cx))
@@ -2279,8 +2283,8 @@ GetElementIC::attachTypedArray(JSContext *cx, JSObject *obj, const Value &v, jsi
         return disable(cx, "code memory is out of range");
 
     buffer.link(claspGuard, slowPathStart);
-    buffer.link(outOfBounds, slowPathStart);
-    buffer.link(done, fastPathRejoin);
+    buffer.link(done1, fastPathRejoin);
+    buffer.link(done2, fastPathRejoin);
 
     CodeLocationLabel cs = buffer.finalizeCodeAddendum();
     JaegerSpew(JSpew_PICs, "generated getelem typed array stub at %p\n", cs.executableAddress());

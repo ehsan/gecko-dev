@@ -126,8 +126,6 @@ mVersion(aPluginInfo->fVersion),
 mLastModifiedTime(0),
 mFlags(NS_PLUGIN_FLAG_ENABLED)
 {
-  PRInt32 javaSentinelVariant = -1;
-
   if (aPluginInfo->fMimeTypeArray) {
     mMimeTypeArray = new char*[mVariants];
     for (int i = 0; i < mVariants; i++) {
@@ -138,11 +136,11 @@ mFlags(NS_PLUGIN_FLAG_ENABLED)
 
       if (mIsJavaPlugin) {
         if (strcmp(currentMIMEType, "application/x-java-vm-npruntime") == 0) {
-          // This "magic MIME type" should not be exposed, but is just a signal
-          // to the browser that this is new-style java.
-          // Remove it and its associated MIME description from our arrays.
+          // Stop processing here, any mimetypes after the magic "I'm a
+          // NPRuntime enabled Java plugin" mimetype will be ignored.
           mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
-          javaSentinelVariant = i;
+          mVariants = i;
+          break;
         }
       }
 
@@ -194,8 +192,6 @@ mFlags(NS_PLUGIN_FLAG_ENABLED)
       mExtensionsArray[i] = new_str(aPluginInfo->fExtensionArray[i]);
   }
   
-  RemoveJavaSentinel(javaSentinelVariant);
-
   EnsureMembersAreUTF8();
 }
 
@@ -227,8 +223,6 @@ mVersion(aVersion),
 mLastModifiedTime(aLastModifiedTime),
 mFlags(0) // Caller will read in our flags from cache
 {
-  PRInt32 javaSentinelVariant = -1;
-
   if (aVariants) {
     mMimeTypeArray        = new char*[mVariants];
     mExtensionsArray      = new char*[mVariants];
@@ -237,7 +231,12 @@ mFlags(0) // Caller will read in our flags from cache
       if (mIsJavaPlugin && aMimeTypes[i] &&
           strcmp(aMimeTypes[i], "application/x-java-vm-npruntime") == 0) {
         mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
-        javaSentinelVariant = i;
+        
+        // Stop processing here, any mimetypes after the magic "I'm a
+        // NPRuntime enabled Java plugin" mimetype will be ignored.
+        mVariants = i;
+        
+        break;
       }
       
       mMimeTypeArray[i]        = new_str(aMimeTypes[i]);
@@ -247,9 +246,7 @@ mFlags(0) // Caller will read in our flags from cache
         mIsJavaPlugin = PR_TRUE;
     }
   }
-
-  RemoveJavaSentinel(javaSentinelVariant);
-
+  
   if (!aArgsAreUTF8)
     EnsureMembersAreUTF8();
 }
@@ -585,34 +582,4 @@ void nsPluginTag::TryUnloadPlugin()
   if (mPluginHost) {
     RegisterWithCategoryManager(PR_FALSE, nsPluginTag::ePluginUnregister);
   }
-}
-
-void
-nsPluginTag::RemoveJavaSentinel(PRInt32 sentinelIndex)
-{
-  if (sentinelIndex == -1)
-    return;
-
-  delete[] mMimeTypeArray[sentinelIndex];
-  mMimeDescriptionArray.RemoveElementAt(sentinelIndex);
-  if (mExtensionsArray)
-    delete[] mExtensionsArray[sentinelIndex];
-
-  // Move the subsequent entries in the arrays.
-  if (mVariants > sentinelIndex + 1) {
-    memmove(mMimeTypeArray + sentinelIndex,
-            mMimeTypeArray + sentinelIndex + 1,
-            (mVariants - sentinelIndex - 1) * sizeof(mMimeTypeArray[0]));
-
-    if (mExtensionsArray) {
-      memmove(mExtensionsArray + sentinelIndex,
-              mExtensionsArray + sentinelIndex + 1,
-              (mVariants - sentinelIndex - 1) * sizeof(mExtensionsArray[0]));
-    }
-  }
-  --mVariants;
-
-  mMimeTypeArray[mVariants] = NULL;
-  if (mExtensionsArray)
-    mExtensionsArray[mVariants] = NULL;
 }

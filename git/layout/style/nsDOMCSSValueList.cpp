@@ -65,10 +65,10 @@ NS_INTERFACE_MAP_BEGIN(nsDOMCSSValueList)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CSSValueList)
 NS_INTERFACE_MAP_END
 
-void
+PRBool
 nsDOMCSSValueList::AppendCSSValue(nsIDOMCSSValue* aValue)
 {
-  mCSSValues.AppendElement(aValue);
+  return mCSSValues.AppendObject(aValue);
 }
 
 // nsIDOMCSSValueList
@@ -76,7 +76,7 @@ nsDOMCSSValueList::AppendCSSValue(nsIDOMCSSValue* aValue)
 NS_IMETHODIMP
 nsDOMCSSValueList::GetLength(PRUint32* aLength)
 {
-  *aLength = mCSSValues.Length();
+  *aLength = mCSSValues.Count();
 
   return NS_OK;
 }
@@ -98,7 +98,7 @@ nsDOMCSSValueList::GetCssText(nsAString& aCssText)
 {
   aCssText.Truncate();
 
-  PRUint32 count = mCSSValues.Length();
+  PRUint32 count = mCSSValues.Count();
 
   nsAutoString separator;
   if (mCommaDelimited) {

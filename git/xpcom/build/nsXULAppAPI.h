@@ -545,7 +545,7 @@ XRE_API(MessageLoop*,
         XRE_GetIOMessageLoop, ())
 
 struct JSContext;
-class JSString;
+struct JSString;
 
 XRE_API(bool,
         XRE_SendTestShellCommand, (JSContext* aCx,

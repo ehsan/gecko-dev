@@ -311,8 +311,7 @@ nsHTMLEditor::HideGrabber()
   NS_ENSURE_TRUE(mGrabber, NS_ERROR_NULL_POINTER);
 
   // get the presshell's document observer interface.
-  nsCOMPtr<nsIPresShell> ps;
-  GetPresShell(getter_AddRefs(ps));
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   // We allow the pres shell to be null; when it is, we presume there
   // are no document observers to notify, but we still want to
   // UnbindFromTree.
@@ -428,8 +427,7 @@ nsresult
 nsHTMLEditor::EndMoving()
 {
   if (mPositioningShadow) {
-    nsCOMPtr<nsIPresShell> ps;
-    GetPresShell(getter_AddRefs(ps));
+    nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
     NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
     nsCOMPtr<nsIDOMNode> parentNode;

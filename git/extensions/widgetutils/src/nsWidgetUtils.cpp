@@ -284,7 +284,8 @@ nsWidgetUtils::MouseMove(nsIDOMEvent* aDOMEvent)
   if(g_lastX == MIN_INT || g_lastY == MIN_INT)
     return NS_OK;
 
-  nsIView* aView = mViewManager->GetRootView();
+  nsIView *aView = nsnull;
+  mViewManager->GetRootView(aView);
   if (!aView)
     if (NS_FAILED(UpdateFromEvent(aDOMEvent)))
       return NS_OK;

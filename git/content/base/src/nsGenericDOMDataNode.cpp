@@ -67,8 +67,6 @@
 #include "pldhash.h"
 #include "prprf.h"
 
-namespace css = mozilla::css;
-
 nsGenericDOMDataNode::nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsIContent(aNodeInfo)
 {
@@ -108,8 +106,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericDOMDataNode)
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsGenericDOMDataNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericDOMDataNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -138,9 +139,9 @@ NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContent)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGenericDOMDataNode)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsGenericDOMDataNode,
-                                              nsNodeUtils::LastRelease(this))
+NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsGenericDOMDataNode, nsIContent)
+NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(nsGenericDOMDataNode, nsIContent,
+                                      nsNodeUtils::LastRelease(this))
 
 
 nsresult
@@ -520,19 +521,19 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // Set parent
   if (aParent) {
-    mParent = aParent;
+    mParentPtrBits =
+      reinterpret_cast<PtrBits>(aParent) | PARENT_BIT_PARENT_IS_CONTENT;
   }
   else {
-    mParent = aDocument;
+    mParentPtrBits = reinterpret_cast<PtrBits>(aDocument);
   }
-  SetParentIsContent(aParent);
 
   // XXXbz sXBL/XBL2 issue!
 
   // Set document
   if (aDocument) {
     // XXX See the comment in nsGenericElement::BindToTree
-    SetInDocument();
+    mParentPtrBits |= PARENT_BIT_INDOCUMENT;
     if (mText.IsBidi()) {
       aDocument->SetBidiEnabled();
     }
@@ -567,11 +568,7 @@ nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     document->BindingManager()->RemovedFromDocument(this, document);
   }
 
-  if (aNullParent) {
-    mParent = nsnull;
-    SetParentIsContent(false);
-  }
-  ClearInDocument();
+  mParentPtrBits = aNullParent ? 0 : mParentPtrBits & ~PARENT_BIT_INDOCUMENT;
 
   nsDataSlots *slots = GetExistingDataSlots();
   if (slots) {
@@ -784,7 +781,7 @@ nsGenericDOMDataNode::IsLink(nsIURI** aURI) const
 nsINode::nsSlots*
 nsGenericDOMDataNode::CreateSlots()
 {
-  return new nsDataSlots();
+  return new nsDataSlots(mFlagsOrSlots);
 }
 
 //----------------------------------------------------------------------
@@ -1116,20 +1113,21 @@ nsGenericDOMDataNode::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
 }
 
 #ifdef MOZ_SMIL
-nsIDOMCSSStyleDeclaration*
-nsGenericDOMDataNode::GetSMILOverrideStyle()
+nsresult
+nsGenericDOMDataNode::GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
-  return nsnull;
+  *aStyle = nsnull;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-css::StyleRule*
+nsICSSStyleRule*
 nsGenericDOMDataNode::GetSMILOverrideStyleRule()
 {
   return nsnull;
 }
 
 nsresult
-nsGenericDOMDataNode::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
+nsGenericDOMDataNode::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
                                                PRBool aNotify)
 {
   NS_NOTREACHED("How come we're setting SMILOverrideStyle on a non-element?");
@@ -1137,14 +1135,14 @@ nsGenericDOMDataNode::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
 }
 #endif // MOZ_SMIL
 
-css::StyleRule*
+nsICSSStyleRule*
 nsGenericDOMDataNode::GetInlineStyleRule()
 {
   return nsnull;
 }
 
 NS_IMETHODIMP
-nsGenericDOMDataNode::SetInlineStyleRule(css::StyleRule* aStyleRule,
+nsGenericDOMDataNode::SetInlineStyleRule(nsICSSStyleRule* aStyleRule,
                                          PRBool aNotify)
 {
   NS_NOTREACHED("How come we're setting inline style on a non-element?");

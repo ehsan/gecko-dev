@@ -150,7 +150,6 @@
 #include "nsICycleCollectorListener.h"
 #include "nsIXPConnect.h"
 #include "nsIJSRuntimeService.h"
-#include "xpcpublic.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -1003,6 +1002,7 @@ struct nsCycleCollector
     void SelectPurple(GCGraphBuilder &builder);
     void MarkRoots(GCGraphBuilder &builder);
     void ScanRoots();
+    void RootWhite();
     PRBool CollectWhite(); // returns whether anything was collected
 
     nsCycleCollector();
@@ -1575,10 +1575,8 @@ GCGraphBuilder::DescribeNode(CCNodeType type, nsrefcnt refCount,
     }
 
     if (type == RefCounted) {
-        if (refCount == 0)
-            Fault("zero refcount", mCurrPi);
-        if (refCount == PR_UINT32_MAX)
-            Fault("overflowing refcount", mCurrPi);
+        if (refCount == 0 || refCount == PR_UINT32_MAX)
+            Fault("zero or overflowing refcount", mCurrPi);
 
         mCurrPi->mRefCount = refCount;
     }
@@ -1672,13 +1670,6 @@ GCGraphBuilder::NoteScriptChild(PRUint32 langID, void *child)
         NS_WARNING("Not collecting cycles involving objects for scripting "
                    "languages that don't participate in cycle collection.");
         return;
-    }
-
-    // skip over non-grey JS children
-    if (langID == nsIProgrammingLanguage::JAVASCRIPT) {
-        JSObject *obj = static_cast<JSObject*>(child);
-        if (!xpc_IsGrayGCThing(obj) && !WantAllTraces())
-            return;
     }
 
     nsCycleCollectionParticipant *cp = mRuntimes[langID]->ToParticipant(child);
@@ -1867,8 +1858,8 @@ nsCycleCollector::ScanRoots()
 // Bacon & Rajan's |CollectWhite| routine, somewhat modified.
 ////////////////////////////////////////////////////////////////////////
 
-PRBool
-nsCycleCollector::CollectWhite()
+void
+nsCycleCollector::RootWhite()
 {
     // Explanation of "somewhat modified": we have no way to collect the
     // set of whites "all at once", we have to ask each of them to drop
@@ -1896,13 +1887,19 @@ nsCycleCollector::CollectWhite()
     {
         PtrInfo *pinfo = etor.GetNext();
         if (pinfo->mColor == white && mWhiteNodes->AppendElement(pinfo)) {
-            rv = pinfo->mParticipant->Root(pinfo->mPointer);
+            rv = pinfo->mParticipant->RootAndUnlinkJSObjects(pinfo->mPointer);
             if (NS_FAILED(rv)) {
                 Fault("Failed root call while unlinking", pinfo);
                 mWhiteNodes->RemoveElementAt(mWhiteNodes->Length() - 1);
             }
         }
     }
+}
+
+PRBool
+nsCycleCollector::CollectWhite()
+{
+    nsresult rv;
 
 #if defined(DEBUG_CC) && !defined(__MINGW32__) && defined(WIN32)
     struct _CrtMemState ms1, ms2;
@@ -2710,6 +2707,14 @@ nsCycleCollector::FinishCollection()
 {
 #ifdef COLLECT_TIME_DEBUG
     PRTime now = PR_Now();
+#endif
+
+    RootWhite();
+
+#ifdef COLLECT_TIME_DEBUG
+    printf("cc: RootWhite() took %lldms\n",
+           (PR_Now() - now) / PR_USEC_PER_MSEC);
+    now = PR_Now();
 #endif
 
     PRBool collected = CollectWhite();

@@ -367,7 +367,7 @@ class _CompoundType(IPDLType):
     def isCompound(self):
         return True
     def itercomponents(self):
-        raise Exception('"pure virtual" method')
+        raise '"pure virtual" method'
 
     def mutuallyRecursiveWith(self, t, exploring=None):
         '''|self| is mutually recursive with |t| iff |self| and |t|

@@ -43,6 +43,7 @@
 #ifndef nsCSSDataBlock_h__
 #define nsCSSDataBlock_h__
 
+#include "nsCSSStruct.h"
 #include "nsCSSProps.h"
 #include "nsCSSPropertySet.h"
 
@@ -150,7 +151,23 @@ private:
     /* Property storage may not be accessed directly; use AddLonghandProperty
      * and friends.
      */
-    nsCSSValue mValues[eCSSProperty_COUNT_no_shorthands];
+
+    nsCSSFont mFont;
+    nsCSSDisplay mDisplay;
+    nsCSSMargin mMargin;
+    nsCSSList mList;
+    nsCSSPosition mPosition;
+    nsCSSTable mTable;
+    nsCSSColor mColor;
+    nsCSSContent mContent;
+    nsCSSText mText;
+    nsCSSUserInterface mUserInterface;
+    nsCSSAural mAural;
+    nsCSSPage mPage;
+    nsCSSBreaks mBreaks;
+    nsCSSXUL mXUL;
+    nsCSSSVG mSVG;
+    nsCSSColumn mColumn;
 
 public:
     /**
@@ -248,6 +265,10 @@ private:
     void DoAssertInitialState();
 #endif
 
+    // XXX These could probably be pointer-to-member, if the casting can
+    // be done correctly.
+    static const size_t kOffsetTable[];
+
     /*
      * mPropertiesSet stores a bit for every property that is present,
      * to optimize compression of blocks with small numbers of
@@ -265,10 +286,9 @@ private:
      * property |aProperty|.
      */
     nsCSSValue* PropertyAt(nsCSSProperty aProperty) {
-        NS_ABORT_IF_FALSE(0 <= aProperty &&
-                          aProperty < eCSSProperty_COUNT_no_shorthands,
-                          "property out of range");
-        return &mValues[aProperty];
+        size_t offset = nsCSSExpandedDataBlock::kOffsetTable[aProperty];
+        return reinterpret_cast<nsCSSValue*>(reinterpret_cast<char*>(this) +
+                                             offset);
     }
 
     void SetPropertyBit(nsCSSProperty aProperty) {

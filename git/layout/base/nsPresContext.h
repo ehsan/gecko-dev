@@ -982,11 +982,6 @@ public:
   }
   inline void ForgetUpdatePluginGeometryFrame(nsIFrame* aFrame);
 
-  PRBool GetContainsUpdatePluginGeometryFrame()
-  {
-    return mContainsUpdatePluginGeometryFrame;
-  }
-
   void SetContainsUpdatePluginGeometryFrame(PRBool aValue)
   {
     mContainsUpdatePluginGeometryFrame = aValue;
@@ -1302,14 +1297,6 @@ public:
    * mContainsUpdatePluginGeometryFrame is set in the frame's prescontext.
    */
   void RootForgetUpdatePluginGeometryFrame(nsIFrame* aFrame);
-
-  /**
-   * Call this when a document is going to no longer be valid for plugin updates
-   * (say by going into the bfcache). If mContainsUpdatePluginGeometryFrame is
-   * set in the prescontext then it will be cleared along with
-   * mUpdatePluginGeometryForFrame.
-   */
-  void RootForgetUpdatePluginGeometryFrameForPresContext(nsPresContext* aPresContext);
 
   /**
    * Increment DOM-modification generation counter to indicate that
