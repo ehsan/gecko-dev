@@ -278,8 +278,11 @@ void nsMenuBarX::ForceUpdateNativeMenuAt(const nsAString& indexString)
     return;
 
   // fake open/close to cause lazy update to happen so submenus populate
-  currentMenu->MenuOpened();
-  currentMenu->MenuClosed();
+  nsMenuEvent menuEvent(PR_TRUE, NS_MENU_SELECTED, nsnull);
+  menuEvent.time = PR_IntervalNow();
+  menuEvent.mCommand = (PRUint32)_NSGetCarbonMenu(static_cast<NSMenu*>(currentMenu->NativeData()));
+  currentMenu->MenuOpened(menuEvent);
+  currentMenu->MenuClosed(menuEvent);
 
   // now find the correct submenu
   for (unsigned int i = 1; currentMenu && i < indexCount; i++) {
@@ -295,8 +298,11 @@ void nsMenuBarX::ForceUpdateNativeMenuAt(const nsAString& indexString)
         if (targetMenu->MenuObjectType() == eSubmenuObjectType && visible == (targetIndex + 1)) {
           currentMenu = static_cast<nsMenuX*>(targetMenu);
           // fake open/close to cause lazy update to happen
-          currentMenu->MenuOpened();
-          currentMenu->MenuClosed();
+          nsMenuEvent menuEvent(PR_TRUE, NS_MENU_SELECTED, nsnull);
+          menuEvent.time = PR_IntervalNow();
+          menuEvent.mCommand = (PRUint32)_NSGetCarbonMenu(static_cast<NSMenu*>(currentMenu->NativeData()));
+          currentMenu->MenuOpened(menuEvent);
+          currentMenu->MenuClosed(menuEvent);
           break;
         }
       }

@@ -852,12 +852,11 @@ nsCocoaWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 }
 
 void
-nsCocoaWindow::Scroll(const nsIntPoint& aDelta,
-                      const nsTArray<nsIntRect>& aDestRects,
+nsCocoaWindow::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
                       const nsTArray<Configuration>& aConfigurations)
 {
   if (mPopupContentView) {
-    mPopupContentView->Scroll(aDelta, aDestRects, aConfigurations);
+    mPopupContentView->Scroll(aDelta, aSource, aConfigurations);
   }
 }
 

@@ -913,8 +913,7 @@ public:
   NS_IMETHOD ComputeRepaintRegionForCopy(nsIView*      aRootView,
                                          nsIView*      aMovingView,
                                          nsPoint       aDelta,
-                                         const nsRect& aUpdateRect,
-                                         nsRegion*     aBlitRegion,
+                                         const nsRect& aCopyRect,
                                          nsRegion*     aRepaintRegion);
   NS_IMETHOD HandleEvent(nsIView*        aView,
                          nsGUIEvent*     aEvent,
@@ -5225,14 +5224,13 @@ NS_IMETHODIMP
 PresShell::ComputeRepaintRegionForCopy(nsIView*      aRootView,
                                        nsIView*      aMovingView,
                                        nsPoint       aDelta,
-                                       const nsRect& aUpdateRect,
-                                       nsRegion*     aBlitRegion,
+                                       const nsRect& aCopyRect,
                                        nsRegion*     aRepaintRegion)
 {
   return nsLayoutUtils::ComputeRepaintRegionForCopy(
       static_cast<nsIFrame*>(aRootView->GetClientData()),
       static_cast<nsIFrame*>(aMovingView->GetClientData()),
-      aDelta, aUpdateRect, aBlitRegion, aRepaintRegion);
+      aDelta, aCopyRect, aRepaintRegion);
 }
 
 NS_IMETHODIMP

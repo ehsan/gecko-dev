@@ -348,8 +348,6 @@ nsComputedDOMStyle::GetStyleContextForContent(nsIContent* aContent,
                                               nsIAtom* aPseudo,
                                               nsIPresShell* aPresShell)
 {
-  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eELEMENT),
-               "aContent must be an element");
   if (!aPseudo) {
     aPresShell->FlushPendingNotifications(Flush_Style);
     nsIFrame* frame = aPresShell->GetPrimaryFrameFor(aContent);
@@ -370,8 +368,7 @@ nsComputedDOMStyle::GetStyleContextForContent(nsIContent* aContent,
   // style ourselves
   nsRefPtr<nsStyleContext> parentContext;
   nsIContent* parent = aPseudo ? aContent : aContent->GetParent();
-  // Don't resolve parent context for document fragments.
-  if (parent && parent->IsNodeOfType(nsINode::eELEMENT))
+  if (parent)
     parentContext = GetStyleContextForContent(parent, nsnull, aPresShell);
 
   nsPresContext *presContext = aPresShell->GetPresContext();
@@ -379,6 +376,11 @@ nsComputedDOMStyle::GetStyleContextForContent(nsIContent* aContent,
     return nsnull;
 
   nsStyleSet *styleSet = aPresShell->StyleSet();
+
+  if (!aContent->IsNodeOfType(nsINode::eELEMENT)) {
+    NS_ASSERTION(!aPseudo, "Shouldn't have a pseudo for a non-element!");
+    return styleSet->ResolveStyleForNonElement(parentContext);
+  }
 
   if (aPseudo) {
     return styleSet->ResolvePseudoStyleFor(aContent, aPseudo, parentContext);
