@@ -23,8 +23,6 @@ const PREF_ENABLED = "toolkit.telemetry.enabled";
 const TELEMETRY_INTERVAL = 60000;
 // Delay before intializing telemetry (ms)
 const TELEMETRY_DELAY = 60000;
-// Delete ping files that have been lying around for longer than this.
-const MAX_PING_FILE_AGE = 7 * 24 * 60 * 60 * 1000; // 1 week
 // Constants from prio.h for nsIFileOutputStream.init
 const PR_WRONLY = 0x2;
 const PR_CREATE_FILE = 0x8;
@@ -547,7 +545,7 @@ TelemetryPing.prototype = {
     function payloadIter() {
       yield this.getCurrentSessionPayloadAndSlug(reason);
 
-      while (this._pendingPings.length > 0) {
+      if (this._pendingPings.length > 0) {
         let data = this._pendingPings.pop();
         // Send persisted pings to the test URL too.
         if (reason == "test-ping") {
@@ -776,13 +774,6 @@ TelemetryPing.prototype = {
   },
 
   loadHistograms: function loadHistograms(file, sync) {
-    let now = new Date();
-    if (now - file.lastModifiedTime > MAX_PING_FILE_AGE) {
-      // We haven't had much luck in sending this file; delete it.
-      file.remove(true);
-      return;
-    }
-
     this._pingsLoaded++;
     if (sync) {
       let stream = Cc["@mozilla.org/network/file-input-stream;1"]
@@ -839,7 +830,7 @@ TelemetryPing.prototype = {
       initFlags |= PR_EXCL;
     }
     try {
-      ostream.init(file, initFlags, RW_OWNER, 0);
+      ostream.init(file, initFlags, RW_OWNER, ostream.DEFER_OPEN);
     } catch (e) {
       // Probably due to PR_EXCL.
       return;
@@ -848,13 +839,8 @@ TelemetryPing.prototype = {
     if (sync) {
       let utf8String = converter.ConvertFromUnicode(pingString);
       utf8String += converter.Finish();
-      let success = false;
-      try {
-        let amount = ostream.write(utf8String, utf8String.length);
-        success = amount == utf8String.length;
-      } catch (e) {
-      }
-      this.finishTelemetrySave(success, ostream);
+      let amount = ostream.write(utf8String, utf8String.length);
+      this.finishTelemetrySave(amount == utf8String.length, ostream);
     } else {
       let istream = converter.convertToInputStream(pingString)
       let self = this;
