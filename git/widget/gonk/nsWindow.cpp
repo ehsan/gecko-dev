@@ -151,10 +151,8 @@ nsWindow::nsWindow()
         }
 
         nsIntSize screenSize;
-        bool gotFB = Framebuffer::GetSize(&screenSize);
-        if (!gotFB) {
-            NS_RUNTIMEABORT("Failed to get size from framebuffer, aborting...");
-        }
+        mozilla::DebugOnly<bool> gotFB = Framebuffer::GetSize(&screenSize);
+        MOZ_ASSERT(gotFB);
         gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
 
         char propValue[PROPERTY_VALUE_MAX];
