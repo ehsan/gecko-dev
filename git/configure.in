@@ -4584,7 +4584,7 @@ cairo-cocoa)
     MOZ_WIDGET_TOOLKIT=cocoa
     AC_DEFINE(MOZ_WIDGET_COCOA)
     LDFLAGS="$LDFLAGS -framework Cocoa -lobjc"
-    TK_LIBS='-framework CoreLocation -framework QuartzCore -framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook -framework OpenGL'
+    TK_LIBS='-framework QuartzCore -framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook -framework OpenGL'
     TK_CFLAGS="-DNO_X11"
     CFLAGS="$CFLAGS $TK_CFLAGS"
     CXXFLAGS="$CXXFLAGS $TK_CFLAGS"
@@ -7844,15 +7844,7 @@ else
 fi
 
 if test "$MOZ_WIDGET_TOOLKIT" = "android"; then
-    dnl Fennec's static resources live in the assets/ folder of the
-    dnl APK.  Adding a path to the name here works because we only
-    dnl have one omnijar file in the final package (which is not the
-    dnl case on desktop), and necessitates some contortions during
-    dnl packaging so that the resources in the omnijar are considered
-    dnl as rooted at / and not as rooted at assets/ (which again is
-    dnl not the case on desktop: there are omnijars rooted at webrtc/,
-    dnl etc). packager.mk handles changing the rooting of the single
-    dnl omnijar.
+    dnl On Android, static resources live in the assets/ folder of the APK.
     OMNIJAR_NAME=assets/omni.ja
 else
     OMNIJAR_NAME=omni.ja
@@ -9482,11 +9474,6 @@ fi
 dist=$MOZ_BUILD_ROOT/dist
 ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 ac_configure_args="$ac_configure_args --enable-threadsafe"
-if test "A" = "A"; then # "$MOZ_BUILDAPP" != "browser", when desktop builds this
-    # The Internationalization API is currently disabled in all non-standalone
-    # SpiderMonkey builds, but it should be turned on for desktop builds soon.
-    ac_configure_args="$ac_configure_args --disable-intl-api"
-fi
 if test "$BUILD_CTYPES"; then
     # Build js-ctypes on the platforms we can.
     ac_configure_args="$ac_configure_args --enable-ctypes"

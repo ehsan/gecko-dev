@@ -156,8 +156,9 @@ var BrowserUI = {
       BrowserUI._pullDesktopControlledPrefs();
 
       // check for left over crash reports and submit them if found.
-      BrowserUI.startupCrashCheck();
-
+      if (BrowserUI.startupCrashCheck()) {
+        Browser.selectedTab = BrowserUI.newOrSelectTab("about:crash");
+      }
       Util.dumpLn("* delay load complete.");
     }, false);
 
@@ -211,43 +212,24 @@ var BrowserUI = {
     return this.CrashSubmit;
   },
 
-  get lastCrashID() {
-    return Cc["@mozilla.org/xre/runtime;1"].getService(Ci.nsIXULRuntime).lastRunCrashID;
-  },
-
   startupCrashCheck: function startupCrashCheck() {
 #ifdef MOZ_CRASHREPORTER
-    if (!CrashReporter.enabled) {
-      return;
-    }
-    let lastCrashID = this.lastCrashID;
-    if (!lastCrashID || !lastCrashID.length) {
-      return;
-    }
-    let shouldReport = Services.prefs.getBoolPref("app.crashreporter.autosubmit");
-    let didPrompt = Services.prefs.getBoolPref("app.crashreporter.prompted");
-
-    if (!shouldReport && !didPrompt) {
-      // We have a crash to submit, we haven't prompted for approval yet,
-      // and the auto-submit pref is false, prompt. The dialog will call
-      // startupCrashCheck again if the user approves.
-      Services.prefs.setBoolPref("app.crashreporter.prompted", true);
-      DialogUI.importModal(document, "chrome://browser/content/prompt/crash.xul");
-      return;
-    }
-
-    // We've already prompted, return if the user doesn't want to report.
-    if (!shouldReport && didPrompt) {
-      return;
-    }
-
-    Util.dumpLn("Submitting last crash id:", lastCrashID);
-    try {
-      this.CrashSubmit.submit(lastCrashID);
-    } catch (ex) {
-      Util.dumpLn(ex);
+    if (!Services.prefs.getBoolPref("app.reportCrashes"))
+      return false;
+    if (CrashReporter.enabled) {
+      var lastCrashID = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo).lastRunCrashID;
+      if (lastCrashID && lastCrashID.length) {
+        Util.dumpLn("Submitting last crash id:", lastCrashID);
+        try {
+          this.CrashSubmit.submit(lastCrashID);
+        } catch (ex) {
+          Util.dumpLn(ex);
+        }
+        return true;
+      }
     }
 #endif
+    return false;
   },
 
 
@@ -1657,18 +1639,9 @@ var DialogUI = {
     let dispatcher = aParent || getBrowser();
     dispatcher.dispatchEvent(event);
 
-    // create a full-screen semi-opaque box as a background or reuse
-    // the existing one.
-    let back = document.getElementById("dialog-modal-block");
-    if (!back) {
-      back = document.createElement("box");
-    } else {
-      while (back.hasChildNodes()) {
-        back.removeChild(back.firstChild);
-      }
-    }
+    // create a full-screen semi-opaque box as a background
+    let back = document.createElement("box");
     back.setAttribute("class", "modal-block");
-    back.setAttribute("id", "dialog-modal-block");
     dialog = back.appendChild(document.importNode(doc, true));
     parentNode.insertBefore(back, contentMenuContainer);
 

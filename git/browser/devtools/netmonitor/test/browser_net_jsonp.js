@@ -74,7 +74,7 @@ function test() {
         is(jsonScope.querySelectorAll(".variables-view-property .name")[1].getAttribute("value"),
           "__proto__", "The second json property name was incorrect.");
         is(jsonScope.querySelectorAll(".variables-view-property .value")[1].getAttribute("value"),
-          "Object", "The second json property value was incorrect.");
+          "[object Object]", "The second json property value was incorrect.");
       }
     });
 

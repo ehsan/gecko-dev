@@ -157,6 +157,7 @@ public class SiteIdentityPopup extends ArrowPopup
         } else {
             mMixedContentNotification.addButton(mActivity.getString(R.string.enable_protection), "enable", this);
         }
+        mMixedContentNotification.hideDivider();
         mMixedContentNotification.setBackgroundColor(0xFFDDE4EA);
 
         mContent.addView(mMixedContentNotification);

@@ -2789,15 +2789,9 @@ JS_SetFinalizeCallback(JSRuntime *rt, JSFinalizeCallback cb)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_IsAboutToBeFinalized(JS::Heap<JSObject *> *objp)
+JS_IsAboutToBeFinalized(JSObject **obj)
 {
-    return IsObjectAboutToBeFinalized(objp->unsafeGet());
-}
-
-JS_PUBLIC_API(JSBool)
-JS_IsAboutToBeFinalizedUnbarriered(JSObject **objp)
-{
-    return IsObjectAboutToBeFinalized(objp);
+    return IsObjectAboutToBeFinalized(obj);
 }
 
 JS_PUBLIC_API(void)
@@ -3363,13 +3357,9 @@ JS_NewObjectForConstructor(JSContext *cx, JSClass *clasp, const jsval *vp)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_IsExtensible(JSContext *cx, HandleObject obj, JSBool *extensible)
+JS_IsExtensible(JSObject *obj)
 {
-    bool isExtensible;
-    if (!JSObject::isExtensible(cx, obj, &isExtensible))
-        return false;
-    *extensible = isExtensible;
-    return true;
+    return obj->isExtensible();
 }
 
 JS_PUBLIC_API(JSBool)
@@ -3404,10 +3394,7 @@ JS_DeepFreezeObject(JSContext *cx, JSObject *objArg)
     assertSameCompartment(cx, obj);
 
     /* Assume that non-extensible objects are already deep-frozen, to avoid divergence. */
-    bool extensible;
-    if (!JSObject::isExtensible(cx, obj, &extensible))
-        return false;
-    if (!extensible)
+    if (!obj->isExtensible())
         return true;
 
     if (!JSObject::freeze(cx, obj))

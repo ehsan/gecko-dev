@@ -122,7 +122,7 @@ private:
 
   LayerTransactionParent* GetShadowLayers() const;
   uint64_t GetLayerTreeId() const;
-  Layer* GetRootLayer() const;
+  ContainerLayer* GetRootLayer() const;
 
   // When our child frame is pushing transactions directly to the
   // compositor, this is the ID of its layer tree in the compositor's
