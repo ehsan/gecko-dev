@@ -1492,9 +1492,9 @@ imgContainer::ReloadImages(void)
             mRestoreData.Length()));
   }
 
-  // |WriteFrom()| may fail if the original data is broken.
   PRUint32 written;
-  (void)decoder->WriteFrom(stream, mRestoreData.Length(), &written);
+  result = decoder->WriteFrom(stream, mRestoreData.Length(), &written);
+  NS_ENSURE_SUCCESS(result, result);
 
   result = decoder->Flush();
   NS_ENSURE_SUCCESS(result, result);

@@ -322,20 +322,16 @@ _cairo_skip_list_insert (cairo_skip_list_t *list, void *data, int unique)
     /*
      * Find links along each chain
      */
-    elt = NULL;
     next = list->chains;
     for (i = list->max_level; --i >= 0; )
     {
-	if (elt != next[i])
+	for (; (elt = next[i]); next = elt->next)
 	{
-	    for (; (elt = next[i]); next = elt->next)
-	    {
-		int cmp = list->compare (list, ELT_DATA(elt), data);
-		if (unique && 0 == cmp)
-		    return ELT_DATA(elt);
-		if (cmp > 0)
-		    break;
-	    }
+	    int cmp = list->compare (list, ELT_DATA(elt), data);
+	    if (unique && 0 == cmp)
+		return ELT_DATA(elt);
+	    if (cmp > 0)
+		break;
 	}
         update[i] = next;
 	if (next != list->chains)
