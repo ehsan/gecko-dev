@@ -39,20 +39,22 @@
 @media all and (min-device-width: 401px) {
 	
 /* main toolbar (URL bar) -------------------------------------------------- */
+#tool-bookmarks {
+  list-style-image: url("chrome://browser/skin/images/bookmarks-default-64.png");
+}
+
+#tool-bookmarks:hover:active {
+  list-style-image: url("chrome://browser/skin/images/bookmarks-active-64.png");
+}
+
 #tool-app-close {
-  visibility: hidden;
   min-height: 0 !important;
   min-width: 0 !important;
   margin-top: -40px; /* keep pixels */
   list-style-image: url("chrome://browser/skin/images/fullscreen-close-40.png");
 }
 
-#toolbar-main[fullscreen="true"] #tool-app-close {
-  visibility: visible;
-}
-
 #toolbar-main[dialog="true"] #tool-app-close {
-  visibility: visible;
   list-style-image: url("chrome://browser/skin/images/fullscreen-up-40.png");
 }
 
@@ -80,8 +82,7 @@
   -moz-box-pack: center;
 }
 
-#identity-box:hover:active,
-#identity-box[open] {
+#identity-box:hover:active {
   background: url("images/leftcap-active-64.png");
 }
 
@@ -90,8 +91,7 @@
   background: url("images/leftcapEV-default-64.png");
 }
 
-#identity-box[mode="verifiedIdentity"]:hover:active,
-#identity-box[mode="verifiedIdentity"][open] {
+#identity-box[mode="verifiedIdentity"]:hover:active {
   background: url("images/leftcapEV-active-64.png");
 }
 
@@ -100,8 +100,7 @@
   background: url("images/leftcapSSL-default-64.png");
 }
 
-#identity-box[mode="verifiedDomain"]:hover:active,
-#identity-box[mode="verifiedDomain"][open] {
+#identity-box[mode="verifiedDomain"]:hover:active {
   background: url("images/leftcapSSL-active-64.png");
 }
 
@@ -253,10 +252,12 @@
   list-style-image: url("chrome://browser/skin/images/navigation-magnifier-30.png");
 }
 
-autocompleteresult.allbookmarks > .autocomplete-item-image {
-  max-width: 44px;
-  max-height: 30px;
-  list-style-image: url(images/bookmarks-30.png);
+.ac-result-type-bookmark {
+  list-style-image: url("chrome://browser/skin/images/star-30.png");
+}
+
+.ac-result-type-tag {
+  list-style-image: url("chrome://browser/skin/images/tag-30.png");
 }
 
 .documenttab-close {
@@ -301,8 +302,11 @@ findbar .findbar-closebutton {
   list-style-image: url("chrome://browser/skin/images/lock-40.png");
 }
 
-/* Preferences window   ---------------------------------------------------- */
+/* XXX should be a richlistitem */
 .prefbox {
+  padding: 0.25mm;
+  border-bottom: 0.05mm solid rgb(207,207,207);
+  min-height: 7.2mm; /* row size */
   -moz-box-align: center;
   -moz-box-orient: horizontal;
 }

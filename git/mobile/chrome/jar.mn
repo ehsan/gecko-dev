@@ -1,9 +1,9 @@
 #filter substitution
 
-chrome.jar:
+browser.jar:
 % content browser %content/
 * content/browser.xul                  (content/browser.xul)
-* content/browser.js                   (content/browser.js)
+  content/browser.js                   (content/browser.js)
   content/browser-ui.js                (content/browser-ui.js)
   content/commandUtil.js               (content/commandUtil.js)
   content/bindings.xml                 (content/bindings.xml)
@@ -22,6 +22,8 @@ chrome.jar:
 * content/sanitize.xul                 (content/sanitize.xul)
 * content/sanitize.js                  (content/sanitize.js)
   content/WidgetStack.js               (content/WidgetStack.js)
+  content/BrowserView.js               (content/BrowserView.js)
+  content/TileManager.js               (content/TileManager.js)
   content/CanvasBrowser.js             (content/CanvasBrowser.js)
   content/InputHandler.js              (content/InputHandler.js)
   content/extensions.js                (content/extensions.js)

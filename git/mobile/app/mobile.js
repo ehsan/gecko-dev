@@ -52,7 +52,6 @@ pref("browser.ui.panning.fixup.mousemove", false);
 pref("ui.use_native_popup_windows", true);
 
 pref("javascript.options.showInConsole", false);
-pref("browser.dom.window.dump.enabled", false);
 
 /* cache prefs */
 #ifdef MOZ_PLATFORM_HILDON
@@ -218,7 +217,7 @@ pref("browser.xul.error_pages.enabled", true);
 // various and sundry awesomebar prefs (should remove/re-evaluate
 // these once bug 447900 is fixed)
 pref("browser.urlbar.clickSelectsAll", true);
-pref("browser.urlbar.doubleClickSelectsAll", true);
+pref("browser.urlbar.doubleClickSelectsAll", false);
 pref("browser.urlbar.autoFill", false);
 pref("browser.urlbar.matchOnlyTyped", false);
 pref("browser.urlbar.matchBehavior", 1);
@@ -269,9 +268,6 @@ pref("gfx.color_management.mode", 0);
 
 // don't allow JS to move and resize existing windows
 pref("dom.disable_window_move_resize", true);
-
-// prevent click image resizing for nsImageDocument
-pref("browser.enable_click_image_resizing", false);
 
 // open in tab preferences
 // 0=default window, 1=current window/tab, 2=new window, 3=new tab in most window

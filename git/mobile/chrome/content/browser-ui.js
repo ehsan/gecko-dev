@@ -76,6 +76,7 @@ const kDefaultFavIconURL = "chrome://browser/skin/images/favicon-default-30.png"
 var BrowserUI = {
   _edit : null,
   _throbber : null,
+  _autocompleteNavbuttons : null,
   _favicon : null,
   _faviconLink : null,
   _dialogs: [],
@@ -175,11 +176,11 @@ var BrowserUI = {
     aFlags = aFlags || 0;
 
     if (aFlags & URLBAR_FORCE) {
-      ws.freeze("toolbar-main");
-      ws.moveFrozenTo("toolbar-main", 0, 0);
+      //ws.freeze("toolbar-main");
+      //ws.moveFrozenTo("toolbar-main", 0, 0);
     }
     else {
-      ws.unfreeze("toolbar-main");
+      //ws.unfreeze("toolbar-main");
     }
 
     this._editToolbar(aFlags & URLBAR_EDIT);
@@ -231,10 +232,10 @@ var BrowserUI = {
     // If we have a dialog push it on the stack and set the attr for CSS
     if (aDialog) {
       this._dialogs.push(aDialog);
-      document.getElementById("toolbar-main").setAttribute("dialog", "true");
+      document.getElementById("toolbar-main").setAttribute("dialog", "true")
     }
   },
-
+  
   popDialog : function popDialog() {
     // Passing null means we pop the topmost dialog
     if (this._dialogs.length)
@@ -242,11 +243,15 @@ var BrowserUI = {
 
     // If no more dialogs are being displayed, remove the attr for CSS
     if (!this._dialogs.length)
-      document.getElementById("toolbar-main").removeAttribute("dialog");
+      document.getElementById("toolbar-main").removeAttribute("dialog")
   },
 
   switchPane : function(id) {
     document.getElementById("panel-items").selectedPanel = document.getElementById(id);
+  },
+
+  showPrefSection : function(id) {
+    document.getElementById("prefs-list").scrollBoxObject.scrollToElement(document.getElementById(id));
   },
 
   get toolbarH() {
@@ -264,9 +269,9 @@ var BrowserUI = {
     let controls = document.getElementById("browser-controls");
     if (!this._initControls) {
       this._initControls = true;
-      ws.moveUnfrozenTo("toolbar-main", null, -this.toolbarH);
-      ws.moveUnfrozenTo("tabs-container", -tabs.boxObject.width, this.toolbarH);
-      ws.moveUnfrozenTo("browser-controls", null, this.toolbarH);
+      //ws.moveUnfrozenTo("toolbar-main", null, -this.toolbarH);
+      //ws.moveUnfrozenTo("tabs-container", -tabs.boxObject.width, this.toolbarH);
+      //ws.moveUnfrozenTo("browser-controls", null, this.toolbarH);
     }
 
     toolbar.width = windowW;
@@ -316,10 +321,9 @@ var BrowserUI = {
     this._throbber = document.getElementById("urlbar-throbber");
     this._favicon = document.getElementById("urlbar-favicon");
     this._favicon.addEventListener("error", this, false);
+    this._autocompleteNavbuttons = document.getElementById("autocomplete_navbuttons");
 
-    let urlbarEditArea = document.getElementById("urlbar-editarea");
-    urlbarEditArea.addEventListener("click", this, false);
-    urlbarEditArea.addEventListener("mousedown", this, false);
+    document.getElementById("urlbar-editarea").addEventListener("click", this, false);
 
     document.getElementById("tabs").addEventListener("TabSelect", this, true);
 
@@ -327,7 +331,7 @@ var BrowserUI = {
     browsers.addEventListener("DOMWindowClose", this, true);
     browsers.addEventListener("UIShowSelect", this, false, true);
 
-    // XXX these really want to listen to only the current browser
+    // XXX these really want to listen to only the the current browser
     browsers.addEventListener("DOMTitleChanged", this, true);
     browsers.addEventListener("DOMLinkAdded", this, true);
 
@@ -462,15 +466,15 @@ var BrowserUI = {
     this.engines = engines;
 
     const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-    var container = document.getElementById("search-buttons");
+    var container = this._autocompleteNavbuttons;
     for (var e = 0; e < engines.length; e++) {
-      var button = document.createElementNS(kXULNS, "radio");
+      var button = document.createElementNS(kXULNS, "toolbarbutton");
       var engine = engines[e];
       button.id = engine.name;
       button.setAttribute("label", engine.name);
-      button.className = "searchengine";
+      button.className = "searchengine show-text button-dark";
       if (engine.iconURI)
-        button.setAttribute("src", engine.iconURI.spec);
+        button.setAttribute("image", engine.iconURI.spec);
       container.appendChild(button);
       button.engine = engine;
     }
@@ -501,7 +505,7 @@ var BrowserUI = {
   },
 
   newTab : function newTab(aURI) {
-    ws.panTo(0, -this.toolbarH);
+    //ws.panTo(0, -this.toolbarH);
     return Browser.addTab(aURI || "about:blank", true);
   },
 
@@ -515,17 +519,21 @@ var BrowserUI = {
   },
 
   hideTabs: function hideTabs() {
+/*
     if (ws.isWidgetVisible("tabs-container")) {
       let widthOfTabs = document.getElementById("tabs-container").boxObject.width;
       ws.panBy(widthOfTabs, 0, true);
     }
+*/
   },
 
   hideControls: function hideControls() {
+/*
     if (ws.isWidgetVisible("browser-controls")) {
       let widthOfControls = document.getElementById("browser-controls").boxObject.width;
       ws.panBy(-widthOfControls, 0, true);
     }
+*/
   },
 
   showPanel: function showPanel(aPage) {
@@ -570,14 +578,6 @@ var BrowserUI = {
         if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE) {
           this._edit.reset();
           this._editToolbar(false);
-        }
-        break;
-      case "mousedown":
-        if (aEvent.detail == 2 &&
-            aEvent.button == 0 &&
-            gPrefService.getBoolPref("browser.urlbar.doubleClickSelectsAll")) {
-          this._edit.editor.selectAll();
-          aEvent.preventDefault();
         }
         break;
       // Favicon events
@@ -832,7 +832,7 @@ var FolderPicker = {
     this._panel.height = window.innerHeight;
     this._panel.hidden = false;
     BrowserUI.pushDialog(this);
-
+    
     this._control = aControl;
 
     let folders = document.getElementById("folder-items");
@@ -873,7 +873,7 @@ var SelectHelper = {
     else {
       for (let i = 0; i < control.options.length; i++) {
         if (control.options[i].selected)
-          indexes.push(i);
+          indexes.push(i)
       }
     }
 
@@ -890,8 +890,6 @@ var SelectHelper = {
     this._list = document.getElementById("select-list");
     this._list.setAttribute("multiple", this._control.multiple ? "true" : "false");
 
-    let firstSelected = null;
-    
     let optionIndex = 0;
     let children = this._control.children;
     for (let i=0; i<children.length; i++) {
@@ -910,54 +908,24 @@ var SelectHelper = {
           this._list.appendChild(item);
           item.className = "in-optgroup";
           item.optionIndex = optionIndex++;
-          if (subchild.selected) {
+          if (subchild.selected)
             item.setAttribute("selected", "true");
-            firstSelected = firstSelected ? firstSelected : item;
-          }
         }
       } else if (child instanceof HTMLOptionElement) {
         let item = document.createElement("option");
         item.setAttribute("label", child.textContent);
         this._list.appendChild(item);
         item.optionIndex = optionIndex++;
-        if (child.selected) {
+        if (child.selected)
           item.setAttribute("selected", "true");
-          firstSelected = firstSelected ? firstSelected : item;
-        }
       }
     }
 
     this._panel = document.getElementById("select-container");
     this._panel.hidden = false;
 
-    this._scrollElementIntoView(firstSelected);
-
     this._list.focus();
     this._list.addEventListener("click", this, false);
-  },
-
-  _scrollElementIntoView: function(aElement) {
-    if (!aElement)
-      return;
-
-    let index = -1;
-    this._forEachOption(
-      function(aItem, aIndex) {
-        if (aElement.optionIndex == aItem.optionIndex)
-          index = aIndex;
-      }
-    );
-    
-    if (index == -1)
-      return;
-    
-    let itemHeight = aElement.getBoundingClientRect().height;
-    let visibleItemsCount = this._list.boxObject.height / itemHeight;
-    if ((index + 1) > visibleItemsCount) {
-      let delta = Math.ceil(visibleItemsCount / 2);
-      let scrollBoxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
-      scrollBoxObject.scrollTo(0, ((index + 1) - delta) * itemHeight);
-    }
   },
 
   _forEachOption: function(aCallback) {
@@ -966,7 +934,7 @@ var SelectHelper = {
         let item = children[i];
         if (!item.hasOwnProperty("optionIndex"))
           continue;
-        aCallback(item, i);
+        aCallback(item);
       }
   },
 
@@ -1018,7 +986,7 @@ var SelectHelper = {
           else {
             // Unselect all options
             this._forEachOption(
-              function(aItem, aIndex) {
+              function(aItem) {
                 aItem.selected = false;
               }
             );

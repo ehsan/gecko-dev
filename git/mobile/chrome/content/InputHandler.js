@@ -41,12 +41,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function dumpLn() {
-  // like dump, but each arg is handled and there's an automatic newline
-  for (var i = 0; i < arguments.length; i++) { dump(arguments[i]); }
-  dump("\n");
-}
-
 function getScrollboxFromElement(elem) {
   // check element for scrollable interface, if not found check parent until we get to root
   let scrollbox = null;
@@ -94,26 +88,23 @@ function InputHandler() {
   /* when set to true, next click won't be dispatched */
   this._suppressNextClick = true;
 
-  /* used to cancel actions with browser window changes */
-  window.addEventListener("URLChanged", this, true);
-  window.addEventListener("TabSelect", this, true);
+  /* used to stop everything if mouse leaves window on desktop */
+  window.addEventListener("mouseout", this, true);
 
   /* these handle dragging of both chrome elements and content */
   window.addEventListener("mousedown", this, true);
   window.addEventListener("mouseup", this, true);
   window.addEventListener("mousemove", this, true);
   window.addEventListener("click", this, true);
+  window.addEventListener("DOMMouseScroll", this, true);
 
-  let stack = document.getElementById("browser-container");
-  stack.addEventListener("DOMMouseScroll", this, true);
-
-  let browserCanvas = document.getElementById("browser-canvas");
+  let browserCanvas = document.getElementById("tile_container");
   browserCanvas.addEventListener("keydown", this, true);
   browserCanvas.addEventListener("keyup", this, true);
 
   let useEarlyMouseMoves = gPrefService.getBoolPref("browser.ui.panning.fixup.mousemove");
 
-  this._modules.push(new ChromeInputModule(this, browserCanvas));
+  this._modules.push(new ChromeInputModule(this , browserCanvas));
   this._modules.push(new ContentPanningModule(this, browserCanvas, useEarlyMouseMoves));
   this._modules.push(new ContentClickingModule(this));
   this._modules.push(new ScrollwheelModule(this, browserCanvas));
@@ -160,12 +151,6 @@ InputHandler.prototype = {
   handleEvent: function handleEvent(aEvent) {
     if (this._ignoreEvents)
       return;
-
-    /* changing URL or selected a new tab will immediately stop active input handlers */
-    if (aEvent.type == "URLChanged" || aEvent.type == "TabSelect") {
-      this.grab(null);
-      return;
-    }
 
     if (this._suppressNextClick && aEvent.type == "click") {
       this._suppressNextClick = false;
@@ -254,7 +239,7 @@ DragData.prototype = {
   },
 
   isPointOutsideRadius: function isPointOutsideRadius(sX, sY) {
-    if (this._originX === null)
+    if (this._originX == undefined)
       return false;
     return (Math.pow(sX - this._originX, 2) + Math.pow(sY - this._originY, 2)) >
       (2 * Math.pow(this._dragRadius, 2));
@@ -460,7 +445,7 @@ function KineticData(owner) {
     // In preferences this value is an int.  We divide so that it can be a percent.
     this._decelerationRate = gPrefService.getIntPref("browser.ui.kinetic.decelerationRate") / 100;
   }
-  catch (e) {
+  catch (e) { 
     this._updateInterval = 33;
     this._emaAlpha = .8;
     this._decelerationRate = .15;
@@ -501,13 +486,13 @@ KineticData.prototype = {
         let dx = Math.round(self._speedX * self._updateInterval);
         let dy = Math.round(self._speedY * self._updateInterval);
         // dump("dx, dy: " + dx + " " + dy + "\n");
-
+  
         let panned = self._owner._dragBy(dx, dy);
         if (!panned) {
           self.endKinetic();
           return;
         }
-
+        
         if (self._speedX < 0) {
           self._speedX = Math.min(self._speedX + self._decelerationRate, 0);
         } else if (self._speedX > 0) {
@@ -550,7 +535,7 @@ KineticData.prototype = {
       let me = mb[i];
 
       let timeDiff = me.t - prev.t;
-
+      
       this._speedX = ema( ((me.sx - prev.sx) / timeDiff), this._speedX, this._emaAlpha);
       this._speedY = ema( ((me.sy - prev.sy) / timeDiff), this._speedY, this._emaAlpha);
 
@@ -569,6 +554,7 @@ KineticData.prototype = {
       return;
     }
 
+/*
     Browser.canvasBrowser.endPanning();
     ws.dragStop();
 
@@ -595,7 +581,7 @@ KineticData.prototype = {
     let visibleNow = ws.isWidgetVisible("tabs-container") || ws.isWidgetVisible("browser-controls");
     if (!visibleNow)
       ws.unfreeze('toolbar-main');
-
+*/
     this.reset();
   },
 
@@ -610,7 +596,6 @@ KineticData.prototype = {
         return;
     }
 
-    //dumpLn("adding t:", now, ", sx: ", sx, ", sy: ", sy);
     this.momentumBuffer.push({'t': now, 'sx' : sx, 'sy' : sy});
   }
 };
@@ -621,7 +606,6 @@ function ContentPanningModule(owner, browserCanvas, useEarlyMouseMoves) {
   this._dragData = new DragData(this, 50, 200);
   this._kineticData = new KineticData(this);
   this._useEarlyMouseMoves = useEarlyMouseMoves;
-  this._draggedFrame = null;
 }
 
 ContentPanningModule.prototype = {
@@ -637,8 +621,7 @@ ContentPanningModule.prototype = {
       case "mousemove":
         this._onMouseMove(aEvent);
         break;
-      // XXX removed to avoid cancellation of iframe drag when zoomed
-      // case "mouseout":
+      case "mouseout":
       case "mouseup":
         this._onMouseUp(aEvent);
         break;
@@ -650,8 +633,15 @@ ContentPanningModule.prototype = {
    * timeouts we may have.
    */
   cancelPending: function cancelPending() {
-    this._kineticData.endKinetic();
-    this._dragData.reset();
+    if (this._kineticData.isActive()) {
+      this._kineticData.endKinetic();
+    } else {
+      // make sure we're out of panning modes in case we weren't kinetic yet
+      //ws.dragStop();
+      //Browser.canvasBrowser.endPanning();
+    }
+    let dragData = this._dragData;
+    dragData.reset();
   },
 
   _dragStart: function _dragStart(sX, sY) {
@@ -661,20 +651,8 @@ ContentPanningModule.prototype = {
 
     [sX, sY] = dragData.lockAxis(sX, sY);
 
-    // find out what we're dragging so we can do different things for
-    // elements inside iframes
-    let [cX, cY] = Browser.canvasBrowser._screenToClientCoords(sX, sY);
-    let element = Browser.canvasBrowser.elementFromPoint(cX, cY);
-    if (element && element.ownerDocument != Browser.selectedBrowser.contentDocument) {
-      this._draggedFrame = element.ownerDocument;
-    }
-    else {
-      this._draggedFrame = null;
-    }
+    //ws.dragStart(sX, sY);
 
-    // we always start a drag, even if we're just scrolling an iframe,
-    // because if you get to edge, you might push the outer canvas
-    ws.dragStart(sX, sY);
     Browser.canvasBrowser.startPanning();
   },
 
@@ -692,58 +670,19 @@ ContentPanningModule.prototype = {
     dragData.reset();
   },
 
-  _panFrame: function _panFrame(dx, dy) {
-    if (this._draggedFrame === null)
-      return false;
-
-    if (dx == 0 && dy == 0)
-      return true;
-
-    let panned = false;
-    let elem = this._draggedFrame.defaultView;
-    while (elem !== null && !panned) {
-      let windowUtils = elem.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-
-      let origX = {}, origY = {};
-      windowUtils.getScrollXY(false, origX, origY);
-
-      elem.scrollBy(-dx, -dy);
-
-      let newX = {}, newY = {};
-      windowUtils.getScrollXY(false, newX, newY);
-
-      panned = (origX.value != newX.value) || (origY.value != newY.value);
-
-      elem = elem.parent.document.defaultView;
-      // top-level window will have itself as its parent, so stop there to allow
-      // canvasbrowser/widgetstack to pan instead of doing scrolling
-      if (elem.parent.document.defaultView === elem)
-        break;
-    }
-
-    if (panned)
-      ws.dragUpdate();
-
-    return panned;
-  },
-
   _dragBy: function _dragBy(dx, dy) {
-    let panned = this._panFrame(dx, dy);
-    if (!panned)
-      panned = ws.dragBy(dx, dy);
+    /* XXX
+    let panned = ws.dragBy(dx, dy);
     return panned;
+    */
+    return false;
   },
 
   _dragMove: function _dragMove(sX, sY) {
     let dragData = this._dragData;
     [sX, sY] = dragData.lockMouseMove(sX, sY);
-    let dx = sX - dragData.sX;
-    let dy = sY - dragData.sY;
-
-    let panned = this._panFrame(dx, dy);
-    if (!panned)
-      panned = ws.dragMove(sX, sY);
-
+    //XXX let panned = ws.dragMove(sX, sY);
+    let panned = false;
     dragData.setDragPosition(sX, sY);
     return panned;
   },
@@ -765,6 +704,7 @@ ContentPanningModule.prototype = {
     let dragData = this._dragData;
 
     if (dragData.dragging) {
+      this._onMouseMove(aEvent); // treat this as a mouse move, incase our x/y are different
       this._dragStop(aEvent.screenX, aEvent.screenY);
     }
 
@@ -775,8 +715,6 @@ ContentPanningModule.prototype = {
     // don't do anything if we're in the process of kineticly scrolling
     if (this._kineticData.isActive())
       return;
-
-    //dumpLn("aEvent.screenX: ", aEvent.screenX, ", aEvent.screenY: ", aEvent.screenY);
 
     let dragData = this._dragData;
 
@@ -839,7 +777,6 @@ ContentClickingModule.prototype = {
 
         this._events.push({event: aEvent, time: Date.now()});
 
-        Browser.canvasBrowser.endPanning();
         if (this._clickTimeout == -1) {
           this._clickTimeout = window.setTimeout(function _clickTimeout(self) { self._sendSingleClick(); }, 400, this);
         } else {
