@@ -1416,36 +1416,11 @@ GraphWalker<Visitor>::DoWalk(nsDeque &aQueue)
 #endif
 }
 
-struct CCGraphDescriber
-{
-  CCGraphDescriber()
-  : mAddress("0x"), mToAddress("0x"), mCnt(0), mType(eUnknown) {}
-
-  enum Type
-  {
-    eRefCountedObject,
-    eGCedObject,
-    eGCMarkedObject,
-    eEdge,
-    eRoot,
-    eGarbage,
-    eUnknown
-  };
-
-  nsCString mAddress;
-  nsCString mToAddress;
-  nsCString mName;
-  PRUint32 mCnt;
-  Type mType;
-};
 
 class nsCycleCollectorLogger : public nsICycleCollectorListener
 {
 public:
-    nsCycleCollectorLogger() :
-      mStream(nsnull), mWantAllTraces(false),
-      mDisableLog(false), mWantAfterProcessing(false),
-      mNextIndex(0)
+    nsCycleCollectorLogger() : mStream(nsnull), mWantAllTraces(false)
     {
     }
     ~nsCycleCollectorLogger()
@@ -1458,49 +1433,19 @@ public:
 
     NS_IMETHOD AllTraces(nsICycleCollectorListener** aListener)
     {
-        mWantAllTraces = true;
-        NS_ADDREF(*aListener = this);
-        return NS_OK;
+      mWantAllTraces = true;
+      NS_ADDREF(*aListener = this);
+      return NS_OK;
     }
 
     NS_IMETHOD GetWantAllTraces(bool* aAllTraces)
     {
-        *aAllTraces = mWantAllTraces;
-        return NS_OK;
-    }
-
-    NS_IMETHOD GetDisableLog(bool* aDisableLog)
-    {
-        *aDisableLog = mDisableLog;
-        return NS_OK;
-    }
-
-    NS_IMETHOD SetDisableLog(bool aDisableLog)
-    {
-        mDisableLog = aDisableLog;
-        return NS_OK;
-    }
-
-    NS_IMETHOD GetWantAfterProcessing(bool* aWantAfterProcessing)
-    {
-        *aWantAfterProcessing = mWantAfterProcessing;
-        return NS_OK;
-    }
-
-    NS_IMETHOD SetWantAfterProcessing(bool aWantAfterProcessing)
-    {
-        mWantAfterProcessing = aWantAfterProcessing;
-        return NS_OK;
+      *aAllTraces = mWantAllTraces;
+      return NS_OK;
     }
 
     NS_IMETHOD Begin()
     {
-        mCurrentAddress.AssignLiteral("0x");
-        mDescribers.Clear();
-        mNextIndex = 0;
-        if (mDisableLog) {
-            return NS_OK;
-        }
         char basename[MAXPATHLEN] = {'\0'};
         char ccname[MAXPATHLEN] = {'\0'};
 #ifdef XP_WIN
@@ -1553,150 +1498,55 @@ public:
     NS_IMETHOD NoteRefCountedObject(PRUint64 aAddress, PRUint32 refCount,
                                     const char *aObjectDescription)
     {
-        if (!mDisableLog) {
-            fprintf(mStream, "%p [rc=%u] %s\n", (void*)aAddress, refCount,
-                    aObjectDescription);
-        }                          
-        if (mWantAfterProcessing) {
-            CCGraphDescriber* d = mDescribers.AppendElement();
-            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
-            mCurrentAddress.AssignLiteral("0x");
-            mCurrentAddress.AppendInt(aAddress, 16);
-            d->mType = CCGraphDescriber::eRefCountedObject;
-            d->mAddress = mCurrentAddress;
-            d->mCnt = refCount;
-            d->mName.Append(aObjectDescription);
-        }                     
+        fprintf(mStream, "%p [rc=%u] %s\n", (void*)aAddress, refCount,
+                aObjectDescription);
+
         return NS_OK;
     }
     NS_IMETHOD NoteGCedObject(PRUint64 aAddress, bool aMarked,
                               const char *aObjectDescription)
     {
-        if (!mDisableLog) {
-            fprintf(mStream, "%p [gc%s] %s\n", (void*)aAddress,
-                    aMarked ? ".marked" : "", aObjectDescription);
-        }
-        if (mWantAfterProcessing) {
-            CCGraphDescriber* d = mDescribers.AppendElement();
-            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
-            mCurrentAddress.AssignLiteral("0x");
-            mCurrentAddress.AppendInt(aAddress, 16);
-            d->mType = aMarked ? CCGraphDescriber::eGCMarkedObject :
-                                 CCGraphDescriber::eGCedObject;
-            d->mAddress = mCurrentAddress;
-            d->mName.Append(aObjectDescription);
-        }
+        fprintf(mStream, "%p [gc%s] %s\n", (void*)aAddress,
+                aMarked ? ".marked" : "", aObjectDescription);
+
         return NS_OK;
     }
     NS_IMETHOD NoteEdge(PRUint64 aToAddress, const char *aEdgeName)
     {
-        if (!mDisableLog) {
-            fprintf(mStream, "> %p %s\n", (void*)aToAddress, aEdgeName);
-        }
-        if (mWantAfterProcessing) {
-            CCGraphDescriber* d = mDescribers.AppendElement();
-            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
-            d->mType = CCGraphDescriber::eEdge;
-            d->mAddress = mCurrentAddress;
-            d->mToAddress.AppendInt(aToAddress, 16);
-            d->mName.Append(aEdgeName);
-        }
+        fprintf(mStream, "> %p %s\n", (void*)aToAddress, aEdgeName);
+
         return NS_OK;
     }
     NS_IMETHOD BeginResults()
     {
-        if (!mDisableLog) {
-            fputs("==========\n", mStream);
-        }                     
+        fputs("==========\n", mStream);
+
         return NS_OK;
     }
     NS_IMETHOD DescribeRoot(PRUint64 aAddress, PRUint32 aKnownEdges)
     {
-        if (!mDisableLog) {
-            fprintf(mStream, "%p [known=%u]\n", (void*)aAddress, aKnownEdges);
-        }
-        if (mWantAfterProcessing) {
-            CCGraphDescriber* d = mDescribers.AppendElement();
-            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
-            d->mType = CCGraphDescriber::eRoot;
-            d->mAddress.AppendInt(aAddress, 16);
-            d->mCnt = aKnownEdges;
-        }
+        fprintf(mStream, "%p [known=%u]\n", (void*)aAddress, aKnownEdges);
+
         return NS_OK;
     }
     NS_IMETHOD DescribeGarbage(PRUint64 aAddress)
     {
-        if (!mDisableLog) {
-            fprintf(mStream, "%p [garbage]\n", (void*)aAddress);
-        }
-        if (mWantAfterProcessing) {
-            CCGraphDescriber* d = mDescribers.AppendElement();
-            NS_ENSURE_TRUE(d, NS_ERROR_OUT_OF_MEMORY);
-            d->mType = CCGraphDescriber::eGarbage;
-            d->mAddress.AppendInt(aAddress, 16);
-        }
+        fprintf(mStream, "%p [garbage]\n", (void*)aAddress);
+
         return NS_OK;
     }
     NS_IMETHOD End()
     {
-        if (!mDisableLog) {
-            fclose(mStream);
-            mStream = nsnull;
-        }
+        fclose(mStream);
+        mStream = nsnull;
+
         return NS_OK;
     }
 
-    NS_IMETHOD ProcessNext(nsICycleCollectorHandler* aHandler,
-                           bool* aCanContinue)
-    {
-        NS_ENSURE_STATE(aHandler && mWantAfterProcessing);
-        if (mNextIndex < mDescribers.Length()) {
-            CCGraphDescriber& d = mDescribers[mNextIndex++];
-            switch (d.mType) {
-                case CCGraphDescriber::eRefCountedObject:
-                    aHandler->NoteRefCountedObject(d.mAddress,
-                                                   d.mCnt,
-                                                   d.mName);
-                    break;
-                case CCGraphDescriber::eGCedObject:
-                case CCGraphDescriber::eGCMarkedObject:
-                    aHandler->NoteGCedObject(d.mAddress,
-                                             d.mType ==
-                                               CCGraphDescriber::eGCMarkedObject,
-                                             d.mName);
-                    break;
-                case CCGraphDescriber::eEdge:
-                    aHandler->NoteEdge(d.mAddress,
-                                       d.mToAddress,
-                                       d.mName);
-                    break;
-                case CCGraphDescriber::eRoot:
-                    aHandler->DescribeRoot(d.mAddress,
-                                           d.mCnt);
-                    break;
-                case CCGraphDescriber::eGarbage:
-                    aHandler->DescribeGarbage(d.mAddress);
-                    break;
-                case CCGraphDescriber::eUnknown:
-                    NS_NOTREACHED("CCGraphDescriber::eUnknown");
-                    break;
-            }
-        }
-        if (!(*aCanContinue = mNextIndex < mDescribers.Length())) {
-            mCurrentAddress.AssignLiteral("0x");
-            mDescribers.Clear();
-            mNextIndex = 0;
-        }
-        return NS_OK;
-    }
 private:
     FILE *mStream;
     bool mWantAllTraces;
-    bool mDisableLog;
-    bool mWantAfterProcessing;
-    nsCString mCurrentAddress; 
-    nsTArray<CCGraphDescriber> mDescribers;
-    PRUint32 mNextIndex;
+
     static PRUint32 gLogCounter;
 };
 

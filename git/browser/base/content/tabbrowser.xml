@@ -536,8 +536,7 @@
                 if (!this.mBlank) {
                   if (!(aStateFlags & nsIWebProgressListener.STATE_RESTORING)) {
                     this.mTab.setAttribute("busy", "true");
-                    if (!(this.mBrowser.docShell.loadType & Ci.nsIDocShell.LOAD_CMD_RELOAD))
-                      this.mTabBrowser.setTabTitleLoading(this.mTab);
+                    this.mTabBrowser.setTabTitleLoading(this.mTab);
                   }
 
                   if (this.mTab.selected)
