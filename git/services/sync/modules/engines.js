@@ -305,7 +305,7 @@ Engine.prototype = {
 
     this._log.info("Reconciling client/server updates");
     this._core.reconcile(self.cb, localUpdates, server.updates);
-    let ret = yield;
+    ret = yield;
 
     let clientChanges = ret.propagations[0];
     let serverChanges = ret.propagations[1];
