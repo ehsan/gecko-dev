@@ -1013,14 +1013,7 @@ public class LocalBrowserDB {
 
         try {
             if (c.moveToFirst()) {
-                // Interrupted page loads can leave History items without a valid favicon_id.
-                final int columnIndex = c.getColumnIndexOrThrow(History.FAVICON_URL);
-                if (!c.isNull(columnIndex)) {
-                    final String faviconURL = c.getString(columnIndex);
-                    if (faviconURL != null) {
-                        return faviconURL;
-                    }
-                }
+                return c.getString(c.getColumnIndexOrThrow(History.FAVICON_URL));
             }
         } finally {
             c.close();

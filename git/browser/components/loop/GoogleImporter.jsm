@@ -222,7 +222,7 @@ this.GoogleImporter.prototype = {
         throw new Error("Popup window was closed before authentication succeeded");
       }
 
-      let matches = gAuthWindow.document.title.match(/(error|code)=([^\s]+)/);
+      let matches = gAuthWindow.document.title.match(/(error|code)=(.*)$/);
       if (matches && matches.length) {
         let [, type, message] = matches;
         gAuthWindow.close();
@@ -461,10 +461,8 @@ this.GoogleImporter.prototype = {
       contact.org = [];
       contact.jobTitle = [];
       for (let [,orgNode] of Iterator(orgNodes)) {
-        let orgElement = orgNode.getElementsByTagNameNS(kNS_GD, "orgName")[0];
-        let titleElement = orgNode.getElementsByTagNameNS(kNS_GD, "orgTitle")[0];
-        contact.org.push(orgElement ? orgElement.firstChild.nodeValue : "")
-        contact.jobTitle.push(titleElement ? titleElement.firstChild.nodeValue : "");
+        contact.org.push(orgNode.getElementsByTagNameNS(kNS_GD, "orgName")[0].firstChild.nodeValue);
+        contact.jobTitle.push(orgNode.getElementsByTagNameNS(kNS_GD, "orgTitle")[0].firstChild.nodeValue);
       }
     }
 

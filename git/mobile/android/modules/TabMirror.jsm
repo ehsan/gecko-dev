@@ -162,7 +162,7 @@ let TabMirror = function(deviceId, window) {
     iceServers: [{ "url": "stun:stun.services.mozilla.com" }]
   };
 
-  pc = new RTCPeerConnection(config, {});
+  let pc = new RTCPeerConnection(config, {});
 
   if (!pc) {
     log("Failure creating Webrtc object");

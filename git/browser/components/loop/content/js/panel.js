@@ -14,7 +14,6 @@ loop.panel = (function(_, mozL10n) {
   var sharedViews = loop.shared.views;
   var sharedModels = loop.shared.models;
   var sharedMixins = loop.shared.mixins;
-  var sharedActions = loop.shared.actions;
   var Button = sharedViews.Button;
   var ButtonGroup = sharedViews.ButtonGroup;
   var ContactsList = loop.contacts.ContactsList;
@@ -22,21 +21,10 @@ loop.panel = (function(_, mozL10n) {
   var __ = mozL10n.get; // aliasing translation function as __ for concision
 
   var TabView = React.createClass({displayName: 'TabView',
-    propTypes: {
-      buttonsHidden: React.PropTypes.bool,
-      // The selectedTab prop is used by the UI showcase.
-      selectedTab: React.PropTypes.string
-    },
-
-    getDefaultProps: function() {
+    getInitialState: function() {
       return {
-        buttonsHidden: false,
         selectedTab: "call"
       };
-    },
-
-    getInitialState: function() {
-      return {selectedTab: this.props.selectedTab};
     },
 
     handleSelectTab: function(event) {
@@ -49,10 +37,6 @@ loop.panel = (function(_, mozL10n) {
       var tabButtons = [];
       var tabs = [];
       React.Children.forEach(this.props.children, function(tab, i) {
-        // Filter out null tabs (eg. rooms when the feature is disabled)
-        if (!tab) {
-          return;
-        }
         var tabName = tab.props.name;
         var isSelected = (this.state.selectedTab == tabName);
         if (!tab.props.hidden) {
@@ -168,7 +152,7 @@ loop.panel = (function(_, mozL10n) {
         var terms_of_use_url = navigator.mozLoop.getLoopCharPref('legal.ToS_url');
         var privacy_notice_url = navigator.mozLoop.getLoopCharPref('legal.privacy_url');
         var tosHTML = __("legal_text_and_links3", {
-          "clientShortname": __("clientShortname2"),
+          "clientShortname": __("client_shortname_fallback"),
           "terms_of_use": React.renderComponentToStaticMarkup(
             React.DOM.a({href: terms_of_use_url, target: "_blank"}, 
               __("legal_text_tos")
@@ -352,9 +336,6 @@ loop.panel = (function(_, mozL10n) {
           var token = callUrlData.callToken ||
                       callUrl.pathname.split('/').pop();
 
-          // Now that a new URL is available, indicate it has not been shared.
-          this.linkExfiltrated = false;
-
           this.setState({pending: false, copied: false,
                          callUrl: callUrl.href,
                          callUrlExpiry: callUrlData.expiresAt});
@@ -369,11 +350,8 @@ loop.panel = (function(_, mozL10n) {
     handleEmailButtonClick: function(event) {
       this.handleLinkExfiltration(event);
 
-      navigator.mozLoop.composeEmail(
-        __("share_email_subject4", { clientShortname: __("clientShortname2")}),
-        __("share_email_body4", { callUrl: this.state.callUrl,
-                                  clientShortname: __("clientShortname2"),
-                                  learnMoreUrl: navigator.mozLoop.getLoopCharPref("learnMoreUrl") }));
+      navigator.mozLoop.composeEmail(__("share_email_subject3"),
+        __("share_email_body3", { callUrl: this.state.callUrl }));
     },
 
     handleCopyButtonClick: function(event) {
@@ -384,20 +362,12 @@ loop.panel = (function(_, mozL10n) {
       this.setState({copied: true});
     },
 
-    linkExfiltrated: false,
-
     handleLinkExfiltration: function(event) {
-      // Update the count of shared URLs only once per generated URL.
-      if (!this.linkExfiltrated) {
-        this.linkExfiltrated = true;
-        try {
-          navigator.mozLoop.telemetryAdd("LOOP_CLIENT_CALL_URL_SHARED", true);
-        } catch (err) {
-          console.error("Error recording telemetry", err);
-        }
+      try {
+        navigator.mozLoop.telemetryAdd("LOOP_CLIENT_CALL_URL_SHARED", true);
+      } catch (err) {
+        console.error("Error recording telemetry", err);
       }
-
-      // Note URL expiration every time it is shared.
       if (this.state.callUrlExpiry) {
         navigator.mozLoop.noteCallUrlExpiry(this.state.callUrlExpiry);
       }
@@ -473,121 +443,6 @@ loop.panel = (function(_, mozL10n) {
   });
 
   /**
-   * Room list entry.
-   */
-  var RoomEntry = React.createClass({displayName: 'RoomEntry',
-    propTypes: {
-      openRoom: React.PropTypes.func.isRequired,
-      room:     React.PropTypes.instanceOf(loop.store.Room).isRequired
-    },
-
-    shouldComponentUpdate: function(nextProps, nextState) {
-      return nextProps.room.ctime > this.props.room.ctime;
-    },
-
-    handleClickRoom: function(event) {
-      event.preventDefault();
-      this.props.openRoom(this.props.room);
-    },
-
-    _isActive: function() {
-      // XXX bug 1074679 will implement this properly
-      return this.props.room.currSize > 0;
-    },
-
-    render: function() {
-      var room = this.props.room;
-      var roomClasses = React.addons.classSet({
-        "room-entry": true,
-        "room-active": this._isActive()
-      });
-
-      return (
-        React.DOM.div({className: roomClasses}, 
-          React.DOM.h2(null, 
-            React.DOM.span({className: "room-notification"}), 
-            room.roomName
-          ), 
-          React.DOM.p(null, 
-            React.DOM.a({ref: "room", href: "#", onClick: this.handleClickRoom}, 
-              room.roomUrl
-            )
-          )
-        )
-      );
-    }
-  });
-
-  /**
-   * Room list.
-   */
-  var RoomList = React.createClass({displayName: 'RoomList',
-    mixins: [Backbone.Events],
-
-    propTypes: {
-      store: React.PropTypes.instanceOf(loop.store.RoomListStore).isRequired,
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      rooms: React.PropTypes.array
-    },
-
-    getInitialState: function() {
-      var storeState = this.props.store.getStoreState();
-      return {
-        error: this.props.error || storeState.error,
-        rooms: this.props.rooms || storeState.rooms,
-      };
-    },
-
-    componentWillMount: function() {
-      this.listenTo(this.props.store, "change", this._onRoomListChanged);
-
-      this.props.dispatcher.dispatch(new sharedActions.GetAllRooms());
-    },
-
-    componentWillUnmount: function() {
-      this.stopListening(this.props.store);
-    },
-
-    _onRoomListChanged: function() {
-      var storeState = this.props.store.getStoreState();
-      this.setState({
-        error: storeState.error,
-        rooms: storeState.rooms
-      });
-    },
-
-    _getListHeading: function() {
-      var numRooms = this.state.rooms.length;
-      if (numRooms === 0) {
-        return mozL10n.get("rooms_list_no_current_conversations");
-      }
-      return mozL10n.get("rooms_list_current_conversations", {num: numRooms});
-    },
-
-    openRoom: function(room) {
-      // XXX implement me; see bug 1074678
-    },
-
-    render: function() {
-      if (this.state.error) {
-        // XXX Better end user reporting of errors.
-        console.error(this.state.error);
-      }
-
-      return (
-        React.DOM.div({className: "room-list"}, 
-          React.DOM.h1(null, this._getListHeading()), 
-          
-            this.state.rooms.map(function(room, i) {
-              return RoomEntry({key: i, room: room, openRoom: this.openRoom});
-            }, this)
-          
-        )
-      );
-    }
-  });
-
-  /**
    * Panel view.
    */
   var PanelView = React.createClass({displayName: 'PanelView',
@@ -598,10 +453,6 @@ loop.panel = (function(_, mozL10n) {
       callUrl: React.PropTypes.string,
       userProfile: React.PropTypes.object,
       showTabButtons: React.PropTypes.bool,
-      selectedTab: React.PropTypes.string,
-      dispatcher: React.PropTypes.instanceOf(loop.Dispatcher).isRequired,
-      roomListStore:
-        React.PropTypes.instanceOf(loop.store.RoomListStore).isRequired
     },
 
     getInitialState: function() {
@@ -639,30 +490,12 @@ loop.panel = (function(_, mozL10n) {
 
     _onStatusChanged: function() {
       var profile = navigator.mozLoop.userProfile;
-      var currUid = this.state.userProfile ? this.state.userProfile.uid : null;
-      var newUid = profile ? profile.uid : null;
-      if (currUid != newUid) {
+      if (profile != this.state.userProfile) {
         // On profile change (login, logout), switch back to the default tab.
         this.selectTab("call");
       }
       this.setState({userProfile: profile});
       this.updateServiceErrors();
-    },
-
-    /**
-     * The rooms feature is hidden by default for now. Once it gets mainstream,
-     * this method can be safely removed.
-     */
-    _renderRoomsTab: function() {
-      if (!navigator.mozLoop.getLoopBoolPref("rooms.enabled")) {
-        return null;
-      }
-      return (
-        Tab({name: "rooms"}, 
-          RoomList({dispatcher: this.props.dispatcher, 
-                    store: this.props.roomListStore})
-        )
-      );
     },
 
     startForm: function(name, contact) {
@@ -694,8 +527,7 @@ loop.panel = (function(_, mozL10n) {
         React.DOM.div(null, 
           NotificationListView({notifications: this.props.notifications, 
                                 clearOnDocumentHidden: true}), 
-          TabView({ref: "tabView", selectedTab: this.props.selectedTab, 
-            buttonsHidden: !this.state.userProfile && !this.props.showTabButtons}, 
+          TabView({ref: "tabView", buttonsHidden: !this.state.userProfile && !this.props.showTabButtons}, 
             Tab({name: "call"}, 
               React.DOM.div({className: "content-area"}, 
                 CallUrlResult({client: this.props.client, 
@@ -704,7 +536,6 @@ loop.panel = (function(_, mozL10n) {
                 ToSView(null)
               )
             ), 
-            this._renderRoomsTab(), 
             Tab({name: "contacts"}, 
               ContactsList({selectTab: this.selectTab, 
                             startForm: this.startForm})
@@ -744,19 +575,11 @@ loop.panel = (function(_, mozL10n) {
     mozL10n.initialize(navigator.mozLoop);
 
     var client = new loop.Client();
-    var notifications = new sharedModels.NotificationCollection();
-    var dispatcher = new loop.Dispatcher();
-    var roomListStore = new loop.store.RoomListStore({
-      mozLoop: navigator.mozLoop,
-      dispatcher: dispatcher
-    });
+    var notifications = new sharedModels.NotificationCollection()
 
     React.renderComponent(PanelView({
       client: client, 
-      notifications: notifications, 
-      roomListStore: roomListStore, 
-      dispatcher: dispatcher}
-    ), document.querySelector("#main"));
+      notifications: notifications}), document.querySelector("#main"));
 
     document.body.classList.add(loop.shared.utils.getTargetPlatform());
     document.body.setAttribute("dir", mozL10n.getDirection());
@@ -774,7 +597,6 @@ loop.panel = (function(_, mozL10n) {
     AvailabilityDropdown: AvailabilityDropdown,
     CallUrlResult: CallUrlResult,
     PanelView: PanelView,
-    RoomList: RoomList,
     SettingsDropdown: SettingsDropdown,
     ToSView: ToSView
   };

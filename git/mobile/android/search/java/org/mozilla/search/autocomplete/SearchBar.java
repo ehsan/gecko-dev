@@ -4,12 +4,6 @@
 
 package org.mozilla.search.autocomplete;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Telemetry;
-import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.search.providers.SearchEngine;
-
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -31,6 +25,12 @@ import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+
+import org.mozilla.gecko.Telemetry;
+import org.mozilla.gecko.TelemetryContract;
+import org.mozilla.gecko.gfx.BitmapUtils;
+import org.mozilla.search.R;
+import org.mozilla.search.providers.SearchEngine;
 
 public class SearchBar extends FrameLayout {
 

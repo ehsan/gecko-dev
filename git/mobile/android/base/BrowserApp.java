@@ -85,6 +85,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -159,8 +160,7 @@ public class BrowserApp extends GeckoApp
 
     // Request ID for startActivityForResult.
     private static final int ACTIVITY_REQUEST_PREFERENCES = 1001;
-
-    public static final String PREF_STARTPANE_ENABLED = "startpane_enabled";
+    public static final String ACTION_NEW_PROFILE = "org.mozilla.gecko.NEW_PROFILE";
 
     private BrowserSearch mBrowserSearch;
     private View mBrowserSearchContainer;
@@ -228,8 +228,6 @@ public class BrowserApp extends GeckoApp
     private BroadcastReceiver mOnboardingReceiver;
 
     private BrowserHealthReporter mBrowserHealthReporter;
-
-    private SystemBarTintManager mTintManager;
 
     // The tab to be selected on editing mode exit.
     private Integer mTargetTabForEditingMode;
@@ -623,6 +621,8 @@ public class BrowserApp extends GeckoApp
             "Updater:Launch",
             "BrowserToolbar:Visibility");
 
+        registerOnboardingReceiver(this);
+
         Distribution distribution = Distribution.init(this);
 
         // Init suggested sites engine in BrowserDB.
@@ -683,36 +683,29 @@ public class BrowserApp extends GeckoApp
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
 
-        mTintManager = new SystemBarTintManager(this);
-        mTintManager.setTintColor(getResources().getColor(R.color.background_tabs));
-        mTintManager.setStatusBarTintEnabled(true);
+        SystemBarTintManager tintManager = new SystemBarTintManager(this);
+        tintManager.setTintColor(getResources().getColor(R.color.background_tabs));
+        tintManager.setStatusBarTintEnabled(true);
     }
 
-    /**
-     * Check and show Onboarding start pane if Firefox has never been launched and
-     * is not opening an external link from another application.
-     *
-     * @param context Context of application; used to show Start Pane if appropriate
-     * @param intentAction Intent that launched this activity
-     */
-    private void checkStartPane(Context context, String intentAction) {
-        final StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskReads();
+    private void registerOnboardingReceiver(Context context) {
+        final LocalBroadcastManager lbm = LocalBroadcastManager.getInstance(this);
 
-        try {
-            final SharedPreferences prefs = GeckoSharedPrefs.forProfile(this);
-
-            if (prefs.getBoolean(PREF_STARTPANE_ENABLED, false)) {
-                if (!Intent.ACTION_VIEW.equals(intentAction)) {
-                    final Intent startIntent = new Intent(this, StartPane.class);
-                    context.startActivity(startIntent);
-                }
-                // Don't bother trying again to show the v1 minimal first run.
-                prefs.edit().putBoolean(PREF_STARTPANE_ENABLED, false).apply();
+        // Receiver for launching first run start pane on new profile creation.
+        mOnboardingReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                launchStartPane(BrowserApp.this);
             }
-        } finally {
-            StrictMode.setThreadPolicy(savedPolicy);
-        }
-      }
+        };
+
+        lbm.registerReceiver(mOnboardingReceiver, new IntentFilter(ACTION_NEW_PROFILE));
+    }
+
+    private void launchStartPane(Context context) {
+         final Intent startIntent = new Intent(context, StartPane.class);
+         context.startActivity(startIntent);
+     }
 
     private Class<?> getMediaPlayerManager() {
         if (AppConstants.MOZ_MEDIA_PLAYER) {
@@ -745,12 +738,6 @@ public class BrowserApp extends GeckoApp
         }
 
         super.onBackPressed();
-    }
-
-    @Override
-    public void onAttachedToWindow() {
-        // We can't show Onboarding until Gecko has finished initialization (bug 1077583).
-        checkStartPane(this, getIntent().getAction());
     }
 
     @Override
@@ -2376,11 +2363,6 @@ public class BrowserApp extends GeckoApp
                 view.getHitRect(mTempRect);
                 mTempRect.offset(-view.getScrollX(), -view.getScrollY());
 
-                if (mTintManager != null) {
-                    SystemBarTintManager.SystemBarConfig config = mTintManager.getConfig();
-                    mTempRect.offset(0, -config.getPixelInsetTop(false));
-                }
-
                 int[] viewCoords = new int[2];
                 view.getLocationOnScreen(viewCoords);
 
@@ -2656,10 +2638,6 @@ public class BrowserApp extends GeckoApp
                         mLayerView.getLayerMarginsAnimator().setMaxMargins(0, mToolbarHeight, 0, 0);
                     }
                 }
-
-                if (mTintManager != null) {
-                    mTintManager.setStatusBarTintEnabled(!fullscreen);
-                }
             }
         });
     }
@@ -2690,6 +2668,7 @@ public class BrowserApp extends GeckoApp
         // or if the user has explicitly enabled the clear on shutdown pref.
         // (We check the pref last to save the pref read.)
         // In ICS+, it's easy to kill an app through the task switcher.
+        final SharedPreferences prefs = GeckoSharedPrefs.forProfile(this);
         final boolean visible = Versions.preICS ||
                                 HardwareUtils.isTelevision() ||
                                 !PrefUtils.getStringSet(GeckoSharedPrefs.forProfile(this),

@@ -5,9 +5,8 @@
 /* global loop:true */
 
 var loop = loop || {};
-loop.store = loop.store || {};
+loop.store = (function() {
 
-loop.store.ConversationStore = (function() {
   var sharedActions = loop.shared.actions;
   var CALL_TYPES = loop.shared.utils.CALL_TYPES;
 
@@ -15,7 +14,7 @@ loop.store.ConversationStore = (function() {
    * Websocket states taken from:
    * https://docs.services.mozilla.com/loop/apis.html#call-progress-state-change-progress
    */
-  var WS_STATES = loop.store.WS_STATES = {
+  var WS_STATES = {
     // The call is starting, and the remote party is not yet being alerted.
     INIT: "init",
     // The called party is being alerted.
@@ -32,7 +31,7 @@ loop.store.ConversationStore = (function() {
     CONNECTED: "connected"
   };
 
-  var CALL_STATES = loop.store.CALL_STATES = {
+  var CALL_STATES = {
     // The initial state of the view.
     INIT: "cs-init",
     // The store is gathering the call data from the server.
@@ -52,6 +51,7 @@ loop.store.ConversationStore = (function() {
     // The call was terminated due to an issue during connection.
     TERMINATED: "cs-terminated"
   };
+
 
   var ConversationStore = Backbone.Model.extend({
     defaults: {
@@ -402,5 +402,9 @@ loop.store.ConversationStore = (function() {
     }
   });
 
-  return ConversationStore;
+  return {
+    CALL_STATES: CALL_STATES,
+    ConversationStore: ConversationStore,
+    WS_STATES: WS_STATES
+  };
 })();

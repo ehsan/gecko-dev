@@ -120,8 +120,8 @@ function* resetFxA() {
   global.gHawkClient = null;
   global.gFxAOAuthClientPromise = null;
   global.gFxAOAuthClient = null;
-  MozLoopServiceInternal.fxAOAuthProfile = null;
-  MozLoopServiceInternal.fxAOAuthTokenData = null;
+  global.gFxAOAuthTokenData = null;
+  global.gFxAOAuthProfile = null;
   const fxASessionPref = MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.FXA);
   Services.prefs.clearUserPref(fxASessionPref);
   MozLoopService.errors.clear();
@@ -130,16 +130,17 @@ function* resetFxA() {
   yield notified;
 }
 
-function checkFxAOAuthTokenData(aValue) {
-  ise(MozLoopServiceInternal.fxAOAuthTokenData, aValue, "fxAOAuthTokenData should be " + aValue);
+function setInternalLoopGlobal(aName, aValue) {
+  let global = Cu.import("resource:///modules/loop/MozLoopService.jsm", {});
+  global[aName] = aValue;
 }
 
 function checkLoggedOutState() {
   let global = Cu.import("resource:///modules/loop/MozLoopService.jsm", {});
   ise(global.gFxAOAuthClientPromise, null, "gFxAOAuthClientPromise should be cleared");
-  ise(MozLoopService.userProfile, null, "fxAOAuthProfile should be cleared");
+  ise(global.gFxAOAuthProfile, null, "gFxAOAuthProfile should be cleared");
   ise(global.gFxAOAuthClient, null, "gFxAOAuthClient should be cleared");
-  checkFxAOAuthTokenData(null);
+  ise(global.gFxAOAuthTokenData, null, "gFxAOAuthTokenData should be cleared");
   const fxASessionPref = MozLoopServiceInternal.getSessionTokenPrefName(LOOP_SESSION_TYPE.FXA);
   ise(Services.prefs.getPrefType(fxASessionPref), Services.prefs.PREF_INVALID,
       "FxA hawk session should be cleared anyways");

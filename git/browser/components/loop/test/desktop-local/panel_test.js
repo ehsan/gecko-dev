@@ -7,14 +7,13 @@
 
 var expect = chai.expect;
 var TestUtils = React.addons.TestUtils;
-var sharedActions = loop.shared.actions;
 
 describe("loop.panel", function() {
   "use strict";
 
   var sandbox, notifications, fakeXHR, requests = [];
 
-  beforeEach(function(done) {
+  beforeEach(function() {
     sandbox = sinon.sandbox.create();
     fakeXHR = sandbox.useFakeXMLHttpRequest();
     requests = [];
@@ -33,12 +32,8 @@ describe("loop.panel", function() {
       get locale() {
         return "en-US";
       },
-      getLoopBoolPref: sandbox.stub(),
       setLoopCharPref: sandbox.stub(),
       getLoopCharPref: sandbox.stub().returns("unseen"),
-      getPluralForm: function() {
-        return "fakeText";
-      },
       copyString: sandbox.stub(),
       noteCallUrlExpiry: sinon.spy(),
       composeEmail: sinon.spy(),
@@ -52,8 +47,6 @@ describe("loop.panel", function() {
     };
 
     document.mozL10n.initialize(navigator.mozLoop);
-    // XXX prevent a race whenever mozL10n hasn't been initialized yet
-    setTimeout(done, 0);
   });
 
   afterEach(function() {
@@ -133,7 +126,7 @@ describe("loop.panel", function() {
   });
 
   describe("loop.panel.PanelView", function() {
-    var fakeClient, dispatcher, roomListStore, callUrlData;
+    var fakeClient, callUrlData, view, callTab, contactsTab;
 
     beforeEach(function() {
       callUrlData = {
@@ -147,94 +140,31 @@ describe("loop.panel", function() {
         }
       };
 
-      dispatcher = new loop.Dispatcher();
-      roomListStore = new loop.store.RoomListStore({
-        dispatcher: dispatcher,
-        mozLoop: navigator.mozLoop
-      });
-    });
-
-    function createTestPanelView() {
-      return TestUtils.renderIntoDocument(loop.panel.PanelView({
+      view = TestUtils.renderIntoDocument(loop.panel.PanelView({
         notifications: notifications,
         client: fakeClient,
         showTabButtons: true,
-        dispatcher: dispatcher,
-        roomListStore: roomListStore
       }));
-    }
+
+      [callTab, contactsTab] =
+        TestUtils.scryRenderedDOMComponentsWithClass(view, "tab");
+    });
 
     describe('TabView', function() {
-      var view, callTab, roomsTab, contactsTab;
+      it("should select contacts tab when clicking tab button", function() {
+        TestUtils.Simulate.click(
+          view.getDOMNode().querySelector('li[data-tab-name="contacts"]'));
 
-      describe("loop.rooms.enabled on", function() {
-        beforeEach(function() {
-          navigator.mozLoop.getLoopBoolPref = function(pref) {
-            if (pref === "rooms.enabled") {
-              return true;
-            }
-          };
-
-          view = createTestPanelView();
-
-          [callTab, roomsTab, contactsTab] =
-            TestUtils.scryRenderedDOMComponentsWithClass(view, "tab");
-        });
-
-        it("should select contacts tab when clicking tab button", function() {
-          TestUtils.Simulate.click(
-            view.getDOMNode().querySelector("li[data-tab-name=\"contacts\"]"));
-
-          expect(contactsTab.getDOMNode().classList.contains("selected"))
-            .to.be.true;
-        });
-
-        it("should select rooms tab when clicking tab button", function() {
-          TestUtils.Simulate.click(
-            view.getDOMNode().querySelector("li[data-tab-name=\"rooms\"]"));
-
-          expect(roomsTab.getDOMNode().classList.contains("selected"))
-            .to.be.true;
-        });
-
-        it("should select call tab when clicking tab button", function() {
-          TestUtils.Simulate.click(
-            view.getDOMNode().querySelector("li[data-tab-name=\"call\"]"));
-
-          expect(callTab.getDOMNode().classList.contains("selected"))
-            .to.be.true;
-        });
+        expect(contactsTab.getDOMNode().classList.contains("selected"))
+          .to.be.true;
       });
 
-      describe("loop.rooms.enabled off", function() {
-        beforeEach(function() {
-          navigator.mozLoop.getLoopBoolPref = function(pref) {
-            if (pref === "rooms.enabled") {
-              return false;
-            }
-          };
+      it("should select call tab when clicking tab button", function() {
+        TestUtils.Simulate.click(
+          view.getDOMNode().querySelector('li[data-tab-name="call"]'));
 
-          view = createTestPanelView();
-
-          [callTab, contactsTab] =
-            TestUtils.scryRenderedDOMComponentsWithClass(view, "tab");
-        });
-
-        it("should select contacts tab when clicking tab button", function() {
-          TestUtils.Simulate.click(
-            view.getDOMNode().querySelector("li[data-tab-name=\"contacts\"]"));
-
-          expect(contactsTab.getDOMNode().classList.contains("selected"))
-            .to.be.true;
-        });
-
-        it("should select call tab when clicking tab button", function() {
-          TestUtils.Simulate.click(
-            view.getDOMNode().querySelector("li[data-tab-name=\"call\"]"));
-
-          expect(callTab.getDOMNode().classList.contains("selected"))
-            .to.be.true;
-        });
+        expect(callTab.getDOMNode().classList.contains("selected"))
+          .to.be.true;
       });
     });
 
@@ -243,8 +173,6 @@ describe("loop.panel", function() {
         function() {
           navigator.mozLoop.loggedInToFxA = false;
           navigator.mozLoop.logInToFxA = sandbox.stub();
-
-          var view = createTestPanelView();
 
           TestUtils.Simulate.click(
             view.getDOMNode().querySelector(".signin-link a"));
@@ -265,6 +193,8 @@ describe("loop.panel", function() {
     });
 
     describe("SettingsDropdown", function() {
+      var view;
+
       beforeEach(function() {
         navigator.mozLoop.logInToFxA = sandbox.stub();
         navigator.mozLoop.logOutFromFxA = sandbox.stub();
@@ -358,8 +288,6 @@ describe("loop.panel", function() {
 
     describe("#render", function() {
       it("should render a ToSView", function() {
-        var view = createTestPanelView();
-
         TestUtils.findRenderedComponentWithType(view, loop.panel.ToSView);
       });
     });
@@ -394,9 +322,9 @@ describe("loop.panel", function() {
           getStrings: function(key) {
             var text;
 
-            if (key === "share_email_subject4")
+            if (key === "share_email_subject3")
               text = "email-subject";
-            else if (key === "share_email_body4")
+            else if (key === "share_email_body3")
               text = "{{callUrl}}";
 
             return JSON.stringify({textContent: text});
@@ -513,8 +441,6 @@ describe("loop.panel", function() {
             callUrlExpiry: 6000
           });
 
-          // Multiple clicks should result in the URL being counted only once.
-          TestUtils.Simulate.click(view.getDOMNode().querySelector(".button-copy"));
           TestUtils.Simulate.click(view.getDOMNode().querySelector(".button-copy"));
 
           sinon.assert.calledOnce(navigator.mozLoop.telemetryAdd);
@@ -556,8 +482,6 @@ describe("loop.panel", function() {
             callUrlExpiry: 6000
           });
 
-          // Multiple clicks should result in the URL being counted only once.
-          TestUtils.Simulate.click(view.getDOMNode().querySelector(".button-email"));
           TestUtils.Simulate.click(view.getDOMNode().querySelector(".button-email"));
 
           sinon.assert.calledOnce(navigator.mozLoop.telemetryAdd);
@@ -600,9 +524,7 @@ describe("loop.panel", function() {
             callUrlExpiry: 6000
           });
 
-          // Multiple copies should result in the URL being counted only once.
           var urlField = view.getDOMNode().querySelector("input[type='url']");
-          TestUtils.Simulate.copy(urlField);
           TestUtils.Simulate.copy(urlField);
 
           sinon.assert.calledOnce(navigator.mozLoop.telemetryAdd);
@@ -625,34 +547,6 @@ describe("loop.panel", function() {
         sinon.assert.calledWithExactly(notifications.errorL10n,
                                        "unable_retrieve_url");
       });
-    });
-  });
-
-  describe("loop.panel.RoomList", function() {
-    var roomListStore, dispatcher;
-
-    beforeEach(function() {
-      dispatcher = new loop.Dispatcher();
-      roomListStore = new loop.store.RoomListStore({
-        dispatcher: dispatcher,
-        mozLoop: navigator.mozLoop
-      });
-    });
-
-    function createTestComponent() {
-      return TestUtils.renderIntoDocument(loop.panel.RoomList({
-        store: roomListStore,
-        dispatcher: dispatcher
-      }));
-    }
-
-    it("should dispatch a GetAllRooms action on mount", function() {
-      var dispatch = sandbox.stub(dispatcher, "dispatch");
-
-      createTestComponent();
-
-      sinon.assert.calledOnce(dispatch);
-      sinon.assert.calledWithExactly(dispatch, new sharedActions.GetAllRooms());
     });
   });
 

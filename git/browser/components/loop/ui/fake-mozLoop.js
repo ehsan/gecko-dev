@@ -9,12 +9,7 @@
 navigator.mozLoop = {
   ensureRegistered: function() {},
   getLoopCharPref: function() {},
-  getLoopBoolPref: function(pref) {
-    // Ensure UI for rooms is displayed in the showcase.
-    if (pref === "rooms.enabled") {
-      return true;
-    }
-  },
+  getLoopBoolPref: function() {},
   releaseCallData: function() {},
   contacts: {
     getAll: function(callback) {
