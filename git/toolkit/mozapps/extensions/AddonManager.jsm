@@ -338,15 +338,11 @@ AddonCompatibilityOverride.prototype = {
  */
 function AddonType(aID, aLocaleURI, aLocaleKey, aViewType, aUIPriority, aFlags) {
   if (!aID)
-    throw Components.Exception("An AddonType must have an ID", Cr.NS_ERROR_INVALID_ARG);
-
+    throw new Error("An AddonType must have an ID");
   if (aViewType && aUIPriority === undefined)
-    throw Components.Exception("An AddonType with a defined view must have a set UI priority",
-                               Cr.NS_ERROR_INVALID_ARG);
-
+    throw new Error("An AddonType with a defined view must have a set UI priority");
   if (!aLocaleKey)
-    throw Components.Exception("An AddonType must have a displayable name",
-                               Cr.NS_ERROR_INVALID_ARG);
+    throw new Error("An AddonType must have a displayable name");
 
   this.id = aID;
   this.uiPriority = aUIPriority;
