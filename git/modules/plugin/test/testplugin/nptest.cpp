@@ -64,10 +64,8 @@
 // Intentional crash
 //
 
-int gCrashCount = 0;
-
-void
-IntentionalCrash()
+static void
+Crash()
 {
   char* bloatLog = getenv("XPCOM_MEM_BLOAT_LOG");
   if (bloatLog) {
@@ -86,7 +84,6 @@ IntentionalCrash()
   }
   void (*funcptr)() = NULL;
   funcptr(); // Crash calling null function pointer
-  ++gCrashCount;
 }
 
 //
@@ -678,7 +675,7 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
       instanceData->npnNewStream = true;
     }
     if (strcmp(argn[i], "newcrash") == 0) {
-      IntentionalCrash();
+      Crash();
     }
   }
 
@@ -761,7 +758,7 @@ NPP_Destroy(NPP instance, NPSavedData** save)
   InstanceData* instanceData = (InstanceData*)(instance->pdata);
 
   if (instanceData->crashOnDestroy)
-    IntentionalCrash();
+    Crash();
 
   if (instanceData->streamBuf) {
     free(instanceData->streamBuf);
@@ -2104,7 +2101,7 @@ streamTest(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant*
 static bool
 crashPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
 {
-  IntentionalCrash();
+  Crash();
   VOID_TO_NPVARIANT(*result);
   return true;
 }
