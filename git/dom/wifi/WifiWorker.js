@@ -598,7 +598,7 @@ var WifiManager = (function() {
     return true;
   }
 
-  function parseStatus(status) {
+  function parseStatus(status, reconnected) {
     if (status === null) {
       debug("Unable to get wpa supplicant's status");
       return;
@@ -643,7 +643,7 @@ var WifiManager = (function() {
 
     notifyStateChange({ state: state, fromStatus: true });
     if (state === "COMPLETED")
-      onconnected();
+      onconnected(reconnected);
   }
 
   // try to connect to the supplicant
@@ -653,7 +653,7 @@ var WifiManager = (function() {
     if (ok === 0) {
       // Tell the event worker to start waiting for events.
       retryTimer = null;
-      didConnectSupplicant(function(){});
+      didConnectSupplicant(false, function(){});
       return;
     }
     if (connectTries++ < 3) {
@@ -683,10 +683,15 @@ var WifiManager = (function() {
 
   manager.start = function() {
     debug("detected SDK version " + sdkVersion + " and device " + device);
-    connectToSupplicant(connectCallback);
+
+    // If we reconnected to an already-running supplicant, then manager.state
+    // will have already been updated to the supplicant's state. Otherwise, we
+    // started the supplicant ourselves and need to connect.
+    if (manager.state === "UNINITIALIZED")
+      connectToSupplicant(connectCallback);
   }
 
-  function onconnected() {
+  function dhcpAfterConnect() {
     // For now we do our own DHCP. In the future, this should be handed
     // off to the Network Manager.
     runDhcp(manager.ifname, function (data) {
@@ -716,6 +721,32 @@ var WifiManager = (function() {
             notify("dhcpconnected", { info: data });
           });
         });
+      });
+    });
+  }
+
+  function onconnected(reconnected) {
+    if (!reconnected) {
+      dhcpAfterConnect();
+      return;
+    }
+
+    // We're in the process of reconnecting to a pre-existing wpa_supplicant.
+    // Check to see if there was already a DHCP process:
+    getProperty("init.svc.dhcpcd_" + manager.ifname, "stopped", function(value) {
+      if (value === "running") {
+        notify("dhcpconnected");
+        return;
+      }
+
+      // Some phones use a different property name for the dhcpcd daemon.
+      getProperty("init.svc.dhcpcd", "stopped", function(value) {
+        if (value === "running") {
+          notify("dhcpconnected");
+          return;
+        }
+
+        dhcpAfterConnect();
       });
     });
   }
@@ -820,7 +851,7 @@ var WifiManager = (function() {
       // Don't call onconnected if we ignored this state change (since we were
       // already connected).
       if (notifyStateChange({ state: "CONNECTED", BSSID: bssid, id: id }))
-        onconnected();
+        onconnected(false);
       return true;
     }
     if (eventData.indexOf("CTRL-EVENT-SCAN-RESULTS") === 0) {
@@ -874,27 +905,49 @@ var WifiManager = (function() {
     setProperty("ctl.stop", "wpa_supplicant", tick);
   }
 
-  function didConnectSupplicant(callback) {
+  function didConnectSupplicant(reconnected, callback) {
     waitForEvent();
 
     // Load up the supplicant state.
     statusCommand(function(status) {
-      parseStatus(status);
+      parseStatus(status, reconnected);
       notify("supplicantconnection");
       callback();
     });
   }
 
   function prepareForStartup(callback) {
-    manager.connectionDropped(function() {
-      // Ignore any errors and kill any currently-running supplicants. On some
-      // phones, stopSupplicant won't work for a supplicant that we didn't
-      // start, so we hand-roll it here.
-      suppressEvents = true;
-      killSupplicant(function() {
-        disableInterface(manager.ifname, function (ok) {
-          suppressEvents = false;
-          callback();
+    // First, check to see if there's a wpa_supplicant running that we can
+    // connect to.
+    getProperty(SUPP_PROP, "stopped", function (value) {
+      if (value !== "running") {
+        stopDhcp(manager.ifname, function() { callback(false) });
+        return;
+      }
+
+      // It's running, try to reconnect to it.
+      connectToSupplicant(function (retval) {
+        if (retval === 0) {
+          // Successfully reconnected! Don't do anything else.
+          debug("Successfully connected!");
+
+          manager.supplicantStarted = true;
+
+          // It is important that we call parseStatus (in
+          // didConnectSupplicant) before calling the callback here.
+          // Otherwise, WifiManager.start will reconnect to it.
+          didConnectSupplicant(true, function() { callback(true) });
+          return;
+        }
+
+        debug("Didn't connect, trying other method.");
+        suppressEvents = true;
+        stopDhcp(manager.ifname, function() {
+          // Ignore any errors.
+          killSupplicant(function() {
+            suppressEvents = false;
+            callback(false);
+          });
         });
       });
     });
@@ -941,7 +994,12 @@ var WifiManager = (function() {
                                      kNetworkInterfaceStateChangedTopic,
                                      null);
 
-        prepareForStartup(function() {
+        prepareForStartup(function(already_connected) {
+          if (already_connected) {
+            callback(0);
+            return;
+          }
+
           loadDriver(function (status) {
             if (status < 0) {
               callback(status);
@@ -1998,23 +2056,10 @@ WifiWorker.prototype = {
       return;
     }
 
-    let callback = (function (networks) {
+    this.waitForScan((function (networks) {
       this._sendMessage(message, networks !== null, networks, msg);
-    }).bind(this);
-    this.waitForScan(callback);
-
-    WifiManager.scan(true, (function(ok) {
-      // If the scan command succeeded, we're done.
-      if (ok)
-        return;
-
-      // Avoid sending multiple responses.
-      this.wantScanResults.splice(this.wantScanResults.indexOf(callback), 1);
-
-      // Otherwise, let the client know that it failed, it's responsible for
-      // trying again in a few seconds.
-      this._sendMessage(message, false, "ScanFailed", msg);
     }).bind(this));
+    WifiManager.scan(true, function() {});
   },
 
   _notifyAfterStateChange: function(success, newState) {
