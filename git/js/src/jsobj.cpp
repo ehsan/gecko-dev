@@ -90,9 +90,7 @@
 #include "jsscriptinlines.h"
 #include "jsstrinlines.h"
 
-#include "vm/BooleanObject-inl.h"
-#include "vm/NumberObject-inl.h"
-#include "vm/StringObject-inl.h"
+#include "vm/MethodGuard-inl.h"
 
 #if JS_HAS_GENERATORS
 #include "jsiter.h"
@@ -6181,88 +6179,6 @@ js_ValueToNonNullObject(JSContext *cx, const Value &v)
     return obj;
 }
 
-#if JS_HAS_XDR
-
-JSBool
-js_XDRObject(JSXDRState *xdr, JSObject **objp)
-{
-    JSContext *cx;
-    JSAtom *atom;
-    Class *clasp;
-    uint32_t classId, classDef;
-    JSProtoKey protoKey;
-    JSObject *proto;
-
-    cx = xdr->cx;
-    atom = NULL;
-    if (xdr->mode == JSXDR_ENCODE) {
-        clasp = (*objp)->getClass();
-        classId = JS_XDRFindClassIdByName(xdr, clasp->name);
-        classDef = !classId;
-        if (classDef) {
-            if (!JS_XDRRegisterClass(xdr, Jsvalify(clasp), &classId))
-                return JS_FALSE;
-            protoKey = JSCLASS_CACHED_PROTO_KEY(clasp);
-            if (protoKey != JSProto_Null) {
-                classDef |= (protoKey << 1);
-            } else {
-                atom = js_Atomize(cx, clasp->name, strlen(clasp->name));
-                if (!atom)
-                    return JS_FALSE;
-            }
-        }
-    } else {
-        clasp = NULL;           /* quell GCC overwarning */
-        classDef = 0;
-    }
-
-    /*
-     * XDR a flag word, which could be 0 for a class use, in which case no
-     * name follows, only the id in xdr's class registry; 1 for a class def,
-     * in which case the flag word is followed by the class name transferred
-     * from or to atom; or a value greater than 1, an odd number that when
-     * divided by two yields the JSProtoKey for class.  In the last case, as
-     * in the 0 classDef case, no name is transferred via atom.
-     */
-    if (!JS_XDRUint32(xdr, &classDef))
-        return JS_FALSE;
-    if (classDef == 1 && !js_XDRAtom(xdr, &atom))
-        return JS_FALSE;
-
-    if (!JS_XDRUint32(xdr, &classId))
-        return JS_FALSE;
-
-    if (xdr->mode == JSXDR_DECODE) {
-        if (classDef) {
-            /* NB: we know that JSProto_Null is 0 here, for backward compat. */
-            protoKey = (JSProtoKey) (classDef >> 1);
-            if (!js_GetClassPrototype(cx, NULL, protoKey, &proto, clasp))
-                return JS_FALSE;
-            clasp = proto->getClass();
-            if (!JS_XDRRegisterClass(xdr, Jsvalify(clasp), &classId))
-                return JS_FALSE;
-        } else {
-            clasp = Valueify(JS_XDRFindClassById(xdr, classId));
-            if (!clasp) {
-                char numBuf[12];
-                JS_snprintf(numBuf, sizeof numBuf, "%ld", (long)classId);
-                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                     JSMSG_CANT_FIND_CLASS, numBuf);
-                return JS_FALSE;
-            }
-        }
-    }
-
-    if (!clasp->xdrObject) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_CANT_XDR_CLASS, clasp->name);
-        return JS_FALSE;
-    }
-    return clasp->xdrObject(xdr, objp);
-}
-
-#endif /* JS_HAS_XDR */
-
 #ifdef DEBUG
 void
 js_PrintObjectSlotName(JSTracer *trc, char *buf, size_t bufsize)
@@ -6359,49 +6275,6 @@ js_GetterOnlyPropertyStub(JSContext *cx, JSObject *obj, jsid id, JSBool strict, 
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_GETTER_ONLY);
     return JS_FALSE;
-}
-
-void
-js::ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp)
-{
-    Value &thisv = call.thisv();
-
-#ifdef DEBUG
-    if (thisv.isObject()) {
-        JS_ASSERT(thisv.toObject().getClass() != clasp ||
-                  !thisv.toObject().getProto() ||
-                  thisv.toObject().getProto()->getClass() != clasp);
-    } else if (thisv.isString()) {
-        JS_ASSERT(clasp != &StringClass);
-    } else if (thisv.isNumber()) {
-        JS_ASSERT(clasp != &NumberClass);
-    } else if (thisv.isBoolean()) {
-        JS_ASSERT(clasp != &BooleanClass);
-    } else {
-        JS_ASSERT(thisv.isUndefined() || thisv.isNull());
-    }
-#endif
-
-    if (JSFunction *fun = js_ValueToFunction(cx, &call.calleev(), 0)) {
-        JSAutoByteString funNameBytes;
-        if (const char *funName = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
-                                 clasp->name, funName, InformalValueTypeName(thisv));
-        }
-    }
-}
-
-bool
-js::HandleNonGenericMethodClassMismatch(JSContext *cx, CallArgs args, Native native, Class *clasp)
-{
-    if (args.thisv().isObject()) {
-        JSObject &thisObj = args.thisv().toObject();
-        if (thisObj.isProxy())
-            return Proxy::nativeCall(cx, &thisObj, clasp, native, args);
-    }
-
-    ReportIncompatibleMethod(cx, args, clasp);
-    return false;
 }
 
 #ifdef DEBUG

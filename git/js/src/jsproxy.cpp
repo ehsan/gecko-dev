@@ -50,6 +50,8 @@
 #include "jsproxy.h"
 #include "jsscope.h"
 
+#include "vm/MethodGuard.h"
+
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
@@ -1320,11 +1322,9 @@ JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
     JS_ResolveStub,
     proxy_Convert,
     proxy_Finalize,          /* finalize    */
-    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
-    NULL,                    /* xdrObject   */
     proxy_HasInstance,       /* hasInstance */
     proxy_TraceObject,       /* trace       */
     JS_NULL_CLASS_EXT,
@@ -1376,11 +1376,9 @@ JS_FRIEND_DATA(Class) js::OuterWindowProxyClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     proxy_Finalize,          /* finalize    */
-    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
-    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
     proxy_TraceObject,       /* trace       */
     {
@@ -1454,11 +1452,9 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     NULL,                    /* finalize */
-    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     proxy_Call,
     proxy_Construct,
-    NULL,                    /* xdrObject   */
     FunctionClass.hasInstance,
     proxy_TraceFunction,     /* trace       */
     JS_NULL_CLASS_EXT,
@@ -1732,7 +1728,6 @@ Class js::CallableObjectClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     NULL,                    /* finalize    */
-    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     callable_Call,
     callable_Construct,
