@@ -93,7 +93,6 @@
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "mozilla/dom/TextMetrics.h"
 #include "mozilla/dom/UnionTypes.h"
-#include "mozilla/dom/SVGMatrix.h"
 #include "nsGlobalWindow.h"
 #include "GLContext.h"
 #include "GLContextProvider.h"
@@ -263,8 +262,7 @@ public:
         mode = ExtendMode::REPEAT;
       }
       mPattern = new (mSurfacePattern.addr())
-        SurfacePattern(state.patternStyles[aStyle]->mSurface, mode,
-                       state.patternStyles[aStyle]->mTransform);
+        SurfacePattern(state.patternStyles[aStyle]->mSurface, mode);
     }
 
     return *mPattern;
@@ -383,12 +381,6 @@ private:
   Float mSigma;
   mgfx::Rect mTempRect;
 };
-
-void
-CanvasPattern::SetTransform(SVGMatrix& aMatrix)
-{
-  mTransform = ToMatrix(aMatrix.GetMatrix());
-}
 
 void
 CanvasGradient::AddColorStop(float offset, const nsAString& colorstr, ErrorResult& rv)

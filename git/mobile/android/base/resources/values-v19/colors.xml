@@ -3,8 +3,8 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-       android:shape="rectangle">
-    <solid android:color="@color/toast_button_background" />
-    <corners android:radius="@dimen/toast_button_corner_radius" />
-</shape>
+<resources>
+  <!-- Button toast colors. -->
+  <color name="toast_button_background">#FF656565</color>
+  <color name="toast_button_pressed">#FFB1B1B1</color>
+</resources>

@@ -530,8 +530,6 @@ public:
 
   virtual void CancelAllPendingReflows() = 0;
 
-  virtual void NotifyCounterStylesAreDirty() = 0;
-
   /**
    * Recreates the frames for a node
    */

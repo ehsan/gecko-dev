@@ -192,7 +192,6 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
   : JitFrameIterator(activations),
     machine_(frame.machineState())
 {
-    kind_ = Kind_BailoutIterator;
     returnAddressToFp_ = frame.returnAddressToFp();
     topIonScript_ = frame.ionScript();
     const OsiIndex *osiIndex = frame.osiIndex();

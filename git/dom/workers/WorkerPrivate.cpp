@@ -3127,10 +3127,26 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
 
     size_t actionsIndex = windowActions.LastIndexOf(WindowAction(window));
 
-    nsIGlobalObject* global = sharedWorker->GetParentObject();
-    AutoJSAPIWithErrorsReportedToWindow jsapi(global);
-    JSContext* cx = jsapi.cx();
-    JSAutoCompartment ac(cx, global->GetGlobalJSObject());
+    // Get the context for this window so that we can report errors correctly.
+    JSContext* cx;
+    rv = NS_OK;
+
+    if (actionsIndex == windowActions.NoIndex) {
+      nsIScriptContext* scx = sharedWorker->GetContextForEventHandlers(&rv);
+      cx = (NS_SUCCEEDED(rv) && scx) ?
+           scx->GetNativeContext() :
+           nsContentUtils::GetSafeJSContext();
+    } else {
+      cx = windowActions[actionsIndex].mJSContext;
+    }
+
+    AutoCxPusher autoPush(cx);
+
+    if (NS_FAILED(rv)) {
+      Throw(cx, rv);
+      JS_ReportPendingException(cx);
+      continue;
+    }
 
     RootedDictionary<ErrorEventInit> errorInit(aCx);
     errorInit.mBubbles = false;
@@ -3152,7 +3168,7 @@ WorkerPrivateParent<Derived>::BroadcastErrorToSharedWorkers(
     errorEvent->SetTrusted(true);
 
     bool defaultActionEnabled;
-    nsresult rv = sharedWorker->DispatchEvent(errorEvent, &defaultActionEnabled);
+    rv = sharedWorker->DispatchEvent(errorEvent, &defaultActionEnabled);
     if (NS_FAILED(rv)) {
       Throw(cx, rv);
       JS_ReportPendingException(cx);

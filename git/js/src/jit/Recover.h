@@ -19,7 +19,6 @@ namespace jit {
 #define RECOVER_OPCODE_LIST(_)                  \
     _(ResumePoint)                              \
     _(BitNot)                                   \
-    _(BitAnd)                                   \
     _(BitOr)                                    \
     _(BitXor)                                   \
     _(Lsh)                                      \
@@ -107,18 +106,6 @@ class RBitNot MOZ_FINAL : public RInstruction
 
     virtual uint32_t numOperands() const {
         return 1;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RBitAnd MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(BitAnd)
-
-    virtual uint32_t numOperands() const {
-        return 2;
     }
 
     bool recover(JSContext *cx, SnapshotIterator &iter) const;

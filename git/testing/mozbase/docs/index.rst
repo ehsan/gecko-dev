@@ -41,7 +41,7 @@ want to do then dive in!
 .. toctree::
    :maxdepth: 2
 
-   manifestparser
+   manifestdestiny
    gettinginfo
    setuprunning
    mozhttpd

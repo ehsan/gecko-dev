@@ -20,9 +20,8 @@
 #include "mozilla/FloatingPoint.h"
 #include "nsCSSPseudoElements.h"
 
-class nsIFrame;
 class nsPresContext;
-class nsStyleChangeList;
+class nsIFrame;
 class ElementPropertyTransition;
 
 

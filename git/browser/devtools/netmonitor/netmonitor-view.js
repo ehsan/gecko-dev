@@ -1980,8 +1980,6 @@ NetworkDetailsView.prototype = {
    */
   destroy: function() {
     dumpn("Destroying the NetworkDetailsView");
-
-    $("tabpanels", this.widget).removeEventListener("select", this._onTabSelect);
   },
 
   /**
@@ -2070,10 +2068,7 @@ NetworkDetailsView.prototype = {
       }
       populated[tab] = true;
       window.emit(EVENTS.TAB_UPDATED);
-
-      if (NetMonitorController.isConnected()) {
-        NetMonitorView.RequestsMenu.ensureSelectedItemIsVisible();
-      }
+      NetMonitorView.RequestsMenu.ensureSelectedItemIsVisible();
     });
   },
 

@@ -19,15 +19,11 @@
 #ifndef _nsFrameManager_h_
 #define _nsFrameManager_h_
 
+#include "nsIFrame.h"
 #include "nsFrameManagerBase.h"
-
-#include "nsAutoPtr.h"
-#include "nsFrameList.h"
 #include "nsIContent.h"
-#include "nsStyleContext.h"
 
 class nsContainerFrame;
-class nsPlaceholderFrame;
 
 namespace mozilla {
 /**
@@ -79,7 +75,7 @@ struct UndisplayedNode {
 
 class nsFrameManager : public nsFrameManagerBase
 {
-  typedef mozilla::layout::FrameChildListID ChildListID;
+  typedef nsIFrame::ChildListID ChildListID;
 
 public:
   nsFrameManager(nsIPresShell *aPresShell, nsStyleSet* aStyleSet) {

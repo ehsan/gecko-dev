@@ -125,14 +125,11 @@ class IonBailoutIterator : public JitFrameIterator
     IonBailoutIterator(const JitActivationIterator &activations, const JitFrameIterator &frame);
 
     SnapshotOffset snapshotOffset() const {
-        if (topIonScript_)
-            return snapshotOffset_;
-        return osiIndex()->snapshotOffset();
+        JS_ASSERT(topIonScript_);
+        return snapshotOffset_;
     }
-    const MachineState machineState() const {
-        if (topIonScript_)
-            return machine_;
-        return JitFrameIterator::machineState();
+    const MachineState &machineState() const {
+        return machine_;
     }
     size_t topFrameSize() const {
         JS_ASSERT(topIonScript_);
@@ -142,14 +139,6 @@ class IonBailoutIterator : public JitFrameIterator
         if (topIonScript_)
             return topIonScript_;
         return JitFrameIterator::ionScript();
-    }
-
-    IonBailoutIterator &operator++() {
-        JitFrameIterator::operator++();
-        // Clear topIonScript_ now that we've advanced past it, so that
-        // snapshotOffset() and machineState() reflect the current script.
-        topIonScript_ = nullptr;
-        return *this;
     }
 
     void dump() const;

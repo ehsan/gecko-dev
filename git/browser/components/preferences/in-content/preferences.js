@@ -3,7 +3,7 @@
    - You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
-
+ 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -42,9 +42,7 @@ function init_all() {
     this.removeAttribute("keyboard-navigation");
   });
 
-  if (document.getElementById("category-general").selected) {
-    gotoPref("paneGeneral");
-  }
+  gotoPref("paneGeneral");
 }
 
 function selectCategory(name) {

@@ -984,8 +984,7 @@ class BOffImm
       : data ((offset - 8) >> 2 & 0x00ffffff)
     {
         JS_ASSERT((offset & 0x3) == 0);
-        if (!isInRange(offset))
-            CrashAtUnhandlableOOM("BOffImm");
+        JS_ASSERT(isInRange(offset));
     }
     static bool isInRange(int offset)
     {

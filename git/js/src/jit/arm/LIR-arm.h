@@ -431,6 +431,8 @@ class LUMod : public LBinaryMath<0>
     }
 };
 
+// This class performs a simple x86 'div', yielding either a quotient or remainder depending on
+// whether this instruction is defined to output eax (quotient) or edx (remainder).
 class LSoftUDivOrMod : public LBinaryMath<3>
 {
   public:

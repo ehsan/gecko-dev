@@ -13,8 +13,6 @@
 #include "mozilla/Likely.h"
 #include "nsIContent.h"
 
-using namespace mozilla;
-
 bool
 nsCounterUseNode::InitTextFrame(nsGenConList* aList,
         nsIFrame* aPseudoFrame, nsIFrame* aTextFrame)
@@ -40,17 +38,6 @@ nsCounterUseNode::InitTextFrame(nsGenConList* aList,
   }
   
   return false;
-}
-
-CounterStyle*
-nsCounterUseNode::GetCounterStyle()
-{
-    if (!mCounterStyle) {
-        const nsCSSValue& style = mCounterFunction->Item(mAllCounters ? 2 : 1);
-        mCounterStyle = mPresContext->CounterStyleManager()->
-            BuildCounterStyle(nsDependentString(style.GetStringBufferValue()));
-    }
-    return mCounterStyle;
 }
 
 // assign the correct |mValueAfter| value to a node that has been inserted
@@ -90,17 +77,17 @@ nsCounterUseNode::GetText(nsString& aResult)
         for (nsCounterNode *n = mScopeStart; n->mScopePrev; n = n->mScopeStart)
             stack.AppendElement(n->mScopePrev);
 
+    const nsCSSValue& styleItem = mCounterStyle->Item(mAllCounters ? 2 : 1);
+    int32_t style = styleItem.GetIntValue();
     const char16_t* separator;
     if (mAllCounters)
-        separator = mCounterFunction->Item(1).GetStringBufferValue();
+        separator = mCounterStyle->Item(1).GetStringBufferValue();
 
-    CounterStyle* style = GetCounterStyle();
     for (uint32_t i = stack.Length() - 1;; --i) {
         nsCounterNode *n = stack[i];
-        nsAutoString text;
         bool isTextRTL;
-        style->GetCounterText(n->mValueAfter, text, isTextRTL);
-        aResult.Append(text);
+        nsBulletFrame::AppendCounterText(
+                style, n->mValueAfter, aResult, isTextRTL);
         if (i == 0)
             break;
         NS_ASSERTION(mAllCounters, "yikes, separator is uninitialized");
@@ -278,34 +265,6 @@ void
 nsCounterManager::RecalcAll()
 {
     mNames.EnumerateRead(RecalcDirtyLists, nullptr);
-}
-
-static PLDHashOperator
-SetCounterStylesDirty(const nsAString& aKey,
-                      nsCounterList* aList,
-                      void* aClosure)
-{
-    nsCounterNode* first = aList->First();
-    if (first) {
-        bool changed = false;
-        nsCounterNode* node = first;
-        do {
-            if (node->mType == nsCounterNode::USE) {
-                node->UseNode()->SetCounterStyleDirty();
-                changed = true;
-            }
-        } while ((node = aList->Next(node)) != first);
-        if (changed) {
-            aList->SetDirty();
-        }
-    }
-    return PL_DHASH_NEXT;
-}
-
-void
-nsCounterManager::SetAllCounterStylesDirty()
-{
-    mNames.EnumerateRead(SetCounterStylesDirty, nullptr);
 }
 
 struct DestroyNodesData {
