@@ -8,7 +8,6 @@
 #define gc_Barrier_h
 
 #include "jsapi.h"
-#include "NamespaceImports.h"
 
 #include "gc/Heap.h"
 #include "js/HashTable.h"

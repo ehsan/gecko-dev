@@ -38,7 +38,9 @@ DelayProcessor::Process(const double *aPerFrameDelays,
                                    0.0, static_cast<double>(mMaxDelayFrames));
 
       // Write the input sample to the correct location in our buffer
-      buffer[writeIndex] = input ? input[i] : 0.0f;
+      if (input) {
+        buffer[writeIndex] = input[i];
+      }
 
       // Now, determine the correct read position.  We adjust the read position to be
       // from currentDelayFrames frames in the past.  We also interpolate the two input
@@ -107,10 +109,7 @@ DelayProcessor::EnsureBuffer(uint32_t aNumberOfChannels)
     if (!mBuffer.SetLength(aNumberOfChannels)) {
       return false;
     }
-    // The length of the buffer is one greater than the maximum delay so that
-    // writing an input frame does not overwrite the frame that would
-    // subsequently be read at maximum delay.
-    const int numFrames = mMaxDelayFrames + 1;
+    const int numFrames = mMaxDelayFrames;
     for (uint32_t channel = 0; channel < aNumberOfChannels; ++channel) {
       if (!mBuffer[channel].SetLength(numFrames)) {
         return false;

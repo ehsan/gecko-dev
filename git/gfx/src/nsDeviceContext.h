@@ -6,17 +6,11 @@
 #ifndef _NS_DEVICECONTEXT_H_
 #define _NS_DEVICECONTEXT_H_
 
-#include <stdint.h>                     // for uint32_t
-#include <sys/types.h>                  // for int32_t
-#include "gfxTypes.h"                   // for gfxFloat
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for nsCOMPtr
-#include "nsCoord.h"                    // for nscoord
-#include "nsError.h"                    // for nsresult
-#include "nsISupports.h"                // for NS_INLINE_DECL_REFCOUNTING
-#include "nsMathUtils.h"                // for NS_round
-#include "nscore.h"                     // for PRUnichar, nsAString
+#include "gfxTypes.h"
+#include "nsAutoPtr.h"
+#include "nsCOMPtr.h"
+#include "nsCoord.h"
+#include "nsMathUtils.h"
 
 class gfxASurface;
 class gfxUserFontSet;

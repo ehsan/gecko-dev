@@ -7,7 +7,9 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMTCPSocket.h"
-#include "js/TypeDecls.h"
+
+struct JSContext;
+class JSObject;
 
 #define TCPSOCKETPARENT_CID \
   { 0x4e7246c6, 0xa8b3, 0x426d, { 0x9c, 0x17, 0x76, 0xda, 0xb1, 0xe1, 0xe1, 0x4a } }

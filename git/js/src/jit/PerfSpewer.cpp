@@ -147,7 +147,7 @@ PerfSpewer::writeProfile(JSScript *script,
         if (size > 0) {
             fprintf(fp_,
                     "%lx %lx %s:%d: Func%02d\n",
-                    reinterpret_cast<uintptr_t>(code->raw()),
+                    reinterpret_cast<unsigned long>(code->raw()),
                     size,
                     script->filename(),
                     script->lineno,

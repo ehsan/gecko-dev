@@ -103,6 +103,8 @@
  * from a signal handler when the JIT code is executing.
  */
 
+class JSFunction;
+
 namespace js {
 
 class ProfileEntry;

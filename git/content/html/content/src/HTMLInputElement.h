@@ -54,9 +54,10 @@ public:
    * Store the last used directory for this location using the
    * content pref service, if it is available
    * @param aURI URI of the current page
-   * @param aDir Parent directory of the file(s)/directory chosen by the user
+   * @param aDomFile file chosen by the user - the path to the parent of this
+   *        file will be stored
    */
-  nsresult StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aDir);
+  nsresult StoreLastUsedDirectory(nsIDocument* aDoc, nsIDOMFile* aDomFile);
 
   class ContentPrefCallback MOZ_FINAL : public nsIContentPrefCallback2
   {
@@ -190,12 +191,12 @@ public:
 
   void GetDisplayFileName(nsAString& aFileName) const;
 
-  const nsTArray<nsCOMPtr<nsIDOMFile> >& GetFilesInternal() const
+  const nsCOMArray<nsIDOMFile>& GetFilesInternal() const
   {
     return mFiles;
   }
 
-  void SetFiles(const nsTArray<nsCOMPtr<nsIDOMFile> >& aFiles, bool aSetValueChanged);
+  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
   void SetFiles(nsIDOMFileList* aFiles, bool aSetValueChanged);
 
   void SetCheckedChangedInternal(bool aCheckedChanged);
@@ -391,8 +392,6 @@ public:
   // XPCOM GetForm() is OK
 
   nsDOMFileList* GetFiles();
-
-  void OpenDirectoryPicker(ErrorResult& aRv);
 
   // XPCOM GetFormAction() is OK
   void SetFormAction(const nsAString& aValue, ErrorResult& aRv)
@@ -735,7 +734,7 @@ protected:
   bool IsValueEmpty() const;
 
   void ClearFiles(bool aSetValueChanged) {
-    nsTArray<nsCOMPtr<nsIDOMFile> > files;
+    nsCOMArray<nsIDOMFile> files;
     SetFiles(files, aSetValueChanged);
   }
 
@@ -1081,11 +1080,7 @@ protected:
    */
   nsresult MaybeInitPickers(nsEventChainPostVisitor& aVisitor);
 
-  enum FilePickerType {
-    FILE_PICKER_FILE,
-    FILE_PICKER_DIRECTORY
-  };
-  nsresult InitFilePicker(FilePickerType aType);
+  nsresult InitFilePicker();
   nsresult InitColorPicker();
 
   /**
@@ -1127,7 +1122,7 @@ protected:
    * the frame. Whenever the frame wants to change the filename it has to call
    * SetFileNames to update this member.
    */
-  nsTArray<nsCOMPtr<nsIDOMFile> >   mFiles;
+  nsCOMArray<nsIDOMFile>   mFiles;
 
   nsRefPtr<nsDOMFileList>  mFileList;
 

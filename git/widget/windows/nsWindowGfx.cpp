@@ -38,6 +38,7 @@ using mozilla::plugins::PluginInstanceParent;
 #include "mozilla/unused.h"
 
 #include "LayerManagerOGL.h"
+#include "BasicLayers.h"
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
 #endif

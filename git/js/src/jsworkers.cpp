@@ -202,9 +202,6 @@ ParseTask::~ParseTask()
 
     // ParseTask takes over ownership of its input exclusive context.
     js_delete(cx);
-
-    for (size_t i = 0; i < errors.length(); i++)
-        js_delete(errors[i]);
 }
 
 bool
@@ -553,7 +550,7 @@ WorkerThreadState::finishParseTask(JSContext *maybecx, JSRuntime *rt, void *toke
     if (maybecx) {
         AutoCompartment ac(maybecx, parseTask->scopeChain);
         for (size_t i = 0; i < parseTask->errors.length(); i++)
-            parseTask->errors[i]->throwError(maybecx);
+            parseTask->errors[i].throwError(maybecx);
     }
 
     JSScript *script = parseTask->script;
@@ -680,12 +677,9 @@ ExclusiveContext::setWorkerThread(WorkerThread *workerThread)
 frontend::CompileError &
 ExclusiveContext::addPendingCompileError()
 {
-    frontend::CompileError *error = js_new<frontend::CompileError>();
-    if (!error)
+    if (!workerThread->parseTask->errors.append(frontend::CompileError()))
         MOZ_CRASH();
-    if (!workerThread->parseTask->errors.append(error))
-        MOZ_CRASH();
-    return *error;
+    return workerThread->parseTask->errors.back();
 }
 
 void

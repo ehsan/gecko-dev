@@ -30,15 +30,11 @@ CountArgSlots(JSScript *script, JSFunction *fun)
 
 enum ExecutionMode {
     // Normal JavaScript execution
-    SequentialExecution,
+    SequentialExecution = 0,
 
     // JavaScript code to be executed in parallel worker threads,
     // e.g. by ParallelArray
-    ParallelExecution,
-
-    // MIR analysis performed when invoking 'new' on a script, to determine
-    // definite properties
-    DefinitePropertiesAnalysis
+    ParallelExecution
 };
 
 // Not as part of the enum so we don't get warnings about unhandled enum

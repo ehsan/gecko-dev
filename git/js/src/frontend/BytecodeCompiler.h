@@ -7,7 +7,7 @@
 #ifndef frontend_BytecodeCompiler_h
 #define frontend_BytecodeCompiler_h
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 class JSLinearString;
 

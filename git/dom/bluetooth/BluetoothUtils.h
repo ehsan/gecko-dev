@@ -8,7 +8,9 @@
 #define mozilla_dom_bluetooth_bluetoothutils_h__
 
 #include "BluetoothCommon.h"
-#include "js/TypeDecls.h"
+
+struct JSContext;
+class JSObject;
 
 BEGIN_BLUETOOTH_NAMESPACE
 

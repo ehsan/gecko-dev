@@ -9,7 +9,13 @@
 
 #include "gc/Barrier.h"
 #include "jit/IonCode.h"
-#include "js/TypeDecls.h"
+
+extern "C" {
+struct JSContext;
+class JSFunction;
+class JSObject;
+class JSScript;
+}
 
 class JSAtom;
 class JSLinearString;

@@ -15,12 +15,15 @@
 #include "nsIVariant.h"
 #include "nsError.h"
 #include "nsAutoPtr.h"
-#include "js/TypeDecls.h"
 
 class mozIStorageCompletionCallback;
 class mozIStorageBaseStatement;
 class mozIStorageBindingParams;
 class nsIRunnable;
+
+namespace JS {
+class Value;
+}
 
 namespace mozilla {
 namespace storage {

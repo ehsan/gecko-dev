@@ -20,7 +20,6 @@
 #include "mozilla/Likely.h"
 #include "nsContentUtils.h"
 
-using namespace JS;
 using namespace js;
 using namespace mozilla;
 

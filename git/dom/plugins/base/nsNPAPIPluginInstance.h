@@ -16,7 +16,6 @@
 #include "nsInterfaceHashtable.h"
 #include "nsHashKeys.h"
 #include <prinrval.h>
-#include "js/TypeDecls.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "nsAutoPtr.h"
 #include "nsIRunnable.h"
@@ -30,6 +29,8 @@ class SharedPluginTexture;
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/PluginLibrary.h"
+
+class JSObject;
 
 class nsPluginStreamListenerPeer; // browser-initiated stream class
 class nsNPAPIPluginStreamListener; // plugin-initiated stream class

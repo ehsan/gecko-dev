@@ -8,6 +8,7 @@
 #define jswatchpoint_h
 
 #include "jsalloc.h"
+#include "jsapi.h"
 
 #include "gc/Barrier.h"
 #include "js/HashTable.h"

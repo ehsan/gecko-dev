@@ -673,6 +673,7 @@ protected:
   bool mErrorLoad;
   bool mWaitingForOnStopRequest;
   bool mProgressTimerIsActive;
+  bool mProgressEventWasDelayed;
   bool mIsHtml;
   bool mWarnAboutMultipartHtml;
   bool mWarnAboutSyncHtml;

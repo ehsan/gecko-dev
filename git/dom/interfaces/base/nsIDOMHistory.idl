@@ -5,6 +5,10 @@
 
 #include "domstubs.idl"
 
+%{ C++
+struct JSContext;
+%}
+
 [scriptable, uuid(55226663-fe68-48ba-addf-08e32eaab569)]
 interface nsIDOMHistory : nsISupports
 {

@@ -10,11 +10,10 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsalloc.h"
+#include "jsapi.h"
 #include "jspubtd.h"
 
 #include "js/GCAPI.h"
-#include "js/Vector.h"
 
 struct JSCompartment;
 
