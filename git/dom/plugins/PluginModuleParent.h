@@ -229,8 +229,6 @@ private:
 
     nsCString mCrashNotes;
     PluginProcessParent* mSubprocess;
-    // the plugin thread in mSubprocess
-    NativeThreadId mPluginThread;
     bool mShutdown;
     const NPNetscapeFuncs* mNPNIface;
     nsDataHashtable<nsVoidPtrHashKey, PluginIdentifierParent*> mIdentifiers;

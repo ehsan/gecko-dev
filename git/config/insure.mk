@@ -12,14 +12,14 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is Mozilla Corporation code.
+# The Original Code is mozilla.org code.
 #
-# The Initial Developer of the Original Code is Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2009
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Robert O'Callahan <robert@ocallahan.org>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -35,47 +35,19 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH       = ../..
-topsrcdir   = @top_srcdir@
-srcdir      = @srcdir@
-VPATH       = \
-  $(srcdir) \
-  $(srcdir)/basic \
-  $(NULL)
+INCLUDED_INSURE_MK = 1
 
-include $(DEPTH)/config/autoconf.mk
+INSURE_MATCH_SCRIPT=$(topsrcdir)/build/autoconf/match-dir.sh
 
-MODULE         = layers
-LIBRARY_NAME   = layers
-EXPORT_LIBRARY = 1
-LIBXUL_LIBRARY = 1
+INSURE_EXCLUDE=$(shell $(INSURE_MATCH_SCRIPT) $(MOZ_INSURE_EXCLUDE_DIRS))
 
-DEFINES += -DIMPL_THEBES
+INSURE_INCLUDE=$(shell $(INSURE_MATCH_SCRIPT) $(MOZ_INSURE_DIRS))
 
-EXPORTS = \
-        BasicLayers.h \
-        ImageLayers.h \
-        Layers.h \
-        $(NULL)
+ifeq ($(INSURE_EXCLUDE),0)
 
-CPPSRCS = \
-        BasicImages.cpp \
-        BasicLayers.cpp \
-        $(NULL)
+ifeq ($(INSURE_INCLUDE),1)
+CC		:= $(MOZ_INSURE)
+CXX		:= $(MOZ_INSURE)
+endif # INSURE_INCLUDE == 1
 
-EXTRA_DSO_LIBS = \
-        gkgfx \
-        thebes \
-        $(NULL)
-
-EXTRA_DSO_LDOPTS += \
-        $(LIBS_DIR) \
-        $(EXTRA_DSO_LIBS) \
-        $(MOZ_CAIRO_LIBS) \
-        $(XPCOM_LIBS) \
-        $(NSPR_LIBS) \
-        $(NULL)
-
-include $(topsrcdir)/config/rules.mk
-
-CXXFLAGS += $(MOZ_CAIRO_CFLAGS)
+endif # INSURE_EXCLUDE == 0

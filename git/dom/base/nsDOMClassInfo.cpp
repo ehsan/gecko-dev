@@ -10371,7 +10371,8 @@ nsEventListenerThisTranslator::TranslateThis(nsISupports *aInitialThis,
   nsCOMPtr<nsIDOMEventTarget> target;
   event->GetCurrentTarget(getter_AddRefs(target));
 
-  *_retval = target.forget().get();
+  *_retval = target;
+  NS_IF_ADDREF(*_retval);
 
   return NS_OK;
 }

@@ -91,7 +91,6 @@ PluginModuleParent::LoadModule(const char* aFilePath)
 
 PluginModuleParent::PluginModuleParent(const char* aFilePath)
     : mSubprocess(new PluginProcessParent(aFilePath))
-    , mPluginThread(0)
     , mShutdown(false)
     , mNPNIface(NULL)
     , mPlugin(NULL)
@@ -218,7 +217,6 @@ PluginModuleParent::ShouldContinueFromReplyTimeout()
     nsCOMPtr<nsILocalFile> pluginDump;
     nsCOMPtr<nsILocalFile> browserDump;
     if (CrashReporter::CreatePairedMinidumps(OtherProcess(),
-                                             mPluginThread,
                                              &mHangID,
                                              getter_AddRefs(pluginDump),
                                              getter_AddRefs(browserDump)) &&
@@ -608,7 +606,7 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
         return NS_ERROR_FAILURE;
     }
 
-    if (!CallNP_Initialize(&mPluginThread, error)) {
+    if (!CallNP_Initialize(error)) {
         return NS_ERROR_FAILURE;
     }
     else if (*error != NPERR_NO_ERROR) {
@@ -631,7 +629,7 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
         return NS_ERROR_FAILURE;
     }
 
-    if (!CallNP_Initialize(&mPluginThread, error))
+    if (!CallNP_Initialize(error))
         return NS_ERROR_FAILURE;
 
     return NS_OK;

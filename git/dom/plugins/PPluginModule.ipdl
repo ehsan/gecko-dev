@@ -45,7 +45,6 @@ include "mozilla/plugins/PluginMessageUtils.h";
 
 using NPError;
 using NPNVariable;
-using mozilla::plugins::NativeThreadId;
 
 namespace mozilla {
 namespace plugins {
@@ -68,9 +67,8 @@ both:
                           int32_t aInt);
 
 child:
-  // Return the plugin's thread ID, if it can be found.
   rpc NP_Initialize()
-    returns (NativeThreadId tid, NPError rv);
+    returns (NPError rv);
 
   rpc PPluginInstance(nsCString aMimeType,
                       uint16_t aMode,
