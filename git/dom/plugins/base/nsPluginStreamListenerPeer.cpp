@@ -874,7 +874,7 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
       window->window = widget->GetNativeData(NS_NATIVE_PLUGIN_PORT);
     }
 #endif
-    owner->SetWindow();
+    mOwner->SetWindow();
   }
   
   mSeekable = PR_FALSE;
