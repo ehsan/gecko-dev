@@ -8,10 +8,15 @@
 
 // Test that the highlighter is correctly displayed over a variety of elements
 
-const TEST_URI = TEST_URL_ROOT + "browser_inspector_highlighter.html";
-
 let test = asyncTest(function*() {
-  let { inspector } = yield openInspectorForURL(TEST_URI);
+  const TEST_URI = "http://example.com/browser/browser/devtools/inspector/" +
+                   "test/browser_inspector_highlighter.html";
+
+  info("Opening the document");
+  yield addTab(TEST_URI);
+
+  info("Opening the inspector");
+  let {toolbox, inspector} = yield openInspector();
 
   info("Selecting the simple, non-transformed DIV");
   let div = getNode("#simple-div");
@@ -38,6 +43,7 @@ let test = asyncTest(function*() {
 
   testMouseOverWidthHeightZeroDiv(zeroWidthHeight);
 
+  gBrowser.removeCurrentTab();
 });
 
 function testSimpleDivHighlighted(div) {

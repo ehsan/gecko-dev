@@ -1,34 +1,71 @@
-/* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
-"use strict";
 
-const TEST_URI = "data:text/html;charset=UTF-8," +
-  "<h1>browser_inspector_sidebarstate.js</h1>";
+let doc;
+let inspector;
 
-let test = asyncTest(function* () {
-  let { inspector, toolbox } = yield openInspectorForURL(TEST_URI);
+function createDocument()
+{
+  doc.body.innerHTML = '<h1>Sidebar state test</h1>';
+  doc.title = "Sidebar State Test";
 
-  info("Selecting ruleview.");
-  inspector.sidebar.select("ruleview");
+  openInspector(function(panel) {
+    inspector = panel;
+    inspector.sidebar.select("ruleview");
+    inspectorRuleViewOpened();
+  });
+}
 
-  is(inspector.sidebar.getCurrentTabID(), "ruleview",
-     "Rule View is selected by default");
+function inspectorRuleViewOpened()
+{
+  is(inspector.sidebar.getCurrentTabID(), "ruleview", "Rule View is selected by default");
 
-  info("Selecting computed view.");
+  // Select the computed view and turn off the inspector.
   inspector.sidebar.select("computedview");
 
-  info("Closing inspector.");
-  yield toolbox.destroy();
+  gDevTools.once("toolbox-destroyed", inspectorClosed);
+  let target = TargetFactory.forTab(gBrowser.selectedTab);
+  gDevTools.closeToolbox(target);
+}
 
-  info("Re-opening inspector.");
-  inspector = (yield openInspector()).inspector;
+function inspectorClosed()
+{
+  openInspector(function(panel) {
+    inspector = panel;
 
-  if (!inspector.sidebar.getCurrentTabID()) {
-    info("Default sidebar still to be selected, adding select listener.");
-    yield inspector.sidebar.once("select");
-  }
+    if (inspector.sidebar.getCurrentTabID()) {
+      info("Default sidebar already selected.")
+      testNewDefaultTab();
+    } else {
+      info("Default sidebar still to be selected, adding select listener.");
+      inspector.sidebar.once("select", testNewDefaultTab);
+    }
+  });
+}
 
-  is(inspector.sidebar.getCurrentTabID(), "computedview",
-     "Computed view is selected by default.");
-});
+function testNewDefaultTab()
+{
+  is(inspector.sidebar.getCurrentTabID(), "computedview", "Computed view is selected by default.");
+
+  finishTest();
+}
+
+
+function finishTest()
+{
+  doc = inspector = null;
+  gBrowser.removeCurrentTab();
+  finish();
+}
+
+function test()
+{
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+    doc = content.document;
+    waitForFocus(createDocument, content);
+  }, true);
+
+  content.location = "data:text/html;charset=utf-8,browser_inspector_sidebarstate.js";
+}

@@ -26,7 +26,6 @@ function WebConsoleClient(aDebuggerClient, aResponse)
   this._client = aDebuggerClient;
   this._longStrings = {};
   this.traits = aResponse.traits || {};
-  this.events = [];
 }
 exports.WebConsoleClient = WebConsoleClient;
 
@@ -392,7 +391,7 @@ WebConsoleClient.prototype = {
    * @param function aOnResponse
    *        Function to invoke when the server response is received.
    */
-  detach: function WCC_detach(aOnResponse)
+  close: function WCC_close(aOnResponse)
   {
     this.stopListeners(null, aOnResponse);
     this._longStrings = null;

@@ -55,8 +55,10 @@ var gSecurityPane = {
       params.introText = bundlePrefs.getString("addonspermissionstext");
     }
 
-    gSubDialog.open("chrome://browser/content/preferences/permissions.xul",
-                    null, params);
+    openDialog("chrome://browser/content/preferences/permissions.xul",
+               "Browser:Permissions",
+               "modal=yes",
+               params);
   },
 
   /**
@@ -107,7 +109,10 @@ var gSecurityPane = {
    */
   showPasswordExceptions: function ()
   {
-    gSubDialog.open("chrome://passwordmgr/content/passwordManagerExceptions.xul");
+    openDialog("chrome://passwordmgr/content/passwordManagerExceptions.xul",
+               "Toolkit:PasswordManagerExceptions",
+               "modal=yes",
+               null);
   },
 
   /**
@@ -186,12 +191,12 @@ var gSecurityPane = {
       promptService.alert(window,
                           bundle.getString("pw_change_failed_title"),
                           bundle.getString("pw_change2empty_in_fips_mode"));
-      this._initMasterPasswordUI();
     }
     else {
-      gSubDialog.open("chrome://mozapps/content/preferences/removemp.xul",
-                      null, null, this._initMasterPasswordUI.bind(this));
+      openDialog("chrome://mozapps/content/preferences/removemp.xul",
+                 "Toolkit:RemoveMasterPassword", "modal=yes", null);
     }
+    this._initMasterPasswordUI();
   },
 
   /**
@@ -199,8 +204,9 @@ var gSecurityPane = {
    */
   changeMasterPassword: function ()
   {
-    gSubDialog.open("chrome://mozapps/content/preferences/changemp.xul",
-                    null, null, this._initMasterPasswordUI.bind(this));
+    openDialog("chrome://mozapps/content/preferences/changemp.xul",
+               "Toolkit:ChangeMasterPassword", "modal=yes", null);
+    this._initMasterPasswordUI();
   },
 
   /**
@@ -209,7 +215,9 @@ var gSecurityPane = {
    */
   showPasswords: function ()
   {
-    gSubDialog.open("chrome://passwordmgr/content/passwordManager.xul");
+    openDialog("chrome://passwordmgr/content/passwordManager.xul",
+               "Toolkit:PasswordManager",
+               "modal=yes", null);
   }
 
 };

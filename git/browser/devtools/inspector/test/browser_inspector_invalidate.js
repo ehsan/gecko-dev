@@ -1,33 +1,54 @@
-/* vim: set ts=2 et sw=2 tw=80: */
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
-"use strict";
 
-// Test that highlighter handles geometry changes correctly.
-const TEST_URI = "data:text/html;charset=utf-8," +
-  "browser_inspector_invalidate.js\n" +
-  "<div style=\"width: 100px; height: 100px; background:yellow;\"></div>";
+function test() {
+  let doc;
+  let div;
+  let inspector;
 
-let test = asyncTest(function*() {
-  let { inspector } = yield openInspectorForURL(TEST_URI);
-  let div = getNode("div");
+  function createDocument() {
+    div = doc.createElement("div");
+    div.setAttribute("style", "width: 100px; height: 100px; background:yellow;");
+    doc.body.appendChild(div);
 
-  info("Waiting for highlighter to activate");
-  yield inspector.toolbox.highlighter.showBoxModel(getNodeFront(div));
+    openInspector(aInspector => {
+      inspector = aInspector;
+      inspector.toolbox.highlighter.showBoxModel(getNodeFront(div)).then(runTest);
+    });
+  }
 
-  let rect = getSimpleBorderRect();
-  is(rect.width, 100, "Outline has the right width.");
+  function runTest() {
+    info("Checking that the highlighter has the right size");
+    let rect = getSimpleBorderRect();
+    is(rect.width, 100, "outline has the right width");
 
-  info("Changing the test element's size");
-  let boxModelUpdated = waitForBoxModelUpdate();
-  div.style.width = "200px";
+    waitForBoxModelUpdate().then(testRectWidth);
 
-  info("Waiting for the box model to update.");
-  yield boxModelUpdated;
+    info("Changing the test element's size");
+    div.style.width = "200px";
+  }
 
-  rect = getSimpleBorderRect();
-  is(rect.width, 200, "Outline has the right width after update.");
+  function testRectWidth() {
+    info("Checking that the highlighter has the right size after update");
+    let rect = getSimpleBorderRect();
+    is(rect.width, 200, "outline updated");
+    finishUp();
+  }
 
-  info("Waiting for highlighter to hide");
-  yield inspector.toolbox.highlighter.hideBoxModel();
-});
+  function finishUp() {
+    inspector.toolbox.highlighter.hideBoxModel().then(() => {
+      doc = div = inspector = null;
+      gBrowser.removeCurrentTab();
+      finish();
+    });
+  }
+
+  gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+    doc = content.document;
+    waitForFocus(createDocument, content);
+  }, true);
+
+  content.location = "data:text/html;charset=utf-8,browser_inspector_invalidate.js";
+}
