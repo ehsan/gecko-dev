@@ -29,7 +29,6 @@
 #include "nsViewportFrame.h"
 #include "nsSVGTextFrame2.h"
 #include "nsSVGTextPathFrame.h"
-#include "StickyScrollContainer.h"
 #include "nsIRootBox.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsContentUtils.h"
@@ -327,7 +326,7 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
   aFrame->SchedulePaint();
 
   // For relative positioning, we can simply update the frame rect
-  if (display->IsRelativelyPositionedStyle()) {
+  if (display->mPosition == NS_STYLE_POSITION_RELATIVE) {
     switch (display->mDisplay) {
       case NS_STYLE_DISPLAY_TABLE_CAPTION:
       case NS_STYLE_DISPLAY_TABLE_CELL:
@@ -346,27 +345,17 @@ RestyleManager::RecomputePosition(nsIFrame* aFrame)
     }
 
     nsIFrame* cb = aFrame->GetContainingBlock();
+    const nsSize size = cb->GetContentRectRelativeToSelf().Size();
+    nsPoint position = aFrame->GetNormalPosition();
     nsMargin newOffsets;
 
     // Move the frame
-    if (display->mPosition == NS_STYLE_POSITION_STICKY) {
-      StickyScrollContainer::ComputeStickyOffsets(aFrame);
-    } else {
-      MOZ_ASSERT(NS_STYLE_POSITION_RELATIVE == display->mPosition,
-                 "Unexpected type of positioning");
-      const nsSize size = cb->GetContentRectRelativeToSelf().Size();
-
-      nsHTMLReflowState::ComputeRelativeOffsets(
-          cb->StyleVisibility()->mDirection,
-          aFrame, size.width, size.height, newOffsets);
-      NS_ASSERTION(newOffsets.left == -newOffsets.right &&
-                   newOffsets.top == -newOffsets.bottom,
-                   "ComputeRelativeOffsets should return valid results");
-    }
-
-    nsPoint position = aFrame->GetNormalPosition();
-
-    // This handles both relative and sticky positioning.
+    nsHTMLReflowState::ComputeRelativeOffsets(
+        cb->StyleVisibility()->mDirection,
+        aFrame, size.width, size.height, newOffsets);
+    NS_ASSERTION(newOffsets.left == -newOffsets.right &&
+                 newOffsets.top == -newOffsets.bottom,
+                 "ComputeRelativeOffsets should return valid results");
     nsHTMLReflowState::ApplyRelativePositioning(aFrame, newOffsets, &position);
     aFrame->SetPosition(position);
 

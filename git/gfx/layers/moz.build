@@ -263,7 +263,7 @@ CPP_SOURCES += [
 ]
 
 IPDL_SOURCES = [
-    'ipc/LayersMessages.ipdlh',
+    'ipc/LayerTransaction.ipdlh',
     'ipc/LayersSurfaces.ipdlh',
     'ipc/PCompositable.ipdl',
     'ipc/PCompositor.ipdl',

@@ -48,7 +48,6 @@
 #include "nsThemeConstants.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsIScrollPositionListener.h"
-#include "StickyScrollContainer.h"
 #include <algorithm>
 #include <cstdlib> // for std::abs(int/long)
 #include <cmath> // for std::abs(float/double)
@@ -828,7 +827,6 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
       state.mContentsOverflowAreas + mInner.mScrolledFrame->GetPosition());
   }
 
-  mInner.UpdateSticky();
   FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
 
   if (!InInitialReflow() && !mInner.mHadNonInitialReflow) {
@@ -3546,8 +3544,6 @@ nsXULScrollFrame::Layout(nsBoxLayoutState& aState)
     mInner.mHadNonInitialReflow = true;
   }
 
-  mInner.UpdateSticky();
-
   // Set up overflow areas for block frames for the benefit of
   // text-overflow.
   nsIFrame* f = mInner.mScrolledFrame->GetContentInsertionFrame();
@@ -3715,17 +3711,6 @@ nsGfxScrollFrameInner::UpdateOverflow()
     return false;  // reflowing will update overflow
   }
   return mOuter->nsContainerFrame::UpdateOverflow();
-}
-
-void
-nsGfxScrollFrameInner::UpdateSticky()
-{
-  StickyScrollContainer* ssc = StickyScrollContainer::
-    GetStickyScrollContainerForScrollFrame(mOuter);
-  if (ssc) {
-    nsIScrollableFrame* scrollFrame = do_QueryFrame(mOuter);
-    ssc->UpdatePositions(scrollFrame->GetScrollPosition(), mOuter);
-  }
 }
 
 void

@@ -2573,8 +2573,8 @@ TypeObject::clearAddendum(ExclusiveContext *cx)
         clearNewScriptAddendum(cx);
         break;
 
-      case TypeObjectAddendum::TypedObject:
-        clearTypedObjectAddendum(cx);
+      case TypeObjectAddendum::BinaryData:
+        clearBinaryDataAddendum(cx);
         break;
     }
 
@@ -2691,7 +2691,7 @@ TypeObject::clearNewScriptAddendum(ExclusiveContext *cx)
 }
 
 void
-TypeObject::clearTypedObjectAddendum(ExclusiveContext *cx)
+TypeObject::clearBinaryDataAddendum(ExclusiveContext *cx)
 {
 }
 
@@ -4401,7 +4401,7 @@ TypeScript::printTypes(JSContext *cx, HandleScript script) const
 /////////////////////////////////////////////////////////////////////
 
 bool
-TypeObject::addTypedObjectAddendum(JSContext *cx, TypeRepresentation *repr)
+TypeObject::addBinaryDataAddendum(JSContext *cx, TypeRepresentation *repr)
 {
     if (!cx->typeInferenceEnabled())
         return true;
@@ -4414,15 +4414,15 @@ TypeObject::addTypedObjectAddendum(JSContext *cx, TypeRepresentation *repr)
     JS_ASSERT(!unknownProperties());
 
     if (addendum) {
-        JS_ASSERT(hasTypedObject());
-        JS_ASSERT(typedObject()->typeRepr == repr);
+        JS_ASSERT(hasBinaryData());
+        JS_ASSERT(binaryData()->typeRepr == repr);
         return true;
     }
 
-    TypeTypedObject *typedObject = js_new<TypeTypedObject>(repr);
-    if (!typedObject)
+    TypeBinaryData *binaryData = js_new<TypeBinaryData>(repr);
+    if (!binaryData)
         return false;
-    addendum = typedObject;
+    addendum = binaryData;
     return true;
 }
 
@@ -4438,8 +4438,8 @@ TypeNewScript::TypeNewScript()
   : TypeObjectAddendum(NewScript)
 {}
 
-TypeTypedObject::TypeTypedObject(TypeRepresentation *repr)
-  : TypeObjectAddendum(TypedObject),
+TypeBinaryData::TypeBinaryData(TypeRepresentation *repr)
+  : TypeObjectAddendum(BinaryData),
     typeRepr(repr)
 {
 }

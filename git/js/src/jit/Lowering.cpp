@@ -2790,6 +2790,13 @@ LIRGenerator::visitHaveSameClass(MHaveSameClass *ins)
 }
 
 bool
+LIRGenerator::visitAsmJSLoadHeap(MAsmJSLoadHeap *ins)
+{
+    LAsmJSLoadHeap *lir = new LAsmJSLoadHeap(useRegisterAtStart(ins->ptr()));
+    return define(lir, ins);
+}
+
+bool
 LIRGenerator::visitAsmJSLoadGlobalVar(MAsmJSLoadGlobalVar *ins)
 {
     return define(new LAsmJSLoadGlobalVar, ins);

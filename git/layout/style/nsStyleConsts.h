@@ -531,7 +531,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_POSITION_RELATIVE              1
 #define NS_STYLE_POSITION_ABSOLUTE              2
 #define NS_STYLE_POSITION_FIXED                 3
-#define NS_STYLE_POSITION_STICKY                4
 
 // See nsStylePosition.mClip
 #define NS_STYLE_CLIP_AUTO                      0x00
