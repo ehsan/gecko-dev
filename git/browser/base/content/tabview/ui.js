@@ -106,9 +106,9 @@ let UI = {
 
       // ___ Dev Menu
       // This dev menu is not meant for shipping, nor is it of general
-      // interest, but we still need it for the time being. Change the
-      // false below to enable; just remember to change back before
-      // committing. Bug 586721 will track the ultimate removal.
+      // interest, but we still need it for the time being. Change the 
+      // false below to enable; just remember to change back before 
+      // committing. Bug 586721 will track the ultimate removal. 
       if (false)
         this._addDevMenu();
 
@@ -163,7 +163,7 @@ let UI = {
       if (firstTime) {
         var padding = 10;
         var infoWidth = 350;
-        var infoHeight = 232;
+        var infoHeight = 350;
         var pageBounds = Items.getPageBounds();
         pageBounds.inset(padding, padding);
 
@@ -187,10 +187,15 @@ let UI = {
         });
 
         // ___ make info item
+        let welcome = "How to organize your tabs";
+        let more = "";
         let video = "http://videos-cdn.mozilla.net/firefox4beta/tabcandy_howto.webm";
         var html =
           "<div class='intro'>"
-            + "<video src='" + video + "' width='100%' preload controls>"
+            + "<h1>" + welcome + "</h1>"
+            + ( more && more.length ? "<div>" + more + "</div><br>" : "")
+            + "<video src='" + video + "' "
+            + "width='100%' preload controls>"
           + "</div>";
 
         box.left = box.right + padding;
@@ -214,10 +219,8 @@ let UI = {
       var observer = {
         observe : function(subject, topic, data) {
           if (topic == "quit-application-requested") {
-            if (self._isTabViewVisible()) {
-              GroupItems.removeHiddenGroups();
+            if (self._isTabViewVisible())
               TabItems.saveAll(true);
-            }
             self._save();
           }
         }
@@ -355,7 +358,6 @@ let UI = {
     if (!this._isTabViewVisible())
       return;
 
-    GroupItems.removeHiddenGroups();
     TabItems.pausePainting();
 
     this._reorderTabsOnHide.forEach(function(groupItem) {
@@ -470,16 +472,6 @@ let UI = {
   },
 
   // ----------
-  // Selects the given xul:tab in the browser.
-  goToTab: function UI_goToTab(xulTab) {
-    // If it's not focused, the onFocus listener would handle it.
-    if (gBrowser.selectedTab == xulTab)
-      this.onTabSelect(xulTab);
-    else
-      gBrowser.selectedTab = xulTab;
-  },
-
-  // ----------
   // Function: onTabSelect
   // Called when the user switches from one tab to another outside of the TabView UI.
   onTabSelect: function UI_onTabSelect(tab) {
@@ -504,7 +496,7 @@ let UI = {
 
     let oldItem = null;
     let newItem = null;
-
+    
     if (currentTab && currentTab.tabItem)
       oldItem = currentTab.tabItem;
     if (tab && tab.tabItem) {
@@ -575,8 +567,7 @@ let UI = {
 
       function getClosestTabBy(norm) {
         var centers =
-          [[item.bounds.center(), item] 
-             for each(item in TabItems.getItems()) if (!item.parent || !item.parent.hidden)];
+          [[item.bounds.center(), item] for each(item in TabItems.getItems())];
         var myCenter = self.getActiveTab().bounds.center();
         var matches = centers
           .filter(function(item){return norm(item[0], myCenter)})
@@ -628,13 +619,13 @@ let UI = {
           event.stopPropagation();
           event.preventDefault();
         }
-      } else if (event.keyCode == KeyEvent.DOM_VK_ESCAPE ||
+      } else if (event.keyCode == KeyEvent.DOM_VK_ESCAPE || 
                  event.keyCode == KeyEvent.DOM_VK_RETURN ||
                  event.keyCode == KeyEvent.DOM_VK_ENTER) {
         let activeTab = self.getActiveTab();
         let activeGroupItem = GroupItems.getActiveGroupItem();
 
-        if (activeGroupItem && activeGroupItem.expanded &&
+        if (activeGroupItem && activeGroupItem.expanded && 
             event.keyCode == KeyEvent.DOM_VK_ESCAPE)
           activeGroupItem.collapse();
         else if (activeTab)
@@ -882,17 +873,6 @@ let UI = {
 
     this._pageBounds = Items.getPageBounds();
     this._save();
-  },
-
-  // ----------
-  // Function: onExitButtonPressed
-  // Exits TabView UI.
-  onExitButtonPressed: function() {
-    let activeTab = this.getActiveTab();
-    if (!activeTab)
-      activeTab = gBrowser.selectedTab.tabItem;
-    if (activeTab)
-      activeTab.zoomIn();
   },
 
   // ----------

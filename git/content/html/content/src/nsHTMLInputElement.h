@@ -273,7 +273,7 @@ public:
   void     UpdateTypeMismatchValidityState();
   void     UpdatePatternMismatchValidityState();
   void     UpdateAllValidityStates(PRBool aNotify);
-  void     UpdateBarredFromConstraintValidation();
+  PRBool   IsBarredFromConstraintValidation() const;
   nsresult GetValidationMessage(nsAString& aValidationMessage,
                                 ValidityStateType aType);
 

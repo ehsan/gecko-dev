@@ -10,19 +10,12 @@ const RELATIVE_DIR = "browser/toolkit/mozapps/extensions/test/browser/";
 
 const TESTROOT = "http://example.com/" + RELATIVE_DIR;
 const TESTROOT2 = "http://example.org/" + RELATIVE_DIR;
+const CHROMEROOT = "chrome://mochikit/content/" + RELATIVE_DIR;
 
 const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
 const PREF_SEARCH_MAXRESULTS = "extensions.getAddons.maxResults";
-const CHROME_NAME = "mochikit";
-
-function getChromeRoot(path) {
-  if (path === undefined) {
-    return "chrome://" + CHROME_NAME + "/content/" + RELATIVE_DIR;
-  }
-  return getRootDirectory(path);
-}
 
 var gPendingTests = [];
 var gTestsRun = 0;
@@ -59,19 +52,23 @@ function run_next_test() {
 }
 
 function get_addon_file_url(aFilename) {
-  var chromeroot = getChromeRoot(gTestPath);
-  try {
+  var loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
+                         .getService(Ci.mozIJSSubScriptLoader);
+  loader.loadSubScript("chrome://mochikit/content/chrome-harness.js");
+
+  var jar = getJar(CHROMEROOT + "addons/" + aFilename);
+
+  if (jar == null) {
     var cr = Cc["@mozilla.org/chrome/chrome-registry;1"].
              getService(Ci.nsIChromeRegistry);
-    var fileurl = cr.convertChromeURL(makeURI(chromeroot + "addons/" + aFilename));
+    var fileurl = cr.convertChromeURL(makeURI(CHROMEROOT + "addons/" + aFilename));
     return fileurl.QueryInterface(Ci.nsIFileURL);
-  } catch(ex) {
-    var jar = getJar(chromeroot + "addons/" + aFilename);
+  } else {
+    var ios = Cc["@mozilla.org/network/io-service;1"].  
+                getService(Ci.nsIIOService);
+
     var tmpDir = extractJarToTmp(jar);
     tmpDir.append(aFilename);
-
-    var ios = Components.classes["@mozilla.org/network/io-service;1"].
-                getService(Components.interfaces.nsIIOService);
     return ios.newFileURI(tmpDir).QueryInterface(Ci.nsIFileURL);
   }
 }
@@ -107,11 +104,7 @@ function check_all_in_list(aManager, aIds, aIgnoreExtras) {
 function get_addon_element(aManager, aId) {
   var doc = aManager.document;
   var view = doc.getElementById("view-port").selectedPanel;
-  var listid = "addon-list";
-  if (view.id == "search-view")
-    listid = "search-list";
-  else if (view.id == "updates-view")
-    listid = "updates-list";
+  var listid = view.id == "search-view" ? "search-list" : "addon-list";
   var list = doc.getElementById(listid);
 
   var node = list.firstChild;

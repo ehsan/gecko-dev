@@ -55,7 +55,7 @@ function test() {
     type: "extension",
     iconURL: "chrome://foo/skin/icon.png",
     icon64URL: "chrome://foo/skin/icon64.png",
-    contributionURL: "http://foo.com",
+    contributeURL: "http://foo.com",
     contributionAmount: "$0.99",
     sourceURI: Services.io.newURI("http://example.com/foo", null, null),
     averageRating: 4,

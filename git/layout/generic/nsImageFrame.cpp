@@ -577,7 +577,7 @@ nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
 
   // XXX We really need to round this out, now that we're doing better
   // image scaling!
-  nsRect r = (*aRect == nsIntRect::GetMaxSizedIntRect()) ?
+  nsRect r = (*aRect == mozilla::imagelib::kFullImageSpaceRect) ?
     GetInnerArea() :
     SourceRectToDest(*aRect);
 
@@ -660,7 +660,7 @@ nsImageFrame::FrameChanged(imgIContainer *aContainer,
     return NS_OK;
   }
 
-  nsRect r = (*aDirtyRect == nsIntRect::GetMaxSizedIntRect()) ?
+  nsRect r = (*aDirtyRect == mozilla::imagelib::kFullImageSpaceRect) ?
     GetInnerArea() :
     SourceRectToDest(*aDirtyRect);
 
@@ -1243,8 +1243,7 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // REVIEW: Checking mRect.IsEmpty() makes no sense to me, so I removed it.
   // It can't have been protecting us against bad situations with zero-size
   // images since adding a border would make the rect non-empty.
-
-  nsDisplayList replacedContent;
+    
   if (mComputedSize.width != 0 && mComputedSize.height != 0) {
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mContent);
     NS_ASSERTION(imageLoader, "Not an image loading content?");
@@ -1277,13 +1276,13 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (!imageOK || !haveSize) {
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
-      rv = replacedContent.AppendNewToTop(new (aBuilder)
+      rv = aLists.Content()->AppendNewToTop(new (aBuilder)
           nsDisplayGeneric(aBuilder, this, PaintAltFeedback, "AltFeedback",
                            nsDisplayItem::TYPE_ALT_FEEDBACK));
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
-      rv = replacedContent.AppendNewToTop(new (aBuilder)
+      rv = aLists.Content()->AppendNewToTop(new (aBuilder)
           nsDisplayImage(aBuilder, this, imgCon));
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1358,13 +1357,8 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 #endif
   
-  rv = DisplaySelectionOverlay(aBuilder, &replacedContent,
-                               nsISelectionDisplay::DISPLAY_IMAGES);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
-
-  return NS_OK;
+  return DisplaySelectionOverlay(aBuilder, aLists,
+                                 nsISelectionDisplay::DISPLAY_IMAGES);
 }
 
 NS_IMETHODIMP

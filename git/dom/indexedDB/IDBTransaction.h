@@ -40,7 +40,7 @@
 #ifndef mozilla_dom_indexeddb_idbtransaction_h__
 #define mozilla_dom_indexeddb_idbtransaction_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBRequest.h"
 #include "mozilla/dom/indexedDB/IDBDatabase.h"
 
 #include "nsIIDBTransaction.h"
@@ -53,8 +53,9 @@
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
 
-class mozIStorageStatement;
+class nsIScriptContext;
 class nsIThread;
+class nsPIDOMWindow;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -64,6 +65,7 @@ struct ObjectStoreInfo;
 class TransactionThreadPool;
 
 class IDBTransaction : public nsDOMEventTargetHelper,
+                       public IDBRequest::Generator,
                        public nsIIDBTransaction
 {
   friend class AsyncConnectionHelper;
@@ -78,7 +80,8 @@ public:
                                            nsDOMEventTargetHelper)
 
   static already_AddRefed<IDBTransaction>
-  Create(IDBDatabase* aDatabase,
+  Create(JSContext* aCx,
+         IDBDatabase* aDatabase,
          nsTArray<nsString>& aObjectStoreNames,
          PRUint16 aMode,
          PRUint32 aTimeout);
@@ -144,10 +147,14 @@ public:
 
   enum { FULL_LOCK = nsIIDBTransaction::SNAPSHOT_READ + 1 };
 
-  IDBDatabase* Database()
+  nsIScriptContext* ScriptContext()
   {
-    NS_ASSERTION(mDatabase, "This should never be null!");
-    return mDatabase;
+    return mScriptContext;
+  }
+
+  nsPIDOMWindow* Owner()
+  {
+    return mOwner;
   }
 
 private:
@@ -170,7 +177,6 @@ private:
   nsRefPtr<nsDOMEventListenerWrapper> mOnCompleteListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnTimeoutListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 
   nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
     mCachedStatements;
@@ -191,7 +197,13 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  CommitHelper(IDBTransaction* aTransaction);
+  CommitHelper(IDBTransaction* aTransaction)
+  : mTransaction(aTransaction),
+    mAborted(!!aTransaction->mAborted),
+    mHasInitialSavepoint(!!aTransaction->mHasInitialSavepoint)
+  {
+    mConnection.swap(aTransaction->mConnection);
+  }
 
   template<class T>
   bool AddDoomedObject(nsCOMPtr<T>& aCOMPtr)

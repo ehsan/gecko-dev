@@ -362,10 +362,8 @@
                     command="cmd_findAllUpdates"/>
             <spacer flex="3"/>
           </vbox>
-          <hbox id="update-actions" pack="center">
-            <button id="update-selected" hidden="true"
-                    label="&updates.updateSelected.label;"
-                    tooltiptext="&updates.updateSelected.tooltip;"/>
+          <hbox id="update-all-container" hidden="true">
+            <button label="Update these add-ons" class="addon-control"/>
           </hbox>
           <richlistbox id="updates-list" class="list" flex="1"/>
         </vbox>
@@ -490,7 +488,7 @@
                       </row>
                       <row class="detail-row" id="detail-size" label="&detail.size;"/>
                       <row class="detail-row-complex" id="detail-rating-row">
-                        <label class="detail-row-label" value="&rating2.label;"/>
+                        <label class="detail-row-label" value="&rating.label;"/>
                         <hbox>
                           <label id="detail-rating" class="meta-value meta-rating"
                                  showrating="average"/>

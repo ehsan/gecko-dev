@@ -137,7 +137,7 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 
   // nsIConstraintValidation
-  void UpdateBarredFromConstraintValidation();
+  PRBool IsBarredFromConstraintValidation() const;
 
 protected:
   virtual PRBool AcceptAutofocus() const
@@ -615,27 +615,18 @@ nsresult
 nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   const nsAString* aValue, PRBool aNotify)
 {
-  PRInt32 states = 0;
-
-  if (aNameSpaceID == kNameSpaceID_None) {
-    if (aName == nsGkAtoms::type) {
-      if (!aValue) {
-        mType = kButtonDefaultType->value;
-      }
-
-      UpdateBarredFromConstraintValidation();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID |
-                NS_EVENT_STATE_MOZ_SUBMITINVALID;
-    } else if (aName == nsGkAtoms::disabled) {
-      UpdateBarredFromConstraintValidation();
-      states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
+  if (aNameSpaceID == kNameSpaceID_None &&
+      aName == nsGkAtoms::type) {
+    if (!aValue) {
+      mType = kButtonDefaultType->value;
     }
 
-    if (aNotify && states) {
+    if (aNotify) {
       nsIDocument* doc = GetCurrentDoc();
       if (doc) {
         MOZ_AUTO_DOC_UPDATE(doc, UPDATE_CONTENT_STATE, PR_TRUE);
-        doc->ContentStatesChanged(this, nsnull, states);
+        doc->ContentStatesChanged(this, nsnull,
+                                  NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID);
       }
     }
   }
@@ -681,10 +672,6 @@ nsHTMLButtonElement::IntrinsicState() const
     state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
   }
 
-  if (mForm && !mForm->GetValidity() && IsSubmitControl()) {
-    state |= NS_EVENT_STATE_MOZ_SUBMITINVALID;
-  }
-
   return state | NS_EVENT_STATE_OPTIONAL;
 }
 
@@ -705,12 +692,10 @@ nsHTMLButtonElement::SetCustomValidity(const nsAString& aError)
   return NS_OK;
 }
 
-void
-nsHTMLButtonElement::UpdateBarredFromConstraintValidation()
+PRBool
+nsHTMLButtonElement::IsBarredFromConstraintValidation() const
 {
-  SetBarredFromConstraintValidation(mType == NS_FORM_BUTTON_BUTTON ||
-                                    mType == NS_FORM_BUTTON_RESET ||
-                                    HasAttr(kNameSpaceID_None,
-                                            nsGkAtoms::disabled));
+  return (mType == NS_FORM_BUTTON_BUTTON ||
+          mType == NS_FORM_BUTTON_RESET);
 }
 

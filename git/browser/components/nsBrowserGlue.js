@@ -1323,20 +1323,15 @@ BrowserGlue.prototype = {
   _xpcom_factory: BrowserGlueServiceFactory,
 }
 
-function ContentPermissionPrompt() {}
+function GeolocationPrompt() {}
 
-ContentPermissionPrompt.prototype = {
-  classID:          Components.ID("{d8903bf6-68d5-4e97-bcd1-e4d3012f721a}"),
+GeolocationPrompt.prototype = {
+  classID:          Components.ID("{C6E8C44D-9F39-4AF7-BCC0-76E38A8310F5}"),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIGeolocationPrompt]),
 
-  prompt: function CPP_prompt(request) {
-
-    if (request.type != "geolocation") {
-        return;
-    }
-
-    var requestingURI = request.uri;
+  prompt: function GP_prompt(request) {
+    var requestingURI = request.requestingURI;
 
     // Ignore requests from non-nsIStandardURLs
     if (!(requestingURI instanceof Ci.nsIStandardURL))
@@ -1387,7 +1382,7 @@ ContentPermissionPrompt.prototype = {
     // Different message/options if it is a local file
     if (requestingURI.schemeIs("file")) {
       message = browserBundle.formatStringFromName("geolocation.fileWantsToKnow",
-                                                   [requestingURI.path], 1);
+                                                   [request.requestingURI.path], 1);
     } else {
       message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
                                                    [requestingURI.host], 1);
@@ -1417,7 +1412,7 @@ ContentPermissionPrompt.prototype = {
       }
     }
 
-    var requestingWindow = request.window.top;
+    var requestingWindow = request.requestingWindow.top;
     var chromeWin = getChromeWindow(requestingWindow).wrappedJSObject;
     var browser = chromeWin.gBrowser.getBrowserForDocument(requestingWindow.document);
 
@@ -1426,5 +1421,5 @@ ContentPermissionPrompt.prototype = {
   }
 };
 
-var components = [BrowserGlue, ContentPermissionPrompt];
+var components = [BrowserGlue, GeolocationPrompt];
 var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

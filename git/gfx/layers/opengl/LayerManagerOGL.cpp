@@ -515,7 +515,6 @@ LayerManagerOGL::Render()
   // Default blend function implements "OVER"
   mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
                                  LOCAL_GL_ONE, LOCAL_GL_ONE);
-  mGLContext->fEnable(LOCAL_GL_BLEND);
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 

@@ -94,7 +94,6 @@
 #include "nsMimeTypes.h"
 // used for header disposition information.
 #include "nsIHttpChannel.h"
-#include "nsIHttpChannelInternal.h"
 #include "nsIEncodedChannel.h"
 #include "nsIMultiPartChannel.h"
 #include "nsIFileChannel.h"
@@ -1643,12 +1642,6 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
     }
 
     encChannel->SetApplyConversion( applyConversion );
-  }
-
-  // Inform channel it is open on behalf of a download to prevent caching.
-  nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(aChannel);
-  if (httpInternal) {
-    httpInternal->SetChannelIsForDownload(PR_TRUE);
   }
 
   // now that the temp file is set up, find out if we need to invoke a dialog

@@ -25,13 +25,6 @@ XPCOMUtils.defineLazyGetter(this, "gTabViewFrame", function() {
   return gWindow.document.getElementById("tab-view");
 });
 
-XPCOMUtils.defineLazyGetter(this, "tabviewBundle", function() {
-  return Services.strings.
-    createBundle("chrome://browser/locale/tabview.properties");
-});
-
-function tabviewString(name) tabviewBundle.GetStringFromName('tabview.' + name);
-
 # NB: Certain files need to evaluate before others
 
 #include iq.js

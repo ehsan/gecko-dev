@@ -39,7 +39,9 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
 
   Services.prefs.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN, "theme1/1.0");
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("theme1@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme1@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -51,9 +53,11 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("theme2@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme2@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -64,11 +68,13 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
   // We need a default theme for some of these things to work but we have hidden
   // the one in the application directory.
-  writeInstallRDFForExtension({
+  dest = profileDir.clone();
+  dest.append("default@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "default@tests.mozilla.org",
     version: "1.0",
     name: "Default",
@@ -78,7 +84,7 @@ function run_test() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
 
   startupManager();
   // Make sure we only register once despite multiple calls
@@ -186,7 +192,7 @@ function check_test_1() {
 // case since we don't have the default theme installed)
 function run_test_2() {
   var dest = profileDir.clone();
-  dest.append(do_get_expected_addon_name("theme2@tests.mozilla.org"));
+  dest.append("theme2@tests.mozilla.org");
   dest.remove(true);
 
   restartManager();
@@ -212,7 +218,9 @@ function run_test_2() {
 
 // Installing a lightweight theme should happen instantly and disable the default theme
 function run_test_3() {
-  writeInstallRDFForExtension({
+  var dest = profileDir.clone();
+  dest.append("theme2@tests.mozilla.org");
+  writeInstallRDFToDir({
     id: "theme2@tests.mozilla.org",
     version: "1.0",
     name: "Test 1",
@@ -222,7 +230,7 @@ function run_test_3() {
       minVersion: "1",
       maxVersion: "2"
     }]
-  }, profileDir);
+  }, dest);
   restartManager();
 
   prepare_test({
@@ -689,9 +697,11 @@ function run_test_11() {
 function check_test_11() {
   AddonManager.getAddonByID("theme1@tests.mozilla.org", function(t1) {
     do_check_neq(t1, null);
-    var previewSpec = do_get_addon_root_uri(profileDir, "theme1@tests.mozilla.org") + "preview.png";
+    var preview = profileDir.clone();
+    preview.append("theme1@tests.mozilla.org");
+    preview.append("preview.png");
     do_check_eq(t1.screenshots.length, 1);
-    do_check_eq(t1.screenshots[0], previewSpec);
+    do_check_eq(t1.screenshots[0], NetUtil.newURI(preview).spec);
     do_check_true(t1.skinnable);
     do_check_false(gLWThemeChanged);
 

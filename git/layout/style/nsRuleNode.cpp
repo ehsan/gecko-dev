@@ -5026,12 +5026,10 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
                                (mPresContext->GetBorderWidthTable())[value.GetIntValue()]);
       }
       // OK to pass bad aParentCoord since we're not passing SETCOORD_INHERIT
-      else if (SetCoord(value, coord, nsStyleCoord(),
-                        SETCOORD_LENGTH | SETCOORD_CALC_LENGTH_ONLY,
+      else if (SetCoord(value, coord, nsStyleCoord(), SETCOORD_LENGTH,
                         aContext, mPresContext, canStoreInRuleTree)) {
         NS_ASSERTION(coord.GetUnit() == eStyleUnit_Coord, "unexpected unit");
-        // clamp negative calc() to 0.
-        border->SetBorderWidth(side, NS_MAX(coord.GetCoordValue(), 0));
+        border->SetBorderWidth(side, coord.GetCoordValue());
       }
       else if (eCSSUnit_Inherit == value.GetUnit()) {
         canStoreInRuleTree = PR_FALSE;
@@ -5185,7 +5183,7 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
     }
   }
 
-  // border-radius: length, percent, inherit
+  // -moz-border-radius: length, percent, inherit
   {
     const nsCSSCornerSizes& borderRadius = marginData.mBorderRadius;
     NS_FOR_CSS_FULL_CORNERS(corner) {
@@ -5197,8 +5195,7 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
       nsStyleCoord coordX, coordY;
 
       if (SetPairCoords(radius, coordX, coordY, parentX, parentY,
-                        SETCOORD_LPH | SETCOORD_INITIAL_ZERO |
-                          SETCOORD_STORE_CALC,
+                        SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
                         aContext, mPresContext, canStoreInRuleTree)) {
         border->mBorderRadius.Set(cx, coordX);
         border->mBorderRadius.Set(cy, coordY);
@@ -5347,8 +5344,7 @@ nsRuleNode::ComputeOutlineData(void* aStartStruct,
   }
   else {
     SetCoord(marginData.mOutlineWidth, outline->mOutlineWidth,
-             parentOutline->mOutlineWidth,
-             SETCOORD_LEH | SETCOORD_CALC_LENGTH_ONLY, aContext,
+             parentOutline->mOutlineWidth, SETCOORD_LEH, aContext,
              mPresContext, canStoreInRuleTree);
   }
 
@@ -5410,8 +5406,7 @@ nsRuleNode::ComputeOutlineData(void* aStartStruct,
       nsStyleCoord coordX, coordY;
 
       if (SetPairCoords(radius, coordX, coordY, parentX, parentY,
-                        SETCOORD_LPH | SETCOORD_INITIAL_ZERO |
-                          SETCOORD_STORE_CALC,
+                        SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
                         aContext, mPresContext, canStoreInRuleTree)) {
         outline->mOutlineRadius.Set(cx, coordX);
         outline->mOutlineRadius.Set(cy, coordY);
@@ -6027,17 +6022,11 @@ nsRuleNode::ComputeColumnData(void* aStartStruct,
            SETCOORD_CALC_LENGTH_ONLY | SETCOORD_CALC_CLAMP_NONNEGATIVE,
            aContext, mPresContext, canStoreInRuleTree);
 
-  // column-gap: length, inherit, normal
+  // column-gap: length, percentage, inherit, normal
   SetCoord(columnData.mColumnGap,
            column->mColumnGap, parent->mColumnGap,
-           SETCOORD_LH | SETCOORD_NORMAL | SETCOORD_INITIAL_NORMAL |
-           SETCOORD_CALC_LENGTH_ONLY,
+           SETCOORD_LPH | SETCOORD_NORMAL | SETCOORD_INITIAL_NORMAL,
            aContext, mPresContext, canStoreInRuleTree);
-  // clamp negative calc() to 0
-  if (column->mColumnGap.GetUnit() == eStyleUnit_Coord) {
-    column->mColumnGap.SetCoordValue(
-      NS_MAX(column->mColumnGap.GetCoordValue(), 0));
-  }
 
   // column-count: auto, integer, inherit
   if (eCSSUnit_Auto == columnData.mColumnCount.GetUnit() ||

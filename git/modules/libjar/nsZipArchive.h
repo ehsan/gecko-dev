@@ -46,9 +46,7 @@
 #define ZIP_TABSIZE   256
 #define ZIP_BUFLEN    (4*1024)      /* Used as output buffer when deflating items to a file */
 
-#ifndef PL_ARENA_CONST_ALIGN_MASK
 #define PL_ARENA_CONST_ALIGN_MASK  (sizeof(void*)-1)
-#endif
 #include "plarena.h"
 
 #include "zlib.h"
@@ -133,20 +131,10 @@ public:
    * object. If we were allowed to use exceptions this would have been 
    * part of the constructor 
    *
-   * @param   aZipHandle  The nsZipHandle used to access the zip
+   * @param   fd            File descriptor of file to open
    * @return  status code
    */
-  nsresult OpenArchive(nsZipHandle *aZipHandle);
-
-  /** 
-   * OpenArchive 
-   * 
-   * Convenience function that generates nsZipHandle
-   *
-   * @param   aFile  The file used to access the zip
-   * @return  status code
-   */
-  nsresult OpenArchive(nsIFile *aFile);
+  nsresult OpenArchive(nsIFile *aZipFile);
 
   /**
    * Test the integrity of items in this archive by running
@@ -206,9 +194,9 @@ public:
    * @param   aItem       Pointer to nsZipItem
    * reutrns null when zip file is corrupt.
    */
-  const PRUint8* GetData(nsZipItem* aItem);
+  PRUint8* GetData(nsZipItem* aItem);
 
-  PRBool CheckCRC(nsZipItem* aItem, const PRUint8* aData);
+  PRBool CheckCRC(nsZipItem* aItem, PRUint8* aData);
 
 private:
   //--- private members ---
@@ -234,6 +222,27 @@ private:
   nsresult          BuildFileList();
   nsresult          BuildSynthetics();
 };
+
+class nsZipHandle {
+friend class nsZipArchive;
+public:
+  static nsresult Init(PRFileDesc *fd, nsZipHandle **ret NS_OUTPARAM);
+
+  NS_METHOD_(nsrefcnt) AddRef(void);
+  NS_METHOD_(nsrefcnt) Release(void);
+
+protected:
+  PRUint8 *    mFileData; /* pointer to mmaped file */
+  PRUint32     mLen;      /* length of file and memory mapped area */
+
+private:
+  nsZipHandle();
+  ~nsZipHandle();
+
+  PRFileMap *  mMap;      /* nspr datastructure for mmap */
+  nsrefcnt     mRefCnt;   /* ref count */
+};
+
 
 /** 
  * nsZipFind 
@@ -297,7 +306,7 @@ private:
   bool mDoCRC;
 };
 
-/**
+/** 
  * nsZipItemPtr - a RAII convenience class for reading the individual items in a zip.
  * It reads whole files and does zero-copy IO for stored files. A buffer is allocated
  * for decompression.
@@ -340,30 +349,6 @@ public:
   operator const T*() const {
     return Buffer();
   }
-};
-
-class nsZipHandle {
-friend class nsZipArchive;
-public:
-  static nsresult Init(nsILocalFile *file, nsZipHandle **ret NS_OUTPARAM);
-  static nsresult Init(nsZipArchive *zip, const char *entry,
-                       nsZipHandle **ret NS_OUTPARAM);
-
-  NS_METHOD_(nsrefcnt) AddRef(void);
-  NS_METHOD_(nsrefcnt) Release(void);
-
-protected:
-  const PRUint8 * mFileData; /* pointer to mmaped file */
-  PRUint32        mLen;      /* length of file and memory mapped area */
-  nsCOMPtr<nsILocalFile> mFile; /* source file if any, for logging */
-
-private:
-  nsZipHandle();
-  ~nsZipHandle();
-
-  PRFileMap *                       mMap;    /* nspr datastructure for mmap */
-  nsAutoPtr<nsZipItemPtr<PRUint8> > mBuf;
-  nsrefcnt                          mRefCnt; /* ref count */
 };
 
 nsresult gZlibInit(z_stream *zs);
