@@ -3063,11 +3063,10 @@ public:
             if (frameobj) {
                 JS_ASSERT_IF(fp->hasArgsObj(), frameobj == &fp->argsObj());
                 fp->setArgsObj(*frameobj);
-                JS_ASSERT(frameobj->isArguments());
                 if (frameobj->isNormalArguments())
                     frameobj->setPrivate(fp);
                 else
-                    JS_ASSERT(!frameobj->getPrivate());
+                    JS_ASSERT(frameobj->isStrictArguments());
                 debug_only_printf(LC_TMTracer,
                                   "argsobj<%p> ",
                                   (void *)frameobj);
@@ -3081,7 +3080,7 @@ public:
             JS_ASSERT(p == fp->addressOfScopeChain());
             if (frameobj->isCall() &&
                 !frameobj->getPrivate() &&
-                fp->maybeCallee() == frameobj->getCallObjCallee())
+                &fp->callee() == &frameobj->getCallObjCallee())
             {
                 JS_ASSERT(&fp->scopeChain() == JSStackFrame::sInvalidScopeChain);
                 frameobj->setPrivate(fp);
