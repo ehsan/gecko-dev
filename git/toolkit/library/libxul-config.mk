@@ -139,6 +139,7 @@ COMPONENT_LIBS += \
 	i18n \
 	chardet \
 	jar$(VERSION_NUMBER) \
+        startupcache \
 	pref \
 	htmlpars \
 	imglib2 \
@@ -149,7 +150,6 @@ COMPONENT_LIBS += \
 	nsappshell \
 	txmgr \
 	commandlines \
-	extensions \
 	toolkitcomps \
 	pipboot \
 	pipnss \
@@ -294,7 +294,8 @@ STATIC_LIBS += gtkxtbin
 endif
 endif
 
-ifneq (,$(filter icon,$(MOZ_IMG_DECODERS)))
+# Platform-specific icon channel stuff - supported mostly-everywhere
+ifneq (,$(filter beos windows os2 mac cocoa gtk2 qt,$(MOZ_WIDGET_TOOLKIT)))
 DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif

@@ -1939,10 +1939,8 @@ nsXULElement::EnsureLocalStyle()
         nsXULPrototypeAttribute *protoattr =
                   FindPrototypeAttribute(kNameSpaceID_None, nsGkAtoms::style);
         if (protoattr && protoattr->mValue.Type() == nsAttrValue::eCSSStyleRule) {
-            nsCOMPtr<nsICSSRule> ruleClone;
-            nsresult rv = protoattr->mValue.GetCSSStyleRuleValue()->
-                Clone(*getter_AddRefs(ruleClone));
-            NS_ENSURE_SUCCESS(rv, rv);
+            nsCOMPtr<nsICSSRule> ruleClone =
+                protoattr->mValue.GetCSSStyleRuleValue()->Clone();
 
             nsString stringValue;
             protoattr->mValue.ToString(stringValue);
@@ -1951,7 +1949,8 @@ nsXULElement::EnsureLocalStyle()
             nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(ruleClone);
             value.SetTo(styleRule, &stringValue);
 
-            rv = mAttrsAndChildren.SetAndTakeAttr(nsGkAtoms::style, value);
+            nsresult rv =
+                mAttrsAndChildren.SetAndTakeAttr(nsGkAtoms::style, value);
             NS_ENSURE_SUCCESS(rv, rv);
         }
     }
@@ -1979,7 +1978,11 @@ nsXULElement::LoadSrc()
     nsXULSlots* slots = static_cast<nsXULSlots*>(GetSlots());
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
     if (!slots->mFrameLoader) {
-        slots->mFrameLoader = nsFrameLoader::Create(this);
+        // PR_FALSE as the last parameter so that xul:iframe/browser/editor
+        // session history handling works like dynamic html:iframes.
+        // Usually xul elements are used in chrome, which doesn't have
+        // session history at all.
+        slots->mFrameLoader = nsFrameLoader::Create(this, PR_FALSE);
         NS_ENSURE_TRUE(slots->mFrameLoader, NS_OK);
     }
 
@@ -2315,9 +2318,8 @@ nsresult nsXULElement::MakeHeavyweight()
         
         // Style rules need to be cloned.
         if (protoattr->mValue.Type() == nsAttrValue::eCSSStyleRule) {
-            nsCOMPtr<nsICSSRule> ruleClone;
-            rv = protoattr->mValue.GetCSSStyleRuleValue()->Clone(*getter_AddRefs(ruleClone));
-            NS_ENSURE_SUCCESS(rv, rv);
+            nsCOMPtr<nsICSSRule> ruleClone =
+                protoattr->mValue.GetCSSStyleRuleValue()->Clone();
 
             nsString stringValue;
             protoattr->mValue.ToString(stringValue);

@@ -1019,10 +1019,13 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     // the one and only TabChild.
     TabChild* child = GetTabChildFrom(window->GetDocShell());
     
-    PGeolocationRequestChild* a = 
-        child->SendPGeolocationRequestConstructor(request, IPC::URI(mURI));
+    child->SendPGeolocationRequestConstructor(request, IPC::URI(mURI));
+    
+    // Retain a reference so the object isn't deleted without IPDL's knowledge.
+    // Corresponding release occurs in DeallocPGeolocationRequest.
+    request->AddRef();
 
-    (void) a->Sendprompt();
+    unused << request->Sendprompt();
     return;
   }
 #endif
@@ -1098,6 +1101,7 @@ nsGeolocationRequestProxy::Cancel()
 {
   NS_ASSERTION(mParent, "No parent for request");
   unused << mozilla::dom::GeolocationRequestParent::Send__delete__(mParent, false);
+  mParent = nsnull;
   return NS_OK;
 }
 
@@ -1106,6 +1110,7 @@ nsGeolocationRequestProxy::Allow()
 {
   NS_ASSERTION(mParent, "No parent for request");
   unused << mozilla::dom::GeolocationRequestParent::Send__delete__(mParent, true);
+  mParent = nsnull;
   return NS_OK;
 }
 
@@ -1118,13 +1123,11 @@ GeolocationRequestParent::GeolocationRequestParent(nsIDOMElement *element, const
   
   mURI       = uri;
   mElement   = element;
-  mProxy     = nsnull;
 }
 
 GeolocationRequestParent::~GeolocationRequestParent()
 {
   MOZ_COUNT_DTOR(GeolocationRequestParent);
-  delete mProxy;
 }
   
 bool

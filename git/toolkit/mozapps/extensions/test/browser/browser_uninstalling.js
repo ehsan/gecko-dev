@@ -10,6 +10,7 @@ var gCategoryUtilities;
 var gProvider;
 
 function test() {
+  requestLongerTimeout(2);
   waitForExplicitFinish();
 
   gProvider = new MockProvider();
@@ -92,7 +93,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should be pending uninstall");
 
@@ -143,7 +144,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
       ok(!aAddon.isActive, "Add-on should be inactive");
@@ -198,7 +199,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
       ok(!aAddon.isActive, "Add-on should be inactive");
@@ -257,7 +258,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should be pending uninstall");
 
@@ -313,7 +314,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
       ok(!aAddon.isActive, "Add-on should be inactive");
@@ -373,7 +374,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
       ok(!aAddon.isActive, "Add-on should be inactive");
@@ -434,7 +435,7 @@ add_test(function() {
 
           var item = get_item_in_list(ID, list);
           isnot(item, null, "Should have found the add-on in the list");
-          is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+          is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
           ok(!!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should be pending uninstall");
 
@@ -497,7 +498,7 @@ add_test(function() {
 
           var item = get_item_in_list(ID, list);
           isnot(item, null, "Should have found the add-on in the list");
-          is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+          is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
           ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
           ok(!aAddon.isActive, "Add-on should be inactive");
@@ -563,7 +564,7 @@ add_test(function() {
 
           var item = get_item_in_list(ID, list);
           isnot(item, null, "Should have found the add-on in the list");
-          is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+          is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
           ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
           ok(!aAddon.isActive, "Add-on should be inactive");
@@ -622,7 +623,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should be pending uninstall");
 
@@ -639,7 +640,7 @@ add_test(function() {
 
           var item = get_item_in_list(ID, list);
           isnot(item, null, "Should have found the add-on in the list");
-          is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+          is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
           ok(!!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should be pending uninstall");
 
@@ -695,7 +696,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should be pending uninstall");
 
@@ -717,7 +718,7 @@ add_test(function() {
 
           var item = get_item_in_list(ID, list);
           isnot(item, null, "Should have found the add-on in the list");
-          is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+          is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
           ok(!!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should be pending uninstall");
 
@@ -770,7 +771,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
       ok(!aAddon.isActive, "Add-on should be inactive");
@@ -833,7 +834,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
       ok(!aAddon.isActive, "Add-on should be inactive");
@@ -896,7 +897,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
       ok(!aAddon.isActive, "Add-on should be inactive");
@@ -962,7 +963,7 @@ add_test(function() {
       // Force XBL to apply
       item.clientTop;
 
-      is(item.getAttribute("status"), "uninstalled", "Add-on should be uninstalling");
+      is(item.getAttribute("pending"), "uninstall", "Add-on should be uninstalling");
 
       ok(!(aAddon.pendingOperations & AddonManager.PENDING_UNINSTALL), "Add-on should not be pending uninstall");
       ok(!aAddon.isActive, "Add-on should be inactive");

@@ -44,8 +44,6 @@
 #include "imgIDecoderObserver.h"
 #include "nsISecurityInfoProvider.h"
 
-#include "imgIContainer.h"
-#include "imgIDecoder.h"
 #include "nsIRequestObserver.h"
 #include "nsIChannel.h"
 #include "nsILoadGroup.h"
@@ -67,6 +65,12 @@
 class imgRequestNotifyRunnable;
 class imgStatusNotifyRunnable;
 
+namespace mozilla {
+namespace imagelib {
+class Image;
+} // namespace imagelib
+} // namespace mozilla
+
 class imgRequestProxy : public imgIRequest, public nsISupportsPriority, public nsISecurityInfoProvider
 {
 public:
@@ -81,7 +85,8 @@ public:
 
   // Callers to Init or ChangeOwner are required to call NotifyListener after
   // (although not immediately after) doing so.
-  nsresult Init(imgRequest *request, nsILoadGroup *aLoadGroup, imgContainer* aImage,
+  nsresult Init(imgRequest *request, nsILoadGroup *aLoadGroup,
+                mozilla::imagelib::Image* aImage,
                 nsIURI* aURI, imgIDecoderObserver *aObserver);
 
   nsresult ChangeOwner(imgRequest *aNewOwner); // this will change mOwner.  Do not call this if the previous
@@ -117,6 +122,10 @@ public:
   {
     mDeferNotifications = aDeferNotifications;
   }
+
+  // Setter for our |mImage| pointer, for imgRequest to use, once it
+  // instantiates an Image.
+  void SetImage(mozilla::imagelib::Image* aImage);
 
 protected:
   friend class imgStatusTracker;
@@ -158,7 +167,8 @@ protected:
   void OnDiscard       ();
 
   /* non-virtual imgIContainerObserver methods */
-  void FrameChanged(imgIContainer *aContainer, nsIntRect * aDirtyRect);
+  void FrameChanged(imgIContainer *aContainer,
+                    const nsIntRect *aDirtyRect);
 
   /* non-virtual sort-of-nsIRequestObserver methods */
   void OnStartRequest();
@@ -173,6 +183,12 @@ protected:
   void DoRemoveFromLoadGroup() {
     RemoveFromLoadGroup(PR_TRUE);
   }
+
+  // Return the imgStatusTracker associated with mOwner and/or mImage. It may
+  // live either on mOwner or mImage, depending on whether
+  //   (a) we have an mOwner at all
+  //   (b) whether mOwner has instantiated its image yet
+  imgStatusTracker& GetStatusTracker();
 
 private:
   friend class imgCacheValidator;
@@ -190,7 +206,7 @@ private:
 
   // The image we represent. Is null until data has been received, and is then
   // set by imgRequest.
-  nsRefPtr<imgContainer> mImage;
+  nsRefPtr<mozilla::imagelib::Image> mImage;
 
   // Our principal. Is null until data has been received from the channel, and
   // is then set by imgRequest.
@@ -204,6 +220,7 @@ private:
 
   nsLoadFlags mLoadFlags;
   PRUint32    mLocksHeld;
+  PRUint32    mDeferredLocks;
   PRPackedBool mCanceled;
   PRPackedBool mIsInLoadGroup;
   PRPackedBool mListenerIsStrongRef;

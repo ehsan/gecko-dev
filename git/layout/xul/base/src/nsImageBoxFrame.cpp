@@ -287,6 +287,10 @@ nsImageBoxFrame::UpdateImage()
   if (!mImageRequest) {
     // We have no image, so size to 0
     mIntrinsicSize.SizeTo(0, 0);
+  } else {
+    // We don't want discarding or decode-on-draw for xul images.
+    mImageRequest->RequestDecode();
+    mImageRequest->LockImage();
   }
 }
 
@@ -550,8 +554,8 @@ NS_IMETHODIMP nsImageBoxFrame::OnStopDecode(imgIRequest *request,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *container,
-                                            nsIntRect *dirtyRect)
+NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *aContainer,
+                                            const nsIntRect *aDirtyRect)
 {
   nsBoxLayoutState state(PresContext());
   this->Redraw(state);
@@ -597,12 +601,12 @@ NS_IMETHODIMP nsImageBoxListener::OnStopDecode(imgIRequest *request,
   return mFrame->OnStopDecode(request, status, statusArg);
 }
 
-NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *container,
-                                               nsIntRect *dirtyRect)
+NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *aContainer,
+                                               const nsIntRect *aDirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(container, dirtyRect);
+  return mFrame->FrameChanged(aContainer, aDirtyRect);
 }
 

@@ -148,6 +148,8 @@ public:
     RenderMode GetRenderMode() { return mRenderMode; }
     void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
 
+    HDC GetScreenDC() { return mScreenDC; }
+
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
                          nsTArray<nsString>& aListOfFonts);
@@ -213,6 +215,9 @@ public:
 
 #ifdef CAIRO_HAS_DWRITE_FONT
     IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
+    inline PRBool DWriteEnabled() { return !!mDWriteFactory; }
+#else
+    inline PRBool DWriteEnabled() { return PR_FALSE; }
 #endif
 #ifdef CAIRO_HAS_D2D_SURFACE
     cairo_device_t *GetD2DDevice() { return mD2DDevice; }
@@ -227,6 +232,7 @@ protected:
 
     PRBool mUseClearTypeForDownloadableFonts;
     PRBool mUseClearTypeAlways;
+    HDC mScreenDC;
 
 private:
     void Init();

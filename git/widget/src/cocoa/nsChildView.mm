@@ -119,6 +119,9 @@ extern "C" {
   extern CGError CGSGetWindowLevel(const CGSConnection cid, CGSWindow wid, CGWindowLevel *level);
 }
 
+// defined in nsMenuBarX.mm
+extern NSMenu* sApplicationMenu; // Application menu shared by all menubars
+
 // these are defined in nsCocoaWindow.mm
 extern PRBool gConsumeRollupEvent;
 
@@ -468,6 +471,7 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mDrawing(PR_FALSE)
 , mPluginDrawing(PR_FALSE)
 , mPluginIsCG(PR_FALSE)
+, mIsDispatchPaint(PR_FALSE)
 , mPluginInstanceOwner(nsnull)
 {
 #ifdef PR_LOGGING
@@ -965,22 +969,11 @@ float
 nsChildView::GetDPI()
 {
   NSWindow* window = [mView window];
-  NSScreen* screen = [window screen];
-  if (!screen)
-    return 96.0f;
+  if (window && [window isKindOfClass:[BaseWindow class]]) {
+    return [(BaseWindow*)window getDPI];
+  }
 
-  CGDirectDisplayID displayID =
-    [[[screen deviceDescription] objectForKey:@"NSScreenNumber"] intValue];
-  CGFloat heightMM = CGDisplayScreenSize(displayID).height;
-  size_t heightPx = CGDisplayPixelsHigh(displayID);
-  CGFloat scaleFactor = [window userSpaceScaleFactor];
-
-  // Currently we don't do our own scaling to take account
-  // of userSpaceScaleFactor, so every "pixel" we draw is actually
-  // userSpaceScaleFactor screen pixels. So divide the screen height
-  // by userSpaceScaleFactor to get the number of "device pixels"
-  // available.
-  return (heightPx / scaleFactor) / (heightMM / MM_PER_INCH_FLOAT);
+  return 96.0;
 }
 
 LayerManager*
@@ -1270,7 +1263,7 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   // without regressing bug 409615.  See bug 435041.  (StartDrawPlugin() and
   // EndDrawPlugin() wrap every call to nsIPluginInstance::HandleEvent() --
   // not just calls that "draw" or paint.)
-  if (!mPluginIsCG || (mView != [NSView focusView])) {
+  if (!mPluginIsCG || mIsDispatchPaint) {
     if (mPluginDrawing)
       return NS_ERROR_FAILURE;
   }
@@ -1715,8 +1708,13 @@ NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStat
     }
   }
 
+  PRBool restoreIsDispatchPaint = mIsDispatchPaint;
+  mIsDispatchPaint = mIsDispatchPaint || event->eventStructType == NS_PAINT_EVENT;
+
   if (mEventCallback)
     aStatus = (*mEventCallback)(event);
+
+  mIsDispatchPaint = restoreIsDispatchPaint;
 
   return NS_OK;
 }
@@ -2167,10 +2165,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
                                            selector:@selector(systemMetricsChanged)
                                                name:NSSystemColorsDidChangeNotification
                                              object:nil];
-  [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(systemMetricsChanged)
-                                               name:NSWindowDidChangeScreenNotification
-                                             object:[self window]];
   [[NSDistributedNotificationCenter defaultCenter] addObserver:self
                                                       selector:@selector(systemMetricsChanged)
                                                           name:@"AppleAquaScrollBarVariantChanged"
@@ -4077,14 +4071,14 @@ static PRBool IsSpecialGeckoKey(UInt32 macKeyCode)
 static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
 {
   // this is not character inputting event, simply.
-  if (!aEvent.isChar || !aEvent.charCode)
+  if (!aEvent.isChar || !aEvent.charCode || aEvent.isMeta)
     return PR_FALSE;
   // if this is unicode char inputting event, we don't need to check
   // ctrl/alt/command keys
   if (aEvent.charCode > 0x7F)
     return PR_TRUE;
   // ASCII chars should be inputted without ctrl/alt/command keys
-  return !aEvent.isControl && !aEvent.isAlt && !aEvent.isMeta;
+  return !aEvent.isControl && !aEvent.isAlt;
 }
 
 // Basic conversion for cocoa to gecko events, common to all conversions.
@@ -5120,8 +5114,9 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
     interpretKeyEventsCalled = PR_TRUE;
   }
 
-  if (!mGeckoChild)
+  if (!mGeckoChild) {
     return (mKeyDownHandled || mKeyPressHandled);
+  }
 
   if (!mKeyPressSent && nonDeadKeyPress && !wasComposing &&
       !mGeckoChild->TextInputHandler()->IsIMEComposing()) {
@@ -5268,7 +5263,13 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
 #endif
   }
 
-  [self processKeyDownEvent:theEvent];
+  PRBool handled = [self processKeyDownEvent:theEvent];
+  
+  // We always allow keyboard events to propagate to keyDown: but if they are not
+  // handled we give special Application menu items a chance to act.
+  if (!handled && sApplicationMenu) {
+    [sApplicationMenu performKeyEquivalent:theEvent];
+  }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

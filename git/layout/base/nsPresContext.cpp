@@ -765,40 +765,31 @@ nsPresContext::GetUserPreferences()
   SetBidi(bidiOptions, PR_FALSE);
 }
 
-PRBool
-nsPresContext::CheckDPIChange()
-{
-  PRInt32 oldAppUnitsPerDevPixel = AppUnitsPerDevPixel();
-  if (!mDeviceContext->CheckDPIChange())
-    return PR_FALSE;
-  if (mShell) {
-    mDeviceContext->FlushFontCache();
-
-    // Re-fetch the view manager's window dimensions in case there's a deferred
-    // resize which hasn't affected our mVisibleArea yet
-    nscoord oldWidthAppUnits, oldHeightAppUnits;
-    nsIViewManager* vm = mShell->GetViewManager();
-    vm->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
-    float oldWidthDevPixels = oldWidthAppUnits/oldAppUnitsPerDevPixel;
-    float oldHeightDevPixels = oldHeightAppUnits/oldAppUnitsPerDevPixel;
-
-    nscoord width = NSToCoordRound(oldWidthDevPixels*AppUnitsPerDevPixel());
-    nscoord height = NSToCoordRound(oldHeightDevPixels*AppUnitsPerDevPixel());
-    vm->SetWindowDimensions(width, height);
-
-    MediaFeatureValuesChanged(PR_TRUE);
-    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
-  }
-  return PR_TRUE;
-}
-
 void
 nsPresContext::PreferenceChanged(const char* aPrefName)
 {
   nsDependentCString prefName(aPrefName);
   if (prefName.EqualsLiteral("layout.css.dpi") ||
       prefName.EqualsLiteral("layout.css.devPixelsPerPx")) {
-    CheckDPIChange();
+    PRInt32 oldAppUnitsPerDevPixel = AppUnitsPerDevPixel();
+    if (mDeviceContext->CheckDPIChange() && mShell) {
+      mDeviceContext->FlushFontCache();
+
+      // Re-fetch the view manager's window dimensions in case there's a deferred
+      // resize which hasn't affected our mVisibleArea yet
+      nscoord oldWidthAppUnits, oldHeightAppUnits;
+      nsIViewManager* vm = mShell->GetViewManager();
+      vm->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
+      float oldWidthDevPixels = oldWidthAppUnits/oldAppUnitsPerDevPixel;
+      float oldHeightDevPixels = oldHeightAppUnits/oldAppUnitsPerDevPixel;
+
+      nscoord width = NSToCoordRound(oldWidthDevPixels*AppUnitsPerDevPixel());
+      nscoord height = NSToCoordRound(oldHeightDevPixels*AppUnitsPerDevPixel());
+      vm->SetWindowDimensions(width, height);
+
+      MediaFeatureValuesChanged(PR_TRUE);
+      RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+    }
     return;
   }
   if (StringBeginsWith(prefName, NS_LITERAL_CSTRING("font."))) {
@@ -907,20 +898,18 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
     mRefreshDriver = mDocument->GetDisplayDocument()->GetShell()->
       GetPresContext()->RefreshDriver();
   } else {
-    nsIDocument* parent = mDocument->GetParentDocument();
-    if (parent) {
-      NS_ASSERTION(parent->GetShell() && parent->GetShell()->GetPresContext(),
-                   "How did we get a presshell?");
-
-      // We don't have our container set yet at this point
-      nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
-
-      nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
-      if (ourItem) {
-        nsCOMPtr<nsIDocShellTreeItem> parentItem;
-        ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
-        if (parentItem) {
-          mRefreshDriver = parent->GetShell()->GetPresContext()->RefreshDriver();
+    // We don't have our container set yet at this point
+    nsCOMPtr<nsISupports> ourContainer = mDocument->GetContainer();
+    nsCOMPtr<nsIDocShellTreeItem> ourItem = do_QueryInterface(ourContainer);
+    if (ourItem) {
+      nsCOMPtr<nsIDocShellTreeItem> parentItem;
+      ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
+      nsCOMPtr<nsIDocShell> parentDocShell = do_QueryInterface(parentItem);
+      if (parentDocShell) {
+        nsCOMPtr<nsIPresShell> parentPresShell;
+        parentDocShell->GetPresShell(getter_AddRefs(parentPresShell));
+        if (parentPresShell) {
+          mRefreshDriver = parentPresShell->GetPresContext()->RefreshDriver();
         }
       }
     }
@@ -1519,11 +1508,6 @@ nsPresContext::ThemeChanged()
 void
 nsPresContext::ThemeChangedInternal()
 {
-  // We might have been torn down. If so, bail out now; we don't want to
-  // start poking possibly-dead widgets etc
-  if (!mShell)
-    return;
-
   mPendingThemeChanged = PR_FALSE;
   
   // Tell the theme that it changed, so it can flush any handles to stale theme
@@ -1541,12 +1525,6 @@ nsPresContext::ThemeChangedInternal()
 
   // This will force the system metrics to be generated the next time they're used
   nsCSSRuleProcessor::FreeSystemMetrics();
-
-  if (CheckDPIChange()) {
-    // DPI changes take care of MediaFeatureValuesChanged/
-    // RebuildAllStyleData.
-    return;
-  }
 
   // Changes to system metrics can change media queries on them.
   MediaFeatureValuesChanged(PR_TRUE);

@@ -95,6 +95,8 @@
 #include "ImageLayers.h"
 #include "mozilla/dom/Element.h"
 #include "nsCanvasFrame.h"
+#include "gfxDrawable.h"
+#include "gfxUtils.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
@@ -1002,6 +1004,9 @@ nsLayoutUtils::TranslateWidgetToView(nsPresContext* aPresContext,
 {
   nsPoint viewOffset;
   nsIWidget* viewWidget = aView->GetNearestWidget(&viewOffset);
+  if (!viewWidget) {
+    return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
+  }
 
   nsIWidget* fromRoot;
   nsIntPoint fromOffset = GetWidgetOffset(aWidget, fromRoot);
@@ -1214,13 +1219,13 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
-#ifdef DEBUG
   if (aFlags & PAINT_WIDGET_LAYERS) {
     nsIView* view = aFrame->GetView();
-    NS_ASSERTION(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame,
-      "PAINT_WIDGET_LAYERS should only be used on a display root that has a widget");
+    if (!(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame)) {
+      aFlags &= ~PAINT_WIDGET_LAYERS;
+      NS_ASSERTION(aRenderingContext, "need a rendering context");
+    }
   }
-#endif
 
   nsPresContext* presContext = aFrame->PresContext();
   nsIPresShell* presShell = presContext->PresShell();
@@ -1235,6 +1240,12 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     visibleRegion = aDirtyRegion;
   }
 
+  // If we're going to display something different from what we'd normally
+  // paint in a window then we will flush out any retained layer trees before
+  // *and after* we draw.
+  PRBool willFlushLayers = aFlags & (PAINT_IGNORE_VIEWPORT_SCROLLING |
+                                     PAINT_HIDE_CARET);
+
   nsDisplayListBuilder builder(aFrame, PR_FALSE, !(aFlags & PAINT_HIDE_CARET));
   nsDisplayList list;
   if (aFlags & PAINT_IN_TRANSFORM) {
@@ -1246,8 +1257,9 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if (aFlags & PAINT_WIDGET_LAYERS) {
     builder.SetPaintingToWindow(PR_TRUE);
   }
-  if (aFlags & PAINT_IGNORE_SUPPRESSION) {
+  if ((aFlags & PAINT_IGNORE_SUPPRESSION) && builder.IsBackgroundOnly()) {
     builder.SetBackgroundOnly(PR_FALSE);
+    willFlushLayers = PR_TRUE;
   }
   nsRect canvasArea(nsPoint(0, 0), aFrame->GetSize());
   if (aFlags & PAINT_IGNORE_VIEWPORT_SCROLLING) {
@@ -1280,8 +1292,14 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
   rv = aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
 
+  const PRBool paintAllContinuations = aFlags & PAINT_ALL_CONTINUATIONS;
+  NS_ASSERTION(!paintAllContinuations || !aFrame->GetPrevContinuation(),
+               "If painting all continuations, the frame must be "
+               "first-continuation");
+
   nsIAtom* frameType = aFrame->GetType();
-  if (NS_SUCCEEDED(rv) && frameType == nsGkAtoms::pageContentFrame) {
+  if (NS_SUCCEEDED(rv) && !paintAllContinuations &&
+      frameType == nsGkAtoms::pageContentFrame) {
     NS_ASSERTION(!(aFlags & PAINT_WIDGET_LAYERS),
       "shouldn't be painting with widget layers for page content frames");
     // We may need to paint out-of-flow frames whose placeholders are
@@ -1301,12 +1319,15 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     }
   }
 
-  // If we're going to display something different from what we'd normally
-  // paint in a window then we will flush out any retained layer trees before
-  // *and after* we draw.
-  PRBool willFlushLayers = aFlags & (PAINT_IGNORE_SUPPRESSION |
-                                     PAINT_IGNORE_VIEWPORT_SCROLLING |
-                                     PAINT_HIDE_CARET);
+  if (paintAllContinuations) {
+    nsIFrame* currentFrame = aFrame;
+    while (NS_SUCCEEDED(rv) &&
+           (currentFrame = currentFrame->GetNextContinuation()) != nsnull) {
+      nsRect frameDirty = dirtyRect - builder.ToReferenceFrame(currentFrame);
+      rv = currentFrame->BuildDisplayListForStackingContext(&builder,
+                                                            frameDirty, &list);
+    }
+  }
 
   // For the viewport frame in print preview/page layout we want to paint
   // the grey background behind the page, not the canvas color.
@@ -1378,7 +1399,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
       // paint in a window, so make sure we flush out any retained layer
       // trees before *and after* we draw
       flags |= nsDisplayList::PAINT_FLUSH_LAYERS;
-    } else {
+    } else if (widget) {
       // XXX we should simplify this API now that dirtyWindowRegion always
       // covers the entire window
       widget->UpdatePossiblyTransparentRegion(dirtyWindowRegion, visibleWindowRegion);
@@ -3034,6 +3055,49 @@ DrawImageInternal(nsIRenderingContext* aRenderingContext,
   return NS_OK;
 }
 
+/* static */ void
+nsLayoutUtils::DrawPixelSnapped(nsIRenderingContext* aRenderingContext,
+                                gfxDrawable*         aDrawable,
+                                gfxPattern::GraphicsFilter aFilter,
+                                const nsRect&        aDest,
+                                const nsRect&        aFill,
+                                const nsPoint&       aAnchor,
+                                const nsRect&        aDirty)
+{
+  nsCOMPtr<nsIDeviceContext> dc;
+  aRenderingContext->GetDeviceContext(*getter_AddRefs(dc));
+  PRInt32 appUnitsPerDevPixel = dc->AppUnitsPerDevPixel();
+  gfxContext* ctx = aRenderingContext->ThebesContext();
+  gfxIntSize drawableSize = aDrawable->Size();
+  nsIntSize imageSize(drawableSize.width, drawableSize.height);
+
+  SnappedImageDrawingParameters drawingParams =
+    ComputeSnappedImageDrawingParameters(ctx, appUnitsPerDevPixel, aDest, aFill,
+                                         aAnchor, aDirty, imageSize);
+
+  if (!drawingParams.mShouldDraw)
+    return;
+
+  gfxContextMatrixAutoSaveRestore saveMatrix(ctx);
+  if (drawingParams.mResetCTM) {
+    ctx->IdentityMatrix();
+  }
+
+  gfxRect sourceRect =
+    drawingParams.mUserSpaceToImageSpace.Transform(drawingParams.mFillRect);
+  gfxRect imageRect(0, 0, imageSize.width, imageSize.height);
+  gfxRect subimage(drawingParams.mSubimage.x, drawingParams.mSubimage.y,
+                   drawingParams.mSubimage.width, drawingParams.mSubimage.height);
+
+  NS_ASSERTION(!sourceRect.Intersect(subimage).IsEmpty(),
+               "We must be allowed to sample *some* source pixels!");
+
+  gfxUtils::DrawPixelSnapped(ctx, aDrawable,
+                             drawingParams.mUserSpaceToImageSpace, subimage,
+                             sourceRect, imageRect, drawingParams.mFillRect,
+                             gfxASurface::ImageFormatARGB32, aFilter);
+}
+
 /* static */ nsresult
 nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
                                        imgIContainer*       aImage,
@@ -3225,6 +3289,9 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
 
   if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
     return eTransparencyGlass;
+
+  if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_BORDERLESS_GLASS)
+    return eTransparencyBorderlessGlass;
 
   // We need an uninitialized window to be treated as opaque because
   // doing otherwise breaks window display effects on some platforms,

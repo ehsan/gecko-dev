@@ -116,8 +116,10 @@ class GeckoAppShell
         if (!f.exists())
             f.mkdirs();
         GeckoAppShell.putenv("TMPDIR=" + f.getPath());
-        
-        
+
+        f = Environment.getDownloadCacheDirectory();
+        GeckoAppShell.putenv("EXTERNAL_STORAGE" + f.getPath());
+
         // NSPR
         System.loadLibrary("nspr4");
         System.loadLibrary("plc4");
@@ -131,9 +133,6 @@ class GeckoAppShell
         System.loadLibrary("nss3");
         System.loadLibrary("ssl3");
         System.loadLibrary("smime3");
-
-        // JS
-        System.loadLibrary("mozjs");
 
         // XUL
         System.loadLibrary("xul");

@@ -258,8 +258,10 @@ typedef enum JSWhyMagic
                                   * enumerated like a native object. */
     JS_NO_ITER_VALUE,            /* there is not a pending iterator value */
     JS_GENERATOR_CLOSING,        /* exception value thrown when closing a generator */
+    JS_FAST_CONSTRUCTOR,         /* 'this' value for fast natives invoked with 'new' */
     JS_NO_CONSTANT,              /* compiler sentinel value */
     JS_THIS_POISON,              /* used in debug builds to catch tracing errors */
+    JS_SERIALIZE_NO_NODE,        /* an empty subnode in the AST serializer */
     JS_GENERIC_MAGIC             /* for local use */
 } JSWhyMagic;
 

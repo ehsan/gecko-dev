@@ -625,10 +625,10 @@ public:
 
   // Margin-specific version, since they often need TwipsToAppUnits
   static nsMargin CSSTwipsToAppUnits(const nsIntMargin &marginInTwips)
-  { return nsMargin(CSSTwipsToAppUnits(marginInTwips.left), 
-                    CSSTwipsToAppUnits(marginInTwips.top),
-                    CSSTwipsToAppUnits(marginInTwips.right),
-                    CSSTwipsToAppUnits(marginInTwips.bottom)); }
+  { return nsMargin(CSSTwipsToAppUnits(float(marginInTwips.left)), 
+                    CSSTwipsToAppUnits(float(marginInTwips.top)),
+                    CSSTwipsToAppUnits(float(marginInTwips.right)),
+                    CSSTwipsToAppUnits(float(marginInTwips.bottom))); }
 
   static nscoord CSSPointsToAppUnits(float aPoints)
   { return NSToCoordRound(aPoints * nsIDeviceContext::AppUnitsPerCSSInch() /
@@ -995,7 +995,6 @@ protected:
 #endif // MOZ_SMIL
   NS_HIDDEN_(void) GetDocumentColorPreferences();
 
-  NS_HIDDEN_(PRBool) CheckDPIChange();
   NS_HIDDEN_(void) PreferenceChanged(const char* aPrefName);
   static NS_HIDDEN_(int) PrefChangedCallback(const char*, void*);
 

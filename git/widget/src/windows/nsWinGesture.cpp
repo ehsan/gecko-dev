@@ -42,6 +42,7 @@
 
 #include "nscore.h"
 #include "nsWinGesture.h"
+#include "nsUXThemeData.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIServiceManager.h"
@@ -53,7 +54,6 @@
 #endif
 
 const PRUnichar nsWinGesture::kGestureLibraryName[] =  L"user32.dll";
-const PRUnichar nsWinGesture::kThemeLibraryName[] =  L"uxtheme.dll";
 HMODULE nsWinGesture::sLibraryHandle = nsnull;
 nsWinGesture::GetGestureInfoPtr nsWinGesture::getGestureInfo = nsnull;
 nsWinGesture::CloseGestureInfoHandlePtr nsWinGesture::closeGestureInfoHandle = nsnull;
@@ -72,10 +72,10 @@ nsWinGesture::CloseTouchInputHandlePtr nsWinGesture::closeTouchInputHandle = nsn
 static PRBool gEnableSingleFingerPanEvents = PR_FALSE;
 
 nsWinGesture::nsWinGesture() :
+  mPanActive(PR_FALSE),
   mFeedbackActive(PR_FALSE),
   mXAxisFeedback(PR_FALSE),
   mYAxisFeedback(PR_FALSE),
-  mPanActive(PR_FALSE),
   mPanInertiaActive(PR_FALSE)
 {
   (void)InitLibrary();
@@ -96,7 +96,7 @@ PRBool nsWinGesture::InitLibrary()
   }
 
   sLibraryHandle = ::LoadLibraryW(kGestureLibraryName);
-  HMODULE hTheme = ::LoadLibraryW(kThemeLibraryName);
+  HMODULE hTheme = nsUXThemeData::GetThemeDLL();
 
   // gesture interfaces
   if (sLibraryHandle) {

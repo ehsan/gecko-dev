@@ -71,6 +71,7 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsparse.h"
+#include "jsreflect.h"
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jstracer.h"
@@ -1428,7 +1429,7 @@ ValueToScript(JSContext *cx, jsval v)
             script = (JSScript *) JS_GetPrivate(cx, obj);
         } else if (clasp == Jsvalify(&js_GeneratorClass)) {
             JSGenerator *gen = (JSGenerator *) JS_GetPrivate(cx, obj);
-            fun = gen->getFloatingFrame()->fun;
+            fun = gen->getFloatingFrame()->getFunction();
             script = FUN_SCRIPT(fun);
         }
     }
@@ -1455,7 +1456,7 @@ GetTrapArgs(JSContext *cx, uintN argc, jsval *argv, JSScript **scriptp,
     uintN intarg;
     JSScript *script;
 
-    *scriptp = JS_GetScriptedCaller(cx, NULL)->script;
+    *scriptp = JS_GetScriptedCaller(cx, NULL)->getScript();
     *ip = 0;
     if (argc != 0) {
         v = argv[0];
@@ -1485,7 +1486,8 @@ TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
     JSStackFrame *caller = JS_GetScriptedCaller(cx, NULL);
     if (!JS_EvaluateUCInStackFrame(cx, caller,
                                    JS_GetStringChars(str), JS_GetStringLength(str),
-                                   caller->script->filename, caller->script->lineno,
+                                   caller->getScript()->filename,
+                                   caller->getScript()->lineno,
                                    rval)) {
         return JSTRAP_ERROR;
     }
@@ -1539,7 +1541,7 @@ LineToPC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_LINE2PC_USAGE);
         return JS_FALSE;
     }
-    script = JS_GetScriptedCaller(cx, NULL)->script;
+    script = JS_GetScriptedCaller(cx, NULL)->getScript();
     if (!GetTrapArgs(cx, argc, argv, &script, &i))
         return JS_FALSE;
     lineno = (i == 0) ? script->lineno : (uintN)i;
@@ -2706,6 +2708,23 @@ split_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
 }
 
 static JSBool
+ResolveClass(JSContext *cx, JSObject *obj, jsid id, JSBool *resolved)
+{
+    if (!JS_ResolveStandardClass(cx, obj, id, resolved))
+        return JS_FALSE;
+
+    if (!*resolved) {
+        if (JSID_IS_ATOM(id, CLASS_ATOM(cx, Reflect))) {
+            if (!js_InitReflectClass(cx, obj))
+                return JS_FALSE;
+            *resolved = JS_TRUE;
+        }
+    }
+
+    return JS_TRUE;
+}
+
+static JSBool
 split_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject **objp)
 {
     ComplexObject *cpx;
@@ -2735,7 +2754,7 @@ split_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject **obj
     if (!(flags & JSRESOLVE_ASSIGNING)) {
         JSBool resolved;
 
-        if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
+        if (!ResolveClass(cx, obj, id, &resolved))
             return JS_FALSE;
 
         if (resolved) {
@@ -2882,7 +2901,7 @@ split_create_outer(JSContext *cx)
     cpx->outer = NULL;
 
     obj = JS_NewGlobalObject(cx, Jsvalify(&split_global_class));
-    if (!obj || !JS_SetParent(cx, obj, NULL)) {
+    if (!obj) {
         JS_free(cx, cpx);
         return NULL;
     }
@@ -2912,7 +2931,7 @@ split_create_inner(JSContext *cx, JSObject *outer)
     cpx->outer = outer;
 
     obj = JS_NewGlobalObject(cx, Jsvalify(&split_global_class));
-    if (!obj || !JS_SetParent(cx, obj, NULL) || !JS_SetPrivate(cx, obj, cpx)) {
+    if (!obj || !JS_SetPrivate(cx, obj, cpx)) {
         JS_free(cx, cpx);
         return NULL;
     }
@@ -2961,7 +2980,7 @@ sandbox_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 
     JS_ValueToBoolean(cx, v, &b);
     if (b && (flags & JSRESOLVE_ASSIGNING) == 0) {
-        if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
+        if (!ResolveClass(cx, obj, id, &resolved))
             return JS_FALSE;
         if (resolved) {
             *objp = obj;
@@ -3067,8 +3086,8 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
             return false;
         }
         if (!JS_EvaluateUCScript(cx, sobj, src, srclen,
-                                 fp->script->filename,
-                                 JS_PCToLineNumber(cx, fp->script, fp->pc(cx)),
+                                 fp->getScript()->filename,
+                                 JS_PCToLineNumber(cx, fp->getScript(), fp->pc(cx)),
                                  rval)) {
             return false;
         }
@@ -3103,7 +3122,7 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
     }
 
     JSStackFrame *const fp = fi.fp();
-    if (!fp->script) {
+    if (!fp->hasScript()) {
         JS_ReportError(cx, "cannot eval in non-script frame");
         return JS_FALSE;
     }
@@ -3113,8 +3132,8 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
         oldfp = JS_SaveFrameChain(cx);
 
     JSBool ok = JS_EvaluateUCInStackFrame(cx, fp, str->chars(), str->length(),
-                                          fp->script->filename,
-                                          JS_PCToLineNumber(cx, fp->script,
+                                          fp->getScript()->filename,
+                                          JS_PCToLineNumber(cx, fp->getScript(),
                                                             fi.pc()),
                                           vp);
 
@@ -3836,9 +3855,9 @@ Snarf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     /* Get the currently executing script's name. */
     fp = JS_GetScriptedCaller(cx, NULL);
-    JS_ASSERT(fp && fp->script->filename);
+    JS_ASSERT(fp && fp->getScript()->filename);
 #ifdef XP_UNIX
-    pathname = MakeAbsolutePathname(cx, fp->script->filename, filename);
+    pathname = MakeAbsolutePathname(cx, fp->getScript()->filename, filename);
     if (!pathname)
         return JS_FALSE;
 #else
@@ -3890,6 +3909,35 @@ Snarf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
+static JSBool
+Snarl(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+{
+    if (argc < 1) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
+                             "compile", "0", "s");
+    }
+
+    jsval arg0 = argv[0];
+    if (!JSVAL_IS_STRING(arg0)) {
+        const char *typeName = JS_GetTypeName(cx, JS_TypeOfValue(cx, arg0));
+        JS_ReportError(cx, "expected string to compile, got %s", typeName);
+        return JS_FALSE;
+    }
+
+    JSString *scriptContents = JSVAL_TO_STRING(arg0);
+    JSScript *script = JS_CompileUCScript(cx, NULL, JS_GetStringCharsZ(cx, scriptContents),
+                                          JS_GetStringLength(scriptContents), "<string>", 0);
+    if (!script)
+        return JS_FALSE;
+
+    JS_ExecuteScript(cx, obj, script, NULL);
+    JS_DestroyScript(cx, script);
+
+    return JS_TRUE;
+}
+
+
+
 JSBool
 Wrap(JSContext *cx, uintN argc, jsval *vp)
 {
@@ -3917,7 +3965,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("readline",       ReadLine,       0,0),
     JS_FN("print",          Print,          0,0),
     JS_FN("putstr",         PutStr,         0,0),
-    JS_FN("now",            Now,            0,0),
+    JS_FN("dateNow",        Now,            0,0),
     JS_FS("help",           Help,           0,0,0),
     JS_FS("quit",           Quit,           0,0,0),
     JS_FN("assertEq",       AssertEq,       2,0),
@@ -3991,6 +4039,8 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("scatter",        Scatter,        1,0),
 #endif
     JS_FS("snarf",          Snarf,        0,0,0),
+    JS_FS("snarl",          Snarl,        0,0,0),
+    JS_FS("read",           Snarf,        0,0,0),
     JS_FN("compile",        Compile,        1,0),
     JS_FN("parse",          Parse,          1,0),
     JS_FN("timeout",        Timeout,        1,0),
@@ -4011,7 +4061,7 @@ static const char *const shell_help_messages[] = {
 "readline()               Read a single line from stdin",
 "print([exp ...])         Evaluate and print expressions",
 "putstr([exp])            Evaluate and print expression without newline",
-"now()                    Return the current time with sub-ms precision",
+"dateNow()                    Return the current time with sub-ms precision",
 "help([name ...])         Display usage and help messages",
 "quit()                   Quit the shell",
 "assertEq(actual, expected[, msg])\n"
@@ -4103,6 +4153,8 @@ static const char *const shell_help_messages[] = {
 "scatter(fns)             Call functions concurrently (ignoring errors)",
 #endif
 "snarf(filename)          Read filename into returned string",
+"snarl(codestring)        Eval code, without being eval.",
+"read(filename)           Synonym for snarf",
 "compile(code)            Compiles a string to bytecode, potentially throwing",
 "parse(code)              Parses a string, potentially throwing",
 "timeout([seconds])\n"
@@ -4677,7 +4729,7 @@ global_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 #ifdef LAZY_STANDARD_CLASSES
     JSBool resolved;
 
-    if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
+    if (!ResolveClass(cx, obj, id, &resolved))
         return JS_FALSE;
     if (resolved) {
         *objp = obj;
