@@ -1403,8 +1403,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     Win7Features.onOpenWindow();
 
   TabsOnTop.syncCommand();
-
-  Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
 }
 
 function BrowserShutdown()

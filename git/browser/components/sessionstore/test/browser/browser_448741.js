@@ -57,7 +57,7 @@ function test() {
     ok(aSubject.data.indexOf(uniqueValue) > -1, "data contains our value?");
 
     // find the data for the newly added tab and delete it
-    let state = JSON.parse(aSubject.data);
+    let state = eval(aSubject.data);
     state.windows.forEach(function (winData) {
       winData.tabs.forEach(function (tabData) {
         if (tabData.extData && uniqueName in tabData.extData &&
@@ -69,7 +69,7 @@ function test() {
     });
 
     ok(valueWasCleaned, "found and removed the specific tab value");
-    aSubject.data = JSON.stringify(state);
+    aSubject.data = uneval(state);
     Services.obs.removeObserver(cleaningObserver, aTopic, false);
   }
 

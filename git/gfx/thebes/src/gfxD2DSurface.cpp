@@ -37,9 +37,9 @@
 #include "cairo.h"
 #include "cairo-win32.h"
 
-gfxD2DSurface::gfxD2DSurface(HWND aWnd, gfxContentType aContent)
+gfxD2DSurface::gfxD2DSurface(HWND aWnd)
 {
-    Init(cairo_d2d_surface_create_for_hwnd(aWnd, (cairo_content_t)aContent));
+    Init(cairo_d2d_surface_create_for_hwnd(aWnd));
 }
 
 gfxD2DSurface::gfxD2DSurface(cairo_surface_t *csurf)

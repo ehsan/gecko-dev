@@ -822,8 +822,9 @@ nsTextControlFrame::GetRootNodeAndInitializeEditor(nsIDOMElement **aRootElement)
 {
   NS_ENSURE_ARG_POINTER(aRootElement);
 
-  nsCOMPtr<nsIEditor> editor;
-  GetEditor(getter_AddRefs(editor));
+  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
+  NS_ASSERTION(txtCtrl, "Content not a text control element");
+  nsIEditor* editor = txtCtrl->GetTextEditor();
   if (!editor)
     return NS_OK;
 
@@ -1215,9 +1216,9 @@ nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
   const PRBool needEditor = nsGkAtoms::maxlength == aAttribute ||
                             nsGkAtoms::readonly == aAttribute ||
                             nsGkAtoms::disabled == aAttribute;
-  nsCOMPtr<nsIEditor> editor;
+  nsIEditor *editor = nsnull;
   if (needEditor) {
-    GetEditor(getter_AddRefs(editor));
+    editor = txtCtrl->GetTextEditor();
   }
   if ((needEditor && !editor) || !selCon)
     return nsBoxFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);;

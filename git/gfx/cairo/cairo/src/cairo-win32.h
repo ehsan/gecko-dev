@@ -128,11 +128,10 @@ cairo_dwrite_font_face_create_for_dwrite_fontface(void *dwrite_font, void *dwrit
  * Create a D2D surface for an HWND
  *
  * \param wnd Handle for the window
- * \param content Content of the window, should be COLOR_ALPHA for transparent windows
  * \return New cairo surface
  */
 cairo_public cairo_surface_t *
-cairo_d2d_surface_create_for_hwnd(HWND wnd, cairo_content_t content);
+cairo_d2d_surface_create_for_hwnd(HWND wnd);
 
 /**
  * Create a D2D surface of a certain size.

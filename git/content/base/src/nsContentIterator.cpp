@@ -122,7 +122,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsContentIterator)
 
-  explicit nsContentIterator(PRBool aPre);
+  nsContentIterator();
   virtual ~nsContentIterator();
 
   // nsIContentIterator interface methods ------------------------------
@@ -208,13 +208,25 @@ private:
 };
 
 
+/*
+ *  A simple iterator class for traversing the content in "open tag" order
+ */
+
+class nsPreContentIterator : public nsContentIterator
+{
+public:
+  nsPreContentIterator() { mPre = PR_TRUE; }
+};
+
+
+
 /******************************************************
  * repository cruft
  ******************************************************/
 
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult)
 {
-  nsContentIterator * iter = new nsContentIterator(PR_FALSE);
+  nsContentIterator * iter = new nsContentIterator();
   if (!iter) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -227,7 +239,7 @@ nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult)
 
 nsresult NS_NewPreContentIterator(nsIContentIterator** aInstancePtrResult)
 {
-  nsContentIterator * iter = new nsContentIterator(PR_TRUE);
+  nsContentIterator * iter = new nsPreContentIterator();
   if (!iter) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -261,9 +273,9 @@ NS_IMPL_CYCLE_COLLECTION_4(nsContentIterator,
  * constructor/destructor
  ******************************************************/
 
-nsContentIterator::nsContentIterator(PRBool aPre) :
+nsContentIterator::nsContentIterator() :
   // don't need to explicitly initialize |nsCOMPtr|s, they will automatically be NULL
-  mCachedIndex(0), mIsDone(PR_FALSE), mPre(aPre)
+  mCachedIndex(0), mIsDone(PR_FALSE), mPre(PR_FALSE)
 {
 }
 
@@ -1170,11 +1182,8 @@ nsContentIterator::GetCurrentNode()
 class nsContentSubtreeIterator : public nsContentIterator 
 {
 public:
-  nsContentSubtreeIterator() : nsContentIterator(PR_FALSE) {}
+  nsContentSubtreeIterator() {}
   virtual ~nsContentSubtreeIterator() {}
-
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsContentSubtreeIterator, nsContentIterator)
 
   // nsContentIterator overrides ------------------------------
 
@@ -1214,20 +1223,6 @@ protected:
   nsAutoTArray<nsIContent*, 8> mEndNodes;
   nsAutoTArray<PRInt32, 8>     mEndOffsets;
 };
-
-NS_IMPL_ADDREF_INHERITED(nsContentSubtreeIterator, nsContentIterator)
-NS_IMPL_RELEASE_INHERITED(nsContentSubtreeIterator, nsContentIterator)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsContentSubtreeIterator)
-NS_INTERFACE_MAP_END_INHERITING(nsContentIterator)
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsContentSubtreeIterator)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsContentSubtreeIterator, nsContentIterator)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRange)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsContentSubtreeIterator, nsContentIterator)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRange)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
 

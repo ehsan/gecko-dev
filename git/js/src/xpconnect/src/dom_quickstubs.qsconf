@@ -149,7 +149,9 @@ members = [
     'nsIDOM3Document.adoptNode',
     'nsIDOM3Document.renameNode',
     'nsIDOM3Node.*',
-    'nsIDOMDOMStringList.*',
+    'nsIDOMDOMStringList.item',
+    'nsIDOMDOMStringList.length',
+    'nsIDOMDOMStringList.contains',
     'nsIDOMDOMTokenList.*',
     'nsIDOMDOMSettableTokenList.*',
     'nsIDOMNameList.getName',
@@ -180,17 +182,20 @@ members = [
     'nsIDOMNSElement.mozMatchesSelector',
 
     # dom/interfaces/css
-    'nsIDOMElementCSSInlineStyle.*',
+    'nsIDOMElementCSSInlineStyle.style',
     'nsIDOMCSS2Properties.*',
     'nsIDOMNSCSS2Properties.*',
-    'nsIDOMRect.*',
+    'nsIDOMRect.top',
+    'nsIDOMRect.right',
+    'nsIDOMRect.left',
+    'nsIDOMRect.bottom',
     'nsIDOMViewCSS.getComputedStyle',
 
     # dom/interfaces/events
     'nsIDOMEventTarget.dispatchEvent',
     'nsIDOMEventTarget.removeEventListener',
     'nsIDOMNSEventTarget.addEventListener',
-    'nsIDOMDocumentEvent.*',
+    'nsIDOMDocumentEvent.createEvent',
 
     'nsIDOMEvent.*',
     'nsIDOMMouseEvent.*',

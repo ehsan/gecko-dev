@@ -3031,28 +3031,11 @@ SandboxDump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     if (!str)
         return JS_FALSE;
 
-    jschar *chars = JS_GetStringChars(str);
-    if (!chars)
+    char *bytes = JS_GetStringBytes(str);
+    if (!bytes)
         return JS_FALSE;
 
-    nsDependentString wstr(reinterpret_cast<PRUnichar *>(chars),
-                           JS_GetStringLength(str));
-    char *cstr = ToNewUTF8String(wstr);
-    if (!cstr)
-        return JS_FALSE;
-
-#if defined(XP_MAC) || defined(XP_MACOSX)
-    // Be nice and convert all \r to \n.
-    char *c = cstr, *cEnd = cstr + strlen(cstr);
-    while (c < cEnd) {
-        if (*c == '\r')
-            *c = '\n';
-        c++;
-    }
-#endif
-
-    fputs(cstr, stderr);
-    NS_Free(cstr);
+    fputs(bytes, stderr);
     return JS_TRUE;
 }
 

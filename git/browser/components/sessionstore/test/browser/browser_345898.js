@@ -58,7 +58,7 @@ function test() {
      "Invalid tab for getTabState throws");
   ok(test(function() ss.setTabState({}, "{}")),
      "Invalid tab state for setTabState throws");
-  ok(test(function() ss.setTabState({}, JSON.stringify({ entries: [] }))),
+  ok(test(function() ss.setTabState({}, "{ entries: [] }")),
      "Invalid tab for setTabState throws");
   ok(test(function() ss.duplicateTab({}, {})),
      "Invalid tab for duplicateTab throws");
