@@ -207,8 +207,7 @@ public class TabStripItemView extends ThemedLinearLayout
             lastFavicon = null;
             faviconView.setImageResource(R.drawable.new_tablet_default_favicon);
             return;
-        }
-        if (favicon == lastFavicon) {
+        } else if (favicon == lastFavicon) {
             return;
         }
 

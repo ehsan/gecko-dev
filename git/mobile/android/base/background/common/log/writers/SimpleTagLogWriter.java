@@ -14,7 +14,6 @@ public class SimpleTagLogWriter extends TagLogWriter {
     this.tag = tag;
   }
 
-  @Override
   protected String getMainTag() {
     return tag;
   }

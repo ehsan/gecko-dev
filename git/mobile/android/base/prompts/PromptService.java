@@ -55,7 +55,6 @@ public class PromptService implements GeckoEventListener {
             public void run() {
                 Prompt p;
                 p = new Prompt(mContext, new Prompt.PromptCallback() {
-                    @Override
                     public void onPromptFinished(String jsonResult) {
                         try {
                             EventDispatcher.sendResponse(message, new JSONObject(jsonResult));

@@ -682,7 +682,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
     if (recordToGuid == null) {
       createRecordToGuidMap();
     }
-    return recordToGuid.get(recordString.hashCode());
+    return recordToGuid.get(Integer.valueOf(recordString.hashCode()));
   }
 
   protected void createRecordToGuidMap() throws NoGuidForIdException, NullCursorException, ParentNotFoundException {
@@ -702,7 +702,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
         if (record != null) {
           final String recordString = buildRecordString(record);
           if (recordString != null) {
-            recordToGuid.put(recordString.hashCode(), record.guid);
+            recordToGuid.put(Integer.valueOf(recordString.hashCode()), record.guid);
           }
         }
         cur.moveToNext();
@@ -760,7 +760,7 @@ public abstract class AndroidBrowserRepositorySession extends StoreTrackingRepos
     if (recordToGuid == null) {
       createRecordToGuidMap();
     }
-    recordToGuid.put(recordString.hashCode(), guid);
+    recordToGuid.put(Integer.valueOf(recordString.hashCode()), guid);
   }
 
   protected abstract Record prepareRecord(Record record);

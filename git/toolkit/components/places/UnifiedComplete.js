@@ -859,12 +859,11 @@ Search.prototype = {
     if (this._searchTokens.length < 2)
       return false;
 
-    let alias = this._searchTokens[0];
-    let match = yield PlacesSearchAutocompleteProvider.findMatchByAlias(alias);
+    let match = yield PlacesSearchAutocompleteProvider.findMatchByAlias(
+                                                         this._searchTokens[0]);
     if (!match)
       return false;
 
-    match.engineAlias = alias;
     let query = this._searchTokens.slice(1).join(" ");
 
     yield this._addSearchEngineMatch(match, query);
@@ -882,15 +881,11 @@ Search.prototype = {
   },
 
   _addSearchEngineMatch: function* (match, query) {
-    let actionURLParams = {
+    let value = makeActionURL("searchengine", {
       engineName: match.engineName,
       input: this._originalSearchString,
       searchQuery: query,
-    };
-    if (match.engineAlias) {
-      actionURLParams.alias = match.engineAlias;
-    }
-    let value = makeActionURL("searchengine", actionURLParams);
+    });
 
     this._addMatch({
       value: value,

@@ -94,7 +94,6 @@ public class WifiScanner extends BroadcastReceiver {
         mStarted = false;
     }
 
-    @Override
     public void onReceive(Context c, Intent intent) {
         String action = intent.getAction();
 

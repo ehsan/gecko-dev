@@ -45,7 +45,6 @@ public final class testInputUrlBar extends BaseTest {
 
         final EditText editText = mUrlBarEditView;
         runOnUiThreadSync(new Runnable() {
-            @Override
             public void run() {
                 // Select "ef"
                 editText.setSelection(2);
@@ -55,7 +54,6 @@ public final class testInputUrlBar extends BaseTest {
         assertUrlBarText("zyopefcghd");
 
         runOnUiThreadSync(new Runnable() {
-            @Override
             public void run() {
                 // Select "cg"
                 editText.setSelection(6, 8);
@@ -65,7 +63,6 @@ public final class testInputUrlBar extends BaseTest {
         assertUrlBarText("zyopefqrhd");
 
         runOnUiThreadSync(new Runnable() {
-            @Override
             public void run() {
                 // Select "op"
                 editText.setSelection(4,2);
@@ -75,7 +72,6 @@ public final class testInputUrlBar extends BaseTest {
         assertUrlBarText("zystefqrhd");
 
         runOnUiThreadSync(new Runnable() {
-            @Override
             public void run() {
                 editText.selectAll();
             }

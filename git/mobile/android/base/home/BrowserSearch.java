@@ -822,9 +822,7 @@ public class BrowserSearch extends HomeFragment
 
             if (engine == -1) {
                 return ROW_STANDARD;
-            }
-
-            if (engine == 0 && mSuggestionsEnabled) {
+            } else if (engine == 0 && mSuggestionsEnabled) {
                 // Give suggestion views their own type to prevent them from
                 // sharing other recycled search engine views. Using other
                 // recycled views for the suggestion row can break animations

@@ -75,7 +75,6 @@ public abstract class MiddlewareRepositorySession extends RepositorySession {
     }
   }
 
-  @Override
   public void begin(RepositorySessionBeginDelegate delegate) throws InvalidSessionTransitionException {
     inner.begin(new MiddlewareRepositorySessionBeginDelegate(this, delegate));
   }

@@ -14,7 +14,6 @@ this.EXPORTED_SYMBOLS = [ "PluginContent" ];
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Timer.jsm");
-Cu.import("resource://gre/modules/BrowserUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "gNavigatorBundle", function() {
   const url = "chrome://browser/locale/browser.properties";
@@ -120,7 +119,7 @@ PluginContent.prototype = {
 
     if (this.isKnownPlugin(pluginElement)) {
       pluginTag = pluginHost.getPluginTagForType(pluginElement.actualType);
-      pluginName = BrowserUtils.makeNicePluginName(pluginTag.name);
+      pluginName = this.makeNicePluginName(pluginTag.name);
 
       permissionString = pluginHost.getPermissionStringForType(pluginElement.actualType);
       fallbackType = pluginElement.defaultFallbackType;
@@ -141,6 +140,26 @@ PluginContent.prototype = {
              fallbackType: fallbackType,
              blocklistState: blocklistState,
            };
+  },
+
+  // Map the plugin's name to a filtered version more suitable for user UI.
+  makeNicePluginName : function (aName) {
+    if (aName == "Shockwave Flash")
+      return "Adobe Flash";
+    // Regex checks if aName begins with "Java" + non-letter char
+    if (/^Java\W/.exec(aName))
+      return "Java";
+
+    // Clean up the plugin name by stripping off parenthetical clauses,
+    // trailing version numbers or "plugin".
+    // EG, "Foo Bar (Linux) Plugin 1.23_02" --> "Foo Bar"
+    // Do this by first stripping the numbers, etc. off the end, and then
+    // removing "Plugin" (and then trimming to get rid of any whitespace).
+    // (Otherwise, something like "Java(TM) Plug-in 1.7.0_07" gets mangled)
+    let newName = aName.replace(/\(.*?\)/g, "").
+                        replace(/[\s\d\.\-\_\(\)]+$/, "").
+                        replace(/\bplug-?in\b/i, "").trim();
+    return newName;
   },
 
   /**
@@ -824,7 +843,7 @@ PluginContent.prototype = {
 
     // For non-GMP plugins, remap the plugin name to a more user-presentable form.
     if (!gmpPlugin) {
-      pluginName = BrowserUtils.makeNicePluginName(pluginName);
+      pluginName = this.makeNicePluginName(pluginName);
     }
 
     let messageString = gNavigatorBundle.formatStringFromName("crashedpluginsMessage.title", [pluginName], 1);

@@ -48,7 +48,6 @@ public final class WebActivityMapper {
         /**
          * If 'type' is present in data object, uses the value as the MIME type.
          */
-        @Override
         public String getMime(JSONObject data) throws JSONException {
             return data.optString("type", null);
         }
@@ -56,7 +55,6 @@ public final class WebActivityMapper {
         /**
          * If 'uri' or 'url' is present in data object, uses the respecitve value as the Uri.
          */
-        @Override
         public String getUri(JSONObject data) throws JSONException {
             // Will return uri or url if present.
             String uri = data.optString("uri", null);

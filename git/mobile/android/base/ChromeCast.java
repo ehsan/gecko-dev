@@ -152,7 +152,6 @@ class ChromeCast implements GeckoMediaPlayer {
 
     // This dumps everything we can find about the device into JSON. This will hopefully make it
     // easier to filter out duplicate devices from different sources in js.
-    @Override
     public JSONObject toJSON() {
         final JSONObject obj = new JSONObject();
         try {
@@ -176,7 +175,6 @@ class ChromeCast implements GeckoMediaPlayer {
         return obj;
     }
 
-    @Override
     public void load(final String title, final String url, final String type, final EventCallback callback) {
         final CastDevice device = CastDevice.getFromBundle(route.getExtras());
         Cast.CastOptions.Builder apiOptionsBuilder = Cast.CastOptions.builder(device, new Cast.Listener() {
@@ -220,13 +218,11 @@ class ChromeCast implements GeckoMediaPlayer {
         apiClient.connect();
     }
 
-    @Override
     public void start(final EventCallback callback) {
         // Nothing to be done here
         callback.sendSuccess(null);
     }
 
-    @Override
     public void stop(final EventCallback callback) {
         // Nothing to be done here
         callback.sendSuccess(null);
@@ -253,7 +249,6 @@ class ChromeCast implements GeckoMediaPlayer {
         return true;
     }
 
-    @Override
     public void play(final EventCallback callback) {
         if (!verifySession(callback)) {
             return;
@@ -278,7 +273,6 @@ class ChromeCast implements GeckoMediaPlayer {
         }
     }
 
-    @Override
     public void pause(final EventCallback callback) {
         if (!verifySession(callback)) {
             return;
@@ -303,7 +297,6 @@ class ChromeCast implements GeckoMediaPlayer {
         }
     }
 
-    @Override
     public void end(final EventCallback callback) {
         if (!verifySession(callback)) {
             return;
@@ -383,7 +376,6 @@ class ChromeCast implements GeckoMediaPlayer {
         }
 
 
-        @Override
         public void onResult(ApplicationConnectionResult result) {
             Status status = result.getStatus();
             if (status.isSuccess()) {
@@ -413,14 +405,12 @@ class ChromeCast implements GeckoMediaPlayer {
         }
     }
 
-    @Override
     public void message(String msg, final EventCallback callback) {
         if (mMirrorChannel != null) {
             mMirrorChannel.sendMessage(msg);
         }
     }
 
-    @Override
     public void mirror(final EventCallback callback) {
         final CastDevice device = CastDevice.getFromBundle(route.getExtras());
         Cast.CastOptions.Builder apiOptionsBuilder = Cast.CastOptions.builder(device, new Cast.Listener() {

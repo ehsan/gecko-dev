@@ -20,13 +20,13 @@ add_task(function*() {
   yield check_autocomplete({
     search: "doit mozilla",
     searchParam: "enable-actions",
-    matches: [ { uri: makeActionURI("searchengine", {engineName: "AliasedMozSearch", input: "doit mozilla", searchQuery: "mozilla", alias: "doit"}), title: "AliasedMozSearch" }, ]
+    matches: [ { uri: makeActionURI("searchengine", {engineName: "AliasedMozSearch", input: "doit mozilla", searchQuery: "mozilla"}), title: "AliasedMozSearch" }, ]
   });
 
   yield check_autocomplete({
     search: "doit mozzarella mozilla",
     searchParam: "enable-actions",
-    matches: [ { uri: makeActionURI("searchengine", {engineName: "AliasedMozSearch", input: "doit mozzarella mozilla", searchQuery: "mozzarella mozilla", alias: "doit"}), title: "AliasedMozSearch" }, ]
+    matches: [ { uri: makeActionURI("searchengine", {engineName: "AliasedMozSearch", input: "doit mozzarella mozilla", searchQuery: "mozzarella mozilla"}), title: "AliasedMozSearch" }, ]
   });
 
   yield cleanup();

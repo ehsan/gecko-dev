@@ -48,7 +48,6 @@ public class testClearPrivateData extends PixelTest {
 
     private void verifyHistoryCount(final int expectedCount) {
         boolean match = waitForTest( new BooleanTest() {
-            @Override
             public boolean test() {
                 return (mDatabaseHelper.getBrowserDBUrls(DatabaseHelper.BrowserDataType.HISTORY).size() == expectedCount);
             }

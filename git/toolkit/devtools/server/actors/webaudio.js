@@ -298,11 +298,7 @@ let AudioNodeActor = exports.AudioNodeActor = protocol.ActorClass({
 let AudioNodeFront = protocol.FrontClass(AudioNodeActor, {
   initialize: function (client, form) {
     protocol.Front.prototype.initialize.call(this, client, form);
-    // if we were manually passed a form, this was created manually and
-    // needs to own itself for now.
-    if (form) {
-      this.manage(this);
-    }
+    this.manage(this);
   }
 });
 
@@ -439,8 +435,6 @@ let WebAudioActor = exports.WebAudioActor = protocol.ActorClass({
       return;
     }
     this._initialized = false;
-    systemOff("webaudio-node-demise", this._onDestroyNode);
-
     off(this.tabActor, "window-destroyed", this._onGlobalDestroyed);
     off(this.tabActor, "window-ready", this._onGlobalCreated);
     this.tabActor = null;

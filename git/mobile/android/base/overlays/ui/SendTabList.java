@@ -148,7 +148,6 @@ public class SendTabList extends ListView {
 
         builder.setTitle(R.string.overlay_share_select_device)
                .setItems(dialogElements, new DialogInterface.OnClickListener() {
-                   @Override
                    public void onClick(DialogInterface dialog, int index) {
                        listener.onSendTabTargetSelected(records[index].guid);
                    }

@@ -55,13 +55,13 @@ public class ConfigurationMigrator {
 
       Object value = entry.getValue();
       if (value instanceof Boolean) {
-         to.putBoolean(toKey, (Boolean) value);
+         to.putBoolean(toKey, ((Boolean) value).booleanValue());
       } else if (value instanceof Float) {
-         to.putFloat(toKey, (Float) value);
+         to.putFloat(toKey, ((Float) value).floatValue());
       } else if (value instanceof Integer) {
-         to.putInt(toKey, (Integer) value);
+         to.putInt(toKey, ((Integer) value).intValue());
       } else if (value instanceof Long) {
-         to.putLong(toKey, (Long) value);
+         to.putLong(toKey, ((Long) value).longValue());
       } else if (value instanceof String) {
          to.putString(toKey, (String) value);
       } else {
