@@ -383,7 +383,7 @@ nsEventStatus AsyncPanZoomController::ReceiveInputEvent(const InputData& aEvent)
         PostDelayedTask(mTouchListenerTimeoutTask, gTouchListenerTimeout);
       }
     }
-    return nsEventStatus_eIgnore;
+    return nsEventStatus_eConsumeNoDefault;
   }
 
   return HandleInputEvent(aEvent);
