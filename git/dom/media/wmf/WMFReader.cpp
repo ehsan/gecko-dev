@@ -808,7 +808,8 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
-  AbstractMediaDecoder::AutoNotifyDecoded a(mDecoder);
+  uint32_t parsed = 0, decoded = 0;
+  AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
   HRESULT hr;
 
@@ -875,8 +876,8 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
   }
   NS_ENSURE_TRUE(SUCCEEDED(hr) && v, false);
 
-  a.mParsed++;
-  a.mDecoded++;
+  parsed++;
+  decoded++;
   mVideoQueue.Push(v);
 
   #ifdef LOG_SAMPLE_DECODE

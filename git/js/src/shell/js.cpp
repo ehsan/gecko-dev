@@ -58,7 +58,6 @@
 
 #include "builtin/TestingFunctions.h"
 #include "frontend/Parser.h"
-#include "gc/GCInternals.h"
 #include "jit/arm/Simulator-arm.h"
 #include "jit/Ion.h"
 #include "jit/JitcodeMap.h"
@@ -2099,12 +2098,12 @@ SrcNotes(JSContext *cx, HandleScript script, Sprinter *sp)
             break;
 
           case SRC_COLSPAN:
-            colspan = SN_OFFSET_TO_COLSPAN(GetSrcNoteOffset(sn, 0));
+            colspan = SN_OFFSET_TO_COLSPAN(js_GetSrcNoteOffset(sn, 0));
             Sprint(sp, "%d", colspan);
             break;
 
           case SRC_SETLINE:
-            lineno = GetSrcNoteOffset(sn, 0);
+            lineno = js_GetSrcNoteOffset(sn, 0);
             Sprint(sp, " lineno %u", lineno);
             break;
 
@@ -2114,30 +2113,30 @@ SrcNotes(JSContext *cx, HandleScript script, Sprinter *sp)
 
           case SRC_FOR:
             Sprint(sp, " cond %u update %u tail %u",
-                   unsigned(GetSrcNoteOffset(sn, 0)),
-                   unsigned(GetSrcNoteOffset(sn, 1)),
-                   unsigned(GetSrcNoteOffset(sn, 2)));
+                   unsigned(js_GetSrcNoteOffset(sn, 0)),
+                   unsigned(js_GetSrcNoteOffset(sn, 1)),
+                   unsigned(js_GetSrcNoteOffset(sn, 2)));
             break;
 
           case SRC_IF_ELSE:
-            Sprint(sp, " else %u", unsigned(GetSrcNoteOffset(sn, 0)));
+            Sprint(sp, " else %u", unsigned(js_GetSrcNoteOffset(sn, 0)));
             break;
 
           case SRC_FOR_IN:
           case SRC_FOR_OF:
-            Sprint(sp, " closingjump %u", unsigned(GetSrcNoteOffset(sn, 0)));
+            Sprint(sp, " closingjump %u", unsigned(js_GetSrcNoteOffset(sn, 0)));
             break;
 
           case SRC_COND:
           case SRC_WHILE:
           case SRC_NEXTCASE:
-            Sprint(sp, " offset %u", unsigned(GetSrcNoteOffset(sn, 0)));
+            Sprint(sp, " offset %u", unsigned(js_GetSrcNoteOffset(sn, 0)));
             break;
 
           case SRC_TABLESWITCH: {
             JSOp op = JSOp(script->code()[offset]);
             MOZ_ASSERT(op == JSOP_TABLESWITCH);
-            Sprint(sp, " length %u", unsigned(GetSrcNoteOffset(sn, 0)));
+            Sprint(sp, " length %u", unsigned(js_GetSrcNoteOffset(sn, 0)));
             UpdateSwitchTableBounds(cx, script, offset,
                                     &switchTableStart, &switchTableEnd);
             break;
@@ -2145,8 +2144,8 @@ SrcNotes(JSContext *cx, HandleScript script, Sprinter *sp)
           case SRC_CONDSWITCH: {
             JSOp op = JSOp(script->code()[offset]);
             MOZ_ASSERT(op == JSOP_CONDSWITCH);
-            Sprint(sp, " length %u", unsigned(GetSrcNoteOffset(sn, 0)));
-            unsigned caseOff = (unsigned) GetSrcNoteOffset(sn, 1);
+            Sprint(sp, " length %u", unsigned(js_GetSrcNoteOffset(sn, 0)));
+            unsigned caseOff = (unsigned) js_GetSrcNoteOffset(sn, 1);
             if (caseOff)
                 Sprint(sp, " first case offset %u", caseOff);
             UpdateSwitchTableBounds(cx, script, offset,
@@ -2156,7 +2155,7 @@ SrcNotes(JSContext *cx, HandleScript script, Sprinter *sp)
 
           case SRC_TRY:
             MOZ_ASSERT(JSOp(script->code()[offset]) == JSOP_TRY);
-            Sprint(sp, " offset to jump %u", unsigned(GetSrcNoteOffset(sn, 0)));
+            Sprint(sp, " offset to jump %u", unsigned(js_GetSrcNoteOffset(sn, 0)));
             break;
 
           default:
@@ -3210,18 +3209,6 @@ StackDump(JSContext *cx, unsigned argc, Value *vp)
 #endif
 
 static bool
-StackPointerInfo(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    // Copy the truncated stack pointer to the result.  This value is not used
-    // as a pointer but as a way to measure frame-size from JS.
-    args.rval().setInt32(int32_t(reinterpret_cast<size_t>(&args) & 0xfffffff));
-    return true;
-}
-
-
-static bool
 Elapsed(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -3582,17 +3569,13 @@ runOffThreadScript(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSRuntime *rt = cx->runtime();
-    if (OffThreadParsingMustWaitForGC(rt))
-        gc::AutoFinishGC finishgc(rt);
-
     void *token = offThreadState.waitUntilDone(cx);
     if (!token) {
         JS_ReportError(cx, "called runOffThreadScript when no compilation is pending");
         return false;
     }
 
-    RootedScript script(cx, JS::FinishOffThreadScript(cx, rt, token));
+    RootedScript script(cx, JS::FinishOffThreadScript(cx, cx->runtime(), token));
     if (!script)
         return false;
 
@@ -4913,11 +4896,6 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
     JS_FN_HELP("isLatin1", IsLatin1, 1, 0,
 "isLatin1(s)",
 "  Return true iff the string's characters are stored as Latin1."),
-
-    JS_FN_HELP("stackPointerInfo", StackPointerInfo, 0, 0,
-"stackPointerInfo()",
-"  Return an int32 value which corresponds to the offset of the latest stack\n"
-"  pointer, such that one can take the differences of 2 to estimate a frame-size."),
 
     JS_FS_HELP_END
 };
@@ -6285,7 +6263,9 @@ main(int argc, char **argv, char **envp)
 #endif
         || !op.addIntOption('\0', "nursery-size", "SIZE-MB", "Set the maximum nursery size in MB", 16)
 #ifdef JS_GC_ZEAL
-        || !op.addStringOption('z', "gc-zeal", "LEVEL[,N]", gc::ZealModeHelpText)
+        || !op.addStringOption('z', "gc-zeal", "LEVEL[,N]",
+                               "Specifies zealous garbage collection, overriding the environement "
+                               "variable JS_GC_ZEAL.")
 #endif
     )
     {

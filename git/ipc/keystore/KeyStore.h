@@ -13,7 +13,6 @@
 #include "mozilla/ipc/ListenSocket.h"
 #include "mozilla/ipc/StreamSocket.h"
 #include "mozilla/ipc/UnixSocketConnector.h"
-#include "nsNSSShutDown.h"
 
 namespace mozilla {
 namespace ipc {
@@ -37,16 +36,10 @@ enum ResponseCode {
 
 void FormatCaData(const uint8_t *aCaData, int aCaDataLength,
                   const char *aName, const uint8_t **aFormatData,
-                  size_t *aFormatDataLength);
+                  int *aFormatDataLength);
 
 ResponseCode getCertificate(const char *aCertName, const uint8_t **aCertData,
-                            size_t *aCertDataLength);
-ResponseCode getPrivateKey(const char *aKeyName, const uint8_t **aKeyData,
-                           size_t *aKeyDataLength);
-ResponseCode getPublicKey(const char *aKeyName, const uint8_t **aKeyData,
-                          size_t *aKeyDataLength);
-ResponseCode signData(const char *aKeyName, const uint8_t *data, size_t length,
-                      uint8_t **out, size_t *outLength);
+                            int *aCertDataLength);
 
 bool checkPermission(uid_t uid);
 
@@ -99,7 +92,7 @@ public:
                              nsAString& aAddrStr);
 };
 
-class KeyStore MOZ_FINAL : public nsNSSShutDownObject
+class KeyStore MOZ_FINAL
 {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(KeyStore)
@@ -107,9 +100,6 @@ public:
   KeyStore();
 
   void Shutdown();
-
-protected:
-  virtual void virtualDestroyNSSReference() {}
 
 private:
   enum SocketType {

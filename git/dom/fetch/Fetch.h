@@ -16,7 +16,6 @@
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/ErrorResult.h"
-#include "mozilla/dom/Promise.h"
 #include "mozilla/dom/RequestBinding.h"
 #include "mozilla/dom/workers/bindings/WorkerFeature.h"
 
@@ -29,6 +28,7 @@ namespace dom {
 class ArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams;
 class InternalRequest;
 class OwningArrayBufferOrArrayBufferViewOrBlobOrUSVStringOrURLSearchParams;
+class Promise;
 class RequestOrUSVString;
 
 namespace workers {

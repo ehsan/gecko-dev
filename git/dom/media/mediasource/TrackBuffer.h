@@ -16,7 +16,6 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nscore.h"
-#include "TimeUnits.h"
 
 namespace mozilla {
 
@@ -82,6 +81,9 @@ public:
 
   void BreakCycles();
 
+  // Call ResetDecode() on each decoder in mDecoders.
+  void ResetDecode();
+
   // Run MSE Reset Parser State Algorithm.
   // 3.5.2 Reset Parser State
   // http://w3c.github.io/media-source/#sourcebuffer-reset-parser-state
@@ -97,8 +99,7 @@ public:
   // Implementation is only partial, we can only trim a buffer.
   // Returns true if data was evicted.
   // Times are in microseconds.
-  bool RangeRemoval(mozilla::media::Microseconds aStart,
-                    mozilla::media::Microseconds aEnd);
+  bool RangeRemoval(int64_t aStart, int64_t aEnd);
 
   // Abort any pending appendBuffer by rejecting any pending promises.
   void AbortAppendData();

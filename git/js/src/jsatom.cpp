@@ -20,7 +20,6 @@
 #include "jstypes.h"
 
 #include "gc/Marking.h"
-#include "vm/Symbol.h"
 #include "vm/Xdr.h"
 
 #include "jscntxtinlines.h"
@@ -28,6 +27,7 @@
 #include "jsobjinlines.h"
 
 #include "vm/String-inl.h"
+#include "vm/Symbol-inl.h"
 
 using namespace js;
 using namespace js::gc;

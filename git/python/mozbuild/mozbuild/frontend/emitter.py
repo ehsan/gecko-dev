@@ -908,8 +908,7 @@ class TreeMetadataEmitter(LoggingMixin):
         install_prefix = mozpath.join(install_root, install_subdir)
 
         try:
-            m = manifestparser.TestManifest(manifests=[path], strict=True,
-                                            rootdir=context.config.topsrcdir)
+            m = manifestparser.TestManifest(manifests=[path], strict=True)
             defaults = m.manifest_defaults[os.path.normpath(path)]
             if not m.tests and not 'support-files' in defaults:
                 raise SandboxValidationError('Empty test manifest: %s'
@@ -1003,10 +1002,8 @@ class TreeMetadataEmitter(LoggingMixin):
                 # Some test files are compiled and should not be copied into the
                 # test package. They function as identifiers rather than files.
                 if package_tests:
-                    manifest_relpath = mozpath.relpath(test['path'],
-                        mozpath.dirname(test['manifest']))
                     obj.installs[mozpath.normpath(test['path'])] = \
-                        ((mozpath.join(out_dir, manifest_relpath)), True)
+                        (mozpath.join(out_dir, test['relpath']), True)
 
                 process_support_files(test)
 

@@ -361,7 +361,7 @@ public:
   /**
    * Is the HTML local name a block element?
    */
-  static bool IsHTMLBlock(nsIContent* aContent);
+  static bool IsHTMLBlock(nsIAtom* aLocalName);
 
   enum ParseHTMLIntegerResultFlags {
     eParseHTMLInteger_NoFlags               = 0,
@@ -1657,11 +1657,11 @@ public:
    * @note this should be used for HTML5 origin determination.
    */
   static nsresult GetASCIIOrigin(nsIPrincipal* aPrincipal,
-                                 nsACString& aOrigin);
-  static nsresult GetASCIIOrigin(nsIURI* aURI, nsACString& aOrigin);
+                                 nsCString& aOrigin);
+  static nsresult GetASCIIOrigin(nsIURI* aURI, nsCString& aOrigin);
   static nsresult GetUTFOrigin(nsIPrincipal* aPrincipal,
-                               nsAString& aOrigin);
-  static nsresult GetUTFOrigin(nsIURI* aURI, nsAString& aOrigin);
+                               nsString& aOrigin);
+  static nsresult GetUTFOrigin(nsIURI* aURI, nsString& aOrigin);
 
   /**
    * This method creates and dispatches "command" event, which implements

@@ -292,9 +292,6 @@ function run() {
         test_unparseable_via_api(selector);
     }
 
-    // [attr] selector
-    test_parseable("[attr]")
-    test_parseable_via_api("[attr");
 
     // [attr= ] selector
     test_parseable("[attr=\"x\"]");
@@ -303,7 +300,6 @@ function run() {
     test_parseable("[attr=\"\"]");
     test_parseable("[attr='']");
     test_parseable("[attr=\"foo bar\"]");
-    test_parseable_via_api("[attr=x");
 
     test_balanced_unparseable("[attr=]");
     test_balanced_unparseable("[attr=foo bar]");
@@ -323,7 +319,6 @@ function run() {
     test_parseable("[attr~=\"\"]");
     test_parseable("[attr~='']");
     test_parseable("[attr~=\"foo bar\"]");
-    test_parseable_via_api("[attr~=x");
 
     test_balanced_unparseable("[attr~=]");
     test_balanced_unparseable("[attr~=foo bar]");
@@ -339,7 +334,6 @@ function run() {
     test_parseable('[attr|="x"]');
     test_parseable("[attr|='x']");
     test_parseable('[attr|=x]');
-    test_parseable_via_api("[attr|=x");
 
     test_parseable('[attr|=""]');
     test_parseable("[attr|='']");
@@ -360,7 +354,6 @@ function run() {
     test_parseable("[attr$=\"\"]");
     test_parseable("[attr$='']");
     test_parseable("[attr$=\"foo bar\"]");
-    test_parseable_via_api("[attr$=x");
 
     test_balanced_unparseable("[attr$=]");
     test_balanced_unparseable("[attr$=foo bar]");
@@ -372,7 +365,6 @@ function run() {
     test_parseable("[attr^=\"\"]");
     test_parseable("[attr^='']");
     test_parseable("[attr^=\"foo bar\"]");
-    test_parseable_via_api("[attr^=x");
 
     test_balanced_unparseable("[attr^=]");
     test_balanced_unparseable("[attr^=foo bar]");
@@ -384,7 +376,6 @@ function run() {
     test_parseable("[attr*=\"\"]");
     test_parseable("[attr*='']");
     test_parseable("[attr*=\"foo bar\"]");
-    test_parseable_via_api("[attr^=x");
 
     test_balanced_unparseable("[attr*=]");
     test_balanced_unparseable("[attr*=foo bar]");

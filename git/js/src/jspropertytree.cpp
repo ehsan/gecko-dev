@@ -228,20 +228,16 @@ Shape::fixupDictionaryShapeAfterMovingGC()
     if (!listp)
         return;
 
-    // Get a fake cell pointer to use for the calls below. This might not point
-    // to the beginning of a cell, but will point into the right arena and will
-    // have the right alignment.
-    Cell *cell = reinterpret_cast<Cell *>(uintptr_t(listp) & ~CellMask);
-
     // It's possible that this shape is unreachable and that listp points to the
     // location of a dead object in the nursery, in which case we should never
     // touch it again.
-    if (IsInsideNursery(cell)) {
+    if (IsInsideNursery(reinterpret_cast<Cell *>(listp))) {
         listp = nullptr;
         return;
     }
 
-    AllocKind kind = TenuredCell::fromPointer(cell)->getAllocKind();
+    MOZ_ASSERT(!IsInsideNursery(reinterpret_cast<Cell *>(listp)));
+    AllocKind kind = TenuredCell::fromPointer(listp)->getAllocKind();
     MOZ_ASSERT(kind == FINALIZE_SHAPE ||
                kind == FINALIZE_ACCESSOR_SHAPE ||
                kind <= FINALIZE_OBJECT_LAST);

@@ -94,7 +94,6 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
       if (!stream->HasCurrentData()) {
         allHaveCurrentData = false;
       }
-      bool trackAdded = false;
       for (StreamBuffer::TrackIter tracks(stream->GetStreamBuffer());
            !tracks.IsEnded(); tracks.Next()) {
         bool found = false;
@@ -116,16 +115,10 @@ TrackUnionStream::TrackUnionStream(DOMMediaStream* aWrapper) :
         }
         if (!found && (!mFilterCallback || mFilterCallback(tracks.get()))) {
           bool trackFinished = false;
-          trackAdded = true;
           uint32_t mapIndex = AddTrack(mInputs[i], tracks.get(), aFrom);
           CopyTrackData(tracks.get(), mapIndex, aFrom, aTo, &trackFinished);
           mappedTracksFinished.AppendElement(trackFinished);
           mappedTracksWithMatchingInputTracks.AppendElement(true);
-        }
-      }
-      if (trackAdded) {
-        for (MediaStreamListener* l : mListeners) {
-          l->NotifyFinishedTrackCreation(Graph());
         }
       }
     }

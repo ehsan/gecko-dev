@@ -316,9 +316,8 @@ IsOffsetParent(nsIFrame* aFrame)
     // with display: table-cell with no actual table
     nsIContent* content = aFrame->GetContent();
 
-    return content->IsAnyOfHTMLElements(nsGkAtoms::table,
-                                        nsGkAtoms::td,
-                                        nsGkAtoms::th);
+    return content->IsHTML(nsGkAtoms::table) || content->IsHTML(nsGkAtoms::td)
+      || content->IsHTML(nsGkAtoms::th);
   }
   return false;
 }
@@ -346,8 +345,7 @@ nsGenericHTMLElement::GetOffsetRect(CSSIntRect& aRect)
   Element* docElement = GetComposedDoc()->GetRootElement();
   nsIContent* content = frame->GetContent();
 
-  if (content && (content->IsHTMLElement(nsGkAtoms::body) ||
-                  content == docElement)) {
+  if (content && (content->IsHTML(nsGkAtoms::body) || content == docElement)) {
     parent = frame;
   }
   else {
@@ -379,7 +377,7 @@ nsGenericHTMLElement::GetOffsetRect(CSSIntRect& aRect)
 
         // Break if the ancestor frame type makes it suitable as offset parent
         // and this element is *not* positioned or if we found the body element.
-        if (isOffsetParent || content->IsHTMLElement(nsGkAtoms::body)) {
+        if (isOffsetParent || content->IsHTML(nsGkAtoms::body)) {
           offsetParent = content;
           break;
         }
@@ -439,7 +437,7 @@ nsGenericHTMLElement::Spellcheck()
   // Has the state has been explicitly set?
   nsIContent* node;
   for (node = this; node; node = node->GetParent()) {
-    if (node->IsHTMLElement()) {
+    if (node->IsHTML()) {
       static nsIContent::AttrValuesArray strings[] =
         {&nsGkAtoms::_true, &nsGkAtoms::_false, nullptr};
       switch (node->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::spellcheck,
@@ -591,7 +589,7 @@ HTMLFormElement*
 nsGenericHTMLElement::FindAncestorForm(HTMLFormElement* aCurrentForm)
 {
   NS_ASSERTION(!HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
-               IsHTMLElement(nsGkAtoms::img),
+               IsHTML(nsGkAtoms::img),
                "FindAncestorForm should not be called if @form is set!");
 
   // Make sure we don't end up finding a form that's anonymous from
@@ -601,7 +599,7 @@ nsGenericHTMLElement::FindAncestorForm(HTMLFormElement* aCurrentForm)
   nsIContent* content = this;
   while (content != bindingParent && content) {
     // If the current ancestor is a form, return it as our form
-    if (content->IsHTMLElement(nsGkAtoms::form)) {
+    if (content->IsHTML(nsGkAtoms::form)) {
 #ifdef DEBUG
       if (!nsContentUtils::IsInSameAnonymousTree(this, content)) {
         // It's possible that we started unbinding at |content| or
@@ -657,8 +655,7 @@ nsGenericHTMLElement::CheckHandleEventForAnchorsPreconditions(
   nsCOMPtr<nsIContent> target = aVisitor.mPresContext->EventStateManager()->
     GetEventTargetContent(aVisitor.mEvent);
 
-  return !target || !target->IsHTMLElement(nsGkAtoms::area) ||
-         IsHTMLElement(nsGkAtoms::area);
+  return !target || !target->IsHTML(nsGkAtoms::area) || IsHTML(nsGkAtoms::area);
 }
 
 nsresult
@@ -802,7 +799,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(nsIAtom* aAttrName,
 EventHandlerNonNull*                                                          \
 nsGenericHTMLElement::GetOn##name_()                                          \
 {                                                                             \
-  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
+  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     /* XXXbz note to self: add tests for this! */                             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (win) {                                                                \
@@ -818,7 +815,7 @@ nsGenericHTMLElement::GetOn##name_()                                          \
 void                                                                          \
 nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 {                                                                             \
-  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
+  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (!win) {                                                               \
       return;                                                                 \
@@ -835,7 +832,7 @@ nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 already_AddRefed<EventHandlerNonNull>                                         \
 nsGenericHTMLElement::GetOn##name_()                                          \
 {                                                                             \
-  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
+  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     /* XXXbz note to self: add tests for this! */                             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (win) {                                                                \
@@ -857,7 +854,7 @@ nsGenericHTMLElement::GetOn##name_()                                          \
 void                                                                          \
 nsGenericHTMLElement::SetOn##name_(EventHandlerNonNull* handler)              \
 {                                                                             \
-  if (IsAnyOfHTMLElements(nsGkAtoms::body, nsGkAtoms::frameset)) {            \
+  if (Tag() == nsGkAtoms::body || Tag() == nsGkAtoms::frameset) {             \
     nsPIDOMWindow* win = OwnerDoc()->GetInnerWindow();                        \
     if (!win) {                                                               \
       return;                                                                 \
@@ -1005,7 +1002,7 @@ nsGenericHTMLElement::ParseAttribute(int32_t aNamespaceID,
 
       aResult.ParseAtom(aValue);
 
-      if (CanHaveName(NodeInfo()->NameAtom())) {
+      if (CanHaveName(Tag())) {
         SetHasName();
         AddToNameTable(aResult.GetAtomValue());
       }
@@ -1790,14 +1787,16 @@ nsGenericHTMLElement::GetContextMenu(nsIDOMHTMLMenuElement** aContextMenu)
 bool
 nsGenericHTMLElement::IsLabelable() const
 {
-  return IsAnyOfHTMLElements(nsGkAtoms::progress, nsGkAtoms::meter);
+  return Tag() == nsGkAtoms::progress ||
+         Tag() == nsGkAtoms::meter;
 }
 
 bool
 nsGenericHTMLElement::IsInteractiveHTMLContent() const
 {
-  return IsAnyOfHTMLElements(nsGkAtoms::details, nsGkAtoms::embed,
-                             nsGkAtoms::keygen) ||
+  return Tag() == nsGkAtoms::details ||
+         Tag() == nsGkAtoms::embed ||
+         Tag() == nsGkAtoms::keygen ||
          HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex);
 }
 
@@ -2404,7 +2403,7 @@ nsGenericHTMLFormElement::FormIdUpdated(Element* aOldElement,
   nsGenericHTMLFormElement* element =
     static_cast<nsGenericHTMLFormElement*>(aData);
 
-  NS_ASSERTION(element->IsHTMLElement(), "aData should be an HTML element");
+  NS_ASSERTION(element->IsHTML(), "aData should be an HTML element");
 
   element->UpdateFormOwner(false, aNewElement);
 
@@ -2460,7 +2459,7 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
                      "element should be equals to the current element "
                      "associated with the id in @form!");
 
-        if (element && element->IsHTMLElement(nsGkAtoms::form)) {
+        if (element && element->IsHTML(nsGkAtoms::form)) {
           mForm = static_cast<HTMLFormElement*>(element);
         }
       }
@@ -2764,7 +2763,7 @@ nsGenericHTMLElement::IsCurrentBodyElement()
 {
   // TODO Bug 698498: Should this handle the case where GetBody returns a
   //                  frameset?
-  if (!IsHTMLElement(nsGkAtoms::body)) {
+  if (!IsHTML(nsGkAtoms::body)) {
     return false;
   }
 

@@ -240,6 +240,9 @@ protected:
   static void NextBluetoothProfileController();
   static ControlPlayStatus PlayStatusStringToControlPlayStatus(
     const nsAString& aPlayStatus);
+  static void ReplyStatusError(BluetoothReplyRunnable* aReplyRunnable,
+                               BluetoothStatus aStatusCode,
+                               const nsAString& aCustomMsg);
 };
 
 END_BLUETOOTH_NAMESPACE

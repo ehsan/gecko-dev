@@ -598,7 +598,7 @@ MP4Reader::RequestVideoData(bool aSkipToNextKeyframe,
     if (!eos && NS_FAILED(mVideo.mDecoder->Flush())) {
       NS_WARNING("Failed to skip/flush video when skipping-to-next-keyframe.");
     }
-    mDecoder->NotifyDecodedFrames(parsed, 0, parsed);
+    mDecoder->NotifyDecodedFrames(parsed, 0);
   }
 
   MonitorAutoLock lock(mVideo.mMonitor);
@@ -672,7 +672,8 @@ MP4Reader::Update(TrackType aTrack)
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
-  AbstractMediaDecoder::AutoNotifyDecoded a(mDecoder);
+  uint32_t parsed = 0, decoded = 0;
+  AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
   bool needInput = false;
   bool needOutput = false;
@@ -687,7 +688,7 @@ MP4Reader::Update(TrackType aTrack)
     }
     if (aTrack == kVideo) {
       uint64_t delta = decoder.mNumSamplesOutput - mLastReportedNumDecodedFrames;
-      a.mDecoded = static_cast<uint32_t>(delta);
+      decoded = static_cast<uint32_t>(delta);
       mLastReportedNumDecodedFrames = decoder.mNumSamplesOutput;
     }
     if (decoder.HasPromise()) {
@@ -721,7 +722,7 @@ MP4Reader::Update(TrackType aTrack)
     if (sample) {
       decoder.mDecoder->Input(sample);
       if (aTrack == kVideo) {
-        a.mParsed++;
+        parsed++;
       }
     } else {
       {

@@ -98,35 +98,6 @@ public:
     }
   }
 
-  class TracksCreatedRunnable : public nsRunnable {
-  public:
-    explicit TracksCreatedRunnable(StreamListener* aListener)
-      : mListener(aListener)
-    {
-    }
-
-    NS_IMETHOD Run()
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-
-      DOMMediaStream* stream = mListener->GetStream();
-      if (!stream) {
-        return NS_OK;
-      }
-
-      stream->TracksCreated();
-      return NS_OK;
-    }
-
-    nsRefPtr<StreamListener> mListener;
-  };
-
-  virtual void NotifyFinishedTrackCreation(MediaStreamGraph* aGraph) MOZ_OVERRIDE
-  {
-    nsRefPtr<TracksCreatedRunnable> runnable = new TracksCreatedRunnable(this);
-    aGraph->DispatchToMainThreadAfterStreamStateUpdate(runnable.forget());
-  }
-
 private:
   // These fields may only be accessed on the main thread
   DOMMediaStream* mStream;
@@ -174,7 +145,7 @@ NS_INTERFACE_MAP_END_INHERITING(DOMMediaStream)
 
 DOMMediaStream::DOMMediaStream()
   : mLogicalStreamStartTime(0),
-    mStream(nullptr), mTracksCreated(false),
+    mStream(nullptr), mHintContents(0), mTrackTypesAvailable(0),
     mNotifiedOfMediaStreamGraphShutdown(false), mCORSMode(CORS_NONE)
 {
   nsresult rv;
@@ -274,18 +245,20 @@ DOMMediaStream::IsFinished()
 }
 
 void
-DOMMediaStream::InitSourceStream(nsIDOMWindow* aWindow)
+DOMMediaStream::InitSourceStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents)
 {
   mWindow = aWindow;
-  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
+  SetHintContents(aHintContents);
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance(aHintContents);
   InitStreamCommon(gm->CreateSourceStream(this));
 }
 
 void
-DOMMediaStream::InitTrackUnionStream(nsIDOMWindow* aWindow)
+DOMMediaStream::InitTrackUnionStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents)
 {
   mWindow = aWindow;
-  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
+  SetHintContents(aHintContents);
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance(aHintContents);
   InitStreamCommon(gm->CreateTrackUnionStream(this));
 }
 
@@ -300,18 +273,18 @@ DOMMediaStream::InitStreamCommon(MediaStream* aStream)
 }
 
 already_AddRefed<DOMMediaStream>
-DOMMediaStream::CreateSourceStream(nsIDOMWindow* aWindow)
+DOMMediaStream::CreateSourceStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents)
 {
   nsRefPtr<DOMMediaStream> stream = new DOMMediaStream();
-  stream->InitSourceStream(aWindow);
+  stream->InitSourceStream(aWindow, aHintContents);
   return stream.forget();
 }
 
 already_AddRefed<DOMMediaStream>
-DOMMediaStream::CreateTrackUnionStream(nsIDOMWindow* aWindow)
+DOMMediaStream::CreateTrackUnionStream(nsIDOMWindow* aWindow, TrackTypeHints aHintContents)
 {
   nsRefPtr<DOMMediaStream> stream = new DOMMediaStream();
-  stream->InitTrackUnionStream(aWindow);
+  stream->InitTrackUnionStream(aWindow, aHintContents);
   return stream.forget();
 }
 
@@ -384,15 +357,32 @@ DOMMediaStream::RemovePrincipalChangeObserver(PrincipalChangeObserver* aObserver
   return mPrincipalChangeObservers.RemoveElement(aObserver);
 }
 
+void
+DOMMediaStream::SetHintContents(TrackTypeHints aHintContents)
+{
+  TrackTypeHints oldHintContents = mHintContents;
+  mHintContents |= aHintContents;
+  if (aHintContents & HINT_CONTENTS_VIDEO &&
+      !(oldHintContents & HINT_CONTENTS_VIDEO)) {
+    CreateDOMTrack(kVideoTrack, MediaSegment::VIDEO);
+  }
+  if (aHintContents & HINT_CONTENTS_AUDIO &&
+      !(oldHintContents & HINT_CONTENTS_AUDIO)) {
+    CreateDOMTrack(kAudioTrack, MediaSegment::AUDIO);
+  }
+}
+
 MediaStreamTrack*
 DOMMediaStream::CreateDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
 {
   MediaStreamTrack* track;
   switch (aType) {
   case MediaSegment::AUDIO:
+    mHintContents |= HINT_CONTENTS_AUDIO;
     track = new AudioStreamTrack(this, aTrackID);
     break;
   case MediaSegment::VIDEO:
+    mHintContents |= HINT_CONTENTS_VIDEO;
     track = new VideoStreamTrack(this, aTrackID);
     break;
   default:
@@ -414,6 +404,7 @@ DOMMediaStream::BindDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
       track = mTracks[i]->AsAudioStreamTrack();
       if (track && track->GetTrackID() == aTrackID) {
         bindSuccess = true;
+        mTrackTypesAvailable |= HINT_CONTENTS_AUDIO;
         break;
       }
     }
@@ -424,6 +415,7 @@ DOMMediaStream::BindDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
       track = mTracks[i]->AsVideoStreamTrack();
       if (track && track->GetTrackID() == aTrackID) {
         bindSuccess = true;
+        mTrackTypesAvailable |= HINT_CONTENTS_VIDEO;
         break;
       }
     }
@@ -431,6 +423,9 @@ DOMMediaStream::BindDOMTrack(TrackID aTrackID, MediaSegment::Type aType)
   }
   default:
     MOZ_CRASH("Unhandled track type");
+  }
+  if (bindSuccess) {
+    CheckTracksAvailable();
   }
   return bindSuccess ? track : nullptr;
 }
@@ -481,24 +476,22 @@ DOMMediaStream::OnTracksAvailable(OnTracksAvailableCallback* aRunnable)
 }
 
 void
-DOMMediaStream::TracksCreated()
-{
-  MOZ_ASSERT(!mTracks.IsEmpty());
-  mTracksCreated = true;
-  CheckTracksAvailable();
-}
-
-void
 DOMMediaStream::CheckTracksAvailable()
 {
-  if (!mTracksCreated) {
+  if (mTrackTypesAvailable == 0) {
     return;
   }
   nsTArray<nsAutoPtr<OnTracksAvailableCallback> > callbacks;
   callbacks.SwapElements(mRunOnTracksAvailable);
 
   for (uint32_t i = 0; i < callbacks.Length(); ++i) {
-    callbacks[i]->NotifyTracksAvailable(this);
+    OnTracksAvailableCallback* cb = callbacks[i];
+    if (~mTrackTypesAvailable & cb->GetExpectedTracks()) {
+      // Some expected tracks not available yet. Try this callback again later.
+      *mRunOnTracksAvailable.AppendElement() = callbacks[i].forget();
+      continue;
+    }
+    cb->NotifyTracksAvailable(this);
   }
 }
 
@@ -531,10 +524,14 @@ void
 DOMMediaStream::ConstructMediaTracks(AudioTrackList* aAudioTrackList,
                                      VideoTrackList* aVideoTrackList)
 {
-  MediaTrackListListener audioListener(aAudioTrackList);
-  mMediaTrackListListeners.AppendElement(audioListener);
-  MediaTrackListListener videoListener(aVideoTrackList);
-  mMediaTrackListListeners.AppendElement(videoListener);
+  if (mHintContents & DOMMediaStream::HINT_CONTENTS_AUDIO) {
+    MediaTrackListListener listener(aAudioTrackList);
+    mMediaTrackListListeners.AppendElement(listener);
+  }
+  if (mHintContents & DOMMediaStream::HINT_CONTENTS_VIDEO) {
+    MediaTrackListListener listener(aVideoTrackList);
+    mMediaTrackListListeners.AppendElement(listener);
+  }
 
   int firstEnabledVideo = -1;
   for (uint32_t i = 0; i < mTracks.Length(); ++i) {
@@ -623,18 +620,20 @@ DOMLocalMediaStream::Stop()
 }
 
 already_AddRefed<DOMLocalMediaStream>
-DOMLocalMediaStream::CreateSourceStream(nsIDOMWindow* aWindow)
+DOMLocalMediaStream::CreateSourceStream(nsIDOMWindow* aWindow,
+                                        TrackTypeHints aHintContents)
 {
   nsRefPtr<DOMLocalMediaStream> stream = new DOMLocalMediaStream();
-  stream->InitSourceStream(aWindow);
+  stream->InitSourceStream(aWindow, aHintContents);
   return stream.forget();
 }
 
 already_AddRefed<DOMLocalMediaStream>
-DOMLocalMediaStream::CreateTrackUnionStream(nsIDOMWindow* aWindow)
+DOMLocalMediaStream::CreateTrackUnionStream(nsIDOMWindow* aWindow,
+                                            TrackTypeHints aHintContents)
 {
   nsRefPtr<DOMLocalMediaStream> stream = new DOMLocalMediaStream();
-  stream->InitTrackUnionStream(aWindow);
+  stream->InitTrackUnionStream(aWindow, aHintContents);
   return stream.forget();
 }
 
@@ -649,9 +648,10 @@ DOMAudioNodeMediaStream::~DOMAudioNodeMediaStream()
 
 already_AddRefed<DOMAudioNodeMediaStream>
 DOMAudioNodeMediaStream::CreateTrackUnionStream(nsIDOMWindow* aWindow,
-                                                AudioNode* aNode)
+                                                AudioNode* aNode,
+                                                TrackTypeHints aHintContents)
 {
   nsRefPtr<DOMAudioNodeMediaStream> stream = new DOMAudioNodeMediaStream(aNode);
-  stream->InitTrackUnionStream(aWindow);
+  stream->InitTrackUnionStream(aWindow, aHintContents);
   return stream.forget();
 }

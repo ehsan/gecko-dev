@@ -273,6 +273,8 @@ function email_enableButtons()
 
   var enableViewButton=document.getElementById('email_viewButton');
   enableViewButton.setAttribute("disabled", disableButtons);
+  var enableEditButton=document.getElementById('email_editButton');
+  enableEditButton.setAttribute("disabled", disableButtons);
   var enableExportButton=document.getElementById('email_exportButton');
   enableExportButton.setAttribute("disabled", disableButtons);
   var enableDeleteButton=document.getElementById('email_deleteButton');
@@ -327,8 +329,14 @@ function editCerts()
     return;
   for (var t=0; t<numcerts; t++) {
     var cert = selected_certs[t];
-    window.openDialog("chrome://pippki/content/editcacert.xul", cert.dbKey,
-                      "chrome,centerscreen,modal");
+    var certkey = cert.dbKey;
+    if (document.getElementById("ca_tab").selected) {
+      window.openDialog('chrome://pippki/content/editcacert.xul', certkey,
+                        'chrome,centerscreen,modal');
+    } else if (document.getElementById("others_tab").selected) {
+      window.openDialog('chrome://pippki/content/editemailcert.xul', certkey,
+                        'chrome,centerscreen,modal');
+    }
   }
 }
 

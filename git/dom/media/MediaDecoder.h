@@ -392,13 +392,8 @@ public:
     ~DecodedStreamData();
 
     // microseconds
-    bool IsFinished() const {
-      return mListener->IsFinishedOnMainThread();
-    }
-
-    int64_t GetClock() const {
-      return mInitialTime + mListener->GetLastOutputTime();
-    }
+    int64_t GetLastOutputTime() { return mListener->GetLastOutputTime(); }
+    bool IsFinished() { return mListener->IsFinishedOnMainThread(); }
 
     // The following group of fields are protected by the decoder's monitor
     // and can be read or written on any thread.
@@ -406,7 +401,7 @@ public:
     int64_t mAudioFramesWritten;
     // Saved value of aInitialTime. Timestamp of the first audio and/or
     // video packet written.
-    const int64_t mInitialTime; // microseconds
+    int64_t mInitialTime; // microseconds
     // mNextVideoTime is the end timestamp for the last packet sent to the stream.
     // Therefore video packets starting at or after this time need to be copied
     // to the output stream.
@@ -458,6 +453,13 @@ public:
 
       MutexAutoLock lock(mMutex);
       mStream = nullptr;
+    }
+    bool SetFinishedOnMainThread(bool aFinished)
+    {
+      MutexAutoLock lock(mMutex);
+      bool result = !mStreamFinishedOnMainThread;
+      mStreamFinishedOnMainThread = aFinished;
+      return result;
     }
     bool IsFinishedOnMainThread()
     {
@@ -935,8 +937,7 @@ public:
         mReentrantMonitor("MediaDecoder::FrameStats"),
         mParsedFrames(0),
         mDecodedFrames(0),
-        mPresentedFrames(0),
-        mDroppedFrames(0) {}
+        mPresentedFrames(0) {}
 
     // Returns number of frames which have been parsed from the media.
     // Can be called on any thread.
@@ -960,22 +961,14 @@ public:
       return mPresentedFrames;
     }
 
-    // Number of frames that have been skipped because they have missed their
-    // compoisition deadline.
-    uint32_t GetDroppedFrames() {
-      return mDroppedFrames;
-    }
-
     // Increments the parsed and decoded frame counters by the passed in counts.
     // Can be called on any thread.
-    void NotifyDecodedFrames(uint32_t aParsed, uint32_t aDecoded,
-                             uint32_t aDropped) {
-      if (aParsed == 0 && aDecoded == 0 && aDropped == 0)
+    void NotifyDecodedFrames(uint32_t aParsed, uint32_t aDecoded) {
+      if (aParsed == 0 && aDecoded == 0)
         return;
       ReentrantMonitorAutoEnter mon(mReentrantMonitor);
       mParsedFrames += aParsed;
       mDecodedFrames += aDecoded;
-      mDroppedFrames += aDropped;
     }
 
     // Increments the presented frame counters.
@@ -1001,8 +994,6 @@ public:
     // Number of decoded frames which were actually sent down the rendering
     // pipeline to be painted ("presented"). Access protected by mReentrantMonitor.
     uint32_t mPresentedFrames;
-
-    uint32_t mDroppedFrames;
   };
 
   // Return the frame decode/paint related statistics.
@@ -1010,10 +1001,9 @@ public:
 
   // Increments the parsed and decoded frame counters by the passed in counts.
   // Can be called on any thread.
-  virtual void NotifyDecodedFrames(uint32_t aParsed, uint32_t aDecoded,
-                                   uint32_t aDropped) MOZ_OVERRIDE
+  virtual void NotifyDecodedFrames(uint32_t aParsed, uint32_t aDecoded) MOZ_OVERRIDE
   {
-    GetFrameStatistics().NotifyDecodedFrames(aParsed, aDecoded, aDropped);
+    GetFrameStatistics().NotifyDecodedFrames(aParsed, aDecoded);
   }
 
 protected:

@@ -106,7 +106,7 @@ class SavedFrame : public NativeObject {
     void updatePrivateParent();
 
     static bool checkThis(JSContext *cx, CallArgs &args, const char *fnName,
-                          MutableHandleObject frame);
+                          MutableHandleSavedFrame frame);
 };
 
 struct SavedFrame::HashPolicy

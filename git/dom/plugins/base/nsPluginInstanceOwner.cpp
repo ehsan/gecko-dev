@@ -789,7 +789,6 @@ NPBool nsPluginInstanceOwner::ConvertPointPuppet(PuppetWidget *widget,
   tabContentBounds.ScaleInverseRoundOut(scaleFactor);
   int32_t windowH = tabContentBounds.height + int(chromeSize.y);
 
-  // This is actually relative to window-chrome.
   nsPoint pluginPosition = AsNsPoint(pluginFrame->GetScreenRect().TopLeft());
 
   // Convert (sourceX, sourceY) to 'real' (not PuppetWidget) screen space.
@@ -799,8 +798,8 @@ NPBool nsPluginInstanceOwner::ConvertPointPuppet(PuppetWidget *widget,
   nsPoint screenPoint;
   switch (sourceSpace) {
     case NPCoordinateSpacePlugin:
-      screenPoint = sourcePoint + pluginFrame->GetContentRectRelativeToSelf().TopLeft() +
-        chromeSize + pluginPosition + windowPosition;
+      screenPoint = sourcePoint + pluginPosition +
+        pluginFrame->GetContentRectRelativeToSelf().TopLeft() / nsPresContext::AppUnitsPerCSSPixel();
       break;
     case NPCoordinateSpaceWindow:
       screenPoint = nsPoint(sourcePoint.x, windowH-sourcePoint.y) +
@@ -823,8 +822,8 @@ NPBool nsPluginInstanceOwner::ConvertPointPuppet(PuppetWidget *widget,
   nsPoint destPoint;
   switch (destSpace) {
     case NPCoordinateSpacePlugin:
-      destPoint = screenPoint - pluginFrame->GetContentRectRelativeToSelf().TopLeft() -
-        chromeSize - pluginPosition - windowPosition;
+      destPoint = screenPoint - pluginPosition -
+        pluginFrame->GetContentRectRelativeToSelf().TopLeft() / nsPresContext::AppUnitsPerCSSPixel();
       break;
     case NPCoordinateSpaceWindow:
       destPoint = screenPoint - windowPosition;
@@ -994,11 +993,13 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetTagType(nsPluginTagType *result)
 
   *result = nsPluginTagType_Unknown;
 
-  if (mContent->IsHTMLElement(nsGkAtoms::applet))
+  nsIAtom *atom = mContent->Tag();
+
+  if (atom == nsGkAtoms::applet)
     *result = nsPluginTagType_Applet;
-  else if (mContent->IsHTMLElement(nsGkAtoms::embed))
+  else if (atom == nsGkAtoms::embed)
     *result = nsPluginTagType_Embed;
-  else if (mContent->IsHTMLElement(nsGkAtoms::object))
+  else if (atom == nsGkAtoms::object)
     *result = nsPluginTagType_Object;
 
   return NS_OK;

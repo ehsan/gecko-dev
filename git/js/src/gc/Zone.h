@@ -359,14 +359,14 @@ class ZonesIter
 
 struct CompartmentsInZoneIter
 {
-    explicit CompartmentsInZoneIter(JS::Zone *zone) : zone(zone) {
+    explicit CompartmentsInZoneIter(JS::Zone *zone) {
         it = zone->compartments.begin();
+        end = zone->compartments.end();
     }
 
     bool done() const {
         MOZ_ASSERT(it);
-        return it < zone->compartments.begin() ||
-               it >= zone->compartments.end();
+        return it == end;
     }
     void next() {
         MOZ_ASSERT(!done());
@@ -382,11 +382,10 @@ struct CompartmentsInZoneIter
     JSCompartment *operator->() const { return get(); }
 
   private:
-    JS::Zone *zone;
-    JSCompartment **it;
+    JSCompartment **it, **end;
 
     CompartmentsInZoneIter()
-      : zone(nullptr), it(nullptr)
+      : it(nullptr), end(nullptr)
     {}
 
     // This is for the benefit of CompartmentsIterT::comp.

@@ -374,49 +374,6 @@ class LSimdSwizzleF : public LSimdSwizzleBase
     {}
 };
 
-class LSimdGeneralSwizzleBase : public LInstructionHelper<1, 5, 1>
-{
-  public:
-    LSimdGeneralSwizzleBase(const LAllocation &base, const LAllocation lanes[4],
-                            const LDefinition &temp)
-    {
-        setOperand(0, base);
-        for (size_t i = 0; i < 4; i++)
-            setOperand(1 + i, lanes[i]);
-        setTemp(0, temp);
-    }
-
-    const LAllocation *base() {
-        return getOperand(0);
-    }
-    const LAllocation *lane(size_t i) {
-        return getOperand(1 + i);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
-};
-
-class LSimdGeneralSwizzleI : public LSimdGeneralSwizzleBase
-{
-  public:
-    LIR_HEADER(SimdGeneralSwizzleI);
-    LSimdGeneralSwizzleI(const LAllocation &base, const LAllocation lanes[4],
-                         const LDefinition &temp)
-      : LSimdGeneralSwizzleBase(base, lanes, temp)
-    {}
-};
-
-class LSimdGeneralSwizzleF : public LSimdGeneralSwizzleBase
-{
-  public:
-    LIR_HEADER(SimdGeneralSwizzleF);
-    LSimdGeneralSwizzleF(const LAllocation &base, const LAllocation lanes[4],
-                         const LDefinition &temp)
-      : LSimdGeneralSwizzleBase(base, lanes, temp)
-    {}
-};
-
 // Base class for both int32x4 and float32x4 shuffle instructions.
 class LSimdShuffle : public LInstructionHelper<1, 2, 1>
 {
@@ -6079,12 +6036,12 @@ class LRest : public LCallInstructionHelper<1, 1, 3>
     }
 };
 
-class LGuardReceiverPolymorphic : public LInstructionHelper<0, 1, 1>
+class LGuardShapePolymorphic : public LInstructionHelper<0, 1, 1>
 {
   public:
-    LIR_HEADER(GuardReceiverPolymorphic)
+    LIR_HEADER(GuardShapePolymorphic)
 
-    LGuardReceiverPolymorphic(const LAllocation &in, const LDefinition &temp) {
+    LGuardShapePolymorphic(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
     }
@@ -6094,8 +6051,8 @@ class LGuardReceiverPolymorphic : public LInstructionHelper<0, 1, 1>
     const LDefinition *temp() {
         return getTemp(0);
     }
-    const MGuardReceiverPolymorphic *mir() const {
-        return mir_->toGuardReceiverPolymorphic();
+    const MGuardShapePolymorphic *mir() const {
+        return mir_->toGuardShapePolymorphic();
     }
 };
 
@@ -6422,7 +6379,7 @@ class LAsmJSStoreHeap : public LInstructionHelper<0, 2, 0>
     }
 };
 
-class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 1>
+class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 0>
 {
   public:
     LIR_HEADER(AsmJSCompareExchangeHeap);
@@ -6433,7 +6390,6 @@ class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 1>
         setOperand(0, ptr);
         setOperand(1, oldValue);
         setOperand(2, newValue);
-        setTemp(0, LDefinition::BogusTemp());
     }
 
     const LAllocation *ptr() {
@@ -6445,20 +6401,13 @@ class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 1>
     const LAllocation *newValue() {
         return getOperand(2);
     }
-    const LDefinition *addrTemp() {
-        return getTemp(0);
-    }
-
-    void setAddrTemp(const LDefinition &addrTemp) {
-        setTemp(0, addrTemp);
-    }
 
     MAsmJSCompareExchangeHeap *mir() const {
         return mir_->toAsmJSCompareExchangeHeap();
     }
 };
 
-class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 2>
+class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 1>
 {
   public:
     LIR_HEADER(AsmJSAtomicBinopHeap);
@@ -6468,7 +6417,6 @@ class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 2>
         setOperand(0, ptr);
         setOperand(1, value);
         setTemp(0, temp);
-        setTemp(1, LDefinition::BogusTemp());
     }
     const LAllocation *ptr() {
         return getOperand(0);
@@ -6478,13 +6426,6 @@ class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 2>
     }
     const LDefinition *temp() {
         return getTemp(0);
-    }
-    const LDefinition *addrTemp() {
-        return getTemp(1);
-    }
-
-    void setAddrTemp(const LDefinition &addrTemp) {
-        setTemp(1, addrTemp);
     }
 
     MAsmJSAtomicBinopHeap *mir() const {
