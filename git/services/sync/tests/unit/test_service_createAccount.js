@@ -16,7 +16,6 @@ function run_test() {
     };
   }
 
-  do_test_pending();
   let server = httpd_setup({
     "/user/1.0/johndoe": send(200, "OK", "0"),
     "/user/1.0/janedoe": send(400, "Bad Request", "2"),
@@ -61,6 +60,6 @@ function run_test() {
 
   } finally {
     Weave.Svc.Prefs.resetBranch("");
-    server.stop(do_test_finished);
+    server.stop(function() {});
   }
 }

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-453492.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 453492;
 var summary = 'Do not assert: op == JSOP_ENUMELEM || op == JSOP_ENUMCONSTELEM';

@@ -46,6 +46,7 @@
  * by Mike Epstein <epstein@tellme.com>
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-82306.js';
 var BUGNUMBER = 82306;
 var summary = "Testing we don't crash on encodeURI()";
 var URI = '';

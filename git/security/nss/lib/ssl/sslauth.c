@@ -92,7 +92,6 @@ SSL_SecurityStatus(PRFileDesc *fd, int *op, char **cp, int *kp0, int *kp1,
     sslSocket *ss;
     const char *cipherName;
     PRBool isDes = PR_FALSE;
-    PRBool enoughFirstHsDone = PR_FALSE;
 
     ss = ssl_FindSocket(fd);
     if (!ss) {
@@ -110,14 +109,8 @@ SSL_SecurityStatus(PRFileDesc *fd, int *op, char **cp, int *kp0, int *kp1,
 	*op = SSL_SECURITY_STATUS_OFF;
     }
 
-    if (ss->firstHsDone) {
-	enoughFirstHsDone = PR_TRUE;
-    } else if (ss->version >= SSL_LIBRARY_VERSION_3_0 &&
-	       ssl3_CanFalseStart(ss)) {
-	enoughFirstHsDone = PR_TRUE;
-    }
+    if (ss->opt.useSecurity && ss->firstHsDone) {
 
-    if (ss->opt.useSecurity && enoughFirstHsDone) {
 	if (ss->version < SSL_LIBRARY_VERSION_3_0) {
 	    cipherName = ssl_cipherName[ss->sec.cipherType];
 	} else {

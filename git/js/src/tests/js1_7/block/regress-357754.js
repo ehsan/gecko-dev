@@ -5,6 +5,7 @@
  * Contributor: Blake Kaplan
  */
 
+var gTestfile = 'regress-357754.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 357754;
 var summary = 'top level closures with let-bound varibles';

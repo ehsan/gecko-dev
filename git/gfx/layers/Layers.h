@@ -142,20 +142,11 @@ public:
     LAYERS_D3D9
   };
 
-  LayerManager() : mUserData(nsnull), mDestroyed(PR_FALSE)
+  LayerManager() : mUserData(nsnull)
   {
     InitLog();
   }
   virtual ~LayerManager() {}
-
-  /**
-   * Release layers and resources held by this layer manager, and mark
-   * it as destroyed.  Should do any cleanup necessary in preparation
-   * for its widget going away.  After this call, only user data calls
-   * are valid on the layer manager.
-   */
-  virtual void Destroy() { mDestroyed = PR_TRUE; }
-  PRBool IsDestroyed() { return mDestroyed; }
 
   /**
    * Start a new transaction. Nested transactions are not allowed so
@@ -306,7 +297,6 @@ public:
 protected:
   nsRefPtr<Layer> mRoot;
   void* mUserData;
-  PRPackedBool mDestroyed;
 
   // Print interesting information about this into aTo.  Internally
   // used to implement Dump*() and Log*().
@@ -338,9 +328,7 @@ public:
   virtual ~Layer() {}
 
   /**
-   * Returns the LayerManager this Layer belongs to. Note that the layer
-   * manager might be in a destroyed state, at which point it's only
-   * valid to set/get user data from it.
+   * Returns the LayoutManager this Layer belongs to. Cannot be null.
    */
   LayerManager* Manager() { return mManager; }
 
@@ -399,7 +387,6 @@ public:
     }
     Mutated();
   }
-
   /**
    * CONSTRUCTION PHASE ONLY
    * Set a clip rect which will be applied to this layer as it is

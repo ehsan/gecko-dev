@@ -644,23 +644,7 @@ XPC_COW_Enumerate(JSContext *cx, JSObject *obj)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  jsval exposedProps;
-  if (!JS_GetReservedSlot(cx, obj, sExposedPropsSlot, &exposedProps)) {
-    return JS_FALSE;
-  }
-
-  JSObject *propertyContainer;
-  if (JSVAL_IS_VOID(exposedProps)) {
-    // TODO For now, expose whatever properties are on our object.
-    propertyContainer = wrappedObj;
-  } else if (!JSVAL_IS_PRIMITIVE(exposedProps)) {
-    // Just expose whatever the object exposes through __exposedProps__.
-    propertyContainer = JSVAL_TO_OBJECT(exposedProps);
-  } else {
-    return JS_TRUE;
-  }
-
-  return XPCWrapper::Enumerate(cx, obj, propertyContainer);
+  return XPCWrapper::Enumerate(cx, obj, wrappedObj);
 }
 
 static JSBool

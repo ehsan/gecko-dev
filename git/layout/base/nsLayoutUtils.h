@@ -296,9 +296,12 @@ public:
    * such ancestor before we reach aStopAtAncestor in the ancestor chain.
    * We expect frames with the same "active scrolled root" to be
    * scrolled together, so we'll place them in the same ThebesLayer.
+   * @param aOffset the offset from aFrame to the returned frame is stored
+   * here, if non-null
    */
   static nsIFrame* GetActiveScrolledRootFor(nsIFrame* aFrame,
-                                            nsIFrame* aStopAtAncestor);
+                                            nsIFrame* aStopAtAncestor,
+                                            nsPoint* aOffset);
 
   /**
     * GetFrameFor returns the root frame for a view
@@ -354,7 +357,18 @@ public:
   static PRBool HasPseudoStyle(nsIContent* aContent,
                                nsStyleContext* aStyleContext,
                                nsCSSPseudoElements::Type aPseudoElement,
-                               nsPresContext* aPresContext);
+                               nsPresContext* aPresContext)
+  {
+    NS_PRECONDITION(aPresContext, "Must have a prescontext");
+
+    nsRefPtr<nsStyleContext> pseudoContext;
+    if (aContent) {
+      pseudoContext = aPresContext->StyleSet()->
+        ProbePseudoElementStyle(aContent->AsElement(), aPseudoElement,
+                                aStyleContext);
+    }
+    return pseudoContext != nsnull;
+  }
 
   /**
    * If this frame is a placeholder for a float, then return the float,
@@ -1138,16 +1152,6 @@ public:
    */
   static nsIContent*
     GetEditableRootContentByContentEditable(nsIDocument* aDocument);
-
-  /**
-   * Returns true if the passed in prescontext needs the dark grey background
-   * that goes behind the page of a print preview presentation.
-   */
-  static PRBool NeedsPrintPreviewBackground(nsPresContext* aPresContext) {
-    return aPresContext->IsRootPaginatedDocument() &&
-      (aPresContext->Type() == nsPresContext::eContext_PrintPreview ||
-       aPresContext->Type() == nsPresContext::eContext_PageLayout);
-  }
 };
 
 class nsSetAttrRunnable : public nsRunnable

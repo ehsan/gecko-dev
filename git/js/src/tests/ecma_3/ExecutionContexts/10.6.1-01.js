@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '10.6.1-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 290774;
 var summary = 'activation object never delegates to Object.prototype';

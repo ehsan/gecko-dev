@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-39309.js';
 var UBound = 0;
 var BUGNUMBER = 39309;
 var summary = 'Testing concatenation of string + number';

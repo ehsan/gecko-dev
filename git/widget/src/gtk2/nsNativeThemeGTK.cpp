@@ -59,6 +59,7 @@
 #include "nsIMenuFrame.h"
 #include "prlink.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLInputElement.h"
 #include "nsWidgetAtoms.h"
 #include "mozilla/Services.h"
 
@@ -1407,8 +1408,6 @@ nsNativeThemeGTK::GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
   case NS_THEME_MENUPOPUP:
   case NS_THEME_WINDOW:
   case NS_THEME_DIALOG:
-  // Tooltips use gtk_paint_flat_box().
-  case NS_THEME_TOOLTIP:
     return eOpaque;
   }
 

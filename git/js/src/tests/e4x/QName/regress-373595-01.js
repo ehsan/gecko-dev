@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-373595-01.js';
 
 var summary = '13.3 QName Objects - Do not assert: op == JSOP_ADD';
 var BUGNUMBER = 373595;

@@ -58,6 +58,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-223273.js';
 var UBound = 0;
 var BUGNUMBER = 223273;
 var summary = 'Unescaped, unbalanced parens in regexp should be a SyntaxError';

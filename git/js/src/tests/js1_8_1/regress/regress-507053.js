@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-507053.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 507053;
 var summary = 'TM: invalid results with setting a closure variable in a loop'

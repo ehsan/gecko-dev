@@ -412,7 +412,8 @@ nsMediaQuery::AppendToString(nsAString& aString) const
           NS_ASSERTION(expr.mValue.IsLengthUnit(), "bad unit");
           // Use 'width' as a property that takes length values
           // written in the normal way.
-          expr.mValue.AppendToString(eCSSProperty_width, aString);
+          css::Declaration::AppendCSSValueToString(eCSSProperty_width,
+                                                   expr.mValue, aString);
           break;
         case nsMediaFeature::eInteger:
         case nsMediaFeature::eBoolInteger:
@@ -420,7 +421,8 @@ nsMediaQuery::AppendToString(nsAString& aString) const
                        "bad unit");
           // Use 'z-index' as a property that takes integer values
           // written without anything extra.
-          expr.mValue.AppendToString(eCSSProperty_z_index, aString);
+          css::Declaration::AppendCSSValueToString(eCSSProperty_z_index,
+                                                   expr.mValue, aString);
           break;
         case nsMediaFeature::eIntRatio:
           {
@@ -432,9 +434,11 @@ nsMediaQuery::AppendToString(nsAString& aString) const
                          "bad unit");
             NS_ASSERTION(array->Item(1).GetUnit() == eCSSUnit_Integer,
                          "bad unit");
-            array->Item(0).AppendToString(eCSSProperty_z_index, aString);
+            css::Declaration::AppendCSSValueToString(eCSSProperty_z_index,
+                                                     array->Item(0), aString);
             aString.AppendLiteral("/");
-            array->Item(1).AppendToString(eCSSProperty_z_index, aString);
+            css::Declaration::AppendCSSValueToString(eCSSProperty_z_index,
+                                                     array->Item(1), aString);
           }
           break;
         case nsMediaFeature::eResolution:

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-310351.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 310351;
 var summary = 'Convert host "list" objects to arrays';

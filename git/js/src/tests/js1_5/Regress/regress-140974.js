@@ -44,6 +44,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-140974.js';
 var UBound = 0;
 var BUGNUMBER = 140974;
 var TEST_PASSED = 'variable was created';

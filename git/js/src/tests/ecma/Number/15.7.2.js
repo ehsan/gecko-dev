@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = '15.7.2.js';
 
 /**
    File Name:          15.7.2.js
@@ -57,7 +58,7 @@
    15.7.2.2 new Number().  same as in 15.7.2.1, except
    the [[Value]] property is set to +0.
 
-   need to add more test cases.  see the testcases for
+   need to add more test cases.  see the gTestcases for
    TypeConversion ToNumber.
 
    Author:             christine@netscape.com

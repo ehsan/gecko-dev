@@ -80,7 +80,6 @@ XPIDLSRCS =					\
 	nsIDOMPaintRequestList.idl		\
 	nsIDOMSimpleGestureEvent.idl		\
 	nsIDOMNSMouseEvent.idl			\
-	nsIDOMMozTouchEvent.idl			\
 	nsIDOMOrientationEvent.idl              \
 	nsIDOMScrollAreaEvent.idl		\
 	nsIDOMTransitionEvent.idl		\

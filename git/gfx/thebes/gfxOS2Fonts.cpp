@@ -500,10 +500,9 @@ PRBool gfxOS2Font::SetupCairoFont(gfxContext *aContext)
 already_AddRefed<gfxOS2Font> gfxOS2Font::GetOrMakeFont(const nsAString& aName,
                                                        const gfxFontStyle *aStyle)
 {
-    nsRefPtr<gfxOS2FontEntry> fe = new gfxOS2FontEntry(aName);
-    nsRefPtr<gfxFont> font =
-      gfxFontCache::GetCache()->Lookup(static_cast<gfxFontEntry *>(fe), aStyle);
+    nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(aName, aStyle);
     if (!font) {
+        nsRefPtr<gfxOS2FontEntry> fe = new gfxOS2FontEntry(aName);
         font = new gfxOS2Font(fe, aStyle);
         if (!font)
             return nsnull;

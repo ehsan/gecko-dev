@@ -72,7 +72,6 @@ function run_test() {
     'obj': new ServerWBO('obj', {somedata: "that's going", toget: "wiped"})
   });
 
-  do_test_pending();
   let server = httpd_setup({
     // Need these to make Weave.Service.wipeRemote() etc. happy
     "/1.0/foo/storage/meta/global": new ServerWBO('global', {}).handler(),
@@ -143,8 +142,7 @@ function run_test() {
     do_check_false(Weave.Service._needUpdatedKeys);
 
   } finally {
-    if (server)
-      server.stop(do_test_finished);
+    server.stop(function() {});
     Weave.Svc.Prefs.resetBranch("");
   }
 }

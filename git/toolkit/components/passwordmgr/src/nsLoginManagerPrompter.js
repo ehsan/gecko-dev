@@ -52,8 +52,6 @@ Components.utils.import("resource://gre/modules/Services.jsm");
  */
 function LoginManagerPromptFactory() {
     Services.obs.addObserver(this, "quit-application-granted", true);
-    Services.obs.addObserver(this, "passwordmgr-crypto-login", true);
-    Services.obs.addObserver(this, "passwordmgr-crypto-loginCanceled", true);
 }
 
 LoginManagerPromptFactory.prototype = {
@@ -66,16 +64,19 @@ LoginManagerPromptFactory.prototype = {
     _asyncPromptInProgress : false,
 
     observe : function (subject, topic, data) {
-        this.log("Observed: " + topic);
         if (topic == "quit-application-granted") {
-            this._cancelPendingPrompts();
-        } else if (topic == "passwordmgr-crypto-login") {
-            // Start processing the deferred prompters.
-            this._doAsyncPrompt();
-        } else if (topic == "passwordmgr-crypto-loginCanceled") {
-            // User canceled a Master Password prompt, so go ahead and cancel
-            // all pending auth prompts to avoid nagging over and over.
-            this._cancelPendingPrompts();
+            var asyncPrompts = this._asyncPrompts;
+            this.__proto__._asyncPrompts = {};
+            for each (var asyncPrompt in asyncPrompts) {
+                for each (var consumer in asyncPrompt.consumers) {
+                    if (consumer.callback) {
+                        this.log("Canceling async auth prompt callback " + consumer.callback);
+                        try {
+                          consumer.callback.onAuthCancelled(consumer.context, true);
+                        } catch (e) { /* Just ignore exceptions from the callback */ }
+                    }
+                }
+            }
         }
     },
 
@@ -104,37 +105,24 @@ LoginManagerPromptFactory.prototype = {
             return;
         }
 
-        // If login manger has logins for this host, defer prompting if we're
-        // already waiting on a master password entry.
-        var prompt = this._asyncPrompts[hashKey];
-        var prompter = prompt.prompter;
-        var [hostname, httpRealm] = prompter._getAuthTarget(prompt.channel, prompt.authInfo);
-        var hasLogins = (prompter._pwmgr.countLogins(hostname, null, httpRealm) > 0);
-        if (hasLogins && prompter._pwmgr.uiBusy) {
-            this.log("_doAsyncPrompt:run bypassed, master password UI busy");
-            return;
-        }
-
         this._asyncPromptInProgress = true;
-        prompt.inProgress = true;
-
         var self = this;
 
         var runnable = {
             run : function() {
                 var ok = false;
+                var prompt = self._asyncPrompts[hashKey];
                 try {
                     self.log("_doAsyncPrompt:run - performing the prompt for '" + hashKey + "'");
-                    ok = prompter.promptAuth(prompt.channel,
-                                             prompt.level,
-                                             prompt.authInfo);
+                    ok = prompt.prompter.promptAuth(prompt.channel,
+                                                    prompt.level,
+                                                    prompt.authInfo);
                 } catch (e) {
                     Components.utils.reportError("LoginManagerPrompter: " +
                         "_doAsyncPrompt:run: " + e + "\n");
                 }
 
                 delete self._asyncPrompts[hashKey];
-                prompt.inProgress = false;
                 self._asyncPromptInProgress = false;
 
                 for each (var consumer in prompt.consumers) {
@@ -158,34 +146,6 @@ LoginManagerPromptFactory.prototype = {
         Services.tm.mainThread.dispatch(runnable, Ci.nsIThread.DISPATCH_NORMAL);
         this.log("_doAsyncPrompt:run dispatched");
     },
-
-
-    _cancelPendingPrompts : function() {
-        this.log("Canceling all pending prompts...");
-        var asyncPrompts = this._asyncPrompts;
-        this.__proto__._asyncPrompts = {};
-
-        for each (var prompt in asyncPrompts) {
-            // Watch out! If this prompt is currently prompting, let it handle
-            // notifying the callbacks of success/failure, since it's already
-            // asking the user for input. Reusing a callback can be crashy.
-            if (prompt.inProgress) {
-                this.log("skipping a prompt in progress");
-                continue;
-            }
-
-            for each (var consumer in prompt.consumers) {
-                if (!consumer.callback)
-                    continue;
-
-                this.log("Canceling async auth prompt callback " + consumer.callback);
-                try {
-                    consumer.callback.onAuthCancelled(consumer.context, true);
-                } catch (e) { /* Just ignore exceptions from the callback */ }
-            }
-        }
-    },
-
 
     log : function (message) {
         if (!this._debug)
@@ -712,7 +672,6 @@ LoginManagerPrompter.prototype = {
                 channel: aChannel,
                 authInfo: aAuthInfo,
                 level: aLevel,
-                inProgress : false,
                 prompter: this
             }
 

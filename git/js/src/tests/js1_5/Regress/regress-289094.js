@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-289094.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 289094;
 var summary = 'argument shadowing function property special case for lambdas';

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-350529.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 350529;
 var summary = "Do not assert: x--'";

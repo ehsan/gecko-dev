@@ -38,6 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'catchguard-001-n.js';
 
 DESCRIPTION = " the non-guarded catch should HAVE to appear last";
 EXPECTED = "error";

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-416737-02.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 416737;
 var summary = 'Do not assert: *pc == JSOP_GETARG';

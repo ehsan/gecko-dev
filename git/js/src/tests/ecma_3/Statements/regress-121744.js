@@ -67,6 +67,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'regress-121744.js';
 var UBound = 0;
 var BUGNUMBER = 121744;
 var summary = 'JS should error on |for(i in undefined)|, |for(i in null)|';

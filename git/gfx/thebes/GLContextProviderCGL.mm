@@ -520,8 +520,6 @@ GLContextProviderCGL::GetGlobalContext()
             gGlobalContext = nsnull;
             return nsnull; 
         }
-
-        gGlobalContext->SetIsGlobalSharedContext(PR_TRUE);
     }
 
     return gGlobalContext;

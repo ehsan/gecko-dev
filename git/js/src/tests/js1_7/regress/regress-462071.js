@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-462071.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 462071;
 var summary = 'Do not assert: !ti->stackTypeMap.matches(ti_other->stackTypeMap)';

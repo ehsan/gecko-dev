@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-155081-2.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 155081;
 var summary = 'Limit of 64k literals';

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-280769-4.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 280769;
 var summary = 'Do not overflow 64K length of char sequence in RegExp []';

@@ -56,7 +56,6 @@ CPP_UNIT_TESTS = \
   test_true_async.cpp \
   test_unlock_notify.cpp \
   test_service_init_background_thread.cpp \
-  test_AsXXX_helpers.cpp \
   $(NULL)
 
 ifdef MOZ_DEBUG
@@ -76,7 +75,6 @@ LOCAL_INCLUDES = \
 
 LIBS = \
 	$(LIBS_DIR) \
-	$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
 	$(MOZ_COMPONENT_LIBS) \
 	$(SQLITE_LIBS) \
 	$(NULL)

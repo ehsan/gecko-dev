@@ -1,8 +1,12 @@
-Cu.import("resource://services-sync/base_records/keys.js");
-Cu.import("resource://services-sync/auth.js");
-Cu.import("resource://services-sync/log4moz.js");
-Cu.import("resource://services-sync/identity.js");
-Cu.import("resource://services-sync/util.js");
+try {
+  Cu.import("resource://services-sync/base_records/keys.js");
+  Cu.import("resource://services-sync/auth.js");
+  Cu.import("resource://services-sync/log4moz.js");
+  Cu.import("resource://services-sync/identity.js");
+  Cu.import("resource://services-sync/util.js");
+} catch (e) {
+  do_throw(e);
+}
 
 function pubkey_handler(metadata, response) {
   let obj = {id: "asdf-1234-asdf-1234",
@@ -23,27 +27,36 @@ function privkey_handler(metadata, response) {
 }
 
 function test_get() {
-  let log = Log4Moz.repository.getLogger("Test");
-  Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
+  let server;
 
-  log.info("Setting up authenticator");
+  try {
+    let log = Log4Moz.repository.getLogger();
+    Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
 
-  let auth = new BasicAuthenticator(new Identity("secret", "guest", "guest"));
-  Auth.defaultAuthenticator = auth;
+    log.info("Setting up server and authenticator");
 
-  log.info("Getting a public key");
+    server = httpd_setup({"/pubkey": pubkey_handler,
+                          "/privkey": privkey_handler});
 
-  let pubkey = PubKeys.get("http://localhost:8080/pubkey");
-  do_check_eq(pubkey.data.payload.type, "pubkey");
-  do_check_eq(PubKeys.response.status, 200);
+    let auth = new BasicAuthenticator(new Identity("secret", "guest", "guest"));
+    Auth.defaultAuthenticator = auth;
 
-  log.info("Getting matching private key");
+    log.info("Getting a public key");
 
-  let privkey = PrivKeys.get(pubkey.privateKeyUri);
-  do_check_eq(privkey.data.payload.type, "privkey");
-  do_check_eq(PrivKeys.response.status, 200);
+    let pubkey = PubKeys.get("http://localhost:8080/pubkey");
+    do_check_eq(pubkey.data.payload.type, "pubkey");
+    do_check_eq(PubKeys.response.status, 200);
 
-  log.info("Done!");
+    log.info("Getting matching private key");
+
+    let privkey = PrivKeys.get(pubkey.privateKeyUri);
+    do_check_eq(privkey.data.payload.type, "privkey");
+    do_check_eq(PrivKeys.response.status, 200);
+
+    log.info("Done!");
+  }
+  catch (e) { do_throw(e); }
+  finally { server.stop(function() {}); }
 }
 
 
@@ -74,15 +87,6 @@ function test_createKeypair() {
 }
 
 function run_test() {
-  do_test_pending();
-  let server;
-  try {
-    server = httpd_setup({"/pubkey": pubkey_handler,
-                          "/privkey": privkey_handler});
-
-    test_get();
-    test_createKeypair();
-  } finally {
-    server.stop(do_test_finished);
-  }
+  test_get();
+  test_createKeypair();
 }

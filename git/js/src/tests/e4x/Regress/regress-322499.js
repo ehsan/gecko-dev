@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-322499.js';
 
 var summary = "Do not define AnyName";
 var BUGNUMBER = 322499;

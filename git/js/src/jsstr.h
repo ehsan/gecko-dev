@@ -73,9 +73,6 @@ js_GetDependentStringChars(JSString *str);
 extern JSString * JS_FASTCALL
 js_ConcatStrings(JSContext *cx, JSString *left, JSString *right);
 
-extern JSString * JS_FASTCALL
-js_ConcatStringsZ(JSContext *cx, const char *left, JSString *right);
-
 JS_STATIC_ASSERT(JS_BITS_PER_WORD >= 32);
 
 struct JSRopeBufferInfo {
@@ -1014,8 +1011,22 @@ js_short_strncpy(jschar *dest, const jschar *src, size_t num)
      * is currently only called on buffers for short strings.
      */
     JS_ASSERT(JSShortString::fitsIntoShortString(num));
-    for (size_t i = 0; i < num; i++)
-        dest[i] = src[i];
+    switch (num) {
+      case 1:
+        *dest = *src;
+        break;
+      case 2:
+        JS_ASSERT(sizeof(uint32) == 2 * sizeof(jschar));
+        *(uint32 *)dest = *(uint32 *)src;
+        break;
+      case 4:
+        JS_ASSERT(sizeof(uint64) == 4 * sizeof(jschar));
+        *(uint64 *)dest = *(uint64 *)src;
+        break;
+      default:
+        for (size_t i = 0; i < num; i++)
+            dest[i] = src[i];
+    }
 }
 
 /*
@@ -1114,12 +1125,6 @@ str_replace(JSContext *cx, uintN argc, js::Value *vp);
 extern JSBool
 js_str_toString(JSContext *cx, uintN argc, js::Value *vp);
 
-extern JSBool
-js_str_charAt(JSContext *cx, uintN argc, js::Value *vp);
-
-extern JSBool
-js_str_charCodeAt(JSContext *cx, uintN argc, js::Value *vp);
-
 /*
  * Convert one UCS-4 char and write it into a UTF-8 buffer, which must be at
  * least 6 bytes long.  Return the number of UTF-8 bytes of data written.
@@ -1154,7 +1159,7 @@ js_PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp,
                         JSString *str, uint32 quote);
 
 extern JSBool
-js_String(JSContext *cx, uintN argc, js::Value *vp);
+js_String(JSContext *cx, JSObject *obj, uintN argc, js::Value *argv, js::Value *rval);
 
 namespace js {
 

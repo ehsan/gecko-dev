@@ -59,6 +59,7 @@
  *
  */
 //-----------------------------------------------------------------------------
+var gTestfile = 'perlstress-002.js';
 var i = 0;
 var BUGNUMBER = 85721;
 var summary = 'Testing regular expression edge cases';

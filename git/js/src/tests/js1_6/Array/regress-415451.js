@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-415451.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 415451;
 var summary = 'indexOf/lastIndexOf behavior';

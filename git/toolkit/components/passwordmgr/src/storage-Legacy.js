@@ -498,10 +498,6 @@ LoginManagerStorage_legacy.prototype = {
         return count;
     },
 
-    get uiBusy() {
-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-    },
-
 
 
 

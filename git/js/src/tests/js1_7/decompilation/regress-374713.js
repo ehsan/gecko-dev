@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-374713.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 374713;
 var summary = 'Do not assert decompiling function() { try { } catch([]) { } }';

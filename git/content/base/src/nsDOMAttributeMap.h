@@ -56,12 +56,6 @@ class nsDOMAttribute;
 class nsINodeInfo;
 class nsIDocument;
 
-namespace mozilla {
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
 /**
  * Structure used as a key for caching nsDOMAttributes in nsDOMAttributeMap's mAttributeCache.
  */
@@ -125,9 +119,7 @@ private:
 class nsDOMAttributeMap : public nsIDOMNamedNodeMap
 {
 public:
-  typedef mozilla::dom::Element Element;
-
-  nsDOMAttributeMap(Element *aContent);
+  nsDOMAttributeMap(nsIContent* aContent);
   virtual ~nsDOMAttributeMap();
 
   /**
@@ -142,7 +134,7 @@ public:
 
   void DropReference();
 
-  Element* GetContent()
+  nsIContent* GetContent()
   {
     return mContent;
   }
@@ -201,7 +193,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMAttributeMap)
 
 private:
-  Element *mContent; // Weak reference
+  nsIContent* mContent; // Weak reference
 
   /**
    * Cache of nsDOMAttributes.

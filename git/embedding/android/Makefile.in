@@ -102,7 +102,6 @@ DIST_LINK_FILES = \
   greprefs.js \
   browserconfig.properties \
   blocklist.xml \
-  chrome.manifest \
   $(NULL)
 
 ifdef MOZ_IPC

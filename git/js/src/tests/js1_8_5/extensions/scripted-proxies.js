@@ -4,6 +4,7 @@
  * Contributor: Andreas Gal
  */
 
+var gTestfile = 'proxies.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 546590;
 var summary = 'basic scripted proxies tests';

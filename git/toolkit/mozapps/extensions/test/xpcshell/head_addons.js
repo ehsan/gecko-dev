@@ -795,20 +795,4 @@ Services.prefs.setBoolPref("extensions.logging.enabled", true);
 // By default only load extensions from the profile install location
 Services.prefs.setIntPref("extensions.enabledScopes", AddonManager.SCOPE_PROFILE);
 
-// Register a temporary directory for the tests.
-const gTmpD = gProfD.clone();
-gTmpD.append("temp");
-gTmpD.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
-registerDirectory("TmpD", gTmpD);
-
-do_register_cleanup(function() {
-  // Check that the temporary directory is empty
-  var dirEntries = gTmpD.directoryEntries
-                        .QueryInterface(AM_Ci.nsIDirectoryEnumerator);
-  var entry;
-  while (entry = dirEntries.nextFile) {
-    do_throw("Found unexpected file in temporary directory: " + entry.leafName);
-  }
-
-  shutdownManager();
-});
+do_register_cleanup(shutdownManager);

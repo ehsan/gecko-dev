@@ -41,13 +41,10 @@ if (typeof registerManifests === "undefined") {
   load("../unit/head_crtestutils.js");
 }
 
-let manifestFile = do_get_file("../unit/data/test_resolve_uris.manifest");
-
-let manifests = [ manifestFile ];
+let manifests = [
+    do_get_file("../unit/data/test_resolve_uris.manifest"),
+];
 registerManifests(manifests);
-
-let ios = Cc["@mozilla.org/network/io-service;1"].
-          getService(Ci.nsIIOService);
 
 function do_run_test()
 {
@@ -92,11 +89,12 @@ function do_run_test()
         expectedURI += "override-me.xul";
         break;
       case "resource":
-        expectedURI = ios.newFileURI(manifestFile.parent).spec;
         sourceURI = "resource://foo/";
         break;
     };
     try {
+      let ios = Cc["@mozilla.org/network/io-service;1"].
+                getService(Ci.nsIIOService);
       sourceURI = ios.newURI(sourceURI, null, null);
       let uri;
       if (type == "resource") {

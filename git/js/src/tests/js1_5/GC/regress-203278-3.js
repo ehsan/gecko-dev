@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-203278-3.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 203278;
 var summary = 'Don\'t crash in recursive js_MarkGCThing';

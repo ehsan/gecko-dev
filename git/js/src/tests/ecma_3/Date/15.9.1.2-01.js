@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = '15.9.1.2-01.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 264727;
 var summary = '15.9.1.2 - TimeWithinDay(TIME_1900) == 0';

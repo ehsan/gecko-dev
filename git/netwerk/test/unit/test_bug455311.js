@@ -40,7 +40,7 @@ NotificationCallbacks.prototype = {
   {
     return this.QueryInterface(iid);
   },
-  asyncOnChannelRedirect: function(oldChan, newChan, flags, callback)
+  onChannelRedirect: function(oldChan, newChan, flags)
   {
     do_check_eq(oldChan.URI.spec, this._origURI.spec);
     do_check_eq(oldChan.URI, this._origURI);

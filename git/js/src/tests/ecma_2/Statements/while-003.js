@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'while-003.js';
 
 /**
  *  File Name:          while-003

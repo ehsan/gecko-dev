@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestfile = 'regress-309897.js';
 
 var summary = "Regression - appending elements crashes mozilla";
 var BUGNUMBER = 309897;

@@ -36,6 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+gTestsubsuite = 'Date';
 
 /*
  * Date functions used by tests in Date suite
@@ -83,7 +84,7 @@ function adjustResultArray(ResultArray, msMode)
   // If the tester's system clock is in PST, no need to continue -
   if (!PST_DIFF) {return;}
 
-  /* The date testcases instantiate Date objects in two different ways:
+  /* The date gTestcases instantiate Date objects in two different ways:
    *
    *        millisecond mode: e.g.   dt = new Date(10000000);
    *        year-month-day mode:  dt = new Date(2000, 5, 1, ...);

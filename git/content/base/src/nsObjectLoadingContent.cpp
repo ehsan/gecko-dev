@@ -69,7 +69,6 @@
 #include "nsIWebNavigationInfo.h"
 #include "nsIScriptChannel.h"
 #include "nsIBlocklistService.h"
-#include "nsIAsyncVerifyRedirectCallback.h"
 
 #include "nsPluginError.h"
 
@@ -1026,10 +1025,9 @@ nsObjectLoadingContent::GetInterface(const nsIID & aIID, void **aResult)
 
 // nsIChannelEventSink
 NS_IMETHODIMP
-nsObjectLoadingContent::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
-                                               nsIChannel *aNewChannel,
-                                               PRUint32 aFlags,
-                                               nsIAsyncVerifyRedirectCallback *cb)
+nsObjectLoadingContent::OnChannelRedirect(nsIChannel *aOldChannel,
+                                          nsIChannel *aNewChannel,
+                                          PRUint32    aFlags)
 {
   // If we're already busy with a new load, cancel the redirect
   if (aOldChannel != mChannel) {
@@ -1037,7 +1035,6 @@ nsObjectLoadingContent::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
   }
 
   mChannel = aNewChannel;
-  cb->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;
 }
 

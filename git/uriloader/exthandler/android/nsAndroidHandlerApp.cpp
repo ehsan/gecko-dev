@@ -36,19 +36,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAndroidHandlerApp.h"
-#include "AndroidBridge.h"
-
 
 NS_IMPL_ISUPPORTS1(nsAndroidHandlerApp, nsIHandlerApp)
 
 
-nsAndroidHandlerApp::nsAndroidHandlerApp(const nsAString& aName,
-                                         const nsAString& aDescription,
-                                         const nsAString& aPackageName,
-                                         const nsAString& aClassName,
-                                         const nsACString& aMimeType) :
-mName(aName), mDescription(aDescription), mPackageName(aPackageName),
-  mClassName(aClassName), mMimeType(aMimeType)
+nsAndroidHandlerApp::nsAndroidHandlerApp(nsAString& aName,
+                                         nsAString& aDescription) :
+mName(aName), mDescription(aDescription)
 {
 }
 
@@ -91,10 +85,6 @@ nsresult nsAndroidHandlerApp::Equals(nsIHandlerApp *aHandlerApp, PRBool *aRetval
 
 nsresult nsAndroidHandlerApp::LaunchWithURI(nsIURI *aURI, nsIInterfaceRequestor *aWindowContext)
 {
-  nsCString uriSpec;
-  aURI->GetSpec(uriSpec);
-  return mozilla::AndroidBridge::Bridge()->
-    OpenUriExternal(uriSpec, mMimeType, mPackageName, mClassName) ? 
-    NS_OK : NS_ERROR_FAILURE;
-
+  // XXX: need implementation 
+  return NS_ERROR_NOT_IMPLEMENTED;
 }

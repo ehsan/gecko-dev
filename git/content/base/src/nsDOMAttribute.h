@@ -127,7 +127,7 @@ public:
 protected:
   virtual mozilla::dom::Element* GetNameSpaceElement()
   {
-    return GetContentInternal();
+    return GetContentInternal()->AsElement();
   }
 
   static PRBool sInitialized;
@@ -143,7 +143,7 @@ private:
   // pointer so we can implement GetChildArray().
   nsIContent* mChild;
 
-  mozilla::dom::Element *GetContentInternal() const
+  nsIContent *GetContentInternal() const
   {
     return mAttrMap ? mAttrMap->GetContent() : nsnull;
   }

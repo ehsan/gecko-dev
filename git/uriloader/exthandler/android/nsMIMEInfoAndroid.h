@@ -46,9 +46,6 @@ class nsMIMEInfoAndroid : public nsIMIMEInfo
 public:
   static already_AddRefed<nsIMIMEInfo> GetMimeInfoForMimeType(const nsACString& aMimeType);
   static already_AddRefed<nsIMIMEInfo> GetMimeInfoForFileExt(const nsACString& aFileExt);
-  static nsresult GetMimeInfoForProtocol(const nsACString &aScheme,
-                                         PRBool *found,
-                                         nsIHandlerInfo **info);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMIMEINFO

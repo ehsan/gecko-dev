@@ -614,7 +614,17 @@ nsSVGPatternFrame::GetTargetGeometry(gfxMatrix *aCTM,
                                      nsIFrame *aTarget,
                                      const gfxRect *aOverrideBounds)
 {
-  *aBBox = aOverrideBounds ? *aOverrideBounds : nsSVGUtils::GetBBox(aTarget);
+  // If we are attempting to paint a pattern for text, then the content will be
+  // the #text, so we actually want the parent, which should be the <svg:text>
+  // or <svg:tspan> element.
+  if (aTarget->GetContent()->IsNodeOfType(nsINode::eTEXT)) {
+    *aBBox = nsSVGUtils::GetBBox(aTarget->GetParent());
+  } else {
+    *aBBox = nsSVGUtils::GetBBox(aTarget);
+  }
+  if (aOverrideBounds) {
+    *aBBox = *aOverrideBounds;
+  }
 
   // Sanity check
   PRUint16 type = GetPatternUnits();

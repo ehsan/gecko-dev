@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-379523.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 379523;
 var summary = 'Decompilation of sharp declaration';

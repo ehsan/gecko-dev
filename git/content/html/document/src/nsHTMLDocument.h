@@ -105,6 +105,10 @@ public:
 
   virtual void EndLoad();
 
+  virtual nsresult AddImageMap(nsIDOMHTMLMapElement* aMap);
+
+  virtual void RemoveImageMap(nsIDOMHTMLMapElement* aMap);
+
   virtual nsIDOMHTMLMapElement *GetImageMap(const nsAString& aMapName);
 
   virtual void SetCompatibilityMode(nsCompatibility aMode);
@@ -285,6 +289,8 @@ protected:
     return kNameSpaceID_XHTML;
   }
 
+  nsCOMArray<nsIDOMHTMLMapElement> mImageMaps;
+
   nsCOMPtr<nsIDOMHTMLCollection> mImages;
   nsCOMPtr<nsIDOMHTMLCollection> mApplets;
   nsCOMPtr<nsIDOMHTMLCollection> mEmbeds;
@@ -292,7 +298,6 @@ protected:
   nsCOMPtr<nsIDOMHTMLCollection> mAnchors;
   nsRefPtr<nsContentList> mForms;
   nsRefPtr<nsContentList> mFormControls;
-  nsRefPtr<nsContentList> mImageMaps;
 
   /** # of forms in the document, synchronously set */
   PRInt32 mNumForms;

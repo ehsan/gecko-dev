@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+var gTestfile = 'regress-407501.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 407501;
 var summary = 'JSOP_NEWINIT lacks SAVE_SP_AND_PC ';
