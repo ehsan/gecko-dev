@@ -210,7 +210,7 @@ struct ParamTraits<nsACString>
     aMsg->WriteBool(isVoid);
 
     if (isVoid)
-      // represents a nullptr pointer
+      // represents a NULL pointer
       return;
 
     uint32_t length = aParam.Length();
@@ -260,7 +260,7 @@ struct ParamTraits<nsAString>
     aMsg->WriteBool(isVoid);
 
     if (isVoid)
-      // represents a nullptr pointer
+      // represents a NULL pointer
       return;
 
     uint32_t length = aParam.Length();
@@ -581,7 +581,7 @@ struct ParamTraits<mozilla::SerializedStructuredCloneBuffer>
         return false;
       }
     } else {
-      aResult->data = nullptr;
+      aResult->data = NULL;
     }
 
     return true;

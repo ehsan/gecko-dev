@@ -395,7 +395,7 @@ JavaScriptParent::call(JSContext *cx, HandleObject proxy, const CallArgs &args)
     for (size_t i = 0; i < args.length() + 2; i++) {
         v = args.base()[i];
         if (v.isObject()) {
-            RootedObject obj(cx, &v.toObject());
+            JSObject *obj = &v.toObject();
             if (xpc::IsOutObject(cx, obj)) {
                 // Make sure it is not an in-out object.
                 bool found;
@@ -554,9 +554,8 @@ JavaScriptParent::getPropertyNames(JSContext *cx, HandleObject proxy, uint32_t f
 JSObject *
 JavaScriptParent::unwrap(JSContext *cx, ObjectId objId)
 {
-    RootedObject obj(cx, findObject(objId));
-    if (obj) {
-        if (!JS_WrapObject(cx, obj.address()))
+    if (JSObject *obj = findObject(objId)) {
+        if (!JS_WrapObject(cx, &obj))
             return NULL;
         return obj;
     }
@@ -571,12 +570,12 @@ JavaScriptParent::unwrap(JSContext *cx, ObjectId objId)
     RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
 
     RootedValue v(cx, UndefinedValue());
-    obj = NewProxyObject(cx,
-                         &CPOWProxyHandler::singleton,
-                         v,
-                         NULL,
-                         global,
-                         callable ? ProxyIsCallable : ProxyNotCallable);
+    JSObject *obj = NewProxyObject(cx,
+                                   &CPOWProxyHandler::singleton,
+                                   v,
+                                   NULL,
+                                   global,
+                                   callable ? ProxyIsCallable : ProxyNotCallable);
     if (!obj)
         return NULL;
 

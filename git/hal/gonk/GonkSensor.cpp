@@ -229,7 +229,7 @@ static void
 SetSensorState(SensorType aSensor, bool activate)
 {
   int type = HalSensorToHardwareSensor(aSensor);
-  const sensor_t* sensors = nullptr;
+  const sensor_t* sensors = NULL;
 
   int size = sSensorModule->get_sensors_list(sSensorModule, &sensors);
   for (ssize_t i = 0; i < size; i++) {
@@ -253,7 +253,7 @@ EnableSensorNotifications(SensorType aSensor)
 
     sensors_open(&sSensorModule->common, &sSensorDevice);
     if (!sSensorDevice) {
-      sSensorModule = nullptr;
+      sSensorModule = NULL;
       LOGE("Can't get sensor poll device from module \n");
       return;
     }

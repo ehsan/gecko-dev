@@ -9,7 +9,7 @@
  */
 
 #include "nsNthIndexCache.h"
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 
 nsNthIndexCache::nsNthIndexCache()
 {

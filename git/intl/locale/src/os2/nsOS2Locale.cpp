@@ -52,7 +52,7 @@ nsOS2Locale::~nsOS2Locale(void)
 NS_IMETHODIMP 
 nsOS2Locale::GetPlatformLocale(const nsAString& locale, PULONG os2Codepage)
 {
-  LocaleObject locObj = nullptr;
+  LocaleObject locObj = NULL;
   int codePage;
   nsAutoString tempLocale(locale);
   tempLocale.ReplaceChar('-', '_');

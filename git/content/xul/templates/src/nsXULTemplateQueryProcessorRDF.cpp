@@ -19,7 +19,6 @@
 #include "nsAttrName.h"
 #include "rdf.h"
 #include "nsArrayUtils.h"
-#include "nsIURI.h"
 
 #include "nsContentTestNode.h"
 #include "nsRDFConInstanceTestNode.h"

@@ -671,11 +671,11 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
     if (val.isObject()) {
         RootedObject obj(cx, &val.toObject());
 
-        if (ObjectClassIs(obj, ESClass_Array, cx)) {
+        /* 'val' must have been produced by the JSON parser, so not a proxy. */
+        JS_ASSERT(!obj->is<ProxyObject>());
+        if (obj->is<ArrayObject>()) {
             /* Step 2a(ii). */
-            uint32_t length;
-            if (!GetLengthProperty(cx, obj, &length))
-                return false;
+            uint32_t length = obj->as<ArrayObject>().length();
 
             /* Step 2a(i), 2a(iii-iv). */
             RootedId id(cx);
@@ -695,10 +695,11 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
                         return false;
                 } else {
                     /* Step 2a(iii)(3). */
-                    // XXX This definition should ignore success/failure, when
-                    //     our property-definition APIs indicate that.
-                    if (!JSObject::defineGeneric(cx, obj, id, newElement))
+                    if (!DefineNativeProperty(cx, obj, id, newElement, JS_PropertyStub,
+                                              JS_StrictPropertyStub, JSPROP_ENUMERATE, 0, 0))
+                    {
                         return false;
+                    }
                 }
             }
         } else {
@@ -723,10 +724,12 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
                         return false;
                 } else {
                     /* Step 2b(ii)(3). */
-                    // XXX This definition should ignore success/failure, when
-                    //     our property-definition APIs indicate that.
-                    if (!JSObject::defineGeneric(cx, obj, id, newElement))
+                    JS_ASSERT(obj->isNative());
+                    if (!DefineNativeProperty(cx, obj, id, newElement, JS_PropertyStub,
+                                              JS_StrictPropertyStub, JSPROP_ENUMERATE, 0, 0))
+                    {
                         return false;
+                    }
                 }
             }
         }

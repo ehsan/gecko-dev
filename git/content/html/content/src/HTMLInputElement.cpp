@@ -1162,9 +1162,6 @@ HTMLInputElement::TabIndexDefault()
 uint32_t
 HTMLInputElement::Height()
 {
-  if (mType != NS_FORM_INPUT_IMAGE) {
-    return 0;
-  }
   return GetWidthHeightForImage(mCurrentRequest).height;
 }
 
@@ -1216,9 +1213,6 @@ HTMLInputElement::SetIndeterminate(bool aValue)
 uint32_t
 HTMLInputElement::Width()
 {
-  if (mType != NS_FORM_INPUT_IMAGE) {
-    return 0;
-  }
   return GetWidthHeightForImage(mCurrentRequest).width;
 }
 
