@@ -42,6 +42,7 @@ import org.mozilla.gecko.gfx.BufferedCairoImage;
 import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.Layer.RenderContext;
 import org.mozilla.gecko.gfx.LayerController;
+import org.mozilla.gecko.gfx.AbstractLayerView;
 import org.mozilla.gecko.gfx.NinePatchTileLayer;
 import org.mozilla.gecko.gfx.SingleTileLayer;
 import org.mozilla.gecko.gfx.TextureReaper;
@@ -77,7 +78,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
     private static final int FRAME_RATE_METER_WIDTH = 64;
     private static final int FRAME_RATE_METER_HEIGHT = 32;
 
-    private final LayerView mView;
+    private final AbstractLayerView mView;
     private final SingleTileLayer mBackgroundLayer;
     private final CheckerboardImage mCheckerboardImage;
     private final SingleTileLayer mCheckerboardLayer;
@@ -97,7 +98,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
     /* Used by robocop for testing purposes */
     private IntBuffer mPixelBuffer;
 
-    public LayerRenderer(LayerView view) {
+    public LayerRenderer(AbstractLayerView view) {
         mView = view;
 
         LayerController controller = view.getController();
@@ -262,7 +263,7 @@ public class LayerRenderer implements GLSurfaceView.Renderer {
 
     /** Used by robocop for testing purposes. Not for production use! */
     IntBuffer getPixels() {
-        IntBuffer pixelBuffer = IntBuffer.allocate(mView.getWidth() * mView.getHeight());
+        IntBuffer pixelBuffer = IntBuffer.allocate(mView.getAndroidView().getWidth() * mView.getAndroidView().getHeight());
         synchronized (pixelBuffer) {
             mPixelBuffer = pixelBuffer;
             mView.requestRender();
