@@ -150,7 +150,7 @@ GetArrayIndexFromId(JSContext* cx, JS::Handle<jsid> id)
   }
   if (MOZ_LIKELY(JSID_IS_ATOM(id))) {
     JSAtom* atom = JSID_TO_ATOM(id);
-    char16_t s;
+    jschar s;
     {
       JS::AutoCheckCannotGC nogc;
       if (js::AtomHasLatin1Chars(atom)) {

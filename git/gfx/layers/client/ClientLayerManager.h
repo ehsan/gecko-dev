@@ -252,7 +252,7 @@ private:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 
-    explicit MemoryPressureObserver(ClientLayerManager* aClientLayerManager)
+    MemoryPressureObserver(ClientLayerManager* aClientLayerManager)
       : mClientLayerManager(aClientLayerManager)
     {
       RegisterMemoryPressureEvent();

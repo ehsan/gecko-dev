@@ -25,15 +25,8 @@ runWithMSE(function () {
 
     fetchWithXHR("seek.webm", function (arrayBuffer) {
       sb.appendBuffer(new Uint8Array(arrayBuffer, 0, 318));
-      var first = true;
-      sb.addEventListener("updateend", function () {
-        if (first) {
-          sb.appendBuffer(new Uint8Array(arrayBuffer, 318));
-          first = false;
-        } else {
-          ms.endOfStream();
-        }
-      });
+      sb.appendBuffer(new Uint8Array(arrayBuffer, 318));
+      ms.endOfStream();
       v.play();
     });
   });

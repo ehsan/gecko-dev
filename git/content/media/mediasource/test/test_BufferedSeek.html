@@ -25,9 +25,7 @@ runWithMSE(function () {
 
     fetchWithXHR("seek.webm", function (arrayBuffer) {
       sb.appendBuffer(new Uint8Array(arrayBuffer));
-      sb.addEventListener("updateend", function () {
-        ms.endOfStream()
-      });
+      ms.endOfStream();
     });
 
     var target = 2;

@@ -350,7 +350,7 @@ CancelOffThreadParses(JSRuntime *runtime);
  */
 bool
 StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &options,
-                          const char16_t *chars, size_t length,
+                          const jschar *chars, size_t length,
                           JS::OffThreadCompileCallback callback, void *callbackData);
 
 /*
@@ -423,7 +423,7 @@ struct ParseTask
 {
     ExclusiveContext *cx;
     OwningCompileOptions options;
-    const char16_t *chars;
+    const jschar *chars;
     size_t length;
     LifoAlloc alloc;
 
@@ -453,7 +453,7 @@ struct ParseTask
     bool overRecursed;
 
     ParseTask(ExclusiveContext *cx, JSObject *exclusiveContextGlobal,
-              JSContext *initCx, const char16_t *chars, size_t length,
+              JSContext *initCx, const jschar *chars, size_t length,
               JS::OffThreadCompileCallback callback, void *callbackData);
     bool init(JSContext *cx, const ReadOnlyCompileOptions &options);
 

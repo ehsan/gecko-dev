@@ -143,7 +143,6 @@ add_task(function* formHistory() {
   let deferred = Promise.defer();
   Services.obs.addObserver(function onAdd(subj, topic, data) {
     if (data == "formhistory-add") {
-      Services.obs.removeObserver(onAdd, "satchel-storage-changed");
       executeSoon(() => deferred.resolve());
     }
   }, "satchel-storage-changed", false);
@@ -168,9 +167,8 @@ add_task(function* formHistory() {
 
   // Wait for Satchel.
   deferred = Promise.defer();
-  Services.obs.addObserver(function onRemove(subj, topic, data) {
+  Services.obs.addObserver(function onAdd(subj, topic, data) {
     if (data == "formhistory-remove") {
-      Services.obs.removeObserver(onRemove, "satchel-storage-changed");
       executeSoon(() => deferred.resolve());
     }
   }, "satchel-storage-changed", false);

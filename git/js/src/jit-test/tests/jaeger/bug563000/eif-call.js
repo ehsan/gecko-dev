@@ -1,5 +1,5 @@
-var g = newGlobal();
-var dbg = new g.Debugger(this);
+// |jit-test| debug
+setDebug(true);
 
 function callee() {
   evalInFrame(1, "x = 'success'");

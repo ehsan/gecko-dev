@@ -1,3 +1,4 @@
+// |jit-test| debug
 // Debugger.Script instances with live referents stay alive.
 
 var N = 4;

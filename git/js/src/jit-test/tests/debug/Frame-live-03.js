@@ -1,3 +1,4 @@
+// |jit-test| debug
 // frame properties throw if !frame.live
 
 load(libdir + "asserts.js");

@@ -363,12 +363,11 @@ private:
 
     // Transform a pre-allocated app process into a "real" app
     // process, for the specified manifest URL.
-    void TransformPreallocatedIntoApp(ContentParent* aOpener,
-                                      const nsAString& aAppManifestURL);
+    void TransformPreallocatedIntoApp(const nsAString& aAppManifestURL);
 
     // Transform a pre-allocated app process into a browser process. If this
     // returns false, the child process has died.
-    void TransformPreallocatedIntoBrowser(ContentParent* aOpener);
+    void TransformPreallocatedIntoBrowser();
 
     /**
      * Mark this ContentParent as dead for the purposes of Get*().

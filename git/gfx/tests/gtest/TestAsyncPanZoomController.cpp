@@ -1505,8 +1505,7 @@ protected:
   already_AddRefed<AsyncPanZoomController> GetTargetAPZC(const ScreenPoint& aPoint) {
     nsRefPtr<AsyncPanZoomController> hit = manager->GetTargetAPZC(aPoint, nullptr);
     if (hit) {
-      transformToApzc = manager->GetScreenToApzcTransform(hit.get());
-      transformToGecko = manager->GetApzcToGeckoTransform(hit.get());
+      manager->GetInputTransforms(hit.get(), transformToApzc, transformToGecko);
     }
     return hit.forget();
   }

@@ -45,7 +45,7 @@ enum SecurityPropertyState {
 class SiteSecurityState
 {
 public:
-  explicit SiteSecurityState(nsCString& aStateString);
+  SiteSecurityState(nsCString& aStateString);
   SiteSecurityState(PRTime aHSTSExpireTime, SecurityPropertyState aHSTSState,
                     bool aHSTSIncludeSubdomains);
 

@@ -72,7 +72,6 @@ EXPORTS.mozilla = [
     'UniquePtr.h',
     'Vector.h',
     'WeakPtr.h',
-    'unused.h',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
@@ -98,7 +97,6 @@ UNIFIED_SOURCES = [
     'Poison.cpp',
     'SHA1.cpp',
     'TaggedAnonymousMemory.cpp',
-    'unused.cpp',
 ]
 
 DEFINES['IMPL_MFBT'] = True
