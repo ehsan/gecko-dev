@@ -81,6 +81,7 @@ public:
   virtual ~nsPluginHost();
 
   static nsPluginHost* GetInst();
+  static const char *GetPluginName(nsIPluginInstance *aPluginInstance);
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
 
@@ -163,16 +164,6 @@ public:
   void PluginCrashed(nsNPAPIPlugin* plugin);
 #endif
 
-  nsPluginInstanceTag *FindInstanceTag(nsIPluginInstance *instance);
-  nsPluginInstanceTag *FindInstanceTag(const char *mimetype);
-  nsPluginInstanceTag *FindStoppedInstanceTag(const char * url);
-  nsPluginInstanceTag *FindOldestStoppedInstanceTag();
-  PRUint32 StoppedInstanceTagCount();
-
-  void StopRunningInstances(nsISupportsArray* aReloadDocs, nsPluginTag* aPluginTag);
-
-  nsTArray< nsAutoPtr<nsPluginInstanceTag> > *InstanceTagArray();
-
 private:
   nsresult
   TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
@@ -252,9 +243,7 @@ private:
 
   // calls PostPluginUnloadEvent for each library in mUnusedLibraries
   void UnloadUnusedLibraries();
-
-  void OnPluginInstanceDestroyed(nsPluginTag* aPluginTag);
-
+  
   nsRefPtr<nsPluginTag> mPlugins;
   nsRefPtr<nsPluginTag> mCachedPlugins;
   PRPackedBool mPluginsLoaded;
@@ -273,8 +262,7 @@ private:
   // set by pref plugin.disable
   PRPackedBool mPluginsDisabled;
 
-  nsTArray< nsAutoPtr<nsPluginInstanceTag> > mInstanceTags;
-
+  nsPluginInstanceTagList mPluginInstanceTagList;
   nsTArray<PRLibrary*> mUnusedLibraries;
 
   nsCOMPtr<nsIFile> mPluginRegFile;
