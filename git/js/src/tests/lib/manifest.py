@@ -2,9 +2,7 @@
 #
 # This includes classes for representing and parsing JS manifests.
 
-from __future__ import print_function
-
-import os, re, sys
+import os, os.path, re, sys
 from subprocess import Popen, PIPE
 
 from tests import TestCase
@@ -168,7 +166,7 @@ def _parse_one(testcase, xul_tester):
                 testcase.expect = testcase.enable = False
             pos += 1
         else:
-            print('warning: invalid manifest line element "%s"'%parts[pos])
+            print 'warning: invalid manifest line element "%s"'%parts[pos]
             pos += 1
 
 def _build_manifest_script_entry(script_name, test):

@@ -20,8 +20,6 @@ interface nsIDOMElement : nsIDOMNode
 {
   readonly attribute DOMString        tagName;
 
-           attribute DOMString        id;
-           attribute DOMString        className;
   /**
    * Returns a DOMTokenList object reflecting the class attribute.
    */

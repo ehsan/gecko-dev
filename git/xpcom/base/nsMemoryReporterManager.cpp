@@ -18,7 +18,7 @@
 #include "nsIObserverService.h"
 #include "nsIGlobalObject.h"
 #include "nsIXPConnect.h"
-#if defined(XP_UNIX) || defined(MOZ_DMD)
+#if defined(XP_LINUX) || defined(__FreeBSD__) || defined(XP_MACOSX)
 #include "nsMemoryInfoDumper.h"
 #endif
 #include "mozilla/Attributes.h"
@@ -910,7 +910,7 @@ nsMemoryReporterManager::Init()
   RegisterStrongReporter(new mozilla::dmd::DMDReporter());
 #endif
 
-#ifdef XP_UNIX
+#if defined(XP_LINUX) || defined(__FreeBSD__) || defined(XP_MACOSX)
   nsMemoryInfoDumper::Initialize();
 #endif
 
