@@ -79,6 +79,7 @@
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIDOMHTMLHRElement.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDeviceContext.h"
 #include "nsIEditorDocShell.h"
 #include "nsIEventStateManager.h"
 #include "nsISelection.h"

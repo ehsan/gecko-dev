@@ -48,6 +48,7 @@
 #include "nsGkAtoms.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsTransform2D.h"
+#include "nsIDeviceContext.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIScrollableFrame.h"

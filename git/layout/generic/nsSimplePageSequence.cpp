@@ -41,6 +41,7 @@
 #include "gfxContext.h"
 #include "nsRenderingContext.h"
 #include "nsGkAtoms.h"
+#include "nsIDeviceContext.h"
 #include "nsIPresShell.h"
 #include "nsIPrintSettings.h"
 #include "nsPageFrame.h"
@@ -532,7 +533,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
   mPageData->mPrintSettings->GetPrintOptions(nsIPrintSettings::kPrintOddPages, &printOddPages);
 
   // Begin printing of the document
-  nsDeviceContext *dc = PresContext()->DeviceContext();
+  nsIDeviceContext *dc = PresContext()->DeviceContext();
 
   nsresult rv = NS_OK;
 

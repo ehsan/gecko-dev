@@ -51,6 +51,7 @@
 #include "mozilla/css/Loader.h"
 #include "nsIURL.h"
 #include "nsIDocument.h"
+#include "nsIDeviceContext.h"
 #include "nsIAtom.h"
 #include "nsCRT.h"
 #include "nsString.h"

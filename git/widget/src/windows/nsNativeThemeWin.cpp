@@ -42,6 +42,7 @@
 #include <windows.h>
 #include "nsNativeThemeWin.h"
 #include "nsRenderingContext.h"
+#include "nsIDeviceContext.h"
 #include "nsRect.h"
 #include "nsSize.h"
 #include "nsTransform2D.h"
@@ -1584,7 +1585,7 @@ RENDER_AGAIN:
 }
 
 NS_IMETHODIMP
-nsNativeThemeWin::GetWidgetBorder(nsDeviceContext* aContext, 
+nsNativeThemeWin::GetWidgetBorder(nsIDeviceContext* aContext, 
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntMargin* aResult)
@@ -1671,7 +1672,7 @@ nsNativeThemeWin::GetWidgetBorder(nsDeviceContext* aContext,
 }
 
 PRBool
-nsNativeThemeWin::GetWidgetPadding(nsDeviceContext* aContext, 
+nsNativeThemeWin::GetWidgetPadding(nsIDeviceContext* aContext, 
                                    nsIFrame* aFrame,
                                    PRUint8 aWidgetType,
                                    nsIntMargin* aResult)
@@ -1808,7 +1809,7 @@ nsNativeThemeWin::GetWidgetPadding(nsDeviceContext* aContext,
 }
 
 PRBool
-nsNativeThemeWin::GetWidgetOverflow(nsDeviceContext* aContext, 
+nsNativeThemeWin::GetWidgetOverflow(nsIDeviceContext* aContext, 
                                     nsIFrame* aFrame,
                                     PRUint8 aOverflowRect,
                                     nsRect* aResult)
@@ -2346,7 +2347,7 @@ nsNativeThemeWin::ClassicThemeSupportsWidget(nsPresContext* aPresContext,
 }
 
 nsresult
-nsNativeThemeWin::ClassicGetWidgetBorder(nsDeviceContext* aContext, 
+nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext, 
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   nsIntMargin* aResult)

@@ -5559,7 +5559,7 @@ function middleMousePaste(event) {
 
   // Strip embedded newlines and surrounding whitespace, to match the URL
   // bar's behavior (stripsurroundingwhitespace)
-  clipboard = clipboard.replace(/\s*\n\s*/g, "");
+  clipboard.replace(/\s*\n\s*/g, "");
 
   let url = getShortcutOrURI(clipboard);
   try {
@@ -7794,7 +7794,7 @@ var gIdentityHandler = {
     dt.setData("text/uri-list", value);
     dt.setData("text/plain", value);
     dt.setData("text/html", htmlString);
-    dt.setDragImage(gProxyFavIcon, 16, 16);
+    dt.addElement(event.currentTarget);
   }
 };
 

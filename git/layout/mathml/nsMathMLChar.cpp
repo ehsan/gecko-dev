@@ -60,6 +60,7 @@
 #include "nsNetUtil.h"
 
 #include "nsILookAndFeel.h"
+#include "nsIDeviceContext.h"
 #include "nsCSSRendering.h"
 #include "prprf.h"         // For PR_snprintf()
 

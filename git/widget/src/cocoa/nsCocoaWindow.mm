@@ -240,7 +240,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
                                nsNativeWidget aNativeParent,
                                const nsIntRect &aRect,
                                EVENT_CALLBACK aHandleEventFunction,
-                               nsDeviceContext *aContext,
+                               nsIDeviceContext *aContext,
                                nsIAppShell *aAppShell,
                                nsIToolkit *aToolkit,
                                nsWidgetInitData *aInitData)
@@ -448,7 +448,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
 
 NS_IMETHODIMP nsCocoaWindow::CreatePopupContentView(const nsIntRect &aRect,
                              EVENT_CALLBACK aHandleEventFunction,
-                             nsDeviceContext *aContext,
+                             nsIDeviceContext *aContext,
                              nsIAppShell *aAppShell,
                              nsIToolkit *aToolkit)
 {

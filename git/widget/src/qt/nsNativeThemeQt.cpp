@@ -53,6 +53,7 @@
 
 #include "nsCoord.h"
 #include "nsNativeThemeQt.h"
+#include "nsIDeviceContext.h"
 #include "nsPresContext.h"
 
 #include "nsRect.h"
@@ -346,7 +347,7 @@ nsNativeThemeQt::DrawWidgetBackground(QPainter *qPainter,
 }
 
 NS_IMETHODIMP
-nsNativeThemeQt::GetWidgetBorder(nsDeviceContext* ,
+nsNativeThemeQt::GetWidgetBorder(nsIDeviceContext* aContext,
                                  nsIFrame* aFrame,
                                  PRUint8 aWidgetType,
                                  nsIntMargin* aResult)
@@ -369,7 +370,7 @@ nsNativeThemeQt::GetWidgetBorder(nsDeviceContext* ,
 }
 
 PRBool
-nsNativeThemeQt::GetWidgetPadding(nsDeviceContext* ,
+nsNativeThemeQt::GetWidgetPadding(nsIDeviceContext* ,
                                   nsIFrame*, PRUint8 aWidgetType,
                                   nsIntMargin* aResult)
 {

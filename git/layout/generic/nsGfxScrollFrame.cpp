@@ -1966,6 +1966,8 @@ nsGfxScrollFrameInner::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   nsDisplayListCollection set;
 
+  nsPresContext* presContext = mOuter->PresContext();
+
   // Since making new layers is expensive, only use nsDisplayScrollLayer
   // if the area is scrollable.
   //

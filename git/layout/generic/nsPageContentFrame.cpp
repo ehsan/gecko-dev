@@ -44,6 +44,7 @@
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
+#include "nsIDeviceContext.h"
 #include "nsReadableUtils.h"
 #include "nsSimplePageSequence.h"
 #include "nsDisplayList.h"

@@ -42,7 +42,7 @@
 #define _NS_SYSTEMFONTSOS2_H_
 
 #include "gfxFont.h"
-#include "nsDeviceContext.h"
+#include "nsIDeviceContext.h"
 
 class nsSystemFontsOS2
 {

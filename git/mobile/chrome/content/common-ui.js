@@ -1508,7 +1508,6 @@ var CharsetMenu = {
     if (pref == "true") {
       let charset = getBrowser().documentCharsetInfo.forcedCharset;
       if (charset) {
-        charset = charset.toString();
         charset = charset.trim().toLowerCase();
         aNode.setAttribute("description", this.strings.GetStringFromName(charset + ".title"));
       } else if (aNode.hasAttribute("description")) {
@@ -1552,7 +1551,6 @@ var CharsetMenu = {
     let currentCharset = getBrowser().documentCharsetInfo.forcedCharset;
     
     if (currentCharset) {
-      currentCharset = currentCharset.toString();
       currentCharset = currentCharset.trim().toLowerCase();
       if (charsets.indexOf(currentCharset) == -1)
         charsets.splice(0, 0, currentCharset);

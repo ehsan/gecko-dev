@@ -76,6 +76,7 @@
 #include "nsIContent.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsCSSRendering.h"
+#include "nsIDeviceContext.h"
 #include "nsIXULTemplateBuilder.h"
 #include "nsXPIDLString.h"
 #include "nsHTMLContainerFrame.h"
@@ -3751,8 +3752,8 @@ nsTreeBodyFrame::PaintProgressMeter(PRInt32              aRowIndex,
       PRInt32 width, height;
       image->GetWidth(&width);
       image->GetHeight(&height);
-      nsSize size(width*nsDeviceContext::AppUnitsPerCSSPixel(),
-                  height*nsDeviceContext::AppUnitsPerCSSPixel());
+      nsSize size(width*nsIDeviceContext::AppUnitsPerCSSPixel(),
+                  height*nsIDeviceContext::AppUnitsPerCSSPixel());
       nsLayoutUtils::DrawImage(&aRenderingContext, image,
           nsLayoutUtils::GetGraphicsFilterForFrame(this),
           nsRect(meterRect.TopLeft(), size), meterRect, meterRect.TopLeft(),
@@ -3772,8 +3773,8 @@ nsTreeBodyFrame::PaintProgressMeter(PRInt32              aRowIndex,
       PRInt32 width, height;
       image->GetWidth(&width);
       image->GetHeight(&height);
-      nsSize size(width*nsDeviceContext::AppUnitsPerCSSPixel(),
-                  height*nsDeviceContext::AppUnitsPerCSSPixel());
+      nsSize size(width*nsIDeviceContext::AppUnitsPerCSSPixel(),
+                  height*nsIDeviceContext::AppUnitsPerCSSPixel());
       nsLayoutUtils::DrawImage(&aRenderingContext, image,
           nsLayoutUtils::GetGraphicsFilterForFrame(this),
           nsRect(meterRect.TopLeft(), size), meterRect, meterRect.TopLeft(),

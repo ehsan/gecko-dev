@@ -466,7 +466,7 @@ nsFontSizeTextAttr::Format(const nscoord& aValue, nsAString& aFormattedValue)
   //
   // XXX todo: consider sharing this code with layout module? (bug 474621)
   float px =
-    NSAppUnitsToFloatPixels(aValue, nsDeviceContext::AppUnitsPerCSSPixel());
+    NSAppUnitsToFloatPixels(aValue, nsIDeviceContext::AppUnitsPerCSSPixel());
   // Each pt is 4/3 of a CSS pixel.
   int pts = NS_lround(px*3/4);
 

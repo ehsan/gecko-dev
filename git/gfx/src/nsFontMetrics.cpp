@@ -39,7 +39,7 @@
 #include "nsFontMetrics.h"
 #include "nsBoundingMetrics.h"
 #include "nsRenderingContext.h"
-#include "nsDeviceContext.h"
+#include "nsThebesDeviceContext.h"
 #include "gfxTextRunCache.h"
 
 namespace {
@@ -105,14 +105,14 @@ nsFontMetrics::~nsFontMetrics()
 
 nsresult
 nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
-                    nsDeviceContext *aContext,
+                    nsIDeviceContext *aContext,
                     gfxUserFontSet *aUserFontSet)
 {
     NS_ABORT_IF_FALSE(mP2A == -1, "already initialized");
 
     mFont = aFont;
     mLanguage = aLanguage;
-    mDeviceContext = aContext;
+    mDeviceContext = (nsThebesDeviceContext*)aContext;
     mP2A = mDeviceContext->AppUnitsPerDevPixel();
 
     gfxFontStyle style(aFont.style,

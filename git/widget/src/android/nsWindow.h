@@ -86,7 +86,7 @@ public:
                       nsNativeWidget aNativeParent,
                       const nsIntRect &aRect,
                       EVENT_CALLBACK aHandleEventFunction,
-                      nsDeviceContext *aContext,
+                      nsIDeviceContext *aContext,
                       nsIAppShell *aAppShell,
                       nsIToolkit *aToolkit,
                       nsWidgetInitData *aInitData);
