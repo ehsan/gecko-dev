@@ -350,6 +350,10 @@ pref("nglayout.enable_drag_images", true);
 // enable/disable paint flashing --- useful for debugging
 pref("nglayout.debug.paint_flashing", false);
 
+// enable/disable widget update area flashing --- only supported with 
+// BasicLayers (other layer managers always update the entire widget area)
+pref("nglayout.debug.widget_update_flashing", false);
+
 // scrollbar snapping region
 // 0 - off
 // 1 and higher - slider thickness multiple
@@ -918,6 +922,10 @@ pref("network.websocket.max-connections", 200);
 // by default scripts loaded from a https:// origin can only open secure
 // (i.e. wss://) websockets.
 pref("network.websocket.allowInsecureFromHTTPS", false);
+
+// by default we delay websocket reconnects to same host/port if previous
+// connection failed, per RFC 6455 section 7.2.3 
+pref("network.websocket.delay-failed-reconnects", true);
 
 // </ws>
 
@@ -3540,6 +3548,9 @@ pref("full-screen-api.enabled", false);
 pref("full-screen-api.allow-trusted-requests-only", true);
 pref("full-screen-api.exit-on-deactivate", true);
 pref("full-screen-api.pointer-lock.enabled", true);
+
+// DOM idle observers API
+pref("dom.idle-observers-api.enabled", true);
 
 // Time limit, in milliseconds, for nsEventStateManager::IsHandlingUserInput().
 // Used to detect long running handlers of user-generated events.

@@ -23,10 +23,6 @@
 
 using namespace mozilla;
 
-// observer topics used:
-#define OBSERVER_TOPIC_IDLE "idle"
-#define OBSERVER_TOPIC_BACK "back"
-#define OBSERVER_TOPIC_IDLE_DAILY "idle-daily"
 // interval in milliseconds between internal idle time requests.
 #define MIN_IDLE_POLL_INTERVAL_MSEC (5 * PR_MSEC_PER_SEC) /* 5 sec */
 
@@ -73,7 +69,7 @@ nsIdleServiceDaily::Observe(nsISupports *,
     mShutdownInProgress = true;
   }
 
-  if (mShutdownInProgress || strcmp(aTopic, OBSERVER_TOPIC_BACK) == 0) {
+  if (mShutdownInProgress || strcmp(aTopic, OBSERVER_TOPIC_ACTIVE) == 0) {
     return NS_OK;
   }
   MOZ_ASSERT(strcmp(aTopic, OBSERVER_TOPIC_IDLE) == 0);
@@ -178,6 +174,10 @@ nsIdleServiceDaily::~nsIdleServiceDaily()
 void
 nsIdleServiceDaily::DailyCallback(nsITimer* aTimer, void* aClosure)
 {
+#ifdef ANDROID
+  __android_log_print(ANDROID_LOG_INFO, "IdleService", "DailyCallback running, registering Idle observer");
+#endif
+
   nsIdleServiceDaily* me = static_cast<nsIdleServiceDaily*>(aClosure);
 
   // The one thing we do every day is to start waiting for the user to "have
@@ -260,6 +260,17 @@ nsIdleServiceDaily::DailyCallback(nsITimer* aTimer, void* aClosure)
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIdleService
 
+namespace { 
+nsIdleService* gIdleService;
+}
+
+already_AddRefed<nsIdleService>
+nsIdleService::GetInstance()
+{
+  nsRefPtr<nsIdleService> instance(gIdleService);
+  return instance.forget();
+}
+
 nsIdleService::nsIdleService() : mCurrentlySetToTimeoutAtInPR(0),
                                  mAnyObserverIdle(false),
                                  mDeltaToNextIdleSwitchInS(PR_UINT32_MAX),
@@ -269,6 +280,8 @@ nsIdleService::nsIdleService() : mCurrentlySetToTimeoutAtInPR(0),
   if (sLog == NULL)
     sLog = PR_NewLogModule("idleService");
 #endif
+  MOZ_ASSERT(!gIdleService);
+  gIdleService = this;
   mDailyIdle = new nsIdleServiceDaily(this);
   mDailyIdle->Init();
 }
@@ -278,7 +291,13 @@ nsIdleService::~nsIdleService()
   if(mTimer) {
     mTimer->Cancel();
   }
+
+
+  MOZ_ASSERT(gIdleService == this);
+  gIdleService = nsnull;
 }
+
+NS_IMPL_ISUPPORTS2(nsIdleService, nsIIdleService, nsIIdleServiceInternal)
 
 NS_IMETHODIMP
 nsIdleService::AddIdleObserver(nsIObserver* aObserver, PRUint32 aIdleTimeInS)
@@ -369,7 +388,7 @@ nsIdleService::RemoveIdleObserver(nsIObserver* aObserver, PRUint32 aTimeInS)
   return NS_ERROR_FAILURE;
 }
 
-void
+NS_IMETHODIMP
 nsIdleService::ResetIdleTimeOut(PRUint32 idleDeltaInMS)
 {
   PR_LOG(sLog, PR_LOG_DEBUG,
@@ -383,7 +402,7 @@ nsIdleService::ResetIdleTimeOut(PRUint32 idleDeltaInMS)
   if (!mAnyObserverIdle) {
     PR_LOG(sLog, PR_LOG_DEBUG,
            ("idleService: Reset idle timeout: no idle observers"));
-    return;
+    return NS_OK;
   }
 
   // Mark all idle services as non-idle, and calculate the next idle timeout.
@@ -418,7 +437,7 @@ nsIdleService::ResetIdleTimeOut(PRUint32 idleDeltaInMS)
 
   // Bail if nothing to do.
   if (!numberOfPendingNotifications) {
-    return;
+    return NS_OK;
   }
 
   // Now send "back" events to all, if any should have timed out allready, then
@@ -440,10 +459,10 @@ nsIdleService::ResetIdleTimeOut(PRUint32 idleDeltaInMS)
                         notifyList[numberOfPendingNotifications]);
 #endif
     notifyList[numberOfPendingNotifications]->Observe(this,
-                                                      OBSERVER_TOPIC_BACK,
+                                                      OBSERVER_TOPIC_ACTIVE,
                                                       timeStr.get());
   }
-
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -1864,7 +1864,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
 
     PropertyName *name = pic->name;
     if (name == f.cx->runtime->atomState.lengthAtom) {
-        if (f.regs.sp[-1].isMagic(JS_OPTIMIZED_ARGUMENTS)) {
+        if (IsOptimizedArguments(f.fp(), &f.regs.sp[-1])) {
             f.regs.sp[-1].setInt32(f.regs.fp()->numActualArgs());
             return;
         }
@@ -1924,7 +1924,7 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
 
     Value v;
     if (cached) {
-        if (!GetPropertyOperation(f.cx, f.pc(), f.regs.sp[-1], &v))
+        if (!GetPropertyOperation(f.cx, f.script(), f.pc(), f.regs.sp[-1], &v))
             THROW();
     } else {
         if (!obj->getProperty(f.cx, name, &v))
