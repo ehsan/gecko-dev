@@ -1450,32 +1450,33 @@ SessionStoreService.prototype = {
   undoCloseTab: function sss_undoCloseTab(aWindow, aIndex) {
     if (!aWindow.__SSi)
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-
+    
     var closedTabs = this._windows[aWindow.__SSi]._closedTabs;
 
     // default to the most-recently closed tab
     aIndex = aIndex || 0;
     if (!(aIndex in closedTabs))
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-
+    
     // fetch the data of closed tab, while removing it from the array
     let closedTab = closedTabs.splice(aIndex, 1).shift();
     let closedTabState = closedTab.state;
 
     this._setWindowStateBusy(aWindow);
     // create a new tab
-    let tabbrowser = aWindow.gBrowser;
-    let tab = tabbrowser.addTab();
+    let browser = aWindow.gBrowser;
+    let tab = browser.addTab();
 
     // restore tab content
     this.restoreHistoryPrecursor(aWindow, [tab], [closedTabState], 1, 0, 0);
-
+      
     // restore the tab's position
-    tabbrowser.moveTabTo(tab, closedTab.pos);
+    browser.moveTabTo(tab, closedTab.pos);
 
-    // focus the tab's content area (bug 342432)
-    tab.linkedBrowser.focus();
-
+    // focus the tab's content area
+    let content = browser.getBrowserForTab(tab).contentWindow;
+    aWindow.setTimeout(function() { content.focus(); }, 0);
+    
     return tab;
   },
 

@@ -56,7 +56,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/TreePanel.jsm");
 Cu.import("resource:///modules/highlighter.jsm");
-Cu.import("resource:///modules/devtools/LayoutView.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 
 // Inspector notifications dispatched through the nsIObserverService.
@@ -368,10 +367,10 @@ InspectorUI.prototype = {
    */
   toggleSidebar: function IUI_toggleSidebar()
   {
-    if (!this.sidebar.visible) {
-      this.sidebar.show();
+    if (!this.isSidebarOpen) {
+      this.showSidebar();
     } else {
-      this.sidebar.hide();
+      this.hideSidebar();
     }
   },
 
@@ -1406,12 +1405,6 @@ InspectorStyleSidebar.prototype = {
 
   destroy: function ISS_destroy()
   {
-    // close the Layout View
-    if (this._layoutview) {
-      this._layoutview.destroy();
-      this._layoutview = null;
-    }
-
     for each (let toolID in Object.getOwnPropertyNames(this._tools)) {
       this.removeTool(toolID);
     }
@@ -1521,19 +1514,10 @@ InspectorStyleSidebar.prototype = {
 
     this._inspector._sidebarOpen = true;
     Services.prefs.setBoolPref("devtools.inspector.sidebarOpen", true);
-
-    // Instantiate the Layout View if needed.
-    if (Services.prefs.getBoolPref("devtools.layoutview.enabled")
-        && !this._layoutview) {
-      this._layoutview = new LayoutView({
-        document: this._chromeDoc,
-        inspector: this._inspector,
-      });
-    }
   },
 
   /**
-   * Hides the sidebar, updating the stored visibility pref.
+   * Hides the sidebar, updating the stored visiblity pref.
    */
   hide: function ISS_hide()
   {
