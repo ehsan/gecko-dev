@@ -251,9 +251,8 @@ public:
 
   virtual Layer* GetLayer() = 0;
 
-  virtual void RenderLayer() = 0;
+  virtual void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform) = 0;
 
-  /**
   /* This function may be used on device resets to clear all VRAM resources
    * that a layer might be using.
    */
@@ -267,22 +266,6 @@ public:
   void ReportFailure(const nsACString &aMsg, HRESULT aCode) {
     return mD3DManager->ReportFailure(aMsg, aCode);
   }
-
-  void SetShaderTransformAndOpacity()
-  {
-    Layer* layer = GetLayer();
-    const gfx3DMatrix& transform = layer->GetEffectiveTransform();
-    device()->SetVertexShaderConstantF(CBmLayerTransform, &transform._11, 4);
-
-    float opacity[4];
-    /*
-     * We always upload a 4 component float, but the shader will use only the
-     * first component since it's declared as a 'float'.
-     */
-    opacity[0] = layer->GetEffectiveOpacity();
-    device()->SetPixelShaderConstantF(CBfLayerOpacity, opacity, 1);
-  }
-
 protected:
   LayerManagerD3D9 *mD3DManager;
 };

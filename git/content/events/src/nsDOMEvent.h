@@ -175,7 +175,6 @@ public:
 #endif
     eDOMEvents_afterpaint,
     eDOMEvents_beforepaint,
-    eDOMEvents_beforeresize,
     eDOMEvents_MozSwipeGesture,
     eDOMEvents_MozMagnifyGestureStart,
     eDOMEvents_MozMagnifyGestureUpdate,
@@ -226,6 +225,7 @@ protected:
   // Internal helper functions
   nsresult SetEventType(const nsAString& aEventTypeArg);
   already_AddRefed<nsIContent> GetTargetFromFrame();
+  nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
   nsRefPtr<nsPresContext>     mPresContext;

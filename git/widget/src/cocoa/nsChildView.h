@@ -110,12 +110,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   - (CGFloat)deviceDeltaY;
 @end
 
-// Undocumented scrollPhase flag that lets us discern between real scrolls and
-// automatically firing momentum scroll events.
-@interface NSEvent (ScrollPhase)
-- (long long)_scrollPhase;
-@end
-
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY
                               mozAccessible,
@@ -233,10 +227,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 - (void) _surfaceNeedsUpdate:(NSNotification*)notification;
 
 - (BOOL)isPluginView;
-
-// Are we processing an NSLeftMouseDown event that will fail to click through?
-// If so, we shouldn't focus or unfocus a plugin.
-- (BOOL)isInFailingLeftClickThrough;
 
 // Simple gestures support
 //
@@ -413,8 +403,6 @@ public:
 
   void PaintQD();
 
-  nsCocoaWindow*    GetXULWindowWidget();
-
   NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
 protected:
 
@@ -426,6 +414,7 @@ protected:
   // caller must retain.
   virtual NSView*   CreateCocoaView(NSRect inFrame);
   void              TearDownView();
+  nsCocoaWindow*    GetXULWindowWidget();
 
   virtual already_AddRefed<nsIWidget>
   AllocateChildPopupWidget()

@@ -49,6 +49,7 @@ FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
 
+ENABLE_CXX_EXCEPTIONS = 1
 ACDEFINES =
 
 ifndef MOZ_NATIVE_LIBEVENT # {
@@ -131,7 +132,6 @@ CPPSRCS += \
   message_router.cc \
   notification_service.cc \
   task_queue.cc \
-  sha512.cc \
   $(NULL)
 
 ifdef OS_WIN # {
@@ -166,7 +166,6 @@ CPPSRCS += \
   waitable_event_win.cc \
   win_util.cc \
   chrome_paths_win.cc \
-  chrome_constants.cc \
   ipc_channel_win.cc \
   process_watcher_win.cc \
   transport_dib_win.cc \
@@ -177,6 +176,7 @@ endif # } OS_WIN
 ifdef OS_POSIX # {
 
 CPPSRCS += \
+  sha512.cc \
   condition_variable_posix.cc \
   debug_util_posix.cc \
   event_recorder_stubs.cc \

@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   Rob Arnold <robarnold@mozilla.com>
  *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
@@ -568,7 +568,6 @@ struct nsStyleMargin {
 
   nsStyleSides  mMargin;          // [reset] coord, percent, calc, auto
 
-  PRBool IsWidthDependent() const { return !mHasCachedMargin; }
   PRBool GetMargin(nsMargin& aMargin) const
   {
     if (mHasCachedMargin) {
@@ -603,7 +602,6 @@ struct nsStylePadding {
 
   nsStyleSides  mPadding;         // [reset] coord, percent, calc
 
-  PRBool IsWidthDependent() const { return !mHasCachedPadding; }
   PRBool GetPadding(nsMargin& aPadding) const
   {
     if (mHasCachedPadding) {

@@ -42,14 +42,10 @@
 #include <AppKit/NSOpenGL.h>
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
-#include "gfxQuartzSurface.h"
 #include "gfxPlatform.h"
-#include "prenv.h"
 
 namespace mozilla {
 namespace gl {
-
-static PRBool gUseDoubleBufferedWindows = PR_TRUE;
 
 class CGLLibrary
 {
@@ -72,10 +68,7 @@ public:
                 return PR_FALSE;
             }
         }
-
-        const char* db = PR_GetEnv("MOZ_CGL_DB");
-        gUseDoubleBufferedWindows = (!db || *db != '0');
-
+        
         mInitialized = PR_TRUE;
         return PR_TRUE;
     }
@@ -85,13 +78,8 @@ public:
         if (mPixelFormat == nsnull) {
             NSOpenGLPixelFormatAttribute attribs[] = {
                 NSOpenGLPFAAccelerated,
-                NSOpenGLPFADoubleBuffer,
                 (NSOpenGLPixelFormatAttribute)nil 
             };
-
-            if (!gUseDoubleBufferedWindows) {
-              attribs[1] = (NSOpenGLPixelFormatAttribute)nil;
-            }
 
             mPixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attribs];
         }
@@ -176,17 +164,6 @@ public:
         return PR_FALSE;
     }
 
-    PRBool IsDoubleBuffered() 
-    { 
-      return gUseDoubleBufferedWindows; 
-    }
-
-    PRBool SwapBuffers()
-    {
-      [mContext flushBuffer];
-      return PR_TRUE;
-    }
-
     PRBool BindTex2DOffscreen(GLContext *aOffscreen);
     void UnbindTex2DOffscreen(GLContext *aOffscreen);
     PRBool ResizeOffscreen(const gfxIntSize& aNewSize);
@@ -194,7 +171,6 @@ public:
     virtual already_AddRefed<TextureImage>
     CreateBasicTextureImage(GLuint aTexture,
                             const nsIntSize& aSize,
-                            GLenum aWrapMode,
                             TextureImage::ContentType aContentType,
                             GLContext* aContext);
 
@@ -291,62 +267,10 @@ class TextureImageCGL : public BasicTextureImage
     friend already_AddRefed<TextureImage>
     GLContextCGL::CreateBasicTextureImage(GLuint,
                                           const nsIntSize&,
-                                          GLenum,
                                           TextureImage::ContentType,
                                           GLContext*);
 
 protected:
-    virtual gfxContext*
-    BeginUpdate(nsIntRegion& aRegion)
-    {
-        ImageFormat format;
-        if (GetContentType() == gfxASurface::CONTENT_COLOR)
-            format = gfxASurface::ImageFormatRGB24;
-        else
-            format = gfxASurface::ImageFormatARGB32;
-
-        if (!mTextureInited || !mBackingSurface || !mUpdateSurface ||
-            nsIntSize(mBackingSurface->Width(), mBackingSurface->Height()) < mSize ||
-            mBackingSurface->Format() != format)
-        {
-            mUpdateSurface = nsnull;
-            mUpdateOffset = nsIntPoint(0, 0);
-            // We need to (re)create our backing store. Let the base class to that.
-            return BasicTextureImage::BeginUpdate(aRegion);
-        }
-
-        // the basic impl can only upload updates to rectangles
-        mUpdateRect = aRegion.GetBounds();
-        aRegion = nsIntRegion(mUpdateRect);
-
-        if (!nsIntRect(nsIntPoint(0, 0), mSize).Contains(mUpdateRect)) {
-            NS_ERROR("update outside of image");
-            return NULL;
-        }
-
-        mUpdateContext = new gfxContext(mUpdateSurface);
-        mUpdateContext->Clip(gfxRect(mUpdateRect.x, mUpdateRect.y,
-                                     mUpdateRect.width, mUpdateRect.height));
-        if (GetContentType() != gfxASurface::CONTENT_COLOR)
-        {
-            mUpdateContext->SetOperator(gfxContext::OPERATOR_CLEAR);
-            mUpdateContext->Paint();
-            mUpdateContext->SetOperator(gfxContext::OPERATOR_OVER);
-        }
-        mUpdateOffset = mUpdateRect.TopLeft();
-
-        return mUpdateContext;
-    }
-
-    virtual PRBool
-    EndUpdate()
-    {
-        if (!mUpdateSurface)
-            mUpdateSurface = mUpdateContext->OriginalSurface();
-
-        return BasicTextureImage::EndUpdate();
-    }
-
     virtual already_AddRefed<gfxASurface>
     CreateUpdateSurface(const gfxIntSize& aSize, ImageFormat aFmt)
     {
@@ -357,24 +281,16 @@ protected:
     virtual already_AddRefed<gfxImageSurface>
     GetImageForUpload(gfxASurface* aUpdateSurface)
     {
-        nsRefPtr<gfxImageSurface> image = aUpdateSurface->GetAsImageSurface();
+        // FIXME/bug 575521: make me fast!
+        nsRefPtr<gfxImageSurface> image =
+            new gfxImageSurface(gfxIntSize(mUpdateRect.width,
+                                           mUpdateRect.height),
+                                mUpdateFormat);
+        nsRefPtr<gfxContext> tmpContext = new gfxContext(image);
 
-        if (image && image->Format() != mUpdateFormat) {
-          image = nsnull;
-        }
-
-        // If we don't get an image directly from the quartz surface, we have
-        // to take the slow boat.
-        if (!image) {
-          image = new gfxImageSurface(gfxIntSize(mUpdateRect.width,
-                                                 mUpdateRect.height),
-                                      mUpdateFormat);
-          nsRefPtr<gfxContext> tmpContext = new gfxContext(image);
-
-          tmpContext->SetSource(aUpdateSurface);
-          tmpContext->SetOperator(gfxContext::OPERATOR_SOURCE);
-          tmpContext->Paint();
-        }
+        tmpContext->SetSource(aUpdateSurface);
+        tmpContext->SetOperator(gfxContext::OPERATOR_SOURCE);
+        tmpContext->Paint();
 
         return image.forget();
     }
@@ -382,25 +298,22 @@ protected:
 private:
     TextureImageCGL(GLuint aTexture,
                     const nsIntSize& aSize,
-                    GLenum aWrapMode,
                     ContentType aContentType,
                     GLContext* aContext)
-        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext)
+        : BasicTextureImage(aTexture, aSize, aContentType, aContext)
     {}
 
     ImageFormat mUpdateFormat;
-    nsRefPtr<gfxASurface> mUpdateSurface;
 };
 
 already_AddRefed<TextureImage>
 GLContextCGL::CreateBasicTextureImage(GLuint aTexture,
                                       const nsIntSize& aSize,
-                                      GLenum aWrapMode,
                                       TextureImage::ContentType aContentType,
                                       GLContext* aContext)
 {
-    nsRefPtr<TextureImageCGL> teximage
-        (new TextureImageCGL(aTexture, aSize, aWrapMode, aContentType, aContext));
+    nsRefPtr<TextureImageCGL> teximage(
+        new TextureImageCGL(aTexture, aSize, aContentType, aContext));
     return teximage.forget();
 }
 

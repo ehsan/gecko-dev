@@ -113,6 +113,7 @@ public:
   //////////////////////////////////////////////////////////////////////////////
   // nsAccessNode
 
+  virtual PRBool Init();
   virtual void Shutdown();
 
   //////////////////////////////////////////////////////////////////////////////
@@ -297,6 +298,13 @@ public:
   PRBool AreChildrenCached() const { return mChildrenFlags != eChildrenUninitialized; }
   bool IsBoundToParent() const { return mParent; }
 
+#ifdef DEBUG
+  /**
+   * Return true if the access node is cached.
+   */
+  PRBool IsInCache();
+#endif
+
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods
 
@@ -433,7 +441,7 @@ protected:
   /**
    * Set accessible parent and index in parent.
    */
-  virtual void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
+  void BindToParent(nsAccessible* aParent, PRUint32 aIndexInParent);
   void UnbindFromParent();
 
   /**

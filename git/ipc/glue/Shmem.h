@@ -228,7 +228,6 @@ public:
   Alloc(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
         size_t aNBytes,
         SharedMemoryType aType,
-        bool aUnsafe,
         bool aProtect=false);
 
   // Prepare this to be shared with |aProcess|.  Return an IPC message

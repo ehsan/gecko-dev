@@ -51,7 +51,6 @@
 #include "nsIPrefService.h"
 #include "nsIPermissionManager.h"
 #include "nsIDOMGeoPositionCallback.h"
-#include "nsIAccelerometer.h"
 
 namespace mozilla {
 
@@ -67,7 +66,6 @@ class ContentParent : public PContentParent
                     , public nsIObserver
                     , public nsIThreadObserver
                     , public nsIDOMGeoPositionCallback
-                    , public nsIAccelerationListener
 {
 private:
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
@@ -85,7 +83,6 @@ public:
     NS_DECL_NSIOBSERVER
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIDOMGEOPOSITIONCALLBACK
-    NS_DECL_NSIACCELERATIONLISTENER
 
     TabParent* CreateTab(PRUint32 aChromeFlags);
 
@@ -117,11 +114,6 @@ private:
     virtual PTestShellParent* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellParent* shell);
 
-    virtual PAudioParent* AllocPAudio(const PRInt32&,
-                                     const PRInt32&,
-                                     const PRInt32&);
-    virtual bool DeallocPAudio(PAudioParent*);
-
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
@@ -133,11 +125,11 @@ private:
             const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
 
-    virtual bool RecvReadPrefsArray(InfallibleTArray<PrefTuple> *retValue);
+    virtual bool RecvReadPrefsArray(nsTArray<PrefTuple> *retValue);
 
     void EnsurePrefService();
 
-    virtual bool RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions);
+    virtual bool RecvReadPermissions(nsTArray<IPC::Permission>* aPermissions);
 
     virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 
@@ -153,9 +145,9 @@ private:
                                     const nsString& title,
                                     const nsString& defaultFile,
                                     const nsString& defaultExtension,
-                                    const InfallibleTArray<nsString>& filters,
-                                    const InfallibleTArray<nsString>& filterNames,
-                                    InfallibleTArray<nsString>* files,
+                                    const nsTArray<nsString>& filters,
+                                    const nsTArray<nsString>& filterNames,
+                                    nsTArray<nsString>* files,
                                     PRInt16* retValue,
                                     nsresult* result);
  
@@ -166,13 +158,11 @@ private:
     virtual bool RecvLoadURIExternal(const IPC::URI& uri);
 
     virtual bool RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
-                                 InfallibleTArray<nsString>* aRetvals);
+                                 nsTArray<nsString>* aRetvals);
     virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
 
-    virtual bool RecvAddGeolocationListener();
-    virtual bool RecvRemoveGeolocationListener();
-    virtual bool RecvAddAccelerometerListener();
-    virtual bool RecvRemoveAccelerometerListener();
+    virtual bool RecvGeolocationStart();
+    virtual bool RecvGeolocationStop();
 
     virtual bool RecvConsoleMessage(const nsString& aMessage);
     virtual bool RecvScriptError(const nsString& aMessage,

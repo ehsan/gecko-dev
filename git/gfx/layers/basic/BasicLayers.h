@@ -193,7 +193,8 @@ private:
   // Paints aLayer to mTarget.
   void PaintLayer(Layer* aLayer,
                   DrawThebesLayerCallback aCallback,
-                  void* aCallbackData);
+                  void* aCallbackData,
+                  float aOpacity);
 
   // Clear the contents of a layer
   void ClearLayer(Layer* aLayer);

@@ -157,7 +157,6 @@ NS_IMPL_THREADSAFE_RELEASE(nsThread)
 NS_INTERFACE_MAP_BEGIN(nsThread)
   NS_INTERFACE_MAP_ENTRY(nsIThread)
   NS_INTERFACE_MAP_ENTRY(nsIThreadInternal)
-  NS_INTERFACE_MAP_ENTRY(nsIThreadInternal2)
   NS_INTERFACE_MAP_ENTRY(nsIEventTarget)
   NS_INTERFACE_MAP_ENTRY(nsISupportsPriority)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIThread)
@@ -426,7 +425,7 @@ nsThread::Dispatch(nsIRunnable *event, PRUint32 flags)
 
     while (wrapper->IsPending())
       NS_ProcessNextEvent(thread);
-    return wrapper->Result();
+    return rv;
   }
 
   NS_ASSERTION(flags == NS_DISPATCH_NORMAL, "unexpected dispatch flags");
@@ -739,23 +738,12 @@ nsThread::nsChainedEventQueue::PutEvent(nsIRunnable *event)
 }
 
 //-----------------------------------------------------------------------------
-// nsIThreadInternal2
-
-NS_IMETHODIMP
-nsThread::GetRecursionDepth(PRUint32 *depth)
-{
-  NS_ENSURE_ARG_POINTER(depth);
-  *depth = mRunningEvent;
-  return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
 nsThreadSyncDispatch::Run()
 {
   if (mSyncTask) {
-    mResult = mSyncTask->Run();
+    mSyncTask->Run();
     mSyncTask = nsnull;
     // unblock the origin thread
     mOrigin->Dispatch(this, NS_DISPATCH_NORMAL);

@@ -260,7 +260,10 @@ var WinTaskbarJumpList =
 
   _pendingStatements: {},
   _hasPendingStatements: function WTBJL__hasPendingStatements() {
-    return Object.keys(this._pendingStatements).length > 0;
+    for (let listType in this._pendingStatements) {
+      return true;
+    }
+    return false;
   },
 
   _buildList: function WTBJL__buildList() {
@@ -341,11 +344,6 @@ var WinTaskbarJumpList =
   },
 
   _buildFrequent: function WTBJL__buildFrequent() {
-    // If history is empty, just bail out.
-    if (!PlacesUtils.history.hasHistoryEntries) {
-      return;
-    }
-
     // Windows supports default frequent and recent lists,
     // but those depend on internal windows visit tracking
     // which we don't populate. So we build our own custom
@@ -379,11 +377,6 @@ var WinTaskbarJumpList =
   },
 
   _buildRecent: function WTBJL__buildRecent() {
-    // If history is empty, just bail out.
-    if (!PlacesUtils.history.hasHistoryEntries) {
-      return;
-    }
-
     var items = Cc["@mozilla.org/array;1"].
                 createInstance(Ci.nsIMutableArray);
     // Frequent items will be skipped, so we select a double amount of

@@ -209,13 +209,7 @@ js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, const js::Value *value,
                   js::PropertyOp getter, js::PropertyOp setter, uintN attrs);
 
 extern JSBool
-js_GetProperty(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, js::Value *vp);
-
-inline JSBool
-js_GetProperty(JSContext *cx, JSObject *obj, jsid id, js::Value *vp)
-{
-    return js_GetProperty(cx, obj, obj, id, vp);
-}
+js_GetProperty(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);
 
 namespace js {
 
@@ -1070,13 +1064,9 @@ struct JSObject : js::gc::Cell {
         return (op ? op : js_DefineProperty)(cx, this, id, &value, getter, setter, attrs);
     }
 
-    JSBool getProperty(JSContext *cx, JSObject *receiver, jsid id, js::Value *vp) {
-        js::PropertyIdOp op = getOps()->getProperty;
-        return (op ? op : (js::PropertyIdOp)js_GetProperty)(cx, this, receiver, id, vp);
-    }
-
     JSBool getProperty(JSContext *cx, jsid id, js::Value *vp) {
-        return getProperty(cx, this, id, vp);
+        js::PropertyIdOp op = getOps()->getProperty;
+        return (op ? op : js_GetProperty)(cx, this, id, vp);
     }
 
     JSBool setProperty(JSContext *cx, jsid id, js::Value *vp, JSBool strict) {
@@ -1095,7 +1085,7 @@ struct JSObject : js::gc::Cell {
     }
 
     JSBool deleteProperty(JSContext *cx, jsid id, js::Value *rval, JSBool strict) {
-        js::DeleteIdOp op = getOps()->deleteProperty;
+        js::StrictPropertyIdOp op = getOps()->deleteProperty;
         return (op ? op : js_DeleteProperty)(cx, this, id, rval, strict);
     }
 
@@ -1579,9 +1569,8 @@ extern JSBool
 js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uint32 getHow, js::Value *vp);
 
 extern bool
-js_GetPropertyHelperWithShape(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id,
-                              uint32 getHow, js::Value *vp,
-                              const js::Shape **shapeOut, JSObject **holderOut);
+js_GetPropertyHelperWithShape(JSContext *cx, JSObject *obj, jsid id, uint32 getHow,
+                              js::Value *vp, const js::Shape **shapeOut, JSObject **holderOut);
 
 extern JSBool
 js_GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, js::Value *vp);

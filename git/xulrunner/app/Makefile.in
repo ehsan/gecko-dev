@@ -90,7 +90,6 @@ endif
 LOCAL_INCLUDES += \
         -I$(topsrcdir)/toolkit/xre \
         -I$(topsrcdir)/toolkit/profile/src \
-        -I$(topsrcdir)/xpcom/base \
         $(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))

@@ -58,33 +58,36 @@ class SharedMemoryBasic : public SharedMemory
 public:
   typedef base::SharedMemoryHandle Handle;
 
-  SharedMemoryBasic()
+  SharedMemoryBasic() :
+    mSize(0)
   {
   }
 
-  SharedMemoryBasic(const Handle& aHandle)
-    : mSharedMemory(aHandle, false)
+  SharedMemoryBasic(const Handle& aHandle) :
+    mSharedMemory(aHandle, false),
+    mSize(0)
   {
   }
 
   NS_OVERRIDE
   virtual bool Create(size_t aNbytes)
   {
-    bool ok = mSharedMemory.Create("", false, false, aNbytes);
-    if (ok) {
-      Created(aNbytes);
-    }
-    return ok;
+    return mSharedMemory.Create("", false, false, aNbytes);
   }
 
   NS_OVERRIDE
   virtual bool Map(size_t nBytes)
   {
     bool ok = mSharedMemory.Map(nBytes);
-    if (ok) {
-      Mapped(nBytes);
-    }
+    if (ok)
+      mSize = nBytes;
     return ok;
+  }
+
+  NS_OVERRIDE
+  virtual size_t Size() const
+  {
+    return mSize;
   }
 
   NS_OVERRIDE
@@ -121,6 +124,8 @@ public:
 
 private:
   base::SharedMemory mSharedMemory;
+  // NB: we have to track this because shared_memory_win.cc doesn't
+  size_t mSize;
 };
 
 } // namespace ipc

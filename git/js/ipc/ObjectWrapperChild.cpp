@@ -456,12 +456,12 @@ ObjectWrapperChild::AnswerNewEnumerateInit(/* no in-parameters */
                                   NULL, NULL, JSPROP_ENUMERATE | JSPROP_SHARED);
     }
 
-    InfallibleTArray<nsString>* strIds;
+    nsTArray<nsString>* strIds;
     {
         AutoIdArray ids(cx, JS_Enumerate(cx, state));
         if (!ids)
             return false;
-        strIds = new InfallibleTArray<nsString>(ids.length());
+        strIds = new nsTArray<nsString>(ids.length());
         for (uint i = 0; i < ids.length(); ++i)
             if (!jsid_to_nsString(cx, ids[i], strIds->AppendElement())) {
                 delete strIds;
@@ -495,8 +495,8 @@ ObjectWrapperChild::AnswerNewEnumerateNext(const JSVariant& in_state,
     if (!JSObject_from_JSVariant(cx, in_state, &state))
         return false;
 
-    InfallibleTArray<nsString>* strIds =
-        static_cast<InfallibleTArray<nsString>*>(JS_GetPrivate(cx, state));
+    nsTArray<nsString>* strIds =
+        static_cast<nsTArray<nsString>*>(JS_GetPrivate(cx, state));
 
     if (!strIds || !JS_GetReservedSlot(cx, state, sNextIdIndexSlot, &v))
         return false;
@@ -580,7 +580,7 @@ namespace {
 }
 
 bool
-ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const InfallibleTArray<JSVariant>& argv,
+ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const nsTArray<JSVariant>& argv,
                                OperationStatus* status, JSVariant* rval)
 {
     JSContext* cx = Manager()->GetContext();
@@ -610,7 +610,7 @@ ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const InfallibleTA
 }
 
 bool
-ObjectWrapperChild::AnswerConstruct(const InfallibleTArray<JSVariant>& argv,
+ObjectWrapperChild::AnswerConstruct(const nsTArray<JSVariant>& argv,
                                     OperationStatus* status, PObjectWrapperChild** rval)
 {
     JSContext* cx = Manager()->GetContext();

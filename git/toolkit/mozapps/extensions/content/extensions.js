@@ -1302,11 +1302,8 @@ var gCategories = {
     }
 
     if (this.node.selectedItem &&
-        this.node.selectedItem.value == aId) {
-      this.node.selectedItem.hidden = false;
-      this.node.selectedItem.disabled = false;
+        this.node.selectedItem.value == aId)
       return;
-    }
 
     if (view.type == "search")
       var item = this._search;
@@ -1444,13 +1441,6 @@ var gDiscoverView = {
                 .getService(Ci.nsIURLFormatter)
                 .formatURLPref(PREF_DISCOVERURL);
 
-    var browser = gDiscoverView._browser;
-
-    if (Services.prefs.getBoolPref(PREF_BACKGROUND_UPDATE) == false) {
-      browser.homePage = url;
-      return;
-    }
-
     gPendingInitializations++;
     AddonManager.getAllAddons(function(aAddons) {
       var list = {};
@@ -1465,6 +1455,7 @@ var gDiscoverView = {
         }
       });
 
+      var browser = gDiscoverView._browser;
       browser.homePage = url + "#" + JSON.stringify(list);
 
       if (gDiscoverView.loaded) {
@@ -2408,8 +2399,7 @@ var gUpdatesView = {
 
     var self = this;
     AddonManager.getAllInstalls(function(aInstallsList) {
-      if (!aIsRefresh && gViewController && aRequest &&
-          aRequest != gViewController.currentViewRequest)
+      if (!aIsRefresh && gViewController && aRequest != gViewController.currentViewRequest)
         return;
 
       if (aIsRefresh) {
@@ -2528,13 +2518,16 @@ var gUpdatesView = {
   },
 
   installSelected: function() {
+    /* Starting the update of one item will refresh the list,
+       which can cause problems while we're iterating over it.
+       So we update only after we've finished iterating over the list. */
+    var toUpgrade = [];
     for (let i = 0; i < this._listBox.childNodes.length; i++) {
       let item = this._listBox.childNodes[i];
       if (item.includeUpdate)
-        item.upgrade();
+        toUpgrade.push(item);
     }
-
-    this._updateSelected.disabled = true;
+    toUpgrade.forEach(function(aItem) aItem.upgrade());
   },
 
   getSelectedAddon: function() {
@@ -2577,17 +2570,23 @@ var gUpdatesView = {
     }
   },
 
+  onDownloadStarted: function(aInstall) {
+    if (!this.isManualUpdate(aInstall))
+      return;
+    this.maybeRefresh();
+  },
+
+  onInstallStarted: function(aInstall) {
+    if (!this.isManualUpdate(aInstall))
+      return;
+    this.maybeRefresh();
+  },
+
   onInstallEnded: function(aAddon) {
     if (!shouldAutoUpdate(aAddon)) {
       this._numManualUpdaters++;
       this.maybeShowCategory();
     }
-  },
-
-  onInstallCancelled: function(aInstall) {
-    if (!this.isManualUpdate(aInstall))
-      return;
-    this.maybeRefresh();
   },
 
   onPropertyChanged: function(aAddon, aProperties) {

@@ -130,8 +130,8 @@ public:
   static BOOL sFlatMenus;
   static PRPackedBool sIsXPOrLater;
   static PRPackedBool sIsVistaOrLater;
-  static PRBool sTitlebarInfoPopulatedAero;
-  static PRBool sTitlebarInfoPopulatedThemed;
+  static PRPackedBool sHaveCompositor;
+  static PRBool sTitlebarInfoPopulated;
   static SIZE sCommandButtons[4];
   static nsILookAndFeel::WindowsThemeIdentifier sThemeId;
   static PRBool sIsDefaultWindowsTheme;
@@ -238,7 +238,7 @@ public:
     if(dwmIsCompositionEnabledPtr)
       dwmIsCompositionEnabledPtr(&compositionIsEnabled);
 #endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    return (compositionIsEnabled != FALSE);
+    return sHaveCompositor = (compositionIsEnabled != 0);
   }
 };
 #endif // __UXThemeData_h__

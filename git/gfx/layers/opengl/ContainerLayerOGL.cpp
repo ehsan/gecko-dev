@@ -52,8 +52,6 @@ ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
     aChild->SetPrevSibling(nsnull);
     if (oldFirstChild) {
       oldFirstChild->SetPrevSibling(aChild);
-    } else {
-      aContainer->mLastChild = aChild;
     }
     NS_ADDREF(aChild);
     return;
@@ -66,8 +64,6 @@ ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
       aChild->SetNextSibling(oldNextSibling);
       if (oldNextSibling) {
         oldNextSibling->SetPrevSibling(aChild);
-      } else {
-        aContainer->mLastChild = aChild;
       }
       aChild->SetPrevSibling(child);
       NS_ADDREF(aChild);
@@ -85,8 +81,6 @@ ContainerRemoveChild(Container* aContainer, Layer* aChild)
     aContainer->mFirstChild = aContainer->GetFirstChild()->GetNextSibling();
     if (aContainer->mFirstChild) {
       aContainer->mFirstChild->SetPrevSibling(nsnull);
-    } else {
-      aContainer->mLastChild = nsnull;
     }
     aChild->SetNextSibling(nsnull);
     aChild->SetPrevSibling(nsnull);
@@ -102,8 +96,6 @@ ContainerRemoveChild(Container* aContainer, Layer* aChild)
       lastChild->SetNextSibling(child->GetNextSibling());
       if (child->GetNextSibling()) {
         child->GetNextSibling()->SetPrevSibling(lastChild);
-      } else {
-        aContainer->mLastChild = lastChild;
       }
       child->SetNextSibling(nsnull);
       child->SetPrevSibling(nsnull);
@@ -143,13 +135,12 @@ ContainerRender(Container* aContainer,
 
   nsIntPoint childOffset(aOffset);
   nsIntRect visibleRect = aContainer->GetEffectiveVisibleRegion().GetBounds();
+  const gfx3DMatrix& transform = aContainer->GetEffectiveTransform();
 
-  nsIntRect cachedScissor = aContainer->gl()->ScissorRect();
   aContainer->gl()->PushScissorRect();
 
-  float opacity = aContainer->GetEffectiveOpacity();
-  const gfx3DMatrix& transform = aContainer->GetEffectiveTransform();
-  bool needsFramebuffer = aContainer->UseIntermediateSurface();
+  float opacity = aContainer->GetOpacity();
+  bool needsFramebuffer = (opacity != 1.0) || !transform.IsIdentity();
   if (needsFramebuffer) {
     aManager->CreateFBOWithTexture(visibleRect.width,
                                    visibleRect.height,
@@ -182,37 +173,13 @@ ContainerRender(Container* aContainer,
 
     if (needsFramebuffer) {
       scissorRect.MoveBy(- visibleRect.TopLeft());
-    } else {
-      if (!aPreviousFrameBuffer) {
-        /**
-         * glScissor coordinates are oriented with 0,0 being at the bottom left,
-         * the opposite to layout (0,0 at the top left).
-         * All rendering to an FBO is upside-down, making the coordinate systems
-         * match.
-         * When rendering directly to a window (No current or previous FBO),
-         * we need to flip the scissor rect.
-         */
-        aContainer->gl()->FixWindowCoordinateRect(scissorRect,
-                                                  aManager->GetWigetSize().height);
-      }
-
-      scissorRect.IntersectRect(scissorRect, cachedScissor);
     }
 
-    /**
-     *  We can't clip to a visible region if theres no framebuffer since we might be transformed
-     */
-    if (needsFramebuffer || clipRect) {
-      aContainer->gl()->fScissor(scissorRect.x, 
-                                 scissorRect.y, 
-                                 scissorRect.width, 
-                                 scissorRect.height);
-    } else {
-      aContainer->gl()->fScissor(cachedScissor.x, 
-                                 cachedScissor.y, 
-                                 cachedScissor.width, 
-                                 cachedScissor.height);
+    if (aPreviousFrameBuffer == 0) {
+      aContainer->gl()->FixWindowCoordinateRect(scissorRect, aManager->GetWigetSize().height);
     }
+
+    aManager->gl()->fScissor(scissorRect.x, scissorRect.y, scissorRect.width, scissorRect.height);
 
     layerToRender->RenderLayer(frameBuffer, childOffset);
 
@@ -257,7 +224,7 @@ ContainerRender(Container* aContainer,
 
     DEBUG_GL_ERROR_CHECK(aContainer->gl());
 
-    aManager->BindAndDrawQuad(rgb, aPreviousFrameBuffer == 0);
+    aManager->BindAndDrawQuad(rgb);
 
     DEBUG_GL_ERROR_CHECK(aContainer->gl());
 

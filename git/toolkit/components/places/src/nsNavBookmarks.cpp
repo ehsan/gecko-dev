@@ -126,6 +126,8 @@ nsNavBookmarks::nsNavBookmarks() : mItemCount(0)
                                  , mBookmarksRoot(0)
                                  , mTagRoot(0)
                                  , mToolbarFolder(0)
+                                 , mBatchLevel(0)
+                                 , mBatchDBTransaction(nsnull)
                                  , mCanNotify(false)
                                  , mCacheObservers("bookmark-observers")
                                  , mShuttingDown(false)
@@ -2963,20 +2965,48 @@ nsNavBookmarks::EnsureKeywordsHash() {
 }
 
 
+// See RunInBatchMode
+nsresult
+nsNavBookmarks::BeginUpdateBatch()
+{
+  if (mBatchLevel++ == 0) {
+    mBatchDBTransaction = new mozStorageTransaction(mDBConn, PR_FALSE);
+
+    NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
+                     nsINavBookmarkObserver, OnBeginUpdateBatch());
+  }
+  return NS_OK;
+}
+
+
+nsresult
+nsNavBookmarks::EndUpdateBatch()
+{
+  if (--mBatchLevel == 0) {
+    if (mBatchDBTransaction) {
+      nsresult rv = mBatchDBTransaction->Commit();
+      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Batch failed to commit transaction");
+      delete mBatchDBTransaction;
+      mBatchDBTransaction = nsnull;
+    }
+
+    NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
+                     nsINavBookmarkObserver, OnEndUpdateBatch());
+  }
+  return NS_OK;
+}
+
+
 NS_IMETHODIMP
 nsNavBookmarks::RunInBatchMode(nsINavHistoryBatchCallback* aCallback,
                                nsISupports* aUserData) {
   NS_ENSURE_ARG(aCallback);
 
-  // Just forward the request to history.  History service must exist for
-  // bookmarks to work and we are observing it, thus batch notifications will be
-  // forwarded to bookmarks observers.
-  nsNavHistory* history = nsNavHistory::GetHistoryService();
-  NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-  nsresult rv = history->RunInBatchMode(aCallback, aUserData);
-  NS_ENSURE_SUCCESS(rv, rv);
+  BeginUpdateBatch();
+  nsresult rv = aCallback->RunBatched(aUserData);
+  EndUpdateBatch();
 
-  return NS_OK;
+  return rv;
 }
 
 
@@ -3001,8 +3031,7 @@ nsNavBookmarks::RemoveObserver(nsINavBookmarkObserver* aObserver)
 NS_IMETHODIMP
 nsNavBookmarks::OnBeginUpdateBatch()
 {
-  NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                   nsINavBookmarkObserver, OnBeginUpdateBatch());
+  // These aren't passed through to bookmark observers currently.
   return NS_OK;
 }
 
@@ -3010,8 +3039,7 @@ nsNavBookmarks::OnBeginUpdateBatch()
 NS_IMETHODIMP
 nsNavBookmarks::OnEndUpdateBatch()
 {
-  NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
-                   nsINavBookmarkObserver, OnEndUpdateBatch());
+  // These aren't passed through to bookmark observers currently.
   return NS_OK;
 }
 

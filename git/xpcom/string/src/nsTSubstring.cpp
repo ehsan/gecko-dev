@@ -188,9 +188,13 @@ nsTSubstring_CharT::Finalize()
   }
 
 PRBool
-nsTSubstring_CharT::ReplacePrepInternal(index_type cutStart, size_type cutLen,
-                                        size_type fragLen, size_type newLen)
+nsTSubstring_CharT::ReplacePrep( index_type cutStart, size_type cutLen, size_type fragLen )
   {
+    // bound cut length
+    cutLen = NS_MIN(cutLen, mLength - cutStart);
+
+    PRUint32 newLen = mLength - cutLen + fragLen;
+
     char_type* oldData;
     PRUint32 oldFlags;
     if (!MutatePrep(newLen, &oldData, &oldFlags))

@@ -82,6 +82,7 @@ nsIStringBundle *nsAccessNode::gStringBundle = 0;
 nsIStringBundle *nsAccessNode::gKeyStringBundle = 0;
 nsINode *nsAccessNode::gLastFocusedNode = nsnull;
 
+PRBool nsAccessNode::gIsCacheDisabled = PR_FALSE;
 PRBool nsAccessNode::gIsFormFillEnabled = PR_FALSE;
 
 nsApplicationAccessible *nsAccessNode::gApplicationAccessible = nsnull;
@@ -216,6 +217,7 @@ void nsAccessNode::InitXPAccessibility()
 
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
+    prefBranch->GetBoolPref("accessibility.disablecache", &gIsCacheDisabled);
     prefBranch->GetBoolPref("browser.formfill.enable", &gIsFormFillEnabled);
   }
 

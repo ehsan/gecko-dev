@@ -114,10 +114,9 @@ UTF16ToUTF8(const string16& utf16)
 namespace base {
 
 // FIXME/cjones: here we're entirely replacing the linux string
-// converters, and implementing the one that doesn't exist for OS X
-// and Windows.
+// converters, and implementing the one that doesn't exist for OS X.
 
-#if !defined(OS_MACOSX) && !defined(OS_WIN)
+#ifndef OS_MACOSX
 std::string SysWideToUTF8(const std::wstring& wide) {
   // FIXME/cjones: do this with iconv
   return GhettoStringConvert<std::wstring, std::string>(wide);
@@ -134,7 +133,7 @@ string16 SysWideToUTF16(const std::wstring& wide)
 #endif
 }
 
-#if !defined(OS_MACOSX) && !defined(OS_WIN)
+#ifndef OS_MACOSX
 std::wstring SysUTF8ToWide(const StringPiece& utf8) {
   // FIXME/cjones: do this with iconv
   return GhettoStringConvert<StringPiece, std::wstring>(utf8);

@@ -413,12 +413,25 @@ struct Closure
     JSContext *cx;
     bool cycleCollectionEnabled;
     nsCycleCollectionTraversalCallback *cb;
+#ifdef DEBUG
+    JSCompartment *compartment;
+#endif
 };
 
 static void
 CheckParticipatesInCycleCollection(PRUint32 aLangID, void *aThing, void *aClosure)
 {
     Closure *closure = static_cast<Closure*>(aClosure);
+
+#ifdef DEBUG
+    if(aLangID == nsIProgrammingLanguage::JAVASCRIPT &&
+       js_GetGCThingTraceKind(aThing) == JSTRACE_OBJECT)
+    {
+        JSCompartment *c = static_cast<JSObject*>(aThing)->compartment();
+        JS_ASSERT(!closure->compartment || closure->compartment == c);
+        closure->compartment = c;
+    }
+#endif
 
     if(!closure->cycleCollectionEnabled &&
        aLangID == nsIProgrammingLanguage::JAVASCRIPT &&
@@ -438,6 +451,9 @@ NoteJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
     Closure *closure = static_cast<Closure*>(arg);
 
     closure->cycleCollectionEnabled = PR_FALSE;
+#ifdef DEBUG
+    closure->compartment = nsnull;
+#endif
     entry->tracer->Trace(entry->holder, CheckParticipatesInCycleCollection,
                          closure);
     if(!closure->cycleCollectionEnabled)
@@ -497,7 +513,11 @@ XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
 
     if(mJSHolders.ops)
     {
-        Closure closure = { cx, PR_TRUE, &cb };
+        Closure closure = { cx, PR_TRUE, &cb
+#if DEBUG
+                            , nsnull
+#endif
+        };
         JS_DHashTableEnumerate(&mJSHolders, NoteJSHolder, &closure);
     }
 }
@@ -1120,11 +1140,9 @@ public:
     }
 private:
     virtual void *doAlloc() {
-        void *chunk;
+        void *chunk = 0;
 #ifdef MOZ_MEMORY
-        // posix_memalign returns zero on success, nonzero on failure.
-        if (posix_memalign(&chunk, js::GC_CHUNK_SIZE, js::GC_CHUNK_SIZE))
-            chunk = 0;
+        posix_memalign(&chunk, js::GC_CHUNK_SIZE, js::GC_CHUNK_SIZE);
 #else
         chunk = js::AllocGCChunk();
 #endif

@@ -299,11 +299,13 @@ XUL_MODULES
 #undef MODULE
 
 #define MODULE(_name) \
-    &NSMODULE_NAME(_name),
+    NSMODULE_NAME(_name),
 
-const mozilla::Module *const *const kPStaticModules[] = {
+static const mozilla::Module *const kStaticModules[] = {
   XUL_MODULES
   NULL
 };
 
 #undef MODULE
+
+mozilla::Module const *const *const kPStaticModules = kStaticModules;

@@ -77,7 +77,6 @@
 #include "nsDOMError.h"
 #include "nsScriptLoader.h"
 #include "nsRuleData.h"
-#include "nsAHtml5FragmentParser.h"
 
 #include "nsPresState.h"
 #include "nsILayoutHistoryState.h"
@@ -746,15 +745,8 @@ nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
     }
 
     PRInt32 oldChildCount = GetChildCount();
-    nsAHtml5FragmentParser* asFragmentParser =
-        static_cast<nsAHtml5FragmentParser*> (parser.get());
-    asFragmentParser->ParseHtml5Fragment(aInnerHTML,
-                                         this,
-                                         Tag(),
-                                         GetNameSpaceID(),
-                                         doc->GetCompatibilityMode() ==
-                                             eCompatibility_NavQuirks,
-                                         PR_TRUE);
+    parser->ParseFragment(aInnerHTML, this, Tag(), GetNameSpaceID(),
+                          doc->GetCompatibilityMode() == eCompatibility_NavQuirks);
     doc->SetFragmentParser(parser);
 
     // HTML5 parser has notified, but not fired mutation events.
@@ -2113,29 +2105,6 @@ nsGenericHTMLElement::SetIntAttr(nsIAtom* aAttr, PRInt32 aValue)
 }
 
 nsresult
-nsGenericHTMLElement::GetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aDefault,
-                                         PRUint32* aResult)
-{
-  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
-  if (attrVal && attrVal->Type() == nsAttrValue::eInteger) {
-    *aResult = attrVal->GetIntegerValue();
-  }
-  else {
-    *aResult = aDefault;
-  }
-  return NS_OK;
-}
-
-nsresult
-nsGenericHTMLElement::SetUnsignedIntAttr(nsIAtom* aAttr, PRUint32 aValue)
-{
-  nsAutoString value;
-  value.AppendInt(aValue);
-
-  return SetAttr(kNameSpaceID_None, aAttr, value, PR_TRUE);
-}
-
-nsresult
 nsGenericHTMLElement::GetFloatAttr(nsIAtom* aAttr, float aDefault, float* aResult)
 {
   const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
@@ -2353,10 +2322,6 @@ nsGenericHTMLFormElement::nsGenericHTMLFormElement(already_AddRefed<nsINodeInfo>
 
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
-  if (mFieldSet) {
-    static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
-  }
-
   // Check that this element doesn't know anything about its form at this point.
   NS_ASSERTION(!mForm, "mForm should be null at this point!");
 }
@@ -2391,7 +2356,8 @@ nsGenericHTMLFormElement::SetForm(nsIDOMHTMLFormElement* aForm)
 }
 
 void
-nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm)
+nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm,
+                                    PRBool aNotify)
 {
   NS_ASSERTION((mForm != nsnull) == HasFlag(ADDED_TO_FORM),
                "Form control should have had flag set correctly");
@@ -2405,7 +2371,7 @@ nsGenericHTMLFormElement::ClearForm(PRBool aRemoveFromForm)
     GetAttr(kNameSpaceID_None, nsGkAtoms::name, nameVal);
     GetAttr(kNameSpaceID_None, nsGkAtoms::id, idVal);
 
-    mForm->RemoveElement(this, true);
+    mForm->RemoveElement(this, true, aNotify);
 
     if (!nameVal.IsEmpty()) {
       mForm->RemoveElementFromTable(this, nameVal);
@@ -2520,12 +2486,12 @@ nsGenericHTMLFormElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     // Might need to unset mForm
     if (aNullParent) {
       // No more parent means no more form
-      ClearForm(PR_TRUE);
+      ClearForm(PR_TRUE, PR_TRUE);
     } else {
       // Recheck whether we should still have an mForm.
       if (HasAttr(kNameSpaceID_None, nsGkAtoms::form) ||
           !FindAncestorForm(mForm)) {
-        ClearForm(PR_TRUE);
+        ClearForm(PR_TRUE, PR_TRUE);
       } else {
         UnsetFlags(MAYBE_ORPHAN_FORM_ELEMENT);
       }
@@ -2577,7 +2543,7 @@ nsGenericHTMLFormElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
         mForm->RemoveElementFromTable(this, tmp);
       }
 
-      mForm->RemoveElement(this, false);
+      mForm->RemoveElement(this, false, aNotify);
 
       // Removing the element from the form can make it not be the default
       // control anymore.  Go ahead and notify on that change, though we might
@@ -2899,7 +2865,8 @@ nsGenericHTMLFormElement::UpdateFormOwner(bool aBindToTree,
   bool hadForm = mForm;
 
   if (!aBindToTree) {
-    ClearForm(PR_TRUE);
+    // TODO: we should get ride of this aNotify parameter, bug 589977.
+    ClearForm(PR_TRUE, PR_TRUE);
   }
 
   if (!mForm) {
@@ -2972,20 +2939,13 @@ nsGenericHTMLFormElement::UpdateFieldSet()
         static_cast<nsHTMLFieldSetElement*>(parent);
 
       if (!prev || fieldset->GetFirstLegend() != prev) {
-        if (mFieldSet) {
-          static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
-        }
         mFieldSet = fieldset;
-        fieldset->AddElement(this);
         return;
       }
     }
   }
 
   // No fieldset found.
-  if (mFieldSet) {
-    static_cast<nsHTMLFieldSetElement*>(mFieldSet)->RemoveElement(this);
-  }
   mFieldSet = nsnull;
 }
 

@@ -80,6 +80,7 @@ protected:
   void MakeTexture();
   GLuint mTexture;
 
+  nsIntRect mBounds;
   nsIntRect mUpdatedRect;
 
   PRPackedBool mGLBufferIsPremultiplied;

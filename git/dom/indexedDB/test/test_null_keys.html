@@ -22,9 +22,6 @@
       let event = yield;
 
       let db = event.result;
-      db.onerror = function(event) {
-        event.preventDefault();
-      };
 
       request = db.setVersion("1");
       request.onerror = errorHandler;

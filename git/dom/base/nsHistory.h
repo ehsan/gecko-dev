@@ -58,7 +58,6 @@ public:
   // nsIDOMHistory
   NS_DECL_NSIDOMHISTORY
 
-  nsIDocShell *GetDocShell() { return mDocShell; }
   void SetDocShell(nsIDocShell *aDocShell);
 
 protected:

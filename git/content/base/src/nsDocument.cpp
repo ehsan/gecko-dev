@@ -205,8 +205,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 using namespace mozilla::dom;
 
-typedef nsTArray<Link*> LinkArray;
-
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDocumentLeakPRLog;
@@ -3904,7 +3902,7 @@ nsDocument::InternalAllowXULXBL()
 void
 nsDocument::AddObserver(nsIDocumentObserver* aObserver)
 {
-  NS_ASSERTION(mObservers.IndexOf(aObserver) == nsTArray<int>::NoIndex,
+  NS_ASSERTION(mObservers.IndexOf(aObserver) == nsTArray_base::NoIndex,
                "Observer already in the list");
   mObservers.AppendElement(aObserver);
   AddMutationObserver(aObserver);
@@ -4373,8 +4371,7 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
 
   nsCOMPtr<nsIContent> content;
   PRInt32 ns = nodeInfo->NamespaceID();
-  rv = NS_NewElement(getter_AddRefs(content), ns, nodeInfo.forget(),
-                     NOT_FROM_PARSER);
+  rv = NS_NewElement(getter_AddRefs(content), ns, nodeInfo.forget(), PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return CallQueryInterface(content, aReturn);
@@ -5543,13 +5540,6 @@ nsDocument::GetAnimationController()
         context->ImageAnimationMode() == imgIContainer::kDontAnimMode) {
       mAnimationController->Pause(nsSMILTimeContainer::PAUSE_USERPREF);
     }
-  }
-
-  // If we're hidden (or being hidden), notify the newly-created animation
-  // controller. (Skip this check for SVG-as-an-image documents, though,
-  // because they don't get OnPageShow / OnPageHide calls).
-  if (!mIsShowing && !mIsBeingUsedAsImage) {
-    mAnimationController->OnPageHide();
   }
 
   return mAnimationController;
@@ -6858,8 +6848,7 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamesp
                                 getter_AddRefs(nodeInfo));
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  return NS_NewElement(aResult, elementType, nodeInfo.forget(),
-                       NOT_FROM_PARSER);
+  return NS_NewElement(aResult, elementType, nodeInfo.forget(), PR_FALSE);
 }
 
 PRBool
@@ -7550,7 +7539,7 @@ static
 PLDHashOperator
 EnumerateStyledLinks(nsPtrHashKey<Link>* aEntry, void* aArray)
 {
-  LinkArray* array = static_cast<LinkArray*>(aArray);
+  nsTArray<Link*>* array = static_cast<nsTArray<Link*>*>(aArray);
   (void)array->AppendElement(aEntry->GetKey());
   return PL_DHASH_NEXT;
 }
@@ -7561,12 +7550,12 @@ nsDocument::RefreshLinkHrefs()
   // Get a list of all links we know about.  We will reset them, which will
   // remove them from the document, so we need a copy of what is in the
   // hashtable.
-  LinkArray linksToNotify(mStyledLinks.Count());
+  nsTArray<Link*> linksToNotify(mStyledLinks.Count());
   (void)mStyledLinks.EnumerateEntries(EnumerateStyledLinks, &linksToNotify);
 
   // Reset all of our styled links.
   MOZ_AUTO_DOC_UPDATE(this, UPDATE_CONTENT_STATE, PR_TRUE);
-  for (LinkArray::size_type i = 0; i < linksToNotify.Length(); i++) {
+  for (nsTArray_base::size_type i = 0; i < linksToNotify.Length(); i++) {
     linksToNotify[i]->ResetLinkState(true);
   }
 }

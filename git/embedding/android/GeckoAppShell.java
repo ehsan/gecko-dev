@@ -49,14 +49,15 @@ import android.text.*;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.content.*;
-import android.content.res.*;
-import android.content.pm.*;
 import android.graphics.*;
 import android.widget.*;
 import android.hardware.*;
 import android.location.*;
 
 import android.util.*;
+import android.content.DialogInterface; 
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 
 class GeckoAppShell
@@ -124,8 +125,6 @@ class GeckoAppShell
 
         f = Environment.getDownloadCacheDirectory();
         GeckoAppShell.putenv("EXTERNAL_STORAGE" + f.getPath());
-
-        GeckoAppShell.putenv("LANG=" + Locale.getDefault().toString());
 
         loadLibs(apkName);
     }
@@ -349,7 +348,6 @@ class GeckoAppShell
         } else {
             Log.i("GeckoAppJava", "we're done, good bye");
             GeckoApp.mAppContext.finish();
-            System.exit(0);
         }
 
     }
@@ -419,30 +417,8 @@ class GeckoAppShell
             return new Intent(Intent.ACTION_VIEW);
     }
 
-    static String getMimeTypeFromExtensions(String aFileExt) {
-        android.webkit.MimeTypeMap mtm =
-            android.webkit.MimeTypeMap.getSingleton();
-        StringTokenizer st = new StringTokenizer(aFileExt, "., ");
-        String type = null;
-        String subType = null;
-        while (st.hasMoreElements()) {
-            String ext = st.nextToken();
-            String mt = mtm.getMimeTypeFromExtension(ext);
-            if (mt == null)
-                continue;
-            int slash = mt.indexOf('/');
-            String tmpType = mt.substring(0, slash);
-            if (!tmpType.equalsIgnoreCase(type))
-                type = type == null ? tmpType : "*";
-            String tmpSubType = mt.substring(slash + 1);
-            if (!tmpSubType.equalsIgnoreCase(subType))
-                subType = subType == null ? tmpSubType : "*";
-        }
-        if (type == null)
-            type = "*";
-        if (subType == null)
-            subType = "*";
-        return type + "/" + subType;
+    static String getMimeTypeFromExtension(String aFileExt) {
+        return android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(aFileExt);
     }
 
     static boolean openUriExternal(String aUriSpec, String aMimeType, String aPackageName, 
@@ -595,34 +571,11 @@ class GeckoAppShell
     }
 
     public static int getDpi() {
-        DisplayMetrics metrics = new DisplayMetrics();
-        GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
-        return metrics.densityDpi;
+         DisplayMetrics metrics = new DisplayMetrics();
+         GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+         return metrics.densityDpi;
     }
-
-    public static void setFullScreen(boolean fullscreen) {
-        GeckoApp.mFullscreen = fullscreen;
-
-        // force a reconfiguration to hide/show the system bar
-        GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-        GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER);
-    }
-
-    public static String showFilePicker(String aFilters) {
-        return GeckoApp.mAppContext.
-            showFilePicker(getMimeTypeFromExtensions(aFilters));
-    }
-
-    public static void showInputMethodPicker() {
-        InputMethodManager imm = (InputMethodManager) GeckoApp.surfaceView.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.showInputMethodPicker();       
-    }
-
-    public static void hideProgressDialog() {
-        if (GeckoApp.mAppContext.mProgressDialog != null) {
-            GeckoApp.mAppContext.mProgressDialog.dismiss();
-            GeckoApp.mAppContext.mProgressDialog = null;
-        }
+    public static String showFilePicker() {
+        return GeckoApp.mAppContext.showFilePicker();
     }
 }

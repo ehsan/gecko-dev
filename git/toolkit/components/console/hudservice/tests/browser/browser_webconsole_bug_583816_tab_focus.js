@@ -19,7 +19,7 @@ function tabLoad(aEvent) {
     openConsole();
 
     let hudId = HUDService.getHudIdByWindow(content);
-    HUD = HUDService.hudReferences[hudId];
+    HUD = HUDService.hudWeakReferences[hudId].get();
 
     let display = HUDService.getOutputNodeById(hudId);
     inputNode = display.querySelector(".jsterm-input-node");

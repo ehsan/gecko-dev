@@ -2332,7 +2332,7 @@ ia64*-hpux*)
     DSO_LDOPTS='-Zdll'
     BIN_FLAGS='-Zlinker /ST:0x100000'
     IMPLIB='emximp -o'
-    FILTER='true'
+    FILTER='emxexp -o'
     LDFLAGS='-Zmap'
     WARNINGS_AS_ERRORS='-Werror'
     MOZ_DEBUG_FLAGS="-g -fno-inline"
@@ -2368,8 +2368,9 @@ ia64*-hpux*)
                         [return 0;],
                         ac_os2_declspec="yes",
                         ac_os2_declspec="no")])
-    if test "$ac_os2_declspec" != "yes"; then
-        AC_MSG_ERROR([Compiler does not support __declspec(dllexport), install GCC-4.3.2 or newer])
+    if test "$ac_os2_declspec" = "yes"; then
+        FILTER='true'
+        MOZ_OS2_USE_DECLSPEC='1'
     fi
     ;;
 
@@ -3139,9 +3140,11 @@ case $target in
 *-os2*)
     ;;
 *)
-    AC_SEARCH_LIBS(dlopen, dl, 
-        AC_CHECK_HEADER(dlfcn.h, 
-        AC_DEFINE(HAVE_DLOPEN)))
+    AC_CHECK_LIB(m, atan)
+    AC_CHECK_LIB(dl, dlopen,
+    AC_CHECK_HEADER(dlfcn.h, 
+        LIBS="-ldl $LIBS"
+        AC_DEFINE(HAVE_LIBDL)))
     ;;
 esac
 
@@ -5142,6 +5145,7 @@ AC_SUBST(USE_DEPENDENT_LIBS)
 
 AC_SUBST(MOZ_BUILD_ROOT)
 AC_SUBST(MOZ_OS2_TOOLS)
+AC_SUBST(MOZ_OS2_USE_DECLSPEC)
 
 AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)

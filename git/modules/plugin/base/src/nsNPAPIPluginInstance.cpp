@@ -85,7 +85,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance(nsNPAPIPlugin* plugin)
     mMIMEType(nsnull),
     mOwner(nsnull),
     mCurrentPluginEvent(nsnull),
-#if defined(MOZ_X11) || defined(XP_WIN)
+#ifdef MOZ_X11
     mUsePluginLayersPref(PR_TRUE)
 #else
     mUsePluginLayersPref(PR_FALSE)
@@ -658,16 +658,14 @@ NPError nsNPAPIPluginInstance::SetWindowless(PRBool aWindowless)
   mWindowless = aWindowless;
 
   if (mMIMEType) {
-    // bug 558434 - Prior to 3.6.4, we assumed windowless was transparent.
-    // Silverlight apparently relied on this quirk, so we default to
-    // transparent unless they specify otherwise after setting the windowless
-    // property. (Last tested version: sl 4.0).
-    // Changes to this code should be matched with changes in
-    // PluginInstanceChild::InitQuirksMode.
-    NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
-    if (!PL_strncasecmp(mMIMEType, silverlight.get(), silverlight.Length())) {
-      mTransparent = PR_TRUE;
-    }
+      // bug 558434 - Prior to 3.6.4, we assumed windowless was transparent.
+      // Silverlight apparently relied on this quirk, so we default to
+      // transparent unless they specify otherwise after setting the windowless
+      // property. (Last tested version: sl 3.0). 
+      NS_NAMED_LITERAL_CSTRING(silverlight, "application/x-silverlight");
+      if (!PL_strncasecmp(mMIMEType, silverlight.get(), silverlight.Length())) {
+          mTransparent = PR_TRUE;
+      }
   }
 
   return NPERR_NO_ERROR;
@@ -855,8 +853,19 @@ nsNPAPIPluginInstance::GetSurface(gfxASurface** aSurface)
 NS_IMETHODIMP
 nsNPAPIPluginInstance::NotifyPainted(void)
 {
-  NS_NOTREACHED("Dead code, shouldn't be called.");
-  return NS_ERROR_NOT_IMPLEMENTED;
+  if (RUNNING != mRunning)
+    return NS_OK;
+
+  PluginDestructionGuard guard(this);
+
+  if (!mPlugin)
+    return NS_ERROR_FAILURE;
+
+  PluginLibrary* library = mPlugin->GetLibrary();
+  if (!library)
+    return NS_ERROR_FAILURE;
+
+  return library->NotifyPainted(&mNPP);
 }
 
 NS_IMETHODIMP
@@ -876,8 +885,7 @@ nsNPAPIPluginInstance::UseAsyncPainting(PRBool* aIsAsync)
   if (!library)
     return NS_ERROR_FAILURE;
 
-  *aIsAsync = library->UseAsyncPainting();
-  return NS_OK;
+  return library->UseAsyncPainting(&mNPP, aIsAsync);
 }
 
 NS_IMETHODIMP

@@ -51,7 +51,7 @@ tabbrowser {
   -moz-transition: opacity .25s;
 }
 
-.tabbrowser-tabs:not([pinnedonly]) > .tabbrowser-tab[pinned] {
+.tabbrowser-tab[pinned] {
   position: fixed;
   display: block; /* position:fixed already does this (bug 579776), but let's be explicit */
 }
@@ -80,7 +80,7 @@ toolbar[printpreview="true"] {
   -moz-box-ordinal-group: 10;
 }
 
-%ifdef CAN_DRAW_IN_TITLEBAR
+%ifdef MENUBAR_CAN_AUTOHIDE
 #main-window[inFullscreen] > #titlebar {
   display: none;
 }
@@ -167,14 +167,14 @@ html|*.urlbar-input {
 /* over-link in location bar */
 
 .urlbar-over-link-layer[overlinkstate="fade-in"],
-.urlbar-textbox-container[overlinkstate="fade-out"] {
+.urlbar-textbox-container:not([overlinkstate]) {
   -moz-transition-property: color;
   -moz-transition-duration: 150ms;
   -moz-transition-timing-function: cubic-bezier(0.0, 0.6, 1.0, 1.0);
 }
 
 .urlbar-textbox-container[overlinkstate="fade-in"],
-.urlbar-over-link-layer[overlinkstate="fade-out"] {
+.urlbar-over-link-layer:not([overlinkstate]) {
   -moz-transition-property: color;
   -moz-transition-duration: 150ms;
   -moz-transition-timing-function: linear;
@@ -182,14 +182,14 @@ html|*.urlbar-input {
 }
 
 .urlbar-over-link-box[overlinkstate="fade-in"],
-.urlbar-textbox-container-children[overlinkstate="fade-out"] {
+.urlbar-textbox-container-children:not([overlinkstate]) {
   -moz-transition-property: opacity;
   -moz-transition-duration: 150ms;
   opacity: 1;
 }
 
 .urlbar-textbox-container-children[overlinkstate="fade-in"],
-.urlbar-over-link-box[overlinkstate="fade-out"] {
+.urlbar-over-link-box:not([overlinkstate]) {
   -moz-transition-property: opacity;
   -moz-transition-duration: 150ms;
   opacity: 0;
@@ -204,14 +204,6 @@ html|*.urlbar-input {
 }
 
 .urlbar-textbox-container-children[overlinkstate="showing"] {
-  opacity: 0;
-}
-
-.urlbar-over-link-layer:not([overlinkstate]) {
-  color: transparent;
-}
-
-.urlbar-over-link-box:not([overlinkstate]) {
   opacity: 0;
 }
 

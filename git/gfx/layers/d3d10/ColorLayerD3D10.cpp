@@ -55,19 +55,18 @@ ColorLayerD3D10::GetLayer()
 }
 
 void
-ColorLayerD3D10::RenderLayer()
+ColorLayerD3D10::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
 {
   float color[4];
   // color is premultiplied, so we need to adjust all channels
-  float opacity = GetEffectiveOpacity();
-  color[0] = (float)(mColor.r * opacity);
-  color[1] = (float)(mColor.g * opacity);
-  color[2] = (float)(mColor.b * opacity);
-  color[3] = (float)(mColor.a * opacity);
+  color[0] = (float)(mColor.r * GetOpacity() * aOpacity);
+  color[1] = (float)(mColor.g * GetOpacity() * aOpacity);
+  color[2] = (float)(mColor.b * GetOpacity() * aOpacity);
+  color[3] = (float)(mColor.a * GetOpacity() * aOpacity);
 
-  const gfx3DMatrix& transform = GetEffectiveTransform();
-  void* raw = &const_cast<gfx3DMatrix&>(transform)._11;
-  effect()->GetVariableByName("mLayerTransform")->SetRawValue(raw, 0, 64);
+  gfx3DMatrix transform = mTransform * aTransform;
+
+  effect()->GetVariableByName("mLayerTransform")->SetRawValue(&transform._11, 0, 64);
   effect()->GetVariableByName("fLayerColor")->AsVector()->SetFloatVector(color);
 
   ID3D10EffectTechnique *technique;

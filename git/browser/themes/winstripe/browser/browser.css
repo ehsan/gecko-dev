@@ -122,13 +122,18 @@
   text-shadow: 0 0 1px rgba(0,0,0,.7),
                0 1px 1.5px rgba(0,0,0,.5);
   font-weight: bold;
-  padding: 0 1.5em .05em;
+  padding: .1em 1.5em .15em;
   margin: 0;
 }
 
-#main-window[privatebrowsingmode=temporary] #appmenu-button {
+#main-window[privatebrowsingmode=temporary] #appmenu-button:not(:-moz-window-inactive) {
   background-image: -moz-linear-gradient(rgb(153,38,211), rgb(105,19,163) 95%);
   border-color: rgba(43,8,65,.9);
+}
+
+#appmenu-button:-moz-window-inactive {
+  background-image: none;
+  border-color: rgba(0,0,0,.4);
 }
 
 #appmenu-button:hover:not(:active):not([open]) {
@@ -178,6 +183,15 @@
   -moz-margin-start: .5em;
 }
 
+/* menupopup > menu[_moz-menuactive="true"] etc. from menu.css doesn't match these nodes */
+.split-menuitem-item[_moz-menuactive="true"]:not([disabled]),
+.split-menuitem-menu[_moz-menuactive="true"]:not([disabled]),
+:-moz-any(#appmenuPrimaryPane, #appmenuSecondaryPane) > menu[_moz-menuactive="true"]:not([disabled]),
+:-moz-any(#appmenuPrimaryPane, #appmenuSecondaryPane) > menuitem[_moz-menuactive="true"]:not([disabled]) {
+  background-color: -moz-menuhover;
+  color: -moz-menuhovertext;
+}
+
 .split-menuitem-menu {
   -moz-box-pack: end;
 }
@@ -201,20 +215,18 @@
     border: 1px solid rgba(0,0,0,.5);
   }
   #appmenuPrimaryPane {
-    -moz-margin-end: -1px;
+    margin-right: -1px;
     background-color: rgba(255,255,255,0.5);
-    -moz-border-end: 1px solid #c4c4c5;
-    -moz-padding-start: 2px;
+    border-right: 1px solid #c4c4c5;
+    padding-left: 2px;
   }
   #appmenuSecondaryPane {
+    -moz-appearance: none;
     background-color: #f1f5fb;
     box-shadow: 1px 0 2px rgb(204,214,234) inset;
     border: 0;
     padding-top: 5px;
     font-family: "Segoe UI Semibold", "Segoe UI", sans-serif;
-  }
-  #appmenuSecondaryPane:-moz-locale-dir(rtl) {
-    box-shadow: -1px 0 2px rgb(204,214,234) inset;
   }
 
   .appmenu-menuseparator {
@@ -290,6 +302,14 @@
   list-style-image: url("chrome://mozapps/skin/extensions/extensionGeneric-16.png");
 }
 
+#BMB_subscribeToPage:not([disabled]),
+#BMB_subscribeToPageMenu,
+#appmenu_subscribeToPage:not([disabled]),
+#appmenu_subscribeToPageMenu {
+  list-style-image: url("chrome://browser/skin/feeds/feed-icons-16.png");
+  -moz-image-region: rect(0px 16px 16px 0px);
+}
+
 #BMB_bookmarkThisPage,
 #appmenu_bookmarkThisPage {
   list-style-image: url("chrome://browser/skin/places/bookmark.png");
@@ -313,6 +333,7 @@
 #titlebar-content {
   margin-left: 15px;
   margin-right: 15px;
+  -moz-box-align: start;
 }
 
 @media all and (-moz-windows-classic) {
@@ -325,7 +346,7 @@
   -moz-appearance: -moz-window-button-box;
 }
 
-#main-window[sizemode="maximized"] #titlebar-buttonbox {
+#main-window[sizemode="maximized"] > #titlebar > #titlebar-content > #titlebar-buttonbox {
   -moz-appearance: -moz-window-button-box-maximized;
 }
 
@@ -339,7 +360,7 @@
   -moz-appearance: -moz-window-button-maximize;
 }
 
-#main-window[sizemode="maximized"] #titlebar-max {
+#main-window[sizemode="maximized"] > #titlebar > #titlebar-content > #titlebar-buttonbox > #titlebar-max {
   -moz-appearance: -moz-window-button-restore;
 }
 
@@ -1851,7 +1872,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 .geolocation-text-link {
-  margin-top: 17px;
+  padding-top: 5px;
 }
 
 .popup-notification-icon[popupid="xpinstall-disabled"],
@@ -1915,15 +1936,6 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 }
 
 /* Bookmarks roots menu-items */
-#appmenu_subscribeToPage:not([disabled]),
-#appmenu_subscribeToPageMenu,
-#subscribeToPageMenuitem:not([disabled]),
-#subscribeToPageMenupopup,
-#BMB_subscribeToPageMenuitem:not([disabled]),
-#BMB_subscribeToPageMenupopup {
-  list-style-image: url("chrome://browser/skin/feeds/feedIcon16.png");
-}
-
 #bookmarksToolbarFolderMenu,
 #appmenu_bookmarksToolbar,
 #BMB_bookmarksToolbar {

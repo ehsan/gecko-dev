@@ -48,13 +48,14 @@ NS_IMETHODIMP nsFilePicker::Init(nsIDOMWindow *parent, const nsAString& title,
     return nsIFilePicker::modeOpen == mode ? NS_OK : NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsFilePicker::AppendFilter(const nsAString& /*title*/,
-                                         const nsAString& filter)
+NS_IMETHODIMP nsFilePicker::AppendFilters(PRInt32 filterMask)
 {
-    if (!mFilters.IsEmpty())
-        mFilters.AppendLiteral(", ");
-    mFilters.Append(filter);
-    return NS_OK;
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsFilePicker::AppendFilter(const nsAString & title, const nsAString & filter)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP nsFilePicker::GetDefaultString(nsAString & aDefaultString)
@@ -71,6 +72,15 @@ NS_IMETHODIMP nsFilePicker::GetDefaultExtension(nsAString & aDefaultExtension)
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 NS_IMETHODIMP nsFilePicker::SetDefaultExtension(const nsAString & aDefaultExtension)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsFilePicker::GetFilterIndex(PRInt32 *aFilterIndex)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+NS_IMETHODIMP nsFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -117,13 +127,17 @@ NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
     return CallQueryInterface(uri, aFileURL);
 }
 
+NS_IMETHODIMP nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 NS_IMETHODIMP nsFilePicker::Show(PRInt16 *_retval NS_OUTPARAM)
 {
     if (!mozilla::AndroidBridge::Bridge())
         return NS_ERROR_NOT_IMPLEMENTED;
     nsAutoString filePath;
-
-    mozilla::AndroidBridge::Bridge()->ShowFilePicker(filePath, mFilters);
+    mozilla::AndroidBridge::Bridge()->ShowFilePicker(filePath);
     *_retval = EmptyString().Equals(filePath) ? 
         nsIFilePicker::returnCancel : nsIFilePicker::returnOK;
     if (*_retval == nsIFilePicker::returnOK)

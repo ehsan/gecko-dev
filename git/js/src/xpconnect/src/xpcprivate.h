@@ -149,17 +149,10 @@ static FARPROC GetProcAddressA(HMODULE hMod, wchar_t *procName);
 
 #include <atlbase.h>
 #include "oaidl.h"
-#endif
-
-#ifdef XP_WIN
 // Nasty MS defines
-#ifdef GetClassInfo
 #undef GetClassInfo
-#endif
-#ifdef GetClassName
 #undef GetClassName
 #endif
-#endif /* XP_WIN */
 
 #include "nsINode.h"
 
@@ -239,6 +232,7 @@ void DEBUG_CheckWrapperThreadSafety(const XPCWrappedNative* wrapper);
 #define XPC_NATIVE_JSCLASS_MAP_SIZE         32
 #define XPC_THIS_TRANSLATOR_MAP_SIZE         8
 #define XPC_NATIVE_WRAPPER_MAP_SIZE         16
+#define XPC_WRAPPER_MAP_SIZE                 8
 
 /***************************************************************************/
 // data declarations...
@@ -561,18 +555,6 @@ public:
 
     nsresult GetInfoForIID(const nsIID * aIID, nsIInterfaceInfo** info);
     nsresult GetInfoForName(const char * name, nsIInterfaceInfo** info);
-
-    static nsresult Base64Encode(const nsACString &aString,
-                                 nsACString &aBinary);
-
-    static nsresult Base64Encode(const nsAString &aString,
-                                 nsAString &aBinaryData);
-
-    static nsresult Base64Decode(const nsACString &aBinaryData,
-                                 nsACString &aString);
-
-    static nsresult Base64Decode(const nsAString &aBinaryData,
-                                 nsAString &aString);
 
     // nsCycleCollectionParticipant
     NS_IMETHOD RootAndUnlinkJSObjects(void *p);
@@ -1533,6 +1515,9 @@ public:
     Native2WrappedNativeMap*
     GetWrappedNativeMap() const {return mWrappedNativeMap;}
 
+    WrappedNative2WrapperMap*
+    GetWrapperMap() const {return mWrapperMap;}
+
     ClassInfo2WrappedNativeProtoMap*
     GetWrappedNativeProtoMap(JSBool aMainThreadOnly) const
         {return aMainThreadOnly ?
@@ -1644,6 +1629,7 @@ private:
     Native2WrappedNativeMap*         mWrappedNativeMap;
     ClassInfo2WrappedNativeProtoMap* mWrappedNativeProtoMap;
     ClassInfo2WrappedNativeProtoMap* mMainThreadWrappedNativeProtoMap;
+    WrappedNative2WrapperMap*        mWrapperMap;
     nsXPCComponents*                 mComponents;
     XPCWrappedNativeScope*           mNext;
     // The JS global object for this scope.  If non-null, this will be the
@@ -2018,6 +2004,7 @@ public:
     JSBool WantTrace()                    GET_IT(WANT_TRACE)
     JSBool WantEquality()                 GET_IT(WANT_EQUALITY)
     JSBool WantOuterObject()              GET_IT(WANT_OUTER_OBJECT)
+    JSBool WantInnerObject()              GET_IT(WANT_INNER_OBJECT)
     JSBool UseJSStubForAddProperty()      GET_IT(USE_JSSTUB_FOR_ADDPROPERTY)
     JSBool UseJSStubForDelProperty()      GET_IT(USE_JSSTUB_FOR_DELPROPERTY)
     JSBool UseJSStubForSetProperty()      GET_IT(USE_JSSTUB_FOR_SETPROPERTY)
@@ -2559,10 +2546,10 @@ public:
     XPCNativeSet*
     GetSet() const {XPCAutoLock al(GetLock()); return mSet;}
 
+private:
     void
     SetSet(XPCNativeSet* set) {XPCAutoLock al(GetLock()); mSet = set;}
 
-private:
     inline void
     ExpireWrapper()
         {mMaybeScope = (XPCWrappedNativeScope*)
@@ -2691,6 +2678,7 @@ public:
         JSObject* wrapper = GetWrapper();
         if(wrapper)
             JS_CALL_OBJECT_TRACER(trc, wrapper, "XPCWrappedNative::mWrapper");
+        TraceOtherWrapper(trc);
     }
 
     inline void AutoTrace(JSTracer* trc)
@@ -2801,6 +2789,7 @@ protected:
 
 private:
 
+    void TraceOtherWrapper(JSTracer* trc);
     JSBool Init(XPCCallContext& ccx, JSObject* parent, JSBool isGlobal,
                 const XPCNativeScriptableCreateInfo* sci);
     JSBool Init(XPCCallContext &ccx, JSObject *existingJSObject);

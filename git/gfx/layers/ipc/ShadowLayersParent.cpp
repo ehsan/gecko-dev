@@ -133,8 +133,8 @@ ShadowLayersParent::~ShadowLayersParent()
 }
 
 bool
-ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
-                               InfallibleTArray<EditReply>* reply)
+ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
+                               nsTArray<EditReply>* reply)
 {
   MOZ_LAYERS_LOG(("[ParentSide] recieved txn with %d edits", cset.Length()));
 
@@ -376,16 +376,12 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ThebesBuffer newBack;
       nsIntRegion newValidRegion;
       float newXResolution, newYResolution;
-      OptionalThebesBuffer readonlyFront;
-      nsIntRegion frontUpdatedRegion;
       thebes->Swap(newFront, op.updatedRegion(),
-                   &newBack, &newValidRegion, &newXResolution, &newYResolution,
-                   &readonlyFront, &frontUpdatedRegion);
+                   &newBack, &newValidRegion, &newXResolution, &newYResolution);
       replyv.push_back(
         OpThebesBufferSwap(
           shadow, NULL,
-          newBack, newValidRegion, newXResolution, newYResolution,
-          readonlyFront, frontUpdatedRegion));
+          newBack, newValidRegion, newXResolution, newYResolution));
       break;
     }
     case Edit::TOpPaintCanvas: {

@@ -68,9 +68,10 @@ PRPackedBool
 nsUXThemeData::sIsXPOrLater = PR_FALSE;
 PRPackedBool
 nsUXThemeData::sIsVistaOrLater = PR_FALSE;
+PRPackedBool
+nsUXThemeData::sHaveCompositor = PR_FALSE;
 
-PRBool nsUXThemeData::sTitlebarInfoPopulatedAero = PR_FALSE;
-PRBool nsUXThemeData::sTitlebarInfoPopulatedThemed = PR_FALSE;
+PRBool nsUXThemeData::sTitlebarInfoPopulated = PR_FALSE;
 SIZE nsUXThemeData::sCommandButtons[4];
 
 nsUXThemeData::OpenThemeDataPtr nsUXThemeData::openTheme = NULL;
@@ -172,6 +173,8 @@ nsUXThemeData::Invalidate() {
     // shall give WIN2K special treatment
     sFlatMenus = PR_FALSE;
   }
+  // Refresh titlebar button info
+  sTitlebarInfoPopulated = PR_FALSE;
 }
 
 HANDLE
@@ -266,39 +269,36 @@ nsUXThemeData::InitTitlebarInfo()
   sCommandButtons[3].cy = sCommandButtons[0].cy;
 
   // Use system metrics for pre-vista
-  if (nsWindow::GetWindowsVersion() < VISTA_VERSION) {
-    sTitlebarInfoPopulatedAero = sTitlebarInfoPopulatedThemed = PR_TRUE;
-  }
+  if (nsWindow::GetWindowsVersion() < VISTA_VERSION)
+    sTitlebarInfoPopulated = PR_TRUE;
 }
 
 // static
 void
 nsUXThemeData::UpdateTitlebarInfo(HWND aWnd)
 {
-  if (!aWnd)
+  if (sTitlebarInfoPopulated || !aWnd)
     return;
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  if (!sTitlebarInfoPopulatedAero && nsUXThemeData::CheckForCompositor()) {
+  if (nsUXThemeData::CheckForCompositor()) {
     RECT captionButtons;
-    if (SUCCEEDED(nsUXThemeData::dwmGetWindowAttributePtr(aWnd,
-                                                          DWMWA_CAPTION_BUTTON_BOUNDS,
-                                                          &captionButtons,
-                                                          sizeof(captionButtons)))) {
-      sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cx = captionButtons.right - captionButtons.left - 3;
-      sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy = (captionButtons.bottom - captionButtons.top) - 1;
-      sTitlebarInfoPopulatedAero = PR_TRUE;
+    if (FAILED(nsUXThemeData::dwmGetWindowAttributePtr(aWnd,
+                                                       DWMWA_CAPTION_BUTTON_BOUNDS,
+                                                       &captionButtons,
+                                                       sizeof(captionButtons)))) {
+      NS_WARNING("DWMWA_CAPTION_BUTTON_BOUNDS query failed to find usable metrics.");
+      return;
     }
+    sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cx = captionButtons.right - captionButtons.left - 3;
+    sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy = (captionButtons.bottom - captionButtons.top) - 1;
+    sTitlebarInfoPopulated = PR_TRUE;
+    return;
   }
 #endif
 
-  if (sTitlebarInfoPopulatedThemed)
-    return;
-
   // Query a temporary, visible window with command buttons to get
   // the right metrics. 
-  nsAutoString className;
-  className.AssignLiteral(kClassNameTemp);
   WNDCLASSW wc;
   wc.style         = 0;
   wc.lpfnWndProc   = ::DefWindowProcW;
@@ -309,15 +309,15 @@ nsUXThemeData::UpdateTitlebarInfo(HWND aWnd)
   wc.hCursor       = NULL;
   wc.hbrBackground = NULL;
   wc.lpszMenuName  = NULL;
-  wc.lpszClassName = className.get();
+  wc.lpszClassName = kClassNameTemp;
   ::RegisterClassW(&wc);
 
-  // Create a transparent descendant of the window passed in. This
+  // Create a transparent, descendent of the window passed in. This
   // keeps the window from showing up on the desktop or the taskbar.
   // Note the parent (browser) window is usually still hidden, we
   // don't want to display it, so we can't query it directly.
-  HWND hWnd = CreateWindowExW(WS_EX_LAYERED,
-                              className.get(), L"",
+  HWND hWnd = CreateWindowExW(WS_EX_NOACTIVATE|WS_EX_LAYERED,
+                              kClassNameTemp, L"",
                               WS_OVERLAPPEDWINDOW,
                               0, 0, 0, 0, aWnd, NULL,
                               nsToolkit::mDllInstance, NULL);
@@ -346,7 +346,7 @@ nsUXThemeData::UpdateTitlebarInfo(HWND aWnd)
   sCommandButtons[2].cx = info.rgrect[5].right - info.rgrect[5].left;
   sCommandButtons[2].cy = info.rgrect[5].bottom - info.rgrect[5].top;
 
-  sTitlebarInfoPopulatedThemed = PR_TRUE;
+  sTitlebarInfoPopulated = PR_TRUE;
 }
 
 // visual style (aero glass, aero basic)
@@ -395,9 +395,6 @@ PRBool nsUXThemeData::IsDefaultWindowTheme()
 void
 nsUXThemeData::UpdateNativeThemeInfo()
 {
-  // Trigger a refresh of themed button metrics if needed
-  sTitlebarInfoPopulatedThemed = (nsWindow::GetWindowsVersion() < VISTA_VERSION);
-
   sIsDefaultWindowsTheme = PR_FALSE;
   sThemeId = nsILookAndFeel::eWindowsTheme_Generic;
 

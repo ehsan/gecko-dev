@@ -107,11 +107,9 @@ nsSVGTransformSMILAttr::GetBaseValue() const
 void
 nsSVGTransformSMILAttr::ClearAnimValue()
 {
-  PRBool animValSet = !!mVal->mAnimVal;
+  mVal->WillModify(nsISVGValue::mod_other);
   mVal->mAnimVal = nsnull;
-  if (animValSet) {
-    mSVGElement->DidAnimateTransform();
-  }
+  mVal->DidModify(nsISVGValue::mod_other);
 }
 
 nsresult

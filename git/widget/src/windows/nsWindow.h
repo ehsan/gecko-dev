@@ -303,15 +303,12 @@ protected:
   virtual void            SubclassWindow(BOOL bState);
   PRBool                  CanTakeFocus();
   PRBool                  UpdateNonClientMargins(PRInt32 aSizeMode = -1, PRBool aReflowWindow = PR_TRUE);
-  void                    UpdateGetWindowInfoCaptionStatus(PRBool aActiveCaption);
   void                    ResetLayout();
   void                    InvalidateNonClientRegion();
   HRGN                    ExcludeNonClientFromPaintRegion(HRGN aRegion);
 #if !defined(WINCE)
-  static void             InitInputHackDefaults();
+  static void             InitTrackPointHack();
 #endif
-  static PRBool           UseTrackPointHack();
-  static void             GetMainWindowClass(nsAString& aClass);
   PRBool                  HasGlass() const {
     return mTransparencyMode == eTransparencyGlass ||
            mTransparencyMode == eTransparencyBorderlessGlass;
@@ -397,15 +394,14 @@ protected:
    */
   void                    UserActivity();
 
-  PRInt32                 GetHeight(PRInt32 aProposedHeight);
-  void                    GetWindowClass(nsString& aWindowClass);
-  void                    GetWindowPopupClass(nsString& aWindowClass);
+  /**
+   * Methods for derived classes 
+   */
+  virtual PRInt32         GetHeight(PRInt32 aProposedHeight);
+  virtual LPCWSTR         WindowClass();
+  virtual LPCWSTR         WindowPopupClass();
   virtual DWORD           WindowStyle();
-  DWORD                   WindowExStyle();
-
-  void                    RegisterWindowClass(const nsString& aClassName,
-                                              UINT aExtraStyle,
-                                              LPWSTR aIconID);
+  virtual DWORD           WindowExStyle();
 
   /**
    * XP and Vista theming support for windows with rounded edges
@@ -492,6 +488,8 @@ protected:
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;
   static nsWindow*      sCurrentWindow;
+  static BOOL           sIsRegistered;
+  static BOOL           sIsPopupClassRegistered;
   static BOOL           sIsOleInitialized;
   static HCURSOR        sHCursor;
   static imgIContainer* sCursorImgContainer;
@@ -499,8 +497,7 @@ protected:
   static PRBool         sJustGotDeactivate;
   static PRBool         sJustGotActivate;
   static int            sTrimOnMinimize;
-  static PRBool         sDefaultTrackPointHack;
-  static const char*    sDefaultMainWindowClass;
+  static PRBool         sTrackPointHack;
 #ifdef MOZ_IPC
   static PRUint32       sOOPPPluginFocusEvent;
 #endif

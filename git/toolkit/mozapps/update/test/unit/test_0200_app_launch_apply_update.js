@@ -178,18 +178,16 @@ function run_test() {
   mar.copyTo(updatesPatchDir, FILE_UPDATE_ARCHIVE);
 
   // Backup the updater.ini
-  let updaterIni = processDir.clone();
-  updaterIni.append(FILE_UPDATER_INI);
-  updaterIni.moveTo(processDir, FILE_UPDATER_INI_BAK);
+  let updaterINI = processDir.clone();
+  updaterINI.append(FILE_UPDATER_INI);
+  updaterINI.moveTo(processDir, FILE_UPDATER_INI_BAK);
   // Create a new updater.ini to avoid applications that provide a post update
   // executable.
-  let updaterIniContents = "[Strings]\n" +
-                           "Title=Update Test\n" +
-                           "Info=Application Update XPCShell Test - " +
-                           "test_0200_general.js\n";
-  updaterIni = processDir.clone();
-  updaterIni.append(FILE_UPDATER_INI);
-  writeFile(updaterIni, updaterIniContents);
+  updaterINI = processDir.clone();
+  updaterINI.append(FILE_UPDATER_INI);
+  writeFile(updaterINI, "[Strings]\n" +
+                        "Title=Update Test\n" +
+                        "Info=XPCShell Application Update Test\n");
 
   let launchBin = getLaunchBin();
   let args = getProcessArgs();
@@ -230,9 +228,9 @@ function end_test() {
 
   let processDir = getCurrentProcessDir();
   // Restore the backed up updater.ini
-  let updaterIni = processDir.clone();
-  updaterIni.append(FILE_UPDATER_INI_BAK);
-  updaterIni.moveTo(processDir, FILE_UPDATER_INI);
+  let updaterINI = processDir.clone();
+  updaterINI.append(FILE_UPDATER_INI_BAK);
+  updaterINI.moveTo(processDir, FILE_UPDATER_INI);
 
   if (IS_WIN) {
     // Remove the copy of the application executable used for the test on

@@ -70,10 +70,8 @@ function TabItem(tab, options) {
 
   this.canvasSizeForced = false;
   this.isShowingCachedData = false;
-  this.favEl = (iQ('.favicon', $div))[0];
-  this.favImgEl = (iQ('.favicon>img', $div))[0];
+  this.favEl = (iQ('.favicon>img', $div))[0];
   this.nameEl = (iQ('.tab-title', $div))[0];
-  this.thumbEl = (iQ('.thumb', $div))[0];
   this.canvasEl = (iQ('.thumb canvas', $div))[0];
   this.cachedThumbEl = (iQ('img.cached-thumb', $div))[0];
 
@@ -196,7 +194,6 @@ function TabItem(tab, options) {
   iQ("<div>")
     .addClass('close')
     .appendTo($div);
-  this.closeEl = (iQ(".close", $div))[0];
 
   iQ("<div>")
     .addClass('expander')
@@ -325,10 +322,10 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       this.bounds.copy(rect);
     else {
       var $container = iQ(this.container);
-      var $title = iQ(this.nameEl);
-      var $thumb = iQ(this.thumbEl);
-      var $close = iQ(this.closeEl);
-      var $fav   = iQ(this.favEl);
+      var $title = iQ('.tab-title', $container);
+      var $thumb = iQ('.thumb', $container);
+      var $close = iQ('.close', $container);
+      var $fav   = iQ('.favicon', $container);
       var css = {};
 
       const fontSizeRange = new Range(8,15);
@@ -385,19 +382,11 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         let widthRange, proportion;
 
         if (this.inStack()) {
-          if (UI.rtl) {
-            $fav.css({top:0, right:0});
-          } else {
-            $fav.css({top:0, left:0});
-          }
+          $fav.css({top:0, left:0});
           widthRange = new Range(70, 90);
           proportion = widthRange.proportion(css.width); // between 0 and 1
         } else {
-          if (UI.rtl) {
-            $fav.css({top:4, right:2});
-          } else {
-            $fav.css({top:4, left:4});
-          }
+          $fav.css({top:4,left:4});
           widthRange = new Range(40, 45);
           proportion = widthRange.proportion(css.width); // between 0 and 1
         }
@@ -410,8 +399,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         var pad = 1 + 5 * proportion;
         var alphaRange = new Range(0.1,0.2);
         $fav.css({
-         "-moz-padding-start": pad + "px",
-         "-moz-padding-end": pad + 2 + "px",
+         "padding-left": pad + "px",
+         "padding-right": pad + 2 + "px",
          "padding-top": pad + "px",
          "padding-bottom": pad + "px",
          "border-color": "rgba(0,0,0,"+ alphaRange.scale(proportion) +")",
@@ -805,8 +794,8 @@ let TabItems = {
       if (iconUrl == null)
         iconUrl = Utils.defaultFaviconURL;
 
-      if (iconUrl != tabItem.favImgEl.src)
-        tabItem.favImgEl.src = iconUrl;
+      if (iconUrl != tabItem.favEl.src)
+        tabItem.favEl.src = iconUrl;
 
       // ___ URL
       let tabUrl = tab.linkedBrowser.currentURI.spec;

@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Geoff Lankow <geoff@darktrojan.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -127,8 +126,6 @@
 #include "jscntxt.h"
 
 #include "nsHTMLInputElement.h"
-
-using namespace mozilla::dom;
 
 // XXX align=left, hspace, vspace, border? other nav4 attrs
 
@@ -541,9 +538,6 @@ UploadLastDir::StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile)
   NS_PRECONDITION(aFile, "aFile is null");
   nsCOMPtr<nsIFile> parentFile;
   aFile->GetParent(getter_AddRefs(parentFile));
-  if (!parentFile) {
-    return NS_OK;
-  }
   nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(parentFile);
 
   // Store the data in memory instead of the CPS during private browsing mode
@@ -618,14 +612,14 @@ static nsresult FireEventForAccessibility(nsIDOMHTMLInputElement* aTarget,
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
 
 nsHTMLInputElement::nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+                                       PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mType(kInputDefaultType->value),
     mBitField(0)
 {
   SET_BOOLBIT(mBitField, BF_PARSER_CREATING, aFromParser);
   SET_BOOLBIT(mBitField, BF_INHIBIT_RESTORATION,
-      aFromParser & mozilla::dom::FROM_PARSER_FRAGMENT);
+      aFromParser & NS_FROM_PARSER_FRAGMENT);
   mInputData.mState = new nsTextEditorState(this);
   NS_ADDREF(mInputData.mState);
   
@@ -708,7 +702,10 @@ nsHTMLInputElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsHTMLInputElement *it = new nsHTMLInputElement(ni.forget(), NOT_FROM_PARSER);
+  nsHTMLInputElement *it = new nsHTMLInputElement(ni.forget(), PR_FALSE);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = CopyInnerTo(it);
@@ -778,7 +775,7 @@ nsHTMLInputElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
          (aName == nsGkAtoms::type && !mForm)) &&
         mType == NS_FORM_INPUT_RADIO &&
         (mForm || !(GET_BOOLBIT(mBitField, BF_PARSER_CREATING)))) {
-      WillRemoveFromRadioGroup();
+      WillRemoveFromRadioGroup(aNotify);
     } else if (aNotify && aName == nsGkAtoms::src &&
                mType == NS_FORM_INPUT_IMAGE) {
       if (aValue) {
@@ -981,7 +978,7 @@ NS_IMPL_URI_ATTR(nsHTMLInputElement, Src, src)
 NS_IMPL_INT_ATTR(nsHTMLInputElement, TabIndex, tabindex)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, UseMap, usemap)
 //NS_IMPL_STRING_ATTR(nsHTMLInputElement, Value, value)
-NS_IMPL_UINT_ATTR_NON_ZERO_DEFAULT_VALUE(nsHTMLInputElement, Size, size, DEFAULT_COLS)
+//NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Size, size, 0)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, Pattern, pattern)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, Placeholder, placeholder)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Type, type,
@@ -1021,6 +1018,29 @@ NS_IMETHODIMP
 nsHTMLInputElement::SetIndeterminate(PRBool aValue)
 {
   return SetIndeterminateInternal(aValue, PR_TRUE);
+}
+
+NS_IMETHODIMP
+nsHTMLInputElement::GetSize(PRUint32* aValue)
+{
+  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(nsGkAtoms::size);
+  if (attrVal && attrVal->Type() == nsAttrValue::eInteger) {
+    *aValue = attrVal->GetIntegerValue();
+  }
+  else {
+    *aValue = 0;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLInputElement::SetSize(PRUint32 aValue)
+{
+  nsAutoString val;
+  val.AppendInt(aValue);
+
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::size, val, PR_TRUE);
 }
 
 NS_IMETHODIMP 
@@ -1685,7 +1705,7 @@ nsHTMLInputElement::SetCheckedInternal(PRBool aChecked, PRBool aNotify)
   if (mType == NS_FORM_INPUT_RADIO) {
     // OnValueChanged is going to be called for all radios in the radio group.
     nsCOMPtr<nsIRadioVisitor> visitor =
-      NS_GetRadioUpdateValueMissingVisitor();
+      NS_GetRadioUpdateValueMissingVisitor(aNotify);
     VisitGroup(visitor, aNotify);
   }
 }
@@ -2518,7 +2538,7 @@ nsHTMLInputElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   // of the case where we're removing from the document and we don't
   // have a form
   if (!mForm && mType == NS_FORM_INPUT_RADIO) {
-    WillRemoveFromRadioGroup();
+    WillRemoveFromRadioGroup(PR_FALSE);
   }
 
   nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
@@ -2672,7 +2692,7 @@ nsHTMLInputElement::ParseAttribute(PRInt32 aNamespaceID,
       return aResult.ParseNonNegativeIntValue(aValue);
     }
     if (aAttribute == nsGkAtoms::size) {
-      return aResult.ParsePositiveIntValue(aValue);
+      return aResult.ParseIntWithBounds(aValue, 0);
     }
     if (aAttribute == nsGkAtoms::border) {
       return aResult.ParseIntWithBounds(aValue, 0);
@@ -3414,7 +3434,7 @@ nsHTMLInputElement::AddedToRadioGroup(PRBool aNotify)
 }
 
 void
-nsHTMLInputElement::WillRemoveFromRadioGroup()
+nsHTMLInputElement::WillRemoveFromRadioGroup(PRBool aNotify)
 {
   //
   // If the input element is not in a form and
@@ -3447,7 +3467,7 @@ nsHTMLInputElement::WillRemoveFromRadioGroup()
     // Removing a checked radio from the group can change the validity state.
     // Let's ask other radio to update their value missing validity state.
     nsCOMPtr<nsIRadioVisitor> visitor =
-      NS_GetRadioUpdateValueMissingVisitor();
+      NS_GetRadioUpdateValueMissingVisitor(aNotify);
     VisitGroup(visitor, PR_FALSE);
   }
   
@@ -4161,8 +4181,9 @@ protected:
 
 class nsRadioUpdateValueMissingVisitor : public nsRadioVisitor {
 public:
-  nsRadioUpdateValueMissingVisitor()
+  nsRadioUpdateValueMissingVisitor(PRBool aNotify)
     : nsRadioVisitor()
+    , mNotify(aNotify)
     { }
 
   virtual ~nsRadioUpdateValueMissingVisitor() { };
@@ -4182,9 +4203,12 @@ public:
      */
     nsCOMPtr<nsITextControlElement> textCtl(do_QueryInterface(aRadio));
     NS_ASSERTION(textCtl, "Visit() passed a null or non-radio pointer");
-    textCtl->OnValueChanged(PR_TRUE);
+    textCtl->OnValueChanged(mNotify);
     return NS_OK;
   }
+
+protected:
+  PRBool mNotify;
 };
 
 nsresult
@@ -4268,9 +4292,9 @@ NS_GetRadioGetCheckedChangedVisitor(PRBool* aCheckedChanged,
  * See bug 586298
  */
 nsIRadioVisitor*
-NS_GetRadioUpdateValueMissingVisitor()
+NS_GetRadioUpdateValueMissingVisitor(PRBool aNotify)
 {
-  return new nsRadioUpdateValueMissingVisitor();
+  return new nsRadioUpdateValueMissingVisitor(aNotify);
 }
 
 NS_IMETHODIMP_(PRBool)

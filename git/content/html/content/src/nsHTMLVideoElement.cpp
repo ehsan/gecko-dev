@@ -66,8 +66,6 @@
 #include "nsIDOMProgressEvent.h"
 #include "nsMediaError.h"
 
-using namespace mozilla::dom;
-
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Video)
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
@@ -103,7 +101,7 @@ NS_IMETHODIMP nsHTMLVideoElement::GetVideoHeight(PRUint32 *aVideoHeight)
 }
 
 nsHTMLVideoElement::nsHTMLVideoElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                       FromParser aFromParser)
+                                       PRUint32 aFromParser)
   : nsHTMLMediaElement(aNodeInfo, aFromParser)
 {
 }

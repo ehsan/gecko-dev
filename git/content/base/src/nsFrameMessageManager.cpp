@@ -234,7 +234,7 @@ nsFrameMessageManager::SendSyncMessage()
     nsString json;
     nsresult rv = GetParamsForMessage(messageName, json);
     NS_ENSURE_SUCCESS(rv, rv);
-    InfallibleTArray<nsString> retval;
+    nsTArray<nsString> retval;
     if (mSyncCallback(mCallbackData, messageName, json, &retval)) {
       nsAXPCNativeCallContext* ncc = nsnull;
       rv = nsContentUtils::XPConnect()->GetCurrentNativeCallContext(&ncc);
@@ -326,7 +326,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                       const nsAString& aMessage,
                                       PRBool aSync, const nsAString& aJSON,
                                       JSObject* aObjectsArray,
-                                      InfallibleTArray<nsString>* aJSONRetVal,
+                                      nsTArray<nsString>* aJSONRetVal,
                                       JSContext* aContext)
 {
   JSContext* ctx = mContext ? mContext : aContext;
@@ -742,7 +742,7 @@ bool SendAsyncMessageToChildProcess(void* aCallbackData,
 bool SendSyncMessageToParentProcess(void* aCallbackData,
                                     const nsAString& aMessage,
                                     const nsAString& aJSON,
-                                    InfallibleTArray<nsString>* aJSONRetVal)
+                                    nsTArray<nsString>* aJSONRetVal)
 {
   mozilla::dom::ContentChild* cc =
     mozilla::dom::ContentChild::GetSingleton();

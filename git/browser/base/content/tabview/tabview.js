@@ -52,5 +52,8 @@ XPCOMUtils.defineLazyGetter(this, "gPrivateBrowsing", function() {
 #include tabitems.js
 #include drag.js
 #include trench.js
+#include infoitems.js
 #include ui.js
 #include search.js
+
+

@@ -89,36 +89,34 @@ mochitest-a11y:
 	$(CHECK_TEST_ERROR)
 
 mochitest-ipcplugins:
-ifeq (Darwin,$(OS_ARCH))
-ifeq (i386,$(TARGET_CPU))
+#ifdef XP_MACOSX
+#if defined(__i386__)
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.i386.test.plugin=true --test-path=modules/plugin/test
-endif
-ifeq (x86_64,$(TARGET_CPU))
+#elif defined(__x86_64__)
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.x86_64.test.plugin=true --test-path=modules/plugin/test
-endif
-ifeq (powerpc,$(TARGET_CPU))
+#elif defined(__ppc__)
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled.ppc.test.plugin=true --test-path=modules/plugin/test
-endif
-else
+#endif
+#else
 	$(RUN_MOCHITEST) --setpref=dom.ipc.plugins.enabled=true --test-path=modules/plugin/test
-endif
+#endif
 	$(CHECK_TEST_ERROR)
 
 # Usage: |make [EXTRA_TEST_ARGS=...] *test|.
 RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py \
   $(SYMBOLS_PATH) $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
 
-reftest: TEST_PATH?=layout/reftests/reftest.list
+reftest: TEST_PATH=layout/reftests/reftest.list
 reftest:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
 	$(CHECK_TEST_ERROR)
 
-crashtest: TEST_PATH?=testing/crashtest/crashtests.list
+crashtest: TEST_PATH=testing/crashtest/crashtests.list
 crashtest:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH))
 	$(CHECK_TEST_ERROR)
 
-jstestbrowser: TEST_PATH?=js/src/tests/jstests.list
+jstestbrowser: TEST_PATH=js/src/tests/jstests.list
 jstestbrowser:
 	$(call RUN_REFTEST,$(topsrcdir)/$(TEST_PATH) --extra-profile-file=$(topsrcdir)/js/src/tests/user.js)
 	$(CHECK_TEST_ERROR)

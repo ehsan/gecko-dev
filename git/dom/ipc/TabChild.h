@@ -215,14 +215,14 @@ public:
     virtual PContentDialogChild* AllocPContentDialog(const PRUint32&,
                                                      const nsCString&,
                                                      const nsCString&,
-                                                     const InfallibleTArray<int>&,
-                                                     const InfallibleTArray<nsString>&);
+                                                     const nsTArray<int>&,
+                                                     const nsTArray<nsString>&);
     virtual bool DeallocPContentDialog(PContentDialogChild* aDialog);
     static void ParamsToArrays(nsIDialogParamBlock* aParams,
-                               InfallibleTArray<int>& aIntParams,
-                               InfallibleTArray<nsString>& aStringParams);
-    static void ArraysToParams(const InfallibleTArray<int>& aIntParams,
-                               const InfallibleTArray<nsString>& aStringParams,
+                               nsTArray<int>& aIntParams,
+                               nsTArray<nsString>& aStringParams);
+    static void ArraysToParams(const nsTArray<int>& aIntParams,
+                               const nsTArray<nsString>& aStringParams,
                                nsIDialogParamBlock* aParams);
 
     virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);

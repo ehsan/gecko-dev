@@ -271,10 +271,7 @@ nsEditorHookUtils::DoInsertionHook(nsIDOMDocument *aDoc, nsIDOMEvent *aDropEvent
     if (override)
     {
       PRBool doInsert = PR_TRUE;
-#ifdef DEBUG
-      nsresult hookResult =
-#endif
-      override->OnPasteOrDrop(aDropEvent, aTrans, &doInsert);
+      nsresult hookResult = override->OnPasteOrDrop(aDropEvent, aTrans, &doInsert);
       NS_ASSERTION(NS_SUCCEEDED(hookResult), "hook failure in OnPasteOrDrop");
       NS_ENSURE_TRUE(doInsert, PR_FALSE);
     }

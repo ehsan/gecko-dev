@@ -123,7 +123,7 @@ public:
   using nsIConstraintValidation::GetValidationMessage;
 
   nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                     mozilla::dom::FromParser aFromParser);
+                     PRUint32 aFromParser);
   virtual ~nsHTMLInputElement();
 
   // nsISupports
@@ -221,7 +221,7 @@ public:
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
   PRBool GetCheckedChanged();
   void AddedToRadioGroup(PRBool aNotify = PR_TRUE);
-  void WillRemoveFromRadioGroup();
+  void WillRemoveFromRadioGroup(PRBool aNotify);
   /**
    * Get the radio group container for this button (form or document)
    * @return the radio group container (or null if no form or document)

@@ -62,9 +62,8 @@
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
 #include "nsWeakReference.h"
-#include "nsAHtml5FragmentParser.h"
 
-class nsHtml5Parser : public nsAHtml5FragmentParser, // inherits nsIParser
+class nsHtml5Parser : public nsIParser,
                       public nsSupportsWeakReference
 {
   public:
@@ -215,7 +214,13 @@ class nsHtml5Parser : public nsAHtml5FragmentParser, // inherits nsIParser
                              nsDTDMode aMode = eDTDMode_autodetect);
 
     /**
-     * Don't call. For interface backwards compat only.
+     * Invoke the fragment parsing algorithm (innerHTML).
+     *
+     * @param aSourceBuffer the string being set as innerHTML
+     * @param aTargetNode the target container
+     * @param aContextLocalName local name of context node
+     * @param aContextNamespace namespace of context node
+     * @param aQuirks true to make <table> not close <p>
      */
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
                              nsIContent* aTargetNode,
@@ -270,30 +275,6 @@ class nsHtml5Parser : public nsAHtml5FragmentParser, // inherits nsIParser
     virtual PRBool IsScriptCreated();
 
     /* End nsIParser  */
-
-    /* Start nsAHtml5FragmentParser */
-
-    /**
-     * Invoke the fragment parsing algorithm (innerHTML).
-     *
-     * @param aSourceBuffer the string being set as innerHTML
-     * @param aTargetNode the target container
-     * @param aContextLocalName local name of context node
-     * @param aContextNamespace namespace of context node
-     * @param aQuirks true to make <table> not close <p>
-     * @param aPreventScriptExecution true to prevent scripts from executing;
-     * don't set to false when parsing into a target node that has been bound
-     * to tree.
-     */
-    NS_IMETHOD ParseHtml5Fragment(const nsAString& aSourceBuffer,
-                                  nsIContent* aTargetNode,
-                                  nsIAtom* aContextLocalName,
-                                  PRInt32 aContextNamespace,
-                                  PRBool aQuirks,
-                                  PRBool aPreventScriptExecution);
-
-
-    /* End nsAHtml5FragmentParser */
 
     // Not from an external interface
     // Non-inherited methods

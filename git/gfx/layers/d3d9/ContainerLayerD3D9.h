@@ -65,14 +65,13 @@ public:
 
   PRBool IsEmpty();
 
-  void RenderLayer();
+  void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform);
 
   virtual void LayerManagerDestroyed();
 
-  virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
-  {
-    DefaultComputeEffectiveTransforms(aTransformToSurface);
-  }
+private:
+  bool ShouldUseIntermediate(float aOpacity,
+                             const gfx3DMatrix &aMatrix);
 };
 
 } /* layers */

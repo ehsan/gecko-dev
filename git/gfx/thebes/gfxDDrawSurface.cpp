@@ -79,7 +79,7 @@ LPDIRECTDRAWSURFACE gfxDDrawSurface::GetDDSurface()
 }
 
 already_AddRefed<gfxImageSurface>
-gfxDDrawSurface::GetAsImageSurface()
+gfxDDrawSurface::GetImageSurface()
 {
     cairo_surface_t *isurf = cairo_ddraw_surface_get_image(CairoSurface());
     if (!isurf)

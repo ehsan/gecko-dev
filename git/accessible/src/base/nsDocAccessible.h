@@ -108,7 +108,6 @@ public:
   virtual nsIFrame* GetFrame();
   virtual PRBool IsDefunct();
   virtual nsINode* GetNode() const { return mDocument; }
-  virtual nsIDocument* GetDocumentNode() const { return mDocument; }
 
   // nsAccessible
   virtual PRUint32 NativeRole();
@@ -211,18 +210,18 @@ public:
   nsAccessible* GetCachedAccessibleByUniqueIDInSubtree(void* aUniqueID);
 
   /**
-   * Initialize the newly created accessible and put it into document caches.
+   * Cache the accessible.
    *
-   * @param  aAccessible    [in] created accessible
-   * @param  aRoleMapEntry  [in] the role map entry role the ARIA role or nsnull
-   *                          if none
+   * @param  aAccessible  [in] accessible to cache
+   *
+   * @return true if accessible being cached, otherwise false
    */
-  bool BindToDocument(nsAccessible* aAccessible, nsRoleMapEntry* aRoleMapEntry);
+  PRBool CacheAccessible(nsAccessible *aAccessible);
 
   /**
-   * Remove from document and shutdown the given accessible.
+   * Shutdown the accessible and remove it from document cache.
    */
-  void UnbindFromDocument(nsAccessible* aAccessible);
+  void ShutdownAccessible(nsAccessible *aAccessible);
 
   /**
    * Process the event when the queue of pending events is untwisted. Fire

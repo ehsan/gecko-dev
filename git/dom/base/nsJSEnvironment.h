@@ -213,8 +213,6 @@ public:
   // Calls IntervalCC() if user is currently inactive, otherwise MaybeCC(PR_TRUE)
   static void CCIfUserInactive();
 
-  static void MaybeCCIfUserInactive();
-
   static void FireGCTimer(PRBool aLoadInProgress);
 
 protected:

@@ -101,7 +101,6 @@ SDK_HEADERS = \
 		nsStringAPI.h \
 		nsStringGlue.h \
 		nsTArray.h \
-		nsTArray-inl.h \
 		nsTHashtable.h \
 		nsTObserverArray.h \
 		nsTPtrArray.h \
@@ -128,13 +127,12 @@ EXPORTS_mozilla = \
   BlockingResourceBase.h \
   CondVar.h \
   DeadlockDetector.h \
-  FileUtils.h \
   GenericFactory.h \
-  IntentionalCrash.h \
   Monitor.h \
   Mutex.h \
   SSE.h \
   unused.h \
+  FileUtils.h \
   $(NULL)
 
 SDK_LIBRARY     =                        \

@@ -22,10 +22,6 @@ function check(aElementName, aBarred, aType) {
        "A tooltip should be shown when the element isn't valid");
   }
 
-  e.setAttribute('title', '');
-  ok (!FillInHTMLTooltip(e),
-      "No tooltip should be shown if the title attribute is set");
-
   content.removeChild(e);
 }
 

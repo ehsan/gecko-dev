@@ -35,11 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/dom/ContentChild.h"
 #include "nsAccelerometerSystem.h"
 
 #include "AndroidBridge.h"
-#include "nsXULAppAPI.h"
 
 using namespace mozilla;
 
@@ -56,18 +54,12 @@ nsAccelerometerSystem::~nsAccelerometerSystem()
 
 void nsAccelerometerSystem::Startup()
 {
-    if (XRE_GetProcessType() == GeckoProcessType_Default)
+    if (AndroidBridge::Bridge())
         AndroidBridge::Bridge()->EnableAccelerometer(true);
-    else
-        mozilla::dom::ContentChild::GetSingleton()->
-            SendAddAccelerometerListener();
 }
 
 void nsAccelerometerSystem::Shutdown()
 {
-    if (XRE_GetProcessType() == GeckoProcessType_Default)
+    if (AndroidBridge::Bridge())
         AndroidBridge::Bridge()->EnableAccelerometer(false);
-    else
-        mozilla::dom::ContentChild::GetSingleton()->
-            SendRemoveAccelerometerListener();
 }

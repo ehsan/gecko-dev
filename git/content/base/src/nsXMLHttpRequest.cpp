@@ -1321,15 +1321,15 @@ nsXMLHttpRequest::GetStatusText(nsACString& aStatusText)
         nsresult status;
         mChannel->GetStatus(&status);
         if (NS_FAILED(status)) {
-          return NS_OK;
+          return NS_ERROR_NOT_AVAILABLE;
         }
       }
     }
 
-    httpChannel->GetResponseStatusText(aStatusText);
+    rv = httpChannel->GetResponseStatusText(aStatusText);
   }
 
-  return NS_OK;
+  return rv;
 }
 
 /* void abort (); */
@@ -1388,21 +1388,23 @@ nsXMLHttpRequest::GetAllResponseHeaders(char **_retval)
   *_retval = nsnull;
 
   if (mState & XML_HTTP_REQUEST_USE_XSITE_AC) {
-    *_retval = ToNewCString(EmptyString());
     return NS_OK;
   }
 
   nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
 
   if (httpChannel) {
-    nsRefPtr<nsHeaderVisitor> visitor = new nsHeaderVisitor();
+    nsHeaderVisitor *visitor = new nsHeaderVisitor();
+    if (!visitor)
+      return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(visitor);
+
     nsresult rv = httpChannel->VisitResponseHeaders(visitor);
     if (NS_SUCCEEDED(rv))
       *_retval = ToNewCString(visitor->Headers());
-  }
- 
-  if (!*_retval) {
-    *_retval = ToNewCString(EmptyString());
+
+    NS_RELEASE(visitor);
+    return rv;
   }
 
   return NS_OK;
@@ -2763,11 +2765,9 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
   if (!privileged) {
     // Check for dangerous headers
     const char *kInvalidHeaders[] = {
-      "accept-charset", "accept-encoding", "access-control-request-headers",
-      "access-control-request-method", "connection", "content-length",
-      "cookie", "cookie2", "content-transfer-encoding", "date", "expect",
-      "host", "keep-alive", "origin", "referer", "te", "trailer",
-      "transfer-encoding", "upgrade", "user-agent", "via"
+      "accept-charset", "accept-encoding", "connection", "content-length",
+      "content-transfer-encoding", "date", "expect", "host", "keep-alive",
+      "referer", "te", "trailer", "transfer-encoding", "upgrade", "via"
     };
     PRUint32 i;
     for (i = 0; i < NS_ARRAY_LENGTH(kInvalidHeaders); ++i) {

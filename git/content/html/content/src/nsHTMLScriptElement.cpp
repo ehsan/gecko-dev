@@ -58,8 +58,6 @@
 #include "nsTArray.h"
 #include "nsDOMJSUtils.h"
 
-using namespace mozilla::dom;
-
 //
 // Helper class used to support <SCRIPT FOR=object EVENT=handler ...>
 // style script tags...
@@ -310,7 +308,7 @@ class nsHTMLScriptElement : public nsGenericHTMLElement,
 {
 public:
   nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      FromParser aFromParser);
+                      PRUint32 aFromParser);
   virtual ~nsHTMLScriptElement();
 
   // nsISupports
@@ -345,10 +343,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  // nsGenericElement
-  virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAString* aValue, PRBool aNotify);
-
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
   PRBool IsOnloadEventForWindow();
@@ -367,10 +361,11 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Script)
 
 
 nsHTMLScriptElement::nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                                         FromParser aFromParser)
+                                         PRUint32 aFromParser)
   : nsGenericHTMLElement(aNodeInfo)
   , nsScriptElement(aFromParser)
 {
+  mDoneAddingChildren = !aFromParser;
   AddMutationObserver(this);
 }
 
@@ -424,8 +419,10 @@ nsHTMLScriptElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   *aResult = nsnull;
 
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsHTMLScriptElement* it =
-    new nsHTMLScriptElement(ni.forget(), NOT_FROM_PARSER);
+  nsHTMLScriptElement* it = new nsHTMLScriptElement(ni.forget(), PR_FALSE);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   nsCOMPtr<nsINode> kungFuDeathGrip = it;
   nsresult rv = CopyInnerTo(it);
@@ -457,38 +454,11 @@ nsHTMLScriptElement::SetText(const nsAString& aValue)
 
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Charset, charset)
 NS_IMPL_BOOL_ATTR(nsHTMLScriptElement, Defer, defer)
+NS_IMPL_BOOL_ATTR(nsHTMLScriptElement, Async, async)
 NS_IMPL_URI_ATTR(nsHTMLScriptElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, HtmlFor, _for)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Event, event)
-
-nsresult
-nsHTMLScriptElement::GetAsync(PRBool* aValue)
-{
-  if (mForceAsync) {
-    *aValue = PR_TRUE;
-    return NS_OK;
-  }
-  return GetBoolAttr(nsGkAtoms::async, aValue);
-}
-
-nsresult
-nsHTMLScriptElement::SetAsync(PRBool aValue)
-{
-  mForceAsync = PR_FALSE;
-  return SetBoolAttr(nsGkAtoms::async, aValue);
-}
-
-nsresult
-nsHTMLScriptElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                  const nsAString* aValue, PRBool aNotify)
-{
-  if (nsGkAtoms::async == aName && kNameSpaceID_None == aNamespaceID) {
-    mForceAsync = PR_FALSE;
-  }
-  return nsGenericHTMLElement::AfterSetAttr(aNamespaceID, aName, aValue,
-                                            aNotify);
-}
 
 nsresult
 nsHTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML)

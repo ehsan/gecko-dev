@@ -150,15 +150,18 @@ public:
      */
     virtual already_AddRefed<gfxASurface> CreateSimilarSurface(gfxContentType aType,
                                                                const gfxIntSize& aSize);
-
     /**
-     * Returns an image surface for this surface, or nsnull if not supported.
-     * This will not copy image data, just wraps an image surface around
-     * pixel data already available in memory.
+     * Return trues if offscreen surfaces created from this surface
+     * would behave differently depending on the gfxContentType. Returns
+     * false if they don't (i.e. the surface returned by
+     * CreateOffscreenSurface is always as if you passed
+     * CONTENT_COLOR_ALPHA). Knowing this can be useful to avoid
+     * recreating a surface just because it changed from opaque to
+     * transparent.
      */
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface()
+    virtual PRBool AreSimilarSurfacesSensitiveToContentType()
     {
-      return nsnull;
+        return PR_TRUE;
     }
 
     enum TextQuality {

@@ -202,7 +202,7 @@ CanvasLayerD3D10::GetLayer()
 }
 
 void
-CanvasLayerD3D10::RenderLayer()
+CanvasLayerD3D10::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
 {
   if (!mTexture) {
     return;
@@ -210,7 +210,9 @@ CanvasLayerD3D10::RenderLayer()
 
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
-  SetEffectTransformAndOpacity();
+  gfx3DMatrix transform = mTransform * aTransform;
+  effect()->GetVariableByName("mLayerTransform")->SetRawValue(&transform._11, 0, 64);
+  effect()->GetVariableByName("fLayerOpacity")->AsScalar()->SetFloat(GetOpacity() * aOpacity);
 
   ID3D10EffectTechnique *technique;
 

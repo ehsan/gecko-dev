@@ -1354,6 +1354,7 @@
             this.mAddon.userDisabled = true;
 
             // This won't update any other add-on manager views (bug 582002)
+            this.setAttribute("restartrequired", false);
             this.setAttribute("pending", "uninstall");
           } else {
             this.mAddon.uninstall();
@@ -1417,7 +1418,8 @@
       <method name="onUninstalling">
         <parameter name="aRestartRequired"/>
         <body><![CDATA[
-          this._updateState();
+          this.setAttribute("restartrequired", aRestartRequired);
+          this.setAttribute("pending", "uninstall");
         ]]></body>
       </method>
 
@@ -1567,6 +1569,7 @@
           else if (this.getAttribute("wasDisabled") != "true")
             this.mAddon.userDisabled = false;
 
+          this.removeAttribute("restartrequired");
           this.removeAttribute("pending");
         ]]></body>
       </method>
@@ -1595,6 +1598,7 @@
           if (!aNeedsRestart)
             this.mAddon = aAddon;
 
+          this.removeAttribute("restartrequired");
           this.removeAttribute("pending");
         ]]></body>
       </method>
@@ -1617,6 +1621,7 @@
           if (!(aAddon.pendingOperations & AddonManager.PENDING_INSTALL))
             this.mAddon = aAddon;
 
+          this.removeAttribute("restartrequired");
           this.removeAttribute("pending");
         ]]></body>
       </method>

@@ -145,7 +145,7 @@ ImageLayerD3D10::GetLayer()
 }
 
 void
-ImageLayerD3D10::RenderLayer()
+ImageLayerD3D10::RenderLayer(float aOpacity, const gfx3DMatrix &aTransform)
 {
   if (!GetContainer()) {
     return;
@@ -153,7 +153,10 @@ ImageLayerD3D10::RenderLayer()
 
   nsRefPtr<Image> image = GetContainer()->GetCurrentImage();
 
-  SetEffectTransformAndOpacity();
+
+  gfx3DMatrix transform = mTransform * aTransform;
+  effect()->GetVariableByName("mLayerTransform")->SetRawValue(&transform._11, 0, 64);
+  effect()->GetVariableByName("fLayerOpacity")->AsScalar()->SetFloat(GetOpacity() * aOpacity);
 
   ID3D10EffectTechnique *technique;
 

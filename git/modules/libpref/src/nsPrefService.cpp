@@ -144,7 +144,7 @@ nsresult nsPrefService::Init()
 #ifdef MOZ_IPC
   using mozilla::dom::ContentChild;
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    InfallibleTArray<PrefTuple> array;
+    nsTArray<PrefTuple> array;
     ContentChild::GetSingleton()->SendReadPrefsArray(&array);
 
     // Store the array
@@ -350,7 +350,7 @@ NS_IMETHODIMP nsPrefService::MirrorPreference(const nsACString& aPrefName,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsPrefService::MirrorPreferences(nsTArray<PrefTuple, nsTArrayInfallibleAllocator> *aArray)
+NS_IMETHODIMP nsPrefService::MirrorPreferences(nsTArray<PrefTuple> *aArray)
 {
   aArray->SetCapacity(PL_DHASH_TABLE_SIZE(&gHashTable));
 
@@ -870,16 +870,12 @@ static nsresult pref_InitAppDefaultsFromOmnijar()
 
   nsAutoPtr<nsZipFind> find(findPtr);
 
-  nsTArray<nsCString> prefEntries;
+  nsCAutoString prefName;
   const char *entryName;
   PRUint16 entryNameLen;
   while (NS_SUCCEEDED(find->FindNext(&entryName, &entryNameLen))) {
-    prefEntries.AppendElement(Substring(entryName, entryName + entryNameLen));
-  }
-
-  prefEntries.Sort();
-  for (PRUint32 i = prefEntries.Length(); i--; ) {
-    rv = pref_ReadPrefFromJar(jarReader, prefEntries[i].get());
+    prefName = nsDependentCSubstring(entryName, entryName + entryNameLen);
+    rv = pref_ReadPrefFromJar(jarReader, prefName.get());
     if (NS_FAILED(rv))
       NS_WARNING("Error parsing preferences.");
   }

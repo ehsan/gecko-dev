@@ -48,17 +48,8 @@ interface nsIChannel;
  * page load.  See nsICookieManager for methods to manipulate the cookie
  * database directly.  This separation of interface is mainly historical.
  *
- * This service broadcasts the notifications detailed below when the cookie
- * list is changed, or a cookie is rejected.
- *
- * NOTE: observers of these notifications *must* not attempt to change profile
- *       or switch into or out of private browsing mode from within the
- *       observer. Doing so will cause undefined behavior. Mutating the cookie
- *       list (e.g. by calling methods on nsICookieService and friends) is
- *       allowed, but beware that there may be pending notifications you haven't
- *       seen yet -- for instance, a "batch-deleted" notification will likely be
- *       immediately followed by "added". You may check the state of the cookie
- *       list to determine if this is the case.
+ * This service broadcasts the following notifications when the cookie
+ * list is changed, or a cookie is rejected:
  *
  * topic  : "cookie-changed"
  *          broadcast whenever the cookie list changes in some way. see
@@ -75,10 +66,9 @@ interface nsIChannel;
  *          the new cookie. (note that host, path, and name are invariant
  *          for a given cookie; other parameters may change.)
  *          "batch-deleted"
- *          a set of cookies was purged (typically, because they have either
- *          expired or because the cookie list has grown too large). The subject
- *          is an nsIArray of nsICookie2's representing the deleted cookies.
- *          Note that the array could contain a single cookie.
+ *          a batch of cookies was deleted (for instance, as part of a purging
+ *          operation). the subject is an nsIArray of nsICookie2's representing
+ *          the deleted cookies.
  *          "cleared"
  *          the entire cookie list was cleared. the subject is null.
  *          "reload"

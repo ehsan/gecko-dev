@@ -75,19 +75,26 @@ public:
   NS_DECL_NSIRUNNABLE
   NS_DECL_MOZISTORAGEPROGRESSHANDLER
 
+  /**
+   * Return this code from DoDatabaseWork to signal the main thread that the
+   * database operation suceeded. Once the main thread receives this
+   * notification the OnSuccess callback will be invoked allowing the subclass
+   * to fire a success event or otherwise note the completed operation.
+   */
+  static const PRUint16 OK = PR_UINT16_MAX;
+
   nsresult Dispatch(nsIEventTarget* aDatabaseThread);
 
   // Only for transactions!
   nsresult DispatchToTransactionPool();
 
-  void SetError(nsresult aErrorCode)
+  void SetError(PRUint16 aErrorCode)
   {
-    NS_ASSERTION(NS_FAILED(aErrorCode), "Not a failure code!");
-    mResultCode = aErrorCode;
+    mError = true;
+    mErrorCode = aErrorCode;
   }
 
   static IDBTransaction* GetCurrentTransaction();
-  static void SetCurrentTransaction(IDBTransaction* aTransaction);
 
   nsISupports* GetSource()
   {
@@ -123,7 +130,7 @@ protected:
    * This callback is run on the database thread. It should return a valid error
    * code from nsIIDBDatabaseError or one of the two special values above.
    */
-  virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection) = 0;
+  virtual PRUint16 DoDatabaseWork(mozIStorageConnection* aConnection) = 0;
 
   /**
    * This callback is run on the main thread if the DoDatabaseWork returned OK.
@@ -132,7 +139,7 @@ protected:
    * fired at the target. Returning anything other than OK from the OnSuccess
    * callback will trigger the OnError callback.
    */
-  virtual nsresult OnSuccess(nsIDOMEventTarget* aTarget);
+  virtual PRUint16 OnSuccess(nsIDOMEventTarget* aTarget);
 
   /**
    * This callback is run on the main thread if DoDatabaseWork returned an error
@@ -140,7 +147,7 @@ protected:
    * code and fires it at the target.
    */
   virtual void OnError(nsIDOMEventTarget* aTarget,
-                       nsresult aErrorCode);
+                       PRUint16 aErrorCode);
 
   /**
    * This function is called from the default implementation of OnSuccess. A
@@ -149,7 +156,7 @@ protected:
    * set to nsIDataType::VTYPE_EMPTY. Returning anything other than OK from the
    * GetSuccessResult function will trigger the OnError callback.
    */
-  virtual nsresult GetSuccessResult(nsIWritableVariant* aVariant);
+  virtual PRUint16 GetSuccessResult(nsIWritableVariant* aVariant);
 
   /**
    * Gives the subclass a chance to release any objects that must be released
@@ -169,7 +176,8 @@ private:
   mozilla::TimeStamp mStartTime;
   mozilla::TimeDuration mTimeoutDuration;
 
-  nsresult mResultCode;
+  PRUint16 mErrorCode;
+  PRPackedBool mError;
   PRPackedBool mDispatched;
 };
 

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -54,12 +54,9 @@
 #include "nsHashKeys.h"
 #include "nsTHashtable.h"
 #include "mozIStorageStatement.h"
-#include "mozIStorageAsyncStatement.h"
 #include "mozIStoragePendingStatement.h"
 #include "mozIStorageConnection.h"
 #include "mozIStorageRow.h"
-#include "mozIStorageCompletionCallback.h"
-#include "mozIStorageStatementCallback.h"
 
 class nsICookiePermission;
 class nsIEffectiveTLDService;
@@ -68,8 +65,9 @@ class nsIPrefBranch;
 class nsIObserverService;
 class nsIURI;
 class nsIChannel;
-class nsIArray;
 class mozIStorageService;
+class mozIStorageStatementCallback;
+class mozIStorageCompletionCallback;
 class mozIThirdPartyUtil;
 class ReadCookieDBListener;
 
@@ -152,29 +150,15 @@ struct CookieDomainTuple
 // conveniently switch state when entering or exiting private browsing.
 struct DBState
 {
-  DBState() : cookieCount(0), cookieOldestTime(LL_MAXINT), corruptFlag(OK)
-  {
-    hostTable.Init();
-  }
-
-  NS_INLINE_DECL_REFCOUNTING(DBState)
-
-  // State of the database connection.
-  enum CorruptFlag {
-    OK,                   // normal
-    CLOSING_FOR_REBUILD,  // corruption detected, connection closing
-    REBUILDING            // close complete, rebuilding database from memory
-  };
+  DBState() : cookieCount(0), cookieOldestTime(LL_MAXINT) { }
 
   nsTHashtable<nsCookieEntry>     hostTable;
   PRUint32                        cookieCount;
   PRInt64                         cookieOldestTime;
-  nsCOMPtr<nsIFile>               cookieFile;
   nsCOMPtr<mozIStorageConnection> dbConn;
-  nsCOMPtr<mozIStorageAsyncStatement> stmtInsert;
-  nsCOMPtr<mozIStorageAsyncStatement> stmtDelete;
-  nsCOMPtr<mozIStorageAsyncStatement> stmtUpdate;
-  CorruptFlag                     corruptFlag;
+  nsCOMPtr<mozIStorageStatement>  stmtInsert;
+  nsCOMPtr<mozIStorageStatement>  stmtDelete;
+  nsCOMPtr<mozIStorageStatement>  stmtUpdate;
 
   // Various parts representing asynchronous read state. These are useful
   // while the background read is taking place.
@@ -191,12 +175,6 @@ struct DBState
   // in flight. This is used to keep track of which data in hostArray is stale
   // when the time comes to merge.
   nsTHashtable<nsCStringHashKey>        readSet;
-
-  // DB completion handlers.
-  nsCOMPtr<mozIStorageStatementCallback>  insertListener;
-  nsCOMPtr<mozIStorageStatementCallback>  updateListener;
-  nsCOMPtr<mozIStorageStatementCallback>  removeListener;
-  nsCOMPtr<mozIStorageCompletionCallback> closeListener;
 };
 
 // these constants represent a decision about a cookie based on user prefs.
@@ -210,14 +188,6 @@ enum CookieStatus
   // notification purposes, since we only want to notify of rejections where
   // the user can do something about it (e.g. whitelist the site).
   STATUS_REJECTED_WITH_ERROR
-};
-
-// Result codes for TryInitDB() and Read().
-enum OpenDBResult
-{
-  RESULT_OK,
-  RESULT_RETRY,
-  RESULT_FAILURE
 };
 
 /******************************************************************************
@@ -245,18 +215,15 @@ class nsCookieService : public nsICookieService
 
   protected:
     void                          PrefChanged(nsIPrefBranch *aPrefBranch);
-    void                          InitDBStates();
-    OpenDBResult                  TryInitDB(bool aDeleteExistingDB);
+    nsresult                      InitDB();
+    nsresult                      TryInitDB(PRBool aDeleteExistingDB);
     nsresult                      CreateTable();
-    void                          CloseDBStates();
-    void                          CloseDefaultDBConnection();
-    void                          HandleDBClosed(DBState* aDBState);
-    void                          HandleCorruptDB(DBState* aDBState);
-    void                          RebuildCorruptDB(DBState* aDBState);
-    OpenDBResult                  Read();
+    void                          CloseDB();
+    nsresult                      Read();
     template<class T> nsCookie*   GetCookieFromRow(T &aRow);
     void                          AsyncReadComplete();
     void                          CancelAsyncRead(PRBool aPurgeReadSet);
+    mozIStorageConnection*        GetSyncDBConn();
     void                          EnsureReadDomain(const nsCString &aBaseDomain);
     void                          EnsureReadComplete();
     nsresult                      NormalizeHost(nsCString &aHost);
@@ -279,13 +246,11 @@ class nsCookieService : public nsICookieService
     static PRBool                 CheckPath(nsCookieAttributes &aCookie, nsIURI *aHostURI);
     static PRBool                 GetExpiry(nsCookieAttributes &aCookie, PRInt64 aServerTime, PRInt64 aCurrentTime);
     void                          RemoveAllFromMemory();
-    already_AddRefed<nsIArray>    PurgeCookies(PRInt64 aCurrentTimeInUsec);
+    void                          PurgeCookies(PRInt64 aCurrentTimeInUsec);
     PRBool                        FindCookie(const nsCString& aBaseDomain, const nsAFlatCString &aHost, const nsAFlatCString &aName, const nsAFlatCString &aPath, nsListIter &aIter);
     static void                   FindStaleCookie(nsCookieEntry *aEntry, PRInt64 aCurrentTime, nsListIter &aIter);
     void                          NotifyRejected(nsIURI *aHostURI);
     void                          NotifyChanged(nsISupports *aSubject, const PRUnichar *aData);
-    void                          NotifyPurged(nsICookie2* aCookie);
-    already_AddRefed<nsIArray>    CreatePurgeList(nsICookie2* aCookie);
 
   protected:
     // cached members.
@@ -302,8 +267,14 @@ class nsCookieService : public nsICookieService
     // note that the private states' dbConn should always be null - we never
     // want to be dealing with the on-disk DB when in private browsing.
     DBState                      *mDBState;
-    nsRefPtr<DBState>             mDefaultDBState;
-    nsRefPtr<DBState>             mPrivateDBState;
+    DBState                       mDefaultDBState;
+    DBState                       mPrivateDBState;
+
+    // DB completion handlers.
+    nsCOMPtr<mozIStorageStatementCallback>  mInsertListener;
+    nsCOMPtr<mozIStorageStatementCallback>  mUpdateListener;
+    nsCOMPtr<mozIStorageStatementCallback>  mRemoveListener;
+    nsCOMPtr<mozIStorageCompletionCallback> mCloseListener;
 
     // cached prefs
     PRUint8                       mCookieBehavior; // BEHAVIOR_{ACCEPT, REJECTFOREIGN, REJECT}
@@ -314,9 +285,7 @@ class nsCookieService : public nsICookieService
 
     // friends!
     friend PLDHashOperator purgeCookiesCallback(nsCookieEntry *aEntry, void *aArg);
-    friend class DBListenerErrorHandler;
     friend class ReadCookieDBListener;
-    friend class CloseCookieDBListener;
 
     static nsCookieService*       GetSingleton();
 #ifdef MOZ_IPC

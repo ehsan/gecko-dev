@@ -283,8 +283,7 @@ extern int th_decode_ctl(th_dec_ctx *_dec,int _req,void *_buf,
  * \retval 0             Success.
  *                       A new decoded frame can be retrieved by calling
  *                        th_decode_ycbcr_out().
- * \retval TH_DUPFRAME   The packet represented a dropped frame (either a
- *                        0-byte frame or an INTER frame with no coded blocks).
+ * \retval TH_DUPFRAME   The packet represented a dropped (0-byte) frame.
  *                       The player can skip the call to th_decode_ycbcr_out(),
  *                        as the contents of the decoded frame buffer have not
  *                        changed.

@@ -71,7 +71,7 @@ DoubleWrap(JSContext *cx, JSObject *obj, uintN flags)
 {
     if (flags & WrapperFactory::WAIVE_XRAY_WRAPPER_FLAG) {
         js::SwitchToCompartment sc(cx, obj->compartment());
-        return JSWrapper::New(cx, obj, NULL, obj->getGlobal(),
+        return JSWrapper::New(cx, obj, NULL, obj->getParent(),
                               &WaiveXrayWrapperWrapper);
     }
     return obj;
@@ -126,6 +126,10 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj
     if (!wn->GetClassInfo())
         return DoubleWrap(cx, obj, flags);
 
+    // We know that DOM objects only allow one object, we can return early.
+    if (wn->HasProto() && wn->GetProto()->ClassIsDOMObject())
+        return DoubleWrap(cx, obj, flags);
+
     XPCCallContext ccx(JS_CALLER, cx, obj);
     if (NATIVE_HAS_FLAG(&ccx, WantPreCreate)) {
         // We have a precreate hook. This object might enforce that we only
@@ -155,22 +159,13 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, JSObject *scope, JSObject *obj
     if (!ac.enter(cx, scope))
         return nsnull;
 
-    // NB: Passing a holder here inhibits slim wrappers under
-    // WrapNativeToJSVal.
-    nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     jsval v;
     nsresult rv =
         nsXPConnect::FastGetXPConnect()->WrapNativeToJSVal(cx, scope, wn->Native(), nsnull,
                                                            &NS_GET_IID(nsISupports), PR_FALSE,
-                                                           &v, getter_AddRefs(holder));
-    if (NS_SUCCEEDED(rv)) {
+                                                           &v, nsnull);
+    if (NS_SUCCEEDED(rv))
         obj = JSVAL_TO_OBJECT(v);
-        NS_ASSERTION(IS_WN_WRAPPER(obj), "bad object");
-
-        XPCWrappedNative *newwn = static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
-        if (newwn->GetSet()->GetInterfaceCount() < wn->GetSet()->GetInterfaceCount())
-            newwn->SetSet(wn->GetSet());
-    }
 
     return DoubleWrap(cx, obj, flags);
 }
@@ -286,8 +281,7 @@ WrapperFactory::WrapLocationObject(JSContext *cx, JSObject *obj)
     JSObject *xrayHolder = LW::createHolder(cx, obj, obj->getParent());
     if (!xrayHolder)
         return NULL;
-    JSObject *wrapperObj = JSWrapper::New(cx, obj, obj->getProto(), obj->getParent(),
-                                          &LW::singleton);
+    JSObject *wrapperObj = JSWrapper::New(cx, obj, obj->getProto(), NULL, &LW::singleton);
     if (!wrapperObj)
         return NULL;
     wrapperObj->setProxyExtra(js::ObjectValue(*xrayHolder));
@@ -308,7 +302,7 @@ WrapperFactory::WaiveXrayAndWrap(JSContext *cx, jsval *vp)
 
     {
         js::SwitchToCompartment sc(cx, obj->compartment());
-        obj = JSWrapper::New(cx, obj, NULL, obj->getGlobal(), &WaiveXrayWrapperWrapper);
+        obj = JSWrapper::New(cx, obj, NULL, obj->getParent(), &WaiveXrayWrapperWrapper);
         if (!obj)
             return false;
     }
@@ -321,7 +315,7 @@ JSObject *
 WrapperFactory::WrapSOWObject(JSContext *cx, JSObject *obj)
 {
     JSObject *wrapperObj =
-        JSWrapper::New(cx, obj, obj->getProto(), obj->getGlobal(),
+        JSWrapper::New(cx, obj, obj->getProto(), NULL,
                        &FilteringWrapper<JSWrapper,
                                          OnlyIfSubjectIsSystem>::singleton);
     return wrapperObj;

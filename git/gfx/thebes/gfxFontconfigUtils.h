@@ -169,7 +169,7 @@ public:
      * @param aFcLang [out] returns a language suitable for fontconfig
      *        matching |aLangGroup| or an empty string if no match is found.
      */
-    static void GetSampleLangForGroup(nsIAtom *aLangGroup,
+    static void GetSampleLangForGroup(const nsACString& aLangGroup,
                                       nsACString *aFcLang);
 
 protected:
@@ -324,7 +324,7 @@ protected:
     PRBool IsExistingFamily(const nsCString& aFamilyName);
 
     nsresult GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
-                                 nsIAtom *aLangGroup);
+                                 const nsACString& aLangGroup);
     nsresult UpdateFontListInternal(PRBool aForce = PR_FALSE);
 
     void AddFullnameEntries();

@@ -749,7 +749,7 @@ nsGeolocationService::StartDevice()
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendAddGeolocationListener();
+    cpc->SendGeolocationStart();
     return NS_OK;
   }
 #endif
@@ -794,7 +794,7 @@ nsGeolocationService::StopDevice()
 #ifdef MOZ_IPC
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendRemoveGeolocationListener();
+    cpc->SendGeolocationStop();
     return; // bail early
   }
 #endif

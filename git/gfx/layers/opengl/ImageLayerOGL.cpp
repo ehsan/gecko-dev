@@ -411,7 +411,7 @@ ImageLayerOGL::RenderLayer(int,
                                         yuvImage->mSize.width,
                                         yuvImage->mSize.height));
     program->SetLayerTransform(GetEffectiveTransform());
-    program->SetLayerOpacity(GetEffectiveOpacity());
+    program->SetLayerOpacity(GetOpacity());
     program->SetRenderOffset(aOffset);
     program->SetYCbCrTextureUnits(0, 1, 2);
 
@@ -428,10 +428,12 @@ ImageLayerOGL::RenderLayer(int,
 
     gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, cairoImage->mTexture.GetTextureID());
-
-    ColorTextureLayerProgram *program =
-      mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(),
-                                        cairoImage->mASurfaceAsGLContext != 0);
+  
+    ColorTextureLayerProgram *program;
+    if (cairoImage->mASurfaceAsGLContext)
+      program = mOGLManager->GetRGBALayerProgram();
+    else
+      program = mOGLManager->GetBGRALayerProgram();
 
     ApplyFilter(mFilter);
 
@@ -440,7 +442,7 @@ ImageLayerOGL::RenderLayer(int,
                                         cairoImage->mSize.width,
                                         cairoImage->mSize.height));
     program->SetLayerTransform(GetEffectiveTransform());
-    program->SetLayerOpacity(GetEffectiveOpacity());
+    program->SetLayerOpacity(GetOpacity());
     program->SetRenderOffset(aOffset);
     program->SetTextureUnit(0);
 
@@ -541,15 +543,8 @@ PlanarYCbCrImageOGL::SetData(const PlanarYCbCrImage::Data &aData)
   mData.mYSize = aData.mPicSize;
   mData.mYStride = mData.mYSize.width;
 
-  // Recycle the previous image main-memory buffer now that we're about to get a new buffer
-  if (mBuffer)
-    mRecycleBin->RecycleBuffer(mBuffer.forget(), mBufferSize);
-
-  // update buffer size
   mBufferSize = mData.mCbCrStride * mData.mCbCrSize.height * 2 +
                 mData.mYStride * mData.mYSize.height;
-
-  // get new buffer
   mBuffer = mRecycleBin->GetBuffer(mBufferSize);
   if (!mBuffer)
     return;
@@ -561,13 +556,13 @@ PlanarYCbCrImageOGL::SetData(const PlanarYCbCrImage::Data &aData)
   int cbcr_y = aData.mPicY >> height_shift;
 
   for (int i = 0; i < mData.mYSize.height; i++) {
-    memcpy(mData.mYChannel + i * mData.mYStride,
-           aData.mYChannel + ((aData.mPicY + i) * aData.mYStride) + aData.mPicX,
+    memcpy(mData.mYChannel + i * mData.mYStride, 
+           aData.mYChannel + ((aData.mPicY + i) * aData.mYStride) + aData.mPicX, 
            mData.mYStride);
   }
   for (int i = 0; i < mData.mCbCrSize.height; i++) {
     memcpy(mData.mCbChannel + i * mData.mCbCrStride,
-           aData.mCbChannel + ((cbcr_y + i) * aData.mCbCrStride) + cbcr_x,
+           aData.mCbChannel + ((cbcr_y + i) * aData.mCbCrStride) + cbcr_x, 
            mData.mCbCrStride);
   }
   for (int i = 0; i < mData.mCbCrSize.height; i++) {
@@ -658,6 +653,11 @@ PlanarYCbCrImageOGL::UpdateTextures(GLContext *gl)
 
   // Reset alignment to default
   gl->fPixelStorei(LOCAL_GL_UNPACK_ALIGNMENT, 4);
+
+  // Recycle main-memory buffer now that we've got the data in our textures
+  if (mBuffer) {
+    mRecycleBin->RecycleBuffer(mBuffer.forget(), mBufferSize);
+  }
 }
 
 CairoImageOGL::CairoImageOGL(LayerManagerOGL *aManager)
@@ -793,16 +793,14 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexImage->Texture());
-  ColorTextureLayerProgram *program =
-    mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(),
-                                      mTexImage->IsRGB());
+  ColorTextureLayerProgram *program = mOGLManager->GetBGRALayerProgram();
 
   ApplyFilter(mFilter);
 
   program->Activate();
   program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0), mTexImage->GetSize()));
-  program->SetLayerTransform(GetEffectiveTransform());
-  program->SetLayerOpacity(GetEffectiveOpacity());
+  program->SetLayerTransform(mTransform);
+  program->SetLayerOpacity(GetOpacity());
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);
 

@@ -1955,7 +1955,7 @@ str_search(JSContext *cx, uintN argc, Value *vp)
         return false;
 
     if (vp->isTrue())
-        vp->setInt32(res->matchStart());
+        vp->setInt32(res->get(0, 0));
     else
         vp->setInt32(-1);
     return true;
@@ -1985,7 +1985,7 @@ struct ReplaceData
 
 static bool
 InterpretDollar(JSContext *cx, RegExpStatics *res, jschar *dp, jschar *ep, ReplaceData &rdata,
-                JSSubString *out, size_t *skip, volatile JSContext::DollarPath *path)
+                JSSubString *out, size_t *skip)
 {
     JS_ASSERT(*dp == '$');
 
@@ -2028,27 +2028,42 @@ InterpretDollar(JSContext *cx, RegExpStatics *res, jschar *dp, jschar *ep, Repla
         rdata.dollarStr.chars = dp;
         rdata.dollarStr.length = 1;
         *out = rdata.dollarStr;
-        *path = JSContext::DOLLAR_LITERAL;
         return true;
       case '&':
         res->getLastMatch(out);
-        *path = JSContext::DOLLAR_AMP;
         return true;
       case '+':
         res->getLastParen(out);
-        *path = JSContext::DOLLAR_PLUS;
         return true;
       case '`':
         res->getLeftContext(out);
-        *path = JSContext::DOLLAR_TICK;
         return true;
       case '\'':
         res->getRightContext(out);
-        *path = JSContext::DOLLAR_QUOT;
         return true;
     }
     return false;
 }
+
+class PreserveRegExpStatics
+{
+    js::RegExpStatics *const original;
+    js::RegExpStatics buffer;
+
+  public:
+    explicit PreserveRegExpStatics(RegExpStatics *original)
+     : original(original),
+       buffer(RegExpStatics::InitBuffer())
+    {}
+
+    bool init(JSContext *cx) {
+        return original->save(cx, &buffer);
+    }
+
+    ~PreserveRegExpStatics() {
+        original->restore();
+    }
+};
 
 static bool
 FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t *sizep)
@@ -2140,7 +2155,7 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         }
 
         /* Push match index and input string. */
-        session[argi++].setInt32(res->matchStart());
+        session[argi++].setInt32(res->get(0, 0));
         session[argi].setString(rdata.str);
 
         if (!session.invoke(cx))
@@ -2157,11 +2172,10 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
 
     JSString *repstr = rdata.repstr;
     size_t replen = repstr->length();
-    JSContext::DollarPath path;
     for (jschar *dp = rdata.dollar, *ep = rdata.dollarEnd; dp; dp = js_strchr_limit(dp, '$', ep)) {
         JSSubString sub;
         size_t skip;
-        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip, &path)) {
+        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip)) {
             replen += sub.length - skip;
             dp += skip;
         } else {
@@ -2178,11 +2192,6 @@ DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, jschar *chars)
     JSString *repstr = rdata.repstr;
     jschar *cp;
     jschar *bp = cp = repstr->chars();
-    volatile JSContext::DollarPath path;
-    cx->dollarPath = &path;
-    jschar sourceBuf[128];
-    cx->blackBox = sourceBuf;
-
     for (jschar *dp = rdata.dollar, *ep = rdata.dollarEnd; dp; dp = js_strchr_limit(dp, '$', ep)) {
         size_t len = dp - cp;
         js_strncpy(chars, cp, len);
@@ -2191,13 +2200,7 @@ DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, jschar *chars)
 
         JSSubString sub;
         size_t skip;
-        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip, &path)) {
-            if (((size_t(sub.chars) & 0xfffffU) + sub.length) > 0x100000U) {
-                /* Going to cross a 0xffffe address, so take a gander at the replace value. */
-                size_t peekLen = JS_MIN(rdata.dollarEnd - rdata.dollar, 128);
-                js_strncpy(sourceBuf, rdata.dollar, peekLen);
-            }
-
+        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip)) {
             len = sub.length;
             js_strncpy(chars, sub.chars, len);
             chars += len;
@@ -2219,8 +2222,8 @@ ReplaceCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
     JSString *str = rdata.str;
     size_t leftoff = rdata.leftIndex;
     const jschar *left = str->chars() + leftoff;
-    size_t leftlen = res->matchStart() - leftoff;
-    rdata.leftIndex = res->matchLimit();
+    size_t leftlen = res->get(0, 0) - leftoff;
+    rdata.leftIndex = res->get(0, 1);
 
     size_t replen = 0;  /* silence 'unused' warning */
     if (!FindReplaceLength(cx, res, rdata, &replen))

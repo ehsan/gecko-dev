@@ -62,9 +62,6 @@
 #include "nsString.h"
 #include "mozilla/FunctionTimer.h"
 #include "prenv.h"
-#if defined(XP_WIN)
-#include <windows.h>
-#endif
 
 /**
  * Global allocator used with zlib. Destroyed in module shutdown.
@@ -202,7 +199,7 @@ nsresult nsZipHandle::Init(nsILocalFile *file, nsZipHandle **ret)
 
   nsRefPtr<nsZipHandle> handle = new nsZipHandle();
   if (!handle) {
-    PR_MemUnmap(buf, (PRUint32) size);
+    PR_MemUnmap(buf, size);
     PR_CloseFileMap(map);
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -372,7 +369,7 @@ nsZipItem*  nsZipArchive::GetItem(const char * aEntryName)
                 return 0;
         }
     }
-MOZ_WIN_MEM_TRY_BEGIN
+
     nsZipItem* item = mFiles[ HashName(aEntryName, len) ];
     while (item) {
       if ((len == item->nameLength) && 
@@ -389,9 +386,8 @@ MOZ_WIN_MEM_TRY_BEGIN
       }
       item = item->next;
     }
-MOZ_WIN_MEM_TRY_CATCH(return nsnull)
   }
-  return nsnull;
+  return 0;
 }
 
 //---------------------------------------------
@@ -517,7 +513,7 @@ nsresult nsZipFind::FindNext(const char ** aResult, PRUint16 *aNameLen)
 
   *aResult = 0;
   *aNameLen = 0;
-MOZ_WIN_MEM_TRY_BEGIN
+
   // we start from last match, look for next
   while (mSlot < ZIP_TABSIZE)
   {
@@ -546,7 +542,7 @@ MOZ_WIN_MEM_TRY_BEGIN
       return NS_OK;
     }
   }
-MOZ_WIN_MEM_TRY_CATCH(return NS_ERROR_FAILURE)
+
   return NS_ERROR_FILE_TARGET_DOES_NOT_EXIST;
 }
 
@@ -594,14 +590,13 @@ nsZipItem* nsZipArchive::CreateZipItem()
 //---------------------------------------------
 nsresult nsZipArchive::BuildFileList()
 {
-#ifndef XP_WIN
   NS_TIME_FUNCTION;
-#endif
+
   // Get archive size using end pos
   const PRUint8* buf;
   const PRUint8* startp = mFd->mFileData;
   const PRUint8* endp = startp + mFd->mLen;
-MOZ_WIN_MEM_TRY_BEGIN
+  
   PRUint32 centralOffset = 4;
   if (mFd->mLen > ZIPCENTRAL_SIZE && xtolong(startp + centralOffset) == CENTRALSIG) {
     // Success means optimized jar layout from bug 559961 is in effect
@@ -661,8 +656,6 @@ MOZ_WIN_MEM_TRY_BEGIN
 
   if (sig != ENDSIG)
     return NS_ERROR_FILE_CORRUPTED;
-
-MOZ_WIN_MEM_TRY_CATCH(return NS_ERROR_FAILURE)
   return NS_OK;
 }
 
@@ -675,7 +668,6 @@ nsresult nsZipArchive::BuildSynthetics()
     return NS_OK;
   mBuiltSynthetics = true;
 
-MOZ_WIN_MEM_TRY_BEGIN
   // Create synthetic entries for any missing directories.
   // Do this when all ziptable has scanned to prevent double entries.
   for (int i = 0; i < ZIP_TABSIZE; ++i)
@@ -732,7 +724,6 @@ MOZ_WIN_MEM_TRY_BEGIN
       } /* end processing of dirs in item's name */
     }
   }
-MOZ_WIN_MEM_TRY_CATCH(return NS_ERROR_FAILURE)
   return NS_OK;
 }
 
@@ -749,7 +740,6 @@ nsZipHandle* nsZipArchive::GetFD()
 const PRUint8* nsZipArchive::GetData(nsZipItem* aItem)
 {
   PR_ASSERT (aItem);
-MOZ_WIN_MEM_TRY_BEGIN
   //-- read local header to get variable length values and calculate
   //-- the real data offset
   PRUint32 len = mFd->mLen;
@@ -775,7 +765,12 @@ MOZ_WIN_MEM_TRY_BEGIN
     return nsnull;
 
   return data + offset;
-MOZ_WIN_MEM_TRY_CATCH(return nsnull)
+}
+
+PRBool 
+nsZipArchive::CheckCRC(nsZipItem* aItem, const PRUint8* aItemData) {
+  PRUint32 crc = crc32(0, (const unsigned char*)aItemData, aItem->Size());
+  return crc == aItem->CRC32();
 }
 
 //------------------------------------------
@@ -948,8 +943,8 @@ PRUint16 nsZipItem::Mode()
 
 const PRUint8 * nsZipItem::GetExtraField(PRUint16 aTag, PRUint16 *aBlockSize)
 {
-  if (isSynthetic) return nsnull;
-MOZ_WIN_MEM_TRY_BEGIN
+  if (isSynthetic) return NULL;
+
   const unsigned char *buf = ((const unsigned char*)central) + ZIPCENTRAL_SIZE +
                              nameLength;
   PRUint32 buflen = (PRUint32)xtoint(central->extrafield_len);
@@ -968,8 +963,7 @@ MOZ_WIN_MEM_TRY_BEGIN
     pos += blocksize + 4;
   }
 
-MOZ_WIN_MEM_TRY_CATCH(return nsnull)
-  return nsnull;
+  return NULL;
 }
 
 
@@ -1028,7 +1022,7 @@ PRUint8* nsZipCursor::Read(PRUint32 *aBytesRead) {
 
   if (!mZs.next_in)
     return nsnull;
-MOZ_WIN_MEM_TRY_BEGIN
+
   switch (mItem->Compression()) {
   case STORED:
     *aBytesRead = mZs.avail_in;
@@ -1057,7 +1051,6 @@ MOZ_WIN_MEM_TRY_BEGIN
     if (verifyCRC && mCRC != mItem->CRC32())
       return nsnull;
   }
-MOZ_WIN_MEM_TRY_CATCH(return nsnull)
   return buf;
 }
 
@@ -1066,7 +1059,7 @@ nsZipItemPtr_base::nsZipItemPtr_base(nsZipArchive *aZip, const char * aEntryName
 {
   // make sure the ziparchive hangs around
   mZipHandle = aZip->GetFD();
-
+  
   nsZipItem* item = aZip->GetItem(aEntryName);
   if (!item)
     return;

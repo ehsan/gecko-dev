@@ -1105,16 +1105,12 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
   PRBool found = PR_FALSE;
   nsCOMPtr<nsIDOMNode> current ( aNode );
 
-  // If the element implement the constraint validation API and has no title,
-  // show the validation message, if any.
+  // If the element implement the constraint validation API,
+  // show the validation message, if any, instead of the title.
   nsCOMPtr<nsIConstraintValidation> cvElement = do_QueryInterface(current);
   if (cvElement) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(cvElement);
-    nsCOMPtr<nsIAtom> titleAtom = do_GetAtom("title");
-    if (content->HasAttr(kNameSpaceID_None, titleAtom)) {
-      cvElement->GetValidationMessage(outText);
-      found = !outText.IsEmpty();
-    }
+    cvElement->GetValidationMessage(outText);
+    found = !outText.IsEmpty();
   }
 
   while ( !found && current ) {

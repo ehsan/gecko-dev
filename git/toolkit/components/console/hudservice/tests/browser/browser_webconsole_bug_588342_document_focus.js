@@ -25,6 +25,7 @@ function tabLoad(aEvent) {
   let DOMNodeInserted = false;
 
   document.addEventListener("DOMNodeInserted", function(aEvent) {
+    log("DOMNodeInserted");
     input = notificationBox.querySelector(".jsterm-input-node");
     if (input && !DOMNodeInserted) {
       DOMNodeInserted = true;

@@ -92,14 +92,26 @@ nsTextEquivUtils::GetTextEquivFromIDRefs(nsAccessible *aAccessible,
   if (!content)
     return NS_OK;
 
-  nsIContent* refContent = nsnull;
-  IDRefsIterator iter(content, aIDRefsAttr);
-  while ((refContent = iter.NextElem())) {
+  nsCOMPtr<nsIArray> refElms;
+  nsCoreUtils::GetElementsByIDRefsAttr(content, aIDRefsAttr,
+                                       getter_AddRefs(refElms));
+
+  if (!refElms)
+    return NS_OK;
+
+  PRUint32 count = 0;
+  nsresult rv = refElms->GetLength(&count);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIContent> refContent;
+  for (PRUint32 idx = 0; idx < count; idx++) {
+    refContent = do_QueryElementAt(refElms, idx, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     if (!aTextEquiv.IsEmpty())
       aTextEquiv += ' ';
 
-    nsresult rv = AppendTextEquivFromContent(aAccessible, refContent,
-                                             &aTextEquiv);
+    rv = AppendTextEquivFromContent(aAccessible, refContent, &aTextEquiv);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -225,6 +237,11 @@ nsresult
 nsTextEquivUtils::AppendFromAccessible(nsAccessible *aAccessible,
                                        nsAString *aString)
 {
+  // Ignore hidden accessible for name computation.
+  nsIFrame* frame = aAccessible->GetFrame();
+  if (!frame || !frame->GetStyleVisibility()->IsVisible())
+    return NS_OK;
+
   //XXX: is it necessary to care the accessible is not a document?
   if (aAccessible->IsContent()) {
     nsresult rv = AppendTextEquivFromTextContent(aAccessible->GetContent(),

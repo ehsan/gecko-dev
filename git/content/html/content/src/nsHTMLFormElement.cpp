@@ -85,8 +85,6 @@
 
 #include "nsIDOMHTMLButtonElement.h"
 
-using namespace mozilla::dom;
-
 static const int NS_FORM_CONTROL_LIST_HASHTABLE_SIZE = 16;
 
 static const PRUint8 NS_FORM_AUTOCOMPLETE_ON  = 1;
@@ -236,9 +234,12 @@ ShouldBeInElements(nsIFormControl* aFormControl)
 // construction, destruction
 nsGenericHTMLElement*
 NS_NewHTMLFormElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      FromParser aFromParser)
+                      PRUint32 aFromParser)
 {
   nsHTMLFormElement* it = new nsHTMLFormElement(aNodeInfo);
+  if (!it) {
+    return nsnull;
+  }
 
   nsresult rv = it->Init();
 
@@ -493,7 +494,7 @@ CollectOrphans(nsINode* aRemovalRoot, nsTArray<nsGenericHTMLFormElement*> aArray
     if (node->HasFlag(MAYBE_ORPHAN_FORM_ELEMENT)) {
       node->UnsetFlags(MAYBE_ORPHAN_FORM_ELEMENT);
       if (!nsContentUtils::ContentIsDescendantOf(node, aRemovalRoot)) {
-        node->ClearForm(PR_TRUE);
+        node->ClearForm(PR_TRUE, PR_TRUE);
 
         // When submit controls have no more form, they need to be updated.
         if (node->IsSubmitControl()) {
@@ -881,9 +882,7 @@ nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
   {
     nsAutoPopupStatePusher popupStatePusher(mSubmitPopupState);
 
-    nsAutoHandlingUserInputStatePusher userInpStatePusher(
-                                         mSubmitInitiatedFromUserInput,
-                                         nsnull, doc);
+    nsAutoHandlingUserInputStatePusher userInpStatePusher(mSubmitInitiatedFromUserInput, PR_FALSE);
 
     nsCOMPtr<nsIInputStream> postDataStream;
     rv = aFormSubmission->GetEncodedSubmission(actionURI,
@@ -1235,7 +1234,8 @@ nsHTMLFormElement::AddElementToTable(nsGenericHTMLFormElement* aChild,
 
 nsresult
 nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
-                                 bool aUpdateValidity)
+                                 bool aUpdateValidity,
+                                 PRBool aNotify)
 {
   //
   // Remove it from the radio group if it's a radio button
@@ -1244,7 +1244,7 @@ nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
   if (aChild->GetType() == NS_FORM_INPUT_RADIO) {
     nsRefPtr<nsHTMLInputElement> radio =
       static_cast<nsHTMLInputElement*>(aChild);
-    radio->WillRemoveFromRadioGroup();
+    radio->WillRemoveFromRadioGroup(aNotify);
   }
 
   // Determine whether to remove the child from the elements list
@@ -1281,7 +1281,7 @@ nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
     // Need to reset mDefaultSubmitElement.  Do this asynchronously so
     // that we're not doing it while the DOM is in flux.
     mDefaultSubmitElement = nsnull;
-    nsContentUtils::AddScriptRunner(new RemoveElementRunnable(this));
+    nsContentUtils::AddScriptRunner(new RemoveElementRunnable(this, aNotify));
 
     // Note that we don't need to notify on the old default submit (which is
     // being removed) because it's either being removed from the DOM or
@@ -1304,7 +1304,7 @@ nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
 }
 
 void
-nsHTMLFormElement::HandleDefaultSubmitRemoval()
+nsHTMLFormElement::HandleDefaultSubmitRemoval(PRBool aNotify)
 {
   if (mDefaultSubmitElement) {
     // Already got reset somehow; nothing else to do here
@@ -1330,7 +1330,7 @@ nsHTMLFormElement::HandleDefaultSubmitRemoval()
                    "What happened here?");
 
   // Notify about change if needed.
-  if (mDefaultSubmitElement) {
+  if (aNotify && mDefaultSubmitElement) {
     nsIDocument* document = GetCurrentDoc();
     if (document) {
       MOZ_AUTO_DOC_UPDATE(document, UPDATE_CONTENT_STATE, PR_TRUE);
@@ -2092,12 +2092,12 @@ nsFormControlList::Clear()
   // Null out childrens' pointer to me.  No refcounting here
   PRInt32 i;
   for (i = mElements.Length()-1; i >= 0; i--) {
-    mElements[i]->ClearForm(PR_FALSE);
+    mElements[i]->ClearForm(PR_FALSE, PR_TRUE);
   }
   mElements.Clear();
 
   for (i = mNotInElements.Length()-1; i >= 0; i--) {
-    mNotInElements[i]->ClearForm(PR_FALSE);
+    mNotInElements[i]->ClearForm(PR_FALSE, PR_TRUE);
   }
   mNotInElements.Clear();
 

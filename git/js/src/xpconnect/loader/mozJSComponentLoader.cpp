@@ -82,10 +82,10 @@
 #include "nsIStorageStream.h"
 #include "nsIStringStream.h"
 #include "prmem.h"
+#include "plbase64.h"
 #if defined(XP_WIN)
 #include "nsILocalFileWin.h"
 #endif
-#include "xpcprivate.h"
 
 #ifdef MOZ_ENABLE_LIBXUL
 #include "mozilla/scache/StartupCache.h"
@@ -218,26 +218,32 @@ Debug(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 Atob(JSContext *cx, uintN argc, jsval *vp)
 {
+    JSString *str;
     if (!argc)
         return JS_TRUE;
 
-    JSString *str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+    str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
     if (!str)
         return JS_FALSE;
 
-    const char* bytes = JS_GetStringBytesZ(cx, str);
-    if (!bytes)
-        return JS_FALSE;
+    size_t base64StrLength = JS_GetStringLength(str);
+    char *base64Str = JS_GetStringBytes(str);
 
-    nsDependentCString string(bytes, JS_GetStringLength(str));
-    nsCAutoString result;
-
-    if (NS_FAILED(nsXPConnect::Base64Decode(string, result))) {
-        JS_ReportError(cx, "Failed to decode base64 string!");
-        return JS_FALSE;
+    PRUint32 bin_dataLength = (PRUint32)base64StrLength;
+    if (base64StrLength >= 1 && base64Str[base64StrLength - 1] == '=') {
+        if (base64StrLength >= 2 && base64Str[base64StrLength - 2] == '=')
+            bin_dataLength -= 2;
+        else
+            --bin_dataLength;
     }
+    bin_dataLength = (PRUint32)((PRUint64)bin_dataLength * 3) / 4;
 
-    str = JS_NewStringCopyN(cx, result.get(), result.Length());
+    char *bin_data = PL_Base64Decode(base64Str, base64StrLength, nsnull);
+    if (!bin_data)
+        return JS_FALSE;
+
+    str = JS_NewStringCopyN(cx, bin_data, bin_dataLength);
+    PR_Free(bin_data);
     if (!str)
         return JS_FALSE;
 
@@ -248,26 +254,24 @@ Atob(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 Btoa(JSContext *cx, uintN argc, jsval *vp)
 {
+    JSString *str;
     if (!argc)
         return JS_TRUE;
 
-    JSString *str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+    str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
     if (!str)
         return JS_FALSE;
 
-    const char* bytes = JS_GetStringBytesZ(cx, str);
-    if (!bytes)
+    char *bin_data = JS_GetStringBytes(str);
+    size_t bin_dataLength = JS_GetStringLength(str);
+
+    char *base64 = PL_Base64Encode(bin_data, bin_dataLength, nsnull);
+    if (!base64)
         return JS_FALSE;
 
-    nsDependentCString data(bytes, JS_GetStringLength(str));
-    nsCAutoString result;
-
-    if (NS_FAILED(nsXPConnect::Base64Encode(data, result))) {
-        JS_ReportError(cx, "Failed to encode base64 data!");
-        return JS_FALSE;
-    }
-
-    str = JS_NewStringCopyN(cx, result.get(), result.Length());
+    PRUint32 base64Length = ((bin_dataLength + 2) / 3) * 4;
+    str = JS_NewStringCopyN(cx, base64, base64Length);
+    PR_Free(base64);
     if (!str)
         return JS_FALSE;
 

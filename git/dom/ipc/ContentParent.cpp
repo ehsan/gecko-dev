@@ -66,14 +66,12 @@
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
 #include "nsConsoleMessage.h"
-#include "AudioParent.h"
 
 #ifdef MOZ_PERMISSIONS
 #include "nsPermissionManager.h"
 #endif
 
 #include "mozilla/dom/ExternalHelperAppParent.h"
-#include "nsAccelerometer.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -200,7 +198,7 @@ ContentParent::IsAlive()
 }
 
 bool
-ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
+ContentParent::RecvReadPrefsArray(nsTArray<PrefTuple> *prefs)
 {
     EnsurePrefService();
     mPrefService->MirrorPreferences(prefs);
@@ -219,7 +217,7 @@ ContentParent::EnsurePrefService()
 }
 
 bool
-ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions)
+ContentParent::RecvReadPermissions(nsTArray<IPC::Permission>* aPermissions)
 {
 #ifdef MOZ_PERMISSIONS
     nsRefPtr<nsPermissionManager> permissionManager =
@@ -290,7 +288,7 @@ ContentParent::Observe(nsISupports* aSubject,
             }
         }
 
-        RecvRemoveGeolocationListener();
+        RecvGeolocationStop();
             
         Close();
         XRE_GetIOMessageLoop()->PostTask(
@@ -361,24 +359,6 @@ ContentParent::DeallocPTestShell(PTestShellParent* shell)
 {
   delete shell;
   return true;
-}
- 
-PAudioParent*
-ContentParent::AllocPAudio(const PRInt32& numChannels,
-                           const PRInt32& rate,
-                           const PRInt32& format)
-{
-    AudioParent *parent = new AudioParent(numChannels, rate, format);
-    parent->AddRef();
-    return parent;
-}
-
-bool
-ContentParent::DeallocPAudio(PAudioParent* doomed)
-{
-    AudioParent *parent = static_cast<AudioParent*>(doomed);
-    NS_RELEASE(parent);
-    return true;
 }
 
 PNeckoParent* 
@@ -480,9 +460,9 @@ ContentParent::RecvShowFilePicker(const PRInt16& mode,
                                   const nsString& title,
                                   const nsString& defaultFile,
                                   const nsString& defaultExtension,
-                                  const InfallibleTArray<nsString>& filters,
-                                  const InfallibleTArray<nsString>& filterNames,
-                                  InfallibleTArray<nsString>* files,
+                                  const nsTArray<nsString>& filters,
+                                  const nsTArray<nsString>& filterNames,
+                                  nsTArray<nsString>* files,
                                   PRInt16* retValue,
                                   nsresult* result)
 {
@@ -620,7 +600,7 @@ ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsStri
 
 bool
 ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
-                               InfallibleTArray<nsString>* aRetvals)
+                               nsTArray<nsString>* aRetvals)
 {
   nsRefPtr<nsFrameMessageManager> ppm = nsFrameMessageManager::sParentProcessManager;
   if (ppm) {
@@ -642,7 +622,7 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
 }
 
 bool
-ContentParent::RecvAddGeolocationListener()
+ContentParent::RecvGeolocationStart()
 {
   if (mGeolocationWatchID == -1) {
     nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
@@ -655,7 +635,7 @@ ContentParent::RecvAddGeolocationListener()
 }
 
 bool
-ContentParent::RecvRemoveGeolocationListener()
+ContentParent::RecvGeolocationStop()
 {
   if (mGeolocationWatchID != -1) {
     nsCOMPtr<nsIDOMGeoGeolocation> geo = do_GetService("@mozilla.org/geolocation;1");
@@ -666,26 +646,6 @@ ContentParent::RecvRemoveGeolocationListener()
     mGeolocationWatchID = -1;
   }
   return true;
-}
-
-bool
-ContentParent::RecvAddAccelerometerListener()
-{
-    nsCOMPtr<nsIAccelerometer> ac = 
-        do_GetService(NS_ACCELEROMETER_CONTRACTID);
-    if (ac)
-        ac->AddListener(this);
-    return true;
-}
-
-bool
-ContentParent::RecvRemoveAccelerometerListener()
-{
-    nsCOMPtr<nsIAccelerometer> ac = 
-        do_GetService(NS_ACCELEROMETER_CONTRACTID);
-    if (ac)
-        ac->RemoveListener(this);
-    return true;
 }
 
 NS_IMETHODIMP
@@ -729,20 +689,6 @@ ContentParent::RecvScriptError(const nsString& aMessage,
   svc->LogMessage(msg);
   return true;
 }
-
-NS_IMETHODIMP
-ContentParent::OnAccelerationChange(nsIAcceleration *aAcceleration)
-{
-    double x, y, z;
-    aAcceleration->GetX(&x);
-    aAcceleration->GetY(&y);
-    aAcceleration->GetZ(&z);
-
-    mozilla::dom::ContentParent::GetSingleton()->
-        SendAccelerationChanged(x, y, z);
-    return NS_OK;
-}
-
 
 } // namespace dom
 } // namespace mozilla

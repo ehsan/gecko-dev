@@ -111,8 +111,8 @@ ContentListener::HandleEvent(nsIDOMEvent* aEvent)
 class ContentDialogChild : public PContentDialogChild
 {
 public:
-  virtual bool Recv__delete__(const InfallibleTArray<int>& aIntParams,
-                              const InfallibleTArray<nsString>& aStringParams);
+  virtual bool Recv__delete__(const nsTArray<int>& aIntParams,
+                              const nsTArray<nsString>& aStringParams);
 };
 
 
@@ -161,24 +161,18 @@ NS_IMPL_RELEASE(TabChild)
 NS_IMETHODIMP
 TabChild::SetStatus(PRUint32 aStatusType, const PRUnichar* aStatus)
 {
-  NS_NOTREACHED("TabChild::SetStatus not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::GetWebBrowser(nsIWebBrowser** aWebBrowser)
 {
-  NS_NOTREACHED("TabChild::GetWebBrowser not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::SetWebBrowser(nsIWebBrowser* aWebBrowser)
 {
-  NS_NOTREACHED("TabChild::SetWebBrowser not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -192,32 +186,25 @@ TabChild::GetChromeFlags(PRUint32* aChromeFlags)
 NS_IMETHODIMP
 TabChild::SetChromeFlags(PRUint32 aChromeFlags)
 {
-  NS_NOTREACHED("trying to SetChromeFlags from content process?");
-
+  NS_ERROR("trying to SetChromeFlags from content process?");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::DestroyBrowserWindow()
 {
-  NS_NOTREACHED("TabChild::SetWebBrowser not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::SizeBrowserTo(PRInt32 aCX, PRInt32 aCY)
 {
-  NS_NOTREACHED("TabChild::SizeBrowserTo not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::ShowAsModal()
 {
-  NS_NOTREACHED("TabChild::ShowAsModal not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -231,8 +218,6 @@ TabChild::IsWindowModal(PRBool* aRetVal)
 NS_IMETHODIMP
 TabChild::ExitModalEventLoop(nsresult aStatus)
 {
-  NS_NOTREACHED("TabChild::ExitModalEventLoop not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -241,8 +226,6 @@ TabChild::SetStatusWithContext(PRUint32 aStatusType,
                                     const nsAString& aStatusText,
                                     nsISupports* aStatusContext)
 {
-  NS_NOTREACHED("TabChild::SetStatusWithContext not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -250,8 +233,6 @@ NS_IMETHODIMP
 TabChild::SetDimensions(PRUint32 aFlags, PRInt32 aX, PRInt32 aY,
                              PRInt32 aCx, PRInt32 aCy)
 {
-  NS_NOTREACHED("TabChild::SetDimensions not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -259,16 +240,12 @@ NS_IMETHODIMP
 TabChild::GetDimensions(PRUint32 aFlags, PRInt32* aX,
                              PRInt32* aY, PRInt32* aCx, PRInt32* aCy)
 {
-  NS_NOTREACHED("TabChild::GetDimensions not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::SetFocus()
 {
-  NS_NOTREACHED("TabChild::SetFocus not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -282,40 +259,30 @@ TabChild::GetVisibility(PRBool* aVisibility)
 NS_IMETHODIMP
 TabChild::SetVisibility(PRBool aVisibility)
 {
-  NS_NOTREACHED("TabChild::SetVisibility not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::GetTitle(PRUnichar** aTitle)
 {
-  NS_NOTREACHED("TabChild::GetTitle not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::SetTitle(const PRUnichar* aTitle)
 {
-  NS_NOTREACHED("TabChild::SetTitle not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::GetSiteWindow(void** aSiteWindow)
 {
-  NS_NOTREACHED("TabChild::GetSiteWindow not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 TabChild::Blur()
 {
-  NS_NOTREACHED("TabChild::Blur not supported in TabChild");
-
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -373,8 +340,8 @@ TabChild::OpenDialog(PRUint32 aType, const nsACString& aName,
   if (!gActiveDialogs.IsInitialized()) {
     NS_ENSURE_STATE(gActiveDialogs.Init());
   }
-  InfallibleTArray<PRInt32> intParams;
-  InfallibleTArray<nsString> stringParams;
+  nsTArray<PRInt32> intParams;
+  nsTArray<nsString> stringParams;
   ParamsToArrays(aArguments, intParams, stringParams);
   PContentDialogChild* dialog =
     SendPContentDialogConstructor(aType, nsCString(aName),
@@ -390,8 +357,8 @@ TabChild::OpenDialog(PRUint32 aType, const nsACString& aName,
 }
 
 bool
-ContentDialogChild::Recv__delete__(const InfallibleTArray<int>& aIntParams,
-                                   const InfallibleTArray<nsString>& aStringParams)
+ContentDialogChild::Recv__delete__(const nsTArray<int>& aIntParams,
+                                   const nsTArray<nsString>& aStringParams)
 {
   nsCOMPtr<nsIDialogParamBlock> params;
   if (gActiveDialogs.Get(this, getter_AddRefs(params))) {
@@ -403,8 +370,8 @@ ContentDialogChild::Recv__delete__(const InfallibleTArray<int>& aIntParams,
 
 void
 TabChild::ParamsToArrays(nsIDialogParamBlock* aParams,
-                         InfallibleTArray<int>& aIntParams,
-                         InfallibleTArray<nsString>& aStringParams)
+                         nsTArray<int>& aIntParams,
+                         nsTArray<nsString>& aStringParams)
 {
   if (aParams) {
     for (PRInt32 i = 0; i < 8; ++i) {
@@ -413,8 +380,9 @@ TabChild::ParamsToArrays(nsIDialogParamBlock* aParams,
       aIntParams.AppendElement(val);
     }
     PRInt32 j = 0;
-    nsXPIDLString strVal;
-    while (NS_SUCCEEDED(aParams->GetString(j, getter_Copies(strVal)))) {
+    PRUnichar* str = nsnull;
+    while (NS_SUCCEEDED(aParams->GetString(j, &str))) {
+      nsAdoptingString strVal(str);
       aStringParams.AppendElement(strVal);
       ++j;
     }
@@ -422,8 +390,8 @@ TabChild::ParamsToArrays(nsIDialogParamBlock* aParams,
 }
 
 void
-TabChild::ArraysToParams(const InfallibleTArray<int>& aIntParams,
-                         const InfallibleTArray<nsString>& aStringParams,
+TabChild::ArraysToParams(const nsTArray<int>& aIntParams,
+                         const nsTArray<nsString>& aStringParams,
                          nsIDialogParamBlock* aParams)
 {
   if (aParams) {
@@ -679,8 +647,8 @@ PContentDialogChild*
 TabChild::AllocPContentDialog(const PRUint32&,
                               const nsCString&,
                               const nsCString&,
-                              const InfallibleTArray<int>&,
-                              const InfallibleTArray<nsString>&)
+                              const nsTArray<int>&,
+                              const nsTArray<nsString>&)
 {
   return new ContentDialogChild();
 }
@@ -842,8 +810,24 @@ TabChild::InitTabChildGlobal()
   nsContentUtils::XPConnect()->SetSecurityManagerForJSContext(cx, nsContentUtils::GetSecurityManager(), 0);
   nsContentUtils::GetSecurityManager()->GetSystemPrincipal(getter_AddRefs(mPrincipal));
 
-  JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
-  JS_SetScriptStackQuota(cx, 25 * sizeof(size_t) * 1024 * 1024);
+  PRUint32 stackDummy;
+  jsuword stackLimit, currentStackAddr = (jsuword)&stackDummy;
+
+  // 256k stack space.
+  const jsuword kStackSize = 0x40000;
+
+#if JS_STACK_GROWTH_DIRECTION < 0
+  stackLimit = (currentStackAddr > kStackSize) ?
+               currentStackAddr - kStackSize :
+               0;
+#else
+  stackLimit = (currentStackAddr + kStackSize > currentStackAddr) ?
+               currentStackAddr + kStackSize :
+               (jsuword) -1;
+#endif
+
+  JS_SetThreadStackLimit(cx, stackLimit);
+  JS_SetScriptStackQuota(cx, 100*1024*1024);
 
   JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_ANONFUNFIX | JSOPTION_PRIVATE_IS_NSISUPPORTS);
   JS_SetVersion(cx, JSVERSION_LATEST);
@@ -934,7 +918,7 @@ static bool
 SendSyncMessageToParent(void* aCallbackData,
                         const nsAString& aMessage,
                         const nsAString& aJSON,
-                        InfallibleTArray<nsString>* aJSONRetVal)
+                        nsTArray<nsString>* aJSONRetVal)
 {
   return static_cast<TabChild*>(aCallbackData)->
     SendSyncMessage(nsString(aMessage), nsString(aJSON),

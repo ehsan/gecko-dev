@@ -300,7 +300,7 @@ ShadowLayerForwarder::PaintedCanvas(ShadowableLayer* aCanvas,
 }
 
 PRBool
-ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
+ShadowLayerForwarder::EndTransaction(nsTArray<EditReply>* aReplies)
 {
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(!mTxn->Finished(), "forgot BeginTransaction?");
@@ -345,7 +345,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
     mTxn->AddEdit(OpSetLayerAttributes(NULL, Shadow(shadow), attrs));
   }
 
-  AutoInfallibleTArray<Edit, 10> cset;
+  nsAutoTArray<Edit, 10> cset;
   size_t nCsets = mTxn->mCset.size() + mTxn->mPaints.size();
   NS_ABORT_IF_FALSE(nCsets > 0, "should have bailed by now");
 
@@ -420,8 +420,8 @@ ShadowLayerForwarder::AllocDoubleBuffer(const gfxIntSize& aSize,
 
   nsRefPtr<gfxSharedImageSurface> front = new gfxSharedImageSurface();
   nsRefPtr<gfxSharedImageSurface> back = new gfxSharedImageSurface();
-  if (!front->InitUnsafe(mShadowManager, aSize, format, shmemType) ||
-      !back->InitUnsafe(mShadowManager, aSize, format, shmemType))
+  if (!front->Init(mShadowManager, aSize, format, shmemType) ||
+      !back->Init(mShadowManager, aSize, format, shmemType))
     return PR_FALSE;
 
   *aFrontBuffer = NULL;       *aBackBuffer = NULL;
