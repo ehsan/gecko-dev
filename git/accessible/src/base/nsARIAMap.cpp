@@ -220,6 +220,15 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     kNoReqStates
   },
   {
+    "label",
+    roles::LABEL,
+    kUseMapRole,
+    eNoValue,
+    eNoAction,
+    eNoLiveAttr,
+    kNoReqStates
+  },
+  {
     "link",
     roles::LINK,
     kUseMapRole,
