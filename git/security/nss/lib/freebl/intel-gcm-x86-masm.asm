@@ -840,12 +840,11 @@ LEncDataTail:
     vmovdqa XMMWORD PTR[esp], TMP2
 ; copy as many bytes as needed
     xor KS, KS
-    mov aluTMP, edx
 @@:
         cmp len, KS
         je  @f
-        mov dl, BYTE PTR[PT + KS]
-        mov BYTE PTR[esp + KS], dl
+        mov di, [PT + KS]
+        mov [esp + KS], di
         inc KS
         jmp @b
 @@:
@@ -855,8 +854,8 @@ LEncDataTail:
 @@:
         cmp len, KS
         je  @f
-        mov dl, BYTE PTR[esp + KS]
-        mov BYTE PTR[CT + KS], dl
+        mov di, [esp + KS]
+        mov [CT + KS], di
         inc KS
         jmp @b
 @@:
@@ -866,8 +865,8 @@ LEncDataTail:
         inc KS
         jmp @b
 @@:
-    mov edx, aluTMP
     vmovdqa TMP1, XMMWORD PTR[esp]
+
     vpshufb TMP1, TMP1, XMMWORD PTR[Lbswap_mask]
     vpxor   TMP1, TMP1, T
 
@@ -1151,12 +1150,11 @@ LDecDataTail:
 
 ; copy as many bytes as needed
     xor KS, KS
-    mov aluTMP, edx
 @@:
         cmp len, KS
         je  @f
-        mov dl, BYTE PTR[CT + KS]
-        mov BYTE PTR[esp + KS], dl
+        mov di, [CT + KS]
+        mov [esp + KS], di
         inc KS
         jmp @b
 @@:
@@ -1166,7 +1164,7 @@ LDecDataTail:
         inc KS
         jmp @b
 @@:
-    mov edx, aluTMP
+
     vmovdqa TMP1, XMMWORD PTR[esp]
     vpshufb TMP1, TMP1, XMMWORD PTR[Lbswap_mask]
     vpxor   TMP1, TMP1, T
@@ -1175,19 +1173,24 @@ LDecDataTail:
     GFMUL   TMP1, TMP1, TMP0, TMP5, TMP2, TMP3, TMP4
     vmovdqu T, TMP1
 
+
     vpxor   xmm7, xmm7, XMMWORD PTR[esp]
     vmovdqa XMMWORD PTR[esp], xmm7
     xor     KS, KS
-    mov aluTMP, edx
 @@:
         cmp len, KS
         je  @f
-        mov dl, BYTE PTR[esp + KS]
-        mov BYTE PTR[PT + KS], dl
+        mov di, [esp + KS]
+        mov [PT + KS], di
         inc KS
         jmp @b
 @@:
-    mov edx, aluTMP
+        cmp KS, 16
+        je  @f
+        mov BYTE PTR[PT + KS], 0
+        inc KS
+        jmp @b
+@@:
 
 LDecDataEnd:
 

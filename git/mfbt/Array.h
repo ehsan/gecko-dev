@@ -38,11 +38,11 @@ class Array<T, 0>
 {
   public:
     T& operator[](size_t i) {
-      MOZ_CRASH("indexing into zero-length array");
+      MOZ_ASSUME_UNREACHABLE("indexing into zero-length array");
     }
 
     const T& operator[](size_t i) const {
-      MOZ_CRASH("indexing into zero-length array");
+      MOZ_ASSUME_UNREACHABLE("indexing into zero-length array");
     }
 };
 

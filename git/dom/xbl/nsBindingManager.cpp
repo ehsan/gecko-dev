@@ -334,7 +334,7 @@ nsBindingManager::RemoveFromAttachedQueue(nsXBLBinding* aBinding)
 {
   // Don't remove items here as that could mess up an executing
   // ProcessAttachedQueue. Instead, null the entry in the queue.
-  size_t index = mAttachedStack.IndexOf(aBinding);
+  uint32_t index = mAttachedStack.IndexOf(aBinding);
   if (index != mAttachedStack.NoIndex) {
     mAttachedStack[index] = nullptr;
   }
@@ -840,7 +840,7 @@ static void
 InsertAppendedContent(XBLChildrenElement* aPoint,
                       nsIContent* aFirstNewContent)
 {
-  size_t insertionIndex;
+  uint32_t insertionIndex;
   if (nsIContent* prevSibling = aFirstNewContent->GetPreviousSibling()) {
     // If we have a previous sibling, then it must already be in aPoint. Find
     // it and insert after it.
@@ -1083,14 +1083,14 @@ nsBindingManager::HandleChildInsertion(nsIContent* aContainer,
     // TODO If there were multiple insertion points, this approximation can be
     // wrong. We need to re-run the distribution algorithm. In the meantime,
     // this should work well enough.
-    size_t index = aAppend ? point->mInsertedChildren.Length() : 0;
+    uint32_t index = aAppend ? point->mInsertedChildren.Length() : 0;
     for (nsIContent* currentSibling = aChild->GetPreviousSibling();
          currentSibling;
          currentSibling = currentSibling->GetPreviousSibling()) {
       // If we find one of our previous siblings in the insertion point, the
       // index following it is the correct insertion point. Otherwise, we guess
       // based on whether we're appending or inserting.
-      size_t pointIndex = point->IndexOfInsertedChild(currentSibling);
+      uint32_t pointIndex = point->IndexOfInsertedChild(currentSibling);
       if (pointIndex != point->NoIndex) {
         index = pointIndex + 1;
         break;

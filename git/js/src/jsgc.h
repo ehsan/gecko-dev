@@ -537,7 +537,7 @@ class ArenaLists
      * GC we only move the head of the of the list of spans back to the arena
      * only for the arena that was not fully allocated.
      */
-    FreeList       freeLists[FINALIZE_LIMIT];
+    FreeSpan       freeLists[FINALIZE_LIMIT];
 
     ArenaList      arenaLists[FINALIZE_LIMIT];
 
@@ -601,10 +601,10 @@ class ArenaLists
 
     static uintptr_t getFreeListOffset(AllocKind thingKind) {
         uintptr_t offset = offsetof(ArenaLists, freeLists);
-        return offset + thingKind * sizeof(FreeList);
+        return offset + thingKind * sizeof(FreeSpan);
     }
 
-    const FreeList *getFreeList(AllocKind thingKind) const {
+    const FreeSpan *getFreeList(AllocKind thingKind) const {
         return &freeLists[thingKind];
     }
 
@@ -661,11 +661,11 @@ class ArenaLists
     }
 
     void purge(AllocKind i) {
-        FreeList *freeList = &freeLists[i];
-        if (!freeList->isEmpty()) {
-            ArenaHeader *aheader = freeList->arenaHeader();
-            aheader->setFirstFreeSpan(freeList->getHead());
-            freeList->initAsEmpty();
+        FreeSpan *headSpan = &freeLists[i];
+        if (!headSpan->isEmpty()) {
+            ArenaHeader *aheader = headSpan->arenaHeader();
+            aheader->setFirstFreeSpan(headSpan);
+            headSpan->initAsEmpty();
         }
     }
 
@@ -682,11 +682,11 @@ class ArenaLists
     }
 
     void copyFreeListToArena(AllocKind thingKind) {
-        FreeList *freeList = &freeLists[thingKind];
-        if (!freeList->isEmpty()) {
-            ArenaHeader *aheader = freeList->arenaHeader();
+        FreeSpan *headSpan = &freeLists[thingKind];
+        if (!headSpan->isEmpty()) {
+            ArenaHeader *aheader = headSpan->arenaHeader();
             JS_ASSERT(!aheader->hasFreeThings());
-            aheader->setFirstFreeSpan(freeList->getHead());
+            aheader->setFirstFreeSpan(headSpan);
         }
     }
 
@@ -701,10 +701,10 @@ class ArenaLists
 
 
     void clearFreeListInArena(AllocKind kind) {
-        FreeList *freeList = &freeLists[kind];
-        if (!freeList->isEmpty()) {
-            ArenaHeader *aheader = freeList->arenaHeader();
-            JS_ASSERT(freeList->isSameNonEmptySpan(aheader->getFirstFreeSpan()));
+        FreeSpan *headSpan = &freeLists[kind];
+        if (!headSpan->isEmpty()) {
+            ArenaHeader *aheader = headSpan->arenaHeader();
+            JS_ASSERT(aheader->getFirstFreeSpan().isSameNonEmptySpan(headSpan));
             aheader->setAsFullyUsed();
         }
     }
@@ -714,16 +714,16 @@ class ArenaLists
      * arena using copyToArena().
      */
     bool isSynchronizedFreeList(AllocKind kind) {
-        FreeList *freeList = &freeLists[kind];
-        if (freeList->isEmpty())
+        FreeSpan *headSpan = &freeLists[kind];
+        if (headSpan->isEmpty())
             return true;
-        ArenaHeader *aheader = freeList->arenaHeader();
+        ArenaHeader *aheader = headSpan->arenaHeader();
         if (aheader->hasFreeThings()) {
             /*
              * If the arena has a free list, it must be the same as one in
              * lists.
              */
-            JS_ASSERT(freeList->isSameNonEmptySpan(aheader->getFirstFreeSpan()));
+            JS_ASSERT(aheader->getFirstFreeSpan().isSameNonEmptySpan(headSpan));
             return true;
         }
         return false;

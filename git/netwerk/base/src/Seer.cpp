@@ -2299,10 +2299,6 @@ Seer::Reset()
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  if (!mEnabled) {
-    return NS_OK;
-  }
-
   nsRefPtr<SeerResetEvent> event = new SeerResetEvent();
   return mIOThread->Dispatch(event, NS_DISPATCH_NORMAL);
 }
