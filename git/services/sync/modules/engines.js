@@ -374,7 +374,86 @@ Engine.prototype = {
     if (!this._sync)
       throw "engine does not implement _sync method";
 
-    this._notify("sync", this.name, this._sync)();
+    let times = {};
+    let wrapped = {};
+    // Find functions in any point of the prototype chain
+    for (let _name in this) {
+      let name = _name;
+
+      // Ignore certain constructors/functions
+      if (name.search(/^_(.+Obj|notify)$/) == 0)
+        continue;
+
+      // Only track functions but skip the constructors
+      if (typeof this[name] == "function") {
+        times[name] = [];
+        wrapped[name] = this[name];
+
+        // Wrap the original function with a start/stop timer
+        this[name] = function() {
+          let start = Date.now();
+          try {
+            return wrapped[name].apply(this, arguments);
+          }
+          finally {
+            times[name].push(Date.now() - start);
+          }
+        };
+      }
+    }
+
+    try {
+      this._notify("sync", this.name, this._sync)();
+    }
+    finally {
+      // Restore original unwrapped functionality
+      for (let [name, func] in Iterator(wrapped))
+        this[name] = func;
+
+      let stats = {};
+      for (let [name, time] in Iterator(times)) {
+        // Figure out stats on the times unless there's nothing
+        let num = time.length;
+        if (num == 0)
+          continue;
+
+        // Track the min/max/sum of the values
+        let stat = {
+          num: num,
+          sum: 0
+        };
+        time.forEach(function(val) {
+          if (stat.min == null || val < stat.min)
+            stat.min = val;
+          if (stat.max == null || val > stat.max)
+            stat.max = val;
+          stat.sum += val;
+        });
+
+        stat.avg = Number((stat.sum / num).toFixed(2));
+        stats[name] = stat;
+      }
+
+      stats.toString = function() {
+        let sums = [];
+        for (let [name, stat] in Iterator(this))
+          if (stat.sum != null)
+            sums.push(name.replace(/^_/, "") + " " + stat.sum);
+
+        // Order certain functions first before any other random ones
+        let nameOrder = ["sync", "processIncoming", "uploadOutgoing",
+          "syncStartup", "syncFinish"];
+        let getPos = function(str) {
+          let pos = nameOrder.indexOf(str.split(" ")[0]);
+          return pos != -1 ? pos : Infinity;
+        };
+        let order = function(a, b) getPos(a) > getPos(b);
+
+        return "Total (ms): " + sums.sort(order).join(", ");
+      };
+
+      this._log.debug(stats);
+    }
   },
 
   /**
@@ -623,16 +702,13 @@ SyncEngine.prototype = {
       }
     }
 
-    // Not binding this method to 'this' for performance reasons. It gets
-    // called for every incoming record.
-    let self = this;
-    newitems.recordHandler = function(item) {
+    newitems.recordHandler = Utils.bind2(this, function(item) {
       // Grab a later last modified if possible
-      if (self.lastModified == null || item.modified > self.lastModified)
-        self.lastModified = item.modified;
+      if (this.lastModified == null || item.modified > this.lastModified)
+        this.lastModified = item.modified;
 
       // Track the collection for the WBO.
-      item.collection = self.name;
+      item.collection = this.name;
       
       // Remember which records were processed
       handled.push(item.id);
@@ -641,25 +717,25 @@ SyncEngine.prototype = {
         try {
           item.decrypt();
         } catch (ex if (Utils.isHMACMismatch(ex) &&
-                        self.handleHMACMismatch(item))) {
+                        this.handleHMACMismatch(item))) {
           // Let's try handling it.
           // If the callback returns true, try decrypting again, because
           // we've got new keys.
-          self._log.info("Trying decrypt again...");
+          this._log.info("Trying decrypt again...");
           item.decrypt();
         }       
       } catch (ex) {
-        self._log.warn("Error decrypting record: " + Utils.exceptionStr(ex));
+        this._log.warn("Error decrypting record: " + Utils.exceptionStr(ex));
         failed.push(item.id);
         return;
       }
 
       let shouldApply;
       try {
-        shouldApply = self._reconcile(item);
+        shouldApply = this._reconcile(item);
       } catch (ex) {
-        self._log.warn("Failed to reconcile incoming record " + item.id);
-        self._log.warn("Encountered exception: " + Utils.exceptionStr(ex));
+        this._log.warn("Failed to reconcile incoming record " + item.id);
+        this._log.warn("Encountered exception: " + Utils.exceptionStr(ex));
         failed.push(item.id);
         return;
       }
@@ -669,14 +745,14 @@ SyncEngine.prototype = {
         applyBatch.push(item);
       } else {
         count.reconciled++;
-        self._log.trace("Skipping reconciled incoming item " + item.id);
+        this._log.trace("Skipping reconciled incoming item " + item.id);
       }
 
-      if (applyBatch.length == self.applyIncomingBatchSize) {
-        doApplyBatch.call(self);
+      if (applyBatch.length == this.applyIncomingBatchSize) {
+        doApplyBatch.call(this);
       }
-      self._sleep(0);
-    };
+      this._sleep(0);
+    });
 
     // Only bother getting data from the server if there's new things
     if (this.lastModified == null || this.lastModified > this.lastSync) {
@@ -853,7 +929,6 @@ SyncEngine.prototype = {
 
   // Upload outgoing records
   _uploadOutgoing: function SyncEngine__uploadOutgoing() {
-    this._log.trace("Uploading local changes to server.");
     if (this._modifiedIDs.length) {
       this._log.trace("Preparing " + this._modifiedIDs.length +
                       " outgoing records");

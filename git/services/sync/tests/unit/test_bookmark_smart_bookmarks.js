@@ -83,8 +83,7 @@ function test_annotation_uploaded() {
   _("New item ID: " + mostVisitedID);
   do_check_true(!!mostVisitedID);
 
-  let annoValue = Svc.Annos.getItemAnnotation(mostVisitedID,
-                                              SMART_BOOKMARKS_ANNO);
+  let annoValue = Utils.anno(mostVisitedID, SMART_BOOKMARKS_ANNO);
   _("Anno: " + annoValue);
   do_check_eq("MostVisited", annoValue);
 
@@ -158,7 +157,7 @@ function test_annotation_uploaded() {
 
     _("Find by GUID and verify that it's annotated.");
     let newID = store.idForGUID(serverGUID);
-    let newAnnoValue = Svc.Annos.getItemAnnotation(newID, SMART_BOOKMARKS_ANNO);
+    let newAnnoValue = Utils.anno(newID, SMART_BOOKMARKS_ANNO);
     do_check_eq(newAnnoValue, "MostVisited");
     do_check_eq(Svc.Bookmark.getBookmarkURI(newID).spec, uri.spec);
     
@@ -167,8 +166,7 @@ function test_annotation_uploaded() {
     do_check_eq(newRecord.queryId, newAnnoValue);
     newRecord.queryId = "LeastVisited";
     store.update(newRecord);
-    do_check_eq("LeastVisited",
-                Svc.Annos.getItemAnnotation(newID, SMART_BOOKMARKS_ANNO));
+    do_check_eq("LeastVisited", Utils.anno(newID, SMART_BOOKMARKS_ANNO));
     
 
   } finally {
