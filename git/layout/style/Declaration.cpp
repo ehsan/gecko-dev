@@ -1342,7 +1342,7 @@ Declaration::AddVariableDeclaration(const nsAString& aName,
       break;
 
     default:
-      MOZ_ASSERT(false, "unexpected aType value");
+      MOZ_ASSERT("unexpected aType value");
   }
 
   uint32_t propertyIndex = index + eCSSProperty_COUNT;
