@@ -609,13 +609,6 @@ public:
                 return out->insCall(F_Any_setelem_int, args2);
             }
             break;
-          case F_dmod: 
-            JS_ASSERT(s0->isQuad() && args[1]->isQuad());
-            if (s0->isconstq() && s0->constvalq() && isPromote(args[1])) {
-                LIns* args2[] = { demote(out, s0), demote(out, args[1]) };
-                return out->ins1(LIR_i2f, out->insCall(F_imod, args2));
-            }
-            break;
         }
         return out->insCall(fid, args);
     }
@@ -4017,13 +4010,12 @@ TraceRecorder::record_JSOP_NOT()
     if (JSVAL_TAG(v) == JSVAL_BOOLEAN) {
         set(&v, lir->ins_eq0(lir->ins2i(LIR_eq, get(&v), 1)));
         return true;
-    } 
-    if (isNumber(v)) {
-        set(&v, lir->ins2(LIR_feq, get(&v), lir->insImmq(0)));
-        return true;
-    } 
-    if (JSVAL_IS_OBJECT(v)) {
-        set(&v, lir->ins_eq0(get(&v)));
+    }
+    if (JSVAL_IS_INT(v) || JSVAL_IS_OBJECT(v)) {
+        LIns* a = get(&v);
+        if (JSVAL_IS_INT(v) && isPromoteInt(a))
+            a = ::demote(lir, a);
+        set(&v, lir->ins_eq0(a));
         return true;
     }
     return false;
