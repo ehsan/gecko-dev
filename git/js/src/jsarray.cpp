@@ -2040,10 +2040,8 @@ array_sort(JSContext *cx, uintN argc, Value *vp)
                     str = js_ValueToString(cx, v);
                     if (!str)
                         return false;
-                    // Copying v must come first, because the following line overwrites v
-                    // when i == 0.
-                    vec[2 * i + 1] = v;
                     vec[2 * i].setString(str);
+                    vec[2 * i + 1] = v;
                 } while (i != 0);
 
                 JS_ASSERT(tvr.array == vec);
