@@ -167,8 +167,7 @@ public:
                                           ErrorResult& aRv);
 
   // Feature Detection API
-  already_AddRefed<Promise> GetFeature(const nsAString &aName,
-                                       ErrorResult& aRv);
+  already_AddRefed<Promise> GetFeature(const nsAString &aName);
 
   bool Vibrate(uint32_t aDuration);
   bool Vibrate(const nsTArray<uint32_t>& aDuration);

@@ -119,11 +119,12 @@ ServiceWorkerContainer::GetAll(ErrorResult& aRv)
 }
 
 already_AddRefed<Promise>
-ServiceWorkerContainer::GetReady(ErrorResult& aRv)
+ServiceWorkerContainer::Ready()
 {
   // FIXME(nsm): Bug 1025077
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(mWindow);
-  return Promise::Create(global, aRv);
+  nsRefPtr<Promise> promise = new Promise(global);
+  return promise.forget();
 }
 
 // XXXnsm, maybe this can be optimized to only add when a event handler is

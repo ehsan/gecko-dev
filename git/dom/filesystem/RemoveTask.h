@@ -9,7 +9,6 @@
 
 #include "mozilla/dom/FileSystemTaskBase.h"
 #include "nsAutoPtr.h"
-#include "mozilla/ErrorResult.h"
 
 namespace mozilla {
 namespace dom {
@@ -24,8 +23,7 @@ public:
              const nsAString& aDirPath,
              nsIDOMFile* aTargetFile,
              const nsAString& aTargetPath,
-             bool aRecursive,
-             ErrorResult& aRv);
+             bool aRecursive);
   RemoveTask(FileSystemBase* aFileSystem,
              const FileSystemRemoveParams& aParam,
              FileSystemRequestParent* aParent);

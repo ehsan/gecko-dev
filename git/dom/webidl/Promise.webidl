@@ -32,11 +32,11 @@ interface Promise {
 
   // The [TreatNonCallableAsNull] annotation is required since then() should do
   // nothing instead of throwing errors when non-callable arguments are passed.
-  [NewObject, Throws]
+  [NewObject]
   Promise then([TreatNonCallableAsNull] optional AnyCallback? fulfillCallback = null,
                [TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
 
-  [NewObject, Throws]
+  [NewObject]
   Promise catch([TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
 
   [NewObject, Throws]

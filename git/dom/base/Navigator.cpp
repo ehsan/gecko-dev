@@ -1493,13 +1493,10 @@ Navigator::GetDataStores(const nsAString& aName, ErrorResult& aRv)
 }
 
 already_AddRefed<Promise>
-Navigator::GetFeature(const nsAString& aName, ErrorResult& aRv)
+Navigator::GetFeature(const nsAString& aName)
 {
   nsCOMPtr<nsIGlobalObject> go = do_QueryInterface(mWindow);
-  nsRefPtr<Promise> p = Promise::Create(go, aRv);
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  nsRefPtr<Promise> p = new Promise(go);
 
 #if defined(XP_LINUX)
   if (aName.EqualsLiteral("hardware.memory")) {

@@ -21,8 +21,7 @@ RemoveTask::RemoveTask(FileSystemBase* aFileSystem,
                        const nsAString& aDirPath,
                        nsIDOMFile* aTargetFile,
                        const nsAString& aTargetPath,
-                       bool aRecursive,
-                       ErrorResult& aRv)
+                       bool aRecursive)
   : FileSystemTaskBase(aFileSystem)
   , mDirRealPath(aDirPath)
   , mTargetFile(aTargetFile)
@@ -37,7 +36,7 @@ RemoveTask::RemoveTask(FileSystemBase* aFileSystem,
   if (!globalObject) {
     return;
   }
-  mPromise = Promise::Create(globalObject, aRv);
+  mPromise = new Promise(globalObject);
 }
 
 RemoveTask::RemoveTask(FileSystemBase* aFileSystem,

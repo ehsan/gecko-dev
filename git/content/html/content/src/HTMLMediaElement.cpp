@@ -3967,10 +3967,7 @@ HTMLMediaElement::SetMediaKeys(mozilla::dom::MediaKeys* aMediaKeys,
     return nullptr;
   }
   // TODO: Need to shutdown existing MediaKeys instance? bug 1016709.
-  nsRefPtr<Promise> promise = Promise::Create(global, aRv);
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  nsRefPtr<Promise> promise = new Promise(global);
   if (mMediaKeys != aMediaKeys) {
     mMediaKeys = aMediaKeys;
   }

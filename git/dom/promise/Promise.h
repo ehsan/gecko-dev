@@ -72,12 +72,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Promise)
 
-  // Promise creation tries to create a JS reflector for the Promise, so is
-  // fallible.  Furthermore, we don't want to do JS-wrapping on a 0-refcount
-  // object, so we addref before doing that and return the addrefed pointer
-  // here.
-  static already_AddRefed<Promise>
-  Create(nsIGlobalObject* aGlobal, ErrorResult& aRv);
+  Promise(nsIGlobalObject* aGlobal);
 
   typedef void (Promise::*MaybeFunc)(JSContext* aCx,
                                      JS::Handle<JS::Value> aValue);
@@ -144,10 +139,10 @@ public:
 
   already_AddRefed<Promise>
   Then(JSContext* aCx, AnyCallback* aResolveCallback,
-       AnyCallback* aRejectCallback, ErrorResult& aRv);
+       AnyCallback* aRejectCallback);
 
   already_AddRefed<Promise>
-  Catch(JSContext* aCx, AnyCallback* aRejectCallback, ErrorResult& aRv);
+  Catch(JSContext* aCx, AnyCallback* aRejectCallback);
 
   static already_AddRefed<Promise>
   All(const GlobalObject& aGlobal,
@@ -160,10 +155,6 @@ public:
   void AppendNativeHandler(PromiseNativeHandler* aRunnable);
 
 private:
-  // Do NOT call this unless you're Promise::Create.  I wish we could enforce
-  // that from inside this class too, somehow.
-  Promise(nsIGlobalObject* aGlobal);
-
   friend class PromiseDebugging;
 
   enum PromiseState {
@@ -228,11 +219,18 @@ private:
                       JS::Handle<JS::Value> aValue,
                       PromiseTaskSync aSync = AsyncTask);
 
+  // Helper methods for using Promises from C++
+  JSObject* GetOrCreateWrapper(JSContext* aCx);
+
   template <typename T>
   void MaybeSomething(T& aArgument, MaybeFunc aFunc) {
     ThreadsafeAutoJSContext cx;
-    JSObject* wrapper = GetWrapper();
-    MOZ_ASSERT(wrapper); // We preserved it!
+
+    JSObject* wrapper = GetOrCreateWrapper(cx);
+    if (!wrapper) {
+      HandleException(cx);
+      return;
+    }
 
     JSAutoCompartment ac(cx, wrapper);
     JS::Rooted<JS::Value> val(cx);

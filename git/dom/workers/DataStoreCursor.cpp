@@ -147,10 +147,7 @@ WorkerDataStoreCursor::Next(JSContext* aCx, ErrorResult& aRv)
   MOZ_ASSERT(workerPrivate);
   workerPrivate->AssertIsOnWorkerThread();
 
-  nsRefPtr<Promise> promise = Promise::Create(workerPrivate->GlobalScope(), aRv);
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  nsRefPtr<Promise> promise = new Promise(workerPrivate->GlobalScope());
 
   nsRefPtr<DataStoreCursorNextRunnable> runnable =
     new DataStoreCursorNextRunnable(workerPrivate,

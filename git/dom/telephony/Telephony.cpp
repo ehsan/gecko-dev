@@ -242,17 +242,14 @@ Telephony::HasDialingCall()
 
 already_AddRefed<Promise>
 Telephony::DialInternal(uint32_t aServiceId, const nsAString& aNumber,
-                        bool aEmergency, ErrorResult& aRv)
+                        bool aEmergency)
 {
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(GetOwner());
   if (!global) {
     return nullptr;
   }
 
-  nsRefPtr<Promise> promise = Promise::Create(global, aRv);
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  nsRefPtr<Promise> promise = new Promise(global);
 
   if (!IsValidNumber(aNumber) || !IsValidServiceId(aServiceId)) {
     promise->MaybeReject(NS_ERROR_DOM_INVALID_ACCESS_ERR);
@@ -374,21 +371,19 @@ NS_IMPL_ISUPPORTS(Telephony::Callback, nsITelephonyCallback)
 // Telephony WebIDL
 
 already_AddRefed<Promise>
-Telephony::Dial(const nsAString& aNumber, const Optional<uint32_t>& aServiceId,
-                ErrorResult& aRv)
+Telephony::Dial(const nsAString& aNumber, const Optional<uint32_t>& aServiceId)
 {
   uint32_t serviceId = ProvidedOrDefaultServiceId(aServiceId);
-  nsRefPtr<Promise> promise = DialInternal(serviceId, aNumber, false, aRv);
+  nsRefPtr<Promise> promise = DialInternal(serviceId, aNumber, false);
   return promise.forget();
 }
 
 already_AddRefed<Promise>
 Telephony::DialEmergency(const nsAString& aNumber,
-                         const Optional<uint32_t>& aServiceId,
-                         ErrorResult& aRv)
+                         const Optional<uint32_t>& aServiceId)
 {
   uint32_t serviceId = ProvidedOrDefaultServiceId(aServiceId);
-  nsRefPtr<Promise> promise = DialInternal(serviceId, aNumber, true, aRv);
+  nsRefPtr<Promise> promise = DialInternal(serviceId, aNumber, true);
   return promise.forget();
 }
 

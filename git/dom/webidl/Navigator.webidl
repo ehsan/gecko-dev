@@ -83,7 +83,7 @@ interface NavigatorStorageUtils {
 
 [NoInterfaceObject]
 interface NavigatorFeatures {
-  [CheckPermissions="feature-detection", Throws]
+  [CheckPermissions="feature-detection"]
   Promise getFeature(DOMString name);
 };
 

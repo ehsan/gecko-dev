@@ -18,8 +18,7 @@ namespace mozilla {
 namespace dom {
 
 CreateDirectoryTask::CreateDirectoryTask(FileSystemBase* aFileSystem,
-                                         const nsAString& aPath,
-                                         ErrorResult& aRv)
+                                         const nsAString& aPath)
   : FileSystemTaskBase(aFileSystem)
   , mTargetRealPath(aPath)
 {
@@ -30,7 +29,7 @@ CreateDirectoryTask::CreateDirectoryTask(FileSystemBase* aFileSystem,
   if (!globalObject) {
     return;
   }
-  mPromise = Promise::Create(globalObject, aRv);
+  mPromise = new Promise(globalObject);
 }
 
 CreateDirectoryTask::CreateDirectoryTask(

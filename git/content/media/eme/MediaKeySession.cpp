@@ -31,8 +31,7 @@ NS_IMPL_RELEASE_INHERITED(MediaKeySession, DOMEventTargetHelper)
 MediaKeySession::MediaKeySession(nsPIDOMWindow* aParent,
                                  MediaKeys* aKeys,
                                  const nsAString& aKeySystem,
-                                 SessionType aSessionType,
-                                 ErrorResult& aRv)
+                                 SessionType aSessionType)
   : DOMEventTargetHelper(aParent)
   , mKeys(aKeys)
   , mKeySystem(aKeySystem)
@@ -40,7 +39,7 @@ MediaKeySession::MediaKeySession(nsPIDOMWindow* aParent,
   , mIsClosed(false)
 {
   MOZ_ASSERT(aParent);
-  mClosed = mKeys->MakePromise(aRv);
+  mClosed = mKeys->MakePromise();
 }
 
 void MediaKeySession::Init(const nsAString& aSessionId)
@@ -89,12 +88,9 @@ MediaKeySession::Closed() const
 }
 
 already_AddRefed<Promise>
-MediaKeySession::Update(const Uint8Array& aResponse, ErrorResult& aRv)
+MediaKeySession::Update(const Uint8Array& aResponse)
 {
-  nsRefPtr<Promise> promise(mKeys->MakePromise(aRv));
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  nsRefPtr<Promise> promise(mKeys->MakePromise());
   aResponse.ComputeLengthAndData();
   if (IsClosed() ||
       !mKeys->GetCDMProxy() ||
@@ -109,12 +105,9 @@ MediaKeySession::Update(const Uint8Array& aResponse, ErrorResult& aRv)
 }
 
 already_AddRefed<Promise>
-MediaKeySession::Close(ErrorResult& aRv)
+MediaKeySession::Close()
 {
-  nsRefPtr<Promise> promise(mKeys->MakePromise(aRv));
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  nsRefPtr<Promise> promise(mKeys->MakePromise());
   if (IsClosed() || !mKeys->GetCDMProxy()) {
     promise->MaybeResolve(JS::UndefinedHandleValue);
     return promise.forget();
@@ -144,12 +137,9 @@ MediaKeySession::IsClosed() const
 }
 
 already_AddRefed<Promise>
-MediaKeySession::Remove(ErrorResult& aRv)
+MediaKeySession::Remove()
 {
-  nsRefPtr<Promise> promise(mKeys->MakePromise(aRv));
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+  nsRefPtr<Promise> promise(mKeys->MakePromise());
   if (mSessionType != SessionType::Persistent) {
     promise->MaybeReject(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     // "The operation is not supported on session type sessions."

@@ -8,7 +8,6 @@
 #define mozilla_dom_Directory_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
@@ -46,7 +45,7 @@ public:
 
 public:
   static already_AddRefed<Promise>
-  GetRoot(FileSystemBase* aFileSystem, ErrorResult& aRv);
+  GetRoot(FileSystemBase* aFileSystem);
 
   Directory(FileSystemBase* aFileSystem, const nsAString& aPath);
 
@@ -62,20 +61,19 @@ public:
   GetName(nsString& aRetval) const;
 
   already_AddRefed<Promise>
-  CreateFile(const nsAString& aPath, const CreateFileOptions& aOptions,
-             ErrorResult& aRv);
+  CreateFile(const nsAString& aPath, const CreateFileOptions& aOptions);
 
   already_AddRefed<Promise>
-  CreateDirectory(const nsAString& aPath, ErrorResult& aRv);
+  CreateDirectory(const nsAString& aPath);
 
   already_AddRefed<Promise>
-  Get(const nsAString& aPath, ErrorResult& aRv);
+  Get(const nsAString& aPath);
 
   already_AddRefed<Promise>
-  Remove(const StringOrFileOrDirectory& aPath, ErrorResult& aRv);
+  Remove(const StringOrFileOrDirectory& aPath);
 
   already_AddRefed<Promise>
-  RemoveDeep(const StringOrFileOrDirectory& aPath, ErrorResult& aRv);
+  RemoveDeep(const StringOrFileOrDirectory& aPath);
 
   // =========== End WebIDL bindings.============
 
@@ -95,8 +93,7 @@ private:
   DOMPathToRealPath(const nsAString& aPath, nsAString& aRealPath) const;
 
   already_AddRefed<Promise>
-  RemoveInternal(const StringOrFileOrDirectory& aPath, bool aRecursive,
-                 ErrorResult& aRv);
+  RemoveInternal(const StringOrFileOrDirectory& aPath, bool aRecursive);
 
   nsRefPtr<FileSystemBase> mFileSystem;
   nsString mPath;

@@ -27,8 +27,7 @@ CreateFileTask::CreateFileTask(FileSystemBase* aFileSystem,
                                const nsAString& aPath,
                                nsIDOMBlob* aBlobData,
                                InfallibleTArray<uint8_t>& aArrayData,
-                               bool replace,
-                               ErrorResult& aRv)
+                               bool replace)
   : FileSystemTaskBase(aFileSystem)
   , mTargetRealPath(aPath)
   , mBlobData(aBlobData)
@@ -47,7 +46,7 @@ CreateFileTask::CreateFileTask(FileSystemBase* aFileSystem,
   if (!globalObject) {
     return;
   }
-  mPromise = Promise::Create(globalObject, aRv);
+  mPromise = new Promise(globalObject);
 }
 
 CreateFileTask::CreateFileTask(FileSystemBase* aFileSystem,

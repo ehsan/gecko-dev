@@ -836,52 +836,48 @@ AutoStableStringChars::~AutoStableStringChars()
 bool
 AutoStableStringChars::init(JSContext *cx, JSString *s)
 {
-    RootedLinearString linearString(cx, s->ensureLinear(cx));
-    if (!linearString)
+    s_ = s->ensureLinear(cx);
+    if (!s_)
         return false;
 
     MOZ_ASSERT(state_ == Uninitialized);
 
-    if (linearString->hasLatin1Chars()) {
+    if (s_->hasLatin1Chars()) {
         state_ = Latin1;
-        latin1Chars_ = linearString->rawLatin1Chars();
+        latin1Chars_ = s_->rawLatin1Chars();
     } else {
         state_ = TwoByte;
-        twoByteChars_ = linearString->rawTwoByteChars();
+        twoByteChars_ = s_->rawTwoByteChars();
     }
 
-    s_ = linearString;
     return true;
 }
 
 bool
 AutoStableStringChars::initTwoByte(JSContext *cx, JSString *s)
 {
-    RootedLinearString linearString(cx, s->ensureLinear(cx));
-    if (!linearString)
+    s_ = s->ensureLinear(cx);
+    if (!s_)
         return false;
 
     MOZ_ASSERT(state_ == Uninitialized);
 
-    if (linearString->hasTwoByteChars()) {
+    if (s_->hasTwoByteChars()) {
         state_ = TwoByte;
-        twoByteChars_ = linearString->rawTwoByteChars();
-        s_ = linearString;
+        twoByteChars_ = s_->rawTwoByteChars();
         return true;
     }
 
-    jschar *chars = cx->pod_malloc<jschar>(linearString->length() + 1);
+    jschar *chars = cx->pod_malloc<jschar>(s_->length() + 1);
     if (!chars)
         return false;
 
-    CopyAndInflateChars(chars, linearString->rawLatin1Chars(),
-                        linearString->length());
-    chars[linearString->length()] = 0;
+    CopyAndInflateChars(chars, s_->rawLatin1Chars(), s_->length());
+    chars[s_->length()] = 0;
 
     state_ = TwoByte;
     ownsChars_ = true;
     twoByteChars_ = chars;
-    s_ = linearString;
     return true;
 }
 

@@ -18,15 +18,15 @@ interface MediaKeys {
   readonly attribute DOMString keySystem;
 
   // Promise<MediaKeySession>
-  [NewObject, Throws]
+  [NewObject]
   Promise createSession(DOMString initDataType, Uint8Array initData, optional SessionType sessionType = "temporary");
 
   // Promise<MediaKeySession>
-  [NewObject, Throws]
+  [NewObject]
   Promise loadSession(DOMString sessionId);
 
   // Promise<any>
-  [NewObject, Throws]
+  [NewObject]
   Promise setServerCertificate(Uint8Array serverCertificate);
 
   // Promise<MediaKeys>

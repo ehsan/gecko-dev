@@ -884,11 +884,7 @@ DataStoreService::GetDataStores(nsIDOMWindow* aWindow,
   }
 
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(window);
-  ErrorResult rv;
-  nsRefPtr<Promise> promise = Promise::Create(global, rv);
-  if (rv.Failed()) {
-    return rv.ErrorCode();
-  }
+  nsRefPtr<Promise> promise = new Promise(global);
 
   nsCOMPtr<nsIDocument> document = window->GetDoc();
   MOZ_ASSERT(document);

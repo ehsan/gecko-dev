@@ -4121,13 +4121,13 @@ nsDOMDeviceStorage::CanBeShared()
 }
 
 already_AddRefed<Promise>
-nsDOMDeviceStorage::GetRoot(ErrorResult& aRv)
+nsDOMDeviceStorage::GetRoot()
 {
   if (!mFileSystem) {
     mFileSystem = new DeviceStorageFileSystem(mStorageType, mStorageName);
     mFileSystem->Init(this);
   }
-  return mozilla::dom::Directory::GetRoot(mFileSystem, aRv);
+  return mozilla::dom::Directory::GetRoot(mFileSystem);
 }
 
 NS_IMETHODIMP

@@ -455,11 +455,7 @@ ServiceWorkerManager::Register(nsIDOMWindow* aWindow, const nsAString& aScope,
   }
 
   nsCOMPtr<nsIGlobalObject> sgo = do_QueryInterface(window);
-  ErrorResult result;
-  nsRefPtr<Promise> promise = Promise::Create(sgo, result);
-  if (result.Failed()) {
-    return result.ErrorCode();
-  }
+  nsRefPtr<Promise> promise = new Promise(sgo);
 
   nsCOMPtr<nsIURI> documentURI = window->GetDocumentURI();
   if (!documentURI) {

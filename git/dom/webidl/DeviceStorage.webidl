@@ -82,6 +82,6 @@ interface DeviceStorage : EventTarget {
   // for storing new files.
   readonly attribute boolean default;
 
-  [NewObject, Throws]
+  [NewObject]
   Promise getRoot();
 };
