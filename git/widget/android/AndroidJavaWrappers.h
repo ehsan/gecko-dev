@@ -746,7 +746,6 @@ public:
         GAMEPAD_ADDREMOVE = 45,
         GAMEPAD_DATA = 46,
         LONG_PRESS = 47,
-        ZOOMEDVIEW = 48,
         dummy_java_enum_list_end
     };
 

@@ -1268,9 +1268,6 @@
             onSuccess: function(engine) {
               event.target.hidePopup();
               BrowserSearch.searchBar.openSuggestionsPanel();
-            },
-            onError: function(errorCode) {
-              Components.utils.reportError("Error adding search engine: " + errorCode);
             }
           }
           Services.search.addEngine(target.getAttribute("uri"),
