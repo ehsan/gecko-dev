@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
@@ -5,22 +6,12 @@
  * found in the LICENSE file.
  */
 
+
 #include "SkRegionPriv.h"
 #include "SkBlitter.h"
 #include "SkScan.h"
 #include "SkTDArray.h"
 #include "SkPath.h"
-
-// The rgnbuilder caller *seems* to pass short counts, possible often seens early failure, so
-// we may not want to promote this to a "std" routine just yet.
-static bool sk_memeq32(const int32_t* SK_RESTRICT a, const int32_t* SK_RESTRICT b, int count) {
-    for (int i = 0; i < count; ++i) {
-        if (a[i] != b[i]) {
-            return false;
-        }
-    }
-    return true;
-}
 
 class SkRgnBuilder : public SkBlitter {
 public:
@@ -96,7 +87,9 @@ private:
         if (fPrevScanline != NULL &&
             fPrevScanline->fLastY + 1 == fCurrScanline->fLastY &&
             fPrevScanline->fXCount == fCurrScanline->fXCount &&
-            sk_memeq32(fPrevScanline->firstX(), fCurrScanline->firstX(), fCurrScanline->fXCount))
+            !memcmp(fPrevScanline->firstX(),
+                    fCurrScanline->firstX(),
+                    fCurrScanline->fXCount * sizeof(SkRegion::RunType)))
         {
             // update the height of fPrevScanline
             fPrevScanline->fLastY = fCurrScanline->fLastY;

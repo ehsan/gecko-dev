@@ -10,14 +10,14 @@
 #ifndef GrGeometryBuffer_DEFINED
 #define GrGeometryBuffer_DEFINED
 
-#include "GrGpuResource.h"
+#include "GrResource.h"
 
 class GrGpu;
 
 /**
  * Parent class for vertex and index buffers
  */
-class GrGeometryBuffer : public GrGpuResource {
+class GrGeometryBuffer : public GrResource {
 public:
     SK_DECLARE_INST_COUNT(GrGeometryBuffer);
 
@@ -30,96 +30,74 @@ public:
 
     /**
      * Returns true if the buffer is a wrapper around a CPU array. If true it
-     * indicates that map will always succeed and will be free.
+     * indicates that lock will always succeed and will be free.
      */
     bool isCPUBacked() const { return fCPUBacked; }
 
     /**
-     * Maps the buffer to be written by the CPU.
+     * Locks the buffer to be written by the CPU.
      *
      * The previous content of the buffer is invalidated. It is an error
-     * to draw from the buffer while it is mapped. It is an error to call map
-     * on an already mapped buffer. It may fail if the backend doesn't support
-     * mapping the buffer. If the buffer is CPU backed then it will always
-     * succeed and is a free operation. Must be matched by an unmap() call.
-     * Currently only one map at a time is supported (no nesting of
-     * map/unmap).
+     * to draw from the buffer while it is locked. It is an error to call lock
+     * on an already locked buffer. It may fail if the backend doesn't support
+     * locking the buffer. If the buffer is CPU backed then it will always
+     * succeed and is a free operation. Must be matched by an unlock() call.
+     * Currently only one lock at a time is supported (no nesting of
+     * lock/unlock).
      *
-     * Note that buffer mapping does not go through GrContext and therefore is
-     * not serialized with other operations.
-     *
-     * @return a pointer to the data or NULL if the map fails.
+     * @return a pointer to the data or NULL if the lock fails.
      */
-     void* map() { return (fMapPtr = this->onMap()); }
+    virtual void* lock() = 0;
 
     /**
-     * Unmaps the buffer.
+     * Returns the same ptr that lock() returned at time of lock or NULL if the
+     * is not locked.
      *
-     * The pointer returned by the previous map call will no longer be valid.
+     * @return ptr to locked buffer data or undefined if buffer is not locked.
      */
-     void unmap() {
-         SkASSERT(NULL != fMapPtr);
-         this->onUnmap();
-         fMapPtr = NULL;
-     }
+    virtual void* lockPtr() const = 0;
 
     /**
-     * Returns the same ptr that map() returned at time of map or NULL if the
-     * is not mapped.
+     * Unlocks the buffer.
      *
-     * @return ptr to mapped buffer data or NULL if buffer is not mapped.
+     * The pointer returned by the previous lock call will no longer be valid.
      */
-     void* mapPtr() const { return fMapPtr; }
+    virtual void unlock() = 0;
 
     /**
-     Queries whether the buffer has been mapped.
+     Queries whether the buffer has been locked.
 
-     @return true if the buffer is mapped, false otherwise.
+     @return true if the buffer is locked, false otherwise.
      */
-     bool isMapped() const { return NULL != fMapPtr; }
+    virtual bool isLocked() const = 0;
 
     /**
      * Updates the buffer data.
      *
      * The size of the buffer will be preserved. The src data will be
      * placed at the beginning of the buffer and any remaining contents will
-     * be undefined. srcSizeInBytes must be <= to the buffer size.
-     *
-     * The buffer must not be mapped.
-     *
-     * Note that buffer updates do not go through GrContext and therefore are
-     * not serialized with other operations.
+     * be undefined.
      *
      * @return returns true if the update succeeds, false otherwise.
      */
-    bool updateData(const void* src, size_t srcSizeInBytes) {
-        SkASSERT(!this->isMapped());
-        SkASSERT(srcSizeInBytes <= fGpuMemorySize);
-        return this->onUpdateData(src, srcSizeInBytes);
-    }
+    virtual bool updateData(const void* src, size_t srcSizeInBytes) = 0;
 
-    // GrGpuResource overrides
-    virtual size_t gpuMemorySize() const { return fGpuMemorySize; }
+    // GrResource overrides
+    virtual size_t sizeInBytes() const { return fSizeInBytes; }
 
 protected:
-    GrGeometryBuffer(GrGpu* gpu, bool isWrapped, size_t gpuMemorySize, bool dynamic, bool cpuBacked)
+    GrGeometryBuffer(GrGpu* gpu, bool isWrapped, size_t sizeInBytes, bool dynamic, bool cpuBacked)
         : INHERITED(gpu, isWrapped)
-        , fMapPtr(NULL)
-        , fGpuMemorySize(gpuMemorySize)
+        , fSizeInBytes(sizeInBytes)
         , fDynamic(dynamic)
         , fCPUBacked(cpuBacked) {}
 
 private:
-    virtual void* onMap() = 0;
-    virtual void onUnmap() = 0;
-    virtual bool onUpdateData(const void* src, size_t srcSizeInBytes) = 0;
-
-    void*    fMapPtr;
-    size_t   fGpuMemorySize;
+    size_t   fSizeInBytes;
     bool     fDynamic;
     bool     fCPUBacked;
 
-    typedef GrGpuResource INHERITED;
+    typedef GrResource INHERITED;
 };
 
 #endif

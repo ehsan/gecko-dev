@@ -35,7 +35,10 @@
 #include "nsNetUtil.h"
 #include "nsStreamUtils.h"
 #include "ActiveLayerTracker.h"
+
+#ifdef MOZ_WEBGL
 #include "WebGL2Context.h"
+#endif
 
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
@@ -633,7 +636,7 @@ HTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
     ctx.forget(aContext);
     return NS_OK;
   }
-
+#ifdef MOZ_WEBGL
   if (WebGL2Context::IsSupported() &&
       aContextId.EqualsLiteral("experimental-webgl2"))
   {
@@ -648,6 +651,7 @@ HTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
     ctx.forget(aContext);
     return NS_OK;
   }
+#endif
 
   NS_ConvertUTF16toUTF8 ctxId(aContextId);
 

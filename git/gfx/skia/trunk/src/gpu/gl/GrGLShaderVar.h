@@ -315,7 +315,7 @@ public:
                 case kDefault_Precision:
                     return "";
                 default:
-                    SkFAIL("Unexpected precision type.");
+                    GrCrash("Unexpected precision type.");
             }
         }
         return "";
@@ -341,7 +341,7 @@ private:
             case kVaryingOut_TypeModifier:
                 return k110_GrGLSLGeneration == gen ? "varying" : "out";
             default:
-                SkFAIL("Unknown shader variable type modifier.");
+                GrCrash("Unknown shader variable type modifier.");
                 return ""; // suppress warning
         }
     }

@@ -68,7 +68,6 @@ public:
 
 private:
     explicit SkDWriteFontFileStreamWrapper(SkStream* stream);
-    virtual ~SkDWriteFontFileStreamWrapper() { }
 
     ULONG fRefCount;
     SkAutoTUnref<SkStream> fStream;

@@ -154,20 +154,12 @@ nsRangeFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsRangeFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsRangeFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                        uint32_t aFilter)
 {
-  if (mTrackDiv) {
-    aElements.AppendElement(mTrackDiv);
-  }
-
-  if (mProgressDiv) {
-    aElements.AppendElement(mProgressDiv);
-  }
-
-  if (mThumbDiv) {
-    aElements.AppendElement(mThumbDiv);
-  }
+  aElements.MaybeAppendElement(mTrackDiv);
+  aElements.MaybeAppendElement(mProgressDiv);
+  aElements.MaybeAppendElement(mThumbDiv);
 }
 
 class nsDisplayRangeFocusRing : public nsDisplayItem

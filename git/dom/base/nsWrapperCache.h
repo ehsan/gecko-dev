@@ -228,7 +228,7 @@ protected:
   void TraceWrapper(JSTracer* aTrc, const char* name)
   {
     if (mWrapper) {
-      JS_CallObjectTracer(aTrc, &mWrapper, name);
+      JS_CallHeapObjectTracer(aTrc, &mWrapper, name);
     }
   }
 

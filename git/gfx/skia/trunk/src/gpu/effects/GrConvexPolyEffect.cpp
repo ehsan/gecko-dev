@@ -8,7 +8,6 @@
 #include "GrConvexPolyEffect.h"
 
 #include "gl/GrGLEffect.h"
-#include "gl/GrGLShaderBuilder.h"
 #include "gl/GrGLSL.h"
 #include "GrTBackendEffectFactory.h"
 
@@ -25,8 +24,8 @@ public:
 
     static const char* Name() { return "AARect"; }
 
-    static GrEffect* Create(GrEffectEdgeType edgeType, const SkRect& rect) {
-        return SkNEW_ARGS(AARectEffect, (edgeType, rect));
+    static GrEffectRef* Create(GrEffectEdgeType edgeType, const SkRect& rect) {
+        return CreateEffectRef(AutoEffectUnref(SkNEW_ARGS(AARectEffect, (edgeType, rect))));
     }
 
     virtual void getConstantColorComponents(GrColor* color,
@@ -65,15 +64,15 @@ private:
 
 GR_DEFINE_EFFECT_TEST(AARectEffect);
 
-GrEffect* AARectEffect::TestCreate(SkRandom* random,
-                                   GrContext*,
-                                   const GrDrawTargetCaps& caps,
-                                   GrTexture*[]) {
+GrEffectRef* AARectEffect::TestCreate(SkRandom* random,
+                                      GrContext*,
+                                      const GrDrawTargetCaps& caps,
+                                      GrTexture*[]) {
     SkRect rect = SkRect::MakeLTRB(random->nextSScalar1(),
                                    random->nextSScalar1(),
                                    random->nextSScalar1(),
                                    random->nextSScalar1());
-    GrEffect* effect;
+    GrEffectRef* effect;
     do {
         GrEffectEdgeType edgeType = static_cast<GrEffectEdgeType>(random->nextULessThan(
                                                                     kGrEffectEdgeTypeCnt));
@@ -91,13 +90,13 @@ public:
 
     virtual void emitCode(GrGLShaderBuilder* builder,
                           const GrDrawEffect& drawEffect,
-                          const GrEffectKey& key,
+                          EffectKey key,
                           const char* outputColor,
                           const char* inputColor,
                           const TransformedCoordsArray&,
                           const TextureSamplerArray&) SK_OVERRIDE;
 
-    static inline void GenKey(const GrDrawEffect&, const GrGLCaps&, GrEffectKeyBuilder*);
+    static inline EffectKey GenKey(const GrDrawEffect&, const GrGLCaps&);
 
     virtual void setData(const GrGLUniformManager&, const GrDrawEffect&) SK_OVERRIDE;
 
@@ -115,7 +114,7 @@ GLAARectEffect::GLAARectEffect(const GrBackendEffectFactory& factory,
 
 void GLAARectEffect::emitCode(GrGLShaderBuilder* builder,
                               const GrDrawEffect& drawEffect,
-                              const GrEffectKey& key,
+                              EffectKey key,
                               const char* outputColor,
                               const char* inputColor,
                               const TransformedCoordsArray&,
@@ -165,10 +164,9 @@ void GLAARectEffect::setData(const GrGLUniformManager& uman, const GrDrawEffect&
     }
 }
 
-void GLAARectEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&,
-                            GrEffectKeyBuilder* b) {
+GrGLEffect::EffectKey GLAARectEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&) {
     const AARectEffect& aare = drawEffect.castEffect<AARectEffect>();
-    b->add32(aare.getEdgeType());
+    return aare.getEdgeType();
 }
 
 const GrBackendEffectFactory& AARectEffect::getFactory() const {
@@ -183,13 +181,13 @@ public:
 
     virtual void emitCode(GrGLShaderBuilder* builder,
                           const GrDrawEffect& drawEffect,
-                          const GrEffectKey& key,
+                          EffectKey key,
                           const char* outputColor,
                           const char* inputColor,
                           const TransformedCoordsArray&,
                           const TextureSamplerArray&) SK_OVERRIDE;
 
-    static inline void GenKey(const GrDrawEffect&, const GrGLCaps&, GrEffectKeyBuilder*);
+    static inline EffectKey GenKey(const GrDrawEffect&, const GrGLCaps&);
 
     virtual void setData(const GrGLUniformManager&, const GrDrawEffect&) SK_OVERRIDE;
 
@@ -207,7 +205,7 @@ GrGLConvexPolyEffect::GrGLConvexPolyEffect(const GrBackendEffectFactory& factory
 
 void GrGLConvexPolyEffect::emitCode(GrGLShaderBuilder* builder,
                                     const GrDrawEffect& drawEffect,
-                                    const GrEffectKey& key,
+                                    EffectKey key,
                                     const char* outputColor,
                                     const char* inputColor,
                                     const TransformedCoordsArray&,
@@ -255,18 +253,16 @@ void GrGLConvexPolyEffect::setData(const GrGLUniformManager& uman, const GrDrawE
     }
 }
 
-void GrGLConvexPolyEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&,
-                                  GrEffectKeyBuilder* b) {
+GrGLEffect::EffectKey GrGLConvexPolyEffect::GenKey(const GrDrawEffect& drawEffect,
+                                                   const GrGLCaps&) {
     const GrConvexPolyEffect& cpe = drawEffect.castEffect<GrConvexPolyEffect>();
     GR_STATIC_ASSERT(kGrEffectEdgeTypeCnt <= 8);
-    uint32_t key = (cpe.getEdgeCount() << 3) | cpe.getEdgeType();
-    b->add32(key);
+    return (cpe.getEdgeCount() << 3) | cpe.getEdgeType();
 }
 
 //////////////////////////////////////////////////////////////////////////////
 
-GrEffect* GrConvexPolyEffect::Create(GrEffectEdgeType type, const SkPath& path,
-                                     const SkVector* offset) {
+GrEffectRef* GrConvexPolyEffect::Create(GrEffectEdgeType type, const SkPath& path, const SkVector* offset) {
     if (kHairlineAA_GrEffectEdgeType == type) {
         return NULL;
     }
@@ -316,7 +312,7 @@ GrEffect* GrConvexPolyEffect::Create(GrEffectEdgeType type, const SkPath& path,
     return Create(type, n, edges);
 }
 
-GrEffect* GrConvexPolyEffect::Create(GrEffectEdgeType edgeType, const SkRect& rect) {
+GrEffectRef* GrConvexPolyEffect::Create(GrEffectEdgeType edgeType, const SkRect& rect) {
     if (kHairlineAA_GrEffectEdgeType == edgeType){
         return NULL;
     }
@@ -358,17 +354,17 @@ bool GrConvexPolyEffect::onIsEqual(const GrEffect& other) const {
 
 GR_DEFINE_EFFECT_TEST(GrConvexPolyEffect);
 
-GrEffect* GrConvexPolyEffect::TestCreate(SkRandom* random,
-                                         GrContext*,
-                                         const GrDrawTargetCaps& caps,
-                                         GrTexture*[]) {
+GrEffectRef* GrConvexPolyEffect::TestCreate(SkRandom* random,
+                                            GrContext*,
+                                            const GrDrawTargetCaps& caps,
+                                            GrTexture*[]) {
     int count = random->nextULessThan(kMaxEdges) + 1;
     SkScalar edges[kMaxEdges * 3];
     for (int i = 0; i < 3 * count; ++i) {
         edges[i] = random->nextSScalar1();
     }
 
-    GrEffect* effect;
+    GrEffectRef* effect;
     do {
         GrEffectEdgeType edgeType = static_cast<GrEffectEdgeType>(
                                         random->nextULessThan(kGrEffectEdgeTypeCnt));

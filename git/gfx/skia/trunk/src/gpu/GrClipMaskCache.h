@@ -18,7 +18,7 @@ class GrTexture;
  * The stencil buffer stores the last clip path - providing a single entry
  * "cache". This class provides similar functionality for AA clip paths
  */
-class GrClipMaskCache : SkNoncopyable {
+class GrClipMaskCache : public SkNoncopyable {
 public:
     GrClipMaskCache();
 

@@ -54,26 +54,17 @@ void GrRenderTarget::resolve() {
     context->resolveRenderTarget(this);
 }
 
-void GrRenderTarget::discard() {
-    // go through context so that all necessary flushing occurs
-    GrContext* context = this->getContext();
-    if (NULL == context) {
-        return;
-    }
-    context->discardRenderTarget(this);
-}
-
-size_t GrRenderTarget::gpuMemorySize() const {
+size_t GrRenderTarget::sizeInBytes() const {
     size_t colorBits;
     if (kUnknown_GrPixelConfig == fDesc.fConfig) {
         colorBits = 32; // don't know, make a guess
     } else {
-        colorBits = GrBytesPerPixel(fDesc.fConfig) * 8;
+        colorBits = GrBytesPerPixel(fDesc.fConfig);
     }
     uint64_t size = fDesc.fWidth;
     size *= fDesc.fHeight;
     size *= colorBits;
-    size *= SkTMax(1, fDesc.fSampleCnt);
+    size *= GrMax(1, fDesc.fSampleCnt);
     return (size_t)(size / 8);
 }
 

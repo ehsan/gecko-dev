@@ -15,7 +15,6 @@
 #include "SkMipMap.h"
 #include "SkPixelRef.h"
 #include "SkScaledImageCache.h"
-#include "SkImageEncoder.h"
 
 #if !SK_ARM_NEON_IS_NONE
 // These are defined in src/opts/SkBitmapProcState_arm_neon.cpp
@@ -127,21 +126,6 @@ private:
 };
 #define AutoScaledCacheUnlocker(...) SK_REQUIRE_LOCAL_VAR(AutoScaledCacheUnlocker)
 
-// Check to see that the size of the bitmap that would be produced by
-// scaling by the given inverted matrix is less than the maximum allowed.
-static inline bool cache_size_okay(const SkBitmap& bm, const SkMatrix& invMat) {
-    size_t maximumAllocation
-        = SkScaledImageCache::GetSingleAllocationByteLimit();
-    if (0 == maximumAllocation) {
-        return true;
-    }
-    // float matrixScaleFactor = 1.0 / (invMat.scaleX * invMat.scaleY);
-    // return ((origBitmapSize * matrixScaleFactor) < maximumAllocationSize);
-    // Skip the division step:
-    return bm.info().getSafeSize(bm.info().minRowBytes())
-        < (maximumAllocation * invMat.getScaleX() * invMat.getScaleY());
-}
-
 // TODO -- we may want to pass the clip into this function so we only scale
 // the portion of the image that we're going to need.  This will complicate
 // the interface to the cache, but might be well worth it.
@@ -155,14 +139,14 @@ bool SkBitmapProcState::possiblyScaleImage() {
     if (fFilterLevel <= SkPaint::kLow_FilterLevel) {
         return false;
     }
+
     // Check to see if the transformation matrix is simple, and if we're
     // doing high quality scaling.  If so, do the bitmap scale here and
     // remove the scaling component from the matrix.
 
     if (SkPaint::kHigh_FilterLevel == fFilterLevel &&
         fInvMatrix.getType() <= (SkMatrix::kScale_Mask | SkMatrix::kTranslate_Mask) &&
-        kN32_SkColorType == fOrigBitmap.colorType() &&
-        cache_size_okay(fOrigBitmap, fInvMatrix)) {
+        fOrigBitmap.config() == SkBitmap::kARGB_8888_Config) {
 
         SkScalar invScaleX = fInvMatrix.getScaleX();
         SkScalar invScaleY = fInvMatrix.getScaleY();
@@ -182,23 +166,27 @@ bool SkBitmapProcState::possiblyScaleImage() {
         }
 
         if (NULL == fScaledCacheID) {
-            float dest_width  = fOrigBitmap.width() / invScaleX;
-            float dest_height = fOrigBitmap.height() / invScaleY;
+            int dest_width  = SkScalarCeilToInt(fOrigBitmap.width() / invScaleX);
+            int dest_height = SkScalarCeilToInt(fOrigBitmap.height() / invScaleY);
 
             // All the criteria are met; let's make a new bitmap.
+
+            SkConvolutionProcs simd;
+            sk_bzero(&simd, sizeof(simd));
+            this->platformConvolutionProcs(&simd);
 
             if (!SkBitmapScaler::Resize(&fScaledBitmap,
                                         fOrigBitmap,
                                         SkBitmapScaler::RESIZE_BEST,
                                         dest_width,
                                         dest_height,
+                                        simd,
                                         SkScaledImageCache::GetAllocator())) {
                 // we failed to create fScaledBitmap, so just return and let
                 // the scanline proc handle it.
                 return false;
 
             }
-
             SkASSERT(NULL != fScaledBitmap.getPixels());
             fScaledCacheID = SkScaledImageCache::AddAndLock(fOrigBitmap,
                                                             invScaleX,
@@ -275,7 +263,6 @@ bool SkBitmapProcState::possiblyScaleImage() {
             if (mip) {
                 fScaledCacheID = SkScaledImageCache::AddAndLockMip(fOrigBitmap,
                                                                    mip);
-                SkASSERT(mip->getRefCnt() > 1);
                 mip->unref();   // the cache took a ref
                 SkASSERT(fScaledCacheID);
             }
@@ -290,10 +277,10 @@ bool SkBitmapProcState::possiblyScaleImage() {
                 SkScalar invScaleFixup = level.fScale;
                 fInvMatrix.postScale(invScaleFixup, invScaleFixup);
 
-                SkImageInfo info = fOrigBitmap.info();
-                info.fWidth = level.fWidth;
-                info.fHeight = level.fHeight;
-                fScaledBitmap.installPixels(info, level.fPixels, level.fRowBytes);
+                fScaledBitmap.setConfig(fOrigBitmap.config(),
+                                        level.fWidth, level.fHeight,
+                                        level.fRowBytes);
+                fScaledBitmap.setPixels(level.fPixels);
                 fBitmap = &fScaledBitmap;
                 fFilterLevel = SkPaint::kLow_FilterLevel;
                 unlocker.release();
@@ -372,6 +359,17 @@ bool SkBitmapProcState::lockBaseBitmap() {
     return true;
 }
 
+void SkBitmapProcState::endContext() {
+    SkDELETE(fBitmapFilter);
+    fBitmapFilter = NULL;
+    fScaledBitmap.reset();
+
+    if (fScaledCacheID) {
+        SkScaledImageCache::Unlock(fScaledCacheID);
+        fScaledCacheID = NULL;
+    }
+}
+
 SkBitmapProcState::~SkBitmapProcState() {
     if (fScaledCacheID) {
         SkScaledImageCache::Unlock(fScaledCacheID);
@@ -400,15 +398,8 @@ bool SkBitmapProcState::chooseProcs(const SkMatrix& inv, const SkPaint& paint) {
     }
     // The above logic should have always assigned fBitmap, but in case it
     // didn't, we check for that now...
-    // TODO(dominikg): Ask humper@ if we can just use an SkASSERT(fBitmap)?
     if (NULL == fBitmap) {
         return false;
-    }
-
-    // If we are "still" kMedium_FilterLevel, then the request was not fulfilled by possiblyScale,
-    // so we downgrade to kLow (so the rest of the sniffing code can assume that)
-    if (SkPaint::kMedium_FilterLevel == fFilterLevel) {
-        fFilterLevel = SkPaint::kLow_FilterLevel;
     }
 
     bool trivialMatrix = (fInvMatrix.getType() & ~SkMatrix::kTranslate_Mask) == 0;
@@ -489,14 +480,11 @@ bool SkBitmapProcState::chooseProcs(const SkMatrix& inv, const SkPaint& paint) {
     // shader will perform.
 
     fMatrixProc = this->chooseMatrixProc(trivialMatrix);
-    // TODO(dominikg): SkASSERT(fMatrixProc) instead? chooseMatrixProc never returns NULL.
     if (NULL == fMatrixProc) {
         return false;
     }
 
     ///////////////////////////////////////////////////////////////////////
-
-    const SkAlphaType at = fBitmap->alphaType();
 
     // No need to do this if we're doing HQ sampling; if filter quality is
     // still set to HQ by the time we get here, then we must have installed
@@ -515,34 +503,24 @@ bool SkBitmapProcState::chooseProcs(const SkMatrix& inv, const SkPaint& paint) {
             index |= 4;
         }
         // bits 3,4,5 encoding the source bitmap format
-        switch (fBitmap->colorType()) {
-            case kN32_SkColorType:
-                if (kPremul_SkAlphaType != at && kOpaque_SkAlphaType != at) {
-                    return false;
-                }
+        switch (fBitmap->config()) {
+            case SkBitmap::kARGB_8888_Config:
                 index |= 0;
                 break;
-            case kRGB_565_SkColorType:
+            case SkBitmap::kRGB_565_Config:
                 index |= 8;
                 break;
-            case kIndex_8_SkColorType:
-                if (kPremul_SkAlphaType != at && kOpaque_SkAlphaType != at) {
-                    return false;
-                }
+            case SkBitmap::kIndex8_Config:
                 index |= 16;
                 break;
-            case kARGB_4444_SkColorType:
-                if (kPremul_SkAlphaType != at && kOpaque_SkAlphaType != at) {
-                    return false;
-                }
+            case SkBitmap::kARGB_4444_Config:
                 index |= 24;
                 break;
-            case kAlpha_8_SkColorType:
+            case SkBitmap::kA8_Config:
                 index |= 32;
                 fPaintPMColor = SkPreMultiplyColor(paint.getColor());
                 break;
             default:
-                // TODO(dominikg): Should we ever get here? SkASSERT(false) instead?
                 return false;
         }
 
@@ -902,7 +880,7 @@ bool SkBitmapProcState::setupForTranslate() {
 
 SkBitmapProcState::ShaderProc32 SkBitmapProcState::chooseShaderProc32() {
 
-    if (kN32_SkColorType != fBitmap->colorType()) {
+    if (SkBitmap::kARGB_8888_Config != fBitmap->config()) {
         return NULL;
     }
 

@@ -25,7 +25,7 @@ PipeController::~PipeController() {
 
 void* PipeController::requestBlock(size_t minRequest, size_t *actual) {
     sk_free(fBlock);
-    fBlockSize = minRequest;
+    fBlockSize = minRequest * 4;
     fBlock = sk_malloc_throw(fBlockSize);
     fBytesWritten = 0;
     *actual = fBlockSize;

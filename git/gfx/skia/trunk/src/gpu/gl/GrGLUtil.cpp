@@ -99,7 +99,7 @@ bool get_gl_version_for_mesa(int mesaMajorVersion, int* major, int* minor) {
 
 GrGLStandard GrGLGetStandardInUseFromString(const char* versionString) {
     if (NULL == versionString) {
-        SkDebugf("NULL GL version string.");
+        SkDEBUGFAIL("NULL GL version string.");
         return kNone_GrGLStandard;
     }
 
@@ -139,8 +139,8 @@ bool GrGLIsChromiumFromRendererString(const char* rendererString) {
 
 GrGLVersion GrGLGetVersionFromString(const char* versionString) {
     if (NULL == versionString) {
-        SkDebugf("NULL GL version string.");
-        return GR_GL_INVALID_VER;
+        SkDEBUGFAIL("NULL GL version string.");
+        return 0;
     }
 
     int major, minor;
@@ -152,7 +152,7 @@ GrGLVersion GrGLGetVersionFromString(const char* versionString) {
         if (get_gl_version_for_mesa(mesaMajor, &major, &minor)) {
             return GR_GL_VER(major, minor);
         } else {
-            return GR_GL_INVALID_VER;
+            return 0;
         }
     }
 
@@ -173,13 +173,13 @@ GrGLVersion GrGLGetVersionFromString(const char* versionString) {
         return GR_GL_VER(major, minor);
     }
 
-    return GR_GL_INVALID_VER;
+    return 0;
 }
 
 GrGLSLVersion GrGLGetGLSLVersionFromString(const char* versionString) {
     if (NULL == versionString) {
-        SkDebugf("NULL GLSL version string.");
-        return GR_GLSL_INVALID_VER;
+        SkDEBUGFAIL("NULL GLSL version string.");
+        return 0;
     }
 
     int major, minor;
@@ -202,7 +202,7 @@ GrGLSLVersion GrGLGetGLSLVersionFromString(const char* versionString) {
     }
 #endif
 
-    return GR_GLSL_INVALID_VER;
+    return 0;
 }
 
 GrGLVendor GrGLGetVendorFromString(const char* vendorString) {
@@ -218,9 +218,6 @@ GrGLVendor GrGLGetVendorFromString(const char* vendorString) {
         }
         if (0 == strcmp(vendorString, "Qualcomm")) {
             return kQualcomm_GrGLVendor;
-        }
-        if (0 == strcmp(vendorString, "NVIDIA Corporation")) {
-                return kNVIDIA_GrGLVendor;
         }
     }
     return kOther_GrGLVendor;

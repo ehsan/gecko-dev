@@ -41,10 +41,10 @@ bool SkSaveLayer::draw(SkAnimateMaker& maker)
     {
         SkPaint realPaint;
         paint->setupPaint(&realPaint);
-        maker.fCanvas->saveLayer(&bounds->fRect, &realPaint);
+        maker.fCanvas->saveLayer(&bounds->fRect, &realPaint, SkCanvas::kHasAlphaLayer_SaveFlag);
     }
     else
-        maker.fCanvas->saveLayer(&bounds->fRect, save);
+        maker.fCanvas->saveLayer(&bounds->fRect, save, SkCanvas::kHasAlphaLayer_SaveFlag);
     SkPaint local = SkPaint(*maker.fPaint);
     maker.fPaint = &local;
     bool result = INHERITED::draw(maker);

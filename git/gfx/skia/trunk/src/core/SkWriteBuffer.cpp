@@ -206,8 +206,9 @@ void SkWriteBuffer::writeBitmap(const SkBitmap& bitmap) {
         }
     }
 
-    this->writeUInt(0); // signal raw pixels
-    SkBitmap::WriteRawPixels(this, bitmap);
+    // Bitmap was not encoded. Record a zero, implying that the reader need not decode.
+    this->writeUInt(0);
+    bitmap.flatten(*this);
 }
 
 void SkWriteBuffer::writeTypeface(SkTypeface* obj) {

@@ -86,6 +86,7 @@ Thus, if the slope of the line tends towards vertical, we use:
        C =   ( (a          ) - g'*(d           ) - h' )
  */
 
+
 class LineQuadraticIntersections {
 public:
     enum PinTPoint {
@@ -98,7 +99,7 @@ public:
         , fLine(l)
         , fIntersections(i)
         , fAllowNear(true) {
-        i->setMax(3);  // allow short partial coincidence plus discrete intersection
+        i->setMax(2);
     }
 
     void allowNear(bool allow) {
@@ -238,7 +239,7 @@ protected:
             if (fIntersections->hasT(quadT)) {
                 continue;
             }
-            double lineT = fLine.nearPoint(fQuad[qIndex], NULL);
+            double lineT = fLine.nearPoint(fQuad[qIndex]);
             if (lineT < 0) {
                 continue;
             }
@@ -310,10 +311,10 @@ protected:
     }
 
     bool pinTs(double* quadT, double* lineT, SkDPoint* pt, PinTPoint ptSet) {
-        if (!approximately_one_or_less_double(*lineT)) {
+        if (!approximately_one_or_less(*lineT)) {
             return false;
         }
-        if (!approximately_zero_or_more_double(*lineT)) {
+        if (!approximately_zero_or_more(*lineT)) {
             return false;
         }
         double qT = *quadT = SkPinT(*quadT);
@@ -324,21 +325,14 @@ protected:
             *pt = fQuad.ptAtT(qT);
         }
         SkPoint gridPt = pt->asSkPoint();
-        if (SkDPoint::ApproximatelyEqual(gridPt, fLine[0].asSkPoint())) {
-            *pt = fLine[0];
+        if (gridPt == fLine[0].asSkPoint()) {
             *lineT = 0;
-        } else if (SkDPoint::ApproximatelyEqual(gridPt, fLine[1].asSkPoint())) {
-            *pt = fLine[1];
+        } else if (gridPt == fLine[1].asSkPoint()) {
             *lineT = 1;
         }
-        if (fIntersections->used() > 0 && approximately_equal((*fIntersections)[1][0], *lineT)) {
-            return false;
-        }
         if (gridPt == fQuad[0].asSkPoint()) {
-            *pt = fQuad[0];
             *quadT = 0;
         } else if (gridPt == fQuad[2].asSkPoint()) {
-            *pt = fQuad[2];
             *quadT = 1;
         }
         return true;
@@ -350,6 +344,44 @@ private:
     SkIntersections* fIntersections;
     bool fAllowNear;
 };
+
+// utility for pairs of coincident quads
+static double horizontalIntersect(const SkDQuad& quad, const SkDPoint& pt) {
+    LineQuadraticIntersections q(quad, *(static_cast<SkDLine*>(0)),
+            static_cast<SkIntersections*>(0));
+    double rootVals[2];
+    int roots = q.horizontalIntersect(pt.fY, rootVals);
+    for (int index = 0; index < roots; ++index) {
+        double t = rootVals[index];
+        SkDPoint qPt = quad.ptAtT(t);
+        if (AlmostEqualUlps(qPt.fX, pt.fX)) {
+            return t;
+        }
+    }
+    return -1;
+}
+
+static double verticalIntersect(const SkDQuad& quad, const SkDPoint& pt) {
+    LineQuadraticIntersections q(quad, *(static_cast<SkDLine*>(0)),
+            static_cast<SkIntersections*>(0));
+    double rootVals[2];
+    int roots = q.verticalIntersect(pt.fX, rootVals);
+    for (int index = 0; index < roots; ++index) {
+        double t = rootVals[index];
+        SkDPoint qPt = quad.ptAtT(t);
+        if (AlmostEqualUlps(qPt.fY, pt.fY)) {
+            return t;
+        }
+    }
+    return -1;
+}
+
+double SkIntersections::Axial(const SkDQuad& q1, const SkDPoint& p, bool vertical) {
+    if (vertical) {
+        return verticalIntersect(q1, p);
+    }
+    return horizontalIntersect(q1, p);
+}
 
 int SkIntersections::horizontal(const SkDQuad& quad, double left, double right, double y,
                                 bool flipped) {

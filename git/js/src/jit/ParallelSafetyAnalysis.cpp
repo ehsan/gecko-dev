@@ -112,7 +112,6 @@ class ParallelSafetyVisitor : public MDefinitionVisitor
     // obviously safe for now.  We can loosen as we need.
 
     SAFE_OP(Constant)
-    SAFE_OP(SimdExtractElement)
     UNSAFE_OP(CloneLiteral)
     SAFE_OP(Parameter)
     SAFE_OP(Callee)

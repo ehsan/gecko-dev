@@ -659,20 +659,22 @@ SkPDFObject* SkPDFShader::GetPDFShader(const SkShader& shader,
 
 // static
 SkTDArray<SkPDFShader::ShaderCanonicalEntry>& SkPDFShader::CanonicalShaders() {
-    SkPDFShader::CanonicalShadersMutex().assertHeld();
+    // This initialization is only thread safe with gcc.
     static SkTDArray<ShaderCanonicalEntry> gCanonicalShaders;
     return gCanonicalShaders;
 }
 
-SK_DECLARE_STATIC_MUTEX(gCanonicalShadersMutex);
 // static
 SkBaseMutex& SkPDFShader::CanonicalShadersMutex() {
+    // This initialization is only thread safe with gcc or when
+    // POD-style mutex initialization is used.
+    SK_DECLARE_STATIC_MUTEX(gCanonicalShadersMutex);
     return gCanonicalShadersMutex;
 }
 
 // static
 SkPDFObject* SkPDFFunctionShader::RangeObject() {
-    SkPDFShader::CanonicalShadersMutex().assertHeld();
+    // This initialization is only thread safe with gcc.
     static SkPDFArray* range = NULL;
     // This method is only used with CanonicalShadersMutex, so it's safe to
     // populate domain.

@@ -23,26 +23,29 @@ class GrGLSimpleTextureEffect;
 class GrSimpleTextureEffect : public GrSingleTextureEffect {
 public:
     /* unfiltered, clamp mode */
-    static GrEffect* Create(GrTexture* tex,
-                            const SkMatrix& matrix,
-                            GrCoordSet coordSet = kLocal_GrCoordSet) {
-        return SkNEW_ARGS(GrSimpleTextureEffect, (tex, matrix, GrTextureParams::kNone_FilterMode,
-                                                  coordSet));
+    static GrEffectRef* Create(GrTexture* tex,
+                               const SkMatrix& matrix,
+                               GrCoordSet coordSet = kLocal_GrCoordSet) {
+        AutoEffectUnref effect(SkNEW_ARGS(GrSimpleTextureEffect, (tex, matrix, GrTextureParams::kNone_FilterMode, coordSet)));
+        return CreateEffectRef(effect);
     }
 
     /* clamp mode */
-    static GrEffect* Create(GrTexture* tex,
-                            const SkMatrix& matrix,
-                            GrTextureParams::FilterMode filterMode,
-                            GrCoordSet coordSet = kLocal_GrCoordSet) {
-        return SkNEW_ARGS(GrSimpleTextureEffect, (tex, matrix, filterMode, coordSet));
+    static GrEffectRef* Create(GrTexture* tex,
+                               const SkMatrix& matrix,
+                               GrTextureParams::FilterMode filterMode,
+                               GrCoordSet coordSet = kLocal_GrCoordSet) {
+        AutoEffectUnref effect(
+            SkNEW_ARGS(GrSimpleTextureEffect, (tex, matrix, filterMode, coordSet)));
+        return CreateEffectRef(effect);
     }
 
-    static GrEffect* Create(GrTexture* tex,
-                            const SkMatrix& matrix,
-                            const GrTextureParams& p,
-                            GrCoordSet coordSet = kLocal_GrCoordSet) {
-        return SkNEW_ARGS(GrSimpleTextureEffect, (tex, matrix, p, coordSet));
+    static GrEffectRef* Create(GrTexture* tex,
+                               const SkMatrix& matrix,
+                               const GrTextureParams& p,
+                               GrCoordSet coordSet = kLocal_GrCoordSet) {
+        AutoEffectUnref effect(SkNEW_ARGS(GrSimpleTextureEffect, (tex, matrix, p, coordSet)));
+        return CreateEffectRef(effect);
     }
 
     virtual ~GrSimpleTextureEffect() {}

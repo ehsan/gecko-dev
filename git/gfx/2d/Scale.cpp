@@ -25,17 +25,15 @@ bool Scale(uint8_t* srcData, int32_t srcWidth, int32_t srcHeight, int32_t srcStr
     alphaType = kOpaque_SkAlphaType;
   }
 
-  SkImageInfo info = SkImageInfo::Make(srcWidth,
-                                       srcHeight,
-                                       GfxFormatToSkiaColorType(format),
-                                       alphaType);
+  SkBitmap::Config config = GfxFormatToSkiaConfig(format);
 
   SkBitmap imgSrc;
-  imgSrc.installPixels(info, srcData, srcStride);
+  imgSrc.setConfig(config, srcWidth, srcHeight, srcStride, alphaType);
+  imgSrc.setPixels(srcData);
 
   // Rescaler is compatible with 32 bpp only. Convert to RGB32 if needed.
-  if (format != SurfaceFormat::B8G8R8A8) {
-    imgSrc.copyTo(&imgSrc, kBGRA_8888_SkColorType);
+  if (config != SkBitmap::kARGB_8888_Config) {
+    imgSrc.copyTo(&imgSrc, kRGBA_8888_SkColorType);
   }
 
   // This returns an SkBitmap backed by dstData; since it also wrote to dstData,

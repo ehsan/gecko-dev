@@ -7,7 +7,6 @@
 
 #include "GrCustomCoordsTextureEffect.h"
 #include "gl/GrGLEffect.h"
-#include "gl/GrGLShaderBuilder.h"
 #include "gl/GrGLSL.h"
 #include "gl/GrGLTexture.h"
 #include "gl/GrGLVertexEffect.h"
@@ -21,7 +20,7 @@ public:
 
     virtual void emitCode(GrGLFullShaderBuilder* builder,
                           const GrDrawEffect& drawEffect,
-                          const GrEffectKey& key,
+                          EffectKey key,
                           const char* outputColor,
                           const char* inputColor,
                           const TransformedCoordsArray&,
@@ -85,10 +84,10 @@ const GrBackendEffectFactory& GrCustomCoordsTextureEffect::getFactory() const {
 
 GR_DEFINE_EFFECT_TEST(GrCustomCoordsTextureEffect);
 
-GrEffect* GrCustomCoordsTextureEffect::TestCreate(SkRandom* random,
-                                                  GrContext*,
-                                                  const GrDrawTargetCaps&,
-                                                  GrTexture* textures[]) {
+GrEffectRef* GrCustomCoordsTextureEffect::TestCreate(SkRandom* random,
+                                                     GrContext*,
+                                                     const GrDrawTargetCaps&,
+                                                     GrTexture* textures[]) {
     int texIdx = random->nextBool() ? GrEffectUnitTest::kSkiaPMTextureIdx :
                                       GrEffectUnitTest::kAlphaTextureIdx;
     static const SkShader::TileMode kTileModes[] = {

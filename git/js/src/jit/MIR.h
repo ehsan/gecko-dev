@@ -1233,47 +1233,6 @@ class MConstant : public MNullaryInstruction
     ALLOW_CLONE(MConstant)
 };
 
-// Extracts a lane element from a given vector type, given by its lane symbol.
-class MSimdExtractElement : public MUnaryInstruction
-{
-  protected:
-    SimdLane lane_;
-
-    MSimdExtractElement(MDefinition *obj, MIRType type, SimdLane lane)
-      : MUnaryInstruction(obj), lane_(lane)
-    {
-        JS_ASSERT(IsSimdType(obj->type()));
-        JS_ASSERT(uint32_t(lane) < SimdTypeToLength(obj->type()));
-        JS_ASSERT(!IsSimdType(type));
-        JS_ASSERT(SimdTypeToScalarType(obj->type()) == type);
-        setResultType(type);
-    }
-
-  public:
-    INSTRUCTION_HEADER(SimdExtractElement);
-    static MSimdExtractElement *NewAsmJS(TempAllocator &alloc, MDefinition *obj, MIRType type,
-                                         SimdLane lane)
-    {
-        return new(alloc) MSimdExtractElement(obj, type, lane);
-    }
-
-    SimdLane lane() const {
-        return lane_;
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-    bool congruentTo(const MDefinition *ins) const {
-        if (!ins->isSimdExtractElement())
-            return false;
-        const MSimdExtractElement *other = ins->toSimdExtractElement();
-        if (other->lane_ != lane_)
-            return false;
-        return congruentIfOperandsEqual(other);
-    }
-};
-
 // Deep clone a constant JSObject.
 class MCloneLiteral
   : public MUnaryInstruction,
@@ -3450,8 +3409,7 @@ class MToDouble
         setMovable();
 
         // An object might have "valueOf", which means it is effectful.
-        // ToNumber(symbol) throws.
-        if (def->mightBeType(MIRType_Object) || def->mightBeType(MIRType_Symbol))
+        if (def->mightBeType(MIRType_Object))
             setGuard();
     }
 
@@ -3526,8 +3484,7 @@ class MToFloat32
         setMovable();
 
         // An object might have "valueOf", which means it is effectful.
-        // ToNumber(symbol) throws.
-        if (def->mightBeType(MIRType_Object) || def->mightBeType(MIRType_Symbol))
+        if (def->mightBeType(MIRType_Object))
             setGuard();
     }
 
@@ -3641,8 +3598,7 @@ class MToInt32
         setMovable();
 
         // An object might have "valueOf", which means it is effectful.
-        // ToNumber(symbol) throws.
-        if (def->mightBeType(MIRType_Object) || def->mightBeType(MIRType_Symbol))
+        if (def->mightBeType(MIRType_Object))
             setGuard();
     }
 
@@ -3703,10 +3659,7 @@ class MTruncateToInt32 : public MUnaryInstruction
         setMovable();
 
         // An object might have "valueOf", which means it is effectful.
-        // ToInt32(symbol) throws.
-        MOZ_ASSERT(def->type() != MIRType_Object);
-        MOZ_ASSERT(def->type() != MIRType_Symbol);
-        if (def->mightBeType(MIRType_Object) || def->mightBeType(MIRType_Symbol))
+        if (def->mightBeType(MIRType_Object))
             setGuard();
     }
 

@@ -14,34 +14,43 @@ GrGLVertexBuffer::GrGLVertexBuffer(GrGpuGL* gpu, const Desc& desc)
 }
 
 void GrGLVertexBuffer::onRelease() {
-    if (!this->wasDestroyed()) {
+    if (this->isValid()) {
         fImpl.release(this->getGpuGL());
     }
 
     INHERITED::onRelease();
 }
 
+
 void GrGLVertexBuffer::onAbandon() {
     fImpl.abandon();
     INHERITED::onAbandon();
 }
 
-void* GrGLVertexBuffer::onMap() {
-    if (!this->wasDestroyed()) {
-        return fImpl.map(this->getGpuGL());
+void* GrGLVertexBuffer::lock() {
+    if (this->isValid()) {
+        return fImpl.lock(this->getGpuGL());
     } else {
         return NULL;
     }
 }
 
-void GrGLVertexBuffer::onUnmap() {
-    if (!this->wasDestroyed()) {
-        fImpl.unmap(this->getGpuGL());
+void* GrGLVertexBuffer::lockPtr() const {
+    return fImpl.lockPtr();
+}
+
+void GrGLVertexBuffer::unlock() {
+    if (this->isValid()) {
+        fImpl.unlock(this->getGpuGL());
     }
 }
 
-bool GrGLVertexBuffer::onUpdateData(const void* src, size_t srcSizeInBytes) {
-    if (!this->wasDestroyed()) {
+bool GrGLVertexBuffer::isLocked() const {
+    return fImpl.isLocked();
+}
+
+bool GrGLVertexBuffer::updateData(const void* src, size_t srcSizeInBytes) {
+    if (this->isValid()) {
         return fImpl.updateData(this->getGpuGL(), src, srcSizeInBytes);
     } else {
         return false;

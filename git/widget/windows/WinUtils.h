@@ -72,13 +72,6 @@ struct nsIntRect;
 namespace mozilla {
 namespace widget {
 
-// Windows message debugging data
-typedef struct {
-  const char * mStr;
-  UINT         mId;
-} EventMsgInfo;
-extern EventMsgInfo gAllEvents[];
-
 // More complete QS definitions for MsgWaitForMultipleObjects() and
 // GetQueueStatus() that include newer win8 specific defines.
 

@@ -36,7 +36,7 @@ public:
                          const SkPMColor* src,
                          int count, U8CPU alpha, int x, int y);
 
-    static Proc Factory(unsigned flags, SkColorType);
+    static Proc Factory(unsigned flags, SkBitmap::Config);
 
     ///////////// D32 version
 

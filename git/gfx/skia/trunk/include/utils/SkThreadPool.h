@@ -26,7 +26,7 @@ static inline int num_cores() {
     GetSystemInfo(&sysinfo);
     return sysinfo.dwNumberOfProcessors;
 #elif defined(SK_BUILD_FOR_UNIX) || defined(SK_BUILD_FOR_MAC) || defined(SK_BUILD_FOR_ANDROID)
-    return (int) sysconf(_SC_NPROCESSORS_ONLN);
+    return sysconf(_SC_NPROCESSORS_ONLN);
 #else
     return 1;
 #endif
@@ -50,11 +50,6 @@ public:
     void add(SkTRunnable<T>*);
 
     /**
-     * Same as add, but adds the runnable as the very next to run rather than enqueueing it.
-     */
-    void addNext(SkTRunnable<T>*);
-
-    /**
      * Block until all added SkRunnables have completed.  Once called, calling add() is undefined.
      */
     void wait();
@@ -70,9 +65,6 @@ public:
         kWaiting_State,  // wait has been called, but there still might be work to do or being done.
         kHalting_State,  // There's no work to do and no thread is busy.  All threads can shut down.
     };
-
-    void addSomewhere(SkTRunnable<T>* r,
-                      void (SkTInternalLList<LinkedRunnable>::*)(LinkedRunnable*));
 
     SkTInternalLList<LinkedRunnable> fQueue;
     SkCondVar                        fReady;
@@ -119,8 +111,7 @@ struct ThreadLocal<void> {
 }  // namespace SkThreadPoolPrivate
 
 template <typename T>
-void SkTThreadPool<T>::addSomewhere(SkTRunnable<T>* r,
-                                    void (SkTInternalLList<LinkedRunnable>::* f)(LinkedRunnable*)) {
+void SkTThreadPool<T>::add(SkTRunnable<T>* r) {
     if (r == NULL) {
         return;
     }
@@ -135,19 +126,9 @@ void SkTThreadPool<T>::addSomewhere(SkTRunnable<T>* r,
     linkedRunnable->fRunnable = r;
     fReady.lock();
     SkASSERT(fState != kHalting_State);  // Shouldn't be able to add work when we're halting.
-    (fQueue.*f)(linkedRunnable);
+    fQueue.addToHead(linkedRunnable);
     fReady.signal();
     fReady.unlock();
-}
-
-template <typename T>
-void SkTThreadPool<T>::add(SkTRunnable<T>* r) {
-    this->addSomewhere(r, &SkTInternalLList<LinkedRunnable>::addToTail);
-}
-
-template <typename T>
-void SkTThreadPool<T>::addNext(SkTRunnable<T>* r) {
-    this->addSomewhere(r, &SkTInternalLList<LinkedRunnable>::addToHead);
 }
 
 
@@ -193,7 +174,7 @@ template <typename T>
         // We've got the lock back here, no matter if we ran wait or not.
 
         // The queue is not empty, so we have something to run.  Claim it.
-        LinkedRunnable* r = pool->fQueue.head();
+        LinkedRunnable* r = pool->fQueue.tail();
 
         pool->fQueue.remove(r);
 

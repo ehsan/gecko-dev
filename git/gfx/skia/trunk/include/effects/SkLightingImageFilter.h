@@ -73,7 +73,7 @@ protected:
     SkLightingImageFilter(SkLight* light,
                           SkScalar surfaceScale,
                           SkImageFilter* input,
-                          const CropRect* cropRect);
+                          const CropRect* cropRect = NULL);
     explicit SkLightingImageFilter(SkReadBuffer& buffer);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
     const SkLight* light() const { return fLight; }

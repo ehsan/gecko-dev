@@ -59,7 +59,7 @@ static size_t writeTypeface(SkWriter32* writer, SkTypeface* typeface) {
     typeface->serialize(&stream);
     size_t size = stream.getOffset();
     if (writer) {
-        writer->write32(SkToU32(size));
+        writer->write32(size);
         SkAutoDataUnref data(stream.copyToData());
         writer->writePad(data->data(), size);
     }
@@ -249,6 +249,17 @@ public:
                                 const SkRect& dst, const SkPaint* paint = NULL) SK_OVERRIDE;
     virtual void drawSprite(const SkBitmap&, int left, int top,
                             const SkPaint*) SK_OVERRIDE;
+    virtual void drawText(const void* text, size_t byteLength, SkScalar x,
+                          SkScalar y, const SkPaint&) SK_OVERRIDE;
+    virtual void drawPosText(const void* text, size_t byteLength,
+                             const SkPoint pos[], const SkPaint&) SK_OVERRIDE;
+    virtual void drawPosTextH(const void* text, size_t byteLength,
+                              const SkScalar xpos[], SkScalar constY,
+                              const SkPaint&) SK_OVERRIDE;
+    virtual void drawTextOnPath(const void* text, size_t byteLength,
+                            const SkPath& path, const SkMatrix* matrix,
+                                const SkPaint&) SK_OVERRIDE;
+    virtual void drawPicture(SkPicture& picture) SK_OVERRIDE;
     virtual void drawVertices(VertexMode, int vertexCount,
                           const SkPoint vertices[], const SkPoint texs[],
                           const SkColor colors[], SkXfermode*,
@@ -266,35 +277,25 @@ public:
     bool shuttleBitmap(const SkBitmap&, int32_t slot);
 
 protected:
-    virtual void willSave() SK_OVERRIDE;
+    virtual void willSave(SaveFlags) SK_OVERRIDE;
     virtual SaveLayerStrategy willSaveLayer(const SkRect*, const SkPaint*, SaveFlags) SK_OVERRIDE;
     virtual void willRestore() SK_OVERRIDE;
 
+    virtual void didTranslate(SkScalar, SkScalar) SK_OVERRIDE;
+    virtual void didScale(SkScalar, SkScalar) SK_OVERRIDE;
+    virtual void didRotate(SkScalar) SK_OVERRIDE;
+    virtual void didSkew(SkScalar, SkScalar) SK_OVERRIDE;
     virtual void didConcat(const SkMatrix&) SK_OVERRIDE;
     virtual void didSetMatrix(const SkMatrix&) SK_OVERRIDE;
 
     virtual void onDrawDRRect(const SkRRect&, const SkRRect&, const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
-                            const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawPosText(const void* text, size_t byteLength, const SkPoint pos[],
-                               const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawPosTextH(const void* text, size_t byteLength, const SkScalar xpos[],
-                                SkScalar constY, const SkPaint&) SK_OVERRIDE;
-    virtual void onDrawTextOnPath(const void* text, size_t byteLength, const SkPath& path,
-                                  const SkMatrix* matrix, const SkPaint&) SK_OVERRIDE;
 
     virtual void onClipRect(const SkRect&, SkRegion::Op, ClipEdgeStyle) SK_OVERRIDE;
     virtual void onClipRRect(const SkRRect&, SkRegion::Op, ClipEdgeStyle) SK_OVERRIDE;
     virtual void onClipPath(const SkPath&, SkRegion::Op, ClipEdgeStyle) SK_OVERRIDE;
     virtual void onClipRegion(const SkRegion&, SkRegion::Op) SK_OVERRIDE;
 
-    virtual void onDrawPicture(const SkPicture* picture) SK_OVERRIDE;
-
 private:
-    void recordTranslate(const SkMatrix&);
-    void recordScale(const SkMatrix&);
-    void recordConcat(const SkMatrix&);
-
     enum {
         kNoSaveLayer = -1,
     };
@@ -367,7 +368,7 @@ void SkGPipeCanvas::flattenFactoryNames() {
     const char* name;
     while ((name = fFactorySet->getNextAddedFactoryName()) != NULL) {
         size_t len = strlen(name);
-        if (this->needOpBytes(SkWriter32::WriteStringSize(name, len))) {
+        if (this->needOpBytes(len)) {
             this->writeOp(kDef_Factory_DrawOp);
             fWriter.writeString(name, len);
         }
@@ -380,7 +381,7 @@ bool SkGPipeCanvas::shuttleBitmap(const SkBitmap& bm, int32_t slot) {
     buffer.setNamedFactoryRecorder(fFactorySet);
     buffer.writeBitmap(bm);
     this->flattenFactoryNames();
-    size_t size = buffer.bytesWritten();
+    uint32_t size = buffer.bytesWritten();
     if (this->needOpBytes(size)) {
         this->writeOp(kDef_Bitmap_DrawOp, 0, slot);
         void* dst = static_cast<void*>(fWriter.reserve(size));
@@ -475,13 +476,12 @@ bool SkGPipeCanvas::needOpBytes(size_t needed) {
     }
 
     needed += 4;  // size of DrawOp atom
-    needed = SkTMax<size_t>(MIN_BLOCK_SIZE, needed);
-    needed = SkAlign4(needed);
     if (fWriter.bytesWritten() + needed > fBlockSize) {
         // Before we wipe out any data that has already been written, read it
         // out.
         this->doNotify();
-        void* block = fController->requestBlock(needed, &fBlockSize);
+        size_t blockSize = SkMax32(MIN_BLOCK_SIZE, needed);
+        void* block = fController->requestBlock(blockSize, &fBlockSize);
         if (NULL == block) {
             // Do not notify the readers, which would call this function again.
             this->finish(false);
@@ -515,13 +515,13 @@ uint32_t SkGPipeCanvas::getTypefaceID(SkTypeface* face) {
 #define NOTIFY_SETUP(canvas)    \
     AutoPipeNotify apn(canvas)
 
-void SkGPipeCanvas::willSave() {
+void SkGPipeCanvas::willSave(SaveFlags flags) {
     NOTIFY_SETUP(this);
     if (this->needOpBytes()) {
-        this->writeOp(kSave_DrawOp);
+        this->writeOp(kSave_DrawOp, 0, flags);
     }
 
-    this->INHERITED::willSave();
+    this->INHERITED::willSave(flags);
 }
 
 SkCanvas::SaveLayerStrategy SkGPipeCanvas::willSaveLayer(const SkRect* bounds, const SkPaint* paint,
@@ -572,45 +572,61 @@ bool SkGPipeCanvas::isDrawingToLayer() const {
     return kNoSaveLayer != fFirstSaveLayerStackLevel;
 }
 
-void SkGPipeCanvas::recordTranslate(const SkMatrix& m) {
-    if (this->needOpBytes(2 * sizeof(SkScalar))) {
-        this->writeOp(kTranslate_DrawOp);
-        fWriter.writeScalar(m.getTranslateX());
-        fWriter.writeScalar(m.getTranslateY());
+void SkGPipeCanvas::didTranslate(SkScalar dx, SkScalar dy) {
+    if (dx || dy) {
+        NOTIFY_SETUP(this);
+        if (this->needOpBytes(2 * sizeof(SkScalar))) {
+            this->writeOp(kTranslate_DrawOp);
+            fWriter.writeScalar(dx);
+            fWriter.writeScalar(dy);
+        }
     }
+    this->INHERITED::didTranslate(dx, dy);
 }
 
-void SkGPipeCanvas::recordScale(const SkMatrix& m) {
-    if (this->needOpBytes(2 * sizeof(SkScalar))) {
-        this->writeOp(kScale_DrawOp);
-        fWriter.writeScalar(m.getScaleX());
-        fWriter.writeScalar(m.getScaleY());
+void SkGPipeCanvas::didScale(SkScalar sx, SkScalar sy) {
+    if (sx || sy) {
+        NOTIFY_SETUP(this);
+        if (this->needOpBytes(2 * sizeof(SkScalar))) {
+            this->writeOp(kScale_DrawOp);
+            fWriter.writeScalar(sx);
+            fWriter.writeScalar(sy);
+        }
     }
+    this->INHERITED::didScale(sx, sy);
 }
 
-void SkGPipeCanvas::recordConcat(const SkMatrix& m) {
-    if (this->needOpBytes(m.writeToMemory(NULL))) {
-        this->writeOp(kConcat_DrawOp);
-        fWriter.writeMatrix(m);
+void SkGPipeCanvas::didRotate(SkScalar degrees) {
+    if (degrees) {
+        NOTIFY_SETUP(this);
+        if (this->needOpBytes(sizeof(SkScalar))) {
+            this->writeOp(kRotate_DrawOp);
+            fWriter.writeScalar(degrees);
+        }
     }
+    this->INHERITED::didRotate(degrees);
+}
+
+void SkGPipeCanvas::didSkew(SkScalar sx, SkScalar sy) {
+    if (sx || sy) {
+        NOTIFY_SETUP(this);
+        if (this->needOpBytes(2 * sizeof(SkScalar))) {
+            this->writeOp(kSkew_DrawOp);
+            fWriter.writeScalar(sx);
+            fWriter.writeScalar(sy);
+        }
+    }
+    this->INHERITED::didSkew(sx, sy);
 }
 
 void SkGPipeCanvas::didConcat(const SkMatrix& matrix) {
     if (!matrix.isIdentity()) {
         NOTIFY_SETUP(this);
-        switch (matrix.getType()) {
-            case SkMatrix::kTranslate_Mask:
-                this->recordTranslate(matrix);
-                break;
-            case SkMatrix::kScale_Mask:
-                this->recordScale(matrix);
-                break;
-            default:
-                this->recordConcat(matrix);
-                break;
+        if (this->needOpBytes(matrix.writeToMemory(NULL))) {
+            this->writeOp(kConcat_DrawOp);
+            fWriter.writeMatrix(matrix);
         }
     }
-
     this->INHERITED::didConcat(matrix);
 }
 
@@ -706,7 +722,7 @@ void SkGPipeCanvas::drawPoints(PointMode mode, size_t count,
         this->writePaint(paint);
         if (this->needOpBytes(4 + count * sizeof(SkPoint))) {
             this->writeOp(kDrawPoints_DrawOp, mode, 0);
-            fWriter.write32(SkToU32(count));
+            fWriter.write32(count);
             fWriter.write(pts, count * sizeof(SkPoint));
         }
     }
@@ -763,23 +779,16 @@ bool SkGPipeCanvas::commonDrawBitmap(const SkBitmap& bm, DrawOps op,
                                      unsigned flags,
                                      size_t opBytesNeeded,
                                      const SkPaint* paint) {
-    if (fDone) {
-        return false;
-    }
-
     if (paint != NULL) {
         flags |= kDrawBitmap_HasPaint_DrawOpFlag;
         this->writePaint(*paint);
     }
-    // This needs to run first so its calls to needOpBytes() and its writes
-    // don't interlace with the needOpBytes() and write below.
-    SkASSERT(fBitmapHeap != NULL);
-    int32_t bitmapIndex = fBitmapHeap->insert(bm);
-    if (SkBitmapHeap::INVALID_SLOT == bitmapIndex) {
-        return false;
-    }
-
     if (this->needOpBytes(opBytesNeeded)) {
+        SkASSERT(fBitmapHeap != NULL);
+        int32_t bitmapIndex = fBitmapHeap->insert(bm);
+        if (SkBitmapHeap::INVALID_SLOT == bitmapIndex) {
+            return false;
+        }
         this->writeOp(op, flags, bitmapIndex);
         return true;
     }
@@ -857,14 +866,14 @@ void SkGPipeCanvas::drawSprite(const SkBitmap& bm, int left, int top,
     }
 }
 
-void SkGPipeCanvas::onDrawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
-                               const SkPaint& paint) {
+void SkGPipeCanvas::drawText(const void* text, size_t byteLength, SkScalar x,
+                                 SkScalar y, const SkPaint& paint) {
     if (byteLength) {
         NOTIFY_SETUP(this);
         this->writePaint(paint);
         if (this->needOpBytes(4 + SkAlign4(byteLength) + 2 * sizeof(SkScalar))) {
             this->writeOp(kDrawText_DrawOp);
-            fWriter.write32(SkToU32(byteLength));
+            fWriter.write32(byteLength);
             fWriter.writePad(text, byteLength);
             fWriter.writeScalar(x);
             fWriter.writeScalar(y);
@@ -872,15 +881,15 @@ void SkGPipeCanvas::onDrawText(const void* text, size_t byteLength, SkScalar x, 
     }
 }
 
-void SkGPipeCanvas::onDrawPosText(const void* text, size_t byteLength, const SkPoint pos[],
-                                  const SkPaint& paint) {
+void SkGPipeCanvas::drawPosText(const void* text, size_t byteLength,
+                                const SkPoint pos[], const SkPaint& paint) {
     if (byteLength) {
         NOTIFY_SETUP(this);
         this->writePaint(paint);
         int count = paint.textToGlyphs(text, byteLength, NULL);
         if (this->needOpBytes(4 + SkAlign4(byteLength) + 4 + count * sizeof(SkPoint))) {
             this->writeOp(kDrawPosText_DrawOp);
-            fWriter.write32(SkToU32(byteLength));
+            fWriter.write32(byteLength);
             fWriter.writePad(text, byteLength);
             fWriter.write32(count);
             fWriter.write(pos, count * sizeof(SkPoint));
@@ -888,15 +897,16 @@ void SkGPipeCanvas::onDrawPosText(const void* text, size_t byteLength, const SkP
     }
 }
 
-void SkGPipeCanvas::onDrawPosTextH(const void* text, size_t byteLength, const SkScalar xpos[],
-                                   SkScalar constY, const SkPaint& paint) {
+void SkGPipeCanvas::drawPosTextH(const void* text, size_t byteLength,
+                                 const SkScalar xpos[], SkScalar constY,
+                                 const SkPaint& paint) {
     if (byteLength) {
         NOTIFY_SETUP(this);
         this->writePaint(paint);
         int count = paint.textToGlyphs(text, byteLength, NULL);
         if (this->needOpBytes(4 + SkAlign4(byteLength) + 4 + count * sizeof(SkScalar) + 4)) {
             this->writeOp(kDrawPosTextH_DrawOp);
-            fWriter.write32(SkToU32(byteLength));
+            fWriter.write32(byteLength);
             fWriter.writePad(text, byteLength);
             fWriter.write32(count);
             fWriter.write(xpos, count * sizeof(SkScalar));
@@ -905,8 +915,9 @@ void SkGPipeCanvas::onDrawPosTextH(const void* text, size_t byteLength, const Sk
     }
 }
 
-void SkGPipeCanvas::onDrawTextOnPath(const void* text, size_t byteLength, const SkPath& path,
-                                     const SkMatrix* matrix, const SkPaint& paint) {
+void SkGPipeCanvas::drawTextOnPath(const void* text, size_t byteLength,
+                                   const SkPath& path, const SkMatrix* matrix,
+                                   const SkPaint& paint) {
     if (byteLength) {
         NOTIFY_SETUP(this);
         unsigned flags = 0;
@@ -919,7 +930,7 @@ void SkGPipeCanvas::onDrawTextOnPath(const void* text, size_t byteLength, const 
         if (this->needOpBytes(size)) {
             this->writeOp(kDrawTextOnPath_DrawOp, flags, 0);
 
-            fWriter.write32(SkToU32(byteLength));
+            fWriter.write32(byteLength);
             fWriter.writePad(text, byteLength);
 
             fWriter.writePath(path);
@@ -930,9 +941,9 @@ void SkGPipeCanvas::onDrawTextOnPath(const void* text, size_t byteLength, const 
     }
 }
 
-void SkGPipeCanvas::onDrawPicture(const SkPicture* picture) {
+void SkGPipeCanvas::drawPicture(SkPicture& picture) {
     // we want to playback the picture into individual draw calls
-    this->INHERITED::onDrawPicture(picture);
+    this->INHERITED::drawPicture(picture);
 }
 
 void SkGPipeCanvas::drawVertices(VertexMode vmode, int vertexCount,
@@ -945,15 +956,9 @@ void SkGPipeCanvas::drawVertices(VertexMode vmode, int vertexCount,
     }
 
     NOTIFY_SETUP(this);
+    size_t size = 4 + vertexCount * sizeof(SkPoint);
     this->writePaint(paint);
-
-    unsigned flags = 0;  // packs with the op, so needs no extra space
-
-    size_t size = 0;
-    size += 4;                              // vmode
-    size += 4;                              // vertex count
-    size += vertexCount * sizeof(SkPoint);  // vertices
-
+    unsigned flags = 0;
     if (texs) {
         flags |= kDrawVertices_HasTexs_DrawOpFlag;
         size += vertexCount * sizeof(SkPoint);
@@ -962,14 +967,13 @@ void SkGPipeCanvas::drawVertices(VertexMode vmode, int vertexCount,
         flags |= kDrawVertices_HasColors_DrawOpFlag;
         size += vertexCount * sizeof(SkColor);
     }
-    if (xfer && !SkXfermode::IsMode(xfer, SkXfermode::kModulate_Mode)) {
-        flags |= kDrawVertices_HasXfermode_DrawOpFlag;
-        size += sizeof(int32_t);    // SkXfermode::Mode
-    }
     if (indices && indexCount > 0) {
         flags |= kDrawVertices_HasIndices_DrawOpFlag;
-        size += 4;                                        // index count
-        size += SkAlign4(indexCount * sizeof(uint16_t));  // indices
+        size += 4 + SkAlign4(indexCount * sizeof(uint16_t));
+    }
+    if (xfer && !SkXfermode::IsMode(xfer, SkXfermode::kModulate_Mode)) {
+        flags |= kDrawVertices_HasXfermode_DrawOpFlag;
+        size += sizeof(int32_t);    // mode enum
     }
 
     if (this->needOpBytes(size)) {
@@ -977,18 +981,18 @@ void SkGPipeCanvas::drawVertices(VertexMode vmode, int vertexCount,
         fWriter.write32(vmode);
         fWriter.write32(vertexCount);
         fWriter.write(vertices, vertexCount * sizeof(SkPoint));
-        if (flags & kDrawVertices_HasTexs_DrawOpFlag) {
+        if (texs) {
             fWriter.write(texs, vertexCount * sizeof(SkPoint));
         }
-        if (flags & kDrawVertices_HasColors_DrawOpFlag) {
+        if (colors) {
             fWriter.write(colors, vertexCount * sizeof(SkColor));
         }
         if (flags & kDrawVertices_HasXfermode_DrawOpFlag) {
             SkXfermode::Mode mode = SkXfermode::kModulate_Mode;
-            SkAssertResult(xfer->asMode(&mode));
+            (void)xfer->asMode(&mode);
             fWriter.write32(mode);
         }
-        if (flags & kDrawVertices_HasIndices_DrawOpFlag) {
+        if (indices && indexCount > 0) {
             fWriter.write32(indexCount);
             fWriter.writePad(indices, indexCount * sizeof(uint16_t));
         }
@@ -1005,7 +1009,7 @@ void SkGPipeCanvas::drawData(const void* ptr, size_t size) {
         if (this->needOpBytes(4 + SkAlign4(size))) {
             this->writeOp(kDrawData_DrawOp, 0, data);
             if (0 == data) {
-                fWriter.write32(SkToU32(size));
+                fWriter.write32(size);
             }
             fWriter.writePad(ptr, size);
         }
@@ -1025,7 +1029,7 @@ void SkGPipeCanvas::endCommentGroup() {
 }
 
 void SkGPipeCanvas::flushRecording(bool detachCurrentBlock) {
-    this->doNotify();
+    doNotify();
     if (detachCurrentBlock) {
         // force a new block to be requested for the next recorded command
         fBlockSize = 0;
@@ -1063,10 +1067,6 @@ void SkGPipeCanvas::writePaint(const SkPaint& paint) {
         *ptr++ = PaintOp_packOp(kColor_PaintOp);
         *ptr++ = paint.getColor();
         base.setColor(paint.getColor());
-    }
-    if (base.getFilterLevel() != paint.getFilterLevel()) {
-        *ptr++ = PaintOp_packOpData(kFilterLevel_PaintOp, paint.getFilterLevel());
-        base.setFilterLevel(paint.getFilterLevel());
     }
     if (base.getStyle() != paint.getStyle()) {
         *ptr++ = PaintOp_packOpData(kStyle_PaintOp, paint.getStyle());
@@ -1155,7 +1155,7 @@ void SkGPipeCanvas::writePaint(const SkPaint& paint) {
 
     size_t size = (char*)ptr - (char*)storage;
     if (size && this->needOpBytes(size)) {
-        this->writeOp(kPaintOp_DrawOp, 0, SkToU32(size));
+        this->writeOp(kPaintOp_DrawOp, 0, size);
         fWriter.write(storage, size);
         for (size_t i = 0; i < size/4; i++) {
 //            SkDebugf("[%d] %08X\n", i, storage[i]);
@@ -1175,7 +1175,7 @@ void SkGPipeCanvas::writePaint(const SkPaint& paint) {
             paint.getAnnotation()->writeToBuffer(buffer);
             const size_t size = buffer.bytesWritten();
             if (this->needOpBytes(size)) {
-                this->writeOp(kSetAnnotation_DrawOp, 0, SkToU32(size));
+                this->writeOp(kSetAnnotation_DrawOp, 0, size);
                 buffer.writeToMemory(fWriter.reserve(size));
             }
         }

@@ -278,7 +278,7 @@ public:
         if (paint.isDither()) {
             flags |= SkBlitRow::kDither_Flag;
         }
-        fProc = SkBlitRow::Factory(flags, kRGB_565_SkColorType);
+        fProc = SkBlitRow::Factory(flags, SkBitmap::kRGB_565_Config);
     }
 
     virtual void blitRect(int x, int y, int width, int height) {
@@ -321,23 +321,15 @@ SkSpriteBlitter* SkSpriteBlitter::ChooseD16(const SkBitmap& source, const SkPain
         return NULL;
     }
 
-    const SkAlphaType at = source.alphaType();
-
     SkSpriteBlitter* blitter = NULL;
     unsigned alpha = paint.getAlpha();
 
     switch (source.colorType()) {
-        case kN32_SkColorType: {
-            if (kPremul_SkAlphaType != at && kOpaque_SkAlphaType != at) {
-                break;
-            }
+        case kPMColor_SkColorType: {
             blitter = allocator->createT<Sprite_D16_S32_BlitRowProc>(source);
             break;
         }
         case kARGB_4444_SkColorType:
-            if (kPremul_SkAlphaType != at && kOpaque_SkAlphaType != at) {
-                break;
-            }
             if (255 == alpha) {
                 blitter = allocator->createT<Sprite_D16_S4444_Opaque>(source);
             } else {
@@ -352,9 +344,6 @@ SkSpriteBlitter* SkSpriteBlitter::ChooseD16(const SkBitmap& source, const SkPain
             }
             break;
         case kIndex_8_SkColorType:
-            if (kPremul_SkAlphaType != at && kOpaque_SkAlphaType != at) {
-                break;
-            }
             if (paint.isDither()) {
                 // we don't support dither yet in these special cases
                 break;

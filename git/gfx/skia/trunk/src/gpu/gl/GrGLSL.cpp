@@ -9,33 +9,27 @@
 #include "GrGLShaderVar.h"
 #include "SkString.h"
 
-bool GrGetGLSLGeneration(const GrGLInterface* gl, GrGLSLGeneration* generation) {
-    SkASSERT(NULL != generation);
+GrGLSLGeneration GrGetGLSLGeneration(const GrGLInterface* gl) {
     GrGLSLVersion ver = GrGLGetGLSLVersion(gl);
-    if (GR_GLSL_INVALID_VER == ver) {
-        return false;
-    }
     switch (gl->fStandard) {
         case kGL_GrGLStandard:
             SkASSERT(ver >= GR_GLSL_VER(1,10));
             if (ver >= GR_GLSL_VER(1,50)) {
-                *generation = k150_GrGLSLGeneration;
+                return k150_GrGLSLGeneration;
             } else if (ver >= GR_GLSL_VER(1,40)) {
-                *generation = k140_GrGLSLGeneration;
+                return k140_GrGLSLGeneration;
             } else if (ver >= GR_GLSL_VER(1,30)) {
-                *generation = k130_GrGLSLGeneration;
+                return k130_GrGLSLGeneration;
             } else {
-                *generation = k110_GrGLSLGeneration;
+                return k110_GrGLSLGeneration;
             }
-            return true;
         case kGLES_GrGLStandard:
             // version 1.00 of ES GLSL based on ver 1.20 of desktop GLSL
             SkASSERT(ver >= GR_GL_VER(1,00));
-            *generation = k110_GrGLSLGeneration;
-            return true;
+            return k110_GrGLSLGeneration;
         default:
-            SkFAIL("Unknown GL Standard");
-            return false;
+            GrCrash("Unknown GL Standard");
+            return k110_GrGLSLGeneration; // suppress warning
     }
 }
 
@@ -64,7 +58,7 @@ const char* GrGetGLSLVersionDecl(const GrGLContextInfo& info) {
                 return "#version 150 compatibility\n";
             }
         default:
-            SkFAIL("Unknown GL version.");
+            GrCrash("Unknown GL version.");
             return ""; // suppress warning
     }
 }
@@ -73,7 +67,7 @@ namespace {
     void append_tabs(SkString* outAppend, int tabCnt) {
         static const char kTabs[] = "\t\t\t\t\t\t\t\t";
         while (tabCnt) {
-            int cnt = SkTMin((int)SK_ARRAY_COUNT(kTabs), tabCnt);
+            int cnt = GrMin((int)GR_ARRAY_COUNT(kTabs), tabCnt);
             outAppend->append(kTabs, cnt);
             tabCnt -= cnt;
         }

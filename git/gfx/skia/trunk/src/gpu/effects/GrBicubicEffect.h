@@ -37,23 +37,25 @@ public:
     /**
      * Create a simple filter effect with custom bicubic coefficients and optional domain.
      */
-    static GrEffect* Create(GrTexture* tex, const SkScalar coefficients[16],
-                            const SkRect* domain = NULL) {
+    static GrEffectRef* Create(GrTexture* tex, const SkScalar coefficients[16],
+                               const SkRect* domain = NULL) {
         if (NULL == domain) {
             static const SkShader::TileMode kTileModes[] = { SkShader::kClamp_TileMode,
                                                              SkShader::kClamp_TileMode };
             return Create(tex, coefficients, MakeDivByTextureWHMatrix(tex), kTileModes);
         } else {
-            return SkNEW_ARGS(GrBicubicEffect, (tex, coefficients,
-                                                MakeDivByTextureWHMatrix(tex), *domain));
+            AutoEffectUnref effect(SkNEW_ARGS(GrBicubicEffect, (tex, coefficients,
+                                                                MakeDivByTextureWHMatrix(tex),
+                                                                *domain)));
+            return CreateEffectRef(effect);
         }
     }
 
     /**
      * Create a Mitchell filter effect with specified texture matrix and x/y tile modes.
      */
-    static GrEffect* Create(GrTexture* tex, const SkMatrix& matrix,
-                            SkShader::TileMode tileModes[2]) {
+    static GrEffectRef* Create(GrTexture* tex, const SkMatrix& matrix,
+                               SkShader::TileMode tileModes[2]) {
         return Create(tex, gMitchellCoefficients, matrix, tileModes);
     }
 
@@ -61,27 +63,20 @@ public:
      * Create a filter effect with custom bicubic coefficients, the texture matrix, and the x/y
      * tilemodes.
      */
-    static GrEffect* Create(GrTexture* tex, const SkScalar coefficients[16],
-                            const SkMatrix& matrix, const SkShader::TileMode tileModes[2]) {
-        return SkNEW_ARGS(GrBicubicEffect, (tex, coefficients, matrix, tileModes));
+    static GrEffectRef* Create(GrTexture* tex, const SkScalar coefficients[16],
+                               const SkMatrix& matrix, const SkShader::TileMode tileModes[2]) {
+        AutoEffectUnref effect(SkNEW_ARGS(GrBicubicEffect, (tex, coefficients, matrix, tileModes)));
+        return CreateEffectRef(effect);
     }
 
     /**
      * Create a Mitchell filter effect with a texture matrix and a domain.
      */
-    static GrEffect* Create(GrTexture* tex, const SkMatrix& matrix, const SkRect& domain) {
-        return SkNEW_ARGS(GrBicubicEffect, (tex, gMitchellCoefficients, matrix, domain));
+    static GrEffectRef* Create(GrTexture* tex, const SkMatrix& matrix, const SkRect& domain) {
+        AutoEffectUnref effect(SkNEW_ARGS(GrBicubicEffect, (tex, gMitchellCoefficients, matrix,
+                                                            domain)));
+        return CreateEffectRef(effect);
     }
-
-    /**
-     * Determines whether the bicubic effect should be used based on the transformation from the
-     * local coords to the device. Returns true if the bicubic effect should be used. filterMode
-     * is set to appropriate filtering mode to use regardless of the return result (e.g. when this
-     * returns false it may indicate that the best fallback is to use kMipMap, kBilerp, or
-     * kNearest).
-     */
-    static bool ShouldUseBicubic(const SkMatrix& localCoordsToDevice,
-                                 GrTextureParams::FilterMode* filterMode);
 
 private:
     GrBicubicEffect(GrTexture*, const SkScalar coefficients[16],

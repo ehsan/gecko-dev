@@ -11,7 +11,7 @@
 #include "GrRedBlackTree.h"
 
 template <typename T, typename C = GrLess<T> >
-class GrOrderedSet : SkNoncopyable {
+class GrOrderedSet : public SkNoncopyable {
 public:
     /**
      * Creates an empty set

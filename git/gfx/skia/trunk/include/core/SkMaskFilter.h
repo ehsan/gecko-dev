@@ -10,7 +10,6 @@
 #ifndef SkMaskFilter_DEFINED
 #define SkMaskFilter_DEFINED
 
-#include "SkBlurTypes.h"
 #include "SkFlattenable.h"
 #include "SkMask.h"
 #include "SkPaint.h"
@@ -19,6 +18,7 @@ class GrContext;
 class GrPaint;
 class SkBitmap;
 class SkBlitter;
+class SkBounder;
 class SkMatrix;
 class SkPath;
 class SkRasterClip;
@@ -72,7 +72,7 @@ public:
      * If effect is non-NULL, a new GrEffect instance is stored in it. The caller assumes ownership
      * of the effect and must unref it.
      */
-    virtual bool asNewEffect(GrEffect** effect,
+    virtual bool asNewEffect(GrEffectRef** effect,
                              GrTexture*,
                              const SkMatrix& ctm) const;
 
@@ -138,18 +138,6 @@ public:
      */
     virtual void computeFastBounds(const SkRect& src, SkRect* dest) const;
 
-    struct BlurRec {
-        SkScalar        fSigma;
-        SkBlurStyle     fStyle;
-        SkBlurQuality   fQuality;
-    };
-    /**
-     *  If this filter can be represented by a BlurRec, return true and (if not null) fill in the
-     *  provided BlurRec parameter. If this effect cannot be represented as a BlurRec, return false
-     *  and ignore the BlurRec parameter.
-     */
-    virtual bool asABlur(BlurRec*) const;
-
     SK_TO_STRING_PUREVIRT()
     SK_DEFINE_FLATTENABLE_TYPE(SkMaskFilter)
 
@@ -204,15 +192,17 @@ private:
      to render that mask. Returns false if filterMask() returned false.
      This method is not exported to java.
      */
-    bool filterPath(const SkPath& devPath, const SkMatrix& ctm, const SkRasterClip&, SkBlitter*,
-                    SkPaint::Style) const;
+    bool filterPath(const SkPath& devPath, const SkMatrix& devMatrix,
+                    const SkRasterClip&, SkBounder*, SkBlitter* blitter,
+                    SkPaint::Style style) const;
 
     /** Helper method that, given a roundRect in device space, will rasterize it into a kA8_Format
      mask and then call filterMask(). If this returns true, the specified blitter will be called
      to render that mask. Returns false if filterMask() returned false.
      */
-    bool filterRRect(const SkRRect& devRRect, const SkMatrix& ctm, const SkRasterClip&,
-                     SkBlitter*, SkPaint::Style style) const;
+    bool filterRRect(const SkRRect& devRRect, const SkMatrix& devMatrix,
+                     const SkRasterClip&, SkBounder*, SkBlitter* blitter,
+                     SkPaint::Style style) const;
 
     typedef SkFlattenable INHERITED;
 };

@@ -10,20 +10,56 @@
 #define GrTexture_DEFINED
 
 #include "GrSurface.h"
-#include "GrRenderTarget.h"
 #include "SkPoint.h"
-#include "SkRefCnt.h"
+#include "GrRenderTarget.h"
 
 class GrResourceKey;
 class GrTextureParams;
-class GrTextureImpl;
 
 class GrTexture : public GrSurface {
+
 public:
+    SK_DECLARE_INST_COUNT(GrTexture)
+    // from GrResource
+    /**
+     * Informational texture flags
+     */
+    enum FlagBits {
+        kFirstBit = (kLastPublic_GrTextureFlagBit << 1),
+
+        /**
+         * This texture should be returned to the texture cache when
+         * it is no longer reffed
+         */
+        kReturnToCache_FlagBit        = kFirstBit,
+    };
+
+    void setFlag(GrTextureFlags flags) {
+        fDesc.fFlags = fDesc.fFlags | flags;
+    }
+    void resetFlag(GrTextureFlags flags) {
+        fDesc.fFlags = fDesc.fFlags & ~flags;
+    }
+    bool isSetFlag(GrTextureFlags flags) const {
+        return 0 != (fDesc.fFlags & flags);
+    }
+
+    void dirtyMipMaps(bool mipMapsDirty) {
+        fMipMapsDirty = mipMapsDirty;
+    }
+
+    bool mipMapsAreDirty() const {
+        return fMipMapsDirty;
+    }
+
     /**
      *  Approximate number of bytes used by the texture
      */
-    virtual size_t gpuMemorySize() const SK_OVERRIDE;
+    virtual size_t sizeInBytes() const SK_OVERRIDE {
+        return (size_t) fDesc.fWidth *
+                        fDesc.fHeight *
+                        GrBytesPerPixel(fDesc.fConfig);
+    }
 
     // GrSurface overrides
     virtual bool readPixels(int left, int top, int width, int height,
@@ -38,21 +74,37 @@ public:
                              size_t rowBytes = 0,
                              uint32_t pixelOpsFlags = 0) SK_OVERRIDE;
 
+    /**
+     * @return this texture
+     */
     virtual GrTexture* asTexture() SK_OVERRIDE { return this; }
     virtual const GrTexture* asTexture() const SK_OVERRIDE { return this; }
-    virtual GrRenderTarget* asRenderTarget() SK_OVERRIDE { return fRenderTarget.get(); }
-    virtual const GrRenderTarget* asRenderTarget() const SK_OVERRIDE { return fRenderTarget.get(); }
 
     /**
-     * Convert from texels to normalized texture coords for POT textures only. Please don't add
-     * new callsites for these functions. They are slated for removal.
+     * Retrieves the render target underlying this texture that can be passed to
+     * GrGpu::setRenderTarget().
+     *
+     * @return    handle to render target or NULL if the texture is not a
+     *            render target
      */
-    SkFixed normalizeFixedX(SkFixed x) const {
-        SkASSERT(SkIsPow2(fDesc.fWidth));
+    virtual GrRenderTarget* asRenderTarget() SK_OVERRIDE {
+        return fRenderTarget.get();
+    }
+    virtual const GrRenderTarget* asRenderTarget() const SK_OVERRIDE {
+        return fRenderTarget.get();
+    }
+
+    // GrTexture
+    /**
+     * Convert from texels to normalized texture coords for POT textures
+     * only.
+     */
+    GrFixed normalizeFixedX(GrFixed x) const {
+        SkASSERT(GrIsPow2(fDesc.fWidth));
         return x >> fShiftFixedX;
     }
-    SkFixed normalizeFixedY(SkFixed y) const {
-        SkASSERT(SkIsPow2(fDesc.fHeight));
+    GrFixed normalizeFixedY(GrFixed y) const {
+        SkASSERT(GrIsPow2(fDesc.fHeight));
         return y >> fShiftFixedY;
     }
 
@@ -63,95 +115,18 @@ public:
     virtual GrBackendObject getTextureHandle() const = 0;
 
     /**
-     * This function indicates that the texture parameters (wrap mode, filtering, ...) have been
-     * changed externally to Skia.
+     *  Call this when the state of the native API texture object is
+     *  altered directly, without being tracked by skia.
      */
-    virtual void textureParamsModified() = 0;
-    SK_ATTR_DEPRECATED("Renamed to textureParamsModified.")
-    void invalidateCachedState() { this->textureParamsModified(); }
-
-    /**
-     * Informational texture flags. This will be moved to the private GrTextureImpl class soon.
-     */
-    enum FlagBits {
-        kFirstBit = (kLastPublic_GrTextureFlagBit << 1),
-
-        /**
-         * This texture should be returned to the texture cache when
-         * it is no longer reffed
-         */
-        kReturnToCache_FlagBit        = kFirstBit,
-    };
-
-    void resetFlag(GrTextureFlags flags) {
-        fDesc.fFlags = fDesc.fFlags & ~flags;
-    }
+    virtual void invalidateCachedState() = 0;
 
 #ifdef SK_DEBUG
     void validate() const {
         this->INHERITED::validate();
+
         this->validateDesc();
     }
 #endif
-
-    GrTextureImpl* impl() { return reinterpret_cast<GrTextureImpl*>(this); }
-    const GrTextureImpl* impl() const { return reinterpret_cast<const GrTextureImpl*>(this); }
-
-protected:
-    // A texture refs its rt representation but not vice-versa. It is up to
-    // the subclass constructor to initialize this pointer.
-    SkAutoTUnref<GrRenderTarget> fRenderTarget;
-
-    GrTexture(GrGpu* gpu, bool isWrapped, const GrTextureDesc& desc)
-    : INHERITED(gpu, isWrapped, desc)
-    , fRenderTarget(NULL) {
-        // only make sense if alloc size is pow2
-        fShiftFixedX = 31 - SkCLZ(fDesc.fWidth);
-        fShiftFixedY = 31 - SkCLZ(fDesc.fHeight);
-    }
-
-    virtual ~GrTexture();
-
-    // GrResource overrides
-    virtual void onRelease() SK_OVERRIDE;
-    virtual void onAbandon() SK_OVERRIDE;
-
-    void validateDesc() const;
-
-private:
-    virtual void internal_dispose() const SK_OVERRIDE;
-
-    // these two shift a fixed-point value into normalized coordinates
-    // for this texture if the texture is power of two sized.
-    int                 fShiftFixedX;
-    int                 fShiftFixedY;
-
-    typedef GrSurface INHERITED;
-};
-
-class GrTextureImpl : public GrTexture {
-public:
-    SK_DECLARE_INST_COUNT(GrTextureImpl)
-
-    void setFlag(GrTextureFlags flags) {
-        fDesc.fFlags = fDesc.fFlags | flags;
-    }
-    void resetFlag(GrTextureFlags flags) {
-        fDesc.fFlags = fDesc.fFlags & ~flags;
-    }
-    bool isSetFlag(GrTextureFlags flags) const {
-        return 0 != (fDesc.fFlags & flags);
-    }
-
-    void dirtyMipMaps(bool mipMapsDirty);
-
-    bool mipMapsAreDirty() const {
-        return kValid_MipMapsStatus != fMipMapsStatus;
-    }
-
-    bool hasMipMaps() const {
-        return kNotAllocated_MipMapsStatus != fMipMapsStatus;
-    }
 
     static GrResourceKey ComputeKey(const GrGpu* gpu,
                                     const GrTextureParams* params,
@@ -162,21 +137,38 @@ public:
     static bool NeedsBilerp(const GrResourceKey& key);
 
 protected:
-    GrTextureImpl(GrGpu* gpu, bool isWrapped, const GrTextureDesc& desc)
+    // A texture refs its rt representation but not vice-versa. It is up to
+    // the subclass constructor to initialize this pointer.
+    SkAutoTUnref<GrRenderTarget> fRenderTarget;
+
+    GrTexture(GrGpu* gpu, bool isWrapped, const GrTextureDesc& desc)
     : INHERITED(gpu, isWrapped, desc)
-    , fMipMapsStatus(kNotAllocated_MipMapsStatus) {
+    , fRenderTarget(NULL)
+    , fMipMapsDirty(true) {
+
+        // only make sense if alloc size is pow2
+        fShiftFixedX = 31 - SkCLZ(fDesc.fWidth);
+        fShiftFixedY = 31 - SkCLZ(fDesc.fHeight);
     }
+    virtual ~GrTexture();
+
+    // GrResource overrides
+    virtual void onRelease() SK_OVERRIDE;
+    virtual void onAbandon() SK_OVERRIDE;
+
+    void validateDesc() const;
 
 private:
-    enum MipMapsStatus {
-        kNotAllocated_MipMapsStatus,
-        kAllocated_MipMapsStatus,
-        kValid_MipMapsStatus
-    };
+    // these two shift a fixed-point value into normalized coordinates
+    // for this texture if the texture is power of two sized.
+    int                 fShiftFixedX;
+    int                 fShiftFixedY;
 
-    MipMapsStatus       fMipMapsStatus;
+    bool                fMipMapsDirty;
 
-    typedef GrTexture INHERITED;
+    virtual void internal_dispose() const SK_OVERRIDE;
+
+    typedef GrSurface INHERITED;
 };
 
 /**
@@ -212,7 +204,6 @@ public:
         fTexture.reset(SkSafeRef(texture));
         return texture;
     }
-
 private:
     SkAutoTUnref<GrTexture> fTexture;
     SkIPoint                fOffset;

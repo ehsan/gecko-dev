@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
@@ -5,10 +6,11 @@
  * found in the LICENSE file.
  */
 
+
 #ifndef SkDrawShader_DEFINED
 #define SkDrawShader_DEFINED
 
-#include "SkPaintPart.h"
+#include "SkPaintParts.h"
 #include "SkShader.h"
 
 class SkBaseBitmap;

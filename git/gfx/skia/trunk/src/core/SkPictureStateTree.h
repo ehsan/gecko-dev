@@ -50,13 +50,11 @@ public:
     Draw* appendDraw(size_t offset);
 
     /**
-     * Given a list of draws, and a canvas, initialize an iterator that produces the correct 
-     * sequence of offsets into the command buffer to carry out those calls with correct 
-     * matrix/clip state. This handles saves/restores, and does all necessary matrix setup.
+     * Given a list of draws, and a canvas, returns an iterator that produces the correct sequence
+     * of offsets into the command buffer to carry out those calls with correct matrix/clip state.
+     * This handles saves/restores, and does all necessary matrix setup.
      */
-    void initIterator(SkPictureStateTree::Iterator* iter, 
-                      const SkTDArray<void*>& draws, 
-                      SkCanvas* canvas);
+    Iterator getIterator(const SkTDArray<void*>& draws, SkCanvas* canvas);
 
     void appendSave();
     void appendSaveLayer(size_t offset);
@@ -76,23 +74,13 @@ public:
      */
     class Iterator {
     public:
-        /** Returns the next op offset needed to create the drawing state
-            required by the queued up draw operation or the offset of the queued
-            up draw operation itself. In the latter case, the next draw operation
-            will move into the queued up slot.
-            It retuns kDrawComplete when done.
-            TODO: this might be better named nextOp
-        */
-        uint32_t nextDraw();
+        /** Returns the next offset into the picture stream, or kDrawComplete if complete. */
+        uint32_t draw();
         static const uint32_t kDrawComplete = SK_MaxU32;
-        Iterator() : fValid(false) { }
+        Iterator() : fPlaybackMatrix(), fValid(false) { }
         bool isValid() const { return fValid; }
-
     private:
-        void init(const SkTDArray<void*>& draws, SkCanvas* canvas, Node* root);
-
-        void setCurrentMatrix(const SkMatrix*);
-
+        Iterator(const SkTDArray<void*>& draws, SkCanvas* canvas, Node* root);
         // The draws this iterator is associated with
         const SkTDArray<void*>* fDraws;
 
@@ -106,10 +94,10 @@ public:
         SkTDArray<Node*> fNodes;
 
         // The matrix of the canvas we're playing back into
-        SkMatrix fPlaybackMatrix;
+        const SkMatrix fPlaybackMatrix;
 
         // Cache of current matrix, so we can avoid redundantly setting it
-        const SkMatrix* fCurrentMatrix;
+        SkMatrix* fCurrentMatrix;
 
         // current position in the array of draws
         int fPlaybackIndex;
@@ -118,8 +106,6 @@ public:
 
         // Whether or not this is a valid iterator (the default public constructor sets this false)
         bool fValid;
-
-        uint32_t finish();
 
         friend class SkPictureStateTree;
     };

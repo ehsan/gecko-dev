@@ -22,33 +22,35 @@ class GrConvolutionEffect : public Gr1DKernelEffect {
 public:
 
     /// Convolve with an arbitrary user-specified kernel
-    static GrEffect* Create(GrTexture* tex,
-                            Direction dir,
-                            int halfWidth,
-                            const float* kernel,
-                            bool useBounds,
-                            float bounds[2]) {
-        return SkNEW_ARGS(GrConvolutionEffect, (tex,
-                                                dir,
-                                                halfWidth,
-                                                kernel,
-                                                useBounds,
-                                                bounds));
+    static GrEffectRef* Create(GrTexture* tex,
+                               Direction dir,
+                               int halfWidth,
+                               const float* kernel,
+                               bool useBounds,
+                               float bounds[2]) {
+        AutoEffectUnref effect(SkNEW_ARGS(GrConvolutionEffect, (tex,
+                                                                dir,
+                                                                halfWidth,
+                                                                kernel,
+                                                                useBounds,
+                                                                bounds)));
+        return CreateEffectRef(effect);
     }
 
     /// Convolve with a Gaussian kernel
-    static GrEffect* CreateGaussian(GrTexture* tex,
-                                    Direction dir,
-                                    int halfWidth,
-                                    float gaussianSigma,
-                                    bool useBounds,
-                                    float bounds[2]) {
-        return SkNEW_ARGS(GrConvolutionEffect, (tex,
-                                                dir,
-                                                halfWidth,
-                                                gaussianSigma,
-                                                useBounds,
-                                                bounds));
+    static GrEffectRef* CreateGaussian(GrTexture* tex,
+                                       Direction dir,
+                                       int halfWidth,
+                                       float gaussianSigma,
+                                       bool useBounds,
+                                       float bounds[2]) {
+        AutoEffectUnref effect(SkNEW_ARGS(GrConvolutionEffect, (tex,
+                                                                dir,
+                                                                halfWidth,
+                                                                gaussianSigma,
+                                                                useBounds,
+                                                                bounds)));
+        return CreateEffectRef(effect);
     }
 
     virtual ~GrConvolutionEffect();

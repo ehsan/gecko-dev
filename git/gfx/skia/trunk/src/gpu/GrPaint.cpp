@@ -12,23 +12,27 @@
 #include "effects/GrSimpleTextureEffect.h"
 
 void GrPaint::addColorTextureEffect(GrTexture* texture, const SkMatrix& matrix) {
-    this->addColorEffect(GrSimpleTextureEffect::Create(texture, matrix))->unref();
+    GrEffectRef* effect = GrSimpleTextureEffect::Create(texture, matrix);
+    this->addColorEffect(effect)->unref();
 }
 
 void GrPaint::addCoverageTextureEffect(GrTexture* texture, const SkMatrix& matrix) {
-    this->addCoverageEffect(GrSimpleTextureEffect::Create(texture, matrix))->unref();
+    GrEffectRef* effect = GrSimpleTextureEffect::Create(texture, matrix);
+    this->addCoverageEffect(effect)->unref();
 }
 
 void GrPaint::addColorTextureEffect(GrTexture* texture,
                                     const SkMatrix& matrix,
                                     const GrTextureParams& params) {
-    this->addColorEffect(GrSimpleTextureEffect::Create(texture, matrix, params))->unref();
+    GrEffectRef* effect = GrSimpleTextureEffect::Create(texture, matrix, params);
+    this->addColorEffect(effect)->unref();
 }
 
 void GrPaint::addCoverageTextureEffect(GrTexture* texture,
                                        const SkMatrix& matrix,
                                        const GrTextureParams& params) {
-    this->addCoverageEffect(GrSimpleTextureEffect::Create(texture, matrix, params))->unref();
+    GrEffectRef* effect = GrSimpleTextureEffect::Create(texture, matrix, params);
+    this->addCoverageEffect(effect)->unref();
 }
 
 bool GrPaint::isOpaque() const {
@@ -56,7 +60,7 @@ bool GrPaint::getOpaqueAndKnownColor(GrColor* solidColor,
     uint32_t coverageComps = kRGBA_GrColorComponentFlags;
     int count = fCoverageStages.count();
     for (int i = 0; i < count; ++i) {
-        fCoverageStages[i].getEffect()->getConstantColorComponents(&coverage, &coverageComps);
+        (*fCoverageStages[i].getEffect())->getConstantColorComponents(&coverage, &coverageComps);
     }
     if (kRGBA_GrColorComponentFlags != coverageComps || 0xffffffff != coverage) {
         return false;
@@ -66,7 +70,7 @@ bool GrPaint::getOpaqueAndKnownColor(GrColor* solidColor,
     uint32_t colorComps = kRGBA_GrColorComponentFlags;
     count = fColorStages.count();
     for (int i = 0; i < count; ++i) {
-        fColorStages[i].getEffect()->getConstantColorComponents(&color, &colorComps);
+        (*fColorStages[i].getEffect())->getConstantColorComponents(&color, &colorComps);
     }
 
     SkASSERT((NULL == solidColor) == (NULL == solidColorKnownComponents));
@@ -100,7 +104,7 @@ bool GrPaint::getOpaqueAndKnownColor(GrColor* solidColor,
                 case kDA_GrBlendCoeff:
                 case kIDA_GrBlendCoeff:
                 default:
-                    SkFAIL("srcCoeff should not refer to src or dst.");
+                    GrCrash("srcCoeff should not refer to src or dst.");
                     break;
 
                 // TODO: update this once GrPaint actually has a const color.

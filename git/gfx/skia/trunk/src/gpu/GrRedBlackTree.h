@@ -40,7 +40,7 @@ public:
  * will be created and used for all comparisons.
  */
 template <typename T, typename C = GrLess<T> >
-class GrRedBlackTree : SkNoncopyable {
+class GrRedBlackTree : public SkNoncopyable {
 public:
     /**
      * Creates an empty tree.

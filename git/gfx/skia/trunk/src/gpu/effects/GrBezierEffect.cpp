@@ -8,7 +8,6 @@
 #include "GrBezierEffect.h"
 
 #include "gl/GrGLEffect.h"
-#include "gl/GrGLShaderBuilder.h"
 #include "gl/GrGLSL.h"
 #include "gl/GrGLVertexEffect.h"
 #include "GrTBackendEffectFactory.h"
@@ -19,13 +18,13 @@ public:
 
     virtual void emitCode(GrGLFullShaderBuilder* builder,
                           const GrDrawEffect& drawEffect,
-                          const GrEffectKey& key,
+                          EffectKey key,
                           const char* outputColor,
                           const char* inputColor,
                           const TransformedCoordsArray&,
                           const TextureSamplerArray&) SK_OVERRIDE;
 
-    static inline void GenKey(const GrDrawEffect&, const GrGLCaps&, GrEffectKeyBuilder*);
+    static inline EffectKey GenKey(const GrDrawEffect&, const GrGLCaps&);
 
     virtual void setData(const GrGLUniformManager&, const GrDrawEffect&) SK_OVERRIDE {}
 
@@ -44,7 +43,7 @@ GrGLConicEffect::GrGLConicEffect(const GrBackendEffectFactory& factory,
 
 void GrGLConicEffect::emitCode(GrGLFullShaderBuilder* builder,
                                const GrDrawEffect& drawEffect,
-                               const GrEffectKey& key,
+                               EffectKey key,
                                const char* outputColor,
                                const char* inputColor,
                                const TransformedCoordsArray&,
@@ -110,18 +109,16 @@ void GrGLConicEffect::emitCode(GrGLFullShaderBuilder* builder,
             break;
         }
         default:
-            SkFAIL("Shouldn't get here");
+            GrCrash("Shouldn't get here");
     }
 
     builder->fsCodeAppendf("\t%s = %s;\n", outputColor,
                            (GrGLSLExpr4(inputColor) * GrGLSLExpr1("edgeAlpha")).c_str());
 }
 
-void GrGLConicEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&,
-                             GrEffectKeyBuilder* b) {
+GrGLEffect::EffectKey GrGLConicEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&) {
     const GrConicEffect& ce = drawEffect.castEffect<GrConicEffect>();
-    uint32_t key = ce.isAntiAliased() ? (ce.isFilled() ? 0x0 : 0x1) : 0x2;
-    b->add32(key);
+    return ce.isAntiAliased() ? (ce.isFilled() ? 0x0 : 0x1) : 0x2;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -146,11 +143,11 @@ bool GrConicEffect::onIsEqual(const GrEffect& other) const {
 
 GR_DEFINE_EFFECT_TEST(GrConicEffect);
 
-GrEffect* GrConicEffect::TestCreate(SkRandom* random,
-                                    GrContext*,
-                                    const GrDrawTargetCaps& caps,
-                                    GrTexture*[]) {
-    GrEffect* effect;
+GrEffectRef* GrConicEffect::TestCreate(SkRandom* random,
+                                             GrContext*,
+                                             const GrDrawTargetCaps& caps,
+                                             GrTexture*[]) {
+    GrEffectRef* effect;
     do {
         GrEffectEdgeType edgeType = static_cast<GrEffectEdgeType>(
                                                     random->nextULessThan(kGrEffectEdgeTypeCnt));
@@ -169,13 +166,13 @@ public:
 
     virtual void emitCode(GrGLFullShaderBuilder* builder,
                           const GrDrawEffect& drawEffect,
-                          const GrEffectKey& key,
+                          EffectKey key,
                           const char* outputColor,
                           const char* inputColor,
                           const TransformedCoordsArray&,
                           const TextureSamplerArray&) SK_OVERRIDE;
 
-    static inline void GenKey(const GrDrawEffect&, const GrGLCaps&, GrEffectKeyBuilder*);
+    static inline EffectKey GenKey(const GrDrawEffect&, const GrGLCaps&);
 
     virtual void setData(const GrGLUniformManager&, const GrDrawEffect&) SK_OVERRIDE {}
 
@@ -194,7 +191,7 @@ GrGLQuadEffect::GrGLQuadEffect(const GrBackendEffectFactory& factory,
 
 void GrGLQuadEffect::emitCode(GrGLFullShaderBuilder* builder,
                               const GrDrawEffect& drawEffect,
-                              const GrEffectKey& key,
+                              EffectKey key,
                               const char* outputColor,
                               const char* inputColor,
                               const TransformedCoordsArray&,
@@ -247,7 +244,7 @@ void GrGLQuadEffect::emitCode(GrGLFullShaderBuilder* builder,
             break;
         }
         default:
-            SkFAIL("Shouldn't get here");
+            GrCrash("Shouldn't get here");
     }
 
     builder->fsCodeAppendf("\t%s = %s;\n", outputColor,
@@ -257,11 +254,9 @@ void GrGLQuadEffect::emitCode(GrGLFullShaderBuilder* builder,
     builder->vsCodeAppendf("\t%s = %s;\n", vsName, attrName->c_str());
 }
 
-void GrGLQuadEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&,
-                            GrEffectKeyBuilder* b) {
+GrGLEffect::EffectKey GrGLQuadEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&) {
     const GrQuadEffect& ce = drawEffect.castEffect<GrQuadEffect>();
-    uint32_t key = ce.isAntiAliased() ? (ce.isFilled() ? 0x0 : 0x1) : 0x2;
-    b->add32(key);
+    return ce.isAntiAliased() ? (ce.isFilled() ? 0x0 : 0x1) : 0x2;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -286,11 +281,11 @@ bool GrQuadEffect::onIsEqual(const GrEffect& other) const {
 
 GR_DEFINE_EFFECT_TEST(GrQuadEffect);
 
-GrEffect* GrQuadEffect::TestCreate(SkRandom* random,
-                                   GrContext*,
-                                   const GrDrawTargetCaps& caps,
-                                   GrTexture*[]) {
-    GrEffect* effect;
+GrEffectRef* GrQuadEffect::TestCreate(SkRandom* random,
+                                             GrContext*,
+                                             const GrDrawTargetCaps& caps,
+                                             GrTexture*[]) {
+    GrEffectRef* effect;
     do {
         GrEffectEdgeType edgeType = static_cast<GrEffectEdgeType>(
                                                     random->nextULessThan(kGrEffectEdgeTypeCnt));
@@ -309,13 +304,13 @@ public:
 
     virtual void emitCode(GrGLFullShaderBuilder* builder,
                           const GrDrawEffect& drawEffect,
-                          const GrEffectKey& key,
+                          EffectKey key,
                           const char* outputColor,
                           const char* inputColor,
                           const TransformedCoordsArray&,
                           const TextureSamplerArray&) SK_OVERRIDE;
 
-    static inline void GenKey(const GrDrawEffect&, const GrGLCaps&, GrEffectKeyBuilder*);
+    static inline EffectKey GenKey(const GrDrawEffect&, const GrGLCaps&);
 
     virtual void setData(const GrGLUniformManager&, const GrDrawEffect&) SK_OVERRIDE {}
 
@@ -334,7 +329,7 @@ GrGLCubicEffect::GrGLCubicEffect(const GrBackendEffectFactory& factory,
 
 void GrGLCubicEffect::emitCode(GrGLFullShaderBuilder* builder,
                                const GrDrawEffect& drawEffect,
-                               const GrEffectKey& key,
+                               EffectKey key,
                                const char* outputColor,
                                const char* inputColor,
                                const TransformedCoordsArray&,
@@ -400,18 +395,16 @@ void GrGLCubicEffect::emitCode(GrGLFullShaderBuilder* builder,
             break;
         }
         default:
-            SkFAIL("Shouldn't get here");
+            GrCrash("Shouldn't get here");
     }
 
     builder->fsCodeAppendf("\t%s = %s;\n", outputColor,
                            (GrGLSLExpr4(inputColor) * GrGLSLExpr1("edgeAlpha")).c_str());
 }
 
-void GrGLCubicEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&,
-                             GrEffectKeyBuilder* b) {
+GrGLEffect::EffectKey GrGLCubicEffect::GenKey(const GrDrawEffect& drawEffect, const GrGLCaps&) {
     const GrCubicEffect& ce = drawEffect.castEffect<GrCubicEffect>();
-    uint32_t key = ce.isAntiAliased() ? (ce.isFilled() ? 0x0 : 0x1) : 0x2;
-    b->add32(key);
+    return ce.isAntiAliased() ? (ce.isFilled() ? 0x0 : 0x1) : 0x2;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -436,11 +429,11 @@ bool GrCubicEffect::onIsEqual(const GrEffect& other) const {
 
 GR_DEFINE_EFFECT_TEST(GrCubicEffect);
 
-GrEffect* GrCubicEffect::TestCreate(SkRandom* random,
-                                    GrContext*,
-                                    const GrDrawTargetCaps& caps,
-                                    GrTexture*[]) {
-    GrEffect* effect;
+GrEffectRef* GrCubicEffect::TestCreate(SkRandom* random,
+                                             GrContext*,
+                                             const GrDrawTargetCaps& caps,
+                                             GrTexture*[]) {
+    GrEffectRef* effect;
     do {
         GrEffectEdgeType edgeType = static_cast<GrEffectEdgeType>(
                                                     random->nextULessThan(kGrEffectEdgeTypeCnt));

@@ -71,15 +71,15 @@ static void Index8_To_ARGB(const uint8_t* in, uint8_t* argb, int width,
   }
 }
 
-static ScanlineImporter ChooseImporter(SkColorType ct) {
-    switch (ct) {
-        case kN32_SkColorType:
+static ScanlineImporter ChooseImporter(const SkBitmap::Config& config) {
+    switch (config) {
+        case SkBitmap::kARGB_8888_Config:
             return ARGB_8888_To_ARGB;
-        case kRGB_565_SkColorType:
+        case SkBitmap::kRGB_565_Config:
             return RGB_565_To_ARGB;
-        case kARGB_4444_SkColorType:
+        case SkBitmap::kARGB_4444_Config:
             return ARGB_4444_To_ARGB;
-        case kIndex_8_SkColorType:
+        case SkBitmap::kIndex8_Config:
             return Index8_To_ARGB;
         default:
             return NULL;
@@ -87,7 +87,8 @@ static ScanlineImporter ChooseImporter(SkColorType ct) {
 }
 
 bool SkARGBImageEncoder::onEncode(SkWStream* stream, const SkBitmap& bitmap, int) {
-    const ScanlineImporter scanline_import = ChooseImporter(bitmap.colorType());
+    const SkBitmap::Config config = bitmap.config();
+    const ScanlineImporter scanline_import = ChooseImporter(config);
     if (NULL == scanline_import) {
         return false;
     }

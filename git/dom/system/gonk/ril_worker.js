@@ -1589,7 +1589,8 @@ RilObject.prototype = {
       return;
     }
 
-    if (this.voiceRegistrationState.emergencyCallsOnly) {
+    if (this.voiceRegistrationState.emergencyCallsOnly ||
+        options.isDialEmergency) {
       onerror(RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER]);
       return;
     }
@@ -1614,7 +1615,6 @@ RilObject.prototype = {
     }
 
     options.request = REQUEST_DIAL;
-    options.isEmergency = false;
     this.sendDialRequest(options);
   },
 
@@ -1637,8 +1637,6 @@ RilObject.prototype = {
 
     options.request = RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL ?
                       REQUEST_DIAL_EMERGENCY_CALL : REQUEST_DIAL;
-    options.isEmergency = true;
-
     if (this.radioState == GECKO_RADIOSTATE_OFF) {
       if (DEBUG) {
         this.context.debug("Automatically enable radio for an emergency call.");
@@ -4109,6 +4107,10 @@ RilObject.prototype = {
       newCall.isOutgoing = false;
     } else if (newCall.state == CALL_STATE_DIALING) {
       newCall.isOutgoing = true;
+    }
+
+    if (newCall.isEmergency === undefined) {
+      newCall.isEmergency = false;
     }
 
     // Set flag for conference.

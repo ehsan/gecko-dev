@@ -106,7 +106,7 @@ static HRESULT create_id(wchar_t* buffer, size_t bufferSize,
 
 static SkBitmap make_fake_bitmap(int width, int height) {
     SkBitmap bitmap;
-    bitmap.setInfo(SkImageInfo::MakeUnknown(width, height));
+    bitmap.setConfig(SkImageInfo::MakeUnknown(width, height));
     return bitmap;
 }
 
@@ -1589,7 +1589,11 @@ HRESULT SkXPSDevice::applyMask(const SkDraw& d,
     xy[1] = (SkShader::TileMode)3;
 
     SkBitmap bm;
-    bm.installMaskPixels(mask);
+    bm.setConfig(SkBitmap::kA8_Config,
+                 mask.fBounds.width(),
+                 mask.fBounds.height(),
+                 mask.fRowBytes);
+    bm.setPixels(mask.fImage);
 
     SkTScopedComPtr<IXpsOMTileBrush> maskBrush;
     HR(this->createXpsImageBrush(bm, m, xy, 0xFF, &maskBrush));
@@ -1692,7 +1696,9 @@ void SkXPSDevice::drawPath(const SkDraw& d,
             }
             platonicPath.transform(*prePathMatrix, skeletalPath);
         } else {
-            matrix.preConcat(*prePathMatrix);
+            if (!matrix.preConcat(*prePathMatrix)) {
+                return;
+            }
         }
     }
 
@@ -2249,7 +2255,7 @@ static void text_draw_init(const SkPaint& paint,
             numGlyphGuess = byteLength / 2;
             break;
         default:
-            SK_ALWAYSBREAK(true);
+            SK_DEBUGBREAK(true);
     }
     procs.xpsGlyphs.setReserve(numGlyphGuess);
     procs.glyphUse = &glyphsUsed;
@@ -2402,6 +2408,11 @@ void SkXPSDevice::drawDevice(const SkDraw& d, SkBaseDevice* dev,
          "Could not get current visuals for layer.");
     HRVM(currentVisuals->Append(that->fCurrentXpsCanvas.get()),
          "Could not add layer to current visuals.");
+}
+
+bool SkXPSDevice::onReadPixels(const SkBitmap& bitmap, int x, int y,
+                               SkCanvas::Config8888) {
+    return false;
 }
 
 SkBaseDevice* SkXPSDevice::onCreateDevice(const SkImageInfo&, Usage) {

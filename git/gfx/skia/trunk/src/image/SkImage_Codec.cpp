@@ -41,7 +41,8 @@ SkImage_Codec::~SkImage_Codec() {
 
 void SkImage_Codec::onDraw(SkCanvas* canvas, SkScalar x, SkScalar y, const SkPaint* paint) {
     if (!fBitmap.pixelRef()) {
-        if (!SkImageDecoder::DecodeMemory(fEncodedData->bytes(), fEncodedData->size(), &fBitmap)) {
+        if (!SkImageDecoder::DecodeMemory(fEncodedData->bytes(), fEncodedData->size(),
+                                          &fBitmap)) {
             return;
         }
     }
@@ -51,7 +52,8 @@ void SkImage_Codec::onDraw(SkCanvas* canvas, SkScalar x, SkScalar y, const SkPai
 void SkImage_Codec::onDrawRectToRect(SkCanvas* canvas, const SkRect* src,
                                      const SkRect& dst, const SkPaint* paint) {
     if (!fBitmap.pixelRef()) {
-        if (!SkImageDecoder::DecodeMemory(fEncodedData->bytes(), fEncodedData->size(), &fBitmap)) {
+        if (!SkImageDecoder::DecodeMemory(fEncodedData->bytes(), fEncodedData->size(),
+                                          &fBitmap)) {
             return;
         }
     }
@@ -66,7 +68,8 @@ SkImage* SkImage::NewEncodedData(SkData* data) {
     }
 
     SkBitmap bitmap;
-    if (!SkImageDecoder::DecodeMemory(data->bytes(), data->size(), &bitmap, kUnknown_SkColorType,
+    if (!SkImageDecoder::DecodeMemory(data->bytes(), data->size(), &bitmap,
+                                      SkBitmap::kNo_Config,
                                       SkImageDecoder::kDecodeBounds_Mode)) {
         return NULL;
     }

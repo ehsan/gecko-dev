@@ -150,16 +150,11 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsFileControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+nsFileControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                              uint32_t aFilter)
 {
-  if (mBrowse) {
-    aElements.AppendElement(mBrowse);
-  }
-
-  if (mTextContent) {
-    aElements.AppendElement(mTextContent);
-  }
+  aElements.MaybeAppendElement(mBrowse);
+  aElements.MaybeAppendElement(mTextContent);
 }
 
 NS_QUERYFRAME_HEAD(nsFileControlFrame)

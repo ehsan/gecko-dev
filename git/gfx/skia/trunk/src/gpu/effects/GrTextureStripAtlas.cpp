@@ -17,17 +17,17 @@
     #define VALIDATE
 #endif
 
-class GrTextureStripAtlas::Hash : public SkTDynamicHash<GrTextureStripAtlas::AtlasEntry, 
-                                                        GrTextureStripAtlas::AtlasEntry::Key> {};
-
 int32_t GrTextureStripAtlas::gCacheCount = 0;
 
-GrTextureStripAtlas::Hash* GrTextureStripAtlas::gAtlasCache = NULL;
+GrTHashTable<GrTextureStripAtlas::AtlasEntry,
+                GrTextureStripAtlas::AtlasHashKey, 8>*
+                            GrTextureStripAtlas::gAtlasCache = NULL;
 
-GrTextureStripAtlas::Hash* GrTextureStripAtlas::GetCache() {
+GrTHashTable<GrTextureStripAtlas::AtlasEntry, GrTextureStripAtlas::AtlasHashKey, 8>*
+GrTextureStripAtlas::GetCache() {
 
     if (NULL == gAtlasCache) {
-        gAtlasCache = SkNEW(Hash);
+        gAtlasCache = SkNEW((GrTHashTable<AtlasEntry, AtlasHashKey, 8>));
     }
 
     return gAtlasCache;
@@ -40,7 +40,7 @@ void GrTextureStripAtlas::CleanUp(const GrContext*, void* info) {
     AtlasEntry* entry = static_cast<AtlasEntry*>(info);
 
     // remove the cache entry
-    GetCache()->remove(entry->fKey);
+    GetCache()->remove(entry->fKey, entry);
 
     // remove the actual entry
     SkDELETE(entry);
@@ -52,7 +52,7 @@ void GrTextureStripAtlas::CleanUp(const GrContext*, void* info) {
 }
 
 GrTextureStripAtlas* GrTextureStripAtlas::GetAtlas(const GrTextureStripAtlas::Desc& desc) {
-    AtlasEntry::Key key;
+    AtlasHashKey key;
     key.setKeyData(desc.asKey());
     AtlasEntry* entry = GetCache()->find(key);
     if (NULL == entry) {
@@ -63,7 +63,7 @@ GrTextureStripAtlas* GrTextureStripAtlas::GetAtlas(const GrTextureStripAtlas::De
 
         desc.fContext->addCleanUp(CleanUp, entry);
 
-        GetCache()->add(entry);
+        GetCache()->insert(key, entry);
     }
 
     return entry->fAtlas;
@@ -158,7 +158,7 @@ int GrTextureStripAtlas::lockRow(const SkBitmap& data) {
         fDesc.fContext->writeTexturePixels(fTexture,
                                            0,  rowNumber * fDesc.fRowHeight,
                                            fDesc.fWidth, fDesc.fRowHeight,
-                                           SkImageInfo2GrPixelConfig(data.info()),
+                                           SkBitmapConfig2GrPixelConfig(data.config()),
                                            data.getPixels(),
                                            data.rowBytes(),
                                            GrContext::kDontFlush_PixelOpsFlag);

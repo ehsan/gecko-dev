@@ -28,7 +28,7 @@
  * factory is destroyed (though the caller can always grab a ref on the returned
  * Gr and GL contexts to make them outlive the factory).
  */
-class GrContextFactory : SkNoncopyable {
+class GrContextFactory : public SkNoncopyable {
 public:
     /**
      * Types of GL contexts supported. For historical and testing reasons the native GrContext will
@@ -84,11 +84,12 @@ public:
             case kDebug_GLContextType:
                 return "debug";
             default:
-                SkFAIL("Unknown GL Context type.");
+                GrCrash("Unknown GL Context type.");
         }
     }
 
-    GrContextFactory() { }
+    GrContextFactory() {
+    }
 
     ~GrContextFactory() { this->destroyContexts(); }
 
@@ -104,12 +105,9 @@ public:
     /**
      * Get a GrContext initialized with a type of GL context. It also makes the GL context current.
      */
-    GrContext* get(GLContextType type, GrGLStandard forcedGpuAPI = kNone_GrGLStandard) {
-        for (int i = 0; i < fContexts.count(); ++i) {
-            if (forcedGpuAPI != kNone_GrGLStandard &&
-                forcedGpuAPI != fContexts[i].fGLContext->gl()->fStandard)
-                continue;
+    GrContext* get(GLContextType type) {
 
+        for (int i = 0; i < fContexts.count(); ++i) {
             if (fContexts[i].fType == type) {
                 fContexts[i].fGLContext->makeCurrent();
                 return fContexts[i].fGrContext;
@@ -143,7 +141,7 @@ public:
         if (!glCtx.get()) {
             return NULL;
         }
-        if (!glCtx.get()->init(forcedGpuAPI, kBogusSize, kBogusSize)) {
+        if (!glCtx.get()->init(kBogusSize, kBogusSize)) {
             return NULL;
         }
 

@@ -335,10 +335,10 @@ public:
     }
 
 private:
-    struct HashTraits {
-        static const SkFlatData& GetKey(const SkFlatData& flat) { return flat; }
-        static uint32_t Hash(const SkFlatData& flat) { return flat.checksum(); }
-    };
+    // For SkTDynamicHash.
+    static const SkFlatData& Identity(const SkFlatData& flat) { return flat; }
+    static uint32_t Hash(const SkFlatData& flat) { return flat.checksum(); }
+    static bool Equal(const SkFlatData& a, const SkFlatData& b) { return a == b; }
 
     void setIndex(int index) { fIndex = index; }
     uint8_t* data() { return (uint8_t*)this + sizeof(*this); }
@@ -529,7 +529,7 @@ private:
         // Reinterpret data in fScratch as an SkFlatData.
         SkFlatData* scratch = (SkFlatData*)fScratch.getWriter32()->contiguousArray();
         SkASSERT(scratch != NULL);
-        scratch->stampHeader(index, SkToS32(dataSize));
+        scratch->stampHeader(index, dataSize);
         return *scratch;
     }
 
@@ -564,7 +564,8 @@ private:
     SkTDArray<const SkFlatData*> fIndexedData;
 
     // For SkFlatData -> cached SkFlatData, which has index().
-    SkTDynamicHash<SkFlatData, SkFlatData, SkFlatData::HashTraits> fHash;
+    SkTDynamicHash<SkFlatData, SkFlatData,
+                   SkFlatData::Identity, SkFlatData::Hash, SkFlatData::Equal> fHash;
 };
 
 typedef SkFlatDictionary<SkPaint, SkPaint::FlatteningTraits> SkPaintDictionary;

@@ -16,13 +16,6 @@
 #include "GrContext.h"
 #endif
 
-// This rather arbitrary-looking value results in a maximum box blur kernel size
-// of 1000 pixels on the raster path, which matches the WebKit and Firefox
-// implementations. Since the GPU path does not compute a box blur, putting
-// the limit on sigma ensures consistent behaviour between the GPU and
-// raster paths.
-#define MAX_SIGMA SkIntToScalar(532)
-
 SkBlurImageFilter::SkBlurImageFilter(SkReadBuffer& buffer)
   : INHERITED(1, buffer) {
     fSigma.fWidth = buffer.readScalar();
@@ -37,7 +30,7 @@ SkBlurImageFilter::SkBlurImageFilter(SkScalar sigmaX,
                                      SkScalar sigmaY,
                                      SkImageFilter* input,
                                      const CropRect* cropRect)
-    : INHERITED(1, &input, cropRect), fSigma(SkSize::Make(sigmaX, sigmaY)) {
+    : INHERITED(input, cropRect), fSigma(SkSize::Make(sigmaX, sigmaY)) {
     SkASSERT(sigmaX >= 0 && sigmaY >= 0);
 }
 
@@ -149,7 +142,7 @@ bool SkBlurImageFilter::onFilterImage(Proxy* proxy,
         return false;
     }
 
-    if (src.colorType() != kN32_SkColorType) {
+    if (src.colorType() != kPMColor_SkColorType) {
         return false;
     }
 
@@ -163,15 +156,14 @@ bool SkBlurImageFilter::onFilterImage(Proxy* proxy,
         return false;
     }
 
-    if (!dst->allocPixels(src.info().makeWH(srcBounds.width(), srcBounds.height()))) {
+    dst->setConfig(src.config(), srcBounds.width(), srcBounds.height());
+    dst->getBounds(&dstBounds);
+    if (!dst->allocPixels()) {
         return false;
     }
-    dst->getBounds(&dstBounds);
 
-    SkVector sigma = SkVector::Make(fSigma.width(), fSigma.height());
-    ctx.ctm().mapVectors(&sigma, 1);
-    sigma.fX = SkMinScalar(sigma.fX, MAX_SIGMA);
-    sigma.fY = SkMinScalar(sigma.fY, MAX_SIGMA);
+    SkVector sigma, localSigma = SkVector::Make(fSigma.width(), fSigma.height());
+    ctx.ctm().mapVectors(&sigma, &localSigma, 1);
 
     int kernelSizeX, kernelSizeX3, lowOffsetX, highOffsetX;
     int kernelSizeY, kernelSizeY3, lowOffsetY, highOffsetY;
@@ -190,7 +182,8 @@ bool SkBlurImageFilter::onFilterImage(Proxy* proxy,
     }
 
     SkBitmap temp;
-    if (!temp.allocPixels(dst->info())) {
+    temp.setConfig(dst->config(), dst->width(), dst->height());
+    if (!temp.allocPixels()) {
         return false;
     }
 
@@ -247,8 +240,8 @@ bool SkBlurImageFilter::onFilterBounds(const SkIRect& src, const SkMatrix& ctm,
     if (getInput(0) && !getInput(0)->filterBounds(src, ctm, &bounds)) {
         return false;
     }
-    SkVector sigma = SkVector::Make(fSigma.width(), fSigma.height());
-    ctm.mapVectors(&sigma, 1);
+    SkVector sigma, localSigma = SkVector::Make(fSigma.width(), fSigma.height());
+    ctm.mapVectors(&sigma, &localSigma, 1);
     bounds.outset(SkScalarCeilToInt(SkScalarMul(sigma.x(), SkIntToScalar(3))),
                   SkScalarCeilToInt(SkScalarMul(sigma.y(), SkIntToScalar(3))));
     *dst = bounds;
@@ -268,10 +261,8 @@ bool SkBlurImageFilter::filterImageGPU(Proxy* proxy, const SkBitmap& src, const 
         return false;
     }
     GrTexture* source = input.getTexture();
-    SkVector sigma = SkVector::Make(fSigma.width(), fSigma.height());
-    ctx.ctm().mapVectors(&sigma, 1);
-    sigma.fX = SkMinScalar(sigma.fX, MAX_SIGMA);
-    sigma.fY = SkMinScalar(sigma.fY, MAX_SIGMA);
+    SkVector sigma, localSigma = SkVector::Make(fSigma.width(), fSigma.height());
+    ctx.ctm().mapVectors(&sigma, &localSigma, 1);
     offset->fX = rect.fLeft;
     offset->fY = rect.fTop;
     rect.offset(-srcOffset);

@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
@@ -5,10 +6,11 @@
  * found in the LICENSE file.
  */
 
+
 #ifndef SkDrawBlur_DEFINED
 #define SkDrawBlur_DEFINED
 
-#include "SkPaintPart.h"
+#include "SkPaintParts.h"
 #include "SkBlurMaskFilter.h"
 
 class SkDrawBlur : public SkDrawMaskFilter {
@@ -17,7 +19,7 @@ class SkDrawBlur : public SkDrawMaskFilter {
     virtual SkMaskFilter* getMaskFilter() SK_OVERRIDE;
 protected:
     SkScalar fSigma;
-    int /*SkBlurStyle*/ fBlurStyle;
+    int /*SkBlurMaskFilter::BlurStyle*/ fBlurStyle;
 
     typedef SkDrawMaskFilter INHERITED;
 };

@@ -27,17 +27,16 @@ static bool skip_compression(SkPDFCatalog* catalog) {
 
 static size_t get_uncompressed_size(const SkBitmap& bitmap,
                                     const SkIRect& srcRect) {
-    switch (bitmap.colorType()) {
-        case kIndex_8_SkColorType:
+    switch (bitmap.config()) {
+        case SkBitmap::kIndex8_Config:
             return srcRect.width() * srcRect.height();
-        case kARGB_4444_SkColorType:
+        case SkBitmap::kARGB_4444_Config:
             return ((srcRect.width() * 3 + 1) / 2) * srcRect.height();
-        case kRGB_565_SkColorType:
+        case SkBitmap::kRGB_565_Config:
             return srcRect.width() * 3 * srcRect.height();
-        case kRGBA_8888_SkColorType:
-        case kBGRA_8888_SkColorType:
+        case SkBitmap::kARGB_8888_Config:
             return srcRect.width() * 3 * srcRect.height();
-        case kAlpha_8_SkColorType:
+        case SkBitmap::kA8_Config:
             return 1;
         default:
             SkASSERT(false);
@@ -209,9 +208,9 @@ static SkStream* create_black_image() {
 static SkStream* extract_image_data(const SkBitmap& bitmap,
                                     const SkIRect& srcRect,
                                     bool extractAlpha, bool* isTransparent) {
-    SkColorType colorType = bitmap.colorType();
-    if (extractAlpha && (kIndex_8_SkColorType == colorType ||
-                         kRGB_565_SkColorType == colorType)) {
+    SkBitmap::Config config = bitmap.config();
+    if (extractAlpha && (config == SkBitmap::kIndex8_Config ||
+            config == SkBitmap::kRGB_565_Config)) {
         if (isTransparent != NULL) {
             *isTransparent = false;
         }
@@ -222,26 +221,26 @@ static SkStream* extract_image_data(const SkBitmap& bitmap,
     SkStream* stream = NULL;
 
     bitmap.lockPixels();
-    switch (colorType) {
-        case kIndex_8_SkColorType:
+    switch (config) {
+        case SkBitmap::kIndex8_Config:
             if (!extractAlpha) {
                 stream = extract_index8_image(bitmap, srcRect);
             }
             break;
-        case kARGB_4444_SkColorType:
+        case SkBitmap::kARGB_4444_Config:
             stream = extract_argb4444_data(bitmap, srcRect, extractAlpha,
                                            &isOpaque, &transparent);
             break;
-        case kRGB_565_SkColorType:
+        case SkBitmap::kRGB_565_Config:
             if (!extractAlpha) {
                 stream = extract_rgb565_image(bitmap, srcRect);
             }
             break;
-        case kN32_SkColorType:
+        case SkBitmap::kARGB_8888_Config:
             stream = extract_argb8888_data(bitmap, srcRect, extractAlpha,
                                            &isOpaque, &transparent);
             break;
-        case kAlpha_8_SkColorType:
+        case SkBitmap::kA8_Config:
             if (!extractAlpha) {
                 stream = create_black_image();
             } else {
@@ -374,13 +373,14 @@ static uint16_t get_argb4444_neighbor_avg_color(const SkBitmap& bitmap,
 static SkBitmap unpremultiply_bitmap(const SkBitmap& bitmap,
                                      const SkIRect& srcRect) {
     SkBitmap outBitmap;
-    outBitmap.allocPixels(bitmap.info().makeWH(srcRect.width(), srcRect.height()));
+    outBitmap.setConfig(bitmap.config(), srcRect.width(), srcRect.height());
+    outBitmap.allocPixels();
     int dstRow = 0;
 
     outBitmap.lockPixels();
     bitmap.lockPixels();
-    switch (bitmap.colorType()) {
-        case kARGB_4444_SkColorType: {
+    switch (bitmap.config()) {
+        case SkBitmap::kARGB_4444_Config: {
             for (int y = srcRect.fTop; y < srcRect.fBottom; y++) {
                 uint16_t* dst = outBitmap.getAddr16(0, dstRow);
                 uint16_t* src = bitmap.getAddr16(0, y);
@@ -408,7 +408,7 @@ static SkBitmap unpremultiply_bitmap(const SkBitmap& bitmap,
             }
             break;
         }
-        case kN32_SkColorType: {
+        case SkBitmap::kARGB_8888_Config: {
             for (int y = srcRect.fTop; y < srcRect.fBottom; y++) {
                 uint32_t* dst = outBitmap.getAddr32(0, dstRow);
                 uint32_t* src = bitmap.getAddr32(0, y);
@@ -440,7 +440,7 @@ static SkBitmap unpremultiply_bitmap(const SkBitmap& bitmap,
 SkPDFImage* SkPDFImage::CreateImage(const SkBitmap& bitmap,
                                     const SkIRect& srcRect,
                                     SkPicture::EncodeBitmap encoder) {
-    if (bitmap.colorType() == kUnknown_SkColorType) {
+    if (bitmap.config() == SkBitmap::kNo_Config) {
         return NULL;
     }
 
@@ -459,9 +459,9 @@ SkPDFImage* SkPDFImage::CreateImage(const SkBitmap& bitmap,
     }
 
     SkPDFImage* image;
-    SkColorType colorType = bitmap.colorType();
-    if (alphaData.get() != NULL && (kN32_SkColorType == colorType ||
-                                    kARGB_4444_SkColorType == colorType)) {
+    SkBitmap::Config config = bitmap.config();
+    if (alphaData.get() != NULL && (config == SkBitmap::kARGB_8888_Config ||
+            config == SkBitmap::kARGB_4444_Config)) {
         SkBitmap unpremulBitmap = unpremultiply_bitmap(bitmap, srcRect);
         image = SkNEW_ARGS(SkPDFImage, (NULL, unpremulBitmap, false,
                            SkIRect::MakeWH(srcRect.width(), srcRect.height()),
@@ -512,18 +512,18 @@ SkPDFImage::SkPDFImage(SkStream* stream,
     }
 
     if (stream != NULL) {
-        this->setData(stream);
+        setData(stream);
         fStreamValid = true;
     } else {
         fStreamValid = false;
     }
 
-    SkColorType colorType = fBitmap.colorType();
+    SkBitmap::Config config = fBitmap.config();
 
     insertName("Type", "XObject");
     insertName("Subtype", "Image");
 
-    bool alphaOnly = (kAlpha_8_SkColorType == colorType);
+    bool alphaOnly = (config == SkBitmap::kA8_Config);
 
     if (!isAlpha && alphaOnly) {
         // For alpha only images, we stretch a single pixel of black for
@@ -538,7 +538,7 @@ SkPDFImage::SkPDFImage(SkStream* stream,
 
     if (isAlpha || alphaOnly) {
         insertName("ColorSpace", "DeviceGray");
-    } else if (kIndex_8_SkColorType == colorType) {
+    } else if (config == SkBitmap::kIndex8_Config) {
         SkAutoLockPixels alp(fBitmap);
         insert("ColorSpace",
                make_indexed_color_space(fBitmap.getColorTable()))->unref();
@@ -547,12 +547,12 @@ SkPDFImage::SkPDFImage(SkStream* stream,
     }
 
     int bitsPerComp = 8;
-    if (kARGB_4444_SkColorType == colorType) {
+    if (config == SkBitmap::kARGB_4444_Config) {
         bitsPerComp = 4;
     }
     insertInt("BitsPerComponent", bitsPerComp);
 
-    if (kRGB_565_SkColorType == colorType) {
+    if (config == SkBitmap::kRGB_565_Config) {
         SkASSERT(!isAlpha);
         SkAutoTUnref<SkPDFInt> zeroVal(new SkPDFInt(0));
         SkAutoTUnref<SkPDFScalar> scale5Val(
@@ -592,17 +592,21 @@ bool SkPDFImage::populate(SkPDFCatalog* catalog) {
             SkBitmap subset;
             // Extract subset
             if (!fBitmap.extractSubset(&subset, fSrcRect)) {
+                // TODO(edisonn) It fails only for kA1_Config, if that is a
+                // major concern we will fix it later, so far it is NYI.
                 return false;
             }
             size_t pixelRefOffset = 0;
             SkAutoTUnref<SkData> data(fEncoder(&pixelRefOffset, subset));
             if (data.get() && data->size() < get_uncompressed_size(fBitmap,
                                                                    fSrcRect)) {
-                this->setData(data.get());
+                SkAutoTUnref<SkStream> stream(SkNEW_ARGS(SkMemoryStream,
+                                                         (data)));
+                setData(stream.get());
 
                 insertName("Filter", "DCTDecode");
                 insertInt("ColorTransform", kNoColorTransform);
-                insertInt("Length", this->dataSize());
+                insertInt("Length", getData()->getLength());
                 setState(kCompressed_State);
                 return true;
             }
@@ -611,7 +615,7 @@ bool SkPDFImage::populate(SkPDFCatalog* catalog) {
         if (!fStreamValid) {
             SkAutoTUnref<SkStream> stream(
                     extract_image_data(fBitmap, fSrcRect, fIsAlpha, NULL));
-            this->setData(stream);
+            setData(stream);
             fStreamValid = true;
         }
         return INHERITED::populate(catalog);

@@ -12,13 +12,11 @@
 #include "SkTemplates.h"
 #include "SkTypes.h"
 
-// Traits requires:
-//   static const Key& GetKey(const T&) { ... }
-//   static uint32_t Hash(const Key&) { ... }
-// We'll look on T for these by default, or you can pass a custom Traits type.
 template <typename T,
           typename Key,
-          typename Traits = T,
+          const Key& (GetKey)(const T&),
+          uint32_t (Hash)(const Key&),
+          bool (Equal)(const T&, const Key&),
           int kGrowPercent = 75>  // Larger -> more memory efficient, but slower.
 class SkTDynamicHash {
 public:
@@ -57,45 +55,17 @@ public:
         int fCurrentIndex;
     };
 
-    class ConstIter {
-    public:
-        explicit ConstIter(const SkTDynamicHash* hash) : fHash(hash), fCurrentIndex(-1) {
-            SkASSERT(hash);
-            ++(*this);
-        }
-        bool done() const {
-            SkASSERT(fCurrentIndex <= fHash->fCapacity);
-            return fCurrentIndex == fHash->fCapacity;
-        }
-        const T& operator*() const {
-            SkASSERT(!this->done());
-            return *this->current();
-        }
-        void operator++() {
-            do {
-                fCurrentIndex++;
-            } while (!this->done() && (this->current() == Empty() || this->current() == Deleted()));
-        }
-
-    private:
-        const T* current() const { return fHash->fArray[fCurrentIndex]; }
-
-        const SkTDynamicHash* fHash;
-        int fCurrentIndex;
-    };
-
     int count() const { return fCount; }
 
     // Return the entry with this key if we have it, otherwise NULL.
     T* find(const Key& key) const {
         int index = this->firstIndex(key);
         for (int round = 0; round < fCapacity; round++) {
-            SkASSERT(index >= 0 && index < fCapacity);
             T* candidate = fArray[index];
             if (Empty() == candidate) {
                 return NULL;
             }
-            if (Deleted() != candidate && GetKey(*candidate) == key) {
+            if (Deleted() != candidate && Equal(*candidate, key)) {
                 return candidate;
             }
             index = this->nextIndex(index, round);
@@ -112,27 +82,11 @@ public:
         SkASSERT(this->validate());
     }
 
-    // Remove the entry with this key.  We require that an entry with this key is present.
+    // Remove the entry with this key.  We reqire that an entry with this key is present.
     void remove(const Key& key) {
         SkASSERT(NULL != this->find(key));
         this->innerRemove(key);
         SkASSERT(this->validate());
-    }
-
-    void rewind() {
-        if (NULL != fArray) {
-            sk_bzero(fArray, sizeof(T*)* fCapacity);
-        }
-        fCount = 0;
-        fDeleted = 0;
-    }
-
-    void reset() { 
-        fCount = 0; 
-        fDeleted = 0; 
-        fCapacity = 0; 
-        sk_free(fArray); 
-        fArray = NULL; 
     }
 
 protected:
@@ -144,9 +98,8 @@ protected:
     int countCollisions(const Key& key) const {
         int index = this->firstIndex(key);
         for (int round = 0; round < fCapacity; round++) {
-            SkASSERT(index >= 0 && index < fCapacity);
             const T* candidate = fArray[index];
-            if (Empty() == candidate || Deleted() == candidate || GetKey(*candidate) == key) {
+            if (Empty() == candidate || Deleted() == candidate || Equal(*candidate, key)) {
                 return round;
             }
             index = this->nextIndex(index, round);
@@ -196,7 +149,8 @@ private:
                         continue;
                     }
                     SKTDYNAMICHASH_CHECK(fArray[i] != fArray[j]);
-                    SKTDYNAMICHASH_CHECK(!(GetKey(*fArray[i]) == GetKey(*fArray[j])));
+                    SKTDYNAMICHASH_CHECK(!Equal(*fArray[i], GetKey(*fArray[j])));
+                    SKTDYNAMICHASH_CHECK(!Equal(*fArray[j], GetKey(*fArray[i])));
                 }
             }
         }
@@ -208,7 +162,6 @@ private:
         const Key& key = GetKey(*newEntry);
         int index = this->firstIndex(key);
         for (int round = 0; round < fCapacity; round++) {
-            SkASSERT(index >= 0 && index < fCapacity);
             const T* candidate = fArray[index];
             if (Empty() == candidate || Deleted() == candidate) {
                 if (Deleted() == candidate) {
@@ -227,9 +180,8 @@ private:
         const int firstIndex = this->firstIndex(key);
         int index = firstIndex;
         for (int round = 0; round < fCapacity; round++) {
-            SkASSERT(index >= 0 && index < fCapacity);
             const T* candidate = fArray[index];
-            if (Deleted() != candidate && GetKey(*candidate) == key) {
+            if (Deleted() != candidate && Equal(*candidate, key)) {
                 fDeleted++;
                 fCount--;
                 fArray[index] = Deleted();
@@ -276,9 +228,6 @@ private:
         // This will search a power-of-two array fully without repeating an index.
         return (index + round + 1) & this->hashMask();
     }
-
-    static const Key& GetKey(const T& t) { return Traits::GetKey(t); }
-    static uint32_t Hash(const Key& key) { return Traits::Hash(key); }
 
     int fCount;     // Number of non Empty(), non Deleted() entries in fArray.
     int fDeleted;   // Number of Deleted() entries in fArray.

@@ -33,7 +33,7 @@ private:
     GrTextStrike*          fStrike;
 
     void init(const GrPaint&, const SkPaint&);
-    void drawPackedGlyph(GrGlyph::PackedID, SkFixed left, SkFixed top, GrFontScaler*);
+    void drawPackedGlyph(GrGlyph::PackedID, GrFixed left, GrFixed top, GrFontScaler*);
     void flushGlyphs();                 // automatically called by destructor
     void finish();
 
@@ -44,12 +44,11 @@ private:
         kDefaultRequestedVerts   = kDefaultRequestedGlyphs * 4,
     };
 
-    void*                       fVertices;
-    SkAutoTUnref<GrEffect>      fCachedEffect;
-    // Used to check whether fCachedEffect is still valid.
-    uint32_t                    fEffectTextureUniqueID;
-    int                         fCurrVertex;
-    SkRect                      fVertexBounds;
+    SkPoint*                fVertices;
+    int32_t                 fMaxVertices;
+    GrTexture*              fCurrTexture;
+    int                     fCurrVertex;
+    SkRect                  fVertexBounds;
 };
 
 #endif

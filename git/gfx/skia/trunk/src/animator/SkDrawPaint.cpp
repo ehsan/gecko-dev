@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
@@ -5,12 +6,13 @@
  * found in the LICENSE file.
  */
 
+
 #include "SkDrawPaint.h"
 #include "SkAnimateMaker.h"
 #include "SkDrawColor.h"
 #include "SkDrawShader.h"
 #include "SkMaskFilter.h"
-#include "SkPaintPart.h"
+#include "SkPaintParts.h"
 #include "SkPathEffect.h"
 
 enum SkPaint_Functions {

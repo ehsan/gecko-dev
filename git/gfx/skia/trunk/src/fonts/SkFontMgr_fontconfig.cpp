@@ -12,43 +12,15 @@
 #include "SkMath.h"
 #include "SkString.h"
 #include "SkTDArray.h"
-#include "SkThread.h"
 
 // for now we pull these in directly. eventually we will solely rely on the
 // SkFontConfigInterface instance.
 #include <fontconfig/fontconfig.h>
 #include <unistd.h>
 
-namespace {
-
-// Fontconfig is not threadsafe before 2.10.91.  Before that, we lock with a global mutex.
-// See skia:1497 for background.
-SK_DECLARE_STATIC_MUTEX(gFCMutex);
-static bool gFCSafeToUse;
-
-struct FCLocker {
-    FCLocker() {
-        if (FcGetVersion() < 21091) {  // We assume FcGetVersion() has always been thread safe.
-            gFCMutex.acquire();
-            fUnlock = true;
-        } else {
-            fUnlock = false;
-        }
-        gFCSafeToUse = true;
-    }
-
-    ~FCLocker() {
-        if (fUnlock) {
-            gFCSafeToUse = false;
-            gFCMutex.release();
-        }
-    }
-
-private:
-    bool fUnlock;
-};
-
-} // namespace
+// Defined in SkFontHost_FreeType.cpp
+bool find_name_and_attributes(SkStream* stream, SkString* name,
+                              SkTypeface::Style* style, bool* isFixedWidth);
 
 // borrow this global from SkFontHost_fontconfig. eventually that file should
 // go away, and be replaced with this one.
@@ -68,7 +40,6 @@ static bool is_lower(char c) {
 }
 
 static int get_int(FcPattern* pattern, const char field[]) {
-    SkASSERT(gFCSafeToUse);
     int value;
     if (FcPatternGetInteger(pattern, field, 0, &value) != FcResultMatch) {
         value = SK_MinS32;
@@ -77,7 +48,6 @@ static int get_int(FcPattern* pattern, const char field[]) {
 }
 
 static const char* get_name(FcPattern* pattern, const char field[]) {
-    SkASSERT(gFCSafeToUse);
     const char* name;
     if (FcPatternGetString(pattern, field, 0, (FcChar8**)&name) != FcResultMatch) {
         name = "";
@@ -86,7 +56,6 @@ static const char* get_name(FcPattern* pattern, const char field[]) {
 }
 
 static bool valid_pattern(FcPattern* pattern) {
-    SkASSERT(gFCSafeToUse);
     FcBool is_scalable;
     if (FcPatternGetBool(pattern, FC_SCALABLE, 0, &is_scalable) != FcResultMatch || !is_scalable) {
         return false;
@@ -239,8 +208,6 @@ protected:
     }
 
     virtual SkFontStyleSet* onMatchFamily(const char familyName[]) const SK_OVERRIDE {
-        FCLocker lock;
-
         FcPattern* pattern = FcPatternCreate();
 
         FcPatternAddString(pattern, FC_FAMILY, (FcChar8*)familyName);
@@ -302,11 +269,11 @@ protected:
         // TODO should the caller give us the style or should we get it from freetype?
         SkTypeface::Style style = SkTypeface::kNormal;
         bool isFixedWidth = false;
-        if (!SkTypeface_FreeType::ScanFont(stream, 0, NULL, &style, &isFixedWidth)) {
+        if (!find_name_and_attributes(stream, NULL, &style, &isFixedWidth)) {
             return NULL;
         }
 
-        SkTypeface* face = FontConfigTypeface::Create(style, isFixedWidth, stream);
+        SkTypeface* face = SkNEW_ARGS(FontConfigTypeface, (style, isFixedWidth, stream));
         return face;
     }
 
@@ -317,7 +284,6 @@ protected:
 
     virtual SkTypeface* onLegacyCreateTypeface(const char familyName[],
                                                unsigned styleBits) const SK_OVERRIDE {
-        FCLocker lock;
         return FontConfigTypeface::LegacyCreateTypeface(NULL, familyName,
                                                   (SkTypeface::Style)styleBits);
     }

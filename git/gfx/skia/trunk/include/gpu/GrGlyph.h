@@ -10,7 +10,6 @@
 
 #include "GrRect.h"
 #include "SkPath.h"
-#include "SkChecksum.h"
 
 class GrPlot;
 
@@ -27,7 +26,7 @@ struct GrGlyph {
     SkPath*     fPath;
     PackedID    fPackedID;
     GrIRect16   fBounds;
-    SkIPoint16  fAtlasLocation;
+    GrIPoint16  fAtlasLocation;
 
     void init(GrGlyph::PackedID packed, const SkIRect& bounds) {
         fPlot = NULL;
@@ -51,36 +50,29 @@ struct GrGlyph {
 
     ///////////////////////////////////////////////////////////////////////////
 
-    static inline unsigned ExtractSubPixelBitsFromFixed(SkFixed pos) {
+    static inline unsigned ExtractSubPixelBitsFromFixed(GrFixed pos) {
         // two most significant fraction bits from fixed-point
         return (pos >> 14) & 3;
     }
 
-    static inline PackedID Pack(uint16_t glyphID, SkFixed x, SkFixed y) {
+    static inline PackedID Pack(uint16_t glyphID, GrFixed x, GrFixed y) {
         x = ExtractSubPixelBitsFromFixed(x);
         y = ExtractSubPixelBitsFromFixed(y);
         return (x << 18) | (y << 16) | glyphID;
     }
 
-    static inline SkFixed UnpackFixedX(PackedID packed) {
+    static inline GrFixed UnpackFixedX(PackedID packed) {
         return ((packed >> 18) & 3) << 14;
     }
 
-    static inline SkFixed UnpackFixedY(PackedID packed) {
+    static inline GrFixed UnpackFixedY(PackedID packed) {
         return ((packed >> 16) & 3) << 14;
     }
 
     static inline uint16_t UnpackID(PackedID packed) {
         return (uint16_t)packed;
     }
-
-    static inline const GrGlyph::PackedID& GetKey(const GrGlyph& glyph) {
-        return glyph.fPackedID;
-    }
-
-    static inline uint32_t Hash(GrGlyph::PackedID key) {
-        return SkChecksum::Murmur3(&key, sizeof(key));
-    }
 };
+
 
 #endif

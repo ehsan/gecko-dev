@@ -66,9 +66,7 @@ public:
     /**
      * This gets the insertion count (rather than the node count)
      */
-    virtual int getCount() const SK_OVERRIDE {
-        return fEntryPool.allocated() - fEntryPool.available();
-    }
+    virtual int getCount() const SK_OVERRIDE { return fEntryCount; }
 
     virtual void rewindInserts() SK_OVERRIDE;
 
@@ -97,12 +95,12 @@ private:
 
     SkTObjectPool<Entry> fEntryPool;
     SkTObjectPool<Node> fNodePool;
+    int fEntryCount;
     Node* fRoot;
-    SkIRect fRootBounds;
     SkTInternalSList<Entry> fDeferred;
 
+    Node* pickChild(Node* node, const SkIRect& bounds) const;
     void insert(Node* node, Entry* entry);
-    void split(Node* node);
     void search(Node* node, const SkIRect& query, SkTDArray<void*>* results) const;
     void clear(Node* node);
     int getDepth(Node* node) const;

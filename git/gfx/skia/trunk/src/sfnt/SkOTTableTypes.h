@@ -48,15 +48,13 @@ public:
 
 /** SkOTSetUSHORTBit<N>::value is an SK_OT_USHORT with the Nth BE bit set. */
 template <unsigned N> struct SkOTSetUSHORTBit {
-    SK_COMPILE_ASSERT(N < 16, NTooBig);
-    static const uint16_t bit = 1u << N;
+    static const uint16_t bit = SkTSetBit<N, uint16_t>::value;
     static const SK_OT_USHORT value = SkTEndian_SwapBE16(bit);
 };
 
-/** SkOTSetULONGBit<N>::value is an SK_OT_ULONG with the Nth BE bit set. */
+/** SkOTSetUSHORTBit<N>::value is an SK_OT_ULONG with the Nth BE bit set. */
 template <unsigned N> struct SkOTSetULONGBit {
-    SK_COMPILE_ASSERT(N < 32, NTooBig);
-    static const uint32_t bit = 1u << N;
+    static const uint32_t bit = SkTSetBit<N, uint32_t>::value;
     static const SK_OT_ULONG value = SkTEndian_SwapBE32(bit);
 };
 

@@ -35,11 +35,12 @@ public:
         kAll_BlurFlag               = 0x07
     };
 
-    static SkBlurDrawLooper* Create(SkColor color, SkScalar sigma, SkScalar dx, SkScalar dy,
-                                    uint32_t flags = kNone_BlurFlag) {
-        return SkNEW_ARGS(SkBlurDrawLooper, (color, sigma, dx, dy, flags));
-    }
+    SkBlurDrawLooper(SkColor color, SkScalar sigma, SkScalar dx, SkScalar dy,
+                     uint32_t flags = kNone_BlurFlag);
 
+//    SK_ATTR_DEPRECATED("use sigma version")
+    SkBlurDrawLooper(SkScalar radius, SkScalar dx, SkScalar dy, SkColor color,
+                     uint32_t flags = kNone_BlurFlag);
     virtual ~SkBlurDrawLooper();
 
     virtual SkDrawLooper::Context* createContext(SkCanvas*, void* storage) const SK_OVERRIDE;
@@ -50,18 +51,13 @@ public:
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkBlurDrawLooper)
 
 protected:
-    SkBlurDrawLooper(SkColor color, SkScalar sigma, SkScalar dx, SkScalar dy,
-                     uint32_t flags);
-
     SkBlurDrawLooper(SkReadBuffer&);
     virtual void flatten(SkWriteBuffer&) const SK_OVERRIDE;
-
-    virtual bool asABlurShadow(BlurShadowRec*) const SK_OVERRIDE;
 
 private:
     SkMaskFilter*   fBlur;
     SkColorFilter*  fColorFilter;
-    SkScalar        fDx, fDy, fSigma;
+    SkScalar        fDx, fDy;
     SkColor         fBlurColor;
     uint32_t        fBlurFlags;
 
@@ -83,7 +79,6 @@ private:
     };
 
     void init(SkScalar sigma, SkScalar dx, SkScalar dy, SkColor color, uint32_t flags);
-    void initEffects();
 
     typedef SkDrawLooper INHERITED;
 };

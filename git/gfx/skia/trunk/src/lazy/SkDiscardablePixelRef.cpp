@@ -40,7 +40,7 @@ bool SkDiscardablePixelRef::onNewLockPixels(LockRec* rec) {
     if (fDiscardableMemory != NULL) {
         if (fDiscardableMemory->lock()) {
             rec->fPixels = fDiscardableMemory->data();
-            rec->fColorTable = fCTable.get();
+            rec->fColorTable = NULL;
             rec->fRowBytes = fRowBytes;
             return true;
         }
@@ -60,34 +60,15 @@ bool SkDiscardablePixelRef::onNewLockPixels(LockRec* rec) {
     }
 
     void* pixels = fDiscardableMemory->data();
-    const SkImageInfo& info = this->info();
-    SkPMColor colors[256];
-    int colorCount = 0;
-
-#ifdef SK_SUPPORT_LEGACY_IMAGEGENERATORAPI
-    if (!fGenerator->getPixels(info, pixels, fRowBytes)) {
-#else
-    if (!fGenerator->getPixels(info, pixels, fRowBytes, colors, &colorCount)) {
-#endif
+    if (!fGenerator->getPixels(this->info(), pixels, fRowBytes)) {
         fDiscardableMemory->unlock();
         SkDELETE(fDiscardableMemory);
         fDiscardableMemory = NULL;
         return false;
     }
 
-    // Note: our ctable is not purgable, as it is not stored in the discardablememory block.
-    // This is because SkColorTable is refcntable, and therefore our caller could hold onto it
-    // beyond the scope of a lock/unlock. If we change the API/lifecycle for SkColorTable, we
-    // could move it into the block, but then again perhaps it is small enough that this doesn't
-    // really matter.
-    if (colorCount > 0) {
-        fCTable.reset(SkNEW_ARGS(SkColorTable, (colors, colorCount)));
-    } else {
-        fCTable.reset(NULL);
-    }
-
     rec->fPixels = pixels;
-    rec->fColorTable = fCTable.get();
+    rec->fColorTable = NULL;
     rec->fRowBytes = fRowBytes;
     return true;
 }
@@ -96,13 +77,14 @@ void SkDiscardablePixelRef::onUnlockPixels() {
     fDiscardableMemory->unlock();
 }
 
-bool SkInstallDiscardablePixelRef(SkImageGenerator* generator, SkBitmap* dst,
+bool SkInstallDiscardablePixelRef(SkImageGenerator* generator,
+                                  SkBitmap* dst,
                                   SkDiscardableMemory::Factory* factory) {
     SkImageInfo info;
     SkAutoTDelete<SkImageGenerator> autoGenerator(generator);
     if ((NULL == autoGenerator.get())
         || (!autoGenerator->getInfo(&info))
-        || (!dst->setInfo(info))) {
+        || (!dst->setConfig(info, 0))) {
         return false;
     }
     SkASSERT(dst->colorType() != kUnknown_SkColorType);
@@ -114,9 +96,4 @@ bool SkInstallDiscardablePixelRef(SkImageGenerator* generator, SkBitmap* dst,
                    (info, autoGenerator.detach(), dst->rowBytes(), factory)));
     dst->setPixelRef(ref);
     return true;
-}
-
-// This is the public API
-bool SkInstallDiscardablePixelRef(SkImageGenerator* generator, SkBitmap* dst) {
-    return SkInstallDiscardablePixelRef(generator, dst, NULL);
 }

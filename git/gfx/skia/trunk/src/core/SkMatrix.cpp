@@ -7,9 +7,8 @@
 
 #include "SkMatrix.h"
 #include "SkFloatBits.h"
+#include "SkOnce.h"
 #include "SkString.h"
-
-#include <stddef.h>
 
 // In a few places, we performed the following
 //      a * b + c * d + e
@@ -248,36 +247,35 @@ void SkMatrix::setTranslate(SkScalar dx, SkScalar dy) {
     }
 }
 
-void SkMatrix::preTranslate(SkScalar dx, SkScalar dy) {
-    if (!dx && !dy) {
-        return;
-    }
-
+bool SkMatrix::preTranslate(SkScalar dx, SkScalar dy) {
     if (this->hasPerspective()) {
         SkMatrix    m;
         m.setTranslate(dx, dy);
-        this->preConcat(m);
-    } else {
+        return this->preConcat(m);
+    }
+
+    if (dx || dy) {
         fMat[kMTransX] += sdot(fMat[kMScaleX], dx, fMat[kMSkewX], dy);
         fMat[kMTransY] += sdot(fMat[kMSkewY], dx, fMat[kMScaleY], dy);
+
         this->setTypeMask(kUnknown_Mask | kOnlyPerspectiveValid_Mask);
     }
+    return true;
 }
 
-void SkMatrix::postTranslate(SkScalar dx, SkScalar dy) {
-    if (!dx && !dy) {
-        return;
-    }
-
+bool SkMatrix::postTranslate(SkScalar dx, SkScalar dy) {
     if (this->hasPerspective()) {
         SkMatrix    m;
         m.setTranslate(dx, dy);
-        this->postConcat(m);
-    } else {
+        return this->postConcat(m);
+    }
+
+    if (dx || dy) {
         fMat[kMTransX] += dx;
         fMat[kMTransY] += dy;
         this->setTypeMask(kUnknown_Mask | kOnlyPerspectiveValid_Mask);
     }
+    return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -323,19 +321,15 @@ bool SkMatrix::setIDiv(int divx, int divy) {
     return true;
 }
 
-void SkMatrix::preScale(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py) {
-    if (1 == sx && 1 == sy) {
-        return;
-    }
-
+bool SkMatrix::preScale(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py) {
     SkMatrix    m;
     m.setScale(sx, sy, px, py);
-    this->preConcat(m);
+    return this->preConcat(m);
 }
 
-void SkMatrix::preScale(SkScalar sx, SkScalar sy) {
+bool SkMatrix::preScale(SkScalar sx, SkScalar sy) {
     if (1 == sx && 1 == sy) {
-        return;
+        return true;
     }
 
     // the assumption is that these multiplies are very cheap, and that
@@ -352,24 +346,25 @@ void SkMatrix::preScale(SkScalar sx, SkScalar sy) {
     fMat[kMPersp1] *= sy;
 
     this->orTypeMask(kScale_Mask);
+    return true;
 }
 
-void SkMatrix::postScale(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py) {
+bool SkMatrix::postScale(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py) {
     if (1 == sx && 1 == sy) {
-        return;
+        return true;
     }
     SkMatrix    m;
     m.setScale(sx, sy, px, py);
-    this->postConcat(m);
+    return this->postConcat(m);
 }
 
-void SkMatrix::postScale(SkScalar sx, SkScalar sy) {
+bool SkMatrix::postScale(SkScalar sx, SkScalar sy) {
     if (1 == sx && 1 == sy) {
-        return;
+        return true;
     }
     SkMatrix    m;
     m.setScale(sx, sy);
-    this->postConcat(m);
+    return this->postConcat(m);
 }
 
 // this guy perhaps can go away, if we have a fract/high-precision way to
@@ -441,28 +436,28 @@ void SkMatrix::setRotate(SkScalar degrees) {
     this->setSinCos(sinV, cosV);
 }
 
-void SkMatrix::preRotate(SkScalar degrees, SkScalar px, SkScalar py) {
+bool SkMatrix::preRotate(SkScalar degrees, SkScalar px, SkScalar py) {
     SkMatrix    m;
     m.setRotate(degrees, px, py);
-    this->preConcat(m);
+    return this->preConcat(m);
 }
 
-void SkMatrix::preRotate(SkScalar degrees) {
+bool SkMatrix::preRotate(SkScalar degrees) {
     SkMatrix    m;
     m.setRotate(degrees);
-    this->preConcat(m);
+    return this->preConcat(m);
 }
 
-void SkMatrix::postRotate(SkScalar degrees, SkScalar px, SkScalar py) {
+bool SkMatrix::postRotate(SkScalar degrees, SkScalar px, SkScalar py) {
     SkMatrix    m;
     m.setRotate(degrees, px, py);
-    this->postConcat(m);
+    return this->postConcat(m);
 }
 
-void SkMatrix::postRotate(SkScalar degrees) {
+bool SkMatrix::postRotate(SkScalar degrees) {
     SkMatrix    m;
     m.setRotate(degrees);
-    this->postConcat(m);
+    return this->postConcat(m);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -497,28 +492,28 @@ void SkMatrix::setSkew(SkScalar sx, SkScalar sy) {
     this->setTypeMask(kUnknown_Mask | kOnlyPerspectiveValid_Mask);
 }
 
-void SkMatrix::preSkew(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py) {
+bool SkMatrix::preSkew(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py) {
     SkMatrix    m;
     m.setSkew(sx, sy, px, py);
-    this->preConcat(m);
+    return this->preConcat(m);
 }
 
-void SkMatrix::preSkew(SkScalar sx, SkScalar sy) {
+bool SkMatrix::preSkew(SkScalar sx, SkScalar sy) {
     SkMatrix    m;
     m.setSkew(sx, sy);
-    this->preConcat(m);
+    return this->preConcat(m);
 }
 
-void SkMatrix::postSkew(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py) {
+bool SkMatrix::postSkew(SkScalar sx, SkScalar sy, SkScalar px, SkScalar py) {
     SkMatrix    m;
     m.setSkew(sx, sy, px, py);
-    this->postConcat(m);
+    return this->postConcat(m);
 }
 
-void SkMatrix::postSkew(SkScalar sx, SkScalar sy) {
+bool SkMatrix::postSkew(SkScalar sx, SkScalar sy) {
     SkMatrix    m;
     m.setSkew(sx, sy);
-    this->postConcat(m);
+    return this->postConcat(m);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -593,12 +588,21 @@ bool SkMatrix::setRectToRect(const SkRect& src, const SkRect& dst,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static inline float muladdmul(float a, float b, float c, float d) {
-    return SkDoubleToFloat((double)a * b + (double)c * d);
+static inline int fixmuladdmul(float a, float b, float c, float d,
+                               float* result) {
+    *result = SkDoubleToFloat((double)a * b + (double)c * d);
+    return true;
 }
 
-static inline float rowcol3(const float row[], const float col[]) {
-    return row[0] * col[0] + row[1] * col[3] + row[2] * col[6];
+static inline bool rowcol3(const float row[], const float col[],
+                           float* result) {
+    *result = row[0] * col[0] + row[1] * col[3] + row[2] * col[6];
+    return true;
+}
+
+static inline int negifaddoverflows(float& result, float a, float b) {
+    result = a + b;
+    return 0;
 }
 
 static void normalize_perspective(SkScalar mat[9]) {
@@ -608,7 +612,7 @@ static void normalize_perspective(SkScalar mat[9]) {
     }
 }
 
-void SkMatrix::setConcat(const SkMatrix& a, const SkMatrix& b) {
+bool SkMatrix::setConcat(const SkMatrix& a, const SkMatrix& b) {
     TypeMask aType = a.getPerspectiveTypeMaskOnly();
     TypeMask bType = b.getPerspectiveTypeMaskOnly();
 
@@ -620,52 +624,73 @@ void SkMatrix::setConcat(const SkMatrix& a, const SkMatrix& b) {
         SkMatrix tmp;
 
         if ((aType | bType) & kPerspective_Mask) {
-            tmp.fMat[kMScaleX] = rowcol3(&a.fMat[0], &b.fMat[0]);
-            tmp.fMat[kMSkewX]  = rowcol3(&a.fMat[0], &b.fMat[1]);
-            tmp.fMat[kMTransX] = rowcol3(&a.fMat[0], &b.fMat[2]);
-            tmp.fMat[kMSkewY]  = rowcol3(&a.fMat[3], &b.fMat[0]);
-            tmp.fMat[kMScaleY] = rowcol3(&a.fMat[3], &b.fMat[1]);
-            tmp.fMat[kMTransY] = rowcol3(&a.fMat[3], &b.fMat[2]);
-            tmp.fMat[kMPersp0] = rowcol3(&a.fMat[6], &b.fMat[0]);
-            tmp.fMat[kMPersp1] = rowcol3(&a.fMat[6], &b.fMat[1]);
-            tmp.fMat[kMPersp2] = rowcol3(&a.fMat[6], &b.fMat[2]);
+            if (!rowcol3(&a.fMat[0], &b.fMat[0], &tmp.fMat[kMScaleX])) {
+                return false;
+            }
+            if (!rowcol3(&a.fMat[0], &b.fMat[1], &tmp.fMat[kMSkewX])) {
+                return false;
+            }
+            if (!rowcol3(&a.fMat[0], &b.fMat[2], &tmp.fMat[kMTransX])) {
+                return false;
+            }
+
+            if (!rowcol3(&a.fMat[3], &b.fMat[0], &tmp.fMat[kMSkewY])) {
+                return false;
+            }
+            if (!rowcol3(&a.fMat[3], &b.fMat[1], &tmp.fMat[kMScaleY])) {
+                return false;
+            }
+            if (!rowcol3(&a.fMat[3], &b.fMat[2], &tmp.fMat[kMTransY])) {
+                return false;
+            }
+
+            if (!rowcol3(&a.fMat[6], &b.fMat[0], &tmp.fMat[kMPersp0])) {
+                return false;
+            }
+            if (!rowcol3(&a.fMat[6], &b.fMat[1], &tmp.fMat[kMPersp1])) {
+                return false;
+            }
+            if (!rowcol3(&a.fMat[6], &b.fMat[2], &tmp.fMat[kMPersp2])) {
+                return false;
+            }
 
             normalize_perspective(tmp.fMat);
             tmp.setTypeMask(kUnknown_Mask);
         } else {    // not perspective
-            tmp.fMat[kMScaleX] = muladdmul(a.fMat[kMScaleX],
-                                           b.fMat[kMScaleX],
-                                           a.fMat[kMSkewX],
-                                           b.fMat[kMSkewY]);
+            if (!fixmuladdmul(a.fMat[kMScaleX], b.fMat[kMScaleX],
+                    a.fMat[kMSkewX], b.fMat[kMSkewY], &tmp.fMat[kMScaleX])) {
+                return false;
+            }
+            if (!fixmuladdmul(a.fMat[kMScaleX], b.fMat[kMSkewX],
+                      a.fMat[kMSkewX], b.fMat[kMScaleY], &tmp.fMat[kMSkewX])) {
+                return false;
+            }
+            if (!fixmuladdmul(a.fMat[kMScaleX], b.fMat[kMTransX],
+                      a.fMat[kMSkewX], b.fMat[kMTransY], &tmp.fMat[kMTransX])) {
+                return false;
+            }
+            if (negifaddoverflows(tmp.fMat[kMTransX], tmp.fMat[kMTransX],
+                                  a.fMat[kMTransX]) < 0) {
+                return false;
+            }
 
-            tmp.fMat[kMSkewX]  = muladdmul(a.fMat[kMScaleX],
-                                           b.fMat[kMSkewX],
-                                           a.fMat[kMSkewX],
-                                           b.fMat[kMScaleY]);
+            if (!fixmuladdmul(a.fMat[kMSkewY], b.fMat[kMScaleX],
+                      a.fMat[kMScaleY], b.fMat[kMSkewY], &tmp.fMat[kMSkewY])) {
+                return false;
+            }
+            if (!fixmuladdmul(a.fMat[kMSkewY], b.fMat[kMSkewX],
+                    a.fMat[kMScaleY], b.fMat[kMScaleY], &tmp.fMat[kMScaleY])) {
+                return false;
+            }
+            if (!fixmuladdmul(a.fMat[kMSkewY], b.fMat[kMTransX],
+                     a.fMat[kMScaleY], b.fMat[kMTransY], &tmp.fMat[kMTransY])) {
+                return false;
+            }
+            if (negifaddoverflows(tmp.fMat[kMTransY], tmp.fMat[kMTransY],
+                                  a.fMat[kMTransY]) < 0) {
+                return false;
+            }
 
-            tmp.fMat[kMTransX] = muladdmul(a.fMat[kMScaleX],
-                                           b.fMat[kMTransX],
-                                           a.fMat[kMSkewX],
-                                           b.fMat[kMTransY]);
-
-            tmp.fMat[kMTransX] += a.fMat[kMTransX];
-
-            tmp.fMat[kMSkewY]  = muladdmul(a.fMat[kMSkewY],
-                                           b.fMat[kMScaleX],
-                                           a.fMat[kMScaleY],
-                                           b.fMat[kMSkewY]);
-
-            tmp.fMat[kMScaleY] = muladdmul(a.fMat[kMSkewY],
-                                           b.fMat[kMSkewX],
-                                           a.fMat[kMScaleY],
-                                           b.fMat[kMScaleY]);
-
-            tmp.fMat[kMTransY] = muladdmul(a.fMat[kMSkewY],
-                                           b.fMat[kMTransX],
-                                           a.fMat[kMScaleY],
-                                           b.fMat[kMTransY]);
-
-            tmp.fMat[kMTransY] += a.fMat[kMTransY];
             tmp.fMat[kMPersp0] = tmp.fMat[kMPersp1] = 0;
             tmp.fMat[kMPersp2] = 1;
             //SkDebugf("Concat mat non-persp type: %d\n", tmp.getType());
@@ -674,22 +699,19 @@ void SkMatrix::setConcat(const SkMatrix& a, const SkMatrix& b) {
         }
         *this = tmp;
     }
+    return true;
 }
 
-void SkMatrix::preConcat(const SkMatrix& mat) {
+bool SkMatrix::preConcat(const SkMatrix& mat) {
     // check for identity first, so we don't do a needless copy of ourselves
     // to ourselves inside setConcat()
-    if(!mat.isIdentity()) {
-        this->setConcat(*this, mat);
-    }
+    return mat.isIdentity() || this->setConcat(*this, mat);
 }
 
-void SkMatrix::postConcat(const SkMatrix& mat) {
+bool SkMatrix::postConcat(const SkMatrix& mat) {
     // check for identity first, so we don't do a needless copy of ourselves
     // to ourselves inside setConcat()
-    if (!mat.isIdentity()) {
-        this->setConcat(mat, *this);
-    }
+    return mat.isIdentity() || this->setConcat(mat, *this);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1446,46 +1468,36 @@ bool SkMatrix::setPolyToPoly(const SkPoint src[], const SkPoint dst[],
     if (!proc(dst, &tempMap, scale)) {
         return false;
     }
-    this->setConcat(tempMap, result);
+    if (!result.setConcat(tempMap, result)) {
+        return false;
+    }
+    *this = result;
     return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-enum MinMaxOrBoth {
-    kMin_MinMaxOrBoth,
-    kMax_MinMaxOrBoth,
-    kBoth_MinMaxOrBoth
+enum MinOrMax {
+    kMin_MinOrMax,
+    kMax_MinOrMax
 };
 
-template <MinMaxOrBoth MIN_MAX_OR_BOTH> bool get_scale_factor(SkMatrix::TypeMask typeMask,
-                                                              const SkScalar m[9],
-                                                              SkScalar results[/*1 or 2*/]) {
+template <MinOrMax MIN_OR_MAX> SkScalar get_stretch_factor(SkMatrix::TypeMask typeMask,
+                                                           const SkScalar m[9]) {
     if (typeMask & SkMatrix::kPerspective_Mask) {
-        return false;
+        return -1;
     }
     if (SkMatrix::kIdentity_Mask == typeMask) {
-        results[0] = SK_Scalar1;
-        if (kBoth_MinMaxOrBoth == MIN_MAX_OR_BOTH) {
-            results[1] = SK_Scalar1;
-        }
-        return true;
+        return 1;
     }
     if (!(typeMask & SkMatrix::kAffine_Mask)) {
-        if (kMin_MinMaxOrBoth == MIN_MAX_OR_BOTH) {
-             results[0] = SkMinScalar(SkScalarAbs(m[SkMatrix::kMScaleX]),
-                                      SkScalarAbs(m[SkMatrix::kMScaleY]));
-        } else if (kMax_MinMaxOrBoth == MIN_MAX_OR_BOTH) {
-             results[0] = SkMaxScalar(SkScalarAbs(m[SkMatrix::kMScaleX]),
-                                      SkScalarAbs(m[SkMatrix::kMScaleY]));
+        if (kMin_MinOrMax == MIN_OR_MAX) {
+             return SkMinScalar(SkScalarAbs(m[SkMatrix::kMScaleX]),
+                                SkScalarAbs(m[SkMatrix::kMScaleY]));
         } else {
-            results[0] = SkScalarAbs(m[SkMatrix::kMScaleX]);
-            results[1] = SkScalarAbs(m[SkMatrix::kMScaleY]);
-             if (results[0] > results[1]) {
-                 SkTSwap(results[0], results[1]);
-             }
+             return SkMaxScalar(SkScalarAbs(m[SkMatrix::kMScaleX]),
+                                SkScalarAbs(m[SkMatrix::kMScaleY]));
         }
-        return true;
     }
     // ignore the translation part of the matrix, just look at 2x2 portion.
     // compute singular values, take largest or smallest abs value.
@@ -1501,98 +1513,60 @@ template <MinMaxOrBoth MIN_MAX_OR_BOTH> bool get_scale_factor(SkMatrix::TypeMask
     // l^2 - (a + c)l + (ac-b^2)
     // solve using quadratic equation (divisor is non-zero since l^2 has 1 coeff
     // and roots are guaranteed to be pos and real).
+    SkScalar chosenRoot;
     SkScalar bSqd = b * b;
     // if upper left 2x2 is orthogonal save some math
     if (bSqd <= SK_ScalarNearlyZero*SK_ScalarNearlyZero) {
-        if (kMin_MinMaxOrBoth == MIN_MAX_OR_BOTH) {
-            results[0] = SkMinScalar(a, c);
-        } else if (kMax_MinMaxOrBoth == MIN_MAX_OR_BOTH) {
-            results[0] = SkMaxScalar(a, c);
+        if (kMin_MinOrMax == MIN_OR_MAX) {
+            chosenRoot = SkMinScalar(a, c);
         } else {
-            results[0] = a;
-            results[1] = c;
-            if (results[0] > results[1]) {
-                SkTSwap(results[0], results[1]);
-            }
+            chosenRoot = SkMaxScalar(a, c);
         }
     } else {
         SkScalar aminusc = a - c;
         SkScalar apluscdiv2 = SkScalarHalf(a + c);
         SkScalar x = SkScalarHalf(SkScalarSqrt(aminusc * aminusc + 4 * bSqd));
-        if (kMin_MinMaxOrBoth == MIN_MAX_OR_BOTH) {
-            results[0] = apluscdiv2 - x;
-        } else if (kMax_MinMaxOrBoth == MIN_MAX_OR_BOTH) {
-            results[0] = apluscdiv2 + x;
+        if (kMin_MinOrMax == MIN_OR_MAX) {
+            chosenRoot = apluscdiv2 - x;
         } else {
-            results[0] = apluscdiv2 - x;
-            results[1] = apluscdiv2 + x;
+            chosenRoot = apluscdiv2 + x;
         }
     }
-    SkASSERT(results[0] >= 0);
-    results[0] = SkScalarSqrt(results[0]);
-    if (kBoth_MinMaxOrBoth == MIN_MAX_OR_BOTH) {
-        SkASSERT(results[1] >= 0);
-        results[1] = SkScalarSqrt(results[1]);
-    }
-    return true;
+    SkASSERT(chosenRoot >= 0);
+    return SkScalarSqrt(chosenRoot);
 }
 
-SkScalar SkMatrix::getMinScale() const {
-    SkScalar factor;
-    if (get_scale_factor<kMin_MinMaxOrBoth>(this->getType(), fMat, &factor)) {
-        return factor;
-    } else {
-        return -1;
-    }
+SkScalar SkMatrix::getMinStretch() const {
+    return get_stretch_factor<kMin_MinOrMax>(this->getType(), fMat);
 }
 
-SkScalar SkMatrix::getMaxScale() const {
-    SkScalar factor;
-    if (get_scale_factor<kMax_MinMaxOrBoth>(this->getType(), fMat, &factor)) {
-        return factor;
-    } else {
-        return -1;
-    }
+SkScalar SkMatrix::getMaxStretch() const {
+    return get_stretch_factor<kMax_MinOrMax>(this->getType(), fMat);
 }
 
-bool SkMatrix::getMinMaxScales(SkScalar scaleFactors[2]) const {
-    return get_scale_factor<kBoth_MinMaxOrBoth>(this->getType(), fMat, scaleFactors);
+static void reset_identity_matrix(SkMatrix* identity) {
+    identity->reset();
 }
-
-namespace {
-
-struct PODMatrix {
-    SkScalar matrix[9];
-    uint32_t typemask;
-
-    const SkMatrix& asSkMatrix() const { return *reinterpret_cast<const SkMatrix*>(this); }
-};
-SK_COMPILE_ASSERT(sizeof(PODMatrix) == sizeof(SkMatrix), PODMatrixSizeMismatch);
-
-}  // namespace
 
 const SkMatrix& SkMatrix::I() {
-    SK_COMPILE_ASSERT(offsetof(SkMatrix, fMat)      == offsetof(PODMatrix, matrix),   BadfMat);
-    SK_COMPILE_ASSERT(offsetof(SkMatrix, fTypeMask) == offsetof(PODMatrix, typemask), BadfTypeMask);
-
-    static const PODMatrix identity = { {SK_Scalar1, 0, 0,
-                                         0, SK_Scalar1, 0,
-                                         0, 0, SK_Scalar1 },
-                                       kIdentity_Mask | kRectStaysRect_Mask};
-    SkASSERT(identity.asSkMatrix().isIdentity());
-    return identity.asSkMatrix();
+    // If you can use C++11 now, you might consider replacing this with a constexpr constructor.
+    static SkMatrix gIdentity;
+    SK_DECLARE_STATIC_ONCE(once);
+    SkOnce(&once, reset_identity_matrix, &gIdentity);
+    return gIdentity;
 }
 
 const SkMatrix& SkMatrix::InvalidMatrix() {
-    SK_COMPILE_ASSERT(offsetof(SkMatrix, fMat)      == offsetof(PODMatrix, matrix),   BadfMat);
-    SK_COMPILE_ASSERT(offsetof(SkMatrix, fTypeMask) == offsetof(PODMatrix, typemask), BadfTypeMask);
-
-    static const PODMatrix invalid =
-        { {SK_ScalarMax, SK_ScalarMax, SK_ScalarMax,
-           SK_ScalarMax, SK_ScalarMax, SK_ScalarMax,
-           SK_ScalarMax, SK_ScalarMax, SK_ScalarMax },
-         kTranslate_Mask | kScale_Mask | kAffine_Mask | kPerspective_Mask };
-    return invalid.asSkMatrix();
+    static SkMatrix gInvalid;
+    static bool gOnce;
+    if (!gOnce) {
+        gInvalid.setAll(SK_ScalarMax, SK_ScalarMax, SK_ScalarMax,
+                        SK_ScalarMax, SK_ScalarMax, SK_ScalarMax,
+                        SK_ScalarMax, SK_ScalarMax, SK_ScalarMax);
+        gInvalid.getType(); // force the type to be computed
+        gOnce = true;
+    }
+    return gInvalid;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

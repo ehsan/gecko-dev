@@ -69,7 +69,7 @@ void SkMatrixClipStateMgr::MatrixClipState::ClipInfo::writeClip(int* curMatID,
         mgr->writeDeltaMat(*curMatID, curClip.fMatrixID);
         *curMatID = curClip.fMatrixID;
 
-        size_t offset = 0;
+        int offset = 0;
 
         switch (curClip.fClipType) {
         case kRect_ClipType:
@@ -110,7 +110,7 @@ SkMatrixClipStateMgr::SkMatrixClipStateMgr()
     fMatrixDict.append()->reset();
 
     fCurMCState = (MatrixClipState*)fMatrixClipStack.push_back();
-    new (fCurMCState) MatrixClipState(NULL);    // balanced in restore()
+    new (fCurMCState) MatrixClipState(NULL, 0);    // balanced in restore()
 
 #ifdef SK_DEBUG
     fActualDepth = 0;
@@ -126,9 +126,9 @@ SkMatrixClipStateMgr::~SkMatrixClipStateMgr() {
 }
 
 
-int SkMatrixClipStateMgr::MCStackPush() {
+int SkMatrixClipStateMgr::MCStackPush(SkCanvas::SaveFlags flags) {
     MatrixClipState* newTop = (MatrixClipState*)fMatrixClipStack.push_back();
-    new (newTop) MatrixClipState(fCurMCState); // balanced in restore()
+    new (newTop) MatrixClipState(fCurMCState, flags); // balanced in restore()
     fCurMCState = newTop;
 
     SkDEBUGCODE(this->validate();)
@@ -136,10 +136,10 @@ int SkMatrixClipStateMgr::MCStackPush() {
     return fMatrixClipStack.count();
 }
 
-int SkMatrixClipStateMgr::save() {
+int SkMatrixClipStateMgr::save(SkCanvas::SaveFlags flags) {
     SkDEBUGCODE(this->validate();)
 
-    return this->MCStackPush();
+    return this->MCStackPush(flags);
 }
 
 int SkMatrixClipStateMgr::saveLayer(const SkRect* bounds, const SkPaint* paint,
@@ -154,7 +154,7 @@ int SkMatrixClipStateMgr::saveLayer(const SkRect* bounds, const SkPaint* paint,
     // out the MC state
     SkDEBUGCODE(bool saved =) this->call(kOther_CallType);
 
-    int result = this->MCStackPush();
+    int result = this->MCStackPush(flags);
     ++fCurMCState->fLayerID;
     fCurMCState->fIsSaveLayer = true;
 
@@ -172,7 +172,8 @@ int SkMatrixClipStateMgr::saveLayer(const SkRect* bounds, const SkPaint* paint,
     // restore
     fSkipOffsets = SkNEW(SkTDArray<int>);
 
-    fPicRecord->recordSaveLayer(bounds, paint, flags);
+    fPicRecord->recordSaveLayer(bounds, paint,
+                                (SkCanvas::SaveFlags)(flags| SkCanvas::kMatrixClip_SaveFlag));
 #ifdef SK_DEBUG
     fActualDepth++;
 #endif
@@ -289,7 +290,7 @@ bool SkMatrixClipStateMgr::call(CallType callType) {
     SkASSERT(!fCurMCState->fHasOpen);
     SkASSERT(0 == fSkipOffsets->count());
     fCurMCState->fHasOpen = true;
-    fPicRecord->recordSave();
+    fPicRecord->recordSave(SkCanvas::kMatrixClip_SaveFlag);
 #ifdef SK_DEBUG
     fActualDepth++;
     SkASSERT(fActualDepth == fCurMCState->fExpectedDepth);

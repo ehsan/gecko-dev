@@ -13,8 +13,7 @@
 
 class SK_API SkAlphaThresholdFilterImpl : public SkImageFilter {
 public:
-    SkAlphaThresholdFilterImpl(const SkRegion& region, SkScalar innerThreshold,
-                               SkScalar outerThreshold, SkImageFilter* input);
+    SkAlphaThresholdFilterImpl(const SkRegion& region, SkScalar innerThreshold, SkScalar outerThreshold);
 
     SK_DECLARE_PUBLIC_FLATTENABLE_DESERIALIZATION_PROCS(SkAlphaThresholdFilterImpl)
 
@@ -25,7 +24,7 @@ protected:
     virtual bool onFilterImage(Proxy*, const SkBitmap& src, const Context&,
                                SkBitmap* result, SkIPoint* offset) const SK_OVERRIDE;
 #if SK_SUPPORT_GPU
-    virtual bool asNewEffect(GrEffect** effect, GrTexture* texture,
+    virtual bool asNewEffect(GrEffectRef** effect, GrTexture* texture,
                              const SkMatrix& matrix, const SkIRect& bounds) const SK_OVERRIDE;
 #endif
 
@@ -38,9 +37,8 @@ private:
 
 SkImageFilter* SkAlphaThresholdFilter::Create(const SkRegion& region,
                                               SkScalar innerThreshold,
-                                              SkScalar outerThreshold,
-                                              SkImageFilter* input) {
-    return SkNEW_ARGS(SkAlphaThresholdFilterImpl, (region, innerThreshold, outerThreshold, input));
+                                              SkScalar outerThreshold) {
+    return SkNEW_ARGS(SkAlphaThresholdFilterImpl, (region, innerThreshold, outerThreshold));
 }
 
 #if SK_SUPPORT_GPU
@@ -48,7 +46,6 @@ SkImageFilter* SkAlphaThresholdFilter::Create(const SkRegion& region,
 #include "GrCoordTransform.h"
 #include "GrEffect.h"
 #include "gl/GrGLEffect.h"
-#include "gl/GrGLShaderBuilder.h"
 #include "GrTBackendEffectFactory.h"
 #include "GrTextureAccess.h"
 
@@ -59,14 +56,15 @@ class GrGLAlphaThresholdEffect;
 class AlphaThresholdEffect : public GrEffect {
 
 public:
-    static GrEffect* Create(GrTexture* texture,
-                            GrTexture* maskTexture,
-                            float innerThreshold,
-                            float outerThreshold) {
-        return SkNEW_ARGS(AlphaThresholdEffect, (texture,
-                                                 maskTexture,
-                                                 innerThreshold,
-                                                 outerThreshold));
+    static GrEffectRef* Create(GrTexture* texture,
+                               GrTexture* maskTexture,
+                               float innerThreshold,
+                               float outerThreshold) {
+        AutoEffectUnref effect(SkNEW_ARGS(AlphaThresholdEffect, (texture,
+                                                                 maskTexture,
+                                                                 innerThreshold,
+                                                                 outerThreshold)));
+        return CreateEffectRef(effect);
     }
 
     virtual ~AlphaThresholdEffect() {};
@@ -118,7 +116,7 @@ public:
 
     virtual void emitCode(GrGLShaderBuilder*,
                           const GrDrawEffect&,
-                          const GrEffectKey&,
+                          EffectKey,
                           const char* outputColor,
                           const char* inputColor,
                           const TransformedCoordsArray&,
@@ -140,7 +138,7 @@ GrGLAlphaThresholdEffect::GrGLAlphaThresholdEffect(const GrBackendEffectFactory&
 
 void GrGLAlphaThresholdEffect::emitCode(GrGLShaderBuilder* builder,
                                         const GrDrawEffect&,
-                                        const GrEffectKey& key,
+                                        EffectKey key,
                                         const char* outputColor,
                                         const char* inputColor,
                                         const TransformedCoordsArray& coords,
@@ -198,10 +196,10 @@ void GrGLAlphaThresholdEffect::setData(const GrGLUniformManager& uman,
 
 GR_DEFINE_EFFECT_TEST(AlphaThresholdEffect);
 
-GrEffect* AlphaThresholdEffect::TestCreate(SkRandom* random,
-                                           GrContext* context,
-                                           const GrDrawTargetCaps&,
-                                           GrTexture** textures) {
+GrEffectRef* AlphaThresholdEffect::TestCreate(SkRandom* random,
+                                              GrContext* context,
+                                              const GrDrawTargetCaps&,
+                                              GrTexture** textures) {
     GrTexture* bmpTex = textures[GrEffectUnitTest::kSkiaPMTextureIdx];
     GrTexture* maskTex = textures[GrEffectUnitTest::kAlphaTextureIdx];
     float inner_thresh = random->nextUScalar1();
@@ -242,16 +240,15 @@ SkAlphaThresholdFilterImpl::SkAlphaThresholdFilterImpl(SkReadBuffer& buffer)
 
 SkAlphaThresholdFilterImpl::SkAlphaThresholdFilterImpl(const SkRegion& region,
                                                        SkScalar innerThreshold,
-                                                       SkScalar outerThreshold,
-                                                       SkImageFilter* input)
-    : INHERITED(1, &input)
+                                                       SkScalar outerThreshold)
+    : INHERITED(0)
     , fRegion(region)
     , fInnerThreshold(innerThreshold)
     , fOuterThreshold(outerThreshold) {
 }
 
 #if SK_SUPPORT_GPU
-bool SkAlphaThresholdFilterImpl::asNewEffect(GrEffect** effect, GrTexture* texture,
+bool SkAlphaThresholdFilterImpl::asNewEffect(GrEffectRef** effect, GrTexture* texture,
                                              const SkMatrix& in_matrix, const SkIRect&) const {
     if (effect) {
         GrContext* context = texture->getContext();
@@ -309,9 +306,9 @@ void SkAlphaThresholdFilterImpl::flatten(SkWriteBuffer& buffer) const {
 bool SkAlphaThresholdFilterImpl::onFilterImage(Proxy*, const SkBitmap& src,
                                                const Context& ctx, SkBitmap* dst,
                                                SkIPoint* offset) const {
-    SkASSERT(src.colorType() == kN32_SkColorType);
+    SkASSERT(src.colorType() == kPMColor_SkColorType);
 
-    if (src.colorType() != kN32_SkColorType) {
+    if (src.colorType() != kPMColor_SkColorType) {
         return false;
     }
 
@@ -326,7 +323,8 @@ bool SkAlphaThresholdFilterImpl::onFilterImage(Proxy*, const SkBitmap& src,
         return false;
     }
 
-    if (!dst->allocPixels(src.info())) {
+    dst->setConfig(src.config(), src.width(), src.height());
+    if (!dst->allocPixels()) {
         return false;
     }
 

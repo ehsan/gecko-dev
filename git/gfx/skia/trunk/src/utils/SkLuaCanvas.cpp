@@ -81,9 +81,9 @@ SkLuaCanvas::SkLuaCanvas(int width, int height, lua_State* L, const char func[])
 
 SkLuaCanvas::~SkLuaCanvas() {}
 
-void SkLuaCanvas::willSave() {
+void SkLuaCanvas::willSave(SaveFlags flags) {
     AUTO_LUA("save");
-    this->INHERITED::willSave();
+    this->INHERITED::willSave(flags);
 }
 
 SkCanvas::SaveLayerStrategy SkLuaCanvas::willSaveLayer(const SkRect* bounds, const SkPaint* paint,
@@ -106,29 +106,35 @@ void SkLuaCanvas::willRestore() {
     this->INHERITED::willRestore();
 }
 
-void SkLuaCanvas::didConcat(const SkMatrix& matrix) {
-    switch (matrix.getType()) {
-        case SkMatrix::kTranslate_Mask: {
-            AUTO_LUA("translate");
-            lua.pushScalar(matrix.getTranslateX(), "dx");
-            lua.pushScalar(matrix.getTranslateY(), "dy");
-            break;
-        }
-        case SkMatrix::kScale_Mask: {
-            AUTO_LUA("scale");
-            lua.pushScalar(matrix.getScaleX(), "sx");
-            lua.pushScalar(matrix.getScaleY(), "sy");
-            break;
-        }
-        default: {
-            AUTO_LUA("concat");
-            // pushMatrix added in https://codereview.chromium.org/203203004/
-            // Doesn't seem to have ever been working correctly since added
-            // lua.pushMatrix(matrix);
-            break;
-        }
-    }
+void SkLuaCanvas::didTranslate(SkScalar dx, SkScalar dy) {
+    AUTO_LUA("translate");
+    lua.pushScalar(dx, "dx");
+    lua.pushScalar(dy, "dy");
+    this->INHERITED::didTranslate(dx, dy);
+}
 
+void SkLuaCanvas::didScale(SkScalar sx, SkScalar sy) {
+    AUTO_LUA("scale");
+    lua.pushScalar(sx, "sx");
+    lua.pushScalar(sy, "sy");
+    this->INHERITED::didScale(sx, sy);
+}
+
+void SkLuaCanvas::didRotate(SkScalar degrees) {
+    AUTO_LUA("rotate");
+    lua.pushScalar(degrees, "degrees");
+    this->INHERITED::didRotate(degrees);
+}
+
+void SkLuaCanvas::didSkew(SkScalar kx, SkScalar ky) {
+    AUTO_LUA("skew");
+    lua.pushScalar(kx, "kx");
+    lua.pushScalar(ky, "ky");
+    this->INHERITED::didSkew(kx, ky);
+}
+
+void SkLuaCanvas::didConcat(const SkMatrix& matrix) {
+    AUTO_LUA("concat");
     this->INHERITED::didConcat(matrix);
 }
 
@@ -170,7 +176,6 @@ void SkLuaCanvas::drawPaint(const SkPaint& paint) {
 void SkLuaCanvas::drawPoints(PointMode mode, size_t count,
                                const SkPoint pts[], const SkPaint& paint) {
     AUTO_LUA("drawPoints");
-    lua.pushArrayPoint(pts, SkToInt(count), "points");
     lua.pushPaint(paint, "paint");
 }
 
@@ -239,39 +244,41 @@ void SkLuaCanvas::drawSprite(const SkBitmap& bitmap, int x, int y,
     }
 }
 
-void SkLuaCanvas::onDrawText(const void* text, size_t byteLength, SkScalar x, SkScalar y,
-                             const SkPaint& paint) {
+void SkLuaCanvas::drawText(const void* text, size_t byteLength, SkScalar x,
+                             SkScalar y, const SkPaint& paint) {
     AUTO_LUA("drawText");
     lua.pushEncodedText(paint.getTextEncoding(), text, byteLength);
     lua.pushPaint(paint, "paint");
 }
 
-void SkLuaCanvas::onDrawPosText(const void* text, size_t byteLength, const SkPoint pos[],
-                                const SkPaint& paint) {
+void SkLuaCanvas::drawPosText(const void* text, size_t byteLength,
+                                const SkPoint pos[], const SkPaint& paint) {
     AUTO_LUA("drawPosText");
     lua.pushEncodedText(paint.getTextEncoding(), text, byteLength);
     lua.pushPaint(paint, "paint");
 }
 
-void SkLuaCanvas::onDrawPosTextH(const void* text, size_t byteLength, const SkScalar xpos[],
-                                 SkScalar constY, const SkPaint& paint) {
+void SkLuaCanvas::drawPosTextH(const void* text, size_t byteLength,
+                                 const SkScalar xpos[], SkScalar constY,
+                                 const SkPaint& paint) {
     AUTO_LUA("drawPosTextH");
     lua.pushEncodedText(paint.getTextEncoding(), text, byteLength);
     lua.pushPaint(paint, "paint");
 }
 
-void SkLuaCanvas::onDrawTextOnPath(const void* text, size_t byteLength, const SkPath& path,
-                                   const SkMatrix* matrix, const SkPaint& paint) {
+void SkLuaCanvas::drawTextOnPath(const void* text, size_t byteLength,
+                                   const SkPath& path, const SkMatrix* matrix,
+                                   const SkPaint& paint) {
     AUTO_LUA("drawTextOnPath");
     lua.pushPath(path, "path");
     lua.pushEncodedText(paint.getTextEncoding(), text, byteLength);
     lua.pushPaint(paint, "paint");
 }
 
-void SkLuaCanvas::onDrawPicture(const SkPicture* picture) {
+void SkLuaCanvas::drawPicture(SkPicture& picture) {
     AUTO_LUA("drawPicture");
     // call through so we can see the nested picture ops
-    this->INHERITED::onDrawPicture(picture);
+    this->INHERITED::drawPicture(picture);
 }
 
 void SkLuaCanvas::drawVertices(VertexMode vmode, int vertexCount,
