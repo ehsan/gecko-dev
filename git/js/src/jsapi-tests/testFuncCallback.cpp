@@ -118,21 +118,24 @@ BEGIN_TEST(testFuncCallback_bug507012)
 #endif
 
     // Uncomment this to validate whether you're hitting all runmodes (interp,
-    // mjit, ...?) Unfortunately, that still doesn't cover all
+    // tjit, mjit, ...?) Unfortunately, that still doesn't cover all
     // transitions between the various runmodes, but it's a start.
     //JS_DumpAllProfiles(cx);
 
     return true;
 }
 
-// Make sure that the method jit is enabled.
-// We'll probably want to test in all modes.
+// Not strictly necessary, but part of the test attempts to check
+// whether these callbacks still trigger when traced, so force
+// JSOPTION_JIT just to be sure. Once the method jit and tracing jit
+// are integrated, this'll probably have to change (and we'll probably
+// want to test in all modes.)
 virtual
 JSContext *createContext()
 {
     JSContext *cx = JSAPITest::createContext();
     if (cx)
-        JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_METHODJIT | JSOPTION_PCCOUNT);
+        JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_JIT | JSOPTION_METHODJIT | JSOPTION_PCCOUNT);
     return cx;
 }
 

@@ -111,8 +111,9 @@ class BumpChunk
     void setNext(BumpChunk *succ) { next_ = succ; }
 
     size_t used() const { return bump - bumpBase(); }
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) {
-        return mallocSizeOf(this, limit - headerBase());
+    size_t sizeOf(JSUsableSizeFun usf) {
+        size_t usable = usf((void*)this);
+        return usable ? usable : limit - headerBase();
     }
 
     void resetBump() {
@@ -293,21 +294,20 @@ class LifoAlloc
         return accum;
     }
 
-    /* Get the total size of the arena chunks (including unused space). */
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
+    /* Get the total size of the arena chunks (including unused space), plus,
+     * if |countMe| is true, the size of the LifoAlloc itself. */
+    size_t sizeOf(JSUsableSizeFun usf, bool countMe) const {
         size_t accum = 0;
+        if (countMe) {
+            size_t usable = usf((void*)this);
+            accum += usable ? usable : sizeof(LifoAlloc);
+        }
         BumpChunk *it = first;
         while (it) {
-            accum += it->sizeOfIncludingThis(mallocSizeOf);
+            accum += it->sizeOf(usf);
             it = it->next();
         }
         return accum;
-    }
-
-    /* Like sizeOfExcludingThis(), but includes the size of the LifoAlloc itself. */
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
-        return mallocSizeOf(this, sizeof(LifoAlloc)) +
-               sizeOfExcludingThis(mallocSizeOf);
     }
 
     /* Doesn't perform construction; useful for lazily-initialized POD types. */

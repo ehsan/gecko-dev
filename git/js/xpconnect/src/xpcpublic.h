@@ -89,7 +89,7 @@ DebugCheckWrapperClass(JSObject* obj)
 {
     NS_ASSERTION(IS_WRAPPER_CLASS(js::GetObjectClass(obj)),
                  "Forgot to check if this is a wrapper?");
-    return true;
+    return JS_TRUE;
 }
 
 // If IS_WRAPPER_CLASS for the JSClass of an object is true, the object can be

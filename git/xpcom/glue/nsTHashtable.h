@@ -251,14 +251,10 @@ public:
     PL_DHashTableEnumerate(&mTable, PL_DHashStubEnumRemove, nsnull);
   }
 
-  /**
-   * The "Shallow" means that if the entries contain pointers to other objects,
-   * their size isn't included in the measuring.
-   */
-  size_t ShallowSizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf)
+  PRUint64 SizeOf()
   {
     if (IsInitialized()) {
-      return PL_DHashTableShallowSizeOfExcludingThis(&mTable, mallocSizeOf);
+      return PL_DHashTableSizeOf(&mTable);
     }
     return 0;
   }

@@ -649,6 +649,7 @@ function optionsClear() {
     var optionName = optionNames[i];
     if (optionName &&
         optionName != "methodjit" &&
+        optionName != "jitprofiling" &&
         optionName != "methodjit_always")
     {
       options(optionName);

@@ -104,6 +104,7 @@
 #ifdef MOZ_PREF_EXTENSIONS
 #ifdef MOZ_ENABLE_GTK2
 #define SYSTEMPREF_MODULES \
+    MODULE(nsSystemPrefModule) \
     MODULE(nsAutoConfigModule)
 #else
 #define SYSTEMPREF_MODULES MODULE(nsAutoConfigModule)
@@ -221,7 +222,6 @@
     MODULE(nsWindowDataSourceModule)         \
     MODULE(nsParserModule)                   \
     MODULE(nsGfxModule)                      \
-    MODULE(nsProfilerModule)                 \
     WIDGET_MODULES                           \
     MODULE(nsImageLib2Module)                \
     ICON_MODULE                              \

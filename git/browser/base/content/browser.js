@@ -3481,6 +3481,7 @@ const BrowserSearch = {
     openLinkIn(submission.uri.spec,
                useNewTab ? "tab" : "current",
                { postData: submission.postData,
+                 inBackground: false,
                  relatedToCurrent: true });
   },
 
@@ -3949,9 +3950,6 @@ var FullScreen = {
       document.mozCancelFullScreen();
       return;
     }
-
-    if (gFindBarInitialized)
-      gFindBar.close();
 
     this.showWarning(true);
 

@@ -1,7 +1,6 @@
 DOM_SRCDIRS = \
   dom/base \
   dom/battery \
-  dom/sms/src \
   dom/src/events \
   dom/src/storage \
   dom/src/offline \

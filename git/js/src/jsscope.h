@@ -257,9 +257,9 @@ struct PropertyTable {
      * This counts the PropertyTable object itself (which must be
      * heap-allocated) and its |entries| array.
      */
-    size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
-        return mallocSizeOf(this, sizeof(PropertyTable)) +
-               mallocSizeOf(entries, sizeOfEntries(capacity()));
+    size_t sizeOf(JSUsableSizeFun usf) const {
+        size_t usable = usf((void*)this) + usf(entries);
+        return usable ? usable : sizeOfEntries(capacity()) + sizeof(PropertyTable);
     }
 
     /* Whether we need to grow.  We want to do this if the load factor is >= 0.75 */
@@ -449,14 +449,15 @@ struct Shape : public js::gc::Cell
         return table;
     }
 
-    size_t sizeOfPropertyTableIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
-        return hasTable() ? getTable()->sizeOfIncludingThis(mallocSizeOf) : 0;
+    size_t sizeOfPropertyTable(JSUsableSizeFun usf) const {
+        return hasTable() ? getTable()->sizeOf(usf) : 0;
     }
 
-    size_t sizeOfKidsIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
+    size_t sizeOfKids(JSUsableSizeFun usf) const {
+        /* Nb: |countMe| is true because the kids HashTable is on the heap. */
         JS_ASSERT(!inDictionary());
         return kids.isHash()
-             ? kids.toHash()->sizeOfIncludingThis(mallocSizeOf)
+             ? kids.toHash()->sizeOf(usf, /* countMe */true)
              : 0;
     }
 

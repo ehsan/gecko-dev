@@ -52,7 +52,6 @@
 #include "nsIObjectFrame.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIConstraintValidation.h"
-#include "nsIWidget.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -117,7 +116,7 @@ public:
                              bool aNotify);
 
   virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
-  virtual IMEState GetDesiredIMEState();
+  virtual PRUint32 GetDesiredIMEState();
 
   // Overriden nsIFormControl methods
   NS_IMETHOD_(PRUint32) GetType() const
@@ -377,11 +376,11 @@ nsHTMLObjectElement::IsHTMLFocusable(bool aWithMouse,
   return false;
 }
 
-nsIContent::IMEState
+PRUint32
 nsHTMLObjectElement::GetDesiredIMEState()
 {
   if (Type() == eType_Plugin) {
-    return IMEState(IMEState::PLUGIN);
+    return nsIContent::IME_STATUS_PLUGIN;
   }
    
   return nsGenericHTMLFormElement::GetDesiredIMEState();

@@ -488,7 +488,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
 
     jsid exposedPropsId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_EXPOSEDPROPS);
 
-    JSBool found = false;
+    JSBool found = JS_FALSE;
     JSAutoEnterCompartment ac;
     if (!ac.enter(cx, wrappedObject) ||
         !JS_HasPropertyById(cx, wrappedObject, exposedPropsId, &found))

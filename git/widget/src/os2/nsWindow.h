@@ -213,16 +213,6 @@ public:
                                       nsEventStatus& aStatus);
   NS_IMETHOD            ReparentNativeWidget(nsIWidget* aNewParent);
 
-  NS_IMETHOD_(void)     SetInputContext(const InputContext& aContext,
-                                        const InputContextAction& aAction)
-  {
-    mInputContext = aInputContext;
-  }
-  NS_IMETHOD_(InputContext) GetInputContext()
-  {
-    return mInputContext;
-  }
-
   // nsWindow
   static void           ReleaseGlobals();
 protected:
@@ -304,7 +294,6 @@ protected:
 #ifdef DEBUG_FOCUS
   int           mWindowIdentifier;  // a serial number for each new window
 #endif
-  InputContext  mInputContext;
 };
 
 //=============================================================================

@@ -795,12 +795,22 @@ PL_DHashTableEnumerate(PLDHashTable *table, PLDHashEnumerator etor, void *arg)
     return i;
 }
 
-size_t
-PL_DHashTableShallowSizeOfExcludingThis(PLDHashTable *table,
-                                        nsMallocSizeOfFun mallocSizeOf)
+PRUint64
+PL_DHashTableSizeOf(PLDHashTable *table)
 {
-  return mallocSizeOf(table->entryStore,
-                      PL_DHASH_TABLE_SIZE(table) * table->entrySize);
+  PRUint64 size = 0;
+
+#ifdef MOZALLOC_HAVE_MALLOC_USABLE_SIZE
+  // Even when moz_malloc_usable_size is defined, it might always return 0, if
+  // the allocator in use doesn't support malloc_usable_size.
+  size = moz_malloc_usable_size(table->entryStore);
+#endif
+
+  if (size == 0) {
+    size = PL_DHASH_TABLE_SIZE(table) * table->entrySize;
+  }
+
+  return size;
 }
 
 #ifdef DEBUG

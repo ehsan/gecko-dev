@@ -262,9 +262,7 @@ var tests = [
 
   // the actual bug
   ["attachment; filename*=''foo", 
-   "attachment", "foo"],      
-  // previously with the fix for 692574:
-  // "attachment", Cr.NS_ERROR_INVALID_ARG],      
+   "attachment", Cr.NS_ERROR_INVALID_ARG],      
 
   // sanity check
   ["attachment; filename*=a''foo", 
@@ -275,27 +273,15 @@ var tests = [
 
   // one missing
   ["attachment; filename*=UTF-8'foo-%41.html", 
-   "attachment", "foo-A.html"],
-  // previously with the fix for 692574:
-  // "attachment", Cr.NS_ERROR_INVALID_ARG],
+   "attachment", Cr.NS_ERROR_INVALID_ARG],
 
   // both missing
   ["attachment; filename*=foo-%41.html", 
-   "attachment","foo-A.html"],
-  // previously with the fix for 692574:
-  // "attachment", Cr.NS_ERROR_INVALID_ARG],
+   "attachment", Cr.NS_ERROR_INVALID_ARG],
 
   // make sure fallback works
   ["attachment; filename*=UTF-8'foo-%41.html; filename=bar.html", 
-   "attachment", "foo-A.html"],
-  // previously with the fix for 692574:
-  // "attachment", "bar.html"],
-
-  // Bug 704989: add workaround for broken Outlook Web App (OWA)
-  // attachment handling
-
-  ["attachment; filename*=\"a%20b\"", 
-   "attachment", "a b"],
+   "attachment", "bar.html"],
 ];
 
 function do_tests(whichRFC)

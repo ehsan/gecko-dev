@@ -1313,6 +1313,9 @@ typedef struct JSPtrTable {
 } JSPtrTable;
 
 extern JSBool
+js_RegisterCloseableIterator(JSContext *cx, JSObject *obj);
+
+extern JSBool
 js_LockGCThingRT(JSRuntime *rt, void *thing);
 
 extern void

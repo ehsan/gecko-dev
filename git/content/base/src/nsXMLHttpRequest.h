@@ -236,6 +236,8 @@ protected:
 
   bool IsSystemXHR();
 
+  bool IsWaitingForHTMLCharset();
+
   void ChangeStateToDone();
 
   /**

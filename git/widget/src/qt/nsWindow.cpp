@@ -154,7 +154,6 @@ extern "C" {
 }
 
 using namespace mozilla;
-using namespace mozilla::widget;
 
 // imported in nsWidgetFactory.cpp
 bool gDisableNativeTheme = false;
@@ -3215,26 +3214,23 @@ x11EventFilter(void* message, long* result)
 }
 #endif
 
-NS_IMETHODIMP_(void)
-nsWindow::SetInputContext(const InputContext& aContext,
-                          const InputContextAction& aAction)
+NS_IMETHODIMP
+nsWindow::SetInputMode(const IMEContext& aContext)
 {
-    NS_ENSURE_TRUE(mWidget, );
+    NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
 
-    // SetSoftwareKeyboardState uses mInputContext,
-    // so, before calling that, record aContext in mInputContext.
-    mInputContext = aContext;
+    // SetSoftwareKeyboardState uses mIMEContext,
+    // so, before calling that, record aContext in mIMEContext.
+    mIMEContext = aContext;
 
 #if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
     if (sPluginIMEAtom) {
         static QCoreApplication::EventFilter currentEventFilter = NULL;
-        if (mInputContext.mIMEState.mEnabled == IMEState::PLUGIN &&
-            currentEventFilter != x11EventFilter) {
+        if (mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN && currentEventFilter != x11EventFilter) {
             // Install event filter for listening Plugin IME state changes
             previousEventFilter = QCoreApplication::instance()->setEventFilter(x11EventFilter);
             currentEventFilter = x11EventFilter;
-        } else if (mInputContext.mIMEState.mEnabled != IMEState::PLUGIN &&
-                   currentEventFilter == x11EventFilter) {
+        } else if (mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN && currentEventFilter == x11EventFilter) {
             // Remove event filter
             QCoreApplication::instance()->setEventFilter(previousEventFilter);
             currentEventFilter = previousEventFilter;
@@ -3247,39 +3243,41 @@ nsWindow::SetInputContext(const InputContext& aContext,
     }
 #endif
 
-    switch (mInputContext.mIMEState.mEnabled) {
-        case IMEState::ENABLED:
-        case IMEState::PASSWORD:
-        case IMEState::PLUGIN:
-            SetSoftwareKeyboardState(true, aAction);
+    switch (mIMEContext.mStatus) {
+        case nsIWidget::IME_STATUS_ENABLED:
+        case nsIWidget::IME_STATUS_PASSWORD:
+        case nsIWidget::IME_STATUS_PLUGIN:
+            SetSoftwareKeyboardState(true);
             break;
         default:
-            SetSoftwareKeyboardState(false, aAction);
+            SetSoftwareKeyboardState(false);
             break;
     }
+
+    return NS_OK;
 }
 
-NS_IMETHODIMP_(InputContext)
-nsWindow::GetInputContext()
+NS_IMETHODIMP
+nsWindow::GetInputMode(IMEContext& aContext)
 {
-    mInputContext.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
-    return mInputContext;
+    aContext = mIMEContext;
+    return NS_OK;
 }
 
 void
-nsWindow::SetSoftwareKeyboardState(bool aOpen,
-                                   const InputContextAction& aAction)
+nsWindow::SetSoftwareKeyboardState(bool aOpen)
 {
     if (aOpen) {
-        NS_ENSURE_TRUE(mInputContext.mIMEState.mEnabled != IMEState::DISABLED,);
+        NS_ENSURE_TRUE(mIMEContext.mStatus != nsIWidget::IME_STATUS_DISABLED,);
 
         // Ensure that opening the virtual keyboard is allowed for this specific
-        // InputContext depending on the content.ime.strict.policy pref
-        if (mInputContext.mIMEState.mEnabled != IMEState::PLUGIN &&
-            Preferences::GetBool("content.ime.strict_policy", false) &&
-            !aAction.ContentGotFocusByTrustedCause() &&
-            !aAction.UserMightRequestOpenVKB()) {
-            return;
+        // IMEContext depending on the content.ime.strict.policy pref
+        if (mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
+            if (Preferences::GetBool("content.ime.strict_policy", false) &&
+                !mIMEContext.FocusMovedByUser() &&
+                mIMEContext.FocusMovedInContentProcess()) {
+                return;
+            }
         }
 #if defined(MOZ_X11) && (MOZ_PLATFORM_MAEMO == 6)
         // doen't open VKB if plugin did set closed state

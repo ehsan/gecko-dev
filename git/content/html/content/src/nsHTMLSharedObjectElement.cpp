@@ -50,7 +50,6 @@
 #include "nsIDOMGetSVGDocument.h"
 #include "nsIDOMSVGDocument.h"
 #include "nsIScriptError.h"
-#include "nsIWidget.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -120,7 +119,7 @@ public:
                            bool aNotify);
 
   virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
-  virtual IMEState GetDesiredIMEState();
+  virtual PRUint32 GetDesiredIMEState();
 
   virtual void DoneAddingChildren(bool aHaveNotified);
   virtual bool IsDoneAddingChildren();
@@ -366,11 +365,11 @@ nsHTMLSharedObjectElement::IsHTMLFocusable(bool aWithMouse,
   return nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex);
 }
 
-nsIContent::IMEState
+PRUint32
 nsHTMLSharedObjectElement::GetDesiredIMEState()
 {
   if (Type() == eType_Plugin) {
-    return IMEState(IMEState::PLUGIN);
+    return nsIContent::IME_STATUS_PLUGIN;
   }
    
   return nsGenericHTMLElement::GetDesiredIMEState();

@@ -890,7 +890,7 @@ public:
     return result;
   }
 
-  size_t SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf);
+  PRUint64 ComputeTextRunMemoryUsed();
 
   class MemoryReporter : public nsIMemoryMultiReporter
   {

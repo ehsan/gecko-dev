@@ -1154,7 +1154,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
     AssertInnerizedScopeChain(cx, scopeobj);
 
     if (!scopeobj.getGlobal()->isRuntimeCodeGenEnabled(cx)) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CSP_BLOCKED_EVAL);
+        JS_ReportError(cx, "call to eval() blocked by CSP");
         return false;
     }
 
@@ -2708,11 +2708,12 @@ obj_preventExtensions(JSContext *cx, uintN argc, Value *vp)
 }
 
 size_t
-JSObject::sizeOfSlotsArray(JSMallocSizeOfFun mallocSizeOf)
+JSObject::sizeOfSlotsArray(JSUsableSizeFun usf)
 {
     if (!hasSlotsArray())
         return 0;
-    return mallocSizeOf(slots, numDynamicSlots(numSlots()) * sizeof(js::Value));
+    size_t usable = usf((void *)slots);
+    return usable ? usable : numSlots() * sizeof(js::Value);
 }
 
 bool
@@ -4558,16 +4559,10 @@ JSObject::shrinkSlots(JSContext *cx, size_t newcap)
     }
 
     uint32 fill = newcap;
-    if (isDenseArray()) {
-        newcap = Max(newcap, size_t(SLOT_CAPACITY_MIN));
-        newcap = Max(newcap, numFixedSlots());
-    } else {
-        newcap = Max(newcap, numFixedSlots() + SLOT_CAPACITY_MIN);
-    }
+    newcap = Max(newcap, size_t(SLOT_CAPACITY_MIN));
+    newcap = Max(newcap, numFixedSlots());
 
-    uint32 allocCount = numDynamicSlots(newcap);
-
-    HeapValue *tmpslots = (HeapValue*) cx->realloc_(slots, allocCount * sizeof(Value));
+    HeapValue *tmpslots = (HeapValue*) cx->realloc_(slots, newcap * sizeof(HeapValue));
     if (!tmpslots)
         return;  /* Leave slots at its old size. */
 

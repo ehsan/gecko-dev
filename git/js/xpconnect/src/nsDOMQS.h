@@ -59,7 +59,7 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
     if (failureFatal && !native)                                              \
         return xpc_qsThrow(cx, rv);                                           \
     *ppThis = static_cast<_interface*>(static_cast<_base*>(native));          \
-    return true;                                                              \
+    return JS_TRUE;                                                           \
 }                                                                             \
                                                                               \
 NS_SPECIALIZE_TEMPLATE                                                        \
@@ -98,10 +98,10 @@ castToElement(nsIContent *content, jsval val, nsGenericElement **ppInterface,
               jsval *pVal)
 {
     if (!content->IsElement())
-        return false;
+        return JS_FALSE;
     *ppInterface = static_cast<nsGenericElement*>(content->AsElement());
     *pVal = val;
-    return true;
+    return JS_TRUE;
 }
 
 NS_SPECIALIZE_TEMPLATE
@@ -128,7 +128,7 @@ xpc_qsUnwrapThis<nsGenericElement>(JSContext *cx,
     }
 
     if (!failureFatal && (!ok || !content)) {
-      ok = true;
+      ok = JS_TRUE;
       *ppThis = nsnull;
     }
 

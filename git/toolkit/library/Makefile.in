@@ -288,6 +288,9 @@ endif
 
 ifdef MOZ_ENABLE_GTK2
 COMPONENT_LIBS += widget_gtk2
+ifdef MOZ_PREF_EXTENSIONS
+COMPONENT_LIBS += system-pref
+endif
 endif
 
 ifdef MOZ_ENABLE_GTK2
@@ -312,7 +315,9 @@ endif
 
 STATIC_LIBS += thebes gl ycbcr
 
-COMPONENT_LIBS += profiler
+ifeq ($(OS_TARGET),Android)
+STATIC_LIBS += profiler
+endif
 
 STATIC_LIBS += angle
 

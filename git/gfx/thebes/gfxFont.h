@@ -2048,20 +2048,16 @@ public:
 
     // return storage used by this run, for memory reporter;
     // nsTransformedTextRun needs to override this as it holds additional data
-    virtual NS_MUST_OVERRIDE size_t
-        SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf);
-    virtual NS_MUST_OVERRIDE size_t
-        SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
+    virtual PRUint64 ComputeSize();
 
-    // Get the size, if it hasn't already been gotten, marking as it goes.
-    size_t MaybeSizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)  {
+    void AccountForSize(PRUint64* aTotal)  {
         if (mFlags & gfxTextRunFactory::TEXT_RUN_SIZE_ACCOUNTED) {
-            return 0;
+            return;
         }
         mFlags |= gfxTextRunFactory::TEXT_RUN_SIZE_ACCOUNTED;
-        return SizeOfIncludingThis(aMallocSizeOf);
+        *aTotal += ComputeSize();
     }
-    void ResetSizeOfAccountingFlags() {
+    void ClearSizeAccounted() {
         mFlags &= ~gfxTextRunFactory::TEXT_RUN_SIZE_ACCOUNTED;
     }
 

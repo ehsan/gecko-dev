@@ -405,7 +405,7 @@ nsEventListenerManager::SetJSEventListener(nsIScriptContext *aContext,
   if (!ls) {
     // If we didn't find a script listener or no listeners existed
     // create and add a new one.
-    nsCOMPtr<nsIJSEventListener> scriptListener;
+    nsCOMPtr<nsIDOMEventListener> scriptListener;
     rv = NS_NewJSEventListener(aContext, aScopeObject, mTarget, aName,
                                aHandler, getter_AddRefs(scriptListener));
     if (NS_SUCCEEDED(rv)) {
@@ -701,8 +701,10 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
     // Bind it
     nsScriptObjectHolder boundHandler(context);
     context->BindCompiledEventHandler(mTarget, listener->GetEventScope(),
-                                      handler.getObject(), boundHandler);
-    listener->SetHandler(boundHandler.getObject());
+                                      handler, boundHandler);
+    listener->SetHandler(
+      static_cast<JSObject*>(
+        static_cast<void*>(boundHandler)));
   }
 
   return result;

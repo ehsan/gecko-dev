@@ -93,7 +93,7 @@ JSBool
 Throw(JSContext *cx, nsresult rv)
 {
     XPCThrower::Throw(rv, cx);
-    return false;
+    return JS_FALSE;
 }
 
 
@@ -359,32 +359,32 @@ interface_hasInstance(JSContext *cx, JSObject *obj, const js::Value *vp, JSBool 
             JSVAL_IS_PRIMITIVE(prototype)) {
             JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage, NULL,
                                          JSMSG_THROW_TYPE_ERROR);
-            return false;
+            return JS_FALSE;
         }
 
         JSObject *other = &vp->toObject();
         if (instanceIsProxy(other)) {
             ProxyHandler *handler = static_cast<ProxyHandler*>(js::GetProxyHandler(other));
             if (handler->isInstanceOf(JSVAL_TO_OBJECT(prototype))) {
-                *bp = true;
+                *bp = JS_TRUE;
             } else {
                 JSObject *protoObj = JSVAL_TO_OBJECT(prototype);
                 JSObject *proto = other;
                 while ((proto = JS_GetPrototype(cx, proto))) {
                     if (proto == protoObj) {
-                        *bp = true;
-                        return true;
+                        *bp = JS_TRUE;
+                        return JS_TRUE;
                     }
                 }
-                *bp = false;
+                *bp = JS_FALSE;
             }
 
-            return true;
+            return JS_TRUE;
         }
     }
 
-    *bp = false;
-    return true;
+    *bp = JS_FALSE;
+    return JS_TRUE;
 }
 
 template<class LC>
@@ -794,7 +794,7 @@ ListBase<LC>::hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 
     JSObject *expando = getExpandoObject(proxy);
     if (expando) {
-        JSBool b = true;
+        JSBool b = JS_TRUE;
         JSBool ok = JS_HasPropertyById(cx, expando, id, &b);
         *bp = !!b;
         if (!ok || *bp)

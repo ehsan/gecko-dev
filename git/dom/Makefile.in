@@ -71,7 +71,6 @@ DIRS = \
 DIRS += \
   base \
   battery \
-  sms \
   src \
   locales \
   plugins/base \

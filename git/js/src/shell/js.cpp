@@ -156,6 +156,7 @@ static jsdouble gTimeoutInterval = -1.0;
 static volatile bool gCanceled = false;
 
 static bool enableMethodJit = false;
+static bool enableProfiling = false;
 static bool enableTypeInference = false;
 static bool enableDisassemblyDumps = false;
 
@@ -612,6 +613,8 @@ static const struct JSOption {
     uint32      flag;
 } js_options[] = {
     {"atline",          JSOPTION_ATLINE},
+    {"jitprofiling",    JSOPTION_PROFILING},
+    {"tracejit",        JSOPTION_JIT},
     {"methodjit",       JSOPTION_METHODJIT},
     {"methodjit_always",JSOPTION_METHODJIT_ALWAYS},
     {"relimit",         JSOPTION_RELIMIT},
@@ -1068,7 +1071,7 @@ Now(JSContext *cx, uintN argc, jsval *vp)
 }
 
 static JSBool
-PrintInternal(JSContext *cx, uintN argc, jsval *vp, FILE *file)
+Print(JSContext *cx, uintN argc, jsval *vp)
 {
     jsval *argv;
     uintN i;
@@ -1083,27 +1086,15 @@ PrintInternal(JSContext *cx, uintN argc, jsval *vp, FILE *file)
         bytes = JS_EncodeString(cx, str);
         if (!bytes)
             return JS_FALSE;
-        fprintf(file, "%s%s", i ? " " : "", bytes);
+        fprintf(gOutFile, "%s%s", i ? " " : "", bytes);
         JS_free(cx, bytes);
     }
 
-    fputc('\n', file);
-    fflush(file);
+    fputc('\n', gOutFile);
+    fflush(gOutFile);
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
-}
-
-static JSBool
-Print(JSContext *cx, uintN argc, jsval *vp)
-{
-    return PrintInternal(cx, argc, vp, gOutFile);
-}
-
-static JSBool
-PrintErr(JSContext *cx, uintN argc, jsval *vp)
-{
-    return PrintInternal(cx, argc, vp, gErrFile);
 }
 
 static JSBool
@@ -3838,9 +3829,9 @@ MJitCodeStats(JSContext *cx, uintN argc, jsval *vp)
 #ifdef JS_METHODJIT
 
 static size_t
-computedSize(const void *p, size_t size)
+zero_usable_size(void *p)
 {
-    return size;
+    return 0;
 }
 
 static void
@@ -3851,10 +3842,10 @@ SumJitDataSizeCallback(JSContext *cx, void *data, void *thing,
     JS_ASSERT(traceKind == JSTRACE_SCRIPT);
     JSScript *script = static_cast<JSScript *>(thing);
     /*
-     * Passing in |computedSize| causes jitDataSize to fall back to its
+     * Passing in zero_usable_size causes jitDataSize to fall back to its
      * secondary size computation.
      */
-    *sump += script->jitDataSize(computedSize);
+    *sump += script->jitDataSize(zero_usable_size);
 }
 
 #endif
@@ -3965,7 +3956,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("run",            Run,            1,0),
     JS_FN("readline",       ReadLine,       0,0),
     JS_FN("print",          Print,          0,0),
-    JS_FN("printErr",       PrintErr,       0,0),
     JS_FN("putstr",         PutStr,         0,0),
     JS_FN("dateNow",        Now,            0,0),
     JS_FN("help",           Help,           0,0),
@@ -4018,6 +4008,10 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("evalInFrame",    EvalInFrame,    2,0),
     JS_FN("shapeOf",        ShapeOf,        1,0),
     JS_FN("resolver",       Resolver,       1,0),
+#ifdef MOZ_TRACEVIS
+    JS_FN("startTraceVis",  StartTraceVisNative, 1,0),
+    JS_FN("stopTraceVis",   StopTraceVisNative,  0,0),
+#endif
 #ifdef DEBUG
     JS_FN("arrayInfo",      js_ArrayInfo,   1,0),
 #endif
@@ -4060,8 +4054,7 @@ static const char *const shell_help_messages[] = {
 "  Run the file named by the first argument, returning the number of\n"
 "  of milliseconds spent compiling and executing it",
 "readline()               Read a single line from stdin",
-"print([exp ...])         Evaluate and print expressions to stdout",
-"printErr([exp ...])      Evaluate and print expressions to stderr",
+"print([exp ...])         Evaluate and print expressions",
 "putstr([exp])            Evaluate and print expression without newline",
 "dateNow()                    Return the current time with sub-ms precision",
 "help([name ...])         Display usage and help messages",
@@ -4141,6 +4134,10 @@ static const char *const shell_help_messages[] = {
 "shapeOf(obj)             Get the shape of obj (an implementation detail)",
 "resolver(src[, proto])   Create object with resolve hook that copies properties\n"
 "                         from src. If proto is omitted, use Object.prototype.",
+#ifdef MOZ_TRACEVIS
+"startTraceVis(filename)  Start TraceVis recording (stops any current recording)",
+"stopTraceVis()           Stop TraceVis recording",
+#endif
 #ifdef DEBUG
 "arrayInfo(a1, a2, ...)   Report statistics about arrays",
 #endif
@@ -5065,6 +5062,11 @@ ProcessArgs(JSContext *cx, JSObject *obj, OptionParser *op)
         ParseZealArg(cx, zeal);
 #endif
 
+    if (op->getBoolOption('p')) {
+        enableProfiling = true;
+        JS_ToggleOptions(cx, JSOPTION_PROFILING);
+    }
+
     if (op->getBoolOption('d')) {
         JS_SetRuntimeDebugMode(JS_GetRuntime(cx), true);
         JS_SetDebugMode(cx, true);
@@ -5320,10 +5322,14 @@ main(int argc, char **argv, char **envp)
         || !op.addMultiStringOption('e', "execute", "CODE", "Inline code to run")
         || !op.addBoolOption('i', "shell", "Enter prompt after running code")
         || !op.addBoolOption('m', "methodjit", "Enable the JaegerMonkey method JIT")
+        || !op.addBoolOption('j', "tracejit", "Deprecated; does nothing")
+        || !op.addBoolOption('p', "profiling", "Enable runtime profiling select JIT mode")
         || !op.addBoolOption('n', "typeinfer", "Enable type inference")
         || !op.addBoolOption('d', "debugjit", "Enable runtime debug mode for method JIT code")
         || !op.addBoolOption('a', "always-mjit",
-                             "Do not try to run in the interpreter before method jitting.")
+                             "Do not try to run in the interpreter before "
+                             "method jitting. Note that this has no particular effect on the "
+                             "tracer; it still kicks in if enabled.")
         || !op.addBoolOption('D', "dump-bytecode", "Dump bytecode with exec count for all scripts")
         || !op.addBoolOption('b', "print-timing", "Print sub-ms runtime for each file that's run")
 #ifdef DEBUG

@@ -256,7 +256,7 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     GetColIndex(colIndex);
     GetRowIndex(rowIndex);
     nsRect damageArea(colIndex, rowIndex, GetColSpan(), GetRowSpan());
-    tableFrame->AddBCDamageArea(damageArea);
+    tableFrame->SetBCDamageArea(damageArea);
   }
 }
 

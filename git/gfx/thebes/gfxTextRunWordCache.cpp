@@ -135,8 +135,7 @@ public:
 #endif
     }
 
-    size_t MaybeSizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf);
-    void ResetSizeOfAccountingFlags();
+    void ComputeStorage(PRUint64 *aTotal);
 
 #ifdef DEBUG
     PRUint32 mGeneration;
@@ -220,10 +219,10 @@ protected:
                     PRUint32 aEnd, PRUint32 aHash);
     void Uninit();
 
-    static PLDHashOperator MaybeSizeOfEntry(CacheHashEntry *aEntry,
-                                            void *aUserData);
-    static PLDHashOperator ResetSizeOfEntryAccountingFlags(CacheHashEntry *aEntry,
-                                            void *aUserData);
+    static PLDHashOperator AccountForStorage(CacheHashEntry *aEntry,
+                                             void *aUserData);
+    static PLDHashOperator ClearSizeAccounted(CacheHashEntry *aEntry,
+                                              void *aUserData);
 
     nsTHashtable<CacheHashEntry> mCache;
 
@@ -915,48 +914,36 @@ TextRunWordCache::RemoveTextRun(gfxTextRun *aTextRun)
 #endif
 }
 
-struct SizeOfEntryData {
-    nsMallocSizeOfFun mMallocSizeOf;
-    size_t mTotal;
-    SizeOfEntryData(nsMallocSizeOfFun mallocSizeOf) 
-    : mMallocSizeOf(mallocSizeOf), mTotal(0) { }
-};
-
 /*static*/ PLDHashOperator
-TextRunWordCache::MaybeSizeOfEntry(CacheHashEntry *aEntry, void *aUserData)
+TextRunWordCache::AccountForStorage(CacheHashEntry *aEntry, void *aUserData)
 {
     gfxTextRun *run = aEntry->mTextRun;
     if (run) {
-        SizeOfEntryData *data = static_cast<SizeOfEntryData*>(aUserData);
-        data->mTotal += run->MaybeSizeOfIncludingThis(data->mMallocSizeOf);
+        PRUint64 *total = static_cast<PRUint64*>(aUserData);
+        run->AccountForSize(total);
     }
     return PL_DHASH_NEXT;
 }
 
 /*static*/ PLDHashOperator
-TextRunWordCache::ResetSizeOfEntryAccountingFlags(CacheHashEntry *aEntry, void *)
+TextRunWordCache::ClearSizeAccounted(CacheHashEntry *aEntry, void *)
 {
     gfxTextRun *run = aEntry->mTextRun;
     if (run) {
-        run->ResetSizeOfAccountingFlags();
+        run->ClearSizeAccounted();
     }
     return PL_DHASH_NEXT;
-}
-
-size_t
-TextRunWordCache::MaybeSizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-    size_t total = mCache.ShallowSizeOfExcludingThis(aMallocSizeOf);
-    SizeOfEntryData data(aMallocSizeOf);
-    mCache.EnumerateEntries(MaybeSizeOfEntry, &data);
-    total += data.mTotal;
-    return total;
 }
 
 void
-TextRunWordCache::ResetSizeOfAccountingFlags()
+TextRunWordCache::ComputeStorage(PRUint64 *aTotal)
 {
-    mCache.EnumerateEntries(ResetSizeOfEntryAccountingFlags, nsnull);
+    if (aTotal) {
+        *aTotal += mCache.SizeOf();
+        mCache.EnumerateEntries(AccountForStorage, aTotal);
+    } else {
+        mCache.EnumerateEntries(ClearSizeAccounted, nsnull);
+    }
 }
 
 static bool
@@ -1114,20 +1101,12 @@ gfxTextRunWordCache::Flush()
     gTextRunWordCache->Flush();
 }
 
-size_t
-gfxTextRunWordCache::MaybeSizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
+void
+gfxTextRunWordCache::ComputeStorage(PRUint64 *aTotal)
 {
     if (!gTextRunWordCache) {
-        return 0;
+        return;
     }
-    return gTextRunWordCache->MaybeSizeOfExcludingThis(aMallocSizeOf);
-}
-
-void
-gfxTextRunWordCache::ResetSizeOfAccountingFlags()
-{
-    if (gTextRunWordCache) {
-        gTextRunWordCache->ResetSizeOfAccountingFlags();
-    }
+    gTextRunWordCache->ComputeStorage(aTotal);
 }
 

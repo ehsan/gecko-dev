@@ -84,7 +84,6 @@ using mozilla::unused;
 #define TILE_HEIGHT     2048
 
 using namespace mozilla;
-using namespace mozilla::widget;
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 
@@ -2046,36 +2045,33 @@ nsWindow::ResetInputState()
     return NS_OK;
 }
 
-NS_IMETHODIMP_(void)
-nsWindow::SetInputContext(const InputContext& aContext,
-                          const InputContextAction& aAction)
+NS_IMETHODIMP
+nsWindow::SetInputMode(const IMEContext& aContext)
 {
-    ALOGIME("IME: SetInputContext: s=0x%X, 0x%X, action=0x%X, 0x%X",
-            aContext.mIMEState.mEnabled, aContext.mIMEState.mOpen,
-            aAction.mCause, aAction.mFocusChange);
+    ALOGIME("IME: SetInputMode: s=%d trusted=%d", aContext.mStatus, aContext.mReason);
 
-    mInputContext = aContext;
+    mIMEContext = aContext;
 
     // Ensure that opening the virtual keyboard is allowed for this specific
-    // InputContext depending on the content.ime.strict.policy pref
-    if (aContext.mIMEState.mEnabled != IMEState::DISABLED && 
-        aContext.mIMEState.mEnabled != IMEState::PLUGIN &&
-        Preferences::GetBool("content.ime.strict_policy", false) &&
-        !aAction.ContentGotFocusByTrustedCause() &&
-        !aAction.UserMightRequestOpenVKB()) {
-        return;
+    // IMEContext depending on the content.ime.strict.policy pref
+    if (aContext.mStatus != nsIWidget::IME_STATUS_DISABLED && 
+        aContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
+      if (Preferences::GetBool("content.ime.strict_policy", false) &&
+          !aContext.FocusMovedByUser() &&
+          aContext.FocusMovedInContentProcess()) {
+        return NS_OK;
+      }
     }
 
-    AndroidBridge::NotifyIMEEnabled(int(aContext.mIMEState.mEnabled),
-                                    aContext.mHTMLInputType,
-                                    aContext.mActionHint);
+    AndroidBridge::NotifyIMEEnabled(int(aContext.mStatus), aContext.mHTMLInputType, aContext.mActionHint);
+    return NS_OK;
 }
 
-NS_IMETHODIMP_(InputContext)
-nsWindow::GetInputContext()
+NS_IMETHODIMP
+nsWindow::GetInputMode(IMEContext& aContext)
 {
-    mInputContext.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
-    return mInputContext;
+    aContext = mIMEContext;
+    return NS_OK;
 }
 
 NS_IMETHODIMP

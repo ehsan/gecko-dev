@@ -84,12 +84,6 @@ class nsIRangeUtils;
 class nsILinkHandler;
 struct PropItem;
 
-namespace mozilla {
-namespace widget {
-struct IMEState;
-} // namespace widget
-} // namespace mozilla
-
 /**
  * The HTML editor implementation.<br>
  * Use to edit HTML document represented as a DOM tree. 
@@ -167,7 +161,7 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
   /* ------------ nsIEditorIMESupport overrides ------------ */
-  NS_IMETHOD GetPreferredIMEState(mozilla::widget::IMEState *aState);
+  NS_IMETHOD GetPreferredIMEState(PRUint32 *aState);
 
   /* ------------ nsIHTMLEditor methods -------------- */
 
@@ -384,7 +378,6 @@ public:
                             PRInt32 *aInOutOffset,
                             nsIDOMDocument *aDoc);
   NS_IMETHOD_(bool) IsModifiableNode(nsIDOMNode *aNode);
-  virtual bool IsModifiableNode(nsINode *aNode);
 
   NS_IMETHOD SelectAll();
 
@@ -418,7 +411,7 @@ public:
   // aSelection is optional -- if null, we get current seletion
   nsresult CollapseSelectionToDeepestNonTableFirstChild(nsISelection *aSelection, nsIDOMNode *aNode);
 
-  virtual bool IsTextInDirtyFrameVisible(nsIContent *aNode);
+  virtual bool IsTextInDirtyFrameVisible(nsIDOMNode *aNode);
 
   nsresult IsVisTextNode( nsIDOMNode *aNode, 
                           bool *outIsEmptyNode, 
@@ -548,7 +541,6 @@ protected:
   NS_IMETHOD IsRootTag(nsString &aTag, bool &aIsTag);
 
   virtual bool IsBlockNode(nsIDOMNode *aNode);
-  virtual bool IsBlockNode(nsINode *aNode);
   
   static nsCOMPtr<nsIDOMNode> GetEnclosingTable(nsIDOMNode *aNode);
 

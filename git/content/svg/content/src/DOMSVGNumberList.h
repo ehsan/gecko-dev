@@ -102,7 +102,8 @@ public:
    */
   PRUint32 Length() const {
     NS_ABORT_IF_FALSE(mItems.Length() == 0 ||
-                      mItems.Length() == InternalList().Length(),
+                      mItems.Length() ==
+                        const_cast<DOMSVGNumberList*>(this)->InternalList().Length(),
                       "DOM wrapper's list length is out of sync");
     return mItems.Length();
   }
@@ -114,7 +115,7 @@ public:
 
 private:
 
-  nsSVGElement* Element() const {
+  nsSVGElement* Element() {
     return mAList->mElement;
   }
 
@@ -137,7 +138,7 @@ private:
    * get const protection, but our setter methods guard against changing
    * animVal lists.
    */
-  SVGNumberList& InternalList() const;
+  SVGNumberList& InternalList();
 
   /// Creates a DOMSVGNumber for aIndex, if it doesn't already exist.
   void EnsureItemAt(PRUint32 aIndex);

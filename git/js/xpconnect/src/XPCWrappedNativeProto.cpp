@@ -99,7 +99,7 @@ XPCWrappedNativeProto::Init(XPCCallContext& ccx,
         mScriptableInfo =
             XPCNativeScriptableInfo::Construct(ccx, isGlobal, scriptableCreateInfo);
         if (!mScriptableInfo)
-            return false;
+            return JS_FALSE;
     }
 
     js::Class* jsclazz;
@@ -136,7 +136,7 @@ XPCWrappedNativeProto::Init(XPCCallContext& ccx,
             JS_SetPrivate(ccx, mJSProtoObject, nsnull);
             mJSProtoObject = nsnull;
             XPCThrower::Throw(rv, ccx);
-            return false;
+            return JS_FALSE;
         }
     }
 
@@ -219,9 +219,9 @@ XPCWrappedNativeProto::GetNewOrUsed(XPCCallContext& ccx,
         (ScriptableCreateInfo &&
          ScriptableCreateInfo->GetFlags().DontSharePrototype())) {
         ciFlags |= XPC_PROTO_DONT_SHARE;
-        shared = false;
+        shared = JS_FALSE;
     } else {
-        shared = true;
+        shared = JS_TRUE;
     }
 
     if (shared) {

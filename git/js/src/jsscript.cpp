@@ -1273,14 +1273,15 @@ JSScript::dataSize()
 }
 
 size_t
-JSScript::dataSize(JSMallocSizeOfFun mallocSizeOf)
+JSScript::dataSize(JSUsableSizeFun usf)
 {
 #if JS_SCRIPT_INLINE_DATA_LIMIT
     if (data == inlineData)
         return 0;
 #endif
 
-    return mallocSizeOf(data, dataSize());
+    size_t usable = usf(data);
+    return usable ? usable : dataSize();
 }
 
 /*

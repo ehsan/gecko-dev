@@ -884,7 +884,7 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponseText(nsAString& aResponseText)
   // We only decode text lazily if we're also parsing to a doc.
   // Also, if we've decoded all current data already, then no need to decode
   // more.
-  if (!mResponseXML ||
+  if (IsWaitingForHTMLCharset() || !mResponseXML ||
       mResponseBodyDecodedPos == mResponseBody.Length()) {
     aResponseText = mResponseText;
     return NS_OK;
@@ -1473,6 +1473,16 @@ nsXMLHttpRequest::IsSystemXHR()
   return !!nsContentUtils::IsSystemPrincipal(mPrincipal);
 }
 
+bool
+nsXMLHttpRequest::IsWaitingForHTMLCharset()
+{
+  if (!mIsHtml || !mResponseXML) {
+    return false;
+  }
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(mResponseXML);
+  return doc->GetDocumentCharacterSetSource() < kCharsetFromDocTypeDefault;
+}
+
 nsresult
 nsXMLHttpRequest::CheckChannelForCrossSiteRequest(nsIChannel* aChannel)
 {
@@ -1918,13 +1928,7 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
     nsCAutoString type;
     channel->GetContentType(type);
 
-    if ((mResponseType == XML_HTTP_RESPONSE_TYPE_DOCUMENT) &&
-        type.EqualsLiteral("text/html")) {
-      // HTML parsing is only supported for responseType == "document" to
-      // avoid running the parser and, worse, populating responseXML for
-      // legacy users of XHR who use responseType == "" for retrieving the
-      // responseText of text/html resources. This legacy case is so common
-      // that it's not useful to emit a warning about it.
+    if (type.EqualsLiteral("text/html")) {
       if (!(mState & XML_HTTP_REQUEST_ASYNC)) {
         // We don't make cool new features available in the bad synchronous
         // mode. The synchronous mode is for legacy only.
@@ -3134,11 +3138,13 @@ nsXMLHttpRequest::MaybeDispatchProgressEvents(bool aFinalProgress)
       mLoadTotal = mLoadTransferred;
       mLoadLengthComputable = true;
     }
-    mInLoadProgressEvent = true;
-    DispatchProgressEvent(this, NS_LITERAL_STRING(PROGRESS_STR),
-                          true, mLoadLengthComputable, mLoadTransferred,
-                          mLoadTotal, mLoadTransferred, mLoadTotal);
-    mInLoadProgressEvent = false;
+    if (aFinalProgress || !IsWaitingForHTMLCharset()) {
+      mInLoadProgressEvent = true;
+      DispatchProgressEvent(this, NS_LITERAL_STRING(PROGRESS_STR),
+                            true, mLoadLengthComputable, mLoadTransferred,
+                            mLoadTotal, mLoadTransferred, mLoadTotal);
+      mInLoadProgressEvent = false;
+    }
     if (mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_TEXT ||
         mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER) {
       mResponseBody.Truncate();

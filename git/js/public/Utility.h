@@ -895,9 +895,11 @@ RoundUpPow2(size_t x)
 #endif /* defined(__cplusplus) */
 
 /*
- * This is SpiderMonkey's equivalent to |nsMallocSizeOfFun|.
+ * This signature is for malloc_usable_size-like functions used to measure
+ * memory usage.  A return value of zero indicates that the size is unknown,
+ * and so a fall-back computation should be done for the size.
  */
-typedef size_t(*JSMallocSizeOfFun)(const void *p, size_t computedSize);
+typedef size_t(*JSUsableSizeFun)(void *p);
 
 /* sixgill annotation defines */
 #ifndef HAVE_STATIC_ANNOTATIONS

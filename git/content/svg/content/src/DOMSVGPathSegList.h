@@ -120,7 +120,8 @@ public:
    */
   PRUint32 Length() const {
     NS_ABORT_IF_FALSE(mItems.Length() == 0 ||
-                      mItems.Length() == InternalList().CountItems(),
+                      mItems.Length() ==
+                        const_cast<DOMSVGPathSegList*>(this)->InternalList().CountItems(),
                       "DOM wrapper's list length is out of sync");
     return mItems.Length();
   }
@@ -183,9 +184,9 @@ private:
    * get const protection, but our setter methods guard against changing
    * anim val lists.
    */
-  SVGPathData& InternalList() const;
+  SVGPathData& InternalList();
 
-  SVGAnimatedPathSegList& InternalAList() const;
+  SVGAnimatedPathSegList& InternalAList();
 
   /// Creates an instance of the appropriate DOMSVGPathSeg sub-class for
   // aIndex, if it doesn't already exist.

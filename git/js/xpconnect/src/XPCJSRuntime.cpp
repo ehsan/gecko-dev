@@ -242,12 +242,12 @@ ContextCallback(JSContext *cx, uintN operation)
     if (self) {
         if (operation == JSCONTEXT_NEW) {
             if (!self->OnJSContextNew(cx))
-                return false;
+                return JS_FALSE;
         } else if (operation == JSCONTEXT_DESTROY) {
             delete XPCContext::GetXPCContext(cx);
         }
     }
-    return true;
+    return JS_TRUE;
 }
 
 xpc::CompartmentPrivate::~CompartmentPrivate()
@@ -262,11 +262,11 @@ CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
 
     XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
     if (!self)
-        return true;
+        return JS_TRUE;
 
     nsAutoPtr<xpc::CompartmentPrivate> priv(static_cast<xpc::CompartmentPrivate*>(JS_SetCompartmentPrivate(cx, compartment, nsnull)));
     if (!priv)
-        return true;
+        return JS_TRUE;
 
     if (xpc::PtrAndPrincipalHashKey *key = priv->key) {
         XPCCompartmentMap &map = self->GetCompartmentMap();
@@ -291,7 +291,7 @@ CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
         map.Remove(ptr);
     }
 
-    return true;
+    return JS_TRUE;
 }
 
 struct ObjectHolder : public JSDHashEntryHdr
@@ -654,13 +654,13 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
 {
     XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
     if (!self)
-        return true;
+        return JS_TRUE;
 
     switch (status) {
         case JSGC_BEGIN:
         {
             if (!NS_IsMainThread()) {
-                return false;
+                return JS_FALSE;
             }
 
             // We seem to sometime lose the unrooted global flag. Restore it
@@ -707,13 +707,13 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
             self->GetCompartmentMap().EnumerateRead((XPCCompartmentMap::EnumReadFunction)
                                                     SweepCompartment, cx);
 
-            self->mDoingFinalization = true;
+            self->mDoingFinalization = JS_TRUE;
             break;
         }
         case JSGC_FINALIZE_END:
         {
             NS_ASSERTION(self->mDoingFinalization, "bad state");
-            self->mDoingFinalization = false;
+            self->mDoingFinalization = JS_FALSE;
 
             // Release all the members whose JSObjects are now known
             // to be dead.
@@ -921,10 +921,10 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
     nsTArray<JSGCCallback> callbacks(self->extraGCCallbacks);
     for (PRUint32 i = 0; i < callbacks.Length(); ++i) {
         if (!callbacks[i](cx, status))
-            return false;
+            return JS_FALSE;
     }
 
-    return true;
+    return JS_TRUE;
 }
 
 // Auto JS GC lock helper.
@@ -1233,7 +1233,7 @@ CompartmentCallback(JSContext *cx, void *vdata, JSCompartment *compartment)
     curr->mjitCodeUnused = unused;
 #endif
     JS_GetTypeInferenceMemoryStats(cx, compartment, &curr->typeInferenceMemory,
-                                   MemoryReporterMallocSizeOf);
+                                   moz_malloc_usable_size);
 }
 
 void
@@ -1278,14 +1278,14 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
             } else {
                 curr->gcHeapObjectsNonFunction += thingSize;
             }
-            curr->objectSlots += obj->sizeOfSlotsArray(MemoryReporterMallocSizeOf);
+            curr->objectSlots += obj->sizeOfSlotsArray(moz_malloc_usable_size);
             break;
         }
         case JSTRACE_STRING:
         {
             JSString *str = static_cast<JSString *>(thing);
             curr->gcHeapStrings += thingSize;
-            curr->stringChars += str->charsHeapSize(MemoryReporterMallocSizeOf);
+            curr->stringChars += str->charsHeapSize(moz_malloc_usable_size);
             break;
         }
         case JSTRACE_SHAPE:
@@ -1293,14 +1293,11 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
             js::Shape *shape = static_cast<js::Shape *>(thing);
             if (shape->inDictionary()) {
                 curr->gcHeapShapesDict += thingSize;
-                curr->shapesExtraDictTables +=
-                    shape->sizeOfPropertyTableIncludingThis(MemoryReporterMallocSizeOf);
+                curr->shapesExtraDictTables += shape->sizeOfPropertyTable(moz_malloc_usable_size);
             } else {
                 curr->gcHeapShapesTree += thingSize;
-                curr->shapesExtraTreeTables +=
-                    shape->sizeOfPropertyTableIncludingThis(MemoryReporterMallocSizeOf);
-                curr->shapesExtraTreeShapeKids +=
-                    shape->sizeOfKidsIncludingThis(MemoryReporterMallocSizeOf);
+                curr->shapesExtraTreeTables += shape->sizeOfPropertyTable(moz_malloc_usable_size);
+                curr->shapesExtraTreeShapeKids += shape->sizeOfKids(moz_malloc_usable_size);
             }
             break;
         }
@@ -1308,9 +1305,9 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
         {
             JSScript *script = static_cast<JSScript *>(thing);
             curr->gcHeapScripts += thingSize;
-            curr->scriptData += script->dataSize(MemoryReporterMallocSizeOf);
+            curr->scriptData += script->dataSize(moz_malloc_usable_size);
 #ifdef JS_METHODJIT
-            curr->mjitData += script->jitDataSize(MemoryReporterMallocSizeOf);
+            curr->mjitData += script->jitDataSize(moz_malloc_usable_size);
 #endif
             break;
         }
@@ -1318,8 +1315,7 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
         {
             js::types::TypeObject *obj = static_cast<js::types::TypeObject *>(thing);
             curr->gcHeapTypeObjects += thingSize;
-            JS_GetTypeInferenceObjectStats(obj, &curr->typeInferenceMemory,
-                                           MemoryReporterMallocSizeOf);
+            JS_GetTypeInferenceObjectStats(obj, &curr->typeInferenceMemory, moz_malloc_usable_size);
             break;
         }
         case JSTRACE_XML:
@@ -1534,12 +1530,13 @@ CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data)
         for (js::ThreadDataIter i(rt); !i.empty(); i.popFront())
             data->stackSize += i.threadData()->stackSpace.committedSize();
 
-        data->runtimeObjectSize = MemoryReporterMallocSizeOf(rt, sizeof(JSRuntime));
+        size_t usable = moz_malloc_usable_size(rt);
+        data->runtimeObjectSize = usable ? usable : sizeof(JSRuntime);
 
-        // Nb: we use sizeOfExcludingThis() because atomState.atoms is within
-        // JSRuntime, and so counted when JSRuntime is counted.
+        // Nb: |countMe| is false because atomState.atoms is within JSRuntime,
+        // and so counted when JSRuntime is counted.
         data->atomsTableSize =
-            rt->atomState.atoms.sizeOfExcludingThis(MemoryReporterMallocSizeOf);
+            rt->atomState.atoms.sizeOf(moz_malloc_usable_size, /* countMe */false);
     }
 
     JS_DestroyContextNoGC(cx);
@@ -2061,7 +2058,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
    mThreadRunningGC(nsnull),
    mWrappedJSToReleaseArray(),
    mNativesToReleaseArray(),
-   mDoingFinalization(false),
+   mDoingFinalization(JS_FALSE),
    mVariantRoots(nsnull),
    mWrappedJSRoots(nsnull),
    mObjectHolderRoots(nsnull),
@@ -2079,7 +2076,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
 
     DOM_InitInterfaces();
     Preferences::AddBoolVarCache(&gNewDOMBindingsEnabled, "dom.new_bindings",
-                                 false);
+                                 JS_FALSE);
 
 
     // these jsids filled in later when we have a JSContext to work with.
@@ -2181,7 +2178,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
     NS_TIME_FUNCTION;
 
     // if it is our first context then we need to generate our string ids
-    JSBool ok = true;
+    JSBool ok = JS_TRUE;
     if (JSID_IS_VOID(mStrIDs[0])) {
         JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
         {
@@ -2192,7 +2189,7 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
                 JSString* str = JS_InternString(cx, mStrings[i]);
                 if (!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &mStrIDs[i])) {
                     mStrIDs[0] = JSID_VOID;
-                    ok = false;
+                    ok = JS_FALSE;
                     break;
                 }
                 mStrJSVals[i] = STRING_TO_JSVAL(str);
@@ -2202,22 +2199,22 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
         ok = mozilla::dom::binding::DefineStaticJSVals(cx);
     }
     if (!ok)
-        return false;
+        return JS_FALSE;
 
     XPCPerThreadData* tls = XPCPerThreadData::GetData(cx);
     if (!tls)
-        return false;
+        return JS_FALSE;
 
     XPCContext* xpc = new XPCContext(this, cx);
     if (!xpc)
-        return false;
+        return JS_FALSE;
 
     JS_SetNativeStackQuota(cx, 128 * sizeof(size_t) * 1024);
 
     // we want to mark the global object ourselves since we use a different color
     JS_ToggleOptions(cx, JSOPTION_UNROOTED_GLOBAL);
 
-    return true;
+    return JS_TRUE;
 }
 
 JSBool
