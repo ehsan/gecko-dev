@@ -759,7 +759,7 @@ GetPossibleCallees(JSContext *cx, HandleScript script, jsbytecode *pc,
 
     RootedFunction fun(cx);
     for (unsigned i = 0; i < objCount; i++) {
-        JSObject *obj = calleeTypes->getSingleObject(i);
+        RawObject obj = calleeTypes->getSingleObject(i);
         if (obj && obj->isFunction()) {
             fun = obj->toFunction();
         } else {

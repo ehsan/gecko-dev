@@ -183,7 +183,7 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
         }
 
         /* Convert id to a linear string. */
-        JSString *s = ToString<CanGC>(cx, IdToValue(id));
+        RawString s = ToString<CanGC>(cx, IdToValue(id));
         if (!s)
             return false;
         Rooted<JSLinearString*> idstr(cx, s->ensureLinear(cx));
@@ -278,7 +278,7 @@ obj_toSource(JSContext *cx, unsigned argc, Value *vp)
     if (outermost && !buf.append(')'))
         return false;
 
-    JSString *str = buf.finishString();
+    RawString str = buf.finishString();
     if (!str)
         return false;
     args.rval().setString(str);
@@ -324,7 +324,7 @@ obj_toString(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     /* Steps 4-5. */
-    JSString *str = JS_BasicObjectToString(cx, obj);
+    RawString str = JS_BasicObjectToString(cx, obj);
     if (!str)
         return false;
     args.rval().setString(str);

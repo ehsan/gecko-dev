@@ -781,7 +781,7 @@ PrepareOsrTempData(JSContext *cx, ICUseCount_Fallback *stub, BaselineFrame *fram
         *((JSFunction **) (stackFrame + StackFrame::offsetOfExec())) = frame->fun();
         *((uint32_t *) (stackFrame + StackFrame::offsetOfFlags())) = StackFrame::FUNCTION;
     } else {
-        *((JSScript **) (stackFrame + StackFrame::offsetOfExec())) = frame->script();
+        *((RawScript *) (stackFrame + StackFrame::offsetOfExec())) = frame->script();
         *((uint32_t *) (stackFrame + StackFrame::offsetOfFlags())) = 0;
     }
 
@@ -1268,7 +1268,7 @@ ICTypeMonitor_TypeObject::Compiler::generateStubCode(MacroAssembler &masm)
 
 bool
 ICUpdatedStub::addUpdateStubForValue(JSContext *cx, HandleScript script, HandleObject obj,
-                                     jsid id, HandleValue val)
+                                     RawId id, HandleValue val)
 {
     if (numOptimizedStubs_ >= MAX_OPTIMIZED_STUBS) {
         // TODO: if the TypeSet becomes unknown or has the AnyObject type,
@@ -1531,7 +1531,7 @@ DoNewArray(JSContext *cx, ICNewArray_Fallback *stub, uint32_t length,
 {
     FallbackICSpew(cx, stub, "NewArray");
 
-    JSObject *obj = NewInitArray(cx, length, type);
+    RawObject obj = NewInitArray(cx, length, type);
     if (!obj)
         return false;
 
@@ -1565,7 +1565,7 @@ DoNewObject(JSContext *cx, ICNewObject_Fallback *stub, HandleObject templateObje
 {
     FallbackICSpew(cx, stub, "NewObject");
 
-    JSObject *obj = NewInitObject(cx, templateObject);
+    RawObject obj = NewInitObject(cx, templateObject);
     if (!obj)
         return false;
 
@@ -1659,7 +1659,7 @@ DoCompareFallback(JSContext *cx, BaselineFrame *frame, ICCompare_Fallback *stub,
         return true;
     }
 
-    JSScript *script = frame->script();
+    RawScript script = frame->script();
 
     // Try to generate new stubs.
     if (lhs.isInt32() && rhs.isInt32()) {
@@ -2070,7 +2070,7 @@ DoToBoolFallback(JSContext *cx, BaselineFrame *frame, ICToBool_Fallback *stub, H
 
     JS_ASSERT(!arg.isBoolean());
 
-    JSScript *script = frame->script();
+    RawScript script = frame->script();
 
     // Try to generate new stubs.
     if (arg.isInt32()) {
@@ -2568,9 +2568,9 @@ DoConcatStrings(JSContext *cx, HandleValue lhs, HandleValue rhs, MutableHandleVa
 {
     JS_ASSERT(lhs.isString());
     JS_ASSERT(rhs.isString());
-    JSString *lstr = lhs.toString();
-    JSString *rstr = rhs.toString();
-    JSString *result = ConcatStrings<NoGC>(cx, lstr, rstr);
+    RawString lstr = lhs.toString();
+    RawString rstr = rhs.toString();
+    RawString result = ConcatStrings<NoGC>(cx, lstr, rstr);
     if (result) {
         res.set(StringValue(result));
         return true;
@@ -2609,7 +2609,7 @@ ICBinaryArith_StringConcat::Compiler::generateStubCode(MacroAssembler &masm)
     return true;
 }
 
-static JSString *
+static RawString
 ConvertObjectToStringForConcat(JSContext *cx, HandleValue obj)
 {
     JS_ASSERT(obj.isObject());
@@ -2623,8 +2623,8 @@ static bool
 DoConcatStringObject(JSContext *cx, bool lhsIsString, HandleValue lhs, HandleValue rhs,
                      MutableHandleValue res)
 {
-    JSString *lstr = NULL;
-    JSString *rstr = NULL;
+    RawString lstr = NULL;
+    RawString rstr = NULL;
     if (lhsIsString) {
         // Convert rhs first.
         JS_ASSERT(lhs.isString() && rhs.isObject());

@@ -29,6 +29,10 @@ public:
     }
     AudioNode::DestroyMediaStream();
   }
+  virtual bool SupportsMediaStreams() const MOZ_OVERRIDE
+  {
+    return true;
+  }
   virtual uint32_t NumberOfInputs() const MOZ_FINAL MOZ_OVERRIDE
   {
     return 0;

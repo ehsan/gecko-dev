@@ -86,7 +86,6 @@ nsDOMOfflineResourceList::nsDOMOfflineResourceList(nsIURI *aManifestURI,
   , mManifestURI(aManifestURI)
   , mDocumentURI(aDocumentURI)
   , mExposeCacheUpdateStatus(true)
-  , mDontSetDocumentCache(false)
   , mStatus(nsIDOMOfflineResourceList::IDLE)
   , mCachedKeys(nullptr)
   , mCachedKeysCount(0)
@@ -450,10 +449,6 @@ nsDOMOfflineResourceList::Update()
                                      window, getter_AddRefs(update));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Since we are invoking the cache update, cache on the document must not
-  // be updated until swapCache() method is called on applicationCache object.
-  mDontSetDocumentCache = true;
-
   return NS_OK;
 }
 
@@ -625,15 +620,6 @@ NS_IMETHODIMP
 nsDOMOfflineResourceList::ApplicationCacheAvailable(nsIApplicationCache *aApplicationCache)
 {
   mAvailableApplicationCache = aApplicationCache;
-
-  if (!mDontSetDocumentCache) {
-    nsCOMPtr<nsIApplicationCacheContainer> appCacheContainer =
-      GetDocumentAppCacheContainer();
-
-    if (appCacheContainer)
-      appCacheContainer->SetApplicationCache(aApplicationCache);
-  }
-
   return NS_OK;
 }
 
@@ -732,7 +718,6 @@ nsDOMOfflineResourceList::UpdateCompleted(nsIOfflineCacheUpdate *aUpdate)
 
   mCacheUpdate->RemoveObserver(this);
   mCacheUpdate = nullptr;
-  mDontSetDocumentCache = false;
 
   if (NS_SUCCEEDED(rv) && succeeded && !partial) {
     if (isUpgrade) {

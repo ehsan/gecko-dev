@@ -357,7 +357,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
 
     /** Viewport message handler. */
     private DisplayPortMetrics handleViewportMessage(ImmutableViewportMetrics messageMetrics, ViewportMessageType type) {
-        synchronized (getLock()) {
+        synchronized (this) {
             ImmutableViewportMetrics newMetrics;
             ImmutableViewportMetrics oldMetrics = getViewportMetrics();
 
@@ -517,10 +517,8 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     }
 
     void setIsRTL(boolean aIsRTL) {
-        synchronized (getLock()) {
-            ImmutableViewportMetrics newMetrics = getViewportMetrics().setIsRTL(aIsRTL);
-            setViewportMetrics(newMetrics, false);
-        }
+        ImmutableViewportMetrics newMetrics = getViewportMetrics().setIsRTL(aIsRTL);
+        setViewportMetrics(newMetrics, false);
     }
 
     /** This function is invoked by Gecko via JNI; be careful when modifying signature.
@@ -533,7 +531,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
     public void setFirstPaintViewport(float offsetX, float offsetY, float zoom,
             float pageLeft, float pageTop, float pageRight, float pageBottom,
             float cssPageLeft, float cssPageTop, float cssPageRight, float cssPageBottom) {
-        synchronized (getLock()) {
+        synchronized (this) {
             ImmutableViewportMetrics currentMetrics = getViewportMetrics();
 
             Tab tab = Tabs.getInstance().getSelectedTab();
@@ -586,7 +584,7 @@ public class GeckoLayerClient implements LayerView.Listener, PanZoomTarget
       * function will be invoked before syncViewportInfo.
       */
     public void setPageRect(float cssPageLeft, float cssPageTop, float cssPageRight, float cssPageBottom) {
-        synchronized (getLock()) {
+        synchronized (this) {
             RectF cssPageRect = new RectF(cssPageLeft, cssPageTop, cssPageRight, cssPageBottom);
             float ourZoom = getViewportMetrics().zoomFactor;
             setPageRect(RectUtils.scale(cssPageRect, ourZoom), cssPageRect);

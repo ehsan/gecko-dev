@@ -136,7 +136,7 @@ Pipe.prototype = {
     Services.obs.addObserver(this, "identity-controller-unwatch", false);
   },
 
-  uninit: function pipe_uninit() {
+  uninit: function pipe_init() {
     Services.obs.removeObserver(this, "identity-child-process-shutdown");
     Services.obs.removeObserver(this, "identity-controller-unwatch");
   },
