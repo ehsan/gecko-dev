@@ -272,7 +272,7 @@ nsXULElement::Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
 
         element->mPrototype = aPrototype;
         if (aPrototype->mHasIdAttribute) {
-            element->SetFlags(NODE_HAS_ID);
+            element->SetFlags(NODE_MAY_HAVE_ID);
         }
         if (aPrototype->mHasClassAttribute) {
             element->SetFlags(NODE_MAY_HAVE_CLASS);
@@ -874,9 +874,12 @@ nsXULElement::BindToTree(nsIDocument* aDocument,
                          nsIContent* aBindingParent,
                          PRBool aCompileEventHandlers)
 {
-  nsresult rv = nsStyledElement::BindToTree(aDocument, aParent,
-                                            aBindingParent,
-                                            aCompileEventHandlers);
+  // Calling the nsStyledElementBase method on purpose to skip over
+  // nsStyledElement, since we don't want the style attribute
+  // reparsing it does.
+  nsresult rv = nsStyledElementBase::BindToTree(aDocument, aParent,
+                                                aBindingParent,
+                                                aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
@@ -1303,13 +1306,6 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    PRBool isId = PR_FALSE;
-    if (aName == nsGkAtoms::id && aNameSpaceID == kNameSpaceID_None) {
-      // Have to do this before clearing flag. See RemoveFromIdTable
-      RemoveFromIdTable();
-      isId = PR_TRUE;
-    }
-
     PRInt32 index = mAttrsAndChildren.IndexOfAttr(aName, aNameSpaceID);
     if (index < 0) {
         NS_ASSERTION(!protoattr, "we used to have a protoattr, we should now "
@@ -1362,10 +1358,6 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     // Deal with modification of magical attributes that side-effect
     // other things.
     // XXX Know how to remove POPUP event listeners when an attribute is unset?
-
-    if (isId) {
-        UnsetFlags(NODE_HAS_ID);
-    }
 
     if (aNameSpaceID == kNameSpaceID_None) {
         if (aName == nsGkAtoms::hidechrome &&
@@ -1725,22 +1717,26 @@ nsXULElement::GetBuilder(nsIXULTemplateBuilder** aBuilder)
 //----------------------------------------------------------------------
 // Implementation methods
 
-// XXX DoGetID and DoGetClasses must be defined here because we have proto
-// attributes.
+/// XXX GetID must be defined here because we have proto attrs.
 nsIAtom*
-nsXULElement::DoGetID() const
+nsXULElement::GetID() const
 {
-    NS_ASSERTION(HasFlag(NODE_HAS_ID), "Unexpected call");
-    const nsAttrValue* attr =
-        FindLocalOrProtoAttr(kNameSpaceID_None, nsGkAtoms::id);
+    if (!HasFlag(NODE_MAY_HAVE_ID)) {
+        return nsnull;
+    }
 
-    // We need the nullcheck here because during unlink the prototype looses
-    // all of its attributes. We might want to change that.
-    // The nullcheck would also be needed if we make UnsetAttr use
-    // nsGenericElement::UnsetAttr as that calls out to various code between
-    // removing the attribute and clearing the NODE_HAS_ID flag.
+    const nsAttrValue* attrVal = FindLocalOrProtoAttr(kNameSpaceID_None, nsGkAtoms::id);
 
-    return attr ? attr->GetAtomValue() : nsnull;
+    NS_ASSERTION(!attrVal ||
+                 attrVal->Type() == nsAttrValue::eAtom ||
+                 (attrVal->Type() == nsAttrValue::eString &&
+                  attrVal->GetStringValue().IsEmpty()),
+                 "unexpected attribute type");
+
+    if (attrVal && attrVal->Type() == nsAttrValue::eAtom) {
+        return attrVal->GetAtomValue();
+    }
+    return nsnull;
 }
 
 const nsAttrValue*

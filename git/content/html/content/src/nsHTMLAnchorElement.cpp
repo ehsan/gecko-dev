@@ -208,7 +208,7 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   // Prefetch links
@@ -226,7 +226,7 @@ nsHTMLAnchorElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   Link::ResetLinkState(false);
 
   if (IsInDoc()) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
@@ -434,7 +434,7 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              PRBool aNotify)
 {
   if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID) {
-    UnregAccessKey();
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   bool reset = false;
@@ -460,8 +460,7 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   if (aName == nsGkAtoms::accesskey && kNameSpaceID_None == aNameSpaceID &&
       !aValue.IsEmpty()) {
-    SetFlags(NODE_HAS_ACCESSKEY);
-    RegAccessKey();
+    RegUnRegAccessKey(PR_TRUE);
   }
 
   return rv;
@@ -473,9 +472,7 @@ nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 {
   if (aAttribute == nsGkAtoms::accesskey &&
       kNameSpaceID_None == aNameSpaceID) {
-    // Have to unregister before clearing flag. See UnregAccessKey
-    UnregAccessKey();
-    UnsetFlags(NODE_HAS_ACCESSKEY);
+    RegUnRegAccessKey(PR_FALSE);
   }
 
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,

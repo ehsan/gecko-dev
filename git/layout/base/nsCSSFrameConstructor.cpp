@@ -11410,11 +11410,14 @@ static void
 RestyleSiblingsStartingWith(nsCSSFrameConstructor *aFrameConstructor,
                             nsIContent *aStartingSibling /* may be null */)
 {
-  if (aStartingSibling) {
-    nsIContent* parent = aStartingSibling->GetParent();
-    if (parent && parent->IsElement()) {
-      aFrameConstructor->PostRestyleEvent(parent->AsElement(), eRestyle_Self,
-                                          NS_STYLE_HINT_NONE);
+  for (nsIContent *sibling = aStartingSibling; sibling;
+       sibling = sibling->GetNextSibling()) {
+    if (sibling->IsElement()) {
+      aFrameConstructor->
+        PostRestyleEvent(sibling->AsElement(),
+                         nsRestyleHint(eRestyle_Self | eRestyle_LaterSiblings),
+                         NS_STYLE_HINT_NONE);
+      break;
     }
   }
 }

@@ -1454,7 +1454,7 @@ nsDocument::~nsDocument()
 
   // Destroy link map now so we don't waste time removing
   // links one by one
-  DestroyElementMaps();
+  DestroyLinkMap();
 
   nsAutoScriptBlocker scriptBlocker;
 
@@ -1883,6 +1883,8 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   }
 #endif
 
+  mIdentifierMap.Clear();
+
   SetPrincipal(nsnull);
   mSecurityInfo = nsnull;
 
@@ -1898,7 +1900,7 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 
   // Destroy link map now so we don't waste time removing
   // links one by one
-  DestroyElementMaps();
+  DestroyLinkMap();
 
   PRUint32 count = mChildren.ChildCount();
   { // Scope for update
@@ -2332,38 +2334,51 @@ nsDocument::GetLastModified(nsAString& aLastModified)
 }
 
 void
-nsDocument::AddToNameTable(Element *aElement, nsIAtom* aName)
+nsDocument::UpdateNameTableEntry(Element *aElement)
 {
   if (!mIsRegularHTML)
     return;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aName);
+  nsIAtom* name = nsContentUtils::IsNamedItem(aElement);
+  if (!name)
+    return;
 
-  // entry is null if we're not tracking the elements with this name
-
-  if (entry) {
-    entry->AddNameElement(aElement);
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(name);
+  if (!entry) {
+    // We're not tracking the elements with this name
+    return;
   }
+
+  entry->AddNameElement(aElement);
 }
 
 void
-nsDocument::RemoveFromNameTable(Element *aElement, nsIAtom* aName)
+nsDocument::RemoveFromNameTable(Element *aElement)
 {
-  // Speed up document teardown
-  if (!mIsRegularHTML || mIdentifierMap.Count() == 0)
+  if (!mIsRegularHTML)
     return;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aName);
-  if (!entry) // Should never be false unless we had OOM when adding the entry
+  nsIAtom* name = nsContentUtils::IsNamedItem(aElement);
+  if (!name)
     return;
+
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(name);
+  if (!entry) {
+    // We're not tracking the elements with this name
+    return;
+  }
 
   entry->RemoveNameElement(aElement);
 }
 
 void
-nsDocument::AddToIdTable(Element *aElement, nsIAtom* aId)
+nsDocument::UpdateIdTableEntry(Element *aElement)
 {
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aId);
+  nsIAtom* id = aElement->GetID();
+  if (!id)
+    return;
+
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(id);
 
   if (entry) { /* True except on OOM */
     entry->AddIdElement(aElement);
@@ -2371,21 +2386,127 @@ nsDocument::AddToIdTable(Element *aElement, nsIAtom* aId)
 }
 
 void
-nsDocument::RemoveFromIdTable(Element *aElement, nsIAtom* aId)
+nsDocument::RemoveFromIdTable(Element *aElement)
 {
-  NS_ASSERTION(aId, "huhwhatnow?");
-
-  // Speed up document teardown
-  if (mIdentifierMap.Count() == 0) {
+  nsIAtom* id = aElement->GetID();
+  if (!id)
     return;
-  }
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aId);
-  if (!entry) // Can be null for XML elements with changing ids.
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(id);
+  if (!entry) /* Should be false unless we had OOM when adding the entry */
     return;
 
   if (entry->RemoveIdElement(aElement)) {
-    mIdentifierMap.RemoveEntry(aId);
+    mIdentifierMap.RemoveEntry(id);
+  }
+}
+
+void
+nsDocument::UnregisterNamedItems(nsIContent *aContent)
+{
+  if (!aContent->IsElement()) {
+    // non-element nodes are not named items nor can they have children.
+    return;
+  }
+
+  RemoveFromNameTable(aContent->AsElement());
+  RemoveFromIdTable(aContent->AsElement());
+
+  for (nsINode::ChildIterator iter(aContent); !iter.IsDone(); iter.Next()) {
+    UnregisterNamedItems(iter);
+  }
+}
+
+void
+nsDocument::RegisterNamedItems(nsIContent *aContent)
+{
+  if (!aContent->IsElement()) {
+    // non-element nodes are not named items nor can they have children.
+    return;
+  }
+
+  UpdateNameTableEntry(aContent->AsElement());
+  UpdateIdTableEntry(aContent->AsElement());
+
+  for (nsINode::ChildIterator iter(aContent); !iter.IsDone(); iter.Next()) {
+    RegisterNamedItems(iter);
+  }
+}
+
+void
+nsDocument::ContentAppended(nsIDocument* aDocument,
+                            nsIContent* aContainer,
+                            nsIContent* aFirstNewContent,
+                            PRInt32 aNewIndexInContainer)
+{
+  NS_ASSERTION(aDocument == this, "unexpected doc");
+
+  for (nsINode::ChildIterator iter(aContainer, aNewIndexInContainer);
+       !iter.IsDone();
+       iter.Next()) {
+    RegisterNamedItems(iter);
+  }
+}
+
+void
+nsDocument::ContentInserted(nsIDocument* aDocument,
+                            nsIContent* aContainer,
+                            nsIContent* aContent,
+                            PRInt32 aIndexInContainer)
+{
+  NS_ASSERTION(aDocument == this, "unexpected doc");
+
+  NS_ABORT_IF_FALSE(aContent, "Null content!");
+
+  RegisterNamedItems(aContent);
+}
+
+void
+nsDocument::ContentRemoved(nsIDocument* aDocument,
+                           nsIContent* aContainer,
+                           nsIContent* aChild,
+                           PRInt32 aIndexInContainer)
+{
+  NS_ASSERTION(aDocument == this, "unexpected doc");
+
+  NS_ABORT_IF_FALSE(aChild, "Null content!");
+
+  UnregisterNamedItems(aChild);
+}
+
+void
+nsDocument::AttributeWillChange(nsIDocument* aDocument,
+                                nsIContent* aContent, PRInt32 aNameSpaceID,
+                                nsIAtom* aAttribute, PRInt32 aModType)
+{
+  NS_ABORT_IF_FALSE(aContent && aContent->IsElement(), "Null content!");
+  NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
+
+  if (aNameSpaceID != kNameSpaceID_None)
+    return;
+  if (aAttribute == nsGkAtoms::name) {
+    RemoveFromNameTable(aContent->AsElement());
+  } else if (aAttribute == aContent->GetIDAttributeName()) {
+    RemoveFromIdTable(aContent->AsElement());
+  }
+}
+
+void
+nsDocument::AttributeChanged(nsIDocument* aDocument,
+                             nsIContent* aContent, PRInt32 aNameSpaceID,
+                             nsIAtom* aAttribute, PRInt32 aModType)
+{
+  NS_ASSERTION(aDocument == this, "unexpected doc");
+
+  NS_ABORT_IF_FALSE(aContent && aContent->IsElement(), "Null content!");
+  NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
+
+  if (aNameSpaceID != kNameSpaceID_None)
+    return;
+  if (aAttribute == nsGkAtoms::name) {
+    UpdateNameTableEntry(aContent->AsElement());
+  } else if (aAttribute == aContent->GetIDAttributeName()) {
+    UpdateIdTableEntry(aContent->AsElement());
   }
 }
 
@@ -3204,7 +3325,7 @@ nsDocument::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent
 
   if (oldKid->IsElement()) {
     // Destroy the link map up front before we mess with the child list.
-    DestroyElementMaps();
+    DestroyLinkMap();
   }
 
   nsresult rv =
@@ -3738,35 +3859,80 @@ nsDocument::CheckGetElementByIdArg(const nsIAtom* aId)
   return PR_TRUE;
 }
 
+nsIdentifierMapEntry*
+nsDocument::GetElementByIdInternal(nsIAtom* aID)
+{
+  // We don't have to flush before we do the initial hashtable lookup, since if
+  // the id is already in the hashtable it couldn't have been removed without
+  // us being notified (all removals notify immediately, as far as I can tell).
+  // So do the lookup first.
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aID);
+  NS_ENSURE_TRUE(entry, nsnull);
+
+  if (entry->GetIdElement())
+    return entry;
+
+  // Now we have to flush.  It could be that we know nothing about this ID yet
+  // but more content has been added to the document since.  Note that we have
+  // to flush notifications, so that the entry will get updated properly.
+
+  // Make sure to stash away the current generation so we can check whether
+  // the table changes when we flush.
+  PRUint32 generation = mIdentifierMap.GetGeneration();
+  
+  FlushPendingNotifications(Flush_ContentAndNotify);
+
+  if (generation != mIdentifierMap.GetGeneration()) {
+    // Table changed, so the entry pointer is no longer valid; look up the
+    // entry again, adding if necessary (the adding may be necessary in case
+    // the flush actually deleted entries).
+    entry = mIdentifierMap.PutEntry(aID);
+  }
+  
+  return entry;
+}
+
 Element*
-nsDocument::GetElementById(const nsAString& aElementId)
+nsDocument::GetElementById(const nsAString& aElementId, nsresult *aResult)
 {
   nsCOMPtr<nsIAtom> idAtom(do_GetAtom(aElementId));
   if (!idAtom) {
-    // This can only fail due to OOM when the atom doesn't exist, in which
-    // case there can't be an entry for it.
+    *aResult = NS_ERROR_OUT_OF_MEMORY;
+
     return nsnull;
   }
 
   if (!CheckGetElementByIdArg(idAtom)) {
+    *aResult = NS_OK;
+
     return nsnull;
   }
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(idAtom);
-  return entry ? entry->GetIdElement() : nsnull;
+  nsIdentifierMapEntry *entry = GetElementByIdInternal(idAtom);
+  if (!entry) {
+    *aResult = NS_ERROR_OUT_OF_MEMORY;
+
+    return nsnull;
+  }
+
+  *aResult = NS_OK;
+
+  return entry->GetIdElement();
 }
 
 NS_IMETHODIMP
 nsDocument::GetElementById(const nsAString& aId, nsIDOMElement** aReturn)
 {
-  Element *content = GetElementById(aId);
+  nsresult rv;
+  Element *content = GetElementById(aId, &rv);
   if (content) {
-    return CallQueryInterface(content, aReturn);
+    rv = CallQueryInterface(content, aReturn);
+  }
+  else {
+    *aReturn = nsnull;
   }
 
-  *aReturn = nsnull;
-
-  return NS_OK;
+  return rv;
 }
 
 Element*
@@ -3776,7 +3942,7 @@ nsDocument::AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
   if (!CheckGetElementByIdArg(aID))
     return nsnull;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aID);
+  nsIdentifierMapEntry *entry = GetElementByIdInternal(aID);
   NS_ENSURE_TRUE(entry, nsnull);
 
   entry->AddContentChangeCallback(aObserver, aData);
@@ -3792,6 +3958,9 @@ nsDocument::RemoveIDTargetObserver(nsIAtom* aID,
 
   nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aID);
   if (!entry) {
+    // We don't need to do the stuff that GetElementByIdInternal does;
+    // if there's no entry already in mIdentifierMap, then there's no
+    // callback to remove.
     return;
   }
 
@@ -7211,13 +7380,12 @@ nsDocument::ForgetLink(Link* aLink)
 }
 
 void
-nsDocument::DestroyElementMaps()
+nsDocument::DestroyLinkMap()
 {
 #ifdef DEBUG
   mStyledLinksCleared = true;
 #endif
   mStyledLinks.Clear();
-  mIdentifierMap.Clear();
 }
 
 static

@@ -51,7 +51,6 @@
 #include "nsISelectionController.h"
 #include "nsITextServicesFilter.h"
 #include "nsWeakReference.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsIRangeUtils;
 class OffsetEntry;
@@ -136,8 +135,7 @@ public:
   static void Shutdown();
 
   /* Macro for AddRef(), Release(), and QueryInterface() */
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsTextServicesDocument)
+  NS_DECL_ISUPPORTS
 
   /* nsITextServicesDocument method implementations. */
   NS_IMETHOD InitWithEditor(nsIEditor *aEditor);
