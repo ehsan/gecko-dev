@@ -75,8 +75,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/Util.h" // for DebugOnly
-#include <cstdlib> // for std::abs(int/long)
-#include <cmath> // for std::abs(float/double)
 
 #include "sampler.h"
 
@@ -3898,11 +3896,11 @@ nsTextFrame::AccessibleType()
     nsAutoString renderedWhitespace;
     GetRenderedText(&renderedWhitespace, nullptr, nullptr, 0, 1);
     if (renderedWhitespace.IsEmpty()) {
-      return a11y::eNoType;
+      return a11y::eNoAccessible;
     }
   }
 
-  return a11y::eTextLeaf;
+  return a11y::eTextLeafAccessible;
 }
 #endif
 
@@ -5587,7 +5585,7 @@ nsTextFrame::PaintTextSelectionDecorations(gfxContext* aCtx,
     if (type == aSelectionType) {
       pt.x = (aFramePt.x + xOffset -
              (mTextRun->IsRightToLeft() ? advance : 0)) / app;
-      gfxFloat width = std::abs(advance) / app;
+      gfxFloat width = NS_ABS(advance) / app;
       gfxFloat xInFrame = pt.x - (aFramePt.x / app);
       DrawSelectionDecorations(aCtx, dirtyRect, aSelectionType, this,
                                aTextPaintStyle, selectedStyle, pt, xInFrame,

@@ -853,11 +853,3 @@ nsDNSService::GetAFForLookup(const nsACString &host, uint32_t flags)
 
     return af;
 }
-
-NS_IMETHODIMP
-nsDNSService::GetDNSCacheEntries(nsTArray<mozilla::net::DNSCacheEntries> *args)
-{
-    NS_ENSURE_TRUE(mResolver, NS_ERROR_NOT_INITIALIZED);
-    mResolver->GetDNSCacheEntries(args);
-    return NS_OK;
-}

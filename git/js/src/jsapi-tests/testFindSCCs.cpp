@@ -11,30 +11,27 @@
 #include <string.h>
 #include <stdarg.h>
 
+#include "../gc/FindSCCs.h"
 #include "jscntxt.h"
 #include "jsgc.h"
-
-#include "gc/FindSCCs.h"
-
-#include "gc/FindSCCs-inl.h"
 
 static const unsigned MaxVertices = 10;
 
 using js::gc::GraphNodeBase;
 using js::gc::ComponentFinder;
 
-struct TestNode : public GraphNodeBase<TestNode>
+struct TestNode : public GraphNodeBase
 {
     unsigned   index;
     bool       hasEdge[MaxVertices];
 
-    void findOutgoingEdges(ComponentFinder<TestNode> &finder);
+    void findOutgoingEdges(ComponentFinder& finder);
 };
 
 static TestNode Vertex[MaxVertices];
 
 void
-TestNode::findOutgoingEdges(ComponentFinder<TestNode> &finder)
+TestNode::findOutgoingEdges(ComponentFinder& finder)
 {
     for (unsigned i = 0; i < MaxVertices; ++i) {
         if (hasEdge[i])
@@ -134,8 +131,8 @@ BEGIN_TEST(testFindSCCs)
 }
 
 unsigned vertex_count;
-ComponentFinder<TestNode> *finder;
-TestNode *resultsList;
+ComponentFinder *finder;
+GraphNodeBase *resultsList;
 
 void setup(unsigned count)
 {
@@ -155,7 +152,7 @@ void edge(unsigned src_index, unsigned dest_index)
 
 void run()
 {
-    finder = new ComponentFinder<TestNode>(rt->nativeStackLimit);
+    finder = new ComponentFinder(rt->nativeStackLimit);
     for (unsigned i = 0; i < vertex_count; ++i)
         finder->addNode(&Vertex[i]);
     resultsList = finder->getResultsList();
@@ -163,26 +160,7 @@ void run()
 
 bool group(int vertex, ...)
 {
-    TestNode *v = resultsList;
-
-    va_list ap;
-    va_start(ap, vertex);
-    while (vertex != -1) {
-        CHECK(v != NULL);
-        CHECK(v->index == unsigned(vertex));
-        v = v->nextNodeInGroup();
-        vertex = va_arg(ap, int);
-    }
-    va_end(ap);
-
-    CHECK(v == NULL);
-    resultsList = resultsList->nextGroup();
-    return true;
-}
-
-bool remaining(int vertex, ...)
-{
-    TestNode *v = resultsList;
+    TestNode *v = (TestNode *)ComponentFinder::getNextGroup(resultsList);
 
     va_list ap;
     va_start(ap, vertex);
@@ -195,7 +173,24 @@ bool remaining(int vertex, ...)
     va_end(ap);
 
     CHECK(v == NULL);
-    resultsList = NULL;
+    return true;
+}
+
+bool remaining(int vertex, ...)
+{
+    TestNode *v = (TestNode *)ComponentFinder::getAllRemaining(resultsList);
+
+    va_list ap;
+    va_start(ap, vertex);
+    while (vertex != -1) {
+        CHECK(v != NULL);
+        CHECK(v->index == unsigned(vertex));
+        v = (TestNode *)v->gcNextGraphNode;
+        vertex = va_arg(ap, int);
+    }
+    va_end(ap);
+
+    CHECK(v == NULL);
     return true;
 }
 
@@ -209,7 +204,7 @@ bool end()
 }
 END_TEST(testFindSCCs)
 
-struct TestNode2 : public GraphNodeBase<TestNode2>
+struct TestNode2 : public GraphNodeBase
 {
     TestNode2 *edge;
 
@@ -219,7 +214,8 @@ struct TestNode2 : public GraphNodeBase<TestNode2>
     }
 
     void
-    findOutgoingEdges(ComponentFinder<TestNode2> &finder) {
+    findOutgoingEdges(ComponentFinder& finder)
+    {
         if (edge)
             finder.addEdgeTo(edge);
     }
@@ -240,34 +236,27 @@ BEGIN_TEST(testFindSCCsStackLimit)
      * is returned containing all the vertices.
      */
     const unsigned max = 1000000;
-    const unsigned initial = 10;
 
     TestNode2 *vertices = new TestNode2[max]();
-    for (unsigned i = initial; i < (max - 10); ++i)
+    for (unsigned i = 0; i < (max - 10); ++i)
         vertices[i].edge = &vertices[i + 1];
 
-    ComponentFinder<TestNode2> finder(rt->nativeStackLimit);
+    ComponentFinder finder(rt->nativeStackLimit);
     for (unsigned i = 0; i < max; ++i)
         finder.addNode(&vertices[i]);
 
-    TestNode2 *r = finder.getResultsList();
+    GraphNodeBase *r = finder.getResultsList();
     CHECK(r);
-    TestNode2 *v = r;
+    GraphNodeBase *v = finder.getNextGroup(r);
+    CHECK(v);
 
     unsigned count = 0;
     while (v) {
         ++count;
-        v = v->nextNodeInGroup();
+        v = v->gcNextGraphNode;
     }
-    CHECK(count == max - initial);
-
-    count = 0;
-    v = r->nextGroup();
-    while (v) {
-        ++count;
-        CHECK(!v->nextNodeInGroup());
-        v = v->nextGroup();
-    }
+    CHECK(count == max);
+    CHECK(finder.getNextGroup(r) == NULL);
 
     delete [] vertices;
     return true;

@@ -337,8 +337,7 @@ var PlacesOrganizer = {
     let fpCallback = function fpCallback_done(aResult) {
       if (aResult != Ci.nsIFilePicker.returnCancel && fp.fileURL) {
         Components.utils.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
-        BookmarkHTMLUtils.importFromURL(fp.fileURL.spec, false)
-                         .then(null, Components.utils.reportError);
+        BookmarkHTMLUtils.importFromURL(fp.fileURL.spec, false);
       }
     };
 
@@ -355,9 +354,10 @@ var PlacesOrganizer = {
     let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     let fpCallback = function fpCallback_done(aResult) {
       if (aResult != Ci.nsIFilePicker.returnCancel) {
-        Components.utils.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
-        BookmarkHTMLUtils.exportToFile(fp.file)
-                         .then(null, Components.utils.reportError);
+        let exporter =
+          Cc["@mozilla.org/browser/places/import-export-service;1"].
+            getService(Ci.nsIPlacesImportExportService);
+        exporter.exportHTMLToFile(fp.file);
       }
     };
 

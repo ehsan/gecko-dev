@@ -759,13 +759,14 @@ NoteGCThingXPCOMChildren(js::Class *clasp, JSObject *obj,
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "xpc_GetJSPrivate(obj)");
         cb.NoteXPCOMChild(static_cast<nsISupports*>(xpc_GetJSPrivate(obj)));
     } else {
-        const DOMClass* domClass = GetDOMClass(obj);
-        if (domClass) {
+        const DOMClass* domClass;
+        DOMObjectSlot slot = GetDOMClass(obj, domClass);
+        if (slot != eNonDOMObject) {
             NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "UnwrapDOMObject(obj)");
             if (domClass->mDOMObjectIsISupports) {
-                cb.NoteXPCOMChild(UnwrapDOMObject<nsISupports>(obj));
+                cb.NoteXPCOMChild(UnwrapDOMObject<nsISupports>(obj, slot));
             } else if (domClass->mParticipant) {
-                cb.NoteNativeChild(UnwrapDOMObject<void>(obj),
+                cb.NoteNativeChild(UnwrapDOMObject<void>(obj, slot),
                                    domClass->mParticipant);
             }
         }
@@ -1940,25 +1941,26 @@ nsXPConnect::OnDispatchedEvent(nsIThreadInternal* aThread)
     return NS_ERROR_UNEXPECTED;
 }
 
-void
+NS_IMETHODIMP
 nsXPConnect::AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer)
 {
-    mRuntime->AddJSHolder(aHolder, aTracer);
+    return mRuntime->AddJSHolder(aHolder, aTracer);
 }
 
-void
+NS_IMETHODIMP
 nsXPConnect::RemoveJSHolder(void* aHolder)
 {
-    mRuntime->RemoveJSHolder(aHolder);
+    return mRuntime->RemoveJSHolder(aHolder);
 }
 
-bool
-nsXPConnect::TestJSHolder(void* aHolder)
+NS_IMETHODIMP
+nsXPConnect::TestJSHolder(void* aHolder, bool* aRetval)
 {
 #ifdef DEBUG
-    return mRuntime->TestJSHolder(aHolder);
+    return mRuntime->TestJSHolder(aHolder, aRetval);
 #else
-    return false;
+    MOZ_ASSERT(false);
+    return NS_ERROR_FAILURE;
 #endif
 }
 

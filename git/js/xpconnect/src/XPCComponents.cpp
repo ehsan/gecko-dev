@@ -4792,7 +4792,7 @@ ContentComponentsGetterOp(JSContext *cx, JSHandleObject obj, JSHandleId id,
         return true;
 
     // If the caller is XBL, this is ok.
-    if (nsContentUtils::IsCallerXBL())
+    if (AccessCheck::callerIsXBL(cx))
         return true;
 
     // Do Telemetry on how often this happens.
@@ -4881,7 +4881,7 @@ nsXPCComponents::CanCallMethod(const nsIID * iid, const PRUnichar *methodName, c
     *_retval = xpc_CheckAccessList(methodName, allowed);
     if (*_retval &&
         methodName[0] == 'l' &&
-        !nsContentUtils::IsCallerXBL())
+        !AccessCheck::callerIsXBL(nsContentUtils::GetCurrentJSContext()))
     {
         Telemetry::Accumulate(Telemetry::COMPONENTS_LOOKUPMETHOD_ACCESSED_BY_CONTENT, true);
     }
@@ -4896,7 +4896,7 @@ nsXPCComponents::CanGetProperty(const nsIID * iid, const PRUnichar *propertyName
     *_retval = xpc_CheckAccessList(propertyName, allowed);
     if (*_retval &&
         propertyName[0] == 'i' &&
-        !nsContentUtils::IsCallerXBL())
+        !AccessCheck::callerIsXBL(nsContentUtils::GetCurrentJSContext()))
     {
         Telemetry::Accumulate(Telemetry::COMPONENTS_INTERFACES_ACCESSED_BY_CONTENT, true);
     }

@@ -19,16 +19,16 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     class DeferredDouble : public TempObject
     {
         AbsoluteLabel label_;
-        uint32_t index_;
+        uint32 index_;
 
       public:
-        DeferredDouble(uint32_t index) : index_(index)
+        DeferredDouble(uint32 index) : index_(index)
         { }
 
         AbsoluteLabel *label() {
             return &label_;
         }
-        uint32_t index() const {
+        uint32 index() const {
             return index_;
         }
     };

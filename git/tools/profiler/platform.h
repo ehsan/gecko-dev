@@ -211,8 +211,7 @@ class TickSample {
   Address lr;  // ARM link register
 #endif
   Address function;  // The last called JS function.
-  void*   context;   // The context from the signal handler, if available. On
-                     // Win32 this may contain the windows thread context.
+  void*   context;   // The context from the signal handler, if available
   static const int kMaxFramesCount = 64;
   Address stack[kMaxFramesCount];  // Call stack.
   int frames_count;  // Number of captured frames.

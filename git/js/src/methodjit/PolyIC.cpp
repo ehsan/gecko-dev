@@ -770,7 +770,7 @@ namespace js {
 namespace mjit {
 
 inline void
-MarkNotIdempotent(UnrootedScript script, jsbytecode *pc)
+MarkNotIdempotent(JSScript *script, jsbytecode *pc)
 {
     if (!script->hasAnalysis())
         return;
@@ -1080,7 +1080,7 @@ class GetPropCompiler : public PICStubCompiler
         }
 
         RegisterID t0 = tempRegs.takeAnyReg().reg();
-        masm.bumpStubCount(f.script(), f.pc(), t0);
+        masm.bumpStubCount(f.script().get(nogc), f.pc(), t0);
 
         /*
          * Use three values above sp on the stack for use by the call to store
@@ -1194,7 +1194,7 @@ class GetPropCompiler : public PICStubCompiler
         }
 
         RegisterID t0 = tempRegs.takeAnyReg().reg();
-        masm.bumpStubCount(f.script(), f.pc(), t0);
+        masm.bumpStubCount(f.script().get(nogc), f.pc(), t0);
 
         /*
          * A JSNative has the following signature:
@@ -1273,7 +1273,10 @@ class GetPropCompiler : public PICStubCompiler
 
         bool setStubShapeOffset = true;
         if (obj->isDenseArray()) {
-            MarkNotIdempotent(f.script(), f.pc());
+            {
+                RawScript script = f.script().unsafeGet();
+                MarkNotIdempotent(script, f.pc());
+            }
 
             start = masm.label();
             shapeGuardJump = masm.branchPtr(Assembler::NotEqual,
@@ -1389,7 +1392,10 @@ class GetPropCompiler : public PICStubCompiler
         }
 
         if (shape && !shape->hasDefaultGetter()) {
-            MarkNotIdempotent(f.script(), f.pc());
+            {
+                RawScript script = f.script().unsafeGet();
+                MarkNotIdempotent(script, f.pc());
+            }
 
             if (shape->hasGetterValue()) {
                 generateNativeGetterStub(masm, shape, start, shapeMismatches);
@@ -1494,19 +1500,24 @@ class GetPropCompiler : public PICStubCompiler
             /* Don't touch the IC if it may have been destroyed. */
             if (!monitor.recompiled())
                 pic.hadUncacheable = true;
-            MarkNotIdempotent(f.script(), f.pc());
+            RawScript script = f.script().unsafeGet();
+            MarkNotIdempotent(script, f.pc());
             return status;
         }
 
         // Mark as not idempotent to avoid recompilation in Ion Monkey
         // GetPropertyCache.
-        if (!obj->hasIdempotentProtoChain())
-            MarkNotIdempotent(f.script(), f.pc());
+        if (!obj->hasIdempotentProtoChain()) {
+            RawScript script = f.script().unsafeGet();
+            MarkNotIdempotent(script, f.pc());
+        }
 
         // The property is missing, Mark as not idempotent to avoid
         // recompilation in Ion Monkey GetPropertyCache.
-        if (!getprop.holder)
-            MarkNotIdempotent(f.script(), f.pc());
+        if (!getprop.holder) {
+            RawScript script = f.script().unsafeGet();
+            MarkNotIdempotent(script, f.pc());
+        }
 
         if (hadGC())
             return Lookup_Uncacheable;

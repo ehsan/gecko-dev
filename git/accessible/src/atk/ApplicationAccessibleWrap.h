@@ -11,9 +11,13 @@
 
 namespace mozilla {
 namespace a11y {
-
+ 
 class ApplicationAccessibleWrap: public ApplicationAccessible
 {
+public:
+  static void Unload();
+  static void PreCreate();
+
 public:
   ApplicationAccessibleWrap();
   virtual ~ApplicationAccessibleWrap();

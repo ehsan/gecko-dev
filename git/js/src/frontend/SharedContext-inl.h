@@ -15,18 +15,25 @@ namespace js {
 namespace frontend {
 
 inline
-SharedContext::SharedContext(JSContext *cx, bool isFun, bool strict)
+SharedContext::SharedContext(JSContext *cx, bool isFun, StrictMode sms)
   : context(cx),
     isFunction(isFun),
     anyCxFlags(),
-    strict(strict)
+    strictModeState(sms)
 {
+}
+
+inline bool
+SharedContext::inStrictMode()
+{
+    JS_ASSERT(strictModeState != StrictMode::UNKNOWN);
+    return strictModeState == StrictMode::STRICT;
 }
 
 inline bool
 SharedContext::needStrictChecks()
 {
-    return context->hasStrictOption() || strict;
+    return context->hasStrictOption() || strictModeState != StrictMode::NOTSTRICT;
 }
 
 inline GlobalSharedContext *
@@ -43,8 +50,8 @@ SharedContext::asFunbox()
     return static_cast<FunctionBox*>(this);
 }
 
-GlobalSharedContext::GlobalSharedContext(JSContext *cx, JSObject *scopeChain, bool strict)
-  : SharedContext(cx, /* isFunction = */ false, strict),
+GlobalSharedContext::GlobalSharedContext(JSContext *cx, JSObject *scopeChain, StrictMode sms)
+  : SharedContext(cx, /* isFunction = */ false, sms),
     scopeChain_(cx, scopeChain)
 {
 }

@@ -12,7 +12,6 @@ import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.util.GeckoAsyncTask;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.StringUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -301,7 +300,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     private class AwesomeBarCursorAdapter extends SimpleCursorAdapter {
         private static final int ROW_SEARCH = 0;
         private static final int ROW_STANDARD = 1;
-        private static final int ROW_SUGGEST = 2;
 
         public AwesomeBarCursorAdapter(Context context) {
             super(context, -1, null, new String[] {}, new int[] {});
@@ -363,24 +361,13 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
         @Override
         public int getItemViewType(int position) {
-            int engine = getEngineIndex(position);
-            if (engine == -1) {
-                return ROW_STANDARD;
-            } else if (engine == 0 && mSuggestionsEnabled) {
-                // Give suggestion views their own type to prevent them from
-                // sharing other recycled search engine views. Using other
-                // recycled views for the suggestion row can break animations
-                // (bug 815937).
-                return ROW_SUGGEST;
-            }
-            return ROW_SEARCH;
+            return getEngineIndex(position) == -1 ? ROW_STANDARD : ROW_SEARCH;
         }
 
         @Override
         public int getViewTypeCount() {
-            // view can be either a standard awesomebar row, a search engine
-            // row, or a suggestion row
-            return 3;
+            // view can be either a standard awesomebar row or a search engine row
+            return 2;
         }
 
         @Override
@@ -397,8 +384,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            int type = getItemViewType(position);
-            if (type == ROW_SEARCH || type == ROW_SUGGEST) {
+            if (getItemViewType(position) == ROW_SEARCH) {
                 SearchEntryViewHolder viewHolder = null;
 
                 if (convertView == null) {
@@ -447,23 +433,14 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             return convertView;
         }
 
-        private void bindSearchEngineView(final SearchEngine engine, final SearchEntryViewHolder viewHolder) {
+        private void bindSearchEngineView(final SearchEngine engine, SearchEntryViewHolder viewHolder) {
             // when a suggestion is clicked, do a search
             OnClickListener clickListener = new OnClickListener() {
                 public void onClick(View v) {
                     AwesomeBarTabs.OnUrlOpenListener listener = getUrlListener();
                     if (listener != null) {
                         String suggestion = ((TextView) v.findViewById(R.id.suggestion_text)).getText().toString();
-
-                        // If we're not clicking the user-entered view (the
-                        // first suggestion item) and the search matches a URL
-                        // pattern, go to that URL. Otherwise, do a search for
-                        // the term.
-                        if (v != viewHolder.userEnteredView && !StringUtils.isSearchQuery(suggestion)) {
-                            listener.onUrlOpen(suggestion);
-                        } else {
-                            listener.onSearch(engine.name, suggestion);
-                        }
+                        listener.onSearch(engine.name, suggestion);
                     }
                 }
             };

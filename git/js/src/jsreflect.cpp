@@ -584,7 +584,7 @@ class NodeBuilder
 
     bool yieldExpression(HandleValue arg, TokenPos *pos, MutableHandleValue dst);
 
-    bool comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, bool isForOf, TokenPos *pos,
+    bool comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, TokenPos *pos,
                             MutableHandleValue dst);
 
     bool comprehensionExpression(HandleValue body, NodeVector &blocks, HandleValue filter,
@@ -1272,21 +1272,19 @@ NodeBuilder::yieldExpression(HandleValue arg, TokenPos *pos, MutableHandleValue 
 }
 
 bool
-NodeBuilder::comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, bool isForOf, TokenPos *pos,
+NodeBuilder::comprehensionBlock(HandleValue patt, HandleValue src, bool isForEach, TokenPos *pos,
                                 MutableHandleValue dst)
 {
     RootedValue isForEachVal(cx, BooleanValue(isForEach));
-    RootedValue isForOfVal(cx, BooleanValue(isForOf));
 
     RootedValue cb(cx, callbacks[AST_COMP_BLOCK]);
     if (!cb.isNull())
-        return callback(cb, patt, src, isForEachVal, isForOfVal, pos, dst);
+        return callback(cb, patt, src, isForEachVal, pos, dst);
 
     return newNode(AST_COMP_BLOCK, pos,
                    "left", patt,
                    "right", src,
                    "each", isForEachVal,
-                   "of", isForOfVal,
                    dst);
 }
 
@@ -2488,12 +2486,11 @@ ASTSerializer::comprehensionBlock(ParseNode *pn, MutableHandleValue dst)
     LOCAL_ASSERT(in && in->isKind(PNK_FORIN));
 
     bool isForEach = pn->pn_iflags & JSITER_FOREACH;
-    bool isForOf = pn->pn_iflags & JSITER_FOR_OF;
 
     RootedValue patt(cx), src(cx);
     return pattern(in->pn_kid2, NULL, &patt) &&
            expression(in->pn_kid3, &src) &&
-           builder.comprehensionBlock(patt, src, isForEach, isForOf, &in->pn_pos, dst);
+           builder.comprehensionBlock(patt, src, isForEach, &in->pn_pos, dst);
 }
 
 bool
@@ -3398,7 +3395,8 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     if (!src)
         return JS_FALSE;
 
-    js::ScopedFreePtr<char> filename;
+    char *filename = NULL;
+    AutoReleaseNullablePtr filenamep(filename);
     uint32_t lineno = 1;
     bool loc = true;
 
@@ -3445,6 +3443,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
                 filename = DeflateString(cx, chars, length);
                 if (!filename)
                     return JS_FALSE;
+                filenamep.reset(filename);
             }
 
             /* config.line */

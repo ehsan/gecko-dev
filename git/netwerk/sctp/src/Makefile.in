@@ -26,12 +26,6 @@ EXPORTS_NAMESPACES = mozilla/net
 XPIDLSRCS = \
   $(NULL)
 
-ifeq ($(OS_TARGET),Android)
-CPPSRCS = \
-  ifaddrs_android.cpp \
-  $(NULL)
-endif
-
 CSRCS = \
   user_environment.c \
   user_mbuf.c \
@@ -71,21 +65,13 @@ LOCAL_INCLUDES = \
   -I$(topsrcdir)/xpcom/ds \
   $(NULL)
 
-# Android NDK r5c, used on the builders at the time of this writing, doesn't
-# have the headers we need for IPv6
-ifeq ($(OS_TARGET),Android)
-  IPV6_DEFINE=
-else
-  IPV6_DEFINE=-DINET6=1
-endif
-
 DEFINES = \
   -DSCTP_SIMPLE_ALLOCATOR=1 \
   -DUSE_SCTP_SHA1=1 \
   -DSCTP_PROCESS_LEVEL_LOCKS=1 \
   -D__Userspace__=1 \
   -DINET=1 \
-  $(IPV6_DEFINE) \
+  -DINET6=1 \
   -DCALLBACK_API=1 \
   -DSCTP_DEBUG=1 \
   $(NULL)
@@ -103,7 +89,7 @@ DEFINES += \
   -U__APPLE__ \
   $(NULL)
 else
-ifeq (,$(filter-out Linux Android,$(OS_TARGET)))
+ifeq ($(OS_TARGET),Linux)
 DEFINES += -D__Userspace_os_Linux=1
 else
 ifeq ($(OS_TARGET),FreeBSD)

@@ -27,6 +27,12 @@
                       label="&newNavigatorCmd.label;"
                       command="cmd_newNavigator"
                       key="key_newNavigator"/>
+#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
+            <menuitem id="appmenu_newPrivateWindow"
+                      label="&newPrivateWindow.label;"
+                      command="Tools:PrivateBrowsing"
+                      key="key_privatebrowsing"/>
+#endif
             <menuseparator/>
             <menuitem id="appmenu_openFile"
                       label="&openFileCmd.label;"
@@ -34,13 +40,7 @@
                       key="openFileKb"/>
           </menupopup>
       </splitmenu>
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-      <menuitem id="appmenu_newPrivateWindow"
-                class="menuitem-iconic menuitem-iconic-tooltip"
-                label="&newPrivateWindow.label;"
-                command="Tools:PrivateBrowsing"
-                key="key_privatebrowsing"/>
-#else
+#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
       <menuitem id="appmenu_privateBrowsing"
                 class="menuitem-iconic menuitem-iconic-tooltip"
                 label="&privateBrowsingCmd.start.label;"
@@ -309,8 +309,10 @@
                       disabled="true"/>
 #endif
             <menuitem id="appmenu_restoreLastSession"
+                      class="restoreLastSession"
                       label="&historyRestoreLastSession.label;"
-                      command="Browser:RestoreLastSession"/>
+                      oncommand="restoreLastSession();"
+                      disabled="true"/>
             <menu id="appmenu_recentlyClosedTabsMenu"
                   class="recentlyClosedTabsMenu"
                   label="&historyUndoMenu.label;"

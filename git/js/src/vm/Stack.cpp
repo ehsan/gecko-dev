@@ -267,7 +267,7 @@ AssertDynamicScopeMatchesStaticScope(JSScript *script, JSObject *scope)
 }
 
 bool
-StackFrame::initFunctionScopeObjects(JSContext *cx)
+StackFrame::initCallObject(JSContext *cx)
 {
     CallObject *callobj = CallObject::createForFunction(cx, this);
     if (!callobj)
@@ -286,7 +286,7 @@ StackFrame::prologue(JSContext *cx, bool newType)
     JS_ASSERT(cx->regs().pc == script->code);
 
     if (isEvalFrame()) {
-        if (script->strict) {
+        if (script->strictModeCode) {
             CallObject *callobj = CallObject::createForStrictEval(cx, this);
             if (!callobj)
                 return false;
@@ -305,7 +305,7 @@ StackFrame::prologue(JSContext *cx, bool newType)
     JS_ASSERT(isNonEvalFunctionFrame());
     AssertDynamicScopeMatchesStaticScope(script, scopeChain());
 
-    if (fun()->isHeavyweight() && !initFunctionScopeObjects(cx))
+    if (fun()->isHeavyweight() && !initCallObject(cx))
         return false;
 
     if (isConstructing()) {
@@ -688,12 +688,7 @@ StackSpace::markActiveCompartments()
 JS_FRIEND_API(bool)
 StackSpace::ensureSpaceSlow(JSContext *cx, MaybeReportError report, Value *from, ptrdiff_t nvals) const
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     assertInvariants();
 
     JSCompartment *dest = cx->compartment;
@@ -873,11 +868,7 @@ Value *
 ContextStack::ensureOnTop(JSContext *cx, MaybeReportError report, unsigned nvars,
                           MaybeExtend extend, bool *pushedSeg)
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
+    AssertCanGC();
 
     Value *firstUnused = space().firstUnused();
     FrameRegs *regs = cx->maybeRegs();
@@ -957,12 +948,7 @@ bool
 ContextStack::pushInvokeArgs(JSContext *cx, unsigned argc, InvokeArgsGuard *iag,
                              MaybeReportError report)
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     JS_ASSERT(argc <= StackSpace::ARGS_LENGTH_MAX);
 
     unsigned nvars = 2 + argc;
@@ -1001,12 +987,7 @@ ContextStack::pushInvokeFrame(JSContext *cx, MaybeReportError report,
                               const CallArgs &args, JSFunction *fun,
                               InitialFrameFlags initial, FrameGuard *fg)
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     JS_ASSERT(onTop());
     JS_ASSERT(space().firstUnused() == args.end());
 

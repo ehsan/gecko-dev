@@ -803,10 +803,10 @@ void nsWindow::NS2PM_PARENT(POINTL& ptl)
 
 //-----------------------------------------------------------------------------
 
-NS_METHOD nsWindow::Move(double aX, double aY)
+NS_METHOD nsWindow::Move(int32_t aX, int32_t aY)
 {
   if (mFrame) {
-    nsresult rv = mFrame->Move(NSToIntRound(aX), NSToIntRound(aY));
+    nsresult rv = mFrame->Move(aX, aY);
     NotifyRollupGeometryChange();
     return rv;
   }
@@ -816,11 +816,10 @@ NS_METHOD nsWindow::Move(double aX, double aY)
 
 //-----------------------------------------------------------------------------
 
-NS_METHOD nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
+NS_METHOD nsWindow::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
   if (mFrame) {
-    nsresult rv = mFrame->Resize(NSToIntRound(aWidth), NSToIntRound(aHeight),
-                                 aRepaint);
+    nsresult rv = mFrame->Resize(aWidth, aHeight, aRepaint);
     NotifyRollupGeometryChange();
     return rv;
   }
@@ -830,16 +829,11 @@ NS_METHOD nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
 
 //-----------------------------------------------------------------------------
 
-NS_METHOD nsWindow::Resize(double aX, double aY,
-                           double aWidth, double aHeight, bool aRepaint)
+NS_METHOD nsWindow::Resize(int32_t aX, int32_t aY,
+                           int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
-  int32_t x = NSToIntRound(aX);
-  int32_t y = NSToIntRound(aY);
-  int32_t width = NSToIntRound(aWidth);
-  int32_t height = NSToIntRound(aHeight);
-
   if (mFrame) {
-    nsresult rv = mFrame->Resize(x, y, width, height, aRepaint);
+    nsresult rv = mFrame->Resize(aX, aY, aWidth, aHeight, aRepaint);
     NotifyRollupGeometryChange();
     return rv;
   }
@@ -851,29 +845,29 @@ NS_METHOD nsWindow::Resize(double aX, double aY,
   if (!mWnd ||
       mWindowType == eWindowType_child ||
       mWindowType == eWindowType_plugin) {
-    mBounds.x      = x;
-    mBounds.y      = y;
-    mBounds.width  = width;
-    mBounds.height = height;
+    mBounds.x      = aX;
+    mBounds.y      = aY;
+    mBounds.width  = aWidth;
+    mBounds.height = aHeight;
   }
 
   // To keep top-left corner in the same place, use the new height
   // to calculate the coordinates for the top & bottom left corners.
   if (mWnd) {
-    POINTL ptl = { x, y };
+    POINTL ptl = { aX, aY };
     NS2PM_PARENT(ptl);
-    ptl.y -= height - 1;
+    ptl.y -= aHeight - 1;
 
     // For popups, aX already gives the correct position.
     if (mWindowType == eWindowType_popup) {
-      ptl.y = WinQuerySysValue(HWND_DESKTOP, SV_CYSCREEN) - height - 1 - y;
+      ptl.y = WinQuerySysValue(HWND_DESKTOP, SV_CYSCREEN) - aHeight - 1 - aY;
     }
     else if (mParent) {
       WinMapWindowPoints(mParent->mWnd, WinQueryWindow(mWnd, QW_PARENT),
                          &ptl, 1);
     }
 
-    if (!WinSetWindowPos(mWnd, 0, ptl.x, ptl.y, width, height,
+    if (!WinSetWindowPos(mWnd, 0, ptl.x, ptl.y, aWidth, aHeight,
                          SWP_MOVE | SWP_SIZE) && aRepaint) {
       WinInvalidateRect(mWnd, 0, FALSE);
     }

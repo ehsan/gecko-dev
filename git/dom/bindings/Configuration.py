@@ -390,7 +390,3 @@ class Descriptor(DescriptorProvider):
 
     def supportsNamedProperties(self):
         return self.operations['NamedGetter'] is not None
-
-    def needsConstructHookHolder(self):
-        assert self.interface.hasInterfaceObject()
-        return not self.hasInstanceInterface and not self.interface.isCallback()

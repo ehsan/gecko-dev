@@ -33,15 +33,12 @@ webidl_files = \
   EventHandler.webidl \
   EventListener.webidl \
   EventTarget.webidl \
-  File.webidl \
   FileHandle.webidl \
   FileList.webidl \
   FileReaderSync.webidl \
-  FormData.webidl \
   Function.webidl \
   GainNode.webidl \
   HTMLCollection.webidl \
-  HTMLElement.webidl \
   HTMLOptionsCollection.webidl \
   HTMLPropertiesCollection.webidl \
   ImageData.webidl \

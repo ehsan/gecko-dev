@@ -18,7 +18,6 @@ EXPORTS = \
   AbstractMediaDecoder.h \
   AudioSampleFormat.h \
   AudioSegment.h \
-  BufferMediaResource.h \
   DecoderTraits.h \
   FileBlockCache.h \
   MediaDecoderOwner.h \

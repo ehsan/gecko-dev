@@ -4,10 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG 1
-#endif
-
 #include "nsNSSComponent.h"
 #include "nsNSSCallbacks.h"
 #include "nsNSSIOLayer.h"
@@ -59,8 +55,6 @@
 #include "nsNSSShutDown.h"
 #include "nsSmartCardEvent.h"
 #include "nsIKeyModule.h"
-#include "ScopedNSSTypes.h"
-#include "SharedSSLState.h"
 
 #include "nss.h"
 #include "pk11func.h"
@@ -89,7 +83,7 @@
 using namespace mozilla;
 using namespace mozilla::psm;
 
-#ifdef MOZ_LOGGING
+#ifdef PR_LOGGING
 PRLogModuleInfo* gPIPNSSLog = nullptr;
 #endif
 
@@ -401,7 +395,7 @@ nsNSSComponent::~nsNSSComponent()
   // All cleanup code requiring services needs to happen in xpcom_shutdown
 
   ShutdownNSS();
-  SharedSSLState::GlobalCleanup();
+  nsSSLIOLayerHelpers::Cleanup();
   RememberCertErrorsTable::Cleanup();
   --mInstanceCount;
   delete mShutdownObjectList;
@@ -1861,6 +1855,9 @@ nsNSSComponent::ShutdownNSS()
 
     ShutdownSmartCardThreads();
     SSL_ClearSessionCache();
+    if (mClientAuthRememberService) {
+      mClientAuthRememberService->ClearRememberedDecisions();
+    }
     UnloadLoadableRoots();
     CleanupIdentityInfo();
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("evaporating psm resources\n"));
@@ -1931,8 +1928,27 @@ nsNSSComponent::Init()
   }
 
   RememberCertErrorsTable::Init();
-  SharedSSLState::GlobalInit();
+  nsSSLIOLayerHelpers::Init();
+  char *unrestricted_hosts=nullptr;
+  mPrefBranch->GetCharPref("security.ssl.renego_unrestricted_hosts", &unrestricted_hosts);
+  if (unrestricted_hosts) {
+    nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(nsDependentCString(unrestricted_hosts));
+    nsMemory::Free(unrestricted_hosts);
+    unrestricted_hosts=nullptr;
+  }
+
+  bool enabled = false;
+  mPrefBranch->GetBoolPref("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
+  nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(enabled);
+
+  int32_t warnLevel = 1;
+  mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
+  nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
   
+  mClientAuthRememberService = new nsClientAuthRememberService;
+  if (mClientAuthRememberService)
+    mClientAuthRememberService->Init();
+
   createBackgroundThreads();
   if (!mCertVerificationThread)
   {
@@ -2012,7 +2028,7 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, uint32_t aRSABufLen,
   *aPrincipal = nullptr;
 
   nsNSSShutDownPreventionLock locker;
-  ScopedSEC_PKCS7ContentInfo p7_info; 
+  SEC_PKCS7ContentInfo * p7_info = nullptr; 
   unsigned char hash[SHA1_LENGTH]; 
 
   SECItem item;
@@ -2110,6 +2126,8 @@ nsNSSComponent::VerifySignature(const char* aRSABuf, uint32_t aRSABufLen,
       certPrincipal.swap(*aPrincipal);
     } while (0);
   }
+
+  SEC_PKCS7DestroyContentInfo(p7_info);
 
   return rv2;
 }
@@ -2250,6 +2268,20 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
       mPrefBranch->GetBoolPref("security.ssl.allow_unrestricted_renego_everywhere__temporarily_available_pref", &enabled);
       SSL_OptionSetDefault(SSL_ENABLE_RENEGOTIATION, 
         enabled ? SSL_RENEGOTIATE_UNRESTRICTED : SSL_RENEGOTIATE_REQUIRES_XTN);
+    } else if (prefName.Equals("security.ssl.renego_unrestricted_hosts")) {
+      char *unrestricted_hosts=nullptr;
+      mPrefBranch->GetCharPref("security.ssl.renego_unrestricted_hosts", &unrestricted_hosts);
+      if (unrestricted_hosts) {
+        nsSSLIOLayerHelpers::setRenegoUnrestrictedSites(nsDependentCString(unrestricted_hosts));
+        nsMemory::Free(unrestricted_hosts);
+      }
+    } else if (prefName.Equals("security.ssl.treat_unsafe_negotiation_as_broken")) {
+      mPrefBranch->GetBoolPref("security.ssl.treat_unsafe_negotiation_as_broken", &enabled);
+      nsSSLIOLayerHelpers::setTreatUnsafeNegotiationAsBroken(enabled);
+    } else if (prefName.Equals("security.ssl.warn_missing_rfc5746")) {
+      int32_t warnLevel = 1;
+      mPrefBranch->GetIntPref("security.ssl.warn_missing_rfc5746", &warnLevel);
+      nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(warnLevel);
 #ifdef SSL_ENABLE_FALSE_START // Requires NSS 3.12.8
     } else if (prefName.Equals("security.ssl.enable_false_start")) {
       mPrefBranch->GetBoolPref("security.ssl.enable_false_start", &enabled);
@@ -2352,7 +2384,9 @@ nsresult nsNSSComponent::LogoutAuthenticatedPK11()
             0);
   }
 
-  nsClientAuthRememberService::ClearAllRememberedDecisions();
+  if (mClientAuthRememberService) {
+    mClientAuthRememberService->ClearRememberedDecisions();
+  }
 
   return mShutdownObjectList->doPK11Logout();
 }
@@ -2529,6 +2563,14 @@ nsNSSComponent::DoProfileChangeNetRestore()
   deleteBackgroundThreads();
   createBackgroundThreads();
   mIsNetworkDown = false;
+}
+
+NS_IMETHODIMP
+nsNSSComponent::GetClientAuthRememberService(nsClientAuthRememberService **cars)
+{
+  NS_ENSURE_ARG_POINTER(cars);
+  NS_IF_ADDREF(*cars = mClientAuthRememberService);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -417,10 +417,6 @@ js_math_min(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-// Disable PGO for Math.pow() and related functions (see bug 791214).
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
 double
 js::powi(double x, int y)
 {
@@ -448,14 +444,7 @@ js::powi(double x, int y)
         m *= m;
     }
 }
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
 
-// Disable PGO for Math.pow() and related functions (see bug 791214).
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
 double
 js::ecmaPow(double x, double y)
 {
@@ -467,14 +456,7 @@ js::ecmaPow(double x, double y)
         return js_NaN;
     return pow(x, y);
 }
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
 
-// Disable PGO for Math.pow() and related functions (see bug 791214).
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
 JSBool
 js_math_pow(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -519,9 +501,6 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
     vp->setNumber(z);
     return JS_TRUE;
 }
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
 
 static const int64_t RNG_MULTIPLIER = 0x5DEECE66DLL;
 static const int64_t RNG_ADDEND = 0xBLL;

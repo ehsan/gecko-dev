@@ -222,8 +222,7 @@ static uint32_t CountNewlinesInNativeLength(nsIContent* aContent,
 }
 #endif
 
-/* static */ uint32_t
-nsContentEventHandler::GetNativeTextLength(nsIContent* aContent, uint32_t aMaxLength)
+static uint32_t GetNativeTextLength(nsIContent* aContent, uint32_t aMaxLength = UINT32_MAX)
 {
   if (aContent->IsNodeOfType(nsINode::eTEXT)) {
     uint32_t textLengthDifference =
@@ -370,7 +369,7 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
                               uint32_t aNativeLength,
                               bool aExpandToClusterBoundaries)
 {
-  nsCOMPtr<nsIContentIterator> iter = NS_NewPreContentIterator();
+  nsCOMPtr<nsIContentIterator> iter = NS_NewContentIterator();
   nsresult rv = iter->Init(mRootContent);
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -159,13 +159,6 @@ LIRGenerator::visitNewObject(MNewObject *ins)
 }
 
 bool
-LIRGenerator::visitNewDeclEnvObject(MNewDeclEnvObject *ins)
-{
-    LNewDeclEnvObject *lir = new LNewDeclEnvObject();
-    return define(lir, ins) && assignSafepoint(lir, ins);
-}
-
-bool
 LIRGenerator::visitNewCallObject(MNewCallObject *ins)
 {
     LAllocation slots;
@@ -214,7 +207,7 @@ bool
 LIRGenerator::visitPassArg(MPassArg *arg)
 {
     MDefinition *opd = arg->getArgument();
-    uint32_t argslot = getArgumentSlot(arg->getArgnum());
+    uint32 argslot = getArgumentSlot(arg->getArgnum());
 
     // Pass through the virtual register of the operand.
     // This causes snapshots to correctly copy the operand on the stack.
@@ -236,24 +229,17 @@ LIRGenerator::visitPassArg(MPassArg *arg)
 }
 
 bool
-LIRGenerator::visitCreateThisWithTemplate(MCreateThisWithTemplate *ins)
-{
-    LCreateThisWithTemplate *lir = new LCreateThisWithTemplate();
-    return define(lir, ins) && assignSafepoint(lir, ins);
-}
-
-bool
 LIRGenerator::visitCreateThis(MCreateThis *ins)
 {
-    if (ins->needNativeCheck()) {
-        JS_ASSERT(ins->type() == MIRType_Value);
-        LCreateThisV *lir = new LCreateThisV(useRegisterAtStart(ins->getCallee()),
-                                             useRegisterOrConstantAtStart(ins->getPrototype()));
-        return defineReturn(lir, ins) && assignSafepoint(lir, ins);
+    // Template objects permit fast initialization.
+    if (ins->hasTemplateObject()) {
+        LCreateThis *lir = new LCreateThis();
+        return define(lir, ins) && assignSafepoint(lir, ins);
     }
 
-    LCreateThisO *lir = new LCreateThisO(useRegisterOrConstantAtStart(ins->getCallee()),
-                                         useRegisterOrConstantAtStart(ins->getPrototype()));
+    LCreateThisVM *lir = new LCreateThisVM(useRegisterOrConstantAtStart(ins->getCallee()),
+                                           useRegisterOrConstantAtStart(ins->getPrototype()));
+
     return defineReturn(lir, ins) && assignSafepoint(lir, ins);
 }
 
@@ -276,7 +262,7 @@ LIRGenerator::visitCall(MCall *call)
     JS_ASSERT(call->getFunction()->type() == MIRType_Object);
 
     // Height of the current argument vector.
-    uint32_t argslot = getArgumentSlotForCall();
+    uint32 argslot = getArgumentSlotForCall();
     freeArguments(call->numStackArgs());
 
     JSFunction *target = call->getSingleTarget();
@@ -301,6 +287,13 @@ LIRGenerator::visitCall(MCall *call)
 
         LCallKnown *lir = new LCallKnown(useFixed(call->getFunction(), CallTempReg0),
                                          argslot, tempFixed(CallTempReg2));
+        return (defineReturn(lir, call) && assignSafepoint(lir, call));
+    }
+
+    // Call unknown constructors.
+    if (call->isConstructing()) {
+        LCallConstructor *lir = new LCallConstructor(useFixed(call->getFunction(),
+                                                     CallTempReg0), argslot);
         return (defineReturn(lir, call) && assignSafepoint(lir, call));
     }
 
@@ -391,7 +384,7 @@ LIRGenerator::visitTest(MTest *test)
 
     // Constant Int32 operand.
     if (opd->type() == MIRType_Int32 && opd->isConstant()) {
-        int32_t num = opd->toConstant()->value().toInt32();
+        int32 num = opd->toConstant()->value().toInt32();
         return add(new LGoto(num ? ifTrue : ifFalse));
     }
 
@@ -739,7 +732,7 @@ LIRGenerator::visitAbs(MAbs *ins)
     if (num->type() == MIRType_Int32) {
         LAbsI *lir = new LAbsI(useRegisterAtStart(num));
         // needed to handle abs(INT32_MIN)
-        if (ins->fallible() && !assignSnapshot(lir))
+        if (!ins->range()->isFinite() && !assignSnapshot(lir))
             return false;
         return defineReuseInput(lir, ins, 0);
     }
@@ -1142,7 +1135,7 @@ LIRGenerator::visitToInt32(MToInt32 *convert)
         return false;
 
       case MIRType_Undefined:
-        IonSpew(IonSpew_Abort, "Undefined coerces to NaN, not int32_t.");
+        IonSpew(IonSpew_Abort, "Undefined coerces to NaN, not int32.");
         return false;
 
       default:
@@ -1488,13 +1481,9 @@ LIRGenerator::visitLoadElement(MLoadElement *ins)
         return false;
 
       default:
-      {
-        LLoadElementT *lir = new LLoadElementT(useRegister(ins->elements()),
-                                               useRegisterOrConstant(ins->index()));
-        if (ins->fallible() && !assignSnapshot(lir))
-            return false;
-        return define(lir, ins);
-      }
+        JS_ASSERT(!ins->fallible());
+        return define(new LLoadElementT(useRegister(ins->elements()),
+                                        useRegisterOrConstant(ins->index())), ins);
     }
 }
 
@@ -2142,15 +2131,15 @@ LIRGenerator::updateResumeState(MBasicBlock *block)
 }
 
 void
-LIRGenerator::allocateArguments(uint32_t argc)
+LIRGenerator::allocateArguments(uint32 argc)
 {
     argslots_ += argc;
     if (argslots_ > maxargslots_)
         maxargslots_ = argslots_;
 }
 
-uint32_t
-LIRGenerator::getArgumentSlot(uint32_t argnum)
+uint32
+LIRGenerator::getArgumentSlot(uint32 argnum)
 {
     // First slot has index 1.
     JS_ASSERT(argnum < argslots_);
@@ -2158,7 +2147,7 @@ LIRGenerator::getArgumentSlot(uint32_t argnum)
 }
 
 void
-LIRGenerator::freeArguments(uint32_t argc)
+LIRGenerator::freeArguments(uint32 argc)
 {
     JS_ASSERT(argc <= argslots_);
     argslots_ -= argc;
@@ -2185,7 +2174,7 @@ LIRGenerator::visitBlock(MBasicBlock *block)
         // If we have a successor with phis, lower the phi input now that we
         // are approaching the join point.
         MBasicBlock *successor = block->successorWithPhis();
-        uint32_t position = block->positionInPhiSuccessor();
+        uint32 position = block->positionInPhiSuccessor();
         size_t lirIndex = 0;
         for (MPhiIterator phi(successor->phisBegin()); phi != successor->phisEnd(); phi++) {
             MDefinition *opd = phi->getOperand(position);

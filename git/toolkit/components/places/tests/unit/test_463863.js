@@ -11,6 +11,11 @@
  * appear but TRANSITION_EMBED and TRANSITION_FRAMED_LINK ones.
  */
 
+function add_visit(aURI, aType) {
+  PlacesUtils.history.addVisit(uri(aURI), Date.now() * 1000, null, aType,
+                            false, 0);
+}
+
 let transitions = [
   TRANSITION_LINK
 , TRANSITION_TYPED
@@ -40,21 +45,12 @@ function runQuery(aResultType) {
   root.containerOpen = false;
 }
 
-function run_test()
-{
-  run_next_test();
-}
-
-add_task(function test_execute()
-{
+function run_test() {
   // add visits, one for each transition type
-  for (let [, transition] in Iterator(transitions)) {
-    yield promiseAddVisits({
-      uri: uri("http://" + transition + ".mozilla.org/"),
-      transition: transition
-    });
-  }
+  transitions.forEach(function(transition) {
+    add_visit("http://" + transition +".mozilla.org/", transition);
+  });
 
   runQuery(Ci.nsINavHistoryQueryOptions.RESULTS_AS_VISIT);
   runQuery(Ci.nsINavHistoryQueryOptions.RESULTS_AS_URI);
-});
+}

@@ -155,6 +155,11 @@ struct ParseContext                 /* tree context for semantic checks */
                                        be an error if we turn out to be inside a
                                        generator expression */
 
+    // A strict mode error found in this scope or one of its children. It is
+    // used only when strictModeState is UNKNOWN. If the scope turns out to be
+    // strict and this is non-null, it is thrown.
+    CompileError    *queuedStrictModeError;
+
   private:
     ParseContext    **parserPC;     /* this points to the Parser's active pc
                                        and holds either |this| or one of
@@ -194,14 +199,12 @@ struct ParseContext                 /* tree context for semantic checks */
     // they need to be treated differently.
     bool            inDeclDestructuring:1;
 
-    // True if we are in a function, saw a "use strict" directive, and weren't
-    // strict before.
-    bool            funBecameStrict:1;
-
     inline ParseContext(Parser *prs, SharedContext *sc, unsigned staticLevel, uint32_t bodyid);
     inline ~ParseContext();
 
     inline bool init();
+
+    inline void setQueuedStrictModeError(CompileError *e);
 
     unsigned blockid();
 
@@ -257,8 +260,8 @@ struct Parser : private AutoGCRooter
      * As that object is inaccessible to client code, the lookups are
      * guaranteed to return the original objects, ensuring safe implementation
      * of self-hosted builtins.
-     * Additionally, the special syntax _CallFunction(receiver, ...args, fun)
-     * is supported, for which bytecode is emitted that invokes |fun| with
+     * Additionally, the special syntax %_CallName(receiver, ...args, fun) is
+     * supported, for which bytecode is emitted that invokes |fun| with
      * |receiver| as the this-object and ...args as the arguments..
      */
     const bool          selfHostingMode:1;
@@ -296,7 +299,7 @@ struct Parser : private AutoGCRooter
      */
     ObjectBox *newObjectBox(JSObject *obj);
 
-    FunctionBox *newFunctionBox(JSFunction *fun, ParseContext *pc, bool strict);
+    FunctionBox *newFunctionBox(JSFunction *fun, ParseContext *pc, StrictMode sms);
 
     /*
      * Create a new function object given parse context (pc) and a name (which
@@ -347,12 +350,7 @@ struct Parser : private AutoGCRooter
 
     /* Public entry points for parsing. */
     ParseNode *statement();
-    bool maybeParseDirective(ParseNode *pn, bool *cont);
-
-    // Parse a function, given only its body. Used for the Function constructor.
-    ParseNode *standaloneFunctionBody(HandleFunction fun, const AutoNameVector &formals, HandleScript script,
-                                      ParseNode *fn, FunctionBox **funbox, bool strict,
-                                      bool *becameStrict = NULL);
+    bool processDirectives(ParseNode *stringsAtStart);
 
     /*
      * Parse a function body.  Pass StatementListBody if the body is a list of
@@ -426,11 +424,7 @@ struct Parser : private AutoGCRooter
     enum FunctionType { Getter, Setter, Normal };
     bool functionArguments(ParseNode **list, ParseNode *funcpn, bool &hasRest);
 
-    ParseNode *functionDef(HandlePropertyName name, const TokenStream::Position &start,
-                           FunctionType type, FunctionSyntaxKind kind);
-    bool functionArgsAndBody(ParseNode *pn, HandleFunction fun, HandlePropertyName funName,
-                             FunctionType type, FunctionSyntaxKind kind, bool strict,
-                             bool *becameStrict = NULL);
+    ParseNode *functionDef(HandlePropertyName name, FunctionType type, FunctionSyntaxKind kind);
 
     ParseNode *unaryOpExpr(ParseNodeKind kind, JSOp op);
 
@@ -447,9 +441,21 @@ struct Parser : private AutoGCRooter
     bool checkForFunctionNode(PropertyName *name, ParseNode *node);
 
     ParseNode *identifierName(bool afterDoubleDot);
+    ParseNode *intrinsicName();
 
 #if JS_HAS_XML_SUPPORT
-    bool allowsXML() const { return tokenStream.allowsXML(); }
+    // True if E4X syntax is allowed in the current syntactic context. Note this
+    // function may be false while TokenStream::allowsXML() is true!
+    // Specifically, when strictModeState is not STRICT, Parser::allowsXML()
+    // will be false, where TokenStream::allowsXML() is only false when
+    // strictModeState is STRICT. The reason for this is when we are parsing the
+    // directive prologue, the tokenizer looks ahead into the body of the
+    // function. So, we have to be lenient in case the function is not
+    // strict. This also effectively bans XML in function defaults. See bug
+    // 772691.
+    bool allowsXML() const {
+        return pc->sc->strictModeState == StrictMode::NOTSTRICT && tokenStream.allowsXML();
+    }
 
     ParseNode *endBracketedExpr();
 
@@ -468,6 +474,7 @@ struct Parser : private AutoGCRooter
     ParseNode *propertyQualifiedIdentifier();
 #endif /* JS_HAS_XML_SUPPORT */
 
+    bool setStrictMode(bool strictMode);
     bool setAssignmentLhsOps(ParseNode *pn, JSOp op);
     bool matchInOrOf(bool *isForOfp);
 };

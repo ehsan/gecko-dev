@@ -265,6 +265,9 @@ extern JS_FRIEND_API(void)
 TraceWeakMaps(WeakMapTracer *trc);
 
 extern JS_FRIEND_API(bool)
+GCThingIsMarkedGray(void *thing);
+
+extern JS_FRIEND_API(bool)
 AreGCGrayBitsValid(JSRuntime *rt);
 
 /*
@@ -886,6 +889,9 @@ IsIncrementalBarrierNeeded(JSRuntime *rt);
 
 extern JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSContext *cx);
+
+extern JS_FRIEND_API(bool)
+IsIncrementalBarrierNeededOnGCThing(void *thing, JSGCTraceKind kind);
 
 extern JS_FRIEND_API(void)
 IncrementalReferenceBarrier(void *ptr);

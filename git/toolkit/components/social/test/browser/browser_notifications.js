@@ -79,7 +79,6 @@ function ensureProvider(workerFunction, cb) {
 
   ensureSocialEnabled();
   SocialService.addProvider(manifest, function (p) {
-    p.enabled = true;
     cb(p);
   });
 }
@@ -134,7 +133,6 @@ let tests = {
       Services.obs.addObserver(observer, "social-test:notification-alert", false);
 
       let port = provider.getWorkerPort();
-      ok(port, "got port from worker");
       port.onmessage = function(e) {
         if (e.data.topic == "test.done") {
           ok(e.data.data, "check the test worked");

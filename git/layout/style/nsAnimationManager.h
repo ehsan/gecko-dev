@@ -90,7 +90,7 @@ struct ElementAnimation
     return mPlayState == NS_STYLE_ANIMATION_PLAY_STATE_PAUSED;
   }
 
-  virtual bool HasAnimationOfProperty(nsCSSProperty aProperty) const;
+  bool HasAnimationOfProperty(nsCSSProperty aProperty) const;
   bool IsRunningAt(mozilla::TimeStamp aTime) const;
 
   mozilla::TimeStamp mStartTime; // with delay taken into account
@@ -111,8 +111,7 @@ struct ElementAnimation
 /**
  * Data about all of the animations running on an element.
  */
-struct ElementAnimations MOZ_FINAL
-  : public mozilla::css::CommonElementAnimationData
+struct ElementAnimations : public mozilla::css::CommonElementAnimationData
 {
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
@@ -137,14 +136,13 @@ struct ElementAnimations MOZ_FINAL
                                        TimeDuration aDuration,
                                        double aIterationCount,
                                        uint32_t aDirection,
-                                       bool aIsForElement = true,
+                                       bool IsForElement = true,
                                        ElementAnimation* aAnimation = nullptr,
                                        ElementAnimations* aEa = nullptr,
                                        EventArray* aEventsToDispatch = nullptr);
 
   void EnsureStyleRuleFor(TimeStamp aRefreshTime,
-                          EventArray &aEventsToDispatch,
-                          bool aIsThrottled);
+                          EventArray &aEventsToDispatch);
 
   bool IsForElement() const { // rather than for a pseudo-element
     return mElementProperty == nsGkAtoms::animationsProperty;
@@ -156,8 +154,8 @@ struct ElementAnimations MOZ_FINAL
   }
 
   // True if this animation can be performed on the compositor thread.
-  virtual bool CanPerformOnCompositorThread(CanAnimateFlags aFlags) const MOZ_OVERRIDE;
-  virtual bool HasAnimationOfProperty(nsCSSProperty aProperty) const MOZ_OVERRIDE;
+  bool CanPerformOnCompositorThread() const;
+  bool HasAnimationOfProperty(nsCSSProperty aProperty) const;
 
   // False when we know that our current style rule is valid
   // indefinitely into the future (because all of our animations are
@@ -187,25 +185,9 @@ public:
     if (!animations)
       return nullptr;
     bool propertyMatches = animations->HasAnimationOfProperty(aProperty);
-    return (propertyMatches &&
-            animations->CanPerformOnCompositorThread(
-              mozilla::css::CommonElementAnimationData::CanAnimate_AllowPartial))
-           ? animations
-           : nullptr;
+    return (propertyMatches && animations->CanPerformOnCompositorThread()) ?
+      animations : nullptr;
   }
-
-  // Returns true if aContent or any of its ancestors has an animation.
-  static bool ContentOrAncestorHasAnimation(nsIContent* aContent) {
-    do {
-      if (aContent->GetProperty(nsGkAtoms::animationsProperty)) {
-        return true;
-      }
-    } while ((aContent = aContent->GetParent()));
-
-    return false;
-  }
-
-  void EnsureStyleRuleFor(ElementAnimations* aET);
 
   // nsIStyleRuleProcessor (parts)
   virtual void RulesMatching(ElementRuleProcessorData* aData) MOZ_OVERRIDE;
@@ -221,8 +203,6 @@ public:
 
   // nsARefreshObserver
   virtual void WillRefresh(mozilla::TimeStamp aTime) MOZ_OVERRIDE;
-
-  void FlushAnimations(FlushFlags aFlags);
 
   /**
    * Return the style rule that RulesMatching should add for
@@ -256,11 +236,10 @@ public:
     }
   }
 
+private:
   ElementAnimations* GetElementAnimations(mozilla::dom::Element *aElement,
                                           nsCSSPseudoElements::Type aPseudoType,
                                           bool aCreateIfNeeded);
-
-private:
   void BuildAnimations(nsStyleContext* aStyleContext,
                        InfallibleTArray<ElementAnimation>& aAnimations);
   bool BuildSegment(InfallibleTArray<AnimationPropertySegment>& aSegments,

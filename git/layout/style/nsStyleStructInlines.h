@@ -127,10 +127,7 @@ nsStyleDisplay::IsFloating(const nsIFrame* aFrame) const
 bool
 nsStyleDisplay::IsPositioned(const nsIFrame* aFrame) const
 {
-  return (IsAbsolutelyPositionedStyle() ||
-          IsRelativelyPositionedStyle() ||
-          (HasTransform() && aFrame->IsFrameOfType(nsIFrame::eSupportsCSSTransforms))) &&
-         !aFrame->IsSVGText();
+  return IsPositionedStyle() && !aFrame->IsSVGText();
 }
 
 bool

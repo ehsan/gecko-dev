@@ -17,10 +17,6 @@ function verifyInitialState() {
   deleteAllMsgs(simulateIncomingSms);
 }
 
-function isIn(aVal, aArray, aMsg) {
-  ok(aArray.indexOf(aVal) >= 0, aMsg);
-}
-
 function deleteAllMsgs(nextFunction) {
   let msgList = new Array();
   let smsFilter = new MozSmsFilter;
@@ -197,12 +193,12 @@ function verifyFoundMsgs(foundSmsList, reverse) {
     // Bug 805799: receiver null when onreceived event is fired, until do a
     // getMessage. Default emulator (receiver) phone number is 15555215554
     if (!smsList[x].receiver) {
-      isIn(foundSmsList[x].receiver, ["15555215554", "+15555215554"], "receiver");
+      is(foundSmsList[x].receiver, "15555215554", "receiver");
     } else {
-      isIn(foundSmsList[x].receiver, [smsList[x].receiver, "+15555215554"], "receiver");
+      is(foundSmsList[x].receiver, smsList[x].receiver, "receiver");
     }
 
-    isIn(foundSmsList[x].sender, [smsList[x].sender, "+15552229797"], "sender");
+    is(foundSmsList[x].sender, smsList[x].sender, "sender");
     is(foundSmsList[x].timestamp.getTime(), smsList[x].timestamp.getTime(),
         "timestamp");
   }

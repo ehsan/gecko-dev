@@ -98,14 +98,11 @@ function runTest(parser, serializer) {
        "parseFromString test for " + t.type);
 
     let ostream = {
+      data: "",
       write: function(buf, count) { this.data += buf; return count; }
     };
-    for (let charset of [null, "UTF-8"]) {
-      ostream.data = "";
-      serializer.serializeToStream(parser.parseFromString(t.input, t.type), ostream, charset);
-      is(ostream.data, t.expected,
-         "serializeToStream test for " + t.type + ", charset=" + charset);
-    }
+    serializer.serializeToStream(parser.parseFromString(t.input, t.type), ostream, "UTF-8");
+    is(ostream.data, t.expected, "serializeToStream test for " + t.type);
 
     if (t.type === "text/html") {
       // parseFromBuffer and parseFromStream don't support "text/html".
@@ -129,12 +126,10 @@ function runTest(parser, serializer) {
     }
 
     let istream = Cc["@mozilla.org/io/string-input-stream;1"].
-                  createInstance(Ci.nsIStringInputStream);
-    for (let charset of [null, "UTF-8"]) {
-      istream.setData(t.input, -1);
-      is(serializer.serializeToString(parser.parseFromStream(istream, charset, t.input.length, t.type)),
-         t.expected, "parseFromStream test for " + t.type + ", charset=" + charset);
-    }
+                 createInstance(Ci.nsIStringInputStream);
+    istream.setData(t.input, -1);
+    is(serializer.serializeToString(parser.parseFromStream(istream, null, array.length, t.type)),
+       t.expected, "parseFromStream test for " + t.type);
   }
   throws(function() {
     parser.parseFromString("<xml></xml>", "foo/bar");

@@ -84,7 +84,7 @@ LookupCache::Open()
 
   nsCOMPtr<nsIInputStream> inputStream;
   rv = NS_NewLocalFileInputStream(getter_AddRefs(inputStream), storeFile,
-                                  PR_RDONLY | nsIFile::OS_READAHEAD);
+                                  PR_RDONLY);
 
   if (NS_FAILED(rv) && rv != NS_ERROR_FILE_NOT_FOUND) {
     Reset();

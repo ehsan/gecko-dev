@@ -1043,15 +1043,13 @@ void
 nsHtml5TreeOpExecutor::PreloadScript(const nsAString& aURL,
                                      const nsAString& aCharset,
                                      const nsAString& aType,
-                                     const nsAString& aCrossOrigin,
-                                     bool aScriptFromHead)
+                                     const nsAString& aCrossOrigin)
 {
   nsCOMPtr<nsIURI> uri = ConvertIfNotPreloadedYet(aURL);
   if (!uri) {
     return;
   }
-  mDocument->ScriptLoader()->PreloadURI(uri, aCharset, aType, aCrossOrigin,
-                                        aScriptFromHead);
+  mDocument->ScriptLoader()->PreloadURI(uri, aCharset, aType, aCrossOrigin);
 }
 
 void

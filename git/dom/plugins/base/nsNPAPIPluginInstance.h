@@ -57,6 +57,7 @@ public:
   uint32_t id;
   nsCOMPtr<nsITimer> timer;
   void (*callback)(NPP npp, uint32_t timerID);
+  bool inCallback;
 };
 
 class nsNPAPIPluginInstance : public nsISupports
@@ -269,14 +270,6 @@ public:
   // Returns the contents scale factor of the screen the plugin is drawn on.
   double GetContentsScaleFactor();
 
-  static bool InPluginCall() { return gInPluginCalls > 0; }
-  static void BeginPluginCall() { ++gInPluginCalls; }
-  static void EndPluginCall()
-  {
-    NS_ASSERTION(InPluginCall(), "Must be in plugin call");
-    --gInPluginCalls;
-  }
-
 protected:
 
   nsresult GetTagType(nsPluginTagType *result);
@@ -371,8 +364,6 @@ private:
 
   // is this instance Java and affected by bug 750480?
   bool mHaveJavaC2PJSObjectQuirk;
-
-  static uint32_t gInPluginCalls;
 };
 
 #endif // nsNPAPIPluginInstance_h_

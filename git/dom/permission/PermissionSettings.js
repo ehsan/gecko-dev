@@ -44,12 +44,12 @@ XPCOMUtils.defineLazyServiceGetter(this,
                                    "nsIAppsService");
 
 PermissionSettings.prototype = {
-  get: function get(aPermName, aManifestURL, aOrigin, aBrowserFlag) {
-    debug("Get called with: " + aPermName + ", " + aManifestURL + ", " + aOrigin + ", " + aBrowserFlag);
+  get: function get(aPermission, aManifestURL, aOrigin, aBrowserFlag) {
+    debug("Get called with: " + aPermission + ", " + aManifestURL + ", " + aOrigin + ", " + aBrowserFlag);
     let uri = Services.io.newURI(aOrigin, null, null);
     let appID = appsService.getAppLocalIdByManifestURL(aManifestURL);
     let principal = secMan.getAppCodebasePrincipal(uri, appID, aBrowserFlag);
-    let result = permissionManager.testExactPermissionFromPrincipal(principal, aPermName);
+    let result = permissionManager.testExactPermissionFromPrincipal(principal, aPermission);
 
     switch (result)
     {
@@ -67,19 +67,19 @@ PermissionSettings.prototype = {
     }
   },
 
-  set: function set(aPermName, aPermValue, aManifestURL, aOrigin, aBrowserFlag) {
-    debug("Set called with: " + aPermName + ", " + aManifestURL + ", " + aOrigin + ",  " + aPermValue + ", " + aBrowserFlag);
+  set: function set(aPermission, aValue, aManifestURL, aOrigin, aBrowserFlag) {
+    debug("Set called with: " + aPermission + ", " + aManifestURL + ", " + aOrigin + ",  " + aValue + ", " + aBrowserFlag);
     let action;
     cpm.sendSyncMessage("PermissionSettings:AddPermission", {
-      type: aPermName,
+      type: aPermission,
       origin: aOrigin,
       manifestURL: aManifestURL,
-      value: aPermValue,
+      value: aValue,
       browserFlag: aBrowserFlag
     });
   },
 
-  init: function init(aWindow) {
+  init: function(aWindow) {
     debug("init");
 
     // Set navigator.mozPermissionSettings to null.

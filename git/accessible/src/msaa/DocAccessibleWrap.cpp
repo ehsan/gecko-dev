@@ -259,7 +259,7 @@ DocAccessibleWrap::DoInitialUpdate()
 
       a11y::RootAccessible* rootDocument = RootAccessible();
 
-      mozilla::WindowsHandle nativeData = 0;
+      mozilla::WindowsHandle nativeData = NULL;
       if (tabChild)
         tabChild->SendGetWidgetNativeData(&nativeData);
       else

@@ -71,7 +71,7 @@ class StaticScopeIter
     Type type() const;
 
     StaticBlockObject &block() const;
-    UnrootedScript funScript() const;
+    JSScript *funScript() const;
 };
 
 /*****************************************************************************/
@@ -193,8 +193,6 @@ class CallObject : public ScopeObject
 
     static const uint32_t RESERVED_SLOTS = 2;
 
-    static CallObject *createForFunction(JSContext *cx, HandleObject enclosing, HandleFunction callee);
-
     static CallObject *createForFunction(JSContext *cx, StackFrame *fp);
     static CallObject *createForStrictEval(JSContext *cx, StackFrame *fp);
 
@@ -220,21 +218,11 @@ class CallObject : public ScopeObject
 
 class DeclEnvObject : public ScopeObject
 {
-    // Pre-allocated slot for the named lambda.
-    static const uint32_t LAMBDA_SLOT = 1;
-
   public:
-    static const uint32_t RESERVED_SLOTS = 2;
+    static const uint32_t RESERVED_SLOTS = 1;
     static const gc::AllocKind FINALIZE_KIND = gc::FINALIZE_OBJECT2;
 
-    static DeclEnvObject *
-    createTemplateObject(JSContext *cx, HandleFunction fun);
-
-    static DeclEnvObject *create(JSContext *cx, HandleObject enclosing, HandleFunction callee);
-
-    static inline size_t lambdaSlot() {
-        return LAMBDA_SLOT;
-    }
+    static DeclEnvObject *create(JSContext *cx, StackFrame *fp);
 };
 
 class NestedScopeObject : public ScopeObject

@@ -30,8 +30,9 @@ public class BufferedCairoImage extends CairoImage {
         setBitmap(bitmap);
     }
 
-    private synchronized void freeBuffer() {
-        mBuffer = DirectBufferAllocator.free(mBuffer);
+    private void freeBuffer() {
+        DirectBufferAllocator.free(mBuffer);
+        mBuffer = null;
     }
 
     @Override

@@ -14,8 +14,6 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 #include <gdk/gdk.h>
-#include <cstdlib> // for std::abs(int/long)
-#include <cmath> // for std::abs(float/double)
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -100,7 +98,7 @@ delete_from_cursor_cb(GtkWidget *w, GtkDeleteType del_type,
   if (!cmd)
     return; // unsupported command
 
-  count = std::abs(count);
+  count = NS_ABS(count);
   for (int i = 0; i < count; ++i) {
     gCurrentCallback(cmd, gCurrentCallbackData);
   }
@@ -170,7 +168,7 @@ move_cursor_cb(GtkWidget *w, GtkMovementStep step, gint count,
     return; // unsupported command
 
   
-  count = std::abs(count);
+  count = NS_ABS(count);
   for (int i = 0; i < count; ++i) {
     gCurrentCallback(cmd, gCurrentCallbackData);
   }

@@ -10,7 +10,6 @@ VPATH		= @srcdir@
 
 MODULE		= pipnss
 DIRS = \
-  browser \
   bugs \
   mixedcontent \
   stricttransportsecurity \

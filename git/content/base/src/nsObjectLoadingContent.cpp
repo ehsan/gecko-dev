@@ -163,31 +163,27 @@ InDocCheckEvent::Run()
 }
 
 /**
- * Helper task for firing simple events
+ * A task for firing PluginNotFound and PluginBlocklisted DOM Events.
  */
-class nsSimplePluginEvent : public nsRunnable {
+class nsPluginOutdatedEvent : public nsRunnable {
 public:
-  nsSimplePluginEvent(nsIContent* aContent, const nsAString &aEvent)
-    : mContent(aContent),
-      mEvent(aEvent)
-  {}
+  nsPluginOutdatedEvent(nsIContent* aContent) : mContent(aContent) {}
 
-  ~nsSimplePluginEvent() {}
+  ~nsPluginOutdatedEvent() {}
 
   NS_IMETHOD Run();
 
 private:
   nsCOMPtr<nsIContent> mContent;
-  nsString mEvent;
 };
 
 NS_IMETHODIMP
-nsSimplePluginEvent::Run()
+nsPluginOutdatedEvent::Run()
 {
-  LOG(("OBJLC [%p]: nsSimplePluginEvent firing event \"%s\"", mContent.get(),
-       mEvent.get()));
+  LOG(("OBJLC [%p]: nsPluginOutdatedEvent firing", mContent.get()));
   nsContentUtils::DispatchTrustedEvent(mContent->GetDocument(), mContent,
-                                       mEvent, true, true);
+                                       NS_LITERAL_STRING("PluginOutdated"),
+                                       true, true);
   return NS_OK;
 }
 
@@ -635,7 +631,6 @@ nsObjectLoadingContent::nsObjectLoadingContent()
   , mPlayPreviewCanceled(false)
   , mIsStopping(false)
   , mIsLoading(false)
-  , mScriptRequested(false)
   , mSrcStreamLoading(false) {}
 
 nsObjectLoadingContent::~nsObjectLoadingContent()
@@ -753,13 +748,12 @@ nsObjectLoadingContent::InstantiatePluginInstance()
                                          EmptyString(), &blockState);
       if (blockState == nsIBlocklistService::STATE_OUTDATED) {
         // Fire plugin outdated event if necessary
-        LOG(("OBJLC [%p]: Dispatching plugin outdated event for content %p\n",
+        LOG(("OBJLC [%p]: Dispatching nsPluginOutdatedEvent for content %p\n",
              this));
-        nsCOMPtr<nsIRunnable> ev = new nsSimplePluginEvent(thisContent,
-                                                     NS_LITERAL_STRING("PluginOutdated"));
+        nsCOMPtr<nsIRunnable> ev = new nsPluginOutdatedEvent(thisContent);
         nsresult rv = NS_DispatchToCurrentThread(ev);
         if (NS_FAILED(rv)) {
-          NS_WARNING("failed to dispatch nsSimplePluginEvent");
+          NS_WARNING("failed to dispatch nsPluginOutdatedEvent");
         }
       }
     }
@@ -2019,8 +2013,6 @@ nsObjectLoadingContent::UnloadObject(bool aResetState)
     mOriginalContentType.Truncate();
   }
 
-  mScriptRequested = false;
-
   // This call should be last as it may re-enter
   StopPluginInstance();
 }
@@ -2188,45 +2180,6 @@ nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
   if (NS_FAILED(rv)) {
     NS_WARNING("failed to dispatch nsPluginCrashedEvent");
   }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsObjectLoadingContent::ScriptRequestPluginInstance(bool aCallerIsContentJS,
-                                                    nsNPAPIPluginInstance **aResult)
-{
-  nsCOMPtr<nsIContent> thisContent =
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
-
-  *aResult = nullptr;
-
-  // The first time content script attempts to access placeholder content, fire
-  // an event.  Fallback types >= eFallbackClickToPlay are plugin-replacement
-  // types, see header.
-  if (aCallerIsContentJS && !mScriptRequested &&
-      InActiveDocument(thisContent) && mType == eType_Null &&
-      mFallbackType >= eFallbackClickToPlay) {
-    nsCOMPtr<nsIRunnable> ev =
-      new nsSimplePluginEvent(thisContent,
-                              NS_LITERAL_STRING("PluginScripted"));
-    nsresult rv = NS_DispatchToCurrentThread(ev);
-    if (NS_FAILED(rv)) {
-      NS_NOTREACHED("failed to dispatch PluginScripted event");
-    }
-    mScriptRequested = true;
-  } else if (mType == eType_Plugin && !mInstanceOwner &&
-             nsContentUtils::IsSafeToRunScript() &&
-             InActiveDocument(thisContent)) {
-    // If we're configured as a plugin in an active document and it's safe to
-    // run scripts right now, try spawning synchronously
-    SyncStartPluginInstance();
-  }
-
-  if (mInstanceOwner) {
-    return mInstanceOwner->GetInstance(aResult);
-  }
-
-  // Note that returning a null plugin is expected (and happens often)
   return NS_OK;
 }
 

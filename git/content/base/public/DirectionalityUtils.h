@@ -7,7 +7,8 @@
 #ifndef DirectionalityUtils_h___
 #define DirectionalityUtils_h___
 
-#include "nscore.h"
+#include "prtypes.h"
+#include "mozilla/StandardInteger.h"
 
 class nsIContent;
 class nsIDocument;

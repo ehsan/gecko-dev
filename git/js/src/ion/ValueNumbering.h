@@ -37,23 +37,23 @@ class ValueNumberer
     };
 
     typedef HashMap<MDefinition *,
-                    uint32_t,
+                    uint32,
                     ValueHasher,
                     IonAllocPolicy> ValueMap;
 
     struct DominatingValue
     {
         MDefinition *def;
-        uint32_t validUntil;
+        uint32 validUntil;
     };
 
-    typedef HashMap<uint32_t,
+    typedef HashMap<uint32,
                     DominatingValue,
-                    DefaultHasher<uint32_t>,
+                    DefaultHasher<uint32>,
                     IonAllocPolicy> InstructionMap;
 
   protected:
-    uint32_t lookupValue(MDefinition *ins);
+    uint32 lookupValue(MDefinition *ins);
     MDefinition *findDominatingDef(InstructionMap &defs, MDefinition *ins, size_t index);
 
     MDefinition *simplify(MDefinition *def, bool useValueNumbers);
@@ -93,18 +93,18 @@ class ValueNumberData : public TempObject {
 
     friend void ValueNumberer::breakClass(MDefinition*);
     friend MDefinition *ValueNumberer::findSplit(MDefinition*);
-    uint32_t number;
+    uint32 number;
     MDefinition *classNext;
     MDefinition *classPrev;
 
   public:
     ValueNumberData() : number(0), classNext(NULL), classPrev(NULL) {}
 
-    void setValueNumber(uint32_t number_) {
+    void setValueNumber(uint32 number_) {
         number = number_;
     }
 
-    uint32_t valueNumber() {
+    uint32 valueNumber() {
         return number;
     }
     // Set the class of this to the given representative value.

@@ -94,12 +94,7 @@
                             android:persistent="false" />
 
 #ifdef MOZ_TELEMETRY_REPORTING
-        <CheckBoxPreference
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-                            android:key="toolkit.telemetry.enabledPreRelease"
-#else
-                            android:key="toolkit.telemetry.enabled"
-#endif
+        <CheckBoxPreference android:key="toolkit.telemetry.enabled"
                             android:title="@string/pref_telemetry"
                             android:persistent="false" />
 #endif

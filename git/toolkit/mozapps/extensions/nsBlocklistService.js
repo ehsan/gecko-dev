@@ -1038,8 +1038,7 @@ Blocklist.prototype = {
 
       let blocklistWindow = Services.ww.openWindow(null, URI_BLOCKLIST_DIALOG, "",
                               "chrome,centerscreen,dialog,titlebar", args);
-      if (blocklistWindow)
-        blocklistWindow.addEventListener("unload", blocklistUnloadHandler, false);
+      blocklistWindow.addEventListener("unload", blocklistUnloadHandler, false);
     });
   },
 

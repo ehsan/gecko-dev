@@ -42,7 +42,7 @@
     macro(call, call, "call") \
     macro(callee, callee, "callee") \
     macro(caller, caller, "caller") \
-    macro(callFunction, callFunction, "callFunction") \
+    macro(_CallFunction, _CallFunction, "_CallFunction") \
     macro(classPrototype, classPrototype, "prototype") \
     macro(Collator, Collator, "Collator") \
     macro(columnNumber, columnNumber, "columnNumber") \

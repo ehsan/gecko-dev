@@ -375,7 +375,6 @@ ArrayBufferObject::addView(RawObject view)
         // Move the multiview buffer list link into this view since we're
         // prepending it to the list.
         SetBufferLink(view, BufferLink(*views));
-        SetBufferLink(*views, UNSET_BUFFER_LINK);
         WeakObjectSlotBarrierPost(view, BufferView::NEXT_BUFFER_SLOT, "view.nextbuffer");
     }
 
@@ -468,7 +467,6 @@ ArrayBufferObject::stealContents(JSContext *cx, JSObject *obj, void **contents,
     JSObject *views = *GetViewList(&buffer);
     js::ObjectElements *header = js::ObjectElements::fromElements((js::HeapSlot*)buffer.dataPointer());
     if (buffer.hasDynamicElements()) {
-        *GetViewList(&buffer) = NULL;
         *contents = header;
         *data = buffer.dataPointer();
 
@@ -545,15 +543,6 @@ ArrayBufferObject::obj_trace(JSTracer *trc, RawObject obj)
                 JSObject **bufList = &obj->compartment()->gcLiveArrayBuffers;
                 SetBufferLink(firstView, *bufList);
                 *bufList = obj;
-            } else {
-#ifdef DEBUG
-                bool found = false;
-                for (JSObject *p = obj->compartment()->gcLiveArrayBuffers; p; p = BufferLink(p)) {
-                    if (p == obj)
-                        found = true;
-                }
-                JS_ASSERT(found);
-#endif
             }
         }
     }
@@ -594,11 +583,11 @@ ArrayBufferObject::sweep(JSCompartment *compartment)
 }
 
 void
-ArrayBufferObject::resetArrayBufferList(JSCompartment *comp)
+ArrayBufferObject::resetArrayBufferList(JSCompartment *compartment)
 {
-    JSObject *buffer = comp->gcLiveArrayBuffers;
+    JSObject *buffer = compartment->gcLiveArrayBuffers;
     JS_ASSERT(buffer != UNSET_BUFFER_LINK);
-    comp->gcLiveArrayBuffers = NULL;
+    compartment->gcLiveArrayBuffers = NULL;
 
     while (buffer) {
         JSObject *view = *GetViewList(&buffer->asArrayBuffer());
@@ -609,38 +598,6 @@ ArrayBufferObject::resetArrayBufferList(JSCompartment *comp)
 
         SetBufferLink(view, UNSET_BUFFER_LINK);
         buffer = nextBuffer;
-    }
-}
-
-/* static */ bool
-ArrayBufferObject::saveArrayBufferList(JSCompartment *comp, ArrayBufferVector &vector)
-{
-    JSObject *obj = comp->gcLiveArrayBuffers;
-    while (obj) {
-        JS_ASSERT(obj != UNSET_BUFFER_LINK);
-        ArrayBufferObject *buffer = &obj->asArrayBuffer();
-        if (!vector.append(buffer))
-            return false;
-
-        JSObject *view = *GetViewList(buffer);
-        JS_ASSERT(view);
-        obj = BufferLink(view);
-    }
-    return true;
-}
-
-/* static */ void
-ArrayBufferObject::restoreArrayBufferLists(ArrayBufferVector &vector)
-{
-    for (ArrayBufferObject **p = vector.begin(); p != vector.end(); p++) {
-        ArrayBufferObject *buffer = *p;
-        JSCompartment *comp = buffer->compartment();
-        JSObject *firstView = *GetViewList(&buffer->asArrayBuffer());
-        JS_ASSERT(firstView);
-        JS_ASSERT(firstView->compartment() == comp);
-        JS_ASSERT(BufferLink(firstView) == UNSET_BUFFER_LINK);
-        SetBufferLink(firstView, comp->gcLiveArrayBuffers);
-        comp->gcLiveArrayBuffers = buffer;
     }
 }
 
@@ -3686,7 +3643,6 @@ JS_NewArrayBufferWithContents(JSContext *cx, void *contents)
         return NULL;
     JSObject *obj = ArrayBufferObject::create(cx, 0);
     obj->setDynamicElements(reinterpret_cast<js::ObjectElements *>(contents));
-    JS_ASSERT(*GetViewList(&obj->asArrayBuffer()) == NULL);
     return obj;
 }
 

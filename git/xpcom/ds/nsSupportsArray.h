@@ -105,6 +105,9 @@ public:
   
   NS_IMETHOD Compact(void);
 
+  NS_IMETHOD_(bool) EnumerateForwards(nsISupportsArrayEnumFunc aFunc, void* aData);
+  NS_IMETHOD_(bool) EnumerateBackwards(nsISupportsArrayEnumFunc aFunc, void* aData);
+
   NS_IMETHOD Clone(nsISupportsArray **_retval);
 
   NS_IMETHOD_(bool) InsertElementsAt(nsISupportsArray *aOther, uint32_t aIndex);

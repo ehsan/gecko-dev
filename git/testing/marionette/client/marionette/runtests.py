@@ -490,7 +490,6 @@ class MarionetteTestRunner(object):
             testcase = doc.createElement('testcase')
             testcase.setAttribute('classname', cls_name)
             testcase.setAttribute('name', unicode(test).split()[0])
-            testcase.setAttribute('time', str(test.duration))
             testsuite.appendChild(testcase)
 
             if result in ['failure', 'error', 'skipped']:
@@ -503,7 +502,8 @@ class MarionetteTestRunner(object):
 
         testsuite = doc.createElement('testsuite')
         testsuite.setAttribute('name', 'Marionette')
-        testsuite.setAttribute('time', str(self.elapsedtime.total_seconds()))
+        # convert elapsedtime to integer milliseconds
+        testsuite.setAttribute('time', str(int(self.elapsedtime.total_seconds() * 1000)))
         testsuite.setAttribute('tests', str(sum([results.testsRun for
                                                  results in results_list])))
 

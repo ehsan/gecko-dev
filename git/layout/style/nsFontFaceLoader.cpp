@@ -316,6 +316,10 @@ nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
                          const gfxFontFaceSrc *aFontFaceSrc)
 {
   nsresult rv;
+  nsIPrincipal *principal = nullptr;
+
+  rv = CheckFontLoad(aProxy, aFontFaceSrc, &principal);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsIPresShell *ps = mPresContext->PresShell();
   if (!ps)
@@ -328,7 +332,7 @@ nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
   // get Content Security Policy from principal to pass into channel
   nsCOMPtr<nsIChannelPolicy> channelPolicy;
   nsCOMPtr<nsIContentSecurityPolicy> csp;
-  rv = aProxy->mPrincipal->GetCsp(getter_AddRefs(csp));
+  rv = principal->GetCsp(getter_AddRefs(csp));
   NS_ENSURE_SUCCESS(rv, rv);
   if (csp) {
     channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
@@ -378,7 +382,8 @@ nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
     rv = channel->AsyncOpen(streamLoader, nullptr);
   } else {
     nsRefPtr<nsCORSListenerProxy> listener =
-      new nsCORSListenerProxy(streamLoader, aProxy->mPrincipal, false);
+      new nsCORSListenerProxy(streamLoader, principal,
+                              false);
     rv = listener->Init(channel);
     if (NS_SUCCEEDED(rv)) {
       rv = channel->AsyncOpen(listener, nullptr);
@@ -797,9 +802,12 @@ nsUserFontSet::LogMessage(gfxProxyFontEntry *aProxy,
 }
 
 nsresult
-nsUserFontSet::CheckFontLoad(const gfxFontFaceSrc *aFontFaceSrc,
+nsUserFontSet::CheckFontLoad(gfxProxyFontEntry *aFontToLoad,
+                             const gfxFontFaceSrc *aFontFaceSrc,
                              nsIPrincipal **aPrincipal)
 {
+  nsresult rv;
+
   // check same-site origin
   nsIPresShell *ps = mPresContext->PresShell();
   if (!ps)
@@ -819,11 +827,18 @@ nsUserFontSet::CheckFontLoad(const gfxFontFaceSrc *aFontFaceSrc,
   NS_ASSERTION(aFontFaceSrc->mOriginPrincipal,
                "null origin principal in @font-face rule");
   if (aFontFaceSrc->mUseOriginPrincipal) {
-    *aPrincipal = aFontFaceSrc->mOriginPrincipal;
+    nsCOMPtr<nsIPrincipal> p = do_QueryInterface(aFontFaceSrc->mOriginPrincipal);
+    *aPrincipal = p;
   }
 
-  return nsFontFaceLoader::CheckLoadAllowed(*aPrincipal, aFontFaceSrc->mURI,
-                                            ps->GetDocument());
+  rv = nsFontFaceLoader::CheckLoadAllowed(*aPrincipal, aFontFaceSrc->mURI,
+                                          ps->GetDocument());
+  if (NS_FAILED(rv)) {
+    LogMessage(aFontToLoad, "download not allowed",
+               nsIScriptError::errorFlag, rv);
+  }
+
+  return rv;
 }
 
 nsresult
@@ -833,12 +848,16 @@ nsUserFontSet::SyncLoadFontData(gfxProxyFontEntry *aFontToLoad,
                                 uint32_t &aBufferLength)
 {
   nsresult rv;
+  nsIPrincipal *principal = nullptr;
+
+  rv = CheckFontLoad(aFontToLoad, aFontFaceSrc, &principal);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIChannel> channel;
   // get Content Security Policy from principal to pass into channel
   nsCOMPtr<nsIChannelPolicy> channelPolicy;
   nsCOMPtr<nsIContentSecurityPolicy> csp;
-  rv = aFontToLoad->mPrincipal->GetCsp(getter_AddRefs(csp));
+  rv = principal->GetCsp(getter_AddRefs(csp));
   NS_ENSURE_SUCCESS(rv, rv);
   if (csp) {
     channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");

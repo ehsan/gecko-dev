@@ -226,7 +226,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
     if (length > 2 &&
         ((chars[0] == '[' && chars[length - 1] == ']') ||
         (chars[0] == '(' && chars[length - 1] == ')')) &&
-         (!caller || !caller->script()->strict))
+         (!caller || !caller->script()->strictModeCode))
     {
         // Remarkably, JavaScript syntax is not a superset of JSON syntax:
         // strings in JavaScript cannot contain the Unicode line and paragraph
@@ -328,8 +328,6 @@ js::DirectEval(JSContext *cx, const CallArgs &args)
     StackFrame *caller = cx->fp();
     JS_ASSERT(IsBuiltinEvalForScope(caller->scopeChain(), args.calleev()));
     JS_ASSERT(JSOp(*cx->regs().pc) == JSOP_EVAL);
-    JS_ASSERT_IF(caller->isFunctionFrame(),
-                 caller->compartment() == caller->callee().compartment());
 
     if (!WarnOnTooManyArgs(cx, args))
         return false;

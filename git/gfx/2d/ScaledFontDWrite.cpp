@@ -306,7 +306,9 @@ TemporaryRef<Path>
 ScaledFontDWrite::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget)
 {
   if (aTarget->GetType() != BACKEND_DIRECT2D) {
-    return ScaledFontBase::GetPathForGlyphs(aBuffer, aTarget);
+    // For now we only support Direct2D.
+    gfxWarning() << "Attempt to use Direct Write font with non-Direct2D backend";
+    return nullptr;
   }
 
   RefPtr<PathBuilder> pathBuilder = aTarget->CreatePathBuilder();

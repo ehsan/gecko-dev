@@ -145,7 +145,7 @@ HTMLListBulletAccessible::
   HTMLListBulletAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   LeafAccessible(aContent, aDoc)
 {
-  mStateFlags |= eSharedNode;
+  mFlags |= eSharedNode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

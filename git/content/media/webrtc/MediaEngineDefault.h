@@ -5,6 +5,7 @@
 #ifndef MEDIAENGINEDEFAULT_H_
 #define MEDIAENGINEDEFAULT_H_
 
+#include "prmem.h"
 #include "nsITimer.h"
 
 #include "nsCOMPtr.h"

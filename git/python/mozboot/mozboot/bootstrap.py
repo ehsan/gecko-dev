@@ -58,10 +58,12 @@ class Bootstrapper(object):
 
         elif sys.platform.startswith('darwin'):
             # TODO Support Darwin platforms that aren't OS X.
-            osx_version = platform.mac_ver()[0]
+            major, minor, point = map(int, platform.mac_ver()[0].split('.'))
 
             cls = OSXBootstrapper
-            args['version'] = osx_version
+            args['major'] = major
+            args['minor'] = minor
+            args['point'] = point
 
         elif sys.platform.startswith('openbsd'):
             cls = OpenBSDBootstrapper

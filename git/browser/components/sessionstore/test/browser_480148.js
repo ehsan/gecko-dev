@@ -5,7 +5,7 @@
 function test() {
   /** Test for Bug 484108 **/
   waitForExplicitFinish();
-  requestLongerTimeout(4);
+  requestLongerTimeout(3);
 
   // builds the tests state based on a few parameters
   function buildTestState(num, selected, hidden, pinned) {

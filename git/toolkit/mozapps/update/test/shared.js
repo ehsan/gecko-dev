@@ -448,26 +448,12 @@ function cleanUpdatesDir(aDir) {
         }
         cleanUpdatesDir(entry);
         entry.permissions = PERMS_DIRECTORY;
-        try {
-          entry.remove(true);
-        }
-        catch (e) {
-          dump("Unable to remove directory\npath: " + entry.path +
-               "\nException: " + e + "\n");
-          throw(e);
-        }
+        entry.remove(true);
       }
     }
     else {
       entry.permissions = PERMS_FILE;
-      try {
-        entry.remove(false);
-      }
-      catch (e) {
-        dump("Unable to remove file\npath: " + entry.path + "\nException: " +
-             e + "\n");
-        throw(e);
-      }
+      entry.remove(false);
     }
   }
 }

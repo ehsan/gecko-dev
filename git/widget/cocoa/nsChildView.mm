@@ -55,7 +55,6 @@
 #include "mozilla/layers/CompositorCocoaWidgetHelper.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
-#include "mozilla/a11y/Platform.h"
 #endif
 
 #include "mozilla/Preferences.h"
@@ -796,18 +795,15 @@ NS_IMETHODIMP nsChildView::ConstrainPosition(bool aAllowSlop,
 }
 
 // Move this component, aX and aY are in the parent widget coordinate system
-NS_IMETHODIMP nsChildView::Move(double aX, double aY)
+NS_IMETHODIMP nsChildView::Move(int32_t aX, int32_t aY)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  int32_t x = NSToIntRound(aX);
-  int32_t y = NSToIntRound(aY);
-
-  if (!mView || (mBounds.x == x && mBounds.y == y))
+  if (!mView || (mBounds.x == aX && mBounds.y == aY))
     return NS_OK;
 
-  mBounds.x = x;
-  mBounds.y = y;
+  mBounds.x = aX;
+  mBounds.y = aY;
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
 
@@ -822,18 +818,15 @@ NS_IMETHODIMP nsChildView::Move(double aX, double aY)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsChildView::Resize(double aWidth, double aHeight, bool aRepaint)
+NS_IMETHODIMP nsChildView::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  int32_t width = NSToIntRound(aWidth);
-  int32_t height = NSToIntRound(aHeight);
-
-  if (!mView || (mBounds.width == width && mBounds.height == height))
+  if (!mView || (mBounds.width == aWidth && mBounds.height == aHeight))
     return NS_OK;
 
-  mBounds.width  = width;
-  mBounds.height = height;
+  mBounds.width  = aWidth;
+  mBounds.height = aHeight;
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
 
@@ -848,28 +841,22 @@ NS_IMETHODIMP nsChildView::Resize(double aWidth, double aHeight, bool aRepaint)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-NS_IMETHODIMP nsChildView::Resize(double aX, double aY,
-                                  double aWidth, double aHeight, bool aRepaint)
+NS_IMETHODIMP nsChildView::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  int32_t x = NSToIntRound(aX);
-  int32_t y = NSToIntRound(aY);
-  int32_t width = NSToIntRound(aWidth);
-  int32_t height = NSToIntRound(aHeight);
-
-  BOOL isMoving = (mBounds.x != x || mBounds.y != y);
-  BOOL isResizing = (mBounds.width != width || mBounds.height != height);
+  BOOL isMoving = (mBounds.x != aX || mBounds.y != aY);
+  BOOL isResizing = (mBounds.width != aWidth || mBounds.height != aHeight);
   if (!mView || (!isMoving && !isResizing))
     return NS_OK;
 
   if (isMoving) {
-    mBounds.x = x;
-    mBounds.y = y;
+    mBounds.x = aX;
+    mBounds.y = aY;
   }
   if (isResizing) {
-    mBounds.width  = width;
-    mBounds.height = height;
+    mBounds.width  = aWidth;
+    mBounds.height = aHeight;
   }
 
   [mView setFrame:DevPixelsToCocoaPoints(mBounds)];

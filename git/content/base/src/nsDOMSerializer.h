@@ -11,6 +11,9 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/XMLSerializerBinding.h"
 
+class nsINode;
+class nsIOutputStream;
+
 class nsDOMSerializer MOZ_FINAL : public nsIDOMSerializer,
                                   public nsWrapperCache
 {

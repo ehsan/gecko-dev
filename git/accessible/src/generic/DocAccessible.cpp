@@ -79,9 +79,7 @@ DocAccessible::
   mVirtualCursor(nullptr),
   mPresShell(aPresShell)
 {
-  mFlags |= eDocAccessible;
-  mStateFlags |= eNotNodeMapEntry;
-
+  mFlags |= eDocAccessible | eNotNodeMapEntry;
   MOZ_ASSERT(mPresShell, "should have been given a pres shell");
   mPresShell->SetDocAccessible(this);
 
@@ -615,7 +613,7 @@ DocAccessible::Shutdown()
   // Mark the document as shutdown before AT is notified about the document
   // removal from its container (valid for root documents on ATK and due to
   // some reason for MSAA, refer to bug 757392 for details).
-  mStateFlags |= eIsDefunct;
+  mFlags |= eIsDefunct;
   nsCOMPtr<nsIDocument> kungFuDeathGripDoc = mDocumentNode;
   mDocumentNode = nullptr;
 
@@ -1943,7 +1941,7 @@ DocAccessible::CacheChildrenInSubtree(Accessible* aRoot)
 void
 DocAccessible::UncacheChildrenInSubtree(Accessible* aRoot)
 {
-  aRoot->mStateFlags |= eIsNotInDocument;
+  aRoot->mFlags |= eIsNotInDocument;
 
   if (aRoot->IsElement())
     RemoveDependentIDsFor(aRoot);

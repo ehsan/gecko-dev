@@ -115,10 +115,10 @@ a11y::AccType
 nsTableCaptionFrame::AccessibleType()
 {
   if (!GetRect().IsEmpty()) {
-    return a11y::eHTMLCaption;
+    return a11y::eHTMLCaptionAccessible;
   }
 
-  return a11y::eNoType;
+  return a11y::eNoAccessible;
 }
 #endif
 
@@ -157,7 +157,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 a11y::AccType
 nsTableOuterFrame::AccessibleType()
 {
-  return a11y::eHTMLTable;
+  return a11y::eHTMLTableAccessible;
 }
 #endif
 

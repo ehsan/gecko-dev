@@ -229,7 +229,7 @@ loser:
 }
 
 void
-cert_AddToVerifyLog(CERTVerifyLog *log, CERTCertificate *cert, long error,
+cert_AddToVerifyLog(CERTVerifyLog *log, CERTCertificate *cert, unsigned long error,
 	       unsigned int depth, void *arg)
 {
     CERTVerifyLogNode *node, *tnode;
@@ -290,16 +290,14 @@ cert_AddToVerifyLog(CERTVerifyLog *log, CERTCertificate *cert, long error,
 
 #define LOG_ERROR_OR_EXIT(log,cert,depth,arg) \
     if ( log != NULL ) { \
-	cert_AddToVerifyLog(log, cert, PORT_GetError(), depth, \
-			    (void *)(PRWord)arg); \
+	cert_AddToVerifyLog(log, cert, PORT_GetError(), depth, (void *)arg); \
     } else { \
 	goto loser; \
     }
 
 #define LOG_ERROR(log,cert,depth,arg) \
     if ( log != NULL ) { \
-	cert_AddToVerifyLog(log, cert, PORT_GetError(), depth, \
-			    (void *)(PRWord)arg); \
+	cert_AddToVerifyLog(log, cert, PORT_GetError(), depth, (void *)arg); \
     }
 
 static SECStatus

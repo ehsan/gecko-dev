@@ -4,6 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+// Get history service
+try {
+  var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].getService(Ci.nsINavHistoryService);
+} catch(ex) {
+  do_throw("Could not get history service\n");
+}
+
 // Get bookmark service
 try {
   var bmsvc = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].getService(Ci.nsINavBookmarksService);
@@ -50,13 +57,7 @@ var annoObserver = {
 };
 
 // main
-function run_test()
-{
-  run_next_test();
-}
-
-add_task(function test_execute()
-{
+function run_test() {
   var testURI = uri("http://mozilla.com/");
   var testItemId = bmsvc.insertBookmark(bmsvc.bookmarksMenuFolder, testURI, -1, "");
   var testAnnoName = "moz-test-places/annotations";
@@ -105,7 +106,7 @@ add_task(function test_execute()
 
   // test getPagesWithAnnotation
   var uri2 = uri("http://www.tests.tld");
-  yield promiseAddVisits(uri2);
+  histsvc.addVisit(uri2, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
   annosvc.setPageAnnotation(uri2, testAnnoName, testAnnoVal, 0, 0);
   var pages = annosvc.getPagesWithAnnotation(testAnnoName);
   do_check_eq(pages.length, 2);
@@ -159,7 +160,7 @@ add_task(function test_execute()
 
   // copy annotations to another uri
   var newURI = uri("http://mozilla.org");
-  yield promiseAddVisits(newURI);
+  histsvc.addVisit(newURI, Date.now() * 1000, null, histsvc.TRANSITION_TYPED, false, 0);
   annosvc.setPageAnnotation(testURI, "oldAnno", "new", 0, 0);
   annosvc.setPageAnnotation(newURI, "oldAnno", "old", 0, 0);
   var annoNames = annosvc.getPageAnnotationNames(newURI);
@@ -356,4 +357,4 @@ add_task(function test_execute()
   }
 
   annosvc.removeObserver(annoObserver);
-});
+}

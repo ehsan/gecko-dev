@@ -3092,11 +3092,16 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
   if (aURL.Length() <= 0)
     return NS_OK;
 
-  // get the base URI for the plugin to create an absolute url 
-  // in case aURL is relative
+  // get the full URL of the document that the plugin is embedded
+  //   in to create an absolute url in case aURL is relative
+  nsCOMPtr<nsIDocument> doc;
   nsRefPtr<nsPluginInstanceOwner> owner = aInstance->GetOwner();
   if (owner) {
-    rv = NS_MakeAbsoluteURI(absUrl, aURL, nsCOMPtr<nsIURI>(owner->GetBaseURI()));
+    rv = owner->GetDocument(getter_AddRefs(doc));
+    if (NS_SUCCEEDED(rv) && doc) {
+      // Create an absolute URL
+      rv = NS_MakeAbsoluteURI(absUrl, aURL, doc->GetDocBaseURI());
+    }
   }
 
   if (absUrl.IsEmpty())
@@ -3107,11 +3112,8 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
     return rv;
 
   nsCOMPtr<nsIDOMElement> element;
-  nsCOMPtr<nsIDocument> doc;
-  if (owner) {
+  if (owner)
     owner->GetDOMElement(getter_AddRefs(element));
-    owner->GetDocument(getter_AddRefs(doc));
-  }
 
   int16_t shouldLoad = nsIContentPolicy::ACCEPT;
   rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_OBJECT_SUBREQUEST,
@@ -3173,12 +3175,8 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
         olc->GetSrcURI(getter_AddRefs(referer));
 
 
-      if (!referer) {
-        if (!doc) {
-          return NS_ERROR_FAILURE;
-        }
+      if (!referer)
         referer = doc->GetDocumentURI();
-      }
 
       rv = httpChannel->SetReferrer(referer);
       NS_ENSURE_SUCCESS(rv,rv);
@@ -3218,24 +3216,20 @@ nsPluginHost::DoURLLoadSecurityCheck(nsNPAPIPluginInstance *aInstance,
   if (!aURL || *aURL == '\0')
     return NS_OK;
 
-  // get the base URI for the plugin element
+  // get the URL of the document that loaded the plugin
   nsRefPtr<nsPluginInstanceOwner> owner = aInstance->GetOwner();
   if (!owner)
-    return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIURI> baseURI = owner->GetBaseURI();
-  if (!baseURI)
-    return NS_ERROR_FAILURE;
-
-  // Create an absolute URL for the target in case the target is relative
-  nsCOMPtr<nsIURI> targetURL;
-  NS_NewURI(getter_AddRefs(targetURL), aURL, baseURI);
-  if (!targetURL)
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDocument> doc;
   owner->GetDocument(getter_AddRefs(doc));
   if (!doc)
+    return NS_ERROR_FAILURE;
+
+  // Create an absolute URL for the target in case the target is relative
+  nsCOMPtr<nsIURI> targetURL;
+  NS_NewURI(getter_AddRefs(targetURL), aURL, doc->GetDocBaseURI());
+  if (!targetURL)
     return NS_ERROR_FAILURE;
 
   nsresult rv;

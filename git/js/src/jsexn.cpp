@@ -1147,9 +1147,10 @@ js_CopyErrorObject(JSContext *cx, HandleObject errobj, HandleObject scope)
     size_t size = offsetof(JSExnPrivate, stackElems) +
                   priv->stackDepth * sizeof(JSStackTraceElem);
 
-    js::ScopedFreePtr<JSExnPrivate> copy(static_cast<JSExnPrivate *>(cx->malloc_(size)));
+    JSExnPrivate *copy = (JSExnPrivate *)cx->malloc_(size);
     if (!copy)
         return NULL;
+    AutoReleasePtr autoFreePrivate(copy);
 
     if (priv->errorReport) {
         copy->errorReport = CopyErrorReport(cx, priv->errorReport);
@@ -1158,7 +1159,7 @@ js_CopyErrorObject(JSContext *cx, HandleObject errobj, HandleObject scope)
     } else {
         copy->errorReport = NULL;
     }
-    js::ScopedFreePtr<JSErrorReport> autoFreeErrorReport(copy->errorReport);
+    AutoReleasePtr autoFreeErrorReport(copy->errorReport);
 
     copy->message.init(priv->message);
     if (!cx->compartment->wrap(cx, &copy->message))
@@ -1181,7 +1182,7 @@ js_CopyErrorObject(JSContext *cx, HandleObject errobj, HandleObject scope)
     if (!copyobj)
         return NULL;
     SetExnPrivate(copyobj, copy);
-    copy.forget();
+    autoFreePrivate.forget();
     autoFreeErrorReport.forget();
     return copyobj;
 }

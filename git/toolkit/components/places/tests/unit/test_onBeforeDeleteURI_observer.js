@@ -51,16 +51,12 @@ Observer.prototype =
 ////////////////////////////////////////////////////////////////////////////////
 //// Test Functions
 
-function run_test()
-{
-  run_next_test();
-}
-
-add_task(function test_execute()
+function test_removePage()
 {
   // First we add the URI to history that we are going to remove.
   let testURI = uri("http://mozilla.org");
-  yield promiseAddVisits(testURI);
+  hs.addVisit(testURI, Date.now() * 1000, null,
+              Ci.nsINavHistoryService.TRANSITION_LINK, false, 0);
 
   // Add our observer, and remove it.
   let observer = new Observer();
@@ -70,4 +66,15 @@ add_task(function test_execute()
   // Make sure we were notified!
   do_check_true(observer.checked);
   hs.removeObserver(observer);
-});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//// Test Runner
+
+let tests = [
+  test_removePage,
+];
+function run_test()
+{
+  tests.forEach(function(test) test());
+}

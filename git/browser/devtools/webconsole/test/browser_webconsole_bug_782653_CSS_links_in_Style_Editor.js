@@ -150,9 +150,6 @@ function performLineCheck(aEditor, aLine, aCallback)
       return aEditor.sourceEditor;
     },
     successFn: checkForCorrectState,
-    failureFn: function() {
-      info("selectedStyleSheetIndex " + SEC.selectedStyleSheetIndex + " expected " + aEditor.styleSheetIndex);
-      finishTest();
-    },
+    failureFn: finishTest,
   });
 }

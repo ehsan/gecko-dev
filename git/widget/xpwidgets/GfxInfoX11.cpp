@@ -44,7 +44,6 @@ GfxInfo::Init()
     mIsNouveau = false;
     mIsIntel = false;
     mIsOldSwrast = false;
-    mIsLlvmpipe = false;
     mHasTextureFromPixmap = false;
     return GfxInfoBase::Init();
 }
@@ -214,8 +213,6 @@ GfxInfo::GetData()
             mIsNouveau = true;
         if (strcasestr(mRenderer.get(), "intel")) // yes, intel is in the renderer string
             mIsIntel = true;
-        if (strcasestr(mRenderer.get(), "llvmpipe"))
-            mIsLlvmpipe = true;
         if (strcasestr(mRenderer.get(), "software rasterizer"))
             mIsOldSwrast = true;
     } else if (strstr(mVendor.get(), "NVIDIA Corporation")) {
@@ -337,8 +334,9 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
           *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
           aSuggestedDriverVersion.AssignLiteral("Mesa 7.10.3");
         }
-        else if (mIsOldSwrast || mIsLlvmpipe) {
+        else if (mIsOldSwrast) {
           *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DRIVER_VERSION;
+          aSuggestedDriverVersion.AssignLiteral("LLVMpipe");
         }
         else if (aFeature == nsIGfxInfo::FEATURE_WEBGL_MSAA)
         {

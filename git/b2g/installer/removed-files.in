@@ -8,5 +8,3 @@ run-mozilla.sh
   mozcrt19.dll
   mozcpp19.dll
 #endif
-defaults/preferences/services-sync.js
-defaults/preferences/healthreport-prefs.js

@@ -108,9 +108,6 @@ DSO_LDOPTS	= -dynamiclib $(DARWIN_DYLIB_VERSIONS) -install_name @executable_path
 
 MKSHLIB		= $(CC) $(DSO_LDOPTS) $(DARWIN_SDK_SHLIBFLAGS)
 DLL_SUFFIX	= dylib
-ifdef MAPFILE
-	MKSHLIB += -exported_symbols_list $(MAPFILE)
-endif
 PROCESS_MAP_FILE = grep -v ';+' $< | grep -v ';-' | \
                 sed -e 's; DATA ;;' -e 's,;;,,' -e 's,;.*,,' -e 's,^,_,' > $@
 

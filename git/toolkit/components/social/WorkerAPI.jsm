@@ -80,7 +80,8 @@ WorkerAPI.prototype = {
                               data: results});
     },
     'social.request-chat': function(data) {
-      openChatWindow(null, this._provider, data, null, "minimized");
+      let xulWindow = Services.wm.getMostRecentWindow("navigator:browser").getTopWin();
+      openChatWindow(xulWindow, this._provider, data, null, "minimized");
     },
     'social.notification-create': function(data) {
       if (!Services.prefs.getBoolPref("social.toast-notifications.enabled"))

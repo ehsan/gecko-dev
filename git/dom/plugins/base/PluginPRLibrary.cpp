@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/PluginPRLibrary.h"
-#include "nsPluginSafety.h"
 // Some plugins on Windows, notably Quake Live, implement NP_Initialize using
 // cdecl instead of the documented stdcall. In order to work around this,
 // we force the caller to use a frame pointer.
@@ -39,8 +38,6 @@ PluginPRLibrary::NP_Initialize(NPNetscapeFuncs* bFuncs,
   JNIEnv* env = GetJNIForThread();
   if (!env)
     return NS_ERROR_FAILURE;
-
-  mozilla::AutoLocalJNIFrame jniFrame(env);
 
   if (mNP_Initialize) {
     *error = mNP_Initialize(bFuncs, pFuncs, env);
@@ -197,8 +194,6 @@ PluginPRLibrary::NPP_New(NPMIMEType pluginType, NPP instance,
 {
   if (!mNPP_New)
     return NS_ERROR_FAILURE;
-
-  MAIN_THREAD_JNI_REF_GUARD;
   *error = mNPP_New(pluginType, instance, mode, argc, argn, argv, saved);
   return NS_OK;
 }
@@ -211,7 +206,6 @@ PluginPRLibrary::NPP_ClearSiteData(const char* site, uint64_t flags,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  MAIN_THREAD_JNI_REF_GUARD;
   NPError result = mNPP_ClearSiteData(site, flags, maxAge);
 
   switch (result) {
@@ -235,7 +229,6 @@ PluginPRLibrary::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
   result.Clear();
 
-  MAIN_THREAD_JNI_REF_GUARD;
   char** sites = mNPP_GetSitesWithData();
   if (!sites) {
     return NS_OK;

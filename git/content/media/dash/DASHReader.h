@@ -16,24 +16,34 @@
 #if !defined(DASHReader_h_)
 #define DASHReader_h_
 
-#include "VideoUtils.h"
 #include "MediaDecoderReader.h"
-#include "DASHRepReader.h"
 
 namespace mozilla {
-
-class DASHRepReader;
 
 class DASHReader : public MediaDecoderReader
 {
 public:
-  DASHReader(AbstractMediaDecoder* aDecoder);
-  ~DASHReader();
+  DASHReader(AbstractMediaDecoder* aDecoder) :
+    MediaDecoderReader(aDecoder),
+    mReadMetadataMonitor("media.dashreader.readmetadata"),
+    mReadyToReadMetadata(false),
+    mDecoderIsShuttingDown(false),
+    mAudioReader(this),
+    mVideoReader(this),
+    mAudioReaders(this),
+    mVideoReaders(this)
+  {
+    MOZ_COUNT_CTOR(DASHReader);
+  }
+  ~DASHReader()
+  {
+    MOZ_COUNT_DTOR(DASHReader);
+  }
 
   // Adds a pointer to a audio/video reader for a media |Representation|.
   // Called on the main thread only.
-  void AddAudioReader(DASHRepReader* aAudioReader);
-  void AddVideoReader(DASHRepReader* aVideoReader);
+  void AddAudioReader(MediaDecoderReader* aAudioReader);
+  void AddVideoReader(MediaDecoderReader* aVideoReader);
 
   // Waits for metadata bytes to be downloaded, then reads and parses them.
   // Called on the decode thread only.
@@ -79,13 +89,19 @@ public:
 
   // Audio/video status are dependent on the presence of audio/video readers.
   // Call on decode thread only.
-  bool HasAudio();
-  bool HasVideo();
+  bool HasAudio() {
+    NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+    return mAudioReader ? mAudioReader->HasAudio() : false;
+  }
+  bool HasVideo() {
+    NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+    return mVideoReader ? mVideoReader->HasVideo() : false;
+  }
 
   // Returns references to the audio/video queues of sub-readers. Called on
   // decode, state machine and audio threads.
-  MediaQueue<AudioData>& AudioQueue() MOZ_OVERRIDE;
-  MediaQueue<VideoData>& VideoQueue() MOZ_OVERRIDE;
+  MediaQueue<AudioData>& AudioQueue();
+  MediaQueue<VideoData>& VideoQueue();
 
   // Called from MediaDecoderStateMachine on the main thread.
   nsresult Init(MediaDecoderReader* aCloneDonor);
@@ -93,11 +109,6 @@ public:
   // Used by |MediaMemoryReporter|.
   int64_t VideoQueueMemoryInUse();
   int64_t AudioQueueMemoryInUse();
-
-  // Called on the decode thread, at the start of the decode loop, before
-  // |DecodeVideoFrame|.  Carries out video reader switch if previously
-  // requested, and tells sub-readers to |PrepareToDecode|.
-  void PrepareToDecode() MOZ_OVERRIDE;
 
   // Called on the decode thread.
   bool DecodeVideoFrame(bool &aKeyframeSkip, int64_t aTimeThreshold);
@@ -115,20 +126,48 @@ public:
   // Called on the state machine or decode threads.
   VideoData* FindStartTime(int64_t& aOutStartTime);
 
-  // Prepares for an upcoming switch of video readers. Called by
-  // |DASHDecoder| when it has switched download streams. Sets the index of
-  // the reader to switch TO and the index of the subsegment to switch AT
-  // (start offset). (Note: Subsegment boundaries are switch access points for
-  // DASH-WebM). Called on the main thread. Must be in the decode monitor.
-  void RequestVideoReaderSwitch(uint32_t aFromReaderIdx,
-                                uint32_t aToReaderIdx,
-                                uint32_t aSubsegmentIdx);
+  // Call by state machine on multiple threads.
+  bool IsSeekableInBufferedRanges();
 
 private:
-  // Switches video subreaders if a stream-switch flag has been set, and the
-  // current reader has read up to the switching subsegment (start offset).
-  // Called on the decode thread only.
-  void PossiblySwitchVideoReaders();
+  // Similar to |ReentrantMonitorAutoEnter|, this class enters the supplied
+  // monitor in its constructor, but only if the conditional value |aEnter| is
+  // true. Used here to allow read access on the sub-readers' owning thread,
+  // i.e. the decode thread, while locking write accesses from all threads,
+  // and read accesses from non-decode threads.
+  class ReentrantMonitorConditionallyEnter
+  {
+  public:
+    ReentrantMonitorConditionallyEnter(bool aEnter,
+                                       ReentrantMonitor &aReentrantMonitor) :
+      mReentrantMonitor(nullptr)
+    {
+      MOZ_COUNT_CTOR(DASHReader::ReentrantMonitorConditionallyEnter);
+      if (aEnter) {
+        mReentrantMonitor = &aReentrantMonitor;
+        NS_ASSERTION(mReentrantMonitor, "null monitor");
+        mReentrantMonitor->Enter();
+      }
+    }
+    ~ReentrantMonitorConditionallyEnter(void)
+    {
+      if (mReentrantMonitor) {
+        mReentrantMonitor->Exit();
+      }
+      MOZ_COUNT_DTOR(DASHReader::ReentrantMonitorConditionallyEnter);
+    }
+  private:
+    // Restrict to constructor and destructor defined above.
+    ReentrantMonitorConditionallyEnter();
+    ReentrantMonitorConditionallyEnter(const ReentrantMonitorConditionallyEnter&);
+    ReentrantMonitorConditionallyEnter& operator =(const ReentrantMonitorConditionallyEnter&);
+    static void* operator new(size_t) CPP_THROW_NEW;
+    static void operator delete(void*);
+
+    // Ptr to the |ReentrantMonitor| object. Null if |aEnter| in constructor
+    // was false.
+    ReentrantMonitor* mReentrantMonitor;
+  };
 
   // Monitor and booleans used to wait for metadata bytes to be downloaded, and
   // skip reading metadata if |DASHDecoder|'s shutdown is in progress.
@@ -160,7 +199,7 @@ private:
 
     // Override '=' to always assert thread is "in monitor" for writes/changes
     // to |mSubReader|.
-    MonitoredSubReader& operator=(DASHRepReader* rhs)
+    MonitoredSubReader& operator=(MediaDecoderReader* rhs)
     {
       NS_ASSERTION(mReader->GetDecoder(), "Decoder is null!");
       mReader->GetDecoder()->GetReentrantMonitor().AssertCurrentThreadIn();
@@ -170,7 +209,7 @@ private:
 
     // Override '*' to assert threads other than the decode thread are "in
     // monitor" for ptr reads.
-    operator DASHRepReader*() const
+    operator MediaDecoderReader*() const
     {
       NS_ASSERTION(mReader->GetDecoder(), "Decoder is null!");
       if (!mReader->GetDecoder()->OnDecodeThread()) {
@@ -181,7 +220,7 @@ private:
 
     // Override '->' to assert threads other than the decode thread are "in
     // monitor" for |mSubReader| function calls.
-    DASHRepReader* operator->() const
+    MediaDecoderReader* operator->() const
     {
       return *this;
     }
@@ -189,7 +228,7 @@ private:
     // Pointer to |DASHReader| object which owns this |MonitoredSubReader|.
     DASHReader* mReader;
     // Ref ptr to the sub reader.
-    nsRefPtr<DASHRepReader> mSubReader;
+    nsRefPtr<MediaDecoderReader> mSubReader;
   };
 
   // Wrapped ref ptrs to current sub-readers of individual media
@@ -238,7 +277,7 @@ private:
     // Override '[]' to assert threads other than the decode thread are "in
     // monitor" for accessing individual elems. Note: elems returned do not
     // have monitor assertions builtin like |MonitoredSubReader| objects.
-    nsRefPtr<DASHRepReader>& operator[](uint32_t i)
+    nsRefPtr<MediaDecoderReader>& operator[](uint32_t i)
     {
       NS_ASSERTION(mReader->GetDecoder(), "Decoder is null!");
       if (!mReader->GetDecoder()->OnDecodeThread()) {
@@ -250,7 +289,7 @@ private:
     // Appends a reader to the end of |mSubReaderList|. Will always assert that
     // the thread is "in monitor".
     void
-    AppendElement(DASHRepReader* aReader)
+    AppendElement(MediaDecoderReader* aReader)
     {
       NS_ASSERTION(mReader->GetDecoder(), "Decoder is null!");
       mReader->GetDecoder()->GetReentrantMonitor().AssertCurrentThreadIn();
@@ -260,7 +299,7 @@ private:
     // Pointer to |DASHReader| object which owns this |MonitoredSubReader|.
     DASHReader* mReader;
     // Ref ptrs to the sub readers.
-    nsTArray<nsRefPtr<DASHRepReader> > mSubReaderList;
+    nsTArray<nsRefPtr<MediaDecoderReader> > mSubReaderList;
   };
 
   // Ref ptrs to all sub-readers of individual media |Representation|s.
@@ -269,18 +308,6 @@ private:
   // decode thread does not need to be protected.
   MonitoredSubReaderList mAudioReaders;
   MonitoredSubReaderList mVideoReaders;
-
-  // When true, indicates that we should switch reader. Must be in the monitor
-  // for write access and read access off the decode thread.
-  bool mSwitchVideoReaders;
-
-  // Indicates the subsegment index at which the reader should switch. Must be
-  // in the monitor for write access and read access off the decode thread.
-  nsTArray<uint32_t> mSwitchToVideoSubsegmentIndexes;
-
-  // Counts the number of switches that have taken place. Must be in the
-  // monitor for write access and read access off the decode thread.
-  int32_t mSwitchCount;
 };
 
 } // namespace mozilla

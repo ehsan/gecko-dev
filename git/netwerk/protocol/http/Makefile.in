@@ -45,7 +45,6 @@ EXPORTS_mozilla/net += \
   HttpChannelParent.h \
   HttpChannelChild.h  \
   PHttpChannelParams.h \
-  HttpInfo.h \
   $(NULL)
 
 EXPORTS = \
@@ -79,7 +78,6 @@ CPPSRCS = \
   HttpChannelParent.cpp \
   HttpChannelChild.cpp \
   HttpChannelParentListener.cpp \
-  HttpInfo.cpp \
   NullHttpTransaction.cpp \
   ASpdySession.cpp \
   SpdySession2.cpp \

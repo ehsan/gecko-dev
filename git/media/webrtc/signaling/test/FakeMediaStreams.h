@@ -48,17 +48,15 @@ public:
 
 // Note: only one listener supported
 class Fake_MediaStream {
- public:
-  Fake_MediaStream () : mListeners(), mMutex("Fake MediaStream") {}
+public:
+  Fake_MediaStream () : mListeners() {}
   virtual ~Fake_MediaStream() { Stop(); }
 
   void AddListener(Fake_MediaStreamListener *aListener) {
-    mozilla::MutexAutoLock lock(mMutex);
     mListeners.insert(aListener);
   }
 
   void RemoveListener(Fake_MediaStreamListener *aListener) {
-    mozilla::MutexAutoLock lock(mMutex);
     mListeners.erase(aListener);
   }
 
@@ -69,12 +67,8 @@ class Fake_MediaStream {
 
   virtual void Periodic() {}
 
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Fake_MediaStream);
-
  protected:
   std::set<Fake_MediaStreamListener *> mListeners;
-  mozilla::Mutex mMutex;  // Lock to prevent the listener list from being modified while
-  		 	  // executing Periodic().
 };
 
 class Fake_MediaPeriodic : public nsITimerCallback {
@@ -101,56 +95,19 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
  public:
   Fake_SourceMediaStream() : mSegmentsAdded(0),
                              mPullEnabled(false),
-                             mStop(false),
                              mPeriodic(new Fake_MediaPeriodic(this)) {}
 
   void AddTrack(mozilla::TrackID aID, mozilla::TrackRate aRate, mozilla::TrackTicks aStart,
                 mozilla::MediaSegment* aSegment) {}
 
   void AppendToTrack(mozilla::TrackID aID, mozilla::MediaSegment* aSegment) {
-    bool nonZeroSample = false;
-    MOZ_ASSERT(aSegment);
-    if(aSegment->GetType() == mozilla::MediaSegment::AUDIO) {
-      //On audio segment append, we verify for validity
-      //of the audio samples.
-      mozilla::AudioSegment* audio =
-              static_cast<mozilla::AudioSegment*>(aSegment);
-      mozilla::AudioSegment::ChunkIterator iter(*audio);
-      while(!iter.IsEnded()) {
-        mozilla::AudioChunk& chunk = *(iter);
-        MOZ_ASSERT(chunk.mBuffer);
-        const int16_t* buf =
-                static_cast<const int16_t*>(chunk.mBuffer->Data());
-        for(int i=0; i<chunk.mDuration; i++) {
-          if(buf[i]) {
-            //atleast one non-zero sample found.
-            nonZeroSample = true; 
-            break;
-          }
-        }
-        //process next chunk
-        iter.Next();
-      }
-      if(nonZeroSample) {
-          //we increment segments count if
-          //atleast one non-zero samples was found.
-          ++mSegmentsAdded;
-      }
-    } else {
-      //in the case of video segment appended, we just increase the
-      //segment count.
-      ++mSegmentsAdded;
-    }
+    ++mSegmentsAdded;
   }
 
   void AdvanceKnownTracksTime(mozilla::StreamTime aKnownTime) {}
 
   void SetPullEnabled(bool aEnabled) {
     mPullEnabled = aEnabled;
-  }
-  //Don't pull anymore data,if mStop is true.
-  void StopStream() {
-   mStop = true;
   }
 
   virtual Fake_SourceMediaStream *AsSourceStream() { return this; }
@@ -167,7 +124,6 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
  protected:
   int mSegmentsAdded;
   bool mPullEnabled;
-  bool mStop;
   nsRefPtr<Fake_MediaPeriodic> mPeriodic;
   nsCOMPtr<nsITimer> mTimer;
 };
@@ -211,7 +167,7 @@ public:
   void SetHintContents(uint32_t aHintContents) { mHintContents = aHintContents; }
 
 private:
-  nsRefPtr<Fake_MediaStream> mMediaStream;
+  Fake_MediaStream *mMediaStream;
 
   // tells the SDP generator about whether this
   // MediaStream probably has audio and/or video
@@ -246,17 +202,9 @@ class Fake_MediaStreamBase : public Fake_MediaStream {
 
 class Fake_AudioStreamSource : public Fake_MediaStreamBase {
  public:
-  Fake_AudioStreamSource() : Fake_MediaStreamBase(),
-                             mCount(0),
-                             mStop(false) {}
-  //Signaling Agent indicates us to stop generating
-  //further audio.
-  void StopStream() {
-    mStop = true;
-  }
+  Fake_AudioStreamSource() : Fake_MediaStreamBase() {}
+
   virtual void Periodic();
-  int mCount;
-  bool mStop;
 };
 
 class Fake_VideoStreamSource : public Fake_MediaStreamBase {

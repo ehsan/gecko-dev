@@ -207,10 +207,8 @@ SCInput::SCInput(JSContext *cx, uint64_t *data, size_t nbytes)
 bool
 SCInput::read(uint64_t *p)
 {
-    if (point == end) {
-        *p = 0;  /* initialize to shut GCC up */
+    if (point == end)
         return eof();
-    }
     *p = SwapBytes(*point++);
     return true;
 }
@@ -218,7 +216,7 @@ SCInput::read(uint64_t *p)
 bool
 SCInput::readPair(uint32_t *tagp, uint32_t *datap)
 {
-    uint64_t u;
+    uint64_t u = 0;     /* initialize to shut GCC up */
     bool ok = read(&u);
     if (ok) {
         *tagp = uint32_t(u >> 32);

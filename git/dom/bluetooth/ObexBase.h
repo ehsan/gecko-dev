@@ -119,7 +119,7 @@ public:
 
   ObexHeaderId mId;
   int mDataLength;
-  nsAutoArrayPtr<uint8_t> mData;
+  nsAutoPtr<uint8_t> mData;
 };
 
 class ObexHeaderSet {
@@ -140,7 +140,7 @@ public:
     mHeaders.AppendElement(aHeader);
   }
 
-  void GetName(nsString& aRetName) const
+  void GetName(nsString& aRetName)
   {
     aRetName.Truncate();
 
@@ -167,7 +167,7 @@ public:
     }
   }
 
-  void GetContentType(nsString& aRetContentType) const
+  void GetContentType(nsString& aRetContentType)
   {
     aRetContentType.Truncate();
 
@@ -183,7 +183,7 @@ public:
   }
 
   // @return file length, 0 means file length is unknown.
-  void GetLength(uint32_t* aRetLength) const
+  void GetLength(uint32_t* aRetLength)
   {
     int length = mHeaders.Length();
     *aRetLength = 0;
@@ -200,7 +200,7 @@ public:
     }
   }
 
-  void GetBodyLength(int* aRetBodyLength) const
+  void GetBodyLength(int* aRetBodyLength)
   {
     int length = mHeaders.Length();
     *aRetBodyLength = 0;
@@ -214,7 +214,7 @@ public:
     }
   }
 
-  void GetBody(uint8_t** aRetBody) const
+  void GetBody(uint8_t** aRetBody)
   {
     int length = mHeaders.Length();
     *aRetBody = nullptr;
@@ -230,7 +230,7 @@ public:
     }
   }
 
-  bool Has(ObexHeaderId aId) const
+  bool Has(ObexHeaderId aId)
   {
     int length = mHeaders.Length();
     for (int i = 0; i < length; ++i) {
@@ -245,7 +245,6 @@ public:
 
 int AppendHeaderName(uint8_t* aRetBuf, const char* aName, int aLength);
 int AppendHeaderBody(uint8_t* aRetBuf, uint8_t* aData, int aLength);
-int AppendHeaderEndOfBody(uint8_t* aRetBuf);
 int AppendHeaderLength(uint8_t* aRetBuf, int aObjectLength);
 int AppendHeaderConnectionId(uint8_t* aRetBuf, int aConnectionId);
 void SetObexPacketInfo(uint8_t* aRetBuf, uint8_t aOpcode, int aPacketLength);

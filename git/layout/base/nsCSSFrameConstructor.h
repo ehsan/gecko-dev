@@ -53,7 +53,6 @@ class nsCSSFrameConstructor : public nsFrameManager
 public:
   typedef mozilla::dom::Element Element;
   typedef mozilla::css::RestyleTracker RestyleTracker;
-  typedef mozilla::css::OverflowChangedTracker OverflowChangedTracker;
 
   nsCSSFrameConstructor(nsIDocument *aDocument, nsIPresShell* aPresShell);
   ~nsCSSFrameConstructor(void) {
@@ -232,17 +231,12 @@ public:
   // as a result of a change to the :hover content state.
   uint32_t GetHoverGeneration() const { return mHoverGeneration; }
 
-  // Get a counter that increments on every style change, that we use to
-  // track whether off-main-thread animations are up-to-date.
-  uint64_t GetAnimationGeneration() const { return mAnimationGeneration; }
-
   // Note: It's the caller's responsibility to make sure to wrap a
   // ProcessRestyledFrames call in a view update batch and a script blocker.
   // This function does not call ProcessAttachedQueue() on the binding manager.
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
-  nsresult ProcessRestyledFrames(nsStyleChangeList& aRestyleArray,
-                                 OverflowChangedTracker& aTracker);
+  nsresult ProcessRestyledFrames(nsStyleChangeList& aRestyleArray);
 
 private:
 
@@ -306,7 +300,6 @@ public:
   {
     PostRestyleEventCommon(aElement, aRestyleHint, aMinChangeHint, true);
   }
-
 private:
   /**
    * Notify the frame constructor that an element needs to have its
@@ -397,8 +390,7 @@ private:
                       nsIFrame*       aPrimaryFrame,
                       nsChangeHint    aMinHint,
                       RestyleTracker& aRestyleTracker,
-                      bool            aRestyleDescendants,
-                      OverflowChangedTracker& aTracker);
+                      bool            aRestyleDescendants);
 
   nsresult InitAndRestoreFrame (const nsFrameConstructorState& aState,
                                 nsIContent*                    aContent,
@@ -1890,10 +1882,6 @@ private:
   nsChangeHint        mRebuildAllExtraHint;
 
   nsCOMPtr<nsILayoutHistoryState> mTempFrameTreeState;
-
-  // The total number of animation flushes by this frame constructor.
-  // Used to keep the layer and animation manager in sync.
-  uint64_t mAnimationGeneration;
 
   RestyleTracker mPendingRestyles;
   RestyleTracker mPendingAnimationRestyles;

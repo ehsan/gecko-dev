@@ -177,9 +177,11 @@
 		     '../nrappkit/src/port/win32/include'
 		 ],
               }],
-              ## Linux/Android
-              [ '(OS == "linux") or (OS=="android")', {
-                'cflags_mozilla': [
+
+              
+              ## Linux
+              [ 'OS == "linux"', {
+                'cflags': [
                     '-Wall',
                     '-Wno-parentheses',
                     '-Wno-strict-prototypes',

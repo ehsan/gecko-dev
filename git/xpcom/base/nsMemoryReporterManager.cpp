@@ -30,7 +30,7 @@ using namespace mozilla;
 
 #if defined(MOZ_MEMORY)
 #  define HAVE_JEMALLOC_STATS 1
-#  include "mozmemory.h"
+#  include "jemalloc.h"
 #endif  // MOZ_MEMORY
 
 #ifdef XP_UNIX
@@ -561,78 +561,6 @@ NS_MEMORY_REPORTER_IMPLEMENT(AtomTable,
     GetAtomTableSize,
     "Memory used by the dynamic and static atoms tables.")
 
-#ifdef MOZ_DMD
-
-namespace mozilla {
-namespace dmd {
-
-class MemoryReporter MOZ_FINAL : public nsIMemoryMultiReporter
-{
-public:
-  MemoryReporter()
-  {}
-
-  NS_DECL_ISUPPORTS
-
-  NS_IMETHOD GetName(nsACString &name)
-  {
-    name.Assign("dmd");
-    return NS_OK;
-  }
-
-  NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *callback,
-                            nsISupports *closure)
-  {
-    dmd::Sizes sizes;
-    dmd::SizeOf(&sizes);
-
-#define REPORT(_path, _amount, _desc)                                         \
-    do {                                                                      \
-      nsresult rv;                                                            \
-      rv = callback->Callback(EmptyCString(), NS_LITERAL_CSTRING(_path),      \
-                              nsIMemoryReporter::KIND_HEAP,                   \
-                              nsIMemoryReporter::UNITS_BYTES, _amount,        \
-                              NS_LITERAL_CSTRING(_desc), closure);            \
-      NS_ENSURE_SUCCESS(rv, rv);                                              \
-    } while (0)
-
-    REPORT("explicit/dmd/stack-traces",
-           sizes.mStackTraces,
-           "Memory used by DMD's stack traces.");
-
-    REPORT("explicit/dmd/stack-trace-table",
-           sizes.mStackTraceTable,
-           "Memory used by DMD's stack trace table.");
-
-    REPORT("explicit/dmd/live-block-table",
-           sizes.mLiveBlockTable,
-           "Memory used by DMD's live block table.");
-
-    REPORT("explicit/dmd/double-report-table",
-           sizes.mDoubleReportTable,
-           "Memory used by DMD's double-report table.");
-
-#undef REPORT
-
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetExplicitNonHeap(int64_t *n)
-  {
-    // No non-heap allocations.
-    *n = 0;
-    return NS_OK;
-  }
-
-};
-
-NS_IMPL_ISUPPORTS1(MemoryReporter, nsIMemoryMultiReporter)
-
-} // namespace dmd
-} // namespace mozilla
-
-#endif  // MOZ_DMD
-
 /**
  ** nsMemoryReporterManager implementation
  **/
@@ -673,11 +601,8 @@ nsMemoryReporterManager::Init()
     REGISTER(Private);
 #endif
 
-    REGISTER(AtomTable);
 
-#ifdef MOZ_DMD
-    RegisterMultiReporter(new mozilla::dmd::MemoryReporter);
-#endif
+    REGISTER(AtomTable);
 
 #if defined(XP_LINUX)
     nsMemoryInfoDumper::Initialize();
@@ -785,7 +710,7 @@ struct MemoryReport {
     int64_t amount;
 };
 
-#if defined(DEBUG) && !defined(MOZ_DMD)
+#ifdef DEBUG
 // This is just a wrapper for int64_t that implements nsISupports, so it can be
 // passed to nsIMemoryMultiReporter::CollectReports.
 class Int64Wrapper MOZ_FINAL : public nsISupports {
@@ -821,7 +746,7 @@ NS_IMPL_ISUPPORTS1(
   ExplicitNonHeapCountingCallback
 , nsIMemoryMultiReporterCallback
 )
-#endif  // defined(DEBUG) && !defined(MOZ_DMD)
+#endif
 
 NS_IMETHODIMP
 nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
@@ -880,9 +805,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
     // (Actually, in debug builds we also do it the slow way and compare the
     // result to the result obtained from GetExplicitNonHeap().  This
     // guarantees the two measurement paths are equivalent.  This is wise
-    // because it's easy for memory reporters to have bugs.  But there's an
-    // exception if DMD is enabled, because that makes DMD think that all the
-    // blocks are double-counted.)
+    // because it's easy for memory reporters to have bugs.)
 
     int64_t explicitNonHeapMultiSize = 0;
     nsCOMPtr<nsISimpleEnumerator> e2;
@@ -896,7 +819,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
       explicitNonHeapMultiSize += n;
     }
 
-#if defined(DEBUG) && !defined(MOZ_DMD)
+#ifdef DEBUG
     nsRefPtr<ExplicitNonHeapCountingCallback> cb =
       new ExplicitNonHeapCountingCallback();
     nsRefPtr<Int64Wrapper> wrappedExplicitNonHeapMultiSize2 =
@@ -919,7 +842,7 @@ nsMemoryReporterManager::GetExplicit(int64_t *aExplicit)
                                    explicitNonHeapMultiSize,
                                    explicitNonHeapMultiSize2).get());
     }
-#endif  // defined(DEBUG) && !defined(MOZ_DMD)
+#endif  // DEBUG
 
     *aExplicit = heapAllocated + explicitNonHeapNormalSize + explicitNonHeapMultiSize;
     return NS_OK;
@@ -1094,10 +1017,9 @@ NS_UnregisterMemoryMultiReporter (nsIMemoryMultiReporter *reporter)
     return mgr->UnregisterMultiReporter(reporter);
 }
 
-#if defined(MOZ_DMDV) || defined(MOZ_DMD)
-
 namespace mozilla {
-namespace dmd {
+
+#ifdef MOZ_DMDV
 
 class NullMultiReporterCallback : public nsIMemoryMultiReporterCallback
 {
@@ -1119,7 +1041,7 @@ NS_IMPL_ISUPPORTS1(
 )
 
 void
-RunReporters()
+DMDVCheckAndDump()
 {
     nsCOMPtr<nsIMemoryReporterManager> mgr =
         do_GetService("@mozilla.org/memory-reporter-manager;1");
@@ -1167,25 +1089,10 @@ RunReporters()
       e2->GetNext(getter_AddRefs(r));
       r->CollectReports(cb, nullptr);
     }
-}
 
-} // namespace dmd
-} // namespace mozilla
-
-#endif  // defined(MOZ_DMDV) || defined(MOZ_DMD)
-
-#ifdef MOZ_DMDV
-namespace mozilla {
-namespace dmdv {
-
-void
-Dump()
-{
     VALGRIND_DMDV_CHECK_REPORTING;
 }
 
-} // namespace dmdv
-} // namespace mozilla
-
 #endif  /* defined(MOZ_DMDV) */
 
+}

@@ -61,6 +61,7 @@ import android.os.StrictMode;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.SparseBooleanArray;
 import android.view.Gravity;
@@ -78,6 +79,8 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityManager;
 import android.widget.AbsoluteLayout;
 import android.widget.CheckBox;
 import android.widget.FrameLayout;
@@ -113,8 +116,7 @@ import java.util.regex.Pattern;
 abstract public class GeckoApp
                 extends GeckoActivity 
                 implements GeckoEventListener, SensorEventListener, LocationListener,
-                           Tabs.OnTabsChangedListener, GeckoEventResponder,
-                           GeckoMenu.Callback, GeckoMenu.MenuPresenter
+                           Tabs.OnTabsChangedListener, GeckoEventResponder
 {
     private static final String LOGTAG = "GeckoApp";
 
@@ -146,7 +148,6 @@ abstract public class GeckoApp
     public static final String PREFS_NAME          = "GeckoApp";
     public static final String PREFS_OOM_EXCEPTION = "OOMException";
     public static final String PREFS_WAS_STOPPED   = "wasStopped";
-    public static final String PREFS_CRASHED       = "crashed";
 
     static public final int RESTORE_NONE = 0;
     static public final int RESTORE_OOM = 1;
@@ -158,13 +159,14 @@ abstract public class GeckoApp
     public View getView() { return mGeckoLayout; }
     public SurfaceView cameraView;
     public static GeckoApp mAppContext;
+    protected MenuPresenter mMenuPresenter;
     protected MenuPanel mMenuPanel;
     protected Menu mMenu;
     private static GeckoThread sGeckoThread;
     public Handler mMainHandler;
     private GeckoProfile mProfile;
     public static int mOrientation;
-    protected boolean mIsRestoringActivity;
+    private boolean mIsRestoringActivity;
     private String mCurrentResponse = "";
     public static boolean sIsUsingCustomProfile = false;
 
@@ -479,31 +481,58 @@ abstract public class GeckoApp
         return mMenuPanel;
     }
 
-    @Override
-    public boolean onMenuItemSelected(MenuItem item) {
-        return onOptionsItemSelected(item);
+    public MenuPresenter getMenuPresenter() {
+        return mMenuPresenter;
     }
 
-    @Override
-    public void openMenu() {
-        openOptionsMenu();
+    // MenuPanel holds the scrollable Menu
+    public static class MenuPanel extends LinearLayout {
+        public MenuPanel(Context context, AttributeSet attrs) {
+            super(context, attrs);
+            setLayoutParams(new ViewGroup.LayoutParams((int) context.getResources().getDimension(R.dimen.menu_item_row_width),
+                                                       ViewGroup.LayoutParams.WRAP_CONTENT));
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+
+            // heightPixels changes during rotation.
+            DisplayMetrics metrics = GeckoApp.mAppContext.getResources().getDisplayMetrics();
+            int restrictedHeightSpec = MeasureSpec.makeMeasureSpec((int) (0.75 * metrics.heightPixels), MeasureSpec.AT_MOST);
+
+            super.onMeasure(widthMeasureSpec, restrictedHeightSpec);
+        }
+
+        @Override
+        public boolean dispatchPopulateAccessibilityEvent (AccessibilityEvent event) {
+            if (Build.VERSION.SDK_INT >= 14) // Build.VERSION_CODES.ICE_CREAM_SANDWICH
+                onPopulateAccessibilityEvent(event);
+            return true;
+        }
     }
 
-    @Override
-    public void showMenu(View menu) {
-        // Hide the menu only if we are showing the MenuPopup.
-        if (!hasPermanentMenuKey())
-            closeMenu();
+    // MenuPresenter takes care of proper animation and inflation.
+    public class MenuPresenter {
+        GeckoApp mActivity;
 
-        mMenuPanel.removeAllViews();
-        mMenuPanel.addView(menu);
+        public MenuPresenter(GeckoApp activity) {
+            mActivity = activity;
+        }
 
-        openOptionsMenu();
-    }
+        public void show(GeckoMenu menu) {
+            MenuPanel panel = mActivity.getMenuPanel();
+            panel.removeAllViews();
+            panel.addView(menu);
 
-    @Override
-    public void closeMenu() {
-        closeOptionsMenu();
+            mActivity.openOptionsMenu();
+        }
+
+        public void onOptionsMenuClosed() {
+            MenuPanel panel = mActivity.getMenuPanel();
+            panel.removeAllViews();
+            panel.addView((GeckoMenu) mMenu);
+        }
     }
 
     @Override
@@ -511,6 +540,7 @@ abstract public class GeckoApp
         if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL) {
             if (mMenuPanel == null) {
                 mMenuPanel = new MenuPanel(mAppContext, null);
+                mMenuPresenter = new MenuPresenter(this);
             } else {
                 // Prepare the panel everytime before showing the menu.
                 onPreparePanel(featureId, mMenuPanel, mMenu);
@@ -530,8 +560,6 @@ abstract public class GeckoApp
             }
 
             GeckoMenu gMenu = new GeckoMenu(mAppContext, null);
-            gMenu.setCallback(this);
-            gMenu.setMenuPresenter(this);
             menu = gMenu;
             mMenuPanel.addView(gMenu);
 
@@ -592,10 +620,8 @@ abstract public class GeckoApp
 
     @Override
     public void onOptionsMenuClosed(Menu menu) {
-        if (Build.VERSION.SDK_INT >= 11) {
-            mMenuPanel.removeAllViews();
-            mMenuPanel.addView((GeckoMenu) mMenu);
-        }
+        if (Build.VERSION.SDK_INT >= 11)
+            mMenuPresenter.onOptionsMenuClosed();
     }
  
     @Override
@@ -640,13 +666,8 @@ abstract public class GeckoApp
                     return this.equals(info);
                 }
             });
-
+                        
             GeckoSubMenu menu = new GeckoSubMenu(mAppContext, null);
-
-            GeckoMenu parent = (GeckoMenu) mMenu;
-            menu.setCallback(parent.getCallback());
-            menu.setMenuPresenter(parent.getMenuPresenter());
-
             for (ResolveInfo activity : activities) {
                  final ActivityInfo activityInfo = activity.activityInfo;
 
@@ -662,7 +683,7 @@ abstract public class GeckoApp
                  });
             }
 
-            showMenu(menu);
+            mMenuPresenter.show(menu);
         } else {
             GeckoAppShell.openUriExternal(url, "text/plain", "", "",
                                           Intent.ACTION_SEND, tab.getDisplayTitle());
@@ -1417,7 +1438,7 @@ abstract public class GeckoApp
             enableStrictMode();
         }
 
-        GeckoAppShell.loadMozGlue(this);
+        GeckoAppShell.loadMozGlue();
         if (sGeckoThread != null) {
             // this happens when the GeckoApp activity is destroyed by android
             // without killing the entire application (see bug 769269)
@@ -1481,7 +1502,7 @@ abstract public class GeckoApp
         });
     }
 
-    protected void initializeChrome(String uri, boolean isExternalURL) {
+    protected void initializeChrome(String uri, Boolean isExternalURL) {
         mDoorHangerPopup = new DoorHangerPopup(this, null);
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
@@ -1582,7 +1603,7 @@ abstract public class GeckoApp
 
         // If we are doing a restore, read the session data and send it to Gecko
         String restoreMessage = null;
-        if (mRestoreMode != RESTORE_NONE && !mIsRestoringActivity) {
+        if (mRestoreMode != RESTORE_NONE) {
             try {
                 String sessionString = getProfile().readSessionFile(false);
                 if (sessionString == null) {
@@ -1692,7 +1713,6 @@ abstract public class GeckoApp
         registerEventListener("onCameraCapture");
         registerEventListener("Menu:Add");
         registerEventListener("Menu:Remove");
-        registerEventListener("Menu:Update");
         registerEventListener("Gecko:Ready");
         registerEventListener("Toast:Show");
         registerEventListener("DOMFullScreen:Start");
@@ -1775,7 +1795,7 @@ abstract public class GeckoApp
             setLaunchState(GeckoApp.LaunchState.GeckoRunning);
             Tab selectedTab = Tabs.getInstance().getSelectedTab();
             if (selectedTab != null)
-                Tabs.getInstance().notifyListeners(selectedTab, Tabs.TabEvents.SELECTED);
+                Tabs.getInstance().selectTab(selectedTab.getId());
             connectGeckoLayerClient();
             GeckoAppShell.setLayerClient(mLayerView.getLayerClient());
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Viewport:Flush", null));
@@ -1791,19 +1811,7 @@ abstract public class GeckoApp
     }
 
     protected boolean shouldRestoreSession() {
-        SharedPreferences prefs = GeckoApp.mAppContext.getSharedPreferences(PREFS_NAME, 0);
-
-        // We record crashes in the crash reporter. If sessionstore.js
-        // exists, but we didn't flag a crash in the crash reporter, we
-        // were probably just force killed by the user, so we shouldn't do
-        // a restore.
-        if (prefs.getBoolean(PREFS_CRASHED, false)) {
-            prefs.edit().putBoolean(GeckoApp.PREFS_CRASHED, false).commit();
-            if (getProfile().shouldRestoreSession()) {
-                return true;
-            }
-        }
-        return false;
+        return getProfile().shouldRestoreSession();
     }
 
     /**
@@ -2155,7 +2163,6 @@ abstract public class GeckoApp
         unregisterEventListener("onCameraCapture");
         unregisterEventListener("Menu:Add");
         unregisterEventListener("Menu:Remove");
-        unregisterEventListener("Menu:Update");
         unregisterEventListener("Gecko:Ready");
         unregisterEventListener("Toast:Show");
         unregisterEventListener("DOMFullScreen:Start");

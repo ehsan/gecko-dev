@@ -184,7 +184,7 @@ class AutoPtr
     T *get() { return value; }
 };
 
-#ifdef JS_CRASH_DIAGNOSTICS
+#ifdef DEBUG
 class CompartmentChecker
 {
     JSContext *context;
@@ -201,7 +201,7 @@ class CompartmentChecker
      */
     static void fail(JSCompartment *c1, JSCompartment *c2) {
         printf("*** Compartment mismatch %p vs. %p\n", (void *) c1, (void *) c2);
-        MOZ_CRASH();
+        JS_NOT_REACHED("compartment mismatched");
     }
 
     /* Note: should only be used when neither c1 nor c2 may be the default compartment. */
@@ -282,7 +282,8 @@ class CompartmentChecker
             check(fp->scopeChain());
     }
 };
-#endif /* JS_CRASH_DIAGNOSTICS */
+
+#endif
 
 /*
  * Don't perform these checks when called from a finalizer. The checking
@@ -296,15 +297,6 @@ class CompartmentChecker
 template <class T1> inline void
 assertSameCompartment(JSContext *cx, const T1 &t1)
 {
-#ifdef JS_CRASH_DIAGNOSTICS
-    START_ASSERT_SAME_COMPARTMENT();
-    c.check(t1);
-#endif
-}
-
-template <class T1> inline void
-assertSameCompartmentDebugOnly(JSContext *cx, const T1 &t1)
-{
 #ifdef DEBUG
     START_ASSERT_SAME_COMPARTMENT();
     c.check(t1);
@@ -314,7 +306,7 @@ assertSameCompartmentDebugOnly(JSContext *cx, const T1 &t1)
 template <class T1, class T2> inline void
 assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2)
 {
-#ifdef JS_CRASH_DIAGNOSTICS
+#ifdef DEBUG
     START_ASSERT_SAME_COMPARTMENT();
     c.check(t1);
     c.check(t2);
@@ -324,7 +316,7 @@ assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2)
 template <class T1, class T2, class T3> inline void
 assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
 {
-#ifdef JS_CRASH_DIAGNOSTICS
+#ifdef DEBUG
     START_ASSERT_SAME_COMPARTMENT();
     c.check(t1);
     c.check(t2);
@@ -335,7 +327,7 @@ assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3)
 template <class T1, class T2, class T3, class T4> inline void
 assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4)
 {
-#ifdef JS_CRASH_DIAGNOSTICS
+#ifdef DEBUG
     START_ASSERT_SAME_COMPARTMENT();
     c.check(t1);
     c.check(t2);
@@ -347,7 +339,7 @@ assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3, c
 template <class T1, class T2, class T3, class T4, class T5> inline void
 assertSameCompartment(JSContext *cx, const T1 &t1, const T2 &t2, const T3 &t3, const T4 &t4, const T5 &t5)
 {
-#ifdef JS_CRASH_DIAGNOSTICS
+#ifdef DEBUG
     START_ASSERT_SAME_COMPARTMENT();
     c.check(t1);
     c.check(t2);
@@ -589,41 +581,6 @@ JSContext::setDefaultCompartmentObjectIfUnset(JSObject *obj)
 {
     if (!defaultCompartmentObject_)
         setDefaultCompartmentObject(obj);
-}
-
-inline void
-JSContext::enterCompartment(JSCompartment *c)
-{
-    enterCompartmentDepth_++;
-    compartment = c;
-    c->enter();
-    if (throwing)
-        wrapPendingException();
-}
-
-inline void
-JSContext::leaveCompartment(JSCompartment *oldCompartment)
-{
-    JS_ASSERT(hasEnteredCompartment());
-    enterCompartmentDepth_--;
-
-    compartment->leave();
-
-    /*
-     * Before we entered the current compartment, 'compartment' was
-     * 'oldCompartment', so we might want to simply set it back. However, we
-     * currently have this terrible scheme whereby defaultCompartmentObject_ can
-     * be updated while enterCompartmentDepth_ > 0. In this case, oldCompartment
-     * != defaultCompartmentObject_->compartment and we must ignore
-     * oldCompartment.
-     */
-    if (hasEnteredCompartment() || !defaultCompartmentObject_)
-        compartment = oldCompartment;
-    else
-        compartment = defaultCompartmentObject_->compartment();
-
-    if (throwing)
-        wrapPendingException();
 }
 
 #endif /* jscntxtinlines_h___ */

@@ -384,12 +384,7 @@ STATIC_POSTCONDITION(!return || ubound(from) >= nvals)
 JS_ALWAYS_INLINE bool
 StackSpace::ensureSpace(JSContext *cx, MaybeReportError report, Value *from, ptrdiff_t nvals) const
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     assertInvariants();
     JS_ASSERT(from >= firstUnused());
 #ifdef XP_WIN
@@ -417,12 +412,7 @@ JS_ALWAYS_INLINE StackFrame *
 ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArgs &args,
                            JSFunction *fun, JSScript *script, StackFrame::Flags *flags) const
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     JS_ASSERT(fun->nonLazyScript() == script);
     unsigned nformal = fun->nargs;
 
@@ -464,12 +454,7 @@ ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &ar
                               JSFunction &callee, JSScript *script,
                               InitialFrameFlags initial, MaybeReportError report)
 {
-    mozilla::Maybe<AutoAssertNoGC> maybeNoGC;
-    if (report)
-        AssertCanGC();
-    else
-        maybeNoGC.construct();
-
+    AssertCanGC();
     JS_ASSERT(onTop());
     JS_ASSERT(regs.sp == args.end());
     /* Cannot assert callee == args.callee() since this is called from LeaveTree. */
@@ -579,7 +564,7 @@ ContextStack::currentScript(jsbytecode **ppc,
         mjit::JITChunk *chunk = fp->jit()->chunk(regs.pc);
         JS_ASSERT(inlined->inlineIndex < chunk->nInlineFrames);
         mjit::InlineFrame *frame = &chunk->inlineFrames()[inlined->inlineIndex];
-        UnrootedScript script = frame->fun->nonLazyScript();
+        RawScript script = frame->fun->nonLazyScript().get(nogc);
         if (!allowCrossCompartment && script->compartment() != cx_->compartment)
             return NULL;
         if (ppc)
@@ -588,7 +573,7 @@ ContextStack::currentScript(jsbytecode **ppc,
     }
 #endif
 
-    UnrootedScript script = fp->script();
+    RawScript script = fp->script().get(nogc);
     if (!allowCrossCompartment && script->compartment() != cx_->compartment)
         return NULL;
 

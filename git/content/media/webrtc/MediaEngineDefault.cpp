@@ -10,7 +10,6 @@
 #include "Layers.h"
 #include "ImageContainer.h"
 #include "ImageTypes.h"
-#include "prmem.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"

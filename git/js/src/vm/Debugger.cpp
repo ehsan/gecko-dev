@@ -24,7 +24,6 @@
 #include "methodjit/Retcon.h"
 #include "js/Vector.h"
 
-#include "gc/FindSCCs-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace js;
@@ -1198,7 +1197,7 @@ Debugger::onSingleStep(JSContext *cx, Value *vp)
     {
         AutoAssertNoGC nogc;
         uint32_t stepperCount = 0;
-        UnrootedScript trappingScript = fp->script();
+        JSScript *trappingScript = fp->script().get(nogc);
         GlobalObject *global = &fp->global();
         if (GlobalObject::DebuggerVector *debuggers = global->getDebuggers()) {
             for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++) {
@@ -1561,7 +1560,7 @@ Debugger::detachAllDebuggersFromGlobal(FreeOp *fop, GlobalObject *global,
 }
 
 /* static */ void
-Debugger::findCompartmentEdges(JSCompartment *comp, js::gc::ComponentFinder<JSCompartment> &finder)
+Debugger::findCompartmentEdges(JSCompartment *comp, js::gc::ComponentFinder &finder)
 {
     /*
      * For debugger cross compartment wrappers, add edges in the opposite
@@ -1575,8 +1574,7 @@ Debugger::findCompartmentEdges(JSCompartment *comp, js::gc::ComponentFinder<JSCo
             continue;
         if (dbg->scripts.hasKeyInCompartment(comp) ||
             dbg->objects.hasKeyInCompartment(comp) ||
-            dbg->environments.hasKeyInCompartment(comp))
-        {
+            dbg->environments.hasKeyInCompartment(comp)) {
             finder.addEdgeTo(w);
         }
     }
@@ -3496,7 +3494,7 @@ DebuggerFrame_getOffset(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_FRAME(cx, argc, vp, "get offset", args, thisobj, fp);
     AutoAssertNoGC nogc;
-    UnrootedScript script = fp->script();
+    RawScript script = fp->script().get(nogc);
     jsbytecode *pc = fp->pcQuadratic(cx);
     JS_ASSERT(script->code <= pc);
     JS_ASSERT(pc < script->code + script->length);
@@ -3623,8 +3621,7 @@ js::EvaluateInEnv(JSContext *cx, Handle<Env*> env, HandleValue thisv, StackFrame
         return false;
 
     script->isActiveEval = true;
-    ExecuteType type = !fp && env->isGlobal() ? EXECUTE_DEBUG_GLOBAL : EXECUTE_DEBUG;
-    return ExecuteKernel(cx, script, *env, thisv, type, fp, rval);
+    return ExecuteKernel(cx, script, *env, thisv, EXECUTE_DEBUG, fp, rval);
 }
 
 static JSBool
@@ -4149,8 +4146,6 @@ DebuggerObject_defineProperty(JSContext *cx, unsigned argc, Value *vp)
     PropDesc *unwrappedDesc = descs.append();
     if (!unwrappedDesc || !desc->unwrapDebuggerObjectsInto(cx, dbg, obj, unwrappedDesc))
         return false;
-    if (!unwrappedDesc->checkGetter(cx) || !unwrappedDesc->checkSetter(cx))
-        return false;
 
     {
         PropDesc *rewrappedDesc = descs.append();
@@ -4195,8 +4190,6 @@ DebuggerObject_defineProperties(JSContext *cx, unsigned argc, Value *vp)
         if (!unwrappedDescs.append())
             return false;
         if (!descs[i].unwrapDebuggerObjectsInto(cx, dbg, obj, &unwrappedDescs[i]))
-            return false;
-        if (!unwrappedDescs[i].checkGetter(cx) || !unwrappedDescs[i].checkSetter(cx))
             return false;
     }
 

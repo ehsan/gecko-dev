@@ -2546,13 +2546,6 @@ nsDOMWindowUtils::PreventFurtherDialogs()
   return NS_OK;
 }
 
-static nsIDOMBlob*
-GetXPConnectNative(JSContext* aCx, JSObject* aObj) {
-  nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(
-    nsContentUtils::XPConnect()->GetNativeOfWrapper(aCx, aObj));
-  return blob;
-}
-
 static nsresult
 GetFileOrBlob(const nsAString& aName, const jsval& aBlobParts,
               const jsval& aParameters, JSContext* aCx,
@@ -2574,12 +2567,12 @@ GetFileOrBlob(const nsAString& aName, const jsval& aBlobParts,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsDOMMultipartFile* domFile =
-    static_cast<nsDOMMultipartFile*>(static_cast<nsIDOMFile*>(file.get()));
+  nsCOMPtr<nsIJSNativeInitializer> initializer = do_QueryInterface(file);
+  NS_ASSERTION(initializer, "what?");
 
   jsval args[2] = { aBlobParts, aParameters };
 
-  rv = domFile->InitBlob(aCx, aOptionalArgCount, args, GetXPConnectNative);
+  rv = initializer->Initialize(nullptr, aCx, nullptr, aOptionalArgCount, args);
   NS_ENSURE_SUCCESS(rv, rv);
 
   file.forget(aResult);

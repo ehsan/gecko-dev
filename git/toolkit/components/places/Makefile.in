@@ -34,6 +34,7 @@ XPIDLSRCS += \
   nsIFaviconService.idl \
   nsILivemarkService.idl \
   nsINavBookmarksService.idl \
+  nsIPlacesImportExportService.idl \
   nsITaggingService.idl  \
   nsPIPlacesDatabase.idl \
   nsPIPlacesHistoryListenersNotifier.idl \
@@ -59,6 +60,7 @@ CPPSRCS = \
   SQLFunctions.cpp \
   Helpers.cpp \
   History.cpp \
+  nsPlacesExportService.cpp \
   AsyncFaviconHelpers.cpp \
   PlaceInfo.cpp \
   VisitInfo.cpp \
@@ -82,13 +84,13 @@ endif
 
 EXTRA_JS_MODULES = \
   PlacesDBUtils.jsm \
+  BookmarkHTMLUtils.jsm \
   ColorAnalyzer_worker.js \
   ColorConversion.js \
   ClusterLib.js \
   $(NULL)
 
 EXTRA_PP_JS_MODULES = \
-  BookmarkHTMLUtils.jsm \
   PlacesUtils.jsm \
   $(NULL)
 

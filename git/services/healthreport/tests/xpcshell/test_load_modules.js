@@ -6,7 +6,6 @@
 const modules = [
   "healthreporter.jsm",
   "policy.jsm",
-  "profile.jsm",
   "providers.jsm",
 ];
 

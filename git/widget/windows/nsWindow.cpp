@@ -118,8 +118,6 @@
 #include "WidgetUtils.h"
 #include "nsIWidgetListener.h"
 #include "nsDOMTouchEvent.h"
-#include <cstdlib> // for std::abs(int/long)
-#include <cmath> // for std::abs(float/double)
 
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
@@ -143,7 +141,7 @@
 #include "oleidl.h"
 #include <winuser.h>
 #include "nsAccessibilityService.h"
-#include "mozilla/a11y/Platform.h"
+#include "nsIAccessibleDocument.h"
 #if !defined(WINABLEAPI)
 #include <winable.h>
 #endif // !defined(WINABLEAPI)
@@ -1322,7 +1320,7 @@ nsWindow::SetSizeConstraints(const SizeConstraints& aConstraints)
 }
 
 // Move this component
-NS_METHOD nsWindow::Move(double aX, double aY)
+NS_METHOD nsWindow::Move(int32_t aX, int32_t aY)
 {
   if (mWindowType == eWindowType_toplevel ||
       mWindowType == eWindowType_dialog) {
@@ -1342,11 +1340,8 @@ NS_METHOD nsWindow::Move(double aX, double aY)
     return NS_OK;
   }
 
-  int32_t x = NSToIntRound(aX * GetDefaultScale());
-  int32_t y = NSToIntRound(aY * GetDefaultScale());
-
-  mBounds.x = x;
-  mBounds.y = y;
+  mBounds.x = aX;
+  mBounds.y = aY;
 
   if (mWnd) {
 #ifdef DEBUG
@@ -1360,7 +1355,7 @@ NS_METHOD nsWindow::Move(double aX, double aY)
           RECT workArea;
           ::SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
           // no annoying assertions. just mention the issue.
-          if (x < 0 || x >= workArea.right || y < 0 || y >= workArea.bottom) {
+          if (aX < 0 || aX >= workArea.right || aY < 0 || aY >= workArea.bottom) {
             PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
                    ("window moved to offscreen position\n"));
           }
@@ -1381,7 +1376,7 @@ NS_METHOD nsWindow::Move(double aX, double aY)
         (mClipRectCount != 1 || !mClipRects[0].IsEqualInterior(nsIntRect(0, 0, mBounds.width, mBounds.height)))) {
       flags |= SWP_NOCOPYBITS;
     }
-    VERIFY(::SetWindowPos(mWnd, NULL, x, y, 0, 0, flags));
+    VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, 0, 0, flags));
 
     SetThemeRegion();
   }
@@ -1390,18 +1385,14 @@ NS_METHOD nsWindow::Move(double aX, double aY)
 }
 
 // Resize this component
-NS_METHOD nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
+NS_METHOD nsWindow::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
-  int32_t width = NSToIntRound(aWidth * GetDefaultScale());
-  int32_t height = NSToIntRound(aHeight * GetDefaultScale());
-
-  NS_ASSERTION((width >= 0) , "Negative width passed to nsWindow::Resize");
-  NS_ASSERTION((height >= 0), "Negative height passed to nsWindow::Resize");
-
-  ConstrainSize(&width, &height);
+  NS_ASSERTION((aWidth >=0 ) , "Negative width passed to nsWindow::Resize");
+  NS_ASSERTION((aHeight >=0 ), "Negative height passed to nsWindow::Resize");
+  ConstrainSize(&aWidth, &aHeight);
 
   // Avoid unnecessary resizing calls
-  if (mBounds.width == width && mBounds.height == height) {
+  if (mBounds.width == aWidth && mBounds.height == aHeight) {
     if (aRepaint) {
       Invalidate();
     }
@@ -1410,12 +1401,12 @@ NS_METHOD nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
 
 #ifdef MOZ_XUL
   if (eTransparencyTransparent == mTransparencyMode)
-    ResizeTranslucentWindow(width, height);
+    ResizeTranslucentWindow(aWidth, aHeight);
 #endif
 
   // Set cached value for lightweight and printing
-  mBounds.width  = width;
-  mBounds.height = height;
+  mBounds.width  = aWidth;
+  mBounds.height = aHeight;
 
   if (mWnd) {
     UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOMOVE;
@@ -1425,7 +1416,7 @@ NS_METHOD nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
     }
 
     ClearThemeRegion();
-    VERIFY(::SetWindowPos(mWnd, NULL, 0, 0, width, GetHeight(height), flags));
+    VERIFY(::SetWindowPos(mWnd, NULL, 0, 0, aWidth, GetHeight(aHeight), flags));
     SetThemeRegion();
   }
 
@@ -1437,22 +1428,15 @@ NS_METHOD nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
 }
 
 // Resize this component
-NS_METHOD nsWindow::Resize(double aX, double aY, double aWidth, double aHeight, bool aRepaint)
+NS_METHOD nsWindow::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
-  double scale = GetDefaultScale();
-  int32_t x = NSToIntRound(aX * scale);
-  int32_t y = NSToIntRound(aY * scale);
-  int32_t width = NSToIntRound(aWidth * scale);
-  int32_t height = NSToIntRound(aHeight * scale);
-
-  NS_ASSERTION((width >= 0),  "Negative width passed to nsWindow::Resize");
-  NS_ASSERTION((height >= 0), "Negative height passed to nsWindow::Resize");
-
-  ConstrainSize(&width, &height);
+  NS_ASSERTION((aWidth >=0 ),  "Negative width passed to nsWindow::Resize");
+  NS_ASSERTION((aHeight >=0 ), "Negative height passed to nsWindow::Resize");
+  ConstrainSize(&aWidth, &aHeight);
 
   // Avoid unnecessary resizing calls
-  if (mBounds.x == x && mBounds.y == y &&
-      mBounds.width == width && mBounds.height == height) {
+  if (mBounds.x == aX && mBounds.y == aY &&
+      mBounds.width == aWidth && mBounds.height == aHeight) {
     if (aRepaint) {
       Invalidate();
     }
@@ -1461,14 +1445,14 @@ NS_METHOD nsWindow::Resize(double aX, double aY, double aWidth, double aHeight, 
 
 #ifdef MOZ_XUL
   if (eTransparencyTransparent == mTransparencyMode)
-    ResizeTranslucentWindow(width, height);
+    ResizeTranslucentWindow(aWidth, aHeight);
 #endif
 
   // Set cached value for lightweight and printing
-  mBounds.x      = x;
-  mBounds.y      = y;
-  mBounds.width  = width;
-  mBounds.height = height;
+  mBounds.x      = aX;
+  mBounds.y      = aY;
+  mBounds.width  = aWidth;
+  mBounds.height = aHeight;
 
   if (mWnd) {
     UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE;
@@ -1477,7 +1461,7 @@ NS_METHOD nsWindow::Resize(double aX, double aY, double aWidth, double aHeight, 
     }
 
     ClearThemeRegion();
-    VERIFY(::SetWindowPos(mWnd, NULL, x, y, width, GetHeight(height), flags));
+    VERIFY(::SetWindowPos(mWnd, NULL, aX, aY, aWidth, GetHeight(aHeight), flags));
     SetThemeRegion();
   }
 
@@ -3449,7 +3433,7 @@ nsWindow::OverrideSystemMouseScrollSpeed(int32_t aOriginalDelta,
   // on the document of SystemParametersInfo in MSDN.
   const uint32_t kSystemDefaultScrollingSpeed = 3;
 
-  int32_t absOriginDelta = std::abs(aOriginalDelta);
+  int32_t absOriginDelta = NS_ABS(aOriginalDelta);
 
   // Compute the simple overridden speed.
   int32_t absComputedOverriddenDelta;
@@ -6353,10 +6337,10 @@ bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
 
     if (mDisplayPanFeedback) {
       mGesture.UpdatePanFeedbackX(mWnd,
-                                  std::abs(RoundDown(wheelEvent.overflowDeltaX)),
+                                  NS_ABS(RoundDown(wheelEvent.overflowDeltaX)),
                                   endFeedback);
       mGesture.UpdatePanFeedbackY(mWnd,
-                                  std::abs(RoundDown(wheelEvent.overflowDeltaY)),
+                                  NS_ABS(RoundDown(wheelEvent.overflowDeltaY)),
                                   endFeedback);
       mGesture.PanFeedbackFinalize(mWnd, endFeedback);
     }

@@ -118,7 +118,7 @@ class AutoDebugModeGC;
 class DebugScopes;
 }
 
-struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNodeBase<JSCompartment>
+struct JSCompartment : public js::gc::GraphNodeBase
 {
     JSRuntime                    *rt;
     JSPrincipals                 *principals;
@@ -126,26 +126,22 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
   private:
     friend struct JSRuntime;
     friend struct JSContext;
-    js::ReadBarriered<js::GlobalObject> global_;
-
-    unsigned                     enterCompartmentDepth;
-
+    js::GlobalObject             *global_;
   public:
-    void enter() { enterCompartmentDepth++; }
-    void leave() { enterCompartmentDepth--; }
-
-    /*
-     * Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
-     * compartment's global has been collected.  The latter can happen if e.g.
-     * a string in a compartment is rooted but no object is, and thus the global
-     * isn't rooted, and thus the global can be finalized while the compartment
-     * lives on.
-     *
-     * In contrast, JSObject::global() is infallible because marking a JSObject
-     * always marks its global as well.
-     * TODO: add infallible JSScript::global()
-     */
-    inline js::GlobalObject *maybeGlobal() const;
+    // Nb: global_ might be NULL, if (a) it's the atoms compartment, or (b) the
+    // compartment's global has been collected.  The latter can happen if e.g.
+    // a string in a compartment is rooted but no object is, and thus the
+    // global isn't rooted, and thus the global can be finalized while the
+    // compartment lives on.
+    //
+    // In contrast, JSObject::global() is infallible because marking a JSObject
+    // always marks its global as well.
+    // TODO: add infallible JSScript::global()
+    //
+    js::GlobalObject *maybeGlobal() const {
+        JS_ASSERT_IF(global_, global_->compartment() == this);
+        return global_;
+    }
 
     void initGlobal(js::GlobalObject &global) {
         JS_ASSERT(global.compartment() == this);
@@ -162,6 +158,7 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
 #endif
 
   private:
+    bool                         needsBarrier_;
     bool                         ionUsingBarriers_;
   public:
 
@@ -375,9 +372,6 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
     /* Linked list of live weakmaps in this compartment. */
     js::WeakMapBase              *gcWeakMapList;
 
-    /* This compartment's gray roots. */
-    js::Vector<js::GrayRoot, 0, js::SystemAllocPolicy> gcGrayRoots;
-
   private:
     /*
      * Malloc counter to measure memory pressure for GC scheduling. It runs from
@@ -431,7 +425,7 @@ struct JSCompartment : private JS::shadow::Compartment, public js::gc::GraphNode
     void sweepCrossCompartmentWrappers();
     void purge();
 
-    void findOutgoingEdges(js::gc::ComponentFinder<JSCompartment> &finder);
+    virtual void findOutgoingEdges(js::gc::ComponentFinder& finder);
 
     void setGCLastBytes(size_t lastBytes, size_t lastMallocBytes, js::JSGCInvocationKind gckind);
     void reduceGCTriggerBytes(size_t amount);
@@ -561,13 +555,7 @@ JSContext::typeInferenceEnabled() const
 inline js::Handle<js::GlobalObject*>
 JSContext::global() const
 {
-    /*
-     * It's safe to use |unsafeGet()| here because any compartment that is
-     * on-stack will be marked automatically, so there's no need for a read
-     * barrier on it. Once the compartment is popped, the handle is no longer
-     * safe to use.
-     */
-    return js::Handle<js::GlobalObject*>::fromMarkedLocation(compartment->global_.unsafeGet());
+    return js::Handle<js::GlobalObject*>::fromMarkedLocation(&compartment->global_);
 }
 
 namespace js {
@@ -594,8 +582,16 @@ class AutoCompartment
     JSCompartment * const origin_;
 
   public:
-    inline AutoCompartment(JSContext *cx, JSObject *target);
-    inline ~AutoCompartment();
+    AutoCompartment(JSContext *cx, JSObject *target)
+      : cx_(cx),
+        origin_(cx->compartment)
+    {
+        cx_->enterCompartment(target->compartment());
+    }
+
+    ~AutoCompartment() {
+        cx_->leaveCompartment(origin_);
+    }
 
     JSContext *context() const { return cx_; }
     JSCompartment *origin() const { return origin_; }

@@ -48,7 +48,7 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 {
   static const char kMathMLStyleSheetURI[] = "resource://gre-resources/mathml.css";
 
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
 
   nsresult rv = nsMathMLElementBase::BindToTree(aDocument, aParent,
                                                 aBindingParent,
@@ -83,7 +83,7 @@ nsMathMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
   // If this link is ever reinserted into a document, it might
   // be under a different xml:base, so forget the cached state now.
-  Link::ResetLinkState(false, Link::ElementHasHref());
+  Link::ResetLinkState(false);
   
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
@@ -793,7 +793,7 @@ nsMathMLElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   if (aName == nsGkAtoms::href &&
       (aNameSpaceID == kNameSpaceID_None ||
        aNameSpaceID == kNameSpaceID_XLink)) {
-    Link::ResetLinkState(!!aNotify, true);
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;
@@ -813,9 +813,7 @@ nsMathMLElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
   if (aAttr == nsGkAtoms::href &&
       (aNameSpaceID == kNameSpaceID_None ||
        aNameSpaceID == kNameSpaceID_XLink)) {
-    // Note: just because we removed a single href attr doesn't mean there's no href,
-    // since there are 2 possible namespaces.
-    Link::ResetLinkState(!!aNotify, Link::ElementHasHref());
+    Link::ResetLinkState(!!aNotify);
   }
 
   return rv;

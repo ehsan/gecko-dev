@@ -188,11 +188,12 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
 
   out = aDest;
   if (mState == 0xFF) {
-    // Emit supplementary character left over from previous iteration. It is
-    // caller's responsibility to keep a sufficient buffer.
+    // Emit supplementary character left over from previous iteration. If the
+    // buffer size is insufficient, treat it as an illegal character.
     if (aDestLen < 2) {
-      *aSrcLength = *aDestLength = 0;
-      return NS_OK_UDEC_MOREOUTPUT;
+      NS_ERROR("Output buffer insufficient to hold supplementary character");
+      mState = 0;
+      return NS_ERROR_ILLEGAL_INPUT;
     }
     out = EmitSurrogatePair(mUcs4, out);
     mUcs4 = 0;
@@ -224,12 +225,8 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
         mBytes = 1;
       } else if (c < 0xC2) {  // C0/C1
         // Overlong 2 octet sequence
-        if (mErrBehavior == kOnError_Signal) {
-          res = NS_ERROR_ILLEGAL_INPUT;
-          break;
-        }
-        *out++ = UCS2_REPLACEMENT_CHAR;
-        mFirst = false;
+        res = NS_ERROR_ILLEGAL_INPUT;
+        break;
       } else if (c < 0xE0) {  // C2..DF
         // First octet of 2 octet sequence
         mUcs4 = c;
@@ -251,16 +248,12 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
       } else {  // F5..FF
         /* Current octet is neither in the US-ASCII range nor a legal first
          * octet of a multi-octet sequence.
+         *
+         * Return an error condition. Caller is responsible for flushing and
+         * refilling the buffer and resetting state.
          */
-        if (mErrBehavior == kOnError_Signal) {
-          /* Return an error condition. Caller is responsible for flushing and
-           * refilling the buffer and resetting state.
-           */
-          res = NS_ERROR_ILLEGAL_INPUT;
-          break;
-        }
-        *out++ = UCS2_REPLACEMENT_CHAR;
-        mFirst = false;
+        res = NS_ERROR_ILLEGAL_INPUT;
+        break;
       }
     } else {
       // When mState is non-zero, we expect a continuation of the multi-octet
@@ -277,14 +270,8 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
                               mUcs4 == 0x100000 && c > 0x8F)) {  // F4 90..BF
             // illegal sequences or sequences converted into illegal ranges.
             in--;
-            if (mErrBehavior == kOnError_Signal) {
-              res = NS_ERROR_ILLEGAL_INPUT;
-              break;
-            }
-            *out++ = UCS2_REPLACEMENT_CHAR;
-            mState = 0;
-            mFirst = false;
-            continue;
+            res = NS_ERROR_ILLEGAL_INPUT;
+            break;
           }
         }
 
@@ -328,13 +315,8 @@ NS_IMETHODIMP nsUTF8ToUnicode::Convert(const char * aSrc,
          * for flushing and refilling the buffer and resetting state.
          */
         in--;
-        if (mErrBehavior == kOnError_Signal) {
-          res = NS_ERROR_ILLEGAL_INPUT;
-          break;
-        }
-        *out++ = UCS2_REPLACEMENT_CHAR;
-        mState = 0;
-        mFirst = false;
+        res = NS_ERROR_ILLEGAL_INPUT;
+        break;
       }
     }
   }

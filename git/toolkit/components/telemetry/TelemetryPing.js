@@ -20,11 +20,7 @@ Cu.import("resource://gre/modules/ctypes.jsm");
 const PAYLOAD_VERSION = 1;
 
 const PREF_SERVER = "toolkit.telemetry.server";
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-const PREF_ENABLED = "toolkit.telemetry.enabledPreRelease";
-#else
 const PREF_ENABLED = "toolkit.telemetry.enabled";
-#endif
 // Do not gather data more than once a minute
 const TELEMETRY_INTERVAL = 60000;
 // Delay before intializing telemetry (ms)
@@ -230,8 +226,7 @@ TelemetryPing.prototype = {
    * When reflecting a histogram into JS, Telemetry hands us an object
    * with the following properties:
    * 
-   * - min, max, histogram_type, sum, sum_squares_{lo,hi}: simple integers;
-   * - log_sum, log_sum_squares: doubles;
+   * - min, max, histogram_type, sum: simple integers;
    * - counts: array of counts for histogram buckets;
    * - ranges: array of calculated bucket sizes.
    * 
@@ -241,10 +236,7 @@ TelemetryPing.prototype = {
    *
    * Returns an object:
    * { range: [min, max], bucket_count: <number of buckets>,
-   *   histogram_type: <histogram_type>, sum: <sum>,
-   *   sum_squares_lo: <sum_squares_lo>,
-   *   sum_squares_hi: <sum_squares_hi>,
-   *   log_sum: <log_sum>, log_sum_squares: <log_sum_squares>,
+   *   histogram_type: <histogram_type>, sum: <sum>
    *   values: { bucket1: count1, bucket2: count2, ... } }
    */
   packHistogram: function packHistogram(hgram) {
@@ -255,11 +247,7 @@ TelemetryPing.prototype = {
       bucket_count: r.length,
       histogram_type: hgram.histogram_type,
       values: {},
-      sum: hgram.sum,
-      sum_squares_lo: hgram.sum_squares_lo,
-      sum_squares_hi: hgram.sum_squares_hi,
-      log_sum: hgram.log_sum,
-      log_sum_squares: hgram.log_sum_squares
+      sum: hgram.sum
     };
     let first = true;
     let last = 0;
@@ -423,8 +411,6 @@ TelemetryPing.prototype = {
       return;
     }
 
-    let histogram = Telemetry.getHistogramById("TELEMETRY_MEMORY_REPORTER_MS");
-    let startTime = new Date();
     let e = mgr.enumerateReporters();
     while (e.hasMoreElements()) {
       let mr = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
@@ -441,7 +427,6 @@ TelemetryPing.prototype = {
       catch (e) {
       }
     }
-    histogram.add(new Date() - startTime);
   },
 
   handleMemoryReport: function handleMemoryReport(id, path, units, amount) {
@@ -494,7 +479,7 @@ TelemetryPing.prototype = {
   /** 
    * Make a copy of interesting histograms at startup.
    */
-  gatherStartupHistograms: function gatherStartupHistograms() {
+  gatherStartupInformation: function gatherStartupInformation() {
     let info = Telemetry.registeredHistograms;
     let snapshots = Telemetry.histogramSnapshots;
     for (let name in info) {
@@ -503,6 +488,7 @@ TelemetryPing.prototype = {
         Telemetry.histogramFrom("STARTUP_" + name, name);
       }
     }
+    this._slowSQLStartup = Telemetry.slowSQL;
   },
 
   getCurrentSessionPayload: function getCurrentSessionPayload(reason) {
@@ -811,12 +797,6 @@ TelemetryPing.prototype = {
     }
   },
 
-  testLoadHistograms: function testLoadHistograms(file, sync) {
-    this._pingsLoaded = 0;
-    this._pingLoadsCompleted = 0;
-    this.loadHistograms(file, sync);
-  },
-
   loadSavedPings: function loadSavedPings(sync) {
     let directory = this.ensurePingDirectory();
     let entries = directory.directoryEntries
@@ -953,53 +933,23 @@ TelemetryPing.prototype = {
   getPayload: function getPayload() {
     // This function returns the current Telemetry payload to the caller.
     // We only gather startup info once.
-    if (Object.keys(this._slowSQLStartup).length == 0) {
-      this.gatherStartupHistograms();
-      this._slowSQLStartup = Telemetry.slowSQL;
-    }
+    if (Object.keys(this._slowSQLStartup).length == 0)
+      this.gatherStartupInformation();
     this.gatherMemory();
     return this.getCurrentSessionPayload("gather-payload");
-  },
-
-  gatherStartup: function gatherStartup() {
-    let counters = processInfo.getCounters();
-    if (counters) {
-      [this._startupIO.startupSessionRestoreReadBytes,
-        this._startupIO.startupSessionRestoreWriteBytes] = counters;
-    }
-    this.gatherStartupHistograms();
-    this._slowSQLStartup = Telemetry.slowSQL;
-  },
-
-  enableLoadSaveNotifications: function enableLoadSaveNotifications() {
-    this._doLoadSaveNotifications = true;
-  },
-
-  setAddOns: function setAddOns(aAddOns) {
-    this._addons = aAddOns;
-  },
-
-  sendIdlePing: function sendIdlePing(aTest, aServer) {
-    if (this._isIdleObserver) {
-      idleService.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
-      this._isIdleObserver = false;
-    }
-    if (aTest) {
-      this.send("test-ping", aServer);
-    } else if (Telemetry.canSend) {
-      this.send("idle-daily", aServer);
-    }
-  },
-
-  testPing: function testPing(server) {
-    this.sendIdlePing(true, server);
   },
 
   /**
    * This observer drives telemetry.
    */
   observe: function (aSubject, aTopic, aData) {
+    // Allows to change the server for testing
+    var server = this._server;
+
     switch (aTopic) {
+    case "Add-ons":
+      this._addons = aData;
+      break;
     case "profile-after-change":
       this.setup();
       break;
@@ -1037,7 +987,14 @@ TelemetryPing.prototype = {
       // Check whether debugger was attached during startup
       let debugService = Cc["@mozilla.org/xpcom/debug;1"].getService(Ci.nsIDebug2);
       gWasDebuggerAttached = debugService.isDebuggerAttached;
-      this.gatherStartup();
+      // fall through
+    case "test-gather-startup":
+      var counters = processInfo.getCounters();
+      if (counters) {  
+        [this._startupIO.startupSessionRestoreReadBytes, 
+          this._startupIO.startupSessionRestoreWriteBytes] = counters;
+      }
+      this.gatherStartupInformation();
       break;
     case "idle-daily":
       // Enqueue to main-thread, otherwise components may be inited by the
@@ -1050,8 +1007,31 @@ TelemetryPing.prototype = {
         this._isIdleObserver = true;
       }).bind(this), Ci.nsIThread.DISPATCH_NORMAL);
       break;
+    case "test-save-histograms":
+      this.saveHistograms(aSubject.QueryInterface(Ci.nsIFile), aData != "async");
+      break;
+    case "test-load-histograms":
+      this._pingsLoaded = 0;
+      this._pingLoadsCompleted = 0;
+      this.loadHistograms(aSubject.QueryInterface(Ci.nsIFile), aData != "async");
+      break;
+    case "test-enable-load-save-notifications":
+      this._doLoadSaveNotifications = true;
+      break;
+    case "test-ping":
+      server = aData;
+      // fall through
     case "idle":
-      this.sendIdlePing(false, this._server);
+      if (this._isIdleObserver) {
+        idleService.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
+        this._isIdleObserver = false;
+      }
+      if (aTopic == "test-ping") {
+        this.send("test-ping", server);
+      }
+      else if (Telemetry.canSend && aTopic == "idle") {
+        this.send("idle-daily", server);
+      }
       break;
     case "quit-application-granted":
       if (Telemetry.canSend) {

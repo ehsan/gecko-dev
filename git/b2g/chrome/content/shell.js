@@ -107,9 +107,6 @@ var shell = {
       return;
     }
 
-    // purge the queue.
-    this.CrashSubmit.pruneSavedDumps();
-
     try {
       // Check if we should automatically submit this crash.
       if (Services.prefs.getBoolPref("app.reportCrashes")) {
@@ -137,13 +134,6 @@ var shell = {
       if (network.state == Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED
           && network.type == Ci.nsINetworkInterface.NETWORK_TYPE_WIFI) {
         shell.CrashSubmit.submit(aCrashID);
-
-        // submit the pending queue.
-        let pending = shell.CrashSubmit.pendingIDs();
-        for (let crashid of pending) {
-          shell.CrashSubmit.submit(crashid);
-        }
-
         Services.obs.removeObserver(observer, topic);
       }
     }, "network-interface-state-changed", false);
@@ -417,10 +407,6 @@ var shell = {
           content.removeEventListener('load', shell_homeLoaded);
           shell.isHomeLoaded = true;
 
-#ifdef MOZ_WIDGET_GONK
-          libcutils.property_set('sys.boot_completed', '1');
-#endif
-
           Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
 
           if ('pendingChromeEvents' in shell) {
@@ -636,22 +622,13 @@ var AlertsHelper = {
 
     let topic = detail.type == "desktop-notification-click" ? "alertclickcallback"
                                                             : "alertfinished";
+
     if (uid.startsWith("app-notif")) {
-      try {
-        listener.mm.sendAsyncMessage("app-notification-return", {
-          uid: uid,
-          topic: topic,
-          target: listener.target
-        });
-      } catch(e) {
-        gSystemMessenger.sendMessage("notification", {
-          title: listener.title,
-          body: listener.text,
-          imageURL: listener.imageURL
-        },
-        Services.io.newURI(listener.target, null, null),
-        Services.io.newURI(listener.manifestURL, null, null));
-      }
+      listener.mm.sendAsyncMessage("app-notification-return", {
+        uid: uid,
+        topic: topic,
+        target: listener.target
+      });
     } else if (uid.startsWith("alert")) {
       try {
         listener.observer.observe(null, topic, listener.cookie);
@@ -949,24 +926,6 @@ window.addEventListener('ContentStart', function update_onContentStart() {
       state: aData
     });
 }, "headphones-status-changed", false);
-})();
-
-(function audioChannelChangedTracker() {
-  Services.obs.addObserver(function(aSubject, aTopic, aData) {
-    shell.sendChromeEvent({
-      type: 'audio-channel-changed',
-      channel: aData
-    });
-}, "audio-channel-changed", false);
-})();
-
-(function audioChannelChangedTracker() {
-  Services.obs.addObserver(function(aSubject, aTopic, aData) {
-    shell.sendChromeEvent({
-      type: 'audio-channel-changed',
-      channel: aData
-    });
-}, "audio-channel-changed", false);
 })();
 
 (function recordingStatusTracker() {

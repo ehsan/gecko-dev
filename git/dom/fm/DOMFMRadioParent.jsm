@@ -101,8 +101,7 @@ this.DOMFMRadioParent = {
                       "DOMFMRadio:getPowerState", "DOMFMRadio:getFrequency",
                       "DOMFMRadio:getAntennaState",
                       "DOMFMRadio:seekUp", "DOMFMRadio:seekDown",
-                      "DOMFMRadio:cancelSeek",
-                      "DOMFMRadio:updateVisibility",
+                      "DOMFMRadio:cancelSeek"
                      ];
     this._messages.forEach(function(msgName) {
       ppmm.addMessageListener(msgName, this);
@@ -458,9 +457,6 @@ this.DOMFMRadioParent = {
           this._updateFrequency();
           self._sendMessage("DOMFMRadio:cancelSeek:Return", true, null, msg);
         }
-        break;
-      case "DOMFMRadio:updateVisibility":
-        FMRadio.updateVisible(msg == 'visible');
         break;
     }
   }

@@ -113,30 +113,30 @@ class CompileInfo
         return nlocals() + CountArgSlots(fun());
     }
 
-    uint32_t scopeChainSlot() const {
+    uint32 scopeChainSlot() const {
         return 0;
     }
-    uint32_t thisSlot() const {
+    uint32 thisSlot() const {
         JS_ASSERT(fun());
         return 1;
     }
-    uint32_t firstArgSlot() const {
+    uint32 firstArgSlot() const {
         JS_ASSERT(fun());
         return 2;
     }
-    uint32_t argSlot(uint32_t i) const {
+    uint32 argSlot(uint32 i) const {
         return firstArgSlot() + i;
     }
-    uint32_t firstLocalSlot() const {
+    uint32 firstLocalSlot() const {
         return CountArgSlots(fun());
     }
-    uint32_t localSlot(uint32_t i) const {
+    uint32 localSlot(uint32 i) const {
         return firstLocalSlot() + i;
     }
-    uint32_t firstStackSlot() const {
+    uint32 firstStackSlot() const {
         return firstLocalSlot() + nlocals();
     }
-    uint32_t stackSlot(uint32_t i) const {
+    uint32 stackSlot(uint32 i) const {
         return firstStackSlot() + i;
     }
 

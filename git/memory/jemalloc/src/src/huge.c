@@ -48,8 +48,7 @@ huge_palloc(size_t size, size_t alignment, bool zero)
 	 * it is possible to make correct junk/zero fill decisions below.
 	 */
 	is_zeroed = zero;
-	ret = chunk_alloc(csize, alignment, false, &is_zeroed,
-	    chunk_dss_prec_get());
+	ret = chunk_alloc(csize, alignment, false, &is_zeroed);
 	if (ret == NULL) {
 		base_node_dealloc(node);
 		return (NULL);
@@ -102,7 +101,7 @@ huge_ralloc_no_move(void *ptr, size_t oldsize, size_t size, size_t extra)
 
 void *
 huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
-    size_t alignment, bool zero, bool try_tcache_dalloc)
+    size_t alignment, bool zero)
 {
 	void *ret;
 	size_t copysize;
@@ -181,7 +180,7 @@ huge_ralloc(void *ptr, size_t oldsize, size_t size, size_t extra,
 #endif
 	{
 		memcpy(ret, ptr, copysize);
-		iqallocx(ptr, try_tcache_dalloc);
+		iqalloc(ptr);
 	}
 	return (ret);
 }

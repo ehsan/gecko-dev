@@ -5,6 +5,7 @@
 #ifndef MEDIAENGINEWEBRTC_H_
 #define MEDIAENGINEWEBRTC_H_
 
+#include "prmem.h"
 #include "prcvar.h"
 #include "prthread.h"
 #include "nsIThread.h"

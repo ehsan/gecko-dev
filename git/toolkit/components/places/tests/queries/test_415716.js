@@ -27,46 +27,34 @@ function modHistoryTypes(val){
   return TRANSITION_TYPED;
 }
 
-function run_test()
-{
-  run_next_test();
-}
-
 /**
  * Builds a test database by hand using various times, annotations and
  * visit numbers for this test
  */
-add_task(function test_buildTestDatabase()
-{
+function buildTestDatabase() {
   // This is the set of visits that we will match - our min visit is 2 so that's
   // why we add more visits to the same URIs.
   let testURI = uri("http://www.foo.com");
-  let places = [];
 
-  for (let i = 0; i < 12; ++i) {
-    places.push({
-      uri: testURI,
-      transition: modHistoryTypes(i),
-      visitDate: today
-    });
-  }
-
-  testURI = uri("http://foo.com/youdontseeme.html");
-  let testAnnoName = "moz-test-places/testing123";
-  let testAnnoVal = "test";
-  for (let i = 0; i < 12; ++i) {
-    places.push({
-      uri: testURI,
-      transition: modHistoryTypes(i),
-      visitDate: today
-    });
-  }
-
-  yield promiseAddVisits(places);
-
-  PlacesUtils.annotations.setPageAnnotation(testURI, testAnnoName,
-                                            testAnnoVal, 0, 0);
-});
+  PlacesUtils.history.runInBatchMode({
+    runBatched: function (aUserData) {
+      for (let i = 0; i < 12; ++i) {
+        PlacesUtils.history.addVisit(testURI, today, null, modHistoryTypes(i),
+                                     false, 0);
+      }
+      
+      testURI = uri("http://foo.com/youdontseeme.html");
+      let testAnnoName = "moz-test-places/testing123";
+      let testAnnoVal = "test";
+      for (let i = 0; i < 12; ++i) {
+        PlacesUtils.history.addVisit(testURI, today, null, modHistoryTypes(i),
+                                     false, 0);
+      }
+      PlacesUtils.annotations.setPageAnnotation(testURI, testAnnoName,
+                                                testAnnoVal, 0, 0);
+    }
+  }, null);
+}
 
 /**
  * This test will test Queries that use relative Time Range, minVists, maxVisits,
@@ -77,8 +65,8 @@ add_task(function test_buildTestDatabase()
  * minVisits == 2 &&
  * maxVisits == 10 
  */
-add_task(function test_execute()
-{
+function run_test() {
+  buildTestDatabase();
   let query = PlacesUtils.history.getNewQuery();
   query.annotation = "moz-test-places/testing123";
   query.beginTime = daybefore * 1000;
@@ -105,4 +93,4 @@ add_task(function test_execute()
   }
   do_check_eq(cc,0);
   root.containerOpen = false;
-});
+}

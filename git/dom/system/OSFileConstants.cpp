@@ -28,8 +28,6 @@
 // Used to provide information on the OS
 
 #include "nsThreadUtils.h"
-#include "nsIObserverService.h"
-#include "nsIObserver.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsIXULRuntime.h"
 #include "nsXPCOMCIDInternal.h"
@@ -93,7 +91,6 @@ nsresult GetPathToSpecialDir(const char *aKey, nsString& aOutPath)
   nsCOMPtr<nsIFile> file;
   nsresult rv = NS_GetSpecialDirectory(aKey, getter_AddRefs(file));
   if (NS_FAILED(rv) || !file) {
-    aOutPath.SetIsVoid(true);
     return rv;
   }
 
@@ -102,46 +99,6 @@ nsresult GetPathToSpecialDir(const char *aKey, nsString& aOutPath)
     aOutPath.SetIsVoid(true);
   }
   return rv;
-}
-
-/**
- * In some cases, OSFileConstants may be instantiated before the
- * profile is setup. In such cases, |OS.Constants.Path.profileDir| and
- * |OS.Constants.Path.localProfileDir| are undefined. However, we want
- * to ensure that this does not break existing code, so that future
- * workers spawned after the profile is setup have these constants.
- *
- * For this purpose, we register an observer to set |gPaths->profileDir|
- * and |gPaths->localProfileDir| once the profile is setup.
- */
-class DelayedPathSetter MOZ_FINAL: public nsIObserver
-{
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  DelayedPathSetter() {}
-};
-
-NS_IMPL_ISUPPORTS1(DelayedPathSetter, nsIObserver)
-
-NS_IMETHODIMP
-DelayedPathSetter::Observe(nsISupports*, const char * aTopic, const PRUnichar*)
-{
-  if (gPaths == nullptr) {
-    // Initialization of gPaths has not taken place, something is wrong,
-    // don't make things worse.
-    return NS_OK;
-  }
-  nsresult rv = GetPathToSpecialDir(NS_APP_USER_PROFILE_50_DIR, gPaths->profileDir);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  rv = GetPathToSpecialDir(NS_APP_USER_PROFILE_LOCAL_50_DIR, gPaths->localProfileDir);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  return NS_OK;
 }
 
 /**
@@ -177,32 +134,12 @@ nsresult InitOSFileConstants()
     return rv;
   }
 
-  // Setup profileDir and localProfileDir immediately if possible (we
-  // assume that NS_APP_USER_PROFILE_50_DIR and
-  // NS_APP_USER_PROFILE_LOCAL_50_DIR are set simultaneously)
-  rv = GetPathToSpecialDir(NS_APP_USER_PROFILE_50_DIR, paths->profileDir);
-  if (NS_SUCCEEDED(rv)) {
-    rv = GetPathToSpecialDir(NS_APP_USER_PROFILE_LOCAL_50_DIR, paths->localProfileDir);
-  }
-
-  // Otherwise, delay setup of profileDir/localProfileDir until they
-  // become available.
-  if (NS_FAILED(rv)) {
-    nsCOMPtr<nsIObserverService> obsService = do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    nsRefPtr<DelayedPathSetter> pathSetter = new DelayedPathSetter();
-    rv = obsService->AddObserver(pathSetter, "profile-do-change", false);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-  }
-
   // For other directories, ignore errors (they may be undefined on
   // some platforms or in non-Firefox embeddings of Gecko).
 
   GetPathToSpecialDir(NS_OS_TEMP_DIR, paths->tmpDir);
+  GetPathToSpecialDir(NS_APP_USER_PROFILE_50_DIR, paths->profileDir);
+  GetPathToSpecialDir(NS_APP_USER_PROFILE_LOCAL_50_DIR, paths->localProfileDir);
 
   gPaths = paths.forget();
   return NS_OK;
@@ -742,15 +679,11 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
     return false;
   }
 
-  // Configure profileDir only if it is available at this stage
-  if (!gPaths->profileDir.IsVoid()
-    && !SetStringProperty(cx, objPath, "profileDir", gPaths->profileDir)) {
+  if (!SetStringProperty(cx, objPath, "profileDir", gPaths->profileDir)) {
     return false;
   }
 
-  // Configure localProfileDir only if it is available at this stage
-  if (!gPaths->localProfileDir.IsVoid()
-    && !SetStringProperty(cx, objPath, "localProfileDir", gPaths->localProfileDir)) {
+  if (!SetStringProperty(cx, objPath, "localProfileDir", gPaths->localProfileDir)) {
     return false;
   }
 

@@ -131,8 +131,6 @@ public:
     // called when a socket event is handled
     void OnSocketEvent(uint32_t type, nsresult status, nsISupports *param);
 
-    uint64_t ByteCountReceived() { return mInput.ByteCount(); }
-    uint64_t ByteCountSent() { return mOutput.ByteCount(); }
 protected:
 
     virtual ~nsSocketTransport();

@@ -545,29 +545,26 @@ nsWindow::ConstrainPosition(bool aAllowSlop, int32_t *aX, int32_t *aY)
 }
 
 NS_IMETHODIMP
-nsWindow::Move(double aX, double aY)
+nsWindow::Move(int32_t aX, int32_t aY)
 {
-    LOG(("nsWindow::Move [%p] %f %f\n", (void *)this,
+    LOG(("nsWindow::Move [%p] %d %d\n", (void *)this,
          aX, aY));
-
-    int32_t x = NSToIntRound(aX);
-    int32_t y = NSToIntRound(aY);
 
     if (mIsTopLevel) {
         SetSizeMode(nsSizeMode_Normal);
     }
 
-    if (x == mBounds.x && y == mBounds.y)
+    if (aX == mBounds.x && aY == mBounds.y)
         return NS_OK;
 
     mNeedsMove = false;
 
     // update the bounds
-    QPointF pos( x, y );
+    QPointF pos( aX, aY );
     if (mIsTopLevel) {
         QWidget *widget = GetViewWidget();
         NS_ENSURE_TRUE(widget, NS_OK);
-        widget->move(x, y);
+        widget->move(aX, aY);
     }
     else if (mWidget) {
         // the position of the widget is set relative to the parent
@@ -2955,10 +2952,10 @@ nsWindow::Show(bool aState)
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(double aWidth, int32_t double, bool aRepaint)
+nsWindow::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint)
 {
-    mBounds.width = NSToIntRound(aWidth);
-    mBounds.height = NSToIntRound(aHeight);
+    mBounds.width = aWidth;
+    mBounds.height = aHeight;
 
     if (!mWidget)
         return NS_OK;
@@ -2992,7 +2989,7 @@ nsWindow::Resize(double aWidth, int32_t double, bool aRepaint)
         // For widgets that we listen for resizes for (widgets created
         // with native parents) we apparently _always_ have to resize.  I
         // dunno why, but apparently we're lame like that.
-        NativeResize(mBounds.width, mBounds.height, aRepaint);
+        NativeResize(aWidth, aHeight, aRepaint);
     }
     else {
         mNeedsResize = true;
@@ -3000,8 +2997,9 @@ nsWindow::Resize(double aWidth, int32_t double, bool aRepaint)
 
     // synthesize a resize event if this isn't a toplevel
     if (mIsTopLevel || mListenForResizes) {
+        nsIntRect rect(mBounds.x, mBounds.y, aWidth, aHeight);
         nsEventStatus status;
-        DispatchResizeEvent(mBounds, status);
+        DispatchResizeEvent(rect, status);
     }
 
     NotifyRollupGeometryChange();
@@ -3009,13 +3007,13 @@ nsWindow::Resize(double aWidth, int32_t double, bool aRepaint)
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
+nsWindow::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
                  bool aRepaint)
 {
-    mBounds.x = NSToIntRound(aX);
-    mBounds.y = NSToIntRound(aY);
-    mBounds.width = NSToIntRound(aWidth);
-    mBounds.height = NSToIntRound(aHeight);
+    mBounds.x = aX;
+    mBounds.y = aY;
+    mBounds.width = aWidth;
+    mBounds.height = aHeight;
 
     mPlaced = true;
 
@@ -3027,8 +3025,7 @@ nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
         // Are the bounds sane?
         if (AreBoundsSane()) {
             // Yep?  Resize the window
-            NativeResize(mBounds.x, mBounds.y, mBounds.width, mBounds.height,
-                         aRepaint);
+            NativeResize(aX, aY, aWidth, aHeight, aRepaint);
             // Does it need to be shown because it was previously insane?
             if (mNeedsShow)
                 NativeShow(true);
@@ -3052,8 +3049,7 @@ nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
         // For widgets that we listen for resizes for (widgets created
         // with native parents) we apparently _always_ have to resize.  I
         // dunno why, but apparently we're lame like that.
-        NativeResize(mBounds.x, mBounds.y, mBounds.width, mBounds.height,
-                     aRepaint);
+        NativeResize(aX, aY, aWidth, aHeight, aRepaint);
     }
     else {
         mNeedsResize = true;
@@ -3062,8 +3058,9 @@ nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
 
     if (mIsTopLevel || mListenForResizes) {
         // synthesize a resize event
+        nsIntRect rect(aX, aY, aWidth, aHeight);
         nsEventStatus status;
-        DispatchResizeEvent(mBounds, status);
+        DispatchResizeEvent(rect, status);
     }
 
     if (aRepaint)

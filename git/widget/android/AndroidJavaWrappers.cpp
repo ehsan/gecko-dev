@@ -39,11 +39,8 @@ jfieldID AndroidGeckoEvent::jEndField = 0;
 jfieldID AndroidGeckoEvent::jPointerIndexField = 0;
 jfieldID AndroidGeckoEvent::jRangeTypeField = 0;
 jfieldID AndroidGeckoEvent::jRangeStylesField = 0;
-jfieldID AndroidGeckoEvent::jRangeLineStyleField = 0;
-jfieldID AndroidGeckoEvent::jRangeBoldLineField = 0;
 jfieldID AndroidGeckoEvent::jRangeForeColorField = 0;
 jfieldID AndroidGeckoEvent::jRangeBackColorField = 0;
-jfieldID AndroidGeckoEvent::jRangeLineColorField = 0;
 jfieldID AndroidGeckoEvent::jLocationField = 0;
 jfieldID AndroidGeckoEvent::jBandwidthField = 0;
 jfieldID AndroidGeckoEvent::jCanBeMeteredField = 0;
@@ -237,11 +234,8 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jPointerIndexField = getField("mPointerIndex", "I");
     jRangeTypeField = getField("mRangeType", "I");
     jRangeStylesField = getField("mRangeStyles", "I");
-    jRangeLineStyleField = getField("mRangeLineStyle", "I");
-    jRangeBoldLineField = getField("mRangeBoldLine", "Z");
     jRangeForeColorField = getField("mRangeForeColor", "I");
     jRangeBackColorField = getField("mRangeBackColor", "I");
-    jRangeLineColorField = getField("mRangeLineColor", "I");
     jLocationField = getField("mLocation", "Landroid/location/Location;");
     jBandwidthField = getField("mBandwidth", "D");
     jCanBeMeteredField = getField("mCanBeMetered", "Z");
@@ -581,16 +575,10 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
                     mAction == IME_ADD_COMPOSITION_RANGE) {
                 mRangeType = jenv->GetIntField(jobj, jRangeTypeField);
                 mRangeStyles = jenv->GetIntField(jobj, jRangeStylesField);
-                mRangeLineStyle =
-                    jenv->GetIntField(jobj, jRangeLineStyleField);
-                mRangeBoldLine =
-                    jenv->GetBooleanField(jobj, jRangeBoldLineField);
                 mRangeForeColor =
                     jenv->GetIntField(jobj, jRangeForeColorField);
                 mRangeBackColor =
                     jenv->GetIntField(jobj, jRangeBackColorField);
-                mRangeLineColor =
-                    jenv->GetIntField(jobj, jRangeLineColorField);
             }
             break;
 
@@ -675,13 +663,6 @@ void
 AndroidGeckoEvent::Init(int aType)
 {
     mType = aType;
-}
-
-void
-AndroidGeckoEvent::Init(int aType, int aAction)
-{
-    mType = aType;
-    mAction = aAction;
 }
 
 void

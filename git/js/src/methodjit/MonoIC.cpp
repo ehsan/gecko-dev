@@ -379,11 +379,6 @@ ic::Equality(VMFrame &f, ic::EqualityICInfo *ic)
     return ic->stub(f);
 }
 
-// Disable PGO as a precaution (see bug 791214).
-#if defined(_MSC_VER)
-# pragma optimize("g", off)
-#endif
-
 static void * JS_FASTCALL
 SlowCallFromIC(VMFrame &f, ic::CallICInfo *ic)
 {
@@ -889,7 +884,7 @@ class CallCompiler : public BaseCompiler
         masm.storePtr(ImmPtr((void *) ic.frameSize.rejoinState(f.pc(), false)),
                       FrameAddress(offsetof(VMFrame, stubRejoin)));
 
-        masm.bumpStubCount(f.script(), f.pc(), Registers::tempCallReg());
+        masm.bumpStubCount(f.script().get(nogc), f.pc(), Registers::tempCallReg());
 
         /* Try and compile. On success we get back the nmap pointer. */
         void *compilePtr = JS_FUNC_TO_DATA_PTR(void *, stubs::CompileFunction);
@@ -1006,7 +1001,7 @@ class CallCompiler : public BaseCompiler
         /* Guard that it's the same script. */
         Address scriptAddr(ic.funObjReg, JSFunction::offsetOfNativeOrScript());
         Jump funGuard = masm.branchPtr(Assembler::NotEqual, scriptAddr,
-                                       ImmPtr(obj->toFunction()->nonLazyScript()));
+                                       ImmPtr(obj->toFunction()->nonLazyScript().get(nogc)));
         Jump done = masm.jump();
 
         LinkerHelper linker(masm, JSC::JAEGER_CODE);
@@ -1264,8 +1259,9 @@ class CallCompiler : public BaseCompiler
             return NULL;
         }
 
+        AutoAssertNoGC nogc;
         JS_ASSERT(fun);
-        UnrootedScript script = fun->nonLazyScript();
+        JSScript *script = fun->nonLazyScript().get(nogc);
         JS_ASSERT(script);
 
         uint32_t flags = callingNew ? StackFrame::CONSTRUCTING : 0;
@@ -1428,10 +1424,6 @@ ic::SplatApplyArgs(VMFrame &f)
     return true;
 }
 
-#if defined(_MSC_VER)
-# pragma optimize("", on)
-#endif
-
 void
 ic::GenerateArgumentCheckStub(VMFrame &f)
 {
@@ -1441,7 +1433,7 @@ ic::GenerateArgumentCheckStub(VMFrame &f)
     JITScript *jit = f.jit();
     StackFrame *fp = f.fp();
     JSFunction *fun = fp->fun();
-    UnrootedScript script = fun->nonLazyScript();
+    JSScript *script = fun->nonLazyScript().get(nogc);
 
     if (jit->argsCheckPool)
         jit->resetArgsCheck();

@@ -23,7 +23,7 @@ class uiaRawElmProvider MOZ_FINAL : public IAccessibleEx,
                                     public IRawElementProviderSimple
 {
 public:
-  uiaRawElmProvider(AccessibleWrap* aAcc) : mRefCnt(0), mAcc(aAcc) { }
+  uiaRawElmProvider(AccessibleWrap* aAcc) : mAcc(aAcc), mRefCnt(0) { }
 
   // IUnknown
   DECL_IUNKNOWN

@@ -681,31 +681,6 @@ nsHttpChannel::ContinueHandleAsyncFallback(nsresult rv)
     return rv;
 }
 
-void
-nsHttpChannel::SetupTransactionLoadGroupInfo()
-{
-    // Find the loadgroup at the end of the chain in order
-    // to make sure all channels derived from the load group
-    // use the same connection scope.
-    nsCOMPtr<nsILoadGroup> rootLoadGroup = mLoadGroup;
-    while (rootLoadGroup) {
-        nsCOMPtr<nsILoadGroup> tmp;
-        rootLoadGroup->GetLoadGroup(getter_AddRefs(tmp));
-        if (tmp)
-            rootLoadGroup.swap(tmp);
-        else
-            break;
-    }
-
-    // Set the load group connection scope on the transaction
-    if (rootLoadGroup) {
-        nsCOMPtr<nsILoadGroupConnectionInfo> ci;
-        rootLoadGroup->GetConnectionInfo(getter_AddRefs(ci));
-        if (ci)
-            mTransaction->SetLoadGroupConnectionInfo(ci);
-    }
-}
-
 nsresult
 nsHttpChannel::SetupTransaction()
 {
@@ -879,8 +854,6 @@ nsHttpChannel::SetupTransaction()
         return rv;
     }
 
-    SetupTransactionLoadGroupInfo();
-    
     rv = nsInputStreamPump::Create(getter_AddRefs(mTransactionPump),
                                    responseStream);
     return rv;
@@ -4444,13 +4417,6 @@ nsHttpChannel::BeginConnect()
     if ((mLoadFlags & VALIDATE_ALWAYS) || 
         (BYPASS_LOCAL_CACHE(mLoadFlags)))
         mCaps |= NS_HTTP_REFRESH_DNS;
-
-    if (gHttpHandler->CritialRequestPrioritization()) {
-        if (mLoadAsBlocking)
-            mCaps |= NS_HTTP_LOAD_AS_BLOCKING;
-        if (mLoadUnblocked)
-            mCaps |= NS_HTTP_LOAD_UNBLOCKED;
-    }
 
     // Force-Reload should reset the persistent connection pool for this host
     if (mLoadFlags & LOAD_FRESH_CONNECTION) {

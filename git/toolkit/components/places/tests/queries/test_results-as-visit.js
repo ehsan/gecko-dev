@@ -28,18 +28,12 @@ function createTestData() {
   pages.forEach(generateVisits);
 }
 
-/**
- * This test will test Queries that use relative search terms and URI options
- */
-function run_test()
-{
-  run_next_test();
-}
-
-add_task(function test_results_as_visit()
-{
+ /**
+  * This test will test Queries that use relative search terms and URI options
+  */
+ function run_test() {
    createTestData();
-   yield task_populateDB(testData);
+   populateDB(testData);
    var query = PlacesUtils.history.getNewQuery();
    query.searchTerms = "moz";
    query.minVisits = 2;
@@ -71,7 +65,7 @@ add_task(function test_results_as_visit()
                 uri: "http://foo.com/added.html",
                 title: "ab moz" });
    }
-   yield task_populateDB(tmp);
+   populateDB(tmp);
    for (var i=0; i < 2; i++)
      do_check_eq(root.getChild(i).title, "ab moz");
 
@@ -80,23 +74,28 @@ add_task(function test_results_as_visit()
    var change2 = [{ isVisit: true,
                     title: "moz",
                     uri: "http://foo.mail.com/changeme2.html" }];
-   yield task_populateDB(change2);
+   populateDB(change2);
    do_check_true(isInResult(change2, root));
 
-   // Update some visits - add one and take one out of query set, and simply
-   // change one so that it still applies to the query.
-   LOG("Updating More Items");
-   var change3 = [{ isVisit: true,
-                    lastVisit: now++,
-                    uri: "http://foo.mail.com/changeme1.html",
-                    title: "foo"},
-                  { isVisit: true,
-                    lastVisit: now++,
-                    uri: "http://foo.mail.com/changeme3.html",
-                    title: "moz",
-                    isTag: true,
-                    tagArray: ["foo", "moz"] }];
-   yield task_populateDB(change3);
+   // Update some in batch mode - add one and take one out of query set,
+   // and simply change one so that it still applies to the query
+   LOG("Updating Items in batch");
+   var updateBatch = {
+     runBatched: function (aUserData) {
+       var batchchange = [{ isVisit: true,
+                            lastVisit: now++,
+                            uri: "http://foo.mail.com/changeme1.html",
+                            title: "foo"},
+                          { isVisit: true,
+                            lastVisit: now++,
+                            uri: "http://foo.mail.com/changeme3.html",
+                            title: "moz",
+                            isTag: true,
+                            tagArray: ["foo", "moz"] }];
+       populateDB(batchchange);
+     }
+   };
+   PlacesUtils.history.runInBatchMode(updateBatch, null);
    do_check_false(isInResult({uri: "http://foo.mail.com/changeme1.html"}, root));
    do_check_true(isInResult({uri: "http://foo.mail.com/changeme3.html"}, root));
 
@@ -106,8 +105,8 @@ add_task(function test_results_as_visit()
                     lastVisit: now++,
                     uri: "http://moilla.com/",
                     title: "mo,z" }];
-   yield task_populateDB(change4);
+   populateDB(change4);
    do_check_false(isInResult(change4, root));
 
    root.containerOpen = false;
-});
+}

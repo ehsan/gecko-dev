@@ -51,8 +51,6 @@
 #include "mozilla/Telemetry.h"
 #include "mozilla/Types.h"
 #include <ctime>
-#include <cstdlib> // for std::abs(int/long)
-#include <cmath> // for std::abs(float/double)
 
 using namespace mozilla;
 using namespace mozilla::css;
@@ -1971,10 +1969,10 @@ ComputeRadialGradientLine(nsPresContext* aPresContext,
 
   // Compute gradient shape: the x and y radii of an ellipse.
   double radiusX, radiusY;
-  double leftDistance = std::abs(aLineStart->x);
-  double rightDistance = std::abs(aBoxSize.width - aLineStart->x);
-  double topDistance = std::abs(aLineStart->y);
-  double bottomDistance = std::abs(aBoxSize.height - aLineStart->y);
+  double leftDistance = NS_ABS(aLineStart->x);
+  double rightDistance = NS_ABS(aBoxSize.width - aLineStart->x);
+  double topDistance = NS_ABS(aLineStart->y);
+  double bottomDistance = NS_ABS(aBoxSize.height - aLineStart->y);
   switch (aGradient->mSize) {
   case NS_STYLE_GRADIENT_SIZE_CLOSEST_SIDE:
     radiusX = NS_MIN(leftDistance, rightDistance);
@@ -2845,8 +2843,7 @@ nsCSSRendering::ComputeBackgroundPositioningArea(nsPresContext* aPresContext,
   }
 
   nsIFrame* attachedToFrame = aForFrame;
-  if (NS_STYLE_BG_ATTACHMENT_FIXED == aLayer.mAttachment &&
-      !aLayer.mImage.IsEmpty()) {
+  if (NS_STYLE_BG_ATTACHMENT_FIXED == aLayer.mAttachment) {
     // If it's a fixed background attachment, then the image is placed
     // relative to the viewport, which is the area of the root frame
     // in a screen context or the page content frame in a print context.
@@ -4690,19 +4687,26 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
 bool
 nsImageRenderer::IsRasterImage()
 {
-  if (mType != eStyleImageType_Image || !mImageContainer)
+  if (mType != eStyleImageType_Image)
     return false;
-  return mImageContainer->GetType() == imgIContainer::TYPE_RASTER;
+  nsCOMPtr<imgIContainer> img;
+  if (NS_FAILED(mImage->GetImageData()->GetImage(getter_AddRefs(img))))
+    return false;
+  return img->GetType() == imgIContainer::TYPE_RASTER;
 }
 
 already_AddRefed<mozilla::layers::ImageContainer>
 nsImageRenderer::GetContainer(LayerManager* aManager)
 {
-  if (mType != eStyleImageType_Image || !mImageContainer)
+  if (mType != eStyleImageType_Image)
+    return nullptr;
+  nsCOMPtr<imgIContainer> img;
+  nsresult rv = mImage->GetImageData()->GetImage(getter_AddRefs(img));
+  if (NS_FAILED(rv))
     return nullptr;
 
   nsRefPtr<ImageContainer> container;
-  nsresult rv = mImageContainer->GetImageContainer(aManager, getter_AddRefs(container));
+  rv = img->GetImageContainer(aManager, getter_AddRefs(container));
   NS_ENSURE_SUCCESS(rv, nullptr);
   return container.forget();
 }

@@ -127,16 +127,16 @@ class LModI : public LBinaryMath<3>
 
 class LModPowTwoI : public LInstructionHelper<1, 1, 0>
 {
-    const int32_t shift_;
+    const int32 shift_;
 
   public:
     LIR_HEADER(ModPowTwoI);
-    int32_t shift()
+    int32 shift()
     {
         return shift_;
     }
 
-    LModPowTwoI(const LAllocation &lhs, int32_t shift)
+    LModPowTwoI(const LAllocation &lhs, int32 shift)
       : shift_(shift)
     {
         setOperand(0, lhs);
@@ -145,19 +145,19 @@ class LModPowTwoI : public LInstructionHelper<1, 1, 0>
 
 class LModMaskI : public LInstructionHelper<1, 1, 1>
 {
-    const int32_t shift_;
+    const int32 shift_;
 
   public:
     LIR_HEADER(ModMaskI);
 
-    LModMaskI(const LAllocation &lhs, const LDefinition &temp1, int32_t shift)
+    LModMaskI(const LAllocation &lhs, const LDefinition &temp1, int32 shift)
       : shift_(shift)
     {
         setOperand(0, lhs);
         setTemp(0, temp1);
     }
 
-    int32_t shift() const {
+    int32 shift() const {
         return shift_;
     }
 };

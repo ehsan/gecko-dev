@@ -3,16 +3,29 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jsapi.h"
 #include "nsDOMParser.h"
+#include "nsIURI.h"
+#include "nsIChannel.h"
+#include "nsILoadGroup.h"
+#include "nsIInputStream.h"
 #include "nsNetUtil.h"
 #include "nsStringStream.h"
+#include "nsIDOMDocument.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIPrincipal.h"
+#include "nsDOMClassInfoID.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsStreamUtils.h"
+#include "nsThreadUtils.h"
+#include "nsNetCID.h"
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
 #include "nsError.h"
+#include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
+#include "mozilla/AutoRestore.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -27,12 +40,15 @@ nsDOMParser::~nsDOMParser()
 {
 }
 
+DOMCI_DATA(DOMParser, nsDOMParser)
+
 // QueryInterface implementation for nsDOMParser
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMParser)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMParser)
   NS_INTERFACE_MAP_ENTRY(nsIDOMParser)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMParser)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(nsDOMParser, mOwner)
@@ -45,9 +61,9 @@ nsDOMParser::ParseFromString(const nsAString& aStr, SupportedType aType,
                              ErrorResult& rv)
 {
   nsCOMPtr<nsIDOMDocument> domDocument;
-  rv = ParseFromString(aStr,
-                       SupportedTypeValues::strings[aType].value,
-                       getter_AddRefs(domDocument));
+  rv = nsDOMParser::ParseFromString(PromiseFlatString(aStr).get(),
+                                    SupportedTypeValues::strings[aType].value,
+                                    getter_AddRefs(domDocument));
   nsCOMPtr<nsIDocument> document(do_QueryInterface(domDocument));
   return document.forget();
 }
@@ -58,16 +74,6 @@ nsDOMParser::ParseFromString(const PRUnichar *str,
                              nsIDOMDocument **aResult)
 {
   NS_ENSURE_ARG(str);
-  // Converting a string to an enum value manually is a bit of a pain,
-  // so let's just use a helper that takes a content-type string.
-  return ParseFromString(nsDependentString(str), contentType, aResult);
-}
-
-nsresult
-nsDOMParser::ParseFromString(const nsAString& str,
-                             const char *contentType,
-                             nsIDOMDocument **aResult)
-{
   NS_ENSURE_ARG_POINTER(aResult);
 
   nsresult rv;
@@ -90,7 +96,8 @@ nsDOMParser::ParseFromString(const nsAString& str,
     // And the right principal
     document->SetPrincipal(mPrincipal);
 
-    rv = nsContentUtils::ParseDocumentHTML(str, document, false);
+    nsDependentString sourceBuffer(str);
+    rv = nsContentUtils::ParseDocumentHTML(sourceBuffer, document, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
     domDocument.forget(aResult);
@@ -420,7 +427,7 @@ nsDOMParser::InitInternal(nsISupports* aOwner, nsIPrincipal* prin,
 
     nsCOMPtr<nsIDocument> doc;
     nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aOwner);
-    if (window) {
+    if (aOwner) {
       nsCOMPtr<nsIDOMDocument> domdoc = window->GetExtantDocument();
       doc = do_QueryInterface(domdoc);
     }
@@ -501,10 +508,10 @@ nsDOMParser::SetUpDocument(DocumentFlavor aFlavor, nsIDOMDocument** aResult)
   // work if the document has a null principal, so use
   // mOriginalPrincipal when creating the document, then reset the
   // principal.
-  return NS_NewDOMDocument(aResult, EmptyString(), EmptyString(), nullptr,
-                           mDocumentURI, mBaseURI,
-                           mOriginalPrincipal,
-                           true,
-                           scriptHandlingObject,
-                           aFlavor);
+  return nsContentUtils::CreateDocument(EmptyString(), EmptyString(), nullptr,
+                                        mDocumentURI, mBaseURI,
+                                        mOriginalPrincipal,
+                                        scriptHandlingObject,
+                                        aFlavor,
+                                        aResult);
 }

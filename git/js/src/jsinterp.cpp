@@ -95,35 +95,6 @@ CallThisObjectHook(JSContext *cx, HandleObject obj, Value *argv)
     return thisp;
 }
 
-bool
-js::BoxNonStrictThis(JSContext *cx, MutableHandleValue thisv, bool *modified)
-{
-    /*
-     * Check for SynthesizeFrame poisoning and fast constructors which
-     * didn't check their callee properly.
-     */
-    JS_ASSERT(!thisv.isMagic());
-    *modified = false;
-
-    if (thisv.isNullOrUndefined()) {
-        Rooted<GlobalObject*> global(cx, cx->global());
-        JSObject *thisp = JSObject::thisObject(cx, global);
-        if (!thisp)
-            return false;
-        thisv.set(ObjectValue(*thisp));
-        *modified = true;
-        return true;
-    }
-
-    if (!thisv.isObject()) {
-        if (!js_PrimitiveToObject(cx, thisv.address()))
-            return false;
-        *modified = true;
-    }
-
-    return true;
-}
-
 /*
  * ECMA requires "the global object", but in embeddings such as the browser,
  * which have multiple top-level objects (windows, frames, etc. in the DOM),
@@ -146,19 +117,28 @@ js::BoxNonStrictThis(JSContext *cx, const CallReceiver &call)
      * Check for SynthesizeFrame poisoning and fast constructors which
      * didn't check their callee properly.
      */
-    RootedValue thisv(cx, call.thisv());
+    Value thisv = call.thisv();
     JS_ASSERT(!thisv.isMagic());
 
 #ifdef DEBUG
     JSFunction *fun = call.callee().isFunction() ? call.callee().toFunction() : NULL;
-    JS_ASSERT_IF(fun && fun->isInterpreted(), !fun->strict());
+    JS_ASSERT_IF(fun && fun->isInterpreted(), !fun->inStrictMode());
 #endif
 
-    bool modified;
-    if (!BoxNonStrictThis(cx, &thisv, &modified))
-        return false;
-    if (modified)
+    if (thisv.isNullOrUndefined()) {
+        Rooted<GlobalObject*> global(cx, &call.callee().global());
+        JSObject *thisp = JSObject::thisObject(cx, global);
+        if (!thisp)
+            return false;
+        call.setThis(ObjectValue(*thisp));
+        return true;
+    }
+
+    if (!thisv.isObject()) {
+        if (!js_PrimitiveToObject(cx, &thisv))
+            return false;
         call.setThis(thisv);
+    }
 
     return true;
 }
@@ -887,16 +867,16 @@ TryNoteIter::settle()
     }
 }
 
-#define PUSH_COPY(v)             do { *regs.sp++ = v; assertSameCompartmentDebugOnly(cx, regs.sp[-1]); } while (0)
+#define PUSH_COPY(v)             do { *regs.sp++ = v; assertSameCompartment(cx, regs.sp[-1]); } while (0)
 #define PUSH_COPY_SKIP_CHECK(v)  *regs.sp++ = v
 #define PUSH_NULL()              regs.sp++->setNull()
 #define PUSH_UNDEFINED()         regs.sp++->setUndefined()
 #define PUSH_BOOLEAN(b)          regs.sp++->setBoolean(b)
 #define PUSH_DOUBLE(d)           regs.sp++->setDouble(d)
 #define PUSH_INT32(i)            regs.sp++->setInt32(i)
-#define PUSH_STRING(s)           do { regs.sp++->setString(s); assertSameCompartmentDebugOnly(cx, regs.sp[-1]); } while (0)
-#define PUSH_OBJECT(obj)         do { regs.sp++->setObject(obj); assertSameCompartmentDebugOnly(cx, regs.sp[-1]); } while (0)
-#define PUSH_OBJECT_OR_NULL(obj) do { regs.sp++->setObjectOrNull(obj); assertSameCompartmentDebugOnly(cx, regs.sp[-1]); } while (0)
+#define PUSH_STRING(s)           do { regs.sp++->setString(s); assertSameCompartment(cx, regs.sp[-1]); } while (0)
+#define PUSH_OBJECT(obj)         do { regs.sp++->setObject(obj); assertSameCompartment(cx, regs.sp[-1]); } while (0)
+#define PUSH_OBJECT_OR_NULL(obj) do { regs.sp++->setObjectOrNull(obj); assertSameCompartment(cx, regs.sp[-1]); } while (0)
 #define PUSH_HOLE()              regs.sp++->setMagic(JS_ARRAY_HOLE)
 #define POP_COPY_TO(v)           v = *--regs.sp
 #define POP_RETURN_VALUE()       regs.fp()->setReturnValue(*--regs.sp)
@@ -1227,13 +1207,6 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
     /* The REJOIN mode acts like the normal mode, except the prologue is skipped. */
     if (interpMode == JSINTERP_REJOIN)
         interpMode = JSINTERP_NORMAL;
-
-    /*
-     * The RETHROW mode acts like a bailout mode, except that it resume an
-     * exception instead of resuming the script.
-     */
-    if (interpMode == JSINTERP_RETHROW)
-        goto error;
 
     /*
      * It is important that "op" be initialized before calling DO_OP because
@@ -2089,7 +2062,7 @@ BEGIN_CASE(JSOP_DELNAME)
         goto error;
 
     /* Strict mode code should never contain JSOP_DELNAME opcodes. */
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     /* ECMA says to return true if name is undefined or inherited. */
     PUSH_BOOLEAN(true);
@@ -2110,7 +2083,7 @@ BEGIN_CASE(JSOP_DELPROP)
     FETCH_OBJECT(cx, -1, obj);
 
     MutableHandleValue res = MutableHandleValue::fromMarkedLocation(&regs.sp[-1]);
-    if (!JSObject::deleteProperty(cx, obj, name, res, script->strict))
+    if (!JSObject::deleteProperty(cx, obj, name, res, script->strictModeCode))
         goto error;
 }
 END_CASE(JSOP_DELPROP)
@@ -2125,7 +2098,7 @@ BEGIN_CASE(JSOP_DELELEM)
     propval = regs.sp[-1];
 
     MutableHandleValue res = MutableHandleValue::fromMarkedLocation(&regs.sp[-2]);
-    if (!JSObject::deleteByValue(cx, obj, propval, res, script->strict))
+    if (!JSObject::deleteByValue(cx, obj, propval, res, script->strictModeCode))
         goto error;
 
     regs.sp--;
@@ -2230,7 +2203,7 @@ BEGIN_CASE(JSOP_CALLPROP)
     TypeScript::Monitor(cx, script, regs.pc, rval);
 
     regs.sp[-1] = rval;
-    assertSameCompartmentDebugOnly(cx, regs.sp[-1]);
+    assertSameCompartment(cx, regs.sp[-1]);
 }
 END_CASE(JSOP_GETPROP)
 
@@ -2284,7 +2257,7 @@ BEGIN_CASE(JSOP_SETELEM)
     RootedId &id = rootId0;
     FETCH_ELEMENT_ID(obj, -2, id);
     Value &value = regs.sp[-1];
-    if (!SetObjectElementOperation(cx, obj, id, value, script->strict))
+    if (!SetObjectElementOperation(cx, obj, id, value, script->strictModeCode))
         goto error;
     regs.sp[-3] = value;
     regs.sp -= 2;
@@ -2301,7 +2274,7 @@ BEGIN_CASE(JSOP_ENUMELEM)
     RootedId &id = rootId0;
     FETCH_ELEMENT_ID(obj, -1, id);
     rval = regs.sp[-3];
-    if (!JSObject::setGeneric(cx, obj, obj, id, &rval, script->strict))
+    if (!JSObject::setGeneric(cx, obj, obj, id, &rval, script->strictModeCode))
         goto error;
     regs.sp -= 3;
 }
@@ -2360,7 +2333,7 @@ BEGIN_CASE(JSOP_FUNCALL)
 
     InitialFrameFlags initial = construct ? INITIAL_CONSTRUCT : INITIAL_NONE;
     bool newType = cx->typeInferenceEnabled() && UseNewType(cx, script, regs.pc);
-    RawScript funScript = fun->getOrCreateScript(cx);
+    RawScript funScript = fun->getOrCreateScript(cx).unsafeGet();
     if (!funScript)
         goto error;
     if (!cx->stack.pushInlineFrame(cx, regs, args, *fun, funScript, initial))
@@ -2732,7 +2705,7 @@ BEGIN_CASE(JSOP_CALLLOCAL)
      * a use of the variable.
      */
     if (regs.pc[JSOP_GETLOCAL_LENGTH] != JSOP_POP)
-        assertSameCompartmentDebugOnly(cx, regs.sp[-1]);
+        assertSameCompartment(cx, regs.sp[-1]);
 }
 END_CASE(JSOP_GETLOCAL)
 
@@ -2863,7 +2836,7 @@ BEGIN_CASE(JSOP_DEFFUN)
          */
 
         /* Step 5f. */
-        if (!JSObject::setProperty(cx, parent, parent, name, &rval, script->strict))
+        if (!JSObject::setProperty(cx, parent, parent, name, &rval, script->strictModeCode))
             goto error;
     } while (false);
 }
@@ -2975,7 +2948,7 @@ BEGIN_CASE(JSOP_SETTER)
     if (js_CodeSpec[op2].ndefs > js_CodeSpec[op2].nuses) {
         JS_ASSERT(js_CodeSpec[op2].ndefs == js_CodeSpec[op2].nuses + 1);
         regs.sp[-1] = rval;
-        assertSameCompartmentDebugOnly(cx, regs.sp[-1]);
+        assertSameCompartment(cx, regs.sp[-1]);
     }
     len = js_CodeSpec[op2].length;
     DO_NEXT_OP(len);
@@ -3059,7 +3032,7 @@ BEGIN_CASE(JSOP_INITPROP)
     id = NameToId(name);
 
     if (JS_UNLIKELY(name == cx->names().proto)
-        ? !baseops::SetPropertyHelper(cx, obj, obj, id, 0, &rval, script->strict)
+        ? !baseops::SetPropertyHelper(cx, obj, obj, id, 0, &rval, script->strictModeCode)
         : !DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
                                 JSPROP_ENUMERATE, 0, 0, 0)) {
         goto error;
@@ -3254,7 +3227,7 @@ END_CASE(JSOP_DEBUGGER)
 #if JS_HAS_XML_SUPPORT
 BEGIN_CASE(JSOP_DEFXMLNS)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     if (!js_SetDefaultXMLNamespace(cx, regs.sp[-1]))
         goto error;
@@ -3264,7 +3237,7 @@ END_CASE(JSOP_DEFXMLNS)
 
 BEGIN_CASE(JSOP_ANYNAME)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     cx->runtime->gcExactScanningEnabled = false;
 
@@ -3278,7 +3251,7 @@ END_CASE(JSOP_ANYNAME)
 
 BEGIN_CASE(JSOP_QNAMEPART)
     /*
-     * We do not JS_ASSERT(!script->strict) here because JSOP_QNAMEPART
+     * We do not JS_ASSERT(!script->strictModeCode) here because JSOP_QNAMEPART
      * is used for __proto__ and (in contexts where we favor JSOP_*ELEM instead
      * of JSOP_*PROP) obj.prop compiled as obj['prop'].
      */
@@ -3288,7 +3261,7 @@ END_CASE(JSOP_QNAMEPART)
 #if JS_HAS_XML_SUPPORT
 BEGIN_CASE(JSOP_QNAMECONST)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
     Value rval = StringValue(script->getAtom(regs.pc));
     Value lval = regs.sp[-1];
     JSObject *obj = js_ConstructXMLQNameObject(cx, lval, rval);
@@ -3300,7 +3273,7 @@ END_CASE(JSOP_QNAMECONST)
 
 BEGIN_CASE(JSOP_QNAME)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
@@ -3314,7 +3287,7 @@ END_CASE(JSOP_QNAME)
 
 BEGIN_CASE(JSOP_TOATTRNAME)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value rval;
     rval = regs.sp[-1];
@@ -3326,7 +3299,7 @@ END_CASE(JSOP_TOATTRNAME)
 
 BEGIN_CASE(JSOP_TOATTRVAL)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value rval;
     rval = regs.sp[-1];
@@ -3341,7 +3314,7 @@ END_CASE(JSOP_TOATTRVAL)
 BEGIN_CASE(JSOP_ADDATTRNAME)
 BEGIN_CASE(JSOP_ADDATTRVAL)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
@@ -3357,7 +3330,7 @@ END_CASE(JSOP_ADDATTRNAME)
 
 BEGIN_CASE(JSOP_BINDXMLNAME)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value lval;
     lval = regs.sp[-1];
@@ -3372,14 +3345,14 @@ END_CASE(JSOP_BINDXMLNAME)
 
 BEGIN_CASE(JSOP_SETXMLNAME)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Rooted<JSObject*> obj(cx, &regs.sp[-3].toObject());
     RootedValue &rval = rootValue0;
     rval = regs.sp[-1];
     RootedId &id = rootId0;
     FETCH_ELEMENT_ID(obj, -2, id);
-    if (!JSObject::setGeneric(cx, obj, obj, id, &rval, script->strict))
+    if (!JSObject::setGeneric(cx, obj, obj, id, &rval, script->strictModeCode))
         goto error;
     rval = regs.sp[-1];
     regs.sp -= 2;
@@ -3390,7 +3363,7 @@ END_CASE(JSOP_SETXMLNAME)
 BEGIN_CASE(JSOP_CALLXMLNAME)
 BEGIN_CASE(JSOP_XMLNAME)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value lval = regs.sp[-1];
     RootedObject &obj = rootObject0;
@@ -3413,7 +3386,7 @@ END_CASE(JSOP_XMLNAME)
 BEGIN_CASE(JSOP_DESCENDANTS)
 BEGIN_CASE(JSOP_DELDESC)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     JSObject *obj;
     FETCH_OBJECT(cx, -2, obj);
@@ -3435,7 +3408,7 @@ END_CASE(JSOP_DESCENDANTS)
 
 BEGIN_CASE(JSOP_FILTER)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     /*
      * We push the hole value before jumping to [enditer] so we can detect the
@@ -3450,7 +3423,7 @@ END_VARLEN_CASE
 
 BEGIN_CASE(JSOP_ENDFILTER)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     bool cond = !regs.sp[-1].isMagic();
     if (cond) {
@@ -3478,7 +3451,7 @@ END_CASE(JSOP_ENDFILTER);
 
 BEGIN_CASE(JSOP_TOXML)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     cx->runtime->gcExactScanningEnabled = false;
 
@@ -3492,7 +3465,7 @@ END_CASE(JSOP_TOXML)
 
 BEGIN_CASE(JSOP_TOXMLLIST)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value rval = regs.sp[-1];
     JSObject *obj = js_ValueToXMLListObject(cx, rval);
@@ -3504,7 +3477,7 @@ END_CASE(JSOP_TOXMLLIST)
 
 BEGIN_CASE(JSOP_XMLTAGEXPR)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value rval = regs.sp[-1];
     JSString *str = ToString(cx, rval);
@@ -3516,7 +3489,7 @@ END_CASE(JSOP_XMLTAGEXPR)
 
 BEGIN_CASE(JSOP_XMLELTEXPR)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value rval = regs.sp[-1];
     JSString *str;
@@ -3535,7 +3508,7 @@ END_CASE(JSOP_XMLELTEXPR)
 
 BEGIN_CASE(JSOP_XMLCDATA)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     JSAtom *atom = script->getAtom(regs.pc);
     JSObject *obj = js_NewXMLSpecialObject(cx, JSXML_CLASS_TEXT, NULL, atom);
@@ -3547,7 +3520,7 @@ END_CASE(JSOP_XMLCDATA)
 
 BEGIN_CASE(JSOP_XMLCOMMENT)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     JSAtom *atom = script->getAtom(regs.pc);
     JSObject *obj = js_NewXMLSpecialObject(cx, JSXML_CLASS_COMMENT, NULL, atom);
@@ -3559,7 +3532,7 @@ END_CASE(JSOP_XMLCOMMENT)
 
 BEGIN_CASE(JSOP_XMLPI)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     JSAtom *atom = script->getAtom(regs.pc);
     Value rval = regs.sp[-1];
@@ -3573,7 +3546,7 @@ END_CASE(JSOP_XMLPI)
 
 BEGIN_CASE(JSOP_GETFUNNS)
 {
-    JS_ASSERT(!script->strict);
+    JS_ASSERT(!script->strictModeCode);
 
     Value rval;
     if (!cx->fp()->global().getFunctionNamespace(cx, &rval))

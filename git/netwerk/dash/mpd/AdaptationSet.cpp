@@ -96,7 +96,7 @@ AdaptationSet::AddRepresentation(Representation* aRep)
   NS_ENSURE_TRUE(aRep,);
   // Only add if it's not already in the array.
   if (!mRepresentations.Contains(aRep)) {
-    mRepresentations.InsertElementSorted(aRep, CompareRepresentationBitrates());
+    mRepresentations.AppendElement(aRep);
   }
 }
 

@@ -165,7 +165,9 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
   nsIntRegion neededRegion = mVisibleRegion;
   if (!neededRegion.GetBounds().IsEqualInterior(newTextureRect) ||
       neededRegion.GetNumRects() > 1) {
-    if (MayResample()) {
+    gfxMatrix transform2d;
+    if (!GetEffectiveTransform().Is2D(&transform2d) ||
+        transform2d.HasNonIntegerTranslation()) {
       neededRegion = newTextureRect;
       if (mode == SURFACE_OPAQUE) {
         // We're going to paint outside the visible region, but layout hasn't

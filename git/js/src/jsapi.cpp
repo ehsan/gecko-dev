@@ -746,7 +746,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     jaegerRuntime_(NULL),
 #endif
     ionRuntime_(NULL),
-    selfHostingGlobal_(NULL),
+    selfHostedGlobal_(NULL),
     nativeStackBase(0),
     nativeStackQuota(0),
     interpreterFrames(NULL),
@@ -801,15 +801,12 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcFoundBlackGrayEdges(false),
     gcSweepingCompartments(NULL),
     gcCompartmentGroupIndex(0),
-    gcCompartmentGroups(NULL),
-    gcCurrentCompartmentGroup(NULL),
+    gcRemainingCompartmentGroups(NULL),
+    gcCompartmentGroup(NULL),
     gcSweepPhase(0),
     gcSweepCompartment(NULL),
     gcSweepKindIndex(0),
     gcArenasAllocatedDuringSweep(NULL),
-#ifdef DEBUG
-    gcMarkingValidator(NULL),
-#endif
     gcInterFrameGC(0),
     gcSliceBudget(SliceBudget::Unlimited),
     gcIncrementalEnabled(true),
@@ -1069,14 +1066,12 @@ JSRuntime::abortIfWrongThread() const
         MOZ_CRASH();
 }
 
-#ifdef DEBUG
 JS_FRIEND_API(void)
 JSRuntime::assertValidThread() const
 {
     JS_ASSERT(ownerThread_ == PR_GetCurrentThread());
     JS_ASSERT(js::TlsPerThreadData.get()->associatedWith(this));
 }
-#endif  /* DEBUG */
 #endif  /* JS_THREADSAFE */
 
 JS_PUBLIC_API(JSRuntime *)
@@ -5030,7 +5025,7 @@ JS_DefineFunctions(JSContext *cx, JSObject *objArg, JSFunctionSpec *fs)
          * in. Self-hosted functions can access each other via their names,
          * but not via the builtin classes they get installed into.
          */
-        if (fs->selfHostedName && cx->runtime->isSelfHostingGlobal(cx->global()))
+        if (fs->selfHostedName && cx->runtime->isSelfHostedGlobal(cx->global()))
             return JS_TRUE;
 
         /*
@@ -5225,7 +5220,6 @@ JS::CompileOptions::CompileOptions(JSContext *cx)
       compileAndGo(cx->hasRunOption(JSOPTION_COMPILE_N_GO)),
       noScriptRval(cx->hasRunOption(JSOPTION_NO_SCRIPT_RVAL)),
       selfHostingMode(false),
-      userBit(false),
       sourcePolicy(SAVE_SOURCE)
 {
 }
@@ -6184,6 +6178,14 @@ JS_ConcatStrings(JSContext *cx, JSString *left, JSString *right)
     return js_ConcatStrings(cx, lstr, rstr);
 }
 
+JS_PUBLIC_API(const jschar *)
+JS_UndependString(JSContext *cx, JSString *str)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    return str->getCharsZ(cx);
+}
+
 JS_PUBLIC_API(JSBool)
 JS_DecodeBytes(JSContext *cx, const char *src, size_t srclen, jschar *dst, size_t *dstlenp)
 {
@@ -7094,9 +7096,9 @@ JS_DescribeScriptedCaller(JSContext *cx, JSScript **script, unsigned *lineno)
         return JS_FALSE;
 
     if (script)
-        *script = i.script();
+        *script = i.script().get(nogc);
     if (lineno)
-        *lineno = js::PCToLineNumber(i.script(), i.pc());
+        *lineno = js::PCToLineNumber(i.script().get(nogc), i.pc());
     return JS_TRUE;
 }
 

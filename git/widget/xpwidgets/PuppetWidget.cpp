@@ -179,12 +179,12 @@ PuppetWidget::Show(bool aState)
 }
 
 NS_IMETHODIMP
-PuppetWidget::Resize(double aWidth,
-                     double aHeight,
-                     bool   aRepaint)
+PuppetWidget::Resize(int32_t aWidth,
+                     int32_t aHeight,
+                     bool    aRepaint)
 {
   nsIntRect oldBounds = mBounds;
-  mBounds.SizeTo(nsIntSize(NSToIntRound(aWidth), NSToIntRound(aHeight)));
+  mBounds.SizeTo(nsIntSize(aWidth, aHeight));
 
   if (mChild) {
     return mChild->Resize(aWidth, aHeight, aRepaint);
@@ -540,9 +540,7 @@ PuppetWidget::Paint()
     }
   }
 
-  if (mAttachedWidgetListener) {
-    mAttachedWidgetListener->DidPaintWindow();
-  }
+  mAttachedWidgetListener->DidPaintWindow();
 
   return NS_OK;
 }

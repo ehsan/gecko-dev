@@ -451,7 +451,6 @@ class GCCompartmentsIter {
     JSCompartment *operator->() const { return get(); }
 };
 
-/* Iterates over all compartments in the current compartment group. */
 class GCCompartmentGroupIter {
   private:
     JSCompartment *current;
@@ -459,14 +458,14 @@ class GCCompartmentGroupIter {
   public:
     GCCompartmentGroupIter(JSRuntime *rt) {
         JS_ASSERT(rt->isHeapBusy());
-        current = rt->gcCurrentCompartmentGroup;
+        current = rt->gcCompartmentGroup;
     }
 
-    bool done() const { return !current; }
+    bool done() const { return current == NULL; }
 
     void next() {
         JS_ASSERT(!done());
-        current = current->nextNodeInGroup();
+        current = NextGraphNode(current);
     }
 
     JSCompartment *get() const {
@@ -528,7 +527,7 @@ template <typename T>
 inline T *
 TryNewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
 {
-    AutoAssertNoGC nogc;
+    AssertCanGC();
     JS_ASSERT(thingSize == js::gc::Arena::thingSize(kind));
     JS_ASSERT_IF(cx->compartment == cx->runtime->atomsCompartment,
                  kind == js::gc::FINALIZE_STRING || kind == js::gc::FINALIZE_SHORT_STRING);
@@ -601,7 +600,7 @@ js_NewGCShape(JSContext *cx)
     return js::gc::NewGCThing<js::Shape>(cx, js::gc::FINALIZE_SHAPE, sizeof(js::Shape));
 }
 
-inline js::UnrootedBaseShape
+inline js::Return<js::BaseShape*>
 js_NewGCBaseShape(JSContext *cx)
 {
     return js::gc::NewGCThing<js::BaseShape>(cx, js::gc::FINALIZE_BASE_SHAPE, sizeof(js::BaseShape));

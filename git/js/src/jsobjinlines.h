@@ -39,7 +39,6 @@
 #include "vm/StringObject.h"
 
 #include "jsatominlines.h"
-#include "jscompartmentinlines.h"
 #include "jsfuninlines.h"
 #include "jsgcinlines.h"
 #include "jsinferinlines.h"
@@ -225,9 +224,6 @@ JSObject::finalize(js::FreeOp *fop)
     js::Probes::finalizeObject(this);
 
     if (!IsBackgroundFinalized(getAllocKind())) {
-        /* Assert we're on the main thread. */
-        fop->runtime()->assertValidThread();
-
         /*
          * Finalize obj first, in case it needs map and slots. Objects with
          * finalize hooks are not finalized in the background, as the class is
@@ -819,7 +815,7 @@ inline bool JSObject::isWith() const { return hasClass(&js::WithClass); }
 inline bool
 JSObject::isDebugScope() const
 {
-    extern bool js_IsDebugScopeSlow(js::RawObject obj);
+    extern bool js_IsDebugScopeSlow(JS::RawObject obj);
     return getClass() == &js::ObjectProxyClass && js_IsDebugScopeSlow(const_cast<JSObject*>(this));
 }
 
@@ -932,10 +928,8 @@ JSObject::hasProperty(JSContext *cx, js::HandleObject obj,
     js::RootedObject pobj(cx);
     js::RootedShape prop(cx);
     JSAutoResolveFlags rf(cx, flags);
-    if (!lookupGeneric(cx, obj, id, &pobj, &prop)) {
-        *foundp = false;  /* initialize to shut GCC up */
+    if (!lookupGeneric(cx, obj, id, &pobj, &prop))
         return false;
-    }
     *foundp = !!prop;
     return true;
 }

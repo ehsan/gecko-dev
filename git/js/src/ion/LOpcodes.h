@@ -25,7 +25,6 @@
     _(NewArray)                     \
     _(NewObject)                    \
     _(NewSlots)                     \
-    _(NewDeclEnvObject)             \
     _(NewCallObject)                \
     _(NewStringObject)              \
     _(InitProp)                     \
@@ -35,12 +34,12 @@
     _(CallKnown)                    \
     _(CallGeneric)                  \
     _(CallNative)                   \
+    _(CallConstructor)              \
     _(ApplyArgsGeneric)             \
     _(StackArgT)                    \
     _(StackArgV)                    \
-    _(CreateThisV)                  \
-    _(CreateThisO)                  \
-    _(CreateThisWithTemplate)       \
+    _(CreateThis)                   \
+    _(CreateThisVM)                 \
     _(ReturnFromCtor)               \
     _(BitNotI)                      \
     _(BitNotV)                      \

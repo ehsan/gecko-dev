@@ -239,6 +239,7 @@ nsDisplayCanvasBackground::Paint(nsDisplayListBuilder* aBuilder,
     BlitSurface(dest, destRect, surf);
 
     GetUnderlyingFrame()->Properties().Set(nsIFrame::CachedBackgroundImage(), surf.forget().get());
+    GetUnderlyingFrame()->AddStateBits(NS_FRAME_HAS_CACHED_BACKGROUND);
   }
 }
 

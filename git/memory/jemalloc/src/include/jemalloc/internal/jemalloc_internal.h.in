@@ -514,19 +514,13 @@ extern size_t	opt_narenas;
 /* Number of CPUs. */
 extern unsigned		ncpus;
 
-/* Protects arenas initialization (arenas, arenas_total). */
-extern malloc_mutex_t	arenas_lock;
+extern malloc_mutex_t	arenas_lock; /* Protects arenas initialization. */
 /*
  * Arenas that are used to service external requests.  Not all elements of the
  * arenas array are necessarily used; arenas are created lazily as needed.
- *
- * arenas[0..narenas_auto) are used for automatic multiplexing of threads and
- * arenas.  arenas[narenas_auto..narenas_total) are only used if the application
- * takes some action to create them and allocate from them.
  */
 extern arena_t		**arenas;
-extern unsigned		narenas_total;
-extern unsigned		narenas_auto; /* Read-only after initialization. */
+extern unsigned		narenas;
 
 arena_t	*arenas_extend(unsigned ind);
 void	arenas_cleanup(void *arg);
@@ -581,7 +575,6 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), arenas, arena_t *)
 
 size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment);
-unsigned	narenas_total_get(void);
 arena_t	*choose_arena(arena_t *arena);
 #endif
 
@@ -686,18 +679,6 @@ sa2u(size_t size, size_t alignment)
 	}
 }
 
-JEMALLOC_INLINE unsigned
-narenas_total_get(void)
-{
-	unsigned narenas;
-
-	malloc_mutex_lock(&arenas_lock);
-	narenas = narenas_total;
-	malloc_mutex_unlock(&arenas_lock);
-
-	return (narenas);
-}
-
 /* Choose an arena based on a per-thread value. */
 JEMALLOC_INLINE arena_t *
 choose_arena(arena_t *arena)
@@ -733,24 +714,15 @@ choose_arena(arena_t *arena)
 #include "jemalloc/internal/quarantine.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
-void	*imallocx(size_t size, bool try_tcache, arena_t *arena);
 void	*imalloc(size_t size);
-void	*icallocx(size_t size, bool try_tcache, arena_t *arena);
 void	*icalloc(size_t size);
-void	*ipallocx(size_t usize, size_t alignment, bool zero, bool try_tcache,
-    arena_t *arena);
 void	*ipalloc(size_t usize, size_t alignment, bool zero);
 size_t	isalloc(const void *ptr, bool demote);
 size_t	ivsalloc(const void *ptr, bool demote);
 size_t	u2rz(size_t usize);
 size_t	p2rz(const void *ptr);
-void	idallocx(void *ptr, bool try_tcache);
 void	idalloc(void *ptr);
-void	iqallocx(void *ptr, bool try_tcache);
 void	iqalloc(void *ptr);
-void	*irallocx(void *ptr, size_t size, size_t extra, size_t alignment,
-    bool zero, bool no_move, bool try_tcache_alloc, bool try_tcache_dalloc,
-    arena_t *arena);
 void	*iralloc(void *ptr, size_t size, size_t extra, size_t alignment,
     bool zero, bool no_move);
 malloc_tsd_protos(JEMALLOC_ATTR(unused), thread_allocated, thread_allocated_t)
@@ -758,44 +730,29 @@ malloc_tsd_protos(JEMALLOC_ATTR(unused), thread_allocated, thread_allocated_t)
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
 JEMALLOC_INLINE void *
-imallocx(size_t size, bool try_tcache, arena_t *arena)
+imalloc(size_t size)
 {
 
 	assert(size != 0);
 
 	if (size <= arena_maxclass)
-		return (arena_malloc(arena, size, false, try_tcache));
+		return (arena_malloc(NULL, size, false, true));
 	else
 		return (huge_malloc(size, false));
-}
-
-JEMALLOC_INLINE void *
-imalloc(size_t size)
-{
-
-	return (imallocx(size, true, NULL));
-}
-
-JEMALLOC_INLINE void *
-icallocx(size_t size, bool try_tcache, arena_t *arena)
-{
-
-	if (size <= arena_maxclass)
-		return (arena_malloc(arena, size, true, try_tcache));
-	else
-		return (huge_malloc(size, true));
 }
 
 JEMALLOC_INLINE void *
 icalloc(size_t size)
 {
 
-	return (icallocx(size, true, NULL));
+	if (size <= arena_maxclass)
+		return (arena_malloc(NULL, size, true, true));
+	else
+		return (huge_malloc(size, true));
 }
 
 JEMALLOC_INLINE void *
-ipallocx(size_t usize, size_t alignment, bool zero, bool try_tcache,
-    arena_t *arena)
+ipalloc(size_t usize, size_t alignment, bool zero)
 {
 	void *ret;
 
@@ -803,11 +760,11 @@ ipallocx(size_t usize, size_t alignment, bool zero, bool try_tcache,
 	assert(usize == sa2u(usize, alignment));
 
 	if (usize <= arena_maxclass && alignment <= PAGE)
-		ret = arena_malloc(arena, usize, zero, try_tcache);
+		ret = arena_malloc(NULL, usize, zero, true);
 	else {
 		if (usize <= arena_maxclass) {
-			ret = arena_palloc(choose_arena(arena), usize,
-			    alignment, zero);
+			ret = arena_palloc(choose_arena(NULL), usize, alignment,
+			    zero);
 		} else if (alignment <= chunksize)
 			ret = huge_malloc(usize, zero);
 		else
@@ -816,13 +773,6 @@ ipallocx(size_t usize, size_t alignment, bool zero, bool try_tcache,
 
 	assert(ALIGNMENT_ADDR2BASE(ret, alignment) == ret);
 	return (ret);
-}
-
-JEMALLOC_INLINE void *
-ipalloc(size_t usize, size_t alignment, bool zero)
-{
-
-	return (ipallocx(usize, alignment, zero, true, NULL));
 }
 
 /*
@@ -883,7 +833,7 @@ p2rz(const void *ptr)
 }
 
 JEMALLOC_INLINE void
-idallocx(void *ptr, bool try_tcache)
+idalloc(void *ptr)
 {
 	arena_chunk_t *chunk;
 
@@ -891,38 +841,24 @@ idallocx(void *ptr, bool try_tcache)
 
 	chunk = (arena_chunk_t *)CHUNK_ADDR2BASE(ptr);
 	if (chunk != ptr)
-		arena_dalloc(chunk->arena, chunk, ptr, try_tcache);
+		arena_dalloc(chunk->arena, chunk, ptr, true);
 	else
 		huge_dalloc(ptr, true);
-}
-
-JEMALLOC_INLINE void
-idalloc(void *ptr)
-{
-
-	idallocx(ptr, true);
-}
-
-JEMALLOC_INLINE void
-iqallocx(void *ptr, bool try_tcache)
-{
-
-	if (config_fill && opt_quarantine)
-		quarantine(ptr);
-	else
-		idallocx(ptr, try_tcache);
 }
 
 JEMALLOC_INLINE void
 iqalloc(void *ptr)
 {
 
-	iqallocx(ptr, true);
+	if (config_fill && opt_quarantine)
+		quarantine(ptr);
+	else
+		idalloc(ptr);
 }
 
 JEMALLOC_INLINE void *
-irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
-    bool no_move, bool try_tcache_alloc, bool try_tcache_dalloc, arena_t *arena)
+iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
+    bool no_move)
 {
 	void *ret;
 	size_t oldsize;
@@ -945,7 +881,7 @@ irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		usize = sa2u(size + extra, alignment);
 		if (usize == 0)
 			return (NULL);
-		ret = ipallocx(usize, alignment, zero, try_tcache_alloc, arena);
+		ret = ipalloc(usize, alignment, zero);
 		if (ret == NULL) {
 			if (extra == 0)
 				return (NULL);
@@ -953,8 +889,7 @@ irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 			usize = sa2u(size, alignment);
 			if (usize == 0)
 				return (NULL);
-			ret = ipallocx(usize, alignment, zero, try_tcache_alloc,
-			    arena);
+			ret = ipalloc(usize, alignment, zero);
 			if (ret == NULL)
 				return (NULL);
 		}
@@ -965,7 +900,7 @@ irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		 */
 		copysize = (size < oldsize) ? size : oldsize;
 		memcpy(ret, ptr, copysize);
-		iqallocx(ptr, try_tcache_dalloc);
+		iqalloc(ptr);
 		return (ret);
 	}
 
@@ -979,23 +914,13 @@ irallocx(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
 		}
 	} else {
 		if (size + extra <= arena_maxclass) {
-			return (arena_ralloc(arena, ptr, oldsize, size, extra,
-			    alignment, zero, try_tcache_alloc,
-			    try_tcache_dalloc));
+			return (arena_ralloc(ptr, oldsize, size, extra,
+			    alignment, zero, true));
 		} else {
 			return (huge_ralloc(ptr, oldsize, size, extra,
-			    alignment, zero, try_tcache_dalloc));
+			    alignment, zero));
 		}
 	}
-}
-
-JEMALLOC_INLINE void *
-iralloc(void *ptr, size_t size, size_t extra, size_t alignment, bool zero,
-    bool no_move)
-{
-
-	return (irallocx(ptr, size, extra, alignment, zero, no_move, true, true,
-	    NULL));
 }
 
 malloc_tsd_externs(thread_allocated, thread_allocated_t)

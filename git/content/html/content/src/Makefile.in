@@ -17,7 +17,6 @@ FAIL_ON_WARNINGS = 1
 
 
 EXPORTS		= \
-		HTMLPropertiesCollection.h \
 		nsGenericHTMLElement.h \
 		nsHTMLIFrameElement.h \
 		nsClientRect.h \

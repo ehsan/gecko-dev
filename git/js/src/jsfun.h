@@ -13,11 +13,10 @@
 #include "jspubtd.h"
 #include "jsobj.h"
 #include "jsatom.h"
+#include "jsscript.h"
 #include "jsstr.h"
 
 #include "gc/Barrier.h"
-
-ForwardDeclareJS(Script);
 
 namespace js { class FunctionExtended; }
 
@@ -111,21 +110,20 @@ struct JSFunction : public JSObject
     }
 
     /* Returns the strictness of this function, which must be interpreted. */
-    inline bool strict() const;
+    inline bool inStrictMode() const;
 
-    // Can be called multiple times by the parser.
     void setArgCount(uint16_t nargs) {
-        JS_ASSERT(this->nargs == 0 || this->nargs == nargs);
+        JS_ASSERT(this->nargs == 0);
         this->nargs = nargs;
     }
 
-    // Can be called multiple times by the parser.
     void setHasRest() {
+        JS_ASSERT(!hasRest());
         flags |= HAS_REST;
     }
 
-    // Can be called multiple times by the parser.
     void setHasDefaults() {
+        JS_ASSERT(!hasDefaults());
         flags |= HAS_DEFAULTS;
     }
 
@@ -148,8 +146,8 @@ struct JSFunction : public JSObject
         flags |= HEAVYWEIGHT;
     }
 
-    // Can be called multiple times by the parser.
     void setIsExprClosure() {
+        JS_ASSERT(!isExprClosure());
         flags |= EXPR_CLOSURE;
     }
 
@@ -180,13 +178,13 @@ struct JSFunction : public JSObject
     static inline size_t offsetOfEnvironment() { return offsetof(JSFunction, u.i.env_); }
     static inline size_t offsetOfAtom() { return offsetof(JSFunction, atom_); }
 
-    js::UnrootedScript getOrCreateScript(JSContext *cx) {
+    js::Return<JSScript*> getOrCreateScript(JSContext *cx) {
         JS_ASSERT(isInterpreted());
         if (isInterpretedLazy()) {
             js::RootedFunction self(cx, this);
             js::MaybeCheckStackRoots(cx);
             if (!initializeLazyScript(cx))
-                return js::UnrootedScript(NULL);
+                return js::NullPtr();
         }
         JS_ASSERT(hasScript());
         return JS::HandleScript::fromMarkedLocation(&u.i.script_);
@@ -197,17 +195,17 @@ struct JSFunction : public JSObject
             script.set(NULL);
             return true;
         }
-        script.set(getOrCreateScript(cx));
+        script.set(getOrCreateScript(cx).unsafeGet());
         return hasScript();
     }
 
-    js::UnrootedScript nonLazyScript() const {
+    js::Return<JSScript*> nonLazyScript() const {
         JS_ASSERT(hasScript());
         return JS::HandleScript::fromMarkedLocation(&u.i.script_);
     }
 
-    js::UnrootedScript maybeNonLazyScript() const {
-        return isInterpreted() ? nonLazyScript() : js::UnrootedScript(NULL);
+    js::Return<JSScript*> maybeNonLazyScript() const {
+        return isInterpreted() ? nonLazyScript() : JS::NullPtr();
     }
 
     js::HeapPtrScript &mutableScript() {

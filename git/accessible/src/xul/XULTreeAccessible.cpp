@@ -685,7 +685,7 @@ XULTreeItemAccessibleBase::
   mTree(aTree), mTreeView(aTreeView), mRow(aRow)
 {
   mParent = aParent;
-  mStateFlags |= eSharedNode;
+  mFlags |= eSharedNode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -72,6 +72,9 @@ let gBookmarksFileOld;
 // Places bookmarks.html file pointer.
 let gBookmarksFileNew;
 
+let exporter = Cc["@mozilla.org/browser/places/import-export-service;1"].
+               getService(Ci.nsIPlacesImportExportService);
+
 Cu.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
 
 function run_test()
@@ -79,7 +82,7 @@ function run_test()
   run_next_test();
 }
 
-add_task(function setup() {
+add_test(function setup() {
   // Avoid creating smart bookmarks during the test.
   Services.prefs.setIntPref("browser.places.smartBookmarksVersion", -1);
 
@@ -92,36 +95,64 @@ add_task(function setup() {
   if (gBookmarksFileNew.exists()) {
     gBookmarksFileNew.remove(false);
   }
+  gBookmarksFileNew.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, 0600);
+  if (!gBookmarksFileNew.exists()) {
+    do_throw("couldn't create file: bookmarks.exported.html");
+  }
 
   // This test must be the first one, since it setups the new bookmarks.html.
   // Test importing a pre-Places canonical bookmarks file.
   // 1. import bookmarks.preplaces.html
   // 2. run the test-suite
   // Note: we do not empty the db before this import to catch bugs like 380999
-  yield BookmarkHTMLUtils.importFromFile(gBookmarksFileOld, true);
-  yield promiseAsyncUpdates();
-  testImportedBookmarks();
+  try {
+    BookmarkHTMLUtils.importFromFile(gBookmarksFileOld, true, function(success) {
+      if (success) {
+        promiseAsyncUpdates().then(function () {
+          testImportedBookmarks();
 
-  yield BookmarkHTMLUtils.exportToFile(gBookmarksFileNew);
-  yield promiseAsyncUpdates();
-  remove_all_bookmarks();
+          // Prepare for next tests.
+          try {
+            exporter.exportHTMLToFile(gBookmarksFileNew);
+          } catch(ex) { do_throw("couldn't export to file: " + ex); }
+
+          promiseAsyncUpdates().then(function () {
+            remove_all_bookmarks();
+            run_next_test();
+          });
+        });
+      } else {
+        do_throw("couldn't import legacy bookmarks file.");
+      }
+    });
+  } catch(ex) { do_throw("couldn't import legacy bookmarks file: " + ex); }
 });
 
-add_task(function test_import_new()
+add_test(function test_import_new()
 {
   // Test importing a Places bookmarks.html file.
   // 1. import bookmarks.exported.html
   // 2. run the test-suite
-  yield BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true);
-  yield promiseAsyncUpdates();
 
-  testImportedBookmarks();
-  yield promiseAsyncUpdates();
+  try {
+    BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true, function(success) {
+      if (success) {
+        promiseAsyncUpdates().then(function () {
+          testImportedBookmarks();
 
-  remove_all_bookmarks();
+          promiseAsyncUpdates().then(function () {
+            remove_all_bookmarks();
+            run_next_test();
+          });
+        });
+      } else {
+        do_throw("couldn't import the exported file.");
+      }
+    });
+  } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
 });
 
-add_task(function test_emptytitle_export()
+add_test(function test_emptytitle_export()
 {
   // Test exporting and importing with an empty-titled bookmark.
   // 1. import bookmarks
@@ -134,32 +165,54 @@ add_task(function test_emptytitle_export()
   // 8. export to bookmarks.exported.html
   // 9. empty bookmarks db and continue
 
-  yield BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true);
+  try {
+    BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true, function(success) {
+      if (success) {
+        const NOTITLE_URL = "http://notitle.mozilla.org/";
+        let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
+                                                      NetUtil.newURI(NOTITLE_URL),
+                                                      PlacesUtils.bookmarks.DEFAULT_INDEX,
+                                                      "");
+        test_bookmarks.unfiled.push({ title: "", url: NOTITLE_URL });
 
-  const NOTITLE_URL = "http://notitle.mozilla.org/";
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                NetUtil.newURI(NOTITLE_URL),
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "");
-  test_bookmarks.unfiled.push({ title: "", url: NOTITLE_URL });
+        try {
+          exporter.exportHTMLToFile(gBookmarksFileNew);
+        } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
-  yield BookmarkHTMLUtils.exportToFile(gBookmarksFileNew);
-  remove_all_bookmarks();
+        remove_all_bookmarks();
 
-  yield BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true);
-  yield promiseAsyncUpdates();
-  testImportedBookmarks();
+        try {
+          BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true, function(success) {
+           if (success) {
+              promiseAsyncUpdates().then(function () {
+                testImportedBookmarks();
 
-  // Cleanup.
-  test_bookmarks.unfiled.pop();
-  PlacesUtils.bookmarks.removeItem(id);
+                // Cleanup.
+                test_bookmarks.unfiled.pop();
+                PlacesUtils.bookmarks.removeItem(id);
 
-  yield BookmarkHTMLUtils.exportToFile(gBookmarksFileNew);
-  yield promiseAsyncUpdates();
-  remove_all_bookmarks();
+                try {
+                  exporter.exportHTMLToFile(gBookmarksFileNew);
+                } catch(ex) { do_throw("couldn't export to file: " + ex); }
+
+                promiseAsyncUpdates().then(function () {
+                  remove_all_bookmarks();
+                  run_next_test();
+                });
+              });
+            } else {
+              do_throw("couldn't import the exported file.");
+            }
+          });
+        } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
+      } else {
+        do_throw("couldn't import the exported file.");
+      }
+    });
+  } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
 });
 
-add_task(function test_import_chromefavicon()
+add_test(function test_import_chromefavicon()
 {
   // Test exporting and importing with a bookmark pointing to a chrome favicon.
   // 1. import bookmarks
@@ -176,56 +229,71 @@ add_task(function test_import_chromefavicon()
   const CHROME_FAVICON_URI = NetUtil.newURI("chrome://global/skin/icons/information-16.png");
   const CHROME_FAVICON_URI_2 = NetUtil.newURI("chrome://global/skin/icons/error-16.png");
 
-  yield BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true);
-  let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                                PAGE_URI,
-                                                PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                "Test");
+  try {
+    BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true, function(success) {
+      if (!success) {
+        do_throw("couldn't import the exported file.");
+      }
+      let id = PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
+                                                    PAGE_URI,
+                                                    PlacesUtils.bookmarks.DEFAULT_INDEX,
+                                                    "Test");
 
-  let deferred = Promise.defer();
-  PlacesUtils.favicons.setAndFetchFaviconForPage(
-                                  PAGE_URI, CHROME_FAVICON_URI, true,
-                                  PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
-                                  deferred.resolve);
-  yield deferred.promise;
+      PlacesUtils.favicons.setAndFetchFaviconForPage(
+        PAGE_URI, CHROME_FAVICON_URI, true,
+          PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
+          function () {
+          PlacesUtils.favicons.getFaviconDataForPage(
+            PAGE_URI, function (aURI, aDataLen, aData, aMimeType) {
+              let base64Icon = "data:image/png;base64," +
+                  base64EncodeString(String.fromCharCode.apply(String, aData));
 
-  deferred = Promise.defer();
-  PlacesUtils.favicons.getFaviconDataForPage(PAGE_URI,
-    function (aURI, aDataLen, aData, aMimeType) deferred.resolve(aData));
-  let data = yield deferred.promise;
+              test_bookmarks.unfiled.push(
+                { title: "Test", url: PAGE_URI.spec, icon: base64Icon });
 
-  let base64Icon = "data:image/png;base64," +
-      base64EncodeString(String.fromCharCode.apply(String, data));
+              try {
+                exporter.exportHTMLToFile(gBookmarksFileNew);
+              } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
-  test_bookmarks.unfiled.push(
-    { title: "Test", url: PAGE_URI.spec, icon: base64Icon });
+              // Change the favicon to check it's really imported again later.
+              PlacesUtils.favicons.setAndFetchFaviconForPage(
+                PAGE_URI, CHROME_FAVICON_URI_2, true,
+                PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
+                function () {
 
-  yield BookmarkHTMLUtils.exportToFile(gBookmarksFileNew);
+                  remove_all_bookmarks();
 
-  // Change the favicon to check it's really imported again later.
-  deferred = Promise.defer();
-  PlacesUtils.favicons.setAndFetchFaviconForPage(
-                                  PAGE_URI, CHROME_FAVICON_URI_2, true,
-                                  PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
-                                  deferred.resolve);
-  yield deferred.promise;
+                  try {
+                    BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true, function(success) {
+                     if (!success) {
+                        do_throw("couldn't import the exported file.");
+                      }
+                      promiseAsyncUpdates().then(function () {
+                        testImportedBookmarks();
 
-  remove_all_bookmarks();
+                        // Cleanup.
+                        test_bookmarks.unfiled.pop();
+                        PlacesUtils.bookmarks.removeItem(id);
 
-  yield BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true);
-  yield promiseAsyncUpdates();
-  testImportedBookmarks();
+                        try {
+                          exporter.exportHTMLToFile(gBookmarksFileNew);
+                        } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
-  // Cleanup.
-  test_bookmarks.unfiled.pop();
-  PlacesUtils.bookmarks.removeItem(id);
-
-  yield BookmarkHTMLUtils.exportToFile(gBookmarksFileNew);
-  yield promiseAsyncUpdates();
-  remove_all_bookmarks();
+                        promiseAsyncUpdates().then(function () {
+                          remove_all_bookmarks();
+                          run_next_test();
+                        });
+                      });
+                    });
+                  } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
+                });
+            });
+        });
+    });
+  } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
 });
 
-add_task(function test_import_ontop()
+add_test(function test_import_ontop()
 {
   // Test importing the exported bookmarks.html file *on top of* the existing
   // bookmarks.
@@ -235,13 +303,34 @@ add_task(function test_import_ontop()
   // 3. import the exported bookmarks file
   // 4. run the test-suite
 
-  yield BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true);
-  yield BookmarkHTMLUtils.exportToFile(gBookmarksFileNew);
-  yield BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true);
-  yield promiseAsyncUpdates();
-  testImportedBookmarks();
-  yield promiseAsyncUpdates();
-  remove_all_bookmarks();
+  try {
+    BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true, function(success) {
+      if (success) {
+        try {
+          exporter.exportHTMLToFile(gBookmarksFileNew);
+        } catch(ex) { do_throw("couldn't export to file: " + ex); }
+        try {
+          BookmarkHTMLUtils.importFromFile(gBookmarksFileNew, true, function(success) {
+            if (success) {
+              promiseAsyncUpdates().then(function () {
+                testImportedBookmarks();
+
+                promiseAsyncUpdates().then(function () {
+                  remove_all_bookmarks();
+                  run_next_test();
+                });
+              });
+            } else {
+              do_throw("couldn't import the exported file.");
+            }
+          });
+        } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
+
+      } else {
+        do_throw("couldn't import the exported file.");
+      }
+    });
+  } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
 });
 
 function testImportedBookmarks()

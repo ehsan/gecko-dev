@@ -1,13 +1,8 @@
 function test () {
   waitForExplicitFinish();
-
-  var isHTTPS = false;
-
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function () {
-    if (isHTTPS) {
-      gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
-    }
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
     let doc = gBrowser.contentDocument;
 
 
@@ -23,7 +18,6 @@ function test () {
 
     function testLink(link, name, next) {
         addWindowListener("chrome://mozapps/content/downloads/unknownContentType.xul", function (win) {
-            is(doc.getElementById("unload-flag").textContent, "Okay", "beforeunload shouldn't have fired");
             is(win.document.getElementById("location").value, name, "file name should match");
             win.close();
             next();
@@ -40,14 +34,8 @@ function test () {
               testLink.bind(null, "link6", "test.blob",
                 testLocation.bind(null, "link7", "http://example.com/",
                   function () {
-                    if (isHTTPS) {
-                      gBrowser.removeCurrentTab();
-                      finish();
-                    } else {
-                      // same test again with https:
-                      isHTTPS = true;
-                      content.location = "https://example.com:443/browser/browser/base/content/test/download_page.html";
-                    }
+                    gBrowser.removeCurrentTab();
+                    finish();
                   })))))));
 
   }, true);

@@ -129,8 +129,8 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         return NULL;
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
-    if (callerFrame && callerFrame->script()->strict)
-        globalsc.strict = true;
+    if (callerFrame && callerFrame->script()->strictModeCode)
+        globalsc.strictModeState = StrictMode::STRICT;
 
     if (options.compileAndGo) {
         if (source) {
@@ -151,7 +151,9 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
              * wishes to decompile it while it's running.
              */
             JSFunction *fun = callerFrame->fun();
-            ObjectBox *funbox = parser.newFunctionBox(fun, &pc, fun->strict());
+            ObjectBox *funbox = parser.newFunctionBox(fun, &pc, 
+                                                      fun->inStrictMode() ? StrictMode::STRICT 
+                                                                          : StrictMode::NOTSTRICT);
             if (!funbox)
                 return NULL;
             bce.objectList.add(funbox);
@@ -166,7 +168,17 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 #endif
 
     TokenStream &tokenStream = parser.tokenStream;
-    bool canHaveDirectives = true;
+    {
+        ParseNode *stringsAtStart = ListNode::create(PNK_STATEMENTLIST, &parser);
+        if (!stringsAtStart)
+            return NULL;
+        stringsAtStart->makeEmpty();
+        bool ok = parser.processDirectives(stringsAtStart) && EmitTree(cx, &bce, stringsAtStart);
+        parser.freeTree(stringsAtStart);
+        if (!ok)
+            return NULL;
+    }
+    JS_ASSERT(globalsc.strictModeState != StrictMode::UNKNOWN);
     for (;;) {
         TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt <= TOK_EOF) {
@@ -179,11 +191,6 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         pn = parser.statement();
         if (!pn)
             return NULL;
-
-        if (canHaveDirectives) {
-            if (!parser.maybeParseDirective(pn, &canHaveDirectives))
-                return NULL;
-        }
 
         if (!FoldConstants(cx, pn, &parser))
             return NULL;
@@ -272,7 +279,14 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
 
     JS_ASSERT(fun);
 
+    StrictMode sms = StrictModeFromContext(cx);
+    FunctionBox *funbox = parser.newFunctionBox(fun, /* outerpc = */ NULL, sms);
     fun->setArgCount(formals.length());
+
+    unsigned staticLevel = 0;
+    ParseContext funpc(&parser, funbox, staticLevel, /* bodyid = */ 0);
+    if (!funpc.init())
+        return false;
 
     /* FIXME: make Function format the source for a function definition. */
     ParseNode *fn = FunctionNode::create(PNK_NAME, &parser);
@@ -289,33 +303,36 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
     argsbody->makeEmpty();
     fn->pn_body = argsbody;
 
+    for (unsigned i = 0; i < formals.length(); i++) {
+        if (!DefineArg(&parser, fn, formals[i]))
+            return false;
+    }
+
+    /*
+     * After we're done parsing, we must fold constants, analyze any nested
+     * functions, and generate code for this function, including a stop opcode
+     * at the end.
+     */
+    ParseNode *pn = parser.functionBody(Parser::StatementListBody);
+    if (!pn)
+        return false;
+
+    if (!parser.tokenStream.matchToken(TOK_EOF)) {
+        parser.reportError(NULL, JSMSG_SYNTAX_ERROR);
+        return false;
+    }
+
+    if (!FoldConstants(cx, pn, &parser))
+        return false;
+
     Rooted<JSScript*> script(cx, JSScript::Create(cx, NullPtr(), false, options,
-                                                  /* staticLevel = */ 0, ss,
-                                                  /* sourceStart = */ 0, length));
+                                                  staticLevel, ss, 0, length));
     if (!script)
         return false;
 
-    // If the context is strict, immediately parse the body in strict
-    // mode. Otherwise, we parse it normally. If we see a "use strict"
-    // directive, we backup and reparse it as strict.
-    TokenStream::Position start;
-    parser.tokenStream.tell(&start);
-    bool initiallyStrict = StrictModeFromContext(cx);
-    bool becameStrict;
-    FunctionBox *funbox;
-    ParseNode *pn = parser.standaloneFunctionBody(fun, formals, script, fn, &funbox,
-                                                  initiallyStrict, &becameStrict);
-    if (!pn) {
-        if (initiallyStrict || !becameStrict || parser.tokenStream.hadError())
-            return false;
-
-        // Reparse in strict mode.
-        parser.tokenStream.seek(start);
-        pn = parser.standaloneFunctionBody(fun, formals, script, fn, &funbox,
-                                           /* strict = */ true);
-        if (!pn)
-            return false;
-    }
+    InternalHandle<Bindings*> bindings(script, &script->bindings);
+    if (!funpc.generateFunctionBindings(cx, bindings))
+        return false;
 
     BytecodeEmitter funbce(/* parent = */ NULL, &parser, funbox, script, /* callerFrame = */ NULL,
                            /* hasGlobalScope = */ false, options.lineno);

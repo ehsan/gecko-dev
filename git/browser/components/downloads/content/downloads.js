@@ -44,8 +44,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
                                   "resource://gre/modules/DownloadUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
                                   "resource:///modules/DownloadsCommon.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsPanel
@@ -109,7 +107,7 @@ const DownloadsPanel = {
     DownloadsOverlayLoader.ensureOverlayLoaded(this.kDownloadsOverlay,
                                                function DP_I_callback() {
       DownloadsViewController.initialize();
-      DownloadsCommon.getData(window).addView(DownloadsView);
+      DownloadsCommon.data.addView(DownloadsView);
       DownloadsPanel._attachEventListeners();
       aCallback();
     });
@@ -132,12 +130,10 @@ const DownloadsPanel = {
     this.hidePanel();
 
     DownloadsViewController.terminate();
-    DownloadsCommon.getData(window).removeView(DownloadsView);
+    DownloadsCommon.data.removeView(DownloadsView);
     this._unattachEventListeners();
 
     this._state = this.kStateUninitialized;
-
-    DownloadsSummary.active = false;
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -234,7 +230,7 @@ const DownloadsPanel = {
     this._state = this.kStateShown;
 
     // Since at most one popup is open at any given time, we can set globally.
-    DownloadsCommon.getIndicatorData(window).attentionSuppressed = true;
+    DownloadsCommon.indicatorData.attentionSuppressed = true;
 
     // Ensure that an item is selected when the panel is focused.
     if (DownloadsView.richListBox.itemCount > 0 &&
@@ -253,7 +249,7 @@ const DownloadsPanel = {
     }
 
     // Since at most one popup is open at any given time, we can set globally.
-    DownloadsCommon.getIndicatorData(window).attentionSuppressed = false;
+    DownloadsCommon.indicatorData.attentionSuppressed = false;
 
     // Allow the anchor to be hidden.
     DownloadsButton.releaseAnchor();
@@ -544,10 +540,10 @@ const DownloadsView = {
       DownloadsPanel.panel.removeAttribute("hasdownloads");
     }
 
-    // If we've got some hidden downloads, we should activate the
-    // DownloadsSummary. The DownloadsSummary will determine whether or not
-    // it's appropriate to actually display the summary.
-    DownloadsSummary.active = hiddenCount > 0;
+    // If we've got some hidden downloads, we should show the summary just
+    // below the list.
+    this.downloadsHistory.collapsed = hiddenCount > 0;
+    DownloadsSummary.visible = this.downloadsHistory.collapsed;
   },
 
   /**
@@ -1114,11 +1110,7 @@ const DownloadsViewController = {
   {
     // Handle commands that are not selection-specific.
     if (aCommand == "downloadsCmd_clearList") {
-      if (PrivateBrowsingUtils.isWindowPrivate(window)) {
-        return Services.downloads.canCleanUpPrivate;
-      } else {
-        return Services.downloads.canCleanUp;
-      }
+      return Services.downloads.canCleanUp;
     }
 
     // Other commands are selection-specific.
@@ -1165,11 +1157,7 @@ const DownloadsViewController = {
   commands: {
     downloadsCmd_clearList: function DVC_downloadsCmd_clearList()
     {
-      if (PrivateBrowsingUtils.isWindowPrivate(window)) {
-        Services.downloads.cleanUpPrivate();
-      } else {
-        Services.downloads.cleanUp();
-      }
+      Services.downloads.cleanUp();
     }
   }
 };
@@ -1183,7 +1171,7 @@ const DownloadsViewController = {
  */
 function DownloadsViewItemController(aElement) {
   let downloadGuid = aElement.getAttribute("downloadGuid");
-  this.dataItem = DownloadsCommon.getData(window).dataItems[downloadGuid];
+  this.dataItem = DownloadsCommon.data.dataItems[downloadGuid];
 }
 
 DownloadsViewItemController.prototype = {
@@ -1457,35 +1445,37 @@ DownloadsViewItemController.prototype = {
 const DownloadsSummary = {
 
   /**
-   * Sets the active state of the summary. When active, the sumamry subscribes
-   * to the DownloadsCommon DownloadsSummaryData singleton.
+   * Sets the collapsed state of the summary, and automatically subscribes or
+   * unsubscribes from the DownloadsCommon DownloadsSummaryData singleton.
    *
-   * @param aActive
-   *        Set to true to activate the summary.
+   * @param aVisible
+   *        True if the summary should be shown.
    */
-  set active(aActive)
+  set visible(aVisible)
   {
-    if (aActive == this._active || !this._summaryNode) {
-      return this._active;
+    if (aVisible == this._visible || !this._summaryNode) {
+      return this._visible;
     }
-    if (aActive) {
-      DownloadsCommon.getSummary(window, DownloadsView.kItemCountLimit)
+    if (aVisible) {
+      DownloadsCommon.getSummary(DownloadsView.kItemCountLimit)
                      .addView(this);
     } else {
-      DownloadsCommon.getSummary(window, DownloadsView.kItemCountLimit)
+      DownloadsCommon.getSummary(DownloadsView.kItemCountLimit)
                      .removeView(this);
-      DownloadsFooter.showingSummary = false;
     }
-
-    return this._active = aActive;
+    this._summaryNode.collapsed = !aVisible;
+    return this._visible = aVisible;
   },
 
   /**
-   * Returns the active state of the downloads summary.
+   * Returns the collapsed state of the downloads summary.
    */
-  get active() this._active,
+  get visible()
+  {
+    return this._visible;
+  },
 
-  _active: false,
+  _visible: false,
 
   /**
    * Sets whether or not we show the progress bar.
@@ -1500,8 +1490,6 @@ const DownloadsSummary = {
     } else {
       this._summaryNode.removeAttribute("inprogress");
     }
-    // If progress isn't being shown, then we simply do not show the summary.
-    return DownloadsFooter.showingSummary = aShowingProgress;
   },
 
   /**
@@ -1679,34 +1667,5 @@ const DownloadsFooter = {
       DownloadsView.richListBox.selectedIndex =
         (DownloadsView.richListBox.itemCount - 1);
     }
-  },
-
-  /**
-   * Sets whether or not the Downloads Summary should be displayed in the
-   * footer. If not, the "Show All Downloads" button is shown instead.
-   */
-  set showingSummary(aValue)
-  {
-    if (this._footerNode) {
-      if (aValue) {
-        this._footerNode.setAttribute("showingsummary", "true");
-      } else {
-        this._footerNode.removeAttribute("showingsummary");
-      }
-    }
-    return aValue;
-  },
-
-  /**
-   * Element corresponding to the footer of the downloads panel.
-   */
-  get _footerNode()
-  {
-    let node = document.getElementById("downloadsFooter");
-    if (!node) {
-      return null;
-    }
-    delete this._footerNode;
-    return this._footerNode = node;
   }
 };

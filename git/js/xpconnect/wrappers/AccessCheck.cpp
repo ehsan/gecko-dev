@@ -52,12 +52,6 @@ AccessCheck::subsumes(JSCompartment *a, JSCompartment *b)
     return subsumes;
 }
 
-bool
-AccessCheck::subsumes(JSObject *a, JSObject *b)
-{
-    return subsumes(js::GetObjectCompartment(a), js::GetObjectCompartment(b));
-}
-
 // Same as above, but ignoring document.domain.
 bool
 AccessCheck::subsumesIgnoringDomain(JSCompartment *a, JSCompartment *b)
@@ -228,6 +222,15 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
 }
 
 bool
+AccessCheck::callerIsXBL(JSContext *cx)
+{
+    JSScript *script;
+    if (!JS_DescribeScriptedCaller(cx, &script, nullptr) || !script)
+        return false;
+    return JS_GetScriptUserBit(script);
+}
+
+bool
 AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
 {
     MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
@@ -301,13 +304,6 @@ IsInSandbox(JSContext *cx, JSObject *obj)
     return !strcmp(js::GetObjectJSClass(global)->name, "Sandbox");
 }
 
-static void
-EnterAndThrow(JSContext *cx, JSObject *wrapper, const char *msg)
-{
-    JSAutoCompartment ac(cx, wrapper);
-    JS_ReportError(cx, msg);
-}
-
 bool
 ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper::Action act)
 {
@@ -373,16 +369,11 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
         return false;
 
     if (!exposedProps.isObject()) {
-        EnterAndThrow(cx, wrapper, "__exposedProps__ must be undefined, null, or an Object");
+        JS_ReportError(cx, "__exposedProps__ must be undefined, null, or an Object");
         return false;
     }
 
     JSObject *hallpass = &exposedProps.toObject();
-
-    if (!AccessCheck::subsumes(js::UnwrapObject(hallpass), wrappedObject)) {
-        EnterAndThrow(cx, wrapper, "Invalid __exposedProps__");
-        return false;
-    }
 
     Access access = NO_ACCESS;
 
@@ -394,7 +385,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
         return false;
 
     if (!JSVAL_IS_STRING(desc.value)) {
-        EnterAndThrow(cx, wrapper, "property must be a string");
+        JS_ReportError(cx, "property must be a string");
         return false;
     }
 
@@ -408,7 +399,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
         switch (chars[i]) {
         case 'r':
             if (access & READ) {
-                EnterAndThrow(cx, wrapper, "duplicate 'readable' property flag");
+                JS_ReportError(cx, "duplicate 'readable' property flag");
                 return false;
             }
             access = Access(access | READ);
@@ -416,20 +407,20 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
 
         case 'w':
             if (access & WRITE) {
-                EnterAndThrow(cx, wrapper, "duplicate 'writable' property flag");
+                JS_ReportError(cx, "duplicate 'writable' property flag");
                 return false;
             }
             access = Access(access | WRITE);
             break;
 
         default:
-            EnterAndThrow(cx, wrapper, "properties can only be readable or read and writable");
+            JS_ReportError(cx, "properties can only be readable or read and writable");
             return false;
         }
     }
 
     if (access == NO_ACCESS) {
-        EnterAndThrow(cx, wrapper, "specified properties must have a permission bit set");
+        JS_ReportError(cx, "specified properties must have a permission bit set");
         return false;
     }
 

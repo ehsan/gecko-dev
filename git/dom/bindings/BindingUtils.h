@@ -91,17 +91,32 @@ IsDOMIfaceAndProtoClass(const js::Class* clasp)
   return IsDOMIfaceAndProtoClass(Jsvalify(clasp));
 }
 
-MOZ_STATIC_ASSERT(DOM_OBJECT_SLOT == js::JSSLOT_PROXY_PRIVATE,
-                  "JSSLOT_PROXY_PRIVATE doesn't match DOM_OBJECT_SLOT.  "
-                  "Expect bad things");
+// It's ok for eRegularDOMObject and eProxyDOMObject to be the same, but
+// eNonDOMObject should always be different from the other two. This enum
+// shouldn't be used to differentiate between non-proxy and proxy bindings.
+enum DOMObjectSlot {
+  eNonDOMObject = -1,
+  eRegularDOMObject = DOM_OBJECT_SLOT,
+  eProxyDOMObject = DOM_PROXY_OBJECT_SLOT
+};
+
 template <class T>
 inline T*
-UnwrapDOMObject(JSObject* obj)
+UnwrapDOMObject(JSObject* obj, DOMObjectSlot slot)
 {
-  MOZ_ASSERT(IsDOMClass(js::GetObjectClass(obj)) || IsDOMProxy(obj),
+  MOZ_ASSERT(slot != eNonDOMObject,
              "Don't pass non-DOM objects to this function");
 
-  JS::Value val = js::GetReservedSlot(obj, DOM_OBJECT_SLOT);
+#ifdef DEBUG
+  if (IsDOMClass(js::GetObjectClass(obj))) {
+    MOZ_ASSERT(slot == eRegularDOMObject);
+  } else {
+    MOZ_ASSERT(IsDOMProxy(obj));
+    MOZ_ASSERT(slot == eProxyDOMObject);
+  }
+#endif
+
+  JS::Value val = js::GetReservedSlot(obj, slot);
   // XXXbz/khuey worker code tries to unwrap interface objects (which have
   // nothing here).  That needs to stop.
   // XXX We don't null-check UnwrapObject's result; aren't we going to crash
@@ -113,6 +128,7 @@ UnwrapDOMObject(JSObject* obj)
   return static_cast<T*>(val.toPrivate());
 }
 
+// Only use this with a new DOM binding object (either proxy or regular).
 inline const DOMClass*
 GetDOMClass(JSObject* obj)
 {
@@ -121,25 +137,41 @@ GetDOMClass(JSObject* obj)
     return &DOMJSClass::FromJSClass(clasp)->mClass;
   }
 
+  MOZ_ASSERT(IsDOMProxy(obj));
+  js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
+  return &static_cast<DOMProxyHandler*>(handler)->mClass;
+}
+
+inline DOMObjectSlot
+GetDOMClass(JSObject* obj, const DOMClass*& result)
+{
+  js::Class* clasp = js::GetObjectClass(obj);
+  if (IsDOMClass(clasp)) {
+    result = &DOMJSClass::FromJSClass(clasp)->mClass;
+    return eRegularDOMObject;
+  }
+
   if (js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) {
     js::BaseProxyHandler* handler = js::GetProxyHandler(obj);
     if (handler->family() == ProxyFamily()) {
-      return &static_cast<DOMProxyHandler*>(handler)->mClass;
+      result = &static_cast<DOMProxyHandler*>(handler)->mClass;
+      return eProxyDOMObject;
     }
   }
 
-  return nullptr;
+  return eNonDOMObject;
 }
 
 inline bool
 UnwrapDOMObjectToISupports(JSObject* obj, nsISupports*& result)
 {
-  const DOMClass* clasp = GetDOMClass(obj);
-  if (!clasp || !clasp->mDOMObjectIsISupports) {
+  const DOMClass* clasp;
+  DOMObjectSlot slot = GetDOMClass(obj, clasp);
+  if (slot == eNonDOMObject || !clasp->mDOMObjectIsISupports) {
     return false;
   }
  
-  result = UnwrapDOMObject<nsISupports>(obj);
+  result = UnwrapDOMObject<nsISupports>(obj, slot);
   return true;
 }
 
@@ -159,8 +191,9 @@ MOZ_ALWAYS_INLINE nsresult
 UnwrapObject(JSContext* cx, JSObject* obj, U& value)
 {
   /* First check to see whether we have a DOM object */
-  const DOMClass* domClass = GetDOMClass(obj);
-  if (!domClass) {
+  const DOMClass* domClass;
+  DOMObjectSlot slot = GetDOMClass(obj, domClass);
+  if (slot == eNonDOMObject) {
     /* Maybe we have a security wrapper or outer window? */
     if (!js::IsWrapper(obj)) {
       /* Not a DOM object, not a wrapper, just bail */
@@ -172,8 +205,8 @@ UnwrapObject(JSContext* cx, JSObject* obj, U& value)
       return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
     }
     MOZ_ASSERT(!js::IsWrapper(obj));
-    domClass = GetDOMClass(obj);
-    if (!domClass) {
+    slot = GetDOMClass(obj, domClass);
+    if (slot == eNonDOMObject) {
       /* We don't have a DOM object */
       return NS_ERROR_XPC_BAD_CONVERT_JS;
     }
@@ -184,7 +217,7 @@ UnwrapObject(JSContext* cx, JSObject* obj, U& value)
      class identified by protoID. */
   if (domClass->mInterfaceChain[PrototypeTraits<PrototypeID>::Depth] ==
       PrototypeID) {
-    value = UnwrapDOMObject<T>(obj);
+    value = UnwrapDOMObject<T>(obj, slot);
     return NS_OK;
   }
 
@@ -510,10 +543,11 @@ WrapNewBindingObject(JSContext* cx, JSObject* scope, T* value, JS::Value* vp)
   }
 
 #ifdef DEBUG
-  const DOMClass* clasp = GetDOMClass(obj);
-  // clasp can be null if the cache contained a non-DOM object from a
+  const DOMClass* clasp = nullptr;
+  DOMObjectSlot slot = GetDOMClass(obj, clasp);
+  // slot can be eNonDOMObject if the cache contained a non-DOM object from a
   // different compartment than scope.
-  if (clasp) {
+  if (slot != eNonDOMObject) {
     // Some sanity asserts about our object.  Specifically:
     // 1)  If our class claims we're nsISupports, we better be nsISupports
     //     XXXbz ideally, we could assert that reinterpret_cast to nsISupports

@@ -79,21 +79,7 @@ MBasicBlock::New(MIRGraph &graph, CompileInfo &info,
     if (!block->init())
         return NULL;
 
-    if (!block->inherit(pred, 0))
-        return NULL;
-
-    return block;
-}
-
-MBasicBlock *
-MBasicBlock::NewPopN(MIRGraph &graph, CompileInfo &info,
-                     MBasicBlock *pred, jsbytecode *entryPc, Kind kind, uint32_t popped)
-{
-    MBasicBlock *block = new MBasicBlock(graph, info, entryPc, kind);
-    if (!block->init())
-        return NULL;
-
-    if (!block->inherit(pred, popped))
+    if (!block->inherit(pred))
         return NULL;
 
     return block;
@@ -164,26 +150,22 @@ MBasicBlock::init()
 void
 MBasicBlock::copySlots(MBasicBlock *from)
 {
-    JS_ASSERT(stackPosition_ <= from->stackPosition_);
+    JS_ASSERT(stackPosition_ == from->stackPosition_);
 
-    for (uint32_t i = 0; i < stackPosition_; i++)
+    for (uint32 i = 0; i < stackPosition_; i++)
         slots_[i] = from->slots_[i];
 }
 
 bool
-MBasicBlock::inherit(MBasicBlock *pred, uint32_t popped)
+MBasicBlock::inherit(MBasicBlock *pred)
 {
     if (pred) {
         stackPosition_ = pred->stackPosition_;
-        JS_ASSERT(stackPosition_ >= popped);
-        stackPosition_ -= popped;
         if (kind_ != PENDING_LOOP_HEADER)
             copySlots(pred);
     } else {
         uint32_t stackDepth = info().script()->analysis()->getCode(pc()).stackDepth;
         stackPosition_ = info().firstStackSlot() + stackDepth;
-        JS_ASSERT(stackPosition_ >= popped);
-        stackPosition_ -= popped;
     }
 
     JS_ASSERT(info_.nslots() >= stackPosition_);
@@ -224,7 +206,7 @@ MBasicBlock::inheritResumePoint(MBasicBlock *pred)
 {
     // Copy slots from the resume point.
     stackPosition_ = entryResumePoint_->numOperands();
-    for (uint32_t i = 0; i < stackPosition_; i++)
+    for (uint32 i = 0; i < stackPosition_; i++)
         slots_[i] = entryResumePoint_->getOperand(i);
 
     JS_ASSERT(info_.nslots() >= stackPosition_);
@@ -255,14 +237,14 @@ MBasicBlock::initEntrySlots()
 }
 
 MDefinition *
-MBasicBlock::getSlot(uint32_t index)
+MBasicBlock::getSlot(uint32 index)
 {
     JS_ASSERT(index < stackPosition_);
     return slots_[index];
 }
 
 void
-MBasicBlock::initSlot(uint32_t slot, MDefinition *ins)
+MBasicBlock::initSlot(uint32 slot, MDefinition *ins)
 {
     slots_[slot] = ins;
     entryResumePoint()->initOperand(slot, ins);
@@ -290,7 +272,7 @@ MBasicBlock::linkOsrValues(MStart *start)
 
     MResumePoint *res = start->resumePoint();
 
-    for (uint32_t i = 0; i < stackDepth(); i++) {
+    for (uint32 i = 0; i < stackDepth(); i++) {
         MDefinition *def = slots_[i];
         if (i == info().scopeChainSlot())
             def->toOsrScopeChain()->setResumePoint(res);
@@ -300,44 +282,44 @@ MBasicBlock::linkOsrValues(MStart *start)
 }
 
 void
-MBasicBlock::setSlot(uint32_t slot, MDefinition *ins)
+MBasicBlock::setSlot(uint32 slot, MDefinition *ins)
 {
     slots_[slot] = ins;
 }
 
 void
-MBasicBlock::setVariable(uint32_t index)
+MBasicBlock::setVariable(uint32 index)
 {
     JS_ASSERT(stackPosition_ > info_.firstStackSlot());
     setSlot(index, slots_[stackPosition_ - 1]);
 }
 
 void
-MBasicBlock::setArg(uint32_t arg)
+MBasicBlock::setArg(uint32 arg)
 {
     setVariable(info_.argSlot(arg));
 }
 
 void
-MBasicBlock::setLocal(uint32_t local)
+MBasicBlock::setLocal(uint32 local)
 {
     setVariable(info_.localSlot(local));
 }
 
 void
-MBasicBlock::setSlot(uint32_t slot)
+MBasicBlock::setSlot(uint32 slot)
 {
     setVariable(slot);
 }
 
 void
-MBasicBlock::rewriteSlot(uint32_t slot, MDefinition *ins)
+MBasicBlock::rewriteSlot(uint32 slot, MDefinition *ins)
 {
     setSlot(slot, ins);
 }
 
 void
-MBasicBlock::rewriteAtDepth(int32_t depth, MDefinition *ins)
+MBasicBlock::rewriteAtDepth(int32 depth, MDefinition *ins)
 {
     JS_ASSERT(depth < 0);
     JS_ASSERT(stackPosition_ + depth >= info_.firstStackSlot());
@@ -352,25 +334,25 @@ MBasicBlock::push(MDefinition *ins)
 }
 
 void
-MBasicBlock::pushVariable(uint32_t slot)
+MBasicBlock::pushVariable(uint32 slot)
 {
     push(slots_[slot]);
 }
 
 void
-MBasicBlock::pushArg(uint32_t arg)
+MBasicBlock::pushArg(uint32 arg)
 {
     pushVariable(info_.argSlot(arg));
 }
 
 void
-MBasicBlock::pushLocal(uint32_t local)
+MBasicBlock::pushLocal(uint32 local)
 {
     pushVariable(info_.localSlot(local));
 }
 
 void
-MBasicBlock::pushSlot(uint32_t slot)
+MBasicBlock::pushSlot(uint32 slot)
 {
     pushVariable(slot);
 }
@@ -395,7 +377,7 @@ MBasicBlock::setScopeChain(MDefinition *scopeObj)
 }
 
 void
-MBasicBlock::pick(int32_t depth)
+MBasicBlock::pick(int32 depth)
 {
     // pick take an element and move it to the top.
     // pick(-2):
@@ -407,10 +389,10 @@ MBasicBlock::pick(int32_t depth)
 }
 
 void
-MBasicBlock::swapAt(int32_t depth)
+MBasicBlock::swapAt(int32 depth)
 {
-    uint32_t lhsDepth = stackPosition_ + depth - 1;
-    uint32_t rhsDepth = stackPosition_ + depth;
+    uint32 lhsDepth = stackPosition_ + depth - 1;
+    uint32 rhsDepth = stackPosition_ + depth;
 
     MDefinition *temp = slots_[lhsDepth];
     slots_[lhsDepth] = slots_[rhsDepth];
@@ -418,7 +400,7 @@ MBasicBlock::swapAt(int32_t depth)
 }
 
 MDefinition *
-MBasicBlock::peek(int32_t depth)
+MBasicBlock::peek(int32 depth)
 {
     JS_ASSERT(depth < 0);
     JS_ASSERT(stackPosition_ + depth >= info_.firstStackSlot());
@@ -562,20 +544,14 @@ MBasicBlock::discardPhiAt(MPhiIterator &at)
 bool
 MBasicBlock::addPredecessor(MBasicBlock *pred)
 {
-    return addPredecessorPopN(pred, 0);
-}
-
-bool
-MBasicBlock::addPredecessorPopN(MBasicBlock *pred, uint32_t popped)
-{
     JS_ASSERT(pred);
     JS_ASSERT(predecessors_.length() > 0);
 
     // Predecessors must be finished, and at the correct stack depth.
     JS_ASSERT(pred->lastIns_);
-    JS_ASSERT(pred->stackPosition_ == stackPosition_ + popped);
+    JS_ASSERT(pred->stackPosition_ == stackPosition_);
 
-    for (uint32_t i = 0; i < stackPosition_; i++) {
+    for (uint32 i = 0; i < stackPosition_; i++) {
         MDefinition *mine = getSlot(i);
         MDefinition *other = pred->getSlot(i);
 
@@ -641,8 +617,8 @@ MBasicBlock::assertUsesAreNotWithin(MUseIterator use, MUseIterator end)
 bool
 MBasicBlock::dominates(MBasicBlock *other)
 {
-    uint32_t high = domIndex() + numDominated();
-    uint32_t low  = domIndex();
+    uint32 high = domIndex() + numDominated();
+    uint32 low  = domIndex();
     return other->domIndex() >= low && other->domIndex() <= high;
 }
 
@@ -658,7 +634,7 @@ MBasicBlock::setBackedge(MBasicBlock *pred)
     JS_ASSERT(kind_ == PENDING_LOOP_HEADER);
 
     // Add exit definitions to each corresponding phi at the entry.
-    for (uint32_t i = 0; i < pred->stackDepth(); i++) {
+    for (uint32 i = 0; i < pred->stackDepth(); i++) {
         MPhi *entryDef = entryResumePoint()->getOperand(i)->toPhi();
         MDefinition *exitDef = pred->slots_[i];
 
@@ -758,7 +734,7 @@ MBasicBlock::dumpStack(FILE *fp)
 #ifdef DEBUG
     fprintf(fp, " %-3s %-16s %-6s %-10s\n", "#", "name", "copyOf", "first/next");
     fprintf(fp, "-------------------------------------------\n");
-    for (uint32_t i = 0; i < stackPosition_; i++) {
+    for (uint32 i = 0; i < stackPosition_; i++) {
         fprintf(fp, " %-3d", i);
         fprintf(fp, " %-16p\n", (void *)slots_[i]);
     }

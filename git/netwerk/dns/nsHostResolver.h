@@ -17,7 +17,6 @@
 #include "nsIDNSListener.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "mozilla/net/DashboardTypes.h"
 
 class nsHostResolver;
 class nsHostRecord;
@@ -276,12 +275,6 @@ private:
     bool          mShutdown;
     PRIntervalTime mLongIdleTimeout;
     PRIntervalTime mShortIdleTimeout;
-
-public:
-    /*
-     * Called by the networking dashboard via the DnsService2
-     */
-    void GetDNSCacheEntries(nsTArray<mozilla::net::DNSCacheEntries> *);
 };
 
 #endif // nsHostResolver_h__

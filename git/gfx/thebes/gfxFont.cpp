@@ -46,8 +46,6 @@
 #include "sampler.h"
 
 #include <algorithm>
-#include <cstdlib> // for std::abs(int/long)
-#include <cmath> // for std::abs(float/double)
 
 using namespace mozilla;
 using namespace mozilla::gfx;
@@ -82,14 +80,8 @@ gfxCharacterMap::NotifyReleased()
     delete this;
 }
 
-gfxFontEntry::~gfxFontEntry()
+gfxFontEntry::~gfxFontEntry() 
 {
-    // For downloaded fonts, we need to tell the user font cache that this
-    // entry is being deleted.
-    if (!mIsProxy && IsUserFont() && !IsLocalUserFont()) {
-        gfxUserFontSet::UserFontCache::ForgetFont(this);
-    }
-
     if (mSVGGlyphs) {
         delete mSVGGlyphs;
     }
@@ -1244,11 +1236,6 @@ gfxFontCache::gfxFontCache()
 
 gfxFontCache::~gfxFontCache()
 {
-    // Ensure the user font cache releases its references to font entries,
-    // so they aren't kept alive after the font instances and font-list
-    // have been shut down.
-    gfxUserFontSet::UserFontCache::Shutdown();
-
     if (mWordCacheExpirationTimer) {
         mWordCacheExpirationTimer->Cancel();
         mWordCacheExpirationTimer = nullptr;
@@ -2787,8 +2774,8 @@ gfxFont::InitMetricsFromSfntTables(Metrics& aMetrics)
             uint16_t(os2->version) >= 2) {
             // version 2 and later includes the x-height field
             SET_SIGNED(xHeight, os2->sxHeight);
-            // std::abs because of negative xHeight seen in Kokonor (Tibetan) font
-            aMetrics.xHeight = std::abs(aMetrics.xHeight);
+            // NS_ABS because of negative xHeight seen in Kokonor (Tibetan) font
+            aMetrics.xHeight = NS_ABS(aMetrics.xHeight);
         }
         // this should always be present
         if (os2data.Length() >= offsetof(OS2Table, yStrikeoutPosition) +

@@ -333,14 +333,6 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
-  {
-    if (aFlags & eSupportsCSSTransforms) {
-      return false;
-    }
-    return nsContainerFrame::IsFrameOfType(aFlags);
-  }
-
 #ifdef DEBUG
   /** @see nsIFrame::GetFrameName */
   NS_IMETHOD GetFrameName(nsAString& aResult) const;

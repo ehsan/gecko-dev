@@ -194,13 +194,15 @@
               	      './src/port/win32/include/csi_platform.h',
 		 ],
               }],
+
+              
               ## Linux
-              [ '(OS == "linux") or (OS == "android")', {
-                 'cflags_mozilla': [
-                     '-Wall',
-                     '-Wno-parentheses',
-                     '-Wno-strict-prototypes',
-                     '-Wmissing-prototypes',
+              [ 'OS == "linux"', {
+                'cflags': [
+                    '-Wall',
+                    '-Wno-parentheses',
+                    '-Wno-strict-prototypes',
+                    '-Wmissing-prototypes',
                  ],
                  'defines' : [
                      'LINUX',
@@ -212,13 +214,13 @@
                      'NEW_STDIO'
                      'RETSIGTYPE=void',
                      'TIME_WITH_SYS_TIME_H=1',
-                     'NO_REG_RPC=1',
                      '__UNUSED__="__attribute__((unused))"',
                  ],
 
 		 'include_dirs': [
 		     'src/port/linux/include'
 		 ],
+		 
 		 'sources': [
               	      './src/port/linux/include/csi_platform.h',
 		 ],

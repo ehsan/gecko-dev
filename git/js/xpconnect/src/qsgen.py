@@ -590,8 +590,7 @@ def writeResultDecl(f, type, varname):
             f.write("    nsString %s;\n" % varname)
             return
         elif name == '[jsval]':
-            f.write("    jsval %s;\n" % varname)
-            return
+            return  # nothing to declare; see special case in outParamForm
     elif t.kind in ('interface', 'forward'):
         f.write("    nsCOMPtr<%s> %s;\n" % (type.name, varname))
         return
@@ -601,11 +600,15 @@ def writeResultDecl(f, type, varname):
 
 def outParamForm(name, type):
     type = unaliasType(type)
+    # If we start allowing [jsval] return types here, we need to tack
+    # the return value onto the arguments list in the callers,
+    # possibly, and handle properly returning it too.  See bug 604198.
+    assert getBuiltinOrNativeTypeName(type) is not '[jsval]'
     if type.kind == 'builtin':
         return '&' + name
     elif type.kind == 'native':
         if getBuiltinOrNativeTypeName(type) == '[jsval]':
-            return '&' + name
+            return 'vp'
         elif type.modifier == 'ref':
             return name
         else:
@@ -664,8 +667,9 @@ resultConvTemplates = {
         "    return xpc::StringToJsval(cx, result, ${jsvalPtr});\n",
 
     '[jsval]':
-        "    ${jsvalRef} = result;\n"
-        "    return JS_WrapValue(cx, ${jsvalPtr});\n"
+        # Here there's nothing to convert, because the result has already been
+        # written directly to *rv. See the special case in outParamForm.
+        "    return JS_TRUE;\n"
     }
 
 def isVariantType(t):

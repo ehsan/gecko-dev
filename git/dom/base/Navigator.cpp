@@ -752,7 +752,7 @@ Navigator::Vibrate(const jsval& aPattern, JSContext* cx)
   nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(win, NS_OK);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = win->GetExtantDocument();
+  nsIDOMDocument* domDoc = win->GetExtantDocument();
   NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
 
   bool hidden = true;

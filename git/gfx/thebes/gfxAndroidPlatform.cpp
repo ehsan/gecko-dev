@@ -46,34 +46,34 @@ NS_MEMORY_REPORTER_IMPLEMENT(Freetype,
     "Memory used by Freetype."
 )
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_ALLOC_FUN(FreetypeMallocSizeOfOnAlloc, "freetype")
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_ON_FREE_FUN(FreetypeMallocSizeOfOnFree)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(FreetypeMallocSizeOfForCounterInc, "freetype")
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN_UN(FreetypeMallocSizeOfForCounterDec)
 
 static void*
 CountingAlloc(FT_Memory memory, long size)
 {
     void *p = malloc(size);
-    sFreetypeMemoryUsed += FreetypeMallocSizeOfOnAlloc(p);
+    sFreetypeMemoryUsed += FreetypeMallocSizeOfForCounterInc(p);
     return p;
 }
 
 static void
 CountingFree(FT_Memory memory, void* p)
 {
-    sFreetypeMemoryUsed -= FreetypeMallocSizeOfOnFree(p);
+    sFreetypeMemoryUsed -= FreetypeMallocSizeOfForCounterDec(p);
     free(p);
 }
 
 static void*
 CountingRealloc(FT_Memory memory, long cur_size, long new_size, void* p)
 {
-    sFreetypeMemoryUsed -= FreetypeMallocSizeOfOnFree(p);
+    sFreetypeMemoryUsed -= FreetypeMallocSizeOfForCounterDec(p);
     void *pnew = realloc(p, new_size);
     if (pnew) {
-        sFreetypeMemoryUsed += FreetypeMallocSizeOfOnAlloc(pnew);
+        sFreetypeMemoryUsed += FreetypeMallocSizeOfForCounterInc(pnew);
     } else {
         // realloc failed;  undo the decrement from above
-        sFreetypeMemoryUsed += FreetypeMallocSizeOfOnAlloc(p);
+        sFreetypeMemoryUsed += FreetypeMallocSizeOfForCounterInc(p);
     }
     return pnew;
 }

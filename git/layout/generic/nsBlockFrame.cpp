@@ -1572,16 +1572,14 @@ nsBlockFrame::PrepareResizeReflow(nsBlockReflowState& aState)
   const nsStyleTextReset* styleTextReset = GetStyleTextReset();
   // See if we can try and avoid marking all the lines as dirty
   bool tryAndSkipLines =
-    // The block must be LTR (bug 806284)
-    GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR &&
-    // The text must be left-aligned.
+      // The text must be left-aligned.
     IsAlignedLeft(styleText->mTextAlign, 
                   aState.mReflowState.mStyleVisibility->mDirection,
                   styleTextReset->mUnicodeBidi,
                   this) &&
-    // The left content-edge must be a constant distance from the left
-    // border-edge.
-    !GetStylePadding()->mPadding.GetLeft().HasPercent();
+      // The left content-edge must be a constant distance from the left
+      // border-edge.
+      !GetStylePadding()->mPadding.GetLeft().HasPercent();
 
 #ifdef DEBUG
   if (gDisableResizeOpt) {
@@ -6250,14 +6248,14 @@ nsBlockFrame::AccessibleType()
 {
   // block frame may be for <hr>
   if (mContent->Tag() == nsGkAtoms::hr) {
-    return a11y::eHTMLHR;
+    return a11y::eHTMLHRAccessible;
   }
 
   if (!HasBullet() || !PresContext()) {
     if (!mContent->GetParent()) {
       // Don't create accessible objects for the root content node, they are redundant with
       // the nsDocAccessible object created with the document node
-      return a11y::eNoType;
+      return a11y::eNoAccessible;
     }
     
     nsCOMPtr<nsIDOMHTMLDocument> htmlDoc =
@@ -6268,16 +6266,16 @@ nsBlockFrame::AccessibleType()
       if (SameCOMIdentity(body, mContent)) {
         // Don't create accessible objects for the body, they are redundant with
         // the nsDocAccessible object created with the document node
-        return a11y::eNoType;
+        return a11y::eNoAccessible;
       }
     }
 
     // Not a bullet, treat as normal HTML container
-    return a11y::eHyperText;
+    return a11y::eHyperTextAccessible;
   }
 
   // Create special list bullet accessible
-  return a11y::eHTMLLi;
+  return a11y::eHTMLLiAccessible;
 }
 #endif
 

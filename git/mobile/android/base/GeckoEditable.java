@@ -5,10 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.gfx.InputConnectionHandler;
-import org.mozilla.gecko.gfx.LayerView;
-
-import android.os.Build;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.Spanned;
@@ -16,12 +12,11 @@ import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.text.Selection;
-import android.text.TextPaint;
-import android.text.TextUtils;
-import android.text.style.CharacterStyle;
+import android.text.style.UnderlineSpan;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.BackgroundColorSpan;
 import android.util.Log;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -33,6 +28,7 @@ interface GeckoEditableClient {
     void sendEvent(GeckoEvent event);
     Editable getEditable();
     void setUpdateGecko(boolean update);
+    void setListener(GeckoEditableListener listener);
 }
 
 /* interface for the Editable to listen to the Gecko thread
@@ -75,9 +71,8 @@ final class GeckoEditable
     private InputFilter[] mFilters;
 
     private final SpannableStringBuilder mText;
-    private final SpannableStringBuilder mChangedText;
     private final Editable mProxy;
-    private final GeckoEditableListener mListener;
+    private GeckoEditableListener mListener;
     private final ActionQueue mActionQueue;
 
     private int mSavedSelectionStart;
@@ -249,15 +244,11 @@ final class GeckoEditable
         mUpdateGecko = true;
 
         mText = new SpannableStringBuilder();
-        mChangedText = new SpannableStringBuilder();
 
         final Class<?>[] PROXY_INTERFACES = { Editable.class };
         mProxy = (Editable)Proxy.newProxyInstance(
                 Editable.class.getClassLoader(),
                 PROXY_INTERFACES, this);
-
-        LayerView v = GeckoApp.mAppContext.getLayerView();
-        mListener = GeckoInputConnection.create(v, this);
     }
 
     private static void geckoPostToUI(Runnable runnable) {
@@ -278,14 +269,6 @@ final class GeckoEditable
                 }
             }
         });
-    }
-
-    private Object getField(Object obj, String field, Object def) {
-        try {
-            return obj.getClass().getField(field).get(obj);
-        } catch (Exception e) {
-            return def;
-        }
     }
 
     private void uiUpdateGecko(boolean force) {
@@ -332,15 +315,12 @@ final class GeckoEditable
         if (selEnd >= composingStart && selEnd <= composingEnd) {
             GeckoAppShell.sendEventToGecko(GeckoEvent.createIMERangeEvent(
                     selEnd - composingStart, selEnd - composingStart,
-                    GeckoEvent.IME_RANGE_CARETPOSITION, 0, 0, false, 0, 0, 0));
+                    GeckoEvent.IME_RANGE_CARETPOSITION, 0, 0, 0));
         }
         int rangeStart = composingStart;
-        TextPaint tp = new TextPaint();
-        TextPaint emptyTp = new TextPaint();
         do {
-            int rangeType, rangeStyles = 0, rangeLineStyle = GeckoEvent.IME_RANGE_LINE_NONE;
-            boolean rangeBoldLine = false;
-            int rangeForeColor = 0, rangeBackColor = 0, rangeLineColor = 0;
+            int rangeType, rangeStyles = 0;
+            int rangeForeColor = 0, rangeBackColor = 0;
             int rangeEnd = mText.nextSpanTransition(rangeStart, composingEnd, Object.class);
 
             if (selStart > rangeStart && selStart < rangeEnd) {
@@ -348,15 +328,14 @@ final class GeckoEditable
             } else if (selEnd > rangeStart && selEnd < rangeEnd) {
                 rangeEnd = selEnd;
             }
-            CharacterStyle[] styleSpans =
-                    mText.getSpans(rangeStart, rangeEnd, CharacterStyle.class);
+            spans = mText.getSpans(rangeStart, rangeEnd, Object.class);
 
             if (DEBUG) {
-                Log.d(LOGTAG, " found " + styleSpans.length + " spans @ " +
+                Log.d(LOGTAG, " found " + spans.length + " spans @ " +
                               rangeStart + "-" + rangeEnd);
             }
 
-            if (styleSpans.length == 0) {
+            if (spans.length == 0) {
                 rangeType = (selStart == rangeStart && selEnd == rangeEnd)
                             ? GeckoEvent.IME_RANGE_SELECTEDRAWTEXT
                             : GeckoEvent.IME_RANGE_RAWINPUT;
@@ -364,46 +343,23 @@ final class GeckoEditable
                 rangeType = (selStart == rangeStart && selEnd == rangeEnd)
                             ? GeckoEvent.IME_RANGE_SELECTEDCONVERTEDTEXT
                             : GeckoEvent.IME_RANGE_CONVERTEDTEXT;
-                tp.set(emptyTp);
-                for (CharacterStyle span : styleSpans) {
-                    span.updateDrawState(tp);
-                }
-                int tpUnderlineColor = 0;
-                float tpUnderlineThickness = 0.0f;
-                // These TextPaint fields only exist on Android ICS+ and are not in the SDK
-                if (Build.VERSION.SDK_INT >= 14) {
-                    tpUnderlineColor = (Integer)getField(tp, "underlineColor", 0);
-                    tpUnderlineThickness = (Float)getField(tp, "underlineThickness", 0.0f);
-                }
-                if (tpUnderlineColor != 0) {
-                    rangeStyles |= GeckoEvent.IME_RANGE_UNDERLINE | GeckoEvent.IME_RANGE_LINECOLOR;
-                    rangeLineColor = tpUnderlineColor;
-                    // Approximately translate underline thickness to what Gecko understands
-                    if (tpUnderlineThickness <= 0.5f) {
-                        rangeLineStyle = GeckoEvent.IME_RANGE_LINE_DOTTED;
-                    } else {
-                        rangeLineStyle = GeckoEvent.IME_RANGE_LINE_SOLID;
-                        if (tpUnderlineThickness >= 2.0f) {
-                            rangeBoldLine = true;
-                        }
+                for (Object span : spans) {
+                    if (span instanceof UnderlineSpan) {
+                        rangeStyles |= GeckoEvent.IME_RANGE_UNDERLINE;
+                    } else if (span instanceof ForegroundColorSpan) {
+                        rangeStyles |= GeckoEvent.IME_RANGE_FORECOLOR;
+                        rangeForeColor =
+                            ((ForegroundColorSpan)span).getForegroundColor();
+                    } else if (span instanceof BackgroundColorSpan) {
+                        rangeStyles |= GeckoEvent.IME_RANGE_BACKCOLOR;
+                        rangeBackColor =
+                            ((BackgroundColorSpan)span).getBackgroundColor();
                     }
-                } else if (tp.isUnderlineText()) {
-                    rangeStyles |= GeckoEvent.IME_RANGE_UNDERLINE;
-                    rangeLineStyle = GeckoEvent.IME_RANGE_LINE_SOLID;
-                }
-                if (tp.getColor() != 0) {
-                    rangeStyles |= GeckoEvent.IME_RANGE_FORECOLOR;
-                    rangeForeColor = tp.getColor();
-                }
-                if (tp.bgColor != 0) {
-                    rangeStyles |= GeckoEvent.IME_RANGE_BACKCOLOR;
-                    rangeBackColor = tp.bgColor;
                 }
             }
             GeckoAppShell.sendEventToGecko(GeckoEvent.createIMERangeEvent(
                     rangeStart - composingStart, rangeEnd - composingStart,
-                    rangeType, rangeStyles, rangeLineStyle, rangeBoldLine,
-                    rangeForeColor, rangeBackColor, rangeLineColor));
+                    rangeType, rangeStyles, rangeForeColor, rangeBackColor));
             rangeStart = rangeEnd;
 
             if (DEBUG) {
@@ -458,6 +414,15 @@ final class GeckoEditable
         mUpdateGecko = update;
     }
 
+    @Override
+    public void setListener(GeckoEditableListener listener) {
+        if (DEBUG) {
+            // GeckoEditableClient methods should all be called from the UI thread
+            GeckoApp.assertOnUiThread();
+        }
+        mListener = listener;
+    }
+
     // GeckoEditableListener interface
 
     void geckoActionReply() {
@@ -486,7 +451,8 @@ final class GeckoEditable
                     mActionQueue.syncWithGecko();
                     final int start = Selection.getSelectionStart(mText);
                     final int end = Selection.getSelectionEnd(mText);
-                    if (selStart == start && selEnd == end) {
+                    if (mListener != null &&
+                            selStart == start && selEnd == end) {
                         // There has not been another new selection in the mean time that
                         // made this notification out-of-date
                         mListener.onSelectionChange(start, end);
@@ -523,14 +489,14 @@ final class GeckoEditable
                         mFocused = false;
                     } else {
                         mFocused = true;
-                        LayerView v = GeckoApp.mAppContext.getLayerView();
-                        v.setInputConnectionHandler((InputConnectionHandler)mListener);
                         // Unmask events on the Gecko side
                         GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
                                 GeckoEvent.IME_ACKNOWLEDGE_FOCUS));
                     }
                 }
-                mListener.notifyIME(type, state);
+                if (mListener != null) {
+                    mListener.notifyIME(type, state);
+                }
             }
         });
     }
@@ -546,8 +512,10 @@ final class GeckoEditable
             public void run() {
                 // Make sure there are no other things going on
                 mActionQueue.syncWithGecko();
-                mListener.notifyIMEEnabled(state, typeHint,
-                                           modeHint, actionHint);
+                if (mListener != null) {
+                    mListener.notifyIMEEnabled(state, typeHint,
+                                               modeHint, actionHint);
+                }
             }
         });
     }
@@ -562,15 +530,6 @@ final class GeckoEditable
             throw new IllegalArgumentException("invalid selection notification range");
         }
         final int seqnoWhenPosted = ++mGeckoUpdateSeqno;
-
-        /* An event (keypress, etc.) has potentially changed the selection,
-           synchronize the selection here. There is not a race with the UI thread
-           because the UI thread should be blocked on the event action */
-        if (!mActionQueue.isEmpty() &&
-            mActionQueue.peek().mType == Action.TYPE_EVENT) {
-            Selection.setSelection(mText, start, end);
-            return;
-        }
 
         geckoPostToUI(new Runnable() {
             public void run() {
@@ -592,13 +551,6 @@ final class GeckoEditable
         });
     }
 
-    private void geckoReplaceText(int start, int oldEnd, CharSequence newText) {
-        // Don't use replace() because Gingerbread has a bug where if the replaced text
-        // has the same spans as the original text, the spans will end up being deleted
-        mText.delete(start, oldEnd);
-        mText.insert(start, newText);
-    }
-
     @Override
     public void onTextChange(final String text, final int start,
                       final int unboundedOldEnd, final int unboundedNewEnd) {
@@ -613,65 +565,30 @@ final class GeckoEditable
            number to denote "end of the text". Fix that here */
         final int oldEnd = unboundedOldEnd > mText.length() ? mText.length() : unboundedOldEnd;
         // new end should always match text
-        if (start != 0 && unboundedNewEnd != (start + text.length())) {
+        if (unboundedNewEnd < (start + text.length())) {
             throw new IllegalArgumentException("newEnd does not match text");
         }
         final int newEnd = start + text.length();
 
-        /* Text changes affect the selection as well, and we may not receive another selection
-           update as a result of selection notification masking on the Gecko side; therefore,
-           in order to prevent previous stale selection notifications from occurring, we need
-           to increment the seqno here as well */
-        ++mGeckoUpdateSeqno;
-
-        mChangedText.clearSpans();
-        mChangedText.replace(0, mChangedText.length(), text);
-        // Preserve as many spans as possible
-        TextUtils.copySpansFrom(mText, start, Math.min(oldEnd, newEnd),
-                                Object.class, mChangedText, 0);
-
         if (!mActionQueue.isEmpty()) {
             final Action action = mActionQueue.peek();
             if (action.mType == Action.TYPE_REPLACE_TEXT &&
-                    start <= action.mStart &&
-                    action.mStart + action.mSequence.length() <= newEnd) {
-
-                // actionNewEnd is the new end of the original replacement action
-                final int actionNewEnd = action.mStart + action.mSequence.length();
-                int selStart = Selection.getSelectionStart(mText);
-                int selEnd = Selection.getSelectionEnd(mText);
-
-                // Replace old spans with new spans
-                mChangedText.replace(action.mStart - start, actionNewEnd - start,
-                                     action.mSequence);
-                geckoReplaceText(start, oldEnd, mChangedText);
-
-                // delete/insert above might have moved our selection to somewhere else
-                // this happens when the Gecko text change covers a larger range than
-                // the original replacement action. Fix selection here
-                if (selStart >= start && selStart <= oldEnd) {
-                    selStart = selStart < action.mStart ? selStart :
-                               selStart < action.mEnd   ? actionNewEnd :
-                                                          selStart + actionNewEnd - action.mEnd;
-                    mText.setSpan(Selection.SELECTION_START, selStart, selStart,
-                                  Spanned.SPAN_POINT_POINT);
-                }
-                if (selEnd >= start && selEnd <= oldEnd) {
-                    selEnd = selEnd < action.mStart ? selEnd :
-                             selEnd < action.mEnd   ? actionNewEnd :
-                                                      selEnd + actionNewEnd - action.mEnd;
-                    mText.setSpan(Selection.SELECTION_END, selEnd, selEnd,
-                                  Spanned.SPAN_POINT_POINT);
-                }
+                    action.mStart == start &&
+                    text.equals(action.mSequence.toString())) {
+                // Replace using saved text to preserve spans
+                mText.replace(start, oldEnd, action.mSequence,
+                              0, action.mSequence.length());
             } else {
-                geckoReplaceText(start, oldEnd, mChangedText);
+                mText.replace(start, oldEnd, text, 0, text.length());
             }
         } else {
-            geckoReplaceText(start, oldEnd, mChangedText);
+            mText.replace(start, oldEnd, text, 0, text.length());
         }
         geckoPostToUI(new Runnable() {
             public void run() {
-                mListener.onTextChange(text, start, oldEnd, newEnd);
+                if (mListener != null) {
+                    mListener.onTextChange(text, start, oldEnd, newEnd);
+                }
             }
         });
     }
@@ -737,6 +654,13 @@ final class GeckoEditable
     }
 
     // Spannable interface
+
+    private static boolean isCompositionSpan(Object what, int flags) {
+        return (flags & Spanned.SPAN_COMPOSING) != 0 ||
+                what instanceof UnderlineSpan ||
+                what instanceof ForegroundColorSpan ||
+                what instanceof BackgroundColorSpan;
+    }
 
     @Override
     public void removeSpan(Object what) {

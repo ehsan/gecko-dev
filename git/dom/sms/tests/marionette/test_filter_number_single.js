@@ -10,7 +10,6 @@ let sms = window.navigator.mozSms;
 let numberMsgs = 10;
 let smsList = new Array();
 let defaultRemoteNumber = "5552227777";
-let defaultRemoteNumberFormats = ["5552227777", "+15552227777"];
 
 function verifyInitialState() {
   log("Verifying initial state.");
@@ -144,7 +143,7 @@ function getMsgs() {
 
   // Going to filter for one number only, so set our expected SMS array
   smsList = smsList.filter(function(i) {
-    return defaultRemoteNumberFormats.indexOf(i.sender) >= 0 ? true : false;
+    return i.sender != defaultRemoteNumber ? false: true;
   });
 
   // Set filter for default remote number

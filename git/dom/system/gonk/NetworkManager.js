@@ -440,7 +440,7 @@ NetworkManager.prototype = {
       dns2: network.dns2,
       gateway: network.gateway,
       httpproxy: network.httpProxyHost,
-      mmsproxy: Services.prefs.getCharPref("ril.mms.mmsproxy")
+      mmsproxy: Services.prefs.getCharPref("ril.data.mmsproxy")
     };
     this.worker.postMessage(options);
   },
@@ -454,7 +454,7 @@ NetworkManager.prototype = {
       dns2: network.dns2,
       gateway: network.gateway,
       httpproxy: network.httpProxyHost,
-      mmsproxy: Services.prefs.getCharPref("ril.mms.mmsproxy")
+      mmsproxy: Services.prefs.getCharPref("ril.data.mmsproxy")
     };
     this.worker.postMessage(options);
   },
@@ -601,7 +601,7 @@ NetworkManager.prototype = {
       debug("Invalid security type.");
       return null;
     }
-    if (securityType != WIFI_SECURITY_TYPE_NONE && !securityId) {
+    if (!securityId) {
       debug("Invalid security password.");
       return null;
     }

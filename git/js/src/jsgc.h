@@ -89,9 +89,9 @@ class ChunkPool {
 };
 
 static inline JSGCTraceKind
-MapAllocToTraceKind(AllocKind kind)
+MapAllocToTraceKind(AllocKind thingKind)
 {
-    static const JSGCTraceKind map[] = {
+    static const JSGCTraceKind map[FINALIZE_LIMIT] = {
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT0 */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT0_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT2 */
@@ -116,15 +116,14 @@ MapAllocToTraceKind(AllocKind kind)
         JSTRACE_STRING,     /* FINALIZE_EXTERNAL_STRING */
         JSTRACE_IONCODE,    /* FINALIZE_IONCODE */
     };
-    JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
-    return map[kind];
+    return map[thingKind];
 }
 
 static inline bool
 IsNurseryAllocable(AllocKind kind)
 {
     JS_ASSERT(kind >= 0 && unsigned(kind) < FINALIZE_LIMIT);
-    static const bool map[] = {
+    static const bool map[FINALIZE_LIMIT] = {
         false,     /* FINALIZE_OBJECT0 */
         true,      /* FINALIZE_OBJECT0_BACKGROUND */
         false,     /* FINALIZE_OBJECT2 */
@@ -146,10 +145,8 @@ IsNurseryAllocable(AllocKind kind)
 #endif
         true,      /* FINALIZE_SHORT_STRING */
         true,      /* FINALIZE_STRING */
-        false,     /* FINALIZE_EXTERNAL_STRING */
-        false,     /* FINALIZE_IONCODE */
+        false      /* FINALIZE_EXTERNAL_STRING */
     };
-    JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
 
@@ -157,7 +154,7 @@ static inline bool
 IsBackgroundFinalized(AllocKind kind)
 {
     JS_ASSERT(kind >= 0 && unsigned(kind) < FINALIZE_LIMIT);
-    static const bool map[] = {
+    static const bool map[FINALIZE_LIMIT] = {
         false,     /* FINALIZE_OBJECT0 */
         true,      /* FINALIZE_OBJECT0_BACKGROUND */
         false,     /* FINALIZE_OBJECT2 */
@@ -179,10 +176,8 @@ IsBackgroundFinalized(AllocKind kind)
 #endif
         true,      /* FINALIZE_SHORT_STRING */
         true,      /* FINALIZE_STRING */
-        false,     /* FINALIZE_EXTERNAL_STRING */
-        false,     /* FINALIZE_IONCODE */
+        false      /* FINALIZE_EXTERNAL_STRING */
     };
-    JS_STATIC_ASSERT(JS_ARRAY_LENGTH(map) == FINALIZE_LIMIT);
     return map[kind];
 }
 
@@ -902,19 +897,6 @@ struct SliceBudget {
 
 static const size_t MARK_STACK_LENGTH = 32768;
 
-struct GrayRoot {
-    void *thing;
-    JSGCTraceKind kind;
-#ifdef DEBUG
-    JSTraceNamePrinter debugPrinter;
-    const void *debugPrintArg;
-    size_t debugPrintIndex;
-#endif
-
-    GrayRoot(void *thing, JSGCTraceKind kind)
-        : thing(thing), kind(kind) {}
-};
-
 struct GCMarker : public JSTracer {
   private:
     /*
@@ -937,7 +919,7 @@ struct GCMarker : public JSTracer {
 
     static void staticAsserts() {
         JS_STATIC_ASSERT(StackTagMask >= uintptr_t(LastTag));
-        JS_STATIC_ASSERT(StackTagMask <= gc::CellMask);
+        JS_STATIC_ASSERT(StackTagMask <= gc::Cell::CellMask);
     }
 
   public:
@@ -1015,16 +997,15 @@ struct GCMarker : public JSTracer {
      * Gray marking must be done after all black marking is complete. However,
      * we do not have write barriers on XPConnect roots. Therefore, XPConnect
      * roots must be accumulated in the first slice of incremental GC. We
-     * accumulate these roots in the each compartment's gcGrayRoots vector and
-     * then mark them later, after black marking is complete for each
-     * compartment. This accumulation can fail, but in that case we switch to
-     * non-incremental GC.
+     * accumulate these roots in the GrayRootMarker and then mark them later,
+     * after black marking is complete. This accumulation can fail, but in that
+     * case we switch to non-incremental GC.
      */
     bool hasBufferedGrayRoots() const;
     void startBufferingGrayRoots();
     void endBufferingGrayRoots();
-    void resetBufferedGrayRoots();
-    void markBufferedGrayRoots(JSCompartment *comp);
+    void markBufferedGrayRoots();
+    void markBufferedGrayRootCompartmentsAlive();
 
     static void GrayCallback(JSTracer *trc, void **thing, JSGCTraceKind kind);
 
@@ -1084,7 +1065,21 @@ struct GCMarker : public JSTracer {
     /* Count of arenas that are currently in the stack. */
     mozilla::DebugOnly<size_t> markLaterArenas;
 
+    struct GrayRoot {
+        void *thing;
+        JSGCTraceKind kind;
+#ifdef DEBUG
+        JSTraceNamePrinter debugPrinter;
+        const void *debugPrintArg;
+        size_t debugPrintIndex;
+#endif
+
+        GrayRoot(void *thing, JSGCTraceKind kind)
+          : thing(thing), kind(kind) {}
+    };
+
     bool grayFailed;
+    Vector<GrayRoot, 0, SystemAllocPolicy> grayRoots;
 };
 
 void

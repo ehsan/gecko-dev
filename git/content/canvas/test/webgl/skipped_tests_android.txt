@@ -1,4 +1,3 @@
-conformance/glsl/functions/glsl-function.html
 conformance/more/conformance/quickCheckAPI-B2.html
 conformance/programs/gl-getshadersource.html
 conformance/reading/read-pixels-test.html

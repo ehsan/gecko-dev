@@ -823,9 +823,9 @@ public:
     inline void AddWrappedJSRoot(nsXPCWrappedJS* wrappedJS);
     inline void AddObjectHolderRoot(XPCJSObjectHolder* holder);
 
-    void AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
-    void RemoveJSHolder(void* aHolder);
-    bool TestJSHolder(void* aHolder);
+    nsresult AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
+    nsresult RemoveJSHolder(void* aHolder);
+    nsresult TestJSHolder(void* aHolder, bool* aRetval);
 #ifdef DEBUG
     void SetObjectToUnlink(void* aObject) { mObjectToUnlink = aObject; }
     void AssertNoObjectsToTrace(void* aPossibleJSHolder);

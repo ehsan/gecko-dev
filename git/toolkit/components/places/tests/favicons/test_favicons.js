@@ -42,7 +42,7 @@ let pages = [
   NetUtil.newURI("http://foo.bar.moz/")
 ];
 
-add_task(function test_set_and_get_favicon_setup() {
+add_test(function test_set_and_get_favicon_setup() {
   do_log_info("Setup code for set/get favicon.");
   let [icon0, icon1] = icons;
 
@@ -54,7 +54,9 @@ add_task(function test_set_and_get_favicon_setup() {
 
   // Add visits to the DB.
   for each (let uri in pages) {
-    yield promiseAddVisits(uri);
+    PlacesUtils.history.addVisit(uri, Date.now() * 1000, null,
+                                 PlacesUtils.history.TRANSITION_TYPED,
+                                 false, 0);
   }
 
   // Set first page icon.
@@ -69,6 +71,8 @@ add_task(function test_set_and_get_favicon_setup() {
 
   let favicon = PlacesUtils.favicons.getFaviconForPage(pages[0]);
   do_check_true(icon0.uri.equals(favicon));
+
+  run_next_test();
 });
 
 add_test(function test_set_and_get_favicon_getFaviconURLForPage() {

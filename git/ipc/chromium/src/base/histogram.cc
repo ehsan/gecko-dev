@@ -430,27 +430,27 @@ size_t Histogram::SampleSet::SizeOfExcludingThis(size_t (*aMallocSizeOf)(const v
 
 Histogram::Histogram(const std::string& name, Sample minimum,
                      Sample maximum, size_t bucket_count)
-  : sample_(),
-    histogram_name_(name),
+  : histogram_name_(name),
     declared_min_(minimum),
     declared_max_(maximum),
     bucket_count_(bucket_count),
     flags_(kNoFlags),
     ranges_(bucket_count + 1, 0),
-    range_checksum_(0) {
+    range_checksum_(0),
+    sample_() {
   Initialize();
 }
 
 Histogram::Histogram(const std::string& name, TimeDelta minimum,
                      TimeDelta maximum, size_t bucket_count)
-  : sample_(),
-    histogram_name_(name),
+  : histogram_name_(name),
     declared_min_(static_cast<int> (minimum.InMilliseconds())),
     declared_max_(static_cast<int> (maximum.InMilliseconds())),
     bucket_count_(bucket_count),
     flags_(kNoFlags),
     ranges_(bucket_count + 1, 0),
-    range_checksum_(0) {
+    range_checksum_(0),
+    sample_() {
   Initialize();
 }
 
@@ -559,7 +559,7 @@ const std::string Histogram::GetAsciiBucketRange(size_t i) const {
 // Update histogram data with new sample.
 void Histogram::Accumulate(Sample value, Count count, size_t index) {
   // Note locking not done in this version!!!
-  sample_.AccumulateWithExponentialStats(value, count, index);
+  sample_.Accumulate(value, count, index);
 }
 
 void Histogram::SetBucketRange(size_t i, Sample value) {
@@ -706,9 +706,6 @@ void Histogram::WriteAsciiBucketGraph(double current_size, double max_size,
 Histogram::SampleSet::SampleSet()
     : counts_(),
       sum_(0),
-      sum_squares_(0),
-      log_sum_(0),
-      log_sum_squares_(0),
       redundant_count_(0) {
 }
 
@@ -724,28 +721,15 @@ void Histogram::SampleSet::CheckSize(const Histogram& histogram) const {
 }
 
 
-void Histogram::SampleSet::AccumulateWithLinearStats(Sample value,
-                                                     Count count,
-                                                     size_t index) {
+void Histogram::SampleSet::Accumulate(Sample value,  Count count,
+                                      size_t index) {
   DCHECK(count == 1 || count == -1);
   counts_[index] += count;
-  int64_t amount = static_cast<int64_t>(count) * value;
-  sum_ += amount;
-  sum_squares_ += amount * value;
+  sum_ += count * value;
   redundant_count_ += count;
   DCHECK_GE(counts_[index], 0);
   DCHECK_GE(sum_, 0);
   DCHECK_GE(redundant_count_, 0);
-}
-
-void Histogram::SampleSet::AccumulateWithExponentialStats(Sample value,
-                                                          Count count,
-                                                          size_t index) {
-  AccumulateWithLinearStats(value, count, index);
-  DCHECK_GE(value, 0);
-  double value_log = log(static_cast<double>(value) + 1);
-  log_sum_ += count * value_log;
-  log_sum_squares_ += count * value_log * value_log;
 }
 
 Count Histogram::SampleSet::TotalCount() const {
@@ -761,9 +745,6 @@ Count Histogram::SampleSet::TotalCount() const {
 void Histogram::SampleSet::Add(const SampleSet& other) {
   DCHECK_EQ(counts_.size(), other.counts_.size());
   sum_ += other.sum_;
-  sum_squares_ += other.sum_squares_;
-  log_sum_ += other.log_sum_;
-  log_sum_squares_ += other.log_sum_squares_;
   redundant_count_ += other.redundant_count_;
   for (size_t index = 0; index < counts_.size(); ++index)
     counts_[index] += other.counts_[index];
@@ -775,9 +756,6 @@ void Histogram::SampleSet::Subtract(const SampleSet& other) {
   // negative values when snapshots are later combined (and deltas calculated).
   // As a result, we don't currently CHCEK() for positive values.
   sum_ -= other.sum_;
-  sum_squares_ -= other.sum_squares_;
-  log_sum_ -= other.log_sum_;
-  log_sum_squares_ -= other.log_sum_squares_;
   redundant_count_ -= other.redundant_count_;
   for (size_t index = 0; index < counts_.size(); ++index) {
     counts_[index] -= other.counts_[index];
@@ -871,10 +849,6 @@ Histogram* LinearHistogram::FactoryTimeGet(const std::string& name,
 
 Histogram::ClassType LinearHistogram::histogram_type() const {
   return LINEAR_HISTOGRAM;
-}
-
-void LinearHistogram::Accumulate(Sample value, Count count, size_t index) {
-  sample_.AccumulateWithLinearStats(value, count, index);
 }
 
 void LinearHistogram::SetRangeDescriptions(
@@ -981,7 +955,7 @@ FlagHistogram::FactoryGet(const std::string &name, Flags flags)
     fh->InitializeBucketRange();
     fh->SetFlags(flags);
     size_t zero_index = fh->BucketIndex(0);
-    fh->LinearHistogram::Accumulate(0, 1, zero_index);
+    fh->Histogram::Accumulate(0, 1, zero_index);
     h = StatisticsRecorder::RegisterOrDeleteDuplicate(fh);
   }
 
@@ -1007,9 +981,9 @@ FlagHistogram::Accumulate(Sample value, Count count, size_t index)
 
   mSwitched = true;
   DCHECK_EQ(value, 1);
-  LinearHistogram::Accumulate(value, 1, index);
+  Histogram::Accumulate(value, 1, index);
   size_t zero_index = BucketIndex(0);
-  LinearHistogram::Accumulate(0, -1, zero_index);
+  Histogram::Accumulate(0, -1, zero_index);
 }
 
 void

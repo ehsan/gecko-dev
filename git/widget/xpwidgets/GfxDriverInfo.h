@@ -125,7 +125,7 @@ struct GfxDriverInfo
 #define GFX_DRIVER_VERSION(a,b,c,d) \
   ((uint64_t(a)<<48) | (uint64_t(b)<<32) | (uint64_t(c)<<16) | uint64_t(d))
 
-inline uint64_t
+static uint64_t
 V(uint32_t a, uint32_t b, uint32_t c, uint32_t d)
 {
   // We make sure every driver number is padded by 0s, this will allow us the
@@ -144,7 +144,7 @@ V(uint32_t a, uint32_t b, uint32_t c, uint32_t d)
 }
 
 // All destination string storage needs to have at least 5 bytes available.
-inline bool SplitDriverVersion(const char *aSource, char *aAStr, char *aBStr, char *aCStr, char *aDStr)
+static bool SplitDriverVersion(const char *aSource, char *aAStr, char *aBStr, char *aCStr, char *aDStr)
 {
   // sscanf doesn't do what we want here to we parse this manually.
   int len = strlen(aSource);
@@ -182,12 +182,12 @@ inline bool SplitDriverVersion(const char *aSource, char *aAStr, char *aBStr, ch
   return true;
 }
 
-// This allows us to pad driver version 'substrings' with 0s, this
+// This allows us to pad driver versiopn 'substrings' with 0s, this
 // effectively allows us to treat the version numbers as 'decimals'. This is
 // a little strange but this method seems to do the right thing for all
 // different vendor's driver strings. i.e. .98 will become 9800, which is
 // larger than .978 which would become 9780.
-inline void PadDriverDecimal(char *aString)
+static void PadDriverDecimal(char *aString)
 {
   for (int i = 0; i < 4; i++) {
     if (!aString[i]) {

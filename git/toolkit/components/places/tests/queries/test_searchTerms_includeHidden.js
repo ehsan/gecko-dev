@@ -39,18 +39,9 @@ const TEST_DATA = [
   }
 ];
 
-function run_test()
-{
-  run_next_test();
-}
+function run_test() {
+  populateDB(VISITS);
 
-add_task(function test_initalize()
-{
-  yield task_populateDB(VISITS);
-});
-
-add_task(function test_searchTerms_includeHidden()
-{
   for (let data of TEST_DATA) {
     let query = PlacesUtils.history.getNewQuery();
     query.searchTerms = data.searchTerms;
@@ -63,4 +54,4 @@ add_task(function test_searchTerms_includeHidden()
     root.containerOpen = false;
     do_check_eq(cc, data.expectedResults);
   }
-});
+}

@@ -27,26 +27,12 @@ LIBS = \
   $(NULL)
 
 ifdef MOZ_SYDNEYAUDIO
-ifeq ($(OS_TARGET),Linux)
+ifeq ($(OS_ARCH),Linux)
 LIBS += \
   $(MOZ_ALSA_LIBS) \
   $(NULL)
 endif
 endif
-
-ifeq ($(OS_TARGET),Android)
-LIBS += \
-  $(STLPORT_LDFLAGS) \
-  $(STLPORT_LIBS) \
-  $(NULL)
-CPPFLAGS += \
-  $(STLPORT_CPPFLAGS) \
-  $(NULL)
-DEFINES += \
-  -DGTEST_USE_OWN_TR1_TUPLE=1 \
-   $(NULL)
-endif
-
 
 ifdef MOZ_NATIVE_LIBVPX
 LIBS += \
@@ -62,21 +48,13 @@ LIBS += \
   $(NULL)
 endif
 
-ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
-LIBS += \
-  $(XLIBS) \
-  $(TK_LIBS) \
-  $(MOZ_PANGO_LIBS) \
-  $(NULL)
-endif
-
-ifeq ($(OS_TARGET),Linux)
+ifeq ($(OS_ARCH),Linux)
 LIBS += \
   $(MOZ_CAIRO_OSLIBS) \
   $(NULL)
 endif
 
-ifeq ($(OS_TARGET),Darwin)
+ifeq ($(OS_ARCH),Darwin)
 LIBS += \
   -framework AudioToolbox \
   -framework AudioUnit \
@@ -93,7 +71,7 @@ LIBS += \
   $(NULL)
 endif
 
-ifeq ($(OS_TARGET),WINNT)
+ifeq ($(OS_ARCH),WINNT)
 LIBS += \
   $(DEPTH)/staticlib/components/$(LIB_PREFIX)windowsproxy.$(LIB_SUFFIX) \
   $(NULL)
@@ -103,7 +81,7 @@ DEFINES += \
   -DUSE_FAKE_MEDIA_STREAMS \
   $(NULL)
 
-ifeq ($(OS_TARGET),Darwin)
+ifeq ($(OS_ARCH),Darwin)
 DEFINES += \
   -DGTEST_USE_OWN_TR1_TUPLE=1 \
   $(NULL)

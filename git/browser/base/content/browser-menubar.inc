@@ -376,8 +376,10 @@
                           disabled="true"/>
 #endif
                 <menuitem id="historyRestoreLastSession"
+                          class="restoreLastSession"
                           label="&historyRestoreLastSession.label;"
-                          command="Browser:RestoreLastSession"/>
+                          oncommand="restoreLastSession();"
+                          disabled="true"/>
                 <menu id="historyUndoMenu"
                       class="recentlyClosedTabsMenu"
                       label="&historyUndoMenu.label;"
@@ -540,7 +542,6 @@
                             command="Social:FocusChat"
                             class="show-only-for-keyboard"/>
                   <menuseparator class="social-statusarea-separator"/>
-                  <menuseparator class="social-provider-menu" hidden="true"/>
                   <menuitem class="social-toggle-menuitem" command="Social:Toggle"/>
                   <menuitem class="social-remove-menuitem" command="Social:Remove"/>
                 </menupopup>

@@ -260,7 +260,8 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
       }
     } // if there's no document, we don't have to do anything.
 
-    NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+    rv = NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mExpr = expr;
 
@@ -270,7 +271,8 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
       mFileName.Assign(filename);
     }
   } else if (funobj) {
-    NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+    rv = NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mFunObj = funobj;
 
