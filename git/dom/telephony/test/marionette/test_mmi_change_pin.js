@@ -108,6 +108,8 @@ startTest(function() {
   }
 
   return promise
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, cause => {
+      ok(false, 'promise rejects during test: ' + cause);
+    })
     .then(finish);
 });

@@ -98,6 +98,8 @@ function testOutgoingCallRadioOff() {
 // Start test
 startTestWithPermissions(['mobileconnection'], function() {
   testOutgoingCallRadioOff()
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, () => {
+      ok(false, "promise rejects during test.");
+    })
     .then(finish);
 });

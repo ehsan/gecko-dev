@@ -246,10 +246,8 @@ function task_addPageBook(aURI, aTitle, aBook, aTags, aKey, aTransitionType, aNo
 function run_test() {
   print("\n");
   // always search in history + bookmarks, no matter what the default is
-  prefs.setBoolPref("browser.urlbar.suggest.history", true);
-  prefs.setBoolPref("browser.urlbar.suggest.bookmark", true);
-  prefs.setBoolPref("browser.urlbar.suggest.openpage", true);
-  prefs.setBoolPref("browser.urlbar.suggest.history.onlyTyped", false);
+  prefs.setIntPref("browser.urlbar.search.sources", 3);
+  prefs.setIntPref("browser.urlbar.default.behavior", 0);
 
   // Search is asynchronous, so don't let the test finish immediately
   do_test_pending();

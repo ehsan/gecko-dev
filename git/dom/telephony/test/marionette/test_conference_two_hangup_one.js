@@ -28,6 +28,8 @@ function testConferenceTwoAndHangupOne() {
 // Start the test
 startTest(function() {
   testConferenceTwoAndHangupOne()
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, error => {
+      ok(false, 'promise rejects during test.');
+    })
     .then(finish);
 });

@@ -29,6 +29,9 @@ startTest(function() {
     return deferred.promise;
   })
   .then(() => gRemoteHangUp(outCall))
-  .catch(error => ok(false, "Promise reject: " + error))
+  // End
+  .then(null, error => {
+    ok(false, 'promise rejects during test.');
+  })
   .then(finish);
 });
