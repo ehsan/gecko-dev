@@ -22,7 +22,6 @@
  *   Dan Mills <thunder@mozilla.com>
  *   Philipp von Weitershausen <philipp@weitershausen.de>
  *   Richard Newman <rnewman@mozilla.com>
- *   Allison Naaktgeboren <ally@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -254,8 +253,8 @@ HistoryStore.prototype = {
     }
 
     let cb = Async.makeSyncCallback();
-    let updatePlacesCallback = { 
-      handleError: function handleError(resultCode, placeInfo) {
+    let onPlace = function onPlace(result, placeInfo) {
+      if (!Components.isSuccessCode(result)) {
         failed.push(placeInfo.guid);
       }
     };
@@ -264,7 +263,7 @@ HistoryStore.prototype = {
       cb();
     };
     Svc.Obs.add(TOPIC_UPDATEPLACES_COMPLETE, onComplete);
-    this._asyncHistory.updatePlaces(records, updatePlacesCallback);
+    this._asyncHistory.updatePlaces(records, onPlace);
     Async.waitForSyncCallback(cb);
     return failed;
   },

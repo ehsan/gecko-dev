@@ -10,7 +10,7 @@ function test() {
   registerCleanupFunction(function() {
     while (gBrowser.tabs[1])
       gBrowser.removeTab(gBrowser.tabs[1]);
-    hideTabView();
+    hideTabView(function() {});
   });
   gBrowser.loadOneTab("about:blank", { inBackground: true });
   showTabView(setup);
@@ -20,7 +20,7 @@ function setup() {
   registerCleanupFunction(function() {
     let groupItem = contentWindow.GroupItems.groupItem(groupItemTwoId);
     if (groupItem)
-      closeGroupItem(groupItem);
+      closeGroupItem(groupItem, function() {}); 
   });
 
   let contentWindow = TabView.getContentWindow();
