@@ -53,10 +53,8 @@ public:
   virtual nsresult LogMessageWithMode(nsIConsoleMessage* aMessage,
                                       OutputMode aOutputMode);
 
-  typedef nsInterfaceHashtable<nsISupportsHashKey,
-                               nsIConsoleListener> ListenerHash;
-  void EnumerateListeners(ListenerHash::EnumReadFunction aFunction,
-                          void* aClosure);
+  typedef nsInterfaceHashtable<nsISupportsHashKey, nsIConsoleListener> ListenerHash;
+  void EnumerateListeners(ListenerHash::EnumReadFunction aFunction, void* aClosure);
 
 private:
   ~nsConsoleService();

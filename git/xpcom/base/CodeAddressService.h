@@ -154,8 +154,7 @@ public:
       }
 
       const char* library = mLibraryStrings.Intern(details.library);
-      entry.Replace(aPc, details.function, library, details.loffset,
-                    details.filename, details.lineno);
+      entry.Replace(aPc, details.function, library, details.loffset, details.filename, details.lineno);
 
     } else {
       mNumCacheHits++;

@@ -15,9 +15,10 @@ this.BrowserUtils = {
   /**
    * Prints arguments separated by a space and appends a new line.
    */
-  dumpLn: function (...args) {
-    for (let a of args)
-      dump(a + " ");
+  dumpLn: function () {
+    for (let i = 0; i < arguments.length; i++) {
+      dump(arguments[i] + " ");
+    }
     dump("\n");
   },
 

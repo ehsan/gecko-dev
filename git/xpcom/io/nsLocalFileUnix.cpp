@@ -129,8 +129,7 @@ nsDirEnumeratorUnix::~nsDirEnumeratorUnix()
   Close();
 }
 
-NS_IMPL_ISUPPORTS(nsDirEnumeratorUnix, nsISimpleEnumerator,
-                  nsIDirectoryEnumerator)
+NS_IMPL_ISUPPORTS(nsDirEnumeratorUnix, nsISimpleEnumerator, nsIDirectoryEnumerator)
 
 NS_IMETHODIMP
 nsDirEnumeratorUnix::Init(nsLocalFile* aParent,
@@ -395,7 +394,7 @@ nsLocalFile::OpenNSPRFileDesc(int32_t aFlags, int32_t aMode,
                               PRFileDesc** aResult)
 {
   *aResult = PR_Open(mPath.get(), aFlags, aMode);
-  if (!*aResult) {
+  if (! *aResult) {
     return NS_ErrorAccordingToNSPR();
   }
 
@@ -416,7 +415,7 @@ NS_IMETHODIMP
 nsLocalFile::OpenANSIFileDesc(const char* aMode, FILE** aResult)
 {
   *aResult = fopen(mPath.get(), aMode);
-  if (!*aResult) {
+  if (! *aResult) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1408,8 +1407,7 @@ nsLocalFile::GetDiskSpaceAvailable(int64_t* aDiskSpaceAvailable)
       && dq.dqb_bhardlimit) {
     int64_t QuotaSpaceAvailable = 0;
     if (dq.dqb_bhardlimit > dq.dqb_curspace) {
-      QuotaSpaceAvailable =
-        int64_t(fs_buf.F_BSIZE * (dq.dqb_bhardlimit - dq.dqb_curspace));
+      QuotaSpaceAvailable = int64_t(fs_buf.F_BSIZE * (dq.dqb_bhardlimit - dq.dqb_curspace));
     }
     if (QuotaSpaceAvailable < *aDiskSpaceAvailable) {
       *aDiskSpaceAvailable = QuotaSpaceAvailable;
@@ -1951,8 +1949,7 @@ nsLocalFile::SetPersistentDescriptor(const nsACString& aPersistentDescriptor)
 
   Boolean changed;
   FSRef resolvedFSRef;
-  OSErr err = ::FSResolveAlias(nullptr, (AliasHandle)newHandle, &resolvedFSRef,
-                               &changed);
+  OSErr err = ::FSResolveAlias(nullptr, (AliasHandle)newHandle, &resolvedFSRef, &changed);
 
   rv = MacErrorMapper(err);
   DisposeHandle(newHandle);
@@ -1971,8 +1968,7 @@ nsLocalFile::Reveal()
 {
 #ifdef MOZ_WIDGET_GTK
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGnomeVFSService> gnomevfs =
-    do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
   if (!giovfs && !gnomevfs) {
     return NS_ERROR_FAILURE;
   }
@@ -1990,8 +1986,7 @@ nsLocalFile::Reveal()
     {
       return gnomevfs->ShowURIForInput(mPath);
     }
-  } else if (giovfs &&
-             NS_SUCCEEDED(giovfs->OrgFreedesktopFileManager1ShowItems(mPath))) {
+  } else if (giovfs && NS_SUCCEEDED(giovfs->OrgFreedesktopFileManager1ShowItems(mPath))) {
     return NS_OK;
   } else {
     nsCOMPtr<nsIFile> parentDir;
@@ -2027,8 +2022,7 @@ nsLocalFile::Launch()
 {
 #ifdef MOZ_WIDGET_GTK
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGnomeVFSService> gnomevfs =
-    do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
   if (giovfs) {
     return giovfs->ShowURIForInput(mPath);
   } else if (gnomevfs) {
@@ -2409,8 +2403,7 @@ nsLocalFile::GetFSSpec(FSSpec* aResult)
   FSRef fsRef;
   nsresult rv = GetFSRef(&fsRef);
   if (NS_SUCCEEDED(rv)) {
-    OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNone, nullptr, nullptr,
-                                   aResult, nullptr);
+    OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNone, nullptr, nullptr, aResult, nullptr);
     return MacErrorMapper(err);
   }
 
@@ -2437,8 +2430,7 @@ nsLocalFile::GetFileSizeWithResFork(int64_t* aFileSizeWithResFork)
     return MacErrorMapper(err);
   }
 
-  *aFileSizeWithResFork =
-    catalogInfo.dataLogicalSize + catalogInfo.rsrcLogicalSize;
+  *aFileSizeWithResFork = catalogInfo.dataLogicalSize + catalogInfo.rsrcLogicalSize;
   return NS_OK;
 }
 

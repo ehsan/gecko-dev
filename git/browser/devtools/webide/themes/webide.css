@@ -135,7 +135,7 @@ panel > vbox {
 
 panel > .panel-arrowcontainer > .panel-arrowcontent {
   padding: 12px 0;
-  min-width: 200px;
+  width: 200px;
 }
 
 .panel-item {

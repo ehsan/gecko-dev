@@ -87,8 +87,7 @@ ExternalHelperAppParent::Init(ContentParent *parent,
   }
 
   helperAppService->DoContent(aMimeContentType, this, window,
-                              aForceSave, nullptr,
-                              getter_AddRefs(mListener));
+                              aForceSave, getter_AddRefs(mListener));
 }
 
 void

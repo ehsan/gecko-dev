@@ -877,7 +877,7 @@ nsDocShell::nsDocShell():
                     (void*) this,
                     gNumberOfDocShells,
                     getpid(),
-                    AssertedCast<unsigned long long>(mHistoryID));
+                    SafeCast<unsigned long long>(mHistoryID));
   }
 #endif
 }
@@ -909,7 +909,7 @@ nsDocShell::~nsDocShell()
                       (void*) this,
                       gNumberOfDocShells,
                       getpid(),
-                      AssertedCast<unsigned long long>(mHistoryID));
+                      SafeCast<unsigned long long>(mHistoryID));
     }
 #endif
 }

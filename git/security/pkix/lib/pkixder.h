@@ -570,7 +570,7 @@ OptionalExtensions(Reader& input, uint8_t tag,
     }
 
     bool understood = false;
-    rv = extensionHandler(extnID, extnValue, critical, understood);
+    rv = extensionHandler(extnID, extnValue, understood);
     if (rv != Success) {
       return rv;
     }

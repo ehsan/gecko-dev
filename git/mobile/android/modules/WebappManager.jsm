@@ -89,12 +89,6 @@ this.WebappManager = {
   },
 
   _installApk: function(aMessage, aMessageManager) { return Task.spawn((function*() {
-    if (this.inGuestSession()) {
-      aMessage.error = Strings.GetStringFromName("webappsDisabledInGuest"),
-      aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
-      return;
-    }
-
     let filePath;
 
     try {
@@ -262,10 +256,6 @@ this.WebappManager = {
     }
 
   }),
-
-  inGuestSession: function() {
-    return Services.wm.getMostRecentWindow("navigator:browser").BrowserApp.isGuest;
-  },
 
   autoInstall: function(aData) {
     debug("autoInstall " + aData.manifestURL);
