@@ -70,9 +70,17 @@ CanvasLayerD3D9::Initialize(const Data& aData)
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
 
-  device()->CreateTexture(mBounds.width, mBounds.height, 1, 0,
-                          D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
-                          getter_AddRefs(mTexture), NULL);
+  if (mD3DManager->deviceManager()->HasDynamicTextures()) {
+    device()->CreateTexture(mBounds.width, mBounds.height, 1, D3DUSAGE_DYNAMIC,
+                            D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
+                            getter_AddRefs(mTexture), NULL);    
+  } else {
+    // D3DPOOL_MANAGED is fine here since we require Dynamic Textures for D3D9Ex
+    // devices.
+    device()->CreateTexture(mBounds.width, mBounds.height, 1, 0,
+                            D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
+                            getter_AddRefs(mTexture), NULL);
+  }
 }
 
 void
@@ -111,9 +119,15 @@ CanvasLayerD3D9::Updated(const nsIntRect& aRect)
     // For simplicity, we read the entire framebuffer for now -- in
     // the future we should use aRect, though with WebGL we don't
     // have an easy way to generate one.
-    mGLContext->fReadPixels(0, 0, mBounds.width, mBounds.height,
-                            LOCAL_GL_BGRA, LOCAL_GL_UNSIGNED_INT_8_8_8_8_REV,
-                            destination);
+    nsRefPtr<gfxImageSurface> tmpSurface =
+      new gfxImageSurface(destination,
+                          gfxIntSize(mBounds.width, mBounds.height),
+                          mBounds.width * 4,
+                          gfxASurface::ImageFormatARGB32);
+    mGLContext->ReadPixelsIntoImageSurface(0, 0,
+                                           mBounds.width, mBounds.height,
+                                           tmpSurface);
+    tmpSurface = nsnull;
 
     // Put back the previous framebuffer binding.
     if (currentFramebuffer != mCanvasFramebuffer)
@@ -224,7 +238,7 @@ CanvasLayerD3D9::RenderLayer()
   opacity[0] = GetOpacity();
   device()->SetPixelShaderConstantF(0, opacity, 1);
 
-  mD3DManager->SetShaderMode(LayerManagerD3D9::RGBLAYER);
+  mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER);
 
   if (!mGLBufferIsPremultiplied) {
     device()->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);

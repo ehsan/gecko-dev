@@ -41,7 +41,6 @@
 #ifndef imgRequest_h__
 #define imgRequest_h__
 
-#include "imgContainer.h"
 #include "imgIDecoder.h"
 #include "imgIDecoderObserver.h"
 
@@ -61,7 +60,7 @@
 #include "nsWeakReference.h"
 #include "ImageErrors.h"
 #include "imgIRequest.h"
-#include "imgContainer.h"
+#include "nsIAsyncVerifyRedirectCallback.h"
 
 class imgCacheValidator;
 
@@ -70,11 +69,18 @@ class imgCacheEntry;
 class imgMemoryReporter;
 class imgRequestNotifyRunnable;
 
+namespace mozilla {
+namespace imagelib {
+class Image;
+} // namespace imagelib
+} // namespace mozilla
+
 class imgRequest : public imgIDecoderObserver,
                    public nsIStreamListener,
                    public nsSupportsWeakReference,
                    public nsIChannelEventSink,
-                   public nsIInterfaceRequestor
+                   public nsIInterfaceRequestor,
+                   public nsIAsyncVerifyRedirectCallback
 {
 public:
   imgRequest();
@@ -101,17 +107,14 @@ public:
   // a request is "reusable" if it has already been loaded, or it is
   // currently being loaded on the same event queue as the new request
   // being made...
-  PRBool IsReusable(void *aCacheId) {
-    return (mImage && mImage->GetStatusTracker().IsLoading()) ||
-           (aCacheId == mCacheId);
-  }
+  PRBool IsReusable(void *aCacheId);
 
   // Cancel, but also ensure that all work done in Init() is undone. Call this
   // only when the channel has failed to open, and so calling Cancel() on it
   // won't be sufficient.
   void CancelAndAbort(nsresult aStatus);
 
-  // Methods that get forwarded to the imgContainer, or deferred until it's
+  // Methods that get forwarded to the Image, or deferred until it's
   // instantiated.
   nsresult LockImage();
   nsresult UnlockImage();
@@ -182,6 +185,7 @@ public:
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSICHANNELEVENTSINK
   NS_DECL_NSIINTERFACEREQUESTOR
+  NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
 
 private:
   friend class imgMemoryReporter;
@@ -192,7 +196,7 @@ private:
   // The URI we are keyed on in the cache.
   nsCOMPtr<nsIURI> mKeyURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsRefPtr<imgContainer> mImage;
+  nsRefPtr<mozilla::imagelib::Image> mImage;
   nsCOMPtr<nsIProperties> mProperties;
   nsCOMPtr<nsISupports> mSecurityInfo;
   nsCOMPtr<nsIChannel> mChannel;
@@ -211,7 +215,8 @@ private:
 
   imgCacheValidator *mValidator;
   nsCategoryCache<nsIContentSniffer> mImageSniffers;
-
+  nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
+  nsCOMPtr<nsIChannel> mNewRedirectChannel;
   // Sometimes consumers want to do things before the image is ready. Let them,
   // and apply the action when the image becomes available.
   PRPackedBool mDecodeRequested : 1;

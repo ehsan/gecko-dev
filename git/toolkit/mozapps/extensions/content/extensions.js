@@ -133,6 +133,7 @@ function notifyInitialized() {
 }
 
 function shutdown() {
+  gCategories.shutdown();
   gSearchView.shutdown();
   gEventManager.shutdown();
   gViewController.shutdown();
@@ -793,6 +794,7 @@ function getAddonsAndInstalls(aType, aCallback) {
 var gCategories = {
   node: null,
   _search: null,
+  _maybeHidden: null,
 
   initialize: function() {
     this.node = document.getElementById("categories");
@@ -820,13 +822,21 @@ var gCategories = {
       }
     }, false);
 
-    var maybeHidden = ["addons://list/locale", "addons://list/searchengine"];
-    gPendingInitializations += maybeHidden.length;
-    maybeHidden.forEach(function(aId) {
+    this._maybeHidden = ["addons://list/locale", "addons://list/searchengine"];
+    gPendingInitializations += this._maybeHidden.length;
+    this._maybeHidden.forEach(function(aId) {
       var type = gViewController.parseViewId(aId).param;
       getAddonsAndInstalls(type, function(aAddonsList, aInstallsList) {
+        var hidden = (aAddonsList.length == 0 && aInstallsList.length == 0);
+        var item = self.get(aId);
+
+        // Don't load view that is becoming hidden
+        if (hidden && aId == gViewController.currentViewId)
+          gViewController.loadView(VIEW_DEFAULT);
+
+        item.hidden = hidden;
+
         if (aAddonsList.length > 0 || aInstallsList.length > 0) {
-          self.get(aId).hidden = false;
           notifyInitialized();
           return;
         }
@@ -858,6 +868,15 @@ var gCategories = {
 
         notifyInitialized();
       });
+    });
+  },
+
+  shutdown: function() {
+    // Force persist of hidden state. See bug 15232
+    var self = this;
+    this._maybeHidden.forEach(function(aId) {
+      var item = self.get(aId);
+      item.setAttribute("hidden", !!item.hidden);
     });
   },
 
@@ -1218,8 +1237,8 @@ var gSearchView = {
       return score;
 
     aStr = aStr.trim().toLocaleLowerCase();
-    var haystack = aStr.split(/\W+/);
-    var needles = aQuery.split(/\W+/);
+    var haystack = aStr.split(/\s+/);
+    var needles = aQuery.split(/\s+/);
 
     for (let n = 0; n < needles.length; n++) {
       for (let h = 0; h < haystack.length; h++) {

@@ -38,6 +38,7 @@
 #define nsFrameMessageManager_h__
 
 #include "nsIFrameMessageManager.h"
+#include "nsIObserver.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
@@ -45,6 +46,11 @@
 #include "nsIAtom.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsTArray.h"
+#include "nsIPrincipal.h"
+#include "nsIXPConnect.h"
+#include "nsDataHashtable.h"
+#include "mozilla/Services.h"
+#include "nsIObserverService.h"
 
 class nsAXPCNativeCallContext;
 struct JSContext;
@@ -148,6 +154,51 @@ protected:
   void* mCallbackData;
   JSContext* mContext;
   nsTArray<nsString> mPendingScripts;
+};
+
+class nsScriptCacheCleaner;
+
+struct nsFrameScriptExecutorJSObjectHolder
+{
+  nsFrameScriptExecutorJSObjectHolder(JSObject* aObject) : mObject(aObject) {}
+  JSObject* mObject;
+};
+
+class nsFrameScriptExecutor
+{
+public:
+  static void Shutdown();
+protected:
+  nsFrameScriptExecutor() : mCx(nsnull) {}
+  void DidCreateCx();
+  // Call this when you want to destroy mCx.
+  void DestroyCx();
+  void LoadFrameScriptInternal(const nsAString& aURL);
+  nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobal;
+  JSContext* mCx;
+  nsCOMPtr<nsIPrincipal> mPrincipal;
+  static nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>* sCachedScripts;
+  static nsRefPtr<nsScriptCacheCleaner> sScriptCacheCleaner;
+};
+
+class nsScriptCacheCleaner : public nsIObserver
+{
+  NS_DECL_ISUPPORTS
+
+  nsScriptCacheCleaner()
+  {
+    nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
+    if (obsSvc)
+      obsSvc->AddObserver(this, "xpcom-shutdown", PR_FALSE);
+  }
+
+  NS_IMETHODIMP Observe(nsISupports *aSubject,
+                        const char *aTopic,
+                        const PRUnichar *aData)
+  {
+    nsFrameScriptExecutor::Shutdown();
+    return NS_OK;
+  }
 };
 
 #endif

@@ -159,9 +159,13 @@ XPCOMUtils.defineLazyGetter(this, "Weave", function() {
 XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
   let tmp = {};
   Cu.import("resource://gre/modules/PopupNotifications.jsm", tmp);
-  return new tmp.PopupNotifications(gBrowser,
-                                    document.getElementById("notification-popup"),
-                                    document.getElementById("notification-popup-box"));
+  try {
+    return new tmp.PopupNotifications(gBrowser,
+                                      document.getElementById("notification-popup"),
+                                      document.getElementById("notification-popup-box"));
+  } catch (ex) {
+    Cu.reportError(ex);
+  }
 });
 
 let gInitialPages = [
@@ -174,6 +178,7 @@ let gInitialPages = [
 #include inspector.js
 #include browser-places.js
 #include browser-tabPreviews.js
+#include browser-tabview.js
 
 #ifdef MOZ_SERVICES_SYNC
 #include browser-syncui.js
@@ -745,7 +750,7 @@ const gXPInstallObserver = {
         PopupNotifications.remove(notification);
 
       var needsRestart = installInfo.installs.some(function(i) {
-        return (i.addon.pendingOperations & AddonManager.PENDING_INSTALL) != 0;
+        return i.addon.pendingOperations != AddonManager.PENDING_NONE;
       });
 
       if (needsRestart) {
@@ -1520,6 +1525,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gSyncUI.init();
 #endif
 
+  TabView.init();
+
   Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
 }
 
@@ -2048,7 +2055,7 @@ function BrowserCloseTabOrWindow() {
 #endif
 
   // If the current tab is the last one, this will close the window.
-  gBrowser.removeCurrentTab();
+  gBrowser.removeCurrentTab({animate: true});
 }
 
 function BrowserTryToCloseWindow()
@@ -5836,15 +5843,12 @@ function warnAboutClosingWindow() {
     return gBrowser.warnAboutClosingTabs(true);
 
   // Figure out if there's at least one other browser window around.
-  let foundOtherBrowserWindow = false;
   let e = Services.wm.getEnumerator("navigator:browser");
-  while (e.hasMoreElements() && !foundOtherBrowserWindow) {
+  while (e.hasMoreElements()) {
     let win = e.getNext();
     if (win != window && win.toolbar.visible)
-      foundOtherBrowserWindow = true;
+      return gBrowser.warnAboutClosingTabs(true);
   }
-  if (foundOtherBrowserWindow)
-    return gBrowser.warnAboutClosingTabs(true);
 
   let os = Services.obs;
 
@@ -6765,17 +6769,17 @@ var gBookmarkAllTabsHandler = {
     this._command = document.getElementById("Browser:BookmarkAllTabs");
     gBrowser.tabContainer.addEventListener("TabOpen", this, true);
     gBrowser.tabContainer.addEventListener("TabClose", this, true);
+    gBrowser.tabContainer.addEventListener("TabShow", this, true);
+    gBrowser.tabContainer.addEventListener("TabHide", this, true);
     this._updateCommandState();
   },
 
-  _updateCommandState: function BATH__updateCommandState(aTabClose) {
-    var numTabs = gBrowser.tabs.length;
+  _updateCommandState: function BATH__updateCommandState() {
+    let remainingTabs = gBrowser.visibleTabs.filter(function(tab) {
+      return gBrowser._removingTabs.indexOf(tab) == -1;
+    });
 
-    // The TabClose event is fired before the tab is removed from the DOM
-    if (aTabClose)
-      numTabs--;
-
-    if (numTabs > 1)
+    if (remainingTabs.length > 1)
       this._command.removeAttribute("disabled");
     else
       this._command.setAttribute("disabled", "true");
@@ -6787,7 +6791,7 @@ var gBookmarkAllTabsHandler = {
 
   // nsIDOMEventListener
   handleEvent: function(aEvent) {
-    this._updateCommandState(aEvent.type == "TabClose");
+    this._updateCommandState();
   }
 };
 
@@ -7771,7 +7775,10 @@ function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
 
   // No opened tab has that url.
   if (aOpenNew) {
-    gBrowser.selectedTab = gBrowser.addTab(aURI.spec);
+    if (isTabEmpty(gBrowser.selectedTab))
+      gBrowser.selectedBrowser.loadURI(aURI.spec);
+    else
+      gBrowser.selectedTab = gBrowser.addTab(aURI.spec);
     if (aCallback) {
       let browser = gBrowser.selectedBrowser;
       browser.addEventListener("pageshow", function(event) {
@@ -7792,7 +7799,7 @@ var TabContextMenu = {
   updateContextMenu: function updateContextMenu(aPopupMenu) {
     this.contextTab = document.popupNode.localName == "tab" ?
                       document.popupNode : gBrowser.selectedTab;
-    var disabled = gBrowser.tabs.length == 1;
+    let disabled = gBrowser.visibleTabs.length == 1;
 
     // Enable the "Close Tab" menuitem when the window doesn't close with the last tab.
     document.getElementById("context_closeTab").disabled =
@@ -7814,7 +7821,7 @@ var TabContextMenu = {
 
     // Disable "Close other Tabs" if there is only one unpinned tab and
     // hide it when the user rightclicked on a pinned tab.
-    var unpinnedTabs = gBrowser.tabs.length - gBrowser._numPinnedTabs;
+    let unpinnedTabs = gBrowser.visibleTabs.length - gBrowser._numPinnedTabs;
     document.getElementById("context_closeOtherTabs").disabled = unpinnedTabs <= 1;
     document.getElementById("context_closeOtherTabs").hidden = this.contextTab.pinned;
   }

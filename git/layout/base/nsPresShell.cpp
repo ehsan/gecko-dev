@@ -112,7 +112,6 @@
 #include "nsIParser.h"
 #include "nsParserCIID.h"
 #include "nsFrameSelection.h"
-#include "nsIDOMNSHTMLInputElement.h" //optimization for ::DoXXX commands
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsViewsCID.h"
 #include "nsPresArena.h"
@@ -163,6 +162,8 @@
 #include "nsSMILAnimationController.h"
 #endif
 
+#include "nsRefreshDriver.h"
+
 // Drag & Drop, Clipboard
 #include "nsWidgetsCID.h"
 #include "nsIClipboard.h"
@@ -208,6 +209,8 @@
 
 #include "mozilla/FunctionTimer.h"
 
+#include "Layers.h"
+
 #ifdef NS_FUNCTION_TIMER
 #define NS_TIME_FUNCTION_DECLARE_DOCURL                \
   nsCAutoString docURL__("N/A");                       \
@@ -229,8 +232,8 @@ static NS_DEFINE_IID(kRangeCID,     NS_RANGE_CID);
 #include "nsIMemoryReporter.h"
 
 using namespace mozilla;
-using namespace mozilla::layers;
 using namespace mozilla::dom;
+using namespace mozilla::layers;
 
 PRBool nsIPresShell::gIsAccessibilityActive = PR_FALSE;
 CapturingContentInfo nsIPresShell::gCaptureInfo;
@@ -672,7 +675,7 @@ struct nsCallbackEventRequest
 #define ASSERT_REFLOW_SCHEDULED_STATE()                                       \
   NS_ASSERTION(mReflowScheduled ==                                            \
                  GetPresContext()->RefreshDriver()->                          \
-                   IsRefreshObserver(this, Flush_Layout), "Unexpected state")
+                   IsLayoutFlushObserver(this), "Unexpected state")
 
 class nsPresShellEventCB;
 class nsAutoCauseReflowNotifier;
@@ -680,8 +683,7 @@ class nsAutoCauseReflowNotifier;
 class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
                   public nsISelectionController, public nsIObserver,
-                  public nsSupportsWeakReference,
-                  public nsARefreshObserver
+                  public nsSupportsWeakReference
 {
 public:
   PresShell();
@@ -811,6 +813,8 @@ public:
 
   virtual already_AddRefed<nsPIDOMWindow> GetRootWindow();
 
+  virtual LayerManager* GetLayerManager();
+
   //nsIViewObserver interface
 
   NS_IMETHOD Paint(nsIView* aDisplayRoot,
@@ -910,9 +914,6 @@ public:
 
   NS_DECL_NSIOBSERVER
 
-  // nsARefreshObserver
-  virtual void WillRefresh(mozilla::TimeStamp aTime);
-
 #ifdef MOZ_REFLOW_PERF
   virtual NS_HIDDEN_(void) DumpReflows();
   virtual NS_HIDDEN_(void) CountReflows(const char * aName, nsIFrame * aFrame);
@@ -947,6 +948,13 @@ public:
                                                 const nsRect& aBounds,
                                                 nscolor aBackstopColor,
                                                 PRBool aForceDraw);
+
+  virtual nsresult AddPrintPreviewBackgroundItem(nsDisplayListBuilder& aBuilder,
+                                                 nsDisplayList& aList,
+                                                 nsIFrame* aFrame,
+                                                 const nsRect& aBounds);
+
+  virtual nscolor ComputeBackstopColor(nsIView* aDisplayRoot);
 
 protected:
   virtual ~PresShell();
@@ -1207,16 +1215,11 @@ protected:
   nsCallbackEventRequest* mFirstCallbackEventRequest;
   nsCallbackEventRequest* mLastCallbackEventRequest;
 
-  PRPackedBool      mSuppressInterruptibleReflows;
-
   PRPackedBool      mIsDocumentGone;      // We've been disconnected from the document.
                                           // We will refuse to paint the document until either
                                           // (a) our timer fires or (b) all frames are constructed.
   PRPackedBool      mShouldUnsuppressPainting;  // Indicates that it is safe to unlock painting once all pending
                                                 // reflows have been processed.
-  PRPackedBool      mReflowScheduled; // If true, we have a reflow scheduled.
-                                      // Guaranteed to be false if
-                                      // mReflowContinueTimer is non-null.
   nsCOMPtr<nsITimer> mPaintSuppressionTimer; // This timer controls painting suppression.  Until it fires
                                              // or all frames are constructed, we won't paint anything but
                                              // our <body> background and scrollbars.
@@ -1304,13 +1307,6 @@ private:
   PRPackedBool mInResize;
 
 private:
-  /*
-   * Computes the backstop color for the view: transparent if in a transparent
-   * widget, otherwise the PresContext default background color. This color is
-   * only visible if the contents of the view as a whole are translucent.
-   */
-  nscolor ComputeBackstopColor(nsIView* aDisplayRoot);
-
 #ifdef DEBUG
   // Ensure that every allocation from the PresArena is eventually freed.
   PRUint32 mPresArenaAllocCount;
@@ -1363,6 +1359,9 @@ public:
   static PRInt64 SizeOfBidiMemoryReporter(void *) {
     return EstimateShellsMemory(LiveShellBidiSizeEnumerator);
   }
+
+protected:
+  void QueryIsActive();
 };
 
 class nsAutoCauseReflowNotifier
@@ -1596,6 +1595,7 @@ PresShell::PresShell()
 #endif
   mSelectionFlags = nsISelectionDisplay::DISPLAY_TEXT | nsISelectionDisplay::DISPLAY_IMAGES;
   mIsThemeSupportDisabled = PR_FALSE;
+  mIsActive = PR_TRUE;
 #ifdef DEBUG
   mPresArenaAllocCount = 0;
 #endif
@@ -1638,7 +1638,7 @@ PresShell::~PresShell()
 #endif
 
   delete mStyleSet;
-  NS_IF_RELEASE(mFrameConstructor);
+  delete mFrameConstructor;
 
   mCurrentEventContent = nsnull;
 
@@ -1687,7 +1687,6 @@ PresShell::Init(nsIDocument* aDocument,
   // Create our frame constructor.
   mFrameConstructor = new nsCSSFrameConstructor(mDocument, this);
   NS_ENSURE_TRUE(mFrameConstructor, NS_ERROR_OUT_OF_MEMORY);
-  NS_ADDREF(mFrameConstructor);
 
   // The document viewer owns both view manager and pres shell.
   mViewManager->SetViewObserver(this);
@@ -1801,6 +1800,9 @@ PresShell::Init(nsIDocument* aDocument,
     }
   }
 #endif // MOZ_SMIL
+
+  // Get our activeness from the docShell.
+  QueryIsActive();
 
   return NS_OK;
 }
@@ -1932,7 +1934,7 @@ PresShell::Destroy()
   // Revoke any pending events.  We need to do this and cancel pending reflows
   // before we destroy the frame manager, since apparently frame destruction
   // sometimes spins the event queue when plug-ins are involved(!).
-  rd->RemoveRefreshObserver(this, Flush_Layout);
+  rd->RemoveLayoutFlushObserver(this);
   mResizeEvent.Revoke();
   if (mAsyncResizeTimerIsActive) {
     mAsyncResizeEventTimer->Cancel();
@@ -3573,7 +3575,7 @@ PresShell::CancelAllPendingReflows()
   mDirtyRoots.Clear();
 
   if (mReflowScheduled) {
-    GetPresContext()->RefreshDriver()->RemoveRefreshObserver(this, Flush_Layout);
+    GetPresContext()->RefreshDriver()->RemoveLayoutFlushObserver(this);
     mReflowScheduled = PR_FALSE;
   }
 
@@ -4779,6 +4781,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
     // Process pending restyles, since any flush of the presshell wants
     // up-to-date style data.
     if (!mIsDestroying) {
+      mViewManager->FlushDelayedResize(PR_FALSE);
       mPresContext->FlushPendingMediaFeatureValuesChanged();
 
       // Flush any pending update of the user font set, since that could
@@ -4825,7 +4828,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
     if (aType >= (mSuppressInterruptibleReflows ? Flush_Layout : Flush_InterruptibleLayout) &&
         !mIsDestroying) {
       mFrameConstructor->RecalcQuotesAndCounters();
-      mViewManager->FlushDelayedResize();
+      mViewManager->FlushDelayedResize(PR_TRUE);
       if (ProcessReflowCommands(aType < Flush_Layout) && mContentToScrollTo) {
         // We didn't get interrupted.  Go ahead and scroll to our content
         DoScrollContentIntoView(mContentToScrollTo, mContentScrollVPosition,
@@ -4849,12 +4852,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       // Flushing paints, so perform the invalidates and drawing
       // immediately
       updateFlags = NS_VMREFRESH_IMMEDIATE;
-    }
-    else if (aType < Flush_InterruptibleLayout) {
-      // Not flushing reflows, so do deferred invalidates.  This will keep us
-      // from possibly flushing out reflows due to invalidates being processed
-      // at the end of this view batch.
-      updateFlags = NS_VMREFRESH_DEFERRED;
     }
     batch.EndUpdateViewBatch(updateFlags);
   }
@@ -5304,7 +5301,12 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
     flags |= nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES;
   }
   if (aFlags & RENDER_USE_WIDGET_LAYERS) {
-    flags |= nsLayoutUtils::PAINT_WIDGET_LAYERS;
+    // We only support using widget layers on display root's with widgets.
+    nsIView* view = rootFrame->GetView();
+    if (view && view->GetWidget() &&
+        nsLayoutUtils::GetDisplayRootFrame(rootFrame) == rootFrame) {
+      flags |= nsLayoutUtils::PAINT_WIDGET_LAYERS;
+    }
   }
   if (!(aFlags & RENDER_CARET)) {
     flags |= nsLayoutUtils::PAINT_HIDE_CARET;
@@ -5541,7 +5543,9 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
 
   // if the area of the image is larger than the maximum area, scale it down
   float scale = 0.0;
-  nsIntRect rootScreenRect = GetRootFrame()->GetScreenRect();
+  nsIntRect rootScreenRect =
+    GetRootFrame()->GetScreenRectInAppUnits().ToNearestPixels(
+      pc->AppUnitsPerDevPixel());
 
   // if the image is larger in one or both directions than half the size of
   // the available screen area, scale the image down to that size.
@@ -5633,7 +5637,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
 
     aArea.MoveBy(-rangeInfo->mRootOffset.x, -rangeInfo->mRootOffset.y);
     nsRegion visible(aArea);
-    rangeInfo->mList.ComputeVisibility(&rangeInfo->mBuilder, &visible, nsnull);
+    rangeInfo->mList.ComputeVisibility(&rangeInfo->mBuilder, &visible);
     rangeInfo->mList.PaintRoot(&rangeInfo->mBuilder, rc, nsDisplayList::PAINT_DEFAULT);
     aArea.MoveBy(rangeInfo->mRootOffset.x, rangeInfo->mRootOffset.y);
   }
@@ -5723,6 +5727,16 @@ PresShell::RenderSelection(nsISelection* aSelection,
 
   return PaintRangePaintInfo(&rangeItems, aSelection, nsnull, area, aPoint,
                              aScreenRect);
+}
+
+nsresult
+PresShell::AddPrintPreviewBackgroundItem(nsDisplayListBuilder& aBuilder,
+                                         nsDisplayList&        aList,
+                                         nsIFrame*             aFrame,
+                                         const nsRect&         aBounds)
+{
+  return aList.AppendNewToBottom(
+      new (&aBuilder) nsDisplaySolidColor(aFrame, aBounds, NS_RGB(115, 115, 115)));
 }
 
 static PRBool
@@ -5827,6 +5841,19 @@ struct PaintParams {
   const nsRegion* mDirtyRegion;
   nscolor mBackgroundColor;
 };
+
+LayerManager* PresShell::GetLayerManager()
+{
+  NS_ASSERTION(mViewManager, "Should have view manager");
+
+  nsIView* rootView;
+  if (NS_SUCCEEDED(mViewManager->GetRootView(rootView)) && rootView) {
+    if (nsIWidget* widget = rootView->GetWidget()) {
+      return widget->GetLayerManager();
+    }
+  }
+  return nsnull;
+}
 
 static void DrawThebesLayer(ThebesLayer* aLayer,
                             gfxContext* aContext,
@@ -7242,7 +7269,8 @@ PresShell::Freeze()
     mDocument->EnumerateSubDocuments(FreezeSubDocument, nsnull);
 
   nsPresContext* presContext = GetPresContext();
-  if (presContext) {
+  if (presContext &&
+      presContext->RefreshDriver()->PresContext() == presContext) {
     presContext->RefreshDriver()->Freeze();
   }
 }
@@ -7295,7 +7323,8 @@ void
 PresShell::Thaw()
 {
   nsPresContext* presContext = GetPresContext();
-  if (presContext) {
+  if (presContext &&
+      presContext->RefreshDriver()->PresContext() == presContext) {
     presContext->RefreshDriver()->Thaw();
   }
 
@@ -7305,20 +7334,10 @@ PresShell::Thaw()
     mDocument->EnumerateSubDocuments(ThawSubDocument, nsnull);
 
   UnsuppressPainting();
-}
 
-void
-PresShell::WillRefresh(mozilla::TimeStamp aTime)
-{
-  // Remove ourselves as a refresh observer; we'll readd during the
-  // flush if needed.
-  GetPresContext()->RefreshDriver()->RemoveRefreshObserver(this, Flush_Layout);
-  mReflowScheduled = PR_FALSE;
-  // Allow interruptible reflows now, since that's what the refresh
-  // driver will issue.
-  mSuppressInterruptibleReflows = PR_FALSE;
-
-  ASSERT_REFLOW_SCHEDULED_STATE();
+  // Get the activeness of our presshell, as this might have changed
+  // while we were in the bfcache
+  QueryIsActive();
 }
 
 //--------------------------------------------------------
@@ -7346,7 +7365,7 @@ PresShell::ScheduleReflow()
   NS_PRECONDITION(!mReflowScheduled, "Why are we trying to schedule a reflow?");
   ASSERT_REFLOW_SCHEDULED_STATE();
 
-  if (GetPresContext()->RefreshDriver()->AddRefreshObserver(this, Flush_Layout)) {
+  if (GetPresContext()->RefreshDriver()->AddLayoutFlushObserver(this)) {
     mReflowScheduled = PR_TRUE;
   }
 
@@ -8941,4 +8960,17 @@ void nsIPresShell::ReleaseStatics()
   NS_ASSERTION(sLiveShells, "ReleaseStatics called without Initialize!");
   delete sLiveShells;
   sLiveShells = nsnull;
+}
+
+// Asks our docshell whether we're active.
+void PresShell::QueryIsActive()
+{
+  nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
+  nsCOMPtr<nsIDocShell> docshell(do_QueryInterface(container));
+  if (docshell) {
+    PRBool isActive;
+    nsresult rv = docshell->GetIsActive(&isActive);
+    if (NS_SUCCEEDED(rv))
+      SetIsActive(isActive);
+  }
 }

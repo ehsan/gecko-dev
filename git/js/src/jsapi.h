@@ -153,6 +153,7 @@ JSVAL_TO_DOUBLE(jsval v)
 static JS_ALWAYS_INLINE jsval
 DOUBLE_TO_JSVAL(jsdouble d)
 {
+    d = JS_CANONICALIZE_NAN(d);
     return IMPL_TO_JSVAL(DOUBLE_TO_JSVAL_IMPL(d));
 }
 
@@ -3004,6 +3005,19 @@ JS_SetContextThread(JSContext *cx);
 
 extern JS_PUBLIC_API(jsword)
 JS_ClearContextThread(JSContext *cx);
+
+#ifdef MOZ_TRACE_JSCALLS
+typedef void (*JSFunctionCallback)(const JSFunction *fun,
+                                   const JSScript *scr,
+                                   const JSContext *cx,
+                                   JSBool entering);
+
+extern JS_PUBLIC_API(void)
+JS_SetFunctionCallback(JSContext *cx, JSFunctionCallback fcb);
+
+extern JS_PUBLIC_API(JSFunctionCallback)
+JS_GetFunctionCallback(JSContext *cx);
+#endif
 
 /************************************************************************/
 

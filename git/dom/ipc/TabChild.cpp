@@ -46,6 +46,8 @@
 #include "nsComponentManagerUtils.h"
 #include "nsIBaseWindow.h"
 #include "nsIDOMWindow.h"
+#include "nsIWebProgress.h"
+#include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsThreadUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -75,8 +77,12 @@
 #include "nsInterfaceHashtable.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsWeakReference.h"
+#include "nsISecureBrowserUI.h"
+#include "nsISSLStatusProvider.h"
+#include "nsSerializationHelper.h"
 
 #ifdef MOZ_WIDGET_QT
 #include <QX11EmbedWidget>
@@ -495,8 +501,6 @@ TabChild::~TabChild()
       do_GetWeakReference(static_cast<nsSupportsWeakReference*>(this));
     webBrowser->RemoveWebBrowserListener(weak, NS_GET_IID(nsIWebProgressListener));
 
-    DestroyWidget();
-
     if (webBrowser) {
       webBrowser->SetContainerWindow(nsnull);
     }
@@ -553,7 +557,56 @@ TabChild::OnSecurityChange(nsIWebProgress *aWebProgress,
                            nsIRequest *aRequest,
                            PRUint32 aState)
 {
-  SendNotifySecurityChange(aState);
+  nsCString secInfoAsString;
+  if (aState & nsIWebProgressListener::STATE_IS_SECURE) {
+    nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
+    if (channel) {
+      nsCOMPtr<nsISupports> secInfoSupports;
+      channel->GetSecurityInfo(getter_AddRefs(secInfoSupports));
+
+      nsCOMPtr<nsISerializable> secInfoSerializable =
+          do_QueryInterface(secInfoSupports);
+      NS_SerializeToString(secInfoSerializable, secInfoAsString);
+    }
+  }
+
+  PRBool useSSLStatusObject = PR_FALSE;
+  nsAutoString securityTooltip;
+  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(aWebProgress);
+  if (docShell) {
+    nsCOMPtr<nsISecureBrowserUI> secureUI;
+    docShell->GetSecurityUI(getter_AddRefs(secureUI));
+    if (secureUI) {
+      secureUI->GetTooltipText(securityTooltip);
+      nsCOMPtr<nsISupports> supports;
+      nsCOMPtr<nsISSLStatusProvider> provider = do_QueryInterface(secureUI);
+      nsresult rv = provider->GetSSLStatus(getter_AddRefs(supports));
+      if (NS_SUCCEEDED(rv) && supports) {
+        /*
+         * useSSLStatusObject: Security UI internally holds 4 states: secure, mixed,
+         * broken, no security.  In cases of secure, mixed and broken it holds reference
+         * to a valid SSL status object.  But, in case of the 'broken' state it doesn't
+         * return the SSL status object (returns null), in contrary to the 'mixed' state
+         * for which it returns.
+         * 
+         * However, mixed and broken states are both reported to the upper level
+         * as nsIWebProgressListener::STATE_IS_BROKEN, i.e. states are merged,
+         * so we cannot determine, if to return the status object or not.
+         *
+         * TabParent is extracting the SSL status object from the security info
+         * serialization (string). SSL status object is always present there
+         * even security UI implementation doesn't present it.  This argument 
+         * tells the parent if the SSL status object is being presented by 
+         * the security UI here, on the child process, and so if it has to be
+         * presented also on the parent process.
+         */
+        useSSLStatusObject = PR_TRUE;
+      }
+    }
+  }
+
+  SendNotifySecurityChange(aState, useSSLStatusObject, securityTooltip,
+                           secInfoAsString);
   return NS_OK;
 }
 
@@ -596,8 +649,6 @@ TabChild::OnRefreshAttempted(nsIWebProgress *aWebProgress,
   *aRefreshAllowed = refreshAllowed;
   return NS_OK;
 }
-                             
-                             
 
 bool
 TabChild::RecvLoadURL(const nsCString& uri)
@@ -957,6 +1008,46 @@ TabChild::RecvAsyncMessage(const nsString& aMessage,
   return true;
 }
 
+class UnloadScriptEvent : public nsRunnable
+{
+public:
+  UnloadScriptEvent(TabChild* aTabChild, TabChildGlobal* aTabChildGlobal)
+    : mTabChild(aTabChild), mTabChildGlobal(aTabChildGlobal)
+  { }
+
+  NS_IMETHOD Run()
+  {
+    nsCOMPtr<nsIDOMEvent> event;
+    NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
+    if (event) {
+      event->InitEvent(NS_LITERAL_STRING("unload"), PR_FALSE, PR_FALSE);
+      nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+      privateEvent->SetTrusted(PR_TRUE);
+
+      PRBool dummy;
+      mTabChildGlobal->DispatchEvent(event, &dummy);
+    }
+
+    return NS_OK;
+  }
+
+  nsRefPtr<TabChild> mTabChild;
+  TabChildGlobal* mTabChildGlobal;
+};
+
+bool
+TabChild::RecvDestroy()
+{
+  // Let the frame scripts know the child is being closed
+  nsContentUtils::AddScriptRunner(
+    new UnloadScriptEvent(this, mTabChildGlobal)
+  );
+
+  // XXX what other code in ~TabChild() should we be running here?
+  DestroyWidget();
+
+  return Send__delete__(this);
+}
 
 bool
 TabChild::InitTabChildGlobal()

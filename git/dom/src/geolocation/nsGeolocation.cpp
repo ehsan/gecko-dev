@@ -96,6 +96,7 @@
 #define MAX_GEO_REQUESTS_PER_WINDOW  1500
 
 using mozilla::unused;          // <snicker>
+using namespace mozilla::dom;
 
 ////////////////////////////////////////////////////
 // nsDOMGeoPositionError
@@ -1014,27 +1015,12 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     if (!window)
       return;
 
-    nsIDocShell *docshell = window->GetDocShell();
-
-    nsCOMPtr<nsIDocShellTreeItem> item = do_QueryInterface(docshell);
-    NS_ASSERTION(item, "doc shell tree item is null");
-    if (!item)
-      return;
-
-    nsCOMPtr<nsIDocShellTreeOwner> owner;
-    item->GetTreeOwner(getter_AddRefs(owner));
-    NS_ASSERTION(owner, "doc shell tree owner is null");
-    
-    nsCOMPtr<nsITabChild> tabchild = do_GetInterface(owner);
-    if (!tabchild)
-      return;
-
     // because owner implements nsITabChild, we can assume that it is
     // the one and only TabChild.
-    mozilla::dom::TabChild* child = static_cast<mozilla::dom::TabChild*>(tabchild.get());
+    TabChild* child = GetTabChildFrom(window->GetDocShell());
     
-    mozilla::dom::PGeolocationRequestChild* a = 
-      child->SendPGeolocationRequestConstructor(request, IPC::URI(mURI));
+    PGeolocationRequestChild* a = 
+        child->SendPGeolocationRequestConstructor(request, IPC::URI(mURI));
 
     (void) a->Sendprompt();
     return;
@@ -1112,6 +1098,7 @@ nsGeolocationRequestProxy::Cancel()
 {
   NS_ASSERTION(mParent, "No parent for request");
   unused << mozilla::dom::GeolocationRequestParent::Send__delete__(mParent, false);
+  mParent = nsnull;
   return NS_OK;
 }
 
@@ -1120,6 +1107,7 @@ nsGeolocationRequestProxy::Allow()
 {
   NS_ASSERTION(mParent, "No parent for request");
   unused << mozilla::dom::GeolocationRequestParent::Send__delete__(mParent, true);
+  mParent = nsnull;
   return NS_OK;
 }
 
@@ -1132,13 +1120,11 @@ GeolocationRequestParent::GeolocationRequestParent(nsIDOMElement *element, const
   
   mURI       = uri;
   mElement   = element;
-  mProxy     = nsnull;
 }
 
 GeolocationRequestParent::~GeolocationRequestParent()
 {
   MOZ_COUNT_DTOR(GeolocationRequestParent);
-  delete mProxy;
 }
   
 bool

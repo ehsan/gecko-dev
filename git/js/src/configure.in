@@ -206,6 +206,19 @@ MOZ_ARG_ENABLE_BOOL(compile-environment,
     COMPILE_ENVIRONMENT=1,
     COMPILE_ENVIRONMENT= )
 
+MOZ_ARG_ENABLE_BOOL(shared-js,
+[  --disable-shared-js
+                          Do not create a shared library.],
+    DISABLE_SHARED_JS=0,
+    DISABLE_SHARED_JS=1)
+
+if test "$DISABLE_SHARED_JS" = "1" ; then
+  AC_DEFINE(STATIC_EXPORTABLE_JS_API)
+else
+  JS_SHARED_LIBRARY=1
+fi
+AC_SUBST(JS_SHARED_LIBRARY)
+
 dnl ========================================================
 dnl = Android uses a very custom (hacky) toolchain; we need to do this
 dnl = here, so that the compiler checks can succeed
@@ -2402,7 +2415,7 @@ alpha*-*-osf*)
        NS_USE_NATIVE=1
        AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
        CFLAGS="$CFLAGS -xlibmieee -xstrconst -xbuiltin=%all -D__FUNCTION__=__func__"
-       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic,extensions -norunpath -D__FUNCTION__=__func__"
+       CXXFLAGS="$CXXFLAGS -xlibmieee -xbuiltin=%all -features=tmplife,tmplrefstatic,extensions -norunpath -D__FUNCTION__=__func__ -template=no%extdef"
        _MOZ_EXCEPTIONS_FLAGS_ON='-features=except'
        _MOZ_EXCEPTIONS_FLAGS_OFF='-features=no%except'
        LDFLAGS="-xildoff $LDFLAGS"
@@ -4352,6 +4365,17 @@ if test "$JS_HAS_CTYPES"; then
 fi
 
 dnl ========================================================
+dnl = Use JS Call tracing
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(trace-jscalls,
+[  --enable-trace-jscalls  Enable JS call enter/exit callback (default=no)],
+    MOZ_TRACE_JSCALLS=1,
+    MOZ_TRACE_JSCALLS= )
+if test -n "$MOZ_TRACE_JSCALLS"; then
+    AC_DEFINE(MOZ_TRACE_JSCALLS)
+fi
+
+dnl ========================================================
 dnl = Use TraceVis
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(tracevis,
@@ -4883,6 +4907,12 @@ else
     _USE_CPP_INCLUDE_FLAG=
     _DEFINES_CFLAGS='$(ACDEFINES) -D_JS_CONFDEFS_H_ -DMOZILLA_CLIENT'
     _DEFINES_CXXFLAGS='$(ACDEFINES) -D_JS_CONFDEFS_H_ -DMOZILLA_CLIENT'
+  else
+    _topsrcdirwin=`cd \`dirname $0\`; pwd -W`
+    dnl cl.py provides dependency generation for MSVC
+    CC_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
+    CXX_WRAPPER="$PYTHON -O $_topsrcdirwin/build/cl.py"
+    COMPILER_DEPEND=1
   fi
 fi
 fi # MOZ_AUTO_DEPS
@@ -4890,6 +4920,8 @@ MDDEPDIR='.deps'
 AC_SUBST(MOZ_AUTO_DEPS)
 AC_SUBST(COMPILER_DEPEND)
 AC_SUBST(MDDEPDIR)
+AC_SUBST(CC_WRAPPER)
+AC_SUBST(CXX_WRAPPER)
 
 
 dnl ========================================================

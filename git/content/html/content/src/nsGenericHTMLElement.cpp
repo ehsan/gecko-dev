@@ -232,7 +232,14 @@ class nsGenericHTMLElementTearoff : public nsIDOMNSHTMLElement,
   }
 
   NS_FORWARD_NSIDOMNSHTMLELEMENT(mElement->)
-  NS_FORWARD_NSIDOMELEMENTCSSINLINESTYLE(mElement->)
+  NS_IMETHOD GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
+  {
+    nsresult rv;
+    *aStyle = mElement->GetStyle(&rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ADDREF(*aStyle);
+    return NS_OK;
+  }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGenericHTMLElementTearoff,
                                            nsIDOMNSHTMLElement)
@@ -294,11 +301,8 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
         value->Type() == nsAttrValue::eCSSStyleRule) {
       // We can't just set this as a string, because that will fail
       // to reparse the string into style data until the node is
-      // inserted into the document.  Clone the HTMLValue instead.
-      nsCOMPtr<nsICSSRule> ruleClone;
-      rv = value->GetCSSStyleRuleValue()->Clone(*getter_AddRefs(ruleClone));
-      NS_ENSURE_SUCCESS(rv, rv);
-
+      // inserted into the document.  Clone the nsICSSRule instead.
+      nsCOMPtr<nsICSSRule> ruleClone = value->GetCSSStyleRuleValue()->Clone();
       nsCOMPtr<nsICSSStyleRule> styleRule = do_QueryInterface(ruleClone);
       NS_ENSURE_TRUE(styleRule, NS_ERROR_UNEXPECTED);
 

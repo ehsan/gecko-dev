@@ -6,7 +6,6 @@
  *   Vladimir Vukicevic <vladimir@pobox.com>
  */
 
-var gTestfile = 'template.js';
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 532774;
 var summary = 'js typed arrays (webgl arrays)';
@@ -223,6 +222,13 @@ function test()
 
     a = new Uint8Array(0x100);
     checkThrows(function() Uint32Array.prototype.slice.apply(a, [0, 0x100]));
+
+    checkThrows(function() new Int32Array(ArrayBuffer.prototype));
+    checkThrows(function() new Int32Array(Int32Array.prototype));
+    checkThrows(function() new Int32Array(Float64Array.prototype));
+    checkThrows(function() new Int32Array(ArrayBuffer));
+    checkThrows(function() new Int32Array(Int32Array));
+    checkThrows(function() new Int32Array(Float64Array));
 
     print ("done");
 

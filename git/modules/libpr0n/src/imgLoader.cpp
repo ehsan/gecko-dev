@@ -39,8 +39,16 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "imgLoader.h"
-#include "imgContainer.h"
+#include "imgRequestProxy.h"
 
+#include "RasterImage.h"
+/* We end up pulling in windows.h because we eventually hit gfxWindowsSurface;
+ * windows.h defines LoadImage, so we have to #undef it or imgLoader::LoadImage
+ * gets changed.
+ * This #undef needs to be in multiple places because we don't always pull
+ * headers in in the same order.
+ */
+#undef LoadImage
 
 #include "nsCOMPtr.h"
 
@@ -52,6 +60,7 @@
 #include "nsIPrefService.h"
 #include "nsIProgressEventSink.h"
 #include "nsIChannelEventSink.h"
+#include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIProxyObjectManager.h"
 #include "nsIServiceManager.h"
 #include "nsIFileURL.h"
@@ -60,9 +69,6 @@
 #include "nsCRT.h"
 
 #include "netCore.h"
-
-#include "imgRequest.h"
-#include "imgRequestProxy.h"
 
 #include "nsURILoader.h"
 #include "ImageLogging.h"
@@ -84,12 +90,15 @@
 
 #include "mozilla/FunctionTimer.h"
 
+using namespace mozilla::imagelib;
+
 #if defined(DEBUG_pavlov) || defined(DEBUG_timeless)
 #include "nsISimpleEnumerator.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsXPIDLString.h"
 #include "nsComponentManagerUtils.h"
+
 
 static void PrintImageDecoders()
 {
@@ -216,14 +225,14 @@ public:
     }
 
     nsRefPtr<imgRequest> req = entry->GetRequest();
-    imgContainer *container = (imgContainer*) req->mImage.get();
-    if (!container)
+    RasterImage *image = static_cast<RasterImage*>(req->mImage.get());
+    if (!image)
       return PL_DHASH_NEXT;
 
     if (rtype & RAW_BIT) {
-      arg->value += container->GetSourceDataSize();
+      arg->value += image->GetSourceDataSize();
     } else {
-      arg->value += container->GetDecodedDataSize();
+      arg->value += image->GetDecodedDataSize();
     }
 
     return PL_DHASH_NEXT;
@@ -319,9 +328,10 @@ nsProgressNotificationProxy::OnStatus(nsIRequest* request,
 }
 
 NS_IMETHODIMP
-nsProgressNotificationProxy::OnChannelRedirect(nsIChannel *oldChannel,
-                                               nsIChannel *newChannel,
-                                               PRUint32 flags) {
+nsProgressNotificationProxy::AsyncOnChannelRedirect(nsIChannel *oldChannel,
+                                                    nsIChannel *newChannel,
+                                                    PRUint32 flags,
+                                                    nsIAsyncVerifyRedirectCallback *cb) {
   // The 'old' channel should match the current one
   NS_ABORT_IF_FALSE(oldChannel == mChannel,
                     "old channel doesn't match current!");
@@ -337,9 +347,13 @@ nsProgressNotificationProxy::OnChannelRedirect(nsIChannel *oldChannel,
                                 loadGroup,
                                 NS_GET_IID(nsIChannelEventSink),
                                 getter_AddRefs(target));
-  if (!target)
-    return NS_OK;
-  return target->OnChannelRedirect(oldChannel, newChannel, flags);
+  if (!target) {
+      cb->OnRedirectVerifyCallback(NS_OK);
+      return NS_OK;
+  }
+
+  // Delegate to |target| if set, reusing |cb|
+  return target->AsyncOnChannelRedirect(oldChannel, newChannel, flags, cb);
 }
 
 NS_IMETHODIMP
@@ -1165,8 +1179,18 @@ PRBool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
                                   aLoadFlags, aExistingRequest, 
                                   reinterpret_cast<imgIRequest **>(aProxyRequest));
 
-    if (*aProxyRequest)
-      request->mValidator->AddProxy(static_cast<imgRequestProxy*>(*aProxyRequest));
+    if (*aProxyRequest) {
+      imgRequestProxy* proxy = static_cast<imgRequestProxy*>(*aProxyRequest);
+
+      // We will send notifications from imgCacheValidator::OnStartRequest().
+      // In the mean time, we must defer notifications because we are added to
+      // the imgRequest's proxy list, and we can get extra notifications
+      // resulting from methods such as RequestDecode(). See bug 579122.
+      proxy->SetNotificationsDeferred(PR_TRUE);
+
+      // Attach the proxy without notifying
+      request->mValidator->AddProxy(proxy);
+    }
 
     return NS_SUCCEEDED(rv);
 
@@ -1216,8 +1240,17 @@ PRBool imgLoader::ValidateRequestWithNewChannel(imgRequest *request,
     NS_ADDREF(hvc);
     request->mValidator = hvc;
 
-    hvc->AddProxy(static_cast<imgRequestProxy*>
-                             (static_cast<imgIRequest*>(req.get())));
+    imgRequestProxy* proxy = static_cast<imgRequestProxy*>
+                               (static_cast<imgIRequest*>(req.get()));
+
+    // We will send notifications from imgCacheValidator::OnStartRequest().
+    // In the mean time, we must defer notifications because we are added to
+    // the imgRequest's proxy list, and we can get extra notifications
+    // resulting from methods such as RequestDecode(). See bug 579122.
+    proxy->SetNotificationsDeferred(PR_TRUE);
+
+    // Add the proxy without notifying
+    hvc->AddProxy(proxy);
 
     rv = newChannel->AsyncOpen(static_cast<nsIStreamListener *>(hvc), nsnull);
     if (NS_SUCCEEDED(rv))
@@ -2035,6 +2068,13 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
       for (PRInt32 i = count-1; i>=0; i--) {
         imgRequestProxy *proxy = static_cast<imgRequestProxy *>(mProxies[i]);
 
+        // Proxies waiting on cache validation should be deferring notifications.
+        // Undefer them.
+        NS_ABORT_IF_FALSE(proxy->NotificationsDeferred(),
+                          "Proxies waiting on cache validation should be "
+                          "deferring notifications!");
+        proxy->SetNotificationsDeferred(PR_FALSE);
+
         // Notify synchronously, because we're already in OnStartRequest, an
         // asynchronously-called function.
         proxy->SyncNotifyListener();
@@ -2097,6 +2137,13 @@ NS_IMETHODIMP imgCacheValidator::OnStartRequest(nsIRequest *aRequest, nsISupport
   for (PRInt32 i = count-1; i>=0; i--) {
     imgRequestProxy *proxy = static_cast<imgRequestProxy *>(mProxies[i]);
     proxy->ChangeOwner(request);
+
+    // Proxies waiting on cache validation should be deferring notifications.
+    // Undefer them.
+    NS_ABORT_IF_FALSE(proxy->NotificationsDeferred(),
+                      "Proxies waiting on cache validation should be "
+                      "deferring notifications!");
+    proxy->SetNotificationsDeferred(PR_FALSE);
 
     // Notify synchronously, because we're already in OnStartRequest, an
     // asynchronously-called function.

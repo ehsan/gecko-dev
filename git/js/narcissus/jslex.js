@@ -41,19 +41,19 @@
  * Lexical scanner.
  */
 
-Narcissus.jslex = (function() {
+Narcissus.lexer = (function() {
 
-    var jsdefs = Narcissus.jsdefs;
-    
+    var definitions = Narcissus.definitions;
+
     // Set constants in the local scope.
-    eval(jsdefs.consts);
-    
+    eval(definitions.consts);
+
     // Build up a trie of operator tokens.
     var opTokens = {};
-    for (var op in jsdefs.opTypeNames) {
+    for (var op in definitions.opTypeNames) {
         if (op === '\n' || op === '.')
             continue;
-    
+
         var node = opTokens;
         for (var i = 0; i < op.length; i++) {
             var ch = op[i];
@@ -63,7 +63,7 @@ Narcissus.jslex = (function() {
             node.op = op;
         }
     }
-    
+
     /*
      * Tokenizer :: (file ptr, path, line number) -> Tokenizer
      */
@@ -77,33 +77,33 @@ Narcissus.jslex = (function() {
         this.filename = f || "";
         this.lineno = l || 1;
     }
-    
+
     Tokenizer.prototype = {
         get done() {
             // We need to set scanOperand to true here because the first thing
             // might be a regexp.
-            return this.peek(true) == END;
+            return this.peek(true) === END;
         },
-    
+
         get token() {
             return this.tokens[this.tokenIndex];
         },
-    
+
         match: function (tt, scanOperand) {
-            return this.get(scanOperand) == tt || this.unget();
+            return this.get(scanOperand) === tt || this.unget();
         },
-    
+
         mustMatch: function (tt) {
             if (!this.match(tt))
                 throw this.newSyntaxError("Missing " + tokens[tt].toLowerCase());
             return this.token;
         },
-    
+
         peek: function (scanOperand) {
             var tt, next;
             if (this.lookahead) {
                 next = this.tokens[(this.tokenIndex + this.lookahead) & 3];
-                tt = (this.scanNewlines && next.lineno != this.lineno)
+                tt = (this.scanNewlines && next.lineno !== this.lineno)
                      ? NEWLINE
                      : next.type;
             } else {
@@ -112,14 +112,14 @@ Narcissus.jslex = (function() {
             }
             return tt;
         },
-    
+
         peekOnSameLine: function (scanOperand) {
             this.scanNewlines = true;
             var tt = this.peek(scanOperand);
             this.scanNewlines = false;
             return tt;
         },
-    
+
         // Eats comments and whitespace.
         skip: function () {
             var input = this.source;
@@ -134,7 +134,7 @@ Narcissus.jslex = (function() {
                         ch = input[this.cursor++];
                         if (ch === undefined)
                             throw this.newSyntaxError("Unterminated comment");
-    
+
                         if (ch === '*') {
                             next = input[this.cursor];
                             if (next === '/') {
@@ -151,7 +151,7 @@ Narcissus.jslex = (function() {
                         ch = input[this.cursor++];
                         if (ch === undefined)
                             return;
-    
+
                         if (ch === '\n') {
                             this.lineno++;
                             break;
@@ -163,7 +163,7 @@ Narcissus.jslex = (function() {
                 }
             }
         },
-    
+
         // Lexes the exponential part of a number, if present. Returns true iff an
         // exponential part was found.
         lexExponent: function() {
@@ -174,32 +174,32 @@ Narcissus.jslex = (function() {
                 ch = input[this.cursor++];
                 if (ch === '+' || ch === '-')
                     ch = input[this.cursor++];
-    
+
                 if (ch < '0' || ch > '9')
                     throw this.newSyntaxError("Missing exponent");
-    
+
                 do {
                     ch = input[this.cursor++];
                 } while (ch >= '0' && ch <= '9');
                 this.cursor--;
-    
+
                 return true;
             }
-    
+
             return false;
         },
-    
+
         lexZeroNumber: function (ch) {
             var token = this.token, input = this.source;
             token.type = NUMBER;
-    
+
             ch = input[this.cursor++];
             if (ch === '.') {
                 do {
                     ch = input[this.cursor++];
                 } while (ch >= '0' && ch <= '9');
                 this.cursor--;
-    
+
                 this.lexExponent();
                 token.value = parseFloat(token.start, this.cursor);
             } else if (ch === 'x' || ch === 'X') {
@@ -208,14 +208,14 @@ Narcissus.jslex = (function() {
                 } while ((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') ||
                          (ch >= 'A' && ch <= 'F'));
                 this.cursor--;
-    
+
                 token.value = parseInt(input.substring(token.start, this.cursor));
             } else if (ch >= '0' && ch <= '7') {
                 do {
                     ch = input[this.cursor++];
                 } while (ch >= '0' && ch <= '7');
                 this.cursor--;
-    
+
                 token.value = parseInt(input.substring(token.start, this.cursor));
             } else {
                 this.cursor--;
@@ -223,11 +223,11 @@ Narcissus.jslex = (function() {
                 token.value = 0;
             }
         },
-    
+
         lexNumber: function (ch) {
             var token = this.token, input = this.source;
             token.type = NUMBER;
-    
+
             var floating = false;
             do {
                 ch = input[this.cursor++];
@@ -236,16 +236,16 @@ Narcissus.jslex = (function() {
                     ch = input[this.cursor++];
                 }
             } while (ch >= '0' && ch <= '9');
-    
+
             this.cursor--;
-    
+
             var exponent = this.lexExponent();
             floating = floating || exponent;
-    
+
             var str = input.substring(token.start, this.cursor);
             token.value = floating ? parseFloat(str) : parseInt(str);
         },
-    
+
         lexDot: function (ch) {
             var token = this.token, input = this.source;
             var next = input[this.cursor];
@@ -254,9 +254,9 @@ Narcissus.jslex = (function() {
                     ch = input[this.cursor++];
                 } while (ch >= '0' && ch <= '9');
                 this.cursor--;
-    
+
                 this.lexExponent();
-    
+
                 token.type = NUMBER;
                 token.value = parseFloat(token.start, this.cursor);
             } else {
@@ -265,11 +265,11 @@ Narcissus.jslex = (function() {
                 token.value = '.';
             }
         },
-    
+
         lexString: function (ch) {
             var token = this.token, input = this.source;
             token.type = STRING;
-    
+
             var hasEscapes = false;
             var delim = ch;
             ch = input[this.cursor++];
@@ -280,16 +280,16 @@ Narcissus.jslex = (function() {
                 }
                 ch = input[this.cursor++];
             }
-    
+
             token.value = (hasEscapes)
                           ? eval(input.substring(token.start, this.cursor))
                           : input.substring(token.start + 1, this.cursor - 1);
         },
-    
+
         lexRegExp: function (ch) {
             var token = this.token, input = this.source;
             token.type = REGEXP;
-    
+
             do {
                 ch = input[this.cursor++];
                 if (ch === '\\') {
@@ -298,29 +298,29 @@ Narcissus.jslex = (function() {
                     do {
                         if (ch === undefined)
                             throw this.newSyntaxError("Unterminated character class");
-    
+
                         if (ch === '\\')
                             this.cursor++;
-    
+
                         ch = input[this.cursor++];
                     } while (ch !== ']');
                 } else if (ch === undefined) {
                     throw this.newSyntaxError("Unterminated regex");
                 }
             } while (ch !== '/');
-    
+
             do {
                 ch = input[this.cursor++];
             } while (ch >= 'a' && ch <= 'z');
-    
+
             this.cursor--;
-    
+
             token.value = eval(input.substring(token.start, this.cursor));
         },
-    
+
         lexOp: function (ch) {
             var token = this.token, input = this.source;
-    
+
             // A bit ugly, but it seems wasteful to write a trie lookup routine for
             // only 3 characters...
             var node = opTokens[ch];
@@ -335,38 +335,38 @@ Narcissus.jslex = (function() {
                     next = input[this.cursor];
                 }
             }
-    
+
             var op = node.op;
-            if (jsdefs.assignOps[op] && input[this.cursor] === '=') {
+            if (definitions.assignOps[op] && input[this.cursor] === '=') {
                 this.cursor++;
                 token.type = ASSIGN;
-                token.assignOp = jsdefs.tokenIds[jsdefs.opTypeNames[op]];
+                token.assignOp = definitions.tokenIds[definitions.opTypeNames[op]];
                 op += '=';
             } else {
-                token.type = jsdefs.tokenIds[jsdefs.opTypeNames[op]];
+                token.type = definitions.tokenIds[definitions.opTypeNames[op]];
                 token.assignOp = null;
             }
-    
+
             token.value = op;
         },
-    
+
         // FIXME: Unicode escape sequences
         // FIXME: Unicode identifiers
         lexIdent: function (ch) {
             var token = this.token, input = this.source;
-    
+
             do {
                 ch = input[this.cursor++];
             } while ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
                      (ch >= '0' && ch <= '9') || ch === '$' || ch === '_');
-    
+
             this.cursor--;  // Put the non-word character back.
-    
+
             var id = input.substring(token.start, this.cursor);
-            token.type = jsdefs.keywords[id] || IDENTIFIER;
+            token.type = definitions.keywords[id] || IDENTIFIER;
             token.value = id;
         },
-    
+
         /*
          * Tokenizer.get :: void -> token type
          *
@@ -379,24 +379,24 @@ Narcissus.jslex = (function() {
                 --this.lookahead;
                 this.tokenIndex = (this.tokenIndex + 1) & 3;
                 token = this.tokens[this.tokenIndex];
-                if (token.type != NEWLINE || this.scanNewlines)
+                if (token.type !== NEWLINE || this.scanNewlines)
                     return token.type;
             }
-    
+
             this.skip();
-    
+
             this.tokenIndex = (this.tokenIndex + 1) & 3;
             token = this.tokens[this.tokenIndex];
             if (!token)
                 this.tokens[this.tokenIndex] = token = {};
-    
+
             var input = this.source;
             if (this.cursor === input.length)
                 return token.type = END;
-    
+
             token.start = this.cursor;
             token.lineno = this.lineno;
-    
+
             var ch = input[this.cursor++];
             if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
                     ch === '$' || ch === '_') {
@@ -420,28 +420,28 @@ Narcissus.jslex = (function() {
             } else {
                 throw this.newSyntaxError("Illegal token");
             }
-    
+
             token.end = this.cursor;
             return token.type;
         },
-    
+
         /*
          * Tokenizer.unget :: void -> undefined
          *
          * Match depends on unget returning undefined.
          */
         unget: function () {
-            if (++this.lookahead == 4) throw "PANIC: too much lookahead!";
+            if (++this.lookahead === 4) throw "PANIC: too much lookahead!";
             this.tokenIndex = (this.tokenIndex - 1) & 3;
         },
-    
+
         newSyntaxError: function (m) {
             var e = new SyntaxError(m, this.filename, this.lineno);
             e.source = this.source;
             e.cursor = this.cursor;
             return e;
         },
-    
+
         save: function () {
             return {
                 cursor: this.cursor,
@@ -452,7 +452,7 @@ Narcissus.jslex = (function() {
                 lineno: this.lineno
             };
         },
-    
+
         rewind: function(point) {
             this.cursor = point.cursor;
             this.tokenIndex = point.tokenIndex;
@@ -462,8 +462,8 @@ Narcissus.jslex = (function() {
             this.lineno = point.lineno;
         }
     };
-    
-    return { "Tokenizer": Tokenizer };
+
+    return { Tokenizer: Tokenizer };
 
 }());
 
