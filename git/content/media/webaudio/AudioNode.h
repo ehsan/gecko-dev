@@ -26,6 +26,7 @@ class ErrorResult;
 
 namespace dom {
 
+class AudioParam;
 struct ThreeDPoint;
 
 template<class T>
@@ -56,6 +57,44 @@ public:
 
 private:
   bool mHeld;
+};
+
+template<class T>
+class SelfCountedReference {
+public:
+  SelfCountedReference() : mRefCnt(0) {}
+  ~SelfCountedReference()
+  {
+    NS_ASSERTION(mRefCnt == 0, "Forgot to drop the self reference?");
+  }
+
+  void Take(T* t)
+  {
+    if (mRefCnt++ == 0) {
+      t->AddRef();
+    }
+  }
+  void Drop(T* t)
+  {
+    if (mRefCnt > 0) {
+      --mRefCnt;
+      if (mRefCnt == 0) {
+        t->Release();
+      }
+    }
+  }
+  void ForceDrop(T* t)
+  {
+    if (mRefCnt > 0) {
+      mRefCnt = 0;
+      t->Release();
+    }
+  }
+
+  operator bool() const { return mRefCnt > 0; }
+
+private:
+  nsrefcnt mRefCnt;
 };
 
 /**
@@ -108,13 +147,16 @@ public:
   virtual void Connect(AudioNode& aDestination, uint32_t aOutput,
                        uint32_t aInput, ErrorResult& aRv);
 
+  virtual void Connect(AudioParam& aDestination, uint32_t aOutput,
+                       ErrorResult& aRv);
+
   virtual void Disconnect(uint32_t aOutput, ErrorResult& aRv);
 
   // The following two virtual methods must be implemented by each node type
   // to provide their number of input and output ports. These numbers are
   // constant for the lifetime of the node. Both default to 1.
-  virtual uint32_t NumberOfInputs() const { return 1; }
-  virtual uint32_t NumberOfOutputs() const { return 1; }
+  virtual uint16_t NumberOfInputs() const { return 1; }
+  virtual uint16_t NumberOfOutputs() const { return 1; }
 
   uint32_t ChannelCount() const { return mChannelCount; }
   void SetChannelCount(uint32_t aChannelCount)
@@ -153,6 +195,7 @@ public:
     AudioNode* mInputNode;
     nsRefPtr<MediaInputPort> mStreamPort;
     // The index of the input port this node feeds into.
+    // This is not used for connections to AudioParams.
     uint32_t mInputPort;
     // The index of the output port this node comes out of.
     uint32_t mOutputPort;
@@ -165,7 +208,10 @@ public:
     return mInputNodes;
   }
 
+  void RemoveOutputParam(AudioParam* aParam);
+
 private:
+  friend class AudioBufferSourceNode;
   // This could possibly delete 'this'.
   void DisconnectFromGraph();
 
@@ -197,6 +243,12 @@ private:
   // exact matching entry, since mOutputNodes doesn't include the port
   // identifiers and the same node could be connected on multiple ports.
   nsTArray<nsRefPtr<AudioNode> > mOutputNodes;
+  // For every mOutputParams entry, there is a corresponding entry in
+  // AudioParam::mInputNodes of the mOutputParams entry. We won't necessarily be
+  // able to identify the exact matching entry, since mOutputParams doesn't
+  // include the port identifiers and the same node could be connected on
+  // multiple ports.
+  nsTArray<nsRefPtr<AudioParam> > mOutputParams;
   uint32_t mChannelCount;
   ChannelCountMode mChannelCountMode;
   ChannelInterpretation mChannelInterpretation;

@@ -170,7 +170,7 @@ namespace ion {
  * InvokeArgsGuard can be pushed long before and popped long after the actual
  * call, during which time many stack-observing things can happen).
  */
-class CallArgsList : public JS::CallArgs
+class MOZ_STACK_CLASS CallArgsList : public JS::CallArgs
 {
     friend class StackSegment;
     CallArgsList *prev_;
@@ -330,6 +330,8 @@ class AbstractFramePtr
     inline void setHookData(void *data) const;
     inline Value returnValue() const;
     inline void setReturnValue(const Value &rval) const;
+
+    inline bool hasPushedSPSFrame() const;
 
     inline void popBlock(JSContext *cx) const;
     inline void popWith(JSContext *cx) const;

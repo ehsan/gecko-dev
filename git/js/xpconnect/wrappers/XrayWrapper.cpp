@@ -1147,7 +1147,7 @@ XPCWrappedNativeXrayTraits::call(JSContext *cx, HandleObject wrapper,
             return false;
         bool ok = true;
         nsresult rv = wn->GetScriptableInfo()->GetCallback()->Call(
-            wn, cx, wrapper, args.length(), args.array(), args.rval().address(), &ok);
+            wn, cx, wrapper, args, &ok);
         if (NS_FAILED(rv)) {
             if (ok)
                 XPCThrower::Throw(rv, cx);
@@ -1173,7 +1173,7 @@ XPCWrappedNativeXrayTraits::construct(JSContext *cx, HandleObject wrapper,
             return false;
         bool ok = true;
         nsresult rv = wn->GetScriptableInfo()->GetCallback()->Construct(
-            wn, cx, wrapper, args.length(), args.array(), args.rval().address(), &ok);
+            wn, cx, wrapper, args, &ok);
         if (NS_FAILED(rv)) {
             if (ok)
                 XPCThrower::Throw(rv, cx);
@@ -1241,8 +1241,8 @@ bool
 DOMXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags,
                               AutoIdVector &props)
 {
-    return XrayEnumerateProperties(cx, wrapper, getTargetObject(wrapper),
-                                   flags, props);
+    JS::Rooted<JSObject*> obj(cx, getTargetObject(wrapper));
+    return XrayEnumerateProperties(cx, wrapper, obj, flags, props);
 }
 
 bool
@@ -1593,7 +1593,8 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, HandleObject wra
     if (!desc->obj && Traits::Type == XrayForWrappedNative && JSID_IS_STRING(id) &&
         (win = static_cast<nsGlobalWindow*>(As<nsPIDOMWindow>(wrapper))))
     {
-        nsCOMPtr<nsIDOMWindow> childDOMWin = win->GetChildWindow(id);
+        nsDependentJSString name(id);
+        nsCOMPtr<nsIDOMWindow> childDOMWin = win->GetChildWindow(name);
         if (childDOMWin) {
             nsGlobalWindow *cwin = static_cast<nsGlobalWindow*>(childDOMWin.get());
             JSObject *childObj = cwin->FastGetGlobalJSObject();

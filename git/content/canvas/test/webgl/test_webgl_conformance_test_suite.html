@@ -312,6 +312,8 @@ function start() {
     // The explanation is that the JS engine keeps unreferenced WebGL contexts around
     // for too long before GCing (bug 617453), so that during this mochitest dozens of unreferenced
     // WebGL contexts can accumulate at a given time.
+    SpecialPowers.DOMWindowUtils.cycleCollect();
+    SpecialPowers.DOMWindowUtils.garbageCollect();
     SpecialPowers.DOMWindowUtils.garbageCollect();
 
     var page = this.pagesByURL[url];
@@ -499,10 +501,16 @@ function start() {
                       .split('\n');
   }
 
-  if (kIsWindows && !kIsWindowsVistaOrHigher) {
-    testsToSkip = loadTextFileSynchronous('skipped_tests_winxp.txt')
-                      .replace(/\r/g, '') // convert to unix line breaks
-                      .split('\n');
+  if (kIsWindows) {
+    if (!kIsWindowsVistaOrHigher) {
+      testsToSkip = loadTextFileSynchronous('skipped_tests_winxp.txt')
+                        .replace(/\r/g, '') // convert to unix line breaks
+                        .split('\n');
+    } else {
+      testsToSkip = loadTextFileSynchronous('skipped_tests_win_vista.txt')
+                        .replace(/\r/g, '') // convert to unix line breaks
+                        .split('\n');
+    }
   }
 
   runTestSuite();

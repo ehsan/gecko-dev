@@ -22,6 +22,7 @@ namespace mozilla {
 
 namespace dom {
 struct ThreeDPoint;
+class AudioParamTimeline;
 }
 
 class ThreadSharedFloatArrayBufferList;
@@ -40,6 +41,8 @@ class AudioNodeStream : public ProcessedMediaStream {
 public:
   enum { AUDIO_TRACK = 1 };
 
+  typedef nsAutoTArray<AudioChunk, 1> OutputChunks;
+
   /**
    * Transfers ownership of aEngine to the new AudioNodeStream.
    */
@@ -49,7 +52,8 @@ public:
       mEngine(aEngine),
       mKind(aKind),
       mNumberOfInputChannels(2),
-      mMarkAsFinishedAfterThisBlock(false)
+      mMarkAsFinishedAfterThisBlock(false),
+      mAudioParamStream(false)
   {
     mMixingMode.mChannelCountMode = dom::ChannelCountMode::Max;
     mMixingMode.mChannelInterpretation = dom::ChannelInterpretation::Speakers;
@@ -74,6 +78,11 @@ public:
   void SetChannelMixingParameters(uint32_t aNumberOfChannels,
                                   dom::ChannelCountMode aChannelCountMoe,
                                   dom::ChannelInterpretation aChannelInterpretation);
+  void SetAudioParamHelperStream()
+  {
+    MOZ_ASSERT(!mAudioParamStream, "Can only do this once");
+    mAudioParamStream = true;
+  }
 
   virtual AudioNodeStream* AsAudioNodeStream() { return this; }
 
@@ -86,6 +95,14 @@ public:
   virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo);
   TrackTicks GetCurrentPosition();
   bool AllInputsFinished() const;
+  bool IsAudioParamStream() const
+  {
+    return mAudioParamStream;
+  }
+  const OutputChunks& LastChunks() const
+  {
+    return mLastChunks;
+  }
 
   // Any thread
   AudioNodeEngine* Engine() { return mEngine; }
@@ -94,12 +111,12 @@ protected:
   void FinishOutput();
 
   StreamBuffer::Track* EnsureTrack();
-  AudioChunk* ObtainInputBlock(AudioChunk* aTmpChunk);
+  void ObtainInputBlock(AudioChunk& aTmpChunk, uint32_t aPortIndex);
 
   // The engine that will generate output for this node.
   nsAutoPtr<AudioNodeEngine> mEngine;
   // The last block produced by this node.
-  AudioChunk mLastChunk;
+  OutputChunks mLastChunks;
   // Whether this is an internal or external stream
   MediaStreamGraph::AudioNodeStreamKind mKind;
   // The number of input channels that this stream requires. 0 means don't care.
@@ -112,6 +129,8 @@ protected:
   // Whether the stream should be marked as finished as soon
   // as the current time range has been computed block by block.
   bool mMarkAsFinishedAfterThisBlock;
+  // Whether the stream is an AudioParamHelper stream.
+  bool mAudioParamStream;
 };
 
 }
