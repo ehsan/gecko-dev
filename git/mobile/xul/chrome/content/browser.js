@@ -385,7 +385,6 @@ var Browser = {
     messageManager.addMessageListener("Browser:CertException", this);
     messageManager.addMessageListener("Browser:BlockedSite", this);
     messageManager.addMessageListener("Browser:ErrorPage", this);
-    messageManager.addMessageListener("Browser:GoOnline", this);
     messageManager.addMessageListener("Browser:PluginClickToPlayClicked", this);
 
     // Broadcast a UIReady message so add-ons know we are finished with startup
@@ -485,7 +484,6 @@ var Browser = {
     messageManager.removeMessageListener("Browser:CertException", this);
     messageManager.removeMessageListener("Browser:BlockedSite", this);
     messageManager.removeMessageListener("Browser:ErrorPage", this);
-    messageManager.removeMessageListener("Browser:GoOnline", this);
     messageManager.removeMessageListener("Browser:PluginClickToPlayClicked", this);
 
     var os = Services.obs;
@@ -1266,9 +1264,6 @@ var Browser = {
         break;
       case "Browser:ErrorPage":
         this._handleErrorPage(aMessage);
-        break;
-      case "Browser:GoOnline":
-        Services.io.offline = false;
         break;
       case "Browser:PluginClickToPlayClicked": {
         // Save off session history
