@@ -3466,7 +3466,6 @@ const Class ArrayBufferObject::class_ = {
     nullptr,        /* hasInstance */
     nullptr,        /* construct   */
     ArrayBufferObject::obj_trace,
-    JS_NULL_CLASS_SPEC,
     JS_NULL_CLASS_EXT,
     {
         ArrayBufferObject::obj_lookupGeneric,
@@ -3626,8 +3625,12 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
     nullptr,                 /* hasInstance */                                 \
     nullptr,                 /* construct   */                                 \
     ArrayBufferViewObject::trace, /* trace  */                                 \
-    JS_NULL_CLASS_SPEC,                                                        \
-    JS_NULL_CLASS_EXT,                                                         \
+    {                                                                          \
+        nullptr,    /* outerObject */                                          \
+        nullptr,    /* innerObject */                                          \
+        nullptr,    /* iteratorObject  */                                      \
+        false,      /* isWrappedNative */                                      \
+    },                                                                         \
     {                                                                          \
         _typedArray##Object::obj_lookupGeneric,                                \
         _typedArray##Object::obj_lookupProperty,                               \
@@ -3835,6 +3838,8 @@ const Class DataViewObject::class_ = {
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
     ArrayBufferViewObject::trace, /* trace  */
+    JS_NULL_CLASS_EXT,
+    JS_NULL_OBJECT_OPS
 };
 
 const JSFunctionSpec DataViewObject::jsfuncs[] = {

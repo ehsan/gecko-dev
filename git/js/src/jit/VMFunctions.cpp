@@ -924,7 +924,7 @@ PopBlockScope(JSContext *cx, BaselineFrame *frame)
 bool
 DebugLeaveBlock(JSContext *cx, BaselineFrame *frame, jsbytecode *pc)
 {
-    JS_ASSERT(frame->script()->baselineScript()->debugMode());
+    JS_ASSERT(cx->compartment()->debugMode());
 
     DebugScopes::onPopBlock(cx, frame, pc);
 

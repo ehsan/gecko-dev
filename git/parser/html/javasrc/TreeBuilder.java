@@ -620,7 +620,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                 pushTemplateMode(IN_TEMPLATE);
             }
             resetTheInsertionMode();
-            formPointer = getFormPointerForContext(contextNode);
             if ("title" == contextName || "textarea" == contextName) {
                 tokenizer.setStateAndEndTagExpectation(Tokenizer.RCDATA, contextName);
             } else if ("style" == contextName || "xmp" == contextName
@@ -1893,7 +1892,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 attributes = null; // CPP
                                 break starttagloop;
                             case FORM:
-                                if (formPointer != null || isTemplateContents()) {
+                                if (formPointer != null) {
                                     errFormWhenFormOpen();
                                     break starttagloop;
                                 } else {
@@ -2079,7 +2078,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 attributes = null; // CPP
                                 break starttagloop;
                             case FORM:
-                                if (formPointer != null && !isTemplateContents()) {
+                                if (formPointer != null) {
                                     errFormWhenFormOpen();
                                     break starttagloop;
                                 } else {
@@ -2256,7 +2255,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                 break starttagloop;
                             case ISINDEX:
                                 errIsindex();
-                                if (formPointer != null && !isTemplateContents()) {
+                                if (formPointer != null) {
                                     break starttagloop;
                                 }
                                 implicitlyCloseP();
@@ -2320,11 +2319,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                                         ElementName.HR,
                                         HtmlAttributes.EMPTY_ATTRIBUTES);
                                 pop(); // form
-
-                                if (!isTemplateContents()) {
-                                    formPointer = null;
-                                }
-
                                 selfClosing = false;
                                 // Portability.delete(formAttrs);
                                 // Portability.delete(inputAttributes);
@@ -3580,38 +3574,22 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                             }
                             break endtagloop;
                         case FORM:
-                            if (!isTemplateContents()) {
-                                if (formPointer == null) {
-                                    errStrayEndTag(name);
-                                    break endtagloop;
-                                }
-                                formPointer = null;
-                                eltPos = findLastInScope(name);
-                                if (eltPos == TreeBuilder.NOT_FOUND_ON_STACK) {
-                                    errStrayEndTag(name);
-                                    break endtagloop;
-                                }
-                                generateImpliedEndTags();
-                                if (errorHandler != null && !isCurrent(name)) {
-                                    errUnclosedElements(eltPos, name);
-                                }
-                                removeFromStack(eltPos);
-                                break endtagloop;
-                            } else {
-                                eltPos = findLastInScope(name);
-                                if (eltPos == TreeBuilder.NOT_FOUND_ON_STACK) {
-                                    errStrayEndTag(name);
-                                    break endtagloop;
-                                }
-                                generateImpliedEndTags();
-                                if (errorHandler != null && !isCurrent(name)) {
-                                    errUnclosedElements(eltPos, name);
-                                }
-                                while (currentPtr >= eltPos) {
-                                    pop();
-                                }
+                            if (formPointer == null) {
+                                errStrayEndTag(name);
                                 break endtagloop;
                             }
+                            formPointer = null;
+                            eltPos = findLastInScope(name);
+                            if (eltPos == TreeBuilder.NOT_FOUND_ON_STACK) {
+                                errStrayEndTag(name);
+                                break endtagloop;
+                            }
+                            generateImpliedEndTags();
+                            if (errorHandler != null && !isCurrent(name)) {
+                                errUnclosedElements(eltPos, name);
+                            }
+                            removeFromStack(eltPos);
+                            break endtagloop;
                         case P:
                             eltPos = findLastInButtonScope("p");
                             if (eltPos == TreeBuilder.NOT_FOUND_ON_STACK) {
@@ -5100,11 +5078,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         // ]NOCPP]
         T elt = createElement("http://www.w3.org/1999/xhtml", "form",
                 attributes);
-
-        if (!isTemplateContents()) {
-            formPointer = elt;
-        }
-
+        formPointer = elt;
         StackNode<T> current = stack[currentPtr];
         if (current.isFosterParenting()) {
             fatal();
@@ -5228,10 +5202,6 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     // [NOCPP[
     T getDocumentFragmentForTemplate(T template) {
         return template;
-    }
-
-    T getFormPointerForContext(T context) {
-        return null;
     }
     // ]NOCPP]
 
