@@ -88,7 +88,7 @@ ArchiveZipItem::File(ArchiveReader* aArchiveReader)
     new ArchiveZipFileImpl(filename,
                            NS_ConvertUTF8toUTF16(GetType()),
                            StrToInt32(mCentralStruct.orglen),
-                           mCentralStruct, aArchiveReader->GetFileImpl()));
+                           mCentralStruct, aArchiveReader));
 }
 
 uint32_t

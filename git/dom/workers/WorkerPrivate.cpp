@@ -456,8 +456,8 @@ struct MainThreadWorkerStructuredCloneCallbacks
       File* blob = nullptr;
       if (NS_SUCCEEDED(UNWRAP_OBJECT(Blob, aObj, blob))) {
         FileImpl* blobImpl = blob->Impl();
-        if (!blobImpl->MayBeClonedToOtherThreads()) {
-          NS_WARNING("Not all the blob implementations can be sent between threads.");
+        if (blobImpl->IsCCed()) {
+          NS_WARNING("Cycle collected blob objects are not supported!");
         } else if (NS_SUCCEEDED(blobImpl->SetMutable(false)) &&
                    JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
                    JS_WriteBytes(aWriter, &blobImpl, sizeof(blobImpl))) {

@@ -271,21 +271,15 @@ nsSiteSecurityService::Init()
 }
 
 nsresult
-nsSiteSecurityService::GetHost(nsIURI* aURI, nsACString& aResult)
+nsSiteSecurityService::GetHost(nsIURI *aURI, nsACString &aResult)
 {
   nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aURI);
-  if (!innerURI) {
-    return NS_ERROR_FAILURE;
-  }
+  if (!innerURI) return NS_ERROR_FAILURE;
 
-  nsAutoCString host;
-  nsresult rv = innerURI->GetAsciiHost(host);
+  nsresult rv = innerURI->GetAsciiHost(aResult);
 
-  if (NS_FAILED(rv) || host.IsEmpty()) {
+  if (NS_FAILED(rv) || aResult.IsEmpty())
     return NS_ERROR_UNEXPECTED;
-  }
-
-  aResult.Assign(PublicKeyPinningService::CanonicalizeHostname(host.get()));
 
   return NS_OK;
 }
@@ -870,7 +864,8 @@ nsSiteSecurityService::IsSecureHost(uint32_t aType, const char* aHost,
   }
 
   // Holepunch chart.apis.google.com and subdomains.
-  nsAutoCString host(PublicKeyPinningService::CanonicalizeHostname(aHost));
+  nsAutoCString host(aHost);
+  ToLowerCase(host);
   if (host.EqualsLiteral("chart.apis.google.com") ||
       StringEndsWith(host, NS_LITERAL_CSTRING(".chart.apis.google.com"))) {
     return NS_OK;
@@ -1023,7 +1018,7 @@ nsSiteSecurityService::GetKeyPinsForHostname(const char* aHostname,
   *aIncludeSubdomains = false;
   pinArray.Clear();
 
-  nsAutoCString host(PublicKeyPinningService::CanonicalizeHostname(aHostname));
+  nsAutoCString host(aHostname);
   nsAutoCString storageKey;
   SetStorageKey(storageKey, host, nsISiteSecurityService::HEADER_HPKP);
 
@@ -1076,8 +1071,7 @@ nsSiteSecurityService::SetKeyPins(const char* aHost, bool aIncludeSubdomains,
   SiteHPKPState dynamicEntry(expireTime, SecurityPropertySet,
                              aIncludeSubdomains, sha256keys);
   // we always store data in permanent storage (ie no flags)
-  nsAutoCString host(PublicKeyPinningService::CanonicalizeHostname(aHost));
-  return SetHPKPState(host.get(), dynamicEntry, 0);
+  return SetHPKPState(aHost, dynamicEntry, 0);
 }
 
 nsresult

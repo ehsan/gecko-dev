@@ -129,14 +129,15 @@ nsresult DataOwnerAdapter::Create(DataOwner* aDataOwner,
 NS_IMPL_CYCLE_COLLECTION_CLASS(File)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(File)
-  // No unlink for mImpl bacause FileImpl is not CC-able.
-  tmp->mImpl = nullptr;
+  MOZ_ASSERT(tmp->mImpl);
+  tmp->mImpl->Unlink();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mParent)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(File)
-  // No traverse for mImpl bacause FileImpl is not CC-able.
+  MOZ_ASSERT(tmp->mImpl);
+  tmp->mImpl->Traverse(cb);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -717,7 +718,7 @@ FileImpl::Slice(const Optional<int64_t>& aStart,
 ////////////////////////////////////////////////////////////////////////////
 // FileImpl implementation
 
-NS_IMPL_ISUPPORTS(FileImpl, FileImpl)
+NS_IMPL_ISUPPORTS(FileImpl, PIFileImpl)
 
 ////////////////////////////////////////////////////////////////////////////
 // FileImplFile implementation

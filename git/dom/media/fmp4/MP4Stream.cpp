@@ -9,9 +9,9 @@
 
 namespace mozilla {
 
-MP4Stream::MP4Stream(MediaResource* aResource)
+MP4Stream::MP4Stream(MediaResource* aResource, Monitor* aDemuxerMonitor)
   : mResource(aResource)
-  , mPinCount(0)
+  , mDemuxerMonitor(aDemuxerMonitor)
 {
   MOZ_COUNT_CTOR(MP4Stream);
   MOZ_ASSERT(aResource);
@@ -20,52 +20,31 @@ MP4Stream::MP4Stream(MediaResource* aResource)
 MP4Stream::~MP4Stream()
 {
   MOZ_COUNT_DTOR(MP4Stream);
-  MOZ_ASSERT(mPinCount == 0);
 }
 
 bool
-MP4Stream::BlockingReadIntoCache(int64_t aOffset, size_t aCount, Monitor* aToUnlock)
+MP4Stream::ReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
+                  size_t* aBytesRead)
 {
-  MOZ_ASSERT(mPinCount > 0);
-  CacheBlock block(aOffset, aCount);
+  // The read call can acquire various monitors, including both the decoder
+  // monitor and gMediaCache's monitor. So we need to unlock ours to avoid
+  // deadlock.
+  mDemuxerMonitor->AssertCurrentThreadOwns();
+  MonitorAutoUnlock unlock(*mDemuxerMonitor);
 
   uint32_t sum = 0;
   uint32_t bytesRead = 0;
   do {
     uint64_t offset = aOffset + sum;
-    char* buffer = reinterpret_cast<char*>(block.mBuffer.get()) + sum;
+    char* buffer = reinterpret_cast<char*>(aBuffer) + sum;
     uint32_t toRead = aCount - sum;
-    MonitorAutoUnlock unlock(*aToUnlock);
     nsresult rv = mResource->ReadAt(offset, buffer, toRead, &bytesRead);
     if (NS_FAILED(rv)) {
       return false;
     }
     sum += bytesRead;
   } while (sum < aCount && bytesRead > 0);
-
-  MOZ_ASSERT(block.mCount >= sum);
-  block.mCount = sum;
-
-  mCache.AppendElement(block);
-  return true;
-}
-
-// We surreptitiously reimplement the supposedly-blocking ReadAt as a non-
-// blocking CachedReadAt, and record when it fails. This allows MP4Reader
-// to retry the read as an actual blocking read without holding the lock.
-bool
-MP4Stream::ReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
-                  size_t* aBytesRead)
-{
-  if (mFailedRead.isSome()) {
-    mFailedRead.reset();
-  }
-
-  if (!CachedReadAt(aOffset, aBuffer, aCount, aBytesRead)) {
-    mFailedRead.emplace(aOffset, aCount);
-    return false;
-  }
-
+  *aBytesRead = sum;
   return true;
 }
 
@@ -73,14 +52,11 @@ bool
 MP4Stream::CachedReadAt(int64_t aOffset, void* aBuffer, size_t aCount,
                         size_t* aBytesRead)
 {
-  // First, check our local cache.
-  for (size_t i = 0; i < mCache.Length(); ++i) {
-    if (mCache[i].mOffset == aOffset && mCache[i].mCount >= aCount) {
-      memcpy(aBuffer, mCache[i].mBuffer, aCount);
-      *aBytesRead = aCount;
-      return true;
-    }
-  }
+  // The read call can acquire various monitors, including both the decoder
+  // monitor and gMediaCache's monitor. So we need to unlock ours to avoid
+  // deadlock.
+  mDemuxerMonitor->AssertCurrentThreadOwns();
+  MonitorAutoUnlock unlock(*mDemuxerMonitor);
 
   nsresult rv = mResource->ReadFromCache(reinterpret_cast<char*>(aBuffer),
                                          aOffset, aCount);
