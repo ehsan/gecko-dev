@@ -23,4 +23,3 @@ SOURCES += [
     'tremor_window.c',
 ]
 
-FORCE_STATIC_LIB = True

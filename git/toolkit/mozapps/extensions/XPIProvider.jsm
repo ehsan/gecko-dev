@@ -102,7 +102,6 @@ const KEY_APP_SYSTEM_LOCAL            = "app-system-local";
 const KEY_APP_SYSTEM_SHARE            = "app-system-share";
 const KEY_APP_SYSTEM_USER             = "app-system-user";
 
-const NOTIFICATION_FLUSH_PERMISSIONS  = "flush-pending-permissions";
 const XPI_PERMISSION                  = "install";
 
 const RDFURI_INSTALL_MANIFEST_ROOT    = "urn:mozilla:install-manifest";
@@ -1953,7 +1952,6 @@ var XPIProvider = {
 
     Services.prefs.addObserver(PREF_EM_MIN_COMPAT_APP_VERSION, this, false);
     Services.prefs.addObserver(PREF_EM_MIN_COMPAT_PLATFORM_VERSION, this, false);
-    Services.obs.addObserver(this, NOTIFICATION_FLUSH_PERMISSIONS, false);
 
     let flushCaches = this.checkForChanges(aAppChanged, aOldAppVersion,
                                            aOldPlatformVersion);
@@ -3324,6 +3322,10 @@ var XPIProvider = {
                                                 aOldPlatformVersion) {
     LOG("checkForChanges");
 
+    // Import the website installation permissions if the application has changed
+    if (aAppChanged !== false)
+      this.importPermissions();
+
     // Keep track of whether and why we need to open and update the database at
     // startup time.
     let updateReasons = [];
@@ -3519,7 +3521,6 @@ var XPIProvider = {
     if (aUri.schemeIs("chrome") || aUri.schemeIs("file"))
       return true;
 
-    this.importPermissions();
 
     let permission = Services.perms.testPermission(aUri, XPI_PERMISSION);
     if (permission == Ci.nsIPermissionManager.DENY_ACTION)
@@ -3848,24 +3849,15 @@ var XPIProvider = {
    * @see nsIObserver
    */
   observe: function XPI_observe(aSubject, aTopic, aData) {
-    if (aTopic == NOTIFICATION_FLUSH_PERMISSIONS) {
-      if (!aData || aData == XPI_PERMISSION) {
-        this.importPermissions();
-      }
-      return;
-    }
-
-    if (aTopic == "nsPref:changed") {
-      switch (aData) {
-      case PREF_EM_MIN_COMPAT_APP_VERSION:
-      case PREF_EM_MIN_COMPAT_PLATFORM_VERSION:
-        this.minCompatibleAppVersion = Prefs.getCharPref(PREF_EM_MIN_COMPAT_APP_VERSION,
-                                                         null);
-        this.minCompatiblePlatformVersion = Prefs.getCharPref(PREF_EM_MIN_COMPAT_PLATFORM_VERSION,
-                                                              null);
-        this.updateAddonAppDisabledStates();
-        break;
-      }
+    switch (aData) {
+    case PREF_EM_MIN_COMPAT_APP_VERSION:
+    case PREF_EM_MIN_COMPAT_PLATFORM_VERSION:
+      this.minCompatibleAppVersion = Prefs.getCharPref(PREF_EM_MIN_COMPAT_APP_VERSION,
+                                                       null);
+      this.minCompatiblePlatformVersion = Prefs.getCharPref(PREF_EM_MIN_COMPAT_PLATFORM_VERSION,
+                                                            null);
+      this.updateAddonAppDisabledStates();
+      break;
     }
   },
 

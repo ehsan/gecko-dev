@@ -2,6 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/**
+ * WARNING: BackgroundPageThumbs.jsm is currently excluded from release builds.
+ * If you use it, you must also exclude your caller when RELEASE_BUILD is
+ * defined, as described here:
+ * https://wiki.mozilla.org/Platform/Channel-specific_build_defines
+ */
+
 const EXPORTED_SYMBOLS = [
   "BackgroundPageThumbs",
 ];
@@ -32,6 +39,11 @@ const BackgroundPageThumbs = {
    * Asynchronously captures a thumbnail of the given URL.
    *
    * The page is loaded anonymously, and plug-ins are disabled.
+   *
+   * WARNING: BackgroundPageThumbs.jsm is currently excluded from release
+   * builds.  If you use it, you must also exclude your caller when
+   * RELEASE_BUILD is defined, as described here:
+   * https://wiki.mozilla.org/Platform/Channel-specific_build_defines
    *
    * @param url      The URL to capture.
    * @param options  An optional object that configures the capture.  Its
@@ -73,6 +85,11 @@ const BackgroundPageThumbs = {
   /**
    * Asynchronously captures a thumbnail of the given URL if one does not
    * already exist.  Otherwise does nothing.
+   *
+   * WARNING: BackgroundPageThumbs.jsm is currently excluded from release
+   * builds.  If you use it, you must also exclude your caller when
+   * RELEASE_BUILD is defined, as described here:
+   * https://wiki.mozilla.org/Platform/Channel-specific_build_defines
    *
    * @param url      The URL to capture.
    * @param options  An optional object that configures the capture.  See

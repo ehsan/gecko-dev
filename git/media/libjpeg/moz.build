@@ -150,5 +150,3 @@ LIBRARY_NAME = 'mozjpeg'
 
 MSVC_ENABLE_PGO = True
 
-# need static lib for some of the libimg componentry to link properly
-FORCE_STATIC_LIB = True

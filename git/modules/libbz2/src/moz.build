@@ -36,4 +36,3 @@ SOURCES += [
     'randtable.c',
 ]
 
-FORCE_STATIC_LIB = True

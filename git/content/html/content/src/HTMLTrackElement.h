@@ -102,7 +102,10 @@ public:
     LOADED = 2U,
     ERROR = 3U
   };
-  uint16_t ReadyState() const;
+  uint16_t ReadyState() const
+  {
+    return mReadyState;
+  }
 
   TextTrack* Track();
 
@@ -154,6 +157,7 @@ protected:
   nsCOMPtr<nsIChannel> mChannel;
   nsRefPtr<HTMLMediaElement> mMediaParent;
   nsRefPtr<WebVTTListener> mListener;
+  uint16_t mReadyState;
 
   void CreateTextTrack();
 };
