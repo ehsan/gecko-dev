@@ -909,7 +909,9 @@ NS_METHOD nsCocoaWindow::SetSizeMode(PRInt32 aMode)
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aMode == nsSizeMode_Normal) {
-    if (previousMode == nsSizeMode_Maximized && [mWindow isZoomed])
+    if ([mWindow isMiniaturized])
+      [mWindow deminiaturize:nil];
+    else if (previousMode == nsSizeMode_Maximized && [mWindow isZoomed])
       [mWindow zoom:nil];
   }
   else if (aMode == nsSizeMode_Minimized) {
@@ -1157,6 +1159,17 @@ nsCocoaWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 
 
 void
+nsCocoaWindow::DispatchSizeModeEvent(nsSizeMode aSizeMode)
+{
+  nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
+  event.mSizeMode = aSizeMode;
+  event.time = PR_IntervalNow();
+
+  nsEventStatus status = nsEventStatus_eIgnore;
+  DispatchEvent(&event, status);
+}
+
+void
 nsCocoaWindow::ReportSizeEvent(NSRect *r)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -1324,9 +1337,17 @@ NS_IMETHODIMP nsCocoaWindow::SetWindowTitlebarColor(nscolor aColor, PRBool aActi
     // Transform from sRGBA to monitor RGBA. This seems like it would make trying
     // to match the system appearance lame, so probably we just shouldn't color 
     // correct chrome.
-    cmsHTRANSFORM transform = NULL;
-    if ((gfxPlatform::GetCMSMode() == eCMSMode_All) && (transform = gfxPlatform::GetCMSRGBATransform()))
-      cmsDoTransform(transform, &aColor, &aColor, 1);
+    if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
+      cmsHTRANSFORM transform = gfxPlatform::GetCMSRGBATransform();
+      if (transform) {
+        PRUint8 color[3];
+        color[0] = NS_GET_R(aColor);
+        color[1] = NS_GET_G(aColor);
+        color[2] = NS_GET_B(aColor);
+        cmsDoTransform(transform, color, color, 1);
+        aColor = NS_RGB(color[0], color[1], color[2]);
+      }
+    }
 
     [(ToolbarWindow*)mWindow setTitlebarColor:[NSColor colorWithDeviceRed:NS_GET_R(aColor)/255.0
                                                                     green:NS_GET_G(aColor)/255.0
@@ -1555,6 +1576,20 @@ NS_IMETHODIMP nsCocoaWindow::EndSecureKeyboardInput()
 - (void)windowWillMiniaturize:(NSNotification *)aNotification
 {
   RollUpPopups();
+}
+
+
+- (void)windowDidMiniaturize:(NSNotification *)aNotification
+{
+  if (mGeckoWindow)
+    mGeckoWindow->DispatchSizeModeEvent(nsSizeMode_Minimized);
+}
+
+
+- (void)windowDidDeminiaturize:(NSNotification *)aNotification
+{
+  if (mGeckoWindow)
+    mGeckoWindow->DispatchSizeModeEvent(nsSizeMode_Normal);
 }
 
 

@@ -2511,7 +2511,7 @@ js_Interpret(JSContext *cx)
 
 # ifdef JS_TRACER
 #  define CHECK_RECORDER()  JS_BEGIN_MACRO                                    \
-                                JS_ASSERT(!JS_TRACE_MONITOR(cx).recorder ^    \
+                                JS_ASSERT(!TRACE_RECORDER(cx) ^               \
                                           (jumpTable == recordingJumpTable)); \
                             JS_END_MACRO
 # else
@@ -2570,9 +2570,9 @@ js_Interpret(JSContext *cx)
 #ifdef JS_TRACER
     /* We had better not be entering the interpreter from JIT-compiled code. */
     TraceRecorder *tr = NULL;
-    if (JS_TRACE_MONITOR(cx).onTrace) {
-        tr = JS_TRACE_MONITOR(cx).recorder;
-        JS_TRACE_MONITOR(cx).recorder = NULL;
+    if (JS_ON_TRACE(cx)) {
+        tr = TRACE_RECORDER(cx);
+        SET_TRACE_RECORDER(cx, NULL);
     }
 #endif
 
@@ -2696,13 +2696,13 @@ js_Interpret(JSContext *cx)
 # define LOAD_INTERRUPT_HANDLER(cx)                                           \
     ((void) (jumpTable = (cx)->debugHooks->interruptHandler                   \
                          ? interruptJumpTable                                 \
-                         : JS_TRACE_MONITOR(cx).recorder                      \
+                         : TRACE_RECORDER(cx)                                 \
                          ? recordingJumpTable                                 \
                          : normalJumpTable))
 # define ENABLE_TRACER(flag)                                                  \
     JS_BEGIN_MACRO                                                            \
         bool flag_ = (flag);                                                  \
-        JS_ASSERT(flag_ == !!JS_TRACE_MONITOR(cx).recorder);                  \
+        JS_ASSERT(flag_ == !!TRACE_RECORDER(cx));                             \
         jumpTable = flag_ ? recordingJumpTable : normalJumpTable;             \
     JS_END_MACRO
 #else /* !JS_TRACER */
@@ -2716,12 +2716,11 @@ js_Interpret(JSContext *cx)
 #ifdef JS_TRACER
 # define LOAD_INTERRUPT_HANDLER(cx)                                           \
     ((void) (switchMask = ((cx)->debugHooks->interruptHandler ||              \
-                           JS_TRACE_MONITOR(cx).recorder)                     \
-                          ? 0 : 255))
+                           TRACE_RECORDER(cx)) ? 0 : 255))
 # define ENABLE_TRACER(flag)                                                  \
     JS_BEGIN_MACRO                                                            \
         bool flag_ = (flag);                                                  \
-        JS_ASSERT(flag_ == !!JS_TRACE_MONITOR(cx).recorder);                  \
+        JS_ASSERT(flag_ == !!TRACE_RECORDER(cx));                             \
         switchMask = flag_ ? 0 : 255;                                         \
     JS_END_MACRO
 #else /* !JS_TRACER */
@@ -3023,7 +3022,7 @@ js_Interpret(JSContext *cx)
                 inlineCallCount--;
                 if (JS_LIKELY(ok)) {
 #ifdef JS_TRACER
-                    if (JS_TRACE_MONITOR(cx).recorder)
+                    if (TRACE_RECORDER(cx))
                         RECORD(LeaveFrame);
 #endif
                     JS_ASSERT(js_CodeSpec[*regs.pc].length == JSOP_CALL_LENGTH);
@@ -3267,7 +3266,6 @@ js_Interpret(JSContext *cx)
                  * that we take into account side effects of the iterator
                  * call. See bug 372331.
                  */
-
                 if (!js_FindProperty(cx, id, &obj, &obj2, &prop))
                     goto error;
                 if (prop)
@@ -4440,8 +4438,7 @@ js_Interpret(JSContext *cx)
                      * will (possibly after the first iteration) always exist
                      * in native object o.
                      */
-                    entry = &cache->table[PROPERTY_CACHE_HASH_PC(regs.pc,
-                                                                 kshape)];
+                    entry = &cache->table[PROPERTY_CACHE_HASH_PC(regs.pc, kshape)];
                     PCMETER(cache->tests++);
                     PCMETER(cache->settests++);
                     if (entry->kpc == regs.pc && entry->kshape == kshape) {
@@ -4454,6 +4451,10 @@ js_Interpret(JSContext *cx)
                             sprop = PCVAL_TO_SPROP(entry->vword);
                             JS_ASSERT(!(sprop->attrs & JSPROP_READONLY));
                             JS_ASSERT(!SCOPE_IS_SEALED(OBJ_SCOPE(obj)));
+
+#ifdef JS_TRACER
+                            TRACE_2(SetPropHit, kshape, sprop);
+#endif
 
                             if (scope->object == obj) {
                                 /*
@@ -4596,10 +4597,16 @@ js_Interpret(JSContext *cx)
                 if (!atom)
                     LOAD_ATOM(0);
                 id = ATOM_TO_JSID(atom);
-                if (entry
-                    ? !js_SetPropertyHelper(cx, obj, id, &rval, &entry)
-                    : !OBJ_SET_PROPERTY(cx, obj, id, &rval)) {
-                    goto error;
+                if (entry) {
+                    if (!js_SetPropertyHelper(cx, obj, id, &rval, &entry))
+                        goto error;
+#ifdef JS_TRACER
+                    if (entry)
+                        TRACE_1(SetPropMiss, entry);
+#endif
+                } else {
+                    if (!OBJ_SET_PROPERTY(cx, obj, id, &rval))
+                        goto error;
                 }
             } while (0);
           END_SET_CASE_STORE_RVAL(JSOP_SETPROP, 2);
@@ -4909,7 +4916,7 @@ js_Interpret(JSContext *cx)
                     cx->fp = fp = &newifp->frame;
 
 #ifdef JS_TRACER
-                    if (JS_TRACE_MONITOR(cx).recorder)
+                    if (TRACE_RECORDER(cx))
                         RECORD(EnterFrame);
 #endif
 
@@ -6081,6 +6088,10 @@ js_Interpret(JSContext *cx)
                     if (sprop->parent != scope->lastProp)
                         goto do_initprop_miss;
 
+#ifdef JS_TRACER
+                    TRACE_2(SetPropHit, kshape, sprop);
+#endif
+
                     /*
                      * Otherwise this entry must be for a direct property of
                      * obj, not a proto-property, and there cannot have been
@@ -6146,6 +6157,10 @@ js_Interpret(JSContext *cx)
                 }
                 if (!js_SetPropertyHelper(cx, obj, id, &rval, &entry))
                     goto error;
+#ifdef JS_TRACER
+                if (entry)
+                    TRACE_1(SetPropMiss, entry);
+#endif
             } while (0);
 
             /* Common tail for property cache hit and miss cases. */
@@ -6987,7 +7002,7 @@ js_Interpret(JSContext *cx)
     JS_ASSERT(inlineCallCount == 0);
     JS_ASSERT(fp->regs == &regs);
 #ifdef JS_TRACER
-    if (JS_TRACE_MONITOR(cx).recorder)
+    if (TRACE_RECORDER(cx))
         js_AbortRecording(cx, regs.pc, "recording out of js_Interpret");
 #endif
     if (JS_UNLIKELY(fp->flags & JSFRAME_YIELDING)) {
@@ -7014,7 +7029,7 @@ js_Interpret(JSContext *cx)
 
 #ifdef JS_TRACER
     if (tr) {
-        JS_TRACE_MONITOR(cx).recorder = tr;
+        SET_TRACE_RECORDER(cx, tr);
         tr->deepAbort();
     }
 #endif

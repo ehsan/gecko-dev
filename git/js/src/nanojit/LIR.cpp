@@ -1480,12 +1480,10 @@ namespace nanojit
 
     LabelMap::Entry::~Entry()
     {
-        delete name;
     }
 
     LirNameMap::Entry::~Entry()
     {
-        delete name;
     }
 
     LirNameMap::~LirNameMap()
@@ -1493,18 +1491,24 @@ namespace nanojit
         Entry *e;
 
         while ((e = names.removeLast()) != NULL) {
+            labels->core->freeString(e->name);
             delete e;
         }
     }
 
-	void LirNameMap::addName(LInsp i, Stringp name) {
+	bool LirNameMap::addName(LInsp i, Stringp name) {
 		if (!names.containsKey(i)) { 
 			Entry *e = new (labels->core->gc) Entry(name);
 			names.put(i, e);
+            return true;
 		}
+        return false;
 	}
 	void LirNameMap::addName(LInsp i, const char *name) {
-		addName(i, labels->core->newString(name));
+        Stringp new_name = labels->core->newString(name);
+        if (!addName(i, new_name)) {
+            labels->core->freeString(new_name);
+        }
 	}
 
 	void LirNameMap::copyName(LInsp i, const char *s, int suffix) {
@@ -1544,12 +1548,16 @@ namespace nanojit
 		}
 		else {
 			if (ref->isCall()) {
+#if !defined NANOJIT_64BIT
 				if (ref->isop(LIR_callh)) {
 					// we've presumably seen the other half already
 					ref = ref->oprnd1();
 				} else {
+#endif
 					copyName(ref, _functions[ref->fid()]._name, funccounts.add(ref->fid()));
+#if !defined NANOJIT_64BIT
 				}
+#endif
 			} else {
                 NanoAssert(ref->opcode() < sizeof(lirNames) / sizeof(lirNames[0]));
 				copyName(ref, lirNames[ref->opcode()], lircounts.add(ref->opcode()));
@@ -1909,6 +1917,7 @@ namespace nanojit
         Entry *e;
         
         while ((e = names.removeLast()) != NULL) {
+            core->freeString(e->name);
             delete e;
         } 
     }
