@@ -2158,15 +2158,7 @@ class SnowWhiteKiller
 public:
     SnowWhiteKiller(uint32_t aMaxCount)
     {
-        while (true) {
-            if (mObjects.SetCapacity(aMaxCount)) {
-                break;
-            }
-            if (aMaxCount == 1) {
-                NS_RUNTIMEABORT("Not enough memory to even delete objects!");
-            }
-            aMaxCount /= 2;
-        }
+        mObjects.SetCapacity(aMaxCount);
     }
 
     ~SnowWhiteKiller()
@@ -2189,9 +2181,8 @@ public:
             nsCycleCollectionParticipant *cp = aEntry->mParticipant;
             CanonicalizeParticipant(&o, &cp);
             SnowWhiteObject swo = { o, cp, aEntry->mRefCnt };
-            if (mObjects.AppendElement(swo)) {
-                aBuffer.Remove(aEntry);
-            }
+            mObjects.AppendElement(swo);
+            aBuffer.Remove(aEntry);
         }
     }
 
@@ -2200,7 +2191,7 @@ public:
       return mObjects.Length() > 0;
     }
 private:
-    FallibleTArray<SnowWhiteObject> mObjects;
+    nsTArray<SnowWhiteObject> mObjects;
 };
 
 class RemoveSkippableVisitor : public SnowWhiteKiller

@@ -181,6 +181,7 @@ MobileConnectionInfo.prototype = {
   emergencyCallsOnly: false,
   roaming: false,
   network: null,
+  lastKnownMcc: null,
   cell: null,
   type: null,
   signalStrength: null,
@@ -389,6 +390,7 @@ DOMMMIError.prototype = {
 function RILContentHelper() {
   this.rilContext = {
     cardState:            RIL.GECKO_CARDSTATE_UNKNOWN,
+    retryCount:           0,
     networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
     iccInfo:              new IccInfo(),
     voiceConnectionInfo:  new MobileConnectionInfo(),
@@ -480,6 +482,7 @@ RILContentHelper.prototype = {
       return;
     }
     this.rilContext.cardState = rilContext.cardState;
+    this.rilContext.retryCount = rilContext.retryCount;
     this.rilContext.networkSelectionMode = rilContext.networkSelectionMode;
     this.updateInfo(rilContext.iccInfo, this.rilContext.iccInfo);
     this.updateConnectionInfo(rilContext.voice, this.rilContext.voiceConnectionInfo);
@@ -510,6 +513,11 @@ RILContentHelper.prototype = {
   get cardState() {
     let context = this.getRilContext();
     return context && context.cardState;
+  },
+
+  get retryCount() {
+    let context = this.getRilContext();
+    return context && context.retryCount;
   },
 
   get networkSelectionMode() {
@@ -1368,6 +1376,7 @@ RILContentHelper.prototype = {
     switch (msg.name) {
       case "RIL:CardStateChanged": {
         let data = msg.json.data;
+        this.rilContext.retryCount = data.retryCount;
         if (this.rilContext.cardState != data.cardState) {
           this.rilContext.cardState = data.cardState;
           this._deliverEvent("_iccListeners",
