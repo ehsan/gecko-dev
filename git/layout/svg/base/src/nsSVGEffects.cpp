@@ -252,7 +252,10 @@ nsSVGPaintingProperty::DoUpdate()
     return;
 
   if (mFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    nsSVGUtils::InvalidateCoveredRegion(mFrame);
+    nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
+    if (outerSVGFrame) {
+      outerSVGFrame->InvalidateCoveredRegion(mFrame);
+    }
   } else {
     InvalidateAllContinuations(mFrame);
   }

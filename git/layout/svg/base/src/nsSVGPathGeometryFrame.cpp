@@ -88,7 +88,11 @@ nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsSVGPathGeometryFrameBase::DidSetStyleContext(aOldStyleContext);
 
-  nsSVGUtils::InvalidateCoveredRegion(this);
+  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
+  if (outerSVGFrame) {
+    // invalidate here while we still have the filter information
+    outerSVGFrame->InvalidateCoveredRegion(this);
+  }
 
   // XXX: we'd like to use the style_hint mechanism and the
   // ContentStateChanged/AttributeChanged functions for style changes
