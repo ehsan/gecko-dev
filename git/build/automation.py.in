@@ -844,9 +844,6 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
           self.log.info("TEST-UNEXPECTED-FAIL | automation.py | child process %d still alive after shutdown", processPID)
           self.killPid(processPID)
 
-  def checkForCrashes(self, profileDir, symbolsPath):
-    automationutils.checkForCrashes(os.path.join(profileDir, "minidumps"), symbolsPath, self.lastTestSeen)
-
   def runApp(self, testURL, env, app, profileDir, extraArgs,
              runSSLTunnel = False, utilityPath = None,
              xrePath = None, certPath = None,
@@ -913,7 +910,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
 
     # Do a final check for zombie child processes.
     self.checkForZombies(processLog)
-    self.checkForCrashes(profileDir, symbolsPath)
+    automationutils.checkForCrashes(os.path.join(profileDir, "minidumps"), symbolsPath, self.lastTestSeen)
 
     if os.path.exists(processLog):
       os.unlink(processLog)
