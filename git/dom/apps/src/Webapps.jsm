@@ -882,11 +882,8 @@ this.DOMApplicationRegistry = {
     }
   },
 
-  addMessageListener: function(aMsgNames, aApp, aMm) {
+  addMessageListener: function(aMsgNames, aMm) {
     aMsgNames.forEach(function (aMsgName) {
-      let man = aApp && aApp.manifestURL;
-      debug("Adding messageListener for: " + aMsgName + "App: " +
-            man);
       if (!(aMsgName in this.children)) {
         this.children[aMsgName] = [];
       }
@@ -904,26 +901,6 @@ this.DOMApplicationRegistry = {
           mm: aMm,
           refCount: 1
         });
-
-        // If it wasn't registered before, let's update its state
-        if ((aMsgName === 'Webapps:PackageEvent') ||
-            (aMsgName === 'Webapps:OfflineCache')) {
-          if (man) {
-            let app = this.getAppByManifestURL(aApp.manifestURL);
-            if (app && ((aApp.installState !== app.installState) ||
-                        (aApp.downloading !== app.downloading))) {
-              debug("Got a registration from an outdated app: " +
-                    aApp.manifestURL);
-              let aEvent ={
-                type: app.installState,
-                app: app,
-                manifestURL: app.manifestURL,
-                manifest: app.manifest
-              };
-              aMm.sendAsyncMessage(aMsgName, aEvent);
-            }
-          }
-        }
       }
     }, this);
   },
@@ -1022,7 +999,7 @@ this.DOMApplicationRegistry = {
         this.doInstallPackage(msg, mm);
         break;
       case "Webapps:RegisterForMessages":
-        this.addMessageListener(msg.messages, msg.app, mm);
+        this.addMessageListener(msg, mm);
         break;
       case "Webapps:UnregisterForMessages":
         this.removeMessageListener(msg, mm);
@@ -1031,7 +1008,7 @@ this.DOMApplicationRegistry = {
         this.removeMessageListener(["Webapps:Internal:AllMessages"], mm);
         break;
       case "Webapps:GetList":
-        this.addMessageListener(["Webapps:AddApp", "Webapps:RemoveApp"], null, mm);
+        this.addMessageListener(["Webapps:AddApp", "Webapps:RemoveApp"], mm);
         return this.webapps;
       case "Webapps:Download":
         this.startDownload(msg.manifestURL);
@@ -2218,12 +2195,6 @@ this.DOMApplicationRegistry = {
     }
 
     if (manifest.package_path) {
-      // If it is a local app then it must been installed from a local file
-      // instead of web.
-      let origPath = jsonManifest.package_path;
-      if (aData.app.localInstallPath) {
-        jsonManifest.package_path = "file://" + aData.app.localInstallPath;
-      }
       // origin for install apps is meaningless here, since it's app:// and this
       // can't be used to resolve package paths.
       manifest = new ManifestHelper(jsonManifest, app.manifestURL);
@@ -2232,12 +2203,6 @@ this.DOMApplicationRegistry = {
         manifest: manifest,
         app: appObject,
         callback: aInstallSuccessCallback
-      };
-
-      if (aData.app.localInstallPath) {
-        // if it's a local install, there's no content process so just
-        // ack the install
-        this.onInstallSuccessAck(app.manifestURL);
       }
     }
   },
@@ -2331,14 +2296,6 @@ this.DOMApplicationRegistry = {
 
     debug("downloadPackage " + JSON.stringify(aApp));
 
-    let fullPackagePath = aManifest.fullPackagePath();
-
-    // Check if it's a local file install (we've downloaded/sideloaded the
-    // package already or it did exist on the build).
-
-    let isLocalFileInstall =
-      Services.io.extractScheme(fullPackagePath) === 'file';
-
     let id = this._appIdForManifestURL(aApp.manifestURL);
     let app = this.webapps[id];
 
@@ -2430,17 +2387,10 @@ this.DOMApplicationRegistry = {
     function download() {
       debug("About to download " + aManifest.fullPackagePath());
 
-      let requestChannel;
-      if (isLocalFileInstall) {
-        requestChannel = NetUtil.newChannel(aManifest.fullPackagePath())
-                                .QueryInterface(Ci.nsIFileChannel);
-      } else {
-        requestChannel = NetUtil.newChannel(aManifest.fullPackagePath())
-                                .QueryInterface(Ci.nsIHttpChannel);
-        requestChannel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
-      }
-
-      if (app.packageEtag && !isLocalFileInstall) {
+      let requestChannel = NetUtil.newChannel(aManifest.fullPackagePath())
+                                  .QueryInterface(Ci.nsIHttpChannel);
+      requestChannel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
+      if (app.packageEtag) {
         debug("Add If-None-Match header: " + app.packageEtag);
         requestChannel.setRequestHeader("If-None-Match", app.packageEtag, false);
       }
@@ -2636,11 +2586,8 @@ this.DOMApplicationRegistry = {
                 let signedAppOriginsStr =
                   Services.prefs.getCharPref(
                     "dom.mozApps.signed_apps_installable_from");
-                // If it's a local install and it's signed then we assume
-                // the app origin is a valid signer.
-                let isSignedAppOrigin = (isSigned && isLocalFileInstall) ||
-                                         signedAppOriginsStr.split(",").
-                                               indexOf(aApp.installOrigin) > -1;
+                let isSignedAppOrigin
+                  = signedAppOriginsStr.split(",").indexOf(aApp.installOrigin) > -1;
                 if (!isSigned && isSignedAppOrigin) {
                   // Packaged apps installed from these origins must be signed;
                   // if not, assume somebody stripped the signature.
@@ -2692,10 +2639,8 @@ this.DOMApplicationRegistry = {
                   throw "INSTALL_FROM_DENIED";
                 }
 
-                // Local file installs can be privileged even without the signature.
-                let maxStatus = isSigned || isLocalFileInstall
-                                   ? Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
-                                   : Ci.nsIPrincipal.APP_STATUS_INSTALLED;
+                let maxStatus = isSigned ? Ci.nsIPrincipal.APP_STATUS_PRIVILEGED
+                                         : Ci.nsIPrincipal.APP_STATUS_INSTALLED;
 
                 if (AppsUtils.getAppManifestStatus(manifest) > maxStatus) {
                   throw "INVALID_SECURITY_LEVEL";

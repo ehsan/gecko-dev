@@ -368,7 +368,7 @@ function test18a() {
     if (event.type == "TabOpen") {
       gBrowser.tabContainer.removeEventListener("TabOpen", this, false);
       this.tab = event.originalTarget;
-      is(event.target.label, this.url, "Test 18a, Update link should open up the plugin check page");
+      ok(event.target.label == this.url, "Test 18a, Update link should open up the plugin check page");
       gBrowser.removeTab(this.tab);
       test18b();
     }

@@ -232,7 +232,7 @@ HTMLAudioElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
 
 /* void canPlayChanged (in boolean canPlay); */
 NS_IMETHODIMP
-HTMLAudioElement::CanPlayChanged(int32_t canPlay)
+HTMLAudioElement::CanPlayChanged(bool canPlay)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
   // Only Audio_Data API will initialize the mAudioStream, so we call the parent
@@ -241,7 +241,7 @@ HTMLAudioElement::CanPlayChanged(int32_t canPlay)
     return HTMLMediaElement::CanPlayChanged(canPlay);
   }
 #ifdef MOZ_B2G
-  if (canPlay != AUDIO_CHANNEL_STATE_MUTED) {
+  if (canPlay) {
     SetMutedInternal(mMuted & ~MUTED_BY_AUDIO_CHANNEL);
   } else {
     SetMutedInternal(mMuted | MUTED_BY_AUDIO_CHANNEL);
@@ -286,7 +286,7 @@ HTMLAudioElement::UpdateAudioChannelPlayingState()
     }
 
     if (mPlayingThroughTheAudioChannel) {
-      int32_t canPlay;
+      bool canPlay;
       mAudioChannelAgent->StartPlaying(&canPlay);
       CanPlayChanged(canPlay);
     } else {

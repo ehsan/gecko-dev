@@ -812,7 +812,7 @@ protected:
   void SetMutedInternal(uint32_t aMuted);
   /**
    * Update the volume of the output audio stream to match the element's
-   * current mMuted/mVolume/mAudioChannelFaded state.
+   * current mMuted/mVolume state.
    */
   void SetVolumeInternal();
 
@@ -841,8 +841,8 @@ protected:
   // Check the permissions for audiochannel.
   bool CheckAudioChannelPermissions(const nsAString& aType);
 
-  // This method does the check for muting/fading/unmuting the audio channel.
-  nsresult UpdateChannelMuteState(mozilla::dom::AudioChannelState aCanPlay);
+  // This method does the check for muting/unmuting the audio channel.
+  nsresult UpdateChannelMuteState(bool aCanPlay);
 
   // Update the audio channel playing state
   virtual void UpdateAudioChannelPlayingState();
@@ -1126,9 +1126,6 @@ protected:
 
   // Audio Channel Type.
   AudioChannelType mAudioChannelType;
-
-  // The audio channel has been faded.
-  bool mAudioChannelFaded;
 
   // Is this media element playing?
   bool mPlayingThroughTheAudioChannel;

@@ -58,16 +58,16 @@ AudioChannelServiceChild::~AudioChannelServiceChild()
 {
 }
 
-AudioChannelState
-AudioChannelServiceChild::GetState(AudioChannelAgent* aAgent, bool aElementHidden)
+bool
+AudioChannelServiceChild::GetMuted(AudioChannelAgent* aAgent, bool aElementHidden)
 {
   AudioChannelAgentData* data;
   if (!mAgents.Get(aAgent, &data)) {
-    return AUDIO_CHANNEL_STATE_MUTED;
+    return true;
   }
 
   ContentChild *cc = ContentChild::GetSingleton();
-  AudioChannelState state = AUDIO_CHANNEL_STATE_MUTED;
+  bool muted = true;
   bool oldElementHidden = data->mElementHidden;
 
   UpdateChannelType(data->mType, CONTENT_PROCESS_ID_MAIN, aElementHidden, oldElementHidden);
@@ -76,15 +76,15 @@ AudioChannelServiceChild::GetState(AudioChannelAgent* aAgent, bool aElementHidde
   data->mElementHidden = aElementHidden;
 
   if (cc) {
-    cc->SendAudioChannelGetState(data->mType, aElementHidden, oldElementHidden, &state);
+    cc->SendAudioChannelGetMuted(data->mType, aElementHidden, oldElementHidden, &muted);
   }
-  data->mState = state;
+  data->mMuted = muted;
 
   if (cc) {
     cc->SendAudioChannelChangedNotification();
   }
 
-  return state;
+  return muted;
 }
 
 void

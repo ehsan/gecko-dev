@@ -415,10 +415,10 @@ private:
 
     virtual bool RecvFirstIdle();
 
-    virtual bool RecvAudioChannelGetState(const AudioChannelType& aType,
+    virtual bool RecvAudioChannelGetMuted(const AudioChannelType& aType,
                                           const bool& aElementHidden,
                                           const bool& aElementWasHidden,
-                                          AudioChannelState* aValue);
+                                          bool* aValue);
 
     virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType);
     virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType,

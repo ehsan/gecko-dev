@@ -4,8 +4,7 @@
     "content": "",
     "docshell": "",
     "dom": "",
-    "layout": "",
-    "toolkit/devtools/apps": ""
+    "layout": ""
   },
 "excludetests": {
     "content/xul":"tests that use xul",

@@ -1581,16 +1581,16 @@ ContentParent::RecvFirstIdle()
 }
 
 bool
-ContentParent::RecvAudioChannelGetState(const AudioChannelType& aType,
+ContentParent::RecvAudioChannelGetMuted(const AudioChannelType& aType,
                                         const bool& aElementHidden,
                                         const bool& aElementWasHidden,
-                                        AudioChannelState* aState)
+                                        bool* aValue)
 {
     nsRefPtr<AudioChannelService> service =
         AudioChannelService::GetAudioChannelService();
-    *aState = AUDIO_CHANNEL_STATE_NORMAL;
+    *aValue = false;
     if (service) {
-        *aState = service->GetStateInternal(aType, mChildID,
+        *aValue = service->GetMutedInternal(aType, mChildID,
                                             aElementHidden, aElementWasHidden);
     }
     return true;

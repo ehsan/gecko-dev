@@ -88,15 +88,14 @@ public:
       return mReference;
     }
 
+#ifdef MOZ_ENABLE_PROFILER_SPS
     /** Request filename associated with the I/O operation, null if unknown */
-    virtual const char* Filename()
-    {
-      return nullptr;
-    }
+    virtual const char* Filename();
+#else
+    const char* Filename() { return nullptr; }
+#endif /* MOZ_ENABLE_PROFILER_SPS */
 
-    virtual ~Observation()
-    {
-    }
+    virtual ~Observation();
   protected:
     Operation   mOperation;
     TimeStamp   mStart;
@@ -116,9 +115,7 @@ public:
    */
   virtual void Observe(Observation& aObservation) = 0;
 
-  virtual ~IOInterposeObserver()
-  {
-  }
+  virtual ~IOInterposeObserver();
 };
 
 #ifdef MOZ_ENABLE_PROFILER_SPS

@@ -508,7 +508,7 @@ AudioManager::SetPhoneState(int32_t aState)
     }
 
     // Telephony can always play.
-    int32_t canPlay;
+    bool canPlay;
     mPhoneAudioAgent->StartPlaying(&canPlay);
   }
 

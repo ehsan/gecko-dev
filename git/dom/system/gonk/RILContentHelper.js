@@ -1025,8 +1025,6 @@ RILContentHelper.prototype = {
       iccContact.email = contact.email[0].value;
     }
 
-    iccContact.id = contact.id;
-
     cpmm.sendAsyncMessage("RIL:UpdateIccContact", {
       clientId: 0,
       data: {
@@ -1685,7 +1683,6 @@ RILContentHelper.prototype = {
       }
 
       contact.init(prop);
-      contact.id = message.iccid + c.recordId;
       return contact;
     });
 

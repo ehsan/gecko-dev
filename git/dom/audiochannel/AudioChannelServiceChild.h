@@ -21,12 +21,11 @@ class AudioChannelServiceChild : public AudioChannelService
 public:
 
   /**
-   * Returns the AudioChannelServce singleton. Only to be called from main
-   * thread.
-   *
+   * Returns the AudioChannelServce singleton. Only to be called from main thread.
    * @return NS_OK on proper assignment, NS_ERROR_FAILURE otherwise.
    */
-  static AudioChannelService* GetAudioChannelService();
+  static AudioChannelService*
+  GetAudioChannelService();
 
   static void Shutdown();
 
@@ -35,11 +34,9 @@ public:
   virtual void UnregisterAudioChannelAgent(AudioChannelAgent* aAgent);
 
   /**
-   * Return the state to indicate this agent should keep playing/
-   * fading volume/muted.
+   * Return true if this type + this mozHidden should be muted.
    */
-  virtual AudioChannelState GetState(AudioChannelAgent* aAgent,
-                                     bool aElementHidden);
+  virtual bool GetMuted(AudioChannelAgent* aAgent, bool aMozHidden);
 
   virtual void SetDefaultVolumeControlChannel(AudioChannelType aType, bool aHidden);
 

@@ -231,7 +231,7 @@ WebappsRegistry.prototype = {
                            .getInterface(Ci.nsIDOMWindowUtils);
     this._id = util.outerWindowID;
     cpmm.sendAsyncMessage("Webapps:RegisterForMessages",
-                          { messages: ["Webapps:Install:Return:OK"]});
+                          ["Webapps:Install:Return:OK"]);
 
     let principal = aWindow.document.nodePrincipal;
     let perm = Services.perms
@@ -350,17 +350,9 @@ WebappsApplication.prototype = {
                               "Webapps:GetConnections:Return:OK"]);
 
     cpmm.sendAsyncMessage("Webapps:RegisterForMessages",
-                          {
-                            messages: ["Webapps:OfflineCache",
-                                       "Webapps:PackageEvent",
-                                       "Webapps:CheckForUpdate:Return:OK"],
-                            app: {
-                              id: this.id,
-                              manifestURL: this.manifestURL,
-                              installState: this.installState,
-                              downloading: this.downloading
-                            }
-                          });
+                          ["Webapps:OfflineCache",
+                           "Webapps:PackageEvent",
+                           "Webapps:CheckForUpdate:Return:OK"]);
   },
 
   get manifest() {
@@ -700,12 +692,9 @@ function WebappsApplicationMgmt(aWindow) {
                             "Webapps:GetNotInstalled:Return:OK"]);
 
   cpmm.sendAsyncMessage("Webapps:RegisterForMessages",
-                        {
-                          messages: ["Webapps:Install:Return:OK",
-                                     "Webapps:Uninstall:Return:OK",
-                                     "Webapps:Uninstall:Broadcast:Return:OK"]
-                        }
-                       );
+                        ["Webapps:Install:Return:OK",
+                         "Webapps:Uninstall:Return:OK",
+                         "Webapps:Uninstall:Broadcast:Return:OK"]);
 
   this._oninstall = null;
   this._onuninstall = null;

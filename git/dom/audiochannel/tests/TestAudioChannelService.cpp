@@ -19,7 +19,7 @@ typedef nsCOMPtr<nsIWeakReference> nsWeakPtr;
 
 #define TEST_ENSURE_BASE(_test, _msg)       \
   PR_BEGIN_MACRO                            \
-    if (!(_test)) {                           \
+    if (!_test) {                           \
       fail(_msg);                           \
       return NS_ERROR_FAILURE;              \
     } else {                                \
@@ -38,7 +38,7 @@ public:
   : mType(aType)
   , mWaitCallback(false)
   , mRegistered(false)
-  , mCanPlay(AUDIO_CHANNEL_STATE_MUTED)
+  , mCanPlay(false)
   {
     mAgent = do_CreateInstance("@mozilla.org/audiochannelagent;1");
   }
@@ -53,12 +53,12 @@ public:
     return mAgent->SetVisibilityState(false);
   }
 
-  nsresult StartPlaying(AudioChannelState *_ret)
+  nsresult StartPlaying(bool *_ret)
   {
     if (mRegistered)
       StopPlaying();
 
-    nsresult rv = mAgent->StartPlaying((int32_t *)_ret);
+    nsresult rv = mAgent->StartPlaying(_ret);
     mRegistered = true;
     return rv;
   }
@@ -88,14 +88,14 @@ public:
     return mAgent->SetVisibilityState(visible);
   }
 
-  NS_IMETHODIMP CanPlayChanged(int32_t canPlay)
+  NS_IMETHODIMP CanPlayChanged(bool canPlay)
   {
-    mCanPlay = static_cast<AudioChannelState>(canPlay);
+    mCanPlay = canPlay;
     mWaitCallback = false;
     return NS_OK;
   }
 
-  nsresult GetCanPlay(AudioChannelState *_ret)
+  nsresult GetCanPlay(bool *_ret)
   {
     int loop = 0;
     while (mWaitCallback) {
@@ -116,7 +116,7 @@ public:
   AudioChannelType mType;
   bool mWaitCallback;
   bool mRegistered;
-  AudioChannelState mCanPlay;
+  bool mCanPlay;
 };
 
 NS_IMPL_ISUPPORTS1(Agent, nsIAudioChannelAgentCallback)
@@ -129,15 +129,13 @@ TestDoubleStartPlaying()
   nsresult rv = agent->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  AudioChannelState playable;
-  rv = agent->mAgent->StartPlaying((int32_t *)&playable);
+  bool playing;
+  rv = agent->mAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = agent->mAgent->StartPlaying((int32_t *)&playable);
-  TEST_ENSURE_BASE(NS_FAILED(rv),
-    "Test0: StartPlaying calling twice must return error");
+  rv = agent->mAgent->StartPlaying(&playing);
+  TEST_ENSURE_BASE(NS_FAILED(rv), "Test0: StartPlaying calling twice should return error");
 
-  agent->mAgent->StopPlaying();
   return NS_OK;
 }
 
@@ -148,21 +146,18 @@ TestOneNormalChannel()
   nsresult rv = agent->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  AudioChannelState playable;
-  rv = agent->StartPlaying(&playable);
+  bool playing;
+  rv = agent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test1: A normal channel unvisible agent must be muted");
+  TEST_ENSURE_BASE(!playing, "Test1: A normal channel unvisible agent must not be playing");
 
   rv = agent->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = agent->GetCanPlay(&playable);
+  rv = agent->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test1: A normal channel visible agent must be playable");
+  TEST_ENSURE_BASE(playing, "Test1: A normal channel visible agent should be playing");
 
-  agent->StopPlaying();
   return rv;
 }
 
@@ -177,16 +172,14 @@ TestTwoNormalChannels()
   rv = agent2->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  AudioChannelState playable;
-  rv = agent1->StartPlaying(&playable);
+  bool playing;
+  rv = agent1->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test2: A normal channel unvisible agent1 must be muted");
+  TEST_ENSURE_BASE(!playing, "Test2: A normal channel unvisible agent1 must not be playing");
 
-  rv = agent2->StartPlaying(&playable);
+  rv = agent2->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test2: A normal channel unvisible agent2 must be muted");
+  TEST_ENSURE_BASE(!playing, "Test2: A normal channel unvisible agent2 must not be playing");
 
   rv = agent1->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -194,18 +187,14 @@ TestTwoNormalChannels()
   rv = agent2->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = agent1->GetCanPlay(&playable);
+  rv = agent1->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test2: A normal channel visible agent1 must be playable");
+  TEST_ENSURE_BASE(playing, "Test2: A normal channel visible agent1 should be playing");
 
-  rv = agent2->GetCanPlay(&playable);
+  rv = agent2->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test2: A normal channel visible agent2 must be playable");
+  TEST_ENSURE_BASE(playing, "Test2: A normal channel visible agent2 should be playing");
 
-  agent1->StopPlaying();
-  agent2->StopPlaying();
   return rv;
 }
 
@@ -220,49 +209,43 @@ TestContentChannels()
   rv = agent2->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // All content channels in the foreground can be allowed to play
+  /* All content channels in the foreground can be allowed to play */
   rv = agent1->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = agent2->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  AudioChannelState playable;
-  rv = agent1->StartPlaying(&playable);
+  bool playing;
+  rv = agent1->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test3: A content channel visible agent1 must be playable");
+  TEST_ENSURE_BASE(playing, "Test3: A content channel visible agent1 should be playing");
 
-  rv = agent2->StartPlaying(&playable);
+  rv = agent2->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test3: A content channel visible agent2 must be playable");
+  TEST_ENSURE_BASE(playing, "Test3: A content channel visible agent2 should be playing");
 
-  // Test the transition state of one content channel tried to set non-visible
-  // state first when app is going to background.
+  /* Test the transition state of one content channel tried to set non-visible
+   * state first when app is going to background. */
   rv = agent1->SetVisibilityState(false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = agent1->GetCanPlay(&playable);
+  rv = agent1->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test3: A content channel unvisible agent1 must be playable from "
-    "foreground to background");
+  TEST_ENSURE_BASE(playing, "Test3: A content channel unvisible agent1 should be playing from foreground to background");
 
-  // Test all content channels set non-visible already
+  /* Test all content channels set non-visible already */
   rv = agent2->SetVisibilityState(false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = agent2->GetCanPlay(&playable);
+  rv = agent2->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test3: A content channel unvisible agent2 must be playable from "
-    "foreground to background");
+  TEST_ENSURE_BASE(playing, "Test3: A content channel unvisible agent2 should be playing from foreground to background");
 
-  // Clear the content channels & mActiveContentChildIDs in AudioChannelService.
-  // If agent stop playable in the background, we will reserve it's childID in
-  // mActiveContentChildIDs, then it can allow to play next song. So we set agents
-  // to foreground first then stopping to play
+  /* Clear the content channels & mActiveContentChildIDs in AudioChannelService.
+   * If agent stop playing in the background, we will reserve it's childID in
+   * mActiveContentChildIDs, then it can allow to play next song. So we set agents
+   * to foreground first then stopping to play */
   rv = agent1->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = agent2->SetVisibilityState(true);
@@ -272,108 +255,20 @@ TestContentChannels()
   rv = agent2->StopPlaying();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Test that content channels can't be allow to play when they starts from
-  // the background state
+  /* Test that content channels can't be allow to play when they starts from the background state */
   rv = agent1->SetVisibilityState(false);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = agent2->SetVisibilityState(false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = agent1->StartPlaying(&playable);
+  rv = agent1->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test3: A content channel unvisible agent1 must be muted while playing "
-    "from background state");
+  TEST_ENSURE_BASE(!playing, "Test3: A content channel unvisible agent1 must not be playing from background state");
 
-  rv = agent2->StartPlaying(&playable);
+  rv = agent2->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test3: A content channel unvisible agent2 must be muted while playing "
-    "from background state");
+  TEST_ENSURE_BASE(!playing, "Test3: A content channel unvisible agent2 must not be playing from background state");
 
-  agent1->StopPlaying();
-  agent2->StopPlaying();
-  return rv;
-}
-
-nsresult
-TestFadedState()
-{
-  nsCOMPtr<Agent> normalAgent = new Agent(AUDIO_CHANNEL_NORMAL);
-  nsresult rv = normalAgent->Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<Agent> contentAgent = new Agent(AUDIO_CHANNEL_CONTENT);
-  rv = contentAgent->Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<Agent> notificationAgent = new Agent(AUDIO_CHANNEL_NOTIFICATION);
-  rv = notificationAgent->Init();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = normalAgent->SetVisibilityState(true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = contentAgent->SetVisibilityState(true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = notificationAgent->SetVisibilityState(true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  AudioChannelState playable;
-  rv = normalAgent->StartPlaying(&playable);
-  NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test4: A normal channel visible agent must be playable");
-
-  rv = contentAgent->StartPlaying(&playable);
-  NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test4: A content channel visible agent must be playable");
-
-  rv = notificationAgent->StartPlaying(&playable);
-  NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test4: A notification channel visible agent must be playable");
-
-    rv = contentAgent->GetCanPlay(&playable);
-  NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_FADED,
-    "Test4: A content channel unvisible agent must be faded because of "
-    "notification channel is playing");
-
-  rv = contentAgent->SetVisibilityState(false);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = contentAgent->GetCanPlay(&playable);
-  NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_FADED,
-    "Test4: A content channel unvisible agent must be faded because of "
-    "notification channel is playing");
-
-  rv = notificationAgent->SetVisibilityState(false);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = notificationAgent->GetCanPlay(&playable);
-  NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test4: A notification channel unvisible agent must be playable from "
-    "foreground to background");
-
-  rv = notificationAgent->StopPlaying();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = contentAgent->GetCanPlay(&playable);
-  NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test4: A content channel unvisible agent must be playable "
-    "because of notification channel is stopped");
-
-  rv = contentAgent->SetVisibilityState(true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  normalAgent->StopPlaying();
-  contentAgent->StopPlaying();
   return rv;
 }
 
@@ -404,139 +299,135 @@ TestPriorities()
   rv = ringerAgent->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<Agent> pNotificationAgent =
-    new Agent(AUDIO_CHANNEL_PUBLICNOTIFICATION);
+  nsCOMPtr<Agent> pNotificationAgent = new Agent(AUDIO_CHANNEL_PUBLICNOTIFICATION);
   rv = pNotificationAgent->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  AudioChannelState playable;
+  bool playing;
 
-  rv = normalAgent->StartPlaying(&playable);
+  // Normal should not be playing because not visible.
+  rv = normalAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test5: A normal channel unvisible agent must be muted");
+  TEST_ENSURE_BASE(!playing, "Test4: A normal channel unvisible agent must not be playing");
 
-  rv = contentAgent->StartPlaying(&playable);
+  // Content should be playing.
+  rv = contentAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test5: A content channel unvisible agent agent must be muted while "
-    "playing from background state");
+  TEST_ENSURE_BASE(!playing, "Test4: A content channel unvisible agent must not be playing from background state");
 
-  rv = notificationAgent->StartPlaying(&playable);
+  // Notification should be playing.
+  rv = notificationAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A notification channel unvisible agent must be playable");
+  TEST_ENSURE_BASE(playing, "Test4: An notification channel unvisible agent should be playing");
 
-  rv = alarmAgent->StartPlaying(&playable);
+  // Now content should be not playing because of the notification playing.
+  rv = contentAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: An alarm channel unvisible agent must be playable");
+  TEST_ENSURE_BASE(!playing, "Test4: A content channel unvisible agent should not be playing when notification channel is playing");
 
-  rv = notificationAgent->StartPlaying(&playable);
+  // Adding an alarm.
+  rv = alarmAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test5: A notification channel unvisible agent must be muted when an "
-    "alarm is playing");
+  TEST_ENSURE_BASE(playing, "Test4: An alarm channel unvisible agent should be playing");
 
-  rv = telephonyAgent->StartPlaying(&playable);
+  // Now notification should be not playing because of the alarm playing.
+  rv = notificationAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A telephony channel unvisible agent must be playable");
+  TEST_ENSURE_BASE(!playing, "Test4: A notification channel unvisible agent should not be playing when an alarm is playing");
 
-  rv = alarmAgent->StartPlaying(&playable);
+  // Adding an telephony.
+  rv = telephonyAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test5: An alarm channel unvisible agent must be muted when a telephony "
-    "is playing");
+  TEST_ENSURE_BASE(playing, "Test4: An telephony channel unvisible agent should be playing");
 
-  rv = ringerAgent->StartPlaying(&playable);
+  // Now alarm should be not playing because of the telephony playing.
+  rv = alarmAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A ringer channel unvisible agent must be playable");
+  TEST_ENSURE_BASE(!playing, "Test4: A alarm channel unvisible agent should not be playing when a telephony is playing");
 
-  rv = telephonyAgent->StartPlaying(&playable);
+  // Adding an ringer.
+  rv = ringerAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test5: A telephony channel unvisible agent must be muted when a ringer "
-    "is playing");
+  TEST_ENSURE_BASE(playing, "Test4: An ringer channel unvisible agent should be playing");
 
-  rv = pNotificationAgent->StartPlaying(&playable);
+  // Now telephony should be not playing because of the ringer playing.
+  rv = telephonyAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A pNotification channel unvisible agent must be playable");
+  TEST_ENSURE_BASE(!playing, "Test4: A telephony channel unvisible agent should not be playing when a riger is playing");
 
-  rv = ringerAgent->StartPlaying(&playable);
+  // Adding an pNotification.
+  rv = pNotificationAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_MUTED,
-    "Test5: A ringer channel unvisible agent must be muted when a public "
-    "notification is playing");
+  TEST_ENSURE_BASE(playing, "Test4: An pNotification channel unvisible agent should be playing");
 
-  // Stop to play notification channel or normal/content will be faded.
-  // Which already be tested on Test 4.
-  rv = notificationAgent->StopPlaying();
+  // Now ringer should be not playing because of the public notification playing.
+  rv = ringerAgent->StartPlaying(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
+  TEST_ENSURE_BASE(!playing, "Test4: A ringer channel unvisible agent should not be playing when a public notification is playing");
 
   // Settings visible the normal channel.
   rv = normalAgent->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = normalAgent->GetCanPlay(&playable);
+  // Normal should be playing because visible.
+  rv = normalAgent->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A normal channel visible agent must be playable");
+  TEST_ENSURE_BASE(playing, "Test4: A normal channel visible agent should be playing");
 
-  // Set the content channel as visible .
+  // Settings visible the content channel.
   rv = contentAgent->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Content must be playable because visible.
-  rv = contentAgent->GetCanPlay(&playable);
+  // Content should be playing because visible.
+  rv = contentAgent->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A content channel visible agent must be playable");
+  TEST_ENSURE_BASE(playing, "Test4: A content channel visible agent should be playing");
 
-  // Set the alarm channel as visible.
+  // Settings visible the notification channel.
+  rv = notificationAgent->SetVisibilityState(true);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Notification should be playing because visible.
+  rv = notificationAgent->GetCanPlay(&playing);
+  NS_ENSURE_SUCCESS(rv, rv);
+  TEST_ENSURE_BASE(playing, "Test4: A notification channel visible agent should be playing");
+
+  // Settings visible the alarm channel.
   rv = alarmAgent->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = alarmAgent->GetCanPlay(&playable);
+  // Alarm should be playing because visible.
+  rv = alarmAgent->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: An alarm channel visible agent must be playable");
+  TEST_ENSURE_BASE(playing, "Test4: A alarm channel visible agent should be playing");
 
-  // Set the telephony channel as visible.
+  // Settings visible the telephony channel.
   rv = telephonyAgent->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = telephonyAgent->GetCanPlay(&playable);
+  // Telephony should be playing because visible.
+  rv = telephonyAgent->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A telephony channel visible agent must be playable");
+  TEST_ENSURE_BASE(playing, "Test4: A telephony channel visible agent should be playing");
 
-  // Set the ringer channel as visible.
+  // Settings visible the ringer channel.
   rv = ringerAgent->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = ringerAgent->GetCanPlay(&playable);
+  // Ringer should be playing because visible.
+  rv = ringerAgent->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A ringer channel visible agent must be playable");
+  TEST_ENSURE_BASE(playing, "Test4: A ringer channel visible agent should be playing");
 
-  // Set the public notification channel as visible.
+  // Settings visible the pNotification channel.
   rv = pNotificationAgent->SetVisibilityState(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = pNotificationAgent->GetCanPlay(&playable);
+  // pNotification should be playing because visible.
+  rv = pNotificationAgent->GetCanPlay(&playing);
   NS_ENSURE_SUCCESS(rv, rv);
-  TEST_ENSURE_BASE(playable == AUDIO_CHANNEL_STATE_NORMAL,
-    "Test5: A pNotification channel visible agent must be playable");
+  TEST_ENSURE_BASE(playing, "Test4: A pNotification channel visible agent should be playing");
 
-  normalAgent->StopPlaying();
-  contentAgent->StopPlaying();
-  alarmAgent->StopPlaying();
-  telephonyAgent->StopPlaying();
-  ringerAgent->StopPlaying();
-  pNotificationAgent->StopPlaying();
   return rv;
 }
 
@@ -556,9 +447,6 @@ int main(int argc, char** argv)
     return 1;
 
   if (NS_FAILED(TestContentChannels()))
-    return 1;
-
-  if (NS_FAILED(TestFadedState()))
     return 1;
 
   if (NS_FAILED(TestPriorities()))
