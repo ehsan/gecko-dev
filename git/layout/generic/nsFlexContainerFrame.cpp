@@ -1366,8 +1366,7 @@ nsFlexContainerFrame::SanityCheckAnonymousFlexItems() const
 static void
 FreezeOrRestoreEachFlexibleSize(
   const nscoord aTotalViolation,
-  nsTArray<FlexItem>& aItems,
-  bool aFinalIteration)
+  nsTArray<FlexItem>& aItems)
 {
   enum FreezeType {
     eFreezeEverything,
@@ -1399,12 +1398,6 @@ FreezeOrRestoreEachFlexibleSize(
         MOZ_ASSERT(item.GetMainSize() <= item.GetMainMaxSize(),
                    "Freezing item at a size above its maximum");
 
-        item.Freeze();
-      } else if (MOZ_UNLIKELY(aFinalIteration)) {
-        // XXXdholbert If & when bug 765861 is fixed, we should upgrade this
-        // assertion to be fatal except in documents with enormous lengths.
-        NS_ERROR("Final iteration still has unfrozen items, this shouldn't"
-                 " happen unless there was nscoord under/overflow.");
         item.Freeze();
       } // else, we'll reset this item's main size to its flex base size on the
         // next iteration of this algorithm.
@@ -1585,8 +1578,7 @@ FlexLine::ResolveFlexibleLengths(nscoord aFlexContainerMainSize)
       }
     }
 
-    FreezeOrRestoreEachFlexibleSize(totalViolation, mItems,
-                                    iterationCounter + 1 == mItems.Length());
+    FreezeOrRestoreEachFlexibleSize(totalViolation, mItems);
 
     PR_LOG(GetFlexContainerLog(), PR_LOG_DEBUG,
            (" Total violation: %d\n", totalViolation));
