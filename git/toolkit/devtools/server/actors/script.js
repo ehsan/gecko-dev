@@ -2290,12 +2290,12 @@ SourceActor.prototype = {
 
     return {
       actor: this.actorID,
-      url: this.url ? this.url.split(" -> ").pop() : null,
+      url: this.url,
       addonID: this._addonID,
       addonPath: this._addonPath,
       isBlackBoxed: this.threadActor.sources.isBlackBoxed(this.url),
       isPrettyPrinted: this.threadActor.sources.isPrettyPrinted(this.url),
-      introductionUrl: introductionUrl ? introductionUrl.split(" -> ").pop() : null,
+      introductionUrl: introductionUrl,
       introductionType: source ? source.introductionType : null
     };
   },
