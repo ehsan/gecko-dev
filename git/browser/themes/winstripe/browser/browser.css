@@ -123,13 +123,7 @@
                0 1px 1.5px rgba(0,0,0,.5);
   font-weight: bold;
   padding: 0 1.5em .05em;
-  margin: 0 0 2px;
-}
-
-@media all and (-moz-windows-classic) {
-  #appmenu-button {
-    margin-bottom: 1px;
-  }
+  margin: 0;
 }
 
 #main-window[privatebrowsingmode=temporary] #appmenu-button {
@@ -308,12 +302,21 @@
 
 /* ::::: titlebar ::::: */
 
-#main-window[sizemode="normal"] > #titlebar {
+#titlebar {
   -moz-appearance: -moz-window-titlebar;
+  /* we only need to the middle section, hide the edges of the
+  theme background beyond the window frame. */
+  margin-left: -15px;
+  margin-right: -15px;
 }
 
 #main-window[sizemode="maximized"] > #titlebar {
   -moz-appearance: -moz-window-titlebar-maximized;
+}
+
+#titlebar-content {
+  margin-left: 15px;
+  margin-right: 15px;
 }
 
 @media all and (-moz-windows-classic) {
@@ -349,8 +352,15 @@
 }
 
 @media not all and (-moz-windows-classic) {
-  #titlebar-min {
+  #titlebar-min,
+  #titlebar-max {
     -moz-margin-end: 2px;
+  }
+}
+
+@media all and (-moz-windows-classic) {
+  #titlebar-close {
+    -moz-margin-start: 2px;
   }
 }
 

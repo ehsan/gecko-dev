@@ -1,5 +1,5 @@
-/* -*- Mode: c++; tab-width: 2; indent-tabs-mode: nil; -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,14 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is gfx thebes code.
  *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Michael Ventnor <m.ventnor@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,38 +35,19 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsAppShell_h__
-#define nsAppShell_h__
+#include "gfxRect.h"
+#include "nsRect.h"
 
-#include "nsBaseAppShell.h"
-#include <windows.h>
+#ifndef GFX_THEBES_UTILS_H
+#define GFX_THEBES_UTILS_H
 
-/**
- * Native Win32 Application shell wrapper
- */
-class nsAppShell : public nsBaseAppShell
+class THEBES_API gfxThebesUtils
 {
 public:
-  nsAppShell() : mEventWnd(NULL) {}
-
-  nsresult Init();
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
-  static UINT GetTaskbarButtonCreatedMessage();
-#endif
-
-protected:
-#if defined(_MSC_VER) && defined(_M_IX86)
-  NS_IMETHOD Run();
-#endif
-  virtual void ScheduleNativeEventCallback();
-  virtual PRBool ProcessNextNativeEvent(PRBool mayWait);
-  virtual ~nsAppShell();
-
-  static LRESULT CALLBACK EventWindowProc(HWND, UINT, WPARAM, LPARAM);
-
-protected:
-  HWND mEventWnd;
+    /**
+     * Converts a gfxRect into nsIntRect for speed reasons.
+     */
+    static nsIntRect GfxRectToIntRect(const gfxRect& aIn);
 };
 
-#endif // nsAppShell_h__
+#endif /* GFX_THEBES_UTILS_H */

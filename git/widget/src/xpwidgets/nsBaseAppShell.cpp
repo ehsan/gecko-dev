@@ -93,7 +93,6 @@ nsBaseAppShell::Init()
   return NS_OK;
 }
 
-// Called by nsAppShell's native event callback
 void
 nsBaseAppShell::NativeEventCallback()
 {
@@ -137,21 +136,11 @@ nsBaseAppShell::NativeEventCallback()
   // Continue processing pending events later (we don't want to starve the
   // embedders event loop).
   if (NS_HasPendingEvents(thread))
-    DoProcessMoreGeckoEvents();
+    OnDispatchedEvent(nsnull);
 
   --mEventloopNestingLevel;
 }
 
-// Note, this is currently overidden on windows, see comments in nsAppShell for
-// details. 
-void
-nsBaseAppShell::DoProcessMoreGeckoEvents()
-{
-  OnDispatchedEvent(nsnull);
-}
-
-
-// Main thread via OnProcessNextEvent below
 PRBool
 nsBaseAppShell::DoProcessNextNativeEvent(PRBool mayWait)
 {
@@ -266,7 +255,6 @@ nsBaseAppShell::OnDispatchedEvent(nsIThreadInternal *thr)
   if (lastVal == 1)
     return NS_OK;
 
-  // Returns on the main thread in NativeEventCallback above
   ScheduleNativeEventCallback();
   return NS_OK;
 }
