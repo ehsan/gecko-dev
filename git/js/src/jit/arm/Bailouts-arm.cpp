@@ -11,7 +11,7 @@
 #include "jit/IonCompartment.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 #if 0
 // no clue what these asserts should be.
@@ -62,7 +62,7 @@ BailoutEnvironment::top() const
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class BailoutStack
 {
@@ -109,7 +109,7 @@ class BailoutStack
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,

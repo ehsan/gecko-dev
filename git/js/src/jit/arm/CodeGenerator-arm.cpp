@@ -26,7 +26,7 @@
 #include "vm/Shape-inl.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 using mozilla::FloorLog2;
 
@@ -1005,7 +1005,7 @@ CodeGeneratorARM::toMoveOperand(const LAllocation *a) const
     return MoveOperand(StackPointer, offset);
 }
 
-class js::jit::OutOfLineTableSwitch : public OutOfLineCodeBase<CodeGeneratorARM>
+class js::ion::OutOfLineTableSwitch : public OutOfLineCodeBase<CodeGeneratorARM>
 {
     MTableSwitch *mir_;
     Vector<CodeLabel, 8, IonAllocPolicy> codeLabels_;

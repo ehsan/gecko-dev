@@ -13,7 +13,7 @@
 #include "jit/MIR.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MIRGenerator;
 class MIRGraph;
@@ -124,7 +124,7 @@ class LinearSum
     int32_t constant_;
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_IonAnalysis_h */

@@ -4,14 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jit_UnreachableCodeElimination_h
-#define jit_UnreachableCodeElimination_h
+#ifndef jit_UnreachableCodeEliminatjit_h
+#define jit_UnreachableCodeEliminatjit_h
 
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MIRGraph;
 
@@ -51,7 +51,7 @@ class UnreachableCodeElimination
     bool removeUnmarkedBlocks(size_t marked);
 };
 
-} /* namespace jit */
+} /* namespace ion */
 } /* namespace js */
 
-#endif /* jit_UnreachableCodeElimination_h */
+#endif /* jit_UnreachableCodeEliminatjit_h */

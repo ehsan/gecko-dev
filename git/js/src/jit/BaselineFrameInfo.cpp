@@ -10,7 +10,7 @@
 #include "jit/shared/BaselineCompiler-shared.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 bool
 FrameInfo::init() {

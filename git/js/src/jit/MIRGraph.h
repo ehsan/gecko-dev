@@ -16,7 +16,7 @@
 #include "jit/MIRGenerator.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MBasicBlock;
 class MIRGraph;
@@ -754,7 +754,7 @@ class MDefinitionIterator
 
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_MIRGraph_h */

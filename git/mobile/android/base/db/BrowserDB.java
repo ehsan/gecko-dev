@@ -20,7 +20,6 @@ import java.util.List;
 
 public class BrowserDB {
     public static String ABOUT_PAGES_URL_FILTER = "about:%";
-    private static boolean sAreContentProvidersEnabled = true;
 
     public static interface URLColumns {
         public static String URL = "url";
@@ -147,26 +146,20 @@ public class BrowserDB {
     }
 
     public static void updateVisitedHistory(ContentResolver cr, String uri) {
-        if (sAreContentProvidersEnabled) {
-            sDb.updateVisitedHistory(cr, uri);
-        }
+        sDb.updateVisitedHistory(cr, uri);
     }
 
     public static void updateHistoryTitle(ContentResolver cr, String uri, String title) {
-        if (sAreContentProvidersEnabled) {
-            sDb.updateHistoryTitle(cr, uri, title);
-        }
+        sDb.updateHistoryTitle(cr, uri, title);
     }
 
     public static void updateHistoryEntry(ContentResolver cr, String uri, String title,
                                           long date, int visits) {
-        if (sAreContentProvidersEnabled) {
-            sDb.updateHistoryEntry(cr, uri, title, date, visits);
-        }
+        sDb.updateHistoryEntry(cr, uri, title, date, visits);
     }
 
     public static Cursor getAllVisitedHistory(ContentResolver cr) {
-        return (sAreContentProvidersEnabled ? sDb.getAllVisitedHistory(cr) : null);
+        return sDb.getAllVisitedHistory(cr);
     }
 
     public static Cursor getRecentHistory(ContentResolver cr, int limit) {
@@ -211,11 +204,11 @@ public class BrowserDB {
     }
 
     public static boolean isBookmark(ContentResolver cr, String uri) {
-        return (sAreContentProvidersEnabled && sDb.isBookmark(cr, uri));
+        return sDb.isBookmark(cr, uri);
     }
 
     public static boolean isReadingListItem(ContentResolver cr, String uri) {
-        return (sAreContentProvidersEnabled && sDb.isReadingListItem(cr, uri));
+        return sDb.isReadingListItem(cr, uri);
     }
 
     public static void addBookmark(ContentResolver cr, String title, String uri) {
@@ -312,14 +305,6 @@ public class BrowserDB {
 
     public static Cursor getBookmarkForUrl(ContentResolver cr, String url) {
         return sDb.getBookmarkForUrl(cr, url);
-    }
-
-    public static boolean areContentProvidersDisabled() {
-        return sAreContentProvidersEnabled;
-    }
-
-    public static void setEnableContentProviders(boolean enableContentProviders) {
-        sAreContentProvidersEnabled = enableContentProviders;
     }
 
     public static class PinnedSite {

@@ -1000,21 +1000,27 @@ js::ValueToIterator(JSContext *cx, unsigned flags, MutableHandleValue vp)
 }
 
 bool
-IsStarGeneratorObject(HandleValue v)
+IsGenerator(HandleValue v)
 {
-    return v.isObject() && v.toObject().is<StarGeneratorObject>();
+    return v.isObject() && v.toObject().is<GeneratorObject>();
+}
+
+static bool
+IsLegacyGenerator(HandleObject obj)
+{
+    if (!obj->is<GeneratorObject>())
+        return false;
+    JSGenerator *gen = obj->as<GeneratorObject>().getGenerator();
+    return gen->regs.fp()->script()->isLegacyGenerator();
 }
 
 bool
-IsLegacyGeneratorObject(HandleValue v)
+IsLegacyGenerator(HandleValue v)
 {
-    return v.isObject() && v.toObject().is<LegacyGeneratorObject>();
-}
-
-bool
-IsGeneratorObject(HandleValue v)
-{
-    return IsLegacyGeneratorObject(v) || IsStarGeneratorObject(v);
+    if (!IsGenerator(v))
+        return false;
+    JSGenerator *gen = v.toObject().as<GeneratorObject>().getGenerator();
+    return gen->regs.fp()->script()->isLegacyGenerator();
 }
 
 bool
@@ -1038,7 +1044,7 @@ js::CloseIterator(JSContext *cx, HandleObject obj)
              */
             ni->props_cursor = ni->props_array;
         }
-    } else if (obj->is<LegacyGeneratorObject>()) {
+    } else if (IsLegacyGenerator(obj)) {
         return CloseLegacyGenerator(cx, obj);
     }
     return true;
@@ -1331,19 +1337,10 @@ Class StopIterationObject::class_ = {
 
 /*** Generators **********************************************************************************/
 
-static JSGenerator*
-GetGenerator(JSObject *obj)
-{
-    if (obj->is<LegacyGeneratorObject>())
-        return obj->as<LegacyGeneratorObject>().getGenerator();
-    JS_ASSERT(obj->is<StarGeneratorObject>());
-    return obj->as<StarGeneratorObject>().getGenerator();
-}
-
 static void
 generator_finalize(FreeOp *fop, JSObject *obj)
 {
-    JSGenerator *gen = GetGenerator(obj);
+    JSGenerator *gen = obj->as<GeneratorObject>().getGenerator();
     if (!gen)
         return;
 
@@ -1354,9 +1351,7 @@ generator_finalize(FreeOp *fop, JSObject *obj)
     JS_ASSERT(gen->state == JSGEN_NEWBORN ||
               gen->state == JSGEN_CLOSED ||
               gen->state == JSGEN_OPEN);
-    // If gen->state is JSGEN_CLOSED, gen->fp may be NULL.
-    if (gen->fp)
-        JS_POISON(gen->fp, JS_FREE_PATTERN, sizeof(StackFrame));
+    JS_POISON(gen->fp, JS_FREE_PATTERN, sizeof(StackFrame));
     JS_POISON(gen, JS_FREE_PATTERN, sizeof(JSGenerator));
     fop->free_(gen);
 }
@@ -1413,15 +1408,6 @@ SetGeneratorClosed(JSContext *cx, JSGenerator *gen)
     if (GeneratorHasMarkableFrame(gen))
         GeneratorWriteBarrierPre(cx, gen);
     gen->state = JSGEN_CLOSED;
-
-#ifdef DEBUG
-    MakeRangeGCSafe(gen->fp->generatorArgsSnapshotBegin(),
-                    gen->fp->generatorArgsSnapshotEnd());
-    MakeRangeGCSafe(gen->fp->generatorSlotsSnapshotBegin(),
-                    gen->regs.sp);
-    PodZero(&gen->regs, 1);
-    gen->fp = NULL;
-#endif
 }
 
 GeneratorState::GeneratorState(JSContext *cx, JSGenerator *gen, JSGeneratorState futureState)
@@ -1467,7 +1453,7 @@ GeneratorState::pushInterpreterFrame(JSContext *cx, FrameGuard *)
 static void
 generator_trace(JSTracer *trc, JSObject *obj)
 {
-    JSGenerator *gen = GetGenerator(obj);
+    JSGenerator *gen = obj->as<GeneratorObject>().getGenerator();
     if (!gen)
         return;
 
@@ -1475,30 +1461,7 @@ generator_trace(JSTracer *trc, JSObject *obj)
         MarkGeneratorFrame(trc, gen);
 }
 
-Class LegacyGeneratorObject::class_ = {
-    "Generator",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
-    JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
-    JS_PropertyStub,         /* getProperty */
-    JS_StrictPropertyStub,   /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    generator_finalize,
-    NULL,                    /* checkAccess */
-    NULL,                    /* call        */
-    NULL,                    /* hasInstance */
-    NULL,                    /* construct   */
-    generator_trace,
-    {
-        NULL,                /* outerObject    */
-        NULL,                /* innerObject    */
-        iterator_iteratorObject,
-    }
-};
-
-Class StarGeneratorObject::class_ = {
+Class GeneratorObject::class_ = {
     "Generator",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
     JS_PropertyStub,         /* addProperty */
@@ -1552,13 +1515,13 @@ js_NewGenerator(JSContext *cx, const FrameRegs &stackRegs)
             if (!proto)
                 return NULL;
         }
-        obj = NewObjectWithGivenProto(cx, &StarGeneratorObject::class_, proto, global);
+        obj = NewObjectWithGivenProto(cx, &GeneratorObject::class_, proto, global);
     } else {
         JS_ASSERT(stackfp->script()->isLegacyGenerator());
         JSObject *proto = global->getOrCreateLegacyGeneratorObjectPrototype(cx);
         if (!proto)
             return NULL;
-        obj = NewObjectWithGivenProto(cx, &LegacyGeneratorObject::class_, proto, global);
+        obj = NewObjectWithGivenProto(cx, &GeneratorObject::class_, proto, global);
     }
     if (!obj)
         return NULL;
@@ -1695,9 +1658,9 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
 static bool
 CloseLegacyGenerator(JSContext *cx, HandleObject obj)
 {
-    JS_ASSERT(obj->is<LegacyGeneratorObject>());
+    JS_ASSERT(IsLegacyGenerator(obj));
 
-    JSGenerator *gen = GetGenerator(obj);
+    JSGenerator *gen = obj->as<GeneratorObject>().getGenerator();
     if (gen->state == JSGEN_CLOSED)
         return true;
 
@@ -1707,11 +1670,11 @@ CloseLegacyGenerator(JSContext *cx, HandleObject obj)
 JS_ALWAYS_INLINE bool
 generator_next_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(IsGeneratorObject(args.thisv()));
+    JS_ASSERT(IsGenerator(args.thisv()));
 
     RootedObject thisObj(cx, &args.thisv().toObject());
 
-    JSGenerator *gen = GetGenerator(thisObj);
+    JSGenerator *gen = thisObj->as<GeneratorObject>().getGenerator();
     if (gen->state == JSGEN_CLOSED)
         return js_ThrowStopIteration(cx);
 
@@ -1733,17 +1696,17 @@ bool
 generator_next(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod<IsGeneratorObject, generator_next_impl>(cx, args);
+    return CallNonGenericMethod<IsGenerator, generator_next_impl>(cx, args);
 }
 
 JS_ALWAYS_INLINE bool
 generator_throw_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(IsGeneratorObject(args.thisv()));
+    JS_ASSERT(IsGenerator(args.thisv()));
 
     RootedObject thisObj(cx, &args.thisv().toObject());
 
-    JSGenerator *gen = GetGenerator(thisObj);
+    JSGenerator *gen = thisObj->as<GeneratorObject>().getGenerator();
     if (gen->state == JSGEN_CLOSED) {
         cx->setPendingException(args.length() >= 1 ? args[0] : UndefinedValue());
         return false;
@@ -1760,17 +1723,17 @@ bool
 generator_throw(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod<IsGeneratorObject, generator_throw_impl>(cx, args);
+    return CallNonGenericMethod<IsGenerator, generator_throw_impl>(cx, args);
 }
 
 JS_ALWAYS_INLINE bool
 generator_close_impl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(IsLegacyGeneratorObject(args.thisv()));
+    JS_ASSERT(IsLegacyGenerator(args.thisv()));
 
     RootedObject thisObj(cx, &args.thisv().toObject());
 
-    JSGenerator *gen = GetGenerator(thisObj);
+    JSGenerator *gen = thisObj->as<GeneratorObject>().getGenerator();
     if (gen->state == JSGEN_CLOSED) {
         args.rval().setUndefined();
         return true;
@@ -1785,7 +1748,7 @@ generator_close_impl(JSContext *cx, CallArgs args)
     if (!SendToGenerator(cx, JSGENOP_CLOSE, thisObj, gen, JS::UndefinedHandleValue))
         return false;
 
-    args.rval().setUndefined();
+    args.rval().set(gen->fp->returnValue());
     return true;
 }
 
@@ -1793,7 +1756,7 @@ bool
 generator_close(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod<IsLegacyGeneratorObject, generator_close_impl>(cx, args);
+    return CallNonGenericMethod<IsLegacyGenerator, generator_close_impl>(cx, args);
 }
 
 #define JSPROP_ROPERM   (JSPROP_READONLY | JSPROP_PERMANENT)

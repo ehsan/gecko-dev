@@ -10,7 +10,7 @@
 #include "jit/IonTypes.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MInstruction;
 class MDefinition;
@@ -251,7 +251,7 @@ CoercesToDouble(MIRType type)
 }
 
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_TypePolicy_h */

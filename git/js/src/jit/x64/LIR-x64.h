@@ -8,7 +8,7 @@
 #define jit_x64_LIR_x64_h
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // Given a typed input, returns an untyped box.
 class LBox : public LInstructionHelper<1, 1, 0>
@@ -93,7 +93,7 @@ class LAsmJSLoadFuncPtr : public LInstructionHelper<1, 1, 1>
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_x64_LIR_x64_h */

@@ -13,7 +13,7 @@
 #include "jit/IonAllocPolicy.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // List of a fixed length, but the length is unknown until runtime.
 template <typename T>
@@ -73,7 +73,7 @@ class FixedList
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_FixedList_h */

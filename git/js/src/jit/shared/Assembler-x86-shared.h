@@ -13,7 +13,7 @@
 #include "jit/shared/Assembler-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class AssemblerX86Shared
 {
@@ -1395,7 +1395,7 @@ class AssemblerX86Shared
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_Assembler_x86_shared_h */

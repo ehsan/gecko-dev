@@ -125,7 +125,7 @@ CheckStackRootsRangeAndSkipJit(JSRuntime *rt, uintptr_t *begin, uintptr_t *end, 
     uintptr_t *i = begin;
 
 #if defined(JS_ION)
-    for (jit::JitActivationIterator iter(rt); !iter.done(); ++iter) {
+    for (ion::JitActivationIterator iter(rt); !iter.done(); ++iter) {
         uintptr_t *jitMin, *jitEnd;
         iter.jitStackRange(jitMin, jitEnd);
 

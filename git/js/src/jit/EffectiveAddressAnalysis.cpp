@@ -7,7 +7,7 @@
 #include "jit/EffectiveAddressAnalysis.h"
 
 using namespace js;
-using namespace jit;
+using namespace ion;
 
 static void
 AnalyzeLsh(MBasicBlock *block, MLsh *lsh)

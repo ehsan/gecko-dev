@@ -7,7 +7,7 @@
 #include "jit/StupidAllocator.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 static inline uint32_t
 DefaultStackSlot(uint32_t vreg)

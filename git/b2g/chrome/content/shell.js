@@ -757,9 +757,6 @@ var AlertsHelper = {
             return helper.resolveFromOrigin(message["notification"]);
           }
         }
-
-        // No message found...
-        return null;
       }
 
       listener.target = getNotificationURLFor(manifest.messages);
@@ -836,7 +833,7 @@ var AlertsHelper = {
     if (!aMessage.target.assertAppHasPermission("desktop-notification")) {
       Cu.reportError("Desktop-notification message " + aMessage.name +
                      " from a content process with no desktop-notification privileges.");
-      return;
+      return null;
     }
 
     let data = aMessage.data;

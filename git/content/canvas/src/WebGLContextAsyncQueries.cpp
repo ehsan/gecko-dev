@@ -113,8 +113,7 @@ WebGLContext::BeginQuery(WebGLenum target, WebGLQuery *query)
     if (!IsContextStable())
         return;
 
-    WebGLRefPtr<WebGLQuery>* targetSlot = GetQueryTargetSlot(target, "beginQuery");
-    if (!targetSlot) {
+    if (!ValidateQueryTargetParameter(target, "beginQuery")) {
         return;
     }
 
@@ -154,7 +153,7 @@ WebGLContext::BeginQuery(WebGLenum target, WebGLQuery *query)
         return;
     }
 
-    if (*targetSlot) {
+    if (GetActiveQueryByTarget(target)) {
         /*
          * See SPECS BeginQuery.1
          */
@@ -174,7 +173,7 @@ WebGLContext::BeginQuery(WebGLenum target, WebGLQuery *query)
         gl->fBeginQuery(SimulateOcclusionQueryTarget(gl, target), query->mGLName);
     }
 
-    *targetSlot = query;
+    GetActiveQueryByTarget(target) = query;
 }
 
 void
@@ -183,13 +182,12 @@ WebGLContext::EndQuery(WebGLenum target)
     if (!IsContextStable())
         return;
 
-    WebGLRefPtr<WebGLQuery>* targetSlot = GetQueryTargetSlot(target, "endQuery");
-    if (!targetSlot) {
+    if (!ValidateQueryTargetParameter(target, "endQuery")) {
         return;
     }
 
-    if (!*targetSlot ||
-        target != (*targetSlot)->mType)
+    if (!GetActiveQueryByTarget(target) ||
+        target != GetActiveQueryByTarget(target)->mType)
     {
         /* http://www.khronos.org/registry/gles/extensions/EXT/EXT_occlusion_query_boolean.txt
          * marks the end of the sequence of commands to be tracked for the query type
@@ -216,7 +214,7 @@ WebGLContext::EndQuery(WebGLenum target)
         gl->fEndQuery(SimulateOcclusionQueryTarget(gl, target));
     }
 
-    *targetSlot = nullptr;
+    GetActiveQueryByTarget(target) = nullptr;
 }
 
 bool
@@ -239,8 +237,7 @@ WebGLContext::GetQuery(WebGLenum target, WebGLenum pname)
     if (!IsContextStable())
         return nullptr;
 
-    WebGLRefPtr<WebGLQuery>* targetSlot = GetQueryTargetSlot(target, "getQuery");
-    if (!targetSlot) {
+    if (!ValidateQueryTargetParameter(target, "getQuery")) {
         return nullptr;
     }
 
@@ -252,7 +249,7 @@ WebGLContext::GetQuery(WebGLenum target, WebGLenum pname)
         return nullptr;
     }
 
-    nsRefPtr<WebGLQuery> tmp = targetSlot->get();
+    nsRefPtr<WebGLQuery> tmp = GetActiveQueryByTarget(target).get();
     return tmp.forget();
 }
 
@@ -332,19 +329,36 @@ WebGLContext::GetQueryObject(JSContext* cx, WebGLQuery *query, WebGLenum pname)
     return JS::NullValue();
 }
 
-WebGLRefPtr<WebGLQuery>*
-WebGLContext::GetQueryTargetSlot(WebGLenum target, const char* infos)
+bool
+WebGLContext::ValidateQueryTargetParameter(WebGLenum target, const char* infos)
 {
     switch (target) {
         case LOCAL_GL_ANY_SAMPLES_PASSED:
         case LOCAL_GL_ANY_SAMPLES_PASSED_CONSERVATIVE:
-            return &mActiveOcclusionQuery;
         case LOCAL_GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN:
-            return &mActiveTransformFeedbackQuery;
+            return true;
     }
 
     ErrorInvalidEnum("%s: unknown query target", infos);
-    return nullptr;
+    return false;
+}
+
+WebGLRefPtr<WebGLQuery>&
+WebGLContext::GetActiveQueryByTarget(WebGLenum target)
+{
+    MOZ_ASSERT(ValidateQueryTargetParameter(target, "private WebGLContext::GetActiveQueryByTarget"));
+
+    switch (target) {
+        case LOCAL_GL_ANY_SAMPLES_PASSED:
+        case LOCAL_GL_ANY_SAMPLES_PASSED_CONSERVATIVE:
+            return mActiveOcclusionQuery;
+        case LOCAL_GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN:
+            return mActiveTransformFeedbackQuery;
+    }
+
+    MOZ_ASSERT(false, "WebGLContext::GetActiveQueryByTarget is not compatible with "
+                      "WebGLContext::ValidateQueryTargetParameter");
+    return mActiveOcclusionQuery;
 }
 
 

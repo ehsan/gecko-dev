@@ -18,7 +18,7 @@
 #include "jit/SnapshotWriter.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 // Snapshot header:
 //

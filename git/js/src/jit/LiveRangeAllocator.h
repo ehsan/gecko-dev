@@ -17,7 +17,7 @@
 // virtual register live ranges.
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class Requirement
 {
@@ -646,7 +646,7 @@ class LiveRangeAllocator : public RegisterAllocator
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_LiveRangeAllocator_h */

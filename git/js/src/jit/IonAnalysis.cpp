@@ -14,13 +14,13 @@
 #include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 // A critical edge is an edge which is neither its successor's only predecessor
 // nor its predecessor's only successor. Critical edges must be split to
 // prevent copy-insertion and code motion from affecting other edges.
 bool
-jit::SplitCriticalEdges(MIRGraph &graph)
+ion::SplitCriticalEdges(MIRGraph &graph)
 {
     for (MBasicBlockIterator block(graph.begin()); block != graph.end(); block++) {
         if (block->numSuccessors() < 2)
@@ -54,7 +54,7 @@ jit::SplitCriticalEdges(MIRGraph &graph)
 // otherwise occur if the new resume point captured a value which is created
 // between the old and new resume point and is dead at the new resume point.
 bool
-jit::EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
+ion::EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
 {
     // If we are compiling try blocks, locals and arguments may be observable
     // from catch or finally blocks (which Ion does not compile). For now just
@@ -148,7 +148,7 @@ jit::EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
 // This pass eliminates useless instructions.
 // The graph itself is unchanged.
 bool
-jit::EliminateDeadCode(MIRGenerator *mir, MIRGraph &graph)
+ion::EliminateDeadCode(MIRGenerator *mir, MIRGraph &graph)
 {
     // Traverse in postorder so that we hit uses before definitions.
     // Traverse instruction list backwards for the same reason.
@@ -243,7 +243,7 @@ IsPhiRedundant(MPhi *phi)
 }
 
 bool
-jit::EliminatePhis(MIRGenerator *mir, MIRGraph &graph,
+ion::EliminatePhis(MIRGenerator *mir, MIRGraph &graph,
                    Observability observe)
 {
     // Eliminates redundant or unobservable phis from the graph.  A
@@ -666,7 +666,7 @@ TypeAnalyzer::analyze()
 }
 
 bool
-jit::ApplyTypeInformation(MIRGenerator *mir, MIRGraph &graph)
+ion::ApplyTypeInformation(MIRGenerator *mir, MIRGraph &graph)
 {
     TypeAnalyzer analyzer(mir, graph);
 
@@ -677,7 +677,7 @@ jit::ApplyTypeInformation(MIRGenerator *mir, MIRGraph &graph)
 }
 
 bool
-jit::RenumberBlocks(MIRGraph &graph)
+ion::RenumberBlocks(MIRGraph &graph)
 {
     size_t id = 0;
     for (ReversePostorderIterator block(graph.rpoBegin()); block != graph.rpoEnd(); block++)
@@ -783,7 +783,7 @@ ComputeImmediateDominators(MIRGraph &graph)
 }
 
 bool
-jit::BuildDominatorTree(MIRGraph &graph)
+ion::BuildDominatorTree(MIRGraph &graph)
 {
     ComputeImmediateDominators(graph);
 
@@ -846,7 +846,7 @@ jit::BuildDominatorTree(MIRGraph &graph)
 }
 
 bool
-jit::BuildPhiReverseMapping(MIRGraph &graph)
+ion::BuildPhiReverseMapping(MIRGraph &graph)
 {
     // Build a mapping such that given a basic block, whose successor has one or
     // more phis, we can find our specific input to that phi. To make this fast
@@ -958,7 +958,7 @@ CheckUseImpliesOperand(MInstruction *ins, MUse *use)
 #endif // DEBUG
 
 void
-jit::AssertBasicGraphCoherency(MIRGraph &graph)
+ion::AssertBasicGraphCoherency(MIRGraph &graph)
 {
 #ifdef DEBUG
     // Assert successor and predecessor list coherency.
@@ -1008,7 +1008,7 @@ AssertReversePostOrder(MIRGraph &graph)
 #endif
 
 void
-jit::AssertGraphCoherency(MIRGraph &graph)
+ion::AssertGraphCoherency(MIRGraph &graph)
 {
 #ifdef DEBUG
     AssertBasicGraphCoherency(graph);
@@ -1017,7 +1017,7 @@ jit::AssertGraphCoherency(MIRGraph &graph)
 }
 
 void
-jit::AssertExtendedGraphCoherency(MIRGraph &graph)
+ion::AssertExtendedGraphCoherency(MIRGraph &graph)
 {
     // Checks the basic GraphCoherency but also other conditions that
     // do not hold immediately (such as the fact that critical edges
@@ -1113,7 +1113,7 @@ FindDominatingBoundsCheck(BoundsCheckMap &checks, MBoundsCheck *check, size_t in
 
 // Extract a linear sum from ins, if possible (otherwise giving the sum 'ins + 0').
 SimpleLinearSum
-jit::ExtractLinearSum(MDefinition *ins)
+ion::ExtractLinearSum(MDefinition *ins)
 {
     if (ins->isBeta())
         ins = ins->getOperand(0);
@@ -1156,7 +1156,7 @@ jit::ExtractLinearSum(MDefinition *ins)
 // Extract a linear inequality holding when a boolean test goes in the
 // specified direction, of the form 'lhs + lhsN <= rhs' (or >=).
 bool
-jit::ExtractLinearInequality(MTest *test, BranchDirection direction,
+ion::ExtractLinearInequality(MTest *test, BranchDirection direction,
                              SimpleLinearSum *plhs, MDefinition **prhs, bool *plessEqual)
 {
     if (!test->getOperand(0)->isCompare())
@@ -1379,7 +1379,7 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
 // differences in constant offset, this offers a fast way to find redundant
 // checks.
 bool
-jit::EliminateRedundantChecks(MIRGraph &graph)
+ion::EliminateRedundantChecks(MIRGraph &graph)
 {
     BoundsCheckMap checks;
 
@@ -1465,7 +1465,7 @@ FindLeadingGoto(LBlock *bb)
 // splits end up being unused after optimization and register allocation,
 // fold them back away to avoid unnecessary branching.
 bool
-jit::UnsplitEdges(LIRGraph *lir)
+ion::UnsplitEdges(LIRGraph *lir)
 {
     for (size_t i = 0; i < lir->numBlocks(); i++) {
         LBlock *bb = lir->getBlock(i);

@@ -17,7 +17,7 @@
 #include "jit/IonFrameIterator-inl.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 inline void
 SafepointIndex::resolve()
@@ -78,7 +78,7 @@ GetTopBaselineFrame(JSContext *cx)
     return iter.baselineFrame();
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

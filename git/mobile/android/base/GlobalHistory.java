@@ -54,10 +54,6 @@ class GlobalHistory {
                     Cursor c = null;
                     try {
                         c = BrowserDB.getAllVisitedHistory(GeckoAppShell.getContext().getContentResolver());
-                        if (c == null) {
-                            return;
-                        }
-
                         if (c.moveToFirst()) {
                             do {
                                 visitedSet.add(c.getString(0));

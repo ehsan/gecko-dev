@@ -7,7 +7,7 @@
 #include "jit/BitSet.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 BitSet *
 BitSet::New(unsigned int max)

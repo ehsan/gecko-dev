@@ -19,7 +19,7 @@
 #include "jit/IonMacroAssembler.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // FrameInfo overview.
 //
@@ -327,7 +327,7 @@ class FrameInfo
 #endif
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

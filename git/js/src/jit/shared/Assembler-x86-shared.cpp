@@ -8,7 +8,7 @@
 #include "jit/IonMacroAssembler.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 void
 AssemblerX86Shared::copyJumpRelocationTable(uint8_t *dest)

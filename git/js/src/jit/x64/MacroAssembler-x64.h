@@ -12,7 +12,7 @@
 #include "jit/shared/MacroAssembler-x86-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 struct ImmShiftedTag : public ImmWord
 {
@@ -1134,7 +1134,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
 
 typedef MacroAssemblerX64 MacroAssemblerSpecific;
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_x64_MacroAssembler_x64_h */

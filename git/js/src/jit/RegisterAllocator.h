@@ -19,7 +19,7 @@
 // Generic structures and functions for use by register allocators.
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // Structure for running a liveness analysis on a finished register allocation.
 // This analysis can be used for two purposes:
@@ -377,7 +377,7 @@ GetFixedRegister(LDefinition *def, const LUse *use)
            : AnyRegister(Register::FromCode(use->registerCode()));
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_RegisterAllocator_h */

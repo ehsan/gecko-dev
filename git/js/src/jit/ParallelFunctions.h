@@ -11,7 +11,7 @@
 #include "vm/ForkJoin.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 ForkJoinSlice *ForkJoinSlicePar();
 JSObject *NewGCThingPar(gc::AllocKind allocKind);
@@ -85,7 +85,7 @@ void TraceLIR(uint32_t bblock, uint32_t lir, uint32_t execModeInt,
 
 void CallToUncompiledScriptPar(JSObject *obj);
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_ParallelFunctions_h */

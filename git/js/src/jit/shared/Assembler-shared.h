@@ -23,7 +23,7 @@
 #    define JS_SMALL_BRANCH
 #endif
 namespace js {
-namespace jit {
+namespace ion {
 
 enum Scale {
     TimesOne = 0,
@@ -573,7 +573,7 @@ class CodeLocationLabel
 };
 
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_Assembler_shared_h */

@@ -15,7 +15,7 @@
 #include "jit/BaselineFrame.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 template <AllowGC allowGC>
 inline
@@ -39,7 +39,7 @@ IonFrameIterator::baselineFrame() const
     return (BaselineFrame *)(fp() - BaselineFrame::FramePointerOffset - BaselineFrame::Size());
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

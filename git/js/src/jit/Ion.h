@@ -18,7 +18,7 @@
 #include "jit/IonCode.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class TempAllocator;
 
@@ -359,7 +359,7 @@ void AttachFinishedCompilations(JSContext *cx);
 void FinishOffThreadBuilder(IonBuilder *builder);
 
 static inline bool
-IsIonEnabled(JSContext *cx)
+IsEnabled(JSContext *cx)
 {
     return cx->hasOption(JSOPTION_ION) &&
         cx->hasOption(JSOPTION_BASELINE) &&
@@ -385,7 +385,7 @@ void TraceIonScripts(JSTracer* trc, JSScript *script);
 
 void TriggerOperationCallbackForIonCode(JSRuntime *rt, JSRuntime::OperationCallbackTrigger trigger);
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

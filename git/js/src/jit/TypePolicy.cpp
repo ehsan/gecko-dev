@@ -10,7 +10,7 @@
 #include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 MDefinition *
 BoxInputsPolicy::boxAt(MInstruction *at, MDefinition *operand)

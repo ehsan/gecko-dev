@@ -10,7 +10,7 @@
 #include "jit/shared/IonFrames-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class IonFramePrefix;
 // Layout of the frame prefix. This assumes the stack architecture grows down.
@@ -536,7 +536,7 @@ class InvalidationBailoutStack
     void checkInvariants() const;
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_arm_IonFrames_arm_h */

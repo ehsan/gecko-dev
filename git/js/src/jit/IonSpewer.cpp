@@ -23,7 +23,7 @@
 #endif
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 // IonSpewer singleton.
 static IonSpewer ionspewer;
@@ -72,14 +72,14 @@ FilterContainsLocation(HandleScript function)
 }
 
 void
-jit::EnableIonDebugLogging()
+ion::EnableIonDebugLogging()
 {
     EnableChannel(IonSpew_Logs);
     ionspewer.init();
 }
 
 void
-jit::IonSpewNewFunction(MIRGraph *graph, HandleScript func)
+ion::IonSpewNewFunction(MIRGraph *graph, HandleScript func)
 {
     if (!OffThreadIonCompilationEnabled(GetIonContext()->runtime)) {
         ionspewer.beginFunction(graph, func);
@@ -96,21 +96,21 @@ jit::IonSpewNewFunction(MIRGraph *graph, HandleScript func)
 }
 
 void
-jit::IonSpewPass(const char *pass)
+ion::IonSpewPass(const char *pass)
 {
     if (!OffThreadIonCompilationEnabled(GetIonContext()->runtime))
         ionspewer.spewPass(pass);
 }
 
 void
-jit::IonSpewPass(const char *pass, LinearScanAllocator *ra)
+ion::IonSpewPass(const char *pass, LinearScanAllocator *ra)
 {
     if (!OffThreadIonCompilationEnabled(GetIonContext()->runtime))
         ionspewer.spewPass(pass, ra);
 }
 
 void
-jit::IonSpewEndFunction()
+ion::IonSpewEndFunction()
 {
     if (!OffThreadIonCompilationEnabled(GetIonContext()->runtime))
         ionspewer.endFunction();
@@ -213,7 +213,7 @@ IonSpewer::endFunction()
 }
 
 
-FILE *jit::IonSpewFile = NULL;
+FILE *ion::IonSpewFile = NULL;
 
 static bool
 ContainsFlag(const char *str, const char *flag)
@@ -229,7 +229,7 @@ ContainsFlag(const char *str, const char *flag)
 }
 
 void
-jit::CheckLogging()
+ion::CheckLogging()
 {
     if (LoggingChecked)
         return;
@@ -260,7 +260,7 @@ jit::CheckLogging()
             "  pools      Literal Pools (ARM only for now)\n"
             "  cacheflush Instruction Cache flushes (ARM only for now)\n"
             "  logs       C1 and JSON visualization logging\n"
-            "  trace      Generate calls to js::jit::Trace() for effectful instructions\n"
+            "  trace      Generate calls to js::ion::Trace() for effectful instructions\n"
             "  all        Everything\n"
             "\n"
             "  bl-aborts  Baseline compiler abort messages\n"
@@ -348,7 +348,7 @@ jit::CheckLogging()
 }
 
 void
-jit::IonSpewStartVA(IonSpewChannel channel, const char *fmt, va_list ap)
+ion::IonSpewStartVA(IonSpewChannel channel, const char *fmt, va_list ap)
 {
     if (!IonSpewEnabled(channel))
         return;
@@ -358,7 +358,7 @@ jit::IonSpewStartVA(IonSpewChannel channel, const char *fmt, va_list ap)
 }
 
 void
-jit::IonSpewContVA(IonSpewChannel channel, const char *fmt, va_list ap)
+ion::IonSpewContVA(IonSpewChannel channel, const char *fmt, va_list ap)
 {
     if (!IonSpewEnabled(channel))
         return;
@@ -367,7 +367,7 @@ jit::IonSpewContVA(IonSpewChannel channel, const char *fmt, va_list ap)
 }
 
 void
-jit::IonSpewFin(IonSpewChannel channel)
+ion::IonSpewFin(IonSpewChannel channel)
 {
     if (!IonSpewEnabled(channel))
         return;
@@ -376,14 +376,14 @@ jit::IonSpewFin(IonSpewChannel channel)
 }
 
 void
-jit::IonSpewVA(IonSpewChannel channel, const char *fmt, va_list ap)
+ion::IonSpewVA(IonSpewChannel channel, const char *fmt, va_list ap)
 {
     IonSpewStartVA(channel, fmt, ap);
     IonSpewFin(channel);
 }
 
 void
-jit::IonSpew(IonSpewChannel channel, const char *fmt, ...)
+ion::IonSpew(IonSpewChannel channel, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -392,7 +392,7 @@ jit::IonSpew(IonSpewChannel channel, const char *fmt, ...)
 }
 
 void
-jit::IonSpewStart(IonSpewChannel channel, const char *fmt, ...)
+ion::IonSpewStart(IonSpewChannel channel, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -400,7 +400,7 @@ jit::IonSpewStart(IonSpewChannel channel, const char *fmt, ...)
     va_end(ap);
 }
 void
-jit::IonSpewCont(IonSpewChannel channel, const char *fmt, ...)
+ion::IonSpewCont(IonSpewChannel channel, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -409,7 +409,7 @@ jit::IonSpewCont(IonSpewChannel channel, const char *fmt, ...)
 }
 
 void
-jit::IonSpewHeader(IonSpewChannel channel)
+ion::IonSpewHeader(IonSpewChannel channel)
 {
     if (!IonSpewEnabled(channel))
         return;
@@ -418,21 +418,21 @@ jit::IonSpewHeader(IonSpewChannel channel)
 }
 
 bool
-jit::IonSpewEnabled(IonSpewChannel channel)
+ion::IonSpewEnabled(IonSpewChannel channel)
 {
     JS_ASSERT(LoggingChecked);
     return (LoggingBits & (1 << uint32_t(channel))) && !filteredOutCompilations;
 }
 
 void
-jit::EnableChannel(IonSpewChannel channel)
+ion::EnableChannel(IonSpewChannel channel)
 {
     JS_ASSERT(LoggingChecked);
     LoggingBits |= (1 << uint32_t(channel));
 }
 
 void
-jit::DisableChannel(IonSpewChannel channel)
+ion::DisableChannel(IonSpewChannel channel)
 {
     JS_ASSERT(LoggingChecked);
     LoggingBits &= ~(1 << uint32_t(channel));

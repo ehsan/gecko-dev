@@ -13,7 +13,7 @@
 #include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 EdgeCaseAnalysis::EdgeCaseAnalysis(MIRGenerator *mir, MIRGraph &graph)
   : mir(mir), graph(graph)

@@ -15,7 +15,7 @@
 #include "jit/RangeAnalysis.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 JSONSpewer::~JSONSpewer()
 {

@@ -10,7 +10,7 @@
 #include "jit/shared/CodeGenerator-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 static inline int32_t
 ToInt32(const LAllocation *a)

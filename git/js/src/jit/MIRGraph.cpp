@@ -16,7 +16,7 @@
 #include "jsinferinlines.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 MIRGenerator::MIRGenerator(JSCompartment *compartment,
                            TempAllocator *temp, MIRGraph *graph, CompileInfo *info)

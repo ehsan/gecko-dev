@@ -20,7 +20,7 @@
 #include "jit/IonMacroAssembler.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class StackValue;
 class ICEntry;
@@ -347,7 +347,7 @@ BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIterato
 void
 MarkActiveBaselineScripts(Zone *zone);
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

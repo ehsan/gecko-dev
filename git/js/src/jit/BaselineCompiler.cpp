@@ -19,7 +19,7 @@
 #include "vm/Interpreter-inl.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 BaselineCompiler::BaselineCompiler(JSContext *cx, HandleScript script)
   : BaselineCompilerSpecific(cx, script),
@@ -334,7 +334,7 @@ BaselineCompiler::emitIC(ICStub *stub, bool isForOp)
 }
 
 typedef bool (*DebugPrologueFn)(JSContext *, BaselineFrame *, bool *);
-static const VMFunction DebugPrologueInfo = FunctionInfo<DebugPrologueFn>(jit::DebugPrologue);
+static const VMFunction DebugPrologueInfo = FunctionInfo<DebugPrologueFn>(ion::DebugPrologue);
 
 bool
 BaselineCompiler::emitDebugPrologue()
@@ -364,11 +364,11 @@ BaselineCompiler::emitDebugPrologue()
 
 typedef bool (*StrictEvalPrologueFn)(JSContext *, BaselineFrame *);
 static const VMFunction StrictEvalPrologueInfo =
-    FunctionInfo<StrictEvalPrologueFn>(jit::StrictEvalPrologue);
+    FunctionInfo<StrictEvalPrologueFn>(ion::StrictEvalPrologue);
 
 typedef bool (*HeavyweightFunPrologueFn)(JSContext *, BaselineFrame *);
 static const VMFunction HeavyweightFunPrologueInfo =
-    FunctionInfo<HeavyweightFunPrologueFn>(jit::HeavyweightFunPrologue);
+    FunctionInfo<HeavyweightFunPrologueFn>(ion::HeavyweightFunPrologue);
 
 bool
 BaselineCompiler::initScopeChain()
@@ -2378,7 +2378,7 @@ BaselineCompiler::emit_JSOP_RETSUB()
 }
 
 typedef bool (*EnterBlockFn)(JSContext *, BaselineFrame *, Handle<StaticBlockObject *>);
-static const VMFunction EnterBlockInfo = FunctionInfo<EnterBlockFn>(jit::EnterBlock);
+static const VMFunction EnterBlockInfo = FunctionInfo<EnterBlockFn>(ion::EnterBlock);
 
 bool
 BaselineCompiler::emitEnterBlock()
@@ -2423,7 +2423,7 @@ BaselineCompiler::emit_JSOP_ENTERLET1()
 }
 
 typedef bool (*LeaveBlockFn)(JSContext *, BaselineFrame *);
-static const VMFunction LeaveBlockInfo = FunctionInfo<LeaveBlockFn>(jit::LeaveBlock);
+static const VMFunction LeaveBlockInfo = FunctionInfo<LeaveBlockFn>(ion::LeaveBlock);
 
 bool
 BaselineCompiler::emitLeaveBlock()
@@ -2490,7 +2490,7 @@ BaselineCompiler::emit_JSOP_EXCEPTION()
 
 typedef bool (*OnDebuggerStatementFn)(JSContext *, BaselineFrame *, jsbytecode *pc, bool *);
 static const VMFunction OnDebuggerStatementInfo =
-    FunctionInfo<OnDebuggerStatementFn>(jit::OnDebuggerStatement);
+    FunctionInfo<OnDebuggerStatementFn>(ion::OnDebuggerStatement);
 
 bool
 BaselineCompiler::emit_JSOP_DEBUGGER()
@@ -2516,7 +2516,7 @@ BaselineCompiler::emit_JSOP_DEBUGGER()
 }
 
 typedef bool (*DebugEpilogueFn)(JSContext *, BaselineFrame *, bool);
-static const VMFunction DebugEpilogueInfo = FunctionInfo<DebugEpilogueFn>(jit::DebugEpilogue);
+static const VMFunction DebugEpilogueInfo = FunctionInfo<DebugEpilogueFn>(ion::DebugEpilogue);
 
 bool
 BaselineCompiler::emitReturn()
@@ -2704,7 +2704,7 @@ BaselineCompiler::emit_JSOP_POPV()
 
 typedef bool (*NewArgumentsObjectFn)(JSContext *, BaselineFrame *, MutableHandleValue);
 static const VMFunction NewArgumentsObjectInfo =
-    FunctionInfo<NewArgumentsObjectFn>(jit::NewArgumentsObject);
+    FunctionInfo<NewArgumentsObjectFn>(ion::NewArgumentsObject);
 
 bool
 BaselineCompiler::emit_JSOP_ARGUMENTS()

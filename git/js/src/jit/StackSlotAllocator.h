@@ -10,7 +10,7 @@
 #include "jit/Registers.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class StackSlotAllocator
 {
@@ -58,7 +58,7 @@ class StackSlotAllocator
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_StackSlotAllocator_h */

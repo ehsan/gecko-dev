@@ -322,9 +322,7 @@ class Parser : private AutoGCRooter, public StrictModeGetter
     /* innermost parse context (stack-allocated) */
     ParseContext<ParseHandler> *pc;
 
-    /* Compression token for aborting. */
-    SourceCompressionTask *sct;
-
+    SourceCompressionToken *sct;        /* compression token for aborting */
     ScriptSource        *ss;
 
     /* Root atoms and objects allocated for the parsed tree. */

@@ -14,7 +14,7 @@
 #include "jit/IonSpewer.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class BaselineCompilerShared
 {
@@ -136,7 +136,7 @@ class BaselineCompilerShared
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_BaselineCompiler_shared_h */

@@ -25,12 +25,12 @@
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 struct Register {
     typedef Registers Codes;
     typedef Codes::Code Code;
-    typedef js::jit::Registers::RegisterID RegisterID;
+    typedef js::ion::Registers::RegisterID RegisterID;
     Code code_;
 
     static Register FromCode(uint32_t i) {
@@ -134,7 +134,7 @@ class MachineState
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_Registers_h */

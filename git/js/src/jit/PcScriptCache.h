@@ -7,13 +7,13 @@
 #ifndef jit_PcScriptCache_h
 #define jit_PcScriptCache_h
 
-// Defines a fixed-size hash table solely for the purpose of caching jit::GetPcScript().
+// Defines a fixed-size hash table solely for the purpose of caching ion::GetPcScript().
 // One cache is attached to each JSRuntime; it functions as if cleared on GC.
 
 struct JSRuntime;
 
 namespace js {
-namespace jit {
+namespace ion {
 
 struct PcScriptCacheEntry
 {
@@ -72,7 +72,7 @@ struct PcScriptCache
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_PcScriptCache_h */

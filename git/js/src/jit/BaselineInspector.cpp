@@ -11,7 +11,7 @@
 #include "jit/BaselineIC.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 using mozilla::DebugOnly;
 

@@ -12,7 +12,7 @@
 #include "jit/shared/Lowering-shared-inl.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 bool
 LIRGeneratorX64::useBox(LInstruction *lir, size_t n, MDefinition *mir,

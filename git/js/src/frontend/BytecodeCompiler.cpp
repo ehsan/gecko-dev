@@ -156,7 +156,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
                         const jschar *chars, size_t length,
                         JSString *source_ /* = NULL */,
                         unsigned staticLevel /* = 0 */,
-                        SourceCompressionTask *extraSct /* = NULL */)
+                        SourceCompressionToken *extraSct /* = NULL */)
 {
     RootedString source(cx, source_);
     SkipRoot skip(cx, &chars);
@@ -192,12 +192,20 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     if (!sourceObject)
         return NULL;
 
-    SourceCompressionTask mysct(cx);
-    SourceCompressionTask *sct = extraSct ? extraSct : &mysct;
+    // Saving source is not yet supported when parsing off thread.
+    JS_ASSERT_IF(!cx->isJSContext(),
+                 !extraSct && options.sourcePolicy != CompileOptions::SAVE_SOURCE);
+
+    SourceCompressionToken *sct = extraSct;
+    Maybe<SourceCompressionToken> mysct;
+    if (cx->isJSContext() && !sct) {
+        mysct.construct(cx->asJSContext());
+        sct = mysct.addr();
+    }
 
     switch (options.sourcePolicy) {
       case CompileOptions::SAVE_SOURCE:
-        if (!ss->setSourceCopy(cx, chars, length, false, sct))
+        if (!ss->setSourceCopy(cx->asJSContext(), chars, length, false, sct))
             return NULL;
         break;
       case CompileOptions::LAZY_SOURCE:
@@ -471,7 +479,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, CompileOptions opt
     JS::RootedScriptSource sourceObject(cx, ScriptSourceObject::create(cx, ss));
     if (!sourceObject)
         return false;
-    SourceCompressionTask sct(cx);
+    SourceCompressionToken sct(cx);
     JS_ASSERT(options.sourcePolicy != CompileOptions::LAZY_SOURCE);
     if (options.sourcePolicy == CompileOptions::SAVE_SOURCE) {
         if (!ss->setSourceCopy(cx, chars, length, true, &sct))

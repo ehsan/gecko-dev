@@ -594,7 +594,7 @@ JavaScriptParent::unwrap(JSContext *cx, ObjectId objId)
 bool
 JavaScriptParent::ipcfail(JSContext *cx)
 {
-    JS_ReportError(cx, "child process crashed or timedout");
+    JS_ReportError(cx, "catastrophic IPC failure");
     return false;
 }
 

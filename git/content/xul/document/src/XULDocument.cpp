@@ -3543,11 +3543,6 @@ XULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
 NS_IMETHODIMP
 XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
 {
-    // When compiling off thread the script will not have been attached to the
-    // script proto yet.
-    if (aScript && !mCurrentScriptProto->GetScriptObject())
-        mCurrentScriptProto->Set(aScript);
-
     // Allow load events to be fired once off thread compilation finishes.
     if (mOffThreadCompiling) {
         mOffThreadCompiling = false;
@@ -3556,6 +3551,11 @@ XULDocument::OnScriptCompileComplete(JSScript* aScript, nsresult aStatus)
 
     // After compilation finishes the script's characters are no longer needed.
     mOffThreadCompileString.Truncate();
+
+    // When compiling off thread the script will not have been attached to the
+    // script proto yet.
+    if (aScript && !mCurrentScriptProto->GetScriptObject())
+        mCurrentScriptProto->Set(aScript);
 
     // Clear mCurrentScriptProto now, but save it first for use below in
     // the execute code, and in the while loop that resumes walks of other
@@ -3664,7 +3664,7 @@ XULDocument::ExecuteScript(nsIScriptContext * aContext,
     nsAutoMicroTask mt;
     JSContext *cx = aContext->GetNativeContext();
     AutoCxPusher pusher(cx);
-    JS::Rooted<JSObject*> global(cx, mScriptGlobalObject->GetGlobalJSObject());
+    JSObject* global = mScriptGlobalObject->GetGlobalJSObject();
     xpc_UnmarkGrayObject(global);
     xpc_UnmarkGrayScript(aScriptObject);
     JSAutoCompartment ac(cx, global);
@@ -4067,8 +4067,7 @@ XULDocument::OverlayForwardReference::Merge(nsIContent* aTargetNode,
         if (attr == nsGkAtoms::removeelement &&
             value.EqualsLiteral("true")) {
 
-            nsCOMPtr<nsINode> parent = aTargetNode->GetParentNode();
-            if (!parent) return NS_ERROR_FAILURE;
+            nsCOMPtr<nsIContent> parent = aTargetNode->GetParent();
             rv = RemoveElement(parent, aTargetNode);
             if (NS_FAILED(rv)) return rv;
 
@@ -4450,7 +4449,7 @@ XULDocument::CheckBroadcasterHookup(Element* aElement,
 }
 
 nsresult
-XULDocument::InsertElement(nsINode* aParent, nsIContent* aChild,
+XULDocument::InsertElement(nsIContent* aParent, nsIContent* aChild,
                            bool aNotify)
 {
     // Insert aChild appropriately into aParent, accounting for a
@@ -4531,7 +4530,7 @@ XULDocument::InsertElement(nsINode* aParent, nsIContent* aChild,
 }
 
 nsresult
-XULDocument::RemoveElement(nsINode* aParent, nsINode* aChild)
+XULDocument::RemoveElement(nsIContent* aParent, nsIContent* aChild)
 {
     int32_t nodeOffset = aParent->IndexOf(aChild);
 

@@ -9,7 +9,7 @@
 #include "gc/Marking.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 ABIArgGenerator::ABIArgGenerator()
   : stackOffset_(0),

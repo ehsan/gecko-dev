@@ -15,7 +15,7 @@
 #include "jsscriptinlines.h"
 
 using namespace js;
-using namespace jit;
+using namespace ion;
 
 using parallel::Spew;
 using parallel::SpewOps;
@@ -24,7 +24,7 @@ using parallel::SpewBailoutIR;
 
 // Load the current thread context.
 ForkJoinSlice *
-jit::ForkJoinSlicePar()
+ion::ForkJoinSlicePar()
 {
     return ForkJoinSlice::Current();
 }
@@ -33,7 +33,7 @@ jit::ForkJoinSlicePar()
 // parallel code.  It uses the ArenaLists for the current thread and
 // allocates from there.
 JSObject *
-jit::NewGCThingPar(gc::AllocKind allocKind)
+ion::NewGCThingPar(gc::AllocKind allocKind)
 {
     ForkJoinSlice *slice = ForkJoinSlice::Current();
     uint32_t thingSize = (uint32_t)gc::Arena::thingSize(allocKind);
@@ -43,7 +43,7 @@ jit::NewGCThingPar(gc::AllocKind allocKind)
 // Check that the object was created by the current thread
 // (and hence is writable).
 bool
-jit::IsThreadLocalObject(ForkJoinSlice *slice, JSObject *object)
+ion::IsThreadLocalObject(ForkJoinSlice *slice, JSObject *object)
 {
     JS_ASSERT(ForkJoinSlice::Current() == slice);
     return !IsInsideNursery(slice->runtime(), object) &&
@@ -63,7 +63,7 @@ struct IonLIRTraceData seqTraceData;
 #endif
 
 void
-jit::TraceLIR(uint32_t bblock, uint32_t lir, uint32_t execModeInt,
+ion::TraceLIR(uint32_t bblock, uint32_t lir, uint32_t execModeInt,
               const char *lirOpName, const char *mirOpName,
               JSScript *script, jsbytecode *pc)
 {
@@ -118,7 +118,7 @@ jit::TraceLIR(uint32_t bblock, uint32_t lir, uint32_t execModeInt,
 }
 
 bool
-jit::CheckOverRecursedPar(ForkJoinSlice *slice)
+ion::CheckOverRecursedPar(ForkJoinSlice *slice)
 {
     JS_ASSERT(ForkJoinSlice::Current() == slice);
     int stackDummy_;
@@ -148,7 +148,7 @@ jit::CheckOverRecursedPar(ForkJoinSlice *slice)
 }
 
 bool
-jit::CheckInterruptPar(ForkJoinSlice *slice)
+ion::CheckInterruptPar(ForkJoinSlice *slice)
 {
     JS_ASSERT(ForkJoinSlice::Current() == slice);
     bool result = slice->check();
@@ -164,7 +164,7 @@ jit::CheckInterruptPar(ForkJoinSlice *slice)
 }
 
 JSObject *
-jit::PushPar(PushParArgs *args)
+ion::PushPar(PushParArgs *args)
 {
     // It is awkward to have the MIR pass the current slice in, so
     // just fetch it from TLS.  Extending the array is kind of the
@@ -178,7 +178,7 @@ jit::PushPar(PushParArgs *args)
 }
 
 JSObject *
-jit::ExtendArrayPar(ForkJoinSlice *slice, JSObject *array, uint32_t length)
+ion::ExtendArrayPar(ForkJoinSlice *slice, JSObject *array, uint32_t length)
 {
     JSObject::EnsureDenseResult res =
         array->parExtendDenseElements(slice, NULL, length);
@@ -188,7 +188,7 @@ jit::ExtendArrayPar(ForkJoinSlice *slice, JSObject *array, uint32_t length)
 }
 
 ParallelResult
-jit::ConcatStringsPar(ForkJoinSlice *slice, HandleString left, HandleString right,
+ion::ConcatStringsPar(ForkJoinSlice *slice, HandleString left, HandleString right,
                       MutableHandleString out)
 {
     JSString *str = ConcatStrings<NoGC>(slice, left, right);
@@ -199,7 +199,7 @@ jit::ConcatStringsPar(ForkJoinSlice *slice, HandleString left, HandleString righ
 }
 
 ParallelResult
-jit::IntToStringPar(ForkJoinSlice *slice, int i, MutableHandleString out)
+ion::IntToStringPar(ForkJoinSlice *slice, int i, MutableHandleString out)
 {
     JSFlatString *str = Int32ToString<NoGC>(slice, i);
     if (!str)
@@ -209,7 +209,7 @@ jit::IntToStringPar(ForkJoinSlice *slice, int i, MutableHandleString out)
 }
 
 ParallelResult
-jit::DoubleToStringPar(ForkJoinSlice *slice, double d, MutableHandleString out)
+ion::DoubleToStringPar(ForkJoinSlice *slice, double d, MutableHandleString out)
 {
     JSString *str = js_NumberToString<NoGC>(slice, d);
     if (!str)
@@ -219,7 +219,7 @@ jit::DoubleToStringPar(ForkJoinSlice *slice, double d, MutableHandleString out)
 }
 
 ParallelResult
-jit::StringToNumberPar(ForkJoinSlice *slice, JSString *str, double *out)
+ion::StringToNumberPar(ForkJoinSlice *slice, JSString *str, double *out)
 {
     return StringToNumber(slice, str, out) ? TP_SUCCESS : TP_FATAL;
 }
@@ -288,13 +288,13 @@ LooselyEqualImplPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleV
 }
 
 ParallelResult
-js::jit::LooselyEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::LooselyEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
 {
     return LooselyEqualImplPar<true>(slice, lhs, rhs, res);
 }
 
 ParallelResult
-js::jit::LooselyUnequalPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::LooselyUnequalPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
 {
     return LooselyEqualImplPar<false>(slice, lhs, rhs, res);
 }
@@ -338,37 +338,37 @@ StrictlyEqualImplPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandle
 }
 
 ParallelResult
-js::jit::StrictlyEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::StrictlyEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
 {
     return StrictlyEqualImplPar<true>(slice, lhs, rhs, res);
 }
 
 ParallelResult
-js::jit::StrictlyUnequalPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::StrictlyUnequalPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
 {
     return StrictlyEqualImplPar<false>(slice, lhs, rhs, res);
 }
 
 ParallelResult
-js::jit::LessThanPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::LessThanPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
 {
     PAR_RELATIONAL_OP(<, true);
 }
 
 ParallelResult
-js::jit::LessThanOrEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::LessThanOrEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
 {
     PAR_RELATIONAL_OP(<=, true);
 }
 
 ParallelResult
-js::jit::GreaterThanPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::GreaterThanPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
 {
     PAR_RELATIONAL_OP(>, true);
 }
 
 ParallelResult
-js::jit::GreaterThanOrEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
+js::ion::GreaterThanOrEqualPar(ForkJoinSlice *slice, MutableHandleValue lhs, MutableHandleValue rhs, bool *res)
 {
     PAR_RELATIONAL_OP(>=, true);
 }
@@ -386,19 +386,19 @@ StringsEqualImplPar(ForkJoinSlice *slice, HandleString lhs, HandleString rhs, bo
 }
 
 ParallelResult
-js::jit::StringsEqualPar(ForkJoinSlice *slice, HandleString v1, HandleString v2, bool *res)
+js::ion::StringsEqualPar(ForkJoinSlice *slice, HandleString v1, HandleString v2, bool *res)
 {
     return StringsEqualImplPar<true>(slice, v1, v2, res);
 }
 
 ParallelResult
-js::jit::StringsUnequalPar(ForkJoinSlice *slice, HandleString v1, HandleString v2, bool *res)
+js::ion::StringsUnequalPar(ForkJoinSlice *slice, HandleString v1, HandleString v2, bool *res)
 {
     return StringsEqualImplPar<false>(slice, v1, v2, res);
 }
 
 ParallelResult
-jit::BitNotPar(ForkJoinSlice *slice, HandleValue in, int32_t *out)
+ion::BitNotPar(ForkJoinSlice *slice, HandleValue in, int32_t *out)
 {
     if (in.isObject())
         return TP_RETRY_SEQUENTIALLY;
@@ -424,31 +424,31 @@ jit::BitNotPar(ForkJoinSlice *slice, HandleValue in, int32_t *out)
     JS_END_MACRO
 
 ParallelResult
-jit::BitXorPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
+ion::BitXorPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
 {
     BIT_OP(left ^ right);
 }
 
 ParallelResult
-jit::BitOrPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
+ion::BitOrPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
 {
     BIT_OP(left | right);
 }
 
 ParallelResult
-jit::BitAndPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
+ion::BitAndPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
 {
     BIT_OP(left & right);
 }
 
 ParallelResult
-jit::BitLshPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
+ion::BitLshPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
 {
     BIT_OP(left << (right & 31));
 }
 
 ParallelResult
-jit::BitRshPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
+ion::BitRshPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *out)
 {
     BIT_OP(left >> (right & 31));
 }
@@ -456,7 +456,7 @@ jit::BitRshPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs, int32_t *
 #undef BIT_OP
 
 ParallelResult
-jit::UrshValuesPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs,
+ion::UrshValuesPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs,
                    Value *out)
 {
     uint32_t left;
@@ -471,7 +471,7 @@ jit::UrshValuesPar(ForkJoinSlice *slice, HandleValue lhs, HandleValue rhs,
 }
 
 void
-jit::AbortPar(ParallelBailoutCause cause, JSScript *outermostScript, JSScript *currentScript,
+ion::AbortPar(ParallelBailoutCause cause, JSScript *outermostScript, JSScript *currentScript,
               jsbytecode *bytecode)
 {
     // Spew before asserts to help with diagnosing failures.
@@ -496,7 +496,7 @@ jit::AbortPar(ParallelBailoutCause cause, JSScript *outermostScript, JSScript *c
 }
 
 void
-jit::PropagateAbortPar(JSScript *outermostScript, JSScript *currentScript)
+ion::PropagateAbortPar(JSScript *outermostScript, JSScript *currentScript)
 {
     Spew(SpewBailouts,
          "Propagate parallel abort via %p:%s:%d (%p:%s:%d)",
@@ -514,7 +514,7 @@ jit::PropagateAbortPar(JSScript *outermostScript, JSScript *currentScript)
 }
 
 void
-jit::CallToUncompiledScriptPar(JSObject *obj)
+ion::CallToUncompiledScriptPar(JSObject *obj)
 {
     JS_ASSERT(InParallelSection());
 
@@ -558,7 +558,7 @@ jit::CallToUncompiledScriptPar(JSObject *obj)
 }
 
 ParallelResult
-jit::InitRestParameterPar(ForkJoinSlice *slice, uint32_t length, Value *rest,
+ion::InitRestParameterPar(ForkJoinSlice *slice, uint32_t length, Value *rest,
                           HandleObject templateObj, HandleObject res,
                           MutableHandleObject out)
 {

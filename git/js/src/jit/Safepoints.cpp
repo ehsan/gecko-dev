@@ -12,7 +12,7 @@
 #include "jit/LIR.h"
 
 using namespace js;
-using namespace jit;
+using namespace ion;
 
 using mozilla::FloorLog2;
 

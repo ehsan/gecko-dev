@@ -12,7 +12,7 @@
 #include "js/Vector.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class LinearScanVirtualRegister : public VirtualRegister
 {
@@ -129,7 +129,7 @@ class LinearScanAllocator : public LiveRangeAllocator<LinearScanVirtualRegister>
     bool go();
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_LinearScan_h */

@@ -8,7 +8,7 @@
 #define jit_arm_LIR_arm_h
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class LBox : public LInstructionHelper<2, 1, 0>
 {
@@ -409,7 +409,7 @@ class LAsmJSLoadFuncPtr : public LInstructionHelper<1, 1, 1>
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_arm_LIR_arm_h */

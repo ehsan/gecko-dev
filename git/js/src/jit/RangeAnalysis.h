@@ -15,7 +15,7 @@
 #include "jit/MIR.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MBasicBlock;
 class MIRGraph;
@@ -81,7 +81,6 @@ class RangeAnalysis
         graph_(graph) {}
     bool addBetaNobes();
     bool analyze();
-    bool addRangeAssertions();
     bool removeBetaNobes();
     bool truncate();
 
@@ -401,7 +400,7 @@ class Range : public TempObject {
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_RangeAnalysis_h */

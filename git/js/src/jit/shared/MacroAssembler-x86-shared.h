@@ -17,7 +17,7 @@
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MacroAssemblerX86Shared : public Assembler
 {
@@ -506,7 +506,7 @@ class MacroAssemblerX86Shared : public Assembler
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_MacroAssembler_x86_shared_h */

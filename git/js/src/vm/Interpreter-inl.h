@@ -671,7 +671,7 @@ class FastInvokeGuard
 #ifdef JS_ION
     // Constructing an IonContext is pretty expensive due to the TLS access,
     // so only do this if we have to.
-    mozilla::Maybe<jit::IonContext> ictx_;
+    mozilla::Maybe<ion::IonContext> ictx_;
     bool useIon_;
 #endif
 
@@ -681,7 +681,7 @@ class FastInvokeGuard
       , fun_(cx)
       , script_(cx)
 #ifdef JS_ION
-      , useIon_(jit::IsIonEnabled(cx))
+      , useIon_(ion::IsEnabled(cx))
 #endif
     {
         JS_ASSERT(!InParallelSection());
@@ -709,22 +709,22 @@ class FastInvokeGuard
                     return false;
             }
             if (ictx_.empty())
-                ictx_.construct(cx, (js::jit::TempAllocator *)NULL);
+                ictx_.construct(cx, (js::ion::TempAllocator *)NULL);
             JS_ASSERT(fun_->nonLazyScript() == script_);
 
-            jit::MethodStatus status = jit::CanEnterUsingFastInvoke(cx, script_, args_.length());
-            if (status == jit::Method_Error)
+            ion::MethodStatus status = ion::CanEnterUsingFastInvoke(cx, script_, args_.length());
+            if (status == ion::Method_Error)
                 return false;
-            if (status == jit::Method_Compiled) {
-                jit::IonExecStatus result = jit::FastInvoke(cx, fun_, args_);
+            if (status == ion::Method_Compiled) {
+                ion::IonExecStatus result = ion::FastInvoke(cx, fun_, args_);
                 if (IsErrorStatus(result))
                     return false;
 
-                JS_ASSERT(result == jit::IonExec_Ok);
+                JS_ASSERT(result == ion::IonExec_Ok);
                 return true;
             }
 
-            JS_ASSERT(status == jit::Method_Skipped);
+            JS_ASSERT(status == ion::Method_Skipped);
 
             if (script_->canIonCompile()) {
                 // This script is not yet hot. Since calling into Ion is much

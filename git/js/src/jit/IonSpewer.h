@@ -15,7 +15,7 @@
 #include "jit/JSONSpewer.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // New channels may be added below.
 #define IONSPEW_CHANNEL_LIST(_)             \
@@ -53,7 +53,7 @@ namespace jit {
     _(Safepoints)                           \
     /* Debug info about Pools*/             \
     _(Pools)                                \
-    /* Calls to js::jit::Trace() */         \
+    /* Calls to js::ion::Trace() */         \
     _(Trace)                                \
     /* Debug info about the I$ */           \
     _(CacheFlush)                           \

@@ -14,7 +14,7 @@
 class JSScript;
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MBasicBlock;
 class MacroAssembler;
@@ -88,7 +88,7 @@ class AsmJSPerfSpewer : public PerfSpewer
                           unsigned lineno, unsigned colIndex, const char *funcName);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_PerfSpewer_h */

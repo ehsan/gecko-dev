@@ -13,7 +13,7 @@
 #include "jit/Registers.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 #ifdef TRACK_SNAPSHOTS
 class LInstruction;

@@ -8,7 +8,7 @@
 #define jit_shared_LIR_x86_shared_h
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class LDivI : public LBinaryMath<1>
 {
@@ -296,7 +296,7 @@ class LMulI : public LBinaryMath<0, 1>
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_LIR_x86_shared_h */

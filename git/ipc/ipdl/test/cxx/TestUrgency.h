@@ -27,20 +27,14 @@ public:
     bool RecvTest3(uint32_t *value);
     bool RecvTest4_Begin();
     bool RecvTest4_NestedSync();
-    bool RecvFinalTest_Begin();
 
-    bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE
-    {
-      return false;
-    }
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
     {
-        if (AbnormalShutdown != why)
+        if (NormalShutdown != why)
             fail("unexpected destruction!");  
         passed("ok");
         QuitParent();
     }
-
 private:
     bool inreply_;
 };
@@ -57,11 +51,10 @@ public:
     bool AnswerReply1(uint32_t *reply);
     bool AnswerReply2(uint32_t *reply);
     bool AnswerTest4_Reenter();
-    bool AnswerFinalTest_Hang();
 
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
     {
-        if (AbnormalShutdown != why)
+        if (NormalShutdown != why)
             fail("unexpected destruction!");
         QuitChild();
     }

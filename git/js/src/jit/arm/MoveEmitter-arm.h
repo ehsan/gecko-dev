@@ -11,7 +11,7 @@
 #include "jit/MoveResolver.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class CodeGenerator;
 
@@ -62,7 +62,7 @@ class MoveEmitterARM
 
 typedef MoveEmitterARM MoveEmitter;
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_arm_MoveEmitter_arm_h */

@@ -12,7 +12,7 @@
 #include "jit/IonSpewer.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 ValueNumberer::ValueNumberer(MIRGenerator *mir, MIRGraph &graph, bool optimistic)
   : mir(mir),

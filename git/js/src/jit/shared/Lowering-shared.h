@@ -14,7 +14,7 @@
 #include "jit/LIR.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MBasicBlock;
 class MTableSwitch;
@@ -182,7 +182,7 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_Lowering_shared_h */

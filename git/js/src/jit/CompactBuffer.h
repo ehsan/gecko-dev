@@ -13,7 +13,7 @@
 #include "js/Vector.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class CompactBufferWriter;
 
@@ -154,7 +154,7 @@ CompactBufferReader::CompactBufferReader(const CompactBufferWriter &writer)
 {
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_Compactbuffer_h */

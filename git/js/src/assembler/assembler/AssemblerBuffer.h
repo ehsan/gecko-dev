@@ -273,7 +273,7 @@ namespace JSC {
         {
             if (printer
 #ifdef JS_ION
-                || js::jit::IonSpewEnabled(js::jit::IonSpew_Codegen)
+                || js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)
 #endif
                 )
             {
@@ -291,7 +291,7 @@ namespace JSC {
                         printer->printf("%s\n", buf);
 
 #ifdef JS_ION
-                    js::jit::IonSpew(js::jit::IonSpew_Codegen, "%s", buf);
+                    js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
 #endif
                 }
             }
@@ -303,7 +303,7 @@ namespace JSC {
 #endif
         {
 #ifdef JS_ION
-            if (js::jit::IonSpewEnabled(js::jit::IonSpew_Codegen)) {
+            if (js::ion::IonSpewEnabled(js::ion::IonSpew_Codegen)) {
                 char buf[200];
 
                 va_list va;
@@ -312,7 +312,7 @@ namespace JSC {
                 va_end(va);
 
                 if (i > -1)
-                    js::jit::IonSpew(js::jit::IonSpew_Codegen, "%s", buf);
+                    js::ion::IonSpew(js::ion::IonSpew_Codegen, "%s", buf);
             }
 #endif
         }

@@ -24,7 +24,7 @@
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 #define OPCODE_LIST(_)         \
     _(JSOP_NOP)                \
@@ -263,7 +263,7 @@ class BaselineCompiler : public BaselineCompilerSpecific
     Address getScopeCoordinateAddress(Register reg);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

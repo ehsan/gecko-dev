@@ -12,7 +12,7 @@
 #include "vm/ObjectImpl-inl.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 using namespace mozilla;
 
 #if defined(XP_WIN)

@@ -14,7 +14,7 @@
 #include "jit/shared/IonAssemblerBuffer.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 typedef Vector<BufferOffset, 512, IonAllocPolicy> LoadOffsets;
 
 struct Pool

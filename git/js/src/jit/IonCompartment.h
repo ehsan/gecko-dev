@@ -21,7 +21,7 @@
 #include "vm/Stack.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class FrameSizeClass;
 
@@ -447,7 +447,7 @@ class IonCompartment
 void InvalidateAll(FreeOp *fop, JS::Zone *zone);
 void FinishInvalidation(FreeOp *fop, JSScript *script);
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

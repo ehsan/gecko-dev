@@ -82,7 +82,7 @@ CheckLocalUnaliased(MaybeCheckAliasing checkAliasing, JSScript *script,
                     StaticBlockObject *maybeBlock, unsigned i);
 #endif
 
-namespace jit {
+namespace ion {
     class BaselineFrame;
 }
 
@@ -102,7 +102,7 @@ class AbstractFramePtr
         JS_ASSERT((uintptr_t(fp) & 1) == 0);
     }
 
-    AbstractFramePtr(jit::BaselineFrame *fp)
+    AbstractFramePtr(ion::BaselineFrame *fp)
       : ptr_(uintptr_t(fp))
     {
         JS_ASSERT((uintptr_t(fp) & 1) == 0);
@@ -125,9 +125,9 @@ class AbstractFramePtr
     bool isBaselineFrame() const {
         return ptr_ && !isStackFrame();
     }
-    jit::BaselineFrame *asBaselineFrame() const {
+    ion::BaselineFrame *asBaselineFrame() const {
         JS_ASSERT(isBaselineFrame());
-        jit::BaselineFrame *res = (jit::BaselineFrame *)ptr_;
+        ion::BaselineFrame *res = (ion::BaselineFrame *)ptr_;
         JS_ASSERT(res);
         return res;
     }
@@ -1152,7 +1152,7 @@ struct DefaultHasher<AbstractFramePtr> {
 
 class InterpreterActivation;
 
-namespace jit {
+namespace ion {
     class JitActivation;
 };
 
@@ -1197,9 +1197,9 @@ class Activation
         JS_ASSERT(isInterpreter());
         return (InterpreterActivation *)this;
     }
-    jit::JitActivation *asJit() const {
+    ion::JitActivation *asJit() const {
         JS_ASSERT(isJit());
-        return (jit::JitActivation *)this;
+        return (ion::JitActivation *)this;
     }
 
     void saveFrameChain() {
@@ -1286,7 +1286,7 @@ class ActivationIterator
     }
 };
 
-namespace jit {
+namespace ion {
 
 // A JitActivation is used for frames running in Baseline or Ion.
 class JitActivation : public Activation
@@ -1361,7 +1361,7 @@ class JitActivationIterator : public ActivationIterator
     void jitStackRange(uintptr_t *&min, uintptr_t *&end);
 };
 
-} // namespace jit
+} // namespace ion
 
 // Iterates over the frames of a single InterpreterActivation.
 class InterpreterFrameIterator
@@ -1449,7 +1449,7 @@ class ScriptFrameIter
         ActivationIterator activations_;
 
 #ifdef JS_ION
-        jit::IonFrameIterator ionFrames_;
+        ion::IonFrameIterator ionFrames_;
 #endif
 
         Data(JSContext *cx, PerThreadData *perThread, SavedOption savedOption,
@@ -1461,7 +1461,7 @@ class ScriptFrameIter
   private:
     Data data_;
 #ifdef JS_ION
-    jit::InlineFrameIterator ionInlineFrames_;
+    ion::InlineFrameIterator ionInlineFrames_;
 #endif
 
     void popActivation();

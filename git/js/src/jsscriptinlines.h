@@ -156,25 +156,25 @@ JSScript::setOriginalFunctionObject(JSObject *fun) {
 }
 
 inline void
-JSScript::setIonScript(js::jit::IonScript *ionScript) {
+JSScript::setIonScript(js::ion::IonScript *ionScript) {
     if (hasIonScript())
-        js::jit::IonScript::writeBarrierPre(tenuredZone(), ion);
+        js::ion::IonScript::writeBarrierPre(tenuredZone(), ion);
     ion = ionScript;
     updateBaselineOrIonRaw();
 }
 
 inline void
-JSScript::setParallelIonScript(js::jit::IonScript *ionScript) {
+JSScript::setParallelIonScript(js::ion::IonScript *ionScript) {
     if (hasParallelIonScript())
-        js::jit::IonScript::writeBarrierPre(tenuredZone(), parallelIon);
+        js::ion::IonScript::writeBarrierPre(tenuredZone(), parallelIon);
     parallelIon = ionScript;
 }
 
 inline void
-JSScript::setBaselineScript(js::jit::BaselineScript *baselineScript) {
+JSScript::setBaselineScript(js::ion::BaselineScript *baselineScript) {
 #ifdef JS_ION
     if (hasBaselineScript())
-        js::jit::BaselineScript::writeBarrierPre(tenuredZone(), baseline);
+        js::ion::BaselineScript::writeBarrierPre(tenuredZone(), baseline);
 #endif
     baseline = baselineScript;
     updateBaselineOrIonRaw();

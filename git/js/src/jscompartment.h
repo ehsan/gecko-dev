@@ -14,7 +14,7 @@
 
 namespace js {
 
-namespace jit {
+namespace ion {
 class IonCompartment;
 }
 
@@ -83,8 +83,10 @@ struct CrossCompartmentKey
       : kind(kind), debugger(dbg), wrapped(wrapped) {}
 };
 
-struct WrapperHasher : public DefaultHasher<CrossCompartmentKey>
+struct WrapperHasher
 {
+    typedef CrossCompartmentKey Lookup;
+
     static HashNumber hash(const CrossCompartmentKey &key) {
         JS_ASSERT(!IsPoisonedPtr(key.wrapped));
         return uint32_t(uintptr_t(key.wrapped)) | uint32_t(key.kind);
@@ -384,11 +386,11 @@ struct JSCompartment
 
 #ifdef JS_ION
   private:
-    js::jit::IonCompartment *ionCompartment_;
+    js::ion::IonCompartment *ionCompartment_;
 
   public:
     bool ensureIonCompartmentExists(JSContext *cx);
-    js::jit::IonCompartment *ionCompartment() {
+    js::ion::IonCompartment *ionCompartment() {
         return ionCompartment_;
     }
 #endif

@@ -24,7 +24,7 @@ namespace gc {
 class MinorCollectionTracer;
 } /* namespace gc */
 
-namespace jit {
+namespace ion {
 class CodeGenerator;
 class MacroAssembler;
 class ICStubCompiler;
@@ -235,10 +235,10 @@ class Nursery
     static void MinorGCCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind);
 
     friend class gc::MinorCollectionTracer;
-    friend class jit::CodeGenerator;
-    friend class jit::MacroAssembler;
-    friend class jit::ICStubCompiler;
-    friend class jit::BaselineCompiler;
+    friend class ion::CodeGenerator;
+    friend class ion::MacroAssembler;
+    friend class ion::ICStubCompiler;
+    friend class ion::BaselineCompiler;
 };
 
 } /* namespace js */

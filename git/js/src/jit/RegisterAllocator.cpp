@@ -7,7 +7,7 @@
 #include "jit/RegisterAllocator.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 bool
 AllocationIntegrityState::record()

@@ -7,7 +7,7 @@
 #include "jit/MoveResolver.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 MoveResolver::MoveResolver()
   : hasCycles_(false)

@@ -17,12 +17,12 @@
 #include "jit/shared/CodeGenerator-shared-inl.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 using mozilla::FloorLog2;
 
 namespace js {
-namespace jit {
+namespace ion {
 
 CodeGeneratorX86Shared::CodeGeneratorX86Shared(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm)
   : CodeGeneratorShared(gen, graph, masm)
@@ -1528,5 +1528,5 @@ CodeGeneratorX86Shared::visitNegD(LNegD *ins)
 }
 
 
-} // namespace jit
+} // namespace ion
 } // namespace js

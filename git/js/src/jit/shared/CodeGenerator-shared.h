@@ -21,7 +21,7 @@
 #include "jit/VMFunctions.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class OutOfLineCode;
 class CodeGenerator;
@@ -719,7 +719,7 @@ class OutOfLinePropagateAbortPar : public OutOfLineCode
 
 extern const VMFunction InterruptCheckInfo;
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_shared_CodeGenerator_shared_h */

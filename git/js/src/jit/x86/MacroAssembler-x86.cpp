@@ -16,7 +16,7 @@
 #include "jsscriptinlines.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 void
 MacroAssemblerX86::loadConstantDouble(double d, const FloatRegister &dest)

@@ -235,8 +235,11 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcLock(NULL),
     gcHelperThread(thisFromCtor()),
     signalHandlersInstalled_(false),
-#ifdef JS_WORKER_THREADS
+#ifdef JS_THREADSAFE
+#ifdef JS_ION
     workerThreadState(NULL),
+#endif
+    sourceCompressorThread(),
 #endif
     defaultFreeOp_(thisFromCtor(), false),
     debuggerMutations(0),
@@ -297,7 +300,7 @@ JitSupportsFloatingPoint()
         return false;
 
 #if defined(JS_ION) && WTF_ARM_ARCH_VERSION == 6
-    if (!js::jit::hasVFP())
+    if (!js::ion::hasVFP())
         return false;
 #endif
 
@@ -373,6 +376,11 @@ JSRuntime::init(uint32_t maxbytes)
     if (!threadPool.init())
         return false;
 
+#ifdef JS_THREADSAFE
+    if (useHelperThreads() && !sourceCompressorThread.init())
+        return false;
+#endif
+
     if (!evalCache.init())
         return false;
 
@@ -405,6 +413,8 @@ JSRuntime::~JSRuntime()
 #endif
 
 #ifdef JS_THREADSAFE
+    sourceCompressorThread.finish();
+
     JS_ASSERT(!operationCallbackOwner);
     if (operationCallbackLock)
         PR_DestroyLock(operationCallbackLock);
@@ -549,7 +559,7 @@ JSRuntime::triggerOperationCallback(OperationCallbackTrigger trigger)
      * handlers to halt running code.
      */
     TriggerOperationCallbackForAsmJSCode(this);
-    jit::TriggerOperationCallbackForIonCode(this, trigger);
+    ion::TriggerOperationCallbackForIonCode(this, trigger);
 #endif
 }
 

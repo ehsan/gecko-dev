@@ -7,7 +7,7 @@
 #include "jit/shared/MoveEmitter-x86-shared.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 MoveEmitterX86::MoveEmitterX86(MacroAssemblerSpecific &masm)
   : inCycle_(false),

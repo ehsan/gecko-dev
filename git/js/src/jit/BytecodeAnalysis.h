@@ -11,7 +11,7 @@
 #include "js/Vector.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // Basic information about bytecodes in the script.  Used to help baseline compilation.
 struct BytecodeInfo
@@ -57,7 +57,7 @@ class BytecodeAnalysis
 };
 
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_BytecodeAnalysis_h */

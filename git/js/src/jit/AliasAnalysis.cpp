@@ -15,7 +15,7 @@
 #include "jit/MIRGraph.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 using mozilla::Array;
 

@@ -17,12 +17,12 @@
 #include "jit/IonFrames-inl.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 using mozilla::DebugOnly;
 
 namespace js {
-namespace jit {
+namespace ion {
 
 MacroAssembler &
 CodeGeneratorShared::ensureMasm(MacroAssembler *masmArg)
@@ -903,5 +903,5 @@ CodeGeneratorShared::jumpToBlock(MBasicBlock *mir, Assembler::Condition cond)
     }
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js

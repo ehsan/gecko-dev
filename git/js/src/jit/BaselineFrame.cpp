@@ -18,7 +18,7 @@
 #include "vm/Stack-inl.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 void
 BaselineFrame::trace(JSTracer *trc)

@@ -12,7 +12,7 @@
 #include "jit/Registers.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MoveResolver
 {
@@ -213,7 +213,7 @@ class MoveResolver
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_MoveResolver_h */

@@ -10,6 +10,7 @@
  */
 
 #include "jsapi.h"
+#include "jsclass.h"
 #include "jscpucfg.h"
 #include "jspubtd.h"
 #include "jstypes.h"
@@ -17,7 +18,6 @@
 #include "js/Anchor.h"
 #include "js/CallArgs.h"
 #include "js/CharacterEncoding.h"
-#include "js/Class.h"
 #include "js/Date.h"
 #include "js/GCAPI.h"
 #include "js/HashTable.h"

@@ -15,7 +15,7 @@
 #include "jit/shared/Assembler-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 static MOZ_CONSTEXPR_VAR Register eax = { JSC::X86Registers::eax };
 static MOZ_CONSTEXPR_VAR Register ecx = { JSC::X86Registers::ecx };
@@ -210,13 +210,13 @@ class Operand
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #include "jit/shared/Assembler-x86-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 static inline void
 PatchJump(CodeLocationJump jump, CodeLocationLabel label)
@@ -550,7 +550,7 @@ GetTempRegForIntArg(uint32_t usedIntArgs, uint32_t usedFloatArgs, Register *out)
     return true;
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_x86_Assembler_x86_h */

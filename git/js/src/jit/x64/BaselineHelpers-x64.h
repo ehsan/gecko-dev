@@ -14,7 +14,7 @@
 #include "jit/IonMacroAssembler.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // Distance from Stack top to the top Value inside an IC stub (this is the return address).
 static const size_t ICStackValueOffset = sizeof(void *);
@@ -272,7 +272,7 @@ EmitStubGuardFailure(MacroAssembler &masm)
 }
 
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

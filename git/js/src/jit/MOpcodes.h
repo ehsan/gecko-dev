@@ -8,7 +8,7 @@
 #define jit_MOpcodes_h
 
 namespace js {
-namespace jit {
+namespace ion {
 
 #define MIR_OPCODE_LIST(_)                                                  \
     _(Constant)                                                             \
@@ -74,7 +74,6 @@ namespace jit {
     _(Unbox)                                                                \
     _(GuardObject)                                                          \
     _(GuardString)                                                          \
-    _(AssertRange)                                                          \
     _(ToDouble)                                                             \
     _(ToInt32)                                                              \
     _(TruncateToInt32)                                                      \
@@ -221,7 +220,7 @@ class MInstructionVisitorWithDefaults : public MInstructionVisitor
 #undef VISIT_INS
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_MOpcodes_h */

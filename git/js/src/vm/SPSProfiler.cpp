@@ -65,7 +65,7 @@ SPSProfiler::enable(bool enabled)
      * jitcode for scripts with active frames on the stack.  These scripts need to have
      * their profiler state toggled so they behave properly.
      */
-    jit::ToggleBaselineSPS(rt, enabled);
+    ion::ToggleBaselineSPS(rt, enabled);
 #endif
 }
 

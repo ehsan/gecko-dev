@@ -14,7 +14,7 @@
 #include "jit/MIR.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class BaselineInspector;
 
@@ -109,7 +109,7 @@ class BaselineInspector
     bool hasSeenDoubleResult(jsbytecode *pc);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

@@ -12,7 +12,7 @@
 class JSScript;
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class MDefinition;
 class MInstruction;
@@ -69,7 +69,7 @@ class JSONSpewer
     void finish();
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_JSONSpewer_h */

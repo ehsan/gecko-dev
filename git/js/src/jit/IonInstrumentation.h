@@ -11,7 +11,7 @@ namespace js {
 
 class SPSProfiler;
 
-namespace jit {
+namespace ion {
 
 class MacroAssembler;
 
@@ -34,7 +34,7 @@ class IonInstrumentation : public BaseInstrumentation
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_IonInstrumentatjit_h */

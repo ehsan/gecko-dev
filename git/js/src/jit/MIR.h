@@ -30,7 +30,7 @@ namespace js {
 
 class StringObject;
 
-namespace jit {
+namespace ion {
 
 class BaselineInspector;
 class ValueNumberData;
@@ -2227,29 +2227,6 @@ class MGuardString
     }
 };
 
-class MAssertRange
-  : public MUnaryInstruction
-{
-    MAssertRange(MDefinition *ins)
-      : MUnaryInstruction(ins)
-    {
-        setGuard();
-        setMovable();
-        setResultType(MIRType_None);
-    }
-
-  public:
-    INSTRUCTION_HEADER(AssertRange)
-
-    static MAssertRange *New(MDefinition *ins) {
-        return new MAssertRange(ins);
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-};
-
 // Caller-side allocation of |this| for |new|:
 // Given a templateobject, construct |this| for JSOP_NEW
 class MCreateThisWithTemplate
@@ -3402,8 +3379,6 @@ class MMathFunction
 
   public:
     INSTRUCTION_HEADER(MathFunction)
-
-    // A NULL cache means this function will neither access nor update the cache.
     static MMathFunction *New(MDefinition *input, Function function, MathCache *cache) {
         return new MMathFunction(input, function, cache);
     }
@@ -8435,7 +8410,7 @@ bool PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
                                    PropertyName *name, MDefinition **pvalue,
                                    bool canModify = true);
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_MIR_h */

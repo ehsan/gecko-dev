@@ -12,7 +12,7 @@
 #include "jit/MoveEmitter.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 void
 MacroAssemblerX64::loadConstantDouble(double d, const FloatRegister &dest)

@@ -15,7 +15,7 @@
 // This file represents the Loop Invariant Code Motion optimization pass
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class LICM
 {
@@ -27,7 +27,7 @@ class LICM
     bool analyze();
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_LICM_h */

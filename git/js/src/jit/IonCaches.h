@@ -22,7 +22,7 @@ namespace js {
 class LockedJSContext;
 class TypedArrayObject;
 
-namespace jit {
+namespace ion {
 
 #define IONCACHE_KIND_LIST(_)                                   \
     _(GetProperty)                                              \
@@ -1085,7 +1085,7 @@ class GetElementParIC : public ParallelIonCache
 IONCACHE_KIND_LIST(CACHE_CASTS)
 #undef OPCODE_CASTS
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_IonCaches_h */

@@ -20,7 +20,7 @@
 #endif
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class OutOfLineNewParallelArray;
 class OutOfLineTestObject;
@@ -301,9 +301,8 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitNameIC(OutOfLineUpdateCache *ool, NameIC *ic);
     bool visitCallsiteCloneIC(OutOfLineUpdateCache *ool, CallsiteCloneIC *ic);
 
-    bool visitAssertRangeI(LAssertRangeI *ins);
-    bool visitAssertRangeD(LAssertRangeD *ins);
-    bool visitAssertRangeV(LAssertRangeV *ins);
+    bool visitRangeAssert(LRangeAssert *ins);
+    bool visitDoubleRangeAssert(LDoubleRangeAssert *ins);
 
     IonScriptCounts *extractUnassociatedScriptCounts() {
         IonScriptCounts *counts = unassociatedScriptCounts_;
@@ -355,16 +354,13 @@ class CodeGenerator : public CodeGeneratorSpecific
     // Bailout if an element about to be written to is a hole.
     bool emitStoreHoleCheck(Register elements, const LAllocation *index, LSnapshot *snapshot);
 
-    bool emitAssertRangeI(Range *r, Register input);
-    bool emitAssertRangeD(Range *r, FloatRegister input, FloatRegister temp);
-
     // Script counts created when compiling code with no associated JSScript.
     IonScriptCounts *unassociatedScriptCounts_;
 
     PerfSpewer perfSpewer_;
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_CodeGenerator_h */

@@ -10,7 +10,7 @@
 #include "jit/shared/Lowering-x86-shared.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class LIRGeneratorX86 : public LIRGeneratorX86Shared
 {
@@ -60,6 +60,6 @@ class LIRGeneratorX86 : public LIRGeneratorX86Shared
 typedef LIRGeneratorX86 LIRGeneratorSpecific;
 
 } // namespace js
-} // namespace jit
+} // namespace ion
 
 #endif /* jit_x86_Lowering_x86_h */

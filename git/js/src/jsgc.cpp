@@ -137,7 +137,7 @@ const uint32_t Arena::ThingSizes[] = {
     sizeof(JSShortString),      /* FINALIZE_SHORT_STRING        */
     sizeof(JSString),           /* FINALIZE_STRING              */
     sizeof(JSExternalString),   /* FINALIZE_EXTERNAL_STRING     */
-    sizeof(jit::IonCode),       /* FINALIZE_IONCODE             */
+    sizeof(ion::IonCode),       /* FINALIZE_IONCODE             */
 };
 
 #define OFFSET(type) uint32_t(sizeof(ArenaHeader) + (ArenaSize - sizeof(ArenaHeader)) % sizeof(type))
@@ -163,7 +163,7 @@ const uint32_t Arena::FirstThingOffsets[] = {
     OFFSET(JSShortString),      /* FINALIZE_SHORT_STRING        */
     OFFSET(JSString),           /* FINALIZE_STRING              */
     OFFSET(JSExternalString),   /* FINALIZE_EXTERNAL_STRING     */
-    OFFSET(jit::IonCode),       /* FINALIZE_IONCODE             */
+    OFFSET(ion::IonCode),       /* FINALIZE_IONCODE             */
 };
 
 #undef OFFSET
@@ -459,7 +459,7 @@ FinalizeArenas(FreeOp *fop,
         // IonCode finalization may release references on an executable
         // allocator that is accessed when triggering interrupts.
         JSRuntime::AutoLockForOperationCallback lock(fop->runtime());
-        return FinalizeTypedArenas<jit::IonCode>(fop, src, dest, thingKind, budget);
+        return FinalizeTypedArenas<ion::IonCode>(fop, src, dest, thingKind, budget);
       }
 #endif
       default:
@@ -4923,19 +4923,19 @@ js::ReleaseAllJITCode(FreeOp *fop)
 # endif
 
         /* Mark baseline scripts on the stack as active. */
-        jit::MarkActiveBaselineScripts(zone);
+        ion::MarkActiveBaselineScripts(zone);
 
-        jit::InvalidateAll(fop, zone);
+        ion::InvalidateAll(fop, zone);
 
         for (CellIter i(zone, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
-            jit::FinishInvalidation(fop, script);
+            ion::FinishInvalidation(fop, script);
 
             /*
              * Discard baseline script if it's not marked as active. Note that
              * this also resets the active flag.
              */
-            jit::FinishDiscardBaselineScript(fop, script);
+            ion::FinishDiscardBaselineScript(fop, script);
         }
     }
 
@@ -5052,7 +5052,7 @@ js::PurgeJITCaches(Zone *zone)
         JSScript *script = i.get<JSScript>();
 
         /* Discard Ion caches. */
-        jit::PurgeCaches(script, zone);
+        ion::PurgeCaches(script, zone);
     }
 #endif
 }

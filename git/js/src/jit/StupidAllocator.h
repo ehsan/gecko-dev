@@ -12,7 +12,7 @@
 // Simple register allocator that only carries registers within basic blocks.
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class StupidAllocator : public RegisterAllocator
 {
@@ -80,7 +80,7 @@ class StupidAllocator : public RegisterAllocator
     bool registerIsReserved(LInstruction *ins, AnyRegister reg);
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_StupidAllocator_h */

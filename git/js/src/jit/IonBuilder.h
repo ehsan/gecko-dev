@@ -16,7 +16,7 @@
 #include "jit/MIRGraph.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 class CodeGenerator;
 class CallInfo;
@@ -364,7 +364,6 @@ class IonBuilder : public MIRGenerator
                                 bool barrier, types::StackTypeSet *types);
     bool getPropTryCache(bool *emitted, HandlePropertyName name, HandleId id,
                          bool barrier, types::StackTypeSet *types);
-    bool needsToMonitorMissingProperties(types::StackTypeSet *types);
 
     // jsop_setprop() helpers.
     bool setPropTryCommonSetter(bool *emitted, MDefinition *obj,
@@ -855,7 +854,7 @@ bool TypeSetIncludes(types::TypeSet *types, MIRType input, types::TypeSet *input
 
 bool NeedsPostBarrier(CompileInfo &info, MDefinition *value);
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

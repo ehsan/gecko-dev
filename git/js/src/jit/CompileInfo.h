@@ -12,7 +12,7 @@
 #include "jit/Registers.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 inline unsigned
 StartArgSlot(JSScript *script, JSFunction *fun)
@@ -240,7 +240,7 @@ class CompileInfo
     ExecutionMode executionMode_;
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_CompileInfo_h */

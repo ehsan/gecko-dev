@@ -14,7 +14,7 @@
 #include "jit/MoveEmitter.h"
 
 using namespace js;
-using namespace jit;
+using namespace ion;
 
 using mozilla::Abs;
 

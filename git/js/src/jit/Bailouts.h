@@ -14,7 +14,7 @@
 #include "vm/Stack.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // A "bailout" is a condition in which we need to recover an interpreter frame
 // from an IonFrame. Bailouts can happen for the following reasons:
@@ -175,7 +175,7 @@ uint32_t FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo);
 
 bool CheckFrequentBailouts(JSContext *cx, JSScript *script);
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_Bailouts_h */

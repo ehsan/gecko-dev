@@ -27,7 +27,7 @@
 #include "vm/TypedArrayObject.h"
 
 namespace js {
-namespace jit {
+namespace ion {
 
 // The public entrypoint for emitting assembly. Note that a MacroAssembler can
 // use cx->lifoAlloc, so take care not to interleave masm use with other
@@ -104,7 +104,7 @@ class MacroAssembler : public MacroAssemblerSpecific
         sps_(NULL)
     {
         constructRoot(cx);
-        ionContext_.construct(cx, (js::jit::TempAllocator *)NULL);
+        ionContext_.construct(cx, (js::ion::TempAllocator *)NULL);
         alloc_.construct(cx);
 #ifdef JS_CPU_ARM
         initWithAllocator();
@@ -1051,7 +1051,7 @@ JSOpToCondition(JSOp op, bool isSigned)
     }
 }
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif // JS_ION

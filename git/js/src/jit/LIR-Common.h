@@ -13,7 +13,7 @@
 // This file declares LIR instructions that are common to every platform.
 
 namespace js {
-namespace jit {
+namespace ion {
 
 template <size_t Temps, size_t ExtraUses = 0>
 class LBinaryMath : public LInstructionHelper<1, 2 + ExtraUses, Temps>
@@ -4923,87 +4923,56 @@ class LAsmJSCheckOverRecursed : public LInstructionHelper<0, 0, 0>
     }
 };
 
-class LAssertRangeI : public LInstructionHelper<0, 1, 0>
+class LRangeAssert : public LInstructionHelper<0, 1, 0>
 {
+    Range range_;
+
   public:
-    LIR_HEADER(AssertRangeI)
+    LIR_HEADER(RangeAssert)
 
-    LAssertRangeI(const LAllocation &input) {
-        setOperand(0, input);
-    }
-
-    const LAllocation *input() {
-        return getOperand(0);
-    }
-
-    MAssertRange *mir() {
-        return mir_->toAssertRange();
-    }
-    Range *range() {
-        return mir()->range();
-    }
-};
-
-class LAssertRangeD : public LInstructionHelper<0, 1, 1>
-{
-  public:
-    LIR_HEADER(AssertRangeD)
-
-    LAssertRangeD(const LAllocation &input, const LDefinition &temp) {
-        setOperand(0, input);
-        setTemp(0, temp);
-    }
-
-    const LAllocation *input() {
-        return getOperand(0);
-    }
-
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
-
-    MAssertRange *mir() {
-        return mir_->toAssertRange();
-    }
-    Range *range() {
-        return mir()->range();
-    }
-};
-
-class LAssertRangeV : public LInstructionHelper<0, BOX_PIECES, 3>
-{
-  public:
-    LIR_HEADER(AssertRangeV)
-
-    LAssertRangeV(const LDefinition &temp, const LDefinition &floatTemp1,
-                  const LDefinition &floatTemp2)
+    LRangeAssert(const LAllocation &input, Range r)
+      : range_(r)
     {
-        setTemp(0, temp);
-        setTemp(1, floatTemp1);
-        setTemp(2, floatTemp2);
+        setOperand(0, input);
     }
 
-    static const size_t Input = 0;
+    const LAllocation *input() {
+        return getOperand(0);
+    }
+
+    Range *range() {
+        return &range_;
+    }
+};
+
+class LDoubleRangeAssert : public LInstructionHelper<0, 1, 1>
+{
+    Range range_;
+
+  public:
+    LIR_HEADER(DoubleRangeAssert)
+
+    LDoubleRangeAssert(const LAllocation &input, const LDefinition &temp, Range r)
+      : range_(r)
+    {
+        setOperand(0, input);
+        setTemp(0, temp);
+    }
+
+    const LAllocation *input() {
+        return getOperand(0);
+    }
 
     const LDefinition *temp() {
         return getTemp(0);
     }
-    const LDefinition *floatTemp1() {
-        return getTemp(1);
-    }
-    const LDefinition *floatTemp2() {
-        return getTemp(2);
-    }
 
-    MAssertRange *mir() {
-        return mir_->toAssertRange();
-    }
     Range *range() {
-        return mir()->range();
+        return &range_;
     }
 };
 
-} // namespace jit
+} // namespace ion
 } // namespace js
 
 #endif /* jit_LIR_Common_h */

@@ -17,7 +17,7 @@
 #include "jit/IonFrames-inl.h"
 
 using namespace js;
-using namespace js::jit;
+using namespace js::ion;
 
 // BaselineStackBuilder may reallocate its buffer if the current one is too
 // small. To avoid dangling pointers, BufferPointer represents a pointer into
@@ -1179,7 +1179,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 }
 
 uint32_t
-jit::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIterator &iter,
+ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIterator &iter,
                           bool invalidate, BaselineBailoutInfo **bailoutInfo,
                           const ExceptionBailoutInfo *excInfo)
 {
@@ -1396,7 +1396,7 @@ HandleCachedShapeGuardFailure(JSContext *cx, HandleScript outerScript, HandleScr
 }
 
 uint32_t
-jit::FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo)
+ion::FinishBailoutToBaseline(BaselineBailoutInfo *bailoutInfo)
 {
     // The caller pushes R0 and R1 on the stack without rooting them.
     // Since GC here is very unlikely just suppress it.

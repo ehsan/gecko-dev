@@ -58,7 +58,6 @@ class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
   public:
     /* Expose those parts of HashMap public interface that are used by Debugger methods. */
 
-    typedef typename Base::Entry Entry;
     typedef typename Base::Ptr Ptr;
     typedef typename Base::AddPtr AddPtr;
     typedef typename Base::Range Range;
@@ -105,12 +104,10 @@ class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
 
   public:
     void markKeys(JSTracer *tracer) {
-        for (Enum e(*static_cast<Base *>(this)); !e.empty(); e.popFront()) {
-            Key key = e.front().key;
-            gc::Mark(tracer, &key, "Debugger WeakMap key");
-            if (key != e.front().key)
-                e.rekeyFront(key);
-            key.unsafeSet(NULL);
+        for (Range r = all(); !r.empty(); r.popFront()) {
+            Key key = r.front().key;
+            gc::Mark(tracer, &key, "cross-compartment WeakMap key");
+            JS_ASSERT(key == r.front().key);
         }
     }
 
@@ -422,7 +419,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static inline void onNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global);
     static JSTrapStatus onTrap(JSContext *cx, MutableHandleValue vp);
     static JSTrapStatus onSingleStep(JSContext *cx, MutableHandleValue vp);
-    static bool handleBaselineOsr(JSContext *cx, StackFrame *from, jit::BaselineFrame *to);
+    static bool handleBaselineOsr(JSContext *cx, StackFrame *from, ion::BaselineFrame *to);
 
     /************************************* Functions for use by Debugger.cpp. */
 
