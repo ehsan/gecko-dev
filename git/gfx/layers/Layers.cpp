@@ -738,7 +738,6 @@ ContainerLayer::ContainerLayer(LayerManager* aManager, void* aImplData)
     mPreYScale(1.0f),
     mInheritedXScale(1.0f),
     mInheritedYScale(1.0f),
-    mBackgroundColor(0, 0, 0, 0),
     mUseIntermediateSurface(false),
     mSupportsComponentAlphaChildren(false),
     mMayHaveReadbackChild(false)
@@ -897,8 +896,7 @@ ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 {
   aAttrs = ContainerLayerAttributes(GetFrameMetrics(), mScrollHandoffParentId,
                                     mPreXScale, mPreYScale,
-                                    mInheritedXScale, mInheritedYScale,
-                                    mBackgroundColor);
+                                    mInheritedXScale, mInheritedYScale);
 }
 
 bool

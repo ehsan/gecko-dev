@@ -27,7 +27,6 @@ ReceiveStatisticsProxy::ReceiveStatisticsProxy(uint32_t ssrc,
       // 1000ms window, scale 1000 for ms to s.
       decode_fps_estimator_(1000, 1000),
       renders_fps_estimator_(1000, 1000),
-      receive_state_(kReceiveStateInitial),
       codec_(codec),
       rtp_rtcp_(rtp_rtcp) {
   stats_.ssrc = ssrc;
@@ -44,7 +43,7 @@ VideoReceiveStream::Stats ReceiveStatisticsProxy::GetStats() const {
   stats.c_name = GetCName();
   codec_->GetReceiveSideDelay(channel_, &stats.avg_delay_ms);
   stats.discarded_packets = codec_->GetDiscardedPackets(channel_);
-  codec_->GetReceiveCodecStatistics(
+  codec_->GetReceiveCodecStastistics(
       channel_, stats.key_frames, stats.delta_frames);
 
   return stats;
@@ -63,12 +62,6 @@ void ReceiveStatisticsProxy::IncomingRate(const int video_channel,
   CriticalSectionScoped cs(lock_.get());
   stats_.network_frame_rate = framerate;
   stats_.bitrate_bps = bitrate;
-}
-
-void ReceiveStatisticsProxy::ReceiveStateChange(const int video_channel,
-                                                VideoReceiveState state) {
-  CriticalSectionScoped cs(lock_.get());
-  receive_state_ = state;
 }
 
 void ReceiveStatisticsProxy::StatisticsUpdated(

@@ -358,7 +358,8 @@ private:
   NullTransport *mNullTransport;
 };
 
-class MediaEngineWebRTC : public MediaEngine
+class MediaEngineWebRTC : public MediaEngine,
+                          public webrtc::TraceCallback
 {
 public:
   MediaEngineWebRTC(MediaEnginePrefs &aPrefs);
@@ -369,6 +370,9 @@ public:
 
   virtual void EnumerateVideoDevices(nsTArray<nsRefPtr<MediaEngineVideoSource> >*);
   virtual void EnumerateAudioDevices(nsTArray<nsRefPtr<MediaEngineAudioSource> >*);
+
+  // Webrtc trace callbacks for proxying to NSPR
+  virtual void Print(webrtc::TraceLevel level, const char* message, int length);
 
 private:
   ~MediaEngineWebRTC() {

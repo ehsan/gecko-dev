@@ -739,6 +739,7 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   metrics.mCompositionBounds = RoundedToInt(LayoutDeviceRect::FromAppUnits(compositionBounds, auPerDevPixel)
                                             * layoutToParentLayerScale);
 
+
   // For the root scroll frame of the root content document, the above calculation
   // will yield the size of the viewport frame as the composition bounds, which
   // doesn't actually correspond to what is visible when
@@ -747,9 +748,8 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   // document has a widget then the widget's bounds will correspond to what is
   // visible. If we don't have a widget the root view's bounds correspond to what
   // would be visible because they don't get modified by setCSSViewport.
-  bool isRootScrollFrame = aScrollFrame == presShell->GetRootScrollFrame();
-  bool isRootContentDocRootScrollFrame = isRootScrollFrame
-                                      && presContext->IsRootContentDocument();
+  bool isRootContentDocRootScrollFrame = presContext->IsRootContentDocument()
+                                      && aScrollFrame == presShell->GetRootScrollFrame();
   if (isRootContentDocRootScrollFrame) {
     if (nsIFrame* rootFrame = presShell->GetRootFrame()) {
       if (nsView* view = rootFrame->GetView()) {
@@ -818,18 +818,6 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   }
 
   aRoot->SetFrameMetrics(metrics);
-
-  // Also compute and set the background color on the container.
-  // This is needed for APZ overscrolling support.
-  if (aScrollFrame) {
-    // FindBackground() does not work for a root scroll frame, need to use the
-    // root frame instead.
-    nsIFrame* backgroundFrame = isRootScrollFrame ? presShell->GetRootFrame() : aScrollFrame;
-    nsStyleContext* backgroundStyle;
-    if (nsCSSRendering::FindBackground(backgroundFrame, &backgroundStyle)) {
-      aRoot->SetBackgroundColor(backgroundStyle->StyleBackground()->mBackgroundColor);
-    }
-  }
 }
 
 nsDisplayListBuilder::~nsDisplayListBuilder() {

@@ -412,14 +412,6 @@ public:
         return b;
     }
 
-    EGLint fDupNativeFenceFDANDROID(EGLDisplay dpy, EGLSync sync)
-    {
-        MOZ_ASSERT(mSymbols.fDupNativeFenceFDANDROID);
-        BEFORE_GL_CALL;
-        EGLint ret = mSymbols.fDupNativeFenceFDANDROID(dpy, sync);
-        AFTER_GL_CALL;
-        return ret;
-    }
 
     EGLDisplay Display() {
         return mEGLDisplay;
@@ -530,8 +522,6 @@ public:
         pfnClientWaitSync fClientWaitSync;
         typedef EGLBoolean (GLAPIENTRY * pfnGetSyncAttrib)(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLint *value);
         pfnGetSyncAttrib fGetSyncAttrib;
-        typedef EGLint (GLAPIENTRY * pfnDupNativeFenceFDANDROID)(EGLDisplay dpy, EGLSync sync);
-        pfnDupNativeFenceFDANDROID fDupNativeFenceFDANDROID;
     } mSymbols;
 
 #ifdef DEBUG

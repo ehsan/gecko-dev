@@ -185,17 +185,11 @@ CacheFileMetadata::ReadMetadata(CacheFileMetadataListener *aListener)
     return NS_OK;
   }
 
-  // Set offset so that we read at least kMinMetadataRead if the file is big
-  // enough.
-  int64_t offset;
-  if (size < kMinMetadataRead) {
-    offset = 0;
-  } else {
-    offset = size - kMinMetadataRead;
-  }
+  // round offset to 4k blocks
+  int64_t offset = (size / kAlignSize) * kAlignSize;
 
-  // round offset to kAlignSize blocks
-  offset = (offset / kAlignSize) * kAlignSize;
+  if (size - offset < kMinMetadataRead && offset > kAlignSize)
+    offset -= kAlignSize;
 
   mBufSize = size - offset;
   mBuf = static_cast<char *>(moz_xmalloc(mBufSize));

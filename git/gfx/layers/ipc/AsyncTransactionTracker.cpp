@@ -89,13 +89,9 @@ AsyncTransactionTrackersHolder::~AsyncTransactionTrackersHolder()
   }
 
   {
-    if (sHolderLock) {
-      sHolderLock->Lock();
-    }
+    MOZ_ASSERT(sHolderLock);
+    MutexAutoLock lock(*sHolderLock);
     sTrackersHolders.erase(mSerial);
-    if (sHolderLock) {
-      sHolderLock->Unlock();
-    }
   }
   MOZ_COUNT_DTOR(AsyncTransactionTrackersHolder);
 }
@@ -174,18 +170,13 @@ AsyncTransactionTrackersHolder::SetReleaseFenceHandle(FenceHandle& aReleaseFence
 void
 AsyncTransactionTrackersHolder::ClearAllAsyncTransactionTrackers()
 {
-  if (sHolderLock) {
-    sHolderLock->Lock();
-  }
+  MutexAutoLock lock(*sHolderLock);
   std::map<uint64_t, RefPtr<AsyncTransactionTracker> >::iterator it;
   for (it = mAsyncTransactionTrackeres.begin();
        it != mAsyncTransactionTrackeres.end(); it++) {
     it->second->NotifyCancel();
   }
   mAsyncTransactionTrackeres.clear();
-  if (sHolderLock) {
-    sHolderLock->Unlock();
-  }
 }
 
 void

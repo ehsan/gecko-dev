@@ -3200,11 +3200,12 @@ PluginInstanceChild::PaintRectToSurface(const nsIntRect& aRect,
 
     if (mIsTransparent && !CanPaintOnBackground()) {
         // Clear surface content for transparent rendering
-        nsRefPtr<gfxContext> ctx = new gfxContext(renderSurface);
-        ctx->SetDeviceColor(aColor);
-        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-        ctx->Rectangle(GfxFromNsRect(plPaintRect));
-        ctx->Fill();
+        ColorPattern color(ToColor(aColor));
+        RefPtr<DrawTarget> dt = CreateDrawTargetForSurface(renderSurface);
+        dt->FillRect(gfx::Rect(plPaintRect.x, plPaintRect.y,
+                               plPaintRect.width, plPaintRect.height),
+                     color,
+                     DrawOptions(1.f, CompositionOp::OP_SOURCE));
     }
 
     PaintRectToPlatformSurface(plPaintRect, renderSurface);

@@ -110,11 +110,6 @@ public:
   bool IsOverscrolled() const;
 
   /**
-   * Clear any overscroll amount on this axis.
-   */
-  void ClearOverscroll();
-
-  /**
    * Gets the distance between the starting position of the touch supplied in
    * startTouch() and the current touch from the last
    * updateWithTouchAtDevicePoint().

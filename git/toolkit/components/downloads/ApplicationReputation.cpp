@@ -148,10 +148,6 @@ private:
                                  nsresult aResult,
                                  bool* aShouldBlock);
 
-  // Strip url parameters, fragments, and user@pass fields from the URI spec
-  // using nsIURL. If aURI is not an nsIURL, returns the original nsIURI.spec.
-  nsresult GetStrippedSpec(nsIURI* aUri, nsACString& spec);
-
   // Escape '/' and '%' in certificate attribute values.
   nsCString EscapeCertificateAttribute(const nsACString& aAttribute);
 
@@ -595,7 +591,7 @@ PendingLookup::AddRedirects(nsIArray* aRedirects)
     // Add the spec to our list of local lookups. The most recent redirect is
     // the last element.
     nsCString spec;
-    rv = GetStrippedSpec(uri, spec);
+    rv = uri->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
     mAnylistSpecs.AppendElement(spec);
     LOG(("ApplicationReputation: Appending redirect %s\n", spec.get()));
@@ -623,34 +619,6 @@ PendingLookup::StartLookup()
 }
 
 nsresult
-PendingLookup::GetStrippedSpec(nsIURI* aUri, nsACString& escaped)
-{
-  // If aURI is not an nsIURL, we do not want to check the lists or send a
-  // remote query.
-  nsresult rv;
-  nsCOMPtr<nsIURL> url = do_QueryInterface(aUri, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = url->GetScheme(escaped);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCString temp;
-  rv = url->GetHostPort(temp);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  escaped.Append("://");
-  escaped.Append(temp);
-
-  rv = url->GetFilePath(temp);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // nsIUrl.filePath starts with '/'
-  escaped.Append(temp);
-
-  return NS_OK;
-}
-
-nsresult
 PendingLookup::DoLookupInternal()
 {
   // We want to check the target URI, its referrer, and associated redirects
@@ -660,11 +628,9 @@ PendingLookup::DoLookupInternal()
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCString spec;
-  rv = GetStrippedSpec(uri, spec);
+  rv = uri->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
-
   mAnylistSpecs.AppendElement(spec);
-
   ClientDownloadRequest_Resource* resource = mRequest.add_resources();
   resource->set_url(spec.get());
   resource->set_type(ClientDownloadRequest::DOWNLOAD_URL);
@@ -673,7 +639,7 @@ PendingLookup::DoLookupInternal()
   rv = mQuery->GetReferrerURI(getter_AddRefs(referrer));
   if (referrer) {
     nsCString spec;
-    rv = GetStrippedSpec(referrer, spec);
+    rv = referrer->GetSpec(spec);
     NS_ENSURE_SUCCESS(rv, rv);
     mAnylistSpecs.AppendElement(spec);
     resource->set_referrer(spec.get());
@@ -808,7 +774,7 @@ PendingLookup::SendRemoteQueryInternal()
   rv = mQuery->GetSourceURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCString spec;
-  rv = GetStrippedSpec(uri, spec);
+  rv = uri->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
   mRequest.set_url(spec.get());
 

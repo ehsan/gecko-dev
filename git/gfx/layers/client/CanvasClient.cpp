@@ -171,7 +171,7 @@ CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     }
 
     if (grallocTextureClient->GetIPDLActor()) {
-      UseTexture(grallocTextureClient);
+      GetForwarder()->UseTexture(this, grallocTextureClient);
     }
 
     if (mBuffer && CompositorChild::ChildProcessHasCompositor()) {
