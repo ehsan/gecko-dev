@@ -5144,12 +5144,12 @@ class LRestPar : public LCallInstructionHelper<1, 2, 3>
     }
 };
 
-class LGuardThreadExclusive : public LCallInstructionHelper<0, 2, 1>
+class LGuardThreadLocalObject : public LCallInstructionHelper<0, 2, 1>
 {
   public:
-    LIR_HEADER(GuardThreadExclusive);
+    LIR_HEADER(GuardThreadLocalObject);
 
-    LGuardThreadExclusive(const LAllocation &slice, const LAllocation &object, const LDefinition &temp1) {
+    LGuardThreadLocalObject(const LAllocation &slice, const LAllocation &object, const LDefinition &temp1) {
         setOperand(0, slice);
         setOperand(1, object);
         setTemp(0, temp1);

@@ -67,9 +67,9 @@ nsPKCS11Slot::refreshSlotInfo()
 nsPKCS11Slot::~nsPKCS11Slot()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
+  if (isAlreadyShutDown())
     return;
-  }
+
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -81,6 +81,9 @@ void nsPKCS11Slot::virtualDestroyNSSReference()
 
 void nsPKCS11Slot::destructorSafeDestroyNSSReference()
 {
+  if (isAlreadyShutDown())
+    return;
+
   if (mSlot) {
     PK11_FreeSlot(mSlot);
     mSlot = nullptr;
@@ -238,9 +241,9 @@ nsPKCS11Module::nsPKCS11Module(SECMODModule *module)
 nsPKCS11Module::~nsPKCS11Module()
 {
   nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown()) {
+  if (isAlreadyShutDown())
     return;
-  }
+
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
@@ -252,6 +255,9 @@ void nsPKCS11Module::virtualDestroyNSSReference()
 
 void nsPKCS11Module::destructorSafeDestroyNSSReference()
 {
+  if (isAlreadyShutDown())
+    return;
+
   if (mModule) {
     SECMOD_DestroyModule(mModule);
     mModule = nullptr;

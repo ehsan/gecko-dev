@@ -7,7 +7,7 @@
 
 [ptr] native const_nsID_ptr(const nsID);
 
-[builtinclass, scriptable, uuid(62883d14-4146-4039-94f5-a5e1e1a51a15)]
+[builtinclass, scriptable, uuid(baedc96a-9cee-4b6b-9160-90d257b3c8ef)]
 interface nsIJSID : nsISupports
 {
     readonly attribute string  name;
@@ -15,9 +15,10 @@ interface nsIJSID : nsISupports
     readonly attribute boolean valid;
 
     boolean equals(in nsIJSID other);
-    string toString();
 
-    [noscript] void initialize(in string idString);
+    void initialize(in string idString);
+
+    string toString();
 
     // returns a pointer to the internal nsID. this pointer is only valid
     // while the nsIJSID object remains alive!

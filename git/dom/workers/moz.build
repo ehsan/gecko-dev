@@ -58,7 +58,7 @@ LOCAL_INCLUDES += [
     '../base',
     '../system',
     '/content/base/src',
-    '/dom/events',
+    '/content/events/src',
     '/xpcom/build',
     '/xpcom/threads',
 ]

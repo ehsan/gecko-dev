@@ -1242,12 +1242,10 @@ ContentParent::ContentParent(mozIApplication* aApp,
 {
     InitializeMembers();  // Perform common initialization.
 
-    // No more than one of !!aApp, aIsForBrowser, aIsForPreallocated should be
-    // true.
-    MOZ_ASSERT(!!aApp + aIsForBrowser + aIsForPreallocated <= 1);
-
-    // Only the preallocated process uses Nuwa.
-    MOZ_ASSERT_IF(aIsNuwaProcess, aIsForPreallocated);
+    // No more than one of !!aApp, aIsForBrowser, aIsForPreallocated, and
+    // aIsNuwaProcess should be true.
+    MOZ_ASSERT(!!aApp + aIsForBrowser + aIsForPreallocated + aIsNuwaProcess <=
+               1);
 
     // Insert ourselves into the global linked list of ContentParent objects.
     if (!sContentParents) {

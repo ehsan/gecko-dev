@@ -101,10 +101,6 @@ public:
 private:
   ~KeyPair()
   {
-    nsNSSShutDownPreventionLock locker;
-    if (isAlreadyShutDown()) {
-      return;
-    }
     destructorSafeDestroyNSSReference();
     shutdown(calledFromObject);
   }
@@ -116,6 +112,10 @@ private:
 
   void destructorSafeDestroyNSSReference()
   {
+    nsNSSShutDownPreventionLock locker;
+    if (isAlreadyShutDown())
+      return;
+
     SECKEY_DestroyPrivateKey(mPrivateKey);
     mPrivateKey = nullptr;
     SECKEY_DestroyPublicKey(mPublicKey);
@@ -141,10 +141,6 @@ public:
 private:
   ~KeyGenRunnable()
   {
-    nsNSSShutDownPreventionLock locker;
-    if (isAlreadyShutDown()) {
-      return;
-    }
     destructorSafeDestroyNSSReference();
     shutdown(calledFromObject);
   }
@@ -156,7 +152,11 @@ private:
 
   void destructorSafeDestroyNSSReference()
   {
-    mKeyPair = nullptr;
+    nsNSSShutDownPreventionLock locker;
+    if (isAlreadyShutDown())
+      return;
+
+     mKeyPair = nullptr;
   }
 
   const KeyType mKeyType; // in
@@ -179,10 +179,6 @@ public:
 private:
   ~SignRunnable()
   {
-    nsNSSShutDownPreventionLock locker;
-    if (isAlreadyShutDown()) {
-      return;
-    }
     destructorSafeDestroyNSSReference();
     shutdown(calledFromObject);
   }
@@ -194,6 +190,10 @@ private:
 
   void destructorSafeDestroyNSSReference()
   {
+    nsNSSShutDownPreventionLock locker;
+    if (isAlreadyShutDown())
+      return;
+
     SECKEY_DestroyPrivateKey(mPrivateKey);
     mPrivateKey = nullptr;
   }

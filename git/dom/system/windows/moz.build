@@ -10,7 +10,7 @@ SOURCES += [
 
 # We fire the nsDOMDeviceAcceleration
 LOCAL_INCLUDES += [
-    '/dom/events',
+    '/content/events/src',
 ]
 
 FAIL_ON_WARNINGS = True

@@ -2055,16 +2055,12 @@ LIRGenerator::visitForkJoinSlice(MForkJoinSlice *ins)
 }
 
 bool
-LIRGenerator::visitGuardThreadExclusive(MGuardThreadExclusive *ins)
+LIRGenerator::visitGuardThreadLocalObject(MGuardThreadLocalObject *ins)
 {
-    // FIXME (Bug 956281) -- For now, we always generate the most
-    // general form of write guard check. we could employ TI feedback
-    // to optimize this if we know that the object being tested is a
-    // typed object or know that it is definitely NOT a typed object.
-    LGuardThreadExclusive *lir =
-        new(alloc()) LGuardThreadExclusive(useFixed(ins->forkJoinSlice(), CallTempReg0),
-                                           useFixed(ins->object(), CallTempReg1),
-                                           tempFixed(CallTempReg2));
+    LGuardThreadLocalObject *lir =
+        new(alloc()) LGuardThreadLocalObject(useFixed(ins->forkJoinSlice(), CallTempReg0),
+                                             useFixed(ins->object(), CallTempReg1),
+                                             tempFixed(CallTempReg2));
     lir->setMir(ins);
     return add(lir, ins);
 }
