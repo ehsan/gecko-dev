@@ -2677,9 +2677,11 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
 {
   *aResult = nsnull;
 
+  nsCOMPtr<nsIAtom> name(do_GetAtom(aName));
+
   // We have built a table and cache the named items. The table will
   // be updated as content is added and removed.
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aName);
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(name);
   NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
 
   if (entry->IsInvalidName()) {
@@ -2703,14 +2705,7 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
 
     Element* root = GetRootElement();
     if (root && !aName.IsEmpty()) {
-      // do_GetAtom() can fail on OOM, but it'll only do that if the
-      // atom doesn't already exist, which means the named item
-      // doesn't exist either.
-      nsCOMPtr<nsIAtom> name(do_GetAtom(aName));
-
-      if (name) {
-        FindNamedItems(name, root, entry);
-      }
+      FindNamedItems(name, root, entry);
     }
   }
 
@@ -2815,8 +2810,7 @@ nsHTMLDocument::PrePopulateIdentifierMap()
     nsCOMPtr<nsIAtom> atom(do_GetAtom(names[i]));
     NS_ENSURE_TRUE(atom, NS_ERROR_OUT_OF_MEMORY);
   
-    nsIdentifierMapEntry* entry =
-      mIdentifierMap.PutEntry(nsDependentAtomString(atom));
+    nsIdentifierMapEntry* entry = mIdentifierMap.PutEntry(atom);
     NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
 
     entry->SetInvalidName();
@@ -3141,7 +3135,8 @@ nsHTMLDocument::GetDocumentAllResult(const nsAString& aID, nsISupports** aResult
 {
   *aResult = nsnull;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aID);
+  nsCOMPtr<nsIAtom> id = do_GetAtom(aID);
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(id);
   NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
 
   Element* root = GetRootElement();
@@ -3151,8 +3146,6 @@ nsHTMLDocument::GetDocumentAllResult(const nsAString& aID, nsISupports** aResult
 
   nsRefPtr<nsContentList> docAllList = entry->GetDocAllList();
   if (!docAllList) {
-    nsCOMPtr<nsIAtom> id = do_GetAtom(aID);
-
     docAllList = new nsContentList(root, DocAllResultMatch,
                                    nsnull, nsnull, PR_TRUE, id);
     NS_ENSURE_TRUE(docAllList, NS_ERROR_OUT_OF_MEMORY);

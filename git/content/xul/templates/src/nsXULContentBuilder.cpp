@@ -1380,9 +1380,7 @@ nsXULContentBuilder::GetElementsForResult(nsIXULTemplateResult* aResult,
     nsAutoString id;
     aResult->GetId(id);
 
-    xuldoc->GetElementsForID(id, aElements);
-
-    return NS_OK;
+    return xuldoc->GetElementsForID(id, aElements);
 }
 
 nsresult

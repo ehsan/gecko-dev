@@ -77,19 +77,15 @@ class nsIXULPrototypeScript;
 struct JSObject;
 struct PRLogModuleInfo;
 
-class nsRefMapEntry : public nsStringHashKey
+class nsRefMapEntry : public nsISupportsHashKey
 {
 public:
-  nsRefMapEntry(const nsAString& aKey) :
-    nsStringHashKey(&aKey)
-  {
-  }
-  nsRefMapEntry(const nsAString *aKey) :
-    nsStringHashKey(aKey)
+  nsRefMapEntry(const nsISupports* aKey) :
+    nsISupportsHashKey(aKey)
   {
   }
   nsRefMapEntry(const nsRefMapEntry& aOther) :
-    nsStringHashKey(&aOther.GetKey())
+    nsISupportsHashKey(GetKey())
   {
     NS_ERROR("Should never be called");
   }
@@ -152,8 +148,8 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
 
     // nsIXULDocument interface
-    virtual void GetElementsForID(const nsAString& aID,
-                                  nsCOMArray<nsIContent>& aElements);
+    NS_IMETHOD GetElementsForID(const nsAString& aID,
+                                nsCOMArray<nsIContent>& aElements);
 
     NS_IMETHOD GetScriptGlobalObjectOwner(nsIScriptGlobalObjectOwner** aGlobalOwner);
     NS_IMETHOD AddSubtreeToDocument(nsIContent* aContent);
