@@ -223,7 +223,6 @@ WeaveSvc.prototype = {
   set keyGenEnabled(value) { this._keyGenEnabled = value; },
 
   get enabled() Svc.Prefs.get("enabled"),
-  set enabled(value) Svc.Prefs.set("enabled", value),
 
   get schedule() {
     if (!this.enabled)
@@ -299,13 +298,13 @@ WeaveSvc.prototype = {
     let ok = false;
 
     try {
-      let iv = Svc.Crypto.generateRandomIV();
+      let svc = Cc["@labs.mozilla.com/Weave/Crypto;1"].
+	createInstance(Ci.IWeaveCrypto);
+      let iv = svc.generateRandomIV();
       if (iv.length == 24)
 	ok = true;
 
-    } catch (e) {
-      this._log.debug("Crypto check failed: " + e);
-    }
+    } catch (e) {}
 
     return ok;
   },
@@ -607,9 +606,6 @@ WeaveSvc.prototype = {
   _sync: function WeaveSvc__sync() {
     let self = yield;
 
-    if (!this.enabled)
-      return;
-
     if (!this._loggedIn) {
       this._disableSchedule();
       throw "aborting sync, not logged in";
@@ -664,9 +660,6 @@ WeaveSvc.prototype = {
 
   _syncAsNeeded: function WeaveSvc__syncAsNeeded() {
     let self = yield;
-
-    if (!this.enabled)
-      return;
 
     try {
 
