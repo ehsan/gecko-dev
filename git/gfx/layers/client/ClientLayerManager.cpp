@@ -53,14 +53,6 @@ ClientLayerManager::ClientLayerManager(nsIWidget* aWidget)
 
 ClientLayerManager::~ClientLayerManager()
 {
-  ClearCachedResources();
-  // Stop receiveing AsyncParentMessage at Forwarder.
-  // After the call, the message is directly handled by LayerTransactionChild. 
-  // Basically this function should be called in ShadowLayerForwarder's
-  // destructor. But when the destructor is triggered by 
-  // CompositorChild::Destroy(), the destructor can not handle it correctly.
-  // See Bug 1000525.
-  mForwarder->StopReceiveAsyncParentMessge();
   mRoot = nullptr;
 
   MOZ_COUNT_DTOR(ClientLayerManager);
@@ -274,7 +266,9 @@ ClientLayerManager::GetRemoteRenderer()
 void
 ClientLayerManager::Composite()
 {
-  mForwarder->Composite();
+  if (LayerTransactionChild* manager = mForwarder->GetShadowManager()) {
+    manager->SendForceComposite();
+  }
 }
 
 void
@@ -434,7 +428,6 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
   }
 
   mForwarder->RemoveTexturesIfNecessary();
-  mForwarder->SendPendingAsyncMessge();
   mPhase = PHASE_NONE;
 
   // this may result in Layers being deleted, which results in
@@ -505,7 +498,9 @@ void
 ClientLayerManager::ClearCachedResources(Layer* aSubtree)
 {
   MOZ_ASSERT(!HasShadowManager() || !aSubtree);
-  mForwarder->ClearCachedResources();
+  if (LayerTransactionChild* manager = mForwarder->GetShadowManager()) {
+    manager->SendClearCachedResources();
+  }
   if (aSubtree) {
     ClearLayer(aSubtree);
   } else if (mRoot) {
