@@ -52,9 +52,9 @@ extern bool stack_key_initialized;
 #endif
 
 static inline
-void profiler_init(void* stackTop)
+void profiler_init()
 {
-  mozilla_sampler_init(stackTop);
+  mozilla_sampler_init();
 }
 
 static inline
@@ -141,9 +141,9 @@ void profiler_unlock()
 }
 
 static inline
-void profiler_register_thread(const char* name, void* stackTop)
+void profiler_register_thread(const char* name)
 {
-  mozilla_sampler_register_thread(name, stackTop);
+  mozilla_sampler_register_thread(name);
 }
 
 static inline

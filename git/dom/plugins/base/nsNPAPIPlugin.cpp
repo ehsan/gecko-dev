@@ -2261,14 +2261,16 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
     }  
 
     case kJavaContext_ANPGetValue: {
-      AndroidBridge *bridge = AndroidBridge::Bridge();
-      if (!bridge)
+      LOG("get context");
+      JNIEnv* env = GetJNIForThread();
+      if (!env)
         return NPERR_GENERIC_ERROR;
 
-      jobject ret = bridge->GetContext();
-      if (!ret)
-        return NPERR_GENERIC_ERROR;
-
+      jclass cls     = env->FindClass("org/mozilla/gecko/GeckoApp");
+      jfieldID field = env->GetStaticFieldID(cls, "mAppContext",
+                                             "Lorg/mozilla/gecko/GeckoApp;");
+      jobject ret = env->GetStaticObjectField(cls, field);
+      env->DeleteLocalRef(cls);
       int32_t* i  = reinterpret_cast<int32_t*>(result);
       *i = reinterpret_cast<int32_t>(ret);
       return NPERR_NO_ERROR;

@@ -335,9 +335,7 @@ class Sampler {
     return *sRegisteredThreads;
   }
 
-  static bool RegisterCurrentThread(const char* aName,
-                                    PseudoStack* aPseudoStack,
-                                    bool aIsMainThread, void* stackTop);
+  static bool RegisterCurrentThread(const char* aName, PseudoStack* aPseudoStack, bool aIsMainThread);
   static void UnregisterCurrentThread();
 
   static void Startup();

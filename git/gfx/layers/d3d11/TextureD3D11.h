@@ -122,11 +122,6 @@ public:
 
   virtual bool Lock() MOZ_OVERRIDE { return true; }
 
-  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE
-  {
-    return nullptr; // TODO: cf bug 872568
-  }
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "TextureHostShmemD3D11"; }
 #endif
@@ -180,11 +175,6 @@ public:
   virtual bool Lock() MOZ_OVERRIDE;
   virtual void Unlock() MOZ_OVERRIDE;
 
-  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE
-  {
-    return nullptr; // TODO: cf bug 872568
-  }
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() { return "TextureHostDXGID3D11"; }
 #endif
@@ -219,11 +209,6 @@ public:
   virtual gfx::IntSize GetSize() const MOZ_OVERRIDE;
 
   virtual bool IsYCbCrSource() const MOZ_OVERRIDE { return true; }
-
-  virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE
-  {
-    return nullptr; // TODO: cf bug 872568
-  }
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char* Name() MOZ_OVERRIDE { return "TextureImageTextureHostD3D11"; }

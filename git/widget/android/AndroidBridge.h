@@ -310,9 +310,6 @@ public:
     // DeleteGlobalRef() when the context is no longer needed.
     jobject GetGlobalContextRef(void);
 
-    // Returns a local reference. Caller must manage this reference
-    jobject GetContext(void);
-
     void UnlockBitmap(jobject bitmap);
 
     bool UnlockProfile();

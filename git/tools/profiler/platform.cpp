@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <ostream>
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <errno.h>
@@ -252,7 +252,7 @@ void read_profiler_env_vars()
 ////////////////////////////////////////////////////////////////////////
 // BEGIN externally visible functions
 
-void mozilla_sampler_init(void* stackTop)
+void mozilla_sampler_init()
 {
   sInitCount++;
 
@@ -271,7 +271,7 @@ void mozilla_sampler_init(void* stackTop)
   PseudoStack *stack = new PseudoStack();
   tlsPseudoStack.set(stack);
 
-  Sampler::RegisterCurrentThread("Gecko", stack, true, stackTop);
+  Sampler::RegisterCurrentThread("Gecko", stack, true);
 
   // Read mode settings from MOZ_PROFILER_MODE and interval
   // settings from MOZ_PROFILER_INTERVAL and stack-scan threshhold
@@ -402,7 +402,7 @@ void mozilla_sampler_start(int aProfileEntries, int aInterval,
                            const char** aFeatures, uint32_t aFeatureCount)
 {
   if (!stack_key_initialized)
-    profiler_init(NULL);
+    profiler_init();
 
   /* If the sampling interval was set using env vars, use that
      in preference to anything else. */
@@ -423,6 +423,9 @@ void mozilla_sampler_start(int aProfileEntries, int aInterval,
                       aProfileEntries ? aProfileEntries : PROFILE_DEFAULT_ENTRY,
                       aFeatures, aFeatureCount);
   if (t->HasUnwinderThread()) {
+    int aLocal;
+    uwt__register_thread_for_profiling( &aLocal );
+
     // Create the unwinder thread.  ATM there is only one.
     uwt__init();
   }
@@ -464,7 +467,7 @@ void mozilla_sampler_start(int aProfileEntries, int aInterval,
 void mozilla_sampler_stop()
 {
   if (!stack_key_initialized)
-    profiler_init(NULL);
+    profiler_init();
 
   TableTicker *t = tlsTicker.get();
   if (!t) {
@@ -556,12 +559,12 @@ void mozilla_sampler_unlock()
     os->NotifyObservers(nullptr, "profiler-unlocked", nullptr);
 }
 
-bool mozilla_sampler_register_thread(const char* aName, void* stackTop)
+bool mozilla_sampler_register_thread(const char* aName)
 {
   PseudoStack* stack = new PseudoStack();
   tlsPseudoStack.set(stack);
 
-  return Sampler::RegisterCurrentThread(aName, stack, false, stackTop);
+  return Sampler::RegisterCurrentThread(aName, stack, false);
 }
 
 void mozilla_sampler_unregister_thread()

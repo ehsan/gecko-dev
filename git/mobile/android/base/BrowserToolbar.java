@@ -464,8 +464,10 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
                     updateTitle();
                 }
                 break;
-            case SELECTED:
+            case RESTORED:
                 updateTabCount(Tabs.getInstance().getDisplayCount());
+                break;
+            case SELECTED:
                 mSwitchingTabs = true;
                 // fall through
             case LOCATION_CHANGE:
@@ -477,7 +479,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
                 break;
             case CLOSED:
             case ADDED:
-                updateTabCount(Tabs.getInstance().getDisplayCount());
+                updateTabCountAndAnimate(Tabs.getInstance().getDisplayCount());
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     updateBackButton(tab.canDoBack());
                     updateForwardButton(tab.canDoForward());
@@ -645,7 +647,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
 
                 // Trigger animation to update the tabs counter once the
                 // tabs button is back on screen.
-                updateTabCount(Tabs.getInstance().getDisplayCount());
+                updateTabCountAndAnimate(Tabs.getInstance().getDisplayCount());
             }
         });
 
@@ -746,6 +748,26 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         }
     }
 
+    public void updateTabCountAndAnimate(int count) {
+        // Don't animate if the toolbar is hidden.
+        if (!isVisible()) {
+            updateTabCount(count);
+            return;
+        }
+
+        // If toolbar is selected, this means the entry is expanded and the
+        // tabs button is translated offscreen. Don't trigger tabs counter
+        // updates until the tabs button is back on screen.
+        // See fromAwesomeBarSearch()
+        if (!mLayout.isSelected()) {
+            mTabsCounter.setCount(count);
+
+            mTabs.setContentDescription((count > 1) ?
+                                        mActivity.getString(R.string.num_tabs, count) :
+                                        mActivity.getString(R.string.one_tab));
+        }
+    }
+
     public void updateTabCount(int count) {
         // If toolbar is selected, this means the entry is expanded and the
         // tabs button is translated offscreen. Don't trigger tabs counter
@@ -755,14 +777,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             return;
         }
 
-        // Set TabCounter based on visibility
-        if (isVisible() && ViewHelper.getAlpha(mTabsCounter) != 0) {
-            mTabsCounter.setCountWithAnimation(count);
-        } else {
-            mTabsCounter.setCount(count);
-        }
-
-        // Update A11y information
+        mTabsCounter.setCurrentText(String.valueOf(count));
         mTabs.setContentDescription((count > 1) ?
                                     mActivity.getString(R.string.num_tabs, count) :
                                     mActivity.getString(R.string.one_tab));
@@ -1041,7 +1056,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
 
                 ViewGroup.MarginLayoutParams layoutParams =
                     (ViewGroup.MarginLayoutParams)mForward.getLayoutParams();
-                layoutParams.leftMargin = mDefaultForwardMargin + (mForward.isEnabled() ? width : 0);
+                layoutParams.leftMargin = mDefaultForwardMargin + (mForward.isEnabled() ? mForward.getWidth() / 2 : 0);
                 ViewHelper.setTranslationX(mForward, 0);
 
                 mUrlDisplayContainer.requestLayout();

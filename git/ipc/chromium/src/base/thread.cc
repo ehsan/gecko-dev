@@ -137,8 +137,7 @@ void Thread::StopSoon() {
 }
 
 void Thread::ThreadMain() {
-  char aLocal;
-  profiler_register_thread(name_.c_str(), &aLocal);
+  profiler_register_thread(name_.c_str());
 
   // The message loop for this thread.
   MessageLoop message_loop(startup_data_->options.message_loop_type);

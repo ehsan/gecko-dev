@@ -2039,22 +2039,6 @@ AndroidBridge::LockWindow(void *window, unsigned char **bits, int *width, int *h
 }
 
 jobject
-AndroidBridge::GetContext() {
-    JNIEnv *env = GetJNIForThread();
-    if (!env)
-        return 0;
-
-    jobject context = env->CallStaticObjectMethod(mGeckoAppShellClass, jGetContext);
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-        return 0;
-    }
-
-    return context;
-}
-
-jobject
 AndroidBridge::GetGlobalContextRef() {
     JNIEnv *env = GetJNIForThread();
     if (!env)
@@ -2062,7 +2046,10 @@ AndroidBridge::GetGlobalContextRef() {
 
     AutoLocalJNIFrame jniFrame(env, 0);
 
-    jobject context = GetContext();
+    jobject context = env->CallStaticObjectMethod(mGeckoAppShellClass, jGetContext);
+    if (jniFrame.CheckForException()) {
+        return 0;
+    }
 
     jobject globalRef = env->NewGlobalRef(context);
     MOZ_ASSERT(globalRef);

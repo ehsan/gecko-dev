@@ -282,8 +282,7 @@ XRE_InitChildProcess(int aArgc,
   NS_ENSURE_ARG_MIN(aArgc, 2);
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
-  char aLocal;
-  profiler_init(&aLocal);
+  profiler_init();
   PROFILER_LABEL("Startup", "XRE_InitChildProcess");
 
   sChildProcessType = aProcess;

@@ -672,8 +672,7 @@ NS_IMETHODIMP
 TransactionThreadPoolListener::OnThreadCreated()
 {
   MOZ_ASSERT(!NS_IsMainThread());
-  char aLocal;
-  profiler_register_thread("IndexedDB Transaction", &aLocal);
+  profiler_register_thread("IndexedDB Transaction");
   return NS_OK;
 }
 

@@ -3885,8 +3885,7 @@ XREMain::XRE_mainRun()
 int
 XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
-  char aLocal;
-  GeckoProfilerInitRAII profilerGuard(&aLocal);
+  GeckoProfilerInitRAII profilerGuard;
   PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;
@@ -4081,8 +4080,7 @@ public:
 int
 XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
 {
-  char aLocal;
-  GeckoProfilerInitRAII profilerGuard(&aLocal);
+  GeckoProfilerInitRAII profilerGuard;
   PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;

@@ -4,7 +4,7 @@
 
 from setuptools import setup
 
-PACKAGE_VERSION = '0.7'
+PACKAGE_VERSION = '0.3'
 
 setup(name='mozfile',
       version=PACKAGE_VERSION,
@@ -19,6 +19,5 @@ setup(name='mozfile',
       packages=['mozfile'],
       include_package_data=True,
       zip_safe=False,
-      install_requires=[],
-      tests_require=['mozhttpd']
+      install_requires=[]
       )

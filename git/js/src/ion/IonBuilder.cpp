@@ -1244,11 +1244,6 @@ IonBuilder::inspectOpcode(JSOp op)
             return true;
         return maybeInsertResume();
 
-      case JSOP_POPN:
-        for (uint32_t i = 0, n = GET_UINT16(pc); i < n; i++)
-            current->pop();
-        return true;
-
       case JSOP_NEWINIT:
       {
         if (GET_UINT8(pc) == JSProto_Array)
@@ -6620,13 +6615,6 @@ IonBuilder::jsop_setelem()
             break;
         }
 
-        // TODO: Bug 876650: remove this check:
-        // Temporary disable the cache if non dense native,
-        // untill the cache supports more ics
-        SetElemICInspector icInspect(inspector->setElemICInspector(pc));
-        if (!icInspect.sawDenseWrite())
-            break;
-
         MInstruction *ins = MSetElementCache::New(object, index, value, script()->strict);
         current->add(ins);
         current->push(value);
@@ -6857,9 +6845,7 @@ IonBuilder::jsop_length_fastPath()
 
     MDefinition *obj = current->peek(-1);
 
-    if (obj->mightBeType(MIRType_String)) {
-        if (obj->mightBeType(MIRType_Object))
-            return false;
+    if (obj->type() == MIRType_String) {
         current->pop();
         MStringLength *ins = MStringLength::New(obj);
         current->add(ins);
@@ -6867,7 +6853,7 @@ IonBuilder::jsop_length_fastPath()
         return true;
     }
 
-    if (obj->mightBeType(MIRType_Object)) {
+    if (obj->type() == MIRType_Object) {
         types::StackTypeSet *objTypes = obj->resultTypeSet();
 
         if (objTypes &&

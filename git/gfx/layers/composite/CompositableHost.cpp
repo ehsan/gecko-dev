@@ -78,19 +78,6 @@ CompositableHost::Create(const TextureInfo& aTextureInfo)
 }
 
 void
-CompositableHost::DumpTextureHost(FILE* aFile, TextureHost* aTexture)
-{
-  if (!aTexture) {
-    return;
-  }
-  nsRefPtr<gfxImageSurface> surf = aTexture->GetAsSurface();
-  if (!surf) {
-    return;
-  }
-  surf->DumpAsDataURL(aFile ? aFile : stderr);
-}
-
-void
 CompositableParent::ActorDestroy(ActorDestroyReason why)
 {
   if (mHost) {

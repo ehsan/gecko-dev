@@ -54,7 +54,6 @@ class OfflineRenderSuccessCallback;
 class PannerNode;
 class ScriptProcessorNode;
 class WaveShaperNode;
-class WaveTable;
 
 class AudioContext MOZ_FINAL : public nsDOMEventTargetHelper,
                                public EnableWebAudioCheck
@@ -178,10 +177,6 @@ public:
 
   already_AddRefed<BiquadFilterNode>
   CreateBiquadFilter();
-
-  already_AddRefed<WaveTable>
-  CreateWaveTable(const Float32Array& aRealData, const Float32Array& aImagData,
-                  ErrorResult& aRv);
 
   void DecodeAudioData(const ArrayBuffer& aBuffer,
                        DecodeSuccessCallback& aSuccessCallback,

@@ -26,8 +26,7 @@ BaseTraversalRule.prototype = {
     },
 
     preFilter: Ci.nsIAccessibleTraversalRule.PREFILTER_DEFUNCT |
-    Ci.nsIAccessibleTraversalRule.PREFILTER_INVISIBLE |
-    Ci.nsIAccessibleTraversalRule.PREFILTER_ARIA_HIDDEN,
+    Ci.nsIAccessibleTraversalRule.PREFILTER_INVISIBLE,
 
     match: function BaseTraversalRule_match(aAccessible)
     {

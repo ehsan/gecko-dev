@@ -35,7 +35,6 @@ namespace ion {
     _(JSOP_LABEL)              \
     _(JSOP_NOTEARG)            \
     _(JSOP_POP)                \
-    _(JSOP_POPN)               \
     _(JSOP_DUP)                \
     _(JSOP_DUP2)               \
     _(JSOP_SWAP)               \
@@ -160,7 +159,6 @@ namespace ion {
     _(JSOP_MOREITER)           \
     _(JSOP_ITERNEXT)           \
     _(JSOP_ENDITER)            \
-    _(JSOP_CALLEE)             \
     _(JSOP_POPV)               \
     _(JSOP_SETRVAL)            \
     _(JSOP_RETURN)             \
