@@ -84,51 +84,42 @@ loop.shared.utils = (function(mozL10n) {
     return !!localStorage.getItem(prefName);
   }
 
-  function isFirefox(platform) {
-    return platform.indexOf("Firefox") !== -1;
-  }
-
-  function isFirefoxOS(platform) {
-    // So far WebActivities are exposed only in FxOS, but they may be
-    // exposed in Firefox Desktop soon, so we check for its existence
-    // and also check if the UA belongs to a mobile platform.
-    // XXX WebActivities are also exposed in WebRT on Firefox for Android,
-    //     so we need a better check. Bug 1065403.
-    return !!window.MozActivity && /mobi/i.test(platform);
-  }
-
   /**
-   * Helper to get the platform if it is unsupported.
-   *
-   * @param {String} platform The platform this is running on.
-   * @return null for supported platforms, a string for unsupported platforms.
+   * Helper for general things
    */
-  function getUnsupportedPlatform(platform) {
-    if (/^(iPad|iPhone|iPod)/.test(platform)) {
-      return "ios";
-    }
-
-    if (/Windows Phone/i.test(platform)) {
-      return "windows_phone";
-    }
-
-    if (/BlackBerry/i.test(platform)) {
-      return "blackberry";
-    }
-
-    return null;
+  function Helper() {
+    this._iOSRegex = /^(iPad|iPhone|iPod)/;
   }
 
-  /**
-   * Helper to allow getting some of the location data in a way that's compatible
-   * with stubbing for unit tests.
-   */
-  function locationData() {
-    return {
-      hash: window.location.hash,
-      pathname: window.location.pathname
-    };
-  }
+  Helper.prototype = {
+    isFirefox: function(platform) {
+      return platform.indexOf("Firefox") !== -1;
+    },
+
+    isFirefoxOS: function(platform) {
+      // So far WebActivities are exposed only in FxOS, but they may be
+      // exposed in Firefox Desktop soon, so we check for its existence
+      // and also check if the UA belongs to a mobile platform.
+      // XXX WebActivities are also exposed in WebRT on Firefox for Android,
+      //     so we need a better check. Bug 1065403.
+      return !!window.MozActivity && /mobi/i.test(platform);
+    },
+
+    isIOS: function(platform) {
+      return this._iOSRegex.test(platform);
+    },
+
+    /**
+     * Helper to allow getting some of the location data in a way that's compatible
+     * with stubbing for unit tests.
+     */
+    locationData: function() {
+      return {
+        hash: window.location.hash,
+        pathname: window.location.pathname
+      };
+    }
+  };
 
   /**
    * Generates and opens a mailto: url with call URL information prefilled.
@@ -162,12 +153,9 @@ loop.shared.utils = (function(mozL10n) {
     WEBSOCKET_REASONS: WEBSOCKET_REASONS,
     STREAM_PROPERTIES: STREAM_PROPERTIES,
     SCREEN_SHARE_STATES: SCREEN_SHARE_STATES,
+    Helper: Helper,
     composeCallUrlEmail: composeCallUrlEmail,
     formatDate: formatDate,
-    getBoolPreference: getBoolPreference,
-    isFirefox: isFirefox,
-    isFirefoxOS: isFirefoxOS,
-    getUnsupportedPlatform: getUnsupportedPlatform,
-    locationData: locationData
+    getBoolPreference: getBoolPreference
   };
 })(document.mozL10n || navigator.mozL10n);

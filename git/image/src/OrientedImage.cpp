@@ -251,7 +251,7 @@ OrientViewport(const SVGImageContext& aOldContext,
                          aOldContext.GetPreserveAspectRatio());
 }
 
-NS_IMETHODIMP_(DrawResult)
+NS_IMETHODIMP
 OrientedImage::Draw(gfxContext* aContext,
                     const nsIntSize& aSize,
                     const ImageRegion& aRegion,

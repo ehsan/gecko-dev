@@ -186,11 +186,12 @@ DynamicImage::GetFrame(uint32_t aWhichFrame,
                                      SurfaceFormat::B8G8R8A8);
   nsRefPtr<gfxContext> context = new gfxContext(dt);
 
-  auto result = Draw(context, size, ImageRegion::Create(size),
+  nsresult rv = Draw(context, size, ImageRegion::Create(size),
                      aWhichFrame, GraphicsFilter::FILTER_NEAREST,
                      Nothing(), aFlags);
 
-  return result == DrawResult::SUCCESS ? dt->Snapshot() : nullptr;
+  NS_ENSURE_SUCCESS(rv, nullptr);
+  return dt->Snapshot();
 }
 
 NS_IMETHODIMP_(bool)
@@ -209,7 +210,7 @@ DynamicImage::GetImageContainer(LayerManager* aManager,
   return NS_OK;
 }
 
-NS_IMETHODIMP_(DrawResult)
+NS_IMETHODIMP
 DynamicImage::Draw(gfxContext* aContext,
                    const nsIntSize& aSize,
                    const ImageRegion& aRegion,
@@ -225,7 +226,7 @@ DynamicImage::Draw(gfxContext* aContext,
   if (aSize == drawableSize) {
     gfxUtils::DrawPixelSnapped(aContext, mDrawable, drawableSize, aRegion,
                                SurfaceFormat::B8G8R8A8, aFilter);
-    return DrawResult::SUCCESS;
+    return NS_OK;
   }
 
   gfxSize scale(double(aSize.width) / drawableSize.width,
@@ -239,7 +240,7 @@ DynamicImage::Draw(gfxContext* aContext,
 
   gfxUtils::DrawPixelSnapped(aContext, mDrawable, drawableSize, region,
                              SurfaceFormat::B8G8R8A8, aFilter);
-  return DrawResult::SUCCESS;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

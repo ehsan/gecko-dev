@@ -15,7 +15,6 @@
 #include "nsAutoPtr.h"
 #include "nsWidgetInitData.h"
 #include "nsTArray.h"
-#include "nsITheme.h"
 #include "nsITimer.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/EventForwards.h"
@@ -741,15 +740,14 @@ class nsIWidget : public nsISupports {
 
     // Used in UpdateThemeGeometries.
     struct ThemeGeometry {
-      // The ThemeGeometryType value for the themed widget, see
-      // nsITheme::ThemeGeometryTypeForWidget.
-      nsITheme::ThemeGeometryType mType;
+      // The -moz-appearance value for the themed widget
+      uint8_t mWidgetType;
       // The device-pixel rect within the window for the themed widget
       nsIntRect mRect;
 
-      ThemeGeometry(nsITheme::ThemeGeometryType aType, const nsIntRect& aRect)
-        : mType(aType)
-        , mRect(aRect)
+      ThemeGeometry(uint8_t aWidgetType, const nsIntRect& aRect)
+       : mWidgetType(aWidgetType)
+       , mRect(aRect)
       { }
     };
 
@@ -1670,16 +1668,12 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD SetIcon(const nsAString& anIconSpec) = 0;
 
     /**
-     * Return this widget's origin in screen coordinates. The untyped version
-     * exists temporarily to ease conversion to typed coordinates.
+     * Return this widget's origin in screen coordinates.
      *
      * @return screen coordinates stored in the x,y members
      */
 
-    virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset() = 0;
-    virtual nsIntPoint WidgetToScreenOffsetUntyped() {
-      return mozilla::LayoutDeviceIntPoint::ToUntyped(WidgetToScreenOffset());
-    }
+    virtual nsIntPoint WidgetToScreenOffset() = 0;
 
     /**
      * Given the specified client size, return the corresponding window size,

@@ -83,7 +83,7 @@ describe("loop.conversation", function() {
 
       sandbox.stub(loop.Dispatcher.prototype, "dispatch");
 
-      sandbox.stub(loop.shared.utils,
+      sandbox.stub(loop.shared.utils.Helper.prototype,
         "locationData").returns({
           hash: "#42",
           pathname: "/"

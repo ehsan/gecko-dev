@@ -24,8 +24,7 @@ class SharedDecoderManager;
 
 struct WaitForDataRejectValue {
   enum Reason {
-    SHUTDOWN,
-    CANCELED
+    SHUTDOWN
   };
 
   WaitForDataRejectValue(MediaData::Type aType, Reason aReason)

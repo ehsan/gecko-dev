@@ -2659,17 +2659,17 @@ JS_DefineUCProperty(JSContext *cx, HandleObject obj, const char16_t *name, size_
 
 JS_PUBLIC_API(JSObject *)
 JS_DefineObject(JSContext *cx, HandleObject obj, const char *name, const JSClass *jsclasp,
-                unsigned attrs)
+                HandleObject proto, unsigned attrs)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
+    assertSameCompartment(cx, obj, proto);
 
     const Class *clasp = Valueify(jsclasp);
     if (!clasp)
         clasp = &PlainObject::class_;    /* default class is Object */
 
-    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, nullptr, obj));
+    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, proto, obj));
     if (!nobj)
         return nullptr;
 

@@ -128,13 +128,13 @@ public:
     return Copy(TmpRect);
   }
 
-  nsRegion& OrWith(const nsRegion& aOther)
+  void OrWith(const nsRegion& aOther)
   {
-    return Or(*this, aOther);
+    Or(*this, aOther);
   }
-  nsRegion& OrWith(const nsRect& aOther)
+  void OrWith(const nsRect& aOther)
   {
-    return Or(*this, aOther);
+    Or(*this, aOther);
   }
   nsRegion& Or(const nsRegion& aRgn1, const nsRegion& aRgn2)
   {
@@ -156,13 +156,13 @@ public:
     return Or (*this, aRect2);
   }
 
-  nsRegion& XorWith(const nsRegion& aOther)
+  void XorWith(const nsRegion& aOther)
   {
-    return Xor(*this, aOther);
+    Xor(*this, aOther);
   }
-  nsRegion& XorWith(const nsRect& aOther)
+  void XorWith(const nsRect& aOther)
   {
-    return Xor(*this, aOther);
+    Xor(*this, aOther);
   }
   nsRegion& Xor(const nsRegion& aRgn1,   const nsRegion& aRgn2)
   {
@@ -189,13 +189,13 @@ public:
 
   nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const;
 
-  nsRegion& SubOut(const nsRegion& aOther)
+  void SubOut(const nsRegion& aOther)
   {
-    return Sub(*this, aOther);
+    Sub(*this, aOther);
   }
-  nsRegion& SubOut(const nsRect& aOther)
+  void SubOut(const nsRect& aOther)
   {
-    return Sub(*this, aOther);
+    Sub(*this, aOther);
   }
   nsRegion& Sub(const nsRegion& aRgn1, const nsRegion& aRgn2)
   {
@@ -522,13 +522,13 @@ public:
     return *this;
   }
 
-  nsIntRegion& OrWith(const nsIntRegion& aOther)
+  void OrWith(const nsIntRegion& aOther)
   {
-    return Or(*this, aOther);
+    Or(*this, aOther);
   }
-  nsIntRegion& OrWith(const nsIntRect& aOther)
+  void OrWith(const nsIntRect& aOther)
   {
-    return Or(*this, aOther);
+    Or(*this, aOther);
   }
   nsIntRegion& Or   (const nsIntRegion& aRgn1,   const nsIntRegion& aRgn2)
   {
@@ -550,13 +550,13 @@ public:
     return Or (*this, aRect2);
   }
 
-  nsIntRegion& XorWith(const nsIntRegion& aOther)
+  void XorWith(const nsIntRegion& aOther)
   {
-    return Xor(*this, aOther);
+    Xor(*this, aOther);
   }
-  nsIntRegion& XorWith(const nsIntRect& aOther)
+  void XorWith(const nsIntRect& aOther)
   {
-    return Xor(*this, aOther);
+    Xor(*this, aOther);
   }
   nsIntRegion& Xor  (const nsIntRegion& aRgn1,   const nsIntRegion& aRgn2)
   {
@@ -578,13 +578,13 @@ public:
     return Xor (*this, aRect2);
   }
 
-  nsIntRegion& SubOut(const nsIntRegion& aOther)
+  void SubOut(const nsIntRegion& aOther)
   {
-    return Sub(*this, aOther);
+    Sub(*this, aOther);
   }
-  nsIntRegion& SubOut(const nsIntRect& aOther)
+  void SubOut(const nsIntRect& aOther)
   {
-    return Sub(*this, aOther);
+    Sub(*this, aOther);
   }
   nsIntRegion& Sub  (const nsIntRegion& aRgn1,   const nsIntRegion& aRgn2)
   {

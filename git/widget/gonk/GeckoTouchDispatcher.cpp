@@ -122,7 +122,7 @@ GeckoTouchDispatcher::SetCompositorVsyncObserver(mozilla::layers::CompositorVsyn
   MOZ_ASSERT(NS_IsMainThread());
   // We assume on b2g that there is only 1 CompositorParent
   MOZ_ASSERT(sTouchDispatcher->mCompositorVsyncObserver == nullptr);
-  if (sTouchDispatcher->mResamplingEnabled) {
+  if (gfxPrefs::TouchResampling()) {
     sTouchDispatcher->mCompositorVsyncObserver = aObserver;
   }
 }
@@ -131,7 +131,7 @@ GeckoTouchDispatcher::SetCompositorVsyncObserver(mozilla::layers::CompositorVsyn
 /* static */ bool
 GeckoTouchDispatcher::NotifyVsync(TimeStamp aVsyncTimestamp)
 {
-  if (sTouchDispatcher == nullptr) {
+  if ((sTouchDispatcher == nullptr) || !gfxPrefs::TouchResampling()) {
     return false;
   }
 

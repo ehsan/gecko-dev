@@ -2114,13 +2114,12 @@ nsDisplaySolidColor::WriteDebugInfo(std::stringstream& aStream)
 }
 
 static void
-RegisterThemeGeometry(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                      nsITheme::ThemeGeometryType aType)
+RegisterThemeGeometry(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
 {
   if (aBuilder->IsInRootChromeDocument() && !aBuilder->IsInTransform()) {
     nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(aFrame);
     nsRect borderBox(aFrame->GetOffsetTo(displayRoot), aFrame->GetSize());
-    aBuilder->RegisterThemeGeometry(aType,
+    aBuilder->RegisterThemeGeometry(aFrame->StyleDisplay()->mAppearance,
         borderBox.ToNearestPixels(aFrame->PresContext()->AppUnitsPerDevPixel()));
   }
 }
@@ -2793,16 +2792,22 @@ nsDisplayThemedBackground::nsDisplayThemedBackground(nsDisplayListBuilder* aBuil
   mFrame->IsThemed(disp, &mThemeTransparency);
 
   // Perform necessary RegisterThemeGeometry
-  nsITheme* theme = mFrame->PresContext()->GetTheme();
-  nsITheme::ThemeGeometryType type =
-    theme->ThemeGeometryTypeForWidget(mFrame, disp->mAppearance);
-  if (type != nsITheme::eThemeGeometryTypeUnknown) {
-    RegisterThemeGeometry(aBuilder, aFrame, type);
-  }
-
-  if (disp->mAppearance == NS_THEME_WIN_BORDERLESS_GLASS ||
-      disp->mAppearance == NS_THEME_WIN_GLASS) {
-    aBuilder->SetGlassDisplayItem(this);
+  switch (disp->mAppearance) {
+    case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
+    case NS_THEME_TOOLBAR:
+    case NS_THEME_TOOLTIP:
+    case NS_THEME_WINDOW_TITLEBAR:
+    case NS_THEME_WINDOW_BUTTON_BOX:
+    case NS_THEME_MOZ_MAC_FULLSCREEN_BUTTON:
+    case NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED:
+    case NS_THEME_MAC_VIBRANCY_LIGHT:
+    case NS_THEME_MAC_VIBRANCY_DARK:
+      RegisterThemeGeometry(aBuilder, aFrame);
+      break;
+    case NS_THEME_WIN_BORDERLESS_GLASS:
+    case NS_THEME_WIN_GLASS:
+      aBuilder->SetGlassDisplayItem(this);
+      break;
   }
 
   mBounds = GetBoundsInternal();

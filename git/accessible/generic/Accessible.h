@@ -889,13 +889,6 @@ public:
   bool HasNameDependentParent() const
     { return mContextFlags & eHasNameDependentParent; }
 
-  /**
-   * Return true if aria-hidden="true" is applied to the accessible or inherited
-   * from the parent.
-   */
-  bool IsARIAHidden() const { return mContextFlags & eARIAHidden; }
-  void SetARIAHidden(bool aIsDefined);
-
 protected:
 
   virtual ~Accessible();
@@ -982,9 +975,8 @@ protected:
    */
   enum ContextFlags {
     eHasNameDependentParent = 1 << 0, // Parent's name depends on this accessible.
-    eARIAHidden = 1 << 1,
 
-    eLastContextFlag = eARIAHidden
+    eLastContextFlag = eHasNameDependentParent
   };
 
 protected:
@@ -1090,7 +1082,7 @@ protected:
 
   static const uint8_t kChildrenFlagsBits = 2;
   static const uint8_t kStateFlagsBits = 9;
-  static const uint8_t kContextFlagsBits = 2;
+  static const uint8_t kContextFlagsBits = 1;
   static const uint8_t kTypeBits = 6;
   static const uint8_t kGenericTypesBits = 13;
 

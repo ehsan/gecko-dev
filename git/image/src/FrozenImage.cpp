@@ -58,7 +58,7 @@ FrozenImage::GetImageContainer(layers::LayerManager* aManager,
   return NS_OK;
 }
 
-NS_IMETHODIMP_(DrawResult)
+NS_IMETHODIMP
 FrozenImage::Draw(gfxContext* aContext,
                   const nsIntSize& aSize,
                   const ImageRegion& aRegion,
