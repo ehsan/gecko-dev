@@ -4416,7 +4416,7 @@ typedef void
 // engine, it is critical that the buildId shall change for each new build of
 // the JS engine.
 typedef bool
-(* BuildIdOp)(js::Vector<char> *buildId);
+(* BuildIdOp)(mozilla::Vector<char> *buildId);
 
 struct AsmJSCacheOps
 {

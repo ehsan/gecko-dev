@@ -109,7 +109,7 @@ TraceLogging::~TraceLogging()
 {
     if (entries) {
         flush();
-        js_free(entries);
+        free(entries);
         entries = nullptr;
     }
 
@@ -122,7 +122,7 @@ TraceLogging::~TraceLogging()
 void
 TraceLogging::grow()
 {
-    Entry* nentries = (Entry*) js_realloc(entries, numEntries*2*sizeof(Entry));
+    Entry* nentries = (Entry*) realloc(entries, numEntries*2*sizeof(Entry));
 
     // Allocating a bigger array failed.
     // Keep using the current storage, but remove all entries by flushing them.
@@ -142,7 +142,7 @@ TraceLogging::log(Type type, const char* text /* = nullptr */, unsigned int numb
 
     // Create array containing the entries if not existing.
     if (!entries) {
-        entries = (Entry*) js_malloc(numEntries*sizeof(Entry));
+        entries = (Entry*) malloc(numEntries*sizeof(Entry));
         if (!entries)
             return;
     }
@@ -248,7 +248,7 @@ TraceLogging::flush()
         }
 
         if (entries[i].text() != nullptr) {
-            js_free(entries[i].text());
+            free(entries[i].text());
             entries[i].text_ = nullptr;
         }
     }

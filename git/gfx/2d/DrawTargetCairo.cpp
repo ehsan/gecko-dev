@@ -724,19 +724,14 @@ DrawTargetCairo::CopySurface(SourceSurface *aSurface,
   AutoPrepareForDrawing prep(this, mContext);
   AutoClearDeviceOffset clear(aSurface);
 
-  if (!aSurface) {
+  if (!aSurface || aSurface->GetType() != SURFACE_CAIRO) {
     gfxWarning() << "Unsupported surface type specified";
     return;
   }
 
-  cairo_surface_t* surf = GetCairoSurfaceForSourceSurface(aSurface);
-  if (!surf) {
-    gfxWarning() << "Unsupported surface type specified";
-    return;
-  }
+  cairo_surface_t* surf = static_cast<SourceSurfaceCairo*>(aSurface)->GetSurface();
 
   CopySurfaceInternal(surf, aSource, aDest);
-  cairo_surface_destroy(surf);
 }
 
 void
