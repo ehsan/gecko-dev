@@ -99,10 +99,6 @@ DynamicImage::OnNewSourceData()
 }
 
 void
-DynamicImage::OnSurfaceDiscarded()
-{ }
-
-void
 DynamicImage::SetInnerWindowID(uint64_t aInnerWindowId)
 { }
 

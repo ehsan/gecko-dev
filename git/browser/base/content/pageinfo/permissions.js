@@ -152,9 +152,6 @@ function onCheckboxClick(aPartId)
   var checkbox = document.getElementById(aPartId + "Def");
   if (checkbox.checked) {
     SitePermissions.remove(gPermURI, aPartId);
-    if (aPartId == "indexedDB") {
-      SitePermissions.remove(gPermURI, "indexedDB-unlimited");
-    }
     command.setAttribute("disabled", "true");
     var perm = SitePermissions.getDefault(aPartId);
     setRadioState(aPartId, perm);
@@ -209,7 +206,6 @@ function onIndexedDBClear()
             .getService(nsIQuotaManager)
             .clearStoragesForURI(gPermURI);
 
-  SitePermissions.remove(gPermURI, "indexedDB");
   SitePermissions.remove(gPermURI, "indexedDB-unlimited");
   initIndexedDBRow();
 }

@@ -111,27 +111,11 @@ var PeerConnections = React.createClass({displayName: 'PeerConnections',
 
 var PeerConnection = React.createClass({displayName: 'PeerConnection',
   getPCInfo: function(report) {
-    // Extract id and url from pcid (varies as it is settable from chrome):
-    //   000 (id=00 url=http)
-    //   000 (session=000 call=000 id=00 url=http)
-    var idmatch = report.pcid.match(/id=(\S+)/);
-    var urlmatch = report.pcid.match(/url=([^)]+)/);
     return {
-      id: (idmatch? idmatch[1] : report.pcid),
-      url: (urlmatch? urlmatch[1] : ""),
+      id: report.pcid.match(/id=(\S+)/)[1],
+      url: report.pcid.match(/url=([^)]+)/)[1],
       closed: report.closed
     };
-  },
-  getPCId: function(report) {
-    // Erase extracted id and url from pcid to avoid showing duplicate info
-    // - 000 (session=000 call=000 id=00 url=http)
-    // + 000 (session=000 call=000)
-    // - 000 (id=00 url=http)
-    // + 000
-
-    // regexp's match those in getPCInfo above, plus tidying.
-    return report.pcid.replace(/id=\S+/, "").replace(/url=[^)]+/, "")
-        .replace(/\s+[)]/, ")").replace(" ()", "");
   },
 
   getIceCandidatePairs: function(report) {
@@ -199,7 +183,7 @@ var PeerConnection = React.createClass({displayName: 'PeerConnection',
   body: function(report, pairs) {
     return (
       React.DOM.div(null, 
-        React.DOM.p({className: "pcid"}, "PeerConnection ID: ", this.getPCId(report)),
+        React.DOM.p({className: "pcid"}, "PeerConnection ID: ", report.pcid), 
         Tabs(null, 
           Tab({title: "Ice Stats"}, 
             IceStats({pairs: pairs})

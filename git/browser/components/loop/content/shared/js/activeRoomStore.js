@@ -161,8 +161,7 @@ loop.store.ActiveRoomStore = (function() {
       this._registerPostSetupActions();
 
       this.setStoreState({
-        roomState: ROOM_STATES.GATHER,
-        windowId: actionData.windowId
+        roomState: ROOM_STATES.GATHER
       });
 
       // Get the window data from the mozLoop api.
@@ -307,9 +306,6 @@ loop.store.ActiveRoomStore = (function() {
 
       this._setRefreshTimeout(actionData.expires);
       this._sdkDriver.connectSession(actionData);
-
-      this._mozLoop.addConversationContext(this._storeState.windowId,
-                                           actionData.sessionId, "");
 
       // If we haven't got a room name yet, go and get one. We typically
       // need to do this in the case of the standalone window.

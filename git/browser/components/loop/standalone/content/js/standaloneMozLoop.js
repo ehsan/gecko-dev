@@ -263,11 +263,7 @@ loop.StandaloneMozLoop = (function(mozL10n) {
      */
     getLoopPref: function(prefName) {
       return localStorage.getItem(prefName);
-    },
-
-    // Dummy function to reflect those in the desktop mozLoop that we
-    // don't currently use.
-    addConversationContext: function() {}
+    }
   };
 
   return StandaloneMozLoop;

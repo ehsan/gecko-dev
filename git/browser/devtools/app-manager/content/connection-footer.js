@@ -137,7 +137,7 @@ let UI = {
   startSimulator: function(version) {
     this._portBeforeSimulatorStarted = this.connection.port;
     let port = ConnectionManager.getFreeTCPPort();
-    let simulator = Simulator.getByName(version);
+    let simulator = Simulator.getByVersion(version);
     if (!simulator) {
       this.connection.log("Error: can't find simulator: " + version);
       return;

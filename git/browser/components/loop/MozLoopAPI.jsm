@@ -365,31 +365,21 @@ function injectLoopAPI(targetWindow) {
     /**
      * Displays a confirmation dialog using the specified strings.
      *
-     * @param {Object}   options  Confirm dialog options
-     * @param {Function} callback Function that will be invoked once the operation
-     *                            finished. The first argument passed will be an
-     *                            `Error` object or `null`. The second argument
-     *                            will be the result of the operation, TRUE if
-     *                            the user chose the OK button.
+     * Callback parameters:
+     * - err null on success, non-null on unexpected failure to show the prompt.
+     * - {Boolean} True if the user chose the OK button.
      */
     confirm: {
       enumerable: true,
       writable: true,
-      value: function(options, callback) {
-        let buttonFlags;
-        if (options.okButton && options.cancelButton) {
-          buttonFlags =
+      value: function(bodyMessage, okButtonMessage, cancelButtonMessage, callback) {
+        try {
+          let buttonFlags =
             (Ci.nsIPrompt.BUTTON_POS_0 * Ci.nsIPrompt.BUTTON_TITLE_IS_STRING) +
             (Ci.nsIPrompt.BUTTON_POS_1 * Ci.nsIPrompt.BUTTON_TITLE_IS_STRING);
-        } else if (!options.okButton && !options.cancelButton) {
-          buttonFlags = Services.prompt.STD_YES_NO_BUTTONS;
-        } else {
-          callback(cloneValueInto(new Error("confirm: missing button options"), targetWindow));
-        }
 
-        try {
           let chosenButton = Services.prompt.confirmEx(null, "",
-            options.message, buttonFlags, options.okButton, options.cancelButton,
+            bodyMessage, buttonFlags, okButtonMessage, cancelButtonMessage,
             null, null, {});
 
           callback(null, chosenButton == 0);
@@ -716,24 +706,6 @@ function injectLoopAPI(targetWindow) {
         };
 
         request.send();
-      }
-    },
-
-    /**
-     * Associates a session-id and a call-id with a window for debugging.
-     *
-     * @param  {string}  windowId  The window id.
-     * @param  {string}  sessionId OT session id.
-     * @param  {string}  callId    The callId on the server.
-     */
-    addConversationContext: {
-      enumerable: true,
-      writable: true,
-      value: function(windowId, sessionId, callid) {
-        MozLoopService.addConversationContext(windowId, {
-          sessionId: sessionId,
-          callId: callid
-        });
       }
     }
   };

@@ -2,8 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 Cu.import("resource://gre/modules/Promise.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "UITour",
-  "resource:///modules/UITour.jsm");
+Cu.import("resource:///modules/UITour.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 
 const SINGLE_TRY_TIMEOUT = 100;
@@ -220,7 +219,6 @@ function UITourTest() {
 
   registerCleanupFunction(function() {
     delete window.UITour;
-    delete window.UITourMetricsProvider;
     delete window.gContentWindow;
     delete window.gContentAPI;
     if (gTestTab)

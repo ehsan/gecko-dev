@@ -40,7 +40,7 @@ const UPDATE_INTERVAL = 500; // ms
 
 // A RegExp for characters that cannot appear in a file/directory name. This is
 // used to sanitize the host name for indexed db to lookup whether the file is
-// present in <profileDir>/storage/default/ location
+// present in <profileDir>/storage/persistent/ location
 let illegalFileNameCharacters = [
   "[",
   "\\x00-\\x25",     // Control characters \001 to \037
@@ -1254,14 +1254,14 @@ StorageActors.createActor({
   getDBNamesForHost: async(function*(host) {
     let sanitizedHost = this.getSanitizedHost(host);
     let directory = OS.Path.join(OS.Constants.Path.profileDir, "storage",
-                                 "default", sanitizedHost, "idb");
+                                 "persistent", sanitizedHost, "idb");
 
     let exists = yield OS.File.exists(directory);
     if (!exists && host.startsWith("about:")) {
       // try for moz-safe-about directory
       sanitizedHost = this.getSanitizedHost("moz-safe-" + host);
       directory = OS.Path.join(OS.Constants.Path.profileDir, "storage",
-                               "permanent", sanitizedHost, "idb");
+                               "persistent", sanitizedHost, "idb");
       exists = yield OS.File.exists(directory);
     }
     if (!exists) {

@@ -1389,11 +1389,11 @@ nsFlexContainerFrame::
 
   if (aFlexItem.IsStretched()) {
     childRSForMeasuringHeight.SetComputedWidth(aFlexItem.GetCrossSize());
-    childRSForMeasuringHeight.SetHResize(true);
+    childRSForMeasuringHeight.mFlags.mHResize = true;
   }
 
   if (aForceVerticalResizeForMeasuringReflow) {
-    childRSForMeasuringHeight.SetVResize(true);
+    childRSForMeasuringHeight.mFlags.mVResize = true;
   }
 
   nsHTMLReflowMetrics childDesiredSize(childRSForMeasuringHeight);
@@ -3273,7 +3273,7 @@ nsFlexContainerFrame::SizeItemInCrossAxis(
     // not imposing that height for *this* measuring reflow, so we need to
     // tell it to treat this reflow as a vertical resize (regardless of
     // whether any of its ancestors are being resized).
-    aChildReflowState.SetVResize(true);
+    aChildReflowState.mFlags.mVResize = true;
   }
   nsHTMLReflowMetrics childDesiredSize(aChildReflowState);
   nsReflowStatus childReflowStatus;
@@ -3671,10 +3671,10 @@ nsFlexContainerFrame::DoFlexLayout(nsPresContext*           aPresContext,
           // sets mHResize whenever our computed width has changed since the
           // previous reflow. Still, it's nice for symmetry, and it may become
           // necessary once we support orthogonal flows.)
-          childReflowState.SetHResize(true);
+          childReflowState.mFlags.mHResize = true;
         }
         if (didOverrideComputedHeight) {
-          childReflowState.SetVResize(true);
+          childReflowState.mFlags.mVResize = true;
         }
       }
       // NOTE: Be very careful about doing anything else with childReflowState

@@ -254,11 +254,7 @@ def main():
 
 
     options.xre_path = os.path.abspath(options.xre_path)
-    if options.with_b2g_emulator:
-        environ = {'os': 'b2g'}
-    else:
-        environ = {'os': 'android'}
-    progs = cppunittests.extract_unittests_from_args(args, environ)
+    progs = cppunittests.extract_unittests_from_args(args, options.manifest_file)
     tester = RemoteCPPUnitTests(dm, options, progs)
     try:
         result = tester.run_tests(progs, options.xre_path, options.symbols_path)

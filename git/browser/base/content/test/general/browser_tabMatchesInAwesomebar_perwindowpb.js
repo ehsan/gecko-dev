@@ -80,8 +80,7 @@ function test() {
         controller.startSearch(testURL);
 
         // Wait for the Awesomebar popup to appear.
-        let popup = aDestWindow.gURLBar.popup;
-        promisePopupShown(popup).then(() => {
+        promisePopupShown(aDestWindow.gURLBar.popup).then(() => {
           function searchIsComplete() {
             return controller.searchStatus ==
               Ci.nsIAutoCompleteController.STATUS_COMPLETE_MATCH;
@@ -107,8 +106,8 @@ function test() {
               }, true);
             }
 
-            // Make sure the last match is selected.
-            while (popup.selectedIndex < controller.matchCount - 1) {
+            // Select the second match, if any.
+            if (controller.matchCount > 1) {
               controller.handleKeyNavigation(KeyEvent.DOM_VK_DOWN);
             }
 
