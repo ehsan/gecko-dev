@@ -37,9 +37,6 @@
 #endif
 #endif
 
-#ifdef LOG_TAG
-#undef LOG_TAG
-#endif
 #define LOG_TAG "HWComposer"
 
 /*
@@ -67,9 +64,9 @@ namespace mozilla {
 static StaticRefPtr<HwcComposer2D> sInstance;
 
 HwcComposer2D::HwcComposer2D()
-    : mHwc(nullptr)
+    : mMaxLayerCount(0)
     , mList(nullptr)
-    , mMaxLayerCount(0)
+    , mHwc(nullptr)
     , mColorFill(false)
     , mRBSwapSupport(false)
 #if ANDROID_VERSION >= 17

@@ -310,14 +310,8 @@ function addTab(aUrl) {
 function cleanUpOpenedTabs() {
   let tab;
   while(tab = gOpenedTabs.shift()) {
-    cleanupNotificationsForBrowser(tab.browser);
     Browser.closeTab(Browser.getTabFromChrome(tab.chromeTab), { forceClose: true })
   }
-}
-
-function cleanupNotificationsForBrowser(aBrowser) {
-  let notificationBox = Browser.getNotificationBox(aBrowser);
-  notificationBox && notificationBox.removeAllNotifications(true);
 }
 
 /**

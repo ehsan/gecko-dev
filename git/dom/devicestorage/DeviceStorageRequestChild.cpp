@@ -156,26 +156,6 @@ DeviceStorageRequestChild::
       break;
     }
 
-    case DeviceStorageResponseValue::TMountStorageResponse:
-    {
-      MountStorageResponse r = aValue;
-      AutoJSContext cx;
-      JS::Rooted<JS::Value> result(
-        cx, StringToJsval(mRequest->GetOwner(), r.storageStatus()));
-      mRequest->FireSuccess(result);
-      break;
-    }
-
-    case DeviceStorageResponseValue::TUnmountStorageResponse:
-    {
-      UnmountStorageResponse r = aValue;
-      AutoJSContext cx;
-      JS::Rooted<JS::Value> result(
-        cx, StringToJsval(mRequest->GetOwner(), r.storageStatus()));
-      mRequest->FireSuccess(result);
-      break;
-    }
-
     case DeviceStorageResponseValue::TEnumerationResponse:
     {
       EnumerationResponse r = aValue;

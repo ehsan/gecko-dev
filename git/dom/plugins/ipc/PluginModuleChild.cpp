@@ -144,8 +144,6 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 {
     PLUGIN_LOG_DEBUG_METHOD;
 
-    GetIPCChannel()->SetAbortOnError(true);
-
 #ifdef XP_WIN
     COMMessageFilter::Initialize(this);
 #endif
@@ -596,8 +594,6 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
 #ifdef OS_WIN
     ResetEventHooks();
 #endif
-
-    GetIPCChannel()->SetAbortOnError(false);
 
     return true;
 }

@@ -2136,11 +2136,6 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         save.setVisible(!GeckoProfile.get(this).inGuestMode());
-        if (tab.isBookmark() || tab.isReadingListItem()) {
-            save.setIcon(R.drawable.ic_menu_bookmark_remove);
-        } else {
-            save.setIcon(R.drawable.ic_menu_bookmark_add);
-        }
 
         bookmark.setEnabled(!AboutPages.isAboutReader(tab.getURL()));
         bookmark.setChecked(tab.isBookmark());

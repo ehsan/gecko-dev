@@ -272,7 +272,21 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestBatchOperations extends TestCase {
+    abstract class Test implements Runnable {
+        @Override
+        public void run() {
+            try {
+                test();
+            } catch (Exception e) {
+                mAsserter.is(true, false, "Test " + this.getClass().getName() +
+                        " threw exception: " + e);
+            }
+        }
+
+        public abstract void test() throws Exception;
+    }
+
+    class TestBatchOperations extends Test {
         static final int TESTCOUNT = 100;
 
         public void testApplyBatch() throws Exception {
@@ -443,7 +457,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestSpecialFolders extends TestCase {
+    class TestSpecialFolders extends Test {
         @Override
         public void test() throws Exception {
             Cursor c = mProvider.query(BrowserContract.Bookmarks.CONTENT_URI,
@@ -490,7 +504,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestInsertBookmarks extends TestCase {
+    class TestInsertBookmarks extends Test {
         private long insertWithNullCol(String colName) throws Exception {
             ContentValues b = createOneBookmark();
             b.putNull(colName);
@@ -565,7 +579,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestInsertBookmarksFavicons extends TestCase {
+    class TestInsertBookmarksFavicons extends Test {
         @Override
         public void test() throws Exception {
             ContentValues b = createOneBookmark();
@@ -595,7 +609,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestDeleteBookmarks extends TestCase {
+    class TestDeleteBookmarks extends Test {
         private long insertOneBookmark() throws Exception {
             ContentValues b = createOneBookmark();
             long id = ContentUris.parseId(mProvider.insert(BrowserContract.Bookmarks.CONTENT_URI, b));
@@ -672,7 +686,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestDeleteBookmarksFavicons extends TestCase {
+    class TestDeleteBookmarksFavicons extends Test {
         @Override
         public void test() throws Exception {
             ContentValues b = createOneBookmark();
@@ -695,7 +709,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestUpdateBookmarks extends TestCase {
+    class TestUpdateBookmarks extends Test {
         private int updateWithNullCol(long id, String colName) throws Exception {
             ContentValues u = new ContentValues();
             u.putNull(colName);
@@ -787,7 +801,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestUpdateBookmarksFavicons extends TestCase {
+    class TestUpdateBookmarksFavicons extends Test {
         @Override
         public void test() throws Exception {
             ContentValues b = createOneBookmark();
@@ -827,7 +841,7 @@ public class testBrowserProvider extends ContentProviderTest {
      *
      * Verify that the reordering worked by querying.
      */
-    private class TestPositionBookmarks extends TestCase {
+    class TestPositionBookmarks extends Test {
 
         public String makeGUID(final long in) {
             String part = String.valueOf(in);
@@ -911,7 +925,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestInsertHistory extends TestCase {
+    class TestInsertHistory extends Test {
         private long insertWithNullCol(String colName) throws Exception {
             ContentValues h = createOneHistoryEntry();
             h.putNull(colName);
@@ -954,7 +968,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestInsertHistoryFavicons extends TestCase {
+    class TestInsertHistoryFavicons extends Test {
         @Override
         public void test() throws Exception {
             ContentValues h = createOneHistoryEntry();
@@ -984,7 +998,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestDeleteHistory extends TestCase {
+    class TestDeleteHistory extends Test {
         private long insertOneHistoryEntry() throws Exception {
             ContentValues h = createOneHistoryEntry();
             long id = ContentUris.parseId(mProvider.insert(BrowserContract.History.CONTENT_URI, h));
@@ -1033,7 +1047,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestDeleteHistoryFavicons extends TestCase {
+    class TestDeleteHistoryFavicons extends Test {
         @Override
         public void test() throws Exception {
             ContentValues h = createOneHistoryEntry();
@@ -1056,7 +1070,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestUpdateHistory extends TestCase {
+    class TestUpdateHistory extends Test {
         private int updateWithNullCol(long id, String colName) throws Exception {
             ContentValues u = new ContentValues();
             u.putNull(colName);
@@ -1139,7 +1153,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestUpdateHistoryFavicons extends TestCase {
+    class TestUpdateHistoryFavicons extends Test {
         @Override
         public void test() throws Exception {
             ContentValues h = createOneHistoryEntry();
@@ -1173,7 +1187,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestUpdateOrInsertHistory extends TestCase {
+    class TestUpdateOrInsertHistory extends Test {
         private final String TEST_URL_1 = "http://example.com";
         private final String TEST_URL_2 = "http://example.org";
         private final String TEST_TITLE = "Example";
@@ -1305,7 +1319,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestInsertHistoryThumbnails extends TestCase {
+    class TestInsertHistoryThumbnails extends Test {
         @Override
         public void test() throws Exception {
             ContentValues h = createOneHistoryEntry();
@@ -1327,7 +1341,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestUpdateHistoryThumbnails extends TestCase {
+    class TestUpdateHistoryThumbnails extends Test {
         @Override
         public void test() throws Exception {
             ContentValues h = createOneHistoryEntry();
@@ -1361,7 +1375,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestDeleteHistoryThumbnails extends TestCase {
+    class TestDeleteHistoryThumbnails extends Test {
         @Override
         public void test() throws Exception {
             ContentValues h = createOneHistoryEntry();
@@ -1384,7 +1398,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestCombinedView extends TestCase {
+    class TestCombinedView extends Test {
         @Override
         public void test() throws Exception {
             final String TITLE_1 = "Test Page 1";
@@ -1492,7 +1506,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestCombinedViewDisplay extends TestCase {
+    class TestCombinedViewDisplay extends Test {
         @Override
         public void test() throws Exception {
             final String TITLE_1 = "Test Page 1";
@@ -1553,7 +1567,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestCombinedViewWithDeletedBookmark extends TestCase {
+    class TestCombinedViewWithDeletedBookmark extends Test {
         @Override
         public void test() throws Exception {
             final String TITLE = "Test Page 1";
@@ -1594,7 +1608,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestCombinedViewWithDeletedReadingListItem extends TestCase {
+    class TestCombinedViewWithDeletedReadingListItem extends Test {
         @Override
         public void test() throws Exception {
             final String TITLE = "Test Page 1";
@@ -1640,7 +1654,7 @@ public class testBrowserProvider extends ContentProviderTest {
         }
     }
 
-    private class TestExpireHistory extends TestCase {
+    class TestExpireHistory extends Test {
         private void createFakeHistory(long timeShift, int count) {
             // Insert a bunch of very new entries
             ContentValues[] allVals = new ContentValues[count];
@@ -1761,7 +1775,7 @@ public class testBrowserProvider extends ContentProviderTest {
      * content resolver notifyChange method synchronously, so it is
      * okay to test sequentially.
      */
-    private class TestBrowserProviderNotifications extends TestCase {
+    class TestBrowserProviderNotifications extends Test {
         public static final String LOGTAG = "TestBPNotifications";
 
         protected void ensureOnlyChangeNotifiedStartsWith(Uri expectedUri, String operation) {

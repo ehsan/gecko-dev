@@ -81,11 +81,6 @@ class MessageChannel : HasResultCodes
     // for process links only, not thread links.
     void CloseWithError();
 
-    void SetAbortOnError(bool abort)
-    {
-        mAbortOnError = true;
-    }
-
     // Asynchronously send a message to the other side of the channel
     bool Send(Message* aMsg);
 
@@ -628,10 +623,6 @@ class MessageChannel : HasResultCodes
 #ifdef OS_WIN
     HANDLE mEvent;
 #endif
-
-    // Should the channel abort the process from the I/O thread when
-    // a channel error occurs?
-    bool mAbortOnError;
 };
 
 } // namespace ipc
