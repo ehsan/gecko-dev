@@ -191,7 +191,8 @@ var gAdvancedPane = {
    *
    * browser.cache.disk.capacity
    * - the size of the browser cache in KB
-   * - Only used if browser.cache.disk.smart_size.enabled is disabled
+   * browser.cache.disk.smart_size.enabled
+   * - If disabled, disk.capacity is used
    */
 
   /**
@@ -242,10 +243,8 @@ var gAdvancedPane = {
 
   readSmartSizeEnabled: function ()
   {
-    // The smart_size.enabled preference element is inverted="true", so its
-    // value is the opposite of the actual pref value
-    var disabled = document.getElementById("browser.cache.disk.smart_size.enabled").value;
-    this.updateCacheSizeUI(!disabled);
+    var enabled = document.getElementById("browser.cache.disk.smart_size.enabled").value;
+    this.updateCacheSizeUI(enabled);
   },
   
   /**

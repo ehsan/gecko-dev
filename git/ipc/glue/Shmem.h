@@ -122,7 +122,7 @@ public:
     mSize(0),
     mId(aId)
   {
-    mSize = static_cast<size_t>(*PtrToSize(mSegment));
+    mSize = *PtrToSize(mSegment);
   }
 #else
   Shmem(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
@@ -274,12 +274,12 @@ private:
   void AssertInvariants() const
   { }
 
-  static uint32*
+  static size_t*
   PtrToSize(SharedMemory* aSegment)
   {
     char* endOfSegment =
       reinterpret_cast<char*>(aSegment->memory()) + aSegment->Size();
-    return reinterpret_cast<uint32*>(endOfSegment - sizeof(uint32));
+    return reinterpret_cast<size_t*>(endOfSegment - sizeof(size_t));
   }
 
 #else

@@ -42,37 +42,31 @@
 
 #include "methodjit/BaseAssembler.h"
 #include "methodjit/MachineRegs.h"
-#include "methodjit/RematInfo.h"
 
 namespace js {
 namespace mjit {
 
-struct Imm64 : JSC::MacroAssembler::ImmPtr
+class Imm64 : public JSC::MacroAssembler::ImmPtr
 {
+  public:
     Imm64(uint64 u)
       : ImmPtr((const void *)u)
     { }
 };
 
-/* Tag stored in shifted format. */
-struct ImmTag : JSC::MacroAssembler::ImmPtr
+class ImmShiftedTag : public JSC::MacroAssembler::ImmPtr
 {
-    ImmTag(JSValueShiftedTag shtag)
+  public:
+    ImmShiftedTag(JSValueShiftedTag shtag)
       : ImmPtr((const void *)shtag)
     { }
 };
 
-struct ImmType : ImmTag
+class ImmType : public ImmShiftedTag
 {
+  public:
     ImmType(JSValueType type)
-      : ImmTag(JSValueShiftedTag(JSVAL_TYPE_TO_SHIFTED_TAG(type)))
-    { }
-};
-
-struct ImmPayload : Imm64
-{
-    ImmPayload(uint64 payload)
-      : Imm64(payload)
+      : ImmShiftedTag(JSValueShiftedTag(JSVAL_TYPE_TO_SHIFTED_TAG(type)))
     { }
 };
 
@@ -83,30 +77,38 @@ class Assembler : public BaseAssembler
   public:
     static const JSC::MacroAssembler::Scale JSVAL_SCALE = JSC::MacroAssembler::TimesEight;
 
-    template <typename T>
-    T payloadOf(T address) {
+    Address payloadOf(Address address) {
         return address;
     }
 
-    template <typename T>
-    T valueOf(T address) {
+    BaseIndex payloadOf(BaseIndex address) {
         return address;
     }
 
-    void loadSlot(RegisterID obj, RegisterID clobber, uint32 slot, bool inlineAccess,
-                  RegisterID type, RegisterID data) {
+    Address valueOf(Address address) {
+        return address;
+    }
+
+    BaseIndex valueOf(BaseIndex address) {
+        return address;
+    }
+
+    void loadSlot(RegisterID obj, RegisterID clobber, uint32 slot, RegisterID type, RegisterID data) {
         JS_ASSERT(type != data);
-        Address address(obj, JSObject::getFixedSlotOffset(slot));
-        if (!inlineAccess) {
-            loadPtr(Address(obj, offsetof(JSObject, slots)), clobber);
-            address = Address(clobber, slot * sizeof(Value));
+        Address address(obj, offsetof(JSObject, fslots) + slot * sizeof(Value));
+        if (slot >= JS_INITIAL_NSLOTS) {
+            loadPtr(Address(obj, offsetof(JSObject, dslots)), clobber);
+            address = Address(clobber, (slot - JS_INITIAL_NSLOTS) * sizeof(Value));
         }
         
         loadValueAsComponents(address, type, data);
     }
 
-    template <typename T>
-    void loadValue(T address, RegisterID dst) {
+    void loadValue(Address address, RegisterID dst) {
+        loadPtr(address, dst);
+    }
+
+    void loadValue(BaseIndex address, RegisterID dst) {
         loadPtr(address, dst);
     }
 
@@ -119,8 +121,7 @@ class Assembler : public BaseAssembler
     }
 
     /* Returns a label after the one Value load. */
-    template <typename T>
-    Label loadValueAsComponents(T address, RegisterID type, RegisterID payload) {
+    Label loadValueAsComponents(Address address, RegisterID type, RegisterID payload) {
         loadValue(address, type);
         Label l = label();
 
@@ -131,87 +132,112 @@ class Assembler : public BaseAssembler
         return l;
     }
 
-    void loadValueAsComponents(const Value &val, RegisterID type, RegisterID payload) {
-        move(Imm64(val.asRawBits() & JSVAL_TAG_MASK), type);
-        move(Imm64(val.asRawBits() & JSVAL_PAYLOAD_MASK), payload);
+    Label loadValueAsComponents(BaseIndex address, RegisterID type, RegisterID payload) {
+        loadValue(address, type);
+        Label l = label();
+
+        move(Registers::PayloadMaskReg, payload);
+        andPtr(type, payload);
+        xorPtr(payload, type);
+
+        return l;
     }
 
-    template <typename T>
-    void storeValueFromComponents(RegisterID type, RegisterID payload, T address) {
-        move(type, Registers::ValueReg);
-        orPtr(payload, Registers::ValueReg);
-        storeValue(Registers::ValueReg, address);
-    }
-
-    template <typename T>
-    void storeValueFromComponents(ImmTag type, RegisterID payload, T address) {
-        move(type, Registers::ValueReg);
-        orPtr(payload, Registers::ValueReg);
-        storeValue(Registers::ValueReg, address);
-    }
-
-    template <typename T>
-    void loadTypeTag(T address, RegisterID reg) {
+    void loadTypeTag(Address address, RegisterID reg) {
         loadValue(address, reg);
         convertValueToType(reg);
     }
 
-    template <typename T>
-    void storeTypeTag(ImmTag imm, T address) {
-        loadPayload(address, Registers::ValueReg);
+    void loadTypeTag(BaseIndex address, RegisterID reg) {
+        loadValue(address, reg);
+        convertValueToType(reg);
+    }
+
+    void storeTypeTag(ImmShiftedTag imm, Address address) {
+        loadValue(address, Registers::ValueReg);
+        convertValueToPayload(Registers::ValueReg);
         orPtr(imm, Registers::ValueReg);
         storePtr(Registers::ValueReg, valueOf(address));
     }
 
-    template <typename T>
-    void storeTypeTag(RegisterID reg, T address) {
+    void storeTypeTag(ImmShiftedTag imm, BaseIndex address) {
+        loadValue(address, Registers::ValueReg);
+        convertValueToPayload(Registers::ValueReg);
+        orPtr(imm, Registers::ValueReg);
+        storePtr(Registers::ValueReg, valueOf(address));
+    }
+
+    void storeTypeTag(RegisterID reg, Address address) {
         /* The type tag must be stored in shifted format. */
-        loadPayload(address, Registers::ValueReg);
+        loadValue(address, Registers::ValueReg);
+        convertValueToPayload(Registers::ValueReg);
         orPtr(reg, Registers::ValueReg);
         storePtr(Registers::ValueReg, valueOf(address));
     }
 
-    template <typename T>
-    void loadPayload(T address, RegisterID reg) {
+    void storeTypeTag(RegisterID reg, BaseIndex address) {
+        /* The type tag must be stored in shifted format. */
+        loadValue(address, Registers::ValueReg);
+        convertValueToPayload(Registers::ValueReg);
+        orPtr(reg, Registers::ValueReg);
+        storePtr(Registers::ValueReg, valueOf(address));
+    }
+
+    void loadPayload(Address address, RegisterID reg) {
         loadValue(address, reg);
         convertValueToPayload(reg);
     }
 
-    template <typename T>
-    void storePayload(RegisterID reg, T address) {
+    void loadPayload(BaseIndex address, RegisterID reg) {
+        loadValue(address, reg);
+        convertValueToPayload(reg);
+    }
+
+    void storePayload(RegisterID reg, Address address) {
         /* Not for doubles. */
-        loadTypeTag(address, Registers::ValueReg);
+        loadValue(address, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        orPtr(reg, Registers::ValueReg);
+        storePtr(Registers::ValueReg, valueOf(address));
+    }
+
+    void storePayload(RegisterID reg, BaseIndex address) {
+        /* Not for doubles. */
+        loadValue(address, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
         orPtr(reg, Registers::ValueReg);
         storePtr(Registers::ValueReg, valueOf(address));
     }
     
-    template <typename T>
-    void storePayload(ImmPayload imm, T address) {
+    void storePayload(Imm64 imm, Address address) {
         /* Not for doubles. */
         storePtr(imm, valueOf(address));
     }
 
-    template <typename T>
-    void storeValue(RegisterID reg, T address) {
-        storePtr(reg, valueOf(address));
-    }
-
-    template <typename T>
-    void storeValue(const Value &v, T address) {
+    void storeValue(const Value &v, Address address) {
         jsval_layout jv;
         jv.asBits = JSVAL_BITS(Jsvalify(v));
 
         storePtr(Imm64(jv.asBits), valueOf(address));
     }
 
-    template <typename T>
-    void storeValue(const ValueRemat &vr, T address) {
-        if (vr.isConstant)
-            storeValue(Valueify(vr.u.v), address);
-        else if (vr.u.s.isTypeKnown)
-            storeValueFromComponents(ImmType(vr.u.s.type.knownType), vr.u.s.data, address);
-        else
-            storeValueFromComponents(vr.u.s.type.reg, vr.u.s.data, address);
+    void storeValue(const Value &v, BaseIndex address) {
+        jsval_layout jv;
+        jv.asBits = JSVAL_BITS(Jsvalify(v));
+
+        storePtr(Imm64(jv.asBits), valueOf(address));        
+    }
+
+    /*
+     * Only does one store. Returns label after store.
+     * This is useless, but matches NunboxAssembler's interface.
+     */
+    Label storeValueForIC(const Value &v, Address address) {
+        jsval_layout jv;
+        jv.asBits = JSVAL_BITS(Jsvalify(v));
+
+        storePtr(Imm64(jv.asBits), valueOf(address));
+        return label();
     }
 
     void loadPrivate(Address privAddr, RegisterID to) {
@@ -220,100 +246,108 @@ class Assembler : public BaseAssembler
     }
 
     void loadFunctionPrivate(RegisterID base, RegisterID to) {
-        Address priv(base, offsetof(JSObject, privateData));
-        loadPtr(priv, to);
+        Address privSlot(base, offsetof(JSObject, fslots) +
+                               JSSLOT_PRIVATE * sizeof(Value));
+        loadPtr(privSlot, to);
     }
 
     Jump testNull(Assembler::Condition cond, RegisterID reg) {
-        return branchPtr(cond, reg, ImmTag(JSVAL_SHIFTED_TAG_NULL));
+        return branchPtr(cond, reg, ImmShiftedTag(JSVAL_SHIFTED_TAG_NULL));
     }
 
     Jump testNull(Assembler::Condition cond, Address address) {
         loadValue(address, Registers::ValueReg);
-        return testNull(cond, Registers::ValueReg);
-    }
-
-    Jump testUndefined(Assembler::Condition cond, RegisterID reg) {
-        return branchPtr(cond, reg, ImmTag(JSVAL_SHIFTED_TAG_UNDEFINED));
-    }
-
-    Jump testUndefined(Assembler::Condition cond, Address address) {
-        loadValue(address, Registers::ValueReg);
-        return testUndefined(cond, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        return branchPtr(cond, Registers::ValueReg, ImmShiftedTag(JSVAL_SHIFTED_TAG_NULL));
     }
 
     Jump testInt32(Assembler::Condition cond, RegisterID reg) {
-        return branchPtr(cond, reg, ImmTag(JSVAL_SHIFTED_TAG_INT32));
+        return branchPtr(cond, reg, ImmShiftedTag(JSVAL_SHIFTED_TAG_INT32));
     }
 
     Jump testInt32(Assembler::Condition cond, Address address) {
-        loadTypeTag(address, Registers::ValueReg);
-        return testInt32(cond, Registers::ValueReg);
+        loadValue(address, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        return branchPtr(cond, Registers::ValueReg, ImmShiftedTag(JSVAL_SHIFTED_TAG_INT32));
     }
 
     Jump testNumber(Assembler::Condition cond, RegisterID reg) {
-        cond = (cond == Assembler::Equal) ? Assembler::Below : Assembler::AboveOrEqual;
-        return branchPtr(cond, reg,
-                         ImmTag(JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_NUMBER_SET));
+        cond = (cond == Assembler::Equal) ? Assembler::BelowOrEqual : Assembler::Above;
+        return branchPtr(cond, reg, ImmShiftedTag(JSVAL_SHIFTED_TAG_INT32));
     }
 
     Jump testNumber(Assembler::Condition cond, Address address) {
+        cond = (cond == Assembler::Equal) ? Assembler::BelowOrEqual : Assembler::Above;
         loadValue(address, Registers::ValueReg);
-        return testNumber(cond, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        return branchPtr(cond, Registers::ValueReg, ImmShiftedTag(JSVAL_SHIFTED_TAG_INT32));
     }
 
     Jump testPrimitive(Assembler::Condition cond, RegisterID reg) {
-        cond = (cond == Assembler::Equal) ? Assembler::Below : Assembler::AboveOrEqual;
-        return branchPtr(cond, reg,
-                         ImmTag(JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_PRIMITIVE_SET));
+        cond = (cond == Assembler::NotEqual) ? Assembler::AboveOrEqual : Assembler::Below;
+        return branchPtr(cond, reg, ImmShiftedTag(JSVAL_SHIFTED_TAG_OBJECT));
     }
 
     Jump testPrimitive(Assembler::Condition cond, Address address) {
+        cond = (cond == Assembler::NotEqual) ? Assembler::AboveOrEqual : Assembler::Below;
         loadValue(address, Registers::ValueReg);
-        return testPrimitive(cond, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        return branchPtr(cond, Registers::ValueReg, ImmShiftedTag(JSVAL_SHIFTED_TAG_OBJECT));
     }
 
     Jump testObject(Assembler::Condition cond, RegisterID reg) {
-        cond = (cond == Assembler::Equal) ? Assembler::AboveOrEqual : Assembler::Below;
-        return branchPtr(cond, reg, ImmTag(JSVAL_SHIFTED_TAG_OBJECT));
+        return branchPtr(cond, reg, ImmShiftedTag(JSVAL_SHIFTED_TAG_OBJECT));
     }
 
     Jump testObject(Assembler::Condition cond, Address address) {
         loadValue(address, Registers::ValueReg);
-        return testObject(cond, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        return branchPtr(cond, Registers::ValueReg, ImmShiftedTag(JSVAL_SHIFTED_TAG_OBJECT));
     }
 
     Jump testDouble(Assembler::Condition cond, RegisterID reg) {
-        cond = (cond == Assembler::Equal) ? Assembler::BelowOrEqual : Assembler::Above;
-        return branchPtr(cond, reg, ImmTag(JSVAL_SHIFTED_TAG_MAX_DOUBLE));
+        Assembler::Condition opcond;
+        if (cond == Assembler::Equal)
+            opcond = Assembler::Below;
+        else
+            opcond = Assembler::AboveOrEqual;
+        return branchPtr(opcond, reg, ImmShiftedTag(JSVAL_SHIFTED_TAG_MAX_DOUBLE));
     }
 
     Jump testDouble(Assembler::Condition cond, Address address) {
+        Assembler::Condition opcond;
+        if (cond == Assembler::Equal)
+            opcond = Assembler::Below;
+        else
+            opcond = Assembler::AboveOrEqual;
         loadValue(address, Registers::ValueReg);
-        return testDouble(cond, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        return branchPtr(opcond, Registers::ValueReg, ImmShiftedTag(JSVAL_SHIFTED_TAG_MAX_DOUBLE));
     }
 
     Jump testBoolean(Assembler::Condition cond, RegisterID reg) {
-        return branchPtr(cond, reg, ImmTag(JSVAL_SHIFTED_TAG_BOOLEAN));
+        return branchPtr(cond, reg, ImmShiftedTag(JSVAL_SHIFTED_TAG_BOOLEAN));
     }
 
     Jump testBoolean(Assembler::Condition cond, Address address) {
-        loadTypeTag(address, Registers::ValueReg);
-        return testBoolean(cond, Registers::ValueReg);
+        loadValue(address, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        return branchPtr(cond, Registers::ValueReg, ImmShiftedTag(JSVAL_SHIFTED_TAG_BOOLEAN));
     }
 
     Jump testString(Assembler::Condition cond, RegisterID reg) {
-        return branchPtr(cond, reg, ImmTag(JSVAL_SHIFTED_TAG_STRING));
+        return branchPtr(cond, reg, ImmShiftedTag(JSVAL_SHIFTED_TAG_STRING));
     }
 
     Jump testString(Assembler::Condition cond, Address address) {
-        loadTypeTag(address, Registers::ValueReg);
-        return testString(cond, Registers::ValueReg);
+        loadValue(address, Registers::ValueReg);
+        convertValueToType(Registers::ValueReg);
+        return branchPtr(cond, Registers::ValueReg, ImmShiftedTag(JSVAL_SHIFTED_TAG_BOOLEAN));
     }
 };
 
-} /* namespace mjit */
 } /* namespace js */
+} /* namespace mjit */
 
 #endif
 

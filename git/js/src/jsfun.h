@@ -47,7 +47,6 @@
 #include "jsobj.h"
 #include "jsatom.h"
 #include "jsstr.h"
-#include "jsopcode.h"
 
 /*
  * The high two bits of JSFunction.flags encode whether the function is native
@@ -86,9 +85,6 @@
 #define JSFUN_JOINABLE      0x0001  /* function is null closure that does not
                                        appear to call itself via its own name
                                        or arguments.callee */
-
-#define JSFUN_PROTOTYPE     0x0800  /* function is Function.prototype for some
-                                       global object */
 
 #define JSFUN_EXPR_CLOSURE  0x1000  /* expression closure: function(x) x*x */
 #define JSFUN_TRCINFO       0x2000  /* when set, u.n.trcinfo is non-null,
@@ -136,10 +132,8 @@ enum JSLocalKind {
     JSLOCAL_UPVAR
 };
 
-struct JSFunction : public JSObject_Slots2
+struct JSFunction : public JSObject
 {
-    /* Functions always have two fixed slots (FUN_CLASS_RESERVED_SLOTS). */
-
     uint16          nargs;        /* maximum number of specified arguments,
                                      reflected as f.length/f.arity */
     uint16          flags;        /* flags, see JSFUN_* below and in jsapi.h */
@@ -176,11 +170,7 @@ struct JSFunction : public JSObject_Slots2
     bool isConstructor()     const { return flags & JSFUN_CONSTRUCTOR; }
     bool isHeavyweight()     const { return JSFUN_HEAVYWEIGHT_TEST(flags); }
 
-    bool isFunctionPrototype() const { return flags & JSFUN_PROTOTYPE; }
-
     inline bool inStrictMode() const;
-
-    bool acceptsPrimitiveThis() const { return flags & JSFUN_PRIMITIVE_THIS; }
 
     uintN countVars() const {
         JS_ASSERT(FUN_INTERPRETED(this));
@@ -279,7 +269,7 @@ struct JSFunction : public JSObject_Slots2
   public:
     void setJoinable() {
         JS_ASSERT(FUN_INTERPRETED(this));
-        getSlotRef(METHOD_ATOM_SLOT).setNull();
+        fslots[METHOD_ATOM_SLOT].setNull();
         flags |= JSFUN_JOINABLE;
     }
 
@@ -289,14 +279,14 @@ struct JSFunction : public JSObject_Slots2
      * flattened upvars.
      */
     JSAtom *methodAtom() const {
-        return (joinable() && getSlot(METHOD_ATOM_SLOT).isString())
-               ? STRING_TO_ATOM(getSlot(METHOD_ATOM_SLOT).toString())
+        return (joinable() && fslots[METHOD_ATOM_SLOT].isString())
+               ? STRING_TO_ATOM(fslots[METHOD_ATOM_SLOT].toString())
                : NULL;
     }
 
     void setMethodAtom(JSAtom *atom) {
         JS_ASSERT(joinable());
-        getSlotRef(METHOD_ATOM_SLOT).setString(ATOM_TO_STRING(atom));
+        fslots[METHOD_ATOM_SLOT].setString(ATOM_TO_STRING(atom));
     }
 
     js::Native maybeNative() const {
@@ -308,9 +298,12 @@ struct JSFunction : public JSObject_Slots2
         return u.i.script;
     }
 
-    /* Number of extra fixed function object slots. */
+    /* Number of extra fixed function object slots besides JSSLOT_PRIVATE. */
     static const uint32 CLASS_RESERVED_SLOTS = JSObject::FUN_CLASS_RESERVED_SLOTS;
+    static const uint32 FIRST_FREE_SLOT = JSSLOT_PRIVATE + CLASS_RESERVED_SLOTS + 1;
 };
+
+JS_STATIC_ASSERT(sizeof(JSFunction) % JS_GCTHING_ALIGN == 0);
 
 /*
  * Trace-annotated native. This expands to a JSFunctionSpec initializer (like
@@ -521,7 +514,7 @@ extern JSObject * JS_FASTCALL
 js_AllocFlatClosure(JSContext *cx, JSFunction *fun, JSObject *scopeChain);
 
 extern JS_REQUIRES_STACK JSObject *
-js_NewFlatClosure(JSContext *cx, JSFunction *fun, JSOp op, size_t oplen);
+js_NewFlatClosure(JSContext *cx, JSFunction *fun);
 
 extern JS_REQUIRES_STACK JSObject *
 js_NewDebuggableFlatClosure(JSContext *cx, JSFunction *fun);

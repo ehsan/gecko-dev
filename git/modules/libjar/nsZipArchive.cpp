@@ -223,9 +223,6 @@ nsresult nsZipHandle::Init(nsZipArchive *zip, const char *entry,
   if (!handle->mBuf)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (!handle->mBuf->Buffer())
-    return NS_ERROR_UNEXPECTED;
-
   handle->mMap = nsnull;
   handle->mLen = handle->mBuf->Length();
   handle->mFileData = handle->mBuf->Buffer();
@@ -598,7 +595,7 @@ nsresult nsZipArchive::BuildFileList()
   const PRUint8* endp = startp + mFd->mLen;
   
   PRUint32 centralOffset = 4;
-  if (mFd->mLen > ZIPCENTRAL_SIZE && xtolong(startp + centralOffset) == CENTRALSIG) {
+  if (mFd->mLen > ZIPCENTRAL_SIZE && *(PRUint32*)(startp + centralOffset) == CENTRALSIG) {
     // Success means optimized jar layout from bug 559961 is in effect
   } else {
     for (buf = endp - ZIPEND_SIZE; buf > startp; buf--)

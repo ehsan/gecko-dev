@@ -357,7 +357,9 @@ nsHTMLOptionElement::IntrinsicState() const
     state |= NS_EVENT_STATE_DEFAULT;
   }
 
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+  PRBool disabled;
+  GetBoolAttr(nsGkAtoms::disabled, &disabled);
+  if (disabled) {
     state |= NS_EVENT_STATE_DISABLED;
     state &= ~NS_EVENT_STATE_ENABLED;
   } else {

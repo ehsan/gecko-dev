@@ -267,7 +267,7 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
 
                 JSCompartment *compartment;
                 nsresult rv = xpc_CreateGlobalObject(mSafeJSContext, &global_class,
-                                                     origin, principal, false, &glob,
+                                                     origin, principal, &glob,
                                                      &compartment);
                 if(NS_FAILED(rv))
                     glob = nsnull;

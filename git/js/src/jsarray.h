@@ -46,6 +46,8 @@
 #include "jspubtd.h"
 #include "jsobj.h"
 
+#define ARRAY_CAPACITY_MIN      7
+
 extern JSBool
 js_StringIsIndex(JSString *str, jsuint *indexp);
 
@@ -137,6 +139,13 @@ js_InitArrayClass(JSContext *cx, JSObject *obj);
 extern bool
 js_InitContextBusyArrayTable(JSContext *cx);
 
+/*
+ * Creates a new array with the given length and proto (NB: NULL is not
+ * translated to Array.prototype), with len slots preallocated.
+ */
+extern JSObject * JS_FASTCALL
+js_NewArrayWithSlots(JSContext* cx, JSObject* proto, uint32 len);
+
 extern JSObject *
 js_NewArrayObject(JSContext *cx, jsuint length, const js::Value *vector);
 
@@ -190,9 +199,9 @@ extern JSBool
 array_sort(JSContext *cx, uintN argc, js::Value *vp);
 }
 
-#ifdef DEBUG
+#ifdef DEBUG_ARRAYS
 extern JSBool
-js_ArrayInfo(JSContext *cx, uintN argc, jsval *vp);
+js_ArrayInfo(JSContext *cx, JSObject *obj, uintN argc, js::Value *argv, js::Value *rval);
 #endif
 
 extern JSBool

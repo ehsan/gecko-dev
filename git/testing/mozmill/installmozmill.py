@@ -79,10 +79,7 @@ def main(args=None):
   env = os.environ.copy()
   env.pop('PYTHONHOME', None)
   call([sys.executable, 'virtualenv/virtualenv.py', destination], env=env)
-  if sys.platform.startswith('win'):
-    pip = os.path.join(destination, 'Scripts', 'pip.exe')
-  else:
-    pip = os.path.join(destination, 'bin', 'pip')
+  pip = os.path.join(destination, 'bin', 'pip')
   call([pip, 'install'] + PACKAGES, env=env)
 
 if __name__ == '__main__':

@@ -64,7 +64,6 @@
 #include "jsobjinlines.h"
 
 using namespace js;
-using namespace js::gc;
 
 /*
  * ArrayBuffer
@@ -307,7 +306,7 @@ TypedArray::obj_trace(JSTracer *trc, JSObject *obj)
 {
     TypedArray *tarray = fromJSObject(obj);
     JS_ASSERT(tarray);
-    MarkObject(trc, *tarray->bufferJS, "typedarray.buffer");
+    JS_CALL_OBJECT_TRACER(trc, tarray->bufferJS, "typedarray.buffer");
 }
 
 JSBool
@@ -787,8 +786,9 @@ class TypedArrayTemplate
             return false;
         }
 
+        makeFastWithPrivate(cx, obj, tarray);
         rval->setObject(*obj);
-        return makeFastWithPrivate(cx, obj, tarray);
+        return true;
     }
 
     static void
@@ -868,8 +868,10 @@ class TypedArrayTemplate
             return false;
         }
 
+        makeFastWithPrivate(cx, nobj, ntarray);
+
         vp->setObject(*nobj);
-        return makeFastWithPrivate(cx, nobj, ntarray);
+        return true;
     }
 
     /* set(array[, offset]) */
@@ -927,8 +929,7 @@ class TypedArrayTemplate
                 return false;
             }
 
-            if (!tarray->copyFrom(cx, src, offset))
-                return false;
+            tarray->copyFrom(src, offset);
         } else if (arg0->wrappedObject(cx)->isArray()) {
             jsuint len;
             if (!js_GetLengthProperty(cx, arg0, &len))
@@ -961,18 +962,13 @@ class TypedArrayTemplate
     }
 
     // helper used by both the constructor and Slice()
-    static bool
+    static void
     makeFastWithPrivate(JSContext *cx, JSObject *obj, ThisTypeArray *tarray)
     {
         JS_ASSERT(obj->getClass() == slowClass());
         obj->setSharedNonNativeMap();
         obj->clasp = fastClass();
         obj->setPrivate(tarray);
-        
-        // FIXME bug 599008. make it ok to call preventExtensions here.
-        // Keeping the boolean signature of this method for now.
-        obj->flags |= JSObject::NOT_EXTENSIBLE;
-        return true;
     }
 
   public:
@@ -1008,8 +1004,7 @@ class TypedArrayTemplate
 
             if (!createBufferWithSizeAndCount(cx, sizeof(NativeType), tarray->length))
                 return false;
-            if (!copyFrom(cx, tarray))
-                return false;
+            copyFrom(tarray);
         } else if (other->getClass() == &ArrayBuffer::jsclass) {
             ArrayBuffer *abuf = ArrayBuffer::fromJSObject(other);
 
@@ -1156,19 +1151,21 @@ class TypedArrayTemplate
         return true;
     }
 
-    bool
-    copyFrom(JSContext *cx, TypedArray *tarray, jsuint offset = 0)
+    void
+    copyFrom(TypedArray *tarray, jsuint offset = 0)
     {
         JS_ASSERT(offset <= length);
         JS_ASSERT(tarray->length <= length - offset);
-        if (tarray->buffer == buffer)
-            return copyFromWithOverlap(cx, tarray, offset);
+        if (tarray->buffer == buffer) {
+            copyFromWithOverlap(tarray, offset);
+            return;
+        }
 
         NativeType *dest = static_cast<NativeType*>(data) + offset;
 
         if (tarray->type == type) {
             memcpy(dest, tarray->data, tarray->byteLength);
-            return true;
+            return;
         }
 
         uintN srclen = tarray->length;
@@ -1226,12 +1223,10 @@ class TypedArrayTemplate
             JS_NOT_REACHED("copyFrom with a TypedArray of unknown type");
             break;
         }
-
-        return true;
     }
 
-    bool
-    copyFromWithOverlap(JSContext *cx, TypedArray *tarray, jsuint offset = 0)
+    void
+    copyFromWithOverlap(TypedArray *tarray, jsuint offset = 0)
     {
         JS_ASSERT(offset < length);
 
@@ -1239,16 +1234,12 @@ class TypedArrayTemplate
 
         if (tarray->type == type) {
             memmove(dest, tarray->data, tarray->byteLength);
-            return true;
+            return;
         }
 
         // We have to make a copy of the source array here, since
         // there's overlap, and we have to convert types.
         void *srcbuf = js_malloc(tarray->byteLength);
-        if (!srcbuf) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
         memcpy(srcbuf, tarray->data, tarray->byteLength);
 
         switch (tarray->type) {
@@ -1307,7 +1298,6 @@ class TypedArrayTemplate
         }
 
         js_free(srcbuf);
-        return true;
     }
 
     bool

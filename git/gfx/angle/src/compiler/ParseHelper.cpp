@@ -415,7 +415,7 @@ bool TParseContext::reservedErrorCheck(int line, const TString& identifier)
             error(line, reservedErrMsg, "gl_", "");
             return true;
         }
-        if (shaderSpec == SH_WEBGL_SPEC) {
+        if (spec == EShSpecWebGL) {
             if (identifier.substr(0, 6) == TString("webgl_")) {
                 error(line, reservedErrMsg, "webgl_", "");
                 return true;
@@ -471,23 +471,22 @@ bool TParseContext::constructorErrorCheck(int line, TIntermNode* node, TFunction
     bool matrixInMatrix = false;
     bool arrayArg = false;
     for (int i = 0; i < function.getParamCount(); ++i) {
-        const TParameter& param = function.getParam(i);
-        size += param.type->getObjectSize();
+        size += function[i].type->getObjectSize();
         
-        if (constructingMatrix && param.type->isMatrix())
+        if (constructingMatrix && function[i].type->isMatrix())
             matrixInMatrix = true;
         if (full)
             overFull = true;
         if (op != EOpConstructStruct && !type->isArray() && size >= type->getObjectSize())
             full = true;
-        if (param.type->getQualifier() != EvqConst)
+        if (function[i].type->getQualifier() != EvqConst)
             constType = false;
-        if (param.type->isArray())
+        if (function[i].type->isArray())
             arrayArg = true;
     }
     
     if (constType)
-        type->setQualifier(EvqConst);
+        type->changeQualifier(EvqConst);
 
     if (type->isArray() && type->getArraySize() != function.getParamCount()) {
         error(line, "array constructor needs one argument per array element", "constructor", "");
@@ -587,14 +586,14 @@ bool TParseContext::samplerErrorCheck(int line, const TPublicType& pType, const 
 {
     if (pType.type == EbtStruct) {
         if (containsSampler(*pType.userDef)) {
-            error(line, reason, getBasicString(pType.type), "(structure contains a sampler)");
+            error(line, reason, TType::getBasicString(pType.type), "(structure contains a sampler)");
         
             return true;
         }
         
         return false;
     } else if (IsSampler(pType.type)) {
-        error(line, reason, getBasicString(pType.type), "");
+        error(line, reason, TType::getBasicString(pType.type), "");
 
         return true;
     }
@@ -675,10 +674,13 @@ bool TParseContext::arraySizeErrorCheck(int line, TIntermTyped* expr, int& size)
 //
 bool TParseContext::arrayQualifierErrorCheck(int line, TPublicType type)
 {
-    if ((type.qualifier == EvqAttribute) || (type.qualifier == EvqConst)) {
+    if (type.qualifier == EvqAttribute) {
         error(line, "cannot declare arrays of this qualifier", TType(type).getCompleteString().c_str(), "");
         return true;
     }
+
+    if (type.qualifier == EvqConst && extensionErrorCheck(line, "GL_3DL_array_objects"))
+        return true;
 
     return false;
 }
@@ -877,28 +879,22 @@ bool TParseContext::paramErrorCheck(int line, TQualifier qualifier, TQualifier p
     }
 
     if (qualifier == EvqConst)
-        type->setQualifier(EvqConstReadOnly);
+        type->changeQualifier(EvqConstReadOnly);
     else
-        type->setQualifier(paramQualifier);
+        type->changeQualifier(paramQualifier);
 
     return false;
 }
 
-bool TParseContext::extensionErrorCheck(int line, const TString& extension)
-{
-    TExtensionBehavior::const_iterator iter = extensionBehavior.find(extension);
-    if (iter == extensionBehavior.end()) {
-        error(line, "extension", extension.c_str(), "is not supported");
-        return true;
-    }
-    if (iter->second == EBhDisable) {
-        error(line, "extension", extension.c_str(), "is disabled");
-        return true;
-    }
-    if (iter->second == EBhWarn) {
-        TString msg = "extension " + extension + " is being used";
-        infoSink.info.message(EPrefixWarning, msg.c_str(), line);
+bool TParseContext::extensionErrorCheck(int line, const char* extension)
+{       
+    if (extensionBehavior[extension] == EBhWarn) {
+        infoSink.info.message(EPrefixWarning, ("extension " + TString(extension) + " is being used").c_str(), line);
         return false;
+    }
+    if (extensionBehavior[extension] == EBhDisable) {
+        error(line, "extension", extension, "is disabled");
+        return true;
     }
 
     return false;
@@ -980,13 +976,13 @@ bool TParseContext::executeInitializer(TSourceLoc line, TString& identifier, TPu
     if (qualifier == EvqConst) {
         if (qualifier != initializer->getType().getQualifier()) {
             error(line, " assigning non-constant to", "=", "'%s'", variable->getType().getCompleteString().c_str());
-            variable->getType().setQualifier(EvqTemporary);
+            variable->getType().changeQualifier(EvqTemporary);
             return true;
         }
         if (type != initializer->getType()) {
             error(line, " non-matching types for const initializer ", 
                 variable->getType().getQualifierString(), "");
-            variable->getType().setQualifier(EvqTemporary);
+            variable->getType().changeQualifier(EvqTemporary);
             return true;
         }
         if (initializer->getAsConstantUnion()) { 
@@ -1005,7 +1001,7 @@ bool TParseContext::executeInitializer(TSourceLoc line, TString& identifier, TPu
             variable->shareConstPointer(constArray);
         } else {
             error(line, " cannot assign to", "=", "'%s'", variable->getType().getCompleteString().c_str());
-            variable->getType().setQualifier(EvqTemporary);
+            variable->getType().changeQualifier(EvqTemporary);
             return true;
         }
     }
@@ -1056,7 +1052,7 @@ TIntermTyped* TParseContext::addConstructor(TIntermNode* node, const TType* type
 
     TIntermAggregate* aggrNode = node->getAsAggregate();
     
-    TTypeList::const_iterator memberTypes;
+    TTypeList::iterator memberTypes;
     if (op == EOpConstructStruct)
         memberTypes = type->getStruct()->begin();
     
@@ -1354,7 +1350,7 @@ TIntermTyped* TParseContext::addConstArrayNode(int index, TIntermTyped* node, TS
 //
 TIntermTyped* TParseContext::addConstStruct(TString& identifier, TIntermTyped* node, TSourceLoc line)
 {
-    const TTypeList* fields = node->getType().getStruct();
+    TTypeList* fields = node->getType().getStruct();
     TIntermTyped *typedNode;
     int instanceSize = 0;
     unsigned int index = 0;
@@ -1380,6 +1376,19 @@ TIntermTyped* TParseContext::addConstStruct(TString& identifier, TIntermTyped* n
     }
 
     return typedNode;
+}
+
+//
+// Initialize all supported extensions to disable
+//
+void TParseContext::initializeExtensionBehavior()
+{
+    //
+    // example code: extensionBehavior["test"] = EBhDisable; // where "test" is the name of 
+    // supported extension
+    //
+    extensionBehavior["GL_ARB_texture_rectangle"] = EBhRequire;
+    extensionBehavior["GL_3DL_array_objects"] = EBhDisable;
 }
 
 OS_TLSIndex GlobalParseContextIndex = OS_INVALID_TLS_INDEX;

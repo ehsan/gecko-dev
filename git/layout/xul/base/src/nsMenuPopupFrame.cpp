@@ -113,7 +113,6 @@ nsMenuPopupFrame::nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContex
   mPopupState(ePopupClosed),
   mPopupAlignment(POPUPALIGNMENT_NONE),
   mPopupAnchor(POPUPALIGNMENT_NONE),
-  mFlipBoth(PR_FALSE),
   mIsOpenChanged(PR_FALSE),
   mIsContextMenu(PR_FALSE),
   mAdjustOffsetForContextMenu(PR_FALSE),
@@ -321,7 +320,7 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   }
 
   aView->CreateWidgetForPopup(&widgetData, parentWidget,
-                              PR_TRUE, PR_TRUE);
+                              PR_TRUE, PR_TRUE, eContentTypeUI);
 
   nsIWidget* widget = aView->GetWidget();
   widget->SetTransparencyMode(mode);
@@ -576,11 +575,10 @@ nsMenuPopupFrame::InitializePopup(nsIContent* aAnchorContent,
   // position attributes on the <popup> override those values passed in.
   // If false, those attributes are only used if the values passed in are empty
   if (aAnchorContent) {
-    nsAutoString anchor, align, position, flip;
+    nsAutoString anchor, align, position;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::popupanchor, anchor);
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::popupalign, align);
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::position, position);
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::flip, flip);
 
     if (aAttributesOverride) {
       // if the attributes are set, clear the offset position. Otherwise,
@@ -593,8 +591,6 @@ nsMenuPopupFrame::InitializePopup(nsIContent* aAnchorContent,
     else if (!aPosition.IsEmpty()) {
       position.Assign(aPosition);
     }
-
-    mFlipBoth = flip.EqualsLiteral("both");
 
     if (position.EqualsLiteral("before_start")) {
       mPopupAnchor = POPUPALIGNMENT_TOPLEFT;
@@ -680,7 +676,6 @@ nsMenuPopupFrame::InitializePopupAtScreen(nsIContent* aTriggerContent,
   mTriggerContent = aTriggerContent;
   mScreenXPos = aXPos;
   mScreenYPos = aYPos;
-  mFlipBoth = PR_FALSE;
   mPopupAnchor = POPUPALIGNMENT_NONE;
   mPopupAlignment = POPUPALIGNMENT_NONE;
   mIsContextMenu = aIsContextMenu;
@@ -697,7 +692,6 @@ nsMenuPopupFrame::InitializePopupWithAnchorAlign(nsIContent* aAnchorContent,
 
   mPopupState = ePopupShowing;
   mAdjustOffsetForContextMenu = PR_FALSE;
-  mFlipBoth = PR_FALSE;
 
   // this popup opening function is provided for backwards compatibility
   // only. It accepts either coordinates or an anchor and alignment value
@@ -782,7 +776,6 @@ nsMenuPopupFrame::HidePopup(PRBool aDeselectMenu, nsPopupState aNewState)
       }
     }
     mTriggerContent = nsnull;
-    mAnchorContent = nsnull;
   }
 
   // when invisible and about to be closed, HidePopup has already been called,
@@ -880,7 +873,7 @@ nsMenuPopupFrame::GetRootViewForPopup(nsIFrame* aStartFrame)
 
 nsPoint
 nsMenuPopupFrame::AdjustPositionForAnchorAlign(const nsRect& anchorRect,
-                                               FlipStyle& aHFlip, FlipStyle& aVFlip)
+                                               PRBool& aHFlip, PRBool& aVFlip)
 {
   // flip the anchor and alignment for right-to-left
   PRInt8 popupAnchor(mPopupAnchor);
@@ -937,20 +930,9 @@ nsMenuPopupFrame::AdjustPositionForAnchorAlign(const nsRect& anchorRect,
   // the values of the constants are such that both must be positive or both
   // must be negative. A special case, used for overlap, allows flipping
   // vertically as well.
-  // If we are flipping in both directions, we want to set a flip style both
-  // horizontally and vertically. However, we want to flip on the inside edge
-  // of the anchor. Consider the example of a typical dropdown menu.
-  // Vertically, we flip the popup on the outside edges of the anchor menu,
-  // however horizontally, we want to to use the inside edges so the popup
-  // still appears underneath the anchor menu instead of floating off the
-  // side of the menu.
-  FlipStyle anchorEdge = mFlipBoth ? FlipStyle_Inside: FlipStyle_None;
-  aHFlip = (popupAnchor == -popupAlign) ? FlipStyle_Outside : anchorEdge;
-  if (((popupAnchor > 0) == (popupAlign > 0)) ||
-      (popupAnchor == POPUPALIGNMENT_TOPLEFT && popupAlign == POPUPALIGNMENT_TOPLEFT))
-    aVFlip = FlipStyle_Outside;
-  else
-    aVFlip = anchorEdge;
+  aHFlip = (popupAnchor == -popupAlign);
+  aVFlip = ((popupAnchor > 0) == (popupAlign > 0)) ||
+            (popupAnchor == POPUPALIGNMENT_TOPLEFT && popupAlign == POPUPALIGNMENT_TOPLEFT);
 
   return pnt;
 }
@@ -960,7 +942,7 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
                                nscoord aScreenBegin, nscoord aScreenEnd,
                                nscoord aAnchorBegin, nscoord aAnchorEnd,
                                nscoord aMarginBegin, nscoord aMarginEnd,
-                               nscoord aOffsetForContextMenu, FlipStyle aFlip,
+                               nscoord aOffsetForContextMenu, PRBool aFlip,
                                PRPackedBool* aFlipSide)
 {
   // all of the coordinates used here are in app units relative to the screen
@@ -969,21 +951,17 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
     // at its current position, the popup would extend past the left or top
     // edge of the screen, so it will have to be moved or resized.
     if (aFlip) {
-      // for inside flips, we flip on the opposite side of the anchor
-      nscoord startpos = aFlip == FlipStyle_Outside ? aAnchorBegin : aAnchorEnd;
-      nscoord endpos = aFlip == FlipStyle_Outside ? aAnchorEnd : aAnchorBegin;
-
       // check whether there is more room to the left and right (or top and
       // bottom) of the anchor and put the popup on the side with more room.
-      if (startpos - aScreenBegin >= aScreenEnd - endpos) {
+      if (aAnchorBegin - aScreenBegin >= aScreenEnd - aAnchorEnd) {
         aScreenPoint = aScreenBegin;
-        popupSize = startpos - aScreenPoint - aMarginEnd;
+        popupSize = aAnchorBegin - aScreenPoint - aMarginEnd;
       }
       else {
         // flip such that the popup is to the right or bottom of the anchor
         // point instead. However, when flipping use the same margin size.
         *aFlipSide = PR_TRUE;
-        aScreenPoint = endpos + aMarginEnd;
+        aScreenPoint = aAnchorEnd + aMarginEnd;
         // check if the new position is still off the right or bottom edge of
         // the screen. If so, resize the popup.
         if (aScreenPoint + aSize > aScreenEnd) {
@@ -999,13 +977,9 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
     // at its current position, the popup would extend past the right or
     // bottom edge of the screen, so it will have to be moved or resized.
     if (aFlip) {
-      // for inside flips, we flip on the opposite side of the anchor
-      nscoord startpos = aFlip == FlipStyle_Outside ? aAnchorBegin : aAnchorEnd;
-      nscoord endpos = aFlip == FlipStyle_Outside ? aAnchorEnd : aAnchorBegin;
-
       // check whether there is more room to the left and right (or top and
       // bottom) of the anchor and put the popup on the side with more room.
-      if (aScreenEnd - endpos >= startpos - aScreenBegin) {
+      if (aScreenEnd - aAnchorEnd >= aAnchorBegin - aScreenBegin) {
         if (mIsContextMenu) {
           aScreenPoint = aScreenEnd - aSize;
         }
@@ -1017,14 +991,13 @@ nsMenuPopupFrame::FlipOrResize(nscoord& aScreenPoint, nscoord aSize,
         // flip such that the popup is to the left or top of the anchor point
         // instead.
         *aFlipSide = PR_TRUE;
-        aScreenPoint = startpos - aSize - aMarginBegin - aOffsetForContextMenu;
-
+        aScreenPoint = aAnchorBegin - aSize - aMarginBegin - aOffsetForContextMenu;
         // check if the new position is still off the left or top edge of the
         // screen. If so, resize the popup.
         if (aScreenPoint < aScreenBegin) {
           aScreenPoint = aScreenBegin;
           if (!mIsContextMenu) {
-            popupSize = startpos - aScreenPoint - aMarginBegin;
+            popupSize = aAnchorBegin - aScreenPoint - aMarginBegin;
           }
         }
       }
@@ -1097,8 +1070,8 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
   nsRect anchorRect = parentRect;
 
   // indicators of whether the popup should be flipped or resized.
-  FlipStyle hFlip = FlipStyle_None, vFlip = FlipStyle_None;
-
+  PRBool hFlip = PR_FALSE, vFlip = PR_FALSE;
+  
   nsMargin margin(0, 0, 0, 0);
   GetStyleMargin()->GetMargin(margin);
 
@@ -1178,13 +1151,13 @@ nsMenuPopupFrame::SetPopupPosition(nsIFrame* aAnchorFrame, PRBool aIsMove)
                        margin.top + offsetForContextMenu);
 
     // screen positioned popups can be flipped vertically but never horizontally
-    vFlip = FlipStyle_Outside;
+    vFlip = PR_TRUE;
   }
 
   // if a panel is being moved, don't flip it. But always do this for content
   // shells, so that the popup doesn't extend outside the containing frame.
   if (aIsMove && mPopupType == ePopupTypePanel && !mInContentShell) {
-    hFlip = vFlip = FlipStyle_None;
+    hFlip = vFlip = PR_FALSE;
   }
 
   nsRect screenRect = GetConstraintRect(anchorRect, rootScreenRect);

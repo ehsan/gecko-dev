@@ -60,8 +60,6 @@ public:
   // nsIAccessibilityService
   virtual nsAccessible* GetAccessibleInShell(nsINode* aNode,
                                              nsIPresShell* aPresShell);
-  virtual nsAccessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                  PRBool aCanCreate);
 
   virtual already_AddRefed<nsAccessible>
     CreateHTMLBRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
@@ -119,7 +117,7 @@ public:
 
   virtual void PresShellDestroyed(nsIPresShell* aPresShell);
 
-  virtual void FireAccessibleEvent(PRUint32 aEvent, nsAccessible* aTarget);
+  virtual nsresult FireAccessibleEvent(PRUint32 aEvent, nsIAccessible *aTarget);
 
   // nsAccessibiltiyService
 

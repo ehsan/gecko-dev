@@ -41,7 +41,6 @@
 /* Per JSRuntime object */
 
 #include "xpcprivate.h"
-#include "WrapperFactory.h"
 #include "dom_quickstubs.h"
 
 #include "jsgcchunk.h"
@@ -67,8 +66,7 @@ const char* XPCJSRuntime::mStrings[] = {
     "item",                 // IDX_ITEM
     "__proto__",            // IDX_PROTO
     "__iterator__",         // IDX_ITERATOR
-    "__exposedProps__",     // IDX_EXPOSEDPROPS
-    "__scriptOnly__"        // IDX_SCRIPTONLY
+    "__exposedProps__"      // IDX_EXPOSEDPROPS
 };
 
 /***************************************************************************/
@@ -93,7 +91,7 @@ WrappedJSDyingJSObjectFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
     {
         if(wrapper->IsSubjectToFinalization())
         {
-            js::SwitchToCompartment sc(data->cx, wrapper->GetJSObject());
+            JSAutoEnterCompartment ac(data->cx, wrapper->GetJSObject());
             if(JS_IsAboutToBeFinalized(data->cx, wrapper->GetJSObject()))
                 data->array->AppendElement(wrapper);
         }
@@ -247,13 +245,8 @@ CompartmentCallback(JSContext *cx, JSCompartment *compartment, uintN op)
         return JS_TRUE;
 
     XPCCompartmentMap& map = self->GetCompartmentMap();
-    nsAutoPtr<xpc::CompartmentPrivate> priv(
-        static_cast<xpc::CompartmentPrivate*>(JS_SetCompartmentPrivate(cx, compartment, nsnull)));
-    if (!priv)
-        return JS_TRUE;
-
     nsAdoptingCString origin;
-    origin.Adopt(static_cast<char *>(priv->origin));
+    origin.Adopt(static_cast<char *>(JS_SetCompartmentPrivate(cx, compartment, nsnull)));
 
 #ifdef DEBUG
     {
@@ -810,7 +803,7 @@ XPCJSRuntime::WatchdogMain(void *arg)
         JSContext* cx = nsnull;
         while((cx = js_NextActiveContext(self->mJSRuntime, cx)))
         {
-            js::TriggerOperationCallback(cx);
+            JS_TriggerOperationCallback(cx);
         }
     }
 
@@ -1151,9 +1144,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         JS_SetCompartmentCallback(mJSRuntime, CompartmentCallback);
         JS_SetGCCallbackRT(mJSRuntime, GCCallback);
         JS_SetExtraGCRoots(mJSRuntime, TraceJS, this);
-        JS_SetWrapObjectCallbacks(mJSRuntime,
-                                  xpc::WrapperFactory::Rewrap,
-                                  xpc::WrapperFactory::PrepareForWrapping);
         mWatchdogWakeup = JS_NEW_CONDVAR(mJSRuntime->gcLock);
 
         mJSRuntime->setActivityCallback(ActivityCallback, this);

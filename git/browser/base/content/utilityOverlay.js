@@ -50,6 +50,22 @@ function getBrowserURL()
   return "chrome://browser/content/browser.xul";
 }
 
+function goToggleToolbar( id, elementID )
+{
+  var toolbar = document.getElementById(id);
+  var element = document.getElementById(elementID);
+  if (toolbar)
+  {
+    var isHidden = toolbar.hidden;
+    toolbar.hidden = !isHidden;
+    document.persist(id, 'hidden');
+    if (element) {
+      element.setAttribute("checked", isHidden ? "true" : "false");
+      document.persist(elementID, 'checked');
+    }
+  }
+}
+
 function getTopWin()
 {
   return Services.wm.getMostRecentWindow("navigator:browser");
@@ -218,11 +234,9 @@ function openUILinkIn(url, where, aAllowThirdPartyFixup, aPostData, aReferrerURI
       if (!uriObj.schemeIs("javascript") &&
           w.gBrowser.currentURI.host != uriObj.host) {
         where = "tab";
-        loadInBackground = false;
       }
     } catch (err) {
       where = "tab";
-      loadInBackground = false;
     }
   }
 
@@ -379,8 +393,10 @@ function openAboutDialog() {
   var enumerator = Services.wm.getEnumerator("Browser:About");
   while (enumerator.hasMoreElements()) {
     let win = enumerator.getNext();
+#ifdef XP_WIN
     if (win.opener != window)
       continue;
+#endif
     win.focus();
     return;
   }
@@ -388,7 +404,11 @@ function openAboutDialog() {
 #ifdef XP_MACOSX
   var features = "chrome,resizable=no,minimizable=no";
 #else
+#ifdef XP_WIN
   var features = "chrome,centerscreen,dependent";
+#else
+  var features = "chrome,centerscreen";
+#endif
 #endif
   window.openDialog("chrome://browser/content/aboutDialog.xul", "", features);
 }

@@ -82,7 +82,7 @@ class FrameEntry
         return v_.s.tag;
     }
 #elif defined JS_PUNBOX64
-    JSValueShiftedTag getKnownTag() const {
+    JSValueShiftedTag getKnownShiftedTag() const {
         return JSValueShiftedTag(v_.asBits & JSVAL_TAG_MASK);
     }
 #endif
@@ -98,12 +98,12 @@ class FrameEntry
     }
 
 #if defined JS_NUNBOX32
-    uint32 getPayload() const {
+    uint32 getPayload32() const {
         //JS_ASSERT(!Valueify(v_.asBits).isDouble() || type.synced());
         return v_.s.payload.u32;
     }
 #elif defined JS_PUNBOX64
-    uint64 getPayload() const {
+    uint64 getPayload64() const {
         return v_.asBits & JSVAL_PAYLOAD_MASK;
     }
 #endif
@@ -128,7 +128,6 @@ class FrameEntry
     void track(uint32 index) {
         clear();
         index_ = index;
-        tracked = true;
     }
 
     void clear() {
@@ -195,7 +194,6 @@ class FrameEntry
 
     FrameEntry *copyOf() const {
         JS_ASSERT(isCopy());
-        JS_ASSERT(copy < this);
         return copy;
     }
 
@@ -212,14 +210,6 @@ class FrameEntry
         copy = fe;
     }
 
-    inline bool isTracked() const {
-        return tracked;
-    }
-
-    inline void untrack() {
-        tracked = false;
-    }
-
   private:
     JSValueType knownType;
     jsval_layout v_;
@@ -229,8 +219,7 @@ class FrameEntry
     FrameEntry *copy;
     bool       copied;
     bool       isNumber;
-    bool       tracked;
-    char       padding[1];
+    char       padding[2];
 };
 
 } /* namespace mjit */

@@ -75,17 +75,6 @@ public:
                                              nsIPresShell* aPresShell) = 0;
 
   /**
-   * Return root document accessible that is or contains a document accessible
-   * for the given presshell.
-   *
-   * @param aPresShell  [in] the presshell
-   * @param aCanCreate  [in] points whether the root document accessible
-   *                        should be returned from the cache or can be created
-   */
-  virtual nsAccessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                  PRBool aCanCreate) = 0;
-
-  /**
    * Creates accessible for the given DOM node or frame.
    */
   virtual already_AddRefed<nsAccessible>
@@ -181,7 +170,8 @@ public:
    * @param aEvent   [in] accessible event type
    * @param aTarget  [in] target of accessible event
    */
-  virtual void FireAccessibleEvent(PRUint32 aEvent, nsAccessible* aTarget) = 0;
+  virtual nsresult FireAccessibleEvent(PRUint32 aEvent,
+                                       nsIAccessible *aTarget) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIAccessibilityService,

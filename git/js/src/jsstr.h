@@ -55,7 +55,6 @@
 #include "jslock.h"
 #include "jsobj.h"
 #include "jsvalue.h"
-#include "jscell.h"
 
 #define JSSTRING_BIT(n)             ((size_t)1 << (n))
 #define JSSTRING_BITMASK(n)         (JSSTRING_BIT(n) - 1)
@@ -68,13 +67,14 @@ enum {
     NUM_HUNDRED_STRINGS      = 156U
 };
 
-extern JSStringFinalizeOp str_finalizers[8];
-
 extern jschar *
 js_GetDependentStringChars(JSString *str);
 
 extern JSString * JS_FASTCALL
 js_ConcatStrings(JSContext *cx, JSString *left, JSString *right);
+
+extern JSString * JS_FASTCALL
+js_ConcatStringsZ(JSContext *cx, const char *left, JSString *right);
 
 JS_STATIC_ASSERT(JS_BITS_PER_WORD >= 32);
 
@@ -128,7 +128,7 @@ struct JSString {
 
     friend JSAtom *
     js_AtomizeString(JSContext *cx, JSString *str, uintN flags);
- public:
+
     /*
      * Not private because we want to be able to use static
      * initializers for them. Don't use these directly!
@@ -196,14 +196,7 @@ struct JSString {
         return (mLengthAndFlags & flag) != 0;
     }
 
-    inline js::gc::Cell *asCell() {
-        return reinterpret_cast<js::gc::Cell *>(this);
-    }
-    
-    inline js::gc::FreeCell *asFreeCell() {
-        return reinterpret_cast<js::gc::FreeCell *>(this);
-    }
-
+  public:
     /*
      * Generous but sane length bound; the "-1" is there for comptibility with
      * OOM tests.
@@ -273,7 +266,6 @@ struct JSString {
     /* Specific flat string initializer and accessor methods. */
     JS_ALWAYS_INLINE void initFlat(jschar *chars, size_t length) {
         JS_ASSERT(length <= MAX_LENGTH);
-        JS_ASSERT(!isStatic(this));
         e.mBase = NULL;
         e.mCapacity = 0;
         mLengthAndFlags = (length << FLAGS_LENGTH_SHIFT) | FLAT;
@@ -282,7 +274,6 @@ struct JSString {
 
     JS_ALWAYS_INLINE void initFlatMutable(jschar *chars, size_t length, size_t cap) {
         JS_ASSERT(length <= MAX_LENGTH);
-        JS_ASSERT(!isStatic(this));
         e.mBase = NULL;
         e.mCapacity = cap;
         mLengthAndFlags = (length << FLAGS_LENGTH_SHIFT) | FLAT | MUTABLE;
@@ -333,7 +324,6 @@ struct JSString {
      */
     inline void flatSetAtomized() {
         JS_ASSERT(isFlat());
-        JS_ASSERT(!isStatic(this));
         JS_ATOMIC_SET_MASK((jsword *)&mLengthAndFlags, ATOMIZED);
     }
 
@@ -345,13 +335,7 @@ struct JSString {
 
     inline void flatClearMutable() {
         JS_ASSERT(isFlat());
-
-        /*
-         * We cannot eliminate the flag check before writing to mLengthAndFlags as
-         * static strings may reside in write-protected memory. See bug 599481.
-         */
-        if (mLengthAndFlags & MUTABLE)
-            mLengthAndFlags &= ~MUTABLE;
+        mLengthAndFlags &= ~MUTABLE;
     }
 
     /*
@@ -360,7 +344,6 @@ struct JSString {
      */
     inline void initDependent(JSString *bstr, jschar *chars, size_t len) {
         JS_ASSERT(len <= MAX_LENGTH);
-        JS_ASSERT(!isStatic(this));
         e.mParent = NULL;
         mChars = chars;
         mLengthAndFlags = DEPENDENT | (len << FLAGS_LENGTH_SHIFT);
@@ -385,7 +368,6 @@ struct JSString {
     inline void initTopNode(JSString *left, JSString *right, size_t len,
                             JSRopeBufferInfo *buf) {
         JS_ASSERT(left->length() + right->length() <= MAX_LENGTH);
-        JS_ASSERT(!isStatic(this));
         mLengthAndFlags = TOP_NODE | (len << FLAGS_LENGTH_SHIFT);
         mLeft = left;
         e.mRight = right;
@@ -525,16 +507,16 @@ struct JSString {
 
     static const SmallChar INVALID_SMALL_CHAR = -1;
 
-    static const jschar fromSmallChar[];
-    static const SmallChar toSmallChar[];
-    static const JSString unitStringTable[];
-    static const JSString length2StringTable[];
-    static const JSString hundredStringTable[];
+    static jschar fromSmallChar[];
+    static SmallChar toSmallChar[];
+    static JSString unitStringTable[];
+    static JSString length2StringTable[];
+    static JSString hundredStringTable[];
     /*
      * Since int strings can be unit strings, length-2 strings, or hundred
      * strings, we keep a table to map from integer to the correct string.
      */
-    static const JSString *const intStringTable[];
+    static JSString *intStringTable[];
     static const char deflatedIntStringTable[];
     static const char deflatedUnitStringTable[];
     static const char deflatedLength2StringTable[];
@@ -543,8 +525,6 @@ struct JSString {
     static JSString *getUnitString(JSContext *cx, JSString *str, size_t index);
     static JSString *length2String(jschar c1, jschar c2);
     static JSString *intString(jsint i);
-    
-    JS_ALWAYS_INLINE void finalize(JSContext *cx, unsigned thingKind);
 };
 
 /*
@@ -552,7 +532,7 @@ struct JSString {
  * mallocing the string buffer for a small string. We keep 2 string headers'
  * worth of space in short strings so that more strings can be stored this way.
  */
-struct JSShortString : js::gc::Cell {
+struct JSShortString {
     JSString mHeader;
     JSString mDummy;
 
@@ -581,8 +561,6 @@ struct JSShortString : js::gc::Cell {
     static inline bool fitsIntoShortString(size_t length) {
         return length <= MAX_SHORT_STRING_LENGTH;
     }
-    
-    JS_ALWAYS_INLINE void finalize(JSContext *cx, unsigned thingKind);
 };
 
 /*
@@ -728,6 +706,8 @@ JS_STATIC_ASSERT(JSString::TOP_NODE & JSString::ROPE_BIT);
 
 JS_STATIC_ASSERT(((JSString::MAX_LENGTH << JSString::FLAGS_LENGTH_SHIFT) >>
                    JSString::FLAGS_LENGTH_SHIFT) == JSString::MAX_LENGTH);
+
+JS_STATIC_ASSERT(sizeof(JSString) % JS_GCTHING_ALIGN == 0);
 
 extern const jschar *
 js_GetStringChars(JSContext *cx, JSString *str);
@@ -969,23 +949,6 @@ js_ValueToPrintable(JSContext *cx, const js::Value &, JSValueToStringFun v2sfun)
  */
 extern JSString *
 js_ValueToString(JSContext *cx, const js::Value &v);
-
-namespace js {
-
-/*
- * Most code that calls js_ValueToString knows the value is (probably) not a
- * string, so it does not make sense to put this inline fast path into
- * js_ValueToString.
- */
-static JS_ALWAYS_INLINE JSString *
-ValueToString_TestForStringInline(JSContext *cx, const Value &v)
-{
-    if (v.isString())
-        return v.toString();
-    return js_ValueToString(cx, v);
-}
-
-}
 
 /*
  * This function implements E-262-3 section 9.8, toString. Convert the given

@@ -214,7 +214,8 @@ VectorImage::VectorImage(imgStatusTracker* aStatusTracker) :
   mIsInitialized(PR_FALSE),
   mIsFullyLoaded(PR_FALSE),
   mHaveAnimations(PR_FALSE),
-  mHaveRestrictedRegion(PR_FALSE)
+  mHaveRestrictedRegion(PR_FALSE),
+  mError(PR_FALSE)
 {
 }
 
@@ -254,19 +255,11 @@ VectorImage::GetCurrentFrameRect(nsIntRect& aRect)
 }
 
 PRUint32
-VectorImage::GetDecodedDataSize()
+VectorImage::GetDataSize()
 {
-  // XXXdholbert TODO: return num bytes used by helper SVG doc. (bug 590790)
+  // XXXdholbert "sizeof(*this)" is, of course, quite an underestimate.  This
+  // needs to be smarter -- see bug 590790.
   return sizeof(*this);
-}
-
-PRUint32
-VectorImage::GetSourceDataSize()
-{
-  // We're not storing the source data -- we just feed that directly to
-  // our helper SVG document as we receive it, for it to parse.
-  // So 0 is an appropriate return value here.
-  return 0;
 }
 
 nsresult
@@ -310,13 +303,11 @@ NS_IMETHODIMP
 VectorImage::GetWidth(PRInt32* aWidth)
 {
   if (mError || !mIsFullyLoaded) {
-    *aWidth = 0;
     return NS_ERROR_FAILURE;
   }
 
   if (!mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eWidth,
                                              *aWidth)) {
-    *aWidth = 0;
     return NS_ERROR_FAILURE;
   }
 
@@ -329,13 +320,11 @@ NS_IMETHODIMP
 VectorImage::GetHeight(PRInt32* aHeight)
 {
   if (mError || !mIsFullyLoaded) {
-    *aHeight = 0;
     return NS_ERROR_FAILURE;
   }
 
   if (!mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eHeight,
                                              *aHeight)) {
-    *aHeight = 0;
     return NS_ERROR_FAILURE;
   }
 
@@ -381,13 +370,8 @@ VectorImage::GetFrame(PRUint32 aWhichFrame,
                       PRUint32 aFlags,
                       gfxASurface** _retval)
 {
-  NS_ENSURE_ARG_POINTER(_retval);
-  nsRefPtr<gfxImageSurface> surface;
-  nsresult rv = CopyFrame(aWhichFrame, aFlags, getter_AddRefs(surface));
-  if (NS_SUCCEEDED(rv)) {
-    *_retval = surface.forget().get();
-  }
-  return rv;
+  NS_NOTYETIMPLEMENTED("VectorImage::GetFrame");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //******************************************************************************
@@ -398,56 +382,14 @@ VectorImage::CopyFrame(PRUint32 aWhichFrame,
                        PRUint32 aFlags,
                        gfxImageSurface** _retval)
 {
-  NS_ENSURE_ARG_POINTER(_retval);
-  // XXXdholbert NOTE: Currently assuming FRAME_CURRENT for simplicity.
-  // Could handle FRAME_FIRST by saving helper-doc current time, seeking
-  // to time 0, rendering, and then seeking to saved time.
   if (aWhichFrame > FRAME_MAX_VALUE)
     return NS_ERROR_INVALID_ARG;
 
   if (mError)
     return NS_ERROR_FAILURE;
 
-  // Look up height & width
-  // ----------------------
-  nsIntSize imageIntSize;
-  if (!mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eWidth,
-                                             imageIntSize.width) ||
-      !mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eHeight,
-                                             imageIntSize.height)) {
-    // We'll get here if our SVG doc has a percent-valued width or height.
-    return NS_ERROR_FAILURE;
-  }
-
-  // Create a surface that we'll ultimately return
-  // ---------------------------------------------
-  // Make our surface the size of what will ultimately be drawn to it.
-  // (either the full image size, or the restricted region)
-  gfxIntSize surfaceSize;
-  if (mHaveRestrictedRegion) {
-    surfaceSize.width = mRestrictedRegion.width;
-    surfaceSize.height = mRestrictedRegion.height;
-  } else {
-    surfaceSize.width = imageIntSize.width;
-    surfaceSize.height = imageIntSize.height;
-  }
-
-  nsRefPtr<gfxImageSurface> surface =
-    new gfxImageSurface(surfaceSize, gfxASurface::ImageFormatARGB32);
-  nsRefPtr<gfxContext> context = new gfxContext(surface);
-
-  // Draw to our surface!
-  // --------------------
-  nsresult rv = Draw(context, gfxPattern::FILTER_NEAREST, gfxMatrix(),
-                     gfxRect(gfxPoint(0,0), gfxIntSize(imageIntSize.width,
-                                                       imageIntSize.height)),
-                     nsIntRect(nsIntPoint(0,0), imageIntSize),
-                     imageIntSize, aFlags);
-  if (NS_SUCCEEDED(rv)) {
-    *_retval = surface.forget().get();
-  }
-
-  return rv;
+  NS_NOTYETIMPLEMENTED("VectorImage::CopyFrame");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //******************************************************************************

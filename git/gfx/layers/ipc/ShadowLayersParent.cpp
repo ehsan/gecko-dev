@@ -150,41 +150,35 @@ ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
     case Edit::TOpCreateThebesLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateThebesLayer"));
 
-      nsRefPtr<ShadowThebesLayer> layer =
-        layer_manager()->CreateShadowThebesLayer();
-      layer->SetAllocator(this);
+      nsRefPtr<ThebesLayer> layer = layer_manager()->CreateShadowThebesLayer();
       AsShadowLayer(edit.get_OpCreateThebesLayer())->Bind(layer);
       break;
     }
     case Edit::TOpCreateContainerLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateContainerLayer"));
 
-      nsRefPtr<ContainerLayer> layer = layer_manager()->CreateShadowContainerLayer();
+      nsRefPtr<ContainerLayer> layer = layer_manager()->CreateContainerLayer();
       AsShadowLayer(edit.get_OpCreateContainerLayer())->Bind(layer);
       break;
     }
     case Edit::TOpCreateImageLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateImageLayer"));
 
-      nsRefPtr<ShadowImageLayer> layer =
-        layer_manager()->CreateShadowImageLayer();
-      layer->SetAllocator(this);
-      AsShadowLayer(edit.get_OpCreateImageLayer())->Bind(layer);
+      AsShadowLayer(edit.get_OpCreateImageLayer())->Bind(
+        layer_manager()->CreateShadowImageLayer().get());
       break;
     }
     case Edit::TOpCreateColorLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateColorLayer"));
 
-      nsRefPtr<ShadowColorLayer> layer = layer_manager()->CreateShadowColorLayer();
+      nsRefPtr<ColorLayer> layer = layer_manager()->CreateColorLayer();
       AsShadowLayer(edit.get_OpCreateColorLayer())->Bind(layer);
       break;
     }
     case Edit::TOpCreateCanvasLayer: {
       MOZ_LAYERS_LOG(("[ParentSide] CreateCanvasLayer"));
 
-      nsRefPtr<ShadowCanvasLayer> layer = 
-        layer_manager()->CreateShadowCanvasLayer();
-      layer->SetAllocator(this);
+      nsRefPtr<CanvasLayer> layer = layer_manager()->CreateShadowCanvasLayer();
       AsShadowLayer(edit.get_OpCreateCanvasLayer())->Bind(layer);
       break;
     }
@@ -195,8 +189,12 @@ ShadowLayersParent::RecvUpdate(const nsTArray<Edit>& cset,
       ShadowThebesLayer* thebes = static_cast<ShadowThebesLayer*>(
         AsShadowLayer(otb)->AsLayer());
 
-      thebes->SetFrontBuffer(otb.initialFront(), otb.frontValidRegion(),
-                             otb.xResolution(), otb.yResolution());
+      ThebesBuffer unusedBuffer;
+      nsIntRegion unusedRegion; float unusedXRes, unusedYRes;
+      thebes->Swap(
+        ThebesBuffer(otb.initialFront(), otb.bufferRect(), nsIntPoint(0, 0)),
+        unusedRegion,
+        &unusedBuffer, &unusedRegion, &unusedXRes, &unusedYRes);
 
       break;
     }

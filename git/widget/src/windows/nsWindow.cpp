@@ -174,9 +174,6 @@
 #ifdef MOZ_ENABLE_D3D9_LAYER
 #include "LayerManagerD3D9.h"
 #endif
-#ifdef MOZ_ENABLE_D3D10_LAYER
-#include "LayerManagerD3D10.h"
-#endif
 #include "LayerManagerOGL.h"
 #endif
 #include "BasicLayers.h"
@@ -447,8 +444,6 @@ nsWindow::nsWindow() : nsBaseWidget()
 
     // Init titlebar button info for custom frames.
     nsUXThemeData::InitTitlebarInfo();
-    // Init theme data
-    nsUXThemeData::UpdateNativeThemeInfo();
   } // !sInstanceCount
 
   mIdleService = nsnull;
@@ -542,7 +537,8 @@ nsWindow::Create(nsIWidget *aParent,
                           nsnull : aParent;
 
   mIsTopWidgetWindow = (nsnull == baseParent);
-  mBounds = aRect;
+  mBounds.width = aRect.width;
+  mBounds.height = aRect.height;
 
   BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
              aAppShell, aToolkit, aInitData);
@@ -557,6 +553,7 @@ nsWindow::Create(nsIWidget *aParent,
   }
 
   mPopupType = aInitData->mPopupHint;
+  mContentType = aInitData->mContentType;
   mIsRTL = aInitData->mRTL;
 
   DWORD style = WindowStyle();
@@ -738,6 +735,18 @@ LPCWSTR nsWindow::WindowClass()
       ERROR_CLASS_ALREADY_EXISTS != GetLastError();
     nsWindow::sIsRegistered = succeeded;
 
+    wc.lpszClassName = kClassNameContentFrame;
+    if (!::RegisterClassW(&wc) && 
+      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
+      nsWindow::sIsRegistered = FALSE;
+    }
+
+    wc.lpszClassName = kClassNameContent;
+    if (!::RegisterClassW(&wc) && 
+      ERROR_CLASS_ALREADY_EXISTS != GetLastError()) {
+      nsWindow::sIsRegistered = FALSE;
+    }
+
     wc.lpszClassName = kClassNameGeneral;
     ATOM generalClassAtom = ::RegisterClassW(&wc);
     if (!generalClassAtom && 
@@ -758,6 +767,12 @@ LPCWSTR nsWindow::WindowClass()
   }
   if (mWindowType == eWindowType_dialog) {
     return kClassNameDialog;
+  }
+  if (mContentType == eContentTypeContent) {
+    return kClassNameContent;
+  }
+  if (mContentType == eContentTypeContentFrame) {
+    return kClassNameContentFrame;
   }
   return kClassNameGeneral;
 }
@@ -2793,7 +2808,8 @@ void* nsWindow::GetNativeData(PRUint32 aDataType)
 {
   switch (aDataType) {
     case NS_NATIVE_TMP_WINDOW:
-      return (void*)::CreateWindowExW(mIsRTL ? WS_EX_LAYOUTRTL : 0,
+      return (void*)::CreateWindowExW(WS_EX_NOACTIVATE |
+                                       mIsRTL ? WS_EX_LAYOUTRTL : 0,
                                       WindowClass(),
                                       L"",
                                       WS_CHILD,
@@ -3189,7 +3205,6 @@ nsWindow::GetLayerManager()
     PRBool accelerateByDefault = PR_TRUE;
     PRBool disableAcceleration = PR_FALSE;
     PRBool preferOpenGL = PR_FALSE;
-    PRBool useD3D10 = PR_FALSE;
     if (prefs) {
       prefs->GetBoolPref("layers.accelerate-all",
                          &accelerateByDefault);
@@ -3197,8 +3212,6 @@ nsWindow::GetLayerManager()
                          &disableAcceleration);
       prefs->GetBoolPref("layers.prefer-opengl",
                          &preferOpenGL);
-      prefs->GetBoolPref("layers.use-d3d10",
-                         &useD3D10);
     }
 
     const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
@@ -3222,17 +3235,8 @@ nsWindow::GetLayerManager()
       mUseAcceleratedRendering = PR_TRUE;
 
     if (mUseAcceleratedRendering) {
-#ifdef MOZ_ENABLE_D3D10_LAYER
-      if (useD3D10) {
-        nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
-          new mozilla::layers::LayerManagerD3D10(this);
-        if (layerManager->Initialize()) {
-          mLayerManager = layerManager;
-        }
-      }
-#endif
 #ifdef MOZ_ENABLE_D3D9_LAYER
-      if (!preferOpenGL && !mLayerManager) {
+      if (!preferOpenGL) {
         nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
           new mozilla::layers::LayerManagerD3D9(this);
         if (layerManager->Initialize()) {
@@ -3720,10 +3724,9 @@ void nsWindow::DispatchPendingEvents()
     // Find the top level window.
     HWND topWnd = GetTopLevelHWND(mWnd);
 
-    // Dispatch pending paints for topWnd and all its descendant windows.
+    // Dispatch pending paints for all topWnd's descendant windows.
     // Note: EnumChildWindows enumerates all descendant windows not just
-    // the children (but not the window itself).
-    nsWindow::DispatchStarvedPaints(topWnd, 0);
+    // it's children.
 #if !defined(WINCE)
     ::EnumChildWindows(topWnd, nsWindow::DispatchStarvedPaints, 0);
 #else
@@ -4543,7 +4546,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     {
       // Update non-client margin offsets 
       UpdateNonClientMargins();
-      nsUXThemeData::UpdateNativeThemeInfo();
 
       DispatchStandardEvent(NS_THEMECHANGED);
 
@@ -4908,56 +4910,21 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
                                   contextMenukey ?
                                     nsMouseEvent::eLeftButton :
                                     nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
-      if (lParam != -1 && !result && mCustomNonClient &&
-          DispatchMouseEvent(NS_MOUSE_MOZHITTEST, wParam, pos,
-                             PR_FALSE, nsMouseEvent::eLeftButton,
-                             MOUSE_INPUT_SOURCE())) {
-        // Blank area hit, throw up the system menu.
-        GetSystemMenu(mWnd, TRUE); // reset the system menu
-        HMENU hMenu = GetSystemMenu(mWnd, FALSE);
-        if (hMenu) {
-          // update the options
-          switch(mSizeMode) {
-            case nsSizeMode_Fullscreen:
-            case nsSizeMode_Maximized:
-              EnableMenuItem(hMenu, SC_SIZE, MF_BYCOMMAND | MF_GRAYED);
-              EnableMenuItem(hMenu, SC_MOVE, MF_BYCOMMAND | MF_GRAYED);
-              EnableMenuItem(hMenu, SC_MAXIMIZE, MF_BYCOMMAND | MF_GRAYED);
-              break;
-            case nsSizeMode_Minimized:
-              EnableMenuItem(hMenu, SC_MINIMIZE, MF_BYCOMMAND | MF_GRAYED);
-              break;
-            case nsSizeMode_Normal:
-              EnableMenuItem(hMenu, SC_RESTORE, MF_BYCOMMAND | MF_GRAYED);
-              break;
-          }
-          LPARAM cmd =
-            TrackPopupMenu(hMenu,
-                           (TPM_LEFTBUTTON|TPM_RIGHTBUTTON|
-                            TPM_RETURNCMD|TPM_TOPALIGN|
-                            (mIsRTL ? TPM_RIGHTALIGN : TPM_LEFTALIGN)),
-                           GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam),
-                           0, mWnd, NULL);
-          if (cmd) {
-            PostMessage(mWnd, WM_SYSCOMMAND, cmd, 0);
-          }
-          result = PR_TRUE;
-        }
-      }
     }
     break;
 
     case WM_LBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
       break;
 
     case WM_MBUTTONDOWN:
+    {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
       DispatchPendingEvents();
-      break;
+    }
+    break;
 
     case WM_MBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
@@ -4968,7 +4935,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_MBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eMiddleButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
       break;
 
     case WM_NCMBUTTONDOWN:
@@ -4990,10 +4956,12 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_RBUTTONDOWN:
+    {
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
       DispatchPendingEvents();
-      break;
+    }
+    break;
 
     case WM_RBUTTONUP:
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam, PR_FALSE,
@@ -5004,7 +4972,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_RBUTTONDBLCLK:
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, wParam, lParam, PR_FALSE,
                                   nsMouseEvent::eRightButton, MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
       break;
 
     case WM_NCRBUTTONDOWN:
@@ -5025,8 +4992,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, 0, lParamToClient(lParam),
                                   PR_FALSE, nsMouseEvent::eRightButton,
                                   MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
-      break;
 
     case WM_APPCOMMAND:
     {
@@ -5609,15 +5574,15 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
   PRBool left   = PR_FALSE;
   PRBool right  = PR_FALSE;
 
-  if (my >= winRect.top && my <
+  if (my >= winRect.top && my <=
       (winRect.top + mVertResizeMargin + (mCaptionHeight - mNonClientOffset.top)))
     top = PR_TRUE;
-  else if (my < winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
+  else if (my <= winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
     bottom = PR_TRUE;
 
-  if (mx >= winRect.left && mx < (winRect.left + mHorResizeMargin))
+  if (mx >= winRect.left && mx <= (winRect.left + mHorResizeMargin))
     left = PR_TRUE;
-  else if (mx < winRect.right && mx >= (winRect.right - mHorResizeMargin))
+  else if (mx <= winRect.right && mx >= (winRect.right - mHorResizeMargin))
     right = PR_TRUE;
 
   if (top) {
@@ -5687,6 +5652,7 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
 
   return testResult;
 }
+
 
 #ifndef WINCE
 void nsWindow::PostSleepWakeNotification(const char* aNotification)
@@ -6928,20 +6894,6 @@ nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
                 PR_TRUE);
     } else if (bounds.TopLeft() != configuration.mBounds.TopLeft()) {
       w->Move(configuration.mBounds.x, configuration.mBounds.y);
-
-
-      if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-          gfxWindowsPlatform::RENDER_DIRECT2D ||
-          GetLayerManager()->GetBackendType() != LayerManager::LAYERS_BASIC) {
-        // XXX - Workaround for Bug 587508. This will invalidate the part of the
-        // plugin window that might be touched by moving content somehow. The
-        // underlying problem should be found and fixed!
-        nsIntRegion r;
-        r.Sub(bounds, configuration.mBounds);
-        r.MoveBy(-bounds.x,
-                 -bounds.y);
-        w->Invalidate(r.GetBounds(), PR_FALSE);
-      }
     }
     rv = w->SetWindowClipRegion(configuration.mClipRegion, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -7612,8 +7564,8 @@ nsWindow::OnIMESelectionChange(void)
 #define NS_LOG_WMGETOBJECT_THISWND                                             \
 {                                                                              \
   printf("\n*******Get Doc Accessible*******\nOrig Window: ");                 \
-  printf("\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",               \
-         mWnd, ::GetParent(mWnd), this);                                       \
+  printf("\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p, content type: %d,\n",\
+         mWnd, ::GetParent(mWnd), this, mContentType);                         \
   NS_LOG_WMGETOBJECT_WNDACC(this)                                              \
   printf("\n  }\n");                                                           \
 }
@@ -7667,7 +7619,14 @@ nsWindow::GetRootAccessible()
   NS_LOG_WMGETOBJECT_THISWND
   NS_LOG_WMGETOBJECT_WND("This Window", mWnd);
 
-  return DispatchAccessibleEvent(NS_GETACCESSIBLE);
+  nsAccessible* docAcc = DispatchAccessibleEvent(NS_GETACCESSIBLE);
+  if (!docAcc)
+    return nsnull;
+
+  nsCOMPtr<nsIAccessibleDocument> rootDocAcc;
+  docAcc->GetRootDocument(getter_AddRefs(rootDocAcc));
+  nsRefPtr<nsAccessible> rootAcc(do_QueryObject(rootDocAcc));
+  return rootAcc;
 }
 
 STDMETHODIMP_(LRESULT)

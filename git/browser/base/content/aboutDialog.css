@@ -41,7 +41,10 @@
 
 #version {
   margin-top: 5px;
-  -moz-margin-start: 0;
+}
+
+#released {
+  color: #666666;
 }
 
 #distribution,
@@ -52,34 +55,14 @@
   margin-bottom: 0;
 }
 
+#checkForUpdatesButton,
 .text-blurb {
   margin-bottom: 10px;
   -moz-margin-start: 0;
   -moz-padding-start: 0;
 }
 
-#updateBox {
-  margin-bottom: 10px;
-}
-
-#updateButton,
-#updateDeck > hbox > label {
-  -moz-margin-start: 0;
-  -moz-padding-start: 0;
-}
-
-#updateDeck > hbox > label:not([class="text-link"]) {
-  color: #909090;
-  font-style:italic;
-}
-
-.update-throbber {
-  width: 16px;
-  min-height: 16px;
-  -moz-margin-end: 3px;
-  list-style-image: url("chrome://global/skin/icons/loading_16.png");
-}
-
+.version-label,
 .trademark-label,
 .text-link,
 .text-link:focus {

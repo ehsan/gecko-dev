@@ -118,8 +118,8 @@ Drag.prototype = {
 
     // OH SNAP!
 
-    // if we aren't holding down the meta key or have trenches disabled...
-    if (!Keys.meta && !Trenches.disabled) {
+    // if we aren't holding down the meta key...
+    if (!Keys.meta) {
       // snappable = true if we aren't a tab on top of something else, and
       // there's no active drop site...
       let snappable = !(this.item.isATabItem &&
@@ -272,10 +272,7 @@ Drag.prototype = {
   // ----------
   // Function: stop
   // Called in response to an <Item> draggable "stop" event.
-  //
-  // Parameters:
-  //  immediately - bool for doing the pushAway immediately, without animation
-  stop: function Drag_stop(immediately) {
+  stop: function Drag_stop() {
     Trenches.hideGuides();
     this.item.isDragging = false;
 
@@ -291,7 +288,7 @@ Drag.prototype = {
       this.item.setZ(drag.zIndex);
       drag.zIndex++;
 
-      this.item.pushAway(immediately);
+      this.item.pushAway();
     }
 
     Trenches.disactivate();

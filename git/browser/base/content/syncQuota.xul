@@ -81,11 +81,11 @@
                  fixed="true"/>
         <splitter class="tree-splitter"/>
         <treecol id="collection"
-                 label="&quota.typeColumn.label;"
+                 label="Type"
                  flex="1"/>
         <splitter class="tree-splitter"/>
         <treecol id="size"
-                 label="&quota.sizeColumn.label;"
+                 label="Size"
                  flex="1"/>
       </treecols>
       <treechildren flex="1"/>

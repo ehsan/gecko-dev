@@ -269,6 +269,12 @@ PRBool nsContentUtils::sInitialized = PR_FALSE;
 nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
   *nsContentUtils::sPrefCallbackTable = nsnull;
 
+#ifdef MOZ_IPC
+#ifdef ANDROID
+nsFrameLoader *nsContentUtils::sActiveFrameLoader = nsnull;
+#endif
+#endif
+
 static PLDHashTable sEventListenerManagersHash;
 
 class EventListenerManagerMapEntry : public PLDHashEntryHdr
@@ -2005,7 +2011,7 @@ static inline void KeyAppendAtom(nsIAtom* aAtom, nsACString& aKey)
   KeyAppendString(nsAtomCString(aAtom), aKey);
 }
 
-static inline PRBool IsAutocompleteOff(const nsIContent* aElement)
+static inline PRBool IsAutocompleteOff(nsIContent* aElement)
 {
   return aElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::autocomplete,
                                NS_LITERAL_STRING("off"), eIgnoreCase);
@@ -2013,7 +2019,7 @@ static inline PRBool IsAutocompleteOff(const nsIContent* aElement)
 
 /*static*/ nsresult
 nsContentUtils::GenerateStateKey(nsIContent* aContent,
-                                 const nsIDocument* aDocument,
+                                 nsIDocument* aDocument,
                                  nsIStatefulFrame::SpecialStateID aID,
                                  nsACString& aKey)
 {
@@ -2261,7 +2267,7 @@ nsContentUtils::CheckQName(const nsAString& aQualifiedName,
 
 //static
 nsresult
-nsContentUtils::SplitQName(const nsIContent* aNamespaceResolver,
+nsContentUtils::SplitQName(nsIContent* aNamespaceResolver,
                            const nsAFlatString& aQName,
                            PRInt32 *aNamespace, nsIAtom **aLocalName)
 {
@@ -2393,7 +2399,7 @@ nsContentUtils::SplitExpatName(const PRUnichar *aExpatName, nsIAtom **aPrefix,
 
 // static
 nsPresContext*
-nsContentUtils::GetContextForContent(const nsIContent* aContent)
+nsContentUtils::GetContextForContent(nsIContent* aContent)
 {
   nsIDocument* doc = aContent->GetCurrentDoc();
   if (doc) {
@@ -2628,7 +2634,7 @@ nsContentUtils::IsDraggableImage(nsIContent* aContent)
 
 // static
 PRBool
-nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
+nsContentUtils::IsDraggableLink(nsIContent* aContent) {
   nsCOMPtr<nsIURI> absURI;
   return aContent->IsLink(getter_AddRefs(absURI));
 }
@@ -3474,7 +3480,7 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
 
 /* static */
 Element*
-nsContentUtils::MatchElementId(nsIContent *aContent, const nsIAtom* aId)
+nsContentUtils::MatchElementId(nsIContent *aContent, nsIAtom* aId)
 {
   for (nsIContent* cur = aContent;
        cur;
@@ -3634,7 +3640,7 @@ nsContentUtils::UnregisterShutdownObserver(nsIObserver* aObserver)
 
 /* static */
 PRBool
-nsContentUtils::HasNonEmptyAttr(const nsIContent* aContent, PRInt32 aNameSpaceID,
+nsContentUtils::HasNonEmptyAttr(nsIContent* aContent, PRInt32 aNameSpaceID,
                                 nsIAtom* aName)
 {
   static nsIContent::AttrValuesArray strings[] = {&nsGkAtoms::_empty, nsnull};
@@ -4184,8 +4190,8 @@ nsContentUtils::HasNonEmptyTextContent(nsINode* aNode)
 
 /* static */
 PRBool
-nsContentUtils::IsInSameAnonymousTree(const nsINode* aNode,
-                                      const nsIContent* aContent)
+nsContentUtils::IsInSameAnonymousTree(nsINode* aNode,
+                                      nsIContent* aContent)
 {
   NS_PRECONDITION(aNode,
                   "Must have a node to work with");
@@ -4203,7 +4209,7 @@ nsContentUtils::IsInSameAnonymousTree(const nsINode* aNode,
     return aContent->GetBindingParent() == nsnull;
   }
 
-  return static_cast<const nsIContent*>(aNode)->GetBindingParent() ==
+  return static_cast<nsIContent*>(aNode)->GetBindingParent() ==
          aContent->GetBindingParent();
  
 }
@@ -6243,48 +6249,23 @@ mozAutoRemovableBlockerRemover::~mozAutoRemovableBlockerRemover()
 
 // static
 PRBool
-nsContentUtils::IsFocusedContent(const nsIContent* aContent)
+nsContentUtils::IsFocusedContent(nsIContent* aContent)
 {
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
 
   return fm && fm->GetFocusedContent() == aContent;
 }
 
-bool
-nsContentUtils::IsSubDocumentTabbable(nsIContent* aContent)
+#ifdef MOZ_IPC
+#ifdef ANDROID
+// static
+already_AddRefed<nsFrameLoader>
+nsContentUtils::GetActiveFrameLoader()
 {
-  nsIDocument* doc = aContent->GetCurrentDoc();
-  if (!doc) {
-    return false;
-  }
-
-  // XXXbz should this use GetOwnerDoc() for GetSubDocumentFor?
-  // sXBL/XBL2 issue!
-  nsIDocument* subDoc = doc->GetSubDocumentFor(aContent);
-  if (!subDoc) {
-    return false;
-  }
-
-  nsCOMPtr<nsISupports> container = subDoc->GetContainer();
-  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
-  if (!docShell) {
-    return false;
-  }
-
-  nsCOMPtr<nsIContentViewer> contentViewer;
-  docShell->GetContentViewer(getter_AddRefs(contentViewer));
-  if (!contentViewer) {
-    return false;
-  }
-
-  nsCOMPtr<nsIContentViewer> zombieViewer;
-  contentViewer->GetPreviousViewer(getter_AddRefs(zombieViewer));
-
-  // If there are 2 viewers for the current docshell, that
-  // means the current document is a zombie document.
-  // Only navigate into the subdocument if it's not a zombie.
-  return !zombieViewer;
+  return nsCOMPtr<nsFrameLoader>(sActiveFrameLoader).forget();
 }
+#endif
+#endif
 
 void nsContentUtils::RemoveNewlines(nsString &aString)
 {

@@ -19,7 +19,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Drew Willcoxon <adw@mozilla.com> (Original Author)
+ *   Drew Willcoxon <adw@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,71 +40,34 @@
  * mouses over a link.  See bug 587908.
  */
 
+const TEST_URL = "http://mochi.test:8888/browser/browser/base/content/test/browser_overLinkInLocationBar.html";
+
 var gTestIter;
 
 // TESTS //////////////////////////////////////////////////////////////////////
 
-let gTests = [
+function smokeTestGenerator() {
+  let tab = openTestPage();
+  yield;
 
-  function smokeTestGenerator() {
-    // Make sure the location bar is not focused.
-    gBrowser.contentWindow.focus();
+  let contentDoc = gBrowser.contentDocument;
+  let link = contentDoc.getElementById("link");
 
-    if (ensureOverLinkHidden())
-      yield;
+  mouseover(link);
+  yield;
+  checkURLBar(true);
 
-    setOverLinkWait("http://example.com/");
-    yield;
-    checkURLBar(true);
+  mouseout(link);
+  yield;
+  checkURLBar(false);
 
-    setOverLinkWait("");
-    yield;
-    checkURLBar(false);
-  },
-
-  function hostPathLabels() {
-    updateOverLink("http://example.com/");
-    hostLabelIs("http://example.com/");
-    pathLabelIs("");
-
-    updateOverLink("http://example.com/foo");
-    hostLabelIs("http://example.com/");
-    pathLabelIs("foo");
-
-    updateOverLink("javascript:popup('http://example.com/')");
-    hostLabelIs("");
-    pathLabelIs("javascript:popup('http://example.com/')");
-
-    updateOverLink("javascript:popup('http://example.com/foo')");
-    hostLabelIs("");
-    pathLabelIs("javascript:popup('http://example.com/foo')");
-
-    updateOverLink("about:home");
-    hostLabelIs("");
-    pathLabelIs("about:home");
-  }
-
-];
+  gBrowser.removeTab(tab);
+}
 
 function test() {
   waitForExplicitFinish();
-  runNextTest();
-}
-
-function runNextTest() {
-  let nextTest = gTests.shift();
-  if (nextTest) {
-    dump("Running next test: " + nextTest.name + "\n");
-    gTestIter = nextTest();
-
-    // If the test is a generator, advance it.  Otherwise, we just ran the test.
-    if (gTestIter)
-      cont();
-    else
-      runNextTest();
-  }
-  else
-    finish();
+  gTestIter = smokeTestGenerator();
+  cont();
 }
 
 // HELPERS ////////////////////////////////////////////////////////////////////
@@ -118,13 +81,7 @@ function cont() {
     gTestIter.next();
   }
   catch (err if err instanceof StopIteration) {
-    runNextTest();
-  }
-  catch (err) {
-    // Depending on who calls us, sometimes exceptions are eaten by event
-    // handlers...  Make sure we fail.
-    ok(false, "Exception: " + err);
-    throw err;
+    finish();
   }
 }
 
@@ -155,110 +112,66 @@ function checkURLBar(shouldShowOverLink) {
 }
 
 /**
- * Sets the over-link.  This assumes that str will cause the over-link to fade
- * in or out.  When its transition has finished, the test iterator is
- * incremented, so you should yield after calling.
+ * Opens the test URL in a new foreground tab.  When the page has finished
+ * loading, the test iterator is advanced, so you should yield after calling.
  *
- * @param str
- *        The over-link will be set to this string or cleared if this is falsey.
+ * @return The opened <tab>.
  */
-function setOverLinkWait(str) {
-  dump("Setting over-link and waiting: " + str + "\n");
+function openTestPage() {
+  gBrowser.addEventListener("load", function onLoad(event) {
+    if (event.target.URL == TEST_URL) {
+      gBrowser.removeEventListener("load", onLoad, true);
+      cont();
+    }
+  }, true);
+  return gBrowser.loadOneTab(TEST_URL, { inBackground: false });
+}
 
+/**
+ * Sends a mouseover event to a given anchor node.  When the over-link fade-in
+ * transition has completed, the test iterator is advanced, so you should yield
+ * after calling.
+ *
+ * @param anchorNode
+ *        An anchor node.
+ */
+function mouseover(anchorNode) {
+  mouseAnchorNode(anchorNode, true);
+}
+
+/**
+ * Sends a mouseout event to a given anchor node.  When the over-link fade-out
+ * transition has completed, the test iterator is advanced, so you should yield
+ * after calling.
+ *
+ * @param anchorNode
+ *        An anchor node.
+ */
+function mouseout(anchorNode) {
+  mouseAnchorNode(anchorNode, false);
+}
+
+/**
+ * Helper for mouseover and mouseout.  Sends a mouse event to a given node.
+ * When the over-link fade-in or -out transition has completed, the test
+ * iterator is advanced, so you should yield after calling.
+ *
+ * @param node
+ *        An anchor node in a content document.
+ * @param over
+ *        True for "mouseover" and false for "mouseout".
+ */
+function mouseAnchorNode(node, over) {
   let overLink = gURLBar._overLinkBox;
-  let opacity = window.getComputedStyle(overLink, null).opacity;
-  dump("Opacity is " + opacity + "\n");
-
-  ok(str || opacity != 0,
-     "Test assumption: either showing or if hiding, not already hidden");
-  ok(!str || opacity != 1,
-     "Test assumption: either hiding or if showing, not already shown");
-
   overLink.addEventListener("transitionend", function onTrans(event) {
-    dump("transitionend received: " + (event.target == overLink) + " " +
-         event.propertyName + "\n");
-    if (event.target == overLink && event.propertyName == "opacity") {
-      dump("target transitionend received\n");
+    if (event.target == overLink) {
       overLink.removeEventListener("transitionend", onTrans, false);
       cont();
     }
   }, false);
-  gURLBar.setOverLink(str);
-}
-
-/**
- * Sets the over-link but unlike setOverLinkWait does not assume that a
- * transition will occur and therefore does not wait.
- *
- * @param str
- *        The over-link will be set to this string or cleared if this is falsey.
- */
-function setOverLink(str) {
-  dump("Setting over-link but not waiting: " + str + "\n");
-
-  let overLink = gURLBar._overLinkBox;
-  let opacity = window.getComputedStyle(overLink, null).opacity;
-  dump("Opacity is " + opacity + "\n");
-
-  ok(str || opacity == 0,
-     "Test assumption: either showing or if hiding, already hidden");
-  ok(!str || opacity == 1,
-     "Test assumption: either hiding or if showing, already shown");
-
-  gURLBar.setOverLink(str);
-}
-
-/**
- * Calls gURLBar._updateOverLink(str), which updates the over-link but does not
- * change its visibility.
- *
- * @param str
- *        The over-link will be set to this string.  Note that setting this to
- *        falsey doesn't make sense for this function.
- */
-function updateOverLink(str) {
-  gURLBar._updateOverLink(str);
-}
-
-/**
- * If the over-link is hidden, returns false.  Otherwise, hides the overlink and
- * returns true.  When the overlink is hidden, the test iterator is incremented,
- * so if this function returns true, you should yield after calling.
- *
- * @return True if you should yield and calling and false if not.
- */
-function ensureOverLinkHidden() {
-  dump("Ensuring over-link is hidden" + "\n");
-
-  let overLink = gURLBar._overLinkBox;
-  let opacity = window.getComputedStyle(overLink, null).opacity;
-  dump("Opacity is " + opacity + "\n");
-
-  if (opacity == 0)
-    return false;
-
-  setOverLinkWait("");
-  return true;
-}
-
-/**
- * Asserts that the over-link host label is a given string.
- *
- * @param str
- *        The host label should be this string.
- */
-function hostLabelIs(str) {
-  let host = gURLBar._overLinkHostLabel;
-  is(host.value, str, "Over-link host label should be correct");
-}
-
-/**
- * Asserts that the over-link path label is a given string.
- *
- * @param str
- *        The path label should be this string.
- */
-function pathLabelIs(str) {
-  let path = gURLBar._overLinkPathLabel;
-  is(path.value, str, "Over-link path label should be correct");
+  let offset = over ? 0 : -1;
+  let eventType = over ? "mouseover" : "mouseout";
+  EventUtils.synthesizeMouse(node, offset, offset,
+                             { type: eventType, clickCount: 0 },
+                             node.ownerDocument.defaultView);
 }

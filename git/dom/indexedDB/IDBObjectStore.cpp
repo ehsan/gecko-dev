@@ -497,9 +497,15 @@ IDBObjectStore::GetJSONFromArg0(/* jsval arg0, */
 
   JSAutoRequest ar(cx);
 
+  js::AutoValueRooter clone(cx);
+  rv = nsContentUtils::CreateStructuredClone(cx, argv[0], clone.jsval_addr());
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
   nsCOMPtr<nsIJSON> json(new nsJSON());
 
-  rv = json->EncodeFromJSVal(&argv[0], cx, aJSON);
+  rv = json->EncodeFromJSVal(clone.jsval_addr(), cx, aJSON);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -769,9 +775,14 @@ IDBObjectStore::GetAddInfo(JSContext* aCx,
                            Key& aKey,
                            nsTArray<IndexUpdateInfo>& aUpdateInfoArray)
 {
-  nsresult rv;
-
   JSAutoRequest ar(aCx);
+
+  js::AutoValueRooter clone(aCx);
+  nsresult rv = nsContentUtils::CreateStructuredClone(aCx, aValue,
+                                                      clone.jsval_addr());
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   if (mKeyPath.IsEmpty()) {
     rv = GetKeyFromJSVal(aKeyVal, aKey);
@@ -779,11 +790,11 @@ IDBObjectStore::GetAddInfo(JSContext* aCx,
   }
   else {
     // Inline keys live on the object. Make sure it is an object.
-    if (JSVAL_IS_PRIMITIVE(aValue)) {
+    if (JSVAL_IS_PRIMITIVE(clone.jsval_value())) {
       return NS_ERROR_INVALID_ARG;
     }
 
-    rv = GetKeyFromObject(aCx, JSVAL_TO_OBJECT(aValue), mKeyPath, aKey);
+    rv = GetKeyFromObject(aCx, JSVAL_TO_OBJECT(clone.jsval_value()), mKeyPath, aKey);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Except if null was passed, in which case we're supposed to generate the
@@ -801,11 +812,11 @@ IDBObjectStore::GetAddInfo(JSContext* aCx,
   ObjectStoreInfo* objectStoreInfo = GetObjectStoreInfo();
   NS_ENSURE_TRUE(objectStoreInfo, NS_ERROR_FAILURE);
 
-  rv = GetIndexUpdateInfo(objectStoreInfo, aCx, aValue, aUpdateInfoArray);
+  rv = GetIndexUpdateInfo(objectStoreInfo, aCx, clone.jsval_value(), aUpdateInfoArray);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIJSON> json(new nsJSON());
-  rv = json->EncodeFromJSVal(&aValue, aCx, aJSON);
+  rv = json->EncodeFromJSVal(clone.jsval_addr(), aCx, aJSON);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

@@ -49,18 +49,12 @@ Cu.import("resource://services-sync/util.js");
 function CryptoWrapper(uri) {
   this.cleartext = {};
   WBORecord.call(this, uri);
+  this.encryption = "";
   this.ciphertext = null;
 }
 CryptoWrapper.prototype = {
   __proto__: WBORecord.prototype,
   _logName: "Record.CryptoWrapper",
-
-  get encryption() {
-    return this.uri.resolve(this.payload.encryption);
-  },
-  set encryption(value) {
-    this.payload.encryption = this.uri.getRelativeSpec(Utils.makeURI(value));
-  },
 
   encrypt: function CryptoWrapper_encrypt(passphrase) {
     let pubkey = PubKeys.getDefaultKey();
@@ -76,11 +70,11 @@ CryptoWrapper.prototype = {
     this.cleartext = null;
   },
 
-  decrypt: function CryptoWrapper_decrypt(passphrase, keyUri) {
+  decrypt: function CryptoWrapper_decrypt(passphrase) {
     let pubkey = PubKeys.getDefaultKey();
     let privkey = PrivKeys.get(pubkey.privateKeyUri);
 
-    let meta = CryptoMetas.get(keyUri);
+    let meta = CryptoMetas.get(this.encryption);
     let symkey = meta.getKey(privkey, passphrase);
 
     // Authenticate the encrypted blob with the expected HMAC
@@ -115,7 +109,8 @@ CryptoWrapper.prototype = {
   },
 };
 
-Utils.deferGetSet(CryptoWrapper, "payload", ["ciphertext", "IV", "hmac"]);
+Utils.deferGetSet(CryptoWrapper, "payload", ["ciphertext", "encryption", "IV",
+                                             "hmac"]);
 Utils.deferGetSet(CryptoWrapper, "cleartext", "deleted");
 
 function CryptoMeta(uri) {
@@ -185,7 +180,7 @@ CryptoMeta.prototype = {
 
     // Wrap the symmetric key and generate a HMAC for it
     let wrapped = Svc.Crypto.wrapSymmetricKey(symkey, new_pubkey.keyData);
-    this.keyring[this.uri.getRelativeSpec(new_pubkey.uri)] = {
+    this.keyring[new_pubkey.uri.spec] = {
       wrapped: wrapped,
       hmac: Utils.sha256HMAC(wrapped, this.hmacKey)
     };

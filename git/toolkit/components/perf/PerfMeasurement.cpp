@@ -81,7 +81,8 @@ SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
     return false;
 
   JSObject* prototype = JSVAL_TO_OBJECT(prop);
-  return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
+  return JS_SealObject(cx, obj, JS_FALSE) &&
+         JS_SealObject(cx, prototype, JS_FALSE);
 }
 
 static JSBool
@@ -100,7 +101,7 @@ InitAndSealPerfMeasurementClass(JSContext* cx, JSObject* global)
 
   // Finally, seal the global object, for good measure. (But not recursively;
   // this breaks things.)
-  return JS_FreezeObject(cx, global);
+  return JS_SealObject(cx, global, JS_FALSE);
 }
 
 NS_IMETHODIMP

@@ -166,7 +166,6 @@ class DeviceManager:
         # TODO: We had an old sleep here but we don't need it
 
         while (found == False and (loopguard < recvGuard)):
-          temp = ''
           if (self.debug >= 4): print "recv'ing..."
 
           # Get our response
@@ -194,9 +193,8 @@ class DeviceManager:
 
           # If we violently lose the connection to the device, this loop tends to spin,
           # this guard prevents that
-          if (temp == ''):
-            loopguard += 1
-            
+          loopguard = loopguard + 1
+
     # TODO: We had an old sleep here but we don't need it
     if (shouldCloseSocket == True):
       try:

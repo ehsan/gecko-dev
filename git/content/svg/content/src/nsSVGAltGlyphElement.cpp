@@ -85,7 +85,7 @@ protected:
 
 nsSVGElement::StringInfo nsSVGAltGlyphElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_FALSE }
+  { &nsGkAtoms::href, kNameSpaceID_XLink }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(AltGlyph)

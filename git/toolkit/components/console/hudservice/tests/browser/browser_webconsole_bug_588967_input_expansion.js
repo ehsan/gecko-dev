@@ -36,20 +36,31 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+const Cu = Components.utils;
+
+Cu.import("resource://gre/modules/HUDService.jsm");
+
 const TEST_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-console.html";
 
 function test() {
-  addTab(TEST_URI);
-  browser.addEventListener("DOMContentLoaded", testInputExpansion, false);
+  waitForExplicitFinish();
+  content.location.href = TEST_URI;
+  waitForFocus(onFocus);
+}
+
+function onFocus() {
+  gBrowser.selectedBrowser.addEventListener("DOMContentLoaded",
+                                            testInputExpansion, false);
 }
 
 function testInputExpansion() {
-  browser.removeEventListener("DOMContentLoaded", testInputExpansion, false);
+  gBrowser.selectedBrowser.removeEventListener("DOMContentLoaded",
+                                               testInputExpansion, false);
 
-  openConsole();
+  HUDService.activateHUDForContext(gBrowser.selectedTab);
 
-  hudId = HUDService.displaysIndex()[0];
-  hudBox = HUDService.getHeadsUpDisplay(hudId);
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
   let input = hudBox.querySelector(".jsterm-input-node");
 
   input.focus();
@@ -73,8 +84,7 @@ function testInputExpansion() {
   EventUtils.synthesizeKey("d", {});
   is(input.clientHeight, ordinaryHeight, "the input's height is normal again");
 
-  input = length = null;
-
-  finishTest();
+  HUDService.deactivateHUDForContext(gBrowser.selectedTab);
+  finish();
 }
 

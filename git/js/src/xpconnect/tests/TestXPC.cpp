@@ -822,9 +822,7 @@ int main()
             if (!glob)
                 DIE("FAILED to create global object");
 
-            JSAutoEnterCompartment ac;
-            if (!ac.enter(jscontext, glob))
-                DIE("FAILED to enter compartment");
+            JSAutoEnterCompartment autoCompartment(jscontext, glob);
 
             if (!JS_InitStandardClasses(jscontext, glob))
                 DIE("FAILED to init standard classes");

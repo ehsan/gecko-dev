@@ -898,11 +898,25 @@ nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
                                                getter_AddRefs(postDataStream));
     NS_ENSURE_SUBMIT_SUCCESS(rv);
 
+    nsAutoString method;
+    if (originatingElement &&
+        originatingElement->HasAttr(kNameSpaceID_None,
+                                    nsGkAtoms::formmethod)) {
+      if (!originatingElement->IsHTML()) {
+        return NS_ERROR_UNEXPECTED;
+      }
+      static_cast<nsGenericHTMLElement*>(originatingElement)->
+        GetEnumAttr(nsGkAtoms::formmethod, kFormDefaultMethod->tag, method);
+    } else {
+      GetEnumAttr(nsGkAtoms::method, kFormDefaultMethod->tag, method);
+    }
+
     rv = linkHandler->OnLinkClickSync(this, actionURI,
                                       target.get(),
                                       postDataStream, nsnull,
                                       getter_AddRefs(docShell),
-                                      getter_AddRefs(mSubmittingRequest));
+                                      getter_AddRefs(mSubmittingRequest),
+                                      NS_LossyConvertUTF16toASCII(method).get());
     NS_ENSURE_SUBMIT_SUCCESS(rv);
   }
 
@@ -1046,16 +1060,7 @@ CompareFormControlPosition(nsGenericHTMLFormElement *aControl1,
   // If we pass aForm, we are assuming both controls are form descendants which
   // is not always the case. This function should work but maybe slower.
   // However, checking if both elements are form descendants may be slow too...
-  // TODO: remove the prevent asserts fix, see bug 598468.
-#ifdef DEBUG
-  nsLayoutUtils::gPreventAssertInCompareTreePosition = true;
-  PRInt32 rVal = nsLayoutUtils::CompareTreePosition(aControl1, aControl2, aForm);
-  nsLayoutUtils::gPreventAssertInCompareTreePosition = false;
-
-  return rVal;
-#else // DEBUG
   return nsLayoutUtils::CompareTreePosition(aControl1, aControl2, aForm);
-#endif // DEBUG
 }
  
 #ifdef DEBUG
@@ -1070,10 +1075,6 @@ static void
 AssertDocumentOrder(const nsTArray<nsGenericHTMLFormElement*>& aControls,
                     nsIContent* aForm)
 {
-  // TODO: remove the return statement with bug 598468.
-  // This is done to prevent asserts in some edge cases.
-  return;
-
   // Only iterate if aControls is not empty, since otherwise
   // |aControls.Length() - 1| will be a very large unsigned number... not what
   // we want here.
@@ -1089,7 +1090,7 @@ AssertDocumentOrder(const nsTArray<nsGenericHTMLFormElement*>& aControls,
 
 nsresult
 nsHTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
-                              bool aUpdateValidity, PRBool aNotify)
+                              PRBool aNotify)
 {
   NS_ASSERTION(aChild->GetParent(), "Form control should have a parent");
 
@@ -1221,13 +1222,11 @@ nsHTMLFormElement::AddElement(nsGenericHTMLFormElement* aChild,
 
   // If the element is subject to constraint validaton and is invalid, we need
   // to update our internal counter.
-  if (aUpdateValidity) {
-    nsCOMPtr<nsIConstraintValidation> cvElmt =
-      do_QueryInterface(static_cast<nsGenericHTMLElement*>(aChild));
-    if (cvElmt &&
-        cvElmt->IsCandidateForConstraintValidation() && !cvElmt->IsValid()) {
-      UpdateValidity(PR_FALSE);
-    }
+  nsCOMPtr<nsIConstraintValidation> cvElmt =
+    do_QueryInterface(static_cast<nsGenericHTMLElement*>(aChild));
+  if (cvElmt &&
+      cvElmt->IsCandidateForConstraintValidation() && !cvElmt->IsValid()) {
+    UpdateValidity(PR_FALSE);
   }
 
   return NS_OK;
@@ -1243,8 +1242,7 @@ nsHTMLFormElement::AddElementToTable(nsGenericHTMLFormElement* aChild,
 
 nsresult
 nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
-                                 bool aUpdateValidity,
-                                 PRBool aNotify)
+                                 PRBool aNotify) 
 {
   //
   // Remove it from the radio group if it's a radio button
@@ -1300,13 +1298,11 @@ nsHTMLFormElement::RemoveElement(nsGenericHTMLFormElement* aChild,
 
   // If the element was subject to constraint validaton and is invalid, we need
   // to update our internal counter.
-  if (aUpdateValidity) {
-    nsCOMPtr<nsIConstraintValidation> cvElmt =
-      do_QueryInterface(static_cast<nsGenericHTMLElement*>(aChild));
-    if (cvElmt &&
-        cvElmt->IsCandidateForConstraintValidation() && !cvElmt->IsValid()) {
-      UpdateValidity(PR_TRUE);
-    }
+  nsCOMPtr<nsIConstraintValidation> cvElmt =
+    do_QueryInterface(static_cast<nsGenericHTMLElement*>(aChild));
+  if (cvElmt &&
+      cvElmt->IsCandidateForConstraintValidation() && !cvElmt->IsValid()) {
+    UpdateValidity(PR_TRUE);
   }
 
   return rv;

@@ -60,7 +60,7 @@ pm_construct(JSContext* cx, uintN argc, jsval* vp)
     if (!obj)
         return JS_FALSE;
 
-    if (!JS_FreezeObject(cx, obj))
+    if (!JS_SealObject(cx, obj, JS_FALSE))
         return JS_FALSE;
 
     PerfMeasurement* p = new PerfMeasurement(PerfMeasurement::EventMask(mask));
@@ -269,8 +269,8 @@ RegisterPerfMeasurement(JSContext *cx, JSObject *global)
             return 0;
     }
 
-    if (!JS_FreezeObject(cx, prototype) ||
-        !JS_FreezeObject(cx, ctor)) {
+    if (!JS_SealObject(cx, prototype, JS_FALSE) ||
+        !JS_SealObject(cx, ctor, JS_FALSE)) {
         return 0;
     }
 

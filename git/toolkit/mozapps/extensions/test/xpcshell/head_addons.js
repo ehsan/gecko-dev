@@ -572,23 +572,6 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
   return dir;
 }
 
-/**
- * Sets the last modified time of the extension, usually to trigger an update
- * of its metadata. If the extension is unpacked, this function assumes that
- * the extension contains only the install.rdf file.
- *
- * @param aExt   a file pointing to either the packed extension or its unpacked directory.
- * @param aTime  the time to which we set the lastModifiedTime of the extension
- */
-function setExtensionModifiedTime(aExt, aTime) {
-  aExt.lastModifiedTime = aTime;
-  if (aExt.isDirectory()) {
-    aExt = aExt.clone();
-    aExt.append("install.rdf");
-    aExt.lastModifiedTime = aTime;
-  }
-}
-
 function registerDirectory(aKey, aDir) {
   var dirProvider = {
     getFile: function(aProp, aPersistent) {
@@ -1029,10 +1012,6 @@ Services.prefs.setBoolPref("extensions.showMismatchUI", false);
 
 // By default, don't cache add-ons in AddonRepository.jsm
 Services.prefs.setBoolPref("extensions.getAddons.cache.enabled", false);
-
-// Point update checks to the local machine for fast failures
-Services.prefs.setCharPref("extensions.update.url", "http://127.0.0.1/updateURL");
-Services.prefs.setCharPref("extensions.blocklist.url", "http://127.0.0.1/blocklistURL");
 
 // Register a temporary directory for the tests.
 const gTmpD = gProfD.clone();

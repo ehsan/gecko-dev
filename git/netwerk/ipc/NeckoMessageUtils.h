@@ -104,10 +104,7 @@ struct ParamTraits<URI>
     nsCOMPtr<nsIClassInfo> classInfo = do_QueryInterface(aParam.mURI);
     char cidStr[NSID_LENGTH];
     nsCID cid;
-#ifdef DEBUG
-    nsresult rv =
-#endif
-    classInfo->GetClassIDNoAlloc(&cid);
+    nsresult rv = classInfo->GetClassIDNoAlloc(&cid);
     NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "All IPDL URIs must report a valid class ID");
     
     cid.ToProvidedString(cidStr);
@@ -171,53 +168,6 @@ struct ParamTraits<URI>
     else {
       aLog->append(L"[]");
     }
-  }
-};
-
-// nsIPermissionManager utilities
-
-struct Permission
-{
-  nsCString host, type;
-  PRUint32 capability, expireType;
-  PRInt64 expireTime;
-
-  Permission() { }
-  Permission(const nsCString& aHost,
-             const nsCString& aType,
-             const PRUint32 aCapability,
-             const PRUint32 aExpireType,
-             const PRInt64 aExpireTime) : host(aHost),
-                                          type(aType),
-                                          capability(aCapability),
-                                          expireType(aExpireType),
-                                          expireTime(aExpireTime) { }
-};
-
-template<>
-struct ParamTraits<Permission>
-{
-  static void Write(Message* aMsg, const Permission& aParam)
-  {
-    WriteParam(aMsg, aParam.host);
-    WriteParam(aMsg, aParam.type);
-    WriteParam(aMsg, aParam.capability);
-    WriteParam(aMsg, aParam.expireType);
-    WriteParam(aMsg, aParam.expireTime);
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, Permission* aResult)
-  {
-    return ReadParam(aMsg, aIter, &aResult->host) &&
-           ReadParam(aMsg, aIter, &aResult->type) &&
-           ReadParam(aMsg, aIter, &aResult->capability) &&
-           ReadParam(aMsg, aIter, &aResult->expireType) &&
-           ReadParam(aMsg, aIter, &aResult->expireTime);
-  }
-
-  static void Log(const Permission& aParam, std::wstring* aLog)
-  {
-    aLog->append(StringPrintf(L"[%s]", aParam.host.get()));
   }
 };
 

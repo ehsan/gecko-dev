@@ -40,8 +40,7 @@
 
 function run_test() {
   dump("Testing: addition of a successful update to " + FILE_UPDATES_DB +
-       " and verification of update properties with the format prior to " +
-       "bug 530872\n");
+       " and verification of update properties\n");
   removeUpdateDirsAndFiles();
   setUpdateChannel("test_channel");
 
@@ -123,10 +122,10 @@ function run_test() {
   do_check_eq(update.appVersion, "3.0");
   do_check_eq(update.platformVersion, "3.0");
   do_check_eq(update.detailsURL, "http://details2/");
-  do_check_eq(update.billboardURL, "http://details2/");
+  do_check_eq(update.billboardURL, null);
   do_check_eq(update.licenseURL, null);
-  do_check_true(update.showPrompt);
-  do_check_true(update.showNeverForVersion);
+  do_check_false(update.showPrompt);
+  do_check_false(update.showNeverForVersion);
   do_check_false(update.showSurvey);
   do_check_eq(update.serviceURL, "http://service2/");
   do_check_eq(update.installDate, "1238441400314");
@@ -134,8 +133,8 @@ function run_test() {
   do_check_eq(update.buildID, "20080811053724");
   do_check_true(update.isCompleteUpdate);
   do_check_eq(update.channel, "test_channel");
-  do_check_true(update.showPrompt);
-  do_check_true(update.showNeverForVersion);
+  do_check_false(update.showPrompt);
+  do_check_false(update.showNeverForVersion);
   do_check_false(update.showSurvey);
   do_check_eq(update.previousAppVersion, null);
   // Custom attributes

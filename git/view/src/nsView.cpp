@@ -661,28 +661,34 @@ static PRInt32 FindNonAutoZIndex(nsView* aView)
 
 nsresult nsIView::CreateWidget(nsWidgetInitData *aWidgetInitData,
                                PRBool aEnableDragDrop,
-                               PRBool aResetVisibility)
+                               PRBool aResetVisibility,
+                               nsContentType aContentType)
 {
   return Impl()->CreateWidget(aWidgetInitData,
-                              aEnableDragDrop, aResetVisibility);
+                              aEnableDragDrop, aResetVisibility,
+                              aContentType);
 }
 
 nsresult nsIView::CreateWidgetForParent(nsIWidget* aParentWidget,
                                         nsWidgetInitData *aWidgetInitData,
                                         PRBool aEnableDragDrop,
-                                        PRBool aResetVisibility)
+                                        PRBool aResetVisibility,
+                                        nsContentType aContentType)
 {
   return Impl()->CreateWidgetForParent(aParentWidget, aWidgetInitData,
-                                       aEnableDragDrop, aResetVisibility);
+                                       aEnableDragDrop, aResetVisibility,
+                                       aContentType);
 }
 
 nsresult nsIView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
                                        nsIWidget* aParentWidget,
                                        PRBool aEnableDragDrop,
-                                       PRBool aResetVisibility)
+                                       PRBool aResetVisibility,
+                                       nsContentType aContentType)
 {
   return Impl()->CreateWidgetForPopup(aWidgetInitData, aParentWidget,
-                                      aEnableDragDrop, aResetVisibility);
+                                      aEnableDragDrop, aResetVisibility,
+                                      aContentType);
 }
 
 struct DefaultWidgetInitData : public nsWidgetInitData {
@@ -696,7 +702,8 @@ struct DefaultWidgetInitData : public nsWidgetInitData {
 
 nsresult nsView::CreateWidget(nsWidgetInitData *aWidgetInitData,
                               PRBool aEnableDragDrop,
-                              PRBool aResetVisibility)
+                              PRBool aResetVisibility,
+                              nsContentType aContentType)
 {
   AssertNoWindow();
   NS_ABORT_IF_FALSE(!aWidgetInitData ||
@@ -706,6 +713,7 @@ nsresult nsView::CreateWidget(nsWidgetInitData *aWidgetInitData,
   DefaultWidgetInitData defaultInitData;
   PRBool initDataPassedIn = !!aWidgetInitData;
   aWidgetInitData = aWidgetInitData ? aWidgetInitData : &defaultInitData;
+  aWidgetInitData->mContentType = aContentType;
   defaultInitData.mListenForResizes =
     (!initDataPassedIn && GetParent() &&
      GetParent()->GetViewManager() != mViewManager);
@@ -739,7 +747,8 @@ nsresult nsView::CreateWidget(nsWidgetInitData *aWidgetInitData,
 nsresult nsView::CreateWidgetForParent(nsIWidget* aParentWidget,
                                        nsWidgetInitData *aWidgetInitData,
                                        PRBool aEnableDragDrop,
-                                       PRBool aResetVisibility)
+                                       PRBool aResetVisibility,
+                                       nsContentType aContentType)
 {
   AssertNoWindow();
   NS_ABORT_IF_FALSE(!aWidgetInitData ||
@@ -749,6 +758,7 @@ nsresult nsView::CreateWidgetForParent(nsIWidget* aParentWidget,
 
   DefaultWidgetInitData defaultInitData;
   aWidgetInitData = aWidgetInitData ? aWidgetInitData : &defaultInitData;
+  aWidgetInitData->mContentType = aContentType;
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
@@ -770,7 +780,8 @@ nsresult nsView::CreateWidgetForParent(nsIWidget* aParentWidget,
 nsresult nsView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
                                       nsIWidget* aParentWidget,
                                       PRBool aEnableDragDrop,
-                                      PRBool aResetVisibility)
+                                      PRBool aResetVisibility,
+                                      nsContentType aWindowType)
 {
   AssertNoWindow();
   NS_ABORT_IF_FALSE(aWidgetInitData, "Widget init data required");

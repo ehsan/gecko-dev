@@ -334,8 +334,8 @@ mjit::Compiler::jsop_binary_double(FrameEntry *lhs, FrameEntry *rhs, JSOp op, Vo
         JumpList isDouble;
         masm.branchConvertDoubleToInt32(fpLeft, reg, isDouble, fpRight);
         
-        masm.storeValueFromComponents(ImmType(JSVAL_TYPE_INT32), reg,
-                                      frame.addressOf(lhs));
+        masm.storePayload(reg, frame.addressOf(lhs));
+        masm.storeTypeTag(ImmType(JSVAL_TYPE_INT32), frame.addressOf(lhs));
         
         frame.freeReg(reg);
         done.setJump(masm.jump());
@@ -784,8 +784,8 @@ mjit::Compiler::jsop_neg()
         stubcc.masm.neg32(reg);
 
         /* Sync back with double path. */
-        stubcc.masm.storeValueFromComponents(ImmType(JSVAL_TYPE_INT32), reg,
-                                             frame.addressOf(fe));
+        stubcc.masm.storePayload(reg, frame.addressOf(fe));
+        stubcc.masm.storeTypeTag(ImmType(JSVAL_TYPE_INT32), frame.addressOf(fe));
 
         jmpIntRejoin.setJump(stubcc.masm.jump());
     }
@@ -957,6 +957,8 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
 
     bool lhsInt = lhs->isType(JSVAL_TYPE_INT32);
     bool rhsInt = rhs->isType(JSVAL_TYPE_INT32);
+    bool lhsString = lhs->isType(JSVAL_TYPE_STRING);
+    bool rhsString = rhs->isType(JSVAL_TYPE_STRING);
 
     /* Invert the condition if fusing with an IFEQ branch. */
     bool flipCondition = (target && fused == JSOP_IFEQ);
@@ -976,7 +978,7 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
     }
 
     if (target) {
-        Value rval = UndefinedValue();  /* quiet gcc warning */
+        Value rval;
         bool rhsConst = false;
         if (rhs->isConstant()) {
             rhsConst = true;
@@ -993,46 +995,24 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
          */
         frame.syncAndKill(Registers(Registers::AvailRegs), Uses(frame.frameDepth()), Uses(2));
 
-        RegisterID tempReg = frame.allocReg();
+        /* Temporary for OOL string path. */
+        RegisterID T1 = frame.allocReg();
 
         frame.pop();
         frame.pop();
-        frame.discardFrame();
+        frame.throwaway();
 
         /* Start of the slow path for equality stub call. */
-        Label stubEntry = stubcc.masm.label();
+        Label stubCall = stubcc.masm.label();
 
         JaegerSpew(JSpew_Insns, " ---- BEGIN STUB CALL CODE ---- \n");
 
         /* The lhs/rhs need to be synced in the stub call path. */
-        frame.ensureValueSynced(stubcc.masm, lhs, lvr);
-        frame.ensureValueSynced(stubcc.masm, rhs, rvr);
+        frame.syncEntry(stubcc.masm, lhs, lvr);
+        frame.syncEntry(stubcc.masm, rhs, rvr);
 
-        bool needStub = true;
-        
-#ifdef JS_MONOIC
-        EqualityGenInfo ic;
-
-        ic.cond = cond;
-        ic.tempReg = tempReg;
-        ic.lvr = lvr;
-        ic.rvr = rvr;
-        ic.stubEntry = stubEntry;
-        ic.stub = stub;
-
-        bool useIC = !addTraceHints || target >= PC;
-
-        /* Call the IC stub, which may generate a fast path. */
-        if (useIC) {
-            /* Adjust for the two values just pushed. */
-            ic.addrLabel = stubcc.masm.moveWithPatch(ImmPtr(NULL), Registers::ArgReg1);
-            ic.stubCall = stubcc.call(ic::Equality, frame.stackDepth() + script->nfixed + 2);
-            needStub = false;
-        }
-#endif
-
-        if (needStub)
-            stubcc.call(stub, frame.stackDepth() + script->nfixed + 2);
+        /* Call the stub, adjusting for the two values just pushed. */
+        stubcc.call(stub, frame.stackDepth() + script->nfixed + 2);
 
         /*
          * The stub call has no need to rejoin, since state is synced.
@@ -1047,59 +1027,94 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub, jsbytecode *tar
 
         JaegerSpew(JSpew_Insns, " ---- END STUB CALL CODE ---- \n");
 
-        Jump fast;
-        MaybeJump firstStubJump;
+        /* Emit an OOL string path if both sides might be strings. */
+        bool stringPath = !(lhsInt || rhsInt);
+        Label missedInt = stubCall;
+        Jump stringFallthrough;
+        Jump stringMatched;
 
-        if (lhsInt || rhsInt || (!lhs->isTypeKnown() && !rhs->isTypeKnown())) {
+        if (stringPath) {
+            missedInt = stubcc.masm.label();
+
+            if (!lhsString) {
+                Jump lhsFail = stubcc.masm.testString(Assembler::NotEqual, lvr.typeReg());
+                lhsFail.linkTo(stubCall, &stubcc.masm);
+            }
+            if (!rhsString) {
+                JS_ASSERT(!rhsConst);
+                Jump rhsFail = stubcc.masm.testString(Assembler::NotEqual, rvr.typeReg());
+                rhsFail.linkTo(stubCall, &stubcc.masm);
+            }
+
+            /* Test if lhs/rhs are atomized. */
+            Imm32 atomizedFlags(JSString::FLAT | JSString::ATOMIZED);
+
+            stubcc.masm.load32(Address(lvr.dataReg(), offsetof(JSString, mLengthAndFlags)), T1);
+            stubcc.masm.and32(Imm32(JSString::TYPE_FLAGS_MASK), T1);
+            Jump lhsNotAtomized = stubcc.masm.branch32(Assembler::NotEqual, T1, atomizedFlags);
+            lhsNotAtomized.linkTo(stubCall, &stubcc.masm);
+
+            if (!rhsConst) {
+                stubcc.masm.load32(Address(rvr.dataReg(), offsetof(JSString, mLengthAndFlags)), T1);
+                stubcc.masm.and32(Imm32(JSString::TYPE_FLAGS_MASK), T1);
+                Jump rhsNotAtomized = stubcc.masm.branch32(Assembler::NotEqual, T1, atomizedFlags);
+                rhsNotAtomized.linkTo(stubCall, &stubcc.masm);
+            }
+
+            if (rhsConst) {
+                JSString *str = rval.toString();
+                JS_ASSERT(str->isAtomized());
+                stringMatched = stubcc.masm.branchPtr(cond, lvr.dataReg(), ImmPtr(str));
+            } else {
+                stringMatched = stubcc.masm.branchPtr(cond, lvr.dataReg(), rvr.dataReg());
+            }
+
+            stringFallthrough = stubcc.masm.jump();
+        }
+
+        Jump fast;
+        if (lhsString || rhsString) {
+            /* Jump straight to the OOL string path. */
+            Jump jump = masm.jump();
+            stubcc.linkExitDirect(jump, missedInt);
+            fast = masm.jump();
+        } else {
+            /* Emit inline integer path. */
             if (!lhsInt) {
                 Jump lhsFail = masm.testInt32(Assembler::NotEqual, lvr.typeReg());
-                stubcc.linkExitDirect(lhsFail, stubEntry);
-                firstStubJump = lhsFail;
+                stubcc.linkExitDirect(lhsFail, missedInt);
             }
             if (!rhsInt) {
-                Jump rhsFail = masm.testInt32(Assembler::NotEqual, rvr.typeReg());
-                stubcc.linkExitDirect(rhsFail, stubEntry);
-                if (!firstStubJump.isSet())
-                    firstStubJump = rhsFail;
+                if (rhsConst) {
+                    Jump rhsFail = masm.jump();
+                    stubcc.linkExitDirect(rhsFail, missedInt);
+                } else {
+                    Jump rhsFail = masm.testInt32(Assembler::NotEqual, rvr.typeReg());
+                    stubcc.linkExitDirect(rhsFail, missedInt);
+                }
             }
 
             if (rhsConst)
                 fast = masm.branch32(cond, lvr.dataReg(), Imm32(rval.toInt32()));
             else
                 fast = masm.branch32(cond, lvr.dataReg(), rvr.dataReg());
-
-            jumpInScript(fast, target);
-        } else {
-            Jump j = masm.jump();
-            stubcc.linkExitDirect(j, stubEntry);
-            firstStubJump = j;
-
-            /* This is just a dummy jump. */
-            fast = masm.jump();
         }
 
-#ifdef JS_MONOIC
-        ic.jumpToStub = firstStubJump;
-        if (useIC) {
-            ic.fallThrough = masm.label();
-            ic.jumpTarget = target;
-            equalityICs.append(ic);
-        }
-#endif
-
-        /* Jump from the stub call fallthrough to here. */
+        /* Jump from the stub call and string path fallthroughs to here. */
         stubcc.crossJump(stubFallthrough, masm.label());
+        if (stringPath)
+            stubcc.crossJump(stringFallthrough, masm.label());
 
         /*
          * NB: jumpAndTrace emits to the OOL path, so make sure not to use it
          * in the middle of an in-progress slow path.
          */
-        jumpAndTrace(fast, target, &stubBranch);
+        jumpAndTrace(fast, target, &stubBranch, stringPath ? &stringMatched : NULL);
     } else {
         /* No fusing. Compare, set, and push a boolean. */
 
         /* Should have filtered these out in the caller. */
-        JS_ASSERT(!lhs->isType(JSVAL_TYPE_STRING) && !rhs->isType(JSVAL_TYPE_STRING));
+        JS_ASSERT(!lhsString && !rhsString);
 
         /* Test the types. */
         if (!lhsInt) {
@@ -1271,7 +1286,7 @@ mjit::Compiler::jsop_relational_double(JSOp op, BoolStub stub, jsbytecode *targe
         stubcc.call(stub);
 
         frame.popn(2);
-        frame.syncAndForgetEverything();
+        frame.forgetEverything();
 
         Jump j = masm.branchDouble(dblCond, fpLeft, fpRight);
 
@@ -1438,12 +1453,7 @@ mjit::Compiler::jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target,
             frame.pinReg(reg.reg());
         
         frame.popn(2);
-
-        frame.syncAndKillEverything();
-        frame.unpinKilledReg(cmpReg);
-        if (reg.isSet())
-            frame.unpinKilledReg(reg.reg());
-        frame.syncAndForgetEverything();
+        frame.forgetEverything();
         
         /* Operands could have been reordered, so use cmpOp. */
         Assembler::Condition i32Cond;
