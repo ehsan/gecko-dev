@@ -33,8 +33,9 @@ function runTest() {
   var highPriorityIframe = null;
   var childID = null;
 
-  expectProcessCreated('FOREGROUND', 'CPU_NORMAL').then(function(chid) {
+  expectProcessCreated().then(function(chid) {
     childID = chid;
+    return expectPriorityChange(childID, 'FOREGROUND', 'CPU_NORMAL');
   }).then(function() {
     // Create a new, high-priority iframe.
     highPriorityIframe = document.createElement('iframe');

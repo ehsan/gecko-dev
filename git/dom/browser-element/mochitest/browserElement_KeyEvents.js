@@ -32,7 +32,7 @@ var iframe;
 var finished = false;
 function runTest() {
   iframe = document.createElement('iframe');
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
   iframe.src = browserElementTestHelpers.focusPage;
 
   var gotFocus = false;

@@ -51,10 +51,9 @@ describe("loop.panel", function() {
         on: sandbox.stub()
       },
       rooms: {
-        getAll: function(version, callback) {
+        getAll: function(callback) {
           callback(null, []);
-        },
-        on: sandbox.stub()
+        }
       }
     };
 
@@ -626,7 +625,7 @@ describe("loop.panel", function() {
           cb("fake error");
         };
         sandbox.stub(notifications, "errorL10n");
-        TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
+        var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
           notifications: notifications,
           client: fakeClient
         }));
@@ -705,28 +704,20 @@ describe("loop.panel", function() {
   });
 
   describe("loop.panel.RoomList", function() {
-    var roomListStore, dispatcher, fakeEmail;
+    var roomListStore, dispatcher;
 
     beforeEach(function() {
-      fakeEmail = "fakeEmail@example.com";
       dispatcher = new loop.Dispatcher();
       roomListStore = new loop.store.RoomListStore({
         dispatcher: dispatcher,
         mozLoop: navigator.mozLoop
-      });
-      roomListStore.setStoreState({
-        pendingCreation: false,
-        pendingInitialRetrieval: false,
-        rooms: [],
-        error: undefined
       });
     });
 
     function createTestComponent() {
       return TestUtils.renderIntoDocument(loop.panel.RoomList({
         store: roomListStore,
-        dispatcher: dispatcher,
-        userDisplayName: fakeEmail
+        dispatcher: dispatcher
       }));
     }
 
@@ -737,43 +728,6 @@ describe("loop.panel", function() {
 
       sinon.assert.calledOnce(dispatch);
       sinon.assert.calledWithExactly(dispatch, new sharedActions.GetAllRooms());
-    });
-
-    it("should dispatch a CreateRoom action when clicking on the Start a " +
-       "conversation button",
-      function() {
-        navigator.mozLoop.userProfile = {email: fakeEmail};
-        var dispatch = sandbox.stub(dispatcher, "dispatch");
-        var view = createTestComponent();
-
-        TestUtils.Simulate.click(view.getDOMNode().querySelector("button"));
-
-        sinon.assert.calledWith(dispatch, new sharedActions.CreateRoom({
-          nameTemplate: "fakeText",
-          roomOwner: fakeEmail
-        }));
-      });
-
-    it("should disable the create button when a creation operation is ongoing",
-      function() {
-        var dispatch = sandbox.stub(dispatcher, "dispatch");
-        roomListStore.setStoreState({pendingCreation: true});
-
-        var view = createTestComponent();
-
-        var buttonNode = view.getDOMNode().querySelector("button[disabled]");
-        expect(buttonNode).to.not.equal(null);
-    });
-
-    it("should disable the create button when a list retrieval operation is pending",
-      function() {
-        var dispatch = sandbox.stub(dispatcher, "dispatch");
-        roomListStore.setStoreState({pendingInitialRetrieval: true});
-
-        var view = createTestComponent();
-
-        var buttonNode = view.getDOMNode().querySelector("button[disabled]");
-        expect(buttonNode).to.not.equal(null);
     });
   });
 

@@ -22,8 +22,8 @@ if (typeof PDFJS === 'undefined') {
   (typeof window !== 'undefined' ? window : this).PDFJS = {};
 }
 
-PDFJS.version = '1.0.937';
-PDFJS.build = '308646d';
+PDFJS.version = '1.0.907';
+PDFJS.build = 'e9072ac';
 
 (function pdfjsWrapper() {
   // Use strict in our context only - users might not want it
@@ -4642,7 +4642,7 @@ var WidgetAnnotation = (function WidgetAnnotationClosure() {
       var name = namedItem.get('T');
       if (name) {
         fieldName.unshift(stringToPDFString(name));
-      } else if (parent && ref) {
+      } else {
         // The field name is absent, that means more than one field
         // with the same name may exist. Replacing the empty name
         // with the '`' plus index in the parent's 'Kids' array.
@@ -34610,51 +34610,17 @@ var JpxImage = (function JpxImageClosure() {
         var dataLength = lbox - headerSize;
         var jumpDataLength = true;
         switch (tbox) {
+          case 0x6A501A1A: // 'jP\032\032'
+            // TODO
+            break;
           case 0x6A703268: // 'jp2h'
             jumpDataLength = false; // parsing child boxes
             break;
           case 0x636F6C72: // 'colr'
-            // Colorspaces are not used, the CS from the PDF is used.
-            var method = data[position];
-            var precedence = data[position + 1];
-            var approximation = data[position + 2];
-            if (method === 1) {
-              // enumerated colorspace
-              var colorspace = readUint32(data, position + 3);
-              switch (colorspace) {
-                case 16: // this indicates a sRGB colorspace
-                case 17: // this indicates a grayscale colorspace
-                case 18: // this indicates a YUV colorspace
-                  break;
-                default:
-                  warn('Unknown colorspace ' + colorspace);
-                  break;
-              }
-            } else if (method === 2) {
-              info('ICC profile not supported');
-            }
+            // TODO
             break;
           case 0x6A703263: // 'jp2c'
             this.parseCodestream(data, position, position + dataLength);
-            break;
-          case 0x6A502020: // 'jP\024\024'
-            if (0x0d0a870a !== readUint32(data, position)) {
-              warn('Invalid JP2 signature');
-            }
-            break;
-          // The following header types are valid but currently not used:
-          case 0x6A501A1A: // 'jP\032\032'
-          case 0x66747970: // 'ftyp'
-          case 0x72726571: // 'rreq'
-          case 0x72657320: // 'res '
-          case 0x69686472: // 'ihdr'
-            break;
-          default:
-            var headerType = String.fromCharCode((tbox >> 24) & 0xFF,
-                                                 (tbox >> 16) & 0xFF,
-                                                 (tbox >> 8) & 0xFF,
-                                                 tbox & 0xFF);
-            warn('Unsupported header type ' + tbox + ' (' + headerType + ')');
             break;
         }
         if (jumpDataLength) {
@@ -35087,11 +35053,6 @@ var JpxImage = (function JpxImageClosure() {
         codeblock.precinctNumber = precinctNumber;
         codeblock.subbandType = subband.type;
         codeblock.Lblock = 3;
-
-        if (codeblock.tbx1_ <= codeblock.tbx0_ ||
-            codeblock.tby1_ <= codeblock.tby0_) {
-          continue;
-        }
         codeblocks.push(codeblock);
         // building precinct for the sub-band
         var precinct = precincts[precinctNumber];
@@ -35374,11 +35335,11 @@ var JpxImage = (function JpxImageClosure() {
     var tile = context.tiles[tileIndex];
     var packetsIterator = tile.packetsIterator;
     while (position < dataLength) {
-      alignToByte();
+      var packet = packetsIterator.nextPacket();
       if (!readBits(1)) {
+        alignToByte();
         continue;
       }
-      var packet = packetsIterator.nextPacket();
       var layerNumber = packet.layerNumber;
       var queue = [], codeblock;
       for (var i = 0, ii = packet.codeblocks.length; i < ii; i++) {
@@ -35389,13 +35350,13 @@ var JpxImage = (function JpxImageClosure() {
         var codeblockIncluded = false;
         var firstTimeInclusion = false;
         var valueReady;
-        if (codeblock['included'] !== undefined) {
+        if ('included' in codeblock) {
           codeblockIncluded = !!readBits(1);
         } else {
           // reading inclusion tree
           precinct = codeblock.precinct;
           var inclusionTree, zeroBitPlanesTree;
-          if (precinct['inclusionTree'] !== undefined) {
+          if ('inclusionTree' in precinct) {
             inclusionTree = precinct.inclusionTree;
           } else {
             // building inclusion and zero bit-planes trees
@@ -35460,7 +35421,7 @@ var JpxImage = (function JpxImageClosure() {
       while (queue.length > 0) {
         var packetItem = queue.shift();
         codeblock = packetItem.codeblock;
-        if (codeblock['data'] === undefined) {
+        if (!('data' in codeblock)) {
           codeblock.data = [];
         }
         codeblock.data.push({
@@ -35490,7 +35451,7 @@ var JpxImage = (function JpxImageClosure() {
       if (blockWidth === 0 || blockHeight === 0) {
         continue;
       }
-      if (codeblock['data'] === undefined) {
+      if (!('data' in codeblock)) {
         continue;
       }
 
@@ -35745,10 +35706,10 @@ var JpxImage = (function JpxImageClosure() {
     var tile = context.tiles[tileIndex];
     for (var c = 0; c < componentsCount; c++) {
       var component = tile.components[c];
-      var qcdOrQcc = (context.currentTile.QCC[c] !== undefined ?
+      var qcdOrQcc = (c in context.currentTile.QCC ?
         context.currentTile.QCC[c] : context.currentTile.QCD);
       component.quantizationParameters = qcdOrQcc;
-      var codOrCoc = (context.currentTile.COC[c] !== undefined  ?
+      var codOrCoc = (c in context.currentTile.COC ?
         context.currentTile.COC[c] : context.currentTile.COD);
       component.codingStyleParameters = codOrCoc;
     }
@@ -35777,7 +35738,7 @@ var JpxImage = (function JpxImageClosure() {
         while (currentLevel < this.levels.length) {
           level = this.levels[currentLevel];
           var index = i + j * level.width;
-          if (level.items[index] !== undefined) {
+          if (index in level.items) {
             value = level.items[index];
             break;
           }

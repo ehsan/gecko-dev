@@ -10,7 +10,7 @@ browserElementTestHelpers.addPermission();
 
 function createFrame(aIsPrivate) {
   var iframe = document.createElement("iframe");
-  iframe.setAttribute('mozbrowser', 'true');
+  SpecialPowers.wrap(iframe).mozbrowser = true;
   if (aIsPrivate) {
     iframe.setAttribute("mozprivatebrowsing", "true");
   }
@@ -19,19 +19,20 @@ function createFrame(aIsPrivate) {
 
 function createTest(aIsPrivate, aExpected, aClearStorage) {
   info("createTest " + aIsPrivate + " " + aExpected);
-  return new Promise(function(resolve, reject) {
-    var iframe = createFrame(aIsPrivate);
-    document.body.appendChild(iframe);
+  var deferred = Promise.defer();
 
-    iframe.addEventListener("mozbrowsershowmodalprompt", function(e) {
-      is(e.detail.message, aExpected, "Checking localstorage");
-      resolve();
-    });
+  var iframe = createFrame(aIsPrivate);
+  document.body.appendChild(iframe);
 
-    var src = "file_browserElement_PrivateBrowsing.html";
-    iframe.src = aClearStorage ? src + "?clear=true" : src;
-
+  iframe.addEventListener("mozbrowsershowmodalprompt", function(e) {
+    is(e.detail.message, aExpected, "Checking localstorage");
+    deferred.resolve();
   });
+
+  var src = "file_browserElement_PrivateBrowsing.html";
+  iframe.src = aClearStorage ? src + "?clear=true" : src;
+
+  return deferred.promise;
 }
 
 function runTest() {

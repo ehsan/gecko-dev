@@ -30,8 +30,9 @@ function runTest() {
   iframe.src = browserElementTestHelpers.emptyPage1;
 
   var childID = null;
-  expectOnlyOneProcessCreated('FOREGROUND_HIGH').then(function(chid) {
+  expectOnlyOneProcessCreated().then(function(chid) {
     childID = chid;
+    return expectPriorityChange(childID, 'FOREGROUND_HIGH');
   }).then(function() {
     // We go back to foreground when the wake lock taken on behalf of our new
     // process times out.

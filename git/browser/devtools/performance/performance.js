@@ -16,17 +16,6 @@ devtools.lazyRequireGetter(this, "EventEmitter",
 devtools.lazyRequireGetter(this, "DevToolsUtils",
   "devtools/toolkit/DevToolsUtils");
 
-// Events emitted by the `PerformanceController`
-const EVENTS = {
-  // When a recording is started or stopped via the controller
-  RECORDING_STARTED: "Performance:RecordingStarted",
-  RECORDING_STOPPED: "Performance:RecordingStopped",
-
-  // Emitted by the PerformanceView on record button click
-  UI_START_RECORDING: "Performance:UI:StartRecording",
-  UI_STOP_RECORDING: "Performance:UI:StopRecording"
-};
-
 /**
  * The current target and the profiler connection, set by this tool's host.
  */
@@ -38,8 +27,7 @@ let gToolbox, gTarget, gFront;
 let startupPerformance = Task.async(function*() {
   yield promise.all([
     PrefObserver.register(),
-    PerformanceController.initialize(),
-    PerformanceView.initialize()
+    EventsHandler.initialize()
   ]);
 });
 
@@ -49,8 +37,7 @@ let startupPerformance = Task.async(function*() {
 let shutdownPerformance = Task.async(function*() {
   yield promise.all([
     PrefObserver.unregister(),
-    PerformanceController.destroy(),
-    PerformanceView.destroy()
+    EventsHandler.destroy()
   ]);
 });
 
@@ -72,59 +59,32 @@ let PrefObserver = {
 };
 
 /**
- * Functions handling target-related lifetime events and
- * UI interaction.
+ * Functions handling target-related lifetime events.
  */
-let PerformanceController = {
+let EventsHandler = {
   /**
-   * Listen for events emitted by the current tab target and
-   * main UI events.
+   * Listen for events emitted by the current tab target.
    */
   initialize: function() {
-    this.startRecording = this.startRecording.bind(this);
-    this.stopRecording = this.stopRecording.bind(this);
-
-    PerformanceView.on(EVENTS.UI_START_RECORDING, this.startRecording);
-    PerformanceView.on(EVENTS.UI_STOP_RECORDING, this.stopRecording);
   },
 
   /**
-   * Remove events handled by the PerformanceController
+   * Remove events emitted by the current tab target.
    */
   destroy: function() {
-    PerformanceView.off(EVENTS.UI_START_RECORDING, this.startRecording);
-    PerformanceView.off(EVENTS.UI_STOP_RECORDING, this.stopRecording);
-  },
-
-  /**
-   * Starts recording with the PerformanceFront. Emits `EVENTS.RECORDING_STARTED`
-   * when the front is starting to record.
-   */
-  startRecording: Task.async(function *() {
-    yield gFront.startRecording();
-    this.emit(EVENTS.RECORDING_STARTED);
-  }),
-
-  /**
-   * Stops recording with the PerformanceFront. Emits `EVENTS.RECORDING_STOPPED`
-   * when the front stops recording.
-   */
-  stopRecording: Task.async(function *() {
-    let results = yield gFront.stopRecording();
-    this.emit(EVENTS.RECORDING_STOPPED, results);
-  })
+  }
 };
-
-/**
- * Convenient way of emitting events from the controller.
- */
-EventEmitter.decorate(PerformanceController);
 
 /**
  * Shortcuts for accessing various profiler preferences.
  */
 const Prefs = new ViewHelpers.Prefs("devtools.profiler", {
 });
+
+/**
+ * Convenient way of emitting events from the panel window.
+ */
+EventEmitter.decorate(this);
 
 /**
  * DOM query helpers.
