@@ -53,8 +53,7 @@
 #include "nsISHistory.h"
 #include "nsNullPrincipal.h"
 #include "nsIScriptError.h"
-#include "nsGlobalWindow.h"
-#include "nsPIWindowRoot.h"
+
 #include "nsLayoutUtils.h"
 #include "nsView.h"
 
@@ -899,17 +898,7 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size,
       return false;
     }
 
-    nsPIDOMWindow* win = mOwnerContent->OwnerDoc()->GetWindow();
-    bool parentIsActive = false;
-    if (win) {
-      nsCOMPtr<nsPIWindowRoot> windowRoot =
-        static_cast<nsGlobalWindow*>(win)->GetTopWindowRoot();
-      if (windowRoot) {
-        nsPIDOMWindow* topWin = windowRoot->GetWindow();
-        parentIsActive = topWin && topWin->IsActive();
-      }
-    }
-    mRemoteBrowser->Show(size, parentIsActive);
+    mRemoteBrowser->Show(size);
     mRemoteBrowserShown = true;
 
     EnsureMessageManager();

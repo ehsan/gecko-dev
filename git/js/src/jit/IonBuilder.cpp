@@ -5539,7 +5539,7 @@ IonBuilder::createThisScriptedSingleton(JSFunction *target, MDefinition *callee)
         return nullptr;
     if (!templateObject->is<PlainObject>() && !templateObject->is<UnboxedPlainObject>())
         return nullptr;
-    if (templateObject->getProto() != proto)
+    if (!templateObject->hasTenuredProto() || templateObject->getProto() != proto)
         return nullptr;
 
     types::TypeSetObjectKey *templateObjectKey = types::TypeSetObjectKey::get(templateObject->group());
@@ -6923,6 +6923,8 @@ IonBuilder::testSingletonProperty(JSObject *obj, PropertyName *name)
         if (ClassHasResolveHook(compartment, obj->getClass(), name))
             return nullptr;
 
+        if (!obj->hasTenuredProto())
+            return nullptr;
         obj = obj->getProto();
     }
 
@@ -7000,6 +7002,8 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
             if (property.isOwnProperty(constraints()))
                 return false;
 
+            if (!key->hasTenuredProto())
+                return false;
             if (JSObject *proto = key->proto().toObjectOrNull()) {
                 // Test this type.
                 if (testSingletonProperty(proto, name) != singleton)
@@ -9404,7 +9408,7 @@ IonBuilder::objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyN
                 }
             }
 
-            JSObject *proto = key->proto().toObjectOrNull();
+            JSObject *proto = key->protoMaybeInNursery().toObjectOrNull();
             if (proto == foundProto)
                 break;
             if (!proto) {
@@ -9441,9 +9445,9 @@ IonBuilder::freezePropertiesForCommonPrototype(types::TemporaryTypeSet *types, P
             // Don't mark the proto. It will be held down by the shape
             // guard. This allows us to use properties found on prototypes
             // with properties unknown to TI.
-            if (key->proto() == TaggedProto(foundProto))
+            if (key->protoMaybeInNursery() == TaggedProto(foundProto))
                 break;
-            key = types::TypeSetObjectKey::get(key->proto().toObjectOrNull());
+            key = types::TypeSetObjectKey::get(key->protoMaybeInNursery().toObjectOrNull());
         }
     }
 }
@@ -9538,7 +9542,7 @@ IonBuilder::annotateGetPropertyCache(MDefinition *obj, MGetPropertyCache *getPro
         if (!group)
             continue;
         types::TypeSetObjectKey *key = types::TypeSetObjectKey::get(group);
-        if (key->unknownProperties() || !key->proto().isObject())
+        if (key->unknownProperties() || !key->hasTenuredProto() || !key->proto().isObject())
             continue;
 
         const Class *clasp = key->clasp();
@@ -11836,8 +11840,12 @@ HasOnProtoChain(types::CompilerConstraintList *constraints, types::TypeSetObject
     MOZ_ASSERT(protoObject);
 
     while (true) {
-        if (!key->hasStableClassAndProto(constraints) || !key->clasp()->isNative())
+        if (!key->hasStableClassAndProto(constraints) ||
+            !key->clasp()->isNative() ||
+            !key->hasTenuredProto())
+        {
             return false;
+        }
 
         JSObject *proto = key->proto().toObjectOrNull();
         if (!proto) {

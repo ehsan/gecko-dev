@@ -763,7 +763,7 @@ TabParent::LoadURL(nsIURI* aURI)
 }
 
 void
-TabParent::Show(const nsIntSize& size, bool aParentIsActive)
+TabParent::Show(const nsIntSize& size)
 {
     // sigh
     mShown = true;
@@ -809,8 +809,7 @@ TabParent::Show(const nsIntSize& size, bool aParentIsActive)
       info = ShowInfo(name, allowFullscreen, isPrivate, mDPI, mDefaultScale.scale);
     }
 
-    unused << SendShow(size, info, scrolling, textureFactoryIdentifier,
-                       layersId, renderFrame, aParentIsActive);
+    unused << SendShow(size, info, scrolling, textureFactoryIdentifier, layersId, renderFrame);
 }
 
 bool

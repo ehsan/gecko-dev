@@ -1227,6 +1227,12 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
   if (sWindowsById) {
     sWindowsById->Put(mWindowID, this);
   }
+
+  // Ensure that the current active state is initialized for child process windows.
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  if (fm) {
+    mIsActive = fm->IsParentActivated();
+  }
 }
 
 #ifdef DEBUG

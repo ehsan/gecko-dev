@@ -56,9 +56,13 @@ ObjectGroup::setProtoUnchecked(TaggedProto proto)
 }
 
 void
-ObjectGroup::setProto(TaggedProto proto)
+ObjectGroup::setProto(JSContext *cx, TaggedProto proto)
 {
     MOZ_ASSERT(singleton());
+
+    if (proto.isObject() && IsInsideNursery(proto.toObject()))
+        addFlags(OBJECT_FLAG_NURSERY_PROTO);
+
     setProtoUnchecked(proto);
 }
 
@@ -285,7 +289,7 @@ JSObject::splicePrototype(JSContext *cx, const Class *clasp, Handle<TaggedProto>
     }
 
     group->setClasp(clasp);
-    group->setProto(proto);
+    group->setProto(cx, proto);
     return true;
 }
 
@@ -1317,6 +1321,11 @@ ObjectGroupCompartment::makeGroup(ExclusiveContext *cx, const Class *clasp,
                                   ObjectGroupFlags initialFlags /* = 0 */)
 {
     MOZ_ASSERT_IF(proto.isObject(), cx->isInsideCurrentCompartment(proto.toObject()));
+
+    if (cx->isJSContext()) {
+        if (proto.isObject() && IsInsideNursery(proto.toObject()))
+            initialFlags |= OBJECT_FLAG_NURSERY_PROTO;
+    }
 
     ObjectGroup *group = NewObjectGroup(cx);
     if (!group)

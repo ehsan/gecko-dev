@@ -1403,7 +1403,7 @@ static void
 MaybeSetRecoversInput(S *mir, T *lir)
 {
     MOZ_ASSERT(lir->mirRaw() == mir);
-    if (!mir->fallible() || !lir->snapshot())
+    if (!mir->fallible())
         return;
 
     if (lir->output()->policy() != LDefinition::MUST_REUSE_INPUT)
@@ -1647,7 +1647,7 @@ LIRGenerator::visitStart(MStart *start)
     LStart *lir = new(alloc()) LStart;
     assignSnapshot(lir, Bailout_InitialState);
 
-    if (start->startType() == MStart::StartType_Default && lir->snapshot())
+    if (start->startType() == MStart::StartType_Default)
         lirGraph_.setEntrySnapshot(lir->snapshot());
     add(lir);
 }
