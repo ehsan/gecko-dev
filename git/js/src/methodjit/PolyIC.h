@@ -547,7 +547,7 @@ struct PICInfo : public BasePolyIC {
 
     ~PICInfo() {
         if (typeMonitored)
-            UnwantedForeground::free_(rhsTypes);
+            js_free(rhsTypes);
     }
 };
 
