@@ -650,7 +650,6 @@ endif
 
 ifdef GNU_CC
 ifndef CROSS_COMPILE
-ifndef QEMU_CANT_RUN_JS_SHELL
 # If we don't have run-mozilla.sh *and* we're linking against NSPR, we don't
 # know how to run the JS binary. Oh well
 
@@ -697,7 +696,6 @@ update-nanojit:
 	(cd $(srcdir) && hg commit --message="Update nanojit-import-rev stamp." nanojit-import-rev)
 
 .PHONY: update-imacros update-nanojit
-endif
 endif
 endif
 endif
