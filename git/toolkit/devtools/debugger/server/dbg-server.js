@@ -24,8 +24,7 @@ let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 addDebuggerToGlobal(this);
 
-Cu.import("resource://gre/modules/commonjs/promise/core.js");
-const { defer, resolve, reject } = Promise;
+Cu.import("resource://gre/modules/devtools/_Promise.jsm");
 
 function dumpn(str) {
   if (wantLogging) {
@@ -665,17 +664,16 @@ DebuggerServerConnection.prototype = {
     }
 
     if (!ret) {
-      // This should become an error once we've converted every user
-      // of this to promises in bug 794078.
+      // XXX: The actor wasn't ready to reply yet, don't process new
+      // requests until it does.
       return;
     }
 
-    resolve(ret).then(function(returnPacket) {
-      if (!returnPacket.from) {
-        returnPacket.from = aPacket.to;
-      }
-      this.transport.send(returnPacket);
-    }.bind(this));
+    if (!ret.from) {
+      ret.from = aPacket.to;
+    }
+
+    this.transport.send(ret);
   },
 
   /**

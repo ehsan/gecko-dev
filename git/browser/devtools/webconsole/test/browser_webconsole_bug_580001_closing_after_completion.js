@@ -28,17 +28,14 @@ function testClosingAfterCompletion(hud) {
 
   // Focus the inputNode and perform the keycombo to close the WebConsole.
   inputNode.focus();
+  EventUtils.synthesizeKey("k", { accelKey: true, shiftKey: true });
 
-  gDevTools.once("toolbox-destroyed", function() {
+  // We can't test for errors right away, because the error occurs after a
+  // setTimeout(..., 0) in the WebConsole code.
+  executeSoon(function() {
     browser.removeEventListener("error", errorListener, false);
     is(errorWhileClosing, false, "no error while closing the WebConsole");
     finishTest();
   });
-
-  if (Services.appinfo.OS == "Darwin") {
-    EventUtils.synthesizeKey("k", { accelKey: true, altKey: true });
-  } else {
-    EventUtils.synthesizeKey("k", { accelKey: true, shiftKey: true });
-  }
 }
 

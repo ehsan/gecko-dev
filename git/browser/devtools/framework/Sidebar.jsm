@@ -56,7 +56,6 @@ ToolSidebar.prototype = {
     iframe.setAttribute("src", url);
 
     let tab = this._tabbox.tabs.appendItem();
-    tab.setAttribute("label", ""); // Avoid showing "undefined" while the tab is loading
 
     let onIFrameLoaded = function() {
       tab.setAttribute("label", iframe.contentDocument.title);

@@ -1346,23 +1346,27 @@ SourceActor.prototype = {
    * Handler for the "source" packet.
    */
   onSource: function SA_onSource(aRequest) {
-    return this
+    this
       ._loadSource()
-      .then(function(aSource) {
+      .chainPromise(function(aSource) {
         return this._threadActor.createValueGrip(
           aSource, this.threadActor.threadLifetimePool);
       }.bind(this))
-      .then(function (aSourceGrip) {
+      .chainPromise(function (aSourceGrip) {
         return {
           from: this.actorID,
           source: aSourceGrip
         };
-      }.bind(this), function (aError) {
+      }.bind(this))
+      .trap(function (aError) {
         return {
           "from": this.actorID,
           "error": "loadSourceError",
           "message": "Could not load the source for " + this._script.url + "."
         };
+      }.bind(this))
+      .chainPromise(function (aPacket) {
+        this.conn.send(aPacket);
       }.bind(this));
   },
 
@@ -1400,7 +1404,7 @@ SourceActor.prototype = {
    * http://www.softwareishard.com/blog/firebug/nsitraceablechannel-intercept-http-traffic/
    */
   _loadSource: function SA__loadSource() {
-    let deferred = defer();
+    let promise = new Promise();
     let url = this._script.url;
     let scheme;
     try {
@@ -1420,16 +1424,16 @@ SourceActor.prototype = {
         try {
           NetUtil.asyncFetch(url, function onFetch(aStream, aStatus) {
             if (!Components.isSuccessCode(aStatus)) {
-              deferred.reject(new Error("Request failed"));
+              promise.reject(new Error("Request failed"));
               return;
             }
 
             let source = NetUtil.readInputStreamToString(aStream, aStream.available());
-            deferred.resolve(this._convertToUnicode(source));
+            promise.resolve(this._convertToUnicode(source));
             aStream.close();
           }.bind(this));
         } catch (ex) {
-          deferred.reject(new Error("Request failed"));
+          promise.reject(new Error("Request failed"));
         }
         break;
 
@@ -1447,7 +1451,7 @@ SourceActor.prototype = {
         let streamListener = {
           onStartRequest: function(aRequest, aContext, aStatusCode) {
             if (!Components.isSuccessCode(aStatusCode)) {
-              deferred.reject("Request failed");
+              promise.reject("Request failed");
             }
           },
           onDataAvailable: function(aRequest, aContext, aStream, aOffset, aCount) {
@@ -1455,12 +1459,12 @@ SourceActor.prototype = {
           },
           onStopRequest: function(aRequest, aContext, aStatusCode) {
             if (!Components.isSuccessCode(aStatusCode)) {
-              deferred.reject("Request failed");
+              promise.reject("Request failed");
               return;
             }
 
-            deferred.resolve(this._convertToUnicode(chunks.join(""),
-                                                    channel.contentCharset));
+            promise.resolve(this._convertToUnicode(chunks.join(""),
+                                                   channel.contentCharset));
           }.bind(this)
         };
 
@@ -1469,7 +1473,7 @@ SourceActor.prototype = {
         break;
     }
 
-    return deferred.promise;
+    return promise;
   }
 
 };

@@ -238,11 +238,9 @@ function finishTest()
     finish();
     return;
   }
-  if (hud.jsterm) {
-    hud.jsterm.clearOutput(true);
-  }
+  hud.jsterm.clearOutput(true);
 
-  closeConsole(hud.target.tab, finish);
+  closeConsole(hud.tab, finish);
 
   hud = null;
 }

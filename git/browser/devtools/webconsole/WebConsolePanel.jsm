@@ -9,12 +9,12 @@ this.EXPORTED_SYMBOLS = [ "WebConsolePanel" ];
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/commonjs/promise/core.js");
+Cu.import("resource:///modules/devtools/EventEmitter.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "HUDService",
-    "resource:///modules/HUDService.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "EventEmitter",
-    "resource:///modules/devtools/EventEmitter.jsm");
+                                  "resource:///modules/HUDService.jsm");
 
 /**
  * A DevToolPanel that controls the Web Console.
@@ -26,29 +26,32 @@ function WebConsolePanel(iframeWindow, toolbox) {
 }
 
 WebConsolePanel.prototype = {
-  hud: null,
-
   /**
-   * Open is effectively an asynchronous constructor.
-   *
-   * @return object
-   *         A Promise that is resolved when the Web Console completes opening.
+   * open is effectively an asynchronous constructor
    */
-  open: function WCP_open()
-  {
-    let parentDoc = this._toolbox.doc;
+  open: function StyleEditor_open() {
+    let parentDoc = this._frameWindow.document.defaultView.parent.document;
     let iframe = parentDoc.getElementById("toolbox-panel-iframe-webconsole");
-    let promise = HUDService.openWebConsole(this.target, iframe);
+    this.hud = HUDService.activateHUDForContext(this.target.tab, iframe,
+                                                this._toolbox.target);
 
-    return promise.then(function onSuccess(aWebConsole) {
-      this.hud = aWebConsole;
-      this._isReady = true;
-      this.emit("ready");
-      return this;
-    }.bind(this), function onError(aReason) {
-      Cu.reportError("WebConsolePanel open failed. " +
-                     aReason.error + ": " + aReason.message);
-    });
+    let deferred = Promise.defer();
+
+    let hudId = this.hud.hudId;
+    let onOpen = function _onWebConsoleOpen(aSubject) {
+      aSubject.QueryInterface(Ci.nsISupportsString);
+      if (hudId == aSubject.data) {
+        Services.obs.removeObserver(onOpen, "web-console-created");
+
+        this._isReady = true;
+        this.emit("ready");
+        deferred.resolve(this);
+      }
+    }.bind(this);
+
+    Services.obs.addObserver(onOpen, "web-console-created", false);
+
+    return deferred.promise;
   },
 
   get target() this._toolbox.target,
@@ -58,15 +61,28 @@ WebConsolePanel.prototype = {
 
   destroy: function WCP_destroy()
   {
-    if (this._destroyer) {
-      return this._destroyer;
+    if (this.destroyer) {
+      return this.destroyer.promise;
     }
 
-    this._destroyer = this.hud.destroy();
-    this._destroyer.then(function() {
-      this.emit("destroyed");
-    }.bind(this));
+    this.destroyer = Promise.defer();
 
-    return this._destroyer;
+    let hudId = this.hud.hudId;
+
+    let onClose = function _onWebConsoleClose(aSubject)
+    {
+      aSubject.QueryInterface(Ci.nsISupportsString);
+      if (hudId == aSubject.data) {
+        Services.obs.removeObserver(onClose, "web-console-destroyed");
+
+        this.emit("destroyed");
+        this.destroyer.resolve(null);
+      }
+    }.bind(this);
+
+    Services.obs.addObserver(onClose, "web-console-destroyed", false);
+    HUDService.deactivateHUDForContext(this.hud.tab, false);
+
+    return this.destroyer.promise;
   },
 };

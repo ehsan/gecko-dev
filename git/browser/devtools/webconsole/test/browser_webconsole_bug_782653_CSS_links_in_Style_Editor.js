@@ -67,7 +67,6 @@ function onStyleEditorReady(aEvent, aPanel)
         return sheet;
       }
     }
-    return null;
   }
 
   waitForFocus(function() {
