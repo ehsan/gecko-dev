@@ -77,13 +77,11 @@
         </div>
       </div>
   
-      <div id="newAddons" class="section-row" onclick="goToAddons(' ');" role="button">
-        <div>
-          <img class="favicon" src="chrome://browser/skin/images/addons-32.png"/>
-          <div>&aboutHome.recommendedAddons2;</div>
+      <div id="newAddons" class="section-box">
+        <h1>&aboutHome.recommendedAddons2;</h1>
+        <div id="loadingAddons" class="loading">
+          <img src="chrome://browser/skin/images/throbber.png"/>
         </div>
-      </div>
-      <div id="newAddonsList" class="section-box" style="display: none;">
       </div>
 
       <div id="locale" class="section-row" style="display: none;" onclick="openLocalePicker();" role="button">
@@ -328,13 +326,18 @@
       },
 
       _loadAddons: function(aAddons) {
-        if (aAddons.length == 0)
-          return;
+        let list = document.getElementById("newAddons");
+        let loading = document.getElementById("loadingAddons");
 
-        // Clear all content before filling the addons
-        let list = document.getElementById("newAddonsList");
-        while (list.firstElementChild)
-          list.removeChild(list.firstElementChild);
+        if (aAddons.length == 0 && loading) {
+          loading.innerHTML = "<div class='no-items'>" + document.getElementById("text-noaddons").textContent + "</div>";
+          return;
+        }
+
+        // Clear all content but the header before filling the addons
+        let header = list.firstElementChild;
+        while (header.nextSibling)
+          list.removeChild(header.nextSibling);
 
         for (let i=0; i<aAddons.length; i++) {
           let addon = aAddons[i];
@@ -368,12 +371,9 @@
           outer.appendChild(inner);
           list.appendChild(outer);
         }
-
-        list.style.display = "block";
-        document.getElementById("newAddons").setAttribute("showlist", "true");
       },
 
-      loadFromCache: function loadFromCache() {
+      loadFromCacheOrScheduleUpdate: function(aDelay) {
         let self = this;
         let file = this._getFile();
         if (file.exists()) {
@@ -386,12 +386,18 @@
   
             self._loadAddons(json.addons);
           });
+        } else {
+          setTimeout(function() {
+            let aus = Cc["@mozilla.org/browser/addon-update-service;1"].getService(Ci.nsITimerCallback);
+            aus.notify(null);
+          }, aDelay);
         }
       }
     }
 
     function updateAddons() {
-      RecommendedAddons.loadFromCache();
+      // If a cache does not exist, start an update after 6 seconds
+      RecommendedAddons.loadFromCacheOrScheduleUpdate(6000);
     }
 
     function initAddons() {
