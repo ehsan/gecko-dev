@@ -119,6 +119,10 @@ struct JSStackFrame
 #endif
 
     void                *ncode;         /* jit return pc */
+#if defined(JS_CPU_X86) || defined(JS_CPU_ARM)
+    /* Guh. Align. */
+    void                *align_[3];
+#endif
 
     /*
      * We can't determine in advance which local variables can live on
@@ -164,6 +168,8 @@ struct JSStackFrame
     /* Members only needed for inline calls. */
     void            *hookData;      /* debugger call hook data */
     JSVersion       callerVersion;  /* dynamic version of calling script */
+
+    void            *padding;
 
     void putActivationObjects(JSContext *cx) {
         /*

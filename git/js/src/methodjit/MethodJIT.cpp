@@ -693,7 +693,6 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
                 Destroy(script->pics[i].execPools);
             }
             cx->free((uint8*)script->pics - sizeof(uint32));
-            script->pics = NULL;
         }
 #endif
     }
@@ -708,7 +707,7 @@ mjit::ReleaseScriptCode(JSContext *cx, JSScript *script)
     }
 #if defined JS_MONOIC
     if (script->mics) {
-        cx->free((uint8*)script->mics - sizeof(uint32));
+        cx->free(script->mics);
         script->mics = NULL;
     }
 #endif

@@ -65,7 +65,6 @@ class Compiler
     typedef JSC::MacroAssembler::JumpList JumpList;
     typedef JSC::MacroAssembler::Call Call;
     typedef JSC::MacroAssembler::DataLabelPtr DataLabelPtr;
-    typedef JSC::MacroAssembler::DataLabel32 DataLabel32;
 
     struct BranchPatch {
         BranchPatch(const Jump &j, jsbytecode *pc)
@@ -82,7 +81,7 @@ class Compiler
         { }
         Label entry;
         Label stubEntry;
-        DataLabel32 shape;
+        DataLabelPtr shapeVal;
 #if defined JS_PUNBOX64
         uint32 patchValueOffset;
 #endif
@@ -101,6 +100,7 @@ class Compiler
             struct {
                 bool typeConst;
                 bool dataConst;
+                bool dataWrite;
             } name;
             struct {
                 uint32 pcOffs;
@@ -226,10 +226,8 @@ class Compiler
     /* Emitting helpers. */
     void restoreFrameRegs(Assembler &masm);
     void emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused);
-    void iter(uintN flags);
     void iterNext();
     void iterMore();
-    void iterEnd();
     MaybeJump loadDouble(FrameEntry *fe, FPRegisterID fpReg);
 
     /* Opcode handlers. */
