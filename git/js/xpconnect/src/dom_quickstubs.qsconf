@@ -67,6 +67,7 @@ members = [
     'nsIDOMProgressEvent.total',
     #XXX Can't quickstub initProgressEvent because it has long long parameters.
 
+    'nsIDOMTouch.*',
     'nsIDOMTouchList.*',
 
     # dom/interfaces/html

@@ -9,12 +9,12 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsIDOMSVGStringList.h"
 #include "nsSVGElement.h"
 #include "mozilla/Attributes.h"
 
 namespace mozilla {
 
-class ErrorResult;
 class SVGStringList;
 
 /**
@@ -43,32 +43,12 @@ class SVGStringList;
  * them so it can return the same objects each time. It simply returns a new
  * string each time any given item is requested.
  */
-class DOMSVGStringList MOZ_FINAL : public nsWrapperCache
+class DOMSVGStringList MOZ_FINAL : public nsIDOMSVGStringList
 {
 public:
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(DOMSVGStringList)
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(DOMSVGStringList)
-
-  nsSVGElement* GetParentObject() const
-  {
-    return mElement;
-  }
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-
-  uint32_t NumberOfItems() const;
-  uint32_t Length() const;
-  void Clear();
-  void Initialize(const nsAString& aNewItem, nsAString& aRetval,
-                  ErrorResult& aRv);
-  void GetItem(uint32_t aIndex, nsAString& aRetval, ErrorResult& aRv);
-  void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aRetval);
-  void InsertItemBefore(const nsAString& aNewItem, uint32_t aIndex,
-                        nsAString& aRetval, ErrorResult& aRv);
-  void ReplaceItem(const nsAString& aNewItem, uint32_t aIndex,
-                   nsAString& aRetval, ErrorResult& aRv);
-  void RemoveItem(uint32_t aIndex, nsAString& aRetval, ErrorResult& aRv);
-  void AppendItem(const nsAString& aNewItem, nsAString& aRetval,
-                  ErrorResult& aRv);
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGStringList)
+  NS_DECL_NSIDOMSVGSTRINGLIST
 
   /**
    * Factory method to create and return a DOMSVGStringList wrapper
@@ -96,13 +76,11 @@ private:
     : mElement(aElement)
     , mAttrEnum(aAttrEnum)
     , mIsConditionalProcessingAttribute(aIsConditionalProcessingAttribute)
-  {
-    SetIsDOMBinding();
-  }
+  {}
 
   ~DOMSVGStringList();
 
-  SVGStringList &InternalList() const;
+  SVGStringList &InternalList();
 
   // Strong ref to our element to keep it alive.
   nsRefPtr<nsSVGElement> mElement;
