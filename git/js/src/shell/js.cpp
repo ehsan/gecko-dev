@@ -152,7 +152,6 @@ static volatile bool gCanceled = false;
 static bool enableTraceJit = false;
 static bool enableMethodJit = false;
 static bool enableProfiling = false;
-static bool enableDisassemblyDumps = false;
 
 static bool printTiming = false;
 
@@ -720,7 +719,7 @@ ParseZealArg(JSContext *cx, const char *arg)
             compartment = atoi(p + 1);
     }
 
-    JS_SetGCZeal(cx, (uint8)zeal, freq, !!compartment);
+    JS_SetGCZeal(cx, zeal, freq, !!compartment);
 }
 #endif
 
@@ -961,11 +960,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         case 'd':
             JS_SetRuntimeDebugMode(JS_GetRuntime(cx), JS_TRUE);
             JS_SetDebugMode(cx, JS_TRUE);
-            break;
-
-        case 'D':
-            enableDisassemblyDumps = true;
-            JS_ToggleOptions(cx, JSOPTION_PCCOUNT);
             break;
 
         case 'z':
@@ -2836,52 +2830,6 @@ DumpObject(JSContext *cx, uintN argc, jsval *vp)
 
 #endif /* DEBUG */
 
-/*
- * This shell function is temporary (used by testStackIter.js) and should be
- * removed once JSD2 lands wholly subsumes the functionality here.
- */
-JSBool
-DumpStack(JSContext *cx, uintN argc, Value *vp)
-{
-    JSObject *arr = JS_NewArrayObject(cx, 0, NULL);
-    if (!arr)
-        return false;
-
-    JSString *evalStr = JS_NewStringCopyZ(cx, "eval-code");
-    if (!evalStr)
-        return false;
-
-    JSString *globalStr = JS_NewStringCopyZ(cx, "global-code");
-    if (!globalStr)
-        return false;
-
-    StackIter iter(cx);
-    JS_ASSERT(iter.nativeArgs().callee().getFunctionPrivate()->native() == DumpStack);
-    ++iter;
-
-    jsint index = 0;
-    for (; !iter.done(); ++index, ++iter) {
-        Value v;
-        if (iter.isScript()) {
-            if (iter.fp()->isNonEvalFunctionFrame()) {
-                if (!iter.fp()->getValidCalleeObject(cx, &v))
-                    return false;
-            } else if (iter.fp()->isEvalFrame()) {
-                v = StringValue(evalStr);
-            } else {
-                v = StringValue(globalStr);
-            }
-        } else {
-            v = iter.nativeArgs().calleev();
-        }
-        if (!JS_SetElement(cx, arr, index, Jsvalify(&v)))
-            return false;
-    }
-
-    JS_SET_RVAL(cx, vp, ObjectValue(*arr));
-    return true;
-}
-
 #ifdef TEST_CVTARGS
 #include <ctype.h>
 
@@ -3774,7 +3722,7 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
                         ? !!(JSVAL_TO_BOOLEAN(argv[2]))
                         : false;
 
-    JS_ASSERT(cx->hasfp());
+    JS_ASSERT(cx->running());
 
     FrameRegsIter fi(cx);
     for (uint32 i = 0; i < upCount; ++i, ++fi) {
@@ -3788,9 +3736,9 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
     }
 
-    JSBool saved = JS_FALSE;;
+    JSStackFrame *oldfp = NULL;
     if (saveCurrent)
-        saved = JS_SaveFrameChain(cx);
+        oldfp = JS_SaveFrameChain(cx);
 
     size_t length;
     const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
@@ -3803,8 +3751,8 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
                                                             fi.pc()),
                                           vp);
 
-    if (saved)
-        JS_RestoreFrameChain(cx);
+    if (saveCurrent)
+        JS_RestoreFrameChain(cx, oldfp);
 
     return ok;
 }
@@ -4899,7 +4847,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("tracing",        Tracing,        0,0),
     JS_FN("stats",          DumpStats,      1,0),
 #endif
-    JS_FN("dumpStack",      DumpStack,      1,0),
 #ifdef TEST_CVTARGS
     JS_FN("cvtargs",        ConvertArgs,    0,0),
 #endif
@@ -5033,7 +4980,6 @@ static const char *const shell_help_messages[] = {
 "                         With filename, send to file.",
 "stats([string ...])      Dump 'arena', 'atom', 'global' stats",
 #endif
-"dumpStack()              Dump the stack as an array of callees (youngest first)",
 #ifdef TEST_CVTARGS
 "cvtargs(arg1..., arg12)  Test argument formatter",
 #endif
@@ -6083,9 +6029,10 @@ Shell(JSContext *cx, int argc, char **argv, char **envp)
     }
 #endif  /* JSDEBUGGER */
 
-    if (enableDisassemblyDumps)
-        JS_DumpAllProfiles(cx);
- 
+#ifdef JS_METHODJIT
+    mjit::DumpAllProfiles(cx);
+#endif
+
     return result;
 }
 

@@ -42,9 +42,10 @@
 #include "gfxDWriteFonts.h"
 #include "nsUnicharUtils.h"
 #include "nsILocaleService.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch2.h"
 #include "nsServiceManagerUtils.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "mozilla/Preferences.h"
 
 #include "gfxGDIFontList.h"
 
@@ -695,7 +696,15 @@ gfxDWriteFontList::InitFontList()
         fc->AgeAllGenerations();
     }
 
-    mGDIFontTableAccess = Preferences::GetBool("gfx.font_rendering.directwrite.use_gdi_table_loading", PR_FALSE);
+    nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsresult rv;
+
+    rv = pref->GetBoolPref(
+             "gfx.font_rendering.directwrite.use_gdi_table_loading", 
+             &mGDIFontTableAccess);
+    if (NS_FAILED(rv)) {
+        mGDIFontTableAccess = PR_FALSE;
+    }
 
     gfxPlatformFontList::InitFontList();
 
@@ -944,9 +953,12 @@ gfxDWriteFontList::DelayedInitFontList()
         }
     }
 
-    nsAdoptingCString classicFamilies =
-        Preferences::GetCString("gfx.font_rendering.cleartype_params.force_gdi_classic_for_families");
-    if (classicFamilies) {
+    nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsXPIDLCString classicFamilies;
+    nsresult rv = pref->GetCharPref(
+             "gfx.font_rendering.cleartype_params.force_gdi_classic_for_families",
+             getter_Copies(classicFamilies));
+    if (NS_SUCCEEDED(rv)) {
         nsCCharSeparatedTokenizer tokenizer(classicFamilies, ',');
         while (tokenizer.hasMoreTokens()) {
             NS_ConvertUTF8toUTF16 name(tokenizer.nextToken());
@@ -957,9 +969,12 @@ gfxDWriteFontList::DelayedInitFontList()
             }
         }
     }
-    mForceGDIClassicMaxFontSize =
-        Preferences::GetInt("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size",
-                            mForceGDIClassicMaxFontSize);
+    PRInt32 forceGDIClassicMaxFontSize = 0;
+    rv = pref->GetIntPref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size",
+                          &forceGDIClassicMaxFontSize);
+    if (NS_SUCCEEDED(rv)) {
+        mForceGDIClassicMaxFontSize = forceGDIClassicMaxFontSize;
+    }
 
     StartLoader(kDelayBeforeLoadingFonts, kIntervalBetweenLoadingFonts);
 

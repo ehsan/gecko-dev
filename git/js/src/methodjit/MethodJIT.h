@@ -418,6 +418,10 @@ struct JITScript {
     void purgePICs();
 
     size_t scriptDataSize();
+#ifdef DEBUG
+    /* length script->length array of execution counters for every JSOp in the compiled script */
+    int             *pcProfile;
+#endif
     jsbytecode *nativeToPC(void *returnAddress) const;
 
   private:
