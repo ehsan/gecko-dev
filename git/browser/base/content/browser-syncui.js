@@ -78,12 +78,10 @@ let gSyncUI = {
     // Find the alltabs-popup, only if there is a gBrowser
     if (gBrowser) {
       let popup = document.getElementById("alltabs-popup");
-      if (popup) {
-        let self = this;
-        popup.addEventListener("popupshowing", function() {
-          self.alltabsPopupShowing();
-        }, true);
-      }
+      let self = this;
+      popup.addEventListener("popupshowing", function() {
+        self.alltabsPopupShowing();
+      }, true);
 
       if (Weave.Notifications.notifications.length)
         this.initNotifications();
@@ -150,9 +148,6 @@ let gSyncUI = {
     let label = this._stringBundle.GetStringFromName("tabs.fromOtherComputers.label");
 
     let popup = document.getElementById("alltabs-popup");
-    if (!popup)
-      return;
-    
     let menuitem = document.createElement("menuitem");
     menuitem.setAttribute("id", "sync-tabs-menuitem");
     menuitem.setAttribute("label", label);
