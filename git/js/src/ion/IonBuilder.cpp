@@ -152,32 +152,36 @@ IonBuilder::getSingleCallTarget(types::StackTypeSet *calleeTypes)
     return obj->toFunction();
 }
 
-uint32_t
+bool
 IonBuilder::getPolyCallTargets(types::StackTypeSet *calleeTypes,
                                AutoObjectVector &targets, uint32_t maxTargets)
 {
+    JS_ASSERT(targets.length() == 0);
+
     if (!calleeTypes)
-        return 0;
+        return true;
 
     if (calleeTypes->baseFlags() != 0)
-        return 0;
+        return true;
 
     unsigned objCount = calleeTypes->getObjectCount();
 
     if (objCount == 0 || objCount > maxTargets)
-        return 0;
+        return true;
 
     if (!targets.reserve(objCount))
-        return 0;
+        return false;
     for(unsigned i = 0; i < objCount; i++) {
         JSObject *obj = calleeTypes->getSingleObject(i);
-        if (!obj || !obj->isFunction())
-            return 0;
+        if (!obj || !obj->isFunction()) {
+            targets.clear();
+            return true;
+        }
         if (!targets.append(obj))
             return false;
     }
 
-    return (uint32_t) objCount;
+    return true;
 }
 
 bool
@@ -2858,8 +2862,10 @@ IonBuilder::inlineScriptedCall(HandleFunction target, CallInfo &callInfo)
 
     // Make sure there is enough place in the slots
     uint32_t depth = current->stackDepth() + callInfo.argc() + 2;
-    if (depth > current->nslots())
-        current->increaseSlots(depth - current->nslots());
+    if (depth > current->nslots()) {
+        if (!current->increaseSlots(depth - current->nslots()))
+            return false;
+    }
 
     // Push formals to capture in the resumepoint
     callInfo.pushFormals(current);
@@ -2931,6 +2937,8 @@ IonBuilder::inlineScriptedCall(HandleFunction target, CallInfo &callInfo)
     // Push return value
     MIRGraphExits &exits = *inlineBuilder.graph().exitAccumulator();
     MDefinition *retvalDefn = patchInlinedReturns(callInfo, exits, bottom);
+    if (!retvalDefn)
+        return false;
     bottom->push(retvalDefn);
 
     // Initialize entry slots now that the stack has been fixed up.
@@ -2949,14 +2957,16 @@ IonBuilder::patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasic
     // would have been returned.
     JS_ASSERT(exits.length() > 0);
 
-    MPhi *retDef = NULL;
+    // In the case of a single return, no phi is necessary.
+    MPhi *phi = NULL;
     if (exits.length() > 1) {
-        retDef = MPhi::New(bottom->stackDepth());
-        bottom->addPhi(retDef);
+        phi = MPhi::New(bottom->stackDepth());
+        phi->initLength(exits.length());
+        bottom->addPhi(phi);
     }
 
-    for (MBasicBlock **it = exits.begin(), **end = exits.end(); it != end; ++it) {
-        MBasicBlock *exitBlock = *it;
+    for (size_t i = 0; i < exits.length(); i++) {
+        MBasicBlock *exitBlock = exits[i];
 
         MDefinition *rval = exitBlock->lastIns()->toReturn()->getOperand(0);
         exitBlock->discardLastIns();
@@ -2980,10 +2990,10 @@ IonBuilder::patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasic
         if (exits.length() == 1)
             return rval;
 
-        retDef->addInput(rval);
+        phi->setOperand(i, rval);
     }
 
-    return retDef;
+    return phi;
 }
 
 bool
@@ -3521,11 +3531,16 @@ IonBuilder::inlineScriptedCalls(AutoObjectVector &targets, AutoObjectVector &ori
             MPhi *phi = MPhi::New(inlineBottom->stackDepth() - callInfo.argc() - 2);
             inlineBottom->addPhi(phi);
 
+            if (!phi->initLength(retvalDefns.length()))
+                return false;
+
+            size_t index = 0;
             MDefinition **it = retvalDefns.begin(), **end = retvalDefns.end();
-            for (; it != end; ++it) {
-                if (!phi->addInput(*it))
-                    return false;
-            }
+            for (; it != end; it++, index++)
+                phi->setOperand(index, *it);
+
+            JS_ASSERT(index == retvalDefns.length());
+
             // retvalDefns should become a singleton vector of 'phi'
             retvalDefns.clear();
             if (!retvalDefns.append(phi))
@@ -3570,10 +3585,16 @@ IonBuilder::inlineScriptedCalls(AutoObjectVector &targets, AutoObjectVector &ori
         MPhi *phi = MPhi::New(bottom->stackDepth());
         bottom->addPhi(phi);
 
-        for (MDefinition **it = retvalDefns.begin(), **end = retvalDefns.end(); it != end; ++it) {
-            if (!phi->addInput(*it))
-                return false;
-        }
+        if (!phi->initLength(retvalDefns.length()))
+            return false;
+
+        size_t index = 0;
+        MDefinition **it = retvalDefns.begin(), **end = retvalDefns.end();
+        for (; it != end; it++, index++)
+            phi->setOperand(index, *it);
+
+        JS_ASSERT(index == retvalDefns.length());
+
         retvalDefn = phi;
     } else {
         retvalDefn = retvalDefns.back();
@@ -4015,7 +4036,10 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     // Acquire known call target if existent.
     AutoObjectVector originals(cx);
     types::StackTypeSet *calleeTypes = oracle->getCallTarget(script(), argc, pc);
-    uint32_t numTargets = calleeTypes ? getPolyCallTargets(calleeTypes, originals, 4) : 0;
+    if (calleeTypes) {
+        if (!getPolyCallTargets(calleeTypes, originals, 4))
+            return false;
+    }
 
     // If any call targets need to be cloned, clone them. Keep track of the
     // originals as we need to case on them for poly inline.
@@ -4023,7 +4047,7 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     AutoObjectVector targets(cx);
     RootedFunction fun(cx);
     RootedScript scriptRoot(cx, script());
-    for (uint32_t i = 0; i < numTargets; i++) {
+    for (uint32_t i = 0; i < originals.length(); i++) {
         fun = originals[i]->toFunction();
         if (fun->isCloneAtCallsite()) {
             fun = CloneFunctionAtCallsite(cx, fun, scriptRoot, pc);
@@ -4036,7 +4060,7 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     }
 
     // Inline native call.
-    if (inliningEnabled() && numTargets == 1 && targets[0]->toFunction()->isNative()) {
+    if (inliningEnabled() && targets.length() == 1 && targets[0]->toFunction()->isNative()) {
         RootedFunction target(cx, targets[0]->toFunction());
         InliningStatus status = inlineNativeCall(target->native(), argc, constructing);
         if (status != InliningStatus_NotInlined)
@@ -4047,12 +4071,12 @@ IonBuilder::jsop_call(uint32_t argc, bool constructing)
     CallInfo callInfo(cx, constructing);
     if (!callInfo.init(current, argc))
         return false;
-    if (inliningEnabled() && numTargets > 0 && makeInliningDecision(targets, argc))
+    if (inliningEnabled() && targets.length() > 0 && makeInliningDecision(targets, argc))
         return inlineScriptedCalls(targets, originals, callInfo);
 
     // No inline, just make the call.
     RootedFunction target(cx, NULL);
-    if (numTargets == 1)
+    if (targets.length() == 1)
         target = targets[0]->toFunction();
 
     return makeCall(target, callInfo, calleeTypes, hasClones);
@@ -4205,10 +4229,13 @@ IonBuilder::makeCallHelper(HandleFunction target, CallInfo &callInfo,
             return NULL;
         }
 
-        MPassArg *newThis = MPassArg::New(create);
-
+        // Unwrap the MPassArg before discarding: it may have been captured by an MResumePoint.
+        thisArg->replaceAllUsesWith(thisArg->getArgument());
         thisArg->block()->discard(thisArg);
+
+        MPassArg *newThis = MPassArg::New(create);
         current->add(newThis);
+
         thisArg = newThis;
     }
 
