@@ -130,38 +130,38 @@ JSObject::setArrayLength(uint32 length)
 }
 
 inline uint32 
-JSObject::getDenseArrayCount() const
+JSObject::getArrayCount() const
 {
-    JS_ASSERT(isDenseArray());
-    return uint32(fslots[JSSLOT_DENSE_ARRAY_COUNT]);
+    JS_ASSERT(isArray());
+    return uint32(fslots[JSSLOT_ARRAY_COUNT]);
 }
 
 inline void 
-JSObject::setDenseArrayCount(uint32 count)
+JSObject::setArrayCount(uint32 count)
 {
-    JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_DENSE_ARRAY_COUNT] = count;
+    JS_ASSERT(isArray());
+    fslots[JSSLOT_ARRAY_COUNT] = count;
 }
 
 inline void 
 JSObject::voidDenseArrayCount()
 {
     JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_DENSE_ARRAY_COUNT] = JSVAL_VOID;
+    fslots[JSSLOT_ARRAY_COUNT] = JSVAL_VOID;
 }
 
 inline void 
-JSObject::incDenseArrayCountBy(uint32 posDelta)
+JSObject::incArrayCountBy(uint32 posDelta)
 {
-    JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_DENSE_ARRAY_COUNT] += posDelta;
+    JS_ASSERT(isArray());
+    fslots[JSSLOT_ARRAY_COUNT] += posDelta;
 }
 
 inline void 
-JSObject::decDenseArrayCountBy(uint32 negDelta)
+JSObject::decArrayCountBy(uint32 negDelta)
 {
-    JS_ASSERT(isDenseArray());
-    fslots[JSSLOT_DENSE_ARRAY_COUNT] -= negDelta;
+    JS_ASSERT(isArray());
+    fslots[JSSLOT_ARRAY_COUNT] -= negDelta;
 }
 
 inline uint32
