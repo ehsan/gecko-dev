@@ -93,7 +93,6 @@ public:
 
   // nsAccessible
   virtual PRUint32 NativeRole();
-  NS_IMETHOD GetName(nsAString& aName);
   virtual nsAccessible* GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                                         EWhichChildAtPoint aWhichChild);
 

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -14,12 +15,12 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
+ * The Initial Developer of the Original Code is
+ * IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Kyle Huey <me@kylehuey.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -35,30 +36,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
+#ifdef IBMBIDI
 
-interface nsIInputStream;
+#include "nsBidiFrames.h"
+#include "nsGkAtoms.h"
 
-/**
- * nsIScriptableBase64Encoder efficiently encodes the contents
- * of a nsIInputStream to a Base64 string.  This avoids the need
- * to read the entire stream into a buffer, and only then do the
- * Base64 encoding.
- *
- *  If you already have a buffer full of data, you should use
- *  btoa instead!
- */
-[scriptable, uuid(9479c864-d1f9-45ab-b7b9-28b907bd2ba9)]
-interface nsIScriptableBase64Encoder : nsISupports
+
+nsDirectionalFrame::nsDirectionalFrame(nsStyleContext* aContext, PRUnichar aChar)
+  : nsFrame(aContext), mChar(aChar)
 {
-  /**
-   *  These methods take an nsIInputStream and return a narrow or wide
-   *  string with the contents of the nsIInputStream base64 encoded.
-   *
-   *  The stream passed in must support ReadSegments and must not be
-   *  a non-blocking stream that will return NS_BASE_STREAM_WOULD_BLOCK.
-   *  If either of these restrictions are violated we will abort.
-   */
-  ACString encodeToCString(in nsIInputStream stream, in unsigned long length);
-  AString encodeToString(in nsIInputStream stream, in unsigned long length);
-};
+}
+
+nsDirectionalFrame::~nsDirectionalFrame()
+{
+}
+
+nsIAtom*
+nsDirectionalFrame::GetType() const
+{ 
+  return nsGkAtoms::directionalFrame;
+}
+  
+#ifdef NS_DEBUG
+NS_IMETHODIMP
+nsDirectionalFrame::GetFrameName(nsAString& aResult) const
+{
+  return MakeFrameName(NS_LITERAL_STRING("Directional"), aResult);
+}
+#endif
+
+nsIFrame*
+NS_NewDirectionalFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUnichar aChar)
+{
+  return new (aPresShell) nsDirectionalFrame(aContext, aChar);
+}
+
+NS_IMPL_FRAMEARENA_HELPERS(nsDirectionalFrame)
+
+#endif /* IBMBIDI */
