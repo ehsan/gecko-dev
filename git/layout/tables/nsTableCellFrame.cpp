@@ -459,8 +459,7 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       }
     
       // display outset box-shadows if we need to.
-      const nsStyleBorder* borderStyle = GetStyleBorder();
-      bool hasBoxShadow = !!borderStyle->mBoxShadow;
+      bool hasBoxShadow = !!(GetStyleBorder()->mBoxShadow);
       if (hasBoxShadow) {
         nsresult rv = aLists.BorderBackground()->AppendNewToTop(
             new (aBuilder) nsDisplayBoxShadowOuter(aBuilder, this));
@@ -489,7 +488,7 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       }
     
       // display borders if we need to
-      if (!tableFrame->IsBorderCollapse() && borderStyle->HasBorder() &&
+      if (!tableFrame->IsBorderCollapse() && HasBorder() &&
           emptyCellStyle == NS_STYLE_TABLE_EMPTY_CELLS_SHOW) {
         nsresult rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
             nsDisplayBorder(aBuilder, this));

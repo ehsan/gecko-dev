@@ -24,6 +24,11 @@ function Presenter() {}
 
 Presenter.prototype = {
   /**
+   * The padding in pixels between the object and the highlight border.
+   */
+  BORDER_PADDING: 2,
+
+  /**
    * Attach function for presenter.
    * @param {ChromeWindow} aWindow Chrome window the presenter could use.
    */
@@ -90,11 +95,6 @@ Presenter.prototype = {
 function VisualPresenter() {}
 
 VisualPresenter.prototype = new Presenter();
-
-/**
- * The padding in pixels between the object and the highlight border.
- */
-VisualPresenter.prototype.BORDER_PADDING = 2;
 
 VisualPresenter.prototype.attach = function(aWindow) {
   this.chromeWin = aWindow;
@@ -251,7 +251,7 @@ AndroidPresenter.prototype.tabSelected = function(aObject) {
     context.push(parent);
   context.reverse();
 
-  this.pivotChanged(vcDoc.virtualCursor.position || aObject, context);
+  this.pivotChanged(vcDoc.virtualCursor.position, context);
 };
 
 AndroidPresenter.prototype.sendMessageToJava = function(aMessage) {

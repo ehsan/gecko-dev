@@ -30,7 +30,6 @@
 #define HB_ICU_H
 
 #include "hb.h"
-
 #include <unicode/uscript.h>
 
 

@@ -1531,7 +1531,7 @@ private void CancelNotification()
             }
             catch (FileNotFoundException e) {
                 sRet += " file not found";
-                Log.d("SUT", "HashFile: "+e);
+                e.printStackTrace();
             }
             catch (IOException e) {
                 sRet += " io exception";
@@ -2388,12 +2388,8 @@ private void CancelNotification()
         int lcv = 0;
         String strProcName = "";
         int    nPID = 0;
-        int nProcs = 0;
 
-        if (lProcesses != null) 
-            nProcs = lProcesses.size();
-
-        for (lcv = 0; lcv < nProcs; lcv++)
+        for (lcv = 0; lcv < lProcesses.size(); lcv++)
             {
             if (lProcesses.get(lcv).processName.contains(sProcName))
                 {
@@ -2445,10 +2441,7 @@ private void CancelNotification()
             {
             sRet = "Successfully killed " + nPID + " " + strProcName + "\n";
             lProcesses = aMgr.getRunningAppProcesses();
-            nProcs = 0;
-            if (lProcesses != null) 
-                nProcs = lProcesses.size();
-            for (lcv = 0; lcv < nProcs; lcv++)
+            for (lcv = 0; lcv < lProcesses.size(); lcv++)
                 {
                 if (lProcesses.get(lcv).processName.contains(sProcName))
                     {
@@ -2531,14 +2524,11 @@ private void CancelNotification()
         String sRet = "";
         ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
         List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses();
-        int    nProcs = 0;
+        int    nProcs = lProcesses.size();
         int lcv = 0;
         String strProcName = "";
         int    nPID = 0;
         int nUser = 0;
-
-        if (lProcesses != null) 
-            nProcs = lProcesses.size();
 
         for (lcv = 0; lcv < nProcs; lcv++)
             {
@@ -3518,7 +3508,7 @@ private void CancelNotification()
                     }
                 catch (IllegalThreadStateException itse) {
                     lcv++;
-                    Log.d("SUT", "StartPrg waited 10s for "+progArray[0]);
+                    itse.printStackTrace();
                     }
                 }
             }
@@ -3649,7 +3639,7 @@ private void CancelNotification()
                         }
                     catch (IllegalThreadStateException itse) {
                         lcv++;
-                        Log.d("SUT", "StartPrg2 waited 10s for "+theArgs[0]);
+                        itse.printStackTrace();
                         }
                     }
                 }

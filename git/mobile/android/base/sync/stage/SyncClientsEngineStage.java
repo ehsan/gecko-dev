@@ -41,43 +41,15 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   public static final int CLIENTS_TTL_REFRESH = 604800000; // 7 days
   public static final int MAX_UPLOAD_FAILURE_COUNT = 5;
 
-  protected final GlobalSession session;
+  protected GlobalSession session;
   protected final ClientRecordFactory factory = new ClientRecordFactory();
   protected ClientUploadDelegate clientUploadDelegate;
   protected ClientDownloadDelegate clientDownloadDelegate;
-
-  // Be sure to use this safely via getClientsDatabaseAccessor/closeDataAccessor.
   protected ClientsDatabaseAccessor db;
 
   protected volatile boolean shouldWipe;
   protected volatile boolean commandsProcessedShouldUpload;
   protected final AtomicInteger uploadAttemptsCount = new AtomicInteger();
-
-  public SyncClientsEngineStage(GlobalSession session) {
-    if (session == null) {
-      throw new IllegalArgumentException("session must not be null.");
-    }
-    this.session = session;
-  }
-
-  protected int getClientsCount() {
-    return getClientsDatabaseAccessor().clientsCount();
-  }
-
-  protected synchronized ClientsDatabaseAccessor getClientsDatabaseAccessor() {
-    if (db == null) {
-      db = new ClientsDatabaseAccessor(session.getContext());
-    }
-    return db;
-  }
-
-  protected synchronized void closeDataAccessor() {
-    if (db == null) {
-      return;
-    }
-    db.close();
-    db = null;
-  }
 
   /**
    * The following two delegates, ClientDownloadDelegate and ClientUploadDelegate
@@ -121,11 +93,11 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
       final int clientsCount;
       try {
-        clientsCount = getClientsCount();
+        clientsCount = db.clientsCount();
       } finally {
         // Close the database to clear cached readableDatabase/writableDatabase
         // after we've completed our last transaction (db.store()).
-        closeDataAccessor();
+        db.close();
       }
 
       Logger.debug(LOG_TAG, "Database contains " + clientsCount + " clients.");
@@ -147,7 +119,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
         session.abort(new HTTPFailureException(response), "Client download failed.");
       } finally {
         // Close the database upon failure.
-        closeDataAccessor();
+        db.close();
       }
     }
 
@@ -159,7 +131,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
         session.abort(ex, "Failure fetching client record.");
       } finally {
         // Close the database upon error.
-        closeDataAccessor();
+        db.close();
       }
     }
 
@@ -278,30 +250,15 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   }
 
   @Override
-  public void execute() throws NoSuchStageException {
+  public void execute(GlobalSession session) throws NoSuchStageException {
+    this.session = session;
+    init();
+
     if (shouldDownload()) {
       downloadClientRecords();   // Will kick off upload, too…
     } else {
       // Upload if necessary.
     }
-  }
-
-  @Override
-  public void resetLocal() {
-    // Clear timestamps and local data.
-    session.config.persistServerClientRecordTimestamp(0L);
-    session.getClientsDelegate().setClientsCount(0);
-    try {
-      getClientsDatabaseAccessor().wipe();
-    } finally {
-      closeDataAccessor();
-    }
-  }
-
-  @Override
-  public void wipeLocal() throws Exception {
-    // Nothing more to do.
-    this.resetLocal();
   }
 
   protected ClientRecord newLocalClientRecord(ClientsDataDelegate delegate) {
@@ -311,6 +268,10 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
     ClientRecord r = new ClientRecord(ourGUID);
     r.name = ourName;
     return r;    
+  }
+
+  protected void init() {
+    db = new ClientsDatabaseAccessor(session.getContext());
   }
 
   // TODO: Bug 726055 - More considered handling of when to sync.
@@ -348,7 +309,7 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
 
     // TODO: Bug 715792 - Process commands here.
     for (int i = 0; i < commands.size(); i++) {
-      processor.processCommand(new ExtendedJSONObject((JSONObject) commands.get(i)));
+      processor.processCommand(new ExtendedJSONObject((JSONObject)commands.get(i)));
     }
   }
 
@@ -409,7 +370,6 @@ public class SyncClientsEngineStage implements GlobalSyncStage {
   }
 
   protected void wipeAndStore(ClientRecord record) {
-    ClientsDatabaseAccessor db = getClientsDatabaseAccessor();
     if (shouldWipe) {
       db.wipe();
       shouldWipe = false;

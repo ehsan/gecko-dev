@@ -54,17 +54,12 @@ function test() {
     let test = tests.shift();
     let tab = win.gBrowser.tabs[0];
 
-    let browser = tab.linkedBrowser;
-    browser.addEventListener("load", function onLoad(event) {
-       browser.removeEventListener("load", onLoad, true);
-       
-       let tabItem = tab._tabViewTabItem;
-       tabItem.addSubscriber("updated", function onUpdated() {
-         tabItem.removeSubscriber("updated", onUpdated);
-         checkUrl(test);
-       });
+    tab.linkedBrowser.addEventListener('load', function onLoad() {
+      tab.linkedBrowser.removeEventListener('load', onLoad, true);
+      checkUrl(test);
     }, true);
-    browser.loadURI(test.url);
+
+    tab.linkedBrowser.loadURI(test.url);
   }
 
   let checkUrl = function (test) {

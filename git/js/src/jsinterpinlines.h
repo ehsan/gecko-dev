@@ -232,7 +232,7 @@ GetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, Value *vp
                 }
             }
 
-            if (obj->isTypedArray()) {
+            if (js_IsTypedArray(obj)) {
                 JSObject *tarray = TypedArray::getTypedArray(obj);
                 *vp = Int32Value(TypedArray::getLength(tarray));
                 return true;

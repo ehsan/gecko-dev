@@ -26,12 +26,19 @@ function createDocument()
     '<p>Inspect using inspectstyle(document.querySelectorAll("span")[0])</p>' +
     '</div>';
   doc.title = "Style Inspector Test";
-  stylePanel = new ComputedViewPanel(window);
-  stylePanel.createPanel(doc.body, runStyleInspectorTests);
+  stylePanel = new StyleInspector(window);
+  Services.obs.addObserver(runStyleInspectorTests, "StyleInspector-opened", false);
+  stylePanel.createPanel(false, function() {
+    stylePanel.open(doc.body);
+  });
 }
 
 function runStyleInspectorTests()
 {
+  Services.obs.removeObserver(runStyleInspectorTests, "StyleInspector-opened", false);
+
+  ok(stylePanel.isOpen(), "style inspector is open");
+
   var spans = doc.querySelectorAll("span");
   ok(spans, "captain, we have the spans");
 
@@ -47,8 +54,8 @@ function runStyleInspectorTests()
   }
 
   SI_CheckProperty();
-  stylePanel.destroy();
-  finishUp();
+  Services.obs.addObserver(finishUp, "StyleInspector-closed", false);
+  stylePanel.close();
 }
 
 function SI_CheckProperty()
@@ -61,6 +68,8 @@ function SI_CheckProperty()
 
 function finishUp()
 {
+  Services.obs.removeObserver(finishUp, "StyleInspector-closed", false);
+  ok(!stylePanel.isOpen(), "style inspector is closed");
   doc = stylePanel = null;
   gBrowser.removeCurrentTab();
   finish();

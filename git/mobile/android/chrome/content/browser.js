@@ -1480,7 +1480,7 @@ nsBrowserAccess.prototype = {
 
     if (newTab) {
       let parentId = -1;
-      if (!isExternal && aOpener) {
+      if (!isExternal) {
         let parent = BrowserApp.getTabForWindow(aOpener.top);
         if (parent)
           parentId = parent.id;
@@ -1552,9 +1552,6 @@ Tab.prototype = {
     this.browser.setAttribute("type", "content-targetable");
     this.setBrowserSize(kDefaultCSSViewportWidth, kDefaultCSSViewportHeight);
     BrowserApp.deck.appendChild(this.browser);
-
-    // Must be called after appendChild so the docshell has been created.
-    this.setActive(false);
 
     this.browser.stop();
 
@@ -1659,7 +1656,7 @@ Tab.prototype = {
 
   // This should be called to update the browser when the tab gets selected/unselected
   setActive: function setActive(aActive) {
-    if (!this.browser || !this.browser.docShell)
+    if (!this.browser)
       return;
 
     if (aActive) {
@@ -1768,30 +1765,22 @@ Tab.prototype = {
     let viewport = {
       width: gScreenWidth,
       height: gScreenHeight,
-      cssWidth: gScreenWidth / this._zoom,
-      cssHeight: gScreenHeight / this._zoom,
       pageWidth: gScreenWidth,
       pageHeight: gScreenHeight,
-      // We make up matching css page dimensions
-      cssPageWidth: gScreenWidth / this._zoom,
-      cssPageHeight: gScreenHeight / this._zoom,
       zoom: this._zoom
     };
 
     // Set the viewport offset to current scroll offset
-    viewport.cssX = this.browser.contentWindow.scrollX || 0;
-    viewport.cssY = this.browser.contentWindow.scrollY || 0;
+    viewport.x = this.browser.contentWindow.scrollX || 0;
+    viewport.y = this.browser.contentWindow.scrollY || 0;
 
     // Transform coordinates based on zoom
-    viewport.x = Math.round(viewport.cssX * viewport.zoom);
-    viewport.y = Math.round(viewport.cssY * viewport.zoom);
+    viewport.x = Math.round(viewport.x * viewport.zoom);
+    viewport.y = Math.round(viewport.y * viewport.zoom);
 
     let doc = this.browser.contentDocument;
     if (doc != null) {
-      let [pageWidth, pageHeight] = this.getPageSize(doc, viewport.cssWidth, viewport.cssHeight);
-
-      let cssPageWidth = pageWidth;
-      let cssPageHeight = pageHeight;
+      let [pageWidth, pageHeight] = this.getPageSize(doc, viewport.width, viewport.height);
 
       /* Transform the page width and height based on the zoom factor. */
       pageWidth *= viewport.zoom;
@@ -1803,8 +1792,6 @@ Tab.prototype = {
        * send updates regardless of page size; we'll zoom to fit the content as needed.
        */
       if (doc.readyState === 'complete' || (pageWidth >= gScreenWidth && pageHeight >= gScreenHeight)) {
-        viewport.cssPageWidth = cssPageWidth;
-        viewport.cssPageHeight = cssPageHeight;
         viewport.pageWidth = pageWidth;
         viewport.pageHeight = pageHeight;
       }
@@ -1997,9 +1984,6 @@ Tab.prototype = {
           return;
         }
 
-        // Force a style flush, so that we ensure our binding is attached.
-        plugin.clientTop;
-
         // If the plugin is hidden, or if the overlay is too small, show a doorhanger notification
         let overlay = plugin.ownerDocument.getAnonymousElementByAttribute(plugin, "class", "mainBox");
         if (!overlay || PluginHelper.isTooSmall(plugin, overlay)) {
@@ -2043,6 +2027,11 @@ Tab.prototype = {
         return;
       }
 
+      let browser = BrowserApp.getBrowserForWindow(aWebProgress.DOMWindow);
+      let uri = "";
+      if (browser)
+        uri = browser.currentURI.spec;
+
       // Check to see if we restoring the content from a previous presentation (session)
       // since there should be no real network activity
       let restoring = aStateFlags & Ci.nsIWebProgressListener.STATE_RESTORING;
@@ -2050,10 +2039,6 @@ Tab.prototype = {
 
       // true if the page loaded successfully (i.e., no 404s or other errors)
       let success = false; 
-      let uri = "";
-      try {
-        uri = aRequest.QueryInterface(Components.interfaces.nsIChannel).originalURI.spec;
-      } catch (e) { }
       try {
         success = aRequest.QueryInterface(Components.interfaces.nsIHttpChannel).requestSucceeded;
       } catch (e) { }
@@ -2084,7 +2069,6 @@ Tab.prototype = {
     let uri = browser.currentURI.spec;
     let documentURI = "";
     let contentType = "";
-    let sameDocument = (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) != 0;
     if (browser.contentDocument) {
       documentURI = browser.contentDocument.documentURIObject.spec;
       contentType = browser.contentDocument.contentType;
@@ -2100,14 +2084,13 @@ Tab.prototype = {
         tabID: this.id,
         uri: uri,
         documentURI: documentURI,
-        contentType: contentType,
-        sameDocument: sameDocument
+        contentType: contentType
       }
     };
 
     sendMessageToJava(message);
 
-    if (!sameDocument) {
+    if ((aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_SAME_DOCUMENT) == 0) {
       // XXX This code assumes that this is the earliest hook we have at which
       // browser.contentDocument is changed to the new document we're loading
       this.contentDocumentIsDisplayed = false;
@@ -2523,14 +2506,16 @@ var BrowserEventHandler = {
       let rect = ElementTouchHelper.getBoundingContentRect(element);
 
       let viewport = BrowserApp.selectedTab.getViewport();
-      let vRect = new Rect(viewport.cssX, viewport.cssY, viewport.cssWidth, viewport.cssHeight);
+      let vRect = new Rect(viewport.x, viewport.y, viewport.width, viewport.height);
+
+      let zoom = viewport.zoom;
       let bRect = new Rect(Math.max(0,rect.x - margin),
                            rect.y,
                            rect.w + 2*margin,
                            rect.h);
-
       // constrict the rect to the screen width
-      bRect.width = Math.min(bRect.width, viewport.cssPageWidth - bRect.x);
+      bRect.width = Math.min(bRect.width, viewport.pageWidth/zoom - bRect.x);
+      bRect.scale(zoom, zoom);
 
       let overlap = vRect.intersect(bRect);
       let overlapArea = overlap.width*overlap.height;
@@ -2538,8 +2523,8 @@ var BrowserEventHandler = {
       // on the screen at any time and if its already stretching the width of the screen
       let availHeight = Math.min(bRect.width*vRect.height/vRect.width, bRect.height);
       let showing = overlapArea/(bRect.width*availHeight);
-      let dw = (bRect.width - vRect.width);
-      let dx = (bRect.x - vRect.x);
+      let dw = (bRect.width - vRect.width)/zoom;
+      let dx = (bRect.x - vRect.x)/zoom;
 
       if (showing > 0.9 &&
           dx > minDifference && dx < maxDifference &&
@@ -3068,7 +3053,7 @@ var FormAssistant = {
 
   // We only want to show autocomplete suggestions for certain elements
   _isAutoComplete: function _isAutoComplete(aElement) {
-    if (!(aElement instanceof HTMLInputElement) || aElement.readOnly ||
+    if (!(aElement instanceof HTMLInputElement) ||
         (aElement.getAttribute("type") == "password") ||
         (aElement.hasAttribute("autocomplete") &&
          aElement.getAttribute("autocomplete").toLowerCase() == "off"))
@@ -4660,12 +4645,20 @@ var WebappsUI = {
   },
   
   openURL: function(aURI, aOrigin) {
-    let uri = Services.io.newURI(aURI, null, null);
-    if (!uri)
-      return;
+    let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
 
-    let bwin = window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow;
-    bwin.openURI(uri, null, Ci.nsIBrowserDOMWindow.OPEN_SWITCHTAB, Ci.nsIBrowserDOMWindow.OPEN_NEW);
+    let tabs = BrowserApp.tabs;
+    let tab = null;
+    for (let i = 0; i < tabs.length; i++) {
+      let appOrigin = ss.getTabValue(tabs[i], "appOrigin");
+      if (appOrigin == aOrigin)
+        tab = tabs[i];
+    }
+
+    if (tab)
+      BrowserApp.selectTab(tab);
+    else
+      BrowserApp.addTab(aURI, { pinned: true });
   }
 }
 

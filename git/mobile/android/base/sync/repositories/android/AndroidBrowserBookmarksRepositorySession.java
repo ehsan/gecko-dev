@@ -431,12 +431,6 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     String parentName = getParentName(androidParentGUID);
     BookmarkRecord bookmark = AndroidBrowserBookmarksRepositorySession.bookmarkFromMirrorCursor(cur, androidParentGUID, parentName, childArray);
 
-    if (bookmark == null) {
-      Logger.warn(LOG_TAG, "Unable to extract bookmark from cursor. Record GUID " + recordGUID +
-                           ", parent " + androidParentGUID + "/" + androidParentID);
-      return null;
-    }
-
     if (needsReparenting) {
       Logger.warn(LOG_TAG, "Bookmark record " + recordGUID + " has a bad parent pointer. Reparenting now.");
 
@@ -792,13 +786,13 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     @Override
     public void run() {
       try {
-        // Clear our queued deletions.
-        deletionManager.clear();
         super.run();
       } catch (Exception ex) {
         delegate.onWipeFailed(ex);
         return;
       }
+      // Clear our queued deletions.
+      deletionManager.clear();
     }
   }
 
@@ -914,8 +908,6 @@ public class AndroidBrowserBookmarksRepositorySession extends AndroidBrowserRepo
     if (typeString == null) {
       Logger.warn(LOG_TAG, "Unsupported type code " + rowType);
       return null;
-    } else {
-      Logger.trace(LOG_TAG, "Record " + guid + " has type " + typeString);
     }
 
     rec.type = typeString;

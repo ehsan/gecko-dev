@@ -74,10 +74,9 @@
 #include "cairo.h"
 #include "gfxFontTest.h"
 
-#include "harfbuzz/hb.h"
+#include "harfbuzz/hb-blob.h"
 
 #include "nsCRT.h"
-#include "sampler.h"
 
 #include <algorithm>
 
@@ -104,16 +103,6 @@ static PRUint32 gGlyphExtentsSetupLazyTight = 0;
 static PRUint32 gGlyphExtentsSetupFallBackToTight = 0;
 #endif
 
-void
-gfxCharacterMap::NotifyReleased()
-{
-    gfxPlatformFontList *fontlist = gfxPlatformFontList::PlatformFontList();
-    if (mShared) {
-        fontlist->RemoveCmap(this);
-    }
-    delete this;
-}
-
 gfxFontEntry::~gfxFontEntry() 
 {
     delete mUserFontData;
@@ -126,20 +115,18 @@ bool gfxFontEntry::IsSymbolFont()
 
 bool gfxFontEntry::TestCharacterMap(PRUint32 aCh)
 {
-    if (!mCharacterMap) {
+    if (!mCmapInitialized) {
         ReadCMAP();
-        NS_ASSERTION(mCharacterMap, "failed to initialize character map");
     }
-    return mCharacterMap->test(aCh);
+    return mCharacterMap.test(aCh);
 }
 
 nsresult gfxFontEntry::InitializeUVSMap()
 {
     // mUVSOffset will not be initialized
     // until cmap is initialized.
-    if (!mCharacterMap) {
+    if (!mCmapInitialized) {
         ReadCMAP();
-        NS_ASSERTION(mCharacterMap, "failed to initialize character map");
     }
 
     if (!mUVSOffset) {
@@ -183,8 +170,7 @@ PRUint16 gfxFontEntry::GetUVSGlyph(PRUint32 aCh, PRUint32 aVS)
 
 nsresult gfxFontEntry::ReadCMAP()
 {
-    NS_ASSERTION(false, "using default no-op implementation of ReadCMAP");
-    mCharacterMap = new gfxCharacterMap();
+    mCmapInitialized = true;
     return NS_OK;
 }
 
@@ -447,12 +433,7 @@ gfxFontEntry::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                   FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += mName.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-
-    // cmaps are shared so only non-shared cmaps are included here
-    if (mCharacterMap && mCharacterMap->mBuildOnTheFly) {
-        aSizes->mCharMapsSize +=
-            mCharacterMap->SizeOfIncludingThis(aMallocSizeOf);
-    }
+    aSizes->mCharMapsSize += mCharacterMap.SizeOfExcludingThis(aMallocSizeOf);
     aSizes->mFontTableCacheSize +=
         mFontTableCache.SizeOfExcludingThis(
             FontTableHashEntry::SizeOfEntryExcludingThis,
@@ -789,7 +770,7 @@ CalcStyleMatch(gfxFontEntry *aFontEntry, const gfxFontStyle *aStyle)
 void
 gfxFontFamily::FindFontForChar(GlobalFontMatch *aMatchData)
 {
-    if (mFamilyCharacterMapInitialized && !TestCharacterMap(aMatchData->mCh)) {
+    if (mCharacterMapInitialized && !TestCharacterMap(aMatchData->mCh)) {
         // none of the faces in the family support the required char,
         // so bail out immediately
         return;
@@ -1047,8 +1028,7 @@ gfxFontFamily::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
 {
     aSizes->mFontListSize +=
         mName.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-    aSizes->mCharMapsSize +=
-        mFamilyCharacterMap.SizeOfExcludingThis(aMallocSizeOf);
+    aSizes->mCharMapsSize += mCharacterMap.SizeOfExcludingThis(aMallocSizeOf);
 
     aSizes->mFontListSize +=
         mAvailableFonts.SizeOfExcludingThis(aMallocSizeOf);
@@ -1458,7 +1438,6 @@ struct GlyphBuffer {
             cairo_glyph_path(aCR, mGlyphBuffer, mNumGlyphs);
         } else {
             if (aDrawMode & gfxFont::GLYPH_FILL) {
-                SAMPLE_LABEL("GlyphBuffer", "cairo_show_glyphs");
                 cairo_show_glyphs(aCR, mGlyphBuffer, mNumGlyphs);
             }
 
@@ -2807,13 +2786,12 @@ gfxGlyphExtents::GetTightGlyphExtentsAppUnits(gfxFont *aFont,
             return false;
         }
 
-        if (aFont->SetupCairoFont(aContext)) {
+        aFont->SetupCairoFont(aContext);
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
-            ++gGlyphExtentsSetupLazyTight;
+        ++gGlyphExtentsSetupLazyTight;
 #endif
-            aFont->SetupGlyphExtents(aContext, aGlyphID, true, this);
-            entry = mTightGlyphExtents.GetEntry(aGlyphID);
-        }
+        aFont->SetupGlyphExtents(aContext, aGlyphID, true, this);
+        entry = mTightGlyphExtents.GetEntry(aGlyphID);
         if (!entry) {
             NS_WARNING("Could not get glyph extents");
             return false;
@@ -3670,9 +3648,7 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
 
         // check other faces of the family
         gfxFontFamily *family = font->GetFontEntry()->Family();
-        if (family && !font->GetFontEntry()->mIsProxy &&
-            family->TestCharacterMap(aCh))
-        {
+        if (family && family->TestCharacterMap(aCh)) {
             GlobalFontMatch matchData(aCh, aRunScript, &mStyle);
             family->SearchAllFontsForChar(&matchData);
             gfxFontEntry *fe = matchData.mBestMatch;
@@ -5477,11 +5453,8 @@ gfxTextRun::FetchGlyphExtents(gfxContext *aRefContext)
                     PRUint32 glyphIndex = glyphData->GetSimpleGlyph();
                     if (!extents->IsGlyphKnown(glyphIndex)) {
                         if (!fontIsSetup) {
-                            if (!font->SetupCairoFont(aRefContext)) {
-                                NS_WARNING("failed to set up font for glyph extents");
-                                break;
-                            }
-                            fontIsSetup = true;
+                            font->SetupCairoFont(aRefContext);
+                             fontIsSetup = true;
                         }
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
                         ++gGlyphExtentsSetupEagerSimple;
@@ -5502,10 +5475,7 @@ gfxTextRun::FetchGlyphExtents(gfxContext *aRefContext)
                     PRUint32 glyphIndex = details->mGlyphID;
                     if (!extents->IsGlyphKnownWithTightExtents(glyphIndex)) {
                         if (!fontIsSetup) {
-                            if (!font->SetupCairoFont(aRefContext)) {
-                                NS_WARNING("failed to set up font for glyph extents");
-                                break;
-                            }
+                            font->SetupCairoFont(aRefContext);
                             fontIsSetup = true;
                         }
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS

@@ -77,7 +77,6 @@ _TEST_FILES = \
 # test_contextmenu.html is disabled on Linux due to bug 513558
 ifneq (gtk2,$(MOZ_WIDGET_TOOLKIT))
 _TEST_FILES += \
-		audio.ogg \
 		test_contextmenu.html \
 		subtst_contextmenu.html \
 		$(NULL)
@@ -252,8 +251,6 @@ _BROWSER_FILES = \
                  plugin_test3.html \
                  plugin_both.html \
                  plugin_both2.html \
-                 plugin_clickToPlayAllow.html \
-                 plugin_clickToPlayDeny.html \
                  alltabslistener.html \
                  zoom_test.html \
                  dummy_page.html \

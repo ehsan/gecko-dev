@@ -113,7 +113,7 @@
 #include <algorithm>
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
+#include "jstypedarray.h"
 
 #include "mozilla/Assertions.h"
 #include "mozilla/dom/ContentParent.h"
@@ -2753,7 +2753,6 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
 {
     virtual void SetText(const PRUnichar* text, PRInt32 length, nsBidiDirection direction)
     {
-        mFontgrp->UpdateFontList(); // ensure user font generation is current
         mTextRun = mFontgrp->MakeTextRun(text,
                                          length,
                                          mThebes,
@@ -3150,7 +3149,6 @@ nsCanvasRenderingContext2D::MakeTextRun(const PRUnichar* aText,
     gfxFontGroup* currentFontStyle = GetCurrentFontStyle();
     if (!currentFontStyle)
         return nsnull;
-    currentFontStyle->UpdateFontList(); // ensure user font generation is current
     return currentFontStyle->MakeTextRun(aText, aLength,
                                          mThebes, aAppUnitsPerDevUnit, aFlags);
 }
@@ -3935,12 +3933,13 @@ nsCanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
         return NS_ERROR_DOM_SYNTAX_ERR;
     }
 
-    JSObject* darray = JS_NewUint8ClampedArray(aCx, len.value());
+    JSObject* darray =
+      js_CreateTypedArray(aCx, js::TypedArray::TYPE_UINT8_CLAMPED, len.value());
     if (!darray) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    uint8_t* data = JS_GetUint8ClampedArrayData(darray, aCx);
+    uint8_t* data = static_cast<uint8_t*>(JS_GetTypedArrayData(darray));
 
     /* Copy the surface contents to the buffer */
     nsRefPtr<gfxImageSurface> tmpsurf =

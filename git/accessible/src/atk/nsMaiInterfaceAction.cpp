@@ -39,7 +39,6 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "Accessible-inl.h"
 #include "nsMai.h"
 #include "Role.h"
 

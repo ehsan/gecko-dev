@@ -12,11 +12,7 @@ import org.mozilla.gecko.sync.PersistedMetaGlobal;
 import org.mozilla.gecko.sync.delegates.MetaGlobalDelegate;
 import org.mozilla.gecko.sync.net.SyncStorageResponse;
 
-public class FetchMetaGlobalStage extends AbstractNonRepositorySyncStage {
-  public FetchMetaGlobalStage(GlobalSession session) {
-    super(session);
-  }
-
+public class FetchMetaGlobalStage implements GlobalSyncStage {
   private static final String LOG_TAG = "FetchMetaGlobalStage";
   private static final String META_COLLECTION = "meta";
 
@@ -55,7 +51,7 @@ public class FetchMetaGlobalStage extends AbstractNonRepositorySyncStage {
   }
 
   @Override
-  public void execute() throws NoSuchStageException {
+  public void execute(GlobalSession session) throws NoSuchStageException {
     InfoCollections infoCollections = session.config.infoCollections;
     if (infoCollections == null) {
       session.abort(null, "No info/collections set in FetchMetaGlobalStage.");

@@ -148,13 +148,6 @@ CompositorParent::ResumeComposition()
 }
 
 void
-CompositorParent::ResumeCompositionAndResize(int width, int height)
-{
-  static_cast<LayerManagerOGL*>(mLayerManager.get())->SetSurfaceSize(width, height);
-  ResumeComposition();
-}
-
-void
 CompositorParent::SchedulePauseOnCompositorThread()
 {
   CancelableTask *pauseTask = NewRunnableMethod(this,
@@ -163,10 +156,10 @@ CompositorParent::SchedulePauseOnCompositorThread()
 }
 
 void
-CompositorParent::ScheduleResumeOnCompositorThread(int width, int height)
+CompositorParent::ScheduleResumeOnCompositorThread()
 {
-  CancelableTask *resumeTask =
-    NewRunnableMethod(this, &CompositorParent::ResumeCompositionAndResize, width, height);
+  CancelableTask *resumeTask = NewRunnableMethod(this,
+                                                 &CompositorParent::ResumeComposition);
   mCompositorThread->message_loop()->PostTask(FROM_HERE, resumeTask);
 }
 
@@ -238,6 +231,23 @@ CompositorParent::Composite()
 #endif
 }
 
+// Go down shadow layer tree, setting properties to match their non-shadow
+// counterparts.
+static void
+SetShadowProperties(Layer* aLayer)
+{
+  // FIXME: Bug 717688 -- Do these updates in ShadowLayersParent::RecvUpdate.
+  ShadowLayer* shadow = aLayer->AsShadowLayer();
+  shadow->SetShadowTransform(aLayer->GetTransform());
+  shadow->SetShadowVisibleRegion(aLayer->GetVisibleRegion());
+  shadow->SetShadowClipRect(aLayer->GetClipRect());
+
+  for (Layer* child = aLayer->GetFirstChild();
+      child; child = child->GetNextSibling()) {
+    SetShadowProperties(child);
+  }
+}
+
 #ifdef MOZ_WIDGET_ANDROID
 // Do a breadth-first search to find the first layer in the tree that is
 // scrollable.
@@ -245,6 +255,21 @@ Layer*
 CompositorParent::GetPrimaryScrollableLayer()
 {
   Layer* root = mLayerManager->GetRoot();
+
+  // FIXME: We're currently getting passed layers that are not part of our content, but
+  // we are drawing them anyway. This is causing severe rendering corruption to our background
+  // and checkerboarding. The real fix here is to assert that we don't have any useless layers
+  // and ensure that layout isn't giving us any. This is being tracked in bug 728284.
+  // For now just clip them to the empty rect so we don't draw them.
+  Layer* discardLayer = root->GetFirstChild();
+
+  while (discardLayer) {
+    if (!discardLayer->AsContainerLayer()) {
+      discardLayer->IntersectClipRect(nsIntRect());
+      SetShadowProperties(discardLayer);
+    }
+    discardLayer = discardLayer->GetNextSibling();
+  }
 
   nsTArray<Layer*> queue;
   queue.AppendElement(root);
@@ -271,23 +296,6 @@ CompositorParent::GetPrimaryScrollableLayer()
 }
 #endif
 
-// Go down shadow layer tree, setting properties to match their non-shadow
-// counterparts.
-static void
-SetShadowProperties(Layer* aLayer)
-{
-  // FIXME: Bug 717688 -- Do these updates in ShadowLayersParent::RecvUpdate.
-  ShadowLayer* shadow = aLayer->AsShadowLayer();
-  shadow->SetShadowTransform(aLayer->GetTransform());
-  shadow->SetShadowVisibleRegion(aLayer->GetVisibleRegion());
-  shadow->SetShadowClipRect(aLayer->GetClipRect());
-
-  for (Layer* child = aLayer->GetFirstChild();
-      child; child = child->GetNextSibling()) {
-    SetShadowProperties(child);
-  }
-}
-
 void
 CompositorParent::TransformShadowTree()
 {
@@ -307,18 +315,13 @@ CompositorParent::TransformShadowTree()
     nsIntPoint scrollOffset = metrics->mViewportScrollOffset;
     mContentSize = metrics->mContentSize;
     mozilla::AndroidBridge::Bridge()->SetFirstPaintViewport(scrollOffset.x, scrollOffset.y,
-                                                            1/rootScaleX,
-                                                            mContentSize.width,
-                                                            mContentSize.height,
-                                                            metrics->mCSSContentSize.width,
-                                                            metrics->mCSSContentSize.height);
+                                                            1/rootScaleX, mContentSize.width,
+                                                            mContentSize.height);
     mIsFirstPaint = false;
   } else if (metrics && (metrics->mContentSize != mContentSize)) {
     mContentSize = metrics->mContentSize;
     mozilla::AndroidBridge::Bridge()->SetPageSize(1/rootScaleX, mContentSize.width,
-                                                  mContentSize.height,
-                                                  metrics->mCSSContentSize.width,
-                                                  metrics->mCSSContentSize.height);
+                                                  mContentSize.height);
   }
 
   // We synchronise the viewport information with Java after sending the above
@@ -379,14 +382,7 @@ PLayersParent*
 CompositorParent::AllocPLayers(const LayersBackend &backendType)
 {
   if (backendType == LayerManager::LAYERS_OPENGL) {
-#ifdef MOZ_JAVA_COMPOSITOR
-    nsIntRect rect;
-    mWidget->GetBounds(rect);
-    nsRefPtr<LayerManagerOGL> layerManager =
-      new LayerManagerOGL(mWidget, rect.width, rect.height, true);
-#else
     nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(mWidget);
-#endif
     mWidget = NULL;
     mLayerManager = layerManager;
 

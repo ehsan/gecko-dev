@@ -168,20 +168,6 @@ nsLayoutUtils::Are3DTransformsEnabled()
   return s3DTransformsEnabled;
 }
 
-bool
-nsLayoutUtils::UseBackgroundNearestFiltering()
-{
-  static bool sUseBackgroundNearestFilteringEnabled;
-  static bool sUseBackgroundNearestFilteringPrefInitialised = false;
-
-  if (!sUseBackgroundNearestFilteringPrefInitialised) {
-    sUseBackgroundNearestFilteringPrefInitialised = true;
-    sUseBackgroundNearestFilteringEnabled = mozilla::Preferences::GetBool("gfx.filter.nearest.force-enabled", false);
-  }
-
-  return sUseBackgroundNearestFilteringEnabled;
-}
-
 void
 nsLayoutUtils::UnionChildOverflow(nsIFrame* aFrame,
                                   nsOverflowAreas& aOverflowAreas)
@@ -3568,9 +3554,6 @@ DrawImageInternal(nsRenderingContext* aRenderingContext,
                   const nsIntSize&     aImageSize,
                   PRUint32             aImageFlags)
 {
-  if (aDest.Contains(aFill)) {
-    aImageFlags |= imgIContainer::FLAG_CLAMP;
-  }
   PRInt32 appUnitsPerDevPixel = aRenderingContext->AppUnitsPerDevPixel();
   gfxContext* ctx = aRenderingContext->ThebesContext();
 
@@ -3748,11 +3731,6 @@ nsLayoutUtils::DrawBackgroundImage(nsRenderingContext* aRenderingContext,
                                    PRUint32            aImageFlags)
 {
   SAMPLE_LABEL("layout", "nsLayoutUtils::DrawBackgroundImage");
-
-  if (UseBackgroundNearestFiltering()) {
-    aGraphicsFilter = gfxPattern::FILTER_NEAREST;
-  }
-
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            aDest, aFill, aAnchor, aDirty,
                            aImageSize, aImageFlags);

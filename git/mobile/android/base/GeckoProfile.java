@@ -155,7 +155,11 @@ public final class GeckoProfile {
     }
 
     public File getFilesDir() {
-        return mContext.getFilesDir();
+        if (isOnInternalStorage()) {
+            return mContext.getFilesDir();
+        } else {
+            return mContext.getExternalFilesDir(null);
+        }
     }
 
     private boolean isOnInternalStorage() {
@@ -182,10 +186,16 @@ public final class GeckoProfile {
         // check normal install directory
         moveProfilesFrom(new File("/data/data/" + mContext.getPackageName()));
 
-        if (Build.VERSION.SDK_INT >= 8) {
-            // if we're on API >= 8, it's possible that
-            // we were previously on external storage, check there for profiles to pull in
-            moveProfilesFrom(mContext.getExternalFilesDir(null));
+        if (isOnInternalStorage()) {
+            if (Build.VERSION.SDK_INT >= 8) {
+                // if we're currently on internal storage, but we're on API >= 8, so it's possible that
+                // we were previously on external storage, check there for profiles to pull in
+                moveProfilesFrom(mContext.getExternalFilesDir(null));
+            }
+        } else {
+            // we're currently on external storage, but could have been on internal storage previously,
+            // so pull in those profiles
+            moveProfilesFrom(mContext.getFilesDir());
         }
     }
 
@@ -199,6 +209,7 @@ public final class GeckoProfile {
         }
 
         // if we get here, we know that oldMozDir exists
+
         File currentMozDir;
         try {
             currentMozDir = ensureMozillaDirectory();

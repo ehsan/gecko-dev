@@ -55,7 +55,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.Spanned;
-import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -626,9 +625,8 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                 Bitmap bitmap = null;
                 if (b != null)
                     bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
-
-                String shortcutTitle = TextUtils.isEmpty(title) ? url.replaceAll("^([a-z]+://)?(www\\.)?", "") : title;
-                GeckoAppShell.createShortcut(shortcutTitle, url, bitmap, "");
+    
+                GeckoAppShell.createShortcut(title, url, bitmap, "");
                 break;
             }
             case R.id.share: {

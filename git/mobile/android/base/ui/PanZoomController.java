@@ -38,9 +38,8 @@
 
 package org.mozilla.gecko.ui;
 
-import org.json.JSONArray;
-import org.json.JSONException;
 import org.json.JSONObject;
+import org.json.JSONException;
 import org.mozilla.gecko.gfx.FloatSize;
 import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.PointUtils;
@@ -56,10 +55,6 @@ import android.util.FloatMath;
 import android.util.Log;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.StringTokenizer;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -77,10 +72,6 @@ public class PanZoomController
 
     private static String MESSAGE_ZOOM_RECT = "Browser:ZoomToRect";
     private static String MESSAGE_ZOOM_PAGE = "Browser:ZoomToPageWidth";
-    private static String MESSAGE_PREFS_GET = "Preferences:Get";
-    private static String MESSAGE_PREFS_DATA = "Preferences:Data";
-
-    private static final String PREF_ZOOM_ANIMATION_FRAMES = "ui.zooming.animation_frames";
 
     // Animation stops if the velocity is below this value when overscrolled or panning.
     private static final float STOPPED_THRESHOLD = 4.0f;
@@ -99,7 +90,7 @@ public class PanZoomController
     private static final float MAX_ZOOM = 4.0f;
 
     /* 16 precomputed frames of the _ease-out_ animation from the CSS Transitions specification. */
-    private static float[] ZOOM_ANIMATION_FRAMES = new float[] {
+    private static final float[] EASE_OUT_ANIMATION_FRAMES = {
         0.00000f,   /* 0 */
         0.10211f,   /* 1 */
         0.19864f,   /* 2 */
@@ -163,12 +154,6 @@ public class PanZoomController
 
         GeckoAppShell.registerGeckoEventListener(MESSAGE_ZOOM_RECT, this);
         GeckoAppShell.registerGeckoEventListener(MESSAGE_ZOOM_PAGE, this);
-        GeckoAppShell.registerGeckoEventListener(MESSAGE_PREFS_DATA, this);
-
-        JSONArray prefs = new JSONArray();
-        prefs.put(PREF_ZOOM_ANIMATION_FRAMES);
-        Axis.addPrefNames(prefs);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(MESSAGE_PREFS_GET, prefs.toString()));
     }
 
     // for debugging bug 713011; it can be taken out once that is resolved.
@@ -194,9 +179,9 @@ public class PanZoomController
                     }
                 });
             } else if (MESSAGE_ZOOM_PAGE.equals(event)) {
-                FloatSize pageSize = mController.getCssPageSize();
+                FloatSize pageSize = mController.getPageSize();
 
-                RectF viewableRect = mController.getCssViewport();
+                RectF viewableRect = mController.getViewport();
                 float y = viewableRect.top;
                 // attempt to keep zoom keep focused on the center of the viewport
                 float newHeight = viewableRect.height() * pageSize.width / viewableRect.width();
@@ -210,52 +195,9 @@ public class PanZoomController
                         animatedZoomTo(r);
                     }
                 });
-            } else if (MESSAGE_PREFS_DATA.equals(event)) {
-                JSONArray jsonPrefs = message.getJSONArray("preferences");
-                Map<String, Integer> axisPrefs = new HashMap<String, Integer>();
-                String zoomAnimationFrames = null;
-                for (int i = jsonPrefs.length() - 1; i >= 0; i--) {
-                    JSONObject pref = jsonPrefs.getJSONObject(i);
-                    String name = pref.getString("name");
-                    if (PREF_ZOOM_ANIMATION_FRAMES.equals(name)) {
-                        zoomAnimationFrames = pref.getString("value");
-                    } else {
-                        try {
-                            axisPrefs.put(name, pref.getInt("value"));
-                        } catch (JSONException je) {
-                            // the value could not be parsed as an int. ignore this
-                            // pref and continue
-                        }
-                    }
-                }
-                // check for null to make sure the batch of preferences we got notified
-                // of are in the fact the ones we requested and not those requested by
-                // other java code
-                if (zoomAnimationFrames != null) {
-                    setZoomAnimationFrames(zoomAnimationFrames);
-                    Axis.setPrefs(axisPrefs);
-                    GeckoAppShell.unregisterGeckoEventListener(MESSAGE_PREFS_DATA, this);
-                }
             }
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
-        }
-    }
-
-    private void setZoomAnimationFrames(String frames) {
-        try {
-            if (frames.length() > 0) {
-                StringTokenizer st = new StringTokenizer(frames, ",");
-                float[] values = new float[st.countTokens()];
-                for (int i = 0; i < values.length; i++) {
-                    values[i] = Float.parseFloat(st.nextToken());
-                }
-                ZOOM_ANIMATION_FRAMES = values;
-            }
-        } catch (NumberFormatException e) {
-            Log.e(LOGTAG, "Error setting zoom animation frames", e);
-        } finally {
-            Log.i(LOGTAG, "Zoom animation frames: " + Arrays.toString(ZOOM_ANIMATION_FRAMES));
         }
     }
 
@@ -673,7 +615,7 @@ public class PanZoomController
             }
 
             /* Perform the next frame of the bounce-back animation. */
-            if (mBounceFrame < ZOOM_ANIMATION_FRAMES.length) {
+            if (mBounceFrame < EASE_OUT_ANIMATION_FRAMES.length) {
                 advanceBounce();
                 return;
             }
@@ -687,7 +629,7 @@ public class PanZoomController
         /* Performs one frame of a bounce animation. */
         private void advanceBounce() {
             synchronized (mController) {
-                float t = ZOOM_ANIMATION_FRAMES[mBounceFrame];
+                float t = EASE_OUT_ANIMATION_FRAMES[mBounceFrame];
                 ViewportMetrics newMetrics = mBounceStartMetrics.interpolate(mBounceEndMetrics, t);
                 mController.setViewportMetrics(newMetrics);
                 mController.notifyLayerClientOfGeometryChange();
@@ -979,12 +921,6 @@ public class PanZoomController
         GeckoAppShell.sendEventToGecko(e);
     }
 
-    /**
-     * Zoom to a specified rect IN CSS PIXELS.
-     *
-     * While we usually use device pixels, @zoomToRect must be specified in CSS
-     * pixels.
-     */
     private boolean animatedZoomTo(RectF zoomToRect) {
         GeckoApp.mFormAssistPopup.hide();
 
@@ -1012,11 +948,10 @@ public class PanZoomController
             zoomToRect.right = zoomToRect.left + newWidth;
         }
 
-        float finalZoom = viewport.width() / zoomToRect.width();
+        float finalZoom = viewport.width() * startZoom / zoomToRect.width();
 
         ViewportMetrics finalMetrics = new ViewportMetrics(mController.getViewportMetrics());
-        finalMetrics.setOrigin(new PointF(zoomToRect.left * finalMetrics.getZoomFactor(),
-                                          zoomToRect.top * finalMetrics.getZoomFactor()));
+        finalMetrics.setOrigin(new PointF(zoomToRect.left, zoomToRect.top));
         finalMetrics.scaleTo(finalZoom, new PointF(0.0f, 0.0f));
 
         // 2. now run getValidViewportMetrics on it, so that the target viewport is

@@ -43,7 +43,6 @@
 #include "gfxImageSurface.h"
 #include "ImageLayers.h"
 #include "mozilla/gfx/2D.h"
-#include "imgIContainer.h"
 
 class gfxDrawable;
 class nsIntRegion;
@@ -90,8 +89,7 @@ public:
                                  const gfxRect&   aImageRect,
                                  const gfxRect&   aFill,
                                  const gfxImageSurface::gfxImageFormat aFormat,
-                                 const gfxPattern::GraphicsFilter& aFilter,
-                                 PRUint32         aImageFlags = imgIContainer::FLAG_NONE);
+                                 const gfxPattern::GraphicsFilter& aFilter);
 
     /**
      * Clip aContext to the region aRegion.

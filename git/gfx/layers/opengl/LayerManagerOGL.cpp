@@ -48,7 +48,6 @@
 #include "ImageLayerOGL.h"
 #include "ColorLayerOGL.h"
 #include "CanvasLayerOGL.h"
-#include "TiledThebesLayerOGL.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Preferences.h"
 
@@ -86,16 +85,13 @@ int LayerManagerOGLProgram::sCurrentProgramKey = 0;
 /**
  * LayerManagerOGL
  */
-LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget, int aSurfaceWidth, int aSurfaceHeight,
-                                 bool aIsRenderingToEGLSurface)
+LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget)
   : mWidget(aWidget)
   , mWidgetSize(-1, -1)
-  , mSurfaceSize(aSurfaceWidth, aSurfaceHeight)
   , mBackBufferFBO(0)
   , mBackBufferTexture(0)
   , mBackBufferSize(-1, -1)
   , mHasBGRA(0)
-  , mIsRenderingToEGLSurface(aIsRenderingToEGLSurface)
 {
 }
 
@@ -769,11 +765,7 @@ LayerManagerOGL::Render()
   }
 
   nsIntRect rect;
-  if (mIsRenderingToEGLSurface) {
-    rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
-  } else {
-    mWidget->GetClientBounds(rect);
-  }
+  mWidget->GetClientBounds(rect);
   WorldTransformRect(rect);
 
   GLint width = rect.width;
@@ -833,11 +825,7 @@ LayerManagerOGL::Render()
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
     nsIntRect rect;
-    if (mIsRenderingToEGLSurface) {
-      rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
-    } else {
-      mWidget->GetBounds(rect);
-    }
+    mWidget->GetBounds(rect);
     nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     CopyToTarget(ctx);
@@ -973,13 +961,6 @@ LayerManagerOGL::WorldTransformRect(nsIntRect& aRect)
 }
 
 void
-LayerManagerOGL::SetSurfaceSize(int width, int height)
-{
-  mSurfaceSize.width = width;
-  mSurfaceSize.height = height;
-}
-
-void
 LayerManagerOGL::SetupPipeline(int aWidth, int aHeight, WorldTransforPolicy aTransformPolicy)
 {
   // Set the viewport correctly. 
@@ -1063,11 +1044,7 @@ void
 LayerManagerOGL::CopyToTarget(gfxContext *aTarget)
 {
   nsIntRect rect;
-  if (mIsRenderingToEGLSurface) {
-    rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
-  } else {
-    mWidget->GetBounds(rect);
-  }
+  mWidget->GetBounds(rect);
   GLint width = rect.width;
   GLint height = rect.height;
 
@@ -1265,11 +1242,7 @@ LayerManagerOGL::CreateShadowThebesLayer()
     NS_WARNING("Call on destroyed layer manager");
     return nsnull;
   }
-#ifdef FORCE_BASICTILEDTHEBESLAYER
-  return nsRefPtr<ShadowThebesLayer>(new TiledThebesLayerOGL(this)).forget();
-#else
   return nsRefPtr<ShadowThebesLayerOGL>(new ShadowThebesLayerOGL(this)).forget();
-#endif
 }
 
 already_AddRefed<ShadowContainerLayer>

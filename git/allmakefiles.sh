@@ -40,12 +40,6 @@ probes/Makefile
 extensions/Makefile
 "
 
-if [ "$MOZ_WEBAPP_RUNTIME" ]; then
-  add_makefiles "
-webapprt/Makefile
-  "
-fi
-
 if [ ! "$LIBXUL_SDK" ]; then
   if [ "$STLPORT_SOURCES" ]; then
     add_makefiles "

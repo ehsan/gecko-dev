@@ -193,10 +193,6 @@ pref("media.wave.enabled", true);
 #ifdef MOZ_WEBM
 pref("media.webm.enabled", true);
 #endif
-#ifdef MOZ_GSTREAMER
-pref("media.h264.enabled", true);
-#endif
-
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
@@ -211,12 +207,6 @@ pref("gfx.color_management.enablev4", false);
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.sanitize", true);
-
-#ifdef ANDROID
-pref("gfx.filter.nearest.force-enabled", true);
-#else
-pref("gfx.filter.nearest.force-enabled", false);
-#endif
 
 // whether to always search all font cmaps during system font fallback
 pref("gfx.font_rendering.fallback.always_use_cmaps", false);

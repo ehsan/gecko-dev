@@ -13,7 +13,7 @@
 #include "nsIXMLHttpRequest.h"
 #include "nsIXPConnect.h"
 
-#include "jsfriendapi.h"
+#include "jstypedarray.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsThreadUtils.h"
@@ -1158,11 +1158,11 @@ public:
   MainThreadRun()
   {
     nsCOMPtr<nsIVariant> variant;
-    RuntimeService::AutoSafeJSContext cx;
-
     if (mBody.data()) {
       nsIXPConnect* xpc = nsContentUtils::XPConnect();
       NS_ASSERTION(xpc, "This should never be null!");
+
+      RuntimeService::AutoSafeJSContext cx;
 
       int error = 0;
 
@@ -1216,7 +1216,7 @@ public:
 
     mProxy->mInnerChannelId++;
 
-    nsresult rv = mProxy->mXHR->Send(variant, cx);
+    nsresult rv = mProxy->mXHR->Send(variant);
 
     if (NS_SUCCEEDED(rv)) {
       mProxy->mOutstandingSendCount++;
@@ -1987,7 +1987,7 @@ XMLHttpRequest::Send(JSObject* aBody, nsresult& aRv)
   JSContext* cx = GetJSContext();
 
   jsval valToClone;
-  if (JS_IsArrayBufferObject(aBody, cx) || file::GetDOMBlobFromJSObject(aBody)) {
+  if (js_IsArrayBuffer(aBody) || file::GetDOMBlobFromJSObject(aBody)) {
     valToClone = OBJECT_TO_JSVAL(aBody);
   }
   else {

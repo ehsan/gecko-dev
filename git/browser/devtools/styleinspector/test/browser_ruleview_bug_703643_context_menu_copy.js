@@ -11,11 +11,6 @@ XPCOMUtils.defineLazyGetter(this, "osString", function() {
   return Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
 });
 
-function ruleViewFrame()
-{
-  return InspectorUI.sidebar._tools["ruleview"].frame;
-}
-
 function createDocument()
 {
   doc.body.innerHTML = '<style type="text/css"> ' +
@@ -93,13 +88,18 @@ function inspectorUIOpen()
   InspectorUI.stopInspecting();
   is(InspectorUI.selection, div, "selection matches the div element");
 
-  InspectorUI.currentInspector.once("sidebaractivated-ruleview", testClip)
-  InspectorUI.sidebar.show();
-  InspectorUI.sidebar.activatePanel("ruleview");
+  Services.obs.addObserver(testClip,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.RULEVIEWREADY, false);
+
+  InspectorUI.showSidebar();
+  InspectorUI.openRuleView();
 }
 
 function testClip()
 {
+  Services.obs.removeObserver(testClip,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.RULEVIEWREADY, false);
+
   executeSoon(function() {
     info("Checking that _onCopyRule() returns " +
          "the correct clipboard value");
@@ -120,7 +120,8 @@ function testClip()
 }
 
 function checkCopyRule() {
-  let contentDoc = ruleViewFrame().contentDocument;
+  let ruleView = document.querySelector("#devtools-sidebar-iframe-ruleview");
+  let contentDoc = ruleView.contentDocument;
   let props = contentDoc.querySelectorAll(".ruleview-property");
 
   is(props.length, 5, "checking property length");
@@ -135,9 +136,9 @@ function checkCopyRule() {
   // We need the context menu to open in the correct place in order for
   // popupNode to be propertly set.
   EventUtils.synthesizeMouse(prop, 1, 1, { type: "contextmenu", button: 2 },
-    ruleViewFrame().contentWindow);
+    ruleView.contentWindow);
 
-  ruleView()._boundCopyRule();
+  InspectorUI.ruleView._boundCopyRule();
   let menu = contentDoc.querySelector("#rule-view-context-menu");
   ok(menu, "we have the context menu");
   menu.hidePopup();
@@ -145,7 +146,8 @@ function checkCopyRule() {
 
 function checkCopyRuleWithEditorSelected()
 {
-  let contentDoc = ruleViewFrame().contentDocument;
+  let ruleView = document.querySelector("#devtools-sidebar-iframe-ruleview");
+  let contentDoc = ruleView.contentDocument;
   let rows = contentDoc.querySelectorAll(".rule-view-row");
   let propNodes = contentDoc.querySelectorAll(".ruleview-property");
   let propNode = propNodes[2];
@@ -170,7 +172,7 @@ function checkCopyRuleWithEditorSelected()
     // We need the context menu to open in the correct place in order for
     // popupNode to be propertly set.
     EventUtils.synthesizeMouse(aEditor.input, 1, 1,
-      { type: "contextmenu", button: 2 }, ruleViewFrame().contentWindow);
+      { type: "contextmenu", button: 2 }, ruleView.contentWindow);
 
     SimpleTest.waitForClipboard(function IUI_boundCopyCheckWithSelection() {
       let menu = contentDoc.querySelector("#rule-view-context-menu");
@@ -178,11 +180,11 @@ function checkCopyRuleWithEditorSelected()
       menu.hidePopup();
 
       return checkClipboardData(expectedPattern);
-    }, ruleView()._boundCopyRule, waitForBlur, function() {
+    }, InspectorUI.ruleView._boundCopyRule, waitForBlur, function() {
       failedClipboard(expectedPattern, checkCopyProperty);
     });
   });
-  EventUtils.synthesizeMouse(propNameNode, 1, 1, { }, ruleViewFrame().contentWindow);
+  EventUtils.synthesizeMouse(propNameNode, 1, 1, { }, ruleView.contentWindow);
 }
 
 function waitForBlur()
@@ -196,7 +198,8 @@ function waitForBlur()
 
 function checkCopyProperty()
 {
-  let contentDoc = ruleViewFrame().contentDocument;
+  let ruleView = document.querySelector("#devtools-sidebar-iframe-ruleview");
+  let contentDoc = ruleView.contentDocument;
   let props = contentDoc.querySelectorAll(".ruleview-property");
   let prop = props[2];
 
@@ -207,12 +210,12 @@ function checkCopyProperty()
   // We need the context menu to open in the correct place in order for
   // popupNode to be propertly set.
   EventUtils.synthesizeMouse(prop, 1, 1, { type: "contextmenu", button: 2 },
-    ruleViewFrame().contentWindow);
+    ruleView.contentWindow);
 
   SimpleTest.waitForClipboard(function IUI_boundCopyPropCheck() {
     return checkClipboardData(expectedPattern);
   },
-  ruleView()._boundCopyDeclaration,
+  InspectorUI.ruleView._boundCopyDeclaration,
   checkCopyPropertyName, function() {
     failedClipboard(expectedPattern, checkCopyPropertyName);
   });
@@ -227,7 +230,7 @@ function checkCopyPropertyName()
   SimpleTest.waitForClipboard(function IUI_boundCopyPropNameCheck() {
     return checkClipboardData(expectedPattern);
   },
-  ruleView()._boundCopyProperty,
+  InspectorUI.ruleView._boundCopyProperty,
   checkCopyPropertyValue, function() {
     failedClipboard(expectedPattern, checkCopyPropertyValue);
   });
@@ -242,7 +245,7 @@ function checkCopyPropertyValue()
   SimpleTest.waitForClipboard(function IUI_boundCopyPropValueCheck() {
     return checkClipboardData(expectedPattern);
   },
-  ruleView()._boundCopyPropertyValue,
+  InspectorUI.ruleView._boundCopyPropertyValue,
   checkCopySelection, function() {
     failedClipboard(expectedPattern, checkCopySelection);
   });
@@ -250,14 +253,15 @@ function checkCopyPropertyValue()
 
 function checkCopySelection()
 {
-  let contentDoc = ruleViewFrame().contentDocument;
+  let ruleView = document.querySelector("#devtools-sidebar-iframe-ruleview");
+  let contentDoc = ruleView.contentDocument;
   let props = contentDoc.querySelectorAll(".ruleview-property");
 
   let range = document.createRange();
   range.setStart(props[0], 0);
   range.setEnd(props[4], 8);
 
-  let selection = ruleViewFrame().contentWindow.getSelection();
+  let selection = ruleView.contentWindow.getSelection();
   selection.addRange(range);
 
   info("Checking that _boundCopy()  returns the correct" +
@@ -272,7 +276,7 @@ function checkCopySelection()
 
   SimpleTest.waitForClipboard(function IUI_boundCopyCheck() {
     return checkClipboardData(expectedPattern);
-  },ruleView()._boundCopy, finishup, function() {
+  },InspectorUI.ruleView._boundCopy, finishup, function() {
     failedClipboard(expectedPattern, finishup);
   });
 }
@@ -308,7 +312,7 @@ function failedClipboard(aExpectedPattern, aCallback)
 
 function finishup()
 {
-  InspectorUI.sidebar.hide();
+  InspectorUI.hideSidebar();
   InspectorUI.closeInspectorUI();
   gBrowser.removeCurrentTab();
   doc = null;

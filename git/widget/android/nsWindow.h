@@ -51,8 +51,6 @@
 class gfxASurface;
 class nsIdleService;
 
-struct ANPEvent;
-
 namespace mozilla {
     class AndroidGeckoEvent;
     class AndroidKeyEvent;
@@ -76,7 +74,6 @@ public:
 
     static void OnGlobalAndroidEvent(mozilla::AndroidGeckoEvent *ae);
     static gfxIntSize GetAndroidScreenBounds();
-    static nsWindow* TopWindow();
 
     nsWindow* FindWindowForPoint(const nsIntPoint& pt);
 
@@ -189,7 +186,7 @@ public:
                               ::base::Thread* aCompositorThread);
     static void ScheduleComposite();
     static void SchedulePauseComposition();
-    static void ScheduleResumeComposition(int width, int height);
+    static void ScheduleResumeComposition();
 
     virtual bool WidgetPaintsBackground() { return true; }
 #endif
@@ -234,8 +231,7 @@ protected:
     static void LogWindow(nsWindow *win, int index, int indent);
 
 private:
-    void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGeckoEvent& key,
-                      ANPEvent* pluginEvent);
+    void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGeckoEvent& key);
     bool DispatchMultitouchEvent(nsTouchEvent &event,
                              mozilla::AndroidGeckoEvent *ae);
     void DispatchMotionEvent(nsInputEvent &event,

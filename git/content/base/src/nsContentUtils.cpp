@@ -45,7 +45,7 @@
 
 #include "jsapi.h"
 #include "jsdbgapi.h"
-#include "jsfriendapi.h"
+#include "jstypedarray.h"
 
 #include "nsJSUtils.h"
 #include "nsCOMPtr.h"
@@ -122,7 +122,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsILineBreaker.h"
 #include "nsIWordBreaker.h"
 #include "nsUnicodeProperties.h"
-#include "harfbuzz/hb.h"
+#include "harfbuzz/hb-common.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIDOMDocumentXBL.h"
 #include "nsBindingManager.h"
@@ -5872,14 +5872,15 @@ nsContentUtils::CreateArrayBuffer(JSContext *aCx, const nsACString& aData,
   }
 
   PRInt32 dataLen = aData.Length();
-  *aResult = JS_NewArrayBuffer(aCx, dataLen);
+  *aResult = js_CreateArrayBuffer(aCx, dataLen);
   if (!*aResult) {
     return NS_ERROR_FAILURE;
   }
 
   if (dataLen > 0) {
-    NS_ASSERTION(JS_IsArrayBufferObject(*aResult, aCx), "What happened?");
-    memcpy(JS_GetArrayBufferData(*aResult, aCx), aData.BeginReading(), dataLen);
+    JSObject *abuf = js::ArrayBuffer::getArrayBuffer(*aResult);
+    NS_ASSERTION(abuf, "What happened?");
+    memcpy(JS_GetArrayBufferData(abuf), aData.BeginReading(), dataLen);
   }
 
   return NS_OK;

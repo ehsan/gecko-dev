@@ -46,7 +46,7 @@
 #include "nsIWorkerHolder.h"
 #include "nsIXPConnect.h"
 
-#include "jsfriendapi.h"
+#include "jstypedarray.h"
 #include "mozilla/dom/workers/Workers.h"
 #include "mozilla/ipc/Ril.h"
 #include "nsContentUtils.h"
@@ -100,21 +100,21 @@ PostToRIL(JSContext *cx, unsigned argc, jsval *vp)
     data = abs.ptr();
   } else if (!JSVAL_IS_PRIMITIVE(v)) {
     JSObject *obj = JSVAL_TO_OBJECT(v);
-    if (!JS_IsTypedArrayObject(obj, cx)) {
+    if (!js_IsTypedArray(obj)) {
       JS_ReportError(cx, "Object passed in wasn't a typed array");
       return false;
     }
 
-    uint32_t type = JS_GetTypedArrayType(obj, cx);
-    if (type != js::ArrayBufferView::TYPE_INT8 &&
-        type != js::ArrayBufferView::TYPE_UINT8 &&
-        type != js::ArrayBufferView::TYPE_UINT8_CLAMPED) {
+    uint32_t type = JS_GetTypedArrayType(obj);
+    if (type != js::TypedArray::TYPE_INT8 &&
+        type != js::TypedArray::TYPE_UINT8 &&
+        type != js::TypedArray::TYPE_UINT8_CLAMPED) {
       JS_ReportError(cx, "Typed array data is not octets");
       return false;
     }
 
-    size = JS_GetTypedArrayByteLength(obj, cx);
-    data = JS_GetArrayBufferViewData(obj, cx);
+    size = JS_GetTypedArrayByteLength(obj);
+    data = JS_GetTypedArrayData(obj);
   } else {
     JS_ReportError(cx,
                    "Incorrect argument. Expecting a string or a typed array");
@@ -181,12 +181,13 @@ RILReceiver::DispatchRILEvent::RunTask(JSContext *aCx)
 {
   JSObject *obj = JS_GetGlobalObject(aCx);
 
-  JSObject *array = JS_NewUint8Array(aCx, mMessage->mSize);
+  JSObject *array =
+    js_CreateTypedArray(aCx, js::TypedArray::TYPE_UINT8, mMessage->mSize);
   if (!array) {
     return false;
   }
 
-  memcpy(JS_GetArrayBufferViewData(array, aCx), mMessage->mData, mMessage->mSize);
+  memcpy(JS_GetTypedArrayData(array), mMessage->mData, mMessage->mSize);
   jsval argv[] = { OBJECT_TO_JSVAL(array) };
   return JS_CallFunctionName(aCx, obj, "onRILMessage", NS_ARRAY_LENGTH(argv),
                              argv, argv);

@@ -157,7 +157,7 @@ __defineSetter__("PluralForm", function (val) {
 });
 
 XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-                                  "resource://gre/modules/TelemetryStopwatch.jsm");
+                                  "resource:///modules/TelemetryStopwatch.jsm");
 
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyGetter(this, "Weave", function() {
@@ -1391,8 +1391,6 @@ function BrowserStartup() {
 
   gPrivateBrowsingUI.init();
 
-  DownloadsButton.initializePlaceholder();
-
   retrieveToolbarIconsizesFromTheme();
 
   gDelayedStartupTimeoutId = setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
@@ -1641,11 +1639,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     }
 #endif
   }, 10000);
-
-  // The object handling the downloads indicator is also initialized here in the
-  // delayed startup function, but the actual indicator element is not loaded
-  // unless there are downloads to be displayed.
-  DownloadsButton.initializeIndicator();
 
 #ifndef XP_MACOSX
   updateEditUIVisibility();
@@ -2686,9 +2679,28 @@ function SetPageProxyState(aState)
   if (aState == "valid") {
     gLastValidURLStr = gURLBar.value;
     gURLBar.addEventListener("input", UpdatePageProxyState, false);
+
+    PageProxySetIcon(gBrowser.getIcon());
   } else if (aState == "invalid") {
     gURLBar.removeEventListener("input", UpdatePageProxyState, false);
+    PageProxyClearIcon();
   }
+}
+
+function PageProxySetIcon (aURL)
+{
+  if (!gProxyFavIcon)
+    return;
+
+  if (!aURL)
+    PageProxyClearIcon();
+  else if (gProxyFavIcon.getAttribute("src") != aURL)
+    gProxyFavIcon.setAttribute("src", aURL);
+}
+
+function PageProxyClearIcon ()
+{
+  gProxyFavIcon.removeAttribute("src");
 }
 
 function PageProxyClickHandler(aEvent)
@@ -3710,7 +3722,6 @@ function BrowserCustomizeToolbar()
 
   PlacesToolbarHelper.customizeStart();
   BookmarksMenuButton.customizeStart();
-  DownloadsButton.customizeStart();
 
   TabsInTitlebar.allowedBy("customizing-toolbars", false);
 
@@ -3777,7 +3788,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
 
   PlacesToolbarHelper.customizeDone();
   BookmarksMenuButton.customizeDone();
-  DownloadsButton.customizeDone();
 
   // The url bar splitter state is dependent on whether stop/reload
   // and the location bar are combined, so we need this ordering
@@ -4608,6 +4618,11 @@ var XULBrowserWindow = {
       return originalTarget;
 
     return "_blank";
+  },
+
+  onLinkIconAvailable: function (aIconURL) {
+    if (gProxyFavIcon && gBrowser.userTypedValue === null)
+      PageProxySetIcon(aIconURL); // update the favicon in the URL bar
   },
 
   onProgressChange: function (aWebProgress, aRequest,
@@ -7231,15 +7246,9 @@ var gPluginHandler = {
   _handleClickToPlayEvent: function PH_handleClickToPlayEvent(aPlugin) {
     let doc = aPlugin.ownerDocument;
     let browser = gBrowser.getBrowserForDocument(doc.defaultView.top.document);
-    let pluginsPermission = Services.perms.testPermission(browser.currentURI, "plugins");
-    let overlay = doc.getAnonymousElementByAttribute(aPlugin, "class", "mainBox");
-
     if (browser._clickToPlayPluginsActivated) {
       let objLoadingContent = aPlugin.QueryInterface(Ci.nsIObjectLoadingContent);
       objLoadingContent.playPlugin();
-      return;
-    } else if (pluginsPermission == Ci.nsIPermissionManager.DENY_ACTION) {
-      overlay.style.visibility = "hidden";
       return;
     }
 
@@ -7258,53 +7267,26 @@ var gPluginHandler = {
       return;
 
     let browser = gBrowser.selectedBrowser;
-
-    let pluginsPermission = Services.perms.testPermission(browser.currentURI, "plugins");
-    if (pluginsPermission == Ci.nsIPermissionManager.DENY_ACTION)
-      return;
-
     let contentWindow = browser.contentWindow;
     let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils);
-    let pluginNeedsActivation = cwu.plugins.some(function(plugin) {
-      let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-      return !objLoadingContent.activated;
-    });
-    if (pluginNeedsActivation)
+    if (cwu.plugins.length)
       gPluginHandler._showClickToPlayNotification(browser);
   },
 
   _showClickToPlayNotification: function PH_showClickToPlayNotification(aBrowser) {
     aBrowser._clickToPlayDoorhangerShown = true;
     let contentWindow = aBrowser.contentWindow;
-
     let messageString = gNavigatorBundle.getString("activatePluginsMessage.message");
-    let mainAction = {
+    let action = {
       label: gNavigatorBundle.getString("activatePluginsMessage.label"),
       accessKey: gNavigatorBundle.getString("activatePluginsMessage.accesskey"),
       callback: function() { gPluginHandler.activatePlugins(contentWindow); }
     };
-    let secondaryActions = [{
-      label: gNavigatorBundle.getString("activatePluginsMessage.always"),
-      accessKey: gNavigatorBundle.getString("activatePluginsMessage.always.accesskey"),
-      callback: function () {
-        Services.perms.add(aBrowser.currentURI, "plugins", Ci.nsIPermissionManager.ALLOW_ACTION);
-        gPluginHandler.activatePlugins(contentWindow);
-      }
-    },{
-      label: gNavigatorBundle.getString("activatePluginsMessage.never"),
-      accessKey: gNavigatorBundle.getString("activatePluginsMessage.never.accesskey"),
-      callback: function () {
-        Services.perms.add(aBrowser.currentURI, "plugins", Ci.nsIPermissionManager.DENY_ACTION);
-        let notification = PopupNotifications.getNotification("click-to-play-plugins", aBrowser);
-        if (notification)
-          notification.remove();
-      }
-    }];
     let options = { dismissed: true };
     PopupNotifications.show(aBrowser, "click-to-play-plugins",
                             messageString, "plugins-notification-icon",
-                            mainAction, secondaryActions, options);
+                            action, null, options);
   },
 
   // event listener for missing/blocklisted/outdated/carbonFailure plugins.
@@ -8038,10 +8020,6 @@ var gIdentityHandler = {
     delete this._identityIconCountryLabel;
     return this._identityIconCountryLabel = document.getElementById("identity-icon-country-label");
   },
-  get _identityIcon () {
-    delete this._identityIcon;
-    return this._identityIcon = document.getElementById("page-proxy-favicon");
-  },
 
   /**
    * Rebuild cache of the elements that may or may not exist depending
@@ -8051,11 +8029,9 @@ var gIdentityHandler = {
     delete this._identityBox;
     delete this._identityIconLabel;
     delete this._identityIconCountryLabel;
-    delete this._identityIcon;
     this._identityBox = document.getElementById("identity-box");
     this._identityIconLabel = document.getElementById("identity-icon-label");
     this._identityIconCountryLabel = document.getElementById("identity-icon-country-label");
-    this._identityIcon = document.getElementById("page-proxy-favicon");
   },
 
   /**
@@ -8360,7 +8336,7 @@ var gIdentityHandler = {
     }, false);
 
     // Now open the popup, anchored off the primary chrome element
-    this._identityPopup.openPopup(this._identityIcon, "bottomcenter topleft");
+    this._identityPopup.openPopup(this._identityBox, "bottomcenter topleft");
   },
 
   onPopupShown : function(event) {

@@ -570,9 +570,10 @@ public class PasswordsRepositorySession extends
     return null;
   }
 
+  // TODO: Bug 738347 - SQLiteBridge does not check for nulls in ContentValues.
+  // Passwords.HTTP_REALM + " = ? AND " +
   private static final String WHERE_RECORD_DATA =
     Passwords.HOSTNAME        + " = ? AND " +
-    Passwords.HTTP_REALM      + " = ? AND " +
     Passwords.FORM_SUBMIT_URL + " = ? AND " +
     Passwords.USERNAME_FIELD  + " = ? AND " +
     Passwords.PASSWORD_FIELD  + " = ?";
@@ -584,10 +585,12 @@ public class PasswordsRepositorySession extends
     // We can't encrypt username directly for query, so run a more general query and then filter.
     final String[] whereArgs = new String[] {
       record.hostname,
-      record.httpRealm,
       record.formSubmitURL,
       record.usernameField,
       record.passwordField
+
+      // TODO: Bug 738347 - SQLiteBridge does not check for nulls in ContentValues.
+      // record.httpRealm
     };
 
     try {
@@ -685,13 +688,17 @@ public class PasswordsRepositorySession extends
     ContentValues cv = new ContentValues();
     cv.put(BrowserContract.Passwords.GUID,            rec.guid);
     cv.put(BrowserContract.Passwords.HOSTNAME,        rec.hostname);
-    cv.put(BrowserContract.Passwords.HTTP_REALM,      rec.httpRealm);
+    // TODO: Bug 738347 - SQLiteBridge does not check for nulls in ContentValues.
+    // For now, don't set httpRealm, because it can be null and Fennec SQLite doesn't handle null CV.
+    // cv.put(BrowserContract.Passwords.HTTP_REALM,      rec.httpRealm);
     cv.put(BrowserContract.Passwords.FORM_SUBMIT_URL, rec.formSubmitURL);
     cv.put(BrowserContract.Passwords.USERNAME_FIELD,  rec.usernameField);
     cv.put(BrowserContract.Passwords.PASSWORD_FIELD,  rec.passwordField);
 
     // TODO Do encryption of username/password here. Bug 711636
-    cv.put(BrowserContract.Passwords.ENC_TYPE,           rec.encType);
+    // TODO: Bug 738347 - SQLiteBridge does not check for nulls in ContentValues.
+    // For now, don't set encType. (same as httpRealm)
+    // cv.put(BrowserContract.Passwords.ENC_TYPE,           rec.encType);
     cv.put(BrowserContract.Passwords.ENCRYPTED_USERNAME, rec.encryptedUsername);
     cv.put(BrowserContract.Passwords.ENCRYPTED_PASSWORD, rec.encryptedPassword);
 

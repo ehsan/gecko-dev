@@ -511,16 +511,11 @@ function OnDocumentLoad(event)
     }
 
     var contentRootElement = currentDoc ? currentDoc.documentElement : null;
-    currentDoc = null;
     setupZoom(contentRootElement);
     setupDisplayport(contentRootElement);
     var inPrintMode = false;
 
     function AfterOnLoadScripts() {
-        // Regrab the root element, because the document may have changed.
-        var contentRootElement =
-          content.document ? content.document.documentElement : null;
-
         // Take a snapshot now. We need to do this before we check whether
         // we should wait, since this might trigger dispatching of
         // MozPaintWait events and make shouldWaitForExplicitPaintWaiters() true
@@ -676,6 +671,7 @@ function LogInfo(str)
 
 const SYNC_DEFAULT = 0x0;
 const SYNC_ALLOW_DISABLE = 0x1;
+var gDummyCanvas = null;
 function SynchronizeForSnapshot(flags)
 {
     if (flags & SYNC_ALLOW_DISABLE) {
@@ -686,11 +682,13 @@ function SynchronizeForSnapshot(flags)
         }
     }
 
-    var dummyCanvas = content.document.createElementNS(XHTML_NS, "canvas");
-    dummyCanvas.setAttribute("width", 1);
-    dummyCanvas.setAttribute("height", 1);
+    if (gDummyCanvas == null) {
+        gDummyCanvas = content.document.createElementNS(XHTML_NS, "canvas");
+        gDummyCanvas.setAttribute("width", 1);
+        gDummyCanvas.setAttribute("height", 1);
+    }
 
-    var ctx = dummyCanvas.getContext("2d");
+    var ctx = gDummyCanvas.getContext("2d");
     var flags = ctx.DRAWWINDOW_DRAW_CARET | ctx.DRAWWINDOW_DRAW_VIEW | ctx.DRAWWINDOW_USE_WIDGET_LAYERS;
     ctx.drawWindow(content, 0, 0, 1, 1, "rgb(255,255,255)", flags);
 }

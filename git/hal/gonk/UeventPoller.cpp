@@ -140,7 +140,7 @@ class UeventInitTask : public Task
 void
 NetlinkPoller::OnFileCanReadWithoutBlocking(int fd)
 {
-  MOZ_ASSERT(fd == mSocket.get());
+  MOZ_ASSERT(fd == mSocket.mFd);
   while (true) {
     int ret = read(fd, mBuffer, kBuffsize);
     if (ret == -1) {
