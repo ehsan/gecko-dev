@@ -30,7 +30,7 @@ template <class> class Maybe;
 // a page) and doing the actual GC.
 #define NS_GC_DELAY                 4000 // ms
 
-class nsJSContext : public nsIScriptContext_19,
+class nsJSContext : public nsIScriptContext,
                     public nsIXPCScriptNotify
 {
 public:
@@ -117,9 +117,6 @@ public:
   virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
 
   virtual nsresult SetProperty(JSObject* aTarget, const char* aPropName, nsISupports* aVal);
-
-  virtual bool GetProcessingScriptTag();
-  virtual void SetProcessingScriptTag(bool aResult);
 
   virtual bool GetExecutingScript();
 
@@ -284,7 +281,6 @@ private:
   bool mIsInitialized;
   bool mScriptsEnabled;
   bool mGCOnDestruction;
-  bool mProcessingScriptTag;
 
   uint32_t mExecuteDepth;
   uint32_t mDefaultJSOptions;
