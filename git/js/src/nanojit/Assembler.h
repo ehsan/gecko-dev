@@ -187,7 +187,7 @@ namespace nanojit
 			void		copyRegisters(RegAlloc* copyTo);
 			void		releaseRegisters();
             void        patch(GuardRecord *lr);
-			void		unpatch(GuardRecord *lr);
+            void        patch(SideExit *exit);
 			AssmError   error()	{ return _err; }
 			void		setError(AssmError e) { _err = e; }
 			void		setCallTable(const CallInfo *functions);
@@ -211,9 +211,6 @@ namespace nanojit
 			NIns*		genPrologue();
 			NIns*		genEpilogue();
 
-			GuardRecord* placeGuardRecord(LInsp guard);
-			void		initGuardRecord(LInsp guard, GuardRecord*);
-
 			uint32_t	arReserve(LIns* l);
 			void    	arFree(uint32_t idx);
 			void		arReset();
@@ -226,9 +223,8 @@ namespace nanojit
 			void		unionRegisterState(RegAlloc& saved);
             void        assignSaved(RegAlloc &saved, RegisterMask skip);
 	        LInsp       findVictim(RegAlloc& regs, RegisterMask allow);
-
-            Register    getBaseReg(LIns *i, int &d, RegisterMask allow);
-            int			findMemFor(LIns* i);
+		
+			int			findMemFor(LIns* i);
 			Register	findRegFor(LIns* i, RegisterMask allow);
 			void		findRegFor2(RegisterMask allow, LIns* ia, Reservation* &ra, LIns *ib, Reservation* &rb);
 			Register	findSpecificRegFor(LIns* i, Register w);
@@ -255,7 +251,6 @@ namespace nanojit
             GC*					_gc;
             DWB(Fragment*)		_thisfrag;
 			RegAllocMap*		_branchStateMap;
-			GuardRecord*		_latestGuard;
 		
 			const CallInfo	*_functions;
 			
@@ -291,30 +286,18 @@ namespace nanojit
 			void		asm_restore(LInsp, Reservation*, Register);
 			void		asm_load(int d, Register r);
 			void		asm_spilli(LInsp i, Reservation *resv, bool pop);
-			void		asm_spill(Register rr, int d, bool pop, bool quad);
+			void		asm_spill(Register rr, int d, bool pop=false, bool quad=false);
 			void		asm_load64(LInsp i);
 			void		asm_pusharg(LInsp p);
 			NIns*		asm_adjustBranch(NIns* at, NIns* target);
 			void		asm_quad(LInsp i);
-			void		asm_loop(LInsp i, NInsList& loopJumps);
-			void		asm_fcond(LInsp i);
-			void		asm_cond(LInsp i);
-			void		asm_arith(LInsp i);
-			void		asm_neg_not(LInsp i);
-			void		asm_ld(LInsp i);
-			void		asm_cmov(LInsp i);
-			void		asm_param(LInsp i);
-			void		asm_int(LInsp i);
-			void		asm_short(LInsp i);
-			void		asm_qlo(LInsp i);
-			void		asm_qhi(LInsp i);
+			bool		asm_qlo(LInsp ins, LInsp q);
 			void		asm_fneg(LInsp ins);
 			void		asm_fop(LInsp ins);
 			void		asm_i2f(LInsp ins);
 			void		asm_u2f(LInsp ins);
 			Register	asm_prep_fcall(Reservation *rR, LInsp ins);
 			void		asm_nongp_copy(Register r, Register s);
-			void		asm_bailout(LInsp guard, Register state);
 			void		asm_call(LInsp);
             void        asm_arg(ArgSize, LInsp, Register);
 			Register	asm_binop_rhs_reg(LInsp ins);

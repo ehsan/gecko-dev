@@ -965,10 +965,10 @@ PushOff(SprintStack *ss, ptrdiff_t off, JSOp op)
 }
 
 static ptrdiff_t
-PopOffPrec(SprintStack *ss, uint8 prec)
+PopOff(SprintStack *ss, JSOp op)
 {
     uintN top;
-    const JSCodeSpec *topcs;
+    const JSCodeSpec *cs, *topcs;
     ptrdiff_t off;
 
     /* ss->top points to the next free slot; be paranoid about underflow. */
@@ -980,7 +980,8 @@ PopOffPrec(SprintStack *ss, uint8 prec)
     ss->top = --top;
     off = GetOff(ss, top);
     topcs = &js_CodeSpec[ss->opcodes[top]];
-    if (topcs->prec != 0 && topcs->prec < prec) {
+    cs = &js_CodeSpec[op];
+    if (topcs->prec != 0 && topcs->prec < cs->prec) {
         ss->sprinter.offset = ss->offsets[top] = off - 2;
         off = Sprint(&ss->sprinter, "(%s)", OFF2STR(&ss->sprinter, off));
     } else {
@@ -990,24 +991,12 @@ PopOffPrec(SprintStack *ss, uint8 prec)
 }
 
 static const char *
-PopStrPrec(SprintStack *ss, uint8 prec)
+PopStr(SprintStack *ss, JSOp op)
 {
     ptrdiff_t off;
 
-    off = PopOffPrec(ss, prec);
+    off = PopOff(ss, op);
     return OFF2STR(&ss->sprinter, off);
-}
-
-static ptrdiff_t
-PopOff(SprintStack *ss, JSOp op)
-{
-    return PopOffPrec(ss, js_CodeSpec[op].prec);
-}
-
-static const char *
-PopStr(SprintStack *ss, JSOp op)
-{
-    return PopStrPrec(ss, js_CodeSpec[op].prec);
 }
 
 typedef struct TableEntry {
@@ -1755,17 +1744,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 /*
  * Local macros
  */
-#define LOCAL_ASSERT(expr)    LOCAL_ASSERT_RV(expr, NULL)
 #define DECOMPILE_CODE(pc,nb) if (!Decompile(ss, pc, nb, JSOP_NOP)) return NULL
 #define NEXT_OP(pc)           (((pc) + (len) == endpc) ? nextop : pc[len])
 #define POP_STR()             PopStr(ss, op)
-#define POP_STR_PREC(prec)    PopStrPrec(ss, prec)
-
-/*
- * Pop a condition expression for if/for/while. JSOP_IFEQ's precedence forces
- * extra parens around assignment, which avoids a strict-mode warning.
- */
-#define POP_COND_STR()        PopStr(ss, JSOP_IFEQ)
+#define LOCAL_ASSERT(expr)    LOCAL_ASSERT_RV(expr, NULL)
 
 /*
  * Callers know that ATOM_IS_STRING(atom), and we leave it to the optimizer to
@@ -1824,23 +1806,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
     JS_BEGIN_MACRO                                                            \
         LOAD_ATOM(0);                                                         \
         GET_QUOTE_AND_FMT(qfmt, ufmt, rval);                                  \
-    JS_END_MACRO
-
-/*
- * Per spec, new x(y).z means (new x(y))).z. For example new (x(y).z) must
- * decompile with the constructor parenthesized, but new x.z should not. The
- * normal rules give x(y).z and x.z identical precedence: both are produced by
- * JSOP_GETPROP.
- *
- * Therefore, we need to know in case JSOP_NEW whether the constructor
- * expression contains any unparenthesized function calls. So when building a
- * MemberExpression or CallExpression, we set ss->opcodes[n] to JSOP_CALL if
- * this is true. x(y).z gets JSOP_CALL, not JSOP_GETPROP.
- */
-#define PROPAGATE_CALLNESS()                                                  \
-    JS_BEGIN_MACRO                                                            \
-        if (ss->opcodes[ss->top - 1] == JSOP_CALL)                            \
-            saveop = JSOP_CALL;                                               \
     JS_END_MACRO
 
     cx = ss->sprinter.context;
@@ -2021,8 +1986,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     op = (JSOp) pc[oplen];
                     LOCAL_ASSERT(op != saveop);
                 }
-                rval = POP_STR_PREC(cs->prec + (!inXML && !!(cs->format & JOF_LEFTASSOC)));
-                lval = POP_STR_PREC(cs->prec + (!inXML && !(cs->format & JOF_LEFTASSOC)));
+                rval = POP_STR();
+                lval = POP_STR();
                 if (op != saveop) {
                     /* Print only the right operand of the assignment-op. */
                     todo = SprintCString(&ss->sprinter, rval);
@@ -2070,7 +2035,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     jp->indent += 4;
                     DECOMPILE_CODE(pc, tail);
                     jp->indent -= 4;
-                    js_printf(jp, "\t} while (%s);\n", POP_COND_STR());
+                    js_printf(jp, "\t} while (%s);\n", POP_STR());
                     pc += tail;
                     len = js_CodeSpec[*pc].length;
                     todo = -2;
@@ -2106,7 +2071,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     if (cond != tail) {
                         /* Decompile the loop condition. */
                         DECOMPILE_CODE(pc + cond, tail - cond);
-                        js_printf(jp, " %s", POP_COND_STR());
+                        js_printf(jp, " %s", POP_STR());
                     }
 
                     /* Need a semicolon whether or not there was a cond. */
@@ -2185,6 +2150,44 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     break;
 
                   default:;
+                }
+                break;
+
+              case JSOP_GROUP:
+                cs = &js_CodeSpec[lastop];
+                if ((cs->prec != 0 &&
+                     cs->prec <= js_CodeSpec[NEXT_OP(pc)].prec) ||
+                    pc[JSOP_GROUP_LENGTH] == JSOP_NULL ||
+                    pc[JSOP_GROUP_LENGTH] == JSOP_NULLTHIS ||
+                    pc[JSOP_GROUP_LENGTH] == JSOP_DUP ||
+                    pc[JSOP_GROUP_LENGTH] == JSOP_IFEQ ||
+                    pc[JSOP_GROUP_LENGTH] == JSOP_IFNE) {
+                    /*
+                     * Force parens if this JSOP_GROUP forced re-association
+                     * against precedence, or if this is a call or constructor
+                     * expression, or if it is destructured (JSOP_DUP), or if
+                     * it is an if or loop condition test.
+                     *
+                     * This is necessary to handle the operator new grammar,
+                     * by which new x(y).z means (new x(y))).z.  For example
+                     * new (x(y).z) must decompile with the constructor
+                     * parenthesized, but normal precedence has JSOP_GETPROP
+                     * (for the final .z) higher than JSOP_NEW.  In general,
+                     * if the call or constructor expression is parenthesized,
+                     * we preserve parens.
+                     */
+                    op = JSOP_NAME;
+                    rval = POP_STR();
+                    todo = SprintCString(&ss->sprinter, rval);
+                } else {
+                    /*
+                     * Don't explicitly parenthesize -- just fix the top
+                     * opcode so that the auto-parens magic in PopOff can do
+                     * its thing.
+                     */
+                    LOCAL_ASSERT(ss->top != 0);
+                    ss->opcodes[ss->top-1] = saveop = lastop;
+                    todo = -2;
                 }
                 break;
 
@@ -2813,8 +2816,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 LOCAL_ASSERT(jp->fun);
                 fun = jp->fun;
                 if (fun->flags & JSFUN_EXPR_CLOSURE) {
-                    /* Turn on parens around comma-expression here. */
-                    op = JSOP_SETNAME;
                     rval = POP_STR();
                     js_printf(jp, (*rval == '{') ? "(%s)%s" : ss_format,
                               rval,
@@ -2966,7 +2967,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     cond = GetJumpOffset(pc, pc);
                     tail = js_GetSrcNoteOffset(sn, 0);
                     DECOMPILE_CODE(pc + cond, tail - cond);
-                    js_printf(jp, "\twhile (%s) {\n", POP_COND_STR());
+                    rval = POP_STR();
+                    js_printf(jp, "\twhile (%s) {\n", rval);
                     jp->indent += 4;
                     DECOMPILE_CODE(pc + oplen, cond - oplen);
                     jp->indent -= 4;
@@ -3021,7 +3023,8 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 switch (sn ? SN_TYPE(sn) : SRC_NULL) {
                   case SRC_IF:
                   case SRC_IF_ELSE:
-                    rval = POP_COND_STR();
+                    op = JSOP_NOP;              /* turn off parens */
+                    rval = POP_STR();
                     if (ss->inArrayInit || ss->inGenExp) {
                         LOCAL_ASSERT(SN_TYPE(sn) == SRC_IF);
                         ss->sprinter.offset -= PAREN_SLOP;
@@ -3464,7 +3467,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 /*
                  * Special case: new (x(y)(z)) must be parenthesized like so.
                  * Same for new (x(y).z) -- contrast with new x(y).z.
-                 * See PROPAGATE_CALLNESS.
                  */
                 op = (JSOp) ss->opcodes[ss->top-1];
                 lval = PopStr(ss,
@@ -3533,7 +3535,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
               case JSOP_DELPROP:
                 GET_ATOM_QUOTE_AND_FMT("%s %s[%s]", "%s %s.%s", rval);
-                op = JSOP_GETPROP;
                 lval = POP_STR();
                 todo = Sprint(&ss->sprinter, fmt, js_delete_str, lval, rval);
                 break;
@@ -3541,7 +3542,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               case JSOP_DELELEM:
                 op = JSOP_NOP;          /* turn off parens */
                 xval = POP_STR();
-                op = JSOP_GETPROP;
+                op = saveop;
                 lval = POP_STR();
                 if (*xval == '\0')
                     goto do_delete_lval;
@@ -3555,7 +3556,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 #if JS_HAS_XML_SUPPORT
               case JSOP_DELDESC:
                 xval = POP_STR();
-                op = JSOP_GETPROP;
                 lval = POP_STR();
                 todo = Sprint(&ss->sprinter, "%s %s..%s",
                               js_delete_str, lval, xval);
@@ -3700,7 +3700,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               do_getprop:
                 GET_QUOTE_AND_FMT(index_format, dot_format, rval);
               do_getprop_lval:
-                PROPAGATE_CALLNESS();
                 lval = POP_STR();
                 todo = Sprint(&ss->sprinter, fmt, lval, rval);
                 break;
@@ -3774,7 +3773,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 op = JSOP_NOP;          /* turn off parens */
                 xval = POP_STR();
                 op = saveop;
-                PROPAGATE_CALLNESS();
                 lval = POP_STR();
                 if (*xval == '\0') {
                     todo = Sprint(&ss->sprinter, "%s", lval);
@@ -4245,6 +4243,14 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 break;
               }
 
+              case JSOP_STRICTEQ:
+              case JSOP_STRICTNE:
+                rval = POP_STR();
+                lval = POP_STR();
+                todo = Sprint(&ss->sprinter, "%s %c== %s",
+                              lval, (op == JSOP_STRICTEQ) ? '=' : '!', rval);
+                break;
+
               case JSOP_DEFFUN:
                 LOAD_FUNCTION(0);
                 todo = -2;
@@ -4601,14 +4607,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
               case JSOP_ENDFILTER:
                 rval = POP_STR();
-                PROPAGATE_CALLNESS();
                 lval = POP_STR();
                 todo = Sprint(&ss->sprinter, "%s.(%s)", lval, rval);
                 break;
 
               case JSOP_DESCENDANTS:
                 rval = POP_STR();
-                PROPAGATE_CALLNESS();
                 lval = POP_STR();
                 todo = Sprint(&ss->sprinter, "%s..%s", lval, rval);
                 break;
