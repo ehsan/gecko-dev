@@ -422,5 +422,5 @@ gfxDWriteFont::GetFontTable(PRUint32 aTag)
                               DestroyBlobFunc, ftr);
     }
 
-    return nsnull;
+    return hb_blob_create_empty();
 }

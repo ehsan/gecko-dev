@@ -647,7 +647,7 @@ function optionsClear() {
   for (var i = 0; i < optionNames.length; i++)
   {
     var optionName = optionNames[i];
-    if (optionName && optionName != "methodjit" && optionName != "tracejit")
+    if (optionName && optionName != "jit")
     {
       options(optionName);
     }
@@ -872,13 +872,13 @@ function jsTestDriverEnd()
 
 function jit(on)
 {
-  if (on && !options().match(/tracejit/))
+  if (on && !options().match(/jit/))
   {
-    options('tracejit');
+    options('jit');
   }
-  else if (!on && options().match(/tracejit/))
+  else if (!on && options().match(/jit/))
   {
-    options('tracejit');
+    options('jit');
   }
 }
 

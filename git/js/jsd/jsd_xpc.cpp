@@ -1841,6 +1841,14 @@ jsdStackFrame::GetFunctionName(nsACString &_rval)
 }
 
 NS_IMETHODIMP
+jsdStackFrame::GetIsNative(PRBool *_rval)
+{
+    ASSERT_VALID_EPHEMERAL;
+    *_rval = JSD_IsStackFrameNative (mCx, mThreadState, mStackFrameInfo);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 jsdStackFrame::GetIsDebugger(PRBool *_rval)
 {
     ASSERT_VALID_EPHEMERAL;
@@ -1894,7 +1902,9 @@ jsdStackFrame::GetLine(PRUint32 *_rval)
         jsuword pc = JSD_GetPCForStackFrame (mCx, mThreadState, mStackFrameInfo);
         *_rval = JSD_GetClosestLine (mCx, script, pc);
     } else {
-        return NS_ERROR_FAILURE;
+        if (!JSD_IsStackFrameNative(mCx, mThreadState, mStackFrameInfo))
+            return NS_ERROR_FAILURE;
+        *_rval = 1;
     }
     return NS_OK;
 }

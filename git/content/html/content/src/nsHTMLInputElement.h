@@ -45,11 +45,11 @@
 #include "nsITextControlElement.h"
 #include "nsIPhonetic.h"
 #include "nsIDOMNSEditableElement.h"
+#include "nsIFileControlElement.h"
 
 #include "nsTextEditorState.h"
 #include "nsCOMPtr.h"
 #include "nsIConstraintValidation.h"
-#include "nsDOMFile.h"
 
 //
 // Accessors for mBitField
@@ -74,9 +74,6 @@
                                         : ((bitfield) &= ~(0x01 << (field))))
 
 class nsDOMFileList;
-class nsIRadioGroupContainer;
-class nsIRadioGroupVisitor;
-class nsIRadioVisitor;
 
 class UploadLastDir : public nsIObserver, public nsSupportsWeakReference {
 public:
@@ -117,11 +114,10 @@ class nsHTMLInputElement : public nsGenericHTMLFormElement,
                            public nsITextControlElement,
                            public nsIPhonetic,
                            public nsIDOMNSEditableElement,
+                           public nsIFileControlElement,
                            public nsIConstraintValidation
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
   nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                      PRUint32 aFromParser);
   virtual ~nsHTMLInputElement();
@@ -211,9 +207,9 @@ public:
   NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
   // nsIFileControlElement
-  void GetDisplayFileName(nsAString& aFileName) const;
-  const nsCOMArray<nsIDOMFile>& GetFiles();
-  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles);
+  virtual void GetDisplayFileName(nsAString& aFileName);
+  virtual void GetFileArray(nsCOMArray<nsIFile> &aFile);
+  virtual void SetFileNames(const nsTArray<nsString>& aFileNames);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
   PRBool GetCheckedChanged();
@@ -256,13 +252,6 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 
-  static nsHTMLInputElement* FromContent(nsIContent *aContent)
-  {
-    if (aContent->NodeInfo()->Equals(nsGkAtoms::input, kNameSpaceID_XHTML))
-      return static_cast<nsHTMLInputElement*>(aContent);
-    return NULL;
-  }
-
   // nsIConstraintValidation
   PRBool   IsTooLong();
   PRBool   IsValueMissing();
@@ -273,7 +262,7 @@ public:
   void     UpdateTypeMismatchValidityState();
   void     UpdatePatternMismatchValidityState();
   void     UpdateAllValidityStates(PRBool aNotify);
-  void     UpdateBarredFromConstraintValidation();
+  PRBool   IsBarredFromConstraintValidation() const;
   nsresult GetValidationMessage(nsAString& aValidationMessage,
                                 ValidityStateType aType);
 
@@ -349,16 +338,15 @@ protected:
                             PRBool aUserInput,
                             PRBool aSetValueChanged);
 
-  void ClearFiles() {
-    nsCOMArray<nsIDOMFile> files;
-    SetFiles(files);
+  void ClearFileNames() {
+    nsTArray<nsString> fileNames;
+    SetFileNames(fileNames);
   }
 
-  void SetSingleFile(nsIDOMFile* aFile) {
-    nsCOMArray<nsIDOMFile> files;
-    nsCOMPtr<nsIDOMFile> file = aFile;
-    files.AppendObject(file);
-    SetFiles(files);
+  void SetSingleFileName(const nsAString& aFileName) {
+    nsAutoTArray<nsString, 1> fileNames;
+    fileNames.AppendElement(aFileName);
+    SetFileNames(fileNames);
   }
 
   nsresult SetIndeterminateInternal(PRBool aValue,
@@ -512,8 +500,6 @@ protected:
 
   /**
    * Set the current default value to the value of the input element.
-   * @note You should not call this method if GetValueMode() doesn't return
-   * VALUE_MODE_VALUE.
    */
   nsresult SetDefaultValueAsValue();
 
@@ -557,11 +543,9 @@ protected:
    * the frame. Whenever the frame wants to change the filename it has to call
    * SetFileNames to update this member.
    */
-  nsCOMArray<nsIDOMFile>   mFiles;
+  nsTArray<nsString>       mFileNames;
 
   nsRefPtr<nsDOMFileList>  mFileList;
-
-  nsString mStaticDocFileList;
 };
 
 #endif

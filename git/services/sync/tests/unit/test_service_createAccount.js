@@ -23,10 +23,10 @@ function run_test() {
     "/user/1.0/jimdoe": send(500, "Server Error", "Server Error")
   });
   try {
-    Service.serverURL = "http://localhost:8080/";
+    Weave.Service.serverURL = "http://localhost:8080/";
 
     _("Create an account.");
-    let res = Service.createAccount("johndoe", "mysecretpw", "john@doe",
+    let res = Weave.Service.createAccount("johndoe", "mysecretpw", "john@doe",
                                           "challenge", "response");
     do_check_eq(res, null);
     let payload = JSON.parse(requestBody);
@@ -36,7 +36,7 @@ function run_test() {
     do_check_eq(payload["captcha-response"], "response");
 
     _("A non-ASCII password is UTF-8 encoded.");
-    res = Service.createAccount("johndoe", "moneyislike$\u20ac\xa5\u5143",
+    res = Weave.Service.createAccount("johndoe", "moneyislike$\u20ac\xa5\u5143",
                                       "john@doe", "challenge", "response");
     do_check_eq(res, null);
     payload = JSON.parse(requestBody);
@@ -44,23 +44,23 @@ function run_test() {
                 Utils.encodeUTF8("moneyislike$\u20ac\xa5\u5143"));
 
     _("Invalid captcha or other user-friendly error.");
-    res = Service.createAccount("janedoe", "anothersecretpw", "jane@doe",
+    res = Weave.Service.createAccount("janedoe", "anothersecretpw", "jane@doe",
                                       "challenge", "response");
     do_check_eq(res, "invalid-captcha");
 
     _("Generic server error.");
-    res = Service.createAccount("jimdoe", "preciousss", "jim@doe",
+    res = Weave.Service.createAccount("jimdoe", "preciousss", "jim@doe",
                                       "challenge", "response");
     do_check_eq(res, "generic-server-error");
 
     _("Admin secret preference is passed as HTTP header token.");
-    Svc.Prefs.set("admin-secret", "my-server-secret");
-    res = Service.createAccount("johndoe", "mysecretpw", "john@doe",
+    Weave.Svc.Prefs.set("admin-secret", "my-server-secret");
+    res = Weave.Service.createAccount("johndoe", "mysecretpw", "john@doe",
                                       "challenge", "response");
     do_check_eq(secretHeader, "my-server-secret");
 
   } finally {
-    Svc.Prefs.resetBranch("");
+    Weave.Svc.Prefs.resetBranch("");
     server.stop(do_test_finished);
   }
 }

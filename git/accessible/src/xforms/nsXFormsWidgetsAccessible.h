@@ -60,7 +60,7 @@ public:
   NS_IMETHOD DoAction(PRUint8 aIndex);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
@@ -75,7 +75,7 @@ public:
                                    nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 
@@ -95,7 +95,7 @@ public:
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:

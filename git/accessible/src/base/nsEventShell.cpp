@@ -532,7 +532,8 @@ nsAccEventQueue::CreateTextChangeEventFor(AccHideEvent* aEvent)
     return;
 
   // Don't fire event for the first html:br in an editor.
-  if (aEvent->mAccessible->Role() == nsIAccessibleRole::ROLE_WHITESPACE) {
+  if (nsAccUtils::Role(aEvent->mAccessible) ==
+      nsIAccessibleRole::ROLE_WHITESPACE) {
     nsCOMPtr<nsIEditor> editor;
     textAccessible->GetAssociatedEditor(getter_AddRefs(editor));
     if (editor) {

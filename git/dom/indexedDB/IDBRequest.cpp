@@ -54,11 +54,10 @@
 
 USING_INDEXEDDB_NAMESPACE
 
-// static
 already_AddRefed<IDBRequest>
-IDBRequest::Create(nsISupports* aSource,
-                   nsIScriptContext* aScriptContext,
-                   nsPIDOMWindow* aOwner)
+IDBRequest::Generator::GenerateRequestInternal(nsIScriptContext* aScriptContext,
+                                               nsPIDOMWindow* aOwner,
+                                               PRBool aWriteRequest)
 {
   if (!aScriptContext || !aOwner) {
     NS_ERROR("Null context and owner!");
@@ -67,11 +66,44 @@ IDBRequest::Create(nsISupports* aSource,
 
   nsRefPtr<IDBRequest> request(new IDBRequest());
 
-  request->mSource = aSource;
+  request->mGenerator = this;
+  request->mWriteRequest = aWriteRequest;
   request->mScriptContext = aScriptContext;
   request->mOwner = aOwner;
 
+  if (!mLiveRequests.AppendElement(request)) {
+    NS_ERROR("Append failed!");
+    return nsnull;
+  }
+
   return request.forget();
+}
+
+IDBRequest::~IDBRequest()
+{
+  mGenerator->NoteDyingRequest(this);
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+}
+
+NS_IMETHODIMP
+IDBRequest::Abort()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  if (mAborted || mReadyState != nsIIDBRequest::LOADING) {
+    return NS_OK;
+  }
+
+  if (mWriteRequest) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  mAborted = PR_TRUE;
+  mReadyState = nsIIDBRequest::DONE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -89,14 +89,14 @@ public:
   nsJPEGDecoder();
   virtual ~nsJPEGDecoder();
 
-  virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, PRUint32 aCount);
-  virtual void FinishInternal();
+  virtual nsresult InitInternal();
+  virtual nsresult WriteInternal(const char* aBuffer, PRUint32 aCount);
+  virtual nsresult FinishInternal();
 
-  void NotifyDone();
+  void NotifyDone(PRBool aSuccess);
 
 protected:
-  void OutputScanlines(PRBool* suspend);
+  nsresult OutputScanlines(PRBool* suspend);
 
 public:
   PRUint8 *mImageData;
@@ -123,6 +123,7 @@ public:
   qcms_transform *mTransform;
 
   PRPackedBool mReading;
+  PRPackedBool mNotifiedDone;
 };
 
 } // namespace imagelib

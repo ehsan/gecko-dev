@@ -105,33 +105,6 @@ private:
   PRPackedBool mHasOnerror;
 };
 
-class nsLazyAutoRequest
-{
-public:
-  nsLazyAutoRequest() : mCx(nsnull) {}
-
-  ~nsLazyAutoRequest() {
-    if (mCx)
-      JS_EndRequest(mCx);
-  }
-
-  void enter(JSContext *aCx) {
-    JS_BeginRequest(aCx);
-    mCx = aCx;
-  }
-
-  bool entered() const { return mCx != nsnull; }
-
-  void swap(nsLazyAutoRequest &other) {
-    JSContext *tmp = mCx;
-    mCx = other.mCx;
-    other.mCx = tmp;
-  }
-
-private:
-  JSContext *mCx;
-};
-
 class nsDOMWorker : public nsDOMWorkerMessageHandler,
                     public nsIChromeWorker,
                     public nsITimerCallback,
@@ -201,7 +174,7 @@ public:
   PRBool IsClosing();
   PRBool IsSuspended();
 
-  PRBool SetGlobalForContext(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoCrossCompartmentCall *aCall);
+  PRBool SetGlobalForContext(JSContext* aCx);
 
   void SetPool(nsDOMWorkerPool* aPool);
 
@@ -285,7 +258,7 @@ private:
 
   nsresult PostMessageInternal(PRBool aToInner);
 
-  PRBool CompileGlobalObject(JSContext* aCx, nsLazyAutoRequest *aRequest, JSAutoCrossCompartmentCall *aCall);
+  PRBool CompileGlobalObject(JSContext* aCx);
 
   PRUint32 NextTimeoutId() {
     return ++mNextTimeoutId;

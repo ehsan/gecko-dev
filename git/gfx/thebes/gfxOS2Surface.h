@@ -67,7 +67,7 @@ public:
     int Resize(const gfxIntSize& aSize);
 
     HPS GetPS();
-    virtual const gfxIntSize GetSize() const { return mSize; }
+    gfxIntSize GetSize() { return mSize; }
 
 private:
     HWND mWnd; // non-null if created through the HWND constructor

@@ -302,12 +302,9 @@ GetWrappedObject(JSContext *cx, JSObject *wrapper)
 }
 
 static JSBool
-XPC_SOW_FunctionWrapper(JSContext *cx, uintN argc, jsval *vp)
+XPC_SOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                        jsval *rval)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-
   if (!AllowedToAct(cx, JSID_VOID)) {
     return JS_FALSE;
   }
@@ -329,13 +326,13 @@ XPC_SOW_FunctionWrapper(JSContext *cx, uintN argc, jsval *vp)
     wrappedObj = obj;
   }
 
-  JSObject *funObj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
+  JSObject *funObj = JSVAL_TO_OBJECT(argv[-2]);
   jsval funToCall;
   if (!JS_GetReservedSlot(cx, funObj, eWrappedFunctionSlot, &funToCall)) {
     return JS_FALSE;
   }
 
-  return JS_CallFunctionValue(cx, wrappedObj, funToCall, argc, JS_ARGV(cx, vp), vp);
+  return JS_CallFunctionValue(cx, wrappedObj, funToCall, argc, argv, rval);
 }
 
 JSBool

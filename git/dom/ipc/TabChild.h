@@ -227,7 +227,6 @@ public:
     virtual PExternalHelperAppChild *AllocPExternalHelperApp(
             const IPC::URI& uri,
             const nsCString& aMimeContentType,
-            const nsCString& aContentDisposition,
             const bool& aForceSave,
             const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
@@ -284,8 +283,8 @@ public:
             const gfxMatrix& aMatrix,
             const PRUint32& aNativeID);
 
-    virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
-    virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor);
+    virtual PGeolocationRequestChild* AllocPGeolocationRequest(const IPC::URI& uri);
+    virtual bool DeallocPGeolocationRequest(PGeolocationRequestChild* actor);
 
     nsIWebNavigation* WebNavigation() { return mWebNav; }
 

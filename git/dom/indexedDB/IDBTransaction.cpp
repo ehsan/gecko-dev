@@ -47,11 +47,11 @@
 #include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
 
-#include "DatabaseInfo.h"
-#include "IDBCursor.h"
 #include "IDBEvents.h"
-#include "IDBFactory.h"
+#include "IDBCursor.h"
 #include "IDBObjectStore.h"
+#include "IDBFactory.h"
+#include "DatabaseInfo.h"
 #include "TransactionThreadPool.h"
 
 #define SAVEPOINT_INITIAL "initial"
@@ -75,7 +75,8 @@ DoomCachedStatements(const nsACString& aQuery,
 
 // static
 already_AddRefed<IDBTransaction>
-IDBTransaction::Create(IDBDatabase* aDatabase,
+IDBTransaction::Create(JSContext* aCx,
+                       IDBDatabase* aDatabase,
                        nsTArray<nsString>& aObjectStoreNames,
                        PRUint16 aMode,
                        PRUint32 aTimeout)
@@ -83,9 +84,6 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsRefPtr<IDBTransaction> transaction = new IDBTransaction();
-
-  transaction->mScriptContext = aDatabase->ScriptContext();
-  transaction->mOwner = aDatabase->Owner();
 
   transaction->mDatabase = aDatabase;
   transaction->mMode = aMode;
@@ -98,6 +96,21 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
 
   if (!transaction->mCachedStatements.Init()) {
     NS_ERROR("Failed to initialize hash!");
+    return nsnull;
+  }
+
+  nsIScriptContext* context = GetScriptContextFromJSContext(aCx);
+  if (context) {
+    transaction->mScriptContext = context;
+    nsCOMPtr<nsPIDOMWindow> window =
+      do_QueryInterface(context->GetGlobalObject());
+    if (window) {
+      transaction->mOwner = window->GetCurrentInnerWindow();
+    }
+  }
+
+  if (!transaction->mOwner) {
+    NS_ERROR("Couldn't get script context and owner!");
     return nsnull;
   }
 
@@ -241,10 +254,6 @@ nsresult
 IDBTransaction::GetOrCreateConnection(mozIStorageConnection** aResult)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-
-  if (mDatabase->IsInvalidated()) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
 
   if (!mConnection) {
     nsCOMPtr<mozIStorageConnection> connection =
@@ -542,21 +551,16 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(IDBTransaction)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBTransaction,
                                                   nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mDatabase,
-                                                       nsPIDOMEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCompleteListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnAbortListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnTimeoutListener)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBTransaction,
                                                 nsDOMEventTargetHelper)
-  // Don't unlink mDatabase!
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnCompleteListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnAbortListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnTimeoutListener)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBTransaction)
@@ -662,7 +666,7 @@ IDBTransaction::ObjectStore(const nsAString& aName,
   }
 
   nsRefPtr<IDBObjectStore> objectStore =
-    IDBObjectStore::Create(this, info, mMode);
+    IDBObjectStore::Create(mDatabase, this, info, mMode);
   NS_ENSURE_TRUE(objectStore, NS_ERROR_FAILURE);
 
   objectStore.forget(_retval);
@@ -735,14 +739,6 @@ IDBTransaction::SetOntimeout(nsIDOMEventListener* aOntimeout)
                                 mOnTimeoutListener, aOntimeout);
 }
 
-CommitHelper::CommitHelper(IDBTransaction* aTransaction)
-: mTransaction(aTransaction),
-  mAborted(!!aTransaction->mAborted),
-  mHasInitialSavepoint(!!aTransaction->mHasInitialSavepoint)
-{
-  mConnection.swap(aTransaction->mConnection);
-}
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(CommitHelper, nsIRunnable)
 
 NS_IMETHODIMP
@@ -769,13 +765,6 @@ CommitHelper::Run()
     return NS_OK;
   }
 
-  IDBDatabase* database = mTransaction->Database();
-  if (database->IsInvalidated()) {
-    mAborted = true;
-  }
-
-  IDBFactory::SetCurrentDatabase(database);
-
   if (mAborted) {
     NS_ASSERTION(mConnection, "This had better not be null!");
 
@@ -789,7 +778,7 @@ CommitHelper::Run()
 
     NS_NAMED_LITERAL_CSTRING(release, "RELEASE " SAVEPOINT_INITIAL);
     if (NS_FAILED(mConnection->ExecuteSimpleSQL(release))) {
-      mAborted = PR_TRUE;
+      NS_WARNING("Failed to release transaction!");
     }
   }
 
@@ -797,8 +786,6 @@ CommitHelper::Run()
 
   mConnection->Close();
   mConnection = nsnull;
-
-  IDBFactory::SetCurrentDatabase(nsnull);
 
   return NS_OK;
 }

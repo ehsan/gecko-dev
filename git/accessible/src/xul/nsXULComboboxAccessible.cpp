@@ -66,13 +66,20 @@ nsXULComboboxAccessible::Init()
   return PR_TRUE;
 }
 
-PRUint32
-nsXULComboboxAccessible::NativeRole()
+nsresult
+nsXULComboboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
-                            nsAccessibilityAtoms::autocomplete, eIgnoreCase))
-    return nsIAccessibleRole::ROLE_AUTOCOMPLETE;
-  return nsIAccessibleRole::ROLE_COMBOBOX;
+                            nsAccessibilityAtoms::autocomplete, eIgnoreCase)) {
+    *aRole = nsIAccessibleRole::ROLE_AUTOCOMPLETE;
+  } else {
+    *aRole = nsIAccessibleRole::ROLE_COMBOBOX;
+  }
+
+  return NS_OK;
 }
 
 nsresult

@@ -44,36 +44,10 @@
  * done by SpiderMonkey.
  */
 
-(function() {
-    var builderTypes = Object.create(null, {
-        "default": { value: function() {
-            return new narcissus.parser.DefaultBuilder;
-        } },
-        "ssa": { value: function() {
-            return new narcissus.parser.SSABuilder;
-        } }
-    });
-
-    var builderType;
-
-    var narcissus = {
-        options: {
-            version: 185,
-            get builderType() { return builderType },
-            set builderType(type) {
-                var ctor = builderTypes[type];
-
-                if (!ctor)
-                    throw new Error("expected builder type ('default' or 'ssa'), got " + type);
-
-                builderType = type;
-                narcissus.definitions.Builder = ctor;
-            }
-        },
-        hostGlobal: this
-    };
-    Narcissus = narcissus;
-})();
+Narcissus = {
+    options: { version: 185 },
+    hostGlobal: this
+};
 
 Narcissus.definitions = (function() {
 
@@ -296,11 +270,7 @@ Narcissus.definitions = (function() {
         defineGetter: defineGetter,
         defineProperty: defineProperty,
         isNativeCode: isNativeCode,
-        makePassthruHandler: makePassthruHandler,
-        Builder: function() {
-            throw new Error("no Builder type selected");
-        }
+        makePassthruHandler: makePassthruHandler
     };
 }());
 
-Narcissus.options.builderType = "default";

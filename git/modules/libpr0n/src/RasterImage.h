@@ -64,9 +64,6 @@
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
 #include "DiscardTracker.h"
-#ifdef DEBUG
-  #include "imgIContainerDebug.h"
-#endif
 
 class imgIDecoder;
 class nsIInputStream;
@@ -89,8 +86,8 @@ class nsIInputStream;
  * with StartAnimation().
  *
  * @par
- * StartAnimation() creates a timer.  The timer calls Notify when the
- * specified frame delay time is up.
+ * StartAnimation() checks if animating is allowed, and creates a timer.  The
+ * timer calls Notify when the specified frame delay time is up.
  *
  * @par
  * Notify() moves on to the next frame, sets up the new timer delay, destroys
@@ -148,28 +145,19 @@ namespace imagelib {
 class imgDecodeWorker;
 class Decoder;
 
-class RasterImage : public mozilla::imagelib::Image
-                  , public nsITimerCallback
-                  , public nsIProperties
-                  , public nsSupportsWeakReference
-#ifdef DEBUG
-                  , public imgIContainerDebug
-#endif
+class RasterImage : public mozilla::imagelib::Image,
+                    public nsITimerCallback,
+                    public nsIProperties,
+                    public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_IMGICONTAINER
   NS_DECL_NSITIMERCALLBACK
   NS_DECL_NSIPROPERTIES
-#ifdef DEBUG
-  NS_DECL_IMGICONTAINERDEBUG
-#endif
 
   RasterImage(imgStatusTracker* aStatusTracker = nsnull);
   virtual ~RasterImage();
-
-  virtual nsresult StartAnimation();
-  virtual nsresult StopAnimation();
 
   // C++-only version of imgIContainer::GetType, for convenience
   virtual PRUint16 GetType() { return imgIContainer::TYPE_RASTER; }
@@ -177,7 +165,6 @@ public:
   // Methods inherited from Image
   nsresult Init(imgIDecoderObserver* aObserver,
                 const char* aMimeType,
-                const char* aURIString,
                 PRUint32 aFlags);
   void     GetCurrentFrameRect(nsIntRect& aRect);
   PRUint32 GetDataSize();
@@ -240,6 +227,9 @@ public:
                                PRUint32*  paletteLength);
 
   void FrameUpdated(PRUint32 aFrameNum, nsIntRect& aUpdatedRect);
+
+  /* notification when the current frame is done decoding */
+  nsresult EndFrameDecode(PRUint32 aFrameNum);
 
   /* notification that the entire image has been decoded */
   nsresult DecodingComplete();
@@ -305,13 +295,13 @@ public:
   static void SetMaxMSBeforeYield(PRUint32 aMaxMS);
   static void SetMaxBytesForSyncDecode(PRUint32 aMaxBytes);
 
-  const char* GetURIString() { return mURIString.get();}
-
 private:
   struct Anim
   {
     //! Area of the first frame that needs to be redrawn on subsequent loops.
     nsIntRect                  firstFrameRefreshArea;
+    // Note this doesn't hold a proper value until frame 2 finished decoding.
+    PRUint32                   currentDecodingFrameIndex; // 0 to numFrames-1
     PRUint32                   currentAnimationFrameIndex; // 0 to numFrames-1
     //! Track the last composited frame for Optimizations (See DoComposite code)
     PRInt32                    lastCompositedFrameIndex;
@@ -333,11 +323,19 @@ private:
     nsAutoPtr<imgFrame>        compositingPrevFrame;
     //! Timer to animate multiframed images
     nsCOMPtr<nsITimer>         timer;
+    //! Whether we can assume there will be no more frames
+    //! (and thus loop the animation)
+    PRPackedBool               doneDecoding;
+    //! Are we currently animating the image?
+    PRPackedBool               animating;
 
     Anim() :
       firstFrameRefreshArea(),
+      currentDecodingFrameIndex(0),
       currentAnimationFrameIndex(0),
-      lastCompositedFrameIndex(-1)
+      lastCompositedFrameIndex(-1),
+      doneDecoding(PR_FALSE),
+      animating(PR_FALSE)
     {
       ;
     }
@@ -466,7 +464,6 @@ private: // data
   // Source data members
   nsTArray<char>             mSourceData;
   nsCString                  mSourceDataMimeType;
-  nsCString                  mURIString;
 
   friend class imgDecodeWorker;
   friend class DiscardTracker;
@@ -475,10 +472,6 @@ private: // data
   nsRefPtr<Decoder>              mDecoder;
   nsRefPtr<imgDecodeWorker>      mWorker;
   PRUint32                       mBytesDecoded;
-
-#ifdef DEBUG
-  PRUint32                       mFramesNotified;
-#endif
 
   // Boolean flags (clustered together to conserve space):
   PRPackedBool               mHasSize:1;       // Has SetSize() been called?
@@ -496,10 +489,6 @@ private: // data
   PRPackedBool               mInDecoder:1;
 
   PRPackedBool               mError:1;  // Error handling
-
-  // Whether the animation can stop, due to running out
-  // of frames, or no more owning request
-  PRPackedBool               mAnimationFinished:1;
 
   // Decoding
   nsresult WantDecodedFrames();
@@ -524,8 +513,6 @@ private: // data
   PRBool DiscardingActive();
   PRBool StoringSourceData();
 
-protected:
-  PRBool ShouldAnimate();
 };
 
 // XXXdholbert These helper classes should move to be inside the

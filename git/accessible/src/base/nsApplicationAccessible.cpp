@@ -140,6 +140,13 @@ nsApplicationAccessible::GetKeyboardShortcut(nsAString &aKeyboardShortcut)
 }
 
 NS_IMETHODIMP
+nsApplicationAccessible::GetRole(PRUint32 *aRole)
+{
+  NS_ENSURE_ARG_POINTER(aRole);
+  return GetRoleInternal(aRole);
+}
+
+NS_IMETHODIMP
 nsApplicationAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
@@ -372,16 +379,11 @@ nsApplicationAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-PRUint32
-nsApplicationAccessible::Role()
+nsresult
+nsApplicationAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return NativeRole();
-}
-
-PRUint32
-nsApplicationAccessible::NativeRole()
-{
-  return nsIAccessibleRole::ROLE_APP_ROOT;
+  *aRole = nsIAccessibleRole::ROLE_APP_ROOT;
+  return NS_OK;
 }
 
 nsresult

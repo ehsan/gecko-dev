@@ -142,11 +142,13 @@ public:
       , mPath(NULL)
     { }
 
-    ManifestProcessingContext(NSLocationType aType, nsILocalFile* aFile, const char* aPath)
+#ifdef MOZ_OMNIJAR
+    ManifestProcessingContext(NSLocationType aType, const char* aPath)
       : mType(aType)
-      , mFile(aFile)
+      , mFile(mozilla::OmnijarPath())
       , mPath(aPath)
     { }
+#endif
 
     ~ManifestProcessingContext()
     { }

@@ -1932,11 +1932,9 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
 #endif // XP_UNIX && !XP_MACOSX
     documentIsTopLevel = PR_TRUE;
 
-    if (mIsCreatingPrintPreview) {
-      nsCOMPtr<nsIDocumentViewer> dv = do_QueryInterface(mDocViewerPrint);
-      if (dv) {
-        parentView = dv->FindContainerView();
-      }
+    nsCOMPtr<nsIDocumentViewer> dv = do_QueryInterface(mDocViewerPrint);
+    if (dv) {
+      parentView = dv->FindContainerView();
     }
   }
 

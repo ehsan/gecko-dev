@@ -104,7 +104,7 @@ nsAccessibleWrap::GetNativeType ()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  PRUint32 role = Role();
+  PRUint32 role = nsAccUtils::Role(this);
   switch (role) {
     case nsIAccessibleRole::ROLE_PUSHBUTTON:
     case nsIAccessibleRole::ROLE_SPLITBUTTON:

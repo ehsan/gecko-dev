@@ -504,9 +504,6 @@ DrawableFromPaintServer(nsIFrame*         aFrame,
     nsRefPtr<gfxPattern> pattern =
       server->GetPaintServerPattern(aTarget, 1.0, &overrideBounds);
 
-    if (!pattern)
-      return nsnull;
-
     // pattern is now set up to fill aPaintServerSize. But we want it to
     // fill aRenderSize, so we need to add a scaling transform.
     // We couldn't just have set overrideBounds to aRenderSize - it would have
@@ -550,8 +547,6 @@ nsSVGIntegrationUtils::DrawPaintServer(nsIRenderingContext* aRenderingContext,
   nsRefPtr<gfxDrawable> drawable =
     DrawableFromPaintServer(aPaintServer, aTarget, aPaintServerSize, imageSize);
 
-  if (drawable) {
-    nsLayoutUtils::DrawPixelSnapped(aRenderingContext, drawable, aFilter,
-                                    aDest, aFill, aAnchor, aDirty);
-  }
+  nsLayoutUtils::DrawPixelSnapped(aRenderingContext, drawable, aFilter,
+                                  aDest, aFill, aAnchor, aDirty);
 }

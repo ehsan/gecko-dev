@@ -1484,9 +1484,6 @@ nsresult NativeShowPrintDialog(HWND                aHWnd,
 #else
   rv = ShowNativePrintDialog(aHWnd, aPrintSettings);
 #endif
-  if (aHWnd) {
-    ::DestroyWindow(aHWnd);
-  }
 
   return rv;
 }

@@ -80,9 +80,6 @@ include css-valid/reftest.list
 # css invalid
 include css-invalid/reftest.list
 
-# css-submit-invalid
-include css-submit-invalid/reftest.list
-
 # css transitions
 include css-transitions/reftest.list
 
@@ -101,9 +98,6 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
-
-# datalist
-include datalist/reftest.list
 
 # dom/
 include dom/reftest.list

@@ -38,7 +38,7 @@
 #define nsGeoLocation_h
 
 #ifdef MOZ_IPC
-#include "mozilla/dom/PContentPermissionRequestChild.h"
+#include "mozilla/dom/PGeolocationRequestChild.h"
 // Microsoft's API Name hackery sucks
 #undef CreateEvent
 #endif
@@ -65,28 +65,24 @@
 #include "nsPIDOMWindow.h"
 
 #include "nsIGeolocationProvider.h"
-#include "nsIContentPermissionPrompt.h"
-
-#ifdef MOZ_IPC
-#include "PCOMContentPermissionRequestChild.h"
-#endif
+#include "nsIGeolocationPrompt.h"
 
 class nsGeolocationService;
 class nsGeolocation;
 
 class nsGeolocationRequest
- : public nsIContentPermissionRequest
+ : public nsIGeolocationRequest
  , public nsITimerCallback
 #ifdef MOZ_IPC
- , public PCOMContentPermissionRequestChild
+ , public mozilla::dom::PGeolocationRequestChild
 #endif
 {
  public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_NSICONTENTPERMISSIONREQUEST
+  NS_DECL_NSIGEOLOCATIONREQUEST
   NS_DECL_NSITIMERCALLBACK
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocationRequest, nsIContentPermissionRequest)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocationRequest, nsIGeolocationRequest)
 
   nsGeolocationRequest(nsGeolocation* locator,
                        nsIDOMGeoPositionCallback* callback,
@@ -98,13 +94,11 @@ class nsGeolocationRequest
   void SendLocation(nsIDOMGeoPosition* location);
   void MarkCleared();
   PRBool Allowed() {return mAllowed;}
-  void SetTimeoutTimer();
 
   ~nsGeolocationRequest();
 
 #ifdef MOZ_IPC
   bool Recv__delete__(const bool& allow);
-  void IPDLRelease() { Release(); }
 #endif
 
  private:
@@ -112,6 +106,7 @@ class nsGeolocationRequest
   void NotifyError(PRInt16 errorCode);
   PRPackedBool mAllowed;
   PRPackedBool mCleared;
+  PRPackedBool mHasSentData;
 
   nsCOMPtr<nsITimer> mTimeoutTimer;
   nsCOMPtr<nsIDOMGeoPositionCallback> mCallback;
@@ -236,6 +231,8 @@ private:
 
   nsTArray<nsRefPtr<nsGeolocationRequest> > mPendingCallbacks;
   nsTArray<nsRefPtr<nsGeolocationRequest> > mWatchingCallbacks;
+
+  PRBool mUpdateInProgress;
 
   // window that this was created for.  Weak reference.
   nsWeakPtr mOwner;

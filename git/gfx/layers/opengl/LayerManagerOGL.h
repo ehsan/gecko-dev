@@ -136,7 +136,6 @@ public:
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
 
   virtual LayersBackend GetBackendType() { return LAYERS_OPENGL; }
-  virtual void GetBackendName(nsAString& name) { name.AssignLiteral("OpenGL"); }
 
   /**
    * Image Container management.
@@ -151,13 +150,7 @@ public:
   /**
    * Helper methods.
    */
-  void MakeCurrent(PRBool aForce = PR_FALSE) {
-    if (mDestroyed) {
-      NS_WARNING("Call on destroyed layer manager");
-      return;
-    }
-    mGLContext->MakeCurrent(aForce);
-  }
+  void MakeCurrent();
 
   ColorTextureLayerProgram *GetRGBALayerProgram() {
     return static_cast<ColorTextureLayerProgram*>(mPrograms[RGBALayerProgramType]);
@@ -171,19 +164,6 @@ public:
   ColorTextureLayerProgram *GetBGRXLayerProgram() {
     return static_cast<ColorTextureLayerProgram*>(mPrograms[BGRXLayerProgramType]);
   }
-  ColorTextureLayerProgram *GetBasicLayerProgram(PRBool aOpaque, PRBool aIsRGB)
-  {
-    if (aIsRGB) {
-      return aOpaque
-        ? GetRGBXLayerProgram()
-        : GetRGBALayerProgram();
-    } else {
-      return aOpaque
-        ? GetBGRXLayerProgram()
-        : GetBGRALayerProgram();
-    }
-  }
-
   ColorTextureLayerProgram *GetRGBARectLayerProgram() {
     return static_cast<ColorTextureLayerProgram*>(mPrograms[RGBARectLayerProgramType]);
   }
@@ -313,15 +293,9 @@ public:
                     aFlipped);
   }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
-   virtual const char* Name() const { return "OGL"; }
-#endif // MOZ_LAYERS_HAVE_LOG
-
 private:
   /** Widget associated with this layer manager */
   nsIWidget *mWidget;
-  nsIntSize mWidgetSize;
-
   /** 
    * Context target, NULL when drawing directly to our swap chain.
    */

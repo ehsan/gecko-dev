@@ -642,22 +642,19 @@ ObjectWrapperParent::CPOW_Finalize(JSContext* cx, JSObject* obj)
 }
 
 /*static*/ JSBool
-ObjectWrapperParent::CPOW_Call(JSContext* cx, uintN argc, jsval* vp)
+ObjectWrapperParent::CPOW_Call(JSContext* cx, JSObject* obj, uintN argc,
+                               jsval* argv, jsval* rval)
 {
     CPOW_LOG(("Calling CPOW_Call..."));
 
-    JSObject* thisobj = JS_THIS_OBJECT(cx, vp);
-    if (!thisobj)
-        return JS_FALSE;
-
     ObjectWrapperParent* function =
-        Unwrap(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+        Unwrap(cx, JSVAL_TO_OBJECT(JS_ARGV_CALLEE(argv)));
     if (!function)
         return with_error(cx, JS_FALSE, "Could not unwrap CPOW function");
 
     AutoCheckOperation aco(cx, function);
 
-    ObjectWrapperParent* receiver = Unwrap(cx, thisobj);
+    ObjectWrapperParent* receiver = Unwrap(cx, obj);
     if (!receiver) {
         // Substitute child global for parent global object.
         // TODO First make sure we're really replacing the global object?
@@ -667,7 +664,6 @@ ObjectWrapperParent::CPOW_Call(JSContext* cx, uintN argc, jsval* vp)
     }
 
     nsTArray<JSVariant> in_argv(argc);
-    jsval* argv = JS_ARGV(cx, vp);
     for (uintN i = 0; i < argc; i++)
         if (!jsval_to_JSVariant(cx, argv[i], in_argv.AppendElement()))
             return JS_FALSE;
@@ -678,22 +674,23 @@ ObjectWrapperParent::CPOW_Call(JSContext* cx, uintN argc, jsval* vp)
             function->CallCall(receiver, in_argv,
                                aco.StatusPtr(), &out_rval) &&
             aco.Ok() &&
-            jsval_from_JSVariant(cx, out_rval, vp));
+            jsval_from_JSVariant(cx, out_rval, rval));
 }
 
 /*static*/ JSBool
-ObjectWrapperParent::CPOW_Construct(JSContext* cx, uintN argc, jsval* vp)
+ObjectWrapperParent::CPOW_Construct(JSContext *cx, JSObject *obj, uintN argc,
+                                    jsval *argv, jsval *rval)
 {
     CPOW_LOG(("Calling CPOW_Construct..."));
     
-    ObjectWrapperParent* constructor = Unwrap(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+    ObjectWrapperParent* constructor =
+        Unwrap(cx, JSVAL_TO_OBJECT(JS_ARGV_CALLEE(argv)));
     if (!constructor)
         return with_error(cx, JS_FALSE, "Could not unwrap CPOW constructor function");
 
     AutoCheckOperation aco(cx, constructor);
 
     nsTArray<JSVariant> in_argv(argc);
-    jsval* argv = JS_ARGV(cx, vp);
     for (uintN i = 0; i < argc; i++)
         if (!jsval_to_JSVariant(cx, argv[i], in_argv.AppendElement()))
             return JS_FALSE;
@@ -701,9 +698,10 @@ ObjectWrapperParent::CPOW_Construct(JSContext* cx, uintN argc, jsval* vp)
     PObjectWrapperParent* out_powp;
 
     return (constructor->Manager()->RequestRunToCompletion() &&
-            constructor->CallConstruct(in_argv, aco.StatusPtr(), &out_powp) &&
+            constructor->CallConstruct(in_argv,
+                                       aco.StatusPtr(), &out_powp) &&
             aco.Ok() &&
-            jsval_from_PObjectWrapperParent(cx, out_powp, vp));
+            jsval_from_PObjectWrapperParent(cx, out_powp, rval));
 }
 
 /*static*/ JSBool

@@ -98,21 +98,6 @@ extern int gettimeofday(struct timeval *tv);
 #define PRMJ_YEAR_SECONDS (PRMJ_DAY_SECONDS * PRMJ_YEAR_DAYS)
 #define PRMJ_MAX_UNIX_TIMET 2145859200L /*time_t value equiv. to 12/31/2037 */
 
-/* Get the local time. localtime_r is preferred as it is reentrant. */
-static inline bool
-ComputeLocalTime(time_t local, struct tm *ptm)
-{
-#ifdef HAVE_LOCALTIME_R
-    return localtime_r(&local, ptm);
-#else
-    struct tm *otm = localtime(&local);
-    if (!otm)
-        return false;
-    *ptm = *otm;
-    return true;
-#endif
-}
-
 /*
  * get the difference in seconds between this time zone and UTC (GMT)
  */
@@ -130,25 +115,26 @@ PRMJ_LocalGMTDifference()
 
     /*
      * Get the difference between this time zone and GMT, by checking the local
-     * time for days 0 and 180 of 1970, using a date for which daylight savings
-     * time was not in effect.
+     * time at the epoch.
      */
-    int day = 0;
+    time_t local = 0;
     struct tm tm;
-
-    if (!ComputeLocalTime(0, &tm))
+#ifndef HAVE_LOCALTIME_R
+    struct tm *ptm = localtime(&local);
+    if (!ptm)
         return 0;
-    if (tm.tm_isdst > 0) {
-        day = 180;
-        if (!ComputeLocalTime(PRMJ_DAY_SECONDS * day, &tm))
-            return 0;
-    }
+    tm = *ptm;
+#else
+    localtime_r(&local, &tm);
+#endif
 
-    int time = (tm.tm_hour * 3600) + (tm.tm_min * 60) + tm.tm_sec;
-    time = PRMJ_DAY_SECONDS - time;
+    JSInt32 time = (tm.tm_hour * 3600)
+                 + (tm.tm_min * 60)
+                 + tm.tm_sec;
+    time = (24 * 3600) - time;
 
-    if (tm.tm_yday == day)
-        time -= PRMJ_DAY_SECONDS;
+    if (time >= (12 * 3600))
+        time -= (24 * 3600);
 
     return time;
 }
@@ -698,9 +684,16 @@ DSTOffsetCache::computeDSTOffsetMilliseconds(int64 localTimeSeconds)
     _tzset();
 #endif
 
+    time_t local = static_cast<time_t>(localTimeSeconds);
     struct tm tm;
-    if (!ComputeLocalTime(static_cast<time_t>(localTimeSeconds), &tm))
+#ifndef HAVE_LOCALTIME_R
+    struct tm *ptm = localtime(&local);
+    if (!ptm)
         return 0;
+    tm = *ptm;
+#else
+    localtime_r(&local, &tm); /* get dst information */
+#endif
 
     JSInt32 base = PRMJ_LocalGMTDifference();
 

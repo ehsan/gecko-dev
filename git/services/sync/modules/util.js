@@ -793,8 +793,7 @@ let Utils = {
     let status  = sdrSlot.status;
     let slots = Ci.nsIPKCS11Slot;
 
-    if (status == slots.SLOT_READY || status == slots.SLOT_LOGGED_IN
-                                   || status == slots.SLOT_UNINITIALIZED)
+    if (status == slots.SLOT_READY || status == slots.SLOT_LOGGED_IN)
       return false;
 
     if (status == slots.SLOT_NOT_LOGGED_IN)
@@ -891,13 +890,6 @@ let Svc = {};
 Svc.Prefs = new Preferences(PREFS_BRANCH);
 Svc.DefaultPrefs = new Preferences({branch: PREFS_BRANCH, defaultBranch: true});
 Svc.Obs = Observers;
-
-this.__defineGetter__("_sessionCID", function() {
-  //sets session CID based on browser type
-  let appInfo = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo);
-  return appInfo.ID == SEAMONKEY_ID ? "@mozilla.org/suite/sessionstore;1"
-                                    : "@mozilla.org/browser/sessionstore;1";
-});
 [["Annos", "@mozilla.org/browser/annotation-service;1", "nsIAnnotationService"],
  ["AppInfo", "@mozilla.org/xre/app-info;1", "nsIXULAppInfo"],
  ["Bookmark", "@mozilla.org/browser/nav-bookmarks-service;1", "nsINavBookmarksService"],
@@ -920,7 +912,7 @@ this.__defineGetter__("_sessionCID", function() {
  ["Version", "@mozilla.org/xpcom/version-comparator;1", "nsIVersionComparator"],
  ["WinMediator", "@mozilla.org/appshell/window-mediator;1", "nsIWindowMediator"],
  ["WinWatcher", "@mozilla.org/embedcomp/window-watcher;1", "nsIWindowWatcher"],
- ["Session", this._sessionCID, "nsISessionStore"],
+ ["Session", "@mozilla.org/browser/sessionstore;1", "nsISessionStore"],
 ].forEach(function(lazy) Utils.lazySvc(Svc, lazy[0], lazy[1], lazy[2]));
 
 let Str = {};
