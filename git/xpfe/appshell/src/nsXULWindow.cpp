@@ -389,6 +389,11 @@ NS_IMETHODIMP nsXULWindow::ShowModal()
   mContinueModalLoop = PR_TRUE;
   EnableParent(PR_FALSE);
 
+  nsCOMPtr<nsIAppShellService> appShellService(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
+  if (appShellService)
+      appShellService->TopLevelWindowIsModal(
+                         static_cast<nsIXULWindow*>(this), PR_TRUE);
+
   nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1"));
   if (stack && NS_SUCCEEDED(stack->Push(nsnull))) {
     nsIThread *thread = NS_GetCurrentThread();
@@ -403,6 +408,9 @@ NS_IMETHODIMP nsXULWindow::ShowModal()
 
   mContinueModalLoop = PR_FALSE;
   window->SetModal(PR_FALSE);
+  if (appShellService)
+      appShellService->TopLevelWindowIsModal(
+                         static_cast<nsIXULWindow*>(this), PR_FALSE);
   /*   Note there's no EnableParent(PR_TRUE) here to match the PR_FALSE one
      above. That's done in ExitModalLoop. It's important that the parent
      be re-enabled before this window is made invisible; to do otherwise

@@ -3232,12 +3232,6 @@ js_Interpret(JSContext *cx)
                 goto error;
             if (rval == JSVAL_HOLE) {
                 rval = JSVAL_FALSE;
-#ifdef JS_TRACER
-                if (TRACE_RECORDER(cx)) {
-                    js_AbortRecording(cx, regs.pc, "Untraceable for-in loop");
-                    ENABLE_TRACER(0);
-                }
-#endif
                 goto end_forinloop;
             }
 
@@ -4771,9 +4765,7 @@ js_Interpret(JSContext *cx)
                 goto error;
             regs.sp = vp + 1;
             LOAD_INTERRUPT_HANDLER(cx);
-            JS_ASSERT(regs.pc[JSOP_NEW_LENGTH] == JSOP_RESUME);
-            len = JSOP_NEW_LENGTH + JSOP_RESUME_LENGTH;
-          END_VARLEN_CASE
+          END_CASE(JSOP_NEW)
 
           BEGIN_CASE(JSOP_CALL)
           BEGIN_CASE(JSOP_EVAL)
@@ -5039,14 +5031,8 @@ js_Interpret(JSContext *cx)
                 cx->rval2set = JS_FALSE;
             }
 #endif /* JS_HAS_LVALUE_RETURN */
-            JS_ASSERT(regs.pc[JSOP_CALL_LENGTH] == JSOP_RESUME);
-            len = JSOP_CALL_LENGTH + JSOP_RESUME_LENGTH;
-            END_VARLEN_CASE
+          END_CASE(JSOP_CALL)
 
-          BEGIN_CASE(JSOP_RESUME)
-            /* This case is not truly empty. The tracer is invoked transparently. */
-          END_CASE(JSOP_RESUME)
-          
 #if JS_HAS_LVALUE_RETURN
           BEGIN_CASE(JSOP_SETCALL)
             argc = GET_ARGC(regs.pc);
@@ -5826,8 +5812,6 @@ js_Interpret(JSContext *cx)
                     goto error;
             }
 
-            TRACE_2(DefLocalFunSetSlot, slot, obj);
-            
             fp->slots[slot] = OBJECT_TO_JSVAL(obj);
           END_CASE(JSOP_DEFLOCALFUN)
 
@@ -6819,6 +6803,7 @@ js_Interpret(JSContext *cx)
           L_JSOP_DEFXMLNS:
 # endif
 
+          L_JSOP_UNUSED74:
           L_JSOP_UNUSED76:
           L_JSOP_UNUSED77:
           L_JSOP_UNUSED78:

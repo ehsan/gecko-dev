@@ -3911,14 +3911,13 @@ nsRuleNode::ComputeBorderData(void* aStartStruct,
   }
 
   // -moz-border-radius: length, percent, inherit
-  {
-    const nsCSSCornerSizes& borderRadius = marginData.mBorderRadius;
-    NS_FOR_CSS_HALF_CORNERS(corner) {
-      nsStyleCoord parentCoord = parentBorder->mBorderRadius.Get(corner);
-      if (SetCoord(borderRadius.GetHalfCorner(corner),
-                   coord, parentCoord, SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
+  { // scope for compilers with broken |for| loop scoping
+    NS_FOR_CSS_SIDES(side) {
+      nsStyleCoord parentCoord = parentBorder->mBorderRadius.Get(side);
+      if (SetCoord(marginData.mBorderRadius.*(nsCSSRect::sides[side]), coord,
+                   parentCoord, SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
                    aContext, mPresContext, inherited))
-        border->mBorderRadius.Set(corner, coord);
+        border->mBorderRadius.Set(side, coord);
     }
   }
 
@@ -4102,15 +4101,14 @@ nsRuleNode::ComputeOutlineData(void* aStartStruct,
   }
 
   // -moz-outline-radius: length, percent, inherit
-  { 
-    nsStyleCoord coord;
-    const nsCSSCornerSizes& outlineRadius = marginData.mOutlineRadius;
-    NS_FOR_CSS_HALF_CORNERS(corner) {
-      nsStyleCoord parentCoord = parentOutline->mOutlineRadius.Get(corner);
-      if (SetCoord(outlineRadius.GetHalfCorner(corner),
-                   coord, parentCoord, SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
+  nsStyleCoord  coord;
+  { // scope for compilers with broken |for| loop scoping
+    NS_FOR_CSS_SIDES(side) {
+      nsStyleCoord parentCoord = parentOutline->mOutlineRadius.Get(side);
+      if (SetCoord(marginData.mOutlineRadius.*(nsCSSRect::sides[side]), coord,
+                   parentCoord, SETCOORD_LPH | SETCOORD_INITIAL_ZERO,
                    aContext, mPresContext, inherited))
-        outline->mOutlineRadius.Set(corner, coord);
+        outline->mOutlineRadius.Set(side, coord);
     }
   }
 

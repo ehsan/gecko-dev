@@ -2820,14 +2820,13 @@ static PRBool NonZeroStyleCoord(const nsStyleCoord& aCoord)
   }
 }
 
-/* static */ PRBool
-nsLayoutUtils::HasNonZeroCorner(const nsStyleCorners& aCorners)
+/* static */ PRBool 
+nsLayoutUtils::HasNonZeroSide(const nsStyleSides& aSides)
 {
-  NS_FOR_CSS_HALF_CORNERS(corner) {
-    if (NonZeroStyleCoord(aCorners.Get(corner)))
-      return PR_TRUE;
-  }
-  return PR_FALSE;
+  return NonZeroStyleCoord(aSides.GetTop()) ||
+         NonZeroStyleCoord(aSides.GetRight()) ||
+         NonZeroStyleCoord(aSides.GetBottom()) ||
+         NonZeroStyleCoord(aSides.GetLeft());
 }
 
 /* static */ nsTransparencyMode
@@ -2835,7 +2834,7 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aFrame) {
   if (aFrame->GetStyleContext()->GetStyleDisplay()->mOpacity < 1.0f)
     return eTransparencyTransparent;
 
-  if (HasNonZeroCorner(aFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
+  if (HasNonZeroSide(aFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
     return eTransparencyTransparent;
 
   if (aFrame->IsThemed())
