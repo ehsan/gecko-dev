@@ -88,13 +88,8 @@
       <field name="tabs" readonly="true">
         this.tabContainer.childNodes;
       </field>
-      <property name="visibleTabs" readonly="true">
-        <getter><![CDATA[
-          return Array.filter(this.tabs, function(tab) {
-            return !tab.hidden && this._removingTabs.indexOf(tab) == -1;
-          }, this);
-        ]]></getter>
-      </property>
+      <property name="visibleTabs" readonly="true"
+                onget="return Array.filter(this.tabs, function(tab) !tab.hidden);"/>
       <field name="mURIFixup" readonly="true">
         Components.classes["@mozilla.org/docshell/urifixup;1"]
                   .getService(Components.interfaces.nsIURIFixup);
@@ -1592,14 +1587,16 @@
               return;
             }
 
-            // Switch to a visible tab unless there aren't any others remaining
-            let remainingTabs = this.visibleTabs;
-            let numTabs = remainingTabs.length;
-            if (numTabs == 0 || numTabs == 1 && remainingTabs[0] == aTab) {
-              remainingTabs = Array.filter(this.tabs, function(tab) {
-                return this._removingTabs.indexOf(tab) == -1;
-              }, this);
+            let removing = this._removingTabs;
+            function keepRemaining(tab) {
+              // A tab remains only if it's not being removed nor blurred
+              return removing.indexOf(tab) == -1 && tab != aTab;
             }
+
+            // Switch to a visible tab unless there aren't any remaining
+            let remainingTabs = this.visibleTabs.filter(keepRemaining);
+            if (remainingTabs.length == 0)
+              remainingTabs = Array.filter(this.tabs, keepRemaining);
 
             // Try to find a remaining tab that comes after the given tab
             var tab = aTab;
@@ -1821,8 +1818,7 @@
         <parameter name="aTab"/>
         <body>
         <![CDATA[
-          if (!aTab.hidden && !aTab.pinned && !aTab.selected &&
-              this._removingTabs.indexOf(aTab) == -1) {
+          if (!aTab.hidden && !aTab.pinned && !aTab.selected) {
             aTab.hidden = true;
             let event = document.createEvent("Events");
             event.initEvent("TabHide", true, false);
