@@ -112,7 +112,6 @@ PRBool NS_SVGEnabled();
 
 #ifdef MOZ_MEDIA
 #include "nsMediaDecoder.h"
-#include "nsHTMLMediaElement.h"
 #endif
 
 #ifdef MOZ_OGG
@@ -254,7 +253,6 @@ nsLayoutStatics::Initialize()
     return rv;
   }
   
-  nsHTMLMediaElement::InitMediaTypes();
 #endif
 
 #ifdef MOZ_OGG
@@ -341,9 +339,6 @@ nsLayoutStatics::Shutdown()
 
   NS_ShutdownFocusSuppressor();
 
-#ifdef MOZ_MEDIA
-  nsHTMLMediaElement::ShutdownMediaTypes();
-#endif
 #ifdef MOZ_OGG
   nsAudioStream::ShutdownLibrary();
 #endif

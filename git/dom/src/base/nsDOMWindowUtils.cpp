@@ -384,8 +384,9 @@ nsDOMWindowUtils::ActivateNativeMenuItemAt(const nsAString& indexString)
   return widget->ActivateNativeMenuItemAt(indexString);
 }
 
+
 NS_IMETHODIMP
-nsDOMWindowUtils::ForceUpdateNativeMenuAt(const nsAString& indexString)
+nsDOMWindowUtils::ForceNativeMenuReload()
 {
   PRBool hasCap = PR_FALSE;
   if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
@@ -397,8 +398,9 @@ nsDOMWindowUtils::ForceUpdateNativeMenuAt(const nsAString& indexString)
   if (!widget)
     return NS_ERROR_FAILURE;
 
-  return widget->ForceUpdateNativeMenuAt(indexString);
+  return widget->ForceNativeMenuReload();
 }
+
 
 nsIWidget*
 nsDOMWindowUtils::GetWidget()

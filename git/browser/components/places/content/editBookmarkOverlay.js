@@ -335,10 +335,6 @@ var gEditItemOverlay = {
     var defaultItem = this._getFolderMenuItem(aSelectedFolder);
     this._folderMenuList.selectedItem = defaultItem;
 
-    // Set a selectedIndex attribute to show special icons
-    this._folderMenuList.setAttribute("selectedIndex",
-                                      this._folderMenuList.selectedIndex);
-
     // Hide the folders-separator if no folder is annotated as recently-used
     this._element("foldersSeparator").hidden = (menupopup.childNodes.length <= 6);
     this._folderMenuList.disabled = this._readOnly;
@@ -802,9 +798,6 @@ var gEditItemOverlay = {
   },
 
   onFolderMenuListCommand: function EIO_onFolderMenuListCommand(aEvent) {
-    // Set a selectedIndex attribute to show special icons
-    this._folderMenuList.setAttribute("selectedIndex",
-                                      this._folderMenuList.selectedIndex);
     if (aEvent.target.id == "editBMPanel_chooseFolderMenuItem") {
       // reset the selection back to where it was and expand the tree
       // (this menu-item is hidden when the tree is already visible

@@ -105,6 +105,7 @@ public:
 
   NS_DECL_NSISTREAMLISTENER
 
+protected:
   nsRefPtr<nsMediaDocument>    mDocument;
   nsCOMPtr<nsIStreamListener>  mNextStream;
 };

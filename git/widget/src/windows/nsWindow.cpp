@@ -5878,7 +5878,6 @@ PRBool nsWindow::OnPaint(HDC aDC)
 #endif
 
       nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
-      thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
 
 #ifdef MOZ_XUL
       if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {

@@ -616,6 +616,7 @@ extApplication.prototype = {
   // for nsIObserver
   observe: function app_observe(aSubject, aTopic, aData) {
     if (aTopic == "app-startup") {
+      this._extensions = new Extensions();
       this.events.dispatch("load", "application");
     }
     else if (aTopic == "final-ui-startup") {
@@ -674,9 +675,6 @@ extApplication.prototype = {
   },
 
   get extensions() {
-    if (this._extensions == null)
-      this._extensions = new Extensions();
-
     return this._extensions;
   },
 

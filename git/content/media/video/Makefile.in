@@ -41,7 +41,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-PARALLEL_DIRS	= \
+DIRS		= \
 		public \
 		src \
 		$(NULL)

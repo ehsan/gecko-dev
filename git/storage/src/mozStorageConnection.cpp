@@ -61,7 +61,7 @@
 #include "mozStorageService.h"
 #include "mozStorageStatement.h"
 #include "mozStorageValueArray.h"
-#include "mozStoragePrivateHelpers.h"
+#include "mozStorage.h"
 
 #include "prlog.h"
 #include "prprf.h"
@@ -530,7 +530,7 @@ mozStorageConnection::BeginTransactionAs(PRInt32 aTransactionType)
     }
     if (NS_SUCCEEDED(rv))
         mTransactionInProgress = PR_TRUE;
-    return rv;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -539,9 +539,9 @@ mozStorageConnection::CommitTransaction()
     nsAutoLock mutex(mTransactionMutex);
     if (!mTransactionInProgress)
         return NS_ERROR_FAILURE;
-    nsresult rv = ExecuteSimpleSQL(NS_LITERAL_CSTRING("COMMIT TRANSACTION"));
-    if (NS_SUCCEEDED(rv))
-        mTransactionInProgress = PR_FALSE;
+    nsresult rv = ExecuteSimpleSQL (NS_LITERAL_CSTRING("COMMIT TRANSACTION"));
+    // even if the commit fails, the transaction is aborted
+    mTransactionInProgress = PR_FALSE;
     return rv;
 }
 
@@ -551,9 +551,8 @@ mozStorageConnection::RollbackTransaction()
     nsAutoLock mutex(mTransactionMutex);
     if (!mTransactionInProgress)
         return NS_ERROR_FAILURE;
-    nsresult rv = ExecuteSimpleSQL(NS_LITERAL_CSTRING("ROLLBACK TRANSACTION"));
-    if (NS_SUCCEEDED(rv))
-        mTransactionInProgress = PR_FALSE;
+    nsresult rv = ExecuteSimpleSQL (NS_LITERAL_CSTRING("ROLLBACK TRANSACTION"));
+    mTransactionInProgress = PR_FALSE;
     return rv;
 }
 

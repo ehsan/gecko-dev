@@ -94,7 +94,7 @@ void WriteTabs(PRFileDesc * out,int aTabCount) {
 }
 
 NS_IMETHODIMP
-nsLoggingSink::WillParse() {
+nsLoggingSink::WillTokenize() {
   return NS_OK;
 }
 

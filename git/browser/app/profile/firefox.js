@@ -664,21 +664,20 @@ pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.goog
 
 #endif
 
-pref("browser.EULA.version", 3);
-pref("browser.rights.version", 3);
-
-// defaults to true on Windows and Mac, because the installer shows a EULA
+// defaults to true on Windows and Mac, because the installer shows this
 #ifdef XP_MACOSX
-pref("browser.rights.3.shown", true);
+pref("browser.EULA.3.accepted", true);
 #elifdef XP_WIN
-pref("browser.rights.3.shown", true);
+pref("browser.EULA.3.accepted", true);
 #else
-pref("browser.rights.3.shown", false);
+pref("browser.EULA.3.accepted", false);
 #endif
 
+// if we rev the EULA again, we should bump this so users agree to the new EULA
+pref("browser.EULA.version", 3);
+
 #ifdef DEBUG
-// Don't show the about:rights notification in debug builds.
-pref("browser.rights.override", true);
+pref("browser.EULA.override", true);
 #endif
 
 pref("browser.sessionstore.resume_from_crash", true);

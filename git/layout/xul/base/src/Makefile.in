@@ -75,7 +75,7 @@ REQUIRES        += \
 endif
 
 ifdef MOZ_XUL
-PARALLEL_DIRS = tree/public tree/src grid
+DIRS		= tree grid
 endif
 
 EXPORTS		= nsIMenuParent.h

@@ -53,7 +53,6 @@ XPIDLSRCS = \
 EXTRA_PP_COMPONENTS = \
 	nsBrowserContentHandler.js \
 	nsBrowserGlue.js \
-	aboutRights.js \
 	aboutRobots.js \
 	$(NULL)
 
@@ -78,9 +77,5 @@ DIRS += safebrowsing
 endif
 
 DIRS += build
-
-ifneq (,$(BUILD_OFFICIAL)$(MOZILLA_OFFICIAL))
-DEFINES += -DOFFICIAL_BUILD=1
-endif
 
 include $(topsrcdir)/config/rules.mk
