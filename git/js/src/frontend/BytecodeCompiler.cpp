@@ -27,12 +27,12 @@ using namespace js::frontend;
 using mozilla::Maybe;
 
 static bool
-CheckLength(ExclusiveContext *cx, SourceBufferHolder &srcBuf)
+CheckLength(ExclusiveContext *cx, size_t length)
 {
     // Note this limit is simply so we can store sourceStart and sourceEnd in
     // JSScript as 32-bits. It could be lifted fairly easily, since the compiler
     // is using size_t internally already.
-    if (srcBuf.length() > UINT32_MAX) {
+    if (length > UINT32_MAX) {
         if (cx->isJSContext())
             JS_ReportErrorNumber(cx->asJSContext(), js_GetErrorMessage, nullptr,
                                  JSMSG_SOURCE_TOO_LONG);
@@ -154,14 +154,14 @@ CanLazilyParse(ExclusiveContext *cx, const ReadOnlyCompileOptions &options)
 
 void
 frontend::MaybeCallSourceHandler(JSContext *cx, const ReadOnlyCompileOptions &options,
-                                 SourceBufferHolder &srcBuf)
+                                 const jschar *chars, size_t length)
 {
     JSSourceHandler listener = cx->runtime()->debugHooks.sourceHandler;
     void *listenerData = cx->runtime()->debugHooks.sourceHandlerData;
 
     if (listener) {
         void *listenerTSData;
-        listener(options.filename(), options.lineno, srcBuf.get(), srcBuf.length(),
+        listener(options.filename(), options.lineno, chars, length,
                  &listenerTSData, listenerData);
     }
 }
@@ -184,13 +184,11 @@ JSScript *
 frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject scopeChain,
                         HandleScript evalCaller,
                         const ReadOnlyCompileOptions &options,
-                        SourceBufferHolder &srcBuf,
+                        const jschar *chars, size_t length,
                         JSString *source_ /* = nullptr */,
                         unsigned staticLevel /* = 0 */,
                         SourceCompressionTask *extraSct /* = nullptr */)
 {
-    JS_ASSERT(srcBuf.get());
-
     RootedString source(cx, source_);
 
     js::TraceLogger *logger = nullptr;
@@ -203,7 +201,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     js::AutoTraceLog typeLogger(logger, TraceLogger::ParserCompileScript);
 
     if (cx->isJSContext())
-        MaybeCallSourceHandler(cx->asJSContext(), options, srcBuf);
+        MaybeCallSourceHandler(cx->asJSContext(), options, chars, length);
 
     /*
      * The scripted callerFrame can only be given for compile-and-go scripts
@@ -213,7 +211,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     JS_ASSERT_IF(evalCaller, options.forEval);
     JS_ASSERT_IF(staticLevel != 0, evalCaller);
 
-    if (!CheckLength(cx, srcBuf))
+    if (!CheckLength(cx, length))
         return nullptr;
     JS_ASSERT_IF(staticLevel != 0, !options.sourceIsLazy);
 
@@ -229,7 +227,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     if (!cx->compartment()->options().discardSource()) {
         if (options.sourceIsLazy)
             ss->setSourceRetrievable();
-        else if (!ss->setSourceCopy(cx, srcBuf, false, sct))
+        else if (!ss->setSourceCopy(cx, chars, length, false, sct))
             return nullptr;
     }
 
@@ -237,14 +235,12 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
 
     Maybe<Parser<SyntaxParseHandler> > syntaxParser;
     if (canLazilyParse) {
-        syntaxParser.construct(cx, alloc, options, srcBuf.get(), srcBuf.length(),
-                               /* foldConstants = */ false,
+        syntaxParser.construct(cx, alloc, options, chars, length, /* foldConstants = */ false,
                                (Parser<SyntaxParseHandler> *) nullptr,
                                (LazyScript *) nullptr);
     }
 
-    Parser<FullParseHandler> parser(cx, alloc, options, srcBuf.get(), srcBuf.length(),
-                                    /* foldConstants = */ true,
+    Parser<FullParseHandler> parser(cx, alloc, options, chars, length, /* foldConstants = */ true,
                                     canLazilyParse ? &syntaxParser.ref() : nullptr, nullptr);
     parser.sct = sct;
     parser.ss = ss;
@@ -255,8 +251,7 @@ frontend::CompileScript(ExclusiveContext *cx, LifoAlloc *alloc, HandleObject sco
     bool savedCallerFun = options.compileAndGo &&
                           evalCaller && evalCaller->functionOrCallerFunction();
     Rooted<JSScript*> script(cx, JSScript::Create(cx, NullPtr(), savedCallerFun,
-                                                  options, staticLevel, sourceObject, 0,
-                                                  srcBuf.length()));
+                                                  options, staticLevel, sourceObject, 0, length));
     if (!script)
         return nullptr;
 
@@ -496,7 +491,7 @@ frontend::CompileLazyFunction(JSContext *cx, Handle<LazyScript*> lazy, const jsc
 // handler attribute in an HTML <INPUT> tag, or in a Function() constructor.
 static bool
 CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyCompileOptions &options,
-                    const AutoNameVector &formals, SourceBufferHolder &srcBuf,
+                    const AutoNameVector &formals, const jschar *chars, size_t length,
                     GeneratorKind generatorKind)
 {
     js::TraceLogger *logger = js::TraceLoggerForMainThread(cx->runtime());
@@ -507,9 +502,9 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
     // FIXME: make Function pass in two strings and parse them as arguments and
     // ProgramElements respectively.
 
-    MaybeCallSourceHandler(cx, options, srcBuf);
+    MaybeCallSourceHandler(cx, options, chars, length);
 
-    if (!CheckLength(cx, srcBuf))
+    if (!CheckLength(cx, length))
         return false;
 
     RootedScriptSource sourceObject(cx, CreateScriptSourceObject(cx, options));
@@ -520,7 +515,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
     SourceCompressionTask sct(cx);
     JS_ASSERT(!options.sourceIsLazy);
     if (!cx->compartment()->options().discardSource()) {
-        if (!ss->setSourceCopy(cx, srcBuf, true, &sct))
+        if (!ss->setSourceCopy(cx, chars, length, true, &sct))
             return false;
     }
 
@@ -529,8 +524,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
     Maybe<Parser<SyntaxParseHandler> > syntaxParser;
     if (canLazilyParse) {
         syntaxParser.construct(cx, &cx->tempLifoAlloc(),
-                               options, srcBuf.get(), srcBuf.length(),
-                               /* foldConstants = */ false,
+                               options, chars, length, /* foldConstants = */ false,
                                (Parser<SyntaxParseHandler> *) nullptr,
                                (LazyScript *) nullptr);
     }
@@ -538,8 +532,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
     JS_ASSERT(!options.forEval);
 
     Parser<FullParseHandler> parser(cx, &cx->tempLifoAlloc(),
-                                    options, srcBuf.get(), srcBuf.length(),
-                                    /* foldConstants = */ true,
+                                    options, chars, length, /* foldConstants = */ true,
                                     canLazilyParse ? &syntaxParser.ref() : nullptr, nullptr);
     parser.sct = &sct;
     parser.ss = ss;
@@ -591,7 +584,7 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
 
         Rooted<JSScript*> script(cx, JSScript::Create(cx, js::NullPtr(), false, options,
                                                       /* staticLevel = */ 0, sourceObject,
-                                                      /* sourceStart = */ 0, srcBuf.length()));
+                                                      /* sourceStart = */ 0, length));
         if (!script)
             return false;
 
@@ -633,15 +626,15 @@ CompileFunctionBody(JSContext *cx, MutableHandleFunction fun, const ReadOnlyComp
 bool
 frontend::CompileFunctionBody(JSContext *cx, MutableHandleFunction fun,
                               const ReadOnlyCompileOptions &options,
-                              const AutoNameVector &formals, JS::SourceBufferHolder &srcBuf)
+                              const AutoNameVector &formals, const jschar *chars, size_t length)
 {
-    return CompileFunctionBody(cx, fun, options, formals, srcBuf, NotGenerator);
+    return CompileFunctionBody(cx, fun, options, formals, chars, length, NotGenerator);
 }
 
 bool
 frontend::CompileStarGeneratorBody(JSContext *cx, MutableHandleFunction fun,
                                    const ReadOnlyCompileOptions &options, const AutoNameVector &formals,
-                                   JS::SourceBufferHolder &srcBuf)
+                                   const jschar *chars, size_t length)
 {
-    return CompileFunctionBody(cx, fun, options, formals, srcBuf, StarGenerator);
+    return CompileFunctionBody(cx, fun, options, formals, chars, length, StarGenerator);
 }

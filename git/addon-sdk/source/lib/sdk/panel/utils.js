@@ -367,16 +367,11 @@ function style(panel) {
                 document.getAnonymousElementByAttribute(panel, "class",
                                                         "panel-inner-arrowcontent");
 
-    let { color, fontFamily, fontSize, fontWeight } = window.getComputedStyle(node);
+    let color = window.getComputedStyle(node).getPropertyValue("color");
 
     let style = contentDocument.createElement("style");
     style.id = "sdk-panel-style";
-    style.textContent = "body { " +
-      "color: " + color + ";" +
-      "font-family: " + fontFamily + ";" +
-      "font-weight: " + fontWeight + ";" +
-      "font-size: " + fontSize + ";" +
-    "}";
+    style.textContent = "body { color: " + color + "; }";
 
     let container = contentDocument.head ? contentDocument.head :
                     contentDocument.documentElement;

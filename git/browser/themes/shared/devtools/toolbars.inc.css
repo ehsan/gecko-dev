@@ -119,14 +119,14 @@
 
 .devtools-option-toolbarbutton {
   -moz-appearance: none;
-  list-style-image: url("chrome://browser/skin/devtools/tool-options.svg");
+  list-style-image: url("chrome://browser/skin/devtools/option-icon.png");
+  -moz-image-region: rect(0px 16px 16px 0px);
   background: none;
-  opacity: .8;
   border: none;
 }
 
 .devtools-option-toolbarbutton[open=true] {
-  opacity: 1;
+  -moz-image-region: rect(0px 32px 16px 16px);
 }
 
 .devtools-menulist > .menulist-label-box {
@@ -792,6 +792,7 @@
 .theme-light .command-button-invertable[checked=true]:not(:active) > image,
 .theme-light .devtools-tab[icon-invertable][selected] > image,
 .theme-light .devtools-tab[icon-invertable][highlighted] > image,
+.theme-light .devtools-option-toolbarbutton[open] > image,
 .theme-light #resume[checked] > image {
   filter: none !important;
 }

@@ -26,6 +26,8 @@ checkbox {
 
 checkbox:hover::before,
 checkbox[checked]::before {
+  margin-top: 7px;
+  margin-bottom: 6px;
   -moz-margin-end: -19px;
   -moz-margin-start: 4px;
   background-repeat: no-repeat;
@@ -34,7 +36,7 @@ checkbox[checked]::before {
 radio {
   -moz-binding: url("chrome://global/content/bindings/radio.xml#radio");
   -moz-box-align: center;
-  -moz-margin-start: 0;
+  margin: 7px 0;
 }
 
 .radio-label-box {
@@ -43,6 +45,8 @@ radio {
 
 radio:hover::before,
 radio[selected]::before {
+  margin-top: 6px;
+  margin-bottom: 6px;
   -moz-margin-end: -17px;
   -moz-margin-start: 6px;
 }

@@ -226,6 +226,7 @@ Attr::SetValue(const nsAString& aValue)
 bool
 Attr::Specified() const
 {
+  OwnerDoc()->WarnOnceAbout(nsIDocument::eSpecified);
   return true;
 }
 

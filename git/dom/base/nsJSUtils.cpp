@@ -180,29 +180,12 @@ nsJSUtils::EvaluateString(JSContext* aCx,
                           JS::MutableHandle<JS::Value> aRetValue,
                           void **aOffThreadToken)
 {
-  const nsPromiseFlatString& flatScript = PromiseFlatString(aScript);
-  JS::SourceBufferHolder srcBuf(flatScript.get(), aScript.Length(),
-                                JS::SourceBufferHolder::NoOwnership);
-  return EvaluateString(aCx, srcBuf, aScopeObject, aCompileOptions,
-                        aEvaluateOptions, aRetValue, aOffThreadToken);
-}
-
-nsresult
-nsJSUtils::EvaluateString(JSContext* aCx,
-                          JS::SourceBufferHolder& aSrcBuf,
-                          JS::Handle<JSObject*> aScopeObject,
-                          JS::CompileOptions& aCompileOptions,
-                          const EvaluateOptions& aEvaluateOptions,
-                          JS::MutableHandle<JS::Value> aRetValue,
-                          void **aOffThreadToken)
-{
   PROFILER_LABEL("JS", "EvaluateString");
   MOZ_ASSERT_IF(aCompileOptions.versionSet,
                 aCompileOptions.version != JSVERSION_UNKNOWN);
   MOZ_ASSERT_IF(aEvaluateOptions.coerceToString, aEvaluateOptions.needResult);
   MOZ_ASSERT_IF(!aEvaluateOptions.reportUncaught, aEvaluateOptions.needResult);
   MOZ_ASSERT(aCx == nsContentUtils::GetCurrentJSContext());
-  MOZ_ASSERT(aSrcBuf.get());
 
   // Unfortunately, the JS engine actually compiles scripts with a return value
   // in a different, less efficient way.  Furthermore, it can't JIT them in many
@@ -249,10 +232,12 @@ nsJSUtils::EvaluateString(JSContext* aCx,
     } else {
       if (aEvaluateOptions.needResult) {
         ok = JS::Evaluate(aCx, rootedScope, aCompileOptions,
-                          aSrcBuf, aRetValue);
+                          PromiseFlatString(aScript).get(),
+                          aScript.Length(), aRetValue);
       } else {
         ok = JS::Evaluate(aCx, rootedScope, aCompileOptions,
-                          aSrcBuf);
+                          PromiseFlatString(aScript).get(),
+                          aScript.Length());
       }
     }
 
@@ -304,20 +289,6 @@ nsJSUtils::EvaluateString(JSContext* aCx,
   options.setNeedResult(false);
   JS::RootedValue unused(aCx);
   return EvaluateString(aCx, aScript, aScopeObject, aCompileOptions,
-                        options, &unused, aOffThreadToken);
-}
-
-nsresult
-nsJSUtils::EvaluateString(JSContext* aCx,
-                          JS::SourceBufferHolder& aSrcBuf,
-                          JS::Handle<JSObject*> aScopeObject,
-                          JS::CompileOptions& aCompileOptions,
-                          void **aOffThreadToken)
-{
-  EvaluateOptions options;
-  options.setNeedResult(false);
-  JS::RootedValue unused(aCx);
-  return EvaluateString(aCx, aSrcBuf, aScopeObject, aCompileOptions,
                         options, &unused, aOffThreadToken);
 }
 

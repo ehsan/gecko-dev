@@ -48,14 +48,9 @@ exports.testFromExceptionWithString = function(assert) {
   try {
     throw "foob";
     assert.fail("an exception should've been thrown");
-  } catch (e) {
-    if (e == "foob") {
-      var tb = traceback.fromException(e);
-      assert.equal(tb.length, 0);
-    }
-    else {
-      throw e;
-    }
+  } catch (e if e == "foob") {
+    var tb = traceback.fromException(e);
+    assert.equal(tb.length, 0);
   }
 };
 
@@ -70,16 +65,11 @@ exports.testFromExceptionWithError = function(assert) {
   try {
     throwError();
     assert.fail("an exception should've been thrown");
-  } catch (e) {
-    if (e instanceof Error) {
-      var tb = traceback.fromException(e);
+  } catch (e if e instanceof Error) {
+    var tb = traceback.fromException(e);
 
-      var xulApp = require("sdk/system/xul-app");
-      assert.equal(tb.slice(-1)[0].name, "throwError");
-    }
-    else {
-      throw e;
-    }
+    var xulApp = require("sdk/system/xul-app");
+    assert.equal(tb.slice(-1)[0].name, "throwError");
   }
 };
 
@@ -87,14 +77,9 @@ exports.testFromExceptionWithNsIException = function(assert) {
   try {
     throwNsIException();
     assert.fail("an exception should've been thrown");
-  } catch (e) {
-    if (e.result == Cr.NS_ERROR_MALFORMED_URI) {
-      var tb = traceback.fromException(e);
-      assert.equal(tb[tb.length - 1].name, "throwNsIException");
-    }
-    else {
-      throw e;
-    }
+  } catch (e if e.result == Cr.NS_ERROR_MALFORMED_URI) {
+    var tb = traceback.fromException(e);
+    assert.equal(tb[tb.length - 1].name, "throwNsIException");
   }
 };
 

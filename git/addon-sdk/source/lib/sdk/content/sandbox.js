@@ -19,7 +19,6 @@ const { sandbox, evaluate, load } = require('../loader/sandbox');
 const { merge } = require('../util/object');
 const { getTabForContentWindow } = require('../tabs/utils');
 const { getInnerId } = require('../window/utils');
-const { PlainTextConsole } = require('../console/plain-text');
 
 // WeakMap of sandboxes so we can access private values
 const sandboxes = new WeakMap();
@@ -198,10 +197,8 @@ const WorkerSandbox = Class({
     // script
     merge(model, result);
 
-    let console = new PlainTextConsole(null, getInnerId(window));
-
     // Handle messages send by this script:
-    setListeners(this, console);
+    setListeners(this);
 
     // Inject `addon` global into target document if document is trusted,
     // `addon` in document is equivalent to `self` in content script.
@@ -307,7 +304,7 @@ function importScripts (workerSandbox, ...urls) {
   }
 }
 
-function setListeners (workerSandbox, console) {
+function setListeners (workerSandbox) {
   let { worker } = modelFor(workerSandbox);
   // console.xxx calls
   workerSandbox.on('console', function consoleListener (kind, ...args) {

@@ -23,7 +23,6 @@
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
-SimpleTest.requestLongerTimeout(3);
 var manager = new MediaTestManager;
 
 // https://bugzilla.mozilla.org/show_bug.cgi?id=634747
@@ -74,8 +73,9 @@ function startTest(test, token) {
     ok(a, name + ": " + msg);
   }}(name);
   var localFinish = function(v, manager) { return function() {
-    v.onerror = null;
-    removeNodeAndSource(v);
+    if (v.parentNode) {
+      v.parentNode.removeChild(v);
+    }
     dump("SEEK-TEST: Finished " + name + "\n");
     manager.finished(v.token);
   }}(v, manager);

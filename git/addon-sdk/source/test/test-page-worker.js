@@ -454,13 +454,8 @@ function isDestroyed(page) {
   try {
     page.postMessage("foo");
   }
-  catch (err) {
-    if (err.message == ERR_DESTROYED) {
-      return true;
-    }
-    else {
-      throw err;
-    }
+  catch (err if err.message == ERR_DESTROYED) {
+    return true;
   }
   return false;
 }

@@ -57,13 +57,6 @@ const TABS_CODE = [
 "}"
 ].join("\n");
 
-const NONE_CODE = [
-"var x = 0;",
-"           // stray thing",
-"var y = 9;",
-"    ",
-""
-].join("\n");
 
 function test() {
   waitForExplicitFinish();
@@ -73,12 +66,6 @@ function test() {
        "2 spaces before code added");
     is(ed.getOption("indentWithTabs"), false,
        "spaces is default");
-
-    ed.setText(NONE_CODE);
-    is(ed.getOption("indentUnit"), 2,
-       "2 spaces after un-detectable code");
-    is(ed.getOption("indentWithTabs"), false,
-       "spaces still set after un-detectable code");
 
     ed.setText(FOUR_SPACES_CODE);
     is(ed.getOption("indentUnit"), 4,
