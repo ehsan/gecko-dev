@@ -381,7 +381,7 @@ public:
   static void ReEvaluateMouseEnterState(NSEvent* aEvent = nil, ChildView* aOldView = nil);
   static void ResendLastMouseMoveEvent();
   static ChildView* ViewForEvent(NSEvent* aEvent);
-  static void AttachPluginEvent(mozilla::WidgetMouseEventBase& aMouseEvent,
+  static void AttachPluginEvent(nsMouseEvent_base& aMouseEvent,
                                 ChildView* aView,
                                 NSEvent* aNativeMouseEvent,
                                 int aPluginEventType,

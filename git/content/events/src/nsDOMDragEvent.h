@@ -16,8 +16,7 @@ class nsDOMDragEvent : public nsDOMMouseEvent,
 {
 public:
   nsDOMDragEvent(mozilla::dom::EventTarget* aOwner,
-                 nsPresContext* aPresContext,
-                 mozilla::WidgetInputEvent* aEvent);
+                 nsPresContext* aPresContext, nsInputEvent* aEvent);
   virtual ~nsDOMDragEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -55,6 +54,6 @@ public:
 nsresult NS_NewDOMDragEvent(nsIDOMEvent** aInstancePtrResult,
                             mozilla::dom::EventTarget* aOwner,
                             nsPresContext* aPresContext,
-                            mozilla::WidgetDragEvent* aEvent);
+                            nsDragEvent* aEvent);
 
 #endif // nsDOMDragEvent_h__

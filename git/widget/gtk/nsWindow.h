@@ -424,7 +424,7 @@ private:
     gchar*       mTransparencyBitmap;
  
     // all of our DND stuff
-    void   InitDragEvent(mozilla::WidgetDragEvent& aEvent);
+    void   InitDragEvent         (nsDragEvent &aEvent);
 
     float              mLastMotionPressure;
 

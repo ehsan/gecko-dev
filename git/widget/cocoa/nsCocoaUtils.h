@@ -289,11 +289,11 @@ class nsCocoaUtils
   static void InitPluginEvent(mozilla::WidgetPluginEvent &aPluginEvent,
                               NPCocoaEvent &aCocoaEvent);
   /**
-   * Initializes WidgetInputEvent for aNativeEvent or aModifiers.
+   * Initializes nsInputEvent for aNativeEvent or aModifiers.
    */
-  static void InitInputEvent(mozilla::WidgetInputEvent &aInputEvent,
+  static void InitInputEvent(nsInputEvent &aInputEvent,
                              NSEvent* aNativeEvent);
-  static void InitInputEvent(mozilla::WidgetInputEvent &aInputEvent,
+  static void InitInputEvent(nsInputEvent &aInputEvent,
                              NSUInteger aModifiers);
 
   /**

@@ -51,7 +51,7 @@ TextComposition::DispatchEvent(nsGUIEvent* aEvent,
                                nsDispatchingCallback* aCallBack)
 {
   if (aEvent->message == NS_COMPOSITION_UPDATE) {
-    mLastData = static_cast<WidgetCompositionEvent*>(aEvent)->data;
+    mLastData = static_cast<nsCompositionEvent*>(aEvent)->data;
   }
 
   nsEventDispatcher::Dispatch(mNode, mPresContext,
@@ -114,9 +114,8 @@ TextComposition::CompositionEventDispatcher::Run()
   nsEventStatus status = nsEventStatus_eIgnore;
   switch (mEventMessage) {
     case NS_COMPOSITION_START: {
-      WidgetCompositionEvent compStart(true, NS_COMPOSITION_START, mWidget);
-      WidgetQueryContentEvent selectedText(true, NS_QUERY_SELECTED_TEXT,
-                                           mWidget);
+      nsCompositionEvent compStart(true, NS_COMPOSITION_START, mWidget);
+      nsQueryContentEvent selectedText(true, NS_QUERY_SELECTED_TEXT, mWidget);
       nsContentEventHandler handler(mPresContext);
       handler.OnQuerySelectedText(&selectedText);
       NS_ASSERTION(selectedText.mSucceeded, "Failed to get selected text");
@@ -127,14 +126,14 @@ TextComposition::CompositionEventDispatcher::Run()
     }
     case NS_COMPOSITION_UPDATE:
     case NS_COMPOSITION_END: {
-      WidgetCompositionEvent compEvent(true, mEventMessage, mWidget);
+      nsCompositionEvent compEvent(true, mEventMessage, mWidget);
       compEvent.data = mData;
       nsIMEStateManager::DispatchCompositionEvent(mEventTarget, mPresContext,
                                                   &compEvent, &status, nullptr);
       break;
     }
     case NS_TEXT_TEXT: {
-      WidgetTextEvent textEvent(true, NS_TEXT_TEXT, mWidget);
+      nsTextEvent textEvent(true, NS_TEXT_TEXT, mWidget);
       textEvent.theText = mData;
       nsIMEStateManager::DispatchCompositionEvent(mEventTarget, mPresContext,
                                                   &textEvent, &status, nullptr);

@@ -30,7 +30,7 @@ struct RangeData
   {}
 
   nsRefPtr<nsRange> mRange;
-  mozilla::TextRangeStyle mTextRangeStyle;
+  nsTextRangeStyle mTextRangeStyle;
 };
 
 // Note, the ownership of mozilla::Selection depends on which way the object is

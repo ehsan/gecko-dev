@@ -102,7 +102,7 @@ public:
     EnsureAltGr();
   }
 
-  void InitInputEvent(WidgetInputEvent& aInputEvent) const;
+  void InitInputEvent(nsInputEvent& aInputEvent) const;
 
   bool IsShift() const { return (mModifiers & MODIFIER_SHIFT) != 0; }
   bool IsControl() const { return (mModifiers & MODIFIER_CONTROL) != 0; }
@@ -133,7 +133,7 @@ private:
     }
   }
 
-  void InitMouseEvent(WidgetInputEvent& aMouseEvent) const;
+  void InitMouseEvent(nsInputEvent& aMouseEvent) const;
 };
 
 struct UniCharsAndModifiers
@@ -426,9 +426,9 @@ private:
   /**
    * Initializes the aKeyEvent with the information stored in the instance.
    */
-  void InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
+  void InitKeyEvent(nsKeyEvent& aKeyEvent,
                     const ModifierKeyState& aModKeyState) const;
-  void InitKeyEvent(WidgetKeyboardEvent& aKeyEvent) const
+  void InitKeyEvent(nsKeyEvent& aKeyEvent) const
   {
     InitKeyEvent(aKeyEvent, mModKeyState);
   }
@@ -437,7 +437,7 @@ private:
    * Dispatches the key event.  Returns true if the event is consumed.
    * Otherwise, false.
    */
-  bool DispatchKeyEvent(WidgetKeyboardEvent& aKeyEvent,
+  bool DispatchKeyEvent(nsKeyEvent& aKeyEvent,
                         const MSG* aMsgSentToPlugin = nullptr) const;
 
   /**

@@ -24,8 +24,9 @@ using namespace mozilla;
 
 nsDOMUIEvent::nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
                            nsPresContext* aPresContext, nsGUIEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext,
-               aEvent ? aEvent : new InternalUIEvent(false, 0, 0))
+  : nsDOMEvent(aOwner, aPresContext, aEvent ?
+               static_cast<nsEvent *>(aEvent) :
+               static_cast<nsEvent *>(new nsUIEvent(false, 0, 0)))
   , mClientPoint(0, 0), mLayerPoint(0, 0), mPagePoint(0, 0), mMovementPoint(0, 0)
   , mIsPointerLocked(nsEventStateManager::sIsPointerLocked)
   , mLastClientPoint(nsEventStateManager::sLastClientPoint)
@@ -44,7 +45,7 @@ nsDOMUIEvent::nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
   {
     case NS_UI_EVENT:
     {
-      InternalUIEvent *event = static_cast<InternalUIEvent*>(mEvent);
+      nsUIEvent *event = static_cast<nsUIEvent*>(mEvent);
       mDetail = event->detail;
       break;
     }
@@ -348,9 +349,9 @@ nsDOMUIEvent::IsChar() const
   switch (mEvent->eventStructType)
   {
     case NS_KEY_EVENT:
-      return static_cast<WidgetKeyboardEvent*>(mEvent)->isChar;
+      return static_cast<nsKeyEvent*>(mEvent)->isChar;
     case NS_TEXT_EVENT:
-      return static_cast<WidgetTextEvent*>(mEvent)->isChar;
+      return static_cast<nsTextEvent*>(mEvent)->isChar;
     default:
       return false;
   }
@@ -463,9 +464,9 @@ bool
 nsDOMUIEvent::GetModifierStateInternal(const nsAString& aKey)
 {
   if (!mEvent->IsInputDerivedEvent()) {
-    MOZ_CRASH("mEvent must be WidgetInputEvent or derived class");
+    MOZ_CRASH("mEvent must be nsInputEvent or derived class");
   }
-  WidgetInputEvent* inputEvent = static_cast<WidgetInputEvent*>(mEvent);
+  nsInputEvent* inputEvent = static_cast<nsInputEvent*>(mEvent);
   if (aKey.EqualsLiteral(NS_DOM_KEYNAME_SHIFT)) {
     return inputEvent->IsShift();
   }

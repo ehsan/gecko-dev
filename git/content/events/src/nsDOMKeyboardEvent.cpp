@@ -7,13 +7,11 @@
 #include "prtime.h"
 #include "mozilla/TextEvents.h"
 
-using namespace mozilla;
-
 nsDOMKeyboardEvent::nsDOMKeyboardEvent(mozilla::dom::EventTarget* aOwner,
                                        nsPresContext* aPresContext,
-                                       WidgetKeyboardEvent* aEvent)
+                                       nsKeyEvent* aEvent)
   : nsDOMUIEvent(aOwner, aPresContext, aEvent ? aEvent :
-                 new WidgetKeyboardEvent(false, 0, nullptr))
+                 new nsKeyEvent(false, 0, nullptr))
 {
   NS_ASSERTION(mEvent->eventStructType == NS_KEY_EVENT, "event type mismatch");
 
@@ -29,7 +27,7 @@ nsDOMKeyboardEvent::nsDOMKeyboardEvent(mozilla::dom::EventTarget* aOwner,
 nsDOMKeyboardEvent::~nsDOMKeyboardEvent()
 {
   if (mEventIsInternal) {
-    delete static_cast<WidgetKeyboardEvent*>(mEvent);
+    delete static_cast<nsKeyEvent*>(mEvent);
     mEvent = nullptr;
   }
 }
@@ -87,7 +85,7 @@ NS_IMETHODIMP
 nsDOMKeyboardEvent::GetKey(nsAString& aKeyName)
 {
   if (!mEventIsInternal) {
-    static_cast<WidgetKeyboardEvent*>(mEvent)->GetDOMKeyName(aKeyName);
+    static_cast<nsKeyEvent*>(mEvent)->GetDOMKeyName(aKeyName);
   }
   return NS_OK;
 }
@@ -108,7 +106,7 @@ nsDOMKeyboardEvent::CharCode()
   case NS_KEY_DOWN:
     return 0;
   case NS_KEY_PRESS:
-    return static_cast<WidgetKeyboardEvent*>(mEvent)->charCode;
+    return static_cast<nsKeyEvent*>(mEvent)->charCode;
   }
   return 0;
 }
@@ -128,7 +126,7 @@ nsDOMKeyboardEvent::KeyCode()
   case NS_KEY_UP:
   case NS_KEY_PRESS:
   case NS_KEY_DOWN:
-    return static_cast<WidgetKeyboardEvent*>(mEvent)->keyCode;
+    return static_cast<nsKeyEvent*>(mEvent)->keyCode;
   }
   return 0;
 }
@@ -144,7 +142,7 @@ nsDOMKeyboardEvent::Which()
       //Special case for 4xp bug 62878.  Try to make value of which
       //more closely mirror the values that 4.x gave for RETURN and BACKSPACE
       {
-        uint32_t keyCode = static_cast<WidgetKeyboardEvent*>(mEvent)->keyCode;
+        uint32_t keyCode = ((nsKeyEvent*)mEvent)->keyCode;
         if (keyCode == NS_VK_RETURN || keyCode == NS_VK_BACK) {
           return keyCode;
         }
@@ -173,7 +171,7 @@ nsDOMKeyboardEvent::InitKeyEvent(const nsAString& aType, bool aCanBubble, bool a
   nsresult rv = nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, 0);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  WidgetKeyboardEvent* keyEvent = static_cast<WidgetKeyboardEvent*>(mEvent);
+  nsKeyEvent* keyEvent = static_cast<nsKeyEvent*>(mEvent);
   keyEvent->InitBasicModifiers(aCtrlKey, aAltKey, aShiftKey, aMetaKey);
   keyEvent->keyCode = aKeyCode;
   keyEvent->charCode = aCharCode;
@@ -184,7 +182,7 @@ nsDOMKeyboardEvent::InitKeyEvent(const nsAString& aType, bool aCanBubble, bool a
 nsresult NS_NewDOMKeyboardEvent(nsIDOMEvent** aInstancePtrResult,
                                 mozilla::dom::EventTarget* aOwner,
                                 nsPresContext* aPresContext,
-                                WidgetKeyboardEvent* aEvent)
+                                nsKeyEvent *aEvent)
 {
   nsDOMKeyboardEvent* it = new nsDOMKeyboardEvent(aOwner, aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
