@@ -1670,7 +1670,7 @@ JSScript::initCompartment(ExclusiveContext *cx)
 
 JSScript *
 JSScript::Create(ExclusiveContext *cx, HandleObject enclosingScope, bool savedCallerFun,
-                 const ReadOnlyCompileOptions &options, unsigned staticLevel,
+                 const CompileOptions &options, unsigned staticLevel,
                  HandleScriptSource sourceObject, uint32_t bufStart, uint32_t bufEnd)
 {
     JS_ASSERT(bufStart <= bufEnd);

@@ -16,8 +16,8 @@
 #else
 #include <arpa/inet.h>
 #endif
-#include <assert.h>
-#include <stdio.h>
+#include <cassert>
+#include <cstdio>
 
 #include "webrtc/modules/video_coding/main/test/rtp_player.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"

@@ -8,21 +8,19 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/audio_device/audio_device_buffer.h"
+#include "trace.h"
+#include "critical_section_wrapper.h"
+#include "audio_device_buffer.h"
+#include "audio_device_utility.h"
+#include "audio_device_config.h"
 
-#include <assert.h>
+#include <stdlib.h>
 #include <string.h>
+#include <cassert>
 
-#include "webrtc/modules/audio_device/audio_device_config.h"
-#include "webrtc/modules/audio_device/audio_device_utility.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/logging.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "signal_processing_library.h"
 
 namespace webrtc {
-
-static const int kHighDelayThresholdMs = 300;
-static const int kLogHighDelayIntervalFrames = 500;  // 5 seconds.
 
 // ----------------------------------------------------------------------------
 //  ctor
@@ -51,9 +49,7 @@ AudioDeviceBuffer::AudioDeviceBuffer() :
     _typingStatus(false),
     _playDelayMS(0),
     _recDelayMS(0),
-    _clockDrift(0),
-    // Set to the interval in order to log on the first occurrence.
-    high_delay_counter_(kLogHighDelayIntervalFrames) {
+    _clockDrift(0) {
     // valid ID will be set later by SetId, use -1 for now
     WEBRTC_TRACE(kTraceMemory, kTraceAudioDevice, _id, "%s created", __FUNCTION__);
     memset(_recBuffer, 0, kMaxBufferSizeBytes);
@@ -290,21 +286,18 @@ uint32_t AudioDeviceBuffer::NewMicLevel() const
 //  SetVQEData
 // ----------------------------------------------------------------------------
 
-void AudioDeviceBuffer::SetVQEData(int playDelayMs, int recDelayMs,
-                                   int clockDrift) {
-  if (high_delay_counter_ < kLogHighDelayIntervalFrames) {
-    ++high_delay_counter_;
-  } else {
-    if (playDelayMs + recDelayMs > kHighDelayThresholdMs) {
-      high_delay_counter_ = 0;
-      LOG(LS_WARNING) << "High audio device delay reported (render="
-                      << playDelayMs << " ms, capture=" << recDelayMs << " ms)";
+int32_t AudioDeviceBuffer::SetVQEData(uint32_t playDelayMS, uint32_t recDelayMS, int32_t clockDrift)
+{
+    if ((playDelayMS + recDelayMS) > 300)
+    {
+        WEBRTC_TRACE(kTraceWarning, kTraceUtility, _id, "too long delay (play:%i rec:%i)", playDelayMS, recDelayMS, clockDrift);
     }
-  }
 
-  _playDelayMS = playDelayMs;
-  _recDelayMS = recDelayMs;
-  _clockDrift = clockDrift;
+    _playDelayMS = playDelayMS;
+    _recDelayMS = recDelayMS;
+    _clockDrift = clockDrift;
+
+    return 0;
 }
 
 // ----------------------------------------------------------------------------

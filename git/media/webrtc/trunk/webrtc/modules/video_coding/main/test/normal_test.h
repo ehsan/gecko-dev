@@ -11,9 +11,8 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_TEST_NORMAL_TEST_H_
 #define WEBRTC_MODULES_VIDEO_CODING_TEST_NORMAL_TEST_H_
 
-#include "webrtc/modules/video_coding/main/interface/video_coding.h"
-#include "webrtc/modules/video_coding/main/test/test_util.h"
-#include "webrtc/modules/video_coding/main/test/video_source.h"
+#include "video_coding.h"
+#include "test_util.h"
 
 #include <fstream>
 #include <map>

@@ -22,6 +22,7 @@
 #include "webrtc/video_engine/include/vie_network.h"
 #include "webrtc/video_engine/include/vie_rtp_rtcp.h"
 #include "webrtc/video_engine/vie_defines.h"
+#include "webrtc/video_engine/vie_file_recorder.h"
 #include "webrtc/video_engine/vie_frame_provider_base.h"
 #include "webrtc/video_engine/vie_receiver.h"
 #include "webrtc/video_engine/vie_sender.h"
@@ -41,6 +42,7 @@ class RtpRtcp;
 class ThreadWrapper;
 class ViEDecoderObserver;
 class ViEEffectFilter;
+class ViENetworkObserver;
 class ViERTCPObserver;
 class ViERTPObserver;
 class VideoCodingModule;
@@ -53,6 +55,7 @@ class ViEChannel
       public VCMReceiveCallback,
       public VCMReceiveStatisticsCallback,
       public VCMPacketRequestCallback,
+      public VCMFrameStorageCallback,
       public RtcpFeedback,
       public RtpFeedback,
       public ViEFrameProviderBase {
@@ -199,6 +202,11 @@ class ViEChannel
                                          const uint32_t name,
                                          const uint16_t length,
                                          const uint8_t* data);
+  virtual void OnSendReportReceived(const int32_t id,
+                                    const uint32_t senderSSRC,
+                                    uint32_t ntp_secs,
+                                    uint32_t ntp_frac,
+                                    uint32_t timestamp);
   // Implements RtpFeedback.
   virtual int32_t OnInitializeDecoder(
       const int32_t id,
@@ -207,12 +215,16 @@ class ViEChannel
       const int frequency,
       const uint8_t channels,
       const uint32_t rate);
+  virtual void OnPacketTimeout(const int32_t id);
+  virtual void OnReceivedPacket(const int32_t id,
+                                const RtpRtcpPacketType packet_type);
+  virtual void OnPeriodicDeadOrAlive(const int32_t id,
+                                     const RTPAliveType alive);
   virtual void OnIncomingSSRCChanged(const int32_t id,
-                                     const uint32_t ssrc);
+                                     const uint32_t SSRC);
   virtual void OnIncomingCSRCChanged(const int32_t id,
                                      const uint32_t CSRC,
                                      const bool added);
-  virtual void ResetStatistics(uint32_t);
 
   int32_t SetLocalReceiver(const uint16_t rtp_port,
                            const uint16_t rtcp_port,
@@ -235,7 +247,7 @@ class ViEChannel
                         char* ip_address,
                         uint32_t ip_address_length);
 
-  int32_t SetRemoteSSRCType(const StreamType usage, const uint32_t SSRC);
+  int32_t SetRemoteSSRCType(const StreamType usage, const uint32_t SSRC) const;
 
   int32_t StartSend();
   int32_t StopSend();
@@ -264,6 +276,12 @@ class ViEChannel
   int32_t SetMaxPacketBurstSize(uint16_t max_number_of_packets);
   int32_t SetPacketBurstSpreadState(bool enable, const uint16_t frame_periodMS);
 
+  int32_t SetPacketTimeoutNotification(bool enable, uint32_t timeout_seconds);
+  int32_t RegisterNetworkObserver(ViENetworkObserver* observer);
+  bool NetworkObserverRegistered();
+  int32_t SetPeriodicDeadOrAliveStatus(
+      const bool enable, const uint32_t sample_time_seconds);
+
   int32_t EnableColorEnhancement(bool enable);
 
   // Gets the modules used by the channel.
@@ -278,11 +296,12 @@ class ViEChannel
   virtual int32_t ReceivedDecodedReferenceFrame(
       const uint64_t picture_id);
 
-  // Implements VCMReceiveCallback.
-  virtual void IncomingCodecChanged(const VideoCodec& codec);
+  // Implements VCM.
+  virtual int32_t StoreReceivedFrame(
+      const EncodedVideoData& frame_to_store);
 
   // Implements VideoReceiveStatisticsCallback.
-  virtual int32_t OnReceiveStatisticsUpdate(const uint32_t bit_rate,
+  virtual int32_t ReceiveStatistics(const uint32_t bit_rate,
                                     const uint32_t frame_rate);
 
   // Implements VideoFrameTypeCallback.
@@ -307,6 +326,9 @@ class ViEChannel
   virtual int FrameCallbackChanged() {return -1;}
 
   int32_t RegisterEffectFilter(ViEEffectFilter* effect_filter);
+
+  ViEFileRecorder& GetIncomingFileRecorder();
+  void ReleaseIncomingFileRecorder();
 
  protected:
   static bool ChannelDecodeThreadFunction(void* obj);
@@ -355,11 +377,13 @@ class ViEChannel
   bool do_key_frame_callbackRequest_;
   ViERTPObserver* rtp_observer_;
   ViERTCPObserver* rtcp_observer_;
+  ViENetworkObserver* networkObserver_;
   RtcpIntraFrameObserver* intra_frame_observer_;
   RtcpRttObserver* rtt_observer_;
   PacedSender* paced_sender_;
 
   scoped_ptr<RtcpBandwidthObserver> bandwidth_observer_;
+  bool rtp_packet_timeout_;
   int send_timestamp_extension_id_;
   int absolute_send_time_extension_id_;
   bool receive_absolute_send_time_enabled_;
@@ -368,8 +392,6 @@ class ViEChannel
   Transport* external_transport_;
 
   bool decoder_reset_;
-  // Current receive codec used for codec change callback.
-  VideoCodec receive_codec_;
   bool wait_for_key_frame_;
   ThreadWrapper* decode_thread_;
 
@@ -377,6 +399,8 @@ class ViEChannel
 
   ViEEffectFilter* effect_filter_;
   bool color_enhancement_;
+
+  ViEFileRecorder file_recorder_;
 
   // User set MTU, -1 if not set.
   uint16_t mtu_;

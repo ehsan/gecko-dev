@@ -10,11 +10,10 @@
 #ifndef VOICE_ENGINE_MAIN_TEST_AUTO_TEST_FAKE_MEDIA_PROCESS_H_
 #define VOICE_ENGINE_MAIN_TEST_AUTO_TEST_FAKE_MEDIA_PROCESS_H_
 
-#include <math.h>
+#include <cmath>
 
 class FakeMediaProcess : public webrtc::VoEMediaProcess {
  public:
-  FakeMediaProcess() : frequency(0) {}
   virtual void Process(int channel,
                        const webrtc::ProcessingTypes type,
                        int16_t audio_10ms[],

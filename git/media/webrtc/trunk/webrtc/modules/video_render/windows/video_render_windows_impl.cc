@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/engine_configurations.h"
-#include "webrtc/modules/video_render/windows/video_render_windows_impl.h"
+#include "engine_configurations.h"
+#include "video_render_windows_impl.h"
 
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "critical_section_wrapper.h"
+#include "trace.h"
 #ifdef DIRECT3D9_RENDERING
-#include "webrtc/modules/video_render/windows/video_render_direct3d9.h"
+#include "video_render_direct3d9.h"
 #endif
 
 #include <tchar.h>
@@ -342,4 +342,5 @@ int32_t VideoRenderWindowsImpl::SetBitmap(const void* bitMap,
     return error;
 }
 
-}  // namespace webrtc
+} //namespace webrtc
+

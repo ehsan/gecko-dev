@@ -16,7 +16,8 @@
 
 namespace webrtc {
 namespace test {
-class VideoRenderer : public webrtc::VideoRenderer {
+
+class VideoRenderer : public newapi::VideoRenderer {
  public:
   // Creates a platform-specific renderer if possible, or a null implementation
   // if failing.
@@ -33,7 +34,7 @@ class VideoRenderer : public webrtc::VideoRenderer {
  protected:
   VideoRenderer() {}
 };
-}  // namespace test
-}  // namespace webrtc
+}  // test
+}  // webrtc
 
 #endif  // WEBRTC_VIDEO_ENGINE_TEST_COMMON_VIDEO_RENDERER_H_

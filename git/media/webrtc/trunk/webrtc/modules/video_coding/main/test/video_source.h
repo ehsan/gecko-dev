@@ -11,8 +11,8 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_TEST_VIDEO_SOURCE_H_
 #define WEBRTC_MODULES_VIDEO_CODING_TEST_VIDEO_SOURCE_H_
 
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/typedefs.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "typedefs.h"
 
 #include <string>
 
@@ -80,3 +80,4 @@ private:
 };
 
 #endif // WEBRTC_MODULES_VIDEO_CODING_TEST_VIDEO_SOURCE_H_
+

@@ -97,8 +97,7 @@ BluetoothA2dpManager::ResetAvrcp()
 static BluetoothA2dpManager::SinkState
 StatusStringToSinkState(const nsAString& aStatus)
 {
-  BluetoothA2dpManager::SinkState state =
-    BluetoothA2dpManager::SinkState::SINK_UNKNOWN;
+  BluetoothA2dpManager::SinkState state;
   if (aStatus.EqualsLiteral("disconnected")) {
     state = BluetoothA2dpManager::SinkState::SINK_DISCONNECTED;
   } else if (aStatus.EqualsLiteral("connecting")) {
@@ -107,8 +106,10 @@ StatusStringToSinkState(const nsAString& aStatus)
     state = BluetoothA2dpManager::SinkState::SINK_CONNECTED;
   } else if (aStatus.EqualsLiteral("playing")) {
     state = BluetoothA2dpManager::SinkState::SINK_PLAYING;
+  } else if (aStatus.EqualsLiteral("disconnecting")) {
+    state = BluetoothA2dpManager::SinkState::SINK_DISCONNECTING;
   } else {
-    BT_WARNING("Unknown sink state");
+    MOZ_ASSERT(false, "Unknown sink state");
   }
   return state;
 }
@@ -227,7 +228,9 @@ BluetoothA2dpManager::OnDisconnect(const nsAString& aErrorStr)
 
 /* HandleSinkPropertyChanged update sink state in A2dp
  *
- * Possible values: "disconnected", "connecting", "connected", "playing"
+ * Possible values: "disconnected", "disconnecting",
+ *                  "connecting", "connected",
+ *                  "playing"
  *
  * 1. "disconnected" -> "connecting"
  *    Either an incoming or outgoing connection attempt ongoing
@@ -241,7 +244,9 @@ BluetoothA2dpManager::OnDisconnect(const nsAString& aErrorStr)
  *    Audio stream suspended
  * 6. "connected" -> "disconnected"
  *    "playing" -> "disconnected"
- *    Disconnected from local or the remote device
+ *    Disconnected from the remote device
+ * 7. "disconnecting" -> "disconnected"
+ *    Disconnected from local
  */
 void
 BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
@@ -268,12 +273,10 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
 
   const BluetoothValue& value = arr[0].value();
   MOZ_ASSERT(value.type() == BluetoothValue::TnsString);
-  SinkState newState = StatusStringToSinkState(value.get_nsString());
-  NS_ENSURE_TRUE_VOID((newState != SinkState::SINK_UNKNOWN) &&
-                      (newState != mSinkState));
-
   SinkState prevState = mSinkState;
-  mSinkState = newState;
+  mSinkState = StatusStringToSinkState(value.get_nsString());
+
+  NS_ENSURE_TRUE_VOID(mSinkState != prevState);
 
   switch(mSinkState) {
     case SinkState::SINK_CONNECTING:
@@ -300,20 +303,27 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
       OnConnect(EmptyString());
       break;
     case SinkState::SINK_DISCONNECTED:
+      // XXX
       // case 2: Connection attempt failed
-      if (prevState == SinkState::SINK_CONNECTING) {
+      if (prevState == SinkState::SINK_CONNECTING) {  
         OnConnect(NS_LITERAL_STRING("A2dpConnectionError"));
         break;
       }
-
+      
       // case 6: Disconnected from the remote device
+      // case 7: Disconnected from local
       MOZ_ASSERT(prevState == SinkState::SINK_CONNECTED ||
-                 prevState == SinkState::SINK_PLAYING) ;
-
+                 prevState == SinkState::SINK_PLAYING ||
+                 prevState == SinkState::SINK_DISCONNECTING);
+  
       mA2dpConnected = false;
       NotifyConnectionStatusChanged();
       mDeviceAddress.Truncate();
-      OnDisconnect(EmptyString());
+
+      // case 7 only
+      if (prevState == SinkState::SINK_DISCONNECTING) {
+        OnDisconnect(EmptyString());
+      }
       break;
     default:
       break;

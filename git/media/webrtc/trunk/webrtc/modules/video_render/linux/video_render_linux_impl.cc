@@ -8,11 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_render/linux/video_render_linux_impl.h"
+#include "video_render_linux_impl.h"
 
-#include "webrtc/modules/video_render/linux/video_x11_render.h"
-#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "critical_section_wrapper.h"
+#include "trace.h"
+#include "video_x11_render.h"
 
 #include <X11/Xlib.h>
 
@@ -266,4 +266,5 @@ int32_t VideoRenderLinuxImpl::SetBitmap(const void* bitMap,
     return -1;
 }
 
-}  // namespace webrtc
+} //namespace webrtc
+

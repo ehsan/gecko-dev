@@ -18,66 +18,57 @@ typedef struct WebRtcG722DecInst G722DecInst;
 
 namespace webrtc {
 
-namespace acm1 {
-
 // forward declaration
 struct ACMG722EncStr;
 struct ACMG722DecStr;
 
-class ACMG722 : public ACMGenericCodec {
+class ACMG722: public ACMGenericCodec {
  public:
   explicit ACMG722(int16_t codec_id);
-  virtual ~ACMG722();
+  ~ACMG722();
 
   // for FEC
-  virtual ACMGenericCodec* CreateInstance(void) OVERRIDE;
+  ACMGenericCodec* CreateInstance(void);
 
-  virtual int16_t InternalEncode(uint8_t* bitstream,
-                                 int16_t* bitstream_len_byte) OVERRIDE;
+  int16_t InternalEncode(uint8_t* bitstream, int16_t* bitstream_len_byte);
 
-  virtual int16_t InternalInitEncoder(
-      WebRtcACMCodecParams* codec_params) OVERRIDE;
+  int16_t InternalInitEncoder(WebRtcACMCodecParams *codec_params);
 
-  virtual int16_t InternalInitDecoder(
-      WebRtcACMCodecParams* codec_params) OVERRIDE;
+  int16_t InternalInitDecoder(WebRtcACMCodecParams *codec_params);
 
  protected:
-  virtual int16_t DecodeSafe(uint8_t* bitstream,
-                             int16_t bitstream_len_byte,
-                             int16_t* audio,
-                             int16_t* audio_samples,
-                             int8_t* speech_type) OVERRIDE;
+  int16_t DecodeSafe(uint8_t* bitstream,
+                     int16_t bitstream_len_byte,
+                     int16_t* audio, int16_t* audio_samples,
+                     int8_t* speech_type);
 
-  virtual int32_t CodecDef(WebRtcNetEQ_CodecDef& codec_def,
-                           const CodecInst& codec_inst) OVERRIDE;
+  int32_t CodecDef(WebRtcNetEQ_CodecDef& codec_def,
+                   const CodecInst& codec_inst);
 
-  virtual int32_t Add10MsDataSafe(const uint32_t timestamp,
-                                  const int16_t* data,
-                                  const uint16_t length_smpl,
-                                  const uint8_t audio_channel) OVERRIDE;
+  int32_t Add10MsDataSafe(const uint32_t timestamp,
+                          const int16_t* data,
+                          const uint16_t length_smpl,
+                          const uint8_t audio_channel);
 
-  virtual void DestructEncoderSafe() OVERRIDE;
+  void DestructEncoderSafe();
 
-  virtual void DestructDecoderSafe() OVERRIDE;
+  void DestructDecoderSafe();
 
-  virtual int16_t InternalCreateEncoder() OVERRIDE;
+  int16_t InternalCreateEncoder();
 
-  virtual int16_t InternalCreateDecoder() OVERRIDE;
+  int16_t InternalCreateDecoder();
 
-  virtual void InternalDestructEncoderInst(void* ptr_inst) OVERRIDE;
+  void InternalDestructEncoderInst(void* ptr_inst);
 
-  virtual void SplitStereoPacket(uint8_t* payload,
-                                 int32_t* payload_length) OVERRIDE;
+  void SplitStereoPacket(uint8_t* payload, int32_t* payload_length);
 
   ACMG722EncStr* ptr_enc_str_;
   ACMG722DecStr* ptr_dec_str_;
 
   G722EncInst* encoder_inst_ptr_;
-  G722EncInst* encoder_inst_ptr_right_;  // Prepared for stereo
+  G722EncInst* encoder_inst_ptr_right_; // Prepared for stereo
   G722DecInst* decoder_inst_ptr_;
 };
-
-}  // namespace acm1
 
 }  // namespace webrtc
 

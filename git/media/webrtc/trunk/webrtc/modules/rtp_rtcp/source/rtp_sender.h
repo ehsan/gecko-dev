@@ -11,9 +11,8 @@
 #ifndef WEBRTC_MODULES_RTP_RTCP_SOURCE_RTP_SENDER_H_
 #define WEBRTC_MODULES_RTP_RTCP_SOURCE_RTP_SENDER_H_
 
-#include <assert.h>
-#include <math.h>
-
+#include <cassert>
+#include <cmath>
 #include <map>
 
 #include "webrtc/common_types.h"
@@ -72,7 +71,7 @@ class RTPSender : public Bitrate, public RTPSenderInterface {
 
   void ProcessBitrate();
 
-  virtual uint16_t ActualSendBitrateKbit() const OVERRIDE;
+  uint16_t ActualSendBitrateKbit() const;
 
   uint32_t VideoBitrateSent() const;
   uint32_t FecOverheadRate() const;
@@ -80,8 +79,7 @@ class RTPSender : public Bitrate, public RTPSenderInterface {
 
   void SetTargetSendBitrate(const uint32_t bits);
 
-  virtual uint16_t MaxDataPayloadLength() const
-      OVERRIDE;  // with RTP and FEC headers.
+  uint16_t MaxDataPayloadLength() const;  // with RTP and FEC headers.
 
   int32_t RegisterPayload(
       const char payload_name[RTP_PAYLOAD_NAME_SIZE],
@@ -94,7 +92,7 @@ class RTPSender : public Bitrate, public RTPSenderInterface {
 
   int SendPayloadFrequency() const;
 
-  void SetSendingStatus(bool enabled);
+  void SetSendingStatus(const bool enabled);
 
   void SetSendingMediaStatus(const bool enabled);
   bool SendingMedia() const;
@@ -113,7 +111,7 @@ class RTPSender : public Bitrate, public RTPSenderInterface {
   uint32_t GenerateNewSSRC();
   void SetSSRC(const uint32_t ssrc);
 
-  virtual uint16_t SequenceNumber() const OVERRIDE;
+  uint16_t SequenceNumber() const;
   void SetSequenceNumber(uint16_t seq);
 
   int32_t CSRCs(uint32_t arr_of_csrc[kRtpCsrcSize]) const;
@@ -137,7 +135,7 @@ class RTPSender : public Bitrate, public RTPSenderInterface {
   int BuildPaddingPacket(uint8_t* packet, int header_length, int32_t bytes);
   int SendPadData(int payload_type, uint32_t timestamp, int64_t capture_time_ms,
                   int32_t bytes, StorageType store,
-                  bool force_full_size_packets, bool only_pad_after_markerbit);
+                  bool force_full_size_packets);
   // RTP header extension
   int32_t SetTransmissionTimeOffset(
       const int32_t transmission_time_offset);
@@ -198,21 +196,21 @@ class RTPSender : public Bitrate, public RTPSenderInterface {
       const bool marker_bit, const uint32_t capture_time_stamp,
       int64_t capture_time_ms,
       const bool time_stamp_provided = true,
-      const bool inc_sequence_number = true) OVERRIDE;
+      const bool inc_sequence_number = true);
 
-  virtual uint16_t RTPHeaderLength() const OVERRIDE;
-  virtual uint16_t IncrementSequenceNumber() OVERRIDE;
-  virtual uint16_t MaxPayloadLength() const OVERRIDE;
-  virtual uint16_t PacketOverHead() const OVERRIDE;
+  virtual uint16_t RTPHeaderLength() const;
+  virtual uint16_t IncrementSequenceNumber();
+  virtual uint16_t MaxPayloadLength() const;
+  virtual uint16_t PacketOverHead() const;
 
   // Current timestamp.
-  virtual uint32_t Timestamp() const OVERRIDE;
-  virtual uint32_t SSRC() const OVERRIDE;
+  virtual uint32_t Timestamp() const;
+  virtual uint32_t SSRC() const;
 
   virtual int32_t SendToNetwork(
       uint8_t *data_buffer, int payload_length, int rtp_header_length,
       int64_t capture_time_ms, StorageType storage,
-      PacedSender::Priority priority) OVERRIDE;
+      PacedSender::Priority priority);
 
   // Audio.
 
@@ -314,7 +312,6 @@ class RTPSender : public Bitrate, public RTPSenderInterface {
   RTPPacketHistory *packet_history_;
 
   // Statistics
-  scoped_ptr<CriticalSectionWrapper> statistics_crit_;
   uint32_t packets_sent_;
   uint32_t payload_bytes_sent_;
 

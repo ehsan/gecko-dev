@@ -10,15 +10,14 @@
 
 #include "webrtc/video_engine/internal/video_receive_stream.h"
 
-#include <assert.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstdlib>
 
 #include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
 #include "webrtc/system_wrappers/interface/clock.h"
 #include "webrtc/video_engine/include/vie_base.h"
 #include "webrtc/video_engine/include/vie_capture.h"
 #include "webrtc/video_engine/include/vie_codec.h"
-#include "webrtc/video_engine/include/vie_external_codec.h"
 #include "webrtc/video_engine/include/vie_network.h"
 #include "webrtc/video_engine/include/vie_render.h"
 #include "webrtc/video_engine/include/vie_rtp_rtcp.h"
@@ -27,10 +26,11 @@
 namespace webrtc {
 namespace internal {
 
-VideoReceiveStream::VideoReceiveStream(webrtc::VideoEngine* video_engine,
-                                       const VideoReceiveStream::Config& config,
-                                       newapi::Transport* transport)
-    : transport_adapter_(transport), config_(config), channel_(-1) {
+VideoReceiveStream::VideoReceiveStream(
+    webrtc::VideoEngine* video_engine,
+    const newapi::VideoReceiveStream::Config& config,
+    newapi::Transport* transport)
+    : transport_(transport), config_(config) {
   video_engine_base_ = ViEBase::GetInterface(video_engine);
   // TODO(mflodman): Use the other CreateChannel method.
   video_engine_base_->CreateChannel(channel_);
@@ -39,16 +39,12 @@ VideoReceiveStream::VideoReceiveStream(webrtc::VideoEngine* video_engine,
   rtp_rtcp_ = ViERTP_RTCP::GetInterface(video_engine);
   assert(rtp_rtcp_ != NULL);
 
-  // TODO(pbos): This is not fine grained enough...
-  rtp_rtcp_->SetNACKStatus(channel_, config_.rtp.nack.rtp_history_ms > 0);
-  rtp_rtcp_->SetKeyFrameRequestMethod(channel_, kViEKeyFrameRequestPliRtcp);
-
   assert(config_.rtp.ssrc != 0);
 
   network_ = ViENetwork::GetInterface(video_engine);
   assert(network_ != NULL);
 
-  network_->RegisterSendTransport(channel_, transport_adapter_);
+  network_->RegisterSendTransport(channel_, *this);
 
   codec_ = ViECodec::GetInterface(video_engine);
 
@@ -56,21 +52,6 @@ VideoReceiveStream::VideoReceiveStream(webrtc::VideoEngine* video_engine,
     if (codec_->SetReceiveCodec(channel_, config_.codecs[i]) != 0) {
       // TODO(pbos): Abort gracefully, this can be a runtime error.
       //             Factor out to an Init() method.
-      abort();
-    }
-  }
-
-  external_codec_ = ViEExternalCodec::GetInterface(video_engine);
-  for (size_t i = 0; i < config_.external_decoders.size(); ++i) {
-    ExternalVideoDecoder* decoder = &config_.external_decoders[i];
-    if (external_codec_->RegisterExternalReceiveCodec(
-            channel_,
-            decoder->payload_type,
-            decoder->decoder,
-            decoder->renderer,
-            decoder->expected_delay_ms) !=
-        0) {
-      // TODO(pbos): Abort gracefully? Can this be a runtime error?
       abort();
     }
   }
@@ -86,15 +67,9 @@ VideoReceiveStream::VideoReceiveStream(webrtc::VideoEngine* video_engine,
 }
 
 VideoReceiveStream::~VideoReceiveStream() {
-  for (size_t i = 0; i < config_.external_decoders.size(); ++i) {
-    external_codec_->DeRegisterExternalReceiveCodec(
-        channel_, config_.external_decoders[i].payload_type);
-  }
-
   network_->DeregisterSendTransport(channel_);
 
   video_engine_base_->Release();
-  external_codec_->Release();
   codec_->Release();
   network_->Release();
   render_->Release();
@@ -123,44 +98,31 @@ void VideoReceiveStream::GetCurrentReceiveCodec(VideoCodec* receive_codec) {
   // TODO(pbos): Implement
 }
 
-bool VideoReceiveStream::DeliverRtcp(const uint8_t* packet, size_t length) {
+bool VideoReceiveStream::DeliverRtcp(const void* packet, size_t length) {
   return network_->ReceivedRTCPPacket(channel_, packet, length) == 0;
 }
 
-bool VideoReceiveStream::DeliverRtp(const uint8_t* packet, size_t length) {
+bool VideoReceiveStream::DeliverRtp(const void* packet, size_t length) {
   return network_->ReceivedRTPPacket(channel_, packet, length) == 0;
 }
 
-int VideoReceiveStream::FrameSizeChange(unsigned int width,
-                                        unsigned int height,
+int VideoReceiveStream::FrameSizeChange(unsigned int width, unsigned int height,
                                         unsigned int /*number_of_streams*/) {
   width_ = width;
   height_ = height;
   return 0;
 }
 
-int VideoReceiveStream::DeliverFrame(uint8_t* frame,
-                                     int buffer_size,
-                                     uint32_t timestamp,
-                                     int64_t render_time,
-                                     void* /*handle*/) {
+int VideoReceiveStream::DeliverFrame(uint8_t* frame, int buffer_size,
+                                     uint32_t time_stamp, int64_t render_time) {
   if (config_.renderer == NULL) {
     return 0;
   }
 
   I420VideoFrame video_frame;
   video_frame.CreateEmptyFrame(width_, height_, width_, height_, height_);
-  ConvertToI420(kI420,
-                frame,
-                0,
-                0,
-                width_,
-                height_,
-                buffer_size,
-                webrtc::kRotateNone,
-                &video_frame);
-  video_frame.set_timestamp(timestamp);
-  video_frame.set_render_time_ms(render_time);
+  ConvertToI420(kI420, frame, 0, 0, width_, height_, buffer_size,
+                webrtc::kRotateNone, &video_frame);
 
   if (config_.post_decode_callback != NULL) {
     config_.post_decode_callback->FrameCallback(&video_frame);
@@ -168,14 +130,23 @@ int VideoReceiveStream::DeliverFrame(uint8_t* frame,
 
   if (config_.renderer != NULL) {
     // TODO(pbos): Add timing to RenderFrame call
-    config_.renderer->RenderFrame(video_frame,
-                                  render_time - clock_->TimeInMilliseconds());
+    config_.renderer
+        ->RenderFrame(video_frame, render_time - clock_->TimeInMilliseconds());
   }
 
   return 0;
 }
 
-bool VideoReceiveStream::IsTextureSupported() { return false; }
+int VideoReceiveStream::SendPacket(int /*channel*/, const void* packet,
+                                   int length) {
+  assert(length >= 0);
+  return transport_->SendRTP(packet, static_cast<size_t>(length)) ? 0 : -1;
+}
 
+int VideoReceiveStream::SendRTCPPacket(int /*channel*/, const void* packet,
+                                       int length) {
+  assert(length >= 0);
+  return transport_->SendRTCP(packet, static_cast<size_t>(length)) ? 0 : -1;
+}
 }  // internal
 }  // webrtc

@@ -10,9 +10,8 @@
 
 #include "webrtc/common_video/plane.h"
 
-#include <string.h>  // memcpy
-
 #include <algorithm>  // swap
+#include <cstring>  // memcpy
 
 namespace webrtc {
 

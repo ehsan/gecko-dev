@@ -13,8 +13,8 @@
 
 #include "typedefs.h"
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
 class TimedTrace {
  public:

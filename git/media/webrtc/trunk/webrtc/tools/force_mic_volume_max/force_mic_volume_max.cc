@@ -10,7 +10,7 @@
 
 // This utility will portably force the volume of the default microphone to max.
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #include "webrtc/test/channel_transport/include/channel_transport.h"
