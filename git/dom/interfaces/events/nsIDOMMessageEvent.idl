@@ -38,6 +38,10 @@
 
 #include "nsIDOMEvent.idl"
 
+%{ C++
+#include "jspubtd.h"
+%}
+
 /**
  * The nsIDOMMessageEvent interface is used for server-sent events and for
  * cross-domain messaging.

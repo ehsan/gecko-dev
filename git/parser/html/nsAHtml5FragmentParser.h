@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,15 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla code.
+ * The Original Code is HTML Parser C++ Translator code.
  *
- * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *  David Humphrey <david.humphrey@senecac.on.ca>
- *  Yury Delendik
+ *   Henri Sivonen <hsivonen@iki.fi>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,26 +35,38 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMEvent.idl"
-#include "nsIVariant.idl"
+#ifndef nsAHtml5FragmentParser_h_
+#define nsAHtml5FragmentParser_h_
 
-%{ C++
-#include "jspubtd.h"
-%}
+#include "nsIParser.h"
 
-[scriptable, uuid(6250652d-7a6a-49a4-a2ee-9114e1e83427)]
-interface nsIDOMNotifyAudioAvailableEvent : nsIDOMEvent
-{
-  [implicit_jscontext]
-  readonly attribute jsval  frameBuffer;
+/**
+ * The purpose of this class is to avoid changing the signatures in nsIParser.h
+ * after the Firefox 4.0 interface freeze. In later releases this can be folded
+ * into nsIParser.h.
+ */
+class nsAHtml5FragmentParser : public nsIParser {
+  public:
 
-  readonly attribute float  time;
+    /**
+     * Invoke the fragment parsing algorithm (innerHTML).
+     *
+     * @param aSourceBuffer the string being set as innerHTML
+     * @param aTargetNode the target container
+     * @param aContextLocalName local name of context node
+     * @param aContextNamespace namespace of context node
+     * @param aQuirks true to make <table> not close <p>
+     * @param aPreventScriptExecution true to prevent scripts from executing;
+     * don't set to false when parsing into a target node that has been bound
+     * to tree.
+     */
+    NS_IMETHOD ParseHtml5Fragment(const nsAString& aSourceBuffer,
+                                  nsIContent* aTargetNode,
+                                  nsIAtom* aContextLocalName,
+                                  PRInt32 aContextNamespace,
+                                  PRBool aQuirks,
+                                  PRBool aPreventScriptExecution) = 0;
 
-  void initAudioAvailableEvent(in DOMString typeArg,
-                               in boolean canBubbleArg,
-                               in boolean cancelableArg,
-                               [array, size_is(frameBufferLength)] in float frameBufferPtr,
-                               in unsigned long frameBufferLength,
-                               in float time,
-                               in boolean allowAudioData);
 };
+
+#endif // nsAHtml5FragmentParser_h_
