@@ -273,7 +273,7 @@ DOMSVGTransformList::InsertItemBefore(nsIDOMSVGTransform *newItem,
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
-  domItem.forget(_retval);
+  *_retval = domItem.forget().get();
   return NS_OK;
 }
 

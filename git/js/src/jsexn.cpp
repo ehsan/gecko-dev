@@ -217,7 +217,6 @@ CopyErrorReport(JSContext *cx, JSErrorReport *report)
     /* Copy non-pointer members. */
     copy->lineno = report->lineno;
     copy->errorNumber = report->errorNumber;
-    copy->exnType = report->exnType;
 
     /* Note that this is before it gets flagged with JSREPORT_EXCEPTION */
     copy->flags = report->flags;
@@ -866,18 +865,19 @@ js_GetLocalizedErrorMessage(JSContext* cx, void *userRef, const char *locale,
 namespace js {
 
 JS_FRIEND_API(const jschar*)
-GetErrorTypeName(JSContext* cx, int16_t exnType)
+GetErrorTypeNameFromNumber(JSContext* cx, const unsigned errorNumber)
 {
+    const JSErrorFormatString *efs = js_GetErrorMessage(NULL, NULL, errorNumber);
     /*
      * JSEXN_INTERNALERR returns null to prevent that "InternalError: "
      * is prepended before "uncaught exception: "
      */
-    if (exnType <= JSEXN_NONE || exnType >= JSEXN_LIMIT ||
-        exnType == JSEXN_INTERNALERR)
+    if (!efs || efs->exnType <= JSEXN_NONE || efs->exnType >= JSEXN_LIMIT ||
+        efs->exnType == JSEXN_INTERNALERR)
     {
         return NULL;
     }
-    JSProtoKey key = GetExceptionProtoKey(exnType);
+    JSProtoKey key = GetExceptionProtoKey(efs->exnType);
     return cx->runtime->atomState.classAtoms[key]->chars();
 }
 
@@ -1109,7 +1109,6 @@ js_ReportUncaughtException(JSContext *cx)
         PodZero(&report);
         report.filename = filename.ptr();
         report.lineno = (unsigned) lineno;
-        report.exnType = int16_t(JSEXN_NONE);
         if (str) {
             if (JSFixedString *fixed = str->ensureFixed(cx))
                 report.ucmessage = fixed->chars();
