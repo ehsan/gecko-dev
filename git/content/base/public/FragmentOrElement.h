@@ -30,7 +30,7 @@ class nsDOMTokenList;
 class nsIControllers;
 class nsICSSDeclaration;
 class nsIDocument;
-class nsDOMStringMap;
+class nsIDOMDOMStringMap;
 class nsIDOMNamedNodeMap;
 class nsINodeInfo;
 class nsIURI;
@@ -348,7 +348,7 @@ public:
      * The .dataset attribute.
      * @see nsGenericHTMLElement::GetDataset
      */
-    nsDOMStringMap* mDataset; // [Weak]
+    nsIDOMDOMStringMap* mDataset; // [Weak]
 
     /**
      * SMIL Overridde style rules (for SMIL animation of CSS properties)

@@ -344,25 +344,18 @@ nsGenericHTMLElement::SetAttribute(const nsAString& aName,
                  aValue, true);
 }
 
-already_AddRefed<nsDOMStringMap>
-nsGenericHTMLElement::Dataset()
+nsresult
+nsGenericHTMLElement::GetDataset(nsIDOMDOMStringMap** aDataset)
 {
   nsDOMSlots *slots = DOMSlots();
 
   if (!slots->mDataset) {
     // mDataset is a weak reference so assignment will not AddRef.
-    // AddRef is called before returning the pointer.
+    // AddRef is called before assigning to out parameter.
     slots->mDataset = new nsDOMStringMap(this);
   }
 
-  NS_ADDREF(slots->mDataset);
-  return slots->mDataset;
-}
-
-nsresult
-nsGenericHTMLElement::GetDataset(nsIDOMDOMStringMap** aDataset)
-{
-  *aDataset = Dataset().get();
+  NS_ADDREF(*aDataset = slots->mDataset);
   return NS_OK;
 }
 

@@ -1554,26 +1554,58 @@ nsXULElement::IsNodeOfType(uint32_t aFlags) const
     return !(aFlags & ~eCONTENT);
 }
 
+static void
+PopupListenerPropertyDtor(void* aObject, nsIAtom* aPropertyName,
+                          void* aPropertyValue, void* aData)
+{
+  nsIDOMEventListener* listener =
+    static_cast<nsIDOMEventListener*>(aPropertyValue);
+  if (!listener) {
+    return;
+  }
+  nsEventListenerManager* manager = static_cast<nsINode*>(aObject)->
+    GetListenerManager(false);
+  if (manager) {
+    manager->RemoveEventListenerByType(listener,
+                                       NS_LITERAL_STRING("mousedown"),
+                                       NS_EVENT_FLAG_BUBBLE |
+                                       NS_EVENT_FLAG_SYSTEM_EVENT);
+    manager->RemoveEventListenerByType(listener,
+                                       NS_LITERAL_STRING("contextmenu"),
+                                       NS_EVENT_FLAG_BUBBLE |
+                                       NS_EVENT_FLAG_SYSTEM_EVENT);
+  }
+  NS_RELEASE(listener);
+}
+
 nsresult
 nsXULElement::AddPopupListener(nsIAtom* aName)
 {
     // Add a popup listener to the element
     bool isContext = (aName == nsGkAtoms::context ||
                         aName == nsGkAtoms::contextmenu);
-    uint32_t listenerFlag = isContext ?
-                            XUL_ELEMENT_HAS_CONTENTMENU_LISTENER :
-                            XUL_ELEMENT_HAS_POPUP_LISTENER;
+    nsIAtom* listenerAtom = isContext ?
+                            nsGkAtoms::contextmenulistener :
+                            nsGkAtoms::popuplistener;
 
-    if (HasFlag(listenerFlag)) {
+    nsCOMPtr<nsIDOMEventListener> popupListener =
+        static_cast<nsIDOMEventListener*>(GetProperty(listenerAtom));
+    if (popupListener) {
+        // Popup listener is already installed.
         return NS_OK;
     }
 
-    nsCOMPtr<nsIDOMEventListener> listener =
-      new nsXULPopupListener(this, isContext);
+    popupListener = new nsXULPopupListener(this, isContext);
 
     // Add the popup as a listener on this element.
     nsEventListenerManager* manager = GetListenerManager(true);
-    SetFlags(listenerFlag);
+    NS_ENSURE_TRUE(manager, NS_ERROR_FAILURE);
+    nsresult rv = SetProperty(listenerAtom, popupListener,
+                              PopupListenerPropertyDtor, true);
+    NS_ENSURE_SUCCESS(rv, rv);
+    // Want the property to have a reference to the listener.
+    nsIDOMEventListener* listener = nullptr;
+    popupListener.swap(listener);
 
     if (isContext) {
       manager->AddEventListenerByType(listener,

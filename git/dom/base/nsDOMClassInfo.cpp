@@ -8482,13 +8482,13 @@ NS_IMETHODIMP
 nsDOMStringMapSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
                             JSObject *globalObj, JSObject **parentObj)
 {
-  nsDOMStringMap* map = nsDOMStringMap::FromSupports(nativeObj);
-  nsINode* native_parent = map->GetParentObject();
-  if (!native_parent) {
-    return nsDOMClassInfo::PreCreate(nativeObj, cx, globalObj, parentObj);
-  }
+  *parentObj = globalObj;
 
-  return WrapNativeParent(cx, globalObj, native_parent, parentObj);
+  nsDOMStringMap* dataset = static_cast<nsDOMStringMap*>(nativeObj);
+
+  // Parent the string map to its element.
+  nsINode* element = dataset->GetElement();
+  return WrapNativeParent(cx, globalObj, element, element, parentObj);
 }
 
 NS_IMETHODIMP
