@@ -6192,7 +6192,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    private class WindowRunnable {
+    private class WindowRunnnable {
         private int mOriginalAttachCount;
 
         public void rememberWindowAttachCount() {
@@ -6204,7 +6204,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    private class PerformClick extends WindowRunnable implements Runnable {
+    private class PerformClick extends WindowRunnnable implements Runnable {
         int mClickMotionPosition;
 
         @Override
@@ -6279,7 +6279,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    private class CheckForLongPress extends WindowRunnable implements Runnable {
+    private class CheckForLongPress extends WindowRunnnable implements Runnable {
         @Override
         public void run() {
             final int motionPosition = mMotionPosition;
@@ -6304,7 +6304,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    private class CheckForKeyLongPress extends WindowRunnable implements Runnable {
+    private class CheckForKeyLongPress extends WindowRunnnable implements Runnable {
         @Override
         public void run() {
             if (!isPressed() || mSelectedPosition < 0) {

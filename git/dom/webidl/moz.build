@@ -509,7 +509,6 @@ WEBIDL_FILES = [
     'URLSearchParams.webidl',
     'URLUtils.webidl',
     'URLUtilsReadOnly.webidl',
-    'USSDSession.webidl',
     'ValidityState.webidl',
     'VideoPlaybackQuality.webidl',
     'VideoStreamTrack.webidl',

@@ -21,7 +21,7 @@ class CanvasDelegate {
 
     // DrawManager would do a default draw of the background.
     static interface DrawManager {
-        public void defaultDraw(Canvas canvas);
+        public void defaultDraw(Canvas cavas);
     }
 
     CanvasDelegate(DrawManager drawManager, Mode mode) {

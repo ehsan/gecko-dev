@@ -329,56 +329,16 @@ private:
   nsRefPtr<CleanupInitResultHandler> mRes;
 };
 
-class OnErrorProfileResultHandlerRunnable MOZ_FINAL : public nsRunnable
-{
-public:
-  OnErrorProfileResultHandlerRunnable(BluetoothProfileResultHandler* aRes,
-                                      nsresult aRv)
-  : mRes(aRes)
-  , mRv(aRv)
-  {
-    MOZ_ASSERT(mRes);
-  }
-
-  NS_IMETHOD Run() MOZ_OVERRIDE
-  {
-    mRes->OnError(mRv);
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<BluetoothProfileResultHandler> mRes;
-  nsresult mRv;
-};
-
 // static
 void
 BluetoothHfpManager::InitHfpInterface(BluetoothProfileResultHandler* aRes)
 {
   BluetoothInterface* btInf = BluetoothInterface::GetInstance();
-  if (NS_WARN_IF(!btInf)) {
-    // If there's no backend interface, we dispatch a runnable
-    // that calls the profile result handler.
-    nsRefPtr<nsRunnable> r =
-      new OnErrorProfileResultHandlerRunnable(aRes, NS_ERROR_FAILURE);
-    if (NS_FAILED(NS_DispatchToMainThread(r))) {
-      BT_LOGR("Failed to dispatch HFP OnError runnable");
-    }
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(btInf);
 
   BluetoothHandsfreeInterface *interface =
     btInf->GetBluetoothHandsfreeInterface();
-  if (NS_WARN_IF(!interface)) {
-    // If there's no HFP interface, we dispatch a runnable
-    // that calls the profile result handler.
-    nsRefPtr<nsRunnable> r =
-      new OnErrorProfileResultHandlerRunnable(aRes, NS_ERROR_FAILURE);
-    if (NS_FAILED(NS_DispatchToMainThread(r))) {
-      BT_LOGR("Failed to dispatch HFP OnError runnable");
-    }
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(interface);
 
   nsRefPtr<CleanupInitResultHandler> res =
     new CleanupInitResultHandler(interface, aRes);

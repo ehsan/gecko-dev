@@ -81,7 +81,7 @@ class TabsListLayout extends TwoWayView
             public void onMovedToScrapHeap(View view) {
                 TabsLayoutItemView item = (TabsLayoutItemView) view;
                 item.setThumbnail(null);
-                item.setCloseVisible(true);
+                item.setCloseVisibile(true);
             }
         });
     }
@@ -397,7 +397,7 @@ class TabsListLayout extends TwoWayView
             @Override
             public void onPropertyAnimationEnd() {
                 TabsLayoutItemView tab = (TabsLayoutItemView) view;
-                tab.setCloseVisible(true);
+                tab.setCloseVisibile(true);
             }
         });
 
@@ -582,7 +582,7 @@ class TabsListLayout extends TwoWayView
                         mSwiping = true;
                         TabsListLayout.this.requestDisallowInterceptTouchEvent(true);
 
-                        ((TabsLayoutItemView) mSwipeView).setCloseVisible(false);
+                        ((TabsLayoutItemView) mSwipeView).setCloseVisibile(false);
 
                         // Stops listview from highlighting the touched item
                         // in the list when swiping.

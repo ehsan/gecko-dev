@@ -334,7 +334,7 @@ public class BrowserSearch extends HomeFragment
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
 
-        // Initialize the search adapter
+        // Intialize the search adapter
         mAdapter = new SearchAdapter(getActivity());
         mList.setAdapter(mAdapter);
 
