@@ -125,7 +125,6 @@ nsHttpTransaction::nsHttpTransaction()
     , mResponseTimeoutEnabled(true)
     , mDontRouteViaWildCard(false)
     , mForceRestart(false)
-    , mReuseOnRestart(false)
     , mReportedStart(false)
     , mReportedResponseHeader(false)
     , mForTakeResponseHead(nullptr)
@@ -1119,16 +1118,10 @@ nsHttpTransaction::Restart()
     // clear old connection state...
     mSecurityInfo = 0;
     if (mConnection) {
-        if (!mReuseOnRestart) {
-            mConnection->DontReuse();
-        }
+        mConnection->DontReuse();
         MutexAutoLock lock(mLock);
         mConnection = nullptr;
     }
-
-    // Reset this to our default state, since this may change from one restart
-    // to the next
-    mReuseOnRestart = false;
 
     // disable pipelining for the next attempt in case pipelining caused the
     // reset.  this is being overly cautious since we don't know if pipelining
@@ -1797,17 +1790,6 @@ nsHttpTransaction::ReleaseBlockingTransaction()
 {
     RemoveDispatchedAsBlocking();
     mLoadGroupCI = nullptr;
-}
-
-void
-nsHttpTransaction::DisableSpdy()
-{
-    mCaps |= NS_HTTP_DISALLOW_SPDY;
-    if (mConnInfo) {
-        // This is our clone of the connection info, not the persistent one that
-        // is owned by the connection manager, so we're safe to change this here
-        mConnInfo->SetNoSpdy(true);
-    }
 }
 
 //-----------------------------------------------------------------------------

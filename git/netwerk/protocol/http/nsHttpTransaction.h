@@ -177,9 +177,6 @@ private:
 
     bool ResponseTimeoutEnabled() const MOZ_FINAL;
 
-    void DisableSpdy() MOZ_OVERRIDE;
-    void ReuseConnectionOnRestartOK(bool reuseOk) MOZ_OVERRIDE { mReuseOnRestart = reuseOk; }
-
 private:
     class UpdateSecurityCallbacks : public nsRunnable
     {
@@ -281,7 +278,6 @@ private:
     bool                            mResponseTimeoutEnabled;
     bool                            mDontRouteViaWildCard;
     bool                            mForceRestart;
-    bool                            mReuseOnRestart;
 
     // mClosed           := transaction has been explicitly closed
     // mTransactionDone  := transaction ran to completion or was interrupted

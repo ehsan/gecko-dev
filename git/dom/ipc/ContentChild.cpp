@@ -1130,10 +1130,10 @@ ContentChild::RecvSetProcessSandbox()
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 19
     // For B2G >= KitKat, sandboxing is mandatory; this has already
     // been enforced by ContentParent::StartUp().
-    MOZ_ASSERT(ContentProcessSandboxStatus() != kSandboxingWouldFail);
+    MOZ_ASSERT(CanSandboxContentProcess());
 #else
     // Otherwise, sandboxing is best-effort.
-    if (ContentProcessSandboxStatus() == kSandboxingWouldFail) {
+    if (!CanSandboxContentProcess()) {
         return true;
     }
 #endif

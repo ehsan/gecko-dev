@@ -2102,7 +2102,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
   if (anyMathMLStyling) {
     transformingFactory =
       new MathMLTextRunFactory(transformingFactory.forget(), mathFlags,
-                               sstyScriptLevel, fontInflation);
+                               sstyScriptLevel);
   }
   nsTArray<nsStyleContext*> styles;
   if (transformingFactory) {

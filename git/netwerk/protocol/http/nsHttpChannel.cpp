@@ -4958,7 +4958,7 @@ nsHttpChannel::SetupFallbackChannel(const char *aFallbackKey)
 {
     ENSURE_CALLED_BEFORE_CONNECT();
 
-    LOG(("nsHttpChannel::SetupFallbackChannel [this=%p, key=%s]\n",
+    LOG(("nsHttpChannel::SetupFallbackChannel [this=%p, key=%s]",
          this, aFallbackKey));
     mFallbackChannel = true;
     mFallbackKey = aFallbackKey;

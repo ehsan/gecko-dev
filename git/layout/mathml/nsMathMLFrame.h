@@ -147,14 +147,12 @@ public:
                                 nscoord*          aLengthValue,
                                 uint32_t          aFlags,
                                 nsPresContext*    aPresContext,
-                                nsStyleContext*   aStyleContext,
-                                float             aFontSizeInflation);
+                                nsStyleContext*   aStyleContext);
 
   static nscoord 
   CalcLength(nsPresContext*   aPresContext,
              nsStyleContext*   aStyleContext,
-             const nsCSSValue& aCSSValue,
-             float             aFontSizeInflation);
+             const nsCSSValue& aCSSValue);
 
   static eMathMLFrameType
   GetMathMLFrameTypeFor(nsIFrame* aFrame)
@@ -196,23 +194,19 @@ public:
   // helper methods for getting sup/subdrop's from a child
   static void 
   GetSubDropFromChild(nsIFrame*       aChild,
-                      nscoord&        aSubDrop,
-                      float           aFontSizeInflation) 
+                      nscoord&        aSubDrop) 
   {
     nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm),
-                                          aFontSizeInflation);
+    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm));
     GetSubDrop(fm, aSubDrop);
   }
 
   static void 
   GetSupDropFromChild(nsIFrame*       aChild,
-                      nscoord&        aSupDrop,
-                      float           aFontSizeInflation) 
+                      nscoord&        aSupDrop) 
   {
     nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm),
-                                          aFontSizeInflation);
+    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm));
     GetSupDrop(fm, aSupDrop);
   }
 

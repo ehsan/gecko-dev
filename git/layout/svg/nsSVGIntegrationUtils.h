@@ -16,6 +16,7 @@ class gfxDrawable;
 class nsDisplayList;
 class nsDisplayListBuilder;
 class nsIFrame;
+class nsRenderingContext;
 class nsIntRegion;
 
 struct nsRect;

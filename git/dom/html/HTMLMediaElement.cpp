@@ -2886,11 +2886,11 @@ void HTMLMediaElement::ProcessMediaFragmentURI()
 }
 
 void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
-                                      nsAutoPtr<const MetadataTags> aTags)
+                                      const MetadataTags* aTags)
 {
   mHasAudio = aInfo->HasAudio();
   mHasVideo = aInfo->HasVideo();
-  mTags = aTags.forget();
+  mTags = aTags;
   mLoadedDataFired = false;
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_METADATA);
   DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
@@ -2903,11 +2903,11 @@ void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
   // If this element had a video track, but consists only of an audio track now,
   // delete the VideoFrameContainer. This happens when the src is changed to an
   // audio only file.
-  // Else update its dimensions.
-  if (!aInfo->HasVideo()) {
-    ResetState();
-  } else {
-    UpdateMediaSize(aInfo->mVideo.mDisplay);
+  if (!aInfo->HasVideo() && mVideoFrameContainer) {
+    // call ForgetElement() such that callbacks from |mVideoFrameContainer|
+    // won't reach us anymore.
+    mVideoFrameContainer->ForgetElement();
+    mVideoFrameContainer = nullptr;
   }
 }
 

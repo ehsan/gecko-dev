@@ -88,8 +88,7 @@ nsMathMLmfracFrame::CalcLineThickness(nsPresContext*  aPresContext,
                                       nsStyleContext*  aStyleContext,
                                       nsString&        aThicknessAttribute,
                                       nscoord          onePixel,
-                                      nscoord          aDefaultRuleThickness,
-                                      float            aFontSizeInflation)
+                                      nscoord          aDefaultRuleThickness)
 {
   nscoord defaultThickness = aDefaultRuleThickness;
   nscoord lineThickness = aDefaultRuleThickness;
@@ -127,7 +126,7 @@ nsMathMLmfracFrame::CalcLineThickness(nsPresContext*  aPresContext,
       lineThickness = defaultThickness;
       ParseNumericValue(aThicknessAttribute, &lineThickness,
                         nsMathMLElement::PARSE_ALLOW_UNITLESS,
-                        aPresContext, aStyleContext, aFontSizeInflation);
+                        aPresContext, aStyleContext);
     }
   }
 
@@ -215,10 +214,8 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   nsPresContext* presContext = PresContext();
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
 
-  float fontSizeInflation = nsLayoutUtils::FontSizeInflationFor(this);
   nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
-                                        fontSizeInflation);
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
 
   nscoord defaultRuleThickness, axisHeight;
   nscoord oneDevPixel = fm->AppUnitsPerDevPixel();
@@ -243,8 +240,7 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   nsAutoString value;
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::linethickness_, value);
   mLineThickness = CalcLineThickness(presContext, mStyleContext, value,
-                                     onePixel, defaultRuleThickness,
-                                     fontSizeInflation);
+                                     onePixel, defaultRuleThickness);
 
   // bevelled attribute
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::bevelled_, value);

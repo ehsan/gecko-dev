@@ -385,24 +385,6 @@ const SNAPSHOT_SCHEMA = {
     experiments: {
       type: "array",
     },
-    sandbox: {
-      required: false,
-      type: "object",
-      properties: {
-	hasSeccompBPF: {
-	  required: true,
-	  type: "boolean"
-	},
-	canSandboxContent: {
-	  required: false,
-	  type: "boolean"
-	},
-	canSandboxMedia: {
-	  required: false,
-	  type: "boolean"
-	},
-      },
-    },
   },
 };
 
