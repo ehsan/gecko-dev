@@ -419,6 +419,7 @@ public:
   NPError ShowNativeContextMenu(NPMenu* menu, void* event);
   NPBool ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                       double *destX, double *destY, NPCoordinateSpace destSpace);
+  void SendIdleEvent();
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDummyJavaPluginOwner)
 
@@ -561,6 +562,11 @@ NS_IMETHODIMP
 nsDummyJavaPluginOwner::SetEventModel(PRInt32 eventModel)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+void
+nsDummyJavaPluginOwner::SendIdleEvent()
+{
 }
 
 /**
@@ -6225,6 +6231,22 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
   return NS_OK;
 }
 
+class CommandDispatcher : public nsRunnable
+{
+public:
+  CommandDispatcher(nsIDOMXULCommandDispatcher* aDispatcher,
+                    const nsAString& aAction)
+  : mDispatcher(aDispatcher), mAction(aAction) {}
+
+  NS_IMETHOD Run()
+  {
+    return mDispatcher->UpdateCommands(mAction);
+  }
+
+  nsCOMPtr<nsIDOMXULCommandDispatcher> mDispatcher;
+  nsString                             mAction;
+};
+
 NS_IMETHODIMP
 nsGlobalWindow::UpdateCommands(const nsAString& anAction)
 {
@@ -6239,7 +6261,10 @@ nsGlobalWindow::UpdateCommands(const nsAString& anAction)
     // Retrieve the command dispatcher and call updateCommands on it.
     nsCOMPtr<nsIDOMXULCommandDispatcher> xulCommandDispatcher;
     xulDoc->GetCommandDispatcher(getter_AddRefs(xulCommandDispatcher));
-    xulCommandDispatcher->UpdateCommands(anAction);
+    if (xulCommandDispatcher) {
+      nsContentUtils::AddScriptRunner(new CommandDispatcher(xulCommandDispatcher,
+                                                            anAction));
+    }
   }
 
   return NS_OK;

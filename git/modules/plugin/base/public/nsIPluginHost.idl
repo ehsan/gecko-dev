@@ -64,7 +64,7 @@ interface nsIPluginStreamListener;
 [ref] native nsIStreamListenerRef(nsIStreamListener *);
 [ptr] native nsPluginNativeWindowPtr(nsPluginNativeWindow);
 
-[scriptable, uuid(30C7C529-B05C-4950-B5B8-9AF673E46521)]
+[scriptable, uuid(33211305-4ABD-4E2E-BD73-A05A7DA0E82E)]
 interface nsIPluginHost : nsISupports
 {
   [noscript] void init();
@@ -214,11 +214,6 @@ interface nsIPluginHost : nsISupports
   [noscript] void UserAgent(in nativeChar resultingAgentString);
 
   /**
-   * To notify the plugin manager that the plugin created a script object 
-   */
-  [noscript] void setIsScriptableInstance(in nsIPluginInstance aInstance, in boolean aScriptable);
-
-  /**
    * This method parses post buffer to find out case insensitive "Content-length" string
    * and CR or LF some where after that, then it assumes there is http headers in
    * the input buffer and continue to search for end of headers (CRLFCRLF or LFLF).
@@ -285,6 +280,11 @@ interface nsIPluginHost : nsISupports
    * @return plugin tag object
    */
   [noscript] nsIPluginTag getPluginTagForInstance(in nsIPluginInstance aInstance);
+  
+%{C++
+  virtual void AddIdleTimeTarget(nsIPluginInstanceOwner* objectFrame, PRBool isVisible) = 0;
+  virtual void RemoveIdleTimeTarget(nsIPluginInstanceOwner* objectFrame) = 0;
+%}
 };
 
 %{C++

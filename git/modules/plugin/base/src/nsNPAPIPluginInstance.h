@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -48,9 +48,10 @@
 #include "nsPIDOMWindow.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsITimer.h"
+#include "mozilla/TimeStamp.h"
 
 #include "npfunctions.h"
-#include "prlink.h"
+#include "mozilla/PluginLibrary.h"
 
 class nsNPAPIPluginStreamListener;
 class nsPIDOMWindow;
@@ -75,6 +76,9 @@ public:
 
 class nsNPAPIPluginInstance : public nsIPluginInstance
 {
+private:
+  typedef mozilla::PluginLibrary PluginLibrary;
+
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCE
@@ -102,13 +106,16 @@ public:
                            PRBool aCallNotify,
                            const char * aURL);
 
-  nsNPAPIPluginInstance(NPPluginFuncs* callbacks, PRLibrary* aLibrary);
+  nsNPAPIPluginInstance(NPPluginFuncs* callbacks, PluginLibrary* aLibrary);
 
   // Use Release() to destroy this
   virtual ~nsNPAPIPluginInstance();
 
   // returns the state of mStarted
-  PRBool IsStarted();
+  PRBool IsRunning();
+
+  // return is only valid when the plugin is not running
+  mozilla::TimeStamp LastStopTime();
 
   // cache this NPAPI plugin
   nsresult SetCached(PRBool aCache);
@@ -152,14 +159,14 @@ protected:
   PRPackedBool mWindowless;
   PRPackedBool mWindowlessLocal;
   PRPackedBool mTransparent;
-  PRPackedBool mStarted;
+  PRPackedBool mRunning;
   PRPackedBool mCached;
   PRPackedBool mWantsAllNetworkStreams;
 
 public:
   // True while creating the plugin, or calling NPP_SetWindow() on it.
   PRPackedBool mInPluginInitCall;
-  PRLibrary* mLibrary;
+  PluginLibrary* mLibrary;
   nsInstanceStream *mStreams;
 
 private:
@@ -175,6 +182,10 @@ private:
 
   // non-null during a HandleEvent call
   void* mCurrentPluginEvent;
+
+  // Timestamp for the last time this plugin was stopped.
+  // This is only valid when the plugin is actually stopped!
+  mozilla::TimeStamp mStopTime;
 };
 
 #endif // nsNPAPIPluginInstance_h_

@@ -79,6 +79,7 @@ const EXT_STATE_MULTI_LINE = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
 const EXT_STATE_SINGLE_LINE = nsIAccessibleStates.EXT_STATE_SINGLE_LINE;
 const EXT_STATE_SUPPORTS_AUTOCOMPLETION = 
       nsIAccessibleStates.EXT_STATE_SUPPORTS_AUTOCOMPLETION;
+const EXT_STATE_VERTICAL = nsIAccessibleStates.EXT_STATE_VERTICAL;
 
 ////////////////////////////////////////////////////////////////////////////////
 // OS detect
@@ -114,9 +115,9 @@ function addA11yLoadEvent(aFunc)
         if (state.value & STATE_BUSY)
           return waitForDocLoad();
 
-        aFunc.call();
+        window.setTimeout(aFunc, 150);
       },
-      200
+      0
     );
   }
 
@@ -124,7 +125,7 @@ function addA11yLoadEvent(aFunc)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Get DOM node/accesible helpers
+// Helpers for getting DOM node/accessible
 
 /**
  * Return the DOM node by identifier (may be accessible, DOM node or ID).
