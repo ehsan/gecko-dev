@@ -2566,7 +2566,7 @@ js_Interpret(JSContext *cx)
     JSFunction *fun;
     JSType type;
 #if JS_THREADED_INTERP
-    register void * const *jumpTable;
+    register const void * const *jumpTable;
 #else
     register uint32 switchMask;
     uintN switchOp;
@@ -2589,14 +2589,14 @@ js_Interpret(JSContext *cx)
 #endif
 
 #if JS_THREADED_INTERP
-    static void *const normalJumpTable[] = {
+    static const void *const normalJumpTable[] = {
 # define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format) \
         JS_EXTENSION &&L_##op,
 # include "jsopcode.tbl"
 # undef OPDEF
     };
 
-    static void *const interruptJumpTable[] = {
+    static const void *const interruptJumpTable[] = {
 # define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)              \
         JS_EXTENSION &&L_JSOP_INTERRUPT,
 # include "jsopcode.tbl"

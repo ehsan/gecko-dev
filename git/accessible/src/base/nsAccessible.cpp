@@ -2045,9 +2045,6 @@ nsAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
 {
   NS_ENSURE_ARG_POINTER(aAttributes);  // In/out param. Created if necessary.
   
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
   nsCOMPtr<nsIContent> content = GetRoleContent(mDOMNode);
   if (!content) {
     return NS_ERROR_FAILURE;
