@@ -53,6 +53,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
   public:
     using MacroAssemblerX86Shared::call;
     using MacroAssemblerX86Shared::Push;
+    using MacroAssemblerX86Shared::Pop;
     using MacroAssemblerX86Shared::callWithExitFrame;
     using MacroAssemblerX86Shared::branch32;
 
@@ -188,6 +189,10 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void pushValue(const Address &addr) {
         push(Operand(addr));
+    }
+    void Pop(const ValueOperand &val) {
+        popValue(val);
+        framePushed_ -= sizeof(Value);
     }
 
     void moveValue(const Value &val, const Register &dest) {
@@ -444,6 +449,9 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void addPtr(Imm32 imm, const Address &dest) {
         addq(imm, Operand(dest));
+    }
+    void addPtr(Imm32 imm, const Operand &dest) {
+        addq(imm, dest);
     }
     void addPtr(ImmWord imm, const Register &dest) {
         JS_ASSERT(dest != ScratchReg);
