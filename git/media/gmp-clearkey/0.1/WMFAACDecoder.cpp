@@ -15,8 +15,6 @@
  */
 
 #include "WMFAACDecoder.h"
-#include <algorithm>
-#include <stdint.h>
 
 using std::vector;
 

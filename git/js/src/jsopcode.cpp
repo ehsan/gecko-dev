@@ -10,8 +10,6 @@
 
 #include "jsopcodeinlines.h"
 
-#include "mozilla/SizePrintfMacros.h"
-
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -291,10 +289,10 @@ js::DumpCompartmentPCCounts(JSContext *cx)
             if (!sprinter.init())
                 return;
 
-            fprintf(stdout, "--- SCRIPT %s:%" PRIuSIZE " ---\n", script->filename(), script->lineno());
+            fprintf(stdout, "--- SCRIPT %s:%d ---\n", script->filename(), (int) script->lineno());
             DumpPCCounts(cx, script, &sprinter);
             fputs(sprinter.string(), stdout);
-            fprintf(stdout, "--- END SCRIPT %s:%" PRIuSIZE " ---\n", script->filename(), script->lineno());
+            fprintf(stdout, "--- END SCRIPT %s:%d ---\n", script->filename(), (int) script->lineno());
         }
     }
 
@@ -733,7 +731,7 @@ DisassembleAtPC(JSContext *cx, JSScript *scriptArg, bool lines,
         return false;
 
     if (showAll)
-        Sprint(sp, "%s:%" PRIuSIZE "\n", script->filename(), script->lineno());
+        Sprint(sp, "%s:%u\n", script->filename(), script->lineno());
 
     if (pc != nullptr)
         sp->put("    ");

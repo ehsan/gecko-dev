@@ -1165,7 +1165,7 @@ RedirectIonBackedgesToInterruptCheck(JSRuntime *rt)
     }
 }
 
-static bool
+static void
 RedirectJitCodeToInterruptCheck(JSRuntime *rt, CONTEXT *context)
 {
     RedirectIonBackedgesToInterruptCheck(rt);
@@ -1183,11 +1183,8 @@ RedirectJitCodeToInterruptCheck(JSRuntime *rt, CONTEXT *context)
         if (module.containsFunctionPC(pc)) {
             activation->setResumePC(pc);
             *ppc = module.interruptExit();
-            return true;
         }
     }
-
-    return false;
 }
 
 #if !defined(XP_WIN)
@@ -1325,8 +1322,8 @@ js::InterruptRunningJitCode(JSRuntime *rt)
         CONTEXT context;
         context.ContextFlags = CONTEXT_CONTROL;
         if (GetThreadContext(thread, &context)) {
-            if (RedirectJitCodeToInterruptCheck(rt, &context))
-                SetThreadContext(thread, &context);
+            RedirectJitCodeToInterruptCheck(rt, &context);
+            SetThreadContext(thread, &context);
         }
         ResumeThread(thread);
     }

@@ -1280,7 +1280,7 @@ XPCConvert::NativeArray2JS(MutableHandleValue d, const void** s,
     PR_BEGIN_MACRO                                                                      \
         for (i = 0; i < count; i++) {                                                   \
             if (!NativeData2JS(&current, ((_t*)*s)+i, type, iid, pErr) ||               \
-                !JS_DefineElement(cx, array, i, current, JSPROP_ENUMERATE))             \
+                !JS_SetElement(cx, array, i, current))                                  \
                 goto failure;                                                           \
         }                                                                               \
     PR_END_MACRO

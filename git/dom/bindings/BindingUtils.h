@@ -1941,15 +1941,15 @@ struct FakeString {
     return reinterpret_cast<const nsString*>(this);
   }
 
-operator const nsAString& () const {
-    return *reinterpret_cast<const nsString*>(this);
-  }
-
-private:
   nsAString* ToAStringPtr() {
     return reinterpret_cast<nsString*>(this);
   }
 
+  operator const nsAString& () const {
+    return *reinterpret_cast<const nsString*>(this);
+  }
+
+private:
   nsString::char_type* mData;
   nsString::size_type mLength;
   uint32_t mFlags;
@@ -1964,8 +1964,6 @@ private:
     MOZ_ASSERT(mFlags == nsString::F_TERMINATED);
     mData = const_cast<nsString::char_type*>(aData);
   }
-
-  friend class NonNull<nsAString>;
 
   // A class to use for our static asserts to ensure our object layout
   // matches that of nsString.

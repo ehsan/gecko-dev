@@ -822,8 +822,7 @@ class Assembler : public AssemblerShared
     static void WriteInstStatic(uint32_t x, uint32_t *dest);
 
   public:
-    BufferOffset haltingAlign(int alignment);
-    BufferOffset nopAlign(int alignment);
+    BufferOffset align(int alignment);
     BufferOffset as_nop();
 
     // Branch and jump instructions

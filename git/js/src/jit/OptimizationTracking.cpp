@@ -6,8 +6,6 @@
 
 #include "jit/OptimizationTracking.h"
 
-#include "mozilla/SizePrintfMacros.h"
-
 #include "ds/Sort.h"
 #include "jit/IonBuilder.h"
 #include "jit/JitcodeMap.h"
@@ -844,7 +842,7 @@ SpewConstructor(TypeSet::Type ty, JSFunction *constructor)
         JS_snprintf(buf, mozilla::ArrayLength(buf), "??");
 
     const char *filename;
-    size_t lineno;
+    uint32_t lineno;
     if (constructor->hasScript()) {
         filename = constructor->nonLazyScript()->filename();
         lineno = constructor->nonLazyScript()->lineno();
@@ -853,7 +851,7 @@ SpewConstructor(TypeSet::Type ty, JSFunction *constructor)
         lineno = constructor->lazyScript()->lineno();
     }
 
-    JitSpew(JitSpew_OptimizationTracking, "   Unique type %s has constructor %s (%s:%" PRIuSIZE ")",
+    JitSpew(JitSpew_OptimizationTracking, "   Unique type %s has constructor %s (%s:%u)",
             TypeSet::TypeString(ty), buf, filename, lineno);
 #endif
 }

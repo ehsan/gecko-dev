@@ -1432,9 +1432,6 @@ ScanObjectGroup(GCMarker *gcmarker, ObjectGroup *group)
     if (group->newScript())
         group->newScript()->trace(gcmarker);
 
-    if (group->maybePreliminaryObjects())
-        group->maybePreliminaryObjects()->trace(gcmarker);
-
     if (group->maybeUnboxedLayout())
         group->unboxedLayout().trace(gcmarker);
 
@@ -1465,9 +1462,6 @@ gc::MarkChildren(JSTracer *trc, ObjectGroup *group)
 
     if (group->newScript())
         group->newScript()->trace(trc);
-
-    if (group->maybePreliminaryObjects())
-        group->maybePreliminaryObjects()->trace(trc);
 
     if (group->maybeUnboxedLayout())
         group->unboxedLayout().trace(trc);

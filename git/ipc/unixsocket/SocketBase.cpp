@@ -168,6 +168,11 @@ UnixSocketRawData::Send(int aFd)
 // SocketBase
 //
 
+SocketBase::~SocketBase()
+{
+  MOZ_ASSERT(mConnectionStatus == SOCKET_DISCONNECTED);
+}
+
 SocketConnectionStatus
 SocketBase::GetConnectionStatus() const
 {
@@ -241,11 +246,6 @@ SocketBase::SocketBase()
 , mConnectTimestamp(0)
 , mConnectDelayMs(0)
 { }
-
-SocketBase::~SocketBase()
-{
-  MOZ_ASSERT(mConnectionStatus == SOCKET_DISCONNECTED);
-}
 
 void
 SocketBase::SetConnectionStatus(SocketConnectionStatus aConnectionStatus)

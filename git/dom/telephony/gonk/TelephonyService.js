@@ -11,7 +11,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 
-/* global RIL */
 XPCOMUtils.defineLazyGetter(this, "RIL", function () {
   let obj = {};
   Cu.import("resource://gre/modules/ril_consts.js", obj);
@@ -59,43 +58,32 @@ function debug(s) {
   dump("TelephonyService: " + s + "\n");
 }
 
-/* global gRadioInterfaceLayer */
-XPCOMUtils.defineLazyGetter(this, "gRadioInterfaceLayer", function() {
-  let ril = { numRadioInterfaces: 0 };
-  try {
-    ril = Cc["@mozilla.org/ril;1"].getService(Ci.nsIRadioInterfaceLayer);
-  } catch(e) {}
-  return ril;
-});
+XPCOMUtils.defineLazyServiceGetter(this, "gRadioInterfaceLayer",
+                                   "@mozilla.org/ril;1",
+                                   "nsIRadioInterfaceLayer");
 
-/* global gPowerManagerService */
 XPCOMUtils.defineLazyServiceGetter(this, "gPowerManagerService",
                                    "@mozilla.org/power/powermanagerservice;1",
                                    "nsIPowerManagerService");
 
-/* global gTelephonyMessenger */
 XPCOMUtils.defineLazyServiceGetter(this, "gTelephonyMessenger",
                                    "@mozilla.org/ril/system-messenger-helper;1",
                                    "nsITelephonyMessenger");
 
-/* global gAudioService */
 XPCOMUtils.defineLazyServiceGetter(this, "gAudioService",
                                    "@mozilla.org/telephony/audio-service;1",
                                    "nsITelephonyAudioService");
 
-/* global gGonkMobileConnectionService */
 XPCOMUtils.defineLazyServiceGetter(this, "gGonkMobileConnectionService",
                                    "@mozilla.org/mobileconnection/mobileconnectionservice;1",
                                    "nsIGonkMobileConnectionService");
 
-/* global gPhoneNumberUtils */
 XPCOMUtils.defineLazyGetter(this, "gPhoneNumberUtils", function() {
   let ns = {};
   Cu.import("resource://gre/modules/PhoneNumberUtils.jsm", ns);
   return ns.PhoneNumberUtils;
 });
 
-/* global gDialNumberUtils */
 XPCOMUtils.defineLazyGetter(this, "gDialNumberUtils", function() {
   let ns = {};
   Cu.import("resource://gre/modules/DialNumberUtils.jsm", ns);
@@ -494,11 +482,6 @@ TelephonyService.prototype = {
     return null;
   },
 
-  /**
-   * Dial number. Perform call setup or SS procedure accordingly.
-   *
-   * @see 3GPP TS 22.030 Figure 3.5.3.2
-   */
   dial: function(aClientId, aNumber, aIsDialEmergency, aCallback) {
     if (DEBUG) debug("Dialing " + (aIsDialEmergency ? "emergency " : "") + aNumber);
 
@@ -518,21 +501,16 @@ TelephonyService.prototype = {
 
     let isEmergencyNumber = gDialNumberUtils.isEmergency(aNumber);
 
-    // DialEmergency accepts only emergency number.
-    if (aIsDialEmergency && !isEmergencyNumber) {
-      if (!this._isRadioOn(aClientId)) {
-        if (DEBUG) debug("Error: Radio is off. Drop.");
-        aCallback.notifyError(DIAL_ERROR_RADIO_NOT_AVAILABLE);
-        return;
-      }
-
-      if (DEBUG) debug("Error: Dial a non-emergency by dialEmergency. Drop.");
-      aCallback.notifyError(DIAL_ERROR_BAD_NUMBER);
+    // Should be radio on except it's an emergency number.
+    if (!(this._isRadioOn(aClientId) || isEmergencyNumber)) {
+      aCallback.notifyError(DIAL_ERROR_RADIO_NOT_AVAILABLE);
       return;
     }
 
-    if (isEmergencyNumber) {
-      this._dialCall(aClientId, aNumber, undefined, aCallback);
+    // DialEmergency accepts only emergency number.
+    if (aIsDialEmergency && !isEmergencyNumber) {
+      if (DEBUG) debug("Error: Dail a non-emergency by dialEmergency. Drop.");
+      aCallback.notifyError(DIAL_ERROR_BAD_NUMBER);
       return;
     }
 
@@ -542,28 +520,19 @@ TelephonyService.prototype = {
       return;
     }
 
+    if (this._hasCalls(aClientId)) {
+      this._dialInCallMMI(aClientId, aNumber, aCallback);
+      return;
+    }
+
     let mmi = gDialNumberUtils.parseMMI(aNumber);
-    if (mmi) {
-      if (this._isTemporaryCLIR(mmi)) {
-        this._dialCall(aClientId, mmi.dialNumber,
-                       this._procedureToCLIRMode(mmi.procedure), aCallback);
-      } else {
-        this._dialMMI(aClientId, mmi, aCallback);
-      }
+    if (!mmi) {
+      this._dialCall(aClientId, aNumber, undefined, aCallback);
+    } else if (this._isTemporaryCLIR(mmi)) {
+      this._dialCall(aClientId, mmi.dialNumber,
+                     this._procedureToCLIRMode(mmi.procedure), aCallback);
     } else {
-      if (aNumber[aNumber.length - 1] === "#") {  // # string
-        this._dialMMI(aClientId, {fullMMI: aNumber}, aCallback);
-      } else if (aNumber.length <= 2) {  // short string
-        if (this._hasCalls(aClientId)) {
-          this._dialInCallMMI(aClientId, aNumber, aCallback);
-        } else if (aNumber.length === 2 && aNumber[0] === "1") {
-          this._dialCall(aClientId, aNumber, undefined, aCallback);
-        } else {
-          this._dialMMI(aClientId, {fullMMI: aNumber}, aCallback);
-        }
-      } else {
-        this._dialCall(aClientId, aNumber, undefined, aCallback);
-      }
+      this._dialMMI(aClientId, mmi, aCallback);
     }
   },
 
@@ -621,19 +590,9 @@ TelephonyService.prototype = {
     }
 
     let isEmergency = gDialNumberUtils.isEmergency(aNumber);
-
-    if (!isEmergency) {
-      if (!this._isRadioOn(aClientId)) {
-        if (DEBUG) debug("Error: Dial a normal call when radio off. Drop");
-        aCallback.notifyError(DIAL_ERROR_RADIO_NOT_AVAILABLE);
-        return;
-      }
-
-      if (this._isEmergencyOnly()) {
-        if (DEBUG) debug("Error: Dial a normal call when emergencyCallsOnly. Drop");
-        aCallback.notifyError(DIAL_ERROR_BAD_NUMBER);
-        return;
-      }
+    if (!isEmergency && this._isEmergencyOnly()) {
+      if (DEBUG) debug("Error: Dail a normal call when emergencyCallsOnly. Drop");
+      aCallback.notifyError(DIAL_ERROR_BAD_NUMBER);
     }
 
     if (isEmergency) {

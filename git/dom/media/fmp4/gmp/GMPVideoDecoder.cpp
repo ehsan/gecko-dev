@@ -11,7 +11,7 @@
 namespace mozilla {
 
 #if defined(DEBUG)
-extern bool IsOnGMPThread();
+static bool IsOnGMPThread();
 #endif
 
 void

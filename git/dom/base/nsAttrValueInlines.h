@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,11 +8,18 @@
 #include <stdint.h>
 
 #include "nsAttrValue.h"
-#include "mozilla/Attributes.h"
 
 struct MiscContainer;
 
-struct MiscContainer MOZ_FINAL
+namespace mozilla {
+template<>
+struct HasDangerousPublicDestructor<MiscContainer>
+{
+  static const bool value = true;
+};
+}
+
+struct MiscContainer
 {
   typedef nsAttrValue::ValueType ValueType;
 
@@ -64,10 +70,6 @@ struct MiscContainer MOZ_FINAL
     mValue.mCached = 0;
   }
 
-protected:
-  // Only nsAttrValue should be able to delete us.
-  friend class nsAttrValue;
-
   ~MiscContainer()
   {
     if (IsRefCounted()) {
@@ -77,7 +79,6 @@ protected:
     MOZ_COUNT_DTOR(MiscContainer);
   }
 
-public:
   bool GetString(nsAString& aString) const;
 
   inline bool IsRefCounted() const

@@ -989,7 +989,7 @@ CodeGeneratorMIPS::visitOutOfLineTableSwitch(OutOfLineTableSwitch *ool)
 {
     MTableSwitch *mir = ool->mir();
 
-    masm.haltingAlign(sizeof(void*));
+    masm.align(sizeof(void*));
     masm.bind(ool->jumpLabel()->src());
     masm.addCodeLabel(*ool->jumpLabel());
 

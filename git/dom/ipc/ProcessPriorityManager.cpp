@@ -139,6 +139,13 @@ public:
                                         const nsACString& aData = EmptyCString());
 
   /**
+   * Does some process, other than the one handled by aParticularManager, have
+   * priority FOREGROUND_HIGH?
+   */
+  bool OtherProcessHasHighPriority(
+    ParticularProcessPriorityManager* aParticularManager);
+
+  /**
    * Does one of the child processes have priority FOREGROUND_HIGH?
    */
   bool ChildProcessHasHighPriority();
@@ -175,6 +182,7 @@ private:
 
   void ObserveContentParentCreated(nsISupports* aContentParent);
   void ObserveContentParentDestroyed(nsISupports* aSubject);
+  void ResetAllCPUPriorities();
 
   nsDataHashtable<nsUint64HashKey, nsRefPtr<ParticularProcessPriorityManager> >
     mParticularManagers;
@@ -259,11 +267,23 @@ public:
 
   ProcessPriority CurrentPriority();
   ProcessPriority ComputePriority();
+  ProcessCPUPriority ComputeCPUPriority(ProcessPriority aPriority);
 
   void ScheduleResetPriority(const char* aTimeoutPref);
   void ResetPriority();
   void ResetPriorityNow();
-  void SetPriorityNow(ProcessPriority aPriority, uint32_t aBackgroundLRU = 0);
+  void ResetCPUPriorityNow();
+
+  /**
+   * This overload is equivalent to SetPriorityNow(aPriority,
+   * ComputeCPUPriority()).
+   */
+  void SetPriorityNow(ProcessPriority aPriority,
+                      uint32_t aBackgroundLRU = 0);
+
+  void SetPriorityNow(ProcessPriority aPriority,
+                      ProcessCPUPriority aCPUPriority,
+                      uint32_t aBackgroundLRU = 0);
 
   void ShutDown();
 
@@ -279,6 +299,7 @@ private:
   ContentParent* mContentParent;
   uint64_t mChildID;
   ProcessPriority mPriority;
+  ProcessCPUPriority mCPUPriority;
   bool mHoldsCPUWakeLock;
   bool mHoldsHighPriorityWakeLock;
 
@@ -418,7 +439,8 @@ ProcessPriorityManagerImpl::Init()
   // The master process's priority never changes; set it here and then forget
   // about it.  We'll manage only subprocesses' priorities using the process
   // priority manager.
-  hal::SetProcessPriority(getpid(), PROCESS_PRIORITY_MASTER);
+  hal::SetProcessPriority(getpid(), PROCESS_PRIORITY_MASTER,
+                          PROCESS_CPU_PRIORITY_NORMAL);
 
   nsCOMPtr<nsIObserverService> os = services::GetObserverService();
   if (os) {
@@ -495,6 +517,18 @@ ProcessPriorityManagerImpl::ObserveContentParentCreated(
     GetParticularProcessPriorityManager(cp->AsContentParent());
 }
 
+static PLDHashOperator
+EnumerateParticularProcessPriorityManagers(
+  const uint64_t& aKey,
+  nsRefPtr<ParticularProcessPriorityManager> aValue,
+  void* aUserData)
+{
+  nsTArray<nsRefPtr<ParticularProcessPriorityManager> >* aArray =
+    static_cast<nsTArray<nsRefPtr<ParticularProcessPriorityManager> >*>(aUserData);
+  aArray->AppendElement(aValue);
+  return PL_DHASH_NEXT;
+}
+
 void
 ProcessPriorityManagerImpl::ObserveContentParentDestroyed(nsISupports* aSubject)
 {
@@ -514,8 +548,36 @@ ProcessPriorityManagerImpl::ObserveContentParentDestroyed(nsISupports* aSubject)
 
     if (mHighPriorityChildIDs.Contains(childID)) {
       mHighPriorityChildIDs.RemoveEntry(childID);
+
+      // We just lost a high-priority process; reset everyone's CPU priorities.
+      ResetAllCPUPriorities();
     }
   }
+}
+
+void
+ProcessPriorityManagerImpl::ResetAllCPUPriorities( void )
+{
+  nsTArray<nsRefPtr<ParticularProcessPriorityManager> > pppms;
+  mParticularManagers.EnumerateRead(
+    &EnumerateParticularProcessPriorityManagers,
+    &pppms);
+
+  for (uint32_t i = 0; i < pppms.Length(); i++) {
+    pppms[i]->ResetCPUPriorityNow();
+  }
+}
+
+bool
+ProcessPriorityManagerImpl::OtherProcessHasHighPriority(
+  ParticularProcessPriorityManager* aParticularManager)
+{
+  if (mHighPriority) {
+    return true;
+  } else if (mHighPriorityChildIDs.Contains(aParticularManager->ChildID())) {
+    return mHighPriorityChildIDs.Count() > 1;
+  }
+  return mHighPriorityChildIDs.Count() > 0;
 }
 
 bool
@@ -529,9 +591,8 @@ ProcessPriorityManagerImpl::NotifyProcessPriorityChanged(
   ParticularProcessPriorityManager* aParticularManager,
   ProcessPriority aOldPriority)
 {
-  /* We're interested only in changes to/from FOREGROUND_HIGH as we use we
-   * need to track high priority processes so that we can react to their
-   * presence. */
+  // This priority change can only affect other processes' priorities if we're
+  // changing to/from FOREGROUND_HIGH.
 
   if (aOldPriority < PROCESS_PRIORITY_FOREGROUND_HIGH &&
       aParticularManager->CurrentPriority() <
@@ -545,6 +606,17 @@ ProcessPriorityManagerImpl::NotifyProcessPriorityChanged(
     mHighPriorityChildIDs.PutEntry(aParticularManager->ChildID());
   } else {
     mHighPriorityChildIDs.RemoveEntry(aParticularManager->ChildID());
+  }
+
+  nsTArray<nsRefPtr<ParticularProcessPriorityManager> > pppms;
+  mParticularManagers.EnumerateRead(
+    &EnumerateParticularProcessPriorityManagers,
+    &pppms);
+
+  for (uint32_t i = 0; i < pppms.Length(); i++) {
+    if (pppms[i] != aParticularManager) {
+      pppms[i]->ResetCPUPriorityNow();
+    }
   }
 }
 
@@ -560,6 +632,10 @@ ProcessPriorityManagerImpl::Notify(const WakeLockInformation& aInfo)
     } else {
       mHighPriority = false;
     }
+
+    /* The main process got a high-priority wakelock change; reset everyone's
+     * CPU priorities. */
+    ResetAllCPUPriorities();
 
     LOG("Got wake lock changed event. "
         "Now mHighPriorityParent = %d\n", mHighPriority);
@@ -577,6 +653,7 @@ ParticularProcessPriorityManager::ParticularProcessPriorityManager(
   : mContentParent(aContentParent)
   , mChildID(aContentParent->ChildID())
   , mPriority(PROCESS_PRIORITY_UNKNOWN)
+  , mCPUPriority(PROCESS_CPU_PRIORITY_NORMAL)
   , mHoldsCPUWakeLock(false)
   , mHoldsHighPriorityWakeLock(false)
 {
@@ -938,8 +1015,39 @@ ParticularProcessPriorityManager::ComputePriority()
          PROCESS_PRIORITY_BACKGROUND;
 }
 
+ProcessCPUPriority
+ParticularProcessPriorityManager::ComputeCPUPriority(ProcessPriority aPriority)
+{
+  if (aPriority == PROCESS_PRIORITY_PREALLOC) {
+    return PROCESS_CPU_PRIORITY_LOW;
+  }
+
+  if (aPriority >= PROCESS_PRIORITY_FOREGROUND_HIGH) {
+    return PROCESS_CPU_PRIORITY_NORMAL;
+  }
+
+  return ProcessPriorityManagerImpl::GetSingleton()->
+    OtherProcessHasHighPriority(this) ?
+    PROCESS_CPU_PRIORITY_LOW :
+    PROCESS_CPU_PRIORITY_NORMAL;
+}
+
+void
+ParticularProcessPriorityManager::ResetCPUPriorityNow()
+{
+  SetPriorityNow(mPriority);
+}
+
 void
 ParticularProcessPriorityManager::SetPriorityNow(ProcessPriority aPriority,
+                                                 uint32_t aBackgroundLRU)
+{
+  SetPriorityNow(aPriority, ComputeCPUPriority(aPriority), aBackgroundLRU);
+}
+
+void
+ParticularProcessPriorityManager::SetPriorityNow(ProcessPriority aPriority,
+                                                 ProcessCPUPriority aCPUPriority,
                                                  uint32_t aBackgroundLRU)
 {
   if (aPriority == PROCESS_PRIORITY_UNKNOWN) {
@@ -950,10 +1058,11 @@ ParticularProcessPriorityManager::SetPriorityNow(ProcessPriority aPriority,
   if (aBackgroundLRU > 0 &&
       aPriority == PROCESS_PRIORITY_BACKGROUND &&
       mPriority == PROCESS_PRIORITY_BACKGROUND) {
-    hal::SetProcessPriority(Pid(), mPriority, aBackgroundLRU);
+    hal::SetProcessPriority(Pid(), mPriority, mCPUPriority, aBackgroundLRU);
 
     nsPrintfCString ProcessPriorityWithBackgroundLRU("%s:%d",
-      ProcessPriorityToString(mPriority), aBackgroundLRU);
+      ProcessPriorityToString(mPriority, mCPUPriority),
+      aBackgroundLRU);
 
     FireTestOnlyObserverNotification("process-priority-with-background-LRU-set",
       ProcessPriorityWithBackgroundLRU.get());
@@ -961,7 +1070,7 @@ ParticularProcessPriorityManager::SetPriorityNow(ProcessPriority aPriority,
 
   if (!mContentParent ||
       !ProcessPriorityManagerImpl::PrefsEnabled() ||
-      (mPriority == aPriority)) {
+      (mPriority == aPriority && mCPUPriority == aCPUPriority)) {
     return;
   }
 
@@ -986,18 +1095,16 @@ ParticularProcessPriorityManager::SetPriorityNow(ProcessPriority aPriority,
   }
 
   LOGP("Changing priority from %s to %s.",
-       ProcessPriorityToString(mPriority),
-       ProcessPriorityToString(aPriority));
+       ProcessPriorityToString(mPriority, mCPUPriority),
+       ProcessPriorityToString(aPriority, aCPUPriority));
 
   ProcessPriority oldPriority = mPriority;
 
   mPriority = aPriority;
-  hal::SetProcessPriority(Pid(), mPriority);
+  mCPUPriority = aCPUPriority;
+  hal::SetProcessPriority(Pid(), mPriority, mCPUPriority);
 
   if (oldPriority != mPriority) {
-    ProcessPriorityManagerImpl::GetSingleton()->
-      NotifyProcessPriorityChanged(this, oldPriority);
-
     unused << mContentParent->SendNotifyProcessPriorityChanged(mPriority);
   }
 
@@ -1006,7 +1113,12 @@ ParticularProcessPriorityManager::SetPriorityNow(ProcessPriority aPriority,
   }
 
   FireTestOnlyObserverNotification("process-priority-set",
-    ProcessPriorityToString(mPriority));
+    ProcessPriorityToString(mPriority, mCPUPriority));
+
+  if (oldPriority != mPriority) {
+    ProcessPriorityManagerImpl::GetSingleton()->
+      NotifyProcessPriorityChanged(this, oldPriority);
+  }
 }
 
 void

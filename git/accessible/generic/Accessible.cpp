@@ -860,20 +860,14 @@ Accessible::Attributes()
   if (!HasOwnContent() || !mContent->IsElement())
     return attributes.forget();
 
-  // 'xml-roles' attribute for landmark.
-  nsIAtom* landmark = LandmarkRole();
-  if (landmark) {
-    nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles, landmark);
-
-  } else {
-    // 'xml-roles' attribute coming from ARIA.
-    nsAutoString xmlRoles;
-    if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::role, xmlRoles))
-      nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles, xmlRoles);
+  // 'xml-roles' attribute coming from ARIA.
+  nsAutoString xmlRoles, unused;
+  if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::role, xmlRoles)) {
+    attributes->SetStringProperty(NS_LITERAL_CSTRING("xml-roles"),
+                                  xmlRoles, unused);
   }
 
   // Expose object attributes from ARIA attributes.
-  nsAutoString unused;
   aria::AttrIterator attribIter(mContent);
   nsAutoString name, value;
   while(attribIter.Next(name, value))
@@ -887,11 +881,6 @@ Accessible::Attributes()
   // If there is no aria-live attribute then expose default value of 'live'
   // object attribute used for ARIA role of this accessible.
   if (mRoleMapEntry) {
-    if (mRoleMapEntry->Is(nsGkAtoms::searchbox)) {
-      nsAccUtils::SetAccAttr(attributes, nsGkAtoms::textInputType,
-                             NS_LITERAL_STRING("search"));
-    }
-
     nsAutoString live;
     nsAccUtils::GetAccAttr(attributes, nsGkAtoms::live, live);
     if (live.IsEmpty()) {
@@ -1394,13 +1383,6 @@ Accessible::ARIATransformRole(role aRole)
   }
 
   return aRole;
-}
-
-nsIAtom*
-Accessible::LandmarkRole() const
-{
-  return mRoleMapEntry && mRoleMapEntry->IsOfType(eLandmark) ?
-    *(mRoleMapEntry->roleAtom) : nullptr;
 }
 
 role
