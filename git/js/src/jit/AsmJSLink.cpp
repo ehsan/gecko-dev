@@ -17,7 +17,9 @@
 #include "frontend/BytecodeCompiler.h"
 #include "jit/AsmJSModule.h"
 #include "jit/Ion.h"
-#include "jit/PerfSpewer.h"
+#ifdef JS_ION_PERF
+# include "jit/PerfSpewer.h"
+#endif
 
 #include "jsfuninlines.h"
 #include "jsobjinlines.h"
@@ -499,22 +501,30 @@ SendFunctionsToPerf(JSContext *cx, AsmJSModule &module)
     if (!PerfFuncEnabled())
         return true;
 
-    uintptr_t base = (uintptr_t) module.functionCode();
+    AsmJSPerfSpewer perfSpewer;
+
+    unsigned long base = (unsigned long) module.functionCode();
+
     const char *filename = module.sourceDesc().scriptSource()->filename();
 
     for (unsigned i = 0; i < module.numPerfFunctions(); i++) {
         const AsmJSModule::ProfiledFunction &func = module.perfProfiledFunction(i);
-        uintptr_t start = base + (unsigned long) func.startCodeOffset;
-        uintptr_t end   = base + (unsigned long) func.endCodeOffset;
+
+        unsigned long start = base + (unsigned long) func.startCodeOffset;
+        unsigned long end   = base + (unsigned long) func.endCodeOffset;
         JS_ASSERT(end >= start);
-        size_t size = end - start;
+
+        unsigned long size = (end - start);
 
         JSAutoByteString bytes;
-        const char *name = AtomToPrintableString(cx, func.name, &bytes);
-        if (!name)
+        const char *method_name = AtomToPrintableString(cx, func.name, &bytes);
+        if (!method_name)
             return false;
 
-        writePerfSpewerAsmJSFunctionMap(start, size, filename, func.lineno, func.columnIndex, name);
+        unsigned lineno = func.lineno;
+        unsigned columnIndex = func.columnIndex;
+
+        perfSpewer.writeFunctionMap(start, size, filename, lineno, columnIndex, method_name);
     }
 
     return true;
@@ -526,21 +536,21 @@ SendBlocksToPerf(JSContext *cx, AsmJSModule &module)
     if (!PerfBlockEnabled())
         return true;
 
+    AsmJSPerfSpewer spewer;
     unsigned long funcBaseAddress = (unsigned long) module.functionCode();
+
     const char *filename = module.sourceDesc().scriptSource()->filename();
 
     for (unsigned i = 0; i < module.numPerfBlocksFunctions(); i++) {
         const AsmJSModule::ProfiledBlocksFunction &func = module.perfProfiledBlocksFunction(i);
 
-        size_t size = func.endCodeOffset - func.startCodeOffset;
-
+        unsigned long size = (unsigned long)func.endCodeOffset - (unsigned long)func.startCodeOffset;
         JSAutoByteString bytes;
-        const char *name = AtomToPrintableString(cx, func.name, &bytes);
-        if (!name)
+        const char *method_name = AtomToPrintableString(cx, func.name, &bytes);
+        if (!method_name)
             return false;
 
-        writePerfSpewerAsmJSBlocksMap(funcBaseAddress, func.startCodeOffset,
-                                      func.endInlineCodeOffset, size, filename, name, func.blocks);
+        spewer.writeBlocksMap(funcBaseAddress, func.startCodeOffset, size, filename, method_name, func.blocks);
     }
 
     return true;
@@ -556,10 +566,6 @@ SendModuleToAttachedProfiler(JSContext *cx, AsmJSModule &module)
 #endif
 
 #if defined(JS_ION_PERF)
-    if (module.numExportedFunctions() > 0) {
-        size_t firstEntryCode = (size_t) module.entryTrampoline(module.exportedFunction(0));
-        writePerfSpewerAsmJSEntriesAndExits(firstEntryCode, (size_t) module.globalData() - firstEntryCode);
-    }
     if (!SendBlocksToPerf(cx, module))
         return false;
     if (!SendFunctionsToPerf(cx, module))

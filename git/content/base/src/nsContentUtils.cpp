@@ -4325,6 +4325,30 @@ nsContentUtils::DestroyAnonymousContent(nsCOMPtr<nsIContent>* aContent)
 
 /* static */
 void
+nsContentUtils::HoldJSObjects(void* aScriptObjectHolder,
+                              nsScriptObjectTracer* aTracer)
+{
+  cyclecollector::AddJSHolder(aScriptObjectHolder, aTracer);
+}
+
+/* static */
+void
+nsContentUtils::DropJSObjects(void* aScriptObjectHolder)
+{
+  cyclecollector::RemoveJSHolder(aScriptObjectHolder);
+}
+
+#ifdef DEBUG
+/* static */
+bool
+nsContentUtils::AreJSObjectsHeld(void* aScriptObjectHolder)
+{
+  return cyclecollector::IsJSHolder(aScriptObjectHolder);
+}
+#endif
+
+/* static */
+void
 nsContentUtils::NotifyInstalledMenuKeyboardListener(bool aInstalling)
 {
   nsIMEStateManager::OnInstalledMenuKeyboardListener(aInstalling);
@@ -5514,19 +5538,6 @@ nsContentUtils::GetUTFOrigin(nsIURI* aURI, nsString& aOrigin)
   }
   
   return NS_OK;
-}
-
-/* static */
-void
-nsContentUtils::GetUTFNonNullOrigin(nsIURI* aURI, nsString& aOrigin)
-{
-  aOrigin.Truncate();
-
-  nsString origin;
-  nsresult rv = GetUTFOrigin(aURI, origin);
-  if (NS_SUCCEEDED(rv) && !origin.EqualsLiteral("null")) {
-    aOrigin.Assign(origin);
-  }
 }
 
 /* static */

@@ -1734,11 +1734,15 @@ ContentPermissionPrompt.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionPrompt]),
 
   _getBrowserForRequest: function (aRequest) {
-    // "element" is only defined in e10s mode.
-    let browser = aRequest.element;
+    var browser;
+    try {
+      // "element" is only defined in e10s mode, otherwise it throws.
+      browser = aRequest.element;
+    } catch (e) {}
     if (!browser) {
-      // Find the requesting browser.
-      browser = aRequest.window.QueryInterface(Ci.nsIInterfaceRequestor)
+      var requestingWindow = aRequest.window.top;
+      // find the requesting browser or iframe
+      browser = requestingWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                                   .getInterface(Ci.nsIWebNavigation)
                                   .QueryInterface(Ci.nsIDocShell)
                                   .chromeEventHandler;

@@ -792,10 +792,9 @@ Connection::setClosedState()
 }
 
 bool
-Connection::isClosing(bool aResultOnClosed) {
+Connection::isAsyncClosing() {
   MutexAutoLock lockedScope(sharedAsyncExecutionMutex);
-  return mAsyncExecutionThreadShuttingDown &&
-    (aResultOnClosed || ConnectionReady());
+  return mAsyncExecutionThreadShuttingDown && ConnectionReady();
 }
 
 nsresult
@@ -843,7 +842,7 @@ Connection::internalClose()
               stmt));
 
 #ifdef DEBUG
-      char *msg = ::PR_smprintf("SQL statement '%s' (%x) should have been finalized before closing the connection",
+      char *msg = ::PR_smprintf("SQL statement '%s' (%x) should have been finalized",
                                 ::sqlite3_sql(stmt),
                                 stmt);
       NS_WARNING(msg);

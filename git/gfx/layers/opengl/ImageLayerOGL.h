@@ -6,7 +6,8 @@
 #ifndef GFX_IMAGELAYEROGL_H
 #define GFX_IMAGELAYEROGL_H
 
-#include "GLContextTypes.h"             // for GLContext, GLuint
+#include "GLContext.h"                  // for GLContext
+#include "GLContextTypes.h"             // for GLuint
 #include "ImageContainer.h"             // for ImageBackendData, etc
 #include "ImageLayers.h"                // for ImageLayer
 #include "LayerManagerOGL.h"            // for LayerOGL

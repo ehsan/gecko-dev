@@ -416,7 +416,7 @@ IDBIndex::~IDBIndex()
 
   if (mRooted) {
     mCachedKeyPath = JSVAL_VOID;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, IDBIndex);
   }
 
   if (mActorChild) {
@@ -806,7 +806,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBIndex)
   tmp->mCachedKeyPath = JSVAL_VOID;
 
   if (tmp->mRooted) {
-    mozilla::DropJSObjects(tmp);
+    NS_DROP_JS_OBJECTS(tmp, IDBIndex);
     tmp->mRooted = false;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -838,7 +838,7 @@ IDBIndex::GetKeyPath(JSContext* aCx, ErrorResult& aRv)
   ENSURE_SUCCESS(aRv, JSVAL_VOID);
 
   if (JSVAL_IS_GCTHING(mCachedKeyPath)) {
-    mozilla::HoldJSObjects(this);
+    NS_HOLD_JS_OBJECTS(this, IDBIndex);
     mRooted = true;
   }
 

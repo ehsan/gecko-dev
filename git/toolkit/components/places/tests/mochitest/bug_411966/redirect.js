@@ -4,11 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
 const Ci = Components.interfaces;
 const Cc = Components.classes;
-const Cu = Components.utils;
+const Cu = Components.utils
 
-var PlacesUtils = Cu.import("resource://gre/modules/PlacesUtils.jsm").PlacesUtils;
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
 // Get Services.
 var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
@@ -52,6 +54,7 @@ StreamListener.prototype = {
   },
 
   onDataAvailable: function (aRequest, aContext, aStream, aSourceOffset, aLength) {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     // We actually don't need received data
     var scriptableInputStream =
       Components.classes["@mozilla.org/scriptableinputstream;1"]
@@ -72,6 +75,7 @@ StreamListener.prototype = {
 
   // nsIChannelEventSink
   asyncOnChannelRedirect: function (aOldChannel, aNewChannel, aFlags, callback) {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     // If redirecting, store the new channel
     this.mChannel = aNewChannel;
     callback.onRedirectVerifyCallback(Components.results.NS_OK);
@@ -79,6 +83,7 @@ StreamListener.prototype = {
 
   // nsIInterfaceRequestor
   getInterface: function (aIID) {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     try {
       return this.QueryInterface(aIID);
     } catch (e) {
@@ -95,6 +100,7 @@ StreamListener.prototype = {
 
   // we are faking an XPCOM interface, so we need to implement QI
   QueryInterface : function(aIID) {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     if (aIID.equals(Components.interfaces.nsISupports) ||
         aIID.equals(Components.interfaces.nsIInterfaceRequestor) ||
         aIID.equals(Components.interfaces.nsIChannelEventSink) ||
@@ -109,6 +115,7 @@ StreamListener.prototype = {
 
 // Check Callback.
 function checkDB(data){
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   var referrer = this.mChannel.QueryInterface(Ci.nsIHttpChannel).referrer;
 
   addVisits(

@@ -13,7 +13,6 @@
 #include "WebGLUniformInfo.h"
 #include "WebGLShader.h"
 #include "WebGLProgram.h"
-#include "GLContext.h"
 
 using namespace mozilla;
 using namespace dom;
@@ -22,9 +21,9 @@ using namespace dom;
 static const int MAX_DRAW_CALLS_SINCE_FLUSH = 100;
 
 void
-WebGLContext::VertexAttrib1f(GLuint index, GLfloat x0)
+WebGLContext::VertexAttrib1f(WebGLuint index, WebGLfloat x0)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -42,9 +41,9 @@ WebGLContext::VertexAttrib1f(GLuint index, GLfloat x0)
 }
 
 void
-WebGLContext::VertexAttrib2f(GLuint index, GLfloat x0, GLfloat x1)
+WebGLContext::VertexAttrib2f(WebGLuint index, WebGLfloat x0, WebGLfloat x1)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -62,9 +61,9 @@ WebGLContext::VertexAttrib2f(GLuint index, GLfloat x0, GLfloat x1)
 }
 
 void
-WebGLContext::VertexAttrib3f(GLuint index, GLfloat x0, GLfloat x1, GLfloat x2)
+WebGLContext::VertexAttrib3f(WebGLuint index, WebGLfloat x0, WebGLfloat x1, WebGLfloat x2)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -82,10 +81,10 @@ WebGLContext::VertexAttrib3f(GLuint index, GLfloat x0, GLfloat x1, GLfloat x2)
 }
 
 void
-WebGLContext::VertexAttrib4f(GLuint index, GLfloat x0, GLfloat x1,
-                             GLfloat x2, GLfloat x3)
+WebGLContext::VertexAttrib4f(WebGLuint index, WebGLfloat x0, WebGLfloat x1,
+                             WebGLfloat x2, WebGLfloat x3)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -104,8 +103,8 @@ WebGLContext::VertexAttrib4f(GLuint index, GLfloat x0, GLfloat x1,
 
 
 void
-WebGLContext::VertexAttrib1fv_base(GLuint idx, uint32_t arrayLength,
-                                   const GLfloat* ptr)
+WebGLContext::VertexAttrib1fv_base(WebGLuint idx, uint32_t arrayLength,
+                                   const WebGLfloat* ptr)
 {
     if (!ValidateAttribArraySetter("VertexAttrib1fv", 1, arrayLength))
         return;
@@ -115,17 +114,17 @@ WebGLContext::VertexAttrib1fv_base(GLuint idx, uint32_t arrayLength,
         gl->fVertexAttrib1fv(idx, ptr);
     } else {
         mVertexAttrib0Vector[0] = ptr[0];
-        mVertexAttrib0Vector[1] = GLfloat(0);
-        mVertexAttrib0Vector[2] = GLfloat(0);
-        mVertexAttrib0Vector[3] = GLfloat(1);
+        mVertexAttrib0Vector[1] = WebGLfloat(0);
+        mVertexAttrib0Vector[2] = WebGLfloat(0);
+        mVertexAttrib0Vector[3] = WebGLfloat(1);
         if (gl->IsGLES2())
             gl->fVertexAttrib1fv(idx, ptr);
     }
 }
 
 void
-WebGLContext::VertexAttrib2fv_base(GLuint idx, uint32_t arrayLength,
-                                   const GLfloat* ptr)
+WebGLContext::VertexAttrib2fv_base(WebGLuint idx, uint32_t arrayLength,
+                                   const WebGLfloat* ptr)
 {
     if (!ValidateAttribArraySetter("VertexAttrib2fv", 2, arrayLength))
         return;
@@ -136,16 +135,16 @@ WebGLContext::VertexAttrib2fv_base(GLuint idx, uint32_t arrayLength,
     } else {
         mVertexAttrib0Vector[0] = ptr[0];
         mVertexAttrib0Vector[1] = ptr[1];
-        mVertexAttrib0Vector[2] = GLfloat(0);
-        mVertexAttrib0Vector[3] = GLfloat(1);
+        mVertexAttrib0Vector[2] = WebGLfloat(0);
+        mVertexAttrib0Vector[3] = WebGLfloat(1);
         if (gl->IsGLES2())
             gl->fVertexAttrib2fv(idx, ptr);
     }
 }
 
 void
-WebGLContext::VertexAttrib3fv_base(GLuint idx, uint32_t arrayLength,
-                                   const GLfloat* ptr)
+WebGLContext::VertexAttrib3fv_base(WebGLuint idx, uint32_t arrayLength,
+                                   const WebGLfloat* ptr)
 {
     if (!ValidateAttribArraySetter("VertexAttrib3fv", 3, arrayLength))
         return;
@@ -157,15 +156,15 @@ WebGLContext::VertexAttrib3fv_base(GLuint idx, uint32_t arrayLength,
         mVertexAttrib0Vector[0] = ptr[0];
         mVertexAttrib0Vector[1] = ptr[1];
         mVertexAttrib0Vector[2] = ptr[2];
-        mVertexAttrib0Vector[3] = GLfloat(1);
+        mVertexAttrib0Vector[3] = WebGLfloat(1);
         if (gl->IsGLES2())
             gl->fVertexAttrib3fv(idx, ptr);
     }
 }
 
 void
-WebGLContext::VertexAttrib4fv_base(GLuint idx, uint32_t arrayLength,
-                                   const GLfloat* ptr)
+WebGLContext::VertexAttrib4fv_base(WebGLuint idx, uint32_t arrayLength,
+                                   const WebGLfloat* ptr)
 {
     if (!ValidateAttribArraySetter("VertexAttrib4fv", 4, arrayLength))
         return;
@@ -184,9 +183,9 @@ WebGLContext::VertexAttrib4fv_base(GLuint idx, uint32_t arrayLength,
 }
 
 void
-WebGLContext::EnableVertexAttribArray(GLuint index)
+WebGLContext::EnableVertexAttribArray(WebGLuint index)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateAttribIndex(index, "enableVertexAttribArray"))
@@ -200,9 +199,9 @@ WebGLContext::EnableVertexAttribArray(GLuint index)
 }
 
 void
-WebGLContext::DisableVertexAttribArray(GLuint index)
+WebGLContext::DisableVertexAttribArray(WebGLuint index)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateAttribIndex(index, "disableVertexAttribArray"))
@@ -219,10 +218,10 @@ WebGLContext::DisableVertexAttribArray(GLuint index)
 
 
 JS::Value
-WebGLContext::GetVertexAttrib(JSContext* cx, GLuint index, GLenum pname,
+WebGLContext::GetVertexAttrib(JSContext* cx, WebGLuint index, WebGLenum pname,
                               ErrorResult& rv)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return JS::NullValue();
 
     if (!mBoundVertexArray->EnsureAttribIndex(index, "getVertexAttrib"))
@@ -272,7 +271,7 @@ WebGLContext::GetVertexAttrib(JSContext* cx, GLuint index, GLenum pname,
 
         case LOCAL_GL_CURRENT_VERTEX_ATTRIB:
         {
-            GLfloat vec[4] = {0, 0, 0, 1};
+            WebGLfloat vec[4] = {0, 0, 0, 1};
             if (index) {
                 gl->fGetVertexAttribfv(index, LOCAL_GL_CURRENT_VERTEX_ATTRIB, &vec[0]);
             } else {
@@ -308,9 +307,9 @@ WebGLContext::GetVertexAttrib(JSContext* cx, GLuint index, GLenum pname,
 }
 
 WebGLsizeiptr
-WebGLContext::GetVertexAttribOffset(GLuint index, GLenum pname)
+WebGLContext::GetVertexAttribOffset(WebGLuint index, WebGLenum pname)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return 0;
 
     if (!ValidateAttribIndex(index, "getVertexAttribOffset"))
@@ -325,17 +324,17 @@ WebGLContext::GetVertexAttribOffset(GLuint index, GLenum pname)
 }
 
 void
-WebGLContext::VertexAttribPointer(GLuint index, GLint size, GLenum type,
-                                  WebGLboolean normalized, GLsizei stride,
+WebGLContext::VertexAttribPointer(WebGLuint index, WebGLint size, WebGLenum type,
+                                  WebGLboolean normalized, WebGLsizei stride,
                                   WebGLintptr byteOffset)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (mBoundArrayBuffer == nullptr)
         return ErrorInvalidOperation("vertexAttribPointer: must have valid GL_ARRAY_BUFFER binding");
 
-    GLsizei requiredAlignment = 1;
+    WebGLsizei requiredAlignment = 1;
     switch (type) {
         case LOCAL_GL_BYTE:
         case LOCAL_GL_UNSIGNED_BYTE:
@@ -354,7 +353,7 @@ WebGLContext::VertexAttribPointer(GLuint index, GLint size, GLenum type,
     }
 
     // requiredAlignment should always be a power of two.
-    GLsizei requiredAlignmentMask = requiredAlignment - 1;
+    WebGLsizei requiredAlignmentMask = requiredAlignment - 1;
 
     if ( !mBoundVertexArray->EnsureAttribIndex(index, "vertexAttribPointer") ) {
         return;
@@ -404,9 +403,9 @@ WebGLContext::VertexAttribPointer(GLuint index, GLint size, GLenum type,
 }
 
 void
-WebGLContext::VertexAttribDivisor(GLuint index, GLuint divisor)
+WebGLContext::VertexAttribDivisor(WebGLuint index, WebGLuint divisor)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if ( !mBoundVertexArray->EnsureAttribIndex(index, "vertexAttribDivisor") ) {
@@ -423,7 +422,7 @@ WebGLContext::VertexAttribDivisor(GLuint index, GLuint divisor)
     gl->fVertexAttribDivisor(index, divisor);
 }
 
-bool WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcount, const char* info)
+bool WebGLContext::DrawArrays_check(WebGLint first, WebGLsizei count, WebGLsizei primcount, const char* info)
 {
     if (first < 0 || count < 0) {
         ErrorInvalidValue("%s: negative first or count", info);
@@ -499,9 +498,9 @@ bool WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcoun
 }
 
 void
-WebGLContext::DrawArrays(GLenum mode, GLint first, GLsizei count)
+WebGLContext::DrawArrays(GLenum mode, WebGLint first, WebGLsizei count)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateDrawModeEnum(mode, "drawArrays: mode"))
@@ -517,9 +516,9 @@ WebGLContext::DrawArrays(GLenum mode, GLint first, GLsizei count)
 }
 
 void
-WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei primcount)
+WebGLContext::DrawArraysInstanced(GLenum mode, WebGLint first, WebGLsizei count, WebGLsizei primcount)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateDrawModeEnum(mode, "drawArraysInstanced: mode"))
@@ -535,7 +534,7 @@ WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsiz
 }
 
 bool
-WebGLContext::DrawElements_check(GLsizei count, GLenum type, WebGLintptr byteOffset, GLsizei primcount, const char* info)
+WebGLContext::DrawElements_check(WebGLsizei count, WebGLenum type, WebGLintptr byteOffset, WebGLsizei primcount, const char* info)
 {
     if (count < 0 || byteOffset < 0) {
         ErrorInvalidValue("%s: negative count or offset", info);
@@ -558,7 +557,7 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type, WebGLintptr byteOff
 
     CheckedUint32 checked_byteCount;
 
-    GLsizei first = 0;
+    WebGLsizei first = 0;
 
     if (type == LOCAL_GL_UNSIGNED_SHORT) {
         checked_byteCount = 2 * CheckedUint32(count);
@@ -663,10 +662,10 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type, WebGLintptr byteOff
 }
 
 void
-WebGLContext::DrawElements(GLenum mode, GLsizei count, GLenum type,
+WebGLContext::DrawElements(WebGLenum mode, WebGLsizei count, WebGLenum type,
                                WebGLintptr byteOffset)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateDrawModeEnum(mode, "drawElements: mode"))
@@ -682,10 +681,10 @@ WebGLContext::DrawElements(GLenum mode, GLsizei count, GLenum type,
 }
 
 void
-WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
-                                        WebGLintptr byteOffset, GLsizei primcount)
+WebGLContext::DrawElementsInstanced(WebGLenum mode, WebGLsizei count, WebGLenum type,
+                                        WebGLintptr byteOffset, WebGLsizei primcount)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateDrawModeEnum(mode, "drawElementsInstanced: mode"))

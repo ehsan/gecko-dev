@@ -62,6 +62,14 @@ let SocialServiceInternal = {
       }
     }
   },
+  getManifestByOrigin: function(origin) {
+    for (let manifest of SocialServiceInternal.manifests) {
+      if (origin == manifest.origin) {
+        return manifest;
+      }
+    }
+    return null;
+  },
   getManifestPrefname: function(origin) {
     // Retrieve the prefname for a given origin/manifest.
     // If no existing pref, return a generated prefname.
@@ -383,7 +391,7 @@ this.SocialService = {
       });
       return;
     }
-    let manifest = SocialService.getManifestByOrigin(origin);
+    let manifest = SocialServiceInternal.getManifestByOrigin(origin);
     if (manifest) {
       let addon = new AddonWrapper(manifest);
       AddonManagerPrivate.callAddonListeners("onEnabling", addon, false);
@@ -408,7 +416,7 @@ this.SocialService = {
     ActiveProviders.add(provider.origin);
 
     this.getOrderedProviderList(function (providers) {
-      this._notifyProviderListeners("provider-enabled", provider.origin, providers);
+      this._notifyProviderListeners("provider-added", providers);
       if (onDone)
         onDone(provider);
     }.bind(this));
@@ -421,7 +429,7 @@ this.SocialService = {
       throw new Error("SocialService.removeProvider: no provider with origin " + origin + " exists!");
 
     let provider = SocialServiceInternal.providers[origin];
-    let manifest = SocialService.getManifestByOrigin(origin);
+    let manifest = SocialServiceInternal.getManifestByOrigin(origin);
     let addon = manifest && new AddonWrapper(manifest);
     if (addon) {
       AddonManagerPrivate.callAddonListeners("onDisabling", addon, false);
@@ -442,7 +450,7 @@ this.SocialService = {
     }
 
     this.getOrderedProviderList(function (providers) {
-      this._notifyProviderListeners("provider-disabled", origin, providers);
+      this._notifyProviderListeners("provider-removed", providers);
       if (onDone)
         onDone();
     }.bind(this));
@@ -463,15 +471,6 @@ this.SocialService = {
     });
   },
 
-  getManifestByOrigin: function(origin) {
-    for (let manifest of SocialServiceInternal.manifests) {
-      if (origin == manifest.origin) {
-        return manifest;
-      }
-    }
-    return null;
-  },
-
   // Returns an array of installed providers, sorted by frecency
   getOrderedProviderList: function(onDone) {
     SocialServiceInternal.orderedProviders(onDone);
@@ -489,10 +488,10 @@ this.SocialService = {
     this._providerListeners.delete(listener);
   },
 
-  _notifyProviderListeners: function (topic, origin, providers) {
+  _notifyProviderListeners: function (topic, data) {
     for (let [listener, ] of this._providerListeners) {
       try {
-        listener(topic, origin, providers);
+        listener(topic, data);
       } catch (ex) {
         Components.utils.reportError("SocialService: provider listener threw an exception: " + ex);
       }
@@ -500,7 +499,7 @@ this.SocialService = {
   },
 
   _manifestFromData: function(type, data, principal) {
-    let sameOriginRequired = ['workerURL', 'sidebarURL', 'shareURL', 'statusURL'];
+    let sameOriginRequired = ['workerURL', 'sidebarURL', 'shareURL'];
 
     if (type == 'directory') {
       // directory provided manifests must have origin in manifest, use that
@@ -518,9 +517,8 @@ this.SocialService = {
     // iconURL and name are required
     // iconURL may be a different origin (CDN or data url support) if this is
     // a whitelisted or directory listed provider
-    let providerHasFeatures = [url for (url of sameOriginRequired) if (data[url])].length > 0;
-    if (!providerHasFeatures) {
-      Cu.reportError("SocialService.manifestFromData manifest missing required urls.");
+    if (!data['workerURL'] && !data['sidebarURL'] && !data['shareURL']) {
+      Cu.reportError("SocialService.manifestFromData manifest missing required workerURL or sidebarURL.");
       return null;
     }
     if (!data['name'] || !data['iconURL']) {
@@ -598,10 +596,7 @@ this.SocialService = {
         aAddon.userDisabled = false;
       }
       schedule(function () {
-        this._installProvider(aDOMDocument, data, aManifest => {
-          this._notifyProviderListeners("provider-installed", aManifest.origin);
-          installCallback(aManifest);
-        });
+        this._installProvider(aDOMDocument, data, installCallback);
       }.bind(this));
     }.bind(this));
   },
@@ -666,7 +661,7 @@ this.SocialService = {
    * have knowledge of the currently selected provider here, we will notify
    * the front end to deal with any reload.
    */
-  updateProvider: function(aUpdateOrigin, aManifest) {
+  updateProvider: function(aUpdateOrigin, aManifest, aCallback) {
     let originUri = Services.io.newURI(aUpdateOrigin, null, null);
     let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(originUri);
     let installType = this.getOriginActivationType(aUpdateOrigin);
@@ -687,15 +682,13 @@ this.SocialService = {
       let provider = new SocialProvider(manifest);
       SocialServiceInternal.providers[provider.origin] = provider;
       // update the cache and ui, reload provider if necessary
-      this.getOrderedProviderList(providers => {
-        this._notifyProviderListeners("provider-update", provider.origin, providers);
-      });
+      this._notifyProviderListeners("provider-update", provider);
     }
 
   },
 
   uninstallProvider: function(origin, aCallback) {
-    let manifest = SocialService.getManifestByOrigin(origin);
+    let manifest = SocialServiceInternal.getManifestByOrigin(origin);
     let addon = new AddonWrapper(manifest);
     addon.uninstall(aCallback);
   }
@@ -727,7 +720,6 @@ function SocialProvider(input) {
   this.workerURL = input.workerURL;
   this.sidebarURL = input.sidebarURL;
   this.shareURL = input.shareURL;
-  this.statusURL = input.statusURL;
   this.origin = input.origin;
   let originUri = Services.io.newURI(input.origin, null, null);
   this.principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(originUri);
@@ -774,7 +766,7 @@ SocialProvider.prototype = {
   },
 
   get manifest() {
-    return SocialService.getManifestByOrigin(this.origin);
+    return SocialServiceInternal.getManifestByOrigin(this.origin);
   },
 
   // Reference to a workerAPI object for this provider. Null if the provider has
@@ -1020,7 +1012,7 @@ function getPrefnameFromOrigin(origin) {
 function AddonInstaller(sourceURI, aManifest, installCallback) {
   aManifest.updateDate = Date.now();
   // get the existing manifest for installDate
-  let manifest = SocialService.getManifestByOrigin(aManifest.origin);
+  let manifest = SocialServiceInternal.getManifestByOrigin(aManifest.origin);
   let isNewInstall = !manifest;
   if (manifest && manifest.installDate)
     aManifest.installDate = manifest.installDate;
@@ -1096,7 +1088,6 @@ var SocialAddonProvider = {
     Services.prefs.clearUserPref(getPrefnameFromOrigin(aAddon.manifest.origin));
     aAddon.pendingOperations -= AddonManager.PENDING_UNINSTALL;
     AddonManagerPrivate.callAddonListeners("onUninstalled", aAddon);
-    SocialService._notifyProviderListeners("provider-uninstalled", aAddon.manifest.origin);
     if (aCallback)
       schedule(aCallback);
   }

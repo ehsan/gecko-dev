@@ -323,13 +323,13 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
 
   mResultJSON = JSVAL_VOID;
   mResultArrayBuffer = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsXMLHttpRequest);
 }
 
 void
 nsXMLHttpRequest::RootJSResultObjects()
 {
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsXMLHttpRequest);
 }
 
 /**

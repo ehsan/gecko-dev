@@ -9,6 +9,8 @@
 #include <algorithm>
 
 // Helper Classes
+#include "nsXPIDLString.h"
+#include "nsReadableUtils.h"
 #include "mozilla/Preferences.h"
 
 // Interfaces Needed
@@ -18,6 +20,8 @@
 #include "nsISHContainer.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeNode.h"
+#include "nsIDocShellLoadInfo.h"
+#include "nsIServiceManager.h"
 #include "nsIURI.h"
 #include "nsIContentViewer.h"
 #include "nsICacheService.h"
@@ -28,13 +32,9 @@
 #include "nsCOMArray.h"
 #include "nsDocShell.h"
 #include "mozilla/Attributes.h"
-#include "nsISHEntry.h"
-#include "nsISHTransaction.h"
-#include "nsISHistoryListener.h"
-#include "nsComponentManagerUtils.h"
 
 // For calculating max history entries and max cachable contentviewers
-#include "prsystem.h"
+#include "nspr.h"
 #include "mozilla/MathAlgorithms.h"
 
 using namespace mozilla;

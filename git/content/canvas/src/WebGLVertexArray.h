@@ -17,10 +17,11 @@
 namespace mozilla {
 
 class WebGLVertexArray MOZ_FINAL
-    : public nsWrapperCache
+    : public nsISupports
     , public WebGLRefCountedObject<WebGLVertexArray>
     , public LinkedListElement<WebGLVertexArray>
     , public WebGLContextBoundObject
+    , public nsWrapperCache
 {
 // -----------------------------------------------------------------------------
 // PUBLIC
@@ -48,8 +49,8 @@ public:
     virtual JSObject* WrapObject(JSContext *cx,
                                  JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebGLVertexArray)
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLVertexArray)
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLVertexArray)
 
 
     // -------------------------------------------------------------------------
@@ -57,9 +58,9 @@ public:
 
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
-    GLuint GLName() const { return mGLName; }
+    WebGLuint GLName() const { return mGLName; }
 
-    bool EnsureAttribIndex(GLuint index, const char *info);
+    bool EnsureAttribIndex(WebGLuint index, const char *info);
 
 
 // -----------------------------------------------------------------------------
@@ -69,7 +70,7 @@ private:
     // -------------------------------------------------------------------------
     // MEMBERS
 
-    GLuint mGLName;
+    WebGLuint mGLName;
     bool mHasEverBeenBound;
     nsTArray<WebGLVertexAttribData> mAttribBuffers;
     WebGLRefPtr<WebGLBuffer> mBoundElementArrayBuffer;

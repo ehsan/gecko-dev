@@ -179,9 +179,7 @@ NotificationPermissionRequest::GetWindow(nsIDOMWindow** aRequestingWindow)
 NS_IMETHODIMP
 NotificationPermissionRequest::GetElement(nsIDOMElement** aElement)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
-  *aElement = nullptr;
-  return NS_OK;
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

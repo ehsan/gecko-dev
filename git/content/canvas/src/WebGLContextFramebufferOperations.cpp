@@ -7,14 +7,13 @@
 #include "WebGLTexture.h"
 #include "WebGLRenderbuffer.h"
 #include "WebGLFramebuffer.h"
-#include "GLContext.h"
 
 using namespace mozilla;
 
 void
-WebGLContext::Clear(GLbitfield mask)
+WebGLContext::Clear(WebGLbitfield mask)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -77,8 +76,8 @@ WebGLContext::Clear(GLbitfield mask)
     mShouldPresent = true;
 }
 
-static GLclampf
-GLClampFloat(GLclampf val)
+static WebGLclampf
+GLClampFloat(WebGLclampf val)
 {
     if (val < 0.0)
         return 0.0;
@@ -90,10 +89,10 @@ GLClampFloat(GLclampf val)
 }
 
 void
-WebGLContext::ClearColor(GLclampf r, GLclampf g,
-                             GLclampf b, GLclampf a)
+WebGLContext::ClearColor(WebGLclampf r, WebGLclampf g,
+                             WebGLclampf b, WebGLclampf a)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -105,9 +104,9 @@ WebGLContext::ClearColor(GLclampf r, GLclampf g,
 }
 
 void
-WebGLContext::ClearDepth(GLclampf v)
+WebGLContext::ClearDepth(WebGLclampf v)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -116,9 +115,9 @@ WebGLContext::ClearDepth(GLclampf v)
 }
 
 void
-WebGLContext::ClearStencil(GLint v)
+WebGLContext::ClearStencil(WebGLint v)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -129,7 +128,7 @@ WebGLContext::ClearStencil(GLint v)
 void
 WebGLContext::ColorMask(WebGLboolean r, WebGLboolean g, WebGLboolean b, WebGLboolean a)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -143,7 +142,7 @@ WebGLContext::ColorMask(WebGLboolean r, WebGLboolean g, WebGLboolean b, WebGLboo
 void
 WebGLContext::DepthMask(WebGLboolean b)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     MakeContextCurrent();
@@ -228,9 +227,9 @@ WebGLContext::DrawBuffers(const dom::Sequence<GLenum>& buffers)
 }
 
 void
-WebGLContext::StencilMask(GLuint mask)
+WebGLContext::StencilMask(WebGLuint mask)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     mStencilWriteMaskFront = mask;
@@ -241,9 +240,9 @@ WebGLContext::StencilMask(GLuint mask)
 }
 
 void
-WebGLContext::StencilMaskSeparate(GLenum face, GLuint mask)
+WebGLContext::StencilMaskSeparate(WebGLenum face, WebGLuint mask)
 {
-    if (IsContextLost())
+    if (!IsContextStable())
         return;
 
     if (!ValidateFaceEnum(face, "stencilMaskSeparate: face"))

@@ -1749,7 +1749,7 @@ IDBObjectStore::~IDBObjectStore()
 
   if (mRooted) {
     mCachedKeyPath = JSVAL_VOID;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, IDBObjectStore);
   }
 }
 
@@ -2418,7 +2418,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBObjectStore)
   tmp->mCachedKeyPath = JSVAL_VOID;
 
   if (tmp->mRooted) {
-    mozilla::DropJSObjects(tmp);
+    NS_DROP_JS_OBJECTS(tmp, IDBObjectStore);
     tmp->mRooted = false;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -2450,7 +2450,7 @@ IDBObjectStore::GetKeyPath(JSContext* aCx, ErrorResult& aRv)
   ENSURE_SUCCESS(aRv, JSVAL_VOID);
 
   if (JSVAL_IS_GCTHING(mCachedKeyPath)) {
-    mozilla::HoldJSObjects(this);
+    NS_HOLD_JS_OBJECTS(this, IDBObjectStore);
     mRooted = true;
   }
 

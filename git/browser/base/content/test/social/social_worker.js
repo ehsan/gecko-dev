@@ -119,7 +119,13 @@ onconnect = function(e) {
         });
         break;
       case "test-ambient-notification":
-        apiPort.postMessage({topic: "social.ambient-notification", data: event.data.data});
+        let icon = {
+          name: "testIcon",
+          iconURL: "chrome://browser/skin/Info.png",
+          contentPanel: "https://example.com/browser/browser/base/content/test/social/social_panel.html",
+          counter: 1
+        };
+        apiPort.postMessage({topic: "social.ambient-notification", data: icon});
         break;
       case "test-isVisible":
         sidebarPort.postMessage({topic: "test-isVisible"});

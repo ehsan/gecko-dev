@@ -14,10 +14,9 @@
 
 // Interfaces Needed
 #include "nsIDocShellLoadInfo.h"
-
-class nsIInputStream;
-class nsISHEntry;
-class nsIURI;
+#include "nsIURI.h"
+#include "nsIInputStream.h"
+#include "nsISHEntry.h"
 
 class nsDocShellLoadInfo : public nsIDocShellLoadInfo
 {

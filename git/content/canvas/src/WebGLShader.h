@@ -33,7 +33,7 @@ class WebGLShader MOZ_FINAL
     friend class WebGLProgram;
 
 public:
-    WebGLShader(WebGLContext *context, GLenum stype);
+    WebGLShader(WebGLContext *context, WebGLenum stype);
 
     ~WebGLShader() {
         DeleteOnce();
@@ -41,8 +41,8 @@ public:
 
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
-    GLuint GLName() { return mGLName; }
-    GLenum ShaderType() { return mType; }
+    WebGLuint GLName() { return mGLName; }
+    WebGLenum ShaderType() { return mType; }
 
     void SetSource(const nsAString& src) {
         // XXX do some quick gzip here maybe -- getting this will be very rare
@@ -84,8 +84,8 @@ public:
 
 protected:
 
-    GLuint mGLName;
-    GLenum mType;
+    WebGLuint mGLName;
+    WebGLenum mType;
     nsString mSource;
     nsCString mTranslationLog; // The translation log should contain only ASCII characters
     bool mNeedsTranslation;

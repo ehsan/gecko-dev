@@ -35,11 +35,11 @@ public:
         // deleting a texture or renderbuffer immediately detaches it
         WebGLRefPtr<WebGLTexture> mTexturePtr;
         WebGLRefPtr<WebGLRenderbuffer> mRenderbufferPtr;
-        GLenum mAttachmentPoint;
-        GLint mTextureLevel;
-        GLenum mTextureCubeMapFace;
+        WebGLenum mAttachmentPoint;
+        WebGLint mTextureLevel;
+        WebGLenum mTextureCubeMapFace;
 
-        Attachment(GLenum aAttachmentPoint = LOCAL_GL_COLOR_ATTACHMENT0)
+        Attachment(WebGLenum aAttachmentPoint = LOCAL_GL_COLOR_ATTACHMENT0)
             : mAttachmentPoint(aAttachmentPoint)
         {}
 
@@ -51,7 +51,7 @@ public:
 
         bool HasAlpha() const;
 
-        void SetTexture(WebGLTexture *tex, GLint level, GLenum face);
+        void SetTexture(WebGLTexture *tex, WebGLint level, WebGLenum face);
         void SetRenderbuffer(WebGLRenderbuffer *rb) {
             mTexturePtr = nullptr;
             mRenderbufferPtr = rb;
@@ -68,10 +68,10 @@ public:
         WebGLRenderbuffer *Renderbuffer() {
             return mRenderbufferPtr;
         }
-        GLint TextureLevel() const {
+        WebGLint TextureLevel() const {
             return mTextureLevel;
         }
-        GLenum TextureCubeMapFace() const {
+        WebGLenum TextureCubeMapFace() const {
             return mTextureCubeMapFace;
         }
 
@@ -92,18 +92,18 @@ public:
 
     bool HasEverBeenBound() { return mHasEverBeenBound; }
     void SetHasEverBeenBound(bool x) { mHasEverBeenBound = x; }
-    GLuint GLName() { return mGLName; }
+    WebGLuint GLName() { return mGLName; }
 
-    void FramebufferRenderbuffer(GLenum target,
-                                 GLenum attachment,
-                                 GLenum rbtarget,
+    void FramebufferRenderbuffer(WebGLenum target,
+                                 WebGLenum attachment,
+                                 WebGLenum rbtarget,
                                  WebGLRenderbuffer *wrb);
 
-    void FramebufferTexture2D(GLenum target,
-                              GLenum attachment,
-                              GLenum textarget,
+    void FramebufferTexture2D(WebGLenum target,
+                              WebGLenum attachment,
+                              WebGLenum textarget,
                               WebGLTexture *wtex,
-                              GLint level);
+                              WebGLint level);
 
     bool HasIncompleteAttachment() const;
 
@@ -131,7 +131,7 @@ public:
         return mDepthStencilAttachment;
     }
 
-    const Attachment& GetAttachment(GLenum attachment) const;
+    const Attachment& GetAttachment(WebGLenum attachment) const;
 
     void DetachTexture(const WebGLTexture *tex);
 
@@ -153,9 +153,9 @@ public:
 
     bool CheckAndInitializeRenderbuffers();
 
-    bool CheckColorAttachementNumber(GLenum attachment, const char * functionName) const;
+    bool CheckColorAttachementNumber(WebGLenum attachment, const char * functionName) const;
 
-    GLuint mGLName;
+    WebGLuint mGLName;
     bool mHasEverBeenBound;
 
     void EnsureColorAttachments(size_t colorAttachmentId);

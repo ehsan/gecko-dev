@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGL2Context.h"
-#include "GLContext.h"
 #include "mozilla/dom/WebGL2RenderingContextBinding.h"
 
 #include "mozilla/Telemetry.h"

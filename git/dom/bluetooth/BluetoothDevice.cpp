@@ -11,6 +11,7 @@
 #include "BluetoothUtils.h"
 
 #include "nsDOMClassInfo.h"
+#include "nsContentUtils.h"
 #include "nsTArrayHelpers.h"
 
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
@@ -84,7 +85,7 @@ void
 BluetoothDevice::Root()
 {
   if (!mIsRooted) {
-    mozilla::HoldJSObjects(this);
+    NS_HOLD_JS_OBJECTS(this, BluetoothDevice);
     mIsRooted = true;
   }
 }
@@ -95,7 +96,7 @@ BluetoothDevice::Unroot()
   if (mIsRooted) {
     mJsUuids = nullptr;
     mJsServices = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, BluetoothDevice);
     mIsRooted = false;
   }
 }

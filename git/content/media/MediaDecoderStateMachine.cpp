@@ -2267,12 +2267,12 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
       // data to begin playback, or if we've not downloaded a reasonable
       // amount of data inside our buffering time.
       TimeDuration elapsed = now - mBufferingStart;
-      bool isLiveStream = resource->GetLength() == -1;
+      bool isLiveStream = mDecoder->GetResource()->GetLength() == -1;
       if ((isLiveStream || !mDecoder->CanPlayThrough()) &&
             elapsed < TimeDuration::FromSeconds(mBufferingWait * mPlaybackRate) &&
             (mQuickBuffering ? HasLowDecodedData(QUICK_BUFFERING_LOW_DATA_USECS)
                             : (GetUndecodedData() < mBufferingWait * mPlaybackRate * USECS_PER_S)) &&
-            !mDecoder->IsDataCachedToEndOfResource() &&
+            !resource->IsDataCachedToEndOfResource(mDecoder->mDecoderPosition) &&
             !resource->IsSuspended())
       {
         LOG(PR_LOG_DEBUG,
@@ -2516,7 +2516,7 @@ void MediaDecoderStateMachine::AdvanceFrame()
   if (mState == DECODER_STATE_DECODING &&
       mDecoder->GetState() == MediaDecoder::PLAY_STATE_PLAYING &&
       HasLowDecodedData(remainingTime + EXHAUSTED_DATA_MARGIN_USECS) &&
-      !mDecoder->IsDataCachedToEndOfResource() &&
+      !resource->IsDataCachedToEndOfResource(mDecoder->mDecoderPosition) &&
       !resource->IsSuspended() &&
       (JustExitedQuickBuffering() || HasLowUndecodedData()))
   {

@@ -21,9 +21,10 @@
 <script class="testbody" type="text/javascript">
 
 function testSerializer () {
-  const de = SpecialPowers.Ci.nsIDocumentEncoder;
-  var encoder = SpecialPowers.Cc["@mozilla.org/layout/documentEncoder;1?type=text/html"]
-                   .createInstance(SpecialPowers.Ci.nsIDocumentEncoder);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  const de = Components.interfaces.nsIDocumentEncoder
+  var encoder = Components.classes["@mozilla.org/layout/documentEncoder;1?type=text/html"]
+                   .createInstance(Components.interfaces.nsIDocumentEncoder);
 
   var parser = new DOMParser();
   var serializer = new XMLSerializer();

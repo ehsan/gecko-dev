@@ -6,7 +6,7 @@
 #ifndef GLCONTEXTPROVIDER_H_
 #define GLCONTEXTPROVIDER_H_
 
-#include "GLContextTypes.h"
+#include "GLContext.h"
 #include "gfxTypes.h"
 #include "gfxPoint.h"
 #include "nsAutoPtr.h"

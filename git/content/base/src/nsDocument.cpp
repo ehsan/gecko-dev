@@ -1470,7 +1470,10 @@ nsDocument::~nsDocument()
 
   mCustomPrototypes.Clear();
 
-  mozilla::DropJSObjects(this);
+  nsISupports* supports;
+  QueryInterface(NS_GET_IID(nsCycleCollectionISupports), reinterpret_cast<void**>(&supports));
+  NS_ASSERTION(supports, "Failed to QI to nsCycleCollectionISupports?!");
+  nsContentUtils::DropJSObjects(supports);
 
   // Clear mObservers to keep it in sync with the mutationobserver list
   mObservers.Clear();
@@ -1983,7 +1986,14 @@ nsDocument::Init()
   mImageTracker.Init();
   mPlugins.Init();
 
-  mozilla::HoldJSObjects(this);
+  nsXPCOMCycleCollectionParticipant* participant;
+  CallQueryInterface(this, &participant);
+  NS_ASSERTION(participant, "Failed to QI to nsXPCOMCycleCollectionParticipant!");
+
+  nsISupports* thisSupports;
+  QueryInterface(NS_GET_IID(nsCycleCollectionISupports), reinterpret_cast<void**>(&thisSupports));
+  NS_ASSERTION(thisSupports, "Failed to QI to nsCycleCollectionISupports!");
+  nsContentUtils::HoldJSObjects(thisSupports, participant);
 
   return NS_OK;
 }

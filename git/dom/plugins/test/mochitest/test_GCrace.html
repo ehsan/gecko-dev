@@ -46,7 +46,8 @@
       var p = document.getElementById('p');
       p.parentNode.removeChild(p);
       p = null;
-      SpecialPowers.Cu.forceGC();
+      netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+      Components.utils.forceGC();
       SimpleTest.finish();
     }
 
@@ -64,7 +65,8 @@
       nested = false;
 
       setTimeout(function() {
-        SpecialPowers.Cu.forceGC();
+        netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+        Components.utils.forceGC();
       }, 2000);
     }
   </script>

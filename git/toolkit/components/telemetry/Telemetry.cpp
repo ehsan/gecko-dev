@@ -2014,12 +2014,6 @@ TelemetryImpl::SanitizeSQL(const nsACString &sql) {
   return output;
 }
 
-// Slow SQL statements will be automatically
-// trimmed to kMaxSlowStatementLength characters.
-// This limit doesn't include the ellipsis and DB name,
-// that are appended at the end of the stored statement.
-const uint32_t kMaxSlowStatementLength = 1000;
-
 void
 TelemetryImpl::RecordSlowStatement(const nsACString &sql,
                                    const nsACString &dbName,
@@ -2027,18 +2021,13 @@ TelemetryImpl::RecordSlowStatement(const nsACString &sql,
 {
   if (!sTelemetry || !sTelemetry->mCanRecord)
     return;
-  
-  nsAutoCString dbNameComment;
-  dbNameComment.AppendPrintf(" /* %s */", dbName.BeginReading());
-  
+
+  nsAutoCString fullSQL(sql);
+  fullSQL.AppendPrintf(" /* %s */", dbName.BeginReading());
+
   bool isFirefoxDB = sTelemetry->mTrackedDBs.Contains(dbName);
   if (isFirefoxDB) {
-    nsAutoCString sanitizedSQL(SanitizeSQL(sql));
-    if (sanitizedSQL.Length() > kMaxSlowStatementLength) {
-      sanitizedSQL.SetLength(kMaxSlowStatementLength);
-      sanitizedSQL += "...";
-      sanitizedSQL += dbNameComment;
-    }
+    nsAutoCString sanitizedSQL(SanitizeSQL(fullSQL));
     StoreSlowSQL(sanitizedSQL, delay, Sanitized);
   } else {
     // Report aggregate DB-level statistics for addon DBs
@@ -2047,8 +2036,6 @@ TelemetryImpl::RecordSlowStatement(const nsACString &sql,
     StoreSlowSQL(aggregate, delay, Sanitized);
   }
 
-  nsAutoCString fullSQL(sql);
-  fullSQL += dbNameComment;
   StoreSlowSQL(fullSQL, delay, Unsanitized);
 }
 

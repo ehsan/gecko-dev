@@ -270,12 +270,7 @@ private:
       return !JS_IsExceptionPending(aCx);
     }
 
-    if (!worker->Terminate(aCx)) {
-      return false;
-    }
-
-    JS_RVAL(aCx, aVp).setUndefined();
-    return true;
+    return worker->Terminate(aCx);
   }
 
   static bool

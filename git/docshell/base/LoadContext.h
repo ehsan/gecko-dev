@@ -9,7 +9,7 @@
 
 #include "SerializedLoadContext.h"
 #include "mozilla/Attributes.h"
-#include "nsIWeakReferenceUtils.h"
+#include "nsWeakReference.h"
 #include "mozilla/dom/Element.h"
 
 class mozIApplication;

@@ -27,7 +27,7 @@ class SharedTextureImage : public Image {
 public:
   struct Data {
     gl::SharedTextureHandle mHandle;
-    gl::SharedTextureShareType mShareType;
+    gl::GLContext::SharedTextureShareType mShareType;
     gfxIntSize mSize;
     bool mInverted;
   };

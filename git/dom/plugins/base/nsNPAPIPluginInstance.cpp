@@ -50,7 +50,6 @@ using namespace mozilla;
 #include "mozilla/dom/ScreenOrientation.h"
 #include "mozilla/Hal.h"
 #include "GLContextProvider.h"
-#include "GLContext.h"
 #include "TexturePoolOGL.h"
 
 using namespace mozilla::gl;
@@ -136,9 +135,9 @@ public:
       return 0;
 
     SharedTextureHandle handle =
-      sPluginContext->CreateSharedHandle(gl::SameProcess,
+      sPluginContext->CreateSharedHandle(GLContext::SameProcess,
                                          (void*)mTextureInfo.mTexture,
-                                         gl::TextureID);
+                                         GLContext::TextureID);
 
     // We want forget about this now, so delete the texture. Assigning it to zero
     // ensures that we create a new one in Lock()
@@ -1014,9 +1013,9 @@ SharedTextureHandle nsNPAPIPluginInstance::CreateSharedHandle()
     return mContentTexture->CreateSharedHandle();
   } else if (mContentSurface) {
     EnsureGLContext();
-    return sPluginContext->CreateSharedHandle(gl::SameProcess,
+    return sPluginContext->CreateSharedHandle(GLContext::SameProcess,
                                               mContentSurface,
-                                              gl::SurfaceTexture);
+                                              GLContext::SurfaceTexture);
   } else return 0;
 }
 

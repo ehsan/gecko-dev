@@ -94,7 +94,7 @@ NS_IMPL_FORWARD_EVENT_HANDLER(nsDOMFileReader, error, FileIOObject)
 void
 nsDOMFileReader::RootResultArrayBuffer()
 {
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, nsDOMFileReader);
 }
 
 //nsDOMFileReader constructors/initializers
@@ -112,7 +112,7 @@ nsDOMFileReader::~nsDOMFileReader()
 {
   FreeFileData();
   mResultArrayBuffer = nullptr;
-  mozilla::DropJSObjects(this);
+  NS_DROP_JS_OBJECTS(this, nsDOMFileReader);
 }
 
 

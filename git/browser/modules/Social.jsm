@@ -169,28 +169,24 @@ this.Social = {
     }
 
     // Register an observer for changes to the provider list
-    SocialService.registerProviderListener(function providerListener(topic, origin, providers) {
+    SocialService.registerProviderListener(function providerListener(topic, data) {
       // An engine change caused by adding/removing a provider should notify.
       // any providers we receive are enabled in the AddonsManager
-      if (topic == "provider-installed" || topic == "provider-uninstalled") {
-        // installed/uninstalled do not send the providers param
-        Services.obs.notifyObservers(null, "social:" + topic, origin);
-        return;
-      }
-      if (topic == "provider-enabled" || topic == "provider-disabled") {
-        Social._updateProviderCache(providers);
+      if (topic == "provider-added" || topic == "provider-removed") {
+        Social._updateProviderCache(data);
         Social._updateWorkerState(true);
         Services.obs.notifyObservers(null, "social:providers-changed", null);
-        Services.obs.notifyObservers(null, "social:" + topic, origin);
         return;
       }
       if (topic == "provider-update") {
         // a provider has self-updated its manifest, we need to update our cache
         // and reload the provider.
-        Social._updateProviderCache(providers);
-        let provider = Social._getProviderFromOrigin(origin);
-        provider.reload();
-        Services.obs.notifyObservers(null, "social:providers-changed", null);
+        let provider = data;
+        SocialService.getOrderedProviderList(function(providers) {
+          Social._updateProviderCache(providers);
+          provider.reload();
+          Services.obs.notifyObservers(null, "social:providers-changed", null);
+        });
       }
     });
   },
@@ -261,10 +257,6 @@ this.Social = {
       }
     }
     return null;
-  },
-
-  getManifestByOrigin: function(origin) {
-    return SocialService.getManifestByOrigin(origin);
   },
 
   installProvider: function(doc, data, installCallback) {

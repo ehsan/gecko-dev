@@ -529,11 +529,11 @@ RasterImage::Init(const char* aMimeType,
 NS_IMETHODIMP_(void)
 RasterImage::RequestRefresh(const mozilla::TimeStamp& aTime)
 {
-  EvaluateAnimation();
-
-  if (!mAnimating) {
+  if (!ShouldAnimate()) {
     return;
   }
+
+  EvaluateAnimation();
 
   FrameAnimator::RefreshResult res;
   if (mAnim) {
@@ -1457,8 +1457,6 @@ RasterImage::StopAnimation()
   if (mError)
     return NS_ERROR_FAILURE;
 
-  mAnim->SetAnimationFrameTime(TimeStamp());
-
   return NS_OK;
 }
 
@@ -1489,8 +1487,8 @@ RasterImage::ResetAnimation()
   // Note - We probably want to kick off a redecode somewhere around here when
   // we fix bug 500402.
 
-  // Update display
-  if (mStatusTracker) {
+  // Update display if we were animating before
+  if (mAnimating && mStatusTracker) {
     nsIntRect rect = mAnim->GetFirstFrameRefreshArea();
     mStatusTracker->FrameChanged(&rect);
   }
@@ -1507,11 +1505,11 @@ RasterImage::ResetAnimation()
 }
 
 //******************************************************************************
-// [notxpcom] void setAnimationStartTime ([const] in TimeStamp aTime);
+// [notxpcom] void requestRefresh ([const] in TimeStamp aTime);
 NS_IMETHODIMP_(void)
 RasterImage::SetAnimationStartTime(const mozilla::TimeStamp& aTime)
 {
-  if (mError || mAnimationMode == kDontAnimMode || mAnimating || !mAnim)
+  if (mError || mAnimating || !mAnim)
     return;
 
   mAnim->SetAnimationFrameTime(aTime);

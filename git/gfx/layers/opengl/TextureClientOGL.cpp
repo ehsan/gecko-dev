@@ -45,7 +45,7 @@ SharedTextureClientOGL::ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor)
 void
 SharedTextureClientOGL::InitWith(gl::SharedTextureHandle aHandle,
                                  gfx::IntSize aSize,
-                                 gl::SharedTextureShareType aShareType,
+                                 gl::GLContext::SharedTextureShareType aShareType,
                                  bool aInverted)
 {
   MOZ_ASSERT(!IsAllocated());

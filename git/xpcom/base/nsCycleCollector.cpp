@@ -2943,14 +2943,10 @@ nsCycleCollector_currentJSRuntime()
     return nullptr;
 }
 
-
-namespace mozilla {
-namespace cyclecollector {
-
 void
-HoldJSObjectsImpl(void* aHolder, nsScriptObjectTracer* aTracer)
+cyclecollector::AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer)
 {
-    CollectorData* data = sCollectorData.get();
+    CollectorData *data = sCollectorData.get();
 
     // We should have started the cycle collector by now.
     MOZ_ASSERT(data);
@@ -2962,21 +2958,9 @@ HoldJSObjectsImpl(void* aHolder, nsScriptObjectTracer* aTracer)
 }
 
 void
-HoldJSObjectsImpl(nsISupports* aHolder)
+cyclecollector::RemoveJSHolder(void* aHolder)
 {
-    nsXPCOMCycleCollectionParticipant* participant;
-    CallQueryInterface(aHolder, &participant);
-    MOZ_ASSERT(participant, "Failed to QI to nsXPCOMCycleCollectionParticipant!");
-    MOZ_ASSERT(participant->CheckForRightISupports(aHolder),
-               "The result of QIing a JS holder should be the same as ToSupports");
-
-    HoldJSObjectsImpl(aHolder, participant);
-}
-
-void
-DropJSObjectsImpl(void* aHolder)
-{
-    CollectorData* data = sCollectorData.get();
+    CollectorData *data = sCollectorData.get();
 
     // We should have started the cycle collector by now, and not completely
     // shut down.
@@ -2987,22 +2971,9 @@ DropJSObjectsImpl(void* aHolder)
     data->mRuntime->RemoveJSHolder(aHolder);
 }
 
-void
-DropJSObjectsImpl(nsISupports* aHolder)
-{
-#ifdef DEBUG
-    nsXPCOMCycleCollectionParticipant* participant;
-    CallQueryInterface(aHolder, &participant);
-    MOZ_ASSERT(participant, "Failed to QI to nsXPCOMCycleCollectionParticipant!");
-    MOZ_ASSERT(participant->CheckForRightISupports(aHolder),
-               "The result of QIing a JS holder should be the same as ToSupports");
-#endif
-    DropJSObjectsImpl(static_cast<void*>(aHolder));
-}
-
 #ifdef DEBUG
 bool
-IsJSHolder(void* aHolder)
+cyclecollector::IsJSHolder(void* aHolder)
 {
     CollectorData *data = sCollectorData.get();
 
@@ -3017,7 +2988,7 @@ IsJSHolder(void* aHolder)
 #endif
 
 void
-DeferredFinalize(nsISupports* aSupports)
+cyclecollector::DeferredFinalize(nsISupports* aSupports)
 {
     CollectorData *data = sCollectorData.get();
 
@@ -3031,9 +3002,9 @@ DeferredFinalize(nsISupports* aSupports)
 }
 
 void
-DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,
-                 DeferredFinalizeFunction aFunc,
-                 void* aThing)
+cyclecollector::DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,
+                                 DeferredFinalizeFunction aFunc,
+                                 void* aThing)
 {
     CollectorData *data = sCollectorData.get();
 
@@ -3045,10 +3016,6 @@ DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,
 
     data->mRuntime->DeferredFinalize(aAppendFunc, aFunc, aThing);
 }
-
-} // namespace cyclecollector
-} // namespace mozilla
-
 
 void
 NS_CycleCollectorSuspect3(void *n, nsCycleCollectionParticipant *cp,

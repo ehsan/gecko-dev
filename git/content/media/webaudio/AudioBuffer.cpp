@@ -6,6 +6,7 @@
 
 #include "AudioBuffer.h"
 #include "mozilla/dom/AudioBufferBinding.h"
+#include "nsContentUtils.h"
 #include "jsfriendapi.h"
 #include "mozilla/ErrorResult.h"
 #include "AudioSegment.h"
@@ -47,7 +48,8 @@ AudioBuffer::AudioBuffer(AudioContext* aContext, uint32_t aLength,
     mSampleRate(aSampleRate)
 {
   SetIsDOMBinding();
-  mozilla::HoldJSObjects(this);
+
+  nsContentUtils::HoldJSObjects(this, NS_CYCLE_COLLECTION_PARTICIPANT(AudioBuffer));
 }
 
 AudioBuffer::~AudioBuffer()
@@ -59,7 +61,7 @@ void
 AudioBuffer::ClearJSChannels()
 {
   mJSChannels.Clear();
-  mozilla::DropJSObjects(this);
+  nsContentUtils::DropJSObjects(this);
 }
 
 bool
