@@ -24,8 +24,6 @@ XPCOMUtils.defineLazyModuleGetter(this, 'Roles',
   'resource://gre/modules/accessibility/Constants.jsm');
 XPCOMUtils.defineLazyModuleGetter(this, 'Events',
   'resource://gre/modules/accessibility/Constants.jsm');
-XPCOMUtils.defineLazyModuleGetter(this, 'States',
-  'resource://gre/modules/accessibility/Constants.jsm');
 
 this.EXPORTED_SYMBOLS = ['EventManager'];
 
@@ -149,13 +147,13 @@ this.EventManager.prototype = {
       case Events.STATE_CHANGE:
       {
         let event = aEvent.QueryInterface(Ci.nsIAccessibleStateChangeEvent);
-        let state = Utils.getState(event);
-        if (state.contains(States.CHECKED)) {
+        if (event.state == Ci.nsIAccessibleStates.STATE_CHECKED &&
+            !(event.isExtraState)) {
           this.present(
             Presentation.
               actionInvoked(aEvent.accessible,
                             event.isEnabled ? 'check' : 'uncheck'));
-        } else if (state.contains(States.SELECTED)) {
+        } else if (event.state == Ci.nsIAccessibleStates.STATE_SELECTED) {
           this.present(
             Presentation.
               actionInvoked(aEvent.accessible,
@@ -178,10 +176,10 @@ this.EventManager.prototype = {
           QueryInterface(Ci.nsIAccessibleCaretMoveEvent).caretOffset;
 
         // Update editing state, both for presenter and other things
-        let state = Utils.getState(acc);
+        let [,extState] = Utils.getStates(acc);
         let editState = {
-          editing: state.contains(States.EDITABLE),
-          multiline: state.contains(States.MULTI_LINE),
+          editing: !!(extState & Ci.nsIAccessibleStates.EXT_STATE_EDITABLE),
+          multiline: !!(extState & Ci.nsIAccessibleStates.EXT_STATE_MULTI_LINE),
           atStart: caretOffset == 0,
           atEnd: caretOffset == characterCount
         };

@@ -6,7 +6,6 @@
 
 EXPORTS += [
     'CryptoTask.h',
-    'nsCrypto.h',
     'nsNSSShutDown.h',
     'nsRandomGenerator.h',
     'ScopedNSSTypes.h',

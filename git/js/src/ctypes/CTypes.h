@@ -171,7 +171,7 @@ DeflateStringToUTF8Buffer(JSContext *maybecx, const jschar *src, size_t srclen,
 ** Function and struct API definitions
 *******************************************************************************/
 
-MOZ_ALWAYS_INLINE void
+JS_ALWAYS_INLINE void
 ASSERT_OK(bool ok)
 {
   JS_ASSERT(ok);
