@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#define __STDC_LIMIT_MACROS
-
 /*
  * JS shell.
  */
@@ -98,7 +96,6 @@
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 #include "methodjit/MethodJIT.h"
-#include "ion/Ion.h"
 
 #ifdef XP_UNIX
 #include <unistd.h>
@@ -5671,13 +5668,6 @@ BindScriptArgs(JSContext *cx, JSObject *obj, OptionParser *op)
 }
 
 static int
-OptionFailure(const char *option, const char *str)
-{
-    fprintf(stderr, "Unrecognized option for %s: %s\n", option, str);
-    return EXIT_FAILURE;
-}
-
-static int
 ProcessArgs(JSContext *cx, JSObject *obj, OptionParser *op)
 {
     if (op->getBoolOption('a'))
@@ -5720,38 +5710,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, OptionParser *op)
         enableDisassemblyDumps = true;
         JS_ToggleOptions(cx, JSOPTION_PCCOUNT);
     }
-
-#if defined(JS_ION)
-    if (op->getBoolOption("ion"))
-        ion::js_IonOptions.enabled = true;
-
-    if (const char *str = op->getStringOption("ion-gvn")) {
-        if (strcmp(str, "off") == 0)
-            ion::js_IonOptions.gvn = false;
-        else if (strcmp(str, "pessimistic") == 0)
-            ion::js_IonOptions.gvnIsOptimistic = false;
-        else
-            return OptionFailure("ion-gvn", str);
-    }
-
-    if (const char *str = op->getStringOption("ion-licm")) {
-        if (strcmp(str, "on") == 0)
-            ion::js_IonOptions.licm = true;
-        else if (strcmp(str, "off") == 0)
-            ion::js_IonOptions.licm = false;
-        else
-            return OptionFailure("ion-licm", str);
-    }
-
-    if (const char *str = op->getStringOption("ion-regalloc")) {
-        if (strcmp(str, "lsra") == 0)
-            ion::js_IonOptions.lsra = true;
-        else if (strcmp(str, "greedy") == 0)
-            ion::js_IonOptions.lsra = false;
-        else
-            return OptionFailure("ion-regalloc", str);
-    }
-#endif
 
     /* |scriptArgs| gets bound on the global before any code is run. */
     if (!BindScriptArgs(cx, obj, op))
@@ -6014,23 +5972,7 @@ main(int argc, char **argv, char **envp)
         || !op.addOptionalStringArg("script", "A script to execute (after all options)")
         || !op.addOptionalMultiStringArg("scriptArgs",
                                          "String arguments to bind as |scriptArgs| in the "
-                                         "shell's global")
-#ifdef JS_ION
-        || !op.addBoolOption('\0', "ion", "Enable IonMonkey")
-        || !op.addStringOption('\0', "ion-gvn", "[mode]",
-                               "Specify Ion global value numbering:\n"
-                               "  off: disable GVN\n"
-                               "  pessimistic: use pessimistic GVN\n"
-                               "  optimistic: (default) use optimistic GVN")
-        || !op.addStringOption('\0', "ion-licm", "on/off",
-                               "Loop invariant code motion (default: on, off to disable)")
-        || !op.addStringOption('\0', "ion-regalloc", "[mode]",
-                               "Specify Ion register allocation:\n"
-                               "  greedy: Greedy register allocation\n"
-                               "  lsra: Linear Scan register allocation (default)")
-#endif
-    )
-    {
+                                         "shell's global")) {
         return EXIT_FAILURE;
     }
 

@@ -377,10 +377,9 @@ enum JITScriptStatus {
 
 namespace js {
 namespace mjit {
-    struct JITScript;
-}
-namespace ion {
-    struct IonScript;
+
+struct JITScript;
+
 }
 }
 #endif
@@ -544,10 +543,6 @@ struct JSScript {
     uint32          cookie2;
 
   public:
-#ifdef JS_ION
-    js::ion::IonScript *ion;          /* Information attached by Ion */
-#endif
-
 #ifdef JS_METHODJIT
     // Fast-cached pointers to make calls faster. These are also used to
     // quickly test whether there is JIT code; a NULL value means no

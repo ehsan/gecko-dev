@@ -48,11 +48,6 @@
 #include "jstl.h"
 
 namespace js {
-
-namespace ion {
-    class IonCode;
-}
-
 namespace gc {
 
 template<typename T>
@@ -66,9 +61,6 @@ MarkString(JSTracer *trc, JSString *str, const char *name);
 
 void
 MarkObject(JSTracer *trc, JSObject &obj, const char *name);
-
-void
-MarkIonCode(JSTracer *trc, ion::IonCode *code, const char *name);
 
 /*
  * Mark an object that may be in a different compartment from the compartment
@@ -163,9 +155,6 @@ MarkRoot(JSTracer *trc, const Shape *thing, const char *name);
 
 void
 MarkRoot(JSTracer *trc, JSXML *thing, const char *name);
-
-void
-MarkRoot(JSTracer *trc, ion::IonCode *code, const char *name);	
 
 void
 MarkChildren(JSTracer *trc, JSObject *obj);
