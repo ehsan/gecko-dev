@@ -445,8 +445,8 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mProgressSinceLastProgressEvent(false),
     mUploadProgress(0), mUploadProgressMax(0),
     mRequestSentTime(0), mTimeoutMilliseconds(0),
-    mErrorLoad(false), mProgressTimerIsActive(false),
-    mProgressEventWasDelayed(false),
+    mErrorLoad(false), mWaitingForOnStopRequest(false),
+    mProgressTimerIsActive(false), mProgressEventWasDelayed(false),
     mIsHtml(false),
     mWarnAboutMultipartHtml(false),
     mWarnAboutSyncHtml(false),
@@ -602,7 +602,8 @@ nsXMLHttpRequest::SetRequestObserver(nsIRequestObserver* aObserver)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXMLHttpRequest)
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsXMLHttpRequest)
-  if (tmp->IsBlack()) {
+  bool isBlack = tmp->IsBlack();
+  if (isBlack || tmp->mWaitingForOnStopRequest) {
     if (tmp->mListenerManager) {
       tmp->mListenerManager->UnmarkGrayJSListeners();
       NS_UNMARK_LISTENER_WRAPPER(Load)
@@ -613,6 +614,11 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsXMLHttpRequest)
       NS_UNMARK_LISTENER_WRAPPER(Loadend)
       NS_UNMARK_LISTENER_WRAPPER(UploadProgress)
       NS_UNMARK_LISTENER_WRAPPER(Readystatechange)
+    }
+    if (!isBlack) {
+      xpc_UnmarkGrayObject(tmp->PreservingWrapper() ? 
+                           tmp->GetWrapperPreserveColor() :
+                           tmp->GetExpandoObjectPreserveColor());
     }
     return true;
   }
@@ -1318,6 +1324,14 @@ nsXMLHttpRequest::GetAllResponseHeaders(char **_retval)
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = nsnull;
 
+  // If the state is UNSENT or OPENED,
+  // return the empty string and terminate these steps.
+  if (mState & (XML_HTTP_REQUEST_UNSENT |
+                XML_HTTP_REQUEST_OPENED | XML_HTTP_REQUEST_SENT)) {
+    *_retval = ToNewCString(EmptyString());
+    return NS_OK;
+  }
+
   if (mState & XML_HTTP_REQUEST_USE_XSITE_AC) {
     *_retval = ToNewCString(EmptyString());
     return NS_OK;
@@ -1330,8 +1344,23 @@ nsXMLHttpRequest::GetAllResponseHeaders(char **_retval)
     nsresult rv = httpChannel->VisitResponseHeaders(visitor);
     if (NS_SUCCEEDED(rv))
       *_retval = ToNewCString(visitor->Headers());
+  } else if (mChannel) {
+    // Even non-http channels supply content type.
+    nsCString value;
+    if (NS_SUCCEEDED(mChannel->GetContentType(value))) {
+      nsCString headers;
+      headers.Append("Content-Type: ");
+      headers.Append(value);
+      if (NS_SUCCEEDED(mChannel->GetContentCharset(value)) &&
+          !value.IsEmpty()) {
+        headers.Append(";charset=");
+        headers.Append(value);
+      }
+      headers.Append('\n');
+      *_retval = ToNewCString(headers);
+    }
   }
- 
+
   if (!*_retval) {
     *_retval = ToNewCString(EmptyString());
   }
@@ -1350,6 +1379,37 @@ nsXMLHttpRequest::GetResponseHeader(const nsACString& header,
   nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
 
   if (!httpChannel) {
+    // If the state is UNSENT or OPENED,
+    // return null and terminate these steps.
+    if (mState & (XML_HTTP_REQUEST_UNSENT |
+                  XML_HTTP_REQUEST_OPENED | XML_HTTP_REQUEST_SENT)) {
+      return NS_OK;
+    }
+
+    // Even non-http channels supply content type.
+    // Remember we don't leak header information from denied cross-site
+    // requests.
+    nsresult status;
+    if (!mChannel ||
+        NS_FAILED(mChannel->GetStatus(&status)) ||
+        NS_FAILED(status) ||
+        !header.LowerCaseEqualsASCII("content-type")) {
+      return NS_OK;
+    }
+
+    if (NS_FAILED(mChannel->GetContentType(_retval))) {
+      // Means no content type
+      _retval.SetIsVoid(true);
+      return NS_OK;
+    }
+
+    nsCString value;
+    if (NS_SUCCEEDED(mChannel->GetContentCharset(value)) &&
+        !value.IsEmpty()) {
+      _retval.Append(";charset=");
+      _retval.Append(value);
+    }
+
     return NS_OK;
   }
 
@@ -2140,6 +2200,8 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
     return NS_OK;
   }
 
+  mWaitingForOnStopRequest = false;
+
   nsresult rv = NS_OK;
 
   // If we're loading a multipart stream of XML documents, we'll get
@@ -2773,6 +2835,9 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
     mCORSPreflightChannel = nsnull;
     return rv;
   }
+
+  // Either AsyncOpen was called, or CORS will open the channel later.
+  mWaitingForOnStopRequest = true;
 
   // If we're synchronous, spin an event loop here and wait
   if (!(mState & XML_HTTP_REQUEST_ASYNC)) {
