@@ -143,118 +143,6 @@ struct ParamTraits<URI>
   }
 };
 
-class InputStream {
- public:
-  InputStream() : mStream(nullptr) {}
-  InputStream(nsIInputStream* aStream) : mStream(aStream) {}
-  operator nsIInputStream*() const { return mStream.get(); }
-
-  friend struct ParamTraits<InputStream>;
-
- private:
-  // Unimplemented
-  InputStream& operator=(InputStream&);
-
-  nsCOMPtr<nsIInputStream> mStream;
-};
-
-template<>
-struct ParamTraits<InputStream>
-{
-  typedef InputStream paramType;
-
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    bool isNull = !aParam.mStream;
-    aMsg->WriteBool(isNull);
-
-    if (isNull)
-      return;
-
-    nsCOMPtr<nsIIPCSerializableObsolete> serializable =
-      do_QueryInterface(aParam.mStream);
-    bool isSerializable = !!serializable;
-    WriteParam(aMsg, isSerializable);
-
-    if (!serializable) {
-      NS_WARNING("nsIInputStream implementation doesn't support "
-                 "nsIIPCSerializableObsolete; falling back to copying data");
-
-      nsCString streamString;
-      uint64_t bytes;
-
-      nsresult rv = aParam.mStream->Available(&bytes);
-      if (NS_SUCCEEDED(rv) && bytes > 0) {
-        // Also, on 64-bit system, for an interoperability for 32-bit process
-        // and 64-bit process, we shouldn't handle over 4GB message.
-        NS_ABORT_IF_FALSE(bytes < PR_UINT32_MAX, "nsIInputStream has over 4GB data");
-        mozilla::DebugOnly<nsresult> rv =
-          NS_ReadInputStreamToString(aParam.mStream, streamString, (uint32_t)bytes);
-        NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Can't read input stream into a string!");
-      }
-
-      WriteParam(aMsg, streamString);
-      return;
-    }
-
-    nsCOMPtr<nsIClassInfo> classInfo = do_QueryInterface(aParam.mStream);
-    NS_ASSERTION(classInfo, "Must QI to nsIClassInfo for this to work!");
-
-    char cidStr[NSID_LENGTH];
-    nsCID cid;
-    mozilla::DebugOnly<nsresult> rv = classInfo->GetClassIDNoAlloc(&cid);
-    NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "All IPDL streams must report a valid class ID");
-
-    cid.ToProvidedString(cidStr);
-    WriteParam(aMsg, nsCAutoString(cidStr));
-    serializable->Write(aMsg);
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    bool isNull;
-    if (!ReadParam(aMsg, aIter, &isNull))
-      return false;
-
-    if (isNull) {
-      aResult->mStream = nullptr;
-      return true;
-    }
-
-    bool isSerializable;
-    if (!ReadParam(aMsg, aIter, &isSerializable))
-      return false;
-
-    nsCOMPtr<nsIInputStream> stream;
-    if (!isSerializable) {
-      nsCString streamString;
-      if (!ReadParam(aMsg, aIter, &streamString))
-        return false;
-
-      nsresult rv = NS_NewCStringInputStream(getter_AddRefs(stream), streamString);
-      if (NS_FAILED(rv))
-        return false;
-    } else {
-      nsCAutoString cidStr;
-      nsCID cid;
-      if (!ReadParam(aMsg, aIter, &cidStr) ||
-          !cid.Parse(cidStr.get()))
-        return false;
-
-      stream = do_CreateInstance(cid);
-      if (!stream)
-        return false;
-      nsCOMPtr<nsIIPCSerializableObsolete> serializable =
-        do_QueryInterface(stream);
-      if (!serializable || !serializable->Read(aMsg, aIter))
-        return false;
-    }
-
-    stream.swap(aResult->mStream);
-    return true;
-  }
-};
-
 // nsIPermissionManager utilities
 
 struct Permission
@@ -262,13 +150,9 @@ struct Permission
   nsCString host, type;
   uint32_t capability, expireType;
   int64_t expireTime;
-  uint32_t appId;
-  bool isInBrowserElement;
 
   Permission() { }
   Permission(const nsCString& aHost,
-             const uint32_t aAppId,
-             const bool aIsInBrowserElement,
              const nsCString& aType,
              const uint32_t aCapability,
              const uint32_t aExpireType,
@@ -276,10 +160,7 @@ struct Permission
                                           type(aType),
                                           capability(aCapability),
                                           expireType(aExpireType),
-                                          expireTime(aExpireTime),
-                                          appId(aAppId),
-                                          isInBrowserElement(aIsInBrowserElement)
-  {}
+                                          expireTime(aExpireTime) { }
 };
 
 template<>
@@ -292,8 +173,6 @@ struct ParamTraits<Permission>
     WriteParam(aMsg, aParam.capability);
     WriteParam(aMsg, aParam.expireType);
     WriteParam(aMsg, aParam.expireTime);
-    WriteParam(aMsg, aParam.appId);
-    WriteParam(aMsg, aParam.isInBrowserElement);
   }
 
   static bool Read(const Message* aMsg, void** aIter, Permission* aResult)
@@ -302,26 +181,12 @@ struct ParamTraits<Permission>
            ReadParam(aMsg, aIter, &aResult->type) &&
            ReadParam(aMsg, aIter, &aResult->capability) &&
            ReadParam(aMsg, aIter, &aResult->expireType) &&
-           ReadParam(aMsg, aIter, &aResult->expireTime) &&
-           ReadParam(aMsg, aIter, &aResult->appId) &&
-           ReadParam(aMsg, aIter, &aResult->isInBrowserElement);
+           ReadParam(aMsg, aIter, &aResult->expireTime);
   }
 
-  static void Log(const Permission& p, std::wstring* l)
+  static void Log(const Permission& aParam, std::wstring* aLog)
   {
-    l->append(L"(");
-    LogParam(p.host, l);
-    l->append(L", ");
-    LogParam(p.appId, l);
-    l->append(L", ");
-    LogParam(p.isInBrowserElement, l);
-    l->append(L", ");
-    LogParam(p.capability, l);
-    l->append(L", ");
-    LogParam(p.expireTime, l);
-    l->append(L", ");
-    LogParam(p.expireType, l);
-    l->append(L")");
+    aLog->append(StringPrintf(L"[%s]", aParam.host.get()));
   }
 };
 
