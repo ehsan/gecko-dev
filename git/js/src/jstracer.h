@@ -45,6 +45,7 @@
 #ifdef JS_TRACER
 
 #include "jscntxt.h"
+#include "jsstddef.h"
 #include "jstypes.h"
 #include "jslock.h"
 #include "jsnum.h"

@@ -1,4 +1,4 @@
-<html manifest="obsoletingManifest.sjs">
+<html manifest="obsolete.cacheManifest">
 <head>
 <title>obsolete test</title>
 <script type="text/javascript">
@@ -32,8 +32,6 @@ function fail(evt)
 }
 
 applicationCache.oncached = function() {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
   // ok, we've successfully loaded from the initial cache.
   try {
     applicationCache.swapCache();
@@ -46,13 +44,8 @@ applicationCache.oncached = function() {
   applicationCache.onupdateready = fail;
   applicationCache.onobsolete = obsolete;
 
-  // Make the obsoleting.sjs return 404 NOT FOUND code
   var req = new XMLHttpRequest();
-  req.open("GET", "http://localhost:8888/tests/dom/tests/mochitest/ajax/offline/obsoletingManifest.sjs?state=");
-  var channel = req.channel
-    .QueryInterface(Components.interfaces.nsIApplicationCacheChannel);
-  channel.chooseApplicationCache = false;
-  channel.inheritApplicationCache = false;
+  req.open("DELETE", "obsolete.cacheManifest");
   req.send("");
   req.onreadystatechange = function() {
     if (req.readyState == 4) {

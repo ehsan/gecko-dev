@@ -119,27 +119,17 @@ struct nsCSSRendering {
                          nscolor aColor);
 
   /**
-   * @return PR_TRUE if |aForFrame| is a canvas frame, in the CSS sense.
-   */
-  static PRBool IsCanvasFrame(nsIFrame* aFrame);
-
-  /**
-   * Fill in an nsStyleBackground to be used to paint the background
-   * for an element.  This applies the rules for propagating
+   * Fill in an nsStyleBackground to be used to paint the background for
+   * an element.  The nsStyleBackground should first be initialized
+   * using the pres context.  This applies the rules for propagating
    * backgrounds between BODY, the root element, and the canvas.
    * @return PR_TRUE if there is some meaningful background.
    */
   static PRBool FindBackground(nsPresContext* aPresContext,
                                nsIFrame* aForFrame,
-                               const nsStyleBackground** aBackground);
-
-  /**
-   * As FindBackground, but the passed-in frame is known to be a root frame
-   * (returned from nsCSSFrameConstructor::GetRootElementStyleFrame())
-   * and there is always some meaningful background returned.
-   */
-  static const nsStyleBackground* FindRootFrameBackground(nsIFrame* aForFrame);
-
+                               const nsStyleBackground** aBackground,
+                               PRBool* aIsCanvas);
+                               
   /**
    * Find a style context containing a non-transparent background,
    * for various table-related and HR-related backwards-compatibility hacks.

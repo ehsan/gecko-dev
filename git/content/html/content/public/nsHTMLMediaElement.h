@@ -39,24 +39,12 @@
 #include "nsGenericHTMLElement.h"
 #include "nsMediaDecoder.h"
 #include "nsIChannel.h"
-#include "nsThreadUtils.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
 
 typedef PRUint16 nsMediaNetworkState;
 typedef PRUint16 nsMediaReadyState;
-
-// Object representing a single execution of the media load algorithm.
-// Used by implicit load events so that they can be cancelled when Load()
-// is executed.
-// Note: When bug 465458 lands, all events are expected to do this, not
-//       just implicit load events.
-class nsMediaLoad : public nsISupports
-{
-public:
-  NS_DECL_ISUPPORTS
-};
 
 class nsHTMLMediaElement : public nsGenericHTMLElement
 {
@@ -204,29 +192,6 @@ public:
    */
   static void ShutdownMediaTypes();
 
-  /**
-   * Called when a child source element is added to this media element. This
-   * may queue a load() task if appropriate.
-   */
-  void NotifyAddedSource();
-
-  virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-
-  /**
-   * Queues an event to call Load().
-   */
-  void QueueLoadTask();
-
-  /**
-   * Returns the current nsMediaLoad object. Implicit load events store a
-   * reference to the nsMediaLoad object that was current when they were
-   * enqueued, and if it has changed when they come to fire, they consider
-   * themselves cancelled, and don't fire.
-   * Note: When bug 465458 lands, all events are expected to do this, not
-   *       just implicit load events.
-   */
-  nsMediaLoad* GetCurrentMediaLoad() { return mCurrentLoad; }
-
 protected:
   class nsMediaLoadListener;
 
@@ -257,21 +222,12 @@ protected:
    */
   nsresult NewURIFromString(const nsAutoString& aURISpec, nsIURI** aURI);
 
-  /**
-   * Does step 12 of the media load() algorithm, sends error/emptied events to
-   * to the media element, and reset network/begun state.
-   */
-  void NoSupportedMediaError();
-
   nsRefPtr<nsMediaDecoder> mDecoder;
 
   nsCOMPtr<nsIChannel> mChannel;
 
   // Error attribute
   nsCOMPtr<nsIDOMHTMLMediaError> mError;
-
-  // The current media load object.
-  nsRefPtr<nsMediaLoad> mCurrentLoad;
 
   // Media loading flags. See: 
   //   http://www.whatwg.org/specs/web-apps/current-work/#video)
@@ -329,7 +285,4 @@ protected:
   // PR_TRUE if we've reported a "waiting" event since the last
   // readyState change to HAVE_CURRENT_DATA.
   PRPackedBool mWaitingFired;
-
-  // PR_TRUE if we're in BindToTree().
-  PRPackedBool mIsBindingToTree;
 };

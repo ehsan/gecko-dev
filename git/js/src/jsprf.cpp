@@ -41,6 +41,7 @@
 **
 ** Author: Kipp E.B. Hickman
 */
+#include "jsstddef.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>

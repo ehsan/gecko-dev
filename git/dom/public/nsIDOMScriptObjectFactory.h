@@ -51,9 +51,6 @@ class nsIScriptGlobalObject;
 class nsIScriptRuntime;
 class nsIDOMEventListener;
 
-typedef nsIClassInfo* (*nsDOMClassInfoExternalConstructorFnc)
-  (const char* aName);
-
 class nsIDOMScriptObjectFactory : public nsISupports {
 public:  
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IDOM_SCRIPT_OBJECT_FACTORY_IID)

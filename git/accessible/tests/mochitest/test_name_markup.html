@@ -1,7 +1,7 @@
 <html>
 
 <head>
-  <title>nsIAccessible::name calculation for elements</title>
+  <title>nsIAccessible::name calculation for HTML buttons</title>
   <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
@@ -11,15 +11,18 @@
   <script type="application/javascript"
           src="chrome://mochikit/content/a11y/accessible/common.js"></script>
   <script type="application/javascript"
-          src="chrome://mochikit/content/a11y/accessible/events.js"></script>
-  <script type="application/javascript"
           src="chrome://mochikit/content/a11y/accessible/nsIAccessible_name.js"></script>
 
   <script type="application/javascript">
-    // gA11yEventDumpID = "eventdump";
+    function doTest()
+    {
+      testNames();
+
+      SimpleTest.finish();
+    }
 
     SimpleTest.waitForExplicitFinish();
-    addA11yLoadEvent(testNames);
+    addLoadEvent(doTest);
   </script>
 
 </head>
@@ -28,7 +31,7 @@
 
   <a target="_blank"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=459635"
-     title="nsIAccessible::name calculation for elements">
+     title="nsIAccessible::name calculation for HTML buttons">
     Mozilla Bug 459635
   </a>
   <p id="display"></p>
@@ -36,6 +39,6 @@
   <pre id="test">
   </pre>
 
-  <div id="eventdump"></div>
+  
 </body>
 </html>

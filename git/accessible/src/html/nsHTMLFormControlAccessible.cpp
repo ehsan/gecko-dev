@@ -627,8 +627,7 @@ nsHTMLGroupboxAccessible::GetNameInternal(nsAString& aName)
 
   nsIContent *legendContent = GetLegend();
   if (legendContent) {
-    return nsTextEquivUtils::
-      AppendTextEquivFromContent(this, legendContent, &aName);
+    return AppendFlatStringFromSubtree(legendContent, &aName);
   }
 
   return NS_OK;

@@ -154,7 +154,7 @@ pref("gfx.downloadable_fonts.enabled", true);
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
 
-pref("accessibility.browsewithcaret_shortcut.enabled", true);
+pref("accessibility.browserwithcaret_shortcut.enabled", true);
 
 #ifndef XP_MACOSX
 // Tab focus model bit field:
@@ -2692,11 +2692,4 @@ pref("image.cache.timeweight", 500);
 // The default TCP send window on Windows is too small, and autotuning only occurs on receive
 pref("network.tcp.sendbuffer", 131072);
 #endif
-#endif
-
-#ifdef WINCE
-// Note that this overwrites an option set earlier, until
-// we can fix the jit on CE.
-pref("javascript.options.jit.content",      false);
-pref("mozilla.widget.disable-native-theme", true);
 #endif

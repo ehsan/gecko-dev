@@ -48,6 +48,7 @@
  *
  * XXX swizzle page to freelist for better locality of reference
  */
+#include "jsstddef.h"
 #include <stdlib.h>     /* for free */
 #include <math.h>
 #include <string.h>     /* for memset used when DEBUG */

@@ -346,6 +346,7 @@ protected:
    * Called to trigger notifications of frames and fixing selected index
    *
    * @param aSelectFrame the frame for this content (could be null)
+   * @param aPresContext the current pres context
    * @param aIndex the index that was selected or deselected
    * @param aSelected whether the index was selected or deselected
    * @param aChangeOptionState if false, don't do anything to the
@@ -354,6 +355,7 @@ protected:
    * @param aNotify whether to notify the style system and such
    */
   void OnOptionSelected(nsISelectControlFrame* aSelectFrame,
+                        nsPresContext* aPresContext,
                         PRInt32 aIndex,
                         PRBool aSelected,
                         PRBool aChangeOptionState,

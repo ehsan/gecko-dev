@@ -1163,7 +1163,6 @@ nsXPInstallManager::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
     {
 
         case NS_BINDING_SUCCEEDED:
-            NS_ASSERTION( mItem->mOutStream, "XPIManager: output stream doesn't exist");
             rv = NS_OK;
             break;
 
@@ -1180,6 +1179,7 @@ nsXPInstallManager::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
     }
 
     NS_ASSERTION( mItem, "Bad state in XPIManager");
+    NS_ASSERTION( mItem->mOutStream, "XPIManager: output stream doesn't exist");
     if ( mItem && mItem->mOutStream )
     {
         mItem->mOutStream->Close();

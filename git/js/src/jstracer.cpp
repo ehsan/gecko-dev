@@ -39,6 +39,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "jsstddef.h"           // always first
 #include "jsbit.h"              // low-level (NSPR-based) headers next
 #include "jsprf.h"
 #include <math.h>               // standard headers next
@@ -850,7 +851,7 @@ public:
     {
     }
 
-    JS_REQUIRES_STACK LInsp ins2(LOpcode v, LInsp s0, LInsp s1)
+    LInsp ins2(LOpcode v, LInsp s0, LInsp s1)
     {
         if (s0 == s1 && v == LIR_feq) {
             if (isPromote(s0)) {
@@ -4327,7 +4328,9 @@ TraceRecorder::monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op)
             js_Disassemble1(cx, cx->fp->script, cx->fp->regs->pc,             \
                             (cx->fp->imacpc)                                  \
                             ? 0                                               \
-                            : cx->fp->regs->pc - cx->fp->script->code,        \
+                            : PTRDIFF(cx->fp->regs->pc,                       \
+                                      cx->fp->script->code,                   \
+                                      jsbytecode),                            \
                             !cx->fp->imacpc, stdout);)                        \
         flag = tr->record_##x();                                              \
         if (x == JSOP_ITER || x == JSOP_NEXTITER || x == JSOP_APPLY ||        \
@@ -7060,7 +7063,8 @@ GetProperty(JSContext *cx, uintN argc, jsval *vp)
     jsval *argv;
     jsid id;
 
-    JS_ASSERT(!JS_ON_TRACE(cx) && cx->fp->imacpc && argc == 1);
+    JS_ASSERT_NOT_ON_TRACE(cx);
+    JS_ASSERT(cx->fp->imacpc && argc == 1);
     argv = JS_ARGV(cx, vp);
     JS_ASSERT(JSVAL_IS_STRING(argv[0]));
     if (!js_ValueToStringId(cx, argv[0], &id))
@@ -7091,7 +7095,8 @@ GetElement(JSContext *cx, uintN argc, jsval *vp)
     jsval *argv;
     jsid id;
 
-    JS_ASSERT(!JS_ON_TRACE(cx) && cx->fp->imacpc && argc == 1);
+    JS_ASSERT_NOT_ON_TRACE(cx);
+    JS_ASSERT(cx->fp->imacpc && argc == 1);
     argv = JS_ARGV(cx, vp);
     JS_ASSERT(JSVAL_IS_NUMBER(argv[0]));
     if (!JS_ValueToId(cx, argv[0], &id))

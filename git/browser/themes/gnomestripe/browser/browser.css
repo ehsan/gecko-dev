@@ -1268,9 +1268,8 @@ tabpanels {
 
 /* Tabstrip new tab button */
 .tabs-newtab-button {
-  list-style-image: url("moz-icon://stock/gtk-add?size=menu");
+  list-style-image: url(chrome://browser/skin/tabbrowser/newtab.png);
   border: none;
-  margin-bottom: 1px;
 }
 
 .tabbrowser-arrowscrollbox > .tabs-newtab-button {
@@ -1278,7 +1277,7 @@ tabpanels {
 }
 
 .tabs-newtab-button > .toolbarbutton-icon {
-  margin: 0 0 -1px;
+  margin: -1px 0 0;
 }
 
 /* Tabstrip close button */

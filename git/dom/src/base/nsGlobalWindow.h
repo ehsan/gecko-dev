@@ -303,7 +303,6 @@ public:
 
   virtual NS_HIDDEN_(nsresult) SaveWindowState(nsISupports **aState);
   virtual NS_HIDDEN_(nsresult) RestoreWindowState(nsISupports *aState);
-  virtual NS_HIDDEN_(void) SuspendTimeouts();
   virtual NS_HIDDEN_(nsresult) ResumeTimeouts();
   virtual NS_HIDDEN_(nsresult) FireDelayedDOMEvents();
   virtual NS_HIDDEN_(PRBool) IsFrozen() const
@@ -600,6 +599,8 @@ protected:
 
   already_AddRefed<nsIWidget> GetMainWidget();
 
+  void SuspendTimeouts();
+
   void Freeze()
   {
     NS_ASSERTION(!IsFrozen(), "Double-freezing?");
@@ -731,8 +732,6 @@ protected:
   JSObject* mJSObject;
 
   nsDataHashtable<nsStringHashKey, PRBool> *mPendingStorageEvents;
-
-  PRUint32 mTimeoutsSuspendDepth;
 
 #ifdef DEBUG
   PRBool mSetOpenerWindowCalled;

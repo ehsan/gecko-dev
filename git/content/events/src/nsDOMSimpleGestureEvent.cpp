@@ -41,7 +41,7 @@
 
 
 nsDOMSimpleGestureEvent::nsDOMSimpleGestureEvent(nsPresContext* aPresContext, nsSimpleGestureEvent* aEvent)
-  : nsDOMMouseEvent(aPresContext, aEvent ? aEvent : new nsSimpleGestureEvent(PR_FALSE, 0, nsnull, 0, 0.0))
+  : nsDOMUIEvent(aPresContext, aEvent ? aEvent : new nsSimpleGestureEvent(PR_FALSE, 0, nsnull, 0, 0.0))
 {
   NS_ASSERTION(mEvent->eventStructType == NS_SIMPLE_GESTURE_EVENT, "event type mismatch");
 
@@ -67,7 +67,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMSimpleGestureEvent, nsDOMUIEvent)
 NS_INTERFACE_MAP_BEGIN(nsDOMSimpleGestureEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSimpleGestureEvent)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SimpleGestureEvent)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMMouseEvent)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 /* readonly attribute unsigned long direction; */
 NS_IMETHODIMP
@@ -87,45 +87,56 @@ nsDOMSimpleGestureEvent::GetDelta(PRFloat64 *aDelta)
   return NS_OK;
 }
 
+/* readonly attribute boolean altKey; */
 NS_IMETHODIMP
-nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
-                                                PRBool aCanBubbleArg,
-                                                PRBool aCancelableArg,
-                                                nsIDOMAbstractView* aViewArg,
-                                                PRInt32 aDetailArg,
-                                                PRInt32 aScreenX, 
-                                                PRInt32 aScreenY,
-                                                PRInt32 aClientX,
-                                                PRInt32 aClientY,
-                                                PRBool aCtrlKeyArg,
-                                                PRBool aAltKeyArg,
-                                                PRBool aShiftKeyArg,
-                                                PRBool aMetaKeyArg,
-                                                PRUint16 aButton,
-                                                nsIDOMEventTarget* aRelatedTarget,
-                                                PRUint32 aDirectionArg,
-                                                PRFloat64 aDeltaArg)
+nsDOMSimpleGestureEvent::GetAltKey(PRBool* aIsDown)
 {
-  nsresult rv = nsDOMMouseEvent::InitMouseEvent(aTypeArg,
-                                                aCanBubbleArg,
-                                                aCancelableArg,
-                                                aViewArg,
-                                                aDetailArg,
-                                                aScreenX, 
-                                                aScreenY,
-                                                aClientX,
-                                                aClientY,
-                                                aCtrlKeyArg,
-                                                aAltKeyArg,
-                                                aShiftKeyArg,
-                                                aMetaKeyArg,
-                                                aButton,
-                                                aRelatedTarget);
+  NS_ENSURE_ARG_POINTER(aIsDown);
+  *aIsDown = static_cast<nsInputEvent*>(mEvent)->isAlt;
+  return NS_OK;
+}
+
+/* readonly attribute boolean ctrlKey; */
+NS_IMETHODIMP
+nsDOMSimpleGestureEvent::GetCtrlKey(PRBool* aIsDown)
+{
+  NS_ENSURE_ARG_POINTER(aIsDown);
+  *aIsDown = static_cast<nsInputEvent*>(mEvent)->isControl;
+  return NS_OK;
+}
+
+/* readonly attribute boolean shiftKey; */
+NS_IMETHODIMP
+nsDOMSimpleGestureEvent::GetShiftKey(PRBool* aIsDown)
+{
+  NS_ENSURE_ARG_POINTER(aIsDown);
+  *aIsDown = static_cast<nsInputEvent*>(mEvent)->isShift;
+  return NS_OK;
+}
+
+/* readonly attribute boolean metaKey; */
+NS_IMETHODIMP
+nsDOMSimpleGestureEvent::GetMetaKey(PRBool* aIsDown)
+{
+  NS_ENSURE_ARG_POINTER(aIsDown);
+  *aIsDown = static_cast<nsInputEvent*>(mEvent)->isMeta;
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString & typeArg, PRBool canBubbleArg, PRBool cancelableArg, nsIDOMAbstractView *viewArg, PRInt32 detailArg, PRUint32 directionArg, PRFloat64 deltaArg, PRBool altKeyArg, PRBool ctrlKeyArg, PRBool shiftKeyArg, PRBool metaKeyArg)
+{
+  nsresult rv = nsDOMUIEvent::InitUIEvent(typeArg, canBubbleArg, cancelableArg, viewArg, detailArg);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsSimpleGestureEvent* simpleGestureEvent = static_cast<nsSimpleGestureEvent*>(mEvent);
-  simpleGestureEvent->direction = aDirectionArg;
-  simpleGestureEvent->delta = aDeltaArg;
+  simpleGestureEvent->direction = directionArg;
+  simpleGestureEvent->delta = deltaArg;
+  simpleGestureEvent->isAlt = altKeyArg;
+  simpleGestureEvent->isControl = ctrlKeyArg;
+  simpleGestureEvent->isShift = shiftKeyArg;
+  simpleGestureEvent->isMeta = metaKeyArg;
 
   return NS_OK;
 }

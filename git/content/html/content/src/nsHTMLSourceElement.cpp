@@ -43,9 +43,6 @@
 #include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
-#include "nsHTMLMediaElement.h"
-#include "nsCOMPtr.h"
-#include "nsThreadUtils.h"
 
 class nsHTMLSourceElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLSourceElement
@@ -74,12 +71,6 @@ public:
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  // Override BindToTree() so that we can trigger a load when we add a
-  // child source element.
-  virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
-                              nsIContent *aBindingParent,
-                              PRBool aCompileEventHandlers);
 };
 
 
@@ -131,26 +122,5 @@ nsHTMLSourceElement::ParseAttribute(PRInt32 aNamespaceID,
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
-}
-
-nsresult
-nsHTMLSourceElement::BindToTree(nsIDocument *aDocument,
-                                nsIContent *aParent,
-                                nsIContent *aBindingParent,
-                                PRBool aCompileEventHandlers)
-{
-  nsresult rv = nsGenericHTMLElement::BindToTree(aDocument,
-                                                 aParent,
-                                                 aBindingParent,
-                                                 aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!aParent->IsNodeOfType(nsINode::eMEDIA))
-    return NS_OK;
-
-  nsHTMLMediaElement* media = static_cast<nsHTMLMediaElement*>(aParent);
-  media->NotifyAddedSource();
-
-  return NS_OK;
 }
 

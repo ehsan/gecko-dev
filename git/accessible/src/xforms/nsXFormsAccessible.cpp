@@ -234,9 +234,7 @@ NS_IMETHODIMP
 nsXFormsAccessible::GetDescription(nsAString& aDescription)
 {
   nsAutoString description;
-  nsresult rv = nsTextEquivUtils::
-    GetTextEquivFromIDRefs(this, nsAccessibilityAtoms::aria_describedby,
-                           description);
+  nsresult rv = GetTextFromRelationID(nsAccessibilityAtoms::aria_describedby, description);
 
   if (NS_SUCCEEDED(rv) && !description.IsEmpty()) {
     aDescription = description;

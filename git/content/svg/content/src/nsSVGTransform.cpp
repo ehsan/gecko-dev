@@ -144,7 +144,7 @@ nsSVGTransform::GetValueString(nsAString& aValue)
         float sx, sy;
         mMatrix->GetA(&sx);
         mMatrix->GetD(&sy);
-        if (sy != sx)
+        if (sy != 0.0f)
           nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
                                     NS_LITERAL_STRING("scale(%g, %g)").get(), sx, sy);
         else

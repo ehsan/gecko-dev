@@ -482,24 +482,27 @@ IsTopLevelWidget(nsPresContext* aPresContext)
 }
 
 static void
-SyncFrameViewGeometryDependentProperties(nsPresContext*   aPresContext,
+SyncFrameViewGeometryDependentProperties(nsPresContext*  aPresContext,
                                          nsIFrame*        aFrame,
                                          nsStyleContext*  aStyleContext,
                                          nsIView*         aView,
                                          PRUint32         aFlags)
 {
 #ifdef MOZ_XUL
-  if (!nsCSSRendering::IsCanvasFrame(aFrame))
-    return;
-
-  if (!aView->HasWidget() || !IsTopLevelWidget(aPresContext))
-    return;
-
   nsIViewManager* vm = aView->GetViewManager();
+
+  PRBool isCanvas;
+  const nsStyleBackground* bg;
+  nsCSSRendering::FindBackground(aPresContext, aFrame, &bg, &isCanvas);
+
+  if (!isCanvas)
+    return;
+
   nsIView* rootView;
   vm->GetRootView(rootView);
 
-  if (aView != rootView)
+  if (!aView->HasWidget() || aView != rootView ||
+      !IsTopLevelWidget(aPresContext))
     return;
 
   nsIContent* rootContent = aPresContext->Document()->GetRootContent();
