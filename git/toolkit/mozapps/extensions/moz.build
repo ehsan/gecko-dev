@@ -55,5 +55,3 @@ DEFINES['MOZ_EXTENSIONS_DB_SCHEMA'] = 15
 # Additional debugging info is exposed in debug builds
 if CONFIG['MOZ_DEBUG']:
     DEFINES['MOZ_EM_DEBUG'] = 1
-
-JAR_MANIFESTS += ['jar.mn']

@@ -8,5 +8,3 @@ EXTRA_COMPONENTS += [
     'recording-cmdline.js',
     'recording-cmdline.manifest',
 ]
-
-JAR_MANIFESTS += ['jar.mn']

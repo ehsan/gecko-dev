@@ -632,10 +632,8 @@ GetPropertyDesc(JSContext *cx, JSObject *obj_, HandleShape shape, JSPropertyDesc
 
     bool wasThrowing = cx->isExceptionPending();
     RootedValue lastException(cx, UndefinedValue());
-    if (wasThrowing) {
-        if (!cx->getPendingException(&lastException))
-            return false;
-    }
+    if (wasThrowing)
+        lastException = cx->getPendingException();
     cx->clearPendingException();
 
     Rooted<jsid> id(cx, shape->propid());
@@ -646,9 +644,7 @@ GetPropertyDesc(JSContext *cx, JSObject *obj_, HandleShape shape, JSPropertyDesc
             pd->value = JSVAL_VOID;
         } else {
             pd->flags = JSPD_EXCEPTION;
-            if (!cx->getPendingException(&value))
-                return false;
-            pd->value = value;
+            pd->value = cx->getPendingException();
         }
     } else {
         pd->flags = 0;

@@ -1266,8 +1266,6 @@ nsGlobalWindow::~nsGlobalWindow()
     while ((w = (nsGlobalWindow *)PR_LIST_HEAD(this)) != this) {
       PR_REMOVE_AND_INIT_LINK(w);
     }
-
-    DropOuterWindowDocs();
   } else {
     Telemetry::Accumulate(Telemetry::INNERWINDOWS_WITH_MUTATION_LISTENERS,
                           mMutationBits ? 1 : 0);
@@ -1288,9 +1286,9 @@ nsGlobalWindow::~nsGlobalWindow()
     if (outer) {
       outer->MaybeClearInnerWindow(this);
     }
-
-    MOZ_ASSERT_IF(mDoc, !mDoc->EventHandlingSuppressed());
   }
+
+  ClearDelayedEventsAndDropDocument();
 
   // Outer windows are always supposed to call CleanUp before letting themselves
   // be destroyed. And while CleanUp generally seems to be intended to clean up
@@ -1362,11 +1360,12 @@ nsGlobalWindow::MaybeForgiveSpamCount()
 }
 
 void
-nsGlobalWindow::DropOuterWindowDocs()
+nsGlobalWindow::ClearDelayedEventsAndDropDocument()
 {
-  MOZ_ASSERT(IsOuterWindow());
+  if (mDoc && mDoc->EventHandlingSuppressed()) {
+    mDoc->UnsuppressEventHandlingAndFireEvents(false);
+  }
   mDoc = nullptr;
-  mSuspendedDoc = nullptr;
 }
 
 void
@@ -1546,10 +1545,6 @@ nsGlobalWindow::FreeInnerObjects()
     mDocumentPrincipal = mDoc->NodePrincipal();
     mDocumentURI = mDoc->GetDocumentURI();
     mDocBaseURI = mDoc->GetDocBaseURI();
-
-    if (mDoc->EventHandlingSuppressed()) {
-      mDoc->UnsuppressEventHandlingAndFireEvents(false);
-    }
   }
 
   // Remove our reference to the document and the document principal.
@@ -2276,10 +2271,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   // document.
   mDoc = aDocument;
 
-  // Take this opportunity to clear mSuspendedDoc. Our old inner window is now
-  // responsible for unsuspending it.
-  mSuspendedDoc = nullptr;
-
 #ifdef DEBUG
   mLastOpenedURI = aDocument->GetDocumentURI();
 #endif
@@ -2775,7 +2766,7 @@ nsGlobalWindow::DetachFromDocShell()
     mDocBaseURI = mDoc->GetDocBaseURI();
 
     // Release our document reference
-    DropOuterWindowDocs();
+    ClearDelayedEventsAndDropDocument();
     mFocusedNode = nullptr;
   }
 
@@ -8179,8 +8170,6 @@ nsGlobalWindow::ReallyCloseWindow()
 void
 nsGlobalWindow::EnterModalState()
 {
-  FORWARD_TO_OUTER_VOID(EnterModalState, ());
-
   // GetScriptableTop, not GetTop, so that EnterModalState works properly with
   // <iframe mozbrowser>.
   nsGlobalWindow* topWin = GetScriptableTop();
@@ -8214,8 +8203,10 @@ nsGlobalWindow::EnterModalState()
     NS_ASSERTION(!mSuspendedDoc, "Shouldn't have mSuspendedDoc here!");
 
     mSuspendedDoc = topWin->GetExtantDoc();
-    if (mSuspendedDoc) {
+    if (mSuspendedDoc && mSuspendedDoc->EventHandlingSuppressed()) {
       mSuspendedDoc->SuppressEventHandling();
+    } else {
+      mSuspendedDoc = nullptr;
     }
   }
   topWin->mModalStateDepth++;
@@ -8294,8 +8285,6 @@ private:
 void
 nsGlobalWindow::LeaveModalState()
 {
-  FORWARD_TO_OUTER_VOID(LeaveModalState, ());
-
   nsGlobalWindow* topWin = GetScriptableTop();
 
   if (!topWin) {

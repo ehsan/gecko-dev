@@ -7,4 +7,3 @@
 # Process desktop related resource we reuse here.
 DIRS += ['import']
 
-JAR_MANIFESTS += ['jar.mn']

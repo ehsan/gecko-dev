@@ -540,9 +540,7 @@ HandleExceptionBaseline(JSContext *cx, const IonFrameIterator &frame, ResumeFrom
                 rfe->kind = ResumeFromException::RESUME_FINALLY;
                 jsbytecode *finallyPC = script->main() + tn->start + tn->length;
                 rfe->target = script->baselineScript()->nativeCodeForPC(script, finallyPC);
-                // Drop the exception instead of leaking cross compartment data.
-                if (!cx->getPendingException(MutableHandleValue::fromMarkedLocation(&rfe->exception)))
-                    rfe->exception = UndefinedValue();
+                rfe->exception = cx->getPendingException();
                 cx->clearPendingException();
                 return;
             }
