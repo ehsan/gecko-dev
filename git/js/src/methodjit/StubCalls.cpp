@@ -1665,15 +1665,7 @@ stubs::DelElem(VMFrame &f)
 void JS_FASTCALL
 stubs::DefVarOrConst(VMFrame &f, PropertyName *dn)
 {
-    uintN attrs = JSPROP_ENUMERATE;
-    if (!f.fp()->isEvalFrame())
-        attrs |= JSPROP_PERMANENT;
-    if (JSOp(*f.regs.pc) == JSOP_DEFCONST)
-        attrs |= JSPROP_READONLY;
-
-    JSObject &obj = f.fp()->varObj();
-
-    if (!DefVarOrConstOperation(f.cx, obj, dn, attrs))
+    if (!DefVarOrConstOperation(f.cx, JSOp(*f.regs.pc), dn, f.fp()))
         THROW();
 }
 

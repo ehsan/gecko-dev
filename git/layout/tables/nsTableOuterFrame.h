@@ -57,7 +57,7 @@ public:
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, bool aShrinkWrap);
 
-  virtual nsIFrame* GetParentStyleContextFrame() const;
+  virtual nsIFrame* GetParentStyleContextFrame();
 
 #ifdef ACCESSIBILITY
   virtual already_AddRefed<nsAccessible> CreateAccessible();
@@ -159,7 +159,7 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual nsIFrame* GetParentStyleContextFrame() const;
+  virtual nsIFrame* GetParentStyleContextFrame();
 
   /*---------------- nsITableLayout methods ------------------------*/
 
@@ -250,7 +250,7 @@ protected:
                       nscoord                  aAvailableWidth,
                       nsMargin&                aMargin);
 
-  nsTableFrame* InnerTableFrame() const {
+  nsTableFrame* InnerTableFrame() {
     return static_cast<nsTableFrame*>(mFrames.FirstChild());
   }
   

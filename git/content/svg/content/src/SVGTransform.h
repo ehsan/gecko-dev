@@ -97,6 +97,7 @@ public:
   nsresult SetSkewX(float aAngle);
   nsresult SetSkewY(float aAngle);
 
+protected:
   static bool MatricesEqual(const gfxMatrix& a, const gfxMatrix& b)
   {
     return a.xx == b.xx &&
@@ -107,7 +108,6 @@ public:
            a.y0 == b.y0;
   }
 
-protected:
   gfxMatrix mMatrix;
   float mAngle, mOriginX, mOriginY;
   PRUint16 mType;

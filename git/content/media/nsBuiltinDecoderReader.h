@@ -392,7 +392,6 @@ class nsBuiltinDecoderReader : public nsRunnable {
 public:
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
   typedef mozilla::ReentrantMonitorAutoEnter ReentrantMonitorAutoEnter;
-  typedef mozilla::VideoFrameContainer VideoFrameContainer;
 
   nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder);
   ~nsBuiltinDecoderReader();

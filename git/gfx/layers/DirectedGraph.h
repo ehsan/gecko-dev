@@ -64,7 +64,7 @@ public:
   class RemoveEdgesToComparator 
   {
   public:
-    bool Equals(const Edge& a, T const& b) const { return a.mTo == b; }
+    PRBool Equals(const Edge& a, T const& b) const { return a.mTo == b; }
   };
 
   /**

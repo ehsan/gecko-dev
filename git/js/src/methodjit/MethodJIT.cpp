@@ -989,10 +989,9 @@ JaegerCompartment::JaegerCompartment()
 {}
 
 bool
-JaegerCompartment::Initialize(JSContext *cx)
+JaegerCompartment::Initialize()
 {
-    execAlloc_ = js::OffTheBooks::new_<JSC::ExecutableAllocator>(
-        cx->runtime->getJitHardening() ? JSC::AllocationCanRandomize : JSC::AllocationDeterministic);
+    execAlloc_ = js::OffTheBooks::new_<JSC::ExecutableAllocator>();
     if (!execAlloc_)
         return false;
     

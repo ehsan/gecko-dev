@@ -136,10 +136,6 @@ public:
   }
 
   PRInt64 SizeOf() const;
-  bool HasMappedAttrs() const
-  {
-    return MappedAttrCount();
-  }
 
 private:
   nsAttrAndChildArray(const nsAttrAndChildArray& aOther) MOZ_DELETE;

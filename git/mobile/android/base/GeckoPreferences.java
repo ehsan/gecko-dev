@@ -71,24 +71,17 @@ public class GeckoPreferences
 {
     private static final String LOGTAG = "GeckoPreferences";
 
-    private ArrayList<String> mPreferencesList;
+    private ArrayList<String> mPreferencesList = new ArrayList<String>();
     private PreferenceScreen mPreferenceScreen;
     private static boolean sIsCharEncodingEnabled = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         addPreferencesFromResource(R.xml.preferences);
-        GeckoAppShell.registerGeckoEventListener("Preferences:Data", this);
-   }
-
-   @Override
-   public void onWindowFocusChanged(boolean hasFocus) {
-        if (!hasFocus)
-            return;
-
-        mPreferencesList = new ArrayList<String>();
         mPreferenceScreen = getPreferenceScreen();
+        GeckoAppShell.registerGeckoEventListener("Preferences:Data", this);
         initGroups(mPreferenceScreen);
         initValues();
     }

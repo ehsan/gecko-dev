@@ -72,7 +72,7 @@ public:
   NS_IMETHOD SetValue(float aValue)
     {
       NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
-      mVal.SetBaseValue(aValue, nsnull, true);
+      mVal.SetBaseValue(aValue, nsnull);
       return NS_OK;
     }
 
@@ -258,11 +258,6 @@ void
 nsSVGAngle::SetBaseValueInSpecifiedUnits(float aValue,
                                          nsSVGElement *aSVGElement)
 {
-  if (mBaseVal == aValue) {
-    return;
-  }
-
-  nsAttrValue emptyOrOldValue = aSVGElement->WillChangeAngle(mAttrEnum);
   mBaseVal = aValue;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -270,7 +265,7 @@ nsSVGAngle::SetBaseValueInSpecifiedUnits(float aValue,
   else {
     aSVGElement->AnimationNeedsResample();
   }
-  aSVGElement->DidChangeAngle(mAttrEnum, emptyOrOldValue);
+  aSVGElement->DidChangeAngle(mAttrEnum, true);
 }
 
 nsresult
@@ -280,19 +275,9 @@ nsSVGAngle::ConvertToSpecifiedUnits(PRUint16 unitType,
   if (!IsValidUnitType(unitType))
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 
-  if (mBaseValUnit == PRUint8(unitType))
-    return NS_OK;
-
-  nsAttrValue emptyOrOldValue = aSVGElement->WillChangeAngle(mAttrEnum);
-
   float valueInUserUnits = mBaseVal * GetDegreesPerUnit(mBaseValUnit);
   mBaseValUnit = PRUint8(unitType);
-  // Setting aDoSetAttr to false here will ensure we don't call
-  // Will/DidChangeAngle a second time (and dispatch duplicate notifications).
-  SetBaseValue(valueInUserUnits, aSVGElement, false);
-
-  aSVGElement->DidChangeAngle(mAttrEnum, emptyOrOldValue);
-
+  SetBaseValue(valueInUserUnits, aSVGElement);
   return NS_OK;
 }
 
@@ -306,13 +291,6 @@ nsSVGAngle::NewValueSpecifiedUnits(PRUint16 unitType,
   if (!IsValidUnitType(unitType))
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 
-  if (mBaseVal == valueInSpecifiedUnits && mBaseValUnit == PRUint8(unitType))
-    return NS_OK;
-
-  nsAttrValue emptyOrOldValue;
-  if (aSVGElement) {
-    emptyOrOldValue = aSVGElement->WillChangeAngle(mAttrEnum);
-  }
   mBaseVal = valueInSpecifiedUnits;
   mBaseValUnit = PRUint8(unitType);
   if (!mIsAnimated) {
@@ -323,7 +301,7 @@ nsSVGAngle::NewValueSpecifiedUnits(PRUint16 unitType,
     aSVGElement->AnimationNeedsResample();
   }
   if (aSVGElement) {
-    aSVGElement->DidChangeAngle(mAttrEnum, emptyOrOldValue);
+    aSVGElement->DidChangeAngle(mAttrEnum, true);
   }
   return NS_OK;
 }
@@ -364,14 +342,7 @@ nsSVGAngle::SetBaseValueString(const nsAString &aValueAsString,
   if (NS_FAILED(rv)) {
     return rv;
   }
-  if (mBaseVal == value && mBaseValUnit == PRUint8(unitType)) {
-    return NS_OK;
-  }
 
-  nsAttrValue emptyOrOldValue;
-  if (aDoSetAttr) {
-    emptyOrOldValue = aSVGElement->WillChangeAngle(mAttrEnum);
-  }
   mBaseVal = value;
   mBaseValUnit = PRUint8(unitType);
   if (!mIsAnimated) {
@@ -382,36 +353,27 @@ nsSVGAngle::SetBaseValueString(const nsAString &aValueAsString,
     aSVGElement->AnimationNeedsResample();
   }
 
-  if (aDoSetAttr) {
-    aSVGElement->DidChangeAngle(mAttrEnum, emptyOrOldValue);
-  }
+  // We don't need to call DidChange* here - we're only called by
+  // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
+  // which takes care of notifying.
   return NS_OK;
 }
 
 void
-nsSVGAngle::GetBaseValueString(nsAString & aValueAsString) const
+nsSVGAngle::GetBaseValueString(nsAString & aValueAsString)
 {
   GetValueString(aValueAsString, mBaseVal, mBaseValUnit);
 }
 
 void
-nsSVGAngle::GetAnimValueString(nsAString & aValueAsString) const
+nsSVGAngle::GetAnimValueString(nsAString & aValueAsString)
 {
   GetValueString(aValueAsString, mAnimVal, mAnimValUnit);
 }
 
 void
-nsSVGAngle::SetBaseValue(float aValue, nsSVGElement *aSVGElement,
-                         bool aDoSetAttr)
+nsSVGAngle::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
 {
-  if (mBaseVal == aValue * GetDegreesPerUnit(mBaseValUnit)) {
-    return;
-  }
-  nsAttrValue emptyOrOldValue;
-  if (aSVGElement && aDoSetAttr) {
-    emptyOrOldValue = aSVGElement->WillChangeAngle(mAttrEnum);
-  }
-
   mBaseVal = aValue / GetDegreesPerUnit(mBaseValUnit);
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
@@ -419,8 +381,8 @@ nsSVGAngle::SetBaseValue(float aValue, nsSVGElement *aSVGElement,
   else {
     aSVGElement->AnimationNeedsResample();
   }
-  if (aSVGElement && aDoSetAttr) {
-    aSVGElement->DidChangeAngle(mAttrEnum, emptyOrOldValue);
+  if (aSVGElement) {
+    aSVGElement->DidChangeAngle(mAttrEnum, true);
   }
 }
 

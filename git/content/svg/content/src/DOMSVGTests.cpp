@@ -48,17 +48,12 @@ using namespace mozilla;
 
 NS_IMPL_ISUPPORTS1(DOMSVGTests, nsIDOMSVGTests)
 
-nsIAtom** DOMSVGTests::sStringListNames[3] =
+DOMSVGTests::StringListInfo DOMSVGTests::sStringListInfo[3] =
 {
-  &nsGkAtoms::requiredFeatures,
-  &nsGkAtoms::requiredExtensions,
-  &nsGkAtoms::systemLanguage,
+  { &nsGkAtoms::requiredFeatures, false },
+  { &nsGkAtoms::requiredExtensions, false },
+  { &nsGkAtoms::systemLanguage, true }
 };
-
-DOMSVGTests::DOMSVGTests()
-{
-  mStringListAttributes[LANGUAGE].SetIsCommaSeparated(true);
-}
 
 /* readonly attribute nsIDOMSVGStringList requiredFeatures; */
 NS_IMETHODIMP
@@ -101,8 +96,8 @@ DOMSVGTests::HasExtension(const nsAString & extension, bool *_retval)
 bool
 DOMSVGTests::IsConditionalProcessingAttribute(const nsIAtom* aAttribute) const
 {
-  for (PRUint32 i = 0; i < ArrayLength(sStringListNames); i++) {
-    if (aAttribute == *sStringListNames[i]) {
+  for (PRUint32 i = 0; i < ArrayLength(sStringListInfo); i++) {
+    if (aAttribute == *sStringListInfo[i].mName) {
       return true;
     }
   }
@@ -227,9 +222,10 @@ DOMSVGTests::ParseConditionalProcessingAttribute(nsIAtom* aAttribute,
                                                  const nsAString& aValue,
                                                  nsAttrValue& aResult)
 {
-  for (PRUint32 i = 0; i < ArrayLength(sStringListNames); i++) {
-    if (aAttribute == *sStringListNames[i]) {
-      nsresult rv = mStringListAttributes[i].SetValue(aValue);
+  for (PRUint32 i = 0; i < ArrayLength(sStringListInfo); i++) {
+    if (aAttribute == *sStringListInfo[i].mName) {
+      nsresult rv = mStringListAttributes[i].SetValue(
+                      aValue, sStringListInfo[i].mIsCommaSeparated);
       if (NS_FAILED(rv)) {
         mStringListAttributes[i].Clear();
       }
@@ -241,10 +237,19 @@ DOMSVGTests::ParseConditionalProcessingAttribute(nsIAtom* aAttribute,
 }
 
 void
+DOMSVGTests::GetValue(PRUint8 aAttrEnum, nsAString& aValue) const
+{
+  NS_ABORT_IF_FALSE(aAttrEnum >= 0 && aAttrEnum < ArrayLength(sStringListInfo),
+                    "aAttrEnum out of range");
+  mStringListAttributes[aAttrEnum].GetValue(
+    aValue, sStringListInfo[aAttrEnum].mIsCommaSeparated);
+}
+
+void
 DOMSVGTests::UnsetAttr(const nsIAtom* aAttribute)
 {
-  for (PRUint32 i = 0; i < ArrayLength(sStringListNames); i++) {
-    if (aAttribute == *sStringListNames[i]) {
+  for (PRUint32 i = 0; i < ArrayLength(sStringListInfo); i++) {
+    if (aAttribute == *sStringListInfo[i].mName) {
       mStringListAttributes[i].Clear();
       MaybeInvalidate();
       return;
@@ -252,18 +257,22 @@ DOMSVGTests::UnsetAttr(const nsIAtom* aAttribute)
   }
 }
 
-nsIAtom*
-DOMSVGTests::GetAttrName(PRUint8 aAttrEnum) const
-{
-  return *sStringListNames[aAttrEnum];
-}
-
 void
-DOMSVGTests::GetAttrValue(PRUint8 aAttrEnum, nsAttrValue& aValue) const
+DOMSVGTests::DidChangeStringList(PRUint8 aAttrEnum)
 {
-  NS_ABORT_IF_FALSE(aAttrEnum >= 0 && aAttrEnum < ArrayLength(sStringListNames),
-                    "aAttrEnum out of range");
-  aValue.SetTo(mStringListAttributes[aAttrEnum], nsnull);
+  NS_ASSERTION(aAttrEnum < ArrayLength(sStringListInfo), "aAttrEnum out of range");
+
+  nsCOMPtr<nsSVGElement> element = do_QueryInterface(this);
+
+  nsAutoString serializedValue;
+  GetValue(aAttrEnum, serializedValue);
+
+  nsAttrValue attrValue(serializedValue);
+  element->SetParsedAttr(kNameSpaceID_None,
+                         *sStringListInfo[aAttrEnum].mName,
+                         nsnull, attrValue, true);
+
+  MaybeInvalidate();
 }
 
 void
@@ -272,7 +281,7 @@ DOMSVGTests::MaybeInvalidate()
   nsCOMPtr<nsSVGElement> element = do_QueryInterface(this);
 
   nsIContent* parent = element->GetFlattenedTreeParent();
-
+  
   if (parent &&
       parent->NodeInfo()->Equals(nsGkAtoms::svgSwitch, kNameSpaceID_SVG)) {
     static_cast<nsSVGSwitchElement*>(parent)->MaybeInvalidate();

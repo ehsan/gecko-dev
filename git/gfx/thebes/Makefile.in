@@ -76,7 +76,6 @@ EXPORTS	= \
 	gfxTeeSurface.h \
 	gfxTypes.h \
 	gfxUnicodeProperties.h \
-	gfxUnicodeScriptCodes.h \
 	gfxUtils.h \
 	gfxUserFontSet.h \
 	nsCoreAnimationSupport.h \
@@ -366,7 +365,7 @@ endif
 
 CSRCS += woff.c
 
-DEFINES += -DIMPL_THEBES -DWOFF_MOZILLA_CLIENT -DHB_DONT_DEFINE_STDINT
+DEFINES += -DIMPL_THEBES -DWOFF_MOZILLA_CLIENT
 
 ifeq (WINNT,$(OS_TARGET))
 DEFINES += -DOTS_DLL

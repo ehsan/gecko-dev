@@ -384,25 +384,25 @@ js_DisassembleAtPC(JSContext *cx, JSScript *script, JSBool lines, jsbytecode *pc
     jsbytecode *next, *end;
     uintN len;
 
-    sp->put("loc   ");
+    SprintCString(sp, "loc   ");
     if (lines)
-        sp->put("line");
-    sp->put("  op\n");
-    sp->put("----- ");
+        SprintCString(sp, "line");
+    SprintCString(sp, "  op\n");
+    SprintCString(sp, "----- ");
     if (lines)
-        sp->put("----");
-    sp->put("  --\n");
+        SprintCString(sp, "----");
+    SprintCString(sp, "  --\n");
 
     next = script->code;
     end = next + script->length;
     while (next < end) {
         if (next == script->main())
-            sp->put("main:\n");
+            SprintCString(sp, "main:\n");
         if (pc != NULL) {
             if (pc == next)
-                sp->put("--> ");
+                SprintCString(sp, "--> ");
             else
-                sp->put("    ");
+                SprintCString(sp, "    ");
         }
         len = js_Disassemble1(cx, script, next, next - script->code, lines, sp);
         if (!len)
@@ -716,7 +716,7 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         return 0;
       }
     }
-    sp->put("\n");
+    SprintCString(sp, "\n");
     return len;
 }
 
@@ -864,12 +864,6 @@ Sprinter::put(const char *s, size_t len)
 }
 
 ptrdiff_t
-Sprinter::put(const char *s)
-{
-    return put(s, strlen(s));
-}
-
-ptrdiff_t
 Sprinter::putString(JSString *s)
 {
     InvariantChecker ic(this);
@@ -941,6 +935,24 @@ Sprinter::getOffsetOf(const char *string) const
 }
 
 ptrdiff_t
+js::SprintPut(Sprinter *sp, const char *s, size_t len)
+{
+    return sp->put(s, len);
+}
+
+ptrdiff_t
+js::SprintCString(Sprinter *sp, const char *s)
+{
+    return SprintPut(sp, s, strlen(s));
+}
+
+ptrdiff_t
+js::SprintString(Sprinter *sp, JSString *str)
+{
+    return sp->putString(str);
+}
+
+ptrdiff_t
 js::Sprint(Sprinter *sp, const char *format, ...)
 {
     va_list ap;
@@ -954,7 +966,7 @@ js::Sprint(Sprinter *sp, const char *format, ...)
         JS_ReportOutOfMemory(sp->context);
         return -1;
     }
-    offset = sp->put(bp);
+    offset = SprintCString(sp, bp);
     sp->context->free_(bp);
     return offset;
 }
@@ -1230,7 +1242,7 @@ js_printf(JSPrinter *jp, const char *format, ...)
     }
 
     cc = strlen(bp);
-    if (jp->sprinter.put(bp, (size_t)cc) < 0)
+    if (SprintPut(&jp->sprinter, bp, (size_t)cc) < 0)
         cc = -1;
     jp->sprinter.context->free_(bp);
 
@@ -1241,7 +1253,7 @@ js_printf(JSPrinter *jp, const char *format, ...)
 JSBool
 js_puts(JSPrinter *jp, const char *s)
 {
-    return jp->sprinter.put(s) >= 0;
+    return SprintCString(&jp->sprinter, s) >= 0;
 }
 
 /************************************************************************/
@@ -1330,7 +1342,7 @@ SprintOpcode(SprintStack *ss, const char *str, jsbytecode *pc,
     }
     ptrdiff_t offset = ss->sprinter.getOffset();
     UpdateDecompiledParent(ss->printer, pc, parentpc, offset - startOffset);
-    ss->sprinter.put(str);
+    SprintCString(&ss->sprinter, str);
 }
 
 /*
@@ -1413,7 +1425,7 @@ GetOff(SprintStack *ss, uintN i)
         if (!bytes)
             return 0;
         if (bytes != FAILED_EXPRESSION_DECOMPILER) {
-            off = ss->sprinter.put(bytes);
+            off = SprintCString(&ss->sprinter, bytes);
             if (off < 0)
                 off = 0;
             ss->offsets[i] = off;
@@ -1479,7 +1491,7 @@ PushOff(SprintStack *ss, ptrdiff_t off, JSOp op, jsbytecode *pc = NULL)
 static bool
 PushStr(SprintStack *ss, const char *str, JSOp op)
 {
-    ptrdiff_t off = ss->sprinter.put(str);
+    ptrdiff_t off = SprintCString(&ss->sprinter, str);
     if (off < 0)
         return false;
     return PushOff(ss, off, op);
@@ -1603,15 +1615,16 @@ SprintDoubleValue(Sprinter *sp, jsval v, JSOp *opp)
     JS_ASSERT(JSVAL_IS_DOUBLE(v));
     d = JSVAL_TO_DOUBLE(v);
     if (JSDOUBLE_IS_NEGZERO(d)) {
-        todo = sp->put("-0");
+        todo = SprintCString(sp, "-0");
         *opp = JSOP_NEG;
     } else if (!JSDOUBLE_IS_FINITE(d)) {
-        /* Don't use Infinity and NaN, as local variables may shadow them. */
-        todo = sp->put(JSDOUBLE_IS_NaN(d)
-                       ? "0 / 0"
-                       : (d < 0)
-                       ? "1 / -0"
-                       : "1 / 0");
+        /* Don't use Infinity and NaN, they're mutable. */
+        todo = SprintCString(sp,
+                             JSDOUBLE_IS_NaN(d)
+                             ? "0 / 0"
+                             : (d < 0)
+                             ? "1 / -0"
+                             : "1 / 0");
         *opp = JSOP_DIV;
     } else {
         ToCStringBuf cbuf;
@@ -1937,7 +1950,7 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
     switch (op) {
       case JSOP_POP:
         *hole = JS_TRUE;
-        if (ss->sprinter.put(", ", 2) < 0)
+        if (SprintPut(&ss->sprinter, ", ", 2) < 0)
             return NULL;
         break;
 
@@ -1981,7 +1994,7 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
          * in-place so pop/concat this pushed string.
          */
         lval = PopStr(ss, JSOP_NOP);
-        if (ss->sprinter.put(lval) < 0)
+        if (SprintCString(&ss->sprinter, lval) < 0)
             return NULL;
 
         LOCAL_ASSERT(*pc == JSOP_POP);
@@ -2021,7 +2034,7 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
                 return NULL;
         } else {
             lval = GetLocal(ss, i);
-            if (!lval || ss->sprinter.put(lval) < 0)
+            if (!lval || SprintCString(&ss->sprinter, lval) < 0)
                 return NULL;
         }
         if (op != JSOP_SETLOCALPOP) {
@@ -2058,10 +2071,10 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc, JS
         ss->sprinter.setOffset(todo);
         if (*lval == '\0') {
             /* lval is from JSOP_BINDNAME, so just print xval. */
-            todo = ss->sprinter.put(xval);
+            todo = SprintCString(&ss->sprinter, xval);
         } else if (*xval == '\0') {
             /* xval is from JSOP_SETCALL or JSOP_BINDXMLNAME, print lval. */
-            todo = ss->sprinter.put(lval);
+            todo = SprintCString(&ss->sprinter, lval);
         } else {
             todo = Sprint(&ss->sprinter,
                           (JOF_OPMODE(ss->opcodes[ss->top+1]) == JOF_XMLNAME)
@@ -2104,7 +2117,7 @@ DecompileDestructuring(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
      * chars so the destructuring decompilation accumulates contiguously in
      * ss->sprinter starting with "[".
      */
-    ptrdiff_t head = ss->sprinter.put("[", 1);
+    ptrdiff_t head = SprintPut(&ss->sprinter, "[", 1);
     if (head < 0 || !PushOff(ss, head, JSOP_NOP))
         return NULL;
     ss->sprinter.setOffset(ss->sprinter.getOffset() - PAREN_SLOP);
@@ -2165,7 +2178,7 @@ DecompileDestructuring(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
 
                 /* Fill in any holes (holes at the end don't matter). */
                 while (++lasti < i) {
-                    if (ss->sprinter.put(", ", 2) < 0)
+                    if (SprintPut(&ss->sprinter, ", ", 2) < 0)
                         return NULL;
                 }
             }
@@ -2183,7 +2196,7 @@ DecompileDestructuring(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
 #endif
             if (!QuoteString(&ss->sprinter, atom, IsIdentifier(atom) ? 0 : (jschar)'\''))
                 return NULL;
-            if (ss->sprinter.put(": ", 2) < 0)
+            if (SprintPut(&ss->sprinter, ": ", 2) < 0)
                 return NULL;
             break;
           }
@@ -2255,7 +2268,7 @@ DecompileDestructuring(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
             break;
         }
 
-        if (!hole && ss->sprinter.put(", ", 2) < 0)
+        if (!hole && SprintPut(&ss->sprinter, ", ", 2) < 0)
             return NULL;
 
         pc += JSOP_DUP_LENGTH;
@@ -2263,7 +2276,7 @@ DecompileDestructuring(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
 
 out:
     const char *lval = ss->sprinter.stringAt(head);
-    if (ss->sprinter.put((*lval == '[') ? "]" : "}", 1) < 0)
+    if (SprintPut(&ss->sprinter, (*lval == '[') ? "]" : "}", 1) < 0)
         return NULL;
     return pc;
 }
@@ -2299,12 +2312,12 @@ DecompileGroupAssignment(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
         LOAD_OP_DATA(pc);
         if (op != JSOP_GETLOCAL)
             break;
-        if (!hole && ss->sprinter.put(", ", 2) < 0)
+        if (!hole && SprintPut(&ss->sprinter, ", ", 2) < 0)
             return NULL;
     }
 
     LOCAL_ASSERT(op == JSOP_POPN);
-    if (ss->sprinter.put("] = [", 5) < 0)
+    if (SprintPut(&ss->sprinter, "] = [", 5) < 0)
         return NULL;
 
     end = ss->top - 1;
@@ -2318,7 +2331,7 @@ DecompileGroupAssignment(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
         }
     }
 
-    if (ss->sprinter.put("]", 1) < 0)
+    if (SprintPut(&ss->sprinter, "]", 1) < 0)
         return NULL;
     ss->sprinter.setOffset(ss->offsets[i]);
     ss->top = start;
@@ -2854,7 +2867,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     (void)PopStr(ss, op, &lastlvalpc);
 
                     /* Print only the right operand of the assignment-op. */
-                    todo = ss->sprinter.put(rval);
+                    todo = SprintCString(&ss->sprinter, rval);
                 } else if (!inXML) {
                     rval = PopStrPrecDupe(ss, cs->prec + !!(cs->format & JOF_LEFTASSOC), &rvalpc);
                     lval = PopStrPrec(ss, cs->prec + !(cs->format & JOF_LEFTASSOC), &lvalpc);
@@ -2873,7 +2886,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
 
               case 1:
                 rval = PopStrDupe(ss, op, &rvalpc);
-                todo = ss->sprinter.put(token);
+                todo = SprintCString(&ss->sprinter, token);
                 SprintOpcode(ss, rval, rvalpc, pc, todo);
                 break;
 
@@ -2881,10 +2894,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 sn = js_GetSrcNote(jp->script, pc);
                 if (sn && SN_TYPE(sn) == SRC_CONTINUE) {
                     /* Hoisted let decl (e.g. 'y' in 'let (x) { let y; }'). */
-                    todo = ss->sprinter.put(SkipString);
+                    todo = SprintCString(&ss->sprinter, SkipString);
                     break;
                 }
-                todo = ss->sprinter.put(token);
+                todo = SprintCString(&ss->sprinter, token);
                 break;
 
               default:
@@ -3071,7 +3084,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                             return NULL;
                         }
                     }
-                    if (ss->sprinter.put("]", 1) < 0)
+                    if (SprintPut(&ss->sprinter, "]", 1) < 0)
                         return NULL;
 
                     /*
@@ -3104,7 +3117,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                      * NB: todo at this point indexes space in ss->sprinter
                      * that is liable to be overwritten.  The code below knows
                      * exactly how long rval lives, or else copies it down via
-                     * Sprinter::put.
+                     * SprintCString.
                      */
                     rval = ss->sprinter.stringAt(todo);
                     rvalpc = NULL;
@@ -3131,7 +3144,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                              */
                             if (GET_UINT16(pc) == 0)
                                 break;
-                            todo = ss->sprinter.put(rval);
+                            todo = SprintCString(&ss->sprinter, rval);
                             saveop = JSOP_NOP;
                         }
                     }
@@ -3201,7 +3214,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     rval = PopStrDupe(ss, op, &rvalpc);
                     todo = ss->sprinter.getOffset();
                     SprintOpcode(ss, lval, lvalpc, pushpc, todo);
-                    ss->sprinter.put(", ");
+                    SprintCString(&ss->sprinter, ", ");
                     SprintOpcode(ss, rval, rvalpc, pushpc, todo);
                     break;
 
@@ -3410,7 +3423,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 ss->top = top;
                 ss->sprinter.setOffset(GetOff(ss, top));
                 if (op == JSOP_LEAVEBLOCKEXPR)
-                    todo = ss->sprinter.put(rval);
+                    todo = SprintCString(&ss->sprinter, rval);
                 break;
               }
 
@@ -3471,10 +3484,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                         return NULL;
 
                     if (groupAssign) {
-                        if (ss->sprinter.put(rhs) < 0)
+                        if (SprintCString(&ss->sprinter, rhs) < 0)
                             return NULL;
                     } else if (!strncmp(rhs, DestructuredString, DestructuredStringLength)) {
-                        if (ss->sprinter.put(rhs + DestructuredStringLength) < 0)
+                        if (SprintCString(&ss->sprinter, rhs + DestructuredStringLength) < 0)
                             return NULL;
                     } else {
                         JS_ASSERT(atoms[i] != cx->runtime->atomState.emptyAtom);
@@ -3732,7 +3745,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                                     ? "%s (%s)"
                                     : "%s %s",
                                     js_yield_str, rval)
-                           : ss->sprinter.put(js_yield_str);
+                           : SprintCString(&ss->sprinter, js_yield_str);
                     break;
                 }
 
@@ -4095,9 +4108,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     rval = PopStrDupe(ss, op, &rvalpc);
                     todo = ss->sprinter.getOffset();
                     SprintOpcode(ss, xval, xvalpc, pushpc, todo);
-                    ss->sprinter.put(" ? ");
+                    SprintCString(&ss->sprinter, " ? ");
                     SprintOpcode(ss, lval, lvalpc, pushpc, todo);
-                    ss->sprinter.put(" : ");
+                    SprintCString(&ss->sprinter, " : ");
                     SprintOpcode(ss, rval, rvalpc, pushpc, todo);
                     break;
 
@@ -4162,7 +4175,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 rval = POP_STR();
                 LOCAL_ASSERT(strcmp(rval, forelem_cookie) == 0);
                 if (*xval == '\0') {
-                    todo = ss->sprinter.put(lval);
+                    todo = SprintCString(&ss->sprinter, lval);
                 } else {
                     todo = Sprint(&ss->sprinter,
                                   (JOF_OPMODE(lastop) == JOF_XMLNAME)
@@ -4179,7 +4192,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
 
               case JSOP_DUP2:
                 rval = GetStr(ss, ss->top-2);
-                todo = ss->sprinter.put(rval);
+                todo = SprintCString(&ss->sprinter, rval);
                 if (todo < 0 || !PushOff(ss, todo,
                                          (JSOp) ss->opcodes[ss->top-2])) {
                     return NULL;
@@ -4298,7 +4311,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
 
                 rval = GetStr(ss, ss->top-1);
                 saveop = (JSOp) ss->opcodes[ss->top-1];
-                todo = ss->sprinter.put(rval);
+                todo = SprintCString(&ss->sprinter, rval);
                 break;
 
               case JSOP_SWAP:
@@ -4404,14 +4417,14 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     Sprint(&ss->sprinter, "%s ", js_new_str);
                 }
                 SprintOpcode(ss, argv[0], lvalpc, pc, todo);
-                ss->sprinter.put(lval);
+                SprintCString(&ss->sprinter, lval);
 
                 for (i = 1; i <= argc; i++) {
                     SprintOpcode(ss, argv[i], argbytecodes[i], pc, todo);
                     if (i < argc)
-                        ss->sprinter.put(", ");
+                        SprintCString(&ss->sprinter, ", ");
                 }
-                ss->sprinter.put(rval);
+                SprintCString(&ss->sprinter, rval);
 
                 cx->free_(argv);
                 cx->free_(argbytecodes);
@@ -4653,9 +4666,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 SprintOpcode(ss, lval, lvalpc, pc, todo);
                 if (*xval != '\0') {
                     bool xml = (JOF_OPMODE(lastop) == JOF_XMLNAME);
-                    ss->sprinter.put(xml ? "." : "[");
+                    SprintCString(&ss->sprinter, xml ? "." : "[");
                     SprintOpcode(ss, xval, xvalpc, pc, todo);
-                    ss->sprinter.put(xml ? "" : "]");
+                    SprintCString(&ss->sprinter, xml ? "" : "]");
                 }
                 break;
 
@@ -4677,9 +4690,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                                           &lastlvalpc, &lastrvalpc);
                 todo = ss->sprinter.getOffset();
                 SprintOpcode(ss, lval, lvalpc, pc, todo);
-                ss->sprinter.put(xml ? "." : "[");
+                SprintCString(&ss->sprinter, xml ? "." : "[");
                 SprintOpcode(ss, xval, xvalpc, pc, todo);
-                ss->sprinter.put(xml ? "" : "]");
+                SprintCString(&ss->sprinter, xml ? "" : "]");
                 Sprint(&ss->sprinter, " %s= ", token);
                 SprintOpcode(ss, rval, rvalpc, pc, todo);
                 break;
@@ -4884,7 +4897,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                     las.releaseEarly();
                     if (!rval)
                         return NULL;
-                    todo = ss->sprinter.put(rval);
+                    todo = SprintCString(&ss->sprinter, rval);
                     cx->free_((void *)rval);
                     break;
                 }
@@ -4908,12 +4921,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                         return NULL;
                 }
               sprint_string:
-                todo = ss->sprinter.putString(str);
+                todo = SprintString(&ss->sprinter, str);
                 break;
 
               case JSOP_CALLEE:
                 JS_ASSERT(jp->fun && jp->fun->atom);
-                todo = ss->sprinter.putString(jp->fun->atom);
+                todo = SprintString(&ss->sprinter, jp->fun->atom);
                 break;
 
               case JSOP_OBJECT:
@@ -5125,7 +5138,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 goto do_function;
 
               case JSOP_HOLE:
-                todo = ss->sprinter.put("", 0);
+                todo = SprintPut(&ss->sprinter, "", 0);
                 break;
 
               case JSOP_NEWINIT:
@@ -5136,10 +5149,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 todo = ss->sprinter.getOffset();
                 if (i == JSProto_Array) {
                     ++ss->inArrayInit;
-                    if (ss->sprinter.put("[") < 0)
+                    if (SprintCString(&ss->sprinter, "[") < 0)
                         return NULL;
                 } else {
-                    if (ss->sprinter.put("{") < 0)
+                    if (SprintCString(&ss->sprinter, "{") < 0)
                         return NULL;
                 }
                 break;
@@ -5149,7 +5162,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
               {
                 todo = ss->sprinter.getOffset();
                 ++ss->inArrayInit;
-                if (ss->sprinter.put("[") < 0)
+                if (SprintCString(&ss->sprinter, "[") < 0)
                     return NULL;
                 break;
               }
@@ -5157,7 +5170,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
               case JSOP_NEWOBJECT:
               {
                 todo = ss->sprinter.getOffset();
-                if (ss->sprinter.put("{") < 0)
+                if (SprintCString(&ss->sprinter, "{") < 0)
                     return NULL;
                 break;
               }
@@ -5268,9 +5281,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
               case JSOP_ANYNAME:
                 if (pc[JSOP_ANYNAME_LENGTH] == JSOP_TOATTRNAME) {
                     len += JSOP_TOATTRNAME_LENGTH;
-                    todo = ss->sprinter.put("@*", 2);
+                    todo = SprintPut(&ss->sprinter, "@*", 2);
                 } else {
-                    todo = ss->sprinter.put("*", 1);
+                    todo = SprintPut(&ss->sprinter, "*", 1);
                 }
                 break;
 
@@ -5378,18 +5391,18 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
 
               case JSOP_XMLCDATA:
                 LOAD_ATOM(0);
-                todo = ss->sprinter.put("<![CDATA[", 9);
+                todo = SprintPut(&ss->sprinter, "<![CDATA[", 9);
                 if (!QuoteString(&ss->sprinter, atom, DONT_ESCAPE))
                     return NULL;
-                ss->sprinter.put("]]>", 3);
+                SprintPut(&ss->sprinter, "]]>", 3);
                 break;
 
               case JSOP_XMLCOMMENT:
                 LOAD_ATOM(0);
-                todo = ss->sprinter.put("<!--", 4);
+                todo = SprintPut(&ss->sprinter, "<!--", 4);
                 if (!QuoteString(&ss->sprinter, atom, DONT_ESCAPE))
                     return NULL;
-                ss->sprinter.put("-->", 3);
+                SprintPut(&ss->sprinter, "-->", 3);
                 break;
 
               case JSOP_XMLPI:
@@ -5397,19 +5410,19 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb)
                 rval = JS_strdup(cx, POP_STR());
                 if (!rval)
                     return NULL;
-                todo = ss->sprinter.put("<?", 2);
+                todo = SprintPut(&ss->sprinter, "<?", 2);
                 ok = QuoteString(&ss->sprinter, atom, 0) &&
                      (*rval == '\0' ||
-                      (ss->sprinter.put(" ", 1) >= 0 &&
-                       ss->sprinter.put(rval)));
+                      (SprintPut(&ss->sprinter, " ", 1) >= 0 &&
+                       SprintCString(&ss->sprinter, rval)));
                 cx->free_((char *)rval);
                 if (!ok)
                     return NULL;
-                ss->sprinter.put("?>", 2);
+                SprintPut(&ss->sprinter, "?>", 2);
                 break;
 
               case JSOP_GETFUNNS:
-                todo = ss->sprinter.put(js_function_str, 8);
+                todo = SprintPut(&ss->sprinter, js_function_str, 8);
                 break;
 #endif /* JS_HAS_XML_SUPPORT */
 
@@ -5658,7 +5671,7 @@ js_DecompileFunction(JSPrinter *jp)
                 LOCAL_ASSERT(*pc == JSOP_POP);
                 pc += JSOP_POP_LENGTH;
                 lval = PopStr(&ss, JSOP_NOP);
-                todo = jp->sprinter.put(lval);
+                todo = SprintCString(&jp->sprinter, lval);
                 if (todo < 0) {
                     ok = JS_FALSE;
                     break;

@@ -431,16 +431,16 @@ nsHTMLSelectOptionAccessible::GetSelectState(PRUint64* aState)
 {
   *aState = 0;
 
-  nsIContent* selectNode = mContent;
-  while (selectNode && selectNode->Tag() != nsGkAtoms::select) {
-    selectNode = selectNode->GetParent();
+  nsIContent *content = mContent;
+  while (content && content->Tag() != nsGkAtoms::select) {
+    content = content->GetParent();
   }
 
-  if (selectNode) {
-    nsAccessible* select = mDoc->GetAccessible(selectNode);
-    if (select) {
-      *aState = select->State();
-      return selectNode;
+  if (content) {
+    nsAccessible* selAcc = GetAccService()->GetAccessible(content, nsnull);
+    if (selAcc) {
+      *aState = selAcc->State();
+      return content;
     }
   }
   return nsnull; 

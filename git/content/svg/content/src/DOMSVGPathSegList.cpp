@@ -269,7 +269,6 @@ DOMSVGPathSegList::Clear()
   }
 
   if (Length() > 0) {
-    nsAttrValue emptyOrOldValue = Element()->WillChangePathSegList();
     // DOM list items that are to be removed must be removed before we change
     // the internal list, otherwise they wouldn't be able to copy their
     // internal counterparts' values!
@@ -286,7 +285,7 @@ DOMSVGPathSegList::Clear()
     }
 
     InternalList().Clear();
-    Element()->DidChangePathSegList(emptyOrOldValue);
+    Element()->DidChangePathSegList(true);
     if (AttrIsAnimating()) {
       Element()->AnimationNeedsResample();
     }
@@ -372,7 +371,6 @@ DOMSVGPathSegList::InsertItemBefore(nsIDOMSVGPathSeg *aNewItem,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  nsAttrValue emptyOrOldValue = Element()->WillChangePathSegList();
   // Now that we know we're inserting, keep animVal list in sync as necessary.
   MaybeInsertNullInAnimValListAt(aIndex, internalIndex, argCount);
 
@@ -389,7 +387,7 @@ DOMSVGPathSegList::InsertItemBefore(nsIDOMSVGPathSeg *aNewItem,
 
   UpdateListIndicesFromIndex(aIndex + 1, argCount + 1);
 
-  Element()->DidChangePathSegList(emptyOrOldValue);
+  Element()->DidChangePathSegList(true);
   if (AttrIsAnimating()) {
     Element()->AnimationNeedsResample();
   }
@@ -418,7 +416,6 @@ DOMSVGPathSegList::ReplaceItem(nsIDOMSVGPathSeg *aNewItem,
     domItem = domItem->Clone(); // must do this before changing anything!
   }
 
-  nsAttrValue emptyOrOldValue = Element()->WillChangePathSegList();
   if (ItemAt(aIndex)) {
     // Notify any existing DOM item of removal *before* modifying the lists so
     // that the DOM item can copy the *old* value at its index:
@@ -454,7 +451,7 @@ DOMSVGPathSegList::ReplaceItem(nsIDOMSVGPathSeg *aNewItem,
     }
   }
 
-  Element()->DidChangePathSegList(emptyOrOldValue);
+  Element()->DidChangePathSegList(true);
   if (AttrIsAnimating()) {
     Element()->AnimationNeedsResample();
   }
@@ -477,7 +474,6 @@ DOMSVGPathSegList::RemoveItem(PRUint32 aIndex,
   // We have to return the removed item, so make sure it exists:
   EnsureItemAt(aIndex);
 
-  nsAttrValue emptyOrOldValue = Element()->WillChangePathSegList();
   // Notify the DOM item of removal *before* modifying the lists so that the
   // DOM item can copy its *old* value:
   ItemAt(aIndex)->RemovingFromList();
@@ -497,7 +493,7 @@ DOMSVGPathSegList::RemoveItem(PRUint32 aIndex,
 
   UpdateListIndicesFromIndex(aIndex, -(argCount + 1));
 
-  Element()->DidChangePathSegList(emptyOrOldValue);
+  Element()->DidChangePathSegList(true);
   if (AttrIsAnimating()) {
     Element()->AnimationNeedsResample();
   }

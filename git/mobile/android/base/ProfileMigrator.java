@@ -306,9 +306,9 @@ public class ProfileMigrator {
             File cacheFile = GeckoAppShell.getCacheDir();
             File[] files = cacheFile.listFiles();
             if (files != null) {
-                Iterator<File> cacheFiles = Arrays.asList(files).iterator();
+                Iterator cacheFiles = Arrays.asList(files).iterator();
                 while (cacheFiles.hasNext()) {
-                    File libFile = cacheFiles.next();
+                    File libFile = (File)cacheFiles.next();
                     if (libFile.getName().endsWith(".so")) {
                         libFile.delete();
                     }

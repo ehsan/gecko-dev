@@ -263,7 +263,6 @@ public:
    * been created by this ImageContainer.
    * Can be called on any thread. This method takes mReentrantMonitor
    * when accessing thread-shared state.
-   * aImage can be null. While it's null, nothing will be painted.
    * 
    * The Image data must not be modified after this method is called!
    */

@@ -307,9 +307,9 @@ public class GeckoAppShell
         if (files == null)
             return false;
         try {
-            Iterator<File> fileIterator = Arrays.asList(files).iterator();
+            Iterator fileIterator = Arrays.asList(files).iterator();
             while (fileIterator.hasNext()) {
-                File file = fileIterator.next();
+                File file = (File)fileIterator.next();
                 File dest = new File(to, file.getName());
                 if (file.isDirectory())
                     retVal = moveDir(file, dest) ? retVal : false;
@@ -421,9 +421,9 @@ public class GeckoAppShell
             // remove any previously extracted libs
             File[] files = cacheFile.listFiles();
             if (files != null) {
-                Iterator<File> cacheFiles = Arrays.asList(files).iterator();
+                Iterator cacheFiles = Arrays.asList(files).iterator();
                 while (cacheFiles.hasNext()) {
-                    File libFile = cacheFiles.next();
+                    File libFile = (File)cacheFiles.next();
                     if (libFile.getName().endsWith(".so"))
                         libFile.delete();
                 }
@@ -1007,7 +1007,7 @@ public class GeckoAppShell
             String resource = imageUri.getSchemeSpecificPart();
             resource = resource.substring(resource.lastIndexOf('/') + 1);
             try {
-                Class<R.drawable> drawableClass = R.drawable.class;
+                Class drawableClass = R.drawable.class;
                 Field f = drawableClass.getField(resource);
                 icon = f.getInt(null);
             } catch (Exception e) {} // just means the resource doesn't exist
@@ -1715,9 +1715,9 @@ public class GeckoAppShell
                 return "";
             
             ArrayList<GeckoEventListener> listeners = mEventListeners.get(type);
-            Iterator<GeckoEventListener> items = listeners.iterator();
+            Iterator items = listeners.iterator();
             while (items.hasNext()) {
-                items.next().handleMessage(type, geckoObject);
+                ((GeckoEventListener) items.next()).handleMessage(type, geckoObject);
             }
 
         } catch (Exception e) {

@@ -340,13 +340,49 @@ static bool UnloadPluginsASAP()
   nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
   if (NS_SUCCEEDED(rv)) {
     bool unloadPluginsASAP = false;
-    rv = pref->GetBoolPref("dom.ipc.plugins.unloadASAP", &unloadPluginsASAP);
+    rv = pref->GetBoolPref("plugins.unloadASAP", &unloadPluginsASAP);
     if (NS_SUCCEEDED(rv)) {
       return unloadPluginsASAP;
     }
   }
 
   return false;
+}
+
+// helper struct for asynchronous handling of plugin unloading
+class nsPluginUnloadEvent : public nsRunnable {
+public:
+  nsPluginUnloadEvent(PRLibrary* aLibrary)
+    : mLibrary(aLibrary)
+  {}
+ 
+  NS_DECL_NSIRUNNABLE
+ 
+  PRLibrary* mLibrary;
+};
+
+NS_IMETHODIMP nsPluginUnloadEvent::Run()
+{
+  if (mLibrary) {
+    // put our unload call in a safety wrapper
+    NS_TRY_SAFE_CALL_VOID(PR_UnloadLibrary(mLibrary), nsnull);
+  } else {
+    NS_WARNING("missing library from nsPluginUnloadEvent");
+  }
+  return NS_OK;
+}
+
+// unload plugin asynchronously if possible, otherwise just unload now
+nsresult nsPluginHost::PostPluginUnloadEvent(PRLibrary* aLibrary)
+{
+  nsCOMPtr<nsIRunnable> ev = new nsPluginUnloadEvent(aLibrary);
+  if (ev && NS_SUCCEEDED(NS_DispatchToCurrentThread(ev)))
+    return NS_OK;
+
+  // failure case
+  NS_TRY_SAFE_CALL_VOID(PR_UnloadLibrary(aLibrary), nsnull);
+
+  return NS_ERROR_FAILURE;
 }
 
 nsPluginHost::nsPluginHost()
@@ -375,10 +411,6 @@ nsPluginHost::nsPluginHost()
   if (obsService) {
     obsService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
     obsService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, false);
-#ifdef MOZ_WIDGET_ANDROID
-    obsService->AddObserver(this, "application-foreground", false);
-    obsService->AddObserver(this, "application-background", false);
-#endif
   }
 
 #ifdef PLUGIN_LOGGING
@@ -395,8 +427,8 @@ nsPluginHost::nsPluginHost()
 #endif
 
 #ifdef MAC_CARBON_PLUGINS
-  mVisiblePluginTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
-  mHiddenPluginTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
+  mVisiblePluginTimer = do_CreateInstance("@mozilla.org/timer;1");
+  mHiddenPluginTimer = do_CreateInstance("@mozilla.org/timer;1");
 #endif
 }
 
@@ -500,7 +532,7 @@ nsresult nsPluginHost::ReloadPlugins(bool reloadPages)
       p->mNext = nsnull;
 
       // attempt to unload plugins whenever they are removed from the list
-      p->TryUnloadPlugin(false);
+      p->TryUnloadPlugin();
 
       p = next;
       continue;
@@ -843,7 +875,7 @@ nsresult nsPluginHost::Destroy()
 
   nsPluginTag *pluginTag;
   for (pluginTag = mPlugins; pluginTag; pluginTag = pluginTag->mNext) {
-    pluginTag->TryUnloadPlugin(true);
+    pluginTag->TryUnloadPlugin();
   }
 
   NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mPlugins, mNext);
@@ -881,33 +913,8 @@ void nsPluginHost::OnPluginInstanceDestroyed(nsPluginTag* aPluginTag)
     }
   }
 
-  // We have some options for unloading plugins if they have no instances.
-  //
-  // Unloading plugins immediately can be bad - some plugins retain state
-  // between instances even when there are none. This is largely limited to
-  // going from one page to another, so state is retained without an instance
-  // for only a very short period of time. In order to allow this to work
-  // we don't unload plugins immediately by default. This is supported
-  // via a hidden user pref though.
-  //
-  // Another reason not to unload immediately is that loading is expensive,
-  // and it is better to leave popular plugins loaded.
-  //
-  // Our default behavior is to try to unload a plugin three minutes after
-  // its last instance is destroyed. This seems like a reasonable compromise
-  // that allows us to reclaim memory while allowing short state retention
-  // and avoid perf hits for loading popular plugins.
-  if (!hasInstance) {
-    if (UnloadPluginsASAP()) {
-      aPluginTag->TryUnloadPlugin(false);
-    } else {
-      if (aPluginTag->mUnloadTimer) {
-        aPluginTag->mUnloadTimer->Cancel();
-      } else {
-        aPluginTag->mUnloadTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
-      }
-      aPluginTag->mUnloadTimer->InitWithCallback(this, 1000 * 60 * 3, nsITimer::TYPE_ONE_SHOT);
-    }
+  if (!hasInstance && UnloadPluginsASAP()) {
+    aPluginTag->TryUnloadPlugin();
   }
 }
 
@@ -1339,12 +1346,6 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
   if (NS_FAILED(rv)) {
     aOwner->SetInstance(nsnull);
     return rv;
-  }
-
-  // Cancel the plugin unload timer since we are creating
-  // an instance for it.
-  if (pluginTag->mUnloadTimer) {
-    pluginTag->mUnloadTimer->Cancel();
   }
 
   mInstances.AppendElement(instance.get());
@@ -2193,7 +2194,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
       // the library in the process then we want to attempt to unload it here.
       // Only do this if the pref is set for aggressive unloading.
       if (UnloadPluginsASAP()) {
-        pluginTag->TryUnloadPlugin(false);
+        pluginTag->TryUnloadPlugin();
       }
     }
 
@@ -2620,7 +2621,7 @@ nsPluginHost::WritePluginInfo()
       PR_fprintf(fd, "%lld%c%d%c%lu%c%c\n",
         tag->mLastModifiedTime,
         PLUGIN_REGISTRY_FIELD_DELIMITER,
-        false, // did store whether or not to unload in-process plugins
+        tag->mCanUnloadLibrary,
         PLUGIN_REGISTRY_FIELD_DELIMITER,
         tag->Flags(),
         PLUGIN_REGISTRY_FIELD_DELIMITER,
@@ -2884,6 +2885,7 @@ nsPluginHost::ReadPluginInfo()
 
     // If this is an old plugin registry mark this plugin tag to be refreshed
     PRInt64 lastmod = (vdiff == 0) ? nsCRT::atoll(values[0]) : -1;
+    bool canunload = atoi(values[1]);
     PRUint32 tagflag = atoi(values[2]);
     if (!reader.NextLine())
       return rv;
@@ -2943,7 +2945,7 @@ nsPluginHost::ReadPluginInfo()
       (const char* const*)mimetypes,
       (const char* const*)mimedescriptions,
       (const char* const*)extensions,
-      mimetypecount, lastmod, true);
+      mimetypecount, lastmod, canunload, true);
     if (heapalloced)
       delete [] heapalloced;
 
@@ -3385,24 +3387,6 @@ NS_IMETHODIMP nsPluginHost::Observe(nsISupports *aSubject,
       mInstances[i]->PrivateModeStateChanged();
     }
   }
-#ifdef MOZ_WIDGET_ANDROID
-  if (!nsCRT::strcmp("application-background", aTopic)) {
-    for(PRUint32 i = 0; i < mInstances.Length(); i++) {
-      mInstances[i]->NotifyForeground(false);
-    }
-  }
-  if (!nsCRT::strcmp("application-foreground", aTopic)) {
-    for(PRUint32 i = 0; i < mInstances.Length(); i++) {
-      if (mInstances[i]->IsOnScreen())
-        mInstances[i]->NotifyForeground(true);
-    }
-  }
-  if (!nsCRT::strcmp("memory-pressure", aTopic)) {
-    for(PRUint32 i = 0; i < mInstances.Length(); i++) {
-      mInstances[i]->MemoryPressure();
-    }
-  }
-#endif
   return NS_OK;
 }
 
@@ -3886,18 +3870,6 @@ NS_IMETHODIMP nsPluginHost::Notify(nsITimer* timer)
     return NS_OK;
   }
 #endif
-
-  nsRefPtr<nsPluginTag> pluginTag = mPlugins;
-  while (pluginTag) {
-    if (pluginTag->mUnloadTimer == timer) {
-      if (!IsRunningPlugin(pluginTag)) {
-        pluginTag->TryUnloadPlugin(false);
-      }
-      return NS_OK;
-    }
-    pluginTag = pluginTag->mNext;
-  }
-
   return NS_ERROR_FAILURE;
 }
 

@@ -85,12 +85,13 @@ protected:
     DWORD CheckIPAddrTable(void);
     DWORD CheckAdaptersInfo(void);
     DWORD CheckAdaptersAddresses(void);
-    bool  CheckIsGateway(PIP_ADAPTER_ADDRESSES aAdapter);
-    bool  CheckICSStatus(PWCHAR aAdapterName);
+    BOOL  CheckIsGateway(PIP_ADAPTER_ADDRESSES aAdapter);
+    BOOL  CheckICSStatus(PWCHAR aAdapterName);
     void  CheckLinkStatus(void);
 
     nsCOMPtr<nsIThread> mThread;
 
+    OSVERSIONINFO mOSVerInfo;
     HANDLE        mShutdownEvent;
 };
 

@@ -187,7 +187,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     /** Close tab and then select nextTab */
-    public void closeTab(final Tab tab, Tab nextTab) {
+    public void closeTab(Tab tab, Tab nextTab) {
         if (tab == null || nextTab == null)
             return;
 
@@ -195,14 +195,15 @@ public class Tabs implements GeckoEventListener {
 
         int tabId = tab.getId();
         removeTab(tabId);
+        tab.removeAllDoorHangers();
 
+        final Tab closedTab = tab;
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() { 
             public void run() {
-                GeckoApp.mAppContext.onTabsChanged(tab);
+                GeckoApp.mAppContext.onTabsChanged(closedTab);
                 GeckoApp.mBrowserToolbar.updateTabCountAndAnimate(Tabs.getInstance().getCount());
                 GeckoApp.mDoorHangerPopup.updatePopup();
-                GeckoApp.mAppContext.hidePlugins(tab, true);
-                tab.onDestroy();
+                GeckoApp.mAppContext.hidePlugins(closedTab, true);
             }
         });
 

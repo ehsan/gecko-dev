@@ -62,11 +62,13 @@ public:
                             hb_codepoint_t variation_selector) const;
 
     // get harfbuzz glyph advance, in font design units
-    hb_position_t GetGlyphHAdvance(gfxContext *aContext,
-                                   hb_codepoint_t glyph) const;
+    void GetGlyphAdvance(gfxContext *aContext,
+                         hb_codepoint_t glyph,
+                         hb_position_t *x_advance,
+                         hb_position_t *y_advance) const;
 
-    hb_position_t GetHKerning(PRUint16 aFirstGlyph,
-                              PRUint16 aSecondGlyph) const;
+    hb_position_t GetKerning(PRUint16 aFirstGlyph,
+                             PRUint16 aSecondGlyph) const;
 
 protected:
     nsresult SetGlyphsFromRun(gfxContext *aContext,

@@ -118,7 +118,7 @@ public:
 
   nsresult SetBaseValueString(const nsAString& aValue,
                               nsSVGElement *aSVGElement);
-  void GetBaseValueString(nsAString& aValue) const;
+  void GetBaseValueString(nsAString& aValue);
 
   nsresult SetBaseAlign(PRUint16 aAlign, nsSVGElement *aSVGElement);
   nsresult SetBaseMeetOrSlice(PRUint16 aMeetOrSlice, nsSVGElement *aSVGElement);

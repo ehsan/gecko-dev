@@ -3,32 +3,25 @@
 LC_ALL=C
 export LC_ALL
 
-test -z "$srcdir" && srcdir=.
-stat=0
-
-
 if which ldd 2>/dev/null >/dev/null; then
 	:
 else
 	echo "check-libstdc++.sh: 'ldd' not found; skipping test"
-	exit 77
+	exit 0
 fi
 
-tested=false
-for suffix in so dylib; do
-	so=.libs/libharfbuzz.$suffix
-	if test -f "$so"; then
-		echo "Checking that we are not linking to libstdc++"
-		if ldd $so | grep 'libstdc[+][+]'; then
-			echo "Ouch, linked to libstdc++"
-			stat=1
-		fi
-		tested=true
+test -z "$srcdir" && srcdir=.
+stat=0
+
+so=.libs/libharfbuzz.so
+if test -f "$so"; then
+	echo "Checking that we are not linking to libstdc++"
+	if ldd $so | grep 'libstdc[+][+]'; then
+		echo "Ouch, linked to libstdc++"
+		stat=1
 	fi
-done
-if ! $tested; then
-	echo "check-internal-symbols.sh: libharfbuzz shared library not found; skipping test"
-	exit 77
+else
+	echo "check-libstdc++.sh: libharfbuzz.so not found; skipping test"
 fi
 
 exit $stat

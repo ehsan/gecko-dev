@@ -215,9 +215,9 @@ public class Favicons {
 
         // Cancel any pending tasks
         Set<Long> taskIds = mLoadTasks.keySet();
-        Iterator<Long> iter = taskIds.iterator();
+        Iterator iter = taskIds.iterator();
         while (iter.hasNext()) {
-            long taskId = iter.next();
+            long taskId = (Long) iter.next();
             cancelFaviconLoad(taskId);
         }
     }
