@@ -27,10 +27,6 @@ using namespace ABI::Windows::Foundation;
 
 // ProcessNextNativeEvent message wait timeout, see bug 907410.
 #define MSG_WAIT_TIMEOUT 250
-// MetroInput will occasionally ask us to flush all input so that the dom is
-// up to date. This is the maximum amount of time we'll agree to spend in
-// NS_ProcessPendingEvents.
-#define PURGE_MAX_TIMEOUT 50
 
 namespace mozilla {
 namespace widget {
@@ -47,8 +43,7 @@ extern UINT sAppShellGeckoMsgId;
 
 static ComPtr<ICoreWindowStatic> sCoreStatic;
 static bool sIsDispatching = false;
-static bool sShouldPurgeThreadQueue = false;
-static bool sBlockNativeEvents = false;
+static bool sWillEmptyThreadQueue = false;
 
 MetroAppShell::~MetroAppShell()
 {
@@ -250,7 +245,7 @@ MetroAppShell::Run(void)
 void // static
 MetroAppShell::MarkEventQueueForPurge()
 {
-  sShouldPurgeThreadQueue = true;
+  sWillEmptyThreadQueue = true;
 
   // If we're dispatching native events, wait until the dispatcher is
   // off the stack.
@@ -262,32 +257,19 @@ MetroAppShell::MarkEventQueueForPurge()
   DispatchAllGeckoEvents();
 }
 
-// Notification from MetroInput that all events it wanted delivered
-// have been dispatched. It is safe to start processing windowing
-// events.
-void // static
-MetroAppShell::InputEventsDispatched()
-{
-  sBlockNativeEvents = false;
-}
-
 // static
 void
 MetroAppShell::DispatchAllGeckoEvents()
 {
-  // Only do this if requested
-  if (!sShouldPurgeThreadQueue) {
+  if (!sWillEmptyThreadQueue) {
     return;
   }
 
   NS_ASSERTION(NS_IsMainThread(), "DispatchAllGeckoEvents should be called on the main thread");
 
-  sShouldPurgeThreadQueue = false;
-
-  sBlockNativeEvents = true;
+  sWillEmptyThreadQueue = false;
   nsIThread *thread = NS_GetCurrentThread();
-  NS_ProcessPendingEvents(thread, PURGE_MAX_TIMEOUT);
-  sBlockNativeEvents = false;
+  NS_ProcessPendingEvents(thread, 0);
 }
 
 static void
@@ -335,15 +317,6 @@ MetroAppShell::ProcessOneNativeEventIfPresent()
 bool
 MetroAppShell::ProcessNextNativeEvent(bool mayWait)
 {
-  // NS_ProcessPendingEvents will process thread events *and* call
-  // nsBaseAppShell::OnProcessNextEvent to process native events. However
-  // we do not want native events getting dispatched while we are trying
-  // to dispatch pending input in DispatchAllGeckoEvents since a native
-  // event may be a UIA Automation call coming in to check focus.
-  if (sBlockNativeEvents) {
-    return false;
-  }
-
   if (ProcessOneNativeEventIfPresent()) {
     return true;
   }

@@ -43,17 +43,11 @@ function checkMessage(message, delivery, body) {
   ok(message.receiver, "message.receiver");
   is(message.body, body, "message.body");
   is(message.messageClass, "normal", "message.messageClass");
-  is(message.read, true, "message.read");
 
   // TODO: bug 788928 - add test cases for deliverysuccess event.
   is(message.deliveryTimestamp, 0, "deliveryTimestamp is 0");
 
-  // Test message.sentTimestamp.
-  if (message.delivery == "sending") {
-    ok(message.sentTimestamp == 0, "message.sentTimestamp should be 0");
-  } else if (message.delivery == "sent") {
-    ok(message.sentTimestamp != 0, "message.sentTimestamp shouldn't be 0");
-  }
+  is(message.read, true, "message.read");
 }
 
 function doSendMessageAndCheckSuccess(receivers, body, callback) {
@@ -96,7 +90,8 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
     is(message.id, saved.id, "message.id");
     is(message.receiver, saved.receiver, "message.receiver");
     is(message.body, saved.body, "message.body");
-    is(message.timestamp, saved.timestamp, "message.timestamp");
+    is(message.timestamp, saved.timestamp,
+       "the messages got from onsent event and request result must be the same");
 
     opt[mark] = true;
 

@@ -7470,7 +7470,7 @@ let GsmPDUHelper = {
     // - TP-Data-Coding-Scheme -
     this.readDataCodingScheme(msg);
     // - TP-Service-Center-Time-Stamp -
-    msg.sentTimestamp = this.readTimestamp();
+    msg.timestamp = this.readTimestamp();
     // - TP-User-Data-Length -
     let userDataLength = this.readHexOctet();
 

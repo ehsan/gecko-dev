@@ -235,11 +235,19 @@ APZController::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
 void
 APZController::HandleDoubleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
 {
+  NS_ConvertASCIItoUTF16 data(
+      nsPrintfCString("{ \"x\": %d, \"y\": %d, \"modifiers\": %d }",
+      (int32_t)aPoint.x, (int32_t)aPoint.y, aModifiers));
+  MetroUtils::FireObserver("Gesture:DoubleTap", data.get());
 }
 
 void
 APZController::HandleSingleTap(const CSSIntPoint& aPoint, int32_t aModifiers)
 {
+  NS_ConvertASCIItoUTF16 data(
+      nsPrintfCString("{ \"x\": %d, \"y\": %d, \"modifiers\": %d }",
+      (int32_t)aPoint.x, (int32_t)aPoint.y, aModifiers));
+  MetroUtils::FireObserver("Gesture:SingleTap", data.get());
 }
 
 void

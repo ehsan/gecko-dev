@@ -171,12 +171,11 @@ public class GeckoMenu extends ListView
             }
         });
 
-        if (mActionItemBarPresenter.addActionItem(actionView)) {
-            mActionItems.put(menuItem, actionView);
-            mItems.add(menuItem);
-            return true;
-        }
-        return false;
+        mActionItems.put(menuItem, actionView);
+        mActionItemBarPresenter.addActionItem(actionView);
+        mItems.add(menuItem);
+
+        return true;
     }
 
     @Override

@@ -9,4 +9,3 @@ from marionette_test import MarionetteTestCase, MarionetteJSTestCase, CommonTest
 from emulator import Emulator
 from errors import *
 from runner import *
-from wait import Wait
